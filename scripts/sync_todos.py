@@ -21,6 +21,10 @@ import sys
 
 SHEET_KEY = "1hawaSxsCEZObOvEB-US8jztUDdSvOMGXWqY0LeeaFew"
 
+# Keep each worksheet padded to this many rows so the native Google Sheets
+# "add 1000 more rows" button stays far below the data, out of view.
+MIN_ROWS = 1000
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 TODO_PATH = os.path.join(ROOT, "TODO.md")
@@ -30,13 +34,17 @@ PRIORITY = {"🔴": "High", "🟠": "Medium", "🟡": "Low", "🟢": "Idea", "�
 PRIO_RU = {"High": "Высокий", "Medium": "Средний", "Low": "Низкий",
            "Idea": "Идея", "Cosmetic": "Косметика", "": ""}
 STATUS_RU = {"Done": "Готово", "Todo": "К выполнению"}
-HEADER_RU = ["ID", "Приоритет", "Задача", "Статус", "Примечания"]
-COL_WIDTHS = [70, 95, 540, 120, 360]
+HEADER_RU = ["ID", "Приоритет", "Задача", "Детали задачи", "Статус", "Примечания"]
+COL_WIDTHS = [60, 90, 250, 820, 120, 240]
+
+# Section headings (substring, lower-cased) excluded from the sync entirely —
+# they stay in TODO.md as backlog but get no worksheet/tab.
+SKIP_SECTIONS = ["позже", "идеи"]
 
 # Map a section heading (substring, lower-cased) -> short tab title, in order.
 SECTION_TABS = [
     ("сквозная проверка", "Проверка модуля"),
-    ("предложения по улучшению", "Предложения · Фаза 1"),
+    ("предложения по улучшению", "Решения"),
     ("позже", "Идеи / позже"),
     ("недавно сделано", "Сделано"),
 ]
@@ -49,7 +57,12 @@ STATUS_COLORS = {"Готово": "#d9ead3", "К выполнению": "#f3f3f3"
 
 
 def parse_todos(text):
-    """TODO.md -> list of (section, id, priority_en, task, status_en, notes)."""
+    """TODO.md -> list of (section, id, priority_en, name, task, status_en, notes).
+
+    The main `- [ ]` line becomes the short title (Наименование); indented
+    sub-bullets fold into the details cell (Задача). For simple title-only items
+    (no sub-bullets) a trailing " — note" is split off into Примечания.
+    """
     rows, section = [], ""
     for raw in text.splitlines():
         line = raw.rstrip()
@@ -59,6 +72,14 @@ def parse_todos(text):
             continue
         item = re.match(r"^\s*-\s*\[([ xX])\]\s*(.*)", line)
         if not item:
+            # Indented continuation (sub-bullet or wrapped text) folds into the
+            # previous item's "Задача" details cell.
+            cont = re.match(r"^\s+(?:[-*]\s+)?(\S.*)", line)
+            if cont and rows:
+                s, tid, prio, name, task, status, notes = rows[-1]
+                extra = re.sub(r"\s+", " ", cont.group(1)).strip().replace("**", "")
+                task = (task + "\n• " + extra) if task else "• " + extra
+                rows[-1] = (s, tid, prio, name, task, status, notes)
             continue
         done = item.group(1).lower() == "x"
         rest = item.group(2).strip()
@@ -69,19 +90,24 @@ def parse_todos(text):
         else:
             tid = ""
         prio = ""
-        for emoji, name in PRIORITY.items():
+        for emoji, pname in PRIORITY.items():
             if emoji in rest:
-                prio = name
+                prio = pname
                 rest = rest.replace(emoji, "").strip()
                 break
-        task, notes = rest, ""
-        for sep in (" — ", " – ", " - "):
-            if sep in rest:
-                task, notes = rest.split(sep, 1)
-                break
-        rows.append((section, tid, prio, task.strip(),
-                     "Done" if done else "Todo", notes.strip()))
-    return rows
+        name = rest.replace("**", "").strip()
+        rows.append((section, tid, prio, name, "",
+                     "Done" if done else "Todo", ""))
+    # Title-only items (no details): split a trailing " — note" into Примечания.
+    out = []
+    for s, tid, prio, name, task, status, notes in rows:
+        if not task:
+            for sep in (" — ", " – ", " - "):
+                if sep in name:
+                    name, notes = name.split(sep, 1)
+                    break
+        out.append((s, tid, prio, name.strip(), task.strip(), status, notes.strip()))
+    return out
 
 
 def tab_title(section):
@@ -96,12 +122,15 @@ def tab_title(section):
 def group_rows(rows):
     """Ordered: [(tab_title, [[ID, Приоритет, Задача, Статус, Примечания], ...])]."""
     groups, order = {}, []
-    for section, tid, prio, task, status, notes in rows:
+    for section, tid, prio, name, task, status, notes in rows:
+        low = section.lower()
+        if any(skip in low for skip in SKIP_SECTIONS):
+            continue
         title = tab_title(section)
         if title not in groups:
             groups[title] = []
             order.append(title)
-        groups[title].append([tid, PRIO_RU.get(prio, prio), task,
+        groups[title].append([tid, PRIO_RU.get(prio, prio), name, task,
                               STATUS_RU.get(status, status), notes])
     return [(t, groups[t]) for t in order]
 
@@ -149,7 +178,7 @@ def sheet_requests(sid, index, nrows):
                       "startIndex": col, "endIndex": col + 1},
             "properties": {"pixelSize": width}, "fields": "pixelSize"}})
     idx = 0
-    for col, table in ((1, PRIO_COLORS), (3, STATUS_COLORS)):
+    for col, table in ((1, PRIO_COLORS), (4, STATUS_COLORS)):
         for value, hexbg in table.items():
             reqs.append({"addConditionalFormatRule": {"rule": {
                 "ranges": [{"sheetId": sid, "startRowIndex": 1,
@@ -202,13 +231,13 @@ def main():
         # Ensure a worksheet per group (reuse or create), then write values.
         sheets = []
         for title, rows in groups:
-            need = len(rows) + 1
+            need = max(len(rows) + 1, MIN_ROWS)
             if title in existing:
                 ws = existing[title]
-                ws.resize(rows=max(need, 2), cols=len(HEADER_RU) + 2)
+                ws.resize(rows=need, cols=len(HEADER_RU) + 2)
                 ws.clear()
             else:
-                ws = sh.add_worksheet(title=title, rows=max(need, 2),
+                ws = sh.add_worksheet(title=title, rows=need,
                                       cols=len(HEADER_RU) + 2)
             ws.update(values=[HEADER_RU] + rows, range_name="A1")
             sheets.append((ws, rows))
