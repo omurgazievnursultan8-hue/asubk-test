@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ПКМ КР №142 — Решение правительства · АСУБК</title>
+<style>
+/* ============================================================
+   ASUBK design tokens (gov-blue / Vaadin Lumo) — inlined from
+   the asubk-design-system handoff bundle (colors/typography/spacing).
+   ============================================================ */
+:root {
+  /* brand */
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36; --asubk-green-active:#0C5429;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  /* neutral ramp */
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  /* tints */
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  /* semantic */
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-success-hover:var(--asubk-green-hover); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  /* type */
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px; --text-xl:24px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --font-app-title:var(--weight-semibold) var(--text-base)/var(--leading-tight) var(--asubk-font);
+  /* spacing / sizing */
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --control-h-sm:28px; --row-h:36px; --header-h:56px; --sidebar-w:320px;
+  --border-w:1px; --focus-ring:2px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+  --shadow-lg:0 8px 24px rgba(24,39,57,0.12);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+::-webkit-scrollbar-track{ background:transparent; }
+a{ color:inherit; }
+
+/* ---------- shell ---------- */
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---------- sidebar ---------- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
+  border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
+.nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
+.nav-sub > .nav-toggle{ padding:8px 16px 8px 32px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font); }
+.nav-toggle:hover{ background:rgba(24,39,57,0.04); }
+.nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
+  transition:transform 120ms ease; flex:none; }
+.nav-group > .nav-toggle .chev{ color:rgba(24,39,57,0.55); }
+.nav-group.open > .nav-toggle .chev,
+.nav-sub.open > .nav-toggle .chev{ transform:rotate(90deg); }
+.nav-toggle .lbl{ flex:1; }
+.nav-children{ display:none; }
+.nav-group.open > .nav-children,
+.nav-sub.open > .nav-children{ display:block; }
+.nav-item{ display:block; padding:7px 16px 7px 52px; text-decoration:none; color:rgba(24,39,57,0.88);
+  font:var(--weight-regular) 15px/1.35 var(--asubk-font); text-wrap:pretty; }
+.nav-item.headerless{ padding-left:40px; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+
+/* ---------- main ---------- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
+.crumb-link{ display:inline-flex; align-items:center; gap:6px; color:var(--text-link);
+  text-decoration:none; font:var(--weight-medium) 14px/1 var(--asubk-font); }
+.crumb-link:hover{ text-decoration:underline; }
+.crumb-sep{ color:var(--text-placeholder); }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+
+.content{ flex:1; overflow:auto; display:flex; flex-direction:column; min-width:0; }
+
+/* ---------- tabs ---------- */
+.tabstrip-wrap{ padding:16px 24px 0; }
+.tabstrip{ display:flex; gap:4px; border-bottom:1px solid var(--border-default); overflow-x:auto; }
+.tab{ border:none; background:transparent; padding:12px 16px;
+  font:var(--weight-regular) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
+.tab:hover{ color:var(--text-body); }
+.tab.active{ font-weight:var(--weight-semibold); color:var(--text-link); border-bottom-color:var(--action-primary); }
+
+.tabbody{ flex:1; padding:22px 24px 16px; min-width:0; }
+.tabpanel{ display:none; }
+.tabpanel.active{ display:block; }
+
+/* ---------- form (Lumo) ---------- */
+.form-grid{ max-width:1120px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 32px; }
+.col-span{ grid-column:1 / -1; }
+
+/* read-only detail view (Общая информация is a view, not an editable form) */
+.view-field{ display:flex; flex-direction:column; gap:4px; padding-bottom:11px;
+  border-bottom:1px solid var(--border-default); }
+.view-field .vlabel{ font:var(--font-label); color:var(--text-muted); }
+.view-field .vvalue{ font:var(--font-body); color:var(--text-body); }
+.view-field .vvalue.empty{ color:var(--text-placeholder); }
+.view-flag{ display:inline-flex; align-items:center; gap:10px; }
+.view-flag .note{ font:var(--font-label); color:var(--text-muted); }
+.field{ display:flex; flex-direction:column; gap:var(--space-1); }
+.field > .flabel{ font:var(--font-label); color:var(--text-muted); }
+.field.required > .flabel{ color:var(--text-link); }
+.field.required > .flabel::after{ content:" \2022"; color:var(--text-link); }
+.control{ position:relative; display:flex; align-items:center; }
+.control input,
+.control select{ width:100%; height:var(--control-h); border-radius:var(--radius-md);
+  background:var(--surface-input); color:var(--text-body); font:var(--font-body);
+  border:1px solid transparent; outline:none; transition:background 120ms ease, box-shadow 120ms ease; }
+.control input{ padding:0 var(--space-3); }
+.control select{ padding:0 var(--space-6) 0 var(--space-3); appearance:none; cursor:pointer; }
+.control input:focus,
+.control select:focus{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+.select-caret{ position:absolute; right:var(--space-3); pointer-events:none; color:var(--text-muted); font-size:10px; }
+
+/* lookup field */
+.lookup{ display:flex; align-items:center; height:var(--control-h); background:var(--surface-input);
+  border-radius:var(--radius-md); border:1px solid transparent; padding-left:var(--space-3); }
+.lookup .val{ flex:1; font:var(--font-body); color:var(--text-body);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lookup button{ display:inline-flex; align-items:center; justify-content:center; width:32px; height:var(--control-h);
+  border:none; background:transparent; color:var(--text-link); cursor:pointer; border-radius:var(--radius-md); }
+.lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
+
+/* checkbox */
+.checkbox{ display:inline-flex; align-items:center; gap:var(--space-2); cursor:pointer;
+  font:var(--font-body); color:var(--text-body); user-select:none; }
+.checkbox .box{ width:18px; height:18px; flex:0 0 18px; border-radius:var(--radius-sm);
+  border:1px solid var(--border-strong); background:var(--surface-card);
+  display:inline-flex; align-items:center; justify-content:center; transition:background 120ms ease, border-color 120ms ease; }
+.checkbox input{ position:absolute; opacity:0; width:0; height:0; }
+.checkbox input:checked + .box{ background:var(--action-primary); border-color:var(--action-primary); }
+.checkbox input:checked + .box svg{ display:block; }
+.checkbox .box svg{ display:none; }
+
+/* ---------- buttons ---------- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap;
+  user-select:none; transition:background 120ms ease; }
+.btn svg{ flex:none; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover{ background:var(--action-primary-hover); }
+.btn-primary:active{ background:var(--asubk-blue-active); }
+.btn-success{ background:var(--action-success); color:#fff; }
+.btn-success:hover{ background:var(--action-success-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover{ background:var(--surface-hover); }
+.btn-danger{ background:var(--action-danger); color:#fff; }
+.btn-danger:hover{ background:var(--asubk-red-hover); }
+.btn:disabled{ background:var(--asubk-disabled-fill); color:var(--text-disabled); border-color:transparent;
+  cursor:not-allowed; }
+
+/* ---------- toolbar ---------- */
+.toolbar{ display:flex; align-items:center; gap:10px; }
+.tab-stack{ display:flex; flex-direction:column; gap:14px; }
+
+/* ---------- data grid ---------- */
+.grid-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md);
+  overflow:hidden; background:var(--surface-card); }
+table.grid{ width:100%; border-collapse:collapse; font:var(--font-body); color:var(--text-body); }
+table.grid th{ text-align:left; font:var(--weight-medium) var(--text-base)/1 var(--asubk-font);
+  color:var(--text-heading); padding:12px 16px; border-bottom:1px solid var(--border-default);
+  white-space:nowrap; cursor:pointer; user-select:none; }
+table.grid th .sort{ color:var(--text-disabled); font-size:11px; margin-left:4px; }
+table.grid td{ padding:10px 16px; border-bottom:1px solid var(--border-default);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:380px; }
+table.grid td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+table.grid th.num{ text-align:right; }
+table.grid tbody tr{ cursor:pointer; }
+table.grid tbody tr:hover{ background:var(--surface-hover); }
+table.grid tbody tr.sel{ background:var(--asubk-nav-active); box-shadow:inset 0 0 0 1px var(--action-primary); }
+
+/* ---------- badge ---------- */
+.badge{ display:inline-flex; align-items:center; gap:var(--space-1); height:22px; padding:0 var(--space-2);
+  border-radius:var(--radius-pill); font:var(--weight-medium) var(--text-xs)/1 var(--asubk-font); white-space:nowrap; }
+.badge.success{ color:var(--status-success); background:var(--status-success-bg); }
+.badge.info{ color:var(--status-info); background:var(--status-info-bg); }
+.badge.warning{ color:var(--status-warning); background:var(--status-warning-bg); }
+.badge.error{ color:var(--status-error); background:var(--status-error-bg); }
+.badge.neutral{ color:var(--text-muted); background:var(--asubk-gray-150); }
+
+/* ---------- history timeline ---------- */
+.timeline{ max-width:760px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-card); padding:20px 22px 8px; }
+.tl-item{ position:relative; padding:0 0 24px 42px; }
+.tl-item:last-child{ padding-bottom:4px; }
+/* connecting line (drawn behind nodes, hidden on the last item) */
+.tl-item::before{ content:""; position:absolute; left:12px; top:28px; bottom:-2px;
+  width:2px; background:var(--border-default); }
+.tl-item:last-child::before{ display:none; }
+.tl-node{ position:absolute; left:0; top:0; width:26px; height:26px; border-radius:var(--radius-pill);
+  display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box;
+  border:1.5px solid var(--action-primary); background:var(--status-info-bg); color:var(--action-primary); }
+.tl-node svg{ width:14px; height:14px; flex:none; }
+.tl-item.success .tl-node{ border-color:var(--asubk-green); background:var(--asubk-green-tint); color:var(--asubk-green); }
+.tl-item.info    .tl-node{ border-color:var(--asubk-blue);  background:var(--asubk-blue-tint);  color:var(--asubk-blue); }
+.tl-item.neutral .tl-node{ border-color:var(--asubk-ink-45); background:var(--asubk-gray-150); color:var(--text-muted); }
+.tl-time{ padding-top:5px; font:var(--weight-medium) var(--text-xs)/1.2 var(--asubk-font); color:var(--text-muted);
+  letter-spacing:.01em; }
+.tl-act{ margin-top:3px; font:var(--weight-regular) 15px/1.45 var(--asubk-font); color:var(--text-body); }
+.tl-user{ margin-top:2px; font:var(--weight-regular) 13px/1.3 var(--asubk-font); color:var(--text-muted); }
+.tl-user .who{ color:var(--text-link); }
+
+/* ---------- footer ---------- */
+.footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
+  padding:14px 24px; display:flex; align-items:center; gap:12px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav" id="nav"><!-- rendered by JS --></div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <span class="menu" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
+      </span>
+      <a class="crumb-link" href="#" onclick="return false;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+        <span>Решения правительства</span>
+      </a>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-title">ПКМ КР №142</span>
+    </header>
+
+    <div class="content">
+      <div class="tabstrip-wrap">
+        <div class="tabstrip" id="tabs">
+          <button class="tab active" data-tab="0">Общая информация</button>
+          <button class="tab" data-tab="1">Кредитные программы</button>
+          <button class="tab" data-tab="2">Документы</button>
+          <button class="tab" data-tab="3">История</button>
+        </div>
+      </div>
+
+      <div class="tabbody">
+
+        <!-- Tab 0 — Общая информация (read-only view) -->
+        <section class="tabpanel active" data-panel="0">
+          <div class="form-grid">
+            <div class="view-field">
+              <span class="vlabel">Вид решения</span>
+              <span class="vvalue">Постановление</span>
+            </div>
+
+            <div class="view-field">
+              <span class="vlabel">Номер решения</span>
+              <span class="vvalue">ПКМ КР №142</span>
+            </div>
+
+            <div class="view-field">
+              <span class="vlabel">Дата решения</span>
+              <span class="vvalue">18.02.2026</span>
+            </div>
+
+            <div class="view-field">
+              <span class="vlabel">Орган, принявший решение</span>
+              <span class="vvalue">Кабинет Министров Кыргызской Республики</span>
+            </div>
+
+            <div class="view-field col-span">
+              <span class="vlabel">Наименование</span>
+              <span class="vvalue">Об утверждении Программы льготного кредитования агропромышленного комплекса на 2026 год</span>
+            </div>
+
+            <div class="view-field col-span">
+              <span class="vlabel">Примечание</span>
+              <span class="vvalue">Лимиты распределяются между банками-партнёрами согласно приложению 2.</span>
+            </div>
+
+            <div class="view-field col-span">
+              <span class="vlabel">Действующее решение</span>
+              <span class="vvalue view-flag">
+                <span class="badge success">Да</span>
+                <span class="note">учитывается при формировании программ</span>
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tab 1 — Кредитные программы -->
+        <section class="tabpanel" data-panel="1">
+          <div class="tab-stack">
+            <div class="toolbar">
+              <button class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                Создать
+              </button>
+              <button class="btn btn-secondary" id="progEdit" disabled>Изменить</button>
+            </div>
+            <div class="grid-wrap">
+              <table class="grid" id="progGrid">
+                <thead><tr>
+                  <th style="width:140px">Код программы<span class="sort">↕</span></th>
+                  <th style="width:380px">Наименование<span class="sort">↕</span></th>
+                  <th class="num" style="width:180px">Лимит, сом<span class="sort">↕</span></th>
+                  <th style="width:110px">Ставка<span class="sort">↕</span></th>
+                  <th style="width:150px">Статус<span class="sort">↕</span></th>
+                </tr></thead>
+                <tbody>
+                  <tr><td>АПК-2026</td><td>Льготное кредитование агропромышленного комплекса</td><td class="num">1 500 000 000,00</td><td>4% годовых</td><td><span class="badge success">Действует</span></td></tr>
+                  <tr><td>АПК-СЕМ</td><td>Сезонные займы на полевые работы</td><td class="num">600 000 000,00</td><td>6% годовых</td><td><span class="badge success">Действует</span></td></tr>
+                  <tr><td>АПК-ТЕХ</td><td>Обновление сельскохозяйственной техники</td><td class="num">400 000 000,00</td><td>5% годовых</td><td><span class="badge info">На рассмотрении</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tab 2 — Документы -->
+        <section class="tabpanel" data-panel="2">
+          <div class="tab-stack">
+            <div class="toolbar">
+              <button class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+                Загрузить
+              </button>
+            </div>
+            <div class="grid-wrap">
+              <table class="grid" id="docGrid">
+                <thead><tr>
+                  <th style="width:420px">Наименование документа<span class="sort">↕</span></th>
+                  <th style="width:180px">Тип<span class="sort">↕</span></th>
+                  <th style="width:150px">Дата загрузки<span class="sort">↕</span></th>
+                  <th class="num" style="width:120px">Размер<span class="sort">↕</span></th>
+                </tr></thead>
+                <tbody>
+                  <tr><td>Постановление ПКМ КР №142.pdf</td><td>Постановление</td><td>18.02.2026</td><td class="num">2,4 МБ</td></tr>
+                  <tr><td>Приложение 1 — Условия программы.pdf</td><td>Приложение</td><td>18.02.2026</td><td class="num">880 КБ</td></tr>
+                  <tr><td>Приложение 2 — Распределение лимитов.xlsx</td><td>Приложение</td><td>18.02.2026</td><td class="num">64 КБ</td></tr>
+                  <tr><td>Пояснительная записка.docx</td><td>Сопроводительный</td><td>12.02.2026</td><td class="num">120 КБ</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tab 3 — История -->
+        <section class="tabpanel" data-panel="3">
+          <div class="timeline">
+            <div class="tl-item success"><span class="tl-node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+              <div class="tl-time">18.02.2026 · 10:24</div>
+              <div class="tl-act">Решение утверждено, статус изменён на «Действует».</div>
+              <div class="tl-user">Исполнитель: <span class="who">admin</span></div>
+            </div>
+            <div class="tl-item info"><span class="tl-node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></span>
+              <div class="tl-time">17.02.2026 · 16:40</div>
+              <div class="tl-act">Добавлена кредитная программа «АПК-ТЕХ».</div>
+              <div class="tl-user">Исполнитель: <span class="who">b.asanov</span></div>
+            </div>
+            <div class="tl-item info"><span class="tl-node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></span>
+              <div class="tl-time">14.02.2026 · 11:05</div>
+              <div class="tl-act">Загружено приложение «Распределение лимитов».</div>
+              <div class="tl-user">Исполнитель: <span class="who">b.asanov</span></div>
+            </div>
+            <div class="tl-item neutral"><span class="tl-node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+              <div class="tl-time">12.02.2026 · 09:30</div>
+              <div class="tl-act">Создан черновик решения.</div>
+              <div class="tl-user">Исполнитель: <span class="who">admin</span></div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- sticky footer actions (view mode) -->
+      <div class="footer">
+        <button class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+          Изменить
+        </button>
+        <button class="btn btn-secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          Назад
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---- sidebar tree (reorganized 7-group IA, Кредиты open, Решение правительства active) ---- */
+const TREE = [
+  { id:"k", label:"Кредиты", open:true, subs:[
+    { id:"k-prog", label:"Программы и решения", open:true, items:[
+      { label:"Решение правительства", slug:"gov-decisions", active:true },
+      { label:"Кредитные программы", slug:"loan-programs" } ] },
+    { id:"k-app", label:"Заявки и комиссии", items:[
+      { label:"Заявки", slug:"loan-applications" },
+      { label:"Комиссии по заявкам", slug:"loan-application-commissions" },
+      { label:"Комиссии", slug:"commissions" } ] },
+    { id:"k-borr", label:"Заемщики", items:[ { label:"Заемщики", slug:"loan-applicants" } ] },
+    { id:"k-loan", label:"Кредиты и транши", items:[
+      { label:"Кредиты", slug:"loansCredit" },
+      { label:"Список траншей", slug:"sub-loans" },
+      { label:"Кредитная линия", slug:"loan-credit-lines" } ] },
+    { id:"k-disb", label:"Освоение и платежи", items:[
+      { label:"Освоение", slug:"disbursements" },
+      { label:"Платеж", slug:"payments" },
+      { label:"Резерв", slug:"loan-reserves" },
+      { label:"Реестр кредитов", slug:"loan-ledgers" } ] },
+    { id:"k-col", label:"Залог", items:[ { label:"Мониторинг залога", slug:"collateral-monitoring" } ] },
+    { id:"k-rec", label:"Взыскание", items:[
+      { label:"Процессы взыскания задолженности", slug:"debt-collection-processes" },
+      { label:"Досудебный порядок", slug:"debt-collection-pre-trial-actions" },
+      { label:"Судебный порядок", slug:"debt-collection-judicial-actions" },
+      { label:"Исполнительное производство", slug:"debt-collection-enforcement-actions" } ] },
+    { id:"k-contr", label:"Договоры", items:[
+      { label:"Шаблоны договоров", slug:"agreement-templates" },
+      { label:"Счет для оплаты", slug:"payment-purpose-requisites" } ] },
+  ]},
+  { id:"g", label:"Поручительства", subs:[
+    { id:"g-all", headerless:true, items:[
+      { label:"Анкеты поручительств", slug:"loan-guarantees" },
+      { label:"Поручительства", slug:"loan-guarantees2" },
+      { label:"Решения по поручительству", slug:"loan-guarantee-decisions" } ] },
+  ]},
+  { id:"s", label:"Субсидии", subs:[
+    { id:"s-prog", label:"Программы и проекты", items:[
+      { label:"Государственные программы", slug:"govProgramses" },
+      { label:"Проекты субсидирования", slug:"subsidyProjects" } ] },
+    { id:"s-req", label:"Запросы и выплаты", items:[
+      { label:"Запрос субсидии", slug:"subsidy-requests" },
+      { label:"Субсидии", slug:"subsidies" },
+      { label:"Выплаты субсидий", slug:"subsidy-payments" } ] },
+  ]},
+  { id:"c", label:"Корпоративное управление", subs:[
+    { id:"c-all", headerless:true, items:[
+      { label:"Реестр компаний", slug:"corporate-companies" },
+      { label:"Аналитика KPI", slug:"corporate-kpi-analytics" },
+      { label:"Документы", slug:"corporate-documents" } ] },
+  ]},
+  { id:"r", label:"Отчёты", subs:[
+    { id:"r-sys", label:"Системные", items:[
+      { label:"Отчёты", slug:"reports" },
+      { label:"Группы отчётов", slug:"reports/groups" } ] },
+  ]},
+  { id:"d", label:"Справочники", subs:[
+    { id:"d-geo", label:"География", items:[
+      { label:"Области", slug:"regions" },
+      { label:"Районы", slug:"districts" } ] },
+    { id:"d-dec", label:"Решения и получатели", items:[
+      { label:"Статус решения", slug:"credit-order-states" },
+      { label:"Вид решения", slug:"credit-order-types" } ] },
+  ]},
+  { id:"sy", label:"Система", subs:[
+    { id:"sy-users", label:"Пользователи и подразделения", items:[
+      { label:"Пользователи", slug:"users" },
+      { label:"Подразделения", slug:"organization-departments" } ] },
+    { id:"sy-roles", label:"Роли и доступ", items:[
+      { label:"Ресурсные роли", slug:"sec/resourcerolemodels" } ] },
+  ]},
+];
+
+const chevSvg = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
+const chevGroup = chevSvg(16);
+const chevSub = chevSvg(14);
+
+function renderNav() {
+  const nav = document.getElementById('nav');
+  nav.innerHTML = TREE.map(g => {
+    const subs = g.subs.map(sg => {
+      const items = sg.items.map(it =>
+        `<a class="nav-item${sg.headerless ? ' headerless' : ''}${it.active ? ' active' : ''}" href="#" onclick="return false;">${it.label}</a>`
+      ).join('');
+      if (sg.headerless) return `<div class="nav-sub open"><div class="nav-children">${items}</div></div>`;
+      return `<div class="nav-sub${sg.open ? ' open' : ''}">
+        <button class="nav-toggle">${chevSub}<span class="lbl">${sg.label}</span></button>
+        <div class="nav-children">${items}</div></div>`;
+    }).join('');
+    return `<div class="nav-group${g.open ? ' open' : ''}">
+      <button class="nav-toggle">${chevGroup}<span class="lbl">${g.label}</span></button>
+      <div class="nav-children">${subs}</div></div>`;
+  }).join('');
+
+  nav.querySelectorAll('.nav-toggle').forEach(btn => {
+    btn.addEventListener('click', () => btn.parentElement.classList.toggle('open'));
+  });
+}
+renderNav();
+
+/* ---- tabs ---- */
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const i = tab.dataset.tab;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.querySelectorAll('.tabpanel').forEach(p => p.classList.toggle('active', p.dataset.panel === i));
+  });
+});
+
+/* ---- grid row selection (enables Изменить, mirrors source toolbar behaviour) ---- */
+function wireGrid(gridId, editBtnId) {
+  const grid = document.getElementById(gridId);
+  if (!grid) return;
+  const editBtn = editBtnId ? document.getElementById(editBtnId) : null;
+  grid.querySelectorAll('tbody tr').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const wasSel = tr.classList.contains('sel');
+      grid.querySelectorAll('tbody tr').forEach(r => r.classList.remove('sel'));
+      if (!wasSel) tr.classList.add('sel');
+      if (editBtn) editBtn.disabled = wasSel;
+    });
+  });
+}
+wireGrid('progGrid', 'progEdit');
+wireGrid('docGrid', null);
+
+/* ---- lookup clear (demo) ---- */
+document.querySelectorAll('.lookup .clear').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const val = btn.closest('.lookup').querySelector('.val');
+    val.textContent = '';
+  });
+});
+</script>
+</body>
+</html>

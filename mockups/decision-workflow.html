@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Решение правительства — жизненный цикл и права доступа</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F5F6F8; --surface:#FFFFFF; --ink:#1B2330; --muted:#5C6573;
+    --faint:#8A9099; --rule:#E4E7EC; --rule-strong:#D2D7DE; --accent:#2C4A78;
+    --g-bg:#ECEEF2; --g-tx:#4A5260;
+    --a-bg:#FAEEDA; --a-tx:#8A5400;
+    --c-bg:#FAE7DD; --c-tx:#A8491F;
+    --gr-bg:#E7F1DB; --gr-tx:#3F6E16;
+    --r-bg:#F9E1E1; --r-tx:#A32D2D;
+    --font-display:"Spectral",Georgia,"Times New Roman",serif;
+    --font-body:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#14161B; --surface:#1B1E25; --ink:#E7E9ED; --muted:#9AA1AC;
+      --faint:#727A86; --rule:#2A2E37; --rule-strong:#363B45; --accent:#8FB0DE;
+      --g-bg:#2A2E37; --g-tx:#B7BDC7;
+      --a-bg:#3A2E12; --a-tx:#E7B24E;
+      --c-bg:#3A2114; --c-tx:#E69468;
+      --gr-bg:#23330F; --gr-tx:#A7CE6E;
+      --r-bg:#3A1A1A; --r-tx:#E59292;
+    }
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--font-body); font-size:16px; line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:780px; margin:0 auto; padding:72px 28px 96px}
+
+  header{margin-bottom:56px}
+  .eyebrow{
+    font-size:13px; font-weight:500; letter-spacing:.04em; color:var(--accent);
+    margin:0 0 18px; display:flex; align-items:center; gap:10px;
+  }
+  .eyebrow::before{content:""; width:26px; height:1px; background:var(--accent); display:inline-block}
+  h1{
+    font-family:var(--font-display); font-weight:600; font-size:42px;
+    line-height:1.12; letter-spacing:-.01em; margin:0 0 14px;
+  }
+  .lede{font-size:18px; color:var(--muted); margin:0 0 26px; max-width:60ch}
+  .meta{
+    display:flex; flex-wrap:wrap; gap:18px; padding-top:20px;
+    border-top:1px solid var(--rule); font-size:13px; color:var(--faint);
+  }
+  .meta b{font-weight:500; color:var(--muted)}
+
+  section{margin-top:54px}
+  h2{
+    font-family:var(--font-display); font-weight:500; font-size:24px;
+    letter-spacing:-.005em; margin:0 0 20px; display:flex; align-items:baseline; gap:14px;
+  }
+  h2 .n{
+    font-family:var(--font-body); font-size:13px; font-weight:600; color:var(--accent);
+    border:1px solid var(--rule-strong); border-radius:6px; padding:2px 8px;
+    line-height:1.4; flex:none; transform:translateY(-2px);
+  }
+  h3{font-family:var(--font-body); font-weight:600; font-size:15px; margin:30px 0 12px; color:var(--ink)}
+  p{margin:0 0 16px}
+  a{color:var(--accent)}
+
+  .note{
+    border-left:3px solid var(--rule-strong); padding:2px 0 2px 18px;
+    color:var(--muted); font-size:15px; margin:20px 0;
+  }
+
+  table{width:100%; border-collapse:collapse; margin:8px 0 6px; font-size:15px}
+  caption{caption-side:bottom; text-align:left; color:var(--faint); font-size:13px; padding-top:10px}
+  th{
+    text-align:left; font-weight:500; color:var(--muted); font-size:13px;
+    padding:10px 14px; border-bottom:1px solid var(--rule-strong); vertical-align:bottom;
+  }
+  td{padding:12px 14px; border-bottom:1px solid var(--rule); vertical-align:top}
+  tbody tr:last-child td{border-bottom:1px solid var(--rule-strong)}
+  td.role{width:38%}
+
+  .badge{
+    display:inline-block; font-size:13px; font-weight:500; line-height:1.3;
+    padding:4px 11px; border-radius:7px; white-space:nowrap;
+  }
+  .b-draft{background:var(--g-bg); color:var(--g-tx)}
+  .b-review{background:var(--a-bg); color:var(--a-tx)}
+  .b-rework{background:var(--c-bg); color:var(--c-tx)}
+  .b-active{background:var(--gr-bg); color:var(--gr-tx)}
+  .b-reject{background:var(--r-bg); color:var(--r-tx)}
+  .b-closed{background:var(--g-bg); color:var(--g-tx)}
+
+  .legend{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:4px 0 26px}
+  .legend .cell{
+    background:var(--surface); border:1px solid var(--rule); border-radius:10px; padding:13px 15px;
+  }
+  .legend .cell p{margin:9px 0 0; font-size:13px; color:var(--muted); line-height:1.5}
+
+  .chips{display:flex; flex-wrap:wrap; gap:7px}
+  .chip{
+    display:inline-block; font-size:13px; line-height:1.4; padding:3px 10px;
+    border-radius:7px; border:1px solid var(--rule-strong); color:var(--muted);
+  }
+  .chip.ok{background:var(--gr-bg); color:var(--gr-tx); border-color:transparent}
+  .chip.no{background:var(--r-bg); color:var(--r-tx); border-color:transparent}
+  .chip.ret{background:var(--c-bg); color:var(--c-tx); border-color:transparent}
+  .empty{color:var(--faint); font-size:14px}
+
+  figure{margin:24px 0; background:var(--surface); border:1px solid var(--rule); border-radius:12px; padding:20px; overflow-x:auto}
+  figure figcaption{color:var(--faint); font-size:13px; margin-top:14px; text-align:center}
+  .mermaid{display:flex; justify-content:center; min-height:40px; font-family:var(--font-body)!important}
+
+  ul.q{list-style:none; padding:0; margin:8px 0}
+  ul.q li{position:relative; padding:12px 0 12px 24px; border-bottom:1px solid var(--rule)}
+  ul.q li:last-child{border-bottom:none}
+  ul.q li::before{content:""; position:absolute; left:2px; top:20px; width:7px; height:7px; border:1px solid var(--accent); border-radius:50%}
+  ul.q b{font-weight:600}
+  ul.plain{padding-left:20px; margin:8px 0}
+  ul.plain li{margin:8px 0}
+
+  @media (max-width:560px){
+    .wrap{padding:48px 18px 72px}
+    h1{font-size:32px}
+    td.role{width:auto}
+  }
+  @media print{
+    body{background:#fff}
+    figure,.legend .cell{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Техническая спецификация</p>
+  <h1>Решение правительства</h1>
+  <p class="lede">Жизненный цикл решения, переходы между статусами, роли и матрица доступных действий. Основа для реализации воркфлоу и поведения тулбара в списке решений.</p>
+  <div class="meta">
+    <span><b>Версия</b> 0.1 — черновик</span>
+    <span><b>Обновлено</b> 17.06.2026</span>
+    <span><b>Статусов</b> 6 · <b>Ролей</b> 2</span>
+  </div>
+</header>
+
+<section id="statuses">
+  <h2><span class="n">1</span> Статусы</h2>
+  <div class="legend">
+    <div class="cell"><span class="badge b-draft">Черновик</span><p>Создано и редактируется автором, ещё не отправлено.</p></div>
+    <div class="cell"><span class="badge b-review">На рассмотрении</span><p>Отправлено согласующему, ожидает решения.</p></div>
+    <div class="cell"><span class="badge b-rework">На доработке</span><p>Возвращено автору с замечаниями для правок.</p></div>
+    <div class="cell"><span class="badge b-active">Действует</span><p>Одобрено и вступило в силу.</p></div>
+    <div class="cell"><span class="badge b-reject">Отклонён</span><p>В согласовании отказано. Терминальный.</p></div>
+    <div class="cell"><span class="badge b-closed">Закрыт</span><p>Действовавшее решение отменено или утратило силу.</p></div>
+  </div>
+  <p class="note">Изначально в системе было три статуса: «На стадии рассмотрения», «Одобрен» и «Закрыт». Модель добавляет недостающие (Черновик, На доработке, Отклонён) и заменяет «Одобрен» на «Действует».</p>
+</section>
+
+<section id="transitions">
+  <h2><span class="n">2</span> Переходы</h2>
+  <table>
+    <thead><tr><th>Из статуса</th><th>Действие</th><th>В статус</th><th>Кто выполняет</th></tr></thead>
+    <tbody>
+      <tr><td><span class="empty">—</span></td><td>Создать</td><td><span class="badge b-draft">Черновик</span></td><td>Автор</td></tr>
+      <tr><td><span class="badge b-draft">Черновик</span></td><td>Отправить</td><td><span class="badge b-review">На рассмотрении</span></td><td>Автор</td></tr>
+      <tr><td><span class="badge b-draft">Черновик</span></td><td>Удалить</td><td><span class="empty">удалено</span></td><td>Автор</td></tr>
+      <tr><td><span class="badge b-review">На рассмотрении</span></td><td>Отозвать</td><td><span class="badge b-draft">Черновик</span></td><td>Автор</td></tr>
+      <tr><td><span class="badge b-review">На рассмотрении</span></td><td>Одобрить</td><td><span class="badge b-active">Действует</span></td><td>Согласующий</td></tr>
+      <tr><td><span class="badge b-review">На рассмотрении</span></td><td>Отклонить</td><td><span class="badge b-reject">Отклонён</span></td><td>Согласующий</td></tr>
+      <tr><td><span class="badge b-review">На рассмотрении</span></td><td>Вернуть</td><td><span class="badge b-rework">На доработке</span></td><td>Согласующий</td></tr>
+      <tr><td><span class="badge b-rework">На доработке</span></td><td>Отправить повторно</td><td><span class="badge b-review">На рассмотрении</span></td><td>Автор</td></tr>
+      <tr><td><span class="badge b-active">Действует</span></td><td>Закрыть</td><td><span class="badge b-closed">Закрыт</span></td><td>Согласующий / уполн.</td></tr>
+      <tr><td><span class="badge b-reject">Отклонён</span></td><td>Дублировать</td><td><span class="badge b-draft">Черновик</span> (новая)</td><td>Автор</td></tr>
+    </tbody>
+  </table>
+
+  <figure>
+    <pre class="mermaid">
+stateDiagram-v2
+    [*] --> draft : Создать
+    draft: Черновик
+    review: На рассмотрении
+    rework: На доработке
+    active: Действует
+    rejected: Отклонён
+    closed: Закрыт
+
+    draft --> review : Отправить
+    draft --> [*] : Удалить
+    review --> draft : Отозвать
+    review --> active : Одобрить
+    review --> rejected : Отклонить
+    review --> rework : Вернуть
+    rework --> review : Повторно
+    active --> closed : Закрыть
+    rejected --> draft : Дублировать
+    closed --> [*]
+    </pre>
+    <figcaption>Диаграмма переходов между статусами</figcaption>
+  </figure>
+</section>
+
+<section id="roles">
+  <h2><span class="n">3</span> Роли</h2>
+  <table>
+    <thead><tr><th>Роль</th><th>Назначение</th></tr></thead>
+    <tbody>
+      <tr><td>Автор</td><td>Создаёт и редактирует решения, отправляет на согласование, дорабатывает.</td></tr>
+      <tr><td>Согласующий</td><td>Принимает решение по согласованию: одобряет, отклоняет, возвращает.</td></tr>
+      <tr><td>Наблюдатель <span class="empty">(опц.)</span></td><td>Только просмотр всех решений, без права менять статус.</td></tr>
+    </tbody>
+    <caption>Названия ролей условные — заменить на фактические из системы.</caption>
+  </table>
+</section>
+
+<section id="matrix">
+  <h2><span class="n">4</span> Матрица прав</h2>
+  <p>Действия для каждой комбинации роли и статуса. Пустая ячейка — только просмотр, без действий, меняющих запись.</p>
+  <table>
+    <thead><tr><th>Статус</th><th>Автор</th><th>Согласующий</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="badge b-draft">Черновик</span></td>
+        <td class="role"><div class="chips"><span class="chip">Изменить</span><span class="chip">Удалить</span><span class="chip">Отправить</span></div></td>
+        <td class="role"><span class="empty">только просмотр</span></td>
+      </tr>
+      <tr>
+        <td><span class="badge b-review">На рассмотрении</span></td>
+        <td class="role"><div class="chips"><span class="chip">Отозвать</span></div></td>
+        <td class="role"><div class="chips"><span class="chip ok">Одобрить</span><span class="chip no">Отклонить</span><span class="chip ret">Вернуть</span></div></td>
+      </tr>
+      <tr>
+        <td><span class="badge b-rework">На доработке</span></td>
+        <td class="role"><div class="chips"><span class="chip">Изменить</span><span class="chip">Отправить</span></div></td>
+        <td class="role"><span class="empty">только просмотр</span></td>
+      </tr>
+      <tr>
+        <td><span class="badge b-active">Действует</span></td>
+        <td class="role"><span class="empty">только просмотр</span></td>
+        <td class="role"><div class="chips"><span class="chip">Закрыть</span></div></td>
+      </tr>
+      <tr>
+        <td><span class="badge b-reject">Отклонён</span></td>
+        <td class="role"><div class="chips"><span class="chip">Дублировать</span></div></td>
+        <td class="role"><span class="empty">только просмотр</span></td>
+      </tr>
+      <tr>
+        <td><span class="badge b-closed">Закрыт</span></td>
+        <td class="role"><span class="empty">только просмотр</span></td>
+        <td class="role"><span class="empty">только просмотр</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="note">«Создать» в матрицу не входит — оно не зависит от статуса и доступно роли Автор всегда (создаёт новый Черновик).</p>
+</section>
+
+<section id="rules">
+  <h2><span class="n">5</span> Правила и ограничения</h2>
+  <ul class="plain">
+    <li>Редактировать содержимое можно только в статусах «Черновик» и «На доработке».</li>
+    <li>Удалять можно только «Черновик». Записи в остальных статусах не удаляются.</li>
+    <li>Действующее решение не редактируется — его можно только закрыть.</li>
+    <li>«Закрыт» достижим исключительно из «Действует», но не из рабочих статусов.</li>
+    <li>В каждом статусе активна только одна роль; вторая наблюдает. Ответственность за решение в каждый момент лежит на одном участнике.</li>
+    <li>При действиях «Отклонить» и «Вернуть» рекомендуется обязательный комментарий-причина.</li>
+  </ul>
+</section>
+
+<section id="toolbar">
+  <h2><span class="n">6</span> Поведение тулбара</h2>
+  <p>Тулбар единый для всех ролей; видимость и активность кнопок вычисляются по двум условиям одновременно — роль пользователя и статус выбранной строки.</p>
+  <ul class="plain">
+    <li>Кнопки, недоступные роли в принципе, <b>скрываются</b> (Согласующий не видит «Изменить» и «Удалить»).</li>
+    <li>Кнопки, доступные роли, но недопустимые при текущем статусе, показываются <b>неактивными</b> с подсказкой при наведении.</li>
+  </ul>
+  <p class="note">Принцип: скрываем по роли (полномочия постоянны), гасим по статусу (допустимость зависит от текущего момента).</p>
+</section>
+
+<section id="open">
+  <h2><span class="n">7</span> Открытые вопросы</h2>
+  <ul class="q">
+    <li><b>Комментарий-причина.</b> Делать ли поле обязательным при «Отклонить» и «Вернуть».</li>
+    <li><b>История переходов.</b> Журнал: кто, когда и с каким комментарием менял статус.</li>
+    <li><b>Дублирование отклонённого.</b> Нужно ли «Дублировать», или отклонение окончательно и статус полностью терминальный.</li>
+    <li><b>Роль «Наблюдатель».</b> Требуется ли отдельная роль только для чтения.</li>
+    <li><b>Закрытие решения.</b> Кто уполномочен закрывать действующее решение.</li>
+  </ul>
+</section>
+
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const css = getComputedStyle(document.documentElement);
+  const ink = css.getPropertyValue('--ink').trim();
+  const muted = css.getPropertyValue('--muted').trim();
+  const surface = css.getPropertyValue('--surface').trim();
+  const rule = css.getPropertyValue('--rule-strong').trim();
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    themeVariables: {
+      darkMode: dark,
+      background: 'transparent',
+      primaryColor: surface,
+      primaryBorderColor: rule,
+      primaryTextColor: ink,
+      lineColor: muted,
+      fontSize: '14px'
+    }
+  });
+</script>
+</body>
+</html>
