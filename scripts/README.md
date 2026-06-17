@@ -47,6 +47,17 @@ Reinstall if needed: `pip install --user gspread google-auth`.
 ## Updating the Sheet later
 Edit `TODO.md`, then re-run `python3 scripts/sync_todos.py`. That's it.
 
+## Auto-sync on edit (Claude Code hook)
+A `PostToolUse` hook in `.claude/settings.local.json` runs `todo_hook.py`
+whenever `TODO.md` is changed through Claude Code. The hook launches the sync in
+the background (non-blocking) and logs to `scripts/.sync.log`. It only acts on
+this project's `TODO.md` and always exits 0, so it never blocks editing.
+
+The hook lives in machine-local settings (git-ignored) because it depends on the
+local `service-account.json`. After adding/changing the hook, open `/hooks` once
+(or restart Claude Code) so the config reloads. Edits you make in an external
+editor are NOT caught by this hook — run the sync manually for those.
+
 ## Troubleshooting
 - **"credentials not found"** — `service-account.json` isn't in the repo root
   (or pass `--creds /path/to/key.json`).
