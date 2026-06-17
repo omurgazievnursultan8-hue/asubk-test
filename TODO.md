@@ -1,37 +1,38 @@
-# Backlog / TODO
+# Бэклог / Задачи
 
-> Group by priority. Move items to STATUS.md "In progress" when started,
-> and check them off (or delete) when done.
+> Группировка по приоритету. Переносите начатое в STATUS.md «In progress»,
+> отмечайте галочкой (или удаляйте) выполненное.
 
-## 🔴 Now — Credit module end-to-end check (QA + documentation)
-Scope: core lending chain only. Per phase → doc in `requirements/features/`
-+ bugs in `notes/qa-findings.md`. Working phase-by-phase, review each.
+## 🔴 Сейчас — Сквозная проверка кредитного модуля (QA + документация)
+Область: только основная кредитная цепочка. По каждой фазе → документ в
+`requirements/features/` + дефекты в `notes/qa-findings.md`. Работаем
+пофазно, с проверкой после каждой фазы.
 
-- [x] Phase 1 — Government decision (Решение правительства) — doc + QA done 2026-06-17
-- [ ] Phase 2 — Loan program (Кредитные программы)
-- [ ] Phase 3 — Application + commission (Заявки, Комиссии по заявкам)
-- [ ] Phase 4 — Borrower (Заемщики)
-- [ ] Phase 5 — Loan issuance (Кредиты)
-- [ ] Phase 6 — Disbursement / tranches (Освоение, Список Траншей)
-- [ ] Phase 7 — Servicing: payments, ledger, reserves (Платеж, LoanLedger, Резерв)
-- [ ] Phase 8 — Collateral monitoring (Мониторинг залога)
-- [ ] Phase 9 — Debt collection (Взыскание задолженности)
-- [ ] Phase 0 — Reference data underpinning the above (documented as encountered)
+- [x] Фаза 1 — Решение правительства — документация и QA готовы 2026-06-17
+- [ ] Фаза 2 — Кредитные программы
+- [ ] Фаза 3 — Заявки и комиссии по заявкам
+- [ ] Фаза 4 — Заемщики
+- [ ] Фаза 5 — Выдача кредитов
+- [ ] Фаза 6 — Освоение и транши
+- [ ] Фаза 7 — Обслуживание: платежи, реестр (LoanLedger), резервы
+- [ ] Фаза 8 — Мониторинг залога
+- [ ] Фаза 9 — Взыскание задолженности
+- [ ] Фаза 0 — Справочные данные (документируются по мере необходимости)
 
-## 🟡 Next (soon)
-### Phase 1 — Government decision: improvement proposals (for dev team)
-_Full rationale in `requirements/features/01-government-decision.md` → Recommendations._
-- [ ] R1 🔴 Attach signed decision document (file upload), not just a text note
-- [ ] R2 🔴 Reject: add confirmation + mandatory reason + audit trail (currently immediate/silent/irreversible)
-- [ ] R3 🔴 Settle Код: system-assign or enforce uniqueness; reconcile blank existing codes
-- [ ] R4 🟠 Guard delete of referenced decisions (edit already guarded) — confirm server-side ref check
-- [ ] R5 🟡 Fix Код field styling (looks disabled but is editable/required)
-- [ ] R6 🟠 Validate Дата решения (disallow future dates — picker currently allows them)
-- [ ] Restore test record РКМ 508-р if needed (accidentally closed during verification; no UI undo)
+## 🟡 Далее (скоро)
+### Фаза 1 — Решение правительства: предложения по улучшению (для команды разработки)
+_Полное обоснование в `requirements/features/01-government-decision.md` → Recommendations._
+- [ ] R1 🔴 Прикреплять подписанный документ решения (загрузка файла), а не только текстовую заметку
+- [ ] R2 🔴 Отклонение: добавить подтверждение + обязательную причину + журнал аудита (сейчас мгновенно, без следа, необратимо)
+- [ ] R3 🔴 Определить поле «Код»: назначать системно или обеспечить уникальность; согласовать пустые существующие коды
+- [ ] R4 🟠 Запретить удаление используемых решений (редактирование уже защищено) — проверить серверную проверку ссылок
+- [ ] R5 🟡 Исправить стиль поля «Код» (выглядит заблокированным, но редактируемо и обязательно)
+- [ ] R6 🟠 Валидировать «Дату решения» (запретить будущие даты — календарь их сейчас разрешает)
+- [ ] Восстановить тестовую запись РКМ 508-р при необходимости (случайно закрыта при проверке; отмена через интерфейс недоступна)
 
-## 🟢 Later / ideas
-- [ ] Out of scope for now: Поручительства (guarantees), СУГС (subsidies)
+## 🟢 Позже / идеи
+- [ ] Пока вне области: Поручительства, СУГС (субсидии)
 
-## ✅ Recently done
-- [x] 2026-06-17 — Logged into test env, documented full module map.
-- [x] 2026-06-17 — Set up project workspace.
+## ✅ Недавно сделано
+- [x] 2026-06-17 — Вход в тестовую среду, задокументирована полная карта модулей
+- [x] 2026-06-17 — Создано рабочее пространство проекта

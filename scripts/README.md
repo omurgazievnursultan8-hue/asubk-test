@@ -8,8 +8,18 @@ Target sheet: https://docs.google.com/spreadsheets/d/1hawaSxsCEZObOvEB-US8jztUDd
 
 ## What gets synced
 `sync_todos.py` parses every `- [ ]` / `- [x]` item under each `##`/`###`
-heading into rows: **Section · ID · Priority · Task · Status · Notes**. The
-header is frozen and bold; cell H1 records the last sync time.
+heading. **Each section becomes its own tab** (worksheet), with Russian columns:
+**ID · Приоритет · Задача · Статус · Примечания**.
+
+Formatting applied automatically: frozen bold blue header, sized + wrapped
+columns, table borders, and conditional colour-coding — priority
+(Высокий/Средний/Низкий → red/orange/yellow) and status (Готово → green). Cell
+G1 of the first tab records the last sync time. Tabs no longer present in
+TODO.md are removed on sync.
+
+Section → tab-name mapping lives in `SECTION_TABS` at the top of the script;
+status/priority translations live in `STATUS_RU` / `PRIO_RU`. TODO.md content
+should be written in Russian (it's the source of truth for the shared sheet).
 
 ## One-time setup (service account)
 1. Go to https://console.cloud.google.com/ → create or pick a project.

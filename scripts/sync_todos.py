@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Push TODO.md -> Google Sheet (one-way).
+"""Push TODO.md -> Google Sheet (one-way), grouped into formatted Russian tabs.
 
-Parses the workspace TODO.md into rows and overwrites the target Google Sheet.
-Source of truth stays TODO.md; collaborators read the Sheet.
+Each TODO.md section (##/### heading) becomes its own worksheet (tab). Columns
+are translated to Russian; the header is styled, columns sized, the table
+bordered, and priority/status cells colour-coded via conditional formatting.
+TODO.md stays the single source of truth.
 
-Setup: see scripts/README.md. Needs a Google service-account key and the Sheet
-shared (Editor) with that account's email.
+Setup: see scripts/README.md (service-account key + share the Sheet as Editor).
 
 Usage:
     python3 scripts/sync_todos.py
@@ -18,9 +19,7 @@ import os
 import re
 import sys
 
-# Spreadsheet key from the shared URL (.../d/<KEY>/edit)
 SHEET_KEY = "1hawaSxsCEZObOvEB-US8jztUDdSvOMGXWqY0LeeaFew"
-WORKSHEET_INDEX = 0  # gid=0 (first tab)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -28,13 +27,30 @@ TODO_PATH = os.path.join(ROOT, "TODO.md")
 DEFAULT_CREDS = os.path.join(ROOT, "service-account.json")
 
 PRIORITY = {"🔴": "High", "🟠": "Medium", "🟡": "Low", "🟢": "Idea", "🔵": "Cosmetic"}
-HEADER = ["Section", "ID", "Priority", "Task", "Status", "Notes"]
+PRIO_RU = {"High": "Высокий", "Medium": "Средний", "Low": "Низкий",
+           "Idea": "Идея", "Cosmetic": "Косметика", "": ""}
+STATUS_RU = {"Done": "Готово", "Todo": "К выполнению"}
+HEADER_RU = ["ID", "Приоритет", "Задача", "Статус", "Примечания"]
+COL_WIDTHS = [70, 95, 540, 120, 360]
+
+# Map a section heading (substring, lower-cased) -> short tab title, in order.
+SECTION_TABS = [
+    ("сквозная проверка", "Проверка модуля"),
+    ("предложения по улучшению", "Предложения · Фаза 1"),
+    ("позже", "Идеи / позже"),
+    ("недавно сделано", "Сделано"),
+]
+
+# Colours (hex)
+C_HEADER_BG = "#0b57d0"
+C_HEADER_FG = "#ffffff"
+PRIO_COLORS = {"Высокий": "#f4cccc", "Средний": "#fce5cd", "Низкий": "#fff2cc"}
+STATUS_COLORS = {"Готово": "#d9ead3", "К выполнению": "#f3f3f3"}
 
 
 def parse_todos(text):
-    """TODO.md markdown -> list of [Section, ID, Priority, Task, Status, Notes]."""
-    rows = []
-    section = ""
+    """TODO.md -> list of (section, id, priority_en, task, status_en, notes)."""
+    rows, section = [], ""
     for raw in text.splitlines():
         line = raw.rstrip()
         heading = re.match(r"^#{2,3}\s+(.*)", line)
@@ -45,87 +61,180 @@ def parse_todos(text):
         if not item:
             continue
         done = item.group(1).lower() == "x"
-        text_part = item.group(2).strip()
-
-        # Leading ID like "R1" or "Phase 2"
-        idm = re.match(r"^(R\d+|Phase\s*\d+)\b[:\-\s—–]*(.*)", text_part)
+        rest = item.group(2).strip()
+        idm = re.match(r"^(R\d+|Фаза\s*\d+|Phase\s*\d+)\b[:\-\s—–]*(.*)", rest)
         if idm:
             tid = re.sub(r"\s+", " ", idm.group(1))
             rest = idm.group(2).strip()
         else:
-            tid, rest = "", text_part
-
-        # Priority emoji anywhere in the remainder
+            tid = ""
         prio = ""
         for emoji, name in PRIORITY.items():
             if emoji in rest:
                 prio = name
                 rest = rest.replace(emoji, "").strip()
                 break
-
-        # Split task vs notes on the first dash separator
         task, notes = rest, ""
         for sep in (" — ", " – ", " - "):
             if sep in rest:
                 task, notes = rest.split(sep, 1)
                 break
-
-        rows.append([
-            section, tid, prio, task.strip(),
-            "Done" if done else "Todo", notes.strip(),
-        ])
+        rows.append((section, tid, prio, task.strip(),
+                     "Done" if done else "Todo", notes.strip()))
     return rows
+
+
+def tab_title(section):
+    low = section.lower()
+    for key, title in SECTION_TABS:
+        if key in low:
+            return title
+    clean = re.sub(r"[^\w\s·/.-]", "", section).strip()
+    return (clean[:40] or "Задачи")
+
+
+def group_rows(rows):
+    """Ordered: [(tab_title, [[ID, Приоритет, Задача, Статус, Примечания], ...])]."""
+    groups, order = {}, []
+    for section, tid, prio, task, status, notes in rows:
+        title = tab_title(section)
+        if title not in groups:
+            groups[title] = []
+            order.append(title)
+        groups[title].append([tid, PRIO_RU.get(prio, prio), task,
+                              STATUS_RU.get(status, status), notes])
+    return [(t, groups[t]) for t in order]
+
+
+def rgb(h):
+    h = h.lstrip("#")
+    return {"red": int(h[0:2], 16) / 255, "green": int(h[2:4], 16) / 255,
+            "blue": int(h[4:6], 16) / 255}
+
+
+def sheet_requests(sid, index, nrows):
+    """Formatting batch requests for one worksheet."""
+    ncols = len(HEADER_RU)
+    reqs = [
+        {"updateSheetProperties": {
+            "properties": {"sheetId": sid, "index": index,
+                           "gridProperties": {"frozenRowCount": 1}},
+            "fields": "index,gridProperties.frozenRowCount"}},
+        {"repeatCell": {
+            "range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1,
+                      "startColumnIndex": 0, "endColumnIndex": ncols},
+            "cell": {"userEnteredFormat": {
+                "backgroundColor": rgb(C_HEADER_BG), "horizontalAlignment": "CENTER",
+                "verticalAlignment": "MIDDLE",
+                "textFormat": {"bold": True, "foregroundColor": rgb(C_HEADER_FG),
+                               "fontSize": 11}}},
+            "fields": "userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,textFormat)"}},
+        {"repeatCell": {
+            "range": {"sheetId": sid, "startRowIndex": 1, "startColumnIndex": 0,
+                      "endColumnIndex": ncols},
+            "cell": {"userEnteredFormat": {"wrapStrategy": "WRAP",
+                                           "verticalAlignment": "MIDDLE"}},
+            "fields": "userEnteredFormat(wrapStrategy,verticalAlignment)"}},
+        {"updateBorders": {
+            "range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": nrows,
+                      "startColumnIndex": 0, "endColumnIndex": ncols},
+            "top": {"style": "SOLID"}, "bottom": {"style": "SOLID"},
+            "left": {"style": "SOLID"}, "right": {"style": "SOLID"},
+            "innerHorizontal": {"style": "SOLID", "color": rgb("#d0d0d0")},
+            "innerVertical": {"style": "SOLID", "color": rgb("#d0d0d0")}}},
+    ]
+    for col, width in enumerate(COL_WIDTHS):
+        reqs.append({"updateDimensionProperties": {
+            "range": {"sheetId": sid, "dimension": "COLUMNS",
+                      "startIndex": col, "endIndex": col + 1},
+            "properties": {"pixelSize": width}, "fields": "pixelSize"}})
+    idx = 0
+    for col, table in ((1, PRIO_COLORS), (3, STATUS_COLORS)):
+        for value, hexbg in table.items():
+            reqs.append({"addConditionalFormatRule": {"rule": {
+                "ranges": [{"sheetId": sid, "startRowIndex": 1,
+                            "startColumnIndex": col, "endColumnIndex": col + 1}],
+                "booleanRule": {
+                    "condition": {"type": "TEXT_EQ",
+                                  "values": [{"userEnteredValue": value}]},
+                    "format": {"backgroundColor": rgb(hexbg)}}}, "index": idx}})
+            idx += 1
+    return reqs
 
 
 def main():
     ap = argparse.ArgumentParser(description="Push TODO.md to the Google Sheet.")
-    ap.add_argument("--creds", default=os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", DEFAULT_CREDS),
-                    help="Path to service-account JSON key.")
-    ap.add_argument("--key", default=SHEET_KEY, help="Spreadsheet key.")
-    ap.add_argument("--dry-run", action="store_true", help="Parse and print, no network.")
+    ap.add_argument("--creds", default=os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", DEFAULT_CREDS))
+    ap.add_argument("--key", default=SHEET_KEY)
+    ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
     with open(TODO_PATH, encoding="utf-8") as f:
-        rows = parse_todos(f.read())
-
+        groups = group_rows(parse_todos(f.read()))
+    total = sum(len(r) for _, r in groups)
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    print(f"Parsed {len(rows)} task rows from TODO.md")
+    print(f"Parsed {total} rows into {len(groups)} tabs: " +
+          ", ".join(f"{t} ({len(r)})" for t, r in groups))
 
     if args.dry_run:
-        widths = [max(len(str(r[i])) for r in ([HEADER] + rows)) for i in range(len(HEADER))]
-        for r in [HEADER] + rows:
-            print(" | ".join(str(c).ljust(widths[i])[:40] for i, c in enumerate(r)))
+        for title, rows in groups:
+            print(f"\n=== {title} ===")
+            for r in rows:
+                print("  " + " | ".join((c or "")[:34] for c in r))
         return 0
 
     if not os.path.exists(args.creds):
-        sys.exit(f"ERROR: credentials not found at {args.creds}\n"
-                 f"Create a service-account key and place it there, or pass --creds. "
-                 f"See scripts/README.md.")
+        sys.exit(f"ERROR: credentials not found at {args.creds}. See scripts/README.md.")
 
     import gspread
     from google.oauth2.service_account import Credentials
 
-    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-    creds = Credentials.from_service_account_file(args.creds, scopes=scopes)
+    creds = Credentials.from_service_account_file(
+        args.creds, scopes=["https://www.googleapis.com/auth/spreadsheets"])
     sa_email = getattr(creds, "service_account_email", "<unknown>")
     gc = gspread.authorize(creds)
 
     try:
         sh = gc.open_by_key(args.key)
-        ws = sh.get_worksheet(WORKSHEET_INDEX)
-        ws.clear()
-        ws.update(values=[HEADER] + rows, range_name="A1")
-        ws.update(values=[[f"Synced {ts} from TODO.md — source of truth is the repo, do not hand-edit"]],
-                  range_name="H1")
-        ws.freeze(rows=1)
-        ws.format("A1:F1", {"textFormat": {"bold": True}})
+        existing = {ws.title: ws for ws in sh.worksheets()}
+        wanted = [t for t, _ in groups]
+
+        # Ensure a worksheet per group (reuse or create), then write values.
+        sheets = []
+        for title, rows in groups:
+            need = len(rows) + 1
+            if title in existing:
+                ws = existing[title]
+                ws.resize(rows=max(need, 2), cols=len(HEADER_RU) + 2)
+                ws.clear()
+            else:
+                ws = sh.add_worksheet(title=title, rows=max(need, 2),
+                                      cols=len(HEADER_RU) + 2)
+            ws.update(values=[HEADER_RU] + rows, range_name="A1")
+            sheets.append((ws, rows))
+
+        # Stamp sync time on the first tab.
+        if sheets:
+            sheets[0][0].update(values=[[f"Обновлено {ts} из TODO.md"]], range_name="G1")
+
+        # Remove leftover tabs not in our set.
+        for title, ws in existing.items():
+            if title not in wanted:
+                sh.del_worksheet(ws)
+
+        # One batched formatting pass for all tabs.
+        requests = []
+        for index, (ws, rows) in enumerate(sheets):
+            requests += sheet_requests(ws.id, index, len(rows) + 1)
+        sh.batch_update({"requests": requests})
+
     except gspread.exceptions.APIError as e:
         if "PERMISSION_DENIED" in str(e) or "403" in str(e):
-            sys.exit(f"ERROR: permission denied. Share the Sheet (Editor) with:\n"
-                     f"    {sa_email}\nthen re-run. ({e})")
+            sys.exit(f"ERROR: permission denied. Share the Sheet (Editor) with:\n    {sa_email}\n({e})")
         raise
 
-    print(f"✅ Synced {len(rows)} rows to https://docs.google.com/spreadsheets/d/{args.key}/edit")
+    print(f"✅ Synced {total} rows into {len(groups)} tabs -> "
+          f"https://docs.google.com/spreadsheets/d/{args.key}/edit")
     return 0
 
 
