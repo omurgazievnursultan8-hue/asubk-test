@@ -38,11 +38,23 @@ Pager shows **17 строк** on test env. Built-in generic filter exposes
 > **Комиссии по заявкам** screen DOES have «Просмотр» + a readonly mode, so the
 > two screens are inconsistent. → P3-R2.
 
-Columns (all sortable): Номер документа («Заявка - N») · Заемщик · **Статус
+Columns (8, all sortable): Номер документа («Заявка - N») · Заемщик · **Статус
 заявки** · **Статус залога** · Кредитная программа · Запрашиваемая сумма ·
 Запрашиваемый срок · Дополнительная информация.
-Observed Статус заявки values: На рассмотрении · Одобрено · Отклонено.
+**No «Одобренная сумма» column** (`hasApprovedAmount = false`, verified
+2026-06-19) — the commission-approved amount/term is invisible in the list,
+only the requested figure shows. → P3-R8. «Дополнительная информация»
+(free text, often empty) is low-value as a column.
+Observed Статус заявки values: На рассмотрении · Одобрено · Отклонено ·
+**Требуется доп. информация** (4th value, found 2026-06-19 on Заявка-74; full
+set + transitions still to be enumerated from the model → P3-09).
 Статус залога is a **separate** track: На рассмотрении · Одобрено.
+
+> **Action gating (verified 2026-06-19, `verify-p3r5r8.mjs`):** toolbar actions
+> are **selection-gated but not status-gated** — Изменить/Удалить/Отправить are
+> disabled with no selection, but **enabled for any selected row regardless of
+> status** (tested Одобрено/Отклонено/На рассмотрении/Требуется доп. информация).
+> So an Одобрено app can be re-sent or deleted, an Отклонено one re-sent. → P3-R7.
 
 ### Create form — multi-step dialog «Новая заявка»
 Modal dialog (not a routed page). Footer: **Далее** (next) · **Отмена**.
@@ -164,6 +176,8 @@ per-phase counter (mirrors the `P3-xx` finding IDs); earlier phases' counters
 | P3-R4 | 🟠 Medium | **Commission governance rules** (stance agreed 2026-06-18; quorum & ordering confirmed by customer 2026-06-19). (a) **«Финальное решение» stays manual** (set by the chairman), member votes advisory — but each save writes an **audit entry** (who/when/decision + reason, especially when it diverges from the vote tally). (b) **4-eyes as a warning**: if the application's author/submitter is also a member/chairman on its commission, don't block — show a warning and flag it in the audit. (c) **No quorum threshold** — the chairman closes voting at any time; member votes are advisory; the `0/4`/`1/4` tally is informational, not a closing rule. (d) **Credit & collateral commissions run in parallel, independently** — neither gates the other; matches the application's two parallel statuses (Статус заявки + Статус залога). | The voting machinery exists but its governance (final-decision authority, self-voting, quorum) is not visible in the UI. | ✅ confirmed — ready to build (P3-04) |
 | P3-R5 | 🔴 High | **Make «Субъект» and «Кредитная программа» required** on the «Новая заявка» form (logged 2026-06-19). Both are core to an application yet expose `required=false` server-side — an application can be advanced/saved without a borrower or a program. Add `*` + inline required message (reuse the сумма/срок pattern) **and** server-side validation, and block «Далее» until both are set. | An application with no subject or no program is meaningless and pollutes the list; the missing flags are a data-integrity gap, not just a UI one. | ✅ confirmed — `required=false` on test (P3-05) |
 | P3-R6 | 🟡 Low | **Defer required-field error display** on «Новая заявка» (logged 2026-06-19). «Запрашиваемая сумма» / «Запрашиваемый срок» show red background + «Поле является обязательным» **immediately on open**, before any interaction. Switch to lazy validation — surface the error on blur or on «Далее», not on render. | Eager errors on an untouched form read as "you did something wrong" before the user starts; degrades the otherwise-reference-quality validation UX. | ✅ confirmed on test (P3-06) |
+| P3-R7 | 🟠 Medium | **Status-gate the list toolbar actions** (logged 2026-06-19). Today «Отправить в комиссию» / «Отправить в залоговую комиссию» / «Удалить» are only **selection-gated** — enabled for any selected row regardless of status. Disable «Отправить…» on terminal/approved statuses (Одобрено, Отклонено), disable «Удалить» on Одобрено and on rows referenced downstream (loan/commission), and add a **confirmation dialog + per-row result toast** for the bulk sends. Client + server. Same class as Phase 1 R4/R5 (P1-03/P1-05). | An Одобрено application can be re-sent to a commission or deleted, an Отклонено one re-sent — no guard beyond "a row is selected". | ✅ confirmed on stand (P3-07) |
+| P3-R8 | 🟡 Low | **List columns: surface the outcome, drop dead weight** (logged 2026-06-19). Add an **«Одобренная сумма»** column (the commission-approved amount/term, currently invisible in the list — `hasApprovedAmount = false`); optionally add commission **vote tally** (`n/4`, already on the sibling screen) and **Дата создания**. Drop or demote **«Дополнительная информация»** (free text, mostly empty, low scan value). | The list shows only the requested figure, never the approved result; a free-text column wastes a slot. | ✅ confirmed on stand (P3-08) |
 
 ## Notes (2026-06-18)
 - **Reference implementations to propagate to earlier phases:**
