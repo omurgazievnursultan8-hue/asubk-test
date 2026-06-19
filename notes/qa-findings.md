@@ -330,7 +330,7 @@ Routes `/loan-applications` (17 rows) and `/loan-application-commissions`.
   - **Evidence:** header dump in the script output.
 
 - **P3-09** — `/loan-applications` — 🟡 minor — _verified 2026-06-19 (same run); doc gap_
-  - **Issue:** **Статус заявки has more values than documented.** Observed a 5th
+  - **Issue:** **Статус заявки has more values than documented.** Observed a 4th
     value **«Требуется доп. информация»** (Заявка-74) on top of the three logged
     earlier (На рассмотрении / Одобрено / Отклонено). This value already exists on
     the commission screen's «Тип решения»; on the application it was undocumented.
