@@ -253,17 +253,30 @@ Routes `/loan-applications` (17 rows) and `/loan-application-commissions`.
     so the program-bounds check replaces the "validity window" idea. Server-side
     not tested (no junk data). → P3-R3.
 
-- **P3-04** — `/loan-application-commissions` — ❓ to verify — _commission governance_
+- **P3-04** — `/loan-application-commissions` — ✅ resolved — _commission governance_
   - **Issue:** The voting machinery exists (Прогресс голосования, Члены комиссии
     with Роль Член/Председатель, per-member Решение + Крайний срок, Финальное
-    решение, Протокол), but the governance rules are not visible in the UI:
-    - **Quorum** to close voting (the `0/4` / `1/4` tally implies a fraction rule).
-    - How **«Финальное решение»** is derived — auto from member votes or manual,
-      and whether it can override the tally.
-    - **4-eyes:** whether the application's author can also vote on its commission.
-    - Ordering/relationship of the **credit** vs **collateral (залоговая)**
-      commissions.
-  - **Action:** confirm with domain owner. → P3-R4.
+    решение, Протокол), but the governance rules were not visible in the UI.
+  - **Resolution (customer 2026-06-19):**
+    - **Quorum:** no threshold — the **chairman** closes voting at any time;
+      member votes advisory; the `0/4` / `1/4` tally is informational only.
+    - **«Финальное решение»:** **manual** (chairman); each save → audit entry.
+    - **4-eyes:** author voting on own commission → warning + audit flag, not blocked.
+    - **Ordering:** credit & collateral commissions run **in parallel, independently**;
+      neither gates the other.
+  - **Verified on stand 2026-06-19** (`scripts/inspect/verify-p3r4*.mjs`):
+    - Quorum: no «кворум/порог/закрыть голосование» text anywhere in the UI; no
+      auto-block of closing by tally → no quorum rule exists in code (matches
+      decision). #3 = no-op (document only).
+    - Final decision: rendered as its own «Финальное решение (Председатель
+      комиссии)» section; voting is a separate «Проголосовать» action → final is
+      already the chairman's manual act. Only the **audit entry** on save is the
+      open dev item (not visible via UI — likely backend).
+    - Gating: both «Отправить в комиссию» + «Отправить в залоговую комиссию» stay
+      **enabled** with a row selected → credit not gated by collateral. #4 = no-op.
+    - 4-eyes warning: no such warning present in the UI → real dev item.
+  - **Action:** implement per P3-R4 — real code reduced to #1 (final-decision
+    audit) + #2 (4-eyes warning); #3/#4 are document-only.
 
 ### Positive patterns to propagate (2026-06-18)
 - **Inline required-field validation** (red `*` + «Поле является обязательным») on
