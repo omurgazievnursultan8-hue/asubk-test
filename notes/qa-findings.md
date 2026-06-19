@@ -345,6 +345,68 @@ Routes `/loan-applications` (17 rows) and `/loan-application-commissions`.
 - **Separated voting roles + read-only «Просмотр»** on the commission screen are
   the 4-eyes (P2-R5) and view-mode (P2-R4) patterns the program module lacks.
 
+### Application detail page — tab-by-tab (2026-06-19)
+> Screen: `/loan-applications/{id}` — inspected on id 28 → «Заявка - 60», status
+> **Одобрено**. Read-only Playwright walk (`scripts/inspect/app-detail-tabs.mjs`,
+> `app-detail-geo.mjs`). Full write-up: [app-detail-analysis.md](app-detail-analysis.md).
+> Modal-style editor: fixed header (5 fields) + 9 tabs (Общая информация, График,
+> Документы заявителя, Кредитные/Залоговые/Проектные документы, Кредитная/Залоговая
+> комиссия, История) + sticky OK/Отмена.
+
+- **P3-10** — `/loan-applications/{id}` header — 🟠 major — _verified 2026-06-19_
+  - **Issue:** On an **Одобрено** application, **Запрашиваемая сумма** and **Номер
+    телефона** remain **editable** while every other field is locked read-only.
+  - **Expected:** edit-gating must follow status — an approved application's terms
+    should be fully locked (or all consistently editable under a defined right).
+  - **Actual:** two stray editable fields amid an otherwise read-only form.
+
+- **P3-11** — `/loan-applications/{id}` → График — 🟠 major — _verified 2026-06-19_
+  - **Issue:** The payment schedule shows **Проценты = 0,00 on every row** despite a
+    **12 % annual rate** (Годовая ставка). Principal amortizes (16 666,67 ×12 = 200k)
+    but no interest is computed.
+  - **Expected:** interest column reflects the rate per period.
+  - **Actual:** zero interest across the whole schedule.
+  - **Repro:** open Заявка-60 → tab «График».
+
+- **P3-12** — `/loan-applications/{id}` → Документы — 🟠 major — _verified 2026-06-19_
+  - **Issue:** Mandatory documents (Паспорт лиц./обор., Подписанное согласие on
+    «Документы заявителя»; Паспорт on Кредитные/Залоговые) are **empty on an
+    approved application**, and the **Загрузить** drop-zones stay **enabled** after
+    approval.
+  - **Expected:** required docs gate approval; uploads lock once status passes the
+    document stage.
+  - **Actual:** approval reached with mandatory docs missing; upload still open.
+
+- **P3-13** — `/loan-applications/{id}` → График — 🟡 minor — _verified 2026-06-19_
+  - **Issue:** Schedule is **mutable after approval** — «Построить график» and
+    «Добавить строку» enabled on an Одобрено loan.
+  - **Action:** confirm whether a locked loan's schedule should be editable, and by
+    whom; gate behind status/role if not.
+
+- **P3-14** — `/loan-applications/{id}` → Кредитная/Залоговая комиссия — 🟡 minor — _verified 2026-06-19_
+  - **Issue:** The commission decision grid has **two columns both headed
+    «Сотрудник»** (col 1 = login `[admin]`, col 2 = ФИО «НУРМАНБЕТ КЫЗЫ КАЛИНА»).
+  - **Expected:** distinct headers — e.g. «Логин» / «ФИО» (or «Должность»).
+  - **Actual:** duplicate header label; ambiguous columns.
+
+- **P3-15** — `/loan-applications/{id}` → Общая информация — 🟡 minor — _verified 2026-06-19_
+  - **Issue:** In «Условия кредита, одобренные комиссией», the selects
+    **Периодичность платежей**, **Метод погашения кредита**, **Обработка выходных**
+    render **blank** even though the loan is approved and a schedule already exists.
+  - **Action:** confirm these are persisted; if so, fix read-only render of selects.
+
+- **P3-16** — `/loan-applications/{id}` → История — 🟡 minor — _verified 2026-06-19_
+  - **Issue:** Audit grid (Дата · Заголовок · Детали · Автор) is **empty** for an
+    application that went Подача → Одобрено — no lifecycle events recorded.
+  - **Expected:** status transitions / commission decisions logged to История.
+  - **Actual:** no audit trail populated.
+
+- **P3-17** — `/loan-applications/{id}` header — 🔵 cosmetic — _verified 2026-06-19_
+  - **Issue:** Display number «Заявка - 60» ≠ URL id (28); the 5 header status
+    fields are **repeated on all 9 tabs**, adding vertical noise. «Статус залоговой
+    комиссии» shows empty when no collateral commission ran.
+  - **Action:** cosmetic — collapse repeated header or clarify id vs display number.
+
 ---
 
 ## Phase 4 — Borrower (Заёмщик)
