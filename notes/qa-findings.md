@@ -278,6 +278,27 @@ Routes `/loan-applications` (17 rows) and `/loan-application-commissions`.
   - **Action:** implement per P3-R4 — real code reduced to #1 (final-decision
     audit) + #2 (4-eyes warning); #3/#4 are document-only.
 
+- **P3-05** — `/loan-applications` create dialog «Новая заявка» — 🔴 critical — _verified 2026-06-19 (`scripts/inspect/app-create-fields.mjs`)_
+  - **Issue:** **Субъект** (borrower) and **Кредитная программа** — the two core
+    fields of an application — are **not required**: both expose `required=false`
+    server-side. An application can be advanced/saved with **no borrower and no
+    program**.
+  - **Expected:** both mandatory. Show red `*` + inline «Поле является
+    обязательным» (reuse the сумма/срок pattern), validate **server-side**, and
+    block «Далее» until both are set.
+  - **Note:** data-integrity gap, not just UI — an application without a subject
+    or a program is meaningless and pollutes the list. → P3-R5.
+
+- **P3-06** — `/loan-applications` create dialog «Новая заявка» — 🟡 minor — _verified 2026-06-19_
+  - **Issue:** **Eager required-field errors.** «Запрашиваемая сумма» /
+    «Запрашиваемый срок» render a **red background + «Поле является обязательным»
+    immediately on open**, before any interaction with the form.
+  - **Expected:** lazy validation — surface the error on **blur** or on
+    **«Далее»**, not on render.
+  - **Note:** eager errors on an untouched form read as "you did something wrong"
+    before the user starts typing; degrades the otherwise reference-quality
+    validation UX of this module. → P3-R6.
+
 - **P3-07** — `/loan-applications` list — 🟠 major — _verified 2026-06-19 (`scripts/inspect/verify-p3r5r8.mjs`)_
   - **Issue:** Toolbar actions are **selection-gated but not status-gated**. With
     no row selected, Изменить / Удалить / Отправить в комиссию / Отправить в
