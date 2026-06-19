@@ -52,14 +52,14 @@ Step 1 fields:
 |---|---|---|
 | Субъект (borrower) | lookup (•••) | — (core, logically required) |
 | Кредитная программа | lookup (•••) | — |
-| Адрес | text | — |
-| Номер телефона | text | — |
+| Адрес | text (**readonly** — auto-filled from Субъект) | — |
+| Номер телефона | text (format mask, prefilled `+996`) | — |
 | Источник финансирования | lookup (•••) | — |
 | Дополнительная информация | textarea | — |
 | Запрашиваемая сумма | big-decimal | ✅ |
 | Запрашиваемый срок | number | ✅ |
-| Метод погашения кредита | select (Аннуитетный / Дифференцированный) | — |
-| Льготный период по основному долгу | checkbox | — |
+| Метод погашения кредита | select (Аннуитетный [default] / Дифференцированный) | — |
+| Льготный период по основному долгу | checkbox (default off, under collapsible «Ручные параметры льготного периода») | — |
 | Льготный период по начислению процентов | checkbox | — |
 | Льготный период по процентам | checkbox | — |
 
@@ -68,6 +68,24 @@ Step 1 fields:
 > Phase 2 asked for in P2-R6. This module is the reference implementation; the
 > remaining gap is the **grey "disabled-look" field styling** (P3-01), shared
 > with P1-01/P2-01.
+>
+> **Live re-inspection 2026-06-19** (`scripts/inspect/app-create-fields.mjs`,
+> screenshot `.auth/app-create-step1.png`):
+> - **Phone format validation** added since the original doc — «Номер телефона»
+>   is prefilled `+996` and validates against «Введите номер в формате
+>   +996 990 000 000». New behaviour, not present at first pass.
+> - **Eager required-validation:** «Запрашиваемая сумма» / «Запрашиваемый срок»
+>   render with red background + «Поле является обязательным» **immediately on
+>   open**, before the user touches them → defer to blur / «Далее». → P3-R6.
+> - **No numeric bounds:** both amount and term expose `min/max/step = null`
+>   (confirms P3-R3).
+> - **Субъект & Кредитная программа are `required=false`** server-side despite
+>   being core — an application can be advanced without them. → P3-R5.
+> - **«Далее» gating:** the wizard does not advance while required fields are
+>   empty (validation blocks it) — correct gating, only the eager display is the
+>   issue.
+> - Адрес is **readonly** (auto-filled from Субъект); Метод погашения defaults to
+>   «Аннуитетный»; the three льготный-период checkboxes default **off**.
 
 ### Detail / edit page — `/loan-applications/{id}`
 Header: Субъект · Номер документа · **Статус заявки** · **Статус залоговой
@@ -144,6 +162,8 @@ per-phase counter (mirrors the `P3-xx` finding IDs); earlier phases' counters
 | P3-R2 | 🟡 Low | **Dedicated application detail page («Просмотр»)** (agreed 2026-06-18). Build a **separate read-only detail page** (same decision as programs P2-R4 and decisions Phase 1 R6) — a single readable overview of the application. Open via a **«Просмотр»** toolbar button **and double-click on a row → Просмотр (readonly)**; offer **«Изменить»** from the view. Aligns with the **commission screen (already has «Просмотр» + `?mode=readonly`)**, P2-R4 and Phase 1 R6. Inspecting an application currently forces edit mode. | Cross-screen inconsistency: sibling screens behave differently; edit-to-inspect risks accidental change. | ✅ confirmed (P3-02) |
 | P3-R3 | 🟠 Medium | **Date & numeric validation** (agreed 2026-06-18; gap confirmed — fields carry no min/max/step). Enforce: **Запрашиваемая сумма > 0** and **Запрашиваемый срок > 0**; requested **amount & term within the linked program's** configured min/max amount & term bounds (cross-check with Phase 2 program rules); commission **Крайний срок ≥ today** and **Дата заседания** not before creation (ordering). Client + server, clear messages (no silent reset). Note: the application has no date range of its own (only a numeric term), so the program-bounds check replaces the "validity window" idea. | An application whose amount/term falls outside its program's rules, or a past-dated voting deadline, is invalid. | ✅ confirmed — no client min/max (P3-03) |
 | P3-R4 | 🟠 Medium | **Commission governance rules** (stance agreed 2026-06-18; quorum & ordering confirmed by customer 2026-06-19). (a) **«Финальное решение» stays manual** (set by the chairman), member votes advisory — but each save writes an **audit entry** (who/when/decision + reason, especially when it diverges from the vote tally). (b) **4-eyes as a warning**: if the application's author/submitter is also a member/chairman on its commission, don't block — show a warning and flag it in the audit. (c) **No quorum threshold** — the chairman closes voting at any time; member votes are advisory; the `0/4`/`1/4` tally is informational, not a closing rule. (d) **Credit & collateral commissions run in parallel, independently** — neither gates the other; matches the application's two parallel statuses (Статус заявки + Статус залога). | The voting machinery exists but its governance (final-decision authority, self-voting, quorum) is not visible in the UI. | ✅ confirmed — ready to build (P3-04) |
+| P3-R5 | 🔴 High | **Make «Субъект» and «Кредитная программа» required** on the «Новая заявка» form (logged 2026-06-19). Both are core to an application yet expose `required=false` server-side — an application can be advanced/saved without a borrower or a program. Add `*` + inline required message (reuse the сумма/срок pattern) **and** server-side validation, and block «Далее» until both are set. | An application with no subject or no program is meaningless and pollutes the list; the missing flags are a data-integrity gap, not just a UI one. | ✅ confirmed — `required=false` on test (P3-05) |
+| P3-R6 | 🟡 Low | **Defer required-field error display** on «Новая заявка» (logged 2026-06-19). «Запрашиваемая сумма» / «Запрашиваемый срок» show red background + «Поле является обязательным» **immediately on open**, before any interaction. Switch to lazy validation — surface the error on blur or on «Далее», not on render. | Eager errors on an untouched form read as "you did something wrong" before the user starts; degrades the otherwise-reference-quality validation UX. | ✅ confirmed on test (P3-06) |
 
 ## Notes (2026-06-18)
 - **Reference implementations to propagate to earlier phases:**
