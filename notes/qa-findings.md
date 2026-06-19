@@ -278,6 +278,44 @@ Routes `/loan-applications` (17 rows) and `/loan-application-commissions`.
   - **Action:** implement per P3-R4 — real code reduced to #1 (final-decision
     audit) + #2 (4-eyes warning); #3/#4 are document-only.
 
+- **P3-07** — `/loan-applications` list — 🟠 major — _verified 2026-06-19 (`scripts/inspect/verify-p3r5r8.mjs`)_
+  - **Issue:** Toolbar actions are **selection-gated but not status-gated**. With
+    no row selected, Изменить / Удалить / Отправить в комиссию / Отправить в
+    залоговую комиссию are correctly **disabled**. With **any** row selected they
+    all become **enabled regardless of status** — verified on Одобрено (Заявка-60),
+    Отклонено (Заявка-55), На рассмотрении (Заявка-81) and Требуется доп.
+    информация (Заявка-74).
+  - **Consequence:** an already-**Одобрено** application can be re-sent to a
+    commission; an **Отклонено** one can be sent again; an Одобрено one can be
+    **Удалить**-deleted. Same class as P1-03 (silent terminal action) / P1-05
+    (delete not status-guarded).
+  - **Expected:** disable «Отправить…» on terminal/approved statuses; disable
+    «Удалить» on Одобрено and on records referenced downstream (loan/commission);
+    add a confirmation dialog + per-row result toast for bulk sends. Client +
+    server guard. → P3-R7.
+  - **Evidence:** `.auth/p3r5-app-list.png`; per-status button matrix in the script output.
+
+- **P3-08** — `/loan-applications` list — 🟡 minor — _verified 2026-06-19 (same run)_
+  - **Issue:** The list has **8 columns** (Номер документа · Заемщик · Статус
+    заявки · Статус залога · Кредитная программа · Запрашиваемая сумма ·
+    Запрашиваемый срок · Дополнительная информация) and **no «Одобренная сумма»**
+    column (`hasApprovedAmount = false`). The commission can adjust the requested
+    amount/term (detail page: «Условия кредита, одобренные кредитной комиссией»),
+    but the **approved outcome is invisible in the list** — only the requested
+    figure shows. «Дополнительная информация» (free text, often empty) occupies a
+    column slot of low scan value.
+  - **Expected:** add an **Одобренная сумма** column (and/or vote tally `n/4`,
+    Дата создания); drop or demote «Дополнительная информация». → P3-R8.
+  - **Evidence:** header dump in the script output.
+
+- **P3-09** — `/loan-applications` — 🟡 minor — _verified 2026-06-19 (same run); doc gap_
+  - **Issue:** **Статус заявки has more values than documented.** Observed a 5th
+    value **«Требуется доп. информация»** (Заявка-74) on top of the three logged
+    earlier (На рассмотрении / Одобрено / Отклонено). This value already exists on
+    the commission screen's «Тип решения»; on the application it was undocumented.
+  - **Action:** enumerate the **full status set + transitions** for both Статус
+    заявки and Статус залога from the model (not just observed rows); update spec.
+
 ### Positive patterns to propagate (2026-06-18)
 - **Inline required-field validation** (red `*` + «Поле является обязательным») on
   the application form is exactly what P2-R6 requested — reuse it for programs.
