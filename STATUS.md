@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-06-17 — _(update this date every time you edit)_
+> Last updated: 2026-06-17 (Phase 2 docs+QA) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -25,7 +25,7 @@ The app is live on the test env with ~150 screens across these domains
 ## In progress
 | Item | Owner | Started | Notes |
 |---|---|---|---|
-| Credit module end-to-end check (QA + docs) | admin | 2026-06-17 | Phase 1/9 done. Next: Phase 2 — Loan program. See TODO.md |
+| Credit module end-to-end check (QA + docs) | admin | 2026-06-17 | Phase 1 done; Phase 2 (Loan program) docs+QA drafted, on review. Next: Phase 3 — Applications. See TODO.md |
 
 ## Blocked / waiting
 | Item | Blocked by | Since | Notes |
@@ -38,6 +38,7 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-06-17 — Phase 2 (Loan program): documented `/loan-programs` + 9-tab create wizard via Playwright; logged 6 findings (P2-01…06) and 6 proposals (R8–R13). QA pass (required-field validation). Stack refined to **Jmix on Vaadin**. New Sheet tab «Кред. программы».
 - 2026-06-17 — Phase 1 (Gov decision): verified R2/R4/R6 in-app; all 6 proposals confirmed (see findings P1-03/04/05). Stack = Vaadin.
 - 2026-06-17 — Phase 1 (Gov decision): documented + logged 6 improvement proposals (R1–R6).
 - 2026-06-17 — Logged into test env; reconstructed and documented the full module map.

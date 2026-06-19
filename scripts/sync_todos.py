@@ -42,8 +42,13 @@ COL_WIDTHS = [60, 90, 250, 820, 120, 240]
 SKIP_SECTIONS = ["позже", "идеи"]
 
 # Map a section heading (substring, lower-cased) -> short tab title, in order.
+# More specific keys must precede generic ones (first match wins). Per-phase
+# recommendation sections get their own tab so phases don't merge.
 SECTION_TABS = [
     ("сквозная проверка", "Проверка модуля"),
+    ("кредитные программы: предложения", "Кред. программы"),
+    ("комиссии по заявкам: предложения", "Заявки"),
+    ("заёмщики: предложения", "Заёмщики"),
     ("предложения по улучшению", "Решения"),
     ("позже", "Идеи / позже"),
     ("недавно сделано", "Сделано"),
@@ -83,7 +88,7 @@ def parse_todos(text):
             continue
         done = item.group(1).lower() == "x"
         rest = item.group(2).strip()
-        idm = re.match(r"^(R\d+|Фаза\s*\d+|Phase\s*\d+)\b[:\-\s—–]*(.*)", rest)
+        idm = re.match(r"^(P\d+-R\d+|R\d+|Фаза\s*\d+|Phase\s*\d+)\b[:\-\s—–]*(.*)", rest)
         if idm:
             tid = re.sub(r"\s+", " ", idm.group(1))
             rest = idm.group(2).strip()
