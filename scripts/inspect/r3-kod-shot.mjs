@@ -12,7 +12,7 @@ if (page.url().includes('/login')) {
 }
 await page.goto(BASE + 'gov-decisions/new', { waitUntil: 'networkidle', timeout: 60000 });
 await page.waitForTimeout(2500);
-const OUT = 'screenshots/03-gov-decision-r3-kod.png';
+const OUT = 'screenshots/government-decision/03-gov-decision-r3-kod.png';
 await page.screenshot({ path: OUT, fullPage: true });
 console.log('saved', OUT);
 await ctx.close();

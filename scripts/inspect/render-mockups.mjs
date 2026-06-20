@@ -6,11 +6,11 @@ import { resolve } from 'path';
 
 const OUT = 'guides/decision-tasks/img';
 const SHOTS = [
-  { file: 'mockups/decision-detail.html',   out: 'mockup-detail.png' },
-  { file: 'mockups/decision-reject.html',   out: 'mockup-reject.png' },
-  { file: 'mockups/decision-create.html',   out: 'mockup-create.png' },
-  { file: 'mockups/decision-workflow.html', out: 'mockup-workflow.png' },
-  { file: 'mockups/decision-delete.html',   out: 'mockup-delete.png' },
+  { file: 'mockups/decision/decision-detail.html',   out: 'mockup-detail.png' },
+  { file: 'mockups/decision/decision-reject.html',   out: 'mockup-reject.png' },
+  { file: 'mockups/decision/decision-create.html',   out: 'mockup-create.png' },
+  { file: 'mockups/decision/decision-workflow.html', out: 'mockup-workflow.png' },
+  { file: 'mockups/decision/decision-delete.html',   out: 'mockup-delete.png' },
 ];
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -25,7 +25,7 @@ for (const s of SHOTS) {
 
 // Detail mockup: activate the «Документы» tab (data-tab="2") and capture both the
 // full page (tab active) and a tight crop of just the documents panel.
-const detailUrl = pathToFileURL(resolve('mockups/decision-detail.html')).href;
+const detailUrl = pathToFileURL(resolve('mockups/decision/decision-detail.html')).href;
 await page.goto(detailUrl, { waitUntil: 'networkidle', timeout: 30000 });
 await page.click('.tab[data-tab="2"]');
 await page.waitForTimeout(400);

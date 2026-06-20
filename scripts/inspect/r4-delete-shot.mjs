@@ -21,7 +21,7 @@ const clicked = await page.evaluate(() => {
 });
 console.log('selected approved row:', clicked);
 await page.waitForTimeout(1500);
-const OUT = 'screenshots/04-gov-list-delete.png';
+const OUT = 'screenshots/government-decision/04-gov-list-delete.png';
 await page.screenshot({ path: OUT, fullPage: true });
 console.log('saved', OUT);
 await ctx.close();
