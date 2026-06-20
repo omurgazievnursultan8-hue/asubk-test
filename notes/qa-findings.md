@@ -60,6 +60,24 @@ Overall: ✅ core flow works; required-field validation correct.
     is referenced by a loan program (referential integrity). Not tested to avoid
     destroying referenced data.
 
+- **P1-12** — `/gov-decisions` — 🟠 major — _verified 2026-06-20, `tests/government-decision/*` + inspection probes_
+  - **Issue:** The decision list returns **only approved (`Одобрен`) records**.
+    A newly created decision saves successfully (toast «Запись … успешно
+    сохранена») with status **«На стадии рассмотрения»**, but it **never appears
+    in the default list** — `vaadin-grid` reports `size = 7`, all 7 rows
+    `Одобрен`, across repeated creates and after sort/scroll. No active filter
+    chip is shown.
+  - **Impact:** Records in review state are **unreachable from the default list**,
+    so the **Одобрить / Отклонить** row-actions (and the whole maker/checker
+    approval step) cannot be performed there. This blocked the automated approve/
+    reject UI tests (`workflow.spec.js`, currently `describe.skip`).
+  - **Open question for domain owner / dev team:** Is this a **persisted default
+    filter** (status = Одобрен) on the list, an **approval queue handled on a
+    separate screen**, or a **loader/visibility bug**? Confirm where pending
+    decisions are reviewed and approved.
+  - **Cross-ref:** gates verification of the workflow documented in
+    `requirements/features/01-government-decision.md` (status lifecycle).
+
 ### UX / design — decision detail page (страница решения)
 > Holistic design review of the single-decision view. Several items overlap with
 > the functional defects above; cross-referenced where they share a root cause.
@@ -509,3 +527,82 @@ gating. Routes: list `/loansCredit`, detail `/loan-credits/{id}`, view
     schedule computes interest (Сумма процентов 16 121,73). The rate the schedule
     uses is not shown on the terms tab.
   - **Action:** surface the effective rate (likely inherited from the program). → P5-R5.
+
+---
+
+## Phase 6 — Disbursement & tranches (Освоение и транши)
+
+> Routes: `/sub-loans` (tranches list) · `/sub-loans/{id}` (4 tabs) ·
+> `/disbursements` (list) · `/disbursements/{id}`. Verified 2026-06-20 via
+> `scripts/inspect/p6.mjs` (admin, test env). See
+> `requirements/features/06-disbursement-tranches.md`.
+
+- **P6-01** — `/sub-loans` list + `/disbursements/{id}` — 🟠 major — _verified 2026-06-20_
+  - **Issue:** raw entity property names leak into the UI as labels instead of
+    localized Russian: the **first column header** of the tranches list is
+    **`SubLoan.amount`** (should be «Сумма транша»), and the disbursement detail's
+    parent-tranche picker is labelled **`Disbursement.subLoan`** (should be «Транш»).
+  - **Expected:** every user-facing label localized; no `Entity.property` strings.
+  - **Notes:** missing i18n message keys — same class as the typo/format cleanups
+    but more visible (a primary column header). → P6-R1.
+
+- **P6-02** — `/sub-loans/{id}` → График — 🟡 minor — _verified 2026-06-20_
+  - **Steps:** open tranche `/sub-loans/1` (Status = Active, Срок 24, ставка 10 %),
+    go to the «График» tab.
+  - **Actual:** tab is **empty** — Кол-во платежей **0**, Основной долг / Проценты /
+    Всего платежей all **0.00**, schedule grid blank — even though the tranche has
+    full terms and a disbursement (Освоение №1, 50 000) **with a fully computed
+    schedule** sits beneath it (tab «Освоение»).
+  - **Expected:** the tranche schedule is generated/aggregated automatically (or the
+    summary should not show a misleading all-zero state); needs a manual
+    «Пересчитать график» today.
+  - **Notes:** disbursement-level schedule is correct (see feature doc); the gap is
+    at the tranche roll-up level. → P6-R2.
+
+- **P6-03** — `/sub-loans/{id}` → Условия — 🔵 cosmetic — _verified 2026-06-20_
+  - **Issue:** «Очередность погашения» value reads «Основная сумма, проценты,
+    **шрафы**» — typo, should be «**штрафы**».
+  - **Expected:** «… штрафы». → P6-R3.
+
+---
+
+## Phase 7 — Servicing (Обслуживание: платежи, резервы, реестр)
+
+> Routes: `/payments` (Платеж) · `/loan-reserves` (Резерв) · `/loan-ledgers`
+> (LoanLedger). Verified 2026-06-20 via `scripts/inspect/p7.mjs` (admin, test env).
+> See `requirements/features/07-servicing.md`.
+
+- **P7-01** — `/payments`, `/loan-reserves`, `/loan-ledgers` — 🟠 major — _verified 2026-06-20_
+  - **Issue:** raw entity/enum strings leak as labels across all three servicing
+    grids instead of localized Russian: Резерв headers `Loan`, `Loan amount`,
+    `LoanReserve.disbursedAmount`, `LoanReserve.unusedAmount`,
+    `LoanReserve.reserveRate`, `LoanReserve.reserveAmount`; LoanLedger «Событие»
+    mixes the raw enum `EventType.PRINCIPAL_ACCRUAL` with English `Interest accrual`
+    / `Payment` and Russian `Пеня`; ledger page title is `LoanLedger`.
+  - **Expected:** all headers/values localized; the event enum has a single Russian
+    label set. Same class as P6-01, wider. → P7-R1.
+
+- **P7-02** — `/payments` list — 🟠 major — _verified 2026-06-20_
+  - **Issue:** the grid exposes two **internal technical columns** — `Payment uuid`
+    (entity UUID) and `Payment version` (optimistic-lock version) — to end users.
+  - **Expected:** hide infrastructure columns; show business fields only. → P7-R2.
+
+- **P7-03** — `/payments` list — 🟡 minor — _verified 2026-06-20_
+  - **Issue:** the first **«Статус»** column shows the raw code **`1`** on every
+    row, redundant with **«Статус платежа»** which holds the human value
+    («Оплачен»).
+  - **Expected:** one status column with a localized value; drop the raw code. → P7-R3.
+
+- **P7-04** — `/loan-reserves` — 🟡 minor — _verified 2026-06-20_
+  - **Issue:** toolbar is **Обновить + Добавить условие поиска only** — no
+    Создать/Изменить/Просмотр/Удалить — and double-clicking a row opens nothing
+    (URL stays `/loan-reserves`). There is **no detail view** for a reserve record.
+  - **Expected:** a read-only detail/«Просмотр» page so users can inspect how a
+    reserve was computed. → P7-R4.
+
+- **P7-05** — `/loan-ledgers` — 🟡 minor — _verified 2026-06-20_
+  - **Issue:** the loan ledger is an **accounting event log** yet the toolbar
+    offers **«Удалить»** (gated on selection). Deleting financial events breaks
+    auditability.
+  - **Expected:** ledger is append-only; corrections via reversing entries, not row
+    deletion; any admin removal must be audited. → P7-R5.

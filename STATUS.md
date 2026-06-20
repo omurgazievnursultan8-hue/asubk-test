@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-06-20 (Phase 5 docs+QA) — _(update this date every time you edit)_
+> Last updated: 2026-06-20 (Phase 7 docs+QA) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -25,7 +25,7 @@ The app is live on the test env with ~150 screens across these domains
 ## In progress
 | Item | Owner | Started | Notes |
 |---|---|---|---|
-| Credit module end-to-end check (QA + docs) | admin | 2026-06-17 | Phases 1–5 docs+QA done (Phase 5 = loan issuance, 2026-06-20). Next: Phase 6 — Освоение и транши. See TODO.md |
+| Credit module end-to-end check (QA + docs) | admin | 2026-06-17 | Phases 1–7 docs+QA done (Phase 7 = servicing: payments, reserves, LoanLedger, 2026-06-20). Next: Phase 8 — Мониторинг залога. See TODO.md |
 
 ## Blocked / waiting
 | Item | Blocked by | Since | Notes |
@@ -38,6 +38,8 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-06-20 — Phase 7 (Servicing): documented `/payments` (Платеж), `/loan-reserves` (Резерв), `/loan-ledgers` (LoanLedger) via Playwright (`scripts/inspect/p7.mjs`). Logged 5 findings (P7-01 🟠 i18n leak across all 3 grids incl. `EventType.*` enum; P7-02 🟠 `Payment uuid`/`version` columns exposed; P7-03 🟡 duplicate raw «Статус»; P7-04 🟡 reserves have no detail view; P7-05 🟡 ledger «Удалить» on append-only log) and 5 proposals (P7-R1…R5). Cross-check: payment split (ОД+проценты) and reserve math (unused×rate) correct.
+- 2026-06-20 — Phase 6 (Disbursement & tranches): documented `/sub-loans` (tranches, 4-tab detail) + `/disbursements` (Освоение) via Playwright (`scripts/inspect/p6-probe.mjs`, `p6.mjs`); model Кредит→Транш→Освоение. Logged 3 findings (P6-01 🟠 raw entity labels `SubLoan.amount`/`Disbursement.subLoan`; P6-02 🟡 empty tranche schedule; P6-03 🔵 «шрафы» typo) and 3 proposals (P6-R1…R3). Cross-check: disbursement-level annuity schedule computes interest correctly (50 000 @10%/24mo → 2 307,25).
 - 2026-06-20 — Phase 5 (Loan issuance): documented `/loansCredit` + 11-tab loan detail (`/loan-credits/{id}`) via Playwright (`scripts/inspect/loans*.mjs`); logged 8 findings (P5-01…08, incl. **🔴 P5-01** data-dependent detail crash on rec 20/22) and 5 proposals (P5-R1…R5). Cross-check: loan-level schedule computes interest correctly (contra app-level P3-R11).
 - 2026-06-17 — Phase 2 (Loan program): documented `/loan-programs` + 9-tab create wizard via Playwright; logged 6 findings (P2-01…06) and 6 proposals (R8–R13). QA pass (required-field validation). Stack refined to **Jmix on Vaadin**. New Sheet tab «Кред. программы».
 - 2026-06-17 — Phase 1 (Gov decision): verified R2/R4/R6 in-app; all 6 proposals confirmed (see findings P1-03/04/05). Stack = Vaadin.
