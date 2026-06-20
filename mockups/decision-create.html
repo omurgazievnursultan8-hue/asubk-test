@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Создание решения правительства · АСУБК</title>
+<!--
+  MOCKUP — образец вёрстки для команды разработки (не прод-код).
+  Страница: создание решения (/gov-decisions/new), режим «На стадии рассмотрения».
+  Дизайн-система — та же, что в mockups/decision-detail.html.
+  НОВОЕ (R1): вкладка «Документы» с блоком загрузки файлов.
+  Отличие от detail-страницы: запись ещё «На рассмотрении» →
+   • основной документ НЕ обязателен на этом шаге (нужен для перехода в «Действует»);
+   • файлы можно удалять (запись не одобрена);
+   • версий ещё нет (свежая загрузка).
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+
+.app{ display:flex; height:100vh; width:100%; }
+
+/* sidebar */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
+  border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
+.nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
+.nav-sub > .nav-toggle{ padding:8px 16px 8px 32px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font); }
+.nav-toggle:hover{ background:rgba(24,39,57,0.04); }
+.nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
+  transition:transform 120ms ease; flex:none; }
+.nav-group.open > .nav-toggle .chev, .nav-sub.open > .nav-toggle .chev{ transform:rotate(90deg); }
+.nav-toggle .lbl{ flex:1; }
+.nav-children{ display:none; }
+.nav-group.open > .nav-children, .nav-sub.open > .nav-children{ display:block; }
+.nav-item{ display:block; padding:7px 16px 7px 52px; text-decoration:none; color:rgba(24,39,57,0.88);
+  font:var(--weight-regular) 15px/1.35 var(--asubk-font); }
+.nav-item.headerless{ padding-left:40px; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+
+/* main */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
+.crumb-link{ display:inline-flex; align-items:center; gap:6px; color:var(--text-link);
+  text-decoration:none; font:var(--weight-medium) 14px/1 var(--asubk-font); }
+.crumb-link:hover{ text-decoration:underline; }
+.crumb-sep{ color:var(--text-placeholder); }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.crumb-status{ margin-left:auto; }
+
+.content{ flex:1; overflow:auto; display:flex; flex-direction:column; min-width:0; }
+
+/* form */
+.form-block{ padding:20px 24px 4px; }
+.form-grid{ max-width:1320px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px 32px; }
+.col-span{ grid-column:1 / -1; }
+.field{ display:flex; flex-direction:column; gap:var(--space-1); }
+.field > .flabel{ font:var(--font-label); color:var(--text-muted); }
+.field.required > .flabel::after{ content:" \2022"; color:var(--text-link); }
+.control{ position:relative; display:flex; align-items:center; }
+.control input{ width:100%; height:var(--control-h); border-radius:var(--radius-md);
+  background:var(--surface-input); color:var(--text-body); font:var(--font-body);
+  border:1px solid transparent; outline:none; padding:0 var(--space-3);
+  transition:background 120ms ease, box-shadow 120ms ease; }
+.control input:focus{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); background:var(--surface-card); }
+.control input[readonly]{ color:var(--text-muted); cursor:default; }
+.control input[readonly]:focus{ border-color:transparent; box-shadow:none; background:var(--surface-input); }
+.control .cal{ position:absolute; right:10px; pointer-events:none; color:var(--text-muted); display:flex; }
+/* lookup */
+.lookup{ display:flex; align-items:center; height:var(--control-h); background:var(--surface-input);
+  border-radius:var(--radius-md); border:1px solid transparent; padding-left:var(--space-3); }
+.lookup .val{ flex:1; font:var(--font-body); color:var(--text-placeholder);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lookup .val.filled{ color:var(--text-body); }
+.lookup button{ display:inline-flex; align-items:center; justify-content:center; width:34px; height:var(--control-h);
+  border:none; background:transparent; color:var(--text-link); cursor:pointer; }
+.lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
+
+/* tabs */
+.tabstrip-wrap{ padding:14px 24px 0; }
+.tabstrip{ display:flex; gap:4px; border-bottom:1px solid var(--border-default); }
+.tab{ border:none; background:transparent; padding:12px 16px;
+  font:var(--weight-regular) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap;
+  display:inline-flex; align-items:center; gap:8px; }
+.tab:hover{ color:var(--text-body); }
+.tab.active{ font-weight:var(--weight-semibold); color:var(--text-link); border-bottom-color:var(--action-primary); }
+.tabbody{ flex:1; padding:20px 24px 16px; min-width:0; }
+.tabpanel{ display:none; }
+.tabpanel.active{ display:block; }
+.note-area{ width:100%; max-width:1320px; min-height:180px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); background:var(--surface-input); color:var(--text-body);
+  font:var(--font-body); padding:10px 12px; resize:vertical; outline:none; }
+.note-area:focus{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); background:var(--surface-card); }
+
+/* buttons */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover{ background:var(--action-primary-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover{ background:var(--surface-hover); }
+
+/* badge */
+.badge{ display:inline-flex; align-items:center; gap:var(--space-1); height:22px; padding:0 var(--space-2);
+  border-radius:var(--radius-pill); font:var(--weight-medium) var(--text-xs)/1 var(--asubk-font); white-space:nowrap; }
+.badge.info{ color:var(--status-info); background:var(--status-info-bg); }
+.badge.neutral{ color:var(--text-muted); background:var(--asubk-gray-150); }
+.badge.warning{ color:var(--status-warning); background:var(--status-warning-bg); }
+.tab-count{ min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--asubk-gray-200);
+  color:var(--text-muted); font:var(--weight-semibold) 11px/18px var(--asubk-font); text-align:center; }
+
+/* upload block (R1) */
+.uploader{ max-width:1320px; display:flex; flex-direction:column; gap:14px; }
+.rule-banner{ display:flex; align-items:flex-start; gap:10px; padding:11px 14px; border-radius:var(--radius-md);
+  background:var(--status-info-bg); color:#0a3d80; font:var(--font-label); }
+.rule-banner svg{ flex:none; margin-top:1px; color:var(--status-info); }
+.dropzone{ border:1.5px dashed var(--border-strong); border-radius:var(--radius-lg); background:var(--surface-panel);
+  padding:30px 20px; text-align:center; transition:background 120ms ease, border-color 120ms ease; }
+.dropzone.drag{ border-color:var(--action-primary); background:var(--status-info-bg); }
+.dropzone .dz-icon{ color:var(--action-primary); margin-bottom:8px; }
+.dropzone .dz-main{ font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-body); }
+.dropzone .dz-hint{ margin-top:6px; font:var(--font-label); color:var(--text-muted); }
+.dropzone .btn{ margin-top:14px; }
+.file-list{ display:flex; flex-direction:column; gap:10px; }
+.file-row{ display:flex; align-items:center; gap:14px; padding:12px 14px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); background:var(--surface-card); }
+.file-row.is-main{ border-color:rgba(0,106,245,0.45); box-shadow:inset 0 0 0 1px rgba(0,106,245,0.25); }
+.file-ic{ width:34px; height:34px; flex:none; border-radius:var(--radius-sm); display:flex; align-items:center;
+  justify-content:center; background:var(--status-error-bg); color:var(--action-danger);
+  font:var(--weight-bold) 11px/1 var(--asubk-font); }
+.file-meta{ flex:1; min-width:0; }
+.file-name{ font:var(--font-body); color:var(--text-body); white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; display:flex; align-items:center; gap:8px; }
+.file-sub{ margin-top:3px; font:var(--font-label); color:var(--text-muted); }
+.file-actions{ display:flex; align-items:center; gap:4px; flex:none; }
+.linkbtn{ border:none; background:transparent; color:var(--text-link); cursor:pointer;
+  font:var(--weight-medium) 14px/1 var(--asubk-font); padding:6px 8px; border-radius:var(--radius-sm); }
+.linkbtn:hover{ background:var(--surface-hover); }
+.linkbtn.danger{ color:var(--action-danger); }
+.progress{ height:6px; border-radius:3px; background:var(--asubk-gray-200); overflow:hidden; margin-top:8px; }
+.progress > i{ display:block; height:100%; background:var(--action-primary); }
+.empty-hint{ padding:8px 2px; font:var(--font-label); color:var(--text-muted); }
+
+/* footer */
+.footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
+  padding:14px 24px; display:flex; align-items:center; gap:12px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav" id="nav"></div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <span class="menu" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
+      </span>
+      <a class="crumb-link" href="#" onclick="return false;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+        <span>Решения правительства</span>
+      </a>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-title">Новое решение</span>
+      <span class="crumb-status"><span class="badge warning">На стадии рассмотрения</span></span>
+    </header>
+
+    <div class="content">
+
+      <!-- editable fields (3-column, mirrors /gov-decisions/new) -->
+      <div class="form-block">
+        <div class="form-grid">
+          <div class="field required">
+            <span class="flabel">Наименование</span>
+            <div class="control"><input type="text" placeholder="Введите наименование решения"></div>
+          </div>
+          <div class="field">
+            <span class="flabel">Статус</span>
+            <div class="control"><input type="text" value="На стадии рассмотрения" readonly></div>
+          </div>
+          <div class="field required">
+            <span class="flabel">Код</span>
+            <div class="control"><input type="text" placeholder="ПОСТ-2026-0008"></div>
+          </div>
+
+          <div class="field required">
+            <span class="flabel">Краткое наименование</span>
+            <div class="control"><input type="text" placeholder="Короткое название"></div>
+          </div>
+          <div class="field required">
+            <span class="flabel">Номер решения</span>
+            <div class="control"><input type="text" placeholder="№ ____"></div>
+          </div>
+          <div class="field">
+            <span class="flabel">Дата решения</span>
+            <div class="control">
+              <input type="text" value="19.06.2026">
+              <span class="cal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg></span>
+            </div>
+          </div>
+
+          <div class="field required">
+            <span class="flabel">Вид решения</span>
+            <div class="lookup">
+              <span class="val">Выберите вид решения…</span>
+              <button class="pick" title="Выбрать">•••</button>
+              <button title="Очистить">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- tabs: Примечание + NEW Документы -->
+      <div class="tabstrip-wrap">
+        <div class="tabstrip" id="tabs">
+          <button class="tab active" data-tab="0">Примечание</button>
+          <button class="tab" data-tab="1">Документы <span class="tab-count" id="docCount">0</span></button>
+        </div>
+      </div>
+
+      <div class="tabbody">
+
+        <!-- Tab 0 — Примечание -->
+        <section class="tabpanel active" data-panel="0">
+          <textarea class="note-area" placeholder="Комментарий к решению (необязательно)"></textarea>
+        </section>
+
+        <!-- Tab 1 — Документы (R1 upload block, optional at «На рассмотрении») -->
+        <section class="tabpanel" data-panel="1">
+          <div class="uploader">
+
+            <div class="rule-banner">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              <span>На этом шаге файлы <b>необязательны</b>. Для перевода решения в статус «Действует» потребуется хотя бы один документ, помеченный как <b>основной</b>. Формат — только <b>PDF</b>, до 20&nbsp;МБ. Каждая загрузка фиксируется в журнале (вкладка «История» после сохранения).</span>
+            </div>
+
+            <div class="dropzone" id="dropzone">
+              <div class="dz-icon">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+              </div>
+              <div class="dz-main">Перетащите PDF-файлы сюда</div>
+              <div class="dz-hint">или</div>
+              <button class="btn btn-primary" type="button">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                Выбрать файлы
+              </button>
+              <div class="dz-hint">PDF · до 20&nbsp;МБ · можно несколько файлов (основное решение + приложения)</div>
+            </div>
+
+            <!-- example: one freshly attached PDF flagged main + one annex + one in-progress -->
+            <div class="file-list">
+
+              <div class="file-row is-main">
+                <div class="file-ic">PDF</div>
+                <div class="file-meta">
+                  <div class="file-name">
+                    Постановление КМ КР (проект).pdf
+                    <span class="badge info">Основной</span>
+                  </div>
+                  <div class="file-sub">1,9 МБ · добавлен только что · admin</div>
+                </div>
+                <div class="file-actions">
+                  <button class="linkbtn">Просмотр</button>
+                  <button class="linkbtn">Заменить</button>
+                  <button class="linkbtn danger">Удалить</button>
+                </div>
+              </div>
+
+              <div class="file-row">
+                <div class="file-ic">PDF</div>
+                <div class="file-meta">
+                  <div class="file-name">Приложение — расчёт лимитов.pdf</div>
+                  <div class="file-sub">620 КБ · добавлен только что · admin</div>
+                </div>
+                <div class="file-actions">
+                  <button class="linkbtn">Просмотр</button>
+                  <button class="linkbtn">Сделать основным</button>
+                  <button class="linkbtn danger">Удалить</button>
+                </div>
+              </div>
+
+              <div class="file-row">
+                <div class="file-ic">PDF</div>
+                <div class="file-meta">
+                  <div class="file-name">Пояснительная записка.pdf</div>
+                  <div class="file-sub">Загрузка… 38% · 0,4 / 1,1 МБ</div>
+                  <div class="progress"><i style="width:38%"></i></div>
+                </div>
+                <div class="file-actions">
+                  <button class="linkbtn danger">Отменить</button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- footer actions (create mode) -->
+      <div class="footer">
+        <button class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          OK
+        </button>
+        <button class="btn btn-secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>
+          Отмена
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---- same reorganized nav tree as decision-detail.html (Решение правительства active) ---- */
+const TREE = [
+  { id:"k", label:"Кредиты", open:true, subs:[
+    { id:"k-prog", label:"Программы и решения", open:true, items:[
+      { label:"Решение правительства", active:true },
+      { label:"Кредитные программы" } ] },
+    { id:"k-app", label:"Заявки и комиссии", items:[
+      { label:"Заявки" }, { label:"Комиссии по заявкам" } ] },
+    { id:"k-borr", label:"Заемщики", items:[ { label:"Заемщики" } ] },
+    { id:"k-loan", label:"Кредиты и транши", items:[
+      { label:"Кредиты" }, { label:"Список траншей" } ] },
+    { id:"k-disb", label:"Освоение и платежи", items:[
+      { label:"Освоение" }, { label:"Платеж" }, { label:"Резерв" } ] },
+    { id:"k-col", label:"Залог", items:[ { label:"Мониторинг залога" } ] },
+  ]},
+  { id:"g", label:"Поручительства", subs:[
+    { id:"g-all", headerless:true, items:[
+      { label:"Анкеты поручительств" }, { label:"Решения по поручительству" } ] } ]},
+  { id:"c", label:"Корпоративное управление", subs:[
+    { id:"c-all", headerless:true, items:[
+      { label:"Реестр компаний" }, { label:"Аналитика KPI" }, { label:"Документы" } ] } ]},
+  { id:"r", label:"Отчёты", subs:[
+    { id:"r-sys", label:"Системные", items:[ { label:"Отчёты" } ] } ]},
+  { id:"d", label:"Справочники", subs:[
+    { id:"d-dec", label:"Решения и получатели", items:[
+      { label:"Статус решения" }, { label:"Вид решения" } ] } ]},
+  { id:"sy", label:"Система", subs:[
+    { id:"sy-users", label:"Пользователи и подразделения", items:[
+      { label:"Пользователи" }, { label:"Подразделения" } ] } ]},
+];
+const chevSvg = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
+function renderNav(){
+  const nav = document.getElementById('nav');
+  nav.innerHTML = TREE.map(g => {
+    const subs = g.subs.map(sg => {
+      const items = sg.items.map(it =>
+        `<a class="nav-item${sg.headerless?' headerless':''}${it.active?' active':''}" href="#" onclick="return false;">${it.label}</a>`
+      ).join('');
+      if (sg.headerless) return `<div class="nav-sub open"><div class="nav-children">${items}</div></div>`;
+      return `<div class="nav-sub${sg.open?' open':''}"><button class="nav-toggle">${chevSvg(14)}<span class="lbl">${sg.label}</span></button><div class="nav-children">${items}</div></div>`;
+    }).join('');
+    return `<div class="nav-group${g.open?' open':''}"><button class="nav-toggle">${chevSvg(16)}<span class="lbl">${g.label}</span></button><div class="nav-children">${subs}</div></div>`;
+  }).join('');
+  nav.querySelectorAll('.nav-toggle').forEach(btn =>
+    btn.addEventListener('click', () => btn.parentElement.classList.toggle('open')));
+}
+renderNav();
+
+/* ---- tabs ---- */
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const i = tab.dataset.tab;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.querySelectorAll('.tabpanel').forEach(p => p.classList.toggle('active', p.dataset.panel === i));
+  });
+});
+
+/* ---- doc count badge reflects finished attachments (excludes in-progress) ---- */
+(function(){
+  const inProgress = document.querySelectorAll('.file-row .progress').length;
+  const total = document.querySelectorAll('.file-row').length;
+  document.getElementById('docCount').textContent = total - inProgress;
+})();
+
+/* ---- drop-zone drag highlight (visual only) ---- */
+(function(){
+  const dz = document.getElementById('dropzone');
+  if (!dz) return;
+  ['dragenter','dragover'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.remove('drag'); }));
+})();
+</script>
+</body>
+</html>

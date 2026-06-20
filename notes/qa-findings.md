@@ -445,3 +445,67 @@ debt limit). Route `/loan-applicants`. Two data-consistency bugs surfaced.
     unclear whether checks are **live integrations** or static, their refresh
     cadence, and which are **blocking** vs advisory for loan approval.
   - **Action:** confirm with domain owner. → P4-R5.
+
+---
+
+## Phase 5 — Loan issuance (Выдача кредитов / Кредиты)
+Overall: 🟠 core works (loan = materialized approved application; 11-tab servicing
+hub; loan-level repayment schedule computes interest correctly — unlike P3-R11),
+but a **blocking data-dependent crash** on the detail page and no field/status
+gating. Routes: list `/loansCredit`, detail `/loan-credits/{id}`, view
+`/loan-credits-read/{id}?mode=readonly`. Verified 2026-06-20
+(`scripts/inspect/loans*.mjs`).
+
+- **P5-01** — `/loan-credits/{id}` — 🔴 blocker — _verified 2026-06-20_
+  - **Steps:** open loan records 20 or 22 (edit route `loan-credits/20` **or**
+    readonly `loan-credits-read/20?mode=readonly`, e.g. select row → «Просмотр»).
+  - **Actual:** full-page dialog **«Непредвиденная ошибка»**; the page never
+    renders. Records 18 / 19 / 21 open fine — so it is **data-dependent**.
+  - **Expected:** every loan opens; bad data yields a handled message, not a crash.
+  - **Notes:** server-side unhandled exception — Vaadin renders the error via UIDL
+    (HTTP 200, no 4xx/5xx on the wire; only console noise is the push websocket).
+    Needs a **server log** at open-time of rec 20/22 to root-cause. → P5-R1.
+
+- **P5-02** — `/loan-credits/{id}` — 🟠 major — _no status gating_
+  - **Issue:** «Статус кредита» (combo), «Сумма по договору», and the «Условия
+    кредита» terms are **freely editable regardless of loan status**. Loan status
+    can be changed by directly picking a value, not via guarded transitions.
+  - **Expected:** lock financial terms once issued; drive status via workflow
+    transitions with audit. Same class as P3-R10 / P3-R7 / Phase 1 R7. → P5-R2.
+
+- **P5-03** — `/loan-credits/{id}` → Общая информация — 🟠 major — _verified 2026-06-20_
+  - **Issue:** «Сумма по договору» = **250 000,00** while «Одобренная сумма»
+    (read-only) = **150 000,00** — the contract amount **exceeds the
+    commission-approved amount**, and the field is an editable plain text-field
+    with **no numeric / min / max validation**.
+  - **Expected:** contract amount ≤ approved amount and > 0, enforced on client +
+    server; numeric field, not free text. → P5-R3.
+
+- **P5-04** — `/loansCredit` list — 🟡 minor — _no working view page_
+  - **Issue:** toolbar = Добавить условие поиска · Изменить · **Просмотр**; the
+    only read-only path («Просмотр») routes to the **crashing** readonly view
+    (P5-01). List also surfaces the **application** status («Статус заявки»), not
+    the loan's own «Статус кредита».
+  - **Action:** add a real loan detail/view page (reuse P2-R4 / P3-R2 pattern);
+    reconcile which status the list shows. → P5-R4.
+
+- **P5-05** — `/loan-credits/{id}` → Общая информация — 🟡 minor — _format_
+  - **Issue:** on one screen «Одобренная сумма» renders raw `150000.00` while
+    «Сумма по договору» renders `250 000,00` (grouped, comma decimal).
+  - **Expected:** one money format everywhere. → P5-R5.
+
+- **P5-06** — `/loan-credits/{id}` — 🟡 minor — _date affordance_
+  - **Issue:** date entry is split into **3 separate unlabeled widgets**
+    (date-time-picker + date-picker + time-picker) on Общая информация,
+    Оформление and Условия кредита.
+  - **Expected:** a single labelled date(-time) field. → P5-R5.
+
+- **P5-07** — `/loan-credits/{id}` — 🔵 cosmetic — _UI typos_
+  - **Issue:** «**Измнен**» (→ «Изменён») on Общая информация; «начис**е**ния» /
+    «нач**сил**ения» (→ «начисления») on Условия кредита. → P5-R5.
+
+- **P5-08** — `/loan-credits/{id}` → Условия кредита — 🟡 minor — _rate not surfaced_
+  - **Issue:** «Процентная ставка» is read-only and **empty**, yet the repayment
+    schedule computes interest (Сумма процентов 16 121,73). The rate the schedule
+    uses is not shown on the terms tab.
+  - **Action:** surface the effective rate (likely inherited from the program). → P5-R5.

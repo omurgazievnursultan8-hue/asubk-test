@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-06-17 (Phase 2 docs+QA) — _(update this date every time you edit)_
+> Last updated: 2026-06-20 (Phase 5 docs+QA) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -25,7 +25,7 @@ The app is live on the test env with ~150 screens across these domains
 ## In progress
 | Item | Owner | Started | Notes |
 |---|---|---|---|
-| Credit module end-to-end check (QA + docs) | admin | 2026-06-17 | Phase 1 done; Phase 2 (Loan program) docs+QA drafted, on review. Next: Phase 3 — Applications. See TODO.md |
+| Credit module end-to-end check (QA + docs) | admin | 2026-06-17 | Phases 1–5 docs+QA done (Phase 5 = loan issuance, 2026-06-20). Next: Phase 6 — Освоение и транши. See TODO.md |
 
 ## Blocked / waiting
 | Item | Blocked by | Since | Notes |
@@ -38,6 +38,7 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-06-20 — Phase 5 (Loan issuance): documented `/loansCredit` + 11-tab loan detail (`/loan-credits/{id}`) via Playwright (`scripts/inspect/loans*.mjs`); logged 8 findings (P5-01…08, incl. **🔴 P5-01** data-dependent detail crash on rec 20/22) and 5 proposals (P5-R1…R5). Cross-check: loan-level schedule computes interest correctly (contra app-level P3-R11).
 - 2026-06-17 — Phase 2 (Loan program): documented `/loan-programs` + 9-tab create wizard via Playwright; logged 6 findings (P2-01…06) and 6 proposals (R8–R13). QA pass (required-field validation). Stack refined to **Jmix on Vaadin**. New Sheet tab «Кред. программы».
 - 2026-06-17 — Phase 1 (Gov decision): verified R2/R4/R6 in-app; all 6 proposals confirmed (see findings P1-03/04/05). Stack = Vaadin.
 - 2026-06-17 — Phase 1 (Gov decision): documented + logged 6 improvement proposals (R1–R6).

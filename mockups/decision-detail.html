@@ -237,6 +237,38 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); box-shadow:inset 0 
 .tl-user{ margin-top:2px; font:var(--weight-regular) 13px/1.3 var(--asubk-font); color:var(--text-muted); }
 .tl-user .who{ color:var(--text-link); }
 
+/* ---------- NEW: file upload block (R1 — attach source document) ---------- */
+.uploader{ max-width:1120px; display:flex; flex-direction:column; gap:14px; }
+.rule-banner{ display:flex; align-items:flex-start; gap:10px; padding:11px 14px; border-radius:var(--radius-md);
+  background:var(--status-warning-bg); color:#6b5300; font:var(--font-label); }
+.rule-banner svg{ flex:none; margin-top:1px; color:var(--status-warning); }
+.dropzone{ border:1.5px dashed var(--border-strong); border-radius:var(--radius-lg); background:var(--surface-panel);
+  padding:28px 20px; text-align:center; transition:background 120ms ease, border-color 120ms ease; }
+.dropzone.drag{ border-color:var(--action-primary); background:var(--status-info-bg); }
+.dropzone .dz-icon{ color:var(--action-primary); margin-bottom:8px; }
+.dropzone .dz-main{ font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-body); }
+.dropzone .dz-hint{ margin-top:6px; font:var(--font-label); color:var(--text-muted); }
+.dropzone .btn{ margin-top:14px; }
+.file-list{ display:flex; flex-direction:column; gap:10px; }
+.file-row{ display:flex; align-items:center; gap:14px; padding:12px 14px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); background:var(--surface-card); }
+.file-row.is-main{ border-color:rgba(0,106,245,0.45); box-shadow:inset 0 0 0 1px rgba(0,106,245,0.25); }
+.file-ic{ width:34px; height:34px; flex:none; border-radius:var(--radius-sm); display:flex; align-items:center;
+  justify-content:center; background:var(--status-error-bg); color:var(--action-danger);
+  font:var(--weight-bold) 11px/1 var(--asubk-font); }
+.file-meta{ flex:1; min-width:0; }
+.file-name{ font:var(--font-body); color:var(--text-body); white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; display:flex; align-items:center; gap:8px; }
+.file-sub{ margin-top:3px; font:var(--font-label); color:var(--text-muted); }
+.file-actions{ display:flex; align-items:center; gap:4px; flex:none; }
+.linkbtn{ border:none; background:transparent; color:var(--text-link); cursor:pointer;
+  font:var(--weight-medium) 14px/1 var(--asubk-font); padding:6px 8px; border-radius:var(--radius-sm); }
+.linkbtn:hover{ background:var(--surface-hover); }
+.linkbtn.danger{ color:var(--action-danger); }
+.linkbtn:disabled{ color:var(--text-disabled); cursor:not-allowed; background:transparent; }
+.progress{ height:6px; border-radius:3px; background:var(--asubk-gray-200); overflow:hidden; margin-top:8px; }
+.progress > i{ display:block; height:100%; background:var(--action-primary); }
+
 /* ---------- footer ---------- */
 .footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
   padding:14px 24px; display:flex; align-items:center; gap:12px; }
@@ -355,30 +387,92 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); box-shadow:inset 0 
           </div>
         </section>
 
-        <!-- Tab 2 — Документы -->
+        <!-- Tab 2 — Документы (R1: file upload block — drop-zone + versioned attachments) -->
         <section class="tabpanel" data-panel="2">
-          <div class="tab-stack">
-            <div class="toolbar">
-              <button class="btn btn-primary">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
-                Загрузить
-              </button>
+          <div class="uploader">
+
+            <!-- business rule banner (R1) -->
+            <div class="rule-banner">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              <span>Основной документ обязателен для перевода решения в статус «Действует». Только <b>PDF</b>, до 20&nbsp;МБ. Замена создаёт новую версию (история сохраняется); удаление файлов у одобренного решения запрещено. Кто и когда загрузил — фиксируется в журнале (История).</span>
             </div>
-            <div class="grid-wrap">
-              <table class="grid" id="docGrid">
-                <thead><tr>
-                  <th style="width:420px">Наименование документа<span class="sort">↕</span></th>
-                  <th style="width:180px">Тип<span class="sort">↕</span></th>
-                  <th style="width:150px">Дата загрузки<span class="sort">↕</span></th>
-                  <th class="num" style="width:120px">Размер<span class="sort">↕</span></th>
-                </tr></thead>
-                <tbody>
-                  <tr><td>Постановление ПКМ КР №142.pdf</td><td>Постановление</td><td>18.02.2026</td><td class="num">2,4 МБ</td></tr>
-                  <tr><td>Приложение 1 — Условия программы.pdf</td><td>Приложение</td><td>18.02.2026</td><td class="num">880 КБ</td></tr>
-                  <tr><td>Приложение 2 — Распределение лимитов.xlsx</td><td>Приложение</td><td>18.02.2026</td><td class="num">64 КБ</td></tr>
-                  <tr><td>Пояснительная записка.docx</td><td>Сопроводительный</td><td>12.02.2026</td><td class="num">120 КБ</td></tr>
-                </tbody>
-              </table>
+
+            <!-- drop-zone -->
+            <div class="dropzone" id="dropzone">
+              <div class="dz-icon">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+              </div>
+              <div class="dz-main">Перетащите PDF-файлы сюда</div>
+              <div class="dz-hint">или</div>
+              <button class="btn btn-primary" type="button">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                Выбрать файлы
+              </button>
+              <div class="dz-hint">PDF · до 20&nbsp;МБ · можно несколько файлов (основное решение + приложения)</div>
+            </div>
+
+            <!-- attached files -->
+            <div class="file-list">
+
+              <!-- main document (flagged, versioned, delete disabled on approved) -->
+              <div class="file-row is-main">
+                <div class="file-ic">PDF</div>
+                <div class="file-meta">
+                  <div class="file-name">
+                    Постановление ПКМ КР №142.pdf
+                    <span class="badge info">Основной</span>
+                    <span class="badge neutral">версия 2</span>
+                  </div>
+                  <div class="file-sub">2,4 МБ · загружен 18.02.2026 10:24 · admin</div>
+                </div>
+                <div class="file-actions">
+                  <button class="linkbtn">Просмотр</button>
+                  <button class="linkbtn">Заменить</button>
+                  <button class="linkbtn">История версий</button>
+                  <button class="linkbtn danger" disabled title="Удаление запрещено: решение в статусе «Действует»">Удалить</button>
+                </div>
+              </div>
+
+              <!-- annex (can be promoted to main; delete disabled on approved) -->
+              <div class="file-row">
+                <div class="file-ic">PDF</div>
+                <div class="file-meta">
+                  <div class="file-name">Приложение 1 — Условия программы.pdf</div>
+                  <div class="file-sub">880 КБ · загружен 18.02.2026 10:25 · admin</div>
+                </div>
+                <div class="file-actions">
+                  <button class="linkbtn">Просмотр</button>
+                  <button class="linkbtn">Сделать основным</button>
+                  <button class="linkbtn">Заменить</button>
+                  <button class="linkbtn danger" disabled title="Удаление запрещено: решение в статусе «Действует»">Удалить</button>
+                </div>
+              </div>
+
+              <!-- in-progress upload (state example) -->
+              <div class="file-row">
+                <div class="file-ic">PDF</div>
+                <div class="file-meta">
+                  <div class="file-name">Приложение 2 — Распределение лимитов.pdf</div>
+                  <div class="file-sub">Загрузка… 64% · 0,9 / 1,4 МБ</div>
+                  <div class="progress"><i style="width:64%"></i></div>
+                </div>
+                <div class="file-actions">
+                  <button class="linkbtn danger">Отменить</button>
+                </div>
+              </div>
+
+              <!-- rejected upload (validation state example) -->
+              <div class="file-row">
+                <div class="file-ic" style="background:var(--asubk-gray-150);color:var(--text-muted)">XLS</div>
+                <div class="file-meta">
+                  <div class="file-name" style="color:var(--text-muted)">Расчёт_лимитов.xlsx</div>
+                  <div class="file-sub" style="color:var(--action-danger)">Отклонено: допускается только формат PDF</div>
+                </div>
+                <div class="file-actions">
+                  <button class="linkbtn danger">Убрать</button>
+                </div>
+              </div>
+
             </div>
           </div>
         </section>
@@ -552,7 +646,14 @@ function wireGrid(gridId, editBtnId) {
   });
 }
 wireGrid('progGrid', 'progEdit');
-wireGrid('docGrid', null);
+
+/* ---- drop-zone drag highlight (R1 upload block, visual only) ---- */
+(function(){
+  const dz = document.getElementById('dropzone');
+  if (!dz) return;
+  ['dragenter','dragover'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.remove('drag'); }));
+})();
 
 /* ---- lookup clear (demo) ---- */
 document.querySelectorAll('.lookup .clear').forEach(btn => {
