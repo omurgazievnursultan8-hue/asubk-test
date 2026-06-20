@@ -12,6 +12,7 @@ project stands, what's left to do, what it must do, and why decisions were made.
 | [STATUS.md](STATUS.md) | Snapshot of the current state — what's built, working, in progress, blocked | Anything ships, breaks, or changes status |
 | [TODO.md](TODO.md) | Prioritized backlog of work to be done | New work appears or priorities shift |
 | [requirements/](requirements/) | What the module must do — features, business rules, specs | Scope is defined or changes |
+| [guides/](guides/) | How-to guides for using/administering the app (e.g. [access-control.md](guides/access-control.md)) | A reusable how-to is worth writing down |
 | [decisions/](decisions/) | Log of significant decisions and the reasoning behind them | A real choice gets made |
 | [notes/](notes/) | Meeting notes, open questions, scratch | After meetings / as questions arise |
 | [references.md](references.md) | Links to the repo, environments, dashboards, docs, people | A new external resource matters |
