@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>АСУБК — Руководство пользователя. Государственное решение</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "DejaVu Sans", Arial, sans-serif; color: #1f2733; font-size: 11pt; line-height: 1.5; margin: 0; }
+  h1, h2, h3 { color: #0b3d91; line-height: 1.25; }
+  h1 { font-size: 22pt; margin: 0 0 4px; }
+  h2 { font-size: 15pt; margin: 26px 0 10px; border-bottom: 2px solid #0b5cff; padding-bottom: 4px; }
+  h3 { font-size: 12.5pt; margin: 18px 0 6px; color: #14458f; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  code, .kbd { background: #eef2fb; color: #0b3d91; border-radius: 4px; padding: 1px 6px; font-family: "DejaVu Sans Mono", monospace; font-size: 10pt; }
+
+  .cover { background: linear-gradient(135deg, #0b3d91 0%, #0b5cff 100%); color: #fff; padding: 34px 30px; border-radius: 10px; margin-bottom: 26px; }
+  .cover .sys { font-size: 12pt; letter-spacing: 2px; opacity: .9; text-transform: uppercase; }
+  .cover h1 { color: #fff; margin: 10px 0 6px; }
+  .cover .sub { font-size: 13pt; opacity: .95; }
+  .cover .meta { margin-top: 18px; font-size: 10pt; opacity: .85; }
+
+  .step { border: 1px solid #d7e0f2; border-left: 5px solid #0b5cff; border-radius: 6px; padding: 12px 16px; margin: 12px 0; background: #fafbff; page-break-inside: avoid; }
+  .step .n { display: inline-block; background: #0b5cff; color: #fff; width: 26px; height: 26px; border-radius: 50%; text-align: center; line-height: 26px; font-weight: 700; margin-right: 8px; }
+  .step .t { font-weight: 700; color: #0b3d91; font-size: 11.5pt; }
+
+  figure { margin: 16px 0; page-break-inside: avoid; text-align: center; }
+  figure img { max-width: 100%; border: 1px solid #cfd8ea; border-radius: 6px; }
+  figcaption { font-size: 9.5pt; color: #5a6678; margin-top: 6px; }
+
+  .note, .warn, .tip { border-radius: 6px; padding: 10px 14px; margin: 14px 0; font-size: 10.5pt; page-break-inside: avoid; }
+  .note { background: #eef4ff; border-left: 4px solid #0b5cff; }
+  .warn { background: #fff4ec; border-left: 4px solid #e07b00; }
+  .tip  { background: #edfaf1; border-left: 4px solid #1f9d57; }
+  .note b, .tip b { color: #0b3d91; }
+  .warn b { color: #b35e00; }
+
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 10.5pt; }
+  th, td { border: 1px solid #d7e0f2; padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: #0b3d91; color: #fff; font-weight: 600; }
+  tr:nth-child(even) td { background: #f6f8fd; }
+  .req { color: #c0392b; font-weight: 700; }
+
+  .flow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 12px 0; font-size: 10.5pt; }
+  .flow .b { border: 1px solid #0b5cff; background: #eef4ff; color: #0b3d91; border-radius: 6px; padding: 7px 12px; font-weight: 600; }
+  .flow .b.gray { border-color: #9aa6bd; background: #eef0f5; color: #56627a; }
+  .flow .arr { color: #0b5cff; font-weight: 700; }
+
+  .toc { background: #f6f8fd; border: 1px solid #d7e0f2; border-radius: 6px; padding: 14px 20px; }
+  .toc h2 { border: 0; margin-top: 0; }
+  footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #d7e0f2; font-size: 9pt; color: #8893a5; }
+  .pagebreak { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="sys">АСУБК · Кредитный модуль</div>
+  <h1>Руководство пользователя</h1>
+  <div class="sub">Раздел 2. Государственное решение (Решение правительства)</div>
+  <div class="meta">Тестовая среда: https://fkftest.okmot.kg/gov-decisions · Версия документа 1.0 · 20.06.2026</div>
+</div>
+
+<div class="toc">
+  <h2>Содержание</h2>
+  <ol>
+    <li>Назначение раздела</li>
+    <li>Как открыть раздел</li>
+    <li>Список решений</li>
+    <li>Жизненный цикл решения (статусы)</li>
+    <li>Создание нового решения</li>
+    <li>Просмотр и изменение</li>
+    <li>Одобрение и отклонение</li>
+    <li>Удаление</li>
+    <li>Поля решения (справочно)</li>
+  </ol>
+</div>
+
+<h2>1. Назначение раздела</h2>
+<p>
+  <b>Государственное решение</b> (в системе — «Решение правительства») — это нормативный
+  акт (распоряжение, постановление и т. п.), который служит <b>правовым основанием для
+  кредитования</b>. Это первый шаг жизненного цикла кредита: кредитные программы, а через
+  них и займы, всегда ссылаются на решение, которое их разрешило.
+</p>
+<p>
+  Раздел позволяет вести реестр таких решений: создавать записи, проводить их через
+  процедуру согласования (одобрение / отклонение), просматривать и удалять.
+</p>
+
+<h2>2. Как открыть раздел</h2>
+<p>
+  Войдите в систему (см. Раздел 1 «Авторизация») и в левом меню навигации откройте пункт
+  <b>«Решение правительства»</b>. Прямой адрес раздела:
+</p>
+<p style="text-align:center; font-size:12pt;"><code>https://fkftest.okmot.kg/gov-decisions</code></p>
+<div class="note">
+  <b>Видимость раздела зависит от прав доступа.</b> Если пункта меню нет — у вашей
+  учётной записи нет прав на этот раздел. Обратитесь к администратору.
+</div>
+
+<h2 class="pagebreak">3. Список решений</h2>
+<p>Раздел открывается списком уже зарегистрированных решений.</p>
+
+<figure>
+  <img src="img/gov-01-list-annotated.png" alt="Список государственных решений">
+  <figcaption>Рис. 1. Список решений: панель действий, фильтр, таблица и выбранная запись.</figcaption>
+</figure>
+
+<h3>Панель действий (кнопки над таблицей)</h3>
+<table>
+  <tr><th>Кнопка</th><th>Назначение</th><th>Когда доступна</th></tr>
+  <tr><td><b>+ Создать</b></td><td>Создать новое решение</td><td>Всегда</td></tr>
+  <tr><td><b>Изменить</b></td><td>Редактировать выбранную запись</td><td>Только для статуса «На стадии рассмотрения»</td></tr>
+  <tr><td><b>Просмотр</b></td><td>Открыть запись только для чтения</td><td>После выбора записи</td></tr>
+  <tr><td><b>Удалить</b></td><td>Удалить выбранную запись</td><td>После выбора записи</td></tr>
+  <tr><td><b>Одобрить</b></td><td>Перевести решение в статус «Одобрен»</td><td>Только для «На стадии рассмотрения»</td></tr>
+  <tr><td><b>Отклонить</b></td><td>Отклонить решение (статус «Закрыт»)</td><td>Только для «На стадии рассмотрения»</td></tr>
+</table>
+<div class="note">
+  <b>Как выбрать запись.</b> Щёлкните по строке в таблице — она подсветится (см. рис. 1).
+  После этого становятся доступны кнопки действий над выбранной записью. Кнопки «Одобрить» и
+  «Отклонить» остаются неактивными (серыми), если решение уже одобрено или закрыто.
+</div>
+
+<h3>Прочие элементы</h3>
+<ul>
+  <li><b>Фильтр по статусу</b> — вверху можно отфильтровать список по статусу (например, показать только «Одобрен»). Кнопка <b>«Добавить условие поиска»</b> добавляет другие условия; крестик ✕ снимает фильтр.</li>
+  <li><b>Обновить</b> — перечитывает список из базы.</li>
+  <li><b>Столбцы:</b> Наименование · Краткое наименование · Статус · Код · Номер решения · Вид решения · Дата решения. Любой столбец сортируется щелчком по заголовку.</li>
+  <li><b>Пагинация</b> (справа, «N строк») — переход между страницами списка.</li>
+</ul>
+
+<h2 class="pagebreak">4. Жизненный цикл решения (статусы)</h2>
+<p>Каждое решение проходит через статусы:</p>
+<div class="flow">
+  <span class="b">На стадии рассмотрения</span>
+  <span class="arr">→</span>
+  <span class="b">Одобрен</span>
+  <span class="arr">/</span>
+  <span class="b gray">Закрыт (отклонён)</span>
+</div>
+<ul>
+  <li><b>На стадии рассмотрения</b> — присваивается автоматически при создании. На этом этапе запись можно изменять, одобрять или отклонять.</li>
+  <li><b>Одобрен</b> — решение согласовано и может использоваться кредитными программами. Изменение и повторное одобрение недоступны.</li>
+  <li><b>Закрыт</b> — конечный статус после отклонения. Запись недоступна для изменения и одобрения.</li>
+</ul>
+<div class="note">
+  <b>Разделение ролей (maker–checker).</b> Создание решения и его одобрение — разные действия.
+  Новая запись всегда попадает в очередь на рассмотрение, её нельзя создать сразу одобренной.
+</div>
+
+<h2>5. Создание нового решения</h2>
+<p>Нажмите <b>«+ Создать»</b> — откроется форма ввода.</p>
+
+<figure>
+  <img src="img/gov-02-create-annotated.png" alt="Форма создания решения">
+  <figcaption>Рис. 2. Форма создания: статус и дата заполняются автоматически, вид решения выбирается из справочника.</figcaption>
+</figure>
+
+<div class="step">
+  <span class="n">1</span><span class="t">Заполните обязательные поля</span>
+  <p style="margin:6px 0 0;">
+    Заполните пять обязательных полей: <b>Наименование</b>, <b>Краткое наименование</b>,
+    <b>Код</b>, <b>Номер решения</b> и <b>Вид решения</b>.
+  </p>
+</div>
+<div class="step">
+  <span class="n">2</span><span class="t">Выберите «Вид решения» из справочника</span>
+  <p style="margin:6px 0 0;">
+    Нажмите кнопку <b>•••</b> справа от поля «Вид решения» и выберите значение
+    (например: Распоряжение, Постановление, Основное и др.). Крестик ✕ очищает поле.
+  </p>
+</div>
+<div class="step">
+  <span class="n">3</span><span class="t">Проверьте автоматические поля</span>
+  <p style="margin:6px 0 0;">
+    <b>Статус</b> = «На стадии рассмотрения» (только для чтения). <b>Дата решения</b>
+    по умолчанию — сегодняшняя; при необходимости измените её в календаре.
+  </p>
+</div>
+<div class="step">
+  <span class="n">4</span><span class="t">При необходимости — примечание</span>
+  <p style="margin:6px 0 0;">
+    На вкладке <b>«Примечание»</b> можно ввести произвольный поясняющий текст (необязательно).
+  </p>
+</div>
+<div class="step">
+  <span class="n">5</span><span class="t">Сохраните</span>
+  <p style="margin:6px 0 0;">
+    Нажмите <b>OK</b>. Запись появится в списке со статусом «На стадии рассмотрения».
+    Кнопка <b>«Отмена»</b> закрывает форму без сохранения.
+  </p>
+</div>
+<div class="warn">
+  <b>Проверка обязательных полей.</b> Если сохранить форму с пустыми обязательными полями,
+  система покажет сообщение <i>«Заполните все обязательные поля!»</i> и подсветит
+  незаполненные поля красным.
+</div>
+
+<h2>6. Просмотр и изменение</h2>
+<p>
+  Выберите запись и нажмите <b>«Просмотр»</b> — откроется карточка решения в режиме
+  только для чтения.
+</p>
+<figure>
+  <img src="img/gov-03-detail.png" alt="Карточка решения (просмотр)">
+  <figcaption>Рис. 3. Карточка решения в режиме просмотра (поля недоступны для редактирования).</figcaption>
+</figure>
+<p>
+  Для редактирования используйте <b>«Изменить»</b>. Изменение доступно <b>только</b> для
+  записей со статусом «На стадии рассмотрения»; одобренные и закрытые записи изменить нельзя.
+</p>
+
+<h2>7. Одобрение и отклонение</h2>
+<ol>
+  <li>Выберите в списке решение со статусом <b>«На стадии рассмотрения»</b>.</li>
+  <li>Нажмите <b>«Одобрить»</b> — статус сменится на «Одобрен».</li>
+  <li>Либо нажмите <b>«Отклонить»</b> — статус сменится на «Закрыт».</li>
+</ol>
+<div class="warn">
+  <b>Внимание: действие необратимо.</b> В текущей версии отклонённое (закрытое) решение
+  нельзя вернуть на рассмотрение через интерфейс. Проверяйте выбранную запись перед
+  одобрением или отклонением.
+</div>
+
+<h2>8. Удаление</h2>
+<p>
+  Выберите запись и нажмите <b>«Удалить»</b>. Удаляйте только ошибочно созданные записи.
+  Не удаляйте решения, на которые уже могут ссылаться кредитные программы, — это нарушает
+  целостность данных.
+</p>
+
+<h2 class="pagebreak">9. Поля решения (справочно)</h2>
+<table>
+  <tr><th>Поле</th><th>Тип</th><th>Обяз.</th><th>Примечание</th></tr>
+  <tr><td>Наименование</td><td>Текст</td><td class="req">да</td><td>Полное название решения</td></tr>
+  <tr><td>Краткое наименование</td><td>Текст</td><td class="req">да</td><td>Короткое название для списков</td></tr>
+  <tr><td>Код</td><td>Текст</td><td class="req">да</td><td>Поле выглядит серым, но доступно для ввода</td></tr>
+  <tr><td>Номер решения</td><td>Текст</td><td class="req">да</td><td>Номер нормативного акта</td></tr>
+  <tr><td>Вид решения</td><td>Справочник (•••)</td><td class="req">да</td><td>Распоряжение, Постановление, Основное и др.</td></tr>
+  <tr><td>Дата решения</td><td>Дата</td><td>—</td><td>По умолчанию — сегодня</td></tr>
+  <tr><td>Статус</td><td>Только чтение</td><td>—</td><td>Авто: «На стадии рассмотрения»</td></tr>
+  <tr><td>Примечание</td><td>Текст (вкладка)</td><td>—</td><td>Свободный комментарий</td></tr>
+</table>
+
+<footer>
+  АСУБК · Кредитный модуль — Руководство пользователя. Раздел 2 «Государственное решение».
+  Снимки экрана сделаны в тестовой среде https://fkftest.okmot.kg/ 20.06.2026.
+  Документ предназначен для обучения пользователей.
+</footer>
+
+</body>
+</html>
