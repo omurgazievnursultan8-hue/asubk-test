@@ -284,6 +284,47 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
 .note-box{ max-width:1120px; min-height:160px; border:1px solid var(--border-default); border-radius:var(--radius-md);
   background:var(--surface-panel); color:var(--text-muted); padding:12px 14px; }
 
+/* ---------- R1: Документы (вложение документа решения) ---------- */
+.uploader{ max-width:1120px; display:flex; flex-direction:column; gap:14px; }
+.rule-banner{ display:flex; align-items:flex-start; gap:10px; padding:11px 14px; border-radius:var(--radius-md);
+  background:var(--status-warning-bg); color:#6b5300; font:var(--weight-regular) var(--text-sm)/1.45 var(--asubk-font); }
+.rule-banner svg{ flex:none; margin-top:1px; color:var(--status-warning); }
+.rule-banner.block{ background:var(--red-tint); color:#7a2020; }
+.rule-banner.block svg{ color:var(--asubk-red); }
+.dropzone{ border:1.5px dashed var(--border-strong); border-radius:var(--radius-lg); background:var(--surface-panel);
+  padding:26px 20px; text-align:center; transition:background 120ms ease, border-color 120ms ease; }
+.dropzone.drag{ border-color:var(--asubk-blue); background:var(--status-info-bg); }
+.dropzone .dz-icon{ color:var(--asubk-blue); margin-bottom:8px; }
+.dropzone .dz-main{ font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-body); }
+.dropzone .dz-hint{ margin-top:6px; font:var(--weight-regular) var(--text-sm)/1.4 var(--asubk-font); color:var(--text-muted); }
+.dropzone .btn{ margin-top:14px; }
+.file-list{ display:flex; flex-direction:column; gap:10px; }
+.file-list:empty{ display:none; }
+.file-row{ display:flex; align-items:center; gap:14px; padding:12px 14px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); background:var(--surface-card); }
+.file-row.is-main{ border-color:rgba(0,106,245,0.45); box-shadow:inset 0 0 0 1px rgba(0,106,245,0.25); }
+.file-ic{ width:34px; height:34px; flex:none; border-radius:var(--radius-sm); display:flex; align-items:center;
+  justify-content:center; background:var(--red-tint); color:var(--asubk-red);
+  font:var(--weight-bold) 11px/1 var(--asubk-font); }
+.file-ic.bad{ background:var(--asubk-gray-150); color:var(--text-muted); }
+.file-meta{ flex:1; min-width:0; }
+.file-name{ font:var(--font-body); color:var(--text-body); white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; display:flex; align-items:center; gap:8px; }
+.file-sub{ margin-top:3px; font:var(--weight-regular) var(--text-sm)/1.4 var(--asubk-font); color:var(--text-muted); }
+.file-actions{ display:flex; align-items:center; gap:4px; flex:none; }
+.linkbtn{ border:none; background:transparent; color:var(--text-link); cursor:pointer;
+  font:var(--weight-medium) 14px/1 var(--asubk-font); padding:6px 8px; border-radius:var(--radius-sm); }
+.linkbtn:hover{ background:var(--surface-hover); }
+.linkbtn.danger{ color:var(--asubk-red); }
+.linkbtn:disabled{ color:var(--text-disabled); cursor:not-allowed; background:transparent; }
+/* столбец «Документ» в гриде */
+.doc-cell{ display:inline-flex; align-items:center; gap:5px; height:21px; padding:0 8px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) var(--text-xs)/1 var(--asubk-font); white-space:nowrap; }
+.doc-cell svg{ width:13px; height:13px; }
+.doc-cell.has-main{ color:var(--status-info); background:var(--status-info-bg); }
+.doc-cell.no-main{ color:#6b5300; background:var(--status-warning-bg); }
+.doc-cell.none{ color:var(--text-disabled); background:transparent; padding:0; }
+
 /* ---------- create page form ---------- */
 /* live: 3-column grid, label LEFT of control, no required asterisk */
 .create-form{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); column-gap:40px; row-gap:16px; align-items:center; }
@@ -323,6 +364,8 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
   font:var(--font-label); cursor:pointer; border-radius:var(--radius-sm); }
 .dp-day:hover{ background:var(--surface-hover); }
 .dp-day.muted{ color:var(--text-disabled); }
+.dp-day:disabled,.dp-day.future{ color:var(--text-disabled); cursor:not-allowed; background:transparent; opacity:0.55; }
+.dp-day:disabled:hover,.dp-day.future:hover{ background:transparent; }
 .dp-day.today{ box-shadow:inset 0 0 0 1.5px var(--asubk-blue); color:var(--asubk-blue); font-weight:var(--weight-semibold); }
 .dp-day.sel{ background:var(--asubk-blue); color:#fff; }
 .dp-day.sel:hover{ background:var(--asubk-blue-hover); }
@@ -350,6 +393,28 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
 /* ---------- sticky footer (detail + create) ---------- */
 .footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
   padding:14px 24px; display:flex; align-items:center; gap:12px; }
+
+/* ---------- R2: журнал аудита (таймлайн «История») ---------- */
+.timeline{ list-style:none; margin:0; padding:0; max-width:840px; }
+.tl-item{ position:relative; padding:0 0 18px 30px; }
+.tl-item:not(:last-child)::before{ content:""; position:absolute; left:10px; top:20px; bottom:0; width:2px; background:var(--border-default); }
+.tl-dot{ position:absolute; left:3px; top:3px; width:16px; height:16px; border-radius:50%; display:flex;
+  align-items:center; justify-content:center; color:#fff; }
+.tl-dot.create{ background:var(--asubk-blue); } .tl-dot.approve{ background:var(--asubk-green); }
+.tl-dot.reject{ background:var(--asubk-red); } .tl-dot.reactivate{ background:var(--amber); }
+.tl-dot.edit{ background:var(--asubk-ink-45); } .tl-dot svg{ width:10px; height:10px; }
+.tl-action{ font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-heading); }
+.tl-meta{ margin-top:2px; font:var(--weight-regular) var(--text-sm)/1.4 var(--asubk-font); color:var(--text-muted); }
+.tl-reason{ margin-top:6px; padding:8px 12px; border-left:3px solid var(--asubk-red); background:var(--red-tint);
+  border-radius:var(--radius-sm); font:var(--weight-regular) var(--text-sm)/1.45 var(--asubk-font); color:#7a2020; }
+.tl-empty{ color:var(--text-placeholder); padding:8px 0; }
+
+/* ---------- R2: модалка причины (отклонение / реактивация) ---------- */
+.reason-area{ width:100%; min-height:120px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-input); color:var(--text-body); font:var(--font-body); padding:10px 12px; resize:vertical; outline:none; }
+.reason-area:focus{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); background:var(--surface-card); }
+.reason-lbl{ display:block; margin-bottom:6px; font:var(--weight-medium) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-body); }
+.reason-hint{ margin-top:8px; font:var(--weight-regular) var(--text-xs)/1.4 var(--asubk-font); color:var(--text-muted); }
 </style>
 </head>
 <body>
@@ -420,6 +485,8 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
           </button>
           <button class="btn btn-success btn-confirm" id="btnApprove" disabled>Одобрить</button>
           <button class="btn btn-danger btn-confirm" id="btnReject" disabled>Отклонить</button>
+          <!-- R2: обратимость — администратор возвращает «Закрыт» → «На рассмотрении» с записью в журнал -->
+          <button class="btn btn-outline btn-confirm" id="btnReactivate" disabled title="Вернуть отклонённое решение на рассмотрение (R2, только админ)">Вернуть на рассмотрение</button>
           <span class="col-ctrl">
             <button class="btn btn-outline iconbtn" id="btnColumns" title="Видимость столбцов" aria-haspopup="true" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
             <div class="colmenu" id="colMenu"></div>
@@ -441,6 +508,7 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
               <th>Наименование<span class="sort">↕</span></th>
               <th>Краткое наименование<span class="sort">↕</span></th>
               <th>Статус<span class="sort">↕</span></th>
+              <th>Документ<span class="sort">↕</span></th>
               <th>Код<span class="sort">↕</span></th>
               <th>Номер решения<span class="sort">↕</span></th>
               <th>Вид решения<span class="sort">↕</span></th>
@@ -472,7 +540,9 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
         <div class="tabstrip-wrap">
           <div class="tabstrip" id="detailTabs">
             <button class="tab active" data-tab="0">Общая информация</button>
-            <button class="tab" data-tab="1">Примечание</button>
+            <button class="tab" data-tab="1">Кредитные программы</button>
+            <button class="tab" data-tab="2">Документы</button>
+            <button class="tab" data-tab="3">История</button>
           </div>
         </div>
         <div class="tabbody">
@@ -485,10 +555,49 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
               <div class="view-field"><span class="vlabel">Номер решения</span><span class="vvalue" id="dNum">—</span></div>
               <div class="view-field"><span class="vlabel">Вид решения</span><span class="vvalue" id="dKind">—</span></div>
               <div class="view-field"><span class="vlabel">Дата решения</span><span class="vvalue" id="dDate">—</span></div>
+              <!-- R6: орган, действующее решение, примечание -->
+              <div class="view-field"><span class="vlabel">Орган</span><span class="vvalue" id="dOrg">—</span></div>
+              <div class="view-field"><span class="vlabel">Действующее решение</span><span class="vvalue"><span class="badge neutral" id="dActive">—</span></span></div>
+              <div class="view-field col-span"><span class="vlabel">Примечание</span><span class="vvalue" id="dNote">—</span></div>
+              <!-- R2: причина отклонения видна в просмотре записи (только для «Закрыт») -->
+              <div class="view-field col-span" id="dReasonField" style="display:none"><span class="vlabel">Причина отклонения</span><span class="vvalue" id="dReason">—</span></div>
             </div>
           </section>
+          <!-- R6: вкладка «Кредитные программы» — таблица связанных программ (downstream-ссылки, см. R4) -->
           <section class="tabpanel" data-panel="1">
-            <div class="note-box">Примечание не заполнено.</div>
+            <div class="grid-wrap" style="margin:0">
+              <table class="grid">
+                <thead><tr><th>Наименование</th><th>Статус</th><th>Дата решения</th></tr></thead>
+                <tbody id="dPrograms"><!-- rendered by JS --></tbody>
+              </table>
+            </div>
+          </section>
+          <section class="tabpanel" data-panel="2">
+            <div class="uploader">
+              <div class="rule-banner" id="docBanner">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span id="docBannerText">Основной документ обязателен для перевода решения в статус «Одобрен». Только <b>PDF</b>, до 20&nbsp;МБ. Замена создаёт новую версию (история сохраняется); удаление файлов у одобренного решения запрещено. Кто и когда загрузил — фиксируется в карточке файла.</span>
+              </div>
+              <div class="dropzone" id="docDrop">
+                <div class="dz-icon">
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+                </div>
+                <div class="dz-main">Перетащите PDF-файлы сюда</div>
+                <div class="dz-hint">или</div>
+                <button class="btn btn-primary" type="button" id="docPick">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                  Выбрать файлы
+                </button>
+                <div class="dz-hint">PDF · до 20&nbsp;МБ · можно несколько файлов (основное решение + приложения)</div>
+                <input type="file" id="docInput" accept="application/pdf,.pdf" multiple hidden>
+              </div>
+              <div class="file-list" id="docList"><!-- rendered by JS --></div>
+              <input type="file" id="docReplaceInput" accept="application/pdf,.pdf" hidden>
+            </div>
+          </section>
+          <!-- R2: журнал аудита — таймлайн переходов статуса (создание/одобрение/отклонение/реактивация) -->
+          <section class="tabpanel" data-panel="3">
+            <ol class="timeline" id="dTimeline"><!-- rendered by JS --></ol>
           </section>
         </div>
 
@@ -522,7 +631,7 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
             <div class="field required"><span class="flabel">Статус</span>
               <div class="control"><input type="text" value="На стадии рассмотрения" readonly></div></div>
             <div class="field required"><span class="flabel">Код</span>
-              <div class="control"><input type="text" placeholder=""></div></div>
+              <div class="control"><input type="text" id="createCode" readonly placeholder="Сгенерируется системой" title="R3: код генерируется системой ({ТИП}-{ГГГГ}-{NNNN}), ручной ввод запрещён"></div></div>
             <div class="field required"><span class="flabel">Краткое наименование</span>
               <div class="control"><input type="text" placeholder="Короткое название"></div></div>
             <div class="field required"><span class="flabel">Номер решения</span>
@@ -537,10 +646,40 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
                 <button title="Очистить"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
               </div></div>
 
-            <div class="note-tabwrap">
-              <span class="note-tab">Примечание</span>
-              <div class="note-line"></div>
-              <textarea class="note-area" placeholder="Комментарий к решению (необязательно)"></textarea>
+            <!-- вкладки формы: Примечание | Документы (R1) -->
+            <div class="note-tabwrap" style="grid-column:1/-1">
+              <div class="tabstrip" id="createTabs">
+                <button type="button" class="tab active" data-ctab="0">Примечание</button>
+                <button type="button" class="tab" data-ctab="1">Документы</button>
+              </div>
+              <div class="tabbody" style="padding:18px 0 0">
+                <section class="tabpanel active" data-cpanel="0">
+                  <textarea class="note-area" placeholder="Комментарий к решению (необязательно)"></textarea>
+                </section>
+                <section class="tabpanel" data-cpanel="1">
+                  <div class="uploader">
+                    <div class="rule-banner" id="cDocBanner">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                  <span id="cDocBannerText"></span>
+                </div>
+                <div class="dropzone" id="cDocDrop">
+                  <div class="dz-icon">
+                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+                  </div>
+                  <div class="dz-main">Перетащите PDF-файлы сюда</div>
+                  <div class="dz-hint">или</div>
+                  <button class="btn btn-primary" type="button" id="cDocPick">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                    Выбрать файлы
+                  </button>
+                  <div class="dz-hint">PDF · до 20&nbsp;МБ · можно несколько файлов (основное решение + приложения)</div>
+                  <input type="file" id="cDocInput" accept="application/pdf,.pdf" multiple hidden>
+                </div>
+                    <div class="file-list" id="cDocList"><!-- rendered by JS --></div>
+                    <input type="file" id="cDocReplaceInput" accept="application/pdf,.pdf" hidden>
+                  </div>
+                </section>
+              </div>
             </div>
           </div>
         </div>
@@ -647,6 +786,30 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M4.9 4.9l14.2 14.2"/></svg>
         Отмена
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== R2: REASON MODAL (отклонение / возврат на рассмотрение) ===== -->
+<div class="modal-overlay" id="reasonOverlay">
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="reasonTitle" style="width:480px">
+    <div class="modal-head">
+      <h3 class="modal-title" id="reasonTitle">Отклонение решения</h3>
+      <button class="modal-x" id="reasonX" title="Закрыть" aria-label="Закрыть">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-toolbar">
+      <span class="reason-lbl" id="reasonLbl">Причина отклонения <span style="color:var(--asubk-red)">*</span></span>
+      <textarea class="reason-area" id="reasonText" placeholder="Укажите причину — без неё действие недоступно"></textarea>
+      <div class="reason-hint" id="reasonHint">Причина обязательна, попадёт в журнал аудита и будет видна в карточке решения.</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger" id="reasonConfirm" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        <span id="reasonConfirmLbl">Отклонить</span>
+      </button>
+      <button class="btn btn-secondary" id="reasonCancel">Отмена</button>
     </div>
   </div>
 </div>
@@ -771,18 +934,134 @@ let DATA = [
 
 /* ---- persistence (demo): хранит решения в localStorage браузера.
    Работает и при открытии файла по file:// (Chrome). Очистить — localStorage.removeItem('asubk_decisions_v1'). */
-const LS_KEY = 'asubk_decisions_v1';
+const LS_KEY = 'asubk_decisions_v2';
 function persist(){ try { localStorage.setItem(LS_KEY, JSON.stringify(DATA)); } catch (e) {} }
 (function loadPersisted(){
   try { const s = localStorage.getItem(LS_KEY); const a = s && JSON.parse(s);
     if (Array.isArray(a) && a.length) DATA = a; } catch (e) {}
 })();
 
+/* ---- R1: каждое решение хранит вложения (docs). Нормализация + демо-данные ---- */
+DATA.forEach(d => { if (!Array.isArray(d.docs)) d.docs = []; });
+/* ---- R2: каждое решение хранит журнал аудита (log) + причину отклонения ---- */
+DATA.forEach(d => { if (!Array.isArray(d.log)) d.log = []; });
+(function seedLog(){
+  if (!DATA.every(d => d.log.length === 0)) return;          // только при первой загрузке
+  DATA.forEach(d => {
+    d.log.push({ at:'15.01.2026 09:00', by:'admin', action:'Создание', reason:'' });
+    if (d.status === 'Одобрен')
+      d.log.push({ at:'16.01.2026 11:30', by:'admin', action:'Одобрение', reason:'' });
+    if (d.status === 'Закрыт'){
+      d.rejectReason = d.rejectReason || 'Несоответствие требованиям оформления (демо-причина).';
+      d.log.push({ at:'16.01.2026 14:10', by:'admin', action:'Отклонение', reason:d.rejectReason });
+    }
+  });
+  persist();
+})();
+(function seedDocs(){
+  if (!DATA.every(d => d.docs.length === 0)) return;   // только при первой загрузке
+  const find = pre => DATA.find(d => d.name.startsWith(pre));
+  const a = find('Распоряжение Жогорку Кенеша');        // Одобрен → есть основной документ
+  if (a) a.docs = [
+    { id:'d1', name:'Постановление ПКМ КР №142.pdf',       size:2516582, main:true,  version:2, at:'18.02.2026 10:24', by:'admin' },
+    { id:'d2', name:'Приложение 1 — Условия программы.pdf', size:901120,  main:false, version:1, at:'18.02.2026 10:25', by:'admin' },
+  ];
+  const b = find('Распоряжение Кабинета Министров КР');  // На стадии — есть приложение, нет основного → одобрить нельзя
+  if (b) b.docs = [
+    { id:'d3', name:'Проект решения (черновик).pdf', size:734003, main:false, version:1, at:'27.01.2026 09:10', by:'b.asanov' },
+  ];
+  persist();
+})();
+
+/* ---- R4: защита удаления — ссылки (refs) + флаг soft-delete. Нормализация + демо ---- */
+DATA.forEach(d => { if (typeof d.refs !== 'number') d.refs = 0; if (typeof d.deleted !== 'boolean') d.deleted = false; });
+(function seedRefs(){
+  const set = (pre,n) => { const r = DATA.find(d => d.name.startsWith(pre)); if (r && !r.refs) r.refs = n; };
+  /* демо downstream-ссылок: кредитные программы, ссылающиеся на решение */
+  set('Распоряжение Жогорку Кенеша', 2);          // Одобрен — 2 программы
+  set('Решение №1', 1);                            // Одобрен — 1 программа
+  set('Распоряжение Кабинета Министров КР', 1);    // На стадии — есть ссылка → удаление заблокируется
+  persist();
+})();
+
+/* ---- R6: демо карточки — орган, примечание, связанные кредитные программы ---- */
+DATA.forEach(d => { if (typeof d.org !== 'string') d.org = ''; if (typeof d.note !== 'string') d.note = ''; if (!Array.isArray(d.programs)) d.programs = []; });
+(function seedR6(){
+  const PROG = ['Льготное кредитование АПК','Финансирование МСБ','Жилищная программа «Мой дом»','Поддержка экспортёров','Развитие регионов'];
+  DATA.forEach(d => {
+    if (!d.org) d.org = d.name.startsWith('Распоряжение Жогорку') ? 'Жогорку Кенеш КР' : 'Кабинет Министров КР';
+    if (d.refs > 0 && !d.programs.length)
+      d.programs = Array.from({length:d.refs}, (_,i)=>({ name:PROG[i % PROG.length], status:'Одобрена', date:d.date }));
+  });
+  persist();
+})();
+
 const $ = id => document.getElementById(id);
+/* R4: склонение «программа» для сообщения об ошибке удаления */
+const pluralRu = (n,one,few,many) => { const a=n%10, b=n%100;
+  return n + ' ' + (a===1 && b!==11 ? one : (a>=2 && a<=4 && (b<10||b>=20) ? few : many)); };
 const cell = v => v ? v : '';
 const badgeClass = s => s === 'Одобрен' ? 'success' : s === 'Закрыт' ? 'neutral' : 'warning';
 let selected = -1;
 let filtered = DATA.slice();
+
+/* ============================================================
+   R3 — Системная генерация кода {ТИП}-{ГГГГ}-{NNNN}.
+   ТИП — короткий код вида решения; ГГГГ — год из «Даты решения»;
+   NNNN — сквозной счётчик внутри пары тип+год, 4 знака с ведущими нулями.
+   Поле «Код» read-only; ручной ввод убран. Старые коды — legacy, не трогаем.
+   ============================================================ */
+const KIND_CODE = {
+  'Постановление':'ПОСТ',
+  'Распоряжение':'РАСП',
+  'Распоряжение кабинета министров':'РАСП',
+  'Основное':'ОСН',
+  'РКМКР':'РКМКР',
+  'РПКР':'РПКР',
+  'ПКМКР':'ПКМКР',
+};
+const typeCode = kind => KIND_CODE[kind] || 'РЕШ';
+const yearOf = dateStr => { const m = /\.(\d{4})$/.exec((dateStr||'').trim()); return m ? m[1] : null; };
+function genCode(kind, dateStr){
+  const typ = typeCode(kind), yr = yearOf(dateStr);
+  if (!kind || !yr) return '';                       // нужны и вид, и год
+  const re = new RegExp('^' + typ + '-' + yr + '-(\\d+)$');
+  let max = 0;
+  DATA.forEach(d => { const m = re.exec(d.code || ''); if (m) max = Math.max(max, +m[1]); });
+  return `${typ}-${yr}-${String(max + 1).padStart(4, '0')}`;
+}
+/* живой предпросмотр кода в форме создания (в режиме правки код не перегенерируем) */
+let createMode = 'create';   // 'create' | 'edit'
+function updateCodePreview(){
+  const codeEl = $('createCode'); if (!codeEl) return;
+  if (createMode !== 'create') return;               // правка: код фиксирован
+  const valEl = document.querySelector('#createView .lookup .val');
+  const kind = (valEl && valEl.classList.contains('filled')) ? valEl.textContent.trim() : '';
+  const code = genCode(kind, $('decisionDate').value);
+  codeEl.value = code;
+  codeEl.placeholder = code ? '' : 'Заполните «Вид решения» и «Дату» — код сгенерируется';
+}
+
+/* ---- R1: вложения — хелперы ---- */
+const activeDocs = r => (r.docs || []).filter(d => !d.rejected);
+const hasMainDoc = r => activeDocs(r).some(d => d.main);
+const clipSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>';
+function docCell(r){
+  const n = activeDocs(r).length;
+  if (!n) return '<span class="doc-cell none">—</span>';
+  const cls = hasMainDoc(r) ? 'has-main' : 'no-main';
+  const title = hasMainDoc(r) ? 'Основной документ приложен' : 'Файлы есть, но основной не отмечен';
+  return `<span class="doc-cell ${cls}" title="${title}">${clipSvg}${n}${hasMainDoc(r) ? ' ✓' : ' !'}</span>`;
+}
+
+/* R2: статус в списке; для «Закрыт» причина видна как подсказка + маркер ⓘ */
+const esc = s => String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+function statusCell(r){
+  if (r.status !== 'Закрыт') return r.status;
+  const reason = r.rejectReason || latestReason(r);
+  if (!reason) return r.status;
+  return `${r.status} <span title="Причина отклонения: ${esc(reason)}" style="color:var(--asubk-red);cursor:help;font-weight:600">ⓘ</span>`;
+}
 
 /* ---- render grid ---- */
 function renderRows(){
@@ -790,12 +1069,13 @@ function renderRows(){
     <tr data-i="${i}">
       <td title="${r.name}">${r.name}</td>
       <td>${cell(r.short)}</td>
-      <td>${r.status}</td>
+      <td>${statusCell(r)}</td>
+      <td>${docCell(r)}</td>
       <td>${cell(r.code)}</td>
       <td>${cell(r.num)}</td>
       <td>${cell(r.kind)}</td>
       <td>${cell(r.date)}</td>
-    </tr>`).join('') || `<tr><td colspan="7" class="empty-cell" style="text-align:center;padding:28px;">Нет данных, удовлетворяющих условиям фильтра</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="8" class="empty-cell" style="text-align:center;padding:28px;">Нет данных, удовлетворяющих условиям фильтра</td></tr>`;
   $('rowCount').textContent = filtered.length + ' строк';
   $('rows').querySelectorAll('tr[data-i]').forEach(tr => {
     tr.addEventListener('click', () => selectRow(+tr.dataset.i));
@@ -808,11 +1088,14 @@ function selectRow(i, force){
   $('rows').querySelectorAll('tr[data-i]').forEach(tr =>
     tr.classList.toggle('sel', +tr.dataset.i === selected));
   const has = selected >= 0;
-  ['btnEdit','btnView','btnDelete','btnApprove','btnReject'].forEach(id => $(id).disabled = !has);
-  /* Одобрить/Отклонить активны только для «На стадии рассмотрения» */
+  ['btnEdit','btnView','btnDelete','btnApprove','btnReject','btnReactivate'].forEach(id => $(id).disabled = !has);
+  /* Одобрить/Отклонить активны только для «На стадии рассмотрения»; Вернуть — только для «Закрыт» (R2) */
   if (has){
-    const pending = filtered[selected].status === 'На стадии рассмотрения';
+    const st = filtered[selected].status;
+    const pending = st === 'На стадии рассмотрения';
     $('btnApprove').disabled = !pending; $('btnReject').disabled = !pending;
+    $('btnReactivate').disabled = st !== 'Закрыт';
+    $('btnDelete').disabled = !pending;   // R4: удалять можно только «На стадии рассмотрения» (как и редактирование)
   }
 }
 
@@ -820,16 +1103,33 @@ function selectRow(i, force){
 function showView(id){
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === id));
 }
+let detailRec = null;
 function openDetail(){
   if (selected < 0) return;
   const r = filtered[selected];
+  detailRec = r;
   $('detailTitle').textContent = r.name;
-  document.querySelectorAll('#detailView .badge').forEach(b => {
+  /* только бейджи статуса (хедер + «Общая информация»), не трогаем бейджи вкладки «Документы» */
+  document.querySelectorAll('#detailView .crumb-status .badge, #detailView .form-grid .badge').forEach(b => {
     b.className = 'badge ' + badgeClass(r.status); b.textContent = r.status;
   });
   setVal('dName', r.name);
   setVal('dShort', r.short); setVal('dCode', r.code); setVal('dNum', r.num);
   setVal('dKind', r.kind);   setVal('dDate', r.date);
+  /* R6: орган, примечание, «Действующее решение» (Да/Нет), связанные программы */
+  setVal('dOrg', r.org);
+  setVal('dNote', r.note);
+  const active = r.status === 'Одобрен';
+  const ab = $('dActive');
+  ab.textContent = active ? 'Да' : 'Нет';
+  ab.className = 'badge ' + (active ? 'success' : 'neutral');
+  renderPrograms(r);
+  /* R2: причина отклонения — только для «Закрыт» */
+  const closed = r.status === 'Закрыт';
+  $('dReasonField').style.display = closed ? '' : 'none';
+  if (closed) setVal('dReason', r.rejectReason || latestReason(r));
+  renderTimeline(r);
+  renderDocs();
   $('detailTabs').querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active', i===0));
   $('detailView').querySelectorAll('.tabpanel').forEach((p,i)=>p.classList.toggle('active', i===0));
   showView('detailView');
@@ -846,35 +1146,157 @@ $('btnEdit').addEventListener('click', openEdit);
 $('btnDelete').addEventListener('click', () => {
   if (selected < 0) return;
   const rec = filtered[selected];                 // та же ссылка, что в DATA
+  /* R4: выравнивание с редактированием — удаление только из «На стадии рассмотрения» */
+  if (rec.status !== 'На стадии рассмотрения'){
+    alert('Удаление недоступно: удалять можно только решения в статусе «На стадии рассмотрения».');
+    return;
+  }
+  /* R4: серверная защита ссылок (эмуляция) — нельзя удалить используемое решение */
+  if (rec.refs > 0){
+    alert('Нельзя удалить: на решение ссылаются ' + pluralRu(rec.refs, 'программа', 'программы', 'программ') + '.');
+    return;
+  }
   if (!confirm(`Удалить решение «${rec.name || 'без названия'}»?`)) return;
-  const di = DATA.indexOf(rec);
-  if (di >= 0) DATA.splice(di, 1);
+  /* R4: soft-delete — запись помечается удалённой, остаётся в БД, действие в журнал (R2) */
+  rec.deleted = true;
+  logEntry(rec, 'Удаление', '');
   persist();
   applyFilter();                                  // пересчёт filtered + сброс выделения + перерисовка
 });
-function setStatus(newStatus, verb){
-  if (selected < 0) return;
-  const rec = filtered[selected];                 // та же ссылка, что в DATA
-  if (rec.status !== 'На стадии рассмотрения') return;   // только из «На рассмотрении»
-  if (!confirm(`${verb} решение «${rec.name || 'без названия'}»?`)) return;
-  rec.status = newStatus;
-  persist();
-  applyFilter();                                  // пересчёт filtered + сброс выделения + перерисовка
+/* ============================================================
+   R2 — Журнал аудита + причина + обратимость.
+   Каждый переход статуса пишет запись в rec.log (кто/когда/действие/причина).
+   Отклонение и возврат требуют обязательной причины (модалка reasonOverlay).
+   ============================================================ */
+function logEntry(rec, action, reason){
+  (rec.log = rec.log || []).push({ at:nowStamp(), by:'admin', action, reason:reason || '' });
 }
-$('btnApprove').addEventListener('click', () => setStatus('Одобрен', 'Одобрить'));
-$('btnReject').addEventListener('click', () => setStatus('Закрыт', 'Отклонить'));
+function latestReason(rec){
+  const r = (rec.log || []).slice().reverse().find(e => e.action === 'Отклонение');
+  return r ? r.reason : '';
+}
+const TL_ICON = {
+  '✓':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
+  '✕':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>',
+  '+':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
+  '↻':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M21 12A9 9 0 0 0 6 5.3L3 8"/></svg>',
+};
+function tlMeta(a){
+  switch(a){
+    case 'Создание':   return { cls:'create',     ic:TL_ICON['+'] };
+    case 'Одобрение':  return { cls:'approve',     ic:TL_ICON['✓'] };
+    case 'Отклонение': return { cls:'reject',      ic:TL_ICON['✕'] };
+    case 'Возврат на рассмотрение': return { cls:'reactivate', ic:TL_ICON['↻'] };
+    default:           return { cls:'edit',        ic:TL_ICON['+'] };
+  }
+}
+/* R6: таблица связанных кредитных программ */
+function renderPrograms(rec){
+  const tb = $('dPrograms'); if (!tb) return;
+  const list = rec.programs || [];
+  tb.innerHTML = list.length
+    ? list.map(p => `<tr><td>${p.name}</td><td><span class="badge success">${p.status}</span></td><td>${p.date || '—'}</td></tr>`).join('')
+    : '<tr><td colspan="3" class="empty-cell" style="text-align:center;padding:24px">Нет связанных кредитных программ</td></tr>';
+}
+function renderTimeline(rec){
+  const ol = $('dTimeline');
+  const log = (rec.log || []).slice().reverse();   // новейшие сверху
+  if (!log.length){ ol.innerHTML = '<li class="tl-empty">Журнал пуст.</li>'; return; }
+  ol.innerHTML = log.map(e => {
+    const m = tlMeta(e.action);
+    return `<li class="tl-item">
+      <span class="tl-dot ${m.cls}">${m.ic}</span>
+      <div class="tl-action">${e.action}</div>
+      <div class="tl-meta">${e.at} · ${e.by}</div>
+      ${e.reason ? `<div class="tl-reason">Причина: ${e.reason}</div>` : ''}
+    </li>`;
+  }).join('');
+}
+
+/* ---- одобрение: подтверждение + проверка документа (R1), без причины ---- */
+function approveSelected(){
+  if (selected < 0) return;
+  const rec = filtered[selected];
+  if (rec.status !== 'На стадии рассмотрения') return;
+  if (!hasMainDoc(rec)){                                   // R1
+    alert('Нельзя одобрить решение без основного документа.\nПриложите PDF и отметьте его «Основным» на вкладке «Документы».');
+    openDetail(); selectDetailTab(2); return;
+  }
+  if (!confirm(`Одобрить решение «${rec.name || 'без названия'}»?`)) return;
+  rec.status = 'Одобрен';
+  logEntry(rec, 'Одобрение', '');
+  persist(); applyFilter();
+}
+$('btnApprove').addEventListener('click', approveSelected);
+
+/* ---- R2: модалка причины (отклонение / возврат) ---- */
+let reasonAction = null;   // {fromStatus, toStatus, action, confirmLbl, title, lbl}
+function openReason(cfg){
+  reasonAction = cfg;
+  $('reasonTitle').textContent = cfg.title;
+  $('reasonLbl').innerHTML = cfg.lbl + ' <span style="color:var(--asubk-red)">*</span>';
+  $('reasonConfirmLbl').textContent = cfg.confirmLbl;
+  const btn = $('reasonConfirm');
+  btn.className = 'btn ' + (cfg.danger ? 'btn-danger' : 'btn-primary');
+  $('reasonText').value = '';
+  btn.disabled = true;
+  $('reasonOverlay').classList.add('open');
+  setTimeout(() => $('reasonText').focus(), 0);
+}
+function closeReason(){ $('reasonOverlay').classList.remove('open'); reasonAction = null; }
+$('reasonText').addEventListener('input', () => {
+  $('reasonConfirm').disabled = !$('reasonText').value.trim();
+});
+$('reasonX').addEventListener('click', closeReason);
+$('reasonCancel').addEventListener('click', closeReason);
+$('reasonOverlay').addEventListener('click', e => { if (e.target === $('reasonOverlay')) closeReason(); });
+$('reasonConfirm').addEventListener('click', () => {
+  if (selected < 0 || !reasonAction) return;
+  const reason = $('reasonText').value.trim();
+  if (!reason) return;                                     // обязательность причины
+  const rec = filtered[selected];
+  if (rec.status !== reasonAction.fromStatus){ closeReason(); return; }
+  rec.status = reasonAction.toStatus;
+  if (reasonAction.action === 'Отклонение') rec.rejectReason = reason;
+  if (reasonAction.action === 'Возврат на рассмотрение') rec.rejectReason = '';   // очищаем при возврате
+  logEntry(rec, reasonAction.action, reason);
+  closeReason();
+  persist(); applyFilter();
+});
+
+/* ---- отклонение: подтверждение + обязательная причина (R2) ---- */
+$('btnReject').addEventListener('click', () => {
+  if (selected < 0 || filtered[selected].status !== 'На стадии рассмотрения') return;
+  openReason({ fromStatus:'На стадии рассмотрения', toStatus:'Закрыт', action:'Отклонение',
+    title:'Отклонение решения', lbl:'Причина отклонения', confirmLbl:'Отклонить', danger:true });
+});
+/* ---- возврат «Закрыт» → «На рассмотрении» (R2, обратимость, только админ) ---- */
+$('btnReactivate').addEventListener('click', () => {
+  if (selected < 0 || filtered[selected].status !== 'Закрыт') return;
+  openReason({ fromStatus:'Закрыт', toStatus:'На стадии рассмотрения', action:'Возврат на рассмотрение',
+    title:'Возврат на рассмотрение', lbl:'Причина возврата', confirmLbl:'Вернуть', danger:false });
+});
 $('backBtn').addEventListener('click', () => showView('listView'));
 $('backLink').addEventListener('click', () => showView('listView'));
 $('detailEdit').addEventListener('click', openEdit);   // карточка → редактирование выбранного решения
 
 /* ---- detail tabs ---- */
-$('detailTabs').querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    const i = tab.dataset.tab;
-    $('detailTabs').querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
-    $('detailView').querySelectorAll('.tabpanel').forEach(p => p.classList.toggle('active', p.dataset.panel === i));
-  });
-});
+function selectDetailTab(i){
+  const id = String(i);
+  $('detailTabs').querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+  $('detailView').querySelectorAll('.tabpanel').forEach(p => p.classList.toggle('active', p.dataset.panel === id));
+}
+$('detailTabs').querySelectorAll('.tab').forEach(tab =>
+  tab.addEventListener('click', () => selectDetailTab(tab.dataset.tab)));
+
+/* ---- create/edit form tabs: Примечание | Документы ---- */
+function selectCreateTab(i){
+  const id = String(i);
+  $('createTabs').querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.ctab === id));
+  document.querySelectorAll('#createView [data-cpanel]').forEach(p => p.classList.toggle('active', p.dataset.cpanel === id));
+}
+$('createTabs').querySelectorAll('.tab').forEach(tab =>
+  tab.addEventListener('click', () => selectCreateTab(tab.dataset.ctab)));
 
 /* ---- create page (переход на отдельную страницу, как в оригинале) ---- */
 function createInputs(){
@@ -884,13 +1306,18 @@ function createInputs(){
 }
 function openCreate(){
   $('createTitle').textContent = 'Решение правительства';
+  createMode = 'create';                               // R3: код генерируется
   const ins = createInputs();
   ins.forEach((el,i)=>{ if (i!==1) el.value=''; });   // очищаем все поля, кроме readonly-статуса
   ins[1].value = 'На стадии рассмотрения';            // новое решение всегда «На стадии» (сброс после openEdit)
   $('decisionDate').value='';
+  updateCodePreview();                                // R3: пустой предпросмотр кода
   const val = document.querySelector('#createView .lookup .val');
   if (val){ val.textContent='Выберите вид решения…'; val.classList.remove('filled'); }
   const note = document.querySelector('#createView .note-area'); if (note) note.value='';
+  createDocs = [];                                    // R1: чистый буфер вложений
+  renderCreateDocs();
+  selectCreateTab(0);                                 // открываем на «Примечание»
   showView('createView');
   setTimeout(()=>{ const i = $('createView').querySelector('input:not([readonly])'); if (i) i.focus(); }, 0);
 }
@@ -898,6 +1325,7 @@ function openEdit(){
   if (selected < 0) return;
   const r = filtered[selected];
   $('createTitle').textContent = 'Редактирование решения';
+  createMode = 'edit';                                  // R3: код фиксирован (legacy/уже выдан)
   const ins = createInputs();
   ins[0].value = r.name  || '';
   ins[1].value = r.status || '';   // статус readonly, показываем фактический
@@ -910,6 +1338,10 @@ function openEdit(){
     if (r.kind){ val.textContent = r.kind; val.classList.add('filled'); }
     else { val.textContent = 'Выберите вид решения…'; val.classList.remove('filled'); }
   }
+  const note = document.querySelector('#createView .note-area'); if (note) note.value = r.note || '';   // R6: префилл примечания
+  createDocs = (r.docs || []).map(d => ({ ...d }));   // R1: правки буфера, исходник меняется только по OK
+  renderCreateDocs();
+  selectCreateTab(0);                                 // открываем на «Примечание»
   showView('createView');
   setTimeout(()=>{ ins[0].focus(); }, 0);
 }
@@ -918,6 +1350,13 @@ $('createCancel').addEventListener('click', () => showView('listView'));
 $('createOk').addEventListener('click', () => {
   const editing = $('createTitle').textContent.indexOf('Редактирование') === 0;
   const ins = createInputs();   // 0 name, 1 status(ro), 2 code, 3 short, 4 num
+  /* R5: серверная страховка — «Дата решения» не может быть в будущем (дублирует клиентский календарь) */
+  const dStr = $('decisionDate').value.trim();
+  const dm = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(dStr);
+  if (dm){
+    const dd = new Date(+dm[3], +dm[2]-1, +dm[1]), t = new Date(); t.setHours(0,0,0,0);
+    if (dd > t){ alert('Дата решения не может быть в будущем.'); selectCreateTab(0); $('decisionDate').focus(); return; }
+  }
   const valEl = document.querySelector('#createView .lookup .val');
   const kind = (valEl && valEl.classList.contains('filled')) ? valEl.textContent.trim() : '';
   const rec = {
@@ -928,10 +1367,16 @@ $('createOk').addEventListener('click', () => {
     num:    ins[4].value.trim(),
     kind:   kind,
     date:   $('decisionDate').value.trim(),
+    note:   (document.querySelector('#createView .note-area')?.value || '').trim(),   // R6: примечание
+    docs:   createDocs,                          // R1: вложения из формы
   };
   if (editing && selected >= 0){
-    Object.assign(filtered[selected], rec);   // filtered[i] — та же ссылка, что в DATA; фильтр не трогаем
+    Object.assign(filtered[selected], rec);   // filtered[i] — та же ссылка, что в DATA; фильтр не трогаем (log/rejectReason сохраняются)
+    logEntry(filtered[selected], 'Изменение', '');   // R2: правка тоже в журнал
   } else {
+    rec.code = genCode(rec.kind, rec.date);    // R3: финальная генерация кода при сохранении
+    rec.log = [];                              // R2: журнал нового решения
+    logEntry(rec, 'Создание', '');
     DATA.unshift(rec);                         // новое решение сверху списка
     /* новое решение всегда «На стадии рассмотрения» — переключаем фильтр на этот статус,
        чтобы оно было видно (фильтр по умолчанию = «Одобрен» скрыл бы его) */
@@ -954,9 +1399,11 @@ const KINDS = [...new Set(DATA.map(d => d.kind).filter(Boolean))];
   btns[0].addEventListener('click', () =>
     openEntityLookup({ title:'Вид решения', col:'Наименование', options:KINDS,
       current: val.classList.contains('filled') ? val.textContent.trim() : null,
-      onSelect:v => { val.textContent = v; val.classList.add('filled'); } }));
-  btns[1].addEventListener('click', () => { val.textContent = 'Выберите вид решения…'; val.classList.remove('filled'); });
+      onSelect:v => { val.textContent = v; val.classList.add('filled'); updateCodePreview(); } }));   // R3
+  btns[1].addEventListener('click', () => { val.textContent = 'Выберите вид решения…'; val.classList.remove('filled'); updateCodePreview(); });
 })();
+/* R3: дата меняется → пересчёт предпросмотра кода (год берётся из даты) */
+$('decisionDate').addEventListener('change', updateCodePreview);
 
 /* ---- filter collapse ---- */
 $('filterHead').addEventListener('click', () => $('filterWrap').classList.toggle('collapsed'));
@@ -1135,10 +1582,10 @@ function rowMatches(row, c){
 }
 let filterDirty = false;
 function applyFilter(){
-  filtered = DATA.filter(row => conditions.every(c => rowMatches(row, c)));
+  filtered = DATA.filter(row => !row.deleted && conditions.every(c => rowMatches(row, c)));   // R4: скрываем soft-deleted
   selected = -1;
   renderRows();
-  ['btnEdit','btnView','btnDelete','btnApprove','btnReject'].forEach(id => $(id).disabled = true);
+  ['btnEdit','btnView','btnDelete','btnApprove','btnReject','btnReactivate'].forEach(id => $(id).disabled = true);
 }
 
 /* ---- wire filter actions ---- */
@@ -1189,6 +1636,160 @@ renderConds();
 applyFilter();
 buildColMenu();
 
+/* ============================================================
+   R1 — Документы решения: загрузка PDF, основной документ, версии,
+   защита удаления у одобренного, журнал (кто/когда) на карточке файла.
+   Один движок makeUploader() обслуживает и карточку, и форму создания.
+   ============================================================ */
+const MAX_BYTES = 20 * 1024 * 1024;
+let docSeq = 100;
+const nextDocId = () => 'd' + (++docSeq);
+const fmtSize = b => b >= 1048576 ? (b/1048576).toFixed(1).replace('.', ',') + ' МБ'
+                   : b >= 1024 ? Math.round(b/1024) + ' КБ' : b + ' Б';
+function nowStamp(){
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return `${p(d.getDate())}.${p(d.getMonth()+1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+const isPdf = f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf';
+
+function makeUploader(o){
+  /* o.ids: {list,drop,pick,input,replaceInput,banner?,bannerText?}
+     o.host(): возвращает запись-носитель {docs, status} или null
+     o.after(): колбэк после любого изменения (persist + обновление списка) */
+  const idEl = id => document.getElementById(id);
+  let replaceId = null;
+
+  function render(){
+    const rec = o.host(); if (!rec) return;
+    const approved = rec.status === 'Одобрен';
+    if (o.ids.banner){
+      const banner = idEl(o.ids.banner), bt = idEl(o.ids.bannerText);
+      if (rec.status === 'На стадии рассмотрения' && !hasMainDoc(rec)){
+        banner.classList.add('block');
+        bt.innerHTML = '<b>Решение нельзя одобрить:</b> нет основного документа. Загрузите PDF и нажмите «Сделать основным». Только PDF, до 20&nbsp;МБ.';
+      } else {
+        banner.classList.remove('block');
+        bt.innerHTML = 'Основной документ обязателен для перевода решения в статус «Одобрен». Только <b>PDF</b>, до 20&nbsp;МБ. Замена создаёт новую версию (история сохраняется); удаление файлов у одобренного решения запрещено. Кто и когда загрузил — фиксируется в карточке файла.';
+      }
+    }
+    idEl(o.ids.list).innerHTML = (rec.docs || []).map(d => {
+      if (d.rejected){
+        return `<div class="file-row" data-id="${d.id}">
+          <div class="file-ic bad">${(d.ext || 'FILE').toUpperCase().slice(0,3)}</div>
+          <div class="file-meta">
+            <div class="file-name" style="color:var(--text-muted)">${d.name}</div>
+            <div class="file-sub" style="color:var(--asubk-red)">Отклонено: ${d.reason}</div>
+          </div>
+          <div class="file-actions"><button class="linkbtn danger" data-act="remove">Убрать</button></div>
+        </div>`;
+      }
+      const badges = (d.main ? '<span class="badge info">Основной</span>' : '')
+                   + (d.version > 1 ? `<span class="badge neutral">версия ${d.version}</span>` : '');
+      const delAttr = approved ? ' disabled title="Удаление запрещено: решение одобрено"' : '';
+      return `<div class="file-row${d.main ? ' is-main' : ''}" data-id="${d.id}">
+        <div class="file-ic">PDF</div>
+        <div class="file-meta">
+          <div class="file-name">${d.name} ${badges}</div>
+          <div class="file-sub">${fmtSize(d.size)} · загружен ${d.at} · ${d.by}</div>
+        </div>
+        <div class="file-actions">
+          ${d.main ? '' : '<button class="linkbtn" data-act="main">Сделать основным</button>'}
+          <button class="linkbtn" data-act="replace">Заменить</button>
+          <button class="linkbtn danger" data-act="remove"${delAttr}>Удалить</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function commit(){ o.after && o.after(); render(); }
+
+  function addFiles(fileList){
+    const rec = o.host(); if (!rec) return;
+    [...fileList].forEach(f => {
+      if (!isPdf(f)){
+        rec.docs.push({ id:nextDocId(), name:f.name, rejected:true,
+          reason:'допускается только формат PDF', ext:(f.name.split('.').pop() || '') });
+        return;
+      }
+      if (f.size > MAX_BYTES){
+        rec.docs.push({ id:nextDocId(), name:f.name, rejected:true,
+          reason:`файл больше 20 МБ (${fmtSize(f.size)})`, ext:'pdf' });
+        return;
+      }
+      const firstValid = !activeDocs(rec).length;
+      rec.docs.push({ id:nextDocId(), name:f.name, size:f.size, main:firstValid, version:1, at:nowStamp(), by:'admin' });
+    });
+    commit();
+  }
+
+  idEl(o.ids.list).addEventListener('click', e => {
+    const btn = e.target.closest('[data-act]'); if (!btn || btn.disabled) return;
+    const row = e.target.closest('[data-id]'); const rec = o.host();
+    if (!row || !rec) return;
+    const id = row.dataset.id, idx = rec.docs.findIndex(d => d.id === id);
+    if (idx < 0) return;
+    const act = btn.dataset.act;
+    if (act === 'remove'){
+      const d = rec.docs[idx];
+      if (!d.rejected && rec.status === 'Одобрен') return;       // защита удаления
+      if (!d.rejected && !confirm(`Удалить файл «${d.name}»?`)) return;
+      const wasMain = d.main;
+      rec.docs.splice(idx, 1);
+      if (wasMain){ const a = activeDocs(rec); if (a.length === 1) a[0].main = true; }
+      commit();
+    } else if (act === 'main'){
+      activeDocs(rec).forEach(d => d.main = false);
+      rec.docs[idx].main = true;
+      commit();
+    } else if (act === 'replace'){
+      replaceId = id; idEl(o.ids.replaceInput).value = ''; idEl(o.ids.replaceInput).click();
+    }
+  });
+  idEl(o.ids.replaceInput).addEventListener('change', e => {
+    const f = e.target.files[0], rec = o.host();
+    const d = rec && replaceId && rec.docs.find(x => x.id === replaceId);
+    replaceId = null;
+    if (!f || !d) return;
+    if (!isPdf(f)){ alert('Замена отклонена: допускается только формат PDF.'); return; }
+    if (f.size > MAX_BYTES){ alert(`Замена отклонена: файл больше 20 МБ (${fmtSize(f.size)}).`); return; }
+    d.name = f.name; d.size = f.size; d.version = (d.version || 1) + 1; d.at = nowStamp(); d.by = 'admin';
+    commit();
+  });
+  idEl(o.ids.pick).addEventListener('click', () => { idEl(o.ids.input).value = ''; idEl(o.ids.input).click(); });
+  idEl(o.ids.input).addEventListener('change', e => addFiles(e.target.files));
+  const dz = idEl(o.ids.drop);
+  ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('drag'); }));
+  dz.addEventListener('dragleave', e => { if (!dz.contains(e.relatedTarget)) dz.classList.remove('drag'); });
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag');
+    if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+
+  return { render };
+}
+
+/* экземпляр 1 — карточка решения (живые данные, мгновенный persist) */
+const detailUploader = makeUploader({
+  ids:{ list:'docList', drop:'docDrop', pick:'docPick', input:'docInput',
+        replaceInput:'docReplaceInput', banner:'docBanner', bannerText:'docBannerText' },
+  host: () => detailRec,
+  after: () => {
+    persist();
+    renderRows();                                   // обновить столбец «Документ»
+    if (selected >= 0 && filtered[selected] === detailRec)
+      $('btnApprove').disabled = detailRec.status !== 'На стадии рассмотрения';
+  },
+});
+function renderDocs(){ detailUploader.render(); }
+
+/* экземпляр 2 — форма создания/редактирования (буфер createDocs, фиксируется по OK) */
+let createDocs = [];
+const createUploader = makeUploader({
+  ids:{ list:'cDocList', drop:'cDocDrop', pick:'cDocPick', input:'cDocInput',
+        replaceInput:'cDocReplaceInput', banner:'cDocBanner', bannerText:'cDocBannerText' },
+  host: () => ({ docs:createDocs, status:(createInputs()[1].value || 'На стадии рассмотрения') }),
+  after: () => {},                                  // буфер; persist — в createOk
+});
+function renderCreateDocs(){ createUploader.render(); }
+
 /* ---- functional date picker — mirrors live Vaadin date-picker ----
    dd.MM.yyyy display, RU month names, week starts Вс (как в проде), сегодня в рамке,
    prev/next навигация по месяцам, кнопки Сегодня/Отмена, prefill сегодняшней датой. */
@@ -1225,10 +1826,15 @@ buildColMenu();
       const cur = new Date(y,mo,d), cls=['dp-day'];
       if(sameDay(cur,today)) cls.push('today');
       if(sameDay(cur,selected)) cls.push('sel');
-      cells+=`<button type="button" class="${cls.join(' ')}" data-off="0" data-d="${d}">${d}</button>`;
+      const future = cur > today;                       // R5: будущие даты запрещены
+      if(future) cls.push('future');
+      cells+=`<button type="button" class="${cls.join(' ')}" data-off="0" data-d="${d}"${future?' disabled':''}>${d}</button>`;
     }
     const tail = (7 - ((startGap+daysIn)%7))%7;
-    for (let i=1;i<=tail;i++){ cells+=`<button type="button" class="dp-day muted" data-off="1" data-d="${i}">${i}</button>`; }
+    for (let i=1;i<=tail;i++){
+      const cur = new Date(y, mo+1, i), future = cur > today;   // R5: следующий месяц может быть будущим
+      cells+=`<button type="button" class="dp-day muted${future?' future':''}" data-off="1" data-d="${i}"${future?' disabled':''}>${i}</button>`;
+    }
     pop.innerHTML =
       `<div class="dp-head">`+
         `<button type="button" class="dp-nav" data-nav="-1" aria-label="Предыдущий месяц"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>`+
@@ -1245,20 +1851,31 @@ buildColMenu();
 
   toggle.addEventListener('click', e => { e.stopPropagation(); isOpen()?close():open(); });
   input.addEventListener('focus', open);                  // auto-open, как в проде
-  input.addEventListener('change', () => { const d=parse(input.value); if(d){ selected=d; view=new Date(d.getFullYear(),d.getMonth(),1); if(isOpen()) render(); } });
+  input.addEventListener('change', () => {
+    const d = parse(input.value);
+    if (d && d > today){                                 // R5: запрет будущей даты при ручном вводе
+      alert('Дата решения не может быть в будущем.');
+      input.value = '';                                  // явный сброс некорректного значения (не молчаливый)
+      if (typeof updateCodePreview === 'function') updateCodePreview();
+      return;
+    }
+    if (d){ selected = d; view = new Date(d.getFullYear(), d.getMonth(), 1); if (isOpen()) render(); }
+  });
 
   pop.addEventListener('click', e => {
     const nav = e.target.closest('[data-nav]');
     if (nav){ view.setMonth(view.getMonth()+(+nav.dataset.nav)); render(); return; }
     const act = e.target.closest('[data-act]');
     if (act){
-      if (act.dataset.act==='today'){ selected=new Date(today); view=new Date(today.getFullYear(),today.getMonth(),1); input.value=fmt(selected); }
+      if (act.dataset.act==='today'){ selected=new Date(today); view=new Date(today.getFullYear(),today.getMonth(),1); input.value=fmt(selected); input.dispatchEvent(new Event('change')); }
       close(); return;
     }
     const day = e.target.closest('.dp-day');
     if (day){
+      if (day.disabled || day.classList.contains('future')) return;   // R5: будущие даты недоступны
       selected = new Date(view.getFullYear(), view.getMonth()+(+day.dataset.off), +day.dataset.d);
       input.value = fmt(selected);
+      input.dispatchEvent(new Event('change'));    // R3: обновить предпросмотр кода
       close();
     }
   });
