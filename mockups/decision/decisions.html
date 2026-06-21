@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Решение правительства · АСУБК</title>
+<!--
+  STANDALONE MOCKUP — образец вёрстки для команды разработки (не прод-код).
+  Один независимый файл: список решений → «Создать» открывает отдельную
+  страницу создания (как в оригинале — переход, не модалка); «Просмотр»
+  (или двойной клик) открывает страницу карточки. Внешних ссылок нет.
+  Сайдбар — реорганизованное 7-групповое дерево из decision-detail.html.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --border-base:rgba(28,55,90,0.16); --border-strong:rgba(28,55,90,0.30);
+  --blue-tint:rgba(0,106,245,0.08); --nav-active:rgba(51,139,255,0.13);
+  --disabled-fill:rgba(25,59,103,0.05); --red-tint:#FCE6E6;
+  --green-tint:rgba(21,132,67,0.10); --amber:#B8860B; --amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--border-base); --border-focus:var(--asubk-blue);
+  --status-success:var(--asubk-green); --status-success-bg:var(--green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--blue-tint);
+  --status-warning:var(--amber); --status-warning-bg:var(--amber-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;
+  --font-body:var(--weight-regular) var(--text-base)/1.5 var(--asubk-font);
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+::-webkit-scrollbar-track{ background:transparent; }
+a{ color:inherit; }
+
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---------- sidebar (дерево из decision-detail.html) ---------- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
+  border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
+.nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
+.nav-sub > .nav-toggle{ padding:8px 16px 8px 32px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font); }
+.nav-toggle:hover{ background:rgba(24,39,57,0.04); }
+.nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
+  transition:transform 120ms ease; flex:none; }
+.nav-group > .nav-toggle .chev{ color:rgba(24,39,57,0.55); }
+.nav-group.open > .nav-toggle .chev,
+.nav-sub.open > .nav-toggle .chev{ transform:rotate(90deg); }
+.nav-toggle .lbl{ flex:1; }
+.nav-children{ display:none; }
+.nav-group.open > .nav-children,
+.nav-sub.open > .nav-children{ display:block; }
+.nav-item{ display:block; padding:7px 16px 7px 52px; text-decoration:none; color:rgba(24,39,57,0.88);
+  font:var(--weight-regular) 15px/1.35 var(--asubk-font); text-wrap:pretty; cursor:pointer; }
+.nav-item.headerless{ padding-left:40px; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--nav-active); color:rgba(24,39,57,0.96); }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+
+/* ---------- main ---------- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
+.crumb-link{ display:inline-flex; align-items:center; gap:6px; color:var(--text-link);
+  text-decoration:none; font:var(--weight-medium) 14px/1 var(--asubk-font); cursor:pointer; }
+.crumb-link:hover{ text-decoration:underline; }
+.crumb-sep{ color:var(--text-placeholder); }
+.crumb-title{ font:var(--weight-semibold) var(--text-lg)/1.2 var(--asubk-font); color:var(--text-heading); }
+.crumb-status{ margin-left:auto; }
+.content{ flex:1; overflow:auto; display:flex; flex-direction:column; min-width:0; }
+
+.view{ display:none; flex:1; flex-direction:column; min-width:0; }
+.view.active{ display:flex; }
+
+/* ---------- filter panel (list) ---------- */
+.filter-wrap{ padding:14px 20px 0; }
+.filter-head{ display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+  font:var(--weight-regular) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-muted); padding:2px 0; }
+.filter-head .chev{ display:inline-flex; transition:transform 120ms ease; color:var(--text-placeholder); }
+.filter-wrap.collapsed .chev{ transform:rotate(-90deg); }
+.filter-head b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.filter-panel{ margin-top:10px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-panel); padding:14px 16px; max-width:760px; }
+.filter-wrap.collapsed .filter-panel{ display:none; }
+.cond-row{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.cond-row:last-of-type{ margin-bottom:0; }
+.cond-row .clbl{ width:92px; flex:none; font:var(--weight-regular) var(--text-sm)/1 var(--asubk-font); color:var(--text-muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cond-row .op{ min-width:46px; flex:none; height:36px; padding:0 10px; border-radius:var(--radius-md); border:1px solid var(--border-default);
+  background:var(--surface-input); color:var(--text-body); text-align:center; font:var(--font-body); line-height:34px;
+  cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+.cond-row .op:hover{ background:var(--surface-hover); box-shadow:inset 0 0 0 1px var(--border-default); }
+.cond-row .op .opchev{ color:var(--text-placeholder); font-size:10px; }
+.cond-row .cval-input{ flex:1; height:36px; border:none; outline:none; background:transparent;
+  font:var(--weight-regular) var(--text-base)/1 var(--asubk-font); color:var(--text-body); padding:0; }
+.cond-row .cval-input::placeholder{ color:var(--text-placeholder); }
+.cond-row .rmcond{ flex:none; border:none; background:transparent; color:var(--text-placeholder);
+  width:30px; height:36px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+.cond-row .rmcond:hover{ color:var(--asubk-red); }
+
+/* filter popovers (operator / status / add-property) */
+.fpop{ position:fixed; z-index:60; min-width:170px; background:var(--surface-card);
+  border:1px solid var(--border-default); border-radius:var(--radius-md);
+  box-shadow:0 8px 28px rgba(24,39,57,0.18); padding:6px; }
+.fpop .fpop-search{ width:100%; height:32px; margin-bottom:6px; border:1px solid var(--border-default);
+  border-radius:var(--radius-sm); padding:0 10px; font:var(--weight-regular) var(--text-sm)/1 var(--asubk-font);
+  color:var(--text-body); outline:none; }
+.fpop .fpop-search:focus{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+.fpop .fpop-list{ max-height:240px; overflow:auto; }
+.fpop-item{ padding:7px 12px; border-radius:var(--radius-sm); cursor:pointer;
+  font:var(--weight-regular) var(--text-sm)/1.2 var(--asubk-font); color:var(--text-body); white-space:nowrap; }
+.fpop-item:hover{ background:var(--surface-hover); }
+.fpop-item.sel{ background:var(--nav-active); }
+.fpop-item.hide{ display:none; }
+.addcond-wrap{ position:relative; display:inline-flex; }
+
+/* ---------- lookup modal (jmix-value-picker → диалог выбора) ---------- */
+.modal-overlay{ position:fixed; inset:0; background:rgba(24,39,57,0.45); display:none;
+  align-items:center; justify-content:center; z-index:100; }
+.modal-overlay.open{ display:flex; }
+.modal-dialog{ width:520px; max-width:calc(100vw - 40px); max-height:calc(100vh - 80px);
+  background:var(--surface-card); border-radius:var(--radius-lg); box-shadow:0 16px 48px rgba(24,39,57,0.28);
+  display:flex; flex-direction:column; overflow:hidden; }
+.modal-head{ display:flex; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border-default); }
+.modal-title{ margin:0; font:var(--weight-semibold) var(--text-lg)/1.2 var(--asubk-font); color:var(--text-heading); }
+.modal-x{ margin-left:auto; border:none; background:transparent; color:var(--text-muted); cursor:pointer;
+  width:32px; height:32px; border-radius:var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; }
+.modal-x:hover{ background:var(--surface-hover); color:var(--asubk-red); }
+.modal-toolbar{ padding:14px 20px 10px; }
+.modal-search{ width:100%; height:36px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  padding:0 12px; font:var(--font-body); color:var(--text-body); outline:none; }
+.modal-search:focus{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+.modal-grid-wrap{ flex:1; overflow:auto; margin:0 20px; border:1px solid var(--border-default); border-radius:var(--radius-md); }
+.modal-grid{ width:100%; border-collapse:collapse; font:var(--weight-regular) var(--text-sm)/1.4 var(--asubk-font); color:var(--text-body); }
+.modal-grid th{ text-align:left; padding:10px 14px; position:sticky; top:0; background:var(--surface-card);
+  color:var(--text-link); font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); border-bottom:1px solid var(--border-default); }
+.modal-grid td{ padding:9px 14px; border-bottom:1px solid var(--border-default); cursor:pointer; }
+.modal-grid tbody tr:hover{ background:var(--surface-hover); }
+.modal-grid tbody tr.sel td{ background:var(--nav-active); }
+.modal-empty{ padding:24px; text-align:center; color:var(--text-placeholder); }
+.modal-foot{ display:flex; gap:10px; padding:16px 20px; }
+
+/* ---------- entity-lookup modal (точный клон jmix lookup-диалога) ---------- */
+.lk-dialog{ width:min(1080px,92vw); height:min(82vh,840px); background:var(--surface-card);
+  border-radius:var(--radius-lg); box-shadow:0 16px 48px rgba(24,39,57,0.28);
+  display:flex; flex-direction:column; overflow:hidden; }
+.lk-header{ display:flex; align-items:center; gap:12px; padding:14px 20px; border-bottom:1px solid var(--border-default); }
+.lk-title{ font:var(--weight-semibold) var(--text-lg)/1.2 var(--asubk-font); color:var(--text-heading); }
+.lk-close{ margin-left:auto; border:none; background:transparent; color:var(--text-muted); cursor:pointer;
+  width:32px; height:32px; border-radius:var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; }
+.lk-close:hover{ background:var(--surface-hover); color:var(--asubk-red); }
+.lk-body{ flex:1; display:flex; flex-direction:column; min-height:0; padding:14px 20px 0; }
+.lk-filter{ display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+.lk-toolbar{ display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+.lk-grid-wrap{ flex:1; overflow:auto; border:1px solid var(--border-default); border-radius:var(--radius-md); }
+.lk-foot{ display:flex; gap:10px; padding:16px 20px; border-top:1px solid var(--border-default); }
+.cond-val{ flex:1; display:flex; align-items:center; height:36px; background:var(--surface-input);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); padding-left:var(--space-3); padding-right:4px; }
+.cond-val .v{ flex:1; font:var(--weight-regular) var(--text-base)/1 var(--asubk-font); color:var(--text-body); }
+.cond-val button{ border:none; background:transparent; color:var(--text-link); cursor:pointer;
+  width:30px; height:34px; display:inline-flex; align-items:center; justify-content:center; }
+.cond-val .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
+.cond-val .clear{ color:var(--asubk-blue); }
+.filter-actions{ display:flex; align-items:center; gap:12px; margin-top:14px; }
+.split{ display:inline-flex; }
+.split .btn{ border-radius:var(--radius-md) 0 0 var(--radius-md); }
+.split .caret{ border-radius:0 var(--radius-md) var(--radius-md) 0; border-left:1px solid rgba(255,255,255,0.25);
+  padding:0 8px; }
+.addcond{ color:var(--text-link); cursor:pointer; font:var(--weight-medium) 14px/1 var(--asubk-font); }
+.addcond:hover{ text-decoration:underline; }
+
+/* ---------- toolbar ---------- */
+.toolbar{ display:flex; align-items:center; gap:8px; padding:14px 20px 12px; flex-wrap:wrap; }
+.toolbar .grow{ flex:1; }
+.pager{ display:inline-flex; align-items:center; gap:4px; color:var(--text-muted);
+  font:var(--weight-regular) 14px/1 var(--asubk-font); }
+.pager button{ border:1px solid var(--border-default); background:var(--surface-card); color:var(--text-muted);
+  width:28px; height:28px; border-radius:var(--radius-sm); cursor:pointer; }
+.pager .count{ padding:0 8px; }
+
+/* ---------- buttons ---------- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) 15px/1 var(--asubk-font); cursor:pointer; white-space:nowrap;
+  user-select:none; transition:background 120ms ease; }
+.btn svg{ flex:none; }
+.btn-primary{ background:var(--asubk-blue); color:#fff; }
+.btn-primary:hover{ background:var(--asubk-blue-hover); }
+.btn-success{ background:var(--asubk-green); color:#fff; }
+.btn-success:hover{ background:var(--asubk-green-hover); }
+.btn-outline{ background:var(--surface-card); color:var(--text-link); border-color:var(--border-default); }
+.btn-outline:hover{ background:var(--surface-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover{ background:var(--surface-hover); }
+.btn-danger{ background:var(--asubk-red); color:#fff; }
+.btn-danger:hover{ background:var(--asubk-red-hover); }
+.btn:disabled{ background:var(--disabled-fill); color:var(--text-disabled); border-color:transparent;
+  cursor:not-allowed; }
+/* live: disabled action-confirm (Одобрить/Отклонить are "primary"-themed) keep solid grey fill, white text */
+.btn-confirm:disabled{ background:var(--asubk-ink-26); color:#fff; border-color:transparent; }
+.iconbtn{ width:36px; height:36px; padding:0; }
+
+/* ---------- column-visibility menu (⚙) ---------- */
+.col-ctrl{ position:relative; display:inline-flex; }
+.colmenu{ position:absolute; top:calc(100% + 6px); right:0; min-width:248px; z-index:30;
+  background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
+  box-shadow:0 8px 28px rgba(24,39,57,0.18); padding:6px; display:none; }
+.colmenu.open{ display:block; }
+.colmenu .cm-head{ padding:6px 10px 8px; font:var(--weight-medium) var(--text-xs)/1.2 var(--asubk-font);
+  color:var(--text-muted); text-transform:uppercase; letter-spacing:0.03em; }
+.colmenu .cm-item{ display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:var(--radius-sm);
+  cursor:pointer; font:var(--weight-regular) var(--text-sm)/1.2 var(--asubk-font); color:var(--text-body); }
+.colmenu .cm-item:hover{ background:var(--surface-hover); }
+.colmenu .cm-item input{ accent-color:var(--asubk-blue); width:16px; height:16px; cursor:pointer; flex:none; }
+
+/* ---------- data grid ---------- */
+.grid-wrap{ margin:0 20px 20px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  overflow:auto; background:var(--surface-card); }
+table.grid{ width:100%; border-collapse:collapse; font:var(--weight-regular) var(--text-base)/1.375 var(--asubk-font); color:var(--text-body); }
+table.grid th{ text-align:left; font:var(--weight-regular) var(--text-base)/1 var(--asubk-font);
+  color:var(--text-link); padding:11px 14px; border-bottom:1px solid var(--border-default);
+  background:var(--surface-card); white-space:nowrap; cursor:pointer; user-select:none; position:sticky; top:0; }
+table.grid th .sort{ color:var(--text-disabled); font-size:11px; margin-left:4px; }
+table.grid td{ padding:7px 14px; border-bottom:1px solid var(--border-default);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px; }
+table.grid tbody tr{ cursor:pointer; }
+table.grid tbody tr:hover{ background:var(--surface-hover); }
+table.grid tbody tr.sel td{ background:var(--nav-active); }
+.empty-cell{ color:var(--text-placeholder); }
+
+/* ---------- badge ---------- */
+.badge{ display:inline-flex; align-items:center; gap:var(--space-1); height:22px; padding:0 var(--space-2);
+  border-radius:var(--radius-pill); font:var(--weight-medium) var(--text-xs)/1 var(--asubk-font); white-space:nowrap; }
+.badge.success{ color:var(--status-success); background:var(--status-success-bg); }
+.badge.warning{ color:var(--status-warning); background:var(--status-warning-bg); }
+.badge.info{ color:var(--status-info); background:var(--status-info-bg); }
+.badge.neutral{ color:var(--text-muted); background:var(--asubk-gray-150); }
+
+/* ---------- tabs (detail + create) ---------- */
+.tabstrip-wrap{ padding:16px 24px 0; }
+.tabstrip{ display:flex; gap:4px; border-bottom:1px solid var(--border-default); }
+.tab{ border:none; background:transparent; padding:12px 16px;
+  font:var(--weight-regular) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
+.tab:hover{ color:var(--text-body); }
+.tab.active{ font-weight:var(--weight-semibold); color:var(--text-link); border-bottom-color:var(--asubk-blue); }
+.tabbody{ flex:1; padding:22px 24px 16px; min-width:0; }
+.tabpanel{ display:none; }
+.tabpanel.active{ display:block; }
+
+/* ---------- detail view (read-only) ---------- */
+.form-grid{ max-width:1120px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 32px; }
+.col-span{ grid-column:1 / -1; }
+.view-field{ display:flex; flex-direction:column; gap:4px; padding-bottom:11px; border-bottom:1px solid var(--border-default); }
+.view-field .vlabel{ font:var(--weight-regular) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-muted); }
+.view-field .vvalue{ font:var(--font-body); color:var(--text-body); min-height:22px; }
+.view-field .vvalue.empty{ color:var(--text-placeholder); }
+.note-box{ max-width:1120px; min-height:160px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-panel); color:var(--text-muted); padding:12px 14px; }
+
+/* ---------- create page form ---------- */
+/* live: 3-column grid, label LEFT of control, no required asterisk */
+.create-form{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); column-gap:40px; row-gap:16px; align-items:center; }
+.field{ display:flex; flex-direction:row; align-items:center; gap:12px; }
+.field > .flabel{ flex:none; width:150px; font:var(--weight-regular) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-muted); }
+.field.required > .flabel{ color:var(--text-muted); }
+.field.required > .flabel::after{ content:""; }
+.control{ flex:1; min-width:0; position:relative; display:flex; align-items:center; }
+.control input{ width:100%; height:var(--control-h); border-radius:var(--radius-md);
+  background:var(--surface-input); color:var(--text-body); font:var(--font-body);
+  border:1px solid transparent; outline:none; padding:0 var(--space-3);
+  transition:background 120ms ease, box-shadow 120ms ease; }
+.control input:focus{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); background:var(--surface-card); }
+.control input[readonly]{ color:var(--text-muted); cursor:default; }
+.control input[readonly]:focus{ border-color:transparent; box-shadow:none; background:var(--surface-input); }
+.control input.has-cal{ padding-right:38px; }
+.control .cal{ position:absolute; right:6px; top:50%; transform:translateY(-50%);
+  width:28px; height:28px; display:flex; align-items:center; justify-content:center;
+  border:none; background:transparent; color:var(--text-muted); cursor:pointer;
+  border-radius:var(--radius-sm); padding:0; }
+.control .cal:hover{ color:var(--text-link); background:var(--surface-hover); }
+/* ---- date-picker popup (mirrors live Vaadin date-picker) ---- */
+.dp-pop{ position:absolute; top:calc(100% + 4px); left:0; z-index:60; width:284px;
+  background:var(--surface-card); border:1px solid var(--border-default);
+  border-radius:var(--radius-lg); box-shadow:0 8px 28px rgba(24,39,57,0.18);
+  padding:10px 12px 8px; display:none; }
+.dp-pop.open{ display:block; }
+.dp-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.dp-title{ font:var(--weight-semibold) var(--text-base)/1.2 var(--asubk-font); color:var(--text-heading); }
+.dp-nav{ display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px;
+  border:none; background:transparent; color:var(--text-muted); cursor:pointer; border-radius:var(--radius-sm); }
+.dp-nav:hover{ color:var(--text-link); background:var(--surface-hover); }
+.dp-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.dp-wd{ font:var(--weight-regular) var(--text-xs)/1 var(--asubk-font); color:var(--text-muted);
+  text-align:center; padding:4px 0; }
+.dp-day{ height:32px; border:none; background:transparent; color:var(--text-body);
+  font:var(--font-label); cursor:pointer; border-radius:var(--radius-sm); }
+.dp-day:hover{ background:var(--surface-hover); }
+.dp-day.muted{ color:var(--text-disabled); }
+.dp-day.today{ box-shadow:inset 0 0 0 1.5px var(--asubk-blue); color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.dp-day.sel{ background:var(--asubk-blue); color:#fff; }
+.dp-day.sel:hover{ background:var(--asubk-blue-hover); }
+.dp-foot{ display:flex; align-items:center; justify-content:space-between; margin-top:8px;
+  padding-top:8px; border-top:1px solid var(--border-default); }
+.dp-foot button{ border:none; background:transparent; color:var(--text-link);
+  font:var(--font-label); cursor:pointer; padding:4px 6px; border-radius:var(--radius-sm); }
+.dp-foot button:hover{ text-decoration:underline; }
+.lookup{ flex:1; min-width:0; display:flex; align-items:center; height:var(--control-h); background:var(--surface-input);
+  border-radius:var(--radius-md); border:1px solid transparent; padding-left:var(--space-3); }
+.lookup .val{ flex:1; font:var(--font-body); color:var(--text-placeholder);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lookup .val.filled{ color:var(--text-body); }
+.lookup button{ display:inline-flex; align-items:center; justify-content:center; width:34px; height:var(--control-h);
+  border:none; background:transparent; color:var(--text-link); cursor:pointer; }
+.lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
+.note-tabwrap{ grid-column:1 / -1; margin-top:6px; }
+.note-tab{ display:inline-block; padding:0 4px 8px; border-bottom:2px solid var(--asubk-blue);
+  color:var(--text-link); font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); }
+.note-line{ border-bottom:1px solid var(--border-default); margin-bottom:14px; }
+.note-area{ width:100%; min-height:150px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-input); color:var(--text-body); font:var(--font-body); padding:10px 12px; resize:vertical; outline:none; }
+.note-area:focus{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); background:var(--surface-card); }
+
+/* ---------- sticky footer (detail + create) ---------- */
+.footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
+  padding:14px 24px; display:flex; align-items:center; gap:12px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR (дерево из decision-detail.html) ============ -->
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav" id="nav"><!-- rendered by JS --></div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+
+    <!-- ===== LIST VIEW ===== -->
+    <section class="view active" id="listView">
+      <header class="topbar">
+        <span class="menu" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
+        </span>
+        <span class="crumb-title">Решение правительства</span>
+      </header>
+
+      <div class="content">
+
+        <!-- filter -->
+        <div class="filter-wrap" id="filterWrap">
+          <div class="filter-head" id="filterHead">
+            <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+            <span>Фильтр : <b>фильтр по статусу *</b></span>
+          </div>
+          <div class="filter-panel">
+            <div id="condRows"><!-- условия рендерятся JS --></div>
+            <div class="filter-actions">
+              <div class="split">
+                <button class="btn btn-success" id="btnApply">Обновить</button>
+                <button class="btn btn-success caret" id="btnApplyCaret" title="Конфигурации фильтра"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+              </div>
+              <button class="btn btn-outline iconbtn" id="btnFilterSettings" title="Настройки фильтра"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+              <span class="addcond-wrap"><span class="addcond" id="addCond">Добавить условие поиска</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- toolbar -->
+        <div class="toolbar">
+          <button class="btn btn-primary" id="btnCreate">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            Создать
+          </button>
+          <button class="btn btn-secondary" id="btnEdit" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+            Изменить
+          </button>
+          <button class="btn btn-outline" id="btnView" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            Просмотр
+          </button>
+          <button class="btn btn-danger" id="btnDelete" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Удалить
+          </button>
+          <button class="btn btn-success btn-confirm" id="btnApprove" disabled>Одобрить</button>
+          <button class="btn btn-danger btn-confirm" id="btnReject" disabled>Отклонить</button>
+          <span class="col-ctrl">
+            <button class="btn btn-outline iconbtn" id="btnColumns" title="Видимость столбцов" aria-haspopup="true" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+            <div class="colmenu" id="colMenu"></div>
+          </span>
+          <span class="grow"></span>
+          <span class="pager">
+            <button title="Первая">«</button>
+            <button title="Назад">‹</button>
+            <span class="count" id="rowCount">7 строк</span>
+            <button title="Вперёд">›</button>
+            <button title="Последняя">»</button>
+          </span>
+        </div>
+
+        <!-- grid -->
+        <div class="grid-wrap">
+          <table class="grid" id="grid">
+            <thead><tr>
+              <th>Наименование<span class="sort">↕</span></th>
+              <th>Краткое наименование<span class="sort">↕</span></th>
+              <th>Статус<span class="sort">↕</span></th>
+              <th>Код<span class="sort">↕</span></th>
+              <th>Номер решения<span class="sort">↕</span></th>
+              <th>Вид решения<span class="sort">↕</span></th>
+              <th>Дата решения<span class="sort">↕</span></th>
+            </tr></thead>
+            <tbody id="rows"><!-- rendered by JS --></tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ===== DETAIL VIEW ===== -->
+    <section class="view" id="detailView">
+      <header class="topbar">
+        <span class="menu" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
+        </span>
+        <a class="crumb-link" id="backLink">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          <span>Решение правительства</span>
+        </a>
+        <span class="crumb-sep">/</span>
+        <span class="crumb-title" id="detailTitle">—</span>
+        <span class="crumb-status"><span class="badge success">Одобрен</span></span>
+      </header>
+
+      <div class="content">
+        <div class="tabstrip-wrap">
+          <div class="tabstrip" id="detailTabs">
+            <button class="tab active" data-tab="0">Общая информация</button>
+            <button class="tab" data-tab="1">Примечание</button>
+          </div>
+        </div>
+        <div class="tabbody">
+          <section class="tabpanel active" data-panel="0">
+            <div class="form-grid">
+              <div class="view-field"><span class="vlabel">Наименование</span><span class="vvalue" id="dName">—</span></div>
+              <div class="view-field"><span class="vlabel">Статус</span><span class="vvalue"><span class="badge success">Одобрен</span></span></div>
+              <div class="view-field"><span class="vlabel">Краткое наименование</span><span class="vvalue" id="dShort">—</span></div>
+              <div class="view-field"><span class="vlabel">Код</span><span class="vvalue" id="dCode">—</span></div>
+              <div class="view-field"><span class="vlabel">Номер решения</span><span class="vvalue" id="dNum">—</span></div>
+              <div class="view-field"><span class="vlabel">Вид решения</span><span class="vvalue" id="dKind">—</span></div>
+              <div class="view-field"><span class="vlabel">Дата решения</span><span class="vvalue" id="dDate">—</span></div>
+            </div>
+          </section>
+          <section class="tabpanel" data-panel="1">
+            <div class="note-box">Примечание не заполнено.</div>
+          </section>
+        </div>
+
+        <div class="footer">
+          <button class="btn btn-primary" id="detailEdit">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+            Изменить
+          </button>
+          <button class="btn btn-secondary" id="backBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            Назад
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== CREATE VIEW (отдельная страница, как в оригинале) ===== -->
+    <section class="view" id="createView">
+      <header class="topbar">
+        <span class="menu" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
+        </span>
+        <span class="crumb-title" id="createTitle">Решение правительства</span>
+      </header>
+
+      <div class="content">
+        <div class="tabbody">
+          <div class="create-form">
+            <div class="field required"><span class="flabel">Наименование</span>
+              <div class="control"><input type="text" placeholder="Введите наименование решения"></div></div>
+            <div class="field required"><span class="flabel">Статус</span>
+              <div class="control"><input type="text" value="На стадии рассмотрения" readonly></div></div>
+            <div class="field required"><span class="flabel">Код</span>
+              <div class="control"><input type="text" placeholder=""></div></div>
+            <div class="field required"><span class="flabel">Краткое наименование</span>
+              <div class="control"><input type="text" placeholder="Короткое название"></div></div>
+            <div class="field required"><span class="flabel">Номер решения</span>
+              <div class="control"><input type="text" placeholder="№ ____"></div></div>
+            <div class="field required"><span class="flabel">Дата решения</span>
+              <div class="control" id="dateControl"><input type="text" id="decisionDate" class="has-cal" placeholder="дд.мм.гггг" autocomplete="off" inputmode="numeric">
+                <button type="button" class="cal" id="calToggle" title="Календарь" aria-label="Открыть календарь"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg></button></div></div>
+            <div class="field required"><span class="flabel">Вид решения</span>
+              <div class="lookup">
+                <span class="val">Выберите вид решения…</span>
+                <button class="pick" title="Выбрать">•••</button>
+                <button title="Очистить"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+              </div></div>
+
+            <div class="note-tabwrap">
+              <span class="note-tab">Примечание</span>
+              <div class="note-line"></div>
+              <textarea class="note-area" placeholder="Комментарий к решению (необязательно)"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <button class="btn btn-primary" id="createOk">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            OK
+          </button>
+          <button class="btn btn-secondary" id="createCancel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>
+            Отмена
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- ===== LOOKUP MODAL (jmix-value-picker → диалог выбора, как в оригинале) ===== -->
+<div class="modal-overlay" id="lookupOverlay">
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="lookupTitle">
+    <div class="modal-head">
+      <h3 class="modal-title" id="lookupTitle">Выбор значения</h3>
+      <button class="modal-x" id="lookupX" title="Закрыть" aria-label="Закрыть">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-toolbar">
+      <input class="modal-search" id="lookupSearch" placeholder="Поиск...">
+    </div>
+    <div class="modal-grid-wrap">
+      <table class="modal-grid">
+        <thead><tr><th id="lookupCol">Наименование</th></tr></thead>
+        <tbody id="lookupRows"></tbody>
+      </table>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="lookupSelect" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        Выбрать
+      </button>
+      <button class="btn btn-secondary" id="lookupCancel">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>
+        Отмена
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ENTITY-LOOKUP MODAL — точный клон диалога jmix-value-picker живого стенда ===== -->
+<!-- (header «Статус решения» · фильтр · тулбар CRUD · пейджер · грид · Выбрать/Отмена) -->
+<div class="modal-overlay" id="lkOverlay">
+  <div class="lk-dialog" role="dialog" aria-modal="true" aria-labelledby="lkTitle">
+    <div class="lk-header">
+      <span class="lk-title" id="lkTitle">Статус решения</span>
+      <button class="lk-close" id="lkClose" title="Закрыть диалог" aria-label="Закрыть диалог">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="lk-body">
+      <!-- filter (как генерик-фильтр Jmix) -->
+      <div class="lk-filter">
+        <div class="split">
+          <button class="btn btn-success">Обновить</button>
+          <button class="btn btn-success caret" title="Конфигурации фильтра"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+        </div>
+        <button class="btn btn-outline iconbtn" title="Настройки фильтра"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+        <span class="addcond">Добавить условие поиска</span>
+      </div>
+
+      <!-- CRUD toolbar -->
+      <div class="lk-toolbar">
+        <button class="btn btn-primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>Создать</button>
+        <button class="btn btn-secondary" id="lkEdit" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Изменить</button>
+        <button class="btn btn-danger" id="lkDelete" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>Удалить</button>
+        <span class="grow"></span>
+        <span class="pager">
+          <button title="Первая">«</button>
+          <button title="Назад">‹</button>
+          <span class="count" id="lkPager">3 строк</span>
+          <button title="Вперёд">›</button>
+          <button title="Последняя">»</button>
+        </span>
+      </div>
+
+      <!-- grid -->
+      <div class="lk-grid-wrap">
+        <table class="grid">
+          <thead><tr><th id="lkCol">Наименование<span class="sort">↕</span></th></tr></thead>
+          <tbody id="lkRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="lk-foot">
+      <button class="btn btn-primary" id="lkSelect" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        Выбрать
+      </button>
+      <button class="btn btn-secondary" id="lkCancel">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M4.9 4.9l14.2 14.2"/></svg>
+        Отмена
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---- sidebar tree (из decision-detail.html: 7-групповое дерево, Кредиты раскрыт, Решение правительства активно) ---- */
+const TREE = [
+  { id:"k", label:"Кредиты", open:true, subs:[
+    { id:"k-prog", label:"Программы и решения", open:true, items:[
+      { label:"Решение правительства", slug:"gov-decisions", active:true },
+      { label:"Кредитные программы", slug:"loan-programs" } ] },
+    { id:"k-app", label:"Заявки и комиссии", items:[
+      { label:"Заявки", slug:"loan-applications" },
+      { label:"Комиссии по заявкам", slug:"loan-application-commissions" },
+      { label:"Комиссии", slug:"commissions" } ] },
+    { id:"k-borr", label:"Заемщики", items:[ { label:"Заемщики", slug:"loan-applicants" } ] },
+    { id:"k-loan", label:"Кредиты и транши", items:[
+      { label:"Кредиты", slug:"loansCredit" },
+      { label:"Список траншей", slug:"sub-loans" },
+      { label:"Кредитная линия", slug:"loan-credit-lines" } ] },
+    { id:"k-disb", label:"Освоение и платежи", items:[
+      { label:"Освоение", slug:"disbursements" },
+      { label:"Платеж", slug:"payments" },
+      { label:"Резерв", slug:"loan-reserves" },
+      { label:"Реестр кредитов", slug:"loan-ledgers" } ] },
+    { id:"k-col", label:"Залог", items:[ { label:"Мониторинг залога", slug:"collateral-monitoring" } ] },
+    { id:"k-rec", label:"Взыскание", items:[
+      { label:"Процессы взыскания задолженности", slug:"debt-collection-processes" },
+      { label:"Досудебный порядок", slug:"debt-collection-pre-trial-actions" },
+      { label:"Судебный порядок", slug:"debt-collection-judicial-actions" },
+      { label:"Исполнительное производство", slug:"debt-collection-enforcement-actions" } ] },
+    { id:"k-contr", label:"Договоры", items:[
+      { label:"Шаблоны договоров", slug:"agreement-templates" },
+      { label:"Счет для оплаты", slug:"payment-purpose-requisites" } ] },
+  ]},
+  { id:"g", label:"Поручительства", subs:[
+    { id:"g-all", headerless:true, items:[
+      { label:"Анкеты поручительств", slug:"loan-guarantees" },
+      { label:"Поручительства", slug:"loan-guarantees2" },
+      { label:"Решения по поручительству", slug:"loan-guarantee-decisions" } ] },
+  ]},
+  { id:"s", label:"Субсидии", subs:[
+    { id:"s-prog", label:"Программы и проекты", items:[
+      { label:"Государственные программы", slug:"govProgramses" },
+      { label:"Проекты субсидирования", slug:"subsidyProjects" } ] },
+    { id:"s-req", label:"Запросы и выплаты", items:[
+      { label:"Запрос субсидии", slug:"subsidy-requests" },
+      { label:"Субсидии", slug:"subsidies" },
+      { label:"Выплаты субсидий", slug:"subsidy-payments" } ] },
+  ]},
+  { id:"c", label:"Корпоративное управление", subs:[
+    { id:"c-all", headerless:true, items:[
+      { label:"Реестр компаний", slug:"corporate-companies" },
+      { label:"Аналитика KPI", slug:"corporate-kpi-analytics" },
+      { label:"Документы", slug:"corporate-documents" } ] },
+  ]},
+  { id:"r", label:"Отчёты", subs:[
+    { id:"r-sys", label:"Системные", items:[
+      { label:"Отчёты", slug:"reports" },
+      { label:"Группы отчётов", slug:"reports/groups" } ] },
+  ]},
+  { id:"d", label:"Справочники", subs:[
+    { id:"d-geo", label:"География", items:[
+      { label:"Области", slug:"regions" },
+      { label:"Районы", slug:"districts" } ] },
+    { id:"d-dec", label:"Решения и получатели", items:[
+      { label:"Статус решения", slug:"credit-order-states" },
+      { label:"Вид решения", slug:"credit-order-types" } ] },
+  ]},
+  { id:"sy", label:"Система", subs:[
+    { id:"sy-users", label:"Пользователи и подразделения", items:[
+      { label:"Пользователи", slug:"users" },
+      { label:"Подразделения", slug:"organization-departments" } ] },
+    { id:"sy-roles", label:"Роли и доступ", items:[
+      { label:"Ресурсные роли", slug:"sec/resourcerolemodels" } ] },
+  ]},
+];
+
+const chevSvg = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
+const chevGroup = chevSvg(16);
+const chevSub = chevSvg(14);
+
+function renderNav() {
+  const nav = document.getElementById('nav');
+  nav.innerHTML = TREE.map(g => {
+    const subs = g.subs.map(sg => {
+      const items = sg.items.map(it =>
+        `<a class="nav-item${sg.headerless ? ' headerless' : ''}${it.active ? ' active' : ''}">${it.label}</a>`
+      ).join('');
+      if (sg.headerless) return `<div class="nav-sub open"><div class="nav-children">${items}</div></div>`;
+      return `<div class="nav-sub${sg.open ? ' open' : ''}">
+        <button class="nav-toggle">${chevSub}<span class="lbl">${sg.label}</span></button>
+        <div class="nav-children">${items}</div></div>`;
+    }).join('');
+    return `<div class="nav-group${g.open ? ' open' : ''}">
+      <button class="nav-toggle">${chevGroup}<span class="lbl">${g.label}</span></button>
+      <div class="nav-children">${subs}</div></div>`;
+  }).join('');
+
+  nav.querySelectorAll('.nav-toggle').forEach(btn =>
+    btn.addEventListener('click', () => btn.parentElement.classList.toggle('open')));
+}
+renderNav();
+
+/* ---- sample rows (повторяют данные живого стенда) ---- */
+let DATA = [
+  { name:"Распоряжение Жогорку Кенеша о методике расчета", short:"РЖКР о методике расчета", status:"Одобрен", code:"3",      num:"№123 о-к-к", kind:"Распоряжение кабинета министров", date:"31.10.2025" },
+  { name:"Решение тестовое для теста",                     short:"РПКР №213",              status:"Одобрен", code:"1111",   num:"",          kind:"Распоряжение кабинета министров", date:"14.01.2026" },
+  { name:"Кабинет министров",                              short:"№424",                   status:"Одобрен", code:"",       num:"",          kind:"Распоряжение кабинета министров", date:"14.01.2026" },
+  { name:"Решение №1",                                     short:"Решение №1",             status:"Одобрен", code:"10",     num:"352",       kind:"Основное",                       date:"29.10.2025" },
+  { name:"ПКМКР №554 от 11.09.2024 года",                  short:"Фонды развития регионов",status:"Одобрен", code:"5",      num:"45",        kind:"Постановление",                  date:"10.02.2026" },
+  { name:"Распоряжение от 14.02.2025 №80-р",               short:"№80-р",                  status:"Одобрен", code:"80-р",   num:"80-р",      kind:"Распоряжение кабинета министров", date:"14.02.2025" },
+  { name:"Постановление Кабинета министров №123",          short:"ПКМ №123",               status:"Одобрен", code:"PKM123", num:"123",       kind:"Постановление",                  date:"15.06.2026" },
+  /* Закрыт (живой стенд, проверено 2026-06-21, scripts/inspect/dbg-filter.mjs) */
+  { name:"Тестовые ПКР",                                   short:"ПКР ТЕСТ",               status:"Закрыт",  code:"6",       num:"12",        kind:"Основное",                       date:"11.12.2025" },
+  { name:"Распоряжение о поддержке малого и среднего бизнеса", short:"Поддержка МСБ",       status:"Закрыт",  code:"MSB11",   num:"45-р",      kind:"Основное",                       date:"12.03.2026" },
+  { name:"Распоряжение №508-р от 23 августа 2023 г.",      short:"РКМ 508-р",              status:"Закрыт",  code:"508-23-08-2023", num:"508-р", kind:"Распоряжение кабинета министров", date:"23.08.2023" },
+  /* На стадии рассмотрения (живой стенд, проверено 2026-06-21) */
+  { name:"Распоряжение Кабинета Министров КР",             short:"Мэрия города Балыкчы",   status:"На стадии рассмотрения", code:"", num:"от 16 декабря 2025 года №1109-т", kind:"РКМКР", date:"27.01.2026" },
+  { name:"Тестовый",                                       short:"Тест",                   status:"На стадии рассмотрения", code:"1001", num:"56",  kind:"Основное",                       date:"11.05.2026" },
+];
+
+/* ---- persistence (demo): хранит решения в localStorage браузера.
+   Работает и при открытии файла по file:// (Chrome). Очистить — localStorage.removeItem('asubk_decisions_v1'). */
+const LS_KEY = 'asubk_decisions_v1';
+function persist(){ try { localStorage.setItem(LS_KEY, JSON.stringify(DATA)); } catch (e) {} }
+(function loadPersisted(){
+  try { const s = localStorage.getItem(LS_KEY); const a = s && JSON.parse(s);
+    if (Array.isArray(a) && a.length) DATA = a; } catch (e) {}
+})();
+
+const $ = id => document.getElementById(id);
+const cell = v => v ? v : '';
+const badgeClass = s => s === 'Одобрен' ? 'success' : s === 'Закрыт' ? 'neutral' : 'warning';
+let selected = -1;
+let filtered = DATA.slice();
+
+/* ---- render grid ---- */
+function renderRows(){
+  $('rows').innerHTML = filtered.map((r,i) => `
+    <tr data-i="${i}">
+      <td title="${r.name}">${r.name}</td>
+      <td>${cell(r.short)}</td>
+      <td>${r.status}</td>
+      <td>${cell(r.code)}</td>
+      <td>${cell(r.num)}</td>
+      <td>${cell(r.kind)}</td>
+      <td>${cell(r.date)}</td>
+    </tr>`).join('') || `<tr><td colspan="7" class="empty-cell" style="text-align:center;padding:28px;">Нет данных, удовлетворяющих условиям фильтра</td></tr>`;
+  $('rowCount').textContent = filtered.length + ' строк';
+  $('rows').querySelectorAll('tr[data-i]').forEach(tr => {
+    tr.addEventListener('click', () => selectRow(+tr.dataset.i));
+    tr.addEventListener('dblclick', () => { selectRow(+tr.dataset.i, true); openDetail(); });
+  });
+}
+
+function selectRow(i, force){
+  selected = (!force && selected === i) ? -1 : i;
+  $('rows').querySelectorAll('tr[data-i]').forEach(tr =>
+    tr.classList.toggle('sel', +tr.dataset.i === selected));
+  const has = selected >= 0;
+  ['btnEdit','btnView','btnDelete','btnApprove','btnReject'].forEach(id => $(id).disabled = !has);
+  /* Одобрить/Отклонить активны только для «На стадии рассмотрения» */
+  if (has){
+    const pending = filtered[selected].status === 'На стадии рассмотрения';
+    $('btnApprove').disabled = !pending; $('btnReject').disabled = !pending;
+  }
+}
+
+/* ---- view switching ---- */
+function showView(id){
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === id));
+}
+function openDetail(){
+  if (selected < 0) return;
+  const r = filtered[selected];
+  $('detailTitle').textContent = r.name;
+  document.querySelectorAll('#detailView .badge').forEach(b => {
+    b.className = 'badge ' + badgeClass(r.status); b.textContent = r.status;
+  });
+  setVal('dName', r.name);
+  setVal('dShort', r.short); setVal('dCode', r.code); setVal('dNum', r.num);
+  setVal('dKind', r.kind);   setVal('dDate', r.date);
+  $('detailTabs').querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active', i===0));
+  $('detailView').querySelectorAll('.tabpanel').forEach((p,i)=>p.classList.toggle('active', i===0));
+  showView('detailView');
+}
+function setVal(id, v){
+  const el = $(id);
+  el.textContent = v || '—';
+  el.classList.toggle('empty', !v);
+}
+
+/* ---- wire toolbar ---- */
+$('btnView').addEventListener('click', openDetail);
+$('btnEdit').addEventListener('click', openEdit);
+$('btnDelete').addEventListener('click', () => {
+  if (selected < 0) return;
+  const rec = filtered[selected];                 // та же ссылка, что в DATA
+  if (!confirm(`Удалить решение «${rec.name || 'без названия'}»?`)) return;
+  const di = DATA.indexOf(rec);
+  if (di >= 0) DATA.splice(di, 1);
+  persist();
+  applyFilter();                                  // пересчёт filtered + сброс выделения + перерисовка
+});
+function setStatus(newStatus, verb){
+  if (selected < 0) return;
+  const rec = filtered[selected];                 // та же ссылка, что в DATA
+  if (rec.status !== 'На стадии рассмотрения') return;   // только из «На рассмотрении»
+  if (!confirm(`${verb} решение «${rec.name || 'без названия'}»?`)) return;
+  rec.status = newStatus;
+  persist();
+  applyFilter();                                  // пересчёт filtered + сброс выделения + перерисовка
+}
+$('btnApprove').addEventListener('click', () => setStatus('Одобрен', 'Одобрить'));
+$('btnReject').addEventListener('click', () => setStatus('Закрыт', 'Отклонить'));
+$('backBtn').addEventListener('click', () => showView('listView'));
+$('backLink').addEventListener('click', () => showView('listView'));
+$('detailEdit').addEventListener('click', openEdit);   // карточка → редактирование выбранного решения
+
+/* ---- detail tabs ---- */
+$('detailTabs').querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const i = tab.dataset.tab;
+    $('detailTabs').querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+    $('detailView').querySelectorAll('.tabpanel').forEach(p => p.classList.toggle('active', p.dataset.panel === i));
+  });
+});
+
+/* ---- create page (переход на отдельную страницу, как в оригинале) ---- */
+function createInputs(){
+  /* поля формы по порядку: 0 Наименование, 1 Статус(readonly), 2 Код,
+     3 Краткое, 4 Номер */
+  return $('createView').querySelectorAll('.create-form .field .control input');
+}
+function openCreate(){
+  $('createTitle').textContent = 'Решение правительства';
+  const ins = createInputs();
+  ins.forEach((el,i)=>{ if (i!==1) el.value=''; });   // очищаем все поля, кроме readonly-статуса
+  ins[1].value = 'На стадии рассмотрения';            // новое решение всегда «На стадии» (сброс после openEdit)
+  $('decisionDate').value='';
+  const val = document.querySelector('#createView .lookup .val');
+  if (val){ val.textContent='Выберите вид решения…'; val.classList.remove('filled'); }
+  const note = document.querySelector('#createView .note-area'); if (note) note.value='';
+  showView('createView');
+  setTimeout(()=>{ const i = $('createView').querySelector('input:not([readonly])'); if (i) i.focus(); }, 0);
+}
+function openEdit(){
+  if (selected < 0) return;
+  const r = filtered[selected];
+  $('createTitle').textContent = 'Редактирование решения';
+  const ins = createInputs();
+  ins[0].value = r.name  || '';
+  ins[1].value = r.status || '';   // статус readonly, показываем фактический
+  ins[2].value = r.code  || '';
+  ins[3].value = r.short || '';
+  ins[4].value = r.num   || '';
+  $('decisionDate').value = r.date || '';
+  const val = document.querySelector('#createView .lookup .val');
+  if (val){
+    if (r.kind){ val.textContent = r.kind; val.classList.add('filled'); }
+    else { val.textContent = 'Выберите вид решения…'; val.classList.remove('filled'); }
+  }
+  showView('createView');
+  setTimeout(()=>{ ins[0].focus(); }, 0);
+}
+$('btnCreate').addEventListener('click', openCreate);
+$('createCancel').addEventListener('click', () => showView('listView'));
+$('createOk').addEventListener('click', () => {
+  const editing = $('createTitle').textContent.indexOf('Редактирование') === 0;
+  const ins = createInputs();   // 0 name, 1 status(ro), 2 code, 3 short, 4 num
+  const valEl = document.querySelector('#createView .lookup .val');
+  const kind = (valEl && valEl.classList.contains('filled')) ? valEl.textContent.trim() : '';
+  const rec = {
+    name:   ins[0].value.trim(),
+    short:  ins[3].value.trim(),
+    status: ins[1].value || 'На стадии рассмотрения',
+    code:   ins[2].value.trim(),
+    num:    ins[4].value.trim(),
+    kind:   kind,
+    date:   $('decisionDate').value.trim(),
+  };
+  if (editing && selected >= 0){
+    Object.assign(filtered[selected], rec);   // filtered[i] — та же ссылка, что в DATA; фильтр не трогаем
+  } else {
+    DATA.unshift(rec);                         // новое решение сверху списка
+    /* новое решение всегда «На стадии рассмотрения» — переключаем фильтр на этот статус,
+       чтобы оно было видно (фильтр по умолчанию = «Одобрен» скрыл бы его) */
+    conditions = [{ prop:'status', label:'Статус', type:'enum', op:'equal', value:'На стадии рассмотрения' }];
+    filterDirty = false;
+    renderConds();
+  }
+  persist();
+  applyFilter();   // пересчёт filtered по текущему фильтру + перерисовка + сброс выделения
+  showView('listView');
+});
+
+/* create-form «Вид решения» — value-picker открывает модалку выбора (как в оригинале) */
+const KINDS = [...new Set(DATA.map(d => d.kind).filter(Boolean))];
+(function wireKindPicker(){
+  const lk = document.querySelector('#createView .lookup');
+  if (!lk) return;
+  const val = lk.querySelector('.val');
+  const btns = lk.querySelectorAll('button');
+  btns[0].addEventListener('click', () =>
+    openEntityLookup({ title:'Вид решения', col:'Наименование', options:KINDS,
+      current: val.classList.contains('filled') ? val.textContent.trim() : null,
+      onSelect:v => { val.textContent = v; val.classList.add('filled'); } }));
+  btns[1].addEventListener('click', () => { val.textContent = 'Выберите вид решения…'; val.classList.remove('filled'); });
+})();
+
+/* ---- filter collapse ---- */
+$('filterHead').addEventListener('click', () => $('filterWrap').classList.toggle('collapsed'));
+
+/* ============================================================
+   ФИЛЬТР — повтор логики Jmix genericFilter живого стенда:
+   условие = свойство + оператор + значение; «Обновить» применяет.
+   ============================================================ */
+const STATUSES = ['Одобрен', 'Закрыт', 'На стадии рассмотрения'];
+const OPS_ENUM = [
+  { k:'equal', label:'=' }, { k:'not_equal', label:'<>' },
+  { k:'is_set', label:'установлен' }, { k:'in_list', label:'в списке' }, { k:'not_in_list', label:'не в списке' },
+];
+const OPS_TEXT = [
+  { k:'contains', label:'содержит' }, { k:'equal', label:'=' },
+  { k:'not_equal', label:'<>' }, { k:'is_set', label:'установлен' },
+];
+/* добавляемые свойства (из диалога «Добавить условие поиска» живого стенда) */
+const PROPS = [
+  { prop:'name',  label:'Наименование' },
+  { prop:'short', label:'Краткое наименование' },
+  { prop:'code',  label:'Код' },
+  { prop:'num',   label:'Номер решения' },
+  { prop:'kind',  label:'Вид решения' },
+  { prop:'date',  label:'Дата решения' },
+];
+const opLabel = (type, k) => (type === 'enum' ? OPS_ENUM : OPS_TEXT).find(o => o.k === k)?.label || '=';
+const noVal = k => k === 'is_set';
+
+/* условие по умолчанию = живой стенд: Статус = Одобрен */
+let conditions = [{ prop:'status', label:'Статус', type:'enum', op:'equal', value:'Одобрен' }];
+
+/* ---- popover helper ---- */
+function closePop(){ document.querySelectorAll('.fpop').forEach(p => p.remove()); }
+function openPop(anchor, options, onPick, { search=false, current=null } = {}){
+  closePop();
+  const pop = document.createElement('div'); pop.className = 'fpop';
+  const list = options.map((o,i) =>
+    `<div class="fpop-item${o.label === current ? ' sel' : ''}" data-i="${i}">${o.label}</div>`).join('');
+  pop.innerHTML = (search ? `<input class="fpop-search" placeholder="Поиск...">` : '') + `<div class="fpop-list">${list}</div>`;
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect();
+  pop.style.left = Math.min(r.left, window.innerWidth - pop.offsetWidth - 12) + 'px';
+  pop.style.top  = (r.bottom + 4) + 'px';
+  pop.addEventListener('click', e => e.stopPropagation());
+  pop.querySelectorAll('.fpop-item').forEach(it =>
+    it.addEventListener('click', () => { onPick(options[+it.dataset.i]); closePop(); }));
+  if (search){
+    const s = pop.querySelector('.fpop-search'); s.focus();
+    s.addEventListener('input', () => {
+      const q = s.value.toLowerCase();
+      pop.querySelectorAll('.fpop-item').forEach(it => it.classList.toggle('hide', !it.textContent.toLowerCase().includes(q)));
+    });
+  }
+  setTimeout(() => document.addEventListener('click', closePop, { once:true }), 0);
+}
+
+/* ---- lookup modal (jmix-value-picker → диалог, как в оригинале) ---- */
+let lkData = [], lkSel = -1, lkPick = null;
+function openLookup({ title, col='Наименование', options, current=null, onSelect }){
+  lkData = options; lkPick = onSelect; lkSel = options.indexOf(current);
+  $('lookupTitle').textContent = title;
+  $('lookupCol').textContent = col;
+  $('lookupSearch').value = '';
+  renderLookup('');
+  $('lookupOverlay').classList.add('open');
+  setTimeout(() => $('lookupSearch').focus(), 0);
+}
+function renderLookup(q){
+  const ql = (q || '').toLowerCase();
+  const vis = lkData.map((o,i) => ({ o, i })).filter(({o}) => o.toLowerCase().includes(ql));
+  $('lookupRows').innerHTML = vis.length
+    ? vis.map(({o,i}) => `<tr data-i="${i}" class="${i === lkSel ? 'sel' : ''}"><td>${o}</td></tr>`).join('')
+    : `<tr><td class="modal-empty">Ничего не найдено</td></tr>`;
+  $('lookupRows').querySelectorAll('tr[data-i]').forEach(tr => {
+    tr.addEventListener('click', () => { lkSel = +tr.dataset.i; renderLookup($('lookupSearch').value); });
+    tr.addEventListener('dblclick', () => { lkSel = +tr.dataset.i; confirmLookup(); });
+  });
+  $('lookupSelect').disabled = lkSel < 0;
+}
+function confirmLookup(){ if (lkSel < 0) return; const v = lkData[lkSel]; closeLookup(); lkPick && lkPick(v); }
+function closeLookup(){ $('lookupOverlay').classList.remove('open'); }
+$('lookupSearch').addEventListener('input', e => renderLookup(e.target.value));
+$('lookupSelect').addEventListener('click', confirmLookup);
+$('lookupCancel').addEventListener('click', closeLookup);
+$('lookupX').addEventListener('click', closeLookup);
+$('lookupOverlay').addEventListener('click', e => { if (e.target === $('lookupOverlay')) closeLookup(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('lookupOverlay').classList.contains('open')) closeLookup(); });
+
+/* ---- entity-lookup modal (клон jmix lookup-диалога: фильтр+тулбар+грид+Выбрать) ---- */
+let lkeData = [], lkeSel = -1, lkePick = null;
+function openEntityLookup({ title, col='Наименование', options, current=null, onSelect }){
+  lkeData = options; lkePick = onSelect; lkeSel = options.indexOf(current);
+  $('lkTitle').textContent = title;
+  $('lkCol').firstChild.textContent = col;
+  renderEntityLookup();
+  $('lkOverlay').classList.add('open');
+}
+function renderEntityLookup(){
+  $('lkRows').innerHTML = lkeData.map((o,i) =>
+    `<tr data-i="${i}" class="${i === lkeSel ? 'sel' : ''}"><td>${o}</td></tr>`).join('');
+  $('lkPager').textContent = lkeData.length + ' строк';
+  $('lkRows').querySelectorAll('tr').forEach(tr => {
+    tr.addEventListener('click', () => { lkeSel = +tr.dataset.i; renderEntityLookup(); });
+    tr.addEventListener('dblclick', () => { lkeSel = +tr.dataset.i; confirmEntityLookup(); });
+  });
+  const has = lkeSel >= 0;
+  $('lkSelect').disabled = !has; $('lkEdit').disabled = !has; $('lkDelete').disabled = !has;
+}
+function confirmEntityLookup(){ if (lkeSel < 0) return; const v = lkeData[lkeSel]; closeEntityLookup(); lkePick && lkePick(v); }
+function closeEntityLookup(){ $('lkOverlay').classList.remove('open'); }
+$('lkSelect').addEventListener('click', confirmEntityLookup);
+$('lkCancel').addEventListener('click', closeEntityLookup);
+$('lkClose').addEventListener('click', closeEntityLookup);
+$('lkOverlay').addEventListener('click', e => { if (e.target === $('lkOverlay')) closeEntityLookup(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('lkOverlay').classList.contains('open')) closeEntityLookup(); });
+
+/* ---- render condition rows ---- */
+function renderConds(){
+  $('condRows').innerHTML = conditions.map((c,i) => {
+    const valCtl = c.type === 'enum'
+      ? `<div class="cond-val">
+           <span class="v">${c.value || '<span class="empty-cell">Выберите значение…</span>'}</span>
+           <button class="pick" data-act="pick" title="Выбрать">•••</button>
+           <button class="clear" data-act="clear" title="Очистить"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+         </div>`
+      : `<div class="cond-val"><input class="cval-input" data-act="text" placeholder="Значение" value="${c.value || ''}"></div>`;
+    const valDisabled = noVal(c.op) ? '<div class="cond-val"><span class="empty-cell">— значение не требуется —</span></div>' : valCtl;
+    return `<div class="cond-row" data-ci="${i}">
+      <span class="clbl" title="${c.label}">${c.label}</span>
+      <span class="op" data-act="op">${opLabel(c.type, c.op)}<span class="opchev">▾</span></span>
+      ${valDisabled}
+      ${i > 0 ? '<button class="rmcond" data-act="rm" title="Удалить условие"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>' : ''}
+    </div>`;
+  }).join('');
+
+  $('condRows').querySelectorAll('.cond-row').forEach(row => {
+    const i = +row.dataset.ci, c = conditions[i];
+    /* живой Jmix применяет фильтр сразу при изменении условия — без «Обновить» */
+    const auto = () => { filterDirty = false; renderConds(); applyFilter(); };
+    row.querySelector('[data-act=op]')?.addEventListener('click', e => {
+      openPop(e.currentTarget, (c.type === 'enum' ? OPS_ENUM : OPS_TEXT),
+        o => { c.op = o.k; if (noVal(o.k)) c.value = ''; auto(); },
+        { current: opLabel(c.type, c.op) });
+    });
+    const openStatusPicker = () =>
+      openEntityLookup({ title:'Статус решения', col:'Наименование', options:STATUSES, current:c.value,
+        onSelect:v => { c.value = v; auto(); } });
+    /* весь блок значения кликабелен (как удобный пикер), кроме кнопки «очистить» */
+    row.querySelector('.cond-val')?.addEventListener('click', e => {
+      if (e.target.closest('[data-act=clear]')) return;
+      if (c.type === 'enum') openStatusPicker();
+    });
+    row.querySelector('[data-act=clear]')?.addEventListener('click', e => { e.stopPropagation(); c.value = ''; auto(); });
+    /* текстовое условие: применяется по вводу (живой Jmix — по Enter; здесь — мгновенно) */
+    row.querySelector('[data-act=text]')?.addEventListener('input', e => { c.value = e.target.value; applyFilter(); });
+    row.querySelector('[data-act=rm]')?.addEventListener('click', () => { conditions.splice(i,1); auto(); });
+  });
+  $('filterHead').querySelector('b').textContent = 'фильтр по статусу' + (filterDirty ? ' *' : '');
+}
+
+/* ---- matching engine ---- */
+function rowMatches(row, c){
+  const rv = (row[c.prop] ?? '').toString();
+  const cv = (c.value ?? '').toString().trim();
+  const eq = (a,b) => c.type === 'text' ? a.toLowerCase() === b.toLowerCase() : a === b;
+  switch (c.op){
+    case 'is_set':      return rv !== '';
+    case 'equal':       return cv === '' ? true : eq(rv, cv);
+    case 'not_equal':   return cv === '' ? true : !eq(rv, cv);
+    case 'contains':    return cv === '' ? true : rv.toLowerCase().includes(cv.toLowerCase());
+    case 'in_list':     { if (!cv) return true; const l = cv.split(',').map(s=>s.trim().toLowerCase()); return l.includes(rv.toLowerCase()); }
+    case 'not_in_list': { if (!cv) return true; const l = cv.split(',').map(s=>s.trim().toLowerCase()); return !l.includes(rv.toLowerCase()); }
+    default: return true;
+  }
+}
+let filterDirty = false;
+function applyFilter(){
+  filtered = DATA.filter(row => conditions.every(c => rowMatches(row, c)));
+  selected = -1;
+  renderRows();
+  ['btnEdit','btnView','btnDelete','btnApprove','btnReject'].forEach(id => $(id).disabled = true);
+}
+
+/* ---- wire filter actions ---- */
+$('btnApply').addEventListener('click', () => { filterDirty = false; renderConds(); applyFilter(); });
+$('addCond').addEventListener('click', e => {
+  e.stopPropagation();
+  openLookup({ title:'Добавить условие', col:'Атрибут', options:PROPS.map(p => p.label),
+    onSelect:label => { const p = PROPS.find(x => x.label === label);
+      conditions.push({ prop:p.prop, label:p.label, type:'text', op:'contains', value:'' });
+      filterDirty = true; renderConds(); } });
+});
+$('btnApplyCaret').addEventListener('click', e => {
+  e.stopPropagation();
+  openPop(e.currentTarget, [
+    { label:'Сохранить конфигурацию' }, { label:'Сохранить как…' },
+    { label:'Управление конфигурациями' }, { label:'Сбросить фильтр' },
+  ], o => { if (o.label === 'Сбросить фильтр'){ conditions = [{ prop:'status', label:'Статус', type:'enum', op:'equal', value:'Одобрен' }]; filterDirty = false; renderConds(); applyFilter(); } });
+});
+$('btnFilterSettings').addEventListener('click', e => {
+  e.stopPropagation();
+  openPop(e.currentTarget, [
+    { label:'Показывать пустые условия' }, { label:'Сворачиваемая панель' }, { label:'Расположение: в одну колонку' },
+  ], () => {});
+});
+
+/* ---- column-visibility menu (⚙ jmix-grid-column-visibility) ---- */
+function buildColMenu(){
+  const ths = $('grid').querySelectorAll('thead th');
+  $('colMenu').innerHTML = '<div class="cm-head">Видимость столбцов</div>' + [...ths].map((th,i) =>
+    `<label class="cm-item"><input type="checkbox" data-col="${i}" checked><span>${th.childNodes[0].textContent.trim()}</span></label>`
+  ).join('');
+  $('colMenu').querySelectorAll('input').forEach(cb =>
+    cb.addEventListener('change', () => toggleCol(+cb.dataset.col, cb.checked)));
+}
+function toggleCol(i, show){
+  $('grid').querySelectorAll(`tr > :nth-child(${i + 1})`).forEach(c => c.style.display = show ? '' : 'none');
+}
+$('btnColumns').addEventListener('click', e => {
+  e.stopPropagation();
+  const open = $('colMenu').classList.toggle('open');
+  $('btnColumns').setAttribute('aria-expanded', open);
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('.col-ctrl')){ $('colMenu').classList.remove('open'); $('btnColumns').setAttribute('aria-expanded', false); }
+});
+
+renderConds();
+applyFilter();
+buildColMenu();
+
+/* ---- functional date picker — mirrors live Vaadin date-picker ----
+   dd.MM.yyyy display, RU month names, week starts Вс (как в проде), сегодня в рамке,
+   prev/next навигация по месяцам, кнопки Сегодня/Отмена, prefill сегодняшней датой. */
+(function(){
+  const input = document.getElementById('decisionDate');
+  const toggle = document.getElementById('calToggle');
+  const control = document.getElementById('dateControl');
+  if (!input || !toggle || !control) return;
+  const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  const WD = ['вс','пн','вт','ср','чт','пт','сб']; // неделя с воскресенья — как в проде
+  const pad = n => String(n).padStart(2,'0');
+  const fmt = d => `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}`;
+  const parse = s => { const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec((s||'').trim()); if(!m) return null;
+    const d = new Date(+m[3], +m[2]-1, +m[1]); return (d.getDate()==+m[1] && d.getMonth()==+m[2]-1) ? d : null; };
+  const sameDay = (a,b) => a && b && a.getFullYear()==b.getFullYear() && a.getMonth()==b.getMonth() && a.getDate()==b.getDate();
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  let selected = parse(input.value) || new Date(today);
+  let view = new Date(selected.getFullYear(), selected.getMonth(), 1);
+  input.value = fmt(selected); // prefill сегодня, как в проде
+
+  const pop = document.createElement('div');
+  pop.className = 'dp-pop';
+  control.appendChild(pop);
+
+  function render(){
+    const y = view.getFullYear(), mo = view.getMonth();
+    const startGap = new Date(y, mo, 1).getDay();          // 0=вс → неделя с воскресенья
+    const daysIn = new Date(y, mo+1, 0).getDate();
+    const prevDays = new Date(y, mo, 0).getDate();
+    let cells = '';
+    for (let i=0;i<startGap;i++){ const d=prevDays-startGap+1+i; cells+=`<button type="button" class="dp-day muted" data-off="-1" data-d="${d}">${d}</button>`; }
+    for (let d=1;d<=daysIn;d++){
+      const cur = new Date(y,mo,d), cls=['dp-day'];
+      if(sameDay(cur,today)) cls.push('today');
+      if(sameDay(cur,selected)) cls.push('sel');
+      cells+=`<button type="button" class="${cls.join(' ')}" data-off="0" data-d="${d}">${d}</button>`;
+    }
+    const tail = (7 - ((startGap+daysIn)%7))%7;
+    for (let i=1;i<=tail;i++){ cells+=`<button type="button" class="dp-day muted" data-off="1" data-d="${i}">${i}</button>`; }
+    pop.innerHTML =
+      `<div class="dp-head">`+
+        `<button type="button" class="dp-nav" data-nav="-1" aria-label="Предыдущий месяц"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>`+
+        `<span class="dp-title">${MONTHS[mo]} ${y}</span>`+
+        `<button type="button" class="dp-nav" data-nav="1" aria-label="Следующий месяц"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>`+
+      `</div>`+
+      `<div class="dp-grid">${WD.map(w=>`<span class="dp-wd">${w}</span>`).join('')}${cells}</div>`+
+      `<div class="dp-foot"><button type="button" data-act="today">Сегодня</button><button type="button" data-act="cancel">Отмена</button></div>`;
+  }
+
+  const isOpen = () => pop.classList.contains('open');
+  const open = () => { render(); pop.classList.add('open'); };
+  const close = () => pop.classList.remove('open');
+
+  toggle.addEventListener('click', e => { e.stopPropagation(); isOpen()?close():open(); });
+  input.addEventListener('focus', open);                  // auto-open, как в проде
+  input.addEventListener('change', () => { const d=parse(input.value); if(d){ selected=d; view=new Date(d.getFullYear(),d.getMonth(),1); if(isOpen()) render(); } });
+
+  pop.addEventListener('click', e => {
+    const nav = e.target.closest('[data-nav]');
+    if (nav){ view.setMonth(view.getMonth()+(+nav.dataset.nav)); render(); return; }
+    const act = e.target.closest('[data-act]');
+    if (act){
+      if (act.dataset.act==='today'){ selected=new Date(today); view=new Date(today.getFullYear(),today.getMonth(),1); input.value=fmt(selected); }
+      close(); return;
+    }
+    const day = e.target.closest('.dp-day');
+    if (day){
+      selected = new Date(view.getFullYear(), view.getMonth()+(+day.dataset.off), +day.dataset.d);
+      input.value = fmt(selected);
+      close();
+    }
+  });
+
+  document.addEventListener('click', e => { if(isOpen() && !control.contains(e.target)) close(); });
+  document.addEventListener('keydown', e => { if(e.key==='Escape') close(); });
+})();
+</script>
+</body>
+</html>
