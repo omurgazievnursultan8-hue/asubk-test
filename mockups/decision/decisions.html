@@ -261,6 +261,12 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
 .badge.warning{ color:var(--status-warning); background:var(--status-warning-bg); }
 .badge.info{ color:var(--status-info); background:var(--status-info-bg); }
 .badge.neutral{ color:var(--text-muted); background:var(--asubk-gray-150); }
+.badge.danger{ color:var(--asubk-red); background:var(--red-tint, #fae7dd); }
+/* R7: демо-переключатель роли (Автор / Согласующий / Администратор) */
+.roleswitch{ margin-left:auto; display:flex; align-items:center; gap:8px; font:var(--weight-regular) var(--text-sm)/1 var(--asubk-font); color:var(--text-muted); }
+.roleswitch label{ color:var(--text-muted); }
+.roleswitch select{ font:inherit; padding:5px 8px; border:1px solid var(--asubk-gray-300, #d0d5dd); border-radius:6px; background:var(--surface-page); color:var(--text-heading); cursor:pointer; }
+.btn[hidden]{ display:none !important; }
 
 /* ---------- tabs (detail + create) ---------- */
 .tabstrip-wrap{ padding:16px 24px 0; }
@@ -442,6 +448,14 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
         </span>
         <span class="crumb-title">Решение правительства</span>
+        <span class="roleswitch" title="Демо: роль влияет на видимость кнопок тулбара (R7)">
+          <label for="roleSel">Роль:</label>
+          <select id="roleSel">
+            <option value="author">Автор</option>
+            <option value="approver">Согласующий</option>
+            <option value="admin">Администратор</option>
+          </select>
+        </span>
       </header>
 
       <div class="content">
@@ -483,10 +497,16 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             Удалить
           </button>
+          <!-- R7: переходы автора -->
+          <button class="btn btn-secondary btn-confirm" id="btnSubmit" disabled>Отправить</button>
+          <button class="btn btn-outline btn-confirm" id="btnWithdraw" disabled>Отозвать</button>
+          <!-- R7: переходы согласующего -->
           <button class="btn btn-success btn-confirm" id="btnApprove" disabled>Одобрить</button>
           <button class="btn btn-danger btn-confirm" id="btnReject" disabled>Отклонить</button>
-          <!-- R2: обратимость — администратор возвращает «Закрыт» → «На рассмотрении» с записью в журнал -->
-          <button class="btn btn-outline btn-confirm" id="btnReactivate" disabled title="Вернуть отклонённое решение на рассмотрение (R2, только админ)">Вернуть на рассмотрение</button>
+          <button class="btn btn-outline btn-confirm" id="btnReturn" disabled title="Вернуть автору на доработку">Вернуть на доработку</button>
+          <button class="btn btn-outline btn-confirm" id="btnClose" disabled title="Закрыть действующее решение">Закрыть</button>
+          <!-- R2/R7: обратимость — администратор возвращает «Закрыт»/«Отклонён» → «На рассмотрении» с записью в журнал -->
+          <button class="btn btn-outline btn-confirm" id="btnReactivate" disabled title="Вернуть закрытое/отклонённое решение на рассмотрение (только администратор)">Вернуть на рассмотрение</button>
           <span class="col-ctrl">
             <button class="btn btn-outline iconbtn" id="btnColumns" title="Видимость столбцов" aria-haspopup="true" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
             <div class="colmenu" id="colMenu"></div>
@@ -533,7 +553,7 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
         </a>
         <span class="crumb-sep">/</span>
         <span class="crumb-title" id="detailTitle">—</span>
-        <span class="crumb-status"><span class="badge success">Одобрен</span></span>
+        <span class="crumb-status"><span class="badge success">Действует</span></span>
       </header>
 
       <div class="content">
@@ -549,7 +569,7 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
           <section class="tabpanel active" data-panel="0">
             <div class="form-grid">
               <div class="view-field"><span class="vlabel">Наименование</span><span class="vvalue" id="dName">—</span></div>
-              <div class="view-field"><span class="vlabel">Статус</span><span class="vvalue"><span class="badge success">Одобрен</span></span></div>
+              <div class="view-field"><span class="vlabel">Статус</span><span class="vvalue"><span class="badge success">Действует</span></span></div>
               <div class="view-field"><span class="vlabel">Краткое наименование</span><span class="vvalue" id="dShort">—</span></div>
               <div class="view-field"><span class="vlabel">Код</span><span class="vvalue" id="dCode">—</span></div>
               <div class="view-field"><span class="vlabel">Номер решения</span><span class="vvalue" id="dNum">—</span></div>
@@ -576,7 +596,7 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
             <div class="uploader">
               <div class="rule-banner" id="docBanner">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                <span id="docBannerText">Основной документ обязателен для перевода решения в статус «Одобрен». Только <b>PDF</b>, до 20&nbsp;МБ. Замена создаёт новую версию (история сохраняется); удаление файлов у одобренного решения запрещено. Кто и когда загрузил — фиксируется в карточке файла.</span>
+                <span id="docBannerText">Основной документ обязателен для перевода решения в статус «Действует». Только <b>PDF</b>, до 20&nbsp;МБ. Замена создаёт новую версию (история сохраняется); удаление файлов у одобренного решения запрещено. Кто и когда загрузил — фиксируется в карточке файла.</span>
               </div>
               <div class="dropzone" id="docDrop">
                 <div class="dz-icon">
@@ -629,7 +649,7 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
             <div class="field required"><span class="flabel">Наименование</span>
               <div class="control"><input type="text" placeholder="Введите наименование решения"></div></div>
             <div class="field required"><span class="flabel">Статус</span>
-              <div class="control"><input type="text" value="На стадии рассмотрения" readonly></div></div>
+              <div class="control"><input type="text" value="Черновик" readonly></div></div>
             <div class="field required"><span class="flabel">Код</span>
               <div class="control"><input type="text" id="createCode" readonly placeholder="Сгенерируется системой" title="R3: код генерируется системой ({ТИП}-{ГГГГ}-{NNNN}), ручной ввод запрещён"></div></div>
             <div class="field required"><span class="flabel">Краткое наименование</span>
@@ -916,25 +936,32 @@ renderNav();
 
 /* ---- sample rows (повторяют данные живого стенда) ---- */
 let DATA = [
-  { name:"Распоряжение Жогорку Кенеша о методике расчета", short:"РЖКР о методике расчета", status:"Одобрен", code:"3",      num:"№123 о-к-к", kind:"Распоряжение кабинета министров", date:"31.10.2025" },
-  { name:"Решение тестовое для теста",                     short:"РПКР №213",              status:"Одобрен", code:"1111",   num:"",          kind:"Распоряжение кабинета министров", date:"14.01.2026" },
-  { name:"Кабинет министров",                              short:"№424",                   status:"Одобрен", code:"",       num:"",          kind:"Распоряжение кабинета министров", date:"14.01.2026" },
-  { name:"Решение №1",                                     short:"Решение №1",             status:"Одобрен", code:"10",     num:"352",       kind:"Основное",                       date:"29.10.2025" },
-  { name:"ПКМКР №554 от 11.09.2024 года",                  short:"Фонды развития регионов",status:"Одобрен", code:"5",      num:"45",        kind:"Постановление",                  date:"10.02.2026" },
-  { name:"Распоряжение от 14.02.2025 №80-р",               short:"№80-р",                  status:"Одобрен", code:"80-р",   num:"80-р",      kind:"Распоряжение кабинета министров", date:"14.02.2025" },
-  { name:"Постановление Кабинета министров №123",          short:"ПКМ №123",               status:"Одобрен", code:"PKM123", num:"123",       kind:"Постановление",                  date:"15.06.2026" },
-  /* Закрыт (живой стенд, проверено 2026-06-21, scripts/inspect/dbg-filter.mjs) */
-  { name:"Тестовые ПКР",                                   short:"ПКР ТЕСТ",               status:"Закрыт",  code:"6",       num:"12",        kind:"Основное",                       date:"11.12.2025" },
-  { name:"Распоряжение о поддержке малого и среднего бизнеса", short:"Поддержка МСБ",       status:"Закрыт",  code:"MSB11",   num:"45-р",      kind:"Основное",                       date:"12.03.2026" },
-  { name:"Распоряжение №508-р от 23 августа 2023 г.",      short:"РКМ 508-р",              status:"Закрыт",  code:"508-23-08-2023", num:"508-р", kind:"Распоряжение кабинета министров", date:"23.08.2023" },
-  /* На стадии рассмотрения (живой стенд, проверено 2026-06-21) */
-  { name:"Распоряжение Кабинета Министров КР",             short:"Мэрия города Балыкчы",   status:"На стадии рассмотрения", code:"", num:"от 16 декабря 2025 года №1109-т", kind:"РКМКР", date:"27.01.2026" },
-  { name:"Тестовый",                                       short:"Тест",                   status:"На стадии рассмотрения", code:"1001", num:"56",  kind:"Основное",                       date:"11.05.2026" },
+  /* R7: статусы модели жизненного цикла (decision-workflow.html v0.2). «Одобрен» с живого
+     стенда → «Действует»; прежний «Закрыт»=отказ в согласовании мигрирует в «Отклонён»;
+     «Закрыт» оставлен только для отмены действовавшего решения. Добавлены «Черновик» и
+     «На доработке», чтобы показать все 6 статусов. */
+  { name:"Распоряжение Жогорку Кенеша о методике расчета", short:"РЖКР о методике расчета", status:"Действует", code:"3",      num:"№123 о-к-к", kind:"Распоряжение кабинета министров", date:"31.10.2025" },
+  { name:"Решение тестовое для теста",                     short:"РПКР №213",              status:"Действует", code:"1111",   num:"",          kind:"Распоряжение кабинета министров", date:"14.01.2026" },
+  { name:"Решение №1",                                     short:"Решение №1",             status:"Действует", code:"10",     num:"352",       kind:"Основное",                       date:"29.10.2025" },
+  { name:"Распоряжение от 14.02.2025 №80-р",               short:"№80-р",                  status:"Действует", code:"80-р",   num:"80-р",      kind:"Распоряжение кабинета министров", date:"14.02.2025" },
+  /* Закрыт — действовавшее решение, затем отменено (из «Действует») */
+  { name:"Кабинет министров",                              short:"№424",                   status:"Закрыт",   code:"",       num:"",          kind:"Распоряжение кабинета министров", date:"14.01.2026" },
+  /* Черновик — создан автором, ещё не отправлен */
+  { name:"ПКМКР №554 от 11.09.2024 года",                  short:"Фонды развития регионов",status:"Черновик",  code:"5",      num:"45",        kind:"Постановление",                  date:"10.02.2026" },
+  /* На доработке — возвращён согласующим автору */
+  { name:"Постановление Кабинета министров №123",          short:"ПКМ №123",               status:"На доработке", code:"PKM123", num:"123",     kind:"Постановление",                  date:"15.06.2026" },
+  /* Отклонён (миграция: прежний «Закрыт» = отказ в согласовании, проверено 2026-06-21) */
+  { name:"Тестовые ПКР",                                   short:"ПКР ТЕСТ",               status:"Отклонён", code:"6",       num:"12",        kind:"Основное",                       date:"11.12.2025" },
+  { name:"Распоряжение о поддержке малого и среднего бизнеса", short:"Поддержка МСБ",       status:"Отклонён", code:"MSB11",   num:"45-р",      kind:"Основное",                       date:"12.03.2026" },
+  { name:"Распоряжение №508-р от 23 августа 2023 г.",      short:"РКМ 508-р",              status:"Отклонён", code:"508-23-08-2023", num:"508-р", kind:"Распоряжение кабинета министров", date:"23.08.2023" },
+  /* На рассмотрении (живой стенд, проверено 2026-06-21) */
+  { name:"Распоряжение Кабинета Министров КР",             short:"Мэрия города Балыкчы",   status:"На рассмотрении", code:"", num:"от 16 декабря 2025 года №1109-т", kind:"РКМКР", date:"27.01.2026" },
+  { name:"Тестовый",                                       short:"Тест",                   status:"На рассмотрении", code:"1001", num:"56",  kind:"Основное",                       date:"11.05.2026" },
 ];
 
 /* ---- persistence (demo): хранит решения в localStorage браузера.
    Работает и при открытии файла по file:// (Chrome). Очистить — localStorage.removeItem('asubk_decisions_v1'). */
-const LS_KEY = 'asubk_decisions_v2';
+const LS_KEY = 'asubk_decisions_v3';   // R7: bump — 6-status model заменяет прежний 3-status seed
 function persist(){ try { localStorage.setItem(LS_KEY, JSON.stringify(DATA)); } catch (e) {} }
 (function loadPersisted(){
   try { const s = localStorage.getItem(LS_KEY); const a = s && JSON.parse(s);
@@ -948,13 +975,19 @@ DATA.forEach(d => { if (!Array.isArray(d.log)) d.log = []; });
 (function seedLog(){
   if (!DATA.every(d => d.log.length === 0)) return;          // только при первой загрузке
   DATA.forEach(d => {
-    d.log.push({ at:'15.01.2026 09:00', by:'admin', action:'Создание', reason:'' });
-    if (d.status === 'Одобрен')
-      d.log.push({ at:'16.01.2026 11:30', by:'admin', action:'Одобрение', reason:'' });
+    d.log.push({ at:'15.01.2026 09:00', by:'author', action:'Создание', reason:'' });
+    if (d.status === 'Действует')
+      d.log.push({ at:'16.01.2026 11:30', by:'approver', action:'Одобрение', reason:'' });
     if (d.status === 'Закрыт'){
-      d.rejectReason = d.rejectReason || 'Несоответствие требованиям оформления (демо-причина).';
-      d.log.push({ at:'16.01.2026 14:10', by:'admin', action:'Отклонение', reason:d.rejectReason });
+      d.log.push({ at:'16.01.2026 11:30', by:'approver', action:'Одобрение', reason:'' });
+      d.log.push({ at:'20.02.2026 16:00', by:'approver', action:'Закрытие', reason:'Решение утратило силу (демо).' });
     }
+    if (d.status === 'Отклонён'){
+      d.rejectReason = d.rejectReason || 'Несоответствие требованиям оформления (демо-причина).';
+      d.log.push({ at:'16.01.2026 14:10', by:'approver', action:'Отклонение', reason:d.rejectReason });
+    }
+    if (d.status === 'На доработке')
+      d.log.push({ at:'16.01.2026 12:00', by:'approver', action:'Возврат на доработку', reason:'Уточнить реквизиты органа (демо).' });
   });
   persist();
 })();
@@ -1001,7 +1034,12 @@ const $ = id => document.getElementById(id);
 const pluralRu = (n,one,few,many) => { const a=n%10, b=n%100;
   return n + ' ' + (a===1 && b!==11 ? one : (a>=2 && a<=4 && (b<10||b>=20) ? few : many)); };
 const cell = v => v ? v : '';
-const badgeClass = s => s === 'Одобрен' ? 'success' : s === 'Закрыт' ? 'neutral' : 'warning';
+/* R7: 6 статусов модели жизненного цикла → классы бейджей дизайн-системы */
+const BADGE = {
+  'Черновик':'neutral', 'На рассмотрении':'warning', 'На доработке':'info',
+  'Действует':'success', 'Отклонён':'danger', 'Закрыт':'neutral',
+};
+const badgeClass = s => BADGE[s] || 'neutral';
 let selected = -1;
 let filtered = DATA.slice();
 
@@ -1054,13 +1092,15 @@ function docCell(r){
   return `<span class="doc-cell ${cls}" title="${title}">${clipSvg}${n}${hasMainDoc(r) ? ' ✓' : ' !'}</span>`;
 }
 
-/* R2: статус в списке; для «Закрыт» причина видна как подсказка + маркер ⓘ */
+/* R2/R7: статус в списке; для «Отклонён» (причина отказа) и «Закрыт» (причина отмены)
+   причина видна как подсказка + маркер ⓘ */
 const esc = s => String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 function statusCell(r){
-  if (r.status !== 'Закрыт') return r.status;
+  if (r.status !== 'Отклонён' && r.status !== 'Закрыт') return r.status;
   const reason = r.rejectReason || latestReason(r);
   if (!reason) return r.status;
-  return `${r.status} <span title="Причина отклонения: ${esc(reason)}" style="color:var(--asubk-red);cursor:help;font-weight:600">ⓘ</span>`;
+  const lbl = r.status === 'Отклонён' ? 'Причина отклонения' : 'Причина закрытия';
+  return `${r.status} <span title="${lbl}: ${esc(reason)}" style="color:var(--asubk-red);cursor:help;font-weight:600">ⓘ</span>`;
 }
 
 /* ---- render grid ---- */
@@ -1083,21 +1123,60 @@ function renderRows(){
   });
 }
 
+/* ============================================================
+   R7 — Поведение тулбара: «скрывать по роли, гасить по статусу».
+   WF — матрица «кнопка → {роль, допустимые статусы-источники}».
+   role: 'author' | 'approver' | 'admin' | 'any'.
+   statuses: null — действие не зависит от выбора (Создать);
+             'sel' — нужна выбранная строка любого статуса (Просмотр);
+             [..]  — активно только для перечисленных статусов строки.
+   ============================================================ */
+let currentRole = 'author';   // демо-роль (переключатель в шапке)
+const WF = {
+  btnCreate:     { role:'author',   statuses:null },
+  btnView:       { role:'any',      statuses:'sel' },
+  btnEdit:       { role:'author',   statuses:['Черновик','На доработке'] },
+  btnDelete:     { role:'author',   statuses:['Черновик'] },
+  btnSubmit:     { role:'author',   statuses:['Черновик','На доработке'] },
+  btnWithdraw:   { role:'author',   statuses:['На рассмотрении'] },
+  btnApprove:    { role:'approver', statuses:['На рассмотрении'] },
+  btnReject:     { role:'approver', statuses:['На рассмотрении'] },
+  btnReturn:     { role:'approver', statuses:['На рассмотрении'] },
+  btnClose:      { role:'approver', statuses:['Действует'] },
+  btnReactivate: { role:'admin',    statuses:['Закрыт','Отклонён'] },
+};
+const roleAllows = r => r === 'any' || r === currentRole;
+function refreshToolbar(){
+  const has = selected >= 0;
+  const st  = has ? filtered[selected].status : null;
+  Object.entries(WF).forEach(([id, cfg]) => {
+    const el = $(id); if (!el) return;
+    const visible = roleAllows(cfg.role);
+    el.hidden = !visible;
+    let enabled;
+    if (cfg.statuses === null)        enabled = visible;
+    else if (cfg.statuses === 'sel')  enabled = visible && has;
+    else                              enabled = visible && has && cfg.statuses.includes(st);
+    el.disabled = !enabled;
+    if (Array.isArray(cfg.statuses)){                                  // подсказка на погашенных
+      if (el.dataset.baseTitle === undefined) el.dataset.baseTitle = el.getAttribute('title') || '';
+      el.title = (visible && has && !enabled)
+        ? (el.dataset.baseTitle ? el.dataset.baseTitle + ' — ' : '') + 'недоступно для статуса «' + st + '»'
+        : el.dataset.baseTitle;
+    }
+  });
+}
+
 function selectRow(i, force){
   selected = (!force && selected === i) ? -1 : i;
   $('rows').querySelectorAll('tr[data-i]').forEach(tr =>
     tr.classList.toggle('sel', +tr.dataset.i === selected));
-  const has = selected >= 0;
-  ['btnEdit','btnView','btnDelete','btnApprove','btnReject','btnReactivate'].forEach(id => $(id).disabled = !has);
-  /* Одобрить/Отклонить активны только для «На стадии рассмотрения»; Вернуть — только для «Закрыт» (R2) */
-  if (has){
-    const st = filtered[selected].status;
-    const pending = st === 'На стадии рассмотрения';
-    $('btnApprove').disabled = !pending; $('btnReject').disabled = !pending;
-    $('btnReactivate').disabled = st !== 'Закрыт';
-    $('btnDelete').disabled = !pending;   // R4: удалять можно только «На стадии рассмотрения» (как и редактирование)
-  }
+  refreshToolbar();
 }
+
+/* демо-переключатель роли */
+$('roleSel').addEventListener('change', e => { currentRole = e.target.value; refreshToolbar(); });
+refreshToolbar();   // первичная отрисовка (нет выбора)
 
 /* ---- view switching ---- */
 function showView(id){
@@ -1119,15 +1198,16 @@ function openDetail(){
   /* R6: орган, примечание, «Действующее решение» (Да/Нет), связанные программы */
   setVal('dOrg', r.org);
   setVal('dNote', r.note);
-  const active = r.status === 'Одобрен';
+  /* R7: «Действующее решение» — в продукте отдельный хранимый флаг; в демо выводим из статуса «Действует» */
+  const active = r.status === 'Действует';
   const ab = $('dActive');
   ab.textContent = active ? 'Да' : 'Нет';
   ab.className = 'badge ' + (active ? 'success' : 'neutral');
   renderPrograms(r);
-  /* R2: причина отклонения — только для «Закрыт» */
-  const closed = r.status === 'Закрыт';
-  $('dReasonField').style.display = closed ? '' : 'none';
-  if (closed) setVal('dReason', r.rejectReason || latestReason(r));
+  /* R2/R7: причина — для «Отклонён» (отказ) и «Закрыт» (отмена) */
+  const hasReason = r.status === 'Отклонён' || r.status === 'Закрыт';
+  $('dReasonField').style.display = hasReason ? '' : 'none';
+  if (hasReason) setVal('dReason', r.rejectReason || latestReason(r));
   renderTimeline(r);
   renderDocs();
   $('detailTabs').querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active', i===0));
@@ -1146,9 +1226,9 @@ $('btnEdit').addEventListener('click', openEdit);
 $('btnDelete').addEventListener('click', () => {
   if (selected < 0) return;
   const rec = filtered[selected];                 // та же ссылка, что в DATA
-  /* R4: выравнивание с редактированием — удаление только из «На стадии рассмотрения» */
-  if (rec.status !== 'На стадии рассмотрения'){
-    alert('Удаление недоступно: удалять можно только решения в статусе «На стадии рассмотрения».');
+  /* R7: удаление только из «Черновик» */
+  if (rec.status !== 'Черновик'){
+    alert('Удаление недоступно: удалять можно только решения в статусе «Черновик».');
     return;
   }
   /* R4: серверная защита ссылок (эмуляция) — нельзя удалить используемое решение */
@@ -1172,7 +1252,8 @@ function logEntry(rec, action, reason){
   (rec.log = rec.log || []).push({ at:nowStamp(), by:'admin', action, reason:reason || '' });
 }
 function latestReason(rec){
-  const r = (rec.log || []).slice().reverse().find(e => e.action === 'Отклонение');
+  const REASONED = ['Отклонение','Закрытие','Возврат на доработку','Возврат на рассмотрение'];
+  const r = (rec.log || []).slice().reverse().find(e => REASONED.includes(e.action) && e.reason);
   return r ? r.reason : '';
 }
 const TL_ICON = {
@@ -1186,6 +1267,10 @@ function tlMeta(a){
     case 'Создание':   return { cls:'create',     ic:TL_ICON['+'] };
     case 'Одобрение':  return { cls:'approve',     ic:TL_ICON['✓'] };
     case 'Отклонение': return { cls:'reject',      ic:TL_ICON['✕'] };
+    case 'Закрытие':   return { cls:'reject',      ic:TL_ICON['✕'] };
+    case 'Отправка':
+    case 'Отзыв':
+    case 'Возврат на доработку':
     case 'Возврат на рассмотрение': return { cls:'reactivate', ic:TL_ICON['↻'] };
     default:           return { cls:'edit',        ic:TL_ICON['+'] };
   }
@@ -1217,17 +1302,38 @@ function renderTimeline(rec){
 function approveSelected(){
   if (selected < 0) return;
   const rec = filtered[selected];
-  if (rec.status !== 'На стадии рассмотрения') return;
-  if (!hasMainDoc(rec)){                                   // R1
+  if (rec.status !== 'На рассмотрении') return;
+  if (!hasMainDoc(rec)){                                   // R1: документ обязателен при переходе в «Действует»
     alert('Нельзя одобрить решение без основного документа.\nПриложите PDF и отметьте его «Основным» на вкладке «Документы».');
     openDetail(); selectDetailTab(2); return;
   }
-  if (!confirm(`Одобрить решение «${rec.name || 'без названия'}»?`)) return;
-  rec.status = 'Одобрен';
+  if (!confirm(`Одобрить решение «${rec.name || 'без названия'}»? Оно перейдёт в статус «Действует».`)) return;
+  rec.status = 'Действует';
   logEntry(rec, 'Одобрение', '');
   persist(); applyFilter();
 }
 $('btnApprove').addEventListener('click', approveSelected);
+
+/* ---- R7: Отправить (Черновик/На доработке → На рассмотрении), без причины ---- */
+$('btnSubmit').addEventListener('click', () => {
+  if (selected < 0) return;
+  const rec = filtered[selected];
+  if (!['Черновик','На доработке'].includes(rec.status)) return;
+  if (!confirm(`Отправить решение «${rec.name || 'без названия'}» на рассмотрение?`)) return;
+  rec.status = 'На рассмотрении';
+  logEntry(rec, 'Отправка', '');
+  persist(); applyFilter();
+});
+/* ---- R7: Отозвать (На рассмотрении → Черновик), без причины ---- */
+$('btnWithdraw').addEventListener('click', () => {
+  if (selected < 0) return;
+  const rec = filtered[selected];
+  if (rec.status !== 'На рассмотрении') return;
+  if (!confirm(`Отозвать решение «${rec.name || 'без названия'}» с рассмотрения обратно в черновик?`)) return;
+  rec.status = 'Черновик';
+  logEntry(rec, 'Отзыв', '');
+  persist(); applyFilter();
+});
 
 /* ---- R2: модалка причины (отклонение / возврат) ---- */
 let reasonAction = null;   // {fromStatus, toStatus, action, confirmLbl, title, lbl}
@@ -1264,16 +1370,30 @@ $('reasonConfirm').addEventListener('click', () => {
   persist(); applyFilter();
 });
 
-/* ---- отклонение: подтверждение + обязательная причина (R2) ---- */
+/* ---- отклонение: На рассмотрении → Отклонён, обязательная причина (R2/R7) ---- */
 $('btnReject').addEventListener('click', () => {
-  if (selected < 0 || filtered[selected].status !== 'На стадии рассмотрения') return;
-  openReason({ fromStatus:'На стадии рассмотрения', toStatus:'Закрыт', action:'Отклонение',
+  if (selected < 0 || filtered[selected].status !== 'На рассмотрении') return;
+  openReason({ fromStatus:'На рассмотрении', toStatus:'Отклонён', action:'Отклонение',
     title:'Отклонение решения', lbl:'Причина отклонения', confirmLbl:'Отклонить', danger:true });
 });
-/* ---- возврат «Закрыт» → «На рассмотрении» (R2, обратимость, только админ) ---- */
+/* ---- R7: вернуть на доработку: На рассмотрении → На доработке, обязательная причина ---- */
+$('btnReturn').addEventListener('click', () => {
+  if (selected < 0 || filtered[selected].status !== 'На рассмотрении') return;
+  openReason({ fromStatus:'На рассмотрении', toStatus:'На доработке', action:'Возврат на доработку',
+    title:'Возврат на доработку', lbl:'Замечания для автора', confirmLbl:'Вернуть на доработку', danger:false });
+});
+/* ---- R7: закрыть действующее решение: Действует → Закрыт, обязательная причина ---- */
+$('btnClose').addEventListener('click', () => {
+  if (selected < 0 || filtered[selected].status !== 'Действует') return;
+  openReason({ fromStatus:'Действует', toStatus:'Закрыт', action:'Закрытие',
+    title:'Закрытие решения', lbl:'Причина закрытия', confirmLbl:'Закрыть', danger:true });
+});
+/* ---- R2/R7: админ возвращает «Закрыт»/«Отклонён» → «На рассмотрении» (обратимость) ---- */
 $('btnReactivate').addEventListener('click', () => {
-  if (selected < 0 || filtered[selected].status !== 'Закрыт') return;
-  openReason({ fromStatus:'Закрыт', toStatus:'На стадии рассмотрения', action:'Возврат на рассмотрение',
+  if (selected < 0) return;
+  const st = filtered[selected].status;
+  if (st !== 'Закрыт' && st !== 'Отклонён') return;
+  openReason({ fromStatus:st, toStatus:'На рассмотрении', action:'Возврат на рассмотрение',
     title:'Возврат на рассмотрение', lbl:'Причина возврата', confirmLbl:'Вернуть', danger:false });
 });
 $('backBtn').addEventListener('click', () => showView('listView'));
@@ -1309,7 +1429,7 @@ function openCreate(){
   createMode = 'create';                               // R3: код генерируется
   const ins = createInputs();
   ins.forEach((el,i)=>{ if (i!==1) el.value=''; });   // очищаем все поля, кроме readonly-статуса
-  ins[1].value = 'На стадии рассмотрения';            // новое решение всегда «На стадии» (сброс после openEdit)
+  ins[1].value = 'Черновик';                          // R7: новое решение всегда «Черновик» (сброс после openEdit)
   $('decisionDate').value='';
   updateCodePreview();                                // R3: пустой предпросмотр кода
   const val = document.querySelector('#createView .lookup .val');
@@ -1362,7 +1482,7 @@ $('createOk').addEventListener('click', () => {
   const rec = {
     name:   ins[0].value.trim(),
     short:  ins[3].value.trim(),
-    status: ins[1].value || 'На стадии рассмотрения',
+    status: ins[1].value || 'Черновик',
     code:   ins[2].value.trim(),
     num:    ins[4].value.trim(),
     kind:   kind,
@@ -1378,9 +1498,9 @@ $('createOk').addEventListener('click', () => {
     rec.log = [];                              // R2: журнал нового решения
     logEntry(rec, 'Создание', '');
     DATA.unshift(rec);                         // новое решение сверху списка
-    /* новое решение всегда «На стадии рассмотрения» — переключаем фильтр на этот статус,
-       чтобы оно было видно (фильтр по умолчанию = «Одобрен» скрыл бы его) */
-    conditions = [{ prop:'status', label:'Статус', type:'enum', op:'equal', value:'На стадии рассмотрения' }];
+    /* новое решение всегда «Черновик» — переключаем фильтр на этот статус,
+       чтобы оно было видно (фильтр по умолчанию = «Действует» скрыл бы его) */
+    conditions = [{ prop:'status', label:'Статус', type:'enum', op:'equal', value:'Черновик' }];
     filterDirty = false;
     renderConds();
   }
@@ -1412,7 +1532,7 @@ $('filterHead').addEventListener('click', () => $('filterWrap').classList.toggle
    ФИЛЬТР — повтор логики Jmix genericFilter живого стенда:
    условие = свойство + оператор + значение; «Обновить» применяет.
    ============================================================ */
-const STATUSES = ['Одобрен', 'Закрыт', 'На стадии рассмотрения'];
+const STATUSES = ['Черновик', 'На рассмотрении', 'На доработке', 'Действует', 'Отклонён', 'Закрыт'];
 const OPS_ENUM = [
   { k:'equal', label:'=' }, { k:'not_equal', label:'<>' },
   { k:'is_set', label:'установлен' }, { k:'in_list', label:'в списке' }, { k:'not_in_list', label:'не в списке' },
@@ -1433,8 +1553,8 @@ const PROPS = [
 const opLabel = (type, k) => (type === 'enum' ? OPS_ENUM : OPS_TEXT).find(o => o.k === k)?.label || '=';
 const noVal = k => k === 'is_set';
 
-/* условие по умолчанию = живой стенд: Статус = Одобрен */
-let conditions = [{ prop:'status', label:'Статус', type:'enum', op:'equal', value:'Одобрен' }];
+/* условие по умолчанию: Статус = Действует (бывш. «Одобрен») */
+let conditions = [{ prop:'status', label:'Статус', type:'enum', op:'equal', value:'Действует' }];
 
 /* ---- popover helper ---- */
 function closePop(){ document.querySelectorAll('.fpop').forEach(p => p.remove()); }
@@ -1585,7 +1705,7 @@ function applyFilter(){
   filtered = DATA.filter(row => !row.deleted && conditions.every(c => rowMatches(row, c)));   // R4: скрываем soft-deleted
   selected = -1;
   renderRows();
-  ['btnEdit','btnView','btnDelete','btnApprove','btnReject','btnReactivate'].forEach(id => $(id).disabled = true);
+  refreshToolbar();   // R7: единая логика скрытия/гашения кнопок по роли+статусу
 }
 
 /* ---- wire filter actions ---- */
@@ -1602,7 +1722,7 @@ $('btnApplyCaret').addEventListener('click', e => {
   openPop(e.currentTarget, [
     { label:'Сохранить конфигурацию' }, { label:'Сохранить как…' },
     { label:'Управление конфигурациями' }, { label:'Сбросить фильтр' },
-  ], o => { if (o.label === 'Сбросить фильтр'){ conditions = [{ prop:'status', label:'Статус', type:'enum', op:'equal', value:'Одобрен' }]; filterDirty = false; renderConds(); applyFilter(); } });
+  ], o => { if (o.label === 'Сбросить фильтр'){ conditions = [{ prop:'status', label:'Статус', type:'enum', op:'equal', value:'Действует' }]; filterDirty = false; renderConds(); applyFilter(); } });
 });
 $('btnFilterSettings').addEventListener('click', e => {
   e.stopPropagation();
@@ -1661,15 +1781,15 @@ function makeUploader(o){
 
   function render(){
     const rec = o.host(); if (!rec) return;
-    const approved = rec.status === 'Одобрен';
+    const approved = rec.status === 'Действует';
     if (o.ids.banner){
       const banner = idEl(o.ids.banner), bt = idEl(o.ids.bannerText);
-      if (rec.status === 'На стадии рассмотрения' && !hasMainDoc(rec)){
+      if (rec.status === 'На рассмотрении' && !hasMainDoc(rec)){
         banner.classList.add('block');
         bt.innerHTML = '<b>Решение нельзя одобрить:</b> нет основного документа. Загрузите PDF и нажмите «Сделать основным». Только PDF, до 20&nbsp;МБ.';
       } else {
         banner.classList.remove('block');
-        bt.innerHTML = 'Основной документ обязателен для перевода решения в статус «Одобрен». Только <b>PDF</b>, до 20&nbsp;МБ. Замена создаёт новую версию (история сохраняется); удаление файлов у одобренного решения запрещено. Кто и когда загрузил — фиксируется в карточке файла.';
+        bt.innerHTML = 'Основной документ обязателен для перевода решения в статус «Действует». Только <b>PDF</b>, до 20&nbsp;МБ. Замена создаёт новую версию (история сохраняется); удаление файлов у одобренного решения запрещено. Кто и когда загрузил — фиксируется в карточке файла.';
       }
     }
     idEl(o.ids.list).innerHTML = (rec.docs || []).map(d => {
@@ -1731,7 +1851,7 @@ function makeUploader(o){
     const act = btn.dataset.act;
     if (act === 'remove'){
       const d = rec.docs[idx];
-      if (!d.rejected && rec.status === 'Одобрен') return;       // защита удаления
+      if (!d.rejected && rec.status === 'Действует') return;       // защита удаления
       if (!d.rejected && !confirm(`Удалить файл «${d.name}»?`)) return;
       const wasMain = d.main;
       rec.docs.splice(idx, 1);
@@ -1775,7 +1895,7 @@ const detailUploader = makeUploader({
     persist();
     renderRows();                                   // обновить столбец «Документ»
     if (selected >= 0 && filtered[selected] === detailRec)
-      $('btnApprove').disabled = detailRec.status !== 'На стадии рассмотрения';
+      $('btnApprove').disabled = detailRec.status !== 'На рассмотрении';
   },
 });
 function renderDocs(){ detailUploader.render(); }
@@ -1785,7 +1905,7 @@ let createDocs = [];
 const createUploader = makeUploader({
   ids:{ list:'cDocList', drop:'cDocDrop', pick:'cDocPick', input:'cDocInput',
         replaceInput:'cDocReplaceInput', banner:'cDocBanner', bannerText:'cDocBannerText' },
-  host: () => ({ docs:createDocs, status:(createInputs()[1].value || 'На стадии рассмотрения') }),
+  host: () => ({ docs:createDocs, status:(createInputs()[1].value || 'Черновик') }),
   after: () => {},                                  // буфер; persist — в createOk
 });
 function renderCreateDocs(){ createUploader.render(); }
