@@ -249,6 +249,15 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .tabpanel.active{ display:block; }
 .subgrid{ max-width:1320px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 32px; padding:16px 24px; }
 .subgrid .col-span{ grid-column:1 / -1; }
+/* ---- tab 5 «Льготный период»: 3 independent blocks in a 2-col grid ---- */
+.t5-grid{ align-items:start; }
+.t5-block{ display:flex; flex-direction:column; gap:14px; }
+.t5-block .section-h{ margin:0; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+.t5-block .check{ font:var(--font-label); }
+.t5-block .t5-range{ display:grid; grid-template-columns:1fr 1fr; gap:14px 16px; }
+.subgrid .t5-block .t5-range .field{ grid-template-columns:1fr; gap:6px; }
+.subgrid .t5-block .t5-range .field > .flabel{ grid-column:1; padding-top:0; }
+.subgrid .t5-block .t5-range .field > *:not(.flabel){ grid-column:1; }
 .mini-grid{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; }
 .mini-grid table{ width:100%; border-collapse:collapse; font:var(--font-label); }
 .mini-grid th{ text-align:left; padding:8px 10px; background:var(--surface-panel); border-bottom:1px solid var(--border-default); }
@@ -272,6 +281,80 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .t1-params .pcol{ display:flex; flex-direction:column; gap:14px; }
 .t1-extra .xgrid{ display:flex; flex-direction:column; gap:14px; }
 .t1-dates{ display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+
+/* ---- tab 2 layout: clone live geometry ----
+   two independent columns (Сумма | Срок); each = type-select + 18px sub-head
+   + Добавить/Удалить row + bordered collection grid; Валюта (readonly, inherited
+   from tab1) sits under the «Сумма» column. «Диапазон» swaps grid → мин/макс. */
+.t2-cols{ max-width:1340px; padding:16px 24px; display:grid; grid-template-columns:1fr 1fr; gap:0 56px; align-items:start; }
+.t2-col{ display:flex; flex-direction:column; }
+/* live: section header carries a full-width hairline rule beneath it */
+.t2-col .section-h{ margin:0 0 22px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+.t2-type{ margin-bottom:22px; }
+.t2-sub{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:4px 0 10px; }
+.t2-rowtools{ display:flex; gap:8px; margin-bottom:8px; }
+/* live: Добавить = tertiary (grey fill + blue text), Удалить = grey fill + red text, disabled until row picked */
+.btn-rowadd{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none; }
+.btn-rowadd:hover:not(:disabled){ background:rgba(25,59,103,0.10); color:var(--action-primary-hover); }
+.btn-rowdel{ background:var(--asubk-disabled-fill); color:var(--action-danger); border:none; }
+.btn-rowdel:hover:not(:disabled){ background:var(--status-error-bg); }
+.btn-rowdel:disabled{ color:var(--text-disabled); opacity:1; }
+/* live: empty grid is a tall (~320px) blank area */
+.collgrid{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; min-height:320px; }
+.collgrid table{ width:100%; border-collapse:collapse; font:var(--font-label); table-layout:auto; }
+.collgrid thead th{ text-align:left; padding:9px 12px; background:var(--surface-card);
+  border-bottom:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
+.collgrid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; font-weight:var(--weight-regular); }
+.collgrid tbody td{ padding:8px 12px; border-bottom:1px solid var(--border-default); color:var(--text-body); }
+.collgrid tbody tr{ cursor:pointer; }
+.collgrid tbody tr:hover{ background:var(--surface-hover); }
+.collgrid tbody tr.sel{ background:var(--asubk-nav-active); }
+.t2-currency{ margin-top:20px; max-width:320px; }
+.t2-range{ display:grid; grid-template-columns:1fr 1fr; gap:14px 16px; }
+
+/* ---- tab 3 layout: clone live geometry ----
+   single full-width column, labels above. «Значение фиксированной ставки» =
+   vaadin-multi-select-combo-box (chips). «Диапазон» → stacked «Значение ставки
+   с/по» decimal fields. «Использовать Плавающую ставку» checkbox always shown. */
+.t3-form{ max-width:820px; padding:16px 24px; display:flex; flex-direction:column; gap:18px; }
+.t3-form .section-h{ margin:0; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+.t3-range{ display:flex; flex-direction:column; gap:16px; }
+/* multi-select combo (chips) — clone of vaadin-multi-select-combo-box, Lumo filled */
+.mscombo{ position:relative; min-height:var(--control-h); background:rgba(26,57,96,0.10);
+  border-radius:var(--radius-md) var(--radius-md) 0 0; border:none; border-bottom:1px solid var(--border-strong);
+  display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:4px 34px 4px 8px; cursor:pointer; }
+.mscombo.open{ border-bottom:2px solid var(--border-focus); }
+.mscombo .chip{ display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 4px 0 9px; border-radius:var(--radius-sm);
+  background:var(--asubk-blue-tint); color:var(--asubk-blue); font:var(--weight-medium) 13px/1 var(--asubk-font); }
+.mscombo .chip button{ border:none; background:transparent; color:inherit; cursor:pointer; padding:0 2px; font-size:13px; line-height:1; }
+.mscombo .ph{ color:var(--text-placeholder); font:var(--font-body); }
+.mscombo .caret{ position:absolute; right:10px; color:var(--text-muted); display:flex; pointer-events:none; }
+.mscombo-pop{ display:none; position:absolute; top:calc(100% + 2px); left:0; right:0; z-index:30; background:var(--surface-card);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); box-shadow:0 10px 30px rgba(16,28,46,0.18);
+  padding:4px; max-height:240px; overflow:auto; cursor:default; }
+.mscombo.open .mscombo-pop{ display:block; }
+.mscombo-pop .opt{ display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:var(--radius-sm); cursor:pointer; font:var(--font-label); color:var(--text-body); }
+.mscombo-pop .opt:hover{ background:var(--surface-hover); }
+.mscombo-pop .opt .mk{ width:16px; height:16px; border:1px solid var(--border-strong); border-radius:3px;
+  display:inline-flex; align-items:center; justify-content:center; font-size:11px; color:#fff; }
+.mscombo-pop .opt.sel .mk{ background:var(--asubk-blue); border-color:var(--asubk-blue); }
+
+/* ---- tab 4 layout: clone live geometry ----
+   Top band = two columns: «Штраф за просрочку основной суммы» (type select +
+   value/float fields, w584) | «Штраф за просрочку процентов» (only «Максимальный
+   размер штрафа» decimal + «% от суммы кредита» suffix). Below, full-width band
+   «Штраф за просрочку процентов» (type select + value/float, w1216). «Диапазон»
+   swaps the «Значение …» decimal for a float-rate picker + «Маржа …» decimal.
+   Live carries the «Штраф за просрочку процентов» header twice — kept verbatim. */
+.t4-form{ max-width:1340px; padding:16px 24px; display:flex; flex-direction:column; gap:20px; }
+.t4-top{ display:grid; grid-template-columns:1fr 1fr; gap:0 56px; align-items:start; }
+.t4-col{ display:flex; flex-direction:column; gap:16px; }
+.t4-col > .section-h, .t4-int > .section-h{ margin:0 0 8px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+.t4-col .field{ max-width:584px; }
+.t4-maxpct{ display:flex; align-items:flex-end; gap:12px; }
+.t4-maxpct .field{ flex:0 0 280px; }
+.t4-suffix{ font:var(--font-label); color:var(--text-muted); padding-bottom:9px; white-space:nowrap; }
+.t4-int{ display:flex; flex-direction:column; gap:16px; }
 
 /* ---- detail (Просмотр) ---- */
 .detail-wrap{ padding:20px 24px; max-width:1100px; display:flex; flex-direction:column; gap:16px; }
@@ -697,9 +780,13 @@ function P(o){ return Object.assign({
   id:++SEQ, nameRu:'', nameKy:'', nameEn:'', shortDesc:'', decisionId:'', decisionName:'',
   source:'', purpose:'', kind:'', industry:'', currency:'', line:'', repayAcct:'',
   dateFrom:'', dateTo:'', comment:'', staffMain:'', applicantsFiz:'', applicantsJur:'',
-  amountType:'', termType:'', terms:'', amounts:'', rateType:'', rateValue:'', floatRate:false,
-  penaltyMainType:'', penaltyMainVal:'', penaltyMaxPct:'', penaltyIntType:'', penaltyIntVal:'',
+  amountType:'', termType:'', terms:'', amounts:'', rateType:'', rateValue:'', floatRate:false, floatType:'', floatMargin:'',
+  penaltyMainType:'', penaltyMainVal:'', penaltyMainFloatType:'', penaltyMainMargin:'',
+  penaltyMaxPct:'', penaltyIntType:'', penaltyIntVal:'', penaltyIntFloatType:'', penaltyIntMargin:'',
   graceMain:false, graceAccr:false, graceInt:false,
+  graceMainType:'', graceMainDur:[], graceMainDurFrom:'', graceMainDurTo:'', graceMainCond:'',
+  graceAccrType:'', graceAccrDur:[], graceAccrDurFrom:'', graceAccrDurTo:'', graceAccrCond:'',
+  graceIntType:'', graceIntDur:[], graceIntDurFrom:'', graceIntDurTo:'', graceIntCond:'',
   periodicity:'', payMonths:'', payDay:'', weekend:'Переносить на следующий рабочий день',
   dayCount:'', repayMethod:'', interestCalc:'', queue:'', minDays:'', maxDays:'',
   checkLevel:'', checkDays:'', checkResp:'', contractReq:'', collateral:false, collRu:'', collKy:'', collEn:'',
@@ -989,6 +1076,307 @@ function check(label, key){
   return `<label class="check"><input type="checkbox" data-k="${key}" ${draft[key]?'checked':''}> ${label}</label>`;
 }
 
+/* ============================================================
+   TAB 2 «Сумма и срок» — faithful clone of live Jmix
+   Live: two columns (Сумма | Срок). Each = «Тип …» vaadin-select (default
+   «Фиксированная») → 18px sub-head → Добавить/Удалить → bordered grid
+   collection (one column). «Добавить» opens an entity-browser dialog of
+   predefined values (archetype A); «Удалить» drops the picked row. Валюта is
+   read-only, inherited from tab 1, under the «Сумма» column. «Диапазон» swaps
+   the grid for мин/макс fields. Model lives in amountList/termList (Фикс.) and
+   amountMin/Max·termMin/Max (Диапазон); legacy draft.amounts/terms strings are
+   kept in sync so Предпросмотр/Просмотр render unchanged.
+   ============================================================ */
+// predefined value refbooks — rows 1:1 with the live test stand «Суммы кредита» /
+// «Сроки кредита» dialogs (captured 2026-06-22, tab2-deep.mjs + tab2-srok-range.mjs;
+// incl. test junk like negatives — kept verbatim per the file's clone convention).
+const T2_REF = {
+  amount:{ title:'Суммы кредита', col:'Сумма',
+    rows:['-100,00','500 000,00','200 000,00','3 000,00','-5 000,00','1 000 000,00','5 000 000,00'] },
+  term:{ title:'Сроки кредита', col:'Срок',
+    rows:['84','-2','6','-8 020','12','24'] },
+};
+const T2_PLUS = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>';
+const T2_TRASH = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
+function joinRange(a,b){ a=(a||'').toString().trim(); b=(b||'').toString().trim(); return (a||b)?`${a||'—'} – ${b||'—'}`:''; }
+// one-time parse of any legacy draft.amounts/terms string into the grid model
+function t2hydrate(){
+  if(draft._t2h) return; draft._t2h=true;
+  [['amount','amountType','amountList','amountMin','amountMax','amounts'],
+   ['term','termType','termList','termMin','termMax','terms']].forEach(([_,typeK,listK,minK,maxK,legacy])=>{
+    if(draft[listK]==null) draft[listK]=[];
+    const s=(draft[legacy]||'').toString().trim(); if(!s) return;
+    const looksRange = draft[typeK]==='Диапазон' || (/[–-]/.test(s) && !s.includes(','));
+    if(looksRange){
+      const m=s.split(/\s*[–-]\s*/); if(!draft[minK]) draft[minK]=(m[0]||'').trim(); if(!draft[maxK]) draft[maxK]=(m[1]||'').trim();
+      if(!draft[typeK]) draft[typeK]='Диапазон';
+    } else if(!draft[listK].length){
+      draft[listK]=s.split(',').map(x=>x.trim()).filter(Boolean);
+    }
+  });
+}
+// rebuild legacy display strings from the model (keeps preview/detail working)
+function t2syncStr(){
+  draft.amounts = draft.amountType==='Диапазон' ? joinRange(draft.amountMin,draft.amountMax) : (draft.amountList||[]).join(', ');
+  draft.terms   = draft.termType==='Диапазон'   ? joinRange(draft.termMin,draft.termMax)     : (draft.termList||[]).join(', ');
+}
+function renderTab2(){ t2hydrate(); return `<div class="t2-cols">${t2col('amount')}${t2col('term')}</div>`; }
+function t2col(side){
+  const isAmt = side==='amount';
+  const typeK = isAmt?'amountType':'termType';
+  if(!draft[typeK]) draft[typeK]='Фиксированная';            // live default = «Фиксированная»
+  const head   = isAmt?'Сумма кредита':'Срок кредита';
+  const tLabel = isAmt?'Тип суммы кредита':'Тип срока кредита';
+  const isRange = draft[typeK]==='Диапазон';
+  let body;
+  if(isRange){
+    const minK=isAmt?'amountMin':'termMin', maxK=isAmt?'amountMax':'termMax';
+    body = `<div class="t2-range">
+      ${f(isAmt?'Минимальная сумма кредита':'Минимальный срок кредита', minK, {})}
+      ${f(isAmt?'Максимальная сумма кредита':'Максимальный срок кредита', maxK, {})}
+    </div>`;
+  } else {
+    const list = (isAmt?draft.amountList:draft.termList)||[];
+    const selIdx = isAmt?draft.amountSel:draft.termSel;
+    // live: empty collection grid renders blank (no placeholder row)
+    const rows = list.map((v,i)=>`<tr class="${selIdx===i?'sel':''}" onclick="t2sel('${side}',${i})"><td>${esc(v)}</td></tr>`).join('');
+    body = `<div class="t2-sub">${isAmt?'Фиксированные суммы':'Фиксированные сроки'}</div>
+      <div class="t2-rowtools">
+        <button class="btn btn-sm btn-rowadd" onclick="t2add('${side}')">${T2_PLUS}Добавить</button>
+        <button class="btn btn-sm btn-rowdel" onclick="t2del('${side}')" ${selIdx==null?'disabled':''}>${T2_TRASH}Удалить</button>
+      </div>
+      <div class="collgrid"><table><thead><tr><th>${isAmt?'Сумма':'Срок'}<span class="sort">⇅</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  const currency = isAmt ? `<div class="t2-currency">${roField('Валюта','currency')}</div>` : '';
+  return `<div class="t2-col">
+    <div class="section-h">${head}</div>
+    <div class="field t2-type"><span class="flabel">${tLabel}</span>
+      <div class="control"><select data-k="${typeK}" onchange="t2type('${side}',this.value)">
+        <option ${draft[typeK]==='Фиксированная'?'selected':''}>Фиксированная</option>
+        <option ${draft[typeK]==='Диапазон'?'selected':''}>Диапазон</option>
+      </select></div></div>
+    ${body}${currency}</div>`;
+}
+function t2type(side,val){ saveTabInputs(); draft[side==='amount'?'amountType':'termType']=val; t2syncStr(); renderWizBody(); }
+function t2sel(side,i){ if(side==='amount') draft.amountSel=i; else draft.termSel=i; renderWizBody(); }
+function t2del(side){
+  const listK=side==='amount'?'amountList':'termList', selK=side==='amount'?'amountSel':'termSel';
+  if(draft[selK]==null) return;
+  draft[listK].splice(draft[selK],1); draft[selK]=null; t2syncStr(); renderWizBody();
+}
+function t2add(side){
+  saveTabInputs();
+  const ref=T2_REF[side], listK=side==='amount'?'amountList':'termList';
+  const book={ title:ref.title, cols:[['_label',ref.col]], rows:ref.rows.map(n=>({_id:n,_label:n})) };
+  openRefDialog(book, { mode:'collection',
+    onPick:(v)=>{ draft[listK]=draft[listK]||[]; draft[listK].push(v); t2syncStr(); },
+    ret:()=>{ closeModal(); renderWizBody(); } });
+}
+
+/* ============================================================
+   TAB 3 «Процентные ставки» — faithful clone of live Jmix
+   Live: single full-width column, labels above. «Тип основной ставки» select
+   (default «Фиксированная»). Фикс. → «Значение фиксированной ставки» =
+   vaadin-multi-select-combo-box (chips, from справочник ставок). Диапазон →
+   stacked «Значение ставки с» / «Значение ставки по» decimal fields.
+   «Использовать Плавающую ставку» checkbox always shown. Model: rateValues[]
+   (Фикс.) + rateMin/rateMax (Диапазон); legacy draft.rateValue kept in sync.
+   ============================================================ */
+// «Значение фиксированной ставки» options — live справочник ставок via the
+// multi-select combo (captured 2026-06-22, tab3-rate.mjs): 1 real value «10,00».
+const RATE_OPTS = ['10,00'];
+let t3comboOpen = false;
+function t3hydrate(){
+  if(draft._t3h) return; draft._t3h=true;
+  if(!draft.rateType) draft.rateType='Фиксированная';        // live default
+  if(draft.rateValues==null) draft.rateValues=[];
+  const s=(draft.rateValue||'').toString().trim(); if(!s) return;
+  if(draft.rateType==='Диапазон' || (/[–-]/.test(s) && !s.includes(','))){
+    const m=s.split(/\s*[–-]\s*/); if(!draft.rateMin) draft.rateMin=(m[0]||'').trim(); if(!draft.rateMax) draft.rateMax=(m[1]||'').trim();
+    if(!draft.rateType) draft.rateType='Диапазон';
+  } else if(!draft.rateValues.length){
+    draft.rateValues=s.split(',').map(x=>x.trim()).filter(Boolean);
+  }
+}
+function t3sync(){ draft.rateValue = draft.rateType==='Диапазон' ? joinRange(draft.rateMin,draft.rateMax) : (draft.rateValues||[]).join(', '); }
+function renderTab3(){
+  t3hydrate();
+  return `<div class="t3-form">
+    <div class="section-h">Основная процентная ставка</div>
+    <div class="field"><span class="flabel">Тип основной ставки</span>
+      <div class="control"><select data-k="rateType" onchange="t3type(this.value)">
+        <option ${draft.rateType==='Фиксированная'?'selected':''}>Фиксированная</option>
+        <option ${draft.rateType==='Диапазон'?'selected':''}>Диапазон</option>
+      </select></div></div>
+    ${draft.rateType==='Диапазон' ? t3range() : t3fixed()}
+    <label class="check"><input type="checkbox" data-k="floatRate" ${draft.floatRate?'checked':''} onchange="t3floatToggle()"> Использовать Плавающую ставку</label>
+    ${draft.floatRate ? t3float() : ''}
+  </div>`;
+}
+// live (tab3-floaticon.mjs, 2026-06-22): checkbox ON appends «Тип плавающей ставки»
+// (jmix-value-picker → справочник бенчмарк-ставок, 8 строк) + «Маржа к плавающей
+// ставке» (big-decimal). Additive — shown under either Фикс or Диапазон.
+function t3float(){
+  return `<div class="t3-float">
+    ${lookupF('Тип плавающей ставки','floatType','floatRateType',{hint:'Бенчмарк-ставка из справочника'})}
+    ${f('Маржа к плавающей ставке','floatMargin',{hint:'Надбавка к плавающей ставке, %'})}
+  </div>`;
+}
+function t3floatToggle(){ saveTabInputs(); renderWizBody(); }
+function t3fixed(){
+  const vals=draft.rateValues||[];
+  const chips = vals.length
+    ? vals.map((v,i)=>`<span class="chip">${esc(v)}<button title="Убрать" onclick="t3unchip(event,${i})">✕</button></span>`).join('')
+    : `<span class="ph">Выберите…</span>`;
+  const opts = RATE_OPTS.map(o=>`<div class="opt ${vals.includes(o)?'sel':''}" onclick="t3toggle(event,'${esc(o)}')"><span class="mk">${vals.includes(o)?'✓':''}</span>${esc(o)}</div>`).join('');
+  return `<div class="field"><span class="flabel">Значение фиксированной ставки</span>
+    <div class="mscombo ${t3comboOpen?'open':''}" id="rateCombo" onclick="t3open(event)">
+      ${chips}
+      <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      <div class="mscombo-pop">${opts}</div>
+    </div>
+    <span class="hint">Из регламентированного справочника ставок</span></div>`;
+}
+function t3range(){
+  return `<div class="t3-range">
+    ${f('Значение ставки с','rateMin',{})}
+    ${f('Значение ставки по','rateMax',{})}
+  </div>`;
+}
+function t3type(val){ saveTabInputs(); draft.rateType=val; t3comboOpen=false; t3sync(); renderWizBody(); }
+function t3open(e){ if(e.target.closest('.mscombo-pop')) return; e.stopPropagation(); t3comboOpen=!t3comboOpen; renderWizBody(); }
+function t3toggle(e,o){ e.stopPropagation(); const a=draft.rateValues=draft.rateValues||[]; const i=a.indexOf(o); if(i>=0) a.splice(i,1); else a.push(o); t3comboOpen=true; t3sync(); renderWizBody(); }
+function t3unchip(e,i){ e.stopPropagation(); (draft.rateValues||[]).splice(i,1); t3sync(); renderWizBody(); }
+
+/* ============================================================
+   TAB 4 «Штрафы» — faithful clone of live Jmix
+   Live (captured 2026-06-22, scripts/inspect/tab4-deep.mjs + tab4-floatpicker.mjs):
+   Top band = 2 columns. LEFT «Штраф за просрочку основной суммы»: «Тип штрафной
+   ставки за основную сумму» = vaadin-select (default «Фиксированная») → Фикс:
+   «Значение фиксированной штрафной ставки за основную сумму» = big-decimal (free
+   entry); Диапазон: «Тип плавающей штрафной ставки по основной сумме» =
+   jmix-value-picker (••• refbook «Штрафы за просрочку по осн. сумме», col
+   «Наименование», live rows кп/56) + «Маржа к плавающей штрафной ставке» =
+   big-decimal. RIGHT col «Штраф за просрочку процентов»: «Максимальный размер
+   штрафа» = big-decimal + «% от суммы кредита» suffix. Full-width band «Штраф за
+   просрочку процентов» (header repeated in live): «Тип штрафной ставки за
+   проценты» = vaadin-select (w1216) → same Фикс/Диапазон pair (по процентам).
+   All «Значение»/«Маржа» are free decimals — NOT dropdowns from a fixed list.
+   ============================================================ */
+function t4typeSelect(label, key){
+  return `<div class="field"><span class="flabel">${label}</span>
+    <div class="control"><select data-k="${key}" onchange="t4type('${key}',this.value)">
+      <option ${draft[key]==='Фиксированная'?'selected':''}>Фиксированная</option>
+      <option ${draft[key]==='Диапазон'?'selected':''}>Диапазон</option>
+    </select></div></div>`;
+}
+function t4type(key,val){ saveTabInputs(); draft[key]=val; renderWizBody(); }
+function renderTab4(){
+  if(!draft.penaltyMainType) draft.penaltyMainType='Фиксированная';   // live default
+  if(!draft.penaltyIntType)  draft.penaltyIntType='Фиксированная';
+  const mainRange = draft.penaltyMainType==='Диапазон';
+  const intRange  = draft.penaltyIntType==='Диапазон';
+  const mainBody = mainRange
+    ? `${lookupF('Тип плавающей штрафной ставки по основной сумме','penaltyMainFloatType','penaltyFloatMain',{hint:'Из справочника «Штрафы за просрочку по осн. сумме»'})}
+       ${f('Маржа к плавающей штрафной ставке','penaltyMainMargin',{hint:'Надбавка к плавающей ставке, %'})}`
+    : f('Значение фиксированной штрафной ставки за основную сумму','penaltyMainVal',{hint:'Ставка штрафа, % годовых'});
+  const intBody = intRange
+    ? `${lookupF('Тип плавающей штрафной ставки по процентам','penaltyIntFloatType','penaltyFloatInt',{hint:'Из справочника «Штрафы за просрочку по процентам»'})}
+       ${f('Маржа к плавающей штрафной ставке по процентам','penaltyIntMargin',{hint:'Надбавка к плавающей ставке, %'})}`
+    : f('Значение фиксированной штрафной ставки за проценты','penaltyIntVal',{hint:'Ставка штрафа, % годовых'});
+  return `<div class="t4-form">
+    <div class="t4-top">
+      <div class="t4-col">
+        <div class="section-h">Штраф за просрочку основной суммы</div>
+        ${t4typeSelect('Тип штрафной ставки за основную сумму','penaltyMainType')}
+        ${mainBody}
+      </div>
+      <div class="t4-col">
+        <div class="section-h">Штраф за просрочку процентов</div>
+        <div class="t4-maxpct">
+          ${f('Максимальный размер штрафа','penaltyMaxPct',{})}
+          <span class="t4-suffix">% от суммы кредита</span>
+        </div>
+      </div>
+    </div>
+    <div class="t4-int">
+      <div class="section-h">Штраф за просрочку процентов</div>
+      ${t4typeSelect('Тип штрафной ставки за проценты','penaltyIntType')}
+      ${intBody}
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   TAB 5 «Льготный период» — faithful clone of live Jmix geometry
+   Live (captured 2026-06-22, scripts/inspect/tab5-full.mjs + tab5-text.mjs +
+   tab5-type.mjs): 2-col grid of 3 independent blocks. Block1 (осн. сумма) top-
+   left, block2 (начисление процентов) top-right, block3 (проценты) row-2 left,
+   right empty. Each block = 22px header + «Использовать …» checkbox; when checked
+   it reveals a «Тип льготного периода …» vaadin-select (Фиксированный | Диапазон):
+   · Фиксированный → multi-select combo «Продолжительность льготного периода
+     по … (в мес.)», options 1/3/6/12/18/24;
+   · Диапазон → two integer fields «Продолжительность c (в мес.)» +
+     «Продолжительность по (в мес.)».
+   Then a «Условия предоставления (…)» textarea closes the block.
+   ============================================================ */
+const T5_DUR_OPTS = ['1','3','6','12','18','24'];   // месяцев, multi-select (Фиксированный)
+function renderTab5(){
+  const blk=(suf,ckKey,typeKey,durKey,condKey)=>{
+    let body='';
+    if(draft[ckKey]){
+      body = t5typeSelect(`Тип льготного периода ${suf}`, typeKey);
+      if(draft[typeKey]==='Фиксированный'){
+        body += msCombo(`Продолжительность льготного периода ${suf} (в мес.)`, durKey, T5_DUR_OPTS, 'Один или несколько сроков из справочника');
+      } else if(draft[typeKey]==='Диапазон'){
+        body += `<div class="t5-range">
+          ${f('Продолжительность c (в мес.)',durKey+'From',{})}
+          ${f('Продолжительность по (в мес.)',durKey+'To',{})}
+        </div>`;
+      }
+      body += f(`Условия предоставления (${suf})`, condKey, {type:'textarea'});
+    }
+    return `<div class="t5-block">
+      <div class="section-h">Льготный период ${suf}</div>
+      ${check(`Использовать льготный период ${suf}`, ckKey)}
+      ${body}
+    </div>`;
+  };
+  return `<div class="subgrid t5-grid">
+    ${blk('по основной сумме','graceMain','graceMainType','graceMainDur','graceMainCond')}
+    ${blk('по начислению процентов','graceAccr','graceAccrType','graceAccrDur','graceAccrCond')}
+    ${blk('по процентам','graceInt','graceIntType','graceIntDur','graceIntCond')}
+  </div>`;
+}
+function t5typeSelect(label,key){
+  return `<div class="field" data-field="${key}"><span class="flabel">${label}</span>
+    <div class="control"><select data-k="${key}" onchange="t5type('${key}',this.value)">
+      <option value="" ${!draft[key]?'selected':''}>— выберите —</option>
+      <option ${draft[key]==='Фиксированный'?'selected':''}>Фиксированный</option>
+      <option ${draft[key]==='Диапазон'?'selected':''}>Диапазон</option>
+    </select></div></div>`;
+}
+function t5type(key,val){ saveTabInputs(); draft[key]=val; renderWizBody(); }
+
+// generic per-key multi-select chip combo (reusable; tab3 has a single-key variant)
+let msOpen = {};
+function msCombo(label,key,opts,hint){
+  const vals = draft[key]||[];
+  const chips = vals.length
+    ? vals.map((v,i)=>`<span class="chip">${esc(v)}<button title="Убрать" onclick="msUnchip(event,'${key}',${i})">✕</button></span>`).join('')
+    : `<span class="ph">Выберите…</span>`;
+  const o = opts.map(op=>`<div class="opt ${vals.includes(op)?'sel':''}" onclick="msToggle(event,'${key}','${esc(op)}')"><span class="mk">${vals.includes(op)?'✓':''}</span>${esc(op)}</div>`).join('');
+  return `<div class="field" data-field="${key}"><span class="flabel">${label}</span>
+    <div class="mscombo ${msOpen[key]?'open':''}" onclick="msComboOpen(event,'${key}')">
+      ${chips}<span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      <div class="mscombo-pop">${o}</div>
+    </div>${hint?`<span class="hint">${hint}</span>`:''}</div>`;
+}
+function msComboOpen(e,key){ if(e.target.closest('.mscombo-pop')) return; e.stopPropagation(); saveTabInputs(); msOpen[key]=!msOpen[key]; renderWizBody(); }
+function msToggle(e,key,op){ e.stopPropagation(); saveTabInputs(); const a=draft[key]=draft[key]||[]; const i=a.indexOf(op); if(i>=0) a.splice(i,1); else a.push(op); msOpen[key]=true; renderWizBody(); }
+function msUnchip(e,key,i){ e.stopPropagation(); saveTabInputs(); (draft[key]||[]).splice(i,1); renderWizBody(); }
+
 function renderWizBody(){
   let h='';
   if(wizTab===0){
@@ -998,9 +1386,9 @@ function renderWizBody(){
         <div class="b1grid">
           <div class="b1col">
             ${f('Наименование на русском','nameRu',{req:true})}
-            ${f('Наименование на кыргызском','nameKy',{req:true})}
+            ${f('Наименование на кыргызском','nameKy')}
             ${f('Наименование на английском','nameEn')}
-            ${lookupF('Источник финансирования','source','source',{req:true})}
+            ${lookupF('Источник финансирования','source','source',{})}
           </div>
           <div class="b1col">
             ${f('Краткое описание','shortDesc',{req:true,type:'textarea'})}
@@ -1022,7 +1410,7 @@ function renderWizBody(){
             </div>
             <div class="pcol">
               ${lookupF('Вид кредита','kind','kind',{req:true,hint:'Какой продукт по структуре'})}
-              ${lookupF('Валюта','currency','currency',{req:true,hint:'Сумма и срок зависят от валюты'})}
+              ${lookupF('Валюта','currency','currency',{hint:'Сумма и срок зависят от валюты'})}
               ${lookupF('Кредитная линия','line','line',{hint:'Конкретный донор внутри источника'})}
               ${lookupF('Вид счета погашения','repayAcct','repayAcct',{})}
             </div>
@@ -1040,40 +1428,13 @@ function renderWizBody(){
       </div>
     </div>`;
   } else if(wizTab===1){
-    h = `<div class="subgrid">
-      <div class="section-h col-span">Сумма кредита</div>
-      ${sel('Тип суммы кредита','amountType',['Фиксированная','Диапазон'],{req:true})}
-      ${f('Сумма (фикс.) / диапазон','amounts',{hint:'Перечень сумм или мин–макс'})}
-      ${roField('Валюта','currency')}
-      <div class="section-h col-span">Срок кредита</div>
-      ${sel('Тип срока кредита','termType',['Фиксированная','Диапазон'],{req:true})}
-      ${f('Срок, мес. (фикс./диапазон)','terms',{hint:'Единица — месяцы'})}
-    </div>`;
+    h = renderTab2();
   } else if(wizTab===2){
-    h = `<div class="subgrid">
-      <div class="section-h col-span">Основная процентная ставка</div>
-      ${sel('Тип основной ставки','rateType',['Фиксированная','Диапазон'],{req:true})}
-      ${sel('Значение фиксированной ставки','rateValue',LK.rate,{hint:'Из регламентированного справочника ставок'})}
-      <div class="col-span">${check('Использовать Плавающую ставку','floatRate')}</div>
-    </div>`;
+    h = renderTab3();
   } else if(wizTab===3){
-    h = `<div class="subgrid">
-      <div class="section-h col-span">Штраф за просрочку основной суммы</div>
-      ${sel('Тип штрафной ставки за основную сумму','penaltyMainType',['Фиксированная','Диапазон'])}
-      ${sel('Значение фиксированной штрафной ставки за основную сумму','penaltyMainVal',LK.penalty)}
-      <div class="section-h col-span">Ограничение штрафа за просрочку процентов</div>
-      ${f('Максимальный размер штрафа, % от суммы кредита','penaltyMaxPct')}
-      <div class="section-h col-span">Штраф за просрочку процентов</div>
-      ${sel('Тип штрафной ставки за проценты','penaltyIntType',['Фиксированная','Диапазон'])}
-      ${sel('Значение фиксированной штрафной ставки за проценты','penaltyIntVal',LK.penalty)}
-    </div>`;
+    h = renderTab4();
   } else if(wizTab===4){
-    h = `<div class="subgrid">
-      <div class="section-h col-span">Льготный период (длительность задаётся вне формы)</div>
-      <div class="col-span">${check('Использовать льготный период по основной сумме','graceMain')}</div>
-      <div class="col-span">${check('Использовать льготный период по начислению процентов','graceAccr')}</div>
-      <div class="col-span">${check('Использовать льготный период по процентам','graceInt')}</div>
-    </div>`;
+    h = renderTab5();
   } else if(wizTab===5){
     h = `<div class="subgrid">
       ${sel('Периодичность платежей','periodicity',['Ежемесячно','Ежеквартально','Ежегодно'],{req:true})}
@@ -1118,6 +1479,11 @@ function renderWizBody(){
   document.getElementById('wizBody').innerHTML = h;
   const coll = document.querySelector('[data-k="collateral"]');
   if(coll) coll.addEventListener('change', ()=>{ draft.collateral=coll.checked; renderWizBody(); });
+  if(wizTab===4){
+    document.querySelectorAll('#wizBody .t5-block input[type=checkbox]').forEach(cb=>{
+      cb.addEventListener('change', ()=>{ saveTabInputs(); draft[cb.dataset.k]=cb.checked; renderWizBody(); });
+    });
+  }
   wireDates();
   document.getElementById('btnWizSubmit').style.display = (wizTab===8 && draft.status==='draft') ? 'inline-flex' : 'none';
 }
@@ -1163,11 +1529,13 @@ function saveTabInputs(){
     const k=el.dataset.k;
     if(el.type==='checkbox') draft[k]=el.checked; else draft[k]=el.value;
   });
+  if(wizTab===1) t2syncStr();   // keep legacy amounts/terms strings fresh for preview/detail
+  if(wizTab===2) t3sync();      // keep legacy rateValue string fresh
 }
 
 /* ---- save (P2-R3 semantics) + validation (P2-R6) ---- */
 const REQUIRED_BY_TAB = {
-  0:['nameRu','nameKy','source','shortDesc','decisionId','purpose','kind','dateFrom','dateTo','currency'],
+  0:['nameRu','shortDesc','decisionId','purpose','kind','dateFrom','dateTo'],
 };
 function validate(){
   saveTabInputs();
@@ -1335,26 +1703,57 @@ const REFBOOKS = {
       'строительство нового корпуса',
       'для строительства, модернизации и увеличения производственных мощностей цементного завода в Араванском районе Ошской области',
     ].map(n=>({_id:n,_label:n})) },
-  // «Отрасль» → live «Отрасли и направления» (4 cols + Просмотр; live 45 строк — sample of 15 real rows)
+  // «Отрасль» → live «Отрасли и направления» (4 cols + Просмотр). Все 45 строк,
+  // real codes/status/dates (captured 2026-06-22, scripts/inspect/capture-industry.mjs).
   industry:  { title:'Отрасли и направления', view:true,
     cols:[['_label','Наименование'],['code','Код'],['status','Статус'],['created','Дата создания']],
     rows:[
-      ['Агропромышленный комплекс','2','10/11/2025 08:42 +0600'],
-      ['Водное хозяйство','3','10/11/2025 08:43 +0600'],
-      ['Легкая промышленность','4','10/11/2025 08:43 +0600'],
-      ['Машиностроение','5','10/11/2025 08:43 +0600'],
-      ['Пищевая и перерабатывающая промышленность','6','10/11/2025 08:43 +0600'],
-      ['Банки и банковская деятельность','7','10/11/2025 08:44 +0600'],
-      ['Здравоохранение','8','10/11/2025 08:44 +0600'],
-      ['Жилищно-строительный комплекс (физические лица)','9','10/11/2025 08:44 +0600'],
-      ['Животноводство','zh-1','05/11/2025 17:03 +0600'],
-      ['Водосберегающие технологии','Vod-1','11/12/2025 14:10 +0600'],
-      ['Лизинг техники','Liaz-1','11/12/2025 14:11 +0600'],
-      ['Семеноводчество','SEED','15/01/2026 14:41 +0600'],
-      ['Питомниководство','NURSERY','15/01/2026 14:42 +0600'],
-      ['Питомниководство','1212','27/01/2026 17:35 +0600'],
-      ['Муниципальные предприятия','Rt-2','27/01/2026 14:43 +0600'],
-    ].map(([n,code,created])=>({_id:code,_label:n,code,status:'Активный',created})) },
+      ['Сфера услуг','SERVICE_SECTOR','Активный','04/02/2026 14:53 +0600'],
+      ['Сфера образования','EDUCATION_SECTOR','Активный','04/02/2026 14:54 +0600'],
+      ['Проведение капитального ремонта/реконструкции','REPAIR_RECONSTRUCTION','Активный','04/02/2026 14:55 +0600'],
+      ['Торговля','TRADE','Активный','04/02/2026 14:52 +0600'],
+      ['Информационные технологии','IT_SECTOR','Активный','04/02/2026 14:55 +0600'],
+      ['Туризм','TOURISM','Активный','04/02/2026 14:33 +0600'],
+      ['Инвестиционные','MSP_60m','Активный','02/02/2026 10:43 +0600'],
+      ['Лизинг техники','Liaz-1','Активный','11/12/2025 14:11 +0600'],
+      ['Пищевая и перерабатывающая промышленность','6','Активный','10/11/2025 08:43 +0600'],
+      ['Строительство зданий дошкольных образовательных организаций','CONSTRUCTION_PRESCHOOL','Активный','04/02/2026 14:52 +0600'],
+      ['Приобретение и обновление основных средств','ACQUSITION_RENEWAL','Активный','04/02/2026 14:59 +0600'],
+      ['Транспорт','TRANSPORT','Активный','04/02/2026 14:34 +0600'],
+      ['Пополнение оборотного капитала','MSP_36m','Активный','02/02/2026 10:44 +0600'],
+      ['Семеноводчество','SEED','Активный','15/01/2026 14:41 +0600'],
+      ['Банки и банковская деятельность','7','Активный','10/11/2025 08:44 +0600'],
+      ['Рефинансирование ранее полученных кредитов','MSP_18m-2','Активный','04/02/2026 15:01 +0600'],
+      ['Экспорто-ориентированные и импортозамещающие предприятия','EXPORT_COMPANY','Неактивный','04/02/2026 14:40 +0600'],
+      ['Стартапы','MSP_18m','Активный','02/02/2026 10:45 +0600'],
+      ['Питомниководство','NURSERY','Активный','15/01/2026 14:42 +0600'],
+      ['Здравоохранение','8','Активный','10/11/2025 08:44 +0600'],
+      ['Агропромышленный комплекс','2','Активный','10/11/2025 08:42 +0600'],
+      ['Установка/приобретение газовых отопительных котлов','GOK_GAS','Активный','04/02/2026 16:20 +0600'],
+      ['Торгово-логистические центры и овощные хранилища','STORAGE_CENTER','Активный','04/02/2026 14:42 +0600'],
+      ['Сельское хозяйство','AGRICULTURE','Активный','04/02/2026 13:51 +0600'],
+      ['Питомниководство','1212','Активный','27/01/2026 17:35 +0600'],
+      ['Жилищно-строительный комплекс (физические лица)','9','Активный','10/11/2025 08:44 +0600'],
+      ['Водное хозяйство','3','Активный','10/11/2025 08:43 +0600'],
+      ['Строительно-монтажные работы','SMR_GAS','Активный','04/02/2026 16:16 +0600'],
+      ['Инновационная деятельность','INNOVATION','Активный','04/02/2026 14:44 +0600'],
+      ['Производство и переработка сельско-хозяйственной продукции','PP_AGRO_PRODUCTS','Активный','04/02/2026 13:54 +0600'],
+      ['Муниципальные предприятия','Rt-2','Активный','27/01/2026 14:43 +0600'],
+      ['Животноводство','zh-1','Активный','05/11/2025 17:03 +0600'],
+      ['Легкая промышленность','4','Активный','10/11/2025 08:43 +0600'],
+      ['Приобретение расходных материалов','PRM_GAS','Активный','04/02/2026 16:21 +0600'],
+      ['Производство защитных медицинских средств и средств индивидуальной защиты','PROTECTIVE_EQUIPMENT','Активный','04/02/2026 14:46 +0600'],
+      ['Промышленность','INDUSTRY','Активный','04/02/2026 14:31 +0600'],
+      ['Мэрии городов','UI-4','Активный','27/01/2026 14:44 +0600'],
+      ['Водосберегающие технологии','Vod-1','Активный','11/12/2025 14:10 +0600'],
+      ['Машиностроение','5','Активный','10/11/2025 08:43 +0600'],
+      ['Рефинансирование кредитов, полученных ранее на газификацию','RK_GAS','Активный','04/02/2026 16:22 +0600'],
+      ['Строительство современного медицинского центра','OSH_MED','Активный','05/02/2026 10:08 +0600'],
+      ['Поставка и/или разведение племенного поголовья крупного рогатого скота','PR_KRS','Активный','05/02/2026 13:53 +0600'],
+      ['Покупка программного обеспечения','SOFT_BUY_1','Активный','12/03/2026 15:47 +0600'],
+      ['Развитие электронной коммерции','ECOM_1','Активный','12/03/2026 15:49 +0600'],
+      ['Цифровые технологии','DIGITAL_01','Активный','12/03/2026 16:57 +0600'],
+    ].map(([n,code,status,created])=>({_id:code,_label:n,code,status,created})) },
   kind:      { title:'Вид кредита',
     cols:[['_label','Наименование']],
     rows:['Бюджетная ссуда','Бюджетный кредит','ЮСАИД','МАР','Фонд развитие регионов','Имущественные активы'].map(n=>({_id:n,_label:n})) },
@@ -1368,6 +1767,19 @@ const REFBOOKS = {
   repayAcct: { title:'Вид счета погашения',
     cols:[['_label','Вид счета погашения']],
     rows:['123','321','Накопительный счет'].map(n=>({_id:n,_label:n})) },
+  // tab 4 «Тип плавающей штрафной ставки» pickers — live dialog «Штрафы за просрочку
+  // по осн. сумме» (col «Наименование», 2 строки: кп/56) и «по процентам» (2 строки:
+  // 15/LIBOR 6M), captured 2026-06-22, tab4-bothpk.mjs.
+  penaltyFloatMain:{ title:'Штрафы за просрочку по осн. сумме',
+    cols:[['_label','Наименование']], rows:['кп','56'].map(n=>({_id:n,_label:n})) },
+  penaltyFloatInt: { title:'Штрафы за просрочку по процентам',
+    cols:[['_label','Наименование']], rows:['15','LIBOR 6M'].map(n=>({_id:n,_label:n})) },
+  // «Тип плавающей ставки» (tab3, чекбокс «Использовать Плавающую ставку») — live
+  // dialog col «Наименование», 8 строк бенчмарк-ставок (captured 2026-06-22,
+  // scripts/inspect/tab3-floaticon.mjs).
+  floatRateType:{ title:'Тип плавающей ставки',
+    cols:[['_label','Наименование']],
+    rows:['Двухратная учетная ставка НБКР','либор-12(EUR)','Либор 3 (Энерго)','Либор-6','либор-6 (DEM)','Учетная ставка НБКР','Уровень инфляции','Aibek rate'].map(n=>({_id:n,_label:n})) },
   // entities behind the multi-value «Выбор значения» (archetype B) ••• buttons
   // (live grid not enumerable from the dialog — combo options kept representative)
   applicantsFiz:{ title:'Физические лица (заявители)',
@@ -1537,6 +1949,8 @@ function toast(msg, kind, title){
    INIT
    ============================================================ */
 document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
+// close the tab-3 rate multi-combo on outside click
+document.addEventListener('click', e=>{ if(t3comboOpen && !e.target.closest('#rateCombo')){ t3comboOpen=false; const c=document.getElementById('rateCombo'); c&&c.classList.remove('open'); } });
 goList();
 </script>
 </body>
