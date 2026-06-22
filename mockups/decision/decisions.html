@@ -1236,12 +1236,10 @@ $('btnDelete').addEventListener('click', () => {
     alert('Нельзя удалить: на решение ссылаются ' + pluralRu(rec.refs, 'программа', 'программы', 'программ') + '.');
     return;
   }
-  if (!confirm(`Удалить решение «${rec.name || 'без названия'}»?`)) return;
-  /* R4: soft-delete — запись помечается удалённой, остаётся в БД, действие в журнал (R2) */
-  rec.deleted = true;
-  logEntry(rec, 'Удаление', '');
-  persist();
-  applyFilter();                                  // пересчёт filtered + сброс выделения + перерисовка
+  /* R4/P1-07: удаление необратимо → обязательная причина через модалку (как отклонение),
+     а не голый confirm(); причина пишется в журнал аудита (R2). */
+  openReason({ fromStatus:'Черновик', action:'Удаление', isDelete:true,
+    title:'Удаление решения', lbl:'Причина удаления', confirmLbl:'Удалить', danger:true });
 });
 /* ============================================================
    R2 — Журнал аудита + причина + обратимость.
@@ -1362,6 +1360,13 @@ $('reasonConfirm').addEventListener('click', () => {
   if (!reason) return;                                     // обязательность причины
   const rec = filtered[selected];
   if (rec.status !== reasonAction.fromStatus){ closeReason(); return; }
+  if (reasonAction.isDelete){                              // R4: soft-delete + причина в журнал (R2)
+    rec.deleted = true;
+    logEntry(rec, 'Удаление', reason);
+    closeReason();
+    persist(); applyFilter();                              // скрываем soft-deleted + перерисовка
+    return;
+  }
   rec.status = reasonAction.toStatus;
   if (reasonAction.action === 'Отклонение') rec.rejectReason = reason;
   if (reasonAction.action === 'Возврат на рассмотрение') rec.rejectReason = '';   // очищаем при возврате
