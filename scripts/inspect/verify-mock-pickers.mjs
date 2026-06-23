@@ -4,7 +4,7 @@ import { chromium } from 'playwright-core';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
-const url = pathToFileURL(resolve('mockups/loan-program.html')).href;
+const url = pathToFileURL(resolve('mockups/loan-program/loan-program.html')).href;
 const ctx = await chromium.launchPersistentContext('.auth/profile', { channel: 'chrome', headless: true, viewport: { width: 1700, height: 1100 } });
 const page = ctx.pages()[0] || await ctx.newPage();
 await page.goto(url, { waitUntil: 'load' });

@@ -1,6 +1,6 @@
 import { chromium } from 'playwright-core';
 import { pathToFileURL } from 'url';
-const file = process.argv[2] || 'mockups/decision/decision-create.html';
+const file = process.argv[2] || 'mockups/decision/decisions.html';
 const f = pathToFileURL(process.cwd() + '/' + file).href;
 const ctx = await chromium.launchPersistentContext('.auth/profile', { channel: 'chrome', headless: true, ignoreHTTPSErrors: true, viewport: { width: 1700, height: 1100 } });
 const page = ctx.pages()[0] || await ctx.newPage();
