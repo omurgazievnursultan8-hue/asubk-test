@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-06-23 (tz: synthesize index — data model, glossary, назначение, архитектура) — _(update this date every time you edit)_
+> Last updated: 2026-06-23 (ТЗ кредитования: index + 7 разделов) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
