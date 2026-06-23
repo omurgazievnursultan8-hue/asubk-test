@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-06-20 (Phase 7 docs+QA) — _(update this date every time you edit)_
+> Last updated: 2026-06-23 (loan-program mockup: full 9-tab wizard clone) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,6 +38,15 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-06-23 — Loan-program mockup (`mockups/loan-program.html`): finished the
+  add-form wizard clone — tabs 6 «Платежи и расчеты», 7 «Документы», 8
+  «Залоговое обеспечение», 9 «Предпросмотр» now match live Jmix 1:1 (inspect
+  scripts `scripts/inspect/tab6-9*.mjs`, screenshots in `.auth/`). All 9 tabs
+  cloned. Fixes vs prior placeholders: tab 8 fields are NOT conditional on the
+  checkbox (live always shows them); tab 7 gained the missing залоговые
+  doc-grids; dropped wrong `req:true` flags on tabs 6/8; wired REFBOOKS for the
+  `dayCount/queue/interestCalc/checkLevel/templates` ••• pickers (latent break);
+  removed orphaned `miniGrid()`.
 - 2026-06-20 — Security/access config: inspected Безопасность → Ресурсные роли (`/sec/resourcerolemodels`, 15 roles) + Роли уровня строк (`/sec/rowlevelrolemodels`, 1 role) + Users via Playwright (MCP). Wrote how-to [guides/access-control.md](guides/access-control.md) (control sidebar menu/pages/buttons/fields/rows). Observations to log: `банки` role = complete CRUD template; `СУГС` & `Специалист кредитного отдела` roles have **no policies** (grant nothing); junk roles `123` (resource) + `test` row-level (empty Where) = test pollution; Users list ships a saved filter `test` hiding all rows.
 - 2026-06-20 — Phase 7 (Servicing): documented `/payments` (Платеж), `/loan-reserves` (Резерв), `/loan-ledgers` (LoanLedger) via Playwright (`scripts/inspect/p7.mjs`). Logged 5 findings (P7-01 🟠 i18n leak across all 3 grids incl. `EventType.*` enum; P7-02 🟠 `Payment uuid`/`version` columns exposed; P7-03 🟡 duplicate raw «Статус»; P7-04 🟡 reserves have no detail view; P7-05 🟡 ledger «Удалить» on append-only log) and 5 proposals (P7-R1…R5). Cross-check: payment split (ОД+проценты) and reserve math (unused×rate) correct.
 - 2026-06-20 — Phase 6 (Disbursement & tranches): documented `/sub-loans` (tranches, 4-tab detail) + `/disbursements` (Освоение) via Playwright (`scripts/inspect/p6-probe.mjs`, `p6.mjs`); model Кредит→Транш→Освоение. Logged 3 findings (P6-01 🟠 raw entity labels `SubLoan.amount`/`Disbursement.subLoan`; P6-02 🟡 empty tranche schedule; P6-03 🔵 «шрафы» typo) and 3 proposals (P6-R1…R3). Cross-check: disbursement-level annuity schedule computes interest correctly (50 000 @10%/24mo → 2 307,25).
