@@ -292,6 +292,19 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .t2-col .section-h{ margin:0 0 22px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
 /* tab 6: several section-blocks stacked per column */
 .t6-cols .t2-col{ gap:28px; }
+/* tab 7 «Документы» */
+.t7{ max-width:1340px; padding:16px 24px; }
+.t7-cols{ max-width:none; padding:0; }
+.t7-cols .t2-col{ gap:0; }
+.t7-pair{ display:grid; grid-template-columns:1fr 1fr; gap:0 24px; margin:0 0 22px; }
+.t7-doc .t2-sub{ min-height:40px; }
+.t7-doc .t2-rowtools{ margin-bottom:10px; }
+.t7-grid{ min-height:220px; }
+.t7-chosen{ margin-top:14px; }
+.t7-chosen .note-area{ min-height:96px; }
+.t7-note{ font:var(--weight-regular) 13px/1.4 var(--asubk-font); color:var(--text-body); margin-top:8px; }
+.t7-checkhead{ margin-top:8px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+.t7-check{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px 32px; margin-top:18px; max-width:1100px; }
 .t2-type{ margin-bottom:22px; }
 .t2-sub{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:4px 0 10px; }
 .t2-rowtools{ display:flex; gap:8px; margin-bottom:8px; }
@@ -1420,6 +1433,55 @@ function renderTab6(){
   </div>`;
 }
 
+/* ============================================================
+   TAB 7 «Документы» — faithful clone of live Jmix
+   (проверено 2026-06-23, scripts/inspect/tab7-full.mjs, .auth/t7.png).
+   Two fs22 sections side by side: «Кредитные документы» | «Залоговые
+   документы». Each holds TWO doc-list grids (обязательные | опциональные),
+   every grid = «+ Добавить» (tertiary) / «✕ Исключить» (disabled until row
+   picked) + bordered grid, single «Наименование» column, empty by default.
+   Below кредитные: «Шаблоны договоров» value-picker (•••) → «Выбранные
+   шаблоны» read-only textarea (ph «Шаблоны не выбраны») + save-hint note.
+   Below залоговые: «Требования к оформлению залогового договора» textarea.
+   Bottom full-width «Настройка проверки документов» = 3-col row:
+   «Уровень проверки» picker · «Срок проверки (в днях)» integer ·
+   «Ответственный за проверку» picker. No required markers (live req=null).
+   ============================================================ */
+function renderTab7(){
+  const docList=(sub)=>`<div class="t7-doc">
+    <div class="t2-sub">${sub}</div>
+    <div class="t2-rowtools">
+      <button class="btn btn-sm btn-rowadd" onclick="toast('Добавление документа — заглушка макета.','info')">${T2_PLUS}Добавить</button>
+      <button class="btn btn-sm btn-rowdel" disabled>${T7_X}Исключить</button>
+    </div>
+    <div class="collgrid t7-grid"><table><thead><tr><th>Наименование<span class="sort">⇅</span></th></tr></thead><tbody></tbody></table></div>
+  </div>`;
+  return `<div class="t7">
+    <div class="t2-cols t7-cols">
+      <div class="t2-col">
+        <div class="section-h">Кредитные документы</div>
+        <div class="t7-pair">${docList('Список обязательных кредитных документов')}${docList('Список опциональных кредитных документов')}</div>
+        ${lookupF('Шаблоны договоров','templates','templates',{})}
+        <div class="field ro t7-chosen"><span class="flabel">Выбранные шаблоны</span>
+          <textarea class="note-area" readonly placeholder="Шаблоны не выбраны"></textarea></div>
+        <div class="t7-note">Выбранные шаблоны сохранятся после нажатия кнопки 'Сохранить'.</div>
+      </div>
+      <div class="t2-col">
+        <div class="section-h">Залоговые документы</div>
+        <div class="t7-pair">${docList('Список обязательных залоговых документов')}${docList('Список опциональных залоговых документов')}</div>
+        ${f('Требования к оформлению залогового договора','contractReq',{type:'textarea'})}
+      </div>
+    </div>
+    <div class="section-h t7-checkhead">Настройка проверки документов</div>
+    <div class="t7-check">
+      ${lookupF('Уровень проверки документов','checkLevel','checkLevel',{})}
+      ${f('Срок проверки документов (в днях)','checkDays',{})}
+      ${lookupF('Ответственный за проверку документов','checkResp','staff',{hint:'Отдельная роль от «Ответственные сотрудники»'})}
+    </div>
+  </div>`;
+}
+const T7_X = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>';
+
 function renderWizBody(){
   let h='';
   if(wizTab===0){
@@ -1481,17 +1543,7 @@ function renderWizBody(){
   } else if(wizTab===5){
     h = renderTab6();
   } else if(wizTab===6){
-    h = `<div class="subgrid">
-      <div class="section-h col-span">Кредитные документы</div>
-      <div class="col-span">${miniGrid('Список обязательных кредитных документов',['Заявление','Финансовая отчётность'])}</div>
-      <div class="col-span">${miniGrid('Список опциональных кредитных документов',['Бизнес-план'])}</div>
-      ${sel('Шаблоны договоров','templates',LK.templates,{hint:'Выбранные отображаются чипами'})}
-      ${f('Требования к оформлению залогового договора','contractReq',{type:'textarea',span:true})}
-      <div class="section-h col-span">Настройка проверки документов</div>
-      ${lookupF('Уровень проверки документов','checkLevel','checkLevel',{})}
-      ${f('Срок проверки документов (в днях)','checkDays')}
-      ${lookupF('Ответственный за проверку документов','checkResp','staff',{hint:'Отдельная роль от «Ответственные сотрудники»'})}
-    </div>`;
+    h = renderTab7();
   } else if(wizTab===7){
     const on = draft.collateral;
     h = `<div class="subgrid">
@@ -1799,6 +1851,12 @@ const REFBOOKS = {
   repayAcct: { title:'Вид счета погашения',
     cols:[['_label','Вид счета погашения']],
     rows:['123','321','Накопительный счет'].map(n=>({_id:n,_label:n})) },
+  // tab 6/7 value-pickers — справочники sourced from LK (display-only stubs)
+  dayCount:  { title:'Метод расчета дней', cols:[['_label','Наименование']], rows:LK.dayCount.map(n=>({_id:n,_label:n})) },
+  queue:     { title:'Очередь погашения',  cols:[['_label','Наименование']], rows:LK.queue.map(n=>({_id:n,_label:n})) },
+  interestCalc:{ title:'Тип расчета процентов', cols:[['_label','Наименование']], rows:LK.interestCalc.map(n=>({_id:n,_label:n})) },
+  checkLevel:{ title:'Уровень проверки документов', cols:[['_label','Наименование']], rows:LK.checkLevel.map(n=>({_id:n,_label:n})) },
+  templates: { title:'Шаблоны договоров', cols:[['_label','Наименование']], rows:LK.templates.map(n=>({_id:n,_label:n})) },
   // tab 4 «Тип плавающей штрафной ставки» pickers — live dialog «Штрафы за просрочку
   // по осн. сумме» (col «Наименование», 2 строки: кп/56) и «по процентам» (2 строки:
   // 15/LIBOR 6M), captured 2026-06-22, tab4-bothpk.mjs.
