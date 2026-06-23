@@ -208,7 +208,7 @@ git commit -m "tz: write section 01 — government decision (as-is)"
 
 **Files:**
 - Create: `requirements/tz/02-kreditnaya-programma.md`
-- Reference: `requirements/features/02-loan-program.md`, `02-loan-program-field-analysis.md`, `mockups/loan-program.html`
+- Reference: `requirements/features/02-loan-program.md`, `02-loan-program-field-analysis.md`, `mockups/loan-program/loan-program.html`
 
 **Interfaces:**
 - Consumes: `scripts/inspect/tz/dump.mjs`.
