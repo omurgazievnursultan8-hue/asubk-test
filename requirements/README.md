@@ -7,6 +7,7 @@ findable. Start with the overview below, then split out as detail grows.
 - `overview.md` — the big picture: purpose, users, scope boundaries
 - `features/<feature>.md` — one file per feature or business rule set
 - `glossary.md` — domain terms (credit-specific vocabulary)
+- `tz/` — техническое задание (функц. спецификация as-is) подсистемы кредитования.
 
 ## Module overview
 _Fill this in._
