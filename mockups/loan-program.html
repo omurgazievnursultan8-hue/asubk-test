@@ -290,6 +290,8 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .t2-col{ display:flex; flex-direction:column; }
 /* live: section header carries a full-width hairline rule beneath it */
 .t2-col .section-h{ margin:0 0 22px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+/* tab 6: several section-blocks stacked per column */
+.t6-cols .t2-col{ gap:28px; }
 .t2-type{ margin-bottom:22px; }
 .t2-sub{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:4px 0 10px; }
 .t2-rowtools{ display:flex; gap:8px; margin-bottom:8px; }
@@ -1377,6 +1379,47 @@ function msComboOpen(e,key){ if(e.target.closest('.mscombo-pop')) return; e.stop
 function msToggle(e,key,op){ e.stopPropagation(); saveTabInputs(); const a=draft[key]=draft[key]||[]; const i=a.indexOf(op); if(i>=0) a.splice(i,1); else a.push(op); msOpen[key]=true; renderWizBody(); }
 function msUnchip(e,key,i){ e.stopPropagation(); saveTabInputs(); (draft[key]||[]).splice(i,1); renderWizBody(); }
 
+/* ============================================================
+   TAB 6 «Платежи и расчеты» — faithful clone of live Jmix
+   (проверено 2026-06-23, scripts/inspect/tab6-full.mjs + tab6-labels.mjs,
+   .auth/t6-checked.png). Live = two columns, labels above, NO required markers
+   on any field (req=null for all 9 controls). Each field-cluster sits under its
+   own bold section header with a hairline rule (gov-blue house style).
+     L: «Периодичность платежей» {periodicity select, payMonths multi-combo}
+        «Метод расчета дней» {value-picker}
+        «Очередь погашения»  {value-picker}
+     R: «День платежа» {payDay integer, weekend select}
+        «Метод погашения кредита» {select, live empty}
+        «Расчеты» {Тип расчета процентов value-picker}
+        «Период между освоением и первым платежем» {min/max integer}
+   ============================================================ */
+function renderTab6(){
+  const blk=(title,body)=>`<div class="t5-block"><div class="section-h">${title}</div>${body}</div>`;
+  const left =
+    blk('Периодичность платежей',
+      sel('Периодичность платежей','periodicity',['Ежемесячно','Ежеквартально','Ежегодно']) +
+      msCombo('Конкретные месяцы платежей','payMonths',LK.payMonths,'При Ежекв./Ежегодно')) +
+    blk('Метод расчета дней',
+      lookupF('Метод расчета дней','dayCount','dayCount',{hint:'Day-count — знаменатель формулы процентов'})) +
+    blk('Очередь погашения',
+      lookupF('Очередь погашения','queue','queue',{}));
+  const right =
+    blk('День платежа',
+      f('День месяца для платежа','payDay',{}) +
+      sel('Обработка выходных дней','weekend',['Переносить на следующий рабочий день','Переносить на предыдущий рабочий день'])) +
+    blk('Метод погашения кредита',
+      sel('Метод погашения кредита','repayMethod',['Аннуитетный','Дифференцированный'])) +
+    blk('Расчеты',
+      lookupF('Тип расчета процентов','interestCalc','interestCalc',{hint:'Формула начисления'})) +
+    blk('Период между освоением и первым платежем',
+      f('Минимальное кол-во дней','minDays',{}) +
+      f('Максимальное кол-во дней','maxDays',{}));
+  return `<div class="t2-cols t6-cols">
+    <div class="t2-col">${left}</div>
+    <div class="t2-col">${right}</div>
+  </div>`;
+}
+
 function renderWizBody(){
   let h='';
   if(wizTab===0){
@@ -1436,18 +1479,7 @@ function renderWizBody(){
   } else if(wizTab===4){
     h = renderTab5();
   } else if(wizTab===5){
-    h = `<div class="subgrid">
-      ${sel('Периодичность платежей','periodicity',['Ежемесячно','Ежеквартально','Ежегодно'],{req:true})}
-      ${lookupF('Конкретные месяцы платежей','payMonths','payMonths',{multi:true,hint:'При Ежекв./Ежегодно'})}
-      ${f('День месяца для платежа','payDay',{req:true})}
-      ${sel('Обработка выходных дней','weekend',['Переносить на следующий рабочий день','Переносить на предыдущий рабочий день'])}
-      ${lookupF('Метод расчета дней','dayCount','dayCount',{req:true,hint:'Day-count — знаменатель формулы процентов'})}
-      ${sel('Метод погашения кредита','repayMethod',['Аннуитетный','Дифференцированный'],{req:true})}
-      ${lookupF('Тип расчета процентов','interestCalc','interestCalc',{req:true,hint:'Формула начисления'})}
-      ${lookupF('Очередь погашения','queue','queue',{req:true})}
-      ${f('Минимальное кол-во дней','minDays')}
-      ${f('Максимальное кол-во дней','maxDays')}
-    </div>`;
+    h = renderTab6();
   } else if(wizTab===6){
     h = `<div class="subgrid">
       <div class="section-h col-span">Кредитные документы</div>
