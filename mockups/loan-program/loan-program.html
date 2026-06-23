@@ -197,27 +197,33 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .field > .flabel{ font:var(--font-label); font-weight:var(--weight-medium); color:var(--text-muted); }
 /* P2-R1: required marker = red asterisk, visible immediately on open */
 .field.required > .flabel::after{ content:" *"; color:var(--action-danger); font-weight:var(--weight-bold); }
-.field .hint{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-placeholder); }
+.field .hint{ display:none; }
 .field .err{ display:none; font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--action-danger); }
 .field.invalid .err{ display:block; }
+/* таб 2: пустая коллекция (Фиксированные суммы/сроки) подсвечивается как обязательная */
+.collgrid > .err{ display:none; font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--action-danger); margin-top:4px; }
+.collgrid.invalid table{ border:1px solid var(--action-danger); }
+.collgrid.invalid > .err{ display:block; }
 .control{ position:relative; display:flex; align-items:center; }
-/* Live Lumo "filled" inputs: grey fill, no border, top-only radius, bottom underline */
+/* P2-R1 applied: editable field = white bg + full border (required adds red * at label);
+   read-only / computed field = grey bg, no border. Live Jmix paints every field the
+   same grey "filled" look (defect P2-01) — this mockup demos the fixed 3-state semantics. */
 .control input, .control select, .note-area{ width:100%; height:var(--control-h);
-  border-radius:var(--radius-md) var(--radius-md) 0 0;
-  background:rgba(26,57,96,0.10); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
-  border:none; border-bottom:1px solid var(--border-strong); outline:none; padding:0 var(--space-2);
+  border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
+  border:1px solid var(--border-strong); outline:none; padding:0 var(--space-2);
   transition:box-shadow 120ms ease, border-color 120ms ease; }
 .control select{ cursor:pointer; }
-.control input:focus, .control select:focus, .note-area:focus{ border-bottom:2px solid var(--border-focus); box-shadow:none; }
-.field.invalid .control input, .field.invalid .control select, .field.invalid .lookup{ border-bottom-color:var(--action-danger); }
-.control input[readonly], .ro input{ background:var(--surface-input); color:var(--text-muted); border-bottom:1px dashed var(--border-default); cursor:default; }
-.control input[readonly]:focus{ border-bottom:1px dashed var(--border-default); box-shadow:none; }
+.control input:focus, .control select:focus, .note-area:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.field.invalid .control input, .field.invalid .control select, .field.invalid .lookup, .field.invalid .mscombo, .field.invalid .note-area{ border-color:var(--action-danger); }
+.control input[readonly], .ro input, .ro .note-area, .note-area[readonly]{ background:var(--surface-input); color:var(--text-muted); border:1px solid transparent; cursor:default; }
+.control input[readonly]:focus, .note-area[readonly]:focus{ border-color:transparent; box-shadow:none; }
 .control .cal{ position:absolute; right:10px; pointer-events:none; color:var(--text-muted); display:flex; }
 .note-area{ height:auto; min-height:90px; padding:10px 12px; resize:vertical; line-height:1.5; }
 /* lookup (picker) */
-.lookup{ display:flex; align-items:center; height:var(--control-h); background:rgba(26,57,96,0.10);
-  border-radius:var(--radius-md) var(--radius-md) 0 0; border:none; border-bottom:1px solid var(--border-strong); padding-left:var(--space-2); }
-.lookup.ro{ background:var(--surface-input); border-bottom:1px dashed var(--border-default); }
+.lookup{ display:flex; align-items:center; height:var(--control-h); background:var(--surface-card);
+  border-radius:var(--radius-md); border:1px solid var(--border-strong); padding-left:var(--space-2); }
+.lookup.ro{ background:var(--surface-input); border:1px solid transparent; }
 .lookup .val{ flex:1; font:var(--font-body); font-weight:var(--weight-medium); color:var(--text-placeholder);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lookup .val.filled{ color:var(--text-body); }
@@ -353,10 +359,10 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .t3-form .section-h{ margin:0; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
 .t3-range{ display:flex; flex-direction:column; gap:16px; }
 /* multi-select combo (chips) — clone of vaadin-multi-select-combo-box, Lumo filled */
-.mscombo{ position:relative; min-height:var(--control-h); background:rgba(26,57,96,0.10);
-  border-radius:var(--radius-md) var(--radius-md) 0 0; border:none; border-bottom:1px solid var(--border-strong);
+.mscombo{ position:relative; min-height:var(--control-h); background:var(--surface-card);
+  border-radius:var(--radius-md); border:1px solid var(--border-strong);
   display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:4px 34px 4px 8px; cursor:pointer; }
-.mscombo.open{ border-bottom:2px solid var(--border-focus); }
+.mscombo.open{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
 .mscombo .chip{ display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 4px 0 9px; border-radius:var(--radius-sm);
   background:var(--asubk-blue-tint); color:var(--asubk-blue); font:var(--weight-medium) 13px/1 var(--asubk-font); }
 .mscombo .chip button{ border:none; background:transparent; color:inherit; cursor:pointer; padding:0 2px; font-size:13px; line-height:1; }
@@ -687,6 +693,10 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>
             Отмена
           </button>
+          <button class="btn btn-primary" id="btnWizNext" onclick="nextTab()">
+            Далее
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
           <span class="tb-spacer"></span>
           <!-- only available from the preview tab in the real app; enabled here on tab 9 -->
           <button class="btn btn-ghost" id="btnWizSubmit" onclick="submitFromWizard()" style="display:none">
@@ -798,6 +808,11 @@ const LK = {
   checkLevel:['стандарт','углублённый'],
   staff:['Темирлан уулу Т.','Дадабаева Д.Р.','Нурманбет кызы К.','Сламкулов А.О.','Торобаев Н.М.'],
   templates:['Тестовый шаблон 2 (CREDIT/VALID)'],
+  // tab 7 «Документы» — типы кредитных / залоговых документов (справочники)
+  docCredit:['Заявление на получение кредита','Анкета заёмщика','Финансовая отчётность','Бизнес-план','Технико-экономическое обоснование','Справка о доходах','Выписка из ЕГРЮЛ/ЕГРИП','Согласие на обработку персональных данных'],
+  docColl:['Правоустанавливающие документы на залог','Отчёт об оценке залога','Технический паспорт','Согласие супруга(и) на залог','Страховой полис предмета залога','Выписка из реестра обременений'],
+  // tab 8 «Залоговое обеспечение» — виды залога (справочник)
+  collKind:['Недвижимое имущество','Транспортное средство','Оборудование','Товары в обороте','Поручительство','Банковская гарантия','Депозит / денежные средства','Сельхозтехника','Скот / поголовье'],
   rate:['4%','6%','8%','10%','12%'],
   penalty:['0.1%','0.2%','0.5%'],
   payMonths:['Март, Сентябрь','Июнь, Декабрь'],
@@ -823,6 +838,7 @@ function P(o){ return Object.assign({
   periodicity:'', payMonths:'', payDay:'', weekend:'Переносить на следующий рабочий день',
   dayCount:'', repayMethod:'', interestCalc:'', queue:'', minDays:'', maxDays:'',
   checkLevel:'', checkDays:'', checkResp:'', contractReq:'', collateral:false, collRu:'', collKy:'', collEn:'',
+  docCredReq:[], docCredOpt:[], docCollReq:[], docCollOpt:[], collTypes:[],
   status:'draft', references:0
 }, o); }
 
@@ -1058,8 +1074,8 @@ function openViewSelected(){ const p=getSel(); if(p) openView(p.id); }
 const TABS = ['Основные данные','Сумма и срок','Процентные ставки','Штрафы','Льготный период','Платежи и расчеты','Документы','Залоговое обеспечение','Предпросмотр'];
 let wizTab = 0;
 
-function openCreate(){ draft = P({}); editingId=null; openWizard('Новая программа'); }
-function openEdit(id){ const p=PROGRAMS.find(x=>x.id===id); if(!p) return; draft=JSON.parse(JSON.stringify(p)); editingId=id; openWizard(p.nameRu||'Программа'); }
+function openCreate(){ draft = P({}); editingId=null; gsel={}; openWizard('Новая программа'); }
+function openEdit(id){ const p=PROGRAMS.find(x=>x.id===id); if(!p) return; draft=JSON.parse(JSON.stringify(p)); editingId=id; gsel={}; openWizard(p.nameRu||'Программа'); }
 function openWizard(title){
   wizTab=0; showView('view-wizard');
   setCrumb(title, statusBadge(draft.status));
@@ -1070,7 +1086,18 @@ function renderWizTabs(){
     `<button class="tab ${i===wizTab?'active':''}" id="wtab${i}" onclick="gotoTab(${i})">
        <span class="tnum">${i+1}</span>${t}<span class="terr" id="terr${i}">0</span></button>`).join('');
 }
-function gotoTab(i){ saveTabInputs(); wizTab=i; renderWizTabs(); renderWizBody(); }
+function gotoTab(i){
+  saveTabInputs();
+  if(i>wizTab){                                   // переход вперёд — гейт по обязательным полям
+    const bad=firstInvalid(i-1);
+    if(bad!=null){
+      wizTab=bad; renderWizTabs(); renderWizBody(); applyErrors(allTabErrors(), i-1);
+      toast('Заполните обязательные поля этой вкладки, чтобы продолжить.','err','Внимание'); return;
+    }
+  }
+  wizTab=i; renderWizTabs(); renderWizBody();      // назад — свободно
+}
+function nextTab(){ gotoTab(Math.min(wizTab+1, TABS.length-1)); }
 
 // field builders -------------------------------------------------
 function f(label, key, opts){
@@ -1166,8 +1193,8 @@ function t2col(side){
   if(isRange){
     const minK=isAmt?'amountMin':'termMin', maxK=isAmt?'amountMax':'termMax';
     body = `<div class="t2-range">
-      ${f(isAmt?'Минимальная сумма кредита':'Минимальный срок кредита', minK, {})}
-      ${f(isAmt?'Максимальная сумма кредита':'Максимальный срок кредита', maxK, {})}
+      ${f(isAmt?'Минимальная сумма кредита':'Минимальный срок кредита', minK, {req:true})}
+      ${f(isAmt?'Максимальная сумма кредита':'Максимальный срок кредита', maxK, {req:true})}
     </div>`;
   } else {
     const list = (isAmt?draft.amountList:draft.termList)||[];
@@ -1179,12 +1206,13 @@ function t2col(side){
         <button class="btn btn-sm btn-rowadd" onclick="t2add('${side}')">${T2_PLUS}Добавить</button>
         <button class="btn btn-sm btn-rowdel" onclick="t2del('${side}')" ${selIdx==null?'disabled':''}>${T2_TRASH}Удалить</button>
       </div>
-      <div class="collgrid"><table><thead><tr><th>${isAmt?'Сумма':'Срок'}<span class="sort">⇅</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      <div class="collgrid" data-coll="${side}"><table><thead><tr><th>${isAmt?'Сумма':'Срок'}<span class="sort">⇅</span></th></tr></thead><tbody>${rows}</tbody></table>
+        <span class="err">Добавьте хотя бы одно значение</span></div>`;
   }
   const currency = isAmt ? `<div class="t2-currency">${roField('Валюта','currency')}</div>` : '';
   return `<div class="t2-col">
     <div class="section-h">${head}</div>
-    <div class="field t2-type"><span class="flabel">${tLabel}</span>
+    <div class="field required t2-type"><span class="flabel">${tLabel}</span>
       <div class="control"><select data-k="${typeK}" onchange="t2type('${side}',this.value)">
         <option ${draft[typeK]==='Фиксированная'?'selected':''}>Фиксированная</option>
         <option ${draft[typeK]==='Диапазон'?'selected':''}>Диапазон</option>
@@ -1237,7 +1265,7 @@ function renderTab3(){
   t3hydrate();
   return `<div class="t3-form">
     <div class="section-h">Основная процентная ставка</div>
-    <div class="field"><span class="flabel">Тип основной ставки</span>
+    <div class="field required"><span class="flabel">Тип основной ставки</span>
       <div class="control"><select data-k="rateType" onchange="t3type(this.value)">
         <option ${draft.rateType==='Фиксированная'?'selected':''}>Фиксированная</option>
         <option ${draft.rateType==='Диапазон'?'selected':''}>Диапазон</option>
@@ -1252,7 +1280,7 @@ function renderTab3(){
 // ставке» (big-decimal). Additive — shown under either Фикс or Диапазон.
 function t3float(){
   return `<div class="t3-float">
-    ${lookupF('Тип плавающей ставки','floatType','floatRateType',{hint:'Бенчмарк-ставка из справочника'})}
+    ${lookupF('Тип плавающей ставки','floatType','floatRateType',{req:true,hint:'Бенчмарк-ставка из справочника'})}
     ${f('Маржа к плавающей ставке','floatMargin',{hint:'Надбавка к плавающей ставке, %'})}
   </div>`;
 }
@@ -1263,7 +1291,7 @@ function t3fixed(){
     ? vals.map((v,i)=>`<span class="chip">${esc(v)}<button title="Убрать" onclick="t3unchip(event,${i})">✕</button></span>`).join('')
     : `<span class="ph">Выберите…</span>`;
   const opts = RATE_OPTS.map(o=>`<div class="opt ${vals.includes(o)?'sel':''}" onclick="t3toggle(event,'${esc(o)}')"><span class="mk">${vals.includes(o)?'✓':''}</span>${esc(o)}</div>`).join('');
-  return `<div class="field"><span class="flabel">Значение фиксированной ставки</span>
+  return `<div class="field" data-field="rateValues"><span class="flabel">Значение фиксированной ставки</span>
     <div class="mscombo ${t3comboOpen?'open':''}" id="rateCombo" onclick="t3open(event)">
       ${chips}
       <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
@@ -1273,8 +1301,8 @@ function t3fixed(){
 }
 function t3range(){
   return `<div class="t3-range">
-    ${f('Значение ставки с','rateMin',{})}
-    ${f('Значение ставки по','rateMax',{})}
+    ${f('Значение ставки с','rateMin',{req:true})}
+    ${f('Значение ставки по','rateMax',{req:true})}
   </div>`;
 }
 function t3type(val){ saveTabInputs(); draft.rateType=val; t3comboOpen=false; t3sync(); renderWizBody(); }
@@ -1298,7 +1326,7 @@ function t3unchip(e,i){ e.stopPropagation(); (draft.rateValues||[]).splice(i,1);
    All «Значение»/«Маржа» are free decimals — NOT dropdowns from a fixed list.
    ============================================================ */
 function t4typeSelect(label, key){
-  return `<div class="field"><span class="flabel">${label}</span>
+  return `<div class="field required"><span class="flabel">${label}</span>
     <div class="control"><select data-k="${key}" onchange="t4type('${key}',this.value)">
       <option ${draft[key]==='Фиксированная'?'selected':''}>Фиксированная</option>
       <option ${draft[key]==='Диапазон'?'selected':''}>Диапазон</option>
@@ -1311,13 +1339,13 @@ function renderTab4(){
   const mainRange = draft.penaltyMainType==='Диапазон';
   const intRange  = draft.penaltyIntType==='Диапазон';
   const mainBody = mainRange
-    ? `${lookupF('Тип плавающей штрафной ставки по основной сумме','penaltyMainFloatType','penaltyFloatMain',{hint:'Из справочника «Штрафы за просрочку по осн. сумме»'})}
+    ? `${lookupF('Тип плавающей штрафной ставки по основной сумме','penaltyMainFloatType','penaltyFloatMain',{req:true,hint:'Из справочника «Штрафы за просрочку по осн. сумме»'})}
        ${f('Маржа к плавающей штрафной ставке','penaltyMainMargin',{hint:'Надбавка к плавающей ставке, %'})}`
-    : f('Значение фиксированной штрафной ставки за основную сумму','penaltyMainVal',{hint:'Ставка штрафа, % годовых'});
+    : f('Значение фиксированной штрафной ставки за основную сумму','penaltyMainVal',{req:true,hint:'Ставка штрафа, % годовых'});
   const intBody = intRange
-    ? `${lookupF('Тип плавающей штрафной ставки по процентам','penaltyIntFloatType','penaltyFloatInt',{hint:'Из справочника «Штрафы за просрочку по процентам»'})}
+    ? `${lookupF('Тип плавающей штрафной ставки по процентам','penaltyIntFloatType','penaltyFloatInt',{req:true,hint:'Из справочника «Штрафы за просрочку по процентам»'})}
        ${f('Маржа к плавающей штрафной ставке по процентам','penaltyIntMargin',{hint:'Надбавка к плавающей ставке, %'})}`
-    : f('Значение фиксированной штрафной ставки за проценты','penaltyIntVal',{hint:'Ставка штрафа, % годовых'});
+    : f('Значение фиксированной штрафной ставки за проценты','penaltyIntVal',{req:true,hint:'Ставка штрафа, % годовых'});
   return `<div class="t4-form">
     <div class="t4-top">
       <div class="t4-col">
@@ -1328,7 +1356,7 @@ function renderTab4(){
       <div class="t4-col">
         <div class="section-h">Штраф за просрочку процентов</div>
         <div class="t4-maxpct">
-          ${f('Максимальный размер штрафа','penaltyMaxPct',{})}
+          ${f('Максимальный размер штрафа','penaltyMaxPct',{req:true})}
           <span class="t4-suffix">% от суммы кредита</span>
         </div>
       </div>
@@ -1361,11 +1389,11 @@ function renderTab5(){
     if(draft[ckKey]){
       body = t5typeSelect(`Тип льготного периода ${suf}`, typeKey);
       if(draft[typeKey]==='Фиксированный'){
-        body += msCombo(`Продолжительность льготного периода ${suf} (в мес.)`, durKey, T5_DUR_OPTS, 'Один или несколько сроков из справочника');
+        body += msCombo(`Продолжительность льготного периода ${suf} (в мес.)`, durKey, T5_DUR_OPTS, 'Один или несколько сроков из справочника', true);
       } else if(draft[typeKey]==='Диапазон'){
         body += `<div class="t5-range">
-          ${f('Продолжительность c (в мес.)',durKey+'From',{})}
-          ${f('Продолжительность по (в мес.)',durKey+'To',{})}
+          ${f('Продолжительность c (в мес.)',durKey+'From',{req:true})}
+          ${f('Продолжительность по (в мес.)',durKey+'To',{req:true})}
         </div>`;
       }
       body += f(`Условия предоставления (${suf})`, condKey, {type:'textarea'});
@@ -1383,7 +1411,7 @@ function renderTab5(){
   </div>`;
 }
 function t5typeSelect(label,key){
-  return `<div class="field" data-field="${key}"><span class="flabel">${label}</span>
+  return `<div class="field required" data-field="${key}"><span class="flabel">${label}</span>
     <div class="control"><select data-k="${key}" onchange="t5type('${key}',this.value)">
       <option value="" ${!draft[key]?'selected':''}>— выберите —</option>
       <option ${draft[key]==='Фиксированный'?'selected':''}>Фиксированный</option>
@@ -1394,13 +1422,13 @@ function t5type(key,val){ saveTabInputs(); draft[key]=val; renderWizBody(); }
 
 // generic per-key multi-select chip combo (reusable; tab3 has a single-key variant)
 let msOpen = {};
-function msCombo(label,key,opts,hint){
+function msCombo(label,key,opts,hint,req){
   const vals = draft[key]||[];
   const chips = vals.length
     ? vals.map((v,i)=>`<span class="chip">${esc(v)}<button title="Убрать" onclick="msUnchip(event,'${key}',${i})">✕</button></span>`).join('')
     : `<span class="ph">Выберите…</span>`;
   const o = opts.map(op=>`<div class="opt ${vals.includes(op)?'sel':''}" onclick="msToggle(event,'${key}','${esc(op)}')"><span class="mk">${vals.includes(op)?'✓':''}</span>${esc(op)}</div>`).join('');
-  return `<div class="field" data-field="${key}"><span class="flabel">${label}</span>
+  return `<div class="field${req?' required':''}" data-field="${key}"><span class="flabel">${label}</span>
     <div class="mscombo ${msOpen[key]?'open':''}" onclick="msComboOpen(event,'${key}')">
       ${chips}<span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
       <div class="mscombo-pop">${o}</div>
@@ -1428,20 +1456,20 @@ function renderTab6(){
   const blk=(title,body)=>`<div class="t5-block"><div class="section-h">${title}</div>${body}</div>`;
   const left =
     blk('Периодичность платежей',
-      sel('Периодичность платежей','periodicity',['Ежемесячно','Ежеквартально','Ежегодно']) +
-      msCombo('Конкретные месяцы платежей','payMonths',LK.payMonths,'При Ежекв./Ежегодно')) +
+      sel('Периодичность платежей','periodicity',['Ежемесячно','Ежеквартально','Ежегодно'],{req:true}) +
+      msCombo('Конкретные месяцы платежей','payMonths',LK.payMonths,'При Ежекв./Ежегодно',['Ежеквартально','Ежегодно'].includes(draft.periodicity))) +
     blk('Метод расчета дней',
-      lookupF('Метод расчета дней','dayCount','dayCount',{hint:'Day-count — знаменатель формулы процентов'})) +
+      lookupF('Метод расчета дней','dayCount','dayCount',{req:true,hint:'Day-count — знаменатель формулы процентов'})) +
     blk('Очередь погашения',
-      lookupF('Очередь погашения','queue','queue',{}));
+      lookupF('Очередь погашения','queue','queue',{req:true}));
   const right =
     blk('День платежа',
-      f('День месяца для платежа','payDay',{}) +
+      f('День месяца для платежа','payDay',{req:true}) +
       sel('Обработка выходных дней','weekend',['Переносить на следующий рабочий день','Переносить на предыдущий рабочий день'])) +
     blk('Метод погашения кредита',
-      sel('Метод погашения кредита','repayMethod',['Аннуитетный','Дифференцированный'])) +
+      sel('Метод погашения кредита','repayMethod',['Аннуитетный','Дифференцированный'],{req:true})) +
     blk('Расчеты',
-      lookupF('Тип расчета процентов','interestCalc','interestCalc',{hint:'Формула начисления'})) +
+      lookupF('Тип расчета процентов','interestCalc','interestCalc',{req:true,hint:'Формула начисления'})) +
     blk('Период между освоением и первым платежем',
       f('Минимальное кол-во дней','minDays',{}) +
       f('Максимальное кол-во дней','maxDays',{}));
@@ -1466,29 +1494,25 @@ function renderTab6(){
    «Ответственный за проверку» picker. No required markers (live req=null).
    ============================================================ */
 function renderTab7(){
-  const docList=(sub)=>`<div class="t7-doc">
+  const docList=(sub,key)=>`<div class="t7-doc">
     <div class="t2-sub">${sub}</div>
-    <div class="t2-rowtools">
-      <button class="btn btn-sm btn-rowadd" onclick="toast('Добавление документа — заглушка макета.','info')">${T2_PLUS}Добавить</button>
-      <button class="btn btn-sm btn-rowdel" disabled>${T7_X}Исключить</button>
-    </div>
-    <div class="collgrid t7-grid"><table><thead><tr><th>Наименование<span class="sort">⇅</span></th></tr></thead><tbody></tbody></table></div>
+    ${gridBox(key)}
   </div>`;
   return `<div class="t7">
     <div class="t2-cols t7-cols">
       <div class="t2-col">
         <div class="section-h">Кредитные документы</div>
-        <div class="t7-pair">${docList('Список обязательных кредитных документов')}${docList('Список опциональных кредитных документов')}</div>
+        <div class="t7-pair">${docList('Список обязательных кредитных документов','docCredReq')}${docList('Список опциональных кредитных документов','docCredOpt')}</div>
         ${lookupF('Шаблоны договоров','templates','templates',{})}
         <div class="field ro t7-chosen"><span class="flabel">Выбранные шаблоны</span>
           <textarea class="note-area" readonly placeholder="Шаблоны не выбраны"></textarea></div>
         <div class="t7-note">Выбранные шаблоны сохранятся после нажатия кнопки 'Сохранить'.</div>
       </div>
-      <div class="t2-col">
+      ${draft.collateral ? `<div class="t2-col">
         <div class="section-h">Залоговые документы</div>
-        <div class="t7-pair">${docList('Список обязательных залоговых документов')}${docList('Список опциональных залоговых документов')}</div>
+        <div class="t7-pair">${docList('Список обязательных залоговых документов','docCollReq')}${docList('Список опциональных залоговых документов','docCollOpt')}</div>
         ${f('Требования к оформлению залогового договора','contractReq',{type:'textarea'})}
-      </div>
+      </div>` : `<div class="t2-col t7-collhint"><div class="section-h">Залоговые документы</div><div class="hint">Включите «Требуется залоговое обеспечение» на вкладке «Залоговое обеспечение», чтобы задать залоговые документы.</div></div>`}
     </div>
     <div class="section-h t7-checkhead">Настройка проверки документов</div>
     <div class="t7-check">
@@ -1499,6 +1523,33 @@ function renderTab7(){
   </div>`;
 }
 const T7_X = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>';
+
+/* ---- tab 7/8 row-add grids: «+ Добавить» открывает справочник (collection
+   mode), выбранная запись добавляется строкой; «✕ Исключить» убирает выделенную.
+   Каждая сетка хранит строки в draft[key] (массив); справочник — GRID_KIND[key]. */
+const GRID_KIND = { docCredReq:'docCredit', docCredOpt:'docCredit',
+  docCollReq:'docColl', docCollOpt:'docColl', collTypes:'collKind' };
+let gsel = {};   // { draftKey: выбранный индекс }
+function gridInner(key){
+  const rows=draft[key]||[], sel=gsel[key], gc=key==='collTypes'?'t8-grid':'t7-grid';
+  const body=rows.map((v,i)=>`<tr class="${sel===i?'sel':''}" onclick="gridSel('${key}',${i})"><td title="${esc(v)}">${esc(v)}</td></tr>`).join('');
+  return `<div class="t2-rowtools">
+      <button class="btn btn-sm btn-rowadd" onclick="gridAdd('${key}')">${T2_PLUS}Добавить</button>
+      <button class="btn btn-sm btn-rowdel" ${sel==null?'disabled':''} onclick="gridDel('${key}')">${T7_X}Исключить</button>
+    </div>
+    <div class="collgrid ${gc}"><table><thead><tr><th>Наименование<span class="sort">⇅</span></th></tr></thead><tbody>${body}</tbody></table></div>`;
+}
+function gridBox(key){ return `<div class="grid-box" id="grid_${key}">${gridInner(key)}</div>`; }
+function gridRender(key){ const el=document.getElementById('grid_'+key); if(el) el.innerHTML=gridInner(key); }
+function gridSel(key,i){ gsel[key]=(gsel[key]===i?null:i); gridRender(key); }
+function gridDel(key){ if(gsel[key]==null) return; (draft[key]||[]).splice(gsel[key],1); gsel[key]=null; gridRender(key); toast('Строка исключена.','ok'); }
+function gridAdd(key){
+  openRefDialog(REFBOOKS[GRID_KIND[key]], { mode:'collection',
+    onPick:(label)=>{ draft[key]=draft[key]||[];
+      if(draft[key].includes(label)){ toast('Уже добавлено: '+label,'warn'); }
+      else { draft[key].push(label); toast('Добавлено: '+label,'ok'); } },
+    ret:()=>{ closeModal(); gridRender(key); } });
+}
 
 /* ============================================================
    TAB 8 «Залоговое обеспечение» — faithful clone of live Jmix
@@ -1519,22 +1570,18 @@ function renderTab8(){
         <div class="field t8-need"><span class="flabel">Требуется залоговое обеспечение</span>
           ${check('','collateral')}</div>
       </div>
-      <div class="t2-col">
+      ${draft.collateral ? `<div class="t2-col">
         <div class="section-h">Виды залога</div>
-        <div class="t2-sub">Список видов залога</div>
-        <div class="t2-rowtools">
-          <button class="btn btn-sm btn-rowadd" onclick="toast('Добавление вида залога — заглушка макета.','info')">${T2_PLUS}Добавить</button>
-          <button class="btn btn-sm btn-rowdel" disabled>${T7_X}Исключить</button>
-        </div>
-        <div class="collgrid t8-grid"><table><thead><tr><th>Наименование<span class="sort">⇅</span></th></tr></thead><tbody></tbody></table></div>
-      </div>
+        <div class="t2-sub">Список видов залога (минимум один)</div>
+        ${gridBox('collTypes')}
+      </div>` : ''}
     </div>
-    <div class="section-h t8-reqhead">Требования к залогу</div>
+    ${draft.collateral ? `<div class="section-h t8-reqhead">Требования к залогу</div>
     <div class="t8-req">
-      ${f('Требования к залогу (ру)','collRu',{type:'textarea'})}
-      ${f('Талаптар (кырг)','collKy',{type:'textarea'})}
+      ${f('Требования к залогу (ру)','collRu',{req:true,type:'textarea'})}
+      ${f('Талаптар (кырг)','collKy',{req:true,type:'textarea'})}
       ${f('Requirements (eng)','collEn',{type:'textarea'})}
-    </div>
+    </div>` : ''}
   </div>`;
 }
 
@@ -1547,9 +1594,9 @@ function renderWizBody(){
         <div class="b1grid">
           <div class="b1col">
             ${f('Наименование на русском','nameRu',{req:true})}
-            ${f('Наименование на кыргызском','nameKy')}
+            ${f('Наименование на кыргызском','nameKy',{req:true})}
             ${f('Наименование на английском','nameEn')}
-            ${lookupF('Источник финансирования','source','source',{})}
+            ${lookupF('Источник финансирования','source','source',{req:true})}
           </div>
           <div class="b1col">
             ${f('Краткое описание','shortDesc',{req:true,type:'textarea'})}
@@ -1567,11 +1614,11 @@ function renderWizBody(){
                 ${f('Дата с','dateFrom',{req:true,type:'date',hint:'≥ даты решения'})}
                 ${f('Дата по','dateTo',{req:true,type:'date',hint:'≥ «Дата с»'})}
               </div>
-              ${lookupF('Отрасль','industry','industry',{hint:'Сектор экономики (ОКЭД)'})}
+              ${lookupF('Отрасль','industry','industry',{req:true,hint:'Сектор экономики (ОКЭД)'})}
             </div>
             <div class="pcol">
               ${lookupF('Вид кредита','kind','kind',{req:true,hint:'Какой продукт по структуре'})}
-              ${lookupF('Валюта','currency','currency',{hint:'Сумма и срок зависят от валюты'})}
+              ${lookupF('Валюта','currency','currency',{req:true,hint:'Сумма и срок зависят от валюты'})}
               ${lookupF('Кредитная линия','line','line',{hint:'Конкретный донор внутри источника'})}
               ${lookupF('Вид счета погашения','repayAcct','repayAcct',{})}
             </div>
@@ -1615,6 +1662,7 @@ function renderWizBody(){
   }
   wireDates();
   document.getElementById('btnWizSubmit').style.display = (wizTab===8 && draft.status==='draft') ? 'inline-flex' : 'none';
+  const nx=document.getElementById('btnWizNext'); if(nx) nx.style.display = wizTab<TABS.length-1 ? 'inline-flex' : 'none';
 }
 function lookupDecision(){
   const v=draft.decisionName;
@@ -1658,30 +1706,153 @@ function saveTabInputs(){
 
 /* ---- save (P2-R3 semantics) + validation (P2-R6) ---- */
 const REQUIRED_BY_TAB = {
-  0:['nameRu','shortDesc','decisionId','purpose','kind','dateFrom','dateTo'],
+  0:['nameRu','nameKy','shortDesc','decisionId','source','purpose','kind','currency','industry','dateFrom','dateTo'],
+  5:['periodicity','payDay','dayCount','repayMethod','interestCalc','queue'],
 };
-function validate(){
-  saveTabInputs();
-  const errByTab = {};
-  Object.entries(REQUIRED_BY_TAB).forEach(([ti,keys])=>{
-    errByTab[ti]=keys.filter(k=>!draft[k] && draft[k]!==0).length;
-  });
-  const dec=DECISIONS.find(d=>d.id===draft.decisionId);
-  if(draft.dateFrom&&draft.dateTo&&draft.dateTo<draft.dateFrom) errByTab[0]=(errByTab[0]||0)+1;
-  if(dec&&draft.dateFrom&&draft.dateFrom<dec.date) errByTab[0]=(errByTab[0]||0)+1;
-  return errByTab;
+// ---- per-tab validation (progressive wizard gating) ----
+// validateTab(i): error count for ONE tab = missing simple required keys + per-tab special rules.
+function validateTab(ti){
+  let n=(REQUIRED_BY_TAB[ti]||[]).filter(k=>!draft[k] && draft[k]!==0).length;
+  if(ti===0){
+    const dec=DECISIONS.find(d=>d.id===draft.decisionId);
+    if(draft.dateFrom&&draft.dateTo&&draft.dateTo<draft.dateFrom) n++;
+    if(dec&&draft.dateFrom&&draft.dateFrom<dec.date) n++;
+  }
+  if(ti===1){                                   // финансовое ядро: ≥1 значение суммы И срока
+    t2hydrate();
+    n += t2colInvalid('amount') + t2colInvalid('term');
+  }
+  if(ti===2){                                   // ставка: тип + значение (плавающая — опциональна)
+    t3hydrate();
+    n += t3rateInvalid();
+  }
+  if(ti===3){                                   // штрафы: тип+значение (осн. и проц.) + макс. %
+    n += t4Invalid();
+  }
+  if(ti===4){                                   // льготный период: условный гейт (если блок включён)
+    n += t5Invalid();
+  }
+  if(ti===5){                                   // месяцы платежей обязательны при редкой периодичности
+    if(['Ежеквартально','Ежегодно'].includes(draft.periodicity) && !((draft.payMonths||[]).length)) n++;
+  }
+  if(ti===7){                                   // залоговый гейт: при включённом залоге — виды + требования ру/кырг
+    if(draft.collateral){
+      if(!((draft.collTypes||[]).length)) n++;
+      if(!draft.collRu) n++;
+      if(!draft.collKy) n++;
+    }
+  }
+  return n;
 }
-function applyErrors(errByTab){
+function t5Invalid(){                            // включённый блок требует тип + продолжительность
+  let n=0;
+  [['graceMain','graceMainType','graceMainDur'],
+   ['graceAccr','graceAccrType','graceAccrDur'],
+   ['graceInt','graceIntType','graceIntDur']].forEach(([ck,typeK,durK])=>{
+    if(!draft[ck]) return;                       // блок выключен — свободен
+    if(!draft[typeK]){ n++; return; }            // тип не выбран
+    if(draft[typeK]==='Диапазон'){ if(!(draft[durK+'From'] && draft[durK+'To'])) n++; }
+    else if(!((draft[durK]||[]).length)) n++;    // Фиксированный → ≥1 срок
+  });
+  return n;
+}
+function t3rateInvalid(){
+  let n = ((draft.rateType||'Фиксированная')==='Диапазон')
+    ? ((draft.rateMin&&draft.rateMax)?0:1)
+    : ((draft.rateValues||[]).length?0:1);
+  if(draft.floatRate && !draft.floatType) n++;   // чек «плавающая ставка» → тип обязателен
+  return n;
+}
+function t4side(typeK,valK,floatK){            // Фикс → значение; Диапазон → тип плавающей ставки
+  if((draft[typeK]||'Фиксированная')==='Диапазон') return draft[floatK]?0:1;
+  return draft[valK]?0:1;
+}
+function t4Invalid(){
+  let n = draft.penaltyMaxPct?0:1;             // макс. размер штрафа (% от суммы)
+  n += t4side('penaltyMainType','penaltyMainVal','penaltyMainFloatType');
+  n += t4side('penaltyIntType','penaltyIntVal','penaltyIntFloatType');
+  return n;
+}
+function t2colInvalid(side){
+  const isAmt=side==='amount';
+  const type=draft[isAmt?'amountType':'termType']||'Фиксированная';
+  if(type==='Диапазон'){
+    const min=draft[isAmt?'amountMin':'termMin'], max=draft[isAmt?'amountMax':'termMax'];
+    return (min&&max)?0:1;
+  }
+  return ((isAmt?draft.amountList:draft.termList)||[]).length?0:1;
+}
+function allTabErrors(){ const m={}; TABS.forEach((_,i)=>{ const e=validateTab(i); if(e) m[i]=e; }); return m; }
+// first tab in [0..upto] that still has errors, or null if all clean
+function firstInvalid(upto){ for(let t=0;t<=upto;t++){ if(validateTab(t)>0) return t; } return null; }
+function validate(){ saveTabInputs(); return allTabErrors(); }
+// scope = индекс последней вкладки, для которой показываем счётчик ошибок:
+// только те, что требуются для текущего действия (переход / сохранение / отправка).
+// Дальние ещё не тронутые вкладки счётчик не показывают.
+function applyErrors(errByTab, scope){
+  if(scope==null) scope=TABS.length-1;
   TABS.forEach((_,i)=>{
     const tab=document.getElementById('wtab'+i); if(!tab) return;
-    const n=errByTab[i]||0;
+    const n=(i<=scope) ? (errByTab[i]||0) : 0;
     tab.classList.toggle('has-err', n>0);
     const b=document.getElementById('terr'+i); if(b) b.textContent=n;
   });
   (REQUIRED_BY_TAB[wizTab]||[]).forEach(k=>{
     const fld=document.querySelector(`#wizBody [data-field="${k}"]`);
-    if(fld && !fld.querySelector('input[type="date"]')) fld.classList.toggle('invalid', !draft[k]);
+    if(!fld) return;
+    // даты: пустые подсвечиваем здесь; заполненные валидирует wireDates (правило «≥ даты решения / Дата с»)
+    if(fld.querySelector('input[type="date"]')){ if(!draft[k]) fld.classList.add('invalid'); }
+    else fld.classList.toggle('invalid', !draft[k]);
   });
+  markTabFields(wizTab);
+}
+// Подсветка обязательных полей текущей вкладки по тем же правилам, что и validateTab.
+// mark(key,bad): красная рамка у [data-field]; coll(sel,bad): у коллекционной сетки.
+function markTabFields(ti){
+  const mark=(k,bad)=>{ const f=document.querySelector(`#wizBody [data-field="${k}"]`); if(f) f.classList.toggle('invalid', bad); };
+  const coll=(sel,bad)=>{ const e=document.querySelector(sel); if(e) e.classList.toggle('invalid', bad); };
+  if(ti===1){                                     // Сумма и срок
+    ['amount','term'].forEach(side=>{
+      const isAmt=side==='amount';
+      if((draft[isAmt?'amountType':'termType']||'Фиксированная')==='Диапазон'){
+        mark(isAmt?'amountMin':'termMin', !draft[isAmt?'amountMin':'termMin']);
+        mark(isAmt?'amountMax':'termMax', !draft[isAmt?'amountMax':'termMax']);
+      } else {
+        coll(`#wizBody [data-coll="${side}"]`, !((isAmt?draft.amountList:draft.termList)||[]).length);
+      }
+    });
+  }
+  else if(ti===2){                                // Процентные ставки
+    if((draft.rateType||'Фиксированная')==='Диапазон'){ mark('rateMin', !draft.rateMin); mark('rateMax', !draft.rateMax); }
+    else mark('rateValues', !((draft.rateValues||[]).length));
+    if(draft.floatRate) mark('floatType', !draft.floatType);
+  }
+  else if(ti===3){                                // Штрафы
+    mark('penaltyMaxPct', !draft.penaltyMaxPct);
+    if((draft.penaltyMainType||'Фиксированная')==='Диапазон') mark('penaltyMainFloatType', !draft.penaltyMainFloatType);
+    else mark('penaltyMainVal', !draft.penaltyMainVal);
+    if((draft.penaltyIntType||'Фиксированная')==='Диапазон') mark('penaltyIntFloatType', !draft.penaltyIntFloatType);
+    else mark('penaltyIntVal', !draft.penaltyIntVal);
+  }
+  else if(ti===4){                                // Льготный период (условные блоки)
+    [['graceMain','graceMainType','graceMainDur'],
+     ['graceAccr','graceAccrType','graceAccrDur'],
+     ['graceInt','graceIntType','graceIntDur']].forEach(([ck,typeK,durK])=>{
+      if(!draft[ck]) return;
+      mark(typeK, !draft[typeK]);
+      if(draft[typeK]==='Диапазон'){ mark(durK+'From', !draft[durK+'From']); mark(durK+'To', !draft[durK+'To']); }
+      else if(draft[typeK]==='Фиксированный') mark(durK, !((draft[durK]||[]).length));
+    });
+  }
+  else if(ti===5){                                // Платежи: payMonths условно (прочие — через REQUIRED_BY_TAB)
+    if(['Ежеквартально','Ежегодно'].includes(draft.periodicity)) mark('payMonths', !((draft.payMonths||[]).length));
+  }
+  else if(ti===7){                                // Залог (при включённом чек-боксе)
+    if(draft.collateral){
+      coll('#wizBody #grid_collTypes .collgrid', !((draft.collTypes||[]).length));
+      mark('collRu', !draft.collRu); mark('collKy', !draft.collKy);
+    }
+  }
 }
 function commitDraft(){
   draft.decisionName=decName(draft.decisionId);
@@ -1690,13 +1861,12 @@ function commitDraft(){
   selectedId=editingId;
 }
 function saveProgram(close){
-  const errs=validate();
-  const total=Object.values(errs).reduce((a,b)=>a+b,0);
-  if(total>0){
-    const firstErr=Object.entries(errs).find(([,n])=>n>0);
-    if(firstErr){ wizTab=+firstErr[0]; renderWizTabs(); renderWizBody(); }
-    applyErrors(errs);
-    toast('Заполните обязательные поля — см. красные счётчики на вкладках.','err','Внимание');
+  saveTabInputs();
+  const scope=wizTab;                             // сохранять можно, если вкладки 0..текущая заполнены
+  const bad=firstInvalid(wizTab);
+  if(bad!=null){
+    wizTab=bad; renderWizTabs(); renderWizBody(); applyErrors(allTabErrors(), scope);
+    toast('Заполните обязательные поля этой вкладки — см. красный счётчик.','err','Внимание');
     return;
   }
   commitDraft();
@@ -1705,11 +1875,11 @@ function saveProgram(close){
 }
 function decName(id){ const d=DECISIONS.find(x=>x.id===id); return d?d.name:''; }
 function submitFromWizard(){
-  const errs=validate();
-  if(Object.values(errs).reduce((a,b)=>a+b,0)>0){
-    const firstErr=Object.entries(errs).find(([,n])=>n>0);
-    if(firstErr){ wizTab=+firstErr[0]; renderWizTabs(); renderWizBody(); }
-    applyErrors(errs); toast('Перед отправкой заполните обязательные поля.','err','Внимание'); return;
+  saveTabInputs();
+  const bad=firstInvalid(TABS.length-1);          // отправка — валидируем ВСЕ вкладки
+  if(bad!=null){
+    wizTab=bad; renderWizTabs(); renderWizBody(); applyErrors(allTabErrors());
+    toast('Перед отправкой заполните обязательные поля всех вкладок.','err','Внимание'); return;
   }
   commitDraft(); doSubmit(draft); goList();
 }
@@ -1938,6 +2108,10 @@ const REFBOOKS = {
   interestCalc:{ title:'Тип расчета процентов', cols:[['_label','Наименование']], rows:LK.interestCalc.map(n=>({_id:n,_label:n})) },
   checkLevel:{ title:'Уровень проверки документов', cols:[['_label','Наименование']], rows:LK.checkLevel.map(n=>({_id:n,_label:n})) },
   templates: { title:'Шаблоны договоров', cols:[['_label','Наименование']], rows:LK.templates.map(n=>({_id:n,_label:n})) },
+  // tab 7/8 row-add справочники (документы / виды залога)
+  docCredit: { title:'Кредитные документы', cols:[['_label','Наименование']], rows:LK.docCredit.map(n=>({_id:n,_label:n})) },
+  docColl:   { title:'Залоговые документы', cols:[['_label','Наименование']], rows:LK.docColl.map(n=>({_id:n,_label:n})) },
+  collKind:  { title:'Виды залога', cols:[['_label','Наименование']], rows:LK.collKind.map(n=>({_id:n,_label:n})) },
   // tab 4 «Тип плавающей штрафной ставки» pickers — live dialog «Штрафы за просрочку
   // по осн. сумме» (col «Наименование», 2 строки: кп/56) и «по процентам» (2 строки:
   // 15/LIBOR 6M), captured 2026-06-22, tab4-bothpk.mjs.
