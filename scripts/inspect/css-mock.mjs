@@ -1,7 +1,7 @@
 import { chromium } from 'playwright-core';
 const b=await chromium.launch({channel:'chrome',headless:true});
 const p=await b.newPage({viewport:{width:1400,height:1100}});
-await p.goto('file://'+process.cwd()+'/mockups/loan-program.html');
+await p.goto('file://'+process.cwd()+'/mockups/loan-program/loan-program.html');
 await p.waitForTimeout(300);
 await p.evaluate(()=>openCreate());
 await p.waitForTimeout(300);

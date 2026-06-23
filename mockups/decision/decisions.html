@@ -337,7 +337,16 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
 .field{ display:flex; flex-direction:row; align-items:center; gap:12px; }
 .field > .flabel{ flex:none; width:150px; font:var(--weight-regular) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-muted); }
 .field.required > .flabel{ color:var(--text-muted); }
-.field.required > .flabel::after{ content:""; }
+/* R8: обязательные поля помечены маркером + сохранение блокируется при пустых */
+.field.required > .flabel::after{ content:" \2022"; color:var(--text-link); }
+.control input.invalid{ border-color:var(--asubk-red); box-shadow:0 0 0 2px rgba(224,58,58,0.25); background:var(--surface-card); }
+.lookup.invalid{ border-color:var(--asubk-red); box-shadow:0 0 0 2px rgba(224,58,58,0.25); }
+.form-error{ grid-column:1 / -1; display:none; align-items:flex-start; gap:10px; padding:11px 14px;
+  border-radius:var(--radius-md); background:var(--red-tint); color:#7a2020;
+  font:var(--weight-regular) var(--text-sm)/1.45 var(--asubk-font); }
+.form-error.show{ display:flex; }
+.form-error svg{ flex:none; margin-top:1px; color:var(--asubk-red); }
+.form-error b{ color:#7a2020; }
 .control{ flex:1; min-width:0; position:relative; display:flex; align-items:center; }
 .control input{ width:100%; height:var(--control-h); border-radius:var(--radius-md);
   background:var(--surface-input); color:var(--text-body); font:var(--font-body);
@@ -646,6 +655,10 @@ table.grid tbody tr.sel td{ background:var(--nav-active); }
       <div class="content">
         <div class="tabbody">
           <div class="create-form">
+            <div class="form-error" id="createErr">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+              <span id="createErrText"></span>
+            </div>
             <div class="field required"><span class="flabel">Наименование</span>
               <div class="control"><input type="text" placeholder="Введите наименование решения"></div></div>
             <div class="field required"><span class="flabel">Статус</span>
@@ -1429,6 +1442,16 @@ function createInputs(){
      3 Краткое, 4 Номер */
   return $('createView').querySelectorAll('.create-form .field .control input');
 }
+/* R8: сброс подсветки ошибок и баннера */
+function clearCreateErrors(){
+  $('createErr')?.classList.remove('show');
+  $('createView').querySelectorAll('.invalid').forEach(el => el.classList.remove('invalid'));
+}
+/* живой сброс ошибки поля при правке/выборе значения (input — ручной ввод,
+   change — выбор даты из календаря, который проставляет value программно) */
+['input','change'].forEach(evt => $('createView').addEventListener(evt, e => {
+  if (e.target.value && e.target.value.trim()) e.target.classList.remove('invalid');
+}));
 function openCreate(){
   $('createTitle').textContent = 'Решение правительства';
   createMode = 'create';                               // R3: код генерируется
@@ -1442,6 +1465,7 @@ function openCreate(){
   const note = document.querySelector('#createView .note-area'); if (note) note.value='';
   createDocs = [];                                    // R1: чистый буфер вложений
   renderCreateDocs();
+  clearCreateErrors();                                // R8: чистая форма без подсветки
   selectCreateTab(0);                                 // открываем на «Примечание»
   showView('createView');
   setTimeout(()=>{ const i = $('createView').querySelector('input:not([readonly])'); if (i) i.focus(); }, 0);
@@ -1466,6 +1490,7 @@ function openEdit(){
   const note = document.querySelector('#createView .note-area'); if (note) note.value = r.note || '';   // R6: префилл примечания
   createDocs = (r.docs || []).map(d => ({ ...d }));   // R1: правки буфера, исходник меняется только по OK
   renderCreateDocs();
+  clearCreateErrors();                                // R8: чистая форма без подсветки
   selectCreateTab(0);                                 // открываем на «Примечание»
   showView('createView');
   setTimeout(()=>{ ins[0].focus(); }, 0);
@@ -1475,6 +1500,26 @@ $('createCancel').addEventListener('click', () => showView('listView'));
 $('createOk').addEventListener('click', () => {
   const editing = $('createTitle').textContent.indexOf('Редактирование') === 0;
   const ins = createInputs();   // 0 name, 1 status(ro), 2 code, 3 short, 4 num
+  /* R8: обязательные поля. Код (ins[2]) генерируется системой, статус (ins[1]) readonly —
+     их не проверяем. Проверяем то, что вводит пользователь. */
+  clearCreateErrors();
+  const lkVal = document.querySelector('#createView .lookup .val');
+  const missing = [];
+  const flag = (cond, target, label) => { if (cond){ missing.push(label); if (target) target.classList.add('invalid'); } };
+  flag(!ins[0].value.trim(),        ins[0],               'Наименование');
+  flag(!ins[3].value.trim(),        ins[3],               'Краткое наименование');
+  flag(!ins[4].value.trim(),        ins[4],               'Номер решения');
+  flag(!$('decisionDate').value.trim(), $('decisionDate'),'Дата решения');
+  flag(!(lkVal && lkVal.classList.contains('filled')),
+       document.querySelector('#createView .lookup'),     'Вид решения');
+  if (missing.length){
+    $('createErrText').innerHTML = 'Заполните обязательные поля: <b>' + missing.join('</b>, <b>') + '</b>.';
+    $('createErr').classList.add('show');
+    selectCreateTab(0);
+    const first = $('createView').querySelector('.invalid');
+    if (first){ (first.matches('input') ? first : first.querySelector('input,button'))?.focus(); }
+    return;
+  }
   /* R5: серверная страховка — «Дата решения» не может быть в будущем (дублирует клиентский календарь) */
   const dStr = $('decisionDate').value.trim();
   const dm = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(dStr);
@@ -1524,7 +1569,7 @@ const KINDS = [...new Set(DATA.map(d => d.kind).filter(Boolean))];
   btns[0].addEventListener('click', () =>
     openEntityLookup({ title:'Вид решения', col:'Наименование', options:KINDS,
       current: val.classList.contains('filled') ? val.textContent.trim() : null,
-      onSelect:v => { val.textContent = v; val.classList.add('filled'); updateCodePreview(); } }));   // R3
+      onSelect:v => { val.textContent = v; val.classList.add('filled'); lk.classList.remove('invalid'); updateCodePreview(); } }));   // R3 + R8 сброс ошибки
   btns[1].addEventListener('click', () => { val.textContent = 'Выберите вид решения…'; val.classList.remove('filled'); updateCodePreview(); });
 })();
 /* R3: дата меняется → пересчёт предпросмотра кода (год берётся из даты) */
