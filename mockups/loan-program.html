@@ -314,6 +314,15 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .t8-reqhead{ margin-top:8px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
 .t8-req{ display:grid; grid-template-columns:repeat(3,1fr); gap:0 24px; margin-top:18px; }
 .t8-req .note-area{ min-height:120px; }
+/* tab 9 «Предпросмотр» (read-only summary) */
+.t9{ max-width:1340px; padding:16px 24px; }
+.t9 .section-h{ margin:0 0 18px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+.t9-grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px 32px; margin-bottom:26px; }
+.t9-cols{ max-width:none; padding:0; margin-bottom:26px; }
+.t9-cols .t2-col{ gap:14px; }
+.t9-cols .t2-col .section-h{ margin:0; }
+.t9 .pv-suf{ position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--text-muted); font:var(--weight-medium) 14px/1 var(--asubk-font); pointer-events:none; }
+.t9 .field.ro .control input{ padding-right:60px; }
 .t2-type{ margin-bottom:22px; }
 .t2-sub{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:4px 0 10px; }
 .t2-rowtools{ display:flex; gap:8px; margin-bottom:8px; }
@@ -1615,12 +1624,6 @@ function lookupDecision(){
       <button title="Очистить" onclick="clearLookup('decisionId')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
     </div><span class="hint">Только одобренные решения (P2-R9)</span><span class="err">Обязательное поле</span></div>`;
 }
-function miniGrid(title, rows){
-  return `<div class="mini-grid"><table><thead><tr><th>${title}</th></tr></thead><tbody>
-    ${rows.map(r=>`<tr><td>${esc(r)}</td></tr>`).join('')}</tbody></table>
-    <div class="grid-actions"><button class="btn btn-ghost btn-sm" onclick="toast('Добавление строки — заглушка макета.','info')">+ Добавить</button>
-    <button class="btn btn-ghost btn-sm" onclick="toast('Удаление строки — заглушка макета.','info')">Исключить</button></div></div>`;
-}
 
 // P2-R2 date validation -----------------------------------------
 function wireDates(){
@@ -1712,26 +1715,68 @@ function submitFromWizard(){
 }
 
 /* ---- preview tab (read-only roll-up) ---- */
+/* TAB 9 «Предпросмотр» — faithful clone of live Jmix
+   (проверено 2026-06-23, scripts/inspect/tab9-full.mjs + tab9-labels.mjs,
+   .auth/t9-default.png). Read-only summary, all fields disabled (grey, label
+   above). 4 fs22 sections: «Сводная информация о программе» (3-col, 9 fields)
+   → «Финансовые параметры» | «Условия погашения» (2-col) → «Требуемые
+   документы» | «Настройки проверки» (2-col). «Фиксированные суммы»/«Сроки
+   кредита» carry KGS / «месяцев» unit suffixes. Bottom-right green «Отправить
+   на подтверждение» = btnWizSubmit. */
 function previewHtml(){
   const d=draft;
-  const row=(k,v)=>`<div class="row"><div class="k">${k}</div><div class="v">${v?esc(v):'—'}</div></div>`;
-  return `<div style="padding:8px 24px 0">
-    <div class="card"><div class="card-h">Сводная информация о программе</div><div class="kv">
-      ${row('Наименование (рус)',d.nameRu)}${row('Статус',STATUS[d.status].label)}
-      ${row('Решение правительства',d.decisionName||decName(d.decisionId))}${row('Источник финансирования',d.source)}
-      ${row('Назначение кредита',d.purpose)}${row('Вид кредита',d.kind)}
-      ${row('Валюта',d.currency)}${row('Период',d.dateFrom?fmtDate(d.dateFrom)+' – '+fmtDate(d.dateTo):'')}
-    </div></div>
-    <div class="card" style="margin-top:14px"><div class="card-h">Финансовые параметры</div><div class="kv">
-      ${row('Тип суммы',d.amountType)}${row('Сумма',d.amounts)}
-      ${row('Срок (мес.)',d.terms)}${row('Тип ставки',d.rateType)}
-      ${row('Ставка',d.rateValue)}${row('Плавающая ставка',d.floatRate?'Да':'Нет')}
-    </div></div>
-    <div class="card" style="margin-top:14px"><div class="card-h">Условия погашения</div><div class="kv">
-      ${row('Периодичность',d.periodicity)}${row('День платежа',d.payDay)}
-      ${row('Метод погашения',d.repayMethod)}${row('Тип расчёта процентов',d.interestCalc)}
-      ${row('Метод расчёта дней',d.dayCount)}${row('Очередь погашения',d.queue)}
-    </div></div>
+  const dec=DECISIONS.find(x=>x.id===d.decisionId);
+  const decNo = dec ? ((dec.name.match(/№\s?([\wА-Яа-я.\-\/]+)/)||[])[1]||'') : '';
+  const decDate = dec ? fmtDate(dec.date) : '';
+  const pv=(label,val,suf)=>`<div class="field ro"><span class="flabel">${label}</span>
+    <div class="control">${suf?`<span class="pv-suf">${esc(suf)}</span>`:''}<input type="text" value="${val?esc(val):''}" readonly></div></div>`;
+  const grace=[d.graceMain&&'осн. сумма',d.graceAccr&&'начисление %',d.graceInt&&'проценты'].filter(Boolean).join(', ');
+  const penalty=d.penaltyMainVal||(d.penaltyMainType==='Диапазон'?'Диапазон':d.penaltyMainType)||'';
+  return `<div class="t9">
+    <div class="section-h">Сводная информация о программе</div>
+    <div class="t9-grid3">
+      ${pv('Наименование на русском',d.nameRu)}
+      ${pv('Статус',STATUS[d.status]&&STATUS[d.status].label)}
+      ${pv('Решение правительства',d.decisionName||decName(d.decisionId))}
+      ${pv('Наименование на кыргызском',d.nameKy)}
+      ${pv('Ответственные сотрудники',d.staffMain)}
+      ${pv('Номер решения',decNo)}
+      ${pv('Наименование на английском',d.nameEn)}
+      ${pv('Дата создания',d.createdAt?fmtDate(d.createdAt):'')}
+      ${pv('Дата решения',decDate)}
+    </div>
+    <div class="t2-cols t9-cols">
+      <div class="t2-col">
+        <div class="section-h">Финансовые параметры</div>
+        ${pv('Фиксированные суммы',d.amounts,d.currency)}
+        ${pv('Сроки кредита',d.terms,'месяцев')}
+        ${pv('Тип основной ставки',d.rateType)}
+        ${pv('Метод погашения кредита',d.repayMethod)}
+        ${pv('Штрафы',penalty)}
+        ${pv('Льготный период',grace)}
+      </div>
+      <div class="t2-col">
+        <div class="section-h">Условия погашения</div>
+        ${pv('Периодичность платежей',d.periodicity)}
+        ${pv('Метод расчета дней',d.dayCount)}
+        ${pv('Очередь погашения',d.queue)}
+        ${pv('День месяца для платежа',d.payDay)}
+        ${pv('Обработка выходных дней',d.weekend)}
+      </div>
+    </div>
+    <div class="t2-cols t9-cols">
+      <div class="t2-col">
+        <div class="section-h">Требуемые документы</div>
+        ${pv('Кредитные документы','')}
+        ${pv('Залоговые документы','')}
+      </div>
+      <div class="t2-col">
+        <div class="section-h">Настройки проверки</div>
+        ${pv('Уровень проверки документов',d.checkLevel)}
+        ${pv('Срок проверки документов (в днях)',d.checkDays)}
+        ${pv('Ответственный за проверку документов',d.checkResp)}
+      </div>
+    </div>
   </div>`;
 }
 
