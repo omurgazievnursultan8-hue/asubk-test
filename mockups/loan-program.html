@@ -305,6 +305,15 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .t7-note{ font:var(--weight-regular) 13px/1.4 var(--asubk-font); color:var(--text-body); margin-top:8px; }
 .t7-checkhead{ margin-top:8px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
 .t7-check{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px 32px; margin-top:18px; max-width:1100px; }
+/* tab 8 «Залоговое обеспечение» */
+.t8{ max-width:1340px; padding:16px 24px; }
+.t8-cols{ max-width:none; padding:0; }
+.t8-cols .t2-col{ gap:0; }
+.t8-need .check{ margin-top:4px; }
+.t8-grid{ min-height:220px; }
+.t8-reqhead{ margin-top:8px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+.t8-req{ display:grid; grid-template-columns:repeat(3,1fr); gap:0 24px; margin-top:18px; }
+.t8-req .note-area{ min-height:120px; }
 .t2-type{ margin-bottom:22px; }
 .t2-sub{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:4px 0 10px; }
 .t2-rowtools{ display:flex; gap:8px; margin-bottom:8px; }
@@ -1482,6 +1491,44 @@ function renderTab7(){
 }
 const T7_X = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>';
 
+/* ============================================================
+   TAB 8 «Залоговое обеспечение» — faithful clone of live Jmix
+   (проверено 2026-06-23, scripts/inspect/tab8-full.mjs, .auth/t8-default.png).
+   Layout is FIXED — fields are NOT conditional on the checkbox (live default ==
+   all-checked dump, identical). Two fs22 sections side by side:
+     L «Требуется залоговое обеспечение» — label above + bare checkbox.
+     R «Виды залога» — 18px subhead «Список видов залога» + «+Добавить /
+        ✕Исключить» + wide bordered grid, single «Наименование» col, empty.
+   Full-width fs22 «Требования к залогу» = 3 textareas in a row
+   (ру | кырг | eng). No required markers (live req=null on all).
+   ============================================================ */
+function renderTab8(){
+  return `<div class="t8">
+    <div class="t2-cols t8-cols">
+      <div class="t2-col">
+        <div class="section-h">Требуется залоговое обеспечение</div>
+        <div class="field t8-need"><span class="flabel">Требуется залоговое обеспечение</span>
+          ${check('','collateral')}</div>
+      </div>
+      <div class="t2-col">
+        <div class="section-h">Виды залога</div>
+        <div class="t2-sub">Список видов залога</div>
+        <div class="t2-rowtools">
+          <button class="btn btn-sm btn-rowadd" onclick="toast('Добавление вида залога — заглушка макета.','info')">${T2_PLUS}Добавить</button>
+          <button class="btn btn-sm btn-rowdel" disabled>${T7_X}Исключить</button>
+        </div>
+        <div class="collgrid t8-grid"><table><thead><tr><th>Наименование<span class="sort">⇅</span></th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+    <div class="section-h t8-reqhead">Требования к залогу</div>
+    <div class="t8-req">
+      ${f('Требования к залогу (ру)','collRu',{type:'textarea'})}
+      ${f('Талаптар (кырг)','collKy',{type:'textarea'})}
+      ${f('Requirements (eng)','collEn',{type:'textarea'})}
+    </div>
+  </div>`;
+}
+
 function renderWizBody(){
   let h='';
   if(wizTab===0){
@@ -1545,18 +1592,7 @@ function renderWizBody(){
   } else if(wizTab===6){
     h = renderTab7();
   } else if(wizTab===7){
-    const on = draft.collateral;
-    h = `<div class="subgrid">
-      <div class="col-span">${check('Требуется залоговое обеспечение','collateral')}</div>
-      ${on?`
-        <div class="section-h col-span">Виды залога</div>
-        <div class="col-span">${miniGrid('Список видов залога',['Недвижимость','Транспорт'])}</div>
-        <div class="section-h col-span">Требования к залогу</div>
-        ${f('Требования к залогу (ру)','collRu',{req:true,type:'textarea',span:true})}
-        ${f('Талаптар (кырг)','collKy',{req:true,type:'textarea',span:true})}
-        ${f('Requirements (eng)','collEn',{type:'textarea',span:true})}
-      `:`<div class="col-span"><div class="note-banner"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><span>Залоговые поля скрыты — включите «Требуется залоговое обеспечение», чтобы заполнить виды и требования к залогу.</span></div></div>`}
-    </div>`;
+    h = renderTab8();
   } else if(wizTab===8){
     h = previewHtml();
   }
