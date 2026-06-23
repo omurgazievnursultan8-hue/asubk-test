@@ -17,14 +17,14 @@
 - Скрипты переиспользуют auth-профиль `.auth/profile`, логинятся сами (паттерн `scripts/inspect/login.mjs`).
 - Стенд мутирует реальные тест-данные — created records линяют, чистить не нужно.
 - Шаблон файла этапа (7 разделов): 1) Назначение · 2) Экраны (URL) · 3) Поля (таблица `поле·тип·обяз.·справочник·описание`) · 4) Функции/действия · 5) Бизнес-правила и расчёты (формула + числовой пример) · 6) Статусная модель · 7) Связи.
-- Маршруты по этапам (рабочая гипотеза, уточняется при инспекции):
-  - 01 Госрешение — `/decisions`
-  - 02 Кред. программа — `/loan-programs`
-  - 03 Заявка/комиссия — `/applications`
-  - 04 Заёмщик — `/borrowers`
-  - 05 Кредит — `/loansCredit`, `/loan-credits/{id}`
-  - 06 Транши/освоение — `/sub-loans`, `/disbursements`
-  - 07 Обслуживание — `/payments`, `/loan-reserves`, `/loan-ledgers`
+- Маршруты по этапам (ВЕРИФИЦИРОВАНЫ дамп-скриптом 2026-06-23):
+  - 01 Госрешение — `gov-decisions`
+  - 02 Кред. программа — `loan-programs`
+  - 03 Заявка/комиссия — `loan-applications`, `loan-application-commissions`, деталь `loan-applications/{id}`
+  - 04 Заёмщик — `loan-applicants`, деталь `loan-applicants/{id}`
+  - 05 Кредит — `loansCredit`, `loan-credits/{id}`
+  - 06 Транши/освоение — `sub-loans`, `disbursements`
+  - 07 Обслуживание — `payments`, `loan-reserves`, `loan-ledgers`
 
 ---
 
@@ -138,7 +138,7 @@ git commit -m "tz: add reusable dump script + tz/ skeleton"
 
 ---
 
-### Task 2: Раздел 01 — Госрешение (`/decisions`)
+### Task 2: Раздел 01 — Госрешение (`gov-decisions`)
 
 **Files:**
 - Create: `requirements/tz/01-gosreshenie.md`
@@ -151,7 +151,7 @@ git commit -m "tz: add reusable dump script + tz/ skeleton"
 
 Run:
 ```bash
-node scripts/inspect/tz/dump.mjs decisions
+node scripts/inspect/tz/dump.mjs gov-decisions
 ```
 Открыть форму создания вручную в том же скрипте при необходимости (адаптировать: после навигации кликнуть «Создать», дамп полей). Зафиксировать: кнопки тулбара, колонки списка, поля формы + обязательность, статусную модель решения (из `requirements/features/01-government-decision.md` — 6-статусная модель, сверить с live).
 
@@ -231,7 +231,7 @@ git commit -m "tz: write section 02 — loan program (as-is)"
 
 ---
 
-### Task 4: Раздел 03 — Заявка / комиссия (`/applications`) — ПРИОРИТЕТ
+### Task 4: Раздел 03 — Заявка / комиссия (`loan-applications`) — ПРИОРИТЕТ
 
 **Files:**
 - Create: `requirements/tz/03-zayavka-komissiya.md`
@@ -244,8 +244,12 @@ git commit -m "tz: write section 02 — loan program (as-is)"
 
 - [ ] **Step 1: Инспекция списка заявок, формы создания, экрана комиссии**
 
-Run: `node scripts/inspect/tz/dump.mjs applications`
-Зафиксировать: поля заявки, статусы заявки (Одобрено/Отклонено/На рассмотрении), связь с госрешением и программой, механику комиссии и переход к кредиту, график погашений на уровне заявки.
+Run:
+```bash
+node scripts/inspect/tz/dump.mjs loan-applications
+node scripts/inspect/tz/dump.mjs loan-application-commissions
+```
+Зафиксировать: поля заявки, статусы заявки (Одобрено/Отклонено/На рассмотрении), связь с госрешением и программой, механику комиссии (`loan-application-commissions`) и переход к кредиту, график погашений на уровне заявки. Деталь — `loan-applications/{id}`.
 
 - [ ] **Step 2: Написать `requirements/tz/03-zayavka-komissiya.md`** по 7-пунктному шаблону. В разделе 5 описать расчёт графика на уровне заявки; в разделе 6 — статусную модель заявки; в разделе 7 — переход заявка→кредит.
 
@@ -260,7 +264,7 @@ git commit -m "tz: write section 03 — application/commission (as-is)"
 
 ---
 
-### Task 5: Раздел 04 — Заёмщик (`/borrowers`) — ПРИОРИТЕТ
+### Task 5: Раздел 04 — Заёмщик (`loan-applicants`) — ПРИОРИТЕТ
 
 **Files:**
 - Create: `requirements/tz/04-zaemshchik.md`
@@ -271,8 +275,8 @@ git commit -m "tz: write section 03 — application/commission (as-is)"
 
 - [ ] **Step 1: Инспекция списка заёмщиков + карточки**
 
-Run: `node scripts/inspect/tz/dump.mjs borrowers`
-Зафиксировать: поля заёмщика (физ/юр лицо, ПИН/ИНН, реквизиты), типы, связь с заявками/кредитами.
+Run: `node scripts/inspect/tz/dump.mjs loan-applicants`
+Зафиксировать: поля заёмщика (физ/юр лицо, ПИН/ИНН, реквизиты), типы, связь с заявками/кредитами. Деталь — `loan-applicants/{id}`.
 
 - [ ] **Step 2: Написать `requirements/tz/04-zaemshchik.md`** по 7-пунктному шаблону.
 
