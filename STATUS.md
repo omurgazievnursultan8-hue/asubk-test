@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-06-23 (loan-program mockup: full 9-tab wizard clone) — _(update this date every time you edit)_
+> Last updated: 2026-06-23 (tz: synthesize index — data model, glossary, назначение, архитектура) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,7 +38,14 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
-- 2026-06-23 — Loan-program mockup (`mockups/loan-program.html`): finished the
+- 2026-06-23 — Написано ТЗ as-is подсистемы кредитования (`requirements/tz/`): головной index + 7 разделов по этапам жизненного цикла, полная live-ре-инспекция.
+- 2026-06-23 — Loan-program mockup (`mockups/loan-program/loan-program.html`): **applied P2-R1
+  field visual semantics** — flipped every editable control (input/select/textarea/
+  lookup/mscombo) from the live grey "filled" look (defect P2-01) to **white bg +
+  full border**; read-only/computed fields (Предпросмотр tab, «Выбранные шаблоны»,
+  «Валюта» …) to **grey, no border**; required fields keep the red `*` shown
+  immediately on open. Verified across tabs 1/7/9 (`.auth/p2r1-tab{1,7,9}.png`).
+- 2026-06-23 — Loan-program mockup (`mockups/loan-program/loan-program.html`): finished the
   add-form wizard clone — tabs 6 «Платежи и расчеты», 7 «Документы», 8
   «Залоговое обеспечение», 9 «Предпросмотр» now match live Jmix 1:1 (inspect
   scripts `scripts/inspect/tab6-9*.mjs`, screenshots in `.auth/`). All 9 tabs
