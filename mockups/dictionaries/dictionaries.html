@@ -516,6 +516,10 @@ document.getElementById('nav-filter').addEventListener('input',e=>{
     document.getElementById('sec-'+d.route).style.display=hit?'':'none';
     document.querySelector('.nav-item[data-route="'+d.route+'"]').style.display=hit?'':'none';
   });
+  document.querySelectorAll('.nav-group').forEach(g => {
+    const visible = [...g.querySelectorAll('.nav-item')].some(a => a.style.display !== 'none');
+    g.style.display = visible ? '' : 'none';
+  });
 });
 </script>
 
