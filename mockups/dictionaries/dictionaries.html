@@ -160,6 +160,16 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .badge.archived{ color:var(--text-disabled); background:var(--asubk-gray-200); }
 .badge.info{ color:var(--status-info); background:var(--status-info-bg); }
 
+/* ---- Task 5: nav groups + items ---- */
+.nav-grp-label{ font:var(--weight-semibold) 13px/1 var(--asubk-font);
+  color:var(--text-muted); padding:10px 12px 4px; }
+.nav-item{ display:block; padding:6px 16px; font:var(--font-label);
+  color:var(--text-body); text-decoration:none; border-radius:var(--radius-md);
+  margin:0 4px 1px; transition:background 100ms ease; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; }
+.nav-item:hover{ background:var(--surface-hover); }
+.nav-item.active{ background:var(--asubk-nav-active); color:var(--asubk-blue); font-weight:var(--weight-medium); }
+
 /* ---- Task 3: render-engine additions ---- */
 .arch-chip{ font:600 12px/1 var(--asubk-font); padding:3px 7px; border-radius:var(--radius-pill);
   background:var(--asubk-blue-tint); color:var(--asubk-link); }
@@ -467,6 +477,46 @@ function renderSections(){
   document.getElementById('topbar-count').textContent = DICTS.length+' справочников';
 }
 renderSections();
+
+// ── Task 5: nav groups, renderNav, scroll-spy, filter ──────────────────────
+const GROUPS = [
+  {id:'dec', label:'Решения и получатели'},{id:'src', label:'Источники, валюты, кредит'},
+  {id:'rate',label:'Ставки'},{id:'calc',label:'Платежи и расчёты'},
+  {id:'agr', label:'Договоры и залог'},{id:'subj',label:'Субъекты и заёмщик'},
+  {id:'loan',label:'Кредит и график'},{id:'goods',label:'Товары и счета'},
+  {id:'picker',label:'Picker-only (нет в меню)'},
+];
+function renderNav(){
+  const nav=document.getElementById('nav');
+  nav.innerHTML=GROUPS.map(g=>{
+    const items=DICTS.filter(d=>d.group===g.id).map(d=>
+      `<a class="nav-item" href="#sec-${d.route}" data-route="${d.route}">${d.title}</a>`).join('');
+    return `<div class="nav-group"><div class="nav-grp-label">${g.label}</div>${items}</div>`;
+  }).join('');
+  nav.querySelectorAll('.nav-item').forEach(a=>a.addEventListener('click',e=>{
+    e.preventDefault();
+    document.getElementById('sec-'+a.dataset.route).scrollIntoView({behavior:'smooth',block:'start'});
+  }));
+}
+renderNav();
+
+const spy=new IntersectionObserver(es=>{
+  es.forEach(en=>{ if(en.isIntersecting){
+    document.querySelectorAll('.nav-item.active').forEach(x=>x.classList.remove('active'));
+    const a=document.querySelector('.nav-item[data-route="'+en.target.dataset.route+'"]');
+    if(a){a.classList.add('active'); a.scrollIntoView({block:'nearest'});}
+  }});
+},{rootMargin:'-10% 0px -80% 0px'});
+document.querySelectorAll('.section').forEach(s=>spy.observe(s));
+
+document.getElementById('nav-filter').addEventListener('input',e=>{
+  const q=e.target.value.trim().toLowerCase();
+  DICTS.forEach(d=>{
+    const hit=d.title.toLowerCase().includes(q)||d.route.toLowerCase().includes(q);
+    document.getElementById('sec-'+d.route).style.display=hit?'':'none';
+    document.querySelector('.nav-item[data-route="'+d.route+'"]').style.display=hit?'':'none';
+  });
+});
 </script>
 
 </body>
