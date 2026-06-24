@@ -154,6 +154,22 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .badge.active{ color:var(--status-success); background:var(--status-success-bg); }
 .badge.archived{ color:var(--text-disabled); background:var(--asubk-gray-200); }
 .badge.info{ color:var(--status-info); background:var(--status-info-bg); }
+
+/* ---- Task 3: render-engine additions ---- */
+.section-head{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.section-head h2{ font:var(--font-page-title); color:var(--text-heading); margin:0; }
+.arch-chip{ font:600 12px/1 var(--asubk-font); padding:3px 7px; border-radius:var(--radius-pill);
+  background:var(--asubk-blue-tint); color:var(--asubk-link); }
+.arch-chip.r{ background:var(--asubk-green-tint); color:var(--asubk-green); }
+.slug{ font:400 13px/1 ui-monospace,monospace; color:var(--text-muted); }
+.row-count{ margin-left:auto; font:var(--font-label); color:var(--text-muted); }
+.badge{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill); font:500 13px/1.4 var(--asubk-font); }
+.badge.success{ background:var(--status-success-bg); color:var(--status-success); }
+.badge.warning{ background:var(--status-warning-bg); color:var(--status-warning); }
+.badge.info{ background:var(--status-info-bg); color:var(--status-info); }
+.badge.error{ background:var(--status-error-bg); color:var(--status-error); }
+.empty-note{ padding:14px 16px; color:var(--text-muted); border:1px dashed var(--border-default);
+  border-radius:var(--radius-md); }
 </style>
 </head>
 <body>
@@ -173,7 +189,50 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
   </main>
 </div>
 <div id="modal-root"></div>
-<script>/* DICTS + engine — следующие задачи */</script>
+<script>
+const STATUS_KIND = { // текст статуса → класс бейджа
+  'Активный':'success','Активная':'success','Действует':'success','Одобрен':'success',
+  'Неактивный':'warning','Закрыт':'warning','Черновик':'info','На рассмотрении':'info','Отклонён':'error',
+};
+const badge = t => `<span class="badge ${STATUS_KIND[t]||'info'}">${t}</span>`;
+const isStatusCol = name => /статус/i.test(name);
+
+const DICTS = [
+  { route:'loan-types', title:'Вид кредита', archetype:'S', group:'src',
+    columns:['Наименование'],
+    rows:[['Бюджетная ссуда'],['Бюджетный кредит'],['ЮСАИД'],['МАР'],
+          ['Фонд развития регионов'],['Имущественные активы']], total:6 },
+];
+
+function sectionHTML(d){
+  const head = `<div class="section-head">
+    <h2>${d.title}</h2>
+    <span class="arch-chip ${d.archetype==='R'?'r':''}">${d.archetype}</span>
+    <span class="slug">${d.route}</span>
+    <span class="row-count">${d.note || (d.total+' строк')}</span></div>`;
+  const toolbar = `<div class="toolbar">
+    <button class="btn primary" data-act="create">Создать</button>
+    <button class="btn" data-act="edit">Изменить</button>
+    <button class="btn" data-act="view">Просмотр</button>
+    <button class="btn" data-act="delete">Удалить</button>
+    <button class="btn ghost" data-act="filter">+ Добавить условие поиска</button></div>`;
+  let grid;
+  if(!d.rows.length){ grid = `<div class="empty-note">Справочник не наполнен</div>`; }
+  else {
+    const th = d.columns.map(c=>`<th>${c}</th>`).join('');
+    const tr = d.rows.map((r,i)=>`<tr data-i="${i}">`+
+      r.map((c,ci)=> isStatusCol(d.columns[ci]) ? `<td>${badge(c)}</td>` : `<td>${c}</td>`).join('')
+      +`</tr>`).join('');
+    grid = `<table class="grid"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
+  }
+  return `<section class="section" id="sec-${d.route}" data-route="${d.route}">${head}${toolbar}${grid}</section>`;
+}
+function renderSections(){
+  document.getElementById('dict-list').innerHTML = DICTS.map(sectionHTML).join('');
+  document.getElementById('topbar-count').textContent = DICTS.length+' справочников';
+}
+renderSections();
+</script>
 
 </body>
 </html>
