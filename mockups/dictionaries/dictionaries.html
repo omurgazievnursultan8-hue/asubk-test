@@ -347,8 +347,8 @@ const DICTS = [
   { route:'agreement-templates', title:'Шаблоны договоров', archetype:'S', group:'agr',
     columns:['Наименование','Тип','Статус'],
     rows:[
-      ['Стандартный шаблон 2024','CREDIT','VALID'],
-      ['Тестовый шаблон 2','CREDIT','VALID']],
+      ['Стандартный шаблон 2024','Кредитный','Действует'],
+      ['Тестовый шаблон 2','Кредитный','Действует']],
     total:2 },
   { route:'agreement-template-codes', title:'Справочник кодов шаблонов', archetype:'S', group:'agr',
     columns:['Код','Наименование'],
@@ -477,7 +477,7 @@ const cellHTML = (d,c,ci) => (d.statusDict || isStatusCol(d.columns[ci])) ? `<td
 
 function sectionHTML(d){
   const head = `<div class="section-head">
-    <h2>${d.title}</h2>
+    <h2>${esc(d.title)}</h2>
     <span class="arch-chip ${d.archetype==='R'?'r':''}">${d.archetype}</span>
     <span class="slug">${d.route}</span>
     <span class="row-count">${d.note || (d.total+' строк')}</span></div>`;
@@ -493,7 +493,7 @@ function sectionHTML(d){
   let grid;
   if(!d.rows.length){ grid = `<div class="empty-note">Справочник не наполнен</div>`; }
   else {
-    const th = d.columns.map(c=>`<th>${c}</th>`).join('');
+    const th = d.columns.map(c=>`<th>${esc(c)}</th>`).join('');
     const tr = d.rows.map((r,i)=>`<tr data-i="${i}">`+
       r.map((c,ci)=> cellHTML(d,c,ci)).join('')
       +`</tr>`).join('');
@@ -519,8 +519,8 @@ function renderNav(){
   const nav=document.getElementById('nav');
   nav.innerHTML=GROUPS.map(g=>{
     const items=DICTS.filter(d=>d.group===g.id).map(d=>
-      `<a class="nav-item" href="#sec-${d.route}" data-route="${d.route}">${d.title}</a>`).join('');
-    return `<div class="nav-group"><div class="nav-grp-label">${g.label}</div>${items}</div>`;
+      `<a class="nav-item" href="#sec-${d.route}" data-route="${d.route}">${esc(d.title)}</a>`).join('');
+    return `<div class="nav-group"><div class="nav-grp-label">${esc(g.label)}</div>${items}</div>`;
   }).join('');
   nav.querySelectorAll('.nav-item').forEach(a=>a.addEventListener('click',e=>{
     e.preventDefault();
@@ -546,9 +546,9 @@ function openModal(route,mode,i){
   const ro = mode==='view';
   const fields=d.columns.map((c,ci)=>`<div class="field"><label>${esc(c)}</label>
     <input value="${esc(row[ci])}" ${ro?'readonly':''}></div>`).join('');
-  const title={view:'Просмотр',edit:'Изменить',create:'Создать'}[mode]+' — '+d.title;
+  const title={view:'Просмотр',edit:'Изменить',create:'Создать'}[mode]+' — '+esc(d.title);
   document.getElementById('modal-root').innerHTML=`<div class="modal-overlay">
-    <div class="modal"><div class="modal-head">${title}</div>
+    <div class="modal"><div class="modal-head">${esc(title)}</div>
     <div class="modal-body">${fields}</div>
     <div class="modal-foot">${ro?'':'<button class="btn primary" data-m="save">Сохранить</button>'}
       <button class="btn" data-m="close">${ro?'Закрыть':'Отмена'}</button></div></div></div>`;
@@ -559,9 +559,9 @@ function openModal(route,mode,i){
 
 function openPicker(route){
   const d=DICTS.find(x=>x.route===route);
-  const rows=d.rows.map((r,i)=>`<label class="picker-row"><input type="radio" name="pick"><span>${r.join(' · ')}</span></label>`).join('');
+  const rows=d.rows.map((r,i)=>`<label class="picker-row"><input type="radio" name="pick"><span>${r.map(esc).join(' · ')}</span></label>`).join('');
   document.getElementById('modal-root').innerHTML=`<div class="modal-overlay">
-    <div class="modal picker"><div class="modal-head">Выбор: ${d.title}</div>
+    <div class="modal picker"><div class="modal-head">Выбор: ${esc(d.title)}</div>
     <div class="modal-body">${rows||'<div class="empty-note">нет значений</div>'}</div>
     <div class="modal-foot"><button class="btn primary" data-m="ok">Выбрать</button>
     <button class="btn" data-m="close">Отмена</button></div></div></div>`;
