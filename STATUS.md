@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-06-23 (ТЗ кредитования: index + 7 разделов) — _(update this date every time you edit)_
+> Last updated: 2026-06-24 (dictionaries showcase mockup complete) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,6 +38,7 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-06-24 — Dictionaries showcase mockup (`mockups/dictionaries/dictionaries.html`) complete: 50 sections, toolbar/grid/modal/picker-demo (P2-R9 select-only dialog, no CRUD). Docs map updated in README.
 - 2026-06-23 — Написано ТЗ as-is подсистемы кредитования (`requirements/tz/`): головной index + 7 разделов по этапам жизненного цикла, полная live-ре-инспекция.
 - 2026-06-23 — Loan-program mockup (`mockups/loan-program/loan-program.html`): **applied P2-R1
   field visual semantics** — flipped every editable control (input/select/textarea/

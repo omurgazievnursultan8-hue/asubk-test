@@ -182,6 +182,10 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .empty-note{ padding:14px 16px; color:var(--text-muted); border:1px dashed var(--border-default);
   border-radius:var(--radius-md); }
 
+/* ---- Task 7: picker ---- */
+.picker-row{display:flex;gap:8px;padding:8px;border-bottom:1px solid var(--border-default);cursor:pointer}
+.picker-note{font:var(--font-label);color:var(--text-muted);margin:4px 0}
+
 /* ---- Task 6: modal ---- */
 .modal-overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:flex;
   align-items:center; justify-content:center; z-index:50; padding:20px; }
@@ -477,7 +481,10 @@ function sectionHTML(d){
     <span class="arch-chip ${d.archetype==='R'?'r':''}">${d.archetype}</span>
     <span class="slug">${d.route}</span>
     <span class="row-count">${d.note || (d.total+' строк')}</span></div>`;
-  const toolbar = `<div class="toolbar">
+  const toolbar = d.group==='picker'
+    ? `<div class="toolbar"><button class="btn" data-act="picker">Открыть как picker</button>
+    <div class="picker-note">Доступен только из формы (picker-диалог)</div></div>`
+    : `<div class="toolbar">
     <button class="btn primary" data-act="create">Создать</button>
     <button class="btn" data-act="edit">Изменить</button>
     <button class="btn" data-act="view">Просмотр</button>
@@ -550,10 +557,24 @@ function openModal(route,mode,i){
   const save=document.querySelector('[data-m="save"]'); if(save) save.onclick=close;
 }
 
+function openPicker(route){
+  const d=DICTS.find(x=>x.route===route);
+  const rows=d.rows.map((r,i)=>`<label class="picker-row"><input type="radio" name="pick"><span>${r.join(' · ')}</span></label>`).join('');
+  document.getElementById('modal-root').innerHTML=`<div class="modal-overlay">
+    <div class="modal picker"><div class="modal-head">Выбор: ${d.title}</div>
+    <div class="modal-body">${rows||'<div class="empty-note">нет значений</div>'}</div>
+    <div class="modal-foot"><button class="btn primary" data-m="ok">Выбрать</button>
+    <button class="btn" data-m="close">Отмена</button></div></div></div>`;
+  const close=()=>document.getElementById('modal-root').innerHTML='';
+  document.querySelector('[data-m="close"]').onclick=close;
+  document.querySelector('[data-m="ok"]').onclick=close;
+}
+
 document.getElementById('dict-list').addEventListener('click',e=>{
   const btn=e.target.closest('[data-act]'); if(!btn) return;
   const route=btn.closest('.section').dataset.route;
   const act=btn.dataset.act;
+  if(act==='picker') return openPicker(route);
   if(act==='create') return openModal(route,'create',null);
   if(act==='filter') return btn.closest('.section').querySelector('.grid')?.classList.toggle('filtering'); // демо
   const i=selected[route];
