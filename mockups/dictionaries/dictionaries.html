@@ -222,11 +222,12 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 </div>
 <div id="modal-root"></div>
 <script>
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const STATUS_KIND = { // текст статуса → класс бейджа
   'Активный':'success','Активная':'success','Действует':'success','Одобрен':'success',
   'Неактивный':'warning','Закрыт':'warning','Черновик':'info','На рассмотрении':'info','Отклонён':'error',
 };
-const badge = t => `<span class="badge ${STATUS_KIND[t]||'info'}">${t}</span>`;
+const badge = t => `<span class="badge ${STATUS_KIND[t]||'info'}">${esc(t)}</span>`;
 const isStatusCol = name => /статус/i.test(name);
 
 const DICTS = [
@@ -468,7 +469,7 @@ const DICTS = [
     rows:[['Аннуитет'],['Дифференцированный'],['В конце срока']], total:3 },
 ];
 
-const cellHTML = (d,c,ci) => (d.statusDict || isStatusCol(d.columns[ci])) ? `<td>${badge(c)}</td>` : `<td>${c}</td>`;
+const cellHTML = (d,c,ci) => (d.statusDict || isStatusCol(d.columns[ci])) ? `<td>${badge(c)}</td>` : `<td>${esc(c)}</td>`;
 
 function sectionHTML(d){
   const head = `<div class="section-head">
@@ -536,8 +537,8 @@ function openModal(route,mode,i){
   const d=DICTS.find(x=>x.route===route);
   const row = (i!=null && d.rows[i]) || d.columns.map(()=> '');
   const ro = mode==='view';
-  const fields=d.columns.map((c,ci)=>`<div class="field"><label>${c}</label>
-    <input value="${row[ci]??''}" ${ro?'readonly':''}></div>`).join('');
+  const fields=d.columns.map((c,ci)=>`<div class="field"><label>${esc(c)}</label>
+    <input value="${esc(row[ci])}" ${ro?'readonly':''}></div>`).join('');
   const title={view:'Просмотр',edit:'Изменить',create:'Создать'}[mode]+' — '+d.title;
   document.getElementById('modal-root').innerHTML=`<div class="modal-overlay">
     <div class="modal"><div class="modal-head">${title}</div>
@@ -572,6 +573,7 @@ document.getElementById('dict-list').addEventListener('dblclick',e=>{
   openModal(tr.closest('.section').dataset.route,'view',+tr.dataset.i);
 });
 
+// data-i is the frozen index into d.rows; never call renderSections() mid-session or indices desync
 document.getElementById('nav-filter').addEventListener('input',e=>{
   const q=e.target.value.trim().toLowerCase();
   DICTS.forEach(d=>{
