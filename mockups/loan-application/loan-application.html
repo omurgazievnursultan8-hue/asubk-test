@@ -666,6 +666,32 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 /* ---- tab panel containers (Tasks 6-10 will add content) ---- */
 .detail-panel{ display:none; }
 .detail-panel.active{ display:block; }
+
+/* ================================================================
+   TASK 6: Tab 0 «Общая информация» — three-column readonly layout
+   ================================================================ */
+.t0-wrap{ padding:16px 20px 24px; }
+/* three columns: Данные заявителя | Условия заемщика | Условия комиссии
+   col 3 is wider (more fields, range hints) — ratio ≈ 2:2:3, as in live app */
+.t0-cols{
+  display:grid; grid-template-columns:2fr 2fr 3fr;
+  gap:0 40px; align-items:start; max-width:1700px;
+}
+.t0-col > .section-h{
+  margin:0 0 14px; padding-bottom:12px;
+  border-bottom:1px solid var(--border-default);
+}
+.t0-fields{ display:flex; flex-direction:column; gap:10px; }
+/* label LEFT of field, matching live Jmix horizontal form-item layout */
+.t0-fields .field{
+  display:grid; grid-template-columns:190px minmax(0,1fr);
+  align-items:start; gap:0 10px;
+}
+.t0-fields .field > .flabel{ grid-column:1; padding-top:9px; }
+/* every direct child that is not .flabel goes into the value column */
+.t0-fields .field > *:not(.flabel){ grid-column:2; }
+/* hint (range) appears directly below the field value, in the value column */
+.t0-fields .field > .hint{ margin-top:2px; }
 </style>
 </head>
 <body>
@@ -898,7 +924,154 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
         </div>
 
         <!-- 9 empty tab panels (#tab-0 … #tab-8); Tasks 6-10 will fill content -->
-        <div id="tab-0" class="detail-panel active"></div>
+
+        <!-- ============================================================
+             TAB 0: Общая информация (Task 6)
+             Three column groups:
+               1) Данные заявителя — ИНН, Номер телефона, Адрес
+               2) Условия кредита заемщика — sum, term, program, льготные
+               3) Условия кредита, одобренные комиссией — approved sum+range, term+range, rate, …
+             All fields: grey readonly-look (as-is, matching live Jmix defect P2-01).
+             ============================================================ -->
+        <div id="tab-0" class="detail-panel active">
+          <div class="t0-wrap">
+            <div class="t0-cols">
+
+              <!-- ── Column 1: Данные заявителя ── -->
+              <div class="t0-col">
+                <div class="section-h">Данные заявителя</div>
+                <div class="t0-fields">
+                  <div class="field ro">
+                    <span class="flabel">ИНН</span>
+                    <div class="control"><input type="text" readonly id="t0-inn"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Номер телефона</span>
+                    <div class="control"><input type="text" readonly id="t0-phone"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Адрес</span>
+                    <div class="control"><input type="text" readonly id="t0-address"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ── Column 2: Условия кредита заемщика ── -->
+              <div class="t0-col">
+                <div class="section-h">Условия кредита заемщика</div>
+                <div class="t0-fields">
+                  <div class="field ro">
+                    <span class="flabel">Запрашиваемая сумма</span>
+                    <div class="control"><input type="text" readonly id="t0-req-amount"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Запрашиваемый срок</span>
+                    <div class="control"><input type="text" readonly id="t0-req-term"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Кредитная программа</span>
+                    <div class="control"><input type="text" readonly id="t0-program2"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Льготный период по основной сумме</span>
+                    <div class="control"><input type="text" readonly id="t0-grace1-text"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Льготный период по начислению процентов</span>
+                    <div class="control"><input type="text" readonly id="t0-grace2-text"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Льготный период по процентам</span>
+                    <div class="control"><input type="text" readonly id="t0-grace3-text"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Дополнительная информация</span>
+                    <div class="control"><input type="text" readonly id="t0-add-info"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Дата подтверждения кредитных документов</span>
+                    <div class="control"><input type="text" readonly id="t0-date-credit"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Дата подтверждения залоговых документов</span>
+                    <div class="control"><input type="text" readonly id="t0-date-coll"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Источник финансирования</span>
+                    <div class="lookup ro"><span class="val filled" id="t0-source2-val"></span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ── Column 3: Условия кредита, одобренные комиссией ── -->
+              <div class="t0-col">
+                <div class="section-h">Условия кредита, одобренные комиссией</div>
+                <div class="t0-fields">
+                  <div class="field ro">
+                    <span class="flabel">Сумма</span>
+                    <div class="control"><input type="text" readonly id="t0-app-amount"></div>
+                    <!-- range hint: «Допустимо: от … до …» — reproduced verbatim from live app -->
+                    <span class="hint" id="t0-amount-range"></span>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Срок</span>
+                    <div class="control"><input type="text" readonly id="t0-app-term"></div>
+                    <span class="hint" id="t0-term-range"></span>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Годовая ставка, %</span>
+                    <div class="control"><input type="text" readonly id="t0-rate"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Процент за резерв</span>
+                    <div class="control"><input type="text" readonly id="t0-reserve"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Периодичность платежей</span>
+                    <div class="control"><input type="text" readonly id="t0-pay-freq"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Метод погашения кредита</span>
+                    <div class="control"><input type="text" readonly id="t0-repay-method"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">День платежа</span>
+                    <div class="control"><input type="text" readonly id="t0-pay-day"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Обработка</span>
+                    <div class="control"><input type="text" readonly id="t0-processing"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Кредитная программа</span>
+                    <div class="lookup ro"><span class="val filled" id="t0-prog3-val"></span></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Льготный период по основной сумме</span>
+                    <div class="control"><input type="text" readonly id="t0-grace1"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Льготный период по начислению процентов</span>
+                    <div class="control"><input type="text" readonly id="t0-grace2"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Льготный период по процентам</span>
+                    <div class="control"><input type="text" readonly id="t0-grace3"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Источник финансирования</span>
+                    <div class="lookup ro"><span class="val filled" id="t0-source3-val"></span></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Комментарий</span>
+                    <textarea class="note-area" readonly id="t0-comment" style="min-height:60px"></textarea>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /.t0-cols -->
+          </div><!-- /.t0-wrap -->
+        </div><!-- /#tab-0 -->
         <div id="tab-1" class="detail-panel"></div>
         <div id="tab-2" class="detail-panel"></div>
         <div id="tab-3" class="detail-panel"></div>
@@ -1220,7 +1393,14 @@ function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 const APPLICATIONS = [
   {num:'Заявка - 103',inn:'00404202510209', name:'ОсОО "Хот Лэйк Текстиль"',
    status:'На рассмотрении', collateralStatus:'', program:'АгроИнвест КР',
-   amount:'500 000,00', term:'36', info:''},
+   amount:'500 000,00', term:'36', info:'',
+   /* Tab-0 fields — exact values from live app, loan-applications/41, inspected 2026-06-29 */
+   approvedAmount:'500 000,00', approvedTerm:'36',
+   annualRate:'10,00', reserveRate:'0,00',
+   paymentFrequency:'Ежемесячно', repaymentMethod:'Аннуитетный',
+   paymentDay:'15', processingOption:'Переносить на следующий рабочий день',
+   graceMain:'0', graceAccrual:'0', graceInterest:'0',
+   fundingSource:'Бюджет', comment:''},
   {num:'Заявка - 101',inn:'21812199600888', name:'БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ',
    status:'Одобрено', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
    amount:'5 000 000,00', term:'24', info:'555'},
@@ -1375,6 +1555,105 @@ function applyFilter(){
 }
 
 /* ============================================================
+   TASK 6: Tab 0 — Общая информация
+   ============================================================ */
+
+/** Per-INN contact data (phone + address).
+ *  Source: live app inspection 2026-06-29 (row 103 exact; others from
+ *  subject picker modal data used in create form). */
+const SUBJECTS_MAP = {
+  '00404202510209': {
+    phone:   '+996 567 878 787',
+    address: 'Чуйская область, Новопокровка (часть), Ысык-Атинский район, Ленина, 86,'
+  },
+  '21812199600888': {
+    phone:   '+996 551 122 334',
+    address: 'ул. Токомбаева 21, Бишкек'
+  },
+  '02102201710026': {
+    phone:   '+996 312 456 789',
+    address: 'ул. Карла Маркса 5, Ноокат'
+  },
+  '20907199400957': {
+    phone:   '+996 322 567 890',
+    address: 'ул. Советская 88, Ош'
+  },
+  '01204199910016': {
+    phone:   '+996 312 789 012',
+    address: 'пр. Чуй 44, Бишкек'
+  },
+};
+
+/** Per-program loan parameter ranges and default rate.
+ *  Range text format matches live app exactly: «Допустимо: от X до Y» with dots.
+ *  Source: live app, loan-applications/41 (АгроИнвест КР ranges confirmed 2026-06-29). */
+const PROGRAMS_MAP = {
+  'АгроИнвест КР': {
+    amountRange: 'Допустимо: от 100000.00 до 10000000.00',
+    termRange:   'Допустимо: от 6 до 60',
+    rate:        '10,00',
+  },
+  'Поддержка сельхозпроизводителей': {
+    amountRange: 'Допустимо: от 100000.00 до 5000000.00',
+    termRange:   'Допустимо: от 3 до 36',
+    rate:        '8,00',
+  },
+  'ТУР': {
+    amountRange: 'Допустимо: от 50000.00 до 2000000.00',
+    termRange:   'Допустимо: от 6 до 24',
+    rate:        '12,00',
+  },
+};
+
+/** renderTab0 — populates #tab-0 «Общая информация» from an APPLICATIONS row.
+ *  Column 1: subject contact data (phone/address from SUBJECTS_MAP by INN).
+ *  Column 2: borrower-requested credit terms (from app row).
+ *  Column 3: commission-approved terms (defaults from PROGRAMS_MAP if not set on row). */
+function renderTab0(app) {
+  const subj = SUBJECTS_MAP[app.inn] || { phone: '', address: '' };
+  const prog = PROGRAMS_MAP[app.program] || { amountRange: '', termRange: '', rate: '' };
+
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value  = v != null ? String(v) : ''; };
+  const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v != null ? String(v) : ''; };
+
+  /* Column 1 — Данные заявителя */
+  setVal('t0-inn',     app.inn     || '');
+  setVal('t0-phone',   subj.phone);
+  setVal('t0-address', subj.address);
+
+  /* Column 2 — Условия кредита заемщика */
+  setVal('t0-req-amount',  app.amount   || '');
+  setVal('t0-req-term',    app.term     || '');
+  setVal('t0-program2',    app.program  || '');
+  /* льготные периоды (textbox — empty in live, textual description if ever set) */
+  setVal('t0-grace1-text', '');
+  setVal('t0-grace2-text', '');
+  setVal('t0-grace3-text', '');
+  setVal('t0-add-info',    app.info || '');
+  setVal('t0-date-credit', '');
+  setVal('t0-date-coll',   '');
+  setTxt('t0-source2-val', app.fundingSource || 'Бюджет');
+
+  /* Column 3 — Условия кредита, одобренные комиссией */
+  setVal('t0-app-amount', app.approvedAmount || app.amount || '');
+  setTxt('t0-amount-range', prog.amountRange || '');
+  setVal('t0-app-term',   app.approvedTerm   || app.term  || '');
+  setTxt('t0-term-range', prog.termRange  || '');
+  setVal('t0-rate',           app.annualRate        || prog.rate  || '');
+  setVal('t0-reserve',        app.reserveRate       || '0,00');
+  setVal('t0-pay-freq',       app.paymentFrequency  || 'Ежемесячно');
+  setVal('t0-repay-method',   app.repaymentMethod   || 'Аннуитетный');
+  setVal('t0-pay-day',        app.paymentDay        || '15');
+  setVal('t0-processing',     app.processingOption  || 'Переносить на следующий рабочий день');
+  setTxt('t0-prog3-val',      app.program           || '');
+  setVal('t0-grace1',         app.graceMain         || '0');
+  setVal('t0-grace2',         app.graceAccrual      || '0');
+  setVal('t0-grace3',         app.graceInterest     || '0');
+  setTxt('t0-source3-val',    app.fundingSource     || 'Бюджет');
+  setVal('t0-comment',        app.comment           || '');
+}
+
+/* ============================================================
    TASK 5: Detail shell — header, stepper, tab bar
    ============================================================ */
 
@@ -1461,6 +1740,9 @@ function gotoDetail(num){
 
   /* Reset to first tab */
   showTab(0);
+
+  /* Populate tab 0 «Общая информация» */
+  renderTab0(app);
 
   showView('detail');
 }
