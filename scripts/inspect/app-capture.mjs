@@ -50,6 +50,8 @@ log('GRID_HEADER_CELLS:', JSON.stringify(await page.evaluate(() =>
   [...document.querySelectorAll('vaadin-grid-cell-content')]
     .map(c => c.innerText.trim()).filter(Boolean).slice(0, 60))));
 
+// NOTE: STATCARDS regex is screen-specific (loan-applications). Extend the
+// pattern below when reusing app-capture on other routes with summary tiles.
 log('STATCARDS:', JSON.stringify(await page.evaluate(() => {
   const out = [];
   document.querySelectorAll('*').forEach(e => {
@@ -85,6 +87,23 @@ log('FIELDS:', JSON.stringify(await page.evaluate(() => {
         x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width),
         bg: cs?.backgroundColor || null, radius: cs?.borderRadius || null, border: cs?.border || null };
     });
+})));
+
+log('SECTIONS:', JSON.stringify(await page.evaluate(() => {
+  const out = [];
+  document.querySelectorAll('*').forEach(e => {
+    if (e.childElementCount) return;                       // leaf nodes only
+    const r = e.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) return;
+    const t = (e.innerText || '').replace(/\s+/g, ' ').trim();
+    if (!t || t.length > 60) return;
+    const cs = getComputedStyle(e);
+    const fw = parseInt(cs.fontWeight, 10) || 400;
+    const fs = parseFloat(cs.fontSize) || 0;
+    if (fw < 600 && fs < 17) return;                        // headings: bold or large
+    out.push({ t, x: Math.round(r.left), y: Math.round(r.top), fw, fs: cs.fontSize });
+  });
+  return out;
 })));
 
 await page.screenshot({ path: `.auth/${SHOT}.png`, fullPage: true });
