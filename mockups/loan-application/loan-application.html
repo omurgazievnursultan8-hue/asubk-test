@@ -283,6 +283,18 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .t2-col .section-h{ margin:0 0 22px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
 /* tab 6: several section-blocks stacked per column */
 .t6-cols .t2-col{ gap:28px; }
+/* ================================================================
+   TASK 7: Tab 1 «График» — repayment-schedule toolbar + grid
+   ================================================================ */
+/* wrapper matches surrounding panel padding */
+.t1-wrap{ padding:14px 20px 20px; }
+/* toolbar row: Построить график | Добавить строку | Изменить строку | Удалить строку */
+.t1-rowtools{ display:flex; gap:8px; margin-bottom:10px; }
+/* status line: «Сохранен график по кредитной программе» */
+.t1-status-line{ font:var(--font-label); color:var(--text-body); margin-bottom:10px; }
+/* override collgrid min-height — table rows give adequate height */
+.t1-grid{ min-height:0; }
+
 /* tab 7 «Документы» */
 .t7{ max-width:1340px; padding:16px 24px; }
 .t7-cols{ max-width:none; padding:0; }
@@ -1072,7 +1084,61 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
             </div><!-- /.t0-cols -->
           </div><!-- /.t0-wrap -->
         </div><!-- /#tab-0 -->
-        <div id="tab-1" class="detail-panel"></div>
+        <!-- ============================================================
+             TAB 1: График (Task 7)
+             Toolbar: Построить график | Добавить строку | Изменить строку | Удалить строку
+             Status line: «Сохранен график по кредитной программе»
+             Grid: 7 columns, rows from live capture 2026-06-29, loan-applications/41
+             (scripts/inspect/app-capture.mjs, SHOT=app-tab-grafik)
+             ============================================================ -->
+        <div id="tab-1" class="detail-panel">
+          <div class="t1-wrap">
+
+            <!-- Toolbar: edit actions (Изменить/Удалить disabled — no row selected) -->
+            <div class="t1-rowtools">
+              <button class="btn btn-rowadd btn-sm">Построить график</button>
+              <button class="btn btn-rowadd btn-sm">Добавить строку</button>
+              <button class="btn btn-rowadd btn-sm" disabled>Изменить строку</button>
+              <button class="btn btn-rowdel btn-sm" disabled>Удалить строку</button>
+            </div>
+
+            <!-- Status line (live: shown when schedule exists) -->
+            <div class="t1-status-line">Сохранен график по кредитной программе</div>
+
+            <!-- Repayment schedule grid (7 cols; live data rows 1–13 visible at capture) -->
+            <div class="collgrid t1-grid">
+              <table>
+                <thead>
+                  <tr>
+                    <th>№ платежа <span class="sort">↕</span></th>
+                    <th>Дата платежа <span class="sort">↕</span></th>
+                    <th>Сумма платежа <span class="sort">↕</span></th>
+                    <th>Основной долг <span class="sort">↕</span></th>
+                    <th>Проценты <span class="sort">↕</span></th>
+                    <th>Остаток до платежа <span class="sort">↕</span></th>
+                    <th>Остаток после платежа <span class="sort">↕</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>1</td><td>15.07.2026 00:00</td><td>16 133,59</td><td>11 966,92</td><td>4 166,67</td><td>500 000,00</td><td>488 033,08</td></tr>
+                  <tr><td>2</td><td>17.08.2026 00:00</td><td>16 133,59</td><td>12 066,65</td><td>4 066,94</td><td>488 033,08</td><td>475 966,43</td></tr>
+                  <tr><td>3</td><td>15.09.2026 00:00</td><td>16 133,59</td><td>12 167,20</td><td>3 966,39</td><td>475 966,43</td><td>463 799,23</td></tr>
+                  <tr><td>4</td><td>15.10.2026 00:00</td><td>16 133,59</td><td>12 268,60</td><td>3 864,99</td><td>463 799,23</td><td>451 530,63</td></tr>
+                  <tr><td>5</td><td>16.11.2026 00:00</td><td>16 133,59</td><td>12 370,83</td><td>3 762,76</td><td>451 530,63</td><td>439 159,80</td></tr>
+                  <tr><td>6</td><td>15.12.2026 00:00</td><td>16 133,59</td><td>12 473,93</td><td>3 659,66</td><td>439 159,80</td><td>426 685,87</td></tr>
+                  <tr><td>7</td><td>15.01.2027 00:00</td><td>16 133,59</td><td>12 577,87</td><td>3 555,72</td><td>426 685,87</td><td>414 108,00</td></tr>
+                  <tr><td>8</td><td>15.02.2027 00:00</td><td>16 133,59</td><td>12 682,69</td><td>3 450,90</td><td>414 108,00</td><td>401 425,31</td></tr>
+                  <tr><td>9</td><td>15.03.2027 00:00</td><td>16 133,59</td><td>12 788,38</td><td>3 345,21</td><td>401 425,31</td><td>388 636,93</td></tr>
+                  <tr><td>10</td><td>15.04.2027 00:00</td><td>16 133,59</td><td>12 894,95</td><td>3 238,64</td><td>388 636,93</td><td>375 741,98</td></tr>
+                  <tr><td>11</td><td>17.05.2027 00:00</td><td>16 133,59</td><td>13 002,41</td><td>3 131,18</td><td>375 741,98</td><td>362 739,57</td></tr>
+                  <tr><td>12</td><td>15.06.2027 00:00</td><td>16 133,59</td><td>13 110,76</td><td>3 022,83</td><td>362 739,57</td><td>349 628,81</td></tr>
+                  <tr><td>13</td><td>15.07.2027 00:00</td><td>16 133,59</td><td>13 220,02</td><td>2 913,57</td><td>349 628,81</td><td>336 408,79</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        </div><!-- /#tab-1 -->
         <div id="tab-2" class="detail-panel"></div>
         <div id="tab-3" class="detail-panel"></div>
         <div id="tab-4" class="detail-panel"></div>
