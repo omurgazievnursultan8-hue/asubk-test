@@ -787,6 +787,9 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 
       <!-- ================= DETAIL VIEW (Просмотр, P2-R4) ================= -->
       <section class="view" id="view-detail">
+        <div class="tabstrip-wrap">
+          <div class="tabstrip" id="detailTabs"></div>
+        </div>
         <div class="detail-wrap" id="detailBody"></div>
         <div class="footer" id="detailFoot"></div>
       </section>
@@ -998,6 +1001,7 @@ let sortKey = 'nameRu', sortDir = 1;
 let page = 1; let PAGE_SIZE = 10;
 let draft = null;                    // working copy in wizard
 let editingId = null;
+let detailTab = 0, detailDataId = null, detailSections = [], detailRefBanner = '';   // P2-R4 detail tabs
 
 function fmtDate(iso){ if(!iso) return '—'; const [y,m,d]=iso.split('-'); return `${d}.${m}.${y}`; }
 // R12: «Дата по» опциональна — пусто = бессрочно (явная метка в гриде/Просмотре)
@@ -2241,54 +2245,54 @@ function openView(id){
   const dayMethod=[p.dayCountNum,p.dayCountBase].filter(Boolean).join(' / ');
   const repayStr = p.payMode==='months' ? 'Индивидуальный' : p.repayMethod;
   const firstPay = (p.minDays||p.maxDays) ? `${p.minDays||'0'} – ${p.maxDays||'∞'} дн.` : '';
-  document.getElementById('detailBody').innerHTML = `
-    ${p.references>0?`<div class="note-banner"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><span>На программу ссылаются <b>${p.references}</b> downstream-записей (заявки/кредиты). Удаление заблокировано.</span></div>`:''}
-    <div class="card"><div class="card-h">Общая информация</div><div class="kv">
-      ${row('Наименование на русском',p.nameRu)}${row('Наименование на кыргызском',p.nameKy)}
-      ${row('Наименование на английском',p.nameEn)}${row('Решение правительства',p.decisionName)}
-      ${rowF('Краткое описание',p.shortDesc)}
-      ${row('Источник финансирования',p.source)}${row('Кредитная линия',p.line)}
-      ${row('Назначение кредита',p.purpose)}${row('Вид кредита',p.kind)}
-      ${row('Отрасль',p.industry)}${row('Валюта',p.currency)}
-      ${row('Вид счёта погашения',p.repayAcct)}${row('Ответственные сотрудники',p.staffMain)}
-      ${row('Дата с',fmtDate(p.dateFrom))}${row('Дата по',fmtDateTo(p.dateTo))}
-      ${rowF('Заявители (whitelist)', (p.applicantsFiz||p.applicantsJur) ? [p.applicantsFiz,p.applicantsJur].filter(Boolean).join('; ') : 'Без ограничений — доступно всем')}
-    </div></div>
-    <div class="card"><div class="card-h">Сумма и срок</div><div class="kv">
-      ${row('Ограничение суммы',p.amountType)}${row('Сумма',amountStr)}
-      ${row('Ограничение срока',p.termType)}${row('Срок кредита',termStr)}
-    </div></div>
-    <div class="card"><div class="card-h">Процентные ставки</div><div class="kv">
-      ${row('Тип основной ставки',p.rateType)}${row('Значение ставки',rateStr)}
-    </div></div>
-    <div class="card"><div class="card-h">Штрафы</div><div class="kv">
-      ${row('Штраф за просрочку осн. суммы',penStr(p.penaltyMainType,p.penaltyMainVal))}
-      ${row('Штраф за просрочку процентов',penStr(p.penaltyIntType,p.penaltyIntVal))}
-      ${row('Максимальный размер штрафа',p.penaltyMaxPct?p.penaltyMaxPct+'% от суммы кредита':'')}
-    </div></div>
-    <div class="card"><div class="card-h">Льготный период</div><div class="kv">
-      ${graces.length ? graces.map(g=>`<div class="row col-span"><div class="v">${esc(g)}</div></div>`).join('') : `<div class="row col-span"><div class="v muted">Не применяется</div></div>`}
-    </div></div>
-    <div class="card"><div class="card-h">Платежи и расчёты</div><div class="kv">
-      ${rowF('График платежей',schedStr)}
-      ${row('Метод расчёта дней',dayMethod)}${row('Очередь погашения',p.queue)}
-      ${row('День месяца для платежа',p.payDay)}${row('Обработка нерабочих дней',p.weekend)}
-      ${row('Метод погашения кредита',repayStr)}${row('Период до первого платежа',firstPay)}
-    </div></div>
-    <div class="card"><div class="card-h">Документы и проверка</div><div class="kv">
-      ${rowF('Обязательные кредитные документы',list(p.docCredReq))}
-      ${rowF('Опциональные кредитные документы',list(p.docCredOpt))}
-      ${rowF('Обязательные залоговые документы',list(p.docCollReq))}
-      ${rowF('Опциональные залоговые документы',list(p.docCollOpt))}
-      ${rowF('Требования к оформлению залогового договора',p.contractReq)}
-      ${row('Уровень проверки документов',p.checkLevel)}${row('Срок проверки (дней)',p.checkDays)}
-      ${rowF('Ответственный за проверку документов',p.checkResp)}
-    </div></div>
-    <div class="card"><div class="card-h">Залоговое обеспечение</div><div class="kv">
-      ${rowF('Требуется залоговое обеспечение',p.collateral?'Да':'Нет')}
-      ${p.collateral?`${rowF('Виды залога',list(p.collTypes))}${rowF('Требования к залогу',p.collRu)}`:''}
-    </div></div>
-    ${p.comment?`<div class="card"><div class="card-h">Служебные заметки</div><div class="kv"><div class="row col-span"><div class="v">${esc(p.comment)}</div></div></div></div>`:''}`;
+  const kvCard = inner => `<div class="card"><div class="kv">${inner}</div></div>`;
+  // P2-R4: detail split into the same 8 sections as the wizard (read-only).
+  detailSections = [
+    ['Основные данные',
+      kvCard(`${row('Наименование на русском',p.nameRu)}${row('Наименование на кыргызском',p.nameKy)}
+        ${row('Наименование на английском',p.nameEn)}${row('Решение правительства',p.decisionName)}
+        ${rowF('Краткое описание',p.shortDesc)}
+        ${row('Источник финансирования',p.source)}${row('Кредитная линия',p.line)}
+        ${row('Назначение кредита',p.purpose)}${row('Вид кредита',p.kind)}
+        ${row('Отрасль',p.industry)}${row('Валюта',p.currency)}
+        ${row('Вид счёта погашения',p.repayAcct)}${row('Ответственные сотрудники',p.staffMain)}
+        ${row('Дата с',fmtDate(p.dateFrom))}${row('Дата по',fmtDateTo(p.dateTo))}
+        ${rowF('Заявители (whitelist)', (p.applicantsFiz||p.applicantsJur) ? [p.applicantsFiz,p.applicantsJur].filter(Boolean).join('; ') : 'Без ограничений — доступно всем')}`)
+      + (p.comment?`<div class="card"><div class="card-h">Служебные заметки</div><div class="kv"><div class="row col-span"><div class="v">${esc(p.comment)}</div></div></div></div>`:'')],
+    ['Сумма и срок',
+      kvCard(`${row('Ограничение суммы',p.amountType)}${row('Сумма',amountStr)}
+        ${row('Ограничение срока',p.termType)}${row('Срок кредита',termStr)}`)],
+    ['Процентные ставки',
+      kvCard(`${row('Тип основной ставки',p.rateType)}${row('Значение ставки',rateStr)}`)],
+    ['Штрафы',
+      kvCard(`${row('Штраф за просрочку осн. суммы',penStr(p.penaltyMainType,p.penaltyMainVal))}
+        ${row('Штраф за просрочку процентов',penStr(p.penaltyIntType,p.penaltyIntVal))}
+        ${row('Максимальный размер штрафа',p.penaltyMaxPct?p.penaltyMaxPct+'% от суммы кредита':'')}`)],
+    ['Льготный период',
+      kvCard(graces.length ? graces.map(g=>`<div class="row col-span"><div class="v">${esc(g)}</div></div>`).join('') : `<div class="row col-span"><div class="v muted">Не применяется</div></div>`)],
+    ['Платежи и расчёты',
+      kvCard(`${rowF('График платежей',schedStr)}
+        ${row('Метод расчёта дней',dayMethod)}${row('Очередь погашения',p.queue)}
+        ${row('День месяца для платежа',p.payDay)}${row('Обработка нерабочих дней',p.weekend)}
+        ${row('Метод погашения кредита',repayStr)}${row('Период до первого платежа',firstPay)}`)],
+    ['Документы',
+      kvCard(`${rowF('Обязательные кредитные документы',list(p.docCredReq))}
+        ${rowF('Опциональные кредитные документы',list(p.docCredOpt))}
+        ${rowF('Обязательные залоговые документы',list(p.docCollReq))}
+        ${rowF('Опциональные залоговые документы',list(p.docCollOpt))}
+        ${rowF('Требования к оформлению залогового договора',p.contractReq)}
+        ${row('Уровень проверки документов',p.checkLevel)}${row('Срок проверки (дней)',p.checkDays)}
+        ${rowF('Ответственный за проверку документов',p.checkResp)}`)],
+    ['Залоговое обеспечение',
+      kvCard(`${rowF('Требуется залоговое обеспечение',p.collateral?'Да':'Нет')}
+        ${p.collateral?`${rowF('Виды залога',list(p.collTypes))}${rowF('Требования к залогу',p.collRu)}`:''}`)],
+  ];
+  detailRefBanner = p.references>0
+    ? `<div class="note-banner"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><span>На программу ссылаются <b>${p.references}</b> downstream-записей (заявки/кредиты). Удаление заблокировано.</span></div>`
+    : '';
+  if(detailDataId!==id) detailTab=0;        // keep current tab on in-place rerender (status actions)
+  detailDataId=id;
+  renderDetailTabs();
   let acts = `<button class="btn btn-secondary" onclick="goList()">Назад к списку</button>`;
   // P2-R11: edit only in Черновик / На доработке (author)
   if((p.status==='draft'||p.status==='rework') && role==='editor') acts += `<button class="btn btn-secondary" onclick="openEdit(${p.id})">
@@ -2305,6 +2309,17 @@ function openView(id){
   if((p.status==='rejected'||p.status==='closed') && role==='admin') acts += `<button class="btn btn-secondary" onclick="returnSelected()">Вернуть на согласование</button>`;
   if(p.status==='review' && role==='editor') acts += `<span class="role-pill">Ожидает согласования (роль «Согласующий»)</span>`;
   document.getElementById('detailFoot').innerHTML = acts;
+}
+function renderDetailTabs(){
+  document.getElementById('detailTabs').innerHTML = detailSections.map((s,i)=>
+    `<button class="tab ${i===detailTab?'active':''}" onclick="showDetailTab(${i})">
+       <span class="tnum">${i+1}</span>${esc(s[0])}</button>`).join('');
+  renderDetailBody();
+}
+function showDetailTab(i){ detailTab=i; renderDetailTabs(); }
+function renderDetailBody(){
+  const sec = detailSections[detailTab];
+  document.getElementById('detailBody').innerHTML = detailRefBanner + (sec?sec[1]:'');
 }
 
 /* ============================================================
