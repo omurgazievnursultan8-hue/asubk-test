@@ -331,6 +331,105 @@ Stack confirmed as **Jmix on Vaadin** (`jmix-value-picker`).
     «Штраф за просрочку процентов» header disappears — layout becomes two columns
     [Осн. сумма | Проценты] + one band [Ограничения штрафа]. → P2-R17.
 
+- **P2-18** — `/loan-programs/new` Tab 5 «Льготный период» — 🟡 minor — _owner 2026-06-25_
+  - **Issue:** The three grace blocks «по основной сумме» / «по начислению
+    процентов» / «по процентам» are easy to confuse — an operator cannot tell
+    «начисление» (interest not accrued) from «проценты» (accrued but payment
+    deferred) without explanation. Fixed-mode duration options [1,3,6,12,18,24]
+    are hardcoded, not a reference-book; the «Диапазон» с/по fields have no `0 < с
+    ≤ по` validation; «Условия предоставления» textareas are unbounded.
+  - **Expected:** Tooltips/sub-labels clarifying each grace type; durations served
+    from an admin-curated reference-book (months, integer, dedup, sort ascending);
+    range numeric integers with `0 < с ≤ по` (equal → soft warning), no ceiling;
+    «Условия предоставления» capped at 1000 chars with a counter, kept internal
+    (NOT rendered in Просмотр). Empty-type select stays required with «— выберите
+    —» default. → P2-R18.
+
+- **P2-19** — `/loan-programs/new` Tab 6 «Периодичность платежей» / «Конкретные месяцы» — 🟠 major — _owner 2026-06-25_
+  - **Issue:** «Конкретные месяцы платежей» is shown only when periodicity =
+    Ежеквартально/Ежегодно, i.e. modelled as a dependent sub-field. Per the owner
+    they are **independent alternatives**: a schedule is defined EITHER by a
+    standard periodicity OR by an arbitrary set of calendar months (e.g. payments
+    only in March + October), which no standard periodicity covers.
+  - **Expected:** An explicit mode switch «Стандартная периодичность / По
+    конкретным месяцам»; standard → Ежемесячно/Ежекв./Ежегодно; custom → multi
+    pick of calendar months (Jan…Dec, any set, no count constraint); exactly one
+    mode filled (required = one-of-two). → P2-R19.
+
+- **P2-20** — `/loan-programs/new` Tab 6 day-count & «Тип расчёта процентов» — 🟠 major — _owner 2026-06-25_
+  - **Issue:** «Метод расчёта дней» conflates two independent dimensions of a
+    day-count convention into one field — the period-numerator (Финансовый 30 /
+    Фактический) and the year-denominator (360 / 365 / Фактическая). Separately,
+    «Тип расчёта процентов» («формула начисления») duplicates the day-count
+    concept — there is no distinct meaning left for it.
+  - **Expected:** Split into two reference-book fields «Метод расчёта дней в
+    периоде» (numerator) + «База дней в году» (denominator), free pairing (no
+    whitelist), default факт/365; **remove** «Тип расчёта процентов» as a
+    duplicate. → P2-R19.
+
+- **P2-21** — `/loan-programs/new` Tab 6 schedule fields — 🟡 minor — _owner 2026-06-25_
+  - **Issue:** On the live stand none of the 9 Tab-6 fields carry required markers.
+    «День месяца для платежа» is free text (accepts «45»/letters); «Обработка
+    выходных дней» offers only two shift options (no «не переносить») and ignores
+    public holidays; «Период между освоением и первым платежем» min/max are free
+    text; the day-count / queue / etc. reference-books are unverified for junk.
+  - **Expected:** Mark the core scheduling fields required (mockup already does);
+    «День месяца» numeric 1–31 + «short month ⇒ last day» rule; rename «Обработка
+    выходных дней» → «Обработка нерабочих дней», honour the KR public-holiday
+    calendar, add a third option «Не переносить» as the **default** (Не переносить
+    / на след. рабочий / на пред. рабочий); period min/max numeric integer days,
+    `мин ≤ макс`, optional; «Метод погашения» default «Аннуитетный», auto →
+    «Индивидуальный» when custom-months mode is used; queue scheme expanded in
+    Просмотр; lookups admin-curated + junk-checked. → P2-R19.
+
+- **P2-22** — `/loan-programs/new` Tab 7 doc grids & templates — 🟡 minor — _owner 2026-06-29_
+  - **Issue:** «Обязательные» / «опциональные» doc grids dedupe only within a
+    single grid — the same document can be added to both. Rows are not sorted.
+    «Шаблоны договоров» uses a value-picker → read-only «Выбранные шаблоны»
+    textarea + a «сохранятся после Сохранить» hint, a different pattern from the
+    document grids (no rationale). The `docCredit`/`docColl`/`templates`
+    reference-books are unverified for junk.
+  - **Expected:** Add cross-grid dedupe (block adding a doc already present in the
+    sibling grid) and auto-sort rows alphabetically (same rule as Tab 2). Replace
+    the templates picker + textarea with a «+ Добавить / ✕ Исключить» grid
+    identical to the document grids (multi-select, dedupe), apply the pick to the
+    draft immediately and drop the save hint. Make the doc/template reference-books
+    admin-curated + junk-checked. → P2-R20.
+
+- **P2-23** — `/loan-programs/new` Tab 7 collateral-doc text & check-config — 🟡 minor — _owner 2026-06-29_
+  - **Issue:** «Требования к оформлению залогового договора» is a single Russian
+    textarea, whereas Tab 8 «Требования к залогу» captures ру/кырг/eng — an
+    inconsistency. The textarea is unbounded. Under «Настройка проверки
+    документов» all three fields (level / term-in-days / responsible) are req=null
+    on the live stand, «Срок проверки» is free text, and the `checkLevel`/`staff`
+    look-ups are unverified.
+  - **Expected:** Keep the requirements field Russian-only for now (single language
+    is the owner's decision), but bound it to 1000 chars + counter like the other
+    textareas. «Уровень проверки» = single pick from admin-curated `checkLevel`;
+    «Срок проверки» numeric positive integer days, optional; «Ответственный за
+    проверку» = single staff member, a role distinct from Tab 1 «Ответственные
+    сотрудники», from admin-curated `staff`; all three stay optional. → P2-R20.
+
+- **P2-24** — `/loan-programs/new` Tab 8 collateral fields always visible — 🟠 major — _owner 2026-06-29_
+  - **Issue:** On the live stand the Tab 8 layout is fixed — «Виды залога» and
+    «Требования к залогу» render (all-checked dump) regardless of the «Требуется
+    залоговое обеспечение» checkbox, and Tab 7 collateral documents likewise. A
+    no-collateral program still shows and can capture collateral data.
+  - **Expected:** Gate «Виды залога», «Требования к залогу» and the Tab 7
+    collateral-document grids on the checkbox (mockup already does). Default the
+    checkbox ON. → P2-R21.
+
+- **P2-25** — `/loan-programs/new` Tab 8 «Виды залога» & requirements — 🟡 minor — _owner 2026-06-29_
+  - **Issue:** «Виды залога» grid dedupes only within itself and is unsorted; its
+    `collKind` look-up is unverified. «Требования к залогу» is captured in three
+    languages (ру req / кырг req / eng opt) whereas the Tab 7 collateral-договор
+    requirements are Russian-only — an inconsistency — and the textareas are
+    unbounded.
+  - **Expected:** «Виды залога» — dedupe + auto-sort (Tab 2 rule), `collKind`
+    admin-curated + junk-checked; when collateral is ON the grid requires ≥1 row.
+    Collapse «Требования к залогу» to a single Russian textarea (matches Tab 7),
+    1000 chars + counter, optional. → P2-R21.
+
 ### Behaviour confirmed via test record (2026-06-17)
 - **«Сохранить» = save & stay** (commits, keeps the editor open; URL → record id,
   toast «…успешно сохранена»). **«OK» = save & close** (commits, leaves the
