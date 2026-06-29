@@ -452,16 +452,14 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .t4-suffix{ font:var(--font-label); color:var(--text-muted); padding-bottom:9px; white-space:nowrap; }
 .t4-int{ display:flex; flex-direction:column; gap:16px; }
 
-/* ---- detail (Просмотр) ---- */
-.detail-wrap{ padding:20px 24px; max-width:1100px; display:flex; flex-direction:column; gap:16px; }
-.card{ border:1px solid var(--border-default); border-radius:var(--radius-lg); background:var(--surface-card); }
-.card-h{ padding:12px 16px; border-bottom:1px solid var(--border-default);
-  font:var(--weight-semibold) var(--text-base)/1.2 var(--asubk-font); color:var(--text-heading); }
-.kv{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0; }
-.kv .row{ display:flex; gap:12px; padding:10px 16px; border-bottom:1px solid var(--border-default); }
-.kv .k{ flex:0 0 220px; color:var(--text-muted); font:var(--font-label); }
-.kv .v{ flex:1; color:var(--text-body); font:var(--font-label); }
-.kv .row.col-span{ grid-column:1 / -1; }
+/* ---- detail (Просмотр) — формат из mockups/decision (поле = метка над значением, подчёркивание) ---- */
+.detail-wrap{ padding:22px 24px 16px; max-width:1120px; display:flex; flex-direction:column; gap:18px; }
+.dgrid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 32px; }
+.view-field{ display:flex; flex-direction:column; gap:4px; padding-bottom:11px; border-bottom:1px solid var(--border-default); }
+.view-field.col-span{ grid-column:1 / -1; }
+.view-field .vlabel{ font:var(--weight-regular) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-muted); }
+.view-field .vvalue{ font:var(--font-body); color:var(--text-body); min-height:22px; white-space:pre-wrap; }
+.view-field .vvalue.empty{ color:var(--text-placeholder); }
 
 /* ---- modal ---- */
 .overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:none; align-items:center;
@@ -2215,9 +2213,11 @@ function previewHtml(){
 function openView(id){
   const p=PROGRAMS.find(x=>x.id===id); if(!p) return; selectedId=id;
   showView('view-detail'); setCrumb(p.nameRu, statusBadge(p.status));
-  const row=(k,v)=>`<div class="row"><div class="k">${k}</div><div class="v">${v?esc(v):'—'}</div></div>`;
-  const rowF=(k,v)=>`<div class="row col-span"><div class="k">${k}</div><div class="v">${v?esc(v):'—'}</div></div>`;
-  const list=a=>(a&&a.length)?a.join('; '):'';
+  // detail field = метка над значением + подчёркивание (формат из mockups/decision)
+  const fld=(k,v,span)=>`<div class="view-field${span?' col-span':''}"><span class="vlabel">${k}</span><span class="vvalue${v?'':' empty'}">${v?esc(v):'—'}</span></div>`;
+  const row=(k,v)=>fld(k,v,false);
+  const rowF=(k,v)=>fld(k,v,true);
+  const list=a=>(a&&a.length)?a.join(', '):'';
   // tab2: сумма/срок с единицами (валюта / мес.)
   const amountStr = p.amounts ? p.amounts+(p.currency?' '+p.currency:'') : '';
   const termStr   = p.terms   ? p.terms+' мес.' : '';
@@ -2245,11 +2245,11 @@ function openView(id){
   const dayMethod=[p.dayCountNum,p.dayCountBase].filter(Boolean).join(' / ');
   const repayStr = p.payMode==='months' ? 'Индивидуальный' : p.repayMethod;
   const firstPay = (p.minDays||p.maxDays) ? `${p.minDays||'0'} – ${p.maxDays||'∞'} дн.` : '';
-  const kvCard = inner => `<div class="card"><div class="kv">${inner}</div></div>`;
+  const panel = inner => `<div class="dgrid">${inner}</div>`;
   // P2-R4: detail split into the same 8 sections as the wizard (read-only).
   detailSections = [
     ['Основные данные',
-      kvCard(`${row('Наименование на русском',p.nameRu)}${row('Наименование на кыргызском',p.nameKy)}
+      panel(`${row('Наименование на русском',p.nameRu)}${row('Наименование на кыргызском',p.nameKy)}
         ${row('Наименование на английском',p.nameEn)}${row('Решение правительства',p.decisionName)}
         ${rowF('Краткое описание',p.shortDesc)}
         ${row('Источник финансирования',p.source)}${row('Кредитная линия',p.line)}
@@ -2257,26 +2257,26 @@ function openView(id){
         ${row('Отрасль',p.industry)}${row('Валюта',p.currency)}
         ${row('Вид счёта погашения',p.repayAcct)}${row('Ответственные сотрудники',p.staffMain)}
         ${row('Дата с',fmtDate(p.dateFrom))}${row('Дата по',fmtDateTo(p.dateTo))}
-        ${rowF('Заявители (whitelist)', (p.applicantsFiz||p.applicantsJur) ? [p.applicantsFiz,p.applicantsJur].filter(Boolean).join('; ') : 'Без ограничений — доступно всем')}`)
-      + (p.comment?`<div class="card"><div class="card-h">Служебные заметки</div><div class="kv"><div class="row col-span"><div class="v">${esc(p.comment)}</div></div></div></div>`:'')],
+        ${rowF('Заявители (whitelist)', (p.applicantsFiz||p.applicantsJur) ? [p.applicantsFiz,p.applicantsJur].filter(Boolean).join('; ') : 'Без ограничений — доступно всем')}
+        ${rowF('Служебные заметки',p.comment)}`)],
     ['Сумма и срок',
-      kvCard(`${row('Ограничение суммы',p.amountType)}${row('Сумма',amountStr)}
+      panel(`${row('Ограничение суммы',p.amountType)}${row('Сумма',amountStr)}
         ${row('Ограничение срока',p.termType)}${row('Срок кредита',termStr)}`)],
     ['Процентные ставки',
-      kvCard(`${row('Тип основной ставки',p.rateType)}${row('Значение ставки',rateStr)}`)],
+      panel(`${row('Тип основной ставки',p.rateType)}${row('Значение ставки',rateStr)}`)],
     ['Штрафы',
-      kvCard(`${row('Штраф за просрочку осн. суммы',penStr(p.penaltyMainType,p.penaltyMainVal))}
+      panel(`${row('Штраф за просрочку осн. суммы',penStr(p.penaltyMainType,p.penaltyMainVal))}
         ${row('Штраф за просрочку процентов',penStr(p.penaltyIntType,p.penaltyIntVal))}
         ${row('Максимальный размер штрафа',p.penaltyMaxPct?p.penaltyMaxPct+'% от суммы кредита':'')}`)],
     ['Льготный период',
-      kvCard(graces.length ? graces.map(g=>`<div class="row col-span"><div class="v">${esc(g)}</div></div>`).join('') : `<div class="row col-span"><div class="v muted">Не применяется</div></div>`)],
+      panel(graces.length ? graces.map(g=>rowF('',g)).join('') : rowF('','Не применяется'))],
     ['Платежи и расчёты',
-      kvCard(`${rowF('График платежей',schedStr)}
+      panel(`${rowF('График платежей',schedStr)}
         ${row('Метод расчёта дней',dayMethod)}${row('Очередь погашения',p.queue)}
         ${row('День месяца для платежа',p.payDay)}${row('Обработка нерабочих дней',p.weekend)}
         ${row('Метод погашения кредита',repayStr)}${row('Период до первого платежа',firstPay)}`)],
     ['Документы',
-      kvCard(`${rowF('Обязательные кредитные документы',list(p.docCredReq))}
+      panel(`${rowF('Обязательные кредитные документы',list(p.docCredReq))}
         ${rowF('Опциональные кредитные документы',list(p.docCredOpt))}
         ${rowF('Обязательные залоговые документы',list(p.docCollReq))}
         ${rowF('Опциональные залоговые документы',list(p.docCollOpt))}
@@ -2284,7 +2284,7 @@ function openView(id){
         ${row('Уровень проверки документов',p.checkLevel)}${row('Срок проверки (дней)',p.checkDays)}
         ${rowF('Ответственный за проверку документов',p.checkResp)}`)],
     ['Залоговое обеспечение',
-      kvCard(`${rowF('Требуется залоговое обеспечение',p.collateral?'Да':'Нет')}
+      panel(`${rowF('Требуется залоговое обеспечение',p.collateral?'Да':'Нет')}
         ${p.collateral?`${rowF('Виды залога',list(p.collTypes))}${rowF('Требования к залогу',p.collRu)}`:''}`)],
   ];
   detailRefBanner = p.references>0
