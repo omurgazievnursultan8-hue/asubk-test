@@ -10,6 +10,12 @@
   https://fkftest.okmot.kg/loan-applications; инспекция 2026-06-29.
   Четыре части: список / мастер / деталь (9 вкладок) / отправка.
   Воспроизводит дефекты, без улучшений.
+
+  ПРИМЕЧАНИЕ по данным детали: шапка и вкладка «Общая информация» наполняются
+  по выбранной строке; вкладки График / Кредитная комиссия / История показывают
+  один полностью наполненный образец (Заявка-103). При открытии других строк
+  содержимое этих вкладок не пересчитывается — это демо-ограничение макета,
+  а не дефект живой системы.
 -->
 <style>
 :root{
@@ -845,7 +851,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
       Создать
     </button>
-    <button class="btn btn-secondary" id="btnEdit" disabled>Изменить</button>
+    <button class="btn btn-secondary" id="btnEdit" disabled onclick="editSelected()">Изменить</button>
     <button class="btn btn-danger"    id="btnDel"  disabled>Удалить</button>
     <button class="btn btn-secondary" id="btnCom"  disabled onclick="openSendModal('credit')">Отправить в комиссию</button>
     <button class="btn btn-secondary" id="btnZal"  disabled onclick="openSendModal('collateral')">Отправить в залоговую комиссию</button>
@@ -1650,8 +1656,9 @@ renderNav();
    VIEW ROUTER
    ============================================================ */
 function showView(name){
-  /* Use style.display (not hidden attribute) so explicit CSS display:flex on #view-list /
-     #view-detail doesn't override the UA [hidden]{display:none} rule */
+  /* Toggle via inline style.display, not the hidden attribute: the author CSS
+     `#view-list/#view-detail{display:flex}` outranks the UA `[hidden]{display:none}`
+     rule, so the hidden attribute alone wouldn't hide the panel. Inline style wins. */
   document.getElementById('view-list').style.display   = (name === 'list')   ? 'flex' : 'none';
   document.getElementById('view-detail').style.display = (name === 'detail') ? 'flex' : 'none';
   // Breadcrumb: reset to «Заявки» when going back to list
@@ -1817,6 +1824,10 @@ function selectRow(num){
   document.querySelectorAll('#appTbody tr').forEach(tr => {
     tr.classList.toggle('sel', tr.dataset.num === num);
   });
+}
+
+function editSelected(){
+  if (_selNum) gotoDetail(_selNum);   // «Изменить» opens the selected row's detail (as live: no read-only view)
 }
 
 function sortBy(col){
