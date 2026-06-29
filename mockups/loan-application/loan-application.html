@@ -546,6 +546,11 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 /* eager red bg for required fields immediately on open (as-is P3-06) */
 #modal-create .field.invalid .control input{ background:rgba(231,29,19,0.10); border-color:transparent; }
 
+/* ---- modal-send: grey-filled look (as-is); red bg when invalid (eager) ---- */
+#modal-send .control select{ background:rgba(26,57,96,0.10); border-color:transparent; }
+#modal-send .control select:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); background:rgba(26,57,96,0.10); }
+#modal-send .field.invalid .control select{ background:rgba(231,29,19,0.10); border-color:transparent; }
+
 /* ---- lookup dialog: clone of live Jmix ••• entity-browser screen ---- */
 .modal.lkwide{ width:min(940px,100%); }
 .lk-dlg .filter-head{ padding:0 0 6px; }
@@ -842,8 +847,8 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
     </button>
     <button class="btn btn-secondary" id="btnEdit" disabled>Изменить</button>
     <button class="btn btn-danger"    id="btnDel"  disabled>Удалить</button>
-    <button class="btn btn-secondary" id="btnCom"  disabled>Отправить в комиссию</button>
-    <button class="btn btn-secondary" id="btnZal"  disabled>Отправить в залоговую комиссию</button>
+    <button class="btn btn-secondary" id="btnCom"  disabled onclick="openSendModal('credit')">Отправить в комиссию</button>
+    <button class="btn btn-secondary" id="btnZal"  disabled onclick="openSendModal('collateral')">Отправить в залоговую комиссию</button>
     <button class="btn btn-ghost btn-sm" title="Настройки">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
@@ -1525,6 +1530,38 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
   </div>
 </div>
 
+<!-- ============ OVERLAY: ВЫБЕРИТЕ КОМИССИЮ (Task 11) ============ -->
+<div class="overlay" id="modal-send">
+  <div class="modal" style="width:min(480px,96%)">
+    <div class="modal-h">
+      <span class="mt">Выберите комиссию</span>
+      <button class="modal-x" onclick="closeModal('modal-send')" aria-label="Закрыть">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b">
+      <div class="field required invalid" id="send-commission-field">
+        <span class="flabel">Комиссия</span>
+        <div class="control">
+          <select id="send-commission" onchange="onSendCommissionChange()">
+            <option value=""></option>
+            <option value="Комиссия по залогу test1">Комиссия по залогу test1</option>
+            <option value="Комиссия по заявкам">Комиссия по заявкам</option>
+          </select>
+        </div>
+        <span class="err">Поле является обязательным</span>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-primary" onclick="submitSend()">ОК</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-send')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container (Task 11) -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
 <script>
 /* ============================================================
    SIDEBAR NAVIGATION TREE
@@ -2196,6 +2233,65 @@ function validateCreate(){
   }
 
   return valid;
+}
+
+/* ============================================================
+   TASK 11: Send-to-commission dialogs + post-send feedback
+   Inspected live: 2026-06-29. Post-OK toast text inferred (standard Jmix
+   success notification — exact live text not captured to avoid data mutation).
+   ============================================================ */
+let _sendTrack = null;
+
+/** openSendModal(track) — resets the commission select, applies eager invalid
+ *  state, records the track ('credit'|'collateral'), then opens #modal-send. */
+function openSendModal(track){
+  _sendTrack = track;
+  const sel   = document.getElementById('send-commission');
+  const field = document.getElementById('send-commission-field');
+  sel.value = '';
+  field.classList.add('invalid');
+  openModal('modal-send');
+}
+
+/** onSendCommissionChange — clears/re-adds invalid class as the user picks a value. */
+function onSendCommissionChange(){
+  const sel   = document.getElementById('send-commission');
+  const field = document.getElementById('send-commission-field');
+  field.classList.toggle('invalid', !sel.value);
+}
+
+/** submitSend — validates commission selection; on success updates the correct
+ *  status field on the selected row, re-renders grid, closes modal, shows toast. */
+function submitSend(){
+  const sel   = document.getElementById('send-commission');
+  const field = document.getElementById('send-commission-field');
+  if (!sel.value){
+    field.classList.add('invalid');
+    return;
+  }
+  const app = APPLICATIONS.find(a => a.num === _selNum);
+  if (app){
+    if (_sendTrack === 'credit'){
+      app.status = 'На рассмотрении';
+    } else {
+      app.collateralStatus = 'На рассмотрении';
+    }
+  }
+  renderGrid();
+  closeModal('modal-send');
+  showToast('Данные сохранены', 'ok');
+}
+
+/** showToast(text, type) — appends a .toast element to #toast-wrap; auto-removes after 3.5 s.
+ *  type: 'ok' (green) | 'err' (red) | 'warn' (amber) | '' (dark). */
+function showToast(text, type){
+  const wrap = document.getElementById('toast-wrap');
+  if (!wrap) return;
+  const t = document.createElement('div');
+  t.className = 'toast' + (type ? ' ' + type : '');
+  t.innerHTML = '<span class="tt">' + _esc(text) + '</span>';
+  wrap.appendChild(t);
+  setTimeout(function(){ t.remove(); }, 3500);
 }
 
 /** submitCreate — validates; on success pushes new row, re-renders, closes modal, opens detail. */
