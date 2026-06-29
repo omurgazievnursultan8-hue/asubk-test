@@ -510,6 +510,30 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 table.grid{ table-layout:fixed; }
 table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
+/* ---- create modal: layout ---- */
+.create-form{ display:flex; flex-direction:column; gap:14px; }
+.create-2col{ display:grid; grid-template-columns:1fr 1fr; gap:14px 24px; }
+.create-sum-row{ display:grid; grid-template-columns:1fr 1fr; gap:0 24px; }
+.create-sum-col{ display:flex; flex-direction:column; gap:8px; }
+.create-sum-col .t2-sub{ margin:4px 0 0; }
+.create-collapse-head{ display:flex; align-items:center; gap:8px; padding:10px 0 6px;
+  border-top:1px solid var(--border-default); cursor:pointer; user-select:none;
+  font:var(--weight-medium) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-muted); }
+.create-collapse-head .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5); transition:transform 120ms ease; }
+.create-collapse-head.open .chev{ transform:rotate(90deg); }
+.create-collapse-body{ display:none; padding:6px 0 4px; flex-direction:column; gap:10px; }
+.create-collapse-body.open{ display:flex; }
+/* as-is: grey "filled" look on all create-modal inputs (P3 defect, same as filter bar) */
+#modal-create .control input,
+#modal-create .control select,
+#modal-create .lookup,
+#modal-create .note-area{ background:rgba(26,57,96,0.10); border-color:transparent; }
+#modal-create .control input:focus,
+#modal-create .control select:focus,
+#modal-create .note-area:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); background:rgba(26,57,96,0.10); }
+/* eager red bg for required fields immediately on open (as-is P3-06) */
+#modal-create .field.invalid .control input{ background:rgba(231,29,19,0.10); border-color:transparent; }
+
 /* ---- lookup dialog: clone of live Jmix ••• entity-browser screen ---- */
 .modal.lkwide{ width:min(940px,100%); }
 .lk-dlg .filter-head{ padding:0 0 6px; }
@@ -661,7 +685,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 
   <!-- 4. Actions bar: Создать · Изменить · Удалить · Отправить… · gear · pager -->
   <div class="tb-actions">
-    <button class="btn btn-primary">
+    <button class="btn btn-primary" onclick="openCreateModal()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
       Создать
     </button>
@@ -733,6 +757,201 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 </section>
       <section id="view-detail" hidden></section>
     </main>
+  </div>
+</div>
+
+<!-- ============ OVERLAY: СОЗДАТЬ ЗАЯВКУ ============ -->
+<div class="overlay" id="modal-create">
+  <div class="modal wide" style="width:min(800px,96%)">
+    <div class="modal-h">
+      <span class="mt">Новая заявка</span>
+      <button class="modal-x" onclick="closeModal('modal-create')" aria-label="Закрыть">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b">
+      <div class="create-form">
+
+        <!-- Субъект (full-width picker) -->
+        <div class="field">
+          <span class="flabel">Субъект</span>
+          <div class="lookup">
+            <span class="val" id="cf-subject-val"></span>
+            <button class="pick" onclick="openModal('modal-pick-subject')" title="Выбрать">•••</button>
+            <button onclick="clearPicker('cf-subject')" title="Очистить" style="font-size:13px;color:var(--text-muted)">✕</button>
+          </div>
+        </div>
+
+        <!-- Кредитная программа (full-width picker) -->
+        <div class="field">
+          <span class="flabel">Кредитная программа</span>
+          <div class="lookup">
+            <span class="val" id="cf-program-val"></span>
+            <button class="pick" onclick="openModal('modal-pick-program-create')" title="Выбрать">•••</button>
+            <button onclick="clearPicker('cf-program')" title="Очистить" style="font-size:13px;color:var(--text-muted)">✕</button>
+          </div>
+        </div>
+
+        <!-- Адрес (readonly) | Номер телефона -->
+        <div class="create-2col">
+          <div class="field">
+            <span class="flabel">Адрес</span>
+            <div class="control"><input type="text" id="cf-addr" readonly placeholder=""></div>
+          </div>
+          <div class="field" id="cf-phone-field">
+            <span class="flabel">Номер телефона</span>
+            <div class="control"><input type="text" id="cf-phone" value="+996"></div>
+            <span class="err">Введите номер в формате +996 990 000 000</span>
+          </div>
+        </div>
+
+        <!-- Источник финансирования | Дополнительная информация -->
+        <div class="create-2col">
+          <div class="field">
+            <span class="flabel">Источник финансирования</span>
+            <div class="lookup">
+              <span class="val" id="cf-source-val"></span>
+              <button class="pick" onclick="openModal('modal-pick-source')" title="Выбрать">•••</button>
+              <button onclick="clearPicker('cf-source')" title="Очистить" style="font-size:13px;color:var(--text-muted)">✕</button>
+            </div>
+          </div>
+          <div class="field">
+            <span class="flabel">Дополнительная информация</span>
+            <textarea class="note-area" id="cf-info" style="min-height:60px;resize:vertical"></textarea>
+          </div>
+        </div>
+
+        <!-- Сумма кредита | Срок кредита (2-col with section sub-headers) -->
+        <div class="create-sum-row">
+          <div class="create-sum-col">
+            <div class="t2-sub">Сумма кредита</div>
+            <div class="field required invalid" id="cf-amount-field">
+              <span class="flabel">Запрашиваемая сумма</span>
+              <div class="control"><input type="number" id="cf-amount" min="0" step="0.01" placeholder=""></div>
+              <span class="err">Поле является обязательным</span>
+            </div>
+          </div>
+          <div class="create-sum-col">
+            <div class="t2-sub">Срок кредита</div>
+            <div class="field required invalid" id="cf-term-field">
+              <span class="flabel">Запрашиваемый срок</span>
+              <div class="control"><input type="number" id="cf-term" min="0" step="1" placeholder=""></div>
+              <span class="err">Поле является обязательным</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Метод погашения кредита (full-width select, default Аннуитетный) -->
+        <div class="field">
+          <span class="flabel">Метод погашения кредита</span>
+          <div class="control">
+            <select id="cf-method">
+              <option value="annuity">Аннуитетный</option>
+              <option value="differential">Дифференцированный</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Ручные параметры льготного периода (collapsible, default collapsed) -->
+        <div>
+          <div class="create-collapse-head" id="cf-grace-head" onclick="toggleGrace()">
+            <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+            Ручные параметры льготного периода
+          </div>
+          <div class="create-collapse-body" id="cf-grace-body">
+            <label class="check"><input type="checkbox" id="cf-grace1"><span>Льготный период по основной сумме</span></label>
+            <label class="check"><input type="checkbox" id="cf-grace2"><span>Льготный период по начислению процентов</span></label>
+            <label class="check"><input type="checkbox" id="cf-grace3"><span>Льготный период по процентам</span></label>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-primary" onclick="submitCreate()">Далее</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-create')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- Picker: Субъект -->
+<div class="overlay" id="modal-pick-subject">
+  <div class="modal lkwide">
+    <div class="modal-h">
+      <span class="mt">Субъект</span>
+      <button class="modal-x" onclick="closeModal('modal-pick-subject')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b lk-dlg">
+      <div class="picker-bar"><input class="picker-search" type="search" placeholder="Поиск…"></div>
+      <div class="pick-list">
+        <div class="pick-row" onclick="selectSubject('00404202510209 — ОсОО «Хот Лэйк Текстиль»','ул. Ахунбаева 117, Бишкек')">
+          <span class="pn">00404202510209 — ОсОО «Хот Лэйк Текстиль»</span>
+        </div>
+        <div class="pick-row" onclick="selectSubject('21812199600888 — БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ','ул. Токомбаева 21, Бишкек')">
+          <span class="pn">21812199600888 — БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ</span>
+        </div>
+        <div class="pick-row" onclick="selectSubject('02102201710026 — МП «Ноокат Тазалык»','ул. Карла Маркса 5, Ноокат')">
+          <span class="pn">02102201710026 — МП «Ноокат Тазалык»</span>
+        </div>
+        <div class="pick-row" onclick="selectSubject('20907199400957 — МАТРАИМОВ МАКСАТ КУБАНОВИЧ','ул. Советская 88, Ош')">
+          <span class="pn">20907199400957 — МАТРАИМОВ МАКСАТ КУБАНОВИЧ</span>
+        </div>
+        <div class="pick-row" onclick="selectSubject('01204199910016 — ОАО «О!Банк»','пр. Чуй 44, Бишкек')">
+          <span class="pn">01204199910016 — ОАО «О!Банк»</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('modal-pick-subject')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- Picker: Кредитная программа (create form) -->
+<div class="overlay" id="modal-pick-program-create">
+  <div class="modal lkwide">
+    <div class="modal-h">
+      <span class="mt">Кредитная программа</span>
+      <button class="modal-x" onclick="closeModal('modal-pick-program-create')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b lk-dlg">
+      <div class="picker-bar"><input class="picker-search" type="search" placeholder="Поиск…"></div>
+      <div class="pick-list">
+        <div class="pick-row" onclick="selectProgram('АгроИнвест КР')"><span class="pn">АгроИнвест КР</span></div>
+        <div class="pick-row" onclick="selectProgram('Поддержка сельхозпроизводителей')"><span class="pn">Поддержка сельхозпроизводителей</span></div>
+        <div class="pick-row" onclick="selectProgram('ТУР')"><span class="pn">ТУР</span></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('modal-pick-program-create')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- Picker: Источник финансирования -->
+<div class="overlay" id="modal-pick-source">
+  <div class="modal lkwide">
+    <div class="modal-h">
+      <span class="mt">Источник финансирования</span>
+      <button class="modal-x" onclick="closeModal('modal-pick-source')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b lk-dlg">
+      <div class="picker-bar"><input class="picker-search" type="search" placeholder="Поиск…"></div>
+      <div class="pick-list">
+        <div class="pick-row" onclick="selectSource('Государственный бюджет')"><span class="pn">Государственный бюджет</span></div>
+        <div class="pick-row" onclick="selectSource('Донорские средства')"><span class="pn">Донорские средства</span></div>
+        <div class="pick-row" onclick="selectSource('Собственные средства')"><span class="pn">Собственные средства</span></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('modal-pick-source')">Отмена</button>
+    </div>
   </div>
 </div>
 
@@ -1011,6 +1230,144 @@ document.addEventListener('click', () => {
 });
 
 document.addEventListener('DOMContentLoaded', () => { showView('list'); renderGrid(); });
+
+/* ============================================================
+   CREATE WIZARD — #modal-create
+   Task 4: Новая заявка modal with as-is validation (P3-06 eager errors)
+   ============================================================ */
+
+function openCreateModal(){
+  // Reset all fields
+  ['cf-subject-val','cf-program-val','cf-source-val'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el){ el.textContent = ''; el.classList.remove('filled'); }
+  });
+  document.getElementById('cf-addr').value  = '';
+  document.getElementById('cf-phone').value = '+996';
+  document.getElementById('cf-amount').value = '';
+  document.getElementById('cf-term').value   = '';
+  document.getElementById('cf-info').value   = '';
+  document.getElementById('cf-method').value = 'annuity';
+  ['cf-grace1','cf-grace2','cf-grace3'].forEach(id => {
+    document.getElementById(id).checked = false;
+  });
+  // Clear phone error
+  document.getElementById('cf-phone-field').classList.remove('invalid');
+  // Collapse the grace section
+  document.getElementById('cf-grace-head').classList.remove('open');
+  document.getElementById('cf-grace-body').classList.remove('open');
+  // Eager invalid on required fields (as-is defect P3-06 — red bg immediately on open)
+  document.getElementById('cf-amount-field').classList.add('invalid');
+  document.getElementById('cf-term-field').classList.add('invalid');
+  openModal('modal-create');
+}
+
+function toggleGrace(){
+  document.getElementById('cf-grace-head').classList.toggle('open');
+  document.getElementById('cf-grace-body').classList.toggle('open');
+}
+
+// Generic picker clear: clears <span id="fieldId-val"> + address if subject
+function clearPicker(fieldId){
+  const valEl = document.getElementById(fieldId + '-val');
+  if (valEl){ valEl.textContent = ''; valEl.classList.remove('filled'); }
+  if (fieldId === 'cf-subject'){
+    const addr = document.getElementById('cf-addr');
+    if (addr) addr.value = '';
+  }
+}
+
+function selectSubject(label, addr){
+  const v = document.getElementById('cf-subject-val');
+  v.textContent = label; v.classList.add('filled');
+  document.getElementById('cf-addr').value = addr;
+  closeModal('modal-pick-subject');
+}
+
+function selectProgram(label){
+  const v = document.getElementById('cf-program-val');
+  v.textContent = label; v.classList.add('filled');
+  closeModal('modal-pick-program-create');
+}
+
+function selectSource(label){
+  const v = document.getElementById('cf-source-val');
+  v.textContent = label; v.classList.add('filled');
+  closeModal('modal-pick-source');
+}
+
+/** validateCreate — called by Далее; also shows/hides eager errors.
+ *  Returns true only if: сумма filled AND срок filled AND phone matches +996 NNN NNN NNN. */
+function validateCreate(){
+  let valid = true;
+
+  const amount = document.getElementById('cf-amount').value.trim();
+  if (!amount){
+    document.getElementById('cf-amount-field').classList.add('invalid');
+    valid = false;
+  } else {
+    document.getElementById('cf-amount-field').classList.remove('invalid');
+  }
+
+  const term = document.getElementById('cf-term').value.trim();
+  if (!term){
+    document.getElementById('cf-term-field').classList.add('invalid');
+    valid = false;
+  } else {
+    document.getElementById('cf-term-field').classList.remove('invalid');
+  }
+
+  // Phone must be fully in +996 NNN NNN NNN format (spaces/hyphens optional between groups)
+  const phone = document.getElementById('cf-phone').value.trim();
+  const phoneOk = /^\+996[\s\-]?\d{3}[\s\-]?\d{3}[\s\-]?\d{3}$/.test(phone);
+  if (!phoneOk){
+    document.getElementById('cf-phone-field').classList.add('invalid');
+    valid = false;
+  } else {
+    document.getElementById('cf-phone-field').classList.remove('invalid');
+  }
+
+  return valid;
+}
+
+/** submitCreate — validates; on success pushes new row, re-renders, closes modal, opens detail. */
+function submitCreate(){
+  if (!validateCreate()) return;
+
+  // Next application number (max existing + 2, following the live odd sequence)
+  let maxN = 0;
+  APPLICATIONS.forEach(a => {
+    const m = a.num.match(/\d+/);
+    if (m) maxN = Math.max(maxN, parseInt(m[0], 10));
+  });
+  const newN   = maxN + 2;
+  const newNum = 'Заявка - ' + newN;
+
+  const subjectText = document.getElementById('cf-subject-val').textContent || '';
+  // Subject label format: "INN — Name"
+  const dashIdx = subjectText.indexOf('—');
+  const inn  = dashIdx > 0 ? subjectText.slice(0, dashIdx).trim() : '';
+  const name = dashIdx > 0 ? subjectText.slice(dashIdx + 1).trim() : subjectText;
+
+  const rawAmount = parseFloat(document.getElementById('cf-amount').value) || 0;
+  const amountStr = rawAmount.toLocaleString('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  APPLICATIONS.unshift({
+    num: newNum,
+    inn: inn,
+    name: name,
+    status: 'Новый',
+    collateralStatus: '',
+    program: document.getElementById('cf-program-val').textContent || '',
+    amount: amountStr,
+    term: document.getElementById('cf-term').value || '',
+    info: document.getElementById('cf-info').value || '',
+  });
+
+  renderGrid();
+  closeModal('modal-create');
+  gotoDetail(newNum);
+}
 </script>
 </body>
 </html>
