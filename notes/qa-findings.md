@@ -228,6 +228,109 @@ Stack confirmed as **Jmix on Vaadin** (`jmix-value-picker`).
     Создать/Изменить/Удалить/**Одобрить**/**Отклонить** from inside the program
     form, which is broader access than a value-picker should grant. → P2-R9.
 
+- **P2-09** — `/loan-programs/new` Tab 1 reference-book pickers — 🟠 major — _field-by-field review with owner 2026-06-25_
+  - **Issue:** Tab-1 dictionaries are polluted with test junk and **out of sync**
+    with the values programs actually reference:
+    - **Источник финансирования** — picker has `asdfasdf` (test junk) + `Бюджет`
+      only; seed programs reference `Иностранные доноры` / `Собственные средства`,
+      which are **missing from the dictionary** (programs show an unlisted source);
+    - **Назначение кредита** («Цели кредита») — short categories mixed with 300+
+      char project descriptions stuffed in as "goals";
+    - **Отрасль** — duplicate `Питомниководство` (codes `NURSERY` and `1212`),
+      junk codes (`5`, `7`, `zh-1`, `Liaz-1`, `1212`);
+    - **Кредитная линия** — picker has `АРР, ФРР`; programs reference `АБР, МАР, ВБ`
+      (missing from dictionary);
+    - **Вид счёта погашения** — `123`, `321` (test junk) + one real value.
+  - **Expected:** Clean junk; backfill values that existing programs reference so
+    no program points at an unlisted entry; long descriptions belong in the
+    program's «Краткое описание», not in the shared goals dictionary. Dictionaries
+    admin-curated only (no inline add from the program form). → P2-R13.
+
+- **P2-10** — `/loan-programs/new` Tab 1 «Ответственные сотрудники» — 🟠 major — _owner 2026-06-25_
+  - **Issue:** Field label is plural («сотрудник**и**») but the picker is
+    **single-select**; the field is **optional**, yet the owner confirms it drives
+    **application routing** and credit-curator assignment — an empty value leaves
+    applications with no one to route to.
+  - **Expected:** Make it **multi-select** and **required**. Curator-selection
+    logic itself is out of scope here (future «модуль кураторства»). → P2-R12.
+
+- **P2-11** — `/loan-programs/new` Tab 1 — 🔵 cosmetic — _owner 2026-06-25_
+  - **Issue:** Terminology drift between field labels and picker dialogs:
+    field «Назначение кредита» opens a dialog titled «Цели кредита» (two words for
+    one thing); the «Решение правительства» picker hint says «одобренные», but the
+    unified status is «Действует» (P2-R11).
+  - **Expected:** One term everywhere — keep «Назначение кредита» (rename the
+    dictionary); decision picker says «действующие». → P2-R13 / P2-R11.
+
+- **P2-12** — `/loan-programs/new` Tab 2 «Суммы кредита» / «Сроки кредита» pickers — 🟠 major — _field-by-field review with owner 2026-06-25_
+  - **Issue:** Both fixed-value reference-books are polluted with invalid test
+    junk: «Суммы кредита» contains negatives («-100,00», «-5 000,00»); «Сроки
+    кредита» contains negatives and absurd values («-2», «-8 020»). These are
+    reused for future reporting/analytics (owner), so the dictionaries must be
+    clean and admin-curated, not free-for-all.
+  - **Expected:** Validated admin-managed reference-books — amounts strictly
+    positive (2 decimals), terms strictly positive integers (months); purge the
+    junk rows. Same pollution pattern as P2-09. → P2-R15.
+
+- **P2-13** — `/loan-programs/new` Tab 2 amount/term inputs — 🟠 major — _owner 2026-06-25_
+  - **Issue:** «Диапазон» mode min/max are plain text fields with no validation:
+    no `0 < мин ≤ макс` check (min can exceed max), no numeric mask, negatives
+    accepted. «Фиксированная» grid accepts duplicate values and shows them in
+    add-order, not sorted. Term has no unit anywhere — «84 / 6 / 12» without
+    «мес.», so days-vs-months is ambiguous.
+  - **Expected:** Range = numeric with mask, `0 < мин ≤ макс` (equal allowed with
+    a soft «consider Фиксированная» warning); fixed grid bans duplicates and
+    auto-sorts ascending; term labelled explicitly in months («мес.» suffix),
+    integers only; amounts 2 decimals with thousands separators + currency from
+    Tab 1. → P2-R15.
+
+- **P2-14** — `/loan-programs/new` Tab 3 «Маржа к плавающей ставке» — 🟠 major — _owner 2026-06-25, developer misunderstanding_
+  - **Issue:** «Маржа к плавающей ставке» is implemented as a separate free-entry
+    decimal, but per the owner the margin and the base «Значение фиксированной
+    ставки» are the **same figure** — the dev team duplicated one concept into two
+    fields. Result: an operator can type a margin that contradicts the base rate.
+  - **Expected:** «Маржа» is **read-only**, mirrors the base rate — the fixed
+    value(s) (show all chips if multi) or the «с…по» range — and reads together
+    with the chosen benchmark, e.g. «от 1 до 5 + ЛИБОР 6м». Final borrower rate =
+    base rate + benchmark. Floating is an **additive** surcharge on the base, not
+    an alternative rate type. → P2-R16.
+
+- **P2-15** — `/loan-programs/new` Tab 3 rate inputs & dictionaries — 🟠 major — _owner 2026-06-25_
+  - **Issue:** «Диапазон» rate fields («с»/«по») are plain text with no `0 < с ≤
+    по` check, no numeric mask, no «%» suffix. Fixed-rate combo is fed by a
+    «регламентированный справочник ставок» holding a single value «10,00»
+    (essentially empty); benchmark reference-book («Тип плавающей ставки», 8 rows)
+    is unverified for junk. Fixed values shown as «10,00» without «%».
+  - **Expected:** Range numeric with mask + «%», `0 < с ≤ по` (equal allowed →
+    soft «consider Фиксированная» warning), no ceiling; rate & benchmark
+    reference-books admin-curated, populated, junk-checked; «% годовых» suffix on
+    displayed rates. → P2-R16.
+
+- **P2-16** — `/loan-programs/new` Tab 4 penalty «Тип штрафной ставки» select — 🟠 major — _owner 2026-06-25_
+  - **Issue:** The «Диапазон» option is mislabelled — its branch shows a floating
+    benchmark picker + margin, NOT a «с…по» range, so «Диапазон» here means
+    «Плавающая» and contradicts Tab 3's «Диапазон». Same margin-duplication as
+    P2-14: «Маржа к плавающей штрафной ставке» is a separate free entry that should
+    mirror the fixed penalty rate. Fixed penalty value is a free decimal while
+    Tab 3 rates come from a reference-book (inconsistent).
+  - **Expected:** Rename the option «Диапазон» → «Плавающая» across Tab 4 (both
+    principal & interest blocks); «Маржа» is read-only, mirrors the fixed penalty
+    rate (final penalty = benchmark + fixed penalty rate); fixed penalty rate is
+    picked from an admin-curated reference-book («% годовых»); benchmark
+    reference-books admin-curated + junk-checked. → P2-R17.
+
+- **P2-17** — `/loan-programs/new` Tab 4 «Максимальный размер штрафа» & layout — 🟠 major — _owner 2026-06-25_
+  - **Issue:** «Максимальный размер штрафа» (% от суммы кредита) sits in the
+    right-hand «просрочка процентов» column, so its scope reads as interest-only,
+    but it is meant to cap the **total** penalty. The header «Штраф за просрочку
+    процентов» is duplicated (right column + full-width band), conflating two
+    different blocks.
+  - **Expected:** Move the cap to its own band «Ограничения штрафа» (applies to
+    total penalty = principal + interest, computed off the **initial** loan
+    amount); required, default **20**. With the cap relocated, the duplicate
+    «Штраф за просрочку процентов» header disappears — layout becomes two columns
+    [Осн. сумма | Проценты] + one band [Ограничения штрафа]. → P2-R17.
+
 ### Behaviour confirmed via test record (2026-06-17)
 - **«Сохранить» = save & stay** (commits, keeps the editor open; URL → record id,
   toast «…успешно сохранена»). **«OK» = save & close** (commits, leaves the
@@ -606,3 +709,85 @@ gating. Routes: list `/loansCredit`, detail `/loan-credits/{id}`, view
     auditability.
   - **Expected:** ledger is append-only; corrections via reversing entries, not row
     deletion; any admin removal must be audited. → P7-R5.
+
+---
+
+## Phase 8 — Reference dictionaries (Справочники / классификаторы)
+
+> Cross-cutting data layer used by entities of sections 01–07. Verified 2026-06-24
+> via `scripts/inspect/tz/nav-spravochniki.mjs` (menu) and
+> `scripts/inspect/tz/dump-dict.mjs --file .auth/dict-routes.txt` (47 screens:
+> data + CSS, 0 errors). See `requirements/tz/08-spravochniki.md`. Stand is test —
+> values indicate structure, not the normative list.
+
+- **P8-01** — `/loan-states` (Статус кредита) — 🔴 blocker — _verified 2026-06-24_
+  - **Issue:** the dictionary that should hold loan lifecycle statuses contains a
+    single junk row **«Кредит компании»** — not a status. The status classifier for
+    section 05 is effectively unpopulated with valid values.
+  - **Expected:** normative loan-status set; remove the junk row. → P8-R4.
+
+- **P8-02** — lookup picker from forms — 🔴 blocker — _verified 2026-06-19/24_
+  - **Issue:** opening a `jmix-value-picker` (e.g. «Решение правительства») surfaces
+    a full screen with **Создать/Изменить/Удалить/Одобрить/Отклонить** — far too wide
+    an access surface from inside a form; the status filter is a removable UI chip
+    with no server enforcement.
+  - **Expected:** selection-only picker + hard loader filter. **Already tracked as
+    P2-R9** — recorded here as the dictionary-layer manifestation, no new task.
+
+- **P8-03** — 14 dictionaries empty — 🟠 major — _verified 2026-06-24_
+  - **Issue:** `order-document-types`, `entity-document-states`,
+    `entity-document-registered-bies`, `document-package-states`,
+    `document-package-types`, `applied-entity-list-states`,
+    `applied-entity-list-types`, `applied-entity-states`,
+    `order-term-frequency-types`, `order-term-rate-periods`,
+    `order-term-accr-methods`, `work-sectors`, `loan-payment-capacity-groups`,
+    `good-types` return **0 rows**. Several are status/type enums the workflow
+    references — an empty dictionary = a field with no values to pick.
+  - **Expected:** populate with normative values before enabling required-field
+    server validation (P2-R10). → P8-R3.
+
+- **P8-04** — `/agreement-templates`, `/agreement-template-codes` — 🟠 major — _verified 2026-06-24_
+  - **Issue:** grid column headers show **raw Java property paths** instead of
+    localized labels — «AgreementTemplate.templateType», «AgreementTemplate.status»,
+    «AgreementTemplate.active»; «AgreementTemplateCode.code», «…name», «…description».
+  - **Expected:** localized Russian column captions. → P8-R2.
+
+- **P8-05** — `/destination-accounts` — 🟠 major — _verified 2026-06-24_
+  - **Issue:** screen title is the untranslated English **«Destination accounts»**.
+  - **Expected:** Russian screen title. → P8-R2.
+
+- **P8-06** — 40 of 47 dictionary screens — 🟠 major — _verified 2026-06-24_
+  - **Issue:** only 7 screens (industryDirections, collateralTypes, commissions,
+    creditTerms, calculationCoefficients, individuals, organizations) expose a
+    **«Просмотр»** mode. The other 40 force editing to inspect a record (accidental
+    edit risk) — same class as P2-R4.
+  - **Expected:** read-only view on every dictionary; standardize on the richer
+    archetype (Код + Статус + «Просмотр»). → P8-R1.
+
+- **P8-07** — status dictionaries & «Статус» columns — 🟡 minor — _verified 2026-06-24_
+  - **Issue:** status values render as **plain text** everywhere — both in
+    status-classifier screens (Статус решения/кредита/документа…) and in the «Статус»
+    column of the rich archetype («Активный»). The design system defines colored
+    status badges.
+  - **Expected:** render statuses as design-system badges (`status-*` tints). → P8-R5.
+
+- **P8-08** — multiple dictionaries — 🟡 minor — _verified 2026-06-24_
+  - **Issue:** test garbage in production-candidate dictionaries: «соновное 1»
+    (typo, Вид решения), «123/321» (Вид счета погашения / Счет погашения),
+    «hidshgiu/fgxdzxh» (Группа заемщика), «шрафы» (typo, Вид очередности погашения),
+    «Aibek rate» (Вид ставок).
+  - **Expected:** clean and fix typos; fix normative lists with the owner. → P8-R4.
+
+- **P8-09** — `Цели кредита`, `Уровни проверки документов`, `Типы расчета процентов` — 🟡 minor — _verified 2026-06-24_
+  - **Issue:** three dictionaries referenced by loan-program form fields were **not
+    found as standalone «Справочники» menu routes** (nav enumeration 2026-06-24) —
+    reachable only through the in-form picker. Inconsistent management surface.
+  - **Expected:** a management screen in the «Справочники» menu for every dictionary.
+    → P8-R1.
+
+- **P8-10** — dictionary grids — 🔵 cosmetic — _verified 2026-06-24_
+  - **Issue:** grid body font-size varies (14px vs 16px) and row height varies
+    (29 / 30 / 32 / 34px / auto) across screens; the rest of the tokens (title,
+    primary button, border, container padding) are uniform and match the mockup
+    design system.
+  - **Expected:** one font-size / row-height across all dictionary grids. → P8-R6.
