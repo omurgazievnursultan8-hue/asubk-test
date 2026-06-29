@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-06-29 (loan-program form field-by-field review, tabs 2–8) — _(update this date every time you edit)_
+> Last updated: 2026-06-29 (loan-application as-is mockup + live re-inspection findings) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,6 +38,18 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-06-29 — **Мокап «Заявка»** (`mockups/loan-application/loan-application.html`) завершён:
+  as-is клон полного потока — список заявок (грид, 8 колонок, 5 плиток-статистики) +
+  мастер «Новая заявка» (все поля step 1) + страница детали (все 9 вкладок: Общая
+  информация, График, 3 набора документов, Кредитная/Залоговая комиссия, История) +
+  диалоги «Выберите комиссию» (кредитная/залоговая) со статус-тостом. Переиспользует
+  дизайн-систему loan-program. Воспроизводит живые дефекты (серые поля P3-01, eager
+  валидация P3-06, нет «Просмотр» P3-02), без улучшений. Живые находки 2026-06-29
+  (по `scripts/inspect/app-capture.mjs`): добавлены 5 цветовых stat-cards (Всего/На
+  рассмотрении/Одобрено/Отклонено/Требуется доп. информация); новый статус «Новый»;
+  степпер детали с зелёной галочкой + датой под завершёнными шагами; поле диапазона
+  «Допустимо: от … до …» в блоке одобренных условий; поле «Кредитная программа» во
+  второй колонке Общей информации.
 - 2026-06-29 — Loan-program creation form: completed a component-by-component owner
   review of all 8 input tabs (2 Сумма/срок · 3 Ставки · 4 Штрафы · 5 Льготный
   период · 6 Платежи/расчёты · 7 Документы · 8 Залог). Logged defects **P2-12…P2-25**

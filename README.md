@@ -17,6 +17,7 @@ project stands, what's left to do, and what it must do.**
 | [references.md](references.md) | Links to the repo, environments, dashboards, docs, people | A new external resource matters |
 | [mockups/loan-program/loan-program.html](mockups/loan-program/loan-program.html) | UI mockup: форма создания кредитной программы (9 вкладок, дизайн-система АСУБК) | Обновляется под рекомендации P2-R* |
 | [mockups/dictionaries/dictionaries.html](mockups/dictionaries/dictionaries.html) | UI mockup: витрина справочников (50 разделов, тулбар/грид/модал/picker-демо, P2-R9) | Обновляется под рекомендации P2-R* |
+| [mockups/loan-application/loan-application.html](mockups/loan-application/loan-application.html) | UI mockup: «Заявка» as-is поток — список + мастер «Новая заявка» + детальная страница (9 вкладок) + диалоги «Выберите комиссию» | As-is клон живого приложения (Tasks 3–11) |
 
 ## Quick start each session
 
