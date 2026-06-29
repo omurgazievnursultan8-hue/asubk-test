@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Решение правительства — что это и зачем</title>
+<style>
+:root{
+  --blue:#006AF5; --blue-d:#0049A8; --link:#005FDB;
+  --green:#158443; --red:#E03A3A; --amber:#B8860B;
+  --ink:#192434; --ink-90:rgba(24,39,57,0.94); --ink-65:rgba(24,39,57,0.65); --ink-45:rgba(24,39,57,0.45);
+  --gray-50:#F8F9FB; --gray-100:#F5F7FA; --gray-150:#EFF1F4; --gray-200:#E4E8EE;
+  --border:rgba(28,55,90,0.16); --border-strong:rgba(28,55,90,0.30);
+  --blue-tint:rgba(0,106,245,0.08); --green-tint:rgba(21,132,67,0.10);
+  --red-tint:#FCE6E6; --amber-tint:rgba(184,134,11,0.12);
+  --font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{
+  margin:0;font-family:var(--font);color:var(--ink-90);
+  font-size:15px;line-height:1.62;background:var(--gray-100);
+}
+.page{max-width:880px;margin:0 auto;background:#fff;padding:0 0 56px}
+
+/* ---- header ---- */
+.masthead{
+  background:linear-gradient(135deg,#0058CC 0%,#006AF5 55%,#2E86FF 100%);
+  color:#fff;padding:38px 56px 32px;
+}
+.masthead .kicker{
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+  opacity:.85;font-weight:600;margin-bottom:10px;
+}
+.masthead h1{margin:0;font-size:30px;line-height:1.2;font-weight:700;letter-spacing:-.01em}
+.masthead .sub{margin-top:12px;font-size:14.5px;opacity:.92;max-width:60ch}
+.crumbs{
+  margin-top:18px;display:flex;gap:8px;flex-wrap:wrap;font-size:12.5px;
+}
+.crumbs span{background:rgba(255,255,255,.16);padding:4px 11px;border-radius:999px}
+
+/* ---- content ---- */
+.content{padding:8px 56px 0}
+section{padding:30px 0;border-bottom:1px solid var(--gray-150)}
+section:last-of-type{border-bottom:0}
+h2{
+  display:flex;align-items:center;gap:14px;
+  font-size:21px;font-weight:700;color:var(--ink);margin:0 0 18px;letter-spacing:-.01em;
+}
+h2 .num{
+  flex:none;width:34px;height:34px;border-radius:50%;
+  background:var(--blue);color:#fff;font-size:16px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+}
+p{margin:0 0 14px}
+strong{color:var(--ink);font-weight:600}
+
+/* ---- callout cards ---- */
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:4px 0 0}
+.card{
+  border:1px solid var(--border);border-left:4px solid var(--blue);
+  border-radius:8px;padding:15px 18px;background:var(--gray-50);
+}
+.card h3{margin:0 0 6px;font-size:14.5px;color:var(--blue-d);font-weight:600}
+.card p{margin:0;font-size:13.5px;line-height:1.55;color:var(--ink-90)}
+.card.warn{border-left-color:var(--amber);background:var(--amber-tint)}
+.card.warn h3{color:var(--amber)}
+
+/* ---- note / callout strip ---- */
+.note{
+  display:flex;gap:12px;align-items:flex-start;
+  border-radius:8px;padding:13px 16px;margin:18px 0 0;font-size:13.5px;
+}
+.note .ic{flex:none;font-size:16px;line-height:1.4}
+.note.amber{background:var(--amber-tint);border:1px solid rgba(184,134,11,.3)}
+.note.blue{background:var(--blue-tint);border:1px solid rgba(0,106,245,.22)}
+.note b{color:var(--ink)}
+
+/* ---- table ---- */
+table{border-collapse:collapse;width:100%;margin:6px 0 0;font-size:13.5px}
+th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--gray-150)}
+thead th{background:var(--gray-100);color:var(--ink-65);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+tbody tr:nth-child(even){background:var(--gray-50)}
+td b{color:var(--ink)}
+
+/* ---- definition list (card fields) ---- */
+.defs{display:grid;gap:0;margin-top:4px;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.def{display:grid;grid-template-columns:200px 1fr;border-top:1px solid var(--gray-150)}
+.def:first-child{border-top:0}
+.def dt{padding:11px 16px;background:var(--gray-50);font-weight:600;color:var(--ink)}
+.def dd{padding:11px 16px;margin:0;font-size:13.5px}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--blue-tint);color:var(--blue-d);margin-left:4px;vertical-align:1px}
+
+/* ---- process chain diagram (§3) ---- */
+.flow{margin:6px 0 0;display:flex;flex-direction:column;align-items:center;gap:0}
+.flow .node{
+  width:340px;max-width:100%;text-align:center;border-radius:9px;padding:12px 16px;
+  border:1.5px solid var(--border-strong);background:#fff;position:relative;
+}
+.flow .node .t{font-weight:600;color:var(--ink);font-size:14.5px}
+.flow .node .d{font-size:12px;color:var(--ink-65);margin-top:2px}
+.flow .node.origin{border-color:var(--blue);background:var(--blue-tint);box-shadow:0 2px 10px rgba(0,106,245,.12)}
+.flow .node.origin .t{color:var(--blue-d)}
+.flow .arrow{height:26px;width:2px;background:var(--border-strong);position:relative}
+.flow .arrow::after{content:"";position:absolute;left:-4px;bottom:0;border:5px solid transparent;border-top-color:var(--border-strong)}
+.flow .trio{display:flex;gap:0;align-items:center;flex-wrap:wrap;justify-content:center;margin-top:2px}
+.flow .trio .mini{
+  border:1.5px solid var(--border-strong);background:var(--gray-50);border-radius:8px;
+  padding:9px 13px;font-size:12.5px;font-weight:600;color:var(--ink);text-align:center;
+}
+.flow .trio .ha{color:var(--ink-45);font-size:17px;padding:0 8px}
+
+/* ---- lifecycle ---- */
+.legend{display:flex;gap:22px;flex-wrap:wrap;margin:14px 0 0;font-size:12.5px;color:var(--ink-65)}
+.legend .li{display:flex;align-items:center;gap:7px}
+.legend .ln{width:26px;height:0;border-top:2px solid var(--ink-65)}
+.legend .ln.dash{border-top-style:dashed}
+
+.statuslist{display:grid;gap:8px;margin:18px 0 0}
+.statusrow{display:grid;grid-template-columns:170px 1fr;gap:14px;align-items:start;font-size:13.5px}
+.badge{
+  display:inline-block;font-size:12.5px;font-weight:600;padding:3px 12px;border-radius:999px;
+  border:1px solid transparent;text-align:center;white-space:nowrap;
+}
+.b-draft{background:var(--gray-200);color:var(--ink-65)}
+.b-review{background:var(--blue-tint);color:var(--blue-d);border-color:rgba(0,106,245,.3)}
+.b-rework{background:var(--amber-tint);color:var(--amber);border-color:rgba(184,134,11,.4)}
+.b-active{background:var(--green-tint);color:var(--green);border-color:rgba(21,132,67,.4)}
+.b-reject{background:var(--red-tint);color:var(--red);border-color:rgba(224,58,58,.4)}
+.b-closed{background:var(--gray-200);color:var(--ink);border-color:var(--border-strong)}
+
+.rules{margin:18px 0 0;padding:0;list-style:none}
+.rules li{position:relative;padding:5px 0 5px 26px;font-size:13.5px;border-top:1px solid var(--gray-150)}
+.rules li:first-child{border-top:0}
+.rules li::before{content:"";position:absolute;left:4px;top:12px;width:8px;height:8px;border-radius:2px;background:var(--blue)}
+
+.ol{counter-reset:q;margin:6px 0 0;padding:0;list-style:none}
+.ol li{position:relative;padding:10px 0 10px 40px;border-top:1px solid var(--gray-150);font-size:14px}
+.ol li:first-child{border-top:0}
+.ol li::before{
+  counter-increment:q;content:counter(q);position:absolute;left:0;top:9px;
+  width:26px;height:26px;border-radius:50%;background:var(--blue-tint);color:var(--blue-d);
+  font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;
+}
+
+.diagram{break-inside:avoid;page-break-inside:avoid}
+svg{display:block;max-width:100%;height:auto}
+
+footer.src{
+  margin-top:8px;padding:18px 56px 0;font-size:12px;color:var(--ink-45);line-height:1.6;
+}
+footer.src a{color:var(--link)}
+
+@page{size:A4;margin:14mm}
+@media print{
+  body{background:#fff;font-size:12.5px}
+  .page{max-width:none;box-shadow:none}
+  .masthead{padding:26px 0 22px}
+  .content{padding:0}
+  footer.src{padding:14px 0 0}
+  section{padding:20px 0}
+  h2{font-size:18px}
+  .cards{gap:10px}
+  .diagram,.card,.flow,.statusrow,table,.def{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div class="kicker">Государственный финансовый холдинг · Бюджетное кредитование</div>
+    <h1>Решение&nbsp;правительства — что это и зачем</h1>
+    <div class="sub">Пояснительный документ для рабочей группы: смысл сущности «Решение&nbsp;правительства», её роль в кредитном процессе и правовой контекст.</div>
+    <div class="crumbs">
+      <span>Кредиты</span><span>Программы и&nbsp;решения</span><span>Решение&nbsp;правительства</span>
+    </div>
+  </header>
+
+  <div class="content">
+
+  <!-- 1 -->
+  <section>
+    <h2><span class="num">1</span> Зачем оно нужно</h2>
+    <div class="cards">
+      <div class="card">
+        <h3>⚖️ Правовое основание</h3>
+        <p>Холдинг — государственная организация. Он не может выдавать средства «просто так»: под каждый кредит должно лежать <strong>законное основание</strong> — решение уполномоченного органа. Запись и есть это основание, зафиксированное в системе.</p>
+      </div>
+      <div class="card">
+        <h3>🌱 Точка происхождения средств</h3>
+        <p>Решение задаёт рамку: какое направление кредитуется и в рамках какого государственного акта. Из решения «вырастают» кредитные программы, а из программ — конкретные кредиты.</p>
+      </div>
+      <div class="card">
+        <h3>🔎 Прослеживаемость (аудит)</h3>
+        <p>Любой кредит можно «размотать» обратно: кредит → программа → <strong>решение</strong>. На вопрос «на каком основании выданы средства?» система отвечает ссылкой на государственный акт и приложенный документ-первоисточник.</p>
+      </div>
+      <div class="card">
+        <h3>🔗 Без него цепочка рвётся</h3>
+        <p>Без записи о решении нельзя корректно создать кредитную программу — программе не на что сослаться, и цепочка происхождения средств прерывается.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section>
+    <h2><span class="num">2</span> Откуда берётся и какие бывают</h2>
+    <p>Решение приходит <strong>извне</strong> — его принимает государственный орган, а сотрудник Холдинга <strong>регистрирует</strong> его в системе: заводит карточку и <strong>прикладывает документ-первоисточник</strong> (PDF акта).</p>
+    <table>
+      <thead><tr><th style="width:34%">Вид решения</th><th>Что это</th></tr></thead>
+      <tbody>
+        <tr><td><b>Постановление</b></td><td>Постановление (как правило — Кабинета Министров)</td></tr>
+        <tr><td><b>Распоряжение</b></td><td>Распоряжение</td></tr>
+        <tr><td><b>Основное</b></td><td>Базовое / основное решение</td></tr>
+        <tr><td><b>РКМКР · РПКР · ПКМКР</b></td><td>Ведомственные типы актов</td></tr>
+      </tbody>
+    </table>
+    <div class="note amber"><span class="ic">🟡</span><div><b>На подтверждение:</b> полный перечень видов и их официальные расшифровки — уточнить у домен-эксперта (список собран из стенда, не из нормативной базы).</div></div>
+  </section>
+
+  <!-- 3 -->
+  <section>
+    <h2><span class="num">3</span> Место в кредитном процессе</h2>
+    <p>Решение — <strong>самое начало</strong> цепочки. Это первый раздел домена <strong>«Бюджетное кредитование»</strong>. Всё остальное идёт следом:</p>
+    <div class="flow diagram">
+      <div class="node origin"><div class="t">Решение правительства</div><div class="d">разрешает направление кредитования</div></div>
+      <div class="arrow"></div>
+      <div class="node"><div class="t">Кредитная программа</div><div class="d">ссылается на решение · ставки, сроки, лимиты</div></div>
+      <div class="arrow"></div>
+      <div class="node"><div class="t">Заявка</div><div class="d">+ рассмотрение комиссией</div></div>
+      <div class="arrow"></div>
+      <div class="node"><div class="t">Заёмщик</div></div>
+      <div class="arrow"></div>
+      <div class="node"><div class="t">Кредит (выдача)</div></div>
+      <div class="arrow"></div>
+      <div class="trio">
+        <div class="mini">Освоение<br>(транши)</div>
+        <span class="ha">→</span>
+        <div class="mini">Мониторинг кредита<br>(платежи)</div>
+        <span class="ha">→</span>
+        <div class="mini">Мониторинг<br>залога</div>
+      </div>
+      <div class="arrow"></div>
+      <div class="node"><div class="t">Взыскание задолженности</div><div class="d">при необходимости</div></div>
+    </div>
+    <div class="note blue"><span class="ic">🔗</span><div><b>Ключевая связь:</b> одна кредитная программа ссылается на одно решение. Поэтому запись о решении нельзя бесконтрольно удалять или менять, если на неё уже опираются программы (защита ссылок — задача&nbsp;R4).</div></div>
+  </section>
+
+  <!-- 4 -->
+  <section>
+    <h2><span class="num">4</span> Жизненный цикл записи</h2>
+    <p>Решение проходит согласование по принципу «создатель ≠ утверждающий» (maker/checker). Целевая модель — <strong>6 статусов</strong> и роли «Автор», «Согласующий», «Наблюдатель» (просмотр без действий). Закрытие действующего решения и админ-возвраты выполняет <strong>администратор</strong>.</p>
+
+    <div class="diagram">
+    <svg viewBox="0 0 900 360" role="img" aria-label="Диаграмма жизненного цикла решения">
+      <defs>
+        <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L7,3 L0,6 Z" fill="#5b6b7e"/>
+        </marker>
+        <marker id="ahd" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L7,3 L0,6 Z" fill="#B8860B"/>
+        </marker>
+      </defs>
+
+      <!-- edges (drawn first, under nodes) -->
+      <g fill="none" stroke="#5b6b7e" stroke-width="1.6">
+        <!-- Черновик -> На рассмотрении -->
+        <line x1="180" y1="70" x2="252" y2="70" marker-end="url(#ah)"/>
+        <!-- На рассмотрении -> Действует -->
+        <line x1="438" y1="70" x2="502" y2="70" marker-end="url(#ah)"/>
+        <!-- Действует -> Закрыт -->
+        <line x1="652" y1="70" x2="730" y2="70" marker-end="url(#ah)"/>
+        <!-- На рассмотрении -> На доработке -->
+        <path d="M320,96 C320,150 290,170 282,236" marker-end="url(#ah)"/>
+        <!-- На доработке -> На рассмотрении (возврат) -->
+        <path d="M340,236 C352,175 360,150 372,96" marker-end="url(#ah)"/>
+        <!-- На рассмотрении -> Отклонён -->
+        <path d="M410,96 C440,150 480,180 520,236" marker-end="url(#ah)"/>
+      </g>
+      <!-- admin returns (dashed amber) -->
+      <g fill="none" stroke="#B8860B" stroke-width="1.5" stroke-dasharray="5 4">
+        <!-- Закрыт -> низ -> На рассмотрении -->
+        <path d="M805,96 C805,330 805,338 600,338 L300,338 C250,338 250,330 250,100" marker-end="url(#ahd)"/>
+        <!-- Отклонён -> низ -->
+        <path d="M565,288 C565,330 560,338 500,338" />
+      </g>
+
+      <!-- nodes -->
+      <!-- Черновик -->
+      <g><rect x="30" y="44" width="150" height="52" rx="9" fill="#EFF1F4" stroke="rgba(28,55,90,.30)"/>
+        <text x="105" y="75" text-anchor="middle" font-size="14" font-weight="600" fill="#192434" font-family="sans-serif">Черновик</text></g>
+      <!-- На рассмотрении -->
+      <g><rect x="252" y="44" width="186" height="52" rx="9" fill="rgba(0,106,245,.10)" stroke="#006AF5"/>
+        <text x="345" y="75" text-anchor="middle" font-size="14" font-weight="600" fill="#0049A8" font-family="sans-serif">На рассмотрении</text></g>
+      <!-- Действует -->
+      <g><rect x="502" y="44" width="150" height="52" rx="9" fill="rgba(21,132,67,.12)" stroke="#158443"/>
+        <text x="577" y="75" text-anchor="middle" font-size="14" font-weight="700" fill="#106A36" font-family="sans-serif">Действует</text></g>
+      <!-- Закрыт -->
+      <g><rect x="730" y="44" width="150" height="52" rx="9" fill="#E4E8EE" stroke="rgba(28,55,90,.30)"/>
+        <text x="805" y="75" text-anchor="middle" font-size="14" font-weight="600" fill="#192434" font-family="sans-serif">Закрыт</text></g>
+      <!-- На доработке -->
+      <g><rect x="206" y="236" width="170" height="52" rx="9" fill="rgba(184,134,11,.12)" stroke="#B8860B"/>
+        <text x="291" y="267" text-anchor="middle" font-size="14" font-weight="600" fill="#8a6608" font-family="sans-serif">На доработке</text></g>
+      <!-- Отклонён -->
+      <g><rect x="490" y="236" width="150" height="52" rx="9" fill="#FCE6E6" stroke="#E03A3A"/>
+        <text x="565" y="267" text-anchor="middle" font-size="14" font-weight="600" fill="#C42E2E" font-family="sans-serif">Отклонён</text></g>
+
+      <!-- edge labels -->
+      <g font-family="sans-serif" font-size="11.5" fill="#33455a">
+        <text x="216" y="62" text-anchor="middle">Отправить</text>
+        <text x="470" y="62" text-anchor="middle">Одобрить</text>
+        <text x="691" y="62" text-anchor="middle">Закрыть</text>
+        <text x="246" y="168" text-anchor="end">Вернуть</text>
+        <text x="404" y="150" text-anchor="start">Отправить</text>
+        <text x="404" y="164" text-anchor="start">повторно</text>
+        <text x="470" y="200" text-anchor="middle" transform="rotate(34 470 200)">Отклонить</text>
+      </g>
+      <text x="430" y="354" text-anchor="middle" font-family="sans-serif" font-size="11.5" fill="#8a6608" font-weight="600">админ-возврат «На рассмотрении» (с обязательной причиной в журнал)</text>
+    </svg>
+    </div>
+
+    <div class="legend">
+      <div class="li"><span class="ln"></span> переход по роли (Автор / Согласующий)</div>
+      <div class="li"><span class="ln dash" style="border-top-color:#B8860B"></span> админ-возврат</div>
+    </div>
+
+    <div class="statuslist">
+      <div class="statusrow"><span class="badge b-draft">Черновик</span><div>запись создаётся, ещё не подана; редактируется свободно.</div></div>
+      <div class="statusrow"><span class="badge b-review">На рассмотрении</span><div>подана Согласующему на проверку.</div></div>
+      <div class="statusrow"><span class="badge b-rework">На доработке</span><div>возвращена автору с замечаниями; снова редактируется.</div></div>
+      <div class="statusrow"><span class="badge b-active">Действует</span><div>утверждена; <strong>только на её основе</strong> можно строить программы.</div></div>
+      <div class="statusrow"><span class="badge b-reject">Отклонён</span><div>Согласующий отказал в согласовании (отдельный статус, <strong>не</strong> «Закрыт»).</div></div>
+      <div class="statusrow"><span class="badge b-closed">Закрыт</span><div>ранее действовавшее решение отменено (достижим только из «Действует»).</div></div>
+    </div>
+
+    <ul class="rules">
+      <li>Редактирование — только в «Черновик» / «На доработке».</li>
+      <li>Удаление — только «Черновик».</li>
+      <li>«Действует» — можно лишь закрыть.</li>
+      <li>«Закрыт» и «Отклонён» <strong>не терминальны</strong>: администратор возвращает их «На рассмотрении» с обязательной причиной в журнал (мис-клик не хоронит юр. основание).</li>
+      <li>Тулбар: кнопки <strong>скрываются по роли</strong>, <strong>гасятся по статусу</strong> (с подсказкой, почему недоступны).</li>
+    </ul>
+  </section>
+
+  <!-- 5 -->
+  <section>
+    <h2><span class="num">5</span> Что хранит карточка решения</h2>
+    <p>Целевой набор. Страница — в режиме «Просмотр + действия», вкладки: <strong>Общая информация · Кредитные программы · Документы · История</strong>.</p>
+    <dl class="defs">
+      <div class="def"><dt>Вид решения</dt><dd>тип акта (см. §2)</dd></div>
+      <div class="def"><dt>Номер · Дата решения</dt><dd>реквизиты исходного акта; дата не позже сегодня <span class="tag">R5</span></dd></div>
+      <div class="def"><dt>Наименование · краткое</dt><dd>полное и короткое название</dd></div>
+      <div class="def"><dt>Код</dt><dd><strong>генерируется системой</strong> в формате <code>{ТИП}-{ГГГГ}-{NNNN}</code> (пример <code>ПОСТ-2026-0007</code>), вручную не вводится <span class="tag">R3</span></dd></div>
+      <div class="def"><dt>Статус</dt><dd>этап жизненного цикла (см. §4)</dd></div>
+      <div class="def"><dt>Примечание</dt><dd>свободный текст</dd></div>
+      <div class="def"><dt>Документы</dt><dd>вложения PDF: основной акт + приложения/изменения, ровно один «основной»; основной документ <strong>обязателен</strong> для перехода в «Действует» <span class="tag">R1</span></dd></div>
+      <div class="def"><dt>История</dt><dd>таймлайн действий и переходов статуса: кто, когда, действие, причина — единый журнал аудита <span class="tag">R2</span> <span class="tag">R6</span></dd></div>
+    </dl>
+  </section>
+
+  <!-- 6 -->
+  <section>
+    <h2><span class="num">6</span> Что ещё уточняет рабочая группа</h2>
+    <p>Решения заказчика по жизненному циклу приняты (22.06.2026). Остаются открытые вопросы целевой модели:</p>
+    <ol class="ol">
+      <li><strong>Справочник видов решений</strong> — полный перечень и расшифровки (§2).</li>
+      <li><strong>Обязательность комментария-причины</strong> при «Отклонить» / «Вернуть».</li>
+    </ol>
+  </section>
+
+  </div>
+
+  <footer class="src">
+    Источник наблюдений: тестовый стенд https://fkftest.okmot.kg/, домен «Бюджетное кредитование» → «Решение правительства». Проверено 17.06.2026, <code>scripts/inspect/</code>.
+    Целевая модель — мокапы <code>mockups/decision/*.html</code> и задачи Фазы 1 (<code>TODO.md</code>). Технические подробности и дефекты «как есть» — <code>requirements/features/01-government-decision.md</code>.
+  </footer>
+
+</div>
+</body>
+</html>
