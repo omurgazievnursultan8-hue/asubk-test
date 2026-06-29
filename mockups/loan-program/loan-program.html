@@ -21,9 +21,13 @@
     P2-R3  кнопки: «Сохранить» (остаться) / «Сохранить и закрыть» / «Отмена»,
            единый язык; после закрытия — возврат в список (не на /).
     P2-R4  отдельная страница «Просмотр» (read-only) + двойной клик по строке.
-    P2-R5  воркфлоу статусов: Черновик→На рассмотрении→Одобрена/Отклонена→Закрыта;
-           Отправить/Одобрить/Отклонить в тулбаре списка и на странице деталей;
-           4-eyes: подтверждает не автор; отклонение требует причины.
+    P2-R5  воркфлоу статусов: Черновик→На рассмотрении→Действует/Отклонена→Закрыта;
+           Отправить на согласование/Одобрить/Отклонить в тулбаре и на деталях;
+           4-eyes: согласует не автор; отклонение требует причины.
+    P2-R11 унификация с Фазой 1: статус «Действует» (не «Одобрена»), роль
+           «Согласующий»; +«На доработке» (Согласующий→Автор, «Отправить повторно»);
+           +«Закрыть» (Действует→Закрыта); админ-возврат «Отклонена»/«Закрыта»→
+           «На рассмотрении»; возвраты/закрытие требуют причины.
     P2-R6  ошибки большой формы: красный счётчик на вкладках + inline «Обязательное поле».
     P2-R7  удаление со ссылками → локализованное «Нельзя удалить: на программу есть ссылки».
     P2-R8  удаление без ссылок работает (корректная delete-policy).
@@ -564,7 +568,8 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
         Роль:
         <select id="roleSel" onchange="onRoleChange()">
           <option value="editor">Редактор</option>
-          <option value="confirmer">Подтверждающий</option>
+          <option value="confirmer">Согласующий</option>
+          <option value="admin">Администратор</option>
         </select>
       </span>
     </header>
@@ -612,7 +617,8 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
               <option value="">— любой —</option>
               <option value="draft">Черновик</option>
               <option value="review">На рассмотрении</option>
-              <option value="approved">Одобрена</option>
+              <option value="rework">На доработке</option>
+              <option value="approved">Действует</option>
               <option value="rejected">Отклонена</option>
               <option value="closed">Закрыта</option>
             </select></div>
@@ -641,9 +647,14 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
           </button>
           <span class="tb-divider"></span>
           <!-- P2-R5: status workflow actions -->
-          <button class="btn btn-ghost btn-sm" id="btnSubmit" disabled onclick="submitSelected()" title="Отправить на подтверждение">
+          <button class="btn btn-ghost btn-sm" id="btnSubmit" disabled onclick="submitSelected()" title="Отправить на согласование">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
             Отправить
+          </button>
+          <!-- P2-R11: resend after rework (editor, status «На доработке») -->
+          <button class="btn btn-ghost btn-sm" id="btnResubmit" disabled onclick="resubmitSelected()" title="Отправить повторно">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Отправить повторно
           </button>
           <button class="btn btn-success btn-sm" id="btnApprove" disabled onclick="approveSelected()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
@@ -652,6 +663,21 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
           <button class="btn btn-danger btn-sm" id="btnReject" disabled onclick="rejectSelected()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
             Отклонить
+          </button>
+          <!-- P2-R11: return to author for rework (confirmer, status «На рассмотрении») -->
+          <button class="btn btn-ghost btn-sm" id="btnRework" disabled onclick="reworkSelected()" title="Вернуть на доработку">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v0a5 5 0 0 1-5 5H9"/></svg>
+            Вернуть на доработку
+          </button>
+          <!-- P2-R11: close an in-force program (confirmer, status «Действует») -->
+          <button class="btn btn-secondary btn-sm" id="btnClose" disabled onclick="closeSelected()" title="Закрыть">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Закрыть
+          </button>
+          <!-- P2-R11: admin return from terminal statuses → «На рассмотрении» -->
+          <button class="btn btn-ghost btn-sm" id="btnReturn" disabled onclick="returnSelected()" title="Вернуть на согласование">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            Вернуть на согласование
           </button>
           <span class="tb-spacer"></span>
           <div class="pager" id="pager"></div>
@@ -701,7 +727,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
           <!-- only available from the preview tab in the real app; enabled here on tab 9 -->
           <button class="btn btn-ghost" id="btnWizSubmit" onclick="submitFromWizard()" style="display:none">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-            Отправить на подтверждение
+            Отправить на согласование
           </button>
         </div>
       </section>
@@ -788,11 +814,11 @@ renderNav();
 // P2-R9: picker shows ONLY approved decisions; the filter is a hard loader
 // condition, not a removable default. Non-approved decisions never appear.
 const DECISIONS = [
-  { id:'d554', name:'ПКМКР №554 от 11.09.2024', status:'Одобрен', date:'2024-09-11' },
-  { id:'d233', name:'ПКМКР №233 от 02.05.2025', status:'Одобрен', date:'2025-05-02' },
-  { id:'d018', name:'Распоряжение №18-р от 14.01.2025', status:'Одобрен', date:'2025-01-14' },
-  { id:'d402', name:'ПКМКР №402 от 30.07.2024', status:'Одобрен', date:'2024-07-30' },
-  { id:'d077', name:'ПКМКР №77 от 19.02.2026', status:'Одобрен', date:'2026-02-19' },
+  { id:'d554', name:'ПКМКР №554 от 11.09.2024', status:'Действует', date:'2024-09-11' },
+  { id:'d233', name:'ПКМКР №233 от 02.05.2025', status:'Действует', date:'2025-05-02' },
+  { id:'d018', name:'Распоряжение №18-р от 14.01.2025', status:'Действует', date:'2025-01-14' },
+  { id:'d402', name:'ПКМКР №402 от 30.07.2024', status:'Действует', date:'2024-07-30' },
+  { id:'d077', name:'ПКМКР №77 от 19.02.2026', status:'Действует', date:'2026-02-19' },
 ];
 const LK = {
   purpose: ['Пополнение оборотных средств','Инвестиции в осн. средства','Строительство','Рефинансирование','Приобретение техники/оборудования'],
@@ -889,7 +915,8 @@ let PROGRAMS = [
 const STATUS = {
   draft:   { label:'Черновик',         cls:'draft' },
   review:  { label:'На рассмотрении',   cls:'review' },
-  approved:{ label:'Одобрена',          cls:'approved' },
+  rework:  { label:'На доработке',      cls:'review' },
+  approved:{ label:'Действует',         cls:'approved' },
   rejected:{ label:'Отклонена',         cls:'rejected' },
   closed:  { label:'Закрыта',           cls:'closed' },
 };
@@ -986,13 +1013,18 @@ function getSel(){ return PROGRAMS.find(p=>p.id===selectedId); }
 function updateToolbar(){
   const p = getSel();
   const has = !!p;
-  document.getElementById('btnEdit').disabled = !has;
+  const editable = has && (p.status==='draft'||p.status==='rework') && role==='editor';
+  document.getElementById('btnEdit').disabled = !editable;
   document.getElementById('btnView').disabled = !has;
-  document.getElementById('btnDelete').disabled = !has;
-  // P2-R5: workflow buttons gated by status + acting role (4-eyes)
-  document.getElementById('btnSubmit').disabled  = !(has && p.status==='draft' && role==='editor');
-  document.getElementById('btnApprove').disabled = !(has && p.status==='review' && role==='confirmer');
-  document.getElementById('btnReject').disabled  = !(has && p.status==='review' && role==='confirmer');
+  document.getElementById('btnDelete').disabled = !(has && p.status==='draft' && role==='editor');
+  // P2-R5 / P2-R11: workflow buttons gated by status + acting role (4-eyes + admin)
+  document.getElementById('btnSubmit').disabled   = !(has && p.status==='draft'  && role==='editor');
+  document.getElementById('btnResubmit').disabled = !(has && p.status==='rework' && role==='editor');
+  document.getElementById('btnApprove').disabled  = !(has && p.status==='review' && role==='confirmer');
+  document.getElementById('btnReject').disabled   = !(has && p.status==='review' && role==='confirmer');
+  document.getElementById('btnRework').disabled   = !(has && p.status==='review' && role==='confirmer');
+  document.getElementById('btnClose').disabled    = !(has && p.status==='approved' && role==='confirmer');
+  document.getElementById('btnReturn').disabled   = !(has && (p.status==='rejected'||p.status==='closed') && role==='admin');
   document.getElementById('selInfo').textContent = has ? `Выбрано: ${p.nameRu}` : '';
 }
 function onRoleChange(){ role = document.getElementById('roleSel').value; updateToolbar(); }
@@ -1001,15 +1033,56 @@ function onRoleChange(){ role = document.getElementById('roleSel').value; update
    WORKFLOW (P2-R5) — status transitions + 4-eyes
    ============================================================ */
 function submitSelected(){ const p=getSel(); if(!p) return; doSubmit(p); refreshAll(); }
-function doSubmit(p){
-  p.status='review'; toast(`Программа «${p.nameRu}» отправлена на подтверждение.`,'ok');
-  if(role==='editor') toast('Подтверждает другой пользователь (роль «Подтверждающий»).','info');
+function resubmitSelected(){ const p=getSel(); if(!p) return; doSubmit(p, true); refreshAll(); rerenderDetailIfOpen(p.id); }
+function doSubmit(p, again){
+  p.status='review';
+  toast(`Программа «${p.nameRu}» ${again?'повторно ':''}отправлена на согласование.`,'ok');
+  if(role==='editor') toast('Согласует другой пользователь (роль «Согласующий»).','info');
 }
 function approveSelected(){ const p=getSel(); if(!p) return;
-  confirmModal('Одобрить программу', `Одобрить «${esc(p.nameRu)}»? После одобрения на программу можно ссылаться при создании заявок и кредитов.`,
-    'Одобрить','btn-success', ()=>{ p.status='approved'; toast('Программа одобрена.','ok'); refreshAll(); rerenderDetailIfOpen(p.id); });
+  confirmModal('Одобрить программу', `Одобрить «${esc(p.nameRu)}»? После одобрения программа становится «Действует» — на неё можно ссылаться при создании заявок и кредитов.`,
+    'Одобрить','btn-success', ()=>{ p.status='approved'; toast('Программа одобрена, статус «Действует».','ok'); refreshAll(); rerenderDetailIfOpen(p.id); });
 }
 function rejectSelected(){ const p=getSel(); if(!p) return; rejectModal(p); }
+// P2-R11: return to author for rework (reason required, audit trail)
+function reworkSelected(){ const p=getSel(); if(!p) return;
+  reasonModal('Вернуть на доработку', 'Замечания вернутся автору. Программа перейдёт в статус «На доработке».',
+    'Причина возврата', 'Например: уточните параметры штрафов на вкладке 4…',
+    'Вернуть на доработку','btn-secondary',
+    ()=>{ p.status='rework'; toast('Программа возвращена на доработку. Причина сохранена в истории.','warn'); refreshAll(); rerenderDetailIfOpen(p.id); });
+}
+// P2-R11: close an in-force program (reason required)
+function closeSelected(){ const p=getSel(); if(!p) return;
+  reasonModal('Закрыть программу', 'Закрытие отменяет действовавшую программу (не отказ в согласовании).',
+    'Причина закрытия', 'Например: программа исчерпала лимит финансирования…',
+    'Закрыть','btn-danger',
+    ()=>{ p.status='closed'; toast('Программа закрыта. Причина сохранена в истории.','warn'); refreshAll(); rerenderDetailIfOpen(p.id); });
+}
+// P2-R11: admin return from terminal statuses → «На рассмотрении» (reason required)
+function returnSelected(){ const p=getSel(); if(!p) return;
+  reasonModal('Вернуть на согласование', 'Служебный возврат администратором из терминального статуса в «На рассмотрении».',
+    'Причина возврата', 'Например: ошибочное отклонение, требуется повторное рассмотрение…',
+    'Вернуть на согласование','btn-secondary',
+    ()=>{ p.status='review'; toast('Программа возвращена на согласование (админ). Причина сохранена в истории.','info'); refreshAll(); rerenderDetailIfOpen(p.id); });
+}
+// reusable confirm-with-mandatory-reason modal (P2-R11)
+function reasonModal(title, note, fieldLabel, ph, okLabel, okCls, onOk){
+  openModal(title, `
+    <div class="note-banner warn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      <span>${esc(note)} Действие фиксируется в истории.</span>
+    </div>
+    <div class="field required"><span class="flabel">${esc(fieldLabel)}</span>
+      <textarea class="note-area" id="reasonInput" placeholder="${esc(ph)}"></textarea>
+      <span class="err">Обязательное поле</span>
+    </div>`,
+    [{label:'Отмена',cls:'btn-secondary',fn:closeModal},
+     {label:okLabel,cls:okCls,fn:()=>{
+        const r=document.getElementById('reasonInput').value.trim();
+        if(!r){ document.getElementById('reasonInput').closest('.field').classList.add('invalid'); return; }
+        closeModal(); onOk();
+     }}]);
+}
 // P2-R5: reject requires a reason (audit trail)
 function rejectModal(p){
   openModal('Отклонить программу', `
@@ -1892,7 +1965,7 @@ function submitFromWizard(){
    → «Финансовые параметры» | «Условия погашения» (2-col) → «Требуемые
    документы» | «Настройки проверки» (2-col). «Фиксированные суммы»/«Сроки
    кредита» carry KGS / «месяцев» unit suffixes. Bottom-right green «Отправить
-   на подтверждение» = btnWizSubmit. */
+   на согласование» = btnWizSubmit. */
 function previewHtml(){
   const d=draft;
   const dec=DECISIONS.find(x=>x.id===d.decisionId);
@@ -1973,15 +2046,20 @@ function openView(id){
       ${row('Периодичность',p.periodicity)}${row('Метод погашения',p.repayMethod)}
     </div></div>`;
   let acts = `<button class="btn btn-secondary" onclick="goList()">Назад к списку</button>`;
-  if(p.status!=='closed') acts += `<button class="btn btn-secondary" onclick="openEdit(${p.id})">
+  // P2-R11: edit only in Черновик / На доработке (author)
+  if((p.status==='draft'||p.status==='rework') && role==='editor') acts += `<button class="btn btn-secondary" onclick="openEdit(${p.id})">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Изменить</button>`;
   acts += `<span class="tb-spacer"></span>`;
-  if(p.status==='draft' && role==='editor') acts += `<button class="btn btn-primary" onclick="submitSelected()">Отправить на подтверждение</button>`;
+  if(p.status==='draft'  && role==='editor') acts += `<button class="btn btn-primary" onclick="submitSelected()">Отправить на согласование</button>`;
+  if(p.status==='rework' && role==='editor') acts += `<button class="btn btn-primary" onclick="resubmitSelected()">Отправить повторно</button>`;
   if(p.status==='review' && role==='confirmer'){
     acts += `<button class="btn btn-success" onclick="approveSelected()">Одобрить</button>`;
     acts += `<button class="btn btn-danger" onclick="rejectSelected()">Отклонить</button>`;
+    acts += `<button class="btn btn-secondary" onclick="reworkSelected()">Вернуть на доработку</button>`;
   }
-  if(p.status==='review' && role==='editor') acts += `<span class="role-pill">Ожидает подтверждения (роль «Подтверждающий»)</span>`;
+  if(p.status==='approved' && role==='confirmer') acts += `<button class="btn btn-secondary" onclick="closeSelected()">Закрыть</button>`;
+  if((p.status==='rejected'||p.status==='closed') && role==='admin') acts += `<button class="btn btn-secondary" onclick="returnSelected()">Вернуть на согласование</button>`;
+  if(p.status==='review' && role==='editor') acts += `<span class="role-pill">Ожидает согласования (роль «Согласующий»)</span>`;
   document.getElementById('detailFoot').innerHTML = acts;
 }
 
@@ -2135,10 +2213,10 @@ const REFBOOKS = {
     cols:[['_label','ФИО']], rows:LK.staff.map(n=>({_id:n,_label:n})) },
 };
 // «Решение правительства» — 7-column grid + workflow buttons + locked status filter (P2-R9)
-// «Решение правительства» — live: 7 строк, all «Одобрен» (status filter is locked),
+// «Решение правительства» — live: 7 строк, all «Действует» (status filter is locked),
 // 7-col grid + Создать/Изменить/Просмотр/Удалить/Одобрить/Отклонить. Rows 1:1 with live.
 function decisionRefbook(){
-  return { title:'Решение правительства', view:true, workflow:true, locked:'Статус = Одобрен',
+  return { title:'Решение правительства', view:true, workflow:true, locked:'Статус = Действует',
     cols:[['_label','Наименование'],['short','Краткое наименование'],['status','Статус'],
           ['code','Код'],['num','Номер решения'],['vid','Вид решения'],['date','Дата решения']],
     rows:[
@@ -2149,7 +2227,7 @@ function decisionRefbook(){
       ['ПКМКР №554 от 11.09.2024 года','Фонды развития регионов','5','45','Постановление','10.02.2026'],
       ['Распоряжение от 14.02.2025 №80-р','№80-р','80-р','80-р','Распоряжение кабинета министров','14.02.2025'],
       ['Постановление Кабинета министров №123','ПКМ №123','PKM123','123','Постановление','15.06.2026'],
-    ].map(([name,short,code,num,vid,date])=>({_id:name,_label:name,short,status:'Одобрен',code,num,vid,date})) };
+    ].map(([name,short,code,num,vid,date])=>({_id:name,_label:name,short,status:'Действует',code,num,vid,date})) };
 }
 
 // ---- archetype A: entity-browser lookup dialog ----

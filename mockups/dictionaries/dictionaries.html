@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Справочники · АСУБК</title>
+<!--
+  MOCKUP (single-file, static) — образец для команды разработки, не прод-код.
+  Раздел «Справочники» (витрина справочников).
+  Дизайн-система: токены скопированы из mockups/loan-program/loan-program.html (:root, строки 37-180).
+
+  Цель файла: показать раскладку sidebar + main (топбар, пустая область списка) и набор
+  CSS-классов (.section, .section-head, .arch-chip, .slug, .row-count, .nav-filter, .grid, .badge),
+  готовых к наполнению данными в следующих задачах.
+
+  Переиспользуется из loan-program.html:
+    - все переменные :root (--asubk-*, --text-*, --space-*, --radius-*, --control-h,
+      --header-h, --sidebar-w, --shadow-focus)
+    - базовые правила: *, html/body, .app, .sidebar, .brand, .nav, .main, .topbar,
+      .crumb-title, .crumb-status, scrollbar
+    - компонентные классы: .btn*, .toolbar, .badge, .grid (table)
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+
+/* ---- nav-filter (поле фильтрации справочников в sidebar) ---- */
+.nav-filter{
+  display:block; width:calc(100% - 24px); margin:0 12px 8px;
+  height:var(--control-h); padding:0 var(--space-2);
+  background:var(--surface-card); color:var(--text-body);
+  border:1px solid var(--border-default); border-radius:var(--radius-md);
+  font:var(--font-label); outline:none;
+  transition:border-color 120ms ease, box-shadow 120ms ease;
+}
+.nav-filter::placeholder{ color:var(--text-placeholder); }
+.nav-filter:focus{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.crumb-status{ margin-left:auto; font:var(--font-label); color:var(--text-muted); }
+
+/* ---- dict-list (список секций справочников) ---- */
+.dict-list{ padding:var(--space-4); display:flex; flex-direction:column; gap:var(--space-6);
+  flex:1; overflow-y:auto; }
+
+/* ---- section (карточка одного справочника или группы) ---- */
+/* flex:none — иначе в колоночном flex-контейнере .dict-list секции с overflow:hidden
+   получают min-height:auto → 0 и схлопываются до высоты рамок (≈2px). */
+.section{ background:var(--surface-card); border:1px solid var(--border-default);
+  border-radius:var(--radius-lg); overflow:hidden; flex:none; }
+.section-head{ display:flex; align-items:center; gap:10px; padding:14px 16px;
+  border-bottom:1px solid var(--border-default); background:var(--surface-panel); }
+.section-head h2{ margin:0; font:var(--weight-semibold) var(--text-base)/var(--leading-tight) var(--asubk-font);
+  color:var(--text-heading); flex:1; }
+
+/* arch-chip / slug / row-count: см. блок «render-engine additions» ниже */
+
+/* ---- toolbar (панель действий над справочником) ---- */
+.toolbar{ display:flex; align-items:center; gap:var(--space-2); padding:12px 20px;
+  border-bottom:1px solid var(--border-default); flex-wrap:wrap; }
+.tb-spacer{ flex:1; }
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn svg{ flex:none; }
+/* единое соглашение классов кнопок: .btn + модификатор через пробел (как в render-движке) */
+.btn.primary{ background:var(--action-primary); color:#fff; }
+.btn.primary:hover:not(:disabled){ background:var(--action-primary-hover); }
+.btn.ghost{ background:rgba(25,59,103,0.05); color:var(--text-link); border-color:var(--border-default); }
+.btn.ghost:hover:not(:disabled){ background:var(--surface-hover); color:var(--text-body); }
+.btn.danger{ background:var(--surface-card); color:var(--action-danger); border-color:var(--border-default); }
+.btn.danger:hover:not(:disabled){ background:var(--status-error-bg); }
+
+/* ---- grid (таблица записей справочника) ---- */
+.grid-wrap{ overflow-x:auto; }
+table.grid{ width:100%; border-collapse:collapse; font:var(--font-label); }
+table.grid thead th{ background:var(--surface-panel); text-align:left; padding:10px 12px;
+  border-bottom:1px solid var(--border-strong);
+  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading);
+  white-space:nowrap; user-select:none; }
+table.grid tbody td{ padding:10px 12px; border-bottom:1px solid var(--border-default);
+  color:var(--text-body); vertical-align:middle; }
+table.grid tbody tr{ cursor:pointer; }
+table.grid tbody tr:hover{ background:var(--surface-hover); }
+table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+
+/* ---- status badges ---- */
+.badge{ display:inline-flex; align-items:center; gap:var(--space-1); height:22px; padding:0 var(--space-2);
+  border-radius:var(--radius-pill); font:var(--weight-medium) var(--text-xs)/1 var(--asubk-font); white-space:nowrap; }
+.badge.draft{ color:var(--text-muted); background:var(--asubk-gray-150); }
+.badge.active{ color:var(--status-success); background:var(--status-success-bg); }
+.badge.archived{ color:var(--text-disabled); background:var(--asubk-gray-200); }
+.badge.info{ color:var(--status-info); background:var(--status-info-bg); }
+
+/* ---- Task 5: nav groups + items ---- */
+.nav-grp-label{ display:flex; align-items:center; gap:8px; width:calc(100% - 8px);
+  margin:0 4px 1px; padding:9px 10px; background:none; border:0; cursor:pointer;
+  text-align:left; font:var(--weight-medium) var(--text-sm)/1.2 var(--asubk-font);
+  color:var(--text-body); border-radius:var(--radius-md); }
+.nav-grp-label span:first-child{ flex:1; }
+.nav-grp-count{ flex:none; min-width:22px; height:20px; padding:0 7px; display:inline-flex;
+  align-items:center; justify-content:center; border-radius:var(--radius-pill);
+  background:var(--asubk-gray-200); color:var(--text-muted);
+  font:var(--weight-semibold) var(--text-xs)/1 var(--asubk-font); }
+.nav-group.active > .nav-grp-label .nav-grp-count{ background:var(--asubk-blue); color:#fff; }
+.nav-grp-label:hover{ color:var(--text-body); }
+.nav-grp-label:focus-visible{ outline:none; box-shadow:var(--shadow-focus); }
+/* активная (выбранная) группа: подсветка + заливка, как у nav-item.active */
+.nav-group.active > .nav-grp-label{ color:var(--asubk-blue); background:var(--asubk-nav-active); }
+
+/* ---- Task 3: render-engine additions ---- */
+.arch-chip{ font:600 12px/1 var(--asubk-font); padding:3px 7px; border-radius:var(--radius-pill);
+  background:var(--asubk-blue-tint); color:var(--asubk-link); }
+.arch-chip.r{ background:var(--asubk-green-tint); color:var(--asubk-green); }
+.slug{ font:400 13px/1 ui-monospace,monospace; color:var(--text-muted); }
+.row-count{ margin-left:auto; font:var(--font-label); color:var(--text-muted); }
+.badge.success{ background:var(--status-success-bg); color:var(--status-success); }
+.badge.warning{ background:var(--status-warning-bg); color:var(--status-warning); }
+.badge.error{ background:var(--status-error-bg); color:var(--status-error); }
+.empty-note{ padding:14px 16px; color:var(--text-muted); border:1px dashed var(--border-default);
+  border-radius:var(--radius-md); }
+
+/* ---- Task 7: picker ---- */
+.picker-row{display:flex;gap:8px;padding:8px;border-bottom:1px solid var(--border-default);cursor:pointer}
+.picker-note{font:var(--font-label);color:var(--text-muted);margin:4px 0}
+
+/* ---- field-card: справочник как picker-поле формы (1:1 как в системе) ---- */
+.grp{ display:flex; flex-direction:column; gap:10px; }
+.grp-head{ margin:8px 0 2px; font:var(--weight-semibold) var(--text-sm)/1.2 var(--asubk-font);
+  color:var(--text-muted); letter-spacing:0.02em; text-transform:uppercase; }
+.field-card{ background:#fff; border:1px solid var(--border-default); border-radius:var(--radius-lg);
+  padding:16px 18px; display:flex; align-items:center; gap:16px; flex:none; }
+.field-card .fc-label{ flex:0 0 220px; padding-top:0; color:var(--asubk-link);
+  font:14px/1.3 var(--asubk-font); }
+.field-card .jx-pickfield{ flex:1; max-width:620px; }
+.field-card .fc-meta{ flex:none; font:var(--font-label); color:var(--text-muted); white-space:nowrap; }
+
+/* ---- Task 6: modal ---- */
+.modal-overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:flex;
+  align-items:center; justify-content:center; z-index:50; padding:20px; }
+.modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(540px,100%);
+  max-height:86vh; display:flex; flex-direction:column;
+  box-shadow:0 20px 60px rgba(16,28,46,0.35); }
+.modal-head{ padding:16px 20px; border-bottom:1px solid var(--border-default);
+  font:var(--font-page-title); color:var(--text-heading); }
+.modal-body{ padding:18px 20px; overflow:auto; display:flex; flex-direction:column; gap:12px; }
+.modal-foot{ padding:14px 20px; border-top:1px solid var(--border-default);
+  display:flex; gap:10px; justify-content:flex-end; }
+.field{ display:flex; flex-direction:column; gap:4px; }
+.field label{ font:var(--weight-medium) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  color:var(--text-muted); }
+.field input{ height:var(--control-h); padding:0 10px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); font:var(--font-body); color:var(--text-body);
+  background:var(--surface-card); outline:none;
+  transition:border-color 120ms ease, box-shadow 120ms ease; }
+.field input:focus{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+.field input[readonly]{ background:var(--asubk-gray-100); color:var(--text-muted); cursor:default; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Jmix/Lumo 1:1 reproduction (prefix .jx-) — НЕ дизайн-система ASUBK.
+   Воспроизводит фактический вид online-системы (скрины 09-16-36 / 09-16-48):
+   форма-источник «Решение правительства» + полный CRUD picker «Вид решения».
+   Цвета подобраны под скрины (Lumo), gov-blue токены здесь сознательно НЕ
+   используются. Это демо «как сейчас в системе» (дефект P2-08 / P2-R9 / P8-02).
+   ───────────────────────────────────────────────────────────────────────── */
+/* ТОЧНЫЕ значения сняты с computed-стилей живого диалога (2026-06-25, gov-decisions/new) */
+.jx{ --jx-blue:#006AF5; --jx-blue-hover:#0058CC; --jx-link:#005FDB; --jx-green:#158443; --jx-green-hover:#106a36;
+  --jx-ink:rgba(24,39,57,0.94); --jx-title:#192434; --jx-muted:rgba(24,39,57,0.65);
+  --jx-line:rgba(28,55,90,0.16); --jx-rowline:rgba(26,57,96,0.10); --jx-fieldbg:rgba(26,57,96,0.10);
+  --jx-dis-fill:rgba(25,59,103,0.05); --jx-dis-fg:rgba(28,52,84,0.26); --jx-sel-btn:rgba(28,52,84,0.26);
+  --jx-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif; }
+
+/* демо-callout-обёртка */
+.jx-demo{ border:1px solid var(--jx-line); border-radius:var(--radius-lg); overflow:hidden;
+  flex:none; align-self:flex-start; width:33%; min-width:340px; }
+.jx-demo-tag{ display:flex; align-items:center; gap:8px; padding:10px 14px;
+  background:var(--status-warning-bg); color:var(--status-warning);
+  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); border-bottom:1px solid var(--jx-line); }
+
+/* форма-источник */
+.jx-form{ background:#fff; padding:20px 18px; font:14px/1.4 var(--jx-font); color:var(--jx-ink);
+  display:flex; flex-direction:column; gap:14px; }
+.jx-form-row{ display:flex; align-items:flex-start; gap:14px; }
+.jx-label{ flex:0 0 110px; padding-top:8px; color:var(--jx-link); font:14px/1.3 var(--jx-font); }
+.jx-control{ flex:1; min-width:0; display:flex; gap:6px; }
+.jx-input{ flex:1; min-width:0; height:34px; padding:0 10px; border:1px solid var(--jx-line);
+  border-radius:4px; background:#fff; color:var(--jx-ink); font:14px/1 var(--jx-font); outline:none; }
+.jx-input:focus{ border-color:var(--jx-focus); box-shadow:0 0 0 2px rgba(74,144,226,0.25); }
+.jx-input.ro{ background:var(--jx-fieldbg); color:var(--jx-ink); }
+.jx-input.ro:focus{ box-shadow:none; border-color:var(--jx-line); }
+/* picker-поле (live): фон rgba(26,57,96,.1), радиус 4, высота 36; ···/✕ — 30×30 кнопки
+   с заливкой rgba(25,59,103,.05) и синей иконкой #005FDB, внутри поля справа */
+.jx-pickfield{ flex:1; min-width:0; display:flex; align-items:center; gap:2px; height:36px;
+  border:0; border-radius:4px; background:var(--jx-fieldbg); padding:0 3px 0 0; overflow:hidden; }
+.jx-pf-input{ flex:1; min-width:0; border:0; background:transparent; height:100%; padding:0 4px 0 10px;
+  color:var(--jx-ink); font:500 16px/1 var(--jx-font); outline:none; }
+.jx-pf-dots,.jx-pf-x{ flex:none; width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;
+  border:0; border-radius:4px; background:var(--jx-dis-fill); color:var(--jx-link);
+  cursor:pointer; font:500 16px/1 var(--jx-font); letter-spacing:1px; }
+.jx-pf-dots:hover,.jx-pf-x:hover{ background:rgba(25,59,103,0.10); }
+
+/* picker-диалог */
+.modal.jx-dlg{ width:min(1024px,100%); background:#fff; font:16px/1.625 var(--jx-font); color:var(--jx-ink);
+  border-radius:8px;
+  box-shadow:0 0 0 1px rgba(25,59,103,0.05), 0 4px 24px -3px rgba(28,55,90,0.16), 0 18px 64px -8px rgba(28,50,79,0.38); }
+.jx-dlg-head{ display:flex; align-items:center; padding:18px 22px 6px;
+  font:600 22px/1.375 var(--jx-font); color:var(--jx-title); }
+.jx-dlg-x{ margin-left:auto; width:28px; height:28px; border:0; background:none; cursor:pointer;
+  font-size:20px; color:var(--jx-title); line-height:1; }
+.jx-dlg-body{ padding:6px 22px 4px; overflow:auto; display:flex; flex-direction:column; gap:12px; }
+.jx-filter-head{ display:flex; align-items:center; gap:6px; color:var(--jx-muted);
+  font:16px/1 var(--jx-font); cursor:pointer; padding:6px 0; }
+.jx-filter-head svg{ flex:none; }
+.jx-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.jx-btn{ height:36px; padding:0 14px; display:inline-flex; align-items:center; gap:6px;
+  border:1px solid transparent; border-radius:4px; cursor:pointer; white-space:nowrap;
+  font:500 16px/1.625 var(--jx-font); }
+.jx-btn.refresh{ background:var(--jx-green); color:#fff; border-radius:4px 0 0 4px; }
+.jx-btn.refresh:hover{ background:var(--jx-green-hover); }
+.jx-split{ height:36px; width:34px; display:inline-flex; align-items:center; justify-content:center;
+  background:var(--jx-green); color:#fff; border:0; border-left:1px solid rgba(255,255,255,0.3);
+  border-radius:0 4px 4px 0; cursor:pointer; margin-left:-10px; font-size:11px; }
+.jx-split:hover{ background:var(--jx-green-hover); }
+.jx-gear{ height:36px; width:42px; padding:0 9px; display:inline-flex; align-items:center; justify-content:center;
+  background:var(--jx-dis-fill); border:0; border-radius:4px; cursor:pointer; color:var(--jx-link); }
+.jx-gear:hover{ background:rgba(25,59,103,0.10); }
+.jx-link{ background:none; border:0; color:var(--jx-link); cursor:pointer; font:500 16px/1.625 var(--jx-font); padding:0 6px; }
+.jx-link:hover{ text-decoration:underline; }
+.jx-btn.create,.jx-btn.select{ background:var(--jx-blue); color:#fff; font-weight:600; }
+.jx-btn.create:hover:not(:disabled),.jx-btn.select:hover:not(:disabled){ background:var(--jx-blue-hover); }
+/* tertiary (Изменить/Удалить/Отмена): светлая заливка rgba(25,59,103,.05) */
+.jx-btn.edit,.jx-btn.del{ background:var(--jx-dis-fill); color:var(--jx-ink); }
+.jx-btn.edit:hover:not(:disabled),.jx-btn.del:hover:not(:disabled){ background:rgba(25,59,103,0.10); }
+.jx-btn.cancel{ background:var(--jx-dis-fill); color:var(--jx-link); }
+.jx-btn.cancel:hover{ background:rgba(25,59,103,0.10); }
+.jx-pager{ margin-left:auto; display:flex; align-items:center; gap:6px; color:var(--jx-muted); font:16px/1 var(--jx-font); }
+.jx-pager button{ width:30px; height:30px; padding:0; border:1px solid var(--jx-line); border-radius:4px;
+  background:var(--jx-dis-fill); cursor:pointer; color:var(--jx-dis-fg); font-size:13px;
+  display:inline-flex; align-items:center; justify-content:center; }
+.jx-count{ padding:0 8px; color:var(--jx-ink); }
+/* сетка (live): внешняя рамка 1px rgba(28,55,90,.16), radius 0; focus-ring шапки = primary #006AF5 */
+.jx-grid-wrap{ border:1px solid var(--jx-line); border-radius:0; overflow:auto; height:400px; }
+.jx-btn svg,.jx-gear svg{ flex:none; }
+table.jx-grid{ width:100%; border-collapse:separate; border-spacing:0; font:16px/1.375 var(--jx-font); }
+table.jx-grid thead th{ position:sticky; top:0; z-index:1; background:#fff; text-align:left; padding:0 16px; height:56px;
+  box-shadow:inset 0 0 0 2px var(--jx-blue); border-radius:4px; border-bottom:1px solid var(--jx-rowline);
+  font:500 14px/1.375 var(--jx-font); color:var(--jx-ink); white-space:nowrap; user-select:none; }
+table.jx-grid thead th .sort{ color:var(--jx-dis-fg); margin-left:4px; display:inline-flex; vertical-align:middle; }
+table.jx-grid tbody td{ padding:7px 16px; border-bottom:1px solid var(--jx-rowline); color:var(--jx-ink); }
+table.jx-grid tbody tr{ cursor:pointer; }
+table.jx-grid tbody tr:hover{ background:#f5f8fc; }
+table.jx-grid tbody tr.sel{ background:var(--asubk-nav-active); }
+.jx-dlg-foot{ display:flex; gap:10px; padding:16px 22px 20px; }
+/* disabled (как в live): tertiary → fill .05 + fg .26; primary Выбрать → fill .26 + белый текст */
+.jx-btn.edit:disabled,.jx-btn.del:disabled{
+  background:var(--jx-dis-fill); color:var(--jx-dis-fg); cursor:not-allowed; }
+.jx-btn.select:disabled,.jx-btn.create:disabled{
+  background:var(--jx-sel-btn); color:#fff; cursor:not-allowed; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">АСУБК · Справочники</div>
+    <input id="nav-filter" class="nav-filter" placeholder="Фильтр справочников…">
+    <nav id="nav" class="nav"></nav>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <span class="crumb-title">Справочники</span>
+      <span id="topbar-count" class="crumb-status"></span>
+    </header>
+    <div id="dict-list" class="dict-list"></div>
+  </main>
+</div>
+<div id="modal-root"></div>
+<script>
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const STATUS_KIND = { // текст статуса → класс бейджа
+  'Активный':'success','Активная':'success','Действует':'success','Одобрен':'success',
+  'Неактивный':'warning','Закрыт':'warning','Черновик':'info','На рассмотрении':'info','Отклонён':'error',
+};
+const badge = t => `<span class="badge ${STATUS_KIND[t]||'info'}">${esc(t)}</span>`;
+const isStatusCol = name => /статус/i.test(name);
+
+const DICTS = [
+
+  // ── dec ─────────────────────────────────────────────────────────────
+  { route:"credit-order-states", title:"Статус решения", archetype:"S", group:"dec", statusDict:true, columns:["Наименование"], total:6,
+    rows:[
+      ["Черновик"],
+      ["На рассмотрении"],
+      ["На доработке"],
+      ["Действует"],
+      ["Закрыт"],
+      ["Отклонён"]] },
+  { route:"credit-order-types", title:"Вид решения", archetype:"S", group:"dec", columns:["Наименование"], total:5,
+    rows:[
+      ["Основное"],
+      ["соновное 1"],
+      ["Распоряжение кабинета министров"],
+      ["РКМКР"],
+      ["Постановление"]] },
+  { route:"order-document-types", title:"Вид документа", archetype:"S", group:"dec", columns:["Наименование"], total:0,
+    rows:[] },
+  { route:"entity-document-states", title:"Статус документа", archetype:"S", group:"dec", statusDict:true, columns:["Наименование"], total:0,
+    rows:[] },
+  { route:"entity-document-registered-bies", title:"Вид регистратора документа", archetype:"S", group:"dec", columns:["Наименование"], total:0,
+    rows:[] },
+  { route:"document-package-states", title:"Статус пакета документации", archetype:"S", group:"dec", statusDict:true, columns:["Наименование"], total:0,
+    rows:[] },
+  { route:"document-package-types", title:"Вид пакета документации", archetype:"S", group:"dec", columns:["Наименование"], total:0,
+    rows:[] },
+  { route:"applied-entity-list-states", title:"Статус списка получателей", archetype:"S", group:"dec", statusDict:true, columns:["Наименование"], total:0,
+    rows:[] },
+  { route:"applied-entity-list-types", title:"Вид списка получателей", archetype:"S", group:"dec", columns:["Наименование"], total:0,
+    rows:[] },
+  { route:"applied-entity-states", title:"Статус получателя", archetype:"S", group:"dec", statusDict:true, columns:["Наименование"], total:0,
+    rows:[] },
+
+  // ── src ─────────────────────────────────────────────────────────────
+  { route:"order-term-funds", title:"Источник финансирования", archetype:"S", group:"src", columns:["Наименование"], total:8,
+    rows:[
+      ["Республиканский бюджет"],
+      ["Европейский банк реконструкции и развития"],
+      ["Международная ассоциация развития"],
+      ["Европейский инвестиционный банк"],
+      ["Счет смягчения государственного долга Кыргызской Республики"],
+      ["Программа «Финансирование субъектов предпринимательства»"],
+      ["Накопительный счет в НБКР средства кредита Международной ассоциации развития"],
+      ["Накопительный счет в НБКР средства гранта ЮСАИД"]] },
+  { route:"order-term-currencies", title:"Вид валют", archetype:"S", group:"src", columns:["Наименование"], total:7,
+    rows:[
+      ["KGS"],
+      ["USD"],
+      ["EUR"],
+      ["AUD"],
+      ["RUB"],
+      ["KZT"],
+      ["SUM"]] },
+  { route:"loan-types", title:"Вид кредита", archetype:"S", group:"src", columns:["Наименование"], total:6,
+    rows:[
+      ["Бюджетная ссуда"],
+      ["Бюджетный кредит"],
+      ["ЮСАИД"],
+      ["МАР"],
+      ["Фонд развитие регионов"],
+      ["Имущественные активы"]] },
+  { route:"loan-credit-lines", title:"Кредитная линия", archetype:"S", group:"src", columns:["Кредитная линия"], total:2,
+    rows:[
+      ["АРР"],
+      ["ФРР"]] },
+
+  // ── rate ─────────────────────────────────────────────────────────────
+  { route:"loan-percent-rates", title:"Фиксированные процентные ставки", archetype:"S", group:"rate", columns:["Процент"], total:1,
+    rows:[
+      ["10,00"]] },
+  { route:"interest-rates", title:"Процентные ставки", archetype:"S", group:"rate", columns:["Наименование","Тип","Значение"], total:10,
+    rows:[
+      ["Фиксированная ставка 5 %","Фиксированная","5,00"],
+      ["фиксированная","Фиксированная","8,00"],
+      ["2 % годовых","Фиксированная","2,00"],
+      ["Плавающая процентная ставка Euribor 6-m","Диапазон"],
+      ["6% годовых","Фиксированная","6,00"],
+      ["3% годовых","Фиксированная","3,00"],
+      ["4% годовых первые 8 лет финансирования; 4,5% годовых последующие, 5% годовых последние 3 года.","Диапазон"],
+      ["0,5","Фиксированная","0,50"],
+      ["7%","7,00"],
+      ["12.5 %","Фиксированная","12,50"]] },
+  { route:"order-term-floating-rate-types", title:"Вид ставок", archetype:"S", group:"rate", columns:["Наименование"], total:8,
+    rows:[
+      ["Двухратная учетная ставка НБКР"],
+      ["либор-12(EUR)"],
+      ["Либор 3 (Энерго)"],
+      ["Либор-6"],
+      ["либор-6 (DEM)"],
+      ["Учетная ставка НБКР"],
+      ["Уровень инфляции"],
+      ["Aibek rate"]] },
+  { route:"order-term-frequency-types", title:"Вид цикла начисления", archetype:"S", group:"rate", columns:["Наименование"], total:0,
+    rows:[] },
+  { route:"order-term-rate-periods", title:"Вид периода начисления", archetype:"S", group:"rate", columns:["Наименование"], total:0,
+    rows:[] },
+
+  // ── calc ─────────────────────────────────────────────────────────────
+  { route:"order-term-days-methods", title:"Вид расчета количества дней", archetype:"S", group:"calc", columns:["Наименование"], total:4,
+    rows:[
+      ["месячный"],
+      ["финансовый /календарный (360/365)"],
+      ["календарный 365"],
+      ["календарный 366"]] },
+  { route:"order-term-accr-methods", title:"Вид начисления", archetype:"S", group:"calc", columns:["Наименование"], total:0,
+    rows:[] },
+  { route:"order-term-transaction-orders", title:"Вид очередности погашения", archetype:"S", group:"calc", columns:["Наименование"], total:2,
+    rows:[
+      ["первочередный"],
+      ["Основная сумма, проценты, шрафы"]] },
+  { route:"loan-grace-periods", title:"Льготные периоды", archetype:"S", group:"calc", columns:["Период(кол-во мес.)","Тип периода(мес.)"], total:6,
+    rows:[
+      ["1","МЕСЯЦ"],
+      ["3","МЕСЯЦ"],
+      ["6","МЕСЯЦ"],
+      ["12","МЕСЯЦ"],
+      ["18","МЕСЯЦ"],
+      ["24","МЕСЯЦ"]] },
+  { route:"installment-states", title:"Статус графика погашений", archetype:"S", group:"calc", statusDict:true, columns:["Наименование"], total:1,
+    rows:[
+      ["по срокам"]] },
+  { route:"payment-types", title:"Вид погашений", archetype:"S", group:"calc", columns:["Наименование"], total:1,
+    rows:[
+      ["По графику"]] },
+  { route:"loan-termses", title:"Кредитные условия", archetype:"S", group:"calc", columns:["Дата","Наименование","Процентная ставка","Штраф по процентам","Штраф по осн. с.","Метод расчёта кол-ва дней","Метод расчёта кол-ва дней в год","Статус","Начало действия","Период начисления","Вид плавающих ставок","Штраф за просрочку по осн. с.","Штраф за просрочку по процентам","Лимит начисления штрафов","Дата лимита начисления штрафов","Очередь погашения"], total:1,
+    rows:[
+      ["11.11.2025 13:51","","0,00","0,00","0,00","","","","","","","","","","",""]] },
+  { route:"creditTerms", title:"Сроки кредита", archetype:"R", group:"calc", columns:["Наименование","Код","Статус","Дата создания"], total:5,
+    rows:[
+      ["До 3 лет","UP3Y","Активный","05.11.2025"],
+      ["5 лет","Активный","27.01.2026"],
+      ["7 лет","0","Активный","28.01.2026"],
+      ["15 лет","2","28.01.2026"],
+      ["6 мес.","4","28.01.2026"]] },
+  { route:"calculationCoefficients", title:"Расчетные коэффициенты", archetype:"R", group:"calc", columns:["Наименование","Код","Значение коэффициента","Статус"], total:2,
+    rows:[
+      ["2","2,00","Активный"],
+      ["2","2","2,00","Активный"]] },
+
+  // ── agr ─────────────────────────────────────────────────────────────
+  { route:"agreement-templates", title:"Шаблоны договоров", archetype:"S", group:"agr", loc:true, columns:["Наименование","AgreementTemplate.templateType","AgreementTemplate.status","AgreementTemplate.active","AgreementTemplate.lastValidatedAt"], total:3,
+    rows:[
+      ["Стандартный шаблон 2024","","","Да",""],
+      ["тест швблон1","","","Да",""],
+      ["Тестовый шаблон 2","CREDIT","VALID","Да","21.04.2026 11:30"]] },
+  { route:"agreement-template-codes", title:"Справочник кодов шаблонов", archetype:"S", group:"agr", loc:true, columns:["AgreementTemplateCode.code","AgreementTemplateCode.name","AgreementTemplateCode.description","AgreementTemplateCode.active"], total:11,
+    rows:[
+      ["loanApplication.additionalInfo","Дополнительная информация","Доп. информация по заявке","Да"],
+      ["loanApplication.number","Номер заявки","Номер заявки","Да"],
+      ["loanApplication.requestedAmount","Запрашиваемая сумма","Сумма заявки","Да"],
+      ["loanApplication.requestedTerm","Запрашиваемый срок","Срок заявки","Да"],
+      ["loanProgram.collateralAgreementRequirements","Требования к залоговому договору","Требования к залоговому договору программы","Да"],
+      ["loanProgram.loanAgreementRequirements","Требования к кредитному договору","Требования к кредитному договору программы","Да"],
+      ["loanProgram.nameEn","Наименование программы (EN)","Английское название кредитной программы","Да"],
+      ["loanProgram.nameKg","Наименование программы (KG)","Кыргызское название кредитной программы","Да"],
+      ["loanProgram.nameRus","Наименование программы (RU)","Русское название кредитной программы","Да"],
+      ["loanProgram.shortDescription","Краткое описание программы","Краткое описание кредитной программы","Да"],
+      ["party.displayName","ФИО / Наименование клиента","Отображаемое имя клиента","Да"]] },
+  { route:"collateralTypes", title:"Виды обеспечения", archetype:"R", group:"agr", columns:["Наименование","Код","Статус","Дата создания"], total:2,
+    rows:[
+      ["вид обеспечения 1","Активный","27.10.2025"],
+      ["Залогового обеспечения не требуется","123","Активный","11.11.2025"]] },
+
+  // ── subj ─────────────────────────────────────────────────────────────
+  { route:"employees", title:"Сотрудники", archetype:"S", group:"subj", columns:["Физ. лицо","Должность"], total:6,
+    rows:[
+      ["ТЕМИРЛАН УУЛУ ТОБОКЕЛ","Начальник управления"],
+      ["ДАДАБАЕВА ДИЛЬБАРА РАХМАТУЛЛАЕВНА","Главный специалист"],
+      ["НУРМАНБЕТ КЫЗЫ КАЛИНА"],
+      ["СЛАМКУЛОВ АЗАМАТ ОМУРГАЗИЕВИЧ","Администратор"],
+      ["ТОРОБАЕВ НУРСУЛТАН МААДАНБЕКОВИЧ","Администратор"],
+      ["Главный специалист"]] },
+  { route:"commissions", title:"Комиссии", archetype:"R", group:"subj", columns:["Наименование","Тип","Дата основания","Статус"], total:7,
+    rows:[
+      ["Комиссия по заявкам 1","","01.12.2025 00:00","Активная"],
+      ["Газификация-Комиссия","Поручительства","14.01.2026 00:00","Активная"],
+      ["Комиссия по залогу test1","Заявки","26.03.2026 00:00","Активная"],
+      ["Гос сектор","Залог","16.03.2026 00:00","Активная"],
+      ["Комиссия по заявкам","Заявки","31.03.2026 00:00","Активная"],
+      ["Тест залог","Залог","01.03.2026 00:00","Активная"],
+      ["Комиссия по поручительствам","Поручительства","31.03.2026 00:00","Активная"]] },
+  { route:"borrower-groups", title:"Группа заемщика", archetype:"S", group:"subj", columns:["Код","Наименование"], total:16, note:"показано 4 из 16",
+    rows:[
+      ["1","hidshgiu"],
+      ["2","fgxdzxh"],
+      ["3","1"],
+      ["4","Платежеспособные"]] },
+  { route:"debtor-types", title:"Вид заемщика", archetype:"S", group:"subj", columns:["Наименование"], total:6,
+    rows:[
+      ["Банкроты"],
+      ["Добросовестный заемщик"],
+      ["Бессовестный заемщик"],
+      ["Проблемный заемщик"],
+      ["Рискованный заемщик"],
+      ["Дефолтный заемщик"]] },
+  { route:"organization-forms", title:"Вид организационных форм", archetype:"S", group:"subj", columns:["Наименование"], total:5,
+    rows:[
+      ["Открытое акционерное общество"],
+      ["Закрытое акционерное общество"],
+      ["Государственное предприятие"],
+      ["Муниципальное предприятие"],
+      ["Общество с ограниченной ответственностью"]] },
+  { route:"work-sectors", title:"Вид отраслей", archetype:"S", group:"subj", columns:["Наименование"], total:0,
+    rows:[] },
+  { route:"loan-payment-capacity-groups", title:"Группа платежоспособности", archetype:"S", group:"subj", columns:["Гр. платежесп."], total:0,
+    rows:[] },
+  { route:"individuals", title:"Физ лица", archetype:"R", group:"subj", columns:["ИНН","ФИО","Национальность","Номер паспорта","Серия паспорта","Адрес"], total:16,
+    rows:[
+      ["20907199400957","МАТРАИМОВ МАКСАТ КУБАНОВИЧ","КЫРГЫЗ","1938945","ID","БИШКЕК Ш.,, АЛА-АРЧА К-ШУ, ТОРГОЙ Ч/К, д. 9"],
+      ["20809196700200","АБДРАИМОВ ЭРКИНБЕК ГАПАРОВИЧ","КЫРГЫЗ","0861529","ID","БАЗАР-КОРГОН Р-НУ, КАБА А., АБАИЛДА ШАИЛДА КӨЧ., д. БН"],
+      ["21812199600888","БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ","КЫРГЫЗ","3229505","ID","ЧҮЙ ОБЛ.,ПАНФИЛОВ Р-НУ, ЧАЛДЫБАР А., БАЙСЕИТ БААТЫР КӨЧ., д. 289"],
+      ["22407199000740","ТЕМИРЛАН УУЛУ ТОБОКЕЛ","КАЗАК","4841384","AN","ЧҮЙ ОБЛ.,АЛАМҮДҮН Р-НУ, ТАШ-ДӨБӨ А., ШКОЛЬНАЯ К., д. 36"],
+      ["10510198000399","ДАДАБАЕВА ДИЛЬБАРА РАХМАТУЛЛАЕВНА","ӨЗБЕК","1851683","ID","ЧҮЙ ОБЛ.,МОСКВА Р-НУ, АК-СУУ А., ЮЖНАЯ КӨЧ., д. 12, кв. 21"],
+      ["10203197800201","СООРОНОВА РЫСКАН АТАЕВНА","КЫРГЫЗ","0861810","ID","ЖАЛАЛ-АБАД ОБЛ.,ТАШ-КӨМҮР Ш., -, Ш.СЫДЫКОВА КӨЧ., д. 21, кв. 11"],
+      ["12407197000126","АЛЫКУЛОВА РАНАГУЛ ОМУРКАНОВНА","КЫРГЫЗ","0362165","ID","БИШКЕК Ш., КИЕВ КӨЧ., д. 114/2, кв. 82"],
+      ["11305199101352","НУРМАНБЕТ КЫЗЫ КАЛИНА","КЫРГЫЗ","0845957","ID","СОКУЛУК Р-НУ, ГАВРИЛОВКА А., ФРУНЗЕ КӨЧ., д. 150"],
+      ["20411198201313","СЛАМКУЛОВ АЗАМАТ ОМУРГАЗИЕВИЧ","КЫРГЫЗ","2926078","ID","ЧҮЙ ОБЛ.,АЛАМҮДҮН Р-НУ, ПРИГОРОДНОЕ А., ЮБИЛЕЙНАЯ КӨЧ., д. 23, кв. 8"],
+      ["21701200000261","ТОРОБАЕВ НУРСУЛТАН МААДАНБЕКОВИЧ","КЫРГЫЗ","4772064","AN","ОШ ОБЛ.,КАРА-СУУ Р-НУ, ТӨЛӨЙКӨН (БӨЛҮГҮ) А., А.ДЕЙДИЕВ К., д. 18"],
+      ["20507200350475","МЕҢДИБАЕВ АМАНТУР КЫЛЫЧБЕКОВИЧ","КЫРГЫЗ","1957700","ID","БИШКЕК Ш.,, -, БЕЙШЕНАЛИЕВОЙ Б. КӨЧ., д. 56"],
+      ["13112199100463","ТЫНЧТЫКБЕК КЫЗЫ МАРАЛ","КЫРГЫЗ","0644772","ID","НАРЫН ОБЛ.,АТ-БАШЫ Р-НУ, ТАЛДЫ-СУУ А., ОСМОНБЕКОВ ОКТЯБРЬ КӨЧ., д. 2"],
+      ["20112199202040","СУЛТАНОВ ЧЫНГЫЗ БАКТЫБЕКОВИЧ","КЫРГЫЗ","2168457","ID","ЧҮЙ ОБЛ.,ПАНФИЛОВ Р-НУ, ВОЗНЕСЕНОВКА А., ЖАШТЫК КӨЧ., д. 36"],
+      ["22505199901457","","","","",""],
+      ["20101198900280","ОЗОНОВ АЗИЗ КАНАТБЕКОВИЧ","КЫРГЫЗ","3534294","ID","БИШКЕК Ш.,, КАРА-ЖЫГАЧ К-ШУ, КАРА-ЖЫГАЧ КӨЧ., д. УЧ.205К"],
+      ["21408200300396","АКЫНОВ БЕКСУЛТАН КУБАТБЕКОВИЧ","КЫРГЫЗ","1786728","ID","ЧҮЙ ОБЛ.,АЛАМҮДҮН Р-НУ, КАШКА-СУУ А., МЕДЕРОВ КӨЧ., д. 12"]] },
+  { route:"organizations", title:"Организации", archetype:"R", group:"subj", columns:["Полное наименование (На гос языке)","Полное наименование","Краткое наименование (на гос языке)","Краткое наименование","Регистрационный номер","ИНН","Код ОКПО","Адрес"], total:29, note:"показано 27 из 29",
+    rows:[
+      ["\"Кыргыз Республикасынын Финансы министрлигине караштуу Финансы-кредиттик фонд\" мекемеси","Учреждение \"Финансово-кредитный фонд при Министерстве финансов Кыргызской Республики\"","Финансово-кредитный фонд при Министерстве финансов Кыргызской Республики","Финансово-кредитный фонд при Министерстве финансов Кыргызской Республики","71210-3301-У-е","01103199710105","21663688","Бишкек, Первомайский район, Первомайский район, бул. Эркиндик, 58а,"],
+      ["М-е \"Кыргыз Республикасынын айыл чарба Министирлигин Москва райондук мамлекеттик урон инспекциясы ишиканасы жонундо\"","У-е Московская районная государственная семенная инспекция Министерства сельского хозяйства Кыргызской Республики\"","83405-3308-У-е","01104200110233","22746042","Чуйская, с. Беловодское, Московский, ул. Колхозная, № 1,"],
+      ["\"Кыргыз Республикасынын Жаратылыш ресурстары, экология жана техникалык көзөмөл министрлиги\" мекемеси","Учреждение \"Министерство природных ресурсов, экологии и технического надзора Кыргызской Республики\"","197875-3300-У-е","00306202110080","30968288","город Бишкек, Первомайский район, Первомайский район, бул. Эркиндик, 2,"],
+      ["\"Кыргыз Республикасынын Экономика жана финансы министрилиги\" мекемеси","Учреждение \"Министерство экономики и финансов Кыргызской Республики\"","\"Экономфинмин\" м-си","У-е \"Минэкономфин\"","197208-3300-У-е","02904202110155","30967350","город Бишкек, Первомайский район, Первомайский район, бул. Эркиндик, 58,"],
+      ["Кыргыз Республикасынын Финансы минстрлигине караштуу \"Инфосистемс\" мамлекеттик ишканасы","Государственное предприятие \"Инфосистемс\" при Министерстве финансов Кыргызской Республики","КРФМ «Инфосистемс» МИ","ГП \"Инфосистемс\" при МФКР","201100-3301-ГП","01211202110139","31284994","город Бишкек, Первомайский район, Первомайский район, бул. Эркиндик, 58А,"],
+      ["\"Чүй облусунун Москва районунун Миң-Булак айыл аймагынын Миң-Булак айыл өкмөтү\" мекемеси","Учреждение \"Мин-Булак айыл окмоту Мин-Булакского айылного аймака\"","\"Чүй облусунун Москва районунун Миң-Булак айыл аймагынын Миң-Булак айыл өкмөтү\" М-е","М-е \"Мин-Булак айыл окмоту Мин-Булакского айылного аймака\"","300615-3308-У-е","01103202410518","32660152","Чуйская область, Садовое, Московский район, ул. Советская, 202,"],
+      ["\"Альфа Телеком\" Жабык акционердык коом","Закрытое акционерное общество \"Альфа Телеком\"","ЗАО \"Альфа Телеком\"","ЗАО \"Альфа Телеком\"","106076-3301-ЗАО","00406200910056","26611735","Бишкек, Свердловский район, Свердловский район, ул. Суюмбаева, 123,"],
+      ["\"Ноокат Тазалык\" Муниципалдык ишканасы","Муниципальное предприятие \"Ноокат Тазалык\"","\"Ноокат Тазалык\" МИ","МП \"Ноокат Тазалык\"","164712-3306-МП","02102201710026","29367187","Ошская область, Ноокат, Ноокатский район, ул. Лутфуллаева, №5,"],
+      ["\"Мырза-Аке айыл аймагынын айыл өкмөтү\" мекемеси","Учреждение \"Айыл окмот Мырза-Акинского айылного аймака\"","\"Мырза-Аке айыл аймагынын айыл өкмөтү\" м-си","У-е \"Айыл окмот Мырза-Акинского айылного аймака\"","300920-3306-У-е","01803202410484","32663200","Ошская область, Мырза-Аке, Узгенский район, ул. М.Нурбаева, 35,"],
+      ["\"Хот Лэйк Текстиль\" Жоопкерчилиги чектелген коому","Общество с ограниченной ответственностью \"Хот Лэйк Текстиль\"","\"Хот Лэйк Текстиль\" ЖЧК","ОсОО \"Хот Лэйк Текстиль\"","314845-3308-ООО","00404202510209","33803731","Чуйская область, Новопокровка (часть), Ысык-Атинский район, Ленина , 86,"],
+      ["\"Мамлекеттик финансылык холдинг\" ачык акционердик коому","Открытое акционерное общество \"Государственный финансовый холдинг\"","\"Мамфинхолдинг\" ААК","ОАО \"Госфинхолдинг\"","318532-3301-ОАО","03107202510149","34088377","Бишкек, Первомайский район, Первомайский район, бульвар Эркиндик, 58а,"],
+      ["“Кыргыз Республикасынын Суу ресурстары, айыл чарба жана кайра иштетүү өнөр жайы министрлигине караштуу Суу ресурстары кызматынын алдындагы \" Сузак райондук суу чарба башкармалыгы” мамлекеттик мекемеси","Государственное учреждение \"Сузакское районное управление водного хозяйства\" при Службе водных ресурсов при Министерстве водных ресурсов, сельского хозяйства и перерабатывающей промышленности Кыргызской Республики","Сузакское РСЧБ","Сузакское РУВХ","45543-3303-У-е","01808199510024","01051881","Джалал-Абадская область, Сузак, Сузакский район, ул.Дакан-Палван, 11,"],
+      ["\"Кыргыз Республикасынын Финансы министрлиги\" мекемеси","Учреждение \"Министерство финансов Кыргызской Республики\"","\"Финмин\" м-си","У-е \"Минфин\"","201371-3300-У-е","02611202110014","31287716","город Бишкек, Первомайский район, Первомайский район, бул. Эркиндик, 58,"],
+      ["\"Нарын\" Өндүрүштүк ишканасы\" жоопкерчилиги чектелген коому","Общество с ограниченной ответственностью \"Производственное предприятие \"Нарын\"","79831-3304-ООО","00304199210013","20271899","Нарынская область, город Нарын, город Нарын, ул. Ленина, 189,"],
+      ["\"Атлант Синема\" жоопкерчилиги чектелген коому","Общество с ограниченной ответственностью \"Атлант Синема\"","\"Атлант Синема\" ЖЧК","ОсОО \"Атлант Синема\"","225231-3301-ООО","01212202310613","32425362","Бишкек, Свердловский район, Свердловский район, пер. Берликский, 6,"],
+      ["\"Бек Кабель\" жоопкерчилиги чектелген коому","Общество с ограниченной ответственностью \"Бек Кабель\"","\"Бек Кабель\" ЖЧК","ОсОО \"Бек Кабель\"","163249-3308-ООО","01912201610212","29763351","Чуйская область, Ат-Башы, Аламудунский район, ул. Верхнее Ат-Баши, 6,"],
+      ["\"Салих и Ко\" жоопкерчилиги чектелген коому","Общество с ограниченной ответственностью \"Салих и Ко\"","\"Салих и Ко\" ЖЧК","ОсОО \"Салих и Ко\"","224821-3303-ООО","03011202310543","32420577","Джалал-Абадская область, Джалал-Абад, Джалал-Абад, ул.Айтакалова, 7/2,"],
+      ["\"Альфа Ойл\" жоопкерчилиги чектелген коому","Общество с ограниченной ответственностью \"Альфа Ойл\"","ОсОО \"Альфа Ойл\"","ОсОО \"Альфа Ойл\"","142564-3301-ООО","02811201410017","28977995","город Бишкек, Свердловский район, Свердловский район, ул. Жумабека, 105/1,"],
+      ["\"Ак Таш Кальцит\" жоопкерчилиги чектелген коому","Общество с ограниченной ответственностью \"Ак Таш Кальцит\"","\"Ак Таш Кальцит\" ЖЧК","ОсОО \"Ак Таш Кальцит\"","166053-3308-ООО","02404201710194","29329927","Чуйская область, село Ивановка, Ысык-Атинский район, контур 48, ,"],
+      ["\"Асыл тери\" жоопкерчилиги чектелген коому","Общество с ограниченной ответственностью \"Асыл тери\"","\"Асыл тери\" ЖЧК","ОсОО \"Асыл тери\"","313043-3301-ООО","00502202510195","33630495","Бишкек, Октябрьский район, Октябрьский район, 3 мкр., 21, 4"],
+      ["\"Асылташ плюс\" Жоопкерчилиги чыктелген коому","Общество с ограниченной ответственностью \"Асылташ плюс\"","\"Асылташ плюс\" ЖЧК","ОсОО \"Асылташ плюс\"","120801-3301-ООО","00302201210157","27610136","Бишкек, Октябрьский район, Октябрьский район, ул. Кулатова, 6,"],
+      ["Нарзан айыл өкмөтүнүн алдындагы \"Нарзан жылуулук\" муниципалдык ишканасы","Муниципальное предприятие \"Нарзан тепло\" при Нарзанском айыл окмоту","\"Нарзан айыл өкмөтүнүн алдындагы \"Нарзан жылуулук\" МИ","МП \"Нарзан тепло\" при Нарзанском айыл окмоту","309081-3308-МП","00310202410170","33310365","Чуйская область, Беловодское, Московский район, ул. Ломоносова, 1а,"],
+      ["\"Грант Холдинг\" жоопкерчилиги чектелген коому","Общество с ограниченной ответственностью \"Грант Холдинг\"","\"Грант Холдинг\" ЖЧК","ОсОО \"Грант Холдинг\"","57981-3301-ООО","02206200710058","24446315","Бишкек, Свердловский район, Свердловский район, ул. Усенбаева, 44, Офис 4"],
+      ["\"Охна ГЭС\" жоопкерчилиги чектелген коому","Общество с ограниченной ответственностью \"Охна ГЭС\"","\"Охна Гэс\" ЖЧК","ОсОО \"Охна ГЭС\"","210487-3301-ООО","01210202210425","31677363","Бишкек, Первомайский район, Первомайский район, Худайбергенова, 81 а,"],
+      ["\"Мбанк\" ачык акционердик коому","Открытое акционерное общество \"Мбанк\"","ОАО \"Мбанк\"","ОАО \"Мбанк\"","3903-3301-ОАО","02712199110068","20137117","Бишкек, Октябрьский район, Октябрьский район, ул. Горького, 1/2,"],
+      ["\"О!Банк\" ачык акционердик коому","Открытое акционерное общество \"О!Банк\"","\"О!Банк\" ААК","ОАО \"О!Банк\"","9642-3301-ОАО","01204199910016","22192566","Бишкек, Первомайский район, Первомайский район, ул. Фрунзе, 390,"],
+      ["\"Оптима Банк\" Ачык акционердик коому","Открытое акционерное общество \"Оптима Банк\"","\"Оптима Банк\" ААК","ОАО \"Оптима Банк\"","870-3300-ОАО","00904199310033","20030380","г.Бишкек, Свердловский район, Свердловский район, пр. Жибек Жолу, 493,"]] },
+
+  // ── loan ─────────────────────────────────────────────────────────────
+  { route:"loan-states", title:"Статус кредита", archetype:"S", group:"loan", statusDict:true, columns:["Наименование"], total:1,
+    rows:[
+      ["Кредит компании"]] },
+  { route:"loan-type-repayment-accounts", title:"Вид счета погашения", archetype:"S", group:"loan", columns:["Вид счета погашения"], total:3,
+    rows:[
+      ["123"],
+      ["321"],
+      ["Накопительный счет"]] },
+  { route:"loan-redemption-accounts", title:"Счет погашения", archetype:"S", group:"loan", columns:["Счет погашения"], total:1,
+    rows:[
+      ["123"]] },
+
+  // ── goods ─────────────────────────────────────────────────────────────
+  { route:"good-types", title:"Вид товаров", archetype:"S", group:"goods", columns:["Наименование"], total:0,
+    rows:[] },
+  { route:"destination-accounts", title:"Destination accounts", archetype:"S", group:"goods", columns:["Наименование"], total:1,
+    rows:[
+      ["123234"]] },
+  { route:"payment-purpose-requisites", title:"Счет для оплаты", archetype:"S", group:"goods", columns:["Вид счета","Счет","Статус"], total:0,
+    rows:[] },
+  { route:"industryDirections", title:"Отрасли и направления", archetype:"R", group:"goods", columns:["Наименование","Код","Статус","Дата создания"], total:46, note:"показано 27 из 46",
+    rows:[
+      ["Агропромышленный комплекс","2","Активный","10/11/2025 08:42 +0600"],
+      ["Водное хозяйство","3","Активный","10/11/2025 08:43 +0600"],
+      ["Легкая промышленность","4","Активный","10/11/2025 08:43 +0600"],
+      ["Машиностроение","5","Активный","10/11/2025 08:43 +0600"],
+      ["Пищевая и перерабатывающая промышленность","6","Активный","10/11/2025 08:43 +0600"],
+      ["Банки и банковская деятельность","7","Активный","10/11/2025 08:44 +0600"],
+      ["Здравоохранение","8","Активный","10/11/2025 08:44 +0600"],
+      ["Жилищно-строительный комплекс (физические лица)","9","Активный","10/11/2025 08:44 +0600"],
+      ["Животноводство","zh-1","Активный","05/11/2025 17:03 +0600"],
+      ["Водосберегающие технологии","Vod-1","Активный","11/12/2025 14:10 +0600"],
+      ["Лизинг техники","Liaz-1","Активный","11/12/2025 14:11 +0600"],
+      ["Семеноводчество","SEED","Активный","15/01/2026 14:41 +0600"],
+      ["Питомниководство","NURSERY","Активный","15/01/2026 14:42 +0600"],
+      ["Питомниководство","1212","Активный","27/01/2026 17:35 +0600"],
+      ["Муниципальные предприятия","Rt-2","Активный","27/01/2026 14:43 +0600"],
+      ["Мэрии городов","UI-4","Активный","27/01/2026 14:44 +0600"],
+      ["Инвестиционные","MSP_60m","Активный","02/02/2026 10:43 +0600"],
+      ["Пополнение оборотного капитала","MSP_36m","Активный","02/02/2026 10:44 +0600"],
+      ["Стартапы","MSP_18m","Активный","02/02/2026 10:45 +0600"],
+      ["Сельское хозяйство","AGRICULTURE","Активный","04/02/2026 13:51 +0600"],
+      ["Производство и переработка сельско-хозяйственной продукции","PP_AGRO_PRODUCTS","Активный","04/02/2026 13:54 +0600"],
+      ["Промышленность","INDUSTRY","Активный","04/02/2026 14:31 +0600"],
+      ["Туризм","TOURISM","Активный","04/02/2026 14:33 +0600"],
+      ["Транспорт","TRANSPORT","Активный","04/02/2026 14:34 +0600"],
+      ["Экспорто-ориентированные и импортозамещающие предприятия","EXPORT_COMPANY","Неактивный","04/02/2026 14:40 +0600"],
+      ["Торгово-логистические центры и овощные хранилища","STORAGE_CENTER","Активный","04/02/2026 14:42 +0600"],
+      ["Инновационная деятельность","INNOVATION","Активный","04/02/2026 14:44 +0600"]] },
+
+  // ── picker ─────────────────────────────────────────────────────────────
+  { route:"loan-credit-purposes", title:"Цели кредита", archetype:"S", group:"picker", columns:["Наименование"], total:4,
+    rows:[
+      ["Пополнение оборотных средств"],
+      ["Приобретение основных средств"],
+      ["Рефинансирование"],
+      ["Строительство"]] },
+  { route:"document-check-levels", title:"Уровни проверки документов", archetype:"S", group:"picker", columns:["Наименование"], total:4,
+    rows:[
+      ["Первичная"],
+      ["Юридическая"],
+      ["Финансовая"],
+      ["Окончательная"]] },
+  { route:"interest-calc-types", title:"Типы расчёта процентов", archetype:"S", group:"picker", columns:["Наименование"], total:3,
+    rows:[
+      ["Аннуитет"],
+      ["Дифференцированный"],
+      ["В конце срока"]] },
+];
+
+// ── Группировка по странице/вкладке, где справочник ПОТРЕБЛЯЕТСЯ (08-spravochniki.md §2.1) ──
+// Ключ — route, значение — id страницы/вкладки-потребителя. Перекрывает поле group
+// из литерала DICTS (старая тематическая раскладка). Один справочник → одна корзина.
+const PAGE = {
+  // 01 · Госрешение — на форме решения реально только 2 поля-справочника:
+  // Статус (credit-order-states) + Вид решения (credit-order-types).
+  // Проверено live 2026-06-25: gov-decisions/2?mode=readonly — форма = Наим./Статус/Код/
+  // Номер/Дата/Вид решения + вкл. «Примечание». Документов/пакетов на форме нет.
+  'credit-order-states':'dec','credit-order-types':'dec',
+  // классификаторы документов/пакетов — на форме решения НЕ потребляются (пусты, нет экрана-формы)
+  'order-document-types':'docs','entity-document-states':'docs','entity-document-registered-bies':'docs',
+  'document-package-states':'docs','document-package-types':'docs',
+  // 02 · Программа · вкл.1 — picker-поля формы (live 2026-06-25, tab1-dict-map.mjs):
+  // 11 пикеров. Уникально-«домашние» вкл.1 — источник, валюта, линия, назначение.
+  // Общие (вид кредита, отрасль, счёт погашения, физ/юр лица, сотрудники) добавлены
+  // доп. членством в SHARED ниже — primary-дом у них в 04/05/субъектах.
+  'order-term-funds':'prog1','order-term-currencies':'prog1','loan-credit-lines':'prog1',
+  'loan-credit-purposes':'prog1',
+  // классификаторы «списка получателей» — backing-enum сущности списка, НЕ picker вкл.1
+  // (live: на вкл.1 нет такого пикера); живут вне формы
+  'applied-entity-list-states':'docs','applied-entity-list-types':'docs','applied-entity-states':'docs',
+  // 02 · Программа · вкл.3 — ставки
+  'loan-percent-rates':'prog3','interest-rates':'prog3','order-term-floating-rate-types':'prog3',
+  // 02 · Программа · вкл.6 — платежи и расчёты
+  'order-term-frequency-types':'prog6','order-term-rate-periods':'prog6','order-term-days-methods':'prog6',
+  'order-term-accr-methods':'prog6','order-term-transaction-orders':'prog6','loan-grace-periods':'prog6',
+  'interest-calc-types':'prog6',
+  // 02 · Программа · вкл.7 — договоры
+  'agreement-templates':'prog7','agreement-template-codes':'prog7','document-check-levels':'prog7',
+  // 02 · Программа · вкл.8 — залог
+  'collateralTypes':'prog8',
+  // 02–03 · Субъекты — сотрудники, комиссии, физ/юр лица
+  'employees':'subj','commissions':'subj','individuals':'subj','organizations':'subj',
+  // 04 · Заёмщик и отрасли
+  'borrower-groups':'borrower','debtor-types':'borrower','organization-forms':'borrower',
+  'work-sectors':'borrower','loan-payment-capacity-groups':'borrower','industryDirections':'borrower',
+  // 05 · Кредит
+  'loan-types':'loan','loan-termses':'loan','creditTerms':'loan','calculationCoefficients':'loan',
+  'loan-states':'loan','loan-type-repayment-accounts':'loan','loan-redemption-accounts':'loan',
+  // 06–07 · График, погашения, товары/счета
+  'installment-states':'sched','payment-types':'sched','good-types':'sched',
+  'destination-accounts':'sched','payment-purpose-requisites':'sched',
+};
+// справочники без собственного пункта меню — открываются только picker-ом из формы (§2.1)
+const PICKER_ONLY = new Set(['loan-credit-purposes','document-check-levels','interest-calc-types']);
+// Доп. членство: общий справочник = picker-поле нескольких страниц. Эти 6 — picker-поля
+// вкл.1 (live 2026-06-25), но primary-дом в 04/05/субъектах. Показываем в обеих корзинах.
+const SHARED = {
+  'loan-types':['prog1'], 'industryDirections':['prog1'], 'loan-type-repayment-accounts':['prog1'],
+  'individuals':['prog1'], 'organizations':['prog1'], 'employees':['prog1'],
+};
+DICTS.forEach(d=>{
+  d.group = PAGE[d.route] || d.group;                          // primary-корзина
+  d.groups = [...new Set([d.group, ...(SHARED[d.route]||[])])]; // все корзины-потребители
+  d.pickerOnly = PICKER_ONLY.has(d.route);
+});
+
+const cellHTML = (d,c,ci) => (d.statusDict || isStatusCol(d.columns[ci])) ? `<td>${badge(c)}</td>` : `<td>${esc(c)}</td>`;
+
+function sectionHTML(d){
+  const locFlag = d.loc ? ` <span class="badge warning" title="Заголовки колонок — сырые java-property-пути (дефект локализации)">loc</span>` : '';
+  const head = `<div class="section-head">
+    <h2>${esc(d.title)}</h2>
+    <span class="arch-chip ${d.archetype==='R'?'r':''}">${d.archetype}</span>${locFlag}
+    <span class="slug">${d.route}</span>
+    <span class="row-count">${d.note || (d.total+' строк')}</span></div>`;
+  // «Просмотр» существует только у архетипа R (live, §3 ТЗ); S-словари — без просмотра.
+  const viewBtn = d.archetype==='R' ? `<button class="btn" data-act="view">Просмотр</button>` : '';
+  const toolbar = d.group==='picker'
+    ? `<div class="toolbar"><button class="btn" data-act="picker">Открыть как picker</button>
+    <div class="picker-note">Доступен только из формы (picker-диалог)</div></div>`
+    : `<div class="toolbar">
+    <button class="btn primary" data-act="create">Создать</button>
+    <button class="btn" data-act="edit">Изменить</button>
+    ${viewBtn}
+    <button class="btn danger" data-act="delete">Удалить</button>
+    <button class="btn ghost" data-act="filter">+ Добавить условие поиска</button>
+    <span class="tb-spacer"></span>
+    <button class="btn ghost" data-act="jmix" title="1:1 как в действующей системе (Jmix-диалог)">Открыть как в системе</button></div>`;
+  let grid;
+  if(!d.rows.length){ grid = `<div class="empty-note">Справочник не наполнен</div>`; }
+  else {
+    const th = d.columns.map(c=>`<th>${esc(c)}</th>`).join('');
+    const tr = d.rows.map((r,i)=>`<tr data-i="${i}">`+
+      r.map((c,ci)=> cellHTML(d,c,ci)).join('')
+      +`</tr>`).join('');
+    grid = `<div class="grid-wrap"><table class="grid"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></div>`;
+  }
+  return `<section class="section" id="sec-${d.route}" data-route="${d.route}">${head}${toolbar}${grid}</section>`;
+}
+// ── nav-группы (используются и витриной карточек, и сайдбаром) ──────────────
+// Группы = страница/вкладка-потребитель (08-spravochniki.md §2.1), в порядке жизненного цикла.
+const GROUPS = [
+  {id:'dec',     label:'01 · Госрешение — статус + вид решения'},
+  {id:'docs',    label:'Классификаторы вне формы (документы, пакеты, списки получателей)'},
+  {id:'prog1',   label:'02 · Программа · вкл.1 — основные данные (picker-поля формы)'},
+  {id:'prog3',   label:'02 · Программа · вкл.3 — ставки'},
+  {id:'prog6',   label:'02 · Программа · вкл.6 — платежи и расчёты'},
+  {id:'prog7',   label:'02 · Программа · вкл.7 — договоры'},
+  {id:'prog8',   label:'02 · Программа · вкл.8 — залог'},
+  {id:'subj',    label:'02–03 · Субъекты: сотрудники, комиссии, лица'},
+  {id:'borrower',label:'04 · Заёмщик и отрасли'},
+  {id:'loan',    label:'05 · Кредит'},
+  {id:'sched',   label:'06–07 · График, погашения, товары/счета'},
+];
+
+// ── Витрина: каждый справочник = picker-поле формы (1:1 как в системе) ──────
+// Поле «Вид решения» на скрине = образец. ··· открывает 1:1 Jmix-CRUD-диалог
+// со снятыми с live колонками/строками; ✕ очищает поле.
+function fieldCardHTML(d){
+  const meta = `${d.archetype} · ${d.route} · ${d.note || (d.total+' строк')}${d.loc?' · loc':''}${d.pickerOnly?' · picker-only (нет в меню)':''}`;
+  return `<div class="jx field-card section" id="sec-${d.route}" data-route="${d.route}">
+    <label class="fc-label">${esc(d.title)}</label>
+    <div class="jx-pickfield">
+      <input class="jx-pf-input" readonly>
+      <button type="button" class="jx-pf-dots" data-pick title="Выбрать">···</button>
+      <button type="button" class="jx-pf-x" data-clear title="Очистить">✕</button>
+    </div>
+    <span class="fc-meta">${esc(meta)}</span>
+  </div>`;
+}
+function renderSections(){
+  const list=document.getElementById('dict-list');
+  list.innerHTML = GROUPS.map(g=>{
+    const cards = DICTS.filter(d=>d.groups.includes(g.id)).map(fieldCardHTML).join('');
+    return `<div class="grp" data-grp="${g.id}"><h3 class="grp-head">${esc(g.label)}</h3>${cards}</div>`;
+  }).join('');
+  document.getElementById('topbar-count').textContent = DICTS.length+' справочников';
+  list.querySelectorAll('.field-card').forEach(card=>{
+    const route=card.dataset.route, input=card.querySelector('.jx-pf-input');
+    card.querySelector('[data-pick]').onclick=()=>openJmixPicker(route, v=>input.value=v);
+    card.querySelector('[data-clear]').onclick=()=>input.value='';
+  });
+}
+renderSections();
+function renderNav(){
+  const nav=document.getElementById('nav');
+  // сайдбар — только группы справочников (без отдельных пунктов)
+  nav.innerHTML=GROUPS.map(g=>{
+    const n=DICTS.filter(d=>d.groups.includes(g.id)).length;
+    return `<div class="nav-group" data-grp="${g.id}">
+      <button type="button" class="nav-grp-label">
+        <span>${esc(g.label)}</span><span class="nav-grp-count">${n}</span></button></div>`;
+  }).join('');
+  // клик по группе = выбрать её
+  nav.querySelectorAll('.nav-grp-label').forEach(btn=>btn.addEventListener('click',()=>{
+    applyGroup(btn.closest('.nav-group').dataset.grp);
+  }));
+}
+renderNav();
+
+// ── выбор группы: в main видна только выбранная группа, остальные скрыты ──────
+let activeGroup = GROUPS[0].id;
+function applyGroup(gid){
+  activeGroup = gid;
+  // main — показываем карточки только выбранной группы
+  document.querySelectorAll('#dict-list .grp').forEach(g=>{
+    g.style.display = g.dataset.grp===gid ? '' : 'none';
+  });
+  // nav — подсвечиваем выбранную группу
+  document.querySelectorAll('#nav .nav-group').forEach(g=>{
+    g.classList.toggle('active', g.dataset.grp===gid);
+  });
+  const grp = GROUPS.find(x=>x.id===gid);
+  const n = DICTS.filter(d=>d.groups.includes(gid)).length;
+  document.getElementById('topbar-count').textContent = (grp?grp.label+' · ':'')+n+' справочников';
+}
+applyGroup(activeGroup);
+
+// ── Task 6: shared modal (view/edit/create) + delete + row select ──────────
+let selected={}; // route -> rowIndex
+function openModal(route,mode,i){
+  const d=DICTS.find(x=>x.route===route);
+  const row = (i!=null && d.rows[i]) || d.columns.map(()=> '');
+  const ro = mode==='view';
+  const fields=d.columns.map((c,ci)=>`<div class="field"><label>${esc(c)}</label>
+    <input value="${esc(row[ci])}" ${ro?'readonly':''}></div>`).join('');
+  const title={view:'Просмотр',edit:'Изменить',create:'Создать'}[mode]+' — '+esc(d.title);
+  document.getElementById('modal-root').innerHTML=`<div class="modal-overlay">
+    <div class="modal"><div class="modal-head">${esc(title)}</div>
+    <div class="modal-body">${fields}</div>
+    <div class="modal-foot">${ro?'':'<button class="btn primary" data-m="save">Сохранить</button>'}
+      <button class="btn" data-m="close">${ro?'Закрыть':'Отмена'}</button></div></div></div>`;
+  const close=()=>document.getElementById('modal-root').innerHTML='';
+  document.querySelector('[data-m="close"]').onclick=close;
+  const save=document.querySelector('[data-m="save"]'); if(save) save.onclick=close;
+}
+
+// mono line-иконки (currentColor) — как в Vaadin/Lumo (gray в disabled, blue gear)
+const SVG={
+  gear:'<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>',
+  pencil:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>',
+  trash:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
+  chevDown:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+  sort:'<svg width="11" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 9 12 5 16 9"/><polyline points="8 15 12 19 16 15"/></svg>',
+};
+
+// Jmix-picker 1:1 (полный CRUD-диалог как в online). Работает с локальной копией
+// строк (data) — Удалить/Создать в диалоге не трогают грид витрины.
+function openJmixPicker(route, onPick){
+  const d=DICTS.find(x=>x.route===route);
+  const data=d.rows.map(r=>r.slice()); // локальная копия
+  let sel=null; // индекс выбранной строки
+
+  const root=document.getElementById('modal-root');
+  const close=()=>{ root.innerHTML=''; };
+
+  function gridHTML(){
+    const th=d.columns.map(c=>`<th>${esc(c)} <span class="sort">${SVG.sort}</span></th>`).join('');
+    const tr=data.length
+      ? data.map((r,i)=>`<tr data-i="${i}"${i===sel?' class="sel"':''}>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')
+      : `<tr><td colspan="${d.columns.length}" style="color:#9aa6b2">нет значений</td></tr>`;
+    return `<table class="jx-grid"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
+  }
+  function render(){
+    const hasSel=sel!=null;
+    root.innerHTML=`<div class="modal-overlay"><div class="modal jx jx-dlg">
+      <div class="jx-dlg-head"><span>${esc(d.title)}</span><button class="jx-dlg-x" data-m="close">✕</button></div>
+      <div class="jx-dlg-body">
+        <div class="jx-filter-head">${SVG.chevDown} Фильтр</div>
+        <div class="jx-row">
+          <button class="jx-btn refresh">Обновить</button><button class="jx-split">▼</button>
+          <button class="jx-gear">${SVG.gear}</button>
+          <button class="jx-link">Добавить условие поиска</button>
+        </div>
+        <div class="jx-row">
+          <button class="jx-btn create" data-m="create">+ Создать</button>
+          <button class="jx-btn edit" data-m="edit" ${hasSel?'':'disabled'}>${SVG.pencil} Изменить</button>
+          <button class="jx-btn del" data-m="del" ${hasSel?'':'disabled'}>${SVG.trash} Удалить</button>
+          <span class="jx-pager"><button>«</button><button>‹</button><span class="jx-count">${data.length} строк</span><button>›</button><button>»</button></span>
+        </div>
+        <div class="jx-grid-wrap">${gridHTML()}</div>
+      </div>
+      <div class="jx-dlg-foot">
+        <button class="jx-btn select" data-m="ok" ${hasSel?'':'disabled'}>✓ Выбрать</button>
+        <button class="jx-btn cancel" data-m="close">⊘ Отмена</button>
+      </div></div></div>`;
+
+    root.querySelectorAll('[data-m="close"]').forEach(b=>b.onclick=close);
+    root.querySelector('[data-m="ok"]').onclick=()=>{ if(sel==null) return;
+      if(onPick) onPick(data[sel].join(' ')); close(); };
+    root.querySelector('[data-m="create"]').onclick=()=>openRecordForm(null);
+    root.querySelector('[data-m="edit"]').onclick=()=>{ if(sel!=null) openRecordForm(sel); };
+    root.querySelector('[data-m="del"]').onclick=()=>{ if(sel!=null){ data.splice(sel,1); sel=null; render(); } };
+    root.querySelectorAll('tr[data-i]').forEach(tr=>{
+      tr.onclick=()=>{ sel=+tr.dataset.i; render(); };
+      tr.ondblclick=()=>{ sel=+tr.dataset.i; if(onPick) onPick(data[sel].join(' ')); close(); };
+    });
+  }
+  // минимальная Jmix-форма записи (Создать/Изменить) — показывает полный CRUD
+  function openRecordForm(i){
+    const row = i!=null ? data[i] : d.columns.map(()=> '');
+    const fields=d.columns.map((c,ci)=>`<div class="jx-form-row"><label class="jx-label">${esc(c)}</label>
+      <div class="jx-control"><input class="jx-input" data-ci="${ci}" value="${esc(row[ci])}"></div></div>`).join('');
+    root.innerHTML=`<div class="modal-overlay"><div class="modal jx jx-dlg" style="width:min(640px,100%)">
+      <div class="jx-dlg-head"><span>${i!=null?'Изменить':'Создать'} — ${esc(d.title)}</span>
+        <button class="jx-dlg-x" data-m="back">✕</button></div>
+      <div class="jx-dlg-body"><form class="jx-form" onsubmit="return false">${fields}</form></div>
+      <div class="jx-dlg-foot"><button class="jx-btn select" data-m="save">Сохранить</button>
+        <button class="jx-btn cancel" data-m="back">Отмена</button></div></div></div>`;
+    const back=()=>render();
+    root.querySelectorAll('[data-m="back"]').forEach(b=>b.onclick=back);
+    root.querySelector('[data-m="save"]').onclick=()=>{
+      const vals=[...root.querySelectorAll('input[data-ci]')].map(inp=>inp.value);
+      if(i!=null) data[i]=vals; else { data.push(vals); sel=data.length-1; }
+      render();
+    };
+  }
+  render();
+}
+
+document.getElementById('dict-list').addEventListener('click',e=>{
+  const btn=e.target.closest('[data-act]'); if(!btn) return;
+  const route=btn.closest('.section').dataset.route;
+  const act=btn.dataset.act;
+  if(act==='picker'||act==='jmix') return openJmixPicker(route);
+  if(act==='create') return openModal(route,'create',null);
+  if(act==='filter') return btn.closest('.section').querySelector('.grid')?.classList.toggle('filtering'); // демо
+  const i=selected[route];
+  if(act==='view'||act==='edit'){ if(i==null) return alert('Выберите строку'); return openModal(route,act,i); }
+  if(act==='delete'){ if(i==null) return alert('Выберите строку');
+    if(confirm('Удалить запись?')){ const tr=document.querySelector('#sec-'+route+' tr[data-i="'+i+'"]'); tr&&tr.remove(); selected[route]=null; } }
+});
+// выбор строки + двойной клик → Просмотр
+document.getElementById('dict-list').addEventListener('click',e=>{
+  const tr=e.target.closest('tr[data-i]'); if(!tr) return;
+  const route=tr.closest('.section').dataset.route;
+  tr.closest('tbody').querySelectorAll('tr.sel').forEach(x=>x.classList.remove('sel'));
+  tr.classList.add('sel'); selected[route]=+tr.dataset.i;
+});
+document.getElementById('dict-list').addEventListener('dblclick',e=>{
+  const tr=e.target.closest('tr[data-i]'); if(!tr) return;
+  openModal(tr.closest('.section').dataset.route,'view',+tr.dataset.i);
+});
+
+// data-i is the frozen index into d.rows; never call renderSections() mid-session or indices desync
+document.getElementById('nav-filter').addEventListener('input',e=>{
+  const q=e.target.value.trim().toLowerCase();
+  const hitFn=d=>d.title.toLowerCase().includes(q)||d.route.toLowerCase().includes(q);
+  DICTS.forEach(d=>{
+    // карточка общего справочника может присутствовать в нескольких группах — тогглим все
+    document.querySelectorAll('#dict-list [data-route="'+d.route+'"]').forEach(el=>{
+      el.style.display=hitFn(d)?'':'none';
+    });
+  });
+  // сайдбар: при фильтре показываем только группы с совпадениями, иначе все
+  document.querySelectorAll('#nav .nav-group').forEach(g=>{
+    g.style.display = q==='' ? '' : (DICTS.some(d=>d.groups.includes(g.dataset.grp) && hitFn(d)) ? '' : 'none');
+  });
+  // прячем пустые группы карточек в витрине
+  document.querySelectorAll('#dict-list .grp').forEach(g => {
+    const visible = [...g.querySelectorAll('.field-card')].some(c => c.style.display !== 'none');
+    g.style.display = visible ? '' : 'none';
+  });
+  // фильтр пуст — возвращаем вид «только выбранная группа»
+  if(q==='') applyGroup(activeGroup);
+});
+</script>
+
+</body>
+</html>
