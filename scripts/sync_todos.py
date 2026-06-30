@@ -53,8 +53,11 @@ SECTION_TABS = [
     ("выдача кредитов: предложения", "Выдача кредитов"),
     ("освоение и транши: предложения", "Освоение/транши"),
     ("обслуживание", "Обслуживание"),
-    # generic fallback — must stay LAST so phase-specific keys win first
-    ("предложения по улучшению", "Решения"),
+    ("справочники", "Справочники"),
+    # generic fallback — must stay LAST so phase-specific keys win first.
+    # Routes to its own "Прочее" tab (NOT a real phase tab) so any future
+    # unlabeled section never silently pollutes another phase's worksheet.
+    ("предложения по улучшению", "Прочее"),
     ("позже", "Идеи / позже"),
     ("недавно сделано", "Сделано"),
 ]
