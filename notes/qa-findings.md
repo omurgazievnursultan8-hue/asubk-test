@@ -181,7 +181,7 @@ Stack confirmed as **Jmix on Vaadin** (`jmix-value-picker`).
     Tab 1 today, but a required field on another tab would be invisible to the
     user, who lands on a passive toast with no navigation.
   - **Recommendation:** Badge tabs containing errors, focus the first invalid
-    field, and list the missing fields. → P2-R6.
+    field, and list the missing fields. → P2-R1.
 
 - **P2-07** — `/loan-programs` delete — 🟠 major — _verified 2026-06-17_
   - **Issue:** Deleting a program that is referenced fails with a raw
@@ -258,9 +258,9 @@ Stack confirmed as **Jmix on Vaadin** (`jmix-value-picker`).
   - **Issue:** Terminology drift between field labels and picker dialogs:
     field «Назначение кредита» opens a dialog titled «Цели кредита» (two words for
     one thing); the «Решение правительства» picker hint says «одобренные», but the
-    unified status is «Действует» (P2-R11).
+    unified status is «Действует» (P2-R5).
   - **Expected:** One term everywhere — keep «Назначение кредита» (rename the
-    dictionary); decision picker says «действующие». → P2-R13 / P2-R11.
+    dictionary); decision picker says «действующие». → P2-R13 / P2-R5.
 
 - **P2-12** — `/loan-programs/new` Tab 2 «Суммы кредита» / «Сроки кредита» pickers — 🟠 major — _field-by-field review with owner 2026-06-25_
   - **Issue:** Both fixed-value reference-books are polluted with invalid test
@@ -559,7 +559,7 @@ Routes `/loan-applications` (17 rows) and `/loan-application-commissions`.
 
 ### Positive patterns to propagate (2026-06-18)
 - **Inline required-field validation** (red `*` + «Поле является обязательным») on
-  the application form is exactly what P2-R6 requested — reuse it for programs.
+  the application form is exactly what P2-R1 requested — reuse it for programs.
 - **Status stepper** (Подача → На рассмотрении → Одобрена → Регистрация кредита)
   is the lifecycle visualization P2-R5 wants for programs.
 - **Separated voting roles + read-only «Просмотр»** on the commission screen are

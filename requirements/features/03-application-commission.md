@@ -77,7 +77,7 @@ Step 1 fields:
 
 > **Good:** required fields (Запрашиваемая сумма, Запрашиваемый срок) show a
 > red `*` AND an inline «Поле является обязательным» message — the exact pattern
-> Phase 2 asked for in P2-R6. This module is the reference implementation; the
+> Phase 2 asked for in P2-R1. This module is the reference implementation; the
 > remaining gap is the **grey "disabled-look" field styling** (P3-01), shared
 > with P1-01/P2-01.
 >
@@ -211,7 +211,7 @@ per-phase counter (mirrors the `P3-xx` finding IDs); earlier phases' counters
 ## Notes (2026-06-18)
 - **Reference implementations to propagate to earlier phases:**
   - **Inline required-field validation** (red `*` + «Поле является обязательным»)
-    on the application form is exactly what P2-R6 requested — reuse it.
+    on the application form is exactly what P2-R1 requested — reuse it.
   - **Status stepper** (Подача → На рассмотрении → Одобрена → Регистрация
     кредита) is the lifecycle visualization P2-R5 wants for programs.
   - **Separated voting roles + read-only view** on the commission screen are the
