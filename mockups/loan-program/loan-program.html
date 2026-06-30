@@ -336,6 +336,10 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .t7-doc .t2-sub{ min-height:40px; }
 .t7-doc .t2-rowtools{ margin-bottom:10px; }
 .t7-grid{ min-height:220px; }
+/* P2-R21: секция залоговых документов по виду залога (вариант C) */
+.t7-collsec{ border:1px solid var(--border, #d8dee6); border-radius:8px; padding:14px 16px 4px; margin:0 0 18px; background:#fbfcfd; }
+.t7-collsec-h{ min-height:auto; margin:0 0 12px; padding-bottom:8px; border-bottom:1px solid var(--border, #e2e8f0); }
+.t7-collsec .t7-pair{ margin-bottom:14px; }
 .t7-chosen{ margin-top:14px; }
 .t7-chosen .note-area{ min-height:96px; }
 .t7-note{ font:var(--weight-regular) 13px/1.4 var(--asubk-font); color:var(--text-body); margin-top:8px; }
@@ -353,13 +357,11 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .t8-req-single{ grid-template-columns:1fr; max-width:760px; }
 /* tab 9 «Предпросмотр» (read-only summary) */
 .t9{ max-width:1340px; padding:16px 24px; }
+/* B: вкл.9 «Предпросмотр» — секции стопкой, общий рендер с Просмотром (buildDetailSections) */
+.t9-review-head{ margin:0 0 20px; }
+.t9-sec{ margin:0 0 26px; }
+.t9-sec-h{ min-height:auto; margin:0 0 14px; padding-bottom:8px; border-bottom:2px solid var(--border-default); }
 .t9 .section-h{ margin:0 0 18px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
-.t9-grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px 32px; margin-bottom:26px; }
-.t9-cols{ max-width:none; padding:0; margin-bottom:26px; }
-.t9-cols .t2-col{ gap:14px; }
-.t9-cols .t2-col .section-h{ margin:0; }
-.t9 .pv-suf{ position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--text-muted); font:var(--weight-medium) 14px/1 var(--asubk-font); pointer-events:none; }
-.t9 .field.ro .control input{ padding-right:60px; }
 .t2-type{ margin-bottom:22px; }
 .t2-sub{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:4px 0 10px; }
 .t2-rowtools{ display:flex; gap:8px; margin-bottom:8px; }
@@ -891,9 +893,11 @@ const LK = {
   checkLevel:['стандарт','углублённый'],
   staff:['Темирлан уулу Т.','Дадабаева Д.Р.','Нурманбет кызы К.','Сламкулов А.О.','Торобаев Н.М.'],
   templates:['Тестовый шаблон 2 (CREDIT/VALID)'],
+  // печатные бланки (выдаются клиенту на стадии заявки, печатаются пустыми)
+  printForms:['Бланк заявки-анкеты','Бланк согласия на обработку персональных данных','Бланк согласия на запрос кредитной истории (кредбюро)'],
   // tab 7 «Документы» — типы кредитных / залоговых документов (справочники)
   docCredit:['Заявление на получение кредита','Анкета заёмщика','Финансовая отчётность','Бизнес-план','Технико-экономическое обоснование','Справка о доходах','Выписка из ЕГРЮЛ/ЕГРИП','Согласие на обработку персональных данных'],
-  docColl:['Правоустанавливающие документы на залог','Отчёт об оценке залога','Технический паспорт','Согласие супруга(и) на залог','Страховой полис предмета залога','Выписка из реестра обременений'],
+  docColl:['Правоустанавливающие документы на залог','Отчёт об оценке залога','Технический паспорт','Согласие супруга(и) на залог','Страховой полис предмета залога','Выписка из реестра обременений','Паспорт транспортного средства (ПТС)','Свидетельство о регистрации ТС','Документы на оборудование (счета-фактуры, накладные)','Договор банковского вклада','Заявление о залоге прав по вкладу','Ветеринарная справка','Документы учёта поголовья (бирки)'],
   // tab 8 «Залоговое обеспечение» — виды залога (справочник)
   collKind:['Недвижимое имущество','Транспортное средство','Оборудование','Товары в обороте','Поручительство','Банковская гарантия','Депозит / денежные средства','Сельхозтехника','Скот / поголовье'],
   rate:['4%','6%','8%','10%','12%'],
@@ -921,8 +925,8 @@ function P(o){ return Object.assign({
   graceIntType:'', graceIntDur:[], graceIntDurFrom:'', graceIntDurTo:'', graceIntCond:'',
   payMode:'standard', periodicity:'', payMonths:[], payDay:'', weekend:'Не переносить',
   dayCountNum:'Фактический', dayCountBase:'365', repayMethod:'Аннуитетный', queue:'', minDays:'', maxDays:'',
-  checkLevel:'', checkDays:'', checkResp:'', contractReq:'', collateral:true, collRu:'',
-  docCredReq:[], docCredOpt:[], docCollReq:[], docCollOpt:[], collTypes:[],
+  checkLevel:'', checkDays:'', checkResp:'', collateral:true, collRu:'',
+  docCredReq:[], docCredOpt:[], collTypes:[], docColl:{}, printForms:[], templates:[],
   status:'draft', references:0
 }, o); }
 
@@ -940,9 +944,13 @@ let PROGRAMS = [
       payMode:'standard', periodicity:'Ежемесячно', payDay:'10', dayCountNum:'Фактический', dayCountBase:'365',
       repayMethod:'Аннуитетный', queue:'Основная сумма → проценты → штрафы', minDays:'15', maxDays:'45',
       docCredReq:['Заявление на кредит','Финансовая отчётность','Бизнес-план'], docCredOpt:['Справка о доходах'],
-      docCollReq:['Отчёт об оценке залога','Технический паспорт'], contractReq:'Нотариальное удостоверение договора залога обязательно.',
+      printForms:['Бланк заявки-анкеты','Бланк согласия на обработку персональных данных','Бланк согласия на запрос кредитной истории (кредбюро)'],
       checkLevel:'Полная проверка', checkDays:'5', checkResp:'Касымов Б.К.',
       collateral:true, collTypes:['Недвижимое имущество','Сельхозтехника','Скот / поголовье'],
+      docColl:{
+        'Недвижимое имущество':{ req:['Правоустанавливающие документы на залог','Отчёт об оценке залога','Технический паспорт','Выписка из реестра обременений'], opt:['Согласие супруга(и) на залог','Страховой полис предмета залога'], note:'Нотариальное удостоверение договора залога обязательно.' },
+        'Сельхозтехника':{ req:['Паспорт транспортного средства (ПТС)','Отчёт об оценке залога'], opt:['Страховой полис предмета залога'], note:'' },
+        'Скот / поголовье':{ req:['Ветеринарная справка','Документы учёта поголовья (бирки)','Отчёт об оценке залога'], opt:[], note:'' } },
       collRu:'Залог должен покрывать не менее 120% суммы кредита.',
       status:'approved', references:3 }),
   P({ nameRu:'Инвесткредит для перерабатывающей промышленности', shortDesc:'Закуп оборудования',
@@ -1735,14 +1743,27 @@ function renderTab7(){
         <div class="section-h">Кредитные документы</div>
         <div class="t7-pair">${docList('Список обязательных кредитных документов','docCredReq')}${docList('Список опциональных кредитных документов','docCredOpt')}</div>
         <div class="t7-doc t7-templates">
-          <div class="t2-sub">Шаблоны договоров</div>
+          <div class="t2-sub">Печатные формы<span class="hint"> — бланки для выдачи клиенту на стадии заявки (печатаются пустыми)</span></div>
+          ${gridBox('printForms')}
+        </div>
+        <div class="t7-doc t7-templates">
+          <div class="t2-sub">Шаблоны договоров<span class="hint"> — генерируются после одобрения с подстановкой данных</span></div>
           ${gridBox('templates')}
         </div>
       </div>
       ${draft.collateral ? `<div class="t2-col">
-        <div class="section-h">Залоговые документы</div>
-        <div class="t7-pair">${docList('Список обязательных залоговых документов','docCollReq')}${docList('Список опциональных залоговых документов','docCollOpt')}</div>
-        ${f('Требования к оформлению залогового договора','contractReq',{type:'textarea',max:1000,hint:'Только русский'})}
+        <div class="section-h">Залоговые документы<span class="hint"> — по выбранным видам залога (вкл. «Залоговое обеспечение»)</span></div>
+        ${ (draft.collTypes||[]).length ? (draft.collTypes||[]).map((type,idx)=>{
+            seedCollDocs(type); const raw=(draft.docColl[type]||{}).note||'', note=esc(raw);
+            return `<div class="t7-collsec">
+              <div class="t2-sub t7-collsec-h">${esc(type)}</div>
+              <div class="t7-pair">${docList('Обязательные документы','coll::'+idx+'::req')}${docList('Опциональные документы','coll::'+idx+'::opt')}</div>
+              <div class="field"><span class="flabel">Требования к оформлению залогового договора</span>
+                <textarea class="note-area" maxlength="1000" oninput="updCount(this,1000); setCollNote(${idx}, this.value)">${note}</textarea>
+                <span class="char-count">${raw.length}/1000</span>
+                <span class="hint">Только русский; по виду залога «${esc(type)}»</span></div>
+            </div>`; }).join('')
+          : `<div class="hint">Выберите виды залога на вкладке «Залоговое обеспечение» — залоговые документы сгруппируются по каждому виду (с типовыми документами из справочника).</div>` }
       </div>` : `<div class="t2-col t7-collhint"><div class="section-h">Залоговые документы</div><div class="hint">Включите «Требуется залоговое обеспечение» на вкладке «Залоговое обеспечение», чтобы задать залоговые документы.</div></div>`}
     </div>
     <div class="section-h t7-checkhead">Настройка проверки документов</div>
@@ -1758,13 +1779,45 @@ const T7_X = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke
 /* ---- tab 7/8 row-add grids: «+ Добавить» открывает справочник (collection
    mode), выбранная запись добавляется строкой; «✕ Исключить» убирает выделенную.
    Каждая сетка хранит строки в draft[key] (массив); справочник — GRID_KIND[key]. */
+// P2-R21: админ-ведомый справочник связей «вид залога → типовые залоговые документы».
+// При выборе вида залога на вкл.8 эти наборы авто-наследуются в вкл.7 (вариант C),
+// оператор может донастроить под программу. Вид без дефолтов → пустая секция.
+const COLL_DOC_DEFAULTS = {
+  'Недвижимое имущество':       { req:['Правоустанавливающие документы на залог','Отчёт об оценке залога','Технический паспорт','Выписка из реестра обременений'], opt:['Согласие супруга(и) на залог','Страховой полис предмета залога'] },
+  'Транспортное средство':      { req:['Паспорт транспортного средства (ПТС)','Свидетельство о регистрации ТС','Отчёт об оценке залога'], opt:['Страховой полис предмета залога'] },
+  'Оборудование':               { req:['Документы на оборудование (счета-фактуры, накладные)','Отчёт об оценке залога'], opt:['Страховой полис предмета залога'] },
+  'Товары в обороте':           { req:['Отчёт об оценке залога'], opt:['Страховой полис предмета залога'] },
+  'Поручительство':             { req:[], opt:[] },
+  'Банковская гарантия':        { req:[], opt:[] },
+  'Депозит / денежные средства':{ req:['Договор банковского вклада','Заявление о залоге прав по вкладу'], opt:[] },
+  'Сельхозтехника':             { req:['Паспорт транспортного средства (ПТС)','Отчёт об оценке залога'], opt:['Страховой полис предмета залога'] },
+  'Скот / поголовье':           { req:['Ветеринарная справка','Документы учёта поголовья (бирки)','Отчёт об оценке залога'], opt:[] },
+};
+// docColl[<вид>] = {req:[],opt:[],note:''} — залоговые документы и требования к договору по виду залога.
+function seedCollDocs(type){ draft.docColl=draft.docColl||{};
+  if(!draft.docColl[type]){ const d=COLL_DOC_DEFAULTS[type]||{req:[],opt:[]};
+    draft.docColl[type]={ req:[...(d.req||[])], opt:[...(d.opt||[])], note:'' }; } }
+function setCollNote(idx,val){ const t=draft.collTypes[idx]; if(!t) return; seedCollDocs(t); draft.docColl[t].note=val; }
+
 const GRID_KIND = { docCredReq:'docCredit', docCredOpt:'docCredit',
-  docCollReq:'docColl', docCollOpt:'docColl', collTypes:'collKind', templates:'templates' };
+  collTypes:'collKind', templates:'templates', printForms:'printForms' };
 // R20: кросс-дедуп — документ из «обязательных» нельзя добавить в «опциональные» и наоборот
-const GRID_CROSS = { docCredReq:'docCredOpt', docCredOpt:'docCredReq', docCollReq:'docCollOpt', docCollOpt:'docCollReq' };
+const GRID_CROSS = { docCredReq:'docCredOpt', docCredOpt:'docCredReq' };
 let gsel = {};   // { draftKey: выбранный индекс }
+// Композитный ключ залоговых документов: 'coll::<idx видов залога>::req|opt'.
+// Виды залога выбираются на вкл.8, документы группируются по виду на вкл.7 (вариант C).
+function isCollKey(key){ return typeof key==='string' && key.indexOf('coll::')===0; }
+function collParts(key){ const p=key.split('::'); return { type:draft.collTypes[+p[1]], slot:p[2] }; }
+function gridArr(key){
+  if(isCollKey(key)){ const {type,slot}=collParts(key); if(!type) return [];
+    seedCollDocs(type); return draft.docColl[type][slot]; }
+  return draft[key]||(draft[key]=[]);
+}
+function gridKind(key){ return isCollKey(key) ? 'docColl' : GRID_KIND[key]; }
+function gridCross(key){ if(isCollKey(key)){ const p=key.split('::'); return 'coll::'+p[1]+'::'+(p[2]==='req'?'opt':'req'); } return GRID_CROSS[key]; }
+function domId(key){ return 'grid_'+key.split('::').join('_'); }
 function gridInner(key){
-  const rows=draft[key]||[], sel=gsel[key], gc=key==='collTypes'?'t8-grid':'t7-grid';
+  const rows=gridArr(key), sel=gsel[key], gc=key==='collTypes'?'t8-grid':'t7-grid';
   const body=rows.map((v,i)=>`<tr class="${sel===i?'sel':''}" onclick="gridSel('${key}',${i})"><td title="${esc(v)}">${esc(v)}</td></tr>`).join('');
   return `<div class="t2-rowtools">
       <button class="btn btn-sm btn-rowadd" onclick="gridAdd('${key}')">${T2_PLUS}Добавить</button>
@@ -1772,16 +1825,27 @@ function gridInner(key){
     </div>
     <div class="collgrid ${gc}"><table><thead><tr><th>Наименование<span class="sort">⇅</span></th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
-function gridBox(key){ return `<div class="grid-box" id="grid_${key}">${gridInner(key)}</div>`; }
-function gridRender(key){ const el=document.getElementById('grid_'+key); if(el) el.innerHTML=gridInner(key); }
+function gridBox(key){ return `<div class="grid-box" id="${domId(key)}">${gridInner(key)}</div>`; }
+function gridRender(key){ const el=document.getElementById(domId(key)); if(el) el.innerHTML=gridInner(key); }
 function gridSel(key,i){ gsel[key]=(gsel[key]===i?null:i); gridRender(key); }
-function gridDel(key){ if(gsel[key]==null) return; (draft[key]||[]).splice(gsel[key],1); gsel[key]=null; gridRender(key); toast('Строка исключена.','ok'); }
+function gridDel(key){ if(gsel[key]==null) return;
+  // удаление вида залога на вкл.8 — каскадно снять его залоговые документы (с предупреждением)
+  if(key==='collTypes'){ const type=(draft.collTypes||[])[gsel[key]];
+    if(type && draft.docColl && draft.docColl[type]){ delete draft.docColl[type];
+      toast('Вид залога и его залоговые документы исключены: '+type,'warn'); }
+    else toast('Строка исключена.','ok'); }
+  else toast('Строка исключена.','ok');
+  gridArr(key).splice(gsel[key],1); gsel[key]=null; gridRender(key);
+}
 function gridAdd(key){
-  openRefDialog(REFBOOKS[GRID_KIND[key]], { mode:'collection',
-    onPick:(label)=>{ draft[key]=draft[key]||[]; const cross=GRID_CROSS[key];
-      if(draft[key].includes(label)){ toast('Уже добавлено: '+label,'warn'); }
-      else if(cross && (draft[cross]||[]).includes(label)){ toast('Документ уже в другом списке (обяз./опц.): '+label,'warn'); }
-      else { draft[key].push(label); draft[key].sort((a,b)=>a.localeCompare(b,'ru')); toast('Добавлено: '+label,'ok'); } },   // R20: авто-сортировка
+  openRefDialog(REFBOOKS[gridKind(key)], { mode:'collection',
+    onPick:(label)=>{ const arr=gridArr(key), cross=gridCross(key), crossArr=cross?gridArr(cross):null;
+      if(arr.includes(label)){ toast('Уже добавлено: '+label,'warn'); }
+      else if(crossArr && crossArr.includes(label)){ toast('Документ уже в другом списке (обяз./опц.): '+label,'warn'); }
+      else { arr.push(label); arr.sort((a,b)=>a.localeCompare(b,'ru'));   // R20: авто-сортировка
+        // выбор вида залога на вкл.8 → авто-наследование типовых документов из справочника (вариант C)
+        if(key==='collTypes') seedCollDocs(label);
+        toast('Добавлено: '+label,'ok'); } },
     ret:()=>{ closeModal(); gridRender(key); } });
 }
 
@@ -1826,13 +1890,11 @@ function renderWizBody(){
         <div class="b1grid">
           <div class="b1col">
             ${f('Наименование на русском','nameRu',{req:true,max:200})}
-            ${f('Наименование на кыргызском','nameKy',{req:true,max:200})}
-            ${f('Наименование на английском','nameEn',{max:200})}
-            ${combo('Источник финансирования','source',LK.source,{req:true})}
+            ${/* nameKy/nameEn скрыты до появления мультиязычности */''}
+            ${lookupDecision()}
           </div>
           <div class="b1col">
             ${f('Краткое описание','shortDesc',{req:true,type:'textarea',max:500,hint:'Публичная суть программы (показ в Просмотре)'})}
-            ${lookupDecision()}
           </div>
         </div>
       </div>
@@ -1849,6 +1911,7 @@ function renderWizBody(){
               ${lookupF('Отрасль','industry','industry',{req:true,hint:'Сектор экономики (ОКЭД) — только активные'})}
             </div>
             <div class="pcol">
+              ${combo('Источник финансирования','source',LK.source,{req:true})}
               ${combo('Вид кредита','kind',LK.kind,{req:true,hint:'Какой продукт по структуре'})}
               ${combo('Валюта','currency',LK.currency,{req:true,hint:'Сумма и срок зависят от валюты'})}
               ${combo('Кредитная линия','line',LK.line,{hint:'Плоский список доноров, опционально'})}
@@ -1935,14 +1998,14 @@ function wireDates(){
 // R12: мягкие warning'и наименований (не блокируют сохранение)
 function wireNames(){
   const ru=document.querySelector('[data-k="nameRu"]'), ky=document.querySelector('[data-k="nameKy"]');
-  if(!ru||!ky) return;
+  if(!ru) return;
   const warnOf=(inp)=>{ const fld=inp.closest('.field'); let w=fld.querySelector('.warn-inline');
     if(!w){ w=document.createElement('span'); w.className='warn-inline'; w.style.display='none'; fld.appendChild(w); } return w; };
   const ACTIVE=['draft','review','rework','approved'];
   ru.addEventListener('blur',()=>{ draft.nameRu=ru.value; const w=warnOf(ru); const v=ru.value.trim().toLowerCase();
     const dup = v && PROGRAMS.some(p=>p.id!==editingId && ACTIVE.includes(p.status) && (p.nameRu||'').trim().toLowerCase()===v);
     w.textContent='Активная программа с таким наименованием уже существует — проверьте дубль'; w.style.display=dup?'block':'none'; });
-  ky.addEventListener('blur',()=>{ draft.nameKy=ky.value; const w=warnOf(ky);
+  if(ky) ky.addEventListener('blur',()=>{ draft.nameKy=ky.value; const w=warnOf(ky);
     const dup = ky.value.trim() && ky.value.trim()===(ru.value||'').trim();
     w.textContent='Совпадает с русским наименованием — проверьте перевод'; w.style.display=dup?'block':'none'; });
 }
@@ -1959,8 +2022,8 @@ function saveTabInputs(){
 
 /* ---- save (P2-R3 semantics) + validation (P2-R6) ---- */
 const REQUIRED_BY_TAB = {
-  // R12: «Дата по» исключена (опц.), «Ответственные сотрудники» добавлены (обяз.). Итого 11.
-  0:['nameRu','nameKy','shortDesc','decisionId','source','purpose','kind','currency','industry','dateFrom','staffMain'],
+  // R12: «Дата по» исключена (опц.), «Ответственные сотрудники» добавлены (обяз.). nameKy скрыт (нет i18n). Итого 10.
+  0:['nameRu','shortDesc','decisionId','source','purpose','kind','currency','industry','dateFrom','staffMain'],
   // R19: «Тип расчёта процентов» удалён; «Метод расчёта дней» разбит на метод+базу; периодичность — через payMode.
   5:['payDay','repayMethod','queue','dayCountNum','dayCountBase'],
 };
@@ -2150,70 +2213,21 @@ function submitFromWizard(){
    кредита» carry KGS / «месяцев» unit suffixes. Bottom-right green «Отправить
    на согласование» = btnWizSubmit. */
 function previewHtml(){
-  const d=draft;
-  const dec=DECISIONS.find(x=>x.id===d.decisionId);
-  const decNo = dec ? ((dec.name.match(/№\s?([\wА-Яа-я.\-\/]+)/)||[])[1]||'') : '';
-  const decDate = dec ? fmtDate(dec.date) : '';
-  const pv=(label,val,suf)=>`<div class="field ro"><span class="flabel">${label}</span>
-    <div class="control">${suf?`<span class="pv-suf">${esc(suf)}</span>`:''}<input type="text" value="${val?esc(val):''}" readonly></div></div>`;
-  const grace=[d.graceMain&&'осн. сумма',d.graceAccr&&'начисление %',d.graceInt&&'проценты'].filter(Boolean).join(', ');
-  const penalty=d.penaltyMainVal||(d.penaltyMainType==='Плавающая'?'Плавающая':d.penaltyMainType)||'';
-  const dayMethod=[d.dayCountNum,d.dayCountBase].filter(Boolean).join(' / ');
-  return `<div class="t9">
-    <div class="section-h">Сводная информация о программе</div>
-    <div class="t9-grid3">
-      ${pv('Наименование на русском',d.nameRu)}
-      ${pv('Статус',STATUS[d.status]&&STATUS[d.status].label)}
-      ${pv('Решение правительства',d.decisionName||decName(d.decisionId))}
-      ${pv('Наименование на кыргызском',d.nameKy)}
-      ${pv('Ответственные сотрудники',d.staffMain)}
-      ${pv('Номер решения',decNo)}
-      ${pv('Наименование на английском',d.nameEn)}
-      ${pv('Дата создания',d.createdAt?fmtDate(d.createdAt):'')}
-      ${pv('Дата решения',decDate)}
-    </div>
-    <div class="t2-cols t9-cols">
-      <div class="t2-col">
-        <div class="section-h">Финансовые параметры</div>
-        ${pv('Фиксированные суммы',d.amounts,d.currency)}
-        ${pv('Сроки кредита',d.terms,'месяцев')}
-        ${pv('Тип основной ставки',d.rateType)}
-        ${pv('Метод погашения кредита',d.repayMethod)}
-        ${pv('Штрафы',penalty)}
-        ${pv('Льготный период',grace)}
-      </div>
-      <div class="t2-col">
-        <div class="section-h">Условия погашения</div>
-        ${pv('Периодичность платежей',d.payMode==='months'?'По конкретным месяцам: '+((d.payMonths||[]).join(', ')):d.periodicity)}
-        ${pv('Метод расчёта дней',dayMethod)}
-        ${pv('Очередь погашения',d.queue)}
-        ${pv('День месяца для платежа',d.payDay)}
-        ${pv('Обработка нерабочих дней',d.weekend)}
-      </div>
-    </div>
-    <div class="t2-cols t9-cols">
-      <div class="t2-col">
-        <div class="section-h">Требуемые документы</div>
-        ${pv('Кредитные документы','')}
-        ${pv('Залоговые документы','')}
-      </div>
-      <div class="t2-col">
-        <div class="section-h">Настройки проверки</div>
-        ${pv('Уровень проверки документов',d.checkLevel)}
-        ${pv('Срок проверки документов (в днях)',d.checkDays)}
-        ${pv('Ответственный за проверку документов',d.checkResp)}
-      </div>
-    </div>
+  // B: вкл.9 «Предпросмотр» рендерит те же секции, что и Просмотр (openView), но стопкой —
+  // единый источник buildDetailSections(draft), расхождения исключены.
+  const secs = buildDetailSections(draft);
+  return `<div class="t9 t9-review">
+    <div class="section-h t9-review-head">Предпросмотр программы перед сохранением</div>
+    ${secs.map(([title,html])=>`<div class="t9-sec"><div class="t2-sub t9-sec-h">${esc(title)}</div>${html}</div>`).join('')}
   </div>`;
 }
 
 /* ============================================================
    DETAIL / Просмотр (P2-R4)
    ============================================================ */
-function openView(id){
-  const p=PROGRAMS.find(x=>x.id===id); if(!p) return; selectedId=id;
-  showView('view-detail'); setCrumb(p.nameRu, statusBadge(p.status));
-  // detail field = метка над значением + подчёркивание (формат из mockups/decision)
+// B: единый построитель read-only секций программы. Используется и в Просмотре
+// (openView, табами), и во вкл.9 «Предпросмотр» (previewHtml, стопкой) — одна правда.
+function buildDetailSections(p){
   const fld=(k,v,span)=>`<div class="view-field${span?' col-span':''}"><span class="vlabel">${k}</span><span class="vvalue${v?'':' empty'}">${v?esc(v):'—'}</span></div>`;
   const row=(k,v)=>fld(k,v,false);
   const rowF=(k,v)=>fld(k,v,true);
@@ -2245,12 +2259,19 @@ function openView(id){
   const dayMethod=[p.dayCountNum,p.dayCountBase].filter(Boolean).join(' / ');
   const repayStr = p.payMode==='months' ? 'Индивидуальный' : p.repayMethod;
   const firstPay = (p.minDays||p.maxDays) ? `${p.minDays||'0'} – ${p.maxDays||'∞'} дн.` : '';
+  // залоговые документы — по выбранным видам залога (вариант C)
+  const collDocsRows = (p.collateral && (p.collTypes||[]).length)
+    ? (p.collTypes||[]).map(type=>{ const d=(p.docColl||{})[type]||{};
+        const parts=[ (d.req&&d.req.length)?'обяз.: '+d.req.join(', '):'',
+                      (d.opt&&d.opt.length)?'опц.: '+d.opt.join(', '):'',
+                      d.note?'требования к договору: '+d.note:'' ].filter(Boolean);
+        return rowF('Залоговые документы — '+type, parts.join('  •  ')); }).join('')
+    : '';
   const panel = inner => `<div class="dgrid">${inner}</div>`;
   // P2-R4: detail split into the same 8 sections as the wizard (read-only).
-  detailSections = [
+  return [
     ['Основные данные',
-      panel(`${row('Наименование на русском',p.nameRu)}${row('Наименование на кыргызском',p.nameKy)}
-        ${row('Наименование на английском',p.nameEn)}${row('Решение правительства',p.decisionName)}
+      panel(`${row('Наименование на русском',p.nameRu)}${row('Решение правительства',p.decisionName)}
         ${rowF('Краткое описание',p.shortDesc)}
         ${row('Источник финансирования',p.source)}${row('Кредитная линия',p.line)}
         ${row('Назначение кредита',p.purpose)}${row('Вид кредита',p.kind)}
@@ -2278,15 +2299,21 @@ function openView(id){
     ['Документы',
       panel(`${rowF('Обязательные кредитные документы',list(p.docCredReq))}
         ${rowF('Опциональные кредитные документы',list(p.docCredOpt))}
-        ${rowF('Обязательные залоговые документы',list(p.docCollReq))}
-        ${rowF('Опциональные залоговые документы',list(p.docCollOpt))}
-        ${rowF('Требования к оформлению залогового договора',p.contractReq)}
+        ${collDocsRows}
+        ${rowF('Печатные формы',list(p.printForms))}
+        ${rowF('Шаблоны договоров',list(p.templates))}
         ${row('Уровень проверки документов',p.checkLevel)}${row('Срок проверки (дней)',p.checkDays)}
         ${rowF('Ответственный за проверку документов',p.checkResp)}`)],
     ['Залоговое обеспечение',
       panel(`${rowF('Требуется залоговое обеспечение',p.collateral?'Да':'Нет')}
         ${p.collateral?`${rowF('Виды залога',list(p.collTypes))}${rowF('Требования к залогу',p.collRu)}`:''}`)],
   ];
+}
+function openView(id){
+  const p=PROGRAMS.find(x=>x.id===id); if(!p) return; selectedId=id;
+  showView('view-detail'); setCrumb(p.nameRu, statusBadge(p.status));
+  // P2-R4 / B: секции строит общая buildDetailSections(p) — единый источник для Просмотра и вкл.9 «Предпросмотр».
+  detailSections = buildDetailSections(p);
   detailRefBanner = p.references>0
     ? `<div class="note-banner"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><span>На программу ссылаются <b>${p.references}</b> downstream-записей (заявки/кредиты). Удаление заблокировано.</span></div>`
     : '';
@@ -2445,6 +2472,7 @@ const REFBOOKS = {
   interestCalc:{ title:'Тип расчета процентов', cols:[['_label','Наименование']], rows:LK.interestCalc.map(n=>({_id:n,_label:n})) },
   checkLevel:{ title:'Уровень проверки документов', cols:[['_label','Наименование']], rows:LK.checkLevel.map(n=>({_id:n,_label:n})) },
   templates: { title:'Шаблоны договоров', cols:[['_label','Наименование']], rows:LK.templates.map(n=>({_id:n,_label:n})) },
+  printForms:{ title:'Печатные формы', cols:[['_label','Наименование']], rows:LK.printForms.map(n=>({_id:n,_label:n})) },
   // tab 7/8 row-add справочники (документы / виды залога)
   docCredit: { title:'Кредитные документы', cols:[['_label','Наименование']], rows:LK.docCredit.map(n=>({_id:n,_label:n})) },
   docColl:   { title:'Залоговые документы', cols:[['_label','Наименование']], rows:LK.docColl.map(n=>({_id:n,_label:n})) },
