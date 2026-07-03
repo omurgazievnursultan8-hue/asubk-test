@@ -1063,6 +1063,8 @@ function fmtDate(iso){ if(!iso) return '—'; const [y,m,d]=iso.split('-'); retu
 // R12: «Дата по» опциональна — пусто = бессрочно (явная метка в гриде/Просмотре)
 function fmtDateTo(iso){ return iso ? fmtDate(iso) : 'бессрочно'; }
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// multi-select-safe text: arrays -> «a, b, c»; strings/nums pass through (seed data остаётся строкой)
+function asTxt(v){ return Array.isArray(v) ? v.join(', ') : (v==null?'':v); }
 
 /* ============================================================
    LIST VIEW
@@ -1106,8 +1108,8 @@ function renderList(){
       <td class="cell-name" title="${esc(p.nameRu)}">${esc(p.nameRu)}</td>
       <td class="muted" title="${esc(p.shortDesc)}">${esc(p.shortDesc)||'—'}</td>
       <td title="${esc(p.decisionName)}">${esc(p.decisionName)||'—'}</td>
-      <td title="${esc(p.purpose)}">${esc(p.purpose)||'—'}</td>
-      <td title="${esc(p.kind)}">${esc(p.kind)||'—'}</td>
+      <td title="${esc(asTxt(p.purpose))}">${esc(asTxt(p.purpose))||'—'}</td>
+      <td title="${esc(asTxt(p.kind))}">${esc(asTxt(p.kind))||'—'}</td>
       <td>${fmtDate(p.dateFrom)}</td>
       <td>${esc(fmtDateTo(p.dateTo))}</td>
       <td>${statusBadge(p.status)}</td>
@@ -1371,7 +1373,7 @@ function sel(label, key, opts, cfg){
     <div class="control"><select data-k="${key}">${o}</select></div>
     ${cfg.hint?`<span class="hint">${cfg.hint}</span>`:''}<span class="err">Обязательное поле</span></div>`;
 }
-function roField(label,key){ return `<div class="field ro"><span class="flabel">${label}</span><div class="control"><input type="text" value="${esc(draft[key]||'')}" readonly></div></div>`; }
+function roField(label,key){ return `<div class="field ro"><span class="flabel">${label}</span><div class="control"><input type="text" value="${esc(asTxt(draft[key]))}" readonly></div></div>`; }
 // C1/C2: reference field rendered as a Jmix-style lookup picker (••• dialog), not a <select>
 function lookupF(label, key, kind, cfg){
   cfg=cfg||{};
@@ -1751,7 +1753,10 @@ function t5type(key,val){ saveTabInputs(); draft[key]=val; renderWizBody(); }
 // generic per-key multi-select chip combo (reusable; tab3 has a single-key variant)
 let msOpen = {};
 function msCombo(label,key,opts,hint,req){
-  const vals = draft[key]||[];
+  // seed-данные могут хранить одиночную строку — коэрция в массив (edit-path не падает на .map)
+  const raw = draft[key];
+  const vals = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+  if(raw!==undefined && !Array.isArray(raw)) draft[key]=vals;
   const chips = vals.length
     ? vals.map((v,i)=>`<span class="chip">${esc(v)}<button title="Убрать" onclick="msUnchip(event,'${key}',${i})">✕</button></span>`).join('')
     : `<span class="ph">Выберите…</span>`;
@@ -2009,7 +2014,7 @@ function renderWizBody(){
           <div class="section-h">Параметры программы</div>
           <div class="pgrid">
             <div class="pcol">
-              ${combo('Назначение кредита','purpose',LK.purpose,{req:true,hint:'Зачем берётся кредит (цель трат)'})}
+              ${msCombo('Назначение кредита','purpose',LK.purpose,'Зачем берётся кредит (цель трат) — можно несколько',true)}
               <div class="t1-dates">
                 ${f('Дата с','dateFrom',{req:true,type:'date',hint:'≥ даты решения'})}
                 ${f('Дата по','dateTo',{type:'date',hint:'пусто = бессрочно'})}
@@ -2017,11 +2022,11 @@ function renderWizBody(){
               ${lookupF('Отрасль','industry','industry',{req:true,hint:'Сектор экономики (ОКЭД) — только активные'})}
             </div>
             <div class="pcol">
-              ${combo('Источник финансирования','source',LK.source,{req:true})}
-              ${combo('Вид кредита','kind',LK.kind,{req:true,hint:'Какой продукт по структуре'})}
+              ${msCombo('Источник финансирования','source',LK.source,'Можно несколько',true)}
+              ${msCombo('Вид кредита','kind',LK.kind,'Какой продукт по структуре — можно несколько',true)}
               ${combo('Валюта','currency',LK.currency,{req:true,hint:'Сумма и срок зависят от валюты'})}
-              ${combo('Кредитная линия','line',LK.line,{hint:'Плоский список доноров, опционально'})}
-              ${combo('Вид счета погашения','repayAcct',LK.repayAcct,{})}
+              ${msCombo('Кредитная линия','line',LK.line,'Плоский список доноров, опционально',false)}
+              ${msCombo('Вид счета погашения','repayAcct',LK.repayAcct,'',false)}
             </div>
           </div>
         </div>
@@ -2136,7 +2141,7 @@ const REQUIRED_BY_TAB = {
 // ---- per-tab validation (progressive wizard gating) ----
 // validateTab(i): error count for ONE tab = missing simple required keys + per-tab special rules.
 function validateTab(ti){
-  let n=(REQUIRED_BY_TAB[ti]||[]).filter(k=>!draft[k] && draft[k]!==0).length;
+  let n=(REQUIRED_BY_TAB[ti]||[]).filter(k=>{ const v=draft[k]; if(Array.isArray(v)) return v.length===0; return !v && v!==0; }).length;
   if(ti===0){
     const dec=DECISIONS.find(d=>d.id===draft.decisionId);
     if(draft.dateFrom&&draft.dateTo&&draft.dateTo<draft.dateFrom) n++;
@@ -2339,7 +2344,7 @@ function buildDetailSections(p){
   const rowF=(k,v)=>fld(k,v,true);
   const list=a=>(a&&a.length)?a.join(', '):'';
   // tab2: сумма/срок с единицами (валюта / мес.)
-  const amountStr = p.amounts ? p.amounts+(p.currency?' '+p.currency:'') : '';
+  const amountStr = p.amounts ? p.amounts+(p.currency?' '+asTxt(p.currency):'') : '';
   const termStr   = p.terms   ? p.terms+' мес.' : '';
   // tab3: основная ставка (+ плавающая)
   const rateStr = p.floatRate
@@ -2381,10 +2386,10 @@ function buildDetailSections(p){
     ['Основные данные',
       panel(`${row('Наименование на русском',p.nameRu)}${row('Решение правительства',p.decisionName)}
         ${rowF('Краткое описание',p.shortDesc)}
-        ${row('Источник финансирования',p.source)}${row('Кредитная линия',p.line)}
-        ${row('Назначение кредита',p.purpose)}${row('Вид кредита',p.kind)}
-        ${row('Отрасль',p.industry)}${row('Валюта',p.currency)}
-        ${row('Вид счёта погашения',p.repayAcct)}${row('Ответственные сотрудники',p.staffMain)}
+        ${row('Источник финансирования',asTxt(p.source))}${row('Кредитная линия',asTxt(p.line))}
+        ${row('Назначение кредита',asTxt(p.purpose))}${row('Вид кредита',asTxt(p.kind))}
+        ${row('Отрасль',p.industry)}${row('Валюта',asTxt(p.currency))}
+        ${row('Вид счёта погашения',asTxt(p.repayAcct))}${row('Ответственные сотрудники',p.staffMain)}
         ${row('Дата с',fmtDate(p.dateFrom))}${row('Дата по',fmtDateTo(p.dateTo))}
         ${rowF('Заявители (whitelist)', (p.applicantsFiz||p.applicantsJur) ? [p.applicantsFiz,p.applicantsJur].filter(Boolean).join('; ') : 'Без ограничений — доступно всем')}
         ${rowF('Служебные заметки',p.comment)}`)],
