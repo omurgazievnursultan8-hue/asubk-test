@@ -465,6 +465,18 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .pick-row.sel{ background:var(--asubk-nav-active); }
 .pick-row input{ width:16px; height:16px; }
 .pick-row .pn{ flex:1; }
+/* ---- lookup grid dialogs (match live entity-lookup: columns + toolbar + Выбрать) ---- */
+.lk-toolbar{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:10px; }
+.lk-table-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; max-height:360px; }
+table.lk-table{ width:100%; border-collapse:collapse; font:var(--font-body); white-space:nowrap; }
+table.lk-table thead th{ position:sticky; top:0; background:var(--surface-panel); text-align:left; z-index:1;
+  font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-muted);
+  padding:9px 12px; border-bottom:1px solid var(--border-default); }
+table.lk-table tbody td{ padding:9px 12px; border-bottom:1px solid var(--border-default); }
+table.lk-table tbody tr{ cursor:pointer; }
+table.lk-table tbody tr:hover{ background:var(--surface-hover); }
+table.lk-table tbody tr.sel{ background:var(--asubk-nav-active); }
+table.lk-table tbody tr:last-child td{ border-bottom:none; }
 .note-banner{ display:flex; align-items:flex-start; gap:10px; padding:11px 14px; border-radius:var(--radius-md);
   background:var(--status-info-bg); color:#0a3d80; font:var(--font-label); margin:0 0 14px; }
 .note-banner.warn{ background:var(--status-warning-bg); color:#7a5b00; }
@@ -1388,7 +1400,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
           </div>
           <div class="field" id="cf-phone-field">
             <span class="flabel">Номер телефона</span>
-            <div class="control"><input type="text" id="cf-phone" value="+996"></div>
+            <div class="control"><input type="text" id="cf-phone" value=""></div>
             <span class="err">Введите номер в формате +996 990 000 000</span>
           </div>
         </div>
@@ -1485,65 +1497,82 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
   </div>
 </div>
 
-<!-- Picker: Субъект -->
+<!-- Picker: Субъект — live entity-lookup «Субъекты» (2 cols Тип|Субъект, footer Добавить·Выбрать·Отмена;
+     verified 2026-07-04, scripts/inspect/app-create-behavior.mjs). Выбор строки → «Выбрать» (или dbl-click). -->
 <div class="overlay" id="modal-pick-subject">
   <div class="modal lkwide">
     <div class="modal-h">
-      <span class="mt">Субъект</span>
+      <span class="mt">Субъекты</span>
       <button class="modal-x" onclick="closeModal('modal-pick-subject')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
       </button>
     </div>
     <div class="modal-b lk-dlg">
       <div class="picker-bar"><input class="picker-search" type="search" placeholder="Поиск…"></div>
-      <div class="pick-list">
-        <div class="pick-row" onclick="selectSubject('00404202510209 — ОсОО «Хот Лэйк Текстиль»','ул. Ахунбаева 117, Бишкек')">
-          <span class="pn">00404202510209 — ОсОО «Хот Лэйк Текстиль»</span>
-        </div>
-        <div class="pick-row" onclick="selectSubject('21812199600888 — БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ','ул. Токомбаева 21, Бишкек')">
-          <span class="pn">21812199600888 — БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ</span>
-        </div>
-        <div class="pick-row" onclick="selectSubject('02102201710026 — МП «Ноокат Тазалык»','ул. Карла Маркса 5, Ноокат')">
-          <span class="pn">02102201710026 — МП «Ноокат Тазалык»</span>
-        </div>
-        <div class="pick-row" onclick="selectSubject('20907199400957 — МАТРАИМОВ МАКСАТ КУБАНОВИЧ','ул. Советская 88, Ош')">
-          <span class="pn">20907199400957 — МАТРАИМОВ МАКСАТ КУБАНОВИЧ</span>
-        </div>
-        <div class="pick-row" onclick="selectSubject('01204199910016 — ОАО «О!Банк»','пр. Чуй 44, Бишкек')">
-          <span class="pn">01204199910016 — ОАО «О!Банк»</span>
-        </div>
+      <div class="lk-table-wrap">
+        <table class="lk-table">
+          <thead><tr><th style="width:120px">Тип</th><th>Субъект</th></tr></thead>
+          <tbody>
+            <tr data-val='00404202510209 - ОсОО "Хот Лэйк Текстиль"' data-addr='ул. Ахунбаева 117, Бишкек' onclick="lkRow('subject',this)" ondblclick="lkRow('subject',this);applyPick('subject')"><td>Юр. лицо</td><td>00404202510209 - ОсОО "Хот Лэйк Текстиль"</td></tr>
+            <tr data-val='21812199600888 - БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ' data-addr='ул. Токомбаева 21, Бишкек' onclick="lkRow('subject',this)" ondblclick="lkRow('subject',this);applyPick('subject')"><td>Физ. лицо</td><td>21812199600888 - БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ</td></tr>
+            <tr data-val='02102201710026 - МП "Ноокат Тазалык"' data-addr='ул. Карла Маркса 5, Ноокат' onclick="lkRow('subject',this)" ondblclick="lkRow('subject',this);applyPick('subject')"><td>Юр. лицо</td><td>02102201710026 - МП "Ноокат Тазалык"</td></tr>
+            <tr data-val='20907199400957 - МАТРАИМОВ МАКСАТ КУБАНОВИЧ' data-addr='ул. Советская 88, Ош' onclick="lkRow('subject',this)" ondblclick="lkRow('subject',this);applyPick('subject')"><td>Физ. лицо</td><td>20907199400957 - МАТРАИМОВ МАКСАТ КУБАНОВИЧ</td></tr>
+            <tr data-val='01204199910016 - ОАО "О!Банк"' data-addr='Бишкек, Первомайский район, ул. Фрунзе' onclick="lkRow('subject',this)" ondblclick="lkRow('subject',this);applyPick('subject')"><td>Юр. лицо</td><td>01204199910016 - ОАО "О!Банк"</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
     <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('modal-pick-subject')">Добавить</button>
+      <button class="btn btn-primary" onclick="applyPick('subject')">Выбрать</button>
       <button class="btn btn-secondary" onclick="closeModal('modal-pick-subject')">Отмена</button>
     </div>
   </div>
 </div>
 
-<!-- Picker: Кредитная программа (create form) -->
+<!-- Picker: Кредитная программа — live entity-lookup «Кредитные программы» (8 cols + grid-toolbar;
+     verified 2026-07-04, scripts/inspect/app-create-behavior.mjs). -->
 <div class="overlay" id="modal-pick-program-create">
-  <div class="modal lkwide">
+  <div class="modal lkwide" style="width:min(1100px,97%)">
     <div class="modal-h">
-      <span class="mt">Кредитная программа</span>
+      <span class="mt">Кредитные программы</span>
       <button class="modal-x" onclick="closeModal('modal-pick-program-create')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
       </button>
     </div>
     <div class="modal-b lk-dlg">
-      <div class="picker-bar"><input class="picker-search" type="search" placeholder="Поиск…"></div>
-      <div class="pick-list">
-        <div class="pick-row" onclick="selectProgram('АгроИнвест КР')"><span class="pn">АгроИнвест КР</span></div>
-        <div class="pick-row" onclick="selectProgram('Поддержка сельхозпроизводителей')"><span class="pn">Поддержка сельхозпроизводителей</span></div>
-        <div class="pick-row" onclick="selectProgram('ТУР')"><span class="pn">ТУР</span></div>
+      <div class="lk-toolbar">
+        <button class="add-cond"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Добавить условие поиска</button>
+        <button class="btn btn-primary btn-sm">Создать</button>
+        <button class="btn btn-ghost btn-sm" disabled>Изменить</button>
+        <button class="btn btn-ghost btn-sm" disabled>Удалить</button>
+      </div>
+      <div class="lk-table-wrap">
+        <table class="lk-table">
+          <thead><tr>
+            <th>Наименование на русском</th><th>Краткое описание</th><th>Решение правительства</th>
+            <th>Назначение кредита</th><th>Вид кредита</th><th>Дата с</th><th>Дата по</th><th>Статус</th>
+          </tr></thead>
+          <tbody>
+            <tr data-val='АгроИнвест КР' onclick="lkRow('program',this)" ondblclick="lkRow('program',this);applyPick('program')">
+              <td>АгроИнвест КР</td><td>Кредитование агротехники и оборотных средств</td><td>Постановление Кабинета министров №123</td><td>Пополнение оборотных средств</td><td>Бюджетная ссуда</td><td>01.07.2026</td><td>01.07.2031</td><td>Активна</td></tr>
+            <tr data-val='Поддержка сельхозпроизводителей' onclick="lkRow('program',this)" ondblclick="lkRow('program',this);applyPick('program')">
+              <td>Поддержка сельхозпроизводителей</td><td>Финансирование закупки техники, семян и ГСМ для малых и средних агропредприятий</td><td>Постановление Кабинета министров №123</td><td>Цель кредита в увеличении дохода сельского хозяйства</td><td>Бюджетная ссуда</td><td>01.07.2026</td><td>01.07.2031</td><td>Черновик</td></tr>
+            <tr data-val='ТУР' onclick="lkRow('program',this)" ondblclick="lkRow('program',this);applyPick('program')">
+              <td>ТУР</td><td>Туристическая отрасль — льготное кредитование</td><td>Постановление Кабинета министров №77</td><td>Развитие туризма</td><td>Бюджетная ссуда</td><td>01.01.2026</td><td>01.01.2030</td><td>Активна</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
     <div class="modal-f">
+      <button class="btn btn-primary" onclick="applyPick('program')">Выбрать</button>
       <button class="btn btn-secondary" onclick="closeModal('modal-pick-program-create')">Отмена</button>
     </div>
   </div>
 </div>
 
-<!-- Picker: Источник финансирования -->
+<!-- Picker: Источник финансирования — live entity-lookup «Источник финансирования» (1 col Название + toolbar;
+     verified 2026-07-04, scripts/inspect/app-create-behavior.mjs). -->
 <div class="overlay" id="modal-pick-source">
   <div class="modal lkwide">
     <div class="modal-h">
@@ -1553,14 +1582,24 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
       </button>
     </div>
     <div class="modal-b lk-dlg">
-      <div class="picker-bar"><input class="picker-search" type="search" placeholder="Поиск…"></div>
-      <div class="pick-list">
-        <div class="pick-row" onclick="selectSource('Государственный бюджет')"><span class="pn">Государственный бюджет</span></div>
-        <div class="pick-row" onclick="selectSource('Донорские средства')"><span class="pn">Донорские средства</span></div>
-        <div class="pick-row" onclick="selectSource('Собственные средства')"><span class="pn">Собственные средства</span></div>
+      <div class="lk-toolbar">
+        <button class="add-cond"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Добавить условие поиска</button>
+        <button class="btn btn-primary btn-sm">Создать</button>
+        <button class="btn btn-ghost btn-sm" disabled>Изменить</button>
+        <button class="btn btn-ghost btn-sm" disabled>Удалить</button>
+      </div>
+      <div class="lk-table-wrap">
+        <table class="lk-table">
+          <thead><tr><th>Название</th></tr></thead>
+          <tbody>
+            <tr data-val='Бюджет' onclick="lkRow('source',this)" ondblclick="lkRow('source',this);applyPick('source')"><td>Бюджет</td></tr>
+            <tr data-val='asdfasdf' onclick="lkRow('source',this)" ondblclick="lkRow('source',this);applyPick('source')"><td>asdfasdf</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
     <div class="modal-f">
+      <button class="btn btn-primary" onclick="applyPick('source')">Выбрать</button>
       <button class="btn btn-secondary" onclick="closeModal('modal-pick-source')">Отмена</button>
     </div>
   </div>
@@ -2203,7 +2242,7 @@ function openCreateModal(){
     if (el){ el.textContent = ''; el.classList.remove('filled'); }
   });
   document.getElementById('cf-addr').value  = '';
-  document.getElementById('cf-phone').value = '+996';
+  document.getElementById('cf-phone').value = '';
   document.getElementById('cf-amount').value = '';
   document.getElementById('cf-term').value   = '';
   document.getElementById('cf-info').value   = '';
@@ -2257,6 +2296,23 @@ function selectSource(label){
   closeModal('modal-pick-source');
 }
 
+/* Live lookup behavior: клик по строке = выделение, «Выбрать»/двойной клик = применить.
+   _pick[kind] хранит dataset выбранной строки до подтверждения. */
+let _pick = { subject:null, program:null, source:null };
+function lkRow(kind, tr){
+  tr.closest('tbody').querySelectorAll('tr.sel').forEach(r => r.classList.remove('sel'));
+  tr.classList.add('sel');
+  _pick[kind] = { val: tr.dataset.val, addr: tr.dataset.addr };
+}
+function applyPick(kind){
+  const d = _pick[kind];
+  if (!d) return;                       // нет выделенной строки — как в живой, «Выбрать» без выбора ничего не делает
+  if (kind === 'subject')      selectSubject(d.val, d.addr || '');
+  else if (kind === 'program') selectProgram(d.val);
+  else if (kind === 'source')  selectSource(d.val);
+  _pick[kind] = null;
+}
+
 /** validateCreate — called by Далее; also shows/hides eager errors.
  *  Returns true only if: сумма filled AND срок filled AND phone matches +996 NNN NNN NNN. */
 function validateCreate(){
@@ -2278,9 +2334,9 @@ function validateCreate(){
     document.getElementById('cf-term-field').classList.remove('invalid');
   }
 
-  // Phone must be fully in +996 NNN NNN NNN format (spaces/hyphens optional between groups)
+  // Phone optional in live (required:false). Validate format only when non-empty.
   const phone = document.getElementById('cf-phone').value.trim();
-  const phoneOk = /^\+996[\s\-]?\d{3}[\s\-]?\d{3}[\s\-]?\d{3}$/.test(phone);
+  const phoneOk = phone === '' || /^\+996[\s\-]?\d{3}[\s\-]?\d{3}[\s\-]?\d{3}$/.test(phone);
   if (!phoneOk){
     document.getElementById('cf-phone-field').classList.add('invalid');
     valid = false;
