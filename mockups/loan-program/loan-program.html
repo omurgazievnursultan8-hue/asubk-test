@@ -170,6 +170,17 @@ a{ color:inherit; }
 .btn-ghost:hover:not(:disabled){ background:var(--surface-hover); color:var(--text-body); }
 .btn-sm{ height:32px; padding:0 10px; font-size:var(--text-sm); }
 
+/* ---- view toggle: Таблица / Карточки (clone of /corporate-companies) ---- */
+.viewseg{ display:inline-flex; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  overflow:hidden; background:var(--surface-card); }
+.viewseg-btn{ display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; border:none;
+  background:transparent; color:var(--text-muted); cursor:pointer;
+  font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); white-space:nowrap; }
+.viewseg-btn + .viewseg-btn{ border-left:1px solid var(--border-default); }
+.viewseg-btn svg{ flex:none; }
+.viewseg-btn:hover:not(.active){ background:var(--surface-hover); color:var(--text-body); }
+.viewseg-btn.active{ background:var(--action-success); color:#fff; }
+
 /* ---- grid ---- */
 .grid-wrap{ flex:1; overflow:auto; padding:0 20px; }
 table.grid{ width:100%; border-collapse:collapse; font:var(--font-label); }
@@ -192,6 +203,32 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
   border-radius:var(--radius-sm); cursor:pointer; color:var(--text-body); font:var(--font-label); }
 .pager button.active{ background:var(--action-primary); color:#fff; border-color:var(--action-primary); }
 .pager button:disabled{ opacity:.4; cursor:not-allowed; }
+
+/* ---- cards view (clone of /corporate-companies «Карточки») ---- */
+.cards-wrap{ flex:1; overflow:auto; padding:16px 20px; }
+.cards-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
+.pcard{ position:relative; border:1px solid var(--border-default); border-radius:var(--radius-lg);
+  background:var(--surface-card); padding:16px; cursor:pointer;
+  transition:box-shadow 120ms ease, border-color 120ms ease; }
+.pcard:hover{ box-shadow:0 2px 10px rgba(28,55,90,0.10); border-color:var(--border-strong); }
+.pcard.sel{ border-color:var(--action-primary); box-shadow:0 0 0 1px var(--action-primary);
+  background:var(--asubk-nav-active); }
+.pcard-head{ display:flex; align-items:flex-start; gap:12px; }
+.pcard-ava{ flex:none; width:40px; height:40px; border-radius:var(--radius-md); display:flex;
+  align-items:center; justify-content:center; color:#fff;
+  font:var(--weight-semibold) 15px/1 var(--asubk-font); }
+.pcard-title{ flex:1; min-width:0; }
+.pcard-name{ font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-heading);
+  overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.pcard-sub{ margin-top:2px; font:var(--font-label); color:var(--text-muted);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pcard-chev{ flex:none; color:var(--text-placeholder); display:flex; }
+.pcard-badges{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+.pcard-fields{ margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+.pcard-field{ display:flex; flex-direction:column; gap:2px; }
+.pcard-flabel{ font:var(--weight-regular) var(--text-xs)/1.2 var(--asubk-font); color:var(--text-muted); }
+.pcard-fval{ font:var(--weight-medium) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-body); }
+.cards-empty{ padding:24px; text-align:center; color:var(--text-muted); font:var(--font-label); }
 
 /* ---- status badges ---- */
 .badge{ display:inline-flex; align-items:center; gap:var(--space-1); height:22px; padding:0 var(--space-2);
@@ -733,10 +770,21 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
             Вернуть на согласование
           </button>
           <span class="tb-spacer"></span>
+          <!-- view toggle: таблица / карточки (как на /corporate-companies) -->
+          <div class="viewseg" role="group" aria-label="Вид списка">
+            <button type="button" class="viewseg-btn active" id="segTable" onclick="setListView('table')" title="Таблица">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+              Таблица
+            </button>
+            <button type="button" class="viewseg-btn" id="segCards" onclick="setListView('cards')" title="Карточки">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              Карточки
+            </button>
+          </div>
           <div class="pager" id="pager"></div>
         </div>
 
-        <div class="grid-wrap">
+        <div class="grid-wrap" id="gridWrap">
           <table class="grid" id="grid">
             <colgroup id="gridCols"></colgroup>
             <thead>
@@ -745,6 +793,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
             <tbody id="gridBody"></tbody>
           </table>
         </div>
+        <div class="cards-wrap" id="cardsWrap" style="display:none"></div>
 
         <div class="list-foot">
           <span id="rowCount">0 записей</span>
@@ -1063,6 +1112,10 @@ function renderList(){
       <td>${statusBadge(p.status)}</td>
     </tr>`;
   }).join('') || `<tr><td colspan="8" class="muted" style="padding:24px;text-align:center">Нет записей по фильтру</td></tr>`;
+  // view toggle: показать таблицу или карточки (данные/фильтр/сортировка/пагинация общие)
+  document.getElementById('gridWrap').style.display  = listView==='table' ? '' : 'none';
+  document.getElementById('cardsWrap').style.display = listView==='cards' ? '' : 'none';
+  if(listView==='cards') renderCards(slice);
   document.getElementById('rowCount').textContent = `${rows.length} ${plural(rows.length)}`;
   // clone of live Jmix pager: first / prev / «N строк» select / next / last
   document.getElementById('pager').innerHTML =
@@ -1084,6 +1137,47 @@ function toggleRefreshMenu(e){ e.stopPropagation(); document.getElementById('ref
 function closeRefreshMenu(){ document.getElementById('refreshSplit').classList.remove('open'); }
 document.addEventListener('click', e=>{ if(!e.target.closest('#refreshSplit')) closeRefreshMenu(); });
 function selectRow(id){ selectedId = (selectedId===id?null:id); renderList(); }
+
+/* view toggle (таблица ↔ карточки) — как на /corporate-companies.
+   Выбор сохраняется между сессиями (localStorage, ключ lp.listView). */
+const LIST_VIEW_KEY = 'lp.listView';
+function loadListView(){ try{ return localStorage.getItem(LIST_VIEW_KEY)==='cards'?'cards':'table'; }catch(e){ return 'table'; } }
+let listView = loadListView();
+function setListView(v){
+  listView = (v==='cards') ? 'cards' : 'table';
+  try{ localStorage.setItem(LIST_VIEW_KEY, listView); }catch(e){}
+  document.getElementById('segTable').classList.toggle('active', listView==='table');
+  document.getElementById('segCards').classList.toggle('active', listView==='cards');
+  renderList();
+}
+const AVA_COLORS = ['#006AF5','#158443','#B8860B','#7A4FE0','#0E8AA8','#C2410C','#BE185D','#3F51B5'];
+function monogram(name){ const w=(name||'').trim().split(/\s+/).filter(Boolean);
+  return ((w[0]||'')[0]||'')+((w[1]||'')[0]||''); }
+const _chev = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>`;
+function renderCards(rows){
+  const el = document.getElementById('cardsWrap');
+  if(!rows.length){ el.innerHTML = `<div class="cards-empty">Нет записей по фильтру</div>`; return; }
+  el.innerHTML = `<div class="cards-grid">` + rows.map(p=>`
+    <div class="pcard ${p.id===selectedId?'sel':''}" onclick="selectRow(${p.id})" ondblclick="openView(${p.id})">
+      <div class="pcard-head">
+        <div class="pcard-ava" style="background:${AVA_COLORS[p.id % AVA_COLORS.length]}">${esc(monogram(p.nameRu).toUpperCase())||'—'}</div>
+        <div class="pcard-title">
+          <div class="pcard-name" title="${esc(p.nameRu)}">${esc(p.nameRu)||'—'}</div>
+          <div class="pcard-sub" title="${esc(p.decisionName)}">${esc(p.decisionName)||'без решения'}</div>
+        </div>
+        <span class="pcard-chev">${_chev}</span>
+      </div>
+      <div class="pcard-badges">
+        ${statusBadge(p.status)}
+        ${p.kind ? `<span class="badge draft">${esc(p.kind)}</span>` : ''}
+      </div>
+      <div class="pcard-fields">
+        <div class="pcard-field"><span class="pcard-flabel">Назначение кредита</span><span class="pcard-fval">${esc(p.purpose)||'—'}</span></div>
+        <div class="pcard-field"><span class="pcard-flabel">Срок действия</span><span class="pcard-fval">${fmtDate(p.dateFrom)} – ${esc(fmtDateTo(p.dateTo))}</span></div>
+        <div class="pcard-field"><span class="pcard-flabel">Краткое описание</span><span class="pcard-fval">${esc(p.shortDesc)||'—'}</span></div>
+      </div>
+    </div>`).join('') + `</div>`;
+}
 function toggleFilter(){ document.getElementById('filterbar').classList.toggle('open');
   document.getElementById('filterHead').classList.toggle('open'); }
 function clearFilter(){ document.getElementById('fName').value=''; document.getElementById('fStatus').value=''; renderList(); }
@@ -1210,7 +1304,7 @@ function showView(v){
   document.getElementById('crumbSep').style.display = inSub?'inline':'none';
   document.getElementById('content').scrollTo(0,0);
 }
-function goList(){ showView('view-list'); setCrumb('Кредитные программы',''); renderList(); }
+function goList(){ showView('view-list'); setCrumb('Кредитные программы',''); setListView(listView); }
 function setCrumb(title, statusHtml){
   document.getElementById('crumbTitle').textContent = title;
   document.getElementById('crumbStatus').innerHTML = statusHtml||'';
