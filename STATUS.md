@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-06-29 (loan-application as-is mockup + live re-inspection findings) — _(update this date every time you edit)_
+> Last updated: 2026-07-04 (loan-application mockup — «Новая заявка» re-verified vs live) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,6 +38,14 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-07-04 — **Мокап «Заявка»** — повторная сверка формы «Новая заявка» с живой
+  системой (`scripts/inspect/app-create-fields.mjs`, `app-detail-tabs.mjs`). Список,
+  9 вкладок детали, наборы документов и диалоги «Выберите комиссию» совпадают.
+  Исправлены расхождения формы создания: (1) добавлен отсутствовавший селект «Метод
+  расчета дней» (по умолч. «календарный 365»); (2) блок «Ручные параметры льготного
+  периода» приведён к живому виду — 3 жирных подзаголовка + чекбоксы, чекбокс №1
+  переименован «…по основному долгу» (было «…по основной сумме»), блок раскрыт по
+  умолчанию.
 - 2026-06-29 — **Мокап «Заявка»** (`mockups/loan-application/loan-application.html`) завершён:
   as-is клон полного потока — список заявок (грид, 8 колонок, 5 плиток-статистики) +
   мастер «Новая заявка» (все поля step 1) + страница детали (все 9 вкладок: Общая
