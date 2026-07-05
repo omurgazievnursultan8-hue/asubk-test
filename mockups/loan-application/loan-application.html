@@ -483,6 +483,45 @@ table.lk-table tbody tr{ cursor:pointer; }
 table.lk-table tbody tr:hover{ background:var(--surface-hover); }
 table.lk-table tbody tr.sel{ background:var(--asubk-nav-active); }
 table.lk-table tbody tr:last-child td{ border-bottom:none; }
+
+/* ---- Online-style entity lookup (matches live Jmix grid: Фильтр + Обновить split + gear + grid actions) ---- */
+.lk-filterbar{ display:flex; align-items:center; gap:6px; color:var(--text-muted);
+  font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); padding:2px 0 10px; cursor:default; }
+.lk-filterbar .caret{ font-size:10px; color:var(--text-muted); }
+.lk-gridbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.lk-gridbar.r1{ margin-bottom:8px; }
+.lk-gridbar.r2{ margin-bottom:10px; }
+.lk-split{ display:inline-flex; }
+.lk-split > .btn{ border-radius:0; }
+.lk-split > .btn:first-child{ border-top-left-radius:var(--radius-md); border-bottom-left-radius:var(--radius-md); }
+.lk-split > .btn.split-caret{ border-top-right-radius:var(--radius-md); border-bottom-right-radius:var(--radius-md);
+  padding:0 8px; border-left:1px solid rgba(255,255,255,0.28); }
+.btn-green{ background:var(--asubk-green); color:#fff; }
+.btn-green:hover:not(:disabled){ background:var(--asubk-green-hover); }
+.lk-gear{ display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; padding:0;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-card);
+  color:var(--text-muted); cursor:pointer; }
+.lk-gear:hover{ color:var(--asubk-blue); border-color:var(--asubk-blue); }
+.lk-link{ background:none; border:none; padding:0; color:var(--asubk-link); cursor:pointer;
+  font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); display:inline-flex; align-items:center; gap:6px; }
+.lk-link:hover{ text-decoration:underline; }
+.lk-pager{ display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:8px 2px 0;
+  color:var(--text-muted); font:var(--font-label); }
+.lk-pager select{ height:26px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-body); }
+.lk-pager .pg{ display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-card); cursor:pointer; }
+.lk-pager .pg:disabled{ opacity:.45; cursor:default; }
+/* blue-accented header + sort carets to match live grid */
+#modal-pick-program-create table.lk-table thead th{ background:var(--asubk-blue-tint); color:var(--text-heading);
+  border-bottom:2px solid var(--asubk-blue); }
+#modal-pick-program-create table.lk-table thead th .sort{ color:var(--asubk-blue); margin-left:6px; font-size:11px; opacity:.85; }
+/* only key cols kept (Наименование / Краткое описание / Решение правительства) — let text wrap, no horizontal scroll */
+#modal-pick-program-create table.lk-table{ white-space:normal; table-layout:fixed; }
+#modal-pick-program-create table.lk-table th:nth-child(1),
+#modal-pick-program-create table.lk-table td:nth-child(1){ width:28%; }
+#modal-pick-program-create table.lk-table th:nth-child(3),
+#modal-pick-program-create table.lk-table td:nth-child(3){ width:30%; }
 .note-banner{ display:flex; align-items:flex-start; gap:10px; padding:11px 14px; border-radius:var(--radius-md);
   background:var(--status-info-bg); color:#0a3d80; font:var(--font-label); margin:0 0 14px; }
 .note-banner.warn{ background:var(--status-warning-bg); color:#7a5b00; }
@@ -565,16 +604,29 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 /* live grace layout: each period = bold sub-header + one checkbox */
 .cf-grace-group{ display:flex; flex-direction:column; gap:6px; }
 .cf-grace-group .t2-sub{ font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-heading); margin:0; }
-/* as-is: grey "filled" look on all create-modal inputs (P3 defect, same as filter bar) */
-#modal-create .control input,
-#modal-create .control select,
-#modal-create .lookup,
-#modal-create .note-area{ background:rgba(26,57,96,0.10); border-color:transparent; }
-#modal-create .control input:focus,
-#modal-create .control select:focus,
-#modal-create .note-area:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); background:rgba(26,57,96,0.10); }
-/* eager red bg for required fields immediately on open (as-is P3-06) */
-#modal-create .field.invalid .control input{ background:rgba(231,29,19,0.10); border-color:transparent; }
+/* ============================================================
+   TO-BE: routed create page «Новая заявка» (was a modal wizard).
+   Closes P3-R1 (field semantics), R3 (bounds hint), R5 (required
+   Субъект+Программа), R6 (lazy validation). Design 2026-07-05.
+   ============================================================ */
+#view-create{ display:flex; flex-direction:column; }
+.create-page{ max-width:920px; width:100%; margin:0 auto; }
+.create-card{ background:var(--surface-card); border:1px solid var(--border-default);
+  border-radius:var(--radius-md); padding:22px 26px; display:flex; flex-direction:column; gap:26px; }
+.cform-section{ display:flex; flex-direction:column; gap:14px; }
+.cform-section > .section-h{ margin:0 0 2px; padding-bottom:12px; border-bottom:1px solid var(--border-default); font-size:18px; }
+.cform-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px 24px; }
+.cform-grid .span2{ grid-column:1 / -1; }
+.create-foot{ display:flex; gap:10px; padding-top:18px; border-top:1px solid var(--border-default); }
+/* to-be field semantics: required/optional editable = white + border; readonly = grey.
+   No grey-fill default, no eager-red — errors only on .invalid (set on blur/Далее). */
+#view-create .field.ro .control input[readonly]{ background:rgba(26,57,96,0.06); border-color:transparent; color:var(--text-muted); }
+#view-create .field.invalid .control input{ border-color:var(--action-danger); box-shadow:0 0 0 3px rgba(231,29,19,0.10); }
+/* ---- Условия кредита: секции + отклонение от программы (diff-справка) ---- */
+.cond-sec{ margin-top:18px; }
+.control .unit{ margin-left:6px; color:var(--text-muted); font-size:13px; }
+.cond-dev{ display:inline-flex; align-items:center; gap:6px; margin-left:8px; font-size:12px; color:var(--action-danger,#c0392b); }
+.cond-dev .prog-was{ color:var(--text-muted); text-decoration:line-through; }
 
 /* ---- modal-send: grey-filled look (as-is); red bg when invalid (eager) ---- */
 #modal-send .control select{ background:rgba(26,57,96,0.10); border-color:transparent; }
@@ -1471,144 +1523,79 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
         </div>
 
       </section>
+
+      <!-- ============================================================
+           VIEW: СОЗДАНИЕ ЗАЯВКИ (to-be routed page, was #modal-create)
+           «Далее» сохраняет заявку и открывает детальную страницу.
+           ============================================================ -->
+      <section id="view-create" style="display:none">
+        <div class="create-page">
+          <div class="create-card">
+
+            <!-- ① Заявитель -->
+            <div class="cform-section">
+              <div class="section-h">Заявитель</div>
+              <div class="cform-grid">
+                <div class="field required span2" id="cf-subject-field">
+                  <span class="flabel">Субъект</span>
+                  <div class="lookup">
+                    <span class="val" id="cf-subject-val"></span>
+                    <button class="pick" onclick="openModal('modal-pick-subject')" title="Выбрать">•••</button>
+                    <button onclick="clearPicker('cf-subject')" title="Очистить" style="font-size:13px;color:var(--text-muted)">✕</button>
+                  </div>
+                  <span class="err">Поле является обязательным</span>
+                </div>
+                <div class="field ro">
+                  <span class="flabel">Адрес</span>
+                  <div class="control"><input type="text" id="cf-addr" readonly placeholder="Заполнится из субъекта"></div>
+                </div>
+                <div class="field" id="cf-phone-field">
+                  <span class="flabel">Номер телефона</span>
+                  <div class="control"><input type="tel" id="cf-phone" inputmode="tel" maxlength="17" value="+996 " oninput="formatPhone(this)" onfocus="formatPhone(this)" onblur="validatePhone()"></div>
+                  <span class="err">Введите номер в формате +996 990 000 000</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ② Условия кредита -->
+            <div class="cform-section">
+              <div class="section-h">Условия кредита</div>
+              <div class="cform-grid">
+                <div class="field required span2" id="cf-program-field">
+                  <span class="flabel">Кредитная программа</span>
+                  <div class="lookup">
+                    <span class="val" id="cf-program-val"></span>
+                    <button class="pick" onclick="openModal('modal-pick-program-create')" title="Выбрать">•••</button>
+                    <button onclick="clearPicker('cf-program')" title="Очистить" style="font-size:13px;color:var(--text-muted)">✕</button>
+                  </div>
+                  <span class="hint" id="cf-program-hint">Не выбрана — все условия задаются вручную</span>
+                  <span class="err">Поле является обязательным</span>
+                </div>
+              </div>
+              <!-- Условия = дословная копия виджетов условий программы, рендерится из cdraft (renderCond).
+                   Программа только предзаполняет и даёт справку; никогда не блокирует (спек 2026-07-05). -->
+              <div id="cf-cond-body"></div>
+            </div>
+
+            <!-- ④ Дополнительная информация -->
+            <div class="cform-section">
+              <div class="section-h">Дополнительная информация</div>
+              <div class="cform-grid">
+                <div class="field span2">
+                  <textarea class="note-area" id="cf-info" style="min-height:72px;resize:vertical"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="create-foot">
+              <button class="btn btn-primary" onclick="submitCreate()">Далее</button>
+              <button class="btn btn-secondary" onclick="showView('list')">Отмена</button>
+            </div>
+
+          </div>
+        </div>
+      </section>
     </main>
-  </div>
-</div>
-
-<!-- ============ OVERLAY: СОЗДАТЬ ЗАЯВКУ ============ -->
-<div class="overlay" id="modal-create">
-  <div class="modal wide" style="width:min(800px,96%)">
-    <div class="modal-h">
-      <span class="mt">Новая заявка</span>
-      <button class="modal-x" onclick="closeModal('modal-create')" aria-label="Закрыть">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div class="modal-b">
-      <div class="create-form">
-
-        <!-- Субъект (full-width picker) -->
-        <div class="field">
-          <span class="flabel">Субъект</span>
-          <div class="lookup">
-            <span class="val" id="cf-subject-val"></span>
-            <button class="pick" onclick="openModal('modal-pick-subject')" title="Выбрать">•••</button>
-            <button onclick="clearPicker('cf-subject')" title="Очистить" style="font-size:13px;color:var(--text-muted)">✕</button>
-          </div>
-        </div>
-
-        <!-- Кредитная программа (full-width picker) -->
-        <div class="field">
-          <span class="flabel">Кредитная программа</span>
-          <div class="lookup">
-            <span class="val" id="cf-program-val"></span>
-            <button class="pick" onclick="openModal('modal-pick-program-create')" title="Выбрать">•••</button>
-            <button onclick="clearPicker('cf-program')" title="Очистить" style="font-size:13px;color:var(--text-muted)">✕</button>
-          </div>
-        </div>
-
-        <!-- Адрес (readonly) | Номер телефона -->
-        <div class="create-2col">
-          <div class="field">
-            <span class="flabel">Адрес</span>
-            <div class="control"><input type="text" id="cf-addr" readonly placeholder=""></div>
-          </div>
-          <div class="field" id="cf-phone-field">
-            <span class="flabel">Номер телефона</span>
-            <div class="control"><input type="text" id="cf-phone" value=""></div>
-            <span class="err">Введите номер в формате +996 990 000 000</span>
-          </div>
-        </div>
-
-        <!-- Источник финансирования | Дополнительная информация -->
-        <div class="create-2col">
-          <div class="field">
-            <span class="flabel">Источник финансирования</span>
-            <div class="lookup">
-              <span class="val" id="cf-source-val"></span>
-              <button class="pick" onclick="openModal('modal-pick-source')" title="Выбрать">•••</button>
-              <button onclick="clearPicker('cf-source')" title="Очистить" style="font-size:13px;color:var(--text-muted)">✕</button>
-            </div>
-          </div>
-          <div class="field">
-            <span class="flabel">Дополнительная информация</span>
-            <textarea class="note-area" id="cf-info" style="min-height:60px;resize:vertical"></textarea>
-          </div>
-        </div>
-
-        <!-- Сумма кредита | Срок кредита (2-col with section sub-headers) -->
-        <div class="create-sum-row">
-          <div class="create-sum-col">
-            <div class="t2-sub">Сумма кредита</div>
-            <div class="field required invalid" id="cf-amount-field">
-              <span class="flabel">Запрашиваемая сумма</span>
-              <div class="control"><input type="number" id="cf-amount" min="0" step="0.01" placeholder=""></div>
-              <span class="err">Поле является обязательным</span>
-            </div>
-          </div>
-          <div class="create-sum-col">
-            <div class="t2-sub">Срок кредита</div>
-            <div class="field required invalid" id="cf-term-field">
-              <span class="flabel">Запрашиваемый срок</span>
-              <div class="control"><input type="number" id="cf-term" min="0" step="1" placeholder=""></div>
-              <span class="err">Поле является обязательным</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Метод погашения кредита (full-width select, default Аннуитетный) -->
-        <div class="field">
-          <span class="flabel">Метод погашения кредита</span>
-          <div class="control">
-            <select id="cf-method">
-              <option value="annuity">Аннуитетный</option>
-              <option value="differential">Дифференцированный</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Метод расчета дней (full-width select, default «календарный 365»)
-             live: vaadin-select, stacked under «Метод погашения кредита»
-             (verified 2026-07-04, scripts/inspect/app-create-fields.mjs) -->
-        <div class="field">
-          <span class="flabel">Метод расчета дней</span>
-          <div class="control">
-            <select id="cf-daymethod">
-              <option value="cal365">календарный 365</option>
-              <option value="fin360365">финансовый /календарный (360/365)</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Ручные параметры льготного периода (collapsible; live: expanded by default,
-             each period = bold sub-header + one checkbox) -->
-        <div>
-          <div class="create-collapse-head open" id="cf-grace-head" onclick="toggleGrace()">
-            <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
-            Ручные параметры льготного периода
-          </div>
-          <div class="create-collapse-body open" id="cf-grace-body">
-            <div class="cf-grace-group">
-              <div class="t2-sub">Льготный период по основной сумме</div>
-              <label class="check"><input type="checkbox" id="cf-grace1"><span>Льготный период по основному долгу</span></label>
-            </div>
-            <div class="cf-grace-group">
-              <div class="t2-sub">Льготный период по начислению процентов</div>
-              <label class="check"><input type="checkbox" id="cf-grace2"><span>Льготный период по начислению процентов</span></label>
-            </div>
-            <div class="cf-grace-group">
-              <div class="t2-sub">Льготный период по процентам</div>
-              <label class="check"><input type="checkbox" id="cf-grace3"><span>Льготный период по процентам</span></label>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-    <div class="modal-f">
-      <button class="btn btn-primary" onclick="submitCreate()">Далее</button>
-      <button class="btn btn-secondary" onclick="closeModal('modal-create')">Отмена</button>
-    </div>
   </div>
 </div>
 
@@ -1645,10 +1632,12 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
   </div>
 </div>
 
-<!-- Picker: Кредитная программа — live entity-lookup «Кредитные программы» (8 cols + grid-toolbar;
-     verified 2026-07-04, scripts/inspect/app-create-behavior.mjs). -->
+<!-- Picker: Кредитная программа — live entity-lookup «Кредитные программы».
+     To-be: только ключевые колонки (Наименование/Краткое описание/Статус); остальные
+     (Решение правительства, Назначение, Вид кредита, Дата с/по) скрыты — доступны через ⚙.
+     Полный набор колонок сверен 2026-07-04, scripts/inspect/app-create-behavior.mjs. -->
 <div class="overlay" id="modal-pick-program-create">
-  <div class="modal lkwide" style="width:min(1100px,97%)">
+  <div class="modal lkwide" style="width:min(760px,96%)">
     <div class="modal-h">
       <span class="mt">Кредитные программы</span>
       <button class="modal-x" onclick="closeModal('modal-pick-program-create')">
@@ -1656,27 +1645,41 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
       </button>
     </div>
     <div class="modal-b lk-dlg">
-      <div class="lk-toolbar">
-        <button class="add-cond"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Добавить условие поиска</button>
-        <button class="btn btn-primary btn-sm">Создать</button>
+      <div class="lk-filterbar"><span class="caret">▾</span> Фильтр</div>
+      <div class="lk-gridbar r1">
+        <div class="lk-split">
+          <button class="btn btn-green btn-sm">Обновить</button>
+          <button class="btn btn-green btn-sm split-caret" title="Варианты обновления">▾</button>
+        </div>
+        <button class="lk-gear" title="Настройки таблицы"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+        <button class="lk-link"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Добавить условие поиска</button>
+      </div>
+      <div class="lk-gridbar r2">
+        <button class="btn btn-primary btn-sm"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Создать</button>
         <button class="btn btn-ghost btn-sm" disabled>Изменить</button>
         <button class="btn btn-ghost btn-sm" disabled>Удалить</button>
       </div>
       <div class="lk-table-wrap">
         <table class="lk-table">
           <thead><tr>
-            <th>Наименование на русском</th><th>Краткое описание</th><th>Решение правительства</th>
-            <th>Назначение кредита</th><th>Вид кредита</th><th>Дата с</th><th>Дата по</th><th>Статус</th>
+            <th>Наименование на русском <span class="sort">↕</span></th><th>Краткое описание <span class="sort">↕</span></th><th>Решение правительства <span class="sort">↕</span></th>
           </tr></thead>
           <tbody>
             <tr data-val='АгроИнвест КР' onclick="lkRow('program',this)" ondblclick="lkRow('program',this);applyPick('program')">
-              <td>АгроИнвест КР</td><td>Кредитование агротехники и оборотных средств</td><td>Постановление Кабинета министров №123</td><td>Пополнение оборотных средств</td><td>Бюджетная ссуда</td><td>01.07.2026</td><td>01.07.2031</td><td>Активна</td></tr>
+              <td>АгроИнвест КР</td><td>Кредитование агротехники и оборотных средств</td><td>Постановление Кабинета министров №123</td></tr>
             <tr data-val='Поддержка сельхозпроизводителей' onclick="lkRow('program',this)" ondblclick="lkRow('program',this);applyPick('program')">
-              <td>Поддержка сельхозпроизводителей</td><td>Финансирование закупки техники, семян и ГСМ для малых и средних агропредприятий</td><td>Постановление Кабинета министров №123</td><td>Цель кредита в увеличении дохода сельского хозяйства</td><td>Бюджетная ссуда</td><td>01.07.2026</td><td>01.07.2031</td><td>Черновик</td></tr>
+              <td>Поддержка сельхозпроизводителей</td><td>Финансирование закупки техники, семян и ГСМ для малых и средних агропредприятий</td><td>Постановление Кабинета министров №123</td></tr>
             <tr data-val='ТУР' onclick="lkRow('program',this)" ondblclick="lkRow('program',this);applyPick('program')">
-              <td>ТУР</td><td>Туристическая отрасль — льготное кредитование</td><td>Постановление Кабинета министров №77</td><td>Развитие туризма</td><td>Бюджетная ссуда</td><td>01.01.2026</td><td>01.01.2030</td><td>Активна</td></tr>
+              <td>ТУР</td><td>Туристическая отрасль — льготное кредитование</td><td>Постановление Кабинета министров №77</td></tr>
           </tbody>
         </table>
+      </div>
+      <div class="lk-pager">
+        <button class="pg" disabled title="Назад">‹</button>
+        <span>1</span>
+        <button class="pg" disabled title="Вперёд">›</button>
+        <span style="margin-left:8px">Строк на странице:</span>
+        <select><option>10</option><option>25</option><option>50</option></select>
       </div>
     </div>
     <div class="modal-f">
@@ -1845,11 +1848,17 @@ function showView(name){
      rule, so the hidden attribute alone wouldn't hide the panel. Inline style wins. */
   document.getElementById('view-list').style.display   = (name === 'list')   ? 'flex' : 'none';
   document.getElementById('view-detail').style.display = (name === 'detail') ? 'flex' : 'none';
+  document.getElementById('view-create').style.display = (name === 'create') ? 'flex' : 'none';
   // Breadcrumb: reset to «Заявки» when going back to list
   if (name === 'list'){
     document.getElementById('crumbBack').style.display  = 'none';
     document.getElementById('crumbSep').style.display   = 'none';
     document.getElementById('crumbTitle').textContent   = 'Заявки';
+  } else if (name === 'create'){
+    document.getElementById('crumbBack').style.display  = 'inline-flex';
+    document.getElementById('crumbSep').style.display   = 'inline';
+    document.getElementById('crumbTitle').textContent   = 'Новая заявка';
+    document.getElementById('crumbStatus').textContent  = '';
   }
   window.scrollTo(0,0);
 }
@@ -2101,16 +2110,66 @@ const PROGRAMS_MAP = {
     amountRange: 'Допустимо: от 100000.00 до 10000000.00',
     termRange:   'Допустимо: от 6 до 60',
     rate:        '10,00',
+    amountMin: 100000, amountMax: 10000000, termMin: 6, termMax: 60,
+    // Program-defined conditions. 1 value → readonly; 2+ → required choice.
+    vidKredita:   ['Бюджетная ссуда'],
+    naznachenie:  ['Пополнение оборотных средств', 'Приобретение техники'],
+    istochnik:    ['Республиканский бюджет', 'Кредитная линия ЕБРР'],
+    kreditLine:   ['Возобновляемая', 'Невозобновляемая'],
+    stavka:       ['10,00% годовых'],
+    shtrafy:      ['0,1% в день от суммы просрочки'],
+    periodichnost:['Ежемесячно', 'Ежеквартально'],
+    // Condition-model snapshot (ключи cdraft) для предзаполнения + diff (спек 2026-07-05).
+    currency:'KGS', source:'Иностранные доноры', kind:'Бюджетная ссуда', purpose:'Приобретение техники/оборудования', line:'АБР', repayAcct:'Накопительный счёт',
+    amountType:'Диапазон', amountMin:'100000', amountMax:'10000000',
+    termType:'Диапазон', termMin:'6', termMax:'60',
+    rateType:'Фиксированная', rateValues:['10,00 %'], floatRate:false,
+    penaltyMainType:'Фиксированная', penaltyMainVal:'0,2%', penaltyIntType:'Фиксированная', penaltyIntVal:'0,1%', penaltyMaxPct:'20',
+    periodicity:'Ежемесячно', dayCountNum:'Фактический', dayCountBase:'365', queue:'Основная сумма → проценты → штрафы',
+    weekend:'Не переносить', lastPaymentAnchor:'По дате первого платежа', repayMethod:'Аннуитетный',
+    graceMain:true, graceMainType:'Фиксированный', graceMainDur:['3','6'], minDays:'15', maxDays:'45',
   },
   'Поддержка сельхозпроизводителей': {
     amountRange: 'Допустимо: от 100000.00 до 5000000.00',
     termRange:   'Допустимо: от 3 до 36',
     rate:        '8,00',
+    amountMin: 100000, amountMax: 5000000, termMin: 3, termMax: 36,
+    vidKredita:   ['Бюджетная ссуда', 'Грантовое софинансирование'],
+    naznachenie:  ['Увеличение дохода сельского хозяйства'],
+    istochnik:    ['Республиканский бюджет'],
+    kreditLine:   ['Невозобновляемая'],
+    stavka:       ['8,00% годовых'],
+    shtrafy:      ['0,05% в день', '0,1% в день'],
+    periodichnost:['Ежемесячно'],
+    currency:'KGS', source:'Бюджет', kind:'Бюджетная ссуда', purpose:'Пополнение оборотных средств', line:'ФРР', repayAcct:'Накопительный счёт',
+    amountType:'Диапазон', amountMin:'100000', amountMax:'5000000',
+    termType:'Диапазон', termMin:'3', termMax:'36',
+    rateType:'Фиксированная', rateValues:['8,00 %'], floatRate:false,
+    penaltyMainType:'Фиксированная', penaltyMainVal:'0,2%', penaltyIntType:'Фиксированная', penaltyIntVal:'0,1%', penaltyMaxPct:'20',
+    periodicity:'Ежемесячно', dayCountNum:'Фактический', dayCountBase:'365', queue:'Основная сумма → проценты → штрафы',
+    weekend:'Не переносить', lastPaymentAnchor:'По дате первого платежа', repayMethod:'Аннуитетный',
+    graceMain:true, graceMainType:'Фиксированный', graceMainDur:['3'], minDays:'10', maxDays:'30',
   },
   'ТУР': {
     amountRange: 'Допустимо: от 50000.00 до 2000000.00',
     termRange:   'Допустимо: от 6 до 24',
     rate:        '12,00',
+    amountMin: 50000, amountMax: 2000000, termMin: 6, termMax: 24,
+    vidKredita:   ['Бюджетная ссуда'],
+    naznachenie:  ['Развитие туризма'],
+    istochnik:    ['Республиканский бюджет', 'Грант ЕБРР'],
+    kreditLine:   ['Возобновляемая'],
+    stavka:       ['12,00% годовых', '10,00% годовых (льготная)'],
+    shtrafy:      ['0,1% в день от суммы просрочки'],
+    periodichnost:['Ежемесячно', 'Ежеквартально', 'Раз в полугодие'],
+    currency:'KGS', source:'Собственные средства', kind:'Бюджетный кредит', purpose:'Строительство', line:'АРР', repayAcct:'Бюджет',
+    amountType:'Диапазон', amountMin:'50000', amountMax:'2000000',
+    termType:'Диапазон', termMin:'6', termMax:'24',
+    rateType:'Фиксированная', rateValues:['12,00 %'], floatRate:false,
+    penaltyMainType:'Фиксированная', penaltyMainVal:'0,5%', penaltyIntType:'Фиксированная', penaltyIntVal:'0,2%', penaltyMaxPct:'20',
+    periodicity:'Ежеквартально', dayCountNum:'Финансовый (30)', dayCountBase:'360', queue:'первочередный',
+    weekend:'Переносить на следующий рабочий день', lastPaymentAnchor:'По дате выдачи', repayMethod:'Дифференцированный',
+    graceMain:false, minDays:'20', maxDays:'60',
   },
 };
 
@@ -2867,41 +2926,37 @@ function renderDocPackTab(elId, title, total, docs) {
 document.addEventListener('DOMContentLoaded', () => { showView('list'); renderGrid(); });
 
 /* ============================================================
-   CREATE WIZARD — #modal-create
-   Task 4: Новая заявка modal with as-is validation (P3-06 eager errors)
+   CREATE PAGE — #view-create (to-be, was #modal-create wizard)
+   Routed page + lazy validation (P3-R6), required Субъект+Программа
+   (P3-R5), program amount/term bounds (P3-R3), field semantics (P3-R1).
+   «Далее» сохраняет заявку и открывает детальную. Design 2026-07-05.
    ============================================================ */
 
+/* openCreateModal — kept name for the «Создать» toolbar binding; now routes to the
+   to-be create PAGE (#view-create) instead of the removed modal. */
 function openCreateModal(){
   // Reset all fields
-  ['cf-subject-val','cf-program-val','cf-source-val'].forEach(id => {
+  ['cf-subject-val','cf-program-val'].forEach(id => {
     const el = document.getElementById(id);
     if (el){ el.textContent = ''; el.classList.remove('filled'); }
   });
+  // Reset conditions block: свежий cdraft, программа снята, ничего не тронуто (спек 2026-07-05).
+  cdraft = CP({}); _progSnapshot = null; _condTouched = new Set(); _createProgram = null;
+  condComboOpen = null; condMsOpen = {}; t2AddOpen = null;
+  const progHint = document.getElementById('cf-program-hint');
+  if (progHint) progHint.textContent = 'Не выбрана — все условия задаются вручную';
+  renderCond();
   document.getElementById('cf-addr').value  = '';
-  document.getElementById('cf-phone').value = '';
-  document.getElementById('cf-amount').value = '';
-  document.getElementById('cf-term').value   = '';
+  document.getElementById('cf-phone').value = '+996 ';
   document.getElementById('cf-info').value   = '';
-  document.getElementById('cf-method').value = 'annuity';
-  document.getElementById('cf-daymethod').value = 'cal365';
-  ['cf-grace1','cf-grace2','cf-grace3'].forEach(id => {
-    document.getElementById(id).checked = false;
-  });
-  // Clear phone error
-  document.getElementById('cf-phone-field').classList.remove('invalid');
-  // Grace section expanded by default (live shows it open on create)
-  document.getElementById('cf-grace-head').classList.add('open');
-  document.getElementById('cf-grace-body').classList.add('open');
-  // Eager invalid on required fields (as-is defect P3-06 — red bg immediately on open)
-  document.getElementById('cf-amount-field').classList.add('invalid');
-  document.getElementById('cf-term-field').classList.add('invalid');
-  openModal('modal-create');
+  // P3-R6: lazy validation — clear ALL invalid flags on open (no eager red).
+  ['cf-subject-field','cf-program-field','cf-phone-field']
+    .forEach(id => document.getElementById(id).classList.remove('invalid'));
+  showView('create');
 }
 
-function toggleGrace(){
-  document.getElementById('cf-grace-head').classList.toggle('open');
-  document.getElementById('cf-grace-body').classList.toggle('open');
-}
+// Currently-picked program on the create page (условия = справка/diff, спек 2026-07-05)
+let _createProgram = null;
 
 // Generic picker clear: clears <span id="fieldId-val"> + address if subject
 function clearPicker(fieldId){
@@ -2911,23 +2966,39 @@ function clearPicker(fieldId){
     const addr = document.getElementById('cf-addr');
     if (addr) addr.value = '';
   }
+  if (fieldId === 'cf-program'){
+    _createProgram = null; _progSnapshot = null;
+    const ph = document.getElementById('cf-program-hint');
+    if (ph) ph.textContent = 'Не выбрана — все условия задаются вручную';
+    renderCond();   // снять справку/чипы; введённые значения сохранить
+  }
 }
 
 function selectSubject(label, addr){
   const v = document.getElementById('cf-subject-val');
   v.textContent = label; v.classList.add('filled');
   document.getElementById('cf-addr').value = addr;
+  document.getElementById('cf-subject-field').classList.remove('invalid'); // P3-R5: clear on pick
   closeModal('modal-pick-subject');
 }
 
 function selectProgram(label){
   const v = document.getElementById('cf-program-val');
   v.textContent = label; v.classList.add('filled');
+  document.getElementById('cf-program-field').classList.remove('invalid'); // P3-R5: clear on pick
+  _createProgram = PROGRAMS_MAP[label] || null;
+  // Программа = справка: предзаполнить нетронутые поля, показать diff-отклонения (спек 2026-07-05).
+  saveCondInputs();                       // сохранить всё, что оператор ввёл до выбора программы
+  applyProgramSnapshot(_createProgram);
+  const ph = document.getElementById('cf-program-hint');
+  if (ph) ph.textContent = _createProgram ? 'Выбрана — значения подставлены как справка, можно менять' : 'Не выбрана — все условия задаются вручную';
+  renderCond();
   closeModal('modal-pick-program-create');
 }
 
 function selectSource(label){
-  const v = document.getElementById('cf-source-val');
+  const v = document.getElementById('cf-source-val');   // legacy source lookup (now program-driven); no-op if absent
+  if (!v) return;
   v.textContent = label; v.classList.add('filled');
   closeModal('modal-pick-source');
 }
@@ -2949,38 +3020,528 @@ function applyPick(kind){
   _pick[kind] = null;
 }
 
-/** validateCreate — called by Далее; also shows/hides eager errors.
- *  Returns true only if: сумма filled AND срок filled AND phone matches +996 NNN NNN NNN. */
+/* ── Credit conditions. Заявку можно завести БЕЗ программы (решение выходит позже):
+ *    тогда все условия редактируемы вручную — reference-поля = выпадающий список со
+ *    ВСЕМИ справочными значениями, ставка/штрафы = свободный ввод.
+ *    После выбора программы «закрываем где надо»: 1 допустимое значение → readonly,
+ *    2+ → обязательный select из допустимых, атрибут не заданный программой →
+ *    остаётся полный справочный список (редактируемый). ── */
+const REF_VALUES = {   // master reference lists (shown before a program is chosen)
+  vidKredita:   ['Бюджетная ссуда','Грантовое софинансирование','Коммерческий кредит','Микрокредит'],
+  naznachenie:  ['Пополнение оборотных средств','Приобретение техники','Увеличение дохода сельского хозяйства','Развитие туризма','Строительство/ремонт'],
+  istochnik:    ['Республиканский бюджет','Местный бюджет','Кредитная линия ЕБРР','Грант ЕБРР'],
+  kreditLine:   ['Возобновляемая','Невозобновляемая'],
+  periodichnost:['Ежемесячно','Ежеквартально','Раз в полугодие','Раз в год'],
+};
+const PROG_ATTRS = [
+  { key:'vidKredita',   label:'Вид кредита',             kind:'ref' },
+  { key:'naznachenie',  label:'Назначение кредита',      kind:'ref' },
+  { key:'istochnik',    label:'Источник финансирования', kind:'ref' },
+  { key:'kreditLine',   label:'Кредитная линия',         kind:'ref' },
+  { key:'stavka',       label:'Процентная ставка, %',    kind:'text', ph:'напр. 10,00' },
+  { key:'shtrafy',      label:'Штрафы',                  kind:'text', ph:'напр. 0,1% в день' },
+  { key:'periodichnost',label:'Периодичность платежей',  kind:'ref' },
+];
+let _progReqSelects = [];   // ids of required selects currently rendered (for validation)
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function roFieldHTML(label, val){
+  return `<div class="field ro span2"><span class="flabel">${esc(label)}</span>`
+    + `<div class="control"><input type="text" value="${esc(val)}" readonly></div>`
+    + `<span class="hint">Задано программой</span></div>`;
+}
+function selectFieldHTML(id, label, opts, required){
+  if (required) _progReqSelects.push(id);
+  const optHtml = ['<option value="">— выберите —</option>']
+    .concat((opts||[]).map(o => `<option value="${esc(o)}">${esc(o)}</option>`)).join('');
+  const hint = required ? 'Программа допускает несколько — выберите один'
+                        : 'Справочное значение — можно изменить';
+  return `<div class="field ${required?'required ':''}span2" id="${id}-field"><span class="flabel">${esc(label)}</span>`
+    + `<div class="control"><select id="${id}"${required?` onchange="validateProgSelect('${id}')"`:''}>${optHtml}</select></div>`
+    + `<span class="hint">${hint}</span>`
+    + (required ? `<span class="err">Поле является обязательным</span>` : '') + `</div>`;
+}
+function textFieldHTML(id, label, ph){
+  return `<div class="field span2"><span class="flabel">${esc(label)}</span>`
+    + `<div class="control"><input type="text" id="${id}" placeholder="${esc(ph||'')}"></div>`
+    + `<span class="hint">Свободный ввод</span></div>`;
+}
+
+function renderProgramConditions(prog){
+  _progReqSelects = [];
+  const box = document.getElementById('cf-progcond');
+  if (!box) return;
+  box.innerHTML = PROG_ATTRS.map(a => {
+    const id = 'cf-' + a.key;
+    if (a.kind === 'ref'){
+      const allowed = prog ? (prog[a.key] || null) : null;
+      if (allowed && allowed.length === 1) return roFieldHTML(a.label, allowed[0]);            // 1 → закрыто
+      if (allowed && allowed.length >= 2)  return selectFieldHTML(id, a.label, allowed, true); // 2+ → выбор из допустимых
+      return selectFieldHTML(id, a.label, REF_VALUES[a.key], false);                           // нет программы / не задано → полный справочник
+    }
+    // text kind (ставка, штрафы): program fixes → readonly; иначе свободный ввод
+    const fixed = prog ? (a.key === 'stavka' ? (prog.rate ? prog.rate + '% годовых' : null)
+                                             : ((prog[a.key] && prog[a.key][0]) || null)) : null;
+    if (fixed) return roFieldHTML(a.label, fixed);
+    return textFieldHTML(id, a.label, a.ph);
+  }).join('');
+}
+
+/* ============================================================
+   УСЛОВИЯ ЗАЯВКИ — дословная копия виджетов условий программы (loan-program.html
+   вкладки 2–6 + reference-поля вкладки 1). cdraft = локальный state (аналог draft
+   программы), renderCond = ре-рендер, saveCondInputs = harvest [data-k].
+   Программа только предзаполняет НЕтронутые поля и показывает справку/diff
+   (⚑ отклонение) при расхождении; НИКОГДА не блокирует поле (спек 2026-07-05).
+   ============================================================ */
+function CP(o){ return Object.assign({
+  currency:'', source:'', kind:'', purpose:'', line:'', repayAcct:'',
+  amountType:'Фиксированная', amountList:[], amountMin:'', amountMax:'', amountSel:null,
+  termType:'Фиксированная',   termList:[], termMin:'', termMax:'', termSel:null,
+  requestedAmount:'', requestedTerm:'',
+  rateType:'Фиксированная', rateValues:[], rateMin:'', rateMax:'', floatRate:false, floatType:'', floatMargin:'',
+  penaltyMainType:'Фиксированная', penaltyMainVal:'', penaltyMainFloatType:'',
+  penaltyIntType:'Фиксированная', penaltyIntVal:'', penaltyIntFloatType:'', penaltyMaxPct:'20',
+  graceMain:false, graceMainType:'', graceMainDur:[], graceMainDurFrom:'', graceMainDurTo:'', graceMainCond:'',
+  graceAccr:false, graceAccrType:'', graceAccrDur:[], graceAccrDurFrom:'', graceAccrDurTo:'', graceAccrCond:'',
+  graceInt:false,  graceIntType:'',  graceIntDur:[],  graceIntDurFrom:'',  graceIntDurTo:'',  graceIntCond:'',
+  graceIntDistFrom:'', graceIntDistTo:'',
+  payMode:'standard', periodicity:'', payMonths:[], payDay:'', weekend:'Не переносить',
+  lastPaymentAnchor:'По дате первого платежа', dayCountNum:'Фактический', dayCountBase:'365',
+  repayMethod:'Аннуитетный', queue:'', minDays:'', maxDays:''
+}, o); }
+let cdraft = CP({});
+let _progSnapshot = null;        // значения выбранной программы для diff (programToCond)
+let _condTouched  = new Set();   // ключи, которые оператор менял вручную
+
+// Справочники-значения — дословно из loan-program.html (LK, RATE_OPTS, T5_DUR_OPTS).
+const CLK = {
+  currency:['KGS','USD','EUR','RUB','KZT'],
+  source:['Бюджет','Иностранные доноры','Собственные средства'],
+  kind:['Бюджетный кредит','Бюджетная ссуда','Иностранный кредит'],
+  purpose:['Пополнение оборотных средств','Инвестиции в осн. средства','Строительство','Рефинансирование','Приобретение техники/оборудования'],
+  line:['АРР','ФРР','АБР','МАР','ВБ'],
+  repayAcct:['Накопительный счёт','Бюджет'],
+  penalty:['0,1%','0,2%','0,5%','1,0%'],
+  payMonths:['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'],
+  periodicity:['Ежемесячно','Ежеквартально','Раз в полгода','Ежегодно'],
+  dayCountNum:['Финансовый (30)','Фактический'],
+  dayCountBase:['360','365','Фактическая'],
+  queue:['первочередный','Основная сумма → проценты → штрафы'],
+  weekend:['Не переносить','Переносить на следующий рабочий день','Переносить на предыдущий рабочий день'],
+  lastPaymentAnchor:['По дате первого платежа','По дате выдачи'],
+  repayMethod:['Аннуитетный','Дифференцированный'],
+};
+const RATE_OPTS = ['4,00 %','6,00 %','8,00 %','10,00 %','12,00 %'];
+const T5_DUR_OPTS = ['1','3','6','12','18','24'];
+function condFloatTypes(){ return ['Ключевая ставка НБКР','LIBOR 6M','SOFR','EURIBOR']; }   // бенчмарк-ставки (сверить с refbook программы)
+function condPenaltyFloatTypes(){ return ['Ключевая ставка НБКР','LIBOR 6M']; }            // штрафные бенчмарки (сверить с refbook)
+
+function condTouch(k){ _condTouched.add(k); }
+
+// renderCond = чистый ре-рендер из cdraft. Harvest DOM→cdraft делают сами обработчики
+// (condPickCombo/condCheck/t2type/…) ДО мутации — иначе harvest затирал бы значения,
+// выставленные программно (сброс формы, предзаполнение из программы).
+function renderCond(){
+  const box = document.getElementById('cf-cond-body');
+  if(!box) return;
+  box.innerHTML =
+      condSecParams()
+    + condSecAmountTerm()
+    + condSecRates()
+    + condSecPenalty()
+    + condSecGrace()
+    + condSecPayments();
+}
+function saveCondInputs(){
+  const box = document.getElementById('cf-cond-body');
+  if(!box) return;
+  box.querySelectorAll('[data-k]').forEach(el=>{
+    const k = el.dataset.k;
+    if(el.type==='checkbox') cdraft[k] = el.checked;
+    else cdraft[k] = el.value;
+  });
+}
+
+/* ---- single-select searchable combo (порт combo() программы) ---- */
+let condComboOpen = null;
+function condCombo(label, key, opts, cfg){
+  cfg=cfg||{};
+  const v=cdraft[key]||'';
+  const open=condComboOpen===key;
+  const o=opts.map(op=>`<div class="opt ${v===op?'sel':''}" data-v="${esc(op)}" onclick="condPickCombo('${key}','${esc(op)}')"><span class="mk">${v===op?'✓':''}</span>${esc(op)}</div>`).join('');
+  return `<div class="field${cfg.req?' required':''}" data-field="${key}"><span class="flabel">${label}</span>
+    <div class="combo ${open?'open':''}" id="ccombo_${key}" onclick="condToggleCombo(event,'${key}')">
+      <span class="cval ${v?'filled':''}">${v?esc(v):'— выберите —'}</span>
+      <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      <div class="combo-pop" onclick="event.stopPropagation()">
+        <input class="combo-search" placeholder="Поиск…" oninput="condFilterCombo(this)">
+        <div class="combo-opts">${o}</div>
+      </div>
+    </div>${condDev(key)}${cfg.hint?`<span class="hint">${cfg.hint}</span>`:''}</div>`;
+}
+function condToggleCombo(e,key){ e.stopPropagation(); saveCondInputs(); condComboOpen=(condComboOpen===key?null:key); renderCond();
+  if(condComboOpen===key){ const s=document.querySelector('#ccombo_'+key+' .combo-search'); if(s) s.focus(); } }
+function condPickCombo(key,val){ saveCondInputs(); cdraft[key]=val; condComboOpen=null; condTouch(key); renderCond(); }
+function condFilterCombo(inp){ const q=inp.value.toLowerCase();
+  inp.closest('.combo-pop').querySelectorAll('.opt').forEach(o=>{ o.style.display=(!q||o.dataset.v.toLowerCase().includes(q))?'':'none'; }); }
+
+/* ---- value/label combo (для payMode: код хранится, лейбл показывается) ---- */
+function condSelPair(label, key, pairs){
+  const cur = cdraft[key];
+  const curLabel = (pairs.find(p=>p[0]===cur)||[])[1] || '';
+  const open = condComboOpen===key;
+  const o = pairs.map(([val,l])=>`<div class="opt ${cur===val?'sel':''}" data-v="${esc(l)}" onclick="condPickCombo('${key}','${esc(val)}')"><span class="mk">${cur===val?'✓':''}</span>${esc(l)}</div>`).join('');
+  return `<div class="field" data-field="${key}"><span class="flabel">${label}</span>
+    <div class="combo ${open?'open':''}" id="ccombo_${key}" onclick="condToggleCombo(event,'${key}')">
+      <span class="cval ${curLabel?'filled':''}">${curLabel||'— выберите —'}</span>
+      <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      <div class="combo-pop" onclick="event.stopPropagation()"><div class="combo-opts">${o}</div></div>
+    </div>${condDev(key)}</div>`;
+}
+
+/* ---- text/number/textarea field (порт f() программы) ---- */
+function condF(label, key, opts){
+  opts=opts||{};
+  const type=opts.type||'text', hint=opts.hint||'', span=opts.span, unit=opts.unit||'', max=opts.max;
+  const cls=`field${opts.req?' required':''}${span?' span2':''}`;
+  const val=esc(cdraft[key]||'');
+  const maxAttr = max?` maxlength="${max}"`:'';
+  const suffix = unit?`<span class="unit">${unit}</span>`:'';
+  const input = type==='textarea'
+    ? `<textarea class="note-area" data-k="${key}"${maxAttr} oninput="condTouch('${key}')">${val}</textarea>`
+    : `<div class="control"><input type="${type==='number'?'number':'text'}" data-k="${key}" value="${val}"${maxAttr} oninput="condTouch('${key}')">${suffix}</div>`;
+  return `<div class="${cls}" data-field="${key}"><span class="flabel">${label}</span>${input}
+    ${condDev(key)}${hint?`<span class="hint">${hint}</span>`:''}</div>`;
+}
+
+/* ---- checkbox (порт check()) ---- */
+function condCheck(label, key){
+  return `<label class="check" style="grid-column:1/-1"><input type="checkbox" data-k="${key}" ${cdraft[key]?'checked':''} onchange="saveCondInputs();condTouch('${key}');renderCond()"><span>${label}</span></label>`;
+}
+
+/* ---- multi-select chip combo (порт msCombo()) ---- */
+let condMsOpen = {};
+function condMsCombo(label,key,opts,unit){
+  const vals = cdraft[key]||[];
+  const chips = vals.length
+    ? vals.map((v,i)=>`<span class="chip">${esc(v)}<button title="Убрать" onclick="condMsUnchip(event,'${key}',${i})">✕</button></span>`).join('')
+    : `<span class="ph">Выберите…</span>`;
+  const o = opts.map(op=>`<div class="opt ${vals.includes(op)?'sel':''}" onclick="condMsToggle(event,'${key}','${esc(op)}')"><span class="mk">${vals.includes(op)?'✓':''}</span>${esc(op)}</div>`).join('');
+  return `<div class="field" data-field="${key}"><span class="flabel">${label}</span>
+    <div class="mscombo ${condMsOpen[key]?'open':''}" onclick="condMsComboOpen(event,'${key}')">
+      ${chips}<span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      <div class="mscombo-pop">${o}</div>
+    </div>${condDev(key)}${unit?`<span class="hint">Значения в ${unit}</span>`:''}</div>`;
+}
+function condMsComboOpen(e,key){ if(e.target.closest('.mscombo-pop')) return; e.stopPropagation(); saveCondInputs(); condMsOpen[key]=!condMsOpen[key]; renderCond(); }
+function condMsToggle(e,key,op){ e.stopPropagation(); saveCondInputs(); const a=cdraft[key]=cdraft[key]||[]; const i=a.indexOf(op); if(i>=0) a.splice(i,1); else a.push(op); condMsOpen[key]=true; condTouch(key); renderCond(); }
+function condMsUnchip(e,key,i){ e.stopPropagation(); saveCondInputs(); (cdraft[key]||[]).splice(i,1); condTouch(key); renderCond(); }
+
+/* ---- Сумма/срок: envelope Фикс/Диапазон (порт t2col). openRefDialog программы
+     в заявке нет → «Добавить» открывает лёгкий inline-picker предопределённых
+     значений; модель amountList/termList и вид сетки идентичны программе. ---- */
+const T2_REF = {
+  amount:{ rows:['200 000,00','500 000,00','1 000 000,00','3 000 000,00','5 000 000,00','10 000 000,00'] },
+  term:{ rows:['6','12','24','36','48','60'] },
+};
+const T2_PLUS = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>';
+const T2_TRASH = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+function t2num(s){ return parseFloat(String(s||'').replace(/\s/g,'').replace(',','.')); }
+function joinRange(a,b){ a=(a||'').toString().trim(); b=(b||'').toString().trim(); return (a||b)?`${a||'—'} – ${b||'—'}`:''; }
+function t2rangeMsg(min,max){
+  const a=t2num(min), b=t2num(max);
+  if(min&&(isNaN(a)||a<=0)) return `<span class="err" style="display:block">Минимум должен быть больше 0</span>`;
+  if(max&&(isNaN(b)||b<=0)) return `<span class="err" style="display:block">Максимум должен быть больше 0</span>`;
+  if(!isNaN(a)&&!isNaN(b)&&a>b) return `<span class="err" style="display:block">Минимум не может быть больше максимума</span>`;
+  if(!isNaN(a)&&!isNaN(b)&&a===b) return `<span class="warn-inline">Минимум равен максимуму — рассмотрите режим «Фиксированная»</span>`;
+  return '';
+}
+function t2hydrate(){ if(cdraft._t2h) return; cdraft._t2h=true; cdraft.amountList=cdraft.amountList||[]; cdraft.termList=cdraft.termList||[]; }
+let t2AddOpen = null;
+function t2col(side){
+  const isAmt = side==='amount';
+  const typeK = isAmt?'amountType':'termType';
+  if(!cdraft[typeK]) cdraft[typeK]='Фиксированная';
+  const head   = isAmt?'Сумма кредита':'Срок кредита';
+  const tLabel = isAmt?'Ограничение суммы':'Ограничение срока';
+  const isRange = cdraft[typeK]==='Диапазон';
+  let body;
+  if(isRange){
+    const minK=isAmt?'amountMin':'termMin', maxK=isAmt?'amountMax':'termMax';
+    const unit = isAmt?'сом':'мес.';
+    body = `<div class="t2-range">
+      ${condF((isAmt?'Минимальная сумма кредита':'Минимальный срок кредита'), minK, {type:'number',unit})}
+      ${condF((isAmt?'Максимальная сумма кредита':'Максимальный срок кредита'), maxK, {type:'number',unit})}
+    </div>${t2rangeMsg(cdraft[minK],cdraft[maxK])}`;
+  } else {
+    const list = (isAmt?cdraft.amountList:cdraft.termList)||[];
+    const selIdx = isAmt?cdraft.amountSel:cdraft.termSel;
+    const rows = list.map((v,i)=>`<tr class="${selIdx===i?'sel':''}" onclick="t2sel('${side}',${i})"><td>${esc(v)}</td></tr>`).join('');
+    const picker = t2AddOpen===side
+      ? `<div class="combo open" style="margin-top:6px"><div class="combo-pop" onclick="event.stopPropagation()"><div class="combo-opts">${T2_REF[side].rows.map(r=>`<div class="opt" data-v="${esc(r)}" onclick="t2pick('${side}','${esc(r)}')">${esc(r)}</div>`).join('')}</div></div></div>`
+      : '';
+    body = `<div class="t2-sub">${isAmt?'Фиксированные суммы':'Фиксированные сроки'}</div>
+      <div class="t2-rowtools">
+        <button class="btn btn-sm btn-rowadd" onclick="t2add('${side}')">${T2_PLUS}Добавить</button>
+        <button class="btn btn-sm btn-rowdel" onclick="t2del('${side}')" ${selIdx==null?'disabled':''}>${T2_TRASH}Удалить</button>
+      </div>${picker}
+      <div class="collgrid" data-coll="${side}"><table><thead><tr><th>${isAmt?'Сумма':'Срок, мес.'}<span class="sort">↑</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  const currency = isAmt ? `<div class="t2-currency"><div class="field ro"><span class="flabel">Валюта</span><div class="control"><input type="text" value="${esc(cdraft.currency||'')}" readonly placeholder="из «Параметры»"></div></div></div>` : '';
+  return `<div class="t2-col">
+    <div class="section-h">${head}</div>
+    <div class="field required t2-type" data-field="${typeK}"><span class="flabel">${tLabel}</span>
+      <div class="control"><select data-k="${typeK}" onchange="t2type('${side}',this.value)">
+        <option ${cdraft[typeK]==='Фиксированная'?'selected':''}>Фиксированная</option>
+        <option ${cdraft[typeK]==='Диапазон'?'selected':''}>Диапазон</option>
+      </select></div>${condDev(typeK)}</div>
+    ${body}${currency}</div>`;
+}
+function t2type(side,val){ saveCondInputs(); cdraft[side==='amount'?'amountType':'termType']=val; t2AddOpen=null; condTouch(side==='amount'?'amountType':'termType'); renderCond(); }
+function t2sel(side,i){ saveCondInputs(); if(side==='amount') cdraft.amountSel=i; else cdraft.termSel=i; renderCond(); }
+function t2del(side){
+  saveCondInputs();
+  const listK=side==='amount'?'amountList':'termList', selK=side==='amount'?'amountSel':'termSel';
+  if(cdraft[selK]==null) return;
+  cdraft[listK].splice(cdraft[selK],1); cdraft[selK]=null; condTouch(listK); renderCond();
+}
+function t2add(side){ saveCondInputs(); t2AddOpen=(t2AddOpen===side?null:side); renderCond(); }
+function t2pick(side,val){
+  saveCondInputs();
+  const listK=side==='amount'?'amountList':'termList';
+  cdraft[listK]=cdraft[listK]||[];
+  if(!cdraft[listK].includes(val)){ cdraft[listK].push(val); cdraft[listK].sort((a,b)=>t2num(a)-t2num(b)); condTouch(listK); }
+  t2AddOpen=null; renderCond();
+}
+function condRange(kind){
+  const isAmt = kind==='amount';
+  if(cdraft[isAmt?'amountType':'termType']==='Диапазон')
+    return { min:t2num(cdraft[isAmt?'amountMin':'termMin']), max:t2num(cdraft[isAmt?'amountMax':'termMax']) };
+  const list=(isAmt?cdraft.amountList:cdraft.termList).map(t2num).filter(n=>!isNaN(n));
+  return list.length?{min:Math.min(...list),max:Math.max(...list)}:{min:NaN,max:NaN};
+}
+function validateReqAmount(){ const v=t2num(cdraft.requestedAmount),r=condRange('amount');
+  return isNaN(v)||v<=0?false:(isNaN(r.min)||(v>=r.min&&v<=r.max)); }
+function validateReqTerm(){ const v=t2num(cdraft.requestedTerm),r=condRange('term');
+  return isNaN(v)||v<=0?false:(isNaN(r.min)||(v>=r.min&&v<=r.max)); }
+
+/* ---- diff / отклонение от программы ---- */
+function condDev(key){
+  if(!_progSnapshot || !(key in _progSnapshot)) return '';
+  const norm = v => Array.isArray(v) ? v.join(', ') : (v===true?'да':v===false?'нет':String(v==null?'':v));
+  const cur = norm(cdraft[key]), prog = norm(_progSnapshot[key]);
+  if(cur===prog) return '';
+  return `<span class="cond-dev">⚑ отклонение от программы <span class="prog-was">программа: ${esc(prog)}</span></span>`;
+}
+
+/* ============================================================
+   Секции условий (плоские карточки)
+   ============================================================ */
+function condSecParams(){
+  return `<div class="cond-sec"><div class="section-h">Параметры</div><div class="cform-grid">
+    ${condCombo('Валюта','currency',CLK.currency)}
+    ${condCombo('Источник финансирования','source',CLK.source)}
+    ${condCombo('Вид кредита','kind',CLK.kind)}
+    ${condCombo('Назначение кредита','purpose',CLK.purpose)}
+    ${condCombo('Кредитная линия','line',CLK.line)}
+    ${condCombo('Вид счёта погашения','repayAcct',CLK.repayAcct)}
+  </div></div>`;
+}
+function condSecAmountTerm(){
+  t2hydrate();
+  return `<div class="cond-sec"><div class="section-h">Сумма и срок</div>
+    <div class="t2-cols">${t2col('amount')}${t2col('term')}</div>
+    <div class="cform-grid" style="margin-top:12px">
+      ${condF('Запрашиваемая сумма','requestedAmount',{type:'number',req:true,unit:'сом',hint:'Конкретная запрашиваемая сумма в рамках условий'})}
+      ${condF('Запрашиваемый срок','requestedTerm',{type:'number',req:true,unit:'мес.',hint:'Конкретный запрашиваемый срок в рамках условий'})}
+    </div></div>`;
+}
+function condSecRates(){
+  const range = cdraft.rateType==='Диапазон';
+  const float = cdraft.floatRate
+    ? `${condCombo('Тип плавающей ставки','floatType',condFloatTypes())}${condF('Маржа к плавающей ставке','floatMargin',{unit:'%'})}`
+    : '';
+  return `<div class="cond-sec"><div class="section-h">Процентные ставки</div><div class="cform-grid">
+    ${condCombo('Тип основной ставки','rateType',['Фиксированная','Диапазон'])}
+    ${range ? condF('Значение ставки с','rateMin',{unit:'%'})+condF('Значение ставки по','rateMax',{unit:'%'})
+            : condMsCombo('Значение фиксированной ставки','rateValues',RATE_OPTS,'%')}
+    ${condCheck('Использовать плавающую ставку','floatRate')}
+    ${float}
+  </div></div>`;
+}
+function condSecPenalty(){
+  const mainFloat = cdraft.penaltyMainType==='Плавающая';
+  const intFloat  = cdraft.penaltyIntType==='Плавающая';
+  return `<div class="cond-sec"><div class="section-h">Штрафы</div><div class="t2-cols">
+    <div class="t2-col"><div class="t2-sub">Штраф за просрочку основной суммы</div><div class="cform-grid">
+      ${condCombo('Тип штрафной ставки за основную сумму','penaltyMainType',['Фиксированная','Плавающая'])}
+      ${mainFloat ? condCombo('Тип плавающей штрафной ставки по основной сумме','penaltyMainFloatType',condPenaltyFloatTypes())
+                  : condCombo('Значение фиксированной штрафной ставки за основную сумму','penaltyMainVal',CLK.penalty)}
+    </div></div>
+    <div class="t2-col"><div class="t2-sub">Штраф за просрочку процентов</div><div class="cform-grid">
+      ${condCombo('Тип штрафной ставки за проценты','penaltyIntType',['Фиксированная','Плавающая'])}
+      ${intFloat ? condCombo('Тип плавающей штрафной ставки по процентам','penaltyIntFloatType',condPenaltyFloatTypes())
+                 : condCombo('Значение фиксированной штрафной ставки за проценты','penaltyIntVal',CLK.penalty)}
+    </div></div>
+  </div><div class="cform-grid" style="margin-top:12px">
+    ${condF('Максимальный размер штрафа','penaltyMaxPct',{unit:'% от первоначальной суммы кредита',type:'number'})}
+  </div></div>`;
+}
+function condGraceBlock(title, on, type, dur, from, to, cond){
+  const check = condCheck('Использовать льготный период — '+title, on);
+  if(!cdraft[on]) return `<div class="cf-grace-group"><div class="t2-sub">${title}</div>${check}</div>`;
+  const range = cdraft[type]==='Диапазон';
+  return `<div class="cf-grace-group"><div class="t2-sub">${title}</div>${check}
+    <div class="cform-grid">
+      ${condCombo('Тип льготного периода',type,['Фиксированный','Диапазон'])}
+      ${range ? condF('Продолжительность c (в мес.)',from,{unit:'мес.',type:'number'})+condF('Продолжительность по (в мес.)',to,{unit:'мес.',type:'number'})
+              : condMsCombo('Продолжительность льготного периода (в мес.)',dur,T5_DUR_OPTS,'мес.')}
+      ${condF('Условия предоставления',cond,{span:true,type:'textarea',max:1000})}
+    </div></div>`;
+}
+function condSecGrace(){
+  return `<div class="cond-sec"><div class="section-h">Льготный период</div>
+    ${condGraceBlock('по основной сумме','graceMain','graceMainType','graceMainDur','graceMainDurFrom','graceMainDurTo','graceMainCond')}
+    ${condGraceBlock('по начислению процентов','graceAccr','graceAccrType','graceAccrDur','graceAccrDurFrom','graceAccrDurTo','graceAccrCond')}
+    ${condGraceBlock('по процентам','graceInt','graceIntType','graceIntDur','graceIntDurFrom','graceIntDurTo','graceIntCond')}
+    ${cdraft.graceInt ? `<div class="cform-grid">${condF('Распределять с периода №','graceIntDistFrom',{type:'number'})}${condF('Распределять по период №','graceIntDistTo',{type:'number'})}</div>`:''}
+  </div>`;
+}
+function condSecPayments(){
+  const byMonths = cdraft.payMode==='months';
+  if(byMonths && !_condTouched.has('repayMethod')) cdraft.repayMethod='Индивидуальный';   // как в программе: при «по месяцам» метод индивидуальный
+  return `<div class="cond-sec"><div class="section-h">Платежи и расчёты</div><div class="t2-cols">
+    <div class="t2-col"><div class="cform-grid">
+      ${condSelPair('Способ задания графика','payMode',[['standard','Стандартная периодичность'],['months','По конкретным месяцам']])}
+      ${byMonths ? condMsCombo('Конкретные месяцы платежей','payMonths',CLK.payMonths,'')
+                 : condCombo('Периодичность платежей','periodicity',CLK.periodicity)}
+      ${condCombo('Метод расчёта дней в периоде','dayCountNum',CLK.dayCountNum)}
+      ${condCombo('База дней в году','dayCountBase',CLK.dayCountBase)}
+      ${condCombo('Очередь погашения','queue',CLK.queue)}
+    </div></div>
+    <div class="t2-col"><div class="cform-grid">
+      ${condF('День месяца для платежа','payDay',{type:'number'})}
+      ${condCombo('Обработка нерабочих дней','weekend',CLK.weekend)}
+      ${condCombo('Привязка последнего платежа','lastPaymentAnchor',CLK.lastPaymentAnchor)}
+      ${byMonths ? condF('Метод погашения кредита','repayMethod',{type:'text'}) : condCombo('Метод погашения кредита','repayMethod',CLK.repayMethod)}
+      ${condF('Минимальное кол-во дней (освоение→1й платёж)','minDays',{type:'number',unit:'дней'})}
+      ${condF('Максимальное кол-во дней (освоение→1й платёж)','maxDays',{type:'number',unit:'дней'})}
+    </div></div>
+  </div></div>`;
+}
+
+/* ============================================================
+   Программа = справка: предзаполнить нетронутые поля, снять снимок для diff
+   ============================================================ */
+function programToCond(prog){
+  const out = {};
+  ['currency','source','kind','purpose','line','repayAcct','amountType','amountMin','amountMax',
+   'termType','termMin','termMax','rateType','rateValues','floatRate','penaltyMainType','penaltyMainVal',
+   'penaltyIntType','penaltyIntVal','penaltyMaxPct','periodicity','dayCountNum','dayCountBase','queue',
+   'weekend','lastPaymentAnchor','repayMethod','graceMain','graceMainType','graceMainDur','minDays','maxDays']
+    .forEach(k=>{ if(prog && prog[k]!==undefined) out[k]=prog[k]; });
+  return out;
+}
+function applyProgramSnapshot(prog){
+  _progSnapshot = prog ? programToCond(prog) : null;
+  if(!_progSnapshot) return;
+  Object.keys(_progSnapshot).forEach(k=>{
+    if(!_condTouched.has(k)) cdraft[k] = _progSnapshot[k];   // предзаполнить нетронутое; НЕ блокировать
+  });
+}
+
+function validateProgSelect(id){
+  const el = document.getElementById(id);
+  const ok = !!(el && el.value);
+  const field = document.getElementById(id + '-field');
+  if (field) field.classList.toggle('invalid', !ok);
+  return ok;
+}
+function validateProgSelects(){
+  return _progReqSelects.every(id => validateProgSelect(id));
+}
+
+/* ── Per-field lazy validators (P3-R6): fire on blur, no eager errors on open. ── */
+
+// P3-R5: Субъект required
+function validateSubject(){
+  const ok = !!document.getElementById('cf-subject-val').textContent.trim();
+  document.getElementById('cf-subject-field').classList.toggle('invalid', !ok);
+  return ok;
+}
+// P3-R5: Кредитная программа required
+function validateProgram(){
+  const ok = !!document.getElementById('cf-program-val').textContent.trim();
+  document.getElementById('cf-program-field').classList.toggle('invalid', !ok);
+  return ok;
+}
+// P3-R3: сумма > 0 AND within program bounds (when a program is chosen)
+function validateAmount(){
+  saveCondInputs();
+  const ok = validateReqAmount();   // >0 AND ∈ envelope (min/max или ∈ amountList)
+  const field = document.querySelector('#cf-cond-body [data-field="requestedAmount"]');
+  if (field) field.classList.toggle('invalid', !ok);
+  return ok;
+}
+// P3-R3: срок > 0 AND within envelope (Task 3 condRange)
+function validateTerm(){
+  saveCondInputs();
+  const ok = validateReqTerm();
+  const field = document.querySelector('#cf-cond-body [data-field="requestedTerm"]');
+  if (field) field.classList.toggle('invalid', !ok);
+  return ok;
+}
+// Phone optional in live (required:false). Validate format only when non-empty.
+/** formatPhone — live mask: always keep «+996» prefix, group national part
+ *  into «+996 XXX XXX XXX» (9 digits). Non-digits stripped, country code fixed. */
+function formatPhone(el){
+  let d = el.value.replace(/\D/g,'');          // digits only
+  if(d.startsWith('996')) d = d.slice(3);       // drop repeated country code
+  d = d.slice(0,9);                             // national part max 9 digits
+  let out = '+996';
+  if(d.length)   out += ' ' + d.slice(0,3);
+  if(d.length>3) out += ' ' + d.slice(3,6);
+  if(d.length>6) out += ' ' + d.slice(6,9);
+  el.value = out;
+}
+
+/** validatePayday — schedule day-of-month, plain input. Optional: empty OK;
+ *  otherwise integer 1–31. */
+function validatePayday(){
+  saveCondInputs();
+  const raw = String(cdraft.payDay||'').trim();
+  const n = parseInt(raw, 10);
+  const ok = raw === '' || (Number.isInteger(n) && n >= 1 && n <= 31 && String(n) === raw);
+  const field = document.querySelector('#cf-cond-body [data-field="payDay"]');
+  if (field) field.classList.toggle('invalid', !ok);
+  return ok;
+}
+
+/** validatePhone — optional field: empty (prefix only) is OK; otherwise needs
+ *  exactly 9 national digits after +996. */
+function validatePhone(){
+  const el = document.getElementById('cf-phone');
+  const nat = el.value.replace(/\D/g,'').replace(/^996/,'');
+  const ok = nat.length === 0 || nat.length === 9;
+  document.getElementById('cf-phone-field').classList.toggle('invalid', !ok);
+  return ok;
+}
+
+/** validateCreate — called by «Далее»; runs every field validator so all errors
+ *  surface at once. Returns true only if all pass (P3-R5 subject+program required,
+ *  P3-R3 amount/term bounds, phone format). */
 function validateCreate(){
-  let valid = true;
-
-  const amount = document.getElementById('cf-amount').value.trim();
-  if (!amount){
-    document.getElementById('cf-amount-field').classList.add('invalid');
-    valid = false;
-  } else {
-    document.getElementById('cf-amount-field').classList.remove('invalid');
-  }
-
-  const term = document.getElementById('cf-term').value.trim();
-  if (!term){
-    document.getElementById('cf-term-field').classList.add('invalid');
-    valid = false;
-  } else {
-    document.getElementById('cf-term-field').classList.remove('invalid');
-  }
-
-  // Phone optional in live (required:false). Validate format only when non-empty.
-  const phone = document.getElementById('cf-phone').value.trim();
-  const phoneOk = phone === '' || /^\+996[\s\-]?\d{3}[\s\-]?\d{3}[\s\-]?\d{3}$/.test(phone);
-  if (!phoneOk){
-    document.getElementById('cf-phone-field').classList.add('invalid');
-    valid = false;
-  } else {
-    document.getElementById('cf-phone-field').classList.remove('invalid');
-  }
-
-  return valid;
+  // Evaluate all (no short-circuit) so every invalid field lights up.
+  const okSubject = validateSubject();
+  const okProgram = validateProgram();
+  const okAmount  = validateAmount();
+  const okTerm    = validateTerm();
+  const okPhone   = validatePhone();
+  const okPayday  = validatePayday();        // schedule day-of-month 1–31 (optional)
+  const okProgSel = validateProgSelects();   // required program-driven selects (2+ value attrs)
+  return okSubject && okProgram && okAmount && okTerm && okPhone && okPayday && okProgSel;
 }
 
 /* ============================================================
@@ -3061,7 +3622,8 @@ function submitCreate(){
   const inn  = dashIdx > 0 ? subjectText.slice(0, dashIdx).trim() : '';
   const name = dashIdx > 0 ? subjectText.slice(dashIdx + 1).trim() : subjectText;
 
-  const rawAmount = parseFloat(document.getElementById('cf-amount').value) || 0;
+  saveCondInputs();
+  const rawAmount = t2num(cdraft.requestedAmount) || 0;
   const amountStr = rawAmount.toLocaleString('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2});
 
   APPLICATIONS.unshift({
@@ -3072,12 +3634,12 @@ function submitCreate(){
     collateralStatus: '',
     program: document.getElementById('cf-program-val').textContent || '',
     amount: amountStr,
-    term: document.getElementById('cf-term').value || '',
+    term: String(cdraft.requestedTerm || ''),
     info: document.getElementById('cf-info').value || '',
   });
 
   renderGrid();
-  closeModal('modal-create');
+  // «Далее» = сохранить заявку и перейти на детальную страницу (gotoDetail → showView('detail'))
   gotoDetail(newNum);
 }
 </script>
