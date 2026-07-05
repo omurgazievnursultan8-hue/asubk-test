@@ -2418,6 +2418,11 @@ function buildDetailSections(p){
         ${p.collateral?`${rowF('Виды залога',list(p.collTypes))}${rowF('Требования к залогу',p.collRu)}`:''}`)],
   ];
 }
+// Стаб: в реальной системе — открытие формы новой заявки (модуль «Заявки») с предзаполненной программой (FK).
+function createApplication(id){
+  const p=PROGRAMS.find(x=>x.id===id); if(!p) return;
+  toast(`Создание заявки по программе «${p.nameRu}». В реальной системе откроется форма заявки с предзаполненной программой.`,'info');
+}
 function openView(id){
   const p=PROGRAMS.find(x=>x.id===id); if(!p) return; selectedId=id;
   showView('view-detail'); setCrumb(p.nameRu, statusBadge(p.status));
@@ -2442,6 +2447,9 @@ function openView(id){
     acts += `<button class="btn btn-secondary" onclick="reworkSelected()">Вернуть на доработку</button>`;
   }
   if(p.status==='approved' && role==='confirmer') acts += `<button class="btn btn-secondary" onclick="closeSelected()">Закрыть</button>`;
+  // Создать заявку по действующей программе (кредитный специалист): переход в модуль «Заявки» с предзаполненной программой.
+  if(p.status==='approved') acts += `<button class="btn btn-success" onclick="createApplication(${p.id})" title="Создать заявку по этой программе">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg> Создать заявку</button>`;
   if((p.status==='rejected'||p.status==='closed') && role==='admin') acts += `<button class="btn btn-secondary" onclick="returnSelected()">Вернуть на согласование</button>`;
   if(p.status==='review' && role==='editor') acts += `<span class="role-pill">Ожидает согласования (роль «Согласующий»)</span>`;
   document.getElementById('detailFoot').innerHTML = acts;
