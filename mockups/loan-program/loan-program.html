@@ -972,7 +972,8 @@ function P(o){ return Object.assign({
   graceMainType:'', graceMainDur:[], graceMainDurFrom:'', graceMainDurTo:'', graceMainCond:'',
   graceAccrType:'', graceAccrDur:[], graceAccrDurFrom:'', graceAccrDurTo:'', graceAccrCond:'',
   graceIntType:'', graceIntDur:[], graceIntDurFrom:'', graceIntDurTo:'', graceIntCond:'',
-  payMode:'standard', periodicity:'', payMonths:[], payDay:'', weekend:'Не переносить',
+  graceIntDistFrom:'', graceIntDistTo:'',
+  payMode:'standard', periodicity:'', payMonths:[], payDay:'', weekend:'Не переносить', lastPaymentAnchor:'По дате первого платежа',
   dayCountNum:'Фактический', dayCountBase:'365', repayMethod:'Аннуитетный', queue:'', minDays:'', maxDays:'',
   checkLevel:'', checkDays:'', checkResp:'', collateral:true, collRu:'',
   docCredReq:[], docCredOpt:[], collTypes:[], docColl:{}, printForms:[], templates:[],
@@ -1715,6 +1716,14 @@ function renderTab5(){
         </div>${t2rangeMsg(draft[durKey+'From'],draft[durKey+'To'])}`;
       }
       body += f(`Условия предоставления (${suf})`, condKey, {type:'textarea',max:1000,hint:'Внутренняя заметка (в Просмотре не показывается)'});
+      // из сверки с калькулятором: куда распределять накопленные-отсроченные % (только для «по процентам»)
+      if(suf==='по процентам'){
+        body += `<div class="hint" style="display:block">Период распределения отсроченных процентов. Пусто = всё единой суммой в первый платёж после льготы. Гасятся распределением, не капитализацией.</div>
+          <div class="t5-range">
+            ${f('Распределять с периода №','graceIntDistFrom',{hint:'Опционально'})}
+            ${f('Распределять по период №','graceIntDistTo',{hint:'Опционально'})}
+          </div>`;
+      }
     }
     return `<div class="t5-block">
       <div class="section-h">Льготный период ${suf}</div>
@@ -1784,7 +1793,7 @@ function renderTab6(){
       </select></div></div>` +
     (months
       ? msCombo('Конкретные месяцы платежей','payMonths',LK.payMonths,'Любой набор месяцев календарного года', true)
-      : sel('Периодичность платежей','periodicity',['Ежемесячно','Ежеквартально','Ежегодно'],{req:true})));
+      : sel('Периодичность платежей','periodicity',['Ежемесячно','Ежеквартально','Раз в полгода','Ежегодно'],{req:true})));
   const left = periodBlk +
     // R19: метод расчёта дней разбит на два поля (числитель + знаменатель)
     blk('Метод расчёта дней',
@@ -1800,6 +1809,9 @@ function renderTab6(){
     blk('День платежа',
       f('День месяца для платежа','payDay',{req:true,hint:'1–31; короткий месяц = последний день'}) +
       sel('Обработка нерабочих дней','weekend',['Не переносить','Переносить на следующий рабочий день','Переносить на предыдущий рабочий день'],{hint:'Учитывает праздники произв. календаря КР'})) +
+    // из сверки с калькулятором loan_calculator_v10.xlsx: привязка последнего платежа
+    blk('Привязка последнего платежа',
+      sel('Привязка последнего платежа','lastPaymentAnchor',['По дате первого платежа','По дате выдачи'],{req:true,hint:'«По 1-му платежу» → последний = EDATE(1-й, (n−1)×f), факт. срок может ≠ n мес.; «По дате выдачи» → последний = EDATE(выдача, n), срок ровно n мес. Промежуточные даты всегда от 1-го платежа.'})) +
     blk('Метод погашения кредита', repayBlk) +
     blk('Период между освоением и первым платежем',
       f('Минимальное кол-во дней','minDays',{}) +
@@ -2345,7 +2357,9 @@ function buildDetailSections(p){
   };
   const graces=[graceSeg('По основной сумме','graceMain','graceMainType','graceMainDur'),
                 graceSeg('По начислению процентов','graceAccr','graceAccrType','graceAccrDur'),
-                graceSeg('По процентам','graceInt','graceIntType','graceIntDur')].filter(Boolean);
+                (function(){ const s=graceSeg('По процентам','graceInt','graceIntType','graceIntDur'); if(!s) return null;
+                  const d=(p.graceIntDistFrom||p.graceIntDistTo)?` · распределение отсроч. %: период ${p.graceIntDistFrom||'?'}–${p.graceIntDistTo||'?'}`:'';
+                  return s+d; })()].filter(Boolean);
   // tab6: график/расчёты
   const schedStr = p.payMode==='months'
     ? 'По конкретным месяцам'+(list(p.payMonths)?': '+p.payMonths.join(', '):'')
@@ -2389,6 +2403,7 @@ function buildDetailSections(p){
       panel(`${rowF('График платежей',schedStr)}
         ${row('Метод расчёта дней',dayMethod)}${row('Очередь погашения',p.queue)}
         ${row('День месяца для платежа',p.payDay)}${row('Обработка нерабочих дней',p.weekend)}
+        ${row('Привязка последнего платежа',p.lastPaymentAnchor)}
         ${row('Метод погашения кредита',repayStr)}${row('Период до первого платежа',firstPay)}`)],
     ['Документы',
       panel(`${rowF('Обязательные кредитные документы',list(p.docCredReq))}
