@@ -3146,13 +3146,17 @@ function condTouch(k){ _condTouched.add(k); }
 function renderCond(){
   const box = document.getElementById('cf-cond-body');
   if(!box) return;
-  box.innerHTML =
-      condSecParams()
-    + condSecAmountTerm()
-    + condSecRates()
-    + condSecPenalty()
-    + condSecGrace()
-    + condSecPayments();
+  // Условия убраны из заявки (2026-07-05): остаются только запрашиваемые сумма и срок.
+  // Программа несёт условия; выбранная программа ограничивает сумму/срок (envelope).
+  const p = _createProgram;
+  const amtHint = p ? (p.amountRange || `Допустимо: от ${t2num(p.amountMin)} до ${t2num(p.amountMax)}`) : '';
+  const trmHint = p ? (p.termRange   || `Допустимо: от ${t2num(p.termMin)} до ${t2num(p.termMax)}`) : '';
+  const amtErr = p ? `Сумма вне допустимого диапазона. ${amtHint}` : 'Введите сумму больше 0';
+  const trmErr = p ? `Срок вне допустимого диапазона. ${trmHint}`  : 'Введите срок больше 0';
+  box.innerHTML = `<div class="cform-grid">
+    ${condF('Запрашиваемая сумма','requestedAmount',{type:'number',req:true,unit:'сом',hint:amtHint,err:amtErr,oninput:"validateAmount()"})}
+    ${condF('Запрашиваемый срок','requestedTerm',{type:'number',req:true,unit:'мес.',hint:trmHint,err:trmErr,oninput:"validateTerm()"})}
+  </div>`;
 }
 function saveCondInputs(){
   const box = document.getElementById('cf-cond-body');
@@ -3209,11 +3213,12 @@ function condF(label, key, opts){
   const val=esc(cdraft[key]||'');
   const maxAttr = max?` maxlength="${max}"`:'';
   const suffix = unit?`<span class="unit">${unit}</span>`:'';
+  const oninput = opts.oninput || `condTouch('${key}')`;   // live-валидатор можно передать через opts
   const input = type==='textarea'
-    ? `<textarea class="note-area" data-k="${key}"${maxAttr} oninput="condTouch('${key}')">${val}</textarea>`
-    : `<div class="control"><input type="${type==='number'?'number':'text'}" data-k="${key}" value="${val}"${maxAttr} oninput="condTouch('${key}')">${suffix}</div>`;
+    ? `<textarea class="note-area" data-k="${key}"${maxAttr} oninput="${oninput}">${val}</textarea>`
+    : `<div class="control"><input type="${type==='number'?'number':'text'}" data-k="${key}" value="${val}"${maxAttr} oninput="${oninput}">${suffix}</div>`;
   return `<div class="${cls}" data-field="${key}"><span class="flabel">${label}</span>${input}
-    ${condDev(key)}${hint?`<span class="hint">${hint}</span>`:''}</div>`;
+    ${condDev(key)}${hint?`<span class="hint">${hint}</span>`:''}${opts.err?`<span class="err">${opts.err}</span>`:''}</div>`;
 }
 
 /* ---- checkbox (порт check()) ---- */
@@ -3322,10 +3327,16 @@ function condRange(kind){
   const list=(isAmt?cdraft.amountList:cdraft.termList).map(t2num).filter(n=>!isNaN(n));
   return list.length?{min:Math.min(...list),max:Math.max(...list)}:{min:NaN,max:NaN};
 }
-function validateReqAmount(){ const v=t2num(cdraft.requestedAmount),r=condRange('amount');
-  return isNaN(v)||v<=0?false:(isNaN(r.min)||(v>=r.min&&v<=r.max)); }
-function validateReqTerm(){ const v=t2num(cdraft.requestedTerm),r=condRange('term');
-  return isNaN(v)||v<=0?false:(isNaN(r.min)||(v>=r.min&&v<=r.max)); }
+// Envelope берётся из выбранной программы. Нет программы → только >0.
+function progBound(kind){
+  const p=_createProgram; if(!p) return null;
+  return kind==='amount' ? {min:t2num(p.amountMin), max:t2num(p.amountMax)}
+                         : {min:t2num(p.termMin),   max:t2num(p.termMax)};
+}
+function validateReqAmount(){ const v=t2num(cdraft.requestedAmount); if(isNaN(v)||v<=0) return false;
+  const b=progBound('amount'); return !b||isNaN(b.min)||(v>=b.min&&v<=b.max); }
+function validateReqTerm(){ const v=t2num(cdraft.requestedTerm); if(isNaN(v)||v<=0) return false;
+  const b=progBound('term'); return !b||isNaN(b.min)||(v>=b.min&&v<=b.max); }
 
 /* ---- diff / отклонение от программы ---- */
 function condDev(key){
