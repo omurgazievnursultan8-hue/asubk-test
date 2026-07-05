@@ -1,0 +1,2449 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Заявки (v2 · до перестройки 116cf4a) · АСУБК</title>
+<!--
+  MOCKUP (single-file, interactive) — образец для команды разработки, не прод-код.
+  Раздел «Заявки» (/loan-applications). Воспроизводит живой тест-стенд
+  https://fkftest.okmot.kg/loan-applications; инспекция 2026-06-29,
+  повторная сверка 2026-07-04 (форма «Новая заявка»: добавлен «Метод расчета дней»,
+  блок «Ручные параметры льготного периода» приведён к живому виду —
+  подзаголовки + чекбоксы, раскрыт по умолчанию).
+  Четыре части: список / мастер / деталь (9 вкладок) / отправка.
+  Воспроизводит дефекты, без улучшений.
+
+  ПРИМЕЧАНИЕ по данным детали: шапка и вкладка «Общая информация» наполняются
+  по выбранной строке; вкладки График / Кредитная комиссия / История показывают
+  один полностью наполненный образец (Заявка-103). При открытии других строк
+  содержимое этих вкладок не пересчитывается — это демо-ограничение макета,
+  а не дефект живой системы.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
+  border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
+.nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
+.nav-sub > .nav-toggle{ padding:8px 16px 8px 32px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font); }
+.nav-toggle:hover{ background:rgba(24,39,57,0.04); }
+.nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
+  transition:transform 120ms ease; flex:none; }
+.nav-group.open > .nav-toggle .chev, .nav-sub.open > .nav-toggle .chev{ transform:rotate(90deg); }
+.nav-toggle .lbl{ flex:1; }
+.nav-children{ display:none; }
+.nav-group.open > .nav-children, .nav-sub.open > .nav-children{ display:block; }
+.nav-item{ display:block; padding:7px 16px 7px 52px; text-decoration:none; color:rgba(24,39,57,0.88);
+  font:var(--weight-regular) 15px/1.35 var(--asubk-font); cursor:pointer; }
+.nav-item.headerless{ padding-left:40px; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; }
+.crumb-link{ display:inline-flex; align-items:center; gap:6px; color:var(--text-link);
+  text-decoration:none; font:var(--weight-medium) 14px/1 var(--asubk-font); cursor:pointer; background:none; border:none; }
+.crumb-link:hover{ text-decoration:underline; }
+.crumb-sep{ color:var(--text-placeholder); }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.crumb-status{ margin-left:auto; }
+.role-pill{ display:inline-flex; align-items:center; gap:6px; font:var(--font-label); color:var(--text-muted); }
+.role-pill select{ height:28px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-card); font:var(--font-label); color:var(--text-body); padding:0 6px; }
+
+.content{ flex:1; overflow:auto; display:flex; flex-direction:column; min-width:0; }
+.view{ display:none; flex-direction:column; min-height:0; }
+.view.active{ display:flex; }
+
+/* ---- list toolbar ---- */
+.toolbar{ display:flex; align-items:center; gap:8px; padding:12px 20px; border-bottom:1px solid var(--border-default);
+  flex-wrap:wrap; }
+.tb-divider{ width:1px; height:24px; background:var(--border-default); margin:0 4px; }
+.tb-spacer{ flex:1; }
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn svg{ flex:none; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-success{ background:var(--action-success); color:#fff; }
+.btn-success:hover:not(:disabled){ background:var(--asubk-green-hover); }
+.btn-danger{ background:var(--surface-card); color:var(--action-danger); border-color:var(--border-default); }
+.btn-danger:hover:not(:disabled){ background:var(--status-error-bg); }
+.btn-ghost{ background:transparent; color:var(--text-muted); border-color:var(--border-default); }
+.btn-ghost:hover:not(:disabled){ background:var(--surface-hover); color:var(--text-body); }
+.btn-sm{ height:32px; padding:0 10px; font-size:var(--text-sm); }
+
+/* ---- grid ---- */
+.grid-wrap{ flex:1; overflow:auto; padding:0 20px; }
+table.grid{ width:100%; border-collapse:collapse; font:var(--font-label); }
+table.grid thead th{ position:sticky; top:0; background:var(--surface-panel); z-index:1;
+  text-align:left; padding:10px 12px; border-bottom:1px solid var(--border-strong);
+  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading);
+  white-space:nowrap; cursor:pointer; user-select:none; }
+table.grid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; }
+table.grid tbody td{ padding:10px 12px; border-bottom:1px solid var(--border-default);
+  color:var(--text-body); vertical-align:middle; }
+table.grid tbody tr{ cursor:pointer; }
+table.grid tbody tr:hover{ background:var(--surface-hover); }
+table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+.cell-name{ font-weight:var(--weight-medium); color:var(--text-heading); }
+.muted{ color:var(--text-muted); }
+.list-foot{ display:flex; align-items:center; gap:14px; padding:12px 20px; border-top:1px solid var(--border-default);
+  color:var(--text-muted); font:var(--font-label); }
+.pager{ display:flex; align-items:center; gap:4px; margin-left:auto; }
+.pager button{ min-width:30px; height:30px; border:1px solid var(--border-default); background:var(--surface-card);
+  border-radius:var(--radius-sm); cursor:pointer; color:var(--text-body); font:var(--font-label); }
+.pager button.active{ background:var(--action-primary); color:#fff; border-color:var(--action-primary); }
+.pager button:disabled{ opacity:.4; cursor:not-allowed; }
+
+/* ---- status badges ---- */
+.badge{ display:inline-flex; align-items:center; gap:var(--space-1); height:22px; padding:0 var(--space-2);
+  border-radius:var(--radius-pill); font:var(--weight-medium) var(--text-xs)/1 var(--asubk-font); white-space:nowrap; }
+.badge.draft{ color:var(--text-muted); background:var(--asubk-gray-150); }
+.badge.review{ color:var(--status-warning); background:var(--status-warning-bg); }
+.badge.approved{ color:var(--status-success); background:var(--status-success-bg); }
+.badge.rejected{ color:var(--status-error); background:var(--status-error-bg); }
+.badge.closed{ color:var(--text-disabled); background:var(--asubk-gray-200); }
+.badge.info{ color:var(--status-info); background:var(--status-info-bg); }
+.ref-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--action-primary);
+  margin-left:6px; vertical-align:middle; }
+
+/* ---- filter bar ---- */
+.filterbar{ display:none; gap:10px; align-items:flex-end; padding:12px 20px; background:var(--surface-panel);
+  border-bottom:1px solid var(--border-default); flex-wrap:wrap; }
+.filterbar.open{ display:flex; }
+.filterbar .field{ min-width:200px; }
+
+/* ---- form / wizard ---- */
+.form-block{ padding:18px 24px 4px; }
+.form-grid{ max-width:1320px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px 32px; }
+.col-span{ grid-column:1 / -1; }
+.col-2{ grid-column:span 2; }
+.group-title{ grid-column:1 / -1; font:var(--weight-semibold) var(--text-base)/1.2 var(--asubk-font);
+  color:var(--text-heading); margin:8px 0 0; padding-top:6px; border-top:1px dashed var(--border-default); }
+.group-title:first-child{ border-top:none; padding-top:0; }
+.field{ display:flex; flex-direction:column; gap:var(--space-1); }
+.field > .flabel{ font:var(--font-label); font-weight:var(--weight-medium); color:var(--text-muted); }
+/* P2-R1: required marker = red asterisk, visible immediately on open */
+.field.required > .flabel::after{ content:" *"; color:var(--action-danger); font-weight:var(--weight-bold); }
+.hint{ display:block; font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-top:2px; }
+.field .err{ display:none; font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--action-danger); }
+.field.invalid .err{ display:block; }
+/* soft warning (uniqueness / мин==макс / кырг==рус) — informational, not blocking */
+.warn-inline{ display:block; font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--status-warning); margin-top:4px; }
+.char-count{ font:var(--weight-regular) 11px/1.3 var(--asubk-font); color:var(--text-muted); align-self:flex-end; }
+.char-count.over{ color:var(--action-danger); }
+/* таб 2: пустая коллекция (Фиксированные суммы/сроки) подсвечивается как обязательная */
+.collgrid > .err{ display:none; font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--action-danger); margin-top:4px; }
+.collgrid.invalid table{ border:1px solid var(--action-danger); }
+.collgrid.invalid > .err{ display:block; }
+.control{ position:relative; display:flex; align-items:center; }
+/* P2-R1 applied: editable field = white bg + full border (required adds red * at label);
+   read-only / computed field = grey bg, no border. Live Jmix paints every field the
+   same grey "filled" look (defect P2-01) — this mockup demos the fixed 3-state semantics. */
+.control input, .control select, .note-area{ width:100%; height:var(--control-h);
+  border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
+  border:1px solid var(--border-strong); outline:none; padding:0 var(--space-2);
+  transition:box-shadow 120ms ease, border-color 120ms ease; }
+.control select{ cursor:pointer; }
+.control input:focus, .control select:focus, .note-area:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.field.invalid .control input, .field.invalid .control select, .field.invalid .lookup, .field.invalid .mscombo, .field.invalid .note-area{ border-color:var(--action-danger); }
+.control input[readonly], .ro input, .ro .note-area, .note-area[readonly]{ background:var(--surface-input); color:var(--text-muted); border:1px solid transparent; cursor:default; }
+.control input[readonly]:focus, .note-area[readonly]:focus{ border-color:transparent; box-shadow:none; }
+.control .cal{ position:absolute; right:10px; pointer-events:none; color:var(--text-muted); display:flex; }
+.note-area{ height:auto; min-height:90px; padding:10px 12px; resize:vertical; line-height:1.5; }
+/* lookup (picker) */
+.lookup{ display:flex; align-items:center; height:var(--control-h); background:var(--surface-card);
+  border-radius:var(--radius-md); border:1px solid var(--border-strong); padding-left:var(--space-2); }
+.lookup.ro{ background:var(--surface-input); border:1px solid transparent; }
+.lookup .val{ flex:1; font:var(--font-body); font-weight:var(--weight-medium); color:var(--text-placeholder);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lookup .val.filled{ color:var(--text-body); }
+.lookup button{ display:inline-flex; align-items:center; justify-content:center; width:34px; height:var(--control-h);
+  border:none; background:transparent; color:var(--text-link); cursor:pointer; }
+.lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
+.check{ display:flex; align-items:center; gap:8px; font:var(--font-body); color:var(--text-body); cursor:pointer; }
+.check input{ width:16px; height:16px; }
+
+/* ---- wizard tabs ---- */
+.tabstrip-wrap{ padding:14px 24px 0; }
+.tabstrip{ display:flex; gap:2px; border-bottom:1px solid var(--border-default); overflow-x:auto; }
+.tab{ border:none; background:transparent; padding:11px 14px;
+  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap;
+  display:inline-flex; align-items:center; gap:7px; }
+.tab:hover{ color:var(--text-body); }
+.tab.active{ font-weight:var(--weight-semibold); color:var(--text-link); border-bottom-color:var(--action-primary); }
+.tab .tnum{ display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;
+  border-radius:50%; background:var(--asubk-gray-200); color:var(--text-muted); font:var(--weight-semibold) 11px/1 var(--asubk-font); }
+.tab.active .tnum{ background:var(--action-primary); color:#fff; }
+/* P2-R6: red error count on tabs with missing required fields */
+.tab .terr{ display:none; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 4px;
+  border-radius:8px; background:var(--action-danger); color:#fff; font:var(--weight-bold) 10px/1 var(--asubk-font); }
+.tab.has-err .terr{ display:inline-flex; }
+.tab.has-err{ color:var(--action-danger); }
+.tabbody{ padding:6px 0 16px; }
+.tabpanel{ display:none; }
+.tabpanel.active{ display:block; }
+.subgrid{ max-width:1320px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 32px; padding:16px 24px; }
+.subgrid .col-span{ grid-column:1 / -1; }
+/* ---- tab 5 «Льготный период»: 3 independent blocks in a 2-col grid ---- */
+.t5-grid{ align-items:start; }
+.t5-block{ display:flex; flex-direction:column; gap:14px; }
+.t5-block .section-h{ margin:0; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+.t5-block .check{ font:var(--font-label); }
+.t5-block .t5-range{ display:grid; grid-template-columns:1fr 1fr; gap:14px 16px; }
+.subgrid .t5-block .t5-range .field{ grid-template-columns:1fr; gap:6px; }
+.subgrid .t5-block .t5-range .field > .flabel{ grid-column:1; padding-top:0; }
+.subgrid .t5-block .t5-range .field > *:not(.flabel){ grid-column:1; }
+.mini-grid{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; }
+.mini-grid table{ width:100%; border-collapse:collapse; font:var(--font-label); }
+.mini-grid th{ text-align:left; padding:8px 10px; background:var(--surface-panel); border-bottom:1px solid var(--border-default); }
+.mini-grid td{ padding:7px 10px; border-bottom:1px solid var(--border-default); }
+.mini-grid .grid-actions{ padding:8px 10px; display:flex; gap:8px; }
+.section-h{ font:var(--weight-semibold) 22px/1.2 var(--asubk-font); color:var(--text-heading); margin:4px 0; }
+
+/* ---- tab 1 layout: mirror live Jmix geometry ----
+   band1 (Общая информация): 2-col, labels LEFT, wide controls.
+   band2: two equal halves — Параметры (2 narrow cols, labels ABOVE, paired dates)
+   + Дополнительные (1 wide col, labels ABOVE). */
+.t1-form{ max-width:1340px; padding:16px 24px; display:flex; flex-direction:column; gap:20px; }
+.t1-form .section-h{ margin:0 0 12px; }
+.t1-band1 .b1grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px 32px; }
+.t1-band1 .b1col{ display:flex; flex-direction:column; gap:16px; }
+.t1-band1 .field{ display:grid; grid-template-columns:150px minmax(0,1fr); align-items:start; gap:4px 14px; }
+.t1-band1 .field > .flabel{ grid-column:1; padding-top:9px; }
+.t1-band1 .field > *:not(.flabel){ grid-column:2; }
+.t1-band2{ display:grid; grid-template-columns:1fr 1fr; gap:0 32px; align-items:start; }
+.t1-params .pgrid{ display:grid; grid-template-columns:1fr 1fr; gap:14px 20px; }
+.t1-params .pcol{ display:flex; flex-direction:column; gap:14px; }
+.t1-extra .xgrid{ display:flex; flex-direction:column; gap:14px; }
+.t1-dates{ display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+
+/* ---- tab 2 layout: clone live geometry ----
+   two independent columns (Сумма | Срок); each = type-select + 18px sub-head
+   + Добавить/Удалить row + bordered collection grid; Валюта (readonly, inherited
+   from tab1) sits under the «Сумма» column. «Диапазон» swaps grid → мин/макс. */
+.t2-cols{ max-width:1340px; padding:16px 24px; display:grid; grid-template-columns:1fr 1fr; gap:0 56px; align-items:start; }
+.t2-col{ display:flex; flex-direction:column; }
+/* live: section header carries a full-width hairline rule beneath it */
+.t2-col .section-h{ margin:0 0 22px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+/* tab 6: several section-blocks stacked per column */
+.t6-cols .t2-col{ gap:28px; }
+/* ================================================================
+   TASK 7: Tab 1 «График» — repayment-schedule toolbar + grid
+   ================================================================ */
+/* wrapper matches surrounding panel padding */
+.t1-wrap{ padding:14px 20px 20px; }
+/* toolbar row: Построить график | Добавить строку | Изменить строку | Удалить строку */
+.t1-rowtools{ display:flex; gap:8px; margin-bottom:10px; }
+/* status line: «Сохранен график по кредитной программе» */
+.t1-status-line{ font:var(--font-label); color:var(--text-body); margin-bottom:10px; }
+/* override collgrid min-height — table rows give adequate height */
+.t1-grid{ min-height:0; }
+
+/* tab 7 «Документы» */
+.t7{ max-width:1340px; padding:16px 24px; }
+.t7-cols{ max-width:none; padding:0; }
+.t7-cols .t2-col{ gap:0; }
+.t7-pair{ display:grid; grid-template-columns:1fr 1fr; gap:0 24px; margin:0 0 22px; }
+.t7-doc .t2-sub{ min-height:40px; }
+.t7-doc .t2-rowtools{ margin-bottom:10px; }
+.t7-grid{ min-height:220px; }
+.t7-chosen{ margin-top:14px; }
+.t7-chosen .note-area{ min-height:96px; }
+.t7-note{ font:var(--weight-regular) 13px/1.4 var(--asubk-font); color:var(--text-body); margin-top:8px; }
+.t7-checkhead{ margin-top:8px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+.t7-check{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px 32px; margin-top:18px; max-width:1100px; }
+/* tab 8 «Залоговое обеспечение» */
+.t8{ max-width:1340px; padding:16px 24px; }
+.t8-cols{ max-width:none; padding:0; }
+.t8-cols .t2-col{ gap:0; }
+.t8-need .check{ margin-top:4px; }
+.t8-grid{ min-height:220px; }
+.t8-reqhead{ margin-top:8px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+.t8-req{ display:grid; grid-template-columns:repeat(3,1fr); gap:0 24px; margin-top:18px; }
+.t8-req .note-area{ min-height:120px; }
+.t8-req-single{ grid-template-columns:1fr; max-width:760px; }
+/* tab 9 «Предпросмотр» (read-only summary) */
+.t9{ max-width:1340px; padding:16px 24px; }
+.t9 .section-h{ margin:0 0 18px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+.t9-grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px 32px; margin-bottom:26px; }
+.t9-cols{ max-width:none; padding:0; margin-bottom:26px; }
+.t9-cols .t2-col{ gap:14px; }
+.t9-cols .t2-col .section-h{ margin:0; }
+.t9 .pv-suf{ position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--text-muted); font:var(--weight-medium) 14px/1 var(--asubk-font); pointer-events:none; }
+.t9 .field.ro .control input{ padding-right:60px; }
+.t2-type{ margin-bottom:22px; }
+.t2-sub{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:4px 0 10px; }
+.t2-rowtools{ display:flex; gap:8px; margin-bottom:8px; }
+/* live: Добавить = tertiary (grey fill + blue text), Удалить = grey fill + red text, disabled until row picked */
+.btn-rowadd{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none; }
+.btn-rowadd:hover:not(:disabled){ background:rgba(25,59,103,0.10); color:var(--action-primary-hover); }
+.btn-rowdel{ background:var(--asubk-disabled-fill); color:var(--action-danger); border:none; }
+.btn-rowdel:hover:not(:disabled){ background:var(--status-error-bg); }
+.btn-rowdel:disabled{ color:var(--text-disabled); opacity:1; }
+/* live: empty grid is a tall (~320px) blank area */
+.collgrid{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; min-height:320px; }
+.collgrid table{ width:100%; border-collapse:collapse; font:var(--font-label); table-layout:auto; }
+.collgrid thead th{ text-align:left; padding:9px 12px; background:var(--surface-card);
+  border-bottom:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
+.collgrid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; font-weight:var(--weight-regular); }
+.collgrid tbody td{ padding:8px 12px; border-bottom:1px solid var(--border-default); color:var(--text-body); }
+.collgrid tbody tr{ cursor:pointer; }
+.collgrid tbody tr:hover{ background:var(--surface-hover); }
+.collgrid tbody tr.sel{ background:var(--asubk-nav-active); }
+.t2-currency{ margin-top:20px; max-width:320px; }
+.t2-range{ display:grid; grid-template-columns:1fr 1fr; gap:14px 16px; }
+
+/* ---- tab 3 layout: clone live geometry ----
+   single full-width column, labels above. «Значение фиксированной ставки» =
+   vaadin-multi-select-combo-box (chips). «Диапазон» → stacked «Значение ставки
+   с/по» decimal fields. «Использовать Плавающую ставку» checkbox always shown. */
+.t3-form{ max-width:820px; padding:16px 24px; display:flex; flex-direction:column; gap:18px; }
+.t3-form .section-h{ margin:0; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+.t3-range{ display:flex; flex-direction:column; gap:16px; }
+/* multi-select combo (chips) — clone of vaadin-multi-select-combo-box, Lumo filled */
+.mscombo{ position:relative; min-height:var(--control-h); background:var(--surface-card);
+  border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:4px 34px 4px 8px; cursor:pointer; }
+.mscombo.open{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.mscombo .chip{ display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 4px 0 9px; border-radius:var(--radius-sm);
+  background:var(--asubk-blue-tint); color:var(--asubk-blue); font:var(--weight-medium) 13px/1 var(--asubk-font); }
+.mscombo .chip button{ border:none; background:transparent; color:inherit; cursor:pointer; padding:0 2px; font-size:13px; line-height:1; }
+.mscombo .ph{ color:var(--text-placeholder); font:var(--font-body); }
+.mscombo .caret{ position:absolute; right:10px; color:var(--text-muted); display:flex; pointer-events:none; }
+.mscombo-pop{ display:none; position:absolute; top:calc(100% + 2px); left:0; right:0; z-index:30; background:var(--surface-card);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); box-shadow:0 10px 30px rgba(16,28,46,0.18);
+  padding:4px; max-height:240px; overflow:auto; cursor:default; }
+.mscombo.open .mscombo-pop{ display:block; }
+.mscombo-pop .opt{ display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:var(--radius-sm); cursor:pointer; font:var(--font-label); color:var(--text-body); }
+.mscombo-pop .opt:hover{ background:var(--surface-hover); }
+.mscombo-pop .opt .mk{ width:16px; height:16px; border:1px solid var(--border-strong); border-radius:3px;
+  display:inline-flex; align-items:center; justify-content:center; font-size:11px; color:#fff; }
+.mscombo-pop .opt.sel .mk{ background:var(--asubk-blue); border-color:var(--asubk-blue); }
+
+/* ---- single-select searchable combobox (R13: малые справочники) ---- */
+.combo{ position:relative; height:var(--control-h); background:var(--surface-card); border-radius:var(--radius-md);
+  border:1px solid var(--border-strong); display:flex; align-items:center; padding:0 34px 0 var(--space-2); cursor:pointer; }
+.combo.open{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.field.invalid .combo{ border-color:var(--action-danger); }
+.combo .cval{ flex:1; font:var(--font-body); font-weight:var(--weight-medium); color:var(--text-placeholder);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.combo .cval.filled{ color:var(--text-body); }
+.combo .caret{ position:absolute; right:10px; color:var(--text-muted); display:flex; pointer-events:none; }
+.combo-pop{ display:none; position:absolute; top:calc(100% + 2px); left:0; right:0; z-index:30; background:var(--surface-card);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); box-shadow:0 10px 30px rgba(16,28,46,0.18);
+  padding:4px; cursor:default; }
+.combo.open .combo-pop{ display:block; }
+.combo-search{ width:100%; height:30px; border:1px solid var(--border-default); border-radius:var(--radius-sm);
+  padding:0 8px; font:var(--font-label); outline:none; margin-bottom:4px; }
+.combo-search:focus{ border-color:var(--border-focus); }
+.combo-opts{ max-height:220px; overflow:auto; }
+.combo-pop .opt{ display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:var(--radius-sm); cursor:pointer; font:var(--font-label); color:var(--text-body); }
+.combo-pop .opt:hover{ background:var(--surface-hover); }
+.combo-pop .opt .mk{ width:16px; display:inline-flex; justify-content:center; color:var(--asubk-blue); font-weight:var(--weight-bold); }
+.combo-pop .opt.sel{ background:var(--asubk-blue-tint); }
+/* read-only computed mirror (R16/R17: маржа = зеркало основной/штрафной ставки) */
+.mirror{ width:100%; min-height:var(--control-h); display:flex; align-items:center; padding:0 var(--space-2);
+  background:var(--surface-input); color:var(--text-muted); border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--font-body); font-weight:var(--weight-medium); }
+
+/* ---- tab 4 layout: clone live geometry ----
+   Top band = two columns: «Штраф за просрочку основной суммы» (type select +
+   value/float fields, w584) | «Штраф за просрочку процентов» (only «Максимальный
+   размер штрафа» decimal + «% от суммы кредита» suffix). Below, full-width band
+   «Штраф за просрочку процентов» (type select + value/float, w1216). «Диапазон»
+   swaps the «Значение …» decimal for a float-rate picker + «Маржа …» decimal.
+   Live carries the «Штраф за просрочку процентов» header twice — kept verbatim. */
+.t4-form{ max-width:1340px; padding:16px 24px; display:flex; flex-direction:column; gap:20px; }
+.t4-top{ display:grid; grid-template-columns:1fr 1fr; gap:0 56px; align-items:start; }
+.t4-col{ display:flex; flex-direction:column; gap:16px; }
+.t4-col > .section-h, .t4-int > .section-h{ margin:0 0 8px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
+.t4-col .field{ max-width:584px; }
+.t4-maxpct{ display:flex; align-items:flex-end; gap:12px; }
+.t4-maxpct .field{ flex:0 0 280px; }
+.t4-suffix{ font:var(--font-label); color:var(--text-muted); padding-bottom:9px; white-space:nowrap; }
+.t4-int{ display:flex; flex-direction:column; gap:16px; }
+
+/* ---- detail (Просмотр) — формат из mockups/decision (поле = метка над значением, подчёркивание) ---- */
+.detail-wrap{ padding:22px 24px 16px; max-width:1120px; display:flex; flex-direction:column; gap:18px; }
+.dgrid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 32px; }
+.view-field{ display:flex; flex-direction:column; gap:4px; padding-bottom:11px; border-bottom:1px solid var(--border-default); }
+.view-field.col-span{ grid-column:1 / -1; }
+.view-field .vlabel{ font:var(--weight-regular) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-muted); }
+.view-field .vvalue{ font:var(--font-body); color:var(--text-body); min-height:22px; white-space:pre-wrap; }
+.view-field .vvalue.empty{ color:var(--text-placeholder); }
+
+/* ---- modal ---- */
+.overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:none; align-items:center;
+  justify-content:center; z-index:50; padding:20px; }
+.overlay.open{ display:flex; }
+.modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(640px,100%); max-height:86vh;
+  display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(16,28,46,0.35); }
+.modal.wide{ width:min(760px,100%); }
+.modal.mvdlg{ width:min(520px,100%); }   /* live «Выбор значения» = compact */
+.modal-h{ padding:16px 20px; border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:10px; }
+.modal-h .mt{ font:var(--font-page-title); color:var(--text-heading); flex:1; }
+.modal-x{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); display:flex; padding:4px; }
+.modal-b{ padding:18px 20px; overflow:auto; }
+.modal-f{ padding:14px 20px; border-top:1px solid var(--border-default); display:flex; gap:10px; justify-content:flex-end; }
+.picker-bar{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.picker-search{ flex:1; height:34px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  padding:0 10px; font:var(--font-body); outline:none; }
+.picker-search:focus{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+.filter-chip{ display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px; border-radius:var(--radius-pill);
+  background:var(--status-success-bg); color:var(--status-success); font:var(--weight-medium) 12px/1 var(--asubk-font);
+  border:1px solid rgba(21,132,67,0.3); }
+.filter-chip .lock{ display:flex; }
+.pick-list{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; }
+.pick-row{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--border-default); cursor:pointer; }
+.pick-row:last-child{ border-bottom:none; }
+.pick-row:hover{ background:var(--surface-hover); }
+.pick-row.sel{ background:var(--asubk-nav-active); }
+.pick-row input{ width:16px; height:16px; }
+.pick-row .pn{ flex:1; }
+/* ---- lookup grid dialogs (match live entity-lookup: columns + toolbar + Выбрать) ---- */
+.lk-toolbar{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:10px; }
+.lk-table-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; max-height:360px; }
+table.lk-table{ width:100%; border-collapse:collapse; font:var(--font-body); white-space:nowrap; }
+table.lk-table thead th{ position:sticky; top:0; background:var(--surface-panel); text-align:left; z-index:1;
+  font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-muted);
+  padding:9px 12px; border-bottom:1px solid var(--border-default); }
+table.lk-table tbody td{ padding:9px 12px; border-bottom:1px solid var(--border-default); }
+table.lk-table tbody tr{ cursor:pointer; }
+table.lk-table tbody tr:hover{ background:var(--surface-hover); }
+table.lk-table tbody tr.sel{ background:var(--asubk-nav-active); }
+table.lk-table tbody tr:last-child td{ border-bottom:none; }
+.note-banner{ display:flex; align-items:flex-start; gap:10px; padding:11px 14px; border-radius:var(--radius-md);
+  background:var(--status-info-bg); color:#0a3d80; font:var(--font-label); margin:0 0 14px; }
+.note-banner.warn{ background:var(--status-warning-bg); color:#7a5b00; }
+.note-banner svg{ flex:none; margin-top:1px; }
+
+/* ---- toast ---- */
+.toast-wrap{ position:fixed; right:20px; bottom:20px; display:flex; flex-direction:column; gap:10px; z-index:80; }
+.toast{ min-width:280px; max-width:420px; padding:12px 14px; border-radius:var(--radius-md);
+  background:var(--asubk-ink); color:#fff; font:var(--font-label); box-shadow:0 10px 30px rgba(16,28,46,0.3);
+  display:flex; gap:10px; align-items:flex-start; }
+.toast.ok{ background:var(--asubk-green); }
+.toast.err{ background:var(--asubk-red); }
+.toast.warn{ background:var(--asubk-amber); }
+.toast .tt{ font-weight:var(--weight-semibold); }
+.toast svg{ flex:none; margin-top:1px; }
+
+/* ---- footer (wizard/detail) ---- */
+.footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
+  padding:14px 24px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.footer .tb-spacer{ flex:1; }
+
+/* ---- C3: Jmix horizontal rows — label LEFT of field (wizard only) ---- */
+.subgrid .field{ display:grid; grid-template-columns:170px minmax(0,1fr); align-items:start; gap:4px 14px; }
+.subgrid .field > .flabel{ grid-column:1; padding-top:9px; text-align:left; }
+.subgrid .field > *:not(.flabel){ grid-column:2; }
+
+/* ---- L1: split «Обновить» (green primary + caret dropdown) ---- */
+.split{ position:relative; display:inline-flex; }
+.split > .btn{ border-radius:0; }
+.split > .btn:first-child{ border-top-left-radius:var(--radius-md); border-bottom-left-radius:var(--radius-md); }
+.split > .btn.caret{ padding:0 7px; border-top-right-radius:var(--radius-md); border-bottom-right-radius:var(--radius-md);
+  border-left:1px solid rgba(255,255,255,0.35); }
+.split-menu{ display:none; position:absolute; top:calc(100% + 4px); left:0; min-width:210px; z-index:30;
+  background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
+  box-shadow:0 10px 30px rgba(16,28,46,0.18); padding:4px; }
+.split.open .split-menu{ display:block; }
+.split-menu button{ display:block; width:100%; text-align:left; border:none; background:transparent; cursor:pointer;
+  padding:8px 10px; border-radius:var(--radius-sm); font:var(--font-label); color:var(--text-body); }
+.split-menu button:hover{ background:var(--surface-hover); }
+
+/* ---- L3: pager bar top-right (10 строк + first/prev/next/last) ---- */
+.gridtools{ display:flex; align-items:center; justify-content:flex-end; gap:10px; padding:8px 20px;
+  border-bottom:1px solid var(--border-default); color:var(--text-muted); font:var(--font-label); }
+.gridtools select{ height:30px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-card); font:var(--font-label); color:var(--text-body); padding:0 6px; cursor:pointer; }
+.pageinfo{ color:var(--text-muted); }
+
+/* ---- clone: collapsible «Фильтр» head + genericFilter tools row (live Jmix) ---- */
+.filter-head{ display:flex; align-items:center; gap:6px; padding:10px 20px 2px; cursor:pointer;
+  font:var(--font-label); color:var(--text-muted); user-select:none; }
+.filter-head .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5); transition:transform 120ms ease; }
+.filter-head.open .chev{ transform:rotate(90deg); }
+.tb-tools{ display:flex; align-items:center; gap:8px; padding:6px 20px 10px;
+  border-bottom:1px solid var(--border-default); flex-wrap:wrap; }
+.add-cond{ display:inline-flex; align-items:center; gap:6px; background:none; border:none; cursor:pointer;
+  color:var(--text-link); font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); padding:0 6px; }
+.add-cond:hover{ text-decoration:underline; }
+.tb-actions{ display:flex; align-items:center; gap:8px; padding:12px 20px; border-bottom:1px solid var(--border-default); flex-wrap:wrap; }
+/* page-size select lives between the nav arrows (live: «10 строк») */
+.pager .pgsize{ height:30px; border:1px solid var(--border-default); border-radius:var(--radius-sm);
+  background:var(--surface-card); font:var(--font-label); color:var(--text-body); padding:0 4px; margin:0 2px; cursor:pointer; }
+
+/* ---- clone: single-line ellipsis cells (live truncates, no wrap) ---- */
+table.grid{ table-layout:fixed; }
+table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* ---- create modal: layout ---- */
+.create-form{ display:flex; flex-direction:column; gap:14px; }
+.create-2col{ display:grid; grid-template-columns:1fr 1fr; gap:14px 24px; }
+.create-sum-row{ display:grid; grid-template-columns:1fr 1fr; gap:0 24px; }
+.create-sum-col{ display:flex; flex-direction:column; gap:8px; }
+.create-sum-col .t2-sub{ margin:4px 0 0; }
+.create-collapse-head{ display:flex; align-items:center; gap:8px; padding:10px 0 6px;
+  border-top:1px solid var(--border-default); cursor:pointer; user-select:none;
+  font:var(--weight-medium) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-muted); }
+.create-collapse-head .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5); transition:transform 120ms ease; }
+.create-collapse-head.open .chev{ transform:rotate(90deg); }
+.create-collapse-body{ display:none; padding:6px 0 4px; flex-direction:column; gap:14px; }
+.create-collapse-body.open{ display:flex; }
+/* live grace layout: each period = bold sub-header + one checkbox */
+.cf-grace-group{ display:flex; flex-direction:column; gap:6px; }
+.cf-grace-group .t2-sub{ font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-heading); margin:0; }
+/* as-is: grey "filled" look on all create-modal inputs (P3 defect, same as filter bar) */
+#modal-create .control input,
+#modal-create .control select,
+#modal-create .lookup,
+#modal-create .note-area{ background:rgba(26,57,96,0.10); border-color:transparent; }
+#modal-create .control input:focus,
+#modal-create .control select:focus,
+#modal-create .note-area:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); background:rgba(26,57,96,0.10); }
+/* eager red bg for required fields immediately on open (as-is P3-06) */
+#modal-create .field.invalid .control input{ background:rgba(231,29,19,0.10); border-color:transparent; }
+
+/* ---- modal-send: grey-filled look (as-is); red bg when invalid (eager) ---- */
+#modal-send .control select{ background:rgba(26,57,96,0.10); border-color:transparent; }
+#modal-send .control select:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); background:rgba(26,57,96,0.10); }
+#modal-send .field.invalid .control select{ background:rgba(231,29,19,0.10); border-color:transparent; }
+
+/* ---- lookup dialog: clone of live Jmix ••• entity-browser screen ---- */
+.modal.lkwide{ width:min(940px,100%); }
+.lk-dlg .filter-head{ padding:0 0 6px; }
+.lk-dlg .tb-tools{ padding:4px 0 10px; border-bottom:none; }
+.lk-dlg .tb-actions{ padding:0 0 10px; border-bottom:none; }
+.lk-dlg .picker-search{ flex:1; }
+.lk-dlg .lk-grid-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; max-height:320px; }
+.lk-dlg table.grid{ table-layout:auto; }
+.lk-dlg table.grid thead th{ cursor:default; }
+/* live: header row carries a blue focus ring + sort glyph */
+.lk-dlg .lk-grid-wrap thead tr{ outline:1.5px solid var(--asubk-blue); outline-offset:-1.5px; }
+.lk-dlg table.grid thead th .sort{ color:var(--asubk-blue); margin-left:6px; font-size:12px; }
+.lk-dlg .pager button{ min-width:28px; height:28px; }
+.lk-dlg .pageinfo{ padding:0 6px; }
+
+/* ---- «Выбор значения» multi-value collection dialog (archetype B) ---- */
+.mv-add{ display:flex; gap:8px; align-items:center; margin-bottom:14px; }
+.mv-add select{ flex:1; height:var(--control-h); border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-body); padding:0 10px; cursor:pointer; }
+.mv-add select:focus{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); outline:none; }
+.mv-add .pick{ width:36px; height:var(--control-h); border:1px solid var(--border-default); background:var(--surface-card);
+  border-radius:var(--radius-md); color:var(--text-link); cursor:pointer; font-weight:var(--weight-bold); letter-spacing:1px; }
+.mv-add .pick:hover{ background:var(--surface-hover); }
+.mv-list{ display:flex; flex-direction:column; gap:6px; min-height:64px; }
+.mv-chip{ display:flex; align-items:center; gap:10px; padding:9px 12px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); background:var(--surface-card); }
+.mv-chip .pn{ flex:1; font:var(--font-label); color:var(--text-body); }
+.mv-chip button{ border:none; background:transparent; color:var(--action-danger); cursor:pointer; font-size:14px; padding:2px 6px; }
+.mv-empty{ color:var(--text-placeholder); font:var(--font-label); padding:14px 4px; }
+
+/* ---- list view layout ---- */
+#view-list{ display:flex; flex-direction:column; }
+
+/* ---- stat cards ---- */
+.statcards-row{ display:flex; gap:10px; padding:10px 20px; flex-wrap:wrap;
+  border-bottom:1px solid var(--border-default); }
+.statcard{ flex:1; min-width:140px; border-radius:var(--radius-lg);
+  border:3px solid var(--sc-border-color,var(--border-default));
+  background:var(--sc-bg,var(--surface-card)); padding:12px 16px 10px;
+  display:flex; flex-direction:column; gap:2px; }
+.sc-num{ font:var(--weight-bold) 22px/1.2 var(--asubk-font); color:var(--sc-color,var(--text-heading)); }
+.sc-lbl{ font:var(--weight-medium) var(--text-sm)/1.35 var(--asubk-font); color:var(--sc-color,var(--text-body)); }
+
+/* ---- as-is: filter inputs reproduce Jmix grey-filled look (defect P1) ---- */
+.filterbar .control input,
+.filterbar .control select{ background:rgba(26,57,96,0.10); border-color:transparent; }
+.filterbar .control input:focus,
+.filterbar .control select:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.filterbar .lookup.asis{ background:rgba(26,57,96,0.10); border-color:transparent; }
+
+/* ================================================================
+   TASK 5: Detail view — header band, status stepper, tab bar
+   ================================================================ */
+
+/* ---- detail view header band (as-is: grey filled readonly look) ---- */
+#view-detail{ display:flex; flex-direction:column; }
+.detail-header{
+  background:var(--surface-panel); border-bottom:1px solid var(--border-default);
+  padding:0 20px; flex:none;
+}
+.dh-row{ display:flex; gap:20px; padding:8px 0; }
+.dh-row + .dh-row{ border-top:1px solid var(--border-default); }
+.dh-field{ display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; }
+.dh-field.wide{ flex:2; }
+.dh-label{ font:var(--weight-regular) 11px/1.35 var(--asubk-font); color:var(--text-muted); }
+/* as-is: grey "filled" look — same as live Jmix readonly field (defect P2-01) */
+.dh-value{
+  font:var(--weight-medium) var(--text-sm)/1.4 var(--asubk-font); color:var(--text-body);
+  min-height:var(--control-h); background:var(--surface-input); border-radius:var(--radius-md);
+  padding:0 var(--space-2); display:flex; align-items:center; border:1px solid transparent;
+}
+
+/* ---- status stepper ---- */
+.stepper-section{
+  padding:14px 20px 16px; border-bottom:1px solid var(--border-default);
+  background:var(--surface-page); flex:none;
+}
+.stepper-section > .section-h{ margin:0 0 14px; }
+.stepper{ display:flex; align-items:flex-start; }
+.step-item{ display:flex; flex-direction:column; align-items:center; flex:1; min-width:0; }
+.step-track{ display:flex; align-items:center; width:100%; }
+.step-line{ flex:1; height:2px; background:var(--asubk-gray-200); }
+.step-line.done{ background:var(--asubk-green); }
+.step-line.vis-hidden{ visibility:hidden; }
+.step-circle{
+  flex:none; width:28px; height:28px; border-radius:50%;
+  border:2px solid var(--asubk-gray-200); background:var(--surface-page);
+  display:flex; align-items:center; justify-content:center; position:relative; z-index:1;
+}
+.step-circle.done{ background:var(--asubk-green); border-color:var(--asubk-green); }
+.step-circle.current{ background:var(--asubk-blue); border-color:var(--asubk-blue); }
+.step-meta{ margin-top:6px; text-align:center; padding:0 2px; }
+.step-label{
+  display:block; font:var(--weight-regular) var(--text-xs)/1.35 var(--asubk-font);
+  color:var(--text-muted);
+}
+.step-item.done .step-label{ color:var(--text-body); }
+.step-item.current .step-label{ color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.step-date{ display:block; font:var(--weight-regular) 11px/1.3 var(--asubk-font); color:var(--text-muted); margin-top:2px; }
+
+/* ---- detail tab bar (9 tabs, horizontally scrollable + right chevron) ---- */
+.tabbar-wrap{
+  position:relative; border-bottom:1px solid var(--border-default);
+  background:var(--surface-page); flex:none;
+}
+.tabbar{
+  display:flex; overflow-x:auto; padding:0 40px 0 20px;
+  scrollbar-width:none;
+}
+.tabbar::-webkit-scrollbar{ display:none; }
+.tabbar-tab{
+  flex:none; border:none; background:transparent; padding:11px 16px;
+  font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap;
+}
+.tabbar-tab:hover{ color:var(--text-body); }
+.tabbar-tab.active{
+  color:var(--asubk-blue); border-bottom-color:var(--asubk-blue);
+  font-weight:var(--weight-semibold);
+}
+.tabbar-chevron{
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  width:26px; height:26px; background:var(--surface-card);
+  border:1px solid var(--border-default); border-radius:var(--radius-md);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--text-muted); cursor:pointer;
+}
+.tabbar-chevron:hover{ background:var(--surface-hover); }
+
+/* ---- tab panel containers (Tasks 6-10 will add content) ---- */
+.detail-panel{ display:none; }
+.detail-panel.active{ display:block; }
+
+/* ================================================================
+   TASK 6: Tab 0 «Общая информация» — three-column readonly layout
+   ================================================================ */
+.t0-wrap{ padding:16px 20px 24px; }
+/* three columns: Данные заявителя | Условия заемщика | Условия комиссии
+   col 3 is wider (more fields, range hints) — ratio ≈ 2:2:3, as in live app */
+.t0-cols{
+  display:grid; grid-template-columns:2fr 2fr 3fr;
+  gap:0 40px; align-items:start; max-width:1700px;
+}
+.t0-col > .section-h{
+  margin:0 0 14px; padding-bottom:12px;
+  border-bottom:1px solid var(--border-default);
+}
+.t0-fields{ display:flex; flex-direction:column; gap:10px; }
+/* label LEFT of field, matching live Jmix horizontal form-item layout */
+.t0-fields .field{
+  display:grid; grid-template-columns:190px minmax(0,1fr);
+  align-items:start; gap:0 10px;
+}
+.t0-fields .field > .flabel{ grid-column:1; padding-top:9px; }
+/* every direct child that is not .flabel goes into the value column */
+.t0-fields .field > *:not(.flabel){ grid-column:2; }
+/* hint (range) appears directly below the field value, in the value column */
+.t0-fields .field > .hint{ margin-top:2px; }
+
+/* ── Document tabs 2–4: shared upload-packet layout (Task 8) ── */
+.tdocs-wrap{ padding:14px 20px 20px; }
+.tdocs-heading-row{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; }
+.tdocs-heading-row .section-h{ margin:0; }
+.tdocs-badge{ font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font);
+  color:var(--text-muted); background:var(--surface-input);
+  border-radius:var(--radius-pill); padding:3px 10px; white-space:nowrap; flex-shrink:0; }
+.tdocs-progress-text{ font:var(--font-label); color:var(--text-body); margin-bottom:6px; }
+.tdocs-bar-wrap{ height:6px; background:var(--asubk-gray-200); border-radius:var(--radius-pill);
+  margin-bottom:16px; overflow:hidden; }
+.tdocs-bar{ height:100%; background:var(--asubk-blue); border-radius:var(--radius-pill); width:0; }
+.tdocs-toolbar{ display:flex; gap:8px; margin-bottom:10px; }
+.tdocs-file-cell{ display:flex; flex-direction:column; gap:3px; }
+.tdocs-upload-row{ display:flex; align-items:center; gap:8px; }
+.tdocs-filename{ font:var(--font-label); color:var(--text-muted); }
+.tdocs-required{ font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--action-danger); }
+
+/* ── Tab 5: Проектные документы — generated docs (Task 8) ── */
+.t5docs-wrap{ padding:14px 20px 20px; }
+.t5docs-wrap .section-h{ margin:0 0 14px; }
+.t5docs-toolbar{ display:flex; gap:8px; margin-bottom:10px; }
+
+/* ── Progress banner above tabbar (tabs 3 & 4) (Task 8) ── */
+.tab-prog-banner{ padding:10px 20px 0; }
+.tab-prog-label{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-body); margin-bottom:4px; }
+.tab-prog-sub{ font:var(--font-label); color:var(--text-muted); margin-bottom:8px; }
+.tab-prog-bar-wrap{ height:6px; background:var(--asubk-gray-200); border-radius:var(--radius-pill);
+  margin-bottom:10px; overflow:hidden; }
+.tab-prog-bar{ height:100%; background:var(--asubk-blue); border-radius:var(--radius-pill); width:0; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav" id="nav"></div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <span class="menu" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
+      </span>
+      <button class="crumb-link" id="crumbBack" onclick="showView('list')" style="display:none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+        <span>Заявки</span>
+      </button>
+      <span class="crumb-sep" id="crumbSep" style="display:none">/</span>
+      <span class="crumb-title" id="crumbTitle">Заявки</span>
+      <span class="crumb-status" id="crumbStatus"></span>
+    </header>
+
+    <main class="content" id="view-root">
+      <section id="view-list">
+
+  <!-- 1. Collapsible filter head -->
+  <div class="filter-head open" id="fHead" onclick="toggleFilter()">
+    <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+    Фильтр : Фильтры *
+  </div>
+
+  <!-- 2. Filter fields (grey as-is, open by default) -->
+  <div class="filterbar open" id="filterBar">
+    <div class="field">
+      <span class="flabel">Номер документа</span>
+      <div class="control"><input type="text" id="fNum" placeholder="" oninput="renderGrid()"></div>
+    </div>
+    <div class="field">
+      <span class="flabel">Статус заявки</span>
+      <div class="control">
+        <select id="fStatus" onchange="renderGrid()">
+          <option value=""></option>
+          <option value="Новый">Новый</option>
+          <option value="На рассмотрении">На рассмотрении</option>
+          <option value="Одобрено">Одобрено</option>
+          <option value="Отклонено">Отклонено</option>
+          <option value="Требуется доп. информация">Требуется доп. информация</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" style="min-width:220px">
+      <span class="flabel">Кредитная программа</span>
+      <div class="control">
+        <select id="fProgram" onchange="renderGrid()">
+          <option value=""></option>
+          <option value="АгроИнвест КР">АгроИнвест КР</option>
+          <option value="Поддержка сельхозпроизводителей">Поддержка сельхозпроизводителей</option>
+          <option value="ТУР">ТУР</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" style="min-width:290px">
+      <span class="flabel">Дата создания</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="filter-chip"><span class="lock"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>в интервале</span>
+        <div class="control"><input type="date" id="fDateFrom" onchange="renderGrid()" oninput="renderGrid()" style="width:130px"></div>
+        <span style="color:var(--text-muted)">—</span>
+        <div class="control"><input type="date" id="fDateTo" onchange="renderGrid()" oninput="renderGrid()" style="width:130px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Tools bar: split-Обновить · gear · Добавить условие поиска -->
+  <div class="tb-tools">
+    <div class="split" id="splitRefresh">
+      <button class="btn btn-success btn-sm" onclick="applyFilter()">Обновить</button>
+      <button class="btn btn-success btn-sm caret" onclick="event.stopPropagation();document.getElementById('splitRefresh').classList.toggle('open')">▾</button>
+      <div class="split-menu" onclick="event.stopPropagation()">
+        <button onclick="applyFilter();document.getElementById('splitRefresh').classList.remove('open')">Обновить</button>
+        <button onclick="document.getElementById('splitRefresh').classList.remove('open')">Обновить всё</button>
+      </div>
+    </div>
+    <button class="btn btn-ghost btn-sm" title="Настройки колонок">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <button class="add-cond">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Добавить условие поиска
+    </button>
+  </div>
+
+  <!-- 4. Actions bar: Создать · Изменить · Удалить · Отправить… · gear · pager -->
+  <div class="tb-actions">
+    <button class="btn btn-primary" onclick="openCreateModal()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Создать
+    </button>
+    <button class="btn btn-secondary" id="btnEdit" disabled onclick="editSelected()">Изменить</button>
+    <button class="btn btn-danger"    id="btnDel"  disabled>Удалить</button>
+    <button class="btn btn-secondary" id="btnCom"  disabled onclick="openSendModal('credit')">Отправить в комиссию</button>
+    <button class="btn btn-secondary" id="btnZal"  disabled onclick="openSendModal('collateral')">Отправить в залоговую комиссию</button>
+    <button class="btn btn-ghost btn-sm" title="Настройки">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <div class="pager" style="margin-left:auto">
+      <span class="pageinfo" id="pgInfo">22 строки</span>
+      <button disabled title="Первая">«</button>
+      <button disabled title="Предыдущая">‹</button>
+      <button disabled title="Следующая">›</button>
+      <button disabled title="Последняя">»</button>
+    </div>
+  </div>
+
+  <!-- 5. Stat cards (exact bg/border/color from STATCARDS dump, 2026-06-29) -->
+  <div class="statcards-row">
+    <div class="statcard" style="--sc-bg:rgb(235,248,255);--sc-border-color:rgb(144,205,244);--sc-color:rgb(44,82,130)">
+      <div class="sc-num">22</div><div class="sc-lbl">Всего заявок</div>
+    </div>
+    <div class="statcard" style="--sc-bg:rgb(255,232,189);--sc-border-color:rgb(253,188,67);--sc-color:rgb(193,138,33)">
+      <div class="sc-num">5</div><div class="sc-lbl">На рассмотрении</div>
+    </div>
+    <div class="statcard" style="--sc-bg:rgb(198,246,213);--sc-border-color:rgb(154,230,180);--sc-color:rgb(34,84,61)">
+      <div class="sc-num">9</div><div class="sc-lbl">Одобрено</div>
+    </div>
+    <div class="statcard" style="--sc-bg:rgb(254,215,215);--sc-border-color:rgb(252,129,129);--sc-color:rgb(197,48,48)">
+      <div class="sc-num">5</div><div class="sc-lbl">Отклонено</div>
+    </div>
+    <div class="statcard" style="--sc-bg:rgb(245,252,162);--sc-border-color:rgb(214,115,250);--sc-color:rgb(214,115,250)">
+      <div class="sc-num">1</div><div class="sc-lbl">Требуется доп. информация</div>
+    </div>
+  </div>
+
+  <!-- 6. Grid -->
+  <div class="grid-wrap">
+    <table class="grid" id="appGrid">
+      <thead>
+        <tr>
+          <th style="min-width:120px" data-col="num"              onclick="sortBy('num')">Номер документа <span class="sort">↕</span></th>
+          <th style="min-width:220px" data-col="name"             onclick="sortBy('name')">Заемщик <span class="sort">↕</span></th>
+          <th style="min-width:140px" data-col="status"           onclick="sortBy('status')">Статус заявки <span class="sort">↕</span></th>
+          <th style="min-width:130px" data-col="collateralStatus" onclick="sortBy('collateralStatus')">Статус залога <span class="sort">↕</span></th>
+          <th style="min-width:190px" data-col="program"          onclick="sortBy('program')">Кредитная программа <span class="sort">↕</span></th>
+          <th style="min-width:150px" data-col="amount"           onclick="sortBy('amount')">Запрашиваемая сумма <span class="sort">↕</span></th>
+          <th style="min-width:140px" data-col="term"             onclick="sortBy('term')">Запрашиваемый срок <span class="sort">↕</span></th>
+          <th style="min-width:180px" data-col="info"             onclick="sortBy('info')">Дополнительная информация <span class="sort">↕</span></th>
+        </tr>
+      </thead>
+      <tbody id="appTbody"></tbody>
+    </table>
+  </div>
+
+  <!-- 7. Footer pager -->
+  <div class="list-foot">
+    <span id="pgCount">22 строки</span>
+    <div class="pager">
+      <button disabled>«</button>
+      <button disabled>‹</button>
+      <button disabled>›</button>
+      <button disabled>»</button>
+    </div>
+  </div>
+
+</section>
+      <!-- ============ DETAIL VIEW (Task 5: shell — header + stepper + tabs) ============ -->
+      <section id="view-detail" style="display:none">
+
+        <!-- Header band: row 1 = Субъект · Номер документа -->
+        <!--               row 2 = Статус заявки · Статус залоговой комиссии · Запрашиваемая сумма -->
+        <!-- as-is: grey "filled" readonly look (live Jmix defect P2-01 preserved) -->
+        <div class="detail-header">
+          <div class="dh-row">
+            <div class="dh-field wide">
+              <span class="dh-label">Субъект</span>
+              <div class="dh-value" id="dh-subject"></div>
+            </div>
+            <div class="dh-field">
+              <span class="dh-label">Номер документа</span>
+              <div class="dh-value" id="dh-num"></div>
+            </div>
+          </div>
+          <div class="dh-row">
+            <div class="dh-field">
+              <span class="dh-label">Статус заявки</span>
+              <div class="dh-value" id="dh-status"></div>
+            </div>
+            <div class="dh-field">
+              <span class="dh-label">Статус залоговой комиссии</span>
+              <div class="dh-value" id="dh-collateral-status"></div>
+            </div>
+            <div class="dh-field">
+              <span class="dh-label">Запрашиваемая сумма</span>
+              <div class="dh-value" id="dh-amount"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status stepper: 4 steps — Подана → На рассмотрении → Одобрена → Регистрация кредита -->
+        <!-- Completed steps: filled circle + green check + date; current: blue circle; future: grey empty -->
+        <div class="stepper-section">
+          <div class="section-h">Статус заявки</div>
+          <div class="stepper" id="stepper"><!-- populated by renderStepper() --></div>
+        </div>
+
+        <!-- Progress banner: shown above tabbar for tabs 3 (Кредитные) and 4 (Залоговые).
+             Matches live app: those tabs display a комплектации progress section in the
+             detail header area (outside tab panels). Task 8, inspected 2026-06-29. -->
+        <div id="tab-prog-banner" class="tab-prog-banner" style="display:none">
+          <div class="tab-prog-label" id="tab-prog-label"></div>
+          <div class="tab-prog-sub"   id="tab-prog-sub"></div>
+          <div class="tab-prog-bar-wrap"><div class="tab-prog-bar"></div></div>
+        </div>
+
+        <!-- Tab bar: 9 tabs, horizontally scrollable, right-chevron affordance -->
+        <div class="tabbar-wrap">
+          <div class="tabbar" id="detailTabbar">
+            <button class="tabbar-tab active" onclick="showTab(0)">Общая информация</button>
+            <button class="tabbar-tab" onclick="showTab(1)">График</button>
+            <button class="tabbar-tab" onclick="showTab(2)">Документы заявителя</button>
+            <button class="tabbar-tab" onclick="showTab(3)">Кредитные документы</button>
+            <button class="tabbar-tab" onclick="showTab(4)">Залоговые документы</button>
+            <button class="tabbar-tab" onclick="showTab(5)">Проектные документы</button>
+            <button class="tabbar-tab" onclick="showTab(6)">Кредитная комиссия</button>
+            <button class="tabbar-tab" onclick="showTab(7)">Залоговая комиссия</button>
+            <button class="tabbar-tab" onclick="showTab(8)">История</button>
+          </div>
+          <button class="tabbar-chevron" title="Прокрутить вправо"
+            onclick="document.getElementById('detailTabbar').scrollBy({left:200,behavior:'smooth'})">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+
+        <!-- 9 empty tab panels (#tab-0 … #tab-8); Tasks 6-10 will fill content -->
+
+        <!-- ============================================================
+             TAB 0: Общая информация (Task 6)
+             Three column groups:
+               1) Данные заявителя — ИНН, Номер телефона, Адрес
+               2) Условия кредита заемщика — sum, term, program, льготные
+               3) Условия кредита, одобренные комиссией — approved sum+range, term+range, rate, …
+             All fields: grey readonly-look (as-is, matching live Jmix defect P2-01).
+             ============================================================ -->
+        <div id="tab-0" class="detail-panel active">
+          <div class="t0-wrap">
+            <div class="t0-cols">
+
+              <!-- ── Column 1: Данные заявителя ── -->
+              <div class="t0-col">
+                <div class="section-h">Данные заявителя</div>
+                <div class="t0-fields">
+                  <div class="field ro">
+                    <span class="flabel">ИНН</span>
+                    <div class="control"><input type="text" readonly id="t0-inn"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Номер телефона</span>
+                    <div class="control"><input type="text" readonly id="t0-phone"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Адрес</span>
+                    <div class="control"><input type="text" readonly id="t0-address"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ── Column 2: Условия кредита заемщика ── -->
+              <div class="t0-col">
+                <div class="section-h">Условия кредита заемщика</div>
+                <div class="t0-fields">
+                  <div class="field ro">
+                    <span class="flabel">Запрашиваемая сумма</span>
+                    <div class="control"><input type="text" readonly id="t0-req-amount"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Запрашиваемый срок</span>
+                    <div class="control"><input type="text" readonly id="t0-req-term"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Кредитная программа</span>
+                    <div class="control"><input type="text" readonly id="t0-program2"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Льготный период по основной сумме</span>
+                    <div class="control"><input type="text" readonly id="t0-grace1-text"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Льготный период по начислению процентов</span>
+                    <div class="control"><input type="text" readonly id="t0-grace2-text"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Льготный период по процентам</span>
+                    <div class="control"><input type="text" readonly id="t0-grace3-text"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Дополнительная информация</span>
+                    <div class="control"><input type="text" readonly id="t0-add-info"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Дата подтверждения кредитных документов</span>
+                    <div class="control"><input type="text" readonly id="t0-date-credit"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Дата подтверждения залоговых документов</span>
+                    <div class="control"><input type="text" readonly id="t0-date-coll"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Источник финансирования</span>
+                    <div class="lookup ro"><span class="val filled" id="t0-source2-val"></span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ── Column 3: Условия кредита, одобренные комиссией ── -->
+              <div class="t0-col">
+                <div class="section-h">Условия кредита, одобренные комиссией</div>
+                <div class="t0-fields">
+                  <div class="field ro">
+                    <span class="flabel">Сумма</span>
+                    <div class="control"><input type="text" readonly id="t0-app-amount"></div>
+                    <!-- range hint: «Допустимо: от … до …» — reproduced verbatim from live app -->
+                    <span class="hint" id="t0-amount-range"></span>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Срок</span>
+                    <div class="control"><input type="text" readonly id="t0-app-term"></div>
+                    <span class="hint" id="t0-term-range"></span>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Годовая ставка, %</span>
+                    <div class="control"><input type="text" readonly id="t0-rate"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Процент за резерв</span>
+                    <div class="control"><input type="text" readonly id="t0-reserve"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Периодичность платежей</span>
+                    <div class="control"><input type="text" readonly id="t0-pay-freq"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Метод погашения кредита</span>
+                    <div class="control"><input type="text" readonly id="t0-repay-method"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">День платежа</span>
+                    <div class="control"><input type="text" readonly id="t0-pay-day"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Обработка</span>
+                    <div class="control"><input type="text" readonly id="t0-processing"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Кредитная программа</span>
+                    <div class="lookup ro"><span class="val filled" id="t0-prog3-val"></span></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Льготный период по основной сумме</span>
+                    <div class="control"><input type="text" readonly id="t0-grace1"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Льготный период по начислению процентов</span>
+                    <div class="control"><input type="text" readonly id="t0-grace2"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Льготный период по процентам</span>
+                    <div class="control"><input type="text" readonly id="t0-grace3"></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Источник финансирования</span>
+                    <div class="lookup ro"><span class="val filled" id="t0-source3-val"></span></div>
+                  </div>
+                  <div class="field ro">
+                    <span class="flabel">Комментарий</span>
+                    <textarea class="note-area" readonly id="t0-comment" style="min-height:60px"></textarea>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /.t0-cols -->
+          </div><!-- /.t0-wrap -->
+        </div><!-- /#tab-0 -->
+        <!-- ============================================================
+             TAB 1: График (Task 7)
+             Toolbar: Построить график | Добавить строку | Изменить строку | Удалить строку
+             Status line: «Сохранен график по кредитной программе»
+             Grid: 7 columns, rows from live capture 2026-06-29, loan-applications/41
+             (scripts/inspect/app-capture.mjs, SHOT=app-tab-grafik)
+             ============================================================ -->
+        <div id="tab-1" class="detail-panel">
+          <div class="t1-wrap">
+
+            <!-- Toolbar: edit actions (Изменить/Удалить disabled — no row selected) -->
+            <div class="t1-rowtools">
+              <button class="btn btn-rowadd btn-sm">Построить график</button>
+              <button class="btn btn-rowadd btn-sm">Добавить строку</button>
+              <button class="btn btn-rowadd btn-sm" disabled>Изменить строку</button>
+              <button class="btn btn-rowdel btn-sm" disabled>Удалить строку</button>
+            </div>
+
+            <!-- Status line (live: shown when schedule exists) -->
+            <div class="t1-status-line">Сохранен график по кредитной программе</div>
+
+            <!-- Repayment schedule grid (7 cols; live data rows 1–13 visible at capture) -->
+            <div class="collgrid t1-grid">
+              <table>
+                <thead>
+                  <tr>
+                    <th>№ платежа <span class="sort">↕</span></th>
+                    <th>Дата платежа <span class="sort">↕</span></th>
+                    <th>Сумма платежа <span class="sort">↕</span></th>
+                    <th>Основной долг <span class="sort">↕</span></th>
+                    <th>Проценты <span class="sort">↕</span></th>
+                    <th>Остаток до платежа <span class="sort">↕</span></th>
+                    <th>Остаток после платежа <span class="sort">↕</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>1</td><td>15.07.2026 00:00</td><td>16 133,59</td><td>11 966,92</td><td>4 166,67</td><td>500 000,00</td><td>488 033,08</td></tr>
+                  <tr><td>2</td><td>17.08.2026 00:00</td><td>16 133,59</td><td>12 066,65</td><td>4 066,94</td><td>488 033,08</td><td>475 966,43</td></tr>
+                  <tr><td>3</td><td>15.09.2026 00:00</td><td>16 133,59</td><td>12 167,20</td><td>3 966,39</td><td>475 966,43</td><td>463 799,23</td></tr>
+                  <tr><td>4</td><td>15.10.2026 00:00</td><td>16 133,59</td><td>12 268,60</td><td>3 864,99</td><td>463 799,23</td><td>451 530,63</td></tr>
+                  <tr><td>5</td><td>16.11.2026 00:00</td><td>16 133,59</td><td>12 370,83</td><td>3 762,76</td><td>451 530,63</td><td>439 159,80</td></tr>
+                  <tr><td>6</td><td>15.12.2026 00:00</td><td>16 133,59</td><td>12 473,93</td><td>3 659,66</td><td>439 159,80</td><td>426 685,87</td></tr>
+                  <tr><td>7</td><td>15.01.2027 00:00</td><td>16 133,59</td><td>12 577,87</td><td>3 555,72</td><td>426 685,87</td><td>414 108,00</td></tr>
+                  <tr><td>8</td><td>15.02.2027 00:00</td><td>16 133,59</td><td>12 682,69</td><td>3 450,90</td><td>414 108,00</td><td>401 425,31</td></tr>
+                  <tr><td>9</td><td>15.03.2027 00:00</td><td>16 133,59</td><td>12 788,38</td><td>3 345,21</td><td>401 425,31</td><td>388 636,93</td></tr>
+                  <tr><td>10</td><td>15.04.2027 00:00</td><td>16 133,59</td><td>12 894,95</td><td>3 238,64</td><td>388 636,93</td><td>375 741,98</td></tr>
+                  <tr><td>11</td><td>17.05.2027 00:00</td><td>16 133,59</td><td>13 002,41</td><td>3 131,18</td><td>375 741,98</td><td>362 739,57</td></tr>
+                  <tr><td>12</td><td>15.06.2027 00:00</td><td>16 133,59</td><td>13 110,76</td><td>3 022,83</td><td>362 739,57</td><td>349 628,81</td></tr>
+                  <tr><td>13</td><td>15.07.2027 00:00</td><td>16 133,59</td><td>13 220,02</td><td>2 913,57</td><td>349 628,81</td><td>336 408,79</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        </div><!-- /#tab-1 -->
+        <!-- #tab-2 … #tab-4: populated by renderDocPackTab() in <script> (Task 8) -->
+        <div id="tab-2" class="detail-panel"></div>
+        <div id="tab-3" class="detail-panel"></div>
+        <div id="tab-4" class="detail-panel"></div>
+
+        <!-- ============================================================
+             TAB 5: Проектные документы (Task 8)
+             Heading: Сгенерированные документы
+             Toolbar: Сгенерировать документ | Исключить | Изменить | Просмотр
+             Grid: 5 cols — Наименование / Файл / Статус / Дата загрузки / Размер файла
+             State: empty grid (no generated docs for application 103 at inspection)
+             Inspection: 2026-06-29, scripts/inspect/app-capture.mjs, SHOT=app-tab-doc-proektnye
+             ============================================================ -->
+        <div id="tab-5" class="detail-panel">
+          <div class="t5docs-wrap">
+            <h2 class="section-h">Сгенерированные документы</h2>
+            <div class="t5docs-toolbar">
+              <button class="btn btn-primary btn-sm">Сгенерировать документ</button>
+              <button class="btn btn-rowadd btn-sm" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                Исключить
+              </button>
+              <button class="btn btn-rowadd btn-sm" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Изменить
+              </button>
+              <button class="btn btn-rowadd btn-sm" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                Просмотр
+              </button>
+            </div>
+            <div class="collgrid">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Наименование <span class="sort">↕</span></th>
+                    <th>Файл <span class="sort">↕</span></th>
+                    <th>Статус <span class="sort">↕</span></th>
+                    <th>Дата загрузки <span class="sort">↕</span></th>
+                    <th>Размер файла <span class="sort">↕</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- empty — no generated docs at inspection date -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <!-- ============================================================
+             TAB 6: Кредитная комиссия
+             5-col sortable grid: Сотрудник / Сотрудник / Тип решения / Примечание / Дата создания
+             One row linked to application 103: [admin] / НУРМАНБЕТ КЫЗЫ КАЛИНА / На рассмотрении / — / 24/06/2026 14:14 +0600
+             No toolbar, no section heading — grid only.
+             Inspection: 2026-06-29, scripts/inspect/app-capture.mjs, SHOT=app-tab-kred-komissiya
+             ============================================================ -->
+        <div id="tab-6" class="detail-panel">
+          <div class="t5docs-wrap">
+            <div class="collgrid">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Сотрудник <span class="sort">↕</span></th>
+                    <th>Сотрудник <span class="sort">↕</span></th>
+                    <th>Тип решения <span class="sort">↕</span></th>
+                    <th>Примечание <span class="sort">↕</span></th>
+                    <th>Дата создания <span class="sort">↕</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>[admin]</td>
+                    <td>НУРМАНБЕТ КЫЗЫ КАЛИНА</td>
+                    <td>На рассмотрении</td>
+                    <td></td>
+                    <td>24/06/2026 14:14 +0600</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================================
+             TAB 7: Залоговая комиссия
+             Same 5-col sortable grid structure as tab 6.
+             Empty state: no залоговая commission linked to application 103 at inspection.
+             Inspection: 2026-06-29, scripts/inspect/app-capture.mjs, SHOT=app-tab-zalog-komissiya
+             ============================================================ -->
+        <div id="tab-7" class="detail-panel">
+          <div class="t5docs-wrap">
+            <div class="collgrid">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Сотрудник <span class="sort">↕</span></th>
+                    <th>Сотрудник <span class="sort">↕</span></th>
+                    <th>Тип решения <span class="sort">↕</span></th>
+                    <th>Примечание <span class="sort">↕</span></th>
+                    <th>Дата создания <span class="sort">↕</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- empty — no залоговая commission linked to application 103 at inspection date -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <!-- ============================================================
+             TAB 8: История
+             4-col sortable grid: Дата / Заголовок / Детали / Автор
+             2 rows live on application 103 at inspection date.
+             No toolbar — read-only history log.
+             Inspection: 2026-06-29, scripts/inspect/app-capture.mjs, SHOT=app-tab-istoriya
+             ============================================================ -->
+        <div id="tab-8" class="detail-panel">
+          <div class="t5docs-wrap">
+            <div class="collgrid">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Дата <span class="sort">↕</span></th>
+                    <th>Заголовок <span class="sort">↕</span></th>
+                    <th>Детали <span class="sort">↕</span></th>
+                    <th>Автор <span class="sort">↕</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>24.06.2026 14:14</td>
+                    <td>Заявка создана</td>
+                    <td>Создана заявка Заявка - 103</td>
+                    <td>[admin]</td>
+                  </tr>
+                  <tr>
+                    <td>24.06.2026 14:14</td>
+                    <td>Изменено поле: Статус заявки</td>
+                    <td>Новая → На рассмотрении</td>
+                    <td>[admin]</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- ============ OVERLAY: СОЗДАТЬ ЗАЯВКУ ============ -->
+<div class="overlay" id="modal-create">
+  <div class="modal wide" style="width:min(800px,96%)">
+    <div class="modal-h">
+      <span class="mt">Новая заявка</span>
+      <button class="modal-x" onclick="closeModal('modal-create')" aria-label="Закрыть">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b">
+      <div class="create-form">
+
+        <!-- Субъект (full-width picker) -->
+        <div class="field">
+          <span class="flabel">Субъект</span>
+          <div class="lookup">
+            <span class="val" id="cf-subject-val"></span>
+            <button class="pick" onclick="openModal('modal-pick-subject')" title="Выбрать">•••</button>
+            <button onclick="clearPicker('cf-subject')" title="Очистить" style="font-size:13px;color:var(--text-muted)">✕</button>
+          </div>
+        </div>
+
+        <!-- Кредитная программа (full-width picker) -->
+        <div class="field">
+          <span class="flabel">Кредитная программа</span>
+          <div class="lookup">
+            <span class="val" id="cf-program-val"></span>
+            <button class="pick" onclick="openModal('modal-pick-program-create')" title="Выбрать">•••</button>
+            <button onclick="clearPicker('cf-program')" title="Очистить" style="font-size:13px;color:var(--text-muted)">✕</button>
+          </div>
+        </div>
+
+        <!-- Адрес (readonly) | Номер телефона -->
+        <div class="create-2col">
+          <div class="field">
+            <span class="flabel">Адрес</span>
+            <div class="control"><input type="text" id="cf-addr" readonly placeholder=""></div>
+          </div>
+          <div class="field" id="cf-phone-field">
+            <span class="flabel">Номер телефона</span>
+            <div class="control"><input type="text" id="cf-phone" value=""></div>
+            <span class="err">Введите номер в формате +996 990 000 000</span>
+          </div>
+        </div>
+
+        <!-- Источник финансирования | Дополнительная информация -->
+        <div class="create-2col">
+          <div class="field">
+            <span class="flabel">Источник финансирования</span>
+            <div class="lookup">
+              <span class="val" id="cf-source-val"></span>
+              <button class="pick" onclick="openModal('modal-pick-source')" title="Выбрать">•••</button>
+              <button onclick="clearPicker('cf-source')" title="Очистить" style="font-size:13px;color:var(--text-muted)">✕</button>
+            </div>
+          </div>
+          <div class="field">
+            <span class="flabel">Дополнительная информация</span>
+            <textarea class="note-area" id="cf-info" style="min-height:60px;resize:vertical"></textarea>
+          </div>
+        </div>
+
+        <!-- Сумма кредита | Срок кредита (2-col with section sub-headers) -->
+        <div class="create-sum-row">
+          <div class="create-sum-col">
+            <div class="t2-sub">Сумма кредита</div>
+            <div class="field required invalid" id="cf-amount-field">
+              <span class="flabel">Запрашиваемая сумма</span>
+              <div class="control"><input type="number" id="cf-amount" min="0" step="0.01" placeholder=""></div>
+              <span class="err">Поле является обязательным</span>
+            </div>
+          </div>
+          <div class="create-sum-col">
+            <div class="t2-sub">Срок кредита</div>
+            <div class="field required invalid" id="cf-term-field">
+              <span class="flabel">Запрашиваемый срок</span>
+              <div class="control"><input type="number" id="cf-term" min="0" step="1" placeholder=""></div>
+              <span class="err">Поле является обязательным</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Метод погашения кредита (full-width select, default Аннуитетный) -->
+        <div class="field">
+          <span class="flabel">Метод погашения кредита</span>
+          <div class="control">
+            <select id="cf-method">
+              <option value="annuity">Аннуитетный</option>
+              <option value="differential">Дифференцированный</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Метод расчета дней (full-width select, default «календарный 365»)
+             live: vaadin-select, stacked under «Метод погашения кредита»
+             (verified 2026-07-04, scripts/inspect/app-create-fields.mjs) -->
+        <div class="field">
+          <span class="flabel">Метод расчета дней</span>
+          <div class="control">
+            <select id="cf-daymethod">
+              <option value="cal365">календарный 365</option>
+              <option value="fin360365">финансовый /календарный (360/365)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Ручные параметры льготного периода (collapsible; live: expanded by default,
+             each period = bold sub-header + one checkbox) -->
+        <div>
+          <div class="create-collapse-head open" id="cf-grace-head" onclick="toggleGrace()">
+            <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+            Ручные параметры льготного периода
+          </div>
+          <div class="create-collapse-body open" id="cf-grace-body">
+            <div class="cf-grace-group">
+              <div class="t2-sub">Льготный период по основной сумме</div>
+              <label class="check"><input type="checkbox" id="cf-grace1"><span>Льготный период по основному долгу</span></label>
+            </div>
+            <div class="cf-grace-group">
+              <div class="t2-sub">Льготный период по начислению процентов</div>
+              <label class="check"><input type="checkbox" id="cf-grace2"><span>Льготный период по начислению процентов</span></label>
+            </div>
+            <div class="cf-grace-group">
+              <div class="t2-sub">Льготный период по процентам</div>
+              <label class="check"><input type="checkbox" id="cf-grace3"><span>Льготный период по процентам</span></label>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-primary" onclick="submitCreate()">Далее</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-create')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- Picker: Субъект — live entity-lookup «Субъекты» (2 cols Тип|Субъект, footer Добавить·Выбрать·Отмена;
+     verified 2026-07-04, scripts/inspect/app-create-behavior.mjs). Выбор строки → «Выбрать» (или dbl-click). -->
+<div class="overlay" id="modal-pick-subject">
+  <div class="modal lkwide">
+    <div class="modal-h">
+      <span class="mt">Субъекты</span>
+      <button class="modal-x" onclick="closeModal('modal-pick-subject')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b lk-dlg">
+      <div class="picker-bar"><input class="picker-search" type="search" placeholder="Поиск…"></div>
+      <div class="lk-table-wrap">
+        <table class="lk-table">
+          <thead><tr><th style="width:120px">Тип</th><th>Субъект</th></tr></thead>
+          <tbody>
+            <tr data-val='00404202510209 - ОсОО "Хот Лэйк Текстиль"' data-addr='ул. Ахунбаева 117, Бишкек' onclick="lkRow('subject',this)" ondblclick="lkRow('subject',this);applyPick('subject')"><td>Юр. лицо</td><td>00404202510209 - ОсОО "Хот Лэйк Текстиль"</td></tr>
+            <tr data-val='21812199600888 - БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ' data-addr='ул. Токомбаева 21, Бишкек' onclick="lkRow('subject',this)" ondblclick="lkRow('subject',this);applyPick('subject')"><td>Физ. лицо</td><td>21812199600888 - БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ</td></tr>
+            <tr data-val='02102201710026 - МП "Ноокат Тазалык"' data-addr='ул. Карла Маркса 5, Ноокат' onclick="lkRow('subject',this)" ondblclick="lkRow('subject',this);applyPick('subject')"><td>Юр. лицо</td><td>02102201710026 - МП "Ноокат Тазалык"</td></tr>
+            <tr data-val='20907199400957 - МАТРАИМОВ МАКСАТ КУБАНОВИЧ' data-addr='ул. Советская 88, Ош' onclick="lkRow('subject',this)" ondblclick="lkRow('subject',this);applyPick('subject')"><td>Физ. лицо</td><td>20907199400957 - МАТРАИМОВ МАКСАТ КУБАНОВИЧ</td></tr>
+            <tr data-val='01204199910016 - ОАО "О!Банк"' data-addr='Бишкек, Первомайский район, ул. Фрунзе' onclick="lkRow('subject',this)" ondblclick="lkRow('subject',this);applyPick('subject')"><td>Юр. лицо</td><td>01204199910016 - ОАО "О!Банк"</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('modal-pick-subject')">Добавить</button>
+      <button class="btn btn-primary" onclick="applyPick('subject')">Выбрать</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-pick-subject')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- Picker: Кредитная программа — live entity-lookup «Кредитные программы» (8 cols + grid-toolbar;
+     verified 2026-07-04, scripts/inspect/app-create-behavior.mjs). -->
+<div class="overlay" id="modal-pick-program-create">
+  <div class="modal lkwide" style="width:min(1100px,97%)">
+    <div class="modal-h">
+      <span class="mt">Кредитные программы</span>
+      <button class="modal-x" onclick="closeModal('modal-pick-program-create')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b lk-dlg">
+      <div class="lk-toolbar">
+        <button class="add-cond"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Добавить условие поиска</button>
+        <button class="btn btn-primary btn-sm">Создать</button>
+        <button class="btn btn-ghost btn-sm" disabled>Изменить</button>
+        <button class="btn btn-ghost btn-sm" disabled>Удалить</button>
+      </div>
+      <div class="lk-table-wrap">
+        <table class="lk-table">
+          <thead><tr>
+            <th>Наименование на русском</th><th>Краткое описание</th><th>Решение правительства</th>
+            <th>Назначение кредита</th><th>Вид кредита</th><th>Дата с</th><th>Дата по</th><th>Статус</th>
+          </tr></thead>
+          <tbody>
+            <tr data-val='АгроИнвест КР' onclick="lkRow('program',this)" ondblclick="lkRow('program',this);applyPick('program')">
+              <td>АгроИнвест КР</td><td>Кредитование агротехники и оборотных средств</td><td>Постановление Кабинета министров №123</td><td>Пополнение оборотных средств</td><td>Бюджетная ссуда</td><td>01.07.2026</td><td>01.07.2031</td><td>Активна</td></tr>
+            <tr data-val='Поддержка сельхозпроизводителей' onclick="lkRow('program',this)" ondblclick="lkRow('program',this);applyPick('program')">
+              <td>Поддержка сельхозпроизводителей</td><td>Финансирование закупки техники, семян и ГСМ для малых и средних агропредприятий</td><td>Постановление Кабинета министров №123</td><td>Цель кредита в увеличении дохода сельского хозяйства</td><td>Бюджетная ссуда</td><td>01.07.2026</td><td>01.07.2031</td><td>Черновик</td></tr>
+            <tr data-val='ТУР' onclick="lkRow('program',this)" ondblclick="lkRow('program',this);applyPick('program')">
+              <td>ТУР</td><td>Туристическая отрасль — льготное кредитование</td><td>Постановление Кабинета министров №77</td><td>Развитие туризма</td><td>Бюджетная ссуда</td><td>01.01.2026</td><td>01.01.2030</td><td>Активна</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-primary" onclick="applyPick('program')">Выбрать</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-pick-program-create')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- Picker: Источник финансирования — live entity-lookup «Источник финансирования» (1 col Название + toolbar;
+     verified 2026-07-04, scripts/inspect/app-create-behavior.mjs). -->
+<div class="overlay" id="modal-pick-source">
+  <div class="modal lkwide">
+    <div class="modal-h">
+      <span class="mt">Источник финансирования</span>
+      <button class="modal-x" onclick="closeModal('modal-pick-source')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b lk-dlg">
+      <div class="lk-toolbar">
+        <button class="add-cond"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Добавить условие поиска</button>
+        <button class="btn btn-primary btn-sm">Создать</button>
+        <button class="btn btn-ghost btn-sm" disabled>Изменить</button>
+        <button class="btn btn-ghost btn-sm" disabled>Удалить</button>
+      </div>
+      <div class="lk-table-wrap">
+        <table class="lk-table">
+          <thead><tr><th>Название</th></tr></thead>
+          <tbody>
+            <tr data-val='Бюджет' onclick="lkRow('source',this)" ondblclick="lkRow('source',this);applyPick('source')"><td>Бюджет</td></tr>
+            <tr data-val='asdfasdf' onclick="lkRow('source',this)" ondblclick="lkRow('source',this);applyPick('source')"><td>asdfasdf</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-primary" onclick="applyPick('source')">Выбрать</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-pick-source')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ OVERLAY: ВЫБЕРИТЕ КОМИССИЮ (Task 11) ============ -->
+<div class="overlay" id="modal-send">
+  <div class="modal" style="width:min(480px,96%)">
+    <div class="modal-h">
+      <span class="mt">Выберите комиссию</span>
+      <button class="modal-x" onclick="closeModal('modal-send')" aria-label="Закрыть">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b">
+      <div class="field required invalid" id="send-commission-field">
+        <span class="flabel">Комиссия</span>
+        <div class="control">
+          <select id="send-commission" onchange="onSendCommissionChange()">
+            <option value=""></option>
+            <option value="Комиссия по залогу test1">Комиссия по залогу test1</option>
+            <option value="Комиссия по заявкам">Комиссия по заявкам</option>
+          </select>
+        </div>
+        <span class="err">Поле является обязательным</span>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-primary" onclick="submitSend()">ОК</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-send')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container (Task 11) -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+/* ============================================================
+   SIDEBAR NAVIGATION TREE
+   (matches live /loan-applications sidebar; inspected 2026-06-29)
+   No item is marked active — live /loan-applications shows none highlighted.
+   ============================================================ */
+const TREE = [
+  { id:"app", label:"Приложение", open:true, subs:[
+    { id:"app-all", headerless:true, items:[
+      { label:"Users" },
+      { label:"Подразделения" },
+      { label:"Сотрудники подразделений" },
+      { label:"Освоение" },
+      { label:"Резерв" },
+      { label:"Платеж" },
+      { label:"Список Траншей" },
+      { label:"LoanLedger" }
+    ]}
+  ]},
+  { id:"k", label:"Система кредитования", subs:[
+    { id:"k-app", label:"Заявки и комиссии", items:[
+      { label:"Заявки" }, { label:"Комиссии по заявкам" } ]},
+    { id:"k-prog", label:"Программы и решения", items:[
+      { label:"Решение правительства" }, { label:"Кредитные программы" } ]},
+    { id:"k-borr", label:"Заёмщики", items:[ { label:"Заёмщики" } ]},
+    { id:"k-loan", label:"Кредиты и транши", items:[
+      { label:"Кредиты" }, { label:"Список траншей" } ]},
+    { id:"k-disb", label:"Освоение и платежи", items:[
+      { label:"Освоение" }, { label:"Платеж" }, { label:"Резерв" } ]},
+    { id:"k-col", label:"Залог", items:[ { label:"Мониторинг залога" } ]}
+  ]},
+  { id:"g", label:"Поручительства", subs:[
+    { id:"g-all", headerless:true, items:[
+      { label:"Анкеты поручительств" }, { label:"Решения по поручительству" } ]}
+  ]},
+  { id:"c", label:"Корпоративное управление", subs:[
+    { id:"c-all", headerless:true, items:[
+      { label:"Реестр компаний" }, { label:"Аналитика KPI" }, { label:"Документы" } ]}
+  ]},
+  { id:"sugs", label:"СУГС", subs:[
+    { id:"sugs-all", headerless:true, items:[ { label:"СУГС" } ]}
+  ]},
+  { id:"debt", label:"Взыскание задолженности", subs:[
+    { id:"debt-all", headerless:true, items:[ { label:"Взыскание задолженности" } ]}
+  ]},
+  { id:"d", label:"Справочники", subs:[
+    { id:"d-all", headerless:true, items:[ { label:"Справочники" } ]}
+  ]},
+  { id:"srv", label:"Сервисы", subs:[
+    { id:"srv-all", headerless:true, items:[ { label:"Сервисы" } ]}
+  ]},
+  { id:"adm", label:"Администрирование", subs:[
+    { id:"adm-all", headerless:true, items:[ { label:"Администрирование" } ]}
+  ]},
+  { id:"r", label:"Отчёты", subs:[
+    { id:"r-all", headerless:true, items:[ { label:"Отчёты" } ]}
+  ]},
+  { id:"sec", label:"Безопасность", subs:[
+    { id:"sec-all", headerless:true, items:[ { label:"Безопасность" } ]}
+  ]},
+  { id:"tools", label:"Инструменты данных", subs:[
+    { id:"tools-all", headerless:true, items:[ { label:"Инструменты данных" } ]}
+  ]},
+];
+
+const chevSvg = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
+
+function renderNav(){
+  const nav = document.getElementById('nav');
+  nav.innerHTML = TREE.map(g => {
+    const subs = g.subs.map(sg => {
+      const items = sg.items.map(it =>
+        `<a class="nav-item${sg.headerless?' headerless':''}" onclick="return false;">${it.label}</a>`
+      ).join('');
+      if (sg.headerless) return `<div class="nav-sub open"><div class="nav-children">${items}</div></div>`;
+      return `<div class="nav-sub${sg.open?' open':''}" ><button class="nav-toggle">${chevSvg(14)}<span class="lbl">${sg.label}</span></button><div class="nav-children">${items}</div></div>`;
+    }).join('');
+    return `<div class="nav-group${g.open?' open':''}" ><button class="nav-toggle">${chevSvg(16)}<span class="lbl">${g.label}</span></button><div class="nav-children">${subs}</div></div>`;
+  }).join('');
+  nav.querySelectorAll('.nav-toggle').forEach(btn =>
+    btn.addEventListener('click', () => btn.parentElement.classList.toggle('open')));
+}
+renderNav();
+
+/* ============================================================
+   VIEW ROUTER
+   ============================================================ */
+function showView(name){
+  /* Toggle via inline style.display, not the hidden attribute: the author CSS
+     `#view-list/#view-detail{display:flex}` outranks the UA `[hidden]{display:none}`
+     rule, so the hidden attribute alone wouldn't hide the panel. Inline style wins. */
+  document.getElementById('view-list').style.display   = (name === 'list')   ? 'flex' : 'none';
+  document.getElementById('view-detail').style.display = (name === 'detail') ? 'flex' : 'none';
+  // Breadcrumb: reset to «Заявки» when going back to list
+  if (name === 'list'){
+    document.getElementById('crumbBack').style.display  = 'none';
+    document.getElementById('crumbSep').style.display   = 'none';
+    document.getElementById('crumbTitle').textContent   = 'Заявки';
+  }
+  window.scrollTo(0,0);
+}
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+/* ============================================================
+   APPLICATIONS DATASET — ~22 live rows, inspected 2026-06-29
+   Rows 1-8: exact data from GRID_HEADER_CELLS dump.
+   Rows 9-22: status pattern from STATCARDS y-scan; amounts/terms fabricated.
+   Counts: Всего 22 · На рассмотрении 5 · Одобрено 9 · Отклонено 5 ·
+           Требуется доп. информация 1 · Новый 2
+   ============================================================ */
+const APPLICATIONS = [
+  {num:'Заявка - 103',inn:'00404202510209', name:'ОсОО "Хот Лэйк Текстиль"',
+   status:'На рассмотрении', collateralStatus:'', program:'АгроИнвест КР',
+   amount:'500 000,00', term:'36', info:'',
+   /* Tab-0 fields — exact values from live app, loan-applications/41, inspected 2026-06-29 */
+   approvedAmount:'500 000,00', approvedTerm:'36',
+   annualRate:'10,00', reserveRate:'0,00',
+   paymentFrequency:'Ежемесячно', repaymentMethod:'Аннуитетный',
+   paymentDay:'15', processingOption:'Переносить на следующий рабочий день',
+   graceMain:'0', graceAccrual:'0', graceInterest:'0',
+   fundingSource:'Бюджет', comment:''},
+  {num:'Заявка - 101',inn:'21812199600888', name:'БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ',
+   status:'Одобрено', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'5 000 000,00', term:'24', info:'555'},
+  {num:'Заявка - 99', inn:'02102201710026', name:'МП "Ноокат Тазалык"',
+   status:'Новый', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'1 000 000,00', term:'24', info:'555'},
+  {num:'Заявка - 97', inn:'20907199400957', name:'МАТРАИМОВ МАКСАТ КУБАНОВИЧ',
+   status:'Новый', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'5 000 000,00', term:'24', info:'1111'},
+  {num:'Заявка - 95', inn:'21812199600888', name:'БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ',
+   status:'Одобрено', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'1 000 000,00', term:'24', info:''},
+  {num:'Заявка - 93', inn:'20907199400957', name:'МАТРАИМОВ МАКСАТ КУБАНОВИЧ',
+   status:'Одобрено', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'1 000 000,00', term:'24', info:'123'},
+  {num:'Заявка - 89', inn:'01204199910016', name:'ОАО "О!Банк"',
+   status:'Одобрено', collateralStatus:'', program:'ТУР',
+   amount:'1 000 000,00', term:'12', info:'Тест детального расчета'},
+  {num:'Заявка - 86', inn:'01204199910016', name:'ОАО "О!Банк"',
+   status:'Одобрено', collateralStatus:'Требуется доп. информация', program:'АгроИнвест КР',
+   amount:'2 000 000,00', term:'18', info:''},
+  {num:'Заявка - 84', inn:'00404202510209', name:'ОсОО "Хот Лэйк Текстиль"',
+   status:'На рассмотрении', collateralStatus:'На рассмотрении', program:'АгроИнвест КР',
+   amount:'3 000 000,00', term:'36', info:''},
+  {num:'Заявка - 82', inn:'02102201710026', name:'МП "Ноокат Тазалык"',
+   status:'На рассмотрении', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'1 500 000,00', term:'24', info:''},
+  {num:'Заявка - 80', inn:'20907199400957', name:'МАТРАИМОВ МАКСАТ КУБАНОВИЧ',
+   status:'Требуется доп. информация', collateralStatus:'Требуется доп. информация', program:'ТУР',
+   amount:'800 000,00', term:'12', info:'доп документы'},
+  {num:'Заявка - 78', inn:'21812199600888', name:'БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ',
+   status:'На рассмотрении', collateralStatus:'На рассмотрении', program:'АгроИнвест КР',
+   amount:'2 500 000,00', term:'24', info:''},
+  {num:'Заявка - 76', inn:'01204199910016', name:'ОАО "О!Банк"',
+   status:'Одобрено', collateralStatus:'', program:'ТУР',
+   amount:'5 000 000,00', term:'36', info:''},
+  {num:'Заявка - 74', inn:'00404202510209', name:'ОсОО "Хот Лэйк Текстиль"',
+   status:'Отклонено', collateralStatus:'Одобрено', program:'АгроИнвест КР',
+   amount:'1 000 000,00', term:'12', info:''},
+  {num:'Заявка - 72', inn:'02102201710026', name:'МП "Ноокат Тазалык"',
+   status:'На рассмотрении', collateralStatus:'Отклонено', program:'Поддержка сельхозпроизводителей',
+   amount:'700 000,00', term:'24', info:''},
+  {num:'Заявка - 70', inn:'20907199400957', name:'МАТРАИМОВ МАКСАТ КУБАНОВИЧ',
+   status:'Одобрено', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'3 000 000,00', term:'36', info:''},
+  {num:'Заявка - 68', inn:'21812199600888', name:'БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ',
+   status:'Отклонено', collateralStatus:'На рассмотрении', program:'АгроИнвест КР',
+   amount:'500 000,00', term:'12', info:''},
+  {num:'Заявка - 66', inn:'01204199910016', name:'ОАО "О!Банк"',
+   status:'Одобрено', collateralStatus:'', program:'ТУР',
+   amount:'1 000 000,00', term:'18', info:''},
+  {num:'Заявка - 64', inn:'00404202510209', name:'ОсОО "Хот Лэйк Текстиль"',
+   status:'Одобрено', collateralStatus:'Одобрено', program:'АгроИнвест КР',
+   amount:'2 000 000,00', term:'24', info:''},
+  {num:'Заявка - 62', inn:'02102201710026', name:'МП "Ноокат Тазалык"',
+   status:'Отклонено', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'900 000,00', term:'12', info:''},
+  {num:'Заявка - 60', inn:'20907199400957', name:'МАТРАИМОВ МАКСАТ КУБАНОВИЧ',
+   status:'Отклонено', collateralStatus:'На рассмотрении', program:'ТУР',
+   amount:'1 500 000,00', term:'18', info:''},
+  {num:'Заявка - 58', inn:'21812199600888', name:'БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ',
+   status:'Отклонено', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'2 000 000,00', term:'24', info:''},
+];
+
+// Synthetic «дата создания» per row — data has no date column; assign
+// descending dates (higher Заявка № = newer) so the interval filter has data.
+APPLICATIONS.forEach((r, i) => {
+  const d = new Date(2026, 5, 29);          // 2026-06-29 (newest)
+  d.setDate(d.getDate() - i * 3);           // step back 3 days per row
+  r.created = d.toISOString().slice(0, 10); // 'YYYY-MM-DD' — matches input[type=date]
+});
+
+let _sortCol = null, _sortDir = 1, _selNum = null;
+
+function _esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function _pluralRows(n){
+  // 1 строка · 2-4 строки · 5+ строк · 11-19 строк
+  const rem = n % 100;
+  if (rem >= 11 && rem <= 19) return n + ' строк';
+  const r1 = n % 10;
+  if (r1 === 1) return n + ' строка';
+  if (r1 >= 2 && r1 <= 4) return n + ' строки';
+  return n + ' строк';
+}
+
+function renderGrid(){
+  const numFilter = (document.getElementById('fNum')      || {value:''}).value.trim().toLowerCase();
+  const stFilter  = (document.getElementById('fStatus')   || {value:''}).value;
+  const pgFilter  = (document.getElementById('fProgram')  || {value:''}).value;
+  const dFrom     = (document.getElementById('fDateFrom') || {value:''}).value;
+  const dTo       = (document.getElementById('fDateTo')   || {value:''}).value;
+  let rows = APPLICATIONS.filter(r => {
+    if (numFilter && !r.num.toLowerCase().includes(numFilter)) return false;
+    if (stFilter  && r.status  !== stFilter)                   return false;
+    if (pgFilter  && r.program !== pgFilter)                   return false;
+    if (dFrom     && r.created  <  dFrom)                      return false;
+    if (dTo       && r.created  >  dTo)                        return false;
+    return true;
+  });
+  if (_sortCol){
+    rows = rows.slice().sort((a,b) => {
+      const av = a[_sortCol] || '', bv = b[_sortCol] || '';
+      return av < bv ? -_sortDir : av > bv ? _sortDir : 0;
+    });
+  }
+  // Update sort glyph in headers
+  document.querySelectorAll('#appGrid thead th').forEach(th => {
+    const sp = th.querySelector('.sort');
+    if (!sp) return;
+    if (th.dataset.col === _sortCol) sp.textContent = _sortDir === 1 ? '↑' : '↓';
+    else sp.textContent = '↕';
+  });
+  // Update pager row count
+  const label = _pluralRows(rows.length);
+  ['pgInfo','pgCount'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = label;
+  });
+  // Build tbody rows
+  document.getElementById('appTbody').innerHTML = rows.map(r => {
+    const sel = r.num === _selNum ? ' sel' : '';
+    return `<tr class="${sel}" data-num="${_esc(r.num)}"
+      onclick="selectRow(this.dataset.num)"
+      ondblclick="gotoDetail(this.dataset.num)">
+      <td>${_esc(r.num)}</td>
+      <td>${_esc(r.inn + ' — ' + r.name)}</td>
+      <td>${_esc(r.status)}</td>
+      <td>${_esc(r.collateralStatus)}</td>
+      <td>${_esc(r.program)}</td>
+      <td>${_esc(r.amount)}</td>
+      <td>${_esc(r.term)}</td>
+      <td>${_esc(r.info)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function selectRow(num){
+  _selNum = num;
+  ['btnEdit','btnDel','btnCom','btnZal'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = false;
+  });
+  document.querySelectorAll('#appTbody tr').forEach(tr => {
+    tr.classList.toggle('sel', tr.dataset.num === num);
+  });
+}
+
+function editSelected(){
+  if (_selNum) gotoDetail(_selNum);   // «Изменить» opens the selected row's detail (as live: no read-only view)
+}
+
+function sortBy(col){
+  if (_sortCol === col) _sortDir *= -1;
+  else { _sortCol = col; _sortDir = 1; }
+  renderGrid();
+}
+
+function applyFilter(){
+  _selNum = null;
+  ['btnEdit','btnDel','btnCom','btnZal'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = true;
+  });
+  document.getElementById('splitRefresh').classList.remove('open');
+  renderGrid();
+}
+
+/* ============================================================
+   TASK 6: Tab 0 — Общая информация
+   ============================================================ */
+
+/** Per-INN contact data (phone + address).
+ *  Source: live app inspection 2026-06-29 (row 103 exact; others from
+ *  subject picker modal data used in create form). */
+const SUBJECTS_MAP = {
+  '00404202510209': {
+    phone:   '+996 567 878 787',
+    address: 'Чуйская область, Новопокровка (часть), Ысык-Атинский район, Ленина, 86,'
+  },
+  '21812199600888': {
+    phone:   '+996 551 122 334',
+    address: 'ул. Токомбаева 21, Бишкек'
+  },
+  '02102201710026': {
+    phone:   '+996 312 456 789',
+    address: 'ул. Карла Маркса 5, Ноокат'
+  },
+  '20907199400957': {
+    phone:   '+996 322 567 890',
+    address: 'ул. Советская 88, Ош'
+  },
+  '01204199910016': {
+    phone:   '+996 312 789 012',
+    address: 'пр. Чуй 44, Бишкек'
+  },
+};
+
+/** Per-program loan parameter ranges and default rate.
+ *  Range text format matches live app exactly: «Допустимо: от X до Y» with dots.
+ *  Source: live app, loan-applications/41 (АгроИнвест КР ranges confirmed 2026-06-29). */
+const PROGRAMS_MAP = {
+  'АгроИнвест КР': {
+    amountRange: 'Допустимо: от 100000.00 до 10000000.00',
+    termRange:   'Допустимо: от 6 до 60',
+    rate:        '10,00',
+  },
+  'Поддержка сельхозпроизводителей': {
+    amountRange: 'Допустимо: от 100000.00 до 5000000.00',
+    termRange:   'Допустимо: от 3 до 36',
+    rate:        '8,00',
+  },
+  'ТУР': {
+    amountRange: 'Допустимо: от 50000.00 до 2000000.00',
+    termRange:   'Допустимо: от 6 до 24',
+    rate:        '12,00',
+  },
+};
+
+/** renderTab0 — populates #tab-0 «Общая информация» from an APPLICATIONS row.
+ *  Column 1: subject contact data (phone/address from SUBJECTS_MAP by INN).
+ *  Column 2: borrower-requested credit terms (from app row).
+ *  Column 3: commission-approved terms (defaults from PROGRAMS_MAP if not set on row). */
+function renderTab0(app) {
+  const subj = SUBJECTS_MAP[app.inn] || { phone: '', address: '' };
+  const prog = PROGRAMS_MAP[app.program] || { amountRange: '', termRange: '', rate: '' };
+
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value  = v != null ? String(v) : ''; };
+  const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v != null ? String(v) : ''; };
+
+  /* Column 1 — Данные заявителя */
+  setVal('t0-inn',     app.inn     || '');
+  setVal('t0-phone',   subj.phone);
+  setVal('t0-address', subj.address);
+
+  /* Column 2 — Условия кредита заемщика */
+  setVal('t0-req-amount',  app.amount   || '');
+  setVal('t0-req-term',    app.term     || '');
+  setVal('t0-program2',    app.program  || '');
+  /* льготные периоды (textbox — empty in live, textual description if ever set) */
+  setVal('t0-grace1-text', '');
+  setVal('t0-grace2-text', '');
+  setVal('t0-grace3-text', '');
+  setVal('t0-add-info',    app.info || '');
+  setVal('t0-date-credit', '');
+  setVal('t0-date-coll',   '');
+  setTxt('t0-source2-val', app.fundingSource || 'Бюджет');
+
+  /* Column 3 — Условия кредита, одобренные комиссией */
+  setVal('t0-app-amount', app.approvedAmount || app.amount || '');
+  setTxt('t0-amount-range', prog.amountRange || '');
+  setVal('t0-app-term',   app.approvedTerm   || app.term  || '');
+  setTxt('t0-term-range', prog.termRange  || '');
+  setVal('t0-rate',           app.annualRate        || prog.rate  || '');
+  setVal('t0-reserve',        app.reserveRate       || '0,00');
+  setVal('t0-pay-freq',       app.paymentFrequency  || 'Ежемесячно');
+  setVal('t0-repay-method',   app.repaymentMethod   || 'Аннуитетный');
+  setVal('t0-pay-day',        app.paymentDay        || '15');
+  setVal('t0-processing',     app.processingOption  || 'Переносить на следующий рабочий день');
+  setTxt('t0-prog3-val',      app.program           || '');
+  setVal('t0-grace1',         app.graceMain         || '0');
+  setVal('t0-grace2',         app.graceAccrual      || '0');
+  setVal('t0-grace3',         app.graceInterest     || '0');
+  setTxt('t0-source3-val',    app.fundingSource     || 'Бюджет');
+  setVal('t0-comment',        app.comment           || '');
+}
+
+/* ============================================================
+   TASK 5: Detail shell — header, stepper, tab bar
+   ============================================================ */
+
+/* Stepper: 4 steps in order */
+const STEP_LABELS = ['Подана','На рассмотрении','Одобрена','Регистрация кредита'];
+
+/* Status → active stepper step index (0-based).
+ * Steps 0 … (currentStep-1) are DONE (green check + date).
+ * Step currentStep is CURRENT (blue, highlighted).
+ * Steps after are FUTURE (grey empty circle).
+ *
+ * Mapping rationale:
+ *   Новый                    → 0  application just created; «Подана» is the active step
+ *   На рассмотрении          → 1  «Подана» done; commission is reviewing
+ *   Требуется доп. информация → 1  stuck at review stage, awaiting extra docs
+ *   Отклонено                → 1  rejected at the review stage
+ *   Одобрено                 → 2  commission approved; «Одобрена» is the active step
+ *   (Регистрация кредита)    → 3  loan is being registered (no matching list status yet)
+ */
+const STATUS_STEP_MAP = {
+  'Новый':                     0,
+  'На рассмотрении':           1,
+  'Требуется доп. информация': 1,
+  'Отклонено':                 1,
+  'Одобрено':                  2,
+};
+const STEP_DATE = '24.06.2026'; /* representative mock date for completed steps */
+
+const CHECK_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+function renderStepper(currentStep){
+  document.getElementById('stepper').innerHTML = STEP_LABELS.map((label, i) => {
+    const done    = i < currentStep;
+    const current = i === currentStep;
+    const isFirst = i === 0;
+    const isLast  = i === STEP_LABELS.length - 1;
+
+    const leftClass  = isFirst ? 'step-line vis-hidden' : (i <= currentStep ? 'step-line done' : 'step-line');
+    const rightClass = isLast  ? 'step-line vis-hidden' : (i < currentStep  ? 'step-line done' : 'step-line');
+    const circleClass = done ? 'step-circle done' : current ? 'step-circle current' : 'step-circle';
+    const itemClass   = done ? 'step-item done'   : current ? 'step-item current'   : 'step-item';
+
+    return `<div class="${itemClass}">
+      <div class="step-track">
+        <div class="${leftClass}"></div>
+        <div class="${circleClass}">${done ? CHECK_SVG : ''}</div>
+        <div class="${rightClass}"></div>
+      </div>
+      <div class="step-meta">
+        <span class="step-label">${label}</span>
+        ${done ? `<span class="step-date">${STEP_DATE}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* showTab — switch active tab + panel.
+   Also shows/hides the above-tabbar progress banner for tabs 3 & 4 (Task 8). */
+function showTab(idx){
+  document.querySelectorAll('.tabbar-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+  document.querySelectorAll('.detail-panel').forEach((p, i) => p.classList.toggle('active', i === idx));
+
+  // Progress banner: visible for Кредитные (3) and Залоговые (4) tabs
+  const banner = document.getElementById('tab-prog-banner');
+  const lbl    = document.getElementById('tab-prog-label');
+  const sub    = document.getElementById('tab-prog-sub');
+  if (idx === 3) {
+    banner.style.display = '';
+    lbl.textContent = 'Прогресс комплектации кредитных документов';
+    sub.textContent = '0 из 3 (0%)';
+  } else if (idx === 4) {
+    banner.style.display = '';
+    lbl.textContent = 'Прогресс комплектации залоговых документов';
+    sub.textContent = '0 из 2 (0%)';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+/** gotoDetail — looks up the application row, populates the header band,
+ *  derives stepper state from status, resets to tab 0, shows detail view. */
+function gotoDetail(num){
+  const app = APPLICATIONS.find(a => a.num === num);
+  if (!app) { console.warn('gotoDetail: not found', num); return; }
+
+  /* Populate header fields */
+  document.getElementById('dh-subject').textContent          = app.inn + ' — ' + app.name;
+  document.getElementById('dh-num').textContent             = app.num;
+  document.getElementById('dh-status').textContent          = app.status;
+  document.getElementById('dh-collateral-status').textContent = app.collateralStatus || '—';
+  document.getElementById('dh-amount').textContent          = app.amount;
+
+  /* Breadcrumb */
+  document.getElementById('crumbBack').style.display  = 'inline-flex';
+  document.getElementById('crumbSep').style.display   = 'inline';
+  document.getElementById('crumbTitle').textContent   = app.num;
+
+  /* Derive stepper state */
+  const currentStep = (STATUS_STEP_MAP[app.status] !== undefined) ? STATUS_STEP_MAP[app.status] : 0;
+  renderStepper(currentStep);
+
+  /* Reset to first tab */
+  showTab(0);
+
+  /* Populate tab 0 «Общая информация» */
+  renderTab0(app);
+
+  showView('detail');
+}
+
+function toggleFilter(){
+  document.getElementById('fHead').classList.toggle('open');
+  document.getElementById('filterBar').classList.toggle('open');
+}
+
+// Close split menu on outside click
+document.addEventListener('click', () => {
+  document.getElementById('splitRefresh')?.classList.remove('open');
+});
+
+/* ============================================================
+   DOCUMENT TABS 2–4: renderDocPackTab helper (Task 8)
+   Shared structure: section heading + "Не начато" badge + progress + Изменить toolbar
+   + 4-col upload grid (Наименование / Файл / Дата загрузки / Размер файла).
+   Each doc row: name | [Загрузить] "Файл не выбран" + red "Поле является обязательным" | — | —
+   Inspection: 2026-06-29, scripts/inspect/app-capture.mjs
+   ============================================================ */
+
+const _PENCIL_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+
+/**
+ * renderDocPackTab — populate a document-packet tab panel.
+ * @param {string} elId   — id of the .detail-panel element
+ * @param {string} title  — section heading (e.g. «Пакет документов заявителя»)
+ * @param {number} total  — total doc count (for «Завершено 0 из N (0%)»)
+ * @param {string[]} docs — list of document names (each gets an upload row)
+ * Inspection: 2026-06-29, app-capture.mjs — all three tabs show empty upload state.
+ */
+function renderDocPackTab(elId, title, total, docs) {
+  const rows = docs.map(name => `
+    <tr>
+      <td>${name}</td>
+      <td>
+        <div class="tdocs-file-cell">
+          <div class="tdocs-upload-row">
+            <button class="btn btn-primary btn-sm">Загрузить</button>
+            <span class="tdocs-filename">Файл не выбран</span>
+          </div>
+          <span class="tdocs-required">Поле является обязательным</span>
+        </div>
+      </td>
+      <td></td>
+      <td></td>
+    </tr>`).join('');
+
+  document.getElementById(elId).innerHTML = `
+    <div class="tdocs-wrap">
+      <div class="tdocs-heading-row">
+        <h2 class="section-h">${title}</h2>
+        <span class="tdocs-badge">Не начато</span>
+      </div>
+      <div class="tdocs-progress-text">Завершено 0 из ${total} (0%)</div>
+      <div class="tdocs-bar-wrap"><div class="tdocs-bar"></div></div>
+      <div class="tdocs-toolbar">
+        <button class="btn btn-rowadd btn-sm" disabled>${_PENCIL_SVG} Изменить</button>
+      </div>
+      <div class="collgrid">
+        <table>
+          <thead>
+            <tr>
+              <th>Наименование <span class="sort">↕</span></th>
+              <th>Файл <span class="sort">↕</span></th>
+              <th>Дата загрузки <span class="sort">↕</span></th>
+              <th>Размер файла <span class="sort">↕</span></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+/* Populate tabs 2, 3, 4 (called once; content is application-agnostic in the live app
+   — the document list is fixed per loan program, not per application). */
+renderDocPackTab('tab-2', 'Пакет документов заявителя', 3, [
+  'Подписанное согласие',
+  'Паспорт (лицевая сторона)',
+  'Паспорт (оборотная сторона)'
+]);
+renderDocPackTab('tab-3', 'Пакет кредитных документов', 3, [
+  'Справка о доходах',
+  'Паспорт',
+  'справка с места работы заявителя/поручителя, с указанием заработной платы за последние 12 месяцев, занимаемой должности и трудового стажа'
+]);
+renderDocPackTab('tab-4', 'Пакет залоговых документов', 2, [
+  'Оценка залогового имущества',
+  'Документы на залог'
+]);
+
+document.addEventListener('DOMContentLoaded', () => { showView('list'); renderGrid(); });
+
+/* ============================================================
+   CREATE WIZARD — #modal-create
+   Task 4: Новая заявка modal with as-is validation (P3-06 eager errors)
+   ============================================================ */
+
+function openCreateModal(){
+  // Reset all fields
+  ['cf-subject-val','cf-program-val','cf-source-val'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el){ el.textContent = ''; el.classList.remove('filled'); }
+  });
+  document.getElementById('cf-addr').value  = '';
+  document.getElementById('cf-phone').value = '';
+  document.getElementById('cf-amount').value = '';
+  document.getElementById('cf-term').value   = '';
+  document.getElementById('cf-info').value   = '';
+  document.getElementById('cf-method').value = 'annuity';
+  document.getElementById('cf-daymethod').value = 'cal365';
+  ['cf-grace1','cf-grace2','cf-grace3'].forEach(id => {
+    document.getElementById(id).checked = false;
+  });
+  // Clear phone error
+  document.getElementById('cf-phone-field').classList.remove('invalid');
+  // Grace section expanded by default (live shows it open on create)
+  document.getElementById('cf-grace-head').classList.add('open');
+  document.getElementById('cf-grace-body').classList.add('open');
+  // Eager invalid on required fields (as-is defect P3-06 — red bg immediately on open)
+  document.getElementById('cf-amount-field').classList.add('invalid');
+  document.getElementById('cf-term-field').classList.add('invalid');
+  openModal('modal-create');
+}
+
+function toggleGrace(){
+  document.getElementById('cf-grace-head').classList.toggle('open');
+  document.getElementById('cf-grace-body').classList.toggle('open');
+}
+
+// Generic picker clear: clears <span id="fieldId-val"> + address if subject
+function clearPicker(fieldId){
+  const valEl = document.getElementById(fieldId + '-val');
+  if (valEl){ valEl.textContent = ''; valEl.classList.remove('filled'); }
+  if (fieldId === 'cf-subject'){
+    const addr = document.getElementById('cf-addr');
+    if (addr) addr.value = '';
+  }
+}
+
+function selectSubject(label, addr){
+  const v = document.getElementById('cf-subject-val');
+  v.textContent = label; v.classList.add('filled');
+  document.getElementById('cf-addr').value = addr;
+  closeModal('modal-pick-subject');
+}
+
+function selectProgram(label){
+  const v = document.getElementById('cf-program-val');
+  v.textContent = label; v.classList.add('filled');
+  closeModal('modal-pick-program-create');
+}
+
+function selectSource(label){
+  const v = document.getElementById('cf-source-val');
+  v.textContent = label; v.classList.add('filled');
+  closeModal('modal-pick-source');
+}
+
+/* Live lookup behavior: клик по строке = выделение, «Выбрать»/двойной клик = применить.
+   _pick[kind] хранит dataset выбранной строки до подтверждения. */
+let _pick = { subject:null, program:null, source:null };
+function lkRow(kind, tr){
+  tr.closest('tbody').querySelectorAll('tr.sel').forEach(r => r.classList.remove('sel'));
+  tr.classList.add('sel');
+  _pick[kind] = { val: tr.dataset.val, addr: tr.dataset.addr };
+}
+function applyPick(kind){
+  const d = _pick[kind];
+  if (!d) return;                       // нет выделенной строки — как в живой, «Выбрать» без выбора ничего не делает
+  if (kind === 'subject')      selectSubject(d.val, d.addr || '');
+  else if (kind === 'program') selectProgram(d.val);
+  else if (kind === 'source')  selectSource(d.val);
+  _pick[kind] = null;
+}
+
+/** validateCreate — called by Далее; also shows/hides eager errors.
+ *  Returns true only if: сумма filled AND срок filled AND phone matches +996 NNN NNN NNN. */
+function validateCreate(){
+  let valid = true;
+
+  const amount = document.getElementById('cf-amount').value.trim();
+  if (!amount){
+    document.getElementById('cf-amount-field').classList.add('invalid');
+    valid = false;
+  } else {
+    document.getElementById('cf-amount-field').classList.remove('invalid');
+  }
+
+  const term = document.getElementById('cf-term').value.trim();
+  if (!term){
+    document.getElementById('cf-term-field').classList.add('invalid');
+    valid = false;
+  } else {
+    document.getElementById('cf-term-field').classList.remove('invalid');
+  }
+
+  // Phone optional in live (required:false). Validate format only when non-empty.
+  const phone = document.getElementById('cf-phone').value.trim();
+  const phoneOk = phone === '' || /^\+996[\s\-]?\d{3}[\s\-]?\d{3}[\s\-]?\d{3}$/.test(phone);
+  if (!phoneOk){
+    document.getElementById('cf-phone-field').classList.add('invalid');
+    valid = false;
+  } else {
+    document.getElementById('cf-phone-field').classList.remove('invalid');
+  }
+
+  return valid;
+}
+
+/* ============================================================
+   TASK 11: Send-to-commission dialogs + post-send feedback
+   Inspected live: 2026-06-29. Post-OK toast text inferred (standard Jmix
+   success notification — exact live text not captured to avoid data mutation).
+   ============================================================ */
+let _sendTrack = null;
+
+/** openSendModal(track) — resets the commission select, applies eager invalid
+ *  state, records the track ('credit'|'collateral'), then opens #modal-send. */
+function openSendModal(track){
+  _sendTrack = track;
+  const sel   = document.getElementById('send-commission');
+  const field = document.getElementById('send-commission-field');
+  sel.value = '';
+  field.classList.add('invalid');
+  openModal('modal-send');
+}
+
+/** onSendCommissionChange — clears/re-adds invalid class as the user picks a value. */
+function onSendCommissionChange(){
+  const sel   = document.getElementById('send-commission');
+  const field = document.getElementById('send-commission-field');
+  field.classList.toggle('invalid', !sel.value);
+}
+
+/** submitSend — validates commission selection; on success updates the correct
+ *  status field on the selected row, re-renders grid, closes modal, shows toast. */
+function submitSend(){
+  const sel   = document.getElementById('send-commission');
+  const field = document.getElementById('send-commission-field');
+  if (!sel.value){
+    field.classList.add('invalid');
+    return;
+  }
+  const app = APPLICATIONS.find(a => a.num === _selNum);
+  if (app){
+    if (_sendTrack === 'credit'){
+      app.status = 'На рассмотрении';
+    } else {
+      app.collateralStatus = 'На рассмотрении';
+    }
+  }
+  renderGrid();
+  closeModal('modal-send');
+  showToast('Данные сохранены', 'ok');
+}
+
+/** showToast(text, type) — appends a .toast element to #toast-wrap; auto-removes after 3.5 s.
+ *  type: 'ok' (green) | 'err' (red) | 'warn' (amber) | '' (dark). */
+function showToast(text, type){
+  const wrap = document.getElementById('toast-wrap');
+  if (!wrap) return;
+  const t = document.createElement('div');
+  t.className = 'toast' + (type ? ' ' + type : '');
+  t.innerHTML = '<span class="tt">' + _esc(text) + '</span>';
+  wrap.appendChild(t);
+  setTimeout(function(){ t.remove(); }, 3500);
+}
+
+/** submitCreate — validates; on success pushes new row, re-renders, closes modal, opens detail. */
+function submitCreate(){
+  if (!validateCreate()) return;
+
+  // Next application number (max existing + 2, following the live odd sequence)
+  let maxN = 0;
+  APPLICATIONS.forEach(a => {
+    const m = a.num.match(/\d+/);
+    if (m) maxN = Math.max(maxN, parseInt(m[0], 10));
+  });
+  const newN   = maxN + 2;
+  const newNum = 'Заявка - ' + newN;
+
+  const subjectText = document.getElementById('cf-subject-val').textContent || '';
+  // Subject label format: "INN — Name"
+  const dashIdx = subjectText.indexOf('—');
+  const inn  = dashIdx > 0 ? subjectText.slice(0, dashIdx).trim() : '';
+  const name = dashIdx > 0 ? subjectText.slice(dashIdx + 1).trim() : subjectText;
+
+  const rawAmount = parseFloat(document.getElementById('cf-amount').value) || 0;
+  const amountStr = rawAmount.toLocaleString('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  APPLICATIONS.unshift({
+    num: newNum,
+    inn: inn,
+    name: name,
+    status: 'Новый',
+    collateralStatus: '',
+    program: document.getElementById('cf-program-val').textContent || '',
+    amount: amountStr,
+    term: document.getElementById('cf-term').value || '',
+    info: document.getElementById('cf-info').value || '',
+  });
+
+  renderGrid();
+  closeModal('modal-create');
+  gotoDetail(newNum);
+}
+</script>
+</body>
+</html>
