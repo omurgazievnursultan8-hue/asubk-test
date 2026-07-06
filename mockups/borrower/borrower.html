@@ -26,6 +26,7 @@
     --body-text:#1b2a3d;          /* lumo-body-text-color 0.94 */
     --secondary-text:rgba(38,55,78,0.69); /* lumo-secondary-text-color / метки */
     --success:#158a4e;            /* lumo-success-color hsl(145,72%,30%) */
+    --error:#e02020;              /* lumo-error-color hsl(3,85%,48%) */
     --green-card-bg:#eaf7f0;
     --green-card-border:#cdeadb;
     --border:#dbe0e6;
@@ -73,17 +74,29 @@
   /* ========================================================= */
   /* ==================== ВИД: СПИСОК ========================= */
   /* ========================================================= */
-  .filter-head{display:flex;align-items:center;gap:8px;color:var(--secondary-text);font-size:16px;padding:6px 2px 12px;cursor:default;}
+  .filter-head{display:flex;align-items:center;gap:8px;color:var(--primary-text);font-size:16px;padding:6px 2px 12px;cursor:default;}
   .filter-head .caret{font-size:13px;}
-  .filter-card{border:1px solid var(--panel-border);border-radius:3px;padding:20px 22px;margin-bottom:16px;}
-  .filter-row{display:flex;align-items:center;gap:18px;margin-bottom:16px;}
+  .filter-card{border:1px solid var(--panel-border);border-radius:3px;padding:16px 18px;margin-bottom:16px;}
+  .filter-row{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
   .filter-row:last-child{margin-bottom:0;}
-  .filter-row .fl{width:120px;color:var(--secondary-text);font-size:15px;flex:0 0 120px;}
-  .filter-field{flex:1;position:relative;background:var(--filter-bg);border:1px solid var(--field-border);
-    border-radius:var(--radius);height:38px;display:flex;align-items:center;padding:0 12px;}
-  .filter-field .chev{position:absolute;right:12px;color:var(--secondary-text);}
-  .filter-field .dots{position:absolute;right:44px;color:var(--secondary-text);letter-spacing:2px;}
-  .filter-field .clr{position:absolute;right:12px;color:var(--primary-text);font-weight:700;cursor:pointer;}
+  .filter-row .fl{width:96px;color:var(--secondary-text);font-size:15px;flex:0 0 96px;}
+  /* поле фильтра: голубовато-серое, без рамки, 36px (как vaadin-select/lumo) */
+  .filter-field{flex:1;position:relative;background:rgba(26,57,96,0.08);border:0;
+    border-radius:var(--radius);height:36px;display:flex;align-items:center;padding:0 10px;cursor:pointer;}
+  .filter-field .val{flex:1;color:var(--body-text);font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .filter-field .val.ph{color:transparent;}
+  .filter-field .chev{color:var(--secondary-text);font-size:16px;margin-left:8px;}
+  .filter-field .dots-btn{width:26px;height:24px;border-radius:3px;background:rgba(26,57,96,0.06);
+    display:flex;align-items:center;justify-content:center;color:var(--primary-text);letter-spacing:1px;margin-left:6px;}
+  .filter-field .clr{width:26px;height:24px;display:flex;align-items:center;justify-content:center;
+    color:var(--primary-text);font-size:15px;margin-left:2px;cursor:pointer;}
+  /* выпадающий список фильтра */
+  .fdrop{position:absolute;top:40px;left:0;right:0;z-index:20;background:#fff;border:1px solid var(--border);
+    border-radius:var(--radius);box-shadow:0 4px 16px rgba(24,39,57,0.14);padding:4px 0;display:none;}
+  .fdrop.open{display:block;}
+  .fdrop .opt{padding:8px 12px;font-size:16px;cursor:pointer;}
+  .fdrop .opt:hover{background:var(--grid-hover);}
+  .fdrop .opt.empty{color:var(--secondary-text);min-height:20px;}
 
   .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
   .btn-green{background:var(--green-btn);color:#fff;border-radius:var(--radius) 0 0 var(--radius);}
@@ -91,7 +104,8 @@
   .btn-green-split{background:var(--green-btn);color:#fff;border-left:1px solid rgba(255,255,255,.35);
     border-radius:0 var(--radius) var(--radius) 0;padding:9px 10px;}
   .btn-green-split:hover{background:var(--green-btn-hover);}
-  .btn-icon{background:var(--filter-bg);color:var(--secondary-text);border-color:var(--field-border);padding:9px 11px;}
+  .btn-icon{background:var(--filter-bg);color:var(--primary-text);border-color:var(--field-border);padding:9px 11px;}
+  .btn-danger{background:var(--filter-bg);color:var(--error,#d32020);border-color:var(--field-border);}
   .add-cond{color:var(--secondary-text);font-size:16px;margin-left:6px;cursor:default;}
   .toolbar2{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
   .rowcount{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--body-text);font-size:16px;}
@@ -234,20 +248,40 @@
         <!-- ---------- FILTER ---------- -->
         <div class="filter-head"><span class="caret">⌄</span>Фильтр : Фильтры *</div>
         <div class="filter-card">
+          <!-- Статус: vaadin-select (Активный / В обработке) -->
           <div class="filter-row">
             <div class="fl">Статус =</div>
-            <div class="filter-field"><span class="chev">⌄</span></div>
+            <div class="filter-field" id="fStatus">
+              <span class="val ph" id="fStatusVal" data-empty="1"></span>
+              <span class="chev">⌄</span>
+              <div class="fdrop" id="fStatusDrop">
+                <div class="opt empty" data-v=""></div>
+                <div class="opt" data-v="Активный">Активный</div>
+                <div class="opt" data-v="В обработке">В обработке</div>
+              </div>
+            </div>
           </div>
+          <!-- Субъект.Отрасль: picker (⋯ открывает список, ✕ очищает) -->
           <div class="filter-row">
             <div class="fl">Субъект.Отрас…</div>
-            <div class="filter-field"><span class="dots">…</span><span class="clr">✕</span></div>
+            <div class="filter-field" id="fIndustry">
+              <span class="val ph" id="fIndustryVal" data-empty="1"></span>
+              <span class="dots-btn" id="fIndustryOpen">⋯</span>
+              <span class="clr" id="fIndustryClr">✕</span>
+              <div class="fdrop" id="fIndustryDrop">
+                <div class="opt empty" data-v=""></div>
+                <div class="opt" data-v="Машиностроение">Машиностроение</div>
+                <div class="opt" data-v="Агропромышленный комплекс">Агропромышленный комплекс</div>
+                <div class="opt" data-v="Сельское хозяйство">Сельское хозяйство</div>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- ---------- TOOLBAR ---------- -->
         <div class="toolbar">
           <div style="display:flex;">
-            <button class="btn btn-green">Обновить</button>
+            <button class="btn btn-green" id="btnRefresh">Обновить</button>
             <button class="btn btn-green-split">⌄</button>
           </div>
           <button class="btn btn-icon" title="Настройки">⚙</button>
@@ -256,10 +290,10 @@
 
         <div class="toolbar2">
           <button class="btn btn-secondary" id="btnEdit" disabled>✎ Изменить</button>
-          <button class="btn btn-secondary" id="btnDel" disabled>🗑 Удалить</button>
+          <button class="btn btn-danger" id="btnDel" disabled>🗑 Удалить</button>
           <div class="rowcount">
             <div class="pager"><span>«</span><span>‹</span></div>
-            <span>13 строк</span>
+            <span id="rowCount">13 строк</span>
             <div class="pager"><span>›</span><span>»</span></div>
           </div>
         </div>
@@ -516,6 +550,72 @@
   // ---------- карточка: OK / Отмена -> назад к списку ----------
   document.getElementById('btnOk').addEventListener('click', showList);
   document.getElementById('btnCancel').addEventListener('click', showList);
+
+  // ---------- фильтр списка (рабочий) ----------
+  // Статус -> vaadin-select; Субъект.Отрасль -> picker. «Обновить» применяет,
+  // ✕ очищает отрасль. Фильтрация по колонкам грида (Тип-agn: Отрасль=4, Статус=5).
+  const filter = { status: '', industry: '' };
+  const closeDrops = () => document.querySelectorAll('.fdrop.open').forEach(d => d.classList.remove('open'));
+
+  function setVal(valEl, v) {
+    valEl.textContent = v;
+    valEl.classList.toggle('ph', !v);
+    valEl.dataset.empty = v ? '0' : '1';
+  }
+  function bindPicker(fieldId, dropId, valId, key, openTriggerId) {
+    const field = document.getElementById(fieldId);
+    const drop  = document.getElementById(dropId);
+    const valEl = document.getElementById(valId);
+    const trigger = openTriggerId ? document.getElementById(openTriggerId) : field;
+    trigger.addEventListener('click', e => {
+      e.stopPropagation();
+      const willOpen = !drop.classList.contains('open');
+      closeDrops();
+      if (willOpen) drop.classList.add('open');
+    });
+    drop.querySelectorAll('.opt').forEach(o => o.addEventListener('click', e => {
+      e.stopPropagation();
+      filter[key] = o.dataset.v;
+      setVal(valEl, o.dataset.v);
+      drop.classList.remove('open');
+    }));
+    return { valEl };
+  }
+  bindPicker('fStatus', 'fStatusDrop', 'fStatusVal', 'status', null);
+  bindPicker('fIndustry', 'fIndustryDrop', 'fIndustryVal', 'industry', 'fIndustryOpen');
+  // клик по самому полю отрасли (не по кнопкам) тоже открывает
+  document.getElementById('fIndustry').addEventListener('click', e => {
+    if (e.target.closest('.dots-btn, .clr, .fdrop')) return;
+    const drop = document.getElementById('fIndustryDrop');
+    const willOpen = !drop.classList.contains('open');
+    closeDrops(); if (willOpen) drop.classList.add('open');
+  });
+  // ✕ очищает отрасль
+  document.getElementById('fIndustryClr').addEventListener('click', e => {
+    e.stopPropagation();
+    filter.industry = '';
+    setVal(document.getElementById('fIndustryVal'), '');
+  });
+  document.addEventListener('click', closeDrops);
+
+  // «Обновить» -> применяет фильтр к строкам грида
+  document.getElementById('btnRefresh').addEventListener('click', () => {
+    let shown = 0;
+    rows.forEach(r => {
+      const industry = r.children[3].textContent.trim();
+      const status   = r.children[4].textContent.trim();
+      const ok = (!filter.status || status === filter.status) &&
+                 (!filter.industry || industry === filter.industry);
+      r.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+    document.getElementById('rowCount').textContent = shown + ' строк';
+    // сбросить выделение скрытой строки
+    if (selected && selected.style.display === 'none') {
+      selected.style.background = ''; selected = null;
+      btnEdit.disabled = true; btnDel.disabled = true;
+    }
+  });
 
   // ---------- вкладки карточки (Vaadin tabsheet) ----------
   const tabs = document.querySelectorAll('#tabs .tab');
