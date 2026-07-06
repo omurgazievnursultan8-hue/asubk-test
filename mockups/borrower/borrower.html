@@ -7,7 +7,7 @@
 <!--
   Точная копия раздела «Заёмщики» из живого стенда ASUBK Credit Module — в одном файле.
   Два вида в одном SPA (как в живом стенде):
-    • Список   — /loan-applicants        (13 строк)
+    • Список   — /loan-applicants        (14 строк)
     • Карточка — /loan-applicants/{id}    (запись ОАО "О!Банк")
   Переход как в стенде (проверено 2026-07-06, scripts/inspect/borrower-open-behavior.mjs):
     одинарный клик -> выделяет строку + включает Изменить/Удалить;
@@ -67,7 +67,7 @@
   #view-detail .content{padding:20px 26px 0;}
 
   .btn{font-family:var(--font);font-size:16px;font-weight:600;border-radius:var(--radius);padding:9px 18px;
-    border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:8px;}
+    border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;}
   .btn[disabled]{opacity:.6;cursor:default;}
   .btn-secondary{background:var(--filter-bg);color:var(--secondary-text);border-color:var(--field-border);}
 
@@ -199,6 +199,48 @@
   .btn-primary{background:var(--primary);color:#fff;}
   .btn-primary:hover{background:var(--primary-hover);}
   .btn-cancel{background:#fff;color:var(--primary-text);border-color:var(--border-strong);}
+  .req{color:var(--error);}
+
+  /* ========================================================= */
+  /* ============ МОДАЛКА: выбор отрасли (lookup) ============ */
+  /* ========================================================= */
+  .modal-overlay{position:fixed;inset:0;background:rgba(24,39,57,0.32);z-index:100;
+    display:none;align-items:flex-start;justify-content:center;padding:40px 16px;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:#fff;border-radius:6px;box-shadow:0 12px 40px rgba(24,39,57,0.30);
+    width:100%;max-width:720px;display:flex;flex-direction:column;max-height:88vh;overflow:hidden;}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;}
+  .modal-title{font-weight:700;font-size:18px;color:var(--body-text);}
+  .modal-x{width:28px;height:28px;border:0;background:transparent;color:var(--secondary-text);
+    font-size:18px;cursor:pointer;border-radius:var(--radius);}
+  .modal-x:hover{background:var(--filter-bg);}
+  .modal-body{padding:0 20px 12px;overflow-y:auto;}
+  .modal-foot{display:flex;gap:12px;padding:14px 20px 18px;border-top:1px solid var(--border);}
+  .m-filter-head{display:flex;align-items:center;gap:8px;color:var(--primary-text);font-size:15px;padding:2px 0 10px;}
+  .m-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .m-toolbar .btn{flex:0 0 auto;}
+  .m-toolbar2{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .btn-blue{background:var(--primary);color:#fff;}
+  .btn-blue:hover{background:var(--primary-hover);}
+  .m-search{margin-left:auto;background:var(--field-bg);border:1px solid var(--field-border);
+    border-radius:var(--radius);padding:8px 10px;font-family:var(--font);font-size:15px;
+    color:var(--body-text);min-width:110px;flex:1 1 110px;}
+  .m-search::placeholder{color:var(--secondary-text);}
+  .m-count{display:flex;align-items:center;gap:14px;color:var(--body-text);font-size:15px;margin-bottom:8px;}
+  .m-grid{border:1px solid var(--border);border-radius:3px;overflow:hidden;}
+  .m-grid table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  .m-grid thead th{text-align:left;font-weight:700;color:var(--body-text);font-size:15px;
+    padding:11px 14px;border-bottom:1px solid var(--border);white-space:nowrap;background:#fff;position:sticky;top:0;}
+  .m-grid thead th .sort{color:var(--secondary-text);font-size:12px;margin-left:6px;}
+  .m-grid tbody td{padding:9px 14px;border-bottom:1px solid #eef1f4;font-size:15px;color:var(--body-text);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:340px;}
+  .m-grid tbody tr{cursor:pointer;}
+  .m-grid tbody tr:hover{background:var(--grid-hover);}
+  .m-grid tbody tr.sel{background:#dbe9fb;}
+  .m-grid tbody tr:last-child td{border-bottom:0;}
+  .m-grid col.c-name{width:auto;} .m-grid col.c-code{width:92px;}
+  .m-grid col.c-st{width:104px;} .m-grid col.c-date{width:190px;}
+  .m-scroll{max-height:300px;overflow-y:auto;}
 </style>
 </head>
 <body>
@@ -248,8 +290,9 @@
         <!-- ---------- FILTER ---------- -->
         <div class="filter-head"><span class="caret">⌄</span>Фильтр : Фильтры *</div>
         <div class="filter-card">
-          <!-- Статус: vaadin-select (Активный / В обработке) -->
+          <!-- оба фильтра в одну строку, как в оригинале -->
           <div class="filter-row">
+            <!-- Статус: vaadin-select (Активный / В обработке) -->
             <div class="fl">Статус =</div>
             <div class="filter-field" id="fStatus">
               <span class="val ph" id="fStatusVal" data-empty="1"></span>
@@ -260,20 +303,12 @@
                 <div class="opt" data-v="В обработке">В обработке</div>
               </div>
             </div>
-          </div>
-          <!-- Субъект.Отрасль: picker (⋯ открывает список, ✕ очищает) -->
-          <div class="filter-row">
+            <!-- Субъект.Отрасль: entity-picker (⋯ открывает модалку выбора, ✕ очищает) -->
             <div class="fl">Субъект.Отрас…</div>
             <div class="filter-field" id="fIndustry">
               <span class="val ph" id="fIndustryVal" data-empty="1"></span>
-              <span class="dots-btn" id="fIndustryOpen">⋯</span>
-              <span class="clr" id="fIndustryClr">✕</span>
-              <div class="fdrop" id="fIndustryDrop">
-                <div class="opt empty" data-v=""></div>
-                <div class="opt" data-v="Машиностроение">Машиностроение</div>
-                <div class="opt" data-v="Агропромышленный комплекс">Агропромышленный комплекс</div>
-                <div class="opt" data-v="Сельское хозяйство">Сельское хозяйство</div>
-              </div>
+              <span class="dots-btn" id="fIndustryOpen" title="Открыть экран выбора связанной сущности">⋯</span>
+              <span class="clr" id="fIndustryClr" title="Очистить поле">✕</span>
             </div>
           </div>
         </div>
@@ -293,7 +328,7 @@
           <button class="btn btn-danger" id="btnDel" disabled>🗑 Удалить</button>
           <div class="rowcount">
             <div class="pager"><span>«</span><span>‹</span></div>
-            <span id="rowCount">13 строк</span>
+            <span id="rowCount">14 строк</span>
             <div class="pager"><span>›</span><span>»</span></div>
           </div>
         </div>
@@ -316,6 +351,7 @@
             <tbody id="rows">
               <tr><td>01204199910016</td><td>Открытое акционерное общество "О!Банк"</td><td>Юр. лицо</td><td>Машиностроение</td><td>Активный</td></tr>
               <tr><td>22407199000740</td><td>ТЕМИРЛАН УУЛУ ТОБОКЕЛ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
+              <tr><td>01211202110139</td><td>Государственное предприятие "Инфосистемс"  при Министерстве финансов Кыргызской Республики</td><td>Юр. лицо</td><td></td><td>Активный</td></tr>
               <tr><td>01103199710105</td><td>Учреждение "Финансово-кредитный фонд при  Министерстве финансов Кыргызской Республики"</td><td>Юр. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
               <tr><td>20507200350475</td><td>МЕҢДИБАЕВ АМАНТУР КЫЛЫЧБЕКОВИЧ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
               <tr><td>13112199100463</td><td>ТЫНЧТЫКБЕК КЫЗЫ МАРАЛ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
@@ -415,6 +451,8 @@
                     <div class="f"><label>Помещение</label><input class="inp" readonly value=""></div>
                   </div>
                 </div>
+                <label>ID в системе <span class="req">•</span></label>
+                <input class="inp" readonly value="44">
               </div>
             </div>
 
@@ -510,6 +548,113 @@
   </div>
 </div>
 
+<!-- ============ МОДАЛКА: «Отрасли и направления» (entity-picker) ============ -->
+<!-- Точная копия lookup-экрана из живого стенда (проверено 2026-07-06):
+     ⋯ у поля «Субъект.Отрасль» открывает эту модалку; выбор строки + «Выбрать»
+     (или двойной клик) подставляет отрасль в фильтр и применяет его. -->
+<div class="modal-overlay" id="industryModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Отрасли и направления</div>
+      <button class="modal-x" id="mClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- filter -->
+      <div class="m-filter-head"><span class="caret">⌄</span>Фильтр</div>
+      <div class="toolbar" style="margin-bottom:14px;">
+        <div style="display:flex;">
+          <button class="btn btn-green">Обновить</button>
+          <button class="btn btn-green-split">⌄</button>
+        </div>
+        <button class="btn btn-icon" title="Настройки">⚙</button>
+        <span class="add-cond">Добавить условие поиска</span>
+      </div>
+      <!-- CRUD toolbar + поиск -->
+      <div class="m-toolbar">
+        <button class="btn btn-blue">＋ Создать</button>
+        <button class="btn btn-secondary" id="mEdit" disabled>✎ Изменить</button>
+        <button class="btn btn-secondary" id="mView" disabled>👁 Просмотр</button>
+        <button class="btn btn-danger" id="mDel" disabled>🗑 Удалить</button>
+        <input class="m-search" id="mSearch" placeholder="Поиск">
+      </div>
+      <div class="m-count">
+        <div class="pager"><span>«</span><span>‹</span></div>
+        <span id="mCount">46 строк</span>
+        <div class="pager"><span>›</span><span>»</span></div>
+        <button class="btn btn-icon" title="Настройки" style="padding:5px 8px;">⚙</button>
+      </div>
+      <!-- grid -->
+      <div class="m-grid">
+        <div class="m-scroll">
+          <table>
+            <colgroup><col class="c-name"><col class="c-code"><col class="c-st"><col class="c-date"></colgroup>
+            <thead>
+              <tr>
+                <th>Наименование <span class="sort">⇅</span></th>
+                <th>Код <span class="sort">⇅</span></th>
+                <th>Статус <span class="sort">⇅</span></th>
+                <th>Дата создания <span class="sort">⇅</span></th>
+              </tr>
+            </thead>
+            <tbody id="mRows">
+              <tr><td></td><td></td><td></td><td></td></tr>
+              <tr><td>Агропромышленный комплекс</td><td>2</td><td>Активный</td><td>10/11/2025 08:42 +0600</td></tr>
+              <tr><td>Водное хозяйство</td><td>3</td><td>Активный</td><td>10/11/2025 08:43 +0600</td></tr>
+              <tr><td>Легкая промышленность</td><td>4</td><td>Активный</td><td>10/11/2025 08:43 +0600</td></tr>
+              <tr><td>Машиностроение</td><td>5</td><td>Активный</td><td>10/11/2025 08:43 +0600</td></tr>
+              <tr><td>Пищевая и перерабатывающая промышленность</td><td>6</td><td>Активный</td><td>10/11/2025 08:43 +0600</td></tr>
+              <tr><td>Банки и банковская деятельность</td><td>7</td><td>Активный</td><td>10/11/2025 08:44 +0600</td></tr>
+              <tr><td>Здравоохранение</td><td>8</td><td>Активный</td><td>10/11/2025 08:44 +0600</td></tr>
+              <tr><td>Жилищно-строительный комплекс (физические лица)</td><td>9</td><td>Активный</td><td>10/11/2025 08:44 +0600</td></tr>
+              <tr><td>Водосберегающие технологии</td><td>Vod-1</td><td>Активный</td><td>11/12/2025 14:10 +0600</td></tr>
+              <tr><td>Лизинг техники</td><td>Liaz-1</td><td>Активный</td><td>11/12/2025 14:11 +0600</td></tr>
+              <tr><td>Семеноводчество</td><td>SEED</td><td>Активный</td><td>15/01/2026 14:41 +0600</td></tr>
+              <tr><td>Питомниководство</td><td>NURSERY</td><td>Активный</td><td>15/01/2026 14:42 +0600</td></tr>
+              <tr><td>Питомниководство</td><td>1212</td><td>Активный</td><td>27/01/2026 17:35 +0600</td></tr>
+              <tr><td>Муниципальные предприятия</td><td>Rt-2</td><td>Активный</td><td>27/01/2026 14:43 +0600</td></tr>
+              <tr><td>Мэрии городов</td><td>UI-4</td><td>Активный</td><td>27/01/2026 14:44 +0600</td></tr>
+              <tr><td>Животноводство</td><td>zh-1</td><td>Активный</td><td>05/11/2025 17:03 +0600</td></tr>
+              <tr><td>Инвестиционные</td><td>MSP_60m</td><td>Активный</td><td>02/02/2026 10:43 +0600</td></tr>
+              <tr><td>Пополнение оборотного капитала</td><td>MSP_36m</td><td>Активный</td><td>02/02/2026 10:44 +0600</td></tr>
+              <tr><td>Стартапы</td><td>MSP_18m</td><td>Активный</td><td>02/02/2026 10:45 +0600</td></tr>
+              <tr><td>Сельское хозяйство</td><td>AGRICULTURE</td><td>Активный</td><td>04/02/2026 13:51 +0600</td></tr>
+              <tr><td>Производство и переработка сельско-хозяйственной продукции</td><td>PP_AGRO_PRODUCTS</td><td>Активный</td><td>04/02/2026 13:54 +0600</td></tr>
+              <tr><td>Промышленность</td><td>INDUSTRY</td><td>Активный</td><td>04/02/2026 14:31 +0600</td></tr>
+              <tr><td>Туризм</td><td>TOURISM</td><td>Активный</td><td>04/02/2026 14:33 +0600</td></tr>
+              <tr><td>Транспорт</td><td>TRANSPORT</td><td>Активный</td><td>04/02/2026 14:34 +0600</td></tr>
+              <tr><td>Экспорто-ориентированные и импортозамещающие предприятия</td><td>EXPORT_COMPANY</td><td>Неактивный</td><td>04/02/2026 14:40 +0600</td></tr>
+              <tr><td>Торгово-логистические центры и овощные хранилища</td><td>STORAGE_CENTER</td><td>Активный</td><td>04/02/2026 14:42 +0600</td></tr>
+              <tr><td>Инновационная деятельность</td><td>INNOVATION</td><td>Активный</td><td>04/02/2026 14:44 +0600</td></tr>
+              <tr><td>Производство защитных медицинских средств и средств индивидуальной защиты</td><td>PROTECTIVE_EQUIPMENT</td><td>Активный</td><td>04/02/2026 14:46 +0600</td></tr>
+              <tr><td>Торговля</td><td>TRADE</td><td>Активный</td><td>04/02/2026 14:52 +0600</td></tr>
+              <tr><td>Строительство зданий дошкольных образовательных организаций</td><td>CONSTRUCTION_PRESCHOOL</td><td>Активный</td><td>04/02/2026 14:52 +0600</td></tr>
+              <tr><td>Сфера услуг</td><td>SERVICE_SECTOR</td><td>Активный</td><td>04/02/2026 14:53 +0600</td></tr>
+              <tr><td>Сфера образования</td><td>EDUCATION_SECTOR</td><td>Активный</td><td>04/02/2026 14:54 +0600</td></tr>
+              <tr><td>Проведение капитального ремонта/реконструкции</td><td>REPAIR_RECONSTRUCTION</td><td>Активный</td><td>04/02/2026 14:55 +0600</td></tr>
+              <tr><td>Информационные технологии</td><td>IT_SECTOR</td><td>Активный</td><td>04/02/2026 14:55 +0600</td></tr>
+              <tr><td>Приобретение и обновление основных средств</td><td>ACQUSITION_RENEWAL</td><td>Активный</td><td>04/02/2026 14:59 +0600</td></tr>
+              <tr><td>Рефинансирование ранее полученных кредитов</td><td>MSP_18m-2</td><td>Активный</td><td>04/02/2026 15:01 +0600</td></tr>
+              <tr><td>Установка/приобретение газовых отопительных котлов</td><td>GOK_GAS</td><td>Активный</td><td>04/02/2026 16:20 +0600</td></tr>
+              <tr><td>Строительно-монтажные работы</td><td>SMR_GAS</td><td>Активный</td><td>04/02/2026 16:16 +0600</td></tr>
+              <tr><td>Приобретение расходных материалов</td><td>PRM_GAS</td><td>Активный</td><td>04/02/2026 16:21 +0600</td></tr>
+              <tr><td>Рефинансирование кредитов, полученных ранее на газификацию</td><td>RK_GAS</td><td>Активный</td><td>04/02/2026 16:22 +0600</td></tr>
+              <tr><td>Строительство современного медицинского центра</td><td>OSH_MED</td><td>Активный</td><td>05/02/2026 10:08 +0600</td></tr>
+              <tr><td>Поставка и/или разведение племенного поголовья крупного рогатого скота</td><td>PR_KRS</td><td>Активный</td><td>05/02/2026 13:53 +0600</td></tr>
+              <tr><td>Развитие электронной коммерции</td><td>ECOM_1</td><td>Активный</td><td>12/03/2026 15:49 +0600</td></tr>
+              <tr><td>Цифровые технологии</td><td>DIGITAL_01</td><td>Активный</td><td>12/03/2026 16:57 +0600</td></tr>
+              <tr><td>Ресурсосберегающие технологии</td><td>Res-1</td><td>Активный</td><td>24/06/2026 15:44 +0600</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="mSelect" disabled>✓ Выбрать</button>
+      <button class="btn btn-cancel" id="mCancel">⊘ Отмена</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // ---------- переключение вид «список» <-> «карточка» ----------
   const viewList   = document.getElementById('view-list');
@@ -578,28 +723,84 @@
       filter[key] = o.dataset.v;
       setVal(valEl, o.dataset.v);
       drop.classList.remove('open');
+      applyFilter();
     }));
     return { valEl };
   }
   bindPicker('fStatus', 'fStatusDrop', 'fStatusVal', 'status', null);
-  bindPicker('fIndustry', 'fIndustryDrop', 'fIndustryVal', 'industry', 'fIndustryOpen');
-  // клик по самому полю отрасли (не по кнопкам) тоже открывает
+  document.addEventListener('click', closeDrops);
+
+  // ---------- Субъект.Отрасль: entity-picker через модалку ----------
+  // Как в живом стенде: ⋯ (или клик по полю) открывает lookup-экран
+  // «Отрасли и направления»; выбор строки + «Выбрать» / двойной клик
+  // подставляет Наименование в фильтр и сразу применяет. ✕ очищает.
+  const modal      = document.getElementById('industryModal');
+  const mRows      = document.querySelectorAll('#mRows tr');
+  const mSelect    = document.getElementById('mSelect');
+  const mEdit      = document.getElementById('mEdit');
+  const mView      = document.getElementById('mView');
+  const mDel       = document.getElementById('mDel');
+  const mSearch    = document.getElementById('mSearch');
+  const fIndVal    = document.getElementById('fIndustryVal');
+  let   mSelected  = null;
+
+  const openModal  = () => { modal.classList.add('open'); };
+  const closeModal = () => {
+    modal.classList.remove('open');
+    if (mSelected) { mSelected.classList.remove('sel'); mSelected = null; }
+    [mSelect, mEdit, mView, mDel].forEach(b => b.disabled = true);
+    mSearch.value = '';
+    mRows.forEach(r => r.style.display = '');
+  };
+  const chooseIndustry = row => {
+    const name = row.children[0].textContent.trim();
+    filter.industry = name;
+    setVal(fIndVal, name);
+    closeModal();
+    applyFilter();
+  };
+
+  // открыть модалку: клик по ⋯ или по самому полю (кроме ✕)
+  document.getElementById('fIndustryOpen').addEventListener('click', e => { e.stopPropagation(); openModal(); });
   document.getElementById('fIndustry').addEventListener('click', e => {
-    if (e.target.closest('.dots-btn, .clr, .fdrop')) return;
-    const drop = document.getElementById('fIndustryDrop');
-    const willOpen = !drop.classList.contains('open');
-    closeDrops(); if (willOpen) drop.classList.add('open');
+    if (e.target.closest('.clr')) return;
+    openModal();
   });
   // ✕ очищает отрасль
   document.getElementById('fIndustryClr').addEventListener('click', e => {
     e.stopPropagation();
     filter.industry = '';
-    setVal(document.getElementById('fIndustryVal'), '');
+    setVal(fIndVal, '');
+    applyFilter();
   });
-  document.addEventListener('click', closeDrops);
 
-  // «Обновить» -> применяет фильтр к строкам грида
-  document.getElementById('btnRefresh').addEventListener('click', () => {
+  // выбор строки в модалке
+  mRows.forEach(r => {
+    r.addEventListener('click', () => {
+      if (mSelected) mSelected.classList.remove('sel');
+      mSelected = r; r.classList.add('sel');
+      [mSelect, mEdit, mView, mDel].forEach(b => b.disabled = false);
+    });
+    r.addEventListener('dblclick', () => chooseIndustry(r));
+  });
+  mSelect.addEventListener('click', () => { if (mSelected) chooseIndustry(mSelected); });
+
+  // живой поиск по наименованию отрасли
+  mSearch.addEventListener('input', () => {
+    const q = mSearch.value.trim().toLowerCase();
+    mRows.forEach(r => {
+      const name = r.children[0].textContent.trim().toLowerCase();
+      r.style.display = (!q || name.includes(q)) ? '' : 'none';
+    });
+  });
+
+  // закрытие модалки: ×, Отмена, клик по фону
+  document.getElementById('mClose').addEventListener('click', closeModal);
+  document.getElementById('mCancel').addEventListener('click', closeModal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+  // применяет фильтр к строкам грида (живой — при выборе/очистке, и по «Обновить»)
+  function applyFilter() {
     let shown = 0;
     rows.forEach(r => {
       const industry = r.children[3].textContent.trim();
@@ -615,7 +816,8 @@
       selected.style.background = ''; selected = null;
       btnEdit.disabled = true; btnDel.disabled = true;
     }
-  });
+  }
+  document.getElementById('btnRefresh').addEventListener('click', applyFilter);
 
   // ---------- вкладки карточки (Vaadin tabsheet) ----------
   const tabs = document.querySelectorAll('#tabs .tab');
