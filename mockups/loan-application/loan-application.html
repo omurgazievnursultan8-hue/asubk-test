@@ -919,6 +919,18 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 
 /* ── Вкладка «Условия кредита»: одна колонка, подгруппы (to-be, 2026-07-06) ── */
 .cond-grid.onecol{ grid-template-columns:1fr; gap:13px 0; max-width:620px; }
+/* 2 колонки: поля парами (Сумма|Срок, льготные пары); подгруппы и коммент — во всю ширину */
+.cond-grid.twocol{ gap:13px 40px; max-width:920px; }
+/* ── Условия — аккордеон-секции (упаковка длинной страницы) ── */
+.cond-acc{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; margin-bottom:10px; max-width:960px; }
+.cond-acc-head{ display:flex; align-items:center; gap:10px; padding:11px 14px; cursor:pointer;
+  background:var(--surface-panel); user-select:none; }
+.cond-acc-head .chev{ display:inline-flex; color:rgba(24,39,57,.5); transition:transform 120ms ease; }
+.cond-acc.open .cond-acc-head .chev{ transform:rotate(90deg); }
+.cond-acc-title{ font:var(--weight-semibold) 14px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
+.cond-acc-body{ display:none; }
+.cond-acc.open .cond-acc-body{ display:block; padding:14px 16px 4px; }
+.cond-acc-body .cond-grid.twocol{ max-width:none; }
 .cond-subh{ grid-column:1/-1; font:var(--weight-semibold) 14px/1.2 var(--asubk-font);
   color:var(--text-heading); margin:14px 0 2px; padding-bottom:8px; border-bottom:1px solid var(--border-default); }
 .cond-subh:first-child{ margin-top:2px; }
@@ -2943,6 +2955,26 @@ function condPhase(status){
   return 'locked';                                                                    // зафиксировано
 }
 
+/* Разложить плоский F (поля + маркеры cond-subh) в аккордеон-секции.
+   Маркер '<div class="cond-subh">Заголовок</div>' начинает новую секцию.
+   openN — сколько первых секций раскрыты по умолчанию. */
+function condAccordion(items, openN){
+  const secs = [];
+  let cur = null;
+  items.forEach(html => {
+    const m = html.match(/^<div class="cond-subh">([^<]*)<\/div>$/);
+    if (m){ cur = { title:m[1], fields:[] }; secs.push(cur); }
+    else { if (!cur){ cur = { title:'', fields:[] }; secs.push(cur); } cur.fields.push(html); }
+  });
+  const chev = '<span class="chev"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>';
+  return secs.map((s, i) => `<div class="cond-acc${i < openN ? ' open' : ''}">
+      <div class="cond-acc-head" onclick="this.parentNode.classList.toggle('open')">
+        ${chev}<span class="cond-acc-title">${s.title}</span><span class="doc-count">${s.fields.length}</span>
+      </div>
+      <div class="cond-acc-body"><div class="cond-grid twocol">${s.fields.join('')}</div></div>
+    </div>`).join('');
+}
+
 /* renderConditions — панель «Условия кредита». */
 function renderConditions(app){
   const prog  = PROGRAMS_MAP[app.program] || {};
@@ -2960,9 +2992,6 @@ function renderConditions(app){
   const r = ov.rate || {};
 
   const F = [];
-  // ── Подгруппа 1: параметры кредита (запрос заёмщика) ──
-  F.push('<div class="cond-subh">Параметры кредита (запрос заёмщика)</div>');
-  F.push(condField('Кредитная программа', [['программа', app.program]], { ro:true }));
   // Ограничения из выбранной программы (спек 2026-07-06):
   // источник — только варианты программы; сумма/срок — фикс.список или диапазон.
   const amtC = prog.amountType === 'Фиксированная'
@@ -2973,15 +3002,52 @@ function renderConditions(app){
   const grAccrC = graceConstraint(prog, 'graceAccr', 'graceAccrType', 'graceAccrDur', 'graceAccrDurFrom', 'graceAccrDurTo');
   const grIntC  = graceConstraint(prog, 'graceInt',  'graceIntType',  'graceIntDur',  'graceIntDurFrom',  'graceIntDurTo');
 
+  // Условие, унаследованное из кредитной программы (только чтение, 🔒).
+  // Все значения — из снимка условий программы (PROGRAMS_MAP), ничего не выдумываем.
+  const inh = (label, val) => condField(label, [['программа', val != null ? val : '']], { ro:true });
+
+  // Группировка условий повторяет вкладки кредитной программы — источник условий заявки.
+  // ── ① Основные данные ──
+  F.push('<div class="cond-subh">Основные данные</div>');
+  F.push(inh('Кредитная программа', app.program));
+  F.push(inh('Назначение кредита', prog.purpose || env.purpose));
   F.push(editReq
     ? condRefField('Источник финансирования', app.fundingSource, prog.istochnik, { required:true, fallback: CLK.source })
-    : condField('Источник финансирования', [['заёмщик', app.fundingSource || 'Бюджет']]));
+    : condField('Источник финансирования', [['заёмщик', app.fundingSource || prog.source || 'Бюджет']]));
+  F.push(inh('Вид кредита', prog.kind));
+  F.push(inh('Валюта', prog.currency || env.currency));
+  F.push(inh('Кредитная линия', prog.line));
+  F.push(inh('Вид счёта погашения', prog.repayAcct));
+
+  // ── ② Сумма и срок ──
+  F.push('<div class="cond-subh">Сумма и срок</div>');
   F.push(editReq
     ? condNum('Сумма', app.amount, { required:true, hint: prog.amountRange || '', ...amtC })
     : condField('Сумма', [['заёмщик', app.amount], ['комиссия', amtCom]], { hint: prog.amountRange || '' }));
   F.push(editReq
     ? condNum('Срок, мес.', app.term, { required:true, int:true, hint: prog.termRange || '', ...trmC })
     : condField('Срок, мес.', [['заёмщик', app.term], ['комиссия', trmCom]], { hint: prog.termRange || '' }));
+
+  // ── ③ Процентные ставки ──
+  F.push('<div class="cond-subh">Процентные ставки</div>');
+  F.push(editOp
+    ? condEdit('Годовая ставка, %', r.com || env.rate || prog.rate || '', { required:true, hint: `из программы: ${env.rate || prog.rate || '—'}` })
+    : condField('Годовая ставка, %',
+        [['программа', r.prog || env.rate || prog.rate || ''], ['заёмщик', r.bor || ''], ['комиссия', r.com || '']]));
+  F.push(inh('Тип основной ставки', prog.rateType));
+  F.push(inh('Плавающая ставка', prog.floatRate ? 'Используется' : 'Не используется'));
+  F.push(editOp
+    ? condEdit('Ставка за неполное освоение (резерв), %', app.reserveRate || '0,00', {})
+    : condField('Ставка за неполное освоение (резерв), %', [['комиссия', app.reserveRate || '0,00']]));
+
+  // ── ④ Штрафы за просрочку ──
+  F.push('<div class="cond-subh">Штрафы за просрочку</div>');
+  F.push(inh('Штраф за просрочку основной суммы', prog.penaltyMainVal));
+  F.push(inh('Штраф за просрочку процентов', prog.penaltyIntVal));
+  F.push(inh('Максимальный размер штрафа, %', prog.penaltyMaxPct));
+
+  // ── ⑤ Льготный период ──
+  F.push('<div class="cond-subh">Льготный период</div>');
   F.push(editReq
     ? condNum('Льготный период по осн. сумме', app.graceMain || '0', { int:true, hint:'мес.', ...grMainC })
     : condField('Льготный период по осн. сумме', [['заёмщик', _grace(app.graceMain)]]));
@@ -2992,36 +3058,33 @@ function renderConditions(app){
     ? condNum('Льготный период по процентам', app.graceInterest || '0', { int:true, hint:'мес.', ...grIntC })
     : condField('Льготный период по процентам', [['заёмщик', _grace(app.graceInterest)]]));
 
-  // ── Подгруппа 2: операционные условия (программа / комиссия) ──
-  F.push('<div class="cond-subh">Операционные условия (из программы / комиссия)</div>');
-  F.push(condField('Валюта', [['программа', env.currency || 'KGS (сом)']], { ro:true }));
-  F.push(condField('Цель кредита', [['программа', env.purpose || '—']], { ro:true }));
+  // ── ⑥ Платежи и расчёты ──
+  F.push('<div class="cond-subh">Платежи и расчёты</div>');
   F.push(editOp
-    ? condEdit('Годовая ставка, %', r.com || env.rate || prog.rate || '', { required:true, hint: prog.amountRange ? `из программы: ${env.rate || prog.rate || '—'}` : '' })
-    : condField('Годовая ставка, %',
-        [['программа', r.prog || env.rate || prog.rate || ''], ['заёмщик', r.bor || ''], ['комиссия', r.com || '']]));
-  F.push(editOp
-    ? condEdit('Процент за резерв', app.reserveRate || '0,00', {})
-    : condField('Процент за резерв', [['комиссия', app.reserveRate || '0,00']]));
-  F.push(editOp
-    ? condEdit('Периодичность платежей', app.paymentFrequency || env.freq || 'Ежемесячно', { required:true })
-    : condField('Периодичность платежей', [['программа', app.paymentFrequency || env.freq || 'Ежемесячно']]));
-  F.push(editOp
-    ? condEdit('Метод погашения', app.repaymentMethod || env.method || 'Аннуитетный', { required:true })
-    : condField('Метод погашения', [['программа', app.repaymentMethod || env.method || 'Аннуитетный']]));
+    ? condEdit('Периодичность платежей', app.paymentFrequency || prog.periodicity || env.freq || 'Ежемесячно', { required:true })
+    : condField('Периодичность платежей', [['программа', app.paymentFrequency || prog.periodicity || env.freq || 'Ежемесячно']]));
+  F.push(inh('Метод расчёта дней в периоде', prog.dayCountNum));
+  F.push(inh('База дней в году', prog.dayCountBase));
+  F.push(inh('Очередь погашения', prog.queue));
   F.push(editOp
     ? condEdit('День платежа', app.paymentDay || '15', { required:true })
     : condField('День платежа', [['комиссия', app.paymentDay || '15']]));
   F.push(editOp
-    ? condEdit('Обработка выходных', app.processingOption || 'Переносить на следующий рабочий день', {})
-    : condField('Обработка выходных', [['комиссия', app.processingOption || 'Переносить на следующий рабочий день']]));
+    ? condEdit('Обработка нерабочих дней', app.processingOption || prog.weekend || 'Не переносить', {})
+    : condField('Обработка нерабочих дней', [['программа', app.processingOption || prog.weekend || 'Не переносить']]));
+  F.push(inh('Привязка последнего платежа', prog.lastPaymentAnchor));
+  F.push(editOp
+    ? condEdit('Метод погашения кредита', app.repaymentMethod || prog.repayMethod || env.method || 'Аннуитетный', { required:true })
+    : condField('Метод погашения кредита', [['программа', app.repaymentMethod || prog.repayMethod || env.method || 'Аннуитетный']]));
+  F.push(inh('Период между освоением и первым платежем',
+    (prog.minDays || prog.maxDays) ? `${prog.minDays || '—'}–${prog.maxDays || '—'} дн.` : ''));
 
-  // ── Подгруппа 3: решение комиссии ──
+  // ── ⑦ Решение комиссии (одобр. сумма/срок — см. diff «было→стало» в блоке ②) ──
   F.push('<div class="cond-subh">Решение комиссии</div>');
   F.push(editOp
-    ? `<div class="cond-field"><span class="cflabel">Комментарий комиссии</span>`
+    ? `<div class="cond-field col-span"><span class="cflabel">Комментарий комиссии</span>`
       + `<textarea class="cf-input" style="max-width:100%;height:auto;min-height:60px;padding:8px var(--space-2)">${app.comment || ''}</textarea></div>`
-    : condField('Комментарий комиссии', [['комиссия', app.comment || '']]));
+    : condField('Комментарий комиссии', [['комиссия', app.comment || '']], { span:true }));
 
   const banner = phase === 'draft'
     ? (editReq
@@ -3043,7 +3106,7 @@ function renderConditions(app){
         <span><span class="cf-req">*</span> — обязательное</span>
         <span>🔒 — наследуется из программы</span>
       </div>
-      <div class="cond-grid onecol">${F.join('')}</div>
+      ${condAccordion(F, 3)}
     </div>
   </div>`;
 }
