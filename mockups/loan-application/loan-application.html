@@ -1965,7 +1965,7 @@ function renderGrid(){
       onclick="selectRow(this.dataset.num)"
       ondblclick="gotoDetail(this.dataset.num)">
       <td>${_esc(r.num)}</td>
-      <td>${_esc(r.inn + ' — ' + r.name)}</td>
+      <td>${_esc(r.name)}</td>
       <td>${_esc(r.status)}</td>
       <td>${_esc(r.program)}</td>
       <td>${_esc(r.amount)}</td>
@@ -2298,7 +2298,7 @@ function gotoDetail(num){
 
   /* Header band */
   const meta = STATUS_META[app.status] || { badge:'s-new', step:0 };
-  document.getElementById('dh-subject').textContent = app.inn + ' — ' + app.name;
+  document.getElementById('dh-subject').textContent = app.name;
   document.getElementById('dh-status').innerHTML    = `<span class="st-badge ${meta.badge}">${app.status}</span>`;
   const flowTxt = app.flow === 'B' ? 'Индивидуальная' : 'По программе: ' + app.program;
   document.getElementById('dh-meta').innerHTML =
@@ -2521,6 +2521,7 @@ function renderGeneral(app){
       <div class="cond-block">
         <div class="section-h">Данные заявителя</div>
         <div class="cond-grid onecol">
+          ${roField('ИНН', app.inn, true)}
           <div class="cond-field"><span class="cflabel">Номер телефона</span>${phoneCell}</div>
           ${roField('Адрес', subj.address, true)}
         </div>
