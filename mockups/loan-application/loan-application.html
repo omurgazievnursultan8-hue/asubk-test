@@ -121,6 +121,7 @@ a{ color:inherit; }
   height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
   font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
 .btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn[hidden]{ display:none !important; }   /* скрытие кнопок по роли */
 .btn svg{ flex:none; }
 .btn-primary{ background:var(--action-primary); color:#fff; }
 .btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
@@ -792,6 +793,11 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .detail-mode.edit .dot{ background:var(--asubk-green); }
 .detail-mode.view .dot{ background:var(--text-muted); }
 
+/* ---- демо-переключатель роли (топбар-крошка, как в мокапе решений) ---- */
+.roleswitch{ margin-left:auto; display:flex; align-items:center; gap:8px; font:var(--weight-regular) var(--text-sm)/1 var(--asubk-font); color:var(--text-muted); }
+.roleswitch label{ color:var(--text-muted); }
+.roleswitch select{ font:inherit; padding:5px 8px; border:1px solid var(--asubk-gray-300, #d0d5dd); border-radius:6px; background:var(--surface-page); color:var(--text-heading); cursor:pointer; }
+
 /* ---- status badge (header dh-status + list) ---- */
 .st-badge{ display:inline-flex; align-items:center; height:22px; padding:0 10px; border-radius:var(--radius-pill);
   font:var(--weight-semibold) var(--text-xs)/1 var(--asubk-font); white-space:nowrap; }
@@ -1047,6 +1053,15 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
       <span class="crumb-sep" id="crumbSep" style="display:none">/</span>
       <span class="crumb-title" id="crumbTitle">Заявки</span>
       <span class="crumb-status" id="crumbStatus"></span>
+      <!-- демо-переключатель роли (как в мокапе решений): влияет на права редактирования и действия -->
+      <span class="roleswitch" title="Демо: роль влияет на права редактирования и действия (спец / комиссия / просмотр)">
+        <label for="roleSel">Роль:</label>
+        <select id="roleSel" onchange="setRole(this.value)">
+          <option value="spec">👷 Кредитный специалист</option>
+          <option value="com">🏛 Комиссия</option>
+          <option value="ro">👁 Остальные</option>
+        </select>
+      </span>
     </header>
 
     <main class="content" id="view-root">
@@ -1118,13 +1133,13 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
     </button>
   </div>
 
-  <!-- 4. Actions bar: Создать · Изменить · Удалить · Отправить… · gear · pager -->
+  <!-- 4. Actions bar: Создать · Просмотр · Удалить · Отправить… · gear · pager -->
   <div class="tb-actions">
-    <button class="btn btn-primary" onclick="openCreateModal()">
+    <button class="btn btn-primary" id="btnCreate" onclick="openCreateModal()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
       Создать
     </button>
-    <button class="btn btn-secondary" id="btnEdit" disabled onclick="editSelected()">Изменить</button>
+    <button class="btn btn-secondary" id="btnEdit" disabled onclick="editSelected()">Просмотр</button>
     <button class="btn btn-danger"    id="btnDel"  disabled>Удалить</button>
     <button class="btn btn-secondary" id="btnCom"  disabled onclick="openSendModal('credit')">Отправить в комиссию</button>
     <button class="btn btn-ghost btn-sm" title="Настройки">
@@ -2038,7 +2053,7 @@ function selectRow(num){
 }
 
 function editSelected(){
-  if (_selNum) gotoDetail(_selNum);   // «Изменить» opens the selected row's detail (as live: no read-only view)
+  if (_selNum) gotoDetail(_selNum);   // «Просмотр» opens the selected row's detail (edit gated inside by статус)
 }
 
 function sortBy(col){
@@ -2327,6 +2342,46 @@ function showTab(panelId){
   if (panel) panel.innerHTML = PANEL_RENDER[panelId] ? PANEL_RENDER[panelId](_detailApp) : panelStub(panelId);
 }
 
+/* ============================================================
+   Демо-переключатель роли просмотра (spec · com · ro).
+   Реальный модуль берёт роль из auth; здесь — чтобы наглядно проверить gating.
+   Единый источник прав — can(app): (роль × фаза) → что редактируемо.
+   ============================================================ */
+const ROLES = [
+  ['spec', '👷 Кредитный специалист'],
+  ['com',  '🏛 Комиссия'],
+  ['ro',   '👁 Остальные'],
+];
+const ROLE_LABEL = Object.fromEntries(ROLES);
+let _role = 'spec';                                   // дефолт — кредитный специалист
+
+/* can — права текущей роли на заявке. phase: draft | review | locked (condPhase). */
+function can(app){
+  const phase = condPhase(app.status);
+  return {
+    phase,
+    editReq: _role === 'spec' && phase === 'draft',    // запрос заёмщика · доки · члены · залог
+    editOp:  _role === 'com'  && phase === 'review',   // опер-условия · комментарий комиссии
+    vote:    _role === 'com'  && phase === 'review',   // голосование в комиссии
+    toolbar: _role === 'spec',                         // тулбар-действия жмёт только специалист
+  };
+}
+
+/* Кнопки-действия списка (Создать · Изменить · Удалить · Отправить) — только кредитный
+   специалист. Комиссия/остальные их не видят (открыть заявку можно двойным кликом строки). */
+const SPEC_LIST_BTNS = ['btnCreate', 'btnEdit', 'btnDel', 'btnCom'];
+function applyRoleToListButtons(){
+  const show = _role === 'spec';
+  SPEC_LIST_BTNS.forEach(id => { const b = document.getElementById(id); if (b) b.hidden = !show; });
+}
+
+function setRole(r){
+  if (!ROLE_LABEL[r]) return;
+  _role = r;
+  applyRoleToListButtons();                             // список: скрыть/показать спец-кнопки
+  if (_detailApp) gotoDetail(_detailApp.num);           // деталка: перерисовать под роль
+}
+
 /* ---- Detail toolbar: экшны по статусу (spec топик 4, P3-R7).
    Все кнопки жмёт КРЕДИТНЫЙ СПЕЦИАЛИСТ. Решения комиссии — в тулбаре вкладки «Комиссия». ---- */
 const TOOLBAR = {
@@ -2343,13 +2398,17 @@ const TOOLBAR = {
 function toolbarAction(label){ showToast(label + ' — демо-действие макета', 'info'); }
 
 function renderToolbar(app){
-  const meta = STATUS_META[app.status] || { mode:'view' };
-  const acts = TOOLBAR[app.status] || [];
+  const cap = can(app);
+  /* Тулбар-действия жмёт только кредитный специалист; комиссия/остальные их не видят. */
+  const acts = cap.toolbar ? (TOOLBAR[app.status] || []) : [];
   const btns = acts.map(([label,kind]) =>
     `<button class="btn btn-${kind} btn-sm" onclick="toolbarAction('${label}')">${label}</button>`).join('');
-  const modeTxt = meta.mode === 'edit' ? 'Режим: редактирование' : 'Режим: просмотр';
+  /* Режим = может ли ТЕКУЩАЯ роль что-то редактировать на этой заявке. */
+  const canEdit = cap.editReq || cap.editOp || cap.vote;
+  const modeCls = canEdit ? 'edit' : 'view';
+  const modeTxt = `${ROLE_LABEL[_role]} · ${canEdit ? 'редактирование' : 'просмотр'}`;
   document.getElementById('detailToolbar').innerHTML =
-    btns + `<span class="detail-mode ${meta.mode}"><span class="dot"></span>${modeTxt}</span>`;
+    btns + `<span class="detail-mode ${modeCls}"><span class="dot"></span>${modeTxt}</span>`;
 }
 
 /* renderTabbar — строит видимые вкладки (условные по флагам); возвращает первый panel id. */
@@ -2384,7 +2443,8 @@ function gotoDetail(num){
   document.getElementById('crumbSep').style.display  = 'inline';
   document.getElementById('crumbTitle').textContent  = app.num;
 
-  /* Toolbar + tabbar (шапочный stepper убран — цикл в 1-й вкладке) */
+  /* Toolbar + tabbar (шапочный stepper убран — цикл в 1-й вкладке).
+     Роль переключается в топбаре (#roleSel → setRole); влияет на gating всех вкладок. */
   renderToolbar(app);
   const firstPanel = renderTabbar(app);
 
@@ -2648,7 +2708,7 @@ function renderLifecycle(app){
 function renderGeneral(app){
   const meta = STATUS_META[app.status] || { mode:'view' };
   const subj = SUBJECTS_MAP[app.inn] || {};
-  const editable = meta.mode === 'edit';
+  const editable = can(app).editReq;   // данные заявителя правит специалист в draft
   const phone = app.phone || subj.phone;
   const phoneCell = editable
     ? `<input class="cf-input" type="tel" inputmode="tel" maxlength="17" value="${maskPhone(phone)}" placeholder="+996 …" oninput="formatPhone(this)" onfocus="formatPhone(this)">`
@@ -2829,7 +2889,7 @@ function graceConstraint(prog, on, type, dur, from, to){
 /* Фаза редактирования условий по статусу заявки. */
 function condPhase(status){
   if (['Новый', 'Требуется доп. информация'].includes(status)) return 'draft';       // правит специалист
-  if (['На рассмотрении', 'Ожидает решения/программы'].includes(status)) return 'commission'; // правит комиссия
+  if (['На рассмотрении', 'Ожидает решения/программы'].includes(status)) return 'review';   // у комиссии — экран специалиста только для чтения
   return 'locked';                                                                    // зафиксировано
 }
 
@@ -2839,8 +2899,9 @@ function renderConditions(app){
   const env   = PROG_ENV[app.program]     || {};
   const ov    = DEMO_PROV[app.num]        || {};
   const phase = condPhase(app.status);
-  const editReq = phase === 'draft';        // запрос заёмщика редактирует специалист
-  const editOp  = phase === 'commission';   // операционные условия правит комиссия
+  const cap = can(app);
+  const editReq = cap.editReq;  // запрос заёмщика правит специалист (draft)
+  const editOp  = cap.editOp;   // опер-условия правит комиссия (review) — только под ролью «Комиссия»
 
   // diff-значения комиссии (демо-провенанс + одобренные поля заявки)
   const amtCom = (ov.amount && ov.amount.com)
@@ -2913,9 +2974,13 @@ function renderConditions(app){
     : condField('Комментарий комиссии', [['комиссия', app.comment || '']]));
 
   const banner = phase === 'draft'
-    ? '<div class="note-banner"><span>Черновик — условия правит <b>кредитный специалист</b>. После «Отправить в комиссию» правки переходят к комиссии.</span></div>'
-    : phase === 'commission'
-    ? '<div class="note-banner warn"><span>На рассмотрении — операционные условия правит <b>комиссия</b>. Запрос заёмщика зафиксирован (read-only).</span></div>'
+    ? (editReq
+        ? '<div class="note-banner"><span>Черновик — условия правит <b>кредитный специалист</b>. После «Отправить в комиссию» правки переходят к комиссии.</span></div>'
+        : '<div class="note-banner"><span>Черновик у <b>кредитного специалиста</b>. В этой роли условия только для чтения.</span></div>')
+    : phase === 'review'
+    ? (editOp
+        ? '<div class="note-banner warn"><span>На рассмотрении — операционные условия правит <b>комиссия</b>. Запрос заёмщика зафиксирован (read-only).</span></div>'
+        : '<div class="note-banner"><span>На рассмотрении у <b>комиссии</b>. В этой роли все условия только для чтения.</span></div>')
     : '<div class="note-banner"><span>Решение вынесено — все условия <b>зафиксированы</b> (только чтение). Правки в «было → стало» показывают изменения комиссии.</span></div>';
 
   return `<div class="cond-wrap">
@@ -3052,7 +3117,7 @@ const DOC_SECTIONS = [
 function _docUploaded(app, d, i){ return app.status === 'Новый' ? i === 0 : (d.req || i % 2 === 0); }
 
 function renderDocs(app){
-  const editable = (STATUS_META[app.status] || {}).mode === 'edit';
+  const editable = can(app).editReq;   // правит кредитный специалист в draft
   const secs = DOC_SECTIONS.filter(s => !s.collateral || app.hasCollateral);
   let reqTot = 0, reqUp = 0;
   const accs = secs.map((s, si) => {
@@ -3140,7 +3205,8 @@ function renderCommission(app){
       <td><span class="com-vote ${_VOTE_CLS[m.vote]}">${m.vote}</span></td>
       <td>${m.deadline}</td><td>${m.comment || ''}</td></tr>`).join('')}</tbody></table></div>`;
   const tools = c.open
-    ? `<div class="com-tools">
+    ? (can(app).vote
+      ? `<div class="com-tools">
         <div class="note-banner warn"><span><b>Принцип 4 глаз</b> — если вы автор/отправитель заявки, ваш голос учитывается, но помечается в аудите (предупреждение, не блок). Порога кворума нет: председатель закрывает голосование в любой момент; крайний срок — напоминание, не авто-воздержание.</span></div>
         <div class="com-toolrow"><span class="role">Председатель (финальное решение):</span>
           <button class="btn btn-success btn-sm" onclick="toolbarAction('Комиссия: Одобрить')">Одобрить</button>
@@ -3151,6 +3217,7 @@ function renderCommission(app){
           <button class="btn btn-secondary btn-sm" onclick="toolbarAction('Голос: Отклонить')">Отклонить</button>
           <button class="btn btn-ghost btn-sm" onclick="toolbarAction('Голос: Воздержаться')">Воздержаться</button></div>
       </div>`
+      : `<div class="com-tools"><div class="note-banner"><span>Голосование идёт. Голосовать и выносить решение может только роль <b>🏛 Комиссия</b> — переключите роль в шапке.</span></div></div>`)
     : `<div class="com-tools"><div class="note-banner"><span>Голосование закрыто. Итоговое решение зафиксировано председателем (см. «Финальное решение»).</span></div></div>`;
   return `<div class="com-wrap">
     <div class="com-head">
@@ -3176,7 +3243,7 @@ PANEL_RENDER['tab-6'] = renderCommission;
    По члену: ФИО · сумма · дата освоения; сумма заявки = ∑ сумм членов.
    Кредит/транши рождаются после одобрения; заявка несёт будущие транши. */
 function renderMembers(app){
-  const editable = (STATUS_META[app.status] || {}).mode === 'edit';
+  const editable = can(app).editReq;   // правит кредитный специалист в draft
   const P = _num(app.amount);
   const a = Math.round(P * 0.40), b = Math.round(P * 0.35), c = P - a - b;
   const members = [
@@ -3208,7 +3275,7 @@ PANEL_RENDER['tab-3'] = renderMembers;
    несколько предметов + коэффициент покрытия. Залоговые документы — во вкладке «Документы». */
 const COLLATERAL_KINDS = ['Недвижимость', 'Транспортное средство', 'Оборудование', 'Товары в обороте'];
 function renderCollateral(app){
-  const editable = (STATUS_META[app.status] || {}).mode === 'edit';
+  const editable = can(app).editReq;   // правит кредитный специалист в draft
   const items = [
     { kind:'Недвижимость',          val:'3 000 000,00', desc:'Складское помещение, 420 м², г. Бишкек' },
     { kind:'Транспортное средство', val:'800 000,00',   desc:'Грузовой автомобиль, 2021 г.' },
@@ -3373,7 +3440,7 @@ function renderDocPackTab(elId, title, total, docs) {
 /* (to-be) Документы теперь одна вкладка-аккордеон (renderDocs → PANEL_RENDER['tab-2']);
    прежние load-time вызовы renderDocPackTab удалены. */
 
-document.addEventListener('DOMContentLoaded', () => { showView('list'); renderGrid(); });
+document.addEventListener('DOMContentLoaded', () => { showView('list'); renderGrid(); applyRoleToListButtons(); });
 
 /* ============================================================
    CREATE PAGE — #view-create (to-be, was #modal-create wizard)
