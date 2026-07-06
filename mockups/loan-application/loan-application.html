@@ -687,23 +687,26 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
    TASK 5: Detail view — header band, status stepper, tab bar
    ================================================================ */
 
-/* ---- detail view header band (as-is: grey filled readonly look) ---- */
+/* ---- detail view header (to-be 2026-07-06): identity header, not readonly
+   form-boxes. Заголовок = субъект; статус — бейдж; №/тип/сумма — meta-строка.
+   Уходит от grey «filled» вида (defect P2-01). Действия — в полосе ниже. ---- */
 #view-detail{ display:flex; flex-direction:column; }
 .detail-header{
-  background:var(--surface-panel); border-bottom:1px solid var(--border-default);
-  padding:0 20px; flex:none;
+  background:var(--surface-page); border-bottom:1px solid var(--border-default);
+  padding:24px 24px 20px; flex:none;
 }
-.dh-row{ display:flex; gap:20px; padding:8px 0; }
-.dh-row + .dh-row{ border-top:1px solid var(--border-default); }
-.dh-field{ display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; }
-.dh-field.wide{ flex:2; }
-.dh-label{ font:var(--weight-regular) 11px/1.35 var(--asubk-font); color:var(--text-muted); }
-/* as-is: grey "filled" look — same as live Jmix readonly field (defect P2-01) */
-.dh-value{
-  font:var(--weight-medium) var(--text-sm)/1.4 var(--asubk-font); color:var(--text-body);
-  min-height:var(--control-h); background:var(--surface-input); border-radius:var(--radius-md);
-  padding:0 var(--space-2); display:flex; align-items:center; border:1px solid transparent;
+.dh-title-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.dh-title{
+  margin:0; font-weight:var(--weight-semibold); font-size:22px; line-height:1.25;
+  color:var(--text-heading); overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; max-width:100%;
 }
+.dh-meta{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:12px;
+  font:var(--weight-regular) var(--text-base)/1.4 var(--asubk-font); color:var(--text-muted);
+}
+.dh-sep{ color:var(--border-strong); }
+.dh-amount{ font-weight:var(--weight-semibold); color:var(--text-body); }
 
 /* ---- status stepper ---- */
 .stepper-section{
@@ -767,6 +770,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .detail-panel.active{ display:block; }
 
 /* ---- detail toolbar (status-gated actions; жмёт кред. специалист) ---- */
+/* status-gated actions — отдельная полоса под шапкой */
 .detail-toolbar{ display:flex; flex-wrap:wrap; align-items:center; gap:8px;
   padding:12px 20px; border-bottom:1px solid var(--border-default);
   background:var(--surface-page); flex:none; }
@@ -778,7 +782,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .detail-mode.edit .dot{ background:var(--asubk-green); }
 .detail-mode.view .dot{ background:var(--text-muted); }
 
-/* ---- status badge (header dh-value + list) ---- */
+/* ---- status badge (header dh-status + list) ---- */
 .st-badge{ display:inline-flex; align-items:center; height:22px; padding:0 10px; border-radius:var(--radius-pill);
   font:var(--weight-semibold) var(--text-xs)/1 var(--asubk-font); white-space:nowrap; }
 .st-badge.s-new{ color:var(--text-muted); background:var(--asubk-gray-150); }
@@ -1159,34 +1163,14 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
       <!-- ============ DETAIL VIEW (Task 5: shell — header + stepper + tabs) ============ -->
       <section id="view-detail" style="display:none">
 
-        <!-- Header band: row 1 = Субъект · Номер документа -->
-        <!--               row 2 = Статус заявки · Статус залоговой комиссии · Запрашиваемая сумма -->
-        <!-- as-is: grey "filled" readonly look (live Jmix defect P2-01 preserved) -->
+        <!-- Header (to-be): заголовок=субъект + бейдж статуса; meta=тип · сумма
+             (номер уже в хлебных крошках); действия справа (detailToolbar). -->
         <div class="detail-header">
-          <div class="dh-row">
-            <div class="dh-field wide">
-              <span class="dh-label">Субъект</span>
-              <div class="dh-value" id="dh-subject"></div>
-            </div>
-            <div class="dh-field">
-              <span class="dh-label">Номер документа</span>
-              <div class="dh-value" id="dh-num"></div>
-            </div>
+          <div class="dh-title-row">
+            <h1 class="dh-title" id="dh-subject"></h1>
+            <span id="dh-status"><!-- st-badge --></span>
           </div>
-          <div class="dh-row">
-            <div class="dh-field">
-              <span class="dh-label">Статус заявки</span>
-              <div class="dh-value" id="dh-status"></div>
-            </div>
-            <div class="dh-field">
-              <span class="dh-label">Тип заявки</span>
-              <div class="dh-value" id="dh-flow"></div>
-            </div>
-            <div class="dh-field">
-              <span class="dh-label">Запрашиваемая сумма</span>
-              <div class="dh-value" id="dh-amount"></div>
-            </div>
-          </div>
+          <div class="dh-meta" id="dh-meta"></div>
         </div>
 
         <!-- Шапочный stepper убран (to-be 2026-07-06): жизненный цикл теперь во 2-й колонке
@@ -2395,10 +2379,11 @@ function gotoDetail(num){
   /* Header band */
   const meta = STATUS_META[app.status] || { badge:'s-new', step:0 };
   document.getElementById('dh-subject').textContent = app.inn + ' — ' + app.name;
-  document.getElementById('dh-num').textContent     = app.num;
   document.getElementById('dh-status').innerHTML    = `<span class="st-badge ${meta.badge}">${app.status}</span>`;
-  document.getElementById('dh-flow').textContent    = app.flow === 'B' ? 'Индивидуальная' : 'По программе: ' + app.program;
-  document.getElementById('dh-amount').textContent  = app.amount;
+  const flowTxt = app.flow === 'B' ? 'Индивидуальная' : 'По программе: ' + app.program;
+  document.getElementById('dh-meta').innerHTML =
+    `<span>${flowTxt}</span><span class="dh-sep">·</span>`
+    + `<span class="dh-amount">${app.amount} сом</span>`;
 
   /* Breadcrumb */
   document.getElementById('crumbBack').style.display = 'inline-flex';
@@ -2570,7 +2555,6 @@ function renderGeneral(app){
       <div class="cond-block">
         <div class="section-h">Данные заявителя</div>
         <div class="cond-grid onecol">
-          ${roField('Субъект', app.inn + ' — ' + app.name, true)}
           <div class="cond-field"><span class="cflabel">Номер телефона</span>${phoneCell}</div>
           ${roField('Адрес', subj.address, true)}
         </div>
