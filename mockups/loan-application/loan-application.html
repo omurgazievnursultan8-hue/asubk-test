@@ -2355,15 +2355,25 @@ const ROLES = [
 const ROLE_LABEL = Object.fromEntries(ROLES);
 let _role = 'spec';                                   // дефолт — кредитный специалист
 
-/* can — права текущей роли на заявке. phase: draft | review | locked (condPhase). */
+/* Режим правки деталки: страница открывается на просмотр; поля правятся ТОЛЬКО
+   после «Изменить» (как в живых Jmix-редакторах). Сбрасывается при открытии др. заявки. */
+let _editMode = false;
+
+/* can — права текущей роли на заявке. phase: draft | review | locked (condPhase).
+   canEditReq/canEditOp — потенциальное право (роль × фаза); editReq/editOp — фактическое
+   (= потенциальное × включённый режим «Изменить»). Инлайн-редакторы смотрят на editReq/editOp. */
 function can(app){
   const phase = condPhase(app.status);
+  const rawReq = _role === 'spec' && phase === 'draft';   // запрос заёмщика · доки · члены · залог
+  const rawOp  = _role === 'com'  && phase === 'review';  // опер-условия · комментарий комиссии
   return {
     phase,
-    editReq: _role === 'spec' && phase === 'draft',    // запрос заёмщика · доки · члены · залог
-    editOp:  _role === 'com'  && phase === 'review',   // опер-условия · комментарий комиссии
-    vote:    _role === 'com'  && phase === 'review',   // голосование в комиссии
-    toolbar: _role === 'spec',                         // тулбар-действия жмёт только специалист
+    canEditReq: rawReq,
+    canEditOp:  rawOp,
+    editReq: rawReq && _editMode,
+    editOp:  rawOp  && _editMode,
+    vote:    _role === 'com' && phase === 'review',        // голосование в комиссии
+    toolbar: _role === 'spec',                             // тулбар-действия жмёт только специалист
   };
 }
 
@@ -2378,6 +2388,7 @@ function applyRoleToListButtons(){
 function setRole(r){
   if (!ROLE_LABEL[r]) return;
   _role = r;
+  _editMode = false;                                   // смена роли — выходим из правки
   applyRoleToListButtons();                             // список: скрыть/показать спец-кнопки
   if (_detailApp) gotoDetail(_detailApp.num);           // деталка: перерисовать под роль
 }
@@ -2397,16 +2408,52 @@ const TOOLBAR = {
 };
 function toolbarAction(label){ showToast(label + ' — демо-действие макета', 'info'); }
 
+/* ---- Режим правки: «Изменить» → редактируемые поля → «Сохранить»/«Отмена» ----
+   enterEdit включает _editMode и перерисовывает деталку; save/cancel — выключают.
+   Сохранение — демо (значения инлайн-полей в объект не пишутся; при закрытии сброс). */
+function enterEdit(){
+  if (!_detailApp) return;
+  const cap = can(_detailApp);
+  if (!(cap.canEditReq || cap.canEditOp)){ showToast('Нет прав на редактирование этой заявки', 'warn'); return; }
+  _editMode = true;
+  gotoDetail(_detailApp.num);                          // перерисовать в режиме правки
+  showToast('Режим редактирования включён', '');
+}
+function saveEdit(){
+  if (!_detailApp) return;
+  _editMode = false;
+  gotoDetail(_detailApp.num);
+  showToast('Изменения сохранены (демо)', 'ok');
+}
+function cancelEdit(){
+  if (!_detailApp) return;
+  _editMode = false;
+  gotoDetail(_detailApp.num);
+  showToast('Редактирование отменено', '');
+}
+
 function renderToolbar(app){
   const cap = can(app);
-  /* Тулбар-действия жмёт только кредитный специалист; комиссия/остальные их не видят. */
-  const acts = cap.toolbar ? (TOOLBAR[app.status] || []) : [];
-  const btns = acts.map(([label,kind]) =>
-    `<button class="btn btn-${kind} btn-sm" onclick="toolbarAction('${label}')">${label}</button>`).join('');
-  /* Режим = может ли ТЕКУЩАЯ роль что-то редактировать на этой заявке. */
-  const canEdit = cap.editReq || cap.editOp || cap.vote;
-  const modeCls = canEdit ? 'edit' : 'view';
-  const modeTxt = `${ROLE_LABEL[_role]} · ${canEdit ? 'редактирование' : 'просмотр'}`;
+  const canEditNow = cap.canEditReq || cap.canEditOp;   // может ли роль править (до входа в режим)
+  let btns;
+  if (_editMode){
+    /* Режим правки — только сохранить/отменить. */
+    btns = `<button class="btn btn-primary btn-sm" onclick="saveEdit()">Сохранить</button>`
+         + `<button class="btn btn-ghost btn-sm" onclick="cancelEdit()">Отмена</button>`;
+  } else {
+    /* Просмотр. Тулбар-действия по статусу жмёт только специалист; «Изменить» → enterEdit. */
+    const acts = cap.toolbar ? (TOOLBAR[app.status] || []) : [];
+    const list = acts.map(([label,kind]) =>
+      label === 'Изменить'
+        ? `<button class="btn btn-${kind} btn-sm" onclick="enterEdit()">${label}</button>`
+        : `<button class="btn btn-${kind} btn-sm" onclick="toolbarAction('${label}')">${label}</button>`);
+    /* Комиссия правит опер-условия, но своего статус-тулбара не имеет — добавим «Изменить». */
+    if (canEditNow && !acts.some(([l]) => l === 'Изменить'))
+      list.unshift(`<button class="btn btn-secondary btn-sm" onclick="enterEdit()">Изменить</button>`);
+    btns = list.join('');
+  }
+  const modeCls = _editMode ? 'edit' : 'view';
+  const modeTxt = `${ROLE_LABEL[_role]} · ${_editMode ? 'редактирование' : 'просмотр'}`;
   document.getElementById('detailToolbar').innerHTML =
     btns + `<span class="detail-mode ${modeCls}"><span class="dot"></span>${modeTxt}</span>`;
 }
@@ -2425,6 +2472,9 @@ function renderTabbar(app){
 function gotoDetail(num){
   const app = APPLICATIONS.find(a => a.num === num);
   if (!app) { console.warn('gotoDetail: not found', num); return; }
+  /* Открытие ДРУГОЙ заявки — всегда просмотр; перерисовка той же (enter/save/cancel/setRole)
+     сохраняет текущий _editMode. */
+  if (!_detailApp || _detailApp.num !== num) _editMode = false;
   _detailApp = app;
 
   /* Header band */
