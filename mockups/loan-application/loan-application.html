@@ -869,6 +869,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .vtl-line.dashed{ background:linear-gradient(var(--asubk-gray-200) 55%, transparent 0) repeat-y; background-size:2px 8px; }
 .vtl-body{ padding-bottom:18px; min-width:0; }
 .vtl-item:last-child .vtl-body{ padding-bottom:0; }
+.vtl-titlerow{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .vtl-title{ font:var(--weight-semibold) 15px/1.3 var(--asubk-font); color:var(--text-body); }
 .vtl-item.future .vtl-title{ color:var(--text-placeholder); font-weight:var(--weight-regular); }
 .vtl-item.current .vtl-title{ color:var(--asubk-blue); }
@@ -882,10 +883,6 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .vtl-meta{ font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-top:5px; }
 .vtl-age{ display:inline-block; margin-left:8px; padding:1px 8px; border-radius:var(--radius-pill);
   background:var(--asubk-gray-100); color:var(--text-muted); font:var(--weight-semibold) 11px/1.5 var(--asubk-font); }
-.vtl-badge{ display:inline-flex; align-items:center; gap:4px; margin-top:8px; padding:3px 10px;
-  border-radius:var(--radius-pill); font:var(--weight-semibold) 11px/1.4 var(--asubk-font); }
-.vtl-badge.loop{ background:rgba(28,55,90,0.08); color:var(--asubk-blue); }
-.vtl-badge.stop{ background:var(--asubk-gray-100); color:var(--text-muted); }
 .vtl-reason{ margin-top:8px; padding:8px 11px; border-radius:var(--radius-md);
   background:var(--surface-page); border-left:3px solid var(--asubk-gray-200);
   font:var(--weight-regular) 13px/1.45 var(--asubk-font); color:var(--text-body); }
@@ -2525,8 +2522,8 @@ const LC_STEPS = [
 const LC_OFF = {
   'Отклонена':                 { cur:2, term:'reject',   reason:'Недостаточное обеспечение: залоговая стоимость ниже требуемой.' },
   'Отозвана':                  { cur:1, term:'withdraw' },
-  'Требуется доп. информация': { cur:1, loop:'Возвращена на доработку', reason:'Приложите финансовую отчётность за последний год.' },
-  'Ожидает решения/программы': { cur:2, loop:'Ожидает решения и программы' },
+  'Требуется доп. информация': { cur:1, reason:'Приложите финансовую отчётность за последний год.' },
+  'Ожидает решения/программы': { cur:2 },
 };
 const LC_DUR = [3, 4, 3, 5, 0];          // дней на каждом шаге (мок)
 const LC_TODAY = new Date(2026, 6, 6);   // «сегодня» = 2026-07-06
@@ -2581,11 +2578,11 @@ function renderLifecycle(app){
       prevAuthor = base.by;
     }
 
-    /* Аннотации текущей вехи: петля / выход / причина. */
-    let extra = '';
-    if (current && off.loop) extra += `<div class="vtl-badge loop">↩ ${off.loop}</div>`;
-    if (current && off.term === 'withdraw') extra += `<div class="vtl-badge stop">⊘ Отозвана специалистом</div>`;
-    if (current && off.reason) extra += `<div class="vtl-reason">${off.reason}</div>`;
+    /* Точный статус — бейдж на текущей вехе (тот же, что в шапке). */
+    const sm = STATUS_META[status] || {};
+    const statusBadge = current ? `<span class="st-badge ${sm.badge || ''}">${status}</span>` : '';
+    /* Причина решения комиссии (отклонение / возврат на доработку). */
+    const reason = (current && off.reason) ? `<div class="vtl-reason">${off.reason}</div>` : '';
 
     return `<div class="vtl-item ${state}">
       <div class="vtl-rail">
@@ -2593,9 +2590,9 @@ function renderLifecycle(app){
         ${isLast ? '' : `<div class="${lineCls}"></div>`}
       </div>
       <div class="vtl-body">
-        <div class="vtl-title">${title}</div>
+        <div class="vtl-titlerow"><span class="vtl-title">${title}</span>${statusBadge}</div>
         <div class="vtl-sub">${sub}</div>
-        ${meta}${extra}
+        ${meta}${reason}
       </div>
     </div>`;
   }).join('');
