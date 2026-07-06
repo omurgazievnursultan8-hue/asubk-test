@@ -285,7 +285,7 @@ table.cgrid tbody tr.total.green td{ background:var(--asubk-green-tint); }
 .modal-f{ padding:14px 24px 20px; display:flex; gap:12px; }
 
 /* entity-browser dialog innards (Фильтр + toolbar + grid + Выбрать/Отмена) */
-.eb-createbar{ display:flex; gap:10px; align-items:center; margin:6px 0 12px; }
+.eb-createbar{ display:flex; gap:10px; align-items:center; margin:6px 0 12px; flex-wrap:wrap; }
 .eb-create{ background:var(--action-primary); color:#fff; border:none; }
 .eb-create:hover{ background:var(--action-primary-hover); }
 .eb-grid-wrap{ border:1px solid var(--border-strong); border-radius:var(--radius-md); overflow:auto; max-height:44vh; }
@@ -301,6 +301,12 @@ table.eb-grid tbody tr:hover{ background:var(--surface-hover); }
 table.eb-grid tbody tr.sel{ background:var(--asubk-nav-active); }
 table.eb-grid tbody tr:last-child td{ border-bottom:none; }
 .eb-empty{ padding:60px 0; text-align:center; color:var(--text-placeholder); font:var(--font-label); }
+/* filter condition row (Статус = •••) — status-filtered entity browsers */
+.eb-cond{ display:flex; align-items:center; gap:10px; padding:4px 0 8px; flex-wrap:wrap; }
+.eb-cond .cond-label{ font:var(--font-label); color:var(--text-body); font-weight:var(--weight-medium); }
+.eb-cond .cond-op{ font:var(--font-label); color:var(--text-muted); padding:0 2px; }
+.eb-cond .lookup{ min-width:240px; }
+.filter-head .req-star{ color:var(--action-danger); margin-left:2px; }
 
 /* form dialog: 2-col, as-is grey-filled look (P2-01) + eager required red (P7) */
 .mform{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; padding-top:8px; }
@@ -333,6 +339,15 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
 .cal-grid .day.today{ outline:1px solid var(--asubk-blue); }
 .cal-grid .day.sel{ background:var(--asubk-blue); color:#fff; }
 .cal-grid .day.mute{ color:var(--text-placeholder); }
+
+/* time picker popup (Vaadin-style hourly list) */
+.timepop{ position:absolute; z-index:70; background:var(--surface-card); border:1px solid var(--border-default);
+  border-radius:var(--radius-md); box-shadow:0 12px 34px rgba(16,28,46,0.22); padding:4px; width:120px;
+  max-height:236px; overflow-y:auto; display:none; }
+.timepop.open{ display:block; }
+.timepop .topt{ padding:6px 12px; font:var(--font-label); border-radius:var(--radius-sm); cursor:pointer; }
+.timepop .topt:hover{ background:var(--surface-hover); }
+.timepop .topt.sel{ background:var(--asubk-blue); color:#fff; }
 
 /* ---- toast ---- */
 .toast-wrap{ position:fixed; right:20px; bottom:20px; display:flex; flex-direction:column; gap:10px; z-index:80; }
@@ -447,6 +462,7 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
 
 <div class="overlay" id="modalHost" onclick="if(event.target===this)closeModal()"></div>
 <div class="calpop" id="calPop"></div>
+<div class="timepop" id="timePop"></div>
 <div class="toast-wrap" id="toastWrap"></div>
 
 <script>
@@ -552,7 +568,7 @@ const clockSvg = () => `<span class="cal"><svg width="16" height="16" viewBox="0
 const eye = (label) => `<button title="Просмотр" onclick="viewPicker('${esc(label)}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`;
 const esc = s => (s||'').replace(/'/g,"\\'");
 /* datetime pair: date field (calendar) + time field (clock) */
-const dt = (label) => `<div class="field"><span class="flabel">${label}</span><div class="dtpair"><div class="control grey"><input placeholder="" onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div><div class="control grey"><input placeholder="">${clockSvg()}</div></div></div>`;
+const dt = (label) => `<div class="field"><span class="flabel">${label}</span><div class="dtpair"><div class="control grey"><input placeholder="" onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div><div class="control grey"><input placeholder="" onclick="openTime(this)" readonly style="cursor:pointer">${clockSvg()}</div></div></div>`;
 /* picker (lookup) — ••• opens entity-browser dialog / × clears / eye views */
 const pick = (label,val,withEye) => `<div class="field"><span class="flabel">${label}</span><div class="lookup" data-key="${label}"><span class="val${val?'':' ph'}">${val||''}</span><button class="pick" title="Выбрать" onclick="openPicker('${esc(label)}',this)">•••</button><button title="Очистить" onclick="clearPicker(this)">×</button>${withEye?eye(label):''}</div></div>`;
 
@@ -837,9 +853,27 @@ document.addEventListener('click', e=>{ if(!e.target.closest('.split')) closeSpl
 const REFBOOKS = {
   'Вид кредита': { title:'Вид кредита', cols:['Наименование'],
     rows:[['Бюджетная ссуда'],['Бюджетный кредит'],['ЮСАИД'],['МАР'],['Фонд развитие регионов'],['Имущественные активы']] },
-  'Основание выдачи кредита': { title:'Решение правительства',
-    cols:['Наименование','Краткое наименование','Статус','Номер решения','Вид решения','Дата решения'],
-    rows:[['Решение тестовое для теста','РПКР №213','Отклонён','РПКР №213','','']] },
+  'Основание выдачи кредита': { title:'Решение правительства', workflow:true, statusFilter:true,
+    cols:['Наименование','Краткое наименование','Статус','Код','Номер решения','Вид решения','Дата решения','Действует','Последнее изменение'],
+    rows:[
+      ['Решение тестовое для теста','РПКР №213','Отклонён','1111','','Распоряжение','14.01.2024','Нет','14.01.2024'],
+      ['Кабинет министров','№424','Отклонён','','','Распоряжение','14.01.2024','Нет','15.01.2024'],
+      ['Распоряжение Мэрии г.','Мэрия г.','Отклонён','','от 16 д…','РКМКР','27.01.2024','Нет','27.01.2024'],
+      ['Тестовое ПКР','ПКР ТЕСТ','Действует','6','12','Основное','11.12.2024','Да','11.12.2024'],
+      ['Тестовый','Тест','Отклонён','1001','56','Основное','11.05.2025','Нет','11.05.2025'],
+      ['Решение №352','Решение','Отклонён','10','352','Основное','29.10.2024','Нет','29.10.2024'],
+      ['ПКМКР Фонды','Фонды развития','Отклонён','5','45','Постановление','10.02.2024','Нет','10.02.2024'],
+      ['Распоряжение №80-р','№80-р','Отклонён','80-р','80-р','Распоряжение','14.02.2024','Нет','14.02.2024'],
+      ['Распоряжение поддержки','Поддержка','Действует','MSB11','45-р','Основное','12.03.2024','Да','12.03.2024'],
+      ['Постановление ПКМ','ПКМ №123','Отклонён','РКМ123','123','Постановление','15.06.2024','Нет','15.06.2024'],
+      ['Решение о субсидировании','Субсидии АПК','Действует','7','78','Основное','20.07.2024','Да','20.07.2024'],
+      ['Постановление №210','ПКМ №210','Отклонён','210','210','Постановление','03.08.2024','Нет','03.08.2024'],
+      ['Распоряжение №95-р','№95-р','Действует','95-р','95-р','Распоряжение','19.09.2024','Да','19.09.2024'],
+      ['Решение по агросектору','Агро','Отклонён','АГ12','12-а','Основное','07.10.2024','Нет','07.10.2024'],
+      ['ПКМКР Развитие села','Село','Действует','8','89','Постановление','25.11.2024','Да','25.11.2024'],
+      ['Распоряжение №130-р','№130-р','Отклонён','130-р','130-р','Распоряжение','16.01.2025','Нет','16.01.2025'],
+      ['Решение №400','Решение','Действует','9','400','Основное','28.02.2025','Да','28.02.2025'],
+    ] },
   'Кредитная линия': { title:'Кредитная линия', cols:['Кредитная линия'], rows:[['АРР'],['ФРР']] },
   'Группа платежеспособности': { title:'Группа платежоспособности', cols:['Гр. платежесп.'], rows:[] },
   'Счет погашения': { title:'Счет погашения', cols:['Счет погашения'], rows:[['123']] },
@@ -871,12 +905,31 @@ function openPicker(key, anchor){
          <tbody>${rb.rows.map((r,i)=>`<tr onclick="pickSel(${i})">${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
        </table></div>`
     : `<div class="eb-grid-wrap"><table class="eb-grid"><thead><tr>${rb.cols.map(c=>`<th>${c}<span class="sort">⇅</span></th>`).join('')}</tr></thead><tbody></tbody></table><div class="eb-empty">Нет данных</div></div>`;
+  /* status-filtered entity browsers (Решение правительства) get a required
+     status label, a pre-populated «Статус =» condition row, and the full
+     workflow action bar; simple pickers keep their bare toolbar. */
+  const filterLabel = rb.statusFilter
+    ? `Фильтр : фильтр по статусу <span class="req-star">*</span>`
+    : `Фильтр`;
+  const condRow = rb.statusFilter
+    ? `<div class="eb-cond">
+         <span class="cond-label">Статус</span><span class="cond-op">=</span>
+         <div class="lookup"><span class="val ph"></span>
+           <button class="pick" title="Выбрать" onclick="toast('Статус')">•••</button>
+           <button title="Очистить" onclick="clearPicker(this)">×</button></div>
+       </div>`
+    : '';
+  const wf = (label) => `<button class="btn btn-secondary btn-sm eb-wf" disabled onclick="toast('${label}')">${label}</button>`;
+  const workflowBtns = rb.workflow
+    ? `${wf('Просмотр')}${wf('Отправить')}${wf('Отозвать')}${wf('Одобрить')}${wf('Отклонить')}${wf('Вернуть на доработку')}${wf('Закрыть')}${wf('Вернуть на рассмотрение')}`
+    : '';
   host.innerHTML = `<div class="modal" onclick="event.stopPropagation()">
     <div class="modal-h"><span class="mt">${rb.title}</span>
       <button class="modal-x" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
     <div class="modal-b">
-      <div class="filter-head" style="padding:0 0 4px" onclick="this.classList.toggle('open')">
-        <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span><span>Фильтр</span></div>
+      <div class="filter-head${rb.statusFilter?' open':''}" style="padding:0 0 4px" onclick="this.classList.toggle('open')">
+        <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span><span>${filterLabel}</span></div>
+      ${condRow}
       <div class="tb-actions" style="padding:8px 0 12px">
         <div class="split" id="ebSplit"><button class="btn btn-success" onclick="toast('Обновлено')">Обновить</button>
           <button class="btn btn-success caret" onclick="document.getElementById('ebSplit').classList.toggle('open');event.stopPropagation();"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
@@ -886,8 +939,9 @@ function openPicker(key, anchor){
       </div>
       <div class="eb-createbar">
         <button class="btn eb-create btn-sm" onclick="toast('Создать запись')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Создать</button>
-        <button class="btn btn-secondary btn-sm" id="ebEdit" disabled>Изменить</button>
-        <button class="btn btn-secondary btn-sm" id="ebDel" disabled>Удалить</button>
+        <button class="btn btn-secondary btn-sm" id="ebEdit" disabled onclick="toast('Изменить')">Изменить</button>
+        <button class="btn btn-secondary btn-sm" id="ebDel" disabled onclick="toast('Удалить')">Удалить</button>
+        ${workflowBtns}
         <div style="flex:1"></div>
         <div class="pager"><button disabled>«</button><button disabled>‹</button><span>${rb.rows.length} строк</span><button disabled>›</button><button disabled>»</button></div>
       </div>
@@ -906,6 +960,7 @@ function pickSel(i){
   document.getElementById('ebPick').disabled = false;
   document.getElementById('ebEdit').disabled = false;
   document.getElementById('ebDel').disabled = false;
+  document.querySelectorAll('#modalHost .eb-wf').forEach(b=>b.disabled=false);
 }
 function pickApply(){
   const rb = REFBOOKS[pickerCtx.key];
@@ -943,7 +998,7 @@ const mfPick = (label,val) =>
 const mfDt = (label,val) =>
   `<div class="field"><span class="flabel">${label}</span><div class="control"><input value="${val||''}" onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div></div>`;
 const mfDtPair = (label) =>
-  `<div class="field"><span class="flabel">${label}</span><div class="dtpair"><div class="control"><input onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div><div class="control"><input>${clockSvg()}</div></div></div>`;
+  `<div class="field"><span class="flabel">${label}</span><div class="dtpair"><div class="control"><input onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div><div class="control"><input onclick="openTime(this)" readonly style="cursor:pointer">${clockSvg()}</div></div></div>`;
 const mfCheck = (label) => `<div class="field col-span"><label class="check"><span class="box"></span>${label}</label></div>`;
 
 function openForm(title, bodyHtml, narrow){
@@ -1030,9 +1085,33 @@ function pickDay(d){
   if(calState.input) calState.input.value = `${dd}.${mm}.${calState.y}`;
   document.getElementById('calPop').classList.remove('open'); calState.input=null;
 }
+/* ---- time picker (Vaadin-style hourly list 00:00–23:00) ---- */
+const timeState = { input:null };
+function openTime(input){
+  const pop = document.getElementById('timePop');
+  if(timeState.input===input && pop.classList.contains('open')){ pop.classList.remove('open'); timeState.input=null; return; }
+  document.getElementById('calPop').classList.remove('open'); calState.input=null;
+  timeState.input = input;
+  const cur = input.value;
+  pop.innerHTML = Array.from({length:24}, (_,h)=>{
+    const t = String(h).padStart(2,'0')+':00';
+    return `<div class="topt${t===cur?' sel':''}" onclick="pickTime('${t}')">${t}</div>`;
+  }).join('');
+  const r = input.getBoundingClientRect();
+  pop.style.left = Math.min(r.left, window.innerWidth-130)+'px';
+  pop.style.top = (r.bottom+4)+'px';
+  pop.classList.add('open');
+  const sel = pop.querySelector('.topt.sel'); if(sel) sel.scrollIntoView({block:'center'});
+}
+function pickTime(t){
+  if(timeState.input) timeState.input.value = t;
+  document.getElementById('timePop').classList.remove('open'); timeState.input=null;
+}
 document.addEventListener('click', e=>{
   if(!e.target.closest('.calpop') && !(e.target.closest('.control') && e.target.tagName==='INPUT'))
     document.getElementById('calPop').classList.remove('open');
+  if(!e.target.closest('.timepop') && !(e.target.closest('.control') && e.target.tagName==='INPUT'))
+    document.getElementById('timePop').classList.remove('open');
 });
 
 renderList();
