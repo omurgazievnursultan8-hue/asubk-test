@@ -708,6 +708,16 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .dh-sep{ color:var(--border-strong); }
 .dh-amount{ font-weight:var(--weight-semibold); color:var(--text-body); }
 
+/* ---- карточка заявителя (view-subject) ---- */
+#view-subject{ display:flex; flex-direction:column; }
+.subj-card{ padding:24px; }
+.subj-chip{
+  display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px;
+  font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); white-space:nowrap;
+}
+.subj-chip.is-org{ background:var(--asubk-blue-tint); color:var(--asubk-blue); }
+.subj-chip.is-ind{ background:rgba(21,132,67,0.10); color:var(--asubk-green); }
+
 /* ---- status stepper ---- */
 .stepper-section{
   padding:14px 20px 16px; border-bottom:1px solid var(--border-default);
@@ -1030,9 +1040,9 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
       <span class="menu" aria-hidden="true">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
       </span>
-      <button class="crumb-link" id="crumbBack" onclick="showView('list')" style="display:none">
+      <button class="crumb-link" id="crumbBack" onclick="_crumbBack()" style="display:none">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-        <span>Заявки</span>
+        <span id="crumbBackLabel">Заявки</span>
       </button>
       <span class="crumb-sep" id="crumbSep" style="display:none">/</span>
       <span class="crumb-title" id="crumbTitle">Заявки</span>
@@ -1444,6 +1454,22 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
       </section>
 
       <!-- ============================================================
+           VIEW: КАРТОЧКА ЗАЯВИТЕЛЯ (мокап страниц /organizations, /individuals)
+           Открывается по клику на ИНН в блоке «Данные заявителя».
+           Заголовок + чип типа + read-only поля (копия живых редакторов).
+           ============================================================ -->
+      <section id="view-subject" style="display:none">
+        <div class="detail-header">
+          <div class="dh-title-row">
+            <h1 class="dh-title" id="subj-title"></h1>
+            <span id="subj-type-chip"></span>
+          </div>
+          <div class="dh-meta" id="subj-meta"></div>
+        </div>
+        <div class="subj-card" id="subj-body"><!-- populated by openSubject() --></div>
+      </section>
+
+      <!-- ============================================================
            VIEW: СОЗДАНИЕ ЗАЯВКИ (to-be routed page, was #modal-create)
            «Далее» сохраняет заявку и открывает детальную страницу.
            ============================================================ -->
@@ -1768,13 +1794,18 @@ renderNav();
 /* ============================================================
    VIEW ROUTER
    ============================================================ */
+// Действие кнопки «назад» в хлебных крошках — переопределяется по контексту
+// (из детальной → к списку; из карточки заявителя → к своей заявке).
+let _crumbBack = () => showView('list');
+
 function showView(name){
   /* Toggle via inline style.display, not the hidden attribute: the author CSS
      `#view-list/#view-detail{display:flex}` outranks the UA `[hidden]{display:none}`
      rule, so the hidden attribute alone wouldn't hide the panel. Inline style wins. */
-  document.getElementById('view-list').style.display   = (name === 'list')   ? 'flex' : 'none';
-  document.getElementById('view-detail').style.display = (name === 'detail') ? 'flex' : 'none';
-  document.getElementById('view-create').style.display = (name === 'create') ? 'flex' : 'none';
+  document.getElementById('view-list').style.display    = (name === 'list')    ? 'flex' : 'none';
+  document.getElementById('view-detail').style.display  = (name === 'detail')  ? 'flex' : 'none';
+  document.getElementById('view-create').style.display  = (name === 'create')  ? 'flex' : 'none';
+  document.getElementById('view-subject').style.display = (name === 'subject') ? 'flex' : 'none';
   // Breadcrumb: reset to «Заявки» when going back to list
   if (name === 'list'){
     document.getElementById('crumbBack').style.display  = 'none';
@@ -2033,48 +2064,64 @@ function applyFilter(){
 /** Per-INN contact data (phone + address).
  *  Source: live app inspection 2026-06-29 (row 103 exact; others from
  *  subject picker modal data used in create form). */
-// Каждый заявитель ссылается на карточку в основном приложении:
-// организация → /organizations/{id}, физлицо → /individuals/{id}.
-// type: 'org' | 'individual'; id — идентификатор карточки в приложении.
+// Карточка заявителя (мокап-страница внутри этого файла), открывается по ИНН.
+// type: 'org' → набор полей «Редактор Организации»; 'individual' → «Редактор Физ Лица».
+// Поля повторяют живые редакторы приложения (/organizations/{id}, /individuals/{id});
+// значения — демо-данные, согласованные с наименованием/адресом заявителя.
 const SUBJECTS_MAP = {
   '00404202510209': {
-    type: 'org', id: 13,
+    type: 'org',
     phone:   '+996 567 878 787',
-    address: 'Чуйская область, Новопокровка (часть), Ысык-Атинский район, Ленина, 86,'
+    address: 'Чуйская область, Новопокровка (часть), Ысык-Атинский район, Ленина, 86,',
+    fullName: 'Общество с ограниченной ответственностью «Хот Лэйк Текстиль»',
+    shortName: 'ОсОО «Хот Лэйк Текстиль»',
+    regNumber: '138115-3301-ООО', okpo: '30215678',
+    activity: 'Производство прочих текстильных изделий', activityCode: '13.99.0',
+    director: 'ЖУМАБЕКОВ КАНАТ АСКАРОВИЧ', soate: '41708 236 843 01',
+    regDate: '12.03.2018',
   },
   '21812199600888': {
-    type: 'individual', id: 8,
+    type: 'individual',
     phone:   '+996 551 122 334',
-    address: 'ул. Токомбаева 21, Бишкек'
+    address: 'ул. Токомбаева 21, Бишкек',
+    nationality: 'КЫРГЫЗ', passportSeries: 'ID', passportNumber: '2612044',
+    soate: '41701 000 000 00',
   },
   '02102201710026': {
-    type: 'org', id: 14,
+    type: 'org',
     phone:   '+996 312 456 789',
-    address: 'ул. Карла Маркса 5, Ноокат'
+    address: 'ул. Карла Маркса 5, Ноокат',
+    fullName: 'Муниципальное предприятие «Ноокат Тазалык»',
+    shortName: 'МП «Ноокат Тазалык»',
+    regNumber: '204106-3312-МП', okpo: '27884512',
+    activity: 'Сбор и обработка сточных вод, вывоз отходов', activityCode: '38.11.0',
+    director: 'АБДЫКАДЫРОВ БЕКЗАТ ТУРСУНОВИЧ', soate: '41712 214 812 03',
+    regDate: '17.10.2017',
   },
   '20907199400957': {
-    type: 'individual', id: 9,
+    type: 'individual',
     phone:   '+996 322 567 890',
-    address: 'ул. Советская 88, Ош'
+    address: 'ул. Советская 88, Ош',
+    nationality: 'КЫРГЫЗ', passportSeries: 'ID', passportNumber: '2094571',
+    soate: '41703 000 000 00',
   },
   '01204199910016': {
-    type: 'org', id: 15,
+    type: 'org',
     phone:   '+996 312 789 012',
-    address: 'пр. Чуй 44, Бишкек'
+    address: 'пр. Чуй 44, Бишкек',
+    fullName: 'Открытое акционерное общество «О!Банк»',
+    shortName: 'ОАО «О!Банк»',
+    regNumber: '124199-9101-ОАО', okpo: '20115430',
+    activity: 'Денежное посредничество прочее', activityCode: '64.19.0',
+    director: 'СУБАКОЖОЕВ ЭЛЬНАР ТУРДУБЕКОВИЧ', soate: '41701 000 000 00',
+    regDate: '04.06.1999',
   },
 };
 
-// Базовый URL основного приложения (карточки заявителей).
-const APP_BASE_URL = 'https://fkftest.okmot.kg';
-
-// URL карточки заявителя. Тип определяем по subj.type; как запас —
-// по первой цифре ИНН (2… — физлицо, иначе организация).
-function subjectCardUrl(inn, subj){
+// Тип заявителя: из subj.type, запас — по первой цифре ИНН (2… — физлицо).
+function subjectType(inn, subj){
   subj = subj || {};
-  if (subj.id == null) return null;
-  const type = subj.type || (String(inn).charAt(0) === '2' ? 'individual' : 'org');
-  const path = type === 'individual' ? 'individuals' : 'organizations';
-  return APP_BASE_URL + '/' + path + '/' + subj.id;
+  return subj.type || (String(inn).charAt(0) === '2' ? 'individual' : 'org');
 }
 
 /** Per-program loan parameter ranges and default rate.
@@ -2330,7 +2377,9 @@ function gotoDetail(num){
     `<span>${flowTxt}</span><span class="dh-sep">·</span>`
     + `<span class="dh-amount">${app.amount} сом</span>`;
 
-  /* Breadcrumb */
+  /* Breadcrumb: «Заявки» / <номер>; назад — к списку */
+  _crumbBack = () => showView('list');
+  document.getElementById('crumbBackLabel').textContent = 'Заявки';
   document.getElementById('crumbBack').style.display = 'inline-flex';
   document.getElementById('crumbSep').style.display  = 'inline';
   document.getElementById('crumbTitle').textContent  = app.num;
@@ -2344,6 +2393,73 @@ function gotoDetail(num){
   showTab(firstPanel);
 
   showView('detail');
+}
+
+/* ============================================================
+   КАРТОЧКА ЗАЯВИТЕЛЯ — мокап страниц /organizations, /individuals.
+   Открывается по ИНН из блока «Данные заявителя»; назад — к своей заявке.
+   ============================================================ */
+/* Набор полей карточки по типу заявителя (порядок — как в живых редакторах). */
+function subjFields(inn, name, subj){
+  if (subjectType(inn, subj) === 'individual'){
+    return [
+      ['ИНН', inn],
+      ['ФИО', name],
+      ['Национальность', subj.nationality],
+      ['Серия паспорта', subj.passportSeries],
+      ['Номер паспорта', subj.passportNumber],
+      ['Адрес', subj.address],
+      ['СОАТЕ', subj.soate],
+    ];
+  }
+  return [
+    ['ИНН', inn],
+    ['Полное наименование', subj.fullName || name],
+    ['Краткое наименование', subj.shortName || name],
+    ['Регистрационный номер', subj.regNumber],
+    ['Код ОКПО', subj.okpo],
+    ['Адрес', subj.address],
+    ['СОАТЕ', subj.soate],
+    ['Основная деятельность', subj.activity],
+    ['Код основной деятельности', subj.activityCode],
+    ['Директор', subj.director],
+    ['Дата первичной регистрации', subj.regDate],
+  ];
+}
+
+function openSubject(inn){
+  const subj = SUBJECTS_MAP[inn] || {};
+  const app  = _detailApp;   // пришли с детальной этой заявки
+  const name = app ? app.name : ((APPLICATIONS.find(a => a.inn === inn) || {}).name || '');
+  const isInd = subjectType(inn, subj) === 'individual';
+
+  document.getElementById('subj-title').textContent = name;
+  document.getElementById('subj-type-chip').innerHTML =
+    `<span class="subj-chip ${isInd ? 'is-ind' : 'is-org'}">${isInd ? 'Физическое лицо' : 'Организация'}</span>`;
+  document.getElementById('subj-meta').innerHTML =
+    `<span>ИНН ${_esc(inn)}</span><span class="dh-sep">·</span><span>Карточка заявителя</span>`;
+
+  const roField = (l, v) =>
+    `<div class="field ro"><span class="flabel">${_esc(l)}</span>`
+    + `<div class="control"><input type="text" readonly value="${_esc(v || '')}"></div></div>`;
+  const fields = subjFields(inn, name, subj);
+  const mid = Math.ceil(fields.length / 2);
+  const col = fs => fs.map(([l, v]) => roField(l, v)).join('');
+  document.getElementById('subj-body').innerHTML =
+    `<div class="t0-wrap"><div class="t0-cols">`
+    + `<div class="t0-col"><div class="section-h">${isInd ? 'Данные физического лица' : 'Данные организации'}</div>`
+    + `<div class="t0-fields">${col(fields.slice(0, mid))}</div></div>`
+    + `<div class="t0-col"><div class="section-h" style="visibility:hidden">.</div>`
+    + `<div class="t0-fields">${col(fields.slice(mid))}</div></div>`
+    + `</div></div>`;
+
+  /* Breadcrumb: «<номер заявки>» / <заявитель>; назад — к своей заявке */
+  _crumbBack = () => { if (_detailApp) gotoDetail(_detailApp.num); else showView('list'); };
+  document.getElementById('crumbBackLabel').textContent = app ? app.num : 'Заявки';
+  document.getElementById('crumbBack').style.display = 'inline-flex';
+  document.getElementById('crumbSep').style.display  = 'inline';
+  document.getElementById('crumbTitle').textContent  = name;
+  showView('subject');
 }
 
 /* ============================================================
@@ -2541,11 +2657,11 @@ function renderGeneral(app){
   const addInfo = editable
     ? `<textarea class="cf-area" placeholder="Комментарий / дополнительные сведения по заявке">${app.info || ''}</textarea>`
     : `<span class="cfval"><span class="cf-cur">${app.info || '—'}</span></span>`;
-  const cardUrl = subjectCardUrl(app.inn, subj);
-  const innCell = cardUrl
+  const innCell = app.inn
     ? `<div class="cond-field"><span class="cflabel">ИНН</span>`
-      + `<span class="cfval"><a class="subj-link" href="${cardUrl}" target="_blank" rel="noopener"`
-      + ` title="Открыть карточку заявителя">${app.inn || '—'} <span class="subj-link-ico">↗</span></a></span></div>`
+      + `<span class="cfval"><a class="subj-link" href="javascript:void(0)"`
+      + ` onclick="openSubject('${app.inn}');return false;"`
+      + ` title="Открыть карточку заявителя">${app.inn} <span class="subj-link-ico">↗</span></a></span></div>`
     : roField('ИНН', app.inn, true);
   return `<div class="tg-wrap">
     <div class="tg-cols">
