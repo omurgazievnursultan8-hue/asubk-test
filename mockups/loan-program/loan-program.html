@@ -380,8 +380,6 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .t7-chosen{ margin-top:14px; }
 .t7-chosen .note-area{ min-height:96px; }
 .t7-note{ font:var(--weight-regular) 13px/1.4 var(--asubk-font); color:var(--text-body); margin-top:8px; }
-.t7-checkhead{ margin-top:8px; padding-bottom:12px; border-bottom:1px solid var(--border-default); }
-.t7-check{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px 32px; margin-top:18px; max-width:1100px; }
 /* tab 8 «Залоговое обеспечение» */
 .t8{ max-width:1340px; padding:16px 24px; }
 .t8-cols{ max-width:none; padding:0; }
@@ -939,7 +937,6 @@ const LK = {
   dayCountBase:['360','365','Фактическая'],
   interestCalc:['Простой','Сложный','На остаток'],
   queue:['первочередный','Основная сумма → проценты → штрафы'],
-  checkLevel:['стандарт','углублённый'],
   staff:['Темирлан уулу Т.','Дадабаева Д.Р.','Нурманбет кызы К.','Сламкулов А.О.','Торобаев Н.М.'],
   templates:['Тестовый шаблон 2 (CREDIT/VALID)'],
   // печатные бланки (выдаются клиенту на стадии заявки, печатаются пустыми)
@@ -975,7 +972,7 @@ function P(o){ return Object.assign({
   graceIntDistFrom:'', graceIntDistTo:'',
   payMode:'standard', periodicity:'', payMonths:[], payDay:'', weekend:'Не переносить', lastPaymentAnchor:'По дате первого платежа',
   dayCountNum:'Фактический', dayCountBase:'365', repayMethod:'Аннуитетный', queue:'', minDays:'', maxDays:'',
-  checkLevel:'', checkDays:'', checkResp:'', collateral:true, collRu:'',
+  collateral:true, collRu:'',
   docCredReq:[], docCredOpt:[], collTypes:[], docColl:{}, printForms:[], templates:[],
   status:'draft', references:0
 }, o); }
@@ -995,7 +992,6 @@ let PROGRAMS = [
       repayMethod:'Аннуитетный', queue:'Основная сумма → проценты → штрафы', minDays:'15', maxDays:'45',
       docCredReq:['Заявление на кредит','Финансовая отчётность','Бизнес-план'], docCredOpt:['Справка о доходах'],
       printForms:['Бланк заявки-анкеты','Бланк согласия на обработку персональных данных','Бланк согласия на запрос кредитной истории (кредбюро)'],
-      checkLevel:'Полная проверка', checkDays:'5', checkResp:'Касымов Б.К.',
       collateral:true, collTypes:['Недвижимое имущество','Сельхозтехника','Скот / поголовье'],
       docColl:{
         'Недвижимое имущество':{ req:['Правоустанавливающие документы на залог','Отчёт об оценке залога','Технический паспорт','Выписка из реестра обременений'], opt:['Согласие супруга(и) на залог','Страховой полис предмета залога'], note:'Нотариальное удостоверение договора залога обязательно.' },
@@ -1839,9 +1835,6 @@ function t6mode(v){ saveTabInputs(); draft.payMode=v; renderWizBody(); }
    Below кредитные: «Шаблоны договоров» value-picker (•••) → «Выбранные
    шаблоны» read-only textarea (ph «Шаблоны не выбраны») + save-hint note.
    Below залоговые: «Требования к оформлению залогового договора» textarea.
-   Bottom full-width «Настройка проверки документов» = 3-col row:
-   «Уровень проверки» picker · «Срок проверки (в днях)» integer ·
-   «Ответственный за проверку» picker. No required markers (live req=null).
    ============================================================ */
 function renderTab7(){
   const docList=(sub,key)=>`<div class="t7-doc">
@@ -1876,12 +1869,6 @@ function renderTab7(){
             </div>`; }).join('')
           : `<div class="hint">Выберите виды залога на вкладке «Залоговое обеспечение» — залоговые документы сгруппируются по каждому виду (с типовыми документами из справочника).</div>` }
       </div>` : `<div class="t2-col t7-collhint"><div class="section-h">Залоговые документы</div><div class="hint">Включите «Требуется залоговое обеспечение» на вкладке «Залоговое обеспечение», чтобы задать залоговые документы.</div></div>`}
-    </div>
-    <div class="section-h t7-checkhead">Настройка проверки документов</div>
-    <div class="t7-check">
-      ${lookupF('Уровень проверки документов','checkLevel','checkLevel',{})}
-      ${f('Срок проверки документов (в днях)','checkDays',{})}
-      ${lookupF('Ответственный за проверку документов','checkResp','staff',{hint:'Отдельная роль от «Ответственные сотрудники»'})}
     </div>
   </div>`;
 }
@@ -2421,9 +2408,7 @@ function buildDetailSections(p){
         ${rowF('Опциональные кредитные документы',list(p.docCredOpt))}
         ${collDocsRows}
         ${rowF('Печатные формы',list(p.printForms))}
-        ${rowF('Шаблоны договоров',list(p.templates))}
-        ${row('Уровень проверки документов',p.checkLevel)}${row('Срок проверки (дней)',p.checkDays)}
-        ${rowF('Ответственный за проверку документов',p.checkResp)}`)],
+        ${rowF('Шаблоны договоров',list(p.templates))}`)],
     ['Залоговое обеспечение',
       panel(`${rowF('Требуется залоговое обеспечение',p.collateral?'Да':'Нет')}
         ${p.collateral?`${rowF('Виды залога',list(p.collTypes))}${rowF('Требования к залогу',p.collRu)}`:''}`)],
@@ -2568,7 +2553,6 @@ const REFBOOKS = {
   dayCount:  { title:'Метод расчета дней', cols:[['_label','Наименование']], rows:LK.dayCount.map(n=>({_id:n,_label:n})) },
   queue:     { title:'Очередь погашения',  cols:[['_label','Наименование']], rows:LK.queue.map(n=>({_id:n,_label:n})) },
   interestCalc:{ title:'Тип расчета процентов', cols:[['_label','Наименование']], rows:LK.interestCalc.map(n=>({_id:n,_label:n})) },
-  checkLevel:{ title:'Уровень проверки документов', cols:[['_label','Наименование']], rows:LK.checkLevel.map(n=>({_id:n,_label:n})) },
   templates: { title:'Шаблоны договоров', cols:[['_label','Наименование']], rows:LK.templates.map(n=>({_id:n,_label:n})) },
   printForms:{ title:'Печатные формы', cols:[['_label','Наименование']], rows:LK.printForms.map(n=>({_id:n,_label:n})) },
   // tab 7/8 row-add справочники (документы / виды залога)
