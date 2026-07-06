@@ -2232,7 +2232,7 @@ function renderTab0(app) {
 
   /* Column 1 — Данные заявителя */
   setVal('t0-inn',     app.inn     || '');
-  setVal('t0-phone',   subj.phone);
+  setVal('t0-phone',   maskPhone(subj.phone));
   setVal('t0-address', subj.address);
 
   /* Column 2 — Условия кредита заемщика */
@@ -2559,9 +2559,9 @@ function renderGeneral(app){
   const subj = SUBJECTS_MAP[app.inn] || {};
   const editable = meta.mode === 'edit';
   const phoneCell = editable
-    ? `<input class="cf-input" type="text" value="${subj.phone || ''}" placeholder="+996 …">`
+    ? `<input class="cf-input" type="tel" inputmode="tel" maxlength="17" value="${maskPhone(subj.phone)}" placeholder="+996 …" oninput="formatPhone(this)" onfocus="formatPhone(this)">`
       + `<span class="cf-hint">Маска +996, валидация формата</span>`
-    : `<span class="cfval"><span class="cf-cur">${subj.phone || '—'}</span></span>`;
+    : `<span class="cfval"><span class="cf-cur">${maskPhone(subj.phone) || '—'}</span></span>`;
   const addInfo = editable
     ? `<textarea class="cf-area" placeholder="Комментарий / дополнительные сведения по заявке">${app.info || ''}</textarea>`
     : `<span class="cfval"><span class="cf-cur">${app.info || '—'}</span></span>`;
@@ -3859,15 +3859,35 @@ function validateTerm(){
 // Phone optional in live (required:false). Validate format only when non-empty.
 /** formatPhone — live mask: always keep «+996» prefix, group national part
  *  into «+996 XXX XXX XXX» (9 digits). Non-digits stripped, country code fixed. */
-function formatPhone(el){
-  let d = el.value.replace(/\D/g,'');          // digits only
+function maskPhone(raw){
+  let d = String(raw || '').replace(/\D/g,'');  // digits only
   if(d.startsWith('996')) d = d.slice(3);       // drop repeated country code
   d = d.slice(0,9);                             // national part max 9 digits
+  if(!d.length) return '';                       // empty stays empty (no bare «+996»)
   let out = '+996';
-  if(d.length)   out += ' ' + d.slice(0,3);
+  out += ' ' + d.slice(0,3);
   if(d.length>3) out += ' ' + d.slice(3,6);
   if(d.length>6) out += ' ' + d.slice(6,9);
-  el.value = out;
+  return out;
+}
+
+/** formatPhone — live mask with caret preservation so mid-value editing
+ *  (backspace/insert inside the number) doesn't jump the cursor to the end. */
+function formatPhone(el){
+  // national digits sitting before the caret (country code «996» = first 3 digits)
+  const caret = el.selectionStart ?? el.value.length;
+  const digitsBeforeCaret = el.value.slice(0, caret).replace(/\D/g,'').length;
+  const natBefore = Math.max(0, digitsBeforeCaret - 3);
+
+  el.value = maskPhone(el.value) || '+996';       // keep «+996» prefix visible
+
+  // re-place caret after the same count of national digits
+  let pos = 4, counted = 0;                        // start just past «+996»
+  for(let i = 4; i < el.value.length && counted < natBefore; i++){
+    pos = i + 1;
+    if(/\d/.test(el.value[i])) counted++;
+  }
+  el.setSelectionRange(pos, pos);
 }
 
 /** validatePayday — schedule day-of-month, plain input. Optional: empty OK;
