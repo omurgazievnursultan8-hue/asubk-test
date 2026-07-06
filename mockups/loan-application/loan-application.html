@@ -1057,8 +1057,8 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
           <option value=""></option>
           <option value="Новый">Новый</option>
           <option value="На рассмотрении">На рассмотрении</option>
-          <option value="Одобрено">Одобрено</option>
-          <option value="Отклонено">Отклонено</option>
+          <option value="Одобрена">Одобрена</option>
+          <option value="Отклонена">Отклонена</option>
           <option value="Требуется доп. информация">Требуется доп. информация</option>
         </select>
       </div>
@@ -1113,7 +1113,6 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
     <button class="btn btn-secondary" id="btnEdit" disabled onclick="editSelected()">Изменить</button>
     <button class="btn btn-danger"    id="btnDel"  disabled>Удалить</button>
     <button class="btn btn-secondary" id="btnCom"  disabled onclick="openSendModal('credit')">Отправить в комиссию</button>
-    <button class="btn btn-secondary" id="btnZal"  disabled onclick="openSendModal('collateral')">Отправить в залоговую комиссию</button>
     <button class="btn btn-ghost btn-sm" title="Настройки">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
@@ -1153,11 +1152,11 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
           <th style="min-width:120px" data-col="num"              onclick="sortBy('num')">Номер документа <span class="sort">↕</span></th>
           <th style="min-width:220px" data-col="name"             onclick="sortBy('name')">Заемщик <span class="sort">↕</span></th>
           <th style="min-width:140px" data-col="status"           onclick="sortBy('status')">Статус заявки <span class="sort">↕</span></th>
-          <th style="min-width:130px" data-col="collateralStatus" onclick="sortBy('collateralStatus')">Статус залога <span class="sort">↕</span></th>
           <th style="min-width:190px" data-col="program"          onclick="sortBy('program')">Кредитная программа <span class="sort">↕</span></th>
           <th style="min-width:150px" data-col="amount"           onclick="sortBy('amount')">Запрашиваемая сумма <span class="sort">↕</span></th>
-          <th style="min-width:140px" data-col="term"             onclick="sortBy('term')">Запрашиваемый срок <span class="sort">↕</span></th>
-          <th style="min-width:180px" data-col="info"             onclick="sortBy('info')">Дополнительная информация <span class="sort">↕</span></th>
+          <th style="min-width:150px" data-col="approvedAmount"   onclick="sortBy('approvedAmount')">Одобренная сумма <span class="sort">↕</span></th>
+          <th style="min-width:130px" data-col="term"             onclick="sortBy('term')">Запрашиваемый срок <span class="sort">↕</span></th>
+          <th style="min-width:130px" data-col="created"          onclick="sortBy('created')">Дата создания <span class="sort">↕</span></th>
         </tr>
       </thead>
       <tbody id="appTbody"></tbody>
@@ -1426,147 +1425,17 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
         <div id="tab-3" class="detail-panel"></div>
         <div id="tab-4" class="detail-panel"></div>
 
-        <!-- ============================================================
-             TAB 5: Проектные документы (Task 8)
-             Heading: Сгенерированные документы
-             Toolbar: Сгенерировать документ | Исключить | Изменить | Просмотр
-             Grid: 5 cols — Наименование / Файл / Статус / Дата загрузки / Размер файла
-             State: empty grid (no generated docs for application 103 at inspection)
-             Inspection: 2026-06-29, scripts/inspect/app-capture.mjs, SHOT=app-tab-doc-proektnye
-             ============================================================ -->
-        <div id="tab-5" class="detail-panel">
-          <div class="t5docs-wrap">
-            <h2 class="section-h">Сгенерированные документы</h2>
-            <div class="t5docs-toolbar">
-              <button class="btn btn-primary btn-sm">Сгенерировать документ</button>
-              <button class="btn btn-rowadd btn-sm" disabled>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-                Исключить
-              </button>
-              <button class="btn btn-rowadd btn-sm" disabled>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                Изменить
-              </button>
-              <button class="btn btn-rowadd btn-sm" disabled>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                Просмотр
-              </button>
-            </div>
-            <div class="collgrid">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Наименование <span class="sort">↕</span></th>
-                    <th>Файл <span class="sort">↕</span></th>
-                    <th>Статус <span class="sort">↕</span></th>
-                    <th>Дата загрузки <span class="sort">↕</span></th>
-                    <th>Размер файла <span class="sort">↕</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <!-- empty — no generated docs at inspection date -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-        <!-- ============================================================
-             TAB 6: Кредитная комиссия
-             5-col sortable grid: Сотрудник / Сотрудник / Тип решения / Примечание / Дата создания
-             One row linked to application 103: [admin] / НУРМАНБЕТ КЫЗЫ КАЛИНА / На рассмотрении / — / 24/06/2026 14:14 +0600
-             No toolbar, no section heading — grid only.
-             Inspection: 2026-06-29, scripts/inspect/app-capture.mjs, SHOT=app-tab-kred-komissiya
-             ============================================================ -->
-        <div id="tab-6" class="detail-panel">
-          <div class="t5docs-wrap">
-            <div class="collgrid">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Сотрудник <span class="sort">↕</span></th>
-                    <th>Сотрудник <span class="sort">↕</span></th>
-                    <th>Тип решения <span class="sort">↕</span></th>
-                    <th>Примечание <span class="sort">↕</span></th>
-                    <th>Дата создания <span class="sort">↕</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>[admin]</td>
-                    <td>НУРМАНБЕТ КЫЗЫ КАЛИНА</td>
-                    <td>На рассмотрении</td>
-                    <td></td>
-                    <td>24/06/2026 14:14 +0600</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <!-- ============================================================
-             TAB 7: Залоговая комиссия
-             Same 5-col sortable grid structure as tab 6.
-             Empty state: no залоговая commission linked to application 103 at inspection.
-             Inspection: 2026-06-29, scripts/inspect/app-capture.mjs, SHOT=app-tab-zalog-komissiya
-             ============================================================ -->
-        <div id="tab-7" class="detail-panel">
-          <div class="t5docs-wrap">
-            <div class="collgrid">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Сотрудник <span class="sort">↕</span></th>
-                    <th>Сотрудник <span class="sort">↕</span></th>
-                    <th>Тип решения <span class="sort">↕</span></th>
-                    <th>Примечание <span class="sort">↕</span></th>
-                    <th>Дата создания <span class="sort">↕</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <!-- empty — no залоговая commission linked to application 103 at inspection date -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-        <!-- ============================================================
-             TAB 8: История
-             4-col sortable grid: Дата / Заголовок / Детали / Автор
-             2 rows live on application 103 at inspection date.
-             No toolbar — read-only history log.
-             Inspection: 2026-06-29, scripts/inspect/app-capture.mjs, SHOT=app-tab-istoriya
-             ============================================================ -->
-        <div id="tab-8" class="detail-panel">
-          <div class="t5docs-wrap">
-            <div class="collgrid">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Дата <span class="sort">↕</span></th>
-                    <th>Заголовок <span class="sort">↕</span></th>
-                    <th>Детали <span class="sort">↕</span></th>
-                    <th>Автор <span class="sort">↕</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>24.06.2026 14:14</td>
-                    <td>Заявка создана</td>
-                    <td>Создана заявка Заявка - 103</td>
-                    <td>[admin]</td>
-                  </tr>
-                  <tr>
-                    <td>24.06.2026 14:14</td>
-                    <td>Изменено поле: Статус заявки</td>
-                    <td>Новая → На рассмотрении</td>
-                    <td>[admin]</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        <!-- tab-5 / tab-7 — мёртвые as-is панели (Проектные документы, Залоговая
+             комиссия) старой двух-комиссионной модели: не входят в TABS, не
+             рендерятся. Проектные документы теперь секция в renderDocs (tab-2),
+             залоговая комиссия свёрнута в единую «Комиссию» (P3-R26). -->
+        <div id="tab-5" class="detail-panel"></div>
+        <!-- tab-6 «Комиссия» и tab-8 «История» — контент рисует PANEL_RENDER
+             (renderCommission / renderHistory); статик-заготовки убраны, чтобы
+             не тянуть старый дубль колонок «Сотрудник»/«Сотрудник» (P3-R14). -->
+        <div id="tab-6" class="detail-panel"></div>
+        <div id="tab-7" class="detail-panel"></div>
+        <div id="tab-8" class="detail-panel"></div>
 
       </section>
 
@@ -2043,6 +1912,19 @@ function _pluralRows(n){
   return n + ' строк';
 }
 
+/* «Одобренная сумма» (P3-R8): одобренная комиссией сумма. В демо у большинства
+   строк своего поля нет — для одобренных показываем запрос как факт выдачи, иначе «—». */
+function _approvedCell(r){
+  if (r.approvedAmount) return r.approvedAmount;
+  return r.status === 'Одобрена' ? r.amount : '—';
+}
+/* 'YYYY-MM-DD' → 'DD.MM.YYYY' для показа в списке. */
+function _fmtCreated(iso){
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}.${m}.${y}`;
+}
+
 function renderGrid(){
   const numFilter = (document.getElementById('fNum')      || {value:''}).value.trim().toLowerCase();
   const stFilter  = (document.getElementById('fStatus')   || {value:''}).value;
@@ -2085,21 +1967,36 @@ function renderGrid(){
       <td>${_esc(r.num)}</td>
       <td>${_esc(r.inn + ' — ' + r.name)}</td>
       <td>${_esc(r.status)}</td>
-      <td>${_esc(r.collateralStatus)}</td>
       <td>${_esc(r.program)}</td>
       <td>${_esc(r.amount)}</td>
+      <td>${_esc(_approvedCell(r))}</td>
       <td>${_esc(r.term)}</td>
-      <td>${_esc(r.info)}</td>
+      <td>${_esc(_fmtCreated(r.created))}</td>
     </tr>`;
   }).join('');
 }
 
+/* Гард действий по статусу (P3-R7).
+   «Отправить в комиссию» — только с не-терминальных, ещё-не-в-комиссии статусов.
+   «Удалить» — запрещено на Одобрено (терминал + downstream-ссылки на кредит). */
+const SENDABLE_STATUSES   = new Set(['Новый', 'Требуется доп. информация']);
+const UNDELETABLE_STATUSES = new Set(['Одобрена']);   // статус нормализован STATUS_ALIAS при загрузке
+
+function _setBtn(id, enabled, title){
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.disabled = !enabled;
+  btn.title = enabled ? '' : (title || '');
+}
+
 function selectRow(num){
   _selNum = num;
-  ['btnEdit','btnDel','btnCom','btnZal'].forEach(id => {
-    const btn = document.getElementById(id);
-    if (btn) btn.disabled = false;
-  });
+  const app = APPLICATIONS.find(a => a.num === num) || {};
+  const canSend = SENDABLE_STATUSES.has(app.status);
+  const canDel  = !UNDELETABLE_STATUSES.has(app.status);
+  _setBtn('btnEdit', true);
+  _setBtn('btnCom', canSend, 'Отправить можно только новую заявку или возвращённую на доработку');
+  _setBtn('btnDel', canDel,  'Одобренную заявку удалить нельзя — есть связанный кредит');
   document.querySelectorAll('#appTbody tr').forEach(tr => {
     tr.classList.toggle('sel', tr.dataset.num === num);
   });
@@ -2117,7 +2014,7 @@ function sortBy(col){
 
 function applyFilter(){
   _selNum = null;
-  ['btnEdit','btnDel','btnCom','btnZal'].forEach(id => {
+  ['btnEdit','btnDel','btnCom'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) btn.disabled = true;
   });
@@ -4016,11 +3913,8 @@ function submitSend(){
   }
   const app = APPLICATIONS.find(a => a.num === _selNum);
   if (app){
-    if (_sendTrack === 'credit'){
-      app.status = 'На рассмотрении';
-    } else {
-      app.collateralStatus = 'На рассмотрении';
-    }
+    // Одна комиссия судит кредит+залог (P3-R26): единственный трек статуса.
+    app.status = 'На рассмотрении';
   }
   renderGrid();
   closeModal('modal-send');
