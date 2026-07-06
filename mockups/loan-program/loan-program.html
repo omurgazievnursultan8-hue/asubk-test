@@ -1536,10 +1536,13 @@ function t2add(side){
 // multi-select combo (captured 2026-06-22, tab3-rate.mjs): 1 real value «10,00».
 const RATE_OPTS = ['4,00 %','6,00 %','8,00 %','10,00 %','12,00 %'];   // админ-ведомый справочник ставок
 let t3comboOpen = false;
+let rrComboOpen = false;   // reserve-rate combo (ставка за неполное освоение / резерв)
 function t3hydrate(){
   if(draft._t3h) return; draft._t3h=true;
   if(!draft.rateType) draft.rateType='Фиксированная';        // live default
   if(draft.rateValues==null) draft.rateValues=[];
+  if(!draft.resRateType) draft.resRateType='Фиксированная';  // reserve rate — same default
+  if(draft.resRateValues==null) draft.resRateValues=[];
   const s=(draft.rateValue||'').toString().trim(); if(!s) return;
   if(draft.rateType==='Диапазон' || (/[–-]/.test(s) && !s.includes(','))){
     const m=s.split(/\s*[–-]\s*/); if(!draft.rateMin) draft.rateMin=(m[0]||'').trim(); if(!draft.rateMax) draft.rateMax=(m[1]||'').trim();
@@ -1561,6 +1564,7 @@ function renderTab3(){
     ${draft.rateType==='Диапазон' ? t3range() : t3fixed()}
     <label class="check"><input type="checkbox" data-k="floatRate" ${draft.floatRate?'checked':''} onchange="t3floatToggle()"> Использовать плавающую ставку</label>
     ${draft.floatRate ? t3float() : ''}
+    ${renderReserveRate()}
   </div>`;
 }
 // R16: сводка основной ставки (для зеркала маржи)
@@ -1609,6 +1613,81 @@ function t3type(val){ saveTabInputs(); draft.rateType=val; t3comboOpen=false; t3
 function t3open(e){ if(e.target.closest('.mscombo-pop')) return; e.stopPropagation(); t3comboOpen=!t3comboOpen; renderWizBody(); }
 function t3toggle(e,o){ e.stopPropagation(); const a=draft.rateValues=draft.rateValues||[]; const i=a.indexOf(o); if(i>=0) a.splice(i,1); else a.push(o); t3comboOpen=true; t3sync(); renderWizBody(); }
 function t3unchip(e,i){ e.stopPropagation(); (draft.rateValues||[]).splice(i,1); t3sync(); renderWizBody(); }
+
+/* ------------------------------------------------------------
+   Ставка за неполное освоение (= ставка за резервную сумму).
+   По требованию — ТОЧНАЯ копия основной процентной ставки:
+   тот же тип Фикс/Диапазон, тот же справочник значений, тот же
+   чекбокс плавающей ставки и маржа-зеркало. Ключи draft: res*.
+   ------------------------------------------------------------ */
+function rrSync(){ draft.resRateValue = draft.resRateType==='Диапазон' ? joinRange(draft.resRateMin,draft.resRateMax) : (draft.resRateValues||[]).join(', '); }
+function renderReserveRate(){
+  rrSync();
+  return `<div class="section-h" style="margin-top:28px">Ставка за неполное освоение (резервная сумма)</div>
+    <label class="check"><input type="checkbox" data-k="resEnabled" ${draft.resEnabled?'checked':''} onchange="rrEnableToggle()"> Использовать неустойку за неполное освоение</label>
+    ${draft.resEnabled ? `<div class="hint" style="margin:8px 0 14px">Плата за неосвоенный (резервный) остаток. Заполняется как основная ставка.</div>
+    <div class="field"><span class="flabel">Тип ставки за неполное освоение</span>
+      <div class="control"><select data-k="resRateType" onchange="rrType(this.value)">
+        <option ${draft.resRateType==='Фиксированная'?'selected':''}>Фиксированная</option>
+        <option ${draft.resRateType==='Диапазон'?'selected':''}>Диапазон</option>
+      </select></div></div>
+    ${draft.resRateType==='Диапазон' ? rrRange() : rrFixed()}
+    <label class="check"><input type="checkbox" data-k="resFloatRate" ${draft.resFloatRate?'checked':''} onchange="rrFloatToggle()"> Использовать плавающую ставку</label>
+    ${draft.resFloatRate ? rrFloat() : ''}` : ''}`;
+}
+function rrEnableToggle(){ saveTabInputs(); renderWizBody(); }
+function rrSummary(){
+  if((draft.resRateType||'Фиксированная')==='Диапазон'){
+    const a=draft.resRateMin, b=draft.resRateMax; return (a||b)?`от ${a||'—'} до ${b||'—'} %`:'';
+  }
+  const v=draft.resRateValues||[]; return v.length?v.join(', '):'';
+}
+function rrFloat(){
+  const base=rrSummary(), bench=draft.resFloatType||'';
+  const mirror=(base||bench)?`${base||'—'}${bench?' + '+esc(bench):''}`:'Задайте ставку и тип плавающей';
+  return `<div class="t3-float">
+    ${lookupF('Тип плавающей ставки','resFloatType','floatRateType',{req:true,hint:'Бенчмарк-ставка из справочника'})}
+    <div class="field ro"><span class="flabel">Маржа к плавающей ставке</span>
+      <div class="mirror">${mirror}</div>
+      <span class="hint">Только для чтения: ставка за неполное освоение + бенчмарк</span></div>
+  </div>`;
+}
+function rrFloatToggle(){ saveTabInputs(); renderWizBody(); }
+function rrFixed(){
+  const vals=draft.resRateValues||[];
+  const chips = vals.length
+    ? vals.map((v,i)=>`<span class="chip">${esc(v)}<button title="Убрать" onclick="rrUnchip(event,${i})">✕</button></span>`).join('')
+    : `<span class="ph">Выберите…</span>`;
+  const opts = RATE_OPTS.map(o=>`<div class="opt ${vals.includes(o)?'sel':''}" onclick="rrToggle(event,'${esc(o)}')"><span class="mk">${vals.includes(o)?'✓':''}</span>${esc(o)}</div>`).join('');
+  return `<div class="field" data-field="resRateValues"><span class="flabel">Значение фиксированной ставки</span>
+    <div class="mscombo ${rrComboOpen?'open':''}" id="resRateCombo" onclick="rrOpen(event)">
+      ${chips}
+      <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      <div class="mscombo-pop">${opts}</div>
+    </div>
+    <span class="hint">Из регламентированного справочника ставок</span></div>`;
+}
+function rrRange(){
+  return `<div class="t3-range">
+    ${f('Значение ставки с (%)','resRateMin',{req:true})}
+    ${f('Значение ставки по (%)','resRateMax',{req:true})}
+  </div>${t2rangeMsg(draft.resRateMin,draft.resRateMax)}`;
+}
+function rrType(val){ saveTabInputs(); draft.resRateType=val; rrComboOpen=false; rrSync(); renderWizBody(); }
+function rrOpen(e){ if(e.target.closest('.mscombo-pop')) return; e.stopPropagation(); rrComboOpen=!rrComboOpen; renderWizBody(); }
+function rrToggle(e,o){ e.stopPropagation(); const a=draft.resRateValues=draft.resRateValues||[]; const i=a.indexOf(o); if(i>=0) a.splice(i,1); else a.push(o); rrComboOpen=true; rrSync(); renderWizBody(); }
+function rrUnchip(e,i){ e.stopPropagation(); (draft.resRateValues||[]).splice(i,1); rrSync(); renderWizBody(); }
+function t3resRateInvalid(){                     // гейт resEnabled; включён → нужно значение
+  if(!draft.resEnabled) return 0;
+  let n=0;
+  if((draft.resRateType||'Фиксированная')==='Фиксированная' && !((draft.resRateValues||[]).length)) n++;
+  if((draft.resRateType||'Фиксированная')==='Диапазон'){
+    const a=t2num(draft.resRateMin), b=t2num(draft.resRateMax);   // включён → диапазон обязателен и консистентен
+    if(!draft.resRateMin||!draft.resRateMax||isNaN(a)||isNaN(b)||a<=0||b<=0||a>b) n++;
+  }
+  if(draft.resFloatRate && !draft.resFloatType) n++;              // плавающая включена → тип обязателен
+  return n;
+}
 
 /* ============================================================
    TAB 4 «Штрафы» — faithful clone of live Jmix
@@ -2145,6 +2224,7 @@ function validateTab(ti){
   if(ti===2){                                   // ставка: тип + значение (плавающая — опциональна)
     t3hydrate();
     n += t3rateInvalid();
+    n += t3resRateInvalid();                    // ставка за неполное освоение / резерв
   }
   if(ti===3){                                   // штрафы: тип+значение (осн. и проц.) + макс. %
     n += t4Invalid();
@@ -2341,6 +2421,10 @@ function buildDetailSections(p){
   const rateStr = p.floatRate
     ? ('Плавающая'+(p.floatType?' · '+p.floatType:''))
     : (p.rateValue||'');
+  // tab3: ставка за неполное освоение / резерв (та же логика)
+  const resRateStr = p.resFloatRate
+    ? ('Плавающая'+(p.resFloatType?' · '+p.resFloatType:''))
+    : (p.resRateValue||'');
   // tab4: штрафы
   const penStr=(type,val)=>{ const parts=[type,val].filter(Boolean); return parts.join(' · '); };
   // tab5: льготный период — перечисление включённых видов с длительностью (условия — внутренние, не показываются)
@@ -2390,7 +2474,10 @@ function buildDetailSections(p){
       panel(`${row('Ограничение суммы',p.amountType)}${row('Сумма',amountStr)}
         ${row('Ограничение срока',p.termType)}${row('Срок кредита',termStr)}`)],
     ['Процентные ставки',
-      panel(`${row('Тип основной ставки',p.rateType)}${row('Значение ставки',rateStr)}`)],
+      panel(`${row('Тип основной ставки',p.rateType)}${row('Значение ставки',rateStr)}
+        ${p.resEnabled
+          ? row('Тип ставки за неполное освоение',p.resRateType)+row('Значение ставки за неполное освоение',resRateStr)
+          : rowF('Неустойка за неполное освоение','Не применяется')}`)],
     ['Штрафы',
       panel(`${row('Штраф за просрочку осн. суммы',penStr(p.penaltyMainType,p.penaltyMainVal))}
         ${row('Штраф за просрочку процентов',penStr(p.penaltyIntType,p.penaltyIntVal))}
