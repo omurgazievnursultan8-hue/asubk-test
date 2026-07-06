@@ -265,6 +265,73 @@ table.cgrid tbody tr.total.green td{ background:var(--asubk-green-tint); }
 .footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
   padding:14px 20px; display:flex; align-items:center; gap:12px; }
 
+/* ============================================================
+   MODALS / OVERLAYS — picker (entity-browser) + form dialogs
+   ============================================================ */
+.overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:none; align-items:center;
+  justify-content:center; z-index:60; padding:24px; }
+.overlay.open{ display:flex; }
+.modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(1040px,100%); max-height:88vh;
+  display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(16,28,46,0.4); }
+.modal.form{ width:min(1100px,100%); }
+.modal.form.narrow{ width:min(620px,100%); }
+.modal-h{ padding:18px 24px 12px; display:flex; align-items:center; gap:10px; }
+.modal-h .mt{ font:var(--weight-bold) 20px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
+.modal-x{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); display:flex; padding:4px; }
+.modal-x:hover{ color:var(--text-body); }
+.modal-b{ padding:0 24px 8px; overflow:auto; flex:1; }
+.modal-f{ padding:14px 24px 20px; display:flex; gap:12px; }
+
+/* entity-browser dialog innards (Фильтр + toolbar + grid + Выбрать/Отмена) */
+.eb-createbar{ display:flex; gap:10px; align-items:center; margin:6px 0 12px; }
+.eb-create{ background:var(--action-primary); color:#fff; border:none; }
+.eb-create:hover{ background:var(--action-primary-hover); }
+.eb-grid-wrap{ border:1px solid var(--border-strong); border-radius:var(--radius-md); overflow:auto; max-height:44vh; }
+.eb-grid-wrap thead tr{ outline:1.5px solid var(--asubk-blue); outline-offset:-1.5px; }
+table.eb-grid{ width:100%; border-collapse:collapse; font:var(--font-label); white-space:nowrap; }
+table.eb-grid thead th{ position:sticky; top:0; background:var(--surface-panel); text-align:left; z-index:1;
+  padding:11px 14px; border-bottom:1px solid var(--border-default); color:var(--text-heading);
+  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); }
+table.eb-grid thead th .sort{ color:var(--asubk-blue); margin-left:6px; font-size:12px; font-weight:400; }
+table.eb-grid tbody td{ padding:11px 14px; border-bottom:1px solid var(--border-default); color:var(--text-body); }
+table.eb-grid tbody tr{ cursor:pointer; }
+table.eb-grid tbody tr:hover{ background:var(--surface-hover); }
+table.eb-grid tbody tr.sel{ background:var(--asubk-nav-active); }
+table.eb-grid tbody tr:last-child td{ border-bottom:none; }
+.eb-empty{ padding:60px 0; text-align:center; color:var(--text-placeholder); font:var(--font-label); }
+
+/* form dialog: 2-col, as-is grey-filled look (P2-01) + eager required red (P7) */
+.mform{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; padding-top:8px; }
+.mform .field{ gap:6px; }
+.mform .field .flabel{ font:var(--font-label); color:var(--text-muted); }
+.mform .field.req .flabel::after{ content:" •"; color:var(--action-danger); }
+.mform .field.foc .flabel{ color:var(--asubk-blue); }
+.mform .field.foc .control input{ border-color:var(--asubk-blue); box-shadow:0 0 0 3px var(--asubk-blue-tint); background:var(--surface-card); }
+.mform .control input, .mform .control select{ background:var(--surface-input); border-color:transparent; }
+.mform .control input.dashed{ background:var(--surface-card); border:1px dashed var(--border-strong); }
+.mform .field.err .control input, .mform .field.err .control select{ background:rgba(224,58,58,0.10); border-color:transparent; }
+.mform .field.err .errmsg{ display:block; }
+.mform .errmsg{ display:none; font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--action-danger); margin-top:3px; }
+.mform .col-span{ grid-column:1 / -1; }
+.check{ display:flex; align-items:center; gap:8px; font:var(--font-body); color:var(--text-body); cursor:pointer; }
+.check .box{ width:18px; height:18px; border:1.5px solid var(--border-strong); border-radius:3px; background:var(--surface-card); }
+
+/* mini calendar popup (date picker) */
+.calpop{ position:absolute; z-index:70; background:var(--surface-card); border:1px solid var(--border-default);
+  border-radius:var(--radius-md); box-shadow:0 12px 34px rgba(16,28,46,0.22); padding:10px; width:252px; display:none; }
+.calpop.open{ display:block; }
+.cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.cal-head button{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); padding:4px 8px; border-radius:var(--radius-sm); }
+.cal-head button:hover{ background:var(--surface-hover); }
+.cal-title{ font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); color:var(--text-heading); }
+.cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.cal-grid .dow{ font:var(--weight-medium) 11px/1 var(--asubk-font); color:var(--text-muted); text-align:center; padding:4px 0; }
+.cal-grid .day{ text-align:center; padding:6px 0; font:var(--font-label); border-radius:var(--radius-sm); cursor:pointer; }
+.cal-grid .day:hover{ background:var(--surface-hover); }
+.cal-grid .day.today{ outline:1px solid var(--asubk-blue); }
+.cal-grid .day.sel{ background:var(--asubk-blue); color:#fff; }
+.cal-grid .day.mute{ color:var(--text-placeholder); }
+
 /* ---- toast ---- */
 .toast-wrap{ position:fixed; right:20px; bottom:20px; display:flex; flex-direction:column; gap:10px; z-index:80; }
 .toast{ min-width:260px; max-width:420px; padding:12px 14px; border-radius:var(--radius-md);
@@ -376,6 +443,8 @@ table.cgrid tbody tr.total.green td{ background:var(--asubk-green-tint); }
   </div>
 </div>
 
+<div class="overlay" id="modalHost" onclick="if(event.target===this)closeModal()"></div>
+<div class="calpop" id="calPop"></div>
 <div class="toast-wrap" id="toastWrap"></div>
 
 <script>
@@ -478,11 +547,12 @@ const sel = (label,val,opts) => `<div class="field"><span class="flabel">${label
 const caret = () => `<span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>`;
 const calSvg = () => `<span class="cal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>`;
 const clockSvg = () => `<span class="cal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>`;
-const eye = () => `<button title="Просмотр"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`;
+const eye = (label) => `<button title="Просмотр" onclick="viewPicker('${esc(label)}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`;
+const esc = s => (s||'').replace(/'/g,"\\'");
 /* datetime pair: date field (calendar) + time field (clock) */
-const dt = (label) => `<div class="field"><span class="flabel">${label}</span><div class="dtpair"><div class="control grey"><input placeholder="">${calSvg()}</div><div class="control grey"><input placeholder="">${clockSvg()}</div></div></div>`;
-/* picker (lookup) — ••• / × ( + eye when withEye) */
-const pick = (label,val,withEye) => `<div class="field"><span class="flabel">${label}</span><div class="lookup"><span class="val${val?'':' ph'}">${val||''}</span><button class="pick" title="Выбрать" onclick="toast('Открытие справочника')">•••</button><button title="Очистить">×</button>${withEye?eye():''}</div></div>`;
+const dt = (label) => `<div class="field"><span class="flabel">${label}</span><div class="dtpair"><div class="control grey"><input placeholder="" onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div><div class="control grey"><input placeholder="">${clockSvg()}</div></div></div>`;
+/* picker (lookup) — ••• opens entity-browser dialog / × clears / eye views */
+const pick = (label,val,withEye) => `<div class="field"><span class="flabel">${label}</span><div class="lookup" data-key="${label}"><span class="val${val?'':' ph'}">${val||''}</span><button class="pick" title="Выбрать" onclick="openPicker('${esc(label)}',this)">•••</button><button title="Очистить" onclick="clearPicker(this)">×</button>${withEye?eye(label):''}</div></div>`;
 
 /* ---- schedule (24 payments) — computed at loan level (interest ≠ 0) ---- */
 const SCHEDULE = [
@@ -600,8 +670,8 @@ function panelGrafik(){
 function panelTranshi(){
   return `<div class="panel-wrap"><div class="panel-card">
     <div class="gtoolbar">
-      <button class="btn btn-tint btn-sm" onclick="toast('Добавить транш')">Добавить</button>
-      <button class="btn btn-tint btn-sm" onclick="toast('Открыть транш')">Открыть</button>
+      <button class="btn btn-tint btn-sm" onclick="openTrancheForm()">Добавить</button>
+      <button class="btn btn-tint btn-sm" onclick="openTrancheForm()">Открыть</button>
       <button class="btn btn-tint btn-sm danger" onclick="toast('Удалить транш')">Удалить</button>
     </div>
     <div class="cgrid-wrap cgrid-empty"><table class="cgrid">
@@ -622,8 +692,8 @@ function panelRezerv(){
 function panelPlatezh(){
   return `<div class="panel-wrap"><div class="panel-card">
     <div class="gtoolbar">
-      <button class="btn btn-tint btn-sm" onclick="toast('Добавить платеж')">Добавить</button>
-      <button class="btn btn-tint btn-sm" onclick="toast('Редактировать платеж')">Редактировать</button>
+      <button class="btn btn-tint btn-sm" onclick="openPaymentForm()">Добавить</button>
+      <button class="btn btn-tint btn-sm" onclick="openPaymentForm()">Редактировать</button>
     </div>
     <div class="cgrid-wrap cgrid-empty"><table class="cgrid">
       <thead><tr>${['Номер','Дата','Транш','Сумма','Основной долг','Проценты','Пеня','Комиссия','Тип'].map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
@@ -654,7 +724,7 @@ function panelDetRaschet(){
   return `<div class="panel-wrap"><div class="panel-card">
     <div class="f2" style="max-width:1100px;margin-bottom:16px;">
       ${sel('Транш','Транш #1 - 100000.00',['Транш #1 - 100000.00'])}
-      <div class="field"><span class="flabel">Дата расчета</span><div class="control grey"><input value="06.07.2026">${calSvg()}</div></div>
+      <div class="field"><span class="flabel">Дата расчета</span><div class="control grey"><input value="06.07.2026" onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div></div>
     </div>
     <div class="gtoolbar">
       <button class="btn btn-tint btn-sm" onclick="toast('Рассчитать')">Рассчитать</button>
@@ -732,6 +802,213 @@ function toast(msg){
   setTimeout(()=>el.remove(), 2200);
 }
 document.addEventListener('click', e=>{ if(!e.target.closest('.split')) closeSplit(); });
+
+/* ============================================================
+   ENTITY-BROWSER PICKER DIALOGS (••• справочники)
+   Данные и структура сняты с живого стенда 2026-07-06
+   (scripts/inspect/loan-credit-clicks*.mjs). Каждый ••• открывает
+   тот же экран-браузер сущности, что и в оригинале.
+   ============================================================ */
+const REFBOOKS = {
+  'Вид кредита': { title:'Вид кредита', cols:['Наименование'],
+    rows:[['Бюджетная ссуда'],['Бюджетный кредит'],['ЮСАИД'],['МАР'],['Фонд развитие регионов'],['Имущественные активы']] },
+  'Основание выдачи кредита': { title:'Решение правительства',
+    cols:['Наименование','Краткое наименование','Статус','Номер решения','Вид решения','Дата решения'],
+    rows:[['Решение тестовое для теста','РПКР №213','Отклонён','РПКР №213','','']] },
+  'Кредитная линия': { title:'Кредитная линия', cols:['Кредитная линия'], rows:[['АРР'],['ФРР']] },
+  'Группа платежеспособности': { title:'Группа платежоспособности', cols:['Гр. платежесп.'], rows:[] },
+  'Счет погашения': { title:'Счет погашения', cols:['Счет погашения'], rows:[['123']] },
+  'Вид счета погашения': { title:'Вид счета погашения', cols:['Вид счета погашения'], rows:[['123'],['321'],['Накопительный счет']] },
+  'Куратор': { title:'Субъекты', cols:['Тип','Субъект'],
+    rows:[['Юр. лицо','01204199910016 - ОАО "О!Банк"'],['Физ. лицо','22407199000740 - ТЕМИРЛАН УУЛУ ТОБОКЕЛ'],
+      ['Физ. лицо','20101198900280 - ОЗОНОВ АЗИЗ КАНАТБЕКОВИЧ'],['Юр. лицо','01211202110139 - ГП "Инфосистемс" при МФКР'],
+      ['Физ. лицо','12407197000126 - АЛЫКУЛОВА РАНАГУЛ ОМУРКАНОВНА']] },
+  /* tab «Условия кредита» pickers (значение = как в детали) */
+  'Период начисления': { title:'Период начисления', cols:['Наименование'], rows:[['Аннуитет'],['Дифференцированный']] },
+  'Вид плавающих ставок': { title:'Вид плавающих ставок', cols:['Наименование'], rows:[] },
+  'Очередь погашения': { title:'Очередь погашения', cols:['Наименование'],
+    rows:[['Основная сумма, проценты, шрафы'],['Проценты, основная сумма, шрафы'],['Шрафы, проценты, основная сумма']] },
+  'Метод расчета кол-ва дней в период': { title:'Метод расчета кол-ва дней в период', cols:['Наименование'],
+    rows:[['календарный 365'],['календарный 360'],['фактический']] },
+};
+let pickerCtx = { key:null, anchor:null, selIdx:-1 };
+
+function closeModal(){ document.getElementById('modalHost').classList.remove('open'); document.getElementById('modalHost').innerHTML=''; }
+function openPicker(key, anchor){
+  const rb = REFBOOKS[key];
+  if(!rb){ toast('Справочник: '+key); return; }
+  pickerCtx = { key, anchor, selIdx:-1 };
+  const host = document.getElementById('modalHost');
+  const gear = `<button class="gear-btn" title="Настройки"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`;
+  const body = rb.rows.length
+    ? `<div class="eb-grid-wrap"><table class="eb-grid">
+         <thead><tr>${rb.cols.map(c=>`<th>${c}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
+         <tbody>${rb.rows.map((r,i)=>`<tr onclick="pickSel(${i})">${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
+       </table></div>`
+    : `<div class="eb-grid-wrap"><table class="eb-grid"><thead><tr>${rb.cols.map(c=>`<th>${c}<span class="sort">⇅</span></th>`).join('')}</tr></thead><tbody></tbody></table><div class="eb-empty">Нет данных</div></div>`;
+  host.innerHTML = `<div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-h"><span class="mt">${rb.title}</span>
+      <button class="modal-x" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="modal-b">
+      <div class="filter-head" style="padding:0 0 4px" onclick="this.classList.toggle('open')">
+        <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span><span>Фильтр</span></div>
+      <div class="tb-actions" style="padding:8px 0 12px">
+        <div class="split" id="ebSplit"><button class="btn btn-success" onclick="toast('Обновлено')">Обновить</button>
+          <button class="btn btn-success caret" onclick="document.getElementById('ebSplit').classList.toggle('open');event.stopPropagation();"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="split-menu"><button onclick="toast('Обновить')">Обновить</button><button onclick="toast('Применить и обновить')">Применить и обновить</button></div></div>
+        ${gear}
+        <button class="add-cond"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Добавить условие поиска</button>
+      </div>
+      <div class="eb-createbar">
+        <button class="btn eb-create btn-sm" onclick="toast('Создать запись')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Создать</button>
+        <button class="btn btn-secondary btn-sm" id="ebEdit" disabled>Изменить</button>
+        <button class="btn btn-secondary btn-sm" id="ebDel" disabled>Удалить</button>
+        <div style="flex:1"></div>
+        <div class="pager"><button disabled>«</button><button disabled>‹</button><span>${rb.rows.length} строк</span><button disabled>›</button><button disabled>»</button></div>
+      </div>
+      ${body}
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-primary" id="ebPick" disabled onclick="pickApply()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Выбрать</button>
+      <button class="btn btn-secondary" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Отмена</button>
+    </div>
+  </div>`;
+  host.classList.add('open');
+}
+function pickSel(i){
+  pickerCtx.selIdx = i;
+  document.querySelectorAll('#modalHost .eb-grid tbody tr').forEach((tr,idx)=>tr.classList.toggle('sel',idx===i));
+  document.getElementById('ebPick').disabled = false;
+  document.getElementById('ebEdit').disabled = false;
+  document.getElementById('ebDel').disabled = false;
+}
+function pickApply(){
+  const rb = REFBOOKS[pickerCtx.key];
+  const row = rb.rows[pickerCtx.selIdx];
+  const val = row[row.length-1]; // display last col (name / subject)
+  if(pickerCtx.anchor){
+    const lookup = pickerCtx.anchor.closest('.lookup');
+    const span = lookup.querySelector('.val');
+    span.textContent = val; span.classList.remove('ph');
+  }
+  closeModal();
+  toast('Выбрано: '+val);
+}
+function clearPicker(btn){
+  const span = btn.closest('.lookup').querySelector('.val');
+  span.textContent=''; span.classList.add('ph');
+}
+function viewPicker(key){
+  const lookup = [...document.querySelectorAll('.lookup')].find(l=>l.dataset.key===key);
+  const v = lookup?.querySelector('.val')?.textContent.trim();
+  toast(v ? ('Просмотр: '+v) : 'Значение не выбрано');
+}
+
+/* ============================================================
+   FORM DIALOGS — «Создание транша» / «Платеж» (snap 2026-07-06)
+   ============================================================ */
+const mfInp = (label,val,{req,ro,dashed,foc}={}) =>
+  `<div class="field${req?' req':''}${foc?' foc':''}"><span class="flabel">${label}</span><div class="control"><input value="${val||''}"${ro?' readonly':''}${dashed?' class="dashed"':''}></div><span class="errmsg">Заполните поле "${label}"</span></div>`;
+const mfErr = (label,val) =>
+  `<div class="field req err"><span class="flabel">${label}</span><div class="control"><input value="${val||''}"></div><span class="errmsg">Заполните поле "${label}"</span></div>`;
+const mfSel = (label,val,opts,{req}={}) =>
+  `<div class="field${req?' req':''}"><span class="flabel">${label}</span><div class="control"><select>${(opts||['']).map(o=>`<option${o===val?' selected':''}>${o}</option>`).join('')}</select>${caret()}</div></div>`;
+const mfPick = (label,val) =>
+  `<div class="field"><span class="flabel">${label}</span><div class="lookup"><span class="val${val?'':' ph'}">${val||''}</span><button class="pick" onclick="toast('Открытие справочника')">•••</button><button onclick="clearPicker(this)">×</button></div></div>`;
+const mfDt = (label,val) =>
+  `<div class="field"><span class="flabel">${label}</span><div class="control"><input value="${val||''}" onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div></div>`;
+const mfDtPair = (label) =>
+  `<div class="field"><span class="flabel">${label}</span><div class="dtpair"><div class="control"><input onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div><div class="control"><input>${clockSvg()}</div></div></div>`;
+const mfCheck = (label) => `<div class="field col-span"><label class="check"><span class="box"></span>${label}</label></div>`;
+
+function openForm(title, bodyHtml, narrow){
+  const host = document.getElementById('modalHost');
+  host.innerHTML = `<div class="modal form${narrow?' narrow':''}" onclick="event.stopPropagation()">
+    <div class="modal-h"><span class="mt">${title}</span>
+      <button class="modal-x" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="modal-b"><div class="mform">${bodyHtml}</div></div>
+    <div class="modal-f">
+      <button class="btn btn-primary" onclick="toast('Сохранено');closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>OK</button>
+      <button class="btn btn-secondary" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Отмена</button>
+    </div>
+  </div>`;
+  host.classList.add('open');
+}
+function openTrancheForm(){
+  openForm('Создание транша', `
+    ${mfInp('Одобренная сумма кредита','150000.00',{ro:true})}
+    ${mfInp('Уже распределено по траншам','100000.00',{ro:true})}
+    ${mfInp('Доступно к распределению','50000.00',{ro:true})}
+    <div class="field col-span"><span class="flabel" style="color:var(--asubk-blue)">Заемщик</span><div class="lookup" style="border:1px solid var(--asubk-blue);box-shadow:0 0 0 3px var(--asubk-blue-tint)"><span class="val">01912201610212 - ОсОО "Бек Кабель"</span><button class="pick" onclick="toast('Выбор заемщика')">•••</button><button onclick="clearPicker(this)">×</button>${eye('Заемщик')}</div></div>
+    ${mfInp('ПИН/ИНН','01912201610212',{ro:true})}
+    ${mfInp('Сумма транша','')}
+    ${mfDt('Дата транша','06.07.2026')}
+  `, true);
+}
+function openPaymentForm(){
+  openForm('Платеж', `
+    ${mfInp('Статус','',{foc:true})}
+    ${mfInp('Payment uuid','',{ro:true})}
+    ${mfInp('Payment version','',{ro:true})}
+    ${mfSel('Статус платежа','',['','Проведён','Отменён','Черновик'])}
+    ${mfInp('Код транзакции','',{dashed:true})}
+    ${mfErr('Номер платежа','')}
+    ${mfDt('Дата платежа','06.07.2026')}
+    ${mfErr('Общая сумма платежа','')}
+    ${mfInp('Сумма основного долга','',{ro:true})}
+    ${mfInp('Сумма процентов','',{ro:true})}
+    ${mfInp('Сумма штрафа (пени)','',{ro:true})}
+    ${mfInp('Сумма комиссии','')}
+    ${mfCheck('Валютный')}
+    ${mfInp('Курс валюты','',{ro:true})}
+    <div class="field"><span class="flabel">Кредит</span><div class="control"><input value='01912201610212 - ОсОО "Бек Кабель"' class="dashed" readonly></div></div>
+    ${mfSel('Транш/Субкредит','',[''],{req:true}).replace('field req','field req err').replace('</select>'+caret()+'</div>','</select>'+caret()+'</div><span class="errmsg" style="display:block">Заполните поле "Транш/Субкредит"</span>')}
+    ${mfPick('Тип платежа','')}
+    ${mfInp('Описание','',{ro:true})}
+    ${mfDtPair('Дата записи')}
+  `);
+}
+
+/* ============================================================
+   CALENDAR POPUP (date-picker) — month grid, prev/next
+   ============================================================ */
+const calState = { input:null, y:2026, m:6, sel:6 };
+const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+function openCalendar(input){
+  const pop = document.getElementById('calPop');
+  if(calState.input===input && pop.classList.contains('open')){ pop.classList.remove('open'); calState.input=null; return; }
+  calState.input = input; calState.y=2026; calState.m=6;
+  renderCalendar();
+  const r = input.getBoundingClientRect();
+  pop.style.left = Math.min(r.left, window.innerWidth-270)+'px';
+  pop.style.top = (r.bottom+4)+'px';
+  pop.classList.add('open');
+}
+function renderCalendar(){
+  const pop = document.getElementById('calPop');
+  const {y,m} = calState;
+  const first = new Date(y,m,1).getDay(); const start=(first+6)%7; // Mon-first
+  const dim = new Date(y,m+1,0).getDate();
+  const dows=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  let cells='';
+  for(let i=0;i<start;i++) cells+=`<div class="day mute"></div>`;
+  for(let d=1;d<=dim;d++){ const isSel=(d===calState.sel && m===6); const isToday=(d===6 && m===6);
+    cells+=`<div class="day${isSel?' sel':''}${isToday&&!isSel?' today':''}" onclick="pickDay(${d})">${d}</div>`; }
+  pop.innerHTML = `<div class="cal-head">
+      <button onclick="calNav(-1)">‹</button><span class="cal-title">${MONTHS[m]} ${y}</span><button onclick="calNav(1)">›</button>
+    </div><div class="cal-grid">${dows.map(d=>`<div class="dow">${d}</div>`).join('')}${cells}</div>`;
+}
+function calNav(d){ calState.m+=d; if(calState.m<0){calState.m=11;calState.y--;} if(calState.m>11){calState.m=0;calState.y++;} renderCalendar(); }
+function pickDay(d){
+  calState.sel=d;
+  const dd=String(d).padStart(2,'0'), mm=String(calState.m+1).padStart(2,'0');
+  if(calState.input) calState.input.value = `${dd}.${mm}.${calState.y}`;
+  document.getElementById('calPop').classList.remove('open'); calState.input=null;
+}
+document.addEventListener('click', e=>{
+  if(!e.target.closest('.calpop') && !(e.target.closest('.control') && e.target.tagName==='INPUT'))
+    document.getElementById('calPop').classList.remove('open');
+});
 
 renderList();
 </script>
