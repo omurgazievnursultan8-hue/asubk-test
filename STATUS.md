@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-07-04 (loan-application mockup — «Новая заявка» re-verified vs live) — _(update this date every time you edit)_
+> Last updated: 2026-07-06 (loan-credit mockup — точная копия «Кредиты» + деталь 11 вкладок) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,6 +38,15 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-07-06 — **Мокап «Кредиты»** (`mockups/loan-credit/loan-credit.html`) — точная
+  копия раздела: список `/loansCredit` (11 колонок, 14 строк, «14 строк»-пейджер,
+  Обновить/шестерёнка/Добавить условие поиска, Изменить/Просмотр) + деталь
+  «Редактирование кредита» `/loan-credits/{id}` со всеми 11 вкладками (Общая информация,
+  Оформление, Заемщик, Условия кредита с под-вкладками, График погашений, Транши,
+  Резерв, Платеж, Код оплаты, Детальный расчет, Залог). Данные записи 18 («Номер рег. 56»,
+  ОсОО «Бек Кабель»). Переключение вкладок, выбор строки, OK/Отмена работают как в
+  оригинале. Инспекция `scripts/inspect/loan-credit-clone.mjs`, сверка скриншотами
+  (`loan-credit-mockshot.mjs`) — ветка `mockup/loan-credit-page`.
 - 2026-07-04 — **Мокап «Заявка»** — повторная сверка формы «Новая заявка» с живой
   системой (`scripts/inspect/app-create-fields.mjs`, `app-detail-tabs.mjs`). Список,
   9 вкладок детали, наборы документов и диалоги «Выберите комиссию» совпадают.

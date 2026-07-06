@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кредиты · АСУБК</title>
+<!--
+  MOCKUP (single-file, interactive) — образец для команды разработки, не прод-код.
+  Раздел «Кредиты» (список /loansCredit · деталь /loan-credits/{id}).
+  Точная копия живого тест-стенда https://fkftest.okmot.kg/, инспекция 2026-07-06,
+  скрипт scripts/inspect/loan-credit-clone.mjs (запись 18 = «Номер регистрации 56»,
+  заёмщик ОсОО «Бек Кабель», ПИН 01912201610212).
+
+  Две части: список (14 строк) → деталь «Редактирование кредита» (11 вкладок).
+  Все вкладки и содержимое соответствуют живой системе. Как-есть клон:
+  воспроизводит поведение и дефекты, без улучшений (см. P5-* в notes/qa-findings.md).
+
+  ПРИМЕЧАНИЕ по данным: деталь наполняется одним полностью заполненным образцом
+  (запись 56). При клике по другим строкам списка открывается тот же образец —
+  демо-ограничение макета, а не дефект живой системы. Вкладка «Условия кредита»
+  → под-вкладка «Условия траншей» в живой системе наполняется по траншам; здесь
+  показана структурно (пусто), т.к. данных по под-вкладке не снималось.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
+  border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
+.nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
+.nav-sub > .nav-toggle{ padding:8px 16px 8px 32px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font); }
+.nav-toggle:hover{ background:rgba(24,39,57,0.04); }
+.nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
+  transition:transform 120ms ease; flex:none; }
+.nav-group.open > .nav-toggle .chev, .nav-sub.open > .nav-toggle .chev{ transform:rotate(90deg); }
+.nav-toggle .lbl{ flex:1; }
+.nav-children{ display:none; }
+.nav-group.open > .nav-children, .nav-sub.open > .nav-children{ display:block; }
+.nav-item{ display:block; padding:7px 16px 7px 52px; text-decoration:none; color:rgba(24,39,57,0.88);
+  font:var(--weight-regular) 15px/1.35 var(--asubk-font); cursor:pointer; }
+.nav-item.headerless{ padding-left:40px; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+
+.content{ flex:1; overflow:auto; display:flex; flex-direction:column; min-width:0; }
+.view{ display:none; flex-direction:column; min-height:0; }
+
+/* ---- buttons ---- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn svg{ flex:none; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-success{ background:var(--action-success); color:#fff; }
+.btn-success:hover:not(:disabled){ background:var(--asubk-green-hover); }
+.btn-sm{ height:32px; padding:0 10px; }
+/* tinted grid-toolbar buttons (Добавить/Открыть/Удалить/Редактировать/расчёт) */
+.btn-tint{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none; }
+.btn-tint:hover:not(:disabled){ background:rgba(25,59,103,0.10); color:var(--action-primary-hover); }
+.btn-tint.danger{ color:var(--action-danger); }
+.btn-tint.danger:hover:not(:disabled){ background:var(--status-error-bg); }
+
+/* ---- L1: split «Обновить» ---- */
+.split{ position:relative; display:inline-flex; }
+.split > .btn{ border-radius:0; }
+.split > .btn:first-child{ border-top-left-radius:var(--radius-md); border-bottom-left-radius:var(--radius-md); }
+.split > .btn.caret{ padding:0 7px; border-top-right-radius:var(--radius-md); border-bottom-right-radius:var(--radius-md);
+  border-left:1px solid rgba(255,255,255,0.35); }
+.split-menu{ display:none; position:absolute; top:calc(100% + 4px); left:0; min-width:210px; z-index:30;
+  background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
+  box-shadow:0 10px 30px rgba(16,28,46,0.18); padding:4px; }
+.split.open .split-menu{ display:block; }
+.split-menu button{ display:block; width:100%; text-align:left; border:none; background:transparent; cursor:pointer;
+  padding:8px 10px; border-radius:var(--radius-sm); font:var(--font-label); color:var(--text-body); }
+.split-menu button:hover{ background:var(--surface-hover); }
+.gear-btn{ width:var(--control-h); height:var(--control-h); border:1px solid var(--border-default);
+  background:var(--surface-card); border-radius:var(--radius-md); color:var(--text-muted); cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; }
+.gear-btn:hover{ background:var(--surface-hover); }
+
+/* ---- list: filter head + toolbar ---- */
+.filter-head{ display:flex; align-items:center; gap:6px; padding:12px 20px 4px; cursor:pointer;
+  font:var(--font-label); color:var(--text-muted); user-select:none; }
+.filter-head .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5); transition:transform 120ms ease; }
+.filter-head.open .chev{ transform:rotate(90deg); }
+.tb-actions{ display:flex; align-items:center; gap:10px; padding:8px 20px 12px; flex-wrap:wrap; }
+.add-cond{ display:inline-flex; align-items:center; gap:6px; background:none; border:none; cursor:pointer;
+  color:var(--text-link); font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); padding:0 4px; }
+.add-cond:hover{ text-decoration:underline; }
+.rowtools{ display:flex; align-items:center; gap:10px; padding:0 20px 8px; }
+.rowtools .spacer{ flex:1; }
+.pager{ display:flex; align-items:center; gap:6px; color:var(--text-muted); font:var(--font-label); }
+.pager button{ min-width:30px; height:30px; border:1px solid var(--border-default); background:var(--surface-card);
+  border-radius:var(--radius-sm); cursor:pointer; color:var(--text-body); }
+.pager button:disabled{ opacity:.4; cursor:not-allowed; }
+
+/* ---- grid (list) ---- */
+.grid-wrap{ padding:0 20px 20px; overflow:auto; }
+table.grid{ width:100%; border-collapse:collapse; font:var(--font-label); table-layout:fixed;
+  border:1px solid var(--border-strong); }
+table.grid thead th{ text-align:left; padding:10px 12px; background:var(--surface-panel);
+  border-bottom:1px solid var(--border-strong); border-right:1px solid var(--border-default);
+  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; user-select:none; }
+table.grid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; }
+table.grid tbody td{ padding:9px 12px; border-bottom:1px solid var(--border-default);
+  border-right:1px solid var(--border-default);
+  color:var(--text-body); vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+table.grid tbody tr{ cursor:pointer; }
+table.grid tbody tr:hover{ background:var(--surface-hover); }
+table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+
+/* ---- detail ---- */
+.detail-tabbar-wrap{ position:relative; border-bottom:1px solid var(--border-default);
+  background:var(--surface-page); flex:none; }
+.detail-tabbar{ display:flex; overflow-x:auto; padding:6px 44px 0 20px; scrollbar-width:none; }
+.detail-tabbar::-webkit-scrollbar{ display:none; }
+.dtab{ flex:none; border:none; background:transparent; padding:11px 15px;
+  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
+.dtab:hover{ color:var(--text-body); }
+.dtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.tabbar-chevron{ position:absolute; right:8px; top:50%; transform:translateY(-50%); width:28px; height:28px;
+  background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
+  display:flex; align-items:center; justify-content:center; color:var(--text-muted); cursor:pointer; }
+.tabbar-chevron:hover{ background:var(--surface-hover); }
+
+.panel-wrap{ padding:18px 20px 8px; }
+.panel-card{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:20px 24px; }
+.detail-panel{ display:none; }
+.detail-panel.active{ display:block; }
+
+/* two-column form (label above) */
+.f2{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; max-width:1500px; }
+.f2.col-span-wide{ max-width:none; }
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field .flabel{ font:var(--font-label); color:var(--text-muted); }
+.field.col-span{ grid-column:1 / -1; }
+.control{ position:relative; display:flex; align-items:center; }
+.control input, .control select, .note-area{ width:100%; height:var(--control-h); border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
+  border:1px solid var(--border-strong); outline:none; padding:0 var(--space-2);
+  transition:box-shadow 120ms ease, border-color 120ms ease; }
+.control select{ cursor:pointer; appearance:none; padding-right:30px; }
+.control input:focus, .control select:focus, .note-area:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+/* as-is: readonly / grey-filled look (P2-01 live defect kept) */
+.control input[readonly], .ro input, .ro .note-area{ background:var(--surface-input); color:var(--text-muted); border:1px solid transparent; cursor:default; }
+.control input[readonly]:focus{ border-color:transparent; box-shadow:none; }
+.grey input, .grey select{ background:var(--surface-input); border-color:transparent; }
+.control .cal, .control .caret{ position:absolute; right:9px; pointer-events:none; color:var(--text-muted); display:flex; }
+.note-area{ height:auto; min-height:80px; padding:10px 12px; resize:vertical; line-height:1.5; }
+/* paired date-time widgets (as-is P5-06: date | time split, unlabeled) */
+.dtpair{ display:grid; grid-template-columns:1fr 1fr; gap:0 10px; }
+
+/* lookup (picker) — ••• / × / eye */
+.lookup{ display:flex; align-items:center; height:var(--control-h); background:var(--surface-input);
+  border-radius:var(--radius-md); border:1px solid transparent; padding-left:var(--space-2); }
+.lookup .val{ flex:1; font:var(--font-body); font-weight:var(--weight-medium); color:var(--text-body);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lookup .val.ph{ color:var(--text-placeholder); }
+.lookup button{ display:inline-flex; align-items:center; justify-content:center; width:32px; height:var(--control-h);
+  border:none; background:transparent; color:var(--text-link); cursor:pointer; }
+.lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
+
+/* nested sub-tabs (Условия кредита) */
+.subtabs{ display:flex; gap:2px; border-bottom:1px solid var(--border-default); margin-bottom:20px; }
+.subtab{ border:none; background:transparent; padding:9px 4px; margin-right:22px;
+  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; }
+.subtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.subpanel{ display:none; }
+.subpanel.active{ display:block; }
+.empty-note{ padding:30px 4px; color:var(--text-placeholder); font:var(--font-label); }
+
+/* summary field row (График) */
+.sumrow{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:0 24px; margin-bottom:18px; max-width:1500px; }
+
+/* toolbar above collection grid */
+.gtoolbar{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
+.gtoolbar .sel{ display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+
+/* collection grid */
+.cgrid-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; min-height:120px; }
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); white-space:nowrap; }
+table.cgrid thead th{ position:sticky; top:0; text-align:left; padding:10px 12px; background:var(--surface-card);
+  border-bottom:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
+  color:var(--text-heading); cursor:pointer; user-select:none; }
+table.cgrid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; font-weight:400; }
+table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--border-default); color:var(--text-body); }
+table.cgrid tbody tr{ cursor:pointer; }
+table.cgrid tbody tr:hover{ background:var(--surface-hover); }
+table.cgrid tbody tr.sel{ background:var(--asubk-nav-active); }
+table.cgrid tr.total td, table.cgrid tbody tr.total td{ font-weight:var(--weight-bold); color:var(--text-heading);
+  background:var(--surface-hover); border-top:1px solid var(--border-strong); }
+table.cgrid tbody tr.total.green td{ background:var(--asubk-green-tint); }
+.cgrid-empty{ min-height:240px; }
+.upload-row{ display:flex; align-items:center; gap:10px; margin-top:16px; }
+.filename{ font:var(--font-label); color:var(--text-muted); }
+.section-h{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:0 0 14px; }
+
+/* ---- footer OK/Отмена ---- */
+.footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
+  padding:14px 20px; display:flex; align-items:center; gap:12px; }
+
+/* ---- toast ---- */
+.toast-wrap{ position:fixed; right:20px; bottom:20px; display:flex; flex-direction:column; gap:10px; z-index:80; }
+.toast{ min-width:260px; max-width:420px; padding:12px 14px; border-radius:var(--radius-md);
+  background:var(--asubk-ink); color:#fff; font:var(--font-label); box-shadow:0 10px 30px rgba(16,28,46,0.3);
+  display:flex; gap:10px; align-items:flex-start; }
+.toast.ok{ background:var(--asubk-green); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav" id="nav"></div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <span class="menu" title="Меню">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </span>
+      <span class="crumb-title" id="crumbTitle">Кредиты</span>
+    </header>
+
+    <div class="content">
+
+      <!-- ============ LIST VIEW ============ -->
+      <section class="view" id="view-list" style="display:flex;">
+        <div class="filter-head" id="filterHead" onclick="this.classList.toggle('open')">
+          <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          <span>Фильтр</span>
+        </div>
+        <div class="tb-actions">
+          <div class="split" id="splitRefresh">
+            <button class="btn btn-success" onclick="toast('Список обновлён')">Обновить</button>
+            <button class="btn btn-success caret" onclick="document.getElementById('splitRefresh').classList.toggle('open');event.stopPropagation();">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="split-menu">
+              <button onclick="toast('Обновить');closeSplit()">Обновить</button>
+              <button onclick="toast('Применить и обновить');closeSplit()">Применить и обновить</button>
+            </div>
+          </div>
+          <button class="gear-btn" title="Настройки">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+          <button class="add-cond">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Добавить условие поиска
+          </button>
+        </div>
+        <div class="rowtools">
+          <button class="btn btn-secondary btn-sm" id="btnEdit" disabled onclick="openDetail(selectedRow)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+            Изменить</button>
+          <button class="btn btn-secondary btn-sm" id="btnView" disabled onclick="openDetail(selectedRow)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Просмотр</button>
+          <div class="spacer"></div>
+          <div class="pager">
+            <button disabled>«</button><button disabled>‹</button>
+            <span>14 строк</span>
+            <button disabled>›</button><button disabled>»</button>
+          </div>
+        </div>
+        <div class="grid-wrap">
+          <table class="grid" id="listGrid">
+            <colgroup>
+              <col style="width:8%"><col style="width:12%"><col style="width:9%"><col style="width:8%">
+              <col style="width:9%"><col style="width:8%"><col style="width:9%"><col style="width:9%">
+              <col style="width:8%"><col style="width:10%"><col style="width:7%">
+            </colgroup>
+            <thead><tr id="listHead"></tr></thead>
+            <tbody id="listBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ DETAIL VIEW ============ -->
+      <section class="view" id="view-detail">
+        <div class="detail-tabbar-wrap">
+          <div class="detail-tabbar" id="detailTabbar"></div>
+          <button class="tabbar-chevron" onclick="scrollTabs()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+        <div class="content" style="overflow:visible;">
+          <div id="detailPanels"></div>
+        </div>
+        <div class="footer">
+          <button class="btn btn-primary" onclick="toast('Сохранено');showView('list')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            OK</button>
+          <button class="btn btn-secondary" onclick="showView('list')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+            Отмена</button>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* ============================================================
+   SIDEBAR NAVIGATION TREE (matches live sidebar; «Кредиты» active)
+   ============================================================ */
+const TREE = [
+  { id:"app", label:"Приложение", open:true, subs:[
+    { id:"app-all", headerless:true, items:[
+      { label:"Users" }, { label:"Подразделения" }, { label:"Сотрудники подразделения" },
+      { label:"Освоение" }, { label:"Резерв" }, { label:"Платеж" },
+      { label:"Список Траншей" }, { label:"LoanLedger" } ]} ]},
+  { id:"k", label:"Система кредитования", subs:[
+    { id:"k-app", label:"Заявки и комиссии", items:[ { label:"Заявки" }, { label:"Комиссии по заявкам" } ]},
+    { id:"k-prog", label:"Программы и решения", items:[ { label:"Решение правительства" }, { label:"Кредитные программы" } ]},
+    { id:"k-borr", label:"Заёмщики", items:[ { label:"Заёмщики" } ]},
+    { id:"k-loan", label:"Кредиты и транши", open:true, items:[ { label:"Кредиты", active:true }, { label:"Список траншей" } ]},
+    { id:"k-disb", label:"Освоение и платежи", items:[ { label:"Освоение" }, { label:"Платеж" }, { label:"Резерв" } ]},
+    { id:"k-col", label:"Залог", items:[ { label:"Мониторинг залога" } ]} ]},
+  { id:"g", label:"Поручительства", subs:[ { id:"g-all", headerless:true, items:[ { label:"Анкеты поручительств" }, { label:"Решения по поручительству" } ]} ]},
+  { id:"c", label:"Корпоративное управление", subs:[ { id:"c-all", headerless:true, items:[ { label:"Реестр компаний" }, { label:"Аналитика KPI" }, { label:"Документы" } ]} ]},
+  { id:"sugs", label:"СУГС", subs:[ { id:"sugs-all", headerless:true, items:[ { label:"СУГС" } ]} ]},
+  { id:"debt", label:"Взыскание задолженности", subs:[ { id:"debt-all", headerless:true, items:[ { label:"Взыскание задолженности" } ]} ]},
+  { id:"d", label:"Справочники", subs:[ { id:"d-all", headerless:true, items:[ { label:"Справочники" } ]} ]},
+  { id:"srv", label:"Сервисы", subs:[ { id:"srv-all", headerless:true, items:[ { label:"Сервисы" } ]} ]},
+  { id:"adm", label:"Администрирование", subs:[ { id:"adm-all", headerless:true, items:[ { label:"Администрирование" } ]} ]},
+  { id:"r", label:"Отчёты", subs:[ { id:"r-all", headerless:true, items:[ { label:"Отчёты" } ]} ]},
+  { id:"sec", label:"Безопасность", subs:[ { id:"sec-all", headerless:true, items:[ { label:"Безопасность" } ]} ]},
+];
+const chevSvg = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
+function renderNav(){
+  const nav = document.getElementById('nav');
+  nav.innerHTML = TREE.map(g => {
+    const subs = g.subs.map(sg => {
+      const items = sg.items.map(it =>
+        `<a class="nav-item${sg.headerless?' headerless':''}${it.active?' active':''}" onclick="return false;">${it.label}</a>`
+      ).join('');
+      if (sg.headerless) return `<div class="nav-sub open"><div class="nav-children">${items}</div></div>`;
+      return `<div class="nav-sub${sg.open?' open':''}"><button class="nav-toggle">${chevSvg(14)}<span class="lbl">${sg.label}</span></button><div class="nav-children">${items}</div></div>`;
+    }).join('');
+    return `<div class="nav-group${g.open?' open':''}"><button class="nav-toggle">${chevSvg(16)}<span class="lbl">${g.label}</span></button><div class="nav-children">${subs}</div></div>`;
+  }).join('');
+  nav.querySelectorAll('.nav-toggle').forEach(btn =>
+    btn.addEventListener('click', () => btn.parentElement.classList.toggle('open')));
+}
+renderNav();
+
+/* ============================================================
+   LIST DATASET — /loansCredit, 14 rows, inspected 2026-07-06.
+   Значения показаны как в живом гриде (обрезка колонок — как-есть).
+   Список наследует статус ЗАЯВКИ («Статус заявки»), а не кредита (P5-04).
+   ============================================================ */
+const LIST_COLS = ['Номер регистрации','Заемщик','Запрошенная сумма','Запрошенный срок',
+  'Одобренная сумма','Одобренный срок','Статус заявки','Дата регистрации',
+  'Ответственное лицо','Итоговая сумма платежей','Всего платежей'];
+const LIST_ROWS = [
+  ['',        '21812199…','5 000 000,00','24','5 000 000,00','24','Одобрено',  '',          '','',            '0'],
+  ['222',     '21812199…','1 000 000,00','24','1 000 000,00','24','Одобрено',  '01.01.20…','','1 000 000,00','24'],
+  ['123',     '20907199…','1 000 000,00','24','1 000 000,00','24','Одобрено',  '17.06.20…','','1 000 000,00','24'],
+  ['Расчет-1','01204199…','1 000 000,00','12','','',                'Одобрено',  '01.01.20…','','1 054 99…',   '12'],
+  ['111',     '01204199…','200 000,00',  '24','200 000,00','24',    'Одобрено',  '13.05.20…','','221 495,62',  '24'],
+  ['',        '01103199…','1 000 000,00','',  '','',                'Одобрено',  '',          '','',            '0'],
+  ['2',       '02712199…','200,00',      '24','200,00','24',        'На рассмотрении','',      '','221,47',      '24'],
+  ['',        '01103199…','188 000,00',  '12','','',                'Отклонено', '',          '','',            '0'],
+  ['',        '22407199…','500 000,00',  '6', '','',                'Требуется доп. информация','','','520 000,00','6'],
+  ['56',      '01912201…','250 000,00',  '36','150 000,00','24',    'На рассмотрении','',      '','166 121,73',  '24'],
+  ['55',      '20907199…','100 000,00',  '12','','',                'На рассмотрении','',      '','105 499,05',  '12'],
+  ['3',       '20507200…','150 000,00',  '12','150 000,00','12',    'Отклонено', '01.01.20…','','205 873,68',  '12'],
+  ['1',       '10203199…','1 000 000,00','6', '1 000 000,00','6',   'Одобрено',  '01.06.20…','','1 020 83…',   '6'],
+  ['5',       '20507200…','500 000,00',  '24','500 000,00','24',    'Отклонено', '',          '','540 513,73',  '24'],
+];
+let selectedRow = -1;
+
+function renderList(){
+  document.getElementById('listHead').innerHTML =
+    LIST_COLS.map(c => `<th title="${c}">${c}<span class="sort">⇅</span></th>`).join('');
+  document.getElementById('listBody').innerHTML = LIST_ROWS.map((r,i) =>
+    `<tr onclick="selectRow(${i})" ondblclick="openDetail(${i})">${r.map(c=>`<td title="${c}">${c||''}</td>`).join('')}</tr>`
+  ).join('');
+}
+function selectRow(i){
+  selectedRow = i;
+  document.querySelectorAll('#listBody tr').forEach((tr,idx)=>tr.classList.toggle('sel',idx===i));
+  document.getElementById('btnEdit').disabled = false;
+  document.getElementById('btnView').disabled = false;
+}
+function closeSplit(){ document.getElementById('splitRefresh').classList.remove('open'); }
+
+/* ============================================================
+   DETAIL — «Редактирование кредита», 11 tabs.
+   Data = live record 18 (Номер регистрации 56), inspected 2026-07-06.
+   ============================================================ */
+const TABS = ['Общая информация','Оформление','Заемщик','Условия кредита','График погашений',
+  'Транши','Резерв','Платеж','Код оплаты','Детальный расчет','Залог'];
+
+/* helpers to build controls */
+const ro  = (label,val) => `<div class="field"><span class="flabel">${label}</span><div class="control ro"><input value="${val}" readonly></div></div>`;
+const inp = (label,val,grey) => `<div class="field"><span class="flabel">${label}</span><div class="control${grey?' grey':''}"><input value="${val}"></div></div>`;
+const sel = (label,val,opts) => `<div class="field"><span class="flabel">${label}</span><div class="control grey"><select>${opts.map(o=>`<option${o===val?' selected':''}>${o}</option>`).join('')}</select>${caret()}</div></div>`;
+const caret = () => `<span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>`;
+const calSvg = () => `<span class="cal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>`;
+const clockSvg = () => `<span class="cal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>`;
+const eye = () => `<button title="Просмотр"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`;
+/* datetime pair: date field (calendar) + time field (clock) */
+const dt = (label) => `<div class="field"><span class="flabel">${label}</span><div class="dtpair"><div class="control grey"><input placeholder="">${calSvg()}</div><div class="control grey"><input placeholder="">${clockSvg()}</div></div></div>`;
+/* picker (lookup) — ••• / × ( + eye when withEye) */
+const pick = (label,val,withEye) => `<div class="field"><span class="flabel">${label}</span><div class="lookup"><span class="val${val?'':' ph'}">${val||''}</span><button class="pick" title="Выбрать" onclick="toast('Открытие справочника')">•••</button><button title="Очистить">×</button>${withEye?eye():''}</div></div>`;
+
+/* ---- schedule (24 payments) — computed at loan level (interest ≠ 0) ---- */
+const SCHEDULE = [
+  ['1','15.05.2026 00:00','6 921,74','5 671,74','1 250,00'],['2','15.06.2026 00:00','6 921,74','5 719,00','1 202,74'],
+  ['3','15.07.2026 00:00','6 921,74','5 766,66','1 155,08'],['4','17.08.2026 00:00','6 921,74','5 814,72','1 107,02'],
+  ['5','15.09.2026 00:00','6 921,74','5 863,17','1 058,57'],['6','15.10.2026 00:00','6 921,74','5 912,03','1 009,71'],
+  ['7','16.11.2026 00:00','6 921,74','5 961,30','960,44'],['8','15.12.2026 00:00','6 921,74','6 010,98','910,76'],
+  ['9','15.01.2027 00:00','6 921,74','6 061,07','860,67'],['10','15.02.2027 00:00','6 921,74','6 111,58','810,16'],
+  ['11','15.03.2027 00:00','6 921,74','6 162,51','759,23'],['12','15.04.2027 00:00','6 921,74','6 213,86','707,88'],
+  ['13','17.05.2027 00:00','6 921,74','6 265,65','656,09'],['14','15.06.2027 00:00','6 921,74','6 317,86','603,88'],
+  ['15','15.07.2027 00:00','6 921,74','6 370,51','551,23'],['16','16.08.2027 00:00','6 921,74','6 423,59','498,15'],
+  ['17','15.09.2027 00:00','6 921,74','6 477,12','444,62'],['18','15.10.2027 00:00','6 921,74','6 531,10','390,64'],
+  ['19','15.11.2027 00:00','6 921,74','6 585,53','336,21'],['20','15.12.2027 00:00','6 921,74','6 640,41','281,33'],
+  ['21','17.01.2028 00:00','6 921,74','6 695,74','226,00'],['22','15.02.2028 00:00','6 921,74','6 751,54','170,20'],
+  ['23','15.03.2028 00:00','6 921,74','6 807,80','113,94'],['24','17.04.2028 00:00','6 924,03','6 866,29','57,74'],
+];
+const scheduleGrid = () => `
+  <table class="cgrid">
+    <thead><tr>${['№ платежа','Дата платежа','Сумма платежа','Основной долг','Проценты']
+      .map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
+    <tbody>
+      ${SCHEDULE.map(r=>`<tr>${r.map((c,ci)=>`<td>${c}</td>`).join('')}</tr>`).join('')}
+      <tr class="total"><td>Итого:</td><td></td><td>166121.73</td><td>150000.00</td><td>16121.73</td></tr>
+    </tbody>
+  </table>`;
+
+function reg(label,val){ return ro(label,val); }
+
+/* ---- panel builders ---- */
+function panelObschaya(){
+  return `<div class="panel-wrap"><div class="panel-card"><div class="f2">
+    ${inp('Сумма по договору','250 000,00')}
+    ${ro('Одобренная сумма','150000.00')}
+    ${pick('Вид кредита','')}
+    ${dt('Дата договора')}
+    ${pick('Основание выдачи кредита','')}
+    ${pick('Группа платежеспособности','')}
+    ${pick('Кредитная линия','')}
+    ${sel('Статус кредита','На рассмотрении',['На рассмотрении','Одобрен','Активный','Закрыт','Отклонен'])}
+    ${inp('Основной','')}
+    ${ro('Дата полного погашения','17.04.2028')}
+    ${inp('срок возврата','36',true)}
+    ${ro('Внесено','admin (10.04.2026 14:10)')}
+    ${ro('Измнен','admin (29.05.2026 10:23)')}
+    ${pick('Счет погашения','')}
+    ${ro('Пин','01912201610212')}
+    ${ro('Информацию по счету','-')}
+    ${pick('Вид счета погашения','')}
+    ${pick('Куратор','')}
+  </div></div></div>`;
+}
+function panelOformlenie(){
+  return `<div class="panel-wrap"><div class="panel-card"><div class="f2">
+    ${inp('Номер регистрации','56')}
+    ${dt('Дата регистрации')}
+    <div class="field col-span"><span class="flabel">Комментарии</span><div class="control"><input value="1"></div></div>
+    </div>
+    <div class="upload-row">
+      <button class="btn btn-tint btn-sm" onclick="toast('Выбор файла')">Загрузить</button>
+      <span class="filename">Файл не выбран</span>
+    </div>
+  </div></div></div>`;
+}
+function panelZaemshik(){
+  return `<div class="panel-wrap"><div class="panel-card"><div class="f2">
+    ${ro('ПИН/ИНН','01912201610212')}
+    ${ro('Наименование / ФИО','Общество с ограниченной ответственностью &quot;Бек Кабель&quot;')}
+    </div>
+    <div class="upload-row">
+      <button class="btn btn-tint btn-sm" onclick="toast('Выбор файла')">Загрузить</button>
+      <span class="filename">Файл не выбран</span>
+    </div>
+  </div></div></div>`;
+}
+function panelUslovia(){
+  const common = `<div class="f2">
+    ${dt('Начало действия')}
+    ${ro('Процентная ставка','')}
+    ${pick('Период начисления','Аннуитет',true)}
+    ${pick('Вид плавающих ставок','',true)}
+    ${inp('Процент за резерв','0,00',true)}
+    ${sel('Метод погашения кредита','Аннуитетный',['Аннуитетный','Дифференцированный','В конце срока'])}
+    ${inp('Штраф за просрочку по осн.с.','0,10',true)}
+    ${sel('Вид штрафа за просрочку по осн.с.','Фиксированная',['Фиксированная','Плавающая'])}
+    ${inp('Штраф за просрочку по процентам','0,05',true)}
+    ${sel('Вид штрафа за просрочку по процентам','Фиксированная',['Фиксированная','Плавающая'])}
+    ${inp('Предельный лимит начисления штрафов','10,00',true)}
+    ${ro('Дата предельного начсиления штрафов','-')}
+    ${pick('Очередь погашения','Основная сумма, проценты, шрафы',true)}
+    ${pick('Метод расчета кол-ва дней в период','календарный 365',true)}
+    ${ro('Метод расчета кол-ва дней в год','-')}
+  </div>`;
+  return `<div class="panel-wrap"><div class="panel-card">
+    <div class="subtabs">
+      <button class="subtab active" onclick="switchSub(this,0)">Общие условия</button>
+      <button class="subtab" onclick="switchSub(this,1)">Условия траншей</button>
+    </div>
+    <div class="subpanel active">${common}</div>
+    <div class="subpanel"><div class="empty-note">Условия по траншам — наполняется по выбранному траншу (в живой системе). Данных по под-вкладке не снималось.</div></div>
+  </div></div>`;
+}
+function panelGrafik(){
+  return `<div class="panel-wrap"><div class="panel-card">
+    <div class="sumrow">
+      ${ro('Всего платежей','24')}
+      ${ro('Сумма кредита','150000,00')}
+      ${ro('Сумма процентов','16121,73')}
+      ${ro('Регулярный платеж','6921,74')}
+      ${ro('Итоговая сумма платежей','166121,73')}
+    </div>
+    <div class="gtoolbar"><button class="btn btn-primary btn-sm" onclick="toast('График построен')">Построить график</button></div>
+    <div class="cgrid-wrap">${scheduleGrid()}</div>
+  </div></div>`;
+}
+function panelTranshi(){
+  return `<div class="panel-wrap"><div class="panel-card">
+    <div class="gtoolbar">
+      <button class="btn btn-tint btn-sm" onclick="toast('Добавить транш')">Добавить</button>
+      <button class="btn btn-tint btn-sm" onclick="toast('Открыть транш')">Открыть</button>
+      <button class="btn btn-tint btn-sm danger" onclick="toast('Удалить транш')">Удалить</button>
+    </div>
+    <div class="cgrid-wrap cgrid-empty"><table class="cgrid">
+      <thead><tr>${['Заемщик','ПИН/ИНН','Сумма','Дата транша'].map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
+      <tbody><tr onclick="selCrow(this)"><td>Общество с ограниченной ответст…</td><td>01912201610212</td><td>100 000,00</td><td></td></tr></tbody>
+    </table></div>
+  </div></div>`;
+}
+function panelRezerv(){
+  const rows = [1,2,3,4,5].map(n=>[String(n),`18.0${n}.2026`,'150 000,00','50 000,00','100 000,00','0,00','0,00']);
+  return `<div class="panel-wrap"><div class="panel-card">
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr>${['№','Дата','Сумма кредита','Освоено','Резерв','Процент','Начислено'].map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
+      <tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table></div>
+  </div></div>`;
+}
+function panelPlatezh(){
+  return `<div class="panel-wrap"><div class="panel-card">
+    <div class="gtoolbar">
+      <button class="btn btn-tint btn-sm" onclick="toast('Добавить платеж')">Добавить</button>
+      <button class="btn btn-tint btn-sm" onclick="toast('Редактировать платеж')">Редактировать</button>
+    </div>
+    <div class="cgrid-wrap cgrid-empty"><table class="cgrid">
+      <thead><tr>${['Номер','Дата','Транш','Сумма','Основной долг','Проценты','Пеня','Комиссия','Тип'].map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div></div>`;
+}
+function panelKodOplaty(){
+  return `<div class="panel-wrap"><div class="panel-card">
+    <div class="cgrid-wrap cgrid-empty"><table class="cgrid">
+      <thead><tr>${['Назначение','Код оплаты','Заемщик'].map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div></div>`;
+}
+const DR_COLS = ['№','Дата события','Получено средств','Остаток задолженности по основной сумме',
+  'Фактическое погашение основной суммы','Погашение основной суммы по графику','Просроченная по основному долгу',
+  'Количество дней','Начислено процентов','Погашение процентов факт','Погашение процентов по графику текущих',
+  'Погашение процентов по графику накопленных','Просроченная по процентам','Начисление штрафов/пени',
+  'Погашение штрафов факт','Погашение штрафов по графику текущих','Погашение штрафов по графику накопленных',
+  'Штрафы/пеня нарастающим','Остаток по штрафам','Всего погашено'];
+const DR_ROWS = [
+  ['1','18.05.2026','50 000,00','50 000,00','0,00','0,00','0,00','0','0,00','0,00','0,00','0,00','0,00','0,00','0,00','0,00','0,00','0,00','0,00','0,00'],
+  ['2','15.06.2026','0,00','50 000,00','0,00','1 890,58','1 890,58','28','416,67','0,00','416,67','416,67','0,00','0,00','0,00','0,00','0,00','0,00','0,00','0,00'],
+];
+const DR_TOTAL = ['Итого','','50 000,00','50 000,00','0,00','1 890,58','1 890,58','','416,67','0,00','416,67','416,67','0,00','0,00','0,00','0,00','0,00','0,00','0,00','0,00'];
+function panelDetRaschet(){
+  return `<div class="panel-wrap"><div class="panel-card">
+    <div class="f2" style="max-width:1100px;margin-bottom:16px;">
+      ${sel('Транш','Транш #1 - 100000.00',['Транш #1 - 100000.00'])}
+      <div class="field"><span class="flabel">Дата расчета</span><div class="control grey"><input value="06.07.2026">${calSvg()}</div></div>
+    </div>
+    <div class="gtoolbar">
+      <button class="btn btn-tint btn-sm" onclick="toast('Рассчитать')">Рассчитать</button>
+      <button class="btn btn-tint btn-sm" onclick="toast('Расчет на весь график')">Расчет на весь график</button>
+      <button class="btn btn-tint btn-sm" onclick="toast('Начислить ОД и проценты')">Начислить ОД и проценты</button>
+      <button class="btn btn-tint btn-sm" onclick="toast('Начислить пеню')">Начислить пеню</button>
+    </div>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr>${DR_COLS.map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
+      <tbody>
+        ${DR_ROWS.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}
+        <tr class="total green">${DR_TOTAL.map(c=>`<td>${c}</td>`).join('')}</tr>
+      </tbody>
+    </table></div>
+  </div></div>`;
+}
+function panelZalog(){
+  return `<div class="panel-wrap"><div class="panel-card">
+    <div class="gtoolbar">
+      <button class="btn btn-tint btn-sm" onclick="toast('Редактировать залог')">Редактировать</button>
+      <button class="btn btn-tint btn-sm" onclick="toast('Просмотр залога')">Просмотр</button>
+    </div>
+    <div class="cgrid-wrap cgrid-empty"><table class="cgrid">
+      <thead><tr>${['Номер','Кредиты','Дата','Заемщик','Залогодатель','Наименование','Вид','Кол-во','Стоимость']
+        .map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div></div>`;
+}
+const PANEL_BUILDERS = [panelObschaya,panelOformlenie,panelZaemshik,panelUslovia,panelGrafik,
+  panelTranshi,panelRezerv,panelPlatezh,panelKodOplaty,panelDetRaschet,panelZalog];
+
+let activeTab = 0;
+function renderDetail(){
+  document.getElementById('detailTabbar').innerHTML = TABS.map((t,i)=>
+    `<button class="dtab${i===activeTab?' active':''}" onclick="switchTab(${i})">${t}</button>`).join('');
+  document.getElementById('detailPanels').innerHTML = TABS.map((t,i)=>
+    `<div class="detail-panel${i===activeTab?' active':''}" id="dpanel-${i}">${PANEL_BUILDERS[i]()}</div>`).join('');
+}
+function switchTab(i){
+  activeTab = i;
+  document.querySelectorAll('.dtab').forEach((b,idx)=>b.classList.toggle('active',idx===i));
+  document.querySelectorAll('.detail-panel').forEach((p,idx)=>p.classList.toggle('active',idx===i));
+  document.querySelector('.content').scrollTop = 0;
+}
+function switchSub(btn,i){
+  const card = btn.closest('.panel-card');
+  card.querySelectorAll('.subtab').forEach((b,idx)=>b.classList.toggle('active',idx===i));
+  card.querySelectorAll('.subpanel').forEach((p,idx)=>p.classList.toggle('active',idx===i));
+}
+function selCrow(tr){ tr.parentElement.querySelectorAll('tr').forEach(r=>r.classList.remove('sel')); tr.classList.add('sel'); }
+function scrollTabs(){ document.getElementById('detailTabbar').scrollBy({left:240,behavior:'smooth'}); }
+
+/* ============================================================
+   ROUTER + toast
+   ============================================================ */
+function showView(name){
+  document.getElementById('view-list').style.display   = (name==='list')   ? 'flex' : 'none';
+  document.getElementById('view-detail').style.display = (name==='detail') ? 'flex' : 'none';
+  document.getElementById('crumbTitle').textContent = (name==='detail') ? 'Редактирование кредита' : 'Кредиты';
+  window.scrollTo(0,0);
+}
+function openDetail(i){
+  if(i<0) i=0;
+  activeTab = 0;
+  renderDetail();
+  showView('detail');
+}
+function toast(msg){
+  const w = document.getElementById('toastWrap');
+  const el = document.createElement('div');
+  el.className = 'toast ok';
+  el.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><span>${msg}</span>`;
+  w.appendChild(el);
+  setTimeout(()=>el.remove(), 2200);
+}
+document.addEventListener('click', e=>{ if(!e.target.closest('.split')) closeSplit(); });
+
+renderList();
+</script>
+</body>
+</html>
