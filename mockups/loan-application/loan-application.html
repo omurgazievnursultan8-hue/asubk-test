@@ -842,6 +842,52 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
   background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
   padding:0 var(--space-2); max-width:280px; }
 .cf-input:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); outline:none; }
+.cf-req{ color:var(--action-danger); font-weight:var(--weight-bold); }
+/* поле, зафиксированное программой (единственный вариант) — только чтение */
+.cf-input:disabled, .cf-input[readonly]{ background:var(--surface-input); color:var(--text-muted); cursor:not-allowed; }
+/* значение вне разрешённого диапазона программы */
+.cf-input.cf-invalid{ border-color:var(--action-danger); box-shadow:0 0 0 3px rgba(220,38,38,.12); }
+.cf-err{ display:block; font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--action-danger); margin-top:4px; }
+
+/* ── Первая вкладка: вертикальный таймлайн жизненного цикла (to-be, 2026-07-06) ── */
+.vtl{ display:flex; flex-direction:column; margin:2px 0 0; max-width:560px; }
+.vtl-item{ display:flex; gap:14px; }
+.vtl-rail{ display:flex; flex-direction:column; align-items:center; }
+.vtl-dot{ width:22px; height:22px; border-radius:50%; border:2px solid var(--asubk-gray-200);
+  background:var(--surface-panel); display:flex; align-items:center; justify-content:center; flex:none; }
+.vtl-dot.done{ background:var(--asubk-green); border-color:var(--asubk-green); }
+.vtl-dot.current{ background:var(--asubk-blue); border-color:var(--asubk-blue); }
+.vtl-dot.reject{ background:var(--action-danger); border-color:var(--action-danger); }
+.vtl-line{ width:2px; flex:1; min-height:22px; background:var(--asubk-gray-200); }
+.vtl-line.done{ background:var(--asubk-green); }
+.vtl-body{ padding-bottom:18px; }
+.vtl-item:last-child .vtl-body{ padding-bottom:0; }
+.vtl-title{ font:var(--weight-semibold) 15px/1.3 var(--asubk-font); color:var(--text-body); }
+.vtl-item.future .vtl-title{ color:var(--text-placeholder); font-weight:var(--weight-regular); }
+.vtl-item.current .vtl-title{ color:var(--asubk-blue); }
+.vtl-item.reject .vtl-title{ color:var(--action-danger); }
+.vtl-sub{ font:var(--font-label); color:var(--text-muted); margin-top:2px; }
+.vtl-meta{ font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-top:3px; }
+/* Первая вкладка: 2 колонки (заявитель | статус) + доп. инфо на всю ширину снизу */
+.tg-wrap{ padding:18px 20px 26px; max-width:1160px; }
+.tg-cols{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px 40px; align-items:start; }
+.tg-addinfo{ margin-top:24px; }
+.tg-addinfo .cf-area{ width:100%; max-width:none; min-height:64px; height:auto; padding:9px var(--space-2);
+  border:1px solid var(--border-strong); border-radius:var(--radius-md); background:var(--surface-card);
+  color:var(--text-body); font:var(--font-body); }
+.tg-addinfo .cfval{ padding:2px 0; }
+
+/* ── Вкладка «Условия кредита»: одна колонка, подгруппы (to-be, 2026-07-06) ── */
+.cond-grid.onecol{ grid-template-columns:1fr; gap:13px 0; max-width:620px; }
+.cond-subh{ grid-column:1/-1; font:var(--weight-semibold) 14px/1.2 var(--asubk-font);
+  color:var(--text-heading); margin:14px 0 2px; padding-bottom:8px; border-bottom:1px solid var(--border-default); }
+.cond-subh:first-child{ margin-top:2px; }
+.cond-legend{ font:var(--font-label); color:var(--text-muted); margin:2px 0 10px; display:flex; flex-wrap:wrap; gap:14px; }
+.cond-legend b{ color:var(--text-body); }
+.cond-legend .lg-w{ display:inline-block; width:11px; height:11px; border:1px solid var(--border-strong);
+  background:var(--surface-card); border-radius:3px; vertical-align:-1px; margin-right:4px; }
+.cond-legend .lg-g{ display:inline-block; width:11px; height:11px; background:rgba(26,57,96,0.10);
+  border-radius:3px; vertical-align:-1px; margin-right:4px; }
 
 /* ── Document tabs 2–4: shared upload-packet layout (Task 8) ── */
 .tdocs-wrap{ padding:14px 20px 20px; }
@@ -1143,12 +1189,8 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
           </div>
         </div>
 
-        <!-- Status stepper: 4 steps — Подана → На рассмотрении → Одобрена → Регистрация кредита -->
-        <!-- Completed steps: filled circle + green check + date; current: blue circle; future: grey empty -->
-        <div class="stepper-section">
-          <div class="section-h">Статус заявки</div>
-          <div class="stepper" id="stepper"><!-- populated by renderStepper() --></div>
-        </div>
+        <!-- Шапочный stepper убран (to-be 2026-07-06): жизненный цикл теперь во 2-й колонке
+             первой вкладки «Общая информация» (renderLifecycle). -->
 
         <!-- Progress banner: shown above tabbar for tabs 3 (Кредитные) and 4 (Залоговые).
              Matches live app: those tabs display a комплектации progress section in the
@@ -1320,6 +1362,10 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
             </div><!-- /.t0-cols -->
           </div><!-- /.t0-wrap -->
         </div><!-- /#tab-0 -->
+
+        <!-- TAB «Условия кредита» (to-be 2026-07-06): lazily filled by renderConditions -->
+        <div id="tab-cond" class="detail-panel"></div>
+
         <!-- ============================================================
              TAB 1: График (Task 7)
              Toolbar: Построить график | Добавить строку | Изменить строку | Удалить строку
@@ -2279,6 +2325,7 @@ function renderStepper(currentStep){
    Панели переиспользуют существующие div-ы #tab-N; контент рендерится лениво. */
 const TABS = [
   { panel:'tab-0', label:'Общая информация' },
+  { panel:'tab-cond', label:'Условия кредита' },
   { panel:'tab-3', label:'Члены группы',    cond: app => app.isGroup },
   { panel:'tab-1', label:'График погашения' },
   { panel:'tab-4', label:'Залог',           cond: app => app.hasCollateral },
@@ -2358,8 +2405,7 @@ function gotoDetail(num){
   document.getElementById('crumbSep').style.display  = 'inline';
   document.getElementById('crumbTitle').textContent  = app.num;
 
-  /* Stepper + toolbar + tabbar */
-  renderStepper(meta.step);
+  /* Toolbar + tabbar (шапочный stepper убран — цикл в 1-й вкладке) */
   renderToolbar(app);
   const firstPanel = renderTabbar(app);
 
@@ -2457,7 +2503,57 @@ function roField(label, val, lock){
     + (lock ? ' <span class="cf-lock" title="Только чтение">🔒</span>' : '') + '</span></div>';
 }
 
-/* renderGeneral — панель «Общая информация». Телефон редактируем только в режиме edit. */
+/* ── Первая вкладка (to-be 2026-07-06): «Данные заявителя» + вертикальный таймлайн
+   жизненного цикла. Условия вынесены в отдельную вкладку «Условия кредита». ── */
+
+const LC_AUTHOR_SPEC = 'Кредитный специалист · Абдиев А.';
+const LC_AUTHOR_COM  = 'Кредитная комиссия';
+
+/* renderLifecycle — вертикальный таймлайн: Черновик → На рассмотрении комиссии → Решение.
+   Текущая веха берётся из STATUS_META.step (0 → черновик, 1 → комиссия, ≥2 → решение). */
+function renderLifecycle(app){
+  const status = app.status;
+  const rejected = status === 'Отклонена';
+  const st = (STATUS_META[status] || { step:0 }).step;
+  // отклонение = веха «Решение» (2): предыдущие пройдены, решение — красное
+  const cur = rejected ? 2 : (st <= 0 ? 0 : (st === 1 ? 1 : 2));
+
+  const steps = [
+    { title:'Черновик условий', by:LC_AUTHOR_SPEC,
+      sub:'Специалист заполняет и правит условия кредита' },
+    { title:'На рассмотрении комиссии', by:LC_AUTHOR_SPEC,
+      sub:'Отправлено в комиссию — правки условий вносит комиссия' },
+    { title: rejected ? 'Отклонено комиссией' : (cur >= 2 ? 'Одобрено комиссией' : 'Решение комиссии'),
+      by:LC_AUTHOR_COM,
+      sub: rejected ? 'Заявка отклонена, условия зафиксированы' : 'Окончательное решение, условия зафиксированы' },
+  ];
+
+  return steps.map((s, i) => {
+    const done    = i < cur;
+    const current = i === cur;
+    const isReject = current && rejected;
+    const isLast  = i === steps.length - 1;
+    const state   = done ? 'done' : current ? (isReject ? 'reject' : 'current') : 'future';
+    const dotCls  = done ? 'done' : current ? (isReject ? 'reject' : 'current') : '';
+    const dotIn   = done ? CHECK_SVG : '';
+    const lineCls = i < cur ? 'vtl-line done' : 'vtl-line';
+    const meta    = (done || current) ? `<div class="vtl-meta">${STEP_DATE} · ${s.by}</div>` : '';
+    return `<div class="vtl-item ${state}">
+      <div class="vtl-rail">
+        <div class="vtl-dot ${dotCls}">${dotIn}</div>
+        ${isLast ? '' : `<div class="${lineCls}"></div>`}
+      </div>
+      <div class="vtl-body">
+        <div class="vtl-title">${s.title}</div>
+        <div class="vtl-sub">${s.sub}</div>
+        ${meta}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* renderGeneral — первая вкладка: 2 колонки (заявитель | статус-таймлайн),
+   снизу на всю ширину — «Дополнительная информация». */
 function renderGeneral(app){
   const meta = STATUS_META[app.status] || { mode:'view' };
   const subj = SUBJECTS_MAP[app.inn] || {};
@@ -2466,23 +2562,279 @@ function renderGeneral(app){
     ? `<input class="cf-input" type="text" value="${subj.phone || ''}" placeholder="+996 …">`
       + `<span class="cf-hint">Маска +996, валидация формата</span>`
     : `<span class="cfval"><span class="cf-cur">${subj.phone || '—'}</span></span>`;
-  return `<div class="cond-wrap">
-    <div class="cond-block">
-      <div class="section-h">Данные заявителя</div>
-      <div class="cond-grid">
-        ${roField('Субъект', app.inn + ' — ' + app.name, true)}
-        <div class="cond-field"><span class="cflabel">Номер телефона</span>${phoneCell}</div>
-        ${roField('Адрес', subj.address, true)}
+  const addInfo = editable
+    ? `<textarea class="cf-area" placeholder="Комментарий / дополнительные сведения по заявке">${app.info || ''}</textarea>`
+    : `<span class="cfval"><span class="cf-cur">${app.info || '—'}</span></span>`;
+  return `<div class="tg-wrap">
+    <div class="tg-cols">
+      <div class="cond-block">
+        <div class="section-h">Данные заявителя</div>
+        <div class="cond-grid onecol">
+          ${roField('Субъект', app.inn + ' — ' + app.name, true)}
+          <div class="cond-field"><span class="cflabel">Номер телефона</span>${phoneCell}</div>
+          ${roField('Адрес', subj.address, true)}
+        </div>
+      </div>
+      <div class="cond-block">
+        <div class="section-h">Статус заявки</div>
+        <div class="cond-note">Условия кредита — на вкладке <b>«Условия кредита»</b>.</div>
+        <div class="vtl">${renderLifecycle(app)}</div>
       </div>
     </div>
-    <div class="cond-block">
-      <div class="section-h">Условия кредита</div>
-      <div class="cond-note">База — <b>программа</b> (конверт). Правки слоями: <b>программа → заёмщик → комиссия</b>; вытесненные значения зачёркнуты. 🔒 = наследуется из программы (read-only).</div>
-      <div class="cond-grid">${buildConditions(app).join('')}</div>
+    <div class="cond-block tg-addinfo">
+      <div class="cond-field"><span class="cflabel">Дополнительная информация</span>${addInfo}</div>
     </div>
   </div>`;
 }
 PANEL_RENDER['tab-0'] = renderGeneral;
+
+/* ============================================================
+   Вкладка «Условия кредита» (to-be 2026-07-06)
+   Одна колонка, полный набор. Инлайн-diff «запрошено → одобрено» на пересекающихся
+   полях; операционные поля — из программы/комиссии. Аффорданс P2-R1: редактируемое =
+   белое поле (обязательное → красная *), read-only = серое. Замок по фазе статуса.
+   ============================================================ */
+
+/* condEdit — редактируемое поле условий (аффорданс). */
+// Числовые поля показываем в русском формате: разряды пробелом, дробь запятой
+// («500 000,00»). type=text + inputmode + живое форматирование condNumFmt.
+function condNumFmt(el, isInt){
+  if (isInt){
+    const digits = el.value.replace(/\D/g, '');
+    el.value = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return;
+  }
+  let v = el.value.replace(/[^\d.,]/g, '');
+  const hasDec = /[.,]/.test(v);
+  const parts = v.split(/[.,]/);
+  const intp = parts.shift().replace(/\D/g, '');
+  const dec  = parts.join('').replace(/\D/g, '').slice(0, 2);
+  let out = intp.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  if (hasDec) out += ',' + dec;
+  el.value = out;
+}
+function condEdit(label, val, opts){
+  opts = opts || {};
+  const star = opts.required ? '<span class="cf-req"> *</span>' : '';
+  // num: десятичное (сумма); int: целое (срок, льготные периоды)
+  const num = opts.num || opts.int;
+  const value = val != null ? val : '';
+  const attrs = num
+    ? ` type="text" inputmode="${opts.int ? 'numeric' : 'decimal'}"`
+      + ` oninput="condNumFmt(this,${opts.int ? 'true' : 'false'})"`
+    : ' type="text"';
+  return `<div class="cond-field"><span class="cflabel">${label}${star}</span>`
+    + `<input class="cf-input"${attrs} value="${value}"${opts.ph ? ` placeholder="${opts.ph}"` : ''}>`
+    + (opts.hint ? `<span class="cf-hint">${opts.hint}</span>` : '')
+    + `</div>`;
+}
+
+/* condSelect — как condEdit, но выбор из справочника (native <select>).
+   Если текущее значение вне списка — добавляем его первой опцией, чтобы не терять. */
+function condSelect(label, val, options, opts){
+  opts = opts || {};
+  const star = opts.required ? '<span class="cf-req"> *</span>' : '';
+  const list = (options || []).slice();
+  if (val != null && val !== '' && !list.includes(val)) list.unshift(val);
+  const optsHtml = list.map(o =>
+    `<option value="${o}"${o === val ? ' selected' : ''}>${o}</option>`).join('');
+  return `<div class="cond-field"><span class="cflabel">${label}${star}</span>`
+    + `<select class="cf-input">${optsHtml}</select>`
+    + (opts.hint ? `<span class="cf-hint">${opts.hint}</span>` : '')
+    + `</div>`;
+}
+
+/* ─── Ограничения из кредитной программы (спек 2026-07-06) ───
+   Значения заявки не могут выходить за рамки программы:
+   • справочник (источник/фикс. суммы/сроки/льготы): 1 вариант → нередактируемое
+     поле; ≥2 → выбор только из этих вариантов.
+   • диапазон (сумма/срок/льгота «Диапазон»): число только в пределах min–max. */
+
+// Число в русском формате «500 000,00» → Number. '' → NaN.
+function ruToNum(s){ return parseFloat(String(s==null?'':s).replace(/[\s ]/g,'').replace(',', '.')); }
+function numToRu(n){ return isNaN(n) ? '' : n.toLocaleString('ru-RU'); }
+
+// Поле-справочник, ограниченное списком из программы.
+// options пуст → fallback (весь справочник); 1 вариант → readonly; ≥2 → select.
+function condRefField(label, val, options, opts){
+  opts = opts || {};
+  const list = (options || []).filter(x => x != null && x !== '');
+  if (list.length === 0) return condSelect(label, val, opts.fallback || [], opts);
+  if (list.length === 1){
+    const only = list[0];
+    return `<div class="cond-field"><span class="cflabel">${label}</span>`
+      + `<input class="cf-input" type="text" value="${only}" readonly>`
+      + `<span class="cf-hint"><span class="cf-lock">🔒</span> из программы — единственный вариант</span>`
+      + `</div>`;
+  }
+  const cur = list.includes(val) ? val : list[0];
+  return condSelect(label, cur, list, opts);
+}
+
+// Числовое поле с ограничением программы.
+// opts.list → выбор из фиксированных значений; иначе число в диапазоне min–max.
+function condNum(label, val, opts){
+  opts = opts || {};
+  if (opts.locked){                                           // программой не предусмотрено → 0, только чтение
+    return `<div class="cond-field"><span class="cflabel">${label}</span>`
+      + `<input class="cf-input" type="text" value="0" readonly>`
+      + `<span class="cf-hint"><span class="cf-lock">🔒</span> программой не предусмотрен</span>`
+      + `</div>`;
+  }
+  if (opts.list && opts.list.length){
+    const cur = opts.list.includes(val) ? val : (opts.list.length === 1 ? opts.list[0] : val);
+    return opts.list.length === 1
+      ? condRefField(label, cur, opts.list, opts)
+      : condSelect(label, cur, opts.list, opts);
+  }
+  const star = opts.required ? '<span class="cf-req"> *</span>' : '';
+  const isInt = !!opts.int;
+  const hasMin = opts.min != null && opts.min !== '';
+  const hasMax = opts.max != null && opts.max !== '';
+  const data = (hasMin ? ` data-min="${opts.min}"` : '') + (hasMax ? ` data-max="${opts.max}"` : '');
+  const hint = opts.hint
+    || (hasMin && hasMax ? `Допустимо: от ${numToRu(ruToNum(opts.min))} до ${numToRu(ruToNum(opts.max))}` : '');
+  return `<div class="cond-field"><span class="cflabel">${label}${star}</span>`
+    + `<input class="cf-input" type="text" inputmode="${isInt ? 'numeric' : 'decimal'}"`
+    + ` oninput="condNumFmt(this,${isInt}); condNumRange(this)"${data} value="${val != null ? val : ''}">`
+    + (hint ? `<span class="cf-hint">${hint}</span>` : '')
+    + `<span class="cf-err" style="display:none"></span>`
+    + `</div>`;
+}
+
+// Валидация диапазона: подсветка + сообщение, если значение вне min–max программы.
+function condNumRange(el){
+  const min = el.dataset.min !== undefined ? ruToNum(el.dataset.min) : null;
+  const max = el.dataset.max !== undefined ? ruToNum(el.dataset.max) : null;
+  const err = el.parentNode.querySelector('.cf-err');
+  let msg = '';
+  if (el.value.trim() !== ''){
+    const n = ruToNum(el.value);
+    if (isNaN(n)) msg = 'Введите число';
+    else if (min != null && n < min) msg = `Меньше минимума по программе (${numToRu(min)})`;
+    else if (max != null && n > max) msg = `Больше максимума по программе (${numToRu(max)})`;
+  }
+  el.classList.toggle('cf-invalid', !!msg);
+  if (err){ err.textContent = msg; err.style.display = msg ? 'block' : 'none'; }
+}
+
+// Ограничение по льготному периоду из программы.
+// Программа молчит (льгота не предусмотрена) → {locked} → поле = 0, только чтение.
+// Фиксированный → выбор из списка; Диапазон → число в пределах.
+function graceConstraint(prog, on, type, dur, from, to){
+  if (!prog[on]) return { locked:true };                      // не предусмотрен программой → 0, disabled
+  if (prog[type] === 'Фиксированный' && prog[dur] && prog[dur].length) return { list: prog[dur] };
+  if (prog[type] === 'Диапазон') return { min: prog[from], max: prog[to] };
+  return { locked:true };
+}
+
+/* Фаза редактирования условий по статусу заявки. */
+function condPhase(status){
+  if (['Новый', 'Требуется доп. информация'].includes(status)) return 'draft';       // правит специалист
+  if (['На рассмотрении', 'Ожидает решения/программы'].includes(status)) return 'commission'; // правит комиссия
+  return 'locked';                                                                    // зафиксировано
+}
+
+/* renderConditions — панель «Условия кредита». */
+function renderConditions(app){
+  const prog  = PROGRAMS_MAP[app.program] || {};
+  const env   = PROG_ENV[app.program]     || {};
+  const ov    = DEMO_PROV[app.num]        || {};
+  const phase = condPhase(app.status);
+  const editReq = phase === 'draft';        // запрос заёмщика редактирует специалист
+  const editOp  = phase === 'commission';   // операционные условия правит комиссия
+
+  // diff-значения комиссии (демо-провенанс + одобренные поля заявки)
+  const amtCom = (ov.amount && ov.amount.com)
+    || (app.approvedAmount && app.approvedAmount !== app.amount ? app.approvedAmount : '');
+  const trmCom = (app.approvedTerm && app.approvedTerm !== app.term ? app.approvedTerm : '');
+  const r = ov.rate || {};
+
+  const F = [];
+  // ── Подгруппа 1: параметры кредита (запрос заёмщика) ──
+  F.push('<div class="cond-subh">Параметры кредита (запрос заёмщика)</div>');
+  F.push(condField('Кредитная программа', [['программа', app.program]], { ro:true }));
+  // Ограничения из выбранной программы (спек 2026-07-06):
+  // источник — только варианты программы; сумма/срок — фикс.список или диапазон.
+  const amtC = prog.amountType === 'Фиксированная'
+    ? { list: prog.amountList || [] } : { min: prog.amountMin, max: prog.amountMax };
+  const trmC = prog.termType === 'Фиксированная'
+    ? { list: prog.termList || [] } : { min: prog.termMin, max: prog.termMax };
+  const grMainC = graceConstraint(prog, 'graceMain', 'graceMainType', 'graceMainDur', 'graceMainDurFrom', 'graceMainDurTo');
+  const grAccrC = graceConstraint(prog, 'graceAccr', 'graceAccrType', 'graceAccrDur', 'graceAccrDurFrom', 'graceAccrDurTo');
+  const grIntC  = graceConstraint(prog, 'graceInt',  'graceIntType',  'graceIntDur',  'graceIntDurFrom',  'graceIntDurTo');
+
+  F.push(editReq
+    ? condRefField('Источник финансирования', app.fundingSource, prog.istochnik, { required:true, fallback: CLK.source })
+    : condField('Источник финансирования', [['заёмщик', app.fundingSource || 'Бюджет']]));
+  F.push(editReq
+    ? condNum('Сумма', app.amount, { required:true, hint: prog.amountRange || '', ...amtC })
+    : condField('Сумма', [['заёмщик', app.amount], ['комиссия', amtCom]], { hint: prog.amountRange || '' }));
+  F.push(editReq
+    ? condNum('Срок, мес.', app.term, { required:true, int:true, hint: prog.termRange || '', ...trmC })
+    : condField('Срок, мес.', [['заёмщик', app.term], ['комиссия', trmCom]], { hint: prog.termRange || '' }));
+  F.push(editReq
+    ? condNum('Льготный период по осн. сумме', app.graceMain || '0', { int:true, hint:'мес.', ...grMainC })
+    : condField('Льготный период по осн. сумме', [['заёмщик', _grace(app.graceMain)]]));
+  F.push(editReq
+    ? condNum('Льготный период по начислению %', app.graceAccrual || '0', { int:true, hint:'мес.', ...grAccrC })
+    : condField('Льготный период по начислению %', [['заёмщик', _grace(app.graceAccrual)]]));
+  F.push(editReq
+    ? condNum('Льготный период по процентам', app.graceInterest || '0', { int:true, hint:'мес.', ...grIntC })
+    : condField('Льготный период по процентам', [['заёмщик', _grace(app.graceInterest)]]));
+
+  // ── Подгруппа 2: операционные условия (программа / комиссия) ──
+  F.push('<div class="cond-subh">Операционные условия (из программы / комиссия)</div>');
+  F.push(condField('Валюта', [['программа', env.currency || 'KGS (сом)']], { ro:true }));
+  F.push(condField('Цель кредита', [['программа', env.purpose || '—']], { ro:true }));
+  F.push(editOp
+    ? condEdit('Годовая ставка, %', r.com || env.rate || prog.rate || '', { required:true, hint: prog.amountRange ? `из программы: ${env.rate || prog.rate || '—'}` : '' })
+    : condField('Годовая ставка, %',
+        [['программа', r.prog || env.rate || prog.rate || ''], ['заёмщик', r.bor || ''], ['комиссия', r.com || '']]));
+  F.push(editOp
+    ? condEdit('Процент за резерв', app.reserveRate || '0,00', {})
+    : condField('Процент за резерв', [['комиссия', app.reserveRate || '0,00']]));
+  F.push(editOp
+    ? condEdit('Периодичность платежей', app.paymentFrequency || env.freq || 'Ежемесячно', { required:true })
+    : condField('Периодичность платежей', [['программа', app.paymentFrequency || env.freq || 'Ежемесячно']]));
+  F.push(editOp
+    ? condEdit('Метод погашения', app.repaymentMethod || env.method || 'Аннуитетный', { required:true })
+    : condField('Метод погашения', [['программа', app.repaymentMethod || env.method || 'Аннуитетный']]));
+  F.push(editOp
+    ? condEdit('День платежа', app.paymentDay || '15', { required:true })
+    : condField('День платежа', [['комиссия', app.paymentDay || '15']]));
+  F.push(editOp
+    ? condEdit('Обработка выходных', app.processingOption || 'Переносить на следующий рабочий день', {})
+    : condField('Обработка выходных', [['комиссия', app.processingOption || 'Переносить на следующий рабочий день']]));
+
+  // ── Подгруппа 3: решение комиссии ──
+  F.push('<div class="cond-subh">Решение комиссии</div>');
+  F.push(editOp
+    ? `<div class="cond-field"><span class="cflabel">Комментарий комиссии</span>`
+      + `<textarea class="cf-input" style="max-width:100%;height:auto;min-height:60px;padding:8px var(--space-2)">${app.comment || ''}</textarea></div>`
+    : condField('Комментарий комиссии', [['комиссия', app.comment || '']]));
+
+  const banner = phase === 'draft'
+    ? '<div class="note-banner"><span>Черновик — условия правит <b>кредитный специалист</b>. После «Отправить в комиссию» правки переходят к комиссии.</span></div>'
+    : phase === 'commission'
+    ? '<div class="note-banner warn"><span>На рассмотрении — операционные условия правит <b>комиссия</b>. Запрос заёмщика зафиксирован (read-only).</span></div>'
+    : '<div class="note-banner"><span>Решение вынесено — все условия <b>зафиксированы</b> (только чтение). Правки в «было → стало» показывают изменения комиссии.</span></div>';
+
+  return `<div class="cond-wrap">
+    <div class="cond-block">
+      <div class="section-h">Условия кредита</div>
+      ${banner}
+      <div class="cond-legend">
+        <span><span class="lg-w"></span>белое поле — редактируется</span>
+        <span><span class="lg-g"></span>серое — только чтение</span>
+        <span><span class="cf-req">*</span> — обязательное</span>
+        <span>🔒 — наследуется из программы</span>
+      </div>
+      <div class="cond-grid onecol">${F.join('')}</div>
+    </div>
+  </div>`;
+}
+PANEL_RENDER['tab-cond'] = renderConditions;
 
 /* ============================================================
    CHECKPOINT 3: Вкладка «График погашения» (to-be)
