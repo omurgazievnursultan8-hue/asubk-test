@@ -862,16 +862,35 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .vtl-dot.done{ background:var(--asubk-green); border-color:var(--asubk-green); }
 .vtl-dot.current{ background:var(--asubk-blue); border-color:var(--asubk-blue); }
 .vtl-dot.reject{ background:var(--action-danger); border-color:var(--action-danger); }
+.vtl-dot.withdraw{ background:var(--asubk-gray-100); border-color:var(--asubk-gray-200); }
 .vtl-line{ width:2px; flex:1; min-height:22px; background:var(--asubk-gray-200); }
 .vtl-line.done{ background:var(--asubk-green); }
-.vtl-body{ padding-bottom:18px; }
+/* off-path (отклонена/отозвана): дальше пути нет — пунктир */
+.vtl-line.dashed{ background:linear-gradient(var(--asubk-gray-200) 55%, transparent 0) repeat-y; background-size:2px 8px; }
+.vtl-body{ padding-bottom:18px; min-width:0; }
 .vtl-item:last-child .vtl-body{ padding-bottom:0; }
 .vtl-title{ font:var(--weight-semibold) 15px/1.3 var(--asubk-font); color:var(--text-body); }
 .vtl-item.future .vtl-title{ color:var(--text-placeholder); font-weight:var(--weight-regular); }
 .vtl-item.current .vtl-title{ color:var(--asubk-blue); }
 .vtl-item.reject .vtl-title{ color:var(--action-danger); }
+.vtl-item.withdraw .vtl-title{ color:var(--text-muted); }
+/* акцент текущей вехи — лёгкая карточка */
+.vtl-item.current > .vtl-body, .vtl-item.reject > .vtl-body, .vtl-item.withdraw > .vtl-body{
+  margin:-4px 0 14px; padding:8px 12px 10px; border-radius:var(--radius-md);
+  background:var(--surface-panel); }
 .vtl-sub{ font:var(--font-label); color:var(--text-muted); margin-top:2px; }
-.vtl-meta{ font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-top:3px; }
+.vtl-meta{ font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-top:5px; }
+.vtl-age{ display:inline-block; margin-left:8px; padding:1px 8px; border-radius:var(--radius-pill);
+  background:var(--asubk-gray-100); color:var(--text-muted); font:var(--weight-semibold) 11px/1.5 var(--asubk-font); }
+.vtl-badge{ display:inline-flex; align-items:center; gap:4px; margin-top:8px; padding:3px 10px;
+  border-radius:var(--radius-pill); font:var(--weight-semibold) 11px/1.4 var(--asubk-font); }
+.vtl-badge.loop{ background:rgba(28,55,90,0.08); color:var(--asubk-blue); }
+.vtl-badge.stop{ background:var(--asubk-gray-100); color:var(--text-muted); }
+.vtl-reason{ margin-top:8px; padding:8px 11px; border-radius:var(--radius-md);
+  background:var(--surface-page); border-left:3px solid var(--asubk-gray-200);
+  font:var(--weight-regular) 13px/1.45 var(--asubk-font); color:var(--text-body); }
+.vtl-item.reject .vtl-reason{ border-left-color:var(--action-danger); }
+.vtl-item.current .vtl-reason{ border-left-color:var(--asubk-blue); }
 /* Первая вкладка: 2 колонки (заявитель | статус) + доп. инфо на всю ширину снизу */
 .tg-wrap{ padding:18px 20px 26px; max-width:1160px; }
 .tg-cols{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px 40px; align-items:start; }
@@ -2494,44 +2513,89 @@ function roField(label, val, lock){
 const LC_AUTHOR_SPEC = 'Кредитный специалист · Абдиев А.';
 const LC_AUTHOR_COM  = 'Кредитная комиссия';
 
-/* renderLifecycle — вертикальный таймлайн: Черновик → На рассмотрении комиссии → Решение.
-   Текущая веха берётся из STATUS_META.step (0 → черновик, 1 → комиссия, ≥2 → решение). */
+/* Полный жизненный цикл — 5 вех (совпадает с STATUS_META.step 0…4). */
+const LC_STEPS = [
+  { title:'Черновик условий',        by:LC_AUTHOR_SPEC, sub:'Специалист заполняет и правит условия кредита' },
+  { title:'На рассмотрении комиссии', by:LC_AUTHOR_SPEC, sub:'Отправлено в комиссию — правки условий вносит комиссия' },
+  { title:'Решение комиссии',        by:LC_AUTHOR_COM,  sub:'Комиссия фиксирует условия и выносит решение' },
+  { title:'Оформление договоров',     by:LC_AUTHOR_SPEC, sub:'Регистрация кредитного и залоговых договоров' },
+  { title:'Кредит оформлен',          by:LC_AUTHOR_SPEC, sub:'Договоры зарегистрированы, кредит выдан' },
+];
+/* Off-path статусы: петля (возврат/ожидание) или выход (отклонение/отзыв). */
+const LC_OFF = {
+  'Отклонена':                 { cur:2, term:'reject',   reason:'Недостаточное обеспечение: залоговая стоимость ниже требуемой.' },
+  'Отозвана':                  { cur:1, term:'withdraw' },
+  'Требуется доп. информация': { cur:1, loop:'Возвращена на доработку', reason:'Приложите финансовую отчётность за последний год.' },
+  'Ожидает решения/программы': { cur:2, loop:'Ожидает решения и программы' },
+};
+const LC_DUR = [3, 4, 3, 5, 0];          // дней на каждом шаге (мок)
+const LC_TODAY = new Date(2026, 6, 6);   // «сегодня» = 2026-07-06
+function _lcHash(s){ let h=0; for(let i=0;i<s.length;i++) h=(Math.imul(h,31)+s.charCodeAt(i))|0; return Math.abs(h); }
+function _lcAddDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function _lcFmt(d){ const p=x=>String(x).padStart(2,'0'); return p(d.getDate())+'.'+p(d.getMonth()+1)+'.'+d.getFullYear(); }
+
+/* renderLifecycle — вертикальный таймлайн полного цикла. Текущая веха = STATUS_META.step,
+   off-path статусы (LC_OFF) переопределяют веху и добавляют петлю/выход + причину.
+   Даты вех вычисляются от «сегодня» назад по LC_DUR; у текущей — возраст в статусе.
+   Автор показывается только при смене исполнителя (специалист ↔ комиссия). */
 function renderLifecycle(app){
   const status = app.status;
-  const rejected = status === 'Отклонена';
-  const st = (STATUS_META[status] || { step:0 }).step;
-  // отклонение = веха «Решение» (2): предыдущие пройдены, решение — красное
-  const cur = rejected ? 2 : (st <= 0 ? 0 : (st === 1 ? 1 : 2));
+  const off = LC_OFF[status] || {};
+  const st  = (STATUS_META[status] || { step:0 }).step;
+  const cur = (off.cur != null) ? off.cur : st;
+  const terminal = !!off.term;                       // отклонена/отозвана — пути дальше нет
 
-  const steps = [
-    { title:'Черновик условий', by:LC_AUTHOR_SPEC,
-      sub:'Специалист заполняет и правит условия кредита' },
-    { title:'На рассмотрении комиссии', by:LC_AUTHOR_SPEC,
-      sub:'Отправлено в комиссию — правки условий вносит комиссия' },
-    { title: rejected ? 'Отклонено комиссией' : (cur >= 2 ? 'Одобрено комиссией' : 'Решение комиссии'),
-      by:LC_AUTHOR_COM,
-      sub: rejected ? 'Заявка отклонена, условия зафиксированы' : 'Окончательное решение, условия зафиксированы' },
-  ];
+  /* Даты вех: текущая вошла curAge дней назад, прошлые — отматываем по LC_DUR. */
+  const curAge = 2 + (_lcHash(app.num) % 6);         // 2…7 дней в текущем статусе
+  const entry = [];
+  entry[cur] = _lcAddDays(LC_TODAY, -curAge);
+  for (let i = cur - 1; i >= 0; i--) entry[i] = _lcAddDays(entry[i + 1], -LC_DUR[i]);
 
-  return steps.map((s, i) => {
-    const done    = i < cur;
-    const current = i === cur;
-    const isReject = current && rejected;
-    const isLast  = i === steps.length - 1;
-    const state   = done ? 'done' : current ? (isReject ? 'reject' : 'current') : 'future';
-    const dotCls  = done ? 'done' : current ? (isReject ? 'reject' : 'current') : '';
-    const dotIn   = done ? CHECK_SVG : '';
-    const lineCls = i < cur ? 'vtl-line done' : 'vtl-line';
-    const meta    = (done || current) ? `<div class="vtl-meta">${STEP_DATE} · ${s.by}</div>` : '';
+  let prevAuthor = null;
+  return LC_STEPS.map((base, i) => {
+    const done = i < cur, current = i === cur, isLast = i === LC_STEPS.length - 1;
+
+    /* Веха «Решение комиссии» (2) — заголовок по исходу. */
+    let title = base.title, sub = base.sub;
+    if (i === 2) {
+      if (off.term === 'reject') { title = 'Отклонено комиссией'; sub = 'Заявка отклонена, условия зафиксированы'; }
+      else if (cur > 2)          { title = 'Одобрено комиссией';  sub = 'Условия одобрены и зафиксированы'; }
+    }
+
+    const state = done ? 'done'
+      : current ? (off.term === 'reject' ? 'reject' : off.term === 'withdraw' ? 'withdraw' : 'current')
+      : 'future';
+    const dotCls = done ? 'done'
+      : current ? (off.term === 'reject' ? 'reject' : off.term === 'withdraw' ? 'withdraw' : 'current')
+      : '';
+    const dotIn  = done ? CHECK_SVG : '';
+    const lineCls = (i < cur) ? 'vtl-line done' : (terminal ? 'vtl-line dashed' : 'vtl-line');
+
+    /* Meta: дата (done|current) + автор только при смене + возраст текущего шага. */
+    let meta = '';
+    if (done || current) {
+      let m = _lcFmt(entry[i]);
+      if (base.by !== prevAuthor) m += ' · ' + base.by;
+      if (current && !terminal && i < 4) m += `<span class="vtl-age">${curAge} дн. в статусе</span>`;
+      meta = `<div class="vtl-meta">${m}</div>`;
+      prevAuthor = base.by;
+    }
+
+    /* Аннотации текущей вехи: петля / выход / причина. */
+    let extra = '';
+    if (current && off.loop) extra += `<div class="vtl-badge loop">↩ ${off.loop}</div>`;
+    if (current && off.term === 'withdraw') extra += `<div class="vtl-badge stop">⊘ Отозвана специалистом</div>`;
+    if (current && off.reason) extra += `<div class="vtl-reason">${off.reason}</div>`;
+
     return `<div class="vtl-item ${state}">
       <div class="vtl-rail">
         <div class="vtl-dot ${dotCls}">${dotIn}</div>
         ${isLast ? '' : `<div class="${lineCls}"></div>`}
       </div>
       <div class="vtl-body">
-        <div class="vtl-title">${s.title}</div>
-        <div class="vtl-sub">${s.sub}</div>
-        ${meta}
+        <div class="vtl-title">${title}</div>
+        <div class="vtl-sub">${sub}</div>
+        ${meta}${extra}
       </div>
     </div>`;
   }).join('');
