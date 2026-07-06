@@ -964,7 +964,7 @@ let SEQ = 100;
 function P(o){ return Object.assign({
   id:++SEQ, nameRu:'', nameKy:'', nameEn:'', shortDesc:'', decisionId:'', decisionName:'',
   source:'', purpose:'', kind:'', industry:'', currency:'', line:'', repayAcct:'',
-  dateFrom:'', dateTo:'', comment:'', staffMain:'', applicantsFiz:'', applicantsJur:'',
+  dateFrom:'', dateTo:'', comment:'', staffMain:'', commission:'', applicantsFiz:'', applicantsJur:'',
   amountType:'', termType:'', terms:'', amounts:'', rateType:'', rateValue:'', floatRate:false, floatType:'',
   penaltyMainType:'', penaltyMainVal:'', penaltyMainFloatType:'',
   penaltyMaxPct:'20', penaltyIntType:'', penaltyIntVal:'', penaltyIntFloatType:'',
@@ -986,7 +986,7 @@ let PROGRAMS = [
       shortDesc:'Поддержка АПК — оборотные средства для сезонных работ', decisionId:'d554', decisionName:'ПКМКР №554 от 11.09.2024',
       source:'Бюджет', purpose:'Пополнение оборотных средств', kind:'Бюджетный кредит', industry:'Агропромышленный комплекс',
       currency:'KGS', line:'ФРР', repayAcct:'Накопительный счёт', dateFrom:'2026-01-01', dateTo:'2026-12-31',
-      staffMain:'Айбек уулу Н.; Турдубекова А.С.', comment:'Приоритетная программа, лимит фондирования 2 млрд сом.',
+      staffMain:'Айбек уулу Н.; Турдубекова А.С.', commission:'Комиссия по заявкам', comment:'Приоритетная программа, лимит фондирования 2 млрд сом.',
       amountType:'Диапазон', amounts:'100 000 – 5 000 000', termType:'Диапазон', terms:'12 – 36',
       rateType:'Фиксированная', rateValue:'6%',
       penaltyMainType:'Фиксированная', penaltyMainVal:'0,2%', penaltyIntType:'Фиксированная', penaltyIntVal:'0,1%', penaltyMaxPct:'20',
@@ -1011,7 +1011,7 @@ let PROGRAMS = [
   P({ nameRu:'Микрокредит для женского предпринимательства', shortDesc:'Микрозаймы до 300 тыс. сом',
       decisionId:'d018', decisionName:'Распоряжение №18-р от 14.01.2025', source:'Бюджет',
       purpose:'Пополнение оборотных средств', kind:'Бюджетная ссуда', industry:'Лёгкая промышленность',
-      currency:'KGS', dateFrom:'2025-02-01', dateTo:'2026-02-01', status:'draft', references:0 }),
+      currency:'KGS', dateFrom:'2025-02-01', dateTo:'2026-02-01', group:true, status:'draft', references:0 }),
   P({ nameRu:'Ипотека для молодых специалистов', shortDesc:'Жилищное кредитование',
       decisionId:'d402', decisionName:'ПКМКР №402 от 30.07.2024', source:'Бюджет',
       purpose:'Строительство', kind:'Бюджетный кредит', industry:'Машиностроение',
@@ -2020,6 +2020,9 @@ function renderWizBody(){
                 ${f('Дата по','dateTo',{type:'date',hint:'пусто = бессрочно'})}
               </div>
               ${lookupF('Отрасль','industry','industry',{req:true,hint:'Сектор экономики (ОКЭД) — только активные'})}
+              <div class="field" data-field="group"><span class="flabel">Групповой кредит</span>
+                <label class="check"><input type="checkbox" data-k="group" ${draft.group?'checked':''}> Да</label>
+                <span class="hint">Справочный признак; применяется на стадии заявки. По умолчанию — индивидуальный</span></div>
             </div>
             <div class="pcol">
               ${msCombo('Источник финансирования','source',LK.source,'Можно несколько',true)}
@@ -2036,6 +2039,7 @@ function renderWizBody(){
             ${lookupF('Список заявителей (физ. лица)','applicantsFiz','applicantsFiz',{multi:true,hint:'Whitelist; пусто = без ограничений (доступно всем)'})}
             ${lookupF('Список заявителей (юр. лица)','applicantsJur','applicantsJur',{multi:true,hint:'Whitelist; пусто = без ограничений (доступно всем)'})}
             ${lookupF('Ответственные сотрудники','staffMain','staff',{req:true,multi:true,hint:'Кураторы — назначаются кредитам по программе'})}
+            ${lookupF('Комиссия по заявкам','commission','commission',{hint:'Коллегиальный орган, рассматривающий заявки по программе (справочник, тип «Заявки»); пусто = выбирается на заявке'})}
             ${f('Комментарий','comment',{type:'textarea',max:1000,hint:'Внутренняя заметка для команды'})}
           </div>
         </div>
@@ -2388,8 +2392,10 @@ function buildDetailSections(p){
         ${rowF('Краткое описание',p.shortDesc)}
         ${row('Источник финансирования',asTxt(p.source))}${row('Кредитная линия',asTxt(p.line))}
         ${row('Назначение кредита',asTxt(p.purpose))}${row('Вид кредита',asTxt(p.kind))}
+        ${row('Групповой кредит',p.group?'Да':'Нет')}
         ${row('Отрасль',p.industry)}${row('Валюта',asTxt(p.currency))}
         ${row('Вид счёта погашения',asTxt(p.repayAcct))}${row('Ответственные сотрудники',p.staffMain)}
+        ${row('Комиссия по заявкам',p.commission)}
         ${row('Дата с',fmtDate(p.dateFrom))}${row('Дата по',fmtDateTo(p.dateTo))}
         ${rowF('Заявители (whitelist)', (p.applicantsFiz||p.applicantsJur) ? [p.applicantsFiz,p.applicantsJur].filter(Boolean).join('; ') : 'Без ограничений — доступно всем')}
         ${rowF('Служебные заметки',p.comment)}`)],
@@ -2590,6 +2596,15 @@ const REFBOOKS = {
     cols:[['_label','Наименование']], rows:LK.applicantsJur.map(n=>({_id:n,_label:n})) },
   staff:     { title:'Сотрудники',
     cols:[['_label','ФИО']], rows:LK.staff.map(n=>({_id:n,_label:n})) },
+  // «Комиссия по заявкам» → справочник «Комиссии» (dictionaries.html), отфильтрован
+  // по Тип = «Заявки» (комиссии-рассматриватели заявок; тип «Поручительства» скрыт).
+  commission:{ title:'Комиссии по заявкам', view:true,
+    cols:[['_label','Наименование'],['type','Тип'],['status','Статус']],
+    rows:[
+      ['Комиссия по заявкам','Заявки','Активная'],
+      ['Комиссия по заявкам 1','Заявки','Активная'],
+      ['Кредитная комиссия ФРР','Заявки','Активная'],
+    ].map(([n,type,status])=>({_id:n,_label:n,type,status})) },
 };
 // «Решение правительства» — 7-column grid + workflow buttons + locked status filter (P2-R9)
 // «Решение правительства» — live: 7 строк, all «Действует» (status filter is locked),
