@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Заемщики — АСУБК (точная копия)</title>
+<!--
+  Точная копия раздела «Заёмщики» из живого стенда ASUBK Credit Module — в одном файле.
+  Два вида в одном SPA (как в живом стенде):
+    • Список   — /loan-applicants        (13 строк)
+    • Карточка — /loan-applicants/{id}    (запись ОАО "О!Банк")
+  Переход как в стенде (проверено 2026-07-06, scripts/inspect/borrower-open-behavior.mjs):
+    одинарный клик -> выделяет строку + включает Изменить/Удалить;
+    двойной клик / выделить+Изменить -> открывает карточку;
+    OK / Отмена -> возврат к списку.
+  Снято через scripts/inspect/borrower-full.mjs + borrower-list.mjs + borrower-styles.mjs.
+  Стек оригинала: Jmix on Vaadin (Lumo) — воспроизведены цвета/шрифты Lumo.
+-->
+<style>
+  :root{
+    --primary:#006af5;            /* lumo-primary-color hsl(214,100%,48%) */
+    --primary-text:#005fdb;       /* lumo-primary-text-color / вкладки */
+    --primary-hover:#0059d1;
+    --green-btn:#2e8b3d;          /* «Обновить» */
+    --green-btn-hover:#277633;
+    --body-text:#1b2a3d;          /* lumo-body-text-color 0.94 */
+    --secondary-text:rgba(38,55,78,0.69); /* lumo-secondary-text-color / метки */
+    --success:#158a4e;            /* lumo-success-color hsl(145,72%,30%) */
+    --error:#e02020;              /* lumo-error-color hsl(3,85%,48%) */
+    --green-card-bg:#eaf7f0;
+    --green-card-border:#cdeadb;
+    --border:#dbe0e6;
+    --border-strong:#c7ced6;
+    --field-bg:#f6f8fa;           /* поля формы карточки */
+    --filter-bg:#eef1f4;          /* поля фильтра / кнопки списка */
+    --field-border:#c9d0d8;
+    --panel-border:#e3e7ec;
+    --grid-hover:#f3f7fd;
+    --radius:4px;
+    --font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:var(--font);color:var(--body-text);background:#fff;font-size:16px;line-height:1.4;}
+  .app{display:flex;min-height:100vh;}
+
+  /* ---------- SIDEBAR (общий) ---------- */
+  .sidebar{width:278px;flex:0 0 278px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;}
+  .sidebar .brand{font-weight:700;font-size:20px;padding:18px 22px;}
+  .nav{flex:1;overflow-y:auto;padding:0 8px;}
+  .nav-group{font-weight:600;padding:12px 14px;display:flex;align-items:center;gap:8px;user-select:none;font-size:15px;}
+  .nav-group .caret{color:var(--secondary-text);font-size:12px;width:12px;display:inline-block;}
+  .nav-group.open{color:var(--primary-text);}
+  .nav-item{padding:8px 14px 8px 20px;font-size:15px;border-radius:var(--radius);cursor:default;}
+  .nav-item:hover{background:var(--filter-bg);}
+  .sidebar .footer{border-top:1px solid var(--border);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;}
+  .logout{width:38px;height:38px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--filter-bg);
+    display:flex;align-items:center;justify-content:center;color:var(--primary-text);cursor:pointer;}
+
+  /* ---------- MAIN (общий) ---------- */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .topbar{display:flex;align-items:center;gap:16px;padding:16px 26px;border-bottom:1px solid var(--border);}
+  .burger{font-size:22px;color:var(--secondary-text);cursor:pointer;line-height:1;}
+  .topbar .title{font-weight:700;font-size:20px;}
+  .view{flex:1;display:flex;flex-direction:column;}
+  .content{padding:16px 26px 26px;flex:1;}
+  #view-detail .content{padding:20px 26px 0;}
+
+  .btn{font-family:var(--font);font-size:16px;font-weight:600;border-radius:var(--radius);padding:9px 18px;
+    border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:8px;}
+  .btn[disabled]{opacity:.6;cursor:default;}
+  .btn-secondary{background:var(--filter-bg);color:var(--secondary-text);border-color:var(--field-border);}
+
+  /* ========================================================= */
+  /* ==================== ВИД: СПИСОК ========================= */
+  /* ========================================================= */
+  .filter-head{display:flex;align-items:center;gap:8px;color:var(--primary-text);font-size:16px;padding:6px 2px 12px;cursor:default;}
+  .filter-head .caret{font-size:13px;}
+  .filter-card{border:1px solid var(--panel-border);border-radius:3px;padding:16px 18px;margin-bottom:16px;}
+  .filter-row{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+  .filter-row:last-child{margin-bottom:0;}
+  .filter-row .fl{width:96px;color:var(--secondary-text);font-size:15px;flex:0 0 96px;}
+  /* поле фильтра: голубовато-серое, без рамки, 36px (как vaadin-select/lumo) */
+  .filter-field{flex:1;position:relative;background:rgba(26,57,96,0.08);border:0;
+    border-radius:var(--radius);height:36px;display:flex;align-items:center;padding:0 10px;cursor:pointer;}
+  .filter-field .val{flex:1;color:var(--body-text);font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .filter-field .val.ph{color:transparent;}
+  .filter-field .chev{color:var(--secondary-text);font-size:16px;margin-left:8px;}
+  .filter-field .dots-btn{width:26px;height:24px;border-radius:3px;background:rgba(26,57,96,0.06);
+    display:flex;align-items:center;justify-content:center;color:var(--primary-text);letter-spacing:1px;margin-left:6px;}
+  .filter-field .clr{width:26px;height:24px;display:flex;align-items:center;justify-content:center;
+    color:var(--primary-text);font-size:15px;margin-left:2px;cursor:pointer;}
+  /* выпадающий список фильтра */
+  .fdrop{position:absolute;top:40px;left:0;right:0;z-index:20;background:#fff;border:1px solid var(--border);
+    border-radius:var(--radius);box-shadow:0 4px 16px rgba(24,39,57,0.14);padding:4px 0;display:none;}
+  .fdrop.open{display:block;}
+  .fdrop .opt{padding:8px 12px;font-size:16px;cursor:pointer;}
+  .fdrop .opt:hover{background:var(--grid-hover);}
+  .fdrop .opt.empty{color:var(--secondary-text);min-height:20px;}
+
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .btn-green{background:var(--green-btn);color:#fff;border-radius:var(--radius) 0 0 var(--radius);}
+  .btn-green:hover{background:var(--green-btn-hover);}
+  .btn-green-split{background:var(--green-btn);color:#fff;border-left:1px solid rgba(255,255,255,.35);
+    border-radius:0 var(--radius) var(--radius) 0;padding:9px 10px;}
+  .btn-green-split:hover{background:var(--green-btn-hover);}
+  .btn-icon{background:var(--filter-bg);color:var(--primary-text);border-color:var(--field-border);padding:9px 11px;}
+  .btn-danger{background:var(--filter-bg);color:var(--error,#d32020);border-color:var(--field-border);}
+  .add-cond{color:var(--secondary-text);font-size:16px;margin-left:6px;cursor:default;}
+  .toolbar2{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .rowcount{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--body-text);font-size:16px;}
+  .pager{display:flex;gap:10px;color:var(--secondary-text);}
+  .pager span{cursor:default;}
+
+  #view-list .grid{border:1px solid var(--primary);border-radius:3px;overflow:hidden;}
+  #view-list table{width:100%;border-collapse:collapse;}
+  #view-list thead th{text-align:left;font-weight:700;color:var(--body-text);font-size:16px;padding:14px 16px;
+    border-bottom:1px solid var(--border);white-space:nowrap;}
+  #view-list thead th .sort{color:var(--secondary-text);font-size:13px;margin-left:6px;}
+  #view-list tbody td{padding:12px 16px;border-bottom:1px solid #eef1f4;font-size:16px;color:var(--body-text);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px;}
+  #view-list tbody tr{cursor:pointer;}
+  #view-list tbody tr:hover{background:var(--grid-hover);}
+  #view-list tbody tr:last-child td{border-bottom:0;}
+  col.c-inn{width:180px;} col.c-type{width:130px;} col.c-ind{width:320px;} col.c-status{width:150px;}
+
+  /* ========================================================= */
+  /* ==================== ВИД: КАРТОЧКА ======================= */
+  /* ========================================================= */
+  /* header card */
+  .header-card{border:1px solid var(--panel-border);border-radius:3px;padding:18px 22px 22px;
+    display:flex;gap:32px;margin-bottom:18px;}
+  .header-left{flex:1;min-width:0;max-width:640px;}
+  .header-right{flex:1;display:flex;gap:40px;padding-top:4px;}
+  .field{margin-bottom:14px;}
+  .field:last-child{margin-bottom:0;}
+  label.lbl{display:block;color:var(--secondary-text);font-size:14px;margin-bottom:4px;}
+  .inp{width:100%;background:var(--field-bg);border:1px solid var(--field-border);border-radius:var(--radius);
+    padding:8px 10px;font-family:var(--font);font-size:16px;color:var(--body-text);}
+  .select-wrap{position:relative;}
+  .select-wrap::after{content:"⌄";position:absolute;right:12px;top:6px;color:var(--secondary-text);font-size:16px;}
+  .row-3{display:flex;gap:16px;}
+  .row-3 .field{flex:1;}
+  .credits-block{display:flex;flex-direction:column;gap:2px;}
+  .credits-line{display:flex;gap:10px;}
+  .credits-line .num{min-width:14px;}
+  .muted-head{color:var(--body-text);}
+
+  /* tabs */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;}
+  .tab{padding:10px 12px 12px;font-size:16px;font-weight:500;color:var(--secondary-text);cursor:pointer;
+    border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .tab:hover{color:var(--primary-text);}
+  .tab.active{color:var(--primary-text);border-bottom-color:var(--primary-text);}
+  .tabpanel{display:none;}
+  .tabpanel.active{display:block;}
+
+  /* main info tab */
+  .two-col{display:flex;gap:40px;align-items:flex-start;}
+  .col-left{flex:1;min-width:0;max-width:620px;}
+  .col-right{flex:1;min-width:0;}
+  .section-title{font-size:24px;font-weight:700;color:var(--body-text);margin:6px 0 4px;}
+  .section-rule{border:0;border-top:1px solid var(--border);margin:10px 0 18px;}
+  .subsection-title{font-size:19px;font-weight:700;margin:0 0 16px;}
+  .form-grid{display:grid;grid-template-columns:120px 1fr;gap:14px 16px;align-items:center;}
+  .form-grid label{color:var(--secondary-text);font-size:15px;}
+  .addr-label{align-self:start;padding-top:8px;}
+  .addr-fields{display:flex;flex-direction:column;gap:12px;}
+  .addr-pair{display:flex;gap:16px;}
+  .addr-pair .f{flex:1;}
+  .addr-pair .f label{display:block;color:var(--secondary-text);font-size:14px;margin-bottom:4px;}
+
+  /* risk panel */
+  .risk-title{font-size:24px;font-weight:700;margin:6px 0 18px;}
+  .risk-card{background:var(--green-card-bg);border:1px solid var(--green-card-border);border-radius:8px;
+    padding:16px 18px;margin-bottom:14px;display:flex;gap:16px;align-items:flex-start;}
+  .risk-check{flex:0 0 34px;width:34px;height:34px;border-radius:50%;background:var(--success);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:18px;margin-top:2px;}
+  .risk-body{flex:1;min-width:0;}
+  .risk-name{font-weight:700;font-size:17px;margin-bottom:4px;}
+  .risk-line{color:var(--body-text);font-size:15px;margin-bottom:2px;}
+  .risk-sub{display:flex;gap:26px;color:var(--body-text);font-size:15px;margin-top:2px;}
+  .risk-scale-label{font-weight:600;font-size:14px;margin-bottom:6px;}
+  .risk-bar{height:6px;border-radius:4px;background:#cfe9db;overflow:hidden;max-width:70%;}
+  .risk-bar > span{display:block;height:100%;background:var(--success);}
+
+  /* credits tab (grid inside card) */
+  #view-detail .grid{border:1px solid var(--border);border-radius:3px;margin-top:14px;overflow:hidden;}
+  .grid-head{display:flex;padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600;color:var(--body-text);}
+  .grid-head .sort{color:var(--secondary-text);margin-left:6px;font-size:13px;}
+  .grid-row{padding:12px 16px;border-bottom:1px solid #eef1f4;color:var(--body-text);}
+  .grid-row:last-child{border-bottom:0;}
+  .grid-empty{min-height:260px;}
+  .tab-toolbar{margin-bottom:4px;}
+  .empty-panel{min-height:300px;}
+
+  /* footer buttons (карточка) */
+  .form-footer{display:flex;gap:12px;padding:18px 26px 26px;}
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-primary:hover{background:var(--primary-hover);}
+  .btn-cancel{background:#fff;color:var(--primary-text);border-color:var(--border-strong);}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===================== SIDEBAR (общий) ===================== -->
+  <aside class="sidebar">
+    <div class="brand">АСУБК</div>
+    <nav class="nav">
+      <div class="nav-group open"><span class="caret">⌄</span>Приложение</div>
+      <div class="nav-item">Users</div>
+      <div class="nav-item">Подразделения</div>
+      <div class="nav-item">Сотрудники подразделения</div>
+      <div class="nav-item">Освоение</div>
+      <div class="nav-item">Резерв</div>
+      <div class="nav-item">Платеж</div>
+      <div class="nav-item">Список Траншей</div>
+      <div class="nav-item">LoanLedger</div>
+      <div class="nav-group"><span class="caret">›</span>Система кредитования</div>
+      <div class="nav-group"><span class="caret">›</span>Поручительства</div>
+      <div class="nav-group"><span class="caret">›</span>Корпоративное управление</div>
+      <div class="nav-group"><span class="caret">›</span>СУГС</div>
+      <div class="nav-group"><span class="caret">›</span>Взыскание задолженности</div>
+      <div class="nav-group"><span class="caret">›</span>Справочники</div>
+      <div class="nav-group"><span class="caret">›</span>Сервисы</div>
+      <div class="nav-group"><span class="caret">›</span>Администрирование</div>
+      <div class="nav-group"><span class="caret">›</span>Отчёты</div>
+      <div class="nav-group"><span class="caret">›</span>Безопасность</div>
+    </nav>
+    <div class="footer">
+      <span>[admin]</span>
+      <div class="logout" title="Выход">⇥</div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div class="main">
+    <div class="topbar">
+      <span class="burger">☰</span>
+      <span class="title" id="pageTitle">Заемщики</span>
+    </div>
+
+    <!-- ==================== ВИД: СПИСОК ==================== -->
+    <div class="view" id="view-list">
+      <div class="content">
+
+        <!-- ---------- FILTER ---------- -->
+        <div class="filter-head"><span class="caret">⌄</span>Фильтр : Фильтры *</div>
+        <div class="filter-card">
+          <!-- Статус: vaadin-select (Активный / В обработке) -->
+          <div class="filter-row">
+            <div class="fl">Статус =</div>
+            <div class="filter-field" id="fStatus">
+              <span class="val ph" id="fStatusVal" data-empty="1"></span>
+              <span class="chev">⌄</span>
+              <div class="fdrop" id="fStatusDrop">
+                <div class="opt empty" data-v=""></div>
+                <div class="opt" data-v="Активный">Активный</div>
+                <div class="opt" data-v="В обработке">В обработке</div>
+              </div>
+            </div>
+          </div>
+          <!-- Субъект.Отрасль: picker (⋯ открывает список, ✕ очищает) -->
+          <div class="filter-row">
+            <div class="fl">Субъект.Отрас…</div>
+            <div class="filter-field" id="fIndustry">
+              <span class="val ph" id="fIndustryVal" data-empty="1"></span>
+              <span class="dots-btn" id="fIndustryOpen">⋯</span>
+              <span class="clr" id="fIndustryClr">✕</span>
+              <div class="fdrop" id="fIndustryDrop">
+                <div class="opt empty" data-v=""></div>
+                <div class="opt" data-v="Машиностроение">Машиностроение</div>
+                <div class="opt" data-v="Агропромышленный комплекс">Агропромышленный комплекс</div>
+                <div class="opt" data-v="Сельское хозяйство">Сельское хозяйство</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------- TOOLBAR ---------- -->
+        <div class="toolbar">
+          <div style="display:flex;">
+            <button class="btn btn-green" id="btnRefresh">Обновить</button>
+            <button class="btn btn-green-split">⌄</button>
+          </div>
+          <button class="btn btn-icon" title="Настройки">⚙</button>
+          <span class="add-cond">Добавить условие поиска</span>
+        </div>
+
+        <div class="toolbar2">
+          <button class="btn btn-secondary" id="btnEdit" disabled>✎ Изменить</button>
+          <button class="btn btn-danger" id="btnDel" disabled>🗑 Удалить</button>
+          <div class="rowcount">
+            <div class="pager"><span>«</span><span>‹</span></div>
+            <span id="rowCount">13 строк</span>
+            <div class="pager"><span>›</span><span>»</span></div>
+          </div>
+        </div>
+
+        <!-- ---------- GRID ---------- -->
+        <div class="grid">
+          <table>
+            <colgroup>
+              <col class="c-inn"><col><col class="c-type"><col class="c-ind"><col class="c-status">
+            </colgroup>
+            <thead>
+              <tr>
+                <th>ИНН <span class="sort">⇅</span></th>
+                <th>ФИО/Наименование <span class="sort">⇅</span></th>
+                <th>Тип <span class="sort">⇅</span></th>
+                <th>Отрасль <span class="sort">⇅</span></th>
+                <th>Статус <span class="sort">⇅</span></th>
+              </tr>
+            </thead>
+            <tbody id="rows">
+              <tr><td>01204199910016</td><td>Открытое акционерное общество "О!Банк"</td><td>Юр. лицо</td><td>Машиностроение</td><td>Активный</td></tr>
+              <tr><td>22407199000740</td><td>ТЕМИРЛАН УУЛУ ТОБОКЕЛ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
+              <tr><td>01103199710105</td><td>Учреждение "Финансово-кредитный фонд при  Министерстве финансов Кыргызской Республики"</td><td>Юр. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
+              <tr><td>20507200350475</td><td>МЕҢДИБАЕВ АМАНТУР КЫЛЫЧБЕКОВИЧ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
+              <tr><td>13112199100463</td><td>ТЫНЧТЫКБЕК КЫЗЫ МАРАЛ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
+              <tr><td>20411198201313</td><td>СЛАМКУЛОВ АЗАМАТ ОМУРГАЗИЕВИЧ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
+              <tr><td>21812199600888</td><td>БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
+              <tr><td>20907199400957</td><td>МАТРАИМОВ МАКСАТ КУБАНОВИЧ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
+              <tr><td>01103199710105</td><td>Учреждение "Финансово-кредитный фонд при  Министерстве финансов Кыргызской Республики"</td><td>Юр. лицо</td><td>Машиностроение</td><td>Активный</td></tr>
+              <tr><td>02712199110068</td><td>Открытое акционерное общество "Мбанк"</td><td>Юр. лицо</td><td>Сельское хозяйство</td><td>Активный</td></tr>
+              <tr><td>00406200910056</td><td>Закрытое акционерное общество "Альфа Телеком"</td><td>Юр. лицо</td><td></td><td>Активный</td></tr>
+              <tr><td>10203197800201</td><td>СООРОНОВА РЫСКАН АТАЕВНА</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
+              <tr><td>01912201610212</td><td>Общество с ограниченной ответственностью "Бек Кабель"</td><td>Юр. лицо</td><td>Сельское хозяйство</td><td>Активный</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ==================== ВИД: КАРТОЧКА ==================== -->
+    <div class="view" id="view-detail" style="display:none;">
+      <div class="content">
+
+        <!-- ---------- HEADER CARD ---------- -->
+        <div class="header-card">
+          <div class="header-left">
+            <div class="field">
+              <label class="lbl">ФИО/Наименование</label>
+              <input class="inp" readonly value='Открытое акционерное общество "О!Банк"'>
+            </div>
+            <div class="row-3">
+              <div class="field">
+                <label class="lbl">ИНН</label>
+                <input class="inp" readonly value="01204199910016">
+              </div>
+              <div class="field">
+                <label class="lbl">Тип</label>
+                <input class="inp" readonly value="Юр. лицо">
+              </div>
+              <div class="field">
+                <label class="lbl">Статус</label>
+                <div class="select-wrap"><input class="inp" readonly value="Активный"></div>
+              </div>
+            </div>
+          </div>
+          <div class="header-right">
+            <div class="credits-block">
+              <div class="muted-head" style="margin-bottom:6px;">Кредиты:</div>
+              <div class="credits-line"><span class="num">2</span><span>активных кредитов на</span><span>1&nbsp;200</span></div>
+              <div class="credits-line"><span class="num"></span><span>сумму</span><span>000,00</span></div>
+            </div>
+            <div>
+              <div class="muted-head">Последнее обновление:</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------- TABS ---------- -->
+        <div class="tabs" id="tabs">
+          <div class="tab active" data-tab="main">Основная информаци</div>
+          <div class="tab" data-tab="credits">Кредиты</div>
+          <div class="tab" data-tab="docs">Документы</div>
+          <div class="tab" data-tab="history">История</div>
+          <div class="tab" data-tab="contacts">Контакты</div>
+        </div>
+
+        <!-- ===== TAB: Основная информация ===== -->
+        <div class="tabpanel active" data-panel="main">
+          <div class="two-col">
+            <!-- left: borrower data -->
+            <div class="col-left">
+              <div class="section-title">Данные заемщика</div>
+              <hr class="section-rule">
+              <div class="subsection-title">Основные данные</div>
+              <div class="form-grid">
+                <label>ФИО/<br>Наименование</label>
+                <input class="inp" readonly value='Открытое акционерное общество "О!Банк"'>
+                <label>ИНН</label>
+                <input class="inp" readonly value="01204199910016">
+                <label>Номер телефона</label>
+                <input class="inp" readonly value="+996 703 800 300">
+                <label>Отрасль</label>
+                <input class="inp" readonly value="Машиностроение">
+                <label>Группа<br>заёмщика</label>
+                <input class="inp" readonly value="">
+                <label class="addr-label">Адрес</label>
+                <div class="addr-fields">
+                  <div class="addr-pair">
+                    <div class="f"><label>Область</label><input class="inp" readonly value="Бишкек"></div>
+                    <div class="f"><label>Район</label><input class="inp" readonly value="Первомайский район"></div>
+                  </div>
+                  <div class="addr-pair">
+                    <div class="f"><label>Город</label><input class="inp" readonly value="Первомайский район"></div>
+                    <div class="f"><label>Улица</label><input class="inp" readonly value="ул. Фрунзе"></div>
+                  </div>
+                  <div class="addr-pair">
+                    <div class="f"><label>Дом</label><input class="inp" readonly value="390"></div>
+                    <div class="f"><label>Помещение</label><input class="inp" readonly value=""></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- right: risk checks -->
+            <div class="col-right">
+              <div class="risk-title">Результаты проверок</div>
+
+              <div class="risk-card">
+                <div class="risk-check">✓</div>
+                <div class="risk-body">
+                  <div class="risk-name">Чёрный список</div>
+                  <div class="risk-line">Нет</div>
+                  <div class="risk-line">Заёмщик отсутствует в чёрных списках</div>
+                </div>
+              </div>
+
+              <div class="risk-card">
+                <div class="risk-check">✓</div>
+                <div class="risk-body">
+                  <div class="risk-name">Кредитная история</div>
+                  <div class="risk-line">Положительная кредитная история</div>
+                </div>
+              </div>
+
+              <div class="risk-card">
+                <div class="risk-check">✓</div>
+                <div class="risk-body">
+                  <div class="risk-name">Действующие кредиты</div>
+                  <div class="risk-line">Нет активных кредитов</div>
+                  <div class="risk-sub">
+                    <span>Количество кредитов:&nbsp;&nbsp;2</span>
+                    <span>Общая сумма:&nbsp;&nbsp;1&nbsp;200&nbsp;000,00</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="risk-card">
+                <div class="risk-check">✓</div>
+                <div class="risk-body">
+                  <div class="risk-name">Просрочки</div>
+                  <div class="risk-line">Просроченных платежей не обнаружено</div>
+                </div>
+              </div>
+
+              <div class="risk-card">
+                <div class="risk-check">✓</div>
+                <div class="risk-body">
+                  <div class="risk-name">Скоринговая система</div>
+                  <div class="risk-scale-label">Низкий риск</div>
+                  <div class="risk-bar"><span style="width:32%"></span></div>
+                </div>
+              </div>
+
+              <div class="risk-card">
+                <div class="risk-check">✓</div>
+                <div class="risk-body">
+                  <div class="risk-name">Лимит задолженности</div>
+                  <div class="risk-bar" style="margin-top:6px;"><span style="width:45%"></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== TAB: Кредиты ===== -->
+        <div class="tabpanel" data-panel="credits">
+          <div class="tab-toolbar">
+            <button class="btn btn-secondary" disabled>Посмотр</button>
+          </div>
+          <div class="grid">
+            <div class="grid-head">Заявка <span class="sort">⇅</span></div>
+            <div class="grid-row">01204199910016 - ОАО "О!Банк"</div>
+            <div class="grid-row grid-empty">01204199910016 - ОАО "О!Банк"</div>
+          </div>
+        </div>
+
+        <!-- ===== TAB: Документы ===== -->
+        <div class="tabpanel" data-panel="docs"><div class="empty-panel"></div></div>
+        <!-- ===== TAB: История ===== -->
+        <div class="tabpanel" data-panel="history"><div class="empty-panel"></div></div>
+        <!-- ===== TAB: Контакты ===== -->
+        <div class="tabpanel" data-panel="contacts"><div class="empty-panel"></div></div>
+
+      </div>
+
+      <!-- ---------- FOOTER BUTTONS ---------- -->
+      <div class="form-footer">
+        <button class="btn btn-primary" id="btnOk">✓ OK</button>
+        <button class="btn btn-cancel" id="btnCancel">⊘ Отмена</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ---------- переключение вид «список» <-> «карточка» ----------
+  const viewList   = document.getElementById('view-list');
+  const viewDetail = document.getElementById('view-detail');
+  const pageTitle  = document.getElementById('pageTitle');
+
+  function showList() {
+    viewDetail.style.display = 'none';
+    viewList.style.display = 'flex';
+    pageTitle.textContent = 'Заемщики';
+    window.scrollTo(0, 0);
+  }
+  function showDetail() {
+    viewList.style.display = 'none';
+    viewDetail.style.display = 'flex';
+    pageTitle.textContent = 'Заемщик';
+    window.scrollTo(0, 0);
+  }
+
+  // ---------- список: выбор строки + открытие карточки ----------
+  // Точно как в живом стенде (проверено 2026-07-06, borrower-open-behavior.mjs):
+  //   одинарный клик -> выделяет строку, включает Изменить/Удалить;
+  //   двойной клик / выделить+Изменить -> открывает карточку.
+  const rows = document.querySelectorAll('#rows tr');
+  const btnEdit = document.getElementById('btnEdit');
+  const btnDel  = document.getElementById('btnDel');
+  let selected = null;
+  rows.forEach(r => {
+    r.addEventListener('click', () => {
+      if (selected) selected.style.background = '';
+      selected = r; r.style.background = '#dbe9fb';
+      btnEdit.disabled = false; btnDel.disabled = false;
+    });
+    r.addEventListener('dblclick', showDetail);
+  });
+  btnEdit.addEventListener('click', () => { if (!btnEdit.disabled) showDetail(); });
+
+  // ---------- карточка: OK / Отмена -> назад к списку ----------
+  document.getElementById('btnOk').addEventListener('click', showList);
+  document.getElementById('btnCancel').addEventListener('click', showList);
+
+  // ---------- фильтр списка (рабочий) ----------
+  // Статус -> vaadin-select; Субъект.Отрасль -> picker. «Обновить» применяет,
+  // ✕ очищает отрасль. Фильтрация по колонкам грида (Тип-agn: Отрасль=4, Статус=5).
+  const filter = { status: '', industry: '' };
+  const closeDrops = () => document.querySelectorAll('.fdrop.open').forEach(d => d.classList.remove('open'));
+
+  function setVal(valEl, v) {
+    valEl.textContent = v;
+    valEl.classList.toggle('ph', !v);
+    valEl.dataset.empty = v ? '0' : '1';
+  }
+  function bindPicker(fieldId, dropId, valId, key, openTriggerId) {
+    const field = document.getElementById(fieldId);
+    const drop  = document.getElementById(dropId);
+    const valEl = document.getElementById(valId);
+    const trigger = openTriggerId ? document.getElementById(openTriggerId) : field;
+    trigger.addEventListener('click', e => {
+      e.stopPropagation();
+      const willOpen = !drop.classList.contains('open');
+      closeDrops();
+      if (willOpen) drop.classList.add('open');
+    });
+    drop.querySelectorAll('.opt').forEach(o => o.addEventListener('click', e => {
+      e.stopPropagation();
+      filter[key] = o.dataset.v;
+      setVal(valEl, o.dataset.v);
+      drop.classList.remove('open');
+    }));
+    return { valEl };
+  }
+  bindPicker('fStatus', 'fStatusDrop', 'fStatusVal', 'status', null);
+  bindPicker('fIndustry', 'fIndustryDrop', 'fIndustryVal', 'industry', 'fIndustryOpen');
+  // клик по самому полю отрасли (не по кнопкам) тоже открывает
+  document.getElementById('fIndustry').addEventListener('click', e => {
+    if (e.target.closest('.dots-btn, .clr, .fdrop')) return;
+    const drop = document.getElementById('fIndustryDrop');
+    const willOpen = !drop.classList.contains('open');
+    closeDrops(); if (willOpen) drop.classList.add('open');
+  });
+  // ✕ очищает отрасль
+  document.getElementById('fIndustryClr').addEventListener('click', e => {
+    e.stopPropagation();
+    filter.industry = '';
+    setVal(document.getElementById('fIndustryVal'), '');
+  });
+  document.addEventListener('click', closeDrops);
+
+  // «Обновить» -> применяет фильтр к строкам грида
+  document.getElementById('btnRefresh').addEventListener('click', () => {
+    let shown = 0;
+    rows.forEach(r => {
+      const industry = r.children[3].textContent.trim();
+      const status   = r.children[4].textContent.trim();
+      const ok = (!filter.status || status === filter.status) &&
+                 (!filter.industry || industry === filter.industry);
+      r.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+    document.getElementById('rowCount').textContent = shown + ' строк';
+    // сбросить выделение скрытой строки
+    if (selected && selected.style.display === 'none') {
+      selected.style.background = ''; selected = null;
+      btnEdit.disabled = true; btnDel.disabled = true;
+    }
+  });
+
+  // ---------- вкладки карточки (Vaadin tabsheet) ----------
+  const tabs = document.querySelectorAll('#tabs .tab');
+  const panels = document.querySelectorAll('#view-detail .tabpanel');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    panels.forEach(p => p.classList.remove('active'));
+    t.classList.add('active');
+    document.querySelector('.tabpanel[data-panel="' + t.dataset.tab + '"]').classList.add('active');
+  }));
+</script>
+</body>
+</html>
