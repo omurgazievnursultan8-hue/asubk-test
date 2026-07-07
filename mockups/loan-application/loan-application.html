@@ -1865,6 +1865,7 @@ const APPLICATIONS = [
    approvedAmount:'500 000,00', approvedTerm:'36',
    annualRate:'10,00', reserveRate:'0,00',
    paymentFrequency:'Ежемесячно', repaymentMethod:'Аннуитетный',
+   payMode:'months', payMonths:['Март','Сентябрь'],
    paymentDay:'15', processingOption:'Переносить на следующий рабочий день',
    graceMain:'0', graceAccrual:'0', graceInterest:'0',
    fundingSource:'Бюджет', comment:''},
@@ -1931,6 +1932,22 @@ const APPLICATIONS = [
   {num:'З-2026-000058', inn:'21812199600888', name:'БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ',
    status:'Отклонено', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
    amount:'2 000 000,00', term:'24', info:''},
+  // Покрытие «программа × статус»: добор дыр (spec 2026-07-07) — по 1 заявке на недостающий статус.
+  {num:'З-2026-000056', inn:'00404202510209', name:'ОсОО "Хот Лэйк Текстиль"',
+   status:'Новый', collateralStatus:'', program:'АгроИнвест КР',
+   amount:'500 000,00', term:'12', info:''},
+  {num:'З-2026-000054', inn:'01204199910016', name:'ОАО "О!Банк"',
+   status:'Требуется доп. информация', collateralStatus:'', program:'АгроИнвест КР',
+   amount:'1 500 000,00', term:'18', info:''},
+  {num:'З-2026-000052', inn:'02102201710026', name:'МП "Ноокат Тазалык"',
+   status:'Требуется доп. информация', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'800 000,00', term:'18', info:''},
+  {num:'З-2026-000050', inn:'01204199910016', name:'ОАО "О!Банк"',
+   status:'Новый', collateralStatus:'', program:'ТУР',
+   amount:'600 000,00', term:'12', info:''},
+  {num:'З-2026-000048', inn:'20907199400957', name:'МАТРАИМОВ МАКСАТ КУБАНОВИЧ',
+   status:'На рассмотрении', collateralStatus:'', program:'ТУР',
+   amount:'1 200 000,00', term:'18', info:''},
 ];
 
 // Synthetic «дата создания» per row — data has no date column; assign
@@ -2164,12 +2181,13 @@ const PROGRAMS_MAP = {
     amountMin: 100000, amountMax: 10000000, termMin: 6, termMax: 60,
     // Program-defined conditions. 1 value → readonly; 2+ → required choice.
     vidKredita:   ['Бюджетная ссуда'],
-    naznachenie:  ['Пополнение оборотных средств', 'Приобретение техники'],
-    istochnik:    ['Республиканский бюджет', 'Кредитная линия ЕБРР'],
+    naznachenie:  ['Пополнение оборотных средств', 'Приобретение техники/оборудования'],
+    istochnik:    ['Бюджет', 'Иностранные доноры'],
     kreditLine:   ['Возобновляемая', 'Невозобновляемая'],
-    stavka:       ['10,00% годовых'],
+    stavka:[], stavkaType:'Диапазон', stavkaMin:'8,00', stavkaMax:'12,00',
     shtrafy:      ['0,1% в день от суммы просрочки'],
     periodichnost:['Ежемесячно', 'Ежеквартально'],
+    schetPogash:  ['Накопительный счёт', 'Бюджет'],
     // Condition-model snapshot (ключи cdraft) для предзаполнения + diff (спек 2026-07-05).
     currency:'KGS', source:'Иностранные доноры', kind:'Бюджетная ссуда', purpose:'Приобретение техники/оборудования', line:'АБР', repayAcct:'Накопительный счёт',
     amountType:'Диапазон', amountMin:'100000', amountMax:'10000000',
@@ -2178,49 +2196,60 @@ const PROGRAMS_MAP = {
     penaltyMainType:'Фиксированная', penaltyMainVal:'0,2%', penaltyIntType:'Фиксированная', penaltyIntVal:'0,1%', penaltyMaxPct:'20',
     periodicity:'Ежемесячно', dayCountNum:'Фактический', dayCountBase:'365', queue:'Основная сумма → проценты → штрафы',
     weekend:'Не переносить', lastPaymentAnchor:'По дате первого платежа', repayMethod:'Аннуитетный',
-    graceMain:true, graceMainType:'Фиксированный', graceMainDur:['3','6'], minDays:'15', maxDays:'45',
+    graceMain:true, graceMainType:'Фиксированный', graceMainDur:['3','6'],
+    graceAccr:true, graceAccrType:'Диапазон', graceAccrDurFrom:'0', graceAccrDurTo:'3',
+    graceInt:true, graceIntType:'Фиксированный', graceIntDur:['1','2'],
+    minDays:'15', maxDays:'45',
   },
   'Поддержка сельхозпроизводителей': {
     amountRange: 'Допустимо: от 100000.00 до 5000000.00',
-    termRange:   'Допустимо: от 3 до 36',
+    termRange:   'Фиксированные сроки по программе',
     rate:        '8,00',
     amountMin: 100000, amountMax: 5000000, termMin: 3, termMax: 36,
     vidKredita:   ['Бюджетная ссуда', 'Грантовое софинансирование'],
     naznachenie:  ['Увеличение дохода сельского хозяйства'],
-    istochnik:    ['Республиканский бюджет'],
+    istochnik:    ['Бюджет'],
     kreditLine:   ['Невозобновляемая'],
-    stavka:       ['8,00% годовых'],
+    stavka:['8,00'], stavkaType:'Фиксированная',
     shtrafy:      ['0,05% в день', '0,1% в день'],
     periodichnost:['Ежемесячно'],
+    schetPogash:  ['Накопительный счёт', 'Бюджет'],
     currency:'KGS', source:'Бюджет', kind:'Бюджетная ссуда', purpose:'Пополнение оборотных средств', line:'ФРР', repayAcct:'Накопительный счёт',
     amountType:'Диапазон', amountMin:'100000', amountMax:'5000000',
-    termType:'Диапазон', termMin:'3', termMax:'36',
+    termType:'Фиксированная', termList:['12','18','24','36'],
     rateType:'Фиксированная', rateValues:['8,00 %'], floatRate:false,
     penaltyMainType:'Фиксированная', penaltyMainVal:'0,2%', penaltyIntType:'Фиксированная', penaltyIntVal:'0,1%', penaltyMaxPct:'20',
     periodicity:'Ежемесячно', dayCountNum:'Фактический', dayCountBase:'365', queue:'Основная сумма → проценты → штрафы',
     weekend:'Не переносить', lastPaymentAnchor:'По дате первого платежа', repayMethod:'Аннуитетный',
-    graceMain:true, graceMainType:'Фиксированный', graceMainDur:['3'], minDays:'10', maxDays:'30',
+    graceMain:true, graceMainType:'Фиксированный', graceMainDur:['3'],
+    graceAccr:true, graceAccrType:'Фиксированный', graceAccrDur:['2'],
+    graceInt:false,
+    minDays:'10', maxDays:'30',
   },
   'ТУР': {
-    amountRange: 'Допустимо: от 50000.00 до 2000000.00',
+    amountRange: 'Фиксированные суммы по программе',
     termRange:   'Допустимо: от 6 до 24',
     rate:        '12,00',
     amountMin: 50000, amountMax: 2000000, termMin: 6, termMax: 24,
     vidKredita:   ['Бюджетная ссуда'],
     naznachenie:  ['Развитие туризма'],
-    istochnik:    ['Республиканский бюджет', 'Грант ЕБРР'],
+    istochnik:    ['Собственные средства', 'Иностранные доноры'],
     kreditLine:   ['Возобновляемая'],
-    stavka:       ['12,00% годовых', '10,00% годовых (льготная)'],
+    stavka:['12,00', '10,00 (льготная)'], stavkaType:'Фиксированная',
     shtrafy:      ['0,1% в день от суммы просрочки'],
     periodichnost:['Ежемесячно', 'Ежеквартально', 'Раз в полугодие'],
-    currency:'KGS', source:'Собственные средства', kind:'Бюджетный кредит', purpose:'Строительство', line:'АРР', repayAcct:'Бюджет',
-    amountType:'Диапазон', amountMin:'50000', amountMax:'2000000',
+    schetPogash:  ['Бюджет', 'Накопительный счёт'],
+    currency:'KGS', source:'Собственные средства', kind:'Бюджетная ссуда', purpose:'Строительство', line:'АРР', repayAcct:'Бюджет',
+    amountType:'Фиксированная', amountList:['600 000,00','800 000,00','1 000 000,00','2 000 000,00'],
     termType:'Диапазон', termMin:'6', termMax:'24',
     rateType:'Фиксированная', rateValues:['12,00 %'], floatRate:false,
     penaltyMainType:'Фиксированная', penaltyMainVal:'0,5%', penaltyIntType:'Фиксированная', penaltyIntVal:'0,2%', penaltyMaxPct:'20',
     periodicity:'Ежеквартально', dayCountNum:'Финансовый (30)', dayCountBase:'360', queue:'первочередный',
     weekend:'Переносить на следующий рабочий день', lastPaymentAnchor:'По дате выдачи', repayMethod:'Дифференцированный',
-    graceMain:false, minDays:'20', maxDays:'60',
+    graceMain:false,
+    graceAccr:false,
+    graceInt:true, graceIntType:'Диапазон', graceIntDurFrom:'0', graceIntDurTo:'6',
+    minDays:'20', maxDays:'60',
   },
 };
 
@@ -2341,6 +2370,8 @@ const TABS = [
 /* Чекпоинты 2-7 регистрируют реальные рендереры сюда (ключ = panel id). */
 const PANEL_RENDER = {};
 let _detailApp = null;
+let _condOpenSec = null;   // индекс открытой секции аккордеона «Условия» (null → дефолт: первая)
+let _condMonthsOpen = false;   // popup мультивыбора месяцев (msCombo)
 
 function panelStub(panelId){
   const t = TABS.find(x => x.panel === panelId);
@@ -2494,7 +2525,7 @@ function gotoDetail(num, panel){
      сохраняет текущий _editMode И текущий таб (иначе «Изменить» кидает на 1-й таб). */
   const sameApp = _detailApp && _detailApp.num === num;
   const currentPanel = sameApp ? document.querySelector('.tabbar-tab.active')?.dataset.panel : null;
-  if (!sameApp) _editMode = false;
+  if (!sameApp) { _editMode = false; _condOpenSec = null; _condMonthsOpen = false; }   // др. заявка → аккордеон к дефолту
   _detailApp = app;
 
   /* Header band */
@@ -2968,6 +2999,52 @@ function condPhase(status){
   return 'locked';                                                                    // зафиксировано
 }
 
+/* Клик по шапке секции — эксклюзивный аккордеон: одна открыта за раз.
+   Была закрыта → открыть её, закрыть все соседние. Была открыта → просто закрыть. */
+function condAccToggle(head){
+  const acc  = head.parentNode;                       // текущая .cond-acc
+  const cont = acc.parentNode;                        // общий контейнер секций
+  const accs = Array.from(cont.querySelectorAll('.cond-acc'));
+  const idx  = accs.indexOf(acc);
+  const wasOpen = acc.classList.contains('open');
+  accs.forEach(a => a.classList.remove('open'));
+  if (!wasOpen){ acc.classList.add('open'); _condOpenSec = idx; }   // открыть только если была закрыта
+  else { _condOpenSec = -1; }                                        // закрыли все
+}
+
+/* Перерисовать таб «Условия» на месте (для live-полей: способ графика, месяцы).
+   _condOpenSec сохраняет открытую секцию, чтобы правка не схлопывала аккордеон. */
+function refreshCondTab(){
+  const p = document.getElementById('tab-cond');
+  if (p && _detailApp) p.innerHTML = renderConditions(_detailApp);
+}
+function condSetPayMode(v){ if (_detailApp){ _detailApp.payMode = v; refreshCondTab(); } }
+const COND_MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+// Мультивыбор месяцев — msCombo (чипы + popup), 1:1 с мокапом программы.
+function condMonthsOpen(e){ if (e.target.closest('.mscombo-pop')) return; e.stopPropagation(); _condMonthsOpen = !_condMonthsOpen; refreshCondTab(); }
+function condMonthToggle(e, m){
+  e.stopPropagation();
+  if (!_detailApp) return;
+  const a = _detailApp.payMonths = _detailApp.payMonths || [];
+  const i = a.indexOf(m);
+  if (i >= 0) a.splice(i, 1); else a.push(m);
+  _condMonthsOpen = true;
+  refreshCondTab();
+}
+function condMonthUnchip(e, i){ e.stopPropagation(); (_detailApp.payMonths || []).splice(i, 1); refreshCondTab(); }
+function condMonthsField(app){
+  const sel = app.payMonths || [];
+  const chips = sel.length
+    ? sel.map((v, i) => `<span class="chip">${v}<button title="Убрать" onclick="condMonthUnchip(event,${i})">✕</button></span>`).join('')
+    : `<span class="ph">Выберите…</span>`;
+  const opts = COND_MONTHS.map(m =>
+    `<div class="opt ${sel.includes(m) ? 'sel' : ''}" onclick="condMonthToggle(event,'${m}')"><span class="mk">${sel.includes(m) ? '✓' : ''}</span>${m}</div>`).join('');
+  const caret = `<span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>`;
+  return `<div class="cond-field"><span class="cflabel">Конкретные месяцы платежей<span class="cf-req"> *</span></span>`
+    + `<div class="mscombo ${_condMonthsOpen ? 'open' : ''}" onclick="condMonthsOpen(event)">${chips}${caret}<div class="mscombo-pop">${opts}</div></div>`
+    + `<span class="cf-hint">Любой набор месяцев календарного года</span></div>`;
+}
+
 /* Разложить плоский F (поля + маркеры cond-subh) в аккордеон-секции.
    Маркер '<div class="cond-subh">Заголовок</div>' начинает новую секцию.
    openN — сколько первых секций раскрыты по умолчанию. */
@@ -2980,8 +3057,9 @@ function condAccordion(items, openN){
     else { if (!cur){ cur = { title:'', fields:[] }; secs.push(cur); } cur.fields.push(html); }
   });
   const chev = '<span class="chev"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>';
-  return secs.map((s, i) => `<div class="cond-acc${i < openN ? ' open' : ''}">
-      <div class="cond-acc-head" onclick="this.parentNode.classList.toggle('open')">
+  const isOpen = i => _condOpenSec != null ? i === _condOpenSec : i < openN;
+  return secs.map((s, i) => `<div class="cond-acc${isOpen(i) ? ' open' : ''}">
+      <div class="cond-acc-head" onclick="condAccToggle(this)">
         ${chev}<span class="cond-acc-title">${s.title}</span><span class="doc-count">${s.fields.length}</span>
       </div>
       <div class="cond-acc-body"><div class="cond-grid twocol">${s.fields.join('')}</div></div>
@@ -2995,8 +3073,11 @@ function renderConditions(app){
   const ov    = DEMO_PROV[app.num]        || {};
   const phase = condPhase(app.status);
   const cap = can(app);
-  const editReq = cap.editReq;  // запрос заёмщика правит специалист (draft)
-  const editOp  = cap.editOp;   // опер-условия правит комиссия (review) — только под ролью «Комиссия»
+  const editReq = cap.editReq;  // специалист правит в черновике (draft)
+  const editOp  = cap.editOp;   // комиссия правит на «На рассмотрении» (review)
+  // Единый gate условий: специалист (до «На рассмотрении») ИЛИ комиссия (на «На рассмотрении»)
+  // правят ВСЕ меняемые условия. Разделения «запрос/опер-условия» больше нет.
+  const editCond = editReq || editOp;
 
   // diff-значения комиссии (демо-провенанс + одобренные поля заявки)
   const amtCom = (ov.amount && ov.amount.com)
@@ -3011,6 +3092,8 @@ function renderConditions(app){
     ? { list: prog.amountList || [] } : { min: prog.amountMin, max: prog.amountMax };
   const trmC = prog.termType === 'Фиксированная'
     ? { list: prog.termList || [] } : { min: prog.termMin, max: prog.termMax };
+  const rateC = prog.stavkaType === 'Диапазон'
+    ? { min: prog.stavkaMin, max: prog.stavkaMax } : { list: prog.stavka || [] };
   const grMainC = graceConstraint(prog, 'graceMain', 'graceMainType', 'graceMainDur', 'graceMainDurFrom', 'graceMainDurTo');
   const grAccrC = graceConstraint(prog, 'graceAccr', 'graceAccrType', 'graceAccrDur', 'graceAccrDurFrom', 'graceAccrDurTo');
   const grIntC  = graceConstraint(prog, 'graceInt',  'graceIntType',  'graceIntDur',  'graceIntDurFrom',  'graceIntDurTo');
@@ -3023,35 +3106,42 @@ function renderConditions(app){
   // ── ① Основные данные ──
   F.push('<div class="cond-subh">Основные данные</div>');
   F.push(inh('Кредитная программа', app.program));
-  F.push(inh('Назначение кредита', prog.purpose || env.purpose));
-  F.push(editReq
+  F.push(editCond
+    ? condRefField('Назначение кредита', prog.purpose || env.purpose, prog.naznachenie, { required:true })
+    : condField('Назначение кредита', [['программа', prog.purpose || env.purpose]]));
+  F.push(editCond
     ? condRefField('Источник финансирования', app.fundingSource, prog.istochnik, { required:true, fallback: CLK.source })
     : condField('Источник финансирования', [['заёмщик', app.fundingSource || prog.source || 'Бюджет']]));
-  F.push(inh('Вид кредита', prog.kind));
+  F.push(editCond
+    ? condRefField('Вид кредита', prog.kind, prog.vidKredita, { required:true })
+    : condField('Вид кредита', [['программа', prog.kind]]));
   F.push(inh('Валюта', prog.currency || env.currency));
-  F.push(inh('Кредитная линия', prog.line));
-  F.push(inh('Вид счёта погашения', prog.repayAcct));
+  F.push(editCond
+    ? condRefField('Кредитная линия', (prog.kreditLine || [])[0], prog.kreditLine, { required:true })
+    : condField('Кредитная линия', [['программа', (prog.kreditLine || [])[0] || '']]));
+  F.push(editCond
+    ? condRefField('Вид счёта погашения', prog.repayAcct, prog.schetPogash, { required:true, fallback: REF_VALUES.schetPogash })
+    : condField('Вид счёта погашения', [['заёмщик', prog.repayAcct]]));
 
   // ── ② Сумма и срок ──
   F.push('<div class="cond-subh">Сумма и срок</div>');
-  F.push(editReq
+  F.push(editCond
     ? condNum('Сумма', app.amount, { required:true, hint: prog.amountRange || '', ...amtC })
     : condField('Сумма', [['заёмщик', app.amount], ['комиссия', amtCom]], { hint: prog.amountRange || '' }));
-  F.push(editReq
+  F.push(editCond
     ? condNum('Срок, мес.', app.term, { required:true, int:true, hint: prog.termRange || '', ...trmC })
     : condField('Срок, мес.', [['заёмщик', app.term], ['комиссия', trmCom]], { hint: prog.termRange || '' }));
 
   // ── ③ Процентные ставки ──
   F.push('<div class="cond-subh">Процентные ставки</div>');
-  F.push(editOp
-    ? condEdit('Годовая ставка, %', r.com || env.rate || prog.rate || '', { required:true, hint: `из программы: ${env.rate || prog.rate || '—'}` })
+  F.push(editCond
+    ? condNum('Годовая ставка, %', r.com || env.rate || prog.rate || '', { required:true,
+        hint: prog.stavkaType === 'Диапазон' ? `Допустимо: ${prog.stavkaMin}–${prog.stavkaMax} %` : 'Выберите ставку из вариантов программы', ...rateC })
     : condField('Годовая ставка, %',
         [['программа', r.prog || env.rate || prog.rate || ''], ['заёмщик', r.bor || ''], ['комиссия', r.com || '']]));
-  F.push(inh('Тип основной ставки', prog.rateType));
+  F.push(inh('Тип основной ставки', prog.stavkaType || prog.rateType));
   F.push(inh('Плавающая ставка', prog.floatRate ? 'Используется' : 'Не используется'));
-  F.push(editOp
-    ? condEdit('Ставка за неполное освоение (резерв), %', app.reserveRate || '0,00', {})
-    : condField('Ставка за неполное освоение (резерв), %', [['комиссия', app.reserveRate || '0,00']]));
+  F.push(inh('Ставка за неполное освоение (резерв), %', app.reserveRate || '0,00'));
 
   // ── ④ Штрафы за просрочку ──
   F.push('<div class="cond-subh">Штрафы за просрочку</div>');
@@ -3061,36 +3151,73 @@ function renderConditions(app){
 
   // ── ⑤ Льготный период ──
   F.push('<div class="cond-subh">Льготный период</div>');
-  F.push(editReq
+  F.push(editCond
     ? condNum('Льготный период по осн. сумме', app.graceMain || '0', { int:true, hint:'мес.', ...grMainC })
     : condField('Льготный период по осн. сумме', [['заёмщик', _grace(app.graceMain)]]));
-  F.push(editReq
+  F.push(editCond
     ? condNum('Льготный период по начислению %', app.graceAccrual || '0', { int:true, hint:'мес.', ...grAccrC })
     : condField('Льготный период по начислению %', [['заёмщик', _grace(app.graceAccrual)]]));
-  F.push(editReq
+  F.push(editCond
     ? condNum('Льготный период по процентам', app.graceInterest || '0', { int:true, hint:'мес.', ...grIntC })
     : condField('Льготный период по процентам', [['заёмщик', _grace(app.graceInterest)]]));
 
   // ── ⑥ Платежи и расчёты ──
   F.push('<div class="cond-subh">Платежи и расчёты</div>');
-  F.push(editOp
-    ? condEdit('Периодичность платежей', app.paymentFrequency || prog.periodicity || env.freq || 'Ежемесячно', { required:true })
-    : condField('Периодичность платежей', [['программа', app.paymentFrequency || prog.periodicity || env.freq || 'Ежемесячно']]));
-  F.push(inh('Метод расчёта дней в периоде', prog.dayCountNum));
-  F.push(inh('База дней в году', prog.dayCountBase));
+  // График платежей — как в программе: стандартная периодичность ИЛИ по конкретным месяцам. Редактируется свободно (не ограничен программой).
+  const payMode = app.payMode || 'standard';
+  const payModeLabel = payMode === 'months' ? 'По конкретным месяцам' : 'Стандартная периодичность';
+  if (editCond){
+    // Способ графика — live-select (onchange → перерисовка таба), затем зависимая ветка.
+    F.push(`<div class="cond-field"><span class="cflabel">Способ задания графика<span class="cf-req"> *</span></span>`
+      + `<select class="cf-input" onchange="condSetPayMode(this.value)">`
+      + `<option value="standard"${payMode !== 'months' ? ' selected' : ''}>Стандартная периодичность</option>`
+      + `<option value="months"${payMode === 'months' ? ' selected' : ''}>По конкретным месяцам</option>`
+      + `</select></div>`);
+    if (payMode === 'months'){
+      F.push(condMonthsField(app));
+    } else {
+      F.push(condSelect('Периодичность платежей', app.paymentFrequency || prog.periodicity || env.freq || 'Ежемесячно',
+        ['Ежемесячно', 'Ежеквартально', 'Раз в полгода', 'Ежегодно'], { required:true }));
+    }
+  } else {
+    F.push(condField('Способ задания графика', [['заёмщик', payModeLabel]]));
+    if (payMode === 'months'){
+      F.push(condField('Конкретные месяцы платежей', [['заёмщик', (app.payMonths || []).join(', ')]]));
+    } else {
+      F.push(condField('Периодичность платежей', [['программа', prog.periodicity || env.freq || 'Ежемесячно'], ['заёмщик', app.paymentFrequency || '']]));
+    }
+  }
+  // Метод расчёта дней + база — редактируются свободно (не ограничены программой), полный справочник.
+  F.push(editCond
+    ? condSelect('Метод расчёта дней в периоде', app.dayCountNum || prog.dayCountNum || 'Фактический', ['Финансовый (30)', 'Фактический'], { required:true })
+    : condField('Метод расчёта дней в периоде', [['программа', prog.dayCountNum || ''], ['заёмщик', app.dayCountNum || '']]));
+  F.push(editCond
+    ? condSelect('База дней в году', app.dayCountBase || prog.dayCountBase || '365', ['360', '365', 'Фактическая'], { required:true })
+    : condField('База дней в году', [['программа', prog.dayCountBase || ''], ['заёмщик', app.dayCountBase || '']]));
   F.push(inh('Очередь погашения', prog.queue));
-  F.push(editOp
-    ? condEdit('День платежа', app.paymentDay || '15', { required:true })
-    : condField('День платежа', [['комиссия', app.paymentDay || '15']]));
-  F.push(editOp
-    ? condEdit('Обработка нерабочих дней', app.processingOption || prog.weekend || 'Не переносить', {})
-    : condField('Обработка нерабочих дней', [['программа', app.processingOption || prog.weekend || 'Не переносить']]));
-  F.push(inh('Привязка последнего платежа', prog.lastPaymentAnchor));
-  F.push(editOp
-    ? condEdit('Метод погашения кредита', app.repaymentMethod || prog.repayMethod || env.method || 'Аннуитетный', { required:true })
-    : condField('Метод погашения кредита', [['программа', app.repaymentMethod || prog.repayMethod || env.method || 'Аннуитетный']]));
-  F.push(inh('Период между освоением и первым платежем',
-    (prog.minDays || prog.maxDays) ? `${prog.minDays || '—'}–${prog.maxDays || '—'} дн.` : ''));
+  F.push(editCond
+    ? condNum('День платежа', app.paymentDay || '15', { required:true, int:true, min:'1', max:'31', hint:'1–31; короткий месяц → последний день' })
+    : condField('День платежа', [['заёмщик', app.paymentDay || '15']]));
+  // Обработка нерабочих дней — редактируется свободно (не ограничена программой), полный справочник.
+  F.push(editCond
+    ? condSelect('Обработка нерабочих дней', app.processingOption || prog.weekend || 'Не переносить',
+        ['Не переносить', 'Переносить на следующий рабочий день', 'Переносить на предыдущий рабочий день'], { required:true })
+    : condField('Обработка нерабочих дней', [['программа', prog.weekend || ''], ['заёмщик', app.processingOption || '']]));
+  // Привязка последнего платежа — редактируется свободно (не ограничена программой), полный справочник.
+  F.push(editCond
+    ? condSelect('Привязка последнего платежа', app.lastPaymentAnchor || prog.lastPaymentAnchor || 'По дате первого платежа',
+        ['По дате первого платежа', 'По дате выдачи'], { required:true })
+    : condField('Привязка последнего платежа', [['программа', prog.lastPaymentAnchor || ''], ['заёмщик', app.lastPaymentAnchor || '']]));
+  // При графике «по конкретным месяцам» метод погашения авто → «Индивидуальный» (как R19 программы).
+  F.push(inh('Метод погашения кредита',
+    payMode === 'months' ? 'Индивидуальный' : (prog.repayMethod || env.method || 'Аннуитетный')));
+  // Период освоение→1-й платёж — как в программе: 2 поля (мин/макс дней), оба редактируемые.
+  F.push(editCond
+    ? condNum('Минимальное кол-во дней', app.minDays || prog.minDays || '', { required:true, int:true, hint:'дн.' })
+    : condField('Минимальное кол-во дней', [['программа', prog.minDays || ''], ['заёмщик', app.minDays || '']]));
+  F.push(editCond
+    ? condNum('Максимальное кол-во дней', app.maxDays || prog.maxDays || '', { required:true, int:true, hint:'дн.' })
+    : condField('Максимальное кол-во дней', [['программа', prog.maxDays || ''], ['заёмщик', app.maxDays || '']]));
 
   // ── ⑦ Решение комиссии (одобр. сумма/срок — см. diff «было→стало» в блоке ②) ──
   F.push('<div class="cond-subh">Решение комиссии</div>');
@@ -3119,7 +3246,7 @@ function renderConditions(app){
         <span><span class="cf-req">*</span> — обязательное</span>
         <span>🔒 — наследуется из программы</span>
       </div>
-      ${condAccordion(F, 3)}
+      ${condAccordion(F, 1)}
     </div>
   </div>`;
 }
@@ -3689,12 +3816,14 @@ const REF_VALUES = {   // master reference lists (shown before a program is chos
   istochnik:    ['Республиканский бюджет','Местный бюджет','Кредитная линия ЕБРР','Грант ЕБРР'],
   kreditLine:   ['Возобновляемая','Невозобновляемая'],
   periodichnost:['Ежемесячно','Ежеквартально','Раз в полугодие','Раз в год'],
+  schetPogash:  ['Накопительный счёт','Бюджет'],
 };
 const PROG_ATTRS = [
   { key:'vidKredita',   label:'Вид кредита',             kind:'ref' },
   { key:'naznachenie',  label:'Назначение кредита',      kind:'ref' },
   { key:'istochnik',    label:'Источник финансирования', kind:'ref' },
   { key:'kreditLine',   label:'Кредитная линия',         kind:'ref' },
+  { key:'schetPogash',  label:'Вид счёта погашения',     kind:'ref' },
   { key:'stavka',       label:'Процентная ставка, %',    kind:'text', ph:'напр. 10,00' },
   { key:'shtrafy',      label:'Штрафы',                  kind:'text', ph:'напр. 0,1% в день' },
   { key:'periodichnost',label:'Периодичность платежей',  kind:'ref' },
