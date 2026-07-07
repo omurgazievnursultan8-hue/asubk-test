@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-07-06 (loan-credit mockup — точная копия «Кредиты» + деталь 11 вкладок) — _(update this date every time you edit)_
+> Last updated: 2026-07-07 (commission mockup — сверка с live: 2 строки, экран-редактор + диалоги голосования) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,6 +38,18 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-07-07 — **Мокап «Комиссии по заявкам»** (`mockups/loan-application-commission/commission.html`) —
+  повторная сверка с live (`scripts/inspect/commission-sverka*.mjs`, скриншоты
+  `.auth/commission-*-live.png`). Список приведён к текущему стенду: 2 строки
+  (139 «Одобрено» + 138 «На рассмотрении»), плитка «Одобрено» 0→1, пейджер «2 строки».
+  Добавлены 2 новых экрана + диалоги: **Просмотр** теперь data-driven по выбранной
+  строке (138/139, разные Итоговое решение/История); **Создать·Изменить** открывает
+  экран-редактор `/new`·`/{id}` (шапка + Состав комиссии с «Проголосовать» + Документы
+  + Комментарии членов комиссии + Финальное решение с Одобрить/Отклонить/Запросить
+  доп. информацию + Прогресс голосования + OK/Отмена). Кнопки голосования вызывают
+  живые диалоги: «Ваш отзыв» (Решение/Риск/Комментарий/Файл) и «Подтверждение — Вы
+  уверены? Да/Отмена». Решённую 139 «Изменить» не даёт (кнопка disabled, live-правило).
+  Сверка mockup↔live `scripts/inspect/commission-mockshot.mjs`.
 - 2026-07-06 — **Мокап «Кредиты»** (`mockups/loan-credit/loan-credit.html`) — точная
   копия раздела: список `/loansCredit` (11 колонок, 14 строк, «14 строк»-пейджер,
   Обновить/шестерёнка/Добавить условие поиска, Изменить/Просмотр) + деталь

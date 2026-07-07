@@ -1,0 +1,30 @@
+// commission-sverka3 — Изменить on row 139 (populated edit screen) full layout dump
+import { chromium } from 'playwright-core';
+const BASE='https://fkftest.okmot.kg/', USER=process.env.OK_USER||'admin', PASS=process.env.OK_PASS||'admin';
+const ROW=process.env.ROW||'139';
+const ctx=await chromium.launchPersistentContext('.auth/profile',{channel:'chrome',headless:true,ignoreHTTPSErrors:true,viewport:{width:1700,height:1300}});
+const page=ctx.pages()[0]||await ctx.newPage(); const log=(...a)=>console.log(...a);
+await page.goto(BASE,{waitUntil:'networkidle',timeout:60000});
+if(page.url().includes('/login')){await page.fill('input[name=username]',USER);await page.fill('input[name=password]',PASS);await Promise.all([page.waitForNavigation({waitUntil:'networkidle'}).catch(()=>{}),page.keyboard.press('Enter')]);await page.waitForTimeout(2500);}
+await page.goto(BASE+'loan-application-commissions',{waitUntil:'networkidle',timeout:60000}); await page.waitForTimeout(2500);
+await page.getByText('Проверка комиссии - '+ROW, {exact:true}).first().click();
+await page.waitForTimeout(900);
+log('Изменить disabled?', await page.evaluate(()=>{const b=[...document.querySelectorAll('vaadin-button')].find(x=>x.innerText.trim()==='Изменить');return b?b.hasAttribute('disabled'):'no-btn';}));
+await page.getByRole('button',{name:'Изменить'}).click().catch(async()=>{await page.evaluate(()=>{const b=[...document.querySelectorAll('vaadin-button')].find(x=>x.innerText.trim()==='Изменить');b?.click();});});
+await page.waitForTimeout(2800);
+log('EDIT URL:',page.url());
+log('\n== HEADINGS ==');
+log(JSON.stringify(await page.evaluate(()=>{const out=[];document.querySelectorAll('*').forEach(e=>{if(e.childElementCount)return;const r=e.getBoundingClientRect();if(r.width<1||r.height<1||r.left<300)return;const t=(e.innerText||'').replace(/\s+/g,' ').trim();if(!t||t.length>80)return;const cs=getComputedStyle(e);const fw=parseInt(cs.fontWeight,10)||400;const fs=parseFloat(cs.fontSize)||0;if(fw<600&&fs<15)return;out.push({t,x:Math.round(r.left),y:Math.round(r.top),fs:cs.fontSize});});return out;})));
+log('\n== FIELDS ==');
+log(JSON.stringify(await page.evaluate(()=>[...document.querySelectorAll('vaadin-text-field,vaadin-select,vaadin-combo-box,vaadin-date-picker,vaadin-text-area,vaadin-integer-field,vaadin-number-field')].filter(e=>e.getBoundingClientRect().width>0).map(e=>{const r=e.getBoundingClientRect();const l=e.querySelector('label');return {tag:e.tagName.toLowerCase().replace('vaadin-',''),label:(l&&l.textContent||e.getAttribute('label')||'').trim(),value:(e.value||'').slice(0,50),ro:e.hasAttribute('readonly'),x:Math.round(r.left),y:Math.round(r.top)};}))));
+log('\n== BUTTONS ==');
+log(JSON.stringify(await page.evaluate(()=>[...document.querySelectorAll('vaadin-button')].filter(b=>b.getBoundingClientRect().width>0).map(b=>{const r=b.getBoundingClientRect();return {t:b.innerText.trim(),x:Math.round(r.left),y:Math.round(r.top)};}).filter(b=>b.t))));
+log('\n== GRID CELLS ==');
+log(JSON.stringify(await page.evaluate(()=>[...document.querySelectorAll('vaadin-grid-cell-content')].filter(c=>c.getBoundingClientRect().width>0).map(c=>c.innerText.replace(/\s+/g,' ').trim()).slice(0,40))));
+log('\n== TABS ==');
+log(JSON.stringify(await page.evaluate(()=>[...document.querySelectorAll('vaadin-tab')].filter(t=>t.getBoundingClientRect().width>0).map(t=>t.innerText.replace(/\s+/g,' ').trim()))));
+log('\n== ALLTEXT (main area, unique) ==');
+log(JSON.stringify(await page.evaluate(()=>{const s=new Set();document.querySelectorAll('*').forEach(e=>{if(e.childElementCount)return;const r=e.getBoundingClientRect();if(r.left<310||r.width<1)return;const t=(e.innerText||'').replace(/\s+/g,' ').trim();if(t&&t.length<60)s.add(t);});return [...s];})));
+await page.screenshot({path:'.auth/commission-edit-'+ROW+'.png',fullPage:true});
+log('\nSHOT .auth/commission-edit-'+ROW+'.png');
+await ctx.close();
