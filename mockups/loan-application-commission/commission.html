@@ -25,7 +25,8 @@
 
   Воспроизводит живые дефекты БЕЗ улучшений:
   - фильтр/плитка подписаны «Поручительств(о)», хотя экран про заявки (live quirk);
-  - readonly-поля Просмотра окрашены серым «filled» (Jmix, P2-01/P3-01);
+  - Просмотр и Редактор — поля шапки белые с рамкой (Vaadin text-field), сверено 2026-07-07
+    (commission-fieldbg.mjs); серые «filled» только редактируемые поля Финального решения в Редакторе;
   - плитка «Одобрено» при 1 всё равно с серой рамкой (live);
   - решённую комиссию (139 «Одобрено») нельзя «Изменить» (кнопка disabled, live).
 -->
@@ -180,15 +181,19 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .card{ margin:16px 20px; border:1px solid var(--border-default); border-radius:var(--radius-md);
   background:var(--surface-card); padding:20px 24px; }
 .d-head-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px 32px; }
-/* readonly (Просмотр): grey filled Jmix look (defect, kept verbatim) */
+/* readonly (Просмотр): white bordered Vaadin text-field look — сверено с live 2026-07-07
+   (все поля белые с рамкой, как в редакторе; НЕ серые) */
 .ro-field .flabel{ font:var(--font-label); color:var(--text-muted); }
 .ro-field .roval{ height:var(--control-h); display:flex; align-items:center; padding:0 var(--space-2);
-  background:var(--surface-input); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
-  border:1px solid transparent; border-radius:var(--radius-md); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
+  border:1px solid var(--border-strong); border-radius:var(--radius-md); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ro-field.sel .roval{ position:relative; padding-right:30px; }
 .ro-field.sel .roval::after{ content:""; position:absolute; right:12px; top:50%; width:8px; height:8px;
   border-right:2px solid var(--text-muted); border-bottom:2px solid var(--text-muted);
   transform:translateY(-70%) rotate(45deg); }
+.ro-field.date .roval{ position:relative; padding-right:30px; }
+.ro-field.date .roval::after{ content:"📅"; position:absolute; right:10px; top:50%;
+  transform:translateY(-50%); font-size:15px; opacity:.55; }
 .btn-view-app{ height:var(--control-h); align-self:flex-end; background:var(--asubk-disabled-fill);
   border:none; border-radius:var(--radius-md); color:var(--text-link); cursor:pointer;
   font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); }
@@ -277,7 +282,7 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .ed-input.date{ position:relative; }
 .ed-input.date::after{ content:"📅"; position:absolute; right:10px; bottom:8px; font-size:15px; opacity:.55; pointer-events:none; }
 .ed-input textarea{ min-height:150px; padding:10px 12px; resize:vertical; }
-.note-ro{ min-height:90px; padding:10px 12px; background:var(--surface-input); border:1px solid transparent;
+.note-ro{ min-height:90px; padding:10px 12px; background:var(--surface-card); border:1px solid var(--border-strong);
   border-radius:var(--radius-md); color:var(--text-body); font:var(--font-body); }
 .decision-btns{ display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; }
 .btn-approve{ background:var(--action-success); color:#fff; }
@@ -491,7 +496,7 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
               <div class="d-final-grid">
                 <div class="ro-field field sel"><span class="flabel">Финальное решение</span><div class="roval" id="d-final"></div></div>
                 <div class="ro-field field"><span class="flabel">Номер протокола</span><div class="roval" id="d-prot"></div></div>
-                <div class="ro-field field sel"><span class="flabel">Дата заседания</span><div class="roval" id="d-datez"></div></div>
+                <div class="ro-field field date"><span class="flabel">Дата заседания</span><div class="roval" id="d-datez"></div></div>
                 <div class="field col-span3"><span class="flabel">Обоснование решения</span><div class="note-ro" id="d-obosn"></div></div>
               </div>
             </div>
@@ -645,7 +650,7 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 /* ============ SIDEBAR NAV (дерево живого стенда, 2026-07-05) ============ */
 const TREE = [
   { id:"app", label:"Приложение", open:true, subs:[
-    { headerless:true, items:["Users","Подразделения","Сотрудники подразделения","Освоение","Резерв","Платеж","Список Траншей","LoanLedger"] } ]},
+    { headerless:true, items:["Подразделения","Сотрудники подразделения","Освоение","Резерв","Платеж","Список Траншей","LoanLedger","Группа платежоспособности","Передача материалов между подразделениями"] } ]},
   { id:"k", label:"Система кредитования", subs:[
     { headerless:true, items:["Решение правительства","Кредитные программы","Заявки","Комиссии по заявкам","Заемщики","Кредиты","Мониторинг залога","Список залоговых договоров","Список предметов залога"] } ]},
   { id:"g", label:"Поручительства", subs:[ { headerless:true, items:["Анкеты поручительств","Поручительствa","Комитет по заявкам"] } ]},
