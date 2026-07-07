@@ -1834,6 +1834,8 @@ function showView(name){
   document.getElementById('view-create').style.display  = (name === 'create')  ? 'flex' : 'none';
   document.getElementById('view-subject').style.display = (name === 'subject') ? 'flex' : 'none';
   // Breadcrumb: reset to «Заявки» when going back to list
+  /* Leaving the detail view → nothing to restore on reload; drop the saved detail. */
+  if (name !== 'detail'){ try { sessionStorage.removeItem('la-detail'); } catch(e){} }
   if (name === 'list'){
     document.getElementById('crumbBack').style.display  = 'none';
     document.getElementById('crumbSep').style.display   = 'none';
@@ -2348,6 +2350,8 @@ function panelStub(panelId){
 
 /* showTab — switch active tab + panel by panel id; лениво рендерит контент. */
 function showTab(panelId){
+  /* Persist the active tab so a page reload restores it (see DOMContentLoaded). */
+  try { sessionStorage.setItem('la-tab', panelId); } catch(e){}
   document.querySelectorAll('.tabbar-tab').forEach(t => t.classList.toggle('active', t.dataset.panel === panelId));
   document.querySelectorAll('.detail-panel').forEach(p => p.classList.toggle('active', p.id === panelId));
   const panel = document.getElementById(panelId);
@@ -2481,12 +2485,16 @@ function renderTabbar(app){
 }
 
 /** gotoDetail — populates header/stepper/toolbar/tabbar from статус+флаги, shows detail. */
-function gotoDetail(num){
+function gotoDetail(num, panel){
   const app = APPLICATIONS.find(a => a.num === num);
   if (!app) { console.warn('gotoDetail: not found', num); return; }
+  /* Persist which detail is open so a reload lands back here (see DOMContentLoaded). */
+  try { sessionStorage.setItem('la-detail', num); } catch(e){}
   /* Открытие ДРУГОЙ заявки — всегда просмотр; перерисовка той же (enter/save/cancel/setRole)
-     сохраняет текущий _editMode. */
-  if (!_detailApp || _detailApp.num !== num) _editMode = false;
+     сохраняет текущий _editMode И текущий таб (иначе «Изменить» кидает на 1-й таб). */
+  const sameApp = _detailApp && _detailApp.num === num;
+  const currentPanel = sameApp ? document.querySelector('.tabbar-tab.active')?.dataset.panel : null;
+  if (!sameApp) _editMode = false;
   _detailApp = app;
 
   /* Header band */
@@ -2510,9 +2518,14 @@ function gotoDetail(num){
   renderToolbar(app);
   const firstPanel = renderTabbar(app);
 
-  /* Reset stale static panels, activate first */
+  /* Reset stale static panels; pick the tab: explicit (reload-restore) → current (re-render of
+     same app, keeps «Условия» on «Изменить») → first (opening another app). */
   document.querySelectorAll('.detail-panel').forEach(p => p.classList.remove('active'));
-  showTab(firstPanel);
+  const tabExists = p => p && document.querySelector('.tabbar-tab[data-panel="' + p + '"]');
+  const wantPanel = tabExists(panel) ? panel
+                  : tabExists(currentPanel) ? currentPanel
+                  : firstPanel;
+  showTab(wantPanel);
 
   showView('detail');
 }
@@ -3553,7 +3566,21 @@ function renderDocPackTab(elId, title, total, docs) {
 /* (to-be) Документы теперь одна вкладка-аккордеон (renderDocs → PANEL_RENDER['tab-2']);
    прежние load-time вызовы renderDocPackTab удалены. */
 
-document.addEventListener('DOMContentLoaded', () => { showView('list'); renderGrid(); applyRoleToListButtons(); });
+document.addEventListener('DOMContentLoaded', () => {
+  renderGrid();
+  applyRoleToListButtons();
+  /* Restore the detail + tab the user left on before the reload. */
+  let savedNum = null, savedTab = null;
+  try {
+    savedNum = sessionStorage.getItem('la-detail');
+    savedTab = sessionStorage.getItem('la-tab');
+  } catch(e){}
+  if (savedNum && APPLICATIONS.some(a => a.num === savedNum)) {
+    gotoDetail(savedNum, savedTab);
+  } else {
+    showView('list');
+  }
+});
 
 /* ============================================================
    CREATE PAGE — #view-create (to-be, was #modal-create wizard)

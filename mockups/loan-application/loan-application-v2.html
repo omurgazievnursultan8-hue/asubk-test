@@ -1732,6 +1732,8 @@ function showView(name){
   document.getElementById('view-detail').style.display = (name === 'detail') ? 'flex' : 'none';
   // Breadcrumb: reset to «Заявки» when going back to list
   if (name === 'list'){
+    /* Back on the list → nothing to restore on reload; drop the saved detail. */
+    try { sessionStorage.removeItem('la-v2-detail'); } catch(e){}
     document.getElementById('crumbBack').style.display  = 'none';
     document.getElementById('crumbSep').style.display   = 'none';
     document.getElementById('crumbTitle').textContent   = 'Заявки';
@@ -2088,6 +2090,8 @@ function renderStepper(currentStep){
 /* showTab — switch active tab + panel.
    Also shows/hides the above-tabbar progress banner for tabs 3 & 4 (Task 8). */
 function showTab(idx){
+  /* Persist the active tab so a page reload restores it (see DOMContentLoaded). */
+  try { sessionStorage.setItem('la-v2-tab', idx); } catch(e){}
   document.querySelectorAll('.tabbar-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
   document.querySelectorAll('.detail-panel').forEach((p, i) => p.classList.toggle('active', i === idx));
 
@@ -2110,9 +2114,12 @@ function showTab(idx){
 
 /** gotoDetail — looks up the application row, populates the header band,
  *  derives stepper state from status, resets to tab 0, shows detail view. */
-function gotoDetail(num){
+function gotoDetail(num, tab){
   const app = APPLICATIONS.find(a => a.num === num);
   if (!app) { console.warn('gotoDetail: not found', num); return; }
+
+  /* Persist which detail is open so a reload lands back here (see DOMContentLoaded). */
+  try { sessionStorage.setItem('la-v2-detail', num); } catch(e){}
 
   /* Populate header fields */
   document.getElementById('dh-subject').textContent          = app.inn + ' — ' + app.name;
@@ -2130,8 +2137,8 @@ function gotoDetail(num){
   const currentStep = (STATUS_STEP_MAP[app.status] !== undefined) ? STATUS_STEP_MAP[app.status] : 0;
   renderStepper(currentStep);
 
-  /* Reset to first tab */
-  showTab(0);
+  /* First tab by default; on a reload-restore keep the previously selected tab */
+  showTab(tab != null ? tab : 0);
 
   /* Populate tab 0 «Общая информация» */
   renderTab0(app);
@@ -2228,7 +2235,21 @@ renderDocPackTab('tab-4', 'Пакет залоговых документов', 
   'Документы на залог'
 ]);
 
-document.addEventListener('DOMContentLoaded', () => { showView('list'); renderGrid(); });
+document.addEventListener('DOMContentLoaded', () => {
+  renderGrid();
+  /* Restore the detail + tab the user left on before the reload. */
+  let savedNum = null, savedTab = 0;
+  try {
+    savedNum = sessionStorage.getItem('la-v2-detail');
+    savedTab = parseInt(sessionStorage.getItem('la-v2-tab'), 10);
+  } catch(e){}
+  if (isNaN(savedTab)) savedTab = 0;
+  if (savedNum && APPLICATIONS.some(a => a.num === savedNum)) {
+    gotoDetail(savedNum, savedTab);
+  } else {
+    showView('list');
+  }
+});
 
 /* ============================================================
    CREATE WIZARD — #modal-create
