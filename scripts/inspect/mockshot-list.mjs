@@ -1,0 +1,11 @@
+import { chromium } from 'playwright-core';
+import { pathToFileURL } from 'url';
+import { resolve } from 'path';
+const ctx = await chromium.launchPersistentContext('.auth/profile',{channel:'chrome',headless:true,ignoreHTTPSErrors:true,viewport:{width:1600,height:1000}});
+const page = ctx.pages()[0]||await ctx.newPage();
+const url = pathToFileURL(resolve('mockups/loan-credit/loan-credit.html')).href;
+const errs=[]; page.on('console',m=>{if(m.type()==='error')errs.push(m.text());}); page.on('pageerror',e=>errs.push('PAGEERR '+e.message));
+await page.goto(url,{waitUntil:'load'}); await page.waitForTimeout(400);
+await page.screenshot({path:'.auth/loan-credit/MOCK-list-now.png'});
+console.log('ERRS:',errs.slice(0,5));
+await ctx.close();

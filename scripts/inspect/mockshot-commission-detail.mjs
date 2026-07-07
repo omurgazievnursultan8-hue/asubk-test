@@ -1,0 +1,10 @@
+import { chromium } from 'playwright-core';
+import { pathToFileURL } from 'url';
+const url=pathToFileURL(process.cwd()+'/mockups/loan-application-commission/commission.html').href;
+const ctx=await chromium.launchPersistentContext('.auth/profile',{channel:'chrome',headless:true,ignoreHTTPSErrors:true,viewport:{width:1700,height:1300}});
+const page=ctx.pages()[0]||await ctx.newPage();
+await page.goto(url,{waitUntil:'load'}); await page.waitForTimeout(400);
+await page.evaluate(()=>{selectRow('138');openDetail();});
+await page.waitForTimeout(300);
+await page.screenshot({path:'.auth/mock-commission-detail-138.png',fullPage:true});
+await ctx.close(); console.log('shot done');
