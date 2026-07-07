@@ -331,6 +331,13 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
 .mform .field.err .errmsg{ display:block; }
 .mform .errmsg{ display:none; font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--action-danger); margin-top:3px; }
 .mform .col-span{ grid-column:1 / -1; }
+.zsub-title{ font:var(--weight-bold) 17px/1.2 var(--asubk-font); color:var(--text-heading); margin:22px 0 12px; }
+.zcond-grid{ display:grid; grid-template-columns:150px 1fr; gap:10px 14px; align-items:center;
+  background:var(--surface-panel); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:6px; }
+.zcond-l{ font:var(--font-label); color:var(--text-body); }
+.zcond-c{ min-width:0; }
+.zcond-c .control input{ background:var(--surface-input); border-color:transparent; }
+.zcond-op{ font:var(--font-label); color:var(--asubk-blue); font-weight:var(--weight-medium); }
 .check{ display:flex; align-items:center; gap:8px; font:var(--font-body); color:var(--text-body); cursor:pointer; }
 .check .box{ width:18px; height:18px; border:1.5px solid var(--border-strong); border-radius:3px; background:var(--surface-card); }
 
@@ -365,6 +372,7 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
   background:var(--asubk-ink); color:#fff; font:var(--font-label); box-shadow:0 10px 30px rgba(16,28,46,0.3);
   display:flex; gap:10px; align-items:flex-start; }
 .toast.ok{ background:var(--asubk-green); }
+.toast.warn{ background:var(--asubk-amber); }
 </style>
 </head>
 <body>
@@ -796,19 +804,165 @@ function panelDetRaschet(){
     </table></div>
   </div></div>`;
 }
+/* «Залог» — залоговое обеспечение (внешний модуль). Оригинал: split-кнопка
+   «Добавить ▾» (пункты «Создать новый…» / «Выбрать существующий…»),
+   «Редактировать», «Просмотр». Редактировать/Просмотр без выбранной строки →
+   уведомление «Выберите залоговый договор». Снято с живого стенда 2026-07-07,
+   scripts/inspect/loan-credit-zalog*.mjs, запись 18. */
 function panelZalog(){
+  const chev = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:4px"><path d="M6 9l6 6 6-6"/></svg>`;
   return `<div class="panel-wrap"><div class="panel-card">
     <div class="gtoolbar">
-      <button class="btn btn-tint btn-sm" onclick="toast('Добавить залог')">Добавить</button>
-      <button class="btn btn-tint btn-sm" onclick="toast('Редактировать залог')">Редактировать</button>
-      <button class="btn btn-tint btn-sm" onclick="toast('Просмотр залога')">Просмотр</button>
+      <div class="split" id="zalogAdd">
+        <button class="btn btn-tint btn-sm" onclick="toggleSplit('zalogAdd',event)">Добавить${chev}</button>
+        <div class="split-menu">
+          <button onclick="closeSplitById('zalogAdd');openZalogForm()">Создать новый залоговый договор</button>
+          <button onclick="closeSplitById('zalogAdd');openZalogPicker()">Выбрать существующий залоговый договор</button>
+        </div>
+      </div>
+      <button class="btn btn-tint btn-sm" onclick="zalogAction('edit')">Редактировать</button>
+      <button class="btn btn-tint btn-sm" onclick="zalogAction('view')">Просмотр</button>
     </div>
-    <div class="cgrid-wrap cgrid-empty"><table class="cgrid">
+    <div class="cgrid-wrap cgrid-empty"><table class="cgrid" id="zalogGrid">
       <thead><tr>${['Номер','Кредиты','Дата','Заемщик','Залогодатель','Наименование','Вид','Кол-во','Стоимость']
         .map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
       <tbody></tbody>
     </table></div>
   </div></div>`;
+}
+/* Редактировать/Просмотр требуют выбранную строку; грид пуст → warn, как в оригинале */
+function zalogAction(kind){
+  const sel = document.querySelector('#zalogGrid tbody tr.sel');
+  if(!sel){ toast('Выберите залоговый договор','warn'); return; }
+  toast(kind==='edit' ? 'Редактирование залога' : 'Просмотр залога');
+}
+function toggleSplit(id,ev){
+  ev.stopPropagation();
+  const el = document.getElementById(id);
+  document.querySelectorAll('.split.open').forEach(s=>{ if(s!==el) s.classList.remove('open'); });
+  el.classList.toggle('open');
+}
+function closeSplitById(id){ document.getElementById(id)?.classList.remove('open'); }
+
+/* ---- «Создать новый залоговый договор» → диалог «Залоговый договор».
+   Поля и подраздел «Предметы залога» сняты с живого стенда 2026-07-07
+   (scripts/inspect/loan-credit-zalog-opts.mjs, ID 18). ---- */
+function openZalogForm(){
+  const reqTxt = (label,foc) => `<div class="field req err${foc?' foc':''}"><span class="flabel">${label}</span><div class="control"><input value=""></div><span class="errmsg" style="display:block">Заполните поле "${label}"</span></div>`;
+  const reqDate = (label) => `<div class="field req err"><span class="flabel">${label}</span><div class="control"><input value="" onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div><span class="errmsg" style="display:block">Заполните поле "${label}"</span></div>`;
+  const optTxt = (label) => `<div class="field"><span class="flabel">${label}</span><div class="control"><input value="" readonly class="dashed"></div></div>`;
+  const optDate = (label) => `<div class="field"><span class="flabel">${label}</span><div class="control"><input value="" onclick="openCalendar(this)" readonly style="cursor:pointer" class="dashed">${calSvg()}</div></div>`;
+  const body = `<div class="mform">
+      <div class="field"><span class="flabel">Кредит</span><div class="control"><input value='01912201610212 - ОсОО &quot;Бек Кабель&quot;' class="dashed" readonly></div></div>
+      ${reqTxt('№ договора',true)}
+      ${reqDate('Дата договора')}
+      ${reqTxt('Номер нотариальной регистрации')}
+      ${reqDate('Дата нотариальной регистрации')}
+      ${reqTxt('Нотариус')}
+      ${optTxt('Номер налож. запр.')}
+      ${optDate('Дата ареста')}
+      ${optTxt('Номер зал. рег. свид.')}
+      ${optDate('Дата регистрации')}
+      <div class="field col-span"><span class="flabel">Примечание</span><div class="control"><textarea rows="2" style="width:100%;resize:vertical;border:none;background:var(--surface-input);border-radius:var(--radius-md);padding:9px 12px;font:var(--font-label);color:var(--text-body);box-sizing:border-box"></textarea></div></div>
+    </div>
+    <div class="zsub-title">Предметы залога</div>
+    <div class="gtoolbar">
+      <button class="btn btn-primary btn-sm" onclick="toast('Создание предмета залога')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Создать</button>
+      <button class="btn btn-tint btn-sm" disabled>Изменить</button>
+      <button class="btn btn-tint btn-sm" disabled>Удалить</button>
+    </div>
+    <div class="cgrid-wrap cgrid-empty"><table class="cgrid">
+      <thead><tr>${['Предмет залога','Наименование','Залогодатель','Оценочная стоимость','Залоговая стоимость']
+        .map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
+      <tbody></tbody>
+    </table></div>`;
+  const host = document.getElementById('modalHost');
+  host.innerHTML = `<div class="modal form" onclick="event.stopPropagation()">
+    <div class="modal-h"><span class="mt">Залоговый договор</span>
+      <button class="modal-x" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="modal-b">${body}</div>
+    <div class="modal-f">
+      <button class="btn btn-primary" onclick="toast('Сохранено');closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>OK</button>
+      <button class="btn btn-secondary" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Отмена</button>
+    </div>
+  </div>`;
+  host.classList.add('open');
+}
+
+/* ---- «Выбрать существующий залоговый договор» → entity-browser
+   «Список залоговых договоров». Колонки/строка/фильтр сняты с живого стенда
+   2026-07-07 (loan-credit-zalog-opts.mjs, loan-credit-zalog-opt1cols.mjs). ---- */
+const ZALOG_COLS = ['Номер договора','Дата договора','Договоры кредита','Заемщик','Залогодатель',
+  'Нотариальный номер','Дата нотариата','Предметы залога','Виды залога','Количество','Оценочная стоимость'];
+const ZALOG_ROW = ['123','01.07.2026','111','01204199910016 - ОАО "О!Банк"','20101198900280 - ОЗОНОВ АЗИЗ КАНАТБЕКОВИЧ',
+  '123','02.07.2026','123','Недвижимость','123,00','123,00'];
+let zalogPickSel = -1;
+function openZalogPicker(){
+  zalogPickSel = -1;
+  const cond = (label,ctrl) => `<span class="zcond-l">${label}</span><div class="zcond-c">${ctrl}</div>`;
+  const txtC = `<div class="control"><input value=""></div>`;
+  const dateC = `<div class="zcond-op">=</div><div class="control"><input value="" onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div>`;
+  const pickC = `<div class="lookup"><span class="val ph"></span><button class="pick" title="Выбрать" onclick="toast('Открытие справочника')">•••</button><button title="Очистить" onclick="clearPicker(this)">×</button></div>`;
+  const host = document.getElementById('modalHost');
+  host.innerHTML = `<div class="modal" onclick="event.stopPropagation()" style="width:min(1180px,100%)">
+    <div class="modal-h"><span class="mt">Список залоговых договоров</span>
+      <button class="modal-x" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="modal-b">
+      <div class="filter-head open" style="padding:0 0 4px" onclick="this.classList.toggle('open')">
+        <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span><span>Фильтр : Поиск <span class="req-star">*</span></span></div>
+      <div class="zcond-grid">
+        ${cond('№ договора зал.',txtC)}
+        ${cond('Дата договора',`<div style="display:flex;align-items:center;gap:8px">${dateC}</div>`)}
+        ${cond('Заемщик',pickC)}
+        ${cond('Залогодатель',pickC)}
+        ${cond('Предмет залога',txtC)}
+        ${cond('Вид залога',pickC)}
+      </div>
+      <div class="tb-actions" style="padding:8px 0 12px">
+        <div class="split" id="zalogSplit"><button class="btn btn-success" onclick="toast('Обновлено')">Обновить</button>
+          <button class="btn btn-success caret" onclick="document.getElementById('zalogSplit').classList.toggle('open');event.stopPropagation();"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="split-menu"><button onclick="toast('Обновить')">Обновить</button><button onclick="toast('Применить и обновить')">Применить и обновить</button></div></div>
+        <button class="gear-btn" title="Настройки"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+        <button class="add-cond"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Добавить условие поиска</button>
+      </div>
+      <div class="eb-createbar">
+        <button class="btn btn-secondary btn-sm" onclick="zalogPickAction('view')">Просмотр</button>
+        <button class="btn btn-secondary btn-sm" onclick="zalogPickAction('edit')">Редактировать</button>
+        <button class="btn btn-secondary btn-sm" onclick="toast('Открытие кредита')">Кредит</button>
+        <div style="flex:1"></div>
+        <div class="pager"><button disabled>«</button><button disabled>‹</button><span>1 строка</span><button disabled>›</button><button disabled>»</button></div>
+      </div>
+      <div class="eb-grid-wrap"><table class="eb-grid">
+        <thead><tr>${ZALOG_COLS.map(c=>`<th>${c}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
+        <tbody><tr onclick="zalogPickSelect(0)">${ZALOG_ROW.map(c=>`<td>${c}</td>`).join('')}</tr></tbody>
+      </table></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-primary" id="zalogPickBtn" disabled onclick="zalogPickApply()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Выбрать</button>
+      <button class="btn btn-secondary" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Отмена</button>
+    </div>
+  </div>`;
+  host.classList.add('open');
+}
+function zalogPickSelect(i){
+  zalogPickSel = i;
+  document.querySelectorAll('#modalHost .eb-grid tbody tr').forEach((tr,idx)=>tr.classList.toggle('sel',idx===i));
+  document.getElementById('zalogPickBtn').disabled = false;
+}
+function zalogPickAction(kind){
+  if(zalogPickSel<0){ toast('Выберите залоговый договор','warn'); return; }
+  toast(kind==='edit' ? 'Редактирование залога' : 'Просмотр залога');
+}
+function zalogPickApply(){
+  if(zalogPickSel<0) return;
+  // map picker row → залог tab grid (Номер·Кредиты·Дата·Заемщик·Залогодатель·Наименование·Вид·Кол-во·Стоимость)
+  const r = ZALOG_ROW;
+  const row = [r[0], r[2], r[1], r[3], r[4], r[7], r[8], r[9], r[10]];
+  const grid = document.getElementById('zalogGrid');
+  grid.querySelector('tbody').innerHTML = `<tr onclick="selCrow(this)">${row.map(c=>`<td>${c}</td>`).join('')}</tr>`;
+  grid.closest('.cgrid-wrap').classList.remove('cgrid-empty');
+  closeModal();
+  toast('Залоговый договор добавлен');
 }
 const PANEL_BUILDERS = [panelObschaya,panelOformlenie,panelZaemshik,panelUslovia,panelGrafik,
   panelTranshi,panelRezerv,panelPlatezh,panelKodOplaty,panelDetRaschet,panelZalog];
@@ -849,15 +1003,18 @@ function openDetail(i){
   renderDetail();
   showView('detail');
 }
-function toast(msg){
+function toast(msg, type){
   const w = document.getElementById('toastWrap');
   const el = document.createElement('div');
-  el.className = 'toast ok';
-  el.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><span>${msg}</span>`;
+  el.className = 'toast ' + (type || 'ok');
+  const icon = type==='warn'
+    ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>`
+    : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`;
+  el.innerHTML = `${icon}<span>${msg}</span>`;
   w.appendChild(el);
   setTimeout(()=>el.remove(), 2200);
 }
-document.addEventListener('click', e=>{ if(!e.target.closest('.split')) closeSplit(); });
+document.addEventListener('click', e=>{ if(!e.target.closest('.split')){ closeSplit(); document.querySelectorAll('.split.open').forEach(s=>s.classList.remove('open')); } });
 
 /* ============================================================
    ENTITY-BROWSER PICKER DIALOGS (••• справочники)
