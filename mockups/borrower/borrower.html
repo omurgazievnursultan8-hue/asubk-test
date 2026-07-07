@@ -250,6 +250,43 @@
   .m-grid col.c-name{width:auto;} .m-grid col.c-code{width:92px;}
   .m-grid col.c-st{width:104px;} .m-grid col.c-date{width:190px;}
   .m-scroll{max-height:300px;overflow-y:auto;}
+
+  /* ========================================================= */
+  /* ======== ВИД: ОФОРМЛЕНИЕ КРЕДИТА (readonly loan) ========= */
+  /* открывается из карточки заёмщика: таб «Кредиты» -> строка + «Посмотр» */
+  /* ========================================================= */
+  #view-loan .content{padding:20px 26px 0;}
+  /* readonly-поле Vaadin: белый фон, пунктирная рамка */
+  .rf-field{margin-bottom:16px;}
+  .rf-label{display:block;color:var(--secondary-text);font-size:14px;margin-bottom:4px;}
+  .rf{width:100%;min-height:38px;background:#fff;border:1px dashed var(--field-border);
+    border-radius:var(--radius);padding:8px 10px;font-family:var(--font);font-size:16px;color:var(--body-text);}
+  .rf.rf-area{min-height:150px;white-space:pre-wrap;}
+  .rf.rf-date{display:flex;align-items:center;justify-content:space-between;}
+  .rf.rf-date .cal{color:var(--secondary-text);font-size:15px;}
+  /* верхняя строка из 5 полей (График погашений) */
+  .lp-topfields{display:flex;gap:16px;margin:4px 0 16px;}
+  .lp-topfields .rf-field{flex:1;margin-bottom:0;}
+  .lp-gen{margin:0 0 14px;}
+  /* грид графика */
+  .lgrid{border:1px solid var(--border);border-radius:3px;overflow:hidden;}
+  .lgrid table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  .lgrid thead th{text-align:left;font-weight:700;color:var(--body-text);font-size:15px;
+    padding:11px 16px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  .lgrid thead th .sort{color:var(--secondary-text);font-size:13px;margin-left:6px;}
+  .lgrid tbody td{padding:9px 16px;border-bottom:1px solid #eef1f4;font-size:15px;color:var(--body-text);}
+  .lgrid tfoot td{padding:12px 16px;font-weight:700;color:var(--body-text);font-size:15px;border-top:1px solid var(--border);}
+  .lgrid col.c-no{width:12%;} .lgrid col.c-dt{width:24%;}
+  /* 2-колоночная карточка (Условия / Регистрация) */
+  .lp-card{border:1px solid var(--panel-border);border-radius:3px;padding:20px 22px;display:flex;gap:40px;}
+  .lp-card .lp-col{flex:1;min-width:0;}
+  .lp-title{font-size:24px;font-weight:700;color:var(--body-text);margin:6px 0 14px;}
+  /* инфо-блок (Регистрация) */
+  .lp-note{background:#eaf3ff;border:1px solid #d3e4fb;border-radius:6px;color:var(--primary-text);
+    font-size:15px;line-height:1.45;padding:14px 16px;display:flex;gap:10px;align-items:flex-start;}
+  .lp-note .ic{flex:0 0 auto;}
+  .lp-file{color:var(--body-text);font-size:16px;padding:8px 2px;}
+  .lp-empty{min-height:420px;}
 </style>
 </head>
 <body>
@@ -278,6 +315,7 @@
       <div class="nav-group"><span class="caret">›</span>Администрирование</div>
       <div class="nav-group"><span class="caret">›</span>Отчёты</div>
       <div class="nav-group"><span class="caret">›</span>Безопасность</div>
+      <div class="nav-group"><span class="caret">›</span>Инструменты данных</div>
     </nav>
     <div class="footer">
       <span>[admin]</span>
@@ -299,7 +337,9 @@
         <!-- ---------- FILTER ---------- -->
         <div class="filter-head"><span class="caret">⌄</span>Фильтр : Фильтры *</div>
         <div class="filter-card">
-          <!-- оба фильтра в одну строку, как в оригинале -->
+          <!-- каждый фильтр в отдельной строке на всю ширину, как в живом стенде
+               (проверено 2026-07-07, scripts/inspect/borrower-filter-geom.mjs:
+                Статус y142 w1126; Субъект.Отрасль y190 w1052 — две строки) -->
           <div class="filter-row">
             <!-- Статус: vaadin-select (Активный / В обработке) -->
             <div class="fl">Статус =</div>
@@ -312,6 +352,8 @@
                 <div class="opt" data-v="В обработке">В обработке</div>
               </div>
             </div>
+          </div>
+          <div class="filter-row">
             <!-- Субъект.Отрасль: entity-picker (⋯ открывает модалку выбора, ✕ очищает) -->
             <div class="fl">Субъект.Отрас…</div>
             <div class="filter-field" id="fIndustry">
@@ -529,12 +571,12 @@
         <!-- ===== TAB: Кредиты ===== -->
         <div class="tabpanel" data-panel="credits">
           <div class="tab-toolbar">
-            <button class="btn btn-secondary" disabled>Посмотр</button>
+            <button class="btn btn-secondary" id="btnCreditView" disabled>Посмотр</button>
           </div>
           <div class="grid">
             <div class="grid-head">Заявка <span class="sort">⇅</span></div>
-            <div class="grid-row">01204199910016 - ОАО "О!Банк"</div>
-            <div class="grid-row grid-empty">01204199910016 - ОАО "О!Банк"</div>
+            <div class="grid-row credit-row">01204199910016 - ОАО "О!Банк"</div>
+            <div class="grid-row credit-row grid-empty">01204199910016 - ОАО "О!Банк"</div>
           </div>
         </div>
 
@@ -551,6 +593,115 @@
       <div class="form-footer">
         <button class="btn btn-primary" id="btnOk">✓ OK</button>
         <button class="btn btn-cancel" id="btnCancel">⊘ Отмена</button>
+      </div>
+    </div>
+
+    <!-- ==================== ВИД: ОФОРМЛЕНИЕ КРЕДИТА (readonly) ==================== -->
+    <!-- Точная копия /loans-processing/24?mode=readonly (проверено 2026-07-07,
+         scripts/inspect/loan-readonly-full.mjs). Открывается из карточки заёмщика:
+         таб «Кредиты» -> выбрать строку -> «Посмотр». OK/Отмена -> назад к карточке. -->
+    <div class="view" id="view-loan" style="display:none;">
+      <div class="content">
+        <div class="tabs" id="loanTabs">
+          <div class="tab active" data-ltab="schedule">График погашений</div>
+          <div class="tab" data-ltab="contract">Кредитный договор</div>
+          <div class="tab" data-ltab="terms">Условия кредитования</div>
+          <div class="tab" data-ltab="reg">Регистрация</div>
+        </div>
+
+        <!-- ===== TAB: График погашений ===== -->
+        <div class="tabpanel active" data-lpanel="schedule">
+          <div class="lp-topfields">
+            <div class="rf-field"><label class="rf-label">Всего платежей</label><div class="rf">12</div></div>
+            <div class="rf-field"><label class="rf-label">Сумма кредита</label><div class="rf">1000000,00</div></div>
+            <div class="rf-field"><label class="rf-label">Сумма процентов</label><div class="rf">54990,65</div></div>
+            <div class="rf-field"><label class="rf-label">Регулярный платеж</label><div class="rf">87915,89</div></div>
+            <div class="rf-field"><label class="rf-label">Итоговая сумма платежей</label><div class="rf">1054990,65</div></div>
+          </div>
+          <div class="lp-gen"><button class="btn btn-primary">Сгенерировать</button></div>
+          <div class="lgrid">
+            <table>
+              <colgroup><col class="c-no"><col class="c-dt"><col><col><col></colgroup>
+              <thead>
+                <tr>
+                  <th>№ платежа <span class="sort">⇅</span></th>
+                  <th>Дата платежа <span class="sort">⇅</span></th>
+                  <th>Сумма платежа <span class="sort">⇅</span></th>
+                  <th>Основной долг <span class="sort">⇅</span></th>
+                  <th>Проценты <span class="sort">⇅</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>1</td><td>01.06.2026 00:00</td><td>87 915,89</td><td>79 582,56</td><td>8 333,33</td></tr>
+                <tr><td>2</td><td>01.07.2026 00:00</td><td>87 915,89</td><td>80 245,74</td><td>7 670,15</td></tr>
+                <tr><td>3</td><td>03.08.2026 00:00</td><td>87 915,89</td><td>80 914,46</td><td>7 001,43</td></tr>
+                <tr><td>4</td><td>01.09.2026 00:00</td><td>87 915,89</td><td>81 588,75</td><td>6 327,14</td></tr>
+                <tr><td>5</td><td>01.10.2026 00:00</td><td>87 915,89</td><td>82 268,65</td><td>5 647,24</td></tr>
+                <tr><td>6</td><td>02.11.2026 00:00</td><td>87 915,89</td><td>82 954,22</td><td>4 961,67</td></tr>
+                <tr><td>7</td><td>01.12.2026 00:00</td><td>87 915,89</td><td>83 645,51</td><td>4 270,38</td></tr>
+                <tr><td>8</td><td>01.01.2027 00:00</td><td>87 915,89</td><td>84 342,56</td><td>3 573,33</td></tr>
+                <tr><td>9</td><td>01.02.2027 00:00</td><td>87 915,89</td><td>85 045,41</td><td>2 870,48</td></tr>
+                <tr><td>10</td><td>01.03.2027 00:00</td><td>87 915,89</td><td>85 754,12</td><td>2 161,77</td></tr>
+                <tr><td>11</td><td>01.04.2027 00:00</td><td>87 915,89</td><td>86 468,74</td><td>1 447,15</td></tr>
+                <tr><td>12</td><td>03.05.2027 00:00</td><td>87 915,86</td><td>87 189,28</td><td>726,58</td></tr>
+              </tbody>
+              <tfoot>
+                <tr><td>Итого:</td><td></td><td>1054990.65</td><td>1000000.00</td><td>54990.65</td></tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- ===== TAB: Кредитный договор ===== -->
+        <div class="tabpanel" data-lpanel="contract">
+          <div class="lp-title">Превью кредитного договора</div>
+          <div class="lp-empty"></div>
+        </div>
+
+        <!-- ===== TAB: Условия кредитования ===== -->
+        <div class="tabpanel" data-lpanel="terms">
+          <div class="lp-card">
+            <div class="lp-col">
+              <div class="rf-field"><label class="rf-label">ПИН</label><div class="rf">01204199910016</div></div>
+              <div class="rf-field"><label class="rf-label">Процентная ставка</label><div class="rf">10,00</div></div>
+              <div class="rf-field"><label class="rf-label">Штраф за просрочку по осн.с.</label><div class="rf">10,00</div></div>
+              <div class="rf-field"><label class="rf-label">Штраф за просрочку по процентам</label><div class="rf">10,00</div></div>
+              <div class="rf-field"><label class="rf-label">Предельный лимит начисления штрафов</label><div class="rf">10,00</div></div>
+              <div class="rf-field" style="margin-bottom:0;"><label class="rf-label">Метод расчета кол-ва дней в период</label><div class="rf">финансовый /календарный (360/365)</div></div>
+            </div>
+            <div class="lp-col">
+              <div class="rf-field"><label class="rf-label">Кредитная программа</label><div class="rf">ТУР</div></div>
+              <div class="rf-field"><label class="rf-label">Вид плавающих ставок</label><div class="rf">&nbsp;</div></div>
+              <div class="rf-field"><label class="rf-label">Вид штрафа за просрочку по осн.с.</label><div class="rf">Фиксированная</div></div>
+              <div class="rf-field"><label class="rf-label">Вид штрафа за просрочку по процентам</label><div class="rf">Фиксированная</div></div>
+              <div class="rf-field"><label class="rf-label">Очередь погашения</label><div class="rf">Основная сумма, проценты, шрафы</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== TAB: Регистрация ===== -->
+        <div class="tabpanel" data-lpanel="reg">
+          <div class="lp-title">Регистрация кредитного договора</div>
+          <div class="lp-card">
+            <div class="lp-col">
+              <div class="rf-field"><label class="rf-label">Номер регистрации</label><div class="rf">Расчет-1</div></div>
+              <div class="rf-field"><label class="rf-label">Дата регистрации</label><div class="rf rf-date"><span>01.01.2026</span><span class="cal">▦</span></div></div>
+              <div class="rf-field"><label class="rf-label">Регистрирующий орган</label><div class="rf">&nbsp;</div></div>
+              <div class="rf-field"><label class="rf-label">Ответственное лицо</label><div class="rf">&nbsp;</div></div>
+              <div class="rf-field" style="margin-bottom:0;"><label class="rf-label">Комментарии</label><div class="rf rf-area">Тест детального расчета-1</div></div>
+            </div>
+            <div class="lp-col">
+              <div class="rf-field"><label class="rf-label">Скан зарегистрированного договора</label><div class="lp-file">Файл не выбран</div></div>
+              <div class="lp-note"><span class="ic">⚠</span><span>После регистрации договора статус заявки автоматически изменится. Убедитесь в корректности введенных данных.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- FOOTER BUTTONS ---------- -->
+      <div class="form-footer">
+        <button class="btn btn-primary" id="btnLoanOk">✓ OK</button>
+        <button class="btn btn-cancel" id="btnLoanCancel">⊘ Отмена</button>
       </div>
     </div>
 
@@ -836,6 +987,51 @@
     panels.forEach(p => p.classList.remove('active'));
     t.classList.add('active');
     document.querySelector('.tabpanel[data-panel="' + t.dataset.tab + '"]').classList.add('active');
+  }));
+
+  // ---------- таб «Кредиты»: выбор строки + «Посмотр» -> экран кредита ----------
+  // Как в живом стенде (проверено 2026-07-07, scripts/inspect/borrower-credits-view.mjs):
+  //   клик по строке -> выделяет + включает «Посмотр»; «Посмотр» ->
+  //   /loans-processing/{id}?mode=readonly («Оформление кредита», readonly).
+  const creditRows = document.querySelectorAll('.credit-row');
+  const btnCreditView = document.getElementById('btnCreditView');
+  let creditSel = null;
+  creditRows.forEach(r => {
+    r.addEventListener('click', () => {
+      if (creditSel) creditSel.style.background = '';
+      creditSel = r; r.style.background = '#dbe9fb';
+      btnCreditView.disabled = false;
+    });
+    r.addEventListener('dblclick', showLoan);
+  });
+  btnCreditView.addEventListener('click', () => { if (!btnCreditView.disabled) showLoan(); });
+
+  // ---------- вид «Оформление кредита» (readonly) ----------
+  const viewLoan = document.getElementById('view-loan');
+  function showLoan() {
+    viewDetail.style.display = 'none';
+    viewList.style.display = 'none';
+    viewLoan.style.display = 'flex';
+    pageTitle.textContent = 'Оформление кредита';
+    window.scrollTo(0, 0);
+  }
+  function backToDetail() {
+    viewLoan.style.display = 'none';
+    viewDetail.style.display = 'flex';
+    pageTitle.textContent = 'Заемщик';
+    window.scrollTo(0, 0);
+  }
+  document.getElementById('btnLoanOk').addEventListener('click', backToDetail);
+  document.getElementById('btnLoanCancel').addEventListener('click', backToDetail);
+
+  // вкладки экрана «Оформление кредита»
+  const loanTabs = document.querySelectorAll('#loanTabs .tab');
+  const loanPanels = document.querySelectorAll('#view-loan .tabpanel');
+  loanTabs.forEach(t => t.addEventListener('click', () => {
+    loanTabs.forEach(x => x.classList.remove('active'));
+    loanPanels.forEach(p => p.classList.remove('active'));
+    t.classList.add('active');
+    document.querySelector('.tabpanel[data-lpanel="' + t.dataset.ltab + '"]').classList.add('active');
   }));
 </script>
 </body>
