@@ -310,6 +310,16 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .collgrid.sched td:nth-child(n+4){ text-align:right; font-variant-numeric:tabular-nums; }
 .collgrid.sched th:nth-child(n+4){ text-align:right; }
 .collgrid.sched td:first-child, .collgrid.sched td:nth-child(2), .collgrid.sched td:nth-child(3){ text-align:left; }
+.collgrid.sched.editable tbody tr{ cursor:pointer; }
+.collgrid.sched.editable tbody tr:hover{ background:var(--asubk-blue-tint); }
+.collgrid.sched tbody tr.sel{ background:var(--asubk-blue-tint); box-shadow:inset 3px 0 0 var(--asubk-blue); }
+.sched-man{ color:var(--asubk-blue); font-size:11px; margin-left:3px; }
+/* Групповой график: селектор члена (дропдаун) + сводная таблица */
+.sched-viewsel{ display:flex; align-items:center; gap:8px; margin:0 0 12px; }
+.sched-viewlbl{ font:var(--font-label); color:var(--text-muted); }
+.sched-viewdd{ padding:6px 10px; border:1px solid var(--border-default); border-radius:6px; background:#fff; font:var(--font-label); color:var(--text-body); cursor:pointer; min-width:220px; }
+.sched-viewdd:hover{ border-color:var(--asubk-blue); }
+.sched-viewdd:focus{ outline:none; border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
 
 /* tab 7 «Документы» */
 .t7{ max-width:1340px; padding:16px 24px; }
@@ -1022,6 +1032,17 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
   font:inherit; background:var(--surface-card); color:var(--text-body); }
 .mem-inp.num{ text-align:right; font-variant-numeric:tabular-nums; }
 .mem-inp:focus{ outline:none; border-color:var(--asubk-blue); }
+
+/* ---- Tab «Залог»: инлайн-редакторы предметов ---- */
+.coll-inp{ width:100%; min-width:120px; padding:4px 8px; border:1px solid var(--border-default,#d0d5dd);
+  border-radius:var(--radius-sm); font:inherit; background:var(--surface-card); color:var(--text-body); }
+.coll-inp.num{ text-align:right; font-variant-numeric:tabular-nums; width:150px; }
+.coll-inp:focus{ outline:none; border-color:var(--asubk-blue); }
+.coll-enc{ font-size:12px; color:var(--text-muted); }
+.coll-enc.on{ color:var(--status-warn,#b26a00); font-weight:var(--weight-medium); }
+.coll-lk{ height:30px; width:100%; min-width:130px; }
+.coll-lk .val{ font-size:12px; padding:0 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.coll-lk button{ width:26px; height:28px; flex:0 0 auto; }
 
 /* ---- Tab «История» (to-be): аудит-журнал ---- */
 .hist-wrap{ padding:14px 20px 20px; max-width:1100px; }
@@ -1739,6 +1760,78 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
   </div>
 </div>
 
+<!-- Правка строки графика погашения (таб «График»; open/save в schedEditRow/schedRowSave) -->
+<div class="overlay" id="modal-sched-row">
+  <div class="modal mvdlg">
+    <div class="modal-h">
+      <span class="mt">Изменить строку графика · <span id="sched-row-no"></span></span>
+      <button class="modal-x" onclick="closeModal('modal-sched-row')" aria-label="Закрыть">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b">
+      <div class="cform-grid">
+        <div class="field">
+          <span class="flabel">Дата платежа</span>
+          <div class="control"><input type="date" id="sched-f-pay"></div>
+        </div>
+        <div class="field">
+          <span class="flabel">Погашение осн. долга</span>
+          <div class="control"><input type="text" id="sched-f-principal" inputmode="decimal"></div>
+        </div>
+      </div>
+      <div class="tab-note" style="margin-top:12px">Дни, проценты, остатки и «Платёж ИТОГО» пересчитываются автоматически. Правка каскадно влияет на все последующие строки.</div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-primary" onclick="schedRowSave()">Сохранить</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-sched-row')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка «Добавить предмет залога» -->
+<div class="overlay" id="modal-coll-item">
+  <div class="modal" style="width:min(720px,96%)">
+    <div class="modal-h">
+      <span class="mt">Добавить предмет залога</span>
+      <button class="modal-x" onclick="closeModal('modal-coll-item')" aria-label="Закрыть">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b">
+      <div class="cform-grid">
+        <div class="field required" id="coll-fld-kind">
+          <span class="flabel">Вид залога</span>
+          <div class="control"><select id="coll-f-kind"></select></div>
+          <span class="err">Выберите вид залога.</span>
+        </div>
+        <div class="field required" id="coll-fld-val">
+          <span class="flabel">Оценочная стоимость, сом</span>
+          <div class="control"><input type="text" id="coll-f-val" inputmode="decimal" placeholder="0,00"></div>
+          <span class="err">Укажите стоимость больше нуля.</span>
+        </div>
+        <div class="field span2">
+          <span class="flabel">Собственник (залогодатель)</span>
+          <div class="control"><div class="lookup" id="coll-f-owner-lk" style="width:100%">
+            <span class="val" id="coll-f-owner">Субъект из реестра…</span>
+            <button class="pick" type="button" title="Выбрать из реестра субъектов" onclick="pickCollOwner()">•••</button>
+            <button type="button" title="Очистить" onclick="clearCollOwner()">×</button>
+          </div></div>
+        </div>
+        <div class="field span2">
+          <span class="flabel">Описание</span>
+          <div class="control"><input type="text" id="coll-f-desc" placeholder="напр. Складское помещение, 420 м², г. Бишкек"></div>
+        </div>
+      </div>
+      <div class="tab-note" style="margin-top:12px">Вид залога — из разрешённых <b>программой</b>. Оценка и правоустанавливающие документы прикладываются во вкладке «Документы». Σ оценок и коэффициент покрытия пересчитываются автоматически.</div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-primary" onclick="collItemSave()">Добавить</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-coll-item')">Отмена</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast container (Task 11) -->
 <div class="toast-wrap" id="toast-wrap"></div>
 
@@ -1857,7 +1950,7 @@ function showView(name){
   window.scrollTo(0,0);
 }
 function openModal(id){ document.getElementById(id).classList.add('open'); }
-function closeModal(id){ document.getElementById(id).classList.remove('open'); if (id === 'modal-pick-subject') _subjectPickTarget = 'borrower'; }
+function closeModal(id){ const el = document.getElementById(id); el.classList.remove('open'); if (id === 'modal-pick-subject'){ _subjectPickTarget = 'borrower'; el.style.zIndex = ''; } }
 /* ============================================================
    APPLICATIONS DATASET — ~22 live rows, inspected 2026-06-29
    Rows 1-8: exact data from GRID_HEADER_CELLS dump.
@@ -2012,15 +2105,16 @@ APPLICATIONS.forEach((r, i) => {
    ============================================================ */
 const STATUS_ALIAS = { 'Одобрено':'Одобрена', 'Отклонено':'Отклонена' };
 const PROGRAM_META = {
-  'АгроИнвест КР':                   { collateral:true,  group:false },
+  'АгроИнвест КР':                   { collateral:true,  group:false, kinds:['Недвижимость', 'Транспортное средство', 'Товары в обороте'] },
   'Поддержка сельхозпроизводителей': { collateral:false, group:true  },
-  'ТУР':                             { collateral:true,  group:false },
+  'ТУР':                             { collateral:true,  group:false, kinds:['Недвижимость', 'Оборудование', 'Транспортное средство'] },
 };
 APPLICATIONS.forEach(r => {
   r.status = STATUS_ALIAS[r.status] || r.status;
   const m = PROGRAM_META[r.program] || { collateral:false, group:false };
   r.hasCollateral = m.collateral;
   r.isGroup       = m.group;
+  r.collKinds     = m.kinds || [];   // разрешённые виды залога — из программы
   r.flow          = 'A';   // демо: все по программе (поток A); поток B — отдельный сценарий
 });
 
@@ -2482,14 +2576,18 @@ function can(app){
   const phase = condPhase(app.status);
   const rawReq = _role === 'spec' && phase === 'draft';   // запрос заёмщика · доки · члены · залог
   const rawOp  = _role === 'com'  && phase === 'review';  // опер-условия · комментарий комиссии
+  const rawSched = (_role === 'spec' && phase === 'draft')   // окно правки графика: спец до одобрения…
+                || (_role === 'com'  && phase === 'locked'); // …комиссия после (P3-R13-гейт, аудит-след)
   return {
     phase,
     canEditReq: rawReq,
     canEditOp:  rawOp,
+    canEditSched: rawSched,                                // потенциальное право на график (роль × фаза)
     editReq: rawReq && _editMode,
     editOp:  rawOp  && _editMode,
+    editSched: rawSched && _editMode,                      // фактическое — только в режиме «Изменить»
     vote:    _role === 'com' && phase === 'review',        // голосование в комиссии
-    toolbar: _role === 'spec',                             // тулбар-действия жмёт только специалист
+    toolbar: _role === 'spec',                             // тулбар списка/деталки жмёт только специалист
   };
 }
 
@@ -2506,6 +2604,7 @@ function setRole(r){
   _revertEdit();                                       // несохранённые правки — откат
   _role = r;
   _editMode = false;                                   // смена роли — выходим из правки
+  _schedSel = null; _schedView = null;                 // сброс выбора строки / вида графика
   applyRoleToListButtons();                             // список: скрыть/показать спец-кнопки
   if (_detailApp) gotoDetail(_detailApp.num);           // деталка: перерисовать под роль
 }
@@ -2532,30 +2631,30 @@ function toolbarAction(label){ showToast(label + ' — демо-действие
 function enterEdit(){
   if (!_detailApp) return;
   const cap = can(_detailApp);
-  if (!(cap.canEditReq || cap.canEditOp)){ showToast('Нет прав на редактирование этой заявки', 'warn'); return; }
+  if (!(cap.canEditReq || cap.canEditOp || cap.canEditSched)){ showToast('Нет прав на редактирование этой заявки', 'warn'); return; }
   _editSnapshot = JSON.parse(JSON.stringify(_detailApp));   // для «Отмена»/смены роли
-  _editMode = true;
+  _editMode = true; _schedSel = null;
   gotoDetail(_detailApp.num);                          // перерисовать в режиме правки
   showToast('Режим редактирования включён', '');
 }
 function saveEdit(){
   if (!_detailApp) return;
   _editSnapshot = null;                                // фиксируем правки в объекте
-  _editMode = false;
+  _editMode = false; _schedSel = null;
   gotoDetail(_detailApp.num);
   showToast('Изменения сохранены', 'ok');
 }
 function cancelEdit(){
   if (!_detailApp) return;
   _revertEdit();                                       // вернуть значения из снимка
-  _editMode = false;
+  _editMode = false; _schedSel = null;
   gotoDetail(_detailApp.num);
   showToast('Редактирование отменено', '');
 }
 
 function renderToolbar(app){
   const cap = can(app);
-  const canEditNow = cap.canEditReq || cap.canEditOp;   // может ли роль править (до входа в режим)
+  const canEditNow = cap.canEditReq || cap.canEditOp || cap.canEditSched;   // может ли роль править (до входа в режим)
   let btns;
   if (_editMode){
     /* Режим правки — только сохранить/отменить. */
@@ -2616,7 +2715,7 @@ function gotoDetail(num, panel){
      сохраняет текущий _editMode И текущий таб (иначе «Изменить» кидает на 1-й таб). */
   const sameApp = _detailApp && _detailApp.num === num;
   const currentPanel = sameApp ? document.querySelector('.tabbar-tab.active')?.dataset.panel : null;
-  if (!sameApp) { _editMode = false; _condOpenSec = null; _condMonthsOpen = false; _memberSel = null; }   // др. заявка → аккордеон к дефолту, снять выделение члена
+  if (!sameApp) { _editMode = false; _condOpenSec = null; _condMonthsOpen = false; _memberSel = null; _collSel = null; _schedView = null; _schedSel = null; }   // др. заявка → аккордеон к дефолту, снять выделения
   _detailApp = app;
 
   /* Header band */
@@ -3033,6 +3132,18 @@ function condSelect(label, val, options, opts){
     + `</div>`;
 }
 
+/* condDate — дата (нативный календарь). Хранение ru «дд.мм.гггг», виджет — ISO.
+   opts.onset — имя хендлера, получающего ISO из onchange (пишет ru в объект). */
+function condDate(label, ru, opts){
+  opts = opts || {};
+  const star = opts.required ? '<span class="cf-req"> *</span>' : '';
+  const iso = _ruToISO(ru) || '';
+  return `<div class="cond-field"><span class="cflabel">${label}${star}</span>`
+    + `<input class="cf-input" type="date" value="${iso}"${opts.onset ? ` onchange="${opts.onset}(this.value)"` : ''}>`
+    + (opts.hint ? `<span class="cf-hint">${opts.hint}</span>` : '')
+    + `</div>`;
+}
+
 /* ─── Ограничения из кредитной программы (спек 2026-07-06) ───
    Значения заявки не могут выходить за рамки программы:
    • справочник (источник/фикс. суммы/сроки/льготы): 1 вариант → нередактируемое
@@ -3312,6 +3423,14 @@ function renderConditions(app){
       F.push(condDiff(app, phase, 'Периодичность платежей', 'paymentFrequency', prog.periodicity || env.freq || 'Ежемесячно', 'программа'));
     }
   }
+  // Дата выдачи (освоения) — уровень кредита; от неё считается 1-я «Дата начала» графика.
+  // Для группы дата своя у каждого члена (таб «Члены группы»), поэтому поле — только для индивидуального.
+  if (!app.isGroup){
+    const issRu = app.issueDate || ISSUE_DATE;
+    F.push(editCond
+      ? condDate('Дата выдачи', issRu, { required:true, onset:'setIssueDate', hint:'от неё считается график погашения' })
+      : condField('Дата выдачи', [['кредит', issRu]], {}));
+  }
   // Метод расчёта дней + база — редактируются свободно (не ограничены программой), полный справочник.
   F.push(editCond
     ? condSelect('Метод расчёта дней в периоде', app.dayCountNum || prog.dayCountNum || 'Фактический', ['Финансовый (30)', 'Фактический'], { required:true, bind:'dayCountNum' })
@@ -3392,10 +3511,12 @@ const _pD   = s => { const [dd,mm,yy] = s.split('.').map(Number); return new Dat
 const _fD   = d => String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0') + '.' + d.getFullYear();
 const _addM = (d,n,day) => new Date(d.getFullYear(), d.getMonth()+n, day || d.getDate());
 
-/* Рассчитать график из условий заявки. Возвращает {rows, meta} или null. */
-function genSchedule(app){
+/* Рассчитать график из условий заявки. Возвращает {rows, meta} или null.
+   opts.P / opts.issue (ru «дд.мм.гггг») — оверрайд суммы/даты выдачи (график члена группы). */
+function genSchedule(app, opts){
+  opts = opts || {};
   const env  = PROG_ENV[app.program] || {};
-  const P    = _num(app.approvedAmount || app.amount);
+  const P    = opts.P != null ? _num(opts.P) : _num(app.approvedAmount || app.amount);
   const m    = parseInt(app.approvedTerm || app.term, 10);
   const rate = _num(app.annualRate || env.rate || (PROGRAMS_MAP[app.program]||{}).rate);
   if (!(P > 0) || !(m > 0) || !(rate > 0)) return null;
@@ -3413,7 +3534,7 @@ function genSchedule(app){
   const PMT = P * T / (1 - Math.pow(1+T, -n));
 
   const rows = [];
-  let balance = P, start = _pD(ISSUE_DATE), deferred = 0;
+  let balance = P, start = _pD(opts.issue || ISSUE_DATE), deferred = 0;
   for (let k = 1; k <= n; k++){
     const pay  = _addM(start, f, payDay);
     const days = Math.round((pay - start) / 86400000);
@@ -3432,47 +3553,264 @@ function genSchedule(app){
     else           principal = Math.max(0, PMT - (inInt ? 0 : accrued));
     principal = Math.min(principal, openBal);
 
-    const basePay = interest + principal;
-    const nadb = 0;                                           // надбавка (резерв/пени) — демо 0
+    const total = interest + principal;
     balance = +(openBal - principal).toFixed(2);
     rows.push({ k, start:_fD(start), pay:_fD(pay), days, rate,
-      open:openBal, interest, principal, basePay, nadb, total:basePay + nadb, close:balance });
+      open:openBal, interest, principal, total, close:balance });
     start = pay;
   }
   return { rows, meta:{ P, m, rate, f, n, grace:(pMain||pAccr||pInt) } };
 }
 
+/* ---- Редактируемый график (возврат as-is тулбара, гейт по фазе×роли) ----
+   Модель: <владелец>.schedule — материализованные строки-«входы» {pay, principal, man}.
+   Владелец: индивидуальный кредит → сам app; групповой → выбранный член (member.schedule).
+   Пока не материализован → read-only авто-рендер genSchedule (сохраняет льготу).
+   Производные (Дней, %, Остатки, ИТОГО) пересчитываются каскадом _computeRows.
+   Групповой: селектор члена сверху (_schedView = индекс | 'all'); «Вся группа» — свод read-only. */
+let _schedSel  = null;                   // индекс выбранной строки (0-based) или null
+let _schedView = null;                   // групповой: индекс члена | 'all'; индивидуальный: null
+
+const SCHED_HEAD = `<thead><tr>
+  <th>№</th><th>Дата начала</th><th>Дата платежа</th><th>Дней</th><th>Ставка&nbsp;%</th>
+  <th>Остаток на начало</th><th>Проценты</th><th>Погашение осн.&nbsp;долга</th>
+  <th>ПЛАТЁЖ&nbsp;ИТОГО</th><th>Остаток на конец</th>
+</tr></thead>`;
+
+/* «БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ» → «Бектурганов Э.» для пилюли селектора. */
+function _shortFio(fio){
+  const p = String(fio || '').trim().split(/\s+/);
+  const cap = s => s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : '';
+  return p[1] ? `${cap(p[0])} ${p[1][0].toUpperCase()}.` : cap(p[0]);
+}
+
+/* Контекст владельца графика для текущего вида. Возвращает {obj, P, rate, base, issue(ru)}
+   либо null (свод «Вся группа» / член не выбран). issue — ru «дд.мм.гггг». */
+function _schedCtx(app){
+  const env  = PROG_ENV[app.program] || {};
+  const rate = _num(app.annualRate || env.rate || (PROGRAMS_MAP[app.program]||{}).rate);
+  if (!app.isGroup)
+    return { obj:app, P:_num(app.approvedAmount || app.amount), rate, base:365, issue:app.issueDate || ISSUE_DATE };
+  if (typeof _schedView !== 'number') return null;               // свод либо не выбран
+  const m = _membersOf(app)[_schedView];
+  return m ? { obj:m, P:_num(m.sum), rate, base:365, issue:m.date } : null;
+}
+/* Материализовать <владелец>.schedule из авто-графика (genSchedule → «входы»). */
+function _seedSchedule(app, ctx){
+  const sch = genSchedule(app, { P:ctx.P, issue:ctx.issue });
+  ctx.obj.schedule = sch ? sch.rows.map(r => ({ pay:r.pay, principal:_fmt(r.principal) })) : [];
+}
+/* Свернуть «входы» владельца в 10-колоночные строки с каскадным пересчётом производных. */
+function _computeRows(app, ctx){
+  const { P, rate, base } = ctx;
+  const out = []; let open = P, start = _pD(ctx.issue);
+  ctx.obj.schedule.forEach((r, i) => {
+    const pay  = _pD(r.pay);
+    const days = Math.max(0, Math.round((pay - start) / 86400000));
+    const interest = open * rate/100 * days/base;
+    let principal = Math.min(Math.max(0, _num(r.principal)), open);   // тело из «входа», clamp к остатку
+    const close = +(open - principal).toFixed(2), total = interest + principal;
+    out.push({ k:i+1, start:_fD(start), pay:r.pay, days, rate, open, interest, principal,
+      total, close, man:!!r.man });
+    open = close; start = pay;
+  });
+  return out;
+}
+
+/* Диспетчер: индивидуальный кредит → один график; групповой → селектор + график члена / свод. */
 function renderSchedule(app){
-  const sch = genSchedule(app);
-  if (!sch){
-    return `<div class="t1-wrap"><div style="padding:30px 4px;color:var(--text-muted);font:var(--font-label)">
-      Недостаточно данных для расчёта (нужны сумма, срок, ставка).</div></div>`;
-  }
-  const graceNote = sch.meta.grace
+  if (!app.isGroup)
+    return `<div class="t1-wrap">${_schedInner(app, _schedCtx(app), null)}</div>`;
+
+  const members = _membersOf(app);
+  if (typeof _schedView !== 'number' && _schedView !== 'all') _schedView = 'all';   // дефолт — свод «Вся группа»
+  if (typeof _schedView === 'number' && _schedView >= members.length) _schedView = members.length - 1;   // клемп после удаления члена
+  const opts = members.map((m, i) =>
+      `<option value="${i}"${_schedView === i ? ' selected' : ''}>${_shortFio(m.fio)} · ${_fmt(_num(m.sum))}</option>`).join('')
+    + `<option value="all"${_schedView === 'all' ? ' selected' : ''}>▦ Вся группа</option>`;
+  const sel = `<div class="sched-viewsel">
+      <label class="sched-viewlbl">График по:</label>
+      <select class="sched-viewdd" onchange="schedView(this.value === 'all' ? 'all' : +this.value)">${opts}</select>
+    </div>`;
+  const inner = _schedView === 'all' ? _aggInner(app) : _schedInner(app, _schedCtx(app), members[_schedView]);
+  return `<div class="t1-wrap">${sel}${inner}</div>`;
+}
+
+/* Один график владельца ctx (app или член). label — член (для шапки) либо null (индивидуальный). */
+function _schedInner(app, ctx, label){
+  if (!ctx) return _schedInsufficientBody();
+  const canEdit = can(app).editSched;                     // тулбар только в режиме «Изменить»
+  const owner = ctx.obj;
+  const gen = genSchedule(app, { P:ctx.P, issue:ctx.issue });
+  if (canEdit && !owner.schedule){ if (!gen) return _schedInsufficientBody(); _seedSchedule(app, ctx); }
+  const materialized = !!owner.schedule;
+  if (!materialized && !gen) return _schedInsufficientBody();
+
+  const rows = materialized ? _computeRows(app, ctx) : gen.rows;
+  const who = label ? `Член: <b>${label.fio}</b> · транш ${_fmt(ctx.P)} · освоение ${ctx.issue}. ` : '';
+  const status = who + (!materialized
+    ? `График рассчитан по условиям: срок ${gen.meta.m} мес., ставка ${_fmt(gen.meta.rate)}%, платежей — ${rows.length}.`
+    : (owner.scheduleManual
+        ? 'График правлен вручную — отличается от авто-расчёта по условиям.'
+        : 'График построен по условиям; доступно ручное редактирование.'));
+  const graceNote = (!materialized && gen.meta.grace)
     ? `<div class="note-banner warn" style="margin:0 0 12px">
         <span>Льготный период: первые платежи по особому режиму (тело отсрочено / % отложены и распределены). Отсрочённые % гасятся распределением, не капитализацией.</span></div>`
     : '';
-  const body = sch.rows.map(r => `<tr${r.k <= 0 ? '' : ''}>
-    <td>${r.k}</td><td>${r.start}</td><td>${r.pay}</td><td>${r.days}</td><td>${_fmt(r.rate)}</td>
+  // Баланс: сумма тел должна погасить весь долг (остаток на конец = 0). После ручной правки — предупреждаем.
+  const residual = materialized && rows.length ? rows[rows.length - 1].close : 0;
+  const balanceNote = Math.abs(residual) > 0.01
+    ? `<div class="note-banner warn" style="margin:0 0 12px">
+        <span>График не закрывает долг: остаток на конец — <b>${_fmt(residual)}</b>. Сумма погашений осн. долга ${residual > 0 ? 'меньше' : 'больше'} суммы ${label ? 'транша' : 'кредита'}. Скорректируйте строки или «Построить график».</span></div>`
+    : '';
+  const dis = _schedSel == null ? 'disabled' : '';
+  const toolbar = canEdit ? `<div class="t1-rowtools">
+      <button class="btn btn-rowadd btn-sm" onclick="schedBuild()">Построить график</button>
+      <button class="btn btn-rowadd btn-sm" onclick="schedAddRow()">Добавить строку</button>
+      <button class="btn btn-rowadd btn-sm" ${dis} onclick="schedEditRow()">Изменить строку</button>
+      <button class="btn btn-rowdel btn-sm" ${dis} onclick="schedDelRow()">Удалить строку</button>
+    </div>` : '';
+  const body = rows.map((r, i) => `<tr class="${i === _schedSel ? 'sel' : ''}"${canEdit ? ` onclick="schedSel(${i})"` : ''}>
+    <td>${r.k}${r.man ? ' <span class="sched-man" title="Правлено вручную">✎</span>' : ''}</td>
+    <td>${r.start}</td><td>${r.pay}</td><td>${r.days}</td><td>${_fmt(r.rate)}</td>
     <td>${_fmt(r.open)}</td><td>${_fmt(r.interest)}</td><td>${_fmt(r.principal)}</td>
-    <td>${_fmt(r.basePay)}</td><td>${_fmt(r.nadb)}</td><td><b>${_fmt(r.total)}</b></td><td>${_fmt(r.close)}</td>
+    <td><b>${_fmt(r.total)}</b></td><td>${_fmt(r.close)}</td>
   </tr>`).join('');
-  return `<div class="t1-wrap">
-    <div class="t1-status-line">График рассчитан по условиям заявки: сумма ${_fmt(sch.meta.P)}, срок ${sch.meta.m} мес., ставка ${_fmt(sch.meta.rate)}%, платежей — ${sch.meta.n}.</div>
-    ${graceNote}
-    <div class="collgrid t1-grid sched">
-      <table>
-        <thead><tr>
-          <th>№</th><th>Дата начала</th><th>Дата платежа</th><th>Дней</th><th>Ставка&nbsp;%</th>
-          <th>Остаток на начало</th><th>Проценты</th><th>Погашение осн.&nbsp;долга</th>
-          <th>Платёж&nbsp;(базовый)</th><th>Надбавка</th><th>ПЛАТЁЖ&nbsp;ИТОГО</th><th>Остаток на конец</th>
-        </tr></thead>
-        <tbody>${body}</tbody>
-      </table>
-    </div>
-  </div>`;
+  return `${toolbar}
+    <div class="t1-status-line">${status}</div>
+    ${graceNote}${balanceNote}
+    <div class="collgrid t1-grid sched${canEdit ? ' editable' : ''}">
+      <table>${SCHED_HEAD}<tbody>${body}</tbody></table>
+    </div>`;
+}
+
+/* Сводный график группы — read-only слияние по-членных графиков по датам платежей.
+   Тот же 10-колоночный формат, что и у члена; Проценты/Тело/ИТОГО — Σ по членам,
+   Дней/Остатки считаются на уровне группы (Проценты — честная сумма, не open×дней×ставка). */
+function _aggInner(app){
+  const env  = PROG_ENV[app.program] || {};
+  const rate = _num(app.annualRate || env.rate || (PROGRAMS_MAP[app.program]||{}).rate);
+  const members = _membersOf(app);
+  const per = members.map(m => {
+    const ctx = { obj:m, P:_num(m.sum), rate, base:365, issue:m.date };
+    if (m.schedule) return _computeRows(app, ctx);
+    const g = genSchedule(app, { P:ctx.P, issue:ctx.issue });
+    return g ? g.rows : [];
+  });
+  const map = new Map();                                   // ru-дата → Σ{interest, principal, total}
+  per.forEach(rows => rows.forEach(r => {
+    const e = map.get(r.pay) || { interest:0, principal:0, total:0 };
+    e.interest += r.interest; e.principal += r.principal; e.total += r.total; map.set(r.pay, e);
+  }));
+  const dates = [...map.keys()].sort((a, b) => _pD(a) - _pD(b));
+  const totalP = members.reduce((s, m) => s + _num(m.sum), 0);
+  if (!dates.length) return _schedInsufficientBody();
+  const issues = members.map(m => _pD(m.date)).filter(Boolean);
+  let start = issues.length ? new Date(Math.min(...issues.map(d => d.getTime()))) : _pD(ISSUE_DATE);
+  let open = totalP;
+  const body = dates.map((d, i) => {
+    const e = map.get(d), pay = _pD(d);
+    const days  = Math.max(0, Math.round((pay - start) / 86400000));
+    const close = +(open - e.principal).toFixed(2);
+    const row = `<tr>
+      <td>${i + 1}</td><td>${_fD(start)}</td><td>${d}</td><td>${days}</td><td>${_fmt(rate)}</td>
+      <td>${_fmt(open)}</td><td>${_fmt(e.interest)}</td><td>${_fmt(e.principal)}</td>
+      <td><b>${_fmt(e.total)}</b></td><td>${_fmt(close)}</td>
+    </tr>`;
+    open = close; start = pay;
+    return row;
+  }).join('');
+  const status = `Сводный график группы: ${members.length} чл., сумма ${_fmt(totalP)}, платёжных дат — ${dates.length}. Свод считается из графиков членов; правка — на вкладке члена.`;
+  return `<div class="t1-status-line">${status}</div>
+    <div class="collgrid t1-grid sched aggr">
+      <table>${SCHED_HEAD}<tbody>${body}</tbody></table>
+    </div>`;
+}
+function _schedInsufficientBody(){
+  return `<div style="padding:30px 4px;color:var(--text-muted);font:var(--font-label)">
+    Недостаточно данных для расчёта (нужны сумма, срок, ставка).</div>`;
 }
 PANEL_RENDER['tab-1'] = renderSchedule;
+
+/* ---- Хендлеры тулбара графика (работают над владельцем = app | выбранный член) ---- */
+function _rerenderSched(){ if (_detailApp) document.getElementById('tab-1').innerHTML = renderSchedule(_detailApp); }
+function _schedAudit(app, event, from, to){
+  const cap = can(app);
+  if (!(cap.phase === 'locked' && _role === 'com')) return;   // аудит-след только пост-одобрение
+  (app.schedEdits = app.schedEdits || []).push({ user:'[commission]', event, from:from || '', to:to || '' });
+}
+/* Префикс события аудита именем члена (групповой) — чтобы след различал графики. */
+function _schedWho(app){
+  return (app.isGroup && typeof _schedView === 'number')
+    ? _shortFio(_membersOf(app)[_schedView].fio) + ': ' : '';
+}
+/* Переключить вид графика (член | свод). Сбрасывает выделение строки. */
+function schedView(v){ _schedView = v; _schedSel = null; _rerenderSched(); }
+function schedSel(i){ _schedSel = (_schedSel === i ? null : i); _rerenderSched(); }
+function schedBuild(){
+  const app = _detailApp, ctx = _schedCtx(app);
+  if (!ctx) return;                                         // свод «Вся группа» не строится
+  const owner = ctx.obj;
+  if (owner.scheduleManual && !confirm('Пересобрать график по условиям? Ручные правки будут потеряны.')) return;
+  if (!genSchedule(app, { P:ctx.P, issue:ctx.issue })){ alert('Недостаточно данных для построения (нужны сумма, срок, ставка).'); return; }
+  _seedSchedule(app, ctx); owner.scheduleManual = false; _schedSel = null;
+  _schedAudit(app, _schedWho(app) + 'Пересобран график погашения по условиям', '', '');
+  _rerenderSched();
+}
+function schedAddRow(){
+  const app = _detailApp, ctx = _schedCtx(app);
+  if (!ctx) return;
+  const owner = ctx.obj;
+  if (!owner.schedule) _seedSchedule(app, ctx);
+  const at = _schedSel == null ? owner.schedule.length : _schedSel + 1;
+  const env = PROG_ENV[app.program] || {};
+  const f   = FREQ_F[app.paymentFrequency || env.freq || 'Ежемесячно'] || 1;
+  const payDay = parseInt(app.paymentDay || 15, 10);
+  const prev = owner.schedule[at - 1];                     // строка, ПОСЛЕ которой вставляем
+  const baseDate = prev ? _pD(prev.pay) : _pD(ctx.issue);  // первая строка → дата выдачи/освоения
+  const nextPay = _fD(_addM(baseDate, f, payDay));         // дата = пред. + 1 период
+  owner.schedule.splice(at, 0, { pay:nextPay, principal:'0,00', man:true });
+  owner.scheduleManual = true; _schedSel = at;
+  _schedAudit(app, _schedWho(app) + 'Добавлена строка графика', '', '№ ' + (at + 1) + ' · ' + nextPay);
+  _rerenderSched();
+  schedEditRow();                                          // сразу открыть модалку для ввода суммы
+}
+function schedDelRow(){
+  const app = _detailApp, ctx = _schedCtx(app);
+  if (!ctx || _schedSel == null || !ctx.obj.schedule) return;
+  const owner = ctx.obj;
+  if (owner.schedule.length <= 1){ alert('Нельзя удалить единственную строку графика.'); return; }
+  const k = _schedSel + 1;
+  owner.schedule.splice(_schedSel, 1); owner.scheduleManual = true;
+  _schedAudit(app, _schedWho(app) + 'Удалена строка графика', '№ ' + k, '');
+  _schedSel = null; _rerenderSched();
+}
+function schedEditRow(){
+  const app = _detailApp, ctx = _schedCtx(app);
+  if (!ctx || _schedSel == null || !ctx.obj.schedule) return;
+  const r = ctx.obj.schedule[_schedSel];
+  document.getElementById('sched-row-no').textContent = '№ ' + (_schedSel + 1);
+  document.getElementById('sched-f-pay').value = _ruToISO(r.pay);   // ru «дд.мм.гггг» → ISO для <input type=date>
+  document.getElementById('sched-f-principal').value = r.principal;
+  openModal('modal-sched-row');
+}
+function schedRowSave(){
+  const app = _detailApp, ctx = _schedCtx(app);
+  if (!ctx || _schedSel == null || !ctx.obj.schedule) return;
+  const owner = ctx.obj, r = owner.schedule[_schedSel];
+  const isoPay = document.getElementById('sched-f-pay').value.trim();
+  const nv = {
+    pay:       isoPay ? _isoToRu(isoPay) : r.pay,   // ISO из <input type=date> → ru; пусто → старая дата
+    principal: document.getElementById('sched-f-principal').value.trim(),
+  };
+  const k = '№ ' + (_schedSel + 1), who = _schedWho(app);
+  if (r.pay !== nv.pay)             _schedAudit(app, who + 'Изменена дата платежа (' + k + ')', r.pay, nv.pay);
+  if (r.principal !== nv.principal) _schedAudit(app, who + 'Изменено погашение осн. долга (' + k + ')', r.principal, nv.principal);
+  Object.assign(r, nv, { man:true });
+  owner.scheduleManual = true;
+  closeModal('modal-sched-row');
+  _rerenderSched();
+}
 
 /* ============================================================
    CHECKPOINT 4: Вкладка «Документы» (to-be)
@@ -3748,40 +4086,160 @@ function setMemberDate(i, v){
   if (members[i]) members[i].date = _isoToRu(v);   // ISO из <input type=date> → ru «дд.мм.гггг»
   showTab('tab-3');
 }
+/* Дата выдачи кредита (индивидуальный) — от неё считается 1-я «Дата начала» графика. */
+function setIssueDate(iso){
+  if (!_detailApp) return;
+  _detailApp.issueDate = iso ? _isoToRu(iso) : '';   // ISO → ru; пусто → откат к ISSUE_DATE в _schedCtx
+}
 
 /* «Залог» (tab-4) — только при залоговой программе.
    Предмет(ы): вид (из разрешённых программой) · оценочная стоимость · описание;
    несколько предметов + коэффициент покрытия. Залоговые документы — во вкладке «Документы». */
 const COLLATERAL_KINDS = ['Недвижимость', 'Транспортное средство', 'Оборудование', 'Товары в обороте'];
+/* Разрешённые виды залога — из программы (app.collKinds). Fallback — полный справочник. */
+function _collKinds(app){ return (app && app.collKinds && app.collKinds.length) ? app.collKinds : COLLATERAL_KINDS; }
+/* Минимальный коэффициент покрытия — из программы (P2-R24, как границы группы). Демо-значение. */
+const MIN_COVERAGE = 120;   // Σ оценок ÷ сумма кредита ≥ 120%
+
+/* Персистентное состояние предметов залога на объекте заявки — правки/add/delete
+   живут между перерисовками. Инициализируется лениво демо-набором. */
+function _collateralOf(app){
+  if (!app._collateral){
+    app._collateral = [
+      { kind:'Недвижимость',          val:3000000, owner:'00404202510209 - ОсОО "Хот Лэйк Текстиль"', desc:'Складское помещение, 420 м², г. Бишкек' },
+      { kind:'Транспортное средство', val:800000,  owner:'21812199600888 - БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ', desc:'Грузовой автомобиль, 2021 г.' },
+    ];
+  }
+  return app._collateral;
+}
+let _collSel = null;   // индекс выделенной строки (для «Удалить»)
+
 function renderCollateral(app){
   const editable = can(app).editReq;   // правит кредитный специалист в draft
-  const items = [
-    { kind:'Недвижимость',          val:'3 000 000,00', desc:'Складское помещение, 420 м², г. Бишкек' },
-    { kind:'Транспортное средство', val:'800 000,00',   desc:'Грузовой автомобиль, 2021 г.' },
-  ];
+  const kinds = _collKinds(app);       // допустимые виды залога — из программы
+  const items = _collateralOf(app);
   const sum = items.reduce((s, it) => s + _num(it.val), 0);
   const credit = _num(app.approvedAmount || app.amount);
   const cov = credit > 0 ? Math.round(sum / credit * 100) : 0;
-  const covOk = cov >= 100;
+  const covOk = cov >= MIN_COVERAGE;
+  const hasItems = items.length > 0;
+
   const tools = editable
     ? `<div class="tab-toolrow">
-        <button class="btn btn-rowadd btn-sm" onclick="toolbarAction('Добавить предмет залога')">Добавить предмет</button>
-        <button class="btn btn-rowdel btn-sm" disabled>Удалить</button></div>`
+        <button class="btn btn-rowadd btn-sm" onclick="addCollItem()">Добавить предмет</button>
+        <button class="btn btn-rowdel btn-sm" onclick="delCollItem()"${_collSel === null ? ' disabled' : ''}>Удалить</button></div>`
     : '';
-  const rows = items.map(it => `<tr>
-    <td>${it.kind}</td><td class="num">${it.val}</td><td>${it.desc}</td></tr>`).join('');
+
+  const kindCell = (it, i) => editable
+    ? `<select class="coll-inp" onclick="event.stopPropagation()" onchange="setCollField(${i},'kind',this.value)">
+        ${kinds.map(k => `<option${k === it.kind ? ' selected' : ''}>${k}</option>`).join('')}</select>`
+    : it.kind;
+  const valCell = (it, i) => editable
+    ? `<input class="coll-inp num" onclick="event.stopPropagation()" value="${_fmt(_num(it.val))}" onchange="setCollField(${i},'val',this.value)">`
+    : _fmt(_num(it.val));
+  const ownerCell = (it, i) => editable
+    ? `<div class="lookup coll-lk" onclick="event.stopPropagation()">
+        <span class="val${it.owner ? ' filled' : ''}">${it.owner || '—'}</span>
+        <button class="pick" type="button" title="Выбрать из реестра субъектов" onclick="pickCollOwnerRow(${i})">•••</button>
+        ${it.owner ? `<button type="button" title="Очистить" onclick="setCollField(${i},'owner','')">×</button>` : ''}
+      </div>`
+    : (it.owner || '—');
+  const descCell = (it, i) => editable
+    ? `<input class="coll-inp" onclick="event.stopPropagation()" value="${it.desc || ''}" onchange="setCollField(${i},'desc',this.value)">`
+    : (it.desc || '—');
+
+  const rows = hasItems
+    ? items.map((it, i) => `<tr${i === _collSel ? ' class="sel"' : ''} onclick="selCollRow(${i})">
+        <td>${kindCell(it, i)}</td><td class="num">${valCell(it, i)}</td>
+        <td>${ownerCell(it, i)}</td><td>${descCell(it, i)}</td></tr>`).join('')
+    : `<tr><td colspan="4" style="color:var(--text-muted);text-align:center;padding:20px">Предметов залога нет${editable ? ' — добавьте хотя бы один' : ''}.</td></tr>`;
+
+  const gate = !hasItems
+    ? `<div class="note-banner warn"><span>Отправка в комиссию заблокирована: не указан ни один предмет залога.</span></div>`
+    : covOk
+      ? `<div class="note-banner"><span>Обеспечение достаточно: коэффициент покрытия <b>${cov}%</b> ≥ порога <b>${MIN_COVERAGE}%</b> (${_fmt(sum)} ÷ ${_fmt(credit)}). Заявку можно отправить в комиссию.</span></div>`
+      : `<div class="note-banner warn"><span>Отправка в комиссию заблокирована: коэффициент покрытия <b>${cov}%</b> ниже порога программы <b>${MIN_COVERAGE}%</b> (${_fmt(sum)} ÷ ${_fmt(credit)}).</span></div>`;
+
   return `<div class="cond2-wrap">
     <div class="section-h">Залоговое обеспечение</div>
-    <div class="tab-note">Вид залога — из разрешённых <b>программой</b> (${COLLATERAL_KINDS.join(' · ')}). Допускается несколько предметов. Залоговые <b>документы</b> — во вкладке «Документы» (не дублируются здесь). Проверяет та же единственная комиссия.</div>
+    <div class="tab-note">Вид залога — из разрешённых <b>программой</b> (${kinds.join(' · ')}). Допускается несколько предметов; минимальный коэффициент покрытия — из программы (демо ${MIN_COVERAGE}%). Залоговые <b>документы</b> (оценка, правоустанавливающие) — во вкладке «Документы» (не дублируются здесь). Проверяет та же единственная комиссия.</div>
     ${tools}
     <div class="collgrid num-grid"><table>
-      <thead><tr><th>Вид залога</th><th class="num">Оценочная стоимость</th><th>Описание</th></tr></thead>
+      <thead><tr><th>Вид залога</th><th class="num">Оценочная стоимость</th><th>Собственник</th><th>Описание</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
     <div class="grid-total"><span class="k">Σ оценок:</span> ${_fmt(sum)}</div>
-    <div class="note-banner ${covOk ? '' : 'warn'}" style="margin-top:12px"><span>Коэффициент покрытия = Σ оценок ÷ сумма кредита = <b>${cov}%</b> (${_fmt(sum)} ÷ ${_fmt(credit)}).</span></div>
+    <div style="margin-top:12px">${gate}</div>
   </div>`;
 }
 PANEL_RENDER['tab-4'] = renderCollateral;
+
+/* ── Live add/delete/правки предметов залога ── */
+/* «Добавить предмет» → модалка с полями (вид из разрешённых программой). */
+let _collOwnerPick = '';   // выбранный в модалке собственник (значение реестра «ПИН - ФИО»)
+function _setOwnerLabel(v){
+  const el = document.getElementById('coll-f-owner');
+  el.textContent = v || 'Субъект из реестра…';
+  el.classList.toggle('filled', !!v);
+}
+function addCollItem(){
+  const sel = document.getElementById('coll-f-kind');
+  sel.innerHTML = _collKinds(_detailApp).map(k => `<option>${k}</option>`).join('');
+  document.getElementById('coll-f-val').value  = '';
+  document.getElementById('coll-f-desc').value = '';
+  _collOwnerPick = ''; _setOwnerLabel('');
+  document.getElementById('coll-fld-kind').classList.remove('invalid');
+  document.getElementById('coll-fld-val').classList.remove('invalid');
+  openModal('modal-coll-item');
+}
+/* Собственник — из реестра субъектов (тот же пикер, что заёмщик/член группы). */
+function pickCollOwner(){
+  _subjectPickTarget = 'collowner';
+  document.getElementById('modal-pick-subject').style.zIndex = 60;   // поверх модалки предмета
+  openModal('modal-pick-subject');
+}
+function clearCollOwner(){ _collOwnerPick = ''; _setOwnerLabel(''); }
+/* Валидация + сохранение нового предмета из модалки. */
+function collItemSave(){
+  const kind  = document.getElementById('coll-f-kind').value;
+  const val   = _num(document.getElementById('coll-f-val').value);
+  const owner = _collOwnerPick;
+  const desc  = document.getElementById('coll-f-desc').value.trim();
+  const badKind = !_collKinds(_detailApp).includes(kind);
+  const badVal  = !(val > 0);
+  document.getElementById('coll-fld-kind').classList.toggle('invalid', badKind);
+  document.getElementById('coll-fld-val').classList.toggle('invalid', badVal);
+  if (badKind || badVal){ showToast('Заполните обязательные поля предмета залога', 'warn'); return; }
+  _collateralOf(_detailApp).push({ kind, val, owner, desc });
+  _collSel = null;
+  closeModal('modal-coll-item');
+  showTab('tab-4');
+  showToast('Предмет залога добавлен: ' + kind, 'ok');
+}
+function selCollRow(i){
+  _collSel = (_collSel === i) ? null : i;   // повторный клик снимает выделение
+  showTab('tab-4');
+}
+function delCollItem(){
+  if (_collSel === null) return;
+  const items = _collateralOf(_detailApp);
+  const it = items[_collSel];
+  if (!it){ _collSel = null; showTab('tab-4'); return; }
+  items.splice(_collSel, 1);
+  _collSel = null;
+  showTab('tab-4');
+  showToast('Предмет залога удалён' + (it.kind ? ': ' + it.kind : ''), 'info');
+}
+function setCollField(i, field, v){
+  const items = _collateralOf(_detailApp);
+  if (!items[i]) return;
+  items[i][field] = field === 'val' ? _num(v) : field === 'enc' ? (v === '1') : v;
+  showTab('tab-4');   // пересчёт Σ / покрытия / гейта
+}
+/* Пикер собственника для существующей строки таблицы. */
+function pickCollOwnerRow(i){
+  _subjectPickTarget = 'collrow:' + i;
+  openModal('modal-pick-subject');   // модалки предмета нет → z-index не нужен
+}
 
 /* ============================================================
    CHECKPOINT 7: Вкладка «История» (to-be) — аудит-журнал (P3-16)
@@ -3822,6 +4280,9 @@ function buildHistory(app){
   if (['На оформлении','Оформлена'].includes(st)) push('[operator]', 'Сформирован кредит · изменён статус', 'Одобрена', 'На оформлении');
   if (st === 'Оформлена') push('[operator]', 'Договоры зарегистрированы у нотариуса · изменён статус', 'На оформлении', 'Оформлена');
   if (st === 'Отозвана') push('[specialist]', 'Заявка отозвана · изменён статус', 'Новый', 'Отозвана');
+
+  // Аудит-след ручной правки графика после одобрения (роль «Комиссия», фаза locked) — P3-16/P3-R13
+  (app.schedEdits || []).forEach(e => push(e.user, e.event, e.from, e.to));
 
   return ev.reverse();   // по времени убыв.
 }
@@ -4026,6 +4487,15 @@ function applyPick(kind){
   if (!d) return;                       // нет выделенной строки — как в живой, «Выбрать» без выбора ничего не делает
   if (kind === 'subject'){
     if (_subjectPickTarget === 'member'){ _subjectPickTarget = 'borrower'; addGroupMember(d.val); }
+    else if (_subjectPickTarget === 'collowner'){   // собственник в модалке предмета
+      _collOwnerPick = d.val; _setOwnerLabel(d.val);
+      _subjectPickTarget = 'borrower'; closeModal('modal-pick-subject');
+    }
+    else if (_subjectPickTarget.startsWith('collrow:')){   // собственник существующей строки
+      const i = +_subjectPickTarget.slice(8);
+      _subjectPickTarget = 'borrower'; closeModal('modal-pick-subject');
+      setCollField(i, 'owner', d.val);
+    }
     else selectSubject(d.val, d.addr || '');
   }
   else if (kind === 'program') selectProgram(d.val);
