@@ -8,8 +8,21 @@
   MOCKUP (single-file, interactive) — точная as-is копия живого раздела
   «Комиссии по заявкам» (/loan-application-commissions).
   Источник: тест-стенд https://fkftest.okmot.kg/loan-application-commissions,
-  сверка 2026-07-07 (scripts/inspect/commission-sverka*.mjs;
-  скриншоты .auth/commission-list-live.png, .auth/commission-edit-138.png).
+  сверка 2026-07-07 + попиксельная clone-сверка 2026-07-08
+  (scripts/inspect/commission-sverka*.mjs, commission-clone-dump.mjs, commission-confirm-btns.mjs;
+  скриншоты .auth/commission-*-live.png, .auth/commission-dlg-*.png).
+
+  Уточнено clone-сверкой 2026-07-08 (по live DOM-дампу):
+  - sidebar «Приложение» = Подразделения…LoanLedger (7 пунктов; нет «Группа
+    платёжеспособности»/«Передача материалов» — они в др. разделах);
+  - Редактор «Состав комиссии» = 4 колонки (Роль, Сотрудник, Решение, Дата отзыва);
+  - ячейки грид-таблиц nowrap+ellipsis (ФИО обрезается, как в Vaadin grid);
+  - «Комментарии членов комиссии» — пустая карточка без текста-плейсхолдера;
+  - гриды Состав/Документы/Члены — высота ~280px с пустым местом внутри рамки;
+  - диалог «Ваш отзыв» — широкий (~1280px), 2 колонки (Решение|Риск, Комментарий|Файл),
+    заголовок с ×, OK primary+✓ / Отмена tertiary+⊘ (bg rgba(25,59,103,.05));
+  - диалог «Подтверждение» — кнопки ✓ Да / ⊘ Отмена tertiary, выровнены вправо;
+  - иконка календаря — серый монохромный SVG (как Vaadin), не emoji.
 
   Три экрана + диалоги:
   - СПИСОК: фильтр + 5 плиток + грид (2 строки: 139 «Одобрено», 138 «На рассмотрении»)
@@ -135,6 +148,9 @@ a{ color:inherit; }
 .fdate{ display:flex; }
 .fdate .control:first-child input{ border-top-right-radius:0; border-bottom-right-radius:0; }
 .fdate .control:last-child input{ border-top-left-radius:0; border-bottom-left-radius:0; }
+.control.icn input{ padding-right:30px; }
+.control .ctl-icon{ position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  display:flex; color:var(--text-muted); pointer-events:none; }
 
 /* ---- stat cards ---- */
 .statcards-row{ display:flex; gap:12px; padding:6px 20px 12px; flex-wrap:wrap; }
@@ -192,8 +208,9 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
   border-right:2px solid var(--text-muted); border-bottom:2px solid var(--text-muted);
   transform:translateY(-70%) rotate(45deg); }
 .ro-field.date .roval{ position:relative; padding-right:30px; }
-.ro-field.date .roval::after{ content:"📅"; position:absolute; right:10px; top:50%;
-  transform:translateY(-50%); font-size:15px; opacity:.55; }
+.ro-field.date .roval::after{ content:""; position:absolute; right:10px; top:50%;
+  transform:translateY(-50%); width:16px; height:16px; opacity:.7;
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2394a0ae' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'><rect x='3' y='4' width='18' height='18' rx='2'/><line x1='16' y1='2' x2='16' y2='6'/><line x1='8' y1='2' x2='8' y2='6'/><line x1='3' y1='10' x2='21' y2='10'/></svg>") no-repeat center/16px; }
 .btn-view-app{ height:var(--control-h); align-self:flex-end; background:var(--asubk-disabled-fill);
   border:none; border-radius:var(--radius-md); color:var(--text-link); cursor:pointer;
   font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); }
@@ -240,13 +257,15 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 /* ---- members / docs tables ---- */
 .section-h{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:4px 0 14px; }
 .section-h.big{ font-size:22px; }
-.mtable{ width:100%; border-collapse:collapse; font:var(--font-label);
+.mtable{ width:100%; border-collapse:collapse; font:var(--font-label); table-layout:fixed;
   border:1px solid var(--border-default); border-radius:var(--radius-md); }
 .mtable thead th{ text-align:left; padding:11px 12px; background:var(--surface-card);
   border-bottom:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
   color:var(--text-heading); white-space:nowrap; }
 .mtable thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; font-weight:var(--weight-regular); }
-.mtable tbody td{ padding:12px; border-bottom:1px solid var(--border-default); color:var(--text-body); vertical-align:middle; }
+.mtable tbody td{ padding:12px; border-bottom:1px solid var(--border-default); color:var(--text-body); vertical-align:middle;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mtable thead th{ overflow:hidden; text-overflow:ellipsis; }
 .mtable tbody tr:last-child td{ border-bottom:none; }
 .mtable.tall tbody{ }
 .eye-btn{ float:right; width:64px; height:30px; border:none; border-radius:var(--radius-md);
@@ -280,7 +299,8 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
   box-shadow:0 0 0 3px var(--asubk-blue-tint); }
 .ed-input.date input{ background-image:linear-gradient(transparent,transparent); }
 .ed-input.date{ position:relative; }
-.ed-input.date::after{ content:"📅"; position:absolute; right:10px; bottom:8px; font-size:15px; opacity:.55; pointer-events:none; }
+.ed-input.date::after{ content:""; position:absolute; right:10px; bottom:10px; width:16px; height:16px; opacity:.7; pointer-events:none;
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2394a0ae' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'><rect x='3' y='4' width='18' height='18' rx='2'/><line x1='16' y1='2' x2='16' y2='6'/><line x1='8' y1='2' x2='8' y2='6'/><line x1='3' y1='10' x2='21' y2='10'/></svg>") no-repeat center/16px; }
 .ed-input textarea{ min-height:150px; padding:10px 12px; resize:vertical; }
 .note-ro{ min-height:90px; padding:10px 12px; background:var(--surface-card); border:1px solid var(--border-strong);
   border-radius:var(--radius-md); color:var(--text-body); font:var(--font-body); }
@@ -305,9 +325,19 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .overlay.open{ display:flex; }
 .dialog{ background:var(--surface-card); border-radius:var(--radius-lg); box-shadow:0 12px 40px rgba(16,32,58,0.28);
   width:min(520px,92vw); max-height:88vh; overflow:auto; }
-.dialog.narrow{ width:min(420px,92vw); }
-.dlg-head{ padding:18px 22px 6px; font:var(--weight-semibold) var(--text-lg)/1.2 var(--asubk-font); color:var(--text-heading); }
+.dialog.narrow{ width:min(400px,92vw); }
+.dialog.wide{ width:min(1280px,90vw); }
+.dlg-head{ position:relative; padding:18px 22px 6px; font:var(--weight-semibold) var(--text-lg)/1.2 var(--asubk-font); color:var(--text-heading); }
+.dlg-close{ position:absolute; top:16px; right:16px; width:28px; height:28px; border:none; background:transparent;
+  color:var(--asubk-ink); cursor:pointer; display:flex; align-items:center; justify-content:center; border-radius:var(--radius-md); font-size:18px; }
+.dlg-close:hover{ background:rgba(24,39,57,0.06); }
 .dlg-body{ padding:10px 22px 6px; display:flex; flex-direction:column; gap:14px; }
+.dlg-body.two{ display:grid; grid-template-columns:1fr 1fr; gap:14px 24px; padding:12px 16px 6px; }
+.dlg-body.two .field.col-comment{ grid-row:2; grid-column:1; }
+.dlg-body.two .field.col-file{ grid-row:2; grid-column:2; align-self:start; }
+.dlg-body.two textarea{ min-height:150px; }
+.btn-tertiary{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none; }
+.btn-tertiary:hover:not(:disabled){ background:rgba(25,59,103,0.10); }
 .dlg-body .field .flabel{ font:var(--font-label); color:var(--text-muted); margin-bottom:4px; display:block; }
 .dlg-body input, .dlg-body select, .dlg-body textarea{ width:100%; border:1px solid var(--border-strong);
   border-radius:var(--radius-md); font:var(--font-body); color:var(--text-body); outline:none; background:var(--surface-card); }
@@ -318,6 +348,7 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .file-row .fake-file{ color:var(--text-muted); font:var(--font-label); }
 .dlg-msg{ padding:14px 22px 2px; font:var(--font-body); color:var(--text-body); }
 .dlg-foot{ padding:14px 22px 18px; display:flex; justify-content:flex-start; gap:10px; }
+.dlg-foot.right{ justify-content:flex-end; }
 </style>
 </head>
 <body>
@@ -353,8 +384,8 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
             <div class="control"><select><option value=""></option><option>На рассмотрении</option><option>Одобрено</option><option>Отклонено</option><option>Требуется доп. информация</option></select></div></div>
           <div class="field"><span class="flabel">Дата создания &lt;=</span>
             <div class="fdate">
-              <div class="control"><input type="text" placeholder="" style="width:150px"></div>
-              <div class="control"><input type="text" placeholder="" style="width:150px"></div>
+              <div class="control icn"><input type="text" placeholder="" style="width:150px"><span class="ctl-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span></div>
+              <div class="control icn"><input type="text" placeholder="" style="width:150px"><span class="ctl-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span></div>
             </div></div>
           <div class="field"><span class="flabel">ИНН содержит</span><div class="control"><input type="text"></div></div>
           <div class="field"><span class="flabel">ФИО содержит</span><div class="control"><input type="text"></div></div>
@@ -394,8 +425,8 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
         <div class="grid-wrap">
           <table class="grid">
             <colgroup>
-              <col style="width:14%"><col style="width:11%"><col style="width:19%"><col style="width:7%">
-              <col style="width:14%"><col style="width:9%"><col style="width:8%"><col style="width:10%"><col style="width:8%">
+              <col style="width:13%"><col style="width:10%"><col style="width:15%"><col style="width:9%">
+              <col style="width:12%"><col style="width:10%"><col style="width:12%"><col style="width:11%"><col style="width:8%">
             </colgroup>
             <thead><tr>
               <th>№ <span class="sort">⇅</span></th>
@@ -478,6 +509,7 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
             <div class="card">
               <h3 class="section-h">Члены комиссии</h3>
               <table class="mtable">
+                <colgroup><col style="width:15%"><col style="width:23%"><col style="width:14%"><col style="width:16%"><col style="width:16%"><col style="width:120px"></colgroup>
                 <thead><tr>
                   <th>Роль <span class="sort">⇅</span></th>
                   <th>Сотрудник <span class="sort">⇅</span></th>
@@ -542,6 +574,7 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
               </div>
               <div class="grid-scroll">
                 <table class="mtable">
+                  <colgroup><col style="width:24%"><col style="width:40%"><col style="width:18%"><col style="width:18%"></colgroup>
                   <thead><tr>
                     <th>Роль <span class="sort">⇅</span></th>
                     <th>Сотрудник <span class="sort">⇅</span></th>
@@ -557,6 +590,7 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
               <h3 class="section-h big">Документы</h3>
               <div class="grid-scroll">
                 <table class="mtable">
+                  <colgroup><col style="width:33%"><col style="width:33%"><col style="width:34%"></colgroup>
                   <thead><tr>
                     <th>Файл <span class="sort">⇅</span></th>
                     <th>Размер файла <span class="sort">⇅</span></th>
@@ -571,7 +605,7 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
           <!-- Комментарии членов комиссии -->
           <div class="card">
             <h3 class="section-h big">Комментарии членов комиссии</h3>
-            <p style="color:var(--text-muted); margin:4px 0 0">Комментарии отсутствуют.</p>
+            <div style="min-height:28px"></div>
           </div>
 
           <!-- Финальное решение (Председатель комиссии) -->
@@ -617,19 +651,25 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 <!-- ============ DIALOGS ============ -->
 <!-- Проголосовать → «Ваш отзыв» -->
 <div class="overlay" id="ovVote">
-  <div class="dialog">
-    <div class="dlg-head">Ваш отзыв</div>
-    <div class="dlg-body">
+  <div class="dialog wide">
+    <div class="dlg-head">Ваш отзыв
+      <button class="dlg-close" title="Закрыть" onclick="closeOverlay('ovVote')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body two">
       <div class="field"><span class="flabel">Решение</span><select><option value=""></option></select></div>
       <div class="field"><span class="flabel">Риск</span><select><option value=""></option></select></div>
-      <div class="field"><span class="flabel">Комментарий</span><textarea></textarea></div>
-      <div class="field"><span class="flabel">Файл</span>
-        <div class="file-row"><button class="btn btn-secondary">Загрузить</button><span class="fake-file">Файл не выбран</span></div>
+      <div class="field col-comment"><span class="flabel">Комментарий</span><textarea></textarea></div>
+      <div class="field col-file"><span class="flabel">Файл</span>
+        <div class="file-row"><button class="btn btn-tertiary">Загрузить</button><span class="fake-file">Файл не выбран</span></div>
       </div>
     </div>
     <div class="dlg-foot">
-      <button class="btn btn-primary" onclick="closeOverlay('ovVote')">OK</button>
-      <button class="btn-close" onclick="closeOverlay('ovVote')">Отмена</button>
+      <button class="btn btn-primary" onclick="closeOverlay('ovVote')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>OK</button>
+      <button class="btn btn-tertiary" onclick="closeOverlay('ovVote')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>Отмена</button>
     </div>
   </div>
 </div>
@@ -639,9 +679,11 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
   <div class="dialog narrow">
     <div class="dlg-head">Подтверждение</div>
     <div class="dlg-msg" id="confirmMsg">Вы уверены?</div>
-    <div class="dlg-foot">
-      <button class="btn btn-primary" onclick="confirmYes()">Да</button>
-      <button class="btn-close" onclick="closeOverlay('ovConfirm')">Отмена</button>
+    <div class="dlg-foot right">
+      <button class="btn btn-tertiary" onclick="confirmYes()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Да</button>
+      <button class="btn btn-tertiary" onclick="closeOverlay('ovConfirm')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>Отмена</button>
     </div>
   </div>
 </div>
@@ -650,7 +692,7 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 /* ============ SIDEBAR NAV (дерево живого стенда, 2026-07-05) ============ */
 const TREE = [
   { id:"app", label:"Приложение", open:true, subs:[
-    { headerless:true, items:["Подразделения","Сотрудники подразделения","Освоение","Резерв","Платеж","Список Траншей","LoanLedger","Группа платежоспособности","Передача материалов между подразделениями"] } ]},
+    { headerless:true, items:["Подразделения","Сотрудники подразделения","Освоение","Резерв","Платеж","Список Траншей","LoanLedger"] } ]},
   { id:"k", label:"Система кредитования", subs:[
     { headerless:true, items:["Решение правительства","Кредитные программы","Заявки","Комиссии по заявкам","Заемщики","Кредиты","Мониторинг залога","Список залоговых договоров","Список предметов залога"] } ]},
   { id:"g", label:"Поручительства", subs:[ { headerless:true, items:["Анкеты поручительств","Поручительствa","Комитет по заявкам"] } ]},
@@ -741,7 +783,8 @@ function openDetail(){
   document.getElementById('cnt-hist').textContent = rec.hist;
   document.getElementById('hist-text').textContent = rec.histText;
   document.getElementById('d-members').innerHTML = rec.members.map(m =>
-    `<tr><td>${m.role}</td><td>${m.emp}</td><td></td><td></td><td></td><td>${eyeSvg}</td></tr>`).join('');
+    `<tr><td>${m.role}</td><td>${m.emp}</td><td></td><td></td><td></td><td>${eyeSvg}</td></tr>`).join('')
+    + '<tr class="empty-rows"><td colspan="6"></td></tr>';
   document.getElementById('d-final').textContent = rec.final;
   document.getElementById('d-prot').textContent = rec.prot;
   document.getElementById('d-datez').textContent = rec.datez;
@@ -761,9 +804,9 @@ function fillEditor(rec){
   document.getElementById('e-tipdoc').textContent = rec.tipDoc;
   document.getElementById('e-zayavka').textContent = rec.zayavka;
   document.getElementById('e-kom').textContent = rec.kom;
-  document.getElementById('e-members').innerHTML = rec.members.length
+  document.getElementById('e-members').innerHTML = (rec.members.length
     ? rec.members.map(m => `<tr><td>${m.role}</td><td>${m.emp}</td><td></td><td></td></tr>`).join('')
-    : `<tr class="empty-rows"><td colspan="4"></td></tr>`;
+    : '') + `<tr class="empty-rows"><td colspan="4"></td></tr>`;
   document.getElementById('e-prot').value = rec.prot;
   document.getElementById('e-datez').value = rec.datez;
   document.getElementById('e-obosn').value = rec.obosn;
