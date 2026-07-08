@@ -1014,6 +1014,14 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .grid-total{ display:flex; justify-content:flex-end; align-items:baseline; gap:12px; padding:12px 4px 0;
   font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-heading); }
 .grid-total .k{ color:var(--text-muted); font-weight:var(--weight-regular); font-size:var(--text-sm); }
+.mem-pin{ color:var(--text-muted); font-variant-numeric:tabular-nums; font-size:12px; margin-right:6px; }
+.mem-sumcell{ display:flex; align-items:center; justify-content:flex-end; gap:10px; }
+.mem-share{ color:var(--text-muted); font-size:12px; font-weight:var(--weight-regular); white-space:nowrap; }
+.mem-share.bad{ color:var(--status-error); font-weight:var(--weight-medium); }
+.mem-inp{ width:150px; padding:4px 8px; border:1px solid var(--border-default,#d0d5dd); border-radius:var(--radius-sm);
+  font:inherit; background:var(--surface-card); color:var(--text-body); }
+.mem-inp.num{ text-align:right; font-variant-numeric:tabular-nums; }
+.mem-inp:focus{ outline:none; border-color:var(--asubk-blue); }
 
 /* ---- Tab «История» (to-be): аудит-журнал ---- */
 .hist-wrap{ padding:14px 20px 20px; max-width:1100px; }
@@ -1849,7 +1857,7 @@ function showView(name){
   window.scrollTo(0,0);
 }
 function openModal(id){ document.getElementById(id).classList.add('open'); }
-function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); if (id === 'modal-pick-subject') _subjectPickTarget = 'borrower'; }
 /* ============================================================
    APPLICATIONS DATASET — ~22 live rows, inspected 2026-06-29
    Rows 1-8: exact data from GRID_HEADER_CELLS dump.
@@ -2591,7 +2599,7 @@ function gotoDetail(num, panel){
      сохраняет текущий _editMode И текущий таб (иначе «Изменить» кидает на 1-й таб). */
   const sameApp = _detailApp && _detailApp.num === num;
   const currentPanel = sameApp ? document.querySelector('.tabbar-tab.active')?.dataset.panel : null;
-  if (!sameApp) { _editMode = false; _condOpenSec = null; _condMonthsOpen = false; }   // др. заявка → аккордеон к дефолту
+  if (!sameApp) { _editMode = false; _condOpenSec = null; _condMonthsOpen = false; _memberSel = null; }   // др. заявка → аккордеон к дефолту, снять выделение члена
   _detailApp = app;
 
   /* Header band */
@@ -3590,35 +3598,136 @@ PANEL_RENDER['tab-6'] = renderCommission;
    ============================================================ */
 
 /* «Члены группы» (tab-3) — только при групповой программе.
-   По члену: ФИО · сумма · дата освоения; сумма заявки = ∑ сумм членов.
+   МОДЕЛЬ: зонтичный batch (не солидарная группа) — 1 кредит / N траншей,
+   члены независимы, каждый отвечает только за свой транш; joint-liability
+   и лидера группы НЕТ (осознанно, YAGNI). Субъект — из реестра заёмщиков.
+   По члену: субъект · сумма транша · планируемая дата освоения.
+   Сумма кредита = ∑ траншей членов (направление снизу вверх, ведущее).
+   Границы (размер группы, макс. доля на члена) — из программы (P2-R24).
    Кредит/транши рождаются после одобрения; заявка несёт будущие транши. */
+/* Границы группы — читаются из программы (P2-R24). Демо-значения. */
+const GROUP_MIN = 3, GROUP_MAX = 10, MAX_SHARE = 40;   // размер 3–10, макс. доля члена 40%
+
+/* Дата: хранение в ru «дд.мм.гггг», <input type="date"> требует ISO «гггг-мм-дд». */
+function _ruToISO(d){ const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(String(d).trim()); return m ? `${m[3]}-${m[2]}-${m[1]}` : ''; }
+function _isoToRu(d){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d).trim()); return m ? `${m[3]}.${m[2]}.${m[1]}` : '—'; }
+
+/* Персистентное состояние членов на объекте заявки — чтобы add/delete/правки жили
+   между перерисовками. Инициализируется лениво из демо-сплита 40/35/25. */
+function _membersOf(app){
+  if (!app._members){
+    const P = _num(app.amount);
+    const a = Math.round(P * 0.40), b = Math.round(P * 0.35), c = P - a - b;
+    app._members = [
+      { pin:'21812199600888', fio:'БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ', sum:a, date:'20.06.2026' },
+      { pin:'20907199400957', fio:'МАТРАИМОВ МАКСАТ КУБАНОВИЧ',   sum:b, date:'25.06.2026' },
+      { pin:'02102201710026', fio:'ОРОЗБЕКОВА АЙПЕРИ М.',         sum:c, date:'01.07.2026' },
+    ];
+  }
+  return app._members;
+}
+let _memberSel = null;              // индекс выделенной строки (для «Удалить»)
+let _subjectPickTarget = 'borrower';// куда применить пикер субъекта: 'borrower' (создание) | 'member'
+
 function renderMembers(app){
   const editable = can(app).editReq;   // правит кредитный специалист в draft
-  const P = _num(app.amount);
-  const a = Math.round(P * 0.40), b = Math.round(P * 0.35), c = P - a - b;
-  const members = [
-    { fio:'21812199600888 — БЕКТУРГАНОВ ЭРНИС Н.', sum:a, date:'20.06.2026' },
-    { fio:'20907199400957 — МАТРАИМОВ МАКСАТ К.',   sum:b, date:'25.06.2026' },
-    { fio:'02102201710026 — ОРОЗБЕКОВА АЙПЕРИ М.',  sum:c, date:'01.07.2026' },
-  ];
+  const members = _membersOf(app);
+  const n = members.length;
+  const total = members.reduce((s, m) => s + _num(m.sum), 0);   // Σ снизу вверх — ведущая
+  const sizeOk  = n >= GROUP_MIN && n <= GROUP_MAX;
+  const shareOk = members.every(m => total > 0 && (_num(m.sum) / total * 100) <= MAX_SHARE + 0.5);
+  const gateOk  = sizeOk && shareOk;
+
   const tools = editable
     ? `<div class="tab-toolrow">
-        <button class="btn btn-rowadd btn-sm" onclick="toolbarAction('Добавить члена группы')">Добавить члена</button>
-        <button class="btn btn-rowdel btn-sm" disabled>Удалить</button></div>`
+        <button class="btn btn-rowadd btn-sm" onclick="addMemberOpen()"${n >= GROUP_MAX ? ' disabled title="Достигнут максимум группы"' : ''}>Добавить члена</button>
+        <button class="btn btn-rowdel btn-sm" onclick="delMember()"${_memberSel === null ? ' disabled' : ''}>Удалить</button></div>`
     : '';
-  const rows = members.map(m => `<tr>
-    <td>${m.fio}</td><td class="num">${_fmt(m.sum)}</td><td>${m.date}</td></tr>`).join('');
+
+  const rows = members.map((m, i) => {
+    const share = total > 0 ? Math.round(_num(m.sum) / total * 100) : 0;
+    const shareBad = share > MAX_SHARE;
+    const selCls = (i === _memberSel) ? ' class="sel"' : '';
+    const sumCell = editable
+      ? `<input class="mem-inp num" value="${_fmt(_num(m.sum))}" onchange="setMemberSum(${i}, this.value)">`
+      : _fmt(_num(m.sum));
+    const dateCell = editable
+      ? `<input type="date" class="mem-inp" value="${_ruToISO(m.date)}" onchange="setMemberDate(${i}, this.value)">`
+      : m.date;
+    return `<tr${selCls}>
+      <td onclick="selMemberRow(${i})"><span class="mem-pin">${m.pin}</span>${m.fio}</td>
+      <td class="num"><div class="mem-sumcell">${sumCell}<span class="mem-share${shareBad ? ' bad' : ''}">доля ${share}%</span></div></td>
+      <td>${dateCell}</td></tr>`;
+  }).join('');
+
+  const reasons = [
+    !sizeOk  ? `размер группы ${n} вне ${GROUP_MIN}–${GROUP_MAX}` : '',
+    !shareOk ? `доля члена превышает ${MAX_SHARE}%` : '',
+  ].filter(Boolean).join(' · ');
+  const gate = gateOk
+    ? `<div class="note-banner"><span>Группа укомплектована (${n} чл., допустимо ${GROUP_MIN}–${GROUP_MAX}), доли ≤ ${MAX_SHARE}%. Заявку можно отправить в комиссию.</span></div>`
+    : `<div class="note-banner warn"><span>Отправка в комиссию заблокирована: ${reasons}.</span></div>`;
+
   return `<div class="cond2-wrap">
     <div class="section-h">Члены группы</div>
-    <div class="tab-note">Групповой кредит = <b>один кредит с несколькими траншами</b>: транш ← член группы, рождаются <b>после одобрения</b>. По члену — только ФИО · сумма · дата освоения; ставка/метод/срок/периодичность/льготные — <b>общие из программы</b>. График члена генерится из даты освоения (см. вкладку «График погашения» — селектор члена).</div>
     ${tools}
     <div class="collgrid num-grid"><table>
-      <thead><tr><th>ФИО (субъект)</th><th class="num">Сумма</th><th>Дата освоения</th></tr></thead>
+      <thead><tr><th>Субъект (реестр заёмщиков)</th><th class="num">Сумма транша</th><th>Планируемая дата освоения</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
-    <div class="grid-total"><span class="k">Сумма заявки (∑ членов, вычисляется):</span> ${_fmt(P)}</div>
+    <div class="grid-total"><span class="k">Сумма кредита (∑ траншей членов, вычисляется — снизу вверх):</span> ${_fmt(total)}</div>
+    <div style="margin-top:12px">${gate}</div>
   </div>`;
 }
 PANEL_RENDER['tab-3'] = renderMembers;
+
+/* ── Live add/delete/правки членов группы (batch-модель) ── */
+function addMemberOpen(){
+  _subjectPickTarget = 'member';        // тот же пикер реестра, что и на создании заявки
+  openModal('modal-pick-subject');
+}
+/* Вызывается из applyPick('subject') когда пикер открыт из вкладки членов. */
+function addGroupMember(val){
+  const app = _detailApp;
+  const members = _membersOf(app);
+  const parts = String(val).split(' - ');
+  const pin = (parts[0] || '').trim();
+  const fio = parts.slice(1).join(' - ').trim() || val;
+  closeModal('modal-pick-subject');
+  if (members.length >= GROUP_MAX){ showToast('Достигнут максимум группы (' + GROUP_MAX + ')', 'warn'); return; }
+  if (members.some(m => m.pin === pin)){ showToast('Субъект уже в группе', 'warn'); return; }
+  members.push({ pin, fio, sum:0, date:'—', check:'ok' });   // per-member гейты — demo: 'ok'
+  _memberSel = null;
+  showTab('tab-3');
+  showToast('Член добавлен: ' + fio + ' — укажите сумму транша и дату', 'ok');
+}
+function selMemberRow(i){
+  _memberSel = (_memberSel === i) ? null : i;   // повторный клик снимает выделение
+  showTab('tab-3');
+}
+function delMember(){
+  if (_memberSel === null) return;
+  const app = _detailApp;
+  const members = _membersOf(app);
+  const m = members[_memberSel];
+  if (!m) { _memberSel = null; showTab('tab-3'); return; }
+  // жизненный цикл: после одобрения транш уже в работе — удалять нельзя (правило Phase 6)
+  const approved = ['Одобрена','Ожидает решения/программы','На оформлении','Оформлена'].includes(app.status);
+  if (approved){ showToast('После одобрения удалять члена нельзя — транш в работе', 'warn'); return; }
+  members.splice(_memberSel, 1);
+  _memberSel = null;
+  showTab('tab-3');
+  showToast('Член удалён: ' + m.fio, 'info');
+}
+function setMemberSum(i, v){
+  const members = _membersOf(_detailApp);
+  if (members[i]) members[i].sum = _num(v);
+  showTab('tab-3');   // пересчёт Σ / долей / гейта
+}
+function setMemberDate(i, v){
+  const members = _membersOf(_detailApp);
+  if (members[i]) members[i].date = _isoToRu(v);   // ISO из <input type=date> → ru «дд.мм.гггг»
+  showTab('tab-3');
+}
 
 /* «Залог» (tab-4) — только при залоговой программе.
    Предмет(ы): вид (из разрешённых программой) · оценочная стоимость · описание;
@@ -3895,7 +4004,10 @@ function lkRow(kind, tr){
 function applyPick(kind){
   const d = _pick[kind];
   if (!d) return;                       // нет выделенной строки — как в живой, «Выбрать» без выбора ничего не делает
-  if (kind === 'subject')      selectSubject(d.val, d.addr || '');
+  if (kind === 'subject'){
+    if (_subjectPickTarget === 'member'){ _subjectPickTarget = 'borrower'; addGroupMember(d.val); }
+    else selectSubject(d.val, d.addr || '');
+  }
   else if (kind === 'program') selectProgram(d.val);
   else if (kind === 'source')  selectSource(d.val);
   _pick[kind] = null;
