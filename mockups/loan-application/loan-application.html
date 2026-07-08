@@ -2590,6 +2590,26 @@ function renderTabbar(app){
 }
 
 /** gotoDetail — populates header/stepper/toolbar/tabbar from статус+флаги, shows detail. */
+/* Район заявителя — в живой заявке берётся из адреса регистрации субъекта.
+   В модели демо-заявок поля нет: даём детерминированный район по номеру
+   (override — app.region, если задан). */
+const APPLICANT_REGIONS = [
+  'г. Бишкек, Первомайский р-н',
+  'Чуйская обл., Сокулукский р-н',
+  'Ошская обл., Кара-Суйский р-н',
+  'Джалал-Абадская обл., Сузакский р-н',
+  'Иссык-Кульская обл., Джети-Огузский р-н',
+  'Нарынская обл., Ат-Башинский р-н',
+  'Таласская обл., Кара-Буринский р-н',
+  'Баткенская обл., Лейлекский р-н',
+];
+function _appRegion(app){
+  if (app.region) return app.region;
+  const digits = String(app.num).replace(/\D/g, '');
+  let h = 0; for (const c of digits) h += +c;
+  return APPLICANT_REGIONS[h % APPLICANT_REGIONS.length];
+}
+
 function gotoDetail(num, panel){
   const app = APPLICATIONS.find(a => a.num === num);
   if (!app) { console.warn('gotoDetail: not found', num); return; }
@@ -2607,9 +2627,12 @@ function gotoDetail(num, panel){
   document.getElementById('dh-subject').textContent = app.name;
   document.getElementById('dh-status').innerHTML    = `<span class="st-badge ${meta.badge}">${app.status}</span>`;
   const flowTxt = app.flow === 'B' ? 'Индивидуальная' : 'По программе: ' + app.program;
+  const termTxt = app.term ? `${app.term} мес.` : '—';
   document.getElementById('dh-meta').innerHTML =
     `<span>${flowTxt}</span><span class="dh-sep">·</span>`
-    + `<span class="dh-amount">${app.amount} сом</span>`;
+    + `<span class="dh-amount">${app.amount} сом</span><span class="dh-sep">·</span>`
+    + `<span>Срок: ${termTxt}</span><span class="dh-sep">·</span>`
+    + `<span>Район: ${_appRegion(app)}</span>`;
 
   /* Breadcrumb: «Заявки» / <номер>; назад — к списку */
   _crumbBack = () => showView('list');
