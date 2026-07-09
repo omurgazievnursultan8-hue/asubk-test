@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-07-07 (commission mockup — сверка с live: 2 строки, экран-редактор + диалоги голосования) — _(update this date every time you edit)_
+> Last updated: 2026-07-09 (loan-application mockup — залоговые документы по предметам, перенос в таб «Документы») — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,6 +38,18 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-07-09 — **Мокап «Заявка» → документы (to-be)** (`mockups/loan-application/loan-application.html`):
+  залоговые документы переведены на модель **по предметам залога** (стабильный `id`
+  у каждого предмета, ключ состояния `<id предмета>::<docId>`; комплект — из справочника
+  **вида** предмета). Полный ЖЦ документа (required→uploaded→review→accepted/rejected/
+  waived/expired), роли (спец собирает / комиссия принимает / просмотр — всем), гейт
+  «Отправить в комиссию» = обязательный комплект **+** коэффициент покрытия. Секция
+  **«Залоговые»** вкладки **«Документы»** рендерит доки подгруппами по каждому предмету
+  (вид · оценочная стоимость в подзаголовке) и входит в общую полосу готовности; вкладка
+  **«Залог»** — регистр предметов (CRUD) + KPI (Предметов / Покрытие / Документы N/M) +
+  сводный гейт со ссылкой на «Документы». `_docRerender` синхронно обновляет обе вкладки.
+  Закрывает находку **P3-18**, отвечает **P2-R20 / P2-R21 / P3-R20**. Коммиты `a26307e`
+  (влитие вкладки «Документы» to-be) → `0897ef6` (перенос залоговых доков в «Документы»).
 - 2026-07-07 — **Мокап «Комиссии по заявкам»** (`mockups/loan-application-commission/commission.html`) —
   повторная сверка с live (`scripts/inspect/commission-sverka*.mjs`, скриншоты
   `.auth/commission-*-live.png`). Список приведён к текущему стенду: 2 строки
