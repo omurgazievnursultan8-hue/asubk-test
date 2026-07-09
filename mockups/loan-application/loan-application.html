@@ -3985,8 +3985,8 @@ function renderDocSection(app, s, bt){
         // сводим счётчики предмета в итог секции
         reqIn += iReqIn; reqDone += iReqDone; hasBlock += iBlock; optCnt += iOpt;
         const iDone  = iReqIn > 0 && iReqDone === iReqIn && !iBlock;
-        // авто-раскрытие: собранный предмет свёрнут, несобранный/блокированный раскрыт; клик перекрывает
-        const iAuto  = !iDone;
+        // по умолчанию раскрыт только первый предмет, остальные свёрнуты (как секции-аккордеоны); клик перекрывает
+        const iAuto  = (i === 0);
         const iOpenS = (it.id in _docCollOpen) ? _docCollOpen[it.id] : iAuto;
         const iChip  = iReqIn === 0 ? '' : iBlock ? 'block' : (iDone ? 'done' : '');
         const iCnt   = iReqIn === 0 ? `${iOpt} опц.` : `${iReqDone}/${iReqIn}${iDone ? ' ✓' : ''}`;
