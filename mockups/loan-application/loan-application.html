@@ -4328,7 +4328,7 @@ function _panelRefresh(id){ const p = document.getElementById(id); if (p && PANE
 function _docRerender(){ _panelRefresh('tab-2'); _panelRefresh('tab-4'); if (_detailApp){ renderToolbar(_detailApp); _renderStages(_detailApp); } }
 function docUpload(key){
   const d = _findDocState(key); if (!d) return;
-  d.st = 'uploaded'; delete d.reason;
+  d.st = 'uploaded'; delete d.reason; delete d.via;
   if (d.valid && d.valid.indexOf('05.07') >= 0) d.valid = 'до 04.08.2026';   // «освежили» просроченную выписку
   _docRerender(); showToast('Документ загружен', 'ok');
 }

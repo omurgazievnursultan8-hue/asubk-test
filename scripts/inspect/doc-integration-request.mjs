@@ -92,6 +92,17 @@ const gate = await page.evaluate(() => {
 check('T3b requested блокирует гейт (open-block)', gate.blocked === true);
 check('T3b формулировка гейта упоминает интеграцию', gate.reason.includes('интеграци'));
 
+// T4: регрессия — ручная загрузка должна очистить d.via (источник интеграции).
+// Баг: docUpload устанавливал st='uploaded' но не сбрасывал via, поэтому старый
+// badge «из внешней системы» залипал после ручной замены/перезагрузки.
+const viaAfterManual = await page.evaluate(() => {
+  docReqFulfill('cbr');
+  const before = _findDocState('cbr').via;
+  docUpload('cbr');
+  return { before, after: _findDocState('cbr').via };
+});
+check('T4 via очищается при ручной загрузке', viaAfterManual.before === 'Кредбюро' && !viaAfterManual.after);
+
 // Скриншот: заявка с запрошенными/полученными доками (визуальная проверка).
 // Секция «Платёжеспособность» (fin, где лежит inc) свёрнута по умолчанию — раскрываем,
 // чтобы её мета-строка попала в кадр вместе с идентификацией (ident открыта по умолчанию).
