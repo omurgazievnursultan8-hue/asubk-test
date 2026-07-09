@@ -302,6 +302,13 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .t1-rowtools{ display:flex; gap:8px; margin-bottom:10px; }
 /* status line: «Сохранен график по кредитной программе» */
 .t1-status-line{ font:var(--font-label); color:var(--text-body); margin-bottom:10px; }
+/* header row: статус слева · кнопки выгрузки (Excel / PDF) справа */
+.sched-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:10px; }
+.sched-head .t1-status-line{ margin-bottom:0; flex:1 1 320px; }
+.sched-exports{ display:flex; gap:8px; flex:none; }
+.sched-exports .btn svg{ width:15px; height:15px; }
+.btn-xlsx svg{ color:var(--asubk-green); }
+.btn-pdf svg{ color:var(--action-danger); }
 /* override collgrid min-height — table rows give adequate height */
 .t1-grid{ min-height:0; }
 /* to-be 12-column schedule: compact, numeric cells right-aligned */
@@ -944,12 +951,6 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .cond-subh{ grid-column:1/-1; font:var(--weight-semibold) 14px/1.2 var(--asubk-font);
   color:var(--text-heading); margin:14px 0 2px; padding-bottom:8px; border-bottom:1px solid var(--border-default); }
 .cond-subh:first-child{ margin-top:2px; }
-.cond-legend{ font:var(--font-label); color:var(--text-muted); margin:2px 0 10px; display:flex; flex-wrap:wrap; gap:14px; }
-.cond-legend b{ color:var(--text-body); }
-.cond-legend .lg-w{ display:inline-block; width:11px; height:11px; border:1px solid var(--border-strong);
-  background:var(--surface-card); border-radius:3px; vertical-align:-1px; margin-right:4px; }
-.cond-legend .lg-g{ display:inline-block; width:11px; height:11px; background:rgba(26,57,96,0.10);
-  border-radius:3px; vertical-align:-1px; margin-right:4px; }
 
 /* ── Document tabs 2–4: shared upload-packet layout (Task 8) ── */
 .tdocs-wrap{ padding:14px 20px 20px; }
@@ -1007,7 +1008,13 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .doc-st-rej{ color:var(--status-error); background:var(--status-error-bg); }
 .doc-st-exp{ color:var(--status-warning); background:var(--status-warning-bg); }
 .doc-st-wv{ color:var(--text-muted); background:var(--surface-input); }
+.doc-st-conf{ color:#fff; background:var(--status-success); }
 .doc-st-reqd{ color:#7a5b00; background:var(--status-warning-bg); }
+/* Два уровня подтверждения дока: спец проверил → головной филиал подтвердил */
+.doc-levels{ display:inline-flex; gap:6px; margin-left:2px; }
+.doc-levels .lvl{ font:var(--weight-medium) 11px/1 var(--asubk-font); padding:3px 7px; border-radius:var(--radius-pill);
+  color:var(--text-muted); background:var(--surface-input); display:inline-flex; align-items:center; gap:3px; opacity:.6; }
+.doc-levels .lvl.on{ color:var(--status-success); background:var(--status-success-bg); opacity:1; }
 .doc-meta{ flex-basis:100%; font:var(--font-label); color:var(--text-muted); display:flex; flex-wrap:wrap; gap:4px 16px; }
 .doc-meta .m-rej{ color:var(--status-error); }
 .doc-meta .m-exp{ color:var(--status-warning); }
@@ -1061,6 +1068,22 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
   padding:36px 16px; text-align:center; color:var(--text-muted); font:var(--weight-semibold) var(--text-base)/1.4 var(--asubk-font); }
 .doc-preview-sub{ margin-top:8px; font:var(--font-label); color:var(--text-placeholder); }
 
+/* ---- Строка-пайплайн стадий заявки (над тулбаром деталки) ---- */
+.detail-stages{ margin:0 0 4px; }
+.stage-strip{ display:flex; align-items:center; flex-wrap:wrap; gap:4px 2px; padding:10px 12px; margin:0 0 12px;
+  background:var(--surface-hover); border:1px solid var(--border-default); border-radius:var(--radius-md); }
+.stage-strip .stg{ display:inline-flex; align-items:center; gap:7px; padding:5px 12px 5px 6px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); color:var(--text-muted); background:transparent; white-space:nowrap; }
+.stage-strip .stg .stg-n{ display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%;
+  font:var(--weight-semibold) 11px/1 var(--asubk-font); background:var(--asubk-gray-200,#e4e7ec); color:var(--text-muted); }
+.stage-strip .stg.done{ color:var(--status-success); background:var(--status-success-bg); }
+.stage-strip .stg.done .stg-n{ background:var(--status-success); color:#fff; }
+.stage-strip .stg.cur{ color:#fff; background:var(--asubk-blue); }
+.stage-strip .stg.cur .stg-n{ background:#fff; color:var(--asubk-blue); }
+.stage-strip .stg.rej{ color:var(--status-error); background:var(--status-error-bg); }
+.stage-strip .stg.rej .stg-n{ background:var(--status-error); color:#fff; }
+.stage-strip .stg-sep{ width:14px; height:2px; background:var(--border-strong); border-radius:2px; flex-shrink:0; }
+
 /* ---- Tab «Комиссия» (to-be): одна комиссия, один голос/решение/протокол ---- */
 .com-wrap{ padding:16px 20px 24px; max-width:1040px; }
 .com-head{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px 24px; margin-bottom:18px;
@@ -1083,6 +1106,53 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .com-tools{ margin-top:18px; display:flex; flex-direction:column; gap:10px; }
 .com-toolrow{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .com-toolrow .role{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-muted); min-width:230px; }
+/* Две фазы комиссии: предварительное изучение → заседание комитета */
+.com-phase-strip{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 16px; }
+.com-phase-strip .cp{ font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); padding:8px 14px; border-radius:var(--radius-pill);
+  background:var(--surface-input); color:var(--text-muted); border:1px solid var(--border-default); }
+.com-phase-strip .cp.on{ color:#fff; background:var(--asubk-blue); border-color:var(--asubk-blue); }
+.com-phase-strip .cp.done{ color:var(--status-success); background:var(--status-success-bg); border-color:transparent; }
+/* Предварительное изучение — компактный список документов с запросом на замену */
+.com-doclist{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; margin:4px 0 16px; }
+.com-docrow{ display:flex; align-items:center; gap:12px; padding:9px 14px; border-top:1px solid var(--border-default); flex-wrap:wrap; }
+.com-docrow:first-child{ border-top:none; }
+.com-docrow .spacer{ flex:1; }
+/* Подписи членов и скан протокола (фаза заседания) */
+.com-sign{ margin-top:20px; }
+.com-sign-row{ display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--border-default); }
+.com-sign-row:first-child{ border-top:none; }
+.com-sign-row .who{ flex:1; font:var(--font-label); color:var(--text-body); }
+.com-sign-badge{ font:var(--weight-medium) 12px/1 var(--asubk-font); padding:4px 10px; border-radius:var(--radius-pill);
+  color:var(--text-muted); background:var(--surface-input); }
+.com-sign-badge.on{ color:var(--status-success); background:var(--status-success-bg); }
+.com-scan{ margin-top:16px; padding:14px 16px; border:1px dashed var(--border-strong); border-radius:var(--radius-md);
+  background:var(--surface-hover); display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.com-scan .lbl{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
+.com-scan .file{ font:var(--font-label); color:var(--text-body); }
+.com-scan .spacer{ flex:1; }
+
+/* ---- Tab «Заключения» (to-be): заключения 4 отделов перед комиссией ---- */
+.concl-wrap{ padding:16px 20px 24px; max-width:1040px; }
+.concl-block{ border:1px solid var(--border-default); border-radius:var(--radius-md); margin-bottom:14px; overflow:hidden; }
+.concl-head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 16px; background:var(--surface-hover);
+  border-bottom:1px solid var(--border-default); }
+.concl-title{ font:var(--weight-semibold) var(--text-base)/1.2 var(--asubk-font); color:var(--text-heading); }
+.concl-meta{ font:var(--font-label); color:var(--text-muted); }
+.concl-head .spacer{ flex:1; }
+.concl-body{ padding:14px 16px; }
+.concl-text{ font:var(--font-label); color:var(--text-body); white-space:pre-wrap; line-height:1.5; }
+.concl-empty{ font:var(--font-label); color:var(--text-placeholder); font-style:italic; }
+.concl-edit{ display:flex; flex-direction:column; gap:10px; max-width:640px; }
+.concl-edit label{ font:var(--font-label); color:var(--text-muted); }
+.concl-edit select, .concl-edit textarea{ font:inherit; padding:7px 9px; border:1px solid var(--border-default);
+  border-radius:var(--radius-sm); background:var(--surface-card); color:var(--text-body); }
+.concl-edit textarea{ min-height:70px; resize:vertical; }
+.concl-edit select:focus, .concl-edit textarea:focus{ outline:none; border-color:var(--asubk-blue); }
+.v-badge{ font:var(--weight-medium) 12px/1 var(--asubk-font); padding:5px 10px; border-radius:var(--radius-pill); display:inline-flex; }
+.v-pos{ color:var(--status-success); background:var(--status-success-bg); }
+.v-cond{ color:var(--status-warning); background:var(--status-warning-bg); }
+.v-neg{ color:var(--status-error); background:var(--status-error-bg); }
+.v-none{ color:var(--text-muted); background:var(--surface-input); }
 
 /* ---- Условные вкладки: «Члены группы» / «Залог» ---- */
 .cond2-wrap{ padding:16px 20px 24px; max-width:1040px; }
@@ -1173,10 +1243,12 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
       <span class="crumb-title" id="crumbTitle">Заявки</span>
       <span class="crumb-status" id="crumbStatus"></span>
       <!-- демо-переключатель роли (как в мокапе решений): влияет на права редактирования и действия -->
-      <span class="roleswitch" title="Демо: роль влияет на права редактирования и действия (спец / комиссия / просмотр)">
+      <span class="roleswitch" title="Демо: роль влияет на права редактирования и действия (спец · головной филиал · отдел · комиссия · просмотр)">
         <label for="roleSel">Роль:</label>
         <select id="roleSel" onchange="setRole(this.value)">
           <option value="spec">👷 Кредитный специалист</option>
+          <option value="gf">🏢 Головной филиал</option>
+          <option value="dept">🧩 Отдел (заключение)</option>
           <option value="com">🏛 Комиссия</option>
           <option value="ro">👁 Остальные</option>
         </select>
@@ -1351,6 +1423,9 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
         <!-- Detail toolbar: status-gated actions (жмёт кредитный специалист); JS-filled per статус -->
         <div id="detailToolbar" class="detail-toolbar"><!-- populated by renderToolbar() --></div>
 
+        <!-- Пайплайн стадий заявки: комплектация → подтверждение ГФ → заключения → комиссия → комитет -->
+        <div id="detailStages" class="detail-stages"><!-- populated by _renderStages() --></div>
+
         <!-- Tab bar: max 7 tabs (условные скрыты), JS-filled from TABS + флаги заявки -->
         <div class="tabbar-wrap">
           <div class="tabbar" id="detailTabbar"><!-- populated by renderTabbar() --></div>
@@ -1425,6 +1500,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
         </div><!-- /#tab-1 -->
         <!-- #tab-2 … #tab-4: populated by renderDocPackTab() in <script> (Task 8) -->
         <div id="tab-2" class="detail-panel"></div>
+        <div id="tab-concl" class="detail-panel"></div>
         <div id="tab-3" class="detail-panel"></div>
         <div id="tab-4" class="detail-panel"></div>
 
@@ -1930,6 +2006,13 @@ function closeModal(id){ const el = document.getElementById(id); el.classList.re
            Требуется доп. информация 1 · Новый 2
    ============================================================ */
 const APPLICATIONS = [
+  // ДЕМО (spec 2026-07-09): «Новый» с полностью подтверждённым ГФ комплектом и ПУСТЫМИ
+  // заключениями — точка проверки цепочки Отдел → гейт «Отправить в комиссию».
+  // Флаг _seedConfirmed → _docsOf проставляет всем обязательным докам st:'confirmed'.
+  {num:'З-2026-000105', inn:'20907199400957', name:'МАТРАИМОВ МАКСАТ КУБАНОВИЧ',
+   status:'Новый', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'1 200 000,00', term:'24', info:'ДЕМО: комплект подтверждён ГФ · заключения пусты',
+   _seedConfirmed:true},
   {num:'З-2026-000103',inn:'00404202510209', name:'ОсОО "Хот Лэйк Текстиль"',
    status:'На рассмотрении', collateralStatus:'', program:'АгроИнвест КР',
    amount:'500 000,00', term:'36', info:'',
@@ -2431,6 +2514,7 @@ const TABS = [
   { panel:'tab-1', label:'График погашения' },
   { panel:'tab-4', label:'Залог',           cond: app => app.hasCollateral },
   { panel:'tab-2', label:'Документы' },
+  { panel:'tab-concl', label:'Заключения', cond: app => _docStats(app).met || condPhase(app.status) !== 'draft' },
   { panel:'tab-6', label:'Комиссия' },
   { panel:'tab-8', label:'История' },
 ];
@@ -2485,6 +2569,8 @@ function showTab(panelId){
    ============================================================ */
 const ROLES = [
   ['spec', '👷 Кредитный специалист'],
+  ['gf',   '🏢 Головной филиал'],
+  ['dept', '🧩 Отдел (заключение)'],
   ['com',  '🏛 Комиссия'],
   ['ro',   '👁 Остальные'],
 ];
@@ -2513,6 +2599,8 @@ function can(app){
     editOp:  rawOp  && _editMode,
     editSched: rawSched && _editMode,                      // фактическое — только в режиме «Изменить»
     vote:    _role === 'com' && phase === 'review',        // голосование в комиссии
+    confirmDoc: _role === 'gf'   && phase === 'draft',     // 2-й уровень: головной филиал подтверждает комплект
+    editConcl:  _role === 'dept' && phase === 'draft',     // отдел вносит заключение (риск/залог/юр/кредит)
     toolbar: _role === 'spec',                             // тулбар списка/деталки жмёт только специалист
   };
 }
@@ -2615,6 +2703,45 @@ function renderTabbar(app){
   return vis[0].panel;
 }
 
+/* ============================================================
+   Пайплайн стадий заявки (to-be): пять узлов процесса.
+   1 Комплектация · 2 Подтверждение ГФ · 3 Заключения отделов ·
+   4 Комиссия (предв. изучение) · 5 Комитет (заседание · решение).
+   Текущий узел выводится из статуса заявки + состояния документов,
+   заключений и фазы комиссии (единый источник — appStage).
+   ============================================================ */
+const STAGE_LABELS = ['Комплектация', 'Подтверждение ГФ', 'Заключения отделов', 'Комиссия (предв.)', 'Комитет · решение'];
+function appStage(app){
+  const st = app.status;
+  if (['Одобрена','Ожидает решения/программы','На оформлении','Оформлена'].includes(st)) return { i:5, decided:'approved' };
+  if (st === 'Отклонена') return { i:5, decided:'rejected' };
+  if (st === 'На рассмотрении'){
+    const ph = (app._com && app._com.phase) || 'prelim';
+    return { i: ph === 'session' ? 5 : 4 };
+  }
+  /* Черновик / доработка (Новый · Требуется доп. · Отозвана): узел из состояния комплекта. */
+  const ds = _docStats(app);
+  if (!ds.accMet)               return { i:1 };            // собирают и проверяют документы
+  if (!ds.confirmedMet)         return { i:2 };            // ждут подтверждения головного филиала
+  if (!conclusionsReady(app))   return { i:3 };            // ждут заключений отделов
+  return { i:3, ready:true };                              // всё готово — можно отправлять в комиссию
+}
+function _renderStages(app){
+  const host = document.getElementById('detailStages');
+  if (!host || !app) return;
+  const s = appStage(app);
+  const active = s.i;
+  const nodes = STAGE_LABELS.map((lab, idx) => {
+    const n = idx + 1; let cls = 'stg';
+    if (s.decided === 'approved')      cls += ' done';
+    else if (s.decided === 'rejected') cls += (n < 5 ? ' done' : ' rej');
+    else if (n < active)               cls += ' done';
+    else if (n === active)             cls += s.ready ? ' done' : ' cur';
+    return `<span class="${cls}"><span class="stg-n">${n}</span>${lab}</span>`;
+  }).join('<span class="stg-sep"></span>');
+  host.innerHTML = `<div class="stage-strip">${nodes}</div>`;
+}
+
 /** gotoDetail — populates header/stepper/toolbar/tabbar from статус+флаги, shows detail. */
 /* Район заявителя — в живой заявке берётся из адреса регистрации субъекта.
    В модели демо-заявок поля нет: даём детерминированный район по номеру
@@ -2670,6 +2797,7 @@ function gotoDetail(num, panel){
   /* Toolbar + tabbar (шапочный stepper убран — цикл в 1-й вкладке).
      Роль переключается в топбаре (#roleSel → setRole); влияет на gating всех вкладок. */
   renderToolbar(app);
+  _renderStages(app);
   const firstPanel = renderTabbar(app);
 
   /* Reset stale static panels; pick the tab: explicit (reload-restore) → current (re-render of
@@ -2970,7 +3098,6 @@ function renderGeneral(app){
   const phone = app.phone || subj.phone;
   const phoneCell = editable
     ? `<input class="cf-input" type="tel" inputmode="tel" maxlength="17" value="${maskPhone(phone)}" placeholder="+996 …" oninput="formatPhone(this)" onfocus="formatPhone(this)">`
-      + `<span class="cf-hint">Маска +996, валидация формата</span>`
     : `<span class="cfval"><span class="cf-cur">${maskPhone(phone) || '—'}</span></span>`;
   const addInfo = editable
     ? `<textarea class="cf-area" placeholder="Комментарий / дополнительные сведения по заявке">${app.info || ''}</textarea>`
@@ -3401,25 +3528,18 @@ function renderConditions(app){
     : condField('Комментарий комиссии', [['комиссия', app.comment || '']], { span:true }));
 
   const banner = phase === 'draft'
-    ? (editReq
+    ? (cap.canEditReq
         ? '<div class="note-banner"><span>Черновик — условия правит <b>кредитный специалист</b>. После «Отправить в комиссию» правки переходят к комиссии.</span></div>'
         : '<div class="note-banner"><span>Черновик у <b>кредитного специалиста</b>. В этой роли условия только для чтения.</span></div>')
     : phase === 'review'
-    ? (editOp
+    ? (cap.canEditOp
         ? '<div class="note-banner warn"><span>На рассмотрении — операционные условия правит <b>комиссия</b>. Запрос заёмщика зафиксирован (read-only).</span></div>'
         : '<div class="note-banner"><span>На рассмотрении у <b>комиссии</b>. В этой роли все условия только для чтения.</span></div>')
-    : '<div class="note-banner"><span>Решение вынесено — все условия <b>зафиксированы</b> (только чтение). Правки в «было → стало» показывают изменения комиссии.</span></div>';
+    : '<div class="note-banner"><span>Решение вынесено — все условия <b>зафиксированы</b> (только чтение).</span></div>';
 
   return `<div class="cond-wrap">
     <div class="cond-block">
-      <div class="section-h">Условия кредита</div>
       ${banner}
-      <div class="cond-legend">
-        <span><span class="lg-w"></span>белое поле — редактируется</span>
-        <span><span class="lg-g"></span>серое — только чтение</span>
-        <span><span class="cf-req">*</span> — обязательное</span>
-        <span>🔒 — наследуется из программы</span>
-      </div>
       ${condAccordion(F, 1)}
     </div>
   </div>`;
@@ -3585,7 +3705,7 @@ function _schedInner(app, ctx, label){
         : 'График построен по условиям; доступно ручное редактирование.'));
   const graceNote = (!materialized && gen.meta.grace)
     ? `<div class="note-banner warn" style="margin:0 0 12px">
-        <span>Льготный период: первые платежи по особому режиму (тело отсрочено / % отложены и распределены). Отсрочённые % гасятся распределением, не капитализацией.</span></div>`
+        <span>Льготный период: первые платежи по особому режиму (тело отсрочено / % отложены и распределены).</span></div>`
     : '';
   // Баланс: сумма тел должна погасить весь долг (остаток на конец = 0). После ручной правки — предупреждаем.
   const residual = materialized && rows.length ? rows[rows.length - 1].close : 0;
@@ -3607,11 +3727,30 @@ function _schedInner(app, ctx, label){
     <td><b>${_fmt(r.total)}</b></td><td>${_fmt(r.close)}</td>
   </tr>`).join('');
   return `${toolbar}
-    <div class="t1-status-line">${status}</div>
+    <div class="sched-head">
+      <div class="t1-status-line">${status}</div>
+      ${_schedExportBar()}
+    </div>
     ${graceNote}${balanceNote}
     <div class="collgrid t1-grid sched${canEdit ? ' editable' : ''}">
       <table>${SCHED_HEAD}<tbody>${body}</tbody></table>
     </div>`;
+}
+
+/* Кнопки выгрузки графика погашения — Excel / PDF (заглушки макета). */
+function _schedExportBar(){
+  return `<div class="sched-exports">
+    <button class="btn btn-secondary btn-sm btn-xlsx" onclick="schedExport('xlsx')" title="Скачать график в Excel">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13l6 5"/><path d="M15 13l-6 5"/></svg>
+      Excel</button>
+    <button class="btn btn-secondary btn-sm btn-pdf" onclick="schedExport('pdf')" title="Скачать график в PDF">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6"/><path d="M9 18h6"/><path d="M9 12h2"/></svg>
+      PDF</button>
+  </div>`;
+}
+/* Выгрузка графика — демо-заглушка (реально формируется на сервере). */
+function schedExport(kind){
+  showToast('График погашения выгружен в ' + (kind === 'pdf' ? 'PDF' : 'Excel'), 'info');
 }
 
 /* Сводный график группы — read-only слияние по-членных графиков по датам платежей.
@@ -3651,7 +3790,10 @@ function _aggInner(app){
     return row;
   }).join('');
   const status = `Сводный график группы: ${members.length} чл., сумма ${_fmt(totalP)}, платёжных дат — ${dates.length}. Свод считается из графиков членов; правка — на вкладке члена.`;
-  return `<div class="t1-status-line">${status}</div>
+  return `<div class="sched-head">
+      <div class="t1-status-line">${status}</div>
+      ${_schedExportBar()}
+    </div>
     <div class="collgrid t1-grid sched aggr">
       <table>${SCHED_HEAD}<tbody>${body}</tbody></table>
     </div>`;
@@ -3762,6 +3904,7 @@ const DOC_STATUS = {
   uploaded:{ label:'Загружен',     cls:'doc-st-up'  },
   review:  { label:'На проверке',  cls:'doc-st-rev' },
   accepted:{ label:'Принят',       cls:'doc-st-acc' },
+  confirmed:{label:'Подтверждён',  cls:'doc-st-conf'},
   rejected:{ label:'Отклонён',     cls:'doc-st-rej' },
   expired: { label:'Просрочен',    cls:'doc-st-exp' },
   requested:{ label:'Запрошено',   cls:'doc-st-reqd' },
@@ -3805,7 +3948,7 @@ const DOC_APPROVED_STATUSES = new Set(['Одобрена','Ожидает реш
    Секция coll — под-секции по видам залога; её документы берутся из COLL_DOC_DEFAULTS. */
 const DOC_SECTIONS = [
   { key:'ident', title:'Идентификация заёмщика', docs:[
-    { id:'p1', t:'Паспорт (лицевая сторона)',            req:true,  ft:'individual', st:'accepted' },
+    { id:'p1', t:'Паспорт (лицевая сторона)',            req:true,  ft:'individual', st:'confirmed' },
     { id:'p2', t:'Паспорт (оборотная сторона)',          req:true,  ft:'individual', st:'accepted' },
     { id:'inn',t:'ИНН',                                  req:true,  ft:'individual', st:'uploaded' },
     { id:'pd', t:'Согласие на обработку ПД',             req:true,  ft:'individual', st:'accepted' },
@@ -3840,7 +3983,7 @@ const DOC_SECTIONS = [
   ]},
   { key:'coll', title:'Залоговые', note:'по каждому предмету залога — комплект из программы для его вида', collateral:true, docs:[] },
   { key:'contract', kind:'contract', stage:'contract', title:'Договорные',
-    note:'шаблоны с merge-полями — доступны после одобрения комиссией', docs:[
+    note:'шаблоны — доступны после одобрения комиссией', docs:[
     { id:'agr',t:'Кредитный договор',        req:true, ft:'both', st:'required' },
     { id:'sch',t:'График погашения (подписанный)', req:true, ft:'both', st:'required' },
   ]},
@@ -3850,8 +3993,22 @@ const DOC_SECTIONS = [
    секции — глубокая копия конфига; залоговые — плоский стор по ключу «<вид>::<docId>»
    (виды берутся из предметов залога, потому динамика). Правки живут между перерисовками. */
 function _docsOf(app){
-  if (!app._docs) app._docs = JSON.parse(JSON.stringify(DOC_SECTIONS));
+  if (!app._docs){
+    app._docs = JSON.parse(JSON.stringify(DOC_SECTIONS));
+    if (app._seedConfirmed) _applyConfirmedSeed(app);
+  }
   return app._docs;
+}
+/* Демо-сид: все обязательные доки текущего типа заёмщика → 'confirmed' (подтверждён ГФ);
+   договорные (stage:'contract') не трогаем — они этап после одобрения. */
+function _applyConfirmedSeed(app){
+  const bt = _docBType(app);
+  app._docs.forEach(sec => {
+    if (sec.stage === 'contract' || sec.key === 'coll') return;
+    sec.docs.forEach(d => {
+      if (d.req && (d.ft === 'both' || d.ft === bt)) d.st = 'confirmed';
+    });
+  });
 }
 function _collDocsOf(app){
   if (!app._collDocs) app._collDocs = {};
@@ -3893,8 +4050,14 @@ function _docTitle(key){
 /* Пересчёт обязательного комплекта (без договорной стадии — она этап после одобрения). */
 function _docStats(app){
   const bt = _docBType(app);
-  let reqTot = 0, reqClosed = 0, reqAccepted = 0, blockers = 0;
-  const bump = st => { reqTot++; if (!OPEN_BLOCKS(st)) reqClosed++; if (st === 'accepted') reqAccepted++; if (st === 'rejected' || st === 'expired') blockers++; };
+  let reqTot = 0, reqClosed = 0, reqAccepted = 0, reqConfirmed = 0, blockers = 0;
+  const bump = st => {
+    reqTot++;
+    if (!OPEN_BLOCKS(st)) reqClosed++;
+    if (st === 'accepted' || st === 'confirmed') reqAccepted++;   // проверено спецом (принят/подтверждён)
+    if (st === 'confirmed' || st === 'waived') reqConfirmed++;    // закрыто головным филиалом (подтверждён/не требуется)
+    if (st === 'rejected' || st === 'expired') blockers++;
+  };
   _docsOf(app).forEach(sec => {
     if (sec.stage === 'contract' || sec.key === 'coll') return;
     sec.docs.filter(d => d.ft === 'both' || d.ft === bt).forEach(d => { if (d.req) bump(d.st); });
@@ -3906,14 +4069,21 @@ function _docStats(app){
       });
     });
   }
-  return { reqTot, reqClosed, reqAccepted, blockers, met: reqTot > 0 && reqClosed === reqTot };
+  return { reqTot, reqClosed, reqAccepted, reqConfirmed, blockers,
+    met:          reqTot > 0 && reqClosed    === reqTot,   // комплект собран (есть файлы)
+    accMet:       reqTot > 0 && reqAccepted  === reqTot,   // всё проверено спецом → готово к подтверждению ГФ
+    confirmedMet: reqTot > 0 && reqConfirmed === reqTot };  // всё подтверждено ГФ → открываются заключения
 }
 /* Готов ли обязательный комплект документов. */
 function docsReady(app){ return _docStats(app).met; }
-/* Можно ли отправлять в комиссию: комплект собран И (при залоге) покрытие достаточно. */
+/* Можно ли отправлять в комиссию: комплект собран, подтверждён головным филиалом,
+   внесены все заключения отделов И (при залоге) покрытие достаточно. */
 function sendReady(app){
-  if (!docsReady(app)) return false;
+  const ds = _docStats(app);
+  if (!ds.met) return false;
   if (app.hasCollateral){ const c = coverageOf(app); if (!c.hasItems || !c.covOk) return false; }
+  if (!ds.confirmedMet) return false;         // 2-й уровень — головной филиал
+  if (!conclusionsReady(app)) return false;   // заключения риск/залог/юр/кредит
   return true;
 }
 /* Человекочитаемая причина, почему отправка заблокирована (для title/тоста). */
@@ -3927,6 +4097,8 @@ function sendGateReason(app){
     if (!c.hasItems) return 'Не указан ни один предмет залога';
     if (!c.covOk) return `Коэффициент покрытия ${c.cov}% ниже порога ${MIN_COVERAGE}%`;
   }
+  if (!st.confirmedMet) return `Комплектация не подтверждена головным филиалом (${st.reqConfirmed} из ${st.reqTot})`;
+  if (!conclusionsReady(app)) return `Внесены не все заключения отделов (${_conclDone(app)} из ${CONCL_DEPTS.length})`;
   return '';
 }
 
@@ -3957,7 +4129,7 @@ function docRow(app, disp, key, secKind){
      ПОСЛЕ-одобренческий этап: их строки вообще рендерятся только когда секция разблокирована
      (статус «Одобрена»+), поэтому здесь действия доступны спецу без режима правки. */
   const spec = secKind === 'contract' ? (_role === 'spec') : cap.editReq;
-  const com  = cap.vote;      // комиссия на рассмотрении
+  const gf   = cap.confirmDoc && secKind !== 'contract';   // головной филиал — 2-й уровень (draft)
   const kq = "'" + key + "'";
   let acts = '';
   if (spec){
@@ -3977,15 +4149,25 @@ function docRow(app, disp, key, secKind){
       if (disp.st === 'required') acts += _docBtn('primary', 'Загрузить', `docUpload(${kq})`);
       else if (disp.st === 'rejected' || disp.st === 'expired') acts += _docBtn('primary', 'Перезагрузить', `docUpload(${kq})`);
       else acts += _docBtn('ghost', 'Заменить', `docUpload(${kq})`);
+      /* Спец подтверждает, что проверил загруженный документ (1-й уровень). */
+      if (disp.st === 'uploaded'){
+        acts += _docBtn('success', 'Проверил', `docAccept(${kq})`);
+        acts += _docBtn('danger', 'Отклонить', `docReject(${kq})`);
+      }
       if (disp.req) acts += _docBtn('ghost', 'Не требуется', `docWaive(${kq})`);
     }
   }
-  if (com && disp.st === 'uploaded'){
-    acts += _docBtn('success', 'Принять', `docAccept(${kq})`);
-    acts += _docBtn('danger', 'Отклонить', `docReject(${kq})`);
+  /* Головной филиал — 2-й уровень: подтверждает полноту/правоту принятого спецом документа. */
+  if (gf){
+    if (disp.st === 'accepted'){
+      acts += _docBtn('success', 'Подтвердить', `docConfirm(${kq})`);
+      acts += _docBtn('danger', 'Отклонить', `docReject(${kq})`);
+    } else if (disp.st === 'confirmed'){
+      acts += _docBtn('ghost', 'Снять подтверждение', `docUnconfirm(${kq})`);
+    }
   }
   /* Просмотр + Скачать — всем ролям на статусах «есть файл» (комиссии критично перед решением). */
-  if (['uploaded','accepted','expired'].includes(disp.st)){
+  if (['uploaded','accepted','confirmed','expired'].includes(disp.st)){
     acts += _docBtn('ghost', _docIcoEye() + 'Просмотр', `docView(${kq})`);
     acts += _docBtn('ghost', 'Скачать', `docDownload(${kq})`);
   }
@@ -3993,15 +4175,26 @@ function docRow(app, disp, key, secKind){
   const meta = [];
   if (disp.st === 'rejected' && disp.reason) meta.push(`<span class="m-rej">Причина отклонения: ${_esc(disp.reason)}</span>`);
   if (disp.st === 'expired') meta.push(`<span class="m-exp">Срок действия истёк${disp.valid ? ` (${disp.valid})` : ''} — требуется свежий документ</span>`);
-  else if (disp.valid && (disp.st === 'uploaded' || disp.st === 'accepted')) meta.push(`Срок действия: ${disp.valid}`);
+  else if (disp.valid && ['uploaded','accepted','confirmed'].includes(disp.st)) meta.push(`Срок действия: ${disp.valid}`);
   if (disp.st === 'waived' && disp.waiveReason) meta.push(`Не требуется: ${_esc(disp.waiveReason)}`);
-  if (['uploaded','accepted'].includes(disp.st)) meta.unshift(`Файл: ${key.split('::').join('_')}_scan.pdf · загружен 04.07.2026`);
+  if (['uploaded','accepted','confirmed'].includes(disp.st)) meta.unshift(`Файл: ${key.split('::').join('_')}_scan.pdf · загружен 04.07.2026`);
+
+  /* Два уровня подтверждения (виден, когда есть файл): спец проверил → головной филиал подтвердил. */
+  const specDone = disp.st === 'accepted' || disp.st === 'confirmed';
+  const gfDone   = disp.st === 'confirmed';
+  const levels = ['uploaded','accepted','confirmed'].includes(disp.st)
+    ? `<span class="doc-levels">
+        <span class="lvl ${specDone ? 'on' : ''}" title="Проверено кредитным специалистом">${specDone ? '✓' : '○'}&nbsp;спец</span>
+        <span class="lvl ${gfDone ? 'on' : ''}" title="Подтверждено головным филиалом">${gfDone ? '✓' : '○'}&nbsp;ГФ</span>
+      </span>`
+    : '';
 
   return `<div class="doc-row">
     <div class="doc-main">
       <span class="doc-name${disp.st === 'waived' ? ' waived' : ''}">${disp.t}</span>
       <span class="doc-req ${disp.req ? 'req' : 'opt'}">${disp.req ? 'обязат.' : 'опц.'}</span>
       <span class="doc-badge ${stt.cls}">${stt.label}</span>
+      ${levels}
     </div>
     <div class="doc-actions">${acts}</div>
     ${meta.length ? `<div class="doc-meta">${meta.join('')}</div>` : ''}
@@ -4015,7 +4208,7 @@ function renderDocSection(app, s, bt){
   let body = '', reqIn = 0, reqDone = 0, reqAcc = 0, hasBlock = 0, optCnt = 0;
 
   if (locked){
-    body = `<div class="sec-locked-note">${_docIcoLock()} Раздел откроется после одобрения комиссией — тогда система сгенерирует договоры с подстановкой данных заявки (merge-поля), а сюда загружаются подписанные экземпляры.</div>`;
+    body = `<div class="sec-locked-note">${_docIcoLock()} Раздел откроется после одобрения комиссией — тогда система сгенерирует договоры с подстановкой данных заявки, а сюда загружаются подписанные экземпляры.</div>`;
   } else if (isColl){
     const items = _collateralOf(app);
     if (!items.length){
@@ -4025,7 +4218,7 @@ function renderDocSection(app, s, bt){
         let iReqIn = 0, iReqDone = 0, iAcc = 0, iBlock = 0, iOpt = 0;
         const drows = (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).map(tpl => {
           const state = _collDocState(app, it.id + '::' + tpl.id, tpl);
-          if (tpl.req){ iReqIn++; if (!OPEN_BLOCKS(state.st)) iReqDone++; if (state.st === 'accepted') iAcc++; if (state.st === 'rejected' || state.st === 'expired') iBlock++; } else iOpt++;
+          if (tpl.req){ iReqIn++; if (!OPEN_BLOCKS(state.st)) iReqDone++; if (state.st === 'accepted' || state.st === 'confirmed') iAcc++; if (state.st === 'rejected' || state.st === 'expired') iBlock++; } else iOpt++;
           const disp = { t:tpl.t, req:tpl.req, st:state.st, reason:state.reason, valid:state.valid, waiveReason:state.waiveReason };
           return docRow(app, disp, it.id + '::' + tpl.id, null);
         }).join('');
@@ -4051,7 +4244,7 @@ function renderDocSection(app, s, bt){
     }
   } else {
     body = s.docs.filter(d => d.ft === 'both' || d.ft === bt).map(d => {
-      if (d.req){ reqIn++; if (!OPEN_BLOCKS(d.st)) reqDone++; if (d.st === 'accepted') reqAcc++; if (d.st === 'rejected' || d.st === 'expired') hasBlock++; } else optCnt++;
+      if (d.req){ reqIn++; if (!OPEN_BLOCKS(d.st)) reqDone++; if (d.st === 'accepted' || d.st === 'confirmed') reqAcc++; if (d.st === 'rejected' || d.st === 'expired') hasBlock++; } else optCnt++;
       return docRow(app, d, d.id, s.kind);
     }).join('');
   }
@@ -4079,7 +4272,7 @@ function renderDocs(app){
   const banner = stats.met
     ? (ready
         ? `<div class="note-banner ok">${_docIcoOk()}<span>Обязательный комплект собран (<b>${stats.reqClosed}/${stats.reqTot}</b>). Заявку можно отправить в комиссию.</span></div>`
-        : `<div class="note-banner warn">${_docIcoWarn()}<span>Документы собраны, но отправка заблокирована залогом: ${_esc(sendGateReason(app))}. См. вкладку «Залог».</span></div>`)
+        : `<div class="note-banner warn">${_docIcoWarn()}<span>Обязательный комплект собран, но отправка в комиссию пока недоступна: ${_esc(sendGateReason(app))}.</span></div>`)
     : `<div class="note-banner ${stats.blockers ? 'warn' : ''}">${stats.blockers ? _docIcoWarn() : _docIcoInfo()}<span>Собрано обязательных: <b>${stats.reqClosed} из ${stats.reqTot}</b>.${stats.blockers ? ` Есть блокирующие (отклонённые/просроченные): <b>${stats.blockers}</b> — их нужно перезагрузить.` : ''} «Отправить в комиссию» доступно только при полном обязательном комплекте.</span></div>`;
 
   const pct = stats.reqTot ? Math.round(stats.reqClosed / stats.reqTot * 100) : 0;
@@ -4114,14 +4307,17 @@ PANEL_RENDER['tab-2'] = renderDocs;
 /* Доки живут в двух табах («Документы» и «Залог»/по предметам) — перерисовываем оба
    панельных контента без смены активного таба, плюс тулбар-гейт. */
 function _panelRefresh(id){ const p = document.getElementById(id); if (p && PANEL_RENDER[id] && _detailApp) p.innerHTML = PANEL_RENDER[id](_detailApp); }
-function _docRerender(){ _panelRefresh('tab-2'); _panelRefresh('tab-4'); if (_detailApp) renderToolbar(_detailApp); }
+function _docRerender(){ _panelRefresh('tab-2'); _panelRefresh('tab-4'); if (_detailApp){ renderToolbar(_detailApp); _renderStages(_detailApp); } }
 function docUpload(key){
   const d = _findDocState(key); if (!d) return;
   d.st = 'uploaded'; delete d.reason;
   if (d.valid && d.valid.indexOf('05.07') >= 0) d.valid = 'до 04.08.2026';   // «освежили» просроченную выписку
   _docRerender(); showToast('Документ загружен', 'ok');
 }
-function docAccept(key){ const d = _findDocState(key); if (!d) return; d.st = 'accepted'; _docRerender(); showToast('Документ принят', 'ok'); }
+function docAccept(key){ const d = _findDocState(key); if (!d) return; d.st = 'accepted'; _docRerender(); showToast('Документ проверен специалистом', 'ok'); }
+/* 2-й уровень: головной филиал подтверждает полноту/правоту (accepted → confirmed) и снимает подтверждение. */
+function docConfirm(key){ const d = _findDocState(key); if (!d) return; d.st = 'confirmed'; _docRerender(); showToast('Документ подтверждён головным филиалом', 'ok'); }
+function docUnconfirm(key){ const d = _findDocState(key); if (!d) return; d.st = 'accepted'; _docRerender(); showToast('Подтверждение снято — документ возвращён к проверке специалистом', 'info'); }
 function docDownload(key){ showToast('Файл выгружен: ' + _docTitle(key), 'info'); }                        /* заглушка макета */
 function docUnwaive(key){ const d = _findDocState(key); if (!d) return; d.st = 'required'; delete d.waiveReason; _docRerender(); showToast('Документ возвращён в перечень: ' + _docTitle(key), 'info'); }
 /* Число обязательных документов без файла (статус «Требуется») — для «Запросить недостающие». */
@@ -4147,7 +4343,7 @@ function pkgInventory(){ showToast('Опись комплекта сформир
 function docReject(key){ _docOpenReason(key, 'reject'); }
 function docWaive(key){ _docOpenReason(key, 'waive'); }
 function docPrint(key){ showToast('Печатная форма сформирована и отправлена на печать: ' + _docTitle(key), 'info'); }      /* заглушка макета */
-function docGenerate(key){ showToast('Договор сгенерирован (merge-поля из данных заявки): ' + _docTitle(key), 'info'); }   /* заглушка макета */
+function docGenerate(key){ showToast('Договор сгенерирован с подстановкой данных заявки: ' + _docTitle(key), 'info'); }   /* заглушка макета */
 function docView(key){
   document.getElementById('doc-preview-title').textContent = 'Просмотр: ' + _docTitle(key);
   document.getElementById('doc-preview-sub').textContent = key.split('::').join('_') + '_scan.pdf';
@@ -4158,10 +4354,13 @@ function docView(key){
 let _docReasonPending = null;
 function _docOpenReason(key, kind){
   _docReasonPending = { key, kind };
-  document.getElementById('doc-reason-title').textContent = kind === 'reject' ? 'Отклонить документ' : 'Пометить «Не требуется»';
-  document.getElementById('doc-reason-label').textContent = kind === 'reject'
-    ? 'Причина отклонения (обязательно)' : 'Обоснование waiver (обязательно, попадёт в аудит)';
-  document.getElementById('doc-reason-ok').textContent = kind === 'reject' ? 'Отклонить' : 'Подтвердить';
+  const titles = { reject:'Отклонить документ', waive:'Пометить «Не требуется»', comreq:'Запросить дополнение / замену' };
+  const labels = { reject:'Причина отклонения (обязательно)', waive:'Обоснование waiver (обязательно, попадёт в аудит)',
+    comreq:'Что дополнить или заменить (обязательно, вернётся кредитному специалисту)' };
+  const oks = { reject:'Отклонить', waive:'Подтвердить', comreq:'Запросить' };
+  document.getElementById('doc-reason-title').textContent = titles[kind] || titles.reject;
+  document.getElementById('doc-reason-label').textContent = labels[kind] || labels.reject;
+  document.getElementById('doc-reason-ok').textContent = oks[kind] || oks.reject;
   document.getElementById('doc-reason-text').value = '';
   openModal('modal-doc-reason');
   setTimeout(() => { const t = document.getElementById('doc-reason-text'); if (t) t.focus(); }, 30);
@@ -4171,12 +4370,136 @@ function confirmDocReason(){
   if (!txt){ showToast('Нужно указать обоснование', 'warn'); return; }
   const d = _findDocState(_docReasonPending.key);
   if (!d){ closeModal('modal-doc-reason'); _docReasonPending = null; return; }
-  if (_docReasonPending.kind === 'reject'){ d.st = 'rejected'; d.reason = txt; showToast('Документ отклонён', 'warn'); }
+  const kind = _docReasonPending.kind;
+  if (kind === 'reject'){ d.st = 'rejected'; d.reason = txt; showToast('Документ отклонён', 'warn'); }
+  else if (kind === 'comreq'){
+    /* Запрос комиссии на предварительном изучении: документ возвращается специалисту,
+       заявка уходит на доработку, фаза комиссии сбрасывается к предварительной. */
+    d.st = 'rejected'; d.reason = 'Запрос комиссии: ' + txt;
+    _docReasonPending = null;
+    closeModal('modal-doc-reason');
+    const app = _detailApp;
+    if (app){ if (app._com) app._com.phase = 'prelim'; app.status = 'Требуется доп. информация'; gotoDetail(app.num, 'tab-2'); }
+    showToast('Запрос отправлен специалисту — заявка возвращена на доработку', 'warn');
+    return;
+  }
   else { d.st = 'waived'; d.waiveReason = txt; showToast('Документ помечен «Не требуется»', 'ok'); }
   _docReasonPending = null;
   closeModal('modal-doc-reason');
   _docRerender();
 }
+
+/* ============================================================
+   CHECKPOINT 4b: Вкладка «Заключения» отделов (to-be)
+   После подтверждения комплектации головным филиалом свои заключения
+   вносят 4 отдела: риск · залог · юр · кредит. Все 4 внесены → заявку
+   можно отправить на рассмотрение комиссии (гейт conclusionsReady).
+   ============================================================ */
+const CONCL_DEPTS = [
+  { key:'risk',   title:'Отдел рисков',      emp:'ТУРСУНОВА Г. А.', seed:'Кредитный риск умеренный. Показатель долговой нагрузки в пределах нормы, отрицательной кредитной истории не выявлено.' },
+  { key:'coll',   title:'Отдел залога',      emp:'ЖУМАБЕКОВ Н. Т.', seed:'Предмет залога оценён, коэффициент покрытия достаточный. Правоустанавливающие документы в порядке.' },
+  { key:'legal',  title:'Юридический отдел', emp:'ИСАКОВА Д. К.',   seed:'Правоспособность заёмщика подтверждена. Обременений и судебных споров не выявлено.' },
+  { key:'credit', title:'Кредитный отдел',   emp:'АБДЫЛДАЕВ Э. С.', seed:'Цель кредита соответствует программе, условия финансирования обоснованы. Рекомендуется к вынесению на комиссию.' },
+];
+const CONCL_VERDICTS = [
+  { v:'pos',  label:'Положительное', cls:'v-pos'  },
+  { v:'cond', label:'С условиями',   cls:'v-cond' },
+  { v:'neg',  label:'Отрицательное', cls:'v-neg'  },
+];
+const _CONCL_VMAP = Object.fromEntries(CONCL_VERDICTS.map(x => [x.v, x]));
+
+/* Персистентное состояние заключений на объекте заявки. Для заявок за пределами
+   черновика (уже у комиссии/решены) — засеяны как внесённые; на черновике — пусто. */
+function _conclusionsOf(app){
+  if (!app._concl){
+    const filled = condPhase(app.status) !== 'draft';
+    app._concl = {};
+    CONCL_DEPTS.forEach((d, i) => {
+      app._concl[d.key] = filled
+        ? { verdict:(app.status === 'Отклонена' && d.key === 'risk') ? 'neg' : (i === 0 ? 'cond' : 'pos'),
+            author:d.emp, date:'25.06.2026', text:d.seed }
+        : { verdict:'', author:'', date:'', text:'' };
+    });
+  }
+  return app._concl;
+}
+/* Все 4 заключения внесены (есть вердикт) — гейт отправки в комиссию. */
+function conclusionsReady(app){ const c = _conclusionsOf(app); return CONCL_DEPTS.every(d => c[d.key] && c[d.key].verdict); }
+function _conclDone(app){ const c = _conclusionsOf(app); return CONCL_DEPTS.filter(d => c[d.key] && c[d.key].verdict).length; }
+
+/* Действия отдела (роль «Отдел»): внести / очистить заключение. */
+function conclSave(key){
+  const app = _detailApp; if (!app) return;
+  const v = document.getElementById('concl-v-' + key);
+  if (!v || !v.value){ showToast('Выберите вердикт заключения', 'warn'); return; }
+  const t = document.getElementById('concl-t-' + key);
+  const dep = CONCL_DEPTS.find(d => d.key === key);
+  _conclusionsOf(app)[key] = { verdict:v.value, author:dep.emp, date:'09.07.2026', text:(t ? t.value.trim() : '') };
+  _panelRefresh('tab-concl'); renderToolbar(app); _renderStages(app);
+  showToast('Заключение внесено: ' + dep.title, 'ok');
+}
+function conclClear(key){
+  const app = _detailApp; if (!app) return;
+  _conclusionsOf(app)[key] = { verdict:'', author:'', date:'', text:'' };
+  _panelRefresh('tab-concl'); renderToolbar(app); _renderStages(app);
+  showToast('Заключение очищено', 'info');
+}
+
+function renderConclusions(app){
+  const c = _conclusionsOf(app);
+  const editable = can(app).editConcl;                 // роль «Отдел» на стадии черновика
+  const gfMet = _docStats(app).confirmedMet;
+  const done  = _conclDone(app);
+
+  let gate;
+  if (!gfMet && condPhase(app.status) === 'draft'){
+    gate = `<div class="note-banner">${_docIcoInfo()}<span>Заключения вносятся после подтверждения комплектации головным филиалом. Сейчас подтверждено не всё — см. вкладку «Документы».</span></div>`;
+  } else if (done === CONCL_DEPTS.length){
+    gate = `<div class="note-banner ok">${_docIcoOk()}<span>Все заключения внесены (<b>${done}/${CONCL_DEPTS.length}</b>). Заявку можно отправить на рассмотрение комиссии.</span></div>`;
+  } else {
+    gate = `<div class="note-banner">${_docIcoInfo()}<span>Внесено заключений: <b>${done} из ${CONCL_DEPTS.length}</b>. Отправка в комиссию доступна после всех четырёх.</span></div>`;
+  }
+
+  const blocks = CONCL_DEPTS.map(d => {
+    const e  = c[d.key] || {};
+    const vb = e.verdict
+      ? `<span class="v-badge ${_CONCL_VMAP[e.verdict].cls}">${_CONCL_VMAP[e.verdict].label}</span>`
+      : `<span class="v-badge v-none">Не внесено</span>`;
+    const metaTxt = e.verdict ? `${e.author} · ${e.date}` : '';
+    let body;
+    if (editable){
+      const opts = CONCL_VERDICTS.map(x => `<option value="${x.v}"${e.verdict === x.v ? ' selected' : ''}>${x.label}</option>`).join('');
+      body = `<div class="concl-edit">
+        <label>Вердикт</label>
+        <select id="concl-v-${d.key}"><option value="">— выберите —</option>${opts}</select>
+        <label>Текст заключения</label>
+        <textarea id="concl-t-${d.key}" placeholder="Изложите выводы отдела…">${_esc(e.text || '')}</textarea>
+        <div class="tab-toolrow" style="margin:0">
+          <button class="btn btn-primary btn-sm" onclick="conclSave('${d.key}')">Сохранить заключение</button>
+          ${e.verdict ? `<button class="btn btn-ghost btn-sm" onclick="conclClear('${d.key}')">Очистить</button>` : ''}
+        </div>
+      </div>`;
+    } else {
+      body = e.verdict
+        ? `<div class="concl-text">${_esc(e.text || '') || '—'}</div>`
+        : `<div class="concl-empty">Заключение ещё не внесено отделом.</div>`;
+    }
+    return `<div class="concl-block">
+      <div class="concl-head">
+        <span class="concl-title">${d.title}</span>
+        ${metaTxt ? `<span class="concl-meta">${_esc(metaTxt)}</span>` : ''}
+        <span class="spacer"></span>${vb}
+      </div>
+      <div class="concl-body">${body}</div>
+    </div>`;
+  }).join('');
+
+  const hint = (!editable && condPhase(app.status) === 'draft')
+    ? `<div class="tab-note">Вносить заключения может роль <b>🧩 Отдел</b> — переключите роль в шапке.</div>` : '';
+
+  return `<div class="concl-wrap">${gate}${hint}${blocks}</div>`;
+}
+PANEL_RENDER['tab-concl'] = renderConclusions;
 
 /* ============================================================
    CHECKPOINT 5: Вкладка «Комиссия» (to-be)
@@ -4211,11 +4534,83 @@ function commissionFor(app){
   };
 }
 
+/* Демо-состояние двух фаз комиссии на объекте заявки: фаза · подписи членов · скан протокола.
+   Решённые заявки (голосование закрыто) — засеяны как заседание с подписями и внесённым сканом. */
+function _comStateOf(app){
+  if (!app._com){
+    const c = commissionFor(app);
+    const closed = c ? !c.open : false;
+    app._com = { phase: closed ? 'session' : 'prelim', sign: COM_MEMBERS.map(() => closed), scan: closed };
+  }
+  return app._com;
+}
+/* Перечень обязательных документов (для предварительного изучения комиссией). */
+function _reqDocList(app){
+  const bt = _docBType(app); const out = [];
+  _docsOf(app).forEach(sec => {
+    if (sec.stage === 'contract' || sec.key === 'coll') return;
+    sec.docs.filter(d => (d.ft === 'both' || d.ft === bt) && d.req).forEach(d => out.push({ key:d.id, t:d.t, st:d.st }));
+  });
+  if (app.hasCollateral){
+    _collateralOf(app).forEach(it => {
+      (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).forEach(tpl => {
+        if (tpl.req){ const key = it.id + '::' + tpl.id; out.push({ key, t:tpl.t + ' · ' + (it.desc || it.kind), st:_collDocState(app, key, tpl).st }); }
+      });
+    });
+  }
+  return out;
+}
+
+/* ── Действия комиссии (роль «Комиссия») ── */
+function comAdvance(){ const app = _detailApp; if (!app) return; _comStateOf(app).phase = 'session'; _panelRefresh('tab-6'); showToast('Заявка вынесена на заседание комитета', 'ok'); }
+function comBackPrelim(){ const app = _detailApp; if (!app) return; _comStateOf(app).phase = 'prelim'; _panelRefresh('tab-6'); showToast('Возврат к предварительному изучению', 'info'); }
+function comSign(i){ const app = _detailApp; if (!app) return; const s = _comStateOf(app); s.sign[i] = !s.sign[i]; _panelRefresh('tab-6'); showToast(s.sign[i] ? 'Протокол подписан членом комиссии' : 'Подпись снята', s.sign[i] ? 'ok' : 'info'); }
+function comUploadProtocol(){ const app = _detailApp; if (!app) return; _comStateOf(app).scan = true; _panelRefresh('tab-6'); showToast('Скан подписанного протокола внесён в систему', 'ok'); }
+function comRequest(key){ _docOpenReason(key, 'comreq'); }
+
 function renderCommission(app){
   const c = commissionFor(app);
   if (!c){
-    return `<div class="com-wrap"><div class="note-banner"><span>Заявка ещё не отправлена в комиссию. Отправьте её из тулбара, когда обязательные документы будут собраны.</span></div></div>`;
+    return `<div class="com-wrap"><div class="note-banner"><span>Заявка ещё не отправлена в комиссию. Отправьте её из тулбара, когда собран обязательный комплект, комплектация подтверждена головным филиалом и внесены все заключения отделов.</span></div></div>`;
   }
+  const st = _comStateOf(app);
+  const phase = c.open ? st.phase : 'session';          // решённая заявка всегда показывает заседание
+  const isCom = can(app).vote;
+  const head = `<div class="com-head">
+      <div class="com-hf"><span class="k">Комиссия</span><span class="v">${c.body}</span></div>
+      <div class="com-hf"><span class="k">№ протокола</span><span class="v">${c.protocol}</span></div>
+      <div class="com-hf"><span class="k">Дата заседания</span><span class="v">${c.date}</span></div>
+      <div class="com-hf"><span class="k">Финальное решение</span><span class="v"><span class="st-badge ${c.final[0]}">${c.final[1]}</span></span></div>
+    </div>`;
+  const strip = `<div class="com-phase-strip">
+    <span class="cp ${phase === 'prelim' ? 'on' : 'done'}">1. Предварительное изучение документов</span>
+    <span class="cp ${phase === 'session' ? 'on' : ''}">2. Заседание комитета · решение · протокол</span>
+  </div>`;
+
+  /* ── Фаза A: предварительное изучение документов ── */
+  if (phase === 'prelim'){
+    const docs = _reqDocList(app);
+    const rows = docs.map(d => {
+      const s = DOC_STATUS[_dispSt(app, d.st)] || DOC_STATUS.required;
+      const acts = isCom
+        ? _docBtn('ghost', _docIcoEye() + 'Просмотр', `docView('${d.key}')`) + _docBtn('secondary', 'Запросить замену', `comRequest('${d.key}')`)
+        : '';
+      return `<div class="com-docrow"><span class="doc-name">${_esc(d.t)}</span>
+        <span class="doc-badge ${s.cls}">${s.label}</span><span class="spacer"></span>${acts}</div>`;
+    }).join('');
+    const tools = isCom
+      ? `<div class="com-tools">
+          <div class="note-banner"><span>Комиссия изучает документы. Если документ нужно дополнить или заменить — «Запросить замену»: он вернётся кредитному специалисту (заявка перейдёт в «Требуется доп. информация»). Когда вопросов нет — вынесите заявку на заседание комитета.</span></div>
+          <div class="com-toolrow"><button class="btn btn-primary btn-sm" onclick="comAdvance()">Вынести на заседание комитета</button></div>
+        </div>`
+      : `<div class="com-tools"><div class="note-banner"><span>Идёт предварительное изучение. Запрашивать документы и выносить на заседание может только роль <b>🏛 Комиссия</b> — переключите роль в шапке.</span></div></div>`;
+    return `<div class="com-wrap">${head}${strip}
+      <div class="com-prog-label">Предварительное изучение обязательных документов (${docs.length})</div>
+      <div class="com-doclist">${rows}</div>
+      ${tools}</div>`;
+  }
+
+  /* ── Фаза B: заседание комитета — голосование · подписи · скан протокола ── */
   const voted = c.members.filter(m => m.vote !== '—').length;
   const total = c.members.length;
   const pct = Math.round(voted / total * 100);
@@ -4233,7 +4628,7 @@ function renderCommission(app){
       <td><span class="com-vote ${_VOTE_CLS[m.vote]}">${m.vote}</span></td>
       <td>${m.deadline}</td><td>${m.comment || ''}</td></tr>`).join('')}</tbody></table></div>`;
   const tools = c.open
-    ? (can(app).vote
+    ? (isCom
       ? `<div class="com-tools">
         <div class="note-banner warn"><span><b>Принцип 4 глаз</b> — если вы автор/отправитель заявки, ваш голос учитывается, но помечается в аудите (предупреждение, не блок). Порога кворума нет: председатель закрывает голосование в любой момент; крайний срок — напоминание, не авто-воздержание.</span></div>
         <div class="com-toolrow"><span class="role">Председатель (финальное решение):</span>
@@ -4244,21 +4639,40 @@ function renderCommission(app){
           <button class="btn btn-secondary btn-sm" onclick="toolbarAction('Голос: Одобрить')">Одобрить</button>
           <button class="btn btn-secondary btn-sm" onclick="toolbarAction('Голос: Отклонить')">Отклонить</button>
           <button class="btn btn-ghost btn-sm" onclick="toolbarAction('Голос: Воздержаться')">Воздержаться</button></div>
+        <div class="com-toolrow"><button class="btn btn-ghost btn-sm" onclick="comBackPrelim()">← Вернуть к предварительному изучению</button></div>
       </div>`
-      : `<div class="com-tools"><div class="note-banner"><span>Голосование идёт. Голосовать и выносить решение может только роль <b>🏛 Комиссия</b> — переключите роль в шапке.</span></div></div>`)
+      : `<div class="com-tools"><div class="note-banner"><span>Идёт заседание. Голосовать и выносить решение может только роль <b>🏛 Комиссия</b> — переключите роль в шапке.</span></div></div>`)
     : `<div class="com-tools"><div class="note-banner"><span>Голосование закрыто. Итоговое решение зафиксировано председателем (см. «Финальное решение»).</span></div></div>`;
-  return `<div class="com-wrap">
-    <div class="com-head">
-      <div class="com-hf"><span class="k">Комиссия</span><span class="v">${c.body}</span></div>
-      <div class="com-hf"><span class="k">№ протокола</span><span class="v">${c.protocol}</span></div>
-      <div class="com-hf"><span class="k">Дата заседания</span><span class="v">${c.date}</span></div>
-      <div class="com-hf"><span class="k">Финальное решение</span><span class="v"><span class="st-badge ${c.final[0]}">${c.final[1]}</span></span></div>
-    </div>
+
+  /* Подписи членов на бумажном протоколе + скан подписанного протокола в системе. */
+  const signed = st.sign.filter(Boolean).length;
+  const signRows = c.members.map((m, i) => `<div class="com-sign-row">
+      <span class="who">${m.emp} — ${m.role}</span>
+      <span class="com-sign-badge ${st.sign[i] ? 'on' : ''}">${st.sign[i] ? '✓ подписал' : 'не подписан'}</span>
+      ${isCom ? _docBtn(st.sign[i] ? 'ghost' : 'secondary', st.sign[i] ? 'Снять' : 'Отметить подпись', `comSign(${i})`) : ''}
+    </div>`).join('');
+  const allSigned = signed === total;
+  const scanBlock = st.scan
+    ? `<div class="com-scan"><span class="lbl">Скан протокола</span>
+        <span class="file">Протокол_${c.protocol.replace(/[^\dА-Яа-я\-\/]/g, '').replace('/', '-')}_подписанный.pdf</span>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm" onclick="docView('protocol')">${_docIcoEye()}Просмотр</button>
+        ${isCom ? _docBtn('ghost', 'Заменить', 'comUploadProtocol()') : ''}</div>`
+    : `<div class="com-scan"><span class="lbl">Скан протокола</span>
+        <span class="file">Подписанный членами протокол ещё не внесён в систему.</span>
+        <span class="spacer"></span>
+        ${isCom ? `<button class="btn btn-primary btn-sm" onclick="comUploadProtocol()"${allSigned ? '' : ' disabled title="Сначала отметьте подписи всех членов"'}>Загрузить скан протокола</button>` : ''}</div>`;
+  const signBlock = `<div class="com-sign">
+      <div class="com-prog-label">Подписи членов комиссии на бумажном протоколе: ${signed} из ${total}</div>
+      ${signRows}${scanBlock}</div>`;
+
+  return `<div class="com-wrap">${head}${strip}
     <div class="com-prog-label">Прогресс голосования: ${pct}% (${voted} из ${total})</div>
     <div class="com-prog-bar-wrap"><div class="com-prog-bar" style="width:${pct}%"></div></div>
     ${tally}
     ${grid}
     ${tools}
+    ${signBlock}
   </div>`;
 }
 PANEL_RENDER['tab-6'] = renderCommission;
@@ -4339,12 +4753,11 @@ function renderMembers(app){
     : `<div class="note-banner warn"><span>Отправка в комиссию заблокирована: ${reasons}.</span></div>`;
 
   return `<div class="cond2-wrap">
-    <div class="section-h">Члены группы</div>
     ${tools}
     <div class="collgrid num-grid"><table>
       <thead><tr><th>Субъект (реестр заёмщиков)</th><th class="num">Сумма транша</th><th>Планируемая дата освоения</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
-    <div class="grid-total"><span class="k">Сумма кредита (∑ траншей членов, вычисляется — снизу вверх):</span> ${_fmt(total)}</div>
+    <div class="grid-total"><span class="k">Сумма кредита (∑ траншей членов):</span> ${_fmt(total)}</div>
     <div style="margin-top:12px">${gate}</div>
   </div>`;
 }
@@ -4541,7 +4954,7 @@ function renderCollateral(app){
 
   return `<div class="cond2-wrap">
     <div class="section-h">Залоговое обеспечение</div>
-    <div class="tab-note">Вид залога — из разрешённых <b>программой</b> (${kinds.join(' · ')}). Допускается несколько предметов; минимальный коэффициент покрытия — из программы (демо ${MIN_COVERAGE}%). Залоговые <b>документы</b> (оценка, правоустанавливающие) ведутся во вкладке <b>«Документы»</b> — по каждому предмету. Проверяет та же единственная комиссия.</div>
+    <div class="tab-note">Вид залога — из разрешённых <b>программой</b> (${kinds.join(' · ')}). Допускается несколько предметов; минимальный коэффициент покрытия — из программы (${MIN_COVERAGE}%). Залоговые <b>документы</b> (оценка, правоустанавливающие) ведутся во вкладке <b>«Документы»</b> — по каждому предмету.</div>
     ${kpis}
     ${tools}
     <div class="collgrid num-grid"><table>
