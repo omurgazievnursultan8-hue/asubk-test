@@ -72,14 +72,34 @@ check('T3 повторный запрос → requested', byName.afterReRequest[
 check('T3 ответ → uploaded с источником «Кредбюро»', byName.afterFulfill[1] === 'uploaded' && byName.afterFulfill[2] === 'Кредбюро');
 
 // T3b: пока док в requested — он open-block, в комплекте не закрыт.
+// inn — обязательный док для физлица (borrower З-2026-000080), поэтому его
+// requested держит st.met === false, и sendGateReason должна назвать причину интеграцией.
 const gate = await page.evaluate(() => {
-  const inn = _findDocState('inn'); inn.st = 'requested';
+  const app = _detailApp; const bt = _docBType(app);
+  // Снять существующие блокеры (rejected/expired) по обязательным докам — иначе
+  // sendGateReason назовёт их раньше интеграционной причины (blockers-ветка первая).
+  const touched = [];
+  _docsOf(app).forEach(sec => { if (sec.stage === 'contract' || sec.key === 'coll') return;
+    sec.docs.forEach(d => { if (d.req && (d.ft === 'both' || d.ft === bt) && (d.st === 'rejected' || d.st === 'expired')){ touched.push([d, d.st]); d.st = 'accepted'; } });
+  });
+  const inn = _findDocState('inn'); const prevInn = inn.st; inn.st = 'requested';
   const blocked = OPEN_BLOCKS('requested');
-  const reason = sendGateReason(_detailApp);
-  inn.st = 'accepted';   // вернуть, чтобы не залипло состояние демо
+  const reason = sendGateReason(app);
+  inn.st = prevInn;                            // вернуть, чтобы не залипло состояние демо
+  touched.forEach(([d, st]) => { d.st = st; });
   return { blocked, reason };
 });
 check('T3b requested блокирует гейт (open-block)', gate.blocked === true);
+check('T3b формулировка гейта упоминает интеграцию', gate.reason.includes('интеграци'));
+
+// Скриншот: заявка с запрошенными/полученными доками (визуальная проверка).
+// Секция «Платёжеспособность» (fin, где лежит inc) свёрнута по умолчанию — раскрываем,
+// чтобы её мета-строка попала в кадр вместе с идентификацией (ident открыта по умолчанию).
+await page.evaluate(() => { setRole('spec'); gotoDetail('З-2026-000080', 'tab-2'); enterEdit();
+  ['inn'].forEach(k => docRequest(k)); ['inc'].forEach(k => docReqFulfill(k));
+  _docOpen.fin = true; showTab('tab-2'); });
+await page.waitForTimeout(300);
+await page.screenshot({ path:'.auth/doc-integration.png', fullPage:true });
 
 console.log(results.join('\n'));
 console.log(errors.length ? '\nERRORS:\n' + errors.join('\n') : '\nNO JS ERRORS');

@@ -3899,6 +3899,8 @@ function schedRowSave(){
    (шаблоны — доступны после одобрения). Роли: спец собирает (editReq),
    комиссия принимает (vote), просмотр — всем. Гейт «Отправить в комиссию» —
    честный пересчёт обязательного комплекта (+ покрытие залога), см. sendReady().
+   Интеграция: доки с источником (DOC_SOURCES) можно «Запросить из системы»
+   (ГРС/ГНС/Минюст/Соцфонд/кредбюро) — статус «Запрошено» → ответ «Загружен».
    ============================================================ */
 const DOC_STATUS = {
   required:{ label:'Требуется',    cls:'doc-st-req' },
@@ -4189,11 +4191,11 @@ function docRow(app, disp, key, secKind){
   const meta = [];
   if (disp.st === 'rejected' && disp.reason) meta.push(`<span class="m-rej">Причина отклонения: ${_esc(disp.reason)}</span>`);
   if (disp.st === 'expired') meta.push(`<span class="m-exp">Срок действия истёк${disp.valid ? ` (${disp.valid})` : ''} — требуется свежий документ</span>`);
-  else if (disp.valid && ['uploaded','accepted','confirmed'].includes(disp.st)) meta.push(`Срок действия: ${disp.valid}`);
+  else if (disp.valid && ['uploaded','accepted','confirmed'].includes(disp.st)) meta.push(`<span>Срок действия: ${disp.valid}</span>`);
   if (disp.st === 'requested') meta.push(`<span class="m-req">Запрошено из «${DOC_SOURCES[key] || '—'}» · ${disp.reqAt || '09.07.2026 14:20'}</span>`);
-  if (disp.via && ['uploaded','accepted','confirmed'].includes(disp.st)) meta.push(`Получено из «${disp.via}» · автоматически`);
-  if (disp.st === 'waived' && disp.waiveReason) meta.push(`Не требуется: ${_esc(disp.waiveReason)}`);
-  if (['uploaded','accepted','confirmed'].includes(disp.st)) meta.unshift(`Файл: ${key.split('::').join('_')}_scan.pdf · загружен 04.07.2026`);
+  if (disp.via && ['uploaded','accepted','confirmed'].includes(disp.st)) meta.push(`<span>Получено из «${disp.via}» · автоматически</span>`);
+  if (disp.st === 'waived' && disp.waiveReason) meta.push(`<span>Не требуется: ${_esc(disp.waiveReason)}</span>`);
+  if (['uploaded','accepted','confirmed'].includes(disp.st)) meta.unshift(`<span>Файл: ${key.split('::').join('_')}_scan.pdf · загружен 04.07.2026</span>`);
 
   /* Два уровня подтверждения (виден, когда есть файл): спец проверил → головной филиал подтвердил. */
   const specDone = disp.st === 'accepted' || disp.st === 'confirmed';
