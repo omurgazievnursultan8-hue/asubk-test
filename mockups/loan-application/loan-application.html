@@ -1007,6 +1007,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .doc-st-rej{ color:var(--status-error); background:var(--status-error-bg); }
 .doc-st-exp{ color:var(--status-warning); background:var(--status-warning-bg); }
 .doc-st-wv{ color:var(--text-muted); background:var(--surface-input); }
+.doc-st-reqd{ color:#7a5b00; background:var(--status-warning-bg); }
 .doc-meta{ flex-basis:100%; font:var(--font-label); color:var(--text-muted); display:flex; flex-wrap:wrap; gap:4px 16px; }
 .doc-meta .m-rej{ color:var(--status-error); }
 .doc-meta .m-exp{ color:var(--status-warning); }
@@ -3763,10 +3764,22 @@ const DOC_STATUS = {
   accepted:{ label:'Принят',       cls:'doc-st-acc' },
   rejected:{ label:'Отклонён',     cls:'doc-st-rej' },
   expired: { label:'Просрочен',    cls:'doc-st-exp' },
+  requested:{ label:'Запрошено',   cls:'doc-st-reqd' },
   waived:  { label:'Не требуется', cls:'doc-st-wv'  },
 };
+/* Документы, доступные из внешних госсистем (шина «Тундук» / кредбюро).
+   Ключ = docId, значение = ярлык системы-источника. Только для статических
+   секций ident/fin; определяет показ кнопки «Запросить из «X»» в docRow. */
+const DOC_SOURCES = {
+  p1:'ГРС «Тундук»', p2:'ГРС «Тундук»',
+  inn:'ГНС «Тундук»',
+  reg:'Минюст «Тундук»', egr:'Минюст «Тундук»',
+  inc:'Соцфонд',
+  tax:'ГНС', nod:'ГНС',
+  cbr:'Кредбюро',
+};
 /* «Открытый» блокер комплекта — статус, при котором обязательный документ ещё не «закрыт». */
-const OPEN_BLOCKS = s => s === 'required' || s === 'rejected' || s === 'expired';
+const OPEN_BLOCKS = s => s === 'required' || s === 'rejected' || s === 'expired' || s === 'requested';
 /* «На проверке» — не хранимый статус, а вид: uploaded-док при заявке в комиссии
    отображается бейджем «На проверке». Хранимое значение остаётся 'uploaded'. */
 function _atCommission(app){ return condPhase(app.status) === 'review'; }
@@ -3817,6 +3830,7 @@ const DOC_SECTIONS = [
     { id:'tax',t:'Налоговые декларации',                 req:true,  ft:'org', st:'uploaded' },
     { id:'trn',t:'Справка об оборотах по счетам',        req:true,  ft:'org', st:'uploaded', valid:'до 20.07.2026' },
     { id:'nod',t:'Справка об отсутствии задолженности',  req:false, ft:'org', st:'required' },
+    { id:'cbr',t:'Кредитный отчёт (кредбюро)',          req:false, ft:'both', st:'required' },
   ]},
   { key:'proj', title:'Целевые / проектные', note:'опциональные — по решению специалиста', docs:[
     { id:'bp', t:'Бизнес-план',                          req:false, ft:'both', st:'uploaded' },
