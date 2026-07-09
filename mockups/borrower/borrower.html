@@ -5,16 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Заемщики — АСУБК (точная копия)</title>
 <!--
-  Точная копия раздела «Заёмщики» из живого стенда ASUBK Credit Module — в одном файле.
-  Два вида в одном SPA (как в живом стенде):
+  Раздел «Заёмщики» из живого стенда ASUBK Credit Module — в одном файле.
+  Виды в одном SPA (как в живом стенде):
     • Список   — /loan-applicants        (14 строк)
     • Карточка — /loan-applicants/{id}    (запись ОАО "О!Банк")
+    • Оформление кредита — /loans-processing/{id}?mode=readonly (из таба «Кредиты»)
   Переход как в стенде (проверено 2026-07-06, scripts/inspect/borrower-open-behavior.mjs):
     одинарный клик -> выделяет строку + включает Изменить/Удалить;
     двойной клик / выделить+Изменить -> открывает карточку;
     OK / Отмена -> возврат к списку.
   Снято через scripts/inspect/borrower-full.mjs + borrower-list.mjs + borrower-styles.mjs.
   Стек оригинала: Jmix on Vaadin (Lumo) — воспроизведены цвета/шрифты Lumo.
+
+  СТАТУС ФАЙЛА: список + основная форма + readonly-кредит — копия стенда;
+  вкладки карточки Кредиты/Документы/История/Контакты доработаны как TO-BE
+  предложение для дев-команды (наполнены, дефекты исправлены):
+    • Основная информация: убрано скрытое обязат. поле «ID в системе» (P4-R4);
+      согласован счётчик кредитов шапка/панель проверок — «действующие» vs
+      «всего» (P4-R3); заполнено «Последнее обновление».
+    • Кредиты: реальная таблица кредитов вместо дублей заёмщика; «Посмотр»->«Просмотр».
+    • Документы: аккордеон документов уровня субъекта (физ/юр), жизненный цикл.
+    • История: аудит-таймлайн изменений записи.
+    • Контакты: реестр контактных лиц вместо дубля телефона/адреса.
 -->
 <style>
   :root{
@@ -202,6 +214,90 @@
   .grid-empty{min-height:260px;}
   .tab-toolbar{margin-bottom:4px;}
   .empty-panel{min-height:300px;}
+
+  /* ========================================================= */
+  /* ===== TO-BE: наполненные вкладки Кредиты/Документы/ ====== */
+  /* ===== История/Контакты (в токенах borrower.html) ======== */
+  /* ========================================================= */
+  /* общие статус-бейджи */
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;
+    padding:2px 9px;border-radius:999px;white-space:nowrap;line-height:1.6;}
+  .b-ok{color:var(--success);background:var(--green-card-bg);}
+  .b-muted{color:var(--secondary-text);background:var(--filter-bg);}
+  .b-info{color:var(--primary-text);background:#e9f1fe;}
+  .b-warn{color:#9a6a00;background:#fdf3dd;}
+  .b-err{color:var(--error);background:#fdeaea;}
+
+  /* --- Кредиты: таблица кредитов --- */
+  #view-detail .credits-table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  #view-detail .credits-table thead th{text-align:left;font-weight:700;color:var(--body-text);
+    font-size:15px;padding:11px 16px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  #view-detail .credits-table thead th .sort{color:var(--secondary-text);font-size:13px;margin-left:6px;}
+  #view-detail .credits-table tbody td{padding:10px 16px;border-bottom:1px solid #eef1f4;
+    font-size:15px;color:var(--body-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #view-detail .credits-table tbody tr{cursor:pointer;}
+  #view-detail .credits-table tbody tr:hover{background:var(--grid-hover);}
+  #view-detail .credits-table tfoot td{padding:11px 16px;font-weight:700;font-size:15px;
+    color:var(--body-text);border-top:1px solid var(--border);}
+  .credits-table col.c-cnum{width:15%;} .credits-table col.c-cprog{width:23%;}
+  .credits-table col.c-cst{width:16%;} .credits-table col.c-cover{width:14%;}
+
+  /* --- Документы: аккордеон (паттерн docs-tab.html) --- */
+  .docs-head{display:flex;align-items:center;gap:14px;margin:2px 0 16px;flex-wrap:wrap;}
+  .docs-hint{color:var(--secondary-text);font-size:15px;}
+  .btype-switch{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--secondary-text);font-size:15px;}
+  .btype-switch select{height:32px;border:1px solid var(--field-border);border-radius:var(--radius);
+    background:var(--field-bg);font-family:var(--font);font-size:15px;color:var(--body-text);padding:0 8px;}
+  .doc-acc{border:1px solid var(--panel-border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;}
+  .doc-acc-head{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;
+    background:var(--filter-bg);user-select:none;}
+  .doc-acc-head .chev{color:var(--secondary-text);transition:transform .12s ease;display:inline-block;width:12px;}
+  .doc-acc.open .doc-acc-head .chev{transform:rotate(90deg);}
+  .doc-acc-title{font-weight:700;font-size:16px;color:var(--body-text);}
+  .doc-acc-note{color:var(--secondary-text);font-size:14px;font-weight:400;}
+  .doc-acc-count{margin-left:auto;font-size:14px;font-weight:600;color:var(--secondary-text);
+    background:#fff;border:1px solid var(--border);border-radius:999px;padding:2px 10px;white-space:nowrap;}
+  .doc-acc-count.done{color:var(--success);background:var(--green-card-bg);border-color:var(--green-card-border);}
+  .doc-acc-body{display:none;}
+  .doc-acc.open .doc-acc-body{display:block;}
+  .doc-row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid #eef1f4;flex-wrap:wrap;}
+  .doc-row .dname{flex:1;min-width:200px;font-size:15px;color:var(--body-text);}
+  .doc-row .dname.waived{text-decoration:line-through;color:var(--secondary-text);}
+  .doc-req{font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;white-space:nowrap;}
+  .doc-req.req{color:var(--error);background:#fdeaea;}
+  .doc-req.opt{color:var(--secondary-text);background:var(--filter-bg);}
+  .doc-meta{flex-basis:100%;font-size:14px;color:var(--secondary-text);}
+  .doc-meta .exp{color:#9a6a00;}
+
+  /* --- История: таймлайн --- */
+  .timeline{position:relative;padding-left:26px;margin-top:8px;}
+  .timeline::before{content:"";position:absolute;left:8px;top:4px;bottom:4px;width:2px;background:var(--border);}
+  .tl-item{position:relative;padding:0 0 20px;}
+  .tl-item:last-child{padding-bottom:0;}
+  .tl-dot{position:absolute;left:-22px;top:3px;width:11px;height:11px;border-radius:50%;
+    background:var(--primary);border:2px solid #fff;box-shadow:0 0 0 1px var(--border);}
+  .tl-dot.ok{background:var(--success);} .tl-dot.muted{background:var(--secondary-text);}
+  .tl-when{font-size:13px;color:var(--secondary-text);margin-bottom:2px;}
+  .tl-what{font-size:15px;color:var(--body-text);}
+  .tl-what b{font-weight:600;}
+  .tl-who{color:var(--secondary-text);}
+
+  /* --- Контакты: реестр контактных лиц --- */
+  .contacts-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  #view-detail .contacts-table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  #view-detail .contacts-table thead th{text-align:left;font-weight:700;color:var(--body-text);
+    font-size:15px;padding:11px 16px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  #view-detail .contacts-table tbody td{padding:10px 16px;border-bottom:1px solid #eef1f4;
+    font-size:15px;color:var(--body-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #view-detail .contacts-table tbody tr{cursor:pointer;}
+  #view-detail .contacts-table tbody tr:hover{background:var(--grid-hover);}
+  #view-detail .contacts-table tbody tr:last-child td{border-bottom:0;}
+  .contacts-table col.c-role{width:22%;} .contacts-table col.c-phone{width:19%;}
+  .contacts-table col.c-mail{width:24%;} .contacts-table col.c-main{width:13%;}
+  .contacts-toolbar #ctEdit,.contacts-toolbar #ctDel{background:rgba(25,59,103,0.05);
+    border-color:transparent;height:36px;padding:0 14px;color:rgba(28,52,84,0.26);}
+  .contacts-toolbar #ctEdit:not([disabled]){color:#005fdb;}
+  .contacts-toolbar #ctDel:not([disabled]){color:#ca150c;}
 
   /* footer buttons (карточка) */
   .form-footer{display:flex;gap:12px;padding:18px 26px 26px;}
@@ -450,18 +546,19 @@
           <div class="header-right">
             <div class="credits-block">
               <div class="muted-head" style="margin-bottom:6px;">Кредиты:</div>
-              <div class="credits-line"><span class="num">2</span><span>активных кредитов на</span><span>1&nbsp;200</span></div>
-              <div class="credits-line"><span class="num"></span><span>сумму</span><span>000,00</span></div>
+              <div class="credits-line"><span class="num">2</span><span>действующих на сумму</span><span>1&nbsp;200&nbsp;000,00</span></div>
+              <div class="credits-line"><span class="num">3</span><span>всего за историю</span></div>
             </div>
             <div>
               <div class="muted-head">Последнее обновление:</div>
+              <div style="margin-top:4px;">03.07.2026 14:22 · admin</div>
             </div>
           </div>
         </div>
 
         <!-- ---------- TABS ---------- -->
         <div class="tabs" id="tabs">
-          <div class="tab active" data-tab="main">Основная информаци</div>
+          <div class="tab active" data-tab="main">Основная информация</div>
           <div class="tab" data-tab="credits">Кредиты</div>
           <div class="tab" data-tab="docs">Документы</div>
           <div class="tab" data-tab="history">История</div>
@@ -502,8 +599,9 @@
                     <div class="f"><label>Помещение</label><input class="inp" readonly value=""></div>
                   </div>
                 </div>
-                <label>ID в системе <span class="req">•</span></label>
-                <input class="inp" readonly value="44">
+                <!-- to-be (P4-R4): поле «ID в системе» убрано с формы —
+                     это скрытый обязательный тех-id (скоринг/интеграция),
+                     заполняется системой, пользователю не показывается. -->
               </div>
             </div>
 
@@ -532,10 +630,11 @@
                 <div class="risk-check">✓</div>
                 <div class="risk-body">
                   <div class="risk-name">Действующие кредиты</div>
-                  <div class="risk-line">Нет активных кредитов</div>
+                  <div class="risk-line">2 действующих кредита · в пределах лимита</div>
                   <div class="risk-sub">
-                    <span>Количество кредитов:&nbsp;&nbsp;2</span>
-                    <span>Общая сумма:&nbsp;&nbsp;1&nbsp;200&nbsp;000,00</span>
+                    <span>Действующих:&nbsp;&nbsp;2</span>
+                    <span>Всего за историю:&nbsp;&nbsp;3</span>
+                    <span>Сумма действующих:&nbsp;&nbsp;1&nbsp;200&nbsp;000,00</span>
                   </div>
                 </div>
               </div>
@@ -568,24 +667,163 @@
           </div>
         </div>
 
-        <!-- ===== TAB: Кредиты ===== -->
+        <!-- ===== TAB: Кредиты (to-be: реальный список кредитов заёмщика) ===== -->
+        <!-- Было: строки дублировали самого заёмщика («ИНН - ОАО О!Банк») без
+             суммы/статуса и не бились с шапкой. Стало: таблица кредитов;
+             «действующие» (2 · 1 200 000,00) согласованы с шапкой и панелью
+             проверок (P4-R3). Кнопка «Посмотр» -> «Просмотр». -->
         <div class="tabpanel" data-panel="credits">
           <div class="tab-toolbar">
-            <button class="btn btn-secondary" id="btnCreditView" disabled>Посмотр</button>
+            <button class="btn btn-secondary" id="btnCreditView" disabled>👁 Просмотр</button>
           </div>
           <div class="grid">
-            <div class="grid-head">Заявка <span class="sort">⇅</span></div>
-            <div class="grid-row credit-row">01204199910016 - ОАО "О!Банк"</div>
-            <div class="grid-row credit-row grid-empty">01204199910016 - ОАО "О!Банк"</div>
+            <table class="credits-table">
+              <colgroup>
+                <col class="c-cnum"><col class="c-cprog"><col><col><col class="c-cst"><col class="c-cover">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>№ договора <span class="sort">⇅</span></th>
+                  <th>Программа <span class="sort">⇅</span></th>
+                  <th>Сумма <span class="sort">⇅</span></th>
+                  <th>Остаток <span class="sort">⇅</span></th>
+                  <th>Статус <span class="sort">⇅</span></th>
+                  <th>Просрочка <span class="sort">⇅</span></th>
+                </tr>
+              </thead>
+              <tbody id="creditRows">
+                <tr class="credit-row"><td>2026-044-1</td><td>ТУР</td><td>1&nbsp;000&nbsp;000,00</td><td>720&nbsp;000,00</td><td><span class="badge b-ok">Действует</span></td><td>—</td></tr>
+                <tr class="credit-row"><td>2026-044-2</td><td>МСП · оборотный</td><td>200&nbsp;000,00</td><td>200&nbsp;000,00</td><td><span class="badge b-ok">Действует</span></td><td>—</td></tr>
+                <tr class="credit-row"><td>2025-044-0</td><td>ТУР</td><td>500&nbsp;000,00</td><td>0,00</td><td><span class="badge b-muted">Погашен</span></td><td>—</td></tr>
+              </tbody>
+              <tfoot>
+                <tr><td>Итого действующих: 2</td><td></td><td>1&nbsp;200&nbsp;000,00</td><td>920&nbsp;000,00</td><td></td><td></td></tr>
+              </tfoot>
+            </table>
           </div>
         </div>
 
-        <!-- ===== TAB: Документы ===== -->
-        <div class="tabpanel" data-panel="docs"><div class="empty-panel"></div></div>
-        <!-- ===== TAB: История ===== -->
-        <div class="tabpanel" data-panel="history"><div class="empty-panel"></div></div>
-        <!-- ===== TAB: Контакты ===== -->
-        <div class="tabpanel" data-panel="contacts"><div class="empty-panel"></div></div>
+        <!-- ===== TAB: Документы (to-be: наполнено; паттерн docs-tab.html) ===== -->
+        <!-- Документы уровня заёмщика (субъекта), а не заявки: удостоверяющие/
+             учредительные, живут между заявками. Комплект переключается по типу
+             заёмщика (физ/юр). Бейджи — жизненный цикл документа; просрочка
+             подсвечивается. Без гейта «Отправить в комиссию» (это уровень заявки). -->
+        <div class="tabpanel" data-panel="docs">
+          <div class="docs-head">
+            <span class="docs-hint">Документы уровня заёмщика — переиспользуются между заявками.</span>
+            <span class="btype-switch">Тип заёмщика
+              <select id="docBtype">
+                <option value="ur" selected>Юр. лицо</option>
+                <option value="fiz">Физ. лицо</option>
+              </select>
+            </span>
+          </div>
+
+          <div class="doc-acc open" data-sec="ident">
+            <div class="doc-acc-head">
+              <span class="chev">›</span>
+              <span class="doc-acc-title">Идентификация и учредительные</span>
+              <span class="doc-acc-count"></span>
+            </div>
+            <div class="doc-acc-body">
+              <!-- Юр. лицо -->
+              <div class="doc-row" data-ft="ur" data-req="1" data-ok="1"><span class="dname">Устав</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: ustav_scan.pdf · загружен 12.06.2026</div></div>
+              <div class="doc-row" data-ft="ur" data-req="1" data-ok="1"><span class="dname">Свидетельство о госрегистрации</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: reg_cert.pdf · загружен 12.06.2026</div></div>
+              <div class="doc-row" data-ft="ur" data-req="1" data-ok="0"><span class="dname">Выписка из ЕГРЮЛ</span><span class="doc-req req">обязат.</span><span class="badge b-warn">Просрочен</span><div class="doc-meta"><span class="exp">Срок действия истёк (до 05.07.2026) — требуется свежая выписка</span></div></div>
+              <div class="doc-row" data-ft="ur" data-req="1" data-ok="1"><span class="dname">Приказ о назначении руководителя</span><span class="doc-req req">обязат.</span><span class="badge b-info">Загружен</span><div class="doc-meta">Файл: prikaz_ceo.pdf · загружен 30.06.2026 · на проверке</div></div>
+              <div class="doc-row" data-ft="ur" data-req="0" data-ok="0"><span class="dname">Карточка образцов подписей</span><span class="doc-req opt">опц.</span><span class="badge b-muted">Требуется</span></div>
+              <!-- Физ. лицо -->
+              <div class="doc-row" data-ft="fiz" data-req="1" data-ok="1"><span class="dname">Паспорт (лицевая сторона)</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: passport_1.jpg · загружен 12.06.2026</div></div>
+              <div class="doc-row" data-ft="fiz" data-req="1" data-ok="1"><span class="dname">Паспорт (оборотная сторона)</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: passport_2.jpg · загружен 12.06.2026</div></div>
+              <div class="doc-row" data-ft="fiz" data-req="1" data-ok="1"><span class="dname">ИНН</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: inn.pdf · загружен 12.06.2026</div></div>
+              <div class="doc-row" data-ft="fiz" data-req="1" data-ok="1"><span class="dname">Согласие на обработку ПД</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: pd_consent.pdf · загружен 12.06.2026</div></div>
+              <div class="doc-row" data-ft="fiz" data-req="1" data-ok="1"><span class="dname">Согласие на запрос в кредбюро</span><span class="doc-req req">обязат.</span><span class="badge b-info">Загружен</span><div class="doc-meta">Файл: cb_consent.pdf · загружен 12.06.2026 · на проверке</div></div>
+            </div>
+          </div>
+
+          <div class="doc-acc open" data-sec="fin">
+            <div class="doc-acc-head">
+              <span class="chev">›</span>
+              <span class="doc-acc-title">Платёжеспособность</span>
+              <span class="doc-acc-note">— финансовое состояние субъекта</span>
+              <span class="doc-acc-count"></span>
+            </div>
+            <div class="doc-acc-body">
+              <!-- Юр. лицо -->
+              <div class="doc-row" data-ft="ur" data-req="1" data-ok="1"><span class="dname">Финансовая отчётность (баланс, ОПиУ)</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: fin_report.pdf · загружен 20.06.2026</div></div>
+              <div class="doc-row" data-ft="ur" data-req="1" data-ok="1"><span class="dname">Налоговые декларации</span><span class="doc-req req">обязат.</span><span class="badge b-info">Загружен</span><div class="doc-meta">Файл: tax.pdf · загружен 20.06.2026 · на проверке</div></div>
+              <div class="doc-row" data-ft="ur" data-req="0" data-ok="0"><span class="dname">Справка об отсутствии задолженности</span><span class="doc-req opt">опц.</span><span class="badge b-muted">Требуется</span></div>
+              <!-- Физ. лицо -->
+              <div class="doc-row" data-ft="fiz" data-req="1" data-ok="1"><span class="dname">Справка о доходах</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: income.pdf · загружен 18.06.2026</div></div>
+              <div class="doc-row" data-ft="fiz" data-req="0" data-ok="0"><span class="dname">Справка с места работы</span><span class="doc-req opt">опц.</span><span class="badge b-muted">Требуется</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== TAB: История (to-be: аудит-таймлайн) ===== -->
+        <!-- Хронология изменений записи заёмщика. Верхняя запись = «Последнее
+             обновление» из шапки (единый источник: 03.07.2026 14:22 · admin). -->
+        <div class="tabpanel" data-panel="history">
+          <div class="timeline">
+            <div class="tl-item"><span class="tl-dot"></span>
+              <div class="tl-when">03.07.2026 14:22</div>
+              <div class="tl-what">Обновлён номер телефона: <b>+996 703 800 300</b> <span class="tl-who">· admin</span></div>
+            </div>
+            <div class="tl-item"><span class="tl-dot ok"></span>
+              <div class="tl-when">28.06.2026 10:05</div>
+              <div class="tl-what">Открыт кредит по договору <b>№2026-044-2</b> (МСП · оборотный, 200 000,00) <span class="tl-who">· operator1</span></div>
+            </div>
+            <div class="tl-item"><span class="tl-dot ok"></span>
+              <div class="tl-when">15.05.2026 16:40</div>
+              <div class="tl-what">Открыт кредит по договору <b>№2026-044-1</b> (ТУР, 1 000 000,00) <span class="tl-who">· operator1</span></div>
+            </div>
+            <div class="tl-item"><span class="tl-dot"></span>
+              <div class="tl-when">20.06.2026 09:12</div>
+              <div class="tl-what">Документ «Финансовая отчётность» принят проверяющим <span class="tl-who">· inspector2</span></div>
+            </div>
+            <div class="tl-item"><span class="tl-dot muted"></span>
+              <div class="tl-when">12.04.2026 11:30</div>
+              <div class="tl-what">Кредит по договору <b>№2025-044-0</b> (ТУР, 500 000,00) полностью погашен <span class="tl-who">· система</span></div>
+            </div>
+            <div class="tl-item"><span class="tl-dot ok"></span>
+              <div class="tl-when">10.11.2025 08:42</div>
+              <div class="tl-what">Заёмщик создан из субъекта заявки, статус <b>Активный</b> <span class="tl-who">· admin</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== TAB: Контакты (to-be: реестр контактных лиц) ===== -->
+        <!-- Раньше дублировал телефон/адрес из «Основной информации». Теперь —
+             список контактных лиц заёмщика (актуально для Юр. лица). Выбор строки
+             включает Изменить/Удалить (паттерн выделения из списка заёмщиков). -->
+        <div class="tabpanel" data-panel="contacts">
+          <div class="contacts-toolbar">
+            <button class="btn btn-blue">＋ Создать</button>
+            <button class="btn btn-secondary" id="ctEdit" disabled>✎ Изменить</button>
+            <button class="btn btn-secondary" id="ctDel" disabled>🗑 Удалить</button>
+          </div>
+          <div class="grid">
+            <table class="contacts-table">
+              <colgroup>
+                <col><col class="c-role"><col class="c-phone"><col class="c-mail"><col class="c-main">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>ФИО <span class="sort">⇅</span></th>
+                  <th>Должность / роль <span class="sort">⇅</span></th>
+                  <th>Телефон <span class="sort">⇅</span></th>
+                  <th>Email <span class="sort">⇅</span></th>
+                  <th>Основной <span class="sort">⇅</span></th>
+                </tr>
+              </thead>
+              <tbody id="contactRows">
+                <tr><td>Асанов Бакыт Маратович</td><td>Руководитель</td><td>+996 703 800 300</td><td>b.asanov@obank.kg</td><td><span class="badge b-ok">Основной</span></td></tr>
+                <tr><td>Иманова Айгуль Кубатовна</td><td>Главный бухгалтер</td><td>+996 555 120 044</td><td>a.imanova@obank.kg</td><td>—</td></tr>
+                <tr><td>Тентимишев Руслан Сапарович</td><td>Доверенное лицо</td><td>+996 700 909 101</td><td>r.tentimishev@obank.kg</td><td>—</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
 
       </div>
 
@@ -1033,6 +1271,52 @@
     t.classList.add('active');
     document.querySelector('.tabpanel[data-lpanel="' + t.dataset.ltab + '"]').classList.add('active');
   }));
+
+  // ---------- таб «Документы»: аккордеон + переключатель типа заёмщика ----------
+  // Комплект документов зависит от типа (физ/юр): строки помечены data-ft.
+  // Счётчик секции = закрыто/всего по обязательным видимым документам.
+  const docBtype = document.getElementById('docBtype');
+  function renderDocs() {
+    const type = docBtype ? docBtype.value : 'ur';
+    document.querySelectorAll('#view-detail .doc-acc').forEach(acc => {
+      let visible = 0, reqTotal = 0, reqOk = 0;
+      acc.querySelectorAll('.doc-row').forEach(row => {
+        const show = row.dataset.ft === type || row.dataset.ft === 'both';
+        row.style.display = show ? '' : 'none';
+        if (!show) return;
+        visible++;
+        if (row.dataset.req === '1') { reqTotal++; if (row.dataset.ok === '1') reqOk++; }
+      });
+      // скрыть секцию без видимых документов
+      acc.style.display = visible ? '' : 'none';
+      const cnt = acc.querySelector('.doc-acc-count');
+      if (cnt) {
+        if (reqTotal === 0) { cnt.textContent = visible + ' опц.'; cnt.classList.remove('done'); }
+        else {
+          cnt.textContent = reqOk + '/' + reqTotal + (reqOk === reqTotal ? ' ✓' : '');
+          cnt.classList.toggle('done', reqOk === reqTotal);
+        }
+      }
+    });
+  }
+  document.querySelectorAll('#view-detail .doc-acc-head').forEach(head => {
+    head.addEventListener('click', () => head.parentElement.classList.toggle('open'));
+  });
+  if (docBtype) docBtype.addEventListener('change', renderDocs);
+  renderDocs();
+
+  // ---------- таб «Контакты»: выбор строки + Изменить/Удалить ----------
+  const contactRows = document.querySelectorAll('#contactRows tr');
+  const ctEdit = document.getElementById('ctEdit');
+  const ctDel  = document.getElementById('ctDel');
+  let contactSel = null;
+  contactRows.forEach(r => {
+    r.addEventListener('click', () => {
+      if (contactSel) contactSel.style.background = '';
+      contactSel = r; r.style.background = '#dbe9fb';
+      ctEdit.disabled = false; ctDel.disabled = false;
+    });
+  });
 </script>
 </body>
 </html>
