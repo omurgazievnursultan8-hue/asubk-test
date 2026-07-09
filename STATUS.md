@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-07-09 (loan-application mockup — залоговые документы по предметам, перенос в таб «Документы») — _(update this date every time you edit)_
+> Last updated: 2026-07-09 (loan-application mockup — гигиена #tab-0 + кнопка «Сохранить»; сверка задач заявок с мокапом) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,6 +38,14 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-07-09 — **Сверка задач заявок (P3-R*) с эталонным мокапом** (`mockups/loan-application/loan-application.html`):
+  все 31 задачу фазы 3 проверил против мокапа — функции по цитируемым якорям на месте,
+  найдено 3 расхождения, все закрыты. **Гигиена (P3-R31):** удалена мёртвая статик-разметка
+  `#tab-0` (~140 строк, фантомные поля «Дата подтверждения кредитных/залоговых документов»)
+  + мёртвая JS `renderTab0` — таб теперь пустой контейнер, наполняется `renderGeneral`.
+  **P3-R28:** кнопка формы создания `Далее`→**«Сохранить»** (одноэкранная форма, не мастер).
+  **P3-R27:** снята устаревшая пометка «мокап — отдельной задачей» (номера `З-2026-000NNN`
+  уже во всех демо-заявках; открыто только на серверный sequence). `TODO.md` синхронизирован.
 - 2026-07-09 — **Мокап «Заявка» → документы (to-be)** (`mockups/loan-application/loan-application.html`):
   залоговые документы переведены на модель **по предметам залога** (стабильный `id`
   у каждого предмета, ключ состояния `<id предмета>::<docId>`; комплект — из справочника
