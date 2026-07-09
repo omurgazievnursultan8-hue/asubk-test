@@ -1014,6 +1014,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .doc-subgroup:first-child{ border-top:none; }
 .doc-subhead{ font:var(--weight-semibold) var(--text-sm)/1.2 var(--asubk-font); color:var(--text-heading);
   padding:9px 14px 3px; background:var(--surface-hover); }
+.doc-subhead-meta{ color:var(--text-muted); font-weight:var(--weight-regular); }
 .doc-subgroup .doc-row:first-of-type{ border-top:none; }
 .sec-locked-note{ display:flex; align-items:flex-start; gap:8px; padding:12px 14px; border-top:1px solid var(--border-default);
   font:var(--font-label); color:var(--text-muted); background:var(--surface-hover); }
@@ -1068,6 +1069,14 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .grid-total{ display:flex; justify-content:flex-end; align-items:baseline; gap:12px; padding:12px 4px 0;
   font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-heading); }
 .grid-total .k{ color:var(--text-muted); font-weight:var(--weight-regular); font-size:var(--text-sm); }
+.coll-kpis{ display:flex; gap:12px; margin:0 0 14px; flex-wrap:wrap; }
+.coll-kpi{ flex:1; min-width:150px; background:var(--surface-input); border:1px solid var(--border-default);
+  border-radius:var(--radius-md); padding:10px 14px; }
+.coll-kpi .l{ font:var(--font-label); color:var(--text-muted); margin-bottom:2px; }
+.coll-kpi .v{ font:var(--weight-semibold) var(--text-lg)/1.2 var(--asubk-font); color:var(--text-heading); font-variant-numeric:tabular-nums; }
+.coll-kpi .v.ok{ color:var(--status-success); }
+.coll-kpi .v.warn{ color:var(--status-warning); }
+.coll-kpi .v.bad{ color:var(--status-error); }
 .mem-pin{ color:var(--text-muted); font-variant-numeric:tabular-nums; font-size:12px; margin-right:6px; }
 .mem-sumcell{ display:flex; align-items:center; justify-content:flex-end; gap:10px; }
 .mem-share{ color:var(--text-muted); font-size:12px; font-weight:var(--weight-regular); white-space:nowrap; }
@@ -3968,7 +3977,7 @@ const DOC_SECTIONS = [
     { id:'fm', t:'Финансовая модель',                    req:false, ft:'both', st:'required' },
     { id:'usc',t:'Договоры под целевое использование',   req:false, ft:'both', st:'required' },
   ]},
-  { key:'coll', title:'Залоговые', note:'по видам залога — из блока «Залоговое обеспечение»', collateral:true, docs:[] },
+  { key:'coll', title:'Залоговые', note:'по каждому предмету залога — комплект из программы для его вида', collateral:true, docs:[] },
   { key:'contract', kind:'contract', stage:'contract', title:'Договорные',
     note:'шаблоны с merge-полями — доступны после одобрения комиссией', docs:[
     { id:'agr',t:'Кредитный договор',        req:true, ft:'both', st:'required' },
@@ -3999,7 +4008,8 @@ function _findDocState(key){
   const app = _detailApp; if (!app) return null;
   if (key.indexOf('::') >= 0){
     const parts = key.split('::');
-    const tpl = (COLL_DOC_DEFAULTS[parts[0]] || COLL_DOC_FALLBACK).find(t => t.id === parts[1]);
+    const it = _collItemById(app, parts[0]);
+    const tpl = ((it && COLL_DOC_DEFAULTS[it.kind]) || COLL_DOC_FALLBACK).find(t => t.id === parts[1]);
     return _collDocState(app, key, tpl);
   }
   for (const s of _docsOf(app)){ const d = s.docs.find(x => x.id === key); if (d) return d; }
@@ -4009,8 +4019,10 @@ function _docTitle(key){
   const app = _detailApp; if (!app) return key;
   if (key.indexOf('::') >= 0){
     const parts = key.split('::');
-    const tpl = (COLL_DOC_DEFAULTS[parts[0]] || COLL_DOC_FALLBACK).find(t => t.id === parts[1]);
-    return tpl ? (tpl.t + ' · ' + parts[0]) : parts[1];
+    const it = _collItemById(app, parts[0]);
+    const tpl = ((it && COLL_DOC_DEFAULTS[it.kind]) || COLL_DOC_FALLBACK).find(t => t.id === parts[1]);
+    const label = it ? (it.desc || it.kind) : parts[0];
+    return tpl ? (tpl.t + ' · ' + label) : parts[1];
   }
   for (const s of _docsOf(app)){ const d = s.docs.find(x => x.id === key); if (d) return d.t; }
   return key;
@@ -4027,9 +4039,9 @@ function _docStats(app){
     sec.docs.filter(d => d.ft === 'both' || d.ft === bt).forEach(d => { if (d.req) bump(d.st); });
   });
   if (app.hasCollateral){
-    _collKindsUsed(app).forEach(kind => {
-      (COLL_DOC_DEFAULTS[kind] || COLL_DOC_FALLBACK).forEach(tpl => {
-        if (tpl.req) bump(_collDocState(app, kind + '::' + tpl.id, tpl).st);
+    _collateralOf(app).forEach(it => {
+      (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).forEach(tpl => {
+        if (tpl.req) bump(_collDocState(app, it.id + '::' + tpl.id, tpl).st);
       });
     });
   }
@@ -4132,18 +4144,18 @@ function renderDocSection(app, s, bt){
   if (locked){
     body = `<div class="sec-locked-note">${_docIcoLock()} Раздел откроется после одобрения комиссией — тогда система сгенерирует договоры с подстановкой данных заявки (merge-поля), а сюда загружаются подписанные экземпляры.</div>`;
   } else if (isColl){
-    const kinds = _collKindsUsed(app);
-    if (!kinds.length){
-      body = `<div class="sec-locked-note">Добавьте предметы залога во вкладке «Залог» — типовой перечень залоговых документов появится здесь по каждому виду.</div>`;
+    const items = _collateralOf(app);
+    if (!items.length){
+      body = `<div class="sec-locked-note">Добавьте предметы залога во вкладке «Залог» — типовой перечень залоговых документов появится здесь по каждому предмету.</div>`;
     } else {
-      body = kinds.map(kind => {
-        const rows = (COLL_DOC_DEFAULTS[kind] || COLL_DOC_FALLBACK).map(tpl => {
-          const state = _collDocState(app, kind + '::' + tpl.id, tpl);
+      body = items.map((it, i) => {
+        const drows = (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).map(tpl => {
+          const state = _collDocState(app, it.id + '::' + tpl.id, tpl);
           if (tpl.req){ reqIn++; if (!OPEN_BLOCKS(state.st)) reqDone++; if (state.st === 'rejected' || state.st === 'expired') hasBlock++; } else optCnt++;
           const disp = { t:tpl.t, req:tpl.req, st:state.st, reason:state.reason, valid:state.valid, waiveReason:state.waiveReason };
-          return docRow(app, disp, kind + '::' + tpl.id, null);
+          return docRow(app, disp, it.id + '::' + tpl.id, null);
         }).join('');
-        return `<div class="doc-subgroup"><div class="doc-subhead">${kind}</div>${rows}</div>`;
+        return `<div class="doc-subgroup"><div class="doc-subhead">${_esc(_collItemLabel(it, i))} <span class="doc-subhead-meta">— ${it.kind} · ${_fmt(_num(it.val))}</span></div>${drows}</div>`;
       }).join('');
     }
   } else {
@@ -4191,7 +4203,10 @@ function renderDocs(app){
 PANEL_RENDER['tab-2'] = renderDocs;
 
 /* ── Действия над документом (спец/комиссия). Перерисовывают вкладку и тулбар-гейт. ── */
-function _docRerender(){ showTab('tab-2'); if (_detailApp) renderToolbar(_detailApp); }
+/* Доки живут в двух табах («Документы» и «Залог»/по предметам) — перерисовываем оба
+   панельных контента без смены активного таба, плюс тулбар-гейт. */
+function _panelRefresh(id){ const p = document.getElementById(id); if (p && PANEL_RENDER[id] && _detailApp) p.innerHTML = PANEL_RENDER[id](_detailApp); }
+function _docRerender(){ _panelRefresh('tab-2'); _panelRefresh('tab-4'); if (_detailApp) renderToolbar(_detailApp); }
 function docUpload(key){
   const d = _findDocState(key); if (!d) return;
   d.st = 'review'; delete d.reason;
@@ -4477,8 +4492,24 @@ function coverageOf(app){
   const cov = credit > 0 ? Math.round(sum / credit * 100) : 0;
   return { sum, credit, cov, covOk: cov >= MIN_COVERAGE, hasItems: items.length > 0 };
 }
-/* Уникальные виды залога среди предметов — под-секции залоговых документов идут по видам. */
+/* Уникальные виды залога среди предметов. */
 function _collKindsUsed(app){ return [...new Set(_collateralOf(app).map(it => it.kind))]; }
+/* Предмет по стабильному id (ключ состояния документа — «<id>::<docId>»). */
+function _collItemById(app, id){ return _collateralOf(app).find(it => String(it.id) === String(id)); }
+/* Ярлык предмета для строк/аккордеона документов. */
+function _collItemLabel(it, i){ return it.desc || (it.kind + ' №' + (i + 1)); }
+/* Свод по залоговым документам — по всем предметам (для гейта и чипов). */
+function _collDocStats(app){
+  let tot = 0, done = 0, block = 0;
+  _collateralOf(app).forEach(it => {
+    (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).forEach(tpl => {
+      if (!tpl.req) return;
+      const st = _collDocState(app, it.id + '::' + tpl.id, tpl).st;
+      tot++; if (!OPEN_BLOCKS(st)) done++; if (st === 'rejected' || st === 'expired') block++;
+    });
+  });
+  return { tot, done, block };
+}
 /* Типовой перечень залоговых документов по виду залога (демо-справочник, P2-R21 вариант C).
    ft у залоговых — 'both'; st — стартовый демо-статус ЖЦ. Fallback — если вид не в справочнике. */
 const COLL_DOC_DEFAULTS = {
@@ -4512,9 +4543,10 @@ const COLL_DOC_FALLBACK = [
 function _collateralOf(app){
   if (!app._collateral){
     app._collateral = [
-      { kind:'Недвижимость',          val:3000000, owner:'00404202510209 - ОсОО "Хот Лэйк Текстиль"', desc:'Складское помещение, 420 м², г. Бишкек' },
-      { kind:'Транспортное средство', val:800000,  owner:'21812199600888 - БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ', desc:'Грузовой автомобиль, 2021 г.' },
+      { id:1, kind:'Недвижимость',          val:3000000, owner:'00404202510209 - ОсОО "Хот Лэйк Текстиль"', desc:'Складское помещение, 420 м², г. Бишкек' },
+      { id:2, kind:'Транспортное средство', val:800000,  owner:'21812199600888 - БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ', desc:'Грузовой автомобиль, 2021 г.' },
     ];
+    app._collSeq = 3;   // счётчик id новых предметов (стабильный ключ для документов)
   }
   return app._collateral;
 }
@@ -4556,15 +4588,31 @@ function renderCollateral(app){
         <td>${ownerCell(it, i)}</td><td>${descCell(it, i)}</td></tr>`).join('')
     : `<tr><td colspan="4" style="color:var(--text-muted);text-align:center;padding:20px">Предметов залога нет${editable ? ' — добавьте хотя бы один' : ''}.</td></tr>`;
 
-  const gate = !hasItems
-    ? `<div class="note-banner warn"><span>Отправка в комиссию заблокирована: не указан ни один предмет залога.</span></div>`
-    : covOk
-      ? `<div class="note-banner"><span>Обеспечение достаточно: коэффициент покрытия <b>${cov}%</b> ≥ порога <b>${MIN_COVERAGE}%</b> (${_fmt(sum)} ÷ ${_fmt(credit)}). Заявку можно отправить в комиссию.</span></div>`
-      : `<div class="note-banner warn"><span>Отправка в комиссию заблокирована: коэффициент покрытия <b>${cov}%</b> ниже порога программы <b>${MIN_COVERAGE}%</b> (${_fmt(sum)} ÷ ${_fmt(credit)}).</span></div>`;
+  const cds = _collDocStats(app);
+  const kpiCls = c => (c.tot && c.done === c.tot && !c.block) ? 'ok' : (c.block ? 'bad' : 'warn');
+  const kpis = `<div class="coll-kpis">
+    <div class="coll-kpi"><div class="l">Предметов залога</div><div class="v">${items.length}</div></div>
+    <div class="coll-kpi"><div class="l">Коэффициент покрытия</div><div class="v ${hasItems ? (covOk ? 'ok' : 'bad') : ''}">${hasItems ? cov + '%' : '—'}</div></div>
+    <div class="coll-kpi"><div class="l">Документы (обязат.)</div><div class="v ${cds.tot ? kpiCls(cds) : ''}">${cds.done}/${cds.tot}</div></div>
+  </div>`;
+
+  const docsMet = cds.tot > 0 && cds.done === cds.tot && !cds.block;
+  let gate;
+  if (!hasItems){
+    gate = `<div class="note-banner warn"><span>Отправка в комиссию заблокирована: не указан ни один предмет залога.</span></div>`;
+  } else {
+    const problems = [];
+    if (!covOk) problems.push(`коэффициент покрытия <b>${cov}%</b> ниже порога <b>${MIN_COVERAGE}%</b>`);
+    if (!docsMet) problems.push(`залоговые документы собраны не полностью (<b>${cds.done}/${cds.tot}</b>) — см. вкладку «Документы»${cds.block ? `, есть блокирующие (<b>${cds.block}</b>)` : ''}`);
+    gate = problems.length
+      ? `<div class="note-banner warn"><span>Отправка в комиссию заблокирована: ${problems.join('; ')}.</span></div>`
+      : `<div class="note-banner ok"><span>Обеспечение достаточно: покрытие <b>${cov}%</b> ≥ <b>${MIN_COVERAGE}%</b> (${_fmt(sum)} ÷ ${_fmt(credit)}) и залоговые документы собраны. Заявку можно отправить в комиссию.</span></div>`;
+  }
 
   return `<div class="cond2-wrap">
     <div class="section-h">Залоговое обеспечение</div>
-    <div class="tab-note">Вид залога — из разрешённых <b>программой</b> (${kinds.join(' · ')}). Допускается несколько предметов; минимальный коэффициент покрытия — из программы (демо ${MIN_COVERAGE}%). Залоговые <b>документы</b> (оценка, правоустанавливающие) — во вкладке «Документы» (не дублируются здесь). Проверяет та же единственная комиссия.</div>
+    <div class="tab-note">Вид залога — из разрешённых <b>программой</b> (${kinds.join(' · ')}). Допускается несколько предметов; минимальный коэффициент покрытия — из программы (демо ${MIN_COVERAGE}%). Залоговые <b>документы</b> (оценка, правоустанавливающие) ведутся во вкладке <b>«Документы»</b> — по каждому предмету. Проверяет та же единственная комиссия.</div>
+    ${kpis}
     ${tools}
     <div class="collgrid num-grid"><table>
       <thead><tr><th>Вид залога</th><th class="num">Оценочная стоимость</th><th>Собственник</th><th>Описание</th></tr></thead>
@@ -4611,7 +4659,10 @@ function collItemSave(){
   document.getElementById('coll-fld-kind').classList.toggle('invalid', badKind);
   document.getElementById('coll-fld-val').classList.toggle('invalid', badVal);
   if (badKind || badVal){ showToast('Заполните обязательные поля предмета залога', 'warn'); return; }
-  _collateralOf(_detailApp).push({ kind, val, owner, desc });
+  const items = _collateralOf(_detailApp);
+  const id = _detailApp._collSeq || (items.reduce((m, it) => Math.max(m, it.id || 0), 0) + 1);
+  _detailApp._collSeq = id + 1;
+  items.push({ id, kind, val, owner, desc });
   _collSel = null;
   closeModal('modal-coll-item');
   showTab('tab-4');
