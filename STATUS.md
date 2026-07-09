@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-07-09 (loan-application mockup — залоговые документы: под-панели по предметам, по умолчанию открыт первый) — _(update this date every time you edit)_
+> Last updated: 2026-07-09 (loan-application mockup — вкладка «Документы»: именованные статусы комплектации + ярусы кнопок) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,6 +38,18 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-07-09 — **Вкладка «Документы» — статусы комплектации + ярусы кнопок** (`loan-application.html`,
+  `renderDocs`/`renderDocSection`/`docRow`). Спек: `docs/superpowers/specs/2026-07-09-loan-app-docs-completeness-design.md`.
+  (1) **ЖЦ 7→6**: «На проверке» больше не хранимый статус, а **вид** — `uploaded`-док при заявке
+  в комиссии показывается бейджем «На проверке» (`_dispSt`/`_atCommission`); `docUpload` пишет
+  `uploaded`. (2) **Именованный чип комплектации** (`_complStatus`/`_complChip`, CSS `.compl.cs-*`)
+  рядом с `N/M` на секции, залоговом предмете и пакете: Не начато / В работе / Готов к отправке /
+  На проверке / Укомплектовано / Есть замечания / Заблокировано. ✓ в счётчике теперь = «Укомплектовано»
+  (все приняты), не просто собрано. (3) **Кнопки**: ярус A — +Скачать (`docDownload`), +Вернуть для
+  waived (`docUnwaive`); ярус B — панель пакета для спеца·draft: Отправить (гейт+тултип), Запросить
+  недостающие (N, `pkgRequestMissing`), Скачать пакет, Опись; ярус C — видимость по роли/режиму без
+  изменений. Гейт `sendReady` — логика прежняя. Проверено в браузере (`scripts/inspect/docs-completeness-render.mjs`):
+  спец·draft·view/edit + комиссия·review, JS-ошибок нет, чипы во всех состояниях.
 - 2026-07-09 — **Залоговые документы — сворачиваемые под-панели по предметам** (`loan-application.html`,
   секция «Залоговые» вкладки «Документы»): при многих предметах плоский список тяжело
   просматривать → каждый предмет теперь **сворачиваемая под-панель** (`doc-item`) со счётчиком

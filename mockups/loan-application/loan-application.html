@@ -1010,6 +1010,18 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .doc-meta{ flex-basis:100%; font:var(--font-label); color:var(--text-muted); display:flex; flex-wrap:wrap; gap:4px 16px; }
 .doc-meta .m-rej{ color:var(--status-error); }
 .doc-meta .m-exp{ color:var(--status-warning); }
+/* именованный статус комплектации (секция · предмет · пакет) — рядом со счётчиком N/M */
+.compl{ font:var(--weight-medium) 12px/1 var(--asubk-font); padding:4px 10px; border-radius:var(--radius-pill);
+  white-space:nowrap; display:inline-flex; align-items:center; gap:5px; }
+.compl.cs-none{ color:var(--text-muted); background:var(--surface-input); }
+.compl.cs-wip{ color:#7a5b00; background:var(--status-warning-bg); }
+.compl.cs-ready{ color:#0a3d80; background:var(--status-info-bg); }
+.compl.cs-review{ color:#0a3d80; background:var(--status-info-bg); }
+.compl.cs-done{ color:var(--status-success); background:var(--status-success-bg); }
+.compl.cs-block{ color:var(--status-error); background:var(--status-error-bg); }
+.compl.cs-lock{ color:var(--text-muted); background:var(--surface-input); }
+/* панель действий по пакету (Ярус B) — над секциями */
+.pkg-actions{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px; }
 .doc-subgroup{ border-top:1px solid var(--border-default); }
 .doc-subgroup:first-child{ border-top:none; }
 .doc-subhead{ font:var(--weight-semibold) var(--text-sm)/1.2 var(--asubk-font); color:var(--text-heading);
@@ -3755,6 +3767,22 @@ const DOC_STATUS = {
 };
 /* «Открытый» блокер комплекта — статус, при котором обязательный документ ещё не «закрыт». */
 const OPEN_BLOCKS = s => s === 'required' || s === 'rejected' || s === 'expired';
+/* «На проверке» — не хранимый статус, а вид: uploaded-док при заявке в комиссии
+   отображается бейджем «На проверке». Хранимое значение остаётся 'uploaded'. */
+function _atCommission(app){ return condPhase(app.status) === 'review'; }
+function _dispSt(app, st){ return (st === 'uploaded' && _atCommission(app)) ? 'review' : st; }
+/* Именованный статус комплектации (секция · предмет · пакет). Приоритет сверху вниз.
+   reqDone = не-open-block; reqAcc = принятых; вернёт null если обязательных нет (только опц.). */
+function _complStatus(o){
+  if (o.locked)              return { label:'Заблокировано', cls:'cs-lock' };
+  if (!o.reqIn)              return null;
+  if (o.blockers)            return { label:'Есть замечания', cls:'cs-block' };
+  if (o.reqAcc === o.reqIn)  return { label:'Укомплектовано', cls:'cs-done' };
+  if (o.reqDone === o.reqIn) return o.atCom ? { label:'На проверке', cls:'cs-review' } : { label:'Готов к отправке', cls:'cs-ready' };
+  if (o.reqDone > 0)         return { label:'В работе', cls:'cs-wip' };
+  return { label:'Не начато', cls:'cs-none' };
+}
+function _complChip(o){ const c = _complStatus(o); return c ? `<span class="compl ${c.cls}">${c.label}</span>` : ''; }
 /* Статусы заявки, при которых договорные шаблоны разблокированы (после одобрения). */
 const DOC_APPROVED_STATUSES = new Set(['Одобрена','Ожидает решения/программы','На оформлении','Оформлена']);
 
@@ -3851,8 +3879,8 @@ function _docTitle(key){
 /* Пересчёт обязательного комплекта (без договорной стадии — она этап после одобрения). */
 function _docStats(app){
   const bt = _docBType(app);
-  let reqTot = 0, reqClosed = 0, blockers = 0;
-  const bump = st => { reqTot++; if (!OPEN_BLOCKS(st)) reqClosed++; if (st === 'rejected' || st === 'expired') blockers++; };
+  let reqTot = 0, reqClosed = 0, reqAccepted = 0, blockers = 0;
+  const bump = st => { reqTot++; if (!OPEN_BLOCKS(st)) reqClosed++; if (st === 'accepted') reqAccepted++; if (st === 'rejected' || st === 'expired') blockers++; };
   _docsOf(app).forEach(sec => {
     if (sec.stage === 'contract' || sec.key === 'coll') return;
     sec.docs.filter(d => d.ft === 'both' || d.ft === bt).forEach(d => { if (d.req) bump(d.st); });
@@ -3864,7 +3892,7 @@ function _docStats(app){
       });
     });
   }
-  return { reqTot, reqClosed, blockers, met: reqTot > 0 && reqClosed === reqTot };
+  return { reqTot, reqClosed, reqAccepted, blockers, met: reqTot > 0 && reqClosed === reqTot };
 }
 /* Готов ли обязательный комплект документов. */
 function docsReady(app){ return _docStats(app).met; }
@@ -3909,7 +3937,7 @@ function _docBtn(kind, label, onclick){ return `<button class="btn btn-${kind} b
 
 /* Строка документа. disp = {t, req, st, reason?, valid?, waiveReason?}; secKind: 'print'|'contract'|null. */
 function docRow(app, disp, key, secKind){
-  const stt = DOC_STATUS[disp.st] || DOC_STATUS.required;
+  const stt = DOC_STATUS[_dispSt(app, disp.st)] || DOC_STATUS.required;
   const cap = can(app);
   /* Обычные секции правит спец в режиме «Изменить» (draft). Договорные — отдельный
      ПОСЛЕ-одобренческий этап: их строки вообще рендерятся только когда секция разблокирована
@@ -3929,27 +3957,31 @@ function docRow(app, disp, key, secKind){
       acts += OPEN_BLOCKS(disp.st)
         ? _docBtn('primary', 'Загрузить скан', `docUpload(${kq})`)
         : _docBtn('ghost', 'Заменить', `docUpload(${kq})`);
+    } else if (disp.st === 'waived'){
+      acts += _docBtn('ghost', 'Вернуть', `docUnwaive(${kq})`);
     } else {
       if (disp.st === 'required') acts += _docBtn('primary', 'Загрузить', `docUpload(${kq})`);
       else if (disp.st === 'rejected' || disp.st === 'expired') acts += _docBtn('primary', 'Перезагрузить', `docUpload(${kq})`);
       else acts += _docBtn('ghost', 'Заменить', `docUpload(${kq})`);
-      if (disp.req && disp.st !== 'waived') acts += _docBtn('ghost', 'Не требуется', `docWaive(${kq})`);
+      if (disp.req) acts += _docBtn('ghost', 'Не требуется', `docWaive(${kq})`);
     }
   }
-  if (com && (disp.st === 'uploaded' || disp.st === 'review')){
+  if (com && disp.st === 'uploaded'){
     acts += _docBtn('success', 'Принять', `docAccept(${kq})`);
     acts += _docBtn('danger', 'Отклонить', `docReject(${kq})`);
   }
-  /* Просмотр скана — всем ролям на статусах «есть файл» (комиссии критично перед решением). */
-  if (['uploaded','review','accepted','expired'].includes(disp.st))
+  /* Просмотр + Скачать — всем ролям на статусах «есть файл» (комиссии критично перед решением). */
+  if (['uploaded','accepted','expired'].includes(disp.st)){
     acts += _docBtn('ghost', _docIcoEye() + 'Просмотр', `docView(${kq})`);
+    acts += _docBtn('ghost', 'Скачать', `docDownload(${kq})`);
+  }
 
   const meta = [];
   if (disp.st === 'rejected' && disp.reason) meta.push(`<span class="m-rej">Причина отклонения: ${_esc(disp.reason)}</span>`);
   if (disp.st === 'expired') meta.push(`<span class="m-exp">Срок действия истёк${disp.valid ? ` (${disp.valid})` : ''} — требуется свежий документ</span>`);
   else if (disp.valid && (disp.st === 'uploaded' || disp.st === 'accepted')) meta.push(`Срок действия: ${disp.valid}`);
   if (disp.st === 'waived' && disp.waiveReason) meta.push(`Не требуется: ${_esc(disp.waiveReason)}`);
-  if (['uploaded','review','accepted'].includes(disp.st)) meta.unshift(`Файл: ${key.split('::').join('_')}_scan.pdf · загружен 04.07.2026`);
+  if (['uploaded','accepted'].includes(disp.st)) meta.unshift(`Файл: ${key.split('::').join('_')}_scan.pdf · загружен 04.07.2026`);
 
   return `<div class="doc-row">
     <div class="doc-main">
@@ -3965,7 +3997,8 @@ function docRow(app, disp, key, secKind){
 function renderDocSection(app, s, bt){
   const isColl = s.key === 'coll';
   const locked = s.stage === 'contract' && !DOC_APPROVED_STATUSES.has(app.status);
-  let body = '', reqIn = 0, reqDone = 0, hasBlock = 0, optCnt = 0;
+  const atCom = _atCommission(app);
+  let body = '', reqIn = 0, reqDone = 0, reqAcc = 0, hasBlock = 0, optCnt = 0;
 
   if (locked){
     body = `<div class="sec-locked-note">${_docIcoLock()} Раздел откроется после одобрения комиссией — тогда система сгенерирует договоры с подстановкой данных заявки (merge-поля), а сюда загружаются подписанные экземпляры.</div>`;
@@ -3975,27 +4008,28 @@ function renderDocSection(app, s, bt){
       body = `<div class="sec-locked-note">Добавьте предметы залога во вкладке «Залог» — типовой перечень залоговых документов появится здесь по каждому предмету.</div>`;
     } else {
       body = items.map((it, i) => {
-        let iReqIn = 0, iReqDone = 0, iBlock = 0, iOpt = 0;
+        let iReqIn = 0, iReqDone = 0, iAcc = 0, iBlock = 0, iOpt = 0;
         const drows = (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).map(tpl => {
           const state = _collDocState(app, it.id + '::' + tpl.id, tpl);
-          if (tpl.req){ iReqIn++; if (!OPEN_BLOCKS(state.st)) iReqDone++; if (state.st === 'rejected' || state.st === 'expired') iBlock++; } else iOpt++;
+          if (tpl.req){ iReqIn++; if (!OPEN_BLOCKS(state.st)) iReqDone++; if (state.st === 'accepted') iAcc++; if (state.st === 'rejected' || state.st === 'expired') iBlock++; } else iOpt++;
           const disp = { t:tpl.t, req:tpl.req, st:state.st, reason:state.reason, valid:state.valid, waiveReason:state.waiveReason };
           return docRow(app, disp, it.id + '::' + tpl.id, null);
         }).join('');
         // сводим счётчики предмета в итог секции
-        reqIn += iReqIn; reqDone += iReqDone; hasBlock += iBlock; optCnt += iOpt;
-        const iDone  = iReqIn > 0 && iReqDone === iReqIn && !iBlock;
+        reqIn += iReqIn; reqDone += iReqDone; reqAcc += iAcc; hasBlock += iBlock; optCnt += iOpt;
+        // ✓ = «Укомплектовано» (все обязат. приняты), не просто собрано
+        const iDone  = iReqIn > 0 && iAcc === iReqIn;
         // по умолчанию раскрыт только первый предмет, остальные свёрнуты (как секции-аккордеоны); клик перекрывает
         const iAuto  = (i === 0);
         const iOpenS = (it.id in _docCollOpen) ? _docCollOpen[it.id] : iAuto;
-        const iChip  = iReqIn === 0 ? '' : iBlock ? 'block' : (iDone ? 'done' : '');
+        const iChip  = _complChip({ reqIn:iReqIn, reqDone:iReqDone, reqAcc:iAcc, blockers:iBlock, locked:false, atCom });
         const iCnt   = iReqIn === 0 ? `${iOpt} опц.` : `${iReqDone}/${iReqIn}${iDone ? ' ✓' : ''}`;
         return `<div class="doc-item${iOpenS ? ' open' : ''}">
           <div class="doc-item-head" onclick="docCollToggle('${it.id}', '${iAuto}')">
             ${chevSvg(13)}<span class="doc-item-title">${_esc(_collItemLabel(it, i))}</span>
             <span class="doc-item-meta">— ${it.kind} · ${_fmt(_num(it.val))}</span>
             <span class="spacer"></span>
-            <span class="doc-count ${iChip}">${iCnt}</span>
+            ${iChip}<span class="doc-count">${iCnt}</span>
           </div>
           <div class="doc-item-body">${drows}</div>
         </div>`;
@@ -4003,20 +4037,20 @@ function renderDocSection(app, s, bt){
     }
   } else {
     body = s.docs.filter(d => d.ft === 'both' || d.ft === bt).map(d => {
-      if (d.req){ reqIn++; if (!OPEN_BLOCKS(d.st)) reqDone++; if (d.st === 'rejected' || d.st === 'expired') hasBlock++; } else optCnt++;
+      if (d.req){ reqIn++; if (!OPEN_BLOCKS(d.st)) reqDone++; if (d.st === 'accepted') reqAcc++; if (d.st === 'rejected' || d.st === 'expired') hasBlock++; } else optCnt++;
       return docRow(app, d, d.id, s.kind);
     }).join('');
   }
 
-  const cntCls = locked ? '' : reqIn === 0 ? '' : hasBlock ? 'block' : (reqDone === reqIn ? 'done' : '');
-  const cntTxt = locked ? 'после одобрения' : reqIn === 0 ? `${optCnt} опц.` : `${reqDone}/${reqIn}${reqDone === reqIn && !hasBlock ? ' ✓' : ''}`;
+  const chip   = _complChip({ reqIn, reqDone, reqAcc, blockers:hasBlock, locked, atCom });
+  const cntTxt = locked ? 'после одобрения' : reqIn === 0 ? `${optCnt} опц.` : `${reqDone}/${reqIn}${reqAcc === reqIn && reqIn > 0 ? ' ✓' : ''}`;
 
   return `<div class="doc-acc${_docOpen[s.key] ? ' open' : ''}">
     <div class="doc-acc-head" onclick="docToggle('${s.key}')">
       ${chevSvg(14)}<span class="doc-acc-title">${s.title}</span>
       ${s.note ? `<span class="acc-note">— ${s.note}</span>` : ''}
       <span class="spacer"></span>
-      <span class="doc-count ${cntCls}">${cntTxt}</span>
+      ${chip}<span class="doc-count">${cntTxt}</span>
     </div>
     <div class="doc-acc-body">${body}</div>
   </div>`;
@@ -4035,13 +4069,30 @@ function renderDocs(app){
     : `<div class="note-banner ${stats.blockers ? 'warn' : ''}">${stats.blockers ? _docIcoWarn() : _docIcoInfo()}<span>Собрано обязательных: <b>${stats.reqClosed} из ${stats.reqTot}</b>.${stats.blockers ? ` Есть блокирующие (отклонённые/просроченные): <b>${stats.blockers}</b> — их нужно перезагрузить.` : ''} «Отправить в комиссию» доступно только при полном обязательном комплекте.</span></div>`;
 
   const pct = stats.reqTot ? Math.round(stats.reqClosed / stats.reqTot * 100) : 0;
+  const pkgChip = _complChip({ reqIn:stats.reqTot, reqDone:stats.reqClosed, reqAcc:stats.reqAccepted,
+    blockers:stats.blockers, locked:false, atCom:_atCommission(app) });
   const bar = `<div class="gate-row"><div class="bar-block">
-      <div class="bar-label">Готовность обязательного комплекта — ${pct}%</div>
+      <div class="bar-label">Готовность обязательного комплекта — ${pct}% ${pkgChip}</div>
       <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div></div>
     </div></div>`;
 
+  /* Ярус B — действия по пакету. Видны спецу на стадии черновика (утилиты + акцентный CTA). */
+  let pkgActions = '';
+  if (_role === 'spec' && condPhase(app.status) === 'draft'){
+    const missing = _missingReqCount(app);
+    const sendBtn = ready
+      ? `<button class="btn btn-primary btn-sm" onclick="openSendModal('credit')">Отправить в комиссию</button>`
+      : `<button class="btn btn-primary btn-sm" disabled title="${_esc(sendGateReason(app))}">Отправить в комиссию</button>`;
+    pkgActions = `<div class="pkg-actions">
+      ${sendBtn}
+      <button class="btn btn-secondary btn-sm" onclick="pkgRequestMissing()"${missing ? '' : ' disabled title="Недостающих обязательных документов нет"'}>Запросить недостающие${missing ? ` (${missing})` : ''}</button>
+      <button class="btn btn-ghost btn-sm" onclick="pkgDownloadAll()">Скачать пакет</button>
+      <button class="btn btn-ghost btn-sm" onclick="pkgInventory()">Опись</button>
+    </div>`;
+  }
+
   const accs = secs.map(s => renderDocSection(app, s, bt)).join('');
-  return `<div class="docs-wrap">${banner}${bar}${accs}</div>`;
+  return `<div class="docs-wrap">${banner}${bar}${pkgActions}${accs}</div>`;
 }
 PANEL_RENDER['tab-2'] = renderDocs;
 
@@ -4052,11 +4103,33 @@ function _panelRefresh(id){ const p = document.getElementById(id); if (p && PANE
 function _docRerender(){ _panelRefresh('tab-2'); _panelRefresh('tab-4'); if (_detailApp) renderToolbar(_detailApp); }
 function docUpload(key){
   const d = _findDocState(key); if (!d) return;
-  d.st = 'review'; delete d.reason;
+  d.st = 'uploaded'; delete d.reason;
   if (d.valid && d.valid.indexOf('05.07') >= 0) d.valid = 'до 04.08.2026';   // «освежили» просроченную выписку
-  _docRerender(); showToast('Документ загружен, отправлен на проверку', 'ok');
+  _docRerender(); showToast('Документ загружен', 'ok');
 }
 function docAccept(key){ const d = _findDocState(key); if (!d) return; d.st = 'accepted'; _docRerender(); showToast('Документ принят', 'ok'); }
+function docDownload(key){ showToast('Файл выгружен: ' + _docTitle(key), 'info'); }                        /* заглушка макета */
+function docUnwaive(key){ const d = _findDocState(key); if (!d) return; d.st = 'required'; delete d.waiveReason; _docRerender(); showToast('Документ возвращён в перечень: ' + _docTitle(key), 'info'); }
+/* Число обязательных документов без файла (статус «Требуется») — для «Запросить недостающие». */
+function _missingReqCount(app){
+  const bt = _docBType(app); let n = 0;
+  _docsOf(app).forEach(sec => {
+    if (sec.stage === 'contract' || sec.key === 'coll') return;
+    sec.docs.filter(d => d.ft === 'both' || d.ft === bt).forEach(d => { if (d.req && d.st === 'required') n++; });
+  });
+  if (app.hasCollateral){
+    _collateralOf(app).forEach(it => {
+      (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).forEach(tpl => {
+        if (tpl.req && _collDocState(app, it.id + '::' + tpl.id, tpl).st === 'required') n++;
+      });
+    });
+  }
+  return n;
+}
+function pkgRequestMissing(){ if (!_detailApp) return; const n = _missingReqCount(_detailApp);
+  showToast(n ? `Запрос на недостающие документы (${n}) отправлен заёмщику` : 'Недостающих обязательных документов нет', n ? 'ok' : 'info'); }
+function pkgDownloadAll(){ showToast('Формируется архив пакета документов…', 'info'); }                    /* заглушка макета */
+function pkgInventory(){ showToast('Опись комплекта сформирована на печать', 'info'); }                    /* заглушка макета */
 function docReject(key){ _docOpenReason(key, 'reject'); }
 function docWaive(key){ _docOpenReason(key, 'waive'); }
 function docPrint(key){ showToast('Печатная форма сформирована и отправлена на печать: ' + _docTitle(key), 'info'); }      /* заглушка макета */
