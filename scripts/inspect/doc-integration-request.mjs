@@ -54,6 +54,33 @@ check('T2 «Запросить из» нет у kb', !btns.kbReqBtn);
 check('T2 в статусе requested есть «Отменить запрос»', btns.requestedActs.includes('Отменить запрос'));
 check('T2 в статусе requested есть «Ответ получен»', btns.requestedActs.includes('Ответ получен'));
 
+// T3: полный флоу через реальные обработчики + перерисовку DOM.
+// cbr — необязательный интеграционный док в fin, стартует 'required'.
+const flow = await page.evaluate(() => {
+  const seq = [];
+  const st = () => _findDocState('cbr').st;
+  docRequest('cbr');   seq.push(['afterRequest', st(), _findDocState('cbr').reqAt || '']);
+  docReqCancel('cbr'); seq.push(['afterCancel', st()]);
+  docRequest('cbr');   seq.push(['afterReRequest', st()]);
+  docReqFulfill('cbr');seq.push(['afterFulfill', st(), _findDocState('cbr').via || '']);
+  return seq;
+});
+const byName = Object.fromEntries(flow.map(r => [r[0], r]));
+check('T3 запрос → requested', byName.afterRequest[1] === 'requested' && byName.afterRequest[2] === '09.07.2026 14:20');
+check('T3 отмена → required', byName.afterCancel[1] === 'required');
+check('T3 повторный запрос → requested', byName.afterReRequest[1] === 'requested');
+check('T3 ответ → uploaded с источником «Кредбюро»', byName.afterFulfill[1] === 'uploaded' && byName.afterFulfill[2] === 'Кредбюро');
+
+// T3b: пока док в requested — он open-block, в комплекте не закрыт.
+const gate = await page.evaluate(() => {
+  const inn = _findDocState('inn'); inn.st = 'requested';
+  const blocked = OPEN_BLOCKS('requested');
+  const reason = sendGateReason(_detailApp);
+  inn.st = 'accepted';   // вернуть, чтобы не залипло состояние демо
+  return { blocked, reason };
+});
+check('T3b requested блокирует гейт (open-block)', gate.blocked === true);
+
 console.log(results.join('\n'));
 console.log(errors.length ? '\nERRORS:\n' + errors.join('\n') : '\nNO JS ERRORS');
 await ctx.close();

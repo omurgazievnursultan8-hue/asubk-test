@@ -4051,13 +4051,14 @@ function _docTitle(key){
 /* Пересчёт обязательного комплекта (без договорной стадии — она этап после одобрения). */
 function _docStats(app){
   const bt = _docBType(app);
-  let reqTot = 0, reqClosed = 0, reqAccepted = 0, reqConfirmed = 0, blockers = 0;
+  let reqTot = 0, reqClosed = 0, reqAccepted = 0, reqConfirmed = 0, blockers = 0, requested = 0;
   const bump = st => {
     reqTot++;
     if (!OPEN_BLOCKS(st)) reqClosed++;
     if (st === 'accepted' || st === 'confirmed') reqAccepted++;   // проверено спецом (принят/подтверждён)
     if (st === 'confirmed' || st === 'waived') reqConfirmed++;    // закрыто головным филиалом (подтверждён/не требуется)
     if (st === 'rejected' || st === 'expired') blockers++;
+    if (st === 'requested') requested++;
   };
   _docsOf(app).forEach(sec => {
     if (sec.stage === 'contract' || sec.key === 'coll') return;
@@ -4070,7 +4071,7 @@ function _docStats(app){
       });
     });
   }
-  return { reqTot, reqClosed, reqAccepted, reqConfirmed, blockers,
+  return { reqTot, reqClosed, reqAccepted, reqConfirmed, blockers, requested,
     met:          reqTot > 0 && reqClosed    === reqTot,   // комплект собран (есть файлы)
     accMet:       reqTot > 0 && reqAccepted  === reqTot,   // всё проверено спецом → готово к подтверждению ГФ
     confirmedMet: reqTot > 0 && reqConfirmed === reqTot };  // всё подтверждено ГФ → открываются заключения
@@ -4090,9 +4091,11 @@ function sendReady(app){
 /* Человекочитаемая причина, почему отправка заблокирована (для title/тоста). */
 function sendGateReason(app){
   const st = _docStats(app);
-  if (!st.met) return st.blockers
-    ? 'Есть отклонённые/просроченные документы — их нужно перезагрузить'
-    : `Собран не полный обязательный комплект документов (${st.reqClosed} из ${st.reqTot})`;
+  if (!st.met){
+    if (st.blockers) return 'Есть отклонённые/просроченные документы — их нужно перезагрузить';
+    if (st.requested) return `Ожидается ответ интеграции по ${st.requested} док. — комплект пока не собран`;
+    return `Собран не полный обязательный комплект документов (${st.reqClosed} из ${st.reqTot})`;
+  }
   if (app.hasCollateral){
     const c = coverageOf(app);
     if (!c.hasItems) return 'Не указан ни один предмет залога';
@@ -4326,6 +4329,24 @@ function docUpload(key){
   d.st = 'uploaded'; delete d.reason;
   if (d.valid && d.valid.indexOf('05.07') >= 0) d.valid = 'до 04.08.2026';   // «освежили» просроченную выписку
   _docRerender(); showToast('Документ загружен', 'ok');
+}
+/* ── Интеграция: запрос документа из внешней госсистемы. Промежуточный статус
+   «Запрошено» (асинхронно), ответ приходит как «Загружен» с пометкой источника. ── */
+function docRequest(key){
+  const d = _findDocState(key); if (!d) return;
+  const src = DOC_SOURCES[key]; if (!src) return;
+  d.st = 'requested'; d.reqAt = '09.07.2026 14:20'; delete d.reason;
+  _docRerender(); showToast(`Запрос отправлен в «${src}»: ` + _docTitle(key), 'ok');
+}
+function docReqCancel(key){
+  const d = _findDocState(key); if (!d) return;
+  d.st = 'required'; delete d.reqAt;
+  _docRerender(); showToast('Запрос отменён: ' + _docTitle(key), 'info');
+}
+function docReqFulfill(key){
+  const d = _findDocState(key); if (!d) return;
+  d.st = 'uploaded'; d.via = DOC_SOURCES[key] || '—'; delete d.reqAt; delete d.reason;
+  _docRerender(); showToast(`Ответ получен из «${d.via}» — документ загружен: ` + _docTitle(key), 'ok');
 }
 function docAccept(key){ const d = _findDocState(key); if (!d) return; d.st = 'accepted'; _docRerender(); showToast('Документ проверен специалистом', 'ok'); }
 /* 2-й уровень: головной филиал подтверждает полноту/правоту (accepted → confirmed) и снимает подтверждение. */
