@@ -38,6 +38,22 @@ check('T1 OPEN_BLOCKS(requested)', cfg.openBlocks);
 check('T1 DOC_SOURCES.inn/.cbr заданы', cfg.sources);
 check('T1 док cbr в секции fin', cfg.cbr);
 
+// T2: у интеграционного дока (inn) в открытом блоке есть «Запросить из …»,
+//     у неинтеграционного (kb — согласие в кредбюро) — нет.
+const btns = await page.evaluate(() => {
+  const app = _detailApp;
+  const inn = _findDocState('inn'); const kb = _findDocState('kb');
+  return {
+    innReqBtn: docRow(app, { t:'ИНН', req:true, st:'required' }, 'inn', null).includes('Запросить из'),
+    kbReqBtn:  docRow(app, { t:'Согласие', req:true, st:'required' }, 'kb', null).includes('Запросить из'),
+    requestedActs: docRow(app, { t:'ИНН', req:true, st:'requested' }, 'inn', null),
+  };
+});
+check('T2 «Запросить из» есть у inn', btns.innReqBtn);
+check('T2 «Запросить из» нет у kb', !btns.kbReqBtn);
+check('T2 в статусе requested есть «Отменить запрос»', btns.requestedActs.includes('Отменить запрос'));
+check('T2 в статусе requested есть «Ответ получен»', btns.requestedActs.includes('Ответ получен'));
+
 console.log(results.join('\n'));
 console.log(errors.length ? '\nERRORS:\n' + errors.join('\n') : '\nNO JS ERRORS');
 await ctx.close();

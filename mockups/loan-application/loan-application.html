@@ -1018,6 +1018,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .doc-meta{ flex-basis:100%; font:var(--font-label); color:var(--text-muted); display:flex; flex-wrap:wrap; gap:4px 16px; }
 .doc-meta .m-rej{ color:var(--status-error); }
 .doc-meta .m-exp{ color:var(--status-warning); }
+.doc-meta .m-req{ color:#7a5b00; }
 /* именованный статус комплектации (секция · предмет · пакет) — рядом со счётчиком N/M */
 .compl{ font:var(--weight-medium) 12px/1 var(--asubk-font); padding:4px 10px; border-radius:var(--radius-pill);
   white-space:nowrap; display:inline-flex; align-items:center; gap:5px; }
@@ -4146,15 +4147,25 @@ function docRow(app, disp, key, secKind){
     } else if (disp.st === 'waived'){
       acts += _docBtn('ghost', 'Вернуть', `docUnwaive(${kq})`);
     } else {
-      if (disp.st === 'required') acts += _docBtn('primary', 'Загрузить', `docUpload(${kq})`);
-      else if (disp.st === 'rejected' || disp.st === 'expired') acts += _docBtn('primary', 'Перезагрузить', `docUpload(${kq})`);
-      else acts += _docBtn('ghost', 'Заменить', `docUpload(${kq})`);
-      /* Спец подтверждает, что проверил загруженный документ (1-й уровень). */
-      if (disp.st === 'uploaded'){
-        acts += _docBtn('success', 'Проверил', `docAccept(${kq})`);
-        acts += _docBtn('danger', 'Отклонить', `docReject(${kq})`);
+      if (disp.st === 'requested'){
+        acts += _docBtn('ghost', 'Отменить запрос', `docReqCancel(${kq})`);
+        acts += _docBtn('secondary', '⚙ Ответ получен', `docReqFulfill(${kq})`);
+      } else {
+        if (disp.st === 'required') acts += _docBtn('primary', 'Загрузить', `docUpload(${kq})`);
+        else if (disp.st === 'rejected' || disp.st === 'expired') acts += _docBtn('primary', 'Перезагрузить', `docUpload(${kq})`);
+        else acts += _docBtn('ghost', 'Заменить', `docUpload(${kq})`);
+        /* Интеграция: рядом с ручной загрузкой — запрос из госсистемы (только открытый блок). */
+        const src = DOC_SOURCES[key];
+        if (src && OPEN_BLOCKS(disp.st)){
+          acts += _docBtn('ghost', `Запросить из «${src}»`, `docRequest(${kq})`);
+        }
+        /* Спец подтверждает, что проверил загруженный документ (1-й уровень). */
+        if (disp.st === 'uploaded'){
+          acts += _docBtn('success', 'Проверил', `docAccept(${kq})`);
+          acts += _docBtn('danger', 'Отклонить', `docReject(${kq})`);
+        }
+        if (disp.req) acts += _docBtn('ghost', 'Не требуется', `docWaive(${kq})`);
       }
-      if (disp.req) acts += _docBtn('ghost', 'Не требуется', `docWaive(${kq})`);
     }
   }
   /* Головной филиал — 2-й уровень: подтверждает полноту/правоту принятого спецом документа. */
@@ -4176,6 +4187,8 @@ function docRow(app, disp, key, secKind){
   if (disp.st === 'rejected' && disp.reason) meta.push(`<span class="m-rej">Причина отклонения: ${_esc(disp.reason)}</span>`);
   if (disp.st === 'expired') meta.push(`<span class="m-exp">Срок действия истёк${disp.valid ? ` (${disp.valid})` : ''} — требуется свежий документ</span>`);
   else if (disp.valid && ['uploaded','accepted','confirmed'].includes(disp.st)) meta.push(`Срок действия: ${disp.valid}`);
+  if (disp.st === 'requested') meta.push(`<span class="m-req">Запрошено из «${DOC_SOURCES[key] || '—'}» · ${disp.reqAt || '09.07.2026 14:20'}</span>`);
+  if (disp.via && ['uploaded','accepted','confirmed'].includes(disp.st)) meta.push(`Получено из «${disp.via}» · автоматически`);
   if (disp.st === 'waived' && disp.waiveReason) meta.push(`Не требуется: ${_esc(disp.waiveReason)}`);
   if (['uploaded','accepted','confirmed'].includes(disp.st)) meta.unshift(`Файл: ${key.split('::').join('_')}_scan.pdf · загружен 04.07.2026`);
 
