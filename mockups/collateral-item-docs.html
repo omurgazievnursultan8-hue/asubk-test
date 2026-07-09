@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Залог: чек-лист документов по предмету + модалка загрузки</title>
+<style>
+  :root{
+    --surface-0:#faf9f5; --surface-1:#f1efe8; --surface-2:#ffffff;
+    --text-primary:#2c2c2a; --text-secondary:#5f5e5a; --text-muted:#888780;
+    --border:#e2e0d8; --border-strong:#c9c6bd; --radius:8px;
+    --text-danger:#a32d2d; --bg-danger:#fcebeb;
+    --text-warning:#854f0b; --bg-warning:#faeeda;
+    --text-success:#0f6e56; --bg-success:#e1f5ee;
+    --accent:#185fa5;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --surface-0:#26251f; --surface-1:#2f2e28; --surface-2:#38372f;
+      --text-primary:#eceadf; --text-secondary:#b4b2a9; --text-muted:#888780;
+      --border:#45443c; --border-strong:#5f5e57;
+      --text-danger:#f09595; --bg-danger:#4a1717;
+      --text-warning:#efc27a; --bg-warning:#4a3610;
+      --text-success:#5dcaa5; --bg-success:#0a3a2e;
+      --accent:#85b7eb;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px;background:var(--surface-0);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--text-primary);line-height:1.5}
+  .wrap{max-width:820px;margin:0 auto}
+  h1{font-size:18px;font-weight:500;margin:0 0 6px}
+  h2{font-size:15px;font-weight:500;margin:28px 0 10px;color:var(--text-secondary)}
+  .card{background:var(--surface-1);border-radius:12px;padding:16px 20px;font-size:14px}
+  .kpis{display:flex;gap:12px;margin-bottom:14px}
+  .kpi{flex:1;background:var(--surface-2);border-radius:var(--radius);padding:10px 14px}
+  .kpi .l{font-size:12px;color:var(--text-muted)}
+  .kpi .v{font-size:18px;font-weight:500}
+  .banner{display:flex;align-items:center;gap:8px;background:var(--bg-warning);color:var(--text-warning);padding:9px 12px;border-radius:var(--radius);font-size:13px;margin-bottom:14px}
+  .item{border:0.5px solid var(--border);border-radius:var(--radius);margin-bottom:8px;background:var(--surface-2);overflow:hidden}
+  .item.open{border-color:var(--border-strong)}
+  .item-head{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer}
+  .item-head .nm{font-weight:500}
+  .item-head .info{flex:1}
+  .item-head .sub{font-size:12px;color:var(--text-muted)}
+  .kind-pill{font-size:11px;color:var(--text-secondary);background:var(--surface-1);padding:2px 8px;border-radius:10px;white-space:nowrap}
+  .badge-ok{font-size:12px;color:var(--text-success);background:var(--bg-success);padding:2px 9px;border-radius:10px;white-space:nowrap}
+  .badge-warn{font-size:12px;color:var(--text-warning);background:var(--bg-warning);padding:2px 9px;border-radius:10px;white-space:nowrap}
+  .chev{color:var(--text-secondary);width:14px;text-align:center}
+  .checklist{border-top:0.5px solid var(--border);padding:10px 14px 12px;background:var(--surface-1)}
+  .cl-title{font-size:12px;color:var(--text-muted);margin-bottom:6px}
+  .cl-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px}
+  .cl-row:last-child{border-bottom:none}
+  .cl-row .doc{flex:1}
+  .req{font-size:11px;color:var(--text-danger);background:var(--bg-danger);padding:2px 7px;border-radius:10px}
+  .opt{font-size:11px;color:var(--text-secondary);background:var(--surface-2);padding:2px 7px;border-radius:10px}
+  .st-ok{font-size:12px;color:var(--text-success)}
+  .st-no{font-size:12px;color:var(--text-muted)}
+  .file{font-size:12px;color:var(--accent);cursor:pointer}
+  button{font-size:12px;padding:4px 10px;border:0.5px solid var(--border-strong);background:transparent;color:var(--text-primary);border-radius:var(--radius);cursor:pointer}
+  button:hover{background:var(--surface-1)}
+  button.primary{background:var(--text-primary);color:var(--surface-2);border-color:var(--text-primary)}
+  .modal-stage{min-height:430px;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;border-radius:12px}
+  .modal{width:440px;background:var(--surface-2);border-radius:12px;padding:18px 20px}
+  .modal h3{font-size:15px;font-weight:500;margin:0 0 14px}
+  .fld{margin-bottom:12px}
+  .fld label{display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px}
+  .fld select,.fld input[type=text]{width:100%;padding:8px 10px;font-size:13px;border:0.5px solid var(--border-strong);border-radius:var(--radius);background:var(--surface-2);color:var(--text-primary)}
+  .fhint{font-size:11px;color:var(--text-muted);margin-top:3px}
+  .drop{border:1px dashed var(--border-strong);border-radius:var(--radius);padding:16px;text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:14px}
+  .m-actions{display:flex;justify-content:flex-end;gap:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Заявка · вкладка «Залог»</h1>
+<div style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Статус документов — на предмете. Привязка файла к предмету — в момент загрузки.</div>
+
+<div class="card">
+  <div class="kpis">
+    <div class="kpi"><div class="l">Предметов залога</div><div class="v">4</div></div>
+    <div class="kpi"><div class="l">Покрытие</div><div class="v" style="color:var(--text-success)">128%</div></div>
+    <div class="kpi"><div class="l">Документы (обязат.)</div><div class="v" style="color:var(--text-warning)">9/12</div></div>
+  </div>
+  <div class="banner">⚠ Не хватает документов: Склад №2 (2), Станок ЧПУ (1). «Отправить в комиссию» заблокировано.</div>
+
+  <div class="item">
+    <div class="item-head"><span class="chev">›</span>
+      <div class="info"><span class="nm">Склад №1</span><div class="sub">ТОО «Альфа» · 85 000 000 ₸</div></div>
+      <span class="kind-pill">Недвижимое имущество</span><span class="badge-ok">Документы 3/3 ✓</span>
+    </div>
+  </div>
+
+  <div class="item open">
+    <div class="item-head"><span class="chev">⌄</span>
+      <div class="info"><span class="nm">Склад №2</span><div class="sub">ТОО «Альфа» · 52 000 000 ₸</div></div>
+      <span class="kind-pill">Недвижимое имущество</span><span class="badge-warn">Документы 1/3</span>
+    </div>
+    <div class="checklist">
+      <div class="cl-title">Требуются по программе для вида «Недвижимое имущество»</div>
+      <div class="cl-row"><span class="doc">Отчёт об оценке залога</span><span class="req">обязат.</span><span class="st-no" style="margin-right:6px">Не загружен</span><button>Загрузить</button></div>
+      <div class="cl-row"><span class="doc">Правоустанавливающие документы</span><span class="req">обязат.</span><span class="file">sklad2-pravo.pdf</span><span class="st-ok">✓ 10.06</span></div>
+      <div class="cl-row"><span class="doc">Выписка из реестра обременений</span><span class="req">обязат.</span><span class="st-no" style="margin-right:6px">Не загружен</span><button>Загрузить</button></div>
+      <div class="cl-row"><span class="doc">Согласие супруга залогодателя</span><span class="opt">опц.</span><span class="st-no">Не загружен</span></div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-head"><span class="chev">›</span>
+      <div class="info"><span class="nm">Станок ЧПУ HAAS VF-2</span><div class="sub">ТОО «Альфа» · 24 000 000 ₸</div></div>
+      <span class="kind-pill">Оборудование</span><span class="badge-warn">Документы 1/2</span>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-head"><span class="chev">›</span>
+      <div class="info"><span class="nm">Линия розлива</span><div class="sub">ТОО «Альфа» · 31 000 000 ₸</div></div>
+      <span class="kind-pill">Оборудование</span><span class="badge-ok">Документы 2/2 ✓</span>
+    </div>
+  </div>
+
+  <div style="border-top:0.5px solid var(--border);margin-top:12px;padding-top:10px;font-size:13px;color:var(--text-secondary)">
+    Общие документы вида «Недвижимое имущество»: Проект договора залога <span class="st-ok">✓</span>
+  </div>
+</div>
+
+<h2>Модалка загрузки (вызвана с «Загрузить» у Склада №2 — предмет уже подставлен)</h2>
+<div class="modal-stage">
+  <div class="modal">
+    <h3>Загрузка залогового документа</h3>
+    <div class="fld">
+      <label>Предмет залога</label>
+      <select>
+        <option selected>Склад №2 — Недвижимое имущество</option>
+        <option>Склад №1 — Недвижимое имущество</option>
+        <option>Станок ЧПУ HAAS VF-2 — Оборудование</option>
+        <option>Линия розлива — Оборудование</option>
+        <option>Общий — Недвижимое имущество (документы вида)</option>
+        <option>Общий — Оборудование (документы вида)</option>
+      </select>
+    </div>
+    <div class="fld">
+      <label>Тип документа</label>
+      <select>
+        <option selected>Отчёт об оценке залога (обязательный)</option>
+        <option>Выписка из реестра обременений (обязательный)</option>
+        <option>Согласие супруга залогодателя (опциональный)</option>
+      </select>
+      <div class="fhint">Список — из программы для вида выбранного предмета. Уже закрытые слоты скрыты.</div>
+    </div>
+    <div class="fld">
+      <label>Дата документа</label>
+      <input type="text" value="19.06.2026">
+      <div class="fhint">Для отчёта об оценке: не старше 6 месяцев.</div>
+    </div>
+    <div class="drop">Перетащите файл или нажмите для выбора · PDF, JPG до 20 МБ</div>
+    <div class="m-actions"><button>Отмена</button><button class="primary">Загрузить</button></div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>
