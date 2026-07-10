@@ -80,6 +80,45 @@ const catSortIds = await page.locator('#listBody tr').evaluateAll(trs => trs.map
 ok('клик «Категория» переупорядочивает строки', JSON.stringify(catSortIds) !== JSON.stringify(['120','133','142','151']));
 ok('после сортировки по категории первой идёт строка с наименьшей просрочкой (id 133)', catSortIds[0] === '133');
 
+// --- T4: контроль пересечения охвата ---
+await page.goto(FILE, { waitUntil: 'load' });
+const ov = await page.evaluate(() => ({
+  has: typeof overlaps === 'function',
+  n142: typeof overlaps === 'function' && overlaps(PROCESSES.find(p => p.id === '142')).length,
+  n133: typeof overlaps === 'function' && overlaps(PROCESSES.find(p => p.id === '133')).length,
+  other142: typeof overlaps === 'function' && overlaps(PROCESSES.find(p => p.id === '142'))[0]?.other.id,
+}));
+ok('overlaps объявлена', ov.has);
+ok('у 142 одно пересечение', ov.n142 === 1);
+ok('пересечение указывает на 151', ov.other142 === '151');
+ok('у одинокого 133 пересечений нет', ov.n133 === 0);
+
+await page.click('#listBody tr[data-id="142"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=1');           // вкладка «Охват»
+const ohvat = page.locator('#detailPanels .detail-panel >> nth=1');
+ok('плашка пересечения видна', await ohvat.locator('.overlap-note').isVisible());
+ok('плашка называет соседний процесс', (await ohvat.locator('.overlap-note').innerText()).includes('В-2026-000151'));
+await ohvat.locator('.overlap-note .rowlink').click();
+ok('ссылка открыла соседний процесс', (await page.locator('#crumbTitle').innerText()).includes('В-2026-000151'));
+
+// у 133 плашки нет
+await page.click('#detailPanels');                            // фокус, не важно
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="133"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=1');
+ok('у 133 плашки нет', (await page.locator('#detailPanels .detail-panel >> nth=1').locator('.overlap-note').count()) === 0);
+
+// модалка «Добавить кредит» предупреждает по реальным данным
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="142"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=1');
+await page.click('#detailPanels .detail-panel >> nth=1 >> .gtoolbar .btn');
+ok('модалка охвата открыта', await page.locator('#modalHost.open').isVisible());
+ok('модалка предупреждает о конкретном пересечении', (await page.locator('#modalHost .warn-inline').innerText()).includes('В-2026-000151'));
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);

@@ -380,6 +380,12 @@ table.cgrid tbody tr.total td{ font-weight:var(--weight-bold); color:var(--text-
 .mform .control input, .mform .control select, .mform .note-area{ background:var(--surface-input); border-color:transparent; }
 .warn-inline{ display:flex; gap:8px; align-items:flex-start; background:var(--status-warning-bg);
   color:var(--asubk-amber); border-radius:var(--radius-md); padding:10px 12px; font:var(--font-label); margin-top:6px; }
+/* Мягкое предупреждение о пересечении охвата — не запрет. */
+.overlap-note{ display:flex; gap:8px; align-items:flex-start; background:var(--status-warning-bg);
+  color:var(--asubk-amber); border-radius:var(--radius-md); padding:10px 12px; margin:0 0 14px;
+  font:var(--font-label); }
+.overlap-note svg{ flex:none; margin-top:2px; }
+.overlap-note .rowlink{ color:var(--text-link); font-weight:600; }
 table.eb-grid{ width:100%; border-collapse:collapse; font:var(--font-label); white-space:nowrap; }
 .eb-grid-wrap{ border:1px solid var(--border-strong); border-radius:var(--radius-md); overflow:auto; max-height:52vh; }
 table.eb-grid thead th{ position:sticky; top:0; background:var(--surface-panel); text-align:left; z-index:1;
@@ -713,6 +719,27 @@ const stageOf = phase => PHASES_PRE.includes(phase) ? 'Досудебная' : '
 const isTerminal   = p => Boolean(p.outcome);
 const overlayShort = t => t === 'Пауза' ? 'пауза' : t === 'Соглашение' ? 'соглашение' : 'событие';
 
+/* ============================================================
+   КОНТРОЛЬ ПЕРЕСЕЧЕНИЯ ОХВАТА
+   Кредит ↔ процесс — многие-ко-многим. Два активных процесса по одному
+   кредиту законны, если предмет требования разный (142: просроченная сумма,
+   151: залог по тому же дог. №56). Пересечением считается совпадение ОБЩЕГО
+   КРЕДИТА с другим активным процессом (не пары кредит+предмет — совпадение
+   пары означало бы дубль-процесс, которого в данных нет и быть не должно).
+   Это мягкое предупреждение, а не запрет: решает человек.
+   ============================================================ */
+function overlaps(proc){
+  const out = [];
+  for(const c of proc.credits){
+    for(const other of PROCESSES){
+      if(other.id === proc.id || isTerminal(other)) continue;
+      if(other.credits.some(oc => oc.id === c.id))
+        out.push({ credit:c, subject:c.subject, other });
+    }
+  }
+  return out;
+}
+
 const catLabel = c => c === 'norm' ? 'Норма' : c === 'mid' ? 'Средний' : 'Высокий';
 const catCls   = c => c === 'norm' ? 'low'   : c === 'mid' ? 'mid'     : 'high';
 
@@ -832,9 +859,15 @@ function panelOhvat(){
   const rows = p.credits.map(c=>`<tr>
     <td><span class="rowlink" onclick="toast('Переход в карточку кредита ${c.num} (демо)')">${c.num}</span></td>
     <td>${c.subject}</td><td style="text-align:right">${c.claim}</td><td>${c.coll}</td></tr>`).join('');
+  const ovs = overlaps(p);
+  const note = ovs.length ? `<div class="overlap-note">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <span>${ovs.map(o=>`По ${o.credit.num} идёт процесс <span class="rowlink" onclick="openDetail('${o.other.id}')">${procNo(o.other.id)}</span> (предмет: ${o.other.scope}). Проверьте, не задваивается ли требование.`).join('<br>')}</span>
+  </div>` : '';
   return `<div class="panel-wrap">
     <p class="section-h">Кредиты в процессе (охват)</p>
     <p class="section-note">Связь процесс ↔ кредиты — многие-ко-многим; все кредиты одного заёмщика. Предмет требования у каждого свой. Контроль пересечения предупреждает, если тот же предмет уже взыскивается другим активным процессом.</p>
+    ${note}
     <div class="gtoolbar">
       <button class="btn btn-tint btn-sm" onclick="addCreditToScope()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Добавить кредит</button>
     </div>
@@ -972,13 +1005,17 @@ function openMeasureModal(){
 }
 function addCreditToScope(){
   const host=document.getElementById('modalHost');
+  const ovs = overlaps(curProc);
+  const live = ovs.length
+    ? ovs.map(o=>`По ${o.credit.num} уже идёт процесс ${procNo(o.other.id)} (предмет: ${o.other.scope}).`).join(' ')
+    : 'Пересечений с активными процессами по текущему охвату не обнаружено.';
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Добавить кредит в охват</span><button class="modal-x" onclick="closeModal()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="modal-b"><div class="mform">
       ${pickRO('Кредит заёмщика','')}
       ${sel('Предмет требования','просроченная сумма',['просроченная сумма','полный остаток','залог'])}
     </div>
-    <div class="warn-inline"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Можно добавить только кредит того же заёмщика. Если предмет уже взыскивается другим активным процессом — система предупредит.</span></div>
+    <div class="warn-inline"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Можно добавить только кредит того же заёмщика. ${live} Предупреждение мягкое: пересечение по разным предметам требования допустимо.</span></div>
     </div>
     <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="closeModal();toast('Кредит добавлен в охват')">Добавить</button></div>
   </div>`;
