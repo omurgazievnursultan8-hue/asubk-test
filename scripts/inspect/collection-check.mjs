@@ -132,6 +132,42 @@ const mentionsOtherActiveProcessByCredit =
   /друг(?:ой|ом|им)\s+активн(?:ый|ом|ым)\s+процесс[\s\S]{0,60}кредит/i.test(ohvatNoteText);
 ok('заметка упоминает другой активный процесс по кредиту', mentionsOtherActiveProcessByCredit);
 
+// --- T5: шапка-индикатор ---
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="142"]');
+await page.click('#btnOpen');
+const head = page.locator('#detailPanels .phead').first();
+ok('4 плитки в шапке', (await head.locator('.dim').count()) === 4);
+const srcs = await head.locator('.dim .src').allInnerTexts();
+ok('подпись стадии', srcs[0] === 'производная от фазы');
+ok('подпись фазы называет меру-основание', srcs[1] === 'по документу-основанию: ИСК-77');
+ok('подпись категории с днями', srcs[2] === 'вычислено · 214 дн просрочки');
+ok('подпись группы', srcs[3] === 'атрибут заёмщика');
+ok('плитка фазы не селектор', (await head.locator('.dim select').count()) === 0);
+ok('внизу карточки только «Закрыть»', (await page.locator('#view-detail .footer .btn').count()) === 1);
+ok('кнопка называется «Закрыть»', (await page.locator('#view-detail .footer .btn').innerText()).includes('Закрыть'));
+ok('OK/Отмена отсутствуют', !(await page.locator('#view-detail .footer').innerText()).includes('Отмена'));
+
+// баннеры трёх типов
+const banner = async id => {
+  await page.goto(FILE, { waitUntil: 'load' });
+  await page.click(`#listBody tr[data-id="${id}"]`);
+  await page.click('#btnOpen');
+  const b = page.locator('#detailPanels .phead-banner').first();
+  return (await b.count()) ? { cls: await b.getAttribute('class'), txt: await b.innerText() } : null;
+};
+const b151 = await banner('151');
+ok('у 151 янтарный баннер паузы', b151 && b151.cls.includes('warn') && b151.txt.includes('Пауза'));
+ok('баннер паузы называет scope и дедлайн', b151 && b151.txt.includes('весь процесс') && b151.txt.includes('18.09.2026'));
+ok('баннер паузы говорит, что фаза сохранена', b151 && b151.txt.includes('фаза сохранена'));
+const b120 = await banner('120');
+ok('у 120 синий баннер соглашения', b120 && b120.cls.includes('info') && b120.txt.includes('соглашени'));
+ok('баннер соглашения про график, не дедлайн', b120 && b120.txt.includes('график'));
+const b133 = await banner('133');
+ok('у 133 баннера нет', b133 === null);
+ok('CSS для события объявлен', await page.evaluate(() =>
+  [...document.styleSheets[0].cssRules].some(r => r.selectorText === '.phead-banner.danger')));
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);

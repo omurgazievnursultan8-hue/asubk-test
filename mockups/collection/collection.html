@@ -276,6 +276,8 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
   padding:9px 14px; margin-bottom:12px; font:var(--font-label); }
 .phead-banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
 .phead-banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+/* Событие (смерть, недееспособность) — уводит процесс вбок, фаза сохраняется. */
+.phead-banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
 .phead-banner svg{ flex:none; }
 .phead-dims{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
 @media(max-width:760px){ .phead-dims{ grid-template-columns:repeat(2,1fr); } }
@@ -502,12 +504,9 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
           <div id="detailPanels"></div>
         </div>
         <div class="footer">
-          <button class="btn btn-primary" onclick="toast('Сохранено');showView('list')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-            OK</button>
           <button class="btn btn-secondary" onclick="showView('list')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
-            Отмена</button>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Закрыть</button>
         </div>
       </section>
 
@@ -629,7 +628,7 @@ const PROCESSES = [
   { id:'120', borrower:'ИП Сыдыков А.', inn:'20308197700219', scope:'полный остаток',
     phase:'На исполнении', catDays:410, group:'2.2',
     owner:'Отдел проблемных кредитов', opened:'01.02.2025', basis:'первичная претензия',
-    overlay:{type:'Соглашение', label:'исполнение по мировому соглашению', until:'', scope:'график'}, outcome:null, closed:'',
+    overlay:{type:'Соглашение', label:'мировое соглашение', until:'', scope:'график погашения'}, outcome:null, closed:'',
     credits:[ {id:'40', num:'Дог. №40 от 15.09.2023', subject:'полный остаток', claim:'96 400,00', coll:'Транспорт'} ],
     measures:[
       {sec:'Судебный', kind:'Мировое соглашение', date:'18.03.2026', num:'МС-12', purpose:'график погашения', deliver:'утверждено судом', delivered:true, result:'полностью на сумму', stageEx:'исполнено', sum:'96 400,00'},
@@ -718,6 +717,20 @@ const stageOf = phase => PHASES_PRE.includes(phase) ? 'Досудебная' : '
 /* Терминальный процесс — работа завершена (исход есть). Короткая подпись баннера overlay в списке. */
 const isTerminal   = p => Boolean(p.outcome);
 const overlayShort = t => t === 'Пауза' ? 'пауза' : t === 'Соглашение' ? 'соглашение' : 'событие';
+
+/* Фаза установлена мерой-вехой. Показываем ЕЁ номер — так правило
+   «фаза следует из журнала мер» видно, а не только объявлено. */
+const PHASE_BY_MEASURE = {
+  'Претензия':'Первичная претензия', 'Повторная претензия':'Повторная претензия',
+  'Безакцептное списание':'Безакцептное списание', 'Извещение':'Извещение об обращении на залог',
+  'Иск':'Исковое заявление', 'Решение суда':'Решение суда',
+  'Исполнительный лист':'Исполнительный лист', 'На исполнении':'Исполнительный лист',
+};
+function phaseSource(p){
+  const kind = PHASE_BY_MEASURE[p.phase];
+  const m = [...p.measures].reverse().find(x => x.kind === kind);
+  return m ? `по документу-основанию: ${m.num}` : 'по документу-основанию';
+}
 
 /* ============================================================
    КОНТРОЛЬ ПЕРЕСЕЧЕНИЯ ОХВАТА
@@ -808,13 +821,26 @@ function renderTabs(){
 }
 function switchTab(i){ curTab=i; renderTabs(); document.querySelectorAll('.detail-panel').forEach((p,idx)=>p.classList.toggle('active',idx===i)); }
 
+/* Три РАЗНЫХ не-фазовых механизма поверх любой стадии — своим баннером.
+   Пауза (янтарный, дедлайн, счётчик дней не заморожен) ≠ Соглашение (синий,
+   график без дедлайна) ≠ Событие (красный, уводит в спецпроцедуру).
+   У всех трёх фаза СОХРАНЯЕТСЯ. */
+function overlayBanner(p){
+  if(!p.overlay) return '';
+  const o = p.overlay;
+  if(o.type === 'Пауза') return `<div class="phead-banner warn">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>
+    <span>Пауза: ${o.label} · до ${o.until} · фаза сохранена · область: ${o.scope} · счётчик дней не заморожен</span></div>`;
+  if(o.type === 'Соглашение') return `<div class="phead-banner info">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    <span>Исполнение по соглашению: ${o.label} · наблюдение за графиком (не пауза — дедлайна нет) · фаза сохранена</span></div>`;
+  return `<div class="phead-banner danger">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
+    <span>Событие: ${o.label} · процесс уведён в спецпроцедуру · фаза сохранена</span></div>`;
+}
+
 function phaseHeader(){
   const p=curProc;
-  let banner='';
-  if(p.overlay){
-    if(p.overlay.type==='Пауза') banner=`<div class="phead-banner warn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg><span>Пауза: ${p.overlay.label} · до ${p.overlay.until} · фаза сохранена · scope: ${p.overlay.scope}</span></div>`;
-    else banner=`<div class="phead-banner info"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Исполнение по соглашению: ${p.overlay.label} · наблюдение за графиком</span></div>`;
-  }
   return `<div class="phead">
     <div class="phead-top">
       <div class="phead-name">
@@ -824,10 +850,10 @@ function phaseHeader(){
       </div>
       <span class="phead-owner">Владелец: ${p.owner}</span>
     </div>
-    ${banner}
+    ${overlayBanner(p)}
     <div class="phead-dims">
       <div class="dim"><div class="dl">Стадия</div><div class="dv">${stageOf(p.phase)}</div><div class="src">производная от фазы</div></div>
-      <div class="dim"><div class="dl">Фаза</div><div class="dv">${p.phase}</div><div class="src">по документу-основанию</div></div>
+      <div class="dim"><div class="dl">Фаза</div><div class="dv">${p.phase}</div><div class="src">${phaseSource(p)}</div></div>
       <div class="dim"><div class="dl">Категория риска</div><div class="dv"><span class="pill ${catCls(catOf(p.catDays))}">${catLabel(catOf(p.catDays))}</span></div><div class="src">вычислено · ${p.catDays} дн просрочки</div></div>
       <div class="dim"><div class="dl">Группа платёжесп.</div><div class="dv">${p.group}</div><div class="src">атрибут заёмщика</div></div>
     </div>
