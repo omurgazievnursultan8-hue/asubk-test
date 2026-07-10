@@ -229,6 +229,10 @@ table.grid tbody tr{ cursor:pointer; }
 table.grid tbody tr:hover{ background:var(--surface-hover); }
 table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 
+/* Терминальный процесс — работа завершена, строка приглушена. */
+.grid tbody tr.terminal td{ color:var(--text-muted); }
+.grid tbody tr.terminal td:first-child{ font-style:italic; }
+
 /* status pills in list/cells */
 .pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
   font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
@@ -552,24 +556,22 @@ const PHASES_PRE  = ['Претензия','Повторная претензия
 const PHASES_FORCE= ['Извещение','Иск','Решение суда','Исполнительный лист','На исполнении'];
 
 const PROCESSES = [
-  { id:142, borrower:'ОсОО «Бек Кабель»', inn:'01912201610212', scope:'просроченная сумма',
+  { id:'142', borrower:'ОсОО «Бек Кабель»', inn:'01912201610212', scope:'просроченная сумма',
     phase:'Иск', catDays:214, group:'2.1',
     owner:'Отдел проблемных кредитов', opened:'12.11.2025', basis:'первичная претензия',
-    pause:null,
+    overlay:null, outcome:null, closed:'',
     credits:[ {id:'56', num:'Дог. №56 от 10.04.2024', subject:'просроченная сумма', claim:'42 600,00', coll:'—'} ],
     measures:[
-      {sec:'Досудебный', kind:'Первичная претензия', date:'12.11.2025', num:'ПР-118', purpose:'погашение', deliver:'СЭД (квитанция)', result:'без изменения', stageEx:'исполнено', sum:'42 600,00'},
-      {sec:'Досудебный', kind:'Повторная претензия', date:'01.12.2025', num:'ПР-140', purpose:'погашение + предупреждение', deliver:'почта (вручено)', result:'без изменения', stageEx:'исполнено', sum:'42 600,00'},
-      {sec:'Досудебный', kind:'Требование поручителю', date:'01.12.2025', num:'ТР-141', purpose:'солидарное требование', deliver:'СЭД (квитанция)', result:'без изменения', stageEx:'исполнено', sum:'42 600,00'},
-      {sec:'Судебный', kind:'Исковое заявление', date:'20.05.2026', num:'ИСК-77', purpose:'взыскание просроченной суммы', deliver:'подано в суд', result:'на рассмотрении', stageEx:'на рассмотрении', sum:'48 900,00'},
+      {sec:'Досудебный', kind:'Первичная претензия', date:'12.11.2025', num:'ПР-118', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'42 600,00'},
+      {sec:'Досудебный', kind:'Повторная претензия', date:'01.12.2025', num:'ПР-140', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'42 600,00'},
+      {sec:'Досудебный', kind:'Требование поручителю', date:'01.12.2025', num:'ТР-141', purpose:'солидарное требование', deliver:'СЭД (квитанция)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'42 600,00'},
+      {sec:'Судебный', kind:'Исковое заявление', date:'20.05.2026', num:'ИСК-77', purpose:'взыскание просроченной суммы', deliver:'подано в суд', delivered:true, result:'на рассмотрении', stageEx:'на рассмотрении', sum:'48 900,00'},
     ],
     handoffs:[
       {from:'Куратор ОД', to:'Департамент правового обеспечения', when:'20.11.2025', checklist:'расчёт долга, договор, претензии', status:'подтверждено', reason:''},
       {from:'Департамент правового обеспечения', to:'Отдел проблемных кредитов', when:'15.05.2026', checklist:'извещение, реестр, доверенность', status:'подтверждено', reason:''},
     ],
-    special:[
-      {type:'Событие', name:'—', note:'событий и приостановок нет', when:'', deadline:''},
-    ],
+    special:[],
     colls:[],
     history:[
       {when:'20.05.2026 11:04', what:'Фаза → «Иск» (основание: ИСК-77)', who:'Отдел проблемных кредитов'},
@@ -578,13 +580,13 @@ const PROCESSES = [
       {when:'12.11.2025 10:00', what:'Процесс открыт (первая мера: претензия)', who:'Куратор ОД'},
     ] },
 
-  { id:151, borrower:'ОсОО «Бек Кабель»', inn:'01912201610212', scope:'залог',
+  { id:'151', borrower:'ОсОО «Бек Кабель»', inn:'01912201610212', scope:'залог',
     phase:'Извещение', catDays:214, group:'2.1',
     owner:'Департамент правового обеспечения', opened:'02.06.2026', basis:'служебная записка',
-    pause:{type:'Пауза', label:'реструктуризация', until:'18.09.2026', scope:'весь процесс'},
+    overlay:{type:'Пауза', label:'реструктуризация', until:'18.09.2026', scope:'весь процесс'}, outcome:null, closed:'',
     credits:[ {id:'56', num:'Дог. №56 от 10.04.2024', subject:'залог', claim:'150 000,00', coll:'Недвижимость (склад)'} ],
     measures:[
-      {sec:'Судебный', kind:'Извещение об обращении на залог', date:'02.06.2026', num:'ИЗВ-09', purpose:'начало обращения взыскания', deliver:'зарегистрировано в госоргане', result:'без изменения', stageEx:'исполнено', sum:'150 000,00'},
+      {sec:'Судебный', kind:'Извещение об обращении на залог', date:'02.06.2026', num:'ИЗВ-09', purpose:'начало обращения взыскания', deliver:'зарегистрировано в госоргане', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'150 000,00'},
     ],
     handoffs:[
       {from:'Куратор ОД', to:'Департамент правового обеспечения', when:'02.06.2026', checklist:'служебная записка, залоговый договор', status:'подтверждено', reason:''},
@@ -601,31 +603,31 @@ const PROCESSES = [
       {when:'02.06.2026 08:40', what:'Процесс открыт (первая мера: служебная записка)', who:'Куратор ОД'},
     ] },
 
-  { id:133, borrower:'КФХ «Ак-Дан»', inn:'22105198800047', scope:'просроченная сумма',
+  { id:'133', borrower:'КФХ «Ак-Дан»', inn:'22105198800047', scope:'просроченная сумма',
     phase:'Повторная претензия', catDays:96, group:'1.1',
     owner:'Куратор отраслевого департамента', opened:'05.06.2026', basis:'первичная претензия',
-    pause:null,
+    overlay:null, outcome:null, closed:'',
     credits:[ {id:'88', num:'Дог. №88 от 03.02.2025', subject:'просроченная сумма', claim:'18 200,00', coll:'—'} ],
     measures:[
-      {sec:'Досудебный', kind:'Первичная претензия', date:'05.06.2026', num:'ПР-201', purpose:'погашение', deliver:'СЭД (квитанция)', result:'без изменения', stageEx:'исполнено', sum:'18 200,00'},
-      {sec:'Досудебный', kind:'Повторная претензия', date:'24.06.2026', num:'ПР-233', purpose:'погашение + предупреждение', deliver:'почта (в пути)', result:'на рассмотрении', stageEx:'на исполнении', sum:'18 200,00'},
+      {sec:'Досудебный', kind:'Первичная претензия', date:'05.06.2026', num:'ПР-201', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'18 200,00'},
+      {sec:'Досудебный', kind:'Повторная претензия', date:'24.06.2026', num:'ПР-233', purpose:'погашение + предупреждение', deliver:'почта (в пути)', delivered:false, result:'на рассмотрении', stageEx:'на исполнении', sum:'18 200,00'},
     ],
     handoffs:[],
-    special:[ {type:'Событие', name:'—', note:'событий и приостановок нет', when:'', deadline:''} ],
+    special:[],
     colls:[],
     history:[
       {when:'24.06.2026 15:00', what:'Мера «Повторная претензия» зарегистрирована', who:'Куратор ОД'},
       {when:'05.06.2026 10:10', what:'Процесс открыт (первая мера: претензия)', who:'Куратор ОД'},
     ] },
 
-  { id:120, borrower:'ИП Сыдыков А.', inn:'20308197700219', scope:'полный остаток',
+  { id:'120', borrower:'ИП Сыдыков А.', inn:'20308197700219', scope:'полный остаток',
     phase:'На исполнении', catDays:410, group:'2.2',
     owner:'Отдел проблемных кредитов', opened:'01.02.2025', basis:'первичная претензия',
-    pause:{type:'Соглашение', label:'исполнение по мировому соглашению', until:'', scope:'график'},
+    overlay:{type:'Соглашение', label:'исполнение по мировому соглашению', until:'', scope:'график'}, outcome:null, closed:'',
     credits:[ {id:'40', num:'Дог. №40 от 15.09.2023', subject:'полный остаток', claim:'96 400,00', coll:'Транспорт'} ],
     measures:[
-      {sec:'Судебный', kind:'Мировое соглашение', date:'18.03.2026', num:'МС-12', purpose:'график погашения', deliver:'утверждено судом', result:'полностью на сумму', stageEx:'исполнено', sum:'96 400,00'},
-      {sec:'Исполнительное', kind:'Исполнительный лист', date:'20.02.2026', num:'ИЛ-305', purpose:'принудительное исполнение', deliver:'передан приставам', result:'на исполнении', stageEx:'на исполнении', sum:'96 400,00'},
+      {sec:'Судебный', kind:'Мировое соглашение', date:'18.03.2026', num:'МС-12', purpose:'график погашения', deliver:'утверждено судом', delivered:true, result:'полностью на сумму', stageEx:'исполнено', sum:'96 400,00'},
+      {sec:'Исполнительное', kind:'Исполнительный лист', date:'20.02.2026', num:'ИЛ-305', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:'на исполнении', stageEx:'на исполнении', sum:'96 400,00'},
     ],
     handoffs:[
       {from:'Отдел проблемных кредитов', to:'ПССИ (приставы)', when:'25.02.2026', checklist:'исполнительный лист, реквизиты', status:'подтверждено', reason:''},
@@ -641,6 +643,59 @@ const PROCESSES = [
       {when:'25.02.2026 11:20', what:'Передача дела приставам подтверждена', who:'ПССИ'},
       {when:'20.02.2026 10:00', what:'Фаза → «Исполнительный лист» (основание: ИЛ-305)', who:'Отдел проблемных кредитов'},
     ] },
+
+  { id:'104', borrower:'ОсОО «Тянь-Строй»', inn:'01705199200338', scope:'залог',
+    phase:'На исполнении', catDays:512, group:'2.2',
+    owner:'Сектор по работе с активами', opened:'18.01.2025', basis:'служебная записка в ДПО',
+    overlay:null, outcome:'Принятие имущества', closed:'14.05.2026',
+    credits:[ {id:'71', num:'Дог. №71 от 22.08.2023', subject:'залог', claim:'310 000,00', coll:'Имущественный комплекс'} ],
+    measures:[
+      {sec:'Судебный', kind:'Извещение об обращении на залог', date:'18.01.2025', num:'ИЗВ-03', purpose:'начало обращения взыскания', deliver:'зарегистрировано в госоргане', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'310 000,00'},
+      {sec:'Исполнительное', kind:'Исполнительный лист', date:'02.09.2025', num:'ИЛ-288', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:'на исполнении', stageEx:'исполнено', sum:'310 000,00'},
+      {sec:'Отчуждение', kind:'Акт несостоявшихся торгов', date:'20.04.2026', num:'АТ-11', purpose:'фиксация второго провала торгов', deliver:'акт ПССИ', delivered:true, result:'отрицательный', stageEx:'исполнено', sum:'310 000,00'},
+      {sec:'Отчуждение', kind:'Решение комитета по имуществу', date:'14.05.2026', num:'КИ-06', purpose:'принятие имущества на баланс', deliver:'протокол комитета', delivered:true, result:'положительный', stageEx:'исполнено', sum:'295 000,00'},
+    ],
+    handoffs:[
+      {from:'Куратор ОД', to:'Департамент правового обеспечения', when:'18.01.2025', checklist:'расчёт долга, договоры, претензии', status:'подтверждено', reason:''},
+      {from:'Департамент правового обеспечения', to:'Сектор по работе с активами', when:'28.04.2026', checklist:'исполнительный лист, отчёт об оценке', status:'отклонено', reason:'неполный пакет: нет акта несостоявшихся торгов'},
+      {from:'Департамент правового обеспечения', to:'Сектор по работе с активами', when:'06.05.2026', checklist:'исполнительный лист, отчёт об оценке, акт торгов АТ-11', status:'подтверждено', reason:''},
+    ],
+    special:[],
+    colls:[
+      {item:'Производственная база, с. Лебединовка', kind:'Имущественный комплекс', pledge:'295 000,00', order:'судебный', real:'торги не состоялись (2 раза)', ban:'имущественный комплекс'},
+    ],
+    history:[
+      {when:'14.05.2026 16:40', what:'Исход: принятие имущества → передача в отчуждение активов', who:'Комитет по имуществу'},
+      {when:'06.05.2026 10:15', what:'Передача дела принята (пакет дополнен АТ-11)', who:'Сектор по работе с активами'},
+      {when:'28.04.2026 09:50', what:'Передача дела ОТКЛОНЕНА: неполный пакет', who:'Сектор по работе с активами'},
+      {when:'20.04.2026 12:00', what:'Мера «Акт несостоявшихся торгов» зарегистрирована', who:'ПССИ'},
+      {when:'18.01.2025 08:30', what:'Процесс открыт (первая мера: служебная записка)', who:'Куратор ОД'},
+    ] },
+
+  { id:'097', borrower:'ОсОО «Нарын-Агро»', inn:'02211199100154', scope:'полный остаток',
+    phase:'На исполнении', catDays:890, group:'4',
+    owner:'Сектор по работе с активами', opened:'03.03.2024', basis:'первичная претензия',
+    overlay:null, outcome:'Безнадёжный долг', closed:'27.06.2026',
+    credits:[ {id:'33', num:'Дог. №33 от 11.01.2022', subject:'полный остаток', claim:'64 800,00', coll:'—'} ],
+    measures:[
+      {sec:'Досудебный', kind:'Первичная претензия', date:'03.03.2024', num:'ПР-045', purpose:'погашение', deliver:'почта (вручено)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'64 800,00'},
+      {sec:'Судебный', kind:'Исковое заявление', date:'10.10.2024', num:'ИСК-52', purpose:'взыскание полного остатка', deliver:'подано в суд', delivered:true, result:'положительный', stageEx:'исполнено', sum:'64 800,00'},
+      {sec:'Исполнительное', kind:'Исполнительный лист', date:'21.01.2025', num:'ИЛ-201', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:'отрицательный', stageEx:'исполнено', sum:'64 800,00'},
+      {sec:'Исполнительное', kind:'Постановление о возврате ИЛ', date:'19.02.2026', num:'ПВ-14', purpose:'у должника нет имущества', deliver:'постановление ПССИ', delivered:true, result:'отрицательный', stageEx:'исполнено', sum:'64 800,00'},
+      {sec:'События', kind:'Решение спецкомиссии о списании', date:'27.06.2026', num:'СК-02', purpose:'признание долга безнадёжным', deliver:'протокол спецкомиссии', delivered:true, result:'положительный', stageEx:'исполнено', sum:'64 800,00'},
+    ],
+    handoffs:[
+      {from:'Куратор ОД', to:'Департамент правового обеспечения', when:'12.09.2024', checklist:'расчёт долга, договор, претензии', status:'подтверждено', reason:''},
+      {from:'Отдел проблемных кредитов', to:'Сектор по работе с активами', when:'02.03.2026', checklist:'постановление о возврате ИЛ, справка об имуществе', status:'подтверждено', reason:''},
+    ],
+    special:[],
+    colls:[],
+    history:[
+      {when:'27.06.2026 15:00', what:'Исход: безнадёжный долг → списание, группа заёмщика → 4', who:'Спецкомиссия'},
+      {when:'02.03.2026 11:30', what:'Передача дела принята', who:'Сектор по работе с активами'},
+      {when:'19.02.2026 14:20', what:'Мера «Постановление о возврате ИЛ» зарегистрирована', who:'ПССИ'},
+      {when:'03.03.2024 09:00', what:'Процесс открыт (первая мера: претензия)', who:'Куратор ОД'},
+    ] },
 ];
 
 /* Структурный номер процесса — единый формат с З-… (заявки) и К-… (комиссии), P3-R27. */
@@ -653,6 +708,10 @@ const procNo = id => `В-2026-${String(id).padStart(6, '0')}`;
    ============================================================ */
 const catOf   = days  => days <= 5 ? 'norm' : days <= 180 ? 'mid' : 'high';
 const stageOf = phase => PHASES_PRE.includes(phase) ? 'Досудебная' : 'Принудительная';
+
+/* Терминальный процесс — работа завершена (исход есть). Короткая подпись баннера overlay в списке. */
+const isTerminal   = p => Boolean(p.outcome);
+const overlayShort = t => t === 'Пауза' ? 'пауза' : t === 'Соглашение' ? 'соглашение' : 'событие';
 
 const catLabel = c => c === 'norm' ? 'Норма' : c === 'mid' ? 'Средний' : 'Высокий';
 const catCls   = c => c === 'norm' ? 'low'   : c === 'mid' ? 'mid'     : 'high';
@@ -676,11 +735,13 @@ function renderList(){
     return String(x).localeCompare(String(y),'ru')*sortDir;
   });
   document.getElementById('listBody').innerHTML = rows.map(p=>`
-    <tr data-id="${p.id}" onclick="selectRow(${p.id},this)" ondblclick="openDetail(${p.id})">
+    <tr data-id="${p.id}" class="${isTerminal(p) ? 'terminal' : ''}" onclick="selectRow('${p.id}',this)" ondblclick="openDetail('${p.id}')">
       <td>${procNo(p.id)}</td>
       <td>${p.borrower}</td>
       <td>${p.scope}</td>
-      <td>${p.phase}${p.pause?` <span class="pill neutral">${p.pause.type==='Пауза'?'пауза':'соглашение'}</span>`:''}</td>
+      <td>${isTerminal(p)
+        ? `<span class="pill neutral">${p.outcome}</span>`
+        : `${p.phase}${p.overlay ? ` <span class="pill neutral">${overlayShort(p.overlay.type)}</span>` : ''}`}</td>
       <td><span class="pill ${catCls(catOf(p.catDays))}">${catLabel(catOf(p.catDays))}</span></td>
       <td>${p.group}</td>
       <td>${p.owner}</td>
@@ -690,7 +751,7 @@ function renderList(){
 function sortList(k){ if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=1;} renderList(); if(selectedRow) selectRow(selectedRow); }
 function selectRow(id,el){
   selectedRow=id;
-  document.querySelectorAll('#listBody tr').forEach(r=>r.classList.toggle('sel', +r.dataset.id===id));
+  document.querySelectorAll('#listBody tr').forEach(r=>r.classList.toggle('sel', r.dataset.id===id));
   document.getElementById('btnOpen').disabled=false;
 }
 
@@ -723,9 +784,9 @@ function switchTab(i){ curTab=i; renderTabs(); document.querySelectorAll('.detai
 function phaseHeader(){
   const p=curProc;
   let banner='';
-  if(p.pause){
-    if(p.pause.type==='Пауза') banner=`<div class="phead-banner warn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg><span>Пауза: ${p.pause.label} · до ${p.pause.until} · фаза сохранена · scope: ${p.pause.scope}</span></div>`;
-    else banner=`<div class="phead-banner info"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Исполнение по соглашению: ${p.pause.label} · наблюдение за графиком</span></div>`;
+  if(p.overlay){
+    if(p.overlay.type==='Пауза') banner=`<div class="phead-banner warn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg><span>Пауза: ${p.overlay.label} · до ${p.overlay.until} · фаза сохранена · scope: ${p.overlay.scope}</span></div>`;
+    else banner=`<div class="phead-banner info"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Исполнение по соглашению: ${p.overlay.label} · наблюдение за графиком</span></div>`;
   }
   return `<div class="phead">
     <div class="phead-top">
@@ -758,7 +819,8 @@ function panelObschaya(){
       ${ro('Подразделение-владелец', p.owner)}
       ${ro('Текущая фаза', p.phase)}
       ${ro('Стадия', stageOf(p.phase))}
-      ${ro('Исход', '—')}
+      ${ro('Исход', p.outcome || '—')}
+      ${ro('Дата закрытия', p.closed || '—')}
     </div>
     <p class="section-note" style="margin-top:16px">Шапка выше — панель-индикатор: категория вычисляется по дням просрочки, фаза двигается регистрацией меры в «Журнале мер», группа — атрибут заёмщика. Эти поля не редактируются напрямую.</p>
     </div></div>`;

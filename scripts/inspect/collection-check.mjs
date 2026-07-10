@@ -21,7 +21,7 @@ let fails = 0;
 const ok = (name, cond) => { if (!cond) fails++; console.log(`${cond ? '  ok' : 'FAIL'}  ${name}`); };
 
 // --- T1: список ---
-ok('4 процесса в гриде', (await page.locator('#listBody tr').count()) === 4);
+ok('6 процессов в гриде', (await page.locator('#listBody tr').count()) === 6);
 ok('№ процесса структурный', (await page.locator('#listBody tr[data-id="142"] td').first().innerText()) === 'В-2026-000142');
 ok('«Открыть процесс» заблокирована до выбора', await page.locator('#btnOpen').isDisabled());
 await page.click('#listBody tr[data-id="142"]');
@@ -53,6 +53,25 @@ ok('поле cat удалено из данных', rules.storedCat === false);
 ok('поле stage удалено из данных', rules.storedStage === false);
 ok('stageOf(«Иск») → Принудительная', rules.stageOfIsk === 'Принудительная');
 ok('stageOf(«Повторная претензия») → Досудебная', rules.stageOfPret === 'Досудебная');
+
+// --- T3: 6 процессов, два терминальных ---
+await page.goto(FILE, { waitUntil: 'load' });
+ok('6 процессов в гриде', (await page.locator('#listBody tr').count()) === 6);
+ok('терминальная строка приглушена', (await page.locator('#listBody tr.terminal').count()) === 2);
+const t104 = page.locator('#listBody tr[data-id="104"]');
+ok('у 104 в колонке фазы — исход', (await t104.locator('td').nth(3).innerText()).includes('Принятие имущества'));
+const t097 = page.locator('#listBody tr[data-id="097"], #listBody tr[data-id="97"]');
+ok('у 097 группа 4', (await t097.locator('td').nth(5).innerText()) === '4');
+await page.click('#listBody tr[data-id="104"]');
+await page.click('#btnOpen');
+const gen104 = page.locator('#detailPanels .detail-panel').first();
+// ro() renders values inside <input readonly> — form-control values are not part of
+// .innerText() (pre-existing behaviour of every ro() field, not specific to this data),
+// so check the actual input value of the labelled field instead of substring-matching innerText.
+const outcomeVal = await gen104.locator('.field').filter({ hasText: 'Исход' }).locator('input').inputValue();
+const closedVal = await gen104.locator('.field').filter({ hasText: 'Дата закрытия' }).locator('input').inputValue();
+ok('исход заполнен на «Общей»', outcomeVal === 'Принятие имущества');
+ok('дата закрытия заполнена', closedVal === '14.05.2026');
 
 // --- T3: сортировка по колонке «Категория» (регрессия после удаления поля cat) ---
 await page.evaluate(() => showView('list'));
