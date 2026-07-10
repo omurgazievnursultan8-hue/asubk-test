@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Взыскание задолженности · АСУБК</title>
+<!--
+  MOCKUP (single-file, interactive) — TO-BE модуля «Взыскание задолженности»
+  (список процессов → карточка процесса). Образец для команды разработки, не прод-код.
+
+  ЭТО НЕ КЛОН ЖИВОГО СТЕНДА: экрана взыскания в системе нет, модуль проектируется
+  с нуля. Дефектов по нему нет и в `notes/qa-findings.md` не заводится.
+  Рекомендации команде: `TODO.md`, секция «Фаза 9 — Взыскание задолженности» (P9-R1…R9).
+  Спек: `docs/superpowers/specs/2026-07-10-collection-mockup-design.md`.
+  Проверка: `node scripts/inspect/collection-check.mjs`.
+
+  Источники логики (вне репозитория): регламент «Порядок мониторинга, взыскания и
+  урегулирования задолженности по бюджетным кредитам ОАО "Госфинхолдинг"» (99 пунктов,
+  17 глав) и ТЗ, раздел 2.5. Стиль сверен с `mockups/loan-credit/`.
+
+  КЛЮЧЕВЫЕ ДОМЕННЫЕ РЕШЕНИЯ
+
+  1. Единица работы — ПРОЦЕСС ВЗЫСКАНИЯ, не кредит. Список показывает процессы.
+     Процесс привязан к ОДНОМУ ЗАЁМЩИКУ (ИНН — якорь).
+
+  2. Кредит ↔ процесс — МНОГИЕ-КО-МНОГИМ. Ранняя редакция логики фиксировала
+     «не более одного активного процесса на кредит» — ЭТО РЕШЕНИЕ ОТМЕНЕНО.
+     По одному кредиту идут несколько процессов, различающихся ПРЕДМЕТОМ ТРЕБОВАНИЯ
+     (см. пару 142 «просроченная сумма» / 151 «залог» по дог. №56). Связь живёт
+     в «Охвате процесса». Контроль пересечения — мягкое предупреждение, не запрет.
+
+  3. ТРИ НЕЗАВИСИМЫХ ИЗМЕРЕНИЯ СОСТОЯНИЯ, не сливать в одно поле «статус»:
+       • Категория риска — ВЫЧИСЛЕНА из дней просрочки (catOf), только чтение.
+         0–5 дн норма · 6–180 дн средний риск · 181+ дн высокий риск.
+       • Группа платежеспособности — атрибут ЗАЁМЩИКА, процесс её только читает.
+       • Фаза — двигается ТОЛЬКО регистрацией меры-вехи в журнале мер, не селектором.
+       • Стадия — ПРОИЗВОДНАЯ от фазы (stageOf), не хранится.
+     Поэтому в данных процесса нет полей `cat` и `stage` — только `catDays` и `phase`.
+
+  4. Шапка карточки — панель-ИНДИКАТОР, а не форма. Под каждой плиткой подпись
+     источника значения. Ни одно из четырёх измерений не редактируется.
+     Карточка целиком read-only → внизу только «Закрыть», без OK/Отмена (единая ИА
+     с `mockups/loan-application-commission/commission.html`, P3-R29).
+
+  5. ТРИ РАЗНЫХ не-фазовых механизма поверх любой стадии, баннером в шапке:
+       • ПАУЗА (янтарный) — заморозка с дедлайном ≤70 дн. Фаза сохраняется,
+         счётчик дней НЕ замораживается. Обязателен scope: весь процесс vs одна мера.
+       • СОГЛАШЕНИЕ (синий) — мировое / добровольное исполнение. НЕ пауза:
+         у паузы дедлайн, который пережидают; здесь новый график, который мониторят.
+       • СОБЫТИЕ (красный) — смерть, недееспособность. Уводит вбок в спецпроцедуру.
+     У всех трёх фаза СОХРАНЯЕТСЯ.
+
+  6. Исход переключает группу платежеспособности заёмщика. Необратимое действие
+     (безакцепт, принятие имущества, списание, внесудебное обращение) требует
+     решения комитета — общий паттерн, не частный случай.
+
+  7. Апелляции и кассации — меры ВНУТРИ фазы «Иск» / «Решение суда», не новые фазы.
+
+  8. Демо-ограничения: кнопки паузы/соглашения/события показывают тост, без модалок;
+     пересчёт суммы при извещении не выполняется в рантайме (показан результат
+     в данных процесса 151 + заметка о правиле).
+
+  ОТКРЫТЫЕ ВОПРОСЫ (макет их фиксирует, но не решает)
+
+  - Пени во время паузы: продолжают ли начисляться финансовые санкции при заморозке
+    (реструктуризация / мировое соглашение). Бизнес-вопрос, ответа нет.
+  - Вкладку обеспечения кредита нужно расширить на поручительства, гарантии и депозит —
+    без этого не автогенерируется список требований обеспечителям (досудебный шаг 2).
+  - Флаг «право безакцептного списания» на кредитном договоре: вероятно, отсутствует.
+    Требует проверки — это предусловие фазы «Безакцептное списание».
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
+  border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
+.nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
+.nav-sub > .nav-toggle{ padding:8px 16px 8px 32px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font); }
+.nav-toggle:hover{ background:rgba(24,39,57,0.04); }
+.nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
+  transition:transform 120ms ease; flex:none; }
+.nav-group.open > .nav-toggle .chev, .nav-sub.open > .nav-toggle .chev{ transform:rotate(90deg); }
+.nav-toggle .lbl{ flex:1; }
+.nav-children{ display:none; }
+.nav-group.open > .nav-children, .nav-sub.open > .nav-children{ display:block; }
+.nav-item{ display:block; padding:7px 16px 7px 52px; text-decoration:none; color:rgba(27,43,65,0.69);
+  font:var(--weight-regular) var(--text-base)/1.625 var(--asubk-font); cursor:pointer; }
+.nav-item.headerless{ padding-left:40px; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.topbar .role-wrap{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+.topbar .role-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.topbar .role-wrap select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 26px 0 10px;
+  appearance:none; cursor:pointer; }
+.topbar .role-wrap .rsel{ position:relative; display:flex; align-items:center; }
+.topbar .role-wrap .rsel .caret{ position:absolute; right:8px; pointer-events:none; color:var(--text-muted); display:flex; }
+
+.content{ flex:1; overflow:auto; display:flex; flex-direction:column; min-width:0; }
+.view{ display:none; flex-direction:column; min-height:0; }
+
+/* ---- buttons ---- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn svg{ flex:none; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-success{ background:var(--action-success); color:#fff; }
+.btn-success:hover:not(:disabled){ background:var(--asubk-green-hover); }
+.btn-sm{ height:32px; padding:0 10px; font-size:var(--text-sm); }
+.btn-tint{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none;
+  font-weight:var(--weight-medium); }
+.btn-tint:hover:not(:disabled){ background:rgba(25,59,103,0.10); color:var(--action-primary-hover); }
+.btn-tint:disabled{ opacity:1; color:var(--text-disabled); cursor:not-allowed; }
+.btn-tint.danger{ color:var(--action-danger); }
+.btn-tint.danger:hover:not(:disabled){ background:var(--status-error-bg); }
+
+.split{ position:relative; display:inline-flex; }
+.split > .btn{ border-radius:0; }
+.split > .btn:first-child{ border-top-left-radius:var(--radius-md); border-bottom-left-radius:var(--radius-md); }
+.split > .btn.caret{ padding:0 7px; border-top-right-radius:var(--radius-md); border-bottom-right-radius:var(--radius-md);
+  border-left:1px solid rgba(255,255,255,0.35); }
+.split-menu{ display:none; position:absolute; top:calc(100% + 4px); left:0; min-width:210px; z-index:30;
+  background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
+  box-shadow:0 10px 30px rgba(16,28,46,0.18); padding:4px; }
+.split.open .split-menu{ display:block; }
+.split-menu button{ display:block; width:100%; text-align:left; border:none; background:transparent; cursor:pointer;
+  padding:8px 10px; border-radius:var(--radius-sm); font:var(--font-label); color:var(--text-body); }
+.split-menu button:hover{ background:var(--surface-hover); }
+.gear-btn{ width:var(--control-h); height:var(--control-h); border:none;
+  background:var(--asubk-tint-fill); border-radius:var(--radius-md); color:var(--text-link); cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; }
+.gear-btn:hover{ background:rgba(25,59,103,0.10); }
+
+/* ---- list: filter head + toolbar ---- */
+.filter-head{ display:flex; align-items:center; gap:6px; padding:12px 20px 4px; cursor:pointer;
+  font:var(--weight-medium) var(--text-base)/1.25 var(--asubk-font); color:rgba(27,43,65,0.69); user-select:none; }
+.filter-head .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5); transition:transform 120ms ease; }
+.filter-head.open .chev{ transform:rotate(90deg); }
+.tb-actions{ display:flex; align-items:center; gap:10px; padding:8px 20px 12px; flex-wrap:wrap; }
+.add-cond{ display:inline-flex; align-items:center; gap:6px; background:none; border:none; cursor:pointer;
+  color:var(--text-link); font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); padding:0 4px; }
+.add-cond:hover{ text-decoration:underline; }
+.rowtools{ display:flex; align-items:center; gap:10px; padding:0 20px 8px; }
+.rowtools .spacer{ flex:1; }
+.pager{ display:flex; align-items:center; gap:6px; color:var(--text-muted);
+  font:var(--weight-regular) var(--text-base)/1 var(--asubk-font); }
+.pager button{ min-width:30px; height:30px; border:1px solid var(--border-default); background:var(--surface-card);
+  border-radius:var(--radius-sm); cursor:pointer; color:var(--text-body); }
+.pager button:disabled{ opacity:.4; cursor:not-allowed; }
+
+/* ---- grid (list) ---- */
+.grid-wrap{ padding:0 20px 20px; overflow:auto; }
+table.grid{ width:100%; border-collapse:collapse; font:var(--font-label); table-layout:fixed;
+  border:1px solid var(--border-default); background:var(--surface-card); }
+table.grid thead th{ text-align:left; height:56px; padding:0 16px; background:var(--surface-card);
+  border-bottom:1px solid var(--asubk-grid-line);
+  font:var(--weight-medium) var(--text-sm)/1.375 var(--asubk-font); color:var(--text-body);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; user-select:none; vertical-align:middle; }
+table.grid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; }
+table.grid tbody td{ height:35px; padding:0 16px; border-bottom:1px solid var(--asubk-grid-line);
+  color:var(--text-body); vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+table.grid tbody tr{ cursor:pointer; }
+table.grid tbody tr:hover{ background:var(--surface-hover); }
+table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+
+/* Терминальный процесс — работа завершена, строка приглушена. */
+.grid tbody tr.terminal td{ color:var(--text-muted); }
+.grid tbody tr.terminal td:first-child{ font-style:italic; }
+
+/* status pills in list/cells */
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.low{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.mid{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.high{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+
+/* ---- detail ---- */
+.detail-tabbar-wrap{ position:relative; border-bottom:1px solid var(--border-default);
+  background:var(--surface-page); flex:none; }
+.detail-tabbar{ display:flex; overflow-x:auto; padding:6px 44px 0 20px; scrollbar-width:none; }
+.detail-tabbar::-webkit-scrollbar{ display:none; }
+.dtab{ flex:none; border:none; background:transparent; padding:11px 15px;
+  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
+.dtab:hover{ color:var(--text-body); }
+.dtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.tabbar-chevron{ position:absolute; right:8px; top:50%; transform:translateY(-50%); width:28px; height:28px;
+  background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
+  display:flex; align-items:center; justify-content:center; color:var(--text-muted); cursor:pointer; }
+.tabbar-chevron:hover{ background:var(--surface-hover); }
+
+.panel-wrap{ padding:18px 20px 8px; }
+.panel-card{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:20px 24px; }
+.detail-panel{ display:none; }
+.detail-panel.active{ display:block; }
+
+/* ---- process header (indicator panel, not a form) ---- */
+.phead{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:16px 20px; margin-bottom:18px; }
+.phead-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
+.phead-name{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.phead-name .nm{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
+.phead-name a{ font:var(--font-label); color:var(--text-link); text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
+.phead-name a:hover{ text-decoration:underline; }
+.phead-sub{ font:var(--font-label); color:var(--text-muted); margin-top:3px; }
+.phead-sub b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.phead-owner{ font:var(--font-label); color:var(--text-muted); white-space:nowrap; }
+.phead-banner{ display:flex; align-items:center; gap:10px; border-radius:var(--radius-md);
+  padding:9px 14px; margin-bottom:12px; font:var(--font-label); }
+.phead-banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.phead-banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+/* Событие (смерть, недееспособность) — уводит процесс вбок, фаза сохраняется. */
+.phead-banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
+.phead-banner svg{ flex:none; }
+.phead-dims{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+@media(max-width:760px){ .phead-dims{ grid-template-columns:repeat(2,1fr); } }
+.dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:10px 14px; }
+.dim .dl{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:5px; }
+.dim .dv{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); }
+.dim .src{ font:var(--weight-regular) 11px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
+
+/* two-column form (label above) */
+.f2{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; max-width:1500px; }
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field .flabel{ font:var(--font-label); color:var(--text-muted); }
+.field.col-span{ grid-column:1 / -1; }
+.control{ position:relative; display:flex; align-items:center; }
+.control input, .control select, .note-area{ width:100%; height:var(--control-h); border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
+  border:1px solid var(--border-strong); outline:none; padding:0 var(--space-2);
+  transition:box-shadow 120ms ease, border-color 120ms ease; }
+.control select{ cursor:pointer; appearance:none; padding-right:30px; }
+.control input:focus, .control select:focus, .note-area:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.control input[readonly], .ro input, .ro .note-area{ background:var(--surface-input); color:var(--text-muted); border:1px solid transparent; cursor:default; }
+.control input[readonly]:focus{ border-color:transparent; box-shadow:none; }
+.grey input, .grey select{ background:var(--surface-input); border-color:transparent; }
+.control .cal, .control .caret{ position:absolute; right:9px; pointer-events:none; color:var(--text-muted); display:flex; }
+.note-area{ height:auto; min-height:80px; padding:10px 12px; resize:vertical; line-height:1.5; }
+.dtpair{ display:grid; grid-template-columns:1fr 1fr; gap:0 10px; }
+
+/* lookup (picker) */
+.lookup{ display:flex; align-items:center; height:var(--control-h); background:var(--surface-input);
+  border-radius:var(--radius-md); border:1px solid transparent; padding-left:var(--space-2); }
+.lookup .val{ flex:1; font:var(--font-body); font-weight:var(--weight-medium); color:var(--text-body);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lookup .val.ph{ color:var(--text-placeholder); }
+.lookup button{ display:inline-flex; align-items:center; justify-content:center; width:32px; height:var(--control-h);
+  border:none; background:transparent; color:var(--text-link); cursor:pointer; }
+.lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
+
+/* section heading + toolbar above collection grid */
+.section-h{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:0 0 6px; }
+.section-note{ font:var(--font-label); color:var(--text-muted); margin:0 0 14px; max-width:900px; }
+.gtoolbar{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
+.gtoolbar .spacer{ flex:1; }
+
+/* collection grid */
+.cgrid-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; min-height:80px; }
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); white-space:nowrap; }
+table.cgrid thead th{ position:sticky; top:0; text-align:left; padding:10px 12px; background:var(--surface-card);
+  border-bottom:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
+  color:var(--text-heading); cursor:pointer; user-select:none; }
+table.cgrid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; font-weight:400; }
+table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--border-default); color:var(--text-body); vertical-align:middle; }
+table.cgrid tbody tr:hover{ background:var(--surface-hover); }
+table.cgrid tbody tr.total td{ font-weight:var(--weight-bold); color:var(--text-heading);
+  background:var(--surface-hover); border-top:1px solid var(--border-strong); }
+.cgrid-empty{ display:flex; align-items:center; justify-content:center; min-height:120px;
+  color:var(--text-placeholder); font:var(--font-label); }
+.rowlink{ color:var(--text-link); cursor:pointer; }
+.rowlink:hover{ text-decoration:underline; }
+
+/* timeline (phase machine indicator) */
+.timeline{ display:flex; flex-wrap:wrap; gap:0; margin:2px 0 20px; }
+.tl-step{ display:flex; align-items:center; gap:8px; padding:6px 0; }
+.tl-dot{ width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font:var(--weight-bold) 12px/1 var(--asubk-font); flex:none; }
+.tl-dot.done{ background:var(--asubk-green); color:#fff; }
+.tl-dot.cur{ background:var(--asubk-blue); color:#fff; }
+.tl-dot.todo{ background:var(--surface-input); color:var(--text-placeholder); }
+.tl-lbl{ font:var(--font-label); color:var(--text-body); }
+.tl-lbl.todo{ color:var(--text-placeholder); }
+.tl-arrow{ color:var(--text-placeholder); margin:0 12px; display:flex; }
+
+/* history rows */
+.hist{ border-left:2px solid var(--border-strong); margin-left:6px; padding-left:0; }
+.hrow{ position:relative; padding:10px 0 10px 22px; border-bottom:1px solid var(--asubk-grid-line); }
+.hrow::before{ content:""; position:absolute; left:-5px; top:16px; width:8px; height:8px; border-radius:50%;
+  background:var(--asubk-blue); }
+.hrow .hwhen{ font:var(--weight-medium) 13px/1.3 var(--asubk-font); color:var(--text-muted); }
+.hrow .hwhat{ font:var(--font-label); color:var(--text-body); margin-top:2px; }
+.hrow .hwho{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:2px; }
+
+/* footer */
+.footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
+  padding:14px 20px; display:flex; align-items:center; gap:12px; }
+
+/* modals */
+.overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:none; align-items:center;
+  justify-content:center; z-index:60; padding:24px; }
+.overlay.open{ display:flex; }
+.modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(1040px,100%); max-height:88vh;
+  display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(16,28,46,0.4); }
+.modal.form{ width:min(720px,100%); }
+.modal.narrow{ width:min(560px,100%); }
+.modal-h{ padding:18px 24px 12px; display:flex; align-items:center; gap:10px; }
+.modal-h .mt{ font:var(--weight-bold) 20px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
+.modal-x{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); display:flex; padding:4px; }
+.modal-x:hover{ color:var(--text-body); }
+.modal-b{ padding:0 24px 8px; overflow:auto; flex:1; }
+.modal-f{ padding:14px 24px 20px; display:flex; gap:12px; justify-content:flex-end; }
+.mform{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; padding-top:8px; }
+.mform .field.col-span{ grid-column:1 / -1; }
+.mform .field.req .flabel::after{ content:" •"; color:var(--action-danger); }
+.mform .control input, .mform .control select, .mform .note-area{ background:var(--surface-input); border-color:transparent; }
+.warn-inline{ display:flex; gap:8px; align-items:flex-start; background:var(--status-warning-bg);
+  color:var(--asubk-amber); border-radius:var(--radius-md); padding:10px 12px; font:var(--font-label); margin-top:6px; }
+/* Мера без подтверждения вручения не считается исполненной — она не годится
+   как доказательство в суде. Строка подсвечена, а не спрятана. */
+.cgrid tbody tr.mrow-undelivered{ background:var(--status-warning-bg); }
+/* Мягкое предупреждение о пересечении охвата — не запрет. */
+.overlap-note{ display:flex; gap:8px; align-items:flex-start; background:var(--status-warning-bg);
+  color:var(--asubk-amber); border-radius:var(--radius-md); padding:10px 12px; margin:0 0 14px;
+  font:var(--font-label); }
+.overlap-note svg{ flex:none; margin-top:2px; }
+.overlap-note .rowlink{ color:var(--text-link); font-weight:600; }
+table.eb-grid{ width:100%; border-collapse:collapse; font:var(--font-label); white-space:nowrap; }
+.eb-grid-wrap{ border:1px solid var(--border-strong); border-radius:var(--radius-md); overflow:auto; max-height:52vh; }
+table.eb-grid thead th{ position:sticky; top:0; background:var(--surface-panel); text-align:left; z-index:1;
+  padding:11px 14px; border-bottom:1px solid var(--border-default); color:var(--text-heading);
+  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); }
+table.eb-grid tbody td{ padding:11px 14px; border-bottom:1px solid var(--border-default); color:var(--text-body); }
+table.eb-grid tbody tr{ cursor:pointer; }
+table.eb-grid tbody tr:hover{ background:var(--surface-hover); }
+table.eb-grid tbody tr:last-child td{ border-bottom:none; }
+
+/* toast */
+.toast-wrap{ position:fixed; right:20px; bottom:20px; display:flex; flex-direction:column; gap:10px; z-index:80; }
+.toast{ min-width:260px; max-width:420px; padding:12px 14px; border-radius:var(--radius-md);
+  background:var(--asubk-ink); color:#fff; font:var(--font-label); box-shadow:0 10px 30px rgba(16,28,46,0.3);
+  display:flex; gap:10px; align-items:flex-start; }
+.toast.ok{ background:var(--asubk-green); }
+.toast.warn{ background:var(--asubk-amber); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav" id="nav"></div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="menu" title="Меню">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </span>
+      <span class="crumb-title" id="crumbTitle">Взыскание задолженности</span>
+      <div class="role-wrap">
+        <label>Роль:</label>
+        <div class="rsel">
+          <select id="roleSel" onchange="onRoleChange()">
+            <option>Куратор отраслевого департамента</option>
+            <option>Департамент правового обеспечения (ДПО)</option>
+            <option>Отдел проблемных кредитов</option>
+            <option>Сектор по работе с активами</option>
+            <option>Наблюдатель</option>
+          </select>
+          <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ============ LIST VIEW ============ -->
+      <section class="view" id="view-list" style="display:flex;">
+        <div class="filter-head open" onclick="this.classList.toggle('open')">
+          <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          <span>Фильтр</span>
+        </div>
+        <div class="tb-actions">
+          <div class="split" id="splitRefresh">
+            <button class="btn btn-success" onclick="toast('Список обновлён')">Обновить</button>
+            <button class="btn btn-success caret" onclick="document.getElementById('splitRefresh').classList.toggle('open');event.stopPropagation();">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="split-menu">
+              <button onclick="toast('Обновить');closeSplit()">Обновить</button>
+              <button onclick="toast('Применить и обновить');closeSplit()">Применить и обновить</button>
+            </div>
+          </div>
+          <button class="gear-btn" title="Настройки">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+          <button class="add-cond">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Добавить условие поиска
+          </button>
+        </div>
+        <div class="rowtools">
+          <button class="btn btn-tint" id="btnOpen" disabled onclick="openDetail(selectedRow)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Открыть процесс</button>
+          <div class="spacer"></div>
+          <div class="pager">
+            <button disabled>«</button><button disabled>‹</button>
+            <span id="pagerCount">процессов</span>
+            <button disabled>›</button><button disabled>»</button>
+          </div>
+        </div>
+        <div class="grid-wrap">
+          <table class="grid" id="listGrid">
+            <!-- Ширины подобраны замером (scripts/inspect/collection-check.mjs, T10). Для каждой
+                 колонки замерена изолированная natural width (табличный layout:fixed скрывает это —
+                 общая ширина колонки в fixed-режиме равна max(заголовок, все ячейки), а не тексту
+                 одной ячейки, поэтому мерить нужно и th, и td по отдельности). Самая длинная
+                 комбинация — «Фаза» у процесса 133: «Повторная претензия» (20 симв.) + метка «событие»
+                 ≈242px natural; ей отдан запас (≈21%, ≈266px при 1240px общей ширины таблицы) с
+                 буфером ~24px, а не впритык — рендер меток на границе пикселя нестабилен (см. журнал
+                 ревью), поэтому «точно по размеру» недостаточно. Ширина взята у «Заёмщик» и «Охват»
+                 (запас держат реальные данные, natural ≈170px из 192/180px) и у «Владелец» (natural
+                 ≈276px из 298px — «Департамент правового обеспечения» всё ещё влезает с запасом).
+                 «Категория» и «Группа» не тронуты: их ЗАГОЛОВКИ («Категория»/«Группа» + иконка
+                 сортировки) шире данных и уже впритык — резать их дальше нельзя. -->
+            <colgroup>
+              <col style="width:10.5%"><col style="width:14.5%"><col style="width:14.3%">
+              <col style="width:21.5%"><col style="width:9%"><col style="width:7.5%"><col style="width:22.7%">
+            </colgroup>
+            <thead><tr id="listHead"></tr></thead>
+            <tbody id="listBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ DETAIL VIEW ============ -->
+      <section class="view" id="view-detail">
+        <div class="detail-tabbar-wrap">
+          <div class="detail-tabbar" id="detailTabbar"></div>
+          <button class="tabbar-chevron" onclick="scrollTabs()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+        <div class="content" style="overflow:visible;">
+          <div id="detailPanels"></div>
+        </div>
+        <div class="footer">
+          <button class="btn btn-secondary" onclick="showView('list')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Закрыть</button>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="modalHost" onclick="if(event.target===this)closeModal()"></div>
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* ============================================================
+   SIDEBAR NAVIGATION (взыскание активно)
+   ============================================================ */
+const TREE = [
+  { id:"k", label:"Система кредитования", subs:[
+    { id:"k-app", label:"Заявки и комиссии", items:[ {label:"Заявки"}, {label:"Комиссии по заявкам"} ]},
+    { id:"k-prog", label:"Программы и решения", items:[ {label:"Решение правительства"}, {label:"Кредитные программы"} ]},
+    { id:"k-borr", label:"Заёмщики", items:[ {label:"Заёмщики"} ]},
+    { id:"k-loan", label:"Кредиты и транши", items:[ {label:"Кредиты"}, {label:"Список траншей"} ]} ]},
+  { id:"g", label:"Поручительства", subs:[ { id:"g-all", headerless:true, items:[ {label:"Анкеты поручительств"} ]} ]},
+  { id:"debt", label:"Взыскание задолженности", open:true, subs:[
+    { id:"debt-all", headerless:true, items:[
+      { label:"Процессы взыскания", active:true },
+      { label:"Досудебный порядок" }, { label:"Судебный порядок" },
+      { label:"Исполнительное производство" }, { label:"Отчуждение активов" } ]} ]},
+  { id:"d", label:"Справочники", subs:[ { id:"d-all", headerless:true, items:[ {label:"Справочники"} ]} ]},
+  { id:"r", label:"Отчёты", subs:[ { id:"r-all", headerless:true, items:[ {label:"Отчёты"} ]} ]},
+  { id:"adm", label:"Администрирование", subs:[ { id:"adm-all", headerless:true, items:[ {label:"Администрирование"} ]} ]},
+  { id:"sec", label:"Безопасность", subs:[ { id:"sec-all", headerless:true, items:[ {label:"Безопасность"} ]} ]},
+];
+const chev = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
+function renderNav(){
+  const nav = document.getElementById('nav');
+  nav.innerHTML = TREE.map(g=>{
+    const subs = (g.subs||[]).map(s=>{
+      const items = (s.items||[]).map(it=>`<a class="nav-item${s.headerless?' headerless':''}${it.active?' active':''}" onclick="navClick('${it.label}')">${it.label}</a>`).join('');
+      if(s.headerless) return `<div class="nav-children" style="display:block">${items}</div>`;
+      return `<div class="nav-sub${s.open?' open':''}"><button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">${chev(13)}<span class="lbl">${s.label}</span></button><div class="nav-children">${items}</div></div>`;
+    }).join('');
+    return `<div class="nav-group${g.open?' open':''}"><button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">${chev(14)}<span class="lbl">${g.label}</span></button><div class="nav-children">${subs}</div></div>`;
+  }).join('');
+}
+function navClick(l){ if(l!=="Процессы взыскания") toast("Демо-макет: доступен раздел «Процессы взыскания»"); }
+
+/* ============================================================
+   SAMPLE DATA — процессы взыскания
+   Иллюстрируют согласованную логику, в т.ч. два процесса по
+   одному кредиту у одного заёмщика (просроч. сумма + залог).
+   ============================================================ */
+const PHASES_PRE  = ['Претензия','Повторная претензия','Безакцептное списание'];
+const PHASES_FORCE= ['Извещение','Иск','Решение суда','Исполнительный лист','На исполнении'];
+
+/* ============================================================
+   СПРАВОЧНИК ВИДОВ МЕРЫ (в проде — пополняемый справочник).
+   МАТРИЦА «фаза ← вид меры-основания» — конфигурация, не данные:
+   иначе теряется контроль п. 98 регламента (статус только по документу).
+   Апелляции и кассации — меры ВНУТРИ фазы, не вехи.
+   ============================================================ */
+const MEASURE_KINDS = [
+  'Первичная претензия', 'Повторная претензия', 'Требование поручителю',
+  'Требование гаранту', 'Требование отраслевому госоргану', 'Акт сверки',
+  'Безакцептное списание', 'Платёжное требование в банк', 'Решение комитета',
+  'Служебная записка в ДПО', 'Извещение об обращении на залог', 'Исковое заявление',
+  'Уточнение исковых требований', 'Решение суда', 'Мировое соглашение',
+  'Апелляционная жалоба', 'Кассационная жалоба', 'Исполнительный лист',
+  'Письмо в ПССИ', 'Акт несостоявшихся торгов', 'Решение комитета по имуществу',
+  'Постановление о возврате ИЛ', 'Решение спецкомиссии о списании',
+];
+
+/* Вехи двигают фазу. Всё остальное живёт в журнале, не трогая фазу. */
+const MILESTONE_KINDS = new Set([
+  'Первичная претензия', 'Повторная претензия', 'Безакцептное списание',
+  'Извещение об обращении на залог', 'Исковое заявление', 'Решение суда',
+  'Исполнительный лист',
+]);
+const isMilestone = kind => MILESTONE_KINDS.has(kind);
+
+/* Претензии и извещения — будущие доказательства в суде. Без подтверждения
+   вручения (СЭД-квитанция / почтовое уведомление / отметка заёмщика)
+   мера НЕ считается исполненной, п. 20.2. */
+const NEEDS_DELIVERY = new Set([
+  'Первичная претензия', 'Повторная претензия', 'Требование поручителю',
+  'Требование гаранту', 'Требование отраслевому госоргану',
+  'Извещение об обращении на залог',
+]);
+const needsDelivery = kind => NEEDS_DELIVERY.has(kind);
+
+const PROCESSES = [
+  { id:'142', borrower:'ОсОО «Бек Кабель»', inn:'01912201610212', scope:'просроченная сумма',
+    phase:'Иск', catDays:214, group:'2.1',
+    owner:'Отдел проблемных кредитов', opened:'12.11.2025', basis:'первичная претензия',
+    overlay:null, outcome:null, closed:'',
+    credits:[ {id:'56', num:'Дог. №56 от 10.04.2024', subject:'просроченная сумма', claim:'42 600,00', coll:'—'} ],
+    measures:[
+      {sec:'Досудебный', kind:'Первичная претензия', date:'12.11.2025', num:'ПР-118', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'42 600,00'},
+      {sec:'Досудебный', kind:'Повторная претензия', date:'01.12.2025', num:'ПР-140', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'42 600,00'},
+      {sec:'Досудебный', kind:'Требование поручителю', date:'01.12.2025', num:'ТР-141', purpose:'солидарное требование', deliver:'СЭД (квитанция)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'42 600,00'},
+      {sec:'Судебный', kind:'Исковое заявление', date:'20.05.2026', num:'ИСК-77', purpose:'взыскание просроченной суммы', deliver:'подано в суд', delivered:true, result:'на рассмотрении', stageEx:'на рассмотрении', sum:'48 900,00'},
+    ],
+    handoffs:[
+      {from:'Куратор ОД', to:'Департамент правового обеспечения', when:'20.11.2025', checklist:'расчёт долга, договор, претензии', status:'подтверждено', reason:''},
+      {from:'Департамент правового обеспечения', to:'Отдел проблемных кредитов', when:'15.05.2026', checklist:'извещение, реестр, доверенность', status:'подтверждено', reason:''},
+    ],
+    special:[],
+    colls:[],
+    history:[
+      {when:'20.05.2026 11:04', what:'Фаза → «Иск» (основание: ИСК-77)', who:'Отдел проблемных кредитов'},
+      {when:'15.05.2026 09:31', what:'Передача дела принята', who:'Отдел проблемных кредитов'},
+      {when:'01.12.2025 16:20', what:'Мера «Повторная претензия» зарегистрирована', who:'Куратор ОД'},
+      {when:'12.11.2025 10:00', what:'Процесс открыт (первая мера: претензия)', who:'Куратор ОД'},
+    ] },
+
+  { id:'151', borrower:'ОсОО «Бек Кабель»', inn:'01912201610212', scope:'залог',
+    phase:'Извещение', catDays:214, group:'2.1',
+    owner:'Департамент правового обеспечения', opened:'02.06.2026', basis:'служебная записка',
+    overlay:{type:'Пауза', label:'реструктуризация', until:'18.09.2026', scope:'весь процесс'}, outcome:null, closed:'',
+    credits:[ {id:'56', num:'Дог. №56 от 10.04.2024', subject:'залог', claim:'150 000,00', coll:'Недвижимость (склад)'} ],
+    measures:[
+      {sec:'Судебный', kind:'Извещение об обращении на залог', date:'02.06.2026', num:'ИЗВ-09', purpose:'начало обращения взыскания', deliver:'зарегистрировано в госоргане', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'150 000,00'},
+    ],
+    handoffs:[
+      {from:'Куратор ОД', to:'Департамент правового обеспечения', when:'02.06.2026', checklist:'служебная записка, залоговый договор', status:'подтверждено', reason:''},
+    ],
+    special:[
+      {type:'Пауза', name:'Реструктуризация', note:'до 18.09.2026 · фаза сохранена · scope: весь процесс', when:'10.07.2026', deadline:'18.09.2026'},
+    ],
+    colls:[
+      {item:'Склад, ул. Промышленная 4', kind:'Недвижимость', pledge:'150 000,00', order:'внесудебный', real:'подготовка к торгам', ban:''},
+    ],
+    history:[
+      {when:'10.07.2026 14:12', what:'Пауза «Реструктуризация» до 18.09.2026 (фаза сохранена)', who:'Куратор ОД'},
+      {when:'02.06.2026 09:00', what:'Фаза → «Извещение» (основание: ИЗВ-09)', who:'Департамент правового обеспечения'},
+      {when:'02.06.2026 08:40', what:'Процесс открыт (первая мера: служебная записка)', who:'Куратор ОД'},
+    ] },
+
+  { id:'133', borrower:'КФХ «Ак-Дан»', inn:'22105198800047', scope:'просроченная сумма',
+    phase:'Повторная претензия', catDays:96, group:'1.1',
+    owner:'Куратор отраслевого департамента', opened:'05.06.2026', basis:'первичная претензия',
+    /* Единственный процесс в демо-данных с механизмом «Событие» — иначе красная ветка
+       overlayBanner()/panelSpecial() существует только в коде и никогда не видна вживую. */
+    overlay:{type:'Событие', label:'смерть заёмщика', until:'', scope:'весь процесс'}, outcome:null, closed:'',
+    credits:[ {id:'88', num:'Дог. №88 от 03.02.2025', subject:'просроченная сумма', claim:'18 200,00', coll:'—'} ],
+    measures:[
+      {sec:'Досудебный', kind:'Первичная претензия', date:'05.06.2026', num:'ПР-201', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'18 200,00'},
+      {sec:'Досудебный', kind:'Повторная претензия', date:'24.06.2026', num:'ПР-233', purpose:'погашение + предупреждение', deliver:'почта (в пути)', delivered:false, result:'на рассмотрении', stageEx:'на исполнении', sum:'18 200,00'},
+    ],
+    handoffs:[],
+    special:[
+      {type:'Событие', name:'Смерть заёмщика', note:'спецпроцедура установления правопреемника · фаза сохранена', when:'30.06.2026', deadline:''},
+    ],
+    colls:[],
+    history:[
+      {when:'30.06.2026 09:45', what:'Событие «Смерть заёмщика»: процесс уведён в спецпроцедуру установления правопреемника (фаза сохранена)', who:'Куратор отраслевого департамента'},
+      {when:'24.06.2026 15:00', what:'Мера «Повторная претензия» зарегистрирована', who:'Куратор ОД'},
+      {when:'05.06.2026 10:10', what:'Процесс открыт (первая мера: претензия)', who:'Куратор ОД'},
+    ] },
+
+  { id:'120', borrower:'ИП Сыдыков А.', inn:'20308197700219', scope:'полный остаток',
+    phase:'На исполнении', catDays:410, group:'2.2',
+    owner:'Отдел проблемных кредитов', opened:'01.02.2025', basis:'первичная претензия',
+    overlay:{type:'Соглашение', label:'мировое соглашение', until:'', scope:'график погашения'}, outcome:null, closed:'',
+    credits:[ {id:'40', num:'Дог. №40 от 15.09.2023', subject:'полный остаток', claim:'96 400,00', coll:'Транспорт'} ],
+    measures:[
+      {sec:'Судебный', kind:'Мировое соглашение', date:'18.03.2026', num:'МС-12', purpose:'график погашения', deliver:'утверждено судом', delivered:true, result:'полностью на сумму', stageEx:'исполнено', sum:'96 400,00'},
+      {sec:'Исполнительное', kind:'Исполнительный лист', date:'20.02.2026', num:'ИЛ-305', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:'на исполнении', stageEx:'на исполнении', sum:'96 400,00'},
+    ],
+    handoffs:[
+      {from:'Отдел проблемных кредитов', to:'ПССИ (приставы)', when:'25.02.2026', checklist:'исполнительный лист, реквизиты', status:'подтверждено', reason:''},
+    ],
+    special:[
+      {type:'Соглашение', name:'Мировое соглашение', note:'наблюдение за графиком · при нарушении — возврат к исполнению', when:'18.03.2026', deadline:''},
+    ],
+    colls:[
+      {item:'Грузовой автомобиль', kind:'Транспорт', pledge:'70 000,00', order:'судебный', real:'арест наложен', ban:''},
+    ],
+    history:[
+      {when:'18.03.2026 12:00', what:'Соглашение: исполнение по мировому (наблюдение за графиком)', who:'Отдел проблемных кредитов'},
+      {when:'25.02.2026 11:20', what:'Передача дела приставам подтверждена', who:'ПССИ'},
+      {when:'20.02.2026 10:00', what:'Фаза → «Исполнительный лист» (основание: ИЛ-305)', who:'Отдел проблемных кредитов'},
+    ] },
+
+  { id:'104', borrower:'ОсОО «Тянь-Строй»', inn:'01705199200338', scope:'залог',
+    phase:'На исполнении', catDays:512, group:'2.2',
+    owner:'Сектор по работе с активами', opened:'18.01.2025', basis:'служебная записка в ДПО',
+    overlay:null, outcome:'Принятие имущества', closed:'14.05.2026',
+    credits:[ {id:'71', num:'Дог. №71 от 22.08.2023', subject:'залог', claim:'310 000,00', coll:'Имущественный комплекс'} ],
+    measures:[
+      {sec:'Судебный', kind:'Извещение об обращении на залог', date:'18.01.2025', num:'ИЗВ-03', purpose:'начало обращения взыскания', deliver:'зарегистрировано в госоргане', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'310 000,00'},
+      {sec:'Исполнительное', kind:'Исполнительный лист', date:'02.09.2025', num:'ИЛ-288', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:'на исполнении', stageEx:'исполнено', sum:'310 000,00'},
+      {sec:'Отчуждение', kind:'Акт несостоявшихся торгов', date:'20.04.2026', num:'АТ-11', purpose:'фиксация второго провала торгов', deliver:'акт ПССИ', delivered:true, result:'отрицательный', stageEx:'исполнено', sum:'310 000,00'},
+      {sec:'Отчуждение', kind:'Решение комитета по имуществу', date:'14.05.2026', num:'КИ-06', purpose:'принятие имущества на баланс', deliver:'протокол комитета', delivered:true, result:'положительный', stageEx:'исполнено', sum:'295 000,00'},
+    ],
+    handoffs:[
+      {from:'Куратор ОД', to:'Департамент правового обеспечения', when:'18.01.2025', checklist:'расчёт долга, договоры, претензии', status:'подтверждено', reason:''},
+      {from:'Департамент правового обеспечения', to:'Сектор по работе с активами', when:'28.04.2026', checklist:'исполнительный лист, отчёт об оценке', status:'отклонено', reason:'неполный пакет: нет акта несостоявшихся торгов'},
+      {from:'Департамент правового обеспечения', to:'Сектор по работе с активами', when:'06.05.2026', checklist:'исполнительный лист, отчёт об оценке, акт торгов АТ-11', status:'подтверждено', reason:''},
+    ],
+    special:[],
+    colls:[
+      {item:'Производственная база, с. Лебединовка', kind:'Имущественный комплекс', pledge:'295 000,00', order:'судебный', real:'торги не состоялись (2 раза)', ban:'имущественный комплекс'},
+    ],
+    history:[
+      {when:'14.05.2026 16:40', what:'Исход: принятие имущества → передача в отчуждение активов', who:'Комитет по имуществу'},
+      {when:'06.05.2026 10:15', what:'Передача дела принята (пакет дополнен АТ-11)', who:'Сектор по работе с активами'},
+      {when:'28.04.2026 09:50', what:'Передача дела ОТКЛОНЕНА: неполный пакет', who:'Сектор по работе с активами'},
+      {when:'20.04.2026 12:00', what:'Мера «Акт несостоявшихся торгов» зарегистрирована', who:'ПССИ'},
+      {when:'18.01.2025 08:30', what:'Процесс открыт (первая мера: служебная записка)', who:'Куратор ОД'},
+    ] },
+
+  { id:'097', borrower:'ОсОО «Нарын-Агро»', inn:'02211199100154', scope:'полный остаток',
+    phase:'На исполнении', catDays:890, group:'4',
+    owner:'Сектор по работе с активами', opened:'03.03.2024', basis:'первичная претензия',
+    overlay:null, outcome:'Безнадёжный долг', closed:'27.06.2026',
+    credits:[ {id:'33', num:'Дог. №33 от 11.01.2022', subject:'полный остаток', claim:'64 800,00', coll:'—'} ],
+    measures:[
+      {sec:'Досудебный', kind:'Первичная претензия', date:'03.03.2024', num:'ПР-045', purpose:'погашение', deliver:'почта (вручено)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'64 800,00'},
+      {sec:'Судебный', kind:'Исковое заявление', date:'10.10.2024', num:'ИСК-52', purpose:'взыскание полного остатка', deliver:'подано в суд', delivered:true, result:'положительный', stageEx:'исполнено', sum:'64 800,00'},
+      {sec:'Исполнительное', kind:'Исполнительный лист', date:'21.01.2025', num:'ИЛ-201', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:'отрицательный', stageEx:'исполнено', sum:'64 800,00'},
+      {sec:'Исполнительное', kind:'Постановление о возврате ИЛ', date:'19.02.2026', num:'ПВ-14', purpose:'у должника нет имущества', deliver:'постановление ПССИ', delivered:true, result:'отрицательный', stageEx:'исполнено', sum:'64 800,00'},
+      {sec:'События', kind:'Решение спецкомиссии о списании', date:'27.06.2026', num:'СК-02', purpose:'признание долга безнадёжным', deliver:'протокол спецкомиссии', delivered:true, result:'положительный', stageEx:'исполнено', sum:'64 800,00'},
+    ],
+    handoffs:[
+      {from:'Куратор ОД', to:'Департамент правового обеспечения', when:'12.09.2024', checklist:'расчёт долга, договор, претензии', status:'подтверждено', reason:''},
+      {from:'Отдел проблемных кредитов', to:'Сектор по работе с активами', when:'02.03.2026', checklist:'постановление о возврате ИЛ, справка об имуществе', status:'подтверждено', reason:''},
+    ],
+    special:[],
+    colls:[],
+    history:[
+      {when:'27.06.2026 15:00', what:'Исход: безнадёжный долг → списание, группа заёмщика → 4', who:'Спецкомиссия'},
+      {when:'02.03.2026 11:30', what:'Передача дела принята', who:'Сектор по работе с активами'},
+      {when:'19.02.2026 14:20', what:'Мера «Постановление о возврате ИЛ» зарегистрирована', who:'ПССИ'},
+      {when:'03.03.2024 09:00', what:'Процесс открыт (первая мера: претензия)', who:'Куратор ОД'},
+    ] },
+];
+
+/* Структурный номер процесса — единый формат с З-… (заявки) и К-… (комиссии), P3-R27. */
+const procNo = id => `В-2026-${String(id).padStart(6, '0')}`;
+
+/* ============================================================
+   ВЫЧИСЛЯЕМЫЕ ПРАВИЛА — не хранить то, что выводится.
+   Категория и стадия НЕ лежат в данных процесса: категория считается
+   из дней просрочки, стадия — из фазы. Разработчик видит формулу.
+   ============================================================ */
+const catOf   = days  => days <= 5 ? 'norm' : days <= 180 ? 'mid' : 'high';
+const stageOf = phase => PHASES_PRE.includes(phase) ? 'Досудебная' : 'Принудительная';
+
+/* Терминальный процесс — работа завершена (исход есть). Короткая подпись баннера overlay в списке. */
+const isTerminal   = p => Boolean(p.outcome);
+const overlayShort = t => t === 'Пауза' ? 'пауза' : t === 'Соглашение' ? 'соглашение' : 'событие';
+
+/* HTML-экранирование для атрибутов (title) — конвенция _esc из commission.html. */
+const escAttr = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* Полный текст ячейки «Фаза» для title: у терминальных — исход, у активных — фаза + метка оверлея
+   (метка — единственный в списке признак приостановленного процесса, title должен её называть). */
+const phaseFullText = p => isTerminal(p) ? p.outcome : (p.overlay ? `${p.phase} · ${overlayShort(p.overlay.type)}` : p.phase);
+
+/* Фаза установлена мерой-вехой. Показываем ЕЁ номер — так правило
+   «фаза следует из журнала мер» видно, а не только объявлено. */
+const PHASE_BY_MEASURE = {
+  'Претензия':'Первичная претензия', 'Повторная претензия':'Повторная претензия',
+  'Безакцептное списание':'Безакцептное списание', 'Извещение':'Извещение об обращении на залог',
+  'Иск':'Исковое заявление', 'Решение суда':'Решение суда',
+  'Исполнительный лист':'Исполнительный лист', 'На исполнении':'Исполнительный лист',
+};
+function phaseSource(p){
+  const kind = PHASE_BY_MEASURE[p.phase];
+  const m = [...p.measures].reverse().find(x => x.kind === kind);
+  return m ? `по документу-основанию: ${m.num}` : 'по документу-основанию';
+}
+
+/* ============================================================
+   КОНТРОЛЬ ПЕРЕСЕЧЕНИЯ ОХВАТА
+   Кредит ↔ процесс — многие-ко-многим. Два активных процесса по одному
+   кредиту законны, если предмет требования разный (142: просроченная сумма,
+   151: залог по тому же дог. №56). Пересечением считается совпадение ОБЩЕГО
+   КРЕДИТА с другим активным процессом (не пары кредит+предмет — совпадение
+   пары означало бы дубль-процесс, которого в данных нет и быть не должно).
+   Это мягкое предупреждение, а не запрет: решает человек.
+   ============================================================ */
+function overlaps(proc){
+  const out = [];
+  for(const c of proc.credits){
+    for(const other of PROCESSES){
+      if(other.id === proc.id || isTerminal(other)) continue;
+      if(other.credits.some(oc => oc.id === c.id))
+        out.push({ credit:c, subject:c.subject, other });
+    }
+  }
+  return out;
+}
+
+const catLabel = c => c === 'norm' ? 'Норма' : c === 'mid' ? 'Средний' : 'Высокий';
+const catCls   = c => c === 'norm' ? 'low'   : c === 'mid' ? 'mid'     : 'high';
+
+/* ============================================================
+   LIST
+   ============================================================ */
+let selectedRow = null, sortKey='id', sortDir=1;
+const LIST_COLS = [
+  {k:'id', t:'№ процесса'}, {k:'borrower', t:'Заёмщик'}, {k:'scope', t:'Охват'},
+  {k:'phase', t:'Фаза'}, {k:'cat', t:'Категория'}, {k:'group', t:'Группа'}, {k:'owner', t:'Владелец'},
+];
+function renderList(){
+  document.getElementById('listHead').innerHTML =
+    LIST_COLS.map(c=>`<th onclick="sortList('${c.k}')">${c.t}<span class="sort">↕</span></th>`).join('');
+  const rows = [...PROCESSES].sort((a,b)=>{
+    // «Категория» не хранится в данных — сортируем по catDays, иначе порядок «Высокий/Норма/Средний» будет алфавитным, а не по тяжести риска.
+    const key = sortKey==='cat' ? 'catDays' : sortKey;
+    let x=a[key], y=b[key];
+    if(typeof x==='number') return (x-y)*sortDir;
+    return String(x).localeCompare(String(y),'ru')*sortDir;
+  });
+  document.getElementById('listBody').innerHTML = rows.map(p=>`
+    <tr data-id="${p.id}" class="${isTerminal(p) ? 'terminal' : ''}" onclick="selectRow('${p.id}',this)" ondblclick="openDetail('${p.id}')">
+      <td>${procNo(p.id)}</td>
+      <td title="${escAttr(p.borrower)}">${p.borrower}</td>
+      <td title="${escAttr(p.scope)}">${p.scope}</td>
+      <td title="${escAttr(phaseFullText(p))}">${isTerminal(p)
+        ? `<span class="pill neutral">${p.outcome}</span>`
+        : `${p.phase}${p.overlay ? ` <span class="pill neutral">${overlayShort(p.overlay.type)}</span>` : ''}`}</td>
+      <td><span class="pill ${catCls(catOf(p.catDays))}">${catLabel(catOf(p.catDays))}</span></td>
+      <td>${p.group}</td>
+      <td title="${escAttr(p.owner)}">${p.owner}</td>
+    </tr>`).join('');
+  document.getElementById('pagerCount').textContent = PROCESSES.length+' процессов';
+}
+function sortList(k){ if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=1;} renderList(); if(selectedRow) selectRow(selectedRow); }
+function selectRow(id,el){
+  selectedRow=id;
+  document.querySelectorAll('#listBody tr').forEach(r=>r.classList.toggle('sel', r.dataset.id===id));
+  document.getElementById('btnOpen').disabled=false;
+}
+
+/* ============================================================
+   FIELD HELPERS (как в loan-credit)
+   ============================================================ */
+const ro  = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div class="control ro"><input value="${v||''}" readonly></div></div>`;
+const inp = (l,v,grey)=>`<div class="field"><span class="flabel">${l}</span><div class="control${grey?' grey':''}"><input value="${v||''}"></div></div>`;
+const sel = (l,v,opts)=>`<div class="field"><span class="flabel">${l}</span><div class="control grey"><select>${opts.map(o=>`<option${o===v?' selected':''}>${o}</option>`).join('')}</select>${caret()}</div></div>`;
+const caret = ()=>`<span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>`;
+const pickRO = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div class="lookup"><span class="val${v?'':' ph'}">${v||''}</span><button class="pick" title="Открыть">•••</button></div></div>`;
+
+/* ============================================================
+   DETAIL — tabs + panels
+   ============================================================ */
+const TABS = ['Общая информация','Охват','Журнал мер','Передачи дела','Особые состояния','Залог / реализация','История'];
+let curProc=null, curTab=0;
+function openDetail(id){
+  curProc = PROCESSES.find(p=>p.id===id) || PROCESSES[0];
+  curTab=0; renderTabs(); renderPanels(); showView('detail');
+  document.getElementById('crumbTitle').textContent = `${procNo(curProc.id)} · ${curProc.borrower}`;
+}
+function renderTabs(){
+  document.getElementById('detailTabbar').innerHTML =
+    TABS.map((t,i)=>`<button class="dtab${i===curTab?' active':''}" onclick="switchTab(${i})">${t}</button>`).join('');
+}
+function switchTab(i){ curTab=i; renderTabs(); document.querySelectorAll('.detail-panel').forEach((p,idx)=>p.classList.toggle('active',idx===i)); }
+
+/* Три РАЗНЫХ не-фазовых механизма поверх любой стадии — своим баннером.
+   Пауза (янтарный, дедлайн, счётчик дней не заморожен) ≠ Соглашение (синий,
+   график без дедлайна) ≠ Событие (красный, уводит в спецпроцедуру).
+   У всех трёх фаза СОХРАНЯЕТСЯ. */
+function overlayBanner(p){
+  if(!p.overlay) return '';
+  const o = p.overlay;
+  if(o.type === 'Пауза') return `<div class="phead-banner warn">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>
+    <span>Пауза: ${o.label} · до ${o.until} · фаза сохранена · область: ${o.scope} · счётчик дней не заморожен</span></div>`;
+  if(o.type === 'Соглашение') return `<div class="phead-banner info">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    <span>Исполнение по соглашению: ${o.label} · наблюдение за графиком (не пауза — дедлайна нет) · фаза сохранена</span></div>`;
+  return `<div class="phead-banner danger">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
+    <span>Событие: ${o.label} · процесс уведён в спецпроцедуру · фаза сохранена</span></div>`;
+}
+
+function phaseHeader(){
+  const p=curProc;
+  return `<div class="phead">
+    <div class="phead-top">
+      <div class="phead-name">
+        <span class="nm">${p.borrower}</span>
+        <a onclick="toast('Переход в карточку заёмщика (демо)')">ИНН ${p.inn} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></a>
+        <div class="phead-sub" style="width:100%">${procNo(p.id)} · охват: <b>${p.scope}</b></div>
+      </div>
+      <span class="phead-owner">Владелец: ${p.owner}</span>
+    </div>
+    ${overlayBanner(p)}
+    <div class="phead-dims">
+      <div class="dim"><div class="dl">Стадия</div><div class="dv">${stageOf(p.phase)}</div><div class="src">производная от фазы</div></div>
+      <div class="dim"><div class="dl">Фаза</div><div class="dv">${p.phase}</div><div class="src">${phaseSource(p)}</div></div>
+      <div class="dim"><div class="dl">Категория риска</div><div class="dv"><span class="pill ${catCls(catOf(p.catDays))}">${catLabel(catOf(p.catDays))}</span></div><div class="src">вычислено · ${p.catDays} дн просрочки</div></div>
+      <div class="dim"><div class="dl">Группа платёжесп.</div><div class="dv">${p.group}</div><div class="src">атрибут заёмщика</div></div>
+    </div>
+  </div>`;
+}
+
+/* ---- panel: Общая ---- */
+function panelObschaya(){
+  const p=curProc;
+  return `<div class="panel-wrap">${phaseHeader()}
+    <div class="panel-card"><div class="f2">
+      ${ro('Дата открытия', p.opened)}
+      ${ro('Основание открытия', p.basis)}
+      ${pickRO('Заёмщик', p.borrower+' (ИНН '+p.inn+')')}
+      ${ro('Вид охвата', p.scope)}
+      ${ro('Подразделение-владелец', p.owner)}
+      ${ro('Текущая фаза', p.phase)}
+      ${ro('Стадия', stageOf(p.phase))}
+      ${ro('Исход', p.outcome || '—')}
+      ${ro('Дата закрытия', p.closed || '—')}
+    </div>
+    <p class="section-note" style="margin-top:16px">Шапка выше — панель-индикатор: категория вычисляется по дням просрочки, фаза двигается регистрацией меры в «Журнале мер», группа — атрибут заёмщика. Эти поля не редактируются напрямую.</p>
+    </div></div>`;
+}
+
+/* ---- panel: Охват ---- */
+function panelOhvat(){
+  const p=curProc;
+  const rows = p.credits.map(c=>`<tr>
+    <td><span class="rowlink" onclick="toast('Переход в карточку кредита ${c.num} (демо)')">${c.num}</span></td>
+    <td>${c.subject}</td><td style="text-align:right">${c.claim}</td><td>${c.coll}</td></tr>`).join('');
+  const ovs = overlaps(p);
+  const note = ovs.length ? `<div class="overlap-note">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <span>${ovs.map(o=>`По ${o.credit.num} идёт процесс <span class="rowlink" onclick="openDetail('${o.other.id}')">${procNo(o.other.id)}</span> (предмет: ${o.other.scope}). Проверьте, не задваивается ли требование.`).join('<br>')}</span>
+  </div>` : '';
+  return `<div class="panel-wrap">
+    <p class="section-h">Кредиты в процессе (охват)</p>
+    <p class="section-note">Связь процесс ↔ кредиты — многие-ко-многим; все кредиты одного заёмщика, предмет требования у каждого свой. Контроль пересечения — мягкое предупреждение, если по кредиту из охвата уже идёт другой активный процесс (независимо от предмета): стоит проверить, не задваивается ли требование; терминальные процессы не учитываются.</p>
+    ${note}
+    <div class="gtoolbar">
+      <button class="btn btn-tint btn-sm" onclick="addCreditToScope()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Добавить кредит</button>
+    </div>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Кредитный договор</th><th>Предмет требования</th><th style="text-align:right">Сумма требования</th><th>Залог</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div></div>`;
+}
+
+/* ---- panel: Журнал мер ---- */
+function panelMery(){
+  const p=curProc;
+  const rows = p.measures.map(m=>{
+    const bad = needsDelivery(m.kind) && !m.delivered;
+    return `<tr class="${bad ? 'mrow-undelivered' : ''}">
+      <td>${m.sec}</td><td>${m.kind}</td><td>${m.date}</td><td>${m.num}</td>
+      <td>${m.deliver}${bad ? ' <span class="pill mid">не исполнена: нет подтверждения вручения</span>' : ''}</td>
+      <td>${m.result}</td><td>${m.stageEx}</td><td style="text-align:right">${m.sum}</td></tr>`;
+  }).join('');
+  return `<div class="panel-wrap">
+    ${phaseTimeline()}
+    <p class="section-h">Журнал мер</p>
+    <p class="section-note">Реестр всех претензий, извещений, исков, жалоб и писем. Фаза процесса двигается ТОЛЬКО регистрацией меры-вехи (иск → фаза «Иск» и т.д.). Претензии и извещения требуют подтверждения вручения — иначе мера не считается исполненной.</p>
+    <div class="gtoolbar">
+      <button class="btn btn-tint btn-sm" onclick="openMeasureModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Зарегистрировать меру</button>
+    </div>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Раздел</th><th>Вид меры</th><th>Дата</th><th>Номер</th><th>Направление / вручение</th><th>Результат</th><th>Стадия</th><th style="text-align:right">Сумма</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div></div>`;
+}
+function phaseTimeline(){
+  const p=curProc;
+  const chain = stageOf(p.phase) === 'Досудебная' ? PHASES_PRE : PHASES_FORCE;
+  const curIdx = chain.indexOf(p.phase);
+  const steps = chain.map((ph,i)=>{
+    const st = i<curIdx?'done': i===curIdx?'cur':'todo';
+    const mark = st==='done'?'✓': (i+1);
+    return `<div class="tl-step"><span class="tl-dot ${st}">${mark}</span><span class="tl-lbl${st==='todo'?' todo':''}">${ph}</span></div>${i<chain.length-1?'<span class="tl-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>':''}`;
+  }).join('');
+  return `<div class="timeline">${steps}</div>`;
+}
+
+/* ---- panel: Передачи дела ---- */
+function panelHandoffs(){
+  const p=curProc;
+  const rows = p.handoffs.length ? p.handoffs.map(h=>{
+    const pill = h.status==='подтверждено'?'<span class="pill low">подтверждено</span>':h.status==='отклонено'?'<span class="pill high">отклонено</span>':'<span class="pill mid">ожидает</span>';
+    return `<tr><td>${h.from}</td><td>${h.to}</td><td>${h.when}</td><td>${h.checklist}</td><td>${pill}${h.reason?` <span class="src">${h.reason}</span>`:''}</td></tr>`;
+  }).join('') : '';
+  const body = rows || `<tr><td colspan="5"><div class="cgrid-empty">Передач ещё не было</div></td></tr>`;
+  return `<div class="panel-wrap">
+    <p class="section-h">Передачи дела (эстафета подразделений)</p>
+    <p class="section-note">Дело последовательно меняет владельца: куратор → ДПО → отдел проблемных кредитов → приставы / сектор активов. Принимающая сторона подтверждает или отклоняет пакет с указанием причины (паттерн «четырёх глаз»).</p>
+    <div class="gtoolbar">
+      <button class="btn btn-tint btn-sm" onclick="toast('Форма передачи дела (демо)')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg> Передать дело</button>
+    </div>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>От кого</th><th>Кому</th><th>Дата</th><th>Чек-лист документов</th><th>Статус</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table></div></div>`;
+}
+
+/* ---- panel: Особые состояния ---- */
+function panelSpecial(){
+  const p=curProc;
+  const rows = p.special.map(s=>{
+    const pill = s.type==='Пауза'?'<span class="pill mid">пауза</span>'
+               : s.type==='Соглашение'?'<span class="pill info">соглашение</span>'
+               : '<span class="pill high">событие</span>';
+    return `<tr><td>${pill}</td><td>${s.name}</td><td>${s.note}</td><td>${s.when||'—'}</td><td>${s.deadline||'—'}</td></tr>`;
+  }).join('');
+  const body = rows || `<tr><td colspan="5"><div class="cgrid-empty">Особых состояний нет</div></td></tr>`;
+  return `<div class="panel-wrap">
+    <p class="section-h">Особые состояния (поверх любой стадии)</p>
+    <p class="section-note">Три механизма, действующие поверх фазы: <b>пауза</b> (заморозка с дедлайном, фаза сохраняется), <b>соглашение</b> (наблюдение за новым графиком) и <b>событие</b> (смерть, недееспособность — уводит процесс в спецпроцедуру). Счётчик дней при паузе не замораживается.</p>
+    <div class="gtoolbar">
+      <button class="btn btn-tint btn-sm" onclick="toast('Постановка на паузу (демо)')">Поставить на паузу</button>
+      <button class="btn btn-tint btn-sm" onclick="toast('Регистрация соглашения (демо)')">Соглашение</button>
+      <button class="btn btn-tint btn-sm" onclick="toast('Регистрация события (демо)')">Событие</button>
+    </div>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Тип</th><th>Наименование</th><th>Примечание</th><th>Начало</th><th>Дедлайн</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table></div></div>`;
+}
+
+/* ---- panel: Залог / реализация ---- */
+function panelZalog(){
+  const p=curProc;
+  const rows = p.colls.length ? p.colls.map(c=>`<tr>
+    <td>${c.item}</td><td>${c.kind}</td><td style="text-align:right">${c.pledge}</td><td>${c.order}</td><td>${c.real}</td>
+    <td>${c.ban ? `<span class="pill high">${c.ban}</span>` : '—'}</td></tr>`).join('')
+    : `<tr><td colspan="6"><div class="cgrid-empty">По этому процессу залог не обращается</div></td></tr>`;
+  return `<div class="panel-wrap">
+    <p class="section-h">Залог / реализация</p>
+    <p class="section-note">Предметы залога пред-заполняются из залогового договора кредита; процесс добавляет только слой реализации (порядок обращения, статус торгов, принятие имущества). Внесудебный порядок блокируется для единственного жилья, культурной ценности и имущественного комплекса.</p>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Предмет залога</th><th>Вид</th><th style="text-align:right">Залоговая стоимость</th><th>Порядок обращения</th><th>Статус реализации</th><th>Запрет внесуд.</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div></div>`;
+}
+
+/* ---- panel: История ---- */
+function panelHistory(){
+  const p=curProc;
+  return `<div class="panel-wrap">
+    <p class="section-h">История процесса</p>
+    <p class="section-note">Аудит статусных вех: смена фазы (с документом-основанием), передачи дела, паузы и события. Только чтение, по убыванию времени.</p>
+    <div class="hist">${p.history.map(h=>`<div class="hrow"><div class="hwhen">${h.when}</div><div class="hwhat">${h.what}</div><div class="hwho">${h.who}</div></div>`).join('')}</div>
+  </div>`;
+}
+
+function renderPanels(){
+  const builders=[panelObschaya,panelOhvat,panelMery,panelHandoffs,panelSpecial,panelZalog,panelHistory];
+  document.getElementById('detailPanels').innerHTML =
+    builders.map((b,i)=>`<div class="detail-panel${i===0?' active':''}">${b()}</div>`).join('');
+}
+
+/* ============================================================
+   MODALS (demo): регистрация меры, добавление кредита
+   ============================================================ */
+function openMeasureModal(){
+  const host=document.getElementById('modalHost');
+  host.innerHTML=`<div class="modal form">
+    <div class="modal-h"><span class="mt">Регистрация меры</span><button class="modal-x" onclick="closeModal()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="modal-b"><div class="mform">
+      ${sel('Раздел','Судебный',['Досудебный','Судебный','Исполнительное','Отчуждение','События'])}
+      <div class="field"><span class="flabel">Вид меры</span><div class="control grey"><select id="mKind" onchange="syncMeasureWarnings()">${MEASURE_KINDS.map(k=>`<option${k==='Исковое заявление'?' selected':''}>${k}</option>`).join('')}</select>${caret()}</div></div>
+      ${inp('Дата','')}
+      ${inp('Номер','')}
+      ${sel('Способ направления / вручения','СЭД (квитанция)',['СЭД (квитанция)','Почта (уведомление о вручении)','Отметка заёмщика','Подано в суд','Зарегистрировано в госоргане','Не направлялась'])}
+      ${sel('Результат','на рассмотрении',['на рассмотрении','без изменения','частичное погашение','полное погашение','положительный','отрицательный'])}
+      <div class="field col-span"><span class="flabel">Назначение (цель)</span><div class="control"><input value=""></div></div>
+    </div>
+    <div class="warn-inline" id="mWarnPhase"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Это <b>мера-веха</b>: сохранение сдвинет фазу процесса. Фаза двигается только так — селектора фазы в системе нет.</span></div>
+    <div class="warn-inline" id="mWarnDelivery"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Без подтверждения вручения мера не считается исполненной и не годится как доказательство в суде.</span></div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="closeModal();toast('Мера зарегистрирована (демо)')">Сохранить</button></div>
+  </div>`;
+  host.classList.add('open');
+  syncMeasureWarnings();
+}
+function syncMeasureWarnings(){
+  const kind = document.getElementById('mKind').value;
+  document.getElementById('mWarnPhase').style.display    = isMilestone(kind)   ? 'flex' : 'none';
+  document.getElementById('mWarnDelivery').style.display = needsDelivery(kind) ? 'flex' : 'none';
+}
+function addCreditToScope(){
+  const host=document.getElementById('modalHost');
+  const ovs = overlaps(curProc);
+  const live = ovs.length
+    ? ovs.map(o=>`По ${o.credit.num} уже идёт процесс ${procNo(o.other.id)} (предмет: ${o.other.scope}).`).join(' ')
+    : 'Пересечений с активными процессами по текущему охвату не обнаружено.';
+  host.innerHTML=`<div class="modal form">
+    <div class="modal-h"><span class="mt">Добавить кредит в охват</span><button class="modal-x" onclick="closeModal()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="modal-b"><div class="mform">
+      ${pickRO('Кредит заёмщика','')}
+      ${sel('Предмет требования','просроченная сумма',['просроченная сумма','полный остаток','залог'])}
+    </div>
+    <div class="warn-inline"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Можно добавить только кредит того же заёмщика. ${live} Предупреждение мягкое: пересечение по разным предметам требования допустимо.</span></div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="closeModal();toast('Кредит добавлен в охват')">Добавить</button></div>
+  </div>`;
+  host.classList.add('open');
+}
+function closeModal(){ document.getElementById('modalHost').classList.remove('open'); document.getElementById('modalHost').innerHTML=''; }
+
+/* ============================================================
+   MISC
+   ============================================================ */
+function showView(v){ document.querySelectorAll('.view').forEach(s=>s.style.display='none');
+  document.getElementById('view-'+v).style.display='flex';
+  if(v==='list') document.getElementById('crumbTitle').textContent='Взыскание задолженности'; }
+function scrollTabs(){ document.getElementById('detailTabbar').scrollBy({left:200,behavior:'smooth'}); }
+function closeSplit(){ document.getElementById('splitRefresh').classList.remove('open'); }
+function onRoleChange(){ toast('Роль: '+document.getElementById('roleSel').value); }
+function toast(msg,kind){ const w=document.getElementById('toastWrap');
+  const t=document.createElement('div'); t.className='toast'+(kind?(' '+kind):'');
+  t.innerHTML=`<span>${msg}</span>`; w.appendChild(t); setTimeout(()=>t.remove(),2600); }
+
+/* Escape закрывает диалог — единый стандарт диалогов модуля (P3-R33).
+   Клик по подложке уже обрабатывается на #modalHost. */
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && document.getElementById('modalHost').classList.contains('open')) closeModal();
+});
+
+renderNav(); renderList();
+
+</script>
+</body>
+</html>

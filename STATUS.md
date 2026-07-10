@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-07-10 (loan-application mockup: «Заключения» tab reworked — dept assignment, draft→submitted lifecycle, negative verdict as a commission gate, P3-R41) — _(update this date every time you edit)_
+> Last updated: 2026-07-10 (мокап взыскания: процессы вместо кредитов, M:N кредит↔процесс, три оверлея; мокап заявки: вкладка «Заключения» переработана — назначение отделов, ЖЦ черновик→внесено, отрицательный вердикт как гейт комиссии, P3-R41) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,9 +38,14 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-07-10 — Собран to-be мокап модуля «Взыскание задолженности» (`mockups/collection/collection.html`):
+  список процессов взыскания (не кредитов), карточка на 7 вкладок, шапка-индикатор четырёх измерений,
+  живой контроль пересечения охвата, 6 демо-процессов включая пару «два процесса на один кредит» и
+  два терминальных исхода. Проверка: `scripts/inspect/collection-check.mjs` — 169 ассертов, 0 провалов,
+  0 ошибок консоли. Рекомендации команде: `TODO.md`, «Фаза 9» (P9-R1…R9).
 - 2026-07-10 — Макет заявки: вкладка «Заключения» переработана (`P3-R41`) — отделы назначает специалист,
   ЖЦ «черновик → внесено» с отзывом, отрицательный вердикт блокирует комиссию.
-  Проверка: `node scripts/inspect/conclusions-check.mjs`.
+  Проверка: `node scripts/inspect/conclusions-check.mjs` — 87 ассертов, 0 провалов, 0 ошибок консоли.
 - 2026-07-10 — **Групповой кредит: документы по каждому члену группы** (`loan-application.html`,
   задача **P3-R37**). Модель — зонтичный batch (1 кредит / N траншей, лидера нет), поэтому личные
   документы принадлежат **члену**, а не заявке: при `isGroup` секции «Идентификация» и
