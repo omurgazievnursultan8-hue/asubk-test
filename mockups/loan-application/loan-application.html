@@ -4654,6 +4654,9 @@ function _docSrc(key){
 }
 /* «Открытый» блокер комплекта — статус, при котором обязательный документ ещё не «закрыт». */
 const OPEN_BLOCKS = s => s === 'required' || s === 'rejected' || s === 'expired' || s === 'requested';
+/* За статусом стоит файл: его можно посмотреть, скачать и включить в архив/опись.
+   'expired' — файл есть, но просрочен; 'waived'/'requested' файла не имеют. */
+const HAS_FILE = s => s === 'uploaded' || s === 'accepted' || s === 'confirmed' || s === 'expired';
 /* «На проверке» — не хранимый статус, а вид: uploaded-док при заявке в комиссии
    отображается бейджем «На проверке». Хранимое значение остаётся 'uploaded'. */
 function _atCommission(app){ return condPhase(app.status) === 'review'; }
@@ -4900,6 +4903,31 @@ function _docStats(app){
     accMet:       reqTot > 0 && reqAccepted  === reqTot,   // всё проверено спецом → готово к подтверждению ГФ
     confirmedMet: reqTot > 0 && reqConfirmed === reqTot };  // всё подтверждено ГФ → открываются заключения
 }
+/* Есть ли в комплекте хоть один файл — условие показа утилит пакета («Скачать пакет», «Опись»).
+   Считаем ВСЕ документы, а не только обязательные (как `_docStats`): в архив и опись идут
+   и опциональные, и договорные — иначе на одобренной заявке опись не увидит договоры. */
+function _pkgHasFiles(app){
+  const bt = _docBType(app);
+  for (const sec of _docsOf(app)){
+    if (sec.key === 'coll') continue;                                 // залоговые — по предметам, ниже
+    if (app.isGroup && MEMBER_SEC_KEYS.includes(sec.key)) continue;   // у группы ident/fin живут у членов
+    for (const d of sec.docs)
+      if ((d.ft === 'both' || d.ft === bt) && HAS_FILE(d.st)) return true;
+  }
+  if (app.isGroup){
+    const members = _membersOf(app);
+    for (let i = 0; i < members.length; i++)
+      for (const tpl of _memberDocTpls(members[i]))
+        if (HAS_FILE(_memberDocState(app, members[i], tpl, i).st)) return true;
+  }
+  if (app.hasCollateral){
+    for (const it of _collateralOf(app))
+      for (const tpl of (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK))
+        if (HAS_FILE(_collDocState(app, it.id + '::' + tpl.id, tpl).st)) return true;
+  }
+  return false;
+}
+
 /* Готов ли обязательный комплект документов. */
 function docsReady(app){ return _docStats(app).met; }
 /* Можно ли отправлять в комиссию: комплект собран, подтверждён головным филиалом,
@@ -5044,7 +5072,7 @@ function docRow(app, disp, key, secKind){
     }
   }
   /* Просмотр + Скачать — всем ролям на статусах «есть файл» (комиссии критично перед решением). */
-  if (['uploaded','accepted','confirmed','expired'].includes(disp.st)){
+  if (HAS_FILE(disp.st)){
     acts += _docBtn('ghost', _docIcoEye() + 'Просмотр', `docView(${kq})`);
     acts += _docBtn('ghost', 'Скачать', `docDownload(${kq})`);
   }
@@ -5253,15 +5281,17 @@ function renderDocs(app){
       <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div></div>
     </div></div>`;
 
-  /* Ярус B — утилиты по пакету. Видны спецу на стадии черновика.
+  /* Ярус B — утилиты по пакету: только чтение (архив + печать описи), мутаций нет.
+     Гейт `_role==='spec' && draft` стоял на всём ярусе ради «Отправить в комиссию» и
+     «Запросить недостающие»; обе кнопки убраны (P3-R35), и читающие утилиты унаследовали
+     чужое условие. Граница проходит по мутации, а не по роли: комиссии архив нужен перед
+     решением, опись — при передаче дела дальше. Единственное условие — в комплекте есть файл
+     (поштучное «Скачать» в docRow тоже открыто всем ролям).
      «Отправить в комиссию» здесь не дублируем — единственная точка отправки в тулбаре. */
-  let pkgActions = '';
-  if (_role === 'spec' && condPhase(app.status) === 'draft'){
-    pkgActions = `<div class="pkg-actions">
+  const pkgActions = _pkgHasFiles(app) ? `<div class="pkg-actions">
       <button class="btn btn-ghost btn-sm" onclick="pkgDownloadAll()">Скачать пакет</button>
       <button class="btn btn-ghost btn-sm" onclick="pkgInventory()">Опись</button>
-    </div>`;
-  }
+    </div>` : '';
 
   const accs   = secs.map(s => renderDocSection(app, s, bt)).join('');
   const memArea = app.isGroup ? renderMemberDocs(app) : '';
