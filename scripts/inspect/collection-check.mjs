@@ -168,6 +168,53 @@ ok('у 133 баннера нет', b133 === null);
 ok('CSS для события объявлен', await page.evaluate(() =>
   [...document.styleSheets[0].cssRules].some(r => r.selectorText === '.phead-banner.danger')));
 
+// --- T6: журнал мер ---
+await page.goto(FILE, { waitUntil: 'load' });
+const kinds = await page.evaluate(() => ({
+  n: MEASURE_KINDS.length,
+  milestoneIsk: isMilestone('Исковое заявление'),
+  milestoneApel: isMilestone('Апелляционная жалоба'),
+  needsPret: needsDelivery('Первичная претензия'),
+  needsIl: needsDelivery('Исполнительный лист'),
+}));
+ok('20 видов меры', kinds.n === 20);
+ok('иск — веха', kinds.milestoneIsk === true);
+ok('апелляция — НЕ веха (мера внутри фазы)', kinds.milestoneApel === false);
+ok('претензия требует вручения', kinds.needsPret === true);
+ok('исполнительный лист вручения не требует', kinds.needsIl === false);
+
+// 133: мера ПР-233 без подтверждения вручения → помечена
+await page.click('#listBody tr[data-id="133"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=2');
+const mery = page.locator('#detailPanels .detail-panel >> nth=2');
+ok('неисполненная мера помечена', (await mery.locator('tr.mrow-undelivered').count()) === 1);
+ok('пометка объясняет причину', (await mery.locator('tr.mrow-undelivered').innerText()).includes('не исполнена'));
+
+// таймлайн — досудебная цепочка из 3 фаз, текущая «Повторная претензия»
+ok('таймлайн досудебной стадии — 3 шага', (await mery.locator('.tl-step').count()) === 3);
+ok('текущий шаг — второй', (await mery.locator('.tl-step >> nth=1 >> .tl-dot').getAttribute('class')).includes('cur'));
+ok('первый шаг пройден', (await mery.locator('.tl-step >> nth=0 >> .tl-dot').innerText()) === '✓');
+
+// таймлайн 142 — принудительная цепочка из 5 фаз
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="142"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=2');
+ok('таймлайн принудительной стадии — 5 шагов', (await page.locator('#detailPanels .detail-panel >> nth=2 >> .tl-step').count()) === 5);
+
+// модалка меры: предупреждение о сдвиге фазы условное
+await page.click('#detailPanels .detail-panel >> nth=2 >> .gtoolbar .btn');
+ok('модалка меры открыта', await page.locator('#modalHost.open').isVisible());
+await page.selectOption('#mKind', 'Исковое заявление');
+ok('для вехи предупреждение о фазе видно', await page.locator('#mWarnPhase').isVisible());
+await page.selectOption('#mKind', 'Апелляционная жалоба');
+ok('для не-вехи предупреждение о фазе скрыто', !(await page.locator('#mWarnPhase').isVisible()));
+await page.selectOption('#mKind', 'Первичная претензия');
+ok('для претензии видно предупреждение о вручении', await page.locator('#mWarnDelivery').isVisible());
+await page.selectOption('#mKind', 'Исполнительный лист');
+ok('для ИЛ предупреждение о вручении скрыто', !(await page.locator('#mWarnDelivery').isVisible()));
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);
