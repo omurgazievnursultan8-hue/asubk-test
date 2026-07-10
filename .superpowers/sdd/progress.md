@@ -14,3 +14,7 @@ Base: 1317903
 - Task 2: роль «Отдел» + права — complete (commit 5709b62, все PASS, review clean)
   Отступление от плана (принято): can(app) снимает _role/_deptKey в curRole/curDept — консистентно с phase.
   Minor: _docStats/status внутри editConcl читаются «живьём»; can(app) не кэшировать через смену роли.
+- Task 3: панель назначения — complete (commits 04e51f0 + фикс 5602996, 34/34 PASS, review clean после фикса)
+  Important (исправлено): _conclPendingUnassign не обнулялся при отмене → conclUnassignCancel().
+  ВНИМАНИЕ Task 5: та же дыра возможна с _conclPendingWithdraw — сразу делать conclWithdrawCancel().
+  Minor (в финальное ревью): T3c восстанавливает статусы, но не журнал log у legal/analytics.
