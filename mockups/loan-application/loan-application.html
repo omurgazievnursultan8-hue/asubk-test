@@ -1423,6 +1423,34 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
         <div class="control"><input type="date" id="fDateTo" onchange="renderGrid()" oninput="renderGrid()" style="width:130px"></div>
       </div>
     </div>
+
+    <!-- (to-be) Территориальный срез: район каскадом сужается выбранной областью -->
+    <div class="field" style="min-width:210px">
+      <span class="flabel">Область заявителя</span>
+      <div class="control">
+        <select id="fOblast" onchange="onOblastChange()"><!-- populated by initOrgFilters() --></select>
+      </div>
+    </div>
+    <div class="field" style="min-width:200px">
+      <span class="flabel">Район заявителя</span>
+      <div class="control">
+        <select id="fRayon" onchange="renderGrid()"><!-- populated by fillRayons() --></select>
+      </div>
+    </div>
+
+    <!-- (to-be) Срез по исполнителю: специалист каскадом сужается подразделением -->
+    <div class="field" style="min-width:230px">
+      <span class="flabel">Филиал / отдел</span>
+      <div class="control">
+        <select id="fUnit" onchange="onUnitChange()"><!-- populated by initOrgFilters() --></select>
+      </div>
+    </div>
+    <div class="field" style="min-width:210px">
+      <span class="flabel">Кредитный специалист</span>
+      <div class="control">
+        <select id="fSpec" onchange="renderGrid()"><!-- populated by fillSpecs() --></select>
+      </div>
+    </div>
   </div>
 
   <!-- 3. Tools bar: split-Обновить · gear · Добавить условие поиска -->
@@ -1495,9 +1523,10 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
           <th style="min-width:140px" data-col="status"           onclick="sortBy('status')">Статус заявки <span class="sort">↕</span></th>
           <th style="min-width:190px" data-col="program"          onclick="sortBy('program')">Кредитная программа <span class="sort">↕</span></th>
           <th style="min-width:150px" data-col="amount"           onclick="sortBy('amount')">Запрашиваемая сумма <span class="sort">↕</span></th>
-          <th style="min-width:150px" data-col="approvedAmount"   onclick="sortBy('approvedAmount')">Одобренная сумма <span class="sort">↕</span></th>
-          <th style="min-width:130px" data-col="term"             onclick="sortBy('term')">Запрашиваемый срок <span class="sort">↕</span></th>
           <th style="min-width:130px" data-col="created"          onclick="sortBy('created')">Дата создания <span class="sort">↕</span></th>
+          <th style="min-width:190px" data-col="oblast"           onclick="sortBy('oblast')">Область / район <span class="sort">↕</span></th>
+          <th style="min-width:170px" data-col="specFio"          onclick="sortBy('specFio')">Кредитный специалист <span class="sort">↕</span></th>
+          <th style="min-width:190px" data-col="unitName"         onclick="sortBy('unitName')">Филиал / отдел <span class="sort">↕</span></th>
         </tr>
       </thead>
       <tbody id="appTbody"></tbody>
@@ -2336,6 +2365,82 @@ APPLICATIONS.forEach((r, i) => {
 });
 
 /* ============================================================
+   ТЕРРИТОРИЯ И ИСПОЛНИТЕЛЬ (P3-R*: фильтры списка заявок)
+   Три новых среза списка, которых нет в живом приложении:
+     · область / район заявителя  (каскад: район сужается выбранной областью)
+     · кредитный специалист       (каскад: сужается выбранным подразделением)
+     · филиал / отдел специалиста
+   Справочники здесь — демо-модель. В живом приложении: область/район берутся
+   из адреса регистрации субъекта, специалист/подразделение — из назначения заявки.
+   ============================================================ */
+
+/* АТД Кыргызской Республики: 7 областей + 2 города республиканского значения. */
+const REGION_DIR = [
+  { obl:'г. Бишкек',                 short:'г. Бишкек',        rayons:['Первомайский','Свердловский','Ленинский','Октябрьский'] },
+  { obl:'г. Ош',                     short:'г. Ош',            rayons:['Центральный','Ак-Буринский'] },
+  { obl:'Чуйская область',           short:'Чуйская обл.',     rayons:['Аламудунский','Сокулукский','Ысык-Атинский','Жайылский','Московский','Панфиловский','Кеминский','Чуйский'] },
+  { obl:'Ошская область',            short:'Ошская обл.',      rayons:['Кара-Суйский','Узгенский','Араванский','Ноокатский','Кара-Кулжинский','Алайский','Чон-Алайский'] },
+  { obl:'Джалал-Абадская область',   short:'Джалал-Абад. обл.',rayons:['Сузакский','Базар-Коргонский','Ноокенский','Аксыйский','Ала-Букинский','Токтогульский','Чаткальский'] },
+  { obl:'Иссык-Кульская область',    short:'Иссык-Куль. обл.', rayons:['Ак-Суйский','Джети-Огузский','Иссык-Кульский','Тонский','Тюпский'] },
+  { obl:'Нарынская область',         short:'Нарынская обл.',   rayons:['Ат-Башинский','Ак-Талинский','Джумгальский','Кочкорский','Нарынский'] },
+  { obl:'Таласская область',         short:'Таласская обл.',   rayons:['Таласский','Бакай-Атинский','Кара-Буринский','Манасский'] },
+  { obl:'Баткенская область',        short:'Баткенская обл.',  rayons:['Баткенский','Кадамжайский','Лейлекский'] },
+];
+const REGION_MAP = Object.fromEntries(REGION_DIR.map(o => [o.obl, o]));
+
+/* Подразделение специалиста: филиал (территориальный) либо отдел головного офиса.
+   obl — области обслуживания: связывает фильтр «Филиал/отдел» с фильтром «Область». */
+const ORG_UNITS = [
+  { key:'go',   title:'Головной офис (г. Бишкек)', type:'branch', obl:['г. Бишкек','Чуйская область'] },
+  { key:'osh',  title:'Ошский филиал',             type:'branch', obl:['Ошская область','г. Ош'] },
+  { key:'jal',  title:'Джалал-Абадский филиал',    type:'branch', obl:['Джалал-Абадская область'] },
+  { key:'iss',  title:'Иссык-Кульский филиал',     type:'branch', obl:['Иссык-Кульская область'] },
+  { key:'nar',  title:'Нарынский филиал',          type:'branch', obl:['Нарынская область'] },
+  { key:'tal',  title:'Таласский филиал',          type:'branch', obl:['Таласская область'] },
+  { key:'bat',  title:'Баткенский филиал',         type:'branch', obl:['Баткенская область'] },
+  { key:'msb',  title:'Отдел кредитования МСБ',    type:'dept',   obl:['г. Бишкек','Чуйская область'] },
+  { key:'agro', title:'Отдел агрокредитования',    type:'dept',   obl:['Чуйская область','Таласская область'] },
+];
+const UNIT_MAP = Object.fromEntries(ORG_UNITS.map(u => [u.key, u]));
+
+const SPEC_DIR = [
+  { key:'abdiev',    fio:'Абдиев А. К.',      unit:'go'   },
+  { key:'sydykova',  fio:'Сыдыкова Ж. М.',    unit:'msb'  },
+  { key:'orozbaev',  fio:'Орозбаев Т. Э.',    unit:'agro' },
+  { key:'mamatov',   fio:'Маматов К. Ы.',     unit:'osh'  },
+  { key:'toktogul',  fio:'Токтогулова А. С.', unit:'jal'  },
+  { key:'asanbek',   fio:'Асанбеков Р. Д.',   unit:'iss'  },
+  { key:'kydyr',     fio:'Кыдыралиев Н. Б.',  unit:'nar'  },
+  { key:'jeenbek',   fio:'Жээнбеков С. А.',   unit:'tal'  },
+  { key:'kalybek',   fio:'Калыбеков М. Т.',   unit:'bat'  },
+];
+const SPEC_MAP = Object.fromEntries(SPEC_DIR.map(s => [s.key, s]));
+
+/* Специалисты, обслуживающие область: юнит покрывает область → его спецы в списке. */
+function _specsOfOblast(obl){
+  if (!obl) return SPEC_DIR;
+  return SPEC_DIR.filter(s => UNIT_MAP[s.unit].obl.includes(obl));
+}
+
+/* Демо-раскладка: пары «область · район» разложены с шагом 7 (взаимно просты с длиной)
+   — 22 заявки покрывают все области. Специалист — детерминированно из своей области.
+   Явные поля заявки (oblast/rayon/spec) имеют приоритет над раскладкой. */
+const _REGION_PAIRS = REGION_DIR.flatMap(o => o.rayons.map(r => ({ obl:o.obl, rayon:r })));
+APPLICATIONS.forEach((r, i) => {
+  if (!r.oblast){
+    const p = _REGION_PAIRS[(i * 7) % _REGION_PAIRS.length];
+    r.oblast = p.obl; r.rayon = p.rayon;
+  }
+  if (!r.spec){
+    const pool = _specsOfOblast(r.oblast);
+    r.spec = pool[i % pool.length].key;
+  }
+  r.unit     = SPEC_MAP[r.spec].unit;
+  r.specFio  = SPEC_MAP[r.spec].fio;      // строковые дубли — для сортировки колонок грида
+  r.unitName = UNIT_MAP[r.unit].title;
+});
+
+/* ============================================================
    TO-BE status model (spec топик 4): одна дорожка статуса, 9 статусов.
    Normalise as-is list labels → to-be set; derive программные флаги.
    Групповой/залоговый — признак ПРОГРАММЫ (spec топики 1,3).
@@ -2371,12 +2476,6 @@ function _pluralRows(n){
   return n + ' строк';
 }
 
-/* «Одобренная сумма» (P3-R8): одобренная комиссией сумма. В демо у большинства
-   строк своего поля нет — для одобренных показываем запрос как факт выдачи, иначе «—». */
-function _approvedCell(r){
-  if (r.approvedAmount) return r.approvedAmount;
-  return r.status === 'Одобрена' ? r.amount : '—';
-}
 /* 'YYYY-MM-DD' → 'DD.MM.YYYY' для показа в списке. */
 function _fmtCreated(iso){
   if (!iso) return '';
@@ -2391,6 +2490,10 @@ function renderGrid(){
   const dFrom     = (document.getElementById('fDateFrom') || {value:''}).value;
   const dTo       = (document.getElementById('fDateTo')   || {value:''}).value;
   const sgFilter  = (document.getElementById('fStage')    || {value:''}).value;
+  const oblFilter = (document.getElementById('fOblast')   || {value:''}).value;
+  const rayFilter = (document.getElementById('fRayon')    || {value:''}).value;
+  const unFilter  = (document.getElementById('fUnit')     || {value:''}).value;
+  const spFilter  = (document.getElementById('fSpec')     || {value:''}).value;
   /* stageOfRow дёргает _docsOf/_conclOf, а те лениво сидят app._docs/app._concl и гоняют
      _conclSyncColl. Стадия нужна фильтру, сортировке и ячейке — считаем один раз на рендер. */
   const _stageCache = new Map();
@@ -2404,6 +2507,10 @@ function renderGrid(){
     if (pgFilter  && r.program !== pgFilter)                   return false;
     if (dFrom     && r.created  <  dFrom)                      return false;
     if (dTo       && r.created  >  dTo)                        return false;
+    if (oblFilter && r.oblast  !== oblFilter)                  return false;
+    if (rayFilter && r.rayon   !== rayFilter)                  return false;
+    if (unFilter  && r.unit    !== unFilter)                   return false;
+    if (spFilter  && r.spec    !== spFilter)                   return false;
     if (sgFilter){
       const s = stage(r);
       if (sgFilter === 'ready')       { if (!s.ready) return false; }
@@ -2415,7 +2522,7 @@ function renderGrid(){
   if (_sortCol){
     /* Денежные/числовые колонки сортируем как числа: «1 000 000,00» лексикографически
        меньше «900 000,00». Остальные — строкой (ISO-даты сравниваются корректно). */
-    const NUMERIC_COLS = new Set(['amount', 'approvedAmount', 'term', 'approvedTerm']);
+    const NUMERIC_COLS = new Set(['amount']);
     const numeric = NUMERIC_COLS.has(_sortCol);
     rows = rows.slice().sort((a,b) => {
       /* «Стадия» — производное значение, поля в строке нет: сравниваем номер узла. */
@@ -2458,11 +2565,66 @@ function renderGrid(){
       <td>${_esc(r.status)}</td>
       <td>${_esc(r.program)}</td>
       <td>${_esc(r.amount)}</td>
-      <td>${_esc(_approvedCell(r))}</td>
-      <td>${_esc(r.term)}</td>
       <td>${_esc(_fmtCreated(r.created))}</td>
+      <td>${_esc(_appRegion(r))}</td>
+      <td>${_esc(r.specFio)}</td>
+      <td>${_esc(r.unitName)}</td>
     </tr>`;
   }).join('');
+}
+
+/* ============================================================
+   Каскад фильтров «Область → Район» и «Филиал/отдел → Специалист».
+   Выбор области сужает районы И подразделения; выбор подразделения — специалистов.
+   Значение дочернего селекта сохраняется, если остаётся допустимым.
+   ============================================================ */
+
+function _fillSel(id, opts, placeholder){
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const keep = sel.value;
+  const body = opts.map(o => o.group
+    ? `<optgroup label="${_esc(o.group)}">${o.items.map(i => `<option value="${_esc(i.v)}">${_esc(i.t)}</option>`).join('')}</optgroup>`
+    : `<option value="${_esc(o.v)}">${_esc(o.t)}</option>`).join('');
+  sel.innerHTML = `<option value="">${_esc(placeholder || '')}</option>` + body;
+  sel.value = [...sel.options].some(o => o.value === keep) ? keep : '';
+}
+
+/* Районы выбранной области; без области — все районы, сгруппированные по областям. */
+function fillRayons(){
+  const obl = (document.getElementById('fOblast') || {value:''}).value;
+  const opts = obl
+    ? (REGION_MAP[obl].rayons).map(r => ({ v:r, t:r + ' р-н' }))
+    : REGION_DIR.map(o => ({ group:o.short, items:o.rayons.map(r => ({ v:r, t:r + ' р-н' })) }));
+  _fillSel('fRayon', opts, 'Все районы');
+}
+
+/* Подразделения, обслуживающие выбранную область (без области — все). */
+function fillUnits(){
+  const obl = (document.getElementById('fOblast') || {value:''}).value;
+  const pool = ORG_UNITS.filter(u => !obl || u.obl.includes(obl));
+  const grp = t => pool.filter(u => u.type === t).map(u => ({ v:u.key, t:u.title }));
+  const opts = [
+    { group:'Филиалы',        items:grp('branch') },
+    { group:'Отделы головного офиса', items:grp('dept') },
+  ].filter(g => g.items.length);
+  _fillSel('fUnit', opts, 'Все подразделения');
+}
+
+/* Специалисты выбранного подразделения; без него — обслуживающие выбранную область. */
+function fillSpecs(){
+  const obl  = (document.getElementById('fOblast') || {value:''}).value;
+  const unit = (document.getElementById('fUnit')   || {value:''}).value;
+  const pool = unit ? SPEC_DIR.filter(s => s.unit === unit) : _specsOfOblast(obl);
+  _fillSel('fSpec', pool.map(s => ({ v:s.key, t:`${s.fio} · ${UNIT_MAP[s.unit].title}` })), 'Все специалисты');
+}
+
+function onOblastChange(){ fillRayons(); fillUnits(); fillSpecs(); renderGrid(); }
+function onUnitChange(){ fillSpecs(); renderGrid(); }
+
+function initOrgFilters(){
+  _fillSel('fOblast', REGION_DIR.map(o => ({ v:o.obl, t:o.obl })), 'Все области');
+  fillRayons(); fillUnits(); fillSpecs();
 }
 
 /* Гард действий по статусу (P3-R7).
@@ -3087,24 +3249,14 @@ function _renderStages(app){
 }
 
 /** gotoDetail — populates header/stepper/toolbar/tabbar from статус+флаги, shows detail. */
-/* Район заявителя — в живой заявке берётся из адреса регистрации субъекта.
-   В модели демо-заявок поля нет: даём детерминированный район по номеру
-   (override — app.region, если задан). */
-const APPLICANT_REGIONS = [
-  'г. Бишкек, Первомайский р-н',
-  'Чуйская обл., Сокулукский р-н',
-  'Ошская обл., Кара-Суйский р-н',
-  'Джалал-Абадская обл., Сузакский р-н',
-  'Иссык-Кульская обл., Джети-Огузский р-н',
-  'Нарынская обл., Ат-Башинский р-н',
-  'Таласская обл., Кара-Буринский р-н',
-  'Баткенская обл., Лейлекский р-н',
-];
+/* Регион заявителя — в живой заявке берётся из адреса регистрации субъекта.
+   Область/район лежат отдельными полями (нужны фильтрам списка); здесь — их
+   короткая склейка для шапки деталки (override — app.region, если задан). */
 function _appRegion(app){
   if (app.region) return app.region;
-  const digits = String(app.num).replace(/\D/g, '');
-  let h = 0; for (const c of digits) h += +c;
-  return APPLICANT_REGIONS[h % APPLICANT_REGIONS.length];
+  if (!app.oblast) return '—';
+  const short = (REGION_MAP[app.oblast] || {}).short || app.oblast;
+  return app.rayon ? `${short}, ${app.rayon} р-н` : short;
 }
 
 function gotoDetail(num, panel){
@@ -6591,6 +6743,7 @@ function renderDocPackTab(elId, title, total, docs) {
    прежние load-time вызовы renderDocPackTab удалены. */
 
 document.addEventListener('DOMContentLoaded', () => {
+  initOrgFilters();     // до renderGrid: селекты области/района/подразделения/специалиста
   renderGrid();
   applyRoleToListButtons();
   /* Restore the detail + tab the user left on before the reload. */
