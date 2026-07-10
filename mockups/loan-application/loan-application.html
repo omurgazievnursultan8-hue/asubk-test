@@ -4526,16 +4526,11 @@ function renderDocs(app){
       <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div></div>
     </div></div>`;
 
-  /* Ярус B — действия по пакету. Видны спецу на стадии черновика (утилиты + акцентный CTA). */
+  /* Ярус B — утилиты по пакету. Видны спецу на стадии черновика.
+     «Отправить в комиссию» здесь не дублируем — единственная точка отправки в тулбаре. */
   let pkgActions = '';
   if (_role === 'spec' && condPhase(app.status) === 'draft'){
-    const missing = _missingReqCount(app);
-    const sendBtn = ready
-      ? `<button class="btn btn-primary btn-sm" onclick="openSendModal('credit')">Отправить в комиссию</button>`
-      : `<button class="btn btn-primary btn-sm" disabled title="${_esc(sendGateReason(app))}">Отправить в комиссию</button>`;
     pkgActions = `<div class="pkg-actions">
-      ${sendBtn}
-      <button class="btn btn-secondary btn-sm" onclick="pkgRequestMissing()"${missing ? '' : ' disabled title="Недостающих обязательных документов нет"'}>Запросить недостающие${missing ? ` (${missing})` : ''}</button>
       <button class="btn btn-ghost btn-sm" onclick="pkgDownloadAll()">Скачать пакет</button>
       <button class="btn btn-ghost btn-sm" onclick="pkgInventory()">Опись</button>
     </div>`;
@@ -4582,30 +4577,6 @@ function docConfirm(key){ const d = _findDocState(key); if (!d) return; d.st = '
 function docUnconfirm(key){ const d = _findDocState(key); if (!d) return; d.st = 'accepted'; _docRerender(); showToast('Подтверждение снято — документ возвращён к проверке специалистом', 'info'); }
 function docDownload(key){ showToast('Файл выгружен: ' + _docTitle(key), 'info'); }                        /* заглушка макета */
 function docUnwaive(key){ const d = _findDocState(key); if (!d) return; d.st = 'required'; delete d.waiveReason; _docRerender(); showToast('Документ возвращён в перечень: ' + _docTitle(key), 'info'); }
-/* Число обязательных документов без файла (статус «Требуется») — для «Запросить недостающие». */
-function _missingReqCount(app){
-  const bt = _docBType(app); let n = 0;
-  _docsOf(app).forEach(sec => {
-    if (sec.stage === 'contract' || sec.key === 'coll') return;
-    if (app.isGroup && MEMBER_SEC_KEYS.includes(sec.key)) return;   // считаем по членам, ниже
-    sec.docs.filter(d => d.ft === 'both' || d.ft === bt).forEach(d => { if (d.req && d.st === 'required') n++; });
-  });
-  if (app.isGroup){
-    _membersOf(app).forEach((m, i) => {
-      _memberDocTpls(m).forEach(tpl => { if (tpl.req && _memberDocState(app, m, tpl, i).st === 'required') n++; });
-    });
-  }
-  if (app.hasCollateral){
-    _collateralOf(app).forEach(it => {
-      (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).forEach(tpl => {
-        if (tpl.req && _collDocState(app, it.id + '::' + tpl.id, tpl).st === 'required') n++;
-      });
-    });
-  }
-  return n;
-}
-function pkgRequestMissing(){ if (!_detailApp) return; const n = _missingReqCount(_detailApp);
-  showToast(n ? `Запрос на недостающие документы (${n}) отправлен заёмщику` : 'Недостающих обязательных документов нет', n ? 'ok' : 'info'); }
 function pkgDownloadAll(){ showToast('Формируется архив пакета документов…', 'info'); }                    /* заглушка макета */
 function pkgInventory(){ showToast('Опись комплекта сформирована на печать', 'info'); }                    /* заглушка макета */
 function docReject(key){ _docOpenReason(key, 'reject'); }
