@@ -255,6 +255,121 @@ const t4e = await page.evaluate(() => {
 check('T4e до подтверждения ГФ баннер объясняет ожидание, но назначение отделов уже доступно',
   /головным филиалом/.test(t4e.txt) && t4e.addSel === true);
 
+// ── T5: редактор, валидация, ЖЦ ──────────────────────────────────────────
+// Работаем отделом аналитики: в сиде он `pending` — чистый старт цикла.
+await openConcl('З-2026-000105', 'dept');
+const t5 = await page.evaluate(() => {
+  // setDept('analytics') уже раскрывает карточку аналитики автодефолтом (Task 4: «ключ
+  // отсутствует в _conclOpen → свой отдел раскрыт»). Доп. conclToggle('analytics') здесь
+  // был бы лишним — он инвертирует уже открытое состояние и СВОРАЧИВАЕТ карточку, из-за чего
+  // own оказался бы false не потому, что редактор недоступен, а потому что карточка закрыта.
+  setDept('analytics');
+  const own   = document.querySelector('#tab-concl .concl-block[data-dept="analytics"] .concl-edit');
+  const other = document.querySelector('#tab-concl .concl-block[data-dept="risk"] .concl-edit');
+  conclToggle('risk');
+  const otherOpen = document.querySelector('#tab-concl .concl-block[data-dept="risk"] .concl-edit');
+  return { own: !!own, other: !!other, otherOpen: !!otherOpen };
+});
+check('T5 редактор только у своего отдела', t5.own === true && t5.other === false && t5.otherOpen === false);
+
+// валидация: пустой вердикт → тост, статус не меняется
+const t5b = await page.evaluate(() => {
+  conclSubmit('analytics');                                 // вердикт пуст
+  const s1 = _conclOf(_detailApp).items.analytics.status;
+  document.getElementById('concl-v-analytics').value = 'cond';
+  conclSubmit('analytics');                                 // текст пуст
+  const s2 = _conclOf(_detailApp).items.analytics.status;
+  document.getElementById('concl-t-analytics').value = 'Денежный поток покрывает платежи.';
+  conclSubmit('analytics');                                 // cond без условий
+  const s3 = _conclOf(_detailApp).items.analytics.status;
+  return { s1, s2, s3 };
+});
+check('T5b без вердикта / текста / условий заключение не вносится',
+  t5b.s1 === 'pending' && t5b.s2 === 'pending' && t5b.s3 === 'pending');
+
+const t5c = await page.evaluate(() => {
+  conclCondAdd('analytics');
+  const inp = document.querySelector('#tab-concl .concl-block[data-dept="analytics"] .concl-cond-inp');
+  inp.value = 'Ежеквартально предоставлять управленческую отчётность.';
+  document.getElementById('concl-v-analytics').value = 'cond';
+  document.getElementById('concl-t-analytics').value = 'Денежный поток покрывает платежи с запасом.';
+  conclSubmit('analytics');
+  const it = _conclOf(_detailApp).items.analytics;
+  return { status:it.status, verdict:it.verdict, conds:it.conds.length, author:it.author,
+           acts:it.log.map(l => l.action), ro: !document.querySelector('#tab-concl .concl-block[data-dept="analytics"] .concl-edit') };
+});
+check('T5c валидное заключение вносится', t5c.status === 'submitted' && t5c.verdict === 'cond' && t5c.conds === 1);
+check('T5c автор проставлен, история пополнена', !!t5c.author && t5c.acts.includes('submitted'));
+check('T5c внесённое тело — read-only (редактора нет)', t5c.ro === true);
+
+// отзыв крестиком/«Отмена» должен разряжать _conclPendingWithdraw — иначе следующий
+// conclWithdrawConfirm() отзовёт заключение без нового запроса на отзыв
+const t5cc = await page.evaluate(() => {
+  conclWithdraw('analytics');                               // submitted → просит подтверждения
+  const modalOpen = document.getElementById('modal-concl-withdraw').classList.contains('open');
+  conclWithdrawCancel();
+  const modalClosed = !document.getElementById('modal-concl-withdraw').classList.contains('open');
+  conclWithdrawConfirm();                                   // confirm без свежего withdraw — не должен ничего отзывать
+  const status = _conclOf(_detailApp).items.analytics.status;
+  return { modalOpen, modalClosed, status };
+});
+check('T5cc отмена отзыва (крестик/«Отмена») закрывает модалку и разряжает _conclPendingWithdraw',
+  t5cc.modalOpen === true && t5cc.modalClosed === true && t5cc.status === 'submitted');
+
+// отрицательное требует обоснования ≥ 20 символов
+const t5d = await page.evaluate(() => {
+  conclWithdraw('analytics'); conclWithdrawConfirm();       // вернулись в черновик
+  document.getElementById('concl-v-analytics').value = 'neg';
+  document.getElementById('concl-t-analytics').value = 'Нет.';
+  conclSubmit('analytics');
+  const s1 = _conclOf(_detailApp).items.analytics.status;
+  document.getElementById('concl-v-analytics').value = 'neg';
+  document.getElementById('concl-t-analytics').value = 'Прогноз денежного потока не покрывает планируемые платежи по графику.';
+  conclSubmit('analytics');
+  const it = _conclOf(_detailApp).items.analytics;
+  return { s1, s2:it.status, v:it.verdict, ready:conclusionsReady(_detailApp), reason:sendGateReason(_detailApp) };
+});
+check('T5d короткое обоснование отрицательного отклоняется', t5d.s1 === 'draft');
+check('T5d отрицательное вносится и закрывает гейт', t5d.s2 === 'submitted' && t5d.v === 'neg' && t5d.ready === false);
+check('T5d причина гейта называет отдел', /Отдел аналитики/.test(t5d.reason) && /Отрицательное/.test(t5d.reason));
+
+// отзыв: вердикт снят, текст/условия/вложения остались
+const t5e = await page.evaluate(() => {
+  conclWithdraw('analytics');
+  const modal = document.getElementById('modal-concl-withdraw').classList.contains('open');
+  const before = _conclOf(_detailApp).items.analytics.status;
+  conclWithdrawConfirm();
+  const it = _conclOf(_detailApp).items.analytics;
+  return { modal, before, status:it.status, verdict:it.verdict, text:!!it.text, conds:it.conds.length,
+           acts:it.log.map(l => l.action) };
+});
+check('T5e отзыв спрашивает подтверждение', t5e.modal === true && t5e.before === 'submitted');
+check('T5e отзыв снимает вердикт, сохраняя содержимое',
+  t5e.status === 'draft' && t5e.verdict === '' && t5e.text === true && t5e.conds === 1 && t5e.acts.includes('withdrawn'));
+
+// черновик и вложения
+const t5f = await page.evaluate(() => {
+  document.getElementById('concl-t-analytics').value = 'Черновик текста заключения.';
+  conclSaveDraft('analytics');
+  conclFileAdd('analytics');
+  const it = _conclOf(_detailApp).items.analytics;
+  const n0 = it.files.length;
+  conclFileDel('analytics', 0);
+  return { status:it.status, text:it.text, n0, n1:it.files.length, acts:it.log.map(l => l.action) };
+});
+check('T5f черновик сохраняется без вердикта',
+  t5f.status === 'draft' && /Черновик текста/.test(t5f.text) && t5f.acts.includes('drafted'));
+check('T5f вложение добавляется и удаляется', t5f.n0 === 1 && t5f.n1 === 0);
+
+// «Очистить» сбрасывает тело обратно в pending
+const t5g = await page.evaluate(() => {
+  conclClear('analytics');
+  const it = _conclOf(_detailApp).items.analytics;
+  return { status:it.status, text:it.text, conds:it.conds.length, files:it.files.length, log:it.log.length };
+});
+check('T5g «Очистить» возвращает карточку в «Ожидает», история цела',
+  t5g.status === 'pending' && t5g.text === '' && t5g.conds === 0 && t5g.files === 0 && t5g.log > 0);
+
 console.log(results.join('\n'));
 console.log(errors.length ? '\nERRORS:\n' + errors.join('\n') : '\nNO JS ERRORS');
 await ctx.close();

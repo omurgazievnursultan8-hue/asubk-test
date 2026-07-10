@@ -1199,6 +1199,25 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .concl-log-row .ts{ font-variant-numeric:tabular-nums; min-width:118px; }
 .concl-log-row .who{ min-width:150px; color:var(--text-body); }
 
+.concl-edit{ display:flex; flex-direction:column; gap:8px; max-width:660px; align-items:flex-start; }
+.concl-edit label{ font:var(--font-label); color:var(--text-muted); }
+.concl-edit select, .concl-edit textarea{ font:inherit; width:100%; padding:7px 9px; border:1px solid var(--border-default);
+  border-radius:var(--radius-sm); background:var(--surface-card); color:var(--text-body); }
+.concl-edit textarea{ min-height:80px; resize:vertical; }
+.concl-edit select:focus, .concl-edit textarea:focus{ outline:none; border-color:var(--asubk-blue); }
+.concl-sub.req{ color:var(--status-warning); }
+.concl-conds{ display:flex; flex-direction:column; gap:6px; width:100%; }
+.concl-cond-row{ display:flex; gap:6px; align-items:center; }
+.concl-cond-inp{ flex:1; font:inherit; padding:6px 9px; border:1px solid var(--border-default);
+  border-radius:var(--radius-sm); background:var(--surface-card); color:var(--text-body); }
+.concl-cond-inp:focus{ outline:none; border-color:var(--asubk-blue); }
+.cond-x{ border:0; background:none; cursor:pointer; color:var(--text-muted); font-size:13px; line-height:1; padding:2px 4px; }
+.cond-x:hover{ color:var(--status-error); }
+.concl-locked{ display:flex; align-items:center; gap:8px; padding:8px 10px; margin:0 0 12px;
+  border:1px solid var(--border-default); border-radius:var(--radius-sm); background:var(--surface-input);
+  font:var(--font-label); color:var(--text-muted); }
+.concl-locked .spacer{ flex:1; }
+
 .v-badge{ font:var(--weight-medium) 12px/1 var(--asubk-font); padding:5px 10px; border-radius:var(--radius-pill); display:inline-flex; }
 .v-pos{ color:var(--status-success); background:var(--status-success-bg); }
 .v-cond{ color:var(--status-warning); background:var(--status-warning-bg); }
@@ -1932,6 +1951,25 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="conclUnassignCancel()">Отмена</button>
       <button class="btn btn-danger" onclick="conclUnassignConfirm()">Снять отдел</button>
+    </div>
+  </div>
+</div>
+
+<!-- Отзыв внесённого заключения: заявка перестаёт быть готовой к отправке -->
+<div class="overlay" id="modal-concl-withdraw">
+  <div class="modal" style="width:min(440px,96%)">
+    <div class="modal-h">
+      <span class="mt">Отозвать заключение</span>
+      <button class="modal-x" onclick="conclWithdrawCancel()" aria-label="Закрыть">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b">
+      <p id="concl-withdraw-text">Заявка перестанет быть готовой к отправке в комиссию. Текст, условия и вложения сохранятся.</p>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="conclWithdrawCancel()">Отмена</button>
+      <button class="btn btn-primary" onclick="conclWithdrawConfirm()">Отозвать</button>
     </div>
   </div>
 </div>
@@ -5032,6 +5070,108 @@ function conclScrollTo(kind){
   if (el) el.scrollIntoView({ block:'center', behavior:'smooth' });
 }
 
+/* ── Редактор заключения (роль «Отдел», свой отдел, после подтверждения ГФ) ── */
+let _conclPendingWithdraw = null;
+
+/* Снять значения формы в состояние — вызывается перед любой перерисовкой,
+   иначе набранный, но не сохранённый текст теряется. */
+function _conclReadForm(key){
+  const it = _conclOf(_detailApp).items[key]; if (!it) return;
+  const v = document.getElementById('concl-v-' + key);
+  const t = document.getElementById('concl-t-' + key);
+  if (v) it.verdict = v.value;
+  if (t) it.text = t.value.trim();
+  const inps = document.querySelectorAll(`#concl-card-${key} .concl-cond-inp`);
+  if (inps.length) it.conds = [...inps].map((el, i) => ({ id:'c' + i, text:el.value.trim() }));
+}
+
+function conclCondAdd(key){
+  _conclReadForm(key);
+  const it = _conclOf(_detailApp).items[key];
+  it.conds.push({ id:'c' + it.conds.length, text:'' });
+  _panelRefresh('tab-concl');
+}
+function conclCondDel(key, i){
+  _conclReadForm(key);
+  _conclOf(_detailApp).items[key].conds.splice(i, 1);
+  _panelRefresh('tab-concl');
+}
+/* Вложение — фиктивная запись: файлового хранилища у мокапа нет. */
+function conclFileAdd(key){
+  _conclReadForm(key);
+  const it = _conclOf(_detailApp).items[key];
+  it.files.push({ name:`Вложение ${it.files.length + 1}.pdf`, size:'1,2 МБ' });
+  _panelRefresh('tab-concl');
+  showToast('Файл прикреплён (демо — не хранится)', 'ok');
+}
+function conclFileDel(key, i){
+  _conclReadForm(key);
+  _conclOf(_detailApp).items[key].files.splice(i, 1);
+  _panelRefresh('tab-concl');
+}
+
+function conclSaveDraft(key){
+  const app = _detailApp; if (!app || !can(app).editConcl(key)) return;
+  _conclReadForm(key);
+  const it = _conclOf(app).items[key];
+  it.verdict = '';                                   // черновик вердикта не несёт
+  it.status  = 'draft';
+  _conclLog(app, key, 'drafted', '');
+  _conclRerender(app);
+  showToast('Черновик заключения сохранён', 'ok');
+}
+
+function conclSubmit(key){
+  const app = _detailApp; if (!app || !can(app).editConcl(key)) return;
+  _conclReadForm(key);
+  const it = _conclOf(app).items[key];
+  it.conds = it.conds.filter(c => c.text);           // пустые пункты не считаем
+  if (!it.verdict){ showToast('Выберите вердикт', 'warn'); return; }
+  if (!it.text){ showToast('Заполните текст заключения', 'warn'); return; }
+  if (it.verdict === 'cond' && !it.conds.length){ showToast('Добавьте хотя бы один пункт условий', 'warn'); return; }
+  if (it.verdict === 'neg' && it.text.length < 20){ showToast('Обоснуйте отрицательное заключение', 'warn'); return; }
+  it.status = 'submitted';
+  it.author = DEPT_MAP[key].emp;
+  it.date   = _conclToday();
+  _conclLog(app, key, 'submitted', _CONCL_VMAP[it.verdict].label);
+  _conclRerender(app);
+  showToast('Заключение внесено: ' + DEPT_MAP[key].title, it.verdict === 'neg' ? 'warn' : 'ok');
+}
+
+function conclClear(key){
+  const app = _detailApp; if (!app || !can(app).editConcl(key)) return;
+  const it = _conclOf(app).items[key];
+  const log = it.log;
+  Object.assign(it, _conclItem());
+  it.log = log;
+  _conclRerender(app);
+  showToast('Заключение очищено', 'info');
+}
+
+function conclWithdraw(key){
+  const app = _detailApp; if (!app || !can(app).withdrawConcl(key)) return;
+  _conclPendingWithdraw = key;
+  openModal('modal-concl-withdraw');
+}
+function conclWithdrawConfirm(){
+  const app = _detailApp, key = _conclPendingWithdraw;
+  closeModal('modal-concl-withdraw');
+  _conclPendingWithdraw = null;
+  if (!app || !key) return;
+  const it = _conclOf(app).items[key];
+  it.status = 'draft'; it.verdict = ''; it.author = ''; it.date = '';   // текст/условия/вложения остаются
+  _conclLog(app, key, 'withdrawn', '');
+  _conclRerender(app);
+  showToast('Заключение отозвано — заявка не готова к отправке', 'warn');
+}
+// Отмена отзыва (крестик/«Отмена»): закрыть модалку и разрядить _conclPendingWithdraw,
+// иначе следующий conclWithdrawConfirm() отзовёт ранее отменённое заключение без нового запроса
+// (та же дыра, что и с conclUnassignCancel у модалки снятия отдела).
+function conclWithdrawCancel(){
+  closeModal('modal-concl-withdraw');
+  _conclPendingWithdraw = null;
+}
+
 /* Гейт-баннер: печатается первая сработавшая причина (порядок = спек §5.1). */
 function _conclGateBanner(app){
   const draft = condPhase(app.status) === 'draft';
@@ -5105,11 +5245,55 @@ function _conclFilesRO(it, withDownload){
            `<span class="concl-file">${_esc(f.name)} <i>${_esc(f.size)}</i>${dl}</span>`).join('')}</div>`;
 }
 
-/* Тело карточки на чтение. Редактор подменяет его в Task 5. */
+/* Тело карточки: свой отдел (может править) получает редактор, остальные — чтение. */
 function _conclBody(app, key){
   const it = _conclOf(app).items[key];
+  if (can(app).editConcl(key)) return _conclEditor(app, key) + _conclLogBlock(key, it);
   if (it.status === 'pending' && !it.text) return `<div class="concl-empty">Заключение ещё не внесено отделом.</div>` + _conclLogBlock(key, it);
   return `<div class="concl-text">${_esc(it.text) || '—'}</div>${_conclCondsRO(it)}${_conclFilesRO(it, true)}${_conclLogBlock(key, it)}`;
+}
+
+/* Внесённое заключение своего отдела — тело заморожено, доступен только отзыв. */
+function _conclEditor(app, key){
+  const it = _conclOf(app).items[key];
+  if (it.status === 'submitted'){
+    return `<div class="concl-locked">${_docIcoLock()}<span>Заключение внесено ${_esc(it.date)} · ${_esc(it.author)}</span>
+        <span class="spacer"></span><button class="btn btn-ghost btn-sm" onclick="conclWithdraw('${key}')">Отозвать</button></div>
+      <div class="concl-text">${_esc(it.text)}</div>${_conclCondsRO(it)}${_conclFilesRO(it, false)}`;
+  }
+
+  const opts = CONCL_VERDICTS.map(x => `<option value="${x.v}"${it.verdict === x.v ? ' selected' : ''}>${x.label}</option>`).join('');
+  const condReq = it.verdict === 'cond';
+  const conds = it.conds.map((c, i) => `<div class="concl-cond-row">
+      <input class="concl-cond-inp" value="${_esc(c.text)}" placeholder="Пункт условия…">
+      <button class="cond-x" onclick="conclCondDel('${key}', ${i})" title="Удалить пункт" aria-label="Удалить пункт">✕</button>
+    </div>`).join('');
+  const files = it.files.map((f, i) => `<span class="concl-file">${_esc(f.name)} <i>${_esc(f.size)}</i>
+      <button class="cond-x" onclick="conclFileDel('${key}', ${i})" title="Открепить" aria-label="Открепить">✕</button></span>`).join('');
+
+  return `<div class="concl-edit">
+    <label for="concl-v-${key}">Вердикт</label>
+    <select id="concl-v-${key}" onchange="_conclReadForm('${key}'); _panelRefresh('tab-concl')">
+      <option value="">— выберите —</option>${opts}
+    </select>
+
+    <label for="concl-t-${key}">Текст заключения</label>
+    <textarea id="concl-t-${key}" placeholder="Изложите выводы отдела…">${_esc(it.text)}</textarea>
+
+    <div class="concl-sub${condReq ? ' req' : ''}">Условия${condReq ? ' — обязательны при вердикте «С условиями»' : ''}</div>
+    <div class="concl-conds">${conds}</div>
+    <button class="btn btn-ghost btn-sm" onclick="conclCondAdd('${key}')">+ Добавить пункт</button>
+
+    <div class="concl-sub">Вложения</div>
+    <div class="concl-files">${files}</div>
+    <button class="btn btn-ghost btn-sm" onclick="conclFileAdd('${key}')">+ Прикрепить файл</button>
+
+    <div class="tab-toolrow" style="margin:12px 0 0">
+      <button class="btn btn-primary btn-sm" onclick="conclSubmit('${key}')">Внести заключение</button>
+      <button class="btn btn-ghost btn-sm" onclick="conclSaveDraft('${key}')">Сохранить черновик</button>
+      <button class="btn btn-ghost btn-sm" onclick="conclClear('${key}')">Очистить</button>
+    </div>
+  </div>`;
 }
 
 function _conclLogBlock(key, it){
