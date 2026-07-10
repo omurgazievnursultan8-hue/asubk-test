@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-07-10 (commission mockup as-is → to-be: кворум-гейт решения, голоса в гриде состава, единая карточка, рабочая очередь в списке) — _(update this date every time you edit)_
+> Last updated: 2026-07-10 (loan-application mockup: «Заключения» tab reworked — dept assignment, draft→submitted lifecycle, negative verdict as a commission gate, P3-R41) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,6 +38,9 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-07-10 — Макет заявки: вкладка «Заключения» переработана (`P3-R41`) — отделы назначает специалист,
+  ЖЦ «черновик → внесено» с отзывом, отрицательный вердикт блокирует комиссию.
+  Проверка: `node scripts/inspect/conclusions-check.mjs`.
 - 2026-07-10 — **Групповой кредит: документы по каждому члену группы** (`loan-application.html`,
   задача **P3-R37**). Модель — зонтичный batch (1 кредит / N траншей, лидера нет), поэтому личные
   документы принадлежат **члену**, а не заявке: при `isGroup` секции «Идентификация» и
