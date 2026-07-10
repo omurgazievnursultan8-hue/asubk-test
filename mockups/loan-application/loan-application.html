@@ -1097,6 +1097,17 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .stage-strip .stg.rej .stg-n{ background:var(--status-error); color:#fff; }
 .stage-strip .stg-sep{ width:14px; height:2px; background:var(--border-strong); border-radius:2px; flex-shrink:0; }
 
+/* ---- Бейдж стадии в колонке списка. Форма — как у .st-badge, чтобы «Стадия» и «Статус»
+   читались одним рядом. Узлы 1–5 нейтральны: номер несёт позицию, цвет — только сигнал. ---- */
+/* inline-block, а не inline-flex: в гриде table-layout:fixed, и ellipsis работает только
+   на самом усекаемом элементе. max-width:100% — чтобы пилюлю не срезало границей ячейки. */
+.stage-badge{ display:inline-block; max-width:100%; box-sizing:border-box; height:22px; padding:0 10px;
+  border-radius:var(--radius-pill); font:var(--weight-medium) var(--text-xs)/22px var(--asubk-font);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; vertical-align:middle;
+  color:var(--status-info); background:var(--status-info-bg); }
+.stage-badge.sb-ready{ color:var(--status-success); background:var(--status-success-bg); }
+.stage-badge.sb-neg{ color:var(--status-error); background:var(--status-error-bg); }
+
 /* ---- Tab «Комиссия» (to-be): одна комиссия, один голос/решение/протокол ---- */
 .com-wrap{ padding:16px 20px 24px; max-width:1040px; }
 .com-head{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px 24px; margin-bottom:18px;
@@ -1373,6 +1384,25 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
         </select>
       </div>
     </div>
+    <div class="field" style="min-width:240px">
+      <span class="flabel">Стадия заявки</span>
+      <div class="control">
+        <select id="fStage" onchange="renderGrid()">
+          <option value=""></option>
+          <optgroup label="Стадия">
+            <option value="1">1 · Комплектация</option>
+            <option value="2">2 · Подтверждение ГФ</option>
+            <option value="3">3 · Заключения отделов</option>
+            <option value="4">4 · Комиссия (предв.)</option>
+            <option value="5">5 · Комитет · решение</option>
+          </optgroup>
+          <optgroup label="Состояние">
+            <option value="ready">✓ Готовы к отправке в комиссию</option>
+            <option value="neg">⚠ Есть отриц. заключение отдела</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
     <div class="field" style="min-width:220px">
       <span class="flabel">Кредитная программа</span>
       <div class="control">
@@ -1461,6 +1491,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
         <tr>
           <th style="min-width:120px" data-col="num"              onclick="sortBy('num')">Номер документа <span class="sort">↕</span></th>
           <th style="min-width:220px" data-col="name"             onclick="sortBy('name')">Заемщик <span class="sort">↕</span></th>
+          <th style="width:180px" data-col="stage"                onclick="sortBy('stage')">Стадия <span class="sort">↕</span></th>
           <th style="min-width:140px" data-col="status"           onclick="sortBy('status')">Статус заявки <span class="sort">↕</span></th>
           <th style="min-width:190px" data-col="program"          onclick="sortBy('program')">Кредитная программа <span class="sort">↕</span></th>
           <th style="min-width:150px" data-col="amount"           onclick="sortBy('amount')">Запрашиваемая сумма <span class="sort">↕</span></th>
@@ -2149,6 +2180,21 @@ const APPLICATIONS = [
    status:'Новый', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
    amount:'1 200 000,00', term:'24', info:'ДЕМО: комплект подтверждён ГФ · заключения пусты',
    _seedConfirmed:true},
+  /* ДЕМО (2026-07-10): по одной заявке на каждое состояние фильтра «Стадия», иначе три из
+     семи опций селекта дают пустой список и фильтр читается как сломанный.
+     Программа групповая — _groupGate на ней проходит, гейт упирается только в заключения. */
+  {num:'З-2026-000111', inn:'20907199400957', name:'МАТРАИМОВ МАКСАТ КУБАНОВИЧ',
+   status:'Новый', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'900 000,00', term:'18', info:'ДЕМО: доки приняты спецом, ГФ ещё не подтвердил → узел 2',
+   _seedAccepted:true},
+  {num:'З-2026-000109', inn:'21812199600888', name:'БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ',
+   status:'Новый', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'1 500 000,00', term:'36', info:'ДЕМО: всё готово → «Отправить в комиссию» активна',
+   _seedConfirmed:true, _seedConclPos:true},
+  {num:'З-2026-000107', inn:'20907199400957', name:'МАТРАИМОВ МАКСАТ КУБАНОВИЧ',
+   status:'Требуется доп. информация', collateralStatus:'', program:'Поддержка сельхозпроизводителей',
+   amount:'700 000,00', term:'12', info:'ДЕМО: отрицательное заключение отдела риска → узел 3 красный',
+   _seedConfirmed:true, _seedConclNeg:true},
   {num:'З-2026-000103',inn:'00404202510209', name:'ОсОО "Хот Лэйк Текстиль"',
    status:'На рассмотрении', collateralStatus:'', program:'АгроИнвест КР',
    amount:'500 000,00', term:'36', info:'',
@@ -2344,12 +2390,26 @@ function renderGrid(){
   const pgFilter  = (document.getElementById('fProgram')  || {value:''}).value;
   const dFrom     = (document.getElementById('fDateFrom') || {value:''}).value;
   const dTo       = (document.getElementById('fDateTo')   || {value:''}).value;
+  const sgFilter  = (document.getElementById('fStage')    || {value:''}).value;
+  /* stageOfRow дёргает _docsOf/_conclOf, а те лениво сидят app._docs/app._concl и гоняют
+     _conclSyncColl. Стадия нужна фильтру, сортировке и ячейке — считаем один раз на рендер. */
+  const _stageCache = new Map();
+  const stage = r => {
+    if (!_stageCache.has(r.num)) _stageCache.set(r.num, stageOfRow(r));
+    return _stageCache.get(r.num);
+  };
   let rows = APPLICATIONS.filter(r => {
     if (numFilter && !r.num.toLowerCase().includes(numFilter)) return false;
     if (stFilter  && r.status  !== stFilter)                   return false;
     if (pgFilter  && r.program !== pgFilter)                   return false;
     if (dFrom     && r.created  <  dFrom)                      return false;
     if (dTo       && r.created  >  dTo)                        return false;
+    if (sgFilter){
+      const s = stage(r);
+      if (sgFilter === 'ready')       { if (!s.ready) return false; }
+      else if (sgFilter === 'neg')    { if (!s.neg)   return false; }
+      else if (String(s.i) !== sgFilter)              return false;
+    }
     return true;
   });
   if (_sortCol){
@@ -2358,8 +2418,13 @@ function renderGrid(){
     const NUMERIC_COLS = new Set(['amount', 'approvedAmount', 'term', 'approvedTerm']);
     const numeric = NUMERIC_COLS.has(_sortCol);
     rows = rows.slice().sort((a,b) => {
-      let av = a[_sortCol] || '', bv = b[_sortCol] || '';
-      if (numeric){ av = _num(av); bv = _num(bv); }
+      /* «Стадия» — производное значение, поля в строке нет: сравниваем номер узла. */
+      let av, bv;
+      if (_sortCol === 'stage'){ av = stage(a).i; bv = stage(b).i; }
+      else {
+        av = a[_sortCol] || ''; bv = b[_sortCol] || '';
+        if (numeric){ av = _num(av); bv = _num(bv); }
+      }
       return av < bv ? -_sortDir : av > bv ? _sortDir : 0;
     });
   }
@@ -2389,6 +2454,7 @@ function renderGrid(){
       ondblclick="gotoDetail(this.dataset.num)">
       <td>${_esc(r.num)}</td>
       <td>${_esc(r.name)}</td>
+      <td>${_stageCell(stage(r))}</td>
       <td>${_esc(r.status)}</td>
       <td>${_esc(r.program)}</td>
       <td>${_esc(r.amount)}</td>
@@ -2976,6 +3042,32 @@ function appStage(app){
   if (!conclusionsReady(app))   return { i:3 };            // ждут заключений отделов
   return { i:3, ready:true };                              // всё готово — можно отправлять в комиссию
 }
+
+/* Короткие подписи узлов — для колонки списка (полные не влезают в ячейку).
+   Полная подпись из STAGE_LABELS уходит в title ячейки. */
+const STAGE_SHORT = ['Комплектация', 'Подтверждение', 'Заключения', 'Комиссия', 'Решение'];
+
+/* Стадия строки списка: узел + флаги, на которых стоят и бейдж, и фильтр.
+   ready — берём sendReady, а НЕ appStage().ready: последний не знает про гейт группы
+           и коэффициент покрытия залогом, поэтому пометил бы «готова» заявку, которую
+           кнопка «Отправить в комиссию» отправить не даст. Список обязан совпадать с кнопкой.
+   neg   — есть отрицательное заключение отдела; у решённых заявок не показываем.
+           Условие повторяет negStage из _renderStages — держать согласованными. */
+function stageOfRow(app){
+  const s = appStage(app);
+  return { i:s.i, ready:sendReady(app), decided:s.decided,
+           neg: !s.decided && _conclNegDepts(app).length > 0 };
+}
+
+function _stageCell(s){
+  const cls  = s.neg ? 'sb-neg' : s.ready ? 'sb-ready' : '';
+  const lab  = s.ready ? 'Готова к отправке' : STAGE_SHORT[s.i - 1];
+  const full = STAGE_LABELS[s.i - 1]
+    + (s.ready ? ' — готова к отправке в комиссию' : '')
+    + (s.neg   ? ' — есть отрицательное заключение отдела' : '');
+  return `<span class="stage-badge ${cls}" title="${_esc(full)}">${s.i} · ${_esc(lab)}</span>`;
+}
+
 function _renderStages(app){
   const host = document.getElementById('detailStages');
   if (!host || !app) return;
@@ -4355,18 +4447,21 @@ const DOC_SECTIONS = [
 function _docsOf(app){
   if (!app._docs){
     app._docs = JSON.parse(JSON.stringify(DOC_SECTIONS));
-    if (app._seedConfirmed) _applyConfirmedSeed(app);
+    if (app._seedConfirmed)     _applyDocSeed(app, 'confirmed');
+    else if (app._seedAccepted) _applyDocSeed(app, 'accepted');
   }
   return app._docs;
 }
-/* Демо-сид: все обязательные доки текущего типа заёмщика → 'confirmed' (подтверждён ГФ);
-   договорные (stage:'contract') не трогаем — они этап после одобрения. */
-function _applyConfirmedSeed(app){
+/* Демо-сид: все обязательные доки текущего типа заёмщика → заданное состояние;
+   договорные (stage:'contract') не трогаем — они этап после одобрения.
+   'confirmed' — подтверждён ГФ (узел 3+); 'accepted' — принят спецом, но ГФ ещё не
+   подтвердил (узел 2). */
+function _applyDocSeed(app, st){
   const bt = _docBType(app);
   app._docs.forEach(sec => {
     if (sec.stage === 'contract' || sec.key === 'coll') return;
     sec.docs.forEach(d => {
-      if (d.req && (d.ft === 'both' || d.ft === bt)) d.st = 'confirmed';
+      if (d.req && (d.ft === 'both' || d.ft === bt)) d.st = st;
     });
   });
   /* Групповая заявка: обязательные доки живут у членов — сид должен дойти и до них,
@@ -4375,7 +4470,7 @@ function _applyConfirmedSeed(app){
     _membersOf(app).forEach((m, i) => {
       _memberDocTpls(m).forEach(tpl => {
         const state = _memberDocState(app, m, tpl, i);
-        if (tpl.req){ state.st = 'confirmed'; delete state.reason; }
+        if (tpl.req){ state.st = st; delete state.reason; }
       });
     });
   }
@@ -5098,6 +5193,15 @@ function _conclSeed(app){
   if (phase !== 'draft'){                    // у комиссии / решённые — всё внесено
     c.assigned.forEach(a => fill(a.dept, a.dept === 'risk' ? 'cond' : 'pos',
       a.dept === 'risk' ? ['Оформить страхование предмета залога до выдачи.'] : [], []));
+    return;
+  }
+  if (app._seedConclPos){                    // всё внесено, все «положительно» → гейт открыт
+    c.assigned.forEach(a => fill(a.dept, 'pos', [], []));
+    return;
+  }
+  if (app._seedConclNeg){                    // риск дал «отрицательное» на черновике → узел 3 красный
+    fill('risk', 'neg', [], []);
+    c.assigned.forEach(a => { if (a.dept !== 'risk') fill(a.dept, 'pos', [], []); });
     return;
   }
   if (app.num === 'З-2026-000105'){          // демо-микс: submitted · submitted · draft · pending
