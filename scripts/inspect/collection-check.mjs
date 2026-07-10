@@ -20,6 +20,9 @@ await page.goto(FILE, { waitUntil: 'load' });
 let fails = 0;
 const ok = (name, cond) => { if (!cond) fails++; console.log(`${cond ? '  ok' : 'FAIL'}  ${name}`); };
 
+// --- Находка 3 (финальное ревью): мёртвый хелпер esc() удалён (экранирование делает escAttr) ---
+ok('esc() больше не объявлена', (await page.evaluate(() => typeof esc)) === 'undefined');
+
 // --- T1: список ---
 ok('6 процессов в гриде', (await page.locator('#listBody tr').count()) === 6);
 ok('№ процесса структурный', (await page.locator('#listBody tr[data-id="142"] td').first().innerText()) === 'В-2026-000142');
@@ -163,21 +166,42 @@ ok('баннер паузы говорит, что фаза сохранена',
 const b120 = await banner('120');
 ok('у 120 синий баннер соглашения', b120 && b120.cls.includes('info') && b120.txt.includes('соглашени'));
 ok('баннер соглашения про график, не дедлайн', b120 && b120.txt.includes('график'));
+// 133: единственный процесс с механизмом «Событие» (решение ревью — навесить на 133,
+// чтобы красная ветка overlayBanner/panelSpecial была видна вживую, а не только в коде).
 const b133 = await banner('133');
-ok('у 133 баннера нет', b133 === null);
+ok('у 133 красный баннер события', b133 && b133.cls.includes('danger') && b133.txt.includes('Событие'));
+ok('баннер события у 133 говорит про спецпроцедуру', b133 && b133.txt.includes('спецпроцедур'));
+ok('баннер события у 133 говорит, что фаза сохранена', b133 && b133.txt.includes('фаза сохранена'));
+ok('фаза 133 в шапке карточки НЕ меняется механизмом «Событие» (осталась «Повторная претензия»)',
+  (await page.locator('#detailPanels .phead-dims .dim').nth(1).locator('.dv').innerText()) === 'Повторная претензия');
 ok('CSS для события объявлен', await page.evaluate(() =>
   [...document.styleSheets[0].cssRules].some(r => r.selectorText === '.phead-banner.danger')));
 
 // --- T6: журнал мер ---
+// Инвариант вместо хрупкой проверки по числу: любой вид меры, встречающийся хоть у одного
+// процесса в данных, обязан быть в справочнике MEASURE_KINDS (иначе дропдаун «Зарегистрировать
+// меру» не сможет породить меру, которая уже есть в журнале). Плюс MILESTONE_KINDS и
+// NEEDS_DELIVERY не должны содержать «сирот» — видов, отсутствующих в самом справочнике.
 await page.goto(FILE, { waitUntil: 'load' });
-const kinds = await page.evaluate(() => ({
-  n: MEASURE_KINDS.length,
-  milestoneIsk: isMilestone('Исковое заявление'),
-  milestoneApel: isMilestone('Апелляционная жалоба'),
-  needsPret: needsDelivery('Первичная претензия'),
-  needsIl: needsDelivery('Исполнительный лист'),
-}));
-ok('20 видов меры', kinds.n === 20);
+const kinds = await page.evaluate(() => {
+  const dataKinds = [...new Set(PROCESSES.flatMap(p => p.measures.map(m => m.kind)))];
+  const missingFromDict = dataKinds.filter(k => !MEASURE_KINDS.includes(k));
+  const milestoneOrphans = [...MILESTONE_KINDS].filter(k => !MEASURE_KINDS.includes(k));
+  const deliveryOrphans = [...NEEDS_DELIVERY].filter(k => !MEASURE_KINDS.includes(k));
+  return {
+    missingFromDict, milestoneOrphans, deliveryOrphans,
+    milestoneIsk: isMilestone('Исковое заявление'),
+    milestoneApel: isMilestone('Апелляционная жалоба'),
+    needsPret: needsDelivery('Первичная претензия'),
+    needsIl: needsDelivery('Исполнительный лист'),
+  };
+});
+ok(`каждый вид меры из данных процессов есть в MEASURE_KINDS${kinds.missingFromDict.length ? ' (отсутствуют: ' + kinds.missingFromDict.join(', ') + ')' : ''}`,
+  kinds.missingFromDict.length === 0);
+ok(`MILESTONE_KINDS ⊆ MEASURE_KINDS${kinds.milestoneOrphans.length ? ' (сироты: ' + kinds.milestoneOrphans.join(', ') + ')' : ''}`,
+  kinds.milestoneOrphans.length === 0);
+ok(`NEEDS_DELIVERY ⊆ MEASURE_KINDS${kinds.deliveryOrphans.length ? ' (сироты: ' + kinds.deliveryOrphans.join(', ') + ')' : ''}`,
+  kinds.deliveryOrphans.length === 0);
 ok('иск — веха', kinds.milestoneIsk === true);
 ok('апелляция — НЕ веха (мера внутри фазы)', kinds.milestoneApel === false);
 ok('претензия требует вручения', kinds.needsPret === true);
@@ -292,6 +316,20 @@ const zl120 = page.locator('#detailPanels .detail-panel >> nth=5');
 ok('у 120 запрета нет — тире, не пустая метка', (await zl120.locator('tbody tr').innerText()).trim().endsWith('—'));
 ok('у 120 нет пустого pill high', (await zl120.locator('tbody tr .pill.high').count()) === 0);
 
+// 133: особое состояние — событие (красная метка), фаза в данных не тронута
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="133"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=4');
+const sp133 = page.locator('#detailPanels .detail-panel >> nth=4');
+const sp133Rows = await sp133.locator('tbody tr').count();
+ok('у 133 одна строка особого состояния', sp133Rows === 1);
+const sp133PillCount = await sp133.locator('tbody tr .pill').count();
+ok('строка — событие', sp133PillCount === 1 && (await sp133.locator('tbody tr .pill').innerText()) === 'событие');
+ok('строка — красная метка (pill high)', (await sp133.locator('tbody tr .pill.high').count()) === 1);
+const sp133Text = sp133Rows ? await sp133.locator('tbody tr').innerText() : '';
+ok('примечание упоминает установление правопреемника', sp133Text.includes('правопреемник'));
+
 // 120: особое состояние — соглашение (синяя метка)
 await page.goto(FILE, { waitUntil: 'load' });
 await page.click('#listBody tr[data-id="120"]');
@@ -354,6 +392,29 @@ ok('151: метка «пауза» целиком внутри ячейки «Ф
 const sc151 = await phaseCell151.evaluate(td => ({ sw: td.scrollWidth, cw: td.clientWidth }));
 ok('151: ячейка «Фаза» не обрезана', sc151.sw <= sc151.cw);
 
+// 133 «Повторная претензия» (20 симв.) + «событие» — самый длинный текст фазы в данных.
+// ИЗВЕСТНАЯ НАХОДКА (не чинить вслепую расширением ширины — решение за человеком):
+// getBoundingClientRect() пилюли геометрически укладывается в границы ячейки (проверка ниже
+// зелёная) и .innerText() ячейки всё ещё содержит «событие» (DOM/a11y-текст не обрезан), но
+// ВИЗУАЛЬНО браузер сбрасывает всю пилюлю целиком при line-clamp через text-overflow:ellipsis
+// (атомарный inline-элемент не влезает — не показывается вообще, ячейка не ужимает его частично).
+// Экранный скриншот (.auth/final-133.png) подтверждает: метка не видна. Колонка «Фаза» была
+// специально подобрана под «На исполнении соглашение» с нулевым запасом (см. комментарий у
+// <colgroup> и sc120: scrollWidth===clientWidth) — «Повторная претензия» длиннее «На исполнении»
+// сильнее, чем «событие» короче «соглашение», так что запаса не хватает ни на один из трёх
+// вариантов оверлея. Ниже — assert по scrollWidth, а не только boundingBox — он и ловит эту
+// находку (boundingBox один её не ловит, см. отчёт review'а).
+const phaseCell133 = page.locator('#listBody tr[data-id="133"] td').nth(3);
+const cellBox133 = await phaseCell133.boundingBox();
+const hasPill133 = (await phaseCell133.locator('.pill').count()) > 0;
+const pillBox133 = hasPill133 ? await phaseCell133.locator('.pill').boundingBox() : null;
+ok('133: метка «событие» геометрически внутри ячейки «Фаза» (boundingBox, не учитывает ellipsis-клип)',
+  !!pillBox133 && !!cellBox133 && (pillBox133.x + pillBox133.width) <= (cellBox133.x + cellBox133.width + 0.5));
+const sc133 = await phaseCell133.evaluate(td => ({ sw: td.scrollWidth, cw: td.clientWidth }));
+ok('133: ячейка «Фаза» не обрезана (scrollWidth<=clientWidth) — ЗНАЕМ: красная, колонка тесна для этой комбинации, ширины не трогали', sc133.sw <= sc133.cw);
+ok('133: текст фазы в списке — «Повторная претензия»', (await phaseCell133.innerText()).includes('Повторная претензия'));
+ok('133: метка в списке — «событие» (в DOM/тексте; визуально может быть обрезана — см. выше)', (await phaseCell133.innerText()).includes('событие'));
+
 // терминальные 097/104 показывают исход в колонке «Фаза» — тоже длинный текст, тоже не должен обрезаться.
 for (const id of ['097', '104']) {
   const cell = page.locator(`#listBody tr[data-id="${id}"] td`).nth(3);
@@ -379,6 +440,9 @@ ok('120: title «Фазы» включает и саму фазу, и метку
 const phaseTitle151 = await page.locator('#listBody tr[data-id="151"] td').nth(3).getAttribute('title');
 ok('151: title «Фазы» включает и саму фазу, и метку оверлея',
   !!phaseTitle151 && phaseTitle151.includes('Извещение') && phaseTitle151.toLowerCase().includes('пауза'));
+const phaseTitle133 = await page.locator('#listBody tr[data-id="133"] td').nth(3).getAttribute('title');
+ok('133: title «Фазы» включает и саму фазу, и метку оверлея (событие)',
+  !!phaseTitle133 && phaseTitle133.includes('Повторная претензия') && phaseTitle133.toLowerCase().includes('событие'));
 const phaseTitle104 = await page.locator('#listBody tr[data-id="104"] td').nth(3).getAttribute('title');
 ok('104: title «Фазы» — исход терминального процесса', !!phaseTitle104 && phaseTitle104.includes('Принятие имущества'));
 const phaseTitle097 = await page.locator('#listBody tr[data-id="097"] td').nth(3).getAttribute('title');
