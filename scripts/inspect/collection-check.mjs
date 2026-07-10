@@ -30,6 +30,30 @@ await page.click('#btnOpen');
 ok('7 вкладок', (await page.locator('#detailTabbar .dtab').count()) === 7);
 ok('хлебная крошка с номером', (await page.locator('#crumbTitle').innerText()).includes('В-2026-000142'));
 
+// --- T2: вычисляемые правила ---
+const rules = await page.evaluate(() => ({
+  hasCatOf: typeof catOf === 'function',
+  hasStageOf: typeof stageOf === 'function',
+  b5:   typeof catOf === 'function' && catOf(5),
+  b6:   typeof catOf === 'function' && catOf(6),
+  b180: typeof catOf === 'function' && catOf(180),
+  b181: typeof catOf === 'function' && catOf(181),
+  storedCat:   PROCESSES.some(p => 'cat' in p),
+  storedStage: PROCESSES.some(p => 'stage' in p),
+  stageOfIsk:  typeof stageOf === 'function' && stageOf('Иск'),
+  stageOfPret: typeof stageOf === 'function' && stageOf('Повторная претензия'),
+}));
+ok('catOf объявлена', rules.hasCatOf);
+ok('stageOf объявлена', rules.hasStageOf);
+ok('граница 5 дн → норма', rules.b5 === 'norm');
+ok('граница 6 дн → средний', rules.b6 === 'mid');
+ok('граница 180 дн → средний', rules.b180 === 'mid');
+ok('граница 181 дн → высокий', rules.b181 === 'high');
+ok('поле cat удалено из данных', rules.storedCat === false);
+ok('поле stage удалено из данных', rules.storedStage === false);
+ok('stageOf(«Иск») → Принудительная', rules.stageOfIsk === 'Принудительная');
+ok('stageOf(«Повторная претензия») → Досудебная', rules.stageOfPret === 'Досудебная');
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);

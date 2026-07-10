@@ -553,7 +553,7 @@ const PHASES_FORCE= ['Извещение','Иск','Решение суда','И
 
 const PROCESSES = [
   { id:142, borrower:'ОсОО «Бек Кабель»', inn:'01912201610212', scope:'просроченная сумма',
-    stage:'Принудительная', phase:'Иск', cat:'high', catDays:214, group:'2.1',
+    phase:'Иск', catDays:214, group:'2.1',
     owner:'Отдел проблемных кредитов', opened:'12.11.2025', basis:'первичная претензия',
     pause:null,
     credits:[ {id:'56', num:'Дог. №56 от 10.04.2024', subject:'просроченная сумма', claim:'42 600,00', coll:'—'} ],
@@ -579,7 +579,7 @@ const PROCESSES = [
     ] },
 
   { id:151, borrower:'ОсОО «Бек Кабель»', inn:'01912201610212', scope:'залог',
-    stage:'Принудительная', phase:'Извещение', cat:'high', catDays:214, group:'2.1',
+    phase:'Извещение', catDays:214, group:'2.1',
     owner:'Департамент правового обеспечения', opened:'02.06.2026', basis:'служебная записка',
     pause:{type:'Пауза', label:'реструктуризация', until:'18.09.2026', scope:'весь процесс'},
     credits:[ {id:'56', num:'Дог. №56 от 10.04.2024', subject:'залог', claim:'150 000,00', coll:'Недвижимость (склад)'} ],
@@ -602,7 +602,7 @@ const PROCESSES = [
     ] },
 
   { id:133, borrower:'КФХ «Ак-Дан»', inn:'22105198800047', scope:'просроченная сумма',
-    stage:'Досудебная', phase:'Повторная претензия', cat:'mid', catDays:96, group:'1.1',
+    phase:'Повторная претензия', catDays:96, group:'1.1',
     owner:'Куратор отраслевого департамента', opened:'05.06.2026', basis:'первичная претензия',
     pause:null,
     credits:[ {id:'88', num:'Дог. №88 от 03.02.2025', subject:'просроченная сумма', claim:'18 200,00', coll:'—'} ],
@@ -619,7 +619,7 @@ const PROCESSES = [
     ] },
 
   { id:120, borrower:'ИП Сыдыков А.', inn:'20308197700219', scope:'полный остаток',
-    stage:'Принудительная', phase:'На исполнении', cat:'high', catDays:410, group:'2.2',
+    phase:'На исполнении', catDays:410, group:'2.2',
     owner:'Отдел проблемных кредитов', opened:'01.02.2025', basis:'первичная претензия',
     pause:{type:'Соглашение', label:'исполнение по мировому соглашению', until:'', scope:'график'},
     credits:[ {id:'40', num:'Дог. №40 от 15.09.2023', subject:'полный остаток', claim:'96 400,00', coll:'Транспорт'} ],
@@ -646,8 +646,16 @@ const PROCESSES = [
 /* Структурный номер процесса — единый формат с З-… (заявки) и К-… (комиссии), P3-R27. */
 const procNo = id => `В-2026-${String(id).padStart(6, '0')}`;
 
-const catLabel = c => c==='low'?'Низкий':c==='mid'?'Средний':'Высокий';
-const catCls   = c => c==='low'?'low':c==='mid'?'mid':'high';
+/* ============================================================
+   ВЫЧИСЛЯЕМЫЕ ПРАВИЛА — не хранить то, что выводится.
+   Категория и стадия НЕ лежат в данных процесса: категория считается
+   из дней просрочки, стадия — из фазы. Разработчик видит формулу.
+   ============================================================ */
+const catOf   = days  => days <= 5 ? 'norm' : days <= 180 ? 'mid' : 'high';
+const stageOf = phase => PHASES_PRE.includes(phase) ? 'Досудебная' : 'Принудительная';
+
+const catLabel = c => c === 'norm' ? 'Норма' : c === 'mid' ? 'Средний' : 'Высокий';
+const catCls   = c => c === 'norm' ? 'low'   : c === 'mid' ? 'mid'     : 'high';
 
 /* ============================================================
    LIST
@@ -671,7 +679,7 @@ function renderList(){
       <td>${p.borrower}</td>
       <td>${p.scope}</td>
       <td>${p.phase}${p.pause?` <span class="pill neutral">${p.pause.type==='Пауза'?'пауза':'соглашение'}</span>`:''}</td>
-      <td><span class="pill ${catCls(p.cat)}">${catLabel(p.cat)}</span></td>
+      <td><span class="pill ${catCls(catOf(p.catDays))}">${catLabel(catOf(p.catDays))}</span></td>
       <td>${p.group}</td>
       <td>${p.owner}</td>
     </tr>`).join('');
@@ -728,9 +736,9 @@ function phaseHeader(){
     </div>
     ${banner}
     <div class="phead-dims">
-      <div class="dim"><div class="dl">Стадия</div><div class="dv">${p.stage}</div><div class="src">производная</div></div>
+      <div class="dim"><div class="dl">Стадия</div><div class="dv">${stageOf(p.phase)}</div><div class="src">производная от фазы</div></div>
       <div class="dim"><div class="dl">Фаза</div><div class="dv">${p.phase}</div><div class="src">по документу-основанию</div></div>
-      <div class="dim"><div class="dl">Категория риска</div><div class="dv"><span class="pill ${catCls(p.cat)}">${catLabel(p.cat)}</span></div><div class="src">вычислено · ${p.catDays} дн</div></div>
+      <div class="dim"><div class="dl">Категория риска</div><div class="dv"><span class="pill ${catCls(catOf(p.catDays))}">${catLabel(catOf(p.catDays))}</span></div><div class="src">вычислено · ${p.catDays} дн просрочки</div></div>
       <div class="dim"><div class="dl">Группа платёжесп.</div><div class="dv">${p.group}</div><div class="src">атрибут заёмщика</div></div>
     </div>
   </div>`;
@@ -747,7 +755,7 @@ function panelObschaya(){
       ${ro('Вид охвата', p.scope)}
       ${ro('Подразделение-владелец', p.owner)}
       ${ro('Текущая фаза', p.phase)}
-      ${ro('Стадия', p.stage)}
+      ${ro('Стадия', stageOf(p.phase))}
       ${ro('Исход', '—')}
     </div>
     <p class="section-note" style="margin-top:16px">Шапка выше — панель-индикатор: категория вычисляется по дням просрочки, фаза двигается регистрацией меры в «Журнале мер», группа — атрибут заёмщика. Эти поля не редактируются напрямую.</p>
@@ -792,7 +800,7 @@ function panelMery(){
 }
 function phaseTimeline(){
   const p=curProc;
-  const chain = p.stage==='Досудебная' ? PHASES_PRE : PHASES_FORCE;
+  const chain = stageOf(p.phase) === 'Досудебная' ? PHASES_PRE : PHASES_FORCE;
   const curIdx = chain.indexOf(p.phase);
   const steps = chain.map((ph,i)=>{
     const st = i<curIdx?'done': i===curIdx?'cur':'todo';
