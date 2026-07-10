@@ -1110,6 +1110,12 @@ function toast(msg,kind){ const w=document.getElementById('toastWrap');
   const t=document.createElement('div'); t.className='toast'+(kind?(' '+kind):'');
   t.innerHTML=`<span>${msg}</span>`; w.appendChild(t); setTimeout(()=>t.remove(),2600); }
 
+/* Escape закрывает диалог — единый стандарт диалогов модуля (P3-R33).
+   Клик по подложке уже обрабатывается на #modalHost. */
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && document.getElementById('modalHost').classList.contains('open')) closeModal();
+});
+
 renderNav(); renderList();
 
 </script>
