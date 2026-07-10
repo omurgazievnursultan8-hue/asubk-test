@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-07-10 (commission mockup as-is → to-be: кворум-гейт решения, голоса в гриде состава, единая карточка, рабочая очередь в списке) — _(update this date every time you edit)_
+> Last updated: 2026-07-10 (мокап модуля взыскания: процессы вместо кредитов, M:N кредит↔процесс, три независимых измерения состояния, три оверлея) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,6 +38,11 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-07-10 — Собран to-be мокап модуля «Взыскание задолженности» (`mockups/collection/collection.html`):
+  список процессов взыскания (не кредитов), карточка на 7 вкладок, шапка-индикатор четырёх измерений,
+  живой контроль пересечения охвата, 6 демо-процессов включая пару «два процесса на один кредит» и
+  два терминальных исхода. Проверка: `scripts/inspect/collection-check.mjs` — 169 ассертов, 0 провалов,
+  0 ошибок консоли. Рекомендации команде: `TODO.md`, «Фаза 9» (P9-R1…R9).
 - 2026-07-10 — **Групповой кредит: документы по каждому члену группы** (`loan-application.html`,
   задача **P3-R37**). Модель — зонтичный batch (1 кредит / N траншей, лидера нет), поэтому личные
   документы принадлежат **члену**, а не заявке: при `isGroup` секции «Идентификация» и
