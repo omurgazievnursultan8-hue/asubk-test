@@ -373,13 +373,18 @@ await page.click('#btnOpen');
 ok('в карточке нет селектора фазы', (await page.locator('#detailPanels select').count()) === 0);
 
 // --- T10: колонка «Фаза» — метка оверлея должна помещаться целиком (регрессия ревью) ---
+// Запас против нестабильного рендера на границе пикселя: правый край метки .pill должен
+// оставаться минимум на 4px внутри правого края ячейки, а не просто не вылезать за него.
+const PILL_MARGIN_PX = 4;
+const pillMargin = (pillBox, cellBox) => (cellBox.x + cellBox.width) - (pillBox.x + pillBox.width);
+
 // 120 «На исполнении» + метка «соглашение» — самая длинная комбинация фазы+оверлея в данных.
 await page.goto(FILE, { waitUntil: 'load' });
 const phaseCell120 = page.locator('#listBody tr[data-id="120"] td').nth(3);
 const cellBox120 = await phaseCell120.boundingBox();
 const pillBox120 = await phaseCell120.locator('.pill').boundingBox();
-ok('120: метка «соглашение» целиком внутри ячейки «Фаза» (не уезжает за правый край)',
-  !!pillBox120 && !!cellBox120 && (pillBox120.x + pillBox120.width) <= (cellBox120.x + cellBox120.width + 0.5));
+ok('120: метка «соглашение» внутри ячейки «Фаза» с запасом ≥4px от правого края',
+  !!pillBox120 && !!cellBox120 && pillMargin(pillBox120, cellBox120) >= PILL_MARGIN_PX);
 const sc120 = await phaseCell120.evaluate(td => ({ sw: td.scrollWidth, cw: td.clientWidth }));
 ok('120: ячейка «Фаза» не обрезана (scrollWidth<=clientWidth)', sc120.sw <= sc120.cw);
 
@@ -387,33 +392,22 @@ ok('120: ячейка «Фаза» не обрезана (scrollWidth<=clientWid
 const phaseCell151 = page.locator('#listBody tr[data-id="151"] td').nth(3);
 const cellBox151 = await phaseCell151.boundingBox();
 const pillBox151 = await phaseCell151.locator('.pill').boundingBox();
-ok('151: метка «пауза» целиком внутри ячейки «Фаза»',
-  !!pillBox151 && !!cellBox151 && (pillBox151.x + pillBox151.width) <= (cellBox151.x + cellBox151.width + 0.5));
+ok('151: метка «пауза» внутри ячейки «Фаза» с запасом ≥4px от правого края',
+  !!pillBox151 && !!cellBox151 && pillMargin(pillBox151, cellBox151) >= PILL_MARGIN_PX);
 const sc151 = await phaseCell151.evaluate(td => ({ sw: td.scrollWidth, cw: td.clientWidth }));
 ok('151: ячейка «Фаза» не обрезана', sc151.sw <= sc151.cw);
 
 // 133 «Повторная претензия» (20 симв.) + «событие» — самый длинный текст фазы в данных.
-// ИЗВЕСТНАЯ НАХОДКА (не чинить вслепую расширением ширины — решение за человеком):
-// getBoundingClientRect() пилюли геометрически укладывается в границы ячейки (проверка ниже
-// зелёная) и .innerText() ячейки всё ещё содержит «событие» (DOM/a11y-текст не обрезан), но
-// ВИЗУАЛЬНО браузер сбрасывает всю пилюлю целиком при line-clamp через text-overflow:ellipsis
-// (атомарный inline-элемент не влезает — не показывается вообще, ячейка не ужимает его частично).
-// Экранный скриншот (.auth/final-133.png) подтверждает: метка не видна. Колонка «Фаза» была
-// специально подобрана под «На исполнении соглашение» с нулевым запасом (см. комментарий у
-// <colgroup> и sc120: scrollWidth===clientWidth) — «Повторная претензия» длиннее «На исполнении»
-// сильнее, чем «событие» короче «соглашение», так что запаса не хватает ни на один из трёх
-// вариантов оверлея. Ниже — assert по scrollWidth, а не только boundingBox — он и ловит эту
-// находку (boundingBox один её не ловит, см. отчёт review'а).
 const phaseCell133 = page.locator('#listBody tr[data-id="133"] td').nth(3);
 const cellBox133 = await phaseCell133.boundingBox();
 const hasPill133 = (await phaseCell133.locator('.pill').count()) > 0;
 const pillBox133 = hasPill133 ? await phaseCell133.locator('.pill').boundingBox() : null;
-ok('133: метка «событие» геометрически внутри ячейки «Фаза» (boundingBox, не учитывает ellipsis-клип)',
-  !!pillBox133 && !!cellBox133 && (pillBox133.x + pillBox133.width) <= (cellBox133.x + cellBox133.width + 0.5));
+ok('133: метка «событие» внутри ячейки «Фаза» с запасом ≥4px от правого края',
+  !!pillBox133 && !!cellBox133 && pillMargin(pillBox133, cellBox133) >= PILL_MARGIN_PX);
 const sc133 = await phaseCell133.evaluate(td => ({ sw: td.scrollWidth, cw: td.clientWidth }));
-ok('133: ячейка «Фаза» не обрезана (scrollWidth<=clientWidth) — ЗНАЕМ: красная, колонка тесна для этой комбинации, ширины не трогали', sc133.sw <= sc133.cw);
+ok('133: ячейка «Фаза» не обрезана (scrollWidth<=clientWidth)', sc133.sw <= sc133.cw);
 ok('133: текст фазы в списке — «Повторная претензия»', (await phaseCell133.innerText()).includes('Повторная претензия'));
-ok('133: метка в списке — «событие» (в DOM/тексте; визуально может быть обрезана — см. выше)', (await phaseCell133.innerText()).includes('событие'));
+ok('133: метка в списке — «событие»', (await phaseCell133.innerText()).includes('событие'));
 
 // терминальные 097/104 показывают исход в колонке «Фаза» — тоже длинный текст, тоже не должен обрезаться.
 for (const id of ['097', '104']) {
@@ -421,6 +415,17 @@ for (const id of ['097', '104']) {
   const sc = await cell.evaluate(td => ({ sw: td.scrollWidth, cw: td.clientWidth }));
   ok(`${id}: терминальный исход в «Фазе» не обрезан`, sc.sw <= sc.cw);
 }
+
+// Полное покрытие: ни один заголовок (7 th), ни одна ячейка (6 строк × 7 колонок) не обрезаны —
+// проверка не только колонки «Фаза», а всей раскладки после перераспределения ширин.
+const headOverflow = await page.locator('#listHead th').evaluateAll(
+  ths => ths.map(th => ({ sw: th.scrollWidth, cw: th.clientWidth })));
+ok(`все 7 заголовков не обрезаны (scrollWidth<=clientWidth)`, headOverflow.length === 7 &&
+  headOverflow.every(({ sw, cw }) => sw <= cw));
+const cellOverflow = await page.locator('#listBody tr').evaluateAll(
+  trs => trs.flatMap(tr => [...tr.children].map(td => ({ sw: td.scrollWidth, cw: td.clientWidth }))));
+ok(`все 42 ячейки (6×7) не обрезаны (scrollWidth<=clientWidth)`, cellOverflow.length === 42 &&
+  cellOverflow.every(({ sw, cw }) => sw <= cw));
 
 // title с полным текстом у обрезаемых колонок: Заёмщик, Охват, Фаза, Владелец (конвенция commission.html).
 for (const id of ['120', '151', '133', '142', '097', '104']) {
