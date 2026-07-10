@@ -300,6 +300,40 @@ await page.click('#detailTabbar .dtab >> nth=4');
 const sp120 = page.locator('#detailPanels .detail-panel >> nth=4');
 ok('у 120 метка — соглашение', (await sp120.locator('tbody tr .pill').innerText()) === 'соглашение');
 
+// --- T9: роль, сортировка, приёмка ---
+await page.goto(FILE, { waitUntil: 'load' });
+const roles = await page.locator('#roleSel option').allInnerTexts();
+ok('5 ролей в переключателе', roles.length === 5);
+ok('роли модуля перечислены', roles.includes('Отдел проблемных кредитов') && roles.includes('Наблюдатель'));
+await page.selectOption('#roleSel', 'Наблюдатель');
+ok('смена роли даёт тост', (await page.locator('#toastWrap .toast').innerText()).includes('Наблюдатель'));
+
+// сортировка по клику на заголовок
+const firstId = () => page.locator('#listBody tr').first().getAttribute('data-id');
+await page.click('#listHead th >> nth=0');
+const asc = await firstId();
+await page.click('#listHead th >> nth=0');
+const desc = await firstId();
+ok('сортировка по № переворачивается', asc !== desc);
+
+// каждая из 7 вкладок непуста у каждого процесса
+for(const id of ['142','151','133','120','104','097']){
+  await page.goto(FILE, { waitUntil: 'load' });
+  await page.click(`#listBody tr[data-id="${id}"]`);
+  await page.click('#btnOpen');
+  for(let t=0; t<7; t++){
+    await page.click(`#detailTabbar .dtab >> nth=${t}`);
+    const txt = (await page.locator(`#detailPanels .detail-panel >> nth=${t}`).innerText()).trim();
+    ok(`процесс ${id}, вкладка ${t+1} непуста`, txt.length > 40);
+  }
+}
+
+// фаза нигде не редактируется селектором
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="142"]');
+await page.click('#btnOpen');
+ok('в карточке нет селектора фазы', (await page.locator('#detailPanels select').count()) === 0);
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);
