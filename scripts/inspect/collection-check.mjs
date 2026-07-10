@@ -274,6 +274,32 @@ await page.click('#btnOpen');
 await page.click('#detailTabbar .dtab >> nth=5');
 ok('у 142 залога нет', (await page.locator('#detailPanels .detail-panel >> nth=5 >> .cgrid-empty').count()) === 1);
 
+// 151: залог без запрета → тире, не пустая метка
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="151"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=5');
+const zl151 = page.locator('#detailPanels .detail-panel >> nth=5');
+ok('у 151 запрета нет — тире, не пустая метка', (await zl151.locator('tbody tr').innerText()).trim().endsWith('—'));
+ok('у 151 нет пустого pill high', (await zl151.locator('tbody tr .pill.high').count()) === 0);
+
+// 120: залог без запрета → тире, не пустая метка
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="120"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=5');
+const zl120 = page.locator('#detailPanels .detail-panel >> nth=5');
+ok('у 120 запрета нет — тире, не пустая метка', (await zl120.locator('tbody tr').innerText()).trim().endsWith('—'));
+ok('у 120 нет пустого pill high', (await zl120.locator('tbody tr .pill.high').count()) === 0);
+
+// 120: особое состояние — соглашение (синяя метка)
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="120"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=4');
+const sp120 = page.locator('#detailPanels .detail-panel >> nth=4');
+ok('у 120 метка — соглашение', (await sp120.locator('tbody tr .pill').innerText()) === 'соглашение');
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);
