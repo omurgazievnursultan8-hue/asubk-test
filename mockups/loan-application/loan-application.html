@@ -2583,6 +2583,7 @@ const ROLES = [
 ];
 const ROLE_LABEL = Object.fromEntries(ROLES);
 let _role = 'spec';                                   // дефолт — кредитный специалист
+let _deptKey = 'risk';                                // роль «Отдел»: от чьего имени вносим заключение
 
 /* Режим правки деталки: страница открывается на просмотр; поля правятся ТОЛЬКО
    после «Изменить» (как в живых Jmix-редакторах). Сбрасывается при открытии др. заявки. */
@@ -4238,7 +4239,11 @@ function sendGateReason(app){
     }
     return `Комплектация не подтверждена головным филиалом (${st.reqConfirmed} из ${st.reqTot})`;
   }
-  if (!conclusionsReady(app)) return `Внесены не все заключения отделов (${_conclDone(app)} из ${CONCL_DEPTS.length})`;
+  const cc = _conclCounts(app);
+  if (!cc.total) return 'Отделы для заключений не назначены — назначьте хотя бы один';
+  const neg = _conclNegDepts(app);
+  if (neg.length) return `Отрицательное заключение: ${neg.map(k => DEPT_MAP[k].title).join(', ')} — устраните замечания, отдел отзовёт заключение и внесёт новое`;
+  if (cc.done < cc.total) return `Внесено заключений: ${cc.done} из ${cc.total}. Ожидаются: ${_conclWaiting(app).join(', ')}`;
   return '';
 }
 
@@ -4629,17 +4634,34 @@ function confirmDocReason(){
 }
 
 /* ============================================================
-   CHECKPOINT 4b: Вкладка «Заключения» отделов (to-be)
-   После подтверждения комплектации головным филиалом свои заключения
-   вносят 4 отдела: риск · залог · юр · кредит. Все 4 внесены → заявку
-   можно отправить на рассмотрение комиссии (гейт conclusionsReady).
+   CHECKPOINT 4b: Вкладка «Заключения» отделов (to-be, спек 2026-07-10)
+   Отделы назначает кредитный специалист (дефолтные несъёмные, залоговый —
+   авто по наличию залога). Заключение живёт циклом «черновик → внесено»
+   с отзывом. Отрицательный вердикт блокирует отправку в комиссию;
+   «С условиями» — не блокирует, условия едут в комиссию списком пунктов.
    ============================================================ */
-const CONCL_DEPTS = [
-  { key:'risk',   title:'Отдел рисков',      emp:'ТУРСУНОВА Г. А.', seed:'Кредитный риск умеренный. Показатель долговой нагрузки в пределах нормы, отрицательной кредитной истории не выявлено.' },
-  { key:'coll',   title:'Отдел залога',      emp:'ЖУМАБЕКОВ Н. Т.', seed:'Предмет залога оценён, коэффициент покрытия достаточный. Правоустанавливающие документы в порядке.' },
-  { key:'legal',  title:'Юридический отдел', emp:'ИСАКОВА Д. К.',   seed:'Правоспособность заёмщика подтверждена. Обременений и судебных споров не выявлено.' },
-  { key:'credit', title:'Кредитный отдел',   emp:'АБДЫЛДАЕВ Э. С.', seed:'Цель кредита соответствует программе, условия финансирования обоснованы. Рекомендуется к вынесению на комиссию.' },
+
+/* Справочник оргструктуры. В проде — таблица отделов; здесь плоский список,
+   из которого специалист добирает нужные. dflt — несъёмный дефолт;
+   auto:'collateral' — назначается/снимается автоматически по наличию залога. */
+const DEPT_DIR = [
+  { key:'risk',      title:'Отдел рисков',       emp:'ТУРСУНОВА Г. А.',  dflt:true,
+    seed:'Кредитный риск умеренный. Показатель долговой нагрузки в пределах нормы, отрицательной кредитной истории не выявлено.' },
+  { key:'credit',    title:'Кредитный отдел',    emp:'АБДЫЛДАЕВ Э. С.',  dflt:true,
+    seed:'Цель кредита соответствует программе, условия финансирования обоснованы. Рекомендуется к вынесению на комиссию.' },
+  { key:'coll',      title:'Отдел залога',       emp:'ЖУМАБЕКОВ Н. Т.',  auto:'collateral',
+    seed:'Предмет залога оценён, коэффициент покрытия достаточный. Правоустанавливающие документы в порядке.' },
+  { key:'legal',     title:'Юридический отдел',  emp:'ИСАКОВА Д. К.',
+    seed:'Правоспособность заёмщика подтверждена. Обременений и судебных споров не выявлено.' },
+  { key:'analytics', title:'Отдел аналитики',    emp:'САПАРОВА А. Б.',
+    seed:'Прогноз денежного потока покрывает планируемые платежи с запасом.' },
+  { key:'security',  title:'Отдел безопасности', emp:'КАРИМОВ Б. У.',
+    seed:'Проверка учредителей и связанных лиц проведена, стоп-факторов не выявлено.' },
+  { key:'monitor',   title:'Отдел мониторинга',  emp:'ТОКТОСУНОВ М. К.',
+    seed:'Объект финансирования доступен для выездного мониторинга, риск-факторов не выявлено.' },
 ];
+const DEPT_MAP = Object.fromEntries(DEPT_DIR.map(d => [d.key, d]));
+
 const CONCL_VERDICTS = [
   { v:'pos',  label:'Положительное', cls:'v-pos'  },
   { v:'cond', label:'С условиями',   cls:'v-cond' },
@@ -4647,96 +4669,133 @@ const CONCL_VERDICTS = [
 ];
 const _CONCL_VMAP = Object.fromEntries(CONCL_VERDICTS.map(x => [x.v, x]));
 
-/* Персистентное состояние заключений на объекте заявки. Для заявок за пределами
-   черновика (уже у комиссии/решены) — засеяны как внесённые; на черновике — пусто. */
-function _conclusionsOf(app){
-  if (!app._concl){
-    const filled = condPhase(app.status) !== 'draft';
-    app._concl = {};
-    CONCL_DEPTS.forEach((d, i) => {
-      app._concl[d.key] = filled
-        ? { verdict:(app.status === 'Отклонена' && d.key === 'risk') ? 'neg' : (i === 0 ? 'cond' : 'pos'),
-            author:d.emp, date:'25.06.2026', text:d.seed }
-        : { verdict:'', author:'', date:'', text:'' };
-    });
-  }
+/* Отметка времени для истории. Мокап — берём реальные часы браузера. */
+function _conclNow(){
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function _conclToday(){ return _conclNow().slice(0, 10); }
+/* Кто совершает действие — для истории. Роль «Отдел» подписывается сотрудником отдела. */
+function _conclActor(){
+  if (_role === 'dept' && DEPT_MAP[_deptKey]) return DEPT_MAP[_deptKey].emp;
+  return (ROLE_LABEL[_role] || _role).replace(/^\S+\s/, '');
+}
+
+function _conclItem(){
+  return { status:'pending', verdict:'', text:'', conds:[], files:[], author:'', date:'', log:[] };
+}
+function _conclLog(app, dept, action, note){
+  const it = _conclOf(app).items[dept]; if (!it) return;
+  it.log.push({ ts:_conclNow(), who:_conclActor(), action, note:note || '' });
+}
+
+/* Персистентное состояние заключений на объекте заявки. */
+function _conclOf(app){
+  if (!app._concl) _conclSeed(app);
+  _conclSyncColl(app);                      // залоговый отдел следует за наличием залога
   return app._concl;
 }
-/* Все 4 заключения внесены (есть вердикт) — гейт отправки в комиссию. */
-function conclusionsReady(app){ const c = _conclusionsOf(app); return CONCL_DEPTS.every(d => c[d.key] && c[d.key].verdict); }
-function _conclDone(app){ const c = _conclusionsOf(app); return CONCL_DEPTS.filter(d => c[d.key] && c[d.key].verdict).length; }
 
-/* Действия отдела (роль «Отдел»): внести / очистить заключение. */
-function conclSave(key){
-  const app = _detailApp; if (!app) return;
-  const v = document.getElementById('concl-v-' + key);
-  if (!v || !v.value){ showToast('Выберите вердикт заключения', 'warn'); return; }
-  const t = document.getElementById('concl-t-' + key);
-  const dep = CONCL_DEPTS.find(d => d.key === key);
-  _conclusionsOf(app)[key] = { verdict:v.value, author:dep.emp, date:'09.07.2026', text:(t ? t.value.trim() : '') };
-  _panelRefresh('tab-concl'); renderToolbar(app); _renderStages(app);
-  showToast('Заключение внесено: ' + dep.title, 'ok');
-}
-function conclClear(key){
-  const app = _detailApp; if (!app) return;
-  _conclusionsOf(app)[key] = { verdict:'', author:'', date:'', text:'' };
-  _panelRefresh('tab-concl'); renderToolbar(app); _renderStages(app);
-  showToast('Заключение очищено', 'info');
-}
+/* Демо-сид. Заявка З-2026-000105 (программа «Поддержка сельхозпроизводителей» —
+   залога нет) показывает три состояния карточки сразу: внесено · внесено · черновик · ожидает.
+   Заявки за пределами черновика — полный набор внесённых. Отклонённая — neg у риска. */
+function _conclSeed(app){
+  const c = { assigned:[], items:{} };
+  app._concl = c;
+  const add = (key, auto) => {
+    c.assigned.push({ dept:key, auto:!!auto, locked:false, addedBy:'система (сид)', addedAt:_conclToday() });
+    c.items[key] = _conclItem();
+    c.items[key].log.push({ ts:_conclToday() + ' 09:00', who:'АСАНОВ Т. Б.', action:'assigned', note:'' });
+  };
+  ['risk', 'credit'].forEach(k => add(k));
+  if (app.hasCollateral) add('coll', true);
 
-function renderConclusions(app){
-  const c = _conclusionsOf(app);
-  const editable = can(app).editConcl;                 // роль «Отдел» на стадии черновика
-  const gfMet = _docStats(app).confirmedMet;
-  const done  = _conclDone(app);
+  const fill = (key, verdict, conds, files) => {
+    const d = DEPT_MAP[key], it = c.items[key];
+    it.status = 'submitted'; it.verdict = verdict; it.text = d.seed;
+    it.author = d.emp; it.date = _conclToday();
+    it.conds = (conds || []).map((t, i) => ({ id:'c' + i, text:t }));
+    it.files = (files || []).map(n => ({ name:n, size:'1,2 МБ' }));
+    it.log.push({ ts:_conclToday() + ' 11:05', who:d.emp, action:'submitted', note:_CONCL_VMAP[verdict].label });
+  };
 
-  let gate;
-  if (!gfMet && condPhase(app.status) === 'draft'){
-    gate = `<div class="note-banner">${_docIcoInfo()}<span>Заключения вносятся после подтверждения комплектации головным филиалом. Сейчас подтверждено не всё — см. вкладку «Документы».</span></div>`;
-  } else if (done === CONCL_DEPTS.length){
-    gate = `<div class="note-banner ok">${_docIcoOk()}<span>Все заключения внесены (<b>${done}/${CONCL_DEPTS.length}</b>). Заявку можно отправить на рассмотрение комиссии.</span></div>`;
-  } else {
-    gate = `<div class="note-banner">${_docIcoInfo()}<span>Внесено заключений: <b>${done} из ${CONCL_DEPTS.length}</b>. Отправка в комиссию доступна после всех четырёх.</span></div>`;
+  const phase = condPhase(app.status);
+  if (app.status === 'Отклонена'){
+    fill('risk', 'neg', [], []);
+    c.assigned.forEach(a => { if (a.dept !== 'risk') fill(a.dept, 'pos', [], []); });
+    return;
   }
+  if (phase !== 'draft'){                    // у комиссии / решённые — всё внесено
+    c.assigned.forEach(a => fill(a.dept, a.dept === 'risk' ? 'cond' : 'pos',
+      a.dept === 'risk' ? ['Оформить страхование предмета залога до выдачи.'] : [], []));
+    return;
+  }
+  if (app.num === 'З-2026-000105'){          // демо-микс: submitted · submitted · draft · pending
+    add('legal');                            // допназначенные специалистом сверх дефолтных
+    add('analytics');
+    fill('risk', 'cond',
+      ['Оформить страхование урожая до выдачи транша.',
+       'Предоставить справку об отсутствии задолженности по налогам на дату выдачи.'],
+      ['Скоринговый отчёт.pdf']);
+    fill('credit', 'pos', [], []);
+    const legal = c.items.legal;             // черновик: текст есть, вердикта нет
+    legal.status = 'draft'; legal.text = DEPT_MAP.legal.seed;
+    legal.log.push({ ts:_conclToday() + ' 10:40', who:DEPT_MAP.legal.emp, action:'drafted', note:'' });
+  }
+}
 
-  const blocks = CONCL_DEPTS.map(d => {
-    const e  = c[d.key] || {};
-    const vb = e.verdict
-      ? `<span class="v-badge ${_CONCL_VMAP[e.verdict].cls}">${_CONCL_VMAP[e.verdict].label}</span>`
-      : `<span class="v-badge v-none">Не внесено</span>`;
-    const metaTxt = e.verdict ? `${e.author} · ${e.date}` : '';
-    let body;
-    if (editable){
-      const opts = CONCL_VERDICTS.map(x => `<option value="${x.v}"${e.verdict === x.v ? ' selected' : ''}>${x.label}</option>`).join('');
-      body = `<div class="concl-edit">
-        <label>Вердикт</label>
-        <select id="concl-v-${d.key}"><option value="">— выберите —</option>${opts}</select>
-        <label>Текст заключения</label>
-        <textarea id="concl-t-${d.key}" placeholder="Изложите выводы отдела…">${_esc(e.text || '')}</textarea>
-        <div class="tab-toolrow" style="margin:0">
-          <button class="btn btn-primary btn-sm" onclick="conclSave('${d.key}')">Сохранить заключение</button>
-          ${e.verdict ? `<button class="btn btn-ghost btn-sm" onclick="conclClear('${d.key}')">Очистить</button>` : ''}
-        </div>
-      </div>`;
-    } else {
-      body = e.verdict
-        ? `<div class="concl-text">${_esc(e.text || '') || '—'}</div>`
-        : `<div class="concl-empty">Заключение ещё не внесено отделом.</div>`;
-    }
-    return `<div class="concl-block">
-      <div class="concl-head">
-        <span class="concl-title">${d.title}</span>
-        ${metaTxt ? `<span class="concl-meta">${_esc(metaTxt)}</span>` : ''}
-        <span class="spacer"></span>${vb}
-      </div>
-      <div class="concl-body">${body}</div>
-    </div>`;
-  }).join('');
+/* Отдел залога назначается/снимается автоматически. Снятие уносит и заключение —
+   залога нет, судить нечего (специалист об этом узнаёт из тоста при правке залога). */
+function _conclSyncColl(app){
+  const c = app._concl; if (!c) return;
+  const has = c.assigned.some(a => a.dept === 'coll');
+  if (app.hasCollateral && !has){
+    c.assigned.push({ dept:'coll', auto:true, locked:false, addedBy:'система (залог)', addedAt:_conclToday() });
+    c.items.coll = _conclItem();
+    c.items.coll.log.push({ ts:_conclNow(), who:'система', action:'assigned', note:'по заявке появился залог' });
+  } else if (!app.hasCollateral && has){
+    c.assigned = c.assigned.filter(a => a.dept !== 'coll');
+    delete c.items.coll;
+  }
+}
 
-  const hint = (!editable && condPhase(app.status) === 'draft')
-    ? `<div class="tab-note">Вносить заключения может роль <b>🧩 Отдел</b> — переключите роль в шапке.</div>` : '';
+/* Отдел нельзя снять: дефолтный либо залоговый при наличии залога. */
+function _conclLocked(app, key){
+  const d = DEPT_MAP[key]; if (!d) return false;
+  if (d.dflt) return true;
+  if (d.auto === 'collateral') return !!app.hasCollateral;
+  return false;
+}
 
-  return `<div class="concl-wrap">${gate}${hint}${blocks}</div>`;
+function _conclCounts(app){
+  const c = _conclOf(app);
+  const out = { pos:0, cond:0, neg:0, pending:0, done:0, total:c.assigned.length };
+  c.assigned.forEach(a => {
+    const it = c.items[a.dept];
+    if (it.status === 'submitted'){ out.done++; out[it.verdict]++; } else out.pending++;
+  });
+  return out;
+}
+function _conclNegDepts(app){
+  const c = _conclOf(app);
+  return c.assigned.map(a => a.dept).filter(k => c.items[k].verdict === 'neg');
+}
+function _conclWaiting(app){
+  const c = _conclOf(app);
+  return c.assigned.filter(a => c.items[a.dept].status !== 'submitted').map(a => DEPT_MAP[a.dept].title);
+}
+
+/* Гейт отправки: есть хотя бы один отдел, все внесли, ни одного отрицательного. */
+function conclusionsReady(app){
+  const c = _conclOf(app);
+  return c.assigned.length > 0
+      && c.assigned.every(a => c.items[a.dept].status === 'submitted' && c.items[a.dept].verdict !== 'neg');
+}
+
+/* Полноценный рендер — Task 4. Заглушка держит файл рабочим. */
+function renderConclusions(app){
+  const n = _conclCounts(app);
+  return `<div class="concl-wrap"><div class="tab-note">Заключений внесено ${n.done} из ${n.total}.</div></div>`;
 }
 PANEL_RENDER['tab-concl'] = renderConclusions;
 
