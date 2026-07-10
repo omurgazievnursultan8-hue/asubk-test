@@ -125,6 +125,60 @@ const t2c = await page.evaluate(() => {
 });
 check('T2c без подтверждения ГФ внесение закрыто', t2c.confirmed === false && t2c.edit === false);
 
+// ── T3: панель назначения ────────────────────────────────────────────────
+await openConcl('З-2026-000105', 'spec');
+const t3 = await page.evaluate(() => {
+  const chips = [...document.querySelectorAll('#tab-concl .dept-chip')].map(c => c.dataset.dept);
+  const locked = [...document.querySelectorAll('#tab-concl .dept-chip.locked')].map(c => c.dataset.dept);
+  const addOpts = [...document.querySelectorAll('#tab-concl #conclAddSel option')].map(o => o.value).filter(Boolean);
+  return { chips, locked, addOpts };
+});
+check('T3 чипы = назначенные отделы', t3.chips.join(',') === 'risk,credit,legal,analytics');
+check('T3 заперты только дефолтные', t3.locked.join(',') === 'risk,credit');
+// coll в списке добора не появляется никогда: он назначается автоматически по наличию залога
+check('T3 в «добавить» — неназначенные, кроме авто-отдела', t3.addOpts.join(',') === 'security,monitor');
+
+const t3b = await page.evaluate(() => {
+  conclAssign('security');
+  const c = _conclOf(_detailApp);
+  const it = c.items.security;
+  return { assigned:c.assigned.map(a => a.dept), status:it.status, log:it.log.map(l => l.action) };
+});
+check('T3b добавление отдела создаёт pending-карточку',
+  t3b.assigned.join(',') === 'risk,credit,legal,analytics,security' && t3b.status === 'pending' && t3b.log[0] === 'assigned');
+
+// снятие пустого отдела — без подтверждения; снятие с заключением — через модалку
+const t3c = await page.evaluate(() => {
+  conclUnassign('security');                               // pending → сразу
+  const afterEmpty = _conclOf(_detailApp).assigned.map(a => a.dept).join(',');
+  conclUnassign('analytics');                              // тоже pending → сразу
+  const afterPending = _conclOf(_detailApp).assigned.map(a => a.dept).join(',');
+  conclUnassign('legal');                                  // legal — draft → спросит
+  const modalOpen = document.getElementById('modal-concl-unassign').classList.contains('open');
+  const still = _conclOf(_detailApp).assigned.map(a => a.dept).includes('legal');
+  conclUnassignConfirm();
+  const afterConfirm = _conclOf(_detailApp).assigned.map(a => a.dept).join(',');
+  conclAssign('legal'); conclAssign('analytics');           // вернуть сид для следующих блоков
+  _conclOf(_detailApp).items.legal.status = 'draft';
+  _conclOf(_detailApp).items.legal.text = DEPT_MAP.legal.seed;
+  return { afterEmpty, afterPending, modalOpen, still, afterConfirm };
+});
+check('T3c пустой отдел снимается сразу', t3c.afterEmpty === 'risk,credit,legal,analytics');
+check('T3c pending снимается сразу', t3c.afterPending === 'risk,credit,legal');
+check('T3c непустой отдел спрашивает подтверждение', t3c.modalOpen === true && t3c.still === true);
+check('T3c подтверждение снимает отдел', t3c.afterConfirm === 'risk,credit');
+
+const t3d = await page.evaluate(() => {
+  conclUnassign('risk');                                   // заперт — снятие невозможно
+  const kept = _conclOf(_detailApp).assigned.map(a => a.dept).includes('risk');
+  setRole('dept'); showTab('tab-concl');                    // не спец → кнопок панели нет
+  const btns = document.querySelectorAll('#tab-concl .dept-chip .chip-x, #tab-concl #conclAddSel').length;
+  const panel = !!document.querySelector('#tab-concl .dept-panel');
+  return { kept, btns, panel };
+});
+check('T3d дефолтный отдел снять нельзя', t3d.kept === true);
+check('T3d не-спец видит панель, но без кнопок', t3d.panel === true && t3d.btns === 0);
+
 console.log(results.join('\n'));
 console.log(errors.length ? '\nERRORS:\n' + errors.join('\n') : '\nNO JS ERRORS');
 await ctx.close();

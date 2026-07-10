@@ -1145,6 +1145,23 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 
 /* ---- Tab «Заключения» (to-be): заключения 4 отделов перед комиссией ---- */
 .concl-wrap{ padding:16px 20px 24px; max-width:1040px; }
+.dept-panel{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:12px 14px; margin:0 0 16px;
+  background:var(--surface-input); }
+.dept-panel-h{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.dept-panel-h b{ font:var(--weight-semibold) var(--text-base)/1.2 var(--asubk-font); color:var(--text-heading); }
+.dept-panel-h .spacer{ flex:1; }
+.dept-panel-h select{ font:inherit; font-size:var(--text-sm); padding:5px 8px; border:1px solid var(--border-default);
+  border-radius:var(--radius-sm); background:var(--surface-card); color:var(--text-body); }
+.dept-panel-h select:focus{ outline:none; border-color:var(--asubk-blue); }
+.dept-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+.dept-chip{ display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:var(--radius-pill);
+  background:var(--surface-card); border:1px solid var(--border-default);
+  font:var(--weight-medium) 12px/1.4 var(--asubk-font); color:var(--text-body); }
+.dept-chip.locked{ color:var(--text-muted); }
+.dept-chip .chip-lock{ font-size:11px; cursor:help; }
+.dept-chip .chip-auto{ font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; }
+.dept-chip .chip-x{ border:0; background:none; cursor:pointer; color:var(--text-muted); font-size:13px; line-height:1; padding:0 2px; }
+.dept-chip .chip-x:hover{ color:var(--status-error); }
 .concl-block{ border:1px solid var(--border-default); border-radius:var(--radius-md); margin-bottom:14px; overflow:hidden; }
 .concl-head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 16px; background:var(--surface-hover);
   border-bottom:1px solid var(--border-default); }
@@ -1874,6 +1891,25 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="closeModal('modal-doc-reason')">Отмена</button>
       <button class="btn btn-primary" id="doc-reason-ok" onclick="confirmDocReason()">Подтвердить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Снятие отдела, у которого уже есть заключение: деструктивно, спрашиваем -->
+<div class="overlay" id="modal-concl-unassign">
+  <div class="modal" style="width:min(440px,96%)">
+    <div class="modal-h">
+      <span class="mt">Снять отдел</span>
+      <button class="modal-x" onclick="closeModal('modal-concl-unassign')" aria-label="Закрыть">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-b">
+      <p id="concl-unassign-text">Внесённое заключение будет удалено.</p>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('modal-concl-unassign')">Отмена</button>
+      <button class="btn btn-danger" onclick="conclUnassignConfirm()">Снять отдел</button>
     </div>
   </div>
 </div>
@@ -4834,10 +4870,95 @@ function conclusionsReady(app){
       && c.assigned.every(a => c.items[a.dept].status === 'submitted' && c.items[a.dept].verdict !== 'neg');
 }
 
+/* ── Назначение отделов (кредитный специалист, стадия черновика) ── */
+let _conclPendingUnassign = null;              // отдел, ждущий подтверждения снятия
+
+function conclAssign(key){
+  const app = _detailApp; if (!app || !DEPT_MAP[key]) return;
+  if (!can(app).assignDepts){ showToast('Назначать отделы может кредитный специалист на черновике', 'warn'); return; }
+  const c = _conclOf(app);
+  if (c.assigned.some(a => a.dept === key)) return;
+  c.assigned.push({ dept:key, auto:false, locked:false, addedBy:_conclActor(), addedAt:_conclToday() });
+  c.items[key] = _conclItem();
+  _conclLog(app, key, 'assigned', '');
+  _conclRerender(app);
+  showToast('Отдел назначен: ' + DEPT_MAP[key].title, 'ok');
+}
+
+function conclUnassign(key){
+  const app = _detailApp; if (!app || !DEPT_MAP[key]) return;
+  if (!can(app).assignDepts){ showToast('Снимать отделы может кредитный специалист на черновике', 'warn'); return; }
+  if (_conclLocked(app, key)){
+    showToast(DEPT_MAP[key].dflt ? 'Дефолтный отдел снять нельзя' : 'По заявке есть залог — отдел залога обязателен', 'warn');
+    return;
+  }
+  const it = _conclOf(app).items[key];
+  if (it && it.status !== 'pending'){                      // есть черновик/внесённое — спрашиваем
+    _conclPendingUnassign = key;
+    document.getElementById('concl-unassign-text').textContent =
+      `Снять «${DEPT_MAP[key].title}»? ` + (it.status === 'submitted'
+        ? 'Внесённое заключение будет удалено.' : 'Черновик заключения будет удалён.');
+    openModal('modal-concl-unassign');
+    return;
+  }
+  _conclDropDept(app, key);
+}
+
+function conclUnassignConfirm(){
+  const app = _detailApp, key = _conclPendingUnassign;
+  closeModal('modal-concl-unassign');
+  _conclPendingUnassign = null;
+  if (app && key) _conclDropDept(app, key);
+}
+
+function _conclDropDept(app, key){
+  const c = _conclOf(app);
+  c.assigned = c.assigned.filter(a => a.dept !== key);
+  delete c.items[key];
+  _conclRerender(app);
+  showToast('Отдел снят: ' + DEPT_MAP[key].title, 'info');
+}
+
+/* Единая перерисовка после любого действия: панель + тулбар (гейт) + пайплайн + селектор отдела. */
+function _conclRerender(app){
+  _panelRefresh('tab-concl');
+  renderToolbar(app);
+  _renderStages(app);
+  _syncDeptSwitch();
+}
+
+function _conclAssignPanel(app){
+  const c = _conclOf(app);
+  const may = can(app).assignDepts;
+  const chips = c.assigned.map(a => {
+    const d = DEPT_MAP[a.dept], locked = _conclLocked(app, a.dept);
+    const why = d.dflt ? 'Дефолтный отдел — снять нельзя' : 'По заявке есть залог — отдел залога обязателен';
+    const tail = locked
+      ? `<span class="chip-lock" title="${_esc(why)}">🔒</span>${a.auto ? '<span class="chip-auto">авто</span>' : ''}`
+      : (may ? `<button class="chip-x" onclick="conclUnassign('${a.dept}')" title="Снять отдел" aria-label="Снять отдел">✕</button>` : '');
+    return `<span class="dept-chip${locked ? ' locked' : ''}" data-dept="${a.dept}">${_esc(d.title)}${tail}</span>`;
+  }).join('');
+
+  /* Авто-отделы (залоговый) в добор не попадают: их назначает наличие залога,
+     а `_conclSyncColl` снимет назначенный вручную на следующей перерисовке. */
+  const free = DEPT_DIR.filter(d => !d.auto && !c.assigned.some(a => a.dept === d.key));
+  const adder = (may && free.length)
+    ? `<select id="conclAddSel" onchange="conclAssign(this.value); this.value='';">
+         <option value="">+ Добавить отдел</option>
+         ${free.map(d => `<option value="${d.key}">${_esc(d.title)}</option>`).join('')}
+       </select>`
+    : '';
+
+  return `<div class="dept-panel">
+    <div class="dept-panel-h"><b>Назначенные отделы (${c.assigned.length})</b><span class="spacer"></span>${adder}</div>
+    <div class="dept-chips">${chips || '<span class="concl-empty">Отделы не назначены</span>'}</div>
+  </div>`;
+}
+
 /* Полноценный рендер — Task 4. Заглушка держит файл рабочим. */
 function renderConclusions(app){
   const n = _conclCounts(app);
-  return `<div class="concl-wrap"><div class="tab-note">Заключений внесено ${n.done} из ${n.total}.</div></div>`;
+  return `<div class="concl-wrap">${_conclAssignPanel(app)}<div class="tab-note">Заключений внесено ${n.done} из ${n.total}.</div></div>`;
 }
 PANEL_RENDER['tab-concl'] = renderConclusions;
 
