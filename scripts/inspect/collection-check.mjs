@@ -334,6 +334,56 @@ await page.click('#listBody tr[data-id="142"]');
 await page.click('#btnOpen');
 ok('в карточке нет селектора фазы', (await page.locator('#detailPanels select').count()) === 0);
 
+// --- T10: колонка «Фаза» — метка оверлея должна помещаться целиком (регрессия ревью) ---
+// 120 «На исполнении» + метка «соглашение» — самая длинная комбинация фазы+оверлея в данных.
+await page.goto(FILE, { waitUntil: 'load' });
+const phaseCell120 = page.locator('#listBody tr[data-id="120"] td').nth(3);
+const cellBox120 = await phaseCell120.boundingBox();
+const pillBox120 = await phaseCell120.locator('.pill').boundingBox();
+ok('120: метка «соглашение» целиком внутри ячейки «Фаза» (не уезжает за правый край)',
+  !!pillBox120 && !!cellBox120 && (pillBox120.x + pillBox120.width) <= (cellBox120.x + cellBox120.width + 0.5));
+const sc120 = await phaseCell120.evaluate(td => ({ sw: td.scrollWidth, cw: td.clientWidth }));
+ok('120: ячейка «Фаза» не обрезана (scrollWidth<=clientWidth)', sc120.sw <= sc120.cw);
+
+// 151 «Извещение» + «пауза» — текст короче, но не должен был случайно сломаться при расширении колонки.
+const phaseCell151 = page.locator('#listBody tr[data-id="151"] td').nth(3);
+const cellBox151 = await phaseCell151.boundingBox();
+const pillBox151 = await phaseCell151.locator('.pill').boundingBox();
+ok('151: метка «пауза» целиком внутри ячейки «Фаза»',
+  !!pillBox151 && !!cellBox151 && (pillBox151.x + pillBox151.width) <= (cellBox151.x + cellBox151.width + 0.5));
+const sc151 = await phaseCell151.evaluate(td => ({ sw: td.scrollWidth, cw: td.clientWidth }));
+ok('151: ячейка «Фаза» не обрезана', sc151.sw <= sc151.cw);
+
+// терминальные 097/104 показывают исход в колонке «Фаза» — тоже длинный текст, тоже не должен обрезаться.
+for (const id of ['097', '104']) {
+  const cell = page.locator(`#listBody tr[data-id="${id}"] td`).nth(3);
+  const sc = await cell.evaluate(td => ({ sw: td.scrollWidth, cw: td.clientWidth }));
+  ok(`${id}: терминальный исход в «Фазе» не обрезан`, sc.sw <= sc.cw);
+}
+
+// title с полным текстом у обрезаемых колонок: Заёмщик, Охват, Фаза, Владелец (конвенция commission.html).
+for (const id of ['120', '151', '133', '142', '097', '104']) {
+  const tr = page.locator(`#listBody tr[data-id="${id}"]`);
+  const borrowerTitle = await tr.locator('td').nth(1).getAttribute('title');
+  const scopeTitle = await tr.locator('td').nth(2).getAttribute('title');
+  const phaseTitle = await tr.locator('td').nth(3).getAttribute('title');
+  const ownerTitle = await tr.locator('td').nth(6).getAttribute('title');
+  ok(`${id}: title у «Заёмщик» непустой`, !!borrowerTitle);
+  ok(`${id}: title у «Охват» непустой`, !!scopeTitle);
+  ok(`${id}: title у «Фаза» непустой`, !!phaseTitle);
+  ok(`${id}: title у «Владелец» непустой`, !!ownerTitle);
+}
+const phaseTitle120 = await page.locator('#listBody tr[data-id="120"] td').nth(3).getAttribute('title');
+ok('120: title «Фазы» включает и саму фазу, и метку оверлея',
+  !!phaseTitle120 && phaseTitle120.includes('На исполнении') && phaseTitle120.toLowerCase().includes('соглашение'));
+const phaseTitle151 = await page.locator('#listBody tr[data-id="151"] td').nth(3).getAttribute('title');
+ok('151: title «Фазы» включает и саму фазу, и метку оверлея',
+  !!phaseTitle151 && phaseTitle151.includes('Извещение') && phaseTitle151.toLowerCase().includes('пауза'));
+const phaseTitle104 = await page.locator('#listBody tr[data-id="104"] td').nth(3).getAttribute('title');
+ok('104: title «Фазы» — исход терминального процесса', !!phaseTitle104 && phaseTitle104.includes('Принятие имущества'));
+const phaseTitle097 = await page.locator('#listBody tr[data-id="097"] td').nth(3).getAttribute('title');
+ok('097: title «Фазы» — исход терминального процесса', !!phaseTitle097 && phaseTitle097.includes('Безнадёжный долг'));
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);

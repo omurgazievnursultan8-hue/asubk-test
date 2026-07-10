@@ -485,9 +485,14 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
         </div>
         <div class="grid-wrap">
           <table class="grid" id="listGrid">
+            <!-- Ширины подобраны замером (scripts/inspect/collection-check.mjs, T10): при табличном
+                 layout:fixed нужно, чтобы «Фаза» вмещала «На исполнении» + метку оверлея «соглашение»
+                 (natural width ≈205px из 1240px общей ширины таблицы), «Владелец» — самое длинное имя
+                 («Департамент правового обеспечения», ≈280px). «Категория» и «Группа» узкие по
+                 содержимому (пилюля/код), забираем ширину у них, а не у «Заёмщик»/«Владелец». -->
             <colgroup>
-              <col style="width:18%"><col style="width:16%"><col style="width:14%">
-              <col style="width:14%"><col style="width:10%"><col style="width:10%"><col style="width:18%">
+              <col style="width:10.5%"><col style="width:15.5%"><col style="width:14.5%">
+              <col style="width:19%"><col style="width:9%"><col style="width:7.5%"><col style="width:24%">
             </colgroup>
             <thead><tr id="listHead"></tr></thead>
             <tbody id="listBody"></tbody>
@@ -755,6 +760,13 @@ const stageOf = phase => PHASES_PRE.includes(phase) ? 'Досудебная' : '
 const isTerminal   = p => Boolean(p.outcome);
 const overlayShort = t => t === 'Пауза' ? 'пауза' : t === 'Соглашение' ? 'соглашение' : 'событие';
 
+/* HTML-экранирование для атрибутов (title) — конвенция _esc из commission.html. */
+const escAttr = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* Полный текст ячейки «Фаза» для title: у терминальных — исход, у активных — фаза + метка оверлея
+   (метка — единственный в списке признак приостановленного процесса, title должен её называть). */
+const phaseFullText = p => isTerminal(p) ? p.outcome : (p.overlay ? `${p.phase} · ${overlayShort(p.overlay.type)}` : p.phase);
+
 /* Фаза установлена мерой-вехой. Показываем ЕЁ номер — так правило
    «фаза следует из журнала мер» видно, а не только объявлено. */
 const PHASE_BY_MEASURE = {
@@ -814,14 +826,14 @@ function renderList(){
   document.getElementById('listBody').innerHTML = rows.map(p=>`
     <tr data-id="${p.id}" class="${isTerminal(p) ? 'terminal' : ''}" onclick="selectRow('${p.id}',this)" ondblclick="openDetail('${p.id}')">
       <td>${procNo(p.id)}</td>
-      <td>${p.borrower}</td>
-      <td>${p.scope}</td>
-      <td>${isTerminal(p)
+      <td title="${escAttr(p.borrower)}">${p.borrower}</td>
+      <td title="${escAttr(p.scope)}">${p.scope}</td>
+      <td title="${escAttr(phaseFullText(p))}">${isTerminal(p)
         ? `<span class="pill neutral">${p.outcome}</span>`
         : `${p.phase}${p.overlay ? ` <span class="pill neutral">${overlayShort(p.overlay.type)}</span>` : ''}`}</td>
       <td><span class="pill ${catCls(catOf(p.catDays))}">${catLabel(catOf(p.catDays))}</span></td>
       <td>${p.group}</td>
-      <td>${p.owner}</td>
+      <td title="${escAttr(p.owner)}">${p.owner}</td>
     </tr>`).join('');
   document.getElementById('pagerCount').textContent = PROCESSES.length+' процессов';
 }
