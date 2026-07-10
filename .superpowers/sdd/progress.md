@@ -27,3 +27,10 @@ Base: 1317903
   Сверх плана: conclWithdrawCancel() по образцу conclUnassignCancel() (дыра _conclPendingWithdraw).
   Important (исправлено): conclToggle/ToggleAll/LogToggle/ScrollTo теряли набранный текст → _conclSnapEditable().
   Minor (исправлено): слабый под-ассерт `other` в T5.
+- Task 6: стыки — complete (commits 8682a3e + фикс d11894e, 72/72 PASS, review clean после фикса)
+  Отступление (проверено ревью, принято): регекс T6b расширен до /документ/i — DOC_SECTIONS всегда
+  содержит перманентный блокер (egr/expired, inc/rejected), поэтому гейт печатает «отклонённые/просроченные».
+  Step 4 не потребовал правок — хвост sendGateReason уже стоял с Task 1.
+  Important (исправлено): свод в комиссии не раскрывался (клик перерисовывал скрытую tab-concl),
+  id карточек дублировались между панелями → введён ctx + _conclCardId.
+  Minor (исправлено): авто-раскрытие «своего отдела» текло в свод; вакуумный ассерт T6e.
