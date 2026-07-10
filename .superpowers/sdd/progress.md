@@ -22,3 +22,8 @@ Base: 1317903
   Important (исправлено): _conclOpen/_conclLogOpen/_conclOpenAll текли между заявками → _conclResetOpen() в ветке !sameApp у gotoDetail.
   Minor (исправлено): вакуумный ассерт T4e; двойной _conclOf в reduce.
   Minor (в финальное ревью): conclToggleAll('Свернуть') гасит и свою карточку — авто-режим «свой отдел раскрыт» после этого не действует.
+- Task 5: редактор заключения — complete (commits 905bf24 + фикс 4bb5db6, 62/62 PASS, review clean после фикса)
+  Отступление (принято): из теста убран лишний conclToggle('analytics') — setDept уже раскрывает свою карточку.
+  Сверх плана: conclWithdrawCancel() по образцу conclUnassignCancel() (дыра _conclPendingWithdraw).
+  Important (исправлено): conclToggle/ToggleAll/LogToggle/ScrollTo теряли набранный текст → _conclSnapEditable().
+  Minor (исправлено): слабый под-ассерт `other` в T5.
