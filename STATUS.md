@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-07-09 (loan-application mockup — вкладка «Документы»: именованные статусы комплектации + ярусы кнопок) — _(update this date every time you edit)_
+> Last updated: 2026-07-10 (mockup «Комиссии по заявкам» — as-is → to-be: кворум-гейт решения, рабочая очередь, диалоги) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -38,6 +38,21 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-07-10 — **Мокап «Комиссии по заявкам» переведён as-is → to-be**
+  (`mockups/loan-application-commission/commission.html`; as-is версия остаётся в git, коммит `c50077b`).
+  UX/UI-разбор экрана дал 8 новых дефектов **P3-26…P3-33** (`notes/qa-findings.md`) и
+  3 задачи **P3-R38 / P3-R39 / P3-R40** (`TODO.md`); попутно закрыты P3-R32/R33/R34.
+  Главная находка — **P3-26 🔴**: председатель мог вынести решение при **нуле голосов**
+  (кнопки не связаны с голосованием, прогресс нарисован под ними, протокол не обязателен).
+  В to-be: кворум-гейт (`quorumOf`/`tally`/`decisionGateReason`) + прогресс над решением;
+  голоса и комментарии членов — в гриде состава (пустая секция-дубль удалена);
+  «Проголосовать» — в строке своего члена (`can(rec)`, демо-свитчер ролей);
+  единая карточка вместо разных «Просмотр»/«Изменить»; список — плитка «Ждут моего голоса»,
+  колонка «Крайний срок» с чипом просрочки, статус-чипы, «Голоса N из M», № → `К-2026-000138`;
+  прогресс — стек 4 сегментов (`rgb(255,123,123)` контраст 2.3:1 → палитра);
+  диалоги — Escape/подложка, защита несохранённого ввода, подтверждение называет действие
+  и запись, деструктив красный; empty states вместо 150px пустоты, «Протокол» — не тупик.
+  Проверено в браузере: `scripts/inspect/commission-tobe-check.mjs` — **38 assert'ов, 0 ошибок консоли**.
 - 2026-07-09 — **Вкладка «Документы» — статусы комплектации + ярусы кнопок** (`loan-application.html`,
   `renderDocs`/`renderDocSection`/`docRow`). Спек: `docs/superpowers/specs/2026-07-09-loan-app-docs-completeness-design.md`.
   (1) **ЖЦ 7→6**: «На проверке» больше не хранимый статус, а **вид** — `uploaded`-док при заявке

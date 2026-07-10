@@ -3,45 +3,85 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Комиссии по заявкам · АСУБК</title>
+<title>Комиссии по заявкам · АСУБК (to-be)</title>
 <!--
-  MOCKUP (single-file, interactive) — точная as-is копия живого раздела
-  «Комиссии по заявкам» (/loan-application-commissions).
-  Источник: тест-стенд https://fkftest.okmot.kg/loan-application-commissions,
-  сверка 2026-07-07 + попиксельная clone-сверка 2026-07-08
-  (scripts/inspect/commission-sverka*.mjs, commission-clone-dump.mjs, commission-confirm-btns.mjs;
-  скриншоты .auth/commission-*-live.png, .auth/commission-dlg-*.png).
+  MOCKUP (single-file, interactive) — TO-BE раздела «Комиссии по заявкам»
+  (/loan-application-commissions). Предложение для команды разработки.
 
-  Уточнено clone-сверкой 2026-07-08 (по live DOM-дампу):
-  - sidebar «Приложение» = Подразделения…LoanLedger (7 пунктов; нет «Группа
-    платёжеспособности»/«Передача материалов» — они в др. разделах);
-  - Редактор «Состав комиссии» = 4 колонки (Роль, Сотрудник, Решение, Дата отзыва);
-  - ячейки грид-таблиц nowrap+ellipsis (ФИО обрезается, как в Vaadin grid);
-  - «Комментарии членов комиссии» — пустая карточка без текста-плейсхолдера;
-  - гриды Состав/Документы/Члены — высота ~280px с пустым местом внутри рамки;
-  - диалог «Ваш отзыв» — широкий (~1280px), 2 колонки (Решение|Риск, Комментарий|Файл),
-    заголовок с ×, OK primary+✓ / Отмена tertiary+⊘ (bg rgba(25,59,103,.05));
-  - диалог «Подтверждение» — кнопки ✓ Да / ⊘ Отмена tertiary, выровнены вправо;
-  - иконка календаря — серый монохромный SVG (как Vaadin), не emoji.
+  As-is копия живого экрана (попиксельная clone-сверка 2026-07-08) — в git,
+  коммит c50077b, этот же путь. Здесь она заменена на to-be по решению
+  2026-07-10. Дефекты, которые to-be закрывает: P3-19…P3-33 (`notes/qa-findings.md`),
+  задачи: P3-R38 (ядро), P3-R39 (список), P3-R40 (прогресс/диалоги/пустые состояния);
+  попутно закрыты P3-R32, P3-R33, P3-R34 (`TODO.md`).
+  Проверка: `scripts/inspect/commission-tobe-check.mjs` (38 assert'ов).
 
-  Три экрана + диалоги:
-  - СПИСОК: фильтр + 5 плиток + грид (2 строки: 139 «Одобрено», 138 «На рассмотрении»)
-    + пейджер «2 строки»; тулбар Создать/Изменить/Просмотр/Удалить.
-  - ПРОСМОТР (?mode=readonly): шапка + прогресс голосования + вкладки
-    (Обзор/Отзывы/Документы/История/Протокол) + Члены комиссии + Итоговое решение.
-    Данные по выбранной строке (138 или 139).
-  - РЕДАКТОР (/new и /{id}, Создать·Изменить): шапка + Состав комиссии (+Проголосовать)
-    + Документы + Комментарии членов комиссии + Финальное решение (Председатель)
-    с кнопками Одобрить/Отклонить/Запросить доп. информацию + Прогресс голосования + OK/Отмена.
-  - ДИАЛОГИ: «Ваш отзыв» (Проголосовать), «Подтверждение — Вы уверены? Да/Отмена»
-    (Одобрить/Отклонить/Запросить/Удалить).
+  Что изменено против as-is (и почему):
 
-  Воспроизводит живые дефекты БЕЗ улучшений:
-  - фильтр/плитка подписаны «Поручительств(о)», хотя экран про заявки (live quirk);
-  - Просмотр и Редактор — поля шапки белые с рамкой (Vaadin text-field), сверено 2026-07-07
-    (commission-fieldbg.mjs); серые «filled» только редактируемые поля Финального решения в Редакторе;
-  - плитка «Одобрено» при 1 всё равно с серой рамкой (live);
-  - решённую комиссию (139 «Одобрено») нельзя «Изменить» (кнопка disabled, live).
+  ЯДРО ПРОЦЕССА
+  - P3-26 «кворум-гейт»: «Одобрить/Отклонить/Запросить» заблокированы, пока не
+    набран кворум голосов И не заполнены номер протокола + дата заседания.
+    Причина блокировки — человекочитаемым текстом (паттерн `sendGateReason`
+    из `mockups/loan-application/loan-application.html`).
+  - Прогресс голосования поднят НАД блоком решения (в as-is он был под кнопками —
+    председатель решал раньше, чем видел голоса).
+  - P3-27: голоса и комментарии членов — прямо в гриде «Состав комиссии».
+    Мёртвая секция «Комментарии членов комиссии» удалена (в as-is — пустая карточка).
+  - P3-28: «Проголосовать» — действие В СТРОКЕ своего члена комиссии (роль → строка),
+    а не одна кнопка в шапке секции без привязки к пользователю.
+  - P3-29: единая ИА. Один экран карточки вместо разных «Просмотр» (вкладки) и
+    «Изменить» (плоская стопка + второй прогресс). Правка сущности убрана вовсе:
+    карточка = read-only данные + зоны действий (голос · решение · документы ·
+    протокол). Нет «OK/Отмена», нет режима «Изменить».
+
+  СПИСОК
+  - P3-30: плитка+фильтр «Ждут моего голоса» (рабочая очередь) и колонка
+    «Крайний срок» с подсветкой просрочки.
+  - P3-31: «Тип решения» → статус-чип на токенах `--status-*` (в as-is токены
+    объявлены, но в гриде не использованы); «Комиссия 0/2» → колонка «Голоса»
+    с мини-полосой и подписью «N из M»; константная колонка «Тип документа»
+    (всегда «Заявки») и всегда-пустой «Комментарий» удалены; ячейки с обрезкой
+    получили `title`; № → структурный `К-2026-000138` (единый с `З-…`, P3-R27).
+  - P3-19/P3-20/P3-24 (P3-R32): «Всего» = сумме статусных плиток; плитки кликабельны
+    как фильтр; рамка плитки серая при 0 и статусная при >0; подписи про
+    поручительства («Поручительство =», «Всего поручительств») исправлены на заявки;
+    фильтр — кнопки «Применить/Сбросить» + чипы активных условий, свёрнут по умолчанию.
+
+  ГОЛОСОВАНИЕ
+  - P3-32: полоса прогресса — стек из 4 сегментов (одобрили/отклонили/воздержались/
+    не проголосовали), а не сплошная зелёная. Заголовок «Проголосовало N из M ·
+    кворум K» вместо «Прогресс голосования - 0.0%» (процент от чего — неясно).
+    Цвета легенды — из палитры (`--asubk-green/red/amber`); в as-is «Отклонили»
+    было `rgb(255,123,123)` = контраст ~2.3:1 на белом (провал WCAG AA), а
+    «Не проголосовали» — чёрная плашка (читалась как «отключено»).
+
+  ДИАЛОГИ (P3-21/P3-22/P3-23 → P3-R33)
+  - Escape и клик по подложке закрывают диалоги; при несохранённом вводе —
+    подтверждение потери.
+  - Одна пара подписей на модуль: «Да / Отмена» (в as-is удаление было «Да/Нет»).
+  - Текст подтверждения называет действие и запись: «Одобрить заявку по комиссии
+    К-2026-000138?» вместо безымянного «Вы уверены?».
+  - Деструктивные действия («Удалить», «Отклонить») — красная кнопка подтверждения.
+  - Диалог «Ваш отзыв» — 560px (в as-is 1280px на 4 поля); «Решение» обязательно и
+    имеет опции; «Риск» — реальный справочник.
+
+  ПУСТЫЕ СОСТОЯНИЯ И ТУПИКИ (P3-33)
+  - `.empty-rows` (150px пустоты в рамке) → empty state с текстом и действием.
+  - В «Документах» появилась кнопка «Загрузить» (в as-is её не было вовсе).
+  - Вкладка «Протокол» — не тупик: «Сформировать протокол» / «Загрузить скан»
+    (под тем же кворум-гейтом).
+  - «История» — таймлайн кто/что/когда вместо строки текста.
+  - P3-34 (комментарий члена): комментарий виден текстом в ячейке + раскрытие,
+    вместо всегда-disabled кнопки `lumo:eye-disabled`.
+
+  ДЕМО-РОЛЬ (как в мокапе заявки): роль в топбаре влияет на права —
+  председатель решает, член комиссии голосует, секретарь заводит/удаляет.
+  Реальный модуль берёт роль из auth; здесь — чтобы наглядно проверить gating.
+  Единый источник прав — `can(rec)`.
+
+  Демо-данные: 3 записи. 138 — 0 голосов из 2 (гейт: нет кворума);
+  139 — решена (Одобрено, протокол №1); 140 — 2 из 3, кворум набран, но
+  просрочен крайний срок и не заполнен протокол (гейт: цепочка причин).
+  «Сегодня» зафиксировано = 10.07.2026.
 -->
 <style>
 :root{
@@ -51,12 +91,12 @@
   --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
   --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
   --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
-  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE; --asubk-gray-300:#D0D5DD;
   --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
   --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
   --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
   --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
-  --asubk-warn:#F0B429; --asubk-warn-hover:#DE9B0C;
+  --asubk-purple:#7B3FBF; --asubk-purple-tint:rgba(123,63,191,0.10);
   --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
   --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
   --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
@@ -68,6 +108,10 @@
   --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
   --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
   --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --status-extra:var(--asubk-purple); --status-extra-bg:var(--asubk-purple-tint);
+  /* голосование — единая палитра, контраст ≥ 4.5:1 на белом (P3-32) */
+  --vote-approve:var(--asubk-green); --vote-reject:var(--asubk-red);
+  --vote-abstain:var(--asubk-amber); --vote-novote:rgba(24,39,57,0.28);
   --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
   --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
   --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
@@ -80,6 +124,8 @@
   --control-h:36px; --header-h:56px; --sidebar-w:320px;
 }
 *{ box-sizing:border-box; }
+/* .badge/.cnt держат display:inline-flex и перебивают браузерный [hidden]{display:none} */
+[hidden]{ display:none !important; }
 html,body{ margin:0; height:100%; }
 body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
 ::-webkit-scrollbar{ width:8px; height:8px; }
@@ -96,7 +142,6 @@ a{ color:inherit; }
 .nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
   border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
 .nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
-.nav-sub > .nav-toggle{ padding:8px 16px 8px 32px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font); }
 .nav-toggle:hover{ background:rgba(24,39,57,0.04); }
 .nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
   transition:transform 120ms ease; flex:none; }
@@ -114,63 +159,106 @@ a{ color:inherit; }
 .icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
   padding:7px; border-radius:4px; display:flex; }
 
-/* ---- main ---- */
+/* ---- main / topbar ---- */
 .main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
 .topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
-  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:12px; padding:0 20px; }
 .topbar .menu{ color:var(--text-muted); display:flex; }
+.crumb-back{ display:none; align-items:center; gap:6px; border:none; background:transparent; cursor:pointer;
+  color:var(--text-link); font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); padding:6px 8px; border-radius:var(--radius-md); }
+.crumb-back:hover{ background:var(--asubk-blue-tint); }
+.crumb-back.show{ display:inline-flex; }
+.crumb-sep{ color:var(--text-placeholder); }
 .crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.roleswitch{ margin-left:auto; display:flex; align-items:center; gap:8px; font:var(--weight-regular) var(--text-sm)/1 var(--asubk-font); color:var(--text-muted); }
+.roleswitch select{ font:inherit; padding:6px 8px; border:1px solid var(--asubk-gray-300); border-radius:6px;
+  background:var(--surface-page); color:var(--text-heading); cursor:pointer; }
 .content{ flex:1; overflow:auto; display:flex; flex-direction:column; min-width:0; }
 .view{ display:none; flex-direction:column; min-height:0; }
 .view.active{ display:flex; }
 
-/* ---- filter bar (as-is: grey filled Jmix look) ---- */
-.filterbar{ display:flex; gap:12px 20px; align-items:flex-end; padding:16px 20px; flex-wrap:wrap; }
+/* ---- buttons ---- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn svg{ flex:none; }
+.btn-sm{ height:30px; padding:0 10px; font-size:var(--text-xs); }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-tertiary{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none; }
+.btn-tertiary:hover:not(:disabled){ background:rgba(25,59,103,0.10); }
+.btn-approve{ background:var(--action-success); color:#fff; }
+.btn-approve:hover:not(:disabled){ background:var(--asubk-green-hover); }
+.btn-reject, .btn-danger{ background:var(--action-danger); color:#fff; }
+.btn-reject:hover:not(:disabled), .btn-danger:hover:not(:disabled){ background:var(--asubk-red-hover); }
+.btn-warn{ background:var(--surface-card); color:#7a5b00; border-color:var(--asubk-amber); }
+.btn-warn:hover:not(:disabled){ background:var(--status-warning-bg); }
+.link-btn{ display:inline-flex; align-items:center; gap:6px; border:none; background:transparent;
+  color:var(--text-link); cursor:pointer; font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); padding:4px 0; }
+.link-btn:hover{ text-decoration:underline; }
+.link-btn:disabled{ color:var(--text-disabled); cursor:not-allowed; text-decoration:none; }
+.btn-close{ background:transparent; border:none; color:var(--text-link); cursor:pointer;
+  font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); padding:0 8px; }
+.btn-close:hover{ text-decoration:underline; }
+
+/* ---- status badges (P3-31: токены --status-* наконец используются в гриде) ---- */
+.badge{ display:inline-flex; align-items:center; gap:var(--space-1); height:22px; padding:0 10px;
+  border-radius:var(--radius-pill); font:var(--weight-semibold) var(--text-xs)/1 var(--asubk-font); white-space:nowrap; }
+.badge.review{ color:#7a5b00; background:var(--status-warning-bg); }
+.badge.approved{ color:var(--status-success); background:var(--status-success-bg); }
+.badge.rejected{ color:var(--status-error); background:var(--status-error-bg); }
+.badge.moreinfo{ color:var(--status-extra); background:var(--status-extra-bg); }
+.badge.neutral{ color:var(--text-muted); background:var(--asubk-gray-150); }
+.badge.overdue{ color:var(--status-error); background:var(--status-error-bg); }
+
+/* ---- filter (свёрнут по умолчанию + чипы активных условий) ---- */
+.filterhead{ display:flex; align-items:center; gap:10px; padding:14px 20px 6px; flex-wrap:wrap; }
+.filter-toggle{ display:inline-flex; align-items:center; gap:8px; height:var(--control-h); padding:0 12px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-card);
+  color:var(--text-body); font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); cursor:pointer; }
+.filter-toggle:hover{ background:var(--surface-hover); }
+.filter-toggle .cnt{ display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px;
+  padding:0 5px; border-radius:9px; background:var(--action-primary); color:#fff; font:var(--weight-semibold) 11px/1 var(--asubk-font); }
+.chips{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.chip{ display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 6px 0 10px; border-radius:var(--radius-pill);
+  background:var(--asubk-blue-tint); color:#0a3d80; font:var(--weight-medium) var(--text-xs)/1 var(--asubk-font); }
+.chip button{ border:none; background:transparent; color:inherit; cursor:pointer; font-size:14px; line-height:1; padding:2px 4px; border-radius:50%; }
+.chip button:hover{ background:rgba(10,61,128,0.12); }
+.chip-clear{ border:none; background:transparent; color:var(--text-link); cursor:pointer;
+  font:var(--weight-semibold) var(--text-xs)/1 var(--asubk-font); }
+.chip-clear:hover{ text-decoration:underline; }
+.filterbar{ display:none; gap:12px 20px; align-items:flex-end; padding:8px 20px 12px; flex-wrap:wrap; }
+.filterbar.open{ display:flex; }
 .filterbar .field{ min-width:200px; flex:0 0 auto; }
 .field{ display:flex; flex-direction:column; gap:var(--space-1); }
 .field > .flabel{ font:var(--font-label); color:var(--text-muted); }
+.flabel .req{ color:var(--action-danger); margin-left:2px; }
 .control{ position:relative; display:flex; align-items:center; }
 .control input, .control select{ width:100%; height:var(--control-h); border-radius:var(--radius-md);
   background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
   border:1px solid var(--border-strong); outline:none; padding:0 var(--space-2); }
 .control select{ cursor:pointer; }
 .control input:focus, .control select:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
-.filterbar .control input, .filterbar .control select{ background:rgba(26,57,96,0.10); border-color:transparent; }
-.filterbar .control input:focus, .filterbar .control select:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
-.lookup{ display:flex; align-items:center; height:var(--control-h); background:rgba(26,57,96,0.10);
-  border-radius:var(--radius-md); border:1px solid transparent; padding-left:var(--space-2); min-width:200px; }
-.lookup .val{ flex:1; font:var(--font-body); font-weight:var(--weight-medium); color:var(--text-placeholder);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.lookup button{ display:inline-flex; align-items:center; justify-content:center; width:34px; height:var(--control-h);
-  border:none; background:transparent; color:var(--text-link); cursor:pointer; }
-.lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
-.lookup .clr{ color:var(--action-primary); font-weight:var(--weight-bold); font-size:18px; }
-.fdate{ display:flex; }
-.fdate .control:first-child input{ border-top-right-radius:0; border-bottom-right-radius:0; }
-.fdate .control:last-child input{ border-top-left-radius:0; border-bottom-left-radius:0; }
-.control.icn input{ padding-right:30px; }
-.control .ctl-icon{ position:absolute; right:8px; top:50%; transform:translateY(-50%);
-  display:flex; color:var(--text-muted); pointer-events:none; }
+.filter-actions{ display:flex; gap:8px; align-items:flex-end; }
 
-/* ---- stat cards ---- */
+/* ---- stat cards (кликабельные фильтры; рамка серая при 0 — P3-19) ---- */
 .statcards-row{ display:flex; gap:12px; padding:6px 20px 12px; flex-wrap:wrap; }
-.statcard{ flex:1; min-width:150px; border-radius:var(--radius-md); text-align:center;
-  border:3px solid var(--sc-border-color,var(--border-default));
-  background:var(--sc-bg,var(--surface-card)); padding:10px 14px; }
+.statcard{ flex:1; min-width:150px; border-radius:var(--radius-md); text-align:center; cursor:pointer;
+  border:2px solid var(--sc-border,var(--border-default)); background:var(--sc-bg,var(--surface-card));
+  padding:10px 14px; transition:box-shadow 120ms ease, transform 80ms ease; appearance:none; }
+.statcard:hover{ box-shadow:0 3px 10px rgba(16,32,58,0.12); }
+.statcard:active{ transform:translateY(1px); }
+.statcard.zero{ --sc-bg:var(--surface-card); --sc-border:var(--border-default); --sc-color:var(--text-muted); }
+.statcard.on{ box-shadow:0 0 0 3px var(--asubk-blue-tint); border-color:var(--action-primary); }
+.statcard.mine{ --sc-bg:var(--asubk-blue-tint); --sc-border:var(--action-primary); --sc-color:#0a3d80; }
 .sc-lbl{ font:var(--weight-medium) var(--text-sm)/1.35 var(--asubk-font); color:var(--sc-color,var(--text-body)); }
 .sc-num{ font:var(--weight-bold) 18px/1.4 var(--asubk-font); color:var(--sc-color,var(--text-heading)); }
 
 /* ---- list toolbar ---- */
 .toolbar{ display:flex; align-items:center; gap:8px; padding:4px 20px 12px; flex-wrap:wrap; }
-.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
-  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
-  font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
-.btn:disabled{ opacity:.45; cursor:not-allowed; }
-.btn svg{ flex:none; }
-.btn-primary{ background:var(--action-primary); color:#fff; }
-.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
-.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
-.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
 .tb-spacer{ flex:1; }
 .pager{ display:flex; align-items:center; gap:6px; color:var(--text-muted); font:var(--font-label); }
 .pager button{ min-width:30px; height:30px; border:1px solid var(--border-default); background:var(--surface-card);
@@ -186,59 +274,63 @@ table.grid thead th{ position:sticky; top:0; background:var(--surface-panel); z-
   font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; user-select:none; }
 table.grid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; font-weight:var(--weight-regular); }
-table.grid tbody td{ padding:11px 12px; border-bottom:1px solid var(--border-default);
+table.grid tbody td{ padding:10px 12px; border-bottom:1px solid var(--border-default);
   color:var(--text-body); vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 table.grid tbody tr{ cursor:pointer; }
 table.grid tbody tr:hover{ background:var(--surface-hover); }
 table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+td.mono{ font-variant-numeric:tabular-nums; }
 
-/* ---- detail / editor common ---- */
+/* ---- мини-полоса голосов в гриде (P3-31) ---- */
+.minivote{ display:flex; align-items:center; gap:8px; }
+.minivote .mbar{ display:flex; width:56px; height:6px; border-radius:var(--radius-pill); overflow:hidden; flex:none; }
+.minivote .mbar i{ display:block; height:100%; }
+.minivote .mtxt{ color:var(--text-muted); font:var(--weight-medium) var(--text-xs)/1 var(--asubk-font); }
+
+/* ---- cards ---- */
 .detail-scroll{ flex:1; overflow:auto; }
 .card{ margin:16px 20px; border:1px solid var(--border-default); border-radius:var(--radius-md);
   background:var(--surface-card); padding:20px 24px; }
-.d-head-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px 32px; }
-/* readonly (Просмотр): white bordered Vaadin text-field look — сверено с live 2026-07-07
-   (все поля белые с рамкой, как в редакторе; НЕ серые) */
-.ro-field .flabel{ font:var(--font-label); color:var(--text-muted); }
-.ro-field .roval{ height:var(--control-h); display:flex; align-items:center; padding:0 var(--space-2);
-  background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
-  border:1px solid var(--border-strong); border-radius:var(--radius-md); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.ro-field.sel .roval{ position:relative; padding-right:30px; }
-.ro-field.sel .roval::after{ content:""; position:absolute; right:12px; top:50%; width:8px; height:8px;
-  border-right:2px solid var(--text-muted); border-bottom:2px solid var(--text-muted);
-  transform:translateY(-70%) rotate(45deg); }
-.ro-field.date .roval{ position:relative; padding-right:30px; }
-.ro-field.date .roval::after{ content:""; position:absolute; right:10px; top:50%;
-  transform:translateY(-50%); width:16px; height:16px; opacity:.7;
-  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2394a0ae' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'><rect x='3' y='4' width='18' height='18' rx='2'/><line x1='16' y1='2' x2='16' y2='6'/><line x1='8' y1='2' x2='8' y2='6'/><line x1='3' y1='10' x2='21' y2='10'/></svg>") no-repeat center/16px; }
-.btn-view-app{ height:var(--control-h); align-self:flex-end; background:var(--asubk-disabled-fill);
-  border:none; border-radius:var(--radius-md); color:var(--text-link); cursor:pointer;
-  font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); }
-.btn-view-app:hover{ background:rgba(25,59,103,0.10); }
+.section-h{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:0 0 14px; }
+.sec-head{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0 0 14px; }
+.sec-head .section-h{ margin:0; }
 
-/* editor header fields (bordered white inputs — Vaadin readonly text-field look) */
-.ed-field .flabel{ font:var(--font-label); color:var(--text-muted); }
-.ed-field .edval{ height:var(--control-h); display:flex; align-items:center; padding:0 var(--space-2);
-  background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
-  border:1px solid var(--border-strong); border-radius:var(--radius-md);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.ed-field.sel .edval{ position:relative; padding-right:30px; }
-.ed-field.sel .edval::after{ content:""; position:absolute; right:12px; top:50%; width:8px; height:8px;
-  border-right:2px solid var(--text-muted); border-bottom:2px solid var(--text-muted);
-  transform:translateY(-70%) rotate(45deg); }
+/* карточка-шапка: read-only ЗНАЧЕНИЯ, не фейковые инпуты (P3-33: шеврон на readonly вводил в заблуждение) */
+.d-head-grid{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px 32px; }
+.ro-field .flabel{ font:var(--font-label); color:var(--text-muted); display:block; margin-bottom:2px; }
+.ro-field .roval{ font:var(--font-body); font-weight:var(--weight-medium); color:var(--text-heading);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-height:24px; }
+.ro-field .roval.wrap{ white-space:normal; }
 
-/* ---- voting progress ---- */
-.vote-title{ font:var(--weight-semibold) 22px/1.2 var(--asubk-font); color:var(--text-heading); margin:0 0 16px; }
-.vote-bar{ height:12px; border-radius:var(--radius-pill); background:var(--asubk-gray-200); overflow:hidden; margin-bottom:18px; }
-.vote-bar > i{ display:block; height:100%; background:var(--action-success); }
-.vote-legend{ display:flex; flex-wrap:wrap; gap:26px; }
-.vl{ display:inline-flex; align-items:center; gap:10px; font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); }
-.vl .sw{ width:34px; height:20px; border-radius:3px; }
-.vl.approve{ color:rgb(54,144,96); } .vl.approve .sw{ background:rgb(54,144,96); }
-.vl.reject{ color:rgb(255,123,123); } .vl.reject .sw{ background:rgb(255,123,123); }
-.vl.abstain{ color:rgb(179,93,21); } .vl.abstain .sw{ background:rgb(179,93,21); }
-.vl.novote{ color:rgb(34,39,46); } .vl.novote .sw{ background:rgb(34,39,46); }
+/* ---- voting progress: стек-сегменты (P3-32) ---- */
+.vote-head{ display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin:0 0 12px; }
+.vote-title{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:0; }
+.vote-quorum{ font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); }
+.vote-quorum.ok{ color:var(--status-success); }
+.vote-quorum.no{ color:#7a5b00; }
+.vote-bar{ display:flex; height:12px; border-radius:var(--radius-pill); overflow:hidden;
+  background:var(--asubk-gray-200); margin-bottom:16px; }
+.vote-bar i{ display:block; height:100%; }
+.vote-bar i.approve{ background:var(--vote-approve); }
+.vote-bar i.reject{ background:var(--vote-reject); }
+.vote-bar i.abstain{ background:var(--vote-abstain); }
+.vote-bar i.novote{ background:var(--vote-novote); }
+.vote-legend{ display:flex; flex-wrap:wrap; gap:22px; }
+.vl{ display:inline-flex; align-items:center; gap:8px; font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); color:var(--text-body); }
+.vl .sw{ width:14px; height:14px; border-radius:3px; flex:none; }
+.vl.approve .sw{ background:var(--vote-approve); } .vl.approve b{ color:var(--vote-approve); }
+.vl.reject  .sw{ background:var(--vote-reject);  } .vl.reject  b{ color:var(--vote-reject); }
+.vl.abstain .sw{ background:var(--vote-abstain); } .vl.abstain b{ color:#7a5b00; }
+.vl.novote  .sw{ background:var(--vote-novote);  } .vl.novote  b{ color:var(--text-muted); }
 .vl b{ font-weight:var(--weight-bold); }
+
+/* ---- gate banner ---- */
+.note-banner{ display:flex; align-items:flex-start; gap:10px; padding:11px 14px; border-radius:var(--radius-md);
+  background:var(--status-info-bg); color:#0a3d80; font:var(--font-label); margin:0 0 14px; }
+.note-banner.warn{ background:var(--status-warning-bg); color:#7a5b00; }
+.note-banner.ok{ background:var(--status-success-bg); color:#0c5a2f; }
+.note-banner svg{ flex:none; margin-top:1px; }
+.note-banner b{ font-weight:var(--weight-semibold); }
 
 /* ---- tabs ---- */
 .tabbar{ display:flex; gap:2px; border-bottom:1px solid var(--border-default); padding:0 24px; }
@@ -249,106 +341,101 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .tab:hover{ color:var(--text-body); }
 .tab.active{ font-weight:var(--weight-semibold); color:var(--text-link); border-bottom-color:var(--action-primary); }
 .tab .cnt{ display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px;
-  border-radius:9px; background:var(--asubk-green-tint); color:var(--status-success);
+  border-radius:9px; background:var(--asubk-gray-150); color:var(--text-muted);
   font:var(--weight-semibold) 11px/1 var(--asubk-font); }
 .tabpanel{ display:none; padding:6px 0 0; }
 .tabpanel.active{ display:block; }
 
 /* ---- members / docs tables ---- */
-.section-h{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:4px 0 14px; }
-.section-h.big{ font-size:22px; }
 .mtable{ width:100%; border-collapse:collapse; font:var(--font-label); table-layout:fixed;
   border:1px solid var(--border-default); border-radius:var(--radius-md); }
-.mtable thead th{ text-align:left; padding:11px 12px; background:var(--surface-card);
+.mtable thead th{ text-align:left; padding:11px 12px; background:var(--surface-panel);
   border-bottom:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
-  color:var(--text-heading); white-space:nowrap; }
-.mtable thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; font-weight:var(--weight-regular); }
-.mtable tbody td{ padding:12px; border-bottom:1px solid var(--border-default); color:var(--text-body); vertical-align:middle;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.mtable thead th{ overflow:hidden; text-overflow:ellipsis; }
+  color:var(--text-heading); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mtable tbody td{ padding:11px 12px; border-bottom:1px solid var(--border-default); color:var(--text-body);
+  vertical-align:middle; overflow:hidden; text-overflow:ellipsis; }
 .mtable tbody tr:last-child td{ border-bottom:none; }
-.mtable.tall tbody{ }
-.eye-btn{ float:right; width:64px; height:30px; border:none; border-radius:var(--radius-md);
-  background:var(--surface-input); color:var(--text-disabled); cursor:default; display:inline-flex;
-  align-items:center; justify-content:center; opacity:.7; }
+.mtable tbody tr.me{ background:var(--asubk-blue-tint); }
+.mtable td.nowrap{ white-space:nowrap; }
+.cmt{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-body); }
+.cmt.none{ color:var(--text-placeholder); }
+.cmt-more{ border:none; background:transparent; color:var(--text-link); cursor:pointer;
+  font:var(--weight-semibold) var(--text-xs)/1 var(--asubk-font); padding:2px 0; }
+.cmt-more:hover{ text-decoration:underline; }
+.me-tag{ display:inline-block; margin-left:6px; padding:0 6px; height:18px; line-height:18px; border-radius:var(--radius-pill);
+  background:var(--action-primary); color:#fff; font:var(--weight-semibold) 10px/18px var(--asubk-font); vertical-align:middle; }
 
-/* ---- editor 2-col + sections ---- */
-.ed-two{ display:grid; grid-template-columns:1fr 1fr; gap:0 20px; }
-.ed-two .card{ margin:16px 0; }
-.ed-two .card:first-child{ margin-left:20px; }
-.ed-two .card:last-child{ margin-right:20px; }
-.sec-head{ display:flex; align-items:center; gap:16px; margin:4px 0 14px; }
-.sec-head .section-h{ margin:0; }
-.link-btn{ display:inline-flex; align-items:center; gap:6px; border:none; background:transparent;
-  color:var(--text-link); cursor:pointer; font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); }
-.link-btn:hover{ text-decoration:underline; }
-.grid-scroll{ min-height:220px; }
-.mtable.filled tbody td{ height:auto; }
-.empty-rows td{ height:150px; border-bottom:none; }
+/* ---- empty state (вместо .empty-rows 150px пустоты) ---- */
+.empty{ border:1px dashed var(--border-strong); border-radius:var(--radius-md); padding:26px 20px;
+  text-align:center; color:var(--text-muted); font:var(--font-label); background:var(--asubk-gray-50); }
+.empty .et{ font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-body); margin-bottom:4px; }
+.empty .ea{ margin-top:12px; }
 
-/* ---- final decision editor ---- */
-.d-final-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px 32px; }
-.d-final-grid .col-span3{ grid-column:1 / -1; }
-.d-final-ed{ display:grid; grid-template-columns:1fr 1fr; gap:6px 32px; align-items:start; }
-.ed-input .flabel{ font:var(--font-label); color:var(--text-muted); }
-.ed-input input, .ed-input textarea{ width:100%; background:var(--surface-input); color:var(--text-body);
-  border:1px solid transparent; border-radius:var(--radius-md); font:var(--font-body); font-weight:var(--weight-medium);
-  outline:none; }
+/* ---- timeline (История) ---- */
+.tl{ list-style:none; margin:0; padding:0 0 0 6px; }
+.tl li{ position:relative; padding:0 0 18px 24px; border-left:2px solid var(--border-default); }
+.tl li:last-child{ border-left-color:transparent; padding-bottom:0; }
+.tl li::before{ content:""; position:absolute; left:-7px; top:3px; width:12px; height:12px; border-radius:50%;
+  background:var(--surface-card); border:2px solid var(--action-primary); }
+.tl li.done::before{ background:var(--action-primary); }
+.tl .tl-w{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
+.tl .tl-m{ color:var(--text-muted); font:var(--font-label); }
+
+/* ---- final decision ---- */
+.d-final-ed{ display:grid; grid-template-columns:1fr 1fr; gap:14px 32px; align-items:start; }
+.ed-input .flabel{ font:var(--font-label); color:var(--text-muted); display:block; margin-bottom:4px; }
+.ed-input input, .ed-input textarea{ width:100%; background:var(--surface-card); color:var(--text-body);
+  border:1px solid var(--border-strong); border-radius:var(--radius-md); font:var(--font-body);
+  font-weight:var(--weight-medium); outline:none; }
 .ed-input input{ height:var(--control-h); padding:0 var(--space-2); }
-.ed-input input:focus, .ed-input textarea:focus{ border-color:var(--border-focus); background:var(--surface-card);
-  box-shadow:0 0 0 3px var(--asubk-blue-tint); }
-.ed-input.date input{ background-image:linear-gradient(transparent,transparent); }
-.ed-input.date{ position:relative; }
-.ed-input.date::after{ content:""; position:absolute; right:10px; bottom:10px; width:16px; height:16px; opacity:.7; pointer-events:none;
-  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2394a0ae' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'><rect x='3' y='4' width='18' height='18' rx='2'/><line x1='16' y1='2' x2='16' y2='6'/><line x1='8' y1='2' x2='8' y2='6'/><line x1='3' y1='10' x2='21' y2='10'/></svg>") no-repeat center/16px; }
-.ed-input textarea{ min-height:150px; padding:10px 12px; resize:vertical; }
-.note-ro{ min-height:90px; padding:10px 12px; background:var(--surface-card); border:1px solid var(--border-strong);
-  border-radius:var(--radius-md); color:var(--text-body); font:var(--font-body); }
+.ed-input textarea{ min-height:120px; padding:10px 12px; resize:vertical; }
+.ed-input input:focus, .ed-input textarea:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.ed-input input:disabled, .ed-input textarea:disabled{ background:var(--asubk-disabled-fill); color:var(--text-muted); }
 .decision-btns{ display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; }
-.btn-approve{ background:var(--action-success); color:#fff; }
-.btn-approve:hover:not(:disabled){ background:var(--asubk-green-hover); }
-.btn-reject{ background:var(--action-danger); color:#fff; }
-.btn-reject:hover:not(:disabled){ background:var(--asubk-red-hover); }
-.btn-warn{ background:var(--asubk-warn); color:#3a2f00; }
-.btn-warn:hover:not(:disabled){ background:var(--asubk-warn-hover); }
+.note-ro{ min-height:60px; padding:10px 12px; background:var(--asubk-gray-50); border:1px solid var(--border-default);
+  border-radius:var(--radius-md); color:var(--text-body); font:var(--font-body); }
+.note-ro.none{ color:var(--text-placeholder); }
 
 /* ---- footer ---- */
 .footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
   padding:14px 24px; display:flex; align-items:center; gap:12px; }
-.btn-close{ background:transparent; border:none; color:var(--text-link); cursor:pointer;
-  font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); padding:0 8px; }
-.btn-close:hover{ text-decoration:underline; }
 
 /* ---- dialogs ---- */
 .overlay{ position:fixed; inset:0; background:rgba(24,39,57,0.32); display:none;
   align-items:center; justify-content:center; z-index:50; }
 .overlay.open{ display:flex; }
+#ovConfirm{ z-index:60; }
 .dialog{ background:var(--surface-card); border-radius:var(--radius-lg); box-shadow:0 12px 40px rgba(16,32,58,0.28);
-  width:min(520px,92vw); max-height:88vh; overflow:auto; }
-.dialog.narrow{ width:min(400px,92vw); }
-.dialog.wide{ width:min(1280px,90vw); }
-.dlg-head{ position:relative; padding:18px 22px 6px; font:var(--weight-semibold) var(--text-lg)/1.2 var(--asubk-font); color:var(--text-heading); }
+  width:min(560px,92vw); max-height:88vh; overflow:auto; }
+.dialog.narrow{ width:min(440px,92vw); }
+.dlg-head{ position:relative; padding:18px 22px 6px; font:var(--weight-semibold) var(--text-lg)/1.2 var(--asubk-font); color:var(--text-heading); padding-right:52px; }
 .dlg-close{ position:absolute; top:16px; right:16px; width:28px; height:28px; border:none; background:transparent;
-  color:var(--asubk-ink); cursor:pointer; display:flex; align-items:center; justify-content:center; border-radius:var(--radius-md); font-size:18px; }
+  color:var(--asubk-ink); cursor:pointer; display:flex; align-items:center; justify-content:center; border-radius:var(--radius-md); }
 .dlg-close:hover{ background:rgba(24,39,57,0.06); }
 .dlg-body{ padding:10px 22px 6px; display:flex; flex-direction:column; gap:14px; }
-.dlg-body.two{ display:grid; grid-template-columns:1fr 1fr; gap:14px 24px; padding:12px 16px 6px; }
-.dlg-body.two .field.col-comment{ grid-row:2; grid-column:1; }
-.dlg-body.two .field.col-file{ grid-row:2; grid-column:2; align-self:start; }
-.dlg-body.two textarea{ min-height:150px; }
-.btn-tertiary{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none; }
-.btn-tertiary:hover:not(:disabled){ background:rgba(25,59,103,0.10); }
 .dlg-body .field .flabel{ font:var(--font-label); color:var(--text-muted); margin-bottom:4px; display:block; }
 .dlg-body input, .dlg-body select, .dlg-body textarea{ width:100%; border:1px solid var(--border-strong);
   border-radius:var(--radius-md); font:var(--font-body); color:var(--text-body); outline:none; background:var(--surface-card); }
 .dlg-body input, .dlg-body select{ height:var(--control-h); padding:0 var(--space-2); }
-.dlg-body textarea{ min-height:80px; padding:8px 10px; resize:vertical; }
+.dlg-body textarea{ min-height:96px; padding:8px 10px; resize:vertical; }
 .dlg-body input:focus, .dlg-body select:focus, .dlg-body textarea:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.dlg-body select.err{ border-color:var(--action-danger); }
+.err-txt{ display:none; color:var(--action-danger); font:var(--font-label); margin-top:4px; }
+.err-txt.show{ display:block; }
+.two{ display:grid; grid-template-columns:1fr 1fr; gap:14px 20px; }
 .file-row{ display:flex; align-items:center; gap:12px; }
 .file-row .fake-file{ color:var(--text-muted); font:var(--font-label); }
 .dlg-msg{ padding:14px 22px 2px; font:var(--font-body); color:var(--text-body); }
-.dlg-foot{ padding:14px 22px 18px; display:flex; justify-content:flex-start; gap:10px; }
-.dlg-foot.right{ justify-content:flex-end; }
+.dlg-msg b{ font-weight:var(--weight-semibold); }
+.dlg-foot{ padding:16px 22px 18px; display:flex; justify-content:flex-end; gap:10px; }
+
+/* ---- toast ---- */
+.toast-wrap{ position:fixed; right:20px; bottom:20px; display:flex; flex-direction:column; gap:10px; z-index:80; }
+.toast{ min-width:280px; max-width:460px; padding:12px 14px; border-radius:var(--radius-md);
+  background:var(--asubk-ink); color:#fff; font:var(--font-label); box-shadow:0 10px 30px rgba(16,28,46,0.3); }
+.toast.ok{ background:var(--asubk-green); }
+.toast.err{ background:var(--asubk-red); }
+.toast.warn{ background:#8a6300; }
 </style>
 </head>
 <body>
@@ -358,7 +445,7 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
     <div class="brand">АСУБК</div>
     <div class="nav" id="nav"></div>
     <div class="sidebar-foot">
-      <span>[admin]</span>
+      <span id="whoami">[admin]</span>
       <button class="icon-btn" title="Выход">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </button>
@@ -369,176 +456,172 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
   <div class="main">
     <div class="topbar">
       <span class="menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span>
+      <button class="crumb-back" id="crumbBack" onclick="closeToList()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+        Комиссии по заявкам
+      </button>
+      <span class="crumb-sep" id="crumbSep" style="display:none">/</span>
       <span class="crumb-title" id="crumbTitle">Комиссии по заявкам</span>
+      <span id="crumbBadge"></span>
+      <!-- демо-переключатель роли: единый источник прав — can(rec) -->
+      <span class="roleswitch" title="Демо: роль влияет на права (голос · решение · создание/удаление). В проде роль берётся из auth.">
+        <label for="roleSel">Роль:</label>
+        <select id="roleSel" onchange="setRole(this.value)">
+          <option value="chair">🏛 Председатель комиссии</option>
+          <option value="member">👤 Член комиссии</option>
+          <option value="sec">🗒 Секретарь</option>
+          <option value="ro">👁 Просмотр</option>
+        </select>
+      </span>
     </div>
+
     <main class="content">
 
-      <!-- ============ LIST VIEW ============ -->
+      <!-- ============ LIST ============ -->
       <section class="view active" id="view-list">
-        <!-- filter row (as-is: подписи «Поручительство/Поручительств» — живой quirk) -->
-        <div class="filterbar">
-          <div class="field"><span class="flabel">№ содержит</span><div class="control"><input type="text"></div></div>
-          <div class="field"><span class="flabel">Поручительство =</span>
-            <div class="lookup"><span class="val"></span><button class="pick">•••</button><button class="clr">✕</button></div></div>
+        <div class="filterhead">
+          <button class="filter-toggle" onclick="toggleFilter()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Фильтры <span class="cnt" id="fCount" hidden>0</span>
+          </button>
+          <div class="chips" id="fChips"></div>
+        </div>
+
+        <!-- P3-20: подписи приведены к домену заявок (было «Поручительство =») -->
+        <div class="filterbar" id="filterbar">
+          <div class="field"><span class="flabel">№ содержит</span><div class="control"><input type="text" id="f-num" placeholder="К-2026-…"></div></div>
+          <div class="field"><span class="flabel">Заявка содержит</span><div class="control"><input type="text" id="f-app" placeholder="Заявка - 97"></div></div>
+          <div class="field"><span class="flabel">Заявитель (ФИО / ИНН) содержит</span><div class="control"><input type="text" id="f-who"></div></div>
+          <div class="field"><span class="flabel">Кредитная программа =</span>
+            <div class="control"><select id="f-prog"><option value="">— любая —</option></select></div></div>
           <div class="field"><span class="flabel">Тип решения =</span>
-            <div class="control"><select><option value=""></option><option>На рассмотрении</option><option>Одобрено</option><option>Отклонено</option><option>Требуется доп. информация</option></select></div></div>
-          <div class="field"><span class="flabel">Дата создания &lt;=</span>
-            <div class="fdate">
-              <div class="control icn"><input type="text" placeholder="" style="width:150px"><span class="ctl-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span></div>
-              <div class="control icn"><input type="text" placeholder="" style="width:150px"><span class="ctl-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span></div>
-            </div></div>
-          <div class="field"><span class="flabel">ИНН содержит</span><div class="control"><input type="text"></div></div>
-          <div class="field"><span class="flabel">ФИО содержит</span><div class="control"><input type="text"></div></div>
-          <div class="field"><span class="flabel">Заявка.Кредитная программа =</span>
-            <div class="lookup"><span class="val"></span><button class="pick">•••</button><button class="clr">✕</button></div></div>
+            <div class="control"><select id="f-status">
+              <option value="">— любой —</option>
+              <option>На рассмотрении</option><option>Одобрено</option>
+              <option>Отклонено</option><option>Требуется доп. информация</option>
+            </select></div></div>
+          <div class="filter-actions">
+            <button class="btn btn-primary" onclick="applyFilter()">Применить</button>
+            <button class="btn btn-secondary" onclick="resetFilter()">Сбросить</button>
+          </div>
         </div>
 
-        <!-- 5 stat cards (цвета из STATCARDS dump, 2026-07-07 — Одобрено=1 но рамка серая, live) -->
-        <div class="statcards-row">
-          <div class="statcard" style="--sc-bg:rgb(235,248,255);--sc-border-color:rgb(144,205,244);--sc-color:rgb(44,82,130)">
-            <div class="sc-lbl">Всего поручительств</div><div class="sc-num">0</div></div>
-          <div class="statcard" style="--sc-bg:rgb(255,232,189);--sc-border-color:rgb(253,188,67);--sc-color:rgb(193,138,33)">
-            <div class="sc-lbl">На рассмотрении</div><div class="sc-num">1</div></div>
-          <div class="statcard" style="--sc-bg:rgb(198,246,213);--sc-border-color:rgb(121,125,123);--sc-color:rgb(121,125,123)">
-            <div class="sc-lbl">Одобрено</div><div class="sc-num">1</div></div>
-          <div class="statcard" style="--sc-bg:rgb(254,215,215);--sc-border-color:rgb(252,129,129);--sc-color:rgb(197,48,48)">
-            <div class="sc-lbl">Отклонено</div><div class="sc-num">0</div></div>
-          <div class="statcard" style="--sc-bg:rgb(245,252,162);--sc-border-color:rgb(214,115,250);--sc-color:rgb(214,115,250)">
-            <div class="sc-lbl">Требуется доп. информация</div><div class="sc-num">0</div></div>
-        </div>
+        <!-- P3-19 + P3-30: «Всего» = сумма; плитки кликабельны; «Ждут моего голоса» -->
+        <div class="statcards-row" id="tiles"></div>
 
-        <!-- toolbar -->
         <div class="toolbar">
-          <button class="btn btn-primary" onclick="openCreate()">+ Создать</button>
-          <button class="btn btn-secondary" id="btnEdit" disabled onclick="openEdit()">✎ Изменить</button>
-          <button class="btn btn-secondary" id="btnView" disabled onclick="openDetail()">👁 Просмотр</button>
-          <button class="btn btn-secondary" id="btnDel" disabled onclick="confirmDelete()">🗑 Удалить</button>
+          <button class="btn btn-primary" id="btnCreate" onclick="onCreate()">+ Создать</button>
+          <button class="btn btn-secondary" id="btnOpen" disabled onclick="openCard()">Открыть</button>
+          <button class="btn btn-secondary" id="btnDel" disabled onclick="onDelete()">🗑 Удалить</button>
           <div class="tb-spacer"></div>
           <div class="pager">
             <button disabled>«</button><button disabled>‹</button>
-            <span>2 строки</span>
+            <span id="rowCount">3 строки</span>
             <button disabled>›</button><button disabled>»</button>
           </div>
         </div>
 
-        <!-- grid -->
         <div class="grid-wrap">
           <table class="grid">
             <colgroup>
-              <col style="width:13%"><col style="width:10%"><col style="width:15%"><col style="width:9%">
-              <col style="width:12%"><col style="width:10%"><col style="width:12%"><col style="width:11%"><col style="width:8%">
+              <col style="width:17%"><col style="width:9%"><col style="width:21%"><col style="width:15%">
+              <col style="width:12%"><col style="width:14%"><col style="width:12%">
             </colgroup>
             <thead><tr>
               <th>№ <span class="sort">⇅</span></th>
-              <th>Дата <span class="sort">⇅</span></th>
+              <th>Заявка <span class="sort">⇅</span></th>
               <th>Заявитель <span class="sort">⇅</span></th>
-              <th>Комиссия <span class="sort">⇅</span></th>
-              <th>Кредитная пр… <span class="sort">⇅</span></th>
-              <th>Номер докум… <span class="sort">⇅</span></th>
-              <th>Тип документа <span class="sort">⇅</span></th>
+              <th>Кредитная программа <span class="sort">⇅</span></th>
+              <th>Голоса <span class="sort">⇅</span></th>
+              <th>Крайний срок <span class="sort">⇅</span></th>
               <th>Тип решения <span class="sort">⇅</span></th>
-              <th>Комментарий… <span class="sort">⇅</span></th>
             </tr></thead>
-            <tbody>
-              <tr id="row139" onclick="selectRow('139')" ondblclick="openDetail()">
-                <td>Проверка комиссии - 139</td>
-                <td>06.07.2026 09:27</td>
-                <td>01211202110139 - ГП "Инфосистемс" при МФКР</td>
-                <td>0/2</td>
-                <td>для расчета</td>
-                <td>Заявка - 105</td>
-                <td>Заявки</td>
-                <td>Одобрено</td>
-                <td></td>
-              </tr>
-              <tr id="row138" onclick="selectRow('138')" ondblclick="openDetail()">
-                <td>Проверка комиссии - 138</td>
-                <td>05.07.2026 12:28</td>
-                <td>20907199400957 - МАТРАИМОВ МАКСАТ КУБАНОВИЧ</td>
-                <td>0/2</td>
-                <td>Поддержка сельхозпроизводителей</td>
-                <td>Заявка - 97</td>
-                <td>Заявки</td>
-                <td>На рассмотрении</td>
-                <td></td>
-              </tr>
-            </tbody>
+            <tbody id="rows"></tbody>
           </table>
+          <div id="gridEmpty" hidden>
+            <div class="empty" style="margin-top:16px">
+              <div class="et">Ничего не найдено</div>
+              <div>Под текущий фильтр не подходит ни одна комиссия.</div>
+              <div class="ea"><button class="btn btn-secondary" onclick="resetFilter()">Сбросить фильтр</button></div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <!-- ============ DETAIL VIEW (Просмотр, ?mode=readonly) ============ -->
-      <section class="view" id="view-detail">
+      <!-- ============ CARD (единая ИА: read-only данные + зоны действий) ============ -->
+      <section class="view" id="view-card">
         <div class="detail-scroll">
-          <!-- header band -->
           <div class="card">
             <div class="d-head-grid">
-              <div class="ro-field field"><span class="flabel">№</span><div class="roval" id="d-num"></div></div>
-              <div class="ro-field field"><span class="flabel">Номер документа</span><div class="roval" id="d-doc"></div></div>
-              <div class="ro-field field sel"><span class="flabel">Тип решения</span><div class="roval" id="d-tipresh"></div></div>
-              <div class="ro-field field sel"><span class="flabel">Тип документа</span><div class="roval" id="d-tipdoc"></div></div>
-              <div class="ro-field field"><span class="flabel">Заявка</span><div class="roval" id="d-zayavka"></div></div>
-              <button class="btn-view-app">Просмотр заявки</button>
-              <div class="ro-field field"><span class="flabel">Комиссия</span><div class="roval" id="d-kom"></div></div>
+              <div class="ro-field"><span class="flabel">№</span><div class="roval mono" id="c-num"></div></div>
+              <div class="ro-field"><span class="flabel">Заявка</span>
+                <div class="roval" id="c-app"></div>
+                <button class="link-btn" onclick="demo('Просмотр заявки')">Открыть заявку →</button></div>
+              <div class="ro-field"><span class="flabel">Заявитель</span><div class="roval" id="c-who"></div></div>
+              <div class="ro-field"><span class="flabel">Кредитная программа</span><div class="roval" id="c-prog"></div></div>
+              <div class="ro-field"><span class="flabel">Комиссия</span><div class="roval" id="c-kom"></div></div>
+              <div class="ro-field"><span class="flabel">Создана</span><div class="roval mono" id="c-created"></div></div>
+              <div class="ro-field"><span class="flabel">Крайний срок голосования</span><div class="roval" id="c-deadline"></div></div>
+              <div class="ro-field"><span class="flabel">Тип решения</span><div class="roval" id="c-status"></div></div>
             </div>
           </div>
 
-          <!-- voting progress -->
+          <!-- Прогресс — НАД решением (as-is: был под кнопками) -->
           <div class="card">
-            <h2 class="vote-title" id="d-votetitle">Прогресс голосования - 0.0%</h2>
-            <div class="vote-bar"><i id="d-votebar" style="width:0%"></i></div>
-            <div class="vote-legend">
-              <span class="vl approve"><span class="sw"></span>Одобрили: <b id="d-appr">0</b></span>
-              <span class="vl reject"><span class="sw"></span>Отклонили: <b id="d-rej">0</b></span>
-              <span class="vl abstain"><span class="sw"></span>Воздержалось: <b id="d-abs">0</b></span>
-              <span class="vl novote"><span class="sw"></span>Не проголосовали: <b id="d-nov">2</b></span>
+            <div class="vote-head">
+              <h2 class="vote-title" id="c-votetitle"></h2>
+              <span class="vote-quorum" id="c-quorum"></span>
             </div>
+            <div class="vote-bar" id="c-votebar"></div>
+            <div class="vote-legend" id="c-votelegend"></div>
           </div>
 
-          <!-- tabs -->
           <div class="tabbar">
-            <button class="tab active" onclick="showTab(event,'t-obzor')">Обзор</button>
-            <button class="tab" onclick="showTab(event,'t-otzyv')">Отзывы <span class="cnt" id="cnt-otzyv">0</span></button>
-            <button class="tab" onclick="showTab(event,'t-doc')">Документы <span class="cnt" id="cnt-doc">0</span></button>
-            <button class="tab" onclick="showTab(event,'t-hist')">История <span class="cnt" id="cnt-hist">1</span></button>
-            <button class="tab" onclick="showTab(event,'t-prot')">Протокол</button>
+            <button class="tab active" data-tab="t-obzor" onclick="showTab('t-obzor')">Обзор</button>
+            <button class="tab" data-tab="t-doc" onclick="showTab('t-doc')">Документы <span class="cnt" id="cnt-doc">0</span></button>
+            <button class="tab" data-tab="t-hist" onclick="showTab('t-hist')">История <span class="cnt" id="cnt-hist">0</span></button>
+            <button class="tab" data-tab="t-prot" onclick="showTab('t-prot')">Протокол</button>
           </div>
 
-          <!-- Обзор -->
           <div class="tabpanel active" id="t-obzor">
             <div class="card">
-              <h3 class="section-h">Члены комиссии</h3>
+              <div class="sec-head">
+                <h3 class="section-h">Состав комиссии</h3>
+                <span id="c-mine-hint" class="badge neutral" hidden></span>
+              </div>
+              <div id="c-gate-vote"></div>
               <table class="mtable">
-                <colgroup><col style="width:15%"><col style="width:23%"><col style="width:14%"><col style="width:16%"><col style="width:16%"><col style="width:120px"></colgroup>
+                <colgroup><col style="width:15%"><col style="width:24%"><col style="width:13%"><col style="width:10%"><col style="width:12%"><col style="width:26%"></colgroup>
                 <thead><tr>
-                  <th>Роль <span class="sort">⇅</span></th>
-                  <th>Сотрудник <span class="sort">⇅</span></th>
-                  <th>Решение <span class="sort">⇅</span></th>
-                  <th>Крайний срок <span class="sort">⇅</span></th>
-                  <th>Дата отзыва <span class="sort">⇅</span></th>
-                  <th style="width:120px">Комментарий <span class="sort">⇅</span></th>
+                  <th>Роль</th><th>Сотрудник</th><th>Решение</th><th>Риск</th><th>Дата отзыва</th><th>Комментарий</th>
                 </tr></thead>
-                <tbody id="d-members"></tbody>
+                <tbody id="c-members"></tbody>
               </table>
             </div>
 
-            <!-- Итоговое решение -->
-            <div class="card">
-              <h3 class="section-h big">Итоговое решение</h3>
-              <div class="d-final-grid">
-                <div class="ro-field field sel"><span class="flabel">Финальное решение</span><div class="roval" id="d-final"></div></div>
-                <div class="ro-field field"><span class="flabel">Номер протокола</span><div class="roval" id="d-prot"></div></div>
-                <div class="ro-field field date"><span class="flabel">Дата заседания</span><div class="roval" id="d-datez"></div></div>
-                <div class="field col-span3"><span class="flabel">Обоснование решения</span><div class="note-ro" id="d-obosn"></div></div>
-              </div>
+            <div class="card" id="c-final-card">
+              <h3 class="section-h">Итоговое решение</h3>
+              <div id="c-final"></div>
             </div>
           </div>
 
-          <!-- other tabs (пустые/заглушки, как на живом при 0/1) -->
-          <div class="tabpanel" id="t-otzyv"><div class="card"><p style="color:var(--text-muted)">Отзывы отсутствуют.</p></div></div>
-          <div class="tabpanel" id="t-doc"><div class="card"><p style="color:var(--text-muted)">Документы отсутствуют.</p></div></div>
-          <div class="tabpanel" id="t-hist"><div class="card"><p style="color:var(--text-muted)" id="hist-text">История: 1 запись (создание проверки комиссии).</p></div></div>
-          <div class="tabpanel" id="t-prot"><div class="card"><p style="color:var(--text-muted)">Протокол не сформирован.</p></div></div>
+          <div class="tabpanel" id="t-doc"><div class="card">
+            <div class="sec-head">
+              <h3 class="section-h">Документы комиссии</h3>
+              <button class="btn btn-secondary btn-sm" id="btnUpload" onclick="demo('Загрузить документ')">↑ Загрузить</button>
+            </div>
+            <div id="c-docs"></div>
+          </div></div>
+
+          <div class="tabpanel" id="t-hist"><div class="card">
+            <h3 class="section-h">История</h3>
+            <ul class="tl" id="c-hist"></ul>
+          </div></div>
+
+          <div class="tabpanel" id="t-prot"><div class="card">
+            <h3 class="section-h">Протокол заседания</h3>
+            <div id="c-prot"></div>
+          </div></div>
         </div>
 
         <div class="footer">
@@ -546,323 +629,787 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
         </div>
       </section>
 
-      <!-- ============ EDITOR VIEW (Создать /new, Изменить /{id}) ============ -->
-      <section class="view" id="view-edit">
-        <div class="detail-scroll">
-          <!-- header band (bordered inputs) -->
-          <div class="card">
-            <div class="d-head-grid">
-              <div class="ed-field field"><span class="flabel">№</span><div class="edval" id="e-num"></div></div>
-              <div class="ed-field field"><span class="flabel">Номер документа</span><div class="edval" id="e-doc"></div></div>
-              <div class="ed-field field sel"><span class="flabel">Тип решения</span><div class="edval" id="e-tipresh"></div></div>
-              <div class="ed-field field sel"><span class="flabel">Тип документа</span><div class="edval" id="e-tipdoc"></div></div>
-              <div class="ed-field field"><span class="flabel">Заявка</span><div class="edval" id="e-zayavka"></div></div>
-              <button class="btn-view-app">Просмотр заявки</button>
-              <div class="ed-field field"><span class="flabel">Комиссия</span><div class="edval" id="e-kom"></div></div>
-            </div>
-          </div>
-
-          <!-- Состав комиссии + Документы -->
-          <div class="ed-two">
-            <div class="card">
-              <div class="sec-head">
-                <h3 class="section-h big">Состав комиссии</h3>
-                <button class="link-btn" onclick="openVote()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                  Проголосовать
-                </button>
-              </div>
-              <div class="grid-scroll">
-                <table class="mtable">
-                  <colgroup><col style="width:24%"><col style="width:40%"><col style="width:18%"><col style="width:18%"></colgroup>
-                  <thead><tr>
-                    <th>Роль <span class="sort">⇅</span></th>
-                    <th>Сотрудник <span class="sort">⇅</span></th>
-                    <th>Решение <span class="sort">⇅</span></th>
-                    <th>Дата отзыва <span class="sort">⇅</span></th>
-                  </tr></thead>
-                  <tbody id="e-members"></tbody>
-                </table>
-              </div>
-            </div>
-
-            <div class="card">
-              <h3 class="section-h big">Документы</h3>
-              <div class="grid-scroll">
-                <table class="mtable">
-                  <colgroup><col style="width:33%"><col style="width:33%"><col style="width:34%"></colgroup>
-                  <thead><tr>
-                    <th>Файл <span class="sort">⇅</span></th>
-                    <th>Размер файла <span class="sort">⇅</span></th>
-                    <th>Примечание <span class="sort">⇅</span></th>
-                  </tr></thead>
-                  <tbody><tr class="empty-rows"><td colspan="3"></td></tr></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <!-- Комментарии членов комиссии -->
-          <div class="card">
-            <h3 class="section-h big">Комментарии членов комиссии</h3>
-            <div style="min-height:28px"></div>
-          </div>
-
-          <!-- Финальное решение (Председатель комиссии) -->
-          <div class="card">
-            <h3 class="section-h big">Финальное решение (Председатель комиссии)</h3>
-            <div class="d-final-ed">
-              <div>
-                <div class="ed-input"><span class="flabel">Номер протокола</span><input type="text" id="e-prot"></div>
-                <div class="ed-input date" style="margin-top:14px"><span class="flabel">Дата заседания</span><input type="text" id="e-datez" placeholder=""></div>
-                <div class="decision-btns">
-                  <button class="btn btn-approve" onclick="confirmDecision('approve')">Одобрить</button>
-                  <button class="btn btn-reject" onclick="confirmDecision('reject')">Отклонить</button>
-                  <button class="btn btn-warn" onclick="confirmDecision('moreinfo')">Запросить доп. информацию</button>
-                </div>
-              </div>
-              <div class="ed-input"><span class="flabel">Комментарий к решению</span><textarea id="e-obosn"></textarea></div>
-            </div>
-          </div>
-
-          <!-- Прогресс голосования -->
-          <div class="card">
-            <h2 class="vote-title">Прогресс голосования</h2>
-            <div class="vote-bar"><i style="width:0%"></i></div>
-            <div class="vote-legend">
-              <span class="vl approve"><span class="sw"></span>Одобрили: <b>0</b></span>
-              <span class="vl reject"><span class="sw"></span>Отклонили: <b>0</b></span>
-              <span class="vl abstain"><span class="sw"></span>Воздержалось: <b>0</b></span>
-              <span class="vl novote"><span class="sw"></span>Не проголосовали: <b>0</b></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="footer">
-          <button class="btn btn-primary" onclick="closeToList()">OK</button>
-          <button class="btn-close" onclick="closeToList()">Отмена</button>
-        </div>
-      </section>
-
     </main>
   </div>
 </div>
 
-<!-- ============ DIALOGS ============ -->
-<!-- Проголосовать → «Ваш отзыв» -->
-<div class="overlay" id="ovVote">
-  <div class="dialog wide">
-    <div class="dlg-head">Ваш отзыв
-      <button class="dlg-close" title="Закрыть" onclick="closeOverlay('ovVote')">
+<!-- ============ DIALOG: голос ============ -->
+<div class="overlay" id="ovVote" data-dirty-guard="1">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="voteTitle">
+    <div class="dlg-head" id="voteTitle">Ваш отзыв
+      <button class="dlg-close" title="Закрыть (Esc)" onclick="tryClose('ovVote')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
       </button>
     </div>
-    <div class="dlg-body two">
-      <div class="field"><span class="flabel">Решение</span><select><option value=""></option></select></div>
-      <div class="field"><span class="flabel">Риск</span><select><option value=""></option></select></div>
-      <div class="field col-comment"><span class="flabel">Комментарий</span><textarea></textarea></div>
-      <div class="field col-file"><span class="flabel">Файл</span>
-        <div class="file-row"><button class="btn btn-tertiary">Загрузить</button><span class="fake-file">Файл не выбран</span></div>
+    <div class="dlg-body">
+      <div class="two">
+        <div class="field">
+          <span class="flabel">Решение<span class="req">*</span></span>
+          <select id="v-dec">
+            <option value="">— выберите —</option>
+            <option value="approve">Одобрить</option>
+            <option value="reject">Отклонить</option>
+            <option value="abstain">Воздержаться</option>
+          </select>
+          <span class="err-txt" id="v-dec-err">Решение обязательно</span>
+        </div>
+        <div class="field">
+          <span class="flabel">Оценка риска</span>
+          <select id="v-risk">
+            <option value="">— не указан —</option>
+            <option>Низкий</option><option>Средний</option><option>Высокий</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><span class="flabel">Комментарий</span><textarea id="v-cmt" placeholder="Обоснование вашего голоса — будет видно другим членам комиссии"></textarea></div>
+      <div class="field"><span class="flabel">Файл</span>
+        <div class="file-row"><button class="btn btn-tertiary btn-sm" onclick="demo('Загрузить файл к отзыву')">Загрузить</button><span class="fake-file">Файл не выбран</span></div>
       </div>
     </div>
     <div class="dlg-foot">
-      <button class="btn btn-primary" onclick="closeOverlay('ovVote')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>OK</button>
-      <button class="btn btn-tertiary" onclick="closeOverlay('ovVote')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>Отмена</button>
+      <button class="btn btn-tertiary" onclick="tryClose('ovVote')">Отмена</button>
+      <button class="btn btn-primary" onclick="submitVote()">Проголосовать</button>
     </div>
   </div>
 </div>
 
-<!-- Подтверждение (Одобрить/Отклонить/Запросить/Удалить) -->
+<!-- ============ DIALOG: подтверждение (действие + запись в тексте) ============ -->
 <div class="overlay" id="ovConfirm">
-  <div class="dialog narrow">
-    <div class="dlg-head">Подтверждение</div>
-    <div class="dlg-msg" id="confirmMsg">Вы уверены?</div>
-    <div class="dlg-foot right">
-      <button class="btn btn-tertiary" onclick="confirmYes()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Да</button>
-      <button class="btn btn-tertiary" onclick="closeOverlay('ovConfirm')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>Отмена</button>
+  <div class="dialog narrow" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="dlg-head" id="confirmTitle">Подтверждение
+      <button class="dlg-close" title="Закрыть (Esc)" onclick="closeOverlay('ovConfirm')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
+      </button>
+    </div>
+    <div class="dlg-msg" id="confirmMsg"></div>
+    <div class="dlg-foot">
+      <button class="btn btn-tertiary" onclick="closeOverlay('ovConfirm')">Отмена</button>
+      <button class="btn btn-primary" id="confirmOk" onclick="confirmYes()">Да</button>
     </div>
   </div>
 </div>
+
+<div class="toast-wrap" id="toast-wrap"></div>
 
 <script>
-/* ============ SIDEBAR NAV (дерево живого стенда, 2026-07-05) ============ */
-const TREE = [
-  { id:"app", label:"Приложение", open:true, subs:[
-    { headerless:true, items:["Подразделения","Сотрудники подразделения","Освоение","Резерв","Платеж","Список Траншей","LoanLedger"] } ]},
-  { id:"k", label:"Система кредитования", subs:[
-    { headerless:true, items:["Решение правительства","Кредитные программы","Заявки","Комиссии по заявкам","Заемщики","Кредиты","Мониторинг залога","Список залоговых договоров","Список предметов залога"] } ]},
-  { id:"g", label:"Поручительства", subs:[ { headerless:true, items:["Анкеты поручительств","Поручительствa","Комитет по заявкам"] } ]},
-  { id:"c", label:"Корпоративное управление", subs:[ { headerless:true, items:["Реестр компаний","Аналитика KPI","Документы"] } ]},
-  { id:"sugs", label:"СУГС", subs:[ { headerless:true, items:["Государственные программы","Проекты субсидирования","Субсидии"] } ]},
-  { id:"debt", label:"Взыскание задолженности", subs:[ { headerless:true, items:["Процессы взыскания задолженности","Журнал аудита взыскания"] } ]},
-  { id:"d", label:"Справочники", subs:[ { headerless:true, items:["Справочники"] } ]},
-  { id:"srv", label:"Сервисы", subs:[ { headerless:true, items:["СОАТЕС","Түндүк ПИН Сервис","ССП КР — Санкционный перечень"] } ]},
-  { id:"adm", label:"Администрирование", subs:[ { headerless:true, items:["Администрирование"] } ]},
-  { id:"r", label:"Отчёты", subs:[ { headerless:true, items:["Группы отчётов","Запуск отчётов"] } ]},
-  { id:"sec", label:"Безопасность", subs:[ { headerless:true, items:["Ресурсные роли","Роли уровня строк"] } ]},
-  { id:"tools", label:"Инструменты данных", subs:[ { headerless:true, items:["Инспектор сущностей"] } ]},
-];
-const chev = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
-function renderNav(){
-  const nav = document.getElementById('nav');
-  nav.innerHTML = TREE.map(g => {
-    const subs = g.subs.map(sg => {
-      const items = sg.items.map(it =>
-        `<a class="nav-item${sg.headerless?' headerless':''}${it==='Комиссии по заявкам'?' active':''}" onclick="return false;">${it}</a>`).join('');
-      return `<div class="nav-sub open"><div class="nav-children">${items}</div></div>`;
-    }).join('');
-    return `<div class="nav-group${g.open?' open':''}"><button class="nav-toggle">${chev(16)}<span class="lbl">${g.label}</span></button><div class="nav-children">${subs}</div></div>`;
-  }).join('');
-  nav.querySelectorAll('.nav-toggle').forEach(btn =>
-    btn.addEventListener('click', () => btn.parentElement.classList.toggle('open')));
-}
-renderNav();
+/* ==========================================================================
+   0. Утилиты
+   ========================================================================== */
+const _esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $ = id => document.getElementById(id);
 
-/* ============ RECORD DATA (сверено 2026-07-07) ============ */
-const RECORDS = {
-  '138': {
-    num:'Проверка комиссии - 138', doc:'Заявка - 97', tipResh:'На рассмотрении', tipDoc:'Заявки',
-    zayavka:'20907199400957 - МАТРАИМОВ МАКСАТ КУБАНОВИЧ', kom:'Комиссия по заявкам',
-    votePct:'0.0', appr:0, rej:0, abs:0, nov:2, otzyv:0, docs:0, hist:1,
-    histText:'История: 1 запись (создание проверки комиссии).',
-    members:[
-      {role:'Председатель', emp:'НУРМАНБЕТ КЫЗЫ КАЛИНА'},
-      {role:'Член комиссии', emp:'ДАДАБАЕВА ДИЛЬБАРА РАХМАТУЛЛАЕВНА'},
-    ],
-    final:'На рассмотрении', prot:'', datez:'', obosn:'', editable:true,
-  },
-  '139': {
-    num:'Проверка комиссии - 139', doc:'Заявка - 105', tipResh:'Одобрено', tipDoc:'Заявки',
-    zayavka:'01211202110139 - ГП "Инфосистемс" при МФКР', kom:'Комиссия по заявкам',
-    votePct:'0.0', appr:0, rej:0, abs:0, nov:2, otzyv:0, docs:0, hist:2,
-    histText:'История: 2 записи (создание проверки комиссии, финальное решение).',
-    members:[
-      {role:'Председатель', emp:'НУРМАНБЕТ КЫЗЫ КАЛИНА'},
-      {role:'Член комиссии', emp:'ДАДАБАЕВА ДИЛЬБАРА РАХМАТУЛЛАЕВНА'},
-    ],
-    final:'Одобрено', prot:'1', datez:'2026-07-01', obosn:'', editable:false,
-  },
+function showToast(text, type){
+  const t = document.createElement('div');
+  t.className = 'toast' + (type ? ' ' + type : '');
+  t.textContent = text;
+  $('toast-wrap').appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+const demo = label => showToast(label + ' — демо-действие макета', '');
+
+/* «Сегодня» зафиксировано, чтобы демо-просрочка не «протухала». */
+const TODAY = new Date(2026, 6, 10);
+const _d = s => { const [d,m,y] = s.split('.').map(Number); return new Date(y, m-1, d); };
+const daysLeft = s => Math.round((_d(s) - TODAY) / 86400000);
+const plural = (n, one, few, many) => {
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b > 1 && b < 5) return few;
+  return b === 1 ? one : many;
 };
-let selectedId = null;
 
-/* ============ LIST: ROW SELECT ============ */
-function selectRow(id){
-  selectedId = id;
-  ['row138','row139'].forEach(r => document.getElementById(r).classList.toggle('sel', r==='row'+id));
-  const rec = RECORDS[id];
-  document.getElementById('btnView').disabled = false;
-  document.getElementById('btnDel').disabled = false;
-  document.getElementById('btnEdit').disabled = !rec.editable; // решённую (139 «Одобрено») нельзя изменить (live)
+const _ico = inner => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+const icoWarn = () => _ico('<path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>');
+const icoOk   = () => _ico('<path d="M20 6 9 17l-5-5"/>');
+const icoInfo = () => _ico('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>');
+
+/* ==========================================================================
+   1. Навигация (дерево живого стенда, 2026-07-05)
+   ========================================================================== */
+const TREE = [
+  { id:"app", label:"Приложение", open:true, items:["Подразделения","Сотрудники подразделения","Освоение","Резерв","Платеж","Список Траншей","LoanLedger"] },
+  { id:"k", label:"Система кредитования", items:["Решение правительства","Кредитные программы","Заявки","Комиссии по заявкам","Заемщики","Кредиты","Мониторинг залога","Список залоговых договоров","Список предметов залога"] },
+  { id:"g", label:"Поручительства", items:["Анкеты поручительств","Поручительствa","Комитет по заявкам"] },
+  { id:"c", label:"Корпоративное управление", items:["Реестр компаний","Аналитика KPI","Документы"] },
+  { id:"sugs", label:"СУГС", items:["Государственные программы","Проекты субсидирования","Субсидии"] },
+  { id:"debt", label:"Взыскание задолженности", items:["Процессы взыскания задолженности","Журнал аудита взыскания"] },
+  { id:"d", label:"Справочники", items:["Справочники"] },
+  { id:"srv", label:"Сервисы", items:["СОАТЕС","Түндүк ПИН Сервис","ССП КР — Санкционный перечень"] },
+  { id:"adm", label:"Администрирование", items:["Администрирование"] },
+  { id:"r", label:"Отчёты", items:["Группы отчётов","Запуск отчётов"] },
+  { id:"sec", label:"Безопасность", items:["Ресурсные роли","Роли уровня строк"] },
+  { id:"tools", label:"Инструменты данных", items:["Инспектор сущностей"] },
+];
+const chev = `<span class="chev"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
+(function renderNav(){
+  $('nav').innerHTML = TREE.map(g => {
+    const items = g.items.map(it =>
+      `<a class="nav-item headerless${it === 'Комиссии по заявкам' ? ' active' : ''}" onclick="return false;">${_esc(it)}</a>`).join('');
+    return `<div class="nav-group${g.open ? ' open' : ''}"><button class="nav-toggle">${chev}<span class="lbl">${_esc(g.label)}</span></button><div class="nav-children">${items}</div></div>`;
+  }).join('');
+  $('nav').querySelectorAll('.nav-toggle').forEach(btn =>
+    btn.addEventListener('click', () => btn.parentElement.classList.toggle('open')));
+})();
+
+/* ==========================================================================
+   2. Роли и права. Единый источник — can(rec).
+   Реальный модуль берёт роль из auth; здесь — демо-свитчер.
+   ========================================================================== */
+const EMP_CHAIR  = 'НУРМАНБЕТ КЫЗЫ КАЛИНА';
+const EMP_MEMBER = 'ДАДАБАЕВА ДИЛЬБАРА РАХМАТУЛЛАЕВНА';
+const ROLE_EMP = { chair: EMP_CHAIR, member: EMP_MEMBER, sec: null, ro: null };
+const ROLE_LABEL = { chair:'Председатель комиссии', member:'Член комиссии', sec:'Секретарь', ro:'Просмотр' };
+let _role = 'chair';
+
+/** Строка состава, соответствующая текущему пользователю (или null). */
+const myRow = rec => rec.members.find(m => m.emp === ROLE_EMP[_role]) || null;
+
+/**
+ * can(rec) — права текущей роли на записи.
+ *  vote    — голосовать может член состава по нерешённой комиссии, ещё не голосовавший;
+ *  decide  — итоговое решение выносит ТОЛЬКО председатель и ТОЛЬКО при пройденном гейте;
+ *  protocol— протокол ведут председатель и секретарь;
+ *  manage  — создание/удаление записей — секретарь.
+ */
+function can(rec){
+  const pending = rec.status === 'На рассмотрении';
+  const mine = rec ? myRow(rec) : null;
+  return {
+    pending,
+    mine,
+    vote:     !!(pending && mine && !mine.decision),
+    decide:   _role === 'chair' && pending,
+    protocol: (_role === 'chair' || _role === 'sec') && pending,
+    manage:   _role === 'sec',
+  };
 }
 
-/* ============ EYE ICON (members comment) ============ */
-const eyeSvg = `<button class="eye-btn" title="Показать комментарий"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>`;
-
-/* ============ DETAIL (Просмотр) ============ */
-function openDetail(){
-  if (document.getElementById('btnView').disabled) return; // требует выбранной строки
-  const rec = RECORDS[selectedId];
-  document.getElementById('d-num').textContent = rec.num;
-  document.getElementById('d-doc').textContent = rec.doc;
-  document.getElementById('d-tipresh').textContent = rec.tipResh;
-  document.getElementById('d-tipdoc').textContent = rec.tipDoc;
-  document.getElementById('d-zayavka').textContent = rec.zayavka;
-  document.getElementById('d-kom').textContent = rec.kom;
-  document.getElementById('d-votetitle').textContent = 'Прогресс голосования - ' + rec.votePct + '%';
-  document.getElementById('d-votebar').style.width = rec.votePct + '%';
-  document.getElementById('d-appr').textContent = rec.appr;
-  document.getElementById('d-rej').textContent = rec.rej;
-  document.getElementById('d-abs').textContent = rec.abs;
-  document.getElementById('d-nov').textContent = rec.nov;
-  document.getElementById('cnt-otzyv').textContent = rec.otzyv;
-  document.getElementById('cnt-doc').textContent = rec.docs;
-  document.getElementById('cnt-hist').textContent = rec.hist;
-  document.getElementById('hist-text').textContent = rec.histText;
-  document.getElementById('d-members').innerHTML = rec.members.map(m =>
-    `<tr><td>${m.role}</td><td>${m.emp}</td><td></td><td></td><td></td><td>${eyeSvg}</td></tr>`).join('')
-    + '<tr class="empty-rows"><td colspan="6"></td></tr>';
-  document.getElementById('d-final').textContent = rec.final;
-  document.getElementById('d-prot').textContent = rec.prot;
-  document.getElementById('d-datez').textContent = rec.datez;
-  document.getElementById('d-obosn').textContent = rec.obosn;
-  // reset to Обзор
-  document.querySelectorAll('#view-detail .tab').forEach((t,i) => t.classList.toggle('active', i===0));
-  document.querySelectorAll('#view-detail .tabpanel').forEach(p => p.classList.remove('active'));
-  document.getElementById('t-obzor').classList.add('active');
-  swapView('view-detail', 'Комиссия по заявкам');
+function setRole(r){
+  if (!ROLE_LABEL[r]) return;
+  _role = r;
+  $('whoami').textContent = '[' + ROLE_LABEL[r] + ']';
+  applyRoleToListButtons();
+  renderTiles(); renderRows();
+  if (_openId) renderCard();
+}
+function applyRoleToListButtons(){
+  const manage = _role === 'sec';
+  $('btnCreate').hidden = !manage;
+  $('btnDel').hidden = !manage;
 }
 
-/* ============ EDITOR (Создать / Изменить) ============ */
-function fillEditor(rec){
-  document.getElementById('e-num').textContent = rec.num;
-  document.getElementById('e-doc').textContent = rec.doc;
-  document.getElementById('e-tipresh').textContent = rec.tipResh;
-  document.getElementById('e-tipdoc').textContent = rec.tipDoc;
-  document.getElementById('e-zayavka').textContent = rec.zayavka;
-  document.getElementById('e-kom').textContent = rec.kom;
-  document.getElementById('e-members').innerHTML = (rec.members.length
-    ? rec.members.map(m => `<tr><td>${m.role}</td><td>${m.emp}</td><td></td><td></td></tr>`).join('')
-    : '') + `<tr class="empty-rows"><td colspan="4"></td></tr>`;
-  document.getElementById('e-prot').value = rec.prot;
-  document.getElementById('e-datez').value = rec.datez;
-  document.getElementById('e-obosn').value = rec.obosn;
-}
-function openEdit(){
-  if (document.getElementById('btnEdit').disabled) return;
-  fillEditor(RECORDS[selectedId]);
-  swapView('view-edit', 'Комиссия по заявкам');
-}
-function openCreate(){
-  // /new — новая проверка, № автогенерируется (следующий = 145), поля пустые
-  fillEditor({ num:'Проверка комиссии - 145', doc:'', tipResh:'', tipDoc:'',
-    zayavka:'', kom:'', members:[], prot:'', datez:'', obosn:'' });
-  swapView('view-edit', 'Комиссия по заявкам');
+/* ==========================================================================
+   3. Данные (демо). Номер — структурный К-ГГГГ-NNNNNN (единый с З-…, P3-R27).
+   ========================================================================== */
+const DEC_LABEL = { approve:'Одобрил', reject:'Отклонил', abstain:'Воздержался' };
+const DEC_BADGE = { approve:'approved', reject:'rejected', abstain:'review' };
+const STATUS_BADGE = {
+  'На рассмотрении':'review', 'Одобрено':'approved',
+  'Отклонено':'rejected', 'Требуется доп. информация':'moreinfo',
+};
+
+let RECORDS = [
+  {
+    id:'138', num:'К-2026-000138', app:'Заявка - 97', created:'05.07.2026 12:28',
+    who:'20907199400957 — МАТРАИМОВ МАКСАТ КУБАНОВИЧ',
+    prog:'Поддержка сельхозпроизводителей', kom:'Комиссия по заявкам',
+    deadline:'12.07.2026', status:'На рассмотрении',
+    protNo:'', meetDate:'', reason:'', protScan:'',
+    members:[
+      { role:'Председатель',  emp:EMP_CHAIR,  decision:'', risk:'', date:'', comment:'' },
+      { role:'Член комиссии', emp:EMP_MEMBER, decision:'', risk:'', date:'', comment:'' },
+    ],
+    docs:[],
+    hist:[{ d:'05.07.2026 12:28', who:'admin', what:'Создана комиссия по заявке «Заявка - 97»' }],
+  },
+  {
+    id:'139', num:'К-2026-000139', app:'Заявка - 105', created:'06.07.2026 09:27',
+    who:'01211202110139 — ГП "Инфосистемс" при МФКР',
+    prog:'для расчета', kom:'Комиссия по заявкам',
+    deadline:'03.07.2026', status:'Одобрено',
+    protNo:'1', meetDate:'01.07.2026',
+    reason:'Проект соответствует условиям программы, обеспечение достаточно. Замечаний нет.',
+    protScan:'Протокол-1-от-01.07.2026.pdf',
+    members:[
+      { role:'Председатель',  emp:EMP_CHAIR,  decision:'approve', risk:'Низкий',  date:'01.07.2026', comment:'Возражений нет.' },
+      { role:'Член комиссии', emp:EMP_MEMBER, decision:'approve', risk:'Средний', date:'01.07.2026', comment:'Рекомендую усилить контроль целевого использования на этапе освоения — программа новая, практики по ней пока нет.' },
+    ],
+    docs:[{ name:'Протокол-1-от-01.07.2026.pdf', size:'420 КБ', note:'Скан подписанного протокола' }],
+    hist:[
+      { d:'06.07.2026 09:27', who:'admin', what:'Создана комиссия по заявке «Заявка - 105»' },
+      { d:'01.07.2026 10:04', who:EMP_CHAIR,  what:'Голос: Одобрил · риск Низкий' },
+      { d:'01.07.2026 10:09', who:EMP_MEMBER, what:'Голос: Одобрил · риск Средний' },
+      { d:'01.07.2026 10:12', who:EMP_CHAIR,  what:'Итоговое решение: Одобрено · протокол № 1' },
+    ],
+  },
+  {
+    id:'140', num:'К-2026-000140', app:'Заявка - 112', created:'02.07.2026 15:41',
+    who:'22508198900431 — ТОКТОГУЛОВ АЗАМАТ БЕКОВИЧ',
+    prog:'Поддержка сельхозпроизводителей', kom:'Комиссия по заявкам',
+    deadline:'08.07.2026', status:'На рассмотрении',
+    protNo:'', meetDate:'', reason:'', protScan:'',
+    members:[
+      { role:'Председатель',  emp:EMP_CHAIR,  decision:'approve', risk:'Средний', date:'07.07.2026', comment:'Залог покрывает сумму, но выручка сезонная.' },
+      { role:'Член комиссии', emp:EMP_MEMBER, decision:'reject',  risk:'Высокий', date:'07.07.2026', comment:'Нет подтверждения выручки за 2 квартал; кредитная история с просрочками.' },
+      { role:'Член комиссии', emp:'ИСАКОВ УЛАН ТУРСУНОВИЧ', decision:'', risk:'', date:'', comment:'' },
+    ],
+    docs:[{ name:'Заключение-риск-отдела.pdf', size:'190 КБ', note:'Заключение отдела рисков' }],
+    hist:[
+      { d:'02.07.2026 15:41', who:'admin', what:'Создана комиссия по заявке «Заявка - 112»' },
+      { d:'07.07.2026 11:20', who:EMP_CHAIR,  what:'Голос: Одобрил · риск Средний' },
+      { d:'07.07.2026 14:03', who:EMP_MEMBER, what:'Голос: Отклонил · риск Высокий' },
+    ],
+  },
+];
+
+/* ==========================================================================
+   4. Кворум и гейт итогового решения (P3-26 — ядро to-be)
+   ========================================================================== */
+/** Кворум = большинство состава: ⌊n/2⌋ + 1. */
+const quorumOf = rec => Math.floor(rec.members.length / 2) + 1;
+
+function tally(rec){
+  const t = { approve:0, reject:0, abstain:0, novote:0, total:rec.members.length };
+  rec.members.forEach(m => { t[m.decision || 'novote']++; });
+  t.voted = t.approve + t.reject + t.abstain;
+  t.quorum = quorumOf(rec);
+  t.quorumMet = t.voted >= t.quorum;
+  return t;
 }
 
-/* ============ VIEW ROUTER ============ */
-function swapView(id, crumb){
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  document.getElementById('crumbTitle').textContent = crumb;
+/**
+ * decisionGateReason — почему нельзя вынести итоговое решение.
+ * Пустая строка = гейт пройден. Паттерн `sendGateReason` из мокапа заявки.
+ * Порядок проверок = порядок, в котором пользователь их устраняет.
+ */
+function decisionGateReason(rec){
+  if (rec.status !== 'На рассмотрении') return 'Решение по этой комиссии уже вынесено';
+  const t = tally(rec);
+  if (!t.quorumMet)
+    return `Кворум не набран: проголосовало ${t.voted} из ${t.total}, требуется ${t.quorum}`;
+  if (!rec.protNo.trim())  return 'Не заполнен номер протокола';
+  if (!rec.meetDate.trim()) return 'Не указана дата заседания';
+  return '';
+}
+const decisionReady = rec => decisionGateReason(rec) === '';
+
+/* ==========================================================================
+   5. Список: фильтр, плитки, грид
+   ========================================================================== */
+const STATUSES = ['На рассмотрении','Одобрено','Отклонено','Требуется доп. информация'];
+let _filter = { num:'', app:'', who:'', prog:'', status:'', mine:false };
+let _selId = null, _openId = null;
+
+(function fillPrograms(){
+  const progs = [...new Set(RECORDS.map(r => r.prog))].sort();
+  $('f-prog').insertAdjacentHTML('beforeend', progs.map(p => `<option>${_esc(p)}</option>`).join(''));
+})();
+
+const awaitsMyVote = rec => can(rec).vote;
+
+function matches(rec){
+  const f = _filter;
+  if (f.mine && !awaitsMyVote(rec)) return false;
+  if (f.num && !rec.num.toLowerCase().includes(f.num.toLowerCase())) return false;
+  if (f.app && !rec.app.toLowerCase().includes(f.app.toLowerCase())) return false;
+  if (f.who && !rec.who.toLowerCase().includes(f.who.toLowerCase())) return false;
+  if (f.prog && rec.prog !== f.prog) return false;
+  if (f.status && rec.status !== f.status) return false;
+  return true;
+}
+const visible = () => RECORDS.filter(matches);
+
+function toggleFilter(){ $('filterbar').classList.toggle('open'); }
+function applyFilter(){
+  _filter = { ..._filter,
+    num: $('f-num').value.trim(), app: $('f-app').value.trim(), who: $('f-who').value.trim(),
+    prog: $('f-prog').value, status: $('f-status').value };
+  _selId = null; renderAll();
+}
+function resetFilter(){
+  _filter = { num:'', app:'', who:'', prog:'', status:'', mine:false };
+  ['f-num','f-app','f-who'].forEach(i => $(i).value = '');
+  $('f-prog').value = ''; $('f-status').value = '';
+  _selId = null; renderAll();
+}
+function clearOne(key){
+  _filter[key] = key === 'mine' ? false : '';
+  const map = { num:'f-num', app:'f-app', who:'f-who', prog:'f-prog', status:'f-status' };
+  if (map[key]) $(map[key]).value = '';
+  renderAll();
+}
+/** Клик по плитке = фильтр по её статусу (или по «моей очереди»); повторный клик снимает. */
+function tileFilter(key){
+  if (key === 'mine'){ _filter.mine = !_filter.mine; }
+  else if (key === 'all'){ resetFilter(); return; }
+  else { _filter.status = _filter.status === key ? '' : key; $('f-status').value = _filter.status; }
+  _selId = null; renderAll();
+}
+
+const CHIP_LABEL = {
+  num:'№', app:'Заявка', who:'Заявитель', prog:'Программа', status:'Тип решения', mine:'Ждут моего голоса',
+};
+function renderChips(){
+  const act = Object.entries(_filter).filter(([k,v]) => v !== '' && v !== false);
+  $('fCount').hidden = act.length === 0;
+  $('fCount').textContent = act.length;
+  $('fChips').innerHTML = act.length === 0 ? ''
+    : act.map(([k,v]) =>
+        `<span class="chip">${_esc(CHIP_LABEL[k])}${k === 'mine' ? '' : ': ' + _esc(v)}
+           <button title="Убрать условие" onclick="clearOne('${k}')">✕</button></span>`).join('')
+      + `<button class="chip-clear" onclick="resetFilter()">Сбросить всё</button>`;
+}
+
+function renderTiles(){
+  const byStatus = s => RECORDS.filter(r => r.status === s).length;
+  const mine = RECORDS.filter(awaitsMyVote).length;
+  const tiles = [
+    { key:'mine', lbl:'Ждут моего голоса', n:mine, cls:'mine', on:_filter.mine,
+      hide:!ROLE_EMP[_role] },
+    { key:'all',  lbl:'Всего комиссий', n:RECORDS.length,
+      bg:'rgb(235,248,255)', bd:'rgb(144,205,244)', fg:'rgb(44,82,130)' },
+    { key:'На рассмотрении', lbl:'На рассмотрении', n:byStatus('На рассмотрении'),
+      bg:'rgb(255,247,232)', bd:'rgb(253,188,67)', fg:'#8a6300' },
+    { key:'Одобрено', lbl:'Одобрено', n:byStatus('Одобрено'),
+      bg:'rgb(233,250,239)', bd:'rgb(56,161,105)', fg:'rgb(34,111,72)' },
+    { key:'Отклонено', lbl:'Отклонено', n:byStatus('Отклонено'),
+      bg:'rgb(254,240,240)', bd:'rgb(224,58,58)', fg:'rgb(178,42,42)' },
+    { key:'Требуется доп. информация', lbl:'Требуется доп. информация', n:byStatus('Требуется доп. информация'),
+      bg:'rgb(247,240,255)', bd:'rgb(123,63,191)', fg:'rgb(94,44,150)' },
+  ];
+  $('tiles').innerHTML = tiles.filter(t => !t.hide).map(t => {
+    // рамка серая при 0 и статусная при > 0 (P3-19: в as-is цвет не был связан со значением)
+    const zero = t.n === 0 && t.key !== 'all';
+    const on = t.key === 'all' ? false : (t.on ?? _filter.status === t.key);
+    const style = (zero || t.cls) ? '' :
+      `--sc-bg:${t.bg};--sc-border:${t.bd};--sc-color:${t.fg}`;
+    return `<button class="statcard${zero ? ' zero' : ''}${t.cls ? ' ' + t.cls : ''}${on ? ' on' : ''}"
+              style="${style}" onclick="tileFilter(${JSON.stringify(t.key).replace(/"/g,'&quot;')})"
+              title="Фильтровать: ${_esc(t.lbl)}">
+              <div class="sc-lbl">${_esc(t.lbl)}</div><div class="sc-num">${t.n}</div></button>`;
+  }).join('');
+}
+
+/** Мини-полоса голосов в строке грида (P3-31: «0/2» без подписи → «N из M» + сегменты). */
+function miniVote(rec){
+  const t = tally(rec);
+  const seg = (k, cls) => t[k] ? `<i class="${cls}" style="width:${t[k] / t.total * 100}%;background:var(--vote-${cls})"></i>` : '';
+  return `<div class="minivote" title="Одобрили ${t.approve} · Отклонили ${t.reject} · Воздержались ${t.abstain} · Не проголосовали ${t.novote}">
+    <span class="mbar">${seg('approve','approve')}${seg('reject','reject')}${seg('abstain','abstain')}${seg('novote','novote')}</span>
+    <span class="mtxt">${t.voted} из ${t.total}</span></div>`;
+}
+
+/** Крайний срок: чип просрочки только пока комиссия не решена (P3-30). */
+function deadlineCell(rec){
+  if (rec.status !== 'На рассмотрении')
+    return `<span style="color:var(--text-muted)">${_esc(rec.deadline)}</span>`;
+  const n = daysLeft(rec.deadline);
+  if (n < 0) return `<span class="badge overdue" title="Крайний срок ${_esc(rec.deadline)}">Просрочен ${-n} ${plural(-n,'день','дня','дней')}</span>`;
+  if (n === 0) return `<span class="badge review" title="Крайний срок ${_esc(rec.deadline)}">Сегодня</span>`;
+  return `<span title="Крайний срок ${_esc(rec.deadline)} — осталось ${n} ${plural(n,'день','дня','дней')}">${_esc(rec.deadline)} · ${n} дн.</span>`;
+}
+
+function renderRows(){
+  const rows = visible();
+  $('rowCount').textContent = rows.length + ' ' + plural(rows.length,'строка','строки','строк');
+  $('gridEmpty').hidden = rows.length > 0;
+  $('rows').innerHTML = rows.map(r => `
+    <tr id="row${r.id}" class="${_selId === r.id ? 'sel' : ''}" onclick="selectRow('${r.id}')" ondblclick="openCard()">
+      <td class="mono" title="${_esc(r.num)}">${_esc(r.num)}${awaitsMyVote(r) ? '<span class="me-tag">ваш голос</span>' : ''}</td>
+      <td title="${_esc(r.app)}">${_esc(r.app)}</td>
+      <td title="${_esc(r.who)}">${_esc(r.who)}</td>
+      <td title="${_esc(r.prog)}">${_esc(r.prog)}</td>
+      <td>${miniVote(r)}</td>
+      <td>${deadlineCell(r)}</td>
+      <td><span class="badge ${STATUS_BADGE[r.status]}">${_esc(r.status)}</span></td>
+    </tr>`).join('');
+  syncToolbar();
+}
+
+function selectRow(id){ _selId = id; renderRows(); }
+function syncToolbar(){
+  const rec = RECORDS.find(r => r.id === _selId);
+  $('btnOpen').disabled = !rec;
+  // удалять решённую комиссию нельзя: это уничтожает аудит-след решения
+  $('btnDel').disabled = !rec || rec.status !== 'На рассмотрении';
+}
+function renderAll(){ renderChips(); renderTiles(); renderRows(); }
+
+function onCreate(){ demo('Создать комиссию'); }
+function onDelete(){
+  const rec = RECORDS.find(r => r.id === _selId);
+  if (!rec) return;
+  askConfirm({
+    msg: `Удалить комиссию <b>${_esc(rec.num)}</b> по заявке «${_esc(rec.app)}»?<br>Действие необратимо.`,
+    okLabel:'Удалить', danger:true,
+    onYes(){
+      RECORDS = RECORDS.filter(r => r.id !== rec.id);
+      _selId = null; renderAll();
+      showToast(`Комиссия ${rec.num} удалена`, 'ok');
+    },
+  });
+}
+
+/* ==========================================================================
+   6. Карточка
+   ========================================================================== */
+function openCard(){
+  if (!_selId) return;
+  _openId = _selId;
+  $('view-list').classList.remove('active');
+  $('view-card').classList.add('active');
+  $('crumbBack').classList.add('show');
+  $('crumbSep').style.display = '';
+  showTab('t-obzor');
+  renderCard();
   document.querySelector('.content').scrollTo(0,0);
 }
 function closeToList(){
-  swapView('view-list', 'Комиссии по заявкам');
+  _openId = null;
+  $('view-card').classList.remove('active');
+  $('view-list').classList.add('active');
+  $('crumbBack').classList.remove('show');
+  $('crumbSep').style.display = 'none';
+  $('crumbTitle').textContent = 'Комиссии по заявкам';
+  $('crumbBadge').innerHTML = '';
+  renderAll();
 }
-function showTab(e, id){
-  document.querySelectorAll('#view-detail .tab').forEach(t => t.classList.remove('active'));
-  e.currentTarget.classList.add('active');
-  document.querySelectorAll('#view-detail .tabpanel').forEach(p => p.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+function showTab(id){
+  document.querySelectorAll('#view-card .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+  document.querySelectorAll('#view-card .tabpanel').forEach(p => p.classList.toggle('active', p.id === id));
 }
 
-/* ============ DIALOGS ============ */
-function openOverlay(id){ document.getElementById(id).classList.add('open'); }
-function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
-function openVote(){ openOverlay('ovVote'); }
+function renderCard(){
+  const rec = RECORDS.find(r => r.id === _openId);
+  if (!rec) return closeToList();
+  const cap = can(rec);
 
-let confirmAction = null;
-function confirmDecision(kind){
-  confirmAction = kind;
-  document.getElementById('confirmMsg').textContent = 'Вы уверены?';
-  openOverlay('ovConfirm');
+  $('crumbTitle').textContent = rec.num;
+  $('crumbBadge').innerHTML = `<span class="badge ${STATUS_BADGE[rec.status]}">${_esc(rec.status)}</span>`;
+
+  $('c-num').textContent = rec.num;
+  $('c-app').textContent = rec.app;
+  $('c-who').textContent = rec.who;
+  $('c-who').title = rec.who;
+  $('c-prog').textContent = rec.prog;
+  $('c-kom').textContent = rec.kom;
+  $('c-created').textContent = rec.created;
+  $('c-deadline').innerHTML = deadlineCell(rec);
+  $('c-status').innerHTML = `<span class="badge ${STATUS_BADGE[rec.status]}">${_esc(rec.status)}</span>`;
+
+  renderVote(rec);
+  renderMembers(rec, cap);
+  renderFinal(rec, cap);
+  renderDocs(rec);
+  renderHist(rec);
+  renderProt(rec, cap);
 }
-function confirmDelete(){
-  if (document.getElementById('btnDel').disabled) return;
-  confirmAction = 'delete';
-  document.getElementById('confirmMsg').textContent = 'Вы уверены?';
+
+/* ---- прогресс: стек-сегменты + «N из M · кворум K» (P3-32) ---- */
+function renderVote(rec){
+  const t = tally(rec);
+  $('c-votetitle').textContent = `Проголосовало ${t.voted} из ${t.total}`;
+  const q = $('c-quorum');
+  q.className = 'vote-quorum ' + (t.quorumMet ? 'ok' : 'no');
+  q.textContent = t.quorumMet ? `· кворум ${t.quorum} набран` : `· кворум ${t.quorum} не набран`;
+
+  const seg = k => t[k] ? `<i class="${k}" style="width:${t[k] / t.total * 100}%" title="${_esc(LEG[k])}: ${t[k]}"></i>` : '';
+  $('c-votebar').innerHTML = ['approve','reject','abstain','novote'].map(seg).join('');
+  $('c-votelegend').innerHTML = ['approve','reject','abstain','novote'].map(k =>
+    `<span class="vl ${k}"><span class="sw"></span>${_esc(LEG[k])}: <b>${t[k]}</b></span>`).join('');
+}
+const LEG = { approve:'Одобрили', reject:'Отклонили', abstain:'Воздержались', novote:'Не проголосовали' };
+
+/* ---- состав: решение/риск/комментарий видны всем; «Проголосовать» — в своей строке (P3-27, P3-28) ---- */
+let _cmtOpen = {};
+function renderMembers(rec, cap){
+  const gate = $('c-gate-vote');
+  if (cap.mine && cap.pending && !cap.mine.decision){
+    gate.innerHTML = `<div class="note-banner">${icoInfo()}<span>Вы — <b>${_esc(cap.mine.role.toLowerCase())}</b> в этом составе. Ваш голос ещё не подан.</span></div>`;
+  } else if (cap.mine && cap.mine.decision){
+    gate.innerHTML = `<div class="note-banner ok">${icoOk()}<span>Ваш голос подан ${_esc(cap.mine.date)}: <b>${_esc(DEC_LABEL[cap.mine.decision])}</b>. Изменить его нельзя.</span></div>`;
+  } else { gate.innerHTML = ''; }
+
+  const votingRole = !!ROLE_EMP[_role];
+  $('c-mine-hint').hidden = votingRole;
+  if (!votingRole) $('c-mine-hint').textContent = `Роль «${ROLE_LABEL[_role]}» не голосует`;
+
+  $('c-members').innerHTML = rec.members.map((m, i) => {
+    const isMe = m.emp === ROLE_EMP[_role];
+    const dec = m.decision
+      ? `<span class="badge ${DEC_BADGE[m.decision]}">${_esc(DEC_LABEL[m.decision])}</span>`
+      : (cap.pending && isMe
+          ? `<button class="btn btn-primary btn-sm" onclick="openVote(${i})">Проголосовать</button>`
+          : `<span class="badge neutral">Не голосовал</span>`);
+    const open = _cmtOpen[rec.id + ':' + i];
+    // Кнопку «Показать полностью» вешаем на все непустые комментарии, а прячем те,
+    // что и так влезли — обрезку меряем после рендера (длина строки её не предсказывает).
+    const cmt = !m.comment
+      ? `<span class="cmt none">—</span>`
+      : `<span class="cmt" ${open ? 'style="white-space:normal"' : ''} title="${_esc(m.comment)}">${_esc(m.comment)}</span>`
+        + `<button class="cmt-more" hidden onclick="toggleCmt('${rec.id}',${i})">${open ? 'Свернуть' : 'Показать полностью'}</button>`;
+    return `<tr class="${isMe ? 'me' : ''}">
+      <td class="nowrap">${_esc(m.role)}</td>
+      <td title="${_esc(m.emp)}">${_esc(m.emp)}${isMe ? '<span class="me-tag">вы</span>' : ''}</td>
+      <td class="nowrap">${dec}</td>
+      <td class="nowrap">${_esc(m.risk) || '—'}</td>
+      <td class="nowrap">${_esc(m.date) || '—'}</td>
+      <td>${cmt}</td>
+    </tr>`;
+  }).join('');
+
+  $('c-members').querySelectorAll('.cmt').forEach(el => {
+    const btn = el.nextElementSibling;
+    if (!btn) return;
+    const expanded = el.style.whiteSpace === 'normal';
+    btn.hidden = !expanded && el.scrollWidth <= el.clientWidth;
+  });
+}
+function toggleCmt(id, i){ const k = id + ':' + i; _cmtOpen[k] = !_cmtOpen[k]; renderCard(); }
+
+/* ---- итоговое решение: гейт кворума (P3-26) ---- */
+function renderFinal(rec, cap){
+  const box = $('c-final');
+
+  if (rec.status !== 'На рассмотрении'){
+    box.innerHTML = `
+      <div class="d-final-ed">
+        <div>
+          <div class="ro-field" style="margin-bottom:14px"><span class="flabel">Финальное решение</span>
+            <div class="roval"><span class="badge ${STATUS_BADGE[rec.status]}">${_esc(rec.status)}</span></div></div>
+          <div class="ro-field" style="margin-bottom:14px"><span class="flabel">Номер протокола</span>
+            <div class="roval mono">${_esc(rec.protNo) || '—'}</div></div>
+          <div class="ro-field"><span class="flabel">Дата заседания</span>
+            <div class="roval mono">${_esc(rec.meetDate) || '—'}</div></div>
+        </div>
+        <div><span class="flabel" style="font:var(--font-label);color:var(--text-muted);display:block;margin-bottom:4px">Обоснование решения</span>
+          <div class="note-ro ${rec.reason ? '' : 'none'}">${_esc(rec.reason) || 'Обоснование не заполнено'}</div></div>
+      </div>`;
+    return;
+  }
+
+  if (!cap.decide){
+    box.innerHTML = `<div class="note-banner">${icoInfo()}<span>Итоговое решение выносит <b>председатель комиссии</b>. Решение станет доступно после того, как будет набран кворум голосов.</span></div>`;
+    return;
+  }
+
+  const reason = decisionGateReason(rec);
+  const t = tally(rec);
+  const banner = reason
+    ? `<div class="note-banner warn">${icoWarn()}<span>Решение пока недоступно: <b>${_esc(reason)}</b>.</span></div>`
+    : `<div class="note-banner ok">${icoOk()}<span>Кворум набран (${t.voted} из ${t.total}), протокол заполнен — можно выносить решение.</span></div>`;
+
+  const dis = reason ? `disabled title="${_esc(reason)}"` : '';
+  box.innerHTML = banner + `
+    <div class="d-final-ed">
+      <div>
+        <div class="ed-input" style="margin-bottom:14px">
+          <span class="flabel">Номер протокола<span class="req">*</span></span>
+          <input type="text" id="f-protNo" value="${_esc(rec.protNo)}" oninput="setField('protNo', this.value)" placeholder="напр. 12">
+        </div>
+        <div class="ed-input">
+          <span class="flabel">Дата заседания<span class="req">*</span></span>
+          <input type="text" id="f-meetDate" value="${_esc(rec.meetDate)}" oninput="setField('meetDate', this.value)" placeholder="дд.мм.гггг">
+        </div>
+        <div class="decision-btns">
+          <button class="btn btn-approve" ${dis} onclick="decide('approve')">Одобрить</button>
+          <button class="btn btn-reject"  ${dis} onclick="decide('reject')">Отклонить</button>
+          <button class="btn btn-warn"    ${dis} onclick="decide('moreinfo')">Запросить доп. информацию</button>
+        </div>
+      </div>
+      <div class="ed-input">
+        <span class="flabel">Обоснование решения</span>
+        <textarea id="f-reason" oninput="setField('reason', this.value)" placeholder="Мотивировка — попадёт в протокол">${_esc(rec.reason)}</textarea>
+      </div>
+    </div>`;
+}
+
+/** Правка полей протокола не перерисовывает карточку целиком (фокус бы терялся) — только гейт. */
+function setField(key, val){
+  const rec = RECORDS.find(r => r.id === _openId);
+  rec[key] = val;
+  const reason = decisionGateReason(rec);
+  const box = $('c-final');
+  box.querySelectorAll('.decision-btns .btn').forEach(b => {
+    b.disabled = !!reason;
+    if (reason) b.title = reason; else b.removeAttribute('title');
+  });
+  const t = tally(rec);
+  const banner = box.querySelector('.note-banner');
+  if (banner){
+    banner.className = 'note-banner ' + (reason ? 'warn' : 'ok');
+    banner.innerHTML = reason
+      ? `${icoWarn()}<span>Решение пока недоступно: <b>${_esc(reason)}</b>.</span>`
+      : `${icoOk()}<span>Кворум набран (${t.voted} из ${t.total}), протокол заполнен — можно выносить решение.</span>`;
+  }
+  renderProt(rec, can(rec));
+}
+
+const DECISION_META = {
+  approve:  { status:'Одобрено',                  verb:'Одобрить',                  danger:false },
+  reject:   { status:'Отклонено',                 verb:'Отклонить',                 danger:true  },
+  moreinfo: { status:'Требуется доп. информация', verb:'Запросить доп. информацию', danger:false },
+};
+/** P3-23: подтверждение называет действие и запись, а не «Вы уверены?». */
+function decide(kind){
+  const rec = RECORDS.find(r => r.id === _openId);
+  const reason = decisionGateReason(rec);
+  if (reason){ showToast('Решение заблокировано: ' + reason, 'warn'); return; }
+  const m = DECISION_META[kind];
+  askConfirm({
+    msg: `<b>${_esc(m.verb)}</b> заявку «${_esc(rec.app)}» по комиссии <b>${_esc(rec.num)}</b>?<br>
+          Протокол № ${_esc(rec.protNo)} от ${_esc(rec.meetDate)}. Решение необратимо.`,
+    okLabel: m.verb, danger: m.danger,
+    onYes(){
+      rec.status = m.status;
+      rec.hist.push({ d:'10.07.2026 09:00', who:EMP_CHAIR,
+        what:`Итоговое решение: ${m.status} · протокол № ${rec.protNo}` });
+      renderCard(); renderAll();
+      showToast(`Комиссия ${rec.num}: ${m.status.toLowerCase()}`, m.danger ? 'warn' : 'ok');
+    },
+  });
+}
+
+/* ---- документы: empty state + «Загрузить» (в as-is кнопки не было вовсе) ---- */
+function renderDocs(rec){
+  $('cnt-doc').textContent = rec.docs.length;
+  $('btnUpload').disabled = rec.status !== 'На рассмотрении';
+  $('c-docs').innerHTML = rec.docs.length === 0
+    ? `<div class="empty">
+         <div class="et">Документы не приложены</div>
+         <div>Заключения отделов, расчёты, скан протокола — всё, что комиссия рассматривала.</div>
+         <div class="ea"><button class="btn btn-secondary" ${rec.status !== 'На рассмотрении' ? 'disabled' : ''} onclick="demo('Загрузить документ')">↑ Загрузить документ</button></div>
+       </div>`
+    : `<table class="mtable">
+        <colgroup><col style="width:44%"><col style="width:16%"><col style="width:40%"></colgroup>
+        <thead><tr><th>Файл</th><th>Размер</th><th>Примечание</th></tr></thead>
+        <tbody>${rec.docs.map(d => `<tr>
+          <td title="${_esc(d.name)}"><a href="#" onclick="demo('Скачать ${_esc(d.name)}');return false">${_esc(d.name)}</a></td>
+          <td class="nowrap">${_esc(d.size)}</td><td title="${_esc(d.note)}">${_esc(d.note)}</td></tr>`).join('')}</tbody>
+      </table>`;
+}
+
+/* ---- история: таймлайн, а не строка текста ---- */
+function renderHist(rec){
+  $('cnt-hist').textContent = rec.hist.length;
+  $('c-hist').innerHTML = rec.hist.map((h, i) =>
+    `<li class="${i === rec.hist.length - 1 ? '' : 'done'}">
+      <div class="tl-w">${_esc(h.what)}</div>
+      <div class="tl-m">${_esc(h.d)} · ${_esc(h.who)}</div>
+    </li>`).join('');
+}
+
+/* ---- протокол: не тупик — действия под тем же гейтом ---- */
+function renderProt(rec, cap){
+  const box = $('c-prot');
+  if (rec.protScan){
+    box.innerHTML = `
+      <div class="note-banner ok">${icoOk()}<span>Протокол № <b>${_esc(rec.protNo)}</b> от <b>${_esc(rec.meetDate)}</b> сформирован и подписан.</span></div>
+      <p style="margin:0 0 12px"><a href="#" onclick="demo('Скачать скан протокола');return false">${_esc(rec.protScan)}</a></p>
+      <button class="btn btn-secondary btn-sm" onclick="demo('Печать протокола')">🖨 Печать</button>`;
+    return;
+  }
+  const reason = decisionGateReason(rec);
+  const dis = (reason && !cap.protocol) || !cap.protocol ? 'disabled' : '';
+  box.innerHTML = `
+    <div class="empty">
+      <div class="et">Протокол не сформирован</div>
+      <div>${cap.protocol
+        ? 'Сформируйте протокол по итогам заседания или загрузите скан подписанного бумажного протокола.'
+        : 'Протокол ведут председатель и секретарь комиссии.'}</div>
+      <div class="ea" style="display:flex;gap:10px;justify-content:center">
+        <button class="btn btn-primary btn-sm" ${dis} ${!rec.protNo ? 'title="Не заполнен номер протокола"' : ''} onclick="demo('Сформировать протокол')">Сформировать протокол</button>
+        <button class="btn btn-secondary btn-sm" ${cap.protocol ? '' : 'disabled'} onclick="demo('Загрузить скан протокола')">↑ Загрузить скан</button>
+      </div>
+    </div>`;
+}
+
+/* ==========================================================================
+   7. Диалоги: Escape, клик по подложке, защита несохранённого ввода (P3-21)
+   ========================================================================== */
+const _stack = [];
+function openOverlay(id){ $(id).classList.add('open'); _stack.push(id); }
+function closeOverlay(id){
+  $(id).classList.remove('open');
+  const i = _stack.lastIndexOf(id);
+  if (i >= 0) _stack.splice(i, 1);
+}
+/** Закрытие с проверкой несохранённого ввода. */
+function tryClose(id){
+  if (id === 'ovVote' && voteDirty()){
+    askConfirm({
+      msg:'Закрыть форму отзыва? <b>Введённые данные будут потеряны.</b>',
+      okLabel:'Закрыть без сохранения', danger:true,
+      onYes(){ closeOverlay('ovVote'); },
+    });
+    return;
+  }
+  closeOverlay(id);
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || _stack.length === 0) return;
+  const top = _stack[_stack.length - 1];
+  if (top === 'ovConfirm') closeOverlay('ovConfirm'); else tryClose(top);
+});
+document.querySelectorAll('.overlay').forEach(ov => {
+  ov.addEventListener('mousedown', e => { if (e.target === ov) (ov.id === 'ovConfirm' ? closeOverlay : tryClose)(ov.id); });
+});
+
+/* ---- подтверждение: одна пара подписей «Да/Отмена», деструктив — красный (P3-22) ---- */
+let _confirmFn = null;
+function askConfirm({ msg, okLabel = 'Да', danger = false, onYes }){
+  $('confirmMsg').innerHTML = msg;
+  const ok = $('confirmOk');
+  ok.textContent = okLabel;
+  ok.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
+  _confirmFn = onYes;
   openOverlay('ovConfirm');
 }
 function confirmYes(){
   closeOverlay('ovConfirm');
-  // мокап: подтверждение закрывает диалог (без реальной мутации данных)
-  if (confirmAction === 'delete') closeToList();
-  confirmAction = null;
+  const fn = _confirmFn; _confirmFn = null;
+  if (fn) fn();
 }
+
+/* ---- голос ---- */
+let _voteIdx = null;
+const voteDirty = () => !!($('v-dec').value || $('v-risk').value || $('v-cmt').value.trim());
+function openVote(i){
+  _voteIdx = i;
+  $('v-dec').value = ''; $('v-risk').value = ''; $('v-cmt').value = '';
+  $('v-dec').classList.remove('err'); $('v-dec-err').classList.remove('show');
+  openOverlay('ovVote');
+  $('v-dec').focus();
+}
+function submitVote(){
+  const dec = $('v-dec').value;
+  if (!dec){                                  // «Решение» обязательно (в as-is селект был пуст и необязателен)
+    $('v-dec').classList.add('err');
+    $('v-dec-err').classList.add('show');
+    $('v-dec').focus();
+    return;
+  }
+  const rec = RECORDS.find(r => r.id === _openId);
+  const m = rec.members[_voteIdx];
+  m.decision = dec;
+  m.risk = $('v-risk').value;
+  m.comment = $('v-cmt').value.trim();
+  m.date = '10.07.2026';
+  rec.hist.push({ d:'10.07.2026 09:00', who:m.emp,
+    what:`Голос: ${DEC_LABEL[dec]}${m.risk ? ' · риск ' + m.risk : ''}` });
+  closeOverlay('ovVote');
+  renderCard(); renderAll();
+  const t = tally(rec);
+  showToast(t.quorumMet ? `Голос учтён. Кворум набран (${t.voted} из ${t.total}).`
+                        : `Голос учтён. Проголосовало ${t.voted} из ${t.total}, нужно ${t.quorum}.`, 'ok');
+}
+
+/* ==========================================================================
+   8. Старт
+   ========================================================================== */
+setRole('chair');
+renderAll();
 </script>
 </body>
 </html>
