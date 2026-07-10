@@ -1900,7 +1900,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
   <div class="modal" style="width:min(440px,96%)">
     <div class="modal-h">
       <span class="mt">Снять отдел</span>
-      <button class="modal-x" onclick="closeModal('modal-concl-unassign')" aria-label="Закрыть">
+      <button class="modal-x" onclick="conclUnassignCancel()" aria-label="Закрыть">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
       </button>
     </div>
@@ -1908,7 +1908,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
       <p id="concl-unassign-text">Внесённое заключение будет удалено.</p>
     </div>
     <div class="modal-f">
-      <button class="btn btn-secondary" onclick="closeModal('modal-concl-unassign')">Отмена</button>
+      <button class="btn btn-secondary" onclick="conclUnassignCancel()">Отмена</button>
       <button class="btn btn-danger" onclick="conclUnassignConfirm()">Снять отдел</button>
     </div>
   </div>
@@ -4909,6 +4909,13 @@ function conclUnassignConfirm(){
   closeModal('modal-concl-unassign');
   _conclPendingUnassign = null;
   if (app && key) _conclDropDept(app, key);
+}
+
+// Отмена снятия отдела (крестик/«Отмена»): закрыть модалку и разрядить _conclPendingUnassign,
+// иначе следующий conclUnassignConfirm() снимет ранее отменённый отдел без нового запроса.
+function conclUnassignCancel(){
+  closeModal('modal-concl-unassign');
+  _conclPendingUnassign = null;
 }
 
 function _conclDropDept(app, key){

@@ -156,16 +156,25 @@ const t3c = await page.evaluate(() => {
   conclUnassign('legal');                                  // legal — draft → спросит
   const modalOpen = document.getElementById('modal-concl-unassign').classList.contains('open');
   const still = _conclOf(_detailApp).assigned.map(a => a.dept).includes('legal');
+  // отмена (крестик/«Отмена») должна разряжать _conclPendingUnassign, иначе последующий
+  // confirm без свежего запроса снимет ранее отменённый отдел
+  conclUnassignCancel();
+  const modalClosedAfterCancel = !document.getElementById('modal-concl-unassign').classList.contains('open');
+  conclUnassignConfirm();                                  // confirm без свежего unassign — не должен ничего снимать
+  const afterCancelConfirm = _conclOf(_detailApp).assigned.map(a => a.dept).join(',');
+  conclUnassign('legal');                                  // настоящий повторный запрос
   conclUnassignConfirm();
   const afterConfirm = _conclOf(_detailApp).assigned.map(a => a.dept).join(',');
   conclAssign('legal'); conclAssign('analytics');           // вернуть сид для следующих блоков
   _conclOf(_detailApp).items.legal.status = 'draft';
   _conclOf(_detailApp).items.legal.text = DEPT_MAP.legal.seed;
-  return { afterEmpty, afterPending, modalOpen, still, afterConfirm };
+  return { afterEmpty, afterPending, modalOpen, still, modalClosedAfterCancel, afterCancelConfirm, afterConfirm };
 });
 check('T3c пустой отдел снимается сразу', t3c.afterEmpty === 'risk,credit,legal,analytics');
 check('T3c pending снимается сразу', t3c.afterPending === 'risk,credit,legal');
 check('T3c непустой отдел спрашивает подтверждение', t3c.modalOpen === true && t3c.still === true);
+check('T3c отмена снятия закрывает модалку и разряжает _conclPendingUnassign',
+  t3c.modalClosedAfterCancel === true && t3c.afterCancelConfirm === 'risk,credit,legal');
 check('T3c подтверждение снимает отдел', t3c.afterConfirm === 'risk,credit');
 
 const t3d = await page.evaluate(() => {
