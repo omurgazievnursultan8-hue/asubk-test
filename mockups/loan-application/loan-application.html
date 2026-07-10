@@ -820,6 +820,11 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .roleswitch{ margin-left:auto; display:flex; align-items:center; gap:8px; font:var(--weight-regular) var(--text-sm)/1 var(--asubk-font); color:var(--text-muted); }
 .roleswitch label{ color:var(--text-muted); }
 .roleswitch select{ font:inherit; padding:5px 8px; border:1px solid var(--asubk-gray-300, #d0d5dd); border-radius:6px; background:var(--surface-page); color:var(--text-heading); cursor:pointer; }
+.deptswitch{ display:inline-flex; align-items:center; gap:6px; margin-left:10px; }
+.deptswitch label{ font:var(--font-label); color:var(--text-muted); }
+.deptswitch select{ font:inherit; padding:4px 8px; border:1px solid var(--border-default);
+  border-radius:var(--radius-sm); background:var(--surface-card); color:var(--text-body); }
+.deptswitch select:focus{ outline:none; border-color:var(--asubk-blue); }
 
 /* ---- status badge (header dh-status + list) ---- */
 .st-badge{ display:inline-flex; align-items:center; height:22px; padding:0 10px; border-radius:var(--radius-pill);
@@ -1259,6 +1264,11 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
           <option value="com">🏛 Комиссия</option>
           <option value="ro">👁 Остальные</option>
         </select>
+      </span>
+      <!-- демо: от имени какого отдела вносится заключение (виден только в роли «Отдел») -->
+      <span class="deptswitch" id="deptSwitch" hidden title="Демо: заключение вносит сотрудник выбранного отдела; чужие блоки — только на чтение">
+        <label for="deptSel">Отдел:</label>
+        <select id="deptSel" onchange="setDept(this.value)"></select>
       </span>
     </header>
 
@@ -2594,6 +2604,11 @@ let _editMode = false;
    (= потенциальное × включённый режим «Изменить»). Инлайн-редакторы смотрят на editReq/editOp. */
 function can(app){
   const phase = condPhase(app.status);
+  /* Снимок роли/отдела на момент вызова can() — как и phase, они фиксируются здесь;
+     без этого editConcl/withdrawConcl (замыкания-функции) читали бы _role/_deptKey
+     заново при каждом вызове и «уезжали» бы, если роль сменится ПОСЛЕ can(), но ДО
+     фактического вызова editConcl(dept) (напр. в одном выражении с несколькими can()). */
+  const curRole = _role, curDept = _deptKey;
   const rawReq = _role === 'spec' && phase === 'draft';   // запрос заёмщика · доки · члены · залог
   const rawOp  = _role === 'com'  && phase === 'review';  // опер-условия · комментарий комиссии
   const rawSched = (_role === 'spec' && phase === 'draft')   // окно правки графика: спец до одобрения…
@@ -2608,7 +2623,14 @@ function can(app){
     editSched: rawSched && _editMode,                      // фактическое — только в режиме «Изменить»
     vote:    _role === 'com' && phase === 'review',        // голосование в комиссии
     confirmDoc: _role === 'gf'   && phase === 'draft',     // 2-й уровень: головной филиал подтверждает комплект
-    editConcl:  _role === 'dept' && phase === 'draft',     // отдел вносит заключение (риск/залог/юр/кредит)
+    /* Заключения: назначает отделы кредитный специалист на черновике; вносит —
+       роль «Отдел» и только за свой отдел, и только после подтверждения комплекта ГФ. */
+    assignDepts: curRole === 'spec' && phase === 'draft',
+    editConcl: dept => curRole === 'dept' && dept === curDept && phase === 'draft'
+                    && _docStats(app).confirmedMet,
+    withdrawConcl: dept => curRole === 'dept' && dept === curDept && phase === 'draft'
+                    && _docStats(app).confirmedMet
+                    && (_conclOf(app).items[dept] || {}).status === 'submitted',
     toolbar: _role === 'spec',                             // тулбар списка/деталки жмёт только специалист
   };
 }
@@ -2628,7 +2650,26 @@ function setRole(r){
   _editMode = false;                                   // смена роли — выходим из правки
   _schedSel = null; _schedView = null; _docMemberView = null;   // сброс выбора строки / вида графика / вида документов
   applyRoleToListButtons();                             // список: скрыть/показать спец-кнопки
+  _syncDeptSwitch();
   if (_detailApp) gotoDetail(_detailApp.num);           // деталка: перерисовать под роль
+}
+
+/* Демо: от имени какого отдела действует роль «Отдел». Список — назначенные
+   отделы открытой заявки; если текущий отдел не назначен, откатываемся к первому. */
+function setDept(k){
+  if (!DEPT_MAP[k]) return;
+  _deptKey = k;
+  _syncDeptSwitch();
+  if (_detailApp) gotoDetail(_detailApp.num, 'tab-concl');
+}
+function _syncDeptSwitch(){
+  const wrap = document.getElementById('deptSwitch'), sel = document.getElementById('deptSel');
+  if (!wrap || !sel) return;
+  wrap.hidden = (_role !== 'dept');
+  if (wrap.hidden) return;
+  const keys = _detailApp ? _conclOf(_detailApp).assigned.map(a => a.dept) : DEPT_DIR.map(d => d.key);
+  if (!keys.includes(_deptKey)) _deptKey = keys[0] || 'risk';
+  sel.innerHTML = keys.map(k => `<option value="${k}"${k === _deptKey ? ' selected' : ''}>${_esc(DEPT_MAP[k].title)}</option>`).join('');
 }
 
 /* ---- Detail toolbar: экшны по статусу (spec топик 4, P3-R7).
@@ -2782,6 +2823,7 @@ function gotoDetail(num, panel){
   const currentPanel = sameApp ? document.querySelector('.tabbar-tab.active')?.dataset.panel : null;
   if (!sameApp) { _editMode = false; _condOpenSec = null; _condMonthsOpen = false; _memberSel = null; _collSel = null; _schedView = null; _schedSel = null; _docMemberView = null; }   // др. заявка → аккордеон к дефолту, снять выделения
   _detailApp = app;
+  _syncDeptSwitch();                                   // список отделов — из назначенных на этой заявке
 
   /* Header band */
   const meta = STATUS_META[app.status] || { badge:'s-new', step:0 };
