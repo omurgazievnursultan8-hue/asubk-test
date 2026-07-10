@@ -231,23 +231,29 @@ check('T4c история разворачивается', t4c.rows >= 2);
 check('T4c «развернуть все» раскрывает все карточки', t4c.openCards === 4);
 // (карточек 4: risk, credit, legal, analytics)
 
-// красный баннер при отрицательном
+// красный баннер при отрицательном; заодно — раскрытие карточек не должно течь
+// с предыдущей заявки: t4c выше раскрыл все карточки 105 через conclToggleAll()
 const t4d = await page.evaluate(() => {
   const rej = APPLICATIONS.find(a => a.status === 'Отклонена');
   gotoDetail(rej.num, 'tab-concl'); showTab('tab-concl');
   const b = document.querySelector('#tab-concl .note-banner');
-  return { cls:b.className, txt:b.textContent };
+  const openCards = document.querySelectorAll('#tab-concl .concl-block.open').length;
+  return { cls:b.className, txt:b.textContent, openCards, openAll:_conclOpenAll };
 });
 check('T4d отрицательное — баннер-ошибка с названием отдела',
   /err|bad|error/.test(t4d.cls) && /Отдел рисков/.test(t4d.txt) && /заблокирован/i.test(t4d.txt));
+check('T4d переход на другую заявку не наследует раскрытие карточек с предыдущей (t4c)',
+  t4d.openCards === 0 && t4d.openAll === false);
 
-// без подтверждения ГФ — баннер объясняет, что вносить рано, но панель назначения доступна
+// без подтверждения ГФ — баннер объясняет, что вносить рано, но назначать отделы можно уже
+// сейчас: у роли «спец» на черновике панель показывает рабочие кнопки (есть добор #conclAddSel)
 const t4e = await page.evaluate(() => {
   setRole('spec'); gotoDetail('З-2026-000080', 'tab-concl'); showTab('tab-concl');
   const b = document.querySelector('#tab-concl .note-banner');
-  return { txt:b.textContent, panel: !!document.querySelector('#tab-concl .dept-panel') };
+  return { txt:b.textContent, addSel: !!document.querySelector('#tab-concl #conclAddSel') };
 });
-check('T4e до подтверждения ГФ баннер объясняет ожидание', /головным филиалом/.test(t4e.txt) && t4e.panel === true);
+check('T4e до подтверждения ГФ баннер объясняет ожидание, но назначение отделов уже доступно',
+  /головным филиалом/.test(t4e.txt) && t4e.addSel === true);
 
 console.log(results.join('\n'));
 console.log(errors.length ? '\nERRORS:\n' + errors.join('\n') : '\nNO JS ERRORS');

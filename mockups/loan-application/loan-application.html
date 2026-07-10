@@ -2879,7 +2879,7 @@ function gotoDetail(num, panel){
      сохраняет текущий _editMode И текущий таб (иначе «Изменить» кидает на 1-й таб). */
   const sameApp = _detailApp && _detailApp.num === num;
   const currentPanel = sameApp ? document.querySelector('.tabbar-tab.active')?.dataset.panel : null;
-  if (!sameApp) { _editMode = false; _condOpenSec = null; _condMonthsOpen = false; _memberSel = null; _collSel = null; _schedView = null; _schedSel = null; _docMemberView = null; }   // др. заявка → аккордеон к дефолту, снять выделения
+  if (!sameApp) { _editMode = false; _condOpenSec = null; _condMonthsOpen = false; _memberSel = null; _collSel = null; _schedView = null; _schedSel = null; _docMemberView = null; _conclResetOpen(); }   // др. заявка → аккордеон к дефолту, снять выделения
   _detailApp = app;
   _syncDeptSwitch();                                   // список отделов — из назначенных на этой заявке
 
@@ -4989,6 +4989,20 @@ const _conclOpen = {};        // dept -> bool (явный клик)
 const _conclLogOpen = {};     // dept -> bool (история)
 let _conclOpenAll = false;
 
+/* Сброс раскрытия карточек при смене ОТКРЫТОЙ заявки (см. gotoDetail).
+   Ключи в _conclOpen/_conclLogOpen — просто dept, без привязки к заявке,
+   поэтому при переходе на другую заявку их нужно обнулять явно — иначе
+   раскрытая карточка отдела одной заявки "утечёт" в другую с тем же ключом.
+   Вызывать только при смене номера заявки, НЕ при перерисовке той же
+   (setRole/setDept вызывают gotoDetail для той же заявки — там раскрытие
+   должно сохраняться, иначе редактор Task 5 будет схлопываться на каждое
+   действие). */
+function _conclResetOpen(){
+  Object.keys(_conclOpen).forEach(k => delete _conclOpen[k]);
+  Object.keys(_conclLogOpen).forEach(k => delete _conclLogOpen[k]);
+  _conclOpenAll = false;
+}
+
 function _conclIsOpen(key){
   if (key in _conclOpen) return _conclOpen[key];
   if (_conclOpenAll) return true;
@@ -5031,7 +5045,8 @@ function _conclGateBanner(app){
     return `<div class="note-banner err">${_docIcoWarn()}<span>Отрицательное заключение: <b>${_esc(neg.map(k => DEPT_MAP[k].title).join(', '))}</b>. Отправка в комиссию заблокирована — устраните замечания, отдел отзовёт заключение и внесёт новое.</span></div>`;
   if (cc.done < cc.total)
     return `<div class="note-banner">${_docIcoInfo()}<span>Внесено <b>${cc.done} из ${cc.total}</b>. Ожидаются: ${_esc(_conclWaiting(app).join(', '))}.</span></div>`;
-  const conds = _conclOf(app).assigned.reduce((n, a) => n + _conclOf(app).items[a.dept].conds.length, 0);
+  const c = _conclOf(app);
+  const conds = c.assigned.reduce((n, a) => n + c.items[a.dept].conds.length, 0);
   const tail = cc.cond ? ` Условий: ${conds} — комиссия рассмотрит.` : '';
   return `<div class="note-banner ok">${_docIcoOk()}<span>Все заключения внесены (<b>${cc.done}/${cc.total}</b>). Заявку можно отправить на рассмотрение комиссии.${tail}</span></div>`;
 }
