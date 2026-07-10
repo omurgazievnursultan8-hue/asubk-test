@@ -2752,6 +2752,8 @@ function setRole(r){
   _editMode = false;                                   // смена роли — выходим из правки
   _schedSel = null; _schedView = null; _docMemberView = null;   // сброс выбора строки / вида графика / вида документов
   applyRoleToListButtons();                             // список: скрыть/показать спец-кнопки
+  const roleSel = document.getElementById('roleSel');   // синхронизация при программном вызове (см. _syncDeptSwitch)
+  if (roleSel) roleSel.value = r;
   _syncDeptSwitch();
   if (_detailApp) gotoDetail(_detailApp.num);           // деталка: перерисовать под роль
 }
