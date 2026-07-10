@@ -464,11 +464,23 @@ const t6e = await page.evaluate(() => {
   setRole('com'); gotoDetail(a.num, 'tab-6'); showTab('tab-6');
   const block = document.querySelector('#tab-6 .concl-com');
   const rows  = document.querySelectorAll('#tab-6 .concl-com .concl-block').length;
-  const edit  = document.querySelectorAll('#tab-6 .concl-com .concl-edit').length;
-  return { has: !!block, rows, edit };
+  // Раскрытие карточки прямо в своде: клик по заголовку обязан перерисовать ту
+  // панель, где карточка находится (tab-6), а не скрытую tab-concl. Комиссия должна
+  // увидеть ТЕКСТ заключения (.concl-text), а не только бейдж вердикта.
+  const head = document.querySelector('#tab-6 .concl-com .concl-block .concl-head');
+  const dept = head.closest('.concl-block').dataset.dept;
+  head.click();
+  const card = document.querySelector(`#tab-6 .concl-com .concl-block[data-dept="${dept}"]`);
+  return { has: !!block, rows,
+           open: card.classList.contains('open'),
+           text: !!card.querySelector('.concl-text'),
+           edit: !!card.querySelector('.concl-edit') };
 });
 check('T6e комиссия видит блок заключений на фазе A', t6e.has === true && t6e.rows >= 2);
-check('T6e блок в комиссии — только на чтение', t6e.edit === 0);
+check('T6e карточка в своде комиссии раскрывается по клику (перерисовка своей панели, tab-6)',
+  t6e.open === true && t6e.text === true);
+check('T6e раскрытая карточка в своде — только на чтение: есть текст, нет редактора',
+  t6e.text === true && t6e.edit === false);
 
 console.log(results.join('\n'));
 console.log(errors.length ? '\nERRORS:\n' + errors.join('\n') : '\nNO JS ERRORS');
