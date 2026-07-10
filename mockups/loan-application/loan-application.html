@@ -1116,9 +1116,20 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .com-vote{ font-weight:var(--weight-medium); }
 .com-vote.ap{ color:var(--status-success); } .com-vote.rj{ color:var(--status-error); }
 .com-vote.ab{ color:var(--status-warning); } .com-vote.no{ color:var(--text-placeholder); }
+/* Голос члена комиссии — кнопки в его же строке грида (кто голосует, видно без догадок).
+   Повторный клик по своей отметке снимает голос обратно в «—». */
+.com-vbtns{ display:inline-flex; gap:4px; }
+.com-vbtn{ font:var(--weight-medium) 12px/1 var(--asubk-font); padding:5px 9px; cursor:pointer;
+  border:1px solid var(--border-default); border-radius:var(--radius-sm);
+  background:var(--surface-card); color:var(--text-muted); white-space:nowrap; }
+.com-vbtn:hover{ background:var(--surface-hover); color:var(--text-body); }
+.com-vbtn.on.ap{ color:#fff; background:var(--status-success); border-color:var(--status-success); }
+.com-vbtn.on.rj{ color:#fff; background:var(--status-error);   border-color:var(--status-error); }
+.com-vbtn.on.ab{ color:#fff; background:var(--status-warning); border-color:var(--status-warning); }
 .com-tools{ margin-top:18px; display:flex; flex-direction:column; gap:10px; }
 .com-toolrow{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .com-toolrow .role{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-muted); min-width:230px; }
+.com-hint{ font:var(--font-label); color:var(--text-muted); }
 /* Две фазы комиссии: предварительное изучение → заседание комитета */
 .com-phase-strip{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 16px; }
 .com-phase-strip .cp{ font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); padding:8px 14px; border-radius:var(--radius-pill);
@@ -2122,7 +2133,7 @@ function showView(name){
   window.scrollTo(0,0);
 }
 function openModal(id){ document.getElementById(id).classList.add('open'); }
-function closeModal(id){ const el = document.getElementById(id); el.classList.remove('open'); if (id === 'modal-pick-subject'){ _subjectPickTarget = 'borrower'; el.style.zIndex = ''; } }
+function closeModal(id){ const el = document.getElementById(id); el.classList.remove('open'); if (id === 'modal-pick-subject'){ _subjectPickTarget = 'borrower'; el.style.zIndex = ''; } if (id === 'modal-doc-reason'){ _reasonCb = null; _docReasonPending = null; } }
 /* ============================================================
    APPLICATIONS DATASET — ~22 live rows, inspected 2026-06-29
    Rows 1-8: exact data from GRID_HEADER_CELLS dump.
@@ -2799,6 +2810,60 @@ const TOOLBAR = {
 };
 function toolbarAction(label){ showToast(label + ' — демо-действие макета', 'info'); }
 
+/* ---- Аудит реальных переходов (P3-R22) ----
+   `app.audit` копит то, что пользователь сделал в макете, а buildHistory() досочиняет
+   недостающие вехи из статуса. `key` связывает запись с синтетической вехой того же
+   смысла: если реальная есть — синтетическую не печатаем, иначе веха задвоится. */
+function _audit(app, user, event, from, to, key){
+  if (!app.audit) app.audit = [];
+  app.audit.push({ user, event, from:from || '', to:to || '', key:key || '' });
+}
+
+/* Отозвать — только специалист и только пока комиссия не решила (спек, граф переходов).
+   Терминал: запись голосования уничтожается, дальше только «Пересоздать» клоном. */
+const WITHDRAWABLE_STATUSES = new Set(['Новый', 'На рассмотрении', 'Требуется доп. информация']);
+
+function withdrawApp(num){
+  const app = APPLICATIONS.find(a => a.num === num);
+  if (!app) return;
+  if (_role !== 'spec'){ showToast('Отозвать заявку может только кредитный специалист', 'warn'); return; }
+  if (!WITHDRAWABLE_STATUSES.has(app.status)){
+    showToast(`Заявку в статусе «${app.status}» отозвать нельзя`, 'warn'); return;
+  }
+  if (!confirm(`Отозвать заявку ${app.num}?\n\nСтатус станет «Отозвана» — это терминальное состояние. Продолжить работу можно только пересозданием клона.`)) return;
+  const from = app.status;
+  app.status = 'Отозвана';
+  app._com = null;                                     // комиссии у отозванной заявки нет
+  _audit(app, '[specialist]', 'Заявка отозвана · изменён статус', from, 'Отозвана', 'withdraw');
+  renderGrid();
+  if (_detailApp && _detailApp.num === app.num) gotoDetail(app.num);
+  else if (_selNum === app.num) selectRow(app.num);    // тулбар списка — под новый статус
+  showToast(`Заявка ${app.num} отозвана`, 'ok');
+}
+
+/* Сформировать кредит — из «Одобрена». Поток A (по программе) идёт сразу «На оформлении»;
+   поток B ждёт привязки решения+программы (спек, граф переходов). */
+function formCredit(num){
+  const app = APPLICATIONS.find(a => a.num === num);
+  if (!app) return;
+  if (_role !== 'spec'){ showToast('Сформировать кредит может только кредитный специалист', 'warn'); return; }
+  if (app.status !== 'Одобрена'){
+    showToast('Кредит формируется только из статуса «Одобрена»', 'warn'); return;
+  }
+  const to = app.flow === 'B' ? 'Ожидает решения/программы' : 'На оформлении';
+  const what = app.isGroup
+    ? `кредит и ${_membersOf(app).length} траншей по членам группы`
+    : 'кредит';
+  if (!confirm(`Сформировать ${what} по заявке ${app.num}?\n\nСтатус станет «${to}».`)) return;
+  app.status = to;
+  _audit(app, '[specialist]', 'Сформирован кредит · изменён статус', 'Одобрена', to,
+    app.flow === 'B' ? 'waitB' : 'credit');
+  renderGrid();
+  if (_detailApp && _detailApp.num === app.num) gotoDetail(app.num);
+  else if (_selNum === app.num) selectRow(app.num);
+  showToast(`Кредит сформирован, заявка перешла в «${to}»`, 'ok');
+}
+
 /* ---- Режим правки: «Изменить» → редактируемые поля → «Сохранить»/«Отмена» ----
    enterEdit снимает снимок заявки и включает _editMode; поля пишутся вживую в объект
    (data-bind + bindCondInput). «Сохранить» — фиксирует (снимок сброшен); «Отмена» и
@@ -2863,6 +2928,11 @@ function renderToolbar(app){
       }
       if (label === 'Удалить')
         return `<button class="btn btn-${kind} btn-sm" onclick="_selNum='${_esc(app.num)}';delSelected()">${label}</button>`;
+      /* Живые переходы статуса (P3-R22); остальные экшны пока демо-тост. */
+      if (label === 'Отозвать')
+        return `<button class="btn btn-${kind} btn-sm" onclick="withdrawApp('${_esc(app.num)}')">${label}</button>`;
+      if (label === 'Сформировать кредит')
+        return `<button class="btn btn-${kind} btn-sm" onclick="formCredit('${_esc(app.num)}')">${label}</button>`;
       return `<button class="btn btn-${kind} btn-sm" onclick="toolbarAction('${label}')">${label}</button>`;
     });
     /* Комиссия правит опер-условия, но своего статус-тулбара не имеет — добавим «Изменить». */
@@ -4874,7 +4944,23 @@ function docView(key){
 
 /* Модалка обоснования (reject/waive) — пустой текст блокируется. */
 let _docReasonPending = null;
+let _reasonCb = null;              // обобщённый режим: обоснование уходит в колбэк, а не в документ
+
+/* askReason — та же модалка для любого действия, требующего письменного обоснования
+   (решение председателя). Колбэк получает непустой текст; Отмена/крестик просто закрывают. */
+function askReason(title, label, ok, cb){
+  _docReasonPending = null;
+  _reasonCb = cb;
+  document.getElementById('doc-reason-title').textContent = title;
+  document.getElementById('doc-reason-label').textContent = label;
+  document.getElementById('doc-reason-ok').textContent = ok;
+  document.getElementById('doc-reason-text').value = '';
+  openModal('modal-doc-reason');
+  setTimeout(() => { const t = document.getElementById('doc-reason-text'); if (t) t.focus(); }, 30);
+}
+
 function _docOpenReason(key, kind){
+  _reasonCb = null;
   _docReasonPending = { key, kind };
   const titles = { reject:'Отклонить документ', waive:'Пометить «Не требуется»', comreq:'Запросить дополнение / замену' };
   const labels = { reject:'Причина отклонения (обязательно)', waive:'Обоснование waiver (обязательно, попадёт в аудит)',
@@ -4890,6 +4976,12 @@ function _docOpenReason(key, kind){
 function confirmDocReason(){
   const txt = document.getElementById('doc-reason-text').value.trim();
   if (!txt){ showToast('Нужно указать обоснование', 'warn'); return; }
+  if (_reasonCb){
+    const cb = _reasonCb; _reasonCb = null;
+    closeModal('modal-doc-reason');
+    cb(txt);
+    return;
+  }
   const d = _findDocState(_docReasonPending.key);
   if (!d){ closeModal('modal-doc-reason'); _docReasonPending = null; return; }
   const kind = _docReasonPending.kind;
@@ -5544,40 +5636,62 @@ function _conclCommissionBlock(app){
    ============================================================ */
 const COM_MEMBERS = ['НУРМАНБЕТ КЫЗЫ КАЛИНА', 'АСАНОВ Т. К.', 'ОРОЗБЕКОВА А. М.', 'ИБРАИМОВ Р. С.'];
 const _VOTE_CLS  = { 'Одобрить':'ap', 'Отклонить':'rj', 'Воздержаться':'ab', '—':'no' };
+const _VOTES     = ['Одобрить', 'Отклонить', 'Воздержаться'];   // совещательный голос члена
 
-/* Демо-состояние комиссии по статусу заявки. null → комиссии ещё нет. */
+/* Стартовое состояние комиссии по статусу заявки — только СИД для демо-строк реестра.
+   Дальше живёт `app._com`: голоса, финальное решение и открытость правит пользователь.
+   Отсутствие статуса в таблице → комиссии нет (Новый / Отозвана). */
+const COM_SEED = {
+  'На рассмотрении':           { votes:['—','Одобрить','—','Отклонить'],                 final:['s-review','На рассмотрении'],       open:true },
+  'Требуется доп. информация': { votes:['—','—','—','—'],                                 final:['s-info','Возвращена на доработку'], open:false },
+  'Одобрена':                  { votes:['Одобрить','Одобрить','Одобрить','Одобрить'],     final:['s-approved','Одобрена'],            open:false },
+  'Ожидает решения/программы': { votes:['Одобрить','Одобрить','Одобрить','Одобрить'],     final:['s-approved','Одобрена'],            open:false },
+  'На оформлении':             { votes:['Одобрить','Одобрить','Одобрить','Одобрить'],     final:['s-approved','Одобрена'],            open:false },
+  'Оформлена':                 { votes:['Одобрить','Одобрить','Одобрить','Одобрить'],     final:['s-approved','Одобрена'],            open:false },
+  'Отклонена':                 { votes:['Отклонить','Одобрить','Отклонить','Отклонить'],  final:['s-rejected','Отклонена'],           open:false },
+};
+
+/* Свежая запись голосования — при отправке в комиссию и на повторном круге после
+   «Требуется доп. информация» (спек: та же комиссия, голоса сбрасываются). */
+function _comStateFresh(){
+  return { phase:'prelim', sign: COM_MEMBERS.map(() => false), scan:false,
+           votes: COM_MEMBERS.map(() => '—'), comments: COM_MEMBERS.map(() => ''),
+           final:['s-review','На рассмотрении'], open:true };
+}
+
+/* Состояние комиссии на объекте заявки: фаза · голоса · комментарии · решение ·
+   подписи членов · скан протокола. Решённые демо-заявки (голосование закрыто) —
+   засеяны как заседание с подписями и внесённым сканом. */
+function _comStateOf(app){
+  if (!app._com){
+    const s = COM_SEED[app.status];
+    const closed = s ? !s.open : false;
+    app._com = {
+      phase: closed ? 'session' : 'prelim',
+      sign: COM_MEMBERS.map(() => closed),
+      scan: closed,
+      votes: s ? s.votes.slice() : COM_MEMBERS.map(() => '—'),
+      comments: COM_MEMBERS.map((_, i) =>
+        (i === 3 && app.status === 'Отклонена') ? 'Недостаточно обеспечения' : ''),
+      final: s ? s.final.slice() : ['s-review','На рассмотрении'],
+      open:  s ? s.open : true,
+    };
+  }
+  return app._com;
+}
+
+/* Проекция состояния на вкладку. null → комиссии ещё нет. */
 function commissionFor(app){
-  const st = app.status;
-  const sets = {
-    'На рассмотрении':           { votes:['—','Одобрить','—','Отклонить'],                 final:['s-review','На рассмотрении'],       open:true },
-    'Требуется доп. информация': { votes:['—','—','—','—'],                                 final:['s-info','Возвращена на доработку'], open:false },
-    'Одобрена':                  { votes:['Одобрить','Одобрить','Одобрить','Одобрить'],     final:['s-approved','Одобрена'],            open:false },
-    'Ожидает решения/программы': { votes:['Одобрить','Одобрить','Одобрить','Одобрить'],     final:['s-approved','Одобрена'],            open:false },
-    'На оформлении':             { votes:['Одобрить','Одобрить','Одобрить','Одобрить'],     final:['s-approved','Одобрена'],            open:false },
-    'Оформлена':                 { votes:['Одобрить','Одобрить','Одобрить','Одобрить'],     final:['s-approved','Одобрена'],            open:false },
-    'Отклонена':                 { votes:['Отклонить','Одобрить','Отклонить','Отклонить'],  final:['s-rejected','Отклонена'],           open:false },
-  };
-  const s = sets[st];
-  if (!s) return null;   // Новый / Отозвана — комиссии нет
+  if (!COM_SEED[app.status]) return null;   // Новый / Отозвана — комиссии нет
+  const st = _comStateOf(app);
   return {
     body:'Комиссия по заявкам', protocol:'ПР-2026/104', date:'26.06.2026',
     members: COM_MEMBERS.map((emp, i) => ({
-      role: i === 0 ? 'Председатель' : 'Член', emp, vote: s.votes[i],
-      deadline:'27.06.2026', comment: i === 3 && st === 'Отклонена' ? 'Недостаточно обеспечения' : ''
+      role: i === 0 ? 'Председатель' : 'Член', emp, vote: st.votes[i],
+      deadline:'27.06.2026', comment: st.comments[i] || ''
     })),
-    final: s.final, open: s.open
+    final: st.final, open: st.open
   };
-}
-
-/* Демо-состояние двух фаз комиссии на объекте заявки: фаза · подписи членов · скан протокола.
-   Решённые заявки (голосование закрыто) — засеяны как заседание с подписями и внесённым сканом. */
-function _comStateOf(app){
-  if (!app._com){
-    const c = commissionFor(app);
-    const closed = c ? !c.open : false;
-    app._com = { phase: closed ? 'session' : 'prelim', sign: COM_MEMBERS.map(() => closed), scan: closed };
-  }
-  return app._com;
 }
 /* Перечень обязательных документов (для предварительного изучения комиссией). */
 function _reqDocList(app){
@@ -5631,6 +5745,76 @@ function comUploadProtocol(){
   s.scan = true; _panelRefresh('tab-6'); showToast('Скан подписанного протокола внесён в систему', 'ok');
 }
 function comRequest(key){ if (!_comActor()) return; _docOpenReason(key, 'comreq'); }
+
+/* ── Голос члена комиссии (совещательный) ──
+   Кнопки живут в строке самого члена: кто голосует — видно, отдельный селектор не нужен.
+   Повторный клик по своей отметке снимает голос обратно в «—». */
+function comVote(i, v){
+  const app = _comActor(); if (!app) return;
+  const s = _comStateOf(app);
+  if (!s.open){ showToast('Голосование закрыто — решение уже принято председателем', 'warn'); return; }
+  if (s.phase !== 'session'){ showToast('Голосовать можно только после вынесения на заседание комитета', 'warn'); return; }
+  const from = s.votes[i];
+  const to   = (from === v) ? '—' : v;
+  s.votes[i] = to;
+  /* Спек, governance a: каждое сохранение голоса пишет аудит (кто/когда/решение). */
+  _audit(app, i === 0 ? '[chair]' : '[commission]',
+    `Голос члена комиссии: ${_shortFio(COM_MEMBERS[i])}`, from === '—' ? '' : from, to === '—' ? 'голос снят' : to, '');
+  _panelRefresh('tab-6');
+  showToast(to === '—' ? 'Голос снят' : `Голос учтён: ${to}`, to === '—' ? 'info' : 'ok');
+}
+
+/* ── Финальное решение председателя ──
+   Кворума нет: председатель закрывает голосование в любой момент. Обоснование обязательно
+   (спек: аудит пишет решение+причину, особенно при расхождении с tally). */
+const COM_DECISIONS = {
+  approve: { title:'Одобрить заявку',  label:'Обоснование решения (обязательно)',   ok:'Одобрить',
+             status:'Одобрена',                    final:['s-approved','Одобрена'],            key:'approve', vote:'Одобрить'  },
+  reject:  { title:'Отклонить заявку', label:'Причина отклонения (обязательно)',    ok:'Отклонить',
+             status:'Отклонена',                   final:['s-rejected','Отклонена'],           key:'reject',  vote:'Отклонить' },
+  return:  { title:'Вернуть на доработку', label:'Что доработать (обязательно, вернётся кредитному специалисту)', ok:'Вернуть',
+             status:'Требуется доп. информация',   final:['s-info','Возвращена на доработку'], key:'return',  vote:''          },
+};
+
+function comDecide(kind){
+  const app = _comActor(); if (!app) return;
+  const d = COM_DECISIONS[kind]; if (!d) return;
+  const s = _comStateOf(app);
+  if (!s.open){ showToast('Решение по этой заявке уже принято', 'warn'); return; }
+  if (s.phase !== 'session'){ showToast('Финальное решение принимается на заседании комитета', 'warn'); return; }
+
+  /* Расхождение с совещательным tally — не блок, но идёт отдельной строкой в аудит. */
+  const cnt = v => s.votes.filter(x => x === v).length;
+  const voted = s.votes.filter(v => v !== '—').length;
+  const against = d.vote ? (cnt(d.vote) < cnt(d.vote === 'Одобрить' ? 'Отклонить' : 'Одобрить')) : false;
+  const warn = [];
+  if (!voted) warn.push('Ни один член комиссии ещё не проголосовал.');
+  if (against) warn.push(`Решение расходится с голосами членов (за «${d.vote}» — ${cnt(d.vote)} из ${s.votes.length}).`);
+
+  askReason(d.title, d.label, d.ok, txt => {
+    /* Модалка асинхронна: за время набора обоснования могли открыть другую заявку или
+       сменить роль — иначе решение приземлится не туда (ср. снимок _editSnapshot). */
+    if (_detailApp !== app || !can(app).vote || !s.open){
+      showToast('Контекст изменился — решение не сохранено', 'warn'); return;
+    }
+    if (warn.length && !confirm(warn.join('\n') + '\n\nВсё равно зафиксировать решение председателя?')) return;
+    const from = app.status;
+    app.status = d.status;
+    s.final = d.final.slice();
+    s.open  = false;
+    if (kind === 'return'){
+      /* Возврат — не решение, а откат круга: заключения сбрасываются, комиссия ждёт
+         повторной отправки (голоса обнулит submitSend). Тот же путь, что «Запросить замену». */
+      _conclResetByCommission(app);
+      s.phase = 'prelim';
+    }
+    if (against) _audit(app, '[chair]', 'Расхождение решения с голосами членов комиссии', `за «${d.vote}»: ${cnt(d.vote)}`, `всего голосов: ${voted}`, '');
+    _audit(app, '[chair]', `Решение комиссии: ${d.ok} · ${txt}`, from, d.status, d.key);
+    renderGrid();
+    gotoDetail(app.num, 'tab-6');                       // шапка/тулбар/вкладка — под новый статус
+    showToast(`Решение зафиксировано: заявка «${d.status}»`, kind === 'reject' ? 'warn' : 'ok');
+  });
+}
 
 function renderCommission(app){
   const c = commissionFor(app);
@@ -5686,24 +5870,27 @@ function renderCommission(app){
     <span class="com-chip ab">Воздержалось: ${cnt('Воздержаться')}</span>
     <span class="com-chip">Не проголосовали: ${cnt('—')}</span>
   </div>`;
+  /* Голос отдаётся в строке члена — иначе непонятно, за кого жмут кнопки в общем тулбаре. */
+  const canVote = c.open && isCom && phase === 'session';
+  const voteBtns = (m, i) => !canVote ? '' :
+    `<td><div class="com-vbtns">${_VOTES.map(v =>
+      `<button class="com-vbtn ${_VOTE_CLS[v]}${m.vote === v ? ' on' : ''}" onclick="comVote(${i}, '${v}')"
+        title="${m.vote === v ? 'Снять голос' : 'Отдать голос «' + v + '»'}">${v}</button>`).join('')}</div></td>`;
   const grid = `<div class="collgrid"><table>
-    <thead><tr><th>Роль</th><th>Сотрудник</th><th>Решение</th><th>Крайний срок</th><th>Комментарий</th></tr></thead>
-    <tbody>${c.members.map(m => `<tr>
+    <thead><tr><th>Роль</th><th>Сотрудник</th><th>Решение</th><th>Крайний срок</th><th>Комментарий</th>${canVote ? '<th>Голос</th>' : ''}</tr></thead>
+    <tbody>${c.members.map((m, i) => `<tr>
       <td>${m.role}</td><td>${m.emp}</td>
       <td><span class="com-vote ${_VOTE_CLS[m.vote]}">${m.vote}</span></td>
-      <td>${m.deadline}</td><td>${m.comment || ''}</td></tr>`).join('')}</tbody></table></div>`;
+      <td>${m.deadline}</td><td>${_esc(m.comment || '')}</td>${voteBtns(m, i)}</tr>`).join('')}</tbody></table></div>`;
   const tools = c.open
     ? (isCom
       ? `<div class="com-tools">
         <div class="note-banner warn"><span><b>Принцип 4 глаз</b> — если вы автор/отправитель заявки, ваш голос учитывается, но помечается в аудите (предупреждение, не блок). Порога кворума нет: председатель закрывает голосование в любой момент; крайний срок — напоминание, не авто-воздержание.</span></div>
         <div class="com-toolrow"><span class="role">Председатель (финальное решение):</span>
-          <button class="btn btn-success btn-sm" onclick="toolbarAction('Комиссия: Одобрить')">Одобрить</button>
-          <button class="btn btn-danger btn-sm" onclick="toolbarAction('Комиссия: Отклонить')">Отклонить</button>
-          <button class="btn btn-secondary btn-sm" onclick="toolbarAction('Комиссия: Вернуть')">Вернуть</button></div>
-        <div class="com-toolrow"><span class="role">Член комиссии (голос):</span>
-          <button class="btn btn-secondary btn-sm" onclick="toolbarAction('Голос: Одобрить')">Одобрить</button>
-          <button class="btn btn-secondary btn-sm" onclick="toolbarAction('Голос: Отклонить')">Отклонить</button>
-          <button class="btn btn-ghost btn-sm" onclick="toolbarAction('Голос: Воздержаться')">Воздержаться</button></div>
+          <button class="btn btn-success btn-sm" onclick="comDecide('approve')">Одобрить</button>
+          <button class="btn btn-danger btn-sm" onclick="comDecide('reject')">Отклонить</button>
+          <button class="btn btn-secondary btn-sm" onclick="comDecide('return')">Вернуть</button>
+          <span class="com-hint">Решение закрывает голосование и требует письменного обоснования.</span></div>
         <div class="com-toolrow"><button class="btn btn-ghost btn-sm" onclick="comBackPrelim()">← Вернуть к предварительному изучению</button></div>
       </div>`
       : `<div class="com-tools"><div class="note-banner"><span>Идёт заседание. Голосовать и выносить решение может только роль <b>🏛 Комиссия</b> — переключите роль в шапке.</span></div></div>`)
@@ -6161,6 +6348,12 @@ function buildHistory(app){
   const approved = ['Одобрена','Ожидает решения/программы','На оформлении','Оформлена'].includes(st);
   const prov = DEMO_PROV[app.num];
 
+  /* Вехи, которые пользователь реально прожал в макете, лежат в app.audit с ключом.
+     Синтетическую веху того же смысла тогда не печатаем — иначе задвоится, причём
+     с выдуманным «Было» (синтетика всегда считает, что шли из «Новый»). */
+  const real = new Set((app.audit || []).map(e => e.key).filter(Boolean));
+  const pushK = (key, user, event, from, to) => { if (!real.has(key)) push(user, event, from, to); };
+
   push('[admin]', 'Заявка создана', '', app.num);
   // field-level (деньги/условия) — слой заёмщика
   if (prov){
@@ -6179,21 +6372,23 @@ function buildHistory(app){
     push('[specialist]', `Загружены документы обязательного комплекта (${ds.reqClosed} из ${ds.reqTot})`, '', 'Загружен');
   if (app.phone) push('[specialist]', 'Редактирование (номер телефона)', '', app.phone);
 
-  if (reachedReview) push('[specialist]', 'Отправлена в комиссию · изменён статус', 'Новый', 'На рассмотрении');
+  if (reachedReview) pushK('send', '[specialist]', 'Отправлена в комиссию · изменён статус', 'Новый', 'На рассмотрении');
   if (st === 'Требуется доп. информация')
-    push('[chair]', 'Возврат из комиссии · изменён статус', 'На рассмотрении', 'Требуется доп. информация');
+    pushK('return', '[chair]', 'Возврат из комиссии · изменён статус', 'На рассмотрении', 'Требуется доп. информация');
   if (approved){
     if (prov && prov.rate) push('[chair]', 'Изменено поле (комиссия): Годовая ставка, %', prov.rate.bor, prov.rate.com);
-    push('[chair]', 'Решение комиссии: Одобрить · изменён статус', 'На рассмотрении', 'Одобрена');
+    pushK('approve', '[chair]', 'Решение комиссии: Одобрить · изменён статус', 'На рассмотрении', 'Одобрена');
   }
-  if (st === 'Отклонена') push('[chair]', 'Решение комиссии: Отклонить · изменён статус', 'На рассмотрении', 'Отклонена');
-  if (st === 'Ожидает решения/программы') push('[operator]', 'Ожидание решения/программы (поток B)', 'Одобрена', 'Ожидает решения/программы');
-  if (['На оформлении','Оформлена'].includes(st)) push('[operator]', 'Сформирован кредит · изменён статус', 'Одобрена', 'На оформлении');
-  if (st === 'Оформлена') push('[operator]', 'Договоры зарегистрированы у нотариуса · изменён статус', 'На оформлении', 'Оформлена');
-  if (st === 'Отозвана') push('[specialist]', 'Заявка отозвана · изменён статус', 'Новый', 'Отозвана');
+  if (st === 'Отклонена') pushK('reject', '[chair]', 'Решение комиссии: Отклонить · изменён статус', 'На рассмотрении', 'Отклонена');
+  if (st === 'Ожидает решения/программы') pushK('waitB', '[operator]', 'Ожидание решения/программы (поток B)', 'Одобрена', 'Ожидает решения/программы');
+  if (['На оформлении','Оформлена'].includes(st)) pushK('credit', '[operator]', 'Сформирован кредит · изменён статус', 'Одобрена', 'На оформлении');
+  if (st === 'Оформлена') pushK('notary', '[operator]', 'Договоры зарегистрированы у нотариуса · изменён статус', 'На оформлении', 'Оформлена');
+  if (st === 'Отозвана') pushK('withdraw', '[specialist]', 'Заявка отозвана · изменён статус', 'Новый', 'Отозвана');
 
   // Аудит-след ручной правки графика после одобрения (роль «Комиссия», фаза locked) — P3-16/P3-R13
   (app.schedEdits || []).forEach(e => push(e.user, e.event, e.from, e.to));
+  // Реальные действия пользователя в макете (голоса, решения комиссии, переходы статуса) — P3-R22
+  (app.audit || []).forEach(e => push(e.user, e.event, e.from, e.to));
 
   return ev.reverse();   // по времени убыв.
 }
@@ -7025,7 +7220,13 @@ function submitSend(){
   const reason = _sendBlockReason(app);
   if (reason){ showToast('Отправка заблокирована: ' + reason, 'warn'); return; }
   // Одна комиссия судит кредит+залог (P3-R26): единственный трек статуса.
+  const from = app.status;
   app.status = 'На рассмотрении';
+  /* Спек: повторная отправка идёт в ТУ ЖЕ комиссию, но голоса и подписи сбрасываются
+     на новый круг. Первая отправка — тоже пустая запись (иначе заявка приезжает
+     на заседание с уже проставленными демо-голосами). */
+  app._com = _comStateFresh();
+  _audit(app, '[specialist]', 'Отправлена в комиссию · изменён статус', from, 'На рассмотрении', 'send');
   renderGrid();
   closeModal('modal-send');
   if (_detailApp && _detailApp.num === app.num) gotoDetail(app.num);   // деталка: тулбар/шапка под новый статус
