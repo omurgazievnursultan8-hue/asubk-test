@@ -4851,7 +4851,7 @@ function _conclSeed(app){
   const c = { assigned:[], items:{} };
   app._concl = c;
   const add = (key, auto) => {
-    c.assigned.push({ dept:key, auto:!!auto, locked:false, addedBy:'система (сид)', addedAt:_conclToday() });
+    c.assigned.push({ dept:key, auto:!!auto, addedBy:'система (сид)', addedAt:_conclToday() });
     c.items[key] = _conclItem();
     c.items[key].log.push({ ts:_conclToday() + ' 09:00', who:'АСАНОВ Т. Б.', action:'assigned', note:'' });
   };
@@ -4898,7 +4898,7 @@ function _conclSyncColl(app){
   const c = app._concl; if (!c) return;
   const has = c.assigned.some(a => a.dept === 'coll');
   if (app.hasCollateral && !has){
-    c.assigned.push({ dept:'coll', auto:true, locked:false, addedBy:'система (залог)', addedAt:_conclToday() });
+    c.assigned.push({ dept:'coll', auto:true, addedBy:'система (залог)', addedAt:_conclToday() });
     c.items.coll = _conclItem();
     c.items.coll.log.push({ ts:_conclNow(), who:'система', action:'assigned', note:'по заявке появился залог' });
   } else if (!app.hasCollateral && has){
@@ -4948,7 +4948,7 @@ function conclAssign(key){
   if (!can(app).assignDepts){ showToast('Назначать отделы может кредитный специалист на черновике', 'warn'); return; }
   const c = _conclOf(app);
   if (c.assigned.some(a => a.dept === key)) return;
-  c.assigned.push({ dept:key, auto:false, locked:false, addedBy:_conclActor(), addedAt:_conclToday() });
+  c.assigned.push({ dept:key, auto:false, addedBy:_conclActor(), addedAt:_conclToday() });
   c.items[key] = _conclItem();
   _conclLog(app, key, 'assigned', '');
   _conclRerender(app);
@@ -5237,9 +5237,16 @@ function _conclGateBanner(app){
   if (cc.done < cc.total)
     return `<div class="note-banner">${_docIcoInfo()}<span>Внесено <b>${cc.done} из ${cc.total}</b>. Ожидаются: ${_esc(_conclWaiting(app).join(', '))}.</span></div>`;
   const c = _conclOf(app);
-  const conds = c.assigned.reduce((n, a) => n + c.items[a.dept].conds.length, 0);
+  // Условия к решению комиссии несут только внесённые заключения с вердиктом «С условиями»:
+  // пункты не стираются при смене вердикта, поэтому считаем лишь актуальные (submitted + cond).
+  const conds = c.assigned.reduce((n, a) => {
+    const it = c.items[a.dept];
+    return n + (it.status === 'submitted' && it.verdict === 'cond' ? it.conds.length : 0);
+  }, 0);
   const tail = cc.cond ? ` Условий: ${conds} — комиссия рассмотрит.` : '';
-  return `<div class="note-banner ok">${_docIcoOk()}<span>Все заключения внесены (<b>${cc.done}/${cc.total}</b>). Заявку можно отправить на рассмотрение комиссии.${tail}</span></div>`;
+  // Призыв отправить — только на черновике: у комиссии / решённой заявки отправлять уже нечего.
+  const send = draft ? ' Заявку можно отправить на рассмотрение комиссии.' : '';
+  return `<div class="note-banner ok">${_docIcoOk()}<span>Все заключения внесены (<b>${cc.done}/${cc.total}</b>).${send}${tail}</span></div>`;
 }
 
 /* Сводка вердиктов: 4 чипа-счётчика, клик скроллит к первой такой карточке. */
@@ -5303,7 +5310,10 @@ function _conclFilesRO(it, withDownload){
 function _conclBody(app, key, ctx){
   ctx = _conclCtx(ctx);
   const it = _conclOf(app).items[key];
-  if (can(app).editConcl(key)) return _conclEditor(app, key) + _conclLogBlock(key, it, ctx);
+  // Редактор — только на вкладке «Заключения» (tab-concl). Свод у комиссии (tab-6)
+  // структурно read-only: иначе при отрисовке в фазе draft в него утёк бы второй
+  // редактор с теми же id полей (concl-v-<dept>/concl-t-<dept>), что и во вкладке.
+  if (ctx === 'tab-concl' && can(app).editConcl(key)) return _conclEditor(app, key) + _conclLogBlock(key, it, ctx);
   if (it.status === 'pending' && !it.text) return `<div class="concl-empty">Заключение ещё не внесено отделом.</div>` + _conclLogBlock(key, it, ctx);
   return `<div class="concl-text">${_esc(it.text) || '—'}</div>${_conclCondsRO(it)}${_conclFilesRO(it, true)}${_conclLogBlock(key, it, ctx)}`;
 }

@@ -494,6 +494,96 @@ const t6f = await page.evaluate(() => {
 check('T6f setRole синхронизирует #roleSel.value (dept)', t6f.dept === 'dept');
 check('T6f setRole синхронизирует #roleSel.value (spec)', t6f.spec === 'spec');
 
+// ── F1: мёртвое поле locked удалено из записей assigned (P3-R41) ──────────
+await openConcl('З-2026-000105', 'spec');
+const f1 = await page.evaluate(() => {
+  const app = _detailApp, c = _conclOf(app);
+  return {
+    hasLocked:   c.assigned.some(a => 'locked' in a),   // ни одна запись сида не несёт locked
+    lockedRisk:  _conclLocked(app, 'risk'),
+    lockedLegal: _conclLocked(app, 'legal'),
+  };
+});
+check('F1 запись assigned (сид) без мёртвого поля locked', f1.hasLocked === false);
+check('F1 _conclLocked — единственный источник правды (risk заперт, legal — нет)',
+  f1.lockedRisk === true && f1.lockedLegal === false);
+
+const f1b = await page.evaluate(() => {
+  conclAssign('monitor');                                          // путь conclAssign
+  const added = _conclOf(_detailApp).assigned.find(a => a.dept === 'monitor');
+  const coll  = APPLICATIONS.find(a => a.hasCollateral && condPhase(a.status) === 'draft');
+  const collRec = _conclOf(coll).assigned.find(a => a.dept === 'coll');   // путь _conclSyncColl
+  return { addLocked:'locked' in added, collLocked:'locked' in collRec };
+});
+check('F1 conclAssign не пишет locked', f1b.addLocked === false);
+check('F1 _conclSyncColl не пишет locked', f1b.collLocked === false);
+
+// ── F2: успех-баннер зовёт отправить только на черновике ──────────────────
+const f2 = await page.evaluate(() => {
+  const d = APPLICATIONS.find(a => a.num === 'З-2026-000105');     // черновик, комплект подтверждён ГФ
+  const cd = _conclOf(d);
+  cd.assigned.forEach(a => {                                        // внесём все заключения
+    const it = cd.items[a.dept];
+    it.status = 'submitted'; it.verdict = 'pos'; it.text = 'ок'; it.author = 'Тест'; it.date = '2026-07-10';
+  });
+  const confirmed   = _docStats(d).confirmedMet;
+  const draftBanner = _conclGateBanner(d);
+  const r = APPLICATIONS.find(a => a.status === 'На рассмотрении'); // фаза review — отправлять нечего
+  const reviewBanner = _conclGateBanner(r);
+  return {
+    confirmed,
+    draftSend:  draftBanner.includes('можно отправить'),
+    draftAll:   draftBanner.includes('Все заключения внесены'),
+    reviewSend: reviewBanner.includes('можно отправить'),
+    reviewAll:  reviewBanner.includes('Все заключения внесены'),
+  };
+});
+check('F2 предусловие: комплект 105 подтверждён ГФ', f2.confirmed === true);
+check('F2 черновик со всеми заключениями: баннер зовёт отправить', f2.draftSend === true && f2.draftAll === true);
+check('F2 заявка «На рассмотрении»: без призыва отправлять, но факт внесения есть',
+  f2.reviewSend === false && f2.reviewAll === true);
+
+// ── F3: счётчик условий — только внесённые заключения с вердиктом «С условиями» ──
+// Заявка 105 (черновик, комплект подтверждён ГФ) — иначе баннер обрывается до счётчика.
+const f3 = await page.evaluate(() => {
+  const d = APPLICATIONS.find(a => a.num === 'З-2026-000105');
+  const cd = _conclOf(d);
+  const setIt = (dept, verdict, conds) => {
+    const it = cd.items[dept];
+    it.status = 'submitted'; it.verdict = verdict; it.text = 'ок'; it.author = 'Тест'; it.date = '2026-07-10';
+    it.conds = conds.map((t, i) => ({ id:'c' + i, text:t }));
+  };
+  cd.assigned.forEach(a => setIt(a.dept, 'pos', []));               // все внесены → баннер доходит до счётчика
+  setIt('risk',   'cond', ['страхование']);                        // внесено · «С условиями» · 1 пункт
+  setIt('credit', 'pos',  []);                                     // внесено · «Положительное»
+  const num = () => { const m = _conclGateBanner(d).match(/Условий: (\d+)/); return m ? +m[1] : null; };
+  const base = num();
+  cd.items.credit.conds.push({ id:'x', text:'левый пункт' });      // pos-отдел набрал пункт в состоянии
+  const afterPos = num();
+  cd.items.risk.conds.push({ id:'y', text:'ещё условие' });        // cond-отдел добавил пункт
+  const afterCond = num();
+  return { base, afterPos, afterCond };
+});
+check('F3 базовый счётчик = пункты cond-отдела', f3.base === 1);
+check('F3 пункт у отдела с «Положительным» счётчик не растит', f3.afterPos === 1);
+check('F3 пункт у отдела с «С условиями» счётчик растит', f3.afterCond === 2);
+
+// ── F4: свод комиссии (tab-6) не встраивает редактор даже при праве правки ─
+const f4 = await page.evaluate(() => {
+  setRole('dept'); gotoDetail('З-2026-000105', 'tab-concl'); setDept('legal');
+  const app = _detailApp;
+  const it = _conclOf(app).items.legal;
+  it.status = 'draft'; it.verdict = '';                            // черновик → редактор рисует форму concl-edit
+  return {
+    editable:     can(app).editConcl('legal'),                     // предусловие: право правки истинно
+    comHasEditor: _conclBody(app, 'legal', 'tab-6').includes('class="concl-edit"'),
+    tabHasEditor: _conclBody(app, 'legal', 'tab-concl').includes('class="concl-edit"'),
+  };
+});
+check('F4 предусловие: свой отдел на черновике редактируем', f4.editable === true);
+check('F4 свод комиссии (tab-6) редактор не рисует', f4.comHasEditor === false);
+check('F4 вкладка «Заключения» (tab-concl) редактор рисует', f4.tabHasEditor === true);
+
 // Скриншот: демо-заявка, все карточки раскрыты, редактор — у своего отдела (юридический).
 // Страницу перезагружаем: предыдущие блоки намеренно мутировали состояние заявок.
 await page.reload({ waitUntil:'networkidle' });
