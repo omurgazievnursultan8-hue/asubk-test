@@ -119,6 +119,19 @@ await page.click('#detailPanels .detail-panel >> nth=1 >> .gtoolbar .btn');
 ok('модалка охвата открыта', await page.locator('#modalHost.open').isVisible());
 ok('модалка предупреждает о конкретном пересечении', (await page.locator('#modalHost .warn-inline').innerText()).includes('В-2026-000151'));
 
+// --- T5: заметка вкладки «Охват» описывает реальный триггер пересечения (по кредиту, не по предмету) ---
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="142"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=1');           // вкладка «Охват»
+const ohvatNoteText = await page.locator('#detailPanels .detail-panel >> nth=1').locator('.section-note').innerText();
+const claimsSameSubjectTrigger = /тот\s+же\s+предмет[\s\S]{0,20}взыскива/i.test(ohvatNoteText);
+ok('заметка не утверждает, что триггер — совпадение предмета', !claimsSameSubjectTrigger);
+const mentionsOtherActiveProcessByCredit =
+  /кредит[\s\S]{0,60}друг(?:ой|ом|им)\s+активн(?:ый|ом|ым)\s+процесс/i.test(ohvatNoteText) ||
+  /друг(?:ой|ом|им)\s+активн(?:ый|ом|ым)\s+процесс[\s\S]{0,60}кредит/i.test(ohvatNoteText);
+ok('заметка упоминает другой активный процесс по кредиту', mentionsOtherActiveProcessByCredit);
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);
