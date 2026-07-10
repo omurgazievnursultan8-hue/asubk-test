@@ -1064,6 +1064,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
   font:var(--font-label); color:var(--text-muted); background:var(--surface-hover); }
 .sec-locked-note svg{ flex:none; margin-top:1px; }
 .note-banner.ok{ background:var(--status-success-bg); color:#0c5a2f; }
+.note-banner.err{ background:var(--status-error-bg); color:var(--status-error); }
 .note-banner b{ font-weight:var(--weight-semibold); }
 /* гейт-строка с прогресс-баром готовности комплекта */
 .gate-row{ display:flex; align-items:center; gap:14px; margin:0 0 18px; }
@@ -1143,7 +1144,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .com-scan .file{ font:var(--font-label); color:var(--text-body); }
 .com-scan .spacer{ flex:1; }
 
-/* ---- Tab «Заключения» (to-be): заключения 4 отделов перед комиссией ---- */
+/* ---- Tab «Заключения» (to-be): назначение отделов + карточки заключений ---- */
 .concl-wrap{ padding:16px 20px 24px; max-width:1040px; }
 .dept-panel{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:12px 14px; margin:0 0 16px;
   background:var(--surface-input); }
@@ -1162,21 +1163,42 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .dept-chip .chip-auto{ font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; }
 .dept-chip .chip-x{ border:0; background:none; cursor:pointer; color:var(--text-muted); font-size:13px; line-height:1; padding:0 2px; }
 .dept-chip .chip-x:hover{ color:var(--status-error); }
-.concl-block{ border:1px solid var(--border-default); border-radius:var(--radius-md); margin-bottom:14px; overflow:hidden; }
-.concl-head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 16px; background:var(--surface-hover);
-  border-bottom:1px solid var(--border-default); }
+
+.concl-listh{ display:flex; align-items:center; margin:0 0 8px; }
+.concl-listh .spacer{ flex:1; }
+.vchips{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
+.vchip{ display:inline-flex; align-items:baseline; gap:6px; padding:6px 12px; border-radius:var(--radius-pill);
+  border:1px solid transparent; cursor:pointer; font:var(--weight-medium) 12px/1.2 var(--asubk-font); }
+.vchip b{ font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); font-variant-numeric:tabular-nums; }
+.vchip.zero{ opacity:.55; }
+.vchip:hover{ border-color:var(--border-strong); }
+
+.concl-block{ border:1px solid var(--border-default); border-radius:var(--radius-md); margin-bottom:10px; overflow:hidden; }
+.concl-block.open{ border-color:var(--border-strong); }
+.concl-head{ display:flex; align-items:center; gap:12px; width:100%; padding:12px 16px; background:var(--surface-hover);
+  border:0; border-bottom:1px solid transparent; cursor:pointer; text-align:left; font:inherit; }
+.concl-block.open .concl-head{ border-bottom-color:var(--border-default); }
+.concl-head .caret{ color:var(--text-muted); width:12px; }
 .concl-title{ font:var(--weight-semibold) var(--text-base)/1.2 var(--asubk-font); color:var(--text-heading); }
 .concl-meta{ font:var(--font-label); color:var(--text-muted); }
+.concl-head .cmark{ font:var(--font-label); color:var(--text-muted); }
 .concl-head .spacer{ flex:1; }
 .concl-body{ padding:14px 16px; }
+.concl-sub{ font:var(--weight-semibold) var(--text-sm)/1.2 var(--asubk-font); color:var(--text-heading); margin:14px 0 6px; }
 .concl-text{ font:var(--font-label); color:var(--text-body); white-space:pre-wrap; line-height:1.5; }
 .concl-empty{ font:var(--font-label); color:var(--text-placeholder); font-style:italic; }
-.concl-edit{ display:flex; flex-direction:column; gap:10px; max-width:640px; }
-.concl-edit label{ font:var(--font-label); color:var(--text-muted); }
-.concl-edit select, .concl-edit textarea{ font:inherit; padding:7px 9px; border:1px solid var(--border-default);
-  border-radius:var(--radius-sm); background:var(--surface-card); color:var(--text-body); }
-.concl-edit textarea{ min-height:70px; resize:vertical; }
-.concl-edit select:focus, .concl-edit textarea:focus{ outline:none; border-color:var(--asubk-blue); }
+.concl-cond-ro{ margin:0; padding-left:20px; font:var(--font-label); color:var(--text-body); line-height:1.6; }
+.concl-files{ display:flex; flex-direction:column; gap:5px; }
+.concl-file{ font:var(--font-label); color:var(--text-body); }
+.concl-file i{ color:var(--text-muted); font-style:normal; margin-left:6px; }
+.concl-file a{ margin-left:10px; color:var(--asubk-blue); }
+.concl-log-toggle{ margin-top:14px; border:0; background:none; padding:0; cursor:pointer;
+  font:var(--font-label); color:var(--asubk-blue); }
+.concl-log{ margin-top:8px; border-top:1px dashed var(--border-default); padding-top:8px; }
+.concl-log-row{ display:flex; gap:12px; font:var(--font-label); color:var(--text-muted); padding:3px 0; }
+.concl-log-row .ts{ font-variant-numeric:tabular-nums; min-width:118px; }
+.concl-log-row .who{ min-width:150px; color:var(--text-body); }
+
 .v-badge{ font:var(--weight-medium) 12px/1 var(--asubk-font); padding:5px 10px; border-radius:var(--radius-pill); display:inline-flex; }
 .v-pos{ color:var(--status-success); background:var(--status-success-bg); }
 .v-cond{ color:var(--status-warning); background:var(--status-warning-bg); }
@@ -4962,10 +4984,137 @@ function _conclAssignPanel(app){
   </div>`;
 }
 
-/* Полноценный рендер — Task 4. Заглушка держит файл рабочим. */
+/* ── Раскрытие карточек. Ключ отсутствует → авто: свой отдел раскрыт. ── */
+const _conclOpen = {};        // dept -> bool (явный клик)
+const _conclLogOpen = {};     // dept -> bool (история)
+let _conclOpenAll = false;
+
+function _conclIsOpen(key){
+  if (key in _conclOpen) return _conclOpen[key];
+  if (_conclOpenAll) return true;
+  return _role === 'dept' && key === _deptKey;
+}
+function conclToggle(key){ _conclOpen[key] = !_conclIsOpen(key); _panelRefresh('tab-concl'); }
+function conclToggleAll(){
+  const app = _detailApp; if (!app) return;
+  _conclOpenAll = !_conclOpenAll;
+  _conclOf(app).assigned.forEach(a => { _conclOpen[a.dept] = _conclOpenAll; });
+  _panelRefresh('tab-concl');
+}
+function conclLogToggle(key){ _conclLogOpen[key] = !_conclLogOpen[key]; _panelRefresh('tab-concl'); }
+
+/* Клик по чипу-счётчику: раскрыть и подскроллить к первой карточке этого состояния. */
+function conclScrollTo(kind){
+  const app = _detailApp; if (!app) return;
+  const c = _conclOf(app);
+  const hit = c.assigned.map(a => a.dept).find(k => {
+    const it = c.items[k];
+    return kind === 'pending' ? it.status !== 'submitted' : (it.status === 'submitted' && it.verdict === kind);
+  });
+  if (!hit){ showToast('Заключений в этом состоянии нет', 'info'); return; }
+  _conclOpen[hit] = true;
+  _panelRefresh('tab-concl');
+  const el = document.getElementById('concl-card-' + hit);
+  if (el) el.scrollIntoView({ block:'center', behavior:'smooth' });
+}
+
+/* Гейт-баннер: печатается первая сработавшая причина (порядок = спек §5.1). */
+function _conclGateBanner(app){
+  const draft = condPhase(app.status) === 'draft';
+  const cc = _conclCounts(app);
+  if (draft && !_docStats(app).confirmedMet)
+    return `<div class="note-banner">${_docIcoInfo()}<span>Заключения вносятся после подтверждения комплектации головным филиалом. Назначить отделы можно уже сейчас.</span></div>`;
+  if (!cc.total)
+    return `<div class="note-banner warn">${_docIcoWarn()}<span>Отделы не назначены — назначьте хотя бы один.</span></div>`;
+  const neg = _conclNegDepts(app);
+  if (neg.length)
+    return `<div class="note-banner err">${_docIcoWarn()}<span>Отрицательное заключение: <b>${_esc(neg.map(k => DEPT_MAP[k].title).join(', '))}</b>. Отправка в комиссию заблокирована — устраните замечания, отдел отзовёт заключение и внесёт новое.</span></div>`;
+  if (cc.done < cc.total)
+    return `<div class="note-banner">${_docIcoInfo()}<span>Внесено <b>${cc.done} из ${cc.total}</b>. Ожидаются: ${_esc(_conclWaiting(app).join(', '))}.</span></div>`;
+  const conds = _conclOf(app).assigned.reduce((n, a) => n + _conclOf(app).items[a.dept].conds.length, 0);
+  const tail = cc.cond ? ` Условий: ${conds} — комиссия рассмотрит.` : '';
+  return `<div class="note-banner ok">${_docIcoOk()}<span>Все заключения внесены (<b>${cc.done}/${cc.total}</b>). Заявку можно отправить на рассмотрение комиссии.${tail}</span></div>`;
+}
+
+/* Сводка вердиктов: 4 чипа-счётчика, клик скроллит к первой такой карточке. */
+function _conclChips(app){
+  const cc = _conclCounts(app);
+  const defs = [
+    { kind:'pos',     cls:'v-pos',  label:'Положит.',    n:cc.pos },
+    { kind:'cond',    cls:'v-cond', label:'С условиями', n:cc.cond },
+    { kind:'neg',     cls:'v-neg',  label:'Отриц.',      n:cc.neg },
+    { kind:'pending', cls:'v-none', label:'Ожидают',     n:cc.pending },
+  ];
+  return `<div class="vchips">${defs.map(d =>
+    `<button class="vchip ${d.cls}${d.n ? '' : ' zero'}" data-kind="${d.kind}" data-n="${d.n}"
+       onclick="conclScrollTo('${d.kind}')" title="Показать первое заключение в этом состоянии">
+       <b>${d.n}</b> ${d.label}</button>`).join('')}</div>`;
+}
+
+/* Карточка отдела: свёрнутая строка + раскрытое тело (чтение). Редактор — Task 5. */
+function _conclCard(app, key){
+  const c = _conclOf(app), it = c.items[key], d = DEPT_MAP[key];
+  const open = _conclIsOpen(key);
+  const vb = it.status === 'submitted'
+    ? `<span class="v-badge ${_CONCL_VMAP[it.verdict].cls}">${_CONCL_VMAP[it.verdict].label}</span>`
+    : `<span class="v-badge v-none">Ожидает</span>`;
+  const meta = it.status === 'submitted'
+    ? `${_esc(it.author)} · ${_esc(it.date)}`
+    : (it.status === 'draft' ? 'черновик' : 'не запрошено');
+  const marks = it.status === 'submitted'
+    ? `${it.files.length ? `<span class="cmark">📎${it.files.length}</span>` : ''}${it.conds.length ? `<span class="cmark">усл.${it.conds.length}</span>` : ''}`
+    : '';
+
+  const body = open ? `<div class="concl-body">${_conclBody(app, key)}</div>` : '';
+  return `<div class="concl-block${open ? ' open' : ''}" id="concl-card-${key}" data-dept="${key}">
+    <button class="concl-head" onclick="conclToggle('${key}')" aria-expanded="${open}">
+      <span class="caret">${open ? '▾' : '▸'}</span>
+      <span class="concl-title">${_esc(d.title)}</span>
+      <span class="concl-meta">${meta}</span>
+      ${marks}<span class="spacer"></span>${vb}
+    </button>${body}</div>`;
+}
+
+/* Условия и вложения на чтение — общий кусок для тела карточки и для
+   внесённого (замороженного) заключения своего отдела. */
+function _conclCondsRO(it){
+  if (!it.conds.length) return '';
+  return `<div class="concl-sub">Условия (${it.conds.length})</div>`
+       + `<ol class="concl-cond-ro">${it.conds.map(x => `<li>${_esc(x.text)}</li>`).join('')}</ol>`;
+}
+function _conclFilesRO(it, withDownload){
+  if (!it.files.length) return '';
+  const dl = withDownload ? ` <a href="#" onclick="showToast('Демо: файл не хранится','info');return false;">Скачать</a>` : '';
+  return `<div class="concl-sub">Вложения (${it.files.length})</div>`
+       + `<div class="concl-files">${it.files.map(f =>
+           `<span class="concl-file">${_esc(f.name)} <i>${_esc(f.size)}</i>${dl}</span>`).join('')}</div>`;
+}
+
+/* Тело карточки на чтение. Редактор подменяет его в Task 5. */
+function _conclBody(app, key){
+  const it = _conclOf(app).items[key];
+  if (it.status === 'pending' && !it.text) return `<div class="concl-empty">Заключение ещё не внесено отделом.</div>` + _conclLogBlock(key, it);
+  return `<div class="concl-text">${_esc(it.text) || '—'}</div>${_conclCondsRO(it)}${_conclFilesRO(it, true)}${_conclLogBlock(key, it)}`;
+}
+
+function _conclLogBlock(key, it){
+  if (!it.log.length) return '';
+  const open = !!_conclLogOpen[key];
+  const ACT = { assigned:'назначен отдел', drafted:'сохранён черновик', submitted:'внесено заключение',
+                withdrawn:'заключение отозвано', reset_by_commission:'сброшено возвратом комиссии' };
+  const rows = open ? `<div class="concl-log">${it.log.map(l =>
+    `<div class="concl-log-row"><span class="ts">${_esc(l.ts)}</span><span class="who">${_esc(l.who)}</span><span class="act">${ACT[l.action] || l.action}${l.note ? ': ' + _esc(l.note) : ''}</span></div>`).join('')}</div>` : '';
+  return `<button class="concl-log-toggle" onclick="conclLogToggle('${key}')">⟲ История (${it.log.length})</button>${rows}`;
+}
+
 function renderConclusions(app){
-  const n = _conclCounts(app);
-  return `<div class="concl-wrap">${_conclAssignPanel(app)}<div class="tab-note">Заключений внесено ${n.done} из ${n.total}.</div></div>`;
+  const c = _conclOf(app);
+  const cards = c.assigned.map(a => _conclCard(app, a.dept)).join('');
+  const hint = (_role !== 'dept' && condPhase(app.status) === 'draft')
+    ? `<div class="tab-note">Вносить заключения может роль <b>🧩 Отдел</b> — переключите роль в шапке.</div>` : '';
+  const toggleAll = c.assigned.length
+    ? `<div class="concl-listh"><span class="spacer"></span><button class="btn btn-ghost btn-sm" onclick="conclToggleAll()">${_conclOpenAll ? 'Свернуть' : 'Развернуть все'}</button></div>` : '';
+  return `<div class="concl-wrap">${_conclGateBanner(app)}${_conclChips(app)}${_conclAssignPanel(app)}${hint}${toggleAll}${cards}</div>`;
 }
 PANEL_RENDER['tab-concl'] = renderConclusions;
 

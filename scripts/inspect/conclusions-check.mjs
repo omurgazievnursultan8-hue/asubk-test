@@ -188,6 +188,67 @@ const t3d = await page.evaluate(() => {
 check('T3d дефолтный отдел снять нельзя', t3d.kept === true);
 check('T3d не-спец видит панель, но без кнопок', t3d.panel === true && t3d.btns === 0);
 
+// ── T4: баннер, чипы-счётчики, карточки ──────────────────────────────────
+await openConcl('З-2026-000105', 'spec');
+const t4 = await page.evaluate(() => {
+  const banner = document.querySelector('#tab-concl .note-banner');
+  const chips  = [...document.querySelectorAll('#tab-concl .vchip')].map(c => c.dataset.kind + ':' + c.dataset.n);
+  const cards  = [...document.querySelectorAll('#tab-concl .concl-block')].map(c => c.dataset.dept);
+  const badges = [...document.querySelectorAll('#tab-concl .concl-block .v-badge')].map(b => b.textContent.trim());
+  return { banner: banner ? banner.textContent : '', chips, cards, badges };
+});
+check('T4 баннер называет, кого ждём', /Ожидаются/.test(t4.banner) && /Юридический отдел/.test(t4.banner));
+check('T4 чипы-счётчики: pos1 cond1 neg0 pending2',
+  t4.chips.join(' ') === 'pos:1 cond:1 neg:0 pending:2');
+check('T4 карточки по всем назначенным', t4.cards.join(',') === 'risk,credit,legal,analytics');
+check('T4 бейджи вердиктов', t4.badges.join('|') === 'С условиями|Положительное|Ожидает|Ожидает');
+
+// раскрытая карточка внесённого заключения показывает текст, условия, вложения, историю
+const t4b = await page.evaluate(() => {
+  conclToggle('risk');
+  const card = document.querySelector('#tab-concl .concl-block[data-dept="risk"]');
+  return {
+    open:  card.classList.contains('open'),
+    text:  !!card.querySelector('.concl-text'),
+    conds: card.querySelectorAll('.concl-cond-ro li').length,
+    files: card.querySelectorAll('.concl-file').length,
+    logBtn: !!card.querySelector('.concl-log-toggle'),
+    logRowsHidden: card.querySelectorAll('.concl-log-row').length === 0,
+  };
+});
+check('T4b карточка раскрывается', t4b.open === true && t4b.text === true);
+check('T4b видны 2 условия и 1 вложение', t4b.conds === 2 && t4b.files === 1);
+check('T4b история свёрнута под кнопкой', t4b.logBtn === true && t4b.logRowsHidden === true);
+
+const t4c = await page.evaluate(() => {
+  conclLogToggle('risk');
+  const rows = document.querySelectorAll('#tab-concl .concl-block[data-dept="risk"] .concl-log-row').length;
+  conclToggleAll();
+  const openCards = document.querySelectorAll('#tab-concl .concl-block.open').length;
+  return { rows, openCards };
+});
+check('T4c история разворачивается', t4c.rows >= 2);
+check('T4c «развернуть все» раскрывает все карточки', t4c.openCards === 4);
+// (карточек 4: risk, credit, legal, analytics)
+
+// красный баннер при отрицательном
+const t4d = await page.evaluate(() => {
+  const rej = APPLICATIONS.find(a => a.status === 'Отклонена');
+  gotoDetail(rej.num, 'tab-concl'); showTab('tab-concl');
+  const b = document.querySelector('#tab-concl .note-banner');
+  return { cls:b.className, txt:b.textContent };
+});
+check('T4d отрицательное — баннер-ошибка с названием отдела',
+  /err|bad|error/.test(t4d.cls) && /Отдел рисков/.test(t4d.txt) && /заблокирован/i.test(t4d.txt));
+
+// без подтверждения ГФ — баннер объясняет, что вносить рано, но панель назначения доступна
+const t4e = await page.evaluate(() => {
+  setRole('spec'); gotoDetail('З-2026-000080', 'tab-concl'); showTab('tab-concl');
+  const b = document.querySelector('#tab-concl .note-banner');
+  return { txt:b.textContent, panel: !!document.querySelector('#tab-concl .dept-panel') };
+});
+check('T4e до подтверждения ГФ баннер объясняет ожидание', /головным филиалом/.test(t4e.txt) && t4e.panel === true);
+
 console.log(results.join('\n'));
 console.log(errors.length ? '\nERRORS:\n' + errors.join('\n') : '\nNO JS ERRORS');
 await ctx.close();
