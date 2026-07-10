@@ -396,6 +396,80 @@ const t5g = await page.evaluate(() => {
 check('T5g «Очистить» возвращает карточку в «Ожидает», история цела',
   t5g.status === 'pending' && t5g.text === '' && t5g.conds === 0 && t5g.files === 0 && t5g.log > 0);
 
+// ── T6: стыки ────────────────────────────────────────────────────────────
+// вкладка «Заключения» видна всегда, даже на черновике без документов
+const t6 = await page.evaluate(() => {
+  setRole('spec'); gotoDetail('З-2026-000080', 'tab-0');
+  const labels = [...document.querySelectorAll('#detailTabbar .tabbar-tab')].map(t => t.textContent.trim());
+  return { has: labels.some(l => /Заключения/.test(l)) };
+});
+check('T6 вкладка «Заключения» видна с черновика', t6.has === true);
+
+// порядок причин гейта: документы → ГФ → отделы → отрицательное → недобор
+const t6b = await page.evaluate(() => {
+  const app = _detailApp;                                   // З-2026-000080: комплект не собран
+  const r1 = sendGateReason(app);
+  const a = APPLICATIONS.find(x => x.num === 'З-2026-000105');
+  gotoDetail(a.num, 'tab-concl');
+  const r2 = sendGateReason(a);                             // ждём заключений (legal draft, analytics pending)
+  // внесём всё положительно
+  ['legal', 'analytics'].forEach(k => {
+    const it = _conclOf(a).items[k];
+    it.status = 'submitted'; it.verdict = 'pos'; it.text = DEPT_MAP[k].seed; it.author = DEPT_MAP[k].emp; it.date = '10.07.2026';
+  });
+  const r3 = sendGateReason(a), ready3 = sendReady(a);
+  _conclOf(a).items.legal.verdict = 'neg';
+  const r4 = sendGateReason(a), ready4 = sendReady(a);
+  return { r1, r2, r3, r4, ready3, ready4 };
+});
+// r1 расследован: DOC_SECTIONS — статический шаблон, у него всегда есть один
+// перманентно «сломанный» обязательный документ (org: egr/expired, individual: inc/rejected),
+// поэтому у ЛЮБОЙ неподтверждённой заявки первой сработает ветка «blockers», а не «не собран» —
+// это не связано с Task 6 (порядок веток документы→залог→ГФ→отделы не менялся, п.4 брифа).
+// Проверяем родовое: первая причина — про документы (а не про залог/ГФ/отделы).
+check('T6b пока нет документов — про документы', /документ/i.test(t6b.r1));
+check('T6b дальше — недобор заключений с именами отделов', /Ожидаются/.test(t6b.r2) && /Юридический отдел/.test(t6b.r2));
+check('T6b все внесены — гейт открыт', t6b.r3 === '' && t6b.ready3 === true);
+check('T6b отрицательное перекрывает недобор', /Отрицательное заключение/.test(t6b.r4) && t6b.ready4 === false);
+
+// пайплайн: узел «Заключения отделов» (третий) красный при отрицательном
+const t6c = await page.evaluate(() => {
+  const a = _detailApp;
+  _renderStages(a);
+  const nodes = [...document.querySelectorAll('#detailStages .stg')].map(n => n.className);
+  _conclOf(a).items.legal.verdict = 'pos';                  // вернём положительное
+  _renderStages(a);
+  const nodes2 = [...document.querySelectorAll('#detailStages .stg')].map(n => n.className);
+  return { neg: nodes[2], pos: nodes2[2] };
+});
+check('T6c при отрицательном узел «Заключения» красный', /rej/.test(t6c.neg) && !/rej/.test(t6c.pos));
+
+// возврат комиссией сбрасывает вердикты, сохраняя содержимое
+const t6d = await page.evaluate(() => {
+  const a = APPLICATIONS.find(x => x.num === 'З-2026-000105');
+  const it = _conclOf(a).items.risk;
+  const textBefore = it.text, condsBefore = it.conds.length;
+  _conclResetByCommission(a);
+  const after = _conclOf(a).items.risk;
+  return { status:after.status, verdict:after.verdict, text:after.text === textBefore,
+           conds:after.conds.length === condsBefore, act:after.log.map(l => l.action).includes('reset_by_commission'),
+           ready:conclusionsReady(a) };
+});
+check('T6d возврат комиссии: вердикт снят, содержимое цело',
+  t6d.status === 'draft' && t6d.verdict === '' && t6d.text === true && t6d.conds === true && t6d.act === true && t6d.ready === false);
+
+// комиссия на фазе A видит блок заключений
+const t6e = await page.evaluate(() => {
+  const a = APPLICATIONS.find(x => x.status === 'На рассмотрении');
+  setRole('com'); gotoDetail(a.num, 'tab-6'); showTab('tab-6');
+  const block = document.querySelector('#tab-6 .concl-com');
+  const rows  = document.querySelectorAll('#tab-6 .concl-com .concl-block').length;
+  const edit  = document.querySelectorAll('#tab-6 .concl-com .concl-edit').length;
+  return { has: !!block, rows, edit };
+});
+check('T6e комиссия видит блок заключений на фазе A', t6e.has === true && t6e.rows >= 2);
+check('T6e блок в комиссии — только на чтение', t6e.edit === 0);
+
 console.log(results.join('\n'));
 console.log(errors.length ? '\nERRORS:\n' + errors.join('\n') : '\nNO JS ERRORS');
 await ctx.close();

@@ -1218,6 +1218,10 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
   font:var(--font-label); color:var(--text-muted); }
 .concl-locked .spacer{ flex:1; }
 
+.concl-com{ margin:18px 0 0; }
+.concl-com .section-h{ margin:0 0 10px; }
+.concl-com .vchips{ margin-bottom:10px; }
+
 .v-badge{ font:var(--weight-medium) 12px/1 var(--asubk-font); padding:5px 10px; border-radius:var(--radius-pill); display:inline-flex; }
 .v-pos{ color:var(--status-success); background:var(--status-success-bg); }
 .v-cond{ color:var(--status-warning); background:var(--status-warning-bg); }
@@ -2627,7 +2631,9 @@ const TABS = [
   { panel:'tab-1', label:'График погашения' },
   { panel:'tab-4', label:'Залог',           cond: app => app.hasCollateral },
   { panel:'tab-2', label:'Документы' },
-  { panel:'tab-concl', label:'Заключения', cond: app => _docStats(app).met || condPhase(app.status) !== 'draft' },
+  /* Видна всегда: назначение отделов идёт с черновика (спек 2026-07-10 §6).
+     Хвост: состав вкладок упирается в гайдлайн «макс 7» — переучёт в спеке заявки. */
+  { panel:'tab-concl', label:'Заключения' },
   { panel:'tab-6', label:'Комиссия' },
   { panel:'tab-8', label:'История' },
 ];
@@ -2876,10 +2882,12 @@ function _renderStages(app){
   if (!host || !app) return;
   const s = appStage(app);
   const active = s.i;
+  const negStage = !s.decided && _conclNegDepts(app).length > 0;     // отрицательное заключение — узел 3 красный
   const nodes = STAGE_LABELS.map((lab, idx) => {
     const n = idx + 1; let cls = 'stg';
     if (s.decided === 'approved')      cls += ' done';
     else if (s.decided === 'rejected') cls += (n < 5 ? ' done' : ' rej');
+    else if (negStage && n === 3)      cls += ' rej';
     else if (n < active)               cls += ' done';
     else if (n === active)             cls += s.ready ? ' done' : ' cur';
     return `<span class="${cls}"><span class="stg-n">${n}</span>${lab}</span>`;
@@ -4761,7 +4769,7 @@ function confirmDocReason(){
     _docReasonPending = null;
     closeModal('modal-doc-reason');
     const app = _detailApp;
-    if (app){ if (app._com) app._com.phase = 'prelim'; app.status = 'Требуется доп. информация'; gotoDetail(app.num, 'tab-2'); }
+    if (app){ _conclResetByCommission(app); if (app._com) app._com.phase = 'prelim'; app.status = 'Требуется доп. информация'; gotoDetail(app.num, 'tab-2'); }
     showToast('Запрос отправлен специалисту — заявка возвращена на доработку', 'warn');
     return;
   }
@@ -5182,6 +5190,17 @@ function conclWithdrawConfirm(){
   _conclRerender(app);
   showToast('Заключение отозвано — заявка не готова к отправке', 'warn');
 }
+/* Комиссия вернула заявку на доработку: внесённые заключения сбрасываются
+   в черновик — текст, условия и вложения остаются и правятся заново (спек §2.7). */
+function _conclResetByCommission(app){
+  const c = _conclOf(app);
+  c.assigned.forEach(a => {
+    const it = c.items[a.dept];
+    if (it.status !== 'submitted') return;
+    it.status = 'draft'; it.verdict = ''; it.author = ''; it.date = '';
+    it.log.push({ ts:_conclNow(), who:'система', action:'reset_by_commission', note:'' });
+  });
+}
 // Отмена отзыва (крестик/«Отмена»): закрыть модалку и разрядить _conclPendingWithdraw,
 // иначе следующий conclWithdrawConfirm() отзовёт ранее отменённое заключение без нового запроса
 // (та же дыра, что и с conclUnassignCancel у модалки снятия отдела).
@@ -5335,6 +5354,17 @@ function renderConclusions(app){
 }
 PANEL_RENDER['tab-concl'] = renderConclusions;
 
+/* Read-only свод заключений для комиссии: те же карточки, но без редактора и
+   без панели назначения — решение принимается, видя условия отделов. */
+function _conclCommissionBlock(app){
+  const c = _conclOf(app);
+  if (!c.assigned.length) return '';
+  const cards = c.assigned.map(a => _conclCard(app, a.dept)).join('');
+  return `<div class="concl-com">
+    <div class="section-h">Заключения отделов (${c.assigned.length})</div>
+    ${_conclChips(app)}${cards}</div>`;
+}
+
 /* ============================================================
    CHECKPOINT 5: Вкладка «Комиссия» (to-be)
    Одна комиссия судит всё (кредит + залог): один голос на заявку,
@@ -5441,6 +5471,7 @@ function renderCommission(app){
     return `<div class="com-wrap">${head}${strip}
       <div class="com-prog-label">Предварительное изучение обязательных документов (${docs.length})</div>
       <div class="com-doclist">${rows}</div>
+      ${_conclCommissionBlock(app)}
       ${tools}</div>`;
   }
 
