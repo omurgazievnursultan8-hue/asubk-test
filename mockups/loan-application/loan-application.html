@@ -1410,7 +1410,7 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
       Создать
     </button>
     <button class="btn btn-secondary" id="btnEdit" disabled onclick="editSelected()">Просмотр</button>
-    <button class="btn btn-danger"    id="btnDel"  disabled>Удалить</button>
+    <button class="btn btn-danger"    id="btnDel"  disabled onclick="delSelected()">Удалить</button>
     <button class="btn btn-secondary" id="btnCom"  disabled onclick="openSendModal('credit')">Отправить в комиссию</button>
     <button class="btn btn-ghost btn-sm" title="Настройки">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -2101,6 +2101,14 @@ function showView(name){
   // Breadcrumb: reset to «Заявки» when going back to list
   /* Leaving the detail view → nothing to restore on reload; drop the saved detail. */
   if (name !== 'detail'){ try { sessionStorage.removeItem('la-detail'); } catch(e){} }
+  /* Уход в список = закрытие деталки. Несохранённые правки откатываем (иначе они молча
+     остаются в модели), режим правки гасим, ссылку на заявку рвём — иначе снимок/смена
+     роли позже применятся к уже другой заявке. */
+  if (name === 'list' && _detailApp){
+    const dirty = !!_editSnapshot;
+    _revertEdit(); _editMode = false; _detailApp = null;
+    if (dirty && document.getElementById('appTbody')) renderGrid();
+  }
   if (name === 'list'){
     document.getElementById('crumbBack').style.display  = 'none';
     document.getElementById('crumbSep').style.display   = 'none';
@@ -2213,9 +2221,10 @@ const APPLICATIONS = [
   {num:'З-2026-000078', inn:'21812199600888', name:'БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ',
    status:'На рассмотрении', collateralStatus:'На рассмотрении', program:'АгроИнвест КР',
    amount:'2 500 000,00', term:'24', info:''},
+  /* Сумма/срок правлены 2026-07-10: сид нарушал конверт программы ТУР (≤ 2 000 000 / ≤ 24 мес.). */
   {num:'З-2026-000076', inn:'01204199910016', name:'ОАО "О!Банк"',
    status:'Одобрено', collateralStatus:'', program:'ТУР',
-   amount:'5 000 000,00', term:'36', info:''},
+   amount:'1 800 000,00', term:'24', info:''},
   {num:'З-2026-000074', inn:'00404202510209', name:'ОсОО "Хот Лэйк Текстиль"',
    status:'Отклонено', collateralStatus:'Одобрено', program:'АгроИнвест КР',
    amount:'1 000 000,00', term:'12', info:''},
@@ -2333,10 +2342,20 @@ function renderGrid(){
     return true;
   });
   if (_sortCol){
+    /* Денежные/числовые колонки сортируем как числа: «1 000 000,00» лексикографически
+       меньше «900 000,00». Остальные — строкой (ISO-даты сравниваются корректно). */
+    const NUMERIC_COLS = new Set(['amount', 'approvedAmount', 'term', 'approvedTerm']);
+    const numeric = NUMERIC_COLS.has(_sortCol);
     rows = rows.slice().sort((a,b) => {
-      const av = a[_sortCol] || '', bv = b[_sortCol] || '';
+      let av = a[_sortCol] || '', bv = b[_sortCol] || '';
+      if (numeric){ av = _num(av); bv = _num(bv); }
       return av < bv ? -_sortDir : av > bv ? _sortDir : 0;
     });
+  }
+  /* Выбранная строка могла уйти под фильтр — снять выделение и погасить кнопки. */
+  if (_selNum && !rows.some(r => r.num === _selNum)){
+    _selNum = null;
+    ['btnEdit','btnDel','btnCom'].forEach(id => _setBtn(id, false, ''));
   }
   // Update sort glyph in headers
   document.querySelectorAll('#appGrid thead th').forEach(th => {
@@ -2400,6 +2419,26 @@ function selectRow(num){
 
 function editSelected(){
   if (_selNum) gotoDetail(_selNum);   // «Просмотр» opens the selected row's detail (edit gated inside by статус)
+}
+
+/* «Удалить» — только специалист, только не-терминальный статус (гард дублирован в модели,
+   а не только в disabled-кнопке). Подтверждение — обязательное. */
+function delSelected(){
+  if (!_selNum) return;
+  const i = APPLICATIONS.findIndex(a => a.num === _selNum);
+  if (i < 0) return;
+  const app = APPLICATIONS[i];
+  if (_role !== 'spec'){ showToast('Удалять заявки может только кредитный специалист', 'warn'); return; }
+  if (UNDELETABLE_STATUSES.has(app.status)){
+    showToast('Одобренную заявку удалить нельзя — есть связанный кредит', 'warn'); return;
+  }
+  if (!confirm(`Удалить заявку ${app.num}? Действие необратимо.`)) return;
+  APPLICATIONS.splice(i, 1);
+  if (_detailApp && _detailApp.num === app.num){ _editSnapshot = null; _detailApp = null; showView('list'); }
+  _selNum = null;
+  ['btnEdit','btnDel','btnCom'].forEach(id => _setBtn(id, false, ''));
+  renderGrid();
+  showToast(`Заявка ${app.num} удалена`, 'ok');
 }
 
 function sortBy(col){
@@ -2572,10 +2611,6 @@ const PROGRAMS_MAP = {
    TASK 5: Detail shell — header, stepper, tab bar
    ============================================================ */
 
-/* Stepper milestones — happy path потока A (spec топик 4).
-   Off-path/боковые статусы маппятся на ближайшую веху; реальное состояние = бейдж. */
-const STEP_LABELS = ['Новый','На рассмотрении','Одобрена','На оформлении','Оформлена'];
-
 /* Per-status metadata: индекс вехи · режим страницы (edit/view) · класс бейджа.
  * 9 статусов, одна дорожка (spec топик 4). */
 const STATUS_META = {
@@ -2589,37 +2624,10 @@ const STATUS_META = {
   'Оформлена':                 { step:4, mode:'view', badge:'s-approved' },
   'Отозвана':                  { step:1, mode:'view', badge:'s-closed' },
 };
-/* legacy alias — renderStepper принимает индекс вехи */
-const STATUS_STEP_MAP = Object.fromEntries(Object.entries(STATUS_META).map(([k,v]) => [k, v.step]));
-const STEP_DATE = '24.06.2026'; /* representative mock date for completed steps */
-
+/* Шапочный степпер убран из вёрстки (2026-07); renderStepper/STEP_LABELS/STATUS_STEP_MAP
+   удалены как мёртвый код, писавший в несуществующий #stepper. Прогресс показывает
+   appStage (5 узлов) на вкладке «Общая информация». */
 const CHECK_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-
-function renderStepper(currentStep){
-  document.getElementById('stepper').innerHTML = STEP_LABELS.map((label, i) => {
-    const done    = i < currentStep;
-    const current = i === currentStep;
-    const isFirst = i === 0;
-    const isLast  = i === STEP_LABELS.length - 1;
-
-    const leftClass  = isFirst ? 'step-line vis-hidden' : (i <= currentStep ? 'step-line done' : 'step-line');
-    const rightClass = isLast  ? 'step-line vis-hidden' : (i < currentStep  ? 'step-line done' : 'step-line');
-    const circleClass = done ? 'step-circle done' : current ? 'step-circle current' : 'step-circle';
-    const itemClass   = done ? 'step-item done'   : current ? 'step-item current'   : 'step-item';
-
-    return `<div class="${itemClass}">
-      <div class="step-track">
-        <div class="${leftClass}"></div>
-        <div class="${circleClass}">${done ? CHECK_SVG : ''}</div>
-        <div class="${rightClass}"></div>
-      </div>
-      <div class="step-meta">
-        <span class="step-label">${label}</span>
-        ${done ? `<span class="step-date">${STEP_DATE}</span>` : ''}
-      </div>
-    </div>`;
-  }).join('');
-}
 
 /* ---- To-be tab model (spec: макс 7 вкладок; условные — Члены группы / Залог) ----
    Порядок: Общая · Члены группы* · График · Залог* · Документы · Комиссия · История.
@@ -2806,6 +2814,19 @@ function enterEdit(){
 }
 function saveEdit(){
   if (!_detailApp) return;
+  /* Гейт: подсветка «cf-invalid» теперь запрещает сохранение, а не только красит рамку.
+     Поля вне диапазона программы / пустые обязательные / льгота > срока — не проходят. */
+  const bad = _validateCondFields();
+  if (bad){
+    const err  = bad.parentNode.querySelector('.cf-err');
+    const msg  = err && err.textContent ? err.textContent : 'есть некорректные поля';
+    const pane = bad.closest('.detail-panel');
+    if (pane) showTab(pane.id);                       // показать вкладку с ошибкой (панель перерисуется)
+    showToast('Не сохранено: ' + msg, 'warn');
+    return;
+  }
+  const modelErr = _validateAppModel(_detailApp);
+  if (modelErr){ showToast('Не сохранено: ' + modelErr, 'warn'); return; }
   _editSnapshot = null;                                // фиксируем правки в объекте
   _editMode = false; _schedSel = null;
   gotoDetail(_detailApp.num);
@@ -2834,8 +2855,14 @@ function renderToolbar(app){
       if (label === 'Изменить')
         return `<button class="btn btn-${kind} btn-sm" onclick="enterEdit()">${label}</button>`;
       /* «Отправить в комиссию» — честный гейт: комплект документов + (при залоге) покрытие. */
-      if (label === 'Отправить в комиссию' && !sendReady(app))
-        return `<button class="btn btn-${kind} btn-sm" disabled title="${_esc(sendGateReason(app))}">${label}</button>`;
+      if (label === 'Отправить в комиссию'){
+        if (!sendReady(app))
+          return `<button class="btn btn-${kind} btn-sm" disabled title="${_esc(sendGateReason(app))}">${label}</button>`;
+        /* Из карточки — та же модалка, что и из списка (раньше здесь был демо-тост). */
+        return `<button class="btn btn-${kind} btn-sm" onclick="openSendModal('credit')">${label}</button>`;
+      }
+      if (label === 'Удалить')
+        return `<button class="btn btn-${kind} btn-sm" onclick="_selNum='${_esc(app.num)}';delSelected()">${label}</button>`;
       return `<button class="btn btn-${kind} btn-sm" onclick="toolbarAction('${label}')">${label}</button>`;
     });
     /* Комиссия правит опер-условия, но своего статус-тулбара не имеет — добавим «Изменить». */
@@ -2927,6 +2954,9 @@ function gotoDetail(num, panel){
      сохраняет текущий _editMode И текущий таб (иначе «Изменить» кидает на 1-й таб). */
   const sameApp = _detailApp && _detailApp.num === num;
   const currentPanel = sameApp ? document.querySelector('.tabbar-tab.active')?.dataset.panel : null;
+  /* Переход на ДРУГУЮ заявку с открытым режимом правки — откатить снимок на прежнюю
+     заявку ДО подмены _detailApp, иначе снимок позже применится к чужому объекту. */
+  if (!sameApp && _editSnapshot) _revertEdit();
   if (!sameApp) { _editMode = false; _condOpenSec = null; _condMonthsOpen = false; _memberSel = null; _collSel = null; _schedView = null; _schedSel = null; _docMemberView = null; _conclResetOpen(); }   // др. заявка → аккордеон к дефолту, снять выделения
   _detailApp = app;
   _syncDeptSwitch();                                   // список отделов — из назначенных на этой заявке
@@ -3404,7 +3434,8 @@ function condNum(label, val, opts){
   const isInt = !!opts.int;
   const hasMin = opts.min != null && opts.min !== '';
   const hasMax = opts.max != null && opts.max !== '';
-  const data = (hasMin ? ` data-min="${opts.min}"` : '') + (hasMax ? ` data-max="${opts.max}"` : '');
+  const data = (hasMin ? ` data-min="${opts.min}"` : '') + (hasMax ? ` data-max="${opts.max}"` : '')
+             + (opts.required ? ' data-required="1"' : '');
   const hint = opts.hint
     || (hasMin && hasMax ? `Допустимо: от ${numToRu(ruToNum(opts.min))} до ${numToRu(ruToNum(opts.max))}` : '');
   return `<div class="cond-field"><span class="cflabel">${label}${star}</span>`
@@ -3421,14 +3452,56 @@ function condNumRange(el){
   const max = el.dataset.max !== undefined ? ruToNum(el.dataset.max) : null;
   const err = el.parentNode.querySelector('.cf-err');
   let msg = '';
-  if (el.value.trim() !== ''){
+  if (el.value.trim() === ''){
+    if (el.dataset.required) msg = 'Обязательное поле';
+  } else {
     const n = ruToNum(el.value);
     if (isNaN(n)) msg = 'Введите число';
     else if (min != null && n < min) msg = `Меньше минимума по программе (${numToRu(min)})`;
     else if (max != null && n > max) msg = `Больше максимума по программе (${numToRu(max)})`;
+    /* Льготный период не может превышать срок кредита. */
+    else if (/^grace/.test(el.dataset.bind || '')){
+      const term = parseInt((_detailApp || {}).approvedTerm || (_detailApp || {}).term, 10);
+      if (term > 0 && n > term) msg = `Больше срока кредита (${term} мес.)`;
+    }
   }
   el.classList.toggle('cf-invalid', !!msg);
   if (err){ err.textContent = msg; err.style.display = msg ? 'block' : 'none'; }
+  return !msg;
+}
+
+/* Прогон всех числовых полей условий: подсветить и вернуть первое невалидное. */
+function _validateCondFields(){
+  /* Только числовые поля condNum (у них есть inputmode и .cf-err); селекты/справочники
+     с data-bind сюда попадать не должны — ruToNum их текста даст NaN. */
+  const els = document.querySelectorAll('#view-detail .cf-input[data-bind][inputmode]');
+  let bad = null;
+  els.forEach(el => { if (!condNumRange(el) && !bad) bad = el; });
+  return bad;
+}
+
+/* Проверка по МОДЕЛИ, а не по DOM: поля правятся вживую, а вкладка «Условия» могла быть
+   закрыта (её inputs исчезли из DOM) — тогда одной подсветки мало. Возвращает текст ошибки. */
+function _validateAppModel(app){
+  const prog = PROGRAMS_MAP[app.program] || {};
+  const amt  = _num(app.amount), term = parseInt(app.term, 10);
+  if (!(amt > 0))  return 'Сумма кредита обязательна и должна быть больше нуля';
+  if (!(term > 0)) return 'Срок кредита обязателен и должен быть больше нуля';
+  /* В PROGRAMS_MAP границы дублируются числом и строкой (побеждает строка) → _num. */
+  const aMin = _num(prog.amountMin), aMax = _num(prog.amountMax);
+  const tMin = _num(prog.termMin),   tMax = _num(prog.termMax);
+  if (aMin && amt  < aMin) return `Сумма меньше минимума по программе (${numToRu(aMin)})`;
+  if (aMax && amt  > aMax) return `Сумма больше максимума по программе (${numToRu(aMax)})`;
+  if (tMin && term < tMin) return `Срок меньше минимума по программе (${tMin} мес.)`;
+  if (tMax && term > tMax) return `Срок больше максимума по программе (${tMax} мес.)`;
+  for (const [k, label] of [['graceMain','по осн. сумме'], ['graceAccrual','по начислению %'], ['graceInterest','по процентам']]){
+    const g = parseInt(app[k] || 0, 10) || 0;
+    if (g < 0)     return `Льготный период ${label} не может быть отрицательным`;
+    if (g > term)  return `Льготный период ${label} (${g} мес.) больше срока кредита (${term} мес.)`;
+  }
+  const pd = parseInt(app.paymentDay || 0, 10);
+  if (app.paymentDay != null && app.paymentDay !== '' && !(pd >= 1 && pd <= 31)) return 'День платежа — от 1 до 31';
+  return '';
 }
 
 // Ограничение по льготному периоду из программы.
@@ -3709,13 +3782,22 @@ PANEL_RENDER['tab-cond'] = renderConditions;
    ============================================================ */
 const ISSUE_DATE = '15.06.2026';                 // демо-дата выдачи (уровень кредита)
 const FREQ_F = { 'Ежемесячно':1, 'Ежеквартально':3, 'Раз в полгода':6, 'Полугодовая':6, 'Ежегодно':12 };
-const GRACE_DEMO = { 'З-2026-000089': { main:3 } };  // демо: 3 мес отсрочки тела
+const RU_MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 
 const _num  = s => parseFloat(String(s == null ? '' : s).replace(/\s/g,'').replace(',', '.')) || 0;
 const _fmt  = n => { const s = Math.abs(n).toFixed(2).split('.'); s[0] = s[0].replace(/\B(?=(\d{3})+(?!\d))/g,' '); return (n<0?'-':'') + s[0] + ',' + s[1]; };
 const _pD   = s => { const [dd,mm,yy] = s.split('.').map(Number); return new Date(yy, mm-1, dd); };
 const _fD   = d => String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0') + '.' + d.getFullYear();
-const _addM = (d,n,day) => new Date(d.getFullYear(), d.getMonth()+n, day || d.getDate());
+/* Дней в месяце, куда попадёт issue + off месяцев (Date(y, m, 0) = последний день m-1). */
+const _dimAt = (issue, off) => { const p = new Date(issue.getFullYear(), issue.getMonth()+off, 1);
+  return new Date(p.getFullYear(), p.getMonth()+1, 0).getDate(); };
+/* Дата платежа = issue + off месяцев, день зажат по длине месяца (31 → 28/29/30, не «перетекает»). */
+const _payDate = (issue, off, day, shiftWeekend) => {
+  const d = new Date(issue.getFullYear(), issue.getMonth()+off, Math.min(day, _dimAt(issue, off)));
+  if (shiftWeekend) while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  return d;
+};
+const _addM = (d,n,day) => _payDate(d, n, day || d.getDate(), false);
 
 /* Рассчитать график из условий заявки. Возвращает {rows, meta} или null.
    opts.P / opts.issue (ru «дд.мм.гггг») — оверрайд суммы/даты выдачи (график члена группы). */
@@ -3725,38 +3807,60 @@ function genSchedule(app, opts){
   const P    = opts.P != null ? _num(opts.P) : _num(app.approvedAmount || app.amount);
   const m    = parseInt(app.approvedTerm || app.term, 10);
   const rate = _num(app.annualRate || env.rate || (PROGRAMS_MAP[app.program]||{}).rate);
-  if (!(P > 0) || !(m > 0) || !(rate > 0)) return null;
+  if (!(P > 0) || !(m > 0) || rate < 0) return null;         // ставка 0% допустима (беспроцентная ссуда)
 
   const f    = FREQ_F[app.paymentFrequency || env.freq || 'Ежемесячно'] || 1;
-  const n    = Math.max(1, Math.round(m / f));
   const base = 365;                              // «календарный 365» (по умолчанию)
   const payDay = parseInt(app.paymentDay || 15, 10);
-  const g    = GRACE_DEMO[app.num] || {};
-  const pMain = Math.round((g.main || 0) / f);   // грейс-периоды (тело отсрочено)
-  const pAccr = Math.round((g.accr || 0) / f);   // % не начисляются
-  const pInt  = Math.round((g.int  || 0) / f);   // % отложены к уплате
+  const shift  = /перенос/i.test(app.processingOption || '');           // выходной → следующий рабочий день
+  const diff   = /дифференц/i.test(app.repaymentMethod || env.method || '');
+  const issue  = _pD(opts.issue || ISSUE_DATE);
 
-  const T   = rate/100 * f/12;                   // ставка за период (для PMT)
-  const PMT = P * T / (1 - Math.pow(1+T, -n));
+  /* Смещения платежей в месяцах от даты выдачи.
+     payMode='months' → только выбранные месяцы года; иначе — регулярно каждые f месяцев. */
+  let offs = null;
+  if (app.payMode === 'months' && (app.payMonths || []).length){
+    offs = [];
+    for (let i = 1; i <= m; i++)
+      if (app.payMonths.includes(RU_MONTHS[new Date(issue.getFullYear(), issue.getMonth()+i, 1).getMonth()])) offs.push(i);
+    if (!offs.length) offs = null;                            // выбранных месяцев нет в сроке → регулярный график
+  }
+  const byMonths = !!offs;
+  if (!offs){ const n0 = Math.max(1, Math.round(m/f)); offs = []; for (let k = 1; k <= n0; k++) offs.push(k*f); }
+  const n = offs.length;
+
+  /* Льгота — из условий заявки (мес.), а не из демо-таблицы. Период «льготный», пока его
+     смещение не превысило длительность льготы. */
+  const gMain = Math.max(0, parseInt(app.graceMain    || 0, 10) || 0);   // тело отсрочено
+  const gAccr = Math.max(0, parseInt(app.graceAccrual || 0, 10) || 0);   // % не начисляются
+  const gInt  = Math.max(0, parseInt(app.graceInterest|| 0, 10) || 0);   // % отложены к уплате
+  const lastIntGrace = offs.filter(o => o <= gInt).length;               // индекс последнего периода отсрочки %
+
+  const fEff = byMonths ? m / n : f;             // средняя длина периода (для PMT при выборочных месяцах)
+  const T    = rate/100 * fEff/12;               // ставка за период
+  const PMT  = T > 0 ? P * T / (1 - Math.pow(1+T, -n)) : P / n;   // 0% → равные доли тела
+  const bodyRows = Math.max(1, offs.filter(o => o > gMain).length);  // сколько платежей гасят тело (дифф.)
+  const diffPrincipal = P / bodyRows;
 
   const rows = [];
-  let balance = P, start = _pD(opts.issue || ISSUE_DATE), deferred = 0;
+  let balance = P, start = issue, deferred = 0;
   for (let k = 1; k <= n; k++){
-    const pay  = _addM(start, f, payDay);
-    const days = Math.round((pay - start) / 86400000);
+    const pay  = _payDate(issue, offs[k-1], payDay, shift);
+    const days = Math.max(0, Math.round((pay - start) / 86400000));
     const openBal = balance;
-    const inMain = k <= pMain, inAccr = k <= pAccr, inInt = k <= pInt;
+    const inMain = offs[k-1] <= gMain, inAccr = offs[k-1] <= gAccr, inInt = offs[k-1] <= gInt;
 
     const accrued = inAccr ? 0 : openBal * rate/100 * days/base;
     let interest;
     if (inInt){ deferred += accrued; interest = 0; }
-    else { interest = accrued; if (k === pInt + 1 && deferred > 0){ interest += deferred; deferred = 0; } }
+    else { interest = accrued; if (k === lastIntGrace + 1 && deferred > 0){ interest += deferred; deferred = 0; } }
 
     let principal;
     const last = k === n;
-    if (last)      principal = openBal;                       // последний гасит остаток
+    if (last)        principal = openBal;                     // последний гасит остаток
     else if (inMain) principal = 0;                           // тело отсрочено
-    else           principal = Math.max(0, PMT - (inInt ? 0 : accrued));
+    else if (diff)   principal = diffPrincipal;               // дифференцированный: равные доли тела
+    else             principal = Math.max(0, PMT - (inInt ? 0 : accrued));
     principal = Math.min(principal, openBal);
 
     const total = interest + principal;
@@ -3765,7 +3869,8 @@ function genSchedule(app, opts){
       open:openBal, interest, principal, total, close:balance });
     start = pay;
   }
-  return { rows, meta:{ P, m, rate, f, n, grace:(pMain||pAccr||pInt) } };
+  return { rows, meta:{ P, m, rate, f, n, grace:(gMain || gAccr || gInt),
+    method: diff ? 'Дифференцированный' : 'Аннуитетный', byMonths } };
 }
 
 /* ---- Редактируемый график (возврат as-is тулбара, гейт по фазе×роли) ----
@@ -3962,10 +4067,11 @@ PANEL_RENDER['tab-1'] = renderSchedule;
 
 /* ---- Хендлеры тулбара графика (работают над владельцем = app | выбранный член) ---- */
 function _rerenderSched(){ if (_detailApp) document.getElementById('tab-1').innerHTML = renderSchedule(_detailApp); }
+/* След пишем на ЛЮБУЮ правку графика, а не только пост-одобрение: правки специалиста
+   в черновике раньше не логировались нигде. Автор — текущая роль. */
+const _AUDIT_USER = { spec:'[credit-spec]', gf:'[head-office]', dept:'[department]', com:'[commission]', ro:'[viewer]' };
 function _schedAudit(app, event, from, to){
-  const cap = can(app);
-  if (!(cap.phase === 'locked' && _role === 'com')) return;   // аудит-след только пост-одобрение
-  (app.schedEdits = app.schedEdits || []).push({ user:'[commission]', event, from:from || '', to:to || '' });
+  (app.schedEdits = app.schedEdits || []).push({ user:_AUDIT_USER[_role] || '[user]', event, from:from || '', to:to || '' });
 }
 /* Префикс события аудита именем члена (групповой) — чтобы след различал графики. */
 function _schedWho(app){
@@ -4031,6 +4137,22 @@ function schedRowSave(){
     pay:       isoPay ? _isoToRu(isoPay) : r.pay,   // ISO из <input type=date> → ru; пусто → старая дата
     principal: document.getElementById('sched-f-principal').value.trim(),
   };
+  /* Валидация строки: сумма — число ≥ 0; дата — строго позже предыдущего платежа
+     и не позже даты выдачи + срок кредита. Раньше сохранялось что угодно, включая текст. */
+  const principalRaw = nv.principal;
+  if (principalRaw !== '' && !/^[\d\s.,]+$/.test(principalRaw)){ showToast('Погашение осн. долга: введите число', 'warn'); return; }
+  if (_num(principalRaw) < 0){ showToast('Погашение осн. долга не может быть отрицательным', 'warn'); return; }
+  const payD = _pD(nv.pay);
+  if (isNaN(payD)){ showToast('Некорректная дата платежа', 'warn'); return; }
+  const prev = _schedSel > 0 ? _pD(owner.schedule[_schedSel - 1].pay) : null;
+  if (prev && payD <= prev){ showToast('Дата платежа должна быть позже предыдущей (' + owner.schedule[_schedSel-1].pay + ')', 'warn'); return; }
+  const term = parseInt(app.approvedTerm || app.term, 10);
+  let issue = _pD(ctx.issue || ISSUE_DATE);
+  if (isNaN(issue)) issue = _pD(ISSUE_DATE);
+  if (term > 0){
+    const limit = _payDate(issue, term + 1, 28, false);   // +1 месяц запаса на последний платёж
+    if (payD > limit){ showToast('Дата платежа выходит за срок кредита (' + term + ' мес.)', 'warn'); return; }
+  }
   const k = '№ ' + (_schedSel + 1), who = _schedWho(app);
   if (r.pay !== nv.pay)             _schedAudit(app, who + 'Изменена дата платежа (' + k + ')', r.pay, nv.pay);
   if (r.principal !== nv.principal) _schedAudit(app, who + 'Изменено погашение осн. долга (' + k + ')', r.principal, nv.principal);
@@ -4341,6 +4463,7 @@ function docsReady(app){ return _docStats(app).met; }
 function sendReady(app){
   const ds = _docStats(app);
   if (!ds.met) return false;
+  if (app.isGroup && !_groupGate(app).ok) return false;   // состав/доли/Σ траншей группы
   if (app.hasCollateral){ const c = coverageOf(app); if (!c.hasItems || !c.covOk) return false; }
   if (!ds.confirmedMet) return false;         // 2-й уровень — головной филиал
   if (!conclusionsReady(app)) return false;   // заключения риск/залог/юр/кредит
@@ -4374,6 +4497,10 @@ function sendGateReason(app){
       if (g) return `У ${g} комплект документов не собран`;
     }
     return `Собран не полный обязательный комплект документов (${st.reqClosed} из ${st.reqTot})`;
+  }
+  if (app.isGroup){
+    const g = _groupGate(app);
+    if (!g.ok) return 'Группа не укомплектована: ' + g.reasons.join(' · ');
   }
   if (app.hasCollateral){
     const c = coverageOf(app);
@@ -4443,9 +4570,12 @@ function docRow(app, disp, key, secKind){
         acts += _docBtn('ghost', 'Отменить запрос', `docReqCancel(${kq})`);
         acts += _docBtn('secondary', '⚙ Ответ получен', `docReqFulfill(${kq})`);
       } else {
+        /* Подтверждённый ГФ документ спец не трогает: замена/«не требуется» обошли бы 2-й
+           уровень. Сначала ГФ снимает подтверждение. */
+        const gfLocked = disp.st === 'confirmed';
         if (disp.st === 'required') acts += _docBtn('primary', 'Загрузить', `docUpload(${kq})`);
         else if (disp.st === 'rejected' || disp.st === 'expired') acts += _docBtn('primary', 'Перезагрузить', `docUpload(${kq})`);
-        else acts += _docBtn('ghost', 'Заменить', `docUpload(${kq})`);
+        else if (!gfLocked) acts += _docBtn('ghost', 'Заменить', `docUpload(${kq})`);
         /* Интеграция: рядом с ручной загрузкой — запрос из госсистемы (только открытый блок). */
         const src = _docSrc(key);
         if (src && OPEN_BLOCKS(disp.st)){
@@ -4456,7 +4586,7 @@ function docRow(app, disp, key, secKind){
           acts += _docBtn('success', 'Проверил', `docAccept(${kq})`);
           acts += _docBtn('danger', 'Отклонить', `docReject(${kq})`);
         }
-        if (disp.req) acts += _docBtn('ghost', 'Не требуется', `docWaive(${kq})`);
+        if (disp.req && !gfLocked) acts += _docBtn('ghost', 'Не требуется', `docWaive(${kq})`);
       }
     }
   }
@@ -5125,19 +5255,28 @@ function _conclReadForm(key){
   if (inps.length) it.conds = [...inps].map((el, i) => ({ id:'c' + i, text:el.value.trim() }));
 }
 
+/* Гард редактирования заключения — в МОДЕЛИ, а не только в скрытых кнопках:
+   только свой отдел, только в фазе draft, только пока заключение не отправлено. */
+function _conclEditable(key){
+  const app = _detailApp;
+  return !!(app && can(app).editConcl(key) && (_conclOf(app).items[key] || {}).status !== 'submitted');
+}
 function conclCondAdd(key){
+  if (!_conclEditable(key)) return;
   _conclReadForm(key);
   const it = _conclOf(_detailApp).items[key];
   it.conds.push({ id:'c' + it.conds.length, text:'' });
   _panelRefresh('tab-concl');
 }
 function conclCondDel(key, i){
+  if (!_conclEditable(key)) return;
   _conclReadForm(key);
   _conclOf(_detailApp).items[key].conds.splice(i, 1);
   _panelRefresh('tab-concl');
 }
 /* Вложение — фиктивная запись: файлового хранилища у мокапа нет. */
 function conclFileAdd(key){
+  if (!_conclEditable(key)) return;
   _conclReadForm(key);
   const it = _conclOf(_detailApp).items[key];
   it.files.push({ name:`Вложение ${it.files.length + 1}.pdf`, size:'1,2 МБ' });
@@ -5145,6 +5284,7 @@ function conclFileAdd(key){
   showToast('Файл прикреплён (демо — не хранится)', 'ok');
 }
 function conclFileDel(key, i){
+  if (!_conclEditable(key)) return;
   _conclReadForm(key);
   _conclOf(_detailApp).items[key].files.splice(i, 1);
   _panelRefresh('tab-concl');
@@ -5444,8 +5584,17 @@ function _reqDocList(app){
   const bt = _docBType(app); const out = [];
   _docsOf(app).forEach(sec => {
     if (sec.stage === 'contract' || sec.key === 'coll') return;
+    if (app.isGroup && MEMBER_SEC_KEYS.includes(sec.key)) return;   // ident/fin у группы — на уровне членов (как в _docStats)
     sec.docs.filter(d => (d.ft === 'both' || d.ft === bt) && d.req).forEach(d => out.push({ key:d.id, t:d.t, st:d.st }));
   });
+  if (app.isGroup){
+    _membersOf(app).forEach((m, i) => {
+      _memberDocTpls(m).forEach(tpl => {
+        if (!tpl.req) return;
+        out.push({ key:_memberDocKey(m, tpl.id), t:tpl.t + ' · ' + (m.fio || m.pin), st:_memberDocState(app, m, tpl, i).st });
+      });
+    });
+  }
   if (app.hasCollateral){
     _collateralOf(app).forEach(it => {
       (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).forEach(tpl => {
@@ -5456,12 +5605,32 @@ function _reqDocList(app){
   return out;
 }
 
-/* ── Действия комиссии (роль «Комиссия») ── */
-function comAdvance(){ const app = _detailApp; if (!app) return; _comStateOf(app).phase = 'session'; _panelRefresh('tab-6'); showToast('Заявка вынесена на заседание комитета', 'ok'); }
-function comBackPrelim(){ const app = _detailApp; if (!app) return; _comStateOf(app).phase = 'prelim'; _panelRefresh('tab-6'); showToast('Возврат к предварительному изучению', 'info'); }
-function comSign(i){ const app = _detailApp; if (!app) return; const s = _comStateOf(app); s.sign[i] = !s.sign[i]; _panelRefresh('tab-6'); showToast(s.sign[i] ? 'Протокол подписан членом комиссии' : 'Подпись снята', s.sign[i] ? 'ok' : 'info'); }
-function comUploadProtocol(){ const app = _detailApp; if (!app) return; _comStateOf(app).scan = true; _panelRefresh('tab-6'); showToast('Скан подписанного протокола внесён в систему', 'ok'); }
-function comRequest(key){ _docOpenReason(key, 'comreq'); }
+/* ── Действия комиссии (роль «Комиссия») ──
+   Гарды продублированы в модели: UI прячет кнопки, но функции не должны верить рендеру. */
+function _comActor(){
+  const app = _detailApp;
+  if (!app) return null;
+  if (!can(app).vote){ showToast('Действия комиссии доступны только роли «Комиссия» на рассмотрении', 'warn'); return null; }
+  return app;
+}
+function comAdvance(){
+  const app = _comActor(); if (!app) return;
+  /* Вынести на заседание можно только с собранным комплектом и готовыми заключениями. */
+  if (!_docStats(app).confirmedMet){ showToast('Комплект документов не подтверждён головным филиалом', 'warn'); return; }
+  if (!conclusionsReady(app)){ showToast('Не все назначенные отделы дали заключение', 'warn'); return; }
+  _comStateOf(app).phase = 'session'; _panelRefresh('tab-6'); showToast('Заявка вынесена на заседание комитета', 'ok');
+}
+function comBackPrelim(){ const app = _comActor(); if (!app) return; _comStateOf(app).phase = 'prelim'; _panelRefresh('tab-6'); showToast('Возврат к предварительному изучению', 'info'); }
+function comSign(i){ const app = _comActor(); if (!app) return; const s = _comStateOf(app);
+  if (s.phase !== 'session'){ showToast('Подписи собираются после вынесения на заседание', 'warn'); return; }
+  s.sign[i] = !s.sign[i]; _panelRefresh('tab-6'); showToast(s.sign[i] ? 'Протокол подписан членом комиссии' : 'Подпись снята', s.sign[i] ? 'ok' : 'info'); }
+function comUploadProtocol(){
+  const app = _comActor(); if (!app) return;
+  const s = _comStateOf(app);
+  if (!s.sign.every(Boolean)){ showToast('Сначала отметьте подписи всех членов комиссии', 'warn'); return; }
+  s.scan = true; _panelRefresh('tab-6'); showToast('Скан подписанного протокола внесён в систему', 'ok');
+}
+function comRequest(key){ if (!_comActor()) return; _docOpenReason(key, 'comreq'); }
 
 function renderCommission(app){
   const c = commissionFor(app);
@@ -5596,7 +5765,7 @@ function _isoToRu(d){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d).trim(
    между перерисовками. Инициализируется лениво из демо-сплита 40/35/25. */
 function _membersOf(app){
   if (!app._members){
-    const P = _num(app.amount);
+    const P = _num(app.approvedAmount || app.amount);   // сеем транши от того же тела, с которым их сверяет _groupGate
     const a = Math.round(P * 0.40), b = Math.round(P * 0.35), c = P - a - b;
     app._members = [
       { pin:'21812199600888', fio:'БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ', sum:a, date:'20.06.2026' },
@@ -5610,14 +5779,30 @@ function _membersOf(app){
 let _memberSel = null;              // индекс выделенной строки (для «Удалить»)
 let _subjectPickTarget = 'borrower';// куда применить пикер субъекта: 'borrower' (создание) | 'member'
 
-function renderMembers(app){
-  const editable = can(app).editReq;   // правит кредитный специалист в draft
+/* Гейт группы — единый источник для вкладки «Члены группы» и для sendReady/sendGateReason. */
+function _groupGate(app){
   const members = _membersOf(app);
   const n = members.length;
   const total = members.reduce((s, m) => s + _num(m.sum), 0);   // Σ снизу вверх — ведущая
+  const credit = _num(app.approvedAmount || app.amount);
   const sizeOk  = n >= GROUP_MIN && n <= GROUP_MAX;
   const shareOk = members.every(m => total > 0 && (_num(m.sum) / total * 100) <= MAX_SHARE + 0.5);
-  const gateOk  = sizeOk && shareOk;
+  /* Σ траншей должна сходиться с телом кредита — иначе доли «100%» считаются от чего угодно. */
+  const sumOk   = credit > 0 && Math.abs(total - credit) < 0.01;
+  const reasons = [
+    !sizeOk  ? `размер группы ${n} вне ${GROUP_MIN}–${GROUP_MAX}` : '',
+    !shareOk ? `доля члена превышает ${MAX_SHARE}%` : '',
+    !sumOk   ? `∑ траншей ${_fmt(total)} ≠ сумма кредита ${_fmt(credit)} (расхождение ${_fmt(total - credit)})` : '',
+  ].filter(Boolean);
+  return { n, total, credit, sizeOk, shareOk, sumOk, ok: sizeOk && shareOk && sumOk, reasons };
+}
+
+function renderMembers(app){
+  const editable = can(app).editReq;   // правит кредитный специалист в draft
+  const members = _membersOf(app);
+  const g = _groupGate(app);
+  const { n, total, credit, sizeOk, shareOk, sumOk } = g;
+  const gateOk = g.ok;
 
   const tools = editable
     ? `<div class="tab-toolrow">
@@ -5641,10 +5826,7 @@ function renderMembers(app){
       <td>${dateCell}</td></tr>`;
   }).join('');
 
-  const reasons = [
-    !sizeOk  ? `размер группы ${n} вне ${GROUP_MIN}–${GROUP_MAX}` : '',
-    !shareOk ? `доля члена превышает ${MAX_SHARE}%` : '',
-  ].filter(Boolean).join(' · ');
+  const reasons = g.reasons.join(' · ');
   const gate = gateOk
     ? `<div class="note-banner"><span>Группа укомплектована (${n} чл., допустимо ${GROUP_MIN}–${GROUP_MAX}), доли ≤ ${MAX_SHARE}%. Заявку можно отправить в комиссию.</span></div>`
     : `<div class="note-banner warn"><span>Отправка в комиссию заблокирована: ${reasons}.</span></div>`;
@@ -5673,6 +5855,7 @@ function addGroupMember(val){
   const pin = (parts[0] || '').trim();
   const fio = parts.slice(1).join(' - ').trim() || val;
   closeModal('modal-pick-subject');
+  if (!pin || !fio || fio === val){ showToast('Не распознан субъект: нужен ПИН/ИНН и наименование', 'warn'); return; }
   if (members.length >= GROUP_MAX){ showToast('Достигнут максимум группы (' + GROUP_MAX + ')', 'warn'); return; }
   if (members.some(m => m.pin === pin)){ showToast('Субъект уже в группе', 'warn'); return; }
   members.push({ pin, fio, sum:0, date:'—', check:'ok' });   // per-member гейты — demo: 'ok'
@@ -5706,7 +5889,10 @@ function delMember(){
 }
 function setMemberSum(i, v){
   const members = _membersOf(_detailApp);
-  if (members[i]) members[i].sum = _num(v);
+  if (!members[i]) return;
+  const n = _num(v);
+  if (!(n > 0)){ showToast('Сумма транша должна быть больше нуля', 'warn'); showTab('tab-3'); return; }
+  members[i].sum = n;
   showTab('tab-3');   // пересчёт Σ / долей / гейта
 }
 function setMemberDate(i, v){
@@ -5735,8 +5921,10 @@ function coverageOf(app){
   const items = _collateralOf(app);
   const sum = items.reduce((s, it) => s + _num(it.val), 0);
   const credit = _num(app.approvedAmount || app.amount);
-  const cov = credit > 0 ? Math.round(sum / credit * 100) : 0;
-  return { sum, credit, cov, covOk: cov >= MIN_COVERAGE, hasItems: items.length > 0 };
+  const covRaw = credit > 0 ? sum / credit * 100 : 0;   // сырое покрытие — по нему гейт
+  const cov = credit > 0 ? Math.round(covRaw) : 0;      // округлённое — только для показа
+  /* Порог сверяем с СЫРЫМ покрытием: 119,6% округляется до 120% и раньше открывало гейт. */
+  return { sum, credit, cov, covRaw, covOk: covRaw >= MIN_COVERAGE, hasItems: items.length > 0 };
 }
 /* Уникальные виды залога среди предметов. */
 function _collKindsUsed(app){ return [...new Set(_collateralOf(app).map(it => it.kind))]; }
@@ -5924,14 +6112,30 @@ function delCollItem(){
   const it = items[_collSel];
   if (!it){ _collSel = null; showTab('tab-4'); return; }
   items.splice(_collSel, 1);
+  _dropCollDocs(_detailApp, it.id);   // каскад: снять состояния документов предмета (иначе сироты в _collDocs)
   _collSel = null;
   showTab('tab-4');
   showToast('Предмет залога удалён' + (it.kind ? ': ' + it.kind : ''), 'info');
 }
+/* Удалить все состояния документов предмета залога (ключи «<itemId>::<tplId>»). */
+function _dropCollDocs(app, itemId){
+  const store = _collDocsOf(app), pref = String(itemId) + '::';
+  Object.keys(store).forEach(k => { if (k.indexOf(pref) === 0) delete store[k]; });
+}
 function setCollField(i, field, v){
   const items = _collateralOf(_detailApp);
   if (!items[i]) return;
-  items[i][field] = field === 'val' ? _num(v) : field === 'enc' ? (v === '1') : v;
+  if (field === 'val'){
+    const n = _num(v);
+    if (!(n > 0)){ showToast('Стоимость предмета залога должна быть больше нуля', 'warn'); showTab('tab-4'); return; }
+    items[i].val = n;
+  } else if (field === 'kind'){
+    if (items[i].kind === v) return;
+    _dropCollDocs(_detailApp, items[i].id);   // другой вид → другой чек-лист; старые состояния не переносим
+    items[i].kind = v;
+  } else {
+    items[i][field] = field === 'enc' ? (v === '1') : v;
+  }
   showTab('tab-4');   // пересчёт Σ / покрытия / гейта
 }
 /* Пикер собственника для существующей строки таблицы. */
@@ -5963,11 +6167,17 @@ function buildHistory(app){
     if (prov.rate) push('[specialist]', 'Изменено поле: Годовая ставка, %', prov.rate.prog, prov.rate.bor);
     push('[specialist]', 'Изменено поле: Запрашиваемая сумма', app.amount, (prov.amount && prov.amount.com) || app.amount);
   }
-  if (app.isGroup) push('[specialist]', 'Добавлен член группы', '', 'БЕКТУРГАНОВ ЭРНИС Н. · ' + _fmt(_num(app.amount)*0.4));
-  push('[specialist]', app.isGroup
-    ? 'Загружен документ: Паспорт (лицевая сторона) · БЕКТУРГАНОВ ЭРНИС Н.'   // групповой — док принадлежит члену
-    : 'Загружен документ: Паспорт (лицевая сторона)', '', 'Загружен');        // milestone
-  push('[specialist]', 'Редактирование (номер телефона)', '', '');                          // без диффа
+  /* Ниже — вехи, ВЫВЕДЕННЫЕ из текущей модели, а не выдуманные: на пустой заявке
+     (нет членов, нет загруженных документов, нет телефона) они не появляются. */
+  const members = app.isGroup ? _membersOf(app) : [];
+  if (members.length){
+    const m0 = members[0];
+    push('[specialist]', 'Добавлен член группы', '', _shortFio(m0.fio) + ' · ' + _fmt(_num(m0.sum)));
+  }
+  const ds = _docStats(app);
+  if (ds.reqTot > 0 && ds.reqClosed > 0)
+    push('[specialist]', `Загружены документы обязательного комплекта (${ds.reqClosed} из ${ds.reqTot})`, '', 'Загружен');
+  if (app.phone) push('[specialist]', 'Редактирование (номер телефона)', '', app.phone);
 
   if (reachedReview) push('[specialist]', 'Отправлена в комиссию · изменён статус', 'Новый', 'На рассмотрении');
   if (st === 'Требуется доп. информация')
@@ -6340,8 +6550,10 @@ function renderCond(){
   const amtErr = p ? `Сумма вне допустимого диапазона. ${amtHint}` : 'Введите сумму больше 0';
   const trmErr = p ? `Срок вне допустимого диапазона. ${trmHint}`  : 'Введите срок больше 0';
   box.innerHTML = `<div class="cform-grid">
-    ${condF('Запрашиваемая сумма','requestedAmount',{type:'number',req:true,unit:'сом',hint:amtHint,err:amtErr,oninput:"validateAmount()"})}
-    ${condF('Запрашиваемый срок','requestedTerm',{type:'number',req:true,unit:'мес.',hint:trmHint,err:trmErr,oninput:"validateTerm()"})}
+    ${/* type=text: <input type=number> молча выбрасывает пробелы-разделители и запятую —
+          «1 000 000,00» превращалось в 100000000. Парсим сами через t2num. */''}
+    ${condF('Запрашиваемая сумма','requestedAmount',{type:'text',req:true,unit:'сом',hint:amtHint,err:amtErr,oninput:"validateAmount()"})}
+    ${condF('Запрашиваемый срок','requestedTerm',{type:'text',req:true,unit:'мес.',hint:trmHint,err:trmErr,oninput:"validateTerm()"})}
   </div>`;
 }
 function saveCondInputs(){
@@ -6770,11 +6982,21 @@ let _sendTrack = null;
 
 /** openSendModal(track) — resets the commission select, applies eager invalid
  *  state, records the track ('credit'|'collateral'), then opens #modal-send. */
+/* Заявка-адресат отправки: из деталки — открытая, из списка — выделенная строка. */
+function _sendTarget(){ return _detailApp || APPLICATIONS.find(a => a.num === _selNum) || null; }
+/* Единый гард отправки: статус + готовность. Возвращает текст ошибки или ''. */
+function _sendBlockReason(app){
+  if (!app) return 'Заявка не выбрана';
+  if (_role !== 'spec') return 'Отправлять заявку в комиссию может только кредитный специалист';
+  if (!SENDABLE_STATUSES.has(app.status)) return `Заявка в статусе «${app.status}» — повторная отправка невозможна`;
+  return sendReady(app) ? '' : sendGateReason(app);
+}
+
 function openSendModal(track){
-  /* Гейт готовности (документы + покрытие залога) — belt-and-suspenders на случай
+  /* Гейт готовности (статус + документы + покрытие залога) — belt-and-suspenders на случай
      прямого вызова: кнопки уже дизейблятся, но флоу тоже не должен открываться. */
-  const gApp = APPLICATIONS.find(a => a.num === _selNum);
-  if (gApp && !sendReady(gApp)){ showToast('Отправка заблокирована: ' + sendGateReason(gApp), 'warn'); return; }
+  const reason = _sendBlockReason(_sendTarget());
+  if (reason){ showToast('Отправка заблокирована: ' + reason, 'warn'); return; }
   _sendTrack = track;
   const sel   = document.getElementById('send-commission');
   const field = document.getElementById('send-commission-field');
@@ -6799,14 +7021,14 @@ function submitSend(){
     field.classList.add('invalid');
     return;
   }
-  const app = APPLICATIONS.find(a => a.num === _selNum);
-  if (app && !sendReady(app)){ showToast('Отправка заблокирована: ' + sendGateReason(app), 'warn'); return; }
-  if (app){
-    // Одна комиссия судит кредит+залог (P3-R26): единственный трек статуса.
-    app.status = 'На рассмотрении';
-  }
+  const app = _sendTarget();
+  const reason = _sendBlockReason(app);
+  if (reason){ showToast('Отправка заблокирована: ' + reason, 'warn'); return; }
+  // Одна комиссия судит кредит+залог (P3-R26): единственный трек статуса.
+  app.status = 'На рассмотрении';
   renderGrid();
   closeModal('modal-send');
+  if (_detailApp && _detailApp.num === app.num) gotoDetail(app.num);   // деталка: тулбар/шапка под новый статус
   showToast('Данные сохранены', 'ok');
 }
 
@@ -6839,10 +7061,12 @@ function submitCreate(){
   const newNum = 'З-' + APP_YEAR + '-' + String(newN).padStart(6, '0');
 
   const subjectText = document.getElementById('cf-subject-val').textContent || '';
-  // Subject label format: "INN — Name"
-  const dashIdx = subjectText.indexOf('—');
-  const inn  = dashIdx > 0 ? subjectText.slice(0, dashIdx).trim() : '';
-  const name = dashIdx > 0 ? subjectText.slice(dashIdx + 1).trim() : subjectText;
+  /* Формат метки субъекта — «<ИНН/ПИН> - <Наименование>» с ОБЫЧНЫМ дефисом (см. data-val
+     строк реестра). Раньше искали длинное тире «—» → ИНН терялся, а в «Заемщик» падала
+     вся строка целиком. Разбираем регуляркой: ведущие цифры + любой дефис/тире. */
+  const mSub = subjectText.match(/^\s*(\d+)\s*[-–—]\s*(.+)$/);
+  const inn  = mSub ? mSub[1] : '';
+  const name = mSub ? mSub[2].trim() : subjectText.trim();
 
   saveCondInputs();
   const rawAmount = t2num(cdraft.requestedAmount) || 0;
