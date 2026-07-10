@@ -11,3 +11,6 @@ Base: 1317903
   Minor (в финальное ревью): (1) поле `assigned[].locked` нигде не читается — истина в `_conclLocked()`;
   (2) устаревший комментарий у `can().editConcl` (перепишет Task 2);
   (3) ветка `!cc.total` в sendGateReason недостижима (risk/credit всегда назначены).
+- Task 2: роль «Отдел» + права — complete (commit 5709b62, все PASS, review clean)
+  Отступление от плана (принято): can(app) снимает _role/_deptKey в curRole/curDept — консистентно с phase.
+  Minor: _docStats/status внутри editConcl читаются «живьём»; can(app) не кэшировать через смену роли.
