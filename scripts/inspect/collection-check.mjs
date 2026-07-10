@@ -228,6 +228,52 @@ await page.click('#detailPanels .detail-panel >> nth=2 >> .gtoolbar .btn');
 await page.mouse.click(20, 20);   // клик по подложке вне окна модалки
 ok('клик по подложке закрыл модалку', !(await page.locator('#modalHost').evaluate(e => e.classList.contains('open'))));
 
+// --- T8: особые состояния / передачи / залог ---
+await page.goto(FILE, { waitUntil: 'load' });
+const noFake = await page.evaluate(() =>
+  PROCESSES.every(p => p.special.every(s => s.name !== '—')));
+ok('фейковых строк-заглушек в данных нет', noFake);
+const noFilter = await page.evaluate(() => panelSpecial.toString().includes("!=='—'"));
+ok('костыль-фильтр убран из panelSpecial', noFilter === false);
+
+// 142: особых состояний нет → честное пустое состояние
+await page.click('#listBody tr[data-id="142"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=4');
+ok('у 142 пустое состояние', (await page.locator('#detailPanels .detail-panel >> nth=4 >> .cgrid-empty').count()) === 1);
+
+// 151: пауза одной строкой
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="151"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=4');
+const sp151 = page.locator('#detailPanels .detail-panel >> nth=4');
+ok('у 151 одна строка особого состояния', (await sp151.locator('tbody tr').count()) === 1);
+ok('строка — пауза', (await sp151.locator('tbody tr .pill').innerText()) === 'пауза');
+ok('дедлайн паузы в строке', (await sp151.locator('tbody tr').innerText()).includes('18.09.2026'));
+
+// 104: отклонённая передача с причиной + залог с причиной запрета
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="104"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=3');
+const ho = page.locator('#detailPanels .detail-panel >> nth=3');
+ok('три передачи у 104', (await ho.locator('tbody tr').count()) === 3);
+ok('одна отклонена', (await ho.locator('tbody tr .pill.high').count()) === 1);
+ok('причина отклонения показана', (await ho.innerText()).includes('нет акта несостоявшихся торгов'));
+
+await page.click('#detailTabbar .dtab >> nth=5');
+const zl = page.locator('#detailPanels .detail-panel >> nth=5');
+ok('запрет внесудебного с причиной', (await zl.locator('tbody tr .pill.high').innerText()) === 'имущественный комплекс');
+ok('статус реализации показан', (await zl.innerText()).includes('торги не состоялись'));
+
+// 142: залога нет → пустое состояние
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="142"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab >> nth=5');
+ok('у 142 залога нет', (await page.locator('#detailPanels .detail-panel >> nth=5 >> .cgrid-empty').count()) === 1);
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);

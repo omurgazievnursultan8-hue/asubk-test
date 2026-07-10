@@ -637,7 +637,7 @@ const PROCESSES = [
       {type:'Пауза', name:'Реструктуризация', note:'до 18.09.2026 · фаза сохранена · scope: весь процесс', when:'10.07.2026', deadline:'18.09.2026'},
     ],
     colls:[
-      {item:'Склад, ул. Промышленная 4', kind:'Недвижимость', pledge:'150 000,00', order:'внесудебный', real:'подготовка к торгам', ban:'нет'},
+      {item:'Склад, ул. Промышленная 4', kind:'Недвижимость', pledge:'150 000,00', order:'внесудебный', real:'подготовка к торгам', ban:''},
     ],
     history:[
       {when:'10.07.2026 14:12', what:'Пауза «Реструктуризация» до 18.09.2026 (фаза сохранена)', who:'Куратор ОД'},
@@ -678,7 +678,7 @@ const PROCESSES = [
       {type:'Соглашение', name:'Мировое соглашение', note:'наблюдение за графиком · при нарушении — возврат к исполнению', when:'18.03.2026', deadline:''},
     ],
     colls:[
-      {item:'Грузовой автомобиль', kind:'Транспорт', pledge:'70 000,00', order:'судебный', real:'арест наложен', ban:'нет'},
+      {item:'Грузовой автомобиль', kind:'Транспорт', pledge:'70 000,00', order:'судебный', real:'арест наложен', ban:''},
     ],
     history:[
       {when:'18.03.2026 12:00', what:'Соглашение: исполнение по мировому (наблюдение за графиком)', who:'Отдел проблемных кредитов'},
@@ -997,8 +997,10 @@ function panelHandoffs(){
 /* ---- panel: Особые состояния ---- */
 function panelSpecial(){
   const p=curProc;
-  const rows = p.special.filter(s=>s.name!=='—').map(s=>{
-    const pill = s.type==='Пауза'?'<span class="pill mid">пауза</span>':s.type==='Соглашение'?'<span class="pill info">соглашение</span>':'<span class="pill neutral">событие</span>';
+  const rows = p.special.map(s=>{
+    const pill = s.type==='Пауза'?'<span class="pill mid">пауза</span>'
+               : s.type==='Соглашение'?'<span class="pill info">соглашение</span>'
+               : '<span class="pill high">событие</span>';
     return `<tr><td>${pill}</td><td>${s.name}</td><td>${s.note}</td><td>${s.when||'—'}</td><td>${s.deadline||'—'}</td></tr>`;
   }).join('');
   const body = rows || `<tr><td colspan="5"><div class="cgrid-empty">Особых состояний нет</div></td></tr>`;
@@ -1021,7 +1023,7 @@ function panelZalog(){
   const p=curProc;
   const rows = p.colls.length ? p.colls.map(c=>`<tr>
     <td>${c.item}</td><td>${c.kind}</td><td style="text-align:right">${c.pledge}</td><td>${c.order}</td><td>${c.real}</td>
-    <td>${c.ban==='нет'?'—':'<span class="pill high">'+c.ban+'</span>'}</td></tr>`).join('')
+    <td>${c.ban ? `<span class="pill high">${c.ban}</span>` : '—'}</td></tr>`).join('')
     : `<tr><td colspan="6"><div class="cgrid-empty">По этому процессу залог не обращается</div></td></tr>`;
   return `<div class="panel-wrap">
     <p class="section-h">Залог / реализация</p>
