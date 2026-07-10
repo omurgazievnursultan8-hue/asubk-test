@@ -18,3 +18,7 @@ Base: 1317903
   Important (исправлено): _conclPendingUnassign не обнулялся при отмене → conclUnassignCancel().
   ВНИМАНИЕ Task 5: та же дыра возможна с _conclPendingWithdraw — сразу делать conclWithdrawCancel().
   Minor (в финальное ревью): T3c восстанавливает статусы, но не журнал log у legal/analytics.
+- Task 4: баннер, чипы, карточки — complete (commits 7de5522 + фикс 5b33dcb, 46/46 PASS, review clean после фикса)
+  Important (исправлено): _conclOpen/_conclLogOpen/_conclOpenAll текли между заявками → _conclResetOpen() в ветке !sameApp у gotoDetail.
+  Minor (исправлено): вакуумный ассерт T4e; двойной _conclOf в reduce.
+  Minor (в финальное ревью): conclToggleAll('Свернуть') гасит и свою карточку — авто-режим «свой отдел раскрыт» после этого не действует.
