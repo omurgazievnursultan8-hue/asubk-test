@@ -669,7 +669,9 @@ function renderList(){
   document.getElementById('listHead').innerHTML =
     LIST_COLS.map(c=>`<th onclick="sortList('${c.k}')">${c.t}<span class="sort">↕</span></th>`).join('');
   const rows = [...PROCESSES].sort((a,b)=>{
-    let x=a[sortKey], y=b[sortKey];
+    // «Категория» не хранится в данных — сортируем по catDays, иначе порядок «Высокий/Норма/Средний» будет алфавитным, а не по тяжести риска.
+    const key = sortKey==='cat' ? 'catDays' : sortKey;
+    let x=a[key], y=b[key];
     if(typeof x==='number') return (x-y)*sortDir;
     return String(x).localeCompare(String(y),'ru')*sortDir;
   });

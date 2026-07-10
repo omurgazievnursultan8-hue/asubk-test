@@ -54,6 +54,13 @@ ok('поле stage удалено из данных', rules.storedStage === fals
 ok('stageOf(«Иск») → Принудительная', rules.stageOfIsk === 'Принудительная');
 ok('stageOf(«Повторная претензия») → Досудебная', rules.stageOfPret === 'Досудебная');
 
+// --- T3: сортировка по колонке «Категория» (регрессия после удаления поля cat) ---
+await page.evaluate(() => showView('list'));
+await page.click('#listHead th:has-text("Категория")');
+const catSortIds = await page.locator('#listBody tr').evaluateAll(trs => trs.map(tr => tr.dataset.id));
+ok('клик «Категория» переупорядочивает строки', JSON.stringify(catSortIds) !== JSON.stringify(['120','133','142','151']));
+ok('после сортировки по категории первой идёт строка с наименьшей просрочкой (id 133)', catSortIds[0] === '133');
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);
