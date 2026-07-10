@@ -1,0 +1,11 @@
+import { chromium } from 'playwright-core';
+const FILE='file:///home/azamat/projects/asubk-credit-module/mockups/loan-application/loan-application.html';
+const ctx=await chromium.launchPersistentContext('/tmp/claude-1000/-home-azamat-projects-asubk-credit-module/6cba1142-d414-4023-9699-97169fbf0a64/scratchpad/p-smoke',{channel:'chrome',headless:true,viewport:{width:1500,height:1200}});
+const page=ctx.pages()[0]||await ctx.newPage();
+const errs=[]; page.on('pageerror',e=>errs.push('PAGEERROR '+e.message));
+page.on('console',m=>{if(m.type()==='error')errs.push('CONSOLE '+m.text());});
+await page.goto(FILE,{waitUntil:'networkidle'});
+await page.waitForTimeout(400);
+const o=await page.evaluate(()=>({apps:APPLICATIONS.length,tabs:TABS.map(t=>t.label+(t.cond?'*':'')),roles:ROLES.map(r=>r[0]),statuses:[...new Set(APPLICATIONS.map(a=>a.status))],group:APPLICATIONS.filter(a=>a.isGroup).map(a=>a.num),coll:APPLICATIONS.filter(a=>a.hasCollateral).map(a=>a.num)}));
+console.log(JSON.stringify(o,null,1)); console.log('ERRORS:',errs);
+await ctx.close();
