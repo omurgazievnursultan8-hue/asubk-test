@@ -5046,17 +5046,19 @@ function _conclIsOpen(key){
   if (_conclOpenAll) return true;
   return _role === 'dept' && key === _deptKey;
 }
-function conclToggle(key){ _conclOpen[key] = !_conclIsOpen(key); _panelRefresh('tab-concl'); }
+function conclToggle(key){ _conclSnapEditable(); _conclOpen[key] = !_conclIsOpen(key); _panelRefresh('tab-concl'); }
 function conclToggleAll(){
+  _conclSnapEditable();
   const app = _detailApp; if (!app) return;
   _conclOpenAll = !_conclOpenAll;
   _conclOf(app).assigned.forEach(a => { _conclOpen[a.dept] = _conclOpenAll; });
   _panelRefresh('tab-concl');
 }
-function conclLogToggle(key){ _conclLogOpen[key] = !_conclLogOpen[key]; _panelRefresh('tab-concl'); }
+function conclLogToggle(key){ _conclSnapEditable(); _conclLogOpen[key] = !_conclLogOpen[key]; _panelRefresh('tab-concl'); }
 
 /* Клик по чипу-счётчику: раскрыть и подскроллить к первой карточке этого состояния. */
 function conclScrollTo(kind){
+  _conclSnapEditable();
   const app = _detailApp; if (!app) return;
   const c = _conclOf(app);
   const hit = c.assigned.map(a => a.dept).find(k => {
@@ -5072,6 +5074,22 @@ function conclScrollTo(kind){
 
 /* ── Редактор заключения (роль «Отдел», свой отдел, после подтверждения ГФ) ── */
 let _conclPendingWithdraw = null;
+
+/* Снимок формы редактируемого сейчас отдела — вызывается в начале conclToggle/
+   conclToggleAll/conclLogToggle/conclScrollTo (раскрытие/сворачивание карточек,
+   история, переход по чипу-счётчику), НЕ являющихся действиями редактора. Эти
+   функции просто перерисовывают панель, а перерисовка строит textarea заново
+   из состояния — без снятия формы набранный, но не сохранённый текст молча
+   пропадёт. Редактируемый отдел определяется правами (can().editConcl) — они
+   истинны ровно для одного отдела разом (свой, роль «Отдел», после
+   подтверждения ГФ). Если такого отдела нет, _detailApp пуст, либо формы для
+   него всё равно нет в DOM (карточка свёрнута/заключение уже внесено) —
+   _conclReadForm сам тихо ничего не делает. */
+function _conclSnapEditable(){
+  const app = _detailApp; if (!app) return;
+  const dept = _conclOf(app).assigned.map(a => a.dept).find(k => can(app).editConcl(k));
+  if (dept) _conclReadForm(dept);
+}
 
 /* Снять значения формы в состояние — вызывается перед любой перерисовкой,
    иначе набранный, но не сохранённый текст теряется. */

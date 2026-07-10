@@ -264,13 +264,39 @@ const t5 = await page.evaluate(() => {
   // был бы лишним — он инвертирует уже открытое состояние и СВОРАЧИВАЕТ карточку, из-за чего
   // own оказался бы false не потому, что редактор недоступен, а потому что карточка закрыта.
   setDept('analytics');
-  const own   = document.querySelector('#tab-concl .concl-block[data-dept="analytics"] .concl-edit');
-  const other = document.querySelector('#tab-concl .concl-block[data-dept="risk"] .concl-edit');
+  const own = document.querySelector('#tab-concl .concl-block[data-dept="analytics"] .concl-edit');
+  // «Чужой редактор отсутствует» проверяем ТОЛЬКО после раскрытия чужой карточки (otherOpen
+  // ниже). До раскрытия risk-карточки .concl-edit отсутствует просто потому, что тела карточки
+  // нет в DOM (она свёрнута) — это ничего не говорит о правах. Такой «свёрнутый» под-ассерт
+  // был бы истинным даже при полностью сломанной проверке прав, поэтому его убрали.
   conclToggle('risk');
   const otherOpen = document.querySelector('#tab-concl .concl-block[data-dept="risk"] .concl-edit');
-  return { own: !!own, other: !!other, otherOpen: !!otherOpen };
+  return { own: !!own, otherOpen: !!otherOpen };
 });
-check('T5 редактор только у своего отдела', t5.own === true && t5.other === false && t5.otherOpen === false);
+check('T5 редактор только у своего отдела', t5.own === true && t5.otherOpen === false);
+
+// ── T5a: несохранённый ввод не должен теряться при раскрытии/сворачивании
+// карточек. Форму снимают шесть экшенов редактора (conclCondAdd/conclCondDel/
+// conclFileAdd/conclFileDel/conclSubmit/conclSaveDraft) — а вот conclToggle/
+// conclToggleAll/conclLogToggle/conclScrollTo просто перерисовывают панель,
+// и перерисовка каждый раз строит textarea заново из состояния: набранный,
+// но ещё не снятый текст должен быть предварительно сохранён, иначе пропадёт.
+const t5a = await page.evaluate(() => {
+  document.getElementById('concl-t-analytics').value = 'Черновой текст, набранный руками.';
+  conclLogToggle('analytics');                          // «⟲ История» той же карточки
+  const afterLog = _conclOf(_detailApp).items.analytics.text;
+
+  document.getElementById('concl-t-analytics').value = 'Второй черновой текст.';
+  conclToggle('risk');                                  // раскрытие/сворачивание соседней карточки
+  const afterNeighborToggle = _conclOf(_detailApp).items.analytics.text;
+
+  conclClear('analytics');                              // вернуть analytics в исходный pending-сид
+  return { afterLog, afterNeighborToggle };
+});
+check('T5a текст не теряется при раскрытии истории той же карточки (conclLogToggle)',
+  t5a.afterLog === 'Черновой текст, набранный руками.');
+check('T5a текст не теряется при раскрытии/сворачивании соседней карточки (conclToggle)',
+  t5a.afterNeighborToggle === 'Второй черновой текст.');
 
 // валидация: пустой вердикт → тост, статус не меняется
 const t5b = await page.evaluate(() => {
