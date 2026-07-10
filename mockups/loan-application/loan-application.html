@@ -322,6 +322,12 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .collgrid.sched tbody tr.sel{ background:var(--asubk-blue-tint); box-shadow:inset 3px 0 0 var(--asubk-blue); }
 .sched-man{ color:var(--asubk-blue); font-size:11px; margin-left:3px; }
 /* Групповой график: селектор члена (дропдаун) + сводная таблица */
+/* Сводка документов группы: строка кликабельна — открывает комплект члена.
+   min-height перебивает .collgrid (объявлен ниже) — таблице по числу членов хватает высоты. */
+.collgrid.memdocs-grid{ min-height:0; margin-bottom:12px; }
+.memdocs-grid tbody tr{ cursor:pointer; }
+.memdocs-grid tbody tr:hover{ background:var(--asubk-blue-tint); }
+.memdocs-hint{ font:var(--font-label); color:var(--text-muted); margin:0 0 12px; }
 .sched-viewsel{ display:flex; align-items:center; gap:8px; margin:0 0 12px; }
 .sched-viewlbl{ font:var(--font-label); color:var(--text-muted); }
 .sched-viewdd{ padding:6px 10px; border:1px solid var(--border-default); border-radius:6px; background:#fff; font:var(--font-label); color:var(--text-body); cursor:pointer; min-width:220px; }
@@ -2619,7 +2625,7 @@ function setRole(r){
   _revertEdit();                                       // несохранённые правки — откат
   _role = r;
   _editMode = false;                                   // смена роли — выходим из правки
-  _schedSel = null; _schedView = null;                 // сброс выбора строки / вида графика
+  _schedSel = null; _schedView = null; _docMemberView = null;   // сброс выбора строки / вида графика / вида документов
   applyRoleToListButtons();                             // список: скрыть/показать спец-кнопки
   if (_detailApp) gotoDetail(_detailApp.num);           // деталка: перерисовать под роль
 }
@@ -2773,7 +2779,7 @@ function gotoDetail(num, panel){
      сохраняет текущий _editMode И текущий таб (иначе «Изменить» кидает на 1-й таб). */
   const sameApp = _detailApp && _detailApp.num === num;
   const currentPanel = sameApp ? document.querySelector('.tabbar-tab.active')?.dataset.panel : null;
-  if (!sameApp) { _editMode = false; _condOpenSec = null; _condMonthsOpen = false; _memberSel = null; _collSel = null; _schedView = null; _schedSel = null; }   // др. заявка → аккордеон к дефолту, снять выделения
+  if (!sameApp) { _editMode = false; _condOpenSec = null; _condMonthsOpen = false; _memberSel = null; _collSel = null; _schedView = null; _schedSel = null; _docMemberView = null; }   // др. заявка → аккордеон к дефолту, снять выделения
   _detailApp = app;
 
   /* Header band */
@@ -3924,6 +3930,16 @@ const DOC_SOURCES = {
   tax:'ГНС', nod:'ГНС',
   cbr:'Кредбюро',
 };
+/* Система-источник документа по его ключу. Составные ключи различаются префиксом:
+   «mem:<pin>::<docId>» — документ члена группы, источник ищем по docId;
+   «<itemId>::<docId>»  — залоговый, источника НЕТ никогда. Разворачивать залоговый ключ
+   нельзя: id пересекаются (COLL_DOC_DEFAULTS['Транспортное средство'].reg — свидетельство
+   о регистрации ТС, а DOC_SOURCES.reg — выписка Минюста). */
+function _docSrc(key){
+  const mm = _MEM_RE.exec(key);
+  if (mm) return DOC_SOURCES[mm[2]];
+  return key.indexOf('::') >= 0 ? undefined : DOC_SOURCES[key];
+}
 /* «Открытый» блокер комплекта — статус, при котором обязательный документ ещё не «закрыт». */
 const OPEN_BLOCKS = s => s === 'required' || s === 'rejected' || s === 'expired' || s === 'requested';
 /* «На проверке» — не хранимый статус, а вид: uploaded-док при заявке в комиссии
@@ -4012,6 +4028,16 @@ function _applyConfirmedSeed(app){
       if (d.req && (d.ft === 'both' || d.ft === bt)) d.st = 'confirmed';
     });
   });
+  /* Групповая заявка: обязательные доки живут у членов — сид должен дойти и до них,
+     иначе демо-гейт «Отправить в комиссию» упрётся в документы, а не в заключения отделов. */
+  if (app.isGroup){
+    _membersOf(app).forEach((m, i) => {
+      _memberDocTpls(m).forEach(tpl => {
+        const state = _memberDocState(app, m, tpl, i);
+        if (tpl.req){ state.st = 'confirmed'; delete state.reason; }
+      });
+    });
+  }
 }
 function _collDocsOf(app){
   if (!app._collDocs) app._collDocs = {};
@@ -4022,11 +4048,63 @@ function _collDocState(app, key, tpl){
   if (!store[key]) store[key] = { st: (tpl && tpl.st) || 'required' };
   return store[key];
 }
+
+/* ── Групповой кредит: документы члена группы ────────────────────────────────
+   Модель — зонтичный batch (1 кредит / N траншей, члены независимы, лидера нет),
+   поэтому личные документы принадлежат ЧЛЕНУ, а не заявке: при app.isGroup секции
+   «Идентификация» и «Платёжеспособность» уходят на уровень члена, а «Печатные формы»,
+   «Целевые» и «Договорные» остаются по заявке.
+   Ключ: «mem:<pin>::<docId>» — префикс обязателен, залоговые ключи тоже несут «::».
+   Стор плоский, по образцу _collDocs; перечень не дублируем — берём из DOC_SECTIONS. */
+const MEMBER_SEC_KEYS = ['ident', 'fin'];
+const MEMBER_SEC_TITLE = { ident:'Идентификация', fin:'Платёжеспособность' };
+const _MEM_RE = /^mem:([^:]+)::(.+)$/;
+/* Демо-разброс по индексу члена, чтобы сводка и гейт были наглядны: 0 — как в шаблоне
+   (пёстрый), 1 — всё принято, 2 — пусто. Добавленный вручную член (индекс ≥ 3) — пуст. */
+const MEMBER_DEMO_SEED = [null, 'accepted', 'required'];
+
+function _memberDocsOf(app){ if (!app._memberDocs) app._memberDocs = {}; return app._memberDocs; }
+function _memberDocKey(m, docId){ return 'mem:' + m.pin + '::' + docId; }
+/* Тип субъекта члена (individual|org) — как _docBType, но по ПИН члена. */
+function _memberBType(m){ return subjectType(m.pin, SUBJECTS_MAP[m.pin] || {}); }
+/* Секции члена = ident/fin из DOC_SECTIONS, отфильтрованные по его типу субъекта. */
+function _memberSections(m){
+  const bt = _memberBType(m);
+  return DOC_SECTIONS.filter(s => MEMBER_SEC_KEYS.includes(s.key)).map(s => ({
+    key: s.key,
+    title: MEMBER_SEC_TITLE[s.key] || s.title,
+    docs: s.docs.filter(d => d.ft === 'both' || d.ft === bt),
+  }));
+}
+function _memberDocTpls(m){ return _memberSections(m).reduce((acc, s) => acc.concat(s.docs), []); }
+/* Лениво заводим состояние документа члена. i — индекс члена (нужен только для демо-сида;
+   состояние, однажды заведённое, переживает перенумерацию после удаления члена). */
+function _memberDocState(app, m, tpl, i){
+  const store = _memberDocsOf(app);
+  const key = _memberDocKey(m, tpl.id);
+  if (!store[key]){
+    const seed = i < MEMBER_DEMO_SEED.length ? (MEMBER_DEMO_SEED[i] || tpl.st || 'required') : 'required';
+    const state = { st: seed };
+    if (seed === tpl.st){ if (tpl.reason) state.reason = tpl.reason; if (tpl.valid) state.valid = tpl.valid; }
+    store[key] = state;
+  }
+  return store[key];
+}
+/* Состояние по одному лишь ключу — для onclick-действий (docUpload и пр.). */
+function _findMemberDocState(app, key){
+  const mm = _MEM_RE.exec(key); if (!mm) return null;
+  const i = _membersOf(app).findIndex(x => x.pin === mm[1]);
+  if (i < 0) return null;
+  const m = _membersOf(app)[i];
+  const tpl = _memberDocTpls(m).find(t => t.id === mm[2]);
+  return tpl ? _memberDocState(app, m, tpl, i) : null;
+}
 /* Тип заёмщика — из субъекта заявки (individual|org). */
 function _docBType(app){ return subjectType(app.inn, SUBJECTS_MAP[app.inn] || {}); }
 /* Найти мутируемый объект-состояние документа по ключу (для действий из onclick). */
 function _findDocState(key){
   const app = _detailApp; if (!app) return null;
+  if (_MEM_RE.test(key)) return _findMemberDocState(app, key);   // док члена группы — до общей ветки «::»
   if (key.indexOf('::') >= 0){
     const parts = key.split('::');
     const it = _collItemById(app, parts[0]);
@@ -4038,6 +4116,12 @@ function _findDocState(key){
 }
 function _docTitle(key){
   const app = _detailApp; if (!app) return key;
+  const mm = _MEM_RE.exec(key);
+  if (mm){
+    const m = _membersOf(app).find(x => x.pin === mm[1]);
+    const tpl = m && _memberDocTpls(m).find(t => t.id === mm[2]);
+    return (tpl ? tpl.t : mm[2]) + (m ? ' · ' + _shortFio(m.fio) : '');
+  }
   if (key.indexOf('::') >= 0){
     const parts = key.split('::');
     const it = _collItemById(app, parts[0]);
@@ -4050,6 +4134,21 @@ function _docTitle(key){
 }
 
 /* ── Гейты готовности ── */
+/* Комплект одного члена группы — те же счётчики, что и по заявке. */
+function _memberDocStats(app, m, i){
+  const o = { reqTot:0, reqClosed:0, reqAccepted:0, reqConfirmed:0, blockers:0, requested:0 };
+  _memberDocTpls(m).forEach(tpl => {
+    if (!tpl.req) return;
+    const st = _memberDocState(app, m, tpl, i).st;
+    o.reqTot++;
+    if (!OPEN_BLOCKS(st)) o.reqClosed++;
+    if (st === 'accepted' || st === 'confirmed') o.reqAccepted++;
+    if (st === 'confirmed' || st === 'waived') o.reqConfirmed++;
+    if (st === 'rejected' || st === 'expired') o.blockers++;
+    if (st === 'requested') o.requested++;
+  });
+  return o;
+}
 /* Пересчёт обязательного комплекта (без договорной стадии — она этап после одобрения). */
 function _docStats(app){
   const bt = _docBType(app);
@@ -4064,8 +4163,16 @@ function _docStats(app){
   };
   _docsOf(app).forEach(sec => {
     if (sec.stage === 'contract' || sec.key === 'coll') return;
+    if (app.isGroup && MEMBER_SEC_KEYS.includes(sec.key)) return;   // ident/fin у группы считаем по членам
     sec.docs.filter(d => d.ft === 'both' || d.ft === bt).forEach(d => { if (d.req) bump(d.st); });
   });
+  if (app.isGroup){
+    _membersOf(app).forEach((m, i) => {
+      const s = _memberDocStats(app, m, i);
+      reqTot += s.reqTot; reqClosed += s.reqClosed; reqAccepted += s.reqAccepted;
+      reqConfirmed += s.reqConfirmed; blockers += s.blockers; requested += s.requested;
+    });
+  }
   if (app.hasCollateral){
     _collateralOf(app).forEach(it => {
       (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).forEach(tpl => {
@@ -4090,12 +4197,33 @@ function sendReady(app){
   if (!conclusionsReady(app)) return false;   // заключения риск/залог/юр/кредит
   return true;
 }
+/* Члены, попавшие под isBad — поимённо (первые два + «и ещё N»); labelOf(stats) даёт хвост
+   строки. Возвращает «2 чл. (ОРОЗБЕКОВА А.М. — 0/6, БЕКТУРГАНОВ Э.Н. — 5/6)» или '' (некого звать —
+   значит, проблема на уровне заявки, и вызывающий откатывается к общей формулировке). */
+function _memberGateList(app, isBad, labelOf){
+  const bad = [];
+  _membersOf(app).forEach((m, i) => { const s = _memberDocStats(app, m, i); if (isBad(s)) bad.push({ m, s }); });
+  if (!bad.length) return '';
+  const names = bad.slice(0, 2).map(x => `${_shortFio(x.m.fio)} — ${labelOf(x.s)}`).join(', ');
+  const rest = bad.length > 2 ? ` и ещё ${bad.length - 2}` : '';
+  return `${bad.length} чл. (${names}${rest})`;
+}
 /* Человекочитаемая причина, почему отправка заблокирована (для title/тоста). */
 function sendGateReason(app){
   const st = _docStats(app);
   if (!st.met){
-    if (st.blockers) return 'Есть отклонённые/просроченные документы — их нужно перезагрузить';
+    if (st.blockers){
+      if (app.isGroup){
+        const g = _memberGateList(app, s => s.blockers > 0, s => `${s.blockers} с замечаниями`);
+        if (g) return `Отклонённые/просроченные документы у ${g} — их нужно перезагрузить`;
+      }
+      return 'Есть отклонённые/просроченные документы — их нужно перезагрузить';
+    }
     if (st.requested) return `Ожидается ответ интеграции по ${st.requested} док. — комплект пока не собран`;
+    if (app.isGroup){
+      const g = _memberGateList(app, s => s.reqClosed < s.reqTot, s => `${s.reqClosed}/${s.reqTot}`);
+      if (g) return `У ${g} комплект документов не собран`;
+    }
     return `Собран не полный обязательный комплект документов (${st.reqClosed} из ${st.reqTot})`;
   }
   if (app.hasCollateral){
@@ -4103,7 +4231,13 @@ function sendGateReason(app){
     if (!c.hasItems) return 'Не указан ни один предмет залога';
     if (!c.covOk) return `Коэффициент покрытия ${c.cov}% ниже порога ${MIN_COVERAGE}%`;
   }
-  if (!st.confirmedMet) return `Комплектация не подтверждена головным филиалом (${st.reqConfirmed} из ${st.reqTot})`;
+  if (!st.confirmedMet){
+    if (app.isGroup){
+      const g = _memberGateList(app, s => s.reqConfirmed < s.reqTot, s => `${s.reqConfirmed}/${s.reqTot}`);
+      if (g) return `Комплектация не подтверждена головным филиалом у ${g}`;
+    }
+    return `Комплектация не подтверждена головным филиалом (${st.reqConfirmed} из ${st.reqTot})`;
+  }
   if (!conclusionsReady(app)) return `Внесены не все заключения отделов (${_conclDone(app)} из ${CONCL_DEPTS.length})`;
   return '';
 }
@@ -4160,7 +4294,7 @@ function docRow(app, disp, key, secKind){
         else if (disp.st === 'rejected' || disp.st === 'expired') acts += _docBtn('primary', 'Перезагрузить', `docUpload(${kq})`);
         else acts += _docBtn('ghost', 'Заменить', `docUpload(${kq})`);
         /* Интеграция: рядом с ручной загрузкой — запрос из госсистемы (только открытый блок). */
-        const src = DOC_SOURCES[key];
+        const src = _docSrc(key);
         if (src && OPEN_BLOCKS(disp.st)){
           acts += _docBtn('ghost', `Запросить из «${src}»`, `docRequest(${kq})`);
         }
@@ -4192,10 +4326,10 @@ function docRow(app, disp, key, secKind){
   if (disp.st === 'rejected' && disp.reason) meta.push(`<span class="m-rej">Причина отклонения: ${_esc(disp.reason)}</span>`);
   if (disp.st === 'expired') meta.push(`<span class="m-exp">Срок действия истёк${disp.valid ? ` (${disp.valid})` : ''} — требуется свежий документ</span>`);
   else if (disp.valid && ['uploaded','accepted','confirmed'].includes(disp.st)) meta.push(`<span>Срок действия: ${disp.valid}</span>`);
-  if (disp.st === 'requested') meta.push(`<span class="m-req">Запрошено из «${DOC_SOURCES[key] || '—'}» · ${disp.reqAt || '09.07.2026 14:20'}</span>`);
+  if (disp.st === 'requested') meta.push(`<span class="m-req">Запрошено из «${_docSrc(key) || '—'}» · ${disp.reqAt || '09.07.2026 14:20'}</span>`);
   if (disp.via && ['uploaded','accepted','confirmed'].includes(disp.st)) meta.push(`<span>Получено из «${disp.via}» · автоматически</span>`);
   if (disp.st === 'waived' && disp.waiveReason) meta.push(`<span>Не требуется: ${_esc(disp.waiveReason)}</span>`);
-  if (['uploaded','accepted','confirmed'].includes(disp.st)) meta.unshift(`<span>Файл: ${key.split('::').join('_')}_scan.pdf · загружен 04.07.2026</span>`);
+  if (['uploaded','accepted','confirmed'].includes(disp.st)) meta.unshift(`<span>Файл: ${key.replace(/^mem:/, '').split('::').join('_')}_scan.pdf · загружен 04.07.2026</span>`);
 
   /* Два уровня подтверждения (виден, когда есть файл): спец проверил → головной филиал подтвердил. */
   const specDone = disp.st === 'accepted' || disp.st === 'confirmed';
@@ -4281,9 +4415,100 @@ function renderDocSection(app, s, bt){
   </div>`;
 }
 
+/* ── Групповой кредит: селектор члена + сводка / комплект выбранного члена.
+   Зеркало вкладки «График» (_schedView, renderSchedule) — те же классы селектора. ── */
+let _docMemberView = null;                       // 'all' | индекс члена; null → дефолт «Вся группа»
+const _docMemOpen = { ident:true, fin:false };   // аккордеон секций члена (свой, не _docOpen)
+function docMemberView(v){ _docMemberView = v; _panelRefresh('tab-2'); }
+function docMemToggle(key){ _docMemOpen[key] = !_docMemOpen[key]; _panelRefresh('tab-2'); }
+
+/* Сводка «Вся группа»: комплектация по каждому члену, строка кликабельна. */
+function _memberDocsSummary(app){
+  const members = _membersOf(app);
+  const total = members.reduce((s, m) => s + _num(m.sum), 0);
+  const atCom = _atCommission(app);
+  const rows = members.map((m, i) => {
+    const s = _memberDocStats(app, m, i);
+    const share = total > 0 ? Math.round(_num(m.sum) / total * 100) : 0;
+    const chip = _complChip({ reqIn:s.reqTot, reqDone:s.reqClosed, reqAcc:s.reqAccepted, blockers:s.blockers, locked:false, atCom });
+    const done = s.reqTot > 0 && s.reqConfirmed === s.reqTot;
+    const notes = [
+      s.blockers  ? `${s.blockers} с замечаниями` : '',
+      s.requested ? `${s.requested} запрошено` : '',
+    ].filter(Boolean).join(' · ') || '—';
+    return `<tr onclick="docMemberView(${i})">
+      <td><span class="mem-pin">${m.pin}</span>${_esc(m.fio)}</td>
+      <td class="num">${_fmt(_num(m.sum))} · ${share}%</td>
+      <td>${chip}</td>
+      <td class="num">${s.reqClosed}/${s.reqTot}${done ? ' ✓' : ''}</td>
+      <td>${notes}</td></tr>`;
+  }).join('');
+  return `<div class="collgrid num-grid memdocs-grid"><table>
+      <thead><tr><th>Член группы</th><th class="num">Транш · доля</th><th>Комплектация</th>
+        <th class="num">Обязат.</th><th>Замечания</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="memdocs-hint">Выберите члена — в списке или в селекторе — чтобы работать с его документами.</div>`;
+}
+
+/* Комплект одного члена: те же секции-аккордеоны и те же строки docRow, что по заявке. */
+function _memberDocsPanels(app, m, i){
+  const s = _memberDocStats(app, m, i);
+  const atCom = _atCommission(app);
+  const head = `<div class="note-banner"><span>Член группы: <b>${_esc(m.fio)}</b> · ПИН ${m.pin} · транш ${_fmt(_num(m.sum))} · освоение ${m.date}. Обязательных документов собрано: <b>${s.reqClosed} из ${s.reqTot}</b>.</span></div>`;
+  const accs = _memberSections(m).map(sec => {
+    let reqIn = 0, reqDone = 0, reqAcc = 0, hasBlock = 0, optCnt = 0;
+    const rows = sec.docs.map(tpl => {
+      const state = _memberDocState(app, m, tpl, i);
+      if (tpl.req){
+        reqIn++;
+        if (!OPEN_BLOCKS(state.st)) reqDone++;
+        if (state.st === 'accepted' || state.st === 'confirmed') reqAcc++;
+        if (state.st === 'rejected' || state.st === 'expired') hasBlock++;
+      } else optCnt++;
+      const disp = { t:tpl.t, req:tpl.req, st:state.st, reason:state.reason, valid:state.valid,
+                     waiveReason:state.waiveReason, via:state.via };
+      return docRow(app, disp, _memberDocKey(m, tpl.id), null);
+    }).join('');
+    const chip   = _complChip({ reqIn, reqDone, reqAcc, blockers:hasBlock, locked:false, atCom });
+    const cntTxt = reqIn === 0 ? `${optCnt} опц.` : `${reqDone}/${reqIn}${reqAcc === reqIn ? ' ✓' : ''}`;
+    return `<div class="doc-acc${_docMemOpen[sec.key] ? ' open' : ''}">
+      <div class="doc-acc-head" onclick="docMemToggle('${sec.key}')">
+        ${chevSvg(14)}<span class="doc-acc-title">${sec.title}</span>
+        <span class="spacer"></span>
+        ${chip}<span class="doc-count">${cntTxt}</span>
+      </div>
+      <div class="doc-acc-body">${rows}</div>
+    </div>`;
+  }).join('');
+  return head + accs;
+}
+
+function renderMemberDocs(app){
+  const members = _membersOf(app);
+  if (!members.length)
+    return `<div class="sec-locked-note">Добавьте членов группы во вкладке «Члены группы» — их личные документы появятся здесь.</div>`;
+  if (typeof _docMemberView !== 'number' && _docMemberView !== 'all') _docMemberView = 'all';       // дефолт — свод
+  if (typeof _docMemberView === 'number' && _docMemberView >= members.length) _docMemberView = members.length - 1;   // клемп после удаления
+  const opts = members.map((m, i) => {
+      const s = _memberDocStats(app, m, i);
+      return `<option value="${i}"${_docMemberView === i ? ' selected' : ''}>${_shortFio(m.fio)} · ${s.reqClosed}/${s.reqTot}</option>`;
+    }).join('')
+    + `<option value="all"${_docMemberView === 'all' ? ' selected' : ''}>▦ Вся группа</option>`;
+  const sel = `<div class="sched-viewsel">
+      <label class="sched-viewlbl">Документы по:</label>
+      <select class="sched-viewdd" onchange="docMemberView(this.value === 'all' ? 'all' : +this.value)">${opts}</select>
+    </div>`;
+  const inner = _docMemberView === 'all'
+    ? _memberDocsSummary(app)
+    : _memberDocsPanels(app, members[_docMemberView], _docMemberView);
+  return sel + inner;
+}
+
 function renderDocs(app){
   const bt = _docBType(app);
-  const secs = _docsOf(app).filter(s => !s.collateral || app.hasCollateral);
+  /* Групповая заявка: ident/fin живут у членов, на уровне заявки их не рисуем. */
+  const secs = _docsOf(app).filter(s => (!s.collateral || app.hasCollateral)
+    && !(app.isGroup && MEMBER_SEC_KEYS.includes(s.key)));
   const stats = _docStats(app);
   const ready = sendReady(app);
 
@@ -4316,8 +4541,9 @@ function renderDocs(app){
     </div>`;
   }
 
-  const accs = secs.map(s => renderDocSection(app, s, bt)).join('');
-  return `<div class="docs-wrap">${banner}${bar}${pkgActions}${accs}</div>`;
+  const accs   = secs.map(s => renderDocSection(app, s, bt)).join('');
+  const memArea = app.isGroup ? renderMemberDocs(app) : '';
+  return `<div class="docs-wrap">${banner}${bar}${pkgActions}${memArea}${accs}</div>`;
 }
 PANEL_RENDER['tab-2'] = renderDocs;
 
@@ -4336,7 +4562,7 @@ function docUpload(key){
    «Запрошено» (асинхронно), ответ приходит как «Загружен» с пометкой источника. ── */
 function docRequest(key){
   const d = _findDocState(key); if (!d) return;
-  const src = DOC_SOURCES[key]; if (!src) return;
+  const src = _docSrc(key); if (!src) return;
   d.st = 'requested'; d.reqAt = '09.07.2026 14:20'; delete d.reason;
   _docRerender(); showToast(`Запрос отправлен в «${src}»: ` + _docTitle(key), 'ok');
 }
@@ -4347,7 +4573,7 @@ function docReqCancel(key){
 }
 function docReqFulfill(key){
   const d = _findDocState(key); if (!d) return;
-  d.st = 'uploaded'; d.via = DOC_SOURCES[key] || '—'; delete d.reqAt; delete d.reason;
+  d.st = 'uploaded'; d.via = _docSrc(key) || '—'; delete d.reqAt; delete d.reason;
   _docRerender(); showToast(`Ответ получен из «${d.via}» — документ загружен: ` + _docTitle(key), 'ok');
 }
 function docAccept(key){ const d = _findDocState(key); if (!d) return; d.st = 'accepted'; _docRerender(); showToast('Документ проверен специалистом', 'ok'); }
@@ -4361,8 +4587,14 @@ function _missingReqCount(app){
   const bt = _docBType(app); let n = 0;
   _docsOf(app).forEach(sec => {
     if (sec.stage === 'contract' || sec.key === 'coll') return;
+    if (app.isGroup && MEMBER_SEC_KEYS.includes(sec.key)) return;   // считаем по членам, ниже
     sec.docs.filter(d => d.ft === 'both' || d.ft === bt).forEach(d => { if (d.req && d.st === 'required') n++; });
   });
+  if (app.isGroup){
+    _membersOf(app).forEach((m, i) => {
+      _memberDocTpls(m).forEach(tpl => { if (tpl.req && _memberDocState(app, m, tpl, i).st === 'required') n++; });
+    });
+  }
   if (app.hasCollateral){
     _collateralOf(app).forEach(it => {
       (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).forEach(tpl => {
@@ -4741,7 +4973,8 @@ function _membersOf(app){
     app._members = [
       { pin:'21812199600888', fio:'БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ', sum:a, date:'20.06.2026' },
       { pin:'20907199400957', fio:'МАТРАИМОВ МАКСАТ КУБАНОВИЧ',   sum:b, date:'25.06.2026' },
-      { pin:'02102201710026', fio:'ОРОЗБЕКОВА АЙПЕРИ М.',         sum:c, date:'01.07.2026' },
+      /* ПИН физлица (нач. с «2»): тип субъекта члена определяет его комплект документов. */
+      { pin:'22403199200145', fio:'ОРОЗБЕКОВА АЙПЕРИ М.',         sum:c, date:'01.07.2026' },
     ];
   }
   return app._members;
@@ -4832,8 +5065,14 @@ function delMember(){
   // жизненный цикл: после одобрения транш уже в работе — удалять нельзя (правило Phase 6)
   const approved = ['Одобрена','Ожидает решения/программы','На оформлении','Оформлена'].includes(app.status);
   if (approved){ showToast('После одобрения удалять члена нельзя — транш в работе', 'warn'); return; }
+  /* Личные документы члена уходят вместе с ним — иначе стор копит осиротевшие ключи. */
+  if (app._memberDocs){
+    const pre = 'mem:' + m.pin + '::';
+    Object.keys(app._memberDocs).forEach(k => { if (k.indexOf(pre) === 0) delete app._memberDocs[k]; });
+  }
   members.splice(_memberSel, 1);
   _memberSel = null;
+  if (typeof _docMemberView === 'number') _docMemberView = 'all';   // индексы съехали — вернуться к сводке
   showTab('tab-3');
   showToast('Член удалён: ' + m.fio, 'info');
 }
@@ -5097,7 +5336,9 @@ function buildHistory(app){
     push('[specialist]', 'Изменено поле: Запрашиваемая сумма', app.amount, (prov.amount && prov.amount.com) || app.amount);
   }
   if (app.isGroup) push('[specialist]', 'Добавлен член группы', '', 'БЕКТУРГАНОВ ЭРНИС Н. · ' + _fmt(_num(app.amount)*0.4));
-  push('[specialist]', 'Загружен документ: Паспорт (лицевая сторона)', '', 'Загружен');   // milestone
+  push('[specialist]', app.isGroup
+    ? 'Загружен документ: Паспорт (лицевая сторона) · БЕКТУРГАНОВ ЭРНИС Н.'   // групповой — док принадлежит члену
+    : 'Загружен документ: Паспорт (лицевая сторона)', '', 'Загружен');        // milestone
   push('[specialist]', 'Редактирование (номер телефона)', '', '');                          // без диффа
 
   if (reachedReview) push('[specialist]', 'Отправлена в комиссию · изменён статус', 'Новый', 'На рассмотрении');
