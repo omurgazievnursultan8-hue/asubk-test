@@ -7,3 +7,7 @@ Base: 1317903
 ВАЖНО: основной каталог /home/azamat/projects/asubk-credit-module занят второй сессией
 (ветка wip/collection-spec). Не работать там. Все команды — из worktree.
 
+- Task 1: модель — complete (commit c53cb16, 14/14 PASS, review clean)
+  Minor (в финальное ревью): (1) поле `assigned[].locked` нигде не читается — истина в `_conclLocked()`;
+  (2) устаревший комментарий у `can().editConcl` (перепишет Task 2);
+  (3) ветка `!cc.total` в sendGateReason недостижима (risk/credit всегда назначены).
