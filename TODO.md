@@ -543,7 +543,9 @@ _Задачи P3-R18…R26 — из проектирования потока з
     - **комиссия** на фазе «Предварительное изучение» видит read-only свод заключений с условиями;
     - вкладка «Заключения» стала **безусловной** (назначение идёт с черновика);
   - спек — `docs/superpowers/specs/2026-07-10-loan-app-conclusions-tab-design.md`;
-  - эталон-функции: `DEPT_DIR`/`_conclOf`/`_conclSeed`/`_conclSyncColl`/`_conclLocked`/`_conclCounts`/`_conclNegDepts`/`conclusionsReady`, `conclAssign`/`conclUnassign`, `conclSubmit`/`conclSaveDraft`/`conclWithdraw`/`conclClear`, `_conclResetByCommission`, `_conclCommissionBlock`, `can(app).editConcl(dept)`;
+  - эталон-функции: `DEPT_DIR`/`_conclOf`/`_conclSeed`/`_conclSyncColl`/`_conclLocked`/`_conclCounts`/`_conclNegDepts`/`conclusionsReady`, `conclAssign`/`conclUnassign`/`conclUnassignCancel`, `conclSubmit`/`conclSaveDraft`/`conclWithdraw`/`conclWithdrawCancel`/`conclClear`, `_conclResetByCommission`, `_conclCommissionBlock`, `can(app).editConcl(dept)`;
+  - **два инварианта, которые легко сломать при переносе в прод:** (1) `_conclReadForm`/`_conclSnapEditable` снимают форму перед **любой** перерисовкой панели — иначе набранный текст заключения теряется при раскрытии истории или соседней карточки; (2) карточка `_conclCard(app, key, ctx)` рисуется в двух панелях (`tab-concl` и свод комиссии `tab-6`) — `ctx` задаёт, какую панель перерисовывать и какой `id` дать карточке (`_conclCardId`), а редактор доступен только при `ctx === 'tab-concl'`;
+  - запертость отдела вычисляет `_conclLocked(app, key)` по справочнику — **поля `locked` в записи `assigned[]` нет** (было мёртвым always-false);
   - проверка — `scripts/inspect/conclusions-check.mjs`;
   - **хвост:** процесс записан со слов заказчика, на live-стенде не сверялся — отдельной задачей проверить и вынести в спек `requirements/tz/03-zayavka-komissiya.md`; серверную валидацию «нет отрицательных заключений» перед сменой статуса заявки подтвердить отдельно (UI-гейт защитой не является).
 
