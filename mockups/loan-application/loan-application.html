@@ -2572,9 +2572,9 @@ APPLICATIONS.forEach((r, i) => {
    ============================================================ */
 const STATUS_ALIAS = { 'Одобрено':'Одобрена', 'Отклонено':'Отклонена' };
 const PROGRAM_META = {
-  'АгроИнвест КР':                   { collateral:true,  group:false, kinds:['Недвижимость', 'Транспортное средство', 'Товары в обороте'] },
-  'Поддержка сельхозпроизводителей': { collateral:false, group:true  },
-  'ТУР':                             { collateral:true,  group:false, kinds:['Недвижимость', 'Оборудование', 'Транспортное средство'] },
+  'АгроИнвест КР':                   { collateral:true,  group:false, kinds:['Недвижимость', 'Транспортное средство', 'Товары в обороте'], commissions:['Комиссия по заявкам', 'Комиссия по залогу test1'] },
+  'Поддержка сельхозпроизводителей': { collateral:false, group:true,  commissions:['Комиссия по заявкам'] },
+  'ТУР':                             { collateral:true,  group:false, kinds:['Недвижимость', 'Оборудование', 'Транспортное средство'], commissions:['Комиссия по заявкам'] },
 };
 APPLICATIONS.forEach(r => {
   r.status = STATUS_ALIAS[r.status] || r.status;
@@ -2582,6 +2582,7 @@ APPLICATIONS.forEach(r => {
   r.hasCollateral = m.collateral;
   r.isGroup       = m.group;
   r.collKinds     = m.kinds || [];   // разрешённые виды залога — из программы
+  r.commissions   = (m.commissions && m.commissions.length) ? m.commissions : ['Комиссия по заявкам'];  // комиссии-адресаты из программы: 1 → прямая отправка, 2+ → выбор
   r.flow          = 'A';   // демо: все по программе (поток A); поток B — отдельный сценарий
 });
 
@@ -3431,6 +3432,17 @@ function renderToolbar(app){
     if (canEditNow && !acts.some(([l]) => l === 'Изменить'))
       list.unshift(`<button class="btn btn-secondary btn-sm" onclick="enterEdit()">Изменить</button>`);
     btns = list.join('');
+    /* Комиссия в фазе предв. изучения: «Вынести на заседание» живёт в общем тулбаре,
+       рядом с остальными действиями (а не внизу панели tab-6). Гейт тот же, что в comAdvance. */
+    if (cap.vote){
+      const cf = commissionFor(app), cs = _comStateOf(app);
+      if (cf && cf.open && cs.phase === 'prelim'){
+        const ready = _docStats(app).confirmedMet && conclusionsReady(app);
+        btns += ready
+          ? `<button class="btn btn-primary btn-sm" onclick="comAdvance()">Вынести на заседание комитета</button>`
+          : `<button class="btn btn-primary btn-sm" disabled title="Доступно при подтверждённом комплекте документов и готовых заключениях отделов">Вынести на заседание комитета</button>`;
+      }
+    }
   }
   document.getElementById('detailToolbar').innerHTML = btns;
 }
@@ -5204,7 +5216,7 @@ function _docBtn(kind, label, onclick){ return `<button class="btn btn-${kind} b
 /* Строка документа. disp = {t, req, st, reason?, valid?, waiveReason?}; secKind: 'print'|'contract'|null. */
 function docRow(app, disp, key, secKind){
   const dispKey = _dispSt(app, disp.st);
-  if (_docStageFilter && dispKey !== _docStageFilter) return '';   // фильтр стадии — скрываем несовпавшие строки (HIDE, не dim)
+  if (_docStageFilter && !_docFilterMatch(app, disp.st, disp.req)) return '';   // фильтр стадии — скрываем несовпавшие строки (HIDE, не dim)
   const stt = DOC_STATUS[dispKey] || DOC_STATUS.required;
   const cap = can(app);
   /* Обычные секции правит спец в режиме «Изменить» (draft). Договорные — отдельный
@@ -5324,7 +5336,7 @@ function renderDocSection(app, s, bt){
         const drows = (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).map(tpl => {
           const state = _collDocState(app, it.id + '::' + tpl.id, tpl);
           if (tpl.req){ iReqIn++; if (!OPEN_BLOCKS(state.st)) iReqDone++; if (state.st === 'accepted' || state.st === 'confirmed') iAcc++; if (state.st === 'rejected' || state.st === 'expired') iBlock++; } else iOpt++;
-          if (_docStageFilter && _dispSt(app, state.st) === _docStageFilter) iMatch++;
+          if (_docStageFilter && _docFilterMatch(app, state.st, tpl.req)) iMatch++;
           const disp = { t:tpl.t, req:tpl.req, st:state.st, reason:state.reason, valid:state.valid, waiveReason:state.waiveReason };
           return docRow(app, disp, it.id + '::' + tpl.id, null);
         }).join('');
@@ -5352,7 +5364,7 @@ function renderDocSection(app, s, bt){
   } else {
     body = s.docs.filter(d => d.ft === 'both' || d.ft === bt).map(d => {
       if (d.req){ reqIn++; if (!OPEN_BLOCKS(d.st)) reqDone++; if (d.st === 'accepted' || d.st === 'confirmed') reqAcc++; if (d.st === 'rejected' || d.st === 'expired') hasBlock++; } else optCnt++;
-      if (_docStageFilter && _dispSt(app, d.st) === _docStageFilter) secMatch++;
+      if (_docStageFilter && _docFilterMatch(app, d.st, d.req)) secMatch++;
       return docRow(app, d, d.id, s.kind);
     }).join('');
   }
@@ -5423,7 +5435,7 @@ function _memberDocsPanels(app, m, i){
         if (state.st === 'accepted' || state.st === 'confirmed') reqAcc++;
         if (state.st === 'rejected' || state.st === 'expired') hasBlock++;
       } else optCnt++;
-      if (_docStageFilter && _dispSt(app, state.st) === _docStageFilter) secMatch++;
+      if (_docStageFilter && _docFilterMatch(app, state.st, tpl.req)) secMatch++;
       const disp = { t:tpl.t, req:tpl.req, st:state.st, reason:state.reason, valid:state.valid,
                      waiveReason:state.waiveReason, via:state.via };
       return docRow(app, disp, _memberDocKey(m, tpl.id), null);
@@ -5470,10 +5482,20 @@ function renderMemberDocs(app){
    членов группы + залоговые по предметам) повторяет _docStats, чтобы сводка совпадала с гейтом
    отправки. Договорные (stage:'contract') исключены — это отдельный этап после одобрения. */
 
-/* Активный фильтр по стадии ЖЦ (ключ DOC_STATUS) или null. */
+/* Активный фильтр по стадии ЖЦ (ключ DOC_STATUS, либо синтетический '__todo') или null. */
 let _docStageFilter = null;
 function docStageFilter(st){ _docStageFilter = (_docStageFilter === st) ? null : st; _panelRefresh('tab-2'); }
 function docStageFilterClear(){ _docStageFilter = null; _panelRefresh('tab-2'); }
+
+/* Синтетический фильтр «Надо загрузить»: обязательные доки без валидного файла —
+   ждут (перезагрузки: required (не загружен) + rejected (отклонён) + expired (просрочен). */
+const DOC_UPLOAD_PENDING = new Set(['required', 'rejected', 'expired']);
+function _docFilterMatch(app, st, req){
+  const k = _dispSt(app, st);
+  if (_docStageFilter === '__todo') return !!req && DOC_UPLOAD_PENDING.has(k);
+  return k === _docStageFilter;
+}
+function _docTodoCount(app){ let n = 0; _walkDocs(app, d => { if (d.req && DOC_UPLOAD_PENDING.has(_dispSt(app, d.st))) n++; }); return n; }
 
 /* Безопасный id для якоря строки: ключи вида «mem:pin::id» / «item::id» → только [A-Za-z0-9_]. */
 function _safeDocId(key){ return String(key).replace(/[^A-Za-z0-9]/g, '_'); }
@@ -5579,10 +5601,20 @@ function renderDocs(app){
   const pctConf = stats.reqTot ? Math.round(stats.reqConfirmed / stats.reqTot * 100) : 0;
   const pkgChip = _complChip({ reqIn:stats.reqTot, reqDone:stats.reqClosed, reqAcc:stats.reqAccepted,
     blockers:stats.blockers, locked:false, atCom:_atCommission(app) });
+  /* Вариант А: headline — первая НЕзавершённая стадия (кумулятив Собрано ≥ Принято ≥ Подтверждено ГФ),
+     а не всегда терминальная. Показывает актуальный фронт работ, а не «0% ГФ» при собранном комплекте. */
+  const _hl = pct < 100
+    ? { pct,         label:'Собрано',          done:stats.reqClosed }
+    : pctAcc < 100
+    ? { pct:pctAcc,  label:'Принято спецом',    done:stats.reqAccepted }
+    : { pct:pctConf, label:'Подтверждено ГФ',   done:stats.reqConfirmed };
+  const _hlCap = (stats.reqTot && pctConf >= 100)
+    ? 'комплект полностью подтверждён'
+    : `текущая стадия — <b>${_hl.label}</b> (${_hl.done}/${stats.reqTot})`;
   const bar = `<div class="docprog">
       <div class="docprog-head">
-        <span class="docprog-pct">${pctConf}%</span>
-        <span class="docprog-cap">исполнение последней стадии — <b>Подтверждено ГФ</b> (${stats.reqConfirmed}/${stats.reqTot}) ${pkgChip}</span>
+        <span class="docprog-pct">${_hl.pct}%</span>
+        <span class="docprog-cap">${_hlCap} ${pkgChip}</span>
       </div>
       <div class="docprog-track">
         <div class="docprog-seg s-collected" style="width:${pct}%"></div>
@@ -5605,9 +5637,16 @@ function renderDocs(app){
     const opt = c.opt ? `<span class="opt">${c.opt} опц.</span>` : '';
     return `<button class="docstage-chip ${meta.cls}${on}" onclick="docStageFilter('${k}')">${meta.label}<span class="n">${n}</span>${opt}</button>`;
   }).join('');
-  const rail = chips ? `<div class="docstage-rail">${chips}</div>` : '';
+  /* Синтетический фильтр «Надо загрузить» — приоритетный, всегда первый в ряду (сколько
+     обязательных доков ещё ждут загрузки/перезагрузки). */
+  const todoN = _docTodoCount(app);
+  const todoChip = todoN
+    ? `<button class="docstage-chip doc-st-req${_docStageFilter === '__todo' ? ' on' : ''}" onclick="docStageFilter('__todo')">Надо загрузить<span class="n">${todoN}</span></button>`
+    : '';
+  const rail = (todoChip || chips) ? `<div class="docstage-rail">${todoChip}${chips}</div>` : '';
+  const _flabel = _docStageFilter === '__todo' ? 'Надо загрузить' : (DOC_STATUS[_docStageFilter] || {}).label || _docStageFilter;
   const activeLine = _docStageFilter
-    ? `<div class="docstage-active">Показаны документы на стадии: <b>${DOC_STATUS[_docStageFilter].label}</b><button class="docstage-reset" onclick="docStageFilterClear()">Сбросить фильтр</button></div>`
+    ? `<div class="docstage-active">${_docStageFilter === '__todo' ? 'Показаны обязательные документы, которые нужно загрузить' : 'Показаны документы на стадии'}: <b>${_flabel}</b><button class="docstage-reset" onclick="docStageFilterClear()">Сбросить фильтр</button></div>`
     : '';
 
   /* Блок 3 — очередь действий по текущей роли. Авто-раскрыта, когда есть что делать. */
@@ -6609,8 +6648,7 @@ function renderCommission(app){
     }).join('');
     const tools = isCom
       ? `<div class="com-tools">
-          <div class="note-banner"><span>Комиссия изучает документы. Если документ нужно дополнить или заменить — «Запросить замену»: он вернётся кредитному специалисту (заявка перейдёт в «Требуется доп. информация»). Когда вопросов нет — вынесите заявку на заседание комитета.</span></div>
-          <div class="com-toolrow"><button class="btn btn-primary btn-sm" onclick="comAdvance()">Вынести на заседание комитета</button></div>
+          <div class="note-banner"><span>Комиссия изучает документы. Если документ нужно дополнить или заменить — «Запросить замену»: он вернётся кредитному специалисту (заявка перейдёт в «Требуется доп. информация»). Когда вопросов нет — вынесите заявку на заседание комитета кнопкой в панели действий сверху.</span></div>
         </div>`
       : `<div class="com-tools"><div class="note-banner"><span>Идёт предварительное изучение. Запрашивать документы и выносить на заседание может только роль <b>🏛 Комиссия</b> — переключите роль в шапке.</span></div></div>`;
     return `<div class="com-wrap">${head}${strip}
@@ -7952,14 +7990,38 @@ function _sendBlockReason(app){
 function openSendModal(track){
   /* Гейт готовности (статус + документы + покрытие залога) — belt-and-suspenders на случай
      прямого вызова: кнопки уже дизейблятся, но флоу тоже не должен открываться. */
-  const reason = _sendBlockReason(_sendTarget());
+  const app = _sendTarget();
+  const reason = _sendBlockReason(app);
   if (reason){ showToast('Отправка заблокирована: ' + reason, 'warn'); return; }
   _sendTrack = track;
+  /* Комиссии-адресаты берём из программы (app.commissions):
+       1 комиссия  → отправляем сразу, без модалки;
+       2+ комиссий → модалка, выбор ТОЛЬКО из этих комиссий (select заполняем динамически). */
+  const coms = (app.commissions && app.commissions.length) ? app.commissions : ['Комиссия по заявкам'];
+  if (coms.length === 1){ _doSend(app, coms[0]); return; }
   const sel   = document.getElementById('send-commission');
   const field = document.getElementById('send-commission-field');
+  sel.innerHTML = '<option value=""></option>' + coms.map(c => `<option value="${_esc(c)}">${_esc(c)}</option>`).join('');
   sel.value = '';
   field.classList.add('invalid');
   openModal('modal-send');
+}
+
+/* Единая отправка в комиссию: фиксирует комиссию-адресат, переводит статус, аудит, перерисовка.
+   Вызывается напрямую (1 комиссия в программе) либо из submitSend (выбор из 2+). */
+function _doSend(app, commission){
+  const from = app.status;
+  app.status = 'На рассмотрении';
+  app._commission = commission;                 // комиссия-адресат (из программы / выбор пользователя)
+  /* Спек: повторная отправка идёт в ТУ ЖЕ комиссию, но голоса и подписи сбрасываются
+     на новый круг. Первая отправка — тоже пустая запись (иначе заявка приезжает
+     на заседание с уже проставленными демо-голосами). */
+  app._com = _comStateFresh();
+  _audit(app, '[specialist]', 'Отправлена в комиссию · ' + commission, from, 'На рассмотрении', 'send');
+  renderGrid();
+  closeModal('modal-send');
+  if (_detailApp && _detailApp.num === app.num) gotoDetail(app.num);   // деталка: тулбар/шапка под новый статус
+  showToast('Отправлена в комиссию: ' + commission, 'ok');
 }
 
 /** onSendCommissionChange — clears/re-adds invalid class as the user picks a value. */
@@ -7981,18 +8043,7 @@ function submitSend(){
   const app = _sendTarget();
   const reason = _sendBlockReason(app);
   if (reason){ showToast('Отправка заблокирована: ' + reason, 'warn'); return; }
-  // Одна комиссия судит кредит+залог (P3-R26): единственный трек статуса.
-  const from = app.status;
-  app.status = 'На рассмотрении';
-  /* Спек: повторная отправка идёт в ТУ ЖЕ комиссию, но голоса и подписи сбрасываются
-     на новый круг. Первая отправка — тоже пустая запись (иначе заявка приезжает
-     на заседание с уже проставленными демо-голосами). */
-  app._com = _comStateFresh();
-  _audit(app, '[specialist]', 'Отправлена в комиссию · изменён статус', from, 'На рассмотрении', 'send');
-  renderGrid();
-  closeModal('modal-send');
-  if (_detailApp && _detailApp.num === app.num) gotoDetail(app.num);   // деталка: тулбар/шапка под новый статус
-  showToast('Данные сохранены', 'ok');
+  _doSend(app, sel.value);
 }
 
 /** showToast(text, type) — appends a .toast element to #toast-wrap; auto-removes after 3.5 s.
