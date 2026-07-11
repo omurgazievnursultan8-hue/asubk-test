@@ -3224,7 +3224,7 @@ function _syncDeptSwitch(){
 /* ---- Detail toolbar: экшны по статусу (spec топик 4, P3-R7).
    Все кнопки жмёт КРЕДИТНЫЙ СПЕЦИАЛИСТ. Решения комиссии — в тулбаре вкладки «Комиссия». ---- */
 const TOOLBAR = {
-  'Новый':                     [['Изменить','secondary'],['Отправить в комиссию','primary'],['Отозвать','ghost'],['Удалить','danger']],
+  'Новый':                     [['Изменить','secondary'],['Отправить в комиссию','primary'],['Удалить','danger']],
   'На рассмотрении':           [['Отозвать','ghost']],
   'Требуется доп. информация': [['Изменить','secondary'],['Отправить в комиссию','primary'],['Отозвать','ghost']],
   'Одобрена':                  [['Сформировать кредит','primary']],
@@ -3247,7 +3247,7 @@ function _audit(app, user, event, from, to, key){
 
 /* Отозвать — только специалист и только пока комиссия не решила (спек, граф переходов).
    Терминал: запись голосования уничтожается, дальше только «Пересоздать» клоном. */
-const WITHDRAWABLE_STATUSES = new Set(['Новый', 'На рассмотрении', 'Требуется доп. информация']);
+const WITHDRAWABLE_STATUSES = new Set(['На рассмотрении', 'Требуется доп. информация']);
 
 function withdrawApp(num){
   const app = APPLICATIONS.find(a => a.num === num);
@@ -3303,6 +3303,35 @@ function enterEdit(){
   gotoDetail(_detailApp.num);                          // перерисовать в режиме правки
   showToast('Режим редактирования включён', '');
 }
+
+/* Поля условий, чьи правки спеца/комиссии в черновике фиксируем как «было → стало»:
+   на вкладке «Условия» — стрелка (Сумма/Срок через app.orig+_specLayers; остальные —
+   через condDiff, тоже читает app.orig), в «Истории» — строка аудита. */
+const COND_AUDIT_FIELDS = [
+  ['amount','Сумма'], ['term','Срок, мес.'], ['annualRate','Годовая ставка, %'],
+  ['purpose','Назначение кредита'], ['fundingSource','Источник финансирования'],
+  ['kind','Вид кредита'], ['kreditLine','Кредитная линия'], ['repayAcct','Вид счёта погашения'],
+  ['graceMain','Льготный период по осн. сумме'], ['graceAccrual','Льготный период по начислению %'],
+  ['graceInterest','Льготный период по процентам'],
+];
+/* Зафиксировать правки условий при «Сохранить»: снимок «до» (snap) vs текущее (app).
+   На каждое изменившееся поле — запомнить исходное в app.orig (diff «было→стало» на
+   «Условиях» — теперь виден и на свежей заявке, не только на демо) и записать строку
+   в аудит (для «Истории»). app.orig[prop] пишем один раз — «было» = самый первый
+   вариант, «стало» = актуальный (повторные правки не затирают исходное). */
+function _captureCondEdits(app, snap){
+  if (!snap) return;
+  app.orig = app.orig || {};
+  const who = condPhase(app.status) === 'review' ? '[commission]' : '[specialist]';
+  COND_AUDIT_FIELDS.forEach(([prop, label]) => {
+    const b = snap[prop] == null ? '' : String(snap[prop]);
+    const a = app[prop]  == null ? '' : String(app[prop]);
+    if (b === a) return;
+    if (app.orig[prop] == null || app.orig[prop] === '') app.orig[prop] = snap[prop];
+    _audit(app, who, 'Редактирование условия · ' + label, b, a, prop);
+  });
+}
+
 function saveEdit(){
   if (!_detailApp) return;
   /* Гейт: подсветка «cf-invalid» теперь запрещает сохранение, а не только красит рамку.
@@ -3318,6 +3347,7 @@ function saveEdit(){
   }
   const modelErr = _validateAppModel(_detailApp);
   if (modelErr){ showToast('Не сохранено: ' + modelErr, 'warn'); return; }
+  _captureCondEdits(_detailApp, _editSnapshot);        // «было→стало» → app.orig + аудит (Условия/История)
   _editSnapshot = null;                                // фиксируем правки в объекте
   _editMode = false; _schedSel = null;
   gotoDetail(_detailApp.num);
@@ -3653,6 +3683,17 @@ function condDiff(app, phase, label, prop, baseVal, whoBefore, opts){
   return condField(label, layers, opts);
 }
 
+/* Префикс-слой «было» для полей, которые НЕ идут через condDiff (Сумма/Срок —
+   у них своя цепочка провенанса заёмщик→комиссия). Если спец/комиссия правили
+   значение в черновике, app.orig[prop] хранит исходное — показываем его первым
+   зачёркнутым слоем со стрелкой. Совпало/не тронуто → слои без изменений. */
+function _specLayers(app, prop, layers){
+  const o = app.orig && app.orig[prop];
+  if (o != null && o !== '' && String(o) !== String(app[prop]))
+    return [['было', o], ...layers];
+  return layers;
+}
+
 /* Собрать поля блока «Условия» с провенансом из данных заявки + программы. */
 function buildConditions(app){
   const env  = PROG_ENV[app.program]     || {};
@@ -3922,7 +3963,16 @@ function condRefField(label, val, options, opts){
       + `<span class="cf-hint"><span class="cf-lock">🔒</span> из программы — единственный вариант</span>`
       + `</div>`;
   }
-  const cur = list.includes(val) ? val : list[0];
+  const has = val != null && val !== '';
+  if (has && !list.includes(val)){
+    // сохранённое значение вне списка программы — НЕ подменять молча (спек A):
+    // condSelect добавит val в опции и преселектит; предупреждаем юзера.
+    const o2 = Object.assign({}, opts, {
+      hint: (opts.hint ? opts.hint + ' · ' : '') + '⚠ текущее значение вне списка программы — сохранится, если не изменить'
+    });
+    return condSelect(label, val, list, o2);
+  }
+  const cur = has ? val : list[0];
   return condSelect(label, cur, list, opts);
 }
 
@@ -4161,10 +4211,10 @@ function renderConditions(app){
   F.push('<div class="cond-subh">Сумма и срок</div>');
   F.push(editCond
     ? condNum('Сумма', app.amount, { required:true, hint: prog.amountRange || '', ...amtC, bind:'amount' })
-    : condField('Сумма', [['заёмщик', app.amount], ['комиссия', amtCom]], { hint: prog.amountRange || '' }));
+    : condField('Сумма', _specLayers(app, 'amount', [['заёмщик', app.amount], ['комиссия', amtCom]]), { hint: prog.amountRange || '' }));
   F.push(editCond
     ? condNum('Срок, мес.', app.term, { required:true, int:true, hint: prog.termRange || '', ...trmC, bind:'term' })
-    : condField('Срок, мес.', [['заёмщик', app.term], ['комиссия', trmCom]], { hint: prog.termRange || '' }));
+    : condField('Срок, мес.', _specLayers(app, 'term', [['заёмщик', app.term], ['комиссия', trmCom]]), { hint: prog.termRange || '' }));
 
   // ── ③ Процентные ставки ──
   F.push('<div class="cond-subh">Процентные ставки</div>');
@@ -4172,7 +4222,7 @@ function renderConditions(app){
     ? condNum('Годовая ставка, %', app.annualRate || r.com || env.rate || prog.rate || '', { required:true,
         hint: prog.stavkaType === 'Диапазон' ? `Допустимо: ${prog.stavkaMin}–${prog.stavkaMax} %` : 'Выберите ставку из вариантов программы', ...rateC, bind:'annualRate' })
     : condField('Годовая ставка, %',
-        [['программа', r.prog || env.rate || prog.rate || ''], ['заёмщик', r.bor || ''], ['комиссия', r.com || '']]));
+        _specLayers(app, 'annualRate', [['программа', r.prog || env.rate || prog.rate || ''], ['заёмщик', r.bor || (ov.rate ? '' : (app.annualRate || ''))], ['комиссия', r.com || '']])));
   F.push(inh('Тип основной ставки', prog.stavkaType || prog.rateType));
   F.push(inh('Плавающая ставка', prog.floatRate ? 'Используется' : 'Не используется'));
   F.push(inh('Ставка за неполное освоение (резерв), %', app.reserveRate || '0,00'));
