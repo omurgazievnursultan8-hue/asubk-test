@@ -2991,6 +2991,18 @@ const PROGRAMS_MAP = {
     graceAccr:true, graceAccrType:'Диапазон', graceAccrDurFrom:'0', graceAccrDurTo:'3',
     graceInt:true, graceIntType:'Фиксированный', graceIntDur:['1','2'],
     minDays:'15', maxDays:'45',
+    /* Пакет документов программы (спек A1, ЧЕРНОВИК — уточнить у бизнеса).
+       Ключ = id из каталога DOC_SECTIONS, значение = обязательность (true=обяз, false=опц).
+       Не перечисленные id программе не требуются. ident содержит и individual, и org —
+       выбор по типу заёмщика делает ft-фильтр рендера. Инвест-программа: нужен бизнес-план
+       и ТЭО, полный орг-комплект. */
+    docPack:{
+      p1:true, p2:true, inn:true, pd:true, kb:true, sp:false,
+      ust:true, reg:true, egr:true, dec:true, ord:true, sig:false,
+      anket:true, consent:true, kyc:false,
+      inc:true, job:false, rep:true, tax:true, trn:true, nod:false, cbr:false,
+      bp:true, teo:true, fm:false, usc:false,
+    },
   },
   'Поддержка сельхозпроизводителей': {
     amountRange: 'Допустимо: от 100000.00 до 5000000.00',
@@ -3016,6 +3028,15 @@ const PROGRAMS_MAP = {
     graceAccr:true, graceAccrType:'Фиксированный', graceAccrDur:['2'],
     graceInt:false,
     minDays:'10', maxDays:'30',
+    /* Пакет документов (A1, ЧЕРНОВИК). Субсидийная агро-поддержка: облегчённый пакет —
+       без ЕГРЮЛ/оборотов, проектные документы опциональны. */
+    docPack:{
+      p1:true, p2:true, inn:true, pd:true, kb:true, sp:false,
+      ust:true, reg:true, egr:false, dec:true, ord:true, sig:false,
+      anket:true, consent:true, kyc:false,
+      inc:true, job:false, rep:true, tax:true, trn:false, nod:false, cbr:false,
+      bp:false, usc:false,
+    },
   },
   'ТУР': {
     amountRange: 'Фиксированные суммы по программе',
@@ -3041,6 +3062,15 @@ const PROGRAMS_MAP = {
     graceAccr:false,
     graceInt:true, graceIntType:'Диапазон', graceIntDurFrom:'0', graceIntDurTo:'6',
     minDays:'20', maxDays:'60',
+    /* Пакет документов (A1, ЧЕРНОВИК). Туризм: проектно-ориентированный — бизнес-план,
+       ТЭО и договоры под целевое использование обязательны; KYC обязателен. */
+    docPack:{
+      p1:true, p2:true, inn:true, pd:true, kb:true, sp:false,
+      ust:true, reg:true, egr:true, dec:true, ord:true, sig:false,
+      anket:true, consent:true, kyc:true,
+      inc:true, job:false, rep:true, tax:true, trn:false, nod:false, cbr:false,
+      bp:true, teo:true, fm:false, usc:true,
+    },
   },
 };
 
@@ -4850,10 +4880,27 @@ const DOC_SECTIONS = [
 function _docsOf(app){
   if (!app._docs){
     app._docs = JSON.parse(JSON.stringify(DOC_SECTIONS));
+    _applyProgramPack(app);                                // программа → подмножество каталога
     if (app._seedConfirmed)     _applyDocSeed(app, 'confirmed');
     else if (app._seedAccepted) _applyDocSeed(app, 'accepted');
   }
   return app._docs;
+}
+/* Пакет документов из выбранной программы (PROGRAMS_MAP[app.program].docPack).
+   docPack = { docId: reqBool }. Управляет статическими секциями ident/print/fin/proj:
+   оставляем только перечисленные id, обязательность берём из пакета. Секции coll
+   (динамика из предметов залога) и contract (этап после одобрения) — всегда как есть.
+   Программа без docPack → полный каталог (fallback: демо-заявки и старые данные без
+   регресса). */
+const PACK_GOVERNED = new Set(['ident', 'print', 'fin', 'proj']);
+function _applyProgramPack(app){
+  const pack = (PROGRAMS_MAP[app.program] || {}).docPack;
+  if (!pack) return;
+  app._docs.forEach(sec => {
+    if (!PACK_GOVERNED.has(sec.key)) return;
+    sec.docs = sec.docs.filter(d => Object.prototype.hasOwnProperty.call(pack, d.id));
+    sec.docs.forEach(d => { d.req = !!pack[d.id]; });
+  });
 }
 /* Демо-сид: все обязательные доки текущего типа заёмщика → заданное состояние;
    договорные (stage:'contract') не трогаем — они этап после одобрения.
@@ -4871,7 +4918,7 @@ function _applyDocSeed(app, st){
      иначе демо-гейт «Отправить в комиссию» упрётся в документы, а не в заключения отделов. */
   if (app.isGroup){
     _membersOf(app).forEach((m, i) => {
-      _memberDocTpls(m).forEach(tpl => {
+      _memberDocTpls(m, app).forEach(tpl => {
         const state = _memberDocState(app, m, tpl, i);
         if (tpl.req){ state.st = st; delete state.reason; }
       });
@@ -4906,16 +4953,22 @@ function _memberDocsOf(app){ if (!app._memberDocs) app._memberDocs = {}; return 
 function _memberDocKey(m, docId){ return 'mem:' + m.pin + '::' + docId; }
 /* Тип субъекта члена (individual|org) — как _docBType, но по ПИН члена. */
 function _memberBType(m){ return subjectType(m.pin, SUBJECTS_MAP[m.pin] || {}); }
-/* Секции члена = ident/fin из DOC_SECTIONS, отфильтрованные по его типу субъекта. */
-function _memberSections(m){
+/* Секции члена = ident/fin из DOC_SECTIONS, отфильтрованные по его типу субъекта.
+   app (опц.) — если у программы задан docPack, member-доки тоже сужаем до пакета и
+   берём из него обязательность (req). Без app → полный каталог (обратная совместимость). */
+function _memberSections(m, app){
   const bt = _memberBType(m);
+  const pack = app && (PROGRAMS_MAP[app.program] || {}).docPack;
   return DOC_SECTIONS.filter(s => MEMBER_SEC_KEYS.includes(s.key)).map(s => ({
     key: s.key,
     title: MEMBER_SEC_TITLE[s.key] || s.title,
-    docs: s.docs.filter(d => d.ft === 'both' || d.ft === bt),
+    docs: s.docs
+      .filter(d => (d.ft === 'both' || d.ft === bt)
+        && (!pack || Object.prototype.hasOwnProperty.call(pack, d.id)))
+      .map(d => pack ? Object.assign({}, d, { req: !!pack[d.id] }) : d),
   }));
 }
-function _memberDocTpls(m){ return _memberSections(m).reduce((acc, s) => acc.concat(s.docs), []); }
+function _memberDocTpls(m, app){ return _memberSections(m, app).reduce((acc, s) => acc.concat(s.docs), []); }
 /* Лениво заводим состояние документа члена. i — индекс члена (нужен только для демо-сида;
    состояние, однажды заведённое, переживает перенумерацию после удаления члена). */
 function _memberDocState(app, m, tpl, i){
@@ -4935,7 +4988,7 @@ function _findMemberDocState(app, key){
   const i = _membersOf(app).findIndex(x => x.pin === mm[1]);
   if (i < 0) return null;
   const m = _membersOf(app)[i];
-  const tpl = _memberDocTpls(m).find(t => t.id === mm[2]);
+  const tpl = _memberDocTpls(m, app).find(t => t.id === mm[2]);
   return tpl ? _memberDocState(app, m, tpl, i) : null;
 }
 /* Тип заёмщика — из субъекта заявки (individual|org). */
@@ -4958,7 +5011,7 @@ function _docTitle(key){
   const mm = _MEM_RE.exec(key);
   if (mm){
     const m = _membersOf(app).find(x => x.pin === mm[1]);
-    const tpl = m && _memberDocTpls(m).find(t => t.id === mm[2]);
+    const tpl = m && _memberDocTpls(m, app).find(t => t.id === mm[2]);
     return (tpl ? tpl.t : mm[2]) + (m ? ' · ' + _shortFio(m.fio) : '');
   }
   if (key.indexOf('::') >= 0){
@@ -4976,7 +5029,7 @@ function _docTitle(key){
 /* Комплект одного члена группы — те же счётчики, что и по заявке. */
 function _memberDocStats(app, m, i){
   const o = { reqTot:0, reqClosed:0, reqAccepted:0, reqConfirmed:0, blockers:0, requested:0 };
-  _memberDocTpls(m).forEach(tpl => {
+  _memberDocTpls(m, app).forEach(tpl => {
     if (!tpl.req) return;
     const st = _memberDocState(app, m, tpl, i).st;
     o.reqTot++;
@@ -5038,7 +5091,7 @@ function _pkgHasFiles(app){
   if (app.isGroup){
     const members = _membersOf(app);
     for (let i = 0; i < members.length; i++)
-      for (const tpl of _memberDocTpls(members[i]))
+      for (const tpl of _memberDocTpls(members[i], app))
         if (HAS_FILE(_memberDocState(app, members[i], tpl, i).st)) return true;
   }
   if (app.hasCollateral){
@@ -5344,7 +5397,7 @@ function _memberDocsPanels(app, m, i){
   const s = _memberDocStats(app, m, i);
   const atCom = _atCommission(app);
   const head = `<div class="note-banner"><span>Член группы: <b>${_esc(m.fio)}</b> · ПИН ${m.pin} · транш ${_fmt(_num(m.sum))} · освоение ${m.date}. Обязательных документов собрано: <b>${s.reqClosed} из ${s.reqTot}</b>.</span></div>`;
-  const accs = _memberSections(m).map(sec => {
+  const accs = _memberSections(m, app).map(sec => {
     let reqIn = 0, reqDone = 0, reqAcc = 0, hasBlock = 0, optCnt = 0;
     const rows = sec.docs.map(tpl => {
       const state = _memberDocState(app, m, tpl, i);
@@ -5420,7 +5473,7 @@ function _walkDocs(app, cb){
       .forEach(d => cb({ key:d.id, title:d.t, st:d.st, req:d.req, secKind:sec.kind || null }));
   });
   if (app.isGroup){
-    _membersOf(app).forEach((m, i) => _memberDocTpls(m).forEach(tpl => {
+    _membersOf(app).forEach((m, i) => _memberDocTpls(m, app).forEach(tpl => {
       const state = _memberDocState(app, m, tpl, i);
       cb({ key:_memberDocKey(m, tpl.id), title:tpl.t + ' · ' + _shortFio(m.fio), st:state.st, req:tpl.req, secKind:null });
     }));
@@ -6392,7 +6445,7 @@ function _reqDocList(app){
   });
   if (app.isGroup){
     _membersOf(app).forEach((m, i) => {
-      _memberDocTpls(m).forEach(tpl => {
+      _memberDocTpls(m, app).forEach(tpl => {
         if (!tpl.req) return;
         out.push({ key:_memberDocKey(m, tpl.id), t:tpl.t + ' · ' + (m.fio || m.pin), st:_memberDocState(app, m, tpl, i).st });
       });
