@@ -52,19 +52,28 @@
   body{font-family:var(--font);color:var(--body-text);background:#fff;font-size:16px;line-height:1.4;}
   .app{display:flex;min-height:100vh;}
 
-  /* ---------- SIDEBAR ---------- */
-  .sidebar{width:278px;flex:0 0 278px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;}
-  .sidebar .brand{font-weight:700;font-size:20px;padding:18px 22px;}
-  .nav{flex:1;overflow-y:auto;padding:0 8px;}
-  .nav-group{font-weight:600;padding:12px 14px;display:flex;align-items:center;gap:8px;user-select:none;font-size:15px;}
-  .nav-group .caret{color:var(--secondary-text);font-size:12px;width:12px;display:inline-block;}
-  .nav-group.open{color:var(--primary-text);}
-  .nav-item{padding:8px 14px 8px 20px;font-size:15px;border-radius:var(--radius);cursor:default;}
-  .nav-item:hover{background:var(--filter-bg);}
-  .nav-item.active{background:#e9f1fe;color:var(--primary-text);font-weight:600;}
-  .sidebar .footer{border-top:1px solid var(--border);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;}
-  .logout{width:38px;height:38px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--filter-bg);
-    display:flex;align-items:center;justify-content:center;color:var(--primary-text);cursor:pointer;}
+  /* ---------- SIDEBAR (data-driven, как во всех остальных мокапах) ---------- */
+  .sidebar{width:320px;flex:0 0 320px;background:#eff1f4;border-right:1px solid var(--border);display:flex;flex-direction:column;}
+  .sidebar .brand{padding:18px 16px 14px;font-weight:600;font-size:17px;letter-spacing:0.04em;color:var(--body-text);}
+  .nav{flex:1;overflow-y:auto;padding-bottom:8px;}
+  .nav-toggle{display:flex;align-items:center;gap:8px;width:100%;appearance:none;border:none;background:transparent;
+    color:var(--body-text);cursor:pointer;text-align:left;font-family:inherit;}
+  .nav-group > .nav-toggle{padding:9px 16px;font-weight:600;font-size:15px;line-height:1.3;}
+  .nav-sub > .nav-toggle{padding:8px 16px 8px 32px;font-weight:600;font-size:14px;line-height:1.3;}
+  .nav-toggle:hover{background:var(--filter-bg);}
+  .nav-toggle .chev{display:inline-flex;align-items:center;color:var(--secondary-text);transition:transform 120ms ease;flex:none;}
+  .nav-group.open > .nav-toggle .chev,.nav-sub.open > .nav-toggle .chev{transform:rotate(90deg);}
+  .nav-toggle .lbl{flex:1;}
+  .nav-children{display:none;}
+  .nav-group.open > .nav-children,.nav-sub.open > .nav-children{display:block;}
+  .nav-item{display:block;padding:7px 16px 7px 52px;font-size:16px;line-height:1.625;color:var(--secondary-text);text-decoration:none;cursor:pointer;}
+  .nav-item.headerless{padding-left:40px;}
+  .nav-item:hover{background:rgba(24,39,57,0.05);}
+  .nav-item.active{background:rgba(51,139,255,0.13);color:var(--body-text);font-weight:600;}
+  .sidebar-foot{border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:12px 18px;color:var(--secondary-text);}
+  .sidebar-foot span{font-size:14px;}
+  .icon-btn{border:none;background:rgba(24,39,57,0.05);color:var(--primary-text);cursor:pointer;
+    padding:7px;border-radius:var(--radius);display:flex;}
 
   /* ---------- MAIN ---------- */
   .main{flex:1;min-width:0;display:flex;flex-direction:column;}
@@ -204,6 +213,11 @@
   .banner.info{background:#e9f1fe;border:1px solid #c7ddfb;color:#0a4aa8;}
   .banner b{font-weight:700;}
   .banner code{background:rgba(0,0,0,.05);border-radius:3px;padding:0 4px;}
+  .bridge-banner .map{display:inline-block;background:rgba(255,255,255,.6);border:1px solid #c7ddfb;border-radius:3px;padding:0 5px;margin:2px 2px 0 0;font-size:13px;white-space:nowrap;}
+  .bridge-banner .map b{font-weight:700;}
+  .lk-fields .defect{color:#9a1b14;font-size:12px;font-weight:600;}
+  .lk-grid-cols{font-size:13px;color:var(--secondary-text);}
+  .lk-grid-cols b{color:var(--body-text);font-weight:600;}
 
   /* проекция вкладки 4 */
   .proj-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
@@ -297,22 +311,12 @@
   <!-- ===================== SIDEBAR ===================== -->
   <aside class="sidebar">
     <div class="brand">АСУБК</div>
-    <nav class="nav">
-      <div class="nav-group open"><span class="caret">⌄</span>Администрирование</div>
-      <div class="nav-item">Пользователи (УЗ)</div>
-      <div class="nav-item active">Сотрудники</div>
-      <div class="nav-item">Подразделения</div>
-      <div class="nav-item">Роли и политики</div>
-      <div class="nav-group"><span class="caret">›</span>Система кредитования</div>
-      <div class="nav-group"><span class="caret">›</span>Кураторство</div>
-      <div class="nav-group"><span class="caret">›</span>Задания</div>
-      <div class="nav-group"><span class="caret">›</span>Взыскание задолженности</div>
-      <div class="nav-group"><span class="caret">›</span>Справочники</div>
-      <div class="nav-group"><span class="caret">›</span>Отчёты</div>
-    </nav>
-    <div class="footer">
+    <div class="nav" id="nav"></div>
+    <div class="sidebar-foot">
       <span>[admin]</span>
-      <div class="logout" title="Выход">⇥</div>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
     </div>
   </aside>
 
@@ -521,6 +525,22 @@
           <button class="btn btn-danger-solid" id="btnDismiss">⛔ Уволить</button>
         </div>
 
+        <!-- ---------- МОСТ AS-IS → TO-BE ---------- -->
+        <div class="banner info bridge-banner">
+          <span class="ic">🔀</span>
+          <div>
+            <b>Мост AS-IS → TO-BE.</b> Online-карточка <code>/employees</code> (8 вкладок, проверено 2026-07-12
+            <code>scripts/inspect/employees-live.mjs</code>) переразложена в эту TO-BE-структуру. Реальные поля online сохранены
+            дословно; надстройка — периоды/статусы/грифы — добавлена. Соответствие:
+            <span class="map"><b>Осн. информация</b> → Общая (ПИН/СОАТЕ/физлицо/автобио/резюме)</span> ·
+            <span class="map"><b>Паспортные данные</b> → Паспорт (B)</span> ·
+            <span class="map"><b>Образование · Состав семьи · Награды · Стаж работы</b> → одноимённые вкладки (grid как в online)</span> ·
+            <span class="map"><b>Командировки и отпуска</b> → Отсутствия и замещения (+ поле «Замещающий», в online его нет)</span> ·
+            <span class="map"><b>Контактные данные</b> → блок в шапке/Общей</span>.
+            Нет в online: Назначения-периоды · УЗ/кураторство · 3 оси статусов · Документы-по-грифу · История · гейты.
+          </div>
+        </div>
+
         <!-- ---------- TABS ---------- -->
         <div class="tabs" id="tabs">
           <div class="tab active" data-tab="obshee">Общая</div>
@@ -543,11 +563,22 @@
           <p class="panel-note">Класс <b>A</b> (операционный профиль) — читают все пользователи системы.
             Резюме/автобиографию правит <b>сам сотрудник</b>; остальное — HR.</p>
           <div class="kv-grid" style="max-width:620px;margin-bottom:18px;">
+            <div class="k">Физ. лицо <span class="calc-tag">справочник</span></div><div>Сламкулов Азамат Омургазиевич <span class="muted">(online: picker «Физ. лицо» — человек ≠ сотрудник)</span></div>
+            <div class="k">ПИН (14 цифр)</div><div>2 •••• •••• •••• <span class="badge b-muted">B</span></div>
+            <div class="k">СОАТЕ</div><div>417 •• ••• <span class="muted">(online-поле «СОАТЕ»)</span></div>
             <div class="k">Категория должности</div><div>Основной персонал · кредитование</div>
             <div class="k">Внутренний стаж</div><div>с 01.01.2022 (4 г. 6 мес.) <span class="calc-tag">вычисляется из вкл. «Назначения»</span></div>
             <div class="k">Дата приёма</div><div>12.03.2018</div>
           </div>
-          <div class="section-title" style="font-size:16px;">Резюме / автобиография</div>
+          <div class="section-title" style="font-size:16px;">Контактные данные <span class="badge b-muted" style="vertical-align:middle;">online: отд. вкладка</span></div>
+          <hr class="section-rule">
+          <div class="kv-grid" style="max-width:620px;margin-bottom:18px;">
+            <div class="k">Мобильный телефон</div><div>+996 (555) 12-34-56</div>
+            <div class="k">Рабочий телефон</div><div>+996 (312) 66-00-42, вн. 214</div>
+            <div class="k">Электронная почта</div><div>a.slamkulov@mail.kg</div>
+            <div class="k">Рабочая эл. почта</div><div>a.slamkulov@fkf.kg</div>
+          </div>
+          <div class="section-title" style="font-size:16px;">Резюме / автобиография <span class="badge b-muted" style="vertical-align:middle;">online: Автобиография 0/2000 + файл · Резюме файл</span></div>
           <hr class="section-rule">
           <p style="max-width:720px;color:var(--body-text);font-size:15px;">Специалист по сопровождению кредитов агропромышленного комплекса.
             Ведёт портфель заёмщиков южного региона. Опыт работы с реструктуризацией и досудебным взысканием.</p>
@@ -708,12 +739,22 @@
             </div>
             <p class="panel-note" style="margin:8px 0 0;">Гриф — атрибут <b>данных</b>, а не экрана. Документ (скан паспорта) наследует гриф B
               и не виден через общий список документов у кредитного специалиста.</p>
+            <p class="panel-note" style="margin:6px 0 0;">Поля дословно из online-вкладки «Паспортные данные» (14 полей). Значения скрыты грифом B.</p>
             <div class="lk-fields">
-              <div class="k">ИНН (ПИН), 14 цифр</div><div class="v"></div>
+              <div class="k">Фамилия</div><div class="v"></div>
+              <div class="k">Имя</div><div class="v"></div>
+              <div class="k">Отчество</div><div class="v"></div>
               <div class="k">Дата рождения</div><div class="v"></div>
-              <div class="k">Документ (версионируется)</div><div class="v"></div>
-              <div class="k">Адрес прописки</div><div class="v"></div>
+              <div class="k">Пол</div><div class="v"></div>
+              <div class="k">Национальность</div><div class="v"></div>
+              <div class="k">Номер паспорта</div><div class="v"></div>
+              <div class="k">Серия паспорта</div><div class="v"></div>
+              <div class="k">Гражданство <span class="defect">⚠ online: «Employee.citizenship» — непереведённый ключ (дефект)</span></div><div class="v"></div>
+              <div class="k">Дата выдачи</div><div class="v"></div>
               <div class="k">Срок действия</div><div class="v"></div>
+              <div class="k">Семейное положение</div><div class="v"></div>
+              <div class="k">Адрес</div><div class="v"></div>
+              <div class="k">Адрес фактического проживания</div><div class="v"></div>
             </div>
           </div>
         </div>
@@ -722,11 +763,9 @@
             <div class="lk-head"><div class="lk-ic">🔒</div><div>
               <div class="lk-title">Образование и сертификаты — класс B</div>
               <div class="lk-sub">HR + сам сотрудник. Срок действия сертификатов обязателен (оценка/аудит истекают).</div></div></div>
-            <div class="lk-fields">
-              <div class="k">Уровень / ВУЗ</div><div class="v"></div>
-              <div class="k">№ диплома</div><div class="v"></div>
-              <div class="k">Сертификат · срок</div><div class="v"></div>
-            </div>
+            <p class="panel-note" style="margin:8px 0 0;">Online: <b>таблица</b> (Создать/Изменить/Удалить). Колонки дословно:</p>
+            <p class="lk-grid-cols" style="margin:6px 0 0;"><b>Тип документа</b> · <b>Уровень образования</b> · <b>Специальность</b> · <b>Учебное заведение</b> · <b>Год окончания</b></p>
+            <p class="panel-note" style="margin:6px 0 0;">TO-BE добавляет: № диплома · сертификат + срок действия (истечение → сигнал оценки/аудита).</p>
           </div>
         </div>
         <div class="tabpanel" data-panel="semya">
@@ -736,7 +775,8 @@
               <div class="lk-sub">HR + сам сотрудник.</div></div></div>
             <p class="panel-note" style="margin:8px 0 0;"><b>Не связывать с реестром заёмщиков ссылкой.</b> Совпадение ФИО+ДР —
               сигнал для проверки конфликта интересов, а не автоматическое ограничение.</p>
-            <div class="lk-fields"><div class="k">Степень родства · ФИО · ДР</div><div class="v"></div></div>
+            <p class="panel-note" style="margin:8px 0 0;">Online: <b>таблица</b> (Создать/Изменить/Удалить). Колонки дословно:</p>
+            <p class="lk-grid-cols" style="margin:6px 0 0;"><b>Кем приходится</b> · <b>ФИО</b> · <b>Мобильный телефон</b> · <b>Дата рождения</b></p>
           </div>
         </div>
         <div class="tabpanel" data-panel="stazh">
@@ -746,7 +786,9 @@
               <div class="lk-sub">Из трудовой книжки; системой не используется.</div></div></div>
             <p class="panel-note" style="margin:8px 0 0;"><b>Внутренний стаж здесь не дублируется</b> — он вычисляется из вкладки «Назначения»
               (внешний — кадровый факт, внутренний — операционный, от него зависят права).</p>
-            <div class="lk-fields"><div class="k">с — по · организация · должность</div><div class="v"></div></div>
+            <p class="panel-note" style="margin:8px 0 0;">Online: поле <b>«Общий стаж»</b> (вычисляемое) + <b>таблица</b> (Создать/Изменить/Удалить). Колонки дословно:</p>
+            <p class="lk-grid-cols" style="margin:6px 0 0;"><b>Организация</b> · <b>Должность</b> · <b>Период с</b> · <b>По</b> · <b>Стаж</b></p>
+            <p class="panel-note" style="margin:6px 0 0;">👉 «Период с / По» в online — единственный прецедент историчности; на нём держится аргумент периодов-назначений во вкл. «Назначения».</p>
           </div>
         </div>
         <div class="tabpanel" data-panel="nagrady">
@@ -756,7 +798,9 @@
               <div class="lk-sub">Доступ: <b>HR + руководство</b>. Кредитный специалист не видит.</div></div></div>
             <p class="panel-note" style="margin:8px 0 0;">У взыскания — <b>дата снятия</b> (погашается по сроку) → индикатор действующее/погашено.
               Действующее взыскание — read-only факт; автоматических ограничений прав в АСУБК не влечёт.</p>
-            <div class="lk-fields"><div class="k">Вид · наименование · дата · приказ</div><div class="v"></div></div>
+            <p class="panel-note" style="margin:8px 0 0;">Online-вкладка «Награды, чин, взыскания»: <b>таблица</b> (Создать/Изменить/Удалить). Колонки дословно:</p>
+            <p class="lk-grid-cols" style="margin:6px 0 0;"><b>Вид</b> · <b>Наименование</b> · <b>Орган</b> · <b>Дата</b> · <b>Примечание</b></p>
+            <p class="panel-note" style="margin:6px 0 0;">TO-BE добавляет к взысканию: <b>дата снятия</b> (в online её нет → нельзя отличить действующее от погашенного).</p>
           </div>
         </div>
 
@@ -1026,6 +1070,41 @@
 
   // ---------- документы: аккордеон ----------
   document.querySelectorAll('.doc-acc-head').forEach(h => h.addEventListener('click', () => h.parentElement.classList.toggle('open')));
+
+  // ---------- сайдбар (data-driven nav, как в остальных мокапах; §10 — точки входа модуля) ----------
+  const NAV = [
+    { label:"Система кредитования", subs:[
+      { label:"Заявки и комиссии", items:[ {label:"Заявки"}, {label:"Комиссии по заявкам"} ]},
+      { label:"Заёмщики", items:[ {label:"Заёмщики"} ]},
+      { label:"Кредиты и транши", items:[ {label:"Кредиты"} ]} ]},
+    { label:"Залоговое обеспечение", subs:[ { headerless:true, items:[ {label:"Предметы залога"} ]} ]},
+    { label:"Организационная структура", subs:[ { headerless:true, items:[
+      {label:"Подразделения"}, {label:"Должности"} ]} ]},
+    { label:"Администрирование", open:true, subs:[ { headerless:true, items:[
+      {label:"Пользователи (УЗ)"},
+      {label:"Сотрудники", active:true},
+      {label:"Роли и политики"} ]} ]},
+    { label:"Справочники", subs:[ { headerless:true, items:[ {label:"Справочники"} ]} ]},
+    { label:"Отчёты", subs:[ { headerless:true, items:[ {label:"Отчёты"} ]} ]},
+  ];
+  const chev = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
+  function renderNav(){
+    document.getElementById('nav').innerHTML = NAV.map(g=>{
+      const subs = (g.subs||[]).map(s=>{
+        const items = (s.items||[]).map(it=>`<a class="nav-item${s.headerless?' headerless':''}${it.active?' active':''}" onclick="navClick(this)">${it.label}</a>`).join('');
+        if(s.headerless) return `<div class="nav-children" style="display:block">${items}</div>`;
+        return `<div class="nav-sub${s.open?' open':''}"><button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">${chev(13)}<span class="lbl">${s.label}</span></button><div class="nav-children">${items}</div></div>`;
+      }).join('');
+      return `<div class="nav-group${g.open?' open':''}"><button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">${chev(14)}<span class="lbl">${g.label}</span></button><div class="nav-children">${subs}</div></div>`;
+    }).join('');
+  }
+  function navClick(a){
+    document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+    a.classList.add('active');
+    if(a.textContent.trim()!=='Сотрудники') toast('В мокапе проработан только модуль «Сотрудники».');
+  }
+  window.navClick = navClick;
+  renderNav();
 
   // ---------- toast ----------
   let toastT;
