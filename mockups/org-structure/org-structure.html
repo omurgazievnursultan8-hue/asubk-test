@@ -186,6 +186,7 @@ a{ color:inherit; }
 .rsel .caret{ position:absolute; right:8px; pointer-events:none; color:var(--text-muted); display:flex; }
 
 .content{ flex:1; overflow:auto; }
+.mainview{ flex:1; display:flex; flex-direction:column; min-height:0; }
 
 /* ---- tabs ---- */
 .detail-tabbar{ display:flex; overflow-x:auto; padding:6px 20px 0; border-bottom:1px solid var(--border-default); }
@@ -333,25 +334,35 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
       </div>
     </header>
 
-    <div class="workarea">
-      <div class="tree-pane">
-        <div class="tree-pane-h">Дерево подразделений на дату</div>
-        <div class="tree-scroll" id="tree"></div>
-      </div>
-      <div class="detail-pane">
-        <div class="detail-tabbar" id="tabbar">
-          <button class="dtab active" data-tab="overview">Обзор</button>
-          <button class="dtab" data-tab="staff">Штатка и назначения</button>
-          <button class="dtab" data-tab="history">История</button>
-          <button class="dtab" data-tab="liq">Ликвидация</button>
+    <div class="mainview" id="view-units">
+      <div class="workarea">
+        <div class="tree-pane">
+          <div class="tree-pane-h">Дерево подразделений на дату</div>
+          <div class="tree-scroll" id="tree"></div>
         </div>
-        <div class="content">
-          <div class="detail-panel active" id="p-overview"></div>
-          <div class="detail-panel" id="p-staff"></div>
-          <div class="detail-panel" id="p-history"></div>
-          <div class="detail-panel" id="p-liq"></div>
+        <div class="detail-pane">
+          <div class="detail-tabbar" id="tabbar">
+            <button class="dtab active" data-tab="overview">Обзор</button>
+            <button class="dtab" data-tab="staff">Штатка и назначения</button>
+            <button class="dtab" data-tab="history">История</button>
+            <button class="dtab" data-tab="liq">Ликвидация</button>
+          </div>
+          <div class="content">
+            <div class="detail-panel active" id="p-overview"></div>
+            <div class="detail-panel" id="p-staff"></div>
+            <div class="detail-panel" id="p-history"></div>
+            <div class="detail-panel" id="p-liq"></div>
+          </div>
         </div>
       </div>
+    </div>
+
+    <div class="mainview" id="view-titles" style="display:none">
+      <div class="content"><div class="panel-wrap" id="titlesBody"></div></div>
+    </div>
+
+    <div class="mainview" id="view-people" style="display:none">
+      <div class="content"><div class="panel-wrap" id="peopleBody"></div></div>
     </div>
   </div>
 </div>
@@ -521,7 +532,7 @@ function checkMainInvariant(d){
 /* =========================================================================
    ВИД / РЕНДЕР
    ========================================================================= */
-const state = { date:TODAY, role:'hr', sel:'osh', tab:'overview', collapsed:{} };
+const state = { date:TODAY, role:'hr', sel:'osh', tab:'overview', collapsed:{}, view:'units' };
 const EVENT_LOG = [];
 const canEdit = ()=> state.role==='hr';
 const esc = s => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
@@ -829,12 +840,73 @@ function renderNav(){
 }
 function navClick(l){
   document.querySelectorAll('.nav-item').forEach(a=>a.classList.toggle('active', a.textContent===l));
-  document.querySelector('.crumb-title').textContent = (l==='Подразделения'||l==='Должности'||l==='Сотрудники подразделения') ? l : 'Подразделения';
+  const map = { 'Подразделения':'units', 'Должности':'titles', 'Сотрудники подразделения':'people' };
+  const v = map[l];
+  if(v){ state.view = v; document.querySelector('.crumb-title').textContent = l; render(); }
 }
 window.navClick = navClick;
 
+/* ---- §3 ДОЛЖНОСТИ (справочник) — глобальный, одна должность живёт во многих узлах ---- */
+function renderTitles(){
+  const d = state.date;
+  const rows = Object.entries(TITLES).map(([tid,t])=>{
+    const poss = POSITIONS.filter(p=>p.titleId===tid);
+    const where = poss.map(p=>{
+      const occ = occupantsOf(p.id,d);
+      const filled = occ.length>0;
+      return `<div>${esc(nameAt(p.unitId,d))}${p.isHead?' <span class="pill info">первое лицо</span>':''} `+
+        (filled ? `<span class="pill ok">занята</span>` : `<span class="pill warn">вакансия</span>`)+`</div>`;
+    }).join('') || '<span class="muted">не используется</span>';
+    return `<tr>
+      <td><b>${esc(t.name)}</b></td>
+      <td>${esc(t.cat)}</td>
+      <td>${t.lead?'<span class="pill info">да</span>':'<span class="muted">—</span>'}</td>
+      <td class="mono">${poss.length}</td>
+      <td>${where}</td></tr>`;
+  }).join('');
+  document.getElementById('titlesBody').innerHTML = `
+    <div class="section-h" style="margin-top:4px">Справочник должностей — §3</div>
+    <p class="section-note">Должность — <b>глобальный справочник</b> (наименование + категория + признак «руководящая»). Она НЕ равна штатной позиции: одна должность (напр. «Начальник департамента») живёт в нескольких узлах разными штатными позициями. «Первое лицо» — свойство позиции, а не должности. Занятость показана на дату среза.</p>
+    <table class="cgrid">
+      <thead><tr><th style="width:24%">Должность</th><th style="width:14%">Категория</th><th style="width:12%">Руководящая</th><th style="width:12%">Штатных позиций</th><th>Где используется (на дату)</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="hint">Открытый вопрос спеки §11.2: канонический перечень категорий (руководящая / специалист / технический / обслуживающий) — здесь показаны только встретившиеся.</p>`;
+}
+
+/* ---- §6 СОТРУДНИКИ ПОДРАЗДЕЛЕНИЯ — сотрудник действует в нескольких узлах (осн. + совмест. + и.о.) ---- */
+function renderPeople(){
+  const d = state.date;
+  const rows = Object.entries(EMPLOYEES).map(([eid,fio])=>{
+    const acts = ASSIGN.filter(a=>a.empId===eid && spanActive(a,d));
+    const ios  = ACTING.filter(a=>a.empId===eid && spanActive(a,d));
+    if(!acts.length && !ios.length) return `<tr><td><b>${esc(fio)}</b></td><td class="muted">нет действующих назначений на дату</td></tr>`;
+    const cell = acts.map(a=>{
+      const p = POSITIONS.find(x=>x.id===a.posId);
+      const tag = a.kind==='main' ? '<span class="pill ok">основное</span>' : '<span class="pill neutral">совмест.</span>';
+      return `<div>${esc(nameAt(p.unitId,d))} · ${esc(TITLES[p.titleId].name)} ${tag} <span class="muted">доля ${a.rate}</span></div>`;
+    }).join('') + ios.map(a=>{
+      const p = POSITIONS.find(x=>x.id===a.posId);
+      return `<div>${esc(nameAt(p.unitId,d))} · ${esc(TITLES[p.titleId].name)} <span class="pill info">и.о.</span> <span class="muted">${a.from}…${a.to}</span></div>`;
+    }).join('');
+    return `<tr><td><b>${esc(fio)}</b></td><td>${cell}</td></tr>`;
+  }).join('');
+  document.getElementById('peopleBody').innerHTML = `
+    <div class="section-h" style="margin-top:4px">Сотрудники подразделения — §6</div>
+    <p class="section-note">«Подразделение сотрудника» — не одно значение. Сотрудник может действовать в нескольких узлах: основное назначение + совместительства + и.о. Фильтр «Филиал/отдел» обязан искать по <b>всем</b> назначениям (§10). Показано на дату среза.</p>
+    <table class="cgrid">
+      <thead><tr><th style="width:26%">Сотрудник</th><th>Где действует (узел · должность · вид)</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
 /* ---- оркестровка ---- */
 function render(){
+  document.getElementById('view-units').style.display  = state.view==='units'  ? 'flex' : 'none';
+  document.getElementById('view-titles').style.display = state.view==='titles' ? 'flex' : 'none';
+  document.getElementById('view-people').style.display = state.view==='people' ? 'flex' : 'none';
+  if(state.view==='titles'){ renderTitles(); return; }
+  if(state.view==='people'){ renderPeople(); return; }
   renderTree();
   document.querySelectorAll('.dtab').forEach(t=>t.classList.toggle('active', t.dataset.tab===state.tab));
   document.querySelectorAll('.detail-panel').forEach(p=>p.classList.remove('active'));
