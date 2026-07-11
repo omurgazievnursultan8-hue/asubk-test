@@ -6534,87 +6534,13 @@ function comAdvance(){
   if (!conclusionsReady(app)){ showToast('Не все назначенные отделы дали заключение', 'warn'); return; }
   _comStateOf(app).phase = 'session'; _panelRefresh('tab-6'); showToast('Заявка вынесена на заседание комитета', 'ok');
 }
-function comBackPrelim(){ const app = _comActor(); if (!app) return; _comStateOf(app).phase = 'prelim'; _panelRefresh('tab-6'); showToast('Возврат к предварительному изучению', 'info'); }
-function comSign(i){ const app = _comActor(); if (!app) return; const s = _comStateOf(app);
-  if (s.phase !== 'session'){ showToast('Подписи собираются после вынесения на заседание', 'warn'); return; }
-  s.sign[i] = !s.sign[i]; _panelRefresh('tab-6'); showToast(s.sign[i] ? 'Протокол подписан членом комиссии' : 'Подпись снята', s.sign[i] ? 'ok' : 'info'); }
-function comUploadProtocol(){
-  const app = _comActor(); if (!app) return;
-  const s = _comStateOf(app);
-  if (!s.sign.every(Boolean)){ showToast('Сначала отметьте подписи всех членов комиссии', 'warn'); return; }
-  s.scan = true; _panelRefresh('tab-6'); showToast('Скан подписанного протокола внесён в систему', 'ok');
-}
+/* comBackPrelim/comSign/comUploadProtocol удалены — модель B (P3-R47): голосование,
+   подписи и протокол ведёт модуль «Комиссии по заявкам» (commission.html). */
 function comRequest(key){ if (!_comActor()) return; _docOpenReason(key, 'comreq'); }
 
-/* ── Голос члена комиссии (совещательный) ──
-   Кнопки живут в строке самого члена: кто голосует — видно, отдельный селектор не нужен.
-   Повторный клик по своей отметке снимает голос обратно в «—». */
-function comVote(i, v){
-  const app = _comActor(); if (!app) return;
-  const s = _comStateOf(app);
-  if (!s.open){ showToast('Голосование закрыто — решение уже принято председателем', 'warn'); return; }
-  if (s.phase !== 'session'){ showToast('Голосовать можно только после вынесения на заседание комитета', 'warn'); return; }
-  const from = s.votes[i];
-  const to   = (from === v) ? '—' : v;
-  s.votes[i] = to;
-  /* Спек, governance a: каждое сохранение голоса пишет аудит (кто/когда/решение). */
-  _audit(app, i === 0 ? '[chair]' : '[commission]',
-    `Голос члена комиссии: ${_shortFio(COM_MEMBERS[i])}`, from === '—' ? '' : from, to === '—' ? 'голос снят' : to, '');
-  _panelRefresh('tab-6');
-  showToast(to === '—' ? 'Голос снят' : `Голос учтён: ${to}`, to === '—' ? 'info' : 'ok');
-}
-
-/* ── Финальное решение председателя ──
-   Кворума нет: председатель закрывает голосование в любой момент. Обоснование обязательно
-   (спек: аудит пишет решение+причину, особенно при расхождении с tally). */
-const COM_DECISIONS = {
-  approve: { title:'Одобрить заявку',  label:'Обоснование решения (обязательно)',   ok:'Одобрить',
-             status:'Одобрена',                    final:['s-approved','Одобрена'],            key:'approve', vote:'Одобрить'  },
-  reject:  { title:'Отклонить заявку', label:'Причина отклонения (обязательно)',    ok:'Отклонить',
-             status:'Отклонена',                   final:['s-rejected','Отклонена'],           key:'reject',  vote:'Отклонить' },
-  return:  { title:'Вернуть на доработку', label:'Что доработать (обязательно, вернётся кредитному специалисту)', ok:'Вернуть',
-             status:'Требуется доп. информация',   final:['s-info','Возвращена на доработку'], key:'return',  vote:''          },
-};
-
-function comDecide(kind){
-  const app = _comActor(); if (!app) return;
-  const d = COM_DECISIONS[kind]; if (!d) return;
-  const s = _comStateOf(app);
-  if (!s.open){ showToast('Решение по этой заявке уже принято', 'warn'); return; }
-  if (s.phase !== 'session'){ showToast('Финальное решение принимается на заседании комитета', 'warn'); return; }
-
-  /* Расхождение с совещательным tally — не блок, но идёт отдельной строкой в аудит. */
-  const cnt = v => s.votes.filter(x => x === v).length;
-  const voted = s.votes.filter(v => v !== '—').length;
-  const against = d.vote ? (cnt(d.vote) < cnt(d.vote === 'Одобрить' ? 'Отклонить' : 'Одобрить')) : false;
-  const warn = [];
-  if (!voted) warn.push('Ни один член комиссии ещё не проголосовал.');
-  if (against) warn.push(`Решение расходится с голосами членов (за «${d.vote}» — ${cnt(d.vote)} из ${s.votes.length}).`);
-
-  askReason(d.title, d.label, d.ok, txt => {
-    /* Модалка асинхронна: за время набора обоснования могли открыть другую заявку или
-       сменить роль — иначе решение приземлится не туда (ср. снимок _editSnapshot). */
-    if (_detailApp !== app || !can(app).vote || !s.open){
-      showToast('Контекст изменился — решение не сохранено', 'warn'); return;
-    }
-    if (warn.length && !confirm(warn.join('\n') + '\n\nВсё равно зафиксировать решение председателя?')) return;
-    const from = app.status;
-    app.status = d.status;
-    s.final = d.final.slice();
-    s.open  = false;
-    if (kind === 'return'){
-      /* Возврат — не решение, а откат круга: заключения сбрасываются, комиссия ждёт
-         повторной отправки (голоса обнулит submitSend). Тот же путь, что «Запросить замену». */
-      _conclResetByCommission(app);
-      s.phase = 'prelim';
-    }
-    if (against) _audit(app, '[chair]', 'Расхождение решения с голосами членов комиссии', `за «${d.vote}»: ${cnt(d.vote)}`, `всего голосов: ${voted}`, '');
-    _audit(app, '[chair]', `Решение комиссии: ${d.ok} · ${txt}`, from, d.status, d.key);
-    renderGrid();
-    gotoDetail(app.num, 'tab-6');                       // шапка/тулбар/вкладка — под новый статус
-    showToast(`Решение зафиксировано: заявка «${d.status}»`, kind === 'reject' ? 'warn' : 'ok');
-  });
-}
+/* Голосование, финальное решение (COM_DECISIONS/comDecide) и голос члена (comVote)
+   удалены — модель B (P3-R47): движок решения ведёт модуль «Комиссии по заявкам»
+   (commission.html, ядро P3-R38). Здесь фаза «заседание» — read-only зеркало итога. */
 
 function renderCommission(app){
   const c = commissionFor(app);
@@ -6674,21 +6600,18 @@ function renderCommission(app){
      заседание · секретарь. В карточке заявки фаза «заседание» — READ-ONLY зеркало
      итогов, без движка. Это убирает расхождение правил между двумя экранами
      (раньше tab-6 имел независимый comDecide без кворума).
-     comDecide/comVote/comSign/comUploadProtocol/comBackPrelim теперь осиротели (нет вызовов). */
+     comDecide/comVote/comSign/comUploadProtocol/comBackPrelim удалены (модель B, P3-R47). */
   const grid = `<div class="collgrid"><table>
     <thead><tr><th>Роль</th><th>Сотрудник</th><th>Решение</th><th>Крайний срок</th><th>Комментарий</th></tr></thead>
     <tbody>${c.members.map(m => `<tr>
       <td>${m.role}</td><td>${m.emp}</td>
       <td><span class="com-vote ${_VOTE_CLS[m.vote]}">${m.vote}</span></td>
       <td>${m.deadline}</td><td>${_esc(m.comment || '')}</td></tr>`).join('')}</tbody></table></div>`;
-  const tools = `<div class="com-tools"><div class="note-banner"><span>Заседание комитета и итоговое решение по кредиту ведутся в модуле <b>«Комиссии по заявкам»</b>. В карточке заявки — только просмотр результата: статус-решение (см. «Финальное решение»), голоса, подписи и скан протокола.${c.open ? ' Голосование ещё идёт.' : ''}</span></div></div>`;
+  const tools = `<div class="com-tools"><div class="note-banner"><span>Заседание комитета и итоговое решение по кредиту ведутся в модуле <b>«Комиссии по заявкам»</b>. В карточке заявки — только просмотр результата: статус-решение (см. «Финальное решение»), голоса и скан протокола.${c.open ? ' Голосование ещё идёт.' : ''}</span></div></div>`;
 
-  /* Подписи членов и скан протокола — только просмотр (действия — в модуле комиссии). */
-  const signed = st.sign.filter(Boolean).length;
-  const signRows = c.members.map((m, i) => `<div class="com-sign-row">
-      <span class="who">${m.emp} — ${m.role}</span>
-      <span class="com-sign-badge ${st.sign[i] ? 'on' : ''}">${st.sign[i] ? '✓ подписал' : 'не подписан'}</span>
-    </div>`).join('');
+  /* Скан подписанного протокола — только просмотр. По-членный чек-лист подписей убран:
+     модуль «Комиссии по заявкам» (commission.html) подписи по членам не ведёт — итог фиксирует
+     голосование + один скан подписанного протокола (модель B, P3-R47). */
   const scanBlock = st.scan
     ? `<div class="com-scan"><span class="lbl">Скан протокола</span>
         <span class="file">Протокол_${c.protocol.replace(/[^\dА-Яа-я\-\/]/g, '').replace('/', '-')}_подписанный.pdf</span>
@@ -6697,8 +6620,8 @@ function renderCommission(app){
     : `<div class="com-scan"><span class="lbl">Скан протокола</span>
         <span class="file">Подписанный членами протокол ещё не внесён в систему.</span></div>`;
   const signBlock = `<div class="com-sign">
-      <div class="com-prog-label">Подписи членов комиссии на бумажном протоколе: ${signed} из ${total}</div>
-      ${signRows}${scanBlock}</div>`;
+      <div class="com-prog-label">Протокол заседания комитета</div>
+      ${scanBlock}</div>`;
 
   return `<div class="com-wrap">${head}${strip}
     <div class="com-prog-label">Прогресс голосования: ${pct}% (${voted} из ${total})</div>
