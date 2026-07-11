@@ -3132,10 +3132,16 @@ document.addEventListener('input',  bindCondInput, true);
 document.addEventListener('change', bindCondInput, true);
 
 /* Откат несохранённых правок: вернуть снимок на тот же объект-ссылку. */
+/* Сторы ЖЦ документов — committed-состояние (docUpload/docAccept/docConfirm пишут сразу),
+   а не черновик правки условий. Их нельзя откатывать/удалять при «Отмена» и смене роли,
+   иначе статусы документов обнуляются. */
+const _DOC_LC_STORES = ['_docs', '_memberDocs', '_collDocs'];
 function _revertEdit(){
   if (_editSnapshot && _detailApp){
+    const keep = {};
+    _DOC_LC_STORES.forEach(k => { if (k in _detailApp) keep[k] = _detailApp[k]; });
     Object.keys(_detailApp).forEach(k => { if (!(k in _editSnapshot)) delete _detailApp[k]; });
-    Object.assign(_detailApp, _editSnapshot);
+    Object.assign(_detailApp, _editSnapshot, keep);   // живые сторы документов поверх снимка
   }
   _editSnapshot = null;
 }
@@ -5198,6 +5204,7 @@ function _docBtn(kind, label, onclick){ return `<button class="btn btn-${kind} b
 /* Строка документа. disp = {t, req, st, reason?, valid?, waiveReason?}; secKind: 'print'|'contract'|null. */
 function docRow(app, disp, key, secKind){
   const dispKey = _dispSt(app, disp.st);
+  if (_docStageFilter && dispKey !== _docStageFilter) return '';   // фильтр стадии — скрываем несовпавшие строки (HIDE, не dim)
   const stt = DOC_STATUS[dispKey] || DOC_STATUS.required;
   const cap = can(app);
   /* Обычные секции правит спец в режиме «Изменить» (draft). Договорные — отдельный
@@ -5287,7 +5294,7 @@ function docRow(app, disp, key, secKind){
       </span>`
     : '';
 
-  return `<div class="doc-row${_docStageFilter && dispKey !== _docStageFilter ? ' doc-dim' : ''}" id="docrow-${_safeDocId(key)}">
+  return `<div class="doc-row" id="docrow-${_safeDocId(key)}">
     <div class="doc-main">
       <span class="doc-name${disp.st === 'waived' ? ' waived' : ''}">${disp.t}</span>
       <span class="doc-req ${disp.req ? 'req' : 'opt'}">${disp.req ? 'обязат.' : 'опц.'}</span>
@@ -5323,6 +5330,7 @@ function renderDocSection(app, s, bt){
         }).join('');
         // сводим счётчики предмета в итог секции
         reqIn += iReqIn; reqDone += iReqDone; reqAcc += iAcc; hasBlock += iBlock; optCnt += iOpt; secMatch += iMatch;
+        if (_docStageFilter && iMatch === 0) return '';                // фильтр стадии — прячем предмет без совпадений
         // ✓ = «Укомплектовано» (все обязат. приняты), не просто собрано
         const iDone  = iReqIn > 0 && iAcc === iReqIn;
         // по умолчанию раскрыт только первый предмет, остальные свёрнуты (как секции-аккордеоны); клик перекрывает
@@ -5352,9 +5360,9 @@ function renderDocSection(app, s, bt){
   const chip   = _complChip({ reqIn, reqDone, reqAcc, blockers:hasBlock, locked, atCom });
   const cntTxt = locked ? 'после одобрения' : reqIn === 0 ? `${optCnt} опц.` : `${reqDone}/${reqIn}${reqAcc === reqIn && reqIn > 0 ? ' ✓' : ''}`;
 
-  const secOpen = _docStageFilter ? (secMatch > 0) : _docOpen[s.key];
-  const secDim  = _docStageFilter && secMatch === 0 ? ' doc-dim' : '';
-  return `<div class="doc-acc${secOpen ? ' open' : ''}${secDim}">
+  if (_docStageFilter && secMatch === 0) return '';                 // фильтр стадии — прячем секцию без совпадений (HIDE)
+  const secOpen = _docStageFilter ? true : _docOpen[s.key];         // при фильтре совпавшая секция всегда раскрыта
+  return `<div class="doc-acc${secOpen ? ' open' : ''}">
     <div class="doc-acc-head" onclick="docToggle('${s.key}')">
       ${chevSvg(14)}<span class="doc-acc-title">${s.title}</span>
       ${s.note ? `<span class="acc-note">— ${s.note}</span>` : ''}
@@ -5406,7 +5414,7 @@ function _memberDocsPanels(app, m, i){
   const atCom = _atCommission(app);
   const head = `<div class="note-banner"><span>Член группы: <b>${_esc(m.fio)}</b> · ПИН ${m.pin} · транш ${_fmt(_num(m.sum))} · освоение ${m.date}. Обязательных документов собрано: <b>${s.reqClosed} из ${s.reqTot}</b>.</span></div>`;
   const accs = _memberSections(m, app).map(sec => {
-    let reqIn = 0, reqDone = 0, reqAcc = 0, hasBlock = 0, optCnt = 0;
+    let reqIn = 0, reqDone = 0, reqAcc = 0, hasBlock = 0, optCnt = 0, secMatch = 0;
     const rows = sec.docs.map(tpl => {
       const state = _memberDocState(app, m, tpl, i);
       if (tpl.req){
@@ -5415,13 +5423,16 @@ function _memberDocsPanels(app, m, i){
         if (state.st === 'accepted' || state.st === 'confirmed') reqAcc++;
         if (state.st === 'rejected' || state.st === 'expired') hasBlock++;
       } else optCnt++;
+      if (_docStageFilter && _dispSt(app, state.st) === _docStageFilter) secMatch++;
       const disp = { t:tpl.t, req:tpl.req, st:state.st, reason:state.reason, valid:state.valid,
                      waiveReason:state.waiveReason, via:state.via };
       return docRow(app, disp, _memberDocKey(m, tpl.id), null);
     }).join('');
+    if (_docStageFilter && secMatch === 0) return '';                // фильтр стадии — прячем секцию члена без совпадений
     const chip   = _complChip({ reqIn, reqDone, reqAcc, blockers:hasBlock, locked:false, atCom });
     const cntTxt = reqIn === 0 ? `${optCnt} опц.` : `${reqDone}/${reqIn}${reqAcc === reqIn ? ' ✓' : ''}`;
-    return `<div class="doc-acc${_docMemOpen[sec.key] ? ' open' : ''}">
+    const secOpen = _docStageFilter ? true : _docMemOpen[sec.key];   // при фильтре совпавшая секция всегда раскрыта
+    return `<div class="doc-acc${secOpen ? ' open' : ''}">
       <div class="doc-acc-head" onclick="docMemToggle('${sec.key}')">
         ${chevSvg(14)}<span class="doc-acc-title">${sec.title}</span>
         <span class="spacer"></span>
