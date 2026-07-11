@@ -4881,7 +4881,8 @@ function _docsOf(app){
   if (!app._docs){
     app._docs = JSON.parse(JSON.stringify(DOC_SECTIONS));
     _applyProgramPack(app);                                // программа → подмножество каталога
-    if (app._seedConfirmed)     _applyDocSeed(app, 'confirmed');
+    if (app._created)           _clearDocs(app);           // созданная заявка → чистый комплект (без демо-статусов каталога)
+    else if (app._seedConfirmed)     _applyDocSeed(app, 'confirmed');
     else if (app._seedAccepted) _applyDocSeed(app, 'accepted');
   }
   return app._docs;
@@ -4906,6 +4907,12 @@ function _applyProgramPack(app){
    договорные (stage:'contract') не трогаем — они этап после одобрения.
    'confirmed' — подтверждён ГФ (узел 3+); 'accepted' — принят спецом, но ГФ ещё не
    подтвердил (узел 2). */
+/* Чистый комплект для созданной заявки: все доки → required, демо-мета (reason/valid)
+   сброшена. Договорные (contract) и так required. Члены группы обнуляются в _memberDocState
+   по флагу app._created. */
+function _clearDocs(app){
+  app._docs.forEach(sec => sec.docs.forEach(d => { d.st = 'required'; delete d.reason; delete d.valid; }));
+}
 function _applyDocSeed(app, st){
   const bt = _docBType(app);
   app._docs.forEach(sec => {
@@ -4975,7 +4982,8 @@ function _memberDocState(app, m, tpl, i){
   const store = _memberDocsOf(app);
   const key = _memberDocKey(m, tpl.id);
   if (!store[key]){
-    const seed = i < MEMBER_DEMO_SEED.length ? (MEMBER_DEMO_SEED[i] || tpl.st || 'required') : 'required';
+    const seed = app._created ? 'required'
+      : (i < MEMBER_DEMO_SEED.length ? (MEMBER_DEMO_SEED[i] || tpl.st || 'required') : 'required');
     const state = { st: seed };
     if (seed === tpl.st){ if (tpl.reason) state.reason = tpl.reason; if (tpl.valid) state.valid = tpl.valid; }
     store[key] = state;
@@ -8027,6 +8035,7 @@ function submitCreate(){
     term: String(cdraft.requestedTerm || ''),
     phone: document.getElementById('cf-phone').value || '',
     info: document.getElementById('cf-info').value || '',
+    _created: true,   // заявка создана пользователем → комплект документов пустой (не демо-статусы каталога)
   });
 
   renderGrid();
