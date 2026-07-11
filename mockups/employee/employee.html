@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Сотрудники — АСУБК (мокап TO-BE)</title>
+<!--
+  Модуль управления информацией о сотрудниках (АСУБК Credit Module) — в одном файле.
+  Мокап TO-BE по спецификации ASUBK-sotrudniki-logika.md (секция 14 мастер-дока).
+  По решению заказчика мокап изначально «не разрабатывается»; этот файл — визуализация
+  спеки для дев-команды по прямому запросу.
+
+  Токены дизайн-системы взяты из mockups/borrower/borrower.html (Jmix on Vaadin / Lumo,
+  gov-blue). Структура — тот же двухвидовый SPA: список + карточка.
+
+  Что показано (фокус «карточка целиком»):
+    • Список сотрудников — разные состояния 3 осей (§4 спеки).
+    • Карточка: шапка с 3 независимыми осями (кадровый статус · доступность · УЗ),
+      11 вкладок. Наполнены ключевые: 2 Назначения (периоды+приказ), 3 Отсутствия
+      и замещения, 4 УЗ и кураторство (проекция-гейт), 10 Документы, 11 История.
+      Вкладки класса B/C — заглушки ПОД ГРИФОМ (данные не раскрыты; §3 наследование грифа).
+    • Два жёстких гейта как модалки (упрощённо): Перевод (решение по кураторству — §6.2/§9.2)
+      и Увольнение (нулевые обязательства — §9.4).
+  Иллюстрируемые дефекты/сигналы: «тихая дыра кураторства при переводе», флаг
+  «роли не пересмотрены», флаг «исполнитель отсутствует, замещения нет».
+-->
+<style>
+  :root{
+    --primary:#006af5;
+    --primary-text:#005fdb;
+    --primary-hover:#0059d1;
+    --green-btn:#2e8b3d;
+    --green-btn-hover:#277633;
+    --body-text:#1b2a3d;
+    --secondary-text:rgba(38,55,78,0.69);
+    --success:#158a4e;
+    --error:#e02020;
+    --green-card-bg:#eaf7f0;
+    --green-card-border:#cdeadb;
+    --border:#dbe0e6;
+    --border-strong:#c7ced6;
+    --field-bg:#f6f8fa;
+    --filter-bg:#eef1f4;
+    --field-border:#c9d0d8;
+    --panel-border:#e3e7ec;
+    --grid-hover:#f3f7fd;
+    --radius:4px;
+    --font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:var(--font);color:var(--body-text);background:#fff;font-size:16px;line-height:1.4;}
+  .app{display:flex;min-height:100vh;}
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{width:278px;flex:0 0 278px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;}
+  .sidebar .brand{font-weight:700;font-size:20px;padding:18px 22px;}
+  .nav{flex:1;overflow-y:auto;padding:0 8px;}
+  .nav-group{font-weight:600;padding:12px 14px;display:flex;align-items:center;gap:8px;user-select:none;font-size:15px;}
+  .nav-group .caret{color:var(--secondary-text);font-size:12px;width:12px;display:inline-block;}
+  .nav-group.open{color:var(--primary-text);}
+  .nav-item{padding:8px 14px 8px 20px;font-size:15px;border-radius:var(--radius);cursor:default;}
+  .nav-item:hover{background:var(--filter-bg);}
+  .nav-item.active{background:#e9f1fe;color:var(--primary-text);font-weight:600;}
+  .sidebar .footer{border-top:1px solid var(--border);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;}
+  .logout{width:38px;height:38px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--filter-bg);
+    display:flex;align-items:center;justify-content:center;color:var(--primary-text);cursor:pointer;}
+
+  /* ---------- MAIN ---------- */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .topbar{display:flex;align-items:center;gap:16px;padding:16px 26px;border-bottom:1px solid var(--border);}
+  .burger{font-size:22px;color:var(--secondary-text);cursor:pointer;line-height:1;}
+  .topbar .title{font-weight:700;font-size:20px;}
+  .topbar .role-switch{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--secondary-text);font-size:14px;}
+  .topbar .role-switch select{height:32px;border:1px solid var(--field-border);border-radius:var(--radius);
+    background:var(--field-bg);font-family:var(--font);font-size:14px;color:var(--body-text);padding:0 8px;}
+  .view{flex:1;display:flex;flex-direction:column;}
+  .content{padding:16px 26px 26px;flex:1;}
+
+  .btn{font-family:var(--font);font-size:16px;font-weight:600;border-radius:var(--radius);padding:9px 18px;
+    border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;}
+  .btn[disabled]{opacity:.55;cursor:not-allowed;}
+  .btn-secondary{background:var(--filter-bg);color:var(--secondary-text);border-color:var(--field-border);}
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-primary:hover{background:var(--primary-hover);}
+  .btn-cancel{background:#fff;color:var(--primary-text);border-color:var(--border-strong);}
+  .btn-green{background:var(--green-btn);color:#fff;border-radius:var(--radius) 0 0 var(--radius);}
+  .btn-green:hover{background:var(--green-btn-hover);}
+  .btn-green-split{background:var(--green-btn);color:#fff;border-left:1px solid rgba(255,255,255,.35);
+    border-radius:0 var(--radius) var(--radius) 0;padding:9px 10px;}
+  .btn-icon{background:var(--filter-bg);color:var(--primary-text);border-color:var(--field-border);padding:9px 11px;}
+  .btn-danger-solid{background:#fff;color:#ca150c;border-color:#e6b3ae;}
+  .btn-danger-solid:hover{background:#fdeaea;}
+
+  /* ---------- LIST ---------- */
+  .filter-head{display:flex;align-items:center;gap:8px;color:var(--primary-text);font-size:16px;padding:6px 2px 12px;cursor:default;}
+  .filter-card{border:1px solid var(--panel-border);border-radius:3px;padding:16px 18px;margin-bottom:16px;}
+  .filter-row{display:flex;align-items:center;gap:14px;}
+  .filter-row .fl{width:120px;color:var(--secondary-text);font-size:15px;flex:0 0 120px;}
+  .filter-field{flex:1;position:relative;background:rgba(26,57,96,0.08);border:0;
+    border-radius:var(--radius);height:36px;display:flex;align-items:center;padding:0 10px;cursor:pointer;}
+  .filter-field .val{flex:1;color:var(--body-text);font-size:16px;}
+  .filter-field .val.ph{color:transparent;}
+  .filter-field .chev{color:var(--secondary-text);font-size:16px;margin-left:8px;}
+  .fdrop{position:absolute;top:40px;left:0;right:0;z-index:20;background:#fff;border:1px solid var(--border);
+    border-radius:var(--radius);box-shadow:0 4px 16px rgba(24,39,57,0.14);padding:4px 0;display:none;}
+  .fdrop.open{display:block;}
+  .fdrop .opt{padding:8px 12px;font-size:16px;cursor:pointer;}
+  .fdrop .opt:hover{background:var(--grid-hover);}
+  .fdrop .opt.empty{color:var(--secondary-text);min-height:20px;}
+
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .add-cond{color:var(--secondary-text);font-size:16px;margin-left:6px;cursor:default;}
+  .toolbar2{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .rowcount{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--body-text);font-size:16px;}
+  .pager{display:flex;gap:10px;color:var(--secondary-text);}
+  .toolbar2 #btnEdit,.toolbar2 #btnDel{background:rgba(25,59,103,0.05);border-color:transparent;
+    height:36px;padding:0 14px;color:rgba(28,52,84,0.26);}
+  .toolbar2 #btnEdit:not([disabled]){color:#005fdb;}
+  .toolbar2 #btnDel:not([disabled]){color:#ca150c;}
+
+  #view-list .grid{border:1px solid var(--border);border-radius:3px;overflow:hidden;}
+  #view-list table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  #view-list thead th{text-align:left;font-weight:700;color:var(--body-text);font-size:15px;padding:10px 16px;
+    border-bottom:1px solid var(--border);white-space:nowrap;}
+  #view-list thead th .sort{color:var(--secondary-text);font-size:13px;margin-left:6px;}
+  #view-list tbody td{padding:9px 16px;border-bottom:1px solid #eef1f4;font-size:15px;color:var(--body-text);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #view-list tbody tr{cursor:pointer;}
+  #view-list tbody tr:hover{background:var(--grid-hover);}
+  #view-list tbody tr:last-child td{border-bottom:0;}
+  col.c-tab{width:9%;} col.c-fio{width:24%;} col.c-dept{width:26%;}
+  col.c-kstat{width:12%;} col.c-avail{width:16%;} col.c-uz{width:13%;}
+
+  /* ---------- BADGES (3 оси) ---------- */
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;
+    padding:2px 9px;border-radius:999px;white-space:nowrap;line-height:1.6;}
+  .b-ok{color:var(--success);background:var(--green-card-bg);}
+  .b-muted{color:var(--secondary-text);background:var(--filter-bg);}
+  .b-info{color:var(--primary-text);background:#e9f1fe;}
+  .b-warn{color:#9a6a00;background:#fdf3dd;}
+  .b-err{color:var(--error);background:#fdeaea;}
+  .b-dot::before{content:"●";font-size:9px;}
+
+  /* ---------- CARD HEADER ---------- */
+  .header-card{border:1px solid var(--panel-border);border-radius:3px;padding:18px 22px;
+    display:flex;gap:26px;margin-bottom:16px;}
+  .photo{flex:0 0 96px;width:96px;height:120px;border:1px solid var(--border);border-radius:var(--radius);
+    background:var(--field-bg);display:flex;align-items:center;justify-content:center;color:var(--secondary-text);font-size:34px;}
+  .header-mid{flex:1;min-width:0;}
+  .emp-name{font-size:22px;font-weight:700;margin:0 0 2px;}
+  .emp-sub{color:var(--secondary-text);font-size:15px;margin-bottom:12px;}
+  .emp-sub .calc{color:var(--primary-text);}
+  .kv-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px;align-items:center;max-width:520px;}
+  .kv-grid .k{color:var(--secondary-text);}
+  .calc-tag{font-size:11px;font-weight:600;color:var(--primary-text);background:#e9f1fe;border-radius:3px;
+    padding:1px 6px;margin-left:6px;vertical-align:middle;}
+  /* блок 3 осей */
+  .axes{flex:0 0 300px;display:flex;flex-direction:column;gap:10px;border-left:1px solid var(--border);padding-left:22px;}
+  .axis .al{font-size:12px;color:var(--secondary-text);text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px;}
+  .axis .av{font-size:15px;}
+  .axis .an{font-size:12px;color:var(--secondary-text);margin-top:2px;}
+
+  .card-actions{display:flex;gap:10px;margin:0 0 16px;flex-wrap:wrap;}
+
+  /* ---------- TABS ---------- */
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px;flex-wrap:wrap;}
+  .tab{padding:9px 12px 11px;font-size:15px;font-weight:500;color:var(--secondary-text);cursor:pointer;
+    border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px;}
+  .tab:hover{color:var(--primary-text);}
+  .tab.active{color:var(--primary-text);border-bottom-color:var(--primary-text);}
+  .tab .lock{font-size:12px;}
+  .tab .cls{font-size:10px;font-weight:700;border-radius:3px;padding:0 4px;}
+  .cls-B{color:#9a6a00;background:#fdf3dd;}
+  .cls-C{color:var(--error);background:#fdeaea;}
+  .tabpanel{display:none;}
+  .tabpanel.active{display:block;}
+
+  .section-title{font-size:20px;font-weight:700;margin:2px 0 4px;}
+  .section-rule{border:0;border-top:1px solid var(--border);margin:10px 0 18px;}
+  .panel-note{color:var(--secondary-text);font-size:14px;margin:0 0 16px;}
+  .panel-note b{color:var(--body-text);font-weight:600;}
+
+  /* таблицы вкладок */
+  .dtable{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:6px;}
+  .dtable thead th{text-align:left;font-weight:700;color:var(--body-text);font-size:14px;padding:10px 14px;
+    border-bottom:1px solid var(--border);white-space:nowrap;}
+  .dtable tbody td{padding:10px 14px;border-bottom:1px solid #eef1f4;font-size:14px;color:var(--body-text);
+    vertical-align:top;}
+  .dtable tbody tr:last-child td{border-bottom:0;}
+  .dtable .closed td{background:#fbfcfd;color:var(--secondary-text);}
+  .dtable .muted{color:var(--secondary-text);font-size:13px;}
+  .grid-wrap{border:1px solid var(--border);border-radius:3px;overflow:hidden;}
+  .tab-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:2px;flex-wrap:wrap;}
+  .tab-toolbar .spacer{margin-left:auto;}
+  .lnk{color:var(--primary-text);cursor:pointer;font-size:13px;}
+  .lnk:hover{text-decoration:underline;}
+
+  /* info / warn banners */
+  .banner{border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;font-size:14px;display:flex;gap:10px;align-items:flex-start;}
+  .banner .ic{flex:0 0 20px;font-size:16px;line-height:1.3;}
+  .banner.warn{background:#fdf3dd;border:1px solid #f0dca8;color:#7a5600;}
+  .banner.err{background:#fdeaea;border:1px solid #f2c4c0;color:#9a1b14;}
+  .banner.info{background:#e9f1fe;border:1px solid #c7ddfb;color:#0a4aa8;}
+  .banner b{font-weight:700;}
+  .banner code{background:rgba(0,0,0,.05);border-radius:3px;padding:0 4px;}
+
+  /* проекция вкладки 4 */
+  .proj-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:1000px){.proj-grid{grid-template-columns:1fr;}}
+  .proj-card{border:1px solid var(--panel-border);border-radius:var(--radius);padding:14px 16px;}
+  .proj-card h4{margin:0 0 10px;font-size:15px;}
+  .proj-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #f0f2f5;font-size:14px;}
+  .proj-row:last-child{border-bottom:0;}
+  .proj-row .pk{color:var(--secondary-text);}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;}
+
+  /* гриф-заглушка B/C */
+  .locked{border:1px dashed var(--border-strong);border-radius:6px;padding:26px 24px;background:repeating-linear-gradient(45deg,#fafbfc,#fafbfc 12px,#f4f6f8 12px,#f4f6f8 24px);}
+  .locked .lk-head{display:flex;align-items:center;gap:12px;margin-bottom:4px;}
+  .locked .lk-ic{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex:0 0 40px;}
+  .locked.cB .lk-ic{background:#fdf3dd;color:#9a6a00;}
+  .locked.cC .lk-ic{background:#fdeaea;color:var(--error);}
+  .locked .lk-title{font-size:17px;font-weight:700;}
+  .locked .lk-sub{color:var(--secondary-text);font-size:14px;}
+  .locked .lk-fields{display:grid;grid-template-columns:180px 1fr;gap:10px 16px;margin-top:14px;max-width:560px;}
+  .locked .lk-fields .k{color:var(--secondary-text);font-size:14px;}
+  .locked .lk-fields .v{height:16px;border-radius:3px;background:#e3e7ec;}
+
+  /* документы (аккордеон) */
+  .doc-acc{border:1px solid var(--panel-border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;}
+  .doc-acc-head{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;background:var(--filter-bg);user-select:none;}
+  .doc-acc-head .chev{color:var(--secondary-text);transition:transform .12s ease;display:inline-block;width:12px;}
+  .doc-acc.open .doc-acc-head .chev{transform:rotate(90deg);}
+  .doc-acc-title{font-weight:700;font-size:15px;}
+  .doc-acc-count{margin-left:auto;font-size:13px;font-weight:600;color:var(--secondary-text);
+    background:#fff;border:1px solid var(--border);border-radius:999px;padding:2px 10px;}
+  .doc-acc-body{display:none;}
+  .doc-acc.open .doc-acc-body{display:block;}
+  .doc-row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid #eef1f4;flex-wrap:wrap;}
+  .doc-row .dname{flex:1;min-width:200px;font-size:14px;}
+  .doc-row .dmeta{flex-basis:100%;font-size:13px;color:var(--secondary-text);}
+
+  /* таймлайн истории */
+  .timeline{position:relative;padding-left:26px;margin-top:8px;}
+  .timeline::before{content:"";position:absolute;left:8px;top:4px;bottom:4px;width:2px;background:var(--border);}
+  .tl-item{position:relative;padding:0 0 18px;}
+  .tl-item:last-child{padding-bottom:0;}
+  .tl-dot{position:absolute;left:-22px;top:3px;width:11px;height:11px;border-radius:50%;
+    background:var(--primary);border:2px solid #fff;box-shadow:0 0 0 1px var(--border);}
+  .tl-dot.ok{background:var(--success);} .tl-dot.muted{background:var(--secondary-text);} .tl-dot.warn{background:#d99500;}
+  .tl-when{font-size:13px;color:var(--secondary-text);margin-bottom:2px;}
+  .tl-what{font-size:14px;}
+  .tl-what b{font-weight:600;}
+
+  .footer-bar{display:flex;gap:12px;padding:18px 26px 26px;border-top:1px solid var(--border);}
+
+  /* ---------- MODAL (гейты) ---------- */
+  .modal-overlay{position:fixed;inset:0;background:rgba(24,39,57,0.34);z-index:100;
+    display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:#fff;border-radius:6px;box-shadow:0 12px 40px rgba(24,39,57,0.30);
+    width:100%;max-width:640px;display:flex;flex-direction:column;max-height:90vh;overflow:hidden;}
+  .modal-head{display:flex;align-items:flex-start;justify-content:space-between;padding:18px 22px 12px;}
+  .modal-title{font-weight:700;font-size:19px;}
+  .modal-title .st{display:block;font-weight:400;font-size:13px;color:var(--secondary-text);margin-top:3px;}
+  .modal-x{width:28px;height:28px;border:0;background:transparent;color:var(--secondary-text);font-size:18px;cursor:pointer;border-radius:var(--radius);flex:0 0 28px;}
+  .modal-x:hover{background:var(--filter-bg);}
+  .modal-body{padding:0 22px 14px;overflow-y:auto;}
+  .modal-foot{display:flex;gap:12px;padding:14px 22px 18px;border-top:1px solid var(--border);align-items:center;}
+  .modal-foot .spacer{margin-left:auto;}
+  .op-box{background:var(--field-bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;font-size:14px;margin:4px 0 16px;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--body-text);}
+  .gate-q{font-size:15px;font-weight:600;margin:14px 0 8px;}
+  .radio-row{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;cursor:pointer;}
+  .radio-row.sel{border-color:var(--primary);background:#f5f9ff;}
+  .radio-row input{margin-top:3px;}
+  .radio-row .rt{font-size:14px;}
+  .radio-row .rt b{font-weight:700;}
+  .radio-row .rt .rd{color:var(--secondary-text);font-size:13px;display:block;margin-top:2px;}
+  .oblig{list-style:none;padding:0;margin:6px 0 0;}
+  .oblig li{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f2f5;font-size:14px;}
+  .oblig li:last-child{border-bottom:0;}
+  .oblig .ost{margin-left:auto;display:flex;align-items:center;gap:10px;}
+  .oblig .cnt{font-weight:700;}
+  .field-inline{display:flex;flex-direction:column;gap:4px;margin-bottom:14px;}
+  .field-inline label{font-size:13px;color:var(--secondary-text);}
+  .field-inline input,.field-inline select{height:36px;border:1px solid var(--field-border);border-radius:var(--radius);
+    background:var(--field-bg);font-family:var(--font);font-size:15px;color:var(--body-text);padding:0 10px;}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1b2a3d;color:#fff;
+    padding:12px 20px;border-radius:6px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:200;display:none;max-width:520px;}
+  .toast.show{display:block;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar">
+    <div class="brand">АСУБК</div>
+    <nav class="nav">
+      <div class="nav-group open"><span class="caret">⌄</span>Администрирование</div>
+      <div class="nav-item">Пользователи (УЗ)</div>
+      <div class="nav-item active">Сотрудники</div>
+      <div class="nav-item">Подразделения</div>
+      <div class="nav-item">Роли и политики</div>
+      <div class="nav-group"><span class="caret">›</span>Система кредитования</div>
+      <div class="nav-group"><span class="caret">›</span>Кураторство</div>
+      <div class="nav-group"><span class="caret">›</span>Задания</div>
+      <div class="nav-group"><span class="caret">›</span>Взыскание задолженности</div>
+      <div class="nav-group"><span class="caret">›</span>Справочники</div>
+      <div class="nav-group"><span class="caret">›</span>Отчёты</div>
+    </nav>
+    <div class="footer">
+      <span>[admin]</span>
+      <div class="logout" title="Выход">⇥</div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div class="main">
+    <div class="topbar">
+      <span class="burger">☰</span>
+      <span class="title" id="pageTitle">Сотрудники</span>
+      <span class="role-switch">Роль:
+        <select id="roleSel">
+          <option value="hr">Кадры (HR)</option>
+          <option value="admin">Администратор системы</option>
+          <option value="self">Сам сотрудник</option>
+          <option value="cred">Кредитный специалист</option>
+        </select>
+      </span>
+    </div>
+
+    <!-- ==================== ВИД: СПИСОК ==================== -->
+    <div class="view" id="view-list">
+      <div class="content">
+
+        <div class="filter-head"><span class="caret">⌄</span>Фильтр : Фильтры *</div>
+        <div class="filter-card">
+          <div class="filter-row">
+            <div class="fl">Кадровый статус =</div>
+            <div class="filter-field" id="fStatus">
+              <span class="val ph" id="fStatusVal" data-empty="1"></span>
+              <span class="chev">⌄</span>
+              <div class="fdrop" id="fStatusDrop">
+                <div class="opt empty" data-v=""></div>
+                <div class="opt" data-v="Работает">Работает</div>
+                <div class="opt" data-v="Оформляется">Оформляется</div>
+                <div class="opt" data-v="Уволен">Уволен</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div style="display:flex;">
+            <button class="btn btn-green" id="btnRefresh">Обновить</button>
+            <button class="btn btn-green-split">⌄</button>
+          </div>
+          <button class="btn btn-icon" title="Настройки">⚙</button>
+          <span class="add-cond">Добавить условие поиска</span>
+        </div>
+
+        <div class="toolbar2">
+          <button class="btn btn-secondary" id="btnCreate">＋ Создать</button>
+          <button class="btn btn-secondary" id="btnEdit" disabled>✎ Открыть</button>
+          <button class="btn btn-secondary" id="btnDel" disabled>🗑 Удалить</button>
+          <div class="rowcount">
+            <div class="pager"><span>«</span><span>‹</span></div>
+            <span id="rowCount">12 строк</span>
+            <div class="pager"><span>›</span><span>»</span></div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <table>
+            <colgroup>
+              <col class="c-tab"><col class="c-fio"><col class="c-dept"><col class="c-kstat"><col class="c-avail"><col class="c-uz">
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Табельный № <span class="sort">⇅</span></th>
+                <th>ФИО <span class="sort">⇅</span></th>
+                <th>Подразделение · Должность <span class="sort" title="вычисляется из действующего периода">⚙</span></th>
+                <th>Кадровый статус <span class="sort">⇅</span></th>
+                <th>Доступность <span class="sort" title="вычисляется из отсутствий">⚙</span></th>
+                <th>УЗ <span class="sort">⇅</span></th>
+              </tr>
+            </thead>
+            <tbody id="rows">
+              <tr data-open="1">
+                <td>0142</td><td>СЛАМКУЛОВ АЗАМАТ ОМУРГАЗИЕВИЧ</td>
+                <td>Управление кредитования · Ведущий специалист</td>
+                <td><span class="badge b-ok b-dot">Работает</span></td>
+                <td><span class="badge b-ok">На месте</span></td>
+                <td><span class="badge b-info">активна</span></td>
+              </tr>
+              <tr>
+                <td>0087</td><td>ИВАНОВ АНТОН СЕРГЕЕВИЧ</td>
+                <td>Управление кредитования · Гл. специалист</td>
+                <td><span class="badge b-ok b-dot">Работает</span></td>
+                <td><span class="badge b-ok">На месте · замещает Сламкулова</span></td>
+                <td><span class="badge b-info">активна</span></td>
+              </tr>
+              <tr>
+                <td>0113</td><td>ПЕТРОВА СВЕТЛАНА ВИКТОРОВНА</td>
+                <td>Отраслевой департамент · Начальник отдела</td>
+                <td><span class="badge b-ok b-dot">Работает</span></td>
+                <td><span class="badge b-warn">В отпуске до 24.07 · замещ.: Иванов</span></td>
+                <td><span class="badge b-info">активна</span></td>
+              </tr>
+              <tr>
+                <td>0125</td><td>МАТРАИМОВ МАКСАТ КУБАНОВИЧ</td>
+                <td>Отраслевой департамент · Гл. специалист</td>
+                <td><span class="badge b-ok b-dot">Работает</span></td>
+                <td><span class="badge b-warn">На больничном · замещения нет</span></td>
+                <td><span class="badge b-info">активна</span></td>
+              </tr>
+              <tr>
+                <td>0160</td><td>ТЫНЧТЫКБЕК КЫЗЫ МАРАЛ</td>
+                <td>Департамент взыскания · Ведущий специалист</td>
+                <td><span class="badge b-ok b-dot">Работает</span></td>
+                <td><span class="badge b-warn">В командировке (Ош) до 15.07</span></td>
+                <td><span class="badge b-info">активна</span></td>
+              </tr>
+              <tr>
+                <td>0161</td><td>БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ</td>
+                <td>Департамент взыскания · Специалист</td>
+                <td><span class="badge b-ok b-dot">Работает</span></td>
+                <td><span class="badge b-ok">На месте</span></td>
+                <td><span class="badge b-info">активна</span></td>
+              </tr>
+              <tr>
+                <td>0178</td><td>СООРОНОВА РЫСКАН АТАЕВНА</td>
+                <td>Юридический отдел · Юрисконсульт</td>
+                <td><span class="badge b-ok b-dot">Работает</span></td>
+                <td><span class="badge b-ok">На месте</span></td>
+                <td><span class="badge b-err">заблокирована</span></td>
+              </tr>
+              <tr>
+                <td>0180</td><td>МЕҢДИБАЕВ АМАНТУР КЫЛЫЧБЕКОВИЧ</td>
+                <td>Бухгалтерия · Бухгалтер</td>
+                <td><span class="badge b-ok b-dot">Работает</span></td>
+                <td><span class="badge b-ok">На месте</span></td>
+                <td><span class="badge b-muted">нет УЗ</span></td>
+              </tr>
+              <tr>
+                <td>0191</td><td>ТЕМИРЛАН УУЛУ ТОБОКЕЛ</td>
+                <td>— · —</td>
+                <td><span class="badge b-warn b-dot">Оформляется</span></td>
+                <td><span class="badge b-muted">—</span></td>
+                <td><span class="badge b-muted">нет УЗ</span></td>
+              </tr>
+              <tr>
+                <td>0033</td><td>ОРОЗБАЕВА ГУЛНАРА ТУРСУНОВНА</td>
+                <td>Управление кредитования · Ведущий специалист</td>
+                <td><span class="badge b-muted b-dot">Уволен</span></td>
+                <td><span class="badge b-muted">вне организации</span></td>
+                <td><span class="badge b-err">заблокирована</span></td>
+              </tr>
+              <tr>
+                <td>0201</td><td>ЖУМАБЕКОВ КАНАТ ЭРКИНОВИЧ</td>
+                <td>Отраслевой департамент · Специалист</td>
+                <td><span class="badge b-ok b-dot">Работает</span></td>
+                <td><span class="badge b-ok">На месте</span></td>
+                <td><span class="badge b-info">активна</span></td>
+              </tr>
+              <tr>
+                <td>0044</td><td>АБДЫКАДЫРОВ РУСЛАН МУРАТОВИЧ</td>
+                <td>Департамент взыскания · Начальник отдела</td>
+                <td><span class="badge b-ok b-dot">Работает</span></td>
+                <td><span class="badge b-ok">На месте</span></td>
+                <td><span class="badge b-info">активна</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ==================== ВИД: КАРТОЧКА ==================== -->
+    <div class="view" id="view-detail" style="display:none;">
+      <div class="content">
+
+        <!-- ---------- HEADER (класс A, вне вкладок) ---------- -->
+        <div class="header-card">
+          <div class="photo">👤</div>
+          <div class="header-mid">
+            <p class="emp-name">Сламкулов Азамат Омургазиевич</p>
+            <p class="emp-sub">Табельный № <b>0142</b> · <span class="calc">Управление кредитования · Ведущий специалист</span><span class="calc-tag">вычисляется</span></p>
+            <div class="kv-grid">
+              <div class="k">Служебный телефон</div><div>+996 (312) 66-00-42, вн. 214</div>
+              <div class="k">Служебный e-mail</div><div>a.slamkulov@fkf.kg</div>
+              <div class="k">Учётная запись</div><div>a.slamkulov <span class="badge b-info">активна</span></div>
+            </div>
+          </div>
+          <!-- 3 независимые оси состояния (§4) -->
+          <div class="axes">
+            <div class="axis">
+              <div class="al">Кадровый статус</div>
+              <div class="av"><span class="badge b-ok b-dot">Работает</span></div>
+              <div class="an">правовая связь · меняет HR приказом</div>
+            </div>
+            <div class="axis">
+              <div class="al">Доступность</div>
+              <div class="av"><span class="badge b-ok">На месте</span></div>
+              <div class="an">вычисляется из отсутствий</div>
+            </div>
+            <div class="axis">
+              <div class="al">Состояние УЗ</div>
+              <div class="av"><span class="badge b-info">активна</span></div>
+              <div class="an">доступ к системе · меняет администратор</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <button class="btn btn-primary" id="btnTransfer">⇄ Перевод</button>
+          <button class="btn btn-secondary" id="btnAbsence">🗓 Оформить отсутствие</button>
+          <button class="btn btn-danger-solid" id="btnDismiss">⛔ Уволить</button>
+        </div>
+
+        <!-- ---------- TABS ---------- -->
+        <div class="tabs" id="tabs">
+          <div class="tab active" data-tab="obshee">Общая</div>
+          <div class="tab" data-tab="naznach">Назначения</div>
+          <div class="tab" data-tab="otsut">Отсутствия и замещения</div>
+          <div class="tab" data-tab="uz">УЗ и кураторство</div>
+          <div class="tab" data-tab="pasport"><span class="lock">🔒</span>Паспорт <span class="cls cls-B">B</span></div>
+          <div class="tab" data-tab="obraz"><span class="lock">🔒</span>Образование <span class="cls cls-B">B</span></div>
+          <div class="tab" data-tab="semya"><span class="lock">🔒</span>Семья <span class="cls cls-B">B</span></div>
+          <div class="tab" data-tab="stazh"><span class="lock">🔒</span>Стаж <span class="cls cls-B">B</span></div>
+          <div class="tab" data-tab="nagrady"><span class="lock">🔒</span>Награды/взыскания <span class="cls cls-C">C</span></div>
+          <div class="tab" data-tab="docs">Документы</div>
+          <div class="tab" data-tab="history">История</div>
+        </div>
+
+        <!-- ===== Вкладка 1: Общая (A) ===== -->
+        <div class="tabpanel active" data-panel="obshee">
+          <div class="section-title">Общая информация</div>
+          <hr class="section-rule">
+          <p class="panel-note">Класс <b>A</b> (операционный профиль) — читают все пользователи системы.
+            Резюме/автобиографию правит <b>сам сотрудник</b>; остальное — HR.</p>
+          <div class="kv-grid" style="max-width:620px;margin-bottom:18px;">
+            <div class="k">Категория должности</div><div>Основной персонал · кредитование</div>
+            <div class="k">Внутренний стаж</div><div>с 01.01.2022 (4 г. 6 мес.) <span class="calc-tag">вычисляется из вкл. «Назначения»</span></div>
+            <div class="k">Дата приёма</div><div>12.03.2018</div>
+          </div>
+          <div class="section-title" style="font-size:16px;">Резюме / автобиография</div>
+          <hr class="section-rule">
+          <p style="max-width:720px;color:var(--body-text);font-size:15px;">Специалист по сопровождению кредитов агропромышленного комплекса.
+            Ведёт портфель заёмщиков южного региона. Опыт работы с реструктуризацией и досудебным взысканием.</p>
+          <p class="panel-note">📝 Это единственное поле карточки, доступное на запись самому сотруднику.</p>
+        </div>
+
+        <!-- ===== Вкладка 2: Назначения (A, периоды+приказ) ===== -->
+        <div class="tabpanel" data-panel="naznach">
+          <div class="section-title">Назначения</div>
+          <hr class="section-rule">
+          <p class="panel-note">Запись = <b>период занятия позиции</b> (не событие). Приём и перевод — операции над периодами.
+            «Текущее подразделение/должность» в шапке <b>вычисляется</b> из действующего периода.</p>
+          <div class="tab-toolbar">
+            <button class="btn btn-primary" onclick="openTransfer()">⇄ Перевод (атомарно)</button>
+            <button class="btn btn-secondary">＋ Совмещение / врио</button>
+            <span class="spacer"></span>
+            <span class="muted">Σ действующих ставок: <b>1.5</b> / порог 1.5</span>
+          </div>
+          <div class="grid-wrap">
+            <table class="dtable">
+              <colgroup><col style="width:10%"><col style="width:10%"><col style="width:22%"><col style="width:18%"><col style="width:10%"><col style="width:8%"><col style="width:22%"></colgroup>
+              <thead><tr>
+                <th>с</th><th>по</th><th>Подразделение</th><th>Должность</th><th>Вид</th><th>Ставка</th><th>Основание</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td>01.01.2022</td><td><span class="badge b-ok">действующий</span></td>
+                  <td>Управление кредитования</td><td>Ведущий специалист</td>
+                  <td><span class="badge b-info">основное</span></td><td>1.0</td>
+                  <td>Приказ о переводе №14-к от 30.12.2021 <span class="lnk">📎 скан</span></td>
+                </tr>
+                <tr>
+                  <td>01.06.2024</td><td><span class="badge b-ok">действующий</span></td>
+                  <td>Отраслевой департамент</td><td>И.о. начальника отдела</td>
+                  <td><span class="badge b-warn">врио</span></td><td>0.5</td>
+                  <td>Приказ №51-к от 31.05.2024 <span class="lnk">📎 скан</span><div class="muted">врио вакантной должности — реальная вторая позиция (§6)</div></td>
+                </tr>
+                <tr class="closed">
+                  <td>12.03.2018</td><td>31.12.2021</td>
+                  <td>Отраслевой департамент</td><td>Главный специалист</td>
+                  <td><span class="badge b-muted">основное</span></td><td>1.0</td>
+                  <td>Приказ о приёме №8-к от 12.03.2018<div class="muted">закрыт · ✎ только «корректировка» с причиной → аудит</div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="banner info" style="margin-top:16px;">
+            <span class="ic">ℹ️</span>
+            <div>Инварианты: периоды <b>основное</b> не пересекаются · открытый период (по=∅) ровно один и только при статусе «Работает» ·
+              совмещение может пересекаться, Σ ставок ≤ 1.5 · разрыв допустим только между увольнением и повторным приёмом.</div>
+          </div>
+        </div>
+
+        <!-- ===== Вкладка 3: Отсутствия и замещения (A) ===== -->
+        <div class="tabpanel" data-panel="otsut">
+          <div class="section-title">Отсутствия и замещения</div>
+          <hr class="section-rule">
+          <p class="panel-note">Операционный контракт наружу: подсистема заданий читает именно эту вкладку.
+            «Состояние» <b>вычисляется</b> (Запланировано/Идёт/Завершено); «Отменено» — вручную.</p>
+          <div class="tab-toolbar">
+            <button class="btn btn-primary">＋ Оформить отсутствие</button>
+          </div>
+          <div class="grid-wrap">
+            <table class="dtable">
+              <colgroup><col style="width:18%"><col style="width:11%"><col style="width:11%"><col style="width:11%"><col style="width:19%"><col style="width:16%"><col style="width:14%"></colgroup>
+              <thead><tr>
+                <th>Вид</th><th>с</th><th>по (план)</th><th>факт</th><th>Основание</th><th>Замещающий</th><th>Состояние</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td>Ежегодный отпуск</td><td>10.08.2026</td><td>23.08.2026</td><td class="muted">—</td>
+                  <td>Приказ №77-о от 01.07.2026 <span class="lnk">📎</span></td>
+                  <td>Иванов А. С.</td>
+                  <td><span class="badge b-muted">Запланировано</span></td>
+                </tr>
+                <tr>
+                  <td>Больничный</td><td>02.06.2026</td><td>06.06.2026</td><td>06.06.2026</td>
+                  <td>Листок нетрудоспособности №БЛ-3391<div class="muted">не приказ · введён задним числом</div></td>
+                  <td class="muted">—</td>
+                  <td><span class="badge b-ok">Завершено</span></td>
+                </tr>
+                <tr class="closed">
+                  <td>Командировка (Бишкек)</td><td>14.04.2026</td><td>18.04.2026</td><td>17.04.2026</td>
+                  <td>Приказ №39-к <span class="lnk">📎</span></td>
+                  <td>Иванов А. С.</td>
+                  <td><span class="badge b-ok">Завершено</span><div class="muted">досрочный выход → делегация снята 17.04</div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="banner info" style="margin-top:16px;">
+            <span class="ic">ℹ️</span>
+            <div>Больничный — ретро-ввод разрешён (листок нетрудоспособности ≠ приказ). Отпуск/командировка вводятся вперёд.
+              Замещающий обязан: статус «Работает» · не отсутствует в пересечении · <b>иметь активную УЗ</b>. Замещение всегда полное;
+              транзитивность запрещена (А замещает Б, Б замещает В → задания В не уезжают к А).</div>
+          </div>
+        </div>
+
+        <!-- ===== Вкладка 4: УЗ и кураторство (A, проекция read-only) ===== -->
+        <div class="tabpanel" data-panel="uz">
+          <div class="section-title">Учётная запись и кураторство <span class="badge b-muted" style="vertical-align:middle;">проекция · read-only</span></div>
+          <hr class="section-rule">
+          <p class="panel-note">Единственный экран, где кадровая карточка встречается с операционной реальностью.
+            Ничего не пишет — служит <b>гейтом перевода и увольнения</b>. Кураторство висит на <b>УЗ</b>, не на сотруднике.</p>
+
+          <div class="banner warn">
+            <span class="ic">⚠️</span>
+            <div><b>Роли не пересмотрены после перевода (01.01.2022).</b> Уведомление отправлено администратору 30.12.2021.
+              Флаг <b>не блокирует</b> работу; правит роли администратор, не HR.</div>
+          </div>
+
+          <div class="proj-grid">
+            <div class="proj-card">
+              <h4>Учётная запись</h4>
+              <div class="proj-row"><span class="pk">Логин</span><span>a.slamkulov</span></div>
+              <div class="proj-row"><span class="pk">Состояние</span><span class="badge b-info">активна</span></div>
+              <div class="proj-row"><span class="pk">Создана</span><span>15.03.2018 · admin</span></div>
+              <div class="proj-row"><span class="pk">Последний вход</span><span>11.07.2026 09:14</span></div>
+            </div>
+            <div class="proj-card">
+              <h4>Роли <span class="muted">(политика различается по подразделениям)</span></h4>
+              <div class="proj-row"><span class="pk">Управление кредитования</span><span class="chips"><span class="badge b-info">Кредитный специалист</span></span></div>
+              <div class="proj-row"><span class="pk">Отраслевой департамент</span><span class="chips"><span class="badge b-info">И.о. начальника отдела</span></span></div>
+            </div>
+            <div class="proj-card">
+              <h4>Зоны кураторства</h4>
+              <div class="proj-row"><span class="pk">Отрасль</span><span>Агропромышленный комплекс</span></div>
+              <div class="proj-row"><span class="pk">Область / район</span><span>Ошская обл. · все районы</span></div>
+              <div class="proj-row"><span class="pk">Вид заёмщика / кредита</span><span>Физ. лица · льготные</span></div>
+            </div>
+            <div class="proj-card">
+              <h4>Закреплённые заёмщики</h4>
+              <div class="proj-row"><span class="pk">Всего на УЗ</span><span><b>14</b> <span class="lnk">открыть список →</span></span></div>
+              <div class="proj-row"><span class="pk">Действующие делегации</span>
+                <span>задания уходят: <b>Иванову А.</b> (10.08–23.08)</span></div>
+              <div class="proj-row"><span class="pk">Конфликт интересов</span>
+                <span><span class="badge b-err">1 заёмщик</span> — УЗ отстранена <span class="lnk">детали</span></span></div>
+            </div>
+          </div>
+
+          <div class="banner info" style="margin-top:16px;">
+            <span class="ic">🔗</span>
+            <div><b>resolveActor(УЗ, дата)</b> читает эту вкладку. Задание <b>назначается</b> на УЗ куратора, при активном замещении
+              <b>маршрутизируется</b> на УЗ замещающего; в аудите хранятся обе. Персональная ответственность остаётся на кураторе
+              (Порядок, п. 96), даже если действие совершил замещающий.</div>
+          </div>
+        </div>
+
+        <!-- ===== Вкладки B: Паспорт / Образование / Семья / Стаж ===== -->
+        <div class="tabpanel" data-panel="pasport">
+          <div class="locked cB">
+            <div class="lk-head">
+              <div class="lk-ic">🔒</div>
+              <div>
+                <div class="lk-title">Паспортные данные — класс B (кадровое дело)</div>
+                <div class="lk-sub">Доступ на чтение: <b>HR + сам сотрудник</b>. Запись: HR. Ваша роль (<span id="roleLabelP">Кадры (HR)</span>) — доступ есть, содержимое скрыто в мокапе.</div>
+              </div>
+            </div>
+            <p class="panel-note" style="margin:8px 0 0;">Гриф — атрибут <b>данных</b>, а не экрана. Документ (скан паспорта) наследует гриф B
+              и не виден через общий список документов у кредитного специалиста.</p>
+            <div class="lk-fields">
+              <div class="k">ИНН (ПИН), 14 цифр</div><div class="v"></div>
+              <div class="k">Дата рождения</div><div class="v"></div>
+              <div class="k">Документ (версионируется)</div><div class="v"></div>
+              <div class="k">Адрес прописки</div><div class="v"></div>
+              <div class="k">Срок действия</div><div class="v"></div>
+            </div>
+          </div>
+        </div>
+        <div class="tabpanel" data-panel="obraz">
+          <div class="locked cB">
+            <div class="lk-head"><div class="lk-ic">🔒</div><div>
+              <div class="lk-title">Образование и сертификаты — класс B</div>
+              <div class="lk-sub">HR + сам сотрудник. Срок действия сертификатов обязателен (оценка/аудит истекают).</div></div></div>
+            <div class="lk-fields">
+              <div class="k">Уровень / ВУЗ</div><div class="v"></div>
+              <div class="k">№ диплома</div><div class="v"></div>
+              <div class="k">Сертификат · срок</div><div class="v"></div>
+            </div>
+          </div>
+        </div>
+        <div class="tabpanel" data-panel="semya">
+          <div class="locked cB">
+            <div class="lk-head"><div class="lk-ic">🔒</div><div>
+              <div class="lk-title">Состав семьи — класс B</div>
+              <div class="lk-sub">HR + сам сотрудник.</div></div></div>
+            <p class="panel-note" style="margin:8px 0 0;"><b>Не связывать с реестром заёмщиков ссылкой.</b> Совпадение ФИО+ДР —
+              сигнал для проверки конфликта интересов, а не автоматическое ограничение.</p>
+            <div class="lk-fields"><div class="k">Степень родства · ФИО · ДР</div><div class="v"></div></div>
+          </div>
+        </div>
+        <div class="tabpanel" data-panel="stazh">
+          <div class="locked cB">
+            <div class="lk-head"><div class="lk-ic">🔒</div><div>
+              <div class="lk-title">Трудовой стаж (внешний) — класс B</div>
+              <div class="lk-sub">Из трудовой книжки; системой не используется.</div></div></div>
+            <p class="panel-note" style="margin:8px 0 0;"><b>Внутренний стаж здесь не дублируется</b> — он вычисляется из вкладки «Назначения»
+              (внешний — кадровый факт, внутренний — операционный, от него зависят права).</p>
+            <div class="lk-fields"><div class="k">с — по · организация · должность</div><div class="v"></div></div>
+          </div>
+        </div>
+        <div class="tabpanel" data-panel="nagrady">
+          <div class="locked cC">
+            <div class="lk-head"><div class="lk-ic">🔒</div><div>
+              <div class="lk-title">Награды, чины, взыскания — класс C (дисциплинарное)</div>
+              <div class="lk-sub">Доступ: <b>HR + руководство</b>. Кредитный специалист не видит.</div></div></div>
+            <p class="panel-note" style="margin:8px 0 0;">У взыскания — <b>дата снятия</b> (погашается по сроку) → индикатор действующее/погашено.
+              Действующее взыскание — read-only факт; автоматических ограничений прав в АСУБК не влечёт.</p>
+            <div class="lk-fields"><div class="k">Вид · наименование · дата · приказ</div><div class="v"></div></div>
+          </div>
+        </div>
+
+        <!-- ===== Вкладка 10: Документы ===== -->
+        <div class="tabpanel" data-panel="docs">
+          <div class="section-title">Документы</div>
+          <hr class="section-rule">
+          <p class="panel-note">Общий каталог сканов (версия · кто · когда). Документ <b>наследует гриф</b> родительской вкладки:
+            скан паспорта не появляется в общем списке у кредитного специалиста.</p>
+          <div class="doc-acc open">
+            <div class="doc-acc-head"><span class="chev">›</span><span class="doc-acc-title">Класс A · операционные</span><span class="doc-acc-count">3</span></div>
+            <div class="doc-acc-body">
+              <div class="doc-row"><span class="dname">Приказ о приёме №8-к.pdf</span><span class="badge b-muted">A</span>
+                <div class="dmeta">v1 · 12.03.2018 · hr.kadyrova</div></div>
+              <div class="doc-row"><span class="dname">Приказ о переводе №14-к.pdf</span><span class="badge b-muted">A</span>
+                <div class="dmeta">v1 · 30.12.2021 · hr.kadyrova</div></div>
+              <div class="doc-row"><span class="dname">Приказ №51-к (врио).pdf</span><span class="badge b-muted">A</span>
+                <div class="dmeta">v1 · 31.05.2024 · hr.kadyrova</div></div>
+            </div>
+          </div>
+          <div class="doc-acc">
+            <div class="doc-acc-head"><span class="chev">›</span><span class="doc-acc-title">Класс B · кадровое дело <span class="cls cls-B" style="font-size:10px;">🔒 гриф B</span></span><span class="doc-acc-count">2</span></div>
+            <div class="doc-acc-body">
+              <div class="doc-row"><span class="dname">Скан паспорта.pdf</span><span class="badge b-warn">B</span>
+                <div class="dmeta">v2 · 04.02.2025 · hr.kadyrova · виден только HR и самому сотруднику</div></div>
+              <div class="doc-row"><span class="dname">Диплом.pdf</span><span class="badge b-warn">B</span>
+                <div class="dmeta">v1 · 15.03.2018 · hr.kadyrova</div></div>
+            </div>
+          </div>
+          <div class="banner warn" style="margin-top:6px;">
+            <span class="ic">🟡</span>
+            <div><b>Открытая развилка:</b> <code>scope</code> документов — канонизировать ли как единый механизм для сотрудника и заёмщика
+              (общий каталог с <code>borrower.html</code>). Решать один раз, для обоих модулей.</div>
+          </div>
+        </div>
+
+        <!-- ===== Вкладка 11: История ===== -->
+        <div class="tabpanel" data-panel="history">
+          <div class="section-title">История <span class="badge b-muted" style="vertical-align:middle;">аудит</span></div>
+          <hr class="section-rule">
+          <p class="panel-note">field-level по вкладкам 2/3/5 (юридически значимое) · статусные вехи по остальному.
+            Просмотр истории B/C сам под грифом B/C.</p>
+          <div class="timeline">
+            <div class="tl-item"><div class="tl-dot warn"></div>
+              <div class="tl-when">01.06.2024 10:20 · hr.kadyrova</div>
+              <div class="tl-what"><b>Назначение (вкл. 2):</b> добавлен период «врио начальника отдела», ставка 0.5 · осн. Приказ №51-к</div></div>
+            <div class="tl-item"><div class="tl-dot ok"></div>
+              <div class="tl-when">30.12.2021 15:40 · hr.kadyrova</div>
+              <div class="tl-what"><b>Перевод (атомарно):</b> закрыт период «Гл. специалист, Отраслевой деп.» (по 31.12.2021) + открыт
+                «Вед. специалист, Управление кредитования» (с 01.01.2022) · осн. Приказ №14-к.
+                Кураторство сохранено осознанно (та же зона ответственности) → запись в аудит.</div></div>
+            <div class="tl-item"><div class="tl-dot muted"></div>
+              <div class="tl-when">30.12.2021 15:40 · система</div>
+              <div class="tl-what">Флаг <b>«роли не пересмотрены»</b> поднят на вкл. 4; уведомление администратору</div></div>
+            <div class="tl-item"><div class="tl-dot"></div>
+              <div class="tl-when">04.02.2025 11:05 · hr.kadyrova</div>
+              <div class="tl-what"><b>Паспорт (вкл. 5, B):</b> новая версия документа (замена паспорта); старый номер сохранён для прежних кредитных документов</div></div>
+            <div class="tl-item"><div class="tl-dot ok"></div>
+              <div class="tl-when">15.03.2018 09:00 · admin</div>
+              <div class="tl-what"><b>Активация:</b> статус Оформляется → Работает · заведена УЗ a.slamkulov</div></div>
+          </div>
+        </div>
+
+      </div>
+      <div class="footer-bar">
+        <button class="btn btn-primary" id="btnOk">OK</button>
+        <button class="btn btn-cancel" id="btnCancel">Отмена</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ==================== ГЕЙТ: ПЕРЕВОД ==================== -->
+<div class="modal-overlay" id="mTransfer">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Перевод — главный гейт модуля
+        <span class="st">Кадровый статус не меняется. Меняется вкладка «Назначения» атомарно.</span></div>
+      <button class="modal-x" data-close>✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-inline"><label>Новое подразделение</label>
+        <select id="trDept">
+          <option>Бухгалтерия</option>
+          <option>Юридический отдел</option>
+          <option>Департамент взыскания</option>
+          <option>Отраслевой департамент</option>
+        </select></div>
+      <div class="field-inline"><label>Дата перевода</label><input type="date" value="2026-08-01"></div>
+      <div class="field-inline"><label>Основание (приказ №)</label><input placeholder="напр. №62-к от 28.07.2026"></div>
+
+      <div class="op-box">закрыть текущий период  (по = дата_перевода − 1)<br>открыть новый период    (с  = дата_перевода)<br><span style="color:var(--secondary-text)">— одна транзакция, один приказ</span></div>
+
+      <div class="banner err">
+        <span class="ic">⚠️</span>
+        <div><b>Тихая дыра в ответственности.</b> Кураторство висит на УЗ и <b>не переезжает и не аннулируется само</b>.
+          После перевода в «Бухгалтерию» сотрудник формально останется куратором <b>14 заёмщиков</b>, фактически будучи вне темы.</div>
+      </div>
+
+      <div class="gate-q">Решение по кураторству — обязательно (без него перевод не проводится):</div>
+      <label class="radio-row" data-gate="tr">
+        <input type="radio" name="curDecision">
+        <span class="rt"><b>(а) Переназначить</b> закреплённых заёмщиков на другую УЗ
+          <span class="rd">14 заёмщиков → выбрать УЗ-получателя (список из вкладки 4)</span></span>
+      </label>
+      <label class="radio-row" data-gate="tr">
+        <input type="radio" name="curDecision">
+        <span class="rt"><b>(б) Сохранить осознанно</b> — зона ответственности та же
+          <span class="rd">явная отметка · причина фиксируется в аудите</span></span>
+      </label>
+
+      <div class="banner info">
+        <span class="ic">ℹ️</span>
+        <div>Роли — <b>не блокирующий</b> флаг: перевод отправит уведомление администратору и поднимет на вкл. 4 флаг
+          «роли не пересмотрены». Правит роли администратор, не HR.</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="trConfirm" disabled>Провести перевод</button>
+      <button class="btn btn-cancel" data-close>Отмена</button>
+      <span class="spacer"></span>
+      <span class="muted" id="trHint" style="color:var(--secondary-text);font-size:13px;">Выберите (а) или (б)</span>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== ГЕЙТ: УВОЛЬНЕНИЕ ==================== -->
+<div class="modal-overlay" id="mDismiss">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Увольнение — самый жёсткий гейт
+        <span class="st">Гейт «нулевых обязательств». Без нуля по всем строкам — увольнение не проводится.</span></div>
+      <button class="modal-x" data-close>✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="panel-note" style="margin-top:6px;">Проверка обязательств читается из вкладки 4. Разбирайте каждую строку до нуля:</p>
+      <ul class="oblig" id="obligList">
+        <li data-ob><span>Закреплённые заёмщики → переназначить (приказ)</span>
+          <span class="ost"><span class="badge b-err cnt">14</span> <button class="btn btn-secondary" style="padding:4px 10px;font-size:13px;" onclick="resolveOblig(this)">Переназначить</button></span></li>
+        <li data-ob><span>Открытые задания → переназначить или закрыть</span>
+          <span class="ost"><span class="badge b-err cnt">3</span> <button class="btn btn-secondary" style="padding:4px 10px;font-size:13px;" onclick="resolveOblig(this)">Разобрать</button></span></li>
+        <li data-ob><span>Активные замещения, где он замещающий → снять</span>
+          <span class="ost"><span class="badge b-warn cnt">1</span> <button class="btn btn-secondary" style="padding:4px 10px;font-size:13px;" onclick="resolveOblig(this)">Снять</button></span></li>
+        <li data-ob><span>Незавершённые процессы взыскания → передать с фиксацией</span>
+          <span class="ost"><span class="badge b-ok cnt">0</span></span></li>
+      </ul>
+
+      <div class="banner info" style="margin-top:16px;">
+        <span class="ic">ℹ️</span>
+        <div>Далее автоматически: закрыть открытый период (по = дата увольнения) · отменить будущие отсутствия ·
+          статус → <b>Уволен</b> · <b>УЗ блокируется</b> (не удаляется) · кураторство заблокированной УЗ обнуляется.
+          Уволенный остаётся в системе <b>read-only</b>; активированный сотрудник не удаляется никогда.</div>
+      </div>
+      <div class="banner warn">
+        <span class="ic">🟡</span>
+        <div>Увольнение <b>задним числом</b> разрешено: действия УЗ после даты увольнения не блокируются, а попадают в <b>отчёт расхождений</b>.</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger-solid" id="dsConfirm" disabled>⛔ Уволить</button>
+      <button class="btn btn-cancel" data-close>Отмена</button>
+      <span class="spacer"></span>
+      <span class="muted" id="dsHint" style="color:var(--secondary-text);font-size:13px;">Обязательств не ноль</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ---------- переключение вид «список» <-> «карточка» ----------
+  const viewList   = document.getElementById('view-list');
+  const viewDetail = document.getElementById('view-detail');
+  const pageTitle  = document.getElementById('pageTitle');
+  function showList(){ viewDetail.style.display='none'; viewList.style.display='flex'; pageTitle.textContent='Сотрудники'; window.scrollTo(0,0); }
+  function showDetail(){ viewList.style.display='none'; viewDetail.style.display='flex'; pageTitle.textContent='Сотрудник'; window.scrollTo(0,0); }
+
+  // ---------- список: выбор строки + открытие ----------
+  const rows = document.querySelectorAll('#rows tr');
+  const btnEdit = document.getElementById('btnEdit');
+  const btnDel  = document.getElementById('btnDel');
+  let selected = null;
+  rows.forEach(r => {
+    r.addEventListener('click', () => {
+      if (selected) selected.style.background='';
+      selected = r; r.style.background='#dbe9fb';
+      btnEdit.disabled=false; btnDel.disabled=false;
+    });
+    // карточка проработана только для СЛАМКУЛОВА (data-open); остальные строки — демо-данные списка
+    r.addEventListener('dblclick', () => { if (r.dataset.open) showDetail(); else toast('В мокапе проработана карточка одного сотрудника (Сламкулов) — откройте его.'); });
+  });
+  btnEdit.addEventListener('click', () => { if (!btnEdit.disabled){ if(selected && selected.dataset.open){ showDetail(); } else { toast('В мокапе проработана карточка Сламкулова — выберите его.'); } } });
+  document.getElementById('btnOk').addEventListener('click', showList);
+  document.getElementById('btnCancel').addEventListener('click', showList);
+  document.getElementById('btnCreate').addEventListener('click', () => toast('Создание: HR заводит карточку в статусе «Оформляется» (черновик, операционно невидим).'));
+
+  // ---------- фильтр (демонстрационный) ----------
+  const closeDrops = () => document.querySelectorAll('.fdrop.open').forEach(d => d.classList.remove('open'));
+  const fStatus = document.getElementById('fStatus');
+  const fStatusVal = document.getElementById('fStatusVal');
+  fStatus.addEventListener('click', e => { e.stopPropagation(); const d=document.getElementById('fStatusDrop'); const willOpen=!d.classList.contains('open'); closeDrops(); if(willOpen)d.classList.add('open'); });
+  document.querySelectorAll('#fStatusDrop .opt').forEach(o => o.addEventListener('click', e => {
+    e.stopPropagation(); const v=o.dataset.v; fStatusVal.textContent=v; fStatusVal.classList.toggle('ph',!v);
+    document.getElementById('fStatusDrop').classList.remove('open');
+  }));
+  document.addEventListener('click', closeDrops);
+  document.getElementById('btnRefresh').addEventListener('click', () => toast('Фильтр применён (демо).'));
+
+  // ---------- вкладки карточки ----------
+  const tabs = document.querySelectorAll('#tabs .tab');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    const key = t.dataset.tab;
+    document.querySelectorAll('.tabpanel').forEach(p => p.classList.toggle('active', p.dataset.panel===key));
+    window.scrollTo(0, 0);
+  }));
+
+  // ---------- роль (влияет только на подпись доступа B) ----------
+  const roleSel = document.getElementById('roleSel');
+  roleSel.addEventListener('change', () => {
+    const map={hr:'Кадры (HR)',admin:'Администратор системы',self:'Сам сотрудник',cred:'Кредитный специалист'};
+    const lbl=document.getElementById('roleLabelP'); if(lbl) lbl.textContent=map[roleSel.value];
+    if(roleSel.value==='cred') toast('Кредитный специалист: вкладки B/C и их документы скрыты грифом — доступа нет.');
+  });
+
+  // ---------- модалки-гейты ----------
+  function openModal(id){ document.getElementById(id).classList.add('open'); }
+  function closeModal(el){ el.closest('.modal-overlay').classList.remove('open'); }
+  document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeModal(b)));
+  document.querySelectorAll('.modal-overlay').forEach(ov => ov.addEventListener('click', e => { if(e.target===ov) ov.classList.remove('open'); }));
+
+  function openTransfer(){ openModal('mTransfer'); }
+  document.getElementById('btnTransfer').addEventListener('click', openTransfer);
+  document.getElementById('btnAbsence').addEventListener('click', () => toast('Отсутствие оформляется во вкладке «Отсутствия и замещения».'));
+  document.getElementById('btnDismiss').addEventListener('click', () => openModal('mDismiss'));
+
+  // гейт перевода: без выбора (а)/(б) кнопка недоступна
+  document.querySelectorAll('.radio-row[data-gate="tr"]').forEach(row => row.addEventListener('click', () => {
+    document.querySelectorAll('.radio-row[data-gate="tr"]').forEach(r => r.classList.remove('sel'));
+    row.classList.add('sel'); row.querySelector('input').checked=true;
+    document.getElementById('trConfirm').disabled=false;
+    document.getElementById('trHint').textContent='Решение принято';
+  }));
+  document.getElementById('trConfirm').addEventListener('click', () => {
+    document.getElementById('mTransfer').classList.remove('open');
+    toast('Перевод проведён атомарно. Флаг «роли не пересмотрены» поднят на вкл. 4.');
+  });
+
+  // гейт увольнения: пока не все обязательства = 0, кнопка недоступна
+  function refreshDismiss(){
+    const cnts=[...document.querySelectorAll('#obligList .cnt')].map(c=>parseInt(c.textContent,10)||0);
+    const zero=cnts.every(n=>n===0);
+    document.getElementById('dsConfirm').disabled=!zero;
+    document.getElementById('dsHint').textContent=zero?'Обязательства обнулены':'Обязательств не ноль';
+  }
+  function resolveOblig(btn){
+    const li=btn.closest('[data-ob]'); const cnt=li.querySelector('.cnt');
+    cnt.textContent='0'; cnt.className='badge b-ok cnt'; btn.remove();
+    refreshDismiss();
+  }
+  document.getElementById('dsConfirm').addEventListener('click', () => {
+    document.getElementById('mDismiss').classList.remove('open');
+    toast('Уволен. УЗ заблокирована (не удалена), кураторство обнулено, карточка → read-only.');
+  });
+
+  // ---------- документы: аккордеон ----------
+  document.querySelectorAll('.doc-acc-head').forEach(h => h.addEventListener('click', () => h.parentElement.classList.toggle('open')));
+
+  // ---------- toast ----------
+  let toastT;
+  function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),3800); }
+</script>
+</body>
+</html>
