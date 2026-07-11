@@ -1,0 +1,2089 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Залоговое обеспечение · АСУБК</title>
+<!--
+  РАБОЧИЙ ПРОТОТИП (single-file, MVP) — модуль «Залоговое обеспечение» (TO-BE).
+  Это не картинка-мокап: вся логика ниже ИСПОЛНЯЕТСЯ. Гейты, инварианты, производные
+  величины и триггеры считаются в рантайме от состояния, а не зашиты в разметку.
+  Спека: `ASUBK-zalog-logika.md` (секция 13 мастер-документа `ASUBK-analiz-mokapov.md`).
+  Экрана залога в живой системе нет — модуль проектируется с нуля, as-is дефектов нет.
+
+  ЧТО РЕАЛИЗОВАНО (и что разработчик обязан сохранить)
+
+  1. ДВЕ СУЩНОСТИ, НЕ ОДНА.
+     • ПРЕДМЕТ ЗАЛОГА — каноническая запись актива (реестр). Живёт сквозь весь ЖЦ,
+       переоценивается, обследуется, на него накладывается запрет на отчуждение. Реестр — якорь модуля.
+     • ЗАЛОГОВЫЙ ДОГОВОР — юридическая обёртка (номер, нотариус, свидетельство).
+     Предмет ↔ активный договор = 1:N (перезалог на остаточную стоимость).
+     Договор ↔ кредит = 1:N (кредиты одного заёмщика, перекрёстное обеспечение).
+     Юр-поля живут НА ДОГОВОРЕ, физические и стоимостные — НА ПРЕДМЕТЕ. Не смешивать.
+
+  2. ОТНЕСЕНИЕ_ЗАЛОГА (junction «предмет ↔ кредит», внутри договора) несёт ДОЛЮ —
+     часть залоговой стоимости предмета, закреплённую за конкретным кредитом.
+     ИНВАРИАНТ: Σ долей предмета по всем действующим/оформляемым договорам
+     ≤ залоговая стоимость предмета. Проверяется при каждом вводе доли (checkInvariant).
+
+  3. БАЗА ПОКРЫТИЯ — ЗАЛОГОВАЯ СТОИМОСТЬ, НЕ ОЦЕНОЧНАЯ (шов №1).
+     оценочная — owned (вводит человек из отчёта оценщика);
+     залоговая — derived: оценочная × коэффициент[вид залога] (справочник KINDS);
+                 событийный override комиссией: ≤ расчётной — свободно,
+                 > расчётной — ОБЯЗАТЕЛЬНОЕ обоснование + флаг (см. openOverride);
+     покрытие  — вычисляемый оверлей: Σ эффективных долей ÷ сумма кредита ≥ 120%.
+     Ни одно из трёх не хранится «на всякий случай» — считается из состояния.
+
+  4. УСЕЧЕНИЕ ДОЛИ ПРИ ПАДЕНИИ СТОИМОСТИ (правило, добавленное сверх спеки —
+     согласовать). Юридическая доля в нотариальном договоре СТАТИЧНА и не усыхает.
+     Но если переоценка уронила залоговую стоимость ниже суммы закреплённых долей,
+     экономическое покрытие не может опираться на несуществующую стоимость: доли
+     усекаются ПРОПОРЦИОНАЛЬНО (effShare). Договор при этом не правится — падение
+     покрытия поднимает триггер «недостаточность обеспечения» (см. п. 7).
+
+  5. ГЕЙТ 120% — ДВА МЕСТА, ОДИН КОД (gateCheck).
+     • Регистрация залогового договора — контрольный гейт.
+     • Регистрация доп соглашения — тот же гейт по ЧИСТОМУ ЭФФЕКТУ пакета (net).
+     Провал → договор уходит в статус «На рассмотрении комиссии по залогу»
+     (не «зарегистрирован с ошибкой» и не «молча пропущен»). Комиссия либо возвращает
+     на доработку, либо допускает недообеспеченный кредит с ОБЯЗАТЕЛЬНЫМ обоснованием.
+
+  6. ДОП СОГЛАШЕНИЕ — КОНВЕРТ ВЕРСИОНИРОВАНИЯ (changeset), а не набор отдельных кнопок.
+     Один акт несёт ≥1 операцию (вывод предмета + ввод + правка долей + добавление
+     кредита). Мини-ЖЦ: оформляется → зарегистрировано. Эффект наступает НА РЕГИСТРАЦИИ.
+     Снимок before/after сохраняется на соглашении. Вывод предмета не блокируется:
+     если он выводит предмет с наложенным запретом, после регистрации возникает
+     задача снять запрет (мониторинг), снятие — отдельным актом в органе.
+
+  7. ТРИ НЕЗАВИСИМЫХ ИЗМЕРЕНИЯ, НЕ СЛИВАТЬ В ОДИН «СТАТУС»:
+     • залоговая ось предмета (свободен · в залоге · реализуется · освобождён) —
+       ПРОИЗВОДНАЯ от наличия долей;
+     • ось ЗАПРЕТА НА ОТЧУЖДЕНИЕ (не требуется · не наложен · просрочен · наложен ·
+       подлежит снятию) — это НАШ ОБЯЗАТЕЛЬНЫЙ ШАГ ОФОРМЛЕНИЯ, а не внешнее событие:
+       порядок «нотариус → запрет → (погашение/вывод) → снятие». Запрет накладываем
+       МЫ в регистрирующем органе, чтобы залогодатель не продал предмет без нашего
+       ведома. ОДИН запрет на предмет (на вещь), при перезалоге дополняется
+       основаниями — повторно не накладывается. ОТСУТСТВИЕ запрета при живом залоге —
+       ДЕФЕКТ ОФОРМЛЕНИЯ (триггер), НАЛИЧИЕ — признак защищённости. Снятие ПОД ГЕЙТОМ:
+       пока по предмету живы доли, снять нельзя. Срок наложения — 5 рабочих дней после
+       нотариального удостоверения (справочник, орган — свой на каждый вид залога).
+       Сторонний арест (суд, налоговая) в модуле НЕ моделируется.
+     • плановый контроль (обследование / переоценка) — ВЫЧИСЛЯЕМЫЙ ОВЕРЛЕЙ по датам,
+       не статус. Просрочка контроля — расчёт от сегодняшней даты.
+     Триггер «недостаточность обеспечения» — тоже НЕ статус: это вычисляемое событие,
+     которое уходит во взыскание (трек по причине «обеспечение», параллельный просрочке).
+     Он НЕ трогает риск-категорию и НЕ трогает группу платёжеспособности.
+
+  8. ВЫСВОБОЖДЕНИЕ ДОЛИ (§4.2 спеки): автоматика ТОЛЬКО при закрытии кредита/договора
+     (кнопка «Отметить погашенным» на карточке договора демонстрирует правило).
+     Частичное освобождение на живом кредите — ТОЛЬКО доп соглашением. Доля от платежей
+     по основному долгу не усыхает.
+
+  9. ОБСЛЕДОВАНИЕ ≠ ПЕРЕОЦЕНКА. Обследование — про физическое состояние (read-событие),
+     переоценка — про стоимость. Исход обследования классифицирован и ветвит действие:
+     в норме → сдвиг плановой даты; ухудшение → флаг «требуется досрочная переоценка»;
+     утрата → предмет выбыл → триггер недостаточности обеспечения.
+
+  РОЛИ: Залоговый специалист (правит), Комиссия по залогу (override стоимости и решение
+  по гейту), Наблюдатель (только чтение). Права проверяются в canEdit()/canCommission().
+
+  ДЕМО-ДАННЫЕ покрывают все ветки: перезалог под ОДНИМ запретом с двумя основаниями
+  (П-001, ban.contracts=[Д-001,Д-002]), третье-лицо-залог с наложенным запретом
+  (П-004, залогодатель ≠ заёмщик), ЗАЛОГ БЕЗ ЗАПРЕТА — дефект оформления, дедлайн
+  истёк → триггер high (П-005 / Д-004), override > расчётной с обоснованием (П-005),
+  ЗАПРЕТ ПОДЛЕЖИТ СНЯТИЮ после погашения (П-008 / закрытый Д-007) → триггер mid,
+  запрет НЕ требуется для незарегистрированного договора (П-006 / черновик Д-005),
+  провал гейта на регистрации (Д-005), падение покрытия после переоценки
+  (П-002 / Д-006), просроченный плановый контроль (П-007).
+
+  ОТКРЫТО: личное поручительство (П2) в модуле отсутствует — по спеке §10 п.5 это
+  отдельная сущность обеспечения, в 120% не входит и здесь не моделируется.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
+  border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
+.nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
+.nav-sub > .nav-toggle{ padding:8px 16px 8px 32px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font); }
+.nav-toggle:hover{ background:rgba(24,39,57,0.04); }
+.nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
+  transition:transform 120ms ease; flex:none; }
+.nav-group.open > .nav-toggle .chev, .nav-sub.open > .nav-toggle .chev{ transform:rotate(90deg); }
+.nav-toggle .lbl{ flex:1; }
+.nav-children{ display:none; }
+.nav-group.open > .nav-children, .nav-sub.open > .nav-children{ display:block; }
+.nav-item{ display:block; padding:7px 16px 7px 52px; text-decoration:none; color:rgba(27,43,65,0.69);
+  font:var(--weight-regular) var(--text-base)/1.625 var(--asubk-font); cursor:pointer; }
+.nav-item.headerless{ padding-left:40px; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.topbar .role-wrap{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+.topbar .role-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.topbar .role-wrap select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 26px 0 10px;
+  appearance:none; cursor:pointer; }
+.topbar .role-wrap .rsel{ position:relative; display:flex; align-items:center; }
+.topbar .role-wrap .rsel .caret{ position:absolute; right:8px; pointer-events:none; color:var(--text-muted); display:flex; }
+
+.content{ flex:1; overflow:auto; display:flex; flex-direction:column; min-width:0; }
+.view{ display:none; flex-direction:column; min-height:0; }
+
+/* ---- buttons ---- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn svg{ flex:none; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-success{ background:var(--action-success); color:#fff; }
+.btn-success:hover:not(:disabled){ background:var(--asubk-green-hover); }
+.btn-sm{ height:32px; padding:0 10px; font-size:var(--text-sm); }
+.btn-tint{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none;
+  font-weight:var(--weight-medium); }
+.btn-tint:hover:not(:disabled){ background:rgba(25,59,103,0.10); color:var(--action-primary-hover); }
+.btn-tint:disabled{ opacity:1; color:var(--text-disabled); cursor:not-allowed; }
+.btn-tint.danger{ color:var(--action-danger); }
+.btn-tint.danger:hover:not(:disabled){ background:var(--status-error-bg); }
+
+.split{ position:relative; display:inline-flex; }
+.split > .btn{ border-radius:0; }
+.split > .btn:first-child{ border-top-left-radius:var(--radius-md); border-bottom-left-radius:var(--radius-md); }
+.split > .btn.caret{ padding:0 7px; border-top-right-radius:var(--radius-md); border-bottom-right-radius:var(--radius-md);
+  border-left:1px solid rgba(255,255,255,0.35); }
+.split-menu{ display:none; position:absolute; top:calc(100% + 4px); left:0; min-width:210px; z-index:30;
+  background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
+  box-shadow:0 10px 30px rgba(16,28,46,0.18); padding:4px; }
+.split.open .split-menu{ display:block; }
+.split-menu button{ display:block; width:100%; text-align:left; border:none; background:transparent; cursor:pointer;
+  padding:8px 10px; border-radius:var(--radius-sm); font:var(--font-label); color:var(--text-body); }
+.split-menu button:hover{ background:var(--surface-hover); }
+.gear-btn{ width:var(--control-h); height:var(--control-h); border:none;
+  background:var(--asubk-tint-fill); border-radius:var(--radius-md); color:var(--text-link); cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; }
+.gear-btn:hover{ background:rgba(25,59,103,0.10); }
+
+/* ---- list: filter head + toolbar ---- */
+.filter-head{ display:flex; align-items:center; gap:6px; padding:12px 20px 4px; cursor:pointer;
+  font:var(--weight-medium) var(--text-base)/1.25 var(--asubk-font); color:rgba(27,43,65,0.69); user-select:none; }
+.filter-head .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5); transition:transform 120ms ease; }
+.filter-head.open .chev{ transform:rotate(90deg); }
+.tb-actions{ display:flex; align-items:center; gap:10px; padding:8px 20px 12px; flex-wrap:wrap; }
+.add-cond{ display:inline-flex; align-items:center; gap:6px; background:none; border:none; cursor:pointer;
+  color:var(--text-link); font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); padding:0 4px; }
+.add-cond:hover{ text-decoration:underline; }
+.rowtools{ display:flex; align-items:center; gap:10px; padding:0 20px 8px; }
+.rowtools .spacer{ flex:1; }
+.pager{ display:flex; align-items:center; gap:6px; color:var(--text-muted);
+  font:var(--weight-regular) var(--text-base)/1 var(--asubk-font); }
+.pager button{ min-width:30px; height:30px; border:1px solid var(--border-default); background:var(--surface-card);
+  border-radius:var(--radius-sm); cursor:pointer; color:var(--text-body); }
+.pager button:disabled{ opacity:.4; cursor:not-allowed; }
+
+/* ---- grid (list) ---- */
+.grid-wrap{ padding:0 20px 20px; overflow:auto; }
+table.grid{ width:100%; border-collapse:collapse; font:var(--font-label); table-layout:fixed;
+  border:1px solid var(--border-default); background:var(--surface-card); }
+table.grid thead th{ text-align:left; height:56px; padding:0 16px; background:var(--surface-card);
+  border-bottom:1px solid var(--asubk-grid-line);
+  font:var(--weight-medium) var(--text-sm)/1.375 var(--asubk-font); color:var(--text-body);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; user-select:none; vertical-align:middle; }
+table.grid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; }
+table.grid tbody td{ height:35px; padding:0 16px; border-bottom:1px solid var(--asubk-grid-line);
+  color:var(--text-body); vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+table.grid tbody tr{ cursor:pointer; }
+table.grid tbody tr:hover{ background:var(--surface-hover); }
+table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+
+/* Терминальный процесс — работа завершена, строка приглушена. */
+.grid tbody tr.terminal td{ color:var(--text-muted); }
+.grid tbody tr.terminal td:first-child{ font-style:italic; }
+
+/* status pills in list/cells */
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.low{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.mid{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.high{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+
+/* ---- detail ---- */
+.detail-tabbar-wrap{ position:relative; border-bottom:1px solid var(--border-default);
+  background:var(--surface-page); flex:none; }
+.detail-tabbar{ display:flex; overflow-x:auto; padding:6px 44px 0 20px; scrollbar-width:none; }
+.detail-tabbar::-webkit-scrollbar{ display:none; }
+.dtab{ flex:none; border:none; background:transparent; padding:11px 15px;
+  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
+.dtab:hover{ color:var(--text-body); }
+.dtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.tabbar-chevron{ position:absolute; right:8px; top:50%; transform:translateY(-50%); width:28px; height:28px;
+  background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
+  display:flex; align-items:center; justify-content:center; color:var(--text-muted); cursor:pointer; }
+.tabbar-chevron:hover{ background:var(--surface-hover); }
+
+.panel-wrap{ padding:18px 20px 8px; }
+.panel-card{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:20px 24px; }
+.detail-panel{ display:none; }
+.detail-panel.active{ display:block; }
+
+/* ---- process header (indicator panel, not a form) ---- */
+.phead{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:16px 20px; margin-bottom:18px; }
+.phead-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
+.phead-name{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.phead-name .nm{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
+.phead-name a{ font:var(--font-label); color:var(--text-link); text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
+.phead-name a:hover{ text-decoration:underline; }
+.phead-sub{ font:var(--font-label); color:var(--text-muted); margin-top:3px; }
+.phead-sub b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.phead-owner{ font:var(--font-label); color:var(--text-muted); white-space:nowrap; }
+.phead-banner{ display:flex; align-items:center; gap:10px; border-radius:var(--radius-md);
+  padding:9px 14px; margin-bottom:12px; font:var(--font-label); }
+.phead-banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.phead-banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+/* Событие (смерть, недееспособность) — уводит процесс вбок, фаза сохраняется. */
+.phead-banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
+/* Запрет на отчуждение наложен — предмет защищён от продажи (зелёная строка). */
+.phead-banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.phead-banner svg{ flex:none; }
+.phead-dims{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+@media(max-width:760px){ .phead-dims{ grid-template-columns:repeat(2,1fr); } }
+.dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:10px 14px; }
+.dim .dl{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:5px; }
+.dim .dv{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); }
+.dim .src{ font:var(--weight-regular) 11px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
+
+/* two-column form (label above) */
+.f2{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; max-width:1500px; }
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field .flabel{ font:var(--font-label); color:var(--text-muted); }
+.field.col-span{ grid-column:1 / -1; }
+.control{ position:relative; display:flex; align-items:center; }
+.control input, .control select, .note-area{ width:100%; height:var(--control-h); border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
+  border:1px solid var(--border-strong); outline:none; padding:0 var(--space-2);
+  transition:box-shadow 120ms ease, border-color 120ms ease; }
+.control select{ cursor:pointer; appearance:none; padding-right:30px; }
+.control input:focus, .control select:focus, .note-area:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.control input[readonly], .ro input, .ro .note-area{ background:var(--surface-input); color:var(--text-muted); border:1px solid transparent; cursor:default; }
+.control input[readonly]:focus{ border-color:transparent; box-shadow:none; }
+.grey input, .grey select{ background:var(--surface-input); border-color:transparent; }
+.control .cal, .control .caret{ position:absolute; right:9px; pointer-events:none; color:var(--text-muted); display:flex; }
+.note-area{ height:auto; min-height:80px; padding:10px 12px; resize:vertical; line-height:1.5; }
+.dtpair{ display:grid; grid-template-columns:1fr 1fr; gap:0 10px; }
+
+/* lookup (picker) */
+.lookup{ display:flex; align-items:center; height:var(--control-h); background:var(--surface-input);
+  border-radius:var(--radius-md); border:1px solid transparent; padding-left:var(--space-2); }
+.lookup .val{ flex:1; font:var(--font-body); font-weight:var(--weight-medium); color:var(--text-body);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lookup .val.ph{ color:var(--text-placeholder); }
+.lookup button{ display:inline-flex; align-items:center; justify-content:center; width:32px; height:var(--control-h);
+  border:none; background:transparent; color:var(--text-link); cursor:pointer; }
+.lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
+
+/* section heading + toolbar above collection grid */
+.section-h{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:0 0 6px; }
+.section-note{ font:var(--font-label); color:var(--text-muted); margin:0 0 14px; max-width:900px; }
+.gtoolbar{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
+.gtoolbar .spacer{ flex:1; }
+
+/* collection grid */
+.cgrid-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; min-height:80px; }
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); white-space:nowrap; }
+table.cgrid thead th{ position:sticky; top:0; text-align:left; padding:10px 12px; background:var(--surface-card);
+  border-bottom:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
+  color:var(--text-heading); cursor:pointer; user-select:none; }
+table.cgrid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; font-weight:400; }
+table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--border-default); color:var(--text-body); vertical-align:middle; }
+table.cgrid tbody tr:hover{ background:var(--surface-hover); }
+table.cgrid tbody tr.total td{ font-weight:var(--weight-bold); color:var(--text-heading);
+  background:var(--surface-hover); border-top:1px solid var(--border-strong); }
+.cgrid-empty{ display:flex; align-items:center; justify-content:center; min-height:120px;
+  color:var(--text-placeholder); font:var(--font-label); }
+.rowlink{ color:var(--text-link); cursor:pointer; }
+.rowlink:hover{ text-decoration:underline; }
+
+/* timeline (phase machine indicator) */
+.timeline{ display:flex; flex-wrap:wrap; gap:0; margin:2px 0 20px; }
+.tl-step{ display:flex; align-items:center; gap:8px; padding:6px 0; }
+.tl-dot{ width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font:var(--weight-bold) 12px/1 var(--asubk-font); flex:none; }
+.tl-dot.done{ background:var(--asubk-green); color:#fff; }
+.tl-dot.cur{ background:var(--asubk-blue); color:#fff; }
+.tl-dot.todo{ background:var(--surface-input); color:var(--text-placeholder); }
+.tl-lbl{ font:var(--font-label); color:var(--text-body); }
+.tl-lbl.todo{ color:var(--text-placeholder); }
+.tl-arrow{ color:var(--text-placeholder); margin:0 12px; display:flex; }
+
+/* history rows */
+.hist{ border-left:2px solid var(--border-strong); margin-left:6px; padding-left:0; }
+.hrow{ position:relative; padding:10px 0 10px 22px; border-bottom:1px solid var(--asubk-grid-line); }
+.hrow::before{ content:""; position:absolute; left:-5px; top:16px; width:8px; height:8px; border-radius:50%;
+  background:var(--asubk-blue); }
+.hrow .hwhen{ font:var(--weight-medium) 13px/1.3 var(--asubk-font); color:var(--text-muted); }
+.hrow .hwhat{ font:var(--font-label); color:var(--text-body); margin-top:2px; }
+.hrow .hwho{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:2px; }
+
+/* footer */
+.footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
+  padding:14px 20px; display:flex; align-items:center; gap:12px; }
+
+/* modals */
+.overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:none; align-items:center;
+  justify-content:center; z-index:60; padding:24px; }
+.overlay.open{ display:flex; }
+.modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(1040px,100%); max-height:88vh;
+  display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(16,28,46,0.4); }
+.modal.form{ width:min(720px,100%); }
+.modal.narrow{ width:min(560px,100%); }
+.modal-h{ padding:18px 24px 12px; display:flex; align-items:center; gap:10px; }
+.modal-h .mt{ font:var(--weight-bold) 20px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
+.modal-x{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); display:flex; padding:4px; }
+.modal-x:hover{ color:var(--text-body); }
+.modal-b{ padding:0 24px 8px; overflow:auto; flex:1; }
+.modal-f{ padding:14px 24px 20px; display:flex; gap:12px; justify-content:flex-end; }
+.mform{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; padding-top:8px; }
+.mform .field.col-span{ grid-column:1 / -1; }
+.mform .field.req .flabel::after{ content:" •"; color:var(--action-danger); }
+.mform .control input, .mform .control select, .mform .note-area{ background:var(--surface-input); border-color:transparent; }
+.warn-inline{ display:flex; gap:8px; align-items:flex-start; background:var(--status-warning-bg);
+  color:var(--asubk-amber); border-radius:var(--radius-md); padding:10px 12px; font:var(--font-label); margin-top:6px; }
+/* Мера без подтверждения вручения не считается исполненной — она не годится
+   как доказательство в суде. Строка подсвечена, а не спрятана. */
+.cgrid tbody tr.mrow-undelivered{ background:var(--status-warning-bg); }
+/* Мягкое предупреждение о пересечении охвата — не запрет. */
+.overlap-note{ display:flex; gap:8px; align-items:flex-start; background:var(--status-warning-bg);
+  color:var(--asubk-amber); border-radius:var(--radius-md); padding:10px 12px; margin:0 0 14px;
+  font:var(--font-label); }
+.overlap-note svg{ flex:none; margin-top:2px; }
+.overlap-note .rowlink{ color:var(--text-link); font-weight:600; }
+table.eb-grid{ width:100%; border-collapse:collapse; font:var(--font-label); white-space:nowrap; }
+.eb-grid-wrap{ border:1px solid var(--border-strong); border-radius:var(--radius-md); overflow:auto; max-height:52vh; }
+table.eb-grid thead th{ position:sticky; top:0; background:var(--surface-panel); text-align:left; z-index:1;
+  padding:11px 14px; border-bottom:1px solid var(--border-default); color:var(--text-heading);
+  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); }
+table.eb-grid tbody td{ padding:11px 14px; border-bottom:1px solid var(--border-default); color:var(--text-body); }
+table.eb-grid tbody tr{ cursor:pointer; }
+table.eb-grid tbody tr:hover{ background:var(--surface-hover); }
+table.eb-grid tbody tr:last-child td{ border-bottom:none; }
+
+/* toast */
+.toast-wrap{ position:fixed; right:20px; bottom:20px; display:flex; flex-direction:column; gap:10px; z-index:80; }
+.toast{ min-width:260px; max-width:420px; padding:12px 14px; border-radius:var(--radius-md);
+  background:var(--asubk-ink); color:#fff; font:var(--font-label); box-shadow:0 10px 30px rgba(16,28,46,0.3);
+  display:flex; gap:10px; align-items:flex-start; }
+.toast.ok{ background:var(--asubk-green); }
+.toast.warn{ background:var(--asubk-amber); }
+</style>
+<style>
+/* ---- дополнения к общей таблице стилей модуля ---- */
+.seg{ display:flex; gap:0; padding:12px 20px 0; }
+.seg button{ height:34px; padding:0 16px; border:1px solid var(--border-default); background:var(--surface-card);
+  color:var(--text-muted); font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); cursor:pointer; }
+.seg button:first-child{ border-radius:var(--radius-md) 0 0 var(--radius-md); }
+.seg button:last-child{ border-radius:0 var(--radius-md) var(--radius-md) 0; }
+.seg button + button{ border-left:none; }
+.seg button.on{ background:var(--asubk-nav-active); color:var(--text-heading); font-weight:var(--weight-semibold); }
+.seg .cnt{ margin-left:6px; color:var(--text-placeholder); font-weight:400; }
+
+.kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+@media(max-width:900px){ .kpis{ grid-template-columns:repeat(2,1fr); } }
+.formula{ font:var(--weight-regular) 12px/1.4 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
+.numcell{ text-align:right; font-variant-numeric:tabular-nums; }
+.mono{ font-variant-numeric:tabular-nums; }
+.flagline{ display:flex; gap:8px; align-items:flex-start; background:var(--status-error-bg); color:var(--asubk-red);
+  border-radius:var(--radius-md); padding:10px 12px; font:var(--font-label); margin:0 0 14px; }
+.okline{ display:flex; gap:8px; align-items:flex-start; background:var(--status-success-bg); color:var(--asubk-green);
+  border-radius:var(--radius-md); padding:10px 12px; font:var(--font-label); margin:0 0 14px; }
+.infoline{ display:flex; gap:8px; align-items:flex-start; background:var(--status-info-bg); color:var(--asubk-blue);
+  border-radius:var(--radius-md); padding:10px 12px; font:var(--font-label); margin:0 0 14px; }
+.ops-list{ border:1px solid var(--border-default); border-radius:var(--radius-md); margin:10px 0 6px; }
+.op-row{ display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid var(--asubk-grid-line);
+  font:var(--font-label); }
+.op-row:last-child{ border-bottom:none; }
+.op-row .op-t{ flex:1; }
+.op-empty{ padding:14px 12px; color:var(--text-placeholder); font:var(--font-label); }
+.diff-up{ color:var(--asubk-green); font-weight:600; }
+.diff-dn{ color:var(--asubk-red); font-weight:600; }
+.mform.one{ grid-template-columns:1fr; }
+.chk{ display:flex; align-items:center; gap:8px; font:var(--font-label); color:var(--text-body); }
+.axis{ display:flex; gap:6px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav" id="nav"></div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="menu" title="Меню">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </span>
+      <span class="crumb-title" id="crumbTitle">Залоговое обеспечение</span>
+      <div class="role-wrap">
+        <label>Роль:</label>
+        <div class="rsel">
+          <select id="roleSel" onchange="onRoleChange()">
+            <option>Залоговый специалист</option>
+            <option>Комиссия по залогу</option>
+            <option>Наблюдатель</option>
+          </select>
+          <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ============ LIST VIEW (три реестра) ============ -->
+      <section class="view" id="view-list" style="display:flex;">
+        <div class="seg" id="segBar"></div>
+        <div class="tb-actions">
+          <div class="split" id="splitRefresh">
+            <button class="btn btn-success" onclick="renderList();toast('Список обновлён')">Обновить</button>
+            <button class="btn btn-success caret" onclick="document.getElementById('splitRefresh').classList.toggle('open');event.stopPropagation();">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="split-menu">
+              <button onclick="renderList();toast('Обновить');closeSplit()">Обновить</button>
+              <button onclick="renderList();toast('Применить и обновить');closeSplit()">Применить и обновить</button>
+            </div>
+          </div>
+          <button class="btn btn-primary" id="btnNew" onclick="onNew()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span id="btnNewLbl">Новый предмет залога</span>
+          </button>
+          <button class="gear-btn" title="Справочник коэффициентов и интервалов контроля" onclick="openRefbook()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+        <div class="rowtools">
+          <button class="btn btn-tint" id="btnOpen" disabled onclick="openSelected()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Открыть</button>
+          <div class="spacer"></div>
+          <div class="pager"><span id="pagerCount"></span></div>
+        </div>
+        <div id="listNote" style="padding:0 20px 8px"></div>
+        <div class="grid-wrap">
+          <table class="grid" id="listGrid">
+            <thead><tr id="listHead"></tr></thead>
+            <tbody id="listBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ DETAIL VIEW (предмет / договор) ============ -->
+      <section class="view" id="view-detail">
+        <div class="detail-tabbar-wrap">
+          <div class="detail-tabbar" id="detailTabbar"></div>
+          <button class="tabbar-chevron" onclick="scrollTabs()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+        <div class="content" style="overflow:visible;">
+          <div id="detailPanels"></div>
+        </div>
+        <div class="footer" id="detailFooter"></div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="modalHost" onclick="if(event.target===this)closeModal()"></div>
+<div class="toast-wrap" id="toastWrap"></div>
+<script>
+/* ============================================================
+   SIDEBAR NAVIGATION
+   ============================================================ */
+const TREE = [
+  { id:"k", label:"Система кредитования", subs:[
+    { id:"k-app", label:"Заявки и комиссии", items:[ {label:"Заявки"}, {label:"Комиссии по заявкам"} ]},
+    { id:"k-prog", label:"Программы и решения", items:[ {label:"Решение правительства"}, {label:"Кредитные программы"} ]},
+    { id:"k-borr", label:"Заёмщики", items:[ {label:"Заёмщики"} ]},
+    { id:"k-loan", label:"Кредиты и транши", items:[ {label:"Кредиты"}, {label:"Список траншей"} ]} ]},
+  { id:"z", label:"Залоговое обеспечение", open:true, subs:[
+    { id:"z-all", headerless:true, items:[
+      { label:"Предметы залога", active:true },
+      { label:"Залоговые договоры" },
+      { label:"Мониторинг залога" } ]} ]},
+  { id:"debt", label:"Взыскание задолженности", subs:[
+    { id:"debt-all", headerless:true, items:[ {label:"Процессы взыскания"} ]} ]},
+  { id:"d", label:"Справочники", subs:[ { id:"d-all", headerless:true, items:[ {label:"Справочники"} ]} ]},
+  { id:"r", label:"Отчёты", subs:[ { id:"r-all", headerless:true, items:[ {label:"Отчёты"} ]} ]},
+  { id:"adm", label:"Администрирование", subs:[ { id:"adm-all", headerless:true, items:[ {label:"Администрирование"} ]} ]},
+  { id:"sec", label:"Безопасность", subs:[ { id:"sec-all", headerless:true, items:[ {label:"Безопасность"} ]} ]},
+];
+const chev = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
+function renderNav(){
+  document.getElementById('nav').innerHTML = TREE.map(g=>{
+    const subs = (g.subs||[]).map(s=>{
+      const items = (s.items||[]).map(it=>`<a class="nav-item${s.headerless?' headerless':''}${it.active?' active':''}" onclick="navClick('${it.label}')">${it.label}</a>`).join('');
+      if(s.headerless) return `<div class="nav-children" style="display:block">${items}</div>`;
+      return `<div class="nav-sub${s.open?' open':''}"><button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">${chev(13)}<span class="lbl">${s.label}</span></button><div class="nav-children">${items}</div></div>`;
+    }).join('');
+    return `<div class="nav-group${g.open?' open':''}"><button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">${chev(14)}<span class="lbl">${g.label}</span></button><div class="nav-children">${subs}</div></div>`;
+  }).join('');
+}
+function navClick(l){
+  if(l==='Предметы залога'){ reg='items'; showView('list'); renderList(); }
+  else if(l==='Залоговые договоры'){ reg='contracts'; showView('list'); renderList(); }
+  else if(l==='Мониторинг залога'){ reg='monitor'; showView('list'); renderList(); }
+  else toast('Демо-прототип: доступен раздел «Залоговое обеспечение»');
+  document.querySelectorAll('.nav-item').forEach(a=>a.classList.toggle('active', a.textContent===l));
+}
+
+/* ============================================================
+   ДАТЫ И ЧИСЛА
+   Сегодняшняя дата вынесена в константу: все «просрочки контроля» —
+   ВЫЧИСЛЯЕМЫЙ оверлей от неё, а не хранимый флаг.
+   ============================================================ */
+const TODAY = '11.07.2026';
+const d2n = s => { const [d,m,y] = String(s).split('.').map(Number); return new Date(y, m-1, d); };
+const n2d = dt => `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}`;
+const addMonths = (s,m) => { const dt = d2n(s); dt.setMonth(dt.getMonth()+m); return n2d(dt); };
+const isOverdue = s => s && d2n(s) < d2n(TODAY);
+const daysLeft  = s => Math.round((d2n(s) - d2n(TODAY)) / 86400000);
+const isDate = s => /^\d{2}\.\d{2}\.\d{4}$/.test(String(s||'').trim());
+const fmt  = n => Number(n||0).toLocaleString('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2});
+const num  = s => { const v = Number(String(s??'').replace(/\s/g,'').replace(',','.')); return isFinite(v) ? v : NaN; };
+const pct  = x => (x*100).toFixed(1).replace('.',',') + '%';
+const esc  = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ============================================================
+   СПРАВОЧНИК (регламентируемый администратором): по виду залога —
+   залоговый коэффициент (дисконт ликвидности) И интервалы планового
+   контроля. Один справочник, не два — обследование и переоценка имеют
+   разные события, но ОДИН механизм расписания (спека §8).
+   ============================================================ */
+const KINDS = {
+  'Недвижимое имущество':  { k:0.7, survey:12, reval:24, organ:'Госрегистр (недвижимое имущество)' },
+  'Транспортное средство': { k:0.5, survey:6,  reval:12, organ:'ГРС (реестр транспортных средств)' },
+  'Оборудование':          { k:0.5, survey:6,  reval:12, organ:'Реестр залогов движимого имущества' },
+  'Товары в обороте':      { k:0.4, survey:3,  reval:6,  organ:'Реестр залогов движимого имущества' },
+  'Сельхозтехника':        { k:0.5, survey:6,  reval:12, organ:'Реестр залогов движимого имущества' },
+  'Скот / поголовье':      { k:0.4, survey:3,  reval:6,  organ:'Реестр залогов движимого имущества' },
+};
+const COVER_MIN = 1.2;   // порог покрытия 120% — из кредитной программы
+/* Срок наложения запрета на отчуждение после нотариального удостоверения договора.
+   Регламентный параметр (администратор правит в справочнике) — до его истечения
+   залог юридически оформлен, но фактически НЕ защищён от продажи залогодателем. */
+let BAN_DEADLINE_DAYS = 5;   // рабочих дней (правится в справочнике)
+/* Прибавляет N рабочих дней к дате (сб/вс пропускаются).
+   TODO: производственный календарь праздников здесь не учитывается. */
+const addBusinessDays = (s, n) => { const dt = d2n(s); let left = n;
+  while(left > 0){ dt.setDate(dt.getDate()+1); const d = dt.getDay(); if(d!==0 && d!==6) left--; }
+  return n2d(dt); };
+const organOf = it => (KINDS[it.kind]||{}).organ || '—';
+
+/* ============================================================
+   ДАННЫЕ (in-memory состояние прототипа; в проде — БД)
+   ============================================================ */
+const CLIENTS = [
+  { inn:'01912201610212', name:'ОсОО «Бек Кабель»' },
+  { inn:'22105198800047', name:'КФХ «Ак-Дан»' },
+  { inn:'20308197700219', name:'ИП Сыдыков А.' },
+  { inn:'01705199200338', name:'ОсОО «Тянь-Строй»' },
+  { inn:'12345198500011', name:'Осмонов Б.Т. (физ. лицо)' },
+];
+const clientName = inn => (CLIENTS.find(c=>c.inn===inn)||{}).name || inn;
+
+/* Кредиты — читаются из кредитного модуля (здесь: срез, нужный залогу). */
+const CREDITS = [
+  { id:'К-56', num:'Дог. №56 от 10.04.2024', inn:'01912201610212', amount:200000, status:'Действующий' },
+  { id:'К-77', num:'Дог. №77 от 18.09.2025', inn:'01912201610212', amount:90000,  status:'Действующий' },
+  { id:'К-88', num:'Дог. №88 от 03.02.2025', inn:'22105198800047', amount:150000, status:'Действующий' },
+  { id:'К-90', num:'Дог. №90 от 11.11.2025', inn:'22105198800047', amount:60000,  status:'Действующий' },
+  { id:'К-40', num:'Дог. №40 от 20.05.2026', inn:'20308197700219', amount:40000,  status:'Действующий' },
+  { id:'К-71', num:'Дог. №71 от 22.08.2023', inn:'01705199200338', amount:250000, status:'Действующий' },
+  { id:'К-33', num:'Дог. №33 от 05.01.2024', inn:'22105198800047', amount:50000,  status:'Погашен' },
+];
+const credit = id => CREDITS.find(c=>c.id===id);
+
+/* ПРЕДМЕТ ЗАЛОГА — каноническая запись актива.
+   owned: вид, наименование, залогодатель, идентификатор, ОЦЕНОЧНАЯ стоимость.
+   derived: ЗАЛОГОВАЯ (оценочная × коэффициент) + событийный override комиссии.
+   Юр-полей (нотариус, свидетельство) здесь НЕТ — они на договоре. */
+const ITEMS = [
+  { id:'П-001', kind:'Недвижимое имущество', name:'Склад, ул. Промышленная, 4', pledger:'01912201610212',
+    ident:'Кадастровый № 1-04-12-0031', appraised:400000, apprDate:'20.01.2026', apprReport:'ОЦ-2026/03',
+    override:null,
+    /* ПЕРЕЗАЛОГ ПОД ОДНИМ ЗАПРЕТОМ: запрет наложен на вещь один раз (Д-001),
+       второй договор Д-002 добавлен в основания — повторное наложение не требуется. */
+    ban:{ organ:'Госрегистр (недвижимое имущество)', regNo:'ЗПО-2024/0417', date:'12.04.2024', contracts:['Д-001','Д-002'], pendingRelease:false },
+    lost:false, realizing:false, needReval:false, everPledged:true,
+    lastSurvey:'15.03.2026', lastReval:'20.01.2026',
+    revals:[ {date:'20.01.2026', appraised:400000, report:'ОЦ-2026/03', note:'плановая переоценка'} ],
+    surveys:[ {date:'15.03.2026', act:'АО-2026/11', outcome:'в норме', note:'на месте, состояние удовлетворительное'} ],
+    history:[ {when:'18.09.2025 12:00', what:'Перезалог: договор Д-002 добавлен в основания действующего запрета ЗПО-2024/0417 (повторное наложение не требуется)', who:'Залоговый специалист'},
+              {when:'12.04.2024 09:30', what:'Наложен запрет на отчуждение: Госрегистр · ЗПО-2024/0417 от 12.04.2024 (основание Д-001)', who:'Залоговый специалист'},
+              {when:'10.04.2024 10:00', what:'Предмет зарегистрирован в реестре', who:'Залоговый специалист'} ] },
+
+  { id:'П-002', kind:'Оборудование', name:'Экскаватор Hyundai R220', pledger:'22105198800047',
+    ident:'Инв. № ОБ-4471', appraised:110000, apprDate:'20.06.2026', apprReport:'ОЦ-2026/88',
+    override:null,
+    ban:{ organ:'Реестр залогов движимого имущества', regNo:'ЗПО-2025/1876', date:'12.11.2025', contracts:['Д-006'], pendingRelease:false },
+    lost:false, realizing:false, needReval:false, everPledged:true,
+    lastSurvey:'10.02.2026', lastReval:'20.06.2026',
+    revals:[ {date:'12.02.2025', appraised:160000, report:'ОЦ-2025/14', note:'первичная оценка'},
+             {date:'20.06.2026', appraised:110000, report:'ОЦ-2026/88', note:'износ + падение вторичного рынка'} ],
+    surveys:[ {date:'10.02.2026', act:'АО-2026/06', outcome:'в норме', note:'в работе у залогодателя'} ],
+    history:[ {when:'20.06.2026 12:30', what:'Переоценка: оценочная 160 000,00 → 110 000,00 (ОЦ-2026/88)', who:'Залоговый специалист'},
+              {when:'12.02.2025 09:00', what:'Предмет зарегистрирован в реестре', who:'Залоговый специалист'} ] },
+
+  { id:'П-003', kind:'Товары в обороте', name:'Кабельная продукция на складе', pledger:'01912201610212',
+    ident:'Ведомость ТВО-2025/9', appraised:200000, apprDate:'05.04.2026', apprReport:'ОЦ-2026/31',
+    override:null,
+    ban:{ organ:'Реестр залогов движимого имущества', regNo:'ЗПО-2025/1041', date:'19.09.2025', contracts:['Д-002'], pendingRelease:false },
+    lost:false, realizing:false, needReval:false, everPledged:true,
+    lastSurvey:'05.04.2026', lastReval:'05.04.2026',
+    revals:[ {date:'05.04.2026', appraised:200000, report:'ОЦ-2026/31', note:'плановая переоценка'} ],
+    surveys:[ {date:'05.04.2026', act:'АО-2026/14', outcome:'в норме', note:'остатки соответствуют ведомости'} ],
+    history:[ {when:'18.09.2025 11:00', what:'Предмет зарегистрирован в реестре', who:'Залоговый специалист'} ] },
+
+  { id:'П-004', kind:'Недвижимое имущество', name:'Квартира, г. Бишкек, ул. Ахунбаева, 12-45', pledger:'12345198500011',
+    ident:'Кадастровый № 1-01-08-1145', appraised:300000, apprDate:'03.02.2025', apprReport:'ОЦ-2025/07',
+    override:null,
+    ban:{ organ:'Госрегистр (недвижимое имущество)', regNo:'ЗПО-2025/0128', date:'05.02.2025', contracts:['Д-003'], pendingRelease:false },
+    lost:false, realizing:false, needReval:false, everPledged:true,
+    lastSurvey:'20.01.2026', lastReval:'03.02.2025',
+    revals:[ {date:'03.02.2025', appraised:300000, report:'ОЦ-2025/07', note:'первичная оценка'} ],
+    surveys:[ {date:'20.01.2026', act:'АО-2026/02', outcome:'в норме', note:'проживает залогодатель'} ],
+    history:[ {when:'05.02.2025 11:20', what:'Наложен запрет на отчуждение: Госрегистр · ЗПО-2025/0128 от 05.02.2025 (основание Д-003). Предмет не может быть продан без нашего ведома', who:'Залоговый специалист'},
+              {when:'03.02.2025 09:20', what:'Предмет зарегистрирован в реестре (залогодатель ≠ заёмщик)', who:'Залоговый специалист'} ] },
+
+  { id:'П-005', kind:'Транспортное средство', name:'Грузовой автомобиль MAN TGS', pledger:'20308197700219',
+    ident:'VIN WMA06XZZ8LM123456', appraised:100000, apprDate:'14.05.2026', apprReport:'ОЦ-2026/59',
+    override:{ value:60000, obosn:'Ликвидная модель, устойчивый спрос на вторичном рынке; протокол комиссии по залогу №14 от 14.05.2026', by:'Комиссия по залогу', date:'14.05.2026' },
+    /* НАМЕРЕННЫЙ ДЕФЕКТ ОФОРМЛЕНИЯ: договор Д-004 зарегистрирован 20.05.2026, но
+       запрет на отчуждение так и не наложен → залогодатель может продать грузовик
+       без нашего ведома. Дедлайн (нотар. дата + 5 раб. дней) истёк → триггер high. */
+    ban:null, lost:false, realizing:false, needReval:false, everPledged:true,
+    lastSurvey:'14.05.2026', lastReval:'14.05.2026',
+    revals:[ {date:'14.05.2026', appraised:100000, report:'ОЦ-2026/59', note:'первичная оценка'} ],
+    surveys:[ {date:'14.05.2026', act:'АО-2026/22', outcome:'в норме', note:'осмотр при оформлении'} ],
+    history:[ {when:'14.05.2026 16:05', what:'Override залоговой стоимости: 50 000,00 (расчётная) → 60 000,00 — ВЫШЕ расчётной, обоснование зафиксировано', who:'Комиссия по залогу'},
+              {when:'14.05.2026 10:00', what:'Предмет зарегистрирован в реестре', who:'Залоговый специалист'} ] },
+
+  { id:'П-006', kind:'Недвижимое имущество', name:'Производственная база, с. Лебединовка', pledger:'01705199200338',
+    ident:'Кадастровый № 3-07-22-0090', appraised:350000, apprDate:'01.07.2026', apprReport:'ОЦ-2026/91',
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false,
+    lastSurvey:'01.07.2026', lastReval:'01.07.2026',
+    revals:[ {date:'01.07.2026', appraised:350000, report:'ОЦ-2026/91', note:'первичная оценка'} ],
+    surveys:[ {date:'01.07.2026', act:'АО-2026/28', outcome:'в норме', note:'осмотр при оформлении договора'} ],
+    history:[ {when:'01.07.2026 09:30', what:'Предмет зарегистрирован в реестре', who:'Залоговый специалист'} ] },
+
+  { id:'П-007', kind:'Товары в обороте', name:'Зерно, склад №2 (с. Кызыл-Суу)', pledger:'22105198800047',
+    ident:'Ведомость ТВО-2026/3', appraised:90000, apprDate:'01.02.2026', apprReport:'ОЦ-2026/05',
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false,
+    lastSurvey:'01.02.2026', lastReval:'01.02.2026',
+    revals:[ {date:'01.02.2026', appraised:90000, report:'ОЦ-2026/05', note:'первичная оценка'} ],
+    surveys:[ {date:'01.02.2026', act:'АО-2026/03', outcome:'в норме', note:'остатки на месте'} ],
+    history:[ {when:'01.02.2026 10:15', what:'Предмет зарегистрирован в реестре', who:'Залоговый специалист'} ] },
+
+  /* ЗАПРЕТ ПОДЛЕЖИТ СНЯТИЮ: кредит по Д-007 погашен, доли обнулились, но запрет
+     продолжает действовать в органе. Снятие — акт во внешнем органе, автоматом
+     не происходит → триггер mid «Требуется снятие запрета» + pendingRelease:true. */
+  { id:'П-008', kind:'Сельхозтехника', name:'Трактор МТЗ-892', pledger:'22105198800047',
+    ident:'Зав. № TR-892-00417', appraised:70000, apprDate:'05.01.2024', apprReport:'ОЦ-2024/02',
+    override:null,
+    ban:{ organ:'Реестр залогов движимого имущества', regNo:'ЗПО-2024/0102', date:'09.01.2024', contracts:['Д-007'], pendingRelease:true },
+    lost:false, realizing:false, needReval:false, everPledged:true,
+    lastSurvey:'05.01.2026', lastReval:'05.01.2024',
+    revals:[ {date:'05.01.2024', appraised:70000, report:'ОЦ-2024/02', note:'первичная оценка'} ],
+    surveys:[ {date:'05.01.2026', act:'АО-2026/01', outcome:'в норме', note:'осмотр перед закрытием договора'} ],
+    history:[ {when:'20.06.2026 10:00', what:'Кредит К-33 погашен, доли высвобождены — запрет на отчуждение подлежит снятию в Реестре залогов движимого имущества (снятие оформляется актом)', who:'Залоговый специалист'},
+              {when:'09.01.2024 09:40', what:'Наложен запрет на отчуждение: Реестр залогов движимого имущества · ЗПО-2024/0102 от 09.01.2024 (основание Д-007)', who:'Залоговый специалист'},
+              {when:'05.01.2024 09:00', what:'Предмет зарегистрирован в реестре', who:'Залоговый специалист'} ] },
+];
+const item = id => ITEMS.find(i=>i.id===id);
+
+/* ЗАЛОГОВЫЙ ДОГОВОР — юр-обёртка. Несёт ОТНЕСЕНИЯ (предмет ↔ кредит ↔ доля).
+   Статусы: Оформляется → [На рассмотрении комиссии] → Зарегистрирован → Закрыт. */
+const CONTRACTS = [
+  { id:'Д-001', no:'ЗД-2024/56-1', date:'10.04.2024', status:'Зарегистрирован', inn:'01912201610212',
+    notary:'Нотариус Абдылдаева Г.К.', notaryNo:'НР-2024/1188', notaryDate:'10.04.2024', cert:'ЗС-2024/0417',
+    credits:['К-56'], allocs:[ {item:'П-001', credit:'К-56', share:240000} ],
+    undercovered:null, addenda:[],
+    history:[ {when:'10.04.2024 14:00', what:'Договор зарегистрирован. Покрытие К-56: 120,0%', who:'Залоговый специалист'} ] },
+
+  /* ПЕРЕЗАЛОГ: П-001 уже обременён Д-001 на 240 000 из 280 000 залоговой.
+     Остаток 40 000 отнесён под К-77 новым договором Д-002 (не правкой Д-001).
+     Приоритет между нашими договорами = порядок регистрации (Д-001 старше). */
+  { id:'Д-002', no:'ЗД-2025/77-1', date:'18.09.2025', status:'Зарегистрирован', inn:'01912201610212',
+    notary:'Нотариус Абдылдаева Г.К.', notaryNo:'НР-2025/2041', notaryDate:'18.09.2025', cert:'ЗС-2025/0912',
+    credits:['К-77'], allocs:[ {item:'П-001', credit:'К-77', share:40000}, {item:'П-003', credit:'К-77', share:68000} ],
+    undercovered:null, addenda:[],
+    history:[ {when:'18.09.2025 11:30', what:'Договор зарегистрирован (последующий залог П-001 на остаточную стоимость). Покрытие К-77: 120,0%', who:'Залоговый специалист'} ] },
+
+  /* ТРЕТЬЕ-ЛИЦО-ЗАЛОГ: залогодатель П-004 (Осмонов Б.Т.) ≠ заёмщик (КФХ «Ак-Дан»). */
+  { id:'Д-003', no:'ЗД-2025/88-1', date:'03.02.2025', status:'Зарегистрирован', inn:'22105198800047',
+    notary:'Нотариус Осмоналиев Т.Б.', notaryNo:'НР-2025/0334', notaryDate:'03.02.2025', cert:'ЗС-2025/0128',
+    credits:['К-88'], allocs:[ {item:'П-004', credit:'К-88', share:180000} ],
+    undercovered:null, addenda:[],
+    history:[ {when:'03.02.2025 10:40', what:'Договор зарегистрирован (имущественный залог третьего лица). Покрытие К-88: 120,0%', who:'Залоговый специалист'} ] },
+
+  { id:'Д-004', no:'ЗД-2026/40-1', date:'20.05.2026', status:'Зарегистрирован', inn:'20308197700219',
+    notary:'Нотариус Осмоналиев Т.Б.', notaryNo:'НР-2026/0771', notaryDate:'20.05.2026', cert:'ЗС-2026/0233',
+    credits:['К-40'], allocs:[ {item:'П-005', credit:'К-40', share:48000} ],
+    undercovered:null, addenda:[],
+    history:[ {when:'20.05.2026 15:10', what:'Договор зарегистрирован. Покрытие К-40: 120,0% (залоговая П-005 — по override комиссии)', who:'Залоговый специалист'} ] },
+
+  /* ПРОВАЛ КОНТРОЛЬНОГО ГЕЙТА: 245 000 залоговой на кредит 250 000 → 98% < 120%.
+     Регистрация будет заблокирована до решения комиссии по залогу. */
+  { id:'Д-005', no:'', date:'', status:'Оформляется', inn:'01705199200338',
+    notary:'', notaryNo:'', notaryDate:'', cert:'',
+    credits:['К-71'], allocs:[ {item:'П-006', credit:'К-71', share:245000} ],
+    undercovered:null, addenda:[],
+    history:[ {when:'01.07.2026 10:00', what:'Договор создан (черновик)', who:'Залоговый специалист'} ] },
+
+  /* ПАДЕНИЕ ПОКРЫТИЯ НА ДЕЙСТВУЮЩЕМ КРЕДИТЕ: доля 72 000 закреплена нотариально,
+     но переоценка 20.06.2026 уронила залоговую П-002 до 55 000 → эффективная доля
+     усечена → покрытие К-90 ниже 120% → триггер «недостаточность обеспечения». */
+  { id:'Д-006', no:'ЗД-2025/90-1', date:'11.11.2025', status:'Зарегистрирован', inn:'22105198800047',
+    notary:'Нотариус Осмоналиев Т.Б.', notaryNo:'НР-2025/2299', notaryDate:'11.11.2025', cert:'ЗС-2025/1104',
+    credits:['К-90'], allocs:[ {item:'П-002', credit:'К-90', share:72000} ],
+    undercovered:null, addenda:[],
+    history:[ {when:'11.11.2025 13:20', what:'Договор зарегистрирован. Покрытие К-90: 120,0%', who:'Залоговый специалист'} ] },
+
+  /* ЗАКРЫТЫЙ ДОГОВОР: кредит К-33 погашен → договор закрыт, доли обнулены (allocs=[]).
+     Но запрет по П-008 остался в органе (ban.pendingRelease=true) → триггер снятия. */
+  { id:'Д-007', no:'ЗД-2024/33-1', date:'05.01.2024', status:'Закрыт', inn:'22105198800047',
+    notary:'Нотариус Осмоналиев Т.Б.', notaryNo:'НР-2024/0033', notaryDate:'05.01.2024', cert:'ЗС-2024/0033',
+    credits:['К-33'], allocs:[],
+    undercovered:null, addenda:[],
+    history:[ {when:'20.06.2026 10:00', what:'Кредит К-33 погашен → договор закрыт, предметы освобождены. Запрет по П-008 подлежит снятию в органе', who:'Залоговый специалист'},
+              {when:'05.01.2024 10:20', what:'Договор зарегистрирован. Покрытие К-33: 120,0%', who:'Залоговый специалист'} ] },
+];
+const contract = id => CONTRACTS.find(c=>c.id===id);
+
+/* ============================================================
+   ВЫЧИСЛЯЕМЫЙ СЛОЙ — здесь живёт ВСЯ арифметика залога.
+   Ничего из этого не хранится в данных: залоговая, отнесено, доступно,
+   покрытие, статус предмета, просрочка контроля, триггеры — производные.
+   ============================================================ */
+const coefOf      = kind => (KINDS[kind]||{k:0.5}).k;
+const calcPledge  = it => Math.round(it.appraised * coefOf(it.kind) * 100)/100;   // расчётная залоговая
+const pledgeValue = it => it.lost ? 0 : (it.override ? it.override.value : calcPledge(it));
+const isOverAbove = it => Boolean(it.override) && it.override.value > calcPledge(it); // override ВЫШЕ расчётной → флаг
+
+const ACTIVE = 'Зарегистрирован';
+const isActive  = c => c.status === ACTIVE;
+const isDraftish = c => c.status === 'Оформляется' || c.status === 'На рассмотрении комиссии';
+
+/* Контекст расчёта: действующие договоры + (опционально) один виртуальный
+   (проверяемый черновик либо договор с применённым пакетом доп соглашения). */
+function ctx(virtual){
+  const base = CONTRACTS.filter(c => isActive(c) && (!virtual || c.id !== virtual.id));
+  return virtual ? [...base, virtual] : base;
+}
+/* Отнесено по предмету внутри контекста. */
+const allocatedIn = (cs, itemId) =>
+  cs.reduce((s,c)=> s + c.allocs.filter(a=>a.item===itemId).reduce((t,a)=>t+a.share,0), 0);
+
+/* Юридически обременено (действующие) + предварительно занято черновиками —
+   чтобы одну и ту же стоимость не пообещали дважды ещё на этапе оформления. */
+const allocatedLegal = itemId => allocatedIn(CONTRACTS.filter(isActive), itemId);
+const allocatedDraft = itemId => allocatedIn(CONTRACTS.filter(isDraftish), itemId);
+const availableOf    = it => Math.max(0, pledgeValue(it) - allocatedLegal(it.id) - allocatedDraft(it.id));
+
+/* ЭФФЕКТИВНАЯ ДОЛЯ. Юридическая доля в нотариальном договоре статична и от платежей
+   не усыхает (§4.2). Но если переоценка уронила залоговую ниже суммы закреплённых
+   долей — покрытие не может опираться на несуществующую стоимость: доли усекаются
+   ПРОПОРЦИОНАЛЬНО. Договор при этом не правится; падение покрытия поднимает триггер. */
+function effShare(cs, itemId, share){
+  const it = item(itemId); if(!it || it.lost) return 0;
+  const pv = pledgeValue(it), tot = allocatedIn(cs, itemId);
+  return tot <= pv ? share : share * (pv / tot);
+}
+/* Покрытие кредита = Σ эффективных отнесённых долей ÷ сумма кредита. */
+function coverage(cs, creditId){
+  const cr = credit(creditId);
+  const sum = cs.reduce((s,c)=> s + c.allocs.filter(a=>a.credit===creditId)
+                 .reduce((t,a)=> t + effShare(cs, a.item, a.share), 0), 0);
+  return { sum, amount: cr.amount, ratio: cr.amount ? sum/cr.amount : 0, ok: cr.amount ? sum/cr.amount >= COVER_MIN : true };
+}
+/* ГЕЙТ 120% — один код на два места: регистрация договора и регистрация доп соглашения. */
+function gateCheck(virtual){
+  const cs = ctx(virtual);
+  const rows = virtual.credits.map(id => ({ id, ...coverage(cs, id) }));
+  return { rows, ok: rows.every(r=>r.ok) };
+}
+/* ИНВАРИАНТ: Σ долей предмета ≤ залоговая стоимость. Проверяется до сохранения. */
+function invariantBreaches(virtual){
+  const cs = [...CONTRACTS.filter(c => (isActive(c)||isDraftish(c)) && c.id !== virtual.id), virtual];
+  const ids = [...new Set(virtual.allocs.map(a=>a.item))];
+  return ids.map(id => ({ id, alloc: allocatedIn(cs, id), pledge: pledgeValue(item(id)) }))
+            .filter(x => x.alloc > x.pledge + 0.005);
+}
+
+/* Залоговая ось статуса предмета — ПРОИЗВОДНАЯ от наличия долей (не поле). */
+function lienStatus(it){
+  if(it.lost) return 'выбыл';
+  if(it.realizing) return 'реализуется';
+  if(allocatedLegal(it.id) > 0) return 'в залоге';
+  if(allocatedDraft(it.id) > 0) return 'резервируется';
+  return it.everPledged ? 'освобождён' : 'свободен';
+}
+const lienCls = s => s==='в залоге' ? 'info' : s==='реализуется' ? 'mid' : s==='выбыл' ? 'high' : 'neutral';
+
+/* ============================================================
+   ОСЬ ЗАПРЕТА НА ОТЧУЖДЕНИЕ — НАШ ШАГ ОФОРМЛЕНИЯ, не внешнее событие.
+   Порядок: договор удостоверяется у нотариуса → мы САМИ накладываем запрет
+   на отчуждение предмета в регистрирующем органе, чтобы залогодатель не продал
+   заложенное имущество без нашего ведома. Запрет — на ВЕЩЬ (один на предмет),
+   при перезалоге дополняется основанием, а не накладывается заново. Снимается,
+   когда предмет перестал обеспечивать кредит (гейт: живые доли ⇒ снять нельзя).
+   Ось запрета НЕЗАВИСИМА от залоговой оси: «в залоге» + «запрет не наложен»
+   — это и есть дефект оформления (дыра в обеспечении), а не норма.
+   ============================================================ */
+/* Дедлайн наложения: нотариальная дата САМОГО РАННЕГО зарегистрированного
+   договора, обременяющего предмет, + BAN_DEADLINE_DAYS рабочих дней. */
+function banDeadline(it){
+  const cs = CONTRACTS.filter(c => isActive(c) && c.allocs.some(a=>a.item===it.id) && isDate(c.notaryDate));
+  if(!cs.length) return null;
+  const earliest = cs.map(c=>c.notaryDate).sort((a,b)=>d2n(a)-d2n(b))[0];
+  return addBusinessDays(earliest, BAN_DEADLINE_DAYS);
+}
+/* Зарегистрированные договоры, обременяющие предмет — основания запрета. */
+const banContracts = it => CONTRACTS.filter(c => isActive(c) && c.allocs.some(a=>a.item===it.id)).map(c=>c.id);
+const banRequired = it => allocatedLegal(it.id) > 0;                 // запрет обязан быть
+const banMissing  = it => banRequired(it) && !it.ban;               // ДЕФЕКТ ОФОРМЛЕНИЯ
+const banOverdue  = it => banMissing(it) && isOverdue(banDeadline(it));
+const banStale    = it => Boolean(it.ban) && allocatedLegal(it.id) === 0;  // подлежит снятию
+function banStatus(it){
+  if(it.ban) return allocatedLegal(it.id) === 0 ? 'подлежит снятию' : 'наложен';
+  if(!banRequired(it)) return 'не требуется';
+  return banOverdue(it) ? 'просрочен' : 'не наложен';
+}
+/* Единственный источник пилюли запрета в списках и карточках. */
+function banPill(it){
+  const s = banStatus(it);
+  if(s==='наложен')          return '<span class="pill low">запрет наложен</span>';
+  if(s==='не наложен')       return `<span class="pill mid">запрет не наложен · до ${banDeadline(it)}</span>`;
+  if(s==='просрочен')        return '<span class="pill high">ЗАПРЕТ НЕ НАЛОЖЕН</span>';
+  if(s==='подлежит снятию')  return '<span class="pill mid">подлежит снятию</span>';
+  return '<span class="pill neutral">—</span>';
+}
+
+/* Плановый контроль — вычисляемый оверлей по датам, не статус. */
+const nextSurvey = it => addMonths(it.lastSurvey, (KINDS[it.kind]||{survey:12}).survey);
+const nextReval  = it => addMonths(it.lastReval,  (KINDS[it.kind]||{reval:24}).reval);
+
+/* ТРИГГЕРЫ. Собираются из состояния; не хранятся. Триггер «недостаточность
+   обеспечения» уходит во взыскание отдельным треком по причине «обеспечение» —
+   он НЕ трогает риск-категорию и НЕ трогает группу платёжеспособности. */
+function triggers(){
+  const out = [], cs = CONTRACTS.filter(isActive);
+  const seen = new Set();
+  cs.forEach(c => c.credits.forEach(id => {
+    if(seen.has(id)) return; seen.add(id);
+    const cov = coverage(cs, id);
+    if(!cov.ok) out.push({ type:'Недостаточность обеспечения', crit:'high', obj:id,
+      objLbl:`${id} · ${credit(id).num}`, ctr:c.id,
+      text:`Покрытие ${pct(cov.ratio)} < 120% (обеспечено ${fmt(cov.sum)} из ${fmt(cov.amount*COVER_MIN)} требуемых)`,
+      act:'Открыть трек взыскания по обеспечению / догрузить или заменить предмет' });
+  }));
+  ITEMS.forEach(it => {
+    if(it.lost) out.push({ type:'Утрата предмета', crit:'high', obj:it.id, objLbl:`${it.id} · ${it.name}`,
+      text:'Предмет не найден по акту обследования — стоимость исключена из покрытия', act:'Замена предмета доп соглашением' });
+    if(it.needReval) out.push({ type:'Требуется досрочная переоценка', crit:'mid', obj:it.id, objLbl:`${it.id} · ${it.name}`,
+      text:'Обследование зафиксировало ухудшение состояния', act:'Провести переоценку' });
+    /* ЗАЛОГ БЕЗ ЗАПРЕТА — дыра в обеспечении: залогодатель может продать предмет
+       без нашего ведома. Это дефект оформления, а не формальность. */
+    if(banMissing(it)) out.push({ type:'Залог без запрета на отчуждение', crit: banOverdue(it) ? 'high' : 'mid',
+      obj:it.id, objLbl:`${it.id} · ${it.name}`,
+      text:`Договор(ы) ${banContracts(it).join(', ')} зарегистрированы, запрет в «${organOf(it)}» не наложен. Срок: до ${banDeadline(it)}${banOverdue(it) ? ` · ПРОСРОЧЕН на ${Math.abs(daysLeft(banDeadline(it)))} дн.` : ''}`,
+      act:`Наложить запрет на отчуждение в «${organOf(it)}»` });
+    /* ЗАПРЕТ ЖИВ, а доли обнулились — имущество клиента заблокировано без основания. */
+    if(banStale(it)) out.push({ type:'Требуется снятие запрета', crit:'mid',
+      obj:it.id, objLbl:`${it.id} · ${it.name}`,
+      text:`Доли по предмету обнулились (кредит погашен / предмет выведен), запрет ${it.ban.regNo} от ${it.ban.date} продолжает действовать в «${organOf(it)}»`,
+      act:`Снять запрет в «${organOf(it)}»` });
+    if(isOverdue(nextSurvey(it))) out.push({ type:'Просрочен контроль: обследование', crit:'mid', obj:it.id,
+      objLbl:`${it.id} · ${it.name}`, text:`Плановая дата ${nextSurvey(it)} (просрочка ${Math.abs(daysLeft(nextSurvey(it)))} дн.)`, act:'Провести обследование' });
+    if(isOverdue(nextReval(it))) out.push({ type:'Просрочен контроль: переоценка', crit:'mid', obj:it.id,
+      objLbl:`${it.id} · ${it.name}`, text:`Плановая дата ${nextReval(it)} (просрочка ${Math.abs(daysLeft(nextReval(it)))} дн.)`, act:'Провести переоценку' });
+  });
+  CONTRACTS.filter(c=>c.status==='На рассмотрении комиссии').forEach(c => out.push({
+    type:'Регистрация заблокирована', crit:'high', obj:c.id, objLbl:`${c.id} · ${clientName(c.inn)}`,
+    text:'Контрольный гейт 120% не пройден — договор ждёт решения комиссии по залогу',
+    act:'Решение комиссии: вернуть на доработку либо допустить с обоснованием' }));
+  return out;
+}
+
+/* ============================================================
+   РОЛИ
+   ============================================================ */
+let role = 'Залоговый специалист';
+const canEdit       = () => role === 'Залоговый специалист';
+const canCommission = () => role === 'Комиссия по залогу';
+function onRoleChange(){ role = document.getElementById('roleSel').value; toast('Роль: '+role);
+  renderList(); if(cur) openCard(cur.type, cur.id); }
+function denyEdit(){ toast('Роль «'+role+'» не имеет права на это действие','warn'); }
+function denyComm(){ toast('Действие доступно только роли «Комиссия по залогу»','warn'); }
+
+/* ============================================================
+   РЕЕСТРЫ (три списка: предметы / договоры / мониторинг)
+   ============================================================ */
+let reg = 'items', selected = null, cur = null, sortKey = null, sortDir = 1;
+
+const SEGS = [
+  { k:'items',     t:'Предметы залога',    n:()=>ITEMS.length },
+  { k:'contracts', t:'Залоговые договоры', n:()=>CONTRACTS.length },
+  { k:'monitor',   t:'Мониторинг',         n:()=>triggers().length },
+];
+function switchReg(k){ reg = k; selected = null; sortKey = null; renderList(); }
+
+const HEADS = {
+  items:     ['№','Вид залога','Наименование','Залогодатель','Оценочная','Коэф.','Залоговая','Отнесено','Доступно','Статус','Контроль'],
+  contracts: ['№','Договор','Заёмщик','Статус','Предметов','Кредитов','Мин. покрытие','Доп. согл.'],
+  monitor:   ['Критичность','Тип','Объект','Описание','Что делать'],
+};
+const NOTES = {
+  items: 'Предмет залога — каноническая запись актива. Оценочная стоимость вводится человеком (отчёт оценщика); залоговая — производная (оценочная × коэффициент вида) с событийным override комиссии; «Отнесено» и «Доступно» считаются из долей по договорам. Ничего из этого не хранится как поле.',
+  contracts: '«Мин. покрытие» — минимальное покрытие среди кредитов договора (Σ эффективных долей ÷ сумма кредита). Контрольный гейт при регистрации: каждый кредит ≥ 120%.',
+  monitor: 'Триггеры и просроченный контроль — ВЫЧИСЛЯЕМЫЕ оверлеи, а не статусы. «Недостаточность обеспечения» уходит во взыскание отдельным треком по причине «обеспечение»; риск-категорию и группу платёжеспособности заёмщика он не трогает.',
+};
+
+function minCoverage(c){
+  const cs = ctx(isActive(c) ? null : c);
+  const list = c.credits.map(id => coverage(cs, id).ratio);
+  return list.length ? Math.min(...list) : 0;
+}
+function ctrlBadge(it){
+  const s = isOverdue(nextSurvey(it)), r = isOverdue(nextReval(it));
+  if(s && r) return '<span class="pill high">обслед. + переоц.</span>';
+  if(s) return '<span class="pill mid">обследование просрочено</span>';
+  if(r) return '<span class="pill mid">переоценка просрочена</span>';
+  if(it.needReval) return '<span class="pill mid">нужна переоценка</span>';
+  return '<span class="pill low">по графику</span>';
+}
+function rowsItems(){
+  return ITEMS.map(it => {
+    const st = lienStatus(it);
+    return { id: it.id, sort:{ id:it.id, kind:it.kind, name:it.name, pledger:clientName(it.pledger),
+        appraised:it.appraised, k:coefOf(it.kind), pledge:pledgeValue(it), alloc:allocatedLegal(it.id)+allocatedDraft(it.id), avail:availableOf(it), st },
+      cells:[ it.id, it.kind, esc(it.name), esc(clientName(it.pledger)),
+        `<span class="numcell">${fmt(it.appraised)}</span>`,
+        `<span class="numcell">${coefOf(it.kind).toString().replace('.',',')}</span>`,
+        `<span class="numcell">${fmt(pledgeValue(it))}${it.override ? (isOverAbove(it) ? ' <span class="pill high" title="override выше расчётной">override ↑</span>' : ' <span class="pill neutral">override</span>') : ''}</span>`,
+        `<span class="numcell">${fmt(allocatedLegal(it.id)+allocatedDraft(it.id))}</span>`,
+        `<span class="numcell">${fmt(availableOf(it))}</span>`,
+        `<span class="axis"><span class="pill ${lienCls(st)}">${st}</span>${banPill(it)}</span>`,
+        ctrlBadge(it) ] };
+  });
+}
+function rowsContracts(){
+  return CONTRACTS.map(c => {
+    const mc = minCoverage(c);
+    const stPill = c.status===ACTIVE ? 'low' : c.status==='Оформляется' ? 'neutral' : c.status==='Закрыт' ? 'neutral' : 'high';
+    return { id:c.id, sort:{ id:c.id, no:c.no, inn:clientName(c.inn), status:c.status,
+        items:new Set(c.allocs.map(a=>a.item)).size, credits:c.credits.length, mc, add:c.addenda.length },
+      cells:[ c.id, c.no ? esc(c.no) : '<span style="color:var(--text-placeholder)">— не зарегистрирован —</span>',
+        esc(clientName(c.inn)),
+        `<span class="pill ${stPill}">${c.status}</span>${c.undercovered ? ' <span class="pill high">допуск &lt;120%</span>' : ''}`,
+        `<span class="numcell">${new Set(c.allocs.map(a=>a.item)).size}</span>`,
+        `<span class="numcell">${c.credits.length}</span>`,
+        c.status==='Закрыт' ? '—' : `<span class="pill ${mc>=COVER_MIN?'low':'high'}">${pct(mc)}</span>`,
+        `<span class="numcell">${c.addenda.length}</span>` ] };
+  });
+}
+function rowsMonitor(){
+  return triggers().map((t,i) => ({ id:t.obj, kind:t.type, raw:t,
+    sort:{ crit:t.crit==='high'?0:1, type:t.type, obj:t.objLbl },
+    cells:[ `<span class="pill ${t.crit==='high'?'high':'mid'}">${t.crit==='high'?'высокая':'средняя'}</span>`,
+      esc(t.type), esc(t.objLbl), esc(t.text), esc(t.act) ] }));
+}
+
+function renderList(){
+  document.getElementById('segBar').innerHTML = SEGS.map(s =>
+    `<button class="${reg===s.k?'on':''}" onclick="switchReg('${s.k}')">${s.t}<span class="cnt">${s.n()}</span></button>`).join('');
+  document.getElementById('btnNewLbl').textContent = reg==='contracts' ? 'Новый залоговый договор' : 'Новый предмет залога';
+  document.getElementById('btnNew').style.display = reg==='monitor' ? 'none' : 'inline-flex';
+  document.getElementById('listNote').innerHTML = `<p class="section-note" style="margin:0">${NOTES[reg]}</p>`;
+
+  const heads = HEADS[reg];
+  document.getElementById('listHead').innerHTML = heads.map((h,i)=>`<th onclick="sortBy(${i})">${h}<span class="sort">↕</span></th>`).join('');
+  let rows = reg==='items' ? rowsItems() : reg==='contracts' ? rowsContracts() : rowsMonitor();
+  if(sortKey !== null){
+    const keys = Object.keys(rows.length ? rows[0].sort : {});
+    const k = keys[sortKey];
+    if(k) rows = [...rows].sort((a,b)=>{
+      const x=a.sort[k], y=b.sort[k];
+      return (typeof x === 'number' ? (x-y) : String(x).localeCompare(String(y),'ru')) * sortDir;
+    });
+  }
+  document.getElementById('listBody').innerHTML = rows.map(r=>`
+    <tr data-id="${r.id}" onclick="selectRow('${r.id}')" ondblclick="openSelected()">
+      ${r.cells.map(c=>`<td>${c}</td>`).join('')}
+    </tr>`).join('') || `<tr><td colspan="${heads.length}"><div class="cgrid-empty">Записей нет</div></td></tr>`;
+  document.getElementById('pagerCount').textContent =
+    reg==='items' ? ITEMS.length+' предметов' : reg==='contracts' ? CONTRACTS.length+' договоров' : triggers().length+' активных триггеров';
+  document.getElementById('btnOpen').disabled = !selected;
+  if(selected) document.querySelectorAll('#listBody tr').forEach(t=>t.classList.toggle('sel', t.dataset.id===selected));
+}
+function sortBy(i){ if(sortKey===i) sortDir*=-1; else { sortKey=i; sortDir=1; } renderList(); }
+function selectRow(id){ selected = id; renderList(); }
+function openSelected(){
+  if(!selected) return;
+  if(item(selected)) openCard('item', selected);
+  else if(contract(selected)) openCard('contract', selected);
+  else if(credit(selected)) toast('Переход в карточку кредита '+credit(selected).num+' (модуль «Кредиты»)');
+}
+function onNew(){ if(!canEdit()) return denyEdit(); reg==='contracts' ? openNewContract() : openNewItem(); }
+
+/* ============================================================
+   КАРТОЧКИ — вкладки и панели
+   ============================================================ */
+const TABS_ITEM = ['Основное','Стоимость и переоценки','Запрет на отчуждение','Обследования','Отнесения','История'];
+const TABS_CTR  = ['Общая информация','Предметы и доли','Кредиты и покрытие','Доп соглашения','История'];
+let curTab = 0;
+
+function openCard(type, id, tab){
+  cur = { type, id }; curTab = tab ?? 0;
+  const tabs = type==='item' ? TABS_ITEM : TABS_CTR;
+  document.getElementById('detailTabbar').innerHTML =
+    tabs.map((t,i)=>`<button class="dtab${i===curTab?' active':''}" onclick="openCard('${type}','${id}',${i})">${t}</button>`).join('');
+  const panels = type==='item' ? itemPanels(item(id)) : ctrPanels(contract(id));
+  document.getElementById('detailPanels').innerHTML = panels[curTab];
+  document.getElementById('detailFooter').innerHTML = type==='item' ? itemFooter(item(id)) : ctrFooter(contract(id));
+  document.getElementById('crumbTitle').textContent = type==='item'
+    ? `${id} · ${item(id).name}` : `${id} · ${contract(id).no || 'черновик'} · ${clientName(contract(id).inn)}`;
+  showView('detail');
+}
+const kpi = (l,v,src) => `<div class="dim"><div class="dl">${l}</div><div class="dv">${v}</div><div class="src">${src}</div></div>`;
+const ro  = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div class="control ro"><input value="${esc(v??'')}" readonly></div></div>`;
+
+/* ---------- КАРТОЧКА ПРЕДМЕТА ---------- */
+function itemPanels(it){
+  const st = lienStatus(it), pv = pledgeValue(it), cp = calcPledge(it);
+  const head = `<div class="phead">
+    <div class="phead-top">
+      <div class="phead-name"><span class="nm">${esc(it.name)}</span>
+        <a onclick="toast('Переход в карточку клиента (модуль «Заёмщики»)')">${esc(clientName(it.pledger))} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></a>
+        <div class="phead-sub" style="width:100%">${it.id} · ${esc(it.kind)} · ${esc(it.ident)}</div>
+      </div>
+      <span class="phead-owner"><span class="pill ${lienCls(st)}">${st}</span> ${banPill(it)}</span>
+    </div>
+    ${banMissing(it) ? `<div class="phead-banner danger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
+      <span>Залог не защищён от продажи: договор(ы) ${banContracts(it).join(', ')} зарегистрированы, но запрет на отчуждение в «${esc(organOf(it))}» не наложен. Залогодатель может продать предмет без нашего ведома. Срок наложения: до ${banDeadline(it)}${banOverdue(it) ? ` — ПРОСРОЧЕН на ${Math.abs(daysLeft(banDeadline(it)))} дн.` : ''}.</span></div>` : ''}
+    ${banStale(it) ? `<div class="phead-banner warn"><span>Доли по предмету обнулились, а запрет ${esc(it.ban.regNo)} от ${it.ban.date} продолжает действовать в «${esc(organOf(it))}». Имущество клиента заблокировано без правового основания — требуется снятие запрета отдельным актом.</span></div>` : ''}
+    ${it.ban && !banStale(it) ? `<div class="phead-banner ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+      <span>Запрет на отчуждение наложен: ${esc(organOf(it))} · ${esc(it.ban.regNo)} от ${it.ban.date}. Предмет не может быть продан без нашего ведома.</span></div>` : ''}
+    ${it.lost ? `<div class="phead-banner danger"><span>Предмет утрачен по акту обследования — стоимость исключена из покрытия (залоговая = 0).</span></div>` : ''}
+    ${it.needReval ? `<div class="phead-banner warn"><span>Обследование зафиксировало ухудшение состояния → требуется досрочная переоценка (вне планового цикла).</span></div>` : ''}
+    <div class="phead-dims">
+      ${kpi('Оценочная стоимость', fmt(it.appraised), `owned · отчёт ${esc(it.apprReport)} от ${it.apprDate}`)}
+      ${kpi('Залоговая стоимость', fmt(pv), it.override ? `override комиссии${isOverAbove(it)?' ↑ выше расчётной':''} · расчётная ${fmt(cp)}` : `derived · ${fmt(it.appraised)} × ${coefOf(it.kind)}`)}
+      ${kpi('Отнесено', fmt(allocatedLegal(it.id)+allocatedDraft(it.id)), `доли по договорам (действ. ${fmt(allocatedLegal(it.id))} + черновики ${fmt(allocatedDraft(it.id))})`)}
+      ${kpi('Доступно', fmt(availableOf(it)), 'залоговая − отнесённое · база для перезалога')}
+    </div></div>`;
+
+  const p0 = `<div class="panel-wrap">${head}<div class="panel-card"><div class="f2">
+      ${ro('Вид залога', it.kind)}
+      ${ro('Наименование / описание', it.name)}
+      ${ro('Залогодатель', clientName(it.pledger)+' · ИНН '+it.pledger)}
+      ${ro('Идентификатор', it.ident)}
+      ${ro('Статус (залоговая ось)', st)}
+      ${ro('Запрет на отчуждение', it.ban
+        ? `${banStatus(it)} · ${organOf(it)} · ${it.ban.regNo} от ${it.ban.date}`
+        : (banRequired(it) ? `${banStatus(it)} · срок до ${banDeadline(it)}` : 'не требуется'))}
+      ${ro('Следующее обследование', nextSurvey(it) + (isOverdue(nextSurvey(it)) ? ' — ПРОСРОЧЕНО' : ''))}
+      ${ro('Следующая переоценка', nextReval(it) + (isOverdue(nextReval(it)) ? ' — ПРОСРОЧЕНО' : ''))}
+    </div>
+    <p class="section-note" style="margin-top:16px">Юридические поля (номер договора, нотариус, свидетельство о регистрации залога) на предмете отсутствуют по построению: реестр — про <b>актив</b>, договор — про <b>право</b>. Запрет на отчуждение накладывается нами на <b>вещь</b> в регистрирующем органе (порядок: нотариус → запрет), поэтому живёт здесь, на предмете, а не в диалоге договора: один запрет на предмет, при перезалоге дополняется основаниями.</p>
+    </div></div>`;
+
+  const p1 = `<div class="panel-wrap">
+    <p class="section-h">Стоимость</p>
+    <p class="section-note">Оценочная — owned-поле (отчёт оценщика). Залоговая — производная: <b>оценочная × коэффициент вида</b>. Порог покрытия 120% считается от <b>залоговой</b>, не от оценочной — единая база на заявке и на кредите.</p>
+    <div class="panel-card" style="margin-bottom:16px"><div class="f2">
+      ${ro('Оценочная (owned)', fmt(it.appraised))}
+      ${ro('Коэффициент вида «'+it.kind+'» (справочник)', String(coefOf(it.kind)).replace('.',','))}
+      ${ro('Расчётная залоговая', fmt(cp))}
+      ${ro('Фактическая залоговая (в расчёте покрытия)', fmt(pv))}
+    </div>
+    ${it.override ? `<div class="${isOverAbove(it)?'flagline':'infoline'}" style="margin-top:14px">
+      <span><b>Override комиссии по залогу:</b> ${fmt(it.override.value)} (расчётная ${fmt(cp)})${isOverAbove(it)
+        ? ' — <b>ВЫШЕ расчётной</b>, покрытие завышается. Обоснование обязательно и зафиксировано:' : ' — ниже/равно расчётной, консервативно.'}
+      ${isOverAbove(it) ? `<br>«${esc(it.override.obosn)}»<br><span class="formula">${esc(it.override.by)} · ${it.override.date}</span>` : ''}</span></div>`
+      : `<p class="formula" style="margin-top:14px">Override не задан — залоговая полностью производна.</p>`}
+    </div>
+    <p class="section-h">История переоценок</p>
+    <p class="section-note">Переоценка — событие, меняющее <b>оценочную</b>. Залоговая пересчитывается сама, покрытие — следом. Падение покрытия ниже 120% на действующем кредите поднимает триггер «недостаточность обеспечения».</p>
+    <div class="gtoolbar">
+      <button class="btn btn-tint btn-sm" onclick="openReval('${it.id}')">Провести переоценку</button>
+      <button class="btn btn-tint btn-sm" onclick="openOverride('${it.id}')">Изменить залоговую (комиссия)</button>
+    </div>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Дата</th><th>Отчёт оценщика</th><th class="numcell">Оценочная</th><th class="numcell">Залоговая (расч.)</th><th>Примечание</th></tr></thead>
+      <tbody>${[...it.revals].reverse().map(r=>`<tr><td>${r.date}</td><td>${esc(r.report)}</td>
+        <td class="numcell">${fmt(r.appraised)}</td><td class="numcell">${fmt(Math.round(r.appraised*coefOf(it.kind)*100)/100)}</td>
+        <td>${esc(r.note||'')}</td></tr>`).join('')}</tbody>
+    </table></div></div>`;
+
+  const canPlace = banRequired(it) && !it.ban;          // есть основание, запрета ещё нет
+  const canRelease = Boolean(it.ban) && allocatedLegal(it.id) === 0;  // доли обнулились
+  const p2 = `<div class="panel-wrap">
+    <p class="section-h">Запрет на отчуждение</p>
+    <p class="section-note">Запрет на отчуждение — <b>наш обязательный шаг оформления залога</b>, а не внешний риск. Порядок: договор удостоверяется у нотариуса → мы сами накладываем запрет на предмет в регистрирующем органе, чтобы залогодатель не продал заложенное имущество без нашего ведома. Запрет — на <b>вещь</b>: один на предмет, при перезалоге дополняется основанием (повторно не накладывается). Ось запрета <b>независима</b> от залоговой: «в залоге» + «запрет не наложен» — это дефект оформления. Снятие <b>под гейтом</b>: пока по предмету живы доли, снять нельзя.</p>
+    <div class="gtoolbar">
+      <button class="btn btn-tint btn-sm" onclick="openBan('${it.id}')" ${canPlace?'':'disabled'} title="${canPlace?'':'Наложить можно только на обременённый зарегистрированным договором предмет'}">Наложить запрет</button>
+      <button class="btn btn-tint btn-sm danger" onclick="releaseBan('${it.id}')" ${canRelease?'':'disabled'} title="${canRelease?'':'Снять запрет нельзя, пока по предмету закреплены доли'}">Снять запрет</button>
+    </div>
+    ${it.ban ? `<div class="panel-card"><div class="f2">
+        ${ro('Статус', banStatus(it))}
+        ${ro('Регистрирующий орган', it.ban.organ)}
+        ${ro('Рег. № запрета', it.ban.regNo)}
+        ${ro('Дата наложения', it.ban.date)}
+        ${ro('Договоры-основания', it.ban.contracts.join(', '))}
+        ${ro('Подлежит снятию', it.ban.pendingRelease ? 'да — доли обнулились, оформить акт снятия' : 'нет — предмет обеспечивает кредит')}
+      </div>
+      ${banStale(it) ? `<div class="phead-banner warn" style="margin:14px 0 0"><span>Доли обнулились — запрет продолжает действовать в органе. Снимите его отдельным актом, иначе имущество клиента заблокировано без основания.</span></div>`
+        : `<div class="okline" style="margin:14px 0 0"><span>Предмет защищён: продать заложенное имущество без нашего ведома нельзя.</span></div>`}
+      </div>`
+      : (banRequired(it) ? `<div class="flagline"><span>Запрет НЕ наложен, а договор(ы) ${banContracts(it).join(', ')} уже зарегистрированы. Залог не защищён от продажи. Срок наложения в «${esc(organOf(it))}»: до ${banDeadline(it)}${banOverdue(it) ? ` — ПРОСРОЧЕН на ${Math.abs(daysLeft(banDeadline(it)))} дн.` : ''}. Нажмите «Наложить запрет».</span></div>`
+        : `<div class="okline"><span>Запрет не требуется: предмет не обременён ни одним зарегистрированным договором — оснований для наложения нет.</span></div>`)}
+    </div>`;
+
+  const p3 = `<div class="panel-wrap">
+    <p class="section-h">Обследования</p>
+    <p class="section-note">Обследование — проверка <b>физического существования и состояния</b> актива (read-событие, модель не правит). Переоценка — про стоимость. Это разные события с общим механизмом расписания. Исход классифицирован и ветвит действие: <b>в норме</b> → сдвиг плановой даты; <b>ухудшение</b> → триггер досрочной переоценки; <b>утрата</b> → триггер недостаточности обеспечения.</p>
+    <div class="kpis">
+      ${kpi('Интервал обследования', (KINDS[it.kind]||{}).survey+' мес.', 'справочник по виду залога')}
+      ${kpi('Следующее обследование', nextSurvey(it), isOverdue(nextSurvey(it)) ? 'ПРОСРОЧЕНО на '+Math.abs(daysLeft(nextSurvey(it)))+' дн.' : 'через '+daysLeft(nextSurvey(it))+' дн.')}
+      ${kpi('Интервал переоценки', (KINDS[it.kind]||{}).reval+' мес.', 'справочник по виду залога')}
+      ${kpi('Следующая переоценка', nextReval(it), isOverdue(nextReval(it)) ? 'ПРОСРОЧЕНО на '+Math.abs(daysLeft(nextReval(it)))+' дн.' : 'через '+daysLeft(nextReval(it))+' дн.')}
+    </div>
+    <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openSurvey('${it.id}')">Зарегистрировать обследование</button></div>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Дата</th><th>Акт</th><th>Исход</th><th>Примечание</th></tr></thead>
+      <tbody>${[...it.surveys].reverse().map(s=>`<tr><td>${s.date}</td><td>${esc(s.act)}</td>
+        <td><span class="pill ${s.outcome==='в норме'?'low':s.outcome==='утрата / не найден'?'high':'mid'}">${s.outcome}</span></td>
+        <td>${esc(s.note||'')}</td></tr>`).join('')}</tbody>
+    </table></div></div>`;
+
+  const cs = CONTRACTS.filter(c => (isActive(c)||isDraftish(c)) && c.allocs.some(a=>a.item===it.id));
+  const active = CONTRACTS.filter(isActive);
+  const arows = cs.flatMap(c => c.allocs.filter(a=>a.item===it.id).map(a=>({c,a})));
+  const totAll = allocatedLegal(it.id) + allocatedDraft(it.id);
+  const p4 = `<div class="panel-wrap">
+    <p class="section-h">Отнесения (ОТНЕСЕНИЕ_ЗАЛОГА: предмет ↔ кредит)</p>
+    <p class="section-note">Доля — часть залоговой стоимости предмета, закреплённая за конкретным кредитом. Один предмет может обременяться несколькими договорами (перезалог на остаточную стоимость); приоритет между ними — <b>порядок регистрации</b>, ручного поля ранга нет. Инвариант: Σ долей ≤ залоговая стоимость.</p>
+    <div class="${totAll > pv + 0.005 ? 'flagline' : 'okline'}">
+      <span>Инвариант: Σ долей ${fmt(totAll)} ${totAll > pv + 0.005 ? '>' : '≤'} залоговая ${fmt(pv)} ${totAll > pv + 0.005
+        ? '— НАРУШЕН. Доли усечены пропорционально в расчёте покрытия (юридический объём договора не меняется), кредиты уходят в триггер «недостаточность обеспечения».'
+        : '— соблюдён. Доступно для перезалога: '+fmt(availableOf(it))+'.'}</span></div>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Договор</th><th>Статус</th><th>Кредит</th><th class="numcell">Доля (юр.)</th><th class="numcell">Эффективная доля</th><th>Приоритет</th></tr></thead>
+      <tbody>${arows.length ? arows.map(({c,a},i)=>`<tr>
+        <td><span class="rowlink" onclick="openCard('contract','${c.id}')">${c.id} ${esc(c.no||'(черновик)')}</span></td>
+        <td><span class="pill ${isActive(c)?'low':'neutral'}">${c.status}</span></td>
+        <td><span class="rowlink" onclick="toast('Переход в карточку кредита ${credit(a.credit).num}')">${a.credit} · ${esc(credit(a.credit).num)}</span></td>
+        <td class="numcell">${fmt(a.share)}</td>
+        <td class="numcell">${isActive(c) ? fmt(effShare(active, it.id, a.share)) : '—'}</td>
+        <td>${isActive(c) ? (i+1)+' (по дате регистрации ' + c.date + ')' : '—'}</td></tr>`).join('')
+        : `<tr><td colspan="6"><div class="cgrid-empty">Предмет не отнесён ни к одному кредиту — свободен целиком</div></td></tr>`}</tbody>
+    </table></div></div>`;
+
+  const p5 = `<div class="panel-wrap">
+    <p class="section-h">История предмета</p>
+    <p class="section-note">Аудит событий актива: регистрация, переоценки, override стоимости, запрет на отчуждение (наложение / снятие), обследования. Только чтение, по убыванию времени.</p>
+    <div class="hist">${[...it.history].map(h=>`<div class="hrow"><div class="hwhen">${h.when}</div><div class="hwhat">${esc(h.what)}</div><div class="hwho">${esc(h.who)}</div></div>`).join('')}</div></div>`;
+
+  return [p0,p1,p2,p3,p4,p5];
+}
+function itemFooter(it){
+  return `<button class="btn btn-secondary" onclick="showView('list')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Закрыть</button>
+    <div style="flex:1"></div>
+    <button class="btn btn-tint" onclick="openSurvey('${it.id}')">Обследование</button>
+    <button class="btn btn-tint" onclick="openReval('${it.id}')">Переоценка</button>
+    ${it.ban
+      ? `<button class="btn btn-tint danger" onclick="releaseBan('${it.id}')" ${allocatedLegal(it.id)===0?'':'disabled'} title="${allocatedLegal(it.id)===0?'':'Снять запрет нельзя, пока по предмету закреплены доли'}">Снять запрет</button>`
+      : `<button class="btn btn-tint" onclick="openBan('${it.id}')" ${banRequired(it)?'':'disabled'} title="${banRequired(it)?'':'Наложить запрет можно только на обременённый зарегистрированным договором предмет'}">Наложить запрет</button>`}
+    <button class="btn btn-primary" onclick="openOverride('${it.id}')">Изменить залоговую</button>`;
+}
+
+/* ---------- КАРТОЧКА ЗАЛОГОВОГО ДОГОВОРА ---------- */
+function ctrPanels(c){
+  const virtual = isActive(c) ? null : c;
+  const cs = ctx(virtual);
+  const gate = gateCheck(c);
+  const mc = minCoverage(c);
+  const items = [...new Set(c.allocs.map(a=>a.item))];
+  const thirdParty = items.filter(i => item(i).pledger !== c.inn);
+  /* Запреты на отчуждение — вычисляемый оверлей поверх статуса «Зарегистрирован»,
+     НЕ отдельный статус договора (как «покрытие — оверлей, не статус»). Считается
+     только по зарегистрированному договору: до регистрации оснований для запрета нет. */
+  const banItems  = isActive(c) ? items.filter(i => banRequired(item(i))) : [];
+  const banPlaced = banItems.filter(i => item(i).ban);
+  const banMiss   = banItems.filter(i => !item(i).ban);
+
+  const head = `<div class="phead">
+    <div class="phead-top">
+      <div class="phead-name"><span class="nm">${c.no || 'Залоговый договор (черновик)'}</span>
+        <a onclick="toast('Переход в карточку заёмщика (модуль «Заёмщики»)')">${esc(clientName(c.inn))} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></a>
+        <div class="phead-sub" style="width:100%">${c.id} · ${c.credits.length} кредит(ов) · ${items.length} предмет(ов)${thirdParty.length ? ' · <b>имущественный залог третьего лица</b>' : ''}</div>
+      </div>
+      <span class="phead-owner"><span class="pill ${isActive(c)?'low':c.status==='На рассмотрении комиссии'?'high':'neutral'}">${c.status}</span></span>
+    </div>
+    ${c.status==='На рассмотрении комиссии' ? `<div class="phead-banner danger">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
+      <span>Контрольный гейт 120% не пройден — регистрация ЗАБЛОКИРОВАНА до решения комиссии по залогу. Комиссия либо возвращает на доработку (догрузить/заменить предмет), либо допускает недообеспеченный кредит с обязательным обоснованием.</span></div>` : ''}
+    ${c.undercovered ? `<div class="phead-banner warn">
+      <span>Допущен комиссией с покрытием ниже 120% (${pct(c.undercovered.ratio)}). Обоснование: «${esc(c.undercovered.obosn)}» · ${esc(c.undercovered.by)} · ${c.undercovered.date}</span></div>` : ''}
+    <div class="phead-dims">
+      ${kpi('Статус', c.status, 'ЖЦ договора')}
+      ${kpi('Мин. покрытие', c.status==='Закрыт' ? '—' : `<span class="pill ${mc>=COVER_MIN?'low':'high'}">${pct(mc)}</span>`, 'худший кредит договора · порог 120%')}
+      ${kpi('Залоговая масса', fmt(c.allocs.reduce((s,a)=>s+effShare(cs, a.item, a.share),0)), 'Σ эффективных долей')}
+      ${kpi('Доп соглашений', String(c.addenda.length), 'конверты версионирования')}
+    </div></div>`;
+
+  const p0 = `<div class="panel-wrap">${head}<div class="panel-card"><div class="f2">
+      ${ro('Номер договора', c.no || '—')}
+      ${ro('Дата договора', c.date || '—')}
+      ${ro('Заёмщик (кредиты договора)', clientName(c.inn)+' · ИНН '+c.inn)}
+      ${ro('Залогодатель(и)', [...new Set(items.map(i=>clientName(item(i).pledger)))].join(', ') || '—')}
+      ${ro('Нотариус', c.notary || '—')}
+      ${ro('№ / дата нотариальной регистрации', c.notaryNo ? c.notaryNo+' от '+c.notaryDate : '—')}
+      ${ro('Залоговое рег. свидетельство', c.cert || '—')}
+      ${ro('Статус', c.status)}
+      ${isActive(c) ? ro('Запреты на отчуждение', `${banPlaced.length} из ${banItems.length} наложено`) : ''}
+    </div>
+    ${banMiss.length ? `<div class="flagline" style="margin-top:14px"><span>Оформление не завершено: по предметам ${banMiss.join(', ')} не наложен запрет на отчуждение (срок до ${banDeadline(item(banMiss[0]))}). Договор зарегистрирован, но залог не защищён от продажи.</span></div>` : ''}
+    ${thirdParty.length ? `<div class="infoline" style="margin-top:14px"><span>В договоре есть предметы, чей залогодатель ≠ заёмщик (${thirdParty.map(i=>i+' · '+clientName(item(i).pledger)).join('; ')}). Это <b>имущественный залог третьего лица</b> (П3), а не поручительство (П2/П1): третье лицо отвечает только заложенным предметом. Рассматривается комиссией как залог.</span></div>` : ''}
+    <p class="section-note" style="margin-top:16px">Договор — юридическая обёртка. Физические и стоимостные атрибуты предметов, а также запрет на отчуждение, живут в реестре предметов, а не здесь. Запрет — вычисляемый оверлей поверх статуса «Зарегистрирован», отдельного статуса договора он не заводит.</p>
+    </div></div>`;
+
+  const editable = isDraftish(c) && canEdit();
+  const p1 = `<div class="panel-wrap">
+    <p class="section-h">Предметы и доли</p>
+    <p class="section-note">Предметы не копируются в договор — они <b>привязываются</b> из реестра (одна каноническая запись актива). Договор добавляет юр-обёртку и <b>долю</b> — часть залоговой стоимости, закреплённую за конкретным кредитом. Правка состава на зарегистрированном договоре возможна только доп соглашением.</p>
+    ${editable ? `<div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openAlloc('${c.id}')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Привязать предмет</button></div>` : ''}
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Предмет</th><th>Вид</th><th>Залогодатель</th><th>Кредит</th><th class="numcell">Залоговая</th><th class="numcell">Доля</th><th class="numcell">Эффективная</th><th>Запрет</th>${editable?'<th></th>':''}</tr></thead>
+      <tbody>${c.allocs.length ? c.allocs.map((a,i)=>{ const it = item(a.item); return `<tr>
+        <td><span class="rowlink" onclick="openCard('item','${it.id}')">${it.id} · ${esc(it.name)}</span></td>
+        <td>${esc(it.kind)}</td><td>${esc(clientName(it.pledger))}</td><td>${a.credit}</td>
+        <td class="numcell">${fmt(pledgeValue(it))}</td>
+        <td class="numcell">${fmt(a.share)}</td>
+        <td class="numcell">${fmt(effShare(cs, it.id, a.share))}${effShare(cs, it.id, a.share) < a.share - 0.005 ? ' <span class="pill high" title="залоговая упала ниже суммы долей">усечена</span>' : ''}</td>
+        <td><span class="rowlink" onclick="openCard('item','${it.id}',2)">${banPill(it)}</span></td>
+        ${editable ? `<td><button class="btn btn-tint btn-sm danger" onclick="dropAlloc('${c.id}',${i})">Убрать</button></td>` : ''}</tr>`; }).join('')
+        : `<tr><td colspan="${editable?9:8}"><div class="cgrid-empty">Предметы не привязаны</div></td></tr>`}</tbody>
+    </table></div></div>`;
+
+  const p2 = `<div class="panel-wrap">
+    <p class="section-h">Кредиты и покрытие</p>
+    <p class="section-note">Покрытие = Σ эффективных долей ÷ сумма кредита ≥ <b>120%</b>. База — <b>залоговая</b> стоимость, не оценочная. Покрытие — вычисляемый оверлей, не статус. При полном погашении кредита отнесения умирают вместе с ним <b>автоматически</b>; частичное освобождение доли на живом кредите — только доп соглашением.</p>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Кредит</th><th>Договор</th><th class="numcell">Сумма кредита</th><th class="numcell">Требуется (120%)</th><th class="numcell">Обеспечено</th><th>Покрытие</th><th>Статус кредита</th>${canEdit()&&isActive(c)?'<th></th>':''}</tr></thead>
+      <tbody>${c.credits.map(id=>{ const r = gate.rows.find(x=>x.id===id), cr = credit(id); return `<tr>
+        <td>${id}</td><td>${esc(cr.num)}</td>
+        <td class="numcell">${fmt(cr.amount)}</td>
+        <td class="numcell">${fmt(cr.amount*COVER_MIN)}</td>
+        <td class="numcell">${fmt(r.sum)}</td>
+        <td><span class="pill ${r.ok?'low':'high'}">${pct(r.ratio)}</span></td>
+        <td>${cr.status}</td>
+        ${canEdit()&&isActive(c) ? `<td>${cr.status==='Действующий' ? `<button class="btn btn-tint btn-sm" onclick="repay('${c.id}','${id}')">Отметить погашенным</button>` : '—'}</td>` : ''}</tr>`; }).join('')}</tbody>
+    </table></div>
+    ${gate.ok ? `<div class="okline" style="margin-top:14px"><span>Контрольный гейт 120% пройден по всем кредитам договора.</span></div>`
+      : `<div class="flagline" style="margin-top:14px"><span>Гейт 120% НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)}`).join(', ')}. ${isActive(c)
+        ? 'Договор уже зарегистрирован → это триггер «недостаточность обеспечения» во взыскание (трек по причине «обеспечение»). Куратор обязан догрузить/заменить предмет либо зафиксировать обоснование.'
+        : 'Регистрация будет заблокирована до решения комиссии по залогу.'}</span></div>`}
+    </div>`;
+
+  const p3 = `<div class="panel-wrap">
+    <p class="section-h">Доп соглашения (конверт версионирования)</p>
+    <p class="section-note">Замена залога, освобождение доли, добавление кредита и закрепление переоценки — не отдельные операции, а <b>changeset</b> в одном акте. Гейт валидирует <b>чистый эффект всего пакета</b>. Эффект наступает на регистрации соглашения, не на черновике. На каждом соглашении сохраняется снимок before/after. <b>Вывод предмета</b> не блокируется наличием запрета — наоборот, после регистрации соглашения предмет с обнулившимися долями попадёт в мониторинг с задачей «требуется снятие запрета» (снятие оформляется отдельным актом в органе, автоматически не происходит).</p>
+    ${isActive(c) && canEdit() ? `<div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openDs('${c.id}')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Новое доп соглашение</button></div>`
+      : `<p class="formula">Доп соглашение доступно только на зарегистрированном договоре и только роли «Залоговый специалист».</p>`}
+    ${c.addenda.length ? c.addenda.map(d=>`<div class="panel-card" style="margin-bottom:14px">
+      <div class="section-h" style="font-size:16px">${d.no} от ${d.date} <span class="pill low">зарегистрировано</span></div>
+      <div class="cgrid-wrap" style="margin:10px 0"><table class="cgrid">
+        <thead><tr><th>Операции пакета</th></tr></thead>
+        <tbody>${d.ops.map(o=>`<tr><td>${esc(o)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="cgrid-wrap"><table class="cgrid">
+        <thead><tr><th>Кредит</th><th>Покрытие до</th><th>Покрытие после</th></tr></thead>
+        <tbody>${d.diff.map(x=>`<tr><td>${x.id}</td><td>${x.before}</td>
+          <td class="${x.up?'diff-up':'diff-dn'}">${x.after}</td></tr>`).join('')}</tbody></table></div>
+      ${d.obosn ? `<div class="flagline" style="margin-top:12px"><span>Допущено комиссией ниже 120%. Обоснование: «${esc(d.obosn)}»</span></div>` : ''}
+    </div>`).join('') : `<div class="cgrid-empty" style="border:1px solid var(--border-default);border-radius:4px">Доп соглашений нет</div>`}
+    </div>`;
+
+  const p4 = `<div class="panel-wrap">
+    <p class="section-h">История договора</p>
+    <p class="section-note">Аудит правовых событий: создание, регистрация, решения комиссии, доп соглашения, закрытие и автоматическое высвобождение долей.</p>
+    <div class="hist">${[...c.history].reverse().map(h=>`<div class="hrow"><div class="hwhen">${h.when}</div><div class="hwhat">${esc(h.what)}</div><div class="hwho">${esc(h.who)}</div></div>`).join('')}</div></div>`;
+
+  return [p0,p1,p2,p3,p4];
+}
+function ctrFooter(c){
+  const back = `<button class="btn btn-secondary" onclick="showView('list')">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Закрыть</button><div style="flex:1"></div>`;
+  if(c.status==='Оформляется')
+    return back + `<button class="btn btn-primary" onclick="openRegister('${c.id}')">Зарегистрировать договор</button>`;
+  if(c.status==='На рассмотрении комиссии')
+    return back + `<button class="btn btn-tint" onclick="openRegister('${c.id}')">Повторить проверку гейта</button>
+      <button class="btn btn-primary" onclick="openCommission('${c.id}')">Решение комиссии по залогу</button>`;
+  if(isActive(c))
+    return back + `<button class="btn btn-primary" onclick="openDs('${c.id}')">Новое доп соглашение</button>`;
+  return back;
+}
+
+/* ============================================================
+   ДИАЛОГИ И ДЕЙСТВИЯ — здесь состояние РЕАЛЬНО меняется.
+   Каждое действие: валидация → мутация → запись в историю → перерисовка.
+   ============================================================ */
+const host = () => document.getElementById('modalHost');
+function modal(html){ host().innerHTML = html; host().classList.add('open'); }
+function closeModal(){ host().classList.remove('open'); host().innerHTML = ''; }
+const mhead = t => `<div class="modal-h"><span class="mt">${t}</span><button class="modal-x" onclick="closeModal()">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;
+const mfoot = (okLbl, okFn, okCls) => `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+  <button class="btn ${okCls||'btn-primary'}" onclick="${okFn}">${okLbl}</button></div>`;
+const caret = () => `<span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>`;
+const fin = (id,l,v,req,span) => `<div class="field${req?' req':''}${span?' col-span':''}"><span class="flabel">${l}</span>
+  <div class="control"><input id="${id}" value="${esc(v??'')}"></div></div>`;
+const fsel = (id,l,opts,v,span) => `<div class="field${span?' col-span':''}"><span class="flabel">${l}</span>
+  <div class="control grey"><select id="${id}">${opts.map(o=>`<option value="${esc(o.v??o)}"${(o.v??o)===v?' selected':''}>${esc(o.t??o)}</option>`).join('')}</select>${caret()}</div></div>`;
+const ftxt = (id,l,v) => `<div class="field col-span"><span class="flabel">${l}</span><textarea id="${id}" class="note-area">${esc(v??'')}</textarea></div>`;
+const val = id => (document.getElementById(id)||{}).value ?? '';
+const nowStamp = () => TODAY + ' ' + new Date().toTimeString().slice(0,5);
+const hist = (o, what) => o.history.push({ when: nowStamp(), what, who: role });
+function refresh(){ renderList(); if(cur) openCard(cur.type, cur.id, curTab); }
+const clientOpts = () => CLIENTS.map(c=>({v:c.inn, t:c.name+' · ИНН '+c.inn}));
+const nextId = (arr, pfx) => pfx + String(arr.length+1).padStart(3,'0');
+
+/* ---------- НОВЫЙ ПРЕДМЕТ ЗАЛОГА ---------- */
+function openNewItem(){
+  if(!canEdit()) return denyEdit();
+  modal(`<div class="modal form">${mhead('Новый предмет залога')}
+    <div class="modal-b"><div class="mform">
+      ${fsel('niKind','Вид залога', Object.keys(KINDS), 'Недвижимое имущество')}
+      ${fin('niName','Наименование / описание','',true)}
+      ${fsel('niPledger','Залогодатель (клиентский реестр)', clientOpts())}
+      ${fin('niIdent','Идентификатор (кадастровый №, VIN, инв. №)','',true)}
+      ${fin('niVal','Оценочная стоимость (из отчёта оценщика)','',true)}
+      ${fin('niDate','Дата оценки (дд.мм.гггг)', TODAY, true)}
+      ${fin('niRep','Отчёт оценщика (номер)','',true)}
+    </div>
+    <div class="warn-inline"><span>Залоговая стоимость <b>не вводится</b> — она производна: оценочная × коэффициент вида (справочник). Изменить её может только комиссия по залогу через override, и превышение расчётной требует обоснования.</span></div>
+    </div>${mfoot('Создать','saveNewItem()')}</div>`);
+}
+function saveNewItem(){
+  const kind = val('niKind'), name = val('niName').trim(), pledger = val('niPledger'),
+        ident = val('niIdent').trim(), v = num(val('niVal')), date = val('niDate').trim(), rep = val('niRep').trim();
+  if(!name || !ident || !rep) return toast('Заполните наименование, идентификатор и отчёт оценщика','warn');
+  if(!(v > 0)) return toast('Оценочная стоимость должна быть положительным числом','warn');
+  if(!isDate(date)) return toast('Дата оценки — в формате дд.мм.гггг','warn');
+  const it = { id: nextId(ITEMS,'П-'), kind, name, pledger, ident, appraised:v, apprDate:date, apprReport:rep,
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false,
+    lastSurvey:date, lastReval:date,
+    revals:[{date, appraised:v, report:rep, note:'первичная оценка'}],
+    surveys:[], history:[] };
+  hist(it, `Предмет зарегистрирован в реестре. Оценочная ${fmt(v)} → залоговая (расч.) ${fmt(calcPledge(it))}`);
+  ITEMS.push(it); closeModal(); toast('Предмет '+it.id+' создан. Залоговая: '+fmt(calcPledge(it)),'ok');
+  reg='items'; selected = it.id; refresh();
+}
+
+/* ---------- ПЕРЕОЦЕНКА (событие: меняет ОЦЕНОЧНУЮ; залоговая и покрытие — следом) ---------- */
+function openReval(id){
+  if(!canEdit()) return denyEdit();
+  const it = item(id);
+  modal(`<div class="modal form">${mhead('Переоценка · '+it.id)}
+    <div class="modal-b"><div class="mform">
+      ${fin('rvDate','Дата переоценки', TODAY, true)}
+      ${fin('rvRep','Отчёт оценщика (номер)','',true)}
+      ${fin('rvVal','Новая оценочная стоимость', String(it.appraised), true)}
+      ${fin('rvOld','Текущая оценочная', fmt(it.appraised))}
+      ${ftxt('rvNote','Примечание','')}
+    </div>
+    <div class="warn-inline"><span>Меняется только <b>оценочная</b>. Залоговая пересчитается сама (× ${coefOf(it.kind)})${it.override ? ', <b>но действующий override комиссии её перекрывает</b> — снимите override, чтобы переоценка вступила в силу в расчёте покрытия' : ''}. Если покрытие любого кредита упадёт ниже 120% — поднимется триггер «недостаточность обеспечения» (трек взыскания по обеспечению).</span></div>
+    </div>${mfoot('Сохранить переоценку','saveReval(\''+id+'\')')}</div>`);
+  document.getElementById('rvOld').readOnly = true;
+}
+function saveReval(id){
+  const it = item(id), v = num(val('rvVal')), date = val('rvDate').trim(), rep = val('rvRep').trim(), note = val('rvNote').trim();
+  if(!(v > 0)) return toast('Оценочная стоимость должна быть положительным числом','warn');
+  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  if(!rep) return toast('Укажите номер отчёта оценщика','warn');
+  const before = CONTRACTS.filter(isActive).flatMap(c=>c.credits.map(cid=>({cid, r:coverage(CONTRACTS.filter(isActive), cid).ratio})));
+  const old = it.appraised;
+  it.appraised = v; it.apprDate = date; it.apprReport = rep; it.lastReval = date; it.needReval = false;
+  it.revals.push({date, appraised:v, report:rep, note: note || 'переоценка'});
+  hist(it, `Переоценка: оценочная ${fmt(old)} → ${fmt(v)} (${rep}). Залоговая (расч.) → ${fmt(calcPledge(it))}${it.override?' · перекрыта действующим override '+fmt(it.override.value):''}`);
+  closeModal();
+  const after = CONTRACTS.filter(isActive).flatMap(c=>c.credits.map(cid=>({cid, r:coverage(CONTRACTS.filter(isActive), cid).ratio})));
+  const dropped = after.filter(a => a.r < COVER_MIN && (before.find(b=>b.cid===a.cid)||{r:0}).r >= COVER_MIN);
+  toast('Переоценка сохранена. Залоговая: '+fmt(pledgeValue(it)),'ok');
+  if(dropped.length) toast('ТРИГГЕР «недостаточность обеспечения»: покрытие упало ниже 120% по '+dropped.map(d=>d.cid).join(', ')+' → трек взыскания по обеспечению','warn');
+  refresh();
+}
+
+/* ---------- OVERRIDE ЗАЛОГОВОЙ (только комиссия; > расчётной → обоснование обязательно) ---------- */
+function openOverride(id){
+  if(!canCommission()) return denyComm();
+  const it = item(id), cp = calcPledge(it);
+  modal(`<div class="modal form">${mhead('Фактическая залоговая стоимость · '+it.id)}
+    <div class="modal-b"><div class="mform">
+      ${fin('ovCalc','Расчётная залоговая (оценочная × '+coefOf(it.kind)+')', fmt(cp))}
+      ${fin('ovVal','Фактическая залоговая (решение комиссии)', String(it.override ? it.override.value : cp), true)}
+      ${ftxt('ovObosn','Обоснование (обязательно при превышении расчётной)', it.override ? it.override.obosn : '')}
+    </div>
+    <div class="warn-inline" id="ovWarn" style="display:none"><span>Фактическая <b>выше расчётной</b> — покрытие завышается относительно ликвидационной базы. Обоснование обязательно, запись будет помечена флагом «override ↑».</span></div>
+    </div>
+    <div class="modal-f">
+      ${it.override ? `<button class="btn btn-tint danger" onclick="clearOverride('${id}')">Снять override</button>` : ''}
+      <div style="flex:1"></div>
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveOverride('${id}')">Сохранить</button>
+    </div></div>`);
+  document.getElementById('ovCalc').readOnly = true;
+  const sync = () => { document.getElementById('ovWarn').style.display = num(val('ovVal')) > cp ? 'flex' : 'none'; };
+  document.getElementById('ovVal').addEventListener('input', sync); sync();
+}
+function saveOverride(id){
+  const it = item(id), cp = calcPledge(it), v = num(val('ovVal')), ob = val('ovObosn').trim();
+  if(!(v > 0)) return toast('Стоимость должна быть положительным числом','warn');
+  if(v > cp && !ob) return toast('Превышение расчётной залоговой требует обоснования — заполните поле','warn');
+  const alloc = allocatedLegal(it.id) + allocatedDraft(it.id);
+  if(v < alloc) toast('Внимание: новая залоговая '+fmt(v)+' МЕНЬШЕ суммы закреплённых долей '+fmt(alloc)+' — доли будут усечены в расчёте покрытия','warn');
+  const old = pledgeValue(it);
+  it.override = { value:v, obosn: ob, by: role, date: TODAY };
+  hist(it, `Override залоговой: ${fmt(old)} → ${fmt(v)} (расчётная ${fmt(cp)})${v > cp ? ' — ВЫШЕ расчётной, обоснование: «'+ob+'»' : ' — не выше расчётной'}`);
+  closeModal(); toast('Залоговая стоимость установлена: '+fmt(v),'ok'); refresh();
+}
+function clearOverride(id){
+  const it = item(id), old = pledgeValue(it);
+  it.override = null;
+  hist(it, `Override снят: залоговая ${fmt(old)} → ${fmt(calcPledge(it))} (снова производная)`);
+  closeModal(); toast('Override снят, залоговая снова производна','ok'); refresh();
+}
+
+/* ---------- ЗАПРЕТ НА ОТЧУЖДЕНИЕ: НАЛОЖЕНИЕ / СНЯТИЕ (наш шаг оформления) ----------
+   Наложение — только на предмет, обременённый зарегистрированным договором (есть
+   основание). Снятие — под гейтом: пока живы доли, снять нельзя. Оба действия —
+   роль «Залоговый специалист». Залоговую ось не трогают (оси независимы). */
+function openBan(id){
+  if(!canEdit()) return denyEdit();
+  const it = item(id);
+  /* Предусловие: наложить запрет на свободный предмет нельзя — оснований нет. */
+  if(!banRequired(it)) return toast('Наложить запрет нельзя: предмет не обременён ни одним зарегистрированным договором — оснований нет','warn');
+  if(it.ban) return toast('Запрет уже наложен: '+it.ban.regNo+'. При перезалоге он дополняется основанием автоматически при регистрации договора','warn');
+  const grounds = banContracts(it);
+  modal(`<div class="modal form">${mhead('Наложение запрета на отчуждение · '+it.id)}
+    <div class="modal-b"><div class="mform">
+      ${fin('bnOrgan','Регистрирующий орган (предзаполнен по виду залога)', organOf(it), true, true)}
+      ${fin('bnReg','Рег. № запрета в органе','',true)}
+      ${fin('bnDate','Дата наложения', TODAY, true)}
+      ${ro('Договоры-основания (все зарегистрированные)', grounds.join(', '))}
+    </div>
+    <div class="warn-inline"><span>Запрет накладывается на <b>вещь</b> в регистрирующем органе: после него залогодатель не сможет продать предмет без нашего ведома. Основания (${grounds.join(', ')}) заполняются автоматически. Запись уйдёт в историю предмета и каждого договора-основания. Срок наложения по регламенту: до ${banDeadline(it)}.</span></div>
+    </div>${mfoot('Наложить запрет','saveBan(\''+id+'\')','btn-primary')}</div>`);
+}
+function saveBan(id){
+  const it = item(id), organ = val('bnOrgan').trim(), regNo = val('bnReg').trim(), date = val('bnDate').trim();
+  if(!banRequired(it)) return toast('Оснований для запрета нет','warn');
+  if(!organ) return toast('Укажите регистрирующий орган','warn');
+  if(!regNo) return toast('Укажите рег. № запрета','warn');
+  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  const grounds = banContracts(it);
+  it.ban = { organ, regNo, date, contracts: grounds, pendingRelease:false };
+  hist(it, `Наложен запрет на отчуждение: ${organ} · ${regNo} от ${date} (основания ${grounds.join(', ')}). Предмет не может быть продан без нашего ведома.`);
+  grounds.forEach(cid => hist(contract(cid), `По предмету ${it.id} наложен запрет на отчуждение: ${organ} · ${regNo} от ${date}`));
+  closeModal(); toast('Запрет на отчуждение наложен — залог защищён от продажи','ok'); refresh();
+}
+function releaseBan(id){
+  if(!canEdit()) return denyEdit();
+  const it = item(id);
+  if(!it.ban) return toast('Запрет не наложен','warn');
+  /* ГЕЙТ СНЯТИЯ: нельзя снять, пока по предмету живы доли. */
+  const alloc = allocatedLegal(it.id);
+  if(alloc > 0){
+    const cs = CONTRACTS.filter(c=>isActive(c) && c.allocs.some(a=>a.item===it.id)).map(c=>c.id);
+    return toast(`Снятие запрета невозможно: по предмету закреплены доли на ${fmt(alloc)} по договорам ${cs.join(', ')}. Сначала погасите кредит или выведите предмет доп соглашением`,'warn');
+  }
+  modal(`<div class="modal form narrow">${mhead('Снятие запрета на отчуждение · '+it.id)}
+    <div class="modal-b"><div class="mform one">
+      ${fin('rbAct','Акт / основание снятия','',true)}
+      ${fin('rbDate','Дата снятия', TODAY, true)}
+      ${ro('Орган', it.ban.organ)}
+    </div>
+    <div class="warn-inline"><span>Действующий запрет: ${esc(it.ban.organ)} · ${esc(it.ban.regNo)} от ${it.ban.date}. Доли по предмету обнулились — снятие допустимо. Оформляется отдельным актом в органе.</span></div>
+    </div>${mfoot('Снять запрет','saveRelease(\''+id+'\')','btn-primary')}</div>`);
+}
+function saveRelease(id){
+  const it = item(id), act = val('rbAct').trim(), date = val('rbDate').trim();
+  if(allocatedLegal(it.id) > 0) return toast('По предмету снова закреплены доли — снятие невозможно','warn');
+  if(!act) return toast('Укажите акт / основание снятия','warn');
+  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  const was = it.ban;
+  hist(it, `Запрет на отчуждение снят: ${act} от ${date} (был ${was.organ} · ${was.regNo} от ${was.date}). Предмет свободен от обременения.`);
+  it.ban = null;
+  closeModal(); toast('Запрет на отчуждение снят','ok'); refresh();
+}
+
+/* ---------- ОБСЛЕДОВАНИЕ (классифицированный исход ветвит действие) ---------- */
+function openSurvey(id){
+  if(!canEdit()) return denyEdit();
+  const it = item(id);
+  modal(`<div class="modal form">${mhead('Обследование предмета · '+it.id)}
+    <div class="modal-b"><div class="mform">
+      ${fin('svDate','Дата обследования', TODAY, true)}
+      ${fin('svAct','Номер акта','',true)}
+      ${fsel('svOut','Исход', ['в норме','ухудшение состояния','утрата / не найден'], 'в норме', true)}
+      ${ftxt('svNote','Примечание','')}
+    </div>
+    <div class="warn-inline"><span><b>в норме</b> → плановая дата сдвигается на ${(KINDS[it.kind]||{}).survey} мес. · <b>ухудшение</b> → триггер досрочной переоценки · <b>утрата</b> → предмет выбыл, залоговая = 0, триггер «недостаточность обеспечения» по всем его кредитам. Обследование — наблюдение: договор оно не версионирует.</span></div>
+    </div>${mfoot('Зарегистрировать акт','saveSurvey(\''+id+'\')')}</div>`);
+}
+function saveSurvey(id){
+  const it = item(id), date = val('svDate').trim(), act = val('svAct').trim(), out = val('svOut'), note = val('svNote').trim();
+  if(!act) return toast('Укажите номер акта','warn');
+  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  it.surveys.push({date, act, outcome:out, note});
+  it.lastSurvey = date;
+  if(out === 'в норме'){
+    it.needReval = false;
+    hist(it, `Обследование ${act} от ${date}: в норме. Следующее — ${nextSurvey(it)}`);
+    toast('Акт зарегистрирован. Следующее обследование: '+nextSurvey(it),'ok');
+  } else if(out === 'ухудшение состояния'){
+    it.needReval = true;
+    hist(it, `Обследование ${act} от ${date}: ухудшение состояния → триггер досрочной переоценки`);
+    toast('Триггер: требуется досрочная переоценка (вне планового цикла)','warn');
+  } else {
+    it.lost = true;
+    hist(it, `Обследование ${act} от ${date}: УТРАТА. Предмет выбыл, залоговая = 0, доли исключены из покрытия → триггер «недостаточность обеспечения»`);
+    toast('Предмет утрачен: залоговая = 0, покрытие пересчитано → триггер «недостаточность обеспечения»','warn');
+  }
+  closeModal(); refresh();
+}
+
+/* ---------- НОВЫЙ ЗАЛОГОВЫЙ ДОГОВОР (черновик) ---------- */
+function openNewContract(){
+  if(!canEdit()) return denyEdit();
+  modal(`<div class="modal form">${mhead('Новый залоговый договор')}
+    <div class="modal-b"><div class="mform">
+      ${fsel('ncInn','Заёмщик (чьи кредиты обеспечиваются)', clientOpts(), null, true)}
+      <div class="field col-span"><span class="flabel">Кредиты договора (один договор может обеспечивать несколько кредитов ОДНОГО заёмщика)</span>
+        <div id="ncCredits" class="ops-list"></div></div>
+    </div>
+    <div class="warn-inline"><span>Договор создаётся <b>черновиком</b>. Предметы привязываются на карточке (из реестра, не копированием). Регистрация — только после контрольного гейта 120% по каждому кредиту.</span></div>
+    </div>${mfoot('Создать черновик','saveNewContract()')}</div>`);
+  document.getElementById('ncInn').addEventListener('change', ncCredits); ncCredits();
+}
+function ncCredits(){
+  const inn = val('ncInn');
+  const list = CREDITS.filter(c=>c.inn===inn && c.status==='Действующий');
+  document.getElementById('ncCredits').innerHTML = list.length ? list.map(c=>`<div class="op-row">
+      <label class="chk"><input type="checkbox" class="ncChk" value="${c.id}"> ${c.id} · ${esc(c.num)} · сумма ${fmt(c.amount)} · требуется обеспечение ${fmt(c.amount*COVER_MIN)}</label></div>`).join('')
+    : `<div class="op-empty">У клиента нет действующих кредитов</div>`;
+}
+function saveNewContract(){
+  const inn = val('ncInn');
+  const ids = [...document.querySelectorAll('.ncChk:checked')].map(x=>x.value);
+  if(!ids.length) return toast('Выберите хотя бы один кредит','warn');
+  const c = { id: nextId(CONTRACTS,'Д-'), no:'', date:'', status:'Оформляется', inn,
+    notary:'', notaryNo:'', notaryDate:'', cert:'', credits: ids, allocs: [], undercovered:null, addenda:[], history:[] };
+  hist(c, `Договор создан (черновик). Кредиты: ${ids.join(', ')}`);
+  CONTRACTS.push(c); closeModal(); toast('Черновик '+c.id+' создан — привяжите предметы','ok');
+  reg = 'contracts'; openCard('contract', c.id, 1);
+}
+
+/* ---------- ПРИВЯЗКА ПРЕДМЕТА К ЧЕРНОВИКУ (перезалог считается здесь же) ---------- */
+function openAlloc(cid){
+  if(!canEdit()) return denyEdit();
+  const c = contract(cid);
+  const opts = ITEMS.filter(i=>!i.lost).map(i=>({v:i.id, t:`${i.id} · ${i.name} · залогодатель ${clientName(i.pledger)} · доступно ${fmt(availableOf(i))}`}));
+  modal(`<div class="modal form">${mhead('Привязать предмет · '+cid)}
+    <div class="modal-b"><div class="mform">
+      ${fsel('alItem','Предмет из реестра', opts, null, true)}
+      ${fsel('alCredit','Кредит договора', c.credits.map(id=>({v:id, t:id+' · '+credit(id).num+' · требуется '+fmt(credit(id).amount*COVER_MIN)})))}
+      ${fin('alShare','Отнесённая доля (часть залоговой стоимости)','',true)}
+    </div>
+    <div class="warn-inline" id="alInfo"></div>
+    </div>${mfoot('Привязать','saveAlloc(\''+cid+'\')')}</div>`);
+  const sync = () => {
+    const it = item(val('alItem')); if(!it) return;
+    const av = availableOf(it), leg = allocatedLegal(it.id);
+    document.getElementById('alInfo').innerHTML = `<span>Залоговая ${fmt(pledgeValue(it))} · уже обременено действующими договорами ${fmt(leg)} · <b>доступно ${fmt(av)}</b>.
+      ${leg > 0 ? 'Это <b>перезалог</b>: новый договор берёт остаточную стоимость того же предмета (Д старше — приоритет по дате регистрации).' : ''}
+      Инвариант: Σ долей предмета ≤ залоговая стоимость. Доля больше доступной не будет принята.
+      ${it.ban ? `<br>По предмету уже действует запрет ${esc(it.ban.regNo)} — при регистрации договора он будет дополнен новым основанием, повторное наложение не требуется.` : ''}</span>`;
+    document.getElementById('alShare').value = document.getElementById('alShare').value || String(Math.min(av, credit(val('alCredit')).amount*COVER_MIN));
+  };
+  document.getElementById('alItem').addEventListener('change', ()=>{ document.getElementById('alShare').value=''; sync(); });
+  document.getElementById('alCredit').addEventListener('change', ()=>{ document.getElementById('alShare').value=''; sync(); });
+  sync();
+}
+function saveAlloc(cid){
+  const c = contract(cid), it = item(val('alItem')), cr = val('alCredit'), share = num(val('alShare'));
+  if(!(share > 0)) return toast('Доля должна быть положительным числом','warn');
+  const av = availableOf(it);
+  if(share > av + 0.005)
+    return toast('Доля '+fmt(share)+' превышает доступную залоговую стоимость '+fmt(av)+' — инвариант Σ долей ≤ залоговая нарушен','warn');
+  c.allocs.push({ item: it.id, credit: cr, share });
+  it.everPledged = true;
+  hist(c, `Привязан предмет ${it.id} под ${cr}: доля ${fmt(share)} (доступно было ${fmt(av)})`);
+  hist(it, `Отнесение к ${cr} по договору ${c.id}: доля ${fmt(share)}`);
+  closeModal(); toast('Предмет привязан','ok'); refresh();
+}
+function dropAlloc(cid, idx){
+  const c = contract(cid), a = c.allocs[idx];
+  c.allocs.splice(idx,1);
+  hist(c, `Отвязан предмет ${a.item} (${a.credit}, доля ${fmt(a.share)}) — правка черновика`);
+  toast('Предмет отвязан от черновика','ok'); refresh();
+}
+
+/* ---------- РЕГИСТРАЦИЯ ДОГОВОРА (контрольный гейт 120%) ---------- */
+function openRegister(cid){
+  if(!canEdit()) return denyEdit();
+  const c = contract(cid), gate = gateCheck(c);
+  const rows = gate.rows.map(r=>`<tr><td>${r.id}</td><td class="numcell">${fmt(r.amount)}</td>
+    <td class="numcell">${fmt(r.amount*COVER_MIN)}</td><td class="numcell">${fmt(r.sum)}</td>
+    <td><span class="pill ${r.ok?'low':'high'}">${pct(r.ratio)}</span></td></tr>`).join('');
+  modal(`<div class="modal form">${mhead('Регистрация залогового договора · '+cid)}
+    <div class="modal-b">
+      <p class="section-note">Контрольный гейт: покрытие каждого кредита по <b>фактической залоговой</b> стоимости ≥ 120%.</p>
+      <div class="cgrid-wrap" style="margin-bottom:14px"><table class="cgrid">
+        <thead><tr><th>Кредит</th><th class="numcell">Сумма</th><th class="numcell">Требуется</th><th class="numcell">Обеспечено</th><th>Покрытие</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      ${gate.ok ? `<div class="okline"><span>Гейт пройден. Заполните юридические реквизиты — с момента регистрации договор обременяет предмет(ы).</span></div>`
+        : `<div class="flagline"><span>Гейт НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}. Регистрация блокируется; договор уходит на рассмотрение комиссии по залогу.</span></div>`}
+      ${gate.ok ? `<div class="mform">
+        ${fin('rgNo','Номер договора','',true)}
+        ${fin('rgDate','Дата договора', TODAY, true)}
+        ${fin('rgNotary','Нотариус','',true)}
+        ${fin('rgNotaryNo','№ нотариальной регистрации','',true)}
+        ${fin('rgNotaryDate','Дата нотариальной регистрации', TODAY, true)}
+        ${fin('rgCert','Залоговое рег. свидетельство','',true)}
+      </div>` : ''}
+    </div>
+    ${gate.ok ? mfoot('Зарегистрировать','doRegister(\''+cid+'\')','btn-success')
+      : `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+         <button class="btn btn-primary" onclick="toCommission('${cid}')">Направить в комиссию по залогу</button></div>`}
+    </div>`);
+}
+/* Постобработка запрета при переводе договора в «Зарегистрирован».
+   Запрет — действие во внешнем органе; сам мы его не создаём. Если запрет по
+   предмету уже есть (перезалог) — договор добавляется в основания. Если нет —
+   предмет остаётся без запрета и немедленно поднимает триггер «залог без запрета»
+   с дедлайном (нотар. дата + 5 раб. дней). Возвращает список предметов без запрета. */
+function afterRegister(c){
+  const its = [...new Set(c.allocs.map(a=>a.item))], missing = [];
+  its.forEach(iid => { const it = item(iid);
+    if(it.ban){
+      if(!it.ban.contracts.includes(c.id)){
+        it.ban.contracts.push(c.id);
+        hist(it, `Перезалог: договор ${c.id} добавлен в основания действующего запрета ${it.ban.regNo} (повторное наложение не требуется)`);
+        hist(c, `По предмету ${iid} действует запрет ${it.ban.regNo} — договор добавлен в его основания (повторное наложение не требуется)`);
+      }
+    } else missing.push(it);
+  });
+  return missing;
+}
+function doRegister(cid){
+  const c = contract(cid);
+  const breach = invariantBreaches(c);
+  if(breach.length) return toast('Инвариант нарушен по '+breach.map(b=>b.id).join(', ')+' — Σ долей превышает залоговую стоимость','warn');
+  const gate = gateCheck(c);
+  if(!gate.ok) return toast('Гейт 120% не пройден','warn');
+  const no = val('rgNo').trim(), date = val('rgDate').trim(), notary = val('rgNotary').trim(),
+        nno = val('rgNotaryNo').trim(), ndate = val('rgNotaryDate').trim(), cert = val('rgCert').trim();
+  if(!no || !notary || !nno || !cert) return toast('Заполните все юридические реквизиты','warn');
+  if(!isDate(date) || !isDate(ndate)) return toast('Даты — в формате дд.мм.гггг','warn');
+  Object.assign(c, { no, date, notary, notaryNo:nno, notaryDate:ndate, cert, status:ACTIVE });
+  c.allocs.forEach(a => { item(a.item).everPledged = true; });
+  hist(c, `Договор зарегистрирован (${no}). Покрытие: ${gate.rows.map(r=>r.id+' — '+pct(r.ratio)).join(', ')}. С этого момента предметы юридически обременены.`);
+  const missing = afterRegister(c);
+  closeModal(); toast('Договор зарегистрирован. Гейт 120% пройден','ok');
+  if(missing.length) toast(`Наложите запрет на отчуждение в «${organOf(missing[0])}» до ${banDeadline(missing[0])} — до этого залог не защищён от продажи`,'warn');
+  refresh();
+}
+function toCommission(cid){
+  const c = contract(cid), gate = gateCheck(c);
+  c.status = 'На рассмотрении комиссии';
+  hist(c, `Регистрация заблокирована контрольным гейтом: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}. Направлено в комиссию по залогу.`);
+  closeModal(); toast('Договор направлен в комиссию по залогу','warn'); refresh();
+}
+
+/* ---------- РЕШЕНИЕ КОМИССИИ ПО ЗАЛОГУ (обоснование обязательно для допуска) ---------- */
+function openCommission(cid){
+  if(!canCommission()) return denyComm();
+  const c = contract(cid), gate = gateCheck(c);
+  const bad = gate.rows.filter(r=>!r.ok);
+  modal(`<div class="modal form">${mhead('Решение комиссии по залогу · '+cid)}
+    <div class="modal-b">
+      <div class="flagline"><span>Недообеспечение: ${bad.map(r=>`${r.id} — ${pct(r.ratio)} (не хватает ${fmt(r.amount*COVER_MIN - r.sum)})`).join('; ')}</span></div>
+      <div class="mform one">
+        ${fsel('cmDec','Решение', [
+          {v:'return', t:'Вернуть на доработку — догрузить / заменить предмет'},
+          {v:'admit',  t:'Допустить недообеспеченный кредит (с обоснованием)'} ], 'return')}
+        ${ftxt('cmObosn','Обоснование (обязательно для допуска)','')}
+      </div>
+      <div class="warn-inline"><span>Допуск ниже 120% — осознанное решение по бюджетным средствам: обоснование фиксируется в договоре и в истории, договор помечается флагом «допуск &lt;120%». Тот же паттерн обязательного обоснования, что у основной кредитной комиссии.</span></div>
+    </div>${mfoot('Провести решение','saveCommission(\''+cid+'\')')}</div>`);
+}
+function saveCommission(cid){
+  const c = contract(cid), dec = val('cmDec'), ob = val('cmObosn').trim(), gate = gateCheck(c);
+  if(dec === 'return'){
+    c.status = 'Оформляется';
+    hist(c, `Комиссия по залогу: возврат на доработку${ob ? ' — '+ob : ''}`);
+    closeModal(); toast('Возвращено на доработку','ok'); return refresh();
+  }
+  if(!ob) return toast('Допуск ниже 120% требует обоснования','warn');
+  const no = 'ЗД-' + TODAY.slice(6) + '/' + c.id.slice(2) + '-1';
+  Object.assign(c, { status:ACTIVE, no: c.no || no, date: c.date || TODAY,
+    notary: c.notary || 'Нотариус (реквизиты уточняются)', notaryNo: c.notaryNo || 'НР-' + TODAY.slice(6) + '/0000',
+    notaryDate: c.notaryDate || TODAY, cert: c.cert || 'ЗС-' + TODAY.slice(6) + '/0000',
+    undercovered: { ratio: Math.min(...gate.rows.map(r=>r.ratio)), obosn: ob, by: role, date: TODAY } });
+  c.allocs.forEach(a => { item(a.item).everPledged = true; });
+  hist(c, `Комиссия по залогу: ДОПУЩЕН недообеспеченный кредит (${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}). Обоснование: «${ob}». Договор зарегистрирован.`);
+  const missing = afterRegister(c);
+  closeModal(); toast('Комиссия допустила договор с покрытием ниже 120% — флаг зафиксирован','warn');
+  if(missing.length) toast(`Наложите запрет на отчуждение в «${organOf(missing[0])}» до ${banDeadline(missing[0])} — до этого залог не защищён от продажи`,'warn');
+  refresh();
+}
+
+/* ---------- ДОП СОГЛАШЕНИЕ — CHANGESET (конверт версионирования) ---------- */
+let ds = { cid:null, ops:[] };
+function openDs(cid){
+  if(!canEdit()) return denyEdit();
+  ds = { cid, ops: [] };
+  renderDs();
+}
+function applyOps(c, ops){
+  const v = JSON.parse(JSON.stringify(c));
+  ops.forEach(o => {
+    if(o.type==='out')    v.allocs = v.allocs.filter(a => a.item !== o.item);
+    if(o.type==='in')     v.allocs.push({ item:o.item, credit:o.credit, share:o.share });
+    if(o.type==='share'){ const a = v.allocs.find(a => a.item===o.item && a.credit===o.credit); if(a) a.share = o.share; }
+    if(o.type==='credit' && !v.credits.includes(o.credit)) v.credits.push(o.credit);
+  });
+  return v;
+}
+/* Блокируем только те нарушения инварианта, которые пакет СОЗДАЁТ или УСУГУБЛЯЕТ.
+   Уже существующее нарушение (доля закреплена нотариально, а переоценка уронила стоимость)
+   блокировать нельзя — иначе доп соглашение, которое его лечит, само окажется запрещено. */
+function newBreaches(c, v){
+  const base = {}; invariantBreaches(c).forEach(b => base[b.id] = b.alloc);
+  return invariantBreaches(v).filter(b => !(b.id in base) || b.alloc > base[b.id] + 0.005);
+}
+const opText = o =>
+  o.type==='out'    ? `Вывод предмета ${o.item} · ${item(o.item).name} (снимаются все его доли в договоре)` :
+  o.type==='in'     ? `Ввод предмета ${o.item} · ${item(o.item).name} под ${o.credit}, доля ${fmt(o.share)}` :
+  o.type==='share'  ? `Правка доли ${o.item} / ${o.credit}: → ${fmt(o.share)}` :
+                      `Добавление кредита ${o.credit} · ${credit(o.credit).num} в договор (перекрёстное обеспечение)`;
+
+function renderDs(){
+  const c = contract(ds.cid);
+  const v = applyOps(c, ds.ops);
+  const before = gateCheck(c), after = gateCheck(v);
+  const breach = newBreaches(c, v);
+  const inCtr  = [...new Set(v.allocs.map(a=>a.item))];
+  const rows = after.rows.map(r => {
+    const b = before.rows.find(x=>x.id===r.id);
+    return `<tr><td>${r.id}</td><td>${b ? pct(b.ratio) : '—'}</td>
+      <td class="${!b || r.ratio >= b.ratio ? 'diff-up':'diff-dn'}">${pct(r.ratio)}</td>
+      <td><span class="pill ${r.ok?'low':'high'}">${r.ok?'≥120%':'<120%'}</span></td></tr>`; }).join('');
+
+  const outOpts   = inCtr.map(i=>({v:i, t:`${i} · ${item(i).name}${item(i).ban?' — есть запрет на отчуждение (после вывода потребует снятия)':''}`}));
+  /* Предметы пакета, которые выводятся и по которым сейчас действует запрет:
+     вывод не блокируется, но породит задачу снять запрет в органе. */
+  const outBanned = ds.ops.filter(o=>o.type==='out' && item(o.item).ban).map(o=>o.item);
+  const inOpts    = ITEMS.filter(i=>!i.lost).map(i=>({v:i.id, t:`${i.id} · ${i.name} · доступно ${fmt(availableOf(i))}`}));
+  const shareOpts = v.allocs.map((a,i)=>({v:i, t:`${a.item} / ${a.credit} · текущая доля ${fmt(a.share)}`}));
+  const credOpts  = CREDITS.filter(cr=>cr.inn===c.inn && cr.status==='Действующий' && !v.credits.includes(cr.id))
+                           .map(cr=>({v:cr.id, t:`${cr.id} · ${cr.num} · требуется ${fmt(cr.amount*COVER_MIN)}`}));
+
+  modal(`<div class="modal">${mhead('Доп соглашение к '+(c.no||c.id)+' — пакет изменений (changeset)')}
+    <div class="modal-b">
+      <p class="section-note">Одно соглашение несёт ≥1 операцию и валидируется по <b>чистому эффекту всего пакета</b> (замена = вывод + ввод в одном акте, иначе между двумя соглашениями предмет повис бы без обеспечения). Эффект наступает <b>на регистрации</b>, не на черновике.</p>
+
+      <div class="mform">
+        ${fsel('dsType','Операция', [
+          {v:'out',    t:'Вывод предмета'},
+          {v:'in',     t:'Ввод предмета'},
+          {v:'share',  t:'Правка доли'},
+          {v:'credit', t:'Добавить кредит в договор'} ], 'in')}
+        <div class="field"><span class="flabel">Параметры</span><div id="dsParams"></div></div>
+      </div>
+      <div class="gtoolbar" style="margin-top:10px"><button class="btn btn-tint btn-sm" onclick="dsAdd()">Добавить операцию в пакет</button></div>
+
+      <p class="section-h" style="font-size:16px;margin-top:10px">Пакет</p>
+      <div class="ops-list">${ds.ops.length ? ds.ops.map((o,i)=>`<div class="op-row"><span class="op-t">${esc(opText(o))}</span>
+        <button class="btn btn-tint btn-sm danger" onclick="dsDel(${i})">Убрать</button></div>`).join('')
+        : `<div class="op-empty">Пакет пуст — добавьте хотя бы одну операцию</div>`}</div>
+
+      ${outBanned.length ? `<div class="warn-inline" style="margin-top:10px"><span>Вывод ${outBanned.map(i=>`предмета ${i}`).join(', ')} потребует СНЯТИЯ запрета на отчуждение в «${esc(organOf(item(outBanned[0])))}». После регистрации соглашения предмет попадёт в мониторинг с задачей «требуется снятие запрета» — снятие оформляется отдельным актом в органе, автоматически не происходит.</span></div>` : ''}
+
+      <p class="section-h" style="font-size:16px;margin-top:14px">Снимок before / after (чистый эффект пакета)</p>
+      <div class="cgrid-wrap"><table class="cgrid">
+        <thead><tr><th>Кредит</th><th>Покрытие до</th><th>Покрытие после</th><th>Гейт</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+
+      ${breach.length ? `<div class="flagline" style="margin-top:12px"><span>Инвариант нарушен: по ${breach.map(b=>`${b.id} (Σ долей ${fmt(b.alloc)} > залоговая ${fmt(b.pledge)})`).join('; ')}. Пакет не может быть зарегистрирован.</span></div>` : ''}
+      ${!breach.length && !after.ok ? `<div class="flagline" style="margin-top:12px"><span>Чистый эффект пакета роняет покрытие ниже 120% (${after.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}). Регистрация блокируется — тот же гейт, что при регистрации основного договора. Допуск возможен только решением комиссии по залогу с обоснованием.</span>
+        </div>${canCommission() ? ftxt('dsObosn','Обоснование комиссии по залогу (для допуска ниже 120%)','') : '<p class="formula">Смените роль на «Комиссия по залогу», чтобы допустить пакет с обоснованием.</p>'}` : ''}
+      ${!breach.length && after.ok ? `<div class="okline" style="margin-top:12px"><span>Чистый эффект пакета проходит гейт 120% по всем кредитам договора.</span></div>` : ''}
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" ${(!ds.ops.length || breach.length || (!after.ok && !canCommission())) ? 'disabled' : ''}
+        onclick="dsRegister()">Зарегистрировать доп соглашение</button>
+    </div></div>`);
+
+  window.__dsOpts = { outOpts, inOpts, shareOpts, credOpts };
+  document.getElementById('dsType').addEventListener('change', dsParams);
+  dsParams();
+}
+function dsParams(){
+  const t = val('dsType'), o = window.__dsOpts, box = document.getElementById('dsParams');
+  const S = (id,opts) => `<div class="control grey" style="margin-bottom:8px"><select id="${id}">${opts.length ? opts.map(x=>`<option value="${esc(x.v)}">${esc(x.t)}</option>`).join('') : '<option value="">— нет доступных —</option>'}</select>${caret()}</div>`;
+  const I = (id,ph) => `<div class="control"><input id="${id}" placeholder="${ph}"></div>`;
+  box.innerHTML =
+    t==='out'    ? S('dsItem', o.outOpts) :
+    t==='in'     ? S('dsItem', o.inOpts) + S('dsCredit', contract(ds.cid).credits.map(id=>({v:id,t:id+' · '+credit(id).num}))) + I('dsShare','Доля') :
+    t==='share'  ? S('dsIdx', o.shareOpts) + I('dsShare','Новая доля') :
+                   S('dsCredit', o.credOpts);
+}
+function dsAdd(){
+  const t = val('dsType'), c = contract(ds.cid);
+  if(t==='out'){
+    const id = val('dsItem'); if(!id) return toast('Нет предметов для вывода','warn');
+    ds.ops.push({ type:'out', item:id });
+  }
+  if(t==='in'){
+    const id = val('dsItem'), cr = val('dsCredit'), sh = num(val('dsShare'));
+    if(!id || !cr) return toast('Выберите предмет и кредит','warn');
+    if(!(sh > 0)) return toast('Доля должна быть положительным числом','warn');
+    ds.ops.push({ type:'in', item:id, credit:cr, share:sh });
+  }
+  if(t==='share'){
+    const i = Number(val('dsIdx')), sh = num(val('dsShare'));
+    const v = applyOps(c, ds.ops), a = v.allocs[i];
+    if(!a) return toast('Выберите отнесение','warn');
+    if(!(sh >= 0)) return toast('Доля должна быть числом ≥ 0','warn');
+    ds.ops.push({ type:'share', item:a.item, credit:a.credit, share:sh });
+  }
+  if(t==='credit'){
+    const cr = val('dsCredit'); if(!cr) return toast('Нет доступных кредитов этого заёмщика','warn');
+    ds.ops.push({ type:'credit', credit:cr });
+  }
+  renderDs();
+}
+function dsDel(i){ ds.ops.splice(i,1); renderDs(); }
+function dsRegister(){
+  const c = contract(ds.cid), v = applyOps(c, ds.ops);
+  if(newBreaches(c, v).length) return toast('Инвариант нарушен — пакет отклонён','warn');
+  const before = gateCheck(c), after = gateCheck(v);
+  let obosn = '';
+  if(!after.ok){
+    if(!canCommission()) return toast('Гейт не пройден: допуск возможен только комиссией по залогу','warn');
+    obosn = val('dsObosn').trim();
+    if(!obosn) return toast('Допуск ниже 120% требует обоснования','warn');
+  }
+  const no = 'ДС-' + String(c.addenda.length+1).padStart(2,'0') + '/' + TODAY.slice(6);
+  const diff = after.rows.map(r => {
+    const b = before.rows.find(x=>x.id===r.id);
+    return { id:r.id, before: b ? pct(b.ratio) : '—', after: pct(r.ratio), up: !b || r.ratio >= (b ? b.ratio : 0) };
+  });
+  c.addenda.push({ no, date: TODAY, ops: ds.ops.map(opText), diff, obosn });
+  const touched = [...new Set(c.allocs.map(a=>a.item))];   // предметы договора ДО применения пакета
+  c.allocs = v.allocs; c.credits = v.credits;
+  c.allocs.forEach(a => { item(a.item).everPledged = true; });
+  /* Для каждого затронутого предмета, у которого доли обнулились и есть запрет —
+     он подлежит снятию. Само снятие — акт в органе, молча в коде не снимаем. */
+  touched.forEach(iid => { const it = item(iid);
+    if(it.ban && !it.ban.pendingRelease && allocatedLegal(iid) === 0){
+      it.ban.pendingRelease = true;
+      hist(it, `Предмет выведен доп соглашением ${no} — запрет на отчуждение ${it.ban.regNo} подлежит снятию в «${organOf(it)}» (снятие оформляется актом)`);
+    }
+  });
+  if(!after.ok) c.undercovered = { ratio: Math.min(...after.rows.map(r=>r.ratio)), obosn, by: role, date: TODAY };
+  hist(c, `Доп соглашение ${no} зарегистрировано (${ds.ops.length} операц.): ${ds.ops.map(opText).join(' · ')}. Покрытие после: ${after.rows.map(r=>r.id+' — '+pct(r.ratio)).join(', ')}${obosn ? '. Допущено комиссией ниже 120%: «'+obosn+'»' : ''}`);
+  closeModal(); toast('Доп соглашение '+no+' зарегистрировано — изменения вступили в силу','ok');
+  ds = { cid:null, ops:[] }; refresh();
+}
+
+/* ---------- ПОГАШЕНИЕ КРЕДИТА → АВТОМАТИЧЕСКОЕ ВЫСВОБОЖДЕНИЕ ДОЛЕЙ (§4.2) ---------- */
+function repay(cid, creditId){
+  if(!canEdit()) return denyEdit();
+  const cr = credit(creditId);
+  modal(`<div class="modal form narrow">${mhead('Полное погашение кредита · '+creditId)}
+    <div class="modal-b">
+      <div class="warn-inline"><span>Полное погашение — единственный случай <b>автоматического</b> высвобождения: отнесения (предмет ↔ ${creditId}) умирают вместе с кредитом во всех договорах, остаток предмета растёт сам. Частичное погашение долю НЕ уменьшает — только доп соглашение (нотариально заверенный договор не должен молча усыхать).</span></div>
+      <p class="section-note">Кредит ${creditId} · ${esc(cr.num)} · сумма ${fmt(cr.amount)}. Если это последний действующий кредит договора — договор будет закрыт, предметы освобождены.</p>
+    </div>${mfoot('Отметить погашенным','doRepay(\''+cid+'\',\''+creditId+'\')','btn-success')}</div>`);
+}
+function doRepay(cid, creditId){
+  const cr = credit(creditId);
+  cr.status = 'Погашен';
+  const touched = new Set();
+  CONTRACTS.forEach(c => {
+    const gone = c.allocs.filter(a=>a.credit===creditId);
+    if(!gone.length) return;
+    gone.forEach(a => touched.add(a.item));
+    c.allocs = c.allocs.filter(a=>a.credit!==creditId);
+    hist(c, `Кредит ${creditId} полностью погашен → автоматически высвобождены доли: ${gone.map(a=>a.item+' ('+fmt(a.share)+')').join(', ')}`);
+    gone.forEach(a => hist(item(a.item), `Доля ${fmt(a.share)} по ${creditId} высвобождена автоматически (кредит погашен). Доступно: ${fmt(availableOf(item(a.item)))}`));
+    const live = c.credits.filter(id => credit(id).status === 'Действующий');
+    if(!live.length && isActive(c)){
+      c.allocs.forEach(a => touched.add(a.item));
+      c.status = 'Закрыт'; c.allocs = [];
+      hist(c, 'Все кредиты договора погашены → договор закрыт, предметы освобождены (закрытие договора и есть правовой акт)');
+    }
+  });
+  /* После высвобождения долей: предмет с обнулившимися долями и действующим запретом
+     подлежит снятию. Само снятие — акт в органе, автоматом не выполняется. */
+  let staleN = 0;
+  touched.forEach(iid => { const it = item(iid);
+    if(it.ban && !it.ban.pendingRelease && allocatedLegal(iid) === 0){
+      it.ban.pendingRelease = true; staleN++;
+      hist(it, `Доли высвобождены — запрет на отчуждение ${it.ban.regNo} подлежит снятию в «${organOf(it)}» (снятие оформляется актом)`);
+    }
+  });
+  closeModal(); toast('Кредит погашен. Доли высвобождены автоматически','ok');
+  if(staleN) toast('Запрет на отчуждение подлежит снятию: доли по предмету обнулились. Оформите акт снятия в органе','warn');
+  refresh();
+}
+
+/* ---------- СПРАВОЧНИК: коэффициенты и интервалы контроля ---------- */
+function openRefbook(){
+  modal(`<div class="modal">${mhead('Справочник: залоговые коэффициенты и интервалы контроля')}
+    <div class="modal-b">
+      <p class="section-note">Один справочник на четыре величины по виду залога: <b>коэффициент</b> (дисконт ликвидности — база залоговой стоимости), <b>интервалы</b> планового обследования и переоценки и <b>регистрирующий орган</b> (куда накладывается запрет на отчуждение). Отдельно — <b>срок наложения запрета</b> после нотариального удостоверения. Ведёт администратор. Правка немедленно пересчитывает залоговые стоимости, покрытия, дедлайны запретов и триггеры.</p>
+      <div class="field" style="max-width:360px;margin-bottom:14px"><span class="flabel">Срок наложения запрета на отчуждение, рабочих дней</span>
+        <div class="control"><input id="rb-ban-days" value="${BAN_DEADLINE_DAYS}"></div></div>
+      <div class="cgrid-wrap"><table class="cgrid">
+        <thead><tr><th>Вид залога</th><th>Коэффициент</th><th>Обследование, мес.</th><th>Переоценка, мес.</th><th>Регистрирующий орган (запрет)</th><th class="numcell">Предметов</th></tr></thead>
+        <tbody>${Object.keys(KINDS).map(k=>`<tr>
+          <td>${esc(k)}</td>
+          <td><div class="control" style="width:100px"><input id="rb-k-${esc(k)}" value="${KINDS[k].k}"></div></td>
+          <td><div class="control" style="width:90px"><input id="rb-s-${esc(k)}" value="${KINDS[k].survey}"></div></td>
+          <td><div class="control" style="width:90px"><input id="rb-r-${esc(k)}" value="${KINDS[k].reval}"></div></td>
+          <td><div class="control" style="min-width:260px"><input id="rb-o-${esc(k)}" value="${esc(KINDS[k].organ)}"></div></td>
+          <td class="numcell">${ITEMS.filter(i=>i.kind===k).length}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>${mfoot('Сохранить справочник','saveRefbook()')}</div>`);
+}
+function saveRefbook(){
+  const bd = num((document.getElementById('rb-ban-days')||{}).value);
+  if(!(bd > 0)) return toast('Срок наложения запрета должен быть положительным числом рабочих дней','warn');
+  const draft = {};
+  for(const k of Object.keys(KINDS)){
+    const c = num((document.getElementById('rb-k-'+k)||{}).value), s = num((document.getElementById('rb-s-'+k)||{}).value),
+          r = num((document.getElementById('rb-r-'+k)||{}).value), o = (document.getElementById('rb-o-'+k)||{}).value.trim();
+    if(!(c > 0 && c <= 1)) return toast('Коэффициент «'+k+'» должен быть в диапазоне (0; 1]','warn');
+    if(!(s > 0) || !(r > 0)) return toast('Интервалы контроля «'+k+'» должны быть положительными','warn');
+    if(!o) return toast('Укажите регистрирующий орган для «'+k+'»','warn');
+    draft[k] = { k:c, survey:Math.round(s), reval:Math.round(r), organ:o };
+  }
+  Object.keys(draft).forEach(k => KINDS[k] = draft[k]);
+  BAN_DEADLINE_DAYS = Math.round(bd);
+  closeModal(); toast('Справочник сохранён — залоговые стоимости, покрытия и дедлайны запретов пересчитаны','ok'); refresh();
+}
+
+/* ============================================================
+   MISC
+   ============================================================ */
+function showView(v){
+  document.querySelectorAll('.view').forEach(s=>s.style.display='none');
+  document.getElementById('view-'+v).style.display='flex';
+  if(v==='list'){ cur=null; document.getElementById('crumbTitle').textContent='Залоговое обеспечение'; renderList(); }
+}
+function scrollTabs(){ document.getElementById('detailTabbar').scrollBy({left:200, behavior:'smooth'}); }
+function closeSplit(){ document.getElementById('splitRefresh').classList.remove('open'); }
+function toast(msg, kind){
+  const w = document.getElementById('toastWrap'), t = document.createElement('div');
+  t.className = 'toast' + (kind ? ' '+kind : ''); t.innerHTML = `<span>${msg}</span>`;
+  w.appendChild(t); setTimeout(()=>t.remove(), 4200);
+}
+document.addEventListener('keydown', e => { if(e.key==='Escape' && host().classList.contains('open')) closeModal(); });
+
+renderNav(); renderList();
+</script>
+</body>
+</html>
