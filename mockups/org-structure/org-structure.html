@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Организационная структура · АСУБК</title>
+<!--
+  РАБОЧИЙ ПРОТОТИП (single-file, MVP) — модуль «Управление организационной структурой» (TO-BE).
+  Это не картинка-мокап: вся логика ниже ИСПОЛНЯЕТСЯ. Резолв на дату, вычисление руководителя,
+  эскалация, инварианты назначений и гейты ликвидации считаются в рантайме от состояния.
+  Спека: `ASUBK-orgstruktura-logika.md`.
+  Экрана оргструктуры в живой системе нет — модуль проектируется с нуля, as-is дефектов нет.
+
+  ЧТО РЕАЛИЗОВАНО (и что разработчик обязан сохранить)
+
+  1. ОДНО ДЕРЕВО (шов №1). «Структурные подразделения» и «территориальные органы» ТЗ —
+     узлы РАЗНОГО ТИПА в ОДНОЙ иерархии. Территориальность — атрибут узла (`territory`),
+     а не второе дерево. У филиала есть собственные внутренние отделы — вложенность
+     выражается только при одном дереве (Отдел рисков Ошского филиала).
+
+  2. ИСТОРИЧНОСТЬ = ИДЕНТИЧНОСТЬ + ВЕРСИИ (шов №2). Узел НИКОГДА не удаляется.
+     • ИМЯ версионируется (NAME_VER) — переименование это тот же `unitId` и новая запись;
+       отображение всегда «имя на дату» (nameAt).
+     • ПОДЧИНЁННОСТЬ версионируется (PARENT_VER) — переподчинение это новая версия
+       `parentId`; старая иерархия восстанавливается на прошлую дату (parentAt).
+     • ЛИКВИДАЦИЯ — не удаление, а статус + дата; ссылка ведёт на снимок (серый,
+       зачёркнут), в новых операциях выбрать нельзя.
+     ДАТА-СРЕЗ в шапке пронизывает ВСЁ: имя, родителя, состав дерева, руководителя, и.о.
+
+  3. ДОЛЖНОСТЬ ≠ ШТАТНАЯ ПОЗИЦИЯ (шов №3). Должность — глобальный справочник
+     (наименование + категория, признак «руководящая»). Штатная позиция — должность × узел
+     + число единиц + признак «первое лицо узла» (isHead). Именно позиция, а не должность,
+     отвечает на вопрос «кто руководит узлом».
+
+  4. НАЗНАЧЕНИЯ И И.О. (шов №4). Вид: основное · по совместительству.
+     ИНВАРИАНТ: на любую дату у сотрудника РОВНО ОДНО основное назначение (checkMainInvariant).
+     Совместительств 0..N, но не на позицию основного. Роль — на назначение, не на сотрудника.
+     И.О. — НЕ назначение, а отдельная временная сущность поверх позиции (ACTING): обязательные
+     даты, один на позицию на дату, допускается при вакансии, может быть из ДРУГОГО узла.
+     Голос в комиссии считается по человеку — здесь не моделируется (чужой модуль).
+
+  5. РУКОВОДИТЕЛЬ — ФУНКЦИЯ, НЕ ПОЛЕ (шов №5). Значение ВЫЧИСЛЯЕМОЕ head(узел, дата):
+     и.о. → основной → ЭСКАЛАЦИЯ к родителю (подъём по дереву). Дошли до корня без
+     результата = СИСТЕМНАЯ ОШИБКА КОНФИГУРАЦИИ (красный баннер), не «пусто».
+     И.о. ПРИОРИТЕТНЕЕ основного: при отпуске основной не «отключается», а включается и.о.
+     Корень (ГО) ОБЯЗАН быть заполнен — иначе не определить контролёра ни для одного задания.
+     Эскалация ФИКСИРУЕТСЯ с причиной (вакансия / отпуск) — иначе п. 98 Порядка горит без объяснения.
+
+  6. ЛИКВИДАЦИЯ — ГЕЙТЫ (шов №6). Оргструктура защищает ДЕРЕВО и ШТАТКУ, но НЕ ДЕЛА.
+     Блокирует: (1) действующие потомки — дерево не рвём; (2) действующие назначения/и.о. —
+     сначала кадровый перевод. Некритично: (3) осиротевшая территория — предупреждение.
+     Успех → событие наружу `unit.liquidated(id, дата, правопреемник?)` (лог). Оргструктура
+     ничего за потребителей (кураторство, задания) не пересчитывает.
+
+  РОЛИ: Кадровик (правит, ликвидирует), Наблюдатель (только чтение). canEdit().
+
+  ДЕМО-ДАННЫЕ покрывают все ветки: переименованный узел (Сектор), переподчинённый узел
+  (Отдел рисков Оша: функц. → админ.), вакантная руководящая позиция (Ошский филиал → эскалация
+  к ГО), и.о. на время отпуска из другого узла (Кредитный департамент), совместитель через
+  два узла (гл. специалист), ликвидированный узел со снимком и правопреемником (Джалал-Абад),
+  провал двух гейтов ликвидации (Ошский филиал: потомки + назначения + осиротевшая территория),
+  успешная ликвидация листа с событием наружу (Сектор мониторинга).
+
+  ГРАНИЦА: слова «куратор» модуль не знает. Матрица кураторства, лента передач, конфликт
+  интересов — чужой модуль-потребитель. Открыто (§11): ДВОЙНОЕ ПОДЧИНЕНИЕ (админ. директор
+  филиала vs функц. начальник департамента ГО) — здесь показано как ОДНО (админ.) подчинение.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:360px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar (дерево) ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:16px 16px 4px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.03em; }
+.brand small{ display:block; font:var(--weight-regular) 12px/1.4 var(--asubk-font); color:var(--text-muted); letter-spacing:0; margin-top:2px; }
+.tree-scroll{ flex:1; overflow-y:auto; padding:8px 6px 16px; }
+.tnode{ user-select:none; }
+.trow{ display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:var(--radius-md);
+  cursor:pointer; color:var(--text-body); }
+.trow:hover{ background:rgba(24,39,57,0.05); }
+.trow.sel{ background:var(--asubk-nav-active); }
+.trow .tw{ width:16px; flex:none; display:inline-flex; align-items:center; justify-content:center;
+  color:rgba(24,39,57,0.5); }
+.trow .tw.leaf{ visibility:hidden; }
+.trow .tico{ flex:none; display:inline-flex; }
+.trow .tname{ flex:1; font:var(--weight-medium) var(--text-sm)/1.3 var(--asubk-font);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.trow .ttype{ font:var(--weight-regular) 11px/1 var(--asubk-font); color:var(--text-placeholder); flex:none; }
+.trow.liq .tname{ color:var(--text-muted); text-decoration:line-through; }
+.trow.liq .tico{ color:var(--text-disabled); }
+.trow .dotv{ width:7px; height:7px; border-radius:50%; background:var(--asubk-red); flex:none; margin-left:2px; }
+.tchildren{ margin-left:16px; }
+.tchildren.collapsed{ display:none; }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.topbar .date-wrap{ display:flex; align-items:center; gap:8px; }
+.topbar .date-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.topbar input[type=date]{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; cursor:pointer; }
+.date-chip{ border:1px solid var(--border-default); background:var(--surface-card); color:var(--text-link);
+  border-radius:var(--radius-pill); padding:3px 10px; font:var(--weight-medium) 12px/1 var(--asubk-font); cursor:pointer; }
+.date-chip:hover{ background:var(--surface-hover); }
+.topbar .role-wrap{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+.topbar .role-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.topbar .role-wrap select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 26px 0 10px;
+  appearance:none; cursor:pointer; }
+.rsel{ position:relative; display:flex; align-items:center; }
+.rsel .caret{ position:absolute; right:8px; pointer-events:none; color:var(--text-muted); display:flex; }
+
+.content{ flex:1; overflow:auto; }
+
+/* ---- tabs ---- */
+.detail-tabbar{ display:flex; overflow-x:auto; padding:6px 20px 0; border-bottom:1px solid var(--border-default); }
+.dtab{ flex:none; border:none; background:transparent; padding:11px 15px;
+  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
+.dtab:hover{ color:var(--text-body); }
+.dtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.panel-wrap{ padding:18px 20px 40px; max-width:1100px; }
+.detail-panel{ display:none; }
+.detail-panel.active{ display:block; }
+
+/* ---- process header ---- */
+.phead{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:16px 20px; margin-bottom:18px; }
+.phead-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
+.phead-name{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.phead-name .nm{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
+.phead-sub{ font:var(--font-label); color:var(--text-muted); margin-top:3px; }
+.phead-sub b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.phead-banner{ display:flex; align-items:flex-start; gap:10px; border-radius:var(--radius-md);
+  padding:9px 14px; margin-bottom:10px; font:var(--font-label); }
+.phead-banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.phead-banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.phead-banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
+.phead-banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.phead-banner svg{ flex:none; margin-top:1px; }
+.phead-dims{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+@media(max-width:900px){ .phead-dims{ grid-template-columns:repeat(2,1fr); } }
+.dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:10px 14px; }
+.dim .dl{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:5px; }
+.dim .dv{ font:var(--weight-semibold) 16px/1.25 var(--asubk-font); color:var(--text-heading); }
+.dim .src{ font:var(--weight-regular) 11px/1.35 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
+
+/* ---- chain of command ---- */
+.section-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:22px 0 4px; }
+.section-note{ font:var(--font-label); color:var(--text-muted); margin:0 0 12px; max-width:820px; }
+.chain{ list-style:none; margin:0; padding:0; }
+.chain li{ display:flex; align-items:center; gap:10px; padding:10px 14px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); margin-bottom:8px; background:var(--surface-card); }
+.chain li .lvl{ width:26px; height:26px; border-radius:50%; background:var(--asubk-tint-fill); color:var(--text-muted);
+  display:flex; align-items:center; justify-content:center; font:var(--weight-semibold) 12px/1 var(--asubk-font); flex:none; }
+.chain li .who{ flex:1; }
+.chain li .who .u{ font:var(--weight-medium) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-muted); }
+.chain li .who .p{ font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-heading); }
+.chain li.esc{ border-color:var(--asubk-amber); background:var(--status-warning-bg); }
+.chain li.err{ border-color:var(--asubk-red); background:var(--status-error-bg); }
+
+/* ---- pills ---- */
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+
+/* ---- tables ---- */
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); border:1px solid var(--border-default); background:var(--surface-card); }
+table.cgrid thead th{ text-align:left; padding:10px 12px; background:var(--surface-card);
+  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-medium) var(--text-sm)/1.35 var(--asubk-font);
+  color:var(--text-body); white-space:nowrap; }
+table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--asubk-grid-line); vertical-align:top; color:var(--text-body); }
+table.cgrid tbody tr:last-child td{ border-bottom:none; }
+.muted{ color:var(--text-muted); }
+.mono{ font-variant-numeric:tabular-nums; }
+
+/* ---- buttons ---- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn-danger{ background:var(--action-danger); color:#fff; }
+.btn-danger:hover:not(:disabled){ background:var(--asubk-red-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+
+/* ---- gate list ---- */
+.gate{ display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); margin-bottom:8px; background:var(--surface-card); }
+.gate .gi{ flex:none; margin-top:1px; }
+.gate .gt{ flex:1; }
+.gate .gt .gh{ font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-heading); }
+.gate .gt .gd{ font:var(--font-label); color:var(--text-muted); margin-top:3px; }
+.gate.block{ border-color:var(--asubk-red); background:var(--status-error-bg); }
+.gate.block .gi{ color:var(--asubk-red); }
+.gate.pass{ border-color:var(--asubk-green); }
+.gate.pass .gi{ color:var(--asubk-green); }
+.gate.warn{ border-color:var(--asubk-amber); background:var(--status-warning-bg); }
+.gate.warn .gi{ color:var(--asubk-amber); }
+
+/* ---- history timeline ---- */
+.tl{ list-style:none; margin:0; padding:0; border-left:2px solid var(--border-default); margin-left:8px; }
+.tl li{ position:relative; padding:0 0 18px 22px; }
+.tl li::before{ content:''; position:absolute; left:-7px; top:3px; width:12px; height:12px; border-radius:50%;
+  background:var(--surface-card); border:2px solid var(--asubk-blue); }
+.tl li.now::before{ background:var(--asubk-blue); }
+.tl li .td{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
+.tl li .tv{ font:var(--font-label); color:var(--text-muted); margin-top:2px; }
+.tl .curbadge{ margin-left:8px; }
+
+.event-log{ font:var(--font-label); }
+.event-log .ev{ padding:8px 12px; border:1px dashed var(--border-strong); border-radius:var(--radius-md);
+  margin-bottom:6px; color:var(--text-body); background:var(--asubk-tint-fill); }
+.event-log .ev code{ color:var(--asubk-blue); font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; }
+.hint{ font:var(--font-label); color:var(--text-muted); margin-top:6px; }
+kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; background:var(--asubk-tint-fill);
+  border:1px solid var(--border-default); border-radius:4px; padding:1px 5px; color:var(--text-body); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">Организационная структура<small>АСУБК · дерево на дату</small></div>
+    <div class="tree-scroll" id="tree"></div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <span class="crumb-title">Оргструктура ведомства</span>
+      <div class="date-wrap">
+        <label for="dateInp">Дата&nbsp;среза</label>
+        <input type="date" id="dateInp" min="2020-01-01" max="2026-07-11">
+        <button class="date-chip" data-d="2022-03-01">2022</button>
+        <button class="date-chip" data-d="2023-09-01">2023</button>
+        <button class="date-chip" data-d="2026-07-11">Сегодня</button>
+      </div>
+      <div class="role-wrap">
+        <label for="roleSel">Роль</label>
+        <div class="rsel">
+          <select id="roleSel">
+            <option value="hr">Кадровик</option>
+            <option value="obs">Наблюдатель</option>
+          </select>
+          <span class="caret"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-tabbar" id="tabbar">
+      <button class="dtab active" data-tab="overview">Обзор</button>
+      <button class="dtab" data-tab="staff">Штатка и назначения</button>
+      <button class="dtab" data-tab="history">История</button>
+      <button class="dtab" data-tab="liq">Ликвидация</button>
+    </div>
+
+    <div class="content">
+      <div class="detail-panel active" id="p-overview"></div>
+      <div class="detail-panel" id="p-staff"></div>
+      <div class="detail-panel" id="p-history"></div>
+      <div class="detail-panel" id="p-liq"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* =========================================================================
+   СОСТОЯНИЕ (§ спеки). Наружу нет полей head/name — только unitId; всё производное.
+   ========================================================================= */
+const TODAY = '2026-07-11';
+
+// §1 УЗЛЫ. territory — атрибут узла (не второе дерево). parentId — БАЗОВОЕ подчинение
+// (переопределяется PARENT_VER на дату). liquidated/successor — §2/§6.
+const UNITS = [
+  { id:'go',       type:'ГО',         territory:[], created:'2020-01-01', liquidated:null, successor:null },
+  { id:'riskgo',   type:'департамент', territory:[], created:'2020-02-01', liquidated:null, successor:null },
+  { id:'creditgo', type:'департамент', territory:[], created:'2020-02-01', liquidated:null, successor:null },
+  { id:'sector',   type:'сектор',      territory:[], created:'2020-03-01', liquidated:null, successor:null },
+  { id:'osh',      type:'филиал',      territory:['Ошская область','город Ош'], created:'2021-01-01', liquidated:null, successor:null },
+  { id:'oshrisk',  type:'отдел',       territory:[], created:'2021-02-01', liquidated:null, successor:null },
+  { id:'jal',      type:'филиал',      territory:['Джалал-Абадская область'], created:'2021-01-01', liquidated:'2024-06-01', successor:'osh' },
+];
+// базовое подчинение (для узлов без версий переподчинения)
+const BASE_PARENT = { go:null, riskgo:'go', creditgo:'go', sector:'creditgo', osh:'go', oshrisk:'osh', jal:'go' };
+
+// §2 ИМЯ версионируется. Сектор переименован 2023-06-01.
+const NAME_VER = [
+  { unitId:'go',       name:'Головной офис',                 from:'2020-01-01', to:null },
+  { unitId:'riskgo',   name:'Департамент рисков',            from:'2020-02-01', to:null },
+  { unitId:'creditgo', name:'Кредитный департамент',         from:'2020-02-01', to:null },
+  { unitId:'sector',   name:'Сектор сопровождения',          from:'2020-03-01', to:'2023-06-01' },
+  { unitId:'sector',   name:'Сектор мониторинга',            from:'2023-06-01', to:null },
+  { unitId:'osh',      name:'Ошский филиал',                 from:'2021-01-01', to:null },
+  { unitId:'oshrisk',  name:'Отдел рисков Ошского филиала',  from:'2021-02-01', to:null },
+  { unitId:'jal',      name:'Джалал-Абадский филиал',        from:'2021-01-01', to:null },
+];
+
+// §2 ПОДЧИНЁННОСТЬ версионируется. Отдел рисков Оша: функц. (Департамент рисков ГО) → админ. (Ошский филиал) с 2023-01-01.
+const PARENT_VER = [
+  { unitId:'oshrisk', parentId:'riskgo', from:'2021-02-01', to:'2023-01-01' },
+  { unitId:'oshrisk', parentId:'osh',    from:'2023-01-01', to:null },
+];
+
+// §3 ДОЛЖНОСТИ (справочник): наименование + категория (+ признак руководящая).
+const TITLES = {
+  chair:  { name:'Председатель',           cat:'руководящая',  lead:true },
+  dep:    { name:'Начальник департамента', cat:'руководящая',  lead:true },
+  dir:    { name:'Директор филиала',       cat:'руководящая',  lead:true },
+  hoff:   { name:'Начальник отдела',       cat:'руководящая',  lead:true },
+  hsec:   { name:'Заведующий сектором',    cat:'руководящая',  lead:true },
+  chief:  { name:'Главный специалист',     cat:'специалист',   lead:false },
+};
+
+// §3 ШТАТНЫЕ ПОЗИЦИИ: должность × узел + число единиц + isHead («первое лицо узла»).
+const POSITIONS = [
+  { id:'ps_go',       unitId:'go',       titleId:'chair', units:1, isHead:true  },
+  { id:'ps_riskgo',   unitId:'riskgo',   titleId:'dep',   units:1, isHead:true  },
+  { id:'ps_creditgo', unitId:'creditgo', titleId:'dep',   units:1, isHead:true  },
+  { id:'ps_creditsp', unitId:'creditgo', titleId:'chief', units:2, isHead:false },
+  { id:'ps_sector',   unitId:'sector',   titleId:'hsec',  units:1, isHead:true  },
+  { id:'ps_osh',      unitId:'osh',      titleId:'dir',   units:1, isHead:true  },
+  { id:'ps_oshrisk',  unitId:'oshrisk',  titleId:'hoff',  units:1, isHead:true  },
+  { id:'ps_oshrsp',   unitId:'oshrisk',  titleId:'chief', units:1, isHead:false },
+];
+
+const EMPLOYEES = {
+  e_dir:  'Асанов А. А.',
+  e_risk: 'Бекова Г. Т.',
+  e_cred: 'Ормонов Б. К.',
+  e_oshr: 'Ташиев М. Ы.',
+  e_spec: 'Иманова Н. С.',
+  e_io:   'Сыдыков Э. Ж.',
+};
+
+// §4 НАЗНАЧЕНИЯ: сотрудник × позиция + вид(main/combine) + даты + доля ставки.
+const ASSIGN = [
+  { id:'a1', empId:'e_dir',  posId:'ps_go',       kind:'main',    from:'2020-01-01', to:null, rate:1.0 },
+  { id:'a2', empId:'e_risk', posId:'ps_riskgo',   kind:'main',    from:'2020-02-01', to:null, rate:1.0 },
+  { id:'a3', empId:'e_cred', posId:'ps_creditgo', kind:'main',    from:'2020-02-01', to:null, rate:1.0 },
+  { id:'a4', empId:'e_oshr', posId:'ps_oshrisk',  kind:'main',    from:'2021-02-01', to:null, rate:1.0 },
+  // Гл. специалист: ОСНОВНОЕ в Кредитном департаменте ГО + СОВМЕСТИТЕЛЬСТВО в Отделе рисков Оша (§10 — фильтр по всем назначениям).
+  { id:'a5', empId:'e_spec', posId:'ps_creditsp', kind:'main',    from:'2022-05-01', to:null, rate:1.0 },
+  { id:'a6', empId:'e_spec', posId:'ps_oshrsp',   kind:'combine', from:'2024-01-01', to:null, rate:0.5 },
+  // Ошский филиал (ps_osh, Директор) — ВАКАНТ: назначения НЕТ → head() эскалирует к ГО.
+  // Сектор мониторинга (ps_sector) — ВАКАНТ (лист без назначений) → пригоден к ликвидации.
+];
+
+// §4 И.О. — НЕ назначение, отдельная сущность поверх позиции. Начальник Кредитного департамента
+// в отпуске 2026-06-01..2026-07-31, и.о. — Сыдыков (из другого узла, Департамент рисков). Приоритет над основным.
+const ACTING = [
+  { id:'io1', posId:'ps_creditgo', empId:'e_io', from:'2026-06-01', to:'2026-07-31', reason:'отпуск основного' },
+];
+
+/* =========================================================================
+   ЧИСТЫЕ ФУНКЦИИ РЕЗОЛВА НА ДАТУ (даты ISO, сравнение лексикографическое).
+   ========================================================================= */
+const verActive   = (v,d)=> v.from<=d && (v.to==null || d < v.to);      // версии: to — эксклюзивный конец
+const spanActive  = (s,d)=> s.from<=d && (s.to==null || d <= s.to);     // назначения/и.о.: to инклюзивно
+
+function unit(id){ return UNITS.find(u=>u.id===id); }
+function nameAt(id,d){
+  const vs = NAME_VER.filter(v=>v.unitId===id).sort((a,b)=>a.from<b.from?-1:1);
+  const hit = vs.find(v=>verActive(v,d));
+  return hit ? hit.name : (vs[vs.length-1]?.name || id); // до создания показываем последнее известное имя
+}
+function parentAt(id,d){
+  const vs = PARENT_VER.filter(v=>v.unitId===id);
+  const hit = vs.find(v=>verActive(v,d));
+  return hit ? hit.parentId : BASE_PARENT[id];
+}
+function existsAt(id,d){ return unit(id).created <= d; }
+function liquidatedAt(id,d){ const u=unit(id); return u.liquidated!=null && u.liquidated<=d; }
+function childrenAt(pid,d){
+  return UNITS.filter(u=>existsAt(u.id,d) && parentAt(u.id,d)===pid);
+}
+
+// §4 позиции узла + кто на них на дату (и.о. приоритетнее основного).
+function headPosOf(unitId){ return POSITIONS.find(p=>p.unitId===unitId && p.isHead); }
+function actingOn(posId,d){ return ACTING.find(a=>a.posId===posId && spanActive(a,d)); }
+function mainOn(posId,d){ return ASSIGN.find(a=>a.posId===posId && a.kind==='main' && spanActive(a,d)); }
+function occupantsOf(posId,d){
+  const io = actingOn(posId,d);
+  const list = [];
+  if(io) list.push({ empId:io.empId, kind:'acting', reason:io.reason, from:io.from, to:io.to });
+  ASSIGN.filter(a=>a.posId===posId && spanActive(a,d)).forEach(a=>list.push({ empId:a.empId, kind:a.kind, rate:a.rate }));
+  return list;
+}
+
+// §5 РУКОВОДИТЕЛЬ — вычисляемый. и.о. → основной → эскалация к родителю. Корень пуст = ошибка конфигурации.
+function head(unitId,d){
+  let cur = unitId, escFrom = null, reason = null, guard = 0;
+  while(cur && guard++ < 20){
+    const pos = headPosOf(cur);
+    if(pos){
+      const io = actingOn(pos.id,d);
+      if(io) return { empId:io.empId, via:'и.о.', at:cur, escalatedFrom:escFrom, reason, actingReason:io.reason };
+      const mn = mainOn(pos.id,d);
+      if(mn) return { empId:mn.empId, via:'основной', at:cur, escalatedFrom:escFrom, reason };
+    }
+    // вакансия/нет позиции → эскалация к родителю
+    if(escFrom==null){ escFrom = unitId; reason = pos ? 'вакансия' : 'нет руководящей позиции'; }
+    cur = parentAt(cur,d);
+  }
+  return { error:true, at:unitId }; // §5 п.4 — дошли до корня без результата
+}
+
+// §5 цепочка ответственности снизу вверх (для п.96 / контролёров).
+function chainUp(unitId,d){
+  const out = []; let cur = unitId, guard=0;
+  while(cur && guard++ < 20){
+    const pos = headPosOf(cur);
+    let occ = null;
+    if(pos){ const io=actingOn(pos.id,d); const mn=mainOn(pos.id,d);
+      if(io) occ={ empId:io.empId, via:'и.о.' }; else if(mn) occ={ empId:mn.empId, via:'основной' }; }
+    out.push({ unitId:cur, pos, occ });
+    cur = parentAt(cur,d);
+  }
+  return out;
+}
+
+// §4 ИНВАРИАНТ: у сотрудника на дату ровно одно основное назначение.
+function checkMainInvariant(d){
+  const cnt = {};
+  ASSIGN.filter(a=>a.kind==='main' && spanActive(a,d)).forEach(a=> cnt[a.empId]=(cnt[a.empId]||0)+1);
+  return Object.entries(cnt).filter(([,n])=>n>1).map(([e])=>e);
+}
+
+/* =========================================================================
+   ВИД / РЕНДЕР
+   ========================================================================= */
+const state = { date:TODAY, role:'hr', sel:'osh', tab:'overview', collapsed:{} };
+const EVENT_LOG = [];
+const canEdit = ()=> state.role==='hr';
+const esc = s => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const fmtEmp = id => EMPLOYEES[id] || id;
+const titleName = pos => TITLES[pos.titleId].name;
+
+const ICONS = {
+  chev:'<svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>',
+  go:'<svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 14h12M3 14V6l5-3 5 3v8M6 14v-3h4v3" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>',
+  branch:'<svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="11" rx="1" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M6 6h4M6 9h4" stroke="currentColor" stroke-width="1.1"/></svg>',
+  dept:'<svg width="16" height="16" viewBox="0 0 16 16"><rect x="2.5" y="5" width="11" height="8" rx="1" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M6 5V3h4v2" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>',
+  unit:'<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="5" r="2.3" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M3.5 13c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>',
+  warn:'<svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 2l6 11H2L8 2z" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M8 6.5v3M8 11.2v.2" stroke="currentColor" stroke-width="1.5"/></svg>',
+  block:'<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M4 4l8 8" stroke="currentColor" stroke-width="1.3"/></svg>',
+  ok:'<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>',
+  info:'<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M8 7v4M8 5v.2" stroke="currentColor" stroke-width="1.5"/></svg>',
+};
+function typeIcon(t){ if(t==='ГО') return ICONS.go; if(t==='филиал') return ICONS.branch;
+  if(t==='департамент'||t==='сектор') return ICONS.dept; return ICONS.unit; }
+
+/* ---- дерево ---- */
+function renderTree(){
+  const d = state.date;
+  const rootIds = UNITS.filter(u=>existsAt(u.id,d) && parentAt(u.id,d)==null).map(u=>u.id);
+  const html = rootIds.map(id=>treeNode(id,d)).join('');
+  document.getElementById('tree').innerHTML = html || '<div class="hint" style="padding:12px">На выбранную дату дерево пусто.</div>';
+}
+function treeNode(id,d){
+  const kids = childrenAt(id,d).map(u=>u.id);
+  const u = unit(id);
+  const liq = liquidatedAt(id,d);
+  const sel = state.sel===id ? ' sel':'';
+  const isCol = state.collapsed[id];
+  const hasKids = kids.length>0;
+  const twcls = hasKids ? '' : ' leaf';
+  const chev = hasKids ? (isCol?'<span style="display:inline-flex">'+ICONS.chev+'</span>':'<span style="transform:rotate(90deg);display:inline-flex">'+ICONS.chev+'</span>') : '';
+  // вакантная руководящая позиция → красная точка-индикатор
+  const hp = headPosOf(id);
+  const vacant = hp && !actingOn(hp.id,d) && !mainOn(hp.id,d);
+  const dot = (vacant && !liq) ? '<span class="dotv" title="вакансия руководителя"></span>' : '';
+  let h = `<div class="tnode">
+    <div class="trow${sel}${liq?' liq':''}" data-id="${id}">
+      <span class="tw${twcls}" data-toggle="${id}">${chev}</span>
+      <span class="tico">${typeIcon(u.type)}</span>
+      <span class="tname">${esc(nameAt(id,d))}</span>
+      ${dot}
+      <span class="ttype">${liq?'ликвид.':esc(u.type)}</span>
+    </div>`;
+  if(hasKids){
+    h += `<div class="tchildren${isCol?' collapsed':''}">${kids.map(k=>treeNode(k,d)).join('')}</div>`;
+  }
+  h += `</div>`;
+  return h;
+}
+
+/* ---- ОБЗОР ---- */
+function renderOverview(){
+  const d = state.date, id = state.sel, u = unit(id);
+  const el = document.getElementById('p-overview');
+  if(!existsAt(id,d)){ el.innerHTML = notYet(id,d); return; }
+  const liq = liquidatedAt(id,d);
+  const h = head(id,d);
+  const par = parentAt(id,d);
+
+  // баннеры
+  let banners = '';
+  const rootHeadVacant = (()=>{ const p=headPosOf('go'); return !actingOn(p.id,d)&&!mainOn(p.id,d); })();
+  if(rootHeadVacant) banners += banner('danger', ICONS.block,
+    '<b>Ошибка конфигурации:</b> руководящая позиция корня (ГО) вакантна на дату. Система не может определить контролёра ни для одного задания. §7 запрещает оставлять её пустой.');
+  const inv = checkMainInvariant(d);
+  if(inv.length) banners += banner('danger', ICONS.block,
+    '<b>Нарушение инварианта §4:</b> у сотрудника более одного основного назначения — '+inv.map(fmtEmp).join(', '));
+  if(liq) banners += banner('warn', ICONS.warn,
+    `<b>Ликвидировано ${u.liquidated}.</b> Это снимок: выбрать узел в новых операциях нельзя. `+
+    (u.successor?`Правопреемник — <b>${esc(nameAt(u.successor,d))}</b>.`:'Правопреемник не указан.'));
+
+  // блок «руководитель»
+  let headBlock;
+  if(h.error){
+    headBlock = banner('danger', ICONS.block, '<b>head('+esc(nameAt(id,d))+') не определён:</b> подъём дошёл до корня без результата — ошибка конфигурации, а не «пусто».');
+  } else if(h.escalatedFrom){
+    headBlock = banner('warn', ICONS.warn,
+      `Локально узел без руководителя — <b>эскалация</b> к «${esc(nameAt(h.at,d))}». Причина: <b>${h.reason}</b>. `+
+      `Руководитель на дату — <b>${fmtEmp(h.empId)}</b> (${h.via}). Эскалация фиксируется в задании (§7 → п.98).`);
+  } else {
+    headBlock = banner('ok', ICONS.ok,
+      `Руководитель на дату — <b>${fmtEmp(h.empId)}</b> (${h.via}${h.actingReason?', '+h.actingReason:''}).`);
+  }
+
+  const dims = `<div class="phead-dims">
+    <div class="dim"><div class="dl">Тип узла</div><div class="dv">${esc(u.type)}</div><div class="src">§1 · один из типов иерархии</div></div>
+    <div class="dim"><div class="dl">Родитель на дату</div><div class="dv">${par?esc(nameAt(par,d)):'— (корень)'}</div><div class="src">§2 · parentAt(${d})</div></div>
+    <div class="dim"><div class="dl">Статус</div><div class="dv">${liq?'ликвидировано':'действующее'}</div><div class="src">§2 · снимок при ликвидации</div></div>
+    <div class="dim"><div class="dl">Территория</div><div class="dv">${u.territory.length?esc(u.territory.join(', ')):'—'}</div><div class="src">§1 · атрибут узла, не 2-е дерево</div></div>
+  </div>`;
+
+  // цепочка вверх
+  const chain = chainUp(id,d);
+  const chainHtml = chain.map((c,i)=>{
+    const isEsc = i>0 && chain.slice(0,i).some(x=>!x.occ); // выше по эскалации от вакансии ниже
+    let who;
+    if(c.occ) who = `<div class="p">${fmtEmp(c.occ.empId)}</div><div class="u">${titleName(c.pos)} · ${c.occ.via}</div>`;
+    else if(c.pos) who = `<div class="p" style="color:var(--asubk-red)">вакансия</div><div class="u">${titleName(c.pos)} → эскалация выше</div>`;
+    else who = `<div class="p" style="color:var(--asubk-red)">нет руководящей позиции</div>`;
+    const cls = c.occ ? (isEsc?'esc':'') : 'esc';
+    return `<li class="${cls}"><span class="lvl">${i+1}</span><div class="who"><div class="u">${esc(nameAt(c.unitId,d))}</div>${who}</div></li>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="panel-wrap">
+      <div class="phead">
+        <div class="phead-top">
+          <div>
+            <div class="phead-name"><span class="nm">${esc(nameAt(id,d))}</span>
+              <span class="pill ${liq?'neutral':'info'}">${esc(u.type)}</span></div>
+            <div class="phead-sub">Создан <b>${u.created}</b>${liq?` · ликвидирован <b>${u.liquidated}</b>`:''} · <span class="mono">unitId=${id}</span></div>
+          </div>
+        </div>
+        ${banners}
+        ${headBlock}
+        ${dims}
+      </div>
+      <div class="section-h">Цепочка ответственности (снизу вверх)</div>
+      <p class="section-note">Не хранится — вычисляется из дерева на дату события (§9). Используется п. 96 Порядка и маршрутом контролёров заданий. Жёлтым помечены звенья, полученные <b>эскалацией</b> из-за вакансии ниже.</p>
+      <ul class="chain">${chainHtml}</ul>
+    </div>`;
+}
+
+/* ---- ШТАТКА ---- */
+function renderStaff(){
+  const d = state.date, id = state.sel;
+  const el = document.getElementById('p-staff');
+  if(!existsAt(id,d)){ el.innerHTML = notYet(id,d); return; }
+  const poss = POSITIONS.filter(p=>p.unitId===id);
+  const rows = poss.map(p=>{
+    const occ = occupantsOf(p.id,d);
+    const t = TITLES[p.titleId];
+    let cell;
+    if(!occ.length){ cell = `<span class="pill warn">вакансия</span>`; }
+    else cell = occ.map(o=>{
+      if(o.kind==='acting') return `<div><b>${fmtEmp(o.empId)}</b> <span class="pill info">и.о.</span> <span class="muted">${o.reason}, ${o.from}…${o.to}</span></div>`;
+      if(o.kind==='combine') return `<div>${fmtEmp(o.empId)} <span class="pill neutral">совмест.</span> <span class="muted">доля ${o.rate}</span></div>`;
+      return `<div><b>${fmtEmp(o.empId)}</b> <span class="pill ok">основное</span> <span class="muted">доля ${o.rate}</span></div>`;
+    }).join('');
+    return `<tr>
+      <td><b>${esc(t.name)}</b>${p.isHead?' <span class="pill info">первое лицо</span>':''}<div class="muted">${esc(t.cat)}${t.lead?' · руководящая':''}</div></td>
+      <td class="mono">${p.units}</td>
+      <td>${cell}</td></tr>`;
+  }).join('') || `<tr><td colspan="3" class="muted">Штатных позиций на дату нет.</td></tr>`;
+
+  const inv = checkMainInvariant(d);
+
+  el.innerHTML = `
+    <div class="panel-wrap">
+      <div class="section-h">Штатное расписание — ${esc(nameAt(id,d))}</div>
+      <p class="section-note">§3: должность (справочник) ≠ штатная позиция (должность × узел). Признак «первое лицо» — у позиции. §4: и.о. приоритетнее основного; роль навешивается на назначение, не на сотрудника.</p>
+      <table class="cgrid">
+        <thead><tr><th style="width:38%">Позиция (должность)</th><th style="width:8%">Ед.</th><th>Кто на дату</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="section-h">Инвариант §4 — одно основное назначение на сотрудника</div>
+      ${ inv.length
+        ? banner('danger', ICONS.block, 'Нарушение: '+inv.map(fmtEmp).join(', ')+' — более одного основного назначения на дату.')
+        : banner('ok', ICONS.ok, 'Соблюдён: на выбранную дату у каждого сотрудника не более одного основного назначения.') }
+      <p class="hint">Гл. специалист <b>${fmtEmp('e_spec')}</b> действует в двух узлах (основное в Кредитном департаменте + совместительство в Отделе рисков Оша). Фильтр «Филиал/отдел специалиста» обязан искать по <b>всем</b> назначениям — иначе совместитель выпадет из выборки (§10).</p>
+    </div>`;
+}
+
+/* ---- ИСТОРИЯ ---- */
+function renderHistory(){
+  const d = state.date, id = state.sel, u = unit(id);
+  const el = document.getElementById('p-history');
+  const names = NAME_VER.filter(v=>v.unitId===id).sort((a,b)=>a.from<b.from?-1:1);
+  const pars  = PARENT_VER.filter(v=>v.unitId===id).sort((a,b)=>a.from<b.from?-1:1);
+  const nameTl = names.map(v=>{
+    const now = verActive(v,d);
+    return `<li class="${now?'now':''}"><div class="td">${v.from} — ${v.to||'по н.в.'}${now?' <span class="pill info curbadge">на дату среза</span>':''}</div><div class="tv">${esc(v.name)}</div></li>`;
+  }).join('');
+  let parTl;
+  if(pars.length){
+    parTl = pars.map(v=>{
+      const now = verActive(v,d);
+      const fk = v.parentId==='riskgo'?'функциональное':(v.parentId==='osh'?'административное':'');
+      return `<li class="${now?'now':''}"><div class="td">${v.from} — ${v.to||'по н.в.'}${now?' <span class="pill info curbadge">на дату среза</span>':''}</div><div class="tv">Родитель: <b>${esc(nameAt(v.parentId,d))}</b>${fk?' ('+fk+')':''}</div></li>`;
+    }).join('');
+  } else {
+    const bp = BASE_PARENT[id];
+    parTl = `<li class="now"><div class="td">${u.created} — по н.в.</div><div class="tv">Родитель: <b>${bp?esc(nameAt(bp,d)):'— (корень)'}</b> · без переподчинений</div></li>`;
+  }
+  const liqTl = u.liquidated
+    ? `<li class="${d>=u.liquidated?'now':''}"><div class="td">${u.liquidated}</div><div class="tv">Ликвидация · статус «ликвидировано»${u.successor?' · правопреемник <b>'+esc(nameAt(u.successor,d))+'</b>':''}</div></li>`
+    : `<li><div class="td">—</div><div class="tv">Узел действующий, не ликвидирован.</div></li>`;
+
+  el.innerHTML = `
+    <div class="panel-wrap">
+      <div class="section-h">История наименований — §2</div>
+      <p class="section-note">Переименование — тот же <span class="mono">unitId</span> и новая запись. На дату среза резолвится имя на эту дату — сдвиньте дату вверху, старое имя проявится в прошлом.</p>
+      <ul class="tl">${nameTl}</ul>
+      <div class="section-h">История подчинённости — §2</div>
+      <p class="section-note">Переподчинение — новая версия <span class="mono">parentId</span>. Без версионирования старая иерархия не восстановилась бы в отчётах за прошлый период и цепочка п. 96 считалась бы неверно.</p>
+      <ul class="tl">${parTl}</ul>
+      <div class="section-h">Жизненный цикл узла</div>
+      <ul class="tl">${liqTl}</ul>
+    </div>`;
+}
+
+/* ---- ЛИКВИДАЦИЯ ---- */
+function renderLiq(){
+  const d = state.date, id = state.sel, u = unit(id);
+  const el = document.getElementById('p-liq');
+  if(!existsAt(id,d)){ el.innerHTML = notYet(id,d); return; }
+
+  if(liquidatedAt(id,d)){
+    el.innerHTML = `<div class="panel-wrap">
+      <div class="section-h">Ликвидация — ${esc(nameAt(id,d))}</div>
+      ${banner('warn', ICONS.warn, `Узел уже ликвидирован <b>${u.liquidated}</b>. Снимок доступен для ссылок из прошлых операций, но в новых операциях недоступен (§2).`)}
+      ${u.successor?banner('info', ICONS.info, `Правопреемник — <b>${esc(nameAt(u.successor,d))}</b>. Оргструктура только фиксирует; массовую передачу дел разгребают потребители (кураторство, задания).`):''}
+      ${eventLogHtml()}
+    </div>`;
+    return;
+  }
+
+  // §8 гейты
+  const isRoot = parentAt(id,d)==null;
+  const kidsActive = childrenAt(id,d).filter(k=>!liquidatedAt(k.id,d));
+  const assignsActive = POSITIONS.filter(p=>p.unitId===id).flatMap(p=>occupantsOf(p.id,d).map(o=>({...o,pos:p})));
+  const terr = u.territory;
+
+  const gateChildren = gate(kidsActive.length? 'block':'pass', kidsActive.length?ICONS.block:ICONS.ok,
+    '1. Действующие дочерние узлы',
+    kidsActive.length
+      ? 'Есть действующие потомки: '+kidsActive.map(k=>esc(nameAt(k.id,d))).join(', ')+'. Сначала переподчинить или ликвидировать снизу вверх — дерево не должно рваться.'
+      : 'Действующих потомков нет — дерево не порвётся.');
+  const gateAssign = gate(assignsActive.length?'block':'pass', assignsActive.length?ICONS.block:ICONS.ok,
+    '2. Действующие назначения / и.о.',
+    assignsActive.length
+      ? 'На штатных позициях есть действующие: '+assignsActive.map(o=>fmtEmp(o.empId)+' ('+(o.kind==='acting'?'и.о.':o.kind==='combine'?'совмест.':'основное')+')').join(', ')+'. Сначала кадровый перевод / освобождение.'
+      : 'Действующих назначений на позициях узла нет.');
+  const gateTerr = terr.length
+    ? gate('warn', ICONS.warn, '3. Территория обслуживания (некритично)',
+        'Осиротеет территория: '+esc(terr.join(', '))+'. Предупреждение, не блокировка — покрытие пересматривают потребители.')
+    : gate('pass', ICONS.ok, '3. Территория обслуживания', 'Узел территорию не обслуживает — осиротевших областей нет.');
+
+  const rootGate = isRoot ? gate('block', ICONS.block, '0. Корень дерева', 'Головной офис — корень, ликвидации не подлежит (§2).') : '';
+  const blocked = isRoot || kidsActive.length>0 || assignsActive.length>0;
+
+  el.innerHTML = `
+    <div class="panel-wrap">
+      <div class="section-h">Ликвидация — ${esc(nameAt(id,d))}</div>
+      <p class="section-note">§6/§8: оргструктура защищает <b>дерево и штатку</b>, но не дела. Блокирующие гейты обходить нельзя. При успехе наружу уходит только событие <span class="mono">unit.liquidated(id, дата, правопреемник?)</span> — потребители реагируют сами.</p>
+      ${rootGate}${gateChildren}${gateAssign}${gateTerr}
+      <div style="margin:16px 0; display:flex; gap:10px; align-items:center;">
+        <button class="btn btn-danger" id="liqBtn" ${(blocked||!canEdit())?'disabled':''}>Ликвидировать узел</button>
+        <span class="hint" style="margin:0">${
+          !canEdit() ? 'Роль «Наблюдатель» — только чтение.'
+          : blocked ? 'Заблокировано гейтами выше — снимите блокировки.'
+          : 'Гейты пройдены. Действие пометит узел ликвидированным на дату среза и отправит событие в лог.'}</span>
+      </div>
+      ${eventLogHtml()}
+    </div>`;
+
+  const btn = document.getElementById('liqBtn');
+  if(btn) btn.onclick = ()=>{
+    u.liquidated = state.date;
+    EVENT_LOG.unshift(`unit.liquidated(id="${id}", дата="${state.date}"${u.successor?`, правопреемник="${u.successor}"`:''})`);
+    render();
+  };
+}
+
+/* ---- helpers ---- */
+function banner(kind,icon,html){ return `<div class="phead-banner ${kind}">${icon}<div>${html}</div></div>`; }
+function gate(kind,icon,head,desc){ return `<div class="gate ${kind}"><span class="gi">${icon}</span><div class="gt"><div class="gh">${head}</div><div class="gd">${desc}</div></div></div>`; }
+function notYet(id,d){ return `<div class="panel-wrap">${banner('info',ICONS.info,`Узел ещё не создан на выбранную дату (создан ${unit(id).created}). Сдвиньте дату среза вперёд.`)}</div>`; }
+function eventLogHtml(){
+  return `<div class="section-h">События наружу (§8/§9)</div>
+    <p class="section-note">Потребители контракта (кураторство, задания, взыскание) подписаны на эти события. Оргструктура ничего за них не пересчитывает.</p>
+    <div class="event-log">${ EVENT_LOG.length? EVENT_LOG.map(e=>`<div class="ev"><code>${esc(e)}</code></div>`).join('') : '<div class="hint">Событий пока нет. Ликвидируйте пригодный узел (напр. «Сектор мониторинга»), чтобы увидеть событие.</div>' }</div>`;
+}
+
+/* ---- оркестровка ---- */
+function render(){
+  renderTree();
+  document.querySelectorAll('.dtab').forEach(t=>t.classList.toggle('active', t.dataset.tab===state.tab));
+  document.querySelectorAll('.detail-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('p-'+state.tab).classList.add('active');
+  renderOverview(); renderStaff(); renderHistory(); renderLiq();
+}
+
+/* ---- события ---- */
+document.getElementById('tree').addEventListener('click', e=>{
+  const tog = e.target.closest('[data-toggle]');
+  if(tog && tog.querySelector('svg')){ const id=tog.dataset.toggle; state.collapsed[id]=!state.collapsed[id]; renderTree(); e.stopPropagation(); return; }
+  const row = e.target.closest('.trow');
+  if(row){ state.sel=row.dataset.id; render(); }
+});
+document.getElementById('tabbar').addEventListener('click', e=>{
+  const t=e.target.closest('.dtab'); if(!t) return; state.tab=t.dataset.tab; render();
+});
+const dateInp = document.getElementById('dateInp');
+dateInp.value = state.date;
+dateInp.addEventListener('change', ()=>{ state.date=dateInp.value||TODAY; render(); });
+document.querySelectorAll('.date-chip').forEach(b=> b.onclick=()=>{ state.date=b.dataset.d; dateInp.value=b.dataset.d; render(); });
+document.getElementById('roleSel').addEventListener('change', e=>{ state.role=e.target.value; render(); });
+
+render();
+</script>
+</body>
+</html>
