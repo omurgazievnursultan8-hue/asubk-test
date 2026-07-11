@@ -143,7 +143,13 @@ a{ color:inherit; }
 .tree-pane{ width:340px; flex:none; border-right:1px solid var(--border-default);
   display:flex; flex-direction:column; background:var(--surface-page); }
 .tree-pane-h{ padding:12px 16px 8px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font);
-  color:var(--text-heading); border-bottom:1px solid var(--border-default); }
+  color:var(--text-heading); border-bottom:1px solid var(--border-default);
+  display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.addbtn{ flex:none; border:1px solid var(--border-default); background:var(--surface-card); color:var(--text-link);
+  border-radius:var(--radius-md); padding:4px 9px; font:var(--weight-medium) 12px/1 var(--asubk-font);
+  cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
+.addbtn:hover:not(:disabled){ background:var(--surface-hover); }
+.addbtn:disabled{ opacity:.4; cursor:not-allowed; }
 .detail-pane{ flex:1; display:flex; flex-direction:column; min-width:0; }
 .tree-scroll{ flex:1; overflow-y:auto; padding:8px 6px 16px; }
 .tnode{ user-select:none; }
@@ -294,6 +300,30 @@ table.cgrid tbody tr:last-child td{ border-bottom:none; }
 .hint{ font:var(--font-label); color:var(--text-muted); margin-top:6px; }
 kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; background:var(--asubk-tint-fill);
   border:1px solid var(--border-default); border-radius:4px; padding:1px 5px; color:var(--text-body); }
+
+/* ---- модалка «Новое подразделение» ---- */
+.modal-back{ position:fixed; inset:0; background:rgba(24,39,57,0.38); display:none;
+  align-items:center; justify-content:center; z-index:50; }
+.modal-back.open{ display:flex; }
+.modal{ width:460px; max-width:calc(100vw - 40px); background:var(--surface-page);
+  border-radius:var(--radius-lg); box-shadow:0 12px 44px rgba(24,39,57,0.28); overflow:hidden; }
+.modal-h{ padding:16px 20px; border-bottom:1px solid var(--border-default);
+  font:var(--font-page-title); color:var(--text-heading); }
+.modal-b{ padding:18px 20px; display:flex; flex-direction:column; gap:14px; }
+.modal-f{ padding:14px 20px; border-top:1px solid var(--border-default); display:flex;
+  align-items:center; justify-content:flex-end; gap:10px; }
+.fld{ display:flex; flex-direction:column; gap:5px; }
+.fld > label{ font:var(--font-label); color:var(--text-muted); }
+.fld input, .fld select{ height:var(--control-h); border-radius:var(--radius-md);
+  border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-body);
+  font:var(--font-label); padding:0 10px; }
+.fld input:focus, .fld select:focus{ outline:none; border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+.fhint{ font:var(--weight-regular) 12px/1.35 var(--asubk-font); color:var(--text-placeholder); }
+.modal-note{ font:var(--font-label); color:var(--text-muted); background:var(--asubk-tint-fill);
+  border-radius:var(--radius-md); padding:9px 12px; }
+.modal-err{ font:var(--weight-medium) 13px/1.3 var(--asubk-font); color:var(--asubk-red); min-height:16px; margin-right:auto; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
 </style>
 </head>
 <body>
@@ -337,7 +367,7 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
     <div class="mainview" id="view-units">
       <div class="workarea">
         <div class="tree-pane">
-          <div class="tree-pane-h">Дерево подразделений на дату</div>
+          <div class="tree-pane-h"><span>Дерево подразделений на дату</span><button class="addbtn" id="addUnitBtn" title="Добавить узел на дату среза">+ Подразделение</button></div>
           <div class="tree-scroll" id="tree"></div>
         </div>
         <div class="detail-pane">
@@ -363,6 +393,42 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
 
     <div class="mainview" id="view-people" style="display:none">
       <div class="content"><div class="panel-wrap" id="peopleBody"></div></div>
+    </div>
+  </div>
+
+  <div class="modal-back" id="modalBack">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="auTitle">
+      <div class="modal-h" id="auTitle">Новое подразделение</div>
+      <div class="modal-b">
+        <div class="fld">
+          <label for="auName">Наименование</label>
+          <input type="text" id="auName" placeholder="напр. Отдел взыскания Ошского филиала" autocomplete="off">
+        </div>
+        <div class="fld">
+          <label for="auType">Тип узла (§1 — один из типов иерархии)</label>
+          <select id="auType">
+            <option value="филиал">филиал</option>
+            <option value="департамент">департамент</option>
+            <option value="отдел" selected>отдел</option>
+            <option value="сектор">сектор</option>
+          </select>
+        </div>
+        <div class="fld">
+          <label for="auParent">Родитель в дереве</label>
+          <select id="auParent"></select>
+          <span class="fhint">§1 · вложенность выражается одним деревом; территориальность — атрибут, не второе дерево.</span>
+        </div>
+        <div class="fld">
+          <label for="auTerr">Территория обслуживания (через запятую, необязательно)</label>
+          <input type="text" id="auTerr" placeholder="напр. Баткенская область, город Баткен" autocomplete="off">
+        </div>
+        <div class="modal-note">§2 · дата создания = <b id="auDate"></b> (дата среза). Узел проявится на эту дату и позже; сдвиньте срез в прошлое — его не будет. Штатные позиции и назначения добавляются отдельно (§3/§4), пока их нет — руководитель эскалирует к родителю (§5).</div>
+      </div>
+      <div class="modal-f">
+        <span class="modal-err" id="auErr"></span>
+        <button class="btn btn-secondary" id="auCancel">Отмена</button>
+        <button class="btn btn-primary" id="auSubmit">Создать узел</button>
+      </div>
     </div>
   </div>
 </div>
@@ -900,8 +966,47 @@ function renderPeople(){
     </table>`;
 }
 
+/* ---- §1/§2 ДОБАВЛЕНИЕ УЗЛА. Узел рождается «на дату среза»: created=state.date, имя — версия с этой даты.
+   Родитель кладётся в BASE_PARENT (без версий переподчинения). Штатка/назначения — отдельно (§3/§4). ---- */
+function openAddUnit(){
+  if(!canEdit()) return;
+  const d = state.date;
+  const opts = UNITS.filter(u=>existsAt(u.id,d) && !liquidatedAt(u.id,d))
+    .sort((a,b)=> nameAt(a.id,d)<nameAt(b.id,d)?-1:1)
+    .map(u=>`<option value="${u.id}">${esc(nameAt(u.id,d))}</option>`).join('');
+  const psel = document.getElementById('auParent');
+  psel.innerHTML = '<option value="">— корень (без родителя)</option>'+opts;
+  psel.value = (existsAt(state.sel,d) && !liquidatedAt(state.sel,d)) ? state.sel : '';
+  document.getElementById('auName').value = '';
+  document.getElementById('auTerr').value = '';
+  document.getElementById('auType').value = 'отдел';
+  document.getElementById('auErr').textContent = '';
+  document.getElementById('auDate').textContent = d;
+  document.getElementById('modalBack').classList.add('open');
+  document.getElementById('auName').focus();
+}
+function closeAddUnit(){ document.getElementById('modalBack').classList.remove('open'); }
+function submitAddUnit(){
+  const d = state.date;
+  const name = document.getElementById('auName').value.trim();
+  const type = document.getElementById('auType').value;
+  const parentId = document.getElementById('auParent').value || null;
+  const terr = document.getElementById('auTerr').value.split(',').map(s=>s.trim()).filter(Boolean);
+  if(!name){ document.getElementById('auErr').textContent = 'Укажите наименование.'; return; }
+  let base = 'u_'+(UNITS.length+1), id = base, n = 1;
+  while(UNITS.some(u=>u.id===id)){ id = base+'_'+(n++); }
+  UNITS.push({ id, type, territory:terr, created:d, liquidated:null, successor:null });
+  BASE_PARENT[id] = parentId;
+  NAME_VER.push({ unitId:id, name, from:d, to:null });
+  state.sel = id; state.tab = 'overview';
+  closeAddUnit();
+  render();
+}
+window.openAddUnit = openAddUnit;
+
 /* ---- оркестровка ---- */
 function render(){
+  const ab = document.getElementById('addUnitBtn'); if(ab) ab.disabled = !canEdit();
   document.getElementById('view-units').style.display  = state.view==='units'  ? 'flex' : 'none';
   document.getElementById('view-titles').style.display = state.view==='titles' ? 'flex' : 'none';
   document.getElementById('view-people').style.display = state.view==='people' ? 'flex' : 'none';
@@ -929,6 +1034,11 @@ dateInp.value = state.date;
 dateInp.addEventListener('change', ()=>{ state.date=dateInp.value||TODAY; render(); });
 document.querySelectorAll('.date-chip').forEach(b=> b.onclick=()=>{ state.date=b.dataset.d; dateInp.value=b.dataset.d; render(); });
 document.getElementById('roleSel').addEventListener('change', e=>{ state.role=e.target.value; render(); });
+document.getElementById('addUnitBtn').onclick = openAddUnit;
+document.getElementById('auCancel').onclick = closeAddUnit;
+document.getElementById('auSubmit').onclick = submitAddUnit;
+document.getElementById('modalBack').addEventListener('click', e=>{ if(e.target.id==='modalBack') closeAddUnit(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeAddUnit(); });
 
 renderNav();
 render();
