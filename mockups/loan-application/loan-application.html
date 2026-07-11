@@ -6669,50 +6669,33 @@ function renderCommission(app){
     <span class="com-chip ab">Воздержалось: ${cnt('Воздержаться')}</span>
     <span class="com-chip">Не проголосовали: ${cnt('—')}</span>
   </div>`;
-  /* Голос отдаётся в строке члена — иначе непонятно, за кого жмут кнопки в общем тулбаре. */
-  const canVote = c.open && isCom && phase === 'session';
-  const voteBtns = (m, i) => !canVote ? '' :
-    `<td><div class="com-vbtns">${_VOTES.map(v =>
-      `<button class="com-vbtn ${_VOTE_CLS[v]}${m.vote === v ? ' on' : ''}" onclick="comVote(${i}, '${v}')"
-        title="${m.vote === v ? 'Снять голос' : 'Отдать голос «' + v + '»'}">${v}</button>`).join('')}</div></td>`;
+  /* Модель B (P3): голосование / решение / подписи / протокол ведутся в модуле
+     «Комиссии по заявкам» (commission.html): повестка · кворум · один протокол на
+     заседание · секретарь. В карточке заявки фаза «заседание» — READ-ONLY зеркало
+     итогов, без движка. Это убирает расхождение правил между двумя экранами
+     (раньше tab-6 имел независимый comDecide без кворума).
+     comDecide/comVote/comSign/comUploadProtocol/comBackPrelim теперь осиротели (нет вызовов). */
   const grid = `<div class="collgrid"><table>
-    <thead><tr><th>Роль</th><th>Сотрудник</th><th>Решение</th><th>Крайний срок</th><th>Комментарий</th>${canVote ? '<th>Голос</th>' : ''}</tr></thead>
-    <tbody>${c.members.map((m, i) => `<tr>
+    <thead><tr><th>Роль</th><th>Сотрудник</th><th>Решение</th><th>Крайний срок</th><th>Комментарий</th></tr></thead>
+    <tbody>${c.members.map(m => `<tr>
       <td>${m.role}</td><td>${m.emp}</td>
       <td><span class="com-vote ${_VOTE_CLS[m.vote]}">${m.vote}</span></td>
-      <td>${m.deadline}</td><td>${_esc(m.comment || '')}</td>${voteBtns(m, i)}</tr>`).join('')}</tbody></table></div>`;
-  const tools = c.open
-    ? (isCom
-      ? `<div class="com-tools">
-        <div class="note-banner warn"><span><b>Принцип 4 глаз</b> — если вы автор/отправитель заявки, ваш голос учитывается, но помечается в аудите (предупреждение, не блок). Порога кворума нет: председатель закрывает голосование в любой момент; крайний срок — напоминание, не авто-воздержание.</span></div>
-        <div class="com-toolrow"><span class="role">Председатель (финальное решение):</span>
-          <button class="btn btn-success btn-sm" onclick="comDecide('approve')">Одобрить</button>
-          <button class="btn btn-danger btn-sm" onclick="comDecide('reject')">Отклонить</button>
-          <button class="btn btn-secondary btn-sm" onclick="comDecide('return')">Вернуть</button>
-          <span class="com-hint">Решение закрывает голосование и требует письменного обоснования.</span></div>
-        <div class="com-toolrow"><button class="btn btn-ghost btn-sm" onclick="comBackPrelim()">← Вернуть к предварительному изучению</button></div>
-      </div>`
-      : `<div class="com-tools"><div class="note-banner"><span>Идёт заседание. Голосовать и выносить решение может только роль <b>🏛 Комиссия</b> — переключите роль в шапке.</span></div></div>`)
-    : `<div class="com-tools"><div class="note-banner"><span>Голосование закрыто. Итоговое решение зафиксировано председателем (см. «Финальное решение»).</span></div></div>`;
+      <td>${m.deadline}</td><td>${_esc(m.comment || '')}</td></tr>`).join('')}</tbody></table></div>`;
+  const tools = `<div class="com-tools"><div class="note-banner"><span>Заседание комитета и итоговое решение по кредиту ведутся в модуле <b>«Комиссии по заявкам»</b>. В карточке заявки — только просмотр результата: статус-решение (см. «Финальное решение»), голоса, подписи и скан протокола.${c.open ? ' Голосование ещё идёт.' : ''}</span></div></div>`;
 
-  /* Подписи членов на бумажном протоколе + скан подписанного протокола в системе. */
+  /* Подписи членов и скан протокола — только просмотр (действия — в модуле комиссии). */
   const signed = st.sign.filter(Boolean).length;
   const signRows = c.members.map((m, i) => `<div class="com-sign-row">
       <span class="who">${m.emp} — ${m.role}</span>
       <span class="com-sign-badge ${st.sign[i] ? 'on' : ''}">${st.sign[i] ? '✓ подписал' : 'не подписан'}</span>
-      ${isCom ? _docBtn(st.sign[i] ? 'ghost' : 'secondary', st.sign[i] ? 'Снять' : 'Отметить подпись', `comSign(${i})`) : ''}
     </div>`).join('');
-  const allSigned = signed === total;
   const scanBlock = st.scan
     ? `<div class="com-scan"><span class="lbl">Скан протокола</span>
         <span class="file">Протокол_${c.protocol.replace(/[^\dА-Яа-я\-\/]/g, '').replace('/', '-')}_подписанный.pdf</span>
         <span class="spacer"></span>
-        <button class="btn btn-ghost btn-sm" onclick="docView('protocol')">${_docIcoEye()}Просмотр</button>
-        ${isCom ? _docBtn('ghost', 'Заменить', 'comUploadProtocol()') : ''}</div>`
+        <button class="btn btn-ghost btn-sm" onclick="docView('protocol')">${_docIcoEye()}Просмотр</button></div>`
     : `<div class="com-scan"><span class="lbl">Скан протокола</span>
-        <span class="file">Подписанный членами протокол ещё не внесён в систему.</span>
-        <span class="spacer"></span>
-        ${isCom ? `<button class="btn btn-primary btn-sm" onclick="comUploadProtocol()"${allSigned ? '' : ' disabled title="Сначала отметьте подписи всех членов"'}>Загрузить скан протокола</button>` : ''}</div>`;
+        <span class="file">Подписанный членами протокол ещё не внесён в систему.</span></div>`;
   const signBlock = `<div class="com-sign">
       <div class="com-prog-label">Подписи членов комиссии на бумажном протоколе: ${signed} из ${total}</div>
       ${signRows}${scanBlock}</div>`;
