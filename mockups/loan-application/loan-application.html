@@ -1112,6 +1112,77 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
 .bar-label{ font:var(--font-label); color:var(--text-body); margin-bottom:6px; }
 .bar-wrap{ height:6px; background:var(--asubk-gray-200); border-radius:var(--radius-pill); overflow:hidden; }
 .bar{ height:100%; background:var(--asubk-blue); border-radius:var(--radius-pill); transition:width 200ms ease; }
+
+/* ==== Командный центр документов: сегментный прогресс · конвейер стадий · очередь действий ==== */
+/* Блок 2 — сегментный прогресс комплекта по стадиям ЖЦ: Собрано ≥ Принято спецом ≥ Подтверждено ГФ */
+.docprog{ margin:0 0 16px; }
+.docprog-head{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.docprog-pct{ font:var(--weight-bold) 22px/1 var(--asubk-font); color:var(--text-heading); }
+.docprog-cap{ font:var(--font-label); color:var(--text-muted); display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.docprog-cap b{ color:var(--text-body); font-weight:var(--weight-semibold); }
+.docprog-track{ position:relative; height:10px; background:var(--asubk-gray-200); border-radius:var(--radius-pill); overflow:hidden; }
+.docprog-seg{ position:absolute; left:0; top:0; height:100%; border-radius:var(--radius-pill); transition:width 240ms ease; }
+.docprog-seg.s-collected{ background:#a9cbf6; }
+.docprog-seg.s-accepted{ background:rgba(21,132,67,.42); }
+.docprog-seg.s-confirmed{ background:var(--status-success); }
+.docprog-legend{ display:flex; flex-wrap:wrap; gap:5px 16px; margin-top:8px; font:var(--font-label); color:var(--text-muted); }
+.docprog-legend .lg{ display:inline-flex; align-items:center; gap:6px; }
+.docprog-legend .dot{ width:10px; height:10px; border-radius:2px; flex:none; }
+.docprog-legend .dot.s-collected{ background:#a9cbf6; }
+.docprog-legend .dot.s-accepted{ background:rgba(21,132,67,.55); }
+.docprog-legend .dot.s-confirmed{ background:var(--status-success); }
+
+/* Блок 1 — конвейер стадий ЖЦ (чипы-фильтры) */
+.docstage-rail{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 0 12px; }
+.docstage-chip{ display:inline-flex; align-items:center; gap:7px; height:30px; padding:0 7px 0 12px; border-radius:var(--radius-pill);
+  border:1px solid transparent; background:var(--surface-input); color:var(--text-body);
+  font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); cursor:pointer; white-space:nowrap;
+  transition:border-color 120ms ease, box-shadow 120ms ease; }
+.docstage-chip:hover{ border-color:var(--border-strong); }
+.docstage-chip.on{ border-color:currentColor; box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+.docstage-chip .n{ display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px;
+  border-radius:var(--radius-pill); background:rgba(255,255,255,.7); font:var(--weight-bold) 12px/1 var(--asubk-font); }
+.docstage-chip .opt{ color:var(--text-placeholder); font-weight:var(--weight-regular); font-size:12px; }
+.docstage-chip.doc-st-req{ background:var(--surface-input); color:var(--text-muted); }
+.docstage-chip.doc-st-up,.docstage-chip.doc-st-rev{ background:var(--status-info-bg); color:#0a3d80; }
+.docstage-chip.doc-st-acc{ background:var(--status-success-bg); color:var(--status-success); }
+.docstage-chip.doc-st-conf{ background:var(--status-success-bg); color:#0c5a2f; }
+.docstage-chip.doc-st-rej{ background:var(--status-error-bg); color:var(--status-error); }
+.docstage-chip.doc-st-exp{ background:var(--status-warning-bg); color:var(--status-warning); }
+.docstage-chip.doc-st-wv{ background:var(--surface-input); color:var(--text-muted); }
+.docstage-chip.doc-st-reqd{ background:var(--status-warning-bg); color:#7a5b00; }
+.docstage-active{ display:inline-flex; align-items:center; gap:10px; margin:-2px 0 14px; font:var(--font-label); color:var(--text-body); }
+.docstage-active b{ font-weight:var(--weight-semibold); }
+.docstage-reset{ background:none; border:none; color:var(--text-link); cursor:pointer; font:var(--font-label); text-decoration:underline; padding:0; }
+
+/* Блок 3 — очередь действий по текущей роли */
+.docq{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; margin:0 0 16px; }
+.docq-head{ display:flex; align-items:center; gap:10px; padding:11px 14px; cursor:pointer; user-select:none; background:var(--surface-hover); }
+.docq-head .chev{ display:inline-flex; color:rgba(24,39,57,.5); transition:transform 120ms ease; }
+.docq.open .docq-head .chev{ transform:rotate(90deg); }
+.docq-title{ font:var(--weight-semibold) var(--text-base)/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
+.docq-count{ display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 7px;
+  border-radius:var(--radius-pill); font:var(--weight-bold) 12px/1 var(--asubk-font); }
+.docq-count.has{ color:#fff; background:var(--asubk-red); }
+.docq-count.none{ color:var(--text-muted); background:var(--surface-input); }
+.docq-body{ display:none; }
+.docq.open .docq-body{ display:block; }
+.docq-item{ display:flex; align-items:center; gap:12px; padding:9px 14px; border-top:1px solid var(--border-default); cursor:pointer; }
+.docq-item:hover{ background:var(--surface-hover); }
+.docq-act{ font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); flex:none; min-width:108px; }
+.docq-act.a-primary{ color:var(--asubk-blue); }
+.docq-act.a-danger{ color:var(--status-error); }
+.docq-act.a-success{ color:var(--status-success); }
+.docq-act.a-info{ color:#7a5b00; }
+.docq-name{ font:var(--font-label); color:var(--text-body); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.docq-empty{ padding:12px 14px; border-top:1px solid var(--border-default); font:var(--font-label); color:var(--text-muted); }
+
+/* Фильтр по стадии — приглушение несовпадающих строк/секций; подсветка при переходе из очереди */
+.doc-row.doc-dim{ opacity:.3; }
+.doc-acc.doc-dim{ opacity:.42; }
+@keyframes docFlash{ 0%{ background:var(--asubk-blue-tint); } 100%{ background:transparent; } }
+.doc-row.flash{ animation:docFlash 1.2s ease-out; }
+
 /* модалка обоснования (reject/waive) + предпросмотр скана */
 #modal-doc-reason label{ font:var(--font-label); color:var(--text-muted); display:block; margin-bottom:6px; }
 #modal-doc-reason textarea{ width:100%; min-height:84px; border:1px solid var(--border-default); border-radius:var(--radius-md);
@@ -5015,7 +5086,8 @@ function _docBtn(kind, label, onclick){ return `<button class="btn btn-${kind} b
 
 /* Строка документа. disp = {t, req, st, reason?, valid?, waiveReason?}; secKind: 'print'|'contract'|null. */
 function docRow(app, disp, key, secKind){
-  const stt = DOC_STATUS[_dispSt(app, disp.st)] || DOC_STATUS.required;
+  const dispKey = _dispSt(app, disp.st);
+  const stt = DOC_STATUS[dispKey] || DOC_STATUS.required;
   const cap = can(app);
   /* Обычные секции правит спец в режиме «Изменить» (draft). Договорные — отдельный
      ПОСЛЕ-одобренческий этап: их строки вообще рендерятся только когда секция разблокирована
@@ -5026,10 +5098,18 @@ function docRow(app, disp, key, secKind){
   let acts = '';
   if (spec){
     if (secKind === 'print'){
+      /* Печатная форма после загрузки скана идёт тем же 1-м уровнем приёмки, что и
+         обычный документ: спец «Проверил» → accepted, дальше ГФ подтверждает (общий
+         gf-блок ниже). Без этого печатные формы застревали в uploaded и делали
+         accMet/confirmedMet недостижимыми — гейт в комиссию и заключения не открывались. */
+      const gfLocked = disp.st === 'confirmed';   // подтверждённый ГФ скан спец не трогает
       acts += _docBtn('ghost', 'Печать', `docPrint(${kq})`);
-      acts += OPEN_BLOCKS(disp.st)
-        ? _docBtn('primary', 'Загрузить скан', `docUpload(${kq})`)
-        : _docBtn('ghost', 'Заменить', `docUpload(${kq})`);
+      if (OPEN_BLOCKS(disp.st))       acts += _docBtn('primary', 'Загрузить скан', `docUpload(${kq})`);
+      else if (!gfLocked)             acts += _docBtn('ghost', 'Заменить', `docUpload(${kq})`);
+      if (disp.st === 'uploaded'){
+        acts += _docBtn('success', 'Проверил', `docAccept(${kq})`);
+        acts += _docBtn('danger', 'Отклонить', `docReject(${kq})`);
+      }
     } else if (secKind === 'contract'){
       acts += _docBtn('ghost', 'Сгенерировать', `docGenerate(${kq})`);
       acts += OPEN_BLOCKS(disp.st)
@@ -5096,7 +5176,7 @@ function docRow(app, disp, key, secKind){
       </span>`
     : '';
 
-  return `<div class="doc-row">
+  return `<div class="doc-row${_docStageFilter && dispKey !== _docStageFilter ? ' doc-dim' : ''}" id="docrow-${_safeDocId(key)}">
     <div class="doc-main">
       <span class="doc-name${disp.st === 'waived' ? ' waived' : ''}">${disp.t}</span>
       <span class="doc-req ${disp.req ? 'req' : 'opt'}">${disp.req ? 'обязат.' : 'опц.'}</span>
@@ -5112,7 +5192,7 @@ function renderDocSection(app, s, bt){
   const isColl = s.key === 'coll';
   const locked = s.stage === 'contract' && !DOC_APPROVED_STATUSES.has(app.status);
   const atCom = _atCommission(app);
-  let body = '', reqIn = 0, reqDone = 0, reqAcc = 0, hasBlock = 0, optCnt = 0;
+  let body = '', reqIn = 0, reqDone = 0, reqAcc = 0, hasBlock = 0, optCnt = 0, secMatch = 0;
 
   if (locked){
     body = `<div class="sec-locked-note">${_docIcoLock()} Раздел откроется после одобрения комиссией — тогда система сгенерирует договоры с подстановкой данных заявки, а сюда загружаются подписанные экземпляры.</div>`;
@@ -5122,20 +5202,21 @@ function renderDocSection(app, s, bt){
       body = `<div class="sec-locked-note">Добавьте предметы залога во вкладке «Залог» — типовой перечень залоговых документов появится здесь по каждому предмету.</div>`;
     } else {
       body = items.map((it, i) => {
-        let iReqIn = 0, iReqDone = 0, iAcc = 0, iBlock = 0, iOpt = 0;
+        let iReqIn = 0, iReqDone = 0, iAcc = 0, iBlock = 0, iOpt = 0, iMatch = 0;
         const drows = (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).map(tpl => {
           const state = _collDocState(app, it.id + '::' + tpl.id, tpl);
           if (tpl.req){ iReqIn++; if (!OPEN_BLOCKS(state.st)) iReqDone++; if (state.st === 'accepted' || state.st === 'confirmed') iAcc++; if (state.st === 'rejected' || state.st === 'expired') iBlock++; } else iOpt++;
+          if (_docStageFilter && _dispSt(app, state.st) === _docStageFilter) iMatch++;
           const disp = { t:tpl.t, req:tpl.req, st:state.st, reason:state.reason, valid:state.valid, waiveReason:state.waiveReason };
           return docRow(app, disp, it.id + '::' + tpl.id, null);
         }).join('');
         // сводим счётчики предмета в итог секции
-        reqIn += iReqIn; reqDone += iReqDone; reqAcc += iAcc; hasBlock += iBlock; optCnt += iOpt;
+        reqIn += iReqIn; reqDone += iReqDone; reqAcc += iAcc; hasBlock += iBlock; optCnt += iOpt; secMatch += iMatch;
         // ✓ = «Укомплектовано» (все обязат. приняты), не просто собрано
         const iDone  = iReqIn > 0 && iAcc === iReqIn;
         // по умолчанию раскрыт только первый предмет, остальные свёрнуты (как секции-аккордеоны); клик перекрывает
         const iAuto  = (i === 0);
-        const iOpenS = (it.id in _docCollOpen) ? _docCollOpen[it.id] : iAuto;
+        const iOpenS = _docStageFilter ? (iMatch > 0) : ((it.id in _docCollOpen) ? _docCollOpen[it.id] : iAuto);
         const iChip  = _complChip({ reqIn:iReqIn, reqDone:iReqDone, reqAcc:iAcc, blockers:iBlock, locked:false, atCom });
         const iCnt   = iReqIn === 0 ? `${iOpt} опц.` : `${iReqDone}/${iReqIn}${iDone ? ' ✓' : ''}`;
         return `<div class="doc-item${iOpenS ? ' open' : ''}">
@@ -5152,6 +5233,7 @@ function renderDocSection(app, s, bt){
   } else {
     body = s.docs.filter(d => d.ft === 'both' || d.ft === bt).map(d => {
       if (d.req){ reqIn++; if (!OPEN_BLOCKS(d.st)) reqDone++; if (d.st === 'accepted' || d.st === 'confirmed') reqAcc++; if (d.st === 'rejected' || d.st === 'expired') hasBlock++; } else optCnt++;
+      if (_docStageFilter && _dispSt(app, d.st) === _docStageFilter) secMatch++;
       return docRow(app, d, d.id, s.kind);
     }).join('');
   }
@@ -5159,7 +5241,9 @@ function renderDocSection(app, s, bt){
   const chip   = _complChip({ reqIn, reqDone, reqAcc, blockers:hasBlock, locked, atCom });
   const cntTxt = locked ? 'после одобрения' : reqIn === 0 ? `${optCnt} опц.` : `${reqDone}/${reqIn}${reqAcc === reqIn && reqIn > 0 ? ' ✓' : ''}`;
 
-  return `<div class="doc-acc${_docOpen[s.key] ? ' open' : ''}">
+  const secOpen = _docStageFilter ? (secMatch > 0) : _docOpen[s.key];
+  const secDim  = _docStageFilter && secMatch === 0 ? ' doc-dim' : '';
+  return `<div class="doc-acc${secOpen ? ' open' : ''}${secDim}">
     <div class="doc-acc-head" onclick="docToggle('${s.key}')">
       ${chevSvg(14)}<span class="doc-acc-title">${s.title}</span>
       ${s.note ? `<span class="acc-note">— ${s.note}</span>` : ''}
@@ -5259,6 +5343,99 @@ function renderMemberDocs(app){
   return sel + inner;
 }
 
+/* ── Командный центр документов: конвейер стадий · очередь действий · переход к строке ──
+   Всё строится поверх уже существующих данных; охват доменов (статические секции + документы
+   членов группы + залоговые по предметам) повторяет _docStats, чтобы сводка совпадала с гейтом
+   отправки. Договорные (stage:'contract') исключены — это отдельный этап после одобрения. */
+
+/* Активный фильтр по стадии ЖЦ (ключ DOC_STATUS) или null. */
+let _docStageFilter = null;
+function docStageFilter(st){ _docStageFilter = (_docStageFilter === st) ? null : st; _panelRefresh('tab-2'); }
+function docStageFilterClear(){ _docStageFilter = null; _panelRefresh('tab-2'); }
+
+/* Безопасный id для якоря строки: ключи вида «mem:pin::id» / «item::id» → только [A-Za-z0-9_]. */
+function _safeDocId(key){ return String(key).replace(/[^A-Za-z0-9]/g, '_'); }
+/* Ключ секции DOC_SECTIONS, содержащей документ (для раскрытия при переходе). */
+function _sectionKeyOfDoc(docId){ const s = DOC_SECTIONS.find(x => x.docs.some(d => d.id === docId)); return s ? s.key : null; }
+
+/* Единый обход всех документов заявки в тех же доменах, что _docStats.
+   cb({ key, title, st, req, secKind }). */
+function _walkDocs(app, cb){
+  const bt = _docBType(app);
+  _docsOf(app).forEach(sec => {
+    if (sec.stage === 'contract') return;                          // договорные — этап после одобрения
+    if (sec.key === 'coll') return;                                // залоговые — ниже, по предметам
+    if (app.isGroup && MEMBER_SEC_KEYS.includes(sec.key)) return;  // у группы ident/fin живут у членов
+    sec.docs.filter(d => d.ft === 'both' || d.ft === bt)
+      .forEach(d => cb({ key:d.id, title:d.t, st:d.st, req:d.req, secKind:sec.kind || null }));
+  });
+  if (app.isGroup){
+    _membersOf(app).forEach((m, i) => _memberDocTpls(m).forEach(tpl => {
+      const state = _memberDocState(app, m, tpl, i);
+      cb({ key:_memberDocKey(m, tpl.id), title:tpl.t + ' · ' + _shortFio(m.fio), st:state.st, req:tpl.req, secKind:null });
+    }));
+  }
+  if (app.hasCollateral){
+    _collateralOf(app).forEach((it, i) => (COLL_DOC_DEFAULTS[it.kind] || COLL_DOC_FALLBACK).forEach(tpl => {
+      const key = it.id + '::' + tpl.id;
+      cb({ key, title:tpl.t + ' · ' + _collItemLabel(it, i), st:_collDocState(app, key, tpl).st, req:tpl.req, secKind:null });
+    }));
+  }
+}
+
+/* Счётчики по стадии ЖЦ (по отображаемому статусу — с учётом вида «На проверке»). */
+function _docStageCounts(app){
+  const m = {};
+  _walkDocs(app, d => {
+    const k = _dispSt(app, d.st);
+    (m[k] = m[k] || { req:0, opt:0 })[d.req ? 'req' : 'opt']++;
+  });
+  return m;
+}
+
+/* Действие, которого документ ждёт от ТЕКУЩЕЙ роли (тот же критерий, что кнопки docRow).
+   Возвращает { act, cls } или null. Действие по хранимому статусу (не по виду «На проверке»). */
+function _docPending(app, st, req){
+  const cap = can(app);
+  /* Право по роли×фазе (canEditReq), а не по транзиентному «Изменить» (_editMode): очередь —
+     стабильный обзор «что требует действия», работает и в режиме просмотра. */
+  if (cap.canEditReq){                                             // кредитный специалист (draft)
+    if (st === 'required')  return req ? { act:'Загрузить', cls:'a-primary' } : null;
+    if (st === 'rejected' || st === 'expired') return { act:'Перезагрузить', cls:'a-danger' };
+    if (st === 'uploaded')  return { act:'Проверить', cls:'a-success' };
+    if (st === 'requested') return { act:'Ответ получен', cls:'a-info' };
+    return null;
+  }
+  if (cap.confirmDoc){                                             // головной филиал (2-й уровень)
+    return st === 'accepted' ? { act:'Подтвердить', cls:'a-success' } : null;
+  }
+  return null;
+}
+function _docActionQueue(app){
+  const out = [];
+  _walkDocs(app, d => { const p = _docPending(app, d.st, d.req); if (p) out.push({ key:d.key, title:d.title, st:d.st, act:p.act, cls:p.cls }); });
+  return out;
+}
+
+/* Перейти к строке документа из очереди: раскрыть нужный контейнер, снять фильтр, подсветить. */
+function _docJumpTo(key){
+  const app = _detailApp; if (!app) return;
+  _docStageFilter = null;                                          // цель не должна быть приглушена
+  const mm = _MEM_RE.exec(key);
+  if (mm){                                                         // документ члена группы
+    _docMemberView = _membersOf(app).findIndex(x => x.pin === mm[1]);
+    const sk = _sectionKeyOfDoc(mm[2]); if (sk) _docMemOpen[sk] = true;
+  } else if (key.indexOf('::') >= 0){                              // залоговый — секция coll + под-панель предмета
+    _docOpen.coll = true;
+    _docCollOpen[key.split('::')[0]] = true;
+  } else {                                                         // статический документ
+    const sk = _sectionKeyOfDoc(key); if (sk) _docOpen[sk] = true;
+  }
+  _panelRefresh('tab-2');
+  const el = document.getElementById('docrow-' + _safeDocId(key));
+  if (el){ el.scrollIntoView({ block:'center', behavior:'smooth' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+}
+
 function renderDocs(app){
   const bt = _docBType(app);
   /* Групповая заявка: ident/fin живут у членов, на уровне заявки их не рисуем. */
@@ -5273,13 +5450,62 @@ function renderDocs(app){
         : `<div class="note-banner warn">${_docIcoWarn()}<span>Обязательный комплект собран, но отправка в комиссию пока недоступна: ${_esc(sendGateReason(app))}.</span></div>`)
     : `<div class="note-banner ${stats.blockers ? 'warn' : ''}">${stats.blockers ? _docIcoWarn() : _docIcoInfo()}<span>Собрано обязательных: <b>${stats.reqClosed} из ${stats.reqTot}</b>.${stats.blockers ? ` Есть блокирующие (отклонённые/просроченные): <b>${stats.blockers}</b> — их нужно перезагрузить.` : ''} «Отправить в комиссию» доступно только при полном обязательном комплекте.</span></div>`;
 
-  const pct = stats.reqTot ? Math.round(stats.reqClosed / stats.reqTot * 100) : 0;
+  /* Блок 2 — сегментный прогресс по стадиям ЖЦ. Три накопительных порога из _docStats:
+     Собрано (файл есть) ≥ Принято спецом ≥ Подтверждено ГФ (финальная стадия — headline %). */
+  const pct     = stats.reqTot ? Math.round(stats.reqClosed    / stats.reqTot * 100) : 0;
+  const pctAcc  = stats.reqTot ? Math.round(stats.reqAccepted  / stats.reqTot * 100) : 0;
+  const pctConf = stats.reqTot ? Math.round(stats.reqConfirmed / stats.reqTot * 100) : 0;
   const pkgChip = _complChip({ reqIn:stats.reqTot, reqDone:stats.reqClosed, reqAcc:stats.reqAccepted,
     blockers:stats.blockers, locked:false, atCom:_atCommission(app) });
-  const bar = `<div class="gate-row"><div class="bar-block">
-      <div class="bar-label">Готовность обязательного комплекта — ${pct}% ${pkgChip}</div>
-      <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div></div>
-    </div></div>`;
+  const bar = `<div class="docprog">
+      <div class="docprog-head">
+        <span class="docprog-pct">${pctConf}%</span>
+        <span class="docprog-cap">исполнение последней стадии — <b>Подтверждено ГФ</b> (${stats.reqConfirmed}/${stats.reqTot}) ${pkgChip}</span>
+      </div>
+      <div class="docprog-track">
+        <div class="docprog-seg s-collected" style="width:${pct}%"></div>
+        <div class="docprog-seg s-accepted" style="width:${pctAcc}%"></div>
+        <div class="docprog-seg s-confirmed" style="width:${pctConf}%"></div>
+      </div>
+      <div class="docprog-legend">
+        <span class="lg"><span class="dot s-collected"></span>Собрано ${pct}% (${stats.reqClosed}/${stats.reqTot})</span>
+        <span class="lg"><span class="dot s-accepted"></span>Принято спецом ${pctAcc}% (${stats.reqAccepted}/${stats.reqTot})</span>
+        <span class="lg"><span class="dot s-confirmed"></span>Подтверждено ГФ ${pctConf}% (${stats.reqConfirmed}/${stats.reqTot})</span>
+      </div>
+    </div>`;
+
+  /* Блок 1 — конвейер стадий ЖЦ: чипы-фильтры со счётчиком, только присутствующие стадии. */
+  const counts = _docStageCounts(app);
+  const STAGE_ORDER = ['required','requested','uploaded','review','accepted','confirmed','rejected','expired','waived'];
+  const chips = STAGE_ORDER.filter(k => counts[k]).map(k => {
+    const c = counts[k], meta = DOC_STATUS[k], n = c.req + c.opt;
+    const on = _docStageFilter === k ? ' on' : '';
+    const opt = c.opt ? `<span class="opt">${c.opt} опц.</span>` : '';
+    return `<button class="docstage-chip ${meta.cls}${on}" onclick="docStageFilter('${k}')">${meta.label}<span class="n">${n}</span>${opt}</button>`;
+  }).join('');
+  const rail = chips ? `<div class="docstage-rail">${chips}</div>` : '';
+  const activeLine = _docStageFilter
+    ? `<div class="docstage-active">Показаны документы на стадии: <b>${DOC_STATUS[_docStageFilter].label}</b><button class="docstage-reset" onclick="docStageFilterClear()">Сбросить фильтр</button></div>`
+    : '';
+
+  /* Блок 3 — очередь действий по текущей роли. Авто-раскрыта, когда есть что делать. */
+  const queueList = _docActionQueue(app);
+  const canAct = can(app).editReq || can(app).confirmDoc;
+  const qItems = queueList.length
+    ? queueList.map(it => { const m = DOC_STATUS[_dispSt(app, it.st)] || DOC_STATUS.required;
+        return `<div class="docq-item" onclick="_docJumpTo('${it.key}')">
+          <span class="docq-act ${it.cls}">${it.act}</span>
+          <span class="docq-name">${_esc(it.title)}</span>
+          <span class="doc-badge ${m.cls}">${m.label}</span>
+        </div>`; }).join('')
+    : `<div class="docq-empty">${canAct ? 'Нет документов, ожидающих вашего действия.' : 'Действий по документам нет — работа в разделах комиссии.'}</div>`;
+  const queue = `<div class="docq${queueList.length ? ' open' : ''}" id="docq">
+      <div class="docq-head" onclick="document.getElementById('docq').classList.toggle('open')">
+        ${chevSvg(14)}<span class="docq-title">Требуют вашего действия</span>
+        <span class="docq-count ${queueList.length ? 'has' : 'none'}">${queueList.length}</span>
+      </div>
+      <div class="docq-body">${qItems}</div>
+    </div>`;
 
   /* Ярус B — утилиты по пакету: только чтение (архив + печать описи), мутаций нет.
      Гейт `_role==='spec' && draft` стоял на всём ярусе ради «Отправить в комиссию» и
@@ -5295,7 +5521,7 @@ function renderDocs(app){
 
   const accs   = secs.map(s => renderDocSection(app, s, bt)).join('');
   const memArea = app.isGroup ? renderMemberDocs(app) : '';
-  return `<div class="docs-wrap">${banner}${bar}${pkgActions}${memArea}${accs}</div>`;
+  return `<div class="docs-wrap">${banner}${bar}${rail}${activeLine}${queue}${pkgActions}${memArea}${accs}</div>`;
 }
 PANEL_RENDER['tab-2'] = renderDocs;
 
