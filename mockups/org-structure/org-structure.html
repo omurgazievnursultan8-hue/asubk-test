@@ -100,7 +100,7 @@
   --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
   --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
-  --control-h:36px; --header-h:56px; --sidebar-w:360px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;
   --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
 }
 *{ box-sizing:border-box; }
@@ -111,12 +111,40 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 a{ color:inherit; }
 .app{ display:flex; height:100vh; width:100%; }
 
-/* ---- sidebar (дерево) ---- */
+/* ---- sidebar (nav-меню — как во всех остальных мокапах) ---- */
 .sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
   display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
-.brand{ padding:16px 16px 4px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
-  color:var(--text-heading); letter-spacing:0.03em; }
-.brand small{ display:block; font:var(--weight-regular) 12px/1.4 var(--asubk-font); color:var(--text-muted); letter-spacing:0; margin-top:2px; }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
+  border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
+.nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
+.nav-sub > .nav-toggle{ padding:8px 16px 8px 32px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font); }
+.nav-toggle:hover{ background:rgba(24,39,57,0.04); }
+.nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
+  transition:transform 120ms ease; flex:none; }
+.nav-group.open > .nav-toggle .chev, .nav-sub.open > .nav-toggle .chev{ transform:rotate(90deg); }
+.nav-toggle .lbl{ flex:1; }
+.nav-children{ display:none; }
+.nav-group.open > .nav-children, .nav-sub.open > .nav-children{ display:block; }
+.nav-item{ display:block; padding:7px 16px 7px 52px; text-decoration:none; color:rgba(27,43,65,0.69);
+  font:var(--weight-regular) var(--text-base)/1.625 var(--asubk-font); cursor:pointer; }
+.nav-item.headerless{ padding-left:40px; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+
+/* ---- рабочая область: дерево слева + деталь справа (дерево переехало в основной блок) ---- */
+.workarea{ flex:1; display:flex; min-height:0; }
+.tree-pane{ width:340px; flex:none; border-right:1px solid var(--border-default);
+  display:flex; flex-direction:column; background:var(--surface-page); }
+.tree-pane-h{ padding:12px 16px 8px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font);
+  color:var(--text-heading); border-bottom:1px solid var(--border-default); }
+.detail-pane{ flex:1; display:flex; flex-direction:column; min-width:0; }
 .tree-scroll{ flex:1; overflow-y:auto; padding:8px 6px 16px; }
 .tnode{ user-select:none; }
 .trow{ display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:var(--radius-md);
@@ -140,6 +168,7 @@ a{ color:inherit; }
 .main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
 .topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
   border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
 .crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
 .topbar .date-wrap{ display:flex; align-items:center; gap:8px; }
 .topbar .date-wrap label{ font:var(--font-label); color:var(--text-muted); }
@@ -268,14 +297,23 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
 </head>
 <body>
 <div class="app">
-  <aside class="sidebar">
-    <div class="brand">Организационная структура<small>АСУБК · дерево на дату</small></div>
-    <div class="tree-scroll" id="tree"></div>
-  </aside>
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav" id="nav"></div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
 
-  <main class="main">
-    <div class="topbar">
-      <span class="crumb-title">Оргструктура ведомства</span>
+  <div class="main">
+    <header class="topbar">
+      <span class="menu" title="Меню">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </span>
+      <span class="crumb-title">Подразделения</span>
       <div class="date-wrap">
         <label for="dateInp">Дата&nbsp;среза</label>
         <input type="date" id="dateInp" min="2020-01-01" max="2026-07-11">
@@ -293,22 +331,29 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
           <span class="caret"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></span>
         </div>
       </div>
-    </div>
+    </header>
 
-    <div class="detail-tabbar" id="tabbar">
-      <button class="dtab active" data-tab="overview">Обзор</button>
-      <button class="dtab" data-tab="staff">Штатка и назначения</button>
-      <button class="dtab" data-tab="history">История</button>
-      <button class="dtab" data-tab="liq">Ликвидация</button>
+    <div class="workarea">
+      <div class="tree-pane">
+        <div class="tree-pane-h">Дерево подразделений на дату</div>
+        <div class="tree-scroll" id="tree"></div>
+      </div>
+      <div class="detail-pane">
+        <div class="detail-tabbar" id="tabbar">
+          <button class="dtab active" data-tab="overview">Обзор</button>
+          <button class="dtab" data-tab="staff">Штатка и назначения</button>
+          <button class="dtab" data-tab="history">История</button>
+          <button class="dtab" data-tab="liq">Ликвидация</button>
+        </div>
+        <div class="content">
+          <div class="detail-panel active" id="p-overview"></div>
+          <div class="detail-panel" id="p-staff"></div>
+          <div class="detail-panel" id="p-history"></div>
+          <div class="detail-panel" id="p-liq"></div>
+        </div>
+      </div>
     </div>
-
-    <div class="content">
-      <div class="detail-panel active" id="p-overview"></div>
-      <div class="detail-panel" id="p-staff"></div>
-      <div class="detail-panel" id="p-history"></div>
-      <div class="detail-panel" id="p-liq"></div>
-    </div>
-  </main>
+  </div>
 </div>
 
 <script>
@@ -756,6 +801,38 @@ function eventLogHtml(){
     <div class="event-log">${ EVENT_LOG.length? EVENT_LOG.map(e=>`<div class="ev"><code>${esc(e)}</code></div>`).join('') : '<div class="hint">Событий пока нет. Ликвидируйте пригодный узел (напр. «Сектор мониторинга»), чтобы увидеть событие.</div>' }</div>`;
 }
 
+/* ---- nav-меню сайдбара (как в остальных мокапах; §10 — точки входа модуля) ---- */
+const NAV = [
+  { id:"k", label:"Система кредитования", subs:[
+    { id:"k-app", label:"Заявки и комиссии", items:[ {label:"Заявки"}, {label:"Комиссии по заявкам"} ]},
+    { id:"k-borr", label:"Заёмщики", items:[ {label:"Заёмщики"} ]},
+    { id:"k-loan", label:"Кредиты и транши", items:[ {label:"Кредиты"} ]} ]},
+  { id:"z", label:"Залоговое обеспечение", subs:[ { id:"z-all", headerless:true, items:[ {label:"Предметы залога"} ]} ]},
+  { id:"org", label:"Организационная структура", open:true, subs:[
+    { id:"org-all", headerless:true, items:[
+      { label:"Подразделения", active:true },
+      { label:"Должности" },
+      { label:"Сотрудники подразделения" } ]} ]},
+  { id:"d", label:"Справочники", subs:[ { id:"d-all", headerless:true, items:[ {label:"Справочники"} ]} ]},
+  { id:"adm", label:"Администрирование", subs:[ { id:"adm-all", headerless:true, items:[ {label:"Администрирование"} ]} ]},
+];
+const chev = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
+function renderNav(){
+  document.getElementById('nav').innerHTML = NAV.map(g=>{
+    const subs = (g.subs||[]).map(s=>{
+      const items = (s.items||[]).map(it=>`<a class="nav-item${s.headerless?' headerless':''}${it.active?' active':''}" onclick="navClick('${it.label}')">${it.label}</a>`).join('');
+      if(s.headerless) return `<div class="nav-children" style="display:block">${items}</div>`;
+      return `<div class="nav-sub${s.open?' open':''}"><button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">${chev(13)}<span class="lbl">${s.label}</span></button><div class="nav-children">${items}</div></div>`;
+    }).join('');
+    return `<div class="nav-group${g.open?' open':''}"><button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">${chev(14)}<span class="lbl">${g.label}</span></button><div class="nav-children">${subs}</div></div>`;
+  }).join('');
+}
+function navClick(l){
+  document.querySelectorAll('.nav-item').forEach(a=>a.classList.toggle('active', a.textContent===l));
+  document.querySelector('.crumb-title').textContent = (l==='Подразделения'||l==='Должности'||l==='Сотрудники подразделения') ? l : 'Подразделения';
+}
+window.navClick = navClick;
+
 /* ---- оркестровка ---- */
 function render(){
   renderTree();
@@ -781,6 +858,7 @@ dateInp.addEventListener('change', ()=>{ state.date=dateInp.value||TODAY; render
 document.querySelectorAll('.date-chip').forEach(b=> b.onclick=()=>{ state.date=b.dataset.d; dateInp.value=b.dataset.d; render(); });
 document.getElementById('roleSel').addEventListener('change', e=>{ state.role=e.target.value; render(); });
 
+renderNav();
 render();
 </script>
 </body>
