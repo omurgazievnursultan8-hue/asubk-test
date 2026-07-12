@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кураторство · АСУБК</title>
+<!--
+  РАБОЧИЙ ПРОТОТИП (single-file, MVP) — модуль «Распределение кураторства» (TO-BE).
+  Не картинка: логика ниже ИСПОЛНЯЕТСЯ. Резолв «кто куратор на дату» из журнала назначений,
+  подсветка пробелов таблицы политики, diff-предпросмотр пересчёта, фильтр конфликта интересов —
+  считаются в рантайме от состояния.
+  Спека: `ASUBK-kuratorstvo-logika.md` (каркас залочен 11.07.2026).
+  Смежные: org-structure (узлы/руководитель), collection (handoff {from,to,when,checklist,status,reason}).
+
+  ЧТО РЕАЛИЗОВАНО (и что разработчик обязан сохранить)
+
+  0. КУРАТОРСТВО — ИЗМЕРЕНИЕ, НЕ ПОЛЕ (§0). В карточке кредита нет поля `curator`.
+     curatorAt(объект, роль, дата) резолвится из ЖУРНАЛА назначений. Поле перезаписывается —
+     журнал нет. Причина: п.96, персональная ответственность требует истории
+     («кто отвечал 12.11.2025»), а не только «кто сейчас».
+
+  1. НАЗНАЧЕНИЕ = (объект, роль, сотрудник, период, основание, ИСТОЧНИК) (§1). Никогда не
+     перезаписывается: закрывается датой, открывается новое. Источник: политика | переопределение |
+     handoff. ИНВАРИАНТ: на объект по каждой роли на дату — ровно одно открытое назначение.
+
+  2. РОЛИ НЕ ВЫТЕСНЯЮТ ДРУГ ДРУГА (§2.1). Владелец процесса взыскания ≠ куратор кредита.
+     Куратор ОД остаётся на кредите ВСЕГДА (п.36/98 — он подтверждающая сторона). Handoff меняет
+     владельца процесса и НЕ трогает назначение по кредиту.
+
+  3. КУРАТОРСТВО ЗАЛОГА — НА ПРЕДМЕТЕ, ДВЕ ПАРАЛЛЕЛЬНЫЕ РОЛИ (§2.2). Куратор залога (центр,
+     база=вид залога) + региональный исполнитель (регион, база=место нахождения). Зеркальный
+     эффект (НОРМА): у одного кредита несколько залоговых кураторов — предметы в разных областях.
+     Карточка показывает список `предмет → куратор / исполнитель`, а не «залоговый куратор: X».
+
+  4. ДВУХУРОВНЕВОЕ РАСПРЕДЕЛЕНИЕ (§3). Ур.1 кредит→подразделение — не настраивается. Ур.2
+     →куратор внутри подразделения — политика ПАРЫ (подразделение, роль), каждая своя.
+
+  5. ПОЛИТИКА = ТАБЛИЦА ПО ОБЪЯВЛЕННОМУ КЛЮЧУ (§4), не список правил с приоритетами.
+     Подразделение объявляет ключ (признак или составной) → таблица значение→сотрудник.
+     Пересечения невозможны по построению. Пробелы (незакрытые ячейки) подсвечиваются при
+     настройке сверкой со справочником значений — не в проде. Незакрытая ячейка → заведующий (§4.4).
+     Признаки — РАСШИРЯЕМЫЙ справочник (форма собственности нужна, в ТЗ её нет).
+
+  6. КОНФЛИКТ ИНТЕРЕСОВ — ФИЛЬТР ДО ПОЛИТИКИ (§6.1), не override. Пара (сотрудник, заёмщик).
+     Гасит везде: заявка, кредит, комитет (п.92). ИММУНИТЕТ к пересчёту: пересчёт не может
+     вернуть отстранённого, даже если политика указывает на него.
+
+  7. ПЕРЕСЧЁТ — ЯВНАЯ ОПЕРАЦИЯ (§7). Инициирует заведующий, отдельным действием (не по сохранению
+     таблицы). Diff-предпросмотр ДО применения. Два исхода на объект, РАЗДЕЛЁННЫЕ в списке:
+     ТИХИЙ (нет активного взыскания) · ЧЕРЕЗ HANDOFF (есть активное взыскание, reason='пересмотр политики',
+     статус «ожидает подтверждения»). Override — временное исключение, растворяется при пересчёте
+     (кроме иммунитета конфликта интересов).
+
+  8. НЕТ АВТОМАТИКИ (§8). Непринятый handoff просто ВИСИТ: счётчик дней, подсветка просрочки.
+     Ответственность на СДАЮЩЕМ. НЕТ автоприёма, автоэскалации, автопереназначения, арбитража.
+     Отказ от приёма — кнопка с причиной (журнал), спор решается вне системы.
+
+  9. ПЕРВИЧНОЕ НАЗНАЧЕНИЕ (§9). Заявка→специалист (при регистрации). Кредит→куратор
+     (ПРИ ПОДПИСАНИИ ДОГОВОРА — момент рождения кредита в системе, ноль окон без ответственного).
+     Специалист заявки и куратор кредита — независимые роли; совпадение лиц не моделируется.
+     Куратор ПЕРЕЖИВАЕТ погашение (§10.2, п.88 — акт сверки подписывает куратор ОД после погашения).
+
+  РОЛИ ИНТЕРФЕЙСА: Заведующий отделом (правит политику, инициирует пересчёт, подтверждает handoff),
+  Куратор (чтение своего), Наблюдатель. canEdit().
+
+  ДЕМО покрывает ветки: пустая ячейка «Таласская» → заведующий; составной ключ (область × форма
+  собственности); форма собственности (нет в ТЗ); кредит с залогами в 2 областях → 2 залоговых
+  куратора + 2 региональных; активное взыскание → переезд через handoff; конфликт интересов
+  (Асанов ↔ Ак-Жол) с иммунитетом к пересчёту; просроченный непринятый handoff; куратор жив
+  после погашения.
+
+  ГРАНИЦА: модуль не изобретает свой механизм передачи — порождает handoff'ы структуры взыскания.
+  Разрешение спора о приёме не моделируется. Оргструктуру (узлы/руководитель) не пересчитывает —
+  потребляет как справочник.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.nav-sec{ padding:9px 16px 4px; font:var(--weight-semibold) 12px/1.3 var(--asubk-font);
+  color:var(--text-placeholder); text-transform:uppercase; letter-spacing:0.05em; }
+.nav-item{ display:flex; align-items:center; gap:9px; padding:8px 16px 8px 20px; text-decoration:none;
+  color:rgba(27,43,65,0.72); font:var(--weight-regular) var(--text-base)/1.4 var(--asubk-font); cursor:pointer; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); font-weight:var(--weight-medium); }
+.nav-item .ni{ flex:none; color:var(--text-muted); display:flex; }
+.nav-item.active .ni{ color:var(--asubk-blue); }
+.nav-item .badge{ margin-left:auto; background:var(--asubk-red); color:#fff; border-radius:var(--radius-pill);
+  font:var(--weight-semibold) 11px/1 var(--asubk-font); padding:3px 7px; }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.topbar .date-wrap{ display:flex; align-items:center; gap:8px; }
+.topbar .date-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.topbar input[type=date]{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; cursor:pointer; }
+.date-chip{ border:1px solid var(--border-default); background:var(--surface-card); color:var(--text-link);
+  border-radius:var(--radius-pill); padding:3px 10px; font:var(--weight-medium) 12px/1 var(--asubk-font); cursor:pointer; }
+.date-chip:hover{ background:var(--surface-hover); }
+.topbar .role-wrap{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+.topbar .role-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.rsel{ position:relative; display:flex; align-items:center; }
+.rsel select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 26px 0 10px;
+  appearance:none; cursor:pointer; }
+.rsel .caret{ position:absolute; right:8px; pointer-events:none; color:var(--text-muted); display:flex; }
+
+.content{ flex:1; overflow:auto; }
+.panel-wrap{ padding:18px 24px 48px; max-width:1120px; }
+.view{ display:none; }
+.view.active{ display:block; }
+
+/* ---- headings ---- */
+.section-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:22px 0 4px; }
+.section-h:first-child{ margin-top:0; }
+.section-note{ font:var(--font-label); color:var(--text-muted); margin:0 0 12px; max-width:860px; }
+.section-note code{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--asubk-blue); }
+.page-lead{ font:var(--font-label); color:var(--text-muted); margin:2px 0 18px; max-width:880px; }
+
+/* ---- banners ---- */
+.banner{ display:flex; align-items:flex-start; gap:10px; border-radius:var(--radius-md);
+  padding:10px 14px; margin-bottom:12px; font:var(--font-label); }
+.banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
+.banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.banner svg{ flex:none; margin-top:1px; }
+.banner b{ font-weight:var(--weight-semibold); }
+
+/* ---- pills ---- */
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+
+/* ---- toolbar (selectors) ---- */
+.toolbar{ display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; margin-bottom:16px;
+  padding:14px 16px; border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-panel); }
+.fld{ display:flex; flex-direction:column; gap:5px; }
+.fld > label{ font:var(--font-label); color:var(--text-muted); }
+.fld select, .fld input{ height:var(--control-h); border-radius:var(--radius-md);
+  border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-body);
+  font:var(--font-label); padding:0 10px; min-width:220px; }
+.fld select:focus, .fld input:focus{ outline:none; border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+.spacer{ flex:1; }
+
+/* ---- buttons ---- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
+.btn-success{ background:var(--action-success); color:#fff; }
+.btn-success:hover:not(:disabled){ background:var(--asubk-green-hover); }
+.btn-danger{ background:var(--action-danger); color:#fff; }
+.btn-danger:hover:not(:disabled){ background:var(--asubk-red-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-sm{ height:30px; padding:0 11px; font-size:13px; }
+
+/* ---- tables ---- */
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); border:1px solid var(--border-default); background:var(--surface-card); }
+table.cgrid thead th{ text-align:left; padding:10px 12px; background:var(--surface-card);
+  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-medium) var(--text-sm)/1.35 var(--asubk-font);
+  color:var(--text-body); white-space:nowrap; }
+table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--asubk-grid-line); vertical-align:top; color:var(--text-body); }
+table.cgrid tbody tr:last-child td{ border-bottom:none; }
+.muted{ color:var(--text-muted); }
+.mono{ font-family:ui-monospace,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; font-size:13px; }
+.tnum{ font-variant-numeric:tabular-nums; }
+
+/* ---- policy coverage table ---- */
+.ptable{ width:100%; border-collapse:collapse; font:var(--font-label); border:1px solid var(--border-default); background:var(--surface-card); }
+.ptable th{ text-align:left; padding:10px 12px; background:var(--surface-panel);
+  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-heading); }
+.ptable td{ padding:9px 12px; border-bottom:1px solid var(--asubk-grid-line); vertical-align:middle; }
+.ptable tr:last-child td{ border-bottom:none; }
+.ptable .keyval{ font:var(--weight-medium) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
+.ptable select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; min-width:200px; }
+.ptable tr.gap{ background:var(--status-error-bg); }
+.ptable tr.gap .keyval{ color:var(--asubk-red); }
+.keychip{ display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:var(--radius-pill);
+  background:var(--asubk-blue-tint); color:var(--asubk-blue); font:var(--weight-medium) 12px/1.5 var(--asubk-font); }
+
+/* ---- feature dictionary chips ---- */
+.featgrid{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 4px; }
+.feat{ display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border-radius:var(--radius-pill);
+  border:1px solid var(--border-default); background:var(--surface-card); font:var(--font-label); color:var(--text-body); cursor:default; }
+.feat.on{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); color:var(--asubk-blue); font-weight:var(--weight-medium); }
+.feat .tag{ font-size:11px; color:var(--text-placeholder); }
+.feat.extra{ border-style:dashed; border-color:var(--asubk-amber); }
+.feat.extra .tag{ color:var(--asubk-amber); }
+
+/* ---- diff (recalc) columns ---- */
+.diffcols{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media(max-width:840px){ .diffcols{ grid-template-columns:1fr; } }
+.diffcol{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; }
+.diffcol-h{ padding:11px 14px; font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
+  display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border-default); }
+.diffcol.silent .diffcol-h{ background:var(--status-success-bg); color:var(--asubk-green); }
+.diffcol.handoff .diffcol-h{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.diffrow{ padding:11px 14px; border-bottom:1px solid var(--asubk-grid-line); font:var(--font-label); }
+.diffrow:last-child{ border-bottom:none; }
+.diffrow .dr-top{ display:flex; align-items:center; gap:8px; }
+.diffrow .dr-obj{ font-weight:var(--weight-semibold); color:var(--text-heading); }
+.diffrow .dr-move{ color:var(--text-muted); margin-top:3px; }
+.diffrow .dr-move b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.arrow{ color:var(--text-placeholder); }
+.tally{ display:flex; flex-wrap:wrap; gap:10px; margin:4px 0 16px; }
+.tally .t{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:9px 14px; background:var(--surface-card); }
+.tally .t .tl{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); }
+.tally .t .tv{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin-top:2px; }
+.tally .t.pos .tv{ color:var(--asubk-green); }
+.tally .t.neg .tv{ color:var(--asubk-red); }
+
+/* ---- credit card ---- */
+.phead{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:16px 20px; margin-bottom:18px; }
+.phead-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
+.phead-name .nm{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
+.phead-sub{ font:var(--font-label); color:var(--text-muted); margin-top:4px; }
+.phead-sub b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.phead-dims{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+@media(max-width:900px){ .phead-dims{ grid-template-columns:repeat(2,1fr); } }
+.dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:10px 14px; }
+.dim .dl{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:5px; }
+.dim .dv{ font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.dim .src{ font:var(--weight-regular) 11px/1.35 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
+
+/* ---- assignment journal timeline ---- */
+.tl{ list-style:none; margin:0; padding:0; border-left:2px solid var(--border-default); margin-left:8px; }
+.tl li{ position:relative; padding:0 0 18px 22px; }
+.tl li::before{ content:''; position:absolute; left:-7px; top:3px; width:12px; height:12px; border-radius:50%;
+  background:var(--surface-card); border:2px solid var(--asubk-blue); }
+.tl li.open::before{ background:var(--asubk-blue); }
+.tl li.closed::before{ border-color:var(--text-disabled); }
+.tl li .td{ font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-heading); }
+.tl li.closed .td{ color:var(--text-muted); }
+.tl li .tv{ font:var(--font-label); color:var(--text-muted); margin-top:3px; }
+.tl li .tv .mono{ color:var(--text-body); }
+
+/* ---- collateral list (предмет → куратор) ---- */
+.collat{ padding:0; margin:0; }
+.collat li{ display:flex; align-items:flex-start; gap:12px; padding:11px 14px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); margin-bottom:8px; background:var(--surface-card); list-style:none; }
+.collat li .ci{ flex:none; color:var(--text-muted); margin-top:2px; }
+.collat li .cbody{ flex:1; }
+.collat li .cname{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
+.collat li .cmeta{ font:var(--font-label); color:var(--text-muted); margin-top:3px; }
+.collat li .cmeta b{ color:var(--text-body); font-weight:var(--weight-medium); }
+
+/* ---- handoff queue ---- */
+.hq{ list-style:none; margin:0; padding:0; }
+.hq li{ border:1px solid var(--border-default); border-radius:var(--radius-md); margin-bottom:10px; background:var(--surface-card); overflow:hidden; }
+.hq .hq-top{ display:flex; align-items:center; gap:12px; padding:12px 16px; }
+.hq .hq-top.overdue{ background:var(--status-error-bg); }
+.hq .hq-obj{ font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-heading); }
+.hq .hq-move{ font:var(--font-label); color:var(--text-muted); margin-top:2px; }
+.hq .hq-move b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.hq .hq-days{ margin-left:auto; text-align:right; }
+.hq .hq-days .n{ font:var(--weight-semibold) 20px/1 var(--asubk-font); color:var(--text-heading); }
+.hq .hq-days.od .n{ color:var(--asubk-red); }
+.hq .hq-days .u{ font:var(--font-label); color:var(--text-muted); }
+.hq .hq-body{ padding:0 16px 14px; }
+.hq .hq-reason{ font:var(--font-label); color:var(--text-muted); margin-bottom:10px; }
+.hq .hq-reason b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.hq .hq-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+.checklist{ list-style:none; margin:0 0 10px; padding:0; display:flex; flex-direction:column; gap:5px; }
+.checklist li{ display:flex; align-items:center; gap:8px; font:var(--font-label); color:var(--text-body); }
+.checklist li .cbox{ width:15px; height:15px; border-radius:3px; border:1.5px solid var(--border-strong); flex:none; display:flex; align-items:center; justify-content:center; }
+.checklist li.done .cbox{ background:var(--asubk-green); border-color:var(--asubk-green); color:#fff; }
+
+.hint{ font:var(--font-label); color:var(--text-muted); margin-top:8px; }
+.hint code{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--asubk-blue); }
+.coibox{ border:1px solid var(--asubk-red); background:var(--status-error-bg); border-radius:var(--radius-md); padding:12px 16px; margin:12px 0; }
+.coibox .ct{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--asubk-red); display:flex; align-items:center; gap:8px; }
+.coibox .cd{ font:var(--font-label); color:var(--text-body); margin-top:6px; }
+.coibox .cd b{ font-weight:var(--weight-semibold); }
+
+.toast{ position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--asubk-ink); color:#fff; padding:11px 18px; border-radius:var(--radius-md);
+  font:var(--font-label); box-shadow:0 8px 28px rgba(24,39,57,0.32); opacity:0; pointer-events:none;
+  transition:opacity 160ms ease, transform 160ms ease; z-index:80; max-width:520px; }
+.toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav" id="nav">
+      <div class="nav-sec">Кураторство</div>
+      <div class="nav-item active" data-view="policy">
+        <span class="ni"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></span>
+        <span>Политика распределения</span>
+      </div>
+      <div class="nav-item" data-view="recalc">
+        <span class="ni"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg></span>
+        <span>Пересчёт</span>
+      </div>
+      <div class="nav-item" data-view="credit">
+        <span class="ni"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg></span>
+        <span>Карточка кредита</span>
+      </div>
+      <div class="nav-item" data-view="queue">
+        <span class="ni"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg></span>
+        <span>Очередь передач</span>
+        <span class="badge" id="queueBadge">0</span>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="menu" title="Меню">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </span>
+      <span class="crumb-title" id="crumb">Политика распределения</span>
+      <div class="date-wrap">
+        <label for="dateInp">Дата&nbsp;среза</label>
+        <input type="date" id="dateInp" min="2022-01-01" max="2026-07-12">
+        <button class="date-chip" data-d="2024-03-01">2024</button>
+        <button class="date-chip" data-d="2026-07-12">Сегодня</button>
+      </div>
+      <div class="role-wrap">
+        <label for="roleSel">Роль</label>
+        <div class="rsel">
+          <select id="roleSel">
+            <option value="head">Заведующий отделом</option>
+            <option value="curator">Куратор</option>
+            <option value="obs">Наблюдатель</option>
+          </select>
+          <span class="caret"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></span>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+      <!-- ================= TAB 1 · ПОЛИТИКА ================= -->
+      <div class="view active" id="view-policy"><div class="panel-wrap">
+        <p class="page-lead">§3–4 · Ур.1 (кредит→подразделение) не настраивается. Здесь ур.2: политика пары
+          <b>(подразделение, роль)</b>. Каждая — <b>таблица покрытия объявленного ключа</b>, не список правил с
+          приоритетами. Пересечения невозможны по построению; пробелы видны при настройке.</p>
+
+        <div class="toolbar">
+          <div class="fld"><label for="polUnit">Подразделение</label><select id="polUnit"></select></div>
+          <div class="fld"><label for="polRole">Роль кураторства</label><select id="polRole"></select></div>
+          <div class="fld"><label for="polKey">Ключ распределения (§4.1)</label><select id="polKey"></select></div>
+          <div class="spacer"></div>
+          <button class="btn btn-primary" id="recalcBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg>
+            Пересчитать по этой политике
+          </button>
+        </div>
+
+        <div id="polBody"></div>
+
+        <div class="section-h">Справочник признаков распределения (§4.3)</div>
+        <p class="section-note">Набор признаков — <b>расширяемый справочник</b>, а не хардкод. Иначе первый отдел,
+          которому нужен новый разрез, упирается в разработчиков. Признаки залоговых ролей — из другой области
+          (вид залога, место нахождения предмета), не адрес заёмщика.</p>
+        <div class="featgrid" id="featGrid"></div>
+        <p class="hint">Пунктиром — <b>форма собственности</b>: используется фактически (частная/государственная),
+          но в ТЗ отсутствует. Ровно случай, ради которого справочник обязан быть расширяемым.</p>
+      </div></div>
+
+      <!-- ================= TAB 2 · ПЕРЕСЧЁТ ================= -->
+      <div class="view" id="view-recalc"><div class="panel-wrap">
+        <p class="page-lead">§7 · Пересчёт трогает персональную ответственность → <b>не молчаливый фоновый процесс</b>.
+          Явная операция заведующего, diff-предпросмотр ДО применения. Два исхода на объект <b>разделены</b>.</p>
+        <div id="recalcBody"></div>
+      </div></div>
+
+      <!-- ================= TAB 3 · КАРТОЧКА КРЕДИТА ================= -->
+      <div class="view" id="view-credit"><div class="panel-wrap">
+        <p class="page-lead">§0 · В карточке нет поля <code>curator</code>. Куратор на дату резолвится из
+          <b>журнала назначений</b>. Роли не вытесняют друг друга (§2.1); залог — на предмете, две роли (§2.2).</p>
+        <div class="toolbar">
+          <div class="fld"><label for="loanSel">Кредит</label><select id="loanSel"></select></div>
+        </div>
+        <div id="creditBody"></div>
+      </div></div>
+
+      <!-- ================= TAB 4 · ОЧЕРЕДЬ ПЕРЕДАЧ ================= -->
+      <div class="view" id="view-queue"><div class="panel-wrap">
+        <p class="page-lead">§8 · Непринятый handoff просто <b>висит</b>. Ответственность на сдающем. <b>Нет</b>
+          автоприёма, автоэскалации, автопереназначения, арбитража. Спор о приёме решается вне системы.</p>
+        <div id="queueBody"></div>
+      </div></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   СОСТОЯНИЕ (§ спеки). Кураторство — измерение, не поле. Наружу нет `curator` —
+   только журнал назначений; «кто куратор на дату» ВЫЧИСЛЯЕТСЯ.
+   ========================================================================= */
+const TODAY = '2026-07-12';
+
+// Подразделения (потребляются как справочник из оргструктуры; здесь плоско).
+const UNITS = {
+  dep_agro: 'Департамент агропромышленного кредитования',
+  dep_ind:  'Департамент промышленного кредитования',
+  ozo:      'Отдел залогового обеспечения',
+  reg_osh:  'Региональное представительство «Юг» (Ош)',
+  reg_nar:  'Региональное представительство «Нарын»',
+  opk:      'Отдел проблемных кредитов',
+};
+// Заведующий отделом (§4.4 — держатель незакрытых ячеек, п.96 — носитель контроля).
+const HEADS = {
+  dep_agro:'e_toktogul', dep_ind:'e_ormonov', ozo:'e_zavozo', reg_osh:'e_reg_osh', reg_nar:'e_reg_nar', opk:'e_zavopk',
+};
+
+const EMP = {
+  e_ivanov:  'Иванов И. И.',
+  e_asanov:  'Асанов А. А.',
+  e_bekova:  'Бекова Г. Т.',
+  e_toktogul:'Токтогулова Ж. М.',   // заведующая dep_agro
+  e_ormonov: 'Ормонов Б. К.',       // заведующий dep_ind
+  e_zalog1:  'Токтосунова С. А.',   // куратор залога — недвижимость
+  e_zalog2:  'Маматов Э. Д.',       // куратор залога — техника/транспорт
+  e_zavozo:  'Джумабаева А. К.',    // заведующая ОЗО
+  e_reg_osh: 'Дуйшеев М. Ы.',       // региональный исполнитель Ош
+  e_reg_nar: 'Осмонов Т. Б.',       // региональный исполнитель Нарын
+  e_collect: 'Абдыев К. С.',        // владелец процесса взыскания
+  e_zavopk:  'Сыдыков Э. Ж.',       // заведующий ОПК
+};
+const emp = id => EMP[id] || '—';
+
+// Заёмщики — слой агрегации + носитель конфликта интересов (§2, §6.1).
+const BORROWERS = {
+  b_akjol:   { name:'ОсОО «Ак-Жол»', kind:'юр', ownership:'частная' },
+  b_nurlan:  { name:'Нурланов Н. Н.', kind:'физ', ownership:'частная' },
+  b_agroteh: { name:'ГП «Агротех»',  kind:'юр', ownership:'государственная' },
+};
+
+/* ---- §4.3 СПРАВОЧНИК ПРИЗНАКОВ (расширяемый) + значения ---- */
+const FEATURES = {
+  otrasl:    { name:'Отрасль',              inTZ:true,  values:['Сельское хозяйство','Промышленность','Услуги'] },
+  oblast:    { name:'Область',              inTZ:true,  values:['Ошская','Чуйская','Нарынская','Таласская','Джалал-Абадская'] },
+  gorod:     { name:'Город',                inTZ:true,  values:['Бишкек','Ош','Нарын'] },
+  raion:     { name:'Район',                inTZ:true,  values:['Кара-Суу','Ат-Башы'] },
+  vidzaem:   { name:'Вид заёмщика',         inTZ:true,  values:['физ','юр'] },
+  vidkred:   { name:'Вид кредита',          inTZ:true,  values:['Агро','Промышленный','Ипотечный'] },
+  forma:     { name:'Форма собственности',  inTZ:false, values:['частная','государственная'] },
+  vidzalog:  { name:'Вид залога',           inTZ:true,  values:['Недвижимость','Транспорт','Техника','Товары в обороте'] },
+  mesto:     { name:'Место нахождения предмета', inTZ:true, values:['Ошская','Чуйская','Нарынская','Таласская','Джалал-Абадская'] },
+};
+
+/* ---- РОЛИ КУРАТОРСТВА (§2) — объект + допустимые признаки ключа ---- */
+const ROLES = {
+  curator_loan:  { name:'Куратор кредита',        object:'кредит',  units:['dep_agro','dep_ind'], keys:['oblast','otrasl','vidzaem','vidkred','forma','gorod','raion'] },
+  spec_app:      { name:'Специалист заявки',      object:'заявка',  units:['dep_agro','dep_ind'], keys:['oblast','otrasl','vidzaem','vidkred'] },
+  curator_col:   { name:'Куратор залога',         object:'предмет', units:['ozo'],                keys:['vidzalog'] },
+  regional_exec: { name:'Региональный исполнитель',object:'предмет', units:['reg_osh','reg_nar'],  keys:['mesto'] },
+};
+
+/* ---- §4 ПОЛИТИКИ: пара (подразделение, роль) → объявленный ключ + таблица значение→сотрудник ----
+   null в таблице = незакрытая ячейка → объект удерживается заведующим (§4.4). */
+const POLICIES = {
+  // Демо-пробел: Таласская не назначена → заведующая dep_agro.
+  'dep_agro|curator_loan': { key:['oblast'], table:{
+      'Ошская':'e_ivanov', 'Чуйская':'e_asanov', 'Нарынская':'e_bekova',
+      'Таласская':null, 'Джалал-Абадская':'e_ivanov' } },
+  // Составной ключ: область × форма собственности (форма — вне ТЗ).
+  'dep_ind|curator_loan': { key:['oblast','forma'], table:{
+      'Чуйская | частная':'e_asanov', 'Чуйская | государственная':'e_bekova',
+      'Ошская | частная':'e_ivanov', 'Ошская | государственная':'e_bekova' } },
+  // Куратор залога (центр) — ключ вид залога (§13.1 — конкретный ключ открыт, здесь условно).
+  'ozo|curator_col': { key:['vidzalog'], table:{
+      'Недвижимость':'e_zalog1', 'Транспорт':'e_zalog2', 'Техника':'e_zalog2', 'Товары в обороте':null } },
+  // Региональные исполнители — ключ место нахождения предмета.
+  'reg_osh|regional_exec': { key:['mesto'], table:{ 'Ошская':'e_reg_osh', 'Джалал-Абадская':'e_reg_osh' } },
+  'reg_nar|regional_exec': { key:['mesto'], table:{ 'Нарынская':'e_reg_nar', 'Таласская':'e_reg_nar' } },
+};
+
+/* ---- §6.1 КОНФЛИКТ ИНТЕРЕСОВ — фильтр (сотрудник, заёмщик), не override. Иммунитет к пересчёту.
+   Действует до решения Правления (to=null). ---- */
+const COI = [
+  { empId:'e_asanov', borrowerId:'b_akjol', from:'2025-11-01', to:null, note:'родственная связь с бенефициаром (п.92)' },
+];
+const coiActive = (empId, borrowerId, d) =>
+  COI.some(c => c.empId===empId && c.borrowerId===borrowerId && c.from<=d && (c.to==null || d<=c.to));
+
+/* ---- §1 ЖУРНАЛ НАЗНАЧЕНИЙ. Никогда не перезаписывается: закрывается `to`, открывается новое.
+   objType: кредит|предмет|процесс ; source: политика|переопределение|handoff. ---- */
+const ASSIGN = [
+  // L-2024-011 — куратор кредита с ПОДПИСАНИЯ ДОГОВОРА (§9.2).
+  { id:'a1', objType:'кредит', objId:'L-2024-011', role:'curator_loan', empId:'e_ivanov', from:'2024-02-14', to:null, source:'политика', reason:'подписание договора · политика dep_agro (Ошская)' },
+  // предметы L-2024-011: дом в Оше (недвиж) + техника в Нарыне → ДВА куратора залога + ДВА рег.исполнителя (§2.2 зеркальный эффект).
+  { id:'a2', objType:'предмет', objId:'P-8801', role:'curator_col',   empId:'e_zalog1',  from:'2024-02-20', to:null, source:'политика', reason:'постановка в реестр · вид залога=Недвижимость' },
+  { id:'a3', objType:'предмет', objId:'P-8801', role:'regional_exec', empId:'e_reg_osh', from:'2024-02-20', to:null, source:'политика', reason:'место=Ошская' },
+  { id:'a4', objType:'предмет', objId:'P-8802', role:'curator_col',   empId:'e_zalog2',  from:'2024-03-05', to:null, source:'политика', reason:'постановка в реестр · вид залога=Техника' },
+  { id:'a5', objType:'предмет', objId:'P-8802', role:'regional_exec', empId:'e_reg_nar', from:'2024-03-05', to:null, source:'политика', reason:'место=Нарынская' },
+  // L-2023-004 — ПОГАШЕН, куратор ЖИВ после погашения (§10.2, п.88 — акт сверки). Назначение не закрыто.
+  { id:'a6', objType:'кредит', objId:'L-2023-004', role:'curator_loan', empId:'e_asanov', from:'2023-06-10', to:null, source:'политика', reason:'подписание договора · политика dep_agro (Чуйская)' },
+  // L-2024-050 — активное взыскание. Куратор кредита ОСТАЁТСЯ (§2.1). Владелец процесса — отдельно.
+  { id:'a7', objType:'кредит', objId:'L-2024-050', role:'curator_loan', empId:'e_bekova', from:'2024-04-01', to:null, source:'политика', reason:'подписание договора · политика dep_agro (Нарынская)' },
+  { id:'a8', objType:'процесс', objId:'C-2025-017', role:'collection_owner', empId:'e_collect', from:'2025-09-01', to:null, source:'handoff', reason:'открытие процесса взыскания (handoff от куратора ОД)' },
+  // Ошские demo-кредиты — куратор Иванов (политика dep_agro, Ошская).
+  { id:'a9',  objType:'кредит', objId:'L-2025-020', role:'curator_loan', empId:'e_ivanov', from:'2025-03-10', to:null, source:'политика', reason:'подписание договора · политика dep_agro (Ошская)' },
+  { id:'a10', objType:'кредит', objId:'L-2025-033', role:'curator_loan', empId:'e_ivanov', from:'2025-05-02', to:null, source:'политика', reason:'подписание договора · политика dep_agro (Ошская)' },
+];
+const spanActive = (a,d) => a.from<=d && (a.to==null || d<=a.to);
+// §0/§1 — резолв назначения на дату: ровно одно открытое на (объект, роль).
+function curatorAt(objId, role, d){ return ASSIGN.find(a => a.objId===objId && a.role===role && spanActive(a,d)) || null; }
+function journalOf(objId){ return ASSIGN.filter(a => a.objId===objId).slice().sort((x,y)=> x.from<y.from?-1:1); }
+
+/* ---- КРЕДИТЫ + их предметы залога. procOwner/procId — владелец процесса взыскания (§2.1),
+   привязан к КОНКРЕТНОМУ кредиту (не общий на все дела). ---- */
+const LOANS = {
+  'L-2024-011': { borrower:'b_akjol',   unit:'dep_agro', oblast:'Ошская',    vidkred:'Агро',        status:'действующий', items:['P-8801','P-8802'] },
+  'L-2023-004': { borrower:'b_nurlan',  unit:'dep_agro', oblast:'Чуйская',   vidkred:'Ипотечный',   status:'погашен',     items:['P-8790'] },
+  'L-2024-050': { borrower:'b_agroteh', unit:'dep_agro', oblast:'Нарынская', vidkred:'Агро',        status:'взыскание',   items:['P-8815'], procId:'C-2025-017', procOwner:'e_collect' },
+  // Ошские кредиты для demo-пересчёта (ячейка Ошская: Иванов → Асанов даёт все три исхода):
+  'L-2025-020': { borrower:'b_nurlan',  unit:'dep_agro', oblast:'Ошская',    vidkred:'Агро',        status:'действующий', items:[] },                       // → тихий переезд
+  'L-2025-033': { borrower:'b_agroteh', unit:'dep_agro', oblast:'Ошская',    vidkred:'Агро',        status:'взыскание',   items:[], procId:'C-2025-030', procOwner:'e_collect' }, // → через handoff
+};
+const ITEMS = {
+  'P-8801': { desc:'Жилой дом, г. Ош', vidzalog:'Недвижимость', mesto:'Ошская' },
+  'P-8802': { desc:'Трактор МТЗ-82, Нарын', vidzalog:'Техника', mesto:'Нарынская' },
+  'P-8790': { desc:'Квартира, г. Бишкек', vidzalog:'Недвижимость', mesto:'Чуйская' },
+  'P-8815': { desc:'Товары в обороте, склад Нарын', vidzalog:'Товары в обороте', mesto:'Нарынская' },
+};
+
+/* ---- HANDOFF (структура из collection: {from,to,when,checklist,status,reason}) ---- */
+const HANDOFFS = [
+  // Просроченный непринятый handoff от ПЕРЕСЧЁТА политики (§7.2/§8): L-2024-050, Бекова → Асанов.
+  { id:'h1', objId:'L-2024-050', objLabel:'Кредит L-2024-050 · ГП «Агротех»', from:'e_bekova', to:'e_asanov',
+    when:'2026-05-20', status:'ожидает', reason:'пересмотр политики',
+    checklist:[ {t:'Досье кредита передано', done:true}, {t:'Реестр требований сверен', done:true},
+                {t:'Принимающий подтвердил приём', done:false} ] },
+  // Отклонённый handoff (журнал сохраняется, спор — вне системы §8.2).
+  { id:'h2', objId:'L-2024-011', objLabel:'Кредит L-2024-011 · ОсОО «Ак-Жол»', from:'e_ivanov', to:'e_bekova',
+    when:'2026-06-15', status:'отклонён', reason:'ручная передача (перегрузка)',
+    rejectReason:'принимающий не согласен с объёмом дела — договорённость вне системы',
+    checklist:[ {t:'Досье кредита передано', done:true}, {t:'Принимающий подтвердил приём', done:false} ] },
+];
+const daysBetween = (a,b) => Math.round((new Date(b) - new Date(a)) / 86400000);
+
+/* =========================================================================
+   UI-СОСТОЯНИЕ
+   ========================================================================= */
+let state = { view:'policy', date:TODAY, role:'head',
+  polUnit:'dep_agro', polRole:'curator_loan', loan:'L-2024-011' };
+const canEdit = () => state.role==='head';
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600); }
+
+/* ---- ключ политики: значения = декартово произведение справочников признаков ключа ---- */
+function keyValues(keyArr){
+  const lists = keyArr.map(k => FEATURES[k].values);
+  return lists.reduce((acc,list)=> acc.flatMap(pre => list.map(v => pre===''? v : pre+' | '+v)), ['']);
+}
+function keyLabel(keyArr){ return keyArr.map(k=>FEATURES[k].name).join(' × '); }
+
+/* =========================================================================
+   TAB 1 · ПОЛИТИКА
+   ========================================================================= */
+function renderPolicySelectors(){
+  const role = ROLES[state.polRole];
+  if(!role.units.includes(state.polUnit)) state.polUnit = role.units[0];
+  const uSel = $('#polUnit'); uSel.innerHTML = role.units.map(u=>`<option value="${u}" ${u===state.polUnit?'selected':''}>${esc(UNITS[u])}</option>`).join('');
+  uSel.value = state.polUnit;
+  const rSel = $('#polRole'); rSel.innerHTML = Object.entries(ROLES).map(([id,r])=>`<option value="${id}" ${id===state.polRole?'selected':''}>${esc(r.name)} · ${esc(r.object)}</option>`).join('');
+  const pol = POLICIES[state.polUnit+'|'+state.polRole];
+  const kSel = $('#polKey');
+  kSel.innerHTML = role.keys.map(k=>{
+    const isCur = pol && pol.key.length===1 && pol.key[0]===k;
+    return `<option value="${k}" ${isCur?'selected':''}>${esc(FEATURES[k].name)}</option>`;
+  }).join('') + (pol && pol.key.length>1 ? `<option value="__composite" selected>${esc(keyLabel(pol.key))} (составной)</option>` : '');
+}
+function renderPolicy(){
+  renderPolicySelectors();
+  const key = state.polUnit+'|'+state.polRole;
+  const pol = POLICIES[key];
+  const body = $('#polBody');
+  if(!pol){ body.innerHTML = `<div class="banner info">Для пары <b>${esc(UNITS[state.polUnit])}</b> · <b>${esc(ROLES[state.polRole].name)}</b> политика ещё не заведена. Объявите ключ и заполните таблицу.</div>`; return; }
+
+  const vals = keyValues(pol.key);
+  const gaps = vals.filter(v => pol.table[v]==null);
+  const headEmp = HEADS[state.polUnit];
+
+  let html = '';
+  html += `<div class="banner info"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <div>Ключ распределения: <span class="keychip">${esc(keyLabel(pol.key))}</span>&nbsp; Каждое значение ключа = одна ячейка =
+    один сотрудник. <b>Пересечения невозможны по построению</b> — механизм приоритетов правил не нужен.</div></div>`;
+
+  if(gaps.length){
+    html += `<div class="banner danger"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+      <div><b>${gaps.length} незакрыт${gaps.length===1?'ая ячейка':'ых ячейки'}</b> (${gaps.map(esc).join(', ')}). Пока не заполнено —
+      объект удерживается заведующим отделом (<b>${esc(emp(headEmp))}</b>, §4.4). Пробел виден здесь, а не в проде.</div></div>`;
+  } else {
+    html += `<div class="banner ok"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+      <div>Пространство значений ключа покрыто полностью. Незакрытых ячеек нет.</div></div>`;
+  }
+
+  html += `<table class="ptable"><thead><tr><th style="width:42%">${esc(keyLabel(pol.key))}</th><th>Сотрудник (ячейка)</th><th style="width:22%">Статус</th></tr></thead><tbody>`;
+  const candidates = Object.keys(EMP);
+  for(const v of vals){
+    const cur = pol.table[v];
+    const isGap = cur==null;
+    let cell;
+    if(canEdit()){
+      cell = `<select data-val="${esc(v)}" onchange="setCell(this)"><option value="">— не назначен —</option>`
+        + candidates.map(id=>`<option value="${id}" ${id===cur?'selected':''}>${esc(emp(id))}</option>`).join('') + `</select>`;
+    } else {
+      cell = isGap ? `<span class="muted">— не назначен —</span>` : esc(emp(cur));
+    }
+    const status = isGap
+      ? `<span class="pill err">на заведующем</span>`
+      : `<span class="pill ok">закрыта</span>`;
+    html += `<tr class="${isGap?'gap':''}"><td class="keyval">${esc(v)}</td><td>${cell}</td><td>${status}</td></tr>`;
+  }
+  html += `</tbody></table>`;
+  html += `<p class="hint">§5 · Политика — <b>источник истины</b>. Ручное назначение (override) живёт ровно столько,
+    сколько живёт его причина: при пересчёте временное снимается по дате, разовое растворяется, конфликт интересов
+    имеет иммунитет. «Назначили вручную — прилипло навсегда» — не моделируется.</p>`;
+  body.innerHTML = html;
+}
+function setCell(sel){
+  const pol = POLICIES[state.polUnit+'|'+state.polRole];
+  pol.table[sel.dataset.val] = sel.value || null;
+  renderPolicy();
+  toast(sel.value ? 'Ячейка обновлена (не сохранено — пересчёт отдельным действием, §7.1)' : 'Ячейка очищена → на заведующем');
+}
+function renderFeatures(){
+  $('#featGrid').innerHTML = Object.entries(FEATURES).map(([id,f])=>{
+    const active = ROLES[state.polRole].keys.includes(id);
+    return `<span class="feat ${active?'on':''} ${f.inTZ?'':'extra'}">${esc(f.name)}<span class="tag">${f.inTZ?'ТЗ':'вне ТЗ'}</span></span>`;
+  }).join('');
+}
+
+/* =========================================================================
+   TAB 2 · ПЕРЕСЧЁТ (diff-предпросмотр)
+   Демо-сценарий: заведующая dep_agro переназначила Ошскую область Иванов → Асанов.
+   Показываем два раздельных исхода + иммунитет конфликта интересов.
+   ========================================================================= */
+function computeRecalcDemo(){
+  // предлагаемое изменение: Ошская: Иванов → Асанов
+  const affected = Object.entries(LOANS)
+    .filter(([id,l]) => l.unit==='dep_agro' && l.oblast==='Ошская')
+    .map(([id,l]) => ({ id, loan:l }));
+  const silent=[], viaHandoff=[], blocked=[];
+  for(const {id,loan} of affected){
+    const curAssign = curatorAt(id,'curator_loan',state.date);
+    const from = curAssign ? curAssign.empId : null;
+    const to = 'e_asanov';
+    // §6.1 иммунитет: конфликт интересов ДО политики — Асанов исключён по заёмщику Ак-Жол.
+    if(coiActive(to, loan.borrower, state.date)){
+      blocked.push({ id, loan, from, to, borrower:loan.borrower });
+      continue;
+    }
+    if(loan.status==='взыскание') viaHandoff.push({ id, loan, from, to });
+    else silent.push({ id, loan, from, to });
+  }
+  return { silent, viaHandoff, blocked };
+}
+function renderRecalc(){
+  const d = computeRecalcDemo();
+  const b = $('#recalcBody');
+  const total = d.silent.length + d.viaHandoff.length + d.blocked.length;
+  let html = '';
+  html += `<div class="banner info"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <div><b>Предлагаемое изменение политики</b> (dep_agro · Куратор кредита): ячейка <span class="keychip">Область = Ошская</span>
+    ${esc(emp('e_ivanov'))} → ${esc(emp('e_asanov'))}. Diff ниже — <b>до применения</b>. Дата вступления и уведомление обеим сторонам обязательны (§7.1).</div></div>`;
+
+  html += `<div class="tally">
+    <div class="t"><div class="tl">Затронуто кредитов</div><div class="tv tnum">${total}</div></div>
+    <div class="t pos"><div class="tl">Тихий переезд</div><div class="tv tnum">${d.silent.length}</div></div>
+    <div class="t"><div class="tl">Через передачу (handoff)</div><div class="tv tnum">${d.viaHandoff.length}</div></div>
+    <div class="t neg"><div class="tl">Заблокировано (конфликт интересов)</div><div class="tv tnum">${d.blocked.length}</div></div>
+  </div>`;
+
+  const rowHtml = r => `<div class="diffrow"><div class="dr-top"><span class="dr-obj">${esc(r.id)}</span>
+    <span class="muted">· ${esc(BORROWERS[r.loan.borrower].name)}</span></div>
+    <div class="dr-move"><b>${esc(emp(r.from))}</b> <span class="arrow">→</span> <b>${esc(emp(r.to))}</b></div></div>`;
+
+  html += `<div class="diffcols">
+    <div class="diffcol silent"><div class="diffcol-h"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Тихий переезд · нет активного взыскания (${d.silent.length})</div>
+      ${d.silent.length? d.silent.map(rowHtml).join('') : '<div class="diffrow muted">— пусто —</div>'}</div>
+    <div class="diffcol handoff"><div class="diffcol-h"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/></svg>Через передачу · активное взыскание (${d.viaHandoff.length})</div>
+      ${d.viaHandoff.length? d.viaHandoff.map(r=>rowHtml(r)+`<div class="diffrow" style="padding-top:0"><span class="pill warn">handoff · reason=пересмотр политики · ожидает подтверждения</span></div>`).join('') : '<div class="diffrow muted">— пусто —</div>'}</div>
+  </div>`;
+
+  if(d.blocked.length){
+    for(const r of d.blocked){
+      html += `<div class="coibox"><div class="ct"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 11-12.73 0M12 2v10"/></svg>
+        Иммунитет конфликта интересов (§6.1) — ${esc(r.id)}</div>
+        <div class="cd">Политика указывает на <b>${esc(emp(r.to))}</b>, но он в конфликте интересов с заёмщиком
+        <b>${esc(BORROWERS[r.borrower].name)}</b> (с 2025-11-01, до решения Правления). Конфликт — <b>фильтр ДО политики</b>,
+        а не override → пересчёт <b>не может</b> его вернуть. Кредит остаётся на <b>${esc(emp(r.from))}</b>.</div></div>`;
+    }
+  }
+
+  html += `<div style="display:flex;gap:10px;margin-top:18px">
+    <button class="btn btn-primary" ${canEdit()?'':'disabled'} onclick="applyRecalc(${d.silent.length},${d.viaHandoff.length})">Применить пересчёт с даты ${esc(state.date)}</button>
+    <button class="btn btn-secondary" onclick="showToast('Отменено — политика не тронута')">Отмена</button></div>`;
+  if(!canEdit()) html += `<p class="hint">Применение доступно только роли «Заведующий отделом» (§7.1 — инициирует заведующий).</p>`;
+  b.innerHTML = html;
+}
+function applyRecalc(s,h){ toast(`Пересчёт применён: ${s} тихо, ${h} через handoff. Уведомления отправлены обеим сторонам.`); }
+function showToast(m){ toast(m); }
+
+/* =========================================================================
+   TAB 3 · КАРТОЧКА КРЕДИТА
+   ========================================================================= */
+function renderCredit(){
+  const sel = $('#loanSel');
+  sel.innerHTML = Object.entries(LOANS).map(([id,l])=>`<option value="${id}" ${id===state.loan?'selected':''}>${id} · ${esc(BORROWERS[l.borrower].name)} · ${esc(l.status)}</option>`).join('');
+  const id = state.loan, loan = LOANS[id];
+  const b = $('#creditBody');
+  if(!loan){ b.innerHTML=''; return; }
+
+  const curLoan = curatorAt(id,'curator_loan',state.date);
+  // §2.1 — владелец процесса привязан к конкретному кредиту, не общий на все дела взыскания.
+  const proc = (loan.status==='взыскание' && loan.procOwner) ? { empId:loan.procOwner, procId:loan.procId } : null;
+
+  let html = '';
+  const statusPill = loan.status==='погашен'?'ok':(loan.status==='взыскание'?'warn':'info');
+  html += `<div class="phead"><div class="phead-top">
+    <div class="phead-name"><div class="nm">${esc(id)} · ${esc(BORROWERS[loan.borrower].name)}</div>
+      <div class="phead-sub">Программа: <b>${esc(loan.vidkred)}</b> · Область: <b>${esc(loan.oblast)}</b> ·
+      Заёмщик: <b>${esc(BORROWERS[loan.borrower].kind)}</b>, ${esc(BORROWERS[loan.borrower].ownership)} · Администрирует: <b>${esc(UNITS[loan.unit])}</b></div></div>
+    <span class="pill ${statusPill}">${esc(loan.status)}</span></div>
+    <div class="phead-dims">
+      <div class="dim"><div class="dl">Куратор кредита (§0 — из журнала на ${esc(state.date)})</div>
+        <div class="dv">${curLoan?esc(emp(curLoan.empId)):'<span class="muted">— нет —</span>'}</div>
+        <div class="src">источник: ${curLoan?esc(curLoan.source):'—'}</div></div>
+      <div class="dim"><div class="dl">Владелец процесса взыскания (§2.1)</div>
+        <div class="dv">${proc?esc(emp(proc.empId)):'<span class="muted">— н/п —</span>'}</div>
+        <div class="src">${proc?'≠ куратор кредита · handoff':'нет активного процесса'}</div></div>
+      <div class="dim"><div class="dl">Предметов залога</div>
+        <div class="dv">${loan.items.length}</div>
+        <div class="src">§2.2 · кураторство на предмете, не на кредите</div></div>
+    </div></div>`;
+
+  const pendingHandoff = HANDOFFS.find(h=>h.objId===id && h.status==='ожидает');
+  if(pendingHandoff){
+    html += `<div class="banner warn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+      <div><b>Непринятый handoff</b> (${esc(emp(pendingHandoff.from))} → ${esc(emp(pendingHandoff.to))}). До подтверждения приёма ответственным
+      остаётся <b>сдающий</b> (§8.1). Уведомление за 30 дней (§10.1) падает <b>сдающему</b>, не принимающему.</div></div>`;
+  }
+  if(loan.status==='погашен'){
+    html += `<div class="banner ok"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+      <div><b>Куратор сохранён после полного погашения</b> (§10.2, п.88). Назначение не закрыто фактом погашения —
+      акт сверки подписывает куратор ОД <b>после</b>. Закроется по подписании акта / переводу в группу «5. Погашенные».</div></div>`;
+  }
+
+  html += `<div class="section-h">Залоговое обеспечение — предмет → куратор (§2.2)</div>`;
+  const colCurators = new Set(), regExecs = new Set();
+  loan.items.forEach(pid=>{ const c=curatorAt(pid,'curator_col',state.date); const r=curatorAt(pid,'regional_exec',state.date); if(c)colCurators.add(c.empId); if(r)regExecs.add(r.empId); });
+  if(colCurators.size>1){
+    html += `<div class="banner info"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <div><b>Зеркальный эффект — норма, лечения не требует.</b> У кредита ${colCurators.size} залоговых куратора: предметы в разных областях.
+      Карточка показывает список <code>предмет → куратор</code>, а не «залоговый куратор: X».</div></div>`;
+  }
+  html += `<ul class="collat">`;
+  for(const pid of loan.items){
+    const it = ITEMS[pid]; const c = curatorAt(pid,'curator_col',state.date); const r = curatorAt(pid,'regional_exec',state.date);
+    html += `<li><span class="ci"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg></span>
+      <div class="cbody"><div class="cname">${esc(pid)} · ${esc(it.desc)}</div>
+      <div class="cmeta">Вид залога: <b>${esc(it.vidzalog)}</b> · Место: <b>${esc(it.mesto)}</b><br>
+        Куратор залога (центр): <b>${c?esc(emp(c.empId)):'<span class="muted">—</span>'}</b> ·
+        Региональный исполнитель: <b>${r?esc(emp(r.empId)):'<span class="muted">—</span>'}</b></div></div></li>`;
+  }
+  html += `</ul>`;
+  html += `<p class="hint">§2.2 · Акт обследования имеет двух подписантов по построению: региональный исполнитель (составил) + куратор залога (принял в реестр).</p>`;
+
+  html += `<div class="section-h">Журнал назначений (§1 — без перезаписи)</div>
+    <p class="section-note">Кураторство — измерение, не поле. Записи не перезаписываются: закрываются датой, открываются новые.
+    Отвечает на «кто отвечал на дату» (п.96), а не только «кто сейчас».</p>`;
+  const roleName = r => (ROLES[r]?.name) || (r==='collection_owner'?'Владелец процесса взыскания':r);
+  const jrnl = journalOf(id).concat(loan.items.flatMap(pid=>journalOf(pid)));
+  html += `<ul class="tl">`;
+  for(const a of jrnl.sort((x,y)=>x.from<y.from?-1:1)){
+    const open = a.to==null;
+    const objLbl = a.objType==='предмет'? ` · ${esc(a.objId)}` : '';
+    html += `<li class="${open?'open':'closed'}"><div class="td">${esc(roleName(a.role))}: ${esc(emp(a.empId))}${objLbl}
+      ${open?'<span class="pill ok" style="margin-left:6px">открыто</span>':'<span class="pill neutral" style="margin-left:6px">закрыто</span>'}</div>
+      <div class="tv"><span class="mono">${esc(a.from)} → ${a.to?esc(a.to):'…'}</span> · источник: <b>${esc(a.source)}</b><br>${esc(a.reason)}</div></li>`;
+  }
+  html += `</ul>`;
+  b.innerHTML = html;
+}
+
+/* =========================================================================
+   TAB 4 · ОЧЕРЕДЬ ПЕРЕДАЧ
+   ========================================================================= */
+function pendingCount(){ return HANDOFFS.filter(h=>h.status==='ожидает').length; }
+function renderQueue(){
+  const b = $('#queueBody');
+  const pend = HANDOFFS.filter(h=>h.status==='ожидает');
+  const other = HANDOFFS.filter(h=>h.status!=='ожидает');
+  let html = '';
+  html += `<div class="banner warn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg>
+    <div><b>Ответственность на сдающем</b>, пока приём не подтверждён (§8.1). Счётчик дней и подсветка просрочки — <b>да</b>.
+    Автоприём / автоэскалация / автопереназначение — <b>нет</b>. Дыры в ответственности не возникает: де-факто и де-юре куратор — сдающий.</div></div>`;
+
+  html += `<div class="section-h">Ожидают подтверждения приёма (${pend.length})</div>`;
+  html += `<ul class="hq">`;
+  for(const h of pend){
+    const age = daysBetween(h.when, state.date);
+    const overdue = age > 10;
+    html += `<li><div class="hq-top ${overdue?'overdue':''}">
+      <div><div class="hq-obj">${esc(h.objLabel)}</div>
+        <div class="hq-move"><b>${esc(emp(h.from))}</b> → <b>${esc(emp(h.to))}</b> · с ${esc(h.when)}</div></div>
+      <div class="hq-days ${overdue?'od':''}"><div class="n tnum">${age}</div><div class="u">дн. ${overdue?'· просрочено':'висит'}</div></div></div>
+      <div class="hq-body">
+        <div class="hq-reason">Причина: <b>${esc(h.reason)}</b> · статус <span class="pill warn">ожидает подтверждения</span></div>
+        <ul class="checklist">${h.checklist.map(c=>`<li class="${c.done?'done':''}"><span class="cbox">${c.done?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>':''}</span>${esc(c.t)}</li>`).join('')}</ul>
+        <div class="hq-actions">
+          <button class="btn btn-success btn-sm" ${canEdit()?'':'disabled'} onclick="hoAction('${h.id}','confirm')">Подтвердить приём</button>
+          <button class="btn btn-danger btn-sm" ${canEdit()?'':'disabled'} onclick="hoAction('${h.id}','reject')">Отклонить с причиной</button>
+          <button class="btn btn-secondary btn-sm" onclick="hoAction('${h.id}','recall')">Отозвать передачу (сдающий)</button>
+        </div>
+        ${overdue?'<p class="hint">Дело просто висит. Система не приняла и не переназначила его сама — это и есть удержание инварианта §1.</p>':''}
+      </div></li>`;
+  }
+  if(!pend.length) html += `<li><div class="hq-body muted" style="padding:14px 16px">— непринятых передач нет —</div></li>`;
+  html += `</ul>`;
+
+  if(other.length){
+    html += `<div class="section-h">Журнал закрытых передач</div><ul class="hq">`;
+    for(const h of other){
+      const pill = h.status==='отклонён'?'<span class="pill err">отклонён</span>':'<span class="pill ok">подтверждён</span>';
+      html += `<li><div class="hq-top"><div><div class="hq-obj">${esc(h.objLabel)}</div>
+        <div class="hq-move"><b>${esc(emp(h.from))}</b> → <b>${esc(emp(h.to))}</b> · ${esc(h.when)} · ${esc(h.reason)}</div></div>
+        <div class="hq-days">${pill}</div></div>
+        ${h.rejectReason?`<div class="hq-body"><div class="hq-reason">Причина отказа (журнал): ${esc(h.rejectReason)}. <b>Спор система не моделирует</b> (§8.2) — разрешается устно.</div></div>`:''}</li>`;
+    }
+    html += `</ul>`;
+  }
+  b.innerHTML = html;
+}
+function hoAction(id, act){
+  const h = HANDOFFS.find(x=>x.id===id); if(!h) return;
+  if(act==='confirm'){ h.status='подтверждён'; toast('Приём подтверждён. Ответственность перешла на принимающего.'); }
+  else if(act==='reject'){ h.status='отклонён'; h.rejectReason='отклонён вручную · спор вне системы (§8.2)'; toast('Отклонено. Причина записана в журнал; арбитраж не запускается.'); }
+  else if(act==='recall'){ HANDOFFS.splice(HANDOFFS.indexOf(h),1); toast('Передача отозвана сдающим.'); }
+  refreshBadge(); renderQueue();
+}
+
+/* =========================================================================
+   РОУТИНГ / ИНИТ
+   ========================================================================= */
+const CRUMB = { policy:'Политика распределения', recalc:'Пересчёт', credit:'Карточка кредита', queue:'Очередь передач' };
+function refreshBadge(){ const n=pendingCount(); const b=$('#queueBadge'); b.textContent=n; b.style.display=n?'':'none'; }
+function setView(v){
+  state.view=v;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===v));
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  $('#view-'+v).classList.add('active');
+  $('#crumb').textContent = CRUMB[v];
+  render();
+}
+function render(){
+  if(state.view==='policy'){ renderPolicy(); renderFeatures(); }
+  else if(state.view==='recalc') renderRecalc();
+  else if(state.view==='credit') renderCredit();
+  else if(state.view==='queue') renderQueue();
+  refreshBadge();
+}
+function init(){
+  $('#dateInp').value = state.date;
+  document.querySelectorAll('.nav-item').forEach(n=> n.addEventListener('click', ()=>setView(n.dataset.view)));
+  $('#dateInp').addEventListener('change', e=>{ state.date=e.target.value; render(); });
+  document.querySelectorAll('.date-chip').forEach(c=> c.addEventListener('click', ()=>{ state.date=c.dataset.d; $('#dateInp').value=c.dataset.d; render(); }));
+  $('#roleSel').addEventListener('change', e=>{ state.role=e.target.value; render(); });
+  $('#polUnit').addEventListener('change', e=>{ state.polUnit=e.target.value; renderPolicy(); renderFeatures(); });
+  $('#polRole').addEventListener('change', e=>{ state.polRole=e.target.value; renderPolicy(); renderFeatures(); });
+  $('#polKey').addEventListener('change', e=>{
+    const v=e.target.value; if(v==='__composite'){ renderPolicy(); return; }
+    const pol=POLICIES[state.polUnit+'|'+state.polRole];
+    if(pol){ pol.key=[v]; pol.table={}; toast('Ключ переобъявлен — таблица очищена под новый разрез (§4.2).'); }
+    renderPolicy();
+  });
+  $('#recalcBtn').addEventListener('click', ()=> setView('recalc'));
+  $('#loanSel').addEventListener('change', e=>{ state.loan=e.target.value; renderCredit(); });
+  render();
+}
+init();
+</script>
+</body>
+</html>
