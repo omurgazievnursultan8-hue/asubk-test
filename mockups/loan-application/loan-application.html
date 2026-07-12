@@ -4278,17 +4278,17 @@ function renderConditions(app){
   F.push('<div class="cond-subh">Основные данные</div>');
   F.push(inh('Кредитная программа', app.program));
   F.push(editCond
-    ? condRefField('Назначение кредита', app.purpose || prog.purpose || env.purpose, prog.naznachenie, { required:true, bind:'purpose' })
+    ? condRefField('Назначение кредита', app.purpose || prog.purpose || env.purpose, prog.naznachenie, { required:true, fallback: CLK.purpose, bind:'purpose' })
     : condDiff(app, phase, 'Назначение кредита', 'purpose', prog.purpose || env.purpose, 'программа'));
   F.push(editCond
     ? condRefField('Источник финансирования', app.fundingSource, prog.istochnik, { required:true, fallback: CLK.source, bind:'fundingSource' })
     : condDiff(app, phase, 'Источник финансирования', 'fundingSource', prog.source || 'Бюджет', 'заёмщик'));
   F.push(editCond
-    ? condRefField('Вид кредита', app.kind || prog.kind, prog.vidKredita, { required:true, bind:'kind' })
+    ? condRefField('Вид кредита', app.kind || prog.kind, prog.vidKredita, { required:true, fallback: CLK.kind, bind:'kind' })
     : condDiff(app, phase, 'Вид кредита', 'kind', prog.kind, 'программа'));
   F.push(inh('Валюта', prog.currency || env.currency));
   F.push(editCond
-    ? condRefField('Кредитная линия', app.kreditLine || (prog.kreditLine || [])[0], prog.kreditLine, { required:true, bind:'kreditLine' })
+    ? condRefField('Кредитная линия', app.kreditLine || (prog.kreditLine || [])[0], prog.kreditLine, { required:true, fallback: CLK.line, bind:'kreditLine' })
     : condDiff(app, phase, 'Кредитная линия', 'kreditLine', (prog.kreditLine || [])[0] || '', 'программа'));
   F.push(editCond
     ? condRefField('Вид счёта погашения', app.repayAcct || prog.repayAcct, prog.schetPogash, { required:true, fallback: REF_VALUES.schetPogash, bind:'repayAcct' })
