@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Учёт и сверка платежей · АСУБК</title>
+<!--
+  MOCKUP (single-file, interactive) — TO-BE модуля «Учёт и сверка платежей».
+  Образец для команды разработки, не прод-код. Стиль сверен с mockups/collection/
+  и mockups/loan-credit/. Модуль проектируется с нуля (в живом стенде отдельного
+  экрана сверки нет) — дефекты по нему в notes/qa-findings.md не заводятся.
+
+  Спек логики: mockups/payments/ASUBK-platezhi-logika.md
+  (синхронизируется в мастер ASUBK-analiz-mokapov.md, секция 14).
+
+  СЕМЬ АРХИТЕКТУРНЫХ ШВОВ (что демонстрирует макет)
+  1. Платёж и запись реестра ЦК — ДВЕ сущности. Сверка = сопоставление между ними.
+  2. Сверка — ЧЕТЫРЕ исхода, не два. Три независимые оси состояния платежа:
+     регистрация · сопоставление · заморозка. Схлопывание в один status запрещено.
+  3. Шлюз погашения: платёж ДЕЙСТВУЕТ до подтверждения ЦК. Неподтверждение → сторно
+     с пересчётом (сторно ≠ удаление). Статус НЕ терминален — возможно восстановление.
+  4. Разнесение — МАТРИЦА слой→категория→срочность, не плоская четвёрка колонок.
+  5. Слои долга: один кредит → N решений суда → возможно N режимов начисления сразу.
+  6. Крыжение = заморозка (бухгалтер). Разморозка — по решению комиссии. Акт сверки —
+     по инициативе куратора.
+  7. Три счёта шлюза + ГИБРИД: счёт решает разнесение только при «чистом» долге.
+
+  Роли (селектор в шапке меняет доступные действия):
+    • Куратор — вводит, разносит, инициирует акт сверки, вносит решение комиссии.
+    • Бухгалтер — крыжит (замораживает) / размораживает / сторнирует по решению комиссии.
+    • Наблюдатель — только чтение.
+
+  ДЕМО-ОГРАНИЧЕНИЯ: каскад пересчёта не выполняется в рантайме — показан результат
+  в данных + баннер-объяснение. Комиссия вне АСУБК — вносится только результат.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --asubk-purple:#6B4FC9; --asubk-purple-tint:rgba(107,79,201,0.10);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:"SF Mono",ui-monospace,"Roboto Mono",Menlo,Consolas,monospace;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+.num{ font-variant-numeric:tabular-nums; }
+
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
+  border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
+.nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
+.nav-toggle:hover{ background:rgba(24,39,57,0.04); }
+.nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
+  transition:transform 120ms ease; flex:none; }
+.nav-group.open > .nav-toggle .chev{ transform:rotate(90deg); }
+.nav-toggle .lbl{ flex:1; }
+.nav-children{ display:none; }
+.nav-group.open > .nav-children{ display:block; }
+.nav-item{ display:flex; align-items:center; gap:8px; padding:7px 16px 7px 40px; text-decoration:none;
+  color:rgba(27,43,65,0.69); font:var(--weight-regular) var(--text-base)/1.5 var(--asubk-font); cursor:pointer; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
+.nav-item .cnt{ margin-left:auto; font:var(--weight-semibold) 11px/1 var(--asubk-font);
+  background:var(--asubk-red); color:#fff; border-radius:var(--radius-pill); padding:3px 6px; }
+.nav-item .cnt.mut{ background:var(--asubk-ink-26); }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.topbar .role-wrap{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+.topbar .role-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.rsel{ position:relative; display:flex; align-items:center; }
+.rsel select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 26px 0 10px;
+  appearance:none; cursor:pointer; }
+.rsel .caret{ position:absolute; right:8px; pointer-events:none; color:var(--text-muted); display:flex; }
+
+.content{ flex:1; overflow:auto; display:flex; flex-direction:column; min-width:0; }
+.view{ display:none; flex-direction:column; min-height:0; }
+.view.active{ display:flex; }
+.page-pad{ padding:20px 24px 40px; }
+
+/* ---- buttons ---- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn svg{ flex:none; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-success{ background:var(--action-success); color:#fff; }
+.btn-success:hover:not(:disabled){ background:var(--asubk-green-hover); }
+.btn-danger{ background:var(--action-danger); color:#fff; }
+.btn-danger:hover:not(:disabled){ background:var(--asubk-red-hover); }
+.btn-sm{ height:32px; padding:0 10px; font-size:var(--text-sm); }
+.btn-tint{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none; font-weight:var(--weight-medium); }
+.btn-tint:hover:not(:disabled){ background:rgba(25,59,103,0.10); color:var(--action-primary-hover); }
+.btn-tint.danger{ color:var(--action-danger); }
+.btn-tint.danger:hover:not(:disabled){ background:var(--status-error-bg); }
+.gear-btn{ width:var(--control-h); height:var(--control-h); border:none;
+  background:var(--asubk-tint-fill); border-radius:var(--radius-md); color:var(--text-link); cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; }
+.gear-btn:hover{ background:rgba(25,59,103,0.10); }
+
+/* ---- toolbars / headings ---- */
+.section-h{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:0 0 6px; }
+.section-note{ font:var(--font-label); color:var(--text-muted); margin:0 0 16px; max-width:960px; }
+.section-note code{ font:var(--weight-medium) 12px/1 var(--mono); background:var(--asubk-tint-fill);
+  padding:2px 5px; border-radius:var(--radius-sm); color:var(--text-body); }
+.gtoolbar{ display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center; }
+.gtoolbar .spacer{ flex:1; }
+.seg{ display:inline-flex; border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; }
+.seg button{ border:none; background:var(--surface-card); color:var(--text-muted); cursor:pointer;
+  padding:0 14px; height:32px; font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); border-right:1px solid var(--border-default); }
+.seg button:last-child{ border-right:none; }
+.seg button.on{ background:var(--asubk-nav-active); color:var(--text-heading); font-weight:var(--weight-semibold); }
+.search{ position:relative; }
+.search input{ height:32px; width:260px; border:1px solid var(--border-strong); border-radius:var(--radius-md);
+  padding:0 10px 0 30px; font:var(--font-label); background:var(--surface-card); color:var(--text-body); outline:none; }
+.search input:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.search svg{ position:absolute; left:8px; top:8px; color:var(--text-placeholder); }
+
+/* ---- grid ---- */
+.cgrid-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; min-height:80px; background:var(--surface-card); }
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); white-space:nowrap; }
+table.cgrid thead th{ position:sticky; top:0; text-align:left; padding:11px 14px; background:var(--surface-card);
+  border-bottom:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
+  color:var(--text-heading); user-select:none; z-index:1; }
+table.cgrid thead th.r, table.cgrid tbody td.r{ text-align:right; }
+table.cgrid tbody td{ padding:10px 14px; border-bottom:1px solid var(--asubk-grid-line); color:var(--text-body); vertical-align:middle; }
+table.cgrid tbody tr{ cursor:pointer; }
+table.cgrid tbody tr:hover{ background:var(--surface-hover); }
+table.cgrid tbody tr.sel{ background:var(--asubk-nav-active); }
+table.cgrid tbody tr.total td{ font-weight:var(--weight-bold); color:var(--text-heading);
+  background:var(--surface-hover); border-top:1px solid var(--border-strong); }
+table.cgrid tbody tr.muted td{ color:var(--text-muted); font-style:italic; }
+table.cgrid tbody tr:last-child td{ border-bottom:none; }
+.cgrid-empty{ display:flex; align-items:center; justify-content:center; min-height:120px; color:var(--text-placeholder); font:var(--font-label); }
+.rowlink{ color:var(--text-link); cursor:pointer; }
+.rowlink:hover{ text-decoration:underline; }
+.mono{ font:var(--weight-medium) 13px/1.4 var(--mono); }
+
+/* ---- pills / axes ---- */
+.pill{ display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
+.pill.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+.pill.purple{ background:var(--asubk-purple-tint); color:var(--asubk-purple); }
+
+.axes{ display:flex; gap:6px; flex-wrap:wrap; }
+.src-tag{ display:inline-flex; align-items:center; gap:5px; font:var(--weight-medium) 12px/1 var(--asubk-font); color:var(--text-muted); }
+
+/* ---- banners ---- */
+.banner{ display:flex; align-items:flex-start; gap:10px; border-radius:var(--radius-md); padding:11px 14px;
+  font:var(--font-label); margin-bottom:14px; }
+.banner svg{ flex:none; margin-top:1px; }
+.banner b{ font-weight:var(--weight-semibold); }
+.banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.banner.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+
+/* ---- payment card header ---- */
+.phead{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:16px 20px; margin-bottom:16px; }
+.phead-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:14px; flex-wrap:wrap; }
+.phead-name{ display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+.phead-name .nm{ font:var(--weight-semibold) 20px/1.2 var(--asubk-font); color:var(--text-heading); }
+.phead-name .amt{ font:var(--weight-bold) 20px/1.2 var(--asubk-font); color:var(--text-heading); }
+.phead-sub{ font:var(--font-label); color:var(--text-muted); margin-top:4px; }
+.phead-sub b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.phead-dims{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+@media(max-width:760px){ .phead-dims{ grid-template-columns:1fr; } }
+.dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:11px 14px; }
+.dim .dl{ font:var(--weight-regular) 11px/1 var(--asubk-font); color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:7px; }
+.dim .dv{ display:flex; align-items:center; gap:8px; }
+.dim .src{ font:var(--weight-regular) 11px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:6px; }
+
+/* ---- tabs ---- */
+.detail-tabbar{ display:flex; gap:2px; border-bottom:1px solid var(--border-default); margin-bottom:18px; overflow-x:auto; }
+.dtab{ flex:none; border:none; background:transparent; padding:11px 15px;
+  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
+.dtab:hover{ color:var(--text-body); }
+.dtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.dpanel{ display:none; }
+.dpanel.active{ display:block; }
+
+/* ---- allocation matrix ---- */
+.matrix{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; }
+.mx-layer{ border-bottom:1px solid var(--border-default); }
+.mx-layer:last-child{ border-bottom:none; }
+.mx-layer-h{ display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--surface-panel); cursor:pointer; user-select:none; }
+.mx-layer-h .chev{ display:inline-flex; color:var(--text-muted); transition:transform 120ms ease; }
+.mx-layer.open .mx-layer-h .chev{ transform:rotate(90deg); }
+.mx-layer-h .ml-title{ font:var(--weight-semibold) var(--text-sm)/1.2 var(--asubk-font); color:var(--text-heading); }
+.mx-layer-h .ml-mode{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); }
+.mx-layer-h .ml-sum{ margin-left:auto; font:var(--weight-bold) var(--text-sm)/1 var(--mono); color:var(--text-heading); }
+.mx-body{ display:none; }
+.mx-layer.open .mx-body{ display:block; }
+table.mxg{ width:100%; border-collapse:collapse; font:var(--font-label); }
+table.mxg th{ text-align:left; padding:7px 14px; font:var(--weight-medium) 12px/1 var(--asubk-font); color:var(--text-muted); background:var(--surface-hover); }
+table.mxg th.r{ text-align:right; }
+table.mxg td{ padding:7px 14px; border-top:1px solid var(--asubk-grid-line); }
+table.mxg td.r{ text-align:right; font:var(--weight-medium) 13px/1.4 var(--mono); }
+.urg{ font:var(--weight-medium) 11px/1 var(--asubk-font); padding:1px 6px; border-radius:var(--radius-pill); }
+.urg.over{ background:var(--status-error-bg); color:var(--asubk-red); }
+.urg.acc{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.urg.cur{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+
+/* ---- reconciliation split ---- */
+.recon-split{ display:grid; grid-template-columns:1fr 44px 1fr; gap:0; align-items:stretch; }
+@media(max-width:900px){ .recon-split{ grid-template-columns:1fr; } .recon-mid{ display:none !important; } }
+.recon-col{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; }
+.recon-col h4{ margin:0; padding:10px 14px; font:var(--weight-semibold) var(--text-sm)/1.2 var(--asubk-font);
+  background:var(--surface-panel); color:var(--text-heading); border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:8px; }
+.recon-mid{ display:flex; align-items:center; justify-content:center; color:var(--text-placeholder); }
+.kv{ display:grid; grid-template-columns:auto 1fr; gap:7px 14px; padding:14px; margin:0; }
+.kv dt{ font:var(--font-label); color:var(--text-muted); }
+.kv dd{ margin:0; font:var(--weight-medium) var(--text-sm)/1.4 var(--asubk-font); color:var(--text-body); }
+.kv dd.diff{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
+
+/* candidate suggestion rows */
+.cand{ display:flex; align-items:center; gap:12px; padding:11px 14px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); margin-bottom:8px; }
+.cand .ci{ flex:1; }
+.cand .ci .cn{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
+.cand .ci .cm{ font:var(--font-label); color:var(--text-muted); margin-top:2px; }
+
+/* ---- form ---- */
+.f2{ display:grid; grid-template-columns:1fr 1fr; gap:16px 32px; align-items:start; max-width:1100px; }
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field.col-span{ grid-column:1 / -1; }
+.field .flabel{ font:var(--font-label); color:var(--text-muted); }
+.field.req .flabel::after{ content:" •"; color:var(--action-danger); }
+.control{ position:relative; display:flex; align-items:center; }
+.control input, .control select, .note-area{ width:100%; height:var(--control-h); border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
+  border:1px solid var(--border-strong); outline:none; padding:0 var(--space-2); }
+.control select{ cursor:pointer; appearance:none; padding-right:30px; }
+.control input:focus, .control select:focus, .note-area:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.control input[readonly], .ro input{ background:var(--surface-input); color:var(--text-muted); border:1px solid transparent; cursor:default; }
+.control .caret{ position:absolute; right:9px; pointer-events:none; color:var(--text-muted); display:flex; }
+.note-area{ height:auto; min-height:74px; padding:10px 12px; resize:vertical; line-height:1.5; }
+
+/* ---- timeline (act lifecycle) ---- */
+.timeline{ display:flex; flex-wrap:wrap; gap:0; margin:2px 0 6px; }
+.tl-step{ display:flex; align-items:center; gap:8px; }
+.tl-dot{ width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font:var(--weight-bold) 12px/1 var(--asubk-font); flex:none; }
+.tl-dot.done{ background:var(--asubk-green); color:#fff; }
+.tl-dot.cur{ background:var(--asubk-blue); color:#fff; }
+.tl-dot.todo{ background:var(--surface-input); color:var(--text-placeholder); }
+.tl-lbl{ font:var(--font-label); color:var(--text-body); }
+.tl-lbl.todo{ color:var(--text-placeholder); }
+.tl-arrow{ color:var(--text-placeholder); margin:0 14px; display:flex; }
+
+/* ---- history ---- */
+.hist{ border-left:2px solid var(--border-strong); margin-left:6px; }
+.hrow{ position:relative; padding:10px 0 10px 22px; border-bottom:1px solid var(--asubk-grid-line); }
+.hrow::before{ content:""; position:absolute; left:-5px; top:16px; width:8px; height:8px; border-radius:50%; background:var(--asubk-blue); }
+.hrow.rev::before{ background:var(--asubk-red); }
+.hrow.res::before{ background:var(--asubk-green); }
+.hrow .hwhen{ font:var(--weight-medium) 13px/1.3 var(--asubk-font); color:var(--text-muted); }
+.hrow .hwhat{ font:var(--font-label); color:var(--text-body); margin-top:2px; }
+.hrow .hwho{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:2px; }
+
+/* dropzone */
+.dropzone{ border:1.5px dashed var(--border-strong); border-radius:var(--radius-md); padding:26px; text-align:center;
+  color:var(--text-muted); background:var(--surface-panel); cursor:pointer; margin-bottom:16px; }
+.dropzone:hover{ border-color:var(--asubk-blue); color:var(--text-link); }
+.dropzone svg{ margin-bottom:8px; }
+
+/* footer */
+.footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
+  padding:14px 20px; display:flex; align-items:center; gap:12px; z-index:5; }
+.footer .spacer{ flex:1; }
+
+/* modal */
+.overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:none; align-items:center; justify-content:center; z-index:60; padding:24px; }
+.overlay.open{ display:flex; }
+.modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(640px,100%); max-height:88vh;
+  display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(16,28,46,0.4); }
+.modal.wide{ width:min(860px,100%); }
+.modal-h{ padding:18px 24px 12px; display:flex; align-items:center; gap:10px; }
+.modal-h .mt{ font:var(--weight-bold) 19px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
+.modal-x{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); display:flex; padding:4px; }
+.modal-x:hover{ color:var(--text-body); }
+.modal-b{ padding:4px 24px 8px; overflow:auto; flex:1; }
+.modal-f{ padding:14px 24px 20px; display:flex; gap:12px; justify-content:flex-end; }
+
+/* toast */
+.toast-wrap{ position:fixed; right:20px; bottom:20px; display:flex; flex-direction:column; gap:10px; z-index:80; }
+.toast{ min-width:260px; max-width:440px; padding:12px 14px; border-radius:var(--radius-md);
+  background:var(--asubk-ink); color:#fff; font:var(--font-label); box-shadow:0 10px 30px rgba(16,28,46,0.3);
+  display:flex; gap:10px; align-items:flex-start; }
+.toast.ok{ background:var(--asubk-green); } .toast.warn{ background:var(--asubk-amber); } .toast.err{ background:var(--asubk-red); }
+
+.role-hint{ font:var(--font-label); color:var(--text-placeholder); display:inline-flex; align-items:center; gap:6px; }
+.legend{ display:flex; gap:16px; flex-wrap:wrap; font:var(--font-label); color:var(--text-muted); margin-top:12px; }
+.legend span{ display:inline-flex; align-items:center; gap:6px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav" id="nav"></div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="menu" title="Меню">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </span>
+      <span class="crumb-title" id="crumbTitle">Платежи</span>
+      <div class="role-wrap">
+        <label>Роль:</label>
+        <div class="rsel">
+          <select id="roleSel" onchange="onRoleChange()">
+            <option value="curator">Куратор отраслевого департамента</option>
+            <option value="accountant">Бухгалтер</option>
+            <option value="viewer">Наблюдатель</option>
+          </select>
+          <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        </div>
+      </div>
+    </header>
+
+    <div class="content" id="content"><!-- views injected --></div>
+  </div>
+</div>
+
+<div class="overlay" id="modalHost" onclick="if(event.target===this)closeModal()"></div>
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* ============================================================
+   ROLE + NAV
+   ============================================================ */
+let ROLE = 'curator';
+const ROLE_LABEL = { curator:'Куратор', accountant:'Бухгалтер', viewer:'Наблюдатель' };
+const can = {
+  freeze:   () => ROLE==='accountant',   // крыжение = заморозка — бухгалтер
+  unfreeze: () => ROLE==='accountant',   // разморозка — бухгалтер по решению комиссии
+  reverse:  () => ROLE==='accountant',   // сторно замороженного — бухгалтер по решению комиссии
+  allocate: () => ROLE==='curator',      // разнесение / переразнесение — куратор
+  initAct:  () => ROLE==='curator',      // акт сверки инициирует куратор
+  dispute:  () => ROLE==='curator',      // решение комиссии по спорной пене вносит куратор
+  match:    () => ROLE==='curator',      // сопоставление подтверждает куратор
+};
+
+const NAV = [
+  { id:'pay',        label:'Платежи',                icon:'coin' },
+  { id:'registry',   label:'Реестр ЦК',              icon:'file' },
+  { id:'recon',      label:'Сопоставление (сверка)', icon:'link', badge:()=>DATA.recon.filter(r=>r.outcome!=='ok').length },
+  { id:'unresolved', label:'Невыясненные',           icon:'help', badge:()=>DATA.unresolved.length },
+  { id:'acts',       label:'Акты сверки',            icon:'check' },
+];
+const ICONS = {
+  coin:'<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4"/>',
+  file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
+  link:'<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
+  help:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .3c0 1.7-2.5 2-2.5 3.7"/><path d="M12 17h.01"/>',
+  check:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+};
+function renderNav(){
+  const nav = document.getElementById('nav');
+  const item = n => {
+    const badge = n.badge ? n.badge() : 0;
+    const b = badge ? `<span class="cnt${n.id==='unresolved'?' mut':''}">${badge}</span>` : '';
+    return `<a class="nav-item${n.id===CUR_VIEW?' active':''}" onclick="go('${n.id}')">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[n.icon]}</svg>
+      <span>${n.label}</span>${b}</a>`;
+  };
+  const grp = (lbl,open,inner) => `<div class="nav-group${open?' open':''}">
+      <button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">
+        <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+        <span class="lbl">${lbl}</span>
+      </button><div class="nav-children">${inner}</div></div>`;
+  nav.innerHTML =
+    grp('Учёт и сверка платежей', true, NAV.map(item).join('')) +
+    grp('Кредиты и транши', false, '<a class="nav-item" onclick="toast(\'Демо-макет: активен модуль платежей\')">Кредиты</a>') +
+    grp('Взыскание задолженности', false, '<a class="nav-item" onclick="toast(\'Демо-макет: активен модуль платежей\')">Процессы взыскания</a>') +
+    grp('Справочники', false, '<a class="nav-item" onclick="toast(\'Демо-макет: активен модуль платежей\')">Справочники</a>');
+}
+
+/* ============================================================
+   AXIS RENDERERS — три независимые оси состояния (шов №2)
+   ============================================================ */
+const REG = {
+  manual:  { t:'Ручной ввод', cls:'neutral' },
+  gateway: { t:'Шлюз',        cls:'purple'  },
+  cbk:     { t:'Импорт ЦК',   cls:'info'    },
+};
+const MATCH = {
+  pending:   { t:'Ожидает ЦК',       cls:'warn' },
+  confirmed: { t:'Подтверждён ЦК',   cls:'ok' },
+  reversed:  { t:'Сторно (таймаут)', cls:'err' },
+  restored:  { t:'Восстановлен',     cls:'ok' },
+  mismatch:  { t:'Расхождение',      cls:'warn' },
+};
+const FRZ = {
+  open:   { t:'Не заморожен', cls:'neutral' },
+  frozen: { t:'Крыжён',       cls:'info' },
+};
+const pill = (o) => `<span class="pill ${o.cls}"><span class="dot"></span>${o.t}</span>`;
+const money = v => v==null? '—' : v.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});
+function axes(p){ return `<div class="axes">${pill(REG[p.reg])}${pill(MATCH[p.match])}${pill(FRZ[p.frozen])}</div>`; }
+
+/* ============================================================
+   SAMPLE DATA — иллюстрирует согласованную логику спеки.
+   ============================================================ */
+const DATA = {
+  timeoutDays: 14,   // настраиваемый параметр с историей (шов №3, §4.2)
+
+  payments: [
+    { id:'P-2041', number:'ПЛ-2041', date:'02.07.2026', amount:42600.00, currency:'KGS',
+      reg:'gateway', match:'pending', frozen:'open',
+      borrower:'ОсОО «Бек Кабель»', inn:'01912201610212', credit:'Дог. №56 от 10.04.2024',
+      gatewayAccount:'проценты', kind:'Денежные средства',
+      note:'Оплата по дог.56 Бек Кабель, проц.', clean:false,
+      dispute:null, allocation:'A1', deadline:'16.07.2026', daysLeft:4,
+      hist:[ {when:'02.07.2026 11:14', what:'Поступление по шлюзу зачтено датой операции. Долг уменьшен, начисление остановлено.', who:'система (шлюз)', cls:''} ] },
+
+    { id:'P-2038', number:'ПЛ-2038', date:'14.06.2026', amount:120000.00, currency:'KGS',
+      reg:'gateway', match:'reversed', frozen:'open',
+      borrower:'ИП Асанов Т.К.', inn:'22505199800341', credit:'Дог. №112 от 03.02.2025',
+      gatewayAccount:'основная сумма', kind:'Денежные средства',
+      note:'Погашение 112', clean:true,
+      dispute:{ amount:3180.00, from:'14.06.2026', to:'29.06.2026', status:'pending' },
+      allocation:'A2', deadline:'28.06.2026', daysLeft:-13,
+      hist:[
+        {when:'14.06.2026 09:02', what:'Поступление по шлюзу зачтено датой операции.', who:'система (шлюз)', cls:''},
+        {when:'24.06.2026', what:'Предупреждение куратору: до автосторно 4 дня, подтверждение ЦК не пришло.', who:'система', cls:''},
+        {when:'29.06.2026 03:00', what:'Автосторно по таймауту (14 дн от даты операции). Долг восстановлен задним числом, пеня периода помечена спорной (3 180,00).', who:'система (ночной расчёт)', cls:'rev'},
+      ] },
+
+    { id:'P-2033', number:'ПЛ-2033', date:'20.05.2026', amount:75000.00, currency:'KGS',
+      reg:'gateway', match:'restored', frozen:'open',
+      borrower:'ОсОО «Ак-Суу Агро»', inn:'00110201512233', credit:'Дог. №78 от 15.09.2024',
+      gatewayAccount:'основная сумма', kind:'Денежные средства',
+      note:'взнос Ак-Суу', clean:true,
+      dispute:{ amount:1560.00, from:'20.05.2026', to:'05.06.2026', status:'auto_cleared' },
+      allocation:'A2', deadline:'—', daysLeft:null,
+      hist:[
+        {when:'20.05.2026 15:40', what:'Поступление по шлюзу зачтено датой операции.', who:'система (шлюз)', cls:''},
+        {when:'05.06.2026 03:00', what:'Автосторно по таймауту. Пеня периода помечена спорной (1 560,00).', who:'система', cls:'rev'},
+        {when:'21.06.2026', what:'Позднее подтверждение ЦК (реестр за май пришёл почтой). Платёж восстановлен, обратный каскад пересчёта. Спорная пеня снята автоматически — комиссия не нужна.', who:'система', cls:'res'},
+      ] },
+
+    { id:'P-2029', number:'ПЛ-2029', date:'12.05.2026', amount:250000.00, currency:'KGS',
+      reg:'manual', match:'confirmed', frozen:'frozen',
+      borrower:'ОсОО «Бек Кабель»', inn:'01912201610212', credit:'Дог. №56 от 10.04.2024',
+      gatewayAccount:null, kind:'Денежные средства',
+      note:'п/д ЦК №3391, Бек Кабель дог.56', clean:false,
+      dispute:null, allocation:'A3', deadline:'—', daysLeft:null,
+      hist:[
+        {when:'12.05.2026', what:'Внесён куратором по списку ЦК (почта).', who:'Куратор · Ж.Осмонова', cls:''},
+        {when:'18.05.2026', what:'Совпало 1:1 с записью реестра ЦК №3391. Подтверждён.', who:'Куратор · Ж.Осмонова', cls:''},
+        {when:'19.05.2026', what:'Крыжён (заморожен) по положительной сверке.', who:'Бухгалтер · А.Иманкулова', cls:''},
+      ] },
+
+    { id:'P-2025', number:'ПЛ-2025', date:'28.04.2026', amount:18000.00, currency:'KGS',
+      reg:'manual', match:'mismatch', frozen:'open',
+      borrower:'КХ «Джерге-Тал»', inn:'33701200900122', credit:'Дог. №90 от 01.11.2024',
+      gatewayAccount:null, kind:'Денежные средства',
+      note:'п/д ЦК №3288', clean:true,
+      dispute:null, allocation:'A2', deadline:'—', daysLeft:null,
+      hist:[
+        {when:'28.04.2026', what:'Внесён куратором. Сумма 18 000,00.', who:'Куратор · Ж.Осмонова', cls:''},
+        {when:'06.05.2026', what:'Расхождение реквизитов: в реестре ЦК сумма 18 500,00. Требуется корректировка с основанием.', who:'Куратор · Ж.Осмонова', cls:'rev'},
+      ] },
+
+    { id:'P-2018', number:'ПЛ-2018', date:'15.04.2026', amount:500000.00, currency:'KGS',
+      reg:'cbk', match:'confirmed', frozen:'frozen',
+      borrower:'ОсОО «Тянь-Шань Строй»', inn:'02202201611109', credit:'Дог. №44 от 20.06.2024',
+      gatewayAccount:null, kind:'По решению суда',
+      note:'ПССИ, ИЛ №2 по реш. суда от 12.03.2026', clean:false,
+      dispute:null, allocation:'A4', deadline:'—', daysLeft:null,
+      hist:[
+        {when:'15.04.2026', what:'Загружен из реестра ЦК. Назначение: ИЛ №2 (ПССИ).', who:'система (импорт ЦК)', cls:''},
+        {when:'16.04.2026', what:'Разнесён в слой решения №2 по указанию на конкретный ИЛ (перебивает дефолт по дате). Отклонение от дефолта зафиксировано.', who:'Куратор · Ж.Осмонова', cls:''},
+        {when:'22.04.2026', what:'Крыжён по положительной сверке.', who:'Бухгалтер · А.Иманкулова', cls:''},
+      ] },
+  ],
+
+  registry: [
+    { doc:'3391', date:'11.05.2026', amount:250000.00, payer:'ОсОО «Бек Кабель»', note:'дог.56 проценты и ОД', matched:'P-2029' },
+    { doc:'3288', date:'27.04.2026', amount:18500.00,  payer:'КХ «Джерге-Тал»',   note:'дог.90', matched:'P-2025', mismatch:true },
+    { doc:'3402', date:'19.05.2026', amount:75000.00,  payer:'ОсОО «Ак-Суу Агро»', note:'май, дог.78', matched:'P-2033' },
+    { doc:'3455', date:'05.06.2026', amount:64000.00,  payer:'Бакиров Н.А.',        note:'частичное погашение', matched:null },
+    { doc:'3391', date:'11.05.2026', amount:250000.00, payer:'ОсОО «Бек Кабель»', note:'дог.56 (уточнённый реестр)', matched:'P-2029', dup:true },
+  ],
+
+  recon: [
+    { id:'M1', outcome:'ok',        pay:'P-2029', reg:'3391', title:'Совпало 1:1', detail:'Реквизиты платежа и записи ЦК идентичны.' },
+    { id:'M2', outcome:'mismatch',  pay:'P-2025', reg:'3288', title:'Расхождение реквизитов', detail:'Сумма: у нас 18 000,00 · в ЦК 18 500,00.' },
+    { id:'M3', outcome:'ours_only', pay:'P-2041', reg:null,   title:'Есть у нас, нет в ЦК', detail:'Платёж по шлюзу, подтверждение ЦК ещё не пришло. Ожидает.' },
+    { id:'M4', outcome:'cbk_only',  pay:null,     reg:'3455', title:'Есть в ЦК, нет у нас', detail:'Плательщик «Бакиров Н.А.» — привязка к кредиту не распознана.' },
+  ],
+
+  unresolved: [
+    { id:'U-118', regDoc:'3455', date:'05.06.2026', amount:64000.00, payer:'Бакиров Н.А.',
+      note:'частичное погашение', reason:'ФИО не распознано (возможны однофамильцы)',
+      candidates:[
+        { credit:'Дог. №61 от 08.07.2024', borrower:'Бакиров Нурлан Асанович', score:'ФИО частично' },
+        { credit:'Дог. №73 от 19.10.2024', borrower:'Бакиров Нуртай Акматович', score:'ФИО частично' },
+      ] },
+    { id:'U-121', regDoc:'3468', date:'09.06.2026', amount:9500.00, payer:'—',
+      note:'без назначения', reason:'ничего не распознано', candidates:[] },
+  ],
+
+  acts: [
+    { id:'AS-14', period:'Май 2026', borrower:'ОсОО «Бек Кабель»', state:'signed',
+      created:'01.06.2026', frozenCount:3, sum:512600.00, initiator:'Куратор · Ж.Осмонова' },
+    { id:'AS-15', period:'Июнь 2026', borrower:'ОсОО «Тянь-Шань Строй»', state:'agreed',
+      created:'02.07.2026', frozenCount:2, sum:500000.00, initiator:'Куратор · Ж.Осмонова' },
+    { id:'AS-16', period:'Июнь 2026', borrower:'ИП Асанов Т.К.', state:'formed',
+      created:'05.07.2026', frozenCount:1, sum:0.00, initiator:'Куратор · Ж.Осмонова' },
+  ],
+
+  // разнесение (матрица слой→категория→срочность, шов №4/№5)
+  alloc: {
+    A3: { total:250000, layers:[
+      { name:'Свободный слой', mode:'по договору: проценты + график + пеня', sum:250000, cats:[
+        { cat:'Пеня',          rows:[ {urg:'over', label:'просроченная', v:12000} ] },
+        { cat:'Проценты',      rows:[ {urg:'over', label:'просроченные', v:38000}, {urg:'acc', label:'накопленные', v:20000} ] },
+        { cat:'Основной долг', rows:[ {urg:'over', label:'просроченный', v:90000}, {urg:'cur', label:'текущий', v:90000} ] },
+      ]},
+    ]},
+    A4: { total:500000, layers:[
+      { name:'Слой решения №2 (ИЛ №2)', mode:'проценты и пеня приостановлены (реш. с 05.09.2025)', sum:500000, cats:[
+        { cat:'Основной долг (присуждённый)', rows:[ {urg:'over', label:'по ИЛ №2', v:500000} ] },
+      ]},
+      { name:'Слой решения №1 (ИЛ №1)', mode:'проценты идут, пеня приостановлена (реш. до 05.09.2025)', sum:0, cats:[
+        { cat:'—', rows:[ {urg:'cur', label:'в этом платеже не затронут', v:0} ] },
+      ]},
+      { name:'Свободный слой', mode:'полностью по договору', sum:0, cats:[
+        { cat:'—', rows:[ {urg:'cur', label:'в этом платеже не затронут', v:0} ] },
+      ]},
+    ]},
+    A1: { total:42600, layers:[
+      { name:'Свободный слой', mode:'по договору', sum:42600, cats:[
+        { cat:'Пеня',     rows:[ {urg:'over', label:'просроченная', v:2600} ] },
+        { cat:'Проценты', rows:[ {urg:'over', label:'просроченные', v:40000} ] },
+      ]},
+    ]},
+    A2: { total:0, layers:[] },
+  },
+};
+
+/* ============================================================
+   VIEW ROUTER
+   ============================================================ */
+let CUR_VIEW = 'pay';
+let curPayment = null, curAct = null;
+
+function go(v){ CUR_VIEW = v; curPayment=null; curAct=null; render(); }
+function render(){
+  renderNav();
+  const titles = { pay:'Платежи', registry:'Реестр ЦК', recon:'Сопоставление (сверка)',
+                   unresolved:'Невыясненные поступления', acts:'Акты сверки' };
+  document.getElementById('crumbTitle').textContent =
+    curPayment ? curPayment.number : (curAct ? 'Акт сверки '+curAct.id : titles[CUR_VIEW]);
+  const c = document.getElementById('content');
+  if(curPayment) return void(c.innerHTML = paymentDetail(curPayment));
+  if(curAct)     return void(c.innerHTML = actDetail(curAct));
+  c.innerHTML = ({ pay:viewPayments, registry:viewRegistry, recon:viewRecon,
+                   unresolved:viewUnresolved, acts:viewActs })[CUR_VIEW]();
+}
+
+const roleHint = (allowed, txt) => allowed ? '' :
+  `<span class="role-hint"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>${txt}</span>`;
+
+/* ============================================================
+   VIEW: ПЛАТЕЖИ (список)
+   ============================================================ */
+function viewPayments(){
+  const rows = DATA.payments.map(p=>{
+    const disp = p.dispute && p.dispute.status==='pending'
+      ? ` <span class="pill err" title="Спорная пеня на решении комиссии">спорн. пеня</span>` : '';
+    return `<tr onclick="openPayment('${p.id}')">
+      <td class="mono">${p.number}</td>
+      <td>${p.date}</td>
+      <td>${p.borrower}<div style="font:var(--font-label);color:var(--text-muted)">${p.credit}</div></td>
+      <td class="r num">${money(p.amount)}</td>
+      <td>${axes(p)}${disp}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="view active"><div class="page-pad">
+    <h2 class="section-h">Платежи</h2>
+    <p class="section-note">Каждый платёж несёт <b>три независимые оси состояния</b> — регистрация · сопоставление · заморозка (шов №2). Их нельзя схлопывать в единый «статус». Платёж по шлюзу действует до подтверждения ЦК; статус сопоставления не терминален (возможны сторно и восстановление).</p>
+    <div class="gtoolbar">
+      <button class="btn btn-success btn-sm" onclick="modalNewPayment()">＋ Внести платёж</button>
+      <div class="seg"><button class="on">Все</button><button onclick="toast('Демо: фильтр не реализован')">Ожидают ЦК</button><button onclick="toast('Демо: фильтр не реализован')">Сторно</button><button onclick="toast('Демо: фильтр не реализован')">Крыжёные</button></div>
+      <div class="spacer"></div>
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input placeholder="Номер, заёмщик, кредит…"></div>
+    </div>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Номер</th><th>Дата</th><th>Заёмщик / кредит</th><th class="r">Сумма, сом</th><th>Состояние (3 оси)</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <div class="legend">
+      <span>${pill(REG.gateway)} — источник поступления</span>
+      <span>${pill(MATCH.pending)} — сопоставление с ЦК</span>
+      <span>${pill(FRZ.frozen)} — крыжение (заморозка)</span>
+    </div>
+  </div></div>`;
+}
+
+/* ============================================================
+   VIEW: КАРТОЧКА ПЛАТЕЖА
+   ============================================================ */
+let payTab = 'req';
+function openPayment(id){ curPayment = DATA.payments.find(p=>p.id===id); payTab='req'; render(); }
+function setPayTab(t){ payTab=t; render(); }
+
+function paymentDetail(p){
+  const disputePending = p.dispute && p.dispute.status==='pending';
+  let banner='';
+  if(p.match==='reversed') banner = `<div class="banner err"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 9-9 9 9 0 0 0-6.7 3"/><path d="M3 3v5h5"/></svg><div><b>Автосторно по таймауту.</b> Подтверждение ЦК не пришло за ${DATA.timeoutDays} дн от даты операции. Долг восстановлен задним числом, каскад пересчёта прогнан. Пеня периода помечена <b>спорной</b> и ждёт решения комиссии — в требование не входит. Статус не терминален: при позднем подтверждении платёж восстанавливается.</div></div>`;
+  if(p.match==='restored') banner = `<div class="banner ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Платёж восстановлен после позднего подтверждения ЦК.</b> Обратный каскад пересчёта прогнан, спорная пеня снята <b>автоматически</b> — комиссия не потребовалась.</div></div>`;
+  if(p.match==='pending')  banner = `<div class="banner warn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>Платёж по шлюзу действует, ждёт подтверждения ЦК.</b> До автосторно ${p.daysLeft} дн (таймаут ${DATA.timeoutDays} дн от даты операции ${p.date}). Значение таймаута берётся на дату операции — смена настройки не переигрывает закрытые платежи.</div></div>`;
+  if(p.match==='mismatch') banner = `<div class="banner warn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg><div><b>Расхождение реквизитов с реестром ЦК.</b> Требуется корректировка с указанием основания (сумма у нас ≠ сумме ЦК).</div></div>`;
+
+  const tabs = [ ['req','Реквизиты'], ['alloc','Разнесение'], ['dispute','Спорная пеня'], ['hist','История'] ];
+
+  return `<div class="view active">
+    <div class="page-pad" style="padding-bottom:80px">
+      ${banner}
+      <div class="phead">
+        <div class="phead-top">
+          <div>
+            <div class="phead-name"><span class="nm">${p.number}</span><span class="amt num">${money(p.amount)} ${p.currency}</span></div>
+            <div class="phead-sub"><b>${p.borrower}</b> · ИНН ${p.inn} · <b>${p.credit}</b> · вид: ${p.kind}</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${payActions(p)}</div>
+        </div>
+        <div class="phead-dims">
+          <div class="dim"><div class="dl">Ось 1 · Регистрация</div><div class="dv">${pill(REG[p.reg])}</div><div class="src">как платёж попал в систему</div></div>
+          <div class="dim"><div class="dl">Ось 2 · Сопоставление с ЦК</div><div class="dv">${pill(MATCH[p.match])}</div><div class="src">${p.match==='pending'?'подтверждение ещё не пришло':p.match==='confirmed'?'совпало 1:1 с реестром ЦК':p.match==='reversed'?'таймаут — ждёт восстановления или комиссии':p.match==='restored'?'позднее подтверждение':'реквизиты расходятся'}</div></div>
+          <div class="dim"><div class="dl">Ось 3 · Заморозка</div><div class="dv">${pill(FRZ[p.frozen])}</div><div class="src">${p.frozen==='frozen'?'крыжён бухгалтерией':'редактирование разрешено'}</div></div>
+        </div>
+      </div>
+
+      <div class="detail-tabbar">${tabs.map(([k,l])=>`<button class="dtab${payTab===k?' active':''}" onclick="setPayTab('${k}')">${l}${k==='dispute'&&disputePending?' <span class="pill err" style="margin-left:4px">!</span>':''}</button>`).join('')}</div>
+
+      <div class="dpanel${payTab==='req'?' active':''}">${payReq(p)}</div>
+      <div class="dpanel${payTab==='alloc'?' active':''}">${payAlloc(p)}</div>
+      <div class="dpanel${payTab==='dispute'?' active':''}">${payDispute(p)}</div>
+      <div class="dpanel${payTab==='hist'?' active':''}">${payHist(p)}</div>
+    </div>
+    <div class="footer">
+      <button class="btn btn-secondary" onclick="go('pay')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Закрыть</button>
+      <div class="spacer"></div>
+      <span class="role-hint">Роль: ${ROLE_LABEL[ROLE]}</span>
+    </div>
+  </div>`;
+}
+
+function payActions(p){
+  const a=[];
+  if(p.frozen==='open'){
+    const canFrz = p.match==='confirmed' || p.match==='restored';
+    if(can.freeze()){
+      a.push(`<button class="btn btn-primary btn-sm"${canFrz?'':' disabled'} title="${canFrz?'':'Заморозка только по положительной сверке'}" onclick="act('freeze','${p.id}')">Крыжить (заморозить)</button>`);
+    } else { a.push(roleHint(false,'Крыжит бухгалтер')); }
+    if(p.match==='mismatch' && can.match()) a.push(`<button class="btn btn-secondary btn-sm" onclick="act('correct','${p.id}')">Корректировать с основанием</button>`);
+  } else {
+    if(can.unfreeze()){
+      a.push(`<button class="btn btn-secondary btn-sm" onclick="act('unfreeze','${p.id}')">Разморозить (реш. комиссии)</button>`);
+      a.push(`<button class="btn btn-tint danger btn-sm" onclick="act('reverse','${p.id}')">Сторно целиком</button>`);
+    } else { a.push(roleHint(false,'Размораживает бухгалтер')); }
+  }
+  if(p.match==='reversed' && can.match()) a.push(`<button class="btn btn-success btn-sm" onclick="act('restore','${p.id}')">Восстановить (ЦК подтвердил)</button>`);
+  return a.join('');
+}
+
+function payReq(p){
+  const ro = p.frozen==='frozen' || ROLE==='viewer';
+  return `<div class="f2">
+    <div class="field"><label class="flabel">Номер платежа</label><div class="control ro"><input value="${p.number}" readonly></div></div>
+    <div class="field"><label class="flabel">Дата (фактического поступления денег)</label><div class="control ro"><input value="${p.date}" readonly></div></div>
+    <div class="field"><label class="flabel">Сумма</label><div class="control ${ro?'ro':''}"><input value="${money(p.amount)}" ${ro?'readonly':''}></div></div>
+    <div class="field"><label class="flabel">Валюта</label><div class="control ro"><input value="${p.currency}" readonly></div></div>
+    <div class="field"><label class="flabel">Источник (source)</label><div class="control ro"><input value="${REG[p.reg].t}" readonly></div></div>
+    <div class="field"><label class="flabel">Вид погашения (kind)</label><div class="control ro"><input value="${p.kind}" readonly></div></div>
+    <div class="field"><label class="flabel">Кредит</label><div class="control ro"><input value="${p.credit}" readonly></div></div>
+    <div class="field"><label class="flabel">Счёт зачисления шлюза (намерение заёмщика)</label><div class="control ro"><input value="${p.gatewayAccount? p.gatewayAccount+(p.clean?'':' — не исполнен, перебит очередью'):'— (не шлюз)'}" readonly></div></div>
+    <div class="field col-span"><label class="flabel">Примечание платёжного документа (ключа сопоставления нет — разносим по нему)</label><div class="control ro"><input value="${p.note}" readonly></div></div>
+    ${p.frozen==='frozen'?`<div class="field col-span"><div class="banner info" style="margin:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><div>Платёж <b>крыжён</b>. Реквизиты факта (сумма, дата, номер, кредит) заблокированы. После разморозки куратор правит <b>только перераспределение</b> между ОД / % / штрафами; факт поступления неприкосновенен.</div></div></div>`:''}
+  </div>`;
+}
+
+function payAlloc(p){
+  const al = DATA.alloc[p.allocation];
+  if(!al || !al.layers.length) return `<div class="banner info" style="margin:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/></svg><div>Разнесение по этому платежу не показано в демо-данных (сторнированный / восстановленный платёж — разнесение снято каскадом).</div></div>`;
+  const layers = al.layers.map((L,i)=>{
+    const rows = L.cats.map(c=> c.rows.map(r=>`<tr><td>${c.cat}</td><td><span class="urg ${r.urg}">${r.label}</span></td><td class="r">${money(r.v)}</td></tr>`).join('') ).join('');
+    return `<div class="mx-layer${i===0?' open':''}">
+      <div class="mx-layer-h" onclick="this.parentNode.classList.toggle('open')">
+        <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+        <span class="ml-title">${L.name}</span><span class="ml-mode">— ${L.mode}</span>
+        <span class="ml-sum num">${money(L.sum)}</span>
+      </div>
+      <div class="mx-body"><table class="mxg">
+        <thead><tr><th>Категория</th><th>Срочность</th><th class="r">Сумма, сом</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </div>`;
+  }).join('');
+  return `<p class="section-note" style="margin-bottom:14px">Разнесение — <b>трёхуровневая матрица</b> (шов №4): слой (решение суда) → категория (комиссия · пеня · проценты · ОД, порядок из договора) → срочность (просрочено → накоплено → текущее). Плоская четвёрка колонок недостаточна. Начисление идёт <b>по слоям</b>: у каждого слоя свой режим (шов №5).</p>
+    <div class="matrix">${layers}</div>
+    <div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap">
+      ${can.allocate() ? `<button class="btn btn-secondary btn-sm" onclick="toast('Демо: ручное переразнесение — куратор вправе переопределить авторасчёт с основанием')">Переразнести вручную (с основанием)</button>` : roleHint(false,'Разносит куратор')}
+      <span class="role-hint">Автоматика предлагает — куратор вправе переопределить. Расхождение остаётся в аудите.</span>
+    </div>`;
+}
+
+function payDispute(p){
+  if(!p.dispute) return `<div class="banner ok" style="margin:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg><div>Спорной пени по этому платежу нет.</div></div>`;
+  const d = p.dispute;
+  if(d.status==='auto_cleared') return `<div class="banner ok" style="margin:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg><div>Спорная пеня <b>${money(d.amount)}</b> за период ${d.from} → ${d.to} снята <b>автоматически</b> при восстановлении платежа. Комиссия не потребовалась.</div></div>`;
+  return `<div class="banner warn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>Спорная пеня ${money(d.amount)}</b> за период ${d.from} → ${d.to} (сторно задним числом). Пеня <b>вычислена, но помечена спорной</b>: не входит в требование, не влияет на фазу взыскания, не двигает категорию риска, не блокирует акт сверки. До решения комиссии долг заёмщика по ней не растёт.</div></div>
+  <p class="section-note">Вопрос уходит на комиссию <b>вне АСУБК</b> (повестка/голосование не моделируются). Куратор вносит только окончательное решение реквизитами платежа:</p>
+  <div class="f2" style="max-width:720px">
+    <div class="field"><label class="flabel">Исход решения</label><div class="control"><select ${ROLE==='curator'?'':'disabled'}><option>начислить</option><option>не начислять</option><option>начислить частично</option></select><span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div></div>
+    <div class="field"><label class="flabel">Сумма (для частичного)</label><div class="control"><input placeholder="0,00" ${ROLE==='curator'?'':'readonly'}></div></div>
+    <div class="field"><label class="flabel">Номер протокола (текстом)</label><div class="control"><input placeholder="напр. ПК-2026/47" ${ROLE==='curator'?'':'readonly'}></div></div>
+    <div class="field"><label class="flabel">Дата решения</label><div class="control"><input placeholder="дд.мм.гггг" ${ROLE==='curator'?'':'readonly'}></div></div>
+    <div class="field col-span"><label class="flabel">Основание / примечание</label><textarea class="note-area" ${ROLE==='curator'?'':'readonly'}></textarea></div>
+  </div>
+  <div style="margin-top:14px">${can.dispute()?`<button class="btn btn-primary btn-sm" onclick="toast('Демо: решение комиссии внесено. Спорная пеня становится обычной либо аннулируется с основанием.','ok')">Внести решение комиссии</button>`:roleHint(false,'Решение вносит куратор')}</div>`;
+}
+
+function payHist(p){
+  return `<div class="hist">${p.hist.map(h=>`<div class="hrow ${h.cls}"><div class="hwhen">${h.when}</div><div class="hwhat">${h.what}</div><div class="hwho">${h.who}</div></div>`).join('')}</div>`;
+}
+
+/* ============================================================
+   VIEW: РЕЕСТР ЦК
+   ============================================================ */
+function viewRegistry(){
+  const rows = DATA.registry.map(r=>{
+    const badge = r.dup ? `<span class="pill neutral" title="Дедупликация по ключу: № документа + дата + сумма">дубль — отсеян</span>`
+      : r.mismatch ? `<span class="pill warn">расхождение</span>`
+      : r.matched ? `<span class="pill ok">сопоставлен ${r.matched}</span>`
+      : `<span class="pill err">нет пары</span>`;
+    return `<tr class="${r.dup?'muted':''}">
+      <td class="mono">№${r.doc}</td><td>${r.date}</td><td class="r num">${money(r.amount)}</td>
+      <td>${r.payer}</td><td>${r.note}</td><td>${badge}</td></tr>`;
+  }).join('');
+  return `<div class="view active"><div class="page-pad">
+    <h2 class="section-h">Реестр ЦК</h2>
+    <p class="section-note">Запись реестра ЦК — <b>внешний факт</b> (шов №1), отдельная сущность от платежа. Не редактируется — только перезагрузка и пересопоставление. Ключ дедупликации при повторной загрузке: <code>№ платёжного документа ЦК + дата + сумма</code> — иначе уточнённый реестр задваивает платежи.</p>
+    <div class="dropzone" onclick="toast('Демо: загрузка файла реестра ЦК (почта) или импорт по интеграции')">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
+      <div>Загрузить файл реестра ЦК <span style="color:var(--text-placeholder)">(.xlsx / .csv из почты)</span></div>
+    </div>
+    <div class="banner info"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><div>При повторной загрузке за май обнаружена <b>1 дублирующая строка</b> (№3391) — отсеяна по ключу дедупликации. Уточнённый реестр не задвоил платёж.</div></div>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>№ документа ЦК</th><th>Дата</th><th class="r">Сумма, сом</th><th>Плательщик</th><th>Примечание</th><th>Сопоставление</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div></div>`;
+}
+
+/* ============================================================
+   VIEW: СОПОСТАВЛЕНИЕ (СВЕРКА) — 4 исхода
+   ============================================================ */
+function viewRecon(){
+  return `<div class="view active"><div class="page-pad">
+    <h2 class="section-h">Сопоставление (сверка)</h2>
+    <p class="section-note">Сверка — это <b>сопоставление</b> платежа (наш учёт) и записи реестра ЦК (внешний факт), а не статус одной записи. Отсюда <b>четыре исхода</b>, а не два. Ключа сопоставления нет — разносим по примечанию: <b>система предлагает, куратор подтверждает</b> (автопривязка запрещена).</p>
+    ${DATA.recon.map(reconCard).join('')}
+  </div></div>`;
+}
+function reconCard(m){
+  const pay = m.pay ? DATA.payments.find(p=>p.id===m.pay) : null;
+  const reg = m.reg ? DATA.registry.find(r=>r.doc===m.reg && !r.dup) : null;
+  const badge = { ok:'pill ok', mismatch:'pill warn', ours_only:'pill err', cbk_only:'pill err' }[m.outcome];
+  const ourCol = pay ? `<dl class="kv">
+    <dt>Номер</dt><dd class="mono">${pay.number}</dd>
+    <dt>Дата</dt><dd>${pay.date}</dd>
+    <dt>Сумма</dt><dd class="num${m.outcome==='mismatch'?' diff':''}">${money(pay.amount)}</dd>
+    <dt>Заёмщик</dt><dd>${pay.borrower}</dd>
+    <dt>Источник</dt><dd>${REG[pay.reg].t}</dd></dl>`
+    : `<div class="cgrid-empty">Пары нет — платёж отсутствует</div>`;
+  const cbkCol = reg ? `<dl class="kv">
+    <dt>№ док. ЦК</dt><dd class="mono">№${reg.doc}</dd>
+    <dt>Дата</dt><dd>${reg.date}</dd>
+    <dt>Сумма</dt><dd class="num${m.outcome==='mismatch'?' diff':''}">${money(reg.amount)}</dd>
+    <dt>Плательщик</dt><dd>${reg.payer}</dd>
+    <dt>Примечание</dt><dd>${reg.note}</dd></dl>`
+    : `<div class="cgrid-empty">Пары нет — записи ЦК отсутствует</div>`;
+
+  let action='';
+  if(m.outcome==='ok')        action = can.match()?`<button class="btn btn-success btn-sm" onclick="toast('Совпало 1:1 — платёж готов к заморозке','ok')">Подтвердить сопоставление</button>`:roleHint(false,'Подтверждает куратор');
+  if(m.outcome==='mismatch')  action = can.match()?`<button class="btn btn-secondary btn-sm" onclick="toast('Демо: корректировка платежа с указанием основания')">Корректировать (с основанием)</button>`:roleHint(false,'Корректирует куратор');
+  if(m.outcome==='ours_only') action = `<span class="role-hint">Платёж по шлюзу ждёт подтверждения ЦК. При истечении таймаута → ветка сторно.</span>`;
+  if(m.outcome==='cbk_only')  action = can.match()?`<button class="btn btn-primary btn-sm" onclick="go('unresolved')">В невыясненные → подобрать хозяина</button>`:roleHint(false,'Разбирает куратор');
+
+  return `<div style="border:1px solid var(--border-default);border-radius:var(--radius-md);padding:16px 18px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <span class="${badge}"><span class="dot"></span>Исход: ${m.title}</span>
+      <span class="section-note" style="margin:0">${m.detail}</span>
+    </div>
+    <div class="recon-split">
+      <div class="recon-col"><h4><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4"/></svg>Платёж (наш учёт)</h4>${ourCol}</div>
+      <div class="recon-mid"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+      <div class="recon-col"><h4><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Запись реестра ЦК</h4>${cbkCol}</div>
+    </div>
+    <div style="margin-top:14px">${action}</div>
+  </div>`;
+}
+
+/* ============================================================
+   VIEW: НЕВЫЯСНЕННЫЕ ПОСТУПЛЕНИЯ (буфер)
+   ============================================================ */
+function viewUnresolved(){
+  const cards = DATA.unresolved.map(u=>{
+    const cands = u.candidates.length ? u.candidates.map(c=>`
+      <div class="cand">
+        <span class="pill warn" title="Только ФИО — нечёткое, возможны однофамильцы">${c.score}</span>
+        <div class="ci"><div class="cn">${c.borrower}</div><div class="cm">${c.credit}</div></div>
+        ${can.match()?`<button class="btn btn-secondary btn-sm" onclick="toast('Демо: куратор выбрал кандидата. Дата платежа = дата поступления ${u.date}, запускается обратный каскад + уведомление взыскания.','ok')">Привязать</button>`:''}
+      </div>`).join('')
+      : `<div class="banner err" style="margin:8px 0 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><div>Ничего не распознано — кандидатов нет. Висит бессрочно до опознания (срока автосписания нет).</div></div>`;
+    return `<div style="border:1px solid var(--border-default);border-radius:var(--radius-md);padding:16px 18px;margin-bottom:16px">
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+        <span class="phead-name" style="gap:8px"><span class="nm" style="font-size:17px">${u.id}</span><span class="amt num" style="font-size:17px">${money(u.amount)} сом</span></span>
+        <span class="section-note" style="margin:0">реестр ЦК №${u.regDoc} · ${u.date} · плательщик: ${u.payer} · примечание: «${u.note}»</span>
+      </div>
+      <div class="banner warn" style="margin:8px 0 12px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg><div>Причина: ${u.reason}. Деньги <b>видны, но долг не гасят</b>. При опознании: <b>дата платежа = дата поступления ${u.date}</b>, не дата опознания → обратный каскад пересчёта + уведомление взыскания.</div></div>
+      <div style="font:var(--weight-semibold) 14px/1.2 var(--asubk-font);color:var(--text-heading);margin-bottom:8px">Кандидаты (система предлагает — куратор подтверждает)</div>
+      ${cands}
+    </div>`;
+  }).join('');
+  return `<div class="view active"><div class="page-pad">
+    <h2 class="section-h">Невыясненные поступления</h2>
+    <p class="section-note">Поступление из реестра ЦК без распознанной привязки → <b>буфер</b> (§7.1). Висит <b>бессрочно</b>, пока не найдётся хозяин. Автопривязка запрещена: при точном совпадении номера кредита — подтверждение в один клик, при только ФИО — список кандидатов, при нераспознанном — остаётся здесь.</p>
+    ${cards}
+  </div></div>`;
+}
+
+/* ============================================================
+   VIEW: АКТЫ СВЕРКИ
+   ============================================================ */
+const ACT_STATE = { formed:['Сформирован','warn'], agreed:['Согласован бухгалтерией','info'], signed:['Подписан','ok'] };
+function viewActs(){
+  const rows = DATA.acts.map(a=>{
+    const [t,c]=ACT_STATE[a.state];
+    return `<tr onclick="openAct('${a.id}')">
+      <td class="mono">${a.id}</td><td>${a.period}</td><td>${a.borrower}</td>
+      <td class="r">${a.frozenCount}</td><td class="r num">${money(a.sum)}</td>
+      <td><span class="pill ${c}"><span class="dot"></span>${t}</span></td></tr>`;
+  }).join('');
+  return `<div class="view active"><div class="page-pad">
+    <h2 class="section-h">Акты сверки</h2>
+    <p class="section-note">Акт сверки — <b>по инициативе куратора</b>, не автоформирование (шов №6). Инициировать можно, только если платежи периода <b>заморожены</b>. Подписанный акт сам является основанием заморозки всего, что в него вошло. Нулевой акт (при полном погашении) — частный случай, не отдельная процедура.</p>
+    <div class="gtoolbar">
+      ${can.initAct()?`<button class="btn btn-success btn-sm" onclick="toast('Демо: куратор инициирует акт сверки по замороженным платежам периода')">＋ Инициировать акт сверки</button>`:roleHint(false,'Инициирует куратор')}
+    </div>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Акт</th><th>Период</th><th>Заёмщик</th><th class="r">Платежей</th><th class="r">Сумма, сом</th><th>Состояние</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div></div>`;
+}
+function openAct(id){ curAct = DATA.acts.find(a=>a.id===id); render(); }
+function actDetail(a){
+  const order=['formed','agreed','signed']; const cur=order.indexOf(a.state);
+  const steps=[['formed','Сформирован'],['agreed','Согласован бухгалтерией'],['signed','Подписан']];
+  const tl = steps.map(([k,l],i)=>{
+    const st = i<cur?'done':i===cur?'cur':'todo';
+    const arrow = i<steps.length-1?`<span class="tl-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></span>`:'';
+    return `<div class="tl-step"><span class="tl-dot ${st}">${i<cur?'✓':i+1}</span><span class="tl-lbl ${st==='todo'?'todo':''}">${l}</span></div>${arrow}`;
+  }).join('');
+  const inActList = DATA.payments.filter(p=>p.frozen==='frozen').slice(0,a.frozenCount).map(p=>`<tr><td class="mono">${p.number}</td><td>${p.date}</td><td>${p.borrower}</td><td class="r num">${money(p.amount)}</td><td>${pill(FRZ.frozen)}</td></tr>`).join('');
+  let footAction='';
+  if(a.state==='formed') footAction = can.freeze()?`<button class="btn btn-primary" onclick="toast('Демо: бухгалтерия согласовала акт')">Согласовать (бухгалтерия)</button>`:roleHint(false,'Согласует бухгалтерия');
+  if(a.state==='agreed') footAction = `<button class="btn btn-success" onclick="toast('Демо: акт подписан. Подписанный акт — основание заморозки всего вошедшего.','ok')">Подписать</button>`;
+  if(a.state==='signed') footAction = `<span class="pill ok"><span class="dot"></span>Акт подписан — основание заморозки</span>`;
+  return `<div class="view active"><div class="page-pad" style="padding-bottom:80px">
+    <div class="phead">
+      <div class="phead-top"><div>
+        <div class="phead-name"><span class="nm">Акт сверки ${a.id}</span><span class="amt num">${money(a.sum)} сом</span></div>
+        <div class="phead-sub">${a.borrower} · период <b>${a.period}</b> · инициатор: ${a.initiator} · создан ${a.created}</div>
+      </div></div>
+      <div class="timeline">${tl}</div>
+    </div>
+    ${a.sum===0?`<div class="banner info"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/></svg><div><b>Нулевой акт сверки</b> (полное погашение) — частный случай, отдельной процедуры не требует.</div></div>`:''}
+    <h3 class="section-h" style="font-size:16px">Замороженные платежи в акте</h3>
+    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Номер</th><th>Дата</th><th>Заёмщик</th><th class="r">Сумма</th><th>Заморозка</th></tr></thead><tbody>${inActList||'<tr><td colspan="5" class="cgrid-empty">Нулевой акт — платежей нет</td></tr>'}</tbody></table></div>
+  </div>
+  <div class="footer">
+    <button class="btn btn-secondary" onclick="go('acts')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Закрыть</button>
+    <div class="spacer"></div>${footAction}
+  </div></div>`;
+}
+
+/* ============================================================
+   ACTIONS (демо — тосты + локальная мутация состояния)
+   ============================================================ */
+function act(kind,id){
+  const p = DATA.payments.find(x=>x.id===id);
+  switch(kind){
+    case 'freeze':   p.frozen='frozen'; p.hist.unshift(hrow('Крыжён (заморожен) по положительной сверке.','Бухгалтер')); toast('Платёж крыжён (заморожен). Однократно — в крыжение не возвращается.','ok'); break;
+    case 'unfreeze': p.frozen='open';   p.hist.unshift(hrow('Разморожен по решению комиссии. Куратор вправе править только перераспределение.','Бухгалтер')); toast('Разморожен. Каскад ограничен: факт поступления неприкосновенен.','warn'); break;
+    case 'reverse':  p.match='reversed'; p.hist.unshift(hrow('Сторнирован целиком (ошибка факта, реш. комиссии). Заводится заново правильный.','Бухгалтер')); toast('Сторно целиком. Сторно ≠ удаление — след денег сохранён.','warn'); break;
+    case 'restore':  p.match='restored'; if(p.dispute)p.dispute.status='auto_cleared'; p.hist.unshift(hrow('Восстановлен: ЦК подтвердил после автосторно. Обратный каскад, спорная пеня снята автоматически.','система')); toast('Платёж восстановлен. Спорная пеня снята автоматически — без комиссии.','ok'); break;
+    case 'correct':  toast('Демо: корректировка реквизитов с указанием основания'); break;
+  }
+  render();
+}
+const hrow = (what,who) => ({when:'сейчас (демо)', what, who, cls: what.indexOf('Сторн')===0?'rev':what.indexOf('Восстанов')===0?'res':''});
+
+/* ============================================================
+   MODAL: новый платёж
+   ============================================================ */
+function modalNewPayment(){
+  if(ROLE==='viewer') return toast('Наблюдатель не вносит платежи','warn');
+  openModal(`<div class="modal-h"><span class="mt">Внести платёж</span><button class="modal-x" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+  <div class="modal-b">
+    <div class="banner info" style="margin-bottom:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/></svg><div>Ручной ввод по списку ЦК (почта). <b>Дата = дата фактического поступления денег</b>, не дата ввода. Список ЦК и есть основание ввода.</div></div>
+    <div class="f2">
+      <div class="field req"><label class="flabel">Дата поступления</label><div class="control"><input placeholder="дд.мм.гггг"></div></div>
+      <div class="field req"><label class="flabel">Сумма</label><div class="control"><input placeholder="0,00"></div></div>
+      <div class="field req"><label class="flabel">Кредит</label><div class="control"><select><option>Дог. №56 от 10.04.2024</option><option>Дог. №112 от 03.02.2025</option></select><span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div></div>
+      <div class="field"><label class="flabel">Вид погашения</label><div class="control"><select><option>Денежные средства</option><option>Имущество в счёт погашения</option><option>По решению суда</option><option>По графику</option></select><span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div></div>
+      <div class="field col-span"><label class="flabel">Примечание платёжного документа</label><div class="control"><input placeholder="ФИО / номер кредита из назначения"></div></div>
+    </div>
+  </div>
+  <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="closeModal();toast('Демо: платёж внесён. Ось регистрации = Ручной ввод, сопоставление = Ожидает ЦК.','ok')">Внести</button></div>`);
+}
+
+/* ============================================================
+   INFRA
+   ============================================================ */
+function onRoleChange(){ ROLE = document.getElementById('roleSel').value; render(); toast('Роль: '+ROLE_LABEL[ROLE]); }
+function openModal(html){ const h=document.getElementById('modalHost'); h.innerHTML=`<div class="modal">${html}</div>`; h.classList.add('open'); }
+function closeModal(){ const h=document.getElementById('modalHost'); h.classList.remove('open'); h.innerHTML=''; }
+function toast(msg,kind){ const w=document.getElementById('toastWrap'); const t=document.createElement('div'); t.className='toast'+(kind?' '+kind:''); t.innerHTML=`<span>${msg}</span>`; w.appendChild(t); setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300);},3400); }
+
+render();
+</script>
+</body>
+</html>
