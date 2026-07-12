@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Информация о ведомстве · АСУБК</title>
+<!--
+  РАБОЧИЙ ПРОТОТИП (single-file, MVP) — модуль «Управление информацией о ведомстве» (TO-BE).
+  Не картинка: логика ниже ИСПОЛНЯЕТСЯ. Роль (Админ/Наблюдатель) определяет право правки,
+  инвариант банковских счетов и срез показателей на дату считаются в рантайме.
+  Спека: `ASUBK-vedomstvo-logika.md`. Модуль подсистемы администрирования (ТЗ АСУБК-3).
+
+  ЧТО РЕАЛИЗОВАНО (и что разработчик обязан сохранить)
+
+  1. КЛАСС — ИНФОРМАЦИОННАЯ ВИТРИНА (§1). Read-mostly. Ни бизнес-логики кредитования, ни
+     workflow, ни статусов «черновик/на рассмотрении», ни четырёхглазки, ни версионности
+     полей. Единственный процессный элемент — технический аудит-лог (§6).
+     ⚠ Эффективное датирование реквизитов ОТКЛОНЕНО (§1, решение 3): печатные формы не
+     питаются из этого модуля. Если в будущем шаблоны распечатки привяжут сюда — версионность
+     станет обязательной, решение подлежит пересмотру.
+
+  2. SINGLETON (§2). Одна запись на всю систему. Создание/удаление недоступны (кроме первичной
+     инициализации). Кнопок «+ Ведомство» / «Удалить» НЕТ by design. Правка — только Админ.
+
+  3. СВОИ БЛОКИ vs ЗЕРКАЛА (§3) — ключевой шов. Модуль ВЛАДЕЕТ: Общая инфо, Хронология,
+     Реквизиты (регистрационные + банковские), Контакты — единственный источник правды,
+     правятся здесь. ЗЕРКАЛИТ: Оргструктура, Показатели — только чтение, «ссылка, а не копия»:
+     не хранятся тут, читаются из модуля-источника, правка → переход в модуль-источник.
+     Копировать зеркало в карточку = два расходящихся источника правды = АНТИПАТТЕРН.
+
+  4. БАНКОВСКИЕ РЕКВИЗИТЫ — МНОЖЕСТВЕННЫЕ (§4). У холдинга N счетов (валюты/назначения).
+     ИНВАРИАНТ: не более одного счёта с флагом «основной» В РАЗРЕЗЕ ВАЛЮТЫ (checkMainAccount).
+     Демо содержит валидное состояние; переключатель «сломать инвариант» показывает баннер
+     нарушения. Счёт ПОГАШЕНИЯ задолженности заёмщиком — ВНЕ модуля (кредит/программа/линия).
+
+  5. ПОКАЗАТЕЛИ — ЗАФИКСИРОВАННЫЙ СРЕЗ (§7 В-3). Витрина показывает срез, посчитанный модулем
+     статистики в нерабочее время, с явной пометкой ДАТЫ РАСЧЁТА — не считает «на лету».
+     Только всеорганизационные агрегаты (§7 В-2); разрез по подразделению/сотруднику — это
+     управленческая отчётность с ограничением доступа, ЕЙ ЗДЕСЬ НЕ МЕСТО.
+
+  6. ГРАНИЦЫ (§2). Внешние госорганы (МФКР, Кабмин, регистрирующие/нотариальные/залоговые
+     конторы, банки заёмщика, суды, КИБ «Ишеним») — НЕ здесь, их место — справочники. Модуль
+     описывает ТОЛЬКО ОАО «Госфинхолдинг». Оргструктура-зеркало — до подразделений без
+     персоналий (§7 В-1, рекомендация а): ФИО руководителя как публичный атрибут узла,
+     а не ссылка на чувствительную карточку сотрудника.
+
+  РОЛИ: Администратор (правит собственные блоки), Наблюдатель (только чтение). canEdit().
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.nav-group-h{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); color:rgba(24,39,57,0.82); }
+.nav-item{ display:block; padding:7px 16px 7px 32px; text-decoration:none; color:rgba(27,43,65,0.69);
+  font:var(--weight-regular) var(--text-base)/1.625 var(--asubk-font); cursor:pointer; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.topbar .date-wrap{ display:flex; align-items:center; gap:8px; }
+.topbar .date-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.topbar input[type=date]{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; cursor:pointer; }
+.topbar .role-wrap{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+.topbar .role-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.rsel{ position:relative; display:flex; align-items:center; }
+.rsel select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 26px 0 10px;
+  appearance:none; cursor:pointer; }
+.rsel .caret{ position:absolute; right:8px; pointer-events:none; color:var(--text-muted); display:flex; }
+
+/* ---- tabs ---- */
+.detail-tabbar{ display:flex; overflow-x:auto; padding:6px 20px 0; border-bottom:1px solid var(--border-default); }
+.dtab{ flex:none; border:none; background:transparent; padding:11px 15px;
+  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap;
+  display:inline-flex; align-items:center; gap:7px; }
+.dtab:hover{ color:var(--text-body); }
+.dtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.dtab .mirror-tag{ font:var(--weight-medium) 10px/1 var(--asubk-font); color:var(--text-placeholder);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:2px 6px; }
+.content{ flex:1; overflow:auto; }
+.panel-wrap{ padding:20px 24px 48px; max-width:1080px; }
+.detail-panel{ display:none; }
+.detail-panel.active{ display:block; }
+
+/* ---- org header (карточка ведомства) ---- */
+.org-head{ display:flex; align-items:center; gap:18px; margin-bottom:8px; }
+.org-logo{ width:64px; height:64px; flex:none; border-radius:var(--radius-lg); background:var(--asubk-blue-tint);
+  display:flex; align-items:center; justify-content:center; color:var(--asubk-blue); }
+.org-head .oh-name{ font:var(--weight-semibold) 22px/1.2 var(--asubk-font); color:var(--text-heading); }
+.org-head .oh-sub{ font:var(--font-label); color:var(--text-muted); margin-top:4px; }
+.org-head .oh-sub b{ color:var(--text-body); font-weight:var(--weight-medium); }
+
+/* ---- banners ---- */
+.banner{ display:flex; align-items:flex-start; gap:10px; border-radius:var(--radius-md);
+  padding:10px 14px; margin:14px 0; font:var(--font-label); }
+.banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
+.banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.banner svg{ flex:none; margin-top:1px; }
+.banner .grow{ flex:1; }
+
+/* ---- mirror banner (зеркало) ---- */
+.mirror-bar{ display:flex; align-items:center; gap:12px; border:1px solid var(--border-default);
+  border-left:3px solid var(--asubk-blue); border-radius:var(--radius-md); background:var(--asubk-blue-tint);
+  padding:12px 16px; margin-bottom:18px; }
+.mirror-bar .mb-txt{ flex:1; font:var(--font-label); color:var(--text-body); }
+.mirror-bar .mb-txt b{ color:var(--text-heading); font-weight:var(--weight-semibold); }
+.mirror-bar .mb-txt .mono{ color:var(--asubk-blue); }
+
+/* ---- sections ---- */
+.section{ border:1px solid var(--border-default); border-radius:var(--radius-md); margin-bottom:18px;
+  background:var(--surface-card); overflow:hidden; }
+.section-h{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:12px 16px; border-bottom:1px solid var(--border-default); background:var(--surface-panel); }
+.section-h .sh-t{ font:var(--weight-semibold) 15px/1.2 var(--asubk-font); color:var(--text-heading); }
+.section-b{ padding:16px; }
+
+/* ---- key-value grid ---- */
+.kv{ display:grid; grid-template-columns:220px 1fr; gap:0; }
+.kv > dt{ padding:9px 0; font:var(--font-label); color:var(--text-muted);
+  border-bottom:1px solid var(--asubk-grid-line); }
+.kv > dd{ padding:9px 0; margin:0; font:var(--weight-regular) var(--text-base)/1.4 var(--asubk-font);
+  color:var(--text-body); border-bottom:1px solid var(--asubk-grid-line); }
+.kv > dt:last-of-type, .kv > dd:last-of-type{ border-bottom:none; }
+@media(max-width:640px){ .kv{ grid-template-columns:1fr; } .kv > dt{ border-bottom:none; padding-bottom:0; } }
+
+/* ---- tables ---- */
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); background:var(--surface-card); }
+table.cgrid thead th{ text-align:left; padding:10px 14px; background:var(--surface-panel);
+  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-medium) var(--text-sm)/1.35 var(--asubk-font);
+  color:var(--text-body); white-space:nowrap; }
+table.cgrid tbody td{ padding:10px 14px; border-bottom:1px solid var(--asubk-grid-line); vertical-align:top; color:var(--text-body); }
+table.cgrid tbody tr:last-child td{ border-bottom:none; }
+.muted{ color:var(--text-muted); }
+.mono{ font-variant-numeric:tabular-nums; font-family:ui-monospace,Menlo,Consolas,monospace; }
+.num{ font-variant-numeric:tabular-nums; text-align:right; }
+
+/* ---- pills ---- */
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+
+/* ---- buttons ---- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:32px; padding:0 12px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.4; cursor:not-allowed; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-danger{ background:var(--action-danger); color:#fff; }
+.btn-danger:hover:not(:disabled){ background:var(--asubk-red-hover); }
+.btn-link{ background:transparent; color:var(--text-link); border:none; padding:0 4px; height:auto; }
+.btn-link:hover{ text-decoration:underline; }
+.readonly-tag{ font:var(--font-label); color:var(--text-muted); display:inline-flex; align-items:center; gap:6px; }
+
+/* ---- chronology timeline ---- */
+.tl{ list-style:none; margin:0; padding:0; border-left:2px solid var(--border-default); margin-left:8px; }
+.tl li{ position:relative; padding:0 0 18px 22px; }
+.tl li::before{ content:''; position:absolute; left:-7px; top:3px; width:12px; height:12px; border-radius:50%;
+  background:var(--surface-card); border:2px solid var(--asubk-blue); }
+.tl li .td{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
+.tl li .tt{ font:var(--weight-medium) var(--text-base)/1.35 var(--asubk-font); color:var(--text-body); margin-top:2px; }
+.tl li .tv{ font:var(--font-label); color:var(--text-muted); margin-top:2px; max-width:760px; }
+
+/* ---- metrics cards ---- */
+.metrics{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+@media(max-width:900px){ .metrics{ grid-template-columns:repeat(2,1fr); } }
+.metric{ background:var(--surface-panel); border-radius:var(--radius-md); padding:14px 16px; }
+.metric .ml{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:6px; }
+.metric .mv{ font:var(--weight-semibold) 22px/1.15 var(--asubk-font); color:var(--text-heading); font-variant-numeric:tabular-nums; }
+.metric .mu{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:3px; }
+
+/* ---- org tree (зеркало, плоское дерево без персоналий) ---- */
+.otree{ list-style:none; margin:0; padding:0; }
+.otree li{ padding:8px 12px; border-bottom:1px solid var(--asubk-grid-line); }
+.otree li:last-child{ border-bottom:none; }
+.otree .on{ font:var(--weight-medium) var(--text-base)/1.3 var(--asubk-font); color:var(--text-heading); }
+.otree .oh{ font:var(--font-label); color:var(--text-muted); }
+.otree .l1{ padding-left:12px; } .otree .l2{ padding-left:34px; } .otree .l3{ padding-left:56px; }
+
+/* ---- audit log ---- */
+.audit{ font:var(--font-label); }
+.audit .ae{ display:grid; grid-template-columns:150px 160px 1fr; gap:12px; padding:9px 12px;
+  border-bottom:1px solid var(--asubk-grid-line); }
+.audit .ae:last-child{ border-bottom:none; }
+.audit .ae .aw{ color:var(--text-muted); }
+.audit .ae .ab{ color:var(--text-heading); font-weight:var(--weight-medium); }
+.audit .ae .ad .arrow{ color:var(--text-placeholder); }
+.audit .ae .ad del{ color:var(--asubk-red); text-decoration:line-through; }
+.audit .ae .ad ins{ color:var(--asubk-green); text-decoration:none; }
+.hint{ font:var(--font-label); color:var(--text-muted); margin-top:6px; }
+.checkline{ display:flex; align-items:center; gap:8px; font:var(--font-label); color:var(--text-muted); }
+
+/* ---- row actions (изм./удалить в списках) ---- */
+.rowact{ border:none; background:transparent; color:var(--text-link); cursor:pointer;
+  font:var(--weight-medium) 13px/1 var(--asubk-font); padding:3px 6px; border-radius:var(--radius-sm); }
+.rowact:hover{ background:var(--surface-hover); text-decoration:underline; }
+.rowact.del{ color:var(--asubk-red); }
+.tl li .tl-actions{ display:inline-flex; gap:4px; margin-left:8px; vertical-align:middle; }
+
+/* ---- модалка ---- */
+.modal-back{ position:fixed; inset:0; background:rgba(24,39,57,0.38); display:none;
+  align-items:center; justify-content:center; z-index:50; }
+.modal-back.open{ display:flex; }
+.modal{ width:520px; max-width:calc(100vw - 40px); max-height:calc(100vh - 60px); background:var(--surface-page);
+  border-radius:var(--radius-lg); box-shadow:0 12px 44px rgba(24,39,57,0.28); overflow:hidden;
+  display:flex; flex-direction:column; }
+.modal-h{ padding:16px 20px; border-bottom:1px solid var(--border-default);
+  font:var(--font-page-title); color:var(--text-heading); flex:none; }
+.modal-b{ padding:18px 20px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; }
+.modal-f{ padding:14px 20px; border-top:1px solid var(--border-default); display:flex;
+  align-items:center; justify-content:flex-end; gap:10px; flex:none; }
+.modal-f .spacer{ flex:1; }
+.fld{ display:flex; flex-direction:column; gap:5px; }
+.fld > label{ font:var(--font-label); color:var(--text-muted); }
+.fld input, .fld select, .fld textarea{ border-radius:var(--radius-md);
+  border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-body);
+  font:var(--font-label); padding:8px 10px; width:100%; font-family:inherit; }
+.fld input, .fld select{ height:var(--control-h); padding:0 10px; }
+.fld textarea{ resize:vertical; min-height:64px; line-height:1.4; }
+.fld input:focus, .fld select:focus, .fld textarea:focus{ outline:none; border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+.fld.row2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.fld-check{ display:flex; align-items:center; gap:8px; font:var(--font-label); color:var(--text-body); }
+.fhint{ font:var(--weight-regular) 12px/1.35 var(--asubk-font); color:var(--text-placeholder); }
+.modal-note{ font:var(--font-label); color:var(--text-muted); background:var(--asubk-tint-fill);
+  border-radius:var(--radius-md); padding:9px 12px; }
+.modal-err{ font:var(--weight-medium) 13px/1.3 var(--asubk-font); color:var(--asubk-red); min-height:16px; margin-right:auto; }
+
+/* ---- toast ---- */
+.toast{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px);
+  background:var(--asubk-ink); color:#fff; padding:11px 18px; border-radius:var(--radius-md);
+  font:var(--font-label); box-shadow:0 8px 28px rgba(24,39,57,0.32); opacity:0; pointer-events:none;
+  transition:opacity 160ms ease, transform 160ms ease; z-index:60; max-width:520px; }
+.toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+.toast .mono{ color:#9fd0ff; }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav">
+      <div class="nav-group-h">Администрирование</div>
+      <a class="nav-item">Пользователи и роли</a>
+      <a class="nav-item">Организационная структура</a>
+      <a class="nav-item active">Информация о ведомстве</a>
+      <a class="nav-item">Справочники</a>
+      <a class="nav-item">Статистика и показатели</a>
+    </div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="menu" title="Меню">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </span>
+      <span class="crumb-title">Информация о ведомстве</span>
+      <div class="date-wrap">
+        <label for="dateInp">Срез&nbsp;показателей</label>
+        <input type="date" id="dateInp" min="2024-01-01" max="2026-07-12" value="2026-07-12">
+      </div>
+      <div class="role-wrap">
+        <label for="roleSel">Роль</label>
+        <div class="rsel">
+          <select id="roleSel">
+            <option value="admin">Администратор</option>
+            <option value="obs">Наблюдатель</option>
+          </select>
+          <span class="caret"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></span>
+        </div>
+      </div>
+    </header>
+
+    <div class="detail-tabbar" id="tabbar"></div>
+    <div class="content">
+      <div class="detail-panel active" id="p-general"></div>
+      <div class="detail-panel" id="p-chrono"></div>
+      <div class="detail-panel" id="p-reqs"></div>
+      <div class="detail-panel" id="p-contacts"></div>
+      <div class="detail-panel" id="p-orgstruct"></div>
+      <div class="detail-panel" id="p-metrics"></div>
+      <div class="detail-panel" id="p-audit"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-back" id="modalBack">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="modal-h" id="mTitle"></div>
+    <div class="modal-b" id="mBody"></div>
+    <div class="modal-f">
+      <span class="modal-err" id="mErr"></span>
+      <button class="btn btn-danger" id="mDelete" style="display:none">Удалить</button>
+      <button class="btn btn-secondary" id="mCancel">Отмена</button>
+      <button class="btn btn-primary" id="mSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   СОСТОЯНИЕ. Singleton (§2) — одна запись ORG. Свои блоки редактируемы (§3.1),
+   зеркала (orgstruct, metrics) только читаются из модулей-источников (§3.2).
+   ========================================================================= */
+const TODAY = '2026-07-12';
+
+// §3.1 ОБЩАЯ ИНФОРМАЦИЯ (своя, кардинальность 1)
+const ORG = {
+  fullName:  'Открытое акционерное общество «Государственный финансовый холдинг»',
+  shortName: 'ОАО «Госфинхолдинг»',
+  descr:     'Оператор государственных кредитных программ Кыргызской Республики. Осуществляет выдачу и сопровождение льготных кредитов за счёт государственных средств и привлечённого финансирования.',
+};
+
+// §3.1 ХРОНОЛОГИЯ (своя, N, сортировка по дате убыв.)
+const CHRONO = [
+  { id:'ch1', date:'2024-11-15', title:'Запуск программы льготного агрокредитования',       descr:'Начало выдачи кредитов сельхозпроизводителям по ставке 6% годовых за счёт средств республиканского бюджета.' },
+  { id:'ch2', date:'2023-05-20', title:'Переход на АСУБК',                                    descr:'Ввод в промышленную эксплуатацию автоматизированной системы управления банковским кредитованием.' },
+  { id:'ch3', date:'2021-03-10', title:'Открытие Ошского филиала',                           descr:'Расширение присутствия в южном регионе республики.' },
+  { id:'ch4', date:'2020-01-01', title:'Учреждение ОАО «Госфинхолдинг»',                      descr:'Создание организации-оператора государственных кредитных программ.' },
+];
+let chronoSeq = 5, accountSeq = 5; // генераторы id для новых записей
+
+// §3.1 РЕГИСТРАЦИОННЫЕ ДАННЫЕ (свои, 1)
+const REG = {
+  certNo:  '0012345',
+  certDate:'2020-01-15',
+  regOrg:  'Министерство юстиции Кыргызской Республики',
+  inn:     '01234202010012',
+  okpo:    '29876543',
+};
+
+// §4 БАНКОВСКИЕ РЕКВИЗИТЫ (свои, N). Инвариант: ≤1 «основной» в разрезе валюты.
+const ACCOUNTS = [
+  { id:'ac1', bank:'ОАО «РСК Банк»',   bik:'129001', acc:'1290010000012345', ccy:'KGS', purpose:'Расчётный', main:true  },
+  { id:'ac2', bank:'ОАО «РСК Банк»',   bik:'129001', acc:'1290010000098765', ccy:'KGS', purpose:'Спецсчёт бюджетных средств', main:false },
+  { id:'ac3', bank:'ЗАО «Демир Банк»', bik:'118002', acc:'1180020000054321', ccy:'USD', purpose:'Валютный (привлечённое финансирование)', main:true  },
+  { id:'ac4', bank:'ОАО «Айыл Банк»',  bik:'135004', acc:'1350040000011223', ccy:'EUR', purpose:'Валютный (грантовые средства)', main:true  },
+];
+
+// §3.1 КОНТАКТНЫЕ ДАННЫЕ (свои, N по типам)
+const CONTACTS = {
+  phones:  ['+996 (312) 61-00-00', '+996 (312) 61-00-01 (горячая линия)'],
+  email:   'info@gfh.gov.kg',
+  site:    'https://gfh.gov.kg',
+  legalAddr:'720040, г. Бишкек, пр. Чуй, 106',
+  factAddr: '720040, г. Бишкек, пр. Чуй, 106',
+  sed:      'gfh@ed.gov.kg (СЭД «Инфодокс», идентификатор GFH-001)',
+};
+
+// §3.2 ЗЕРКАЛО: оргструктура (источник — модуль оргструктуры). Без персоналий (§7 В-1 а):
+// ФИО руководителя — публичный атрибут узла, не ссылка на карточку сотрудника.
+const ORGSTRUCT_MIRROR = {
+  source:'Модуль управления организационной структурой',
+  asOf:'2026-07-12',
+  nodes:[
+    { lvl:0, name:'Головной офис',            type:'ГО',          head:'Асанов А. А. — Председатель' },
+    { lvl:1, name:'Кредитный департамент',    type:'департамент', head:'Ормонов Б. К. — Начальник департамента' },
+    { lvl:1, name:'Департамент рисков',       type:'департамент', head:'Бекова Г. Т. — Начальник департамента' },
+    { lvl:1, name:'Ошский филиал',            type:'филиал',      head:'— вакансия' },
+    { lvl:2, name:'Отдел рисков Ошского филиала', type:'отдел',   head:'Ташиев М. Ы. — Начальник отдела' },
+  ],
+};
+
+// §3.2 + §7 В-3 ЗЕРКАЛО: показатели (источник — модуль статистики). ЗАФИКСИРОВАННЫЕ СРЕЗЫ,
+// посчитаны в нерабочее время, с датой расчёта. Витрина не считает «на лету».
+// Только всеорганизационные агрегаты (§7 В-2).
+const METRIC_SNAPSHOTS = [
+  { calcDate:'2026-07-12', portfolio:14820000000, issuedYtd:3140000000, overdueShare:4.2, borrowers:18742 },
+  { calcDate:'2026-06-30', portfolio:14510000000, issuedYtd:2760000000, overdueShare:4.5, borrowers:18310 },
+  { calcDate:'2025-12-31', portfolio:13240000000, issuedYtd:5980000000, overdueShare:5.1, borrowers:17020 },
+  { calcDate:'2024-12-31', portfolio:10110000000, issuedYtd:4200000000, overdueShare:6.3, borrowers:13540 },
+];
+
+// §6 АУДИТ-ЛОГ (технический; кто/когда/что; было→стало). Не версионность.
+const AUDIT = [
+  { when:'2026-07-01 09:14', who:'Администратор', block:'Контакты', field:'Телефон', from:'+996 (312) 61-00-00', to:'+996 (312) 61-00-01 (горячая линия)' },
+  { when:'2026-05-20 15:42', who:'Администратор', block:'Банковские реквизиты', field:'Счёт EUR (Айыл Банк)', from:'—', to:'добавлен' },
+  { when:'2025-11-15 11:03', who:'Администратор', block:'Хронология', field:'Событие', from:'—', to:'«Запуск программы льготного агрокредитования»' },
+  { when:'2025-02-08 10:30', who:'Администратор', block:'Общая информация', field:'Краткое описание', from:'Оператор кредитных программ.', to:'Оператор государственных кредитных программ КР.' },
+];
+
+/* =========================================================================
+   ВКЛАДКИ (§5). Собственные — правит Админ; зеркала — все читают.
+   ========================================================================= */
+const TABS = [
+  { id:'general',   label:'Общая информация', own:true  },
+  { id:'chrono',    label:'Хронология',       own:true  },
+  { id:'reqs',      label:'Реквизиты',        own:true  },
+  { id:'contacts',  label:'Контакты',         own:true  },
+  { id:'orgstruct', label:'Оргструктура',     own:false },
+  { id:'metrics',   label:'Показатели',       own:false },
+  { id:'audit',     label:'Журнал изменений', own:true, adminOnly:true },
+];
+
+const state = { tab:'general', role:'admin', date:TODAY, breakInvariant:false };
+const canEdit = ()=> state.role==='admin';
+const esc = s => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const fmtSom = n => (n/1e9).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' млрд';
+
+const ICONS = {
+  lock:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3.5" y="7" width="9" height="6.5" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>',
+  ext:'<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 3H3.5v9.5h9.5V10"/><path d="M9.5 3H13v3.5M13 3L7.5 8.5"/></svg>',
+  edit:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M11 2.5l2.5 2.5L6 12.5 3 13.5l1-3z"/></svg>',
+  info:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5v.2" stroke-width="1.5"/></svg>',
+  warn:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M8 2l6 11H2L8 2z"/><path d="M8 6.5v3M8 11.2v.2" stroke-width="1.5"/></svg>',
+  ok:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6"/><path d="M5 8l2 2 4-4" stroke-width="1.4"/></svg>',
+  block:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6"/><path d="M4 4l8 8"/></svg>',
+};
+
+function banner(kind, icon, html){ return `<div class="banner ${kind}">${icon}<span class="grow">${html}</span></div>`; }
+function editBtn(label, act){ return canEdit()
+  ? `<button class="btn btn-secondary" data-act="${act}">${ICONS.edit}<span>${label||'Редактировать'}</span></button>`
+  : `<span class="readonly-tag">${ICONS.lock} только чтение</span>`; }
+
+/* =========================================================================
+   ИНВАРИАНТ §4 — не более одного «основного» счёта в разрезе валюты.
+   ========================================================================= */
+function accountsView(){
+  return state.breakInvariant
+    ? ACCOUNTS.map(a=> a.id==='ac2' ? {...a, main:true} : a) // демо-поломка: 2 основных в KGS
+    : ACCOUNTS;
+}
+function checkMainAccount(list){
+  const byCcy = {};
+  list.filter(a=>a.main).forEach(a=> byCcy[a.ccy]=(byCcy[a.ccy]||0)+1);
+  return Object.entries(byCcy).filter(([,n])=>n>1).map(([c])=>c); // валюты с нарушением
+}
+
+/* =========================================================================
+   РЕНДЕР ВКЛАДОК
+   ========================================================================= */
+function renderTabs(){
+  const bar = document.getElementById('tabbar');
+  bar.innerHTML = TABS.filter(t=>!(t.adminOnly && !canEdit())).map(t=>{
+    const active = state.tab===t.id ? ' active' : '';
+    const tag = t.own ? '' : `<span class="mirror-tag">зеркало</span>`;
+    return `<button class="dtab${active}" data-tab="${t.id}">${esc(t.label)}${tag}</button>`;
+  }).join('');
+  bar.querySelectorAll('.dtab').forEach(b=> b.onclick=()=>{ state.tab=b.dataset.tab; renderAll(); });
+}
+
+function orgHead(){
+  return `<div class="org-head">
+    <div class="org-logo"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 21h18M4 21V9l8-5 8 5v12M9 21v-5h6v5"/></svg></div>
+    <div>
+      <div class="oh-name">${esc(ORG.shortName)}</div>
+      <div class="oh-sub"><b>Singleton</b> · одна запись на систему (§2) · создание и удаление недоступны by design</div>
+    </div>
+  </div>`;
+}
+
+function renderGeneral(){
+  const el = document.getElementById('p-general');
+  el.innerHTML = `<div class="panel-wrap">
+    ${orgHead()}
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Общая информация</span>${editBtn('Редактировать','edit-general')}</div>
+      <div class="section-b">
+        <dl class="kv">
+          <dt>Полное наименование</dt><dd>${esc(ORG.fullName)}</dd>
+          <dt>Краткое наименование</dt><dd>${esc(ORG.shortName)}</dd>
+          <dt>Краткое описание</dt><dd>${esc(ORG.descr)}</dd>
+          <dt>Логотип</dt><dd><span class="muted">загружен · gfh-logo.svg</span></dd>
+        </dl>
+      </div>
+    </div>
+    ${banner('info', ICONS.info, '<b>Границы модуля (§2).</b> Здесь — только ОАО «Госфинхолдинг». Внешние госорганы (МФКР, Кабинет Министров, регистрирующие и нотариальные конторы, банки заёмщика, суды, КИБ «Ишеним») в этом модуле не хранятся — их место в справочниках.')}
+  </div>`;
+}
+
+function renderChrono(){
+  const el = document.getElementById('p-chrono');
+  const items = [...CHRONO].sort((a,b)=> a.date<b.date?1:-1); // убыв.
+  el.innerHTML = `<div class="panel-wrap">
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Хронология · важные события</span>${editBtn('Добавить событие','add-chrono')}</div>
+      <div class="section-b">
+        <ul class="tl">
+          ${items.map(e=>`<li>
+            <div class="td">${esc(e.date)}${canEdit()?`<span class="tl-actions"><button class="rowact" data-act="edit-chrono" data-id="${e.id}">изм.</button><button class="rowact del" data-act="del-chrono" data-id="${e.id}">удалить</button></span>`:''}</div>
+            <div class="tt">${esc(e.title)}</div>
+            <div class="tv">${esc(e.descr)}</div>
+          </li>`).join('')}
+        </ul>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderReqs(){
+  const el = document.getElementById('p-reqs');
+  const accts = accountsView();
+  const bad = checkMainAccount(accts);
+  const invBanner = bad.length
+    ? banner('danger', ICONS.block, `<b>Нарушение инварианта §4:</b> более одного счёта с флагом «основной» в разрезе валюты — ${bad.join(', ')}. На каждую валюту допускается ровно один основной счёт.`)
+    : banner('ok', ICONS.ok, 'Инвариант §4 соблюдён: на каждую валюту не более одного основного счёта.');
+
+  el.innerHTML = `<div class="panel-wrap">
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Регистрационные данные</span>${editBtn('Редактировать','edit-reg')}</div>
+      <div class="section-b">
+        <dl class="kv">
+          <dt>Свидетельство о регистрации №</dt><dd class="mono">${esc(REG.certNo)}</dd>
+          <dt>Дата выдачи</dt><dd>${esc(REG.certDate)}</dd>
+          <dt>Орган регистрации</dt><dd>${esc(REG.regOrg)}</dd>
+          <dt>ИНН</dt><dd class="mono">${esc(REG.inn)}</dd>
+          <dt>ОКПО</dt><dd class="mono">${esc(REG.okpo)}</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-h">
+        <span class="sh-t">Банковские реквизиты · <span class="muted" style="font-weight:400">${accts.length} счёта</span></span>
+        ${editBtn('Добавить счёт','add-account')}
+      </div>
+      <div class="section-b" style="padding:0">
+        <table class="cgrid">
+          <thead><tr><th>Банк</th><th>БИК</th><th>Номер счёта</th><th>Валюта</th><th>Назначение</th><th>Основной</th>${canEdit()?'<th></th>':''}</tr></thead>
+          <tbody>
+            ${accts.map(a=>`<tr>
+              <td>${esc(a.bank)}</td>
+              <td class="mono">${esc(a.bik)}</td>
+              <td class="mono">${esc(a.acc)}</td>
+              <td>${esc(a.ccy)}</td>
+              <td>${esc(a.purpose)}</td>
+              <td>${a.main?'<span class="pill ok">основной</span>':'<span class="muted">—</span>'}</td>
+              ${canEdit()?`<td style="white-space:nowrap"><button class="rowact" data-act="edit-account" data-id="${a.id}">изм.</button><button class="rowact del" data-act="del-account" data-id="${a.id}">удалить</button></td>`:''}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ${invBanner}
+    <div class="checkline" style="margin:-6px 0 14px">
+      <input type="checkbox" id="brkInv" ${state.breakInvariant?'checked':''}>
+      <label for="brkInv">демо: сделать счёт «Спецсчёт бюджетных средств» тоже основным (сломать инвариант в KGS)</label>
+    </div>
+    ${banner('info', ICONS.info, '<b>Граница ответственности (§4).</b> Счёт, <b>на который заёмщик погашает задолженность</b>, к этому модулю не относится — он принадлежит кредиту / линии финансирования / программе (кредитором может быть Кабинет Министров в лице МФКР, тогда счёт казначейский). Здесь — только справочные реквизиты организации.')}
+  </div>`;
+  const brk = document.getElementById('brkInv');
+  if(brk) brk.onchange = ()=>{ state.breakInvariant = brk.checked; renderReqs(); };
+}
+
+function renderContacts(){
+  const el = document.getElementById('p-contacts');
+  el.innerHTML = `<div class="panel-wrap">
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Контактные данные</span>${editBtn('Редактировать','edit-contacts')}</div>
+      <div class="section-b">
+        <dl class="kv">
+          <dt>Телефоны</dt><dd>${CONTACTS.phones.map(esc).join('<br>')}</dd>
+          <dt>Электронная почта</dt><dd>${esc(CONTACTS.email)}</dd>
+          <dt>Адрес сайта</dt><dd>${esc(CONTACTS.site)}</dd>
+          <dt>Юридический адрес</dt><dd>${esc(CONTACTS.legalAddr)}</dd>
+          <dt>Фактический адрес</dt><dd>${esc(CONTACTS.factAddr)}</dd>
+          <dt>Реквизиты СЭД</dt><dd>${esc(CONTACTS.sed)}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>`;
+}
+
+function mirrorBar(source, extra){
+  const go = canEdit()
+    ? `<button class="btn btn-secondary" data-act="goto-source" data-src="${esc(source)}">${ICONS.ext}<span>Перейти к редактированию</span></button>`
+    : `<span class="readonly-tag">${ICONS.lock} только чтение</span>`;
+  return `<div class="mirror-bar">
+    <span class="grow mb-txt"><b>Зеркало (§3.2)</b> — ссылка, а не копия. Источник правды: <span class="mono">${esc(source)}</span>. Данные не хранятся в карточке ведомства и не редактируются отсюда.${extra?' '+extra:''}</span>
+    ${go}
+  </div>`;
+}
+
+function renderOrgstruct(){
+  const el = document.getElementById('p-orgstruct');
+  const m = ORGSTRUCT_MIRROR;
+  el.innerHTML = `<div class="panel-wrap">
+    ${mirrorBar(m.source, `Снимок на <b>${esc(m.asOf)}</b>.`)}
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Организационная структура</span>
+        <span class="pill neutral">до подразделений · без персоналий</span></div>
+      <div class="section-b" style="padding:0">
+        <ul class="otree">
+          ${m.nodes.map(n=>`<li class="l${n.lvl}">
+            <div class="on">${esc(n.name)} <span class="oh">· ${esc(n.type)}</span></div>
+            <div class="oh">Руководитель: ${esc(n.head)}</div>
+          </li>`).join('')}
+        </ul>
+      </div>
+    </div>
+    ${banner('info', ICONS.info, '<b>Глубина зеркала (§7 В-1, реком. «а»).</b> Витрина показывает дерево до подразделений и территориальных органов. ФИО руководителя — публичный атрибут узла, а не ссылка на карточку сотрудника: чувствительные данные (паспорт, состав семьи, взыскания) в общедоступную витрину не тянутся.')}
+  </div>`;
+}
+
+function renderMetrics(){
+  const el = document.getElementById('p-metrics');
+  const d = state.date;
+  // §7 В-3 — показываем зафиксированный срез на дату ≤ выбранной (не «на лету»)
+  const snap = [...METRIC_SNAPSHOTS].sort((a,b)=>a.calcDate<b.calcDate?1:-1).find(s=>s.calcDate<=d)
+            || METRIC_SNAPSHOTS[METRIC_SNAPSHOTS.length-1];
+  el.innerHTML = `<div class="panel-wrap">
+    ${mirrorBar('Модуль статистики (подсистема обработки информации)')}
+    <div class="section">
+      <div class="section-h">
+        <span class="sh-t">Показатели · всеорганизационные агрегаты</span>
+        <span class="pill info">срез рассчитан ${esc(snap.calcDate)}</span>
+      </div>
+      <div class="section-b">
+        <div class="metrics">
+          <div class="metric"><div class="ml">Объём портфеля</div><div class="mv">${esc(fmtSom(snap.portfolio))}</div><div class="mu">сом</div></div>
+          <div class="metric"><div class="ml">Выдано с начала года</div><div class="mv">${esc(fmtSom(snap.issuedYtd))}</div><div class="mu">сом</div></div>
+          <div class="metric"><div class="ml">Доля просрочки</div><div class="mv">${esc(String(snap.overdueShare).replace('.',','))}%</div><div class="mu">от портфеля</div></div>
+          <div class="metric"><div class="ml">Количество заёмщиков</div><div class="mv">${snap.borrowers.toLocaleString('ru-RU')}</div><div class="mu">активных</div></div>
+        </div>
+      </div>
+    </div>
+    ${banner('warn', ICONS.warn, '<b>Зафиксированный срез (§7 В-3).</b> Модуль статистики считает показатели в нерабочее время и фиксирует их в БД; последующая корректировка данных не влияет на ранее зафиксированные расчёты. Витрина показывает <b>сохранённый срез с датой расчёта</b>, а не считает «на лету». Сдвиньте «Срез показателей» в шапке — подставится ближайший зафиксированный срез на эту дату.')}
+    ${banner('info', ICONS.info, '<b>Уровень агрегации (§7 В-2).</b> Только всеорганизационные агрегаты. Разрез «по подразделению» или «по сотруднику» — это управленческая отчётность с ограничением доступа, её место в модуле отчётности, а не в общедоступной витрине.')}
+  </div>`;
+}
+
+function renderAudit(){
+  const el = document.getElementById('p-audit');
+  el.innerHTML = `<div class="panel-wrap">
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Журнал изменений (audit log)</span>
+        <span class="readonly-tag">${ICONS.lock} технический · только чтение</span></div>
+      <div class="section-b" style="padding:0">
+        <div class="audit">
+          <div class="ae" style="background:var(--surface-panel)">
+            <div class="aw" style="font-weight:500;color:var(--text-heading)">Когда · кто</div>
+            <div class="ab">Блок · поле</div>
+            <div class="ad" style="color:var(--text-heading);font-weight:500">Было → стало</div>
+          </div>
+          ${AUDIT.map(a=>`<div class="ae">
+            <div class="aw">${esc(a.when)}<br><span class="muted">${esc(a.who)}</span></div>
+            <div class="ab">${esc(a.block)}<br><span class="muted" style="font-weight:400">${esc(a.field)}</span></div>
+            <div class="ad"><del>${esc(a.from)}</del> <span class="arrow">→</span> <ins>${esc(a.to)}</ins></div>
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>
+    ${banner('info', ICONS.info, '<b>Не версионность (§6).</b> Журнал технический: фиксирует кто/когда/что/было→стало на каждое изменение собственных блоков. Восстановление состояния «на дату» из него как пользовательская функция не предполагается — эффективное датирование реквизитов отклонено (§1, решение 3).')}
+  </div>`;
+}
+
+function renderAll(){
+  renderTabs();
+  document.querySelectorAll('.detail-panel').forEach(p=> p.classList.remove('active'));
+  const panel = document.getElementById('p-'+state.tab);
+  if(panel) panel.classList.add('active');
+  ({ general:renderGeneral, chrono:renderChrono, reqs:renderReqs, contacts:renderContacts,
+     orgstruct:renderOrgstruct, metrics:renderMetrics, audit:renderAudit }[state.tab] || renderGeneral)();
+}
+
+/* =========================================================================
+   АУДИТ (§6) — каждое сохранение собственного блока пишет запись «было→стало».
+   ========================================================================= */
+function nowStamp(){
+  const d = new Date(), p = n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function audit(block, field, from, to){
+  if(from===to) return;
+  AUDIT.unshift({ when:nowStamp(), who:'Администратор', block, field, from:from||'—', to:to||'—' });
+}
+
+/* =========================================================================
+   ТОСТ
+   ========================================================================= */
+let toastTimer = null;
+function toast(html){
+  const t = document.getElementById('toast');
+  t.innerHTML = html; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=> t.classList.remove('show'), 3200);
+}
+
+/* =========================================================================
+   МОДАЛКА — общий каркас. openModal({title, body, onSave, onDelete, deleteLabel})
+   onSave/onDelete возвращают строку-ошибку, чтобы не закрывать окно.
+   ========================================================================= */
+const mBack = document.getElementById('modalBack');
+let modalCtx = null;
+function openModal(cfg){
+  modalCtx = cfg;
+  document.getElementById('mTitle').textContent = cfg.title;
+  document.getElementById('mBody').innerHTML = cfg.body;
+  document.getElementById('mErr').textContent = '';
+  const del = document.getElementById('mDelete');
+  if(cfg.onDelete){ del.style.display=''; del.textContent = cfg.deleteLabel||'Удалить'; } else del.style.display='none';
+  mBack.classList.add('open');
+  const first = document.querySelector('#mBody input, #mBody textarea, #mBody select');
+  if(first) first.focus();
+}
+function closeModal(){ mBack.classList.remove('open'); modalCtx = null; }
+function mVal(id){ const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function mChecked(id){ const el = document.getElementById(id); return el ? el.checked : false; }
+
+document.getElementById('mCancel').onclick = closeModal;
+mBack.onclick = e=>{ if(e.target===mBack) closeModal(); };
+document.getElementById('mSave').onclick = ()=>{
+  if(!modalCtx || !modalCtx.onSave) return closeModal();
+  const err = modalCtx.onSave();
+  if(err){ document.getElementById('mErr').textContent = err; return; }
+  closeModal(); renderAll();
+};
+document.getElementById('mDelete').onclick = ()=>{
+  if(!modalCtx || !modalCtx.onDelete) return;
+  const err = modalCtx.onDelete();
+  if(err){ document.getElementById('mErr').textContent = err; return; }
+  closeModal(); renderAll();
+};
+document.addEventListener('keydown', e=>{
+  if(!mBack.classList.contains('open')) return;
+  if(e.key==='Escape') closeModal();
+  if(e.key==='Enter' && !(e.target.tagName==='TEXTAREA')) document.getElementById('mSave').click();
+});
+
+/* =========================================================================
+   ФОРМЫ РЕДАКТИРОВАНИЯ собственных блоков (§3.1). Наблюдателю недоступны (guard).
+   ========================================================================= */
+function fld(id, label, val, hint){ return `<div class="fld"><label for="${id}">${label}</label>
+  <input type="text" id="${id}" value="${esc(val||'')}">${hint?`<span class="fhint">${hint}</span>`:''}</div>`; }
+function fldArea(id, label, val){ return `<div class="fld"><label for="${id}">${label}</label>
+  <textarea id="${id}">${esc(val||'')}</textarea></div>`; }
+function fldDate(id, label, val){ return `<div class="fld"><label for="${id}">${label}</label>
+  <input type="date" id="${id}" value="${esc(val||'')}"></div>`; }
+
+function editGeneral(){
+  openModal({ title:'Общая информация', body:
+    fld('gfFull','Полное наименование', ORG.fullName) +
+    fld('gfShort','Краткое наименование', ORG.shortName) +
+    fldArea('gfDescr','Краткое описание', ORG.descr) +
+    `<div class="modal-note">§1 · без версионности: сохраняется актуальное состояние, история — в журнале изменений.</div>`,
+    onSave(){
+      const full=mVal('gfFull'), short=mVal('gfShort'), descr=mVal('gfDescr');
+      if(!full || !short) return 'Наименования обязательны.';
+      audit('Общая информация','Полное наименование', ORG.fullName, full);
+      audit('Общая информация','Краткое наименование', ORG.shortName, short);
+      audit('Общая информация','Краткое описание', ORG.descr, descr);
+      ORG.fullName=full; ORG.shortName=short; ORG.descr=descr;
+    }});
+}
+function editReg(){
+  openModal({ title:'Регистрационные данные', body:
+    `<div class="fld row2">${fld('rgNo','Свидетельство №', REG.certNo)}${fldDate('rgDate','Дата выдачи', REG.certDate)}</div>` +
+    fld('rgOrg','Орган регистрации', REG.regOrg) +
+    `<div class="fld row2">${fld('rgInn','ИНН', REG.inn)}${fld('rgOkpo','ОКПО', REG.okpo)}</div>`,
+    onSave(){
+      const no=mVal('rgNo'), dt=mVal('rgDate'), org=mVal('rgOrg'), inn=mVal('rgInn'), okpo=mVal('rgOkpo');
+      if(!inn) return 'ИНН обязателен.';
+      audit('Регистрационные данные','Свидетельство №', REG.certNo, no);
+      audit('Регистрационные данные','Дата выдачи', REG.certDate, dt);
+      audit('Регистрационные данные','Орган регистрации', REG.regOrg, org);
+      audit('Регистрационные данные','ИНН', REG.inn, inn);
+      audit('Регистрационные данные','ОКПО', REG.okpo, okpo);
+      REG.certNo=no; REG.certDate=dt; REG.regOrg=org; REG.inn=inn; REG.okpo=okpo;
+    }});
+}
+function editContacts(){
+  openModal({ title:'Контактные данные', body:
+    fldArea('ctPhones','Телефоны (по одному в строке)', CONTACTS.phones.join('\n')) +
+    `<div class="fld row2">${fld('ctEmail','Электронная почта', CONTACTS.email)}${fld('ctSite','Адрес сайта', CONTACTS.site)}</div>` +
+    fld('ctLegal','Юридический адрес', CONTACTS.legalAddr) +
+    fld('ctFact','Фактический адрес', CONTACTS.factAddr) +
+    fld('ctSed','Реквизиты СЭД', CONTACTS.sed),
+    onSave(){
+      const phones = mVal('ctPhones').split('\n').map(s=>s.trim()).filter(Boolean);
+      audit('Контакты','Телефоны', CONTACTS.phones.join(' · '), phones.join(' · '));
+      audit('Контакты','Электронная почта', CONTACTS.email, mVal('ctEmail'));
+      audit('Контакты','Адрес сайта', CONTACTS.site, mVal('ctSite'));
+      audit('Контакты','Юридический адрес', CONTACTS.legalAddr, mVal('ctLegal'));
+      audit('Контакты','Фактический адрес', CONTACTS.factAddr, mVal('ctFact'));
+      audit('Контакты','Реквизиты СЭД', CONTACTS.sed, mVal('ctSed'));
+      CONTACTS.phones=phones; CONTACTS.email=mVal('ctEmail'); CONTACTS.site=mVal('ctSite');
+      CONTACTS.legalAddr=mVal('ctLegal'); CONTACTS.factAddr=mVal('ctFact'); CONTACTS.sed=mVal('ctSed');
+    }});
+}
+
+/* ---- Хронология (§3.1, N) ---- */
+function chronoForm(ev){
+  const isNew = !ev;
+  ev = ev || { date:TODAY, title:'', descr:'' };
+  openModal({ title:isNew?'Новое событие':'Событие хронологии', body:
+    fldDate('chDate','Дата', ev.date) + fld('chTitle','Заголовок', ev.title) + fldArea('chDescr','Описание', ev.descr),
+    onSave(){
+      const date=mVal('chDate'), title=mVal('chTitle'), descr=mVal('chDescr');
+      if(!date || !title) return 'Дата и заголовок обязательны.';
+      if(isNew){ CHRONO.push({ id:'ch'+(chronoSeq++), date, title, descr }); audit('Хронология','Событие','—', '«'+title+'»'); }
+      else{ audit('Хронология','Событие «'+ev.title+'»', ev.title+' / '+ev.date, title+' / '+date); ev.date=date; ev.title=title; ev.descr=descr; }
+    },
+    onDelete: isNew ? null : function(){ const i=CHRONO.indexOf(ev); if(i>=0) CHRONO.splice(i,1); audit('Хронология','Событие','«'+ev.title+'»','удалено'); },
+    deleteLabel:'Удалить событие' });
+}
+
+/* ---- Банковский счёт (§4) ---- */
+const CCY = ['KGS','USD','EUR','RUB'];
+function accountForm(ac){
+  const isNew = !ac;
+  ac = ac || { bank:'', bik:'', acc:'', ccy:'KGS', purpose:'', main:false };
+  const ccyOpts = CCY.map(c=>`<option value="${c}"${c===ac.ccy?' selected':''}>${c}</option>`).join('');
+  openModal({ title:isNew?'Новый счёт':'Банковский счёт', body:
+    fld('acBank','Банк', ac.bank) +
+    `<div class="fld row2">${fld('acBik','БИК', ac.bik)}${fld('acNo','Номер счёта', ac.acc)}</div>` +
+    `<div class="fld row2"><div class="fld"><label for="acCcy">Валюта</label><select id="acCcy">${ccyOpts}</select></div>${fld('acPurp','Назначение', ac.purpose)}</div>` +
+    `<label class="fld-check"><input type="checkbox" id="acMain"${ac.main?' checked':''}> Основной счёт по валюте</label>` +
+    `<div class="modal-note">§4 · инвариант: не более одного основного счёта в разрезе валюты. При установке «основной» флаг у других счетов той же валюты снимается автоматически.</div>`,
+    onSave(){
+      const bank=mVal('acBank'), bik=mVal('acBik'), no=mVal('acNo'), ccy=mVal('acCcy'), purp=mVal('acPurp'), main=mChecked('acMain');
+      if(!bank || !no || !ccy || !purp) return 'Банк, номер счёта, валюта и назначение обязательны.';
+      if(isNew){ ac.id='ac'+(accountSeq++); ACCOUNTS.push(ac); }
+      ac.bank=bank; ac.bik=bik; ac.acc=no; ac.ccy=ccy; ac.purpose=purp; ac.main=main;
+      if(main) ACCOUNTS.forEach(x=>{ if(x!==ac && x.ccy===ccy) x.main=false; }); // §4 держим инвариант
+      audit('Банковские реквизиты', bank+' · '+ccy, isNew?'—':'изменён', isNew?'добавлен':(main?'основной':'не основной'));
+    },
+    onDelete: isNew ? null : function(){ const i=ACCOUNTS.indexOf(ac); if(i>=0) ACCOUNTS.splice(i,1); audit('Банковские реквизиты', ac.bank+' · '+ac.ccy,'счёт','удалён'); },
+    deleteLabel:'Удалить счёт' });
+}
+
+/* =========================================================================
+   ДЕЛЕГИРОВАНИЕ КЛИКОВ по data-act (кнопки перерисовываются — слушатель один).
+   ========================================================================= */
+document.querySelector('.content').addEventListener('click', e=>{
+  const b = e.target.closest('[data-act]'); if(!b) return;
+  const act = b.dataset.act, id = b.dataset.id;
+  if(!canEdit() && act!=='goto-source') return; // §2/§5 правка только Админ
+  switch(act){
+    case 'edit-general':  editGeneral(); break;
+    case 'edit-reg':      editReg(); break;
+    case 'edit-contacts': editContacts(); break;
+    case 'add-chrono':    chronoForm(null); break;
+    case 'edit-chrono':   chronoForm(CHRONO.find(x=>x.id===id)); break;
+    case 'del-chrono':    { const ev=CHRONO.find(x=>x.id===id); if(ev){ const i=CHRONO.indexOf(ev); CHRONO.splice(i,1); audit('Хронология','Событие','«'+ev.title+'»','удалено'); renderAll(); } break; }
+    case 'add-account':   accountForm(null); break;
+    case 'edit-account':  accountForm(ACCOUNTS.find(x=>x.id===id)); break;
+    case 'del-account':   { const ac=ACCOUNTS.find(x=>x.id===id); if(ac){ ACCOUNTS.splice(ACCOUNTS.indexOf(ac),1); audit('Банковские реквизиты', ac.bank+' · '+ac.ccy,'счёт','удалён'); renderAll(); } break; }
+    case 'goto-source':   toast(`Зеркало (§3.2): редактирование в модуле-источнике — <span class="mono">${esc(b.dataset.src)}</span>. Из карточки ведомства зеркало не правится.`); break;
+  }
+});
+
+/* ---- боковое меню и выход (демо-заглушки) ---- */
+document.querySelectorAll('.nav-item').forEach(a=> a.addEventListener('click', ev=>{
+  ev.preventDefault();
+  if(a.classList.contains('active')) return;
+  toast(`Раздел «${a.textContent.trim()}» — отдельный модуль АСУБК (в этом прототипе не реализован).`);
+}));
+document.querySelector('.icon-btn').addEventListener('click', ()=> toast('Выход из системы (демо).'));
+
+/* ---- события шапки ---- */
+document.getElementById('roleSel').onchange = e=>{
+  state.role = e.target.value;
+  if(state.tab==='audit' && !canEdit()) state.tab='general'; // наблюдателю журнал недоступен
+  renderAll();
+};
+document.getElementById('dateInp').onchange = e=>{ state.date = e.target.value; if(state.tab==='metrics') renderMetrics(); };
+
+renderAll();
+</script>
+</body>
+</html>
