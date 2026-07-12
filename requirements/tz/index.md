@@ -14,7 +14,7 @@
 |---|---|---|---|
 | 01 | Госрешение | `/gov-decisions` | **to-be** (R1–R7) |
 | 02 | Кредитная программа | `/loan-programs` | **to-be** (P2-R1–P2-R10) |
-| 03 | Заявка / Комиссия | `/loan-applications`, `/loan-application-commissions` | as-is |
+| 03 | Заявка / Комиссия | `/loan-applications`, `/loan-application-commissions` | **to-be** (P3-R1–P3-R47) |
 | 04 | Заёмщик | `/loan-applicants` | as-is |
 | 05 | Кредит | `/loansCredit`, `/loan-credits/{id}` | as-is |
 | 06 | Транши / Освоение | `/sub-loans`, `/disbursements` | as-is |
