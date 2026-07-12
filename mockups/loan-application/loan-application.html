@@ -7717,7 +7717,7 @@ function condSecRates(){
     : '';
   return `<div class="cond-sec"><div class="section-h">Процентные ставки</div><div class="cform-grid">
     ${condCombo('Тип основной ставки','rateType',['Фиксированная','Диапазон'])}
-    ${range ? condF('Значение ставки с','rateMin',{unit:'%',req:true,oninput:"condTouch('rateMin');validateRate()",err:'Обязательное поле'})+condF('Значение ставки по','rateMax',{unit:'%',req:true,oninput:"condTouch('rateMax');validateRate()",err:'Обязательное поле'})
+    ${range ? condF('Значение ставки с','rateMin',{unit:'%'})+condF('Значение ставки по','rateMax',{unit:'%'})
             : condMsCombo('Значение фиксированной ставки','rateValues',RATE_OPTS,'%')}
     ${condCheck('Использовать плавающую ставку','floatRate')}
     ${float}
@@ -7778,8 +7778,8 @@ function condSecPayments(){
       ${condCombo('Обработка нерабочих дней','weekend',CLK.weekend)}
       ${condCombo('Привязка последнего платежа','lastPaymentAnchor',CLK.lastPaymentAnchor)}
       ${byMonths ? condF('Метод погашения кредита','repayMethod',{type:'text'}) : condCombo('Метод погашения кредита','repayMethod',CLK.repayMethod)}
-      ${condF('Минимальное кол-во дней (освоение→1й платёж)','minDays',{type:'number',unit:'дней',req:true,oninput:"condTouch('minDays');validateMinDays()",err:'Обязательное поле'})}
-      ${condF('Максимальное кол-во дней (освоение→1й платёж)','maxDays',{type:'number',unit:'дней',req:true,oninput:"condTouch('maxDays');validateMaxDays()",err:'Обязательное поле'})}
+      ${condF('Минимальное кол-во дней (освоение→1й платёж)','minDays',{type:'number',unit:'дней'})}
+      ${condF('Максимальное кол-во дней (освоение→1й платёж)','maxDays',{type:'number',unit:'дней'})}
     </div></div>
   </div></div>`;
 }
@@ -7904,38 +7904,12 @@ function validatePhone(){
 /** validateCreate — called by «Далее»; runs every field validator so all errors
  *  surface at once. Returns true only if all pass (P3-R5 subject+program required,
  *  P3-R3 amount/term bounds, phone format). */
-/** Мин./макс. кол-во дней (освоение→1й платёж) — обязательны при создании (вариант A,
- *  заказчик 2026-07-12): «все условия должны быть заполнены», в т.ч. без программы (поток B).
- *  Требуется непустое целое ≥ 0. */
-function _validateDays(key){
-  saveCondInputs();
-  const raw = String(cdraft[key]||'').trim();
-  const n = parseInt(raw, 10);
-  const ok = raw !== '' && Number.isInteger(n) && n >= 0 && String(n) === raw;
-  const field = document.querySelector(`#cf-cond-body [data-field="${key}"]`);
-  if (field) field.classList.toggle('invalid', !ok);
-  return ok;
-}
-function validateMinDays(){ return _validateDays('minDays'); }
-function validateMaxDays(){ return _validateDays('maxDays'); }
-/** Годовая ставка обязательна при создании (вариант A). Модель формы: «Фиксированная» →
- *  хотя бы одно значение в rateValues; «Диапазон» → заполнены rateMin и rateMax (числа). */
-function validateRate(){
-  saveCondInputs();
-  const range = cdraft.rateType === 'Диапазон';
-  let ok, fieldKey;
-  if (range){
-    const lo = t2num(cdraft.rateMin), hi = t2num(cdraft.rateMax);
-    ok = String(cdraft.rateMin||'').trim() !== '' && String(cdraft.rateMax||'').trim() !== '' && !isNaN(lo) && !isNaN(hi);
-    fieldKey = 'rateMin';
-  } else {
-    ok = Array.isArray(cdraft.rateValues) && cdraft.rateValues.length > 0;
-    fieldKey = 'rateValues';
-  }
-  const field = document.querySelector(`#cf-cond-body [data-field="${fieldKey}"]`);
-  if (field) field.classList.toggle('invalid', !ok);
-  return ok;
-}
+/* Форма создания несёт только субъект + программу + запрашиваемые сумму/срок + телефон
+   (`renderCond` рисует лишь сумму и срок; условия убраны из заявки 2026-07-05). Ставку,
+   мин./макс. дней и прочие условия здесь заполнить НЕЛЬЗЯ — их нет в форме; они несёт
+   программа (поток A) либо оператор в деталке после создания (поток B). Поэтому гейт
+   создания их НЕ требует (вариант A отменён 2026-07-12: невозможен без полей в форме).
+   «Все условия обязательны» действует на правке в деталке (`renderConditions`, required:true). */
 function validateCreate(){
   // Evaluate all (no short-circuit) so every invalid field lights up.
   const okSubject = validateSubject();       // P3-R5: только Субъект обязателен
@@ -7944,10 +7918,7 @@ function validateCreate(){
   const okPhone   = validatePhone();
   const okPayday  = validatePayday();        // schedule day-of-month 1–31 (optional)
   const okProgSel = validateProgSelects();   // program-driven selects — проверяются лишь когда программа выбрана (поток A)
-  const okMinDays = validateMinDays();       // вариант A: условия обязательны при создании (в т.ч. поток B)
-  const okMaxDays = validateMaxDays();
-  const okRate    = validateRate();
-  return okSubject && okAmount && okTerm && okPhone && okPayday && okProgSel && okMinDays && okMaxDays && okRate;
+  return okSubject && okAmount && okTerm && okPhone && okPayday && okProgSel;
 }
 
 /* ============================================================
@@ -8043,16 +8014,14 @@ function showToast(text, type){
 /** submitCreate — validates; on success pushes new row, re-renders, closes modal, opens detail. */
 function submitCreate(){
   if (!validateCreate()){
-    // Не молчим: вариант A добавил обязательные условия (ставка, мин./макс. дней) — без
-    // явного фидбэка «Сохранить не работает». Подсветку .invalid дополняем тостом + прокруткой.
+    // Не молчим при провале валидации (иначе «Сохранить не работает» без причины):
+    // подсветку .invalid дополняем тостом + прокруткой к первому невалидному полю.
     const bad = document.querySelector('#view-create .invalid, #cf-cond-body .invalid');
     if (bad){
-      const sec = bad.closest('.cond-sec, .cond-acc');   // раскрыть свёрнутую секцию условий, если есть
-      if (sec && sec.classList.contains('cond-acc')) sec.classList.add('open');
       bad.scrollIntoView({ block:'center', behavior:'smooth' });
       const inp = bad.querySelector('input,select,textarea'); if (inp) inp.focus();
     }
-    showToast('Не создано: заполните обязательные поля (субъект, сумма, срок, ставка, мин./макс. кол-во дней)', 'warn');
+    showToast('Не создано: заполните обязательные поля (субъект, запрашиваемая сумма и срок)', 'warn');
     return;
   }
 
