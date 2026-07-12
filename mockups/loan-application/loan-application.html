@@ -3384,6 +3384,16 @@ const COND_AUDIT_FIELDS = [
   ['kind','Вид кредита'], ['kreditLine','Кредитная линия'], ['repayAcct','Вид счёта погашения'],
   ['graceMain','Льготный период по осн. сумме'], ['graceAccrual','Льготный период по начислению %'],
   ['graceInterest','Льготный период по процентам'],
+  // Условия заявки без программы (свободно правятся) — тоже фиксируем «было→стало».
+  ['currency','Валюта'], ['queue','Очередь погашения'], ['repaymentMethod','Метод погашения кредита'],
+  ['floatRate','Плавающая ставка'], ['floatType','Тип плавающей ставки'],
+  ['reserveType','Тип ставки за неполное освоение'], ['reserveRate','Ставка за неполное освоение (резерв), %'],
+  ['reserveFloatType','Тип плавающей ставки за неполное освоение'],
+  ['penaltyMainType','Тип штрафа за просрочку основной суммы'], ['penaltyMainVal','Штраф за просрочку основной суммы, %'],
+  ['penaltyMainFloatType','Тип плавающей штрафной ставки (осн. сумма)'],
+  ['penaltyIntType','Тип штрафа за просрочку процентов'], ['penaltyIntVal','Штраф за просрочку процентов, %'],
+  ['penaltyIntFloatType','Тип плавающей штрафной ставки (проценты)'],
+  ['penaltyMaxPct','Максимальный размер штрафа, %'],
 ];
 /* Зафиксировать правки условий при «Сохранить»: снимок «до» (snap) vs текущее (app).
    На каждое изменившееся поле — запомнить исходное в app.orig (diff «было→стало» на
@@ -4006,8 +4016,9 @@ function condSelect(label, val, options, opts){
   const optsHtml = list.map(o =>
     `<option value="${o}"${o === val ? ' selected' : ''}>${o}</option>`).join('');
   const bind = opts.bind ? ` data-bind="${opts.bind}"` : '';
+  const onch = opts.onchange ? ` onchange="${opts.onchange}"` : '';
   return `<div class="cond-field"><span class="cflabel">${label}${star}</span>`
-    + `<select class="cf-input"${bind}>${optsHtml}</select>`
+    + `<select class="cf-input"${bind}${onch}>${optsHtml}</select>`
     + (opts.hint ? `<span class="cf-hint">${opts.hint}</span>` : '')
     + `</div>`;
 }
@@ -4265,9 +4276,13 @@ function renderConditions(app){
     ? { list: prog.termList || [] } : { min: prog.termMin, max: prog.termMax };
   const rateC = prog.stavkaType === 'Диапазон'
     ? { min: prog.stavkaMin, max: prog.stavkaMax } : { list: prog.stavka || [] };
-  const grMainC = graceConstraint(prog, 'graceMain', 'graceMainType', 'graceMainDur', 'graceMainDurFrom', 'graceMainDurTo');
-  const grAccrC = graceConstraint(prog, 'graceAccr', 'graceAccrType', 'graceAccrDur', 'graceAccrDurFrom', 'graceAccrDurTo');
-  const grIntC  = graceConstraint(prog, 'graceInt',  'graceIntType',  'graceIntDur',  'graceIntDurFrom',  'graceIntDurTo');
+  // Заявка без программы: условия ничем не ограничены — свободно правятся из справочника.
+  const noProg = !app.program;
+  // Только чтение сохранённого значения заявки (заявка без программы, не в правке).
+  const roApp = (label, val) => condField(label, [['заявка', val != null && val !== '' ? val : '']], {});
+  const grMainC = noProg ? {} : graceConstraint(prog, 'graceMain', 'graceMainType', 'graceMainDur', 'graceMainDurFrom', 'graceMainDurTo');
+  const grAccrC = noProg ? {} : graceConstraint(prog, 'graceAccr', 'graceAccrType', 'graceAccrDur', 'graceAccrDurFrom', 'graceAccrDurTo');
+  const grIntC  = noProg ? {} : graceConstraint(prog, 'graceInt',  'graceIntType',  'graceIntDur',  'graceIntDurFrom',  'graceIntDurTo');
 
   // Условие, унаследованное из кредитной программы (только чтение, 🔒).
   // Все значения — из снимка условий программы (PROGRAMS_MAP), ничего не выдумываем.
@@ -4279,19 +4294,27 @@ function renderConditions(app){
   F.push(inh('Кредитная программа', app.program));
   F.push(editCond
     ? condRefField('Назначение кредита', app.purpose || prog.purpose || env.purpose, prog.naznachenie, { required:true, fallback: CLK.purpose, bind:'purpose' })
+    : noProg ? condDiff(app, phase, 'Назначение кредита', 'purpose', CLK.purpose[0], 'заёмщик')
     : condDiff(app, phase, 'Назначение кредита', 'purpose', prog.purpose || env.purpose, 'программа'));
   F.push(editCond
     ? condRefField('Источник финансирования', app.fundingSource, prog.istochnik, { required:true, fallback: CLK.source, bind:'fundingSource' })
+    : noProg ? condDiff(app, phase, 'Источник финансирования', 'fundingSource', CLK.source[0], 'заёмщик')
     : condDiff(app, phase, 'Источник финансирования', 'fundingSource', prog.source || 'Бюджет', 'заёмщик'));
   F.push(editCond
     ? condRefField('Вид кредита', app.kind || prog.kind, prog.vidKredita, { required:true, fallback: CLK.kind, bind:'kind' })
+    : noProg ? condDiff(app, phase, 'Вид кредита', 'kind', CLK.kind[0], 'заёмщик')
     : condDiff(app, phase, 'Вид кредита', 'kind', prog.kind, 'программа'));
-  F.push(inh('Валюта', prog.currency || env.currency));
+  F.push(editCond && noProg
+    ? condSelect('Валюта', app.currency || 'KGS', CLK.currency, { required:true, bind:'currency' })
+    : noProg ? condDiff(app, phase, 'Валюта', 'currency', 'KGS', 'заёмщик')
+    : inh('Валюта', prog.currency || env.currency));
   F.push(editCond
     ? condRefField('Кредитная линия', app.kreditLine || (prog.kreditLine || [])[0], prog.kreditLine, { required:true, fallback: CLK.line, bind:'kreditLine' })
+    : noProg ? condDiff(app, phase, 'Кредитная линия', 'kreditLine', CLK.line[0], 'заёмщик')
     : condDiff(app, phase, 'Кредитная линия', 'kreditLine', (prog.kreditLine || [])[0] || '', 'программа'));
   F.push(editCond
     ? condRefField('Вид счёта погашения', app.repayAcct || prog.repayAcct, prog.schetPogash, { required:true, fallback: REF_VALUES.schetPogash, bind:'repayAcct' })
+    : noProg ? condDiff(app, phase, 'Вид счёта погашения', 'repayAcct', REF_VALUES.schetPogash[0], 'заёмщик')
     : condDiff(app, phase, 'Вид счёта погашения', 'repayAcct', prog.repayAcct, 'заёмщик'));
 
   // ── ② Сумма и срок ──
@@ -4306,19 +4329,73 @@ function renderConditions(app){
   // ── ③ Процентные ставки ──
   F.push('<div class="cond-subh">Процентные ставки</div>');
   F.push(editCond
-    ? condNum('Годовая ставка, %', app.annualRate || r.com || env.rate || prog.rate || '', { required:true,
-        hint: prog.stavkaType === 'Диапазон' ? `Допустимо: ${prog.stavkaMin}–${prog.stavkaMax} %` : (app.program ? 'Выберите ставку из вариантов программы' : 'Ставка вручную — обязательна'), ...rateC, bind:'annualRate' })
+    ? condNum('Годовая ставка, %', app.annualRate || r.com || env.rate || prog.rate || '', { required: !noProg,
+        hint: prog.stavkaType === 'Диапазон' ? `Допустимо: ${prog.stavkaMin}–${prog.stavkaMax} %` : (app.program ? 'Выберите ставку из вариантов программы' : 'Ставка вручную — можно заполнить позже'), ...rateC, bind:'annualRate' })
     : condField('Годовая ставка, %',
         _specLayers(app, 'annualRate', [['программа', r.prog || env.rate || prog.rate || ''], ['заёмщик', r.bor || (ov.rate ? '' : (app.annualRate || ''))], ['комиссия', r.com || '']])));
   F.push(inh('Тип основной ставки', prog.stavkaType || prog.rateType));
-  F.push(inh('Плавающая ставка', prog.floatRate ? 'Используется' : 'Не используется'));
-  F.push(inh('Ставка за неполное освоение (резерв), %', app.reserveRate || '0,00'));
+  // Плавающая ставка: «Используется» → выбор бенчмарка + маржа (модель как в кред. программе).
+  if (editCond && noProg){
+    const floatOn = (app.floatRate || 'Не используется') === 'Используется';
+    F.push(condSelect('Плавающая ставка', app.floatRate || 'Не используется', ['Не используется', 'Используется'], { bind:'floatRate', onchange:'refreshCondTab()' }));
+    if (floatOn){
+      // Маржа не отдельное поле: маржа = «Годовая ставка, %» выше. Здесь только бенчмарк.
+      F.push(condSelect('Тип плавающей ставки', app.floatType || condFloatTypes()[0], condFloatTypes(), { required:true, hint:'маржа = Годовая ставка, %', bind:'floatType' }));
+    }
+  } else if (noProg){
+    const floatOn = (app.floatRate || 'Не используется') === 'Используется';
+    F.push(condDiff(app, phase, 'Плавающая ставка', 'floatRate', 'Не используется', 'заёмщик'));
+    if (floatOn) F.push(condDiff(app, phase, 'Тип плавающей ставки', 'floatType', condFloatTypes()[0], 'заёмщик'));
+  } else {
+    F.push(inh('Плавающая ставка', prog.floatRate ? 'Используется' : 'Не используется'));
+  }
+  // Ставка за неполное освоение (резерв): Фиксированная — число; Плавающая — бенчмарк + маржа.
+  if (editCond && noProg){
+    const resFloat = (app.reserveType || 'Фиксированная') === 'Плавающая';
+    F.push(condSelect('Тип ставки за неполное освоение', app.reserveType || 'Фиксированная', ['Фиксированная', 'Плавающая'], { bind:'reserveType', onchange:'refreshCondTab()' }));
+    // Ставка (резерв) остаётся всегда — при «Плавающая» это и есть маржа сверх бенчмарка.
+    F.push(condNum('Ставка за неполное освоение (резерв), %', app.reserveRate || '0,00', { hint: resFloat ? 'маржа сверх бенчмарка' : '% — резерв за неполное освоение', bind:'reserveRate' }));
+    if (resFloat){
+      F.push(condSelect('Тип плавающей ставки за неполное освоение', app.reserveFloatType || condFloatTypes()[0], condFloatTypes(), { required:true, bind:'reserveFloatType' }));
+    }
+  } else if (noProg){
+    const resFloat = (app.reserveType || 'Фиксированная') === 'Плавающая';
+    F.push(condDiff(app, phase, 'Тип ставки за неполное освоение', 'reserveType', 'Фиксированная', 'заёмщик'));
+    F.push(condDiff(app, phase, 'Ставка за неполное освоение (резерв), %', 'reserveRate', '0,00', 'заёмщик'));
+    if (resFloat) F.push(condDiff(app, phase, 'Тип плавающей ставки за неполное освоение', 'reserveFloatType', condFloatTypes()[0], 'заёмщик'));
+  } else {
+    F.push(inh('Ставка за неполное освоение (резерв), %', app.reserveRate || '0,00'));
+  }
 
   // ── ④ Штрафы за просрочку ──
   F.push('<div class="cond-subh">Штрафы за просрочку</div>');
-  F.push(inh('Штраф за просрочку основной суммы', prog.penaltyMainVal));
-  F.push(inh('Штраф за просрочку процентов', prog.penaltyIntVal));
-  F.push(inh('Максимальный размер штрафа, %', prog.penaltyMaxPct));
+  if (editCond && noProg){
+    // Штраф за осн. сумму: значение (ставка/маржа) — всегда; при «Плавающая» + бенчмарк.
+    const mainFloat = (app.penaltyMainType || 'Фиксированная') === 'Плавающая';
+    F.push(condSelect('Тип штрафа за просрочку основной суммы', app.penaltyMainType || 'Фиксированная', ['Фиксированная', 'Плавающая'], { bind:'penaltyMainType', onchange:'refreshCondTab()' }));
+    F.push(condNum('Штраф за просрочку основной суммы, %', app.penaltyMainVal || '0,1', { hint: mainFloat ? 'маржа сверх бенчмарка (напр. 2)' : '% в день', bind:'penaltyMainVal' }));
+    if (mainFloat) F.push(condSelect('Тип плавающей штрафной ставки (осн. сумма)', app.penaltyMainFloatType || condPenaltyFloatTypes()[0], condPenaltyFloatTypes(), { required:true, bind:'penaltyMainFloatType' }));
+    // Штраф за проценты: то же.
+    const intFloat = (app.penaltyIntType || 'Фиксированная') === 'Плавающая';
+    F.push(condSelect('Тип штрафа за просрочку процентов', app.penaltyIntType || 'Фиксированная', ['Фиксированная', 'Плавающая'], { bind:'penaltyIntType', onchange:'refreshCondTab()' }));
+    F.push(condNum('Штраф за просрочку процентов, %', app.penaltyIntVal || '0,1', { hint: intFloat ? 'маржа сверх бенчмарка (напр. 2)' : '% в день', bind:'penaltyIntVal' }));
+    if (intFloat) F.push(condSelect('Тип плавающей штрафной ставки (проценты)', app.penaltyIntFloatType || condPenaltyFloatTypes()[0], condPenaltyFloatTypes(), { required:true, bind:'penaltyIntFloatType' }));
+    F.push(condNum('Максимальный размер штрафа, %', app.penaltyMaxPct || '20', { int:true, hint:'% от суммы кредита', bind:'penaltyMaxPct' }));
+  } else if (noProg){
+    const mainFloat = (app.penaltyMainType || 'Фиксированная') === 'Плавающая';
+    const intFloat  = (app.penaltyIntType || 'Фиксированная') === 'Плавающая';
+    F.push(condDiff(app, phase, 'Тип штрафа за просрочку основной суммы', 'penaltyMainType', 'Фиксированная', 'заёмщик'));
+    F.push(condDiff(app, phase, 'Штраф за просрочку основной суммы, %', 'penaltyMainVal', '0,1', 'заёмщик'));
+    if (mainFloat) F.push(condDiff(app, phase, 'Тип плавающей штрафной ставки (осн. сумма)', 'penaltyMainFloatType', condPenaltyFloatTypes()[0], 'заёмщик'));
+    F.push(condDiff(app, phase, 'Тип штрафа за просрочку процентов', 'penaltyIntType', 'Фиксированная', 'заёмщик'));
+    F.push(condDiff(app, phase, 'Штраф за просрочку процентов, %', 'penaltyIntVal', '0,1', 'заёмщик'));
+    if (intFloat) F.push(condDiff(app, phase, 'Тип плавающей штрафной ставки (проценты)', 'penaltyIntFloatType', condPenaltyFloatTypes()[0], 'заёмщик'));
+    F.push(condDiff(app, phase, 'Максимальный размер штрафа, %', 'penaltyMaxPct', '20', 'заёмщик'));
+  } else {
+    F.push(inh('Штраф за просрочку основной суммы', prog.penaltyMainVal));
+    F.push(inh('Штраф за просрочку процентов', prog.penaltyIntVal));
+    F.push(inh('Максимальный размер штрафа, %', prog.penaltyMaxPct));
+  }
 
   // ── ⑤ Льготный период ──
   F.push('<div class="cond-subh">Льготный период</div>');
@@ -4373,7 +4450,10 @@ function renderConditions(app){
   F.push(editCond
     ? condSelect('База дней в году', app.dayCountBase || prog.dayCountBase || '365', ['360', '365', 'Фактическая'], { required:true, bind:'dayCountBase' })
     : condDiff(app, phase, 'База дней в году', 'dayCountBase', prog.dayCountBase || '365', 'программа'));
-  F.push(inh('Очередь погашения', prog.queue));
+  F.push(editCond && noProg
+    ? condSelect('Очередь погашения', app.queue || CLK.queue[1], CLK.queue, { required:true, bind:'queue' })
+    : noProg ? condDiff(app, phase, 'Очередь погашения', 'queue', CLK.queue[1], 'заёмщик')
+    : inh('Очередь погашения', prog.queue));
   F.push(editCond
     ? condNum('День платежа', app.paymentDay || '15', { required:true, int:true, min:'1', max:'31', hint:'1–31; короткий месяц → последний день', bind:'paymentDay' })
     : condDiff(app, phase, 'День платежа', 'paymentDay', '15', 'заёмщик'));
@@ -4388,14 +4468,18 @@ function renderConditions(app){
         ['По дате первого платежа', 'По дате выдачи'], { required:true, bind:'lastPaymentAnchor' })
     : condDiff(app, phase, 'Привязка последнего платежа', 'lastPaymentAnchor', prog.lastPaymentAnchor || 'По дате первого платежа', 'программа'));
   // При графике «по конкретным месяцам» метод погашения авто → «Индивидуальный» (как R19 программы).
-  F.push(inh('Метод погашения кредита',
-    payMode === 'months' ? 'Индивидуальный' : (prog.repayMethod || env.method || 'Аннуитетный')));
+  F.push(payMode === 'months'
+    ? inh('Метод погашения кредита', 'Индивидуальный')
+    : (editCond && noProg
+        ? condSelect('Метод погашения кредита', app.repaymentMethod || CLK.repayMethod[0], CLK.repayMethod, { required:true, bind:'repaymentMethod' })
+        : noProg ? condDiff(app, phase, 'Метод погашения кредита', 'repaymentMethod', CLK.repayMethod[0], 'заёмщик')
+        : inh('Метод погашения кредита', prog.repayMethod || env.method || 'Аннуитетный')));
   // Период освоение→1-й платёж — как в программе: 2 поля (мин/макс дней), оба редактируемые.
   F.push(editCond
-    ? condNum('Минимальное кол-во дней', app.minDays || prog.minDays || '', { required:true, int:true, hint:'дн.', bind:'minDays' })
+    ? condNum('Минимальное кол-во дней', app.minDays || prog.minDays || '', { required: !noProg, int:true, hint:'дн.', bind:'minDays' })
     : condDiff(app, phase, 'Минимальное кол-во дней', 'minDays', prog.minDays || '', 'программа'));
   F.push(editCond
-    ? condNum('Максимальное кол-во дней', app.maxDays || prog.maxDays || '', { required:true, int:true, hint:'дн.', bind:'maxDays' })
+    ? condNum('Максимальное кол-во дней', app.maxDays || prog.maxDays || '', { required: !noProg, int:true, hint:'дн.', bind:'maxDays' })
     : condDiff(app, phase, 'Максимальное кол-во дней', 'maxDays', prog.maxDays || '', 'программа'));
 
   // ── ⑦ Решение комиссии (одобр. сумма/срок — см. diff «было→стало» в блоке ②) ──
