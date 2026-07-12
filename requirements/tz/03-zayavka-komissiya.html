@@ -705,11 +705,11 @@
 <td><strong>Опциональна — переключатель потока</strong> (заказчик 2026-07-12): выбрана → поток A, пусто → поток B. Предзаполняет условия; <strong>никогда не блокирует</strong> ввод (спека 2026-07-05); хинт «Не выбрана → индивидуальная заявка (поток B): условия вручную»</td>
 </tr>
 <tr>
-<td>Условия кредита</td>
-<td>блок виджетов</td>
+<td>Запрашиваемые сумма и срок</td>
+<td>2 поля</td>
 <td style="text-align: center;"><strong>Да</strong></td>
-<td>копия виджетов условий выбранной программы (<code>renderCond</code>)</td>
-<td>Сумма&gt;0 и ∈ конверта (<code>validateReqAmount</code>); срок&gt;0 и ∈ конверта (<code>validateReqTerm</code>); <strong>годовая ставка</strong> (<code>validateRate</code>); <strong>мин./макс. кол-во дней</strong> (<code>validateMinDays</code>/<code>validateMaxDays</code>); день платежа 1–31; обязательные селекты программы (<code>validateProgSelects</code>)</td>
+<td><code>renderCond</code> (только эти два поля; условия убраны из заявки 2026-07-05 — их несёт программа/деталка)</td>
+<td>Сумма&gt;0 и ∈ конверта (<code>validateReqAmount</code>); срок&gt;0 и ∈ конверта (<code>validateReqTerm</code>)</td>
 </tr>
 <tr>
 <td>Комментарий к заявке</td>
@@ -728,12 +728,13 @@
   заявку (поток B), поэтому пустоту не блокируем. <code>validateProgram</code> пустоту ошибкой не
   считает (всегда ok); из гейта <code>validateCreate</code> требование программы убрано. На live
   «Субъект» тоже <code>required=false</code> (P3-05) — исправить на сервере обязателен только он.</li>
-<li><strong>Все условия обязательны при создании (вариант A, заказчик 2026-07-12):</strong> «все условия
-  должны быть заполнены» — в т.ч. для потока B (без программы). Годовая ставка (<code>validateRate</code>:
-  фикс. → ≥1 значение в <code>rateValues</code>; диапазон → <code>rateMin</code>+<code>rateMax</code>) и мин./макс. кол-во дней
-  (<code>validateMinDays</code>/<code>validateMaxDays</code>, целое ≥0) добавлены в гейт <code>validateCreate</code>. Для потока A
-  их предзаполняет конверт программы, поэтому гейт не мешает. Симметрично: правка условий в
-  деталке тоже требует эти поля (<code>required:true</code> в <code>renderConditions</code>).</li>
+<li><strong>Условия заполняются в деталке, не при создании (заказчик 2026-07-12):</strong> форма создания
+  несёт только субъект + программу + запрашиваемые сумму/срок + телефон. Ставки, мин./макс.
+  дней и прочие условия в форме создания <strong>отсутствуют</strong> (<code>renderCond</code> рисует лишь сумму и срок)
+  — их несёт программа (поток A) либо оператор заполняет в деталке после создания (поток B).
+  Требование «все условия заполнены» действует на <strong>правке в деталке</strong> (<code>renderConditions</code>,
+  <code>required:true</code>), а не в гейте <code>validateCreate</code>. Тост при провале создания перечисляет только
+  реальные поля формы (субъект, сумма, срок).</li>
 <li><strong>Ленивая валидация (P3-R6 🟡):</strong> ошибки обязательности <strong>не на рендере</strong>, только по <code>blur</code>
   или «Сохранить». Валидатор «Сохранить» (<code>validateCreate</code>) прогоняет все field-валидаторы
   <strong>без short-circuit</strong> — разом подсвечиваются все невалидные поля.</li>
