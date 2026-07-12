@@ -3,60 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Заемщики — АСУБК (точная копия)</title>
+<title>Заёмщик — карточка TO-BE — АСУБК</title>
 <!--
-  Раздел «Заёмщики» из живого стенда ASUBK Credit Module — в одном файле.
-  Виды в одном SPA (как в живом стенде):
-    • Список   — /loan-applicants        (14 строк)
-    • Карточка — /loan-applicants/{id}    (запись ОАО "О!Банк")
-    • Оформление кредита — /loans-processing/{id}?mode=readonly (из таба «Кредиты»)
-  Переход как в стенде (проверено 2026-07-06, scripts/inspect/borrower-open-behavior.mjs):
-    одинарный клик -> выделяет строку + включает Изменить/Удалить;
-    двойной клик / выделить+Изменить -> открывает карточку;
-    OK / Отмена -> возврат к списку.
-  Снято через scripts/inspect/borrower-full.mjs + borrower-list.mjs + borrower-styles.mjs.
-  Стек оригинала: Jmix on Vaadin (Lumo) — воспроизведены цвета/шрифты Lumo.
-
-  СТАТУС ФАЙЛА: список + основная форма + readonly-кредит — копия стенда;
-  вкладки карточки Кредиты/Документы/История/Контакты доработаны как TO-BE
-  предложение для дев-команды (наполнены, дефекты исправлены):
-    • Основная информация: убрано скрытое обязат. поле «ID в системе» (P4-R4);
-      согласован счётчик кредитов шапка/панель проверок — «действующие» vs
-      «всего» (P4-R3); заполнено «Последнее обновление».
-    • Кредиты: реальная таблица кредитов вместо дублей заёмщика; «Посмотр»->«Просмотр».
-    • Документы: аккордеон документов уровня субъекта (физ/юр), жизненный цикл.
-    • История: аудит-таймлайн изменений записи.
-    • Контакты: реестр контактных лиц вместо дубля телефона/адреса.
+  Карточка заёмщика — TO-BE предложение для дев-команды.
+  Рендер логики из ASUBK-zaemshik-logika.md (оси залочены 12.07.2026).
+  Что показывает:
+    • Шапка — 3 плитки состояния: Группа платёжеспособности (read-only, выведена),
+      Категория риска (worst-of, честно + подпись-основание), Оверлей (отдельный слой).
+    • Свод кураторства — по всем кредитам, поимённо; асимметрия отстранения по ИНН.
+    • Вкладки: Кредиты (worst-of входы покредитно), История (передачи + переводы групп),
+      Документы/Контакты/Проверки — застаблены с плашкой «открытый вопрос §6».
+  Дизайн-система: gov-blue Lumo (токены из as-is borrower.html).
+  Демо-заёмщик: ОАО "АгроТехСервис", ИНН 01204199910016, 3 кредита в разных процедурах.
+    - АПК-2023-014        просрочка 45 дн → средний · процедура 2.1 (суд)
+    - Газификация-2024-07 просрочка 210 дн → ОВЕРЛЕЙ подавления 181-го (реструкт., -40 дн)
+                          → категория кредита честно «средний» · процедура 2.2 (исп. листы)
+    - Модернизация-2022   просрочка 0 дн, но НЕЦЕЛЕВОЕ + решение Комитета → высокий · 2.3
+    Категория заёмщика = worst-of = ВЫСОКИЙ (за нецелевое, нулевая просрочка).
+    Группа заёмщика = лестница: кредиты в 2.1/2.2/2.3 → блок 2, макс = 2.3.
 -->
 <style>
   :root{
-    --primary:#006af5;            /* lumo-primary-color hsl(214,100%,48%) */
-    --primary-text:#005fdb;       /* lumo-primary-text-color / вкладки */
-    --primary-hover:#0059d1;
-    --green-btn:#2e8b3d;          /* «Обновить» */
-    --green-btn-hover:#277633;
-    --body-text:#1b2a3d;          /* lumo-body-text-color 0.94 */
-    --secondary-text:rgba(38,55,78,0.69); /* lumo-secondary-text-color / метки */
-    --success:#158a4e;            /* lumo-success-color hsl(145,72%,30%) */
-    --error:#e02020;              /* lumo-error-color hsl(3,85%,48%) */
-    --green-card-bg:#eaf7f0;
-    --green-card-border:#cdeadb;
-    --border:#dbe0e6;
-    --border-strong:#c7ced6;
-    --field-bg:#f6f8fa;           /* поля формы карточки */
-    --filter-bg:#eef1f4;          /* поля фильтра / кнопки списка */
-    --field-border:#c9d0d8;
-    --panel-border:#e3e7ec;
-    --grid-hover:#f3f7fd;
+    --primary:#006af5; --primary-text:#005fdb; --primary-hover:#0059d1;
+    --body-text:#1b2a3d; --secondary-text:rgba(38,55,78,0.69);
+    --success:#158a4e; --error:#e02020; --warn:#c77700;
+    --green-card-bg:#eaf7f0; --green-card-border:#cdeadb;
+    --border:#dbe0e6; --border-strong:#c7ced6;
+    --field-bg:#f6f8fa; --filter-bg:#eef1f4; --field-border:#c9d0d8;
+    --panel-border:#e3e7ec; --grid-hover:#f3f7fd;
     --radius:4px;
-    --font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+    --font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{font-family:var(--font);color:var(--body-text);background:#fff;font-size:16px;line-height:1.4;}
   .app{display:flex;min-height:100vh;}
 
-  /* ---------- SIDEBAR (общий) ---------- */
+  /* sidebar */
   .sidebar{width:278px;flex:0 0 278px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;}
   .sidebar .brand{font-weight:700;font-size:20px;padding:18px 22px;}
   .nav{flex:1;overflow-y:auto;padding:0 8px;}
@@ -65,330 +48,144 @@
   .nav-group.open{color:var(--primary-text);}
   .nav-item{padding:8px 14px 8px 20px;font-size:15px;border-radius:var(--radius);cursor:default;}
   .nav-item:hover{background:var(--filter-bg);}
+  .nav-item.active{background:var(--filter-bg);color:var(--primary-text);font-weight:600;}
   .sidebar .footer{border-top:1px solid var(--border);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;}
   .logout{width:38px;height:38px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--filter-bg);
     display:flex;align-items:center;justify-content:center;color:var(--primary-text);cursor:pointer;}
 
-  /* ---------- MAIN (общий) ---------- */
+  /* main */
   .main{flex:1;min-width:0;display:flex;flex-direction:column;}
   .topbar{display:flex;align-items:center;gap:16px;padding:16px 26px;border-bottom:1px solid var(--border);}
   .burger{font-size:22px;color:var(--secondary-text);cursor:pointer;line-height:1;}
   .topbar .title{font-weight:700;font-size:20px;}
-  .view{flex:1;display:flex;flex-direction:column;}
-  .content{padding:16px 26px 26px;flex:1;}
-  #view-detail .content{padding:20px 26px 0;}
+  .crumb{color:var(--secondary-text);font-size:14px;}
+  .crumb a{color:var(--primary-text);text-decoration:none;}
+  .content{padding:20px 26px 40px;flex:1;}
 
-  .btn{font-family:var(--font);font-size:16px;font-weight:600;border-radius:var(--radius);padding:9px 18px;
+  .btn{font-family:var(--font);font-size:15px;font-weight:600;border-radius:var(--radius);padding:8px 16px;
     border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;}
-  .btn[disabled]{opacity:.6;cursor:default;}
   .btn-secondary{background:var(--filter-bg);color:var(--secondary-text);border-color:var(--field-border);}
-
-  /* ========================================================= */
-  /* ==================== ВИД: СПИСОК ========================= */
-  /* ========================================================= */
-  .filter-head{display:flex;align-items:center;gap:8px;color:var(--primary-text);font-size:16px;padding:6px 2px 12px;cursor:default;}
-  .filter-head .caret{font-size:13px;}
-  .filter-card{border:1px solid var(--panel-border);border-radius:3px;padding:16px 18px;margin-bottom:16px;}
-  .filter-row{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
-  .filter-row:last-child{margin-bottom:0;}
-  .filter-row .fl{width:96px;color:var(--secondary-text);font-size:15px;flex:0 0 96px;}
-  /* поле фильтра: голубовато-серое, без рамки, 36px (как vaadin-select/lumo) */
-  .filter-field{flex:1;position:relative;background:rgba(26,57,96,0.08);border:0;
-    border-radius:var(--radius);height:36px;display:flex;align-items:center;padding:0 10px;cursor:pointer;}
-  .filter-field .val{flex:1;color:var(--body-text);font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .filter-field .val.ph{color:transparent;}
-  .filter-field .chev{color:var(--secondary-text);font-size:16px;margin-left:8px;}
-  .filter-field .dots-btn{width:26px;height:24px;border-radius:3px;background:rgba(26,57,96,0.06);
-    display:flex;align-items:center;justify-content:center;color:var(--primary-text);letter-spacing:1px;margin-left:6px;}
-  .filter-field .clr{width:26px;height:24px;display:flex;align-items:center;justify-content:center;
-    color:var(--primary-text);font-size:15px;margin-left:2px;cursor:pointer;}
-  /* выпадающий список фильтра */
-  .fdrop{position:absolute;top:40px;left:0;right:0;z-index:20;background:#fff;border:1px solid var(--border);
-    border-radius:var(--radius);box-shadow:0 4px 16px rgba(24,39,57,0.14);padding:4px 0;display:none;}
-  .fdrop.open{display:block;}
-  .fdrop .opt{padding:8px 12px;font-size:16px;cursor:pointer;}
-  .fdrop .opt:hover{background:var(--grid-hover);}
-  .fdrop .opt.empty{color:var(--secondary-text);min-height:20px;}
-
-  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
-  .btn-green{background:var(--green-btn);color:#fff;border-radius:var(--radius) 0 0 var(--radius);}
-  .btn-green:hover{background:var(--green-btn-hover);}
-  .btn-green-split{background:var(--green-btn);color:#fff;border-left:1px solid rgba(255,255,255,.35);
-    border-radius:0 var(--radius) var(--radius) 0;padding:9px 10px;}
-  .btn-green-split:hover{background:var(--green-btn-hover);}
-  .btn-icon{background:var(--filter-bg);color:var(--primary-text);border-color:var(--field-border);padding:9px 11px;}
-  .btn-danger{background:var(--filter-bg);color:var(--error,#d32020);border-color:var(--field-border);}
-  .add-cond{color:var(--secondary-text);font-size:16px;margin-left:6px;cursor:default;}
-  .toolbar2{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
-  .rowcount{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--body-text);font-size:16px;}
-  .pager{display:flex;gap:10px;color:var(--secondary-text);}
-  .pager span{cursor:default;}
-
-  #view-list .grid{border:1px solid var(--border);border-radius:3px;overflow:hidden;}
-  #view-list table{width:100%;border-collapse:collapse;table-layout:fixed;}
-  #view-list thead th{text-align:left;font-weight:700;color:var(--body-text);font-size:15px;padding:10px 16px;
-    border-bottom:1px solid var(--border);white-space:nowrap;}
-  #view-list thead th .sort{color:var(--secondary-text);font-size:13px;margin-left:6px;}
-  #view-list tbody td{padding:8px 16px;border-bottom:1px solid #eef1f4;font-size:15px;color:var(--body-text);
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px;}
-  #view-list tbody tr{cursor:pointer;}
-  #view-list tbody tr:hover{background:var(--grid-hover);}
-  #view-list tbody tr:last-child td{border-bottom:0;}
-  /* доли колонок как в оригинале: длинное «ФИО/Наименование» обрезается «…» */
-  col.c-inn{width:16%;} col.c-name{width:24%;} col.c-type{width:12%;}
-  col.c-ind{width:26%;} col.c-status{width:22%;}
-  /* тулбар списка «Изменить»/«Удалить» — как на live-стенде:
-     h36, бледно-синий фон, серые в disabled; при выборе строки
-     «Изменить» синяя (#005fdb), «Удалить» красная (#ca150c) */
-  .toolbar2 #btnEdit,.toolbar2 #btnDel{background:rgba(25,59,103,0.05);border-color:transparent;
-    height:36px;padding:0 14px;color:rgba(28,52,84,0.26);}
-  .toolbar2 #btnEdit:not([disabled]){color:#005fdb;}
-  .toolbar2 #btnDel:not([disabled]){color:#ca150c;}
-
-  /* ========================================================= */
-  /* ==================== ВИД: КАРТОЧКА ======================= */
-  /* ========================================================= */
-  /* header card */
-  .header-card{border:1px solid var(--panel-border);border-radius:3px;padding:18px 22px 22px;
-    display:flex;gap:32px;margin-bottom:18px;}
-  .header-left{flex:1;min-width:0;max-width:640px;}
-  .header-right{flex:1;display:flex;gap:40px;padding-top:4px;}
-  .field{margin-bottom:14px;}
-  .field:last-child{margin-bottom:0;}
-  label.lbl{display:block;color:var(--secondary-text);font-size:14px;margin-bottom:4px;}
-  .inp{width:100%;background:var(--field-bg);border:1px solid var(--field-border);border-radius:var(--radius);
-    padding:8px 10px;font-family:var(--font);font-size:16px;color:var(--body-text);}
-  .select-wrap{position:relative;}
-  .select-wrap::after{content:"⌄";position:absolute;right:12px;top:6px;color:var(--secondary-text);font-size:16px;}
-  .row-3{display:flex;gap:16px;}
-  .row-3 .field{flex:1;}
-  .credits-block{display:flex;flex-direction:column;gap:2px;}
-  .credits-line{display:flex;gap:10px;}
-  .credits-line .num{min-width:14px;}
-  .muted-head{color:var(--body-text);}
-
-  /* tabs */
-  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;}
-  .tab{padding:10px 12px 12px;font-size:16px;font-weight:500;color:var(--secondary-text);cursor:pointer;
-    border-bottom:2px solid transparent;margin-bottom:-1px;}
-  .tab:hover{color:var(--primary-text);}
-  .tab.active{color:var(--primary-text);border-bottom-color:var(--primary-text);}
-  .tabpanel{display:none;}
-  .tabpanel.active{display:block;}
-
-  /* main info tab */
-  .two-col{display:flex;gap:40px;align-items:flex-start;}
-  .col-left{flex:1;min-width:0;max-width:620px;}
-  .col-right{flex:1;min-width:0;}
-  .section-title{font-size:24px;font-weight:700;color:var(--body-text);margin:6px 0 4px;}
-  .section-rule{border:0;border-top:1px solid var(--border);margin:10px 0 18px;}
-  .subsection-title{font-size:19px;font-weight:700;margin:0 0 16px;}
-  .form-grid{display:grid;grid-template-columns:120px 1fr;gap:14px 16px;align-items:center;}
-  .form-grid label{color:var(--secondary-text);font-size:15px;}
-  .addr-label{align-self:start;padding-top:8px;}
-  .addr-fields{display:flex;flex-direction:column;gap:12px;}
-  .addr-pair{display:flex;gap:16px;}
-  .addr-pair .f{flex:1;}
-  .addr-pair .f label{display:block;color:var(--secondary-text);font-size:14px;margin-bottom:4px;}
-
-  /* risk panel */
-  .risk-title{font-size:24px;font-weight:700;margin:6px 0 18px;}
-  .risk-card{background:var(--green-card-bg);border:1px solid var(--green-card-border);border-radius:8px;
-    padding:16px 18px;margin-bottom:14px;display:flex;gap:16px;align-items:flex-start;}
-  .risk-check{flex:0 0 34px;width:34px;height:34px;border-radius:50%;background:var(--success);color:#fff;
-    display:flex;align-items:center;justify-content:center;font-size:18px;margin-top:2px;}
-  .risk-body{flex:1;min-width:0;}
-  .risk-name{font-weight:700;font-size:17px;margin-bottom:4px;}
-  .risk-line{color:var(--body-text);font-size:15px;margin-bottom:2px;}
-  .risk-sub{display:flex;gap:26px;color:var(--body-text);font-size:15px;margin-top:2px;}
-  .risk-scale-label{font-weight:600;font-size:14px;margin-bottom:6px;}
-  .risk-bar{height:6px;border-radius:4px;background:#cfe9db;overflow:hidden;max-width:70%;}
-  .risk-bar > span{display:block;height:100%;background:var(--success);}
-
-  /* credits tab (grid inside card) */
-  #view-detail .grid{border:1px solid var(--border);border-radius:3px;margin-top:14px;overflow:hidden;}
-  .grid-head{display:flex;padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600;color:var(--body-text);}
-  .grid-head .sort{color:var(--secondary-text);margin-left:6px;font-size:13px;}
-  .grid-row{padding:12px 16px;border-bottom:1px solid #eef1f4;color:var(--body-text);}
-  .grid-row:last-child{border-bottom:0;}
-  .grid-empty{min-height:260px;}
-  .tab-toolbar{margin-bottom:4px;}
-  .empty-panel{min-height:300px;}
-
-  /* ========================================================= */
-  /* ===== TO-BE: наполненные вкладки Кредиты/Документы/ ====== */
-  /* ===== История/Контакты (в токенах borrower.html) ======== */
-  /* ========================================================= */
-  /* общие статус-бейджи */
-  .badge{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;
-    padding:2px 9px;border-radius:999px;white-space:nowrap;line-height:1.6;}
-  .b-ok{color:var(--success);background:var(--green-card-bg);}
-  .b-muted{color:var(--secondary-text);background:var(--filter-bg);}
-  .b-info{color:var(--primary-text);background:#e9f1fe;}
-  .b-warn{color:#9a6a00;background:#fdf3dd;}
-  .b-err{color:var(--error);background:#fdeaea;}
-
-  /* --- Кредиты: таблица кредитов --- */
-  #view-detail .credits-table{width:100%;border-collapse:collapse;table-layout:fixed;}
-  #view-detail .credits-table thead th{text-align:left;font-weight:700;color:var(--body-text);
-    font-size:15px;padding:11px 16px;border-bottom:1px solid var(--border);white-space:nowrap;}
-  #view-detail .credits-table thead th .sort{color:var(--secondary-text);font-size:13px;margin-left:6px;}
-  #view-detail .credits-table tbody td{padding:10px 16px;border-bottom:1px solid #eef1f4;
-    font-size:15px;color:var(--body-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  #view-detail .credits-table tbody tr{cursor:pointer;}
-  #view-detail .credits-table tbody tr:hover{background:var(--grid-hover);}
-  #view-detail .credits-table tfoot td{padding:11px 16px;font-weight:700;font-size:15px;
-    color:var(--body-text);border-top:1px solid var(--border);}
-  .credits-table col.c-cnum{width:15%;} .credits-table col.c-cprog{width:23%;}
-  .credits-table col.c-cst{width:16%;} .credits-table col.c-cover{width:14%;}
-
-  /* --- Документы: аккордеон (паттерн docs-tab.html) --- */
-  .docs-head{display:flex;align-items:center;gap:14px;margin:2px 0 16px;flex-wrap:wrap;}
-  .docs-hint{color:var(--secondary-text);font-size:15px;}
-  .btype-switch{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--secondary-text);font-size:15px;}
-  .btype-switch select{height:32px;border:1px solid var(--field-border);border-radius:var(--radius);
-    background:var(--field-bg);font-family:var(--font);font-size:15px;color:var(--body-text);padding:0 8px;}
-  .doc-acc{border:1px solid var(--panel-border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;}
-  .doc-acc-head{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;
-    background:var(--filter-bg);user-select:none;}
-  .doc-acc-head .chev{color:var(--secondary-text);transition:transform .12s ease;display:inline-block;width:12px;}
-  .doc-acc.open .doc-acc-head .chev{transform:rotate(90deg);}
-  .doc-acc-title{font-weight:700;font-size:16px;color:var(--body-text);}
-  .doc-acc-note{color:var(--secondary-text);font-size:14px;font-weight:400;}
-  .doc-acc-count{margin-left:auto;font-size:14px;font-weight:600;color:var(--secondary-text);
-    background:#fff;border:1px solid var(--border);border-radius:999px;padding:2px 10px;white-space:nowrap;}
-  .doc-acc-count.done{color:var(--success);background:var(--green-card-bg);border-color:var(--green-card-border);}
-  .doc-acc-body{display:none;}
-  .doc-acc.open .doc-acc-body{display:block;}
-  .doc-row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid #eef1f4;flex-wrap:wrap;}
-  .doc-row .dname{flex:1;min-width:200px;font-size:15px;color:var(--body-text);}
-  .doc-row .dname.waived{text-decoration:line-through;color:var(--secondary-text);}
-  .doc-req{font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;white-space:nowrap;}
-  .doc-req.req{color:var(--error);background:#fdeaea;}
-  .doc-req.opt{color:var(--secondary-text);background:var(--filter-bg);}
-  .doc-meta{flex-basis:100%;font-size:14px;color:var(--secondary-text);}
-  .doc-meta .exp{color:#9a6a00;}
-
-  /* --- История: таймлайн --- */
-  .timeline{position:relative;padding-left:26px;margin-top:8px;}
-  .timeline::before{content:"";position:absolute;left:8px;top:4px;bottom:4px;width:2px;background:var(--border);}
-  .tl-item{position:relative;padding:0 0 20px;}
-  .tl-item:last-child{padding-bottom:0;}
-  .tl-dot{position:absolute;left:-22px;top:3px;width:11px;height:11px;border-radius:50%;
-    background:var(--primary);border:2px solid #fff;box-shadow:0 0 0 1px var(--border);}
-  .tl-dot.ok{background:var(--success);} .tl-dot.muted{background:var(--secondary-text);}
-  .tl-when{font-size:13px;color:var(--secondary-text);margin-bottom:2px;}
-  .tl-what{font-size:15px;color:var(--body-text);}
-  .tl-what b{font-weight:600;}
-  .tl-who{color:var(--secondary-text);}
-
-  /* --- Контакты: реестр контактных лиц --- */
-  .contacts-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
-  #view-detail .contacts-table{width:100%;border-collapse:collapse;table-layout:fixed;}
-  #view-detail .contacts-table thead th{text-align:left;font-weight:700;color:var(--body-text);
-    font-size:15px;padding:11px 16px;border-bottom:1px solid var(--border);white-space:nowrap;}
-  #view-detail .contacts-table tbody td{padding:10px 16px;border-bottom:1px solid #eef1f4;
-    font-size:15px;color:var(--body-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  #view-detail .contacts-table tbody tr{cursor:pointer;}
-  #view-detail .contacts-table tbody tr:hover{background:var(--grid-hover);}
-  #view-detail .contacts-table tbody tr:last-child td{border-bottom:0;}
-  .contacts-table col.c-role{width:22%;} .contacts-table col.c-phone{width:19%;}
-  .contacts-table col.c-mail{width:24%;} .contacts-table col.c-main{width:13%;}
-  .contacts-toolbar #ctEdit,.contacts-toolbar #ctDel{background:rgba(25,59,103,0.05);
-    border-color:transparent;height:36px;padding:0 14px;color:rgba(28,52,84,0.26);}
-  .contacts-toolbar #ctEdit:not([disabled]){color:#005fdb;}
-  .contacts-toolbar #ctDel:not([disabled]){color:#ca150c;}
-
-  /* footer buttons (карточка) */
-  .form-footer{display:flex;gap:12px;padding:18px 26px 26px;}
   .btn-primary{background:var(--primary);color:#fff;}
-  .btn-primary:hover{background:var(--primary-hover);}
-  .btn-cancel{background:#fff;color:var(--primary-text);border-color:var(--border-strong);}
-  .req{color:var(--error);}
 
-  /* ========================================================= */
-  /* ============ МОДАЛКА: выбор отрасли (lookup) ============ */
-  /* ========================================================= */
-  .modal-overlay{position:fixed;inset:0;background:rgba(24,39,57,0.32);z-index:100;
-    display:none;align-items:flex-start;justify-content:center;padding:40px 16px;}
-  .modal-overlay.open{display:flex;}
-  .modal{background:#fff;border-radius:6px;box-shadow:0 12px 40px rgba(24,39,57,0.30);
-    width:100%;max-width:720px;display:flex;flex-direction:column;max-height:88vh;overflow:hidden;}
-  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;}
-  .modal-title{font-weight:700;font-size:18px;color:var(--body-text);}
-  .modal-x{width:28px;height:28px;border:0;background:transparent;color:var(--secondary-text);
-    font-size:18px;cursor:pointer;border-radius:var(--radius);}
-  .modal-x:hover{background:var(--filter-bg);}
-  .modal-body{padding:0 20px 12px;overflow-y:auto;}
-  .modal-foot{display:flex;gap:12px;padding:14px 20px 18px;border-top:1px solid var(--border);}
-  .m-filter-head{display:flex;align-items:center;gap:8px;color:var(--primary-text);font-size:15px;padding:2px 0 10px;}
-  .m-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
-  .m-toolbar .btn{flex:0 0 auto;}
-  .m-toolbar2{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
-  .btn-blue{background:var(--primary);color:#fff;}
-  .btn-blue:hover{background:var(--primary-hover);}
-  .m-search{margin-left:auto;background:var(--field-bg);border:1px solid var(--field-border);
-    border-radius:var(--radius);padding:8px 10px;font-family:var(--font);font-size:15px;
-    color:var(--body-text);min-width:110px;flex:1 1 110px;}
-  .m-search::placeholder{color:var(--secondary-text);}
-  .m-count{display:flex;align-items:center;gap:14px;color:var(--body-text);font-size:15px;margin-bottom:8px;}
-  .m-grid{border:1px solid var(--border);border-radius:3px;overflow:hidden;}
-  .m-grid table{width:100%;border-collapse:collapse;table-layout:fixed;}
-  .m-grid thead th{text-align:left;font-weight:700;color:var(--body-text);font-size:15px;
-    padding:11px 14px;border-bottom:1px solid var(--border);white-space:nowrap;background:#fff;position:sticky;top:0;}
-  .m-grid thead th .sort{color:var(--secondary-text);font-size:12px;margin-left:6px;}
-  .m-grid tbody td{padding:9px 14px;border-bottom:1px solid #eef1f4;font-size:15px;color:var(--body-text);
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:340px;}
-  .m-grid tbody tr{cursor:pointer;}
-  .m-grid tbody tr:hover{background:var(--grid-hover);}
-  .m-grid tbody tr.sel{background:#dbe9fb;}
-  .m-grid tbody tr:last-child td{border-bottom:0;}
-  .m-grid col.c-name{width:auto;} .m-grid col.c-code{width:92px;}
-  .m-grid col.c-st{width:104px;} .m-grid col.c-date{width:190px;}
-  .m-scroll{max-height:300px;overflow-y:auto;}
+  /* ---------- Идентификация ---------- */
+  .id-bar{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px;}
+  .id-main{flex:1;min-width:0;}
+  .id-name{font-size:22px;font-weight:700;line-height:1.25;}
+  .id-sub{color:var(--secondary-text);font-size:14px;margin-top:4px;display:flex;gap:14px;flex-wrap:wrap;}
+  .id-sub b{color:var(--body-text);font-weight:600;}
+  .id-actions{display:flex;gap:8px;flex:0 0 auto;}
 
-  /* ========================================================= */
-  /* ======== ВИД: ОФОРМЛЕНИЕ КРЕДИТА (readonly loan) ========= */
-  /* открывается из карточки заёмщика: таб «Кредиты» -> строка + «Посмотр» */
-  /* ========================================================= */
-  #view-loan .content{padding:20px 26px 0;}
-  /* readonly-поле Vaadin: белый фон, пунктирная рамка */
-  .rf-field{margin-bottom:16px;}
-  .rf-label{display:block;color:var(--secondary-text);font-size:14px;margin-bottom:4px;}
-  .rf{width:100%;min-height:38px;background:#fff;border:1px dashed var(--field-border);
-    border-radius:var(--radius);padding:8px 10px;font-family:var(--font);font-size:16px;color:var(--body-text);}
-  .rf.rf-area{min-height:150px;white-space:pre-wrap;}
-  .rf.rf-date{display:flex;align-items:center;justify-content:space-between;}
-  .rf.rf-date .cal{color:var(--secondary-text);font-size:15px;}
-  /* верхняя строка из 5 полей (График погашений) */
-  .lp-topfields{display:flex;gap:16px;margin:4px 0 16px;}
-  .lp-topfields .rf-field{flex:1;margin-bottom:0;}
-  .lp-gen{margin:0 0 14px;}
-  /* грид графика */
-  .lgrid{border:1px solid var(--border);border-radius:3px;overflow:hidden;}
-  .lgrid table{width:100%;border-collapse:collapse;table-layout:fixed;}
-  .lgrid thead th{text-align:left;font-weight:700;color:var(--body-text);font-size:15px;
-    padding:11px 16px;border-bottom:1px solid var(--border);white-space:nowrap;}
-  .lgrid thead th .sort{color:var(--secondary-text);font-size:13px;margin-left:6px;}
-  .lgrid tbody td{padding:9px 16px;border-bottom:1px solid #eef1f4;font-size:15px;color:var(--body-text);}
-  .lgrid tfoot td{padding:12px 16px;font-weight:700;color:var(--body-text);font-size:15px;border-top:1px solid var(--border);}
-  .lgrid col.c-no{width:12%;} .lgrid col.c-dt{width:24%;}
-  /* 2-колоночная карточка (Условия / Регистрация) */
-  .lp-card{border:1px solid var(--panel-border);border-radius:3px;padding:20px 22px;display:flex;gap:40px;}
-  .lp-card .lp-col{flex:1;min-width:0;}
-  .lp-title{font-size:24px;font-weight:700;color:var(--body-text);margin:6px 0 14px;}
-  /* инфо-блок (Регистрация) */
-  .lp-note{background:#eaf3ff;border:1px solid #d3e4fb;border-radius:6px;color:var(--primary-text);
-    font-size:15px;line-height:1.45;padding:14px 16px;display:flex;gap:10px;align-items:flex-start;}
-  .lp-note .ic{flex:0 0 auto;}
-  .lp-file{color:var(--body-text);font-size:16px;padding:8px 2px;}
-  .lp-empty{min-height:420px;}
+  /* ---------- 3 плитки состояния ---------- */
+  .state-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px;}
+  .tile{border:1px solid var(--panel-border);border-radius:6px;padding:14px 16px;background:#fff;display:flex;flex-direction:column;gap:8px;}
+  .tile-lbl{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--secondary-text);font-weight:600;
+    display:flex;align-items:center;gap:6px;}
+  .tile-lbl .lock{font-size:11px;color:var(--secondary-text);border:1px solid var(--border);border-radius:3px;padding:0 5px;
+    text-transform:none;letter-spacing:0;font-weight:500;}
+  .tile-val{font-size:24px;font-weight:700;line-height:1;display:flex;align-items:center;gap:10px;}
+  .tile-basis{font-size:13px;color:var(--secondary-text);line-height:1.35;}
+  .tile-basis b{color:var(--body-text);font-weight:600;}
+  .tile-more{font-size:13px;color:var(--primary-text);cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:5px;}
+  .tile-more:hover{text-decoration:underline;}
+  .tile-detail{display:none;margin-top:2px;border-top:1px dashed var(--border);padding-top:9px;font-size:13px;line-height:1.5;}
+  .tile-detail.open{display:block;}
+  .tile-detail .step{display:flex;gap:8px;padding:2px 0;}
+  .tile-detail .step .k{color:var(--secondary-text);flex:0 0 auto;}
+
+  /* dots */
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block;flex:0 0 auto;}
+  .d-low{background:var(--success);} .d-mid{background:var(--warn);} .d-high{background:var(--error);}
+  .cat-low{color:var(--success);} .cat-mid{color:var(--warn);} .cat-high{color:var(--error);}
+
+  .grp-badge{display:inline-flex;align-items:center;gap:7px;}
+  .grp-code{background:var(--primary);color:#fff;border-radius:5px;font-size:15px;font-weight:700;padding:2px 8px;}
+  .ro-note{font-size:11px;color:var(--secondary-text);border:1px dashed var(--border-strong);border-radius:3px;
+    padding:1px 6px;display:inline-flex;align-items:center;gap:4px;}
+
+  /* overlay tile */
+  .ov-item{border:1px solid #f0dcc0;background:#fdf6ec;border-radius:5px;padding:8px 10px;font-size:13px;line-height:1.4;}
+  .ov-item .ov-h{font-weight:600;color:var(--warn);display:flex;align-items:center;gap:6px;}
+  .ov-item .ov-m{color:var(--secondary-text);margin-top:2px;}
+  .ov-empty{font-size:13px;color:var(--secondary-text);}
+
+  /* ---------- панель / секции ---------- */
+  .section{border:1px solid var(--panel-border);border-radius:6px;margin-bottom:20px;overflow:hidden;}
+  .section-head{padding:12px 16px;font-weight:700;font-size:15px;border-bottom:1px solid var(--panel-border);
+    display:flex;align-items:center;justify-content:space-between;background:#fbfcfd;}
+  .section-head .hint{font-weight:400;font-size:12px;color:var(--secondary-text);}
+  .section-body{padding:0;}
+
+  table.grid{width:100%;border-collapse:collapse;}
+  table.grid thead th{text-align:left;font-weight:700;font-size:13px;color:var(--body-text);
+    padding:10px 16px;border-bottom:1px solid var(--border);background:#fbfcfd;}
+  table.grid tbody td{padding:11px 16px;border-bottom:1px solid #eef1f4;font-size:14px;vertical-align:top;}
+  table.grid tbody tr:last-child td{border-bottom:0;}
+  .who{font-weight:600;} .muted{color:var(--secondary-text);font-size:13px;}
+  .role{font-size:12px;border-radius:3px;padding:1px 7px;font-weight:600;display:inline-block;}
+  .role-lead{background:#e7f0ff;color:var(--primary-text);}
+  .role-co{background:var(--filter-bg);color:var(--secondary-text);}
+  .row-off td{background:#fff5f5;}
+  .off-tag{font-size:12px;color:var(--error);font-weight:600;display:inline-flex;align-items:center;gap:5px;}
+
+  /* конфликт-плашка */
+  .warn-plate{margin:0;padding:11px 16px;background:#fff5f5;border-top:1px solid #f3d6d6;font-size:13px;
+    color:#8a2020;line-height:1.45;display:flex;gap:9px;align-items:flex-start;}
+  .warn-plate .ic{flex:0 0 auto;font-size:15px;}
+  .info-plate{margin:14px 0;padding:11px 16px;background:#eef4ff;border:1px solid #d3e2ff;border-radius:6px;
+    font-size:13px;color:var(--primary-text);line-height:1.45;display:flex;gap:9px;align-items:flex-start;}
+  .open-plate{padding:14px 16px;background:#fbfaf5;border:1px dashed #e0d6b8;border-radius:6px;
+    font-size:13px;color:#7a6a2e;line-height:1.5;}
+  .open-plate b{color:#5f5220;}
+
+  /* ---------- вкладки ---------- */
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px;}
+  .tab{padding:10px 16px;font-size:15px;font-weight:600;color:var(--secondary-text);cursor:pointer;
+    border-bottom:2px solid transparent;user-select:none;}
+  .tab:hover{color:var(--body-text);}
+  .tab.active{color:var(--primary-text);border-bottom-color:var(--primary);}
+  .tabpanel{display:none;} .tabpanel.active{display:block;}
+
+  /* ---------- ВИД: СПИСОК (реестр) ---------- */
+  .view{display:none;} .view.active{display:block;}
+  .list-filter{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;
+    border:1px solid var(--panel-border);border-radius:6px;padding:12px 16px;background:#fbfcfd;}
+  .list-filter .fl{color:var(--secondary-text);font-size:14px;}
+  .list-filter select{font-family:var(--font);font-size:14px;color:var(--body-text);background:#fff;
+    border:1px solid var(--field-border);border-radius:var(--radius);height:34px;padding:0 8px;min-width:190px;}
+  .list-filter .spacer{flex:1;}
+  .list-filter .cnt{color:var(--secondary-text);font-size:13px;}
+  table.grid tbody tr.clk{cursor:pointer;} table.grid tbody tr.clk:hover{background:var(--grid-hover);}
+  .cat-cell{display:inline-flex;align-items:center;gap:7px;font-weight:600;}
+  .old-col{text-decoration:line-through;color:var(--secondary-text);}
+
+  /* worst-of ячейка */
+  .wo{display:flex;flex-direction:column;gap:3px;}
+  .wo-in{font-size:12px;color:var(--secondary-text);display:flex;gap:6px;align-items:center;}
+  .wo-in .win{color:var(--error);font-weight:700;}
+  .badge{font-size:12px;border-radius:3px;padding:1px 7px;font-weight:600;display:inline-block;white-space:nowrap;}
+  .b-ov{background:#fdf1e0;color:var(--warn);border:1px solid #f0dcc0;}
+  .b-proc{background:#eef4ff;color:var(--primary-text);}
+
+  /* таймлайн */
+  .tl{position:relative;padding-left:26px;}
+  .tl::before{content:"";position:absolute;left:8px;top:4px;bottom:4px;width:2px;background:var(--border);}
+  .tl-item{position:relative;padding:0 0 18px 0;}
+  .tl-item::before{content:"";position:absolute;left:-22px;top:4px;width:11px;height:11px;border-radius:50%;
+    background:#fff;border:2px solid var(--primary);}
+  .tl-item.grp::before{border-color:var(--primary);} .tl-item.kur::before{border-color:var(--success);}
+  .tl-item.risk::before{border-color:var(--error);} .tl-item.conf::before{border-color:var(--warn);}
+  .tl-date{font-size:12px;color:var(--secondary-text);font-weight:600;}
+  .tl-title{font-weight:600;font-size:14px;margin-top:1px;}
+  .tl-body{font-size:13px;color:var(--secondary-text);margin-top:2px;line-height:1.45;}
+  .tl-kind{font-size:11px;text-transform:uppercase;letter-spacing:.03em;border-radius:3px;padding:1px 6px;font-weight:600;margin-left:8px;}
+  .k-grp{background:#e7f0ff;color:var(--primary-text);} .k-kur{background:var(--green-card-bg);color:var(--success);}
+  .k-risk{background:#fdeaea;color:var(--error);} .k-conf{background:#fdf1e0;color:var(--warn);}
 </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- ===================== SIDEBAR (общий) ===================== -->
+  <!-- ===================== SIDEBAR ===================== -->
   <aside class="sidebar">
     <div class="brand">АСУБК</div>
     <nav class="nav">
@@ -396,22 +193,12 @@
       <div class="nav-item">Users</div>
       <div class="nav-item">Подразделения</div>
       <div class="nav-item">Сотрудники подразделения</div>
-      <div class="nav-item">Освоение</div>
-      <div class="nav-item">Резерв</div>
+      <div class="nav-item active">Заёмщики</div>
       <div class="nav-item">Платеж</div>
-      <div class="nav-item">Список Траншей</div>
-      <div class="nav-item">LoanLedger</div>
       <div class="nav-group"><span class="caret">›</span>Система кредитования</div>
-      <div class="nav-group"><span class="caret">›</span>Поручительства</div>
-      <div class="nav-group"><span class="caret">›</span>Корпоративное управление</div>
-      <div class="nav-group"><span class="caret">›</span>СУГС</div>
       <div class="nav-group"><span class="caret">›</span>Взыскание задолженности</div>
       <div class="nav-group"><span class="caret">›</span>Справочники</div>
-      <div class="nav-group"><span class="caret">›</span>Сервисы</div>
       <div class="nav-group"><span class="caret">›</span>Администрирование</div>
-      <div class="nav-group"><span class="caret">›</span>Отчёты</div>
-      <div class="nav-group"><span class="caret">›</span>Безопасность</div>
-      <div class="nav-group"><span class="caret">›</span>Инструменты данных</div>
     </nav>
     <div class="footer">
       <span>[admin]</span>
@@ -423,898 +210,626 @@
   <div class="main">
     <div class="topbar">
       <span class="burger">☰</span>
-      <span class="title" id="pageTitle">Заемщики</span>
+      <span class="title" id="pageTitle">Заёмщики</span>
+      <span class="crumb" id="crumb"></span>
     </div>
 
-    <!-- ==================== ВИД: СПИСОК ==================== -->
-    <div class="view" id="view-list">
+    <!-- ==================== ВИД: СПИСОК (реестр §3) ==================== -->
+    <div class="view active" id="view-list">
       <div class="content">
-
-        <!-- ---------- FILTER ---------- -->
-        <div class="filter-head"><span class="caret">⌄</span>Фильтр : Фильтры *</div>
-        <div class="filter-card">
-          <!-- каждый фильтр в отдельной строке на всю ширину, как в живом стенде
-               (проверено 2026-07-07, scripts/inspect/borrower-filter-geom.mjs:
-                Статус y142 w1126; Субъект.Отрасль y190 w1052 — две строки) -->
-          <div class="filter-row">
-            <!-- Статус: vaadin-select (Активный / В обработке) -->
-            <div class="fl">Статус =</div>
-            <div class="filter-field" id="fStatus">
-              <span class="val ph" id="fStatusVal" data-empty="1"></span>
-              <span class="chev">⌄</span>
-              <div class="fdrop" id="fStatusDrop">
-                <div class="opt empty" data-v=""></div>
-                <div class="opt" data-v="Активный">Активный</div>
-                <div class="opt" data-v="В обработке">В обработке</div>
-              </div>
-            </div>
-          </div>
-          <div class="filter-row">
-            <!-- Субъект.Отрасль: entity-picker (⋯ открывает модалку выбора, ✕ очищает) -->
-            <div class="fl">Субъект.Отрас…</div>
-            <div class="filter-field" id="fIndustry">
-              <span class="val ph" id="fIndustryVal" data-empty="1"></span>
-              <span class="dots-btn" id="fIndustryOpen" title="Открыть экран выбора связанной сущности">⋯</span>
-              <span class="clr" id="fIndustryClr" title="Очистить поле">✕</span>
-            </div>
-          </div>
+        <!-- §3: колонка «Статус» удалена (ЖЦ записи, конфликтует с группой 5).
+             Вместо неё — Группа + Категория риска, по ним же фильтр. -->
+        <div class="list-filter">
+          <span class="fl">Группа =</span>
+          <select id="fGroup">
+            <option value="">— любая —</option>
+            <option value="1.1">1.1 · Погашение по графику</option>
+            <option value="2.1">2.1 · Работа с судом</option>
+            <option value="2.2">2.2 · Исполнительные листы</option>
+            <option value="2.3">2.3 · Инициирование банкротства</option>
+            <option value="3.1">3.1 · Процедура банкротства</option>
+            <option value="4">4 · Безнадёжные долги</option>
+            <option value="5">5 · Погашенные</option>
+          </select>
+          <span class="fl">Категория риска =</span>
+          <select id="fCat">
+            <option value="">— любая —</option>
+            <option value="Низкий">Низкий</option>
+            <option value="Средний">Средний</option>
+            <option value="Высокий">Высокий</option>
+          </select>
+          <span class="spacer"></span>
+          <span class="cnt" id="listCnt"></span>
         </div>
 
-        <!-- ---------- TOOLBAR ---------- -->
-        <div class="toolbar">
-          <div style="display:flex;">
-            <button class="btn btn-green" id="btnRefresh">Обновить</button>
-            <button class="btn btn-green-split">⌄</button>
+        <div class="section" style="margin-bottom:0">
+          <div class="section-body">
+            <table class="grid" id="listTable">
+              <thead>
+                <tr>
+                  <th style="width:16%">ИНН</th>
+                  <th style="width:30%">Наименование</th>
+                  <th style="width:10%">Тип</th>
+                  <th style="width:26%">Группа платёжеспособности</th>
+                  <th style="width:18%">Категория риска <span class="muted" style="font-weight:400">(было: Статус <span class="old-col">Активный</span>)</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="clk" data-open="1" data-group="2.3" data-cat="Высокий">
+                  <td>01204199910016</td>
+                  <td class="who">ОАО «АгроТехСервис»</td>
+                  <td>Юр. лицо</td>
+                  <td><span class="grp-badge"><span class="grp-code">2.3</span> Инициирование банкротства</span></td>
+                  <td><span class="cat-cell cat-high"><span class="dot d-high"></span> Высокий</span></td>
+                </tr>
+                <tr class="clk" data-group="1.1" data-cat="Низкий">
+                  <td>02501202010045</td>
+                  <td class="who">ОсОО «СветаГрад»</td>
+                  <td>Юр. лицо</td>
+                  <td><span class="grp-badge"><span class="grp-code">1.1</span> Погашение по графику</span></td>
+                  <td><span class="cat-cell cat-low"><span class="dot d-low"></span> Низкий</span></td>
+                </tr>
+                <tr class="clk" data-group="2.2" data-cat="Средний">
+                  <td>22505198500789</td>
+                  <td class="who">ИП Дуйшеев К. Т.</td>
+                  <td>ИП</td>
+                  <td><span class="grp-badge"><span class="grp-code">2.2</span> Исполнительные листы</span></td>
+                  <td><span class="cat-cell cat-mid"><span class="dot d-mid"></span> Средний</span></td>
+                </tr>
+                <tr class="clk" data-group="3.1" data-cat="Высокий">
+                  <td>01909199720033</td>
+                  <td class="who">ОАО «КыргызЖол»</td>
+                  <td>Юр. лицо</td>
+                  <td><span class="grp-badge"><span class="grp-code">3.1</span> Процедура банкротства</span></td>
+                  <td><span class="cat-cell cat-high"><span class="dot d-high"></span> Высокий</span></td>
+                </tr>
+                <tr class="clk" data-group="4" data-cat="Высокий">
+                  <td>03107201510222</td>
+                  <td class="who">ОсОО «АкТаш»</td>
+                  <td>Юр. лицо</td>
+                  <td><span class="grp-badge"><span class="grp-code">4</span> Безнадёжные долги</span></td>
+                  <td><span class="cat-cell cat-high"><span class="dot d-high"></span> Высокий</span></td>
+                </tr>
+                <tr class="clk" data-group="2.1" data-cat="Средний">
+                  <td>12803199000456</td>
+                  <td class="who">ИП Асанова Н.</td>
+                  <td>ИП</td>
+                  <td><span class="grp-badge"><span class="grp-code">2.1</span> Работа с судом</span></td>
+                  <td><span class="cat-cell cat-mid"><span class="dot d-mid"></span> Средний</span></td>
+                </tr>
+                <tr class="clk" data-group="5" data-cat="Низкий">
+                  <td>01502200811077</td>
+                  <td class="who">ОсОО «Береке»</td>
+                  <td>Юр. лицо</td>
+                  <td><span class="grp-badge"><span class="grp-code">5</span> Погашенные</span></td>
+                  <td><span class="cat-cell cat-low"><span class="dot d-low"></span> Низкий</span></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <button class="btn btn-icon" title="Настройки">⚙</button>
-          <span class="add-cond">Добавить условие поиска</span>
         </div>
-
-        <div class="toolbar2">
-          <button class="btn btn-secondary" id="btnEdit" disabled>✎ Изменить</button>
-          <button class="btn btn-secondary" id="btnDel" disabled>🗑 Удалить</button>
-          <div class="rowcount">
-            <div class="pager"><span>«</span><span>‹</span></div>
-            <span id="rowCount">14 строк</span>
-            <div class="pager"><span>›</span><span>»</span></div>
-          </div>
+        <div class="info-plate">
+          <span class="ic">ℹ</span>
+          <span><b>§3.</b> Колонка «Статус» (Активный / В обработке) удалена — она описывает ЖЦ записи
+          в справочнике, а не состояние заёмщика, и конфликтует с группой 5 «Погашенные». Вместо неё —
+          <b>Группа</b> + <b>Категория риска</b>, по ним фильтр. Реестр становится рабочим инструментом
+          куратора, а не справочником. Клик по строке ОАО «АгроТехСервис» → карточка.</span>
         </div>
-
-        <!-- ---------- GRID ---------- -->
-        <div class="grid">
-          <table>
-            <colgroup>
-              <col class="c-inn"><col class="c-name"><col class="c-type"><col class="c-ind"><col class="c-status">
-            </colgroup>
-            <thead>
-              <tr>
-                <th>ИНН <span class="sort">⇅</span></th>
-                <th>ФИО/Наименование <span class="sort">⇅</span></th>
-                <th>Тип <span class="sort">⇅</span></th>
-                <th>Отрасль <span class="sort">⇅</span></th>
-                <th>Статус <span class="sort">⇅</span></th>
-              </tr>
-            </thead>
-            <tbody id="rows">
-              <tr><td>01204199910016</td><td>Открытое акционерное общество "О!Банк"</td><td>Юр. лицо</td><td>Машиностроение</td><td>Активный</td></tr>
-              <tr><td>22407199000740</td><td>ТЕМИРЛАН УУЛУ ТОБОКЕЛ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
-              <tr><td>01211202110139</td><td>Государственное предприятие "Инфосистемс"  при Министерстве финансов Кыргызской Республики</td><td>Юр. лицо</td><td></td><td>Активный</td></tr>
-              <tr><td>01103199710105</td><td>Учреждение "Финансово-кредитный фонд при  Министерстве финансов Кыргызской Республики"</td><td>Юр. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
-              <tr><td>20507200350475</td><td>МЕҢДИБАЕВ АМАНТУР КЫЛЫЧБЕКОВИЧ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
-              <tr><td>13112199100463</td><td>ТЫНЧТЫКБЕК КЫЗЫ МАРАЛ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
-              <tr><td>20411198201313</td><td>СЛАМКУЛОВ АЗАМАТ ОМУРГАЗИЕВИЧ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
-              <tr><td>21812199600888</td><td>БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
-              <tr><td>20907199400957</td><td>МАТРАИМОВ МАКСАТ КУБАНОВИЧ</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
-              <tr><td>01103199710105</td><td>Учреждение "Финансово-кредитный фонд при  Министерстве финансов Кыргызской Республики"</td><td>Юр. лицо</td><td>Машиностроение</td><td>Активный</td></tr>
-              <tr><td>02712199110068</td><td>Открытое акционерное общество "Мбанк"</td><td>Юр. лицо</td><td>Сельское хозяйство</td><td>Активный</td></tr>
-              <tr><td>00406200910056</td><td>Закрытое акционерное общество "Альфа Телеком"</td><td>Юр. лицо</td><td></td><td>Активный</td></tr>
-              <tr><td>10203197800201</td><td>СООРОНОВА РЫСКАН АТАЕВНА</td><td>Физ. лицо</td><td>Агропромышленный комплекс</td><td>Активный</td></tr>
-              <tr><td>01912201610212</td><td>Общество с ограниченной ответственностью "Бек Кабель"</td><td>Юр. лицо</td><td>Сельское хозяйство</td><td>Активный</td></tr>
-            </tbody>
-          </table>
-        </div>
-
       </div>
     </div>
 
     <!-- ==================== ВИД: КАРТОЧКА ==================== -->
-    <div class="view" id="view-detail" style="display:none;">
+    <div class="view" id="view-detail">
       <div class="content">
 
-        <!-- ---------- HEADER CARD ---------- -->
-        <div class="header-card">
-          <div class="header-left">
-            <div class="field">
-              <label class="lbl">ФИО/Наименование</label>
-              <input class="inp" readonly value='Открытое акционерное общество "О!Банк"'>
-            </div>
-            <div class="row-3">
-              <div class="field">
-                <label class="lbl">ИНН</label>
-                <input class="inp" readonly value="01204199910016">
-              </div>
-              <div class="field">
-                <label class="lbl">Тип</label>
-                <input class="inp" readonly value="Юр. лицо">
-              </div>
-              <div class="field">
-                <label class="lbl">Статус</label>
-                <div class="select-wrap"><input class="inp" readonly value="Активный"></div>
-              </div>
-            </div>
-          </div>
-          <div class="header-right">
-            <div class="credits-block">
-              <div class="muted-head" style="margin-bottom:6px;">Кредиты:</div>
-              <div class="credits-line"><span class="num">2</span><span>действующих на сумму</span><span>1&nbsp;200&nbsp;000,00</span></div>
-              <div class="credits-line"><span class="num">3</span><span>всего за историю</span></div>
-            </div>
-            <div>
-              <div class="muted-head">Последнее обновление:</div>
-              <div style="margin-top:4px;">03.07.2026 14:22 · admin</div>
-            </div>
+      <a href="#" id="backLink" style="display:inline-flex;gap:6px;color:var(--primary-text);text-decoration:none;font-size:14px;margin-bottom:14px">‹ к списку заёмщиков</a>
+
+      <!-- ---------- Идентификация ---------- -->
+      <div class="id-bar">
+        <div class="id-main">
+          <div class="id-name">ОАО «АгроТехСервис»</div>
+          <div class="id-sub">
+            <span>ИНН <b>01204199910016</b></span>
+            <span>Юридическое лицо</span>
+            <span>Кредитов: <b>3</b> действующих</span>
           </div>
         </div>
-
-        <!-- ---------- TABS ---------- -->
-        <div class="tabs" id="tabs">
-          <div class="tab active" data-tab="main">Основная информация</div>
-          <div class="tab" data-tab="credits">Кредиты</div>
-          <div class="tab" data-tab="docs">Документы</div>
-          <div class="tab" data-tab="history">История</div>
-          <div class="tab" data-tab="contacts">Контакты</div>
+        <div class="id-actions">
+          <button class="btn btn-secondary">Изменить</button>
+          <button class="btn btn-secondary">Кредитное досье</button>
         </div>
-
-        <!-- ===== TAB: Основная информация ===== -->
-        <div class="tabpanel active" data-panel="main">
-          <div class="two-col">
-            <!-- left: borrower data -->
-            <div class="col-left">
-              <div class="section-title">Данные заемщика</div>
-              <hr class="section-rule">
-              <div class="subsection-title">Основные данные</div>
-              <div class="form-grid">
-                <label>ФИО/<br>Наименование</label>
-                <input class="inp" readonly value='Открытое акционерное общество "О!Банк"'>
-                <label>ИНН</label>
-                <input class="inp" readonly value="01204199910016">
-                <label>Номер телефона</label>
-                <input class="inp" readonly value="+996 703 800 300">
-                <label>Отрасль</label>
-                <input class="inp" readonly value="Машиностроение">
-                <label>Группа<br>заёмщика</label>
-                <input class="inp" readonly value="">
-                <label class="addr-label">Адрес</label>
-                <div class="addr-fields">
-                  <div class="addr-pair">
-                    <div class="f"><label>Область</label><input class="inp" readonly value="Бишкек"></div>
-                    <div class="f"><label>Район</label><input class="inp" readonly value="Первомайский район"></div>
-                  </div>
-                  <div class="addr-pair">
-                    <div class="f"><label>Город</label><input class="inp" readonly value="Первомайский район"></div>
-                    <div class="f"><label>Улица</label><input class="inp" readonly value="ул. Фрунзе"></div>
-                  </div>
-                  <div class="addr-pair">
-                    <div class="f"><label>Дом</label><input class="inp" readonly value="390"></div>
-                    <div class="f"><label>Помещение</label><input class="inp" readonly value=""></div>
-                  </div>
-                </div>
-                <!-- to-be (P4-R4): поле «ID в системе» убрано с формы —
-                     это скрытый обязательный тех-id (скоринг/интеграция),
-                     заполняется системой, пользователю не показывается. -->
-              </div>
-            </div>
-
-            <!-- right: risk checks -->
-            <div class="col-right">
-              <div class="risk-title">Результаты проверок</div>
-
-              <div class="risk-card">
-                <div class="risk-check">✓</div>
-                <div class="risk-body">
-                  <div class="risk-name">Чёрный список</div>
-                  <div class="risk-line">Нет</div>
-                  <div class="risk-line">Заёмщик отсутствует в чёрных списках</div>
-                </div>
-              </div>
-
-              <div class="risk-card">
-                <div class="risk-check">✓</div>
-                <div class="risk-body">
-                  <div class="risk-name">Кредитная история</div>
-                  <div class="risk-line">Положительная кредитная история</div>
-                </div>
-              </div>
-
-              <div class="risk-card">
-                <div class="risk-check">✓</div>
-                <div class="risk-body">
-                  <div class="risk-name">Действующие кредиты</div>
-                  <div class="risk-line">2 действующих кредита · в пределах лимита</div>
-                  <div class="risk-sub">
-                    <span>Действующих:&nbsp;&nbsp;2</span>
-                    <span>Всего за историю:&nbsp;&nbsp;3</span>
-                    <span>Сумма действующих:&nbsp;&nbsp;1&nbsp;200&nbsp;000,00</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="risk-card">
-                <div class="risk-check">✓</div>
-                <div class="risk-body">
-                  <div class="risk-name">Просрочки</div>
-                  <div class="risk-line">Просроченных платежей не обнаружено</div>
-                </div>
-              </div>
-
-              <div class="risk-card">
-                <div class="risk-check">✓</div>
-                <div class="risk-body">
-                  <div class="risk-name">Скоринговая система</div>
-                  <div class="risk-scale-label">Низкий риск</div>
-                  <div class="risk-bar"><span style="width:32%"></span></div>
-                </div>
-              </div>
-
-              <div class="risk-card">
-                <div class="risk-check">✓</div>
-                <div class="risk-body">
-                  <div class="risk-name">Лимит задолженности</div>
-                  <div class="risk-bar" style="margin-top:6px;"><span style="width:45%"></span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ===== TAB: Кредиты (to-be: реальный список кредитов заёмщика) ===== -->
-        <!-- Было: строки дублировали самого заёмщика («ИНН - ОАО О!Банк») без
-             суммы/статуса и не бились с шапкой. Стало: таблица кредитов;
-             «действующие» (2 · 1 200 000,00) согласованы с шапкой и панелью
-             проверок (P4-R3). Кнопка «Посмотр» -> «Просмотр». -->
-        <div class="tabpanel" data-panel="credits">
-          <div class="tab-toolbar">
-            <button class="btn btn-secondary" id="btnCreditView" disabled>👁 Просмотр</button>
-          </div>
-          <div class="grid">
-            <table class="credits-table">
-              <colgroup>
-                <col class="c-cnum"><col class="c-cprog"><col><col><col class="c-cst"><col class="c-cover">
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>№ договора <span class="sort">⇅</span></th>
-                  <th>Программа <span class="sort">⇅</span></th>
-                  <th>Сумма <span class="sort">⇅</span></th>
-                  <th>Остаток <span class="sort">⇅</span></th>
-                  <th>Статус <span class="sort">⇅</span></th>
-                  <th>Просрочка <span class="sort">⇅</span></th>
-                </tr>
-              </thead>
-              <tbody id="creditRows">
-                <tr class="credit-row"><td>2026-044-1</td><td>ТУР</td><td>1&nbsp;000&nbsp;000,00</td><td>720&nbsp;000,00</td><td><span class="badge b-ok">Действует</span></td><td>—</td></tr>
-                <tr class="credit-row"><td>2026-044-2</td><td>МСП · оборотный</td><td>200&nbsp;000,00</td><td>200&nbsp;000,00</td><td><span class="badge b-ok">Действует</span></td><td>—</td></tr>
-                <tr class="credit-row"><td>2025-044-0</td><td>ТУР</td><td>500&nbsp;000,00</td><td>0,00</td><td><span class="badge b-muted">Погашен</span></td><td>—</td></tr>
-              </tbody>
-              <tfoot>
-                <tr><td>Итого действующих: 2</td><td></td><td>1&nbsp;200&nbsp;000,00</td><td>920&nbsp;000,00</td><td></td><td></td></tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-
-        <!-- ===== TAB: Документы (to-be: наполнено; паттерн docs-tab.html) ===== -->
-        <!-- Документы уровня заёмщика (субъекта), а не заявки: удостоверяющие/
-             учредительные, живут между заявками. Комплект переключается по типу
-             заёмщика (физ/юр). Бейджи — жизненный цикл документа; просрочка
-             подсвечивается. Без гейта «Отправить в комиссию» (это уровень заявки). -->
-        <div class="tabpanel" data-panel="docs">
-          <div class="docs-head">
-            <span class="docs-hint">Документы уровня заёмщика — переиспользуются между заявками.</span>
-            <span class="btype-switch">Тип заёмщика
-              <select id="docBtype">
-                <option value="ur" selected>Юр. лицо</option>
-                <option value="fiz">Физ. лицо</option>
-              </select>
-            </span>
-          </div>
-
-          <div class="doc-acc open" data-sec="ident">
-            <div class="doc-acc-head">
-              <span class="chev">›</span>
-              <span class="doc-acc-title">Идентификация и учредительные</span>
-              <span class="doc-acc-count"></span>
-            </div>
-            <div class="doc-acc-body">
-              <!-- Юр. лицо -->
-              <div class="doc-row" data-ft="ur" data-req="1" data-ok="1"><span class="dname">Устав</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: ustav_scan.pdf · загружен 12.06.2026</div></div>
-              <div class="doc-row" data-ft="ur" data-req="1" data-ok="1"><span class="dname">Свидетельство о госрегистрации</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: reg_cert.pdf · загружен 12.06.2026</div></div>
-              <div class="doc-row" data-ft="ur" data-req="1" data-ok="0"><span class="dname">Выписка из ЕГРЮЛ</span><span class="doc-req req">обязат.</span><span class="badge b-warn">Просрочен</span><div class="doc-meta"><span class="exp">Срок действия истёк (до 05.07.2026) — требуется свежая выписка</span></div></div>
-              <div class="doc-row" data-ft="ur" data-req="1" data-ok="1"><span class="dname">Приказ о назначении руководителя</span><span class="doc-req req">обязат.</span><span class="badge b-info">Загружен</span><div class="doc-meta">Файл: prikaz_ceo.pdf · загружен 30.06.2026 · на проверке</div></div>
-              <div class="doc-row" data-ft="ur" data-req="0" data-ok="0"><span class="dname">Карточка образцов подписей</span><span class="doc-req opt">опц.</span><span class="badge b-muted">Требуется</span></div>
-              <!-- Физ. лицо -->
-              <div class="doc-row" data-ft="fiz" data-req="1" data-ok="1"><span class="dname">Паспорт (лицевая сторона)</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: passport_1.jpg · загружен 12.06.2026</div></div>
-              <div class="doc-row" data-ft="fiz" data-req="1" data-ok="1"><span class="dname">Паспорт (оборотная сторона)</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: passport_2.jpg · загружен 12.06.2026</div></div>
-              <div class="doc-row" data-ft="fiz" data-req="1" data-ok="1"><span class="dname">ИНН</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: inn.pdf · загружен 12.06.2026</div></div>
-              <div class="doc-row" data-ft="fiz" data-req="1" data-ok="1"><span class="dname">Согласие на обработку ПД</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: pd_consent.pdf · загружен 12.06.2026</div></div>
-              <div class="doc-row" data-ft="fiz" data-req="1" data-ok="1"><span class="dname">Согласие на запрос в кредбюро</span><span class="doc-req req">обязат.</span><span class="badge b-info">Загружен</span><div class="doc-meta">Файл: cb_consent.pdf · загружен 12.06.2026 · на проверке</div></div>
-            </div>
-          </div>
-
-          <div class="doc-acc open" data-sec="fin">
-            <div class="doc-acc-head">
-              <span class="chev">›</span>
-              <span class="doc-acc-title">Платёжеспособность</span>
-              <span class="doc-acc-note">— финансовое состояние субъекта</span>
-              <span class="doc-acc-count"></span>
-            </div>
-            <div class="doc-acc-body">
-              <!-- Юр. лицо -->
-              <div class="doc-row" data-ft="ur" data-req="1" data-ok="1"><span class="dname">Финансовая отчётность (баланс, ОПиУ)</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: fin_report.pdf · загружен 20.06.2026</div></div>
-              <div class="doc-row" data-ft="ur" data-req="1" data-ok="1"><span class="dname">Налоговые декларации</span><span class="doc-req req">обязат.</span><span class="badge b-info">Загружен</span><div class="doc-meta">Файл: tax.pdf · загружен 20.06.2026 · на проверке</div></div>
-              <div class="doc-row" data-ft="ur" data-req="0" data-ok="0"><span class="dname">Справка об отсутствии задолженности</span><span class="doc-req opt">опц.</span><span class="badge b-muted">Требуется</span></div>
-              <!-- Физ. лицо -->
-              <div class="doc-row" data-ft="fiz" data-req="1" data-ok="1"><span class="dname">Справка о доходах</span><span class="doc-req req">обязат.</span><span class="badge b-ok">Принят</span><div class="doc-meta">Файл: income.pdf · загружен 18.06.2026</div></div>
-              <div class="doc-row" data-ft="fiz" data-req="0" data-ok="0"><span class="dname">Справка с места работы</span><span class="doc-req opt">опц.</span><span class="badge b-muted">Требуется</span></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ===== TAB: История (to-be: аудит-таймлайн) ===== -->
-        <!-- Хронология изменений записи заёмщика. Верхняя запись = «Последнее
-             обновление» из шапки (единый источник: 03.07.2026 14:22 · admin). -->
-        <div class="tabpanel" data-panel="history">
-          <div class="timeline">
-            <div class="tl-item"><span class="tl-dot"></span>
-              <div class="tl-when">03.07.2026 14:22</div>
-              <div class="tl-what">Обновлён номер телефона: <b>+996 703 800 300</b> <span class="tl-who">· admin</span></div>
-            </div>
-            <div class="tl-item"><span class="tl-dot ok"></span>
-              <div class="tl-when">28.06.2026 10:05</div>
-              <div class="tl-what">Открыт кредит по договору <b>№2026-044-2</b> (МСП · оборотный, 200 000,00) <span class="tl-who">· operator1</span></div>
-            </div>
-            <div class="tl-item"><span class="tl-dot ok"></span>
-              <div class="tl-when">15.05.2026 16:40</div>
-              <div class="tl-what">Открыт кредит по договору <b>№2026-044-1</b> (ТУР, 1 000 000,00) <span class="tl-who">· operator1</span></div>
-            </div>
-            <div class="tl-item"><span class="tl-dot"></span>
-              <div class="tl-when">20.06.2026 09:12</div>
-              <div class="tl-what">Документ «Финансовая отчётность» принят проверяющим <span class="tl-who">· inspector2</span></div>
-            </div>
-            <div class="tl-item"><span class="tl-dot muted"></span>
-              <div class="tl-when">12.04.2026 11:30</div>
-              <div class="tl-what">Кредит по договору <b>№2025-044-0</b> (ТУР, 500 000,00) полностью погашен <span class="tl-who">· система</span></div>
-            </div>
-            <div class="tl-item"><span class="tl-dot ok"></span>
-              <div class="tl-when">10.11.2025 08:42</div>
-              <div class="tl-what">Заёмщик создан из субъекта заявки, статус <b>Активный</b> <span class="tl-who">· admin</span></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ===== TAB: Контакты (to-be: реестр контактных лиц) ===== -->
-        <!-- Раньше дублировал телефон/адрес из «Основной информации». Теперь —
-             список контактных лиц заёмщика (актуально для Юр. лица). Выбор строки
-             включает Изменить/Удалить (паттерн выделения из списка заёмщиков). -->
-        <div class="tabpanel" data-panel="contacts">
-          <div class="contacts-toolbar">
-            <button class="btn btn-blue">＋ Создать</button>
-            <button class="btn btn-secondary" id="ctEdit" disabled>✎ Изменить</button>
-            <button class="btn btn-secondary" id="ctDel" disabled>🗑 Удалить</button>
-          </div>
-          <div class="grid">
-            <table class="contacts-table">
-              <colgroup>
-                <col><col class="c-role"><col class="c-phone"><col class="c-mail"><col class="c-main">
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>ФИО <span class="sort">⇅</span></th>
-                  <th>Должность / роль <span class="sort">⇅</span></th>
-                  <th>Телефон <span class="sort">⇅</span></th>
-                  <th>Email <span class="sort">⇅</span></th>
-                  <th>Основной <span class="sort">⇅</span></th>
-                </tr>
-              </thead>
-              <tbody id="contactRows">
-                <tr><td>Асанов Бакыт Маратович</td><td>Руководитель</td><td>+996 703 800 300</td><td>b.asanov@obank.kg</td><td><span class="badge b-ok">Основной</span></td></tr>
-                <tr><td>Иманова Айгуль Кубатовна</td><td>Главный бухгалтер</td><td>+996 555 120 044</td><td>a.imanova@obank.kg</td><td>—</td></tr>
-                <tr><td>Тентимишев Руслан Сапарович</td><td>Доверенное лицо</td><td>+996 700 909 101</td><td>r.tentimishev@obank.kg</td><td>—</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
       </div>
 
-      <!-- ---------- FOOTER BUTTONS ---------- -->
-      <div class="form-footer">
-        <button class="btn btn-primary" id="btnOk">✓ OK</button>
-        <button class="btn btn-cancel" id="btnCancel">⊘ Отмена</button>
+      <!-- ---------- Вкладки ---------- -->
+      <div class="tabs" id="tabs">
+        <div class="tab active" data-tab="general">Общая информация</div>
+        <div class="tab" data-tab="credits">Кредиты</div>
+        <div class="tab" data-tab="enforce">Взыскание</div>
+        <div class="tab" data-tab="acts">Акты сверок</div>
+        <div class="tab" data-tab="curatorship">Кураторство</div>
+        <div class="tab" data-tab="history">История</div>
+        <div class="tab" data-tab="docs">Документы</div>
+        <div class="tab" data-tab="contacts">Контакты</div>
+        <div class="tab" data-tab="checks">Результаты проверок</div>
       </div>
-    </div>
 
-    <!-- ==================== ВИД: ОФОРМЛЕНИЕ КРЕДИТА (readonly) ==================== -->
-    <!-- Точная копия /loans-processing/24?mode=readonly (проверено 2026-07-07,
-         scripts/inspect/loan-readonly-full.mjs). Открывается из карточки заёмщика:
-         таб «Кредиты» -> выбрать строку -> «Посмотр». OK/Отмена -> назад к карточке. -->
-    <div class="view" id="view-loan" style="display:none;">
-      <div class="content">
-        <div class="tabs" id="loanTabs">
-          <div class="tab active" data-ltab="schedule">График погашений</div>
-          <div class="tab" data-ltab="contract">Кредитный договор</div>
-          <div class="tab" data-ltab="terms">Условия кредитования</div>
-          <div class="tab" data-ltab="reg">Регистрация</div>
+      <!-- Общая информация (по умолчанию) -->
+      <div class="tabpanel active" data-panel="general">
+
+        <!-- Реквизиты: отрасль, адрес/гео, аудит-штамп (adopt #5) -->
+        <div class="section" style="margin-bottom:20px">
+          <div class="section-head">Реквизиты <span class="hint">идентификация субъекта</span></div>
+          <div class="section-body" style="padding:14px 16px;line-height:1.75">
+            <div><span class="muted">Отрасль:</span> <b>Машиностроение</b></div>
+            <div><span class="muted">Адрес:</span> <b>Чуйская обл.</b> · Сокулукский р-н · Кара-Суу а/о · с. Селекционное · ул. Заводская 12</div>
+            <div style="margin-top:6px;font-size:13px" class="muted">Внесён: <b style="color:var(--body-text)">Асанов А. К.</b> · 15.01.2023 &nbsp;·&nbsp; Изменён: <b style="color:var(--body-text)">Жумабеков Э. Н.</b> · 20.06.2026</div>
+          </div>
         </div>
 
-        <!-- ===== TAB: График погашений ===== -->
-        <div class="tabpanel active" data-lpanel="schedule">
-          <div class="lp-topfields">
-            <div class="rf-field"><label class="rf-label">Всего платежей</label><div class="rf">12</div></div>
-            <div class="rf-field"><label class="rf-label">Сумма кредита</label><div class="rf">1000000,00</div></div>
-            <div class="rf-field"><label class="rf-label">Сумма процентов</label><div class="rf">54990,65</div></div>
-            <div class="rf-field"><label class="rf-label">Регулярный платеж</label><div class="rf">87915,89</div></div>
-            <div class="rf-field"><label class="rf-label">Итоговая сумма платежей</label><div class="rf">1054990,65</div></div>
+        <!-- ---------- 3 плитки состояния ---------- -->
+        <div class="state-row">
+
+        <!-- Плитка 1: Группа платёжеспособности -->
+        <div class="tile">
+          <div class="tile-lbl">Группа платёжеспособности
+            <span class="lock" title="ось залочена 12.07.2026">🔒 выводится</span>
           </div>
-          <div class="lp-gen"><button class="btn btn-primary">Сгенерировать</button></div>
-          <div class="lgrid">
-            <table>
-              <colgroup><col class="c-no"><col class="c-dt"><col><col><col></colgroup>
+          <div class="tile-val">
+            <span class="grp-badge"><span class="grp-code">2.3</span> Инициирование банкротства</span>
+          </div>
+          <div class="tile-basis">
+            <b>переведён 20.06.2026</b> · сектор по работе с активами<br>
+            по решению о банкротстве кредита <b>Модернизация-2022-102</b>
+          </div>
+          <div class="ro-note" style="align-self:flex-start">🔒 read-only · ручной ввод невозможен (в т.ч. админ)</div>
+          <div class="tile-more" data-more="grp">▸ как выведена группа</div>
+          <div class="tile-detail" data-detail="grp">
+            <div class="muted" style="margin-bottom:6px">Лестница с доминированием (шкала 1.1…5 не ординальна):</div>
+            <div class="step"><span class="k">Блок 1 (состояния субъекта):</span> нет — банкротство не идёт целиком, безнадёжных нет</div>
+            <div class="step"><span class="k">Блок 2 (кредит в процедуре):</span> 2.1 АПК · 2.2 Газификация · <b>2.3 Модернизация</b> → берём наиболее продвинутую</div>
+            <div class="step"><span class="k">Итог:</span> <b>2.3</b> — подтверждён сектором по работе с активами (п. 69)</div>
+          </div>
+        </div>
+
+        <!-- Плитка 2: Категория риска -->
+        <div class="tile">
+          <div class="tile-lbl">Категория риска
+            <span class="lock">🔒 worst-of</span>
+          </div>
+          <div class="tile-val cat-high"><span class="dot d-high"></span>Высокий</div>
+          <div class="tile-basis">
+            <b>высокий · нецелевое использование средств</b><br>
+            решение Комитета от <b>12.05.2026 №КБ-118</b> · кредит Модернизация-2022-102
+          </div>
+          <div class="ro-note" style="align-self:flex-start" title="категория не является функцией от дней просрочки">⚠ просрочка по кредиту = 0 дн.</div>
+          <div class="tile-more" data-more="cat">▸ входы worst-of по кредитам</div>
+          <div class="tile-detail" data-detail="cat">
+            <div class="step"><span class="k">АПК-2023-014:</span> по дням 45 → средний · факторов нет → <b class="cat-mid">средний</b></div>
+            <div class="step"><span class="k">Газификация-2024-07:</span> по дням 210 → высокий, <b class="cat-mid">подавлен → средний</b> (оверлей, см. плитку справа)</div>
+            <div class="step"><span class="k">Модернизация-2022-102:</span> по дням 0 → низкий · <b class="cat-high">фактор: нецелевое (реш. Комитета) → высокий</b></div>
+            <div class="step"><span class="k">worst-of заёмщика:</span> <b class="cat-high">высокий</b> — за нецелевое, при нулевой просрочке</div>
+          </div>
+        </div>
+
+        <!-- Плитка 3: Оверлей -->
+        <div class="tile">
+          <div class="tile-lbl">Оверлей
+            <span class="lock" title="отдельный слой, не значение категории">слой</span>
+          </div>
+          <div class="ov-item">
+            <div class="ov-h">⏸ Подавление 181-го дня</div>
+            <div class="ov-m">
+              кредит <b>Газификация-2024-07</b> · рассмотрение реструктуризации (п. 18)<br>
+              дедлайн <b>21.08.2026</b> · осталось 40 из 70 кал. дней
+            </div>
+          </div>
+          <div class="muted" style="font-size:12px;margin-top:2px">
+            Давит только переход средний→высокий. Категория кредита показана честно
+            («средний»), а не «высокий (отложен)». По истечении/отказе → ночной пересчёт → высокий.
+          </div>
+        </div>
+      </div>
+
+      </div><!-- /Общая информация -->
+
+      <!-- Кураторство -->
+      <div class="tabpanel" data-panel="curatorship">
+      <!-- ---------- Свод кураторства ---------- -->
+      <div class="section">
+        <div class="section-head">
+          Свод кураторства
+          <span class="hint">кураторство — на кредите, поимённо (п. 96); карточка показывает свод по всем кредитам</span>
+        </div>
+        <div class="section-body">
+          <table class="grid">
+            <thead>
+              <tr>
+                <th style="width:22%">Кредит</th>
+                <th style="width:26%">Подразделение</th>
+                <th style="width:22%">Сотрудник</th>
+                <th style="width:15%">Роль</th>
+                <th style="width:15%">Период</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="who">АПК-2023-014</td>
+                <td>Отраслевой департамент промышленности</td>
+                <td>Асанов А. К.</td>
+                <td><span class="role role-lead">ведущий</span></td>
+                <td class="muted">с 15.01.2023</td>
+              </tr>
+              <tr>
+                <td class="muted">↳ совместно (п. 31)</td>
+                <td>ДПО / отдел проблемных кредитов</td>
+                <td>Осмонова Г. Т.</td>
+                <td><span class="role role-co">соисполнитель</span></td>
+                <td class="muted">с 10.03.2026</td>
+              </tr>
+              <tr>
+                <td class="who">Газификация-2024-07</td>
+                <td>Региональное представительство</td>
+                <td>Токтосунов Б. М.</td>
+                <td><span class="role role-lead">ведущий</span></td>
+                <td class="muted">с 05.02.2024</td>
+              </tr>
+              <tr>
+                <td class="who">Модернизация-2022-102</td>
+                <td>Сектор по работе с активами</td>
+                <td>Жумабеков Э. Н.</td>
+                <td><span class="role role-lead">ведущий</span></td>
+                <td class="muted">с 20.06.2026</td>
+              </tr>
+              <tr class="row-off">
+                <td class="muted">↳ ранее</td>
+                <td>ДПО / отдел проблемных кредитов</td>
+                <td>Марипов Д. С.</td>
+                <td><span class="off-tag">⊘ отстранён</span></td>
+                <td class="muted">15.06.2026</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="warn-plate">
+            <span class="ic">⊘</span>
+            <span><b>Асимметрия назначение / отстранение (п. 92).</b> Марипов Д. С. заявил
+            конфликт интересов по кредиту Модернизация-2022-102 — и потерял доступ ко
+            <b>всем кредитам этого ИНН</b>, не только к одному. Конфликт — свойство пары
+            «работник ↔ заёмщик», а не «работник ↔ кредит».</span>
+          </div>
+        </div>
+      </div>
+
+      </div><!-- /Кураторство -->
+
+      <!-- Кредиты -->
+      <div class="tabpanel" data-panel="credits">
+        <div class="section" style="margin-bottom:0">
+          <div class="section-body">
+            <table class="grid">
               <thead>
                 <tr>
-                  <th>№ платежа <span class="sort">⇅</span></th>
-                  <th>Дата платежа <span class="sort">⇅</span></th>
-                  <th>Сумма платежа <span class="sort">⇅</span></th>
-                  <th>Основной долг <span class="sort">⇅</span></th>
-                  <th>Проценты <span class="sort">⇅</span></th>
+                  <th style="width:20%">Договор</th>
+                  <th style="width:12%">Просрочка</th>
+                  <th style="width:30%">Категория (worst-of)</th>
+                  <th style="width:22%">Процедура → группа</th>
+                  <th style="width:16%">Оверлей</th>
                 </tr>
               </thead>
               <tbody>
-                <tr><td>1</td><td>01.06.2026 00:00</td><td>87 915,89</td><td>79 582,56</td><td>8 333,33</td></tr>
-                <tr><td>2</td><td>01.07.2026 00:00</td><td>87 915,89</td><td>80 245,74</td><td>7 670,15</td></tr>
-                <tr><td>3</td><td>03.08.2026 00:00</td><td>87 915,89</td><td>80 914,46</td><td>7 001,43</td></tr>
-                <tr><td>4</td><td>01.09.2026 00:00</td><td>87 915,89</td><td>81 588,75</td><td>6 327,14</td></tr>
-                <tr><td>5</td><td>01.10.2026 00:00</td><td>87 915,89</td><td>82 268,65</td><td>5 647,24</td></tr>
-                <tr><td>6</td><td>02.11.2026 00:00</td><td>87 915,89</td><td>82 954,22</td><td>4 961,67</td></tr>
-                <tr><td>7</td><td>01.12.2026 00:00</td><td>87 915,89</td><td>83 645,51</td><td>4 270,38</td></tr>
-                <tr><td>8</td><td>01.01.2027 00:00</td><td>87 915,89</td><td>84 342,56</td><td>3 573,33</td></tr>
-                <tr><td>9</td><td>01.02.2027 00:00</td><td>87 915,89</td><td>85 045,41</td><td>2 870,48</td></tr>
-                <tr><td>10</td><td>01.03.2027 00:00</td><td>87 915,89</td><td>85 754,12</td><td>2 161,77</td></tr>
-                <tr><td>11</td><td>01.04.2027 00:00</td><td>87 915,89</td><td>86 468,74</td><td>1 447,15</td></tr>
-                <tr><td>12</td><td>03.05.2027 00:00</td><td>87 915,86</td><td>87 189,28</td><td>726,58</td></tr>
+                <tr>
+                  <td class="who">АПК-2023-014
+                    <div class="muted" style="font-weight:400;margin-top:3px">12 000 000 → ост. <b>8 400 000</b> KGS · Бюджетный</div>
+                  </td>
+                  <td>45 дн.</td>
+                  <td>
+                    <div class="wo">
+                      <span class="cat-mid" style="font-weight:700"><span class="dot d-mid"></span> Средний</span>
+                      <span class="wo-in">по дням: средний · по факторам: —</span>
+                    </div>
+                  </td>
+                  <td><span class="badge b-proc">2.1 · работа с судом</span></td>
+                  <td class="muted">—</td>
+                </tr>
+                <tr>
+                  <td class="who">Газификация-2024-07
+                    <div class="muted" style="font-weight:400;margin-top:3px">45 000 000 → ост. <b>41 200 000</b> KGS · Иностранный кредит</div>
+                  </td>
+                  <td>210 дн.</td>
+                  <td>
+                    <div class="wo">
+                      <span class="cat-mid" style="font-weight:700"><span class="dot d-mid"></span> Средний</span>
+                      <span class="wo-in">по дням: <span class="win">высокий</span> → подавлен оверлеем · честно: средний</span>
+                    </div>
+                  </td>
+                  <td><span class="badge b-proc">2.2 · исполнит. листы</span></td>
+                  <td><span class="badge b-ov">⏸ подавление −40 дн</span></td>
+                </tr>
+                <tr>
+                  <td class="who">Модернизация-2022-102
+                    <div class="muted" style="font-weight:400;margin-top:3px">8 000 000 → ост. <b>8 000 000</b> KGS · Бюджетный</div>
+                  </td>
+                  <td>0 дн.</td>
+                  <td>
+                    <div class="wo">
+                      <span class="cat-high" style="font-weight:700"><span class="dot d-high"></span> Высокий</span>
+                      <span class="wo-in">по дням: низкий · по факторам: <span class="win">нецелевое (реш. Комитета)</span></span>
+                    </div>
+                  </td>
+                  <td><span class="badge b-proc">2.3 · банкротство (иниц.)</span></td>
+                  <td class="muted">—</td>
+                </tr>
               </tbody>
-              <tfoot>
-                <tr><td>Итого:</td><td></td><td>1054990.65</td><td>1000000.00</td><td>54990.65</td></tr>
-              </tfoot>
             </table>
           </div>
         </div>
-
-        <!-- ===== TAB: Кредитный договор ===== -->
-        <div class="tabpanel" data-lpanel="contract">
-          <div class="lp-title">Превью кредитного договора</div>
-          <div class="lp-empty"></div>
-        </div>
-
-        <!-- ===== TAB: Условия кредитования ===== -->
-        <div class="tabpanel" data-lpanel="terms">
-          <div class="lp-card">
-            <div class="lp-col">
-              <div class="rf-field"><label class="rf-label">ПИН</label><div class="rf">01204199910016</div></div>
-              <div class="rf-field"><label class="rf-label">Процентная ставка</label><div class="rf">10,00</div></div>
-              <div class="rf-field"><label class="rf-label">Штраф за просрочку по осн.с.</label><div class="rf">10,00</div></div>
-              <div class="rf-field"><label class="rf-label">Штраф за просрочку по процентам</label><div class="rf">10,00</div></div>
-              <div class="rf-field"><label class="rf-label">Предельный лимит начисления штрафов</label><div class="rf">10,00</div></div>
-              <div class="rf-field" style="margin-bottom:0;"><label class="rf-label">Метод расчета кол-ва дней в период</label><div class="rf">финансовый /календарный (360/365)</div></div>
+        <!-- adopt #4: сводка обеспечения (Действующие / Снятые) из старой системы -->
+        <div class="section" style="margin-top:16px;margin-bottom:0">
+          <div class="section-head">Обеспечение <span class="hint">свод залогов по всем кредитам ИНН · залог на уровне кредита (модуль обеспечения)</span></div>
+          <div class="section-body" style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div style="border:1px solid var(--green-card-border);background:var(--green-card-bg);border-radius:6px;padding:12px 14px">
+              <div style="font-weight:700;font-size:14px;color:var(--success)">Действующие · 3 ед.</div>
+              <div class="muted" style="margin-top:6px;line-height:1.6">
+                Оценочная стоимость: <b style="color:var(--body-text)">31 500 000</b> KGS<br>
+                Залоговая стоимость: <b style="color:var(--body-text)">22 050 000</b> KGS
+              </div>
             </div>
-            <div class="lp-col">
-              <div class="rf-field"><label class="rf-label">Кредитная программа</label><div class="rf">ТУР</div></div>
-              <div class="rf-field"><label class="rf-label">Вид плавающих ставок</label><div class="rf">&nbsp;</div></div>
-              <div class="rf-field"><label class="rf-label">Вид штрафа за просрочку по осн.с.</label><div class="rf">Фиксированная</div></div>
-              <div class="rf-field"><label class="rf-label">Вид штрафа за просрочку по процентам</label><div class="rf">Фиксированная</div></div>
-              <div class="rf-field"><label class="rf-label">Очередь погашения</label><div class="rf">Основная сумма, проценты, шрафы</div></div>
+            <div style="border:1px solid var(--border);background:#fbfcfd;border-radius:6px;padding:12px 14px">
+              <div style="font-weight:700;font-size:14px;color:var(--secondary-text)">Снятые · 1 ед.</div>
+              <div class="muted" style="margin-top:6px;line-height:1.6">
+                Оценочная стоимость: <b style="color:var(--body-text)">4 000 000</b> KGS<br>
+                Причина: погашение части долга (АПК-2023-014)
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- ===== TAB: Регистрация ===== -->
-        <div class="tabpanel" data-lpanel="reg">
-          <div class="lp-title">Регистрация кредитного договора</div>
-          <div class="lp-card">
-            <div class="lp-col">
-              <div class="rf-field"><label class="rf-label">Номер регистрации</label><div class="rf">Расчет-1</div></div>
-              <div class="rf-field"><label class="rf-label">Дата регистрации</label><div class="rf rf-date"><span>01.01.2026</span><span class="cal">▦</span></div></div>
-              <div class="rf-field"><label class="rf-label">Регистрирующий орган</label><div class="rf">&nbsp;</div></div>
-              <div class="rf-field"><label class="rf-label">Ответственное лицо</label><div class="rf">&nbsp;</div></div>
-              <div class="rf-field" style="margin-bottom:0;"><label class="rf-label">Комментарии</label><div class="rf rf-area">Тест детального расчета-1</div></div>
-            </div>
-            <div class="lp-col">
-              <div class="rf-field"><label class="rf-label">Скан зарегистрированного договора</label><div class="lp-file">Файл не выбран</div></div>
-              <div class="lp-note"><span class="ic">⚠</span><span>После регистрации договора статус заявки автоматически изменится. Убедитесь в корректности введенных данных.</span></div>
+        <div class="info-plate">
+          <span class="ic">ℹ</span>
+          <span>Категория заёмщика = <b>worst-of категорий всех кредитов</b> = <b class="cat-high">Высокий</b>
+          (от Модернизация-2022-102). Подавление 181-го дня применяется <b>на уровне кредита, до worst-of</b> —
+          иначе оверлей по одному кредиту глушил бы риск по остальным.</span>
+        </div>
+      </div>
+
+      <!-- Взыскание (adopt #3: фазы принуд. взыскания, §0 «Фаза взыскания» M:N ↔ кредит) -->
+      <div class="tabpanel" data-panel="enforce">
+        <div class="section" style="margin-bottom:0">
+          <div class="section-body">
+            <table class="grid">
+              <thead>
+                <tr>
+                  <th style="width:22%">Кредит</th>
+                  <th style="width:20%">Вид фазы</th>
+                  <th style="width:13%">Дата фазы</th>
+                  <th style="width:15%">Сумма фазы</th>
+                  <th style="width:14%">Статус фазы</th>
+                  <th style="width:16%">Завершение</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="who">АПК-2023-014</td>
+                  <td>Судебное взыскание</td>
+                  <td class="muted">14.05.2025</td>
+                  <td>8 400 000 KGS</td>
+                  <td><span class="badge b-proc">в работе</span></td>
+                  <td class="muted">—</td>
+                </tr>
+                <tr>
+                  <td class="who">Газификация-2024-07</td>
+                  <td>Исполнительное производство</td>
+                  <td class="muted">02.03.2026</td>
+                  <td>41 200 000 KGS</td>
+                  <td><span class="badge b-proc">в работе</span></td>
+                  <td class="muted">—</td>
+                </tr>
+                <tr>
+                  <td class="who">Модернизация-2022-102</td>
+                  <td>Инициирование банкротства</td>
+                  <td class="muted">20.06.2026</td>
+                  <td>8 000 000 KGS</td>
+                  <td><span class="badge b-proc">инициировано</span></td>
+                  <td class="muted">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="info-plate">
+          <span class="ic">ℹ</span>
+          <span><b>§0 «Фаза взыскания».</b> Фаза — процесс M:N над кредитами: одна фаза может охватывать
+          несколько кредитов, у кредита может быть несколько фаз. Из старой системы взяты колонки
+          <b>Вид / Дата фазы / Сумма фазы / Статус фазы / Дата и сумма завершения</b>. Группа
+          платёжеспособности выводится из <b>подтверждённого статуса</b> текущей фазы (п. 65/69), а не задаётся вручную.</span>
+        </div>
+      </div>
+
+      <!-- Акты сверок (adopt #2: подтверждающий документ группы 4/5, п. 88) -->
+      <div class="tabpanel" data-panel="acts">
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Акты сверок
+            <span class="hint">акт — подтверждающий документ; ручной статус акта = четырёхглазый шаг §2.1, группа выводится следом</span>
+          </div>
+          <div class="section-body">
+            <table class="grid">
+              <thead>
+                <tr>
+                  <th style="width:8%">#</th>
+                  <th style="width:24%">Кредит</th>
+                  <th style="width:16%">Дата</th>
+                  <th style="width:20%">Сумма</th>
+                  <th style="width:32%">Статус акта</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td class="who">АПК-2023-014</td>
+                  <td class="muted">10.03.2026</td>
+                  <td>8 400 000 KGS</td>
+                  <td><span class="badge b-proc">составлен · подтверждён</span></td>
+                </tr>
+                <tr>
+                  <td>2</td>
+                  <td class="who">Газификация-2024-07</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                  <td><span class="ro-note">акт сверки не составлен</span></td>
+                </tr>
+                <tr>
+                  <td>3</td>
+                  <td class="who">Модернизация-2022-102</td>
+                  <td class="muted">—</td>
+                  <td class="muted">—</td>
+                  <td><span class="ro-note">акт сверки не составлен</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="info-plate">
+          <span class="ic">ℹ</span>
+          <span><b>п. 88.</b> Акт сверки о полном погашении — подтверждающий документ перехода в
+          <b>группу 5 «Погашенные»</b>. Кнопка «Поменять статус акта сверки» в старой системе = ровно тот
+          ручной подтверждающий шаг из <b>§2.1</b>: куратор подтверждает статус процедуры → классификатор
+          выводит группу. Старая система это <b>подтверждает</b>. Untranslated ключ
+          <code>LABEL.DEBTOR.ACT_STATUS</code> из старой системы — дефект, <b>не переносим</b>.</span>
+        </div>
+      </div>
+
+      <!-- История -->
+      <div class="tabpanel" data-panel="history">
+        <div class="section">
+          <div class="section-head">История <span class="hint">журнал передач кураторства + переводы между группами (не перезаписывается)</span></div>
+          <div class="section-body" style="padding:18px 20px">
+            <div class="tl">
+              <div class="tl-item grp">
+                <div class="tl-date">20.06.2026 · 11:40</div>
+                <div class="tl-title">Перевод группы платёжеспособности: 2.2 → 2.3 <span class="tl-kind k-grp">группа</span></div>
+                <div class="tl-body">Основание: подтверждён статус процедуры «инициирование банкротства» по кредиту
+                  Модернизация-2022-102 · сектор по работе с активами (п. 69). Группа выведена классификатором автоматически.</div>
+              </div>
+              <div class="tl-item kur">
+                <div class="tl-date">20.06.2026 · 11:35</div>
+                <div class="tl-title">Кураторство: кредит Модернизация-2022-102 передан сектору по работе с активами <span class="tl-kind k-kur">кураторство</span></div>
+                <div class="tl-body">Ведущий: Жумабеков Э. Н. · основание: переход к процедуре банкротства.</div>
+              </div>
+              <div class="tl-item conf">
+                <div class="tl-date">15.06.2026 · 09:12</div>
+                <div class="tl-title">Конфликт интересов: Марипов Д. С. отстранён от заёмщика <span class="tl-kind k-conf">конфликт</span></div>
+                <div class="tl-body">Заявлен при вынесении вопроса на комитет. Техническое отстранение — сняты права
+                  на <b>все кредиты ИНН</b>. Уведомлён СВБ; письменное уведомление Правления в течение 3 кал. дней (п. 92).</div>
+              </div>
+              <div class="tl-item risk">
+                <div class="tl-date">12.05.2026 · 16:20</div>
+                <div class="tl-title">Категория риска: Модернизация-2022-102 → высокий <span class="tl-kind k-risk">риск</span></div>
+                <div class="tl-body">Фактор: нецелевое использование средств · решение Комитета по администрированию
+                  бюджетных кредитов от 12.05.2026 №КБ-118 (п. 12). Просрочка = 0 дн.</div>
+              </div>
+              <div class="tl-item kur">
+                <div class="tl-date">10.03.2026 · 10:05</div>
+                <div class="tl-title">Кураторство: подключён отдел проблемных кредитов (совместно) <span class="tl-kind k-kur">кураторство</span></div>
+                <div class="tl-body">Кредит АПК-2023-014 · Осмонова Г. Т. — соисполнитель. После досудебных мер работа
+                  ведётся совместно с отраслевым департаментом (п. 31).</div>
+              </div>
+              <div class="tl-item grp">
+                <div class="tl-date">14.05.2025 · 14:00</div>
+                <div class="tl-title">Перевод группы: 1.1 → 2.1 <span class="tl-kind k-grp">группа</span></div>
+                <div class="tl-body">Подтверждён статус «работа с судебными органами» по кредиту АПК-2023-014 · ДПО (п. 65).</div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ---------- FOOTER BUTTONS ---------- -->
-      <div class="form-footer">
-        <button class="btn btn-primary" id="btnLoanOk">✓ OK</button>
-        <button class="btn btn-cancel" id="btnLoanCancel">⊘ Отмена</button>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ============ МОДАЛКА: «Отрасли и направления» (entity-picker) ============ -->
-<!-- Точная копия lookup-экрана из живого стенда (проверено 2026-07-06):
-     ⋯ у поля «Субъект.Отрасль» открывает эту модалку; выбор строки + «Выбрать»
-     (или двойной клик) подставляет отрасль в фильтр и применяет его. -->
-<div class="modal-overlay" id="industryModal">
-  <div class="modal">
-    <div class="modal-head">
-      <div class="modal-title">Отрасли и направления</div>
-      <button class="modal-x" id="mClose">✕</button>
-    </div>
-    <div class="modal-body">
-      <!-- filter -->
-      <div class="m-filter-head"><span class="caret">⌄</span>Фильтр</div>
-      <div class="toolbar" style="margin-bottom:14px;">
-        <div style="display:flex;">
-          <button class="btn btn-green">Обновить</button>
-          <button class="btn btn-green-split">⌄</button>
-        </div>
-        <button class="btn btn-icon" title="Настройки">⚙</button>
-        <span class="add-cond">Добавить условие поиска</span>
-      </div>
-      <!-- CRUD toolbar + поиск -->
-      <div class="m-toolbar">
-        <button class="btn btn-blue">＋ Создать</button>
-        <button class="btn btn-secondary" id="mEdit" disabled>✎ Изменить</button>
-        <button class="btn btn-secondary" id="mView" disabled>👁 Просмотр</button>
-        <button class="btn btn-danger" id="mDel" disabled>🗑 Удалить</button>
-        <input class="m-search" id="mSearch" placeholder="Поиск">
-      </div>
-      <div class="m-count">
-        <div class="pager"><span>«</span><span>‹</span></div>
-        <span id="mCount">46 строк</span>
-        <div class="pager"><span>›</span><span>»</span></div>
-        <button class="btn btn-icon" title="Настройки" style="padding:5px 8px;">⚙</button>
-      </div>
-      <!-- grid -->
-      <div class="m-grid">
-        <div class="m-scroll">
-          <table>
-            <colgroup><col class="c-name"><col class="c-code"><col class="c-st"><col class="c-date"></colgroup>
-            <thead>
-              <tr>
-                <th>Наименование <span class="sort">⇅</span></th>
-                <th>Код <span class="sort">⇅</span></th>
-                <th>Статус <span class="sort">⇅</span></th>
-                <th>Дата создания <span class="sort">⇅</span></th>
-              </tr>
-            </thead>
-            <tbody id="mRows">
-              <tr><td></td><td></td><td></td><td></td></tr>
-              <tr><td>Агропромышленный комплекс</td><td>2</td><td>Активный</td><td>10/11/2025 08:42 +0600</td></tr>
-              <tr><td>Водное хозяйство</td><td>3</td><td>Активный</td><td>10/11/2025 08:43 +0600</td></tr>
-              <tr><td>Легкая промышленность</td><td>4</td><td>Активный</td><td>10/11/2025 08:43 +0600</td></tr>
-              <tr><td>Машиностроение</td><td>5</td><td>Активный</td><td>10/11/2025 08:43 +0600</td></tr>
-              <tr><td>Пищевая и перерабатывающая промышленность</td><td>6</td><td>Активный</td><td>10/11/2025 08:43 +0600</td></tr>
-              <tr><td>Банки и банковская деятельность</td><td>7</td><td>Активный</td><td>10/11/2025 08:44 +0600</td></tr>
-              <tr><td>Здравоохранение</td><td>8</td><td>Активный</td><td>10/11/2025 08:44 +0600</td></tr>
-              <tr><td>Жилищно-строительный комплекс (физические лица)</td><td>9</td><td>Активный</td><td>10/11/2025 08:44 +0600</td></tr>
-              <tr><td>Водосберегающие технологии</td><td>Vod-1</td><td>Активный</td><td>11/12/2025 14:10 +0600</td></tr>
-              <tr><td>Лизинг техники</td><td>Liaz-1</td><td>Активный</td><td>11/12/2025 14:11 +0600</td></tr>
-              <tr><td>Семеноводчество</td><td>SEED</td><td>Активный</td><td>15/01/2026 14:41 +0600</td></tr>
-              <tr><td>Питомниководство</td><td>NURSERY</td><td>Активный</td><td>15/01/2026 14:42 +0600</td></tr>
-              <tr><td>Питомниководство</td><td>1212</td><td>Активный</td><td>27/01/2026 17:35 +0600</td></tr>
-              <tr><td>Муниципальные предприятия</td><td>Rt-2</td><td>Активный</td><td>27/01/2026 14:43 +0600</td></tr>
-              <tr><td>Мэрии городов</td><td>UI-4</td><td>Активный</td><td>27/01/2026 14:44 +0600</td></tr>
-              <tr><td>Животноводство</td><td>zh-1</td><td>Активный</td><td>05/11/2025 17:03 +0600</td></tr>
-              <tr><td>Инвестиционные</td><td>MSP_60m</td><td>Активный</td><td>02/02/2026 10:43 +0600</td></tr>
-              <tr><td>Пополнение оборотного капитала</td><td>MSP_36m</td><td>Активный</td><td>02/02/2026 10:44 +0600</td></tr>
-              <tr><td>Стартапы</td><td>MSP_18m</td><td>Активный</td><td>02/02/2026 10:45 +0600</td></tr>
-              <tr><td>Сельское хозяйство</td><td>AGRICULTURE</td><td>Активный</td><td>04/02/2026 13:51 +0600</td></tr>
-              <tr><td>Производство и переработка сельско-хозяйственной продукции</td><td>PP_AGRO_PRODUCTS</td><td>Активный</td><td>04/02/2026 13:54 +0600</td></tr>
-              <tr><td>Промышленность</td><td>INDUSTRY</td><td>Активный</td><td>04/02/2026 14:31 +0600</td></tr>
-              <tr><td>Туризм</td><td>TOURISM</td><td>Активный</td><td>04/02/2026 14:33 +0600</td></tr>
-              <tr><td>Транспорт</td><td>TRANSPORT</td><td>Активный</td><td>04/02/2026 14:34 +0600</td></tr>
-              <tr><td>Экспорто-ориентированные и импортозамещающие предприятия</td><td>EXPORT_COMPANY</td><td>Неактивный</td><td>04/02/2026 14:40 +0600</td></tr>
-              <tr><td>Торгово-логистические центры и овощные хранилища</td><td>STORAGE_CENTER</td><td>Активный</td><td>04/02/2026 14:42 +0600</td></tr>
-              <tr><td>Инновационная деятельность</td><td>INNOVATION</td><td>Активный</td><td>04/02/2026 14:44 +0600</td></tr>
-              <tr><td>Производство защитных медицинских средств и средств индивидуальной защиты</td><td>PROTECTIVE_EQUIPMENT</td><td>Активный</td><td>04/02/2026 14:46 +0600</td></tr>
-              <tr><td>Торговля</td><td>TRADE</td><td>Активный</td><td>04/02/2026 14:52 +0600</td></tr>
-              <tr><td>Строительство зданий дошкольных образовательных организаций</td><td>CONSTRUCTION_PRESCHOOL</td><td>Активный</td><td>04/02/2026 14:52 +0600</td></tr>
-              <tr><td>Сфера услуг</td><td>SERVICE_SECTOR</td><td>Активный</td><td>04/02/2026 14:53 +0600</td></tr>
-              <tr><td>Сфера образования</td><td>EDUCATION_SECTOR</td><td>Активный</td><td>04/02/2026 14:54 +0600</td></tr>
-              <tr><td>Проведение капитального ремонта/реконструкции</td><td>REPAIR_RECONSTRUCTION</td><td>Активный</td><td>04/02/2026 14:55 +0600</td></tr>
-              <tr><td>Информационные технологии</td><td>IT_SECTOR</td><td>Активный</td><td>04/02/2026 14:55 +0600</td></tr>
-              <tr><td>Приобретение и обновление основных средств</td><td>ACQUSITION_RENEWAL</td><td>Активный</td><td>04/02/2026 14:59 +0600</td></tr>
-              <tr><td>Рефинансирование ранее полученных кредитов</td><td>MSP_18m-2</td><td>Активный</td><td>04/02/2026 15:01 +0600</td></tr>
-              <tr><td>Установка/приобретение газовых отопительных котлов</td><td>GOK_GAS</td><td>Активный</td><td>04/02/2026 16:20 +0600</td></tr>
-              <tr><td>Строительно-монтажные работы</td><td>SMR_GAS</td><td>Активный</td><td>04/02/2026 16:16 +0600</td></tr>
-              <tr><td>Приобретение расходных материалов</td><td>PRM_GAS</td><td>Активный</td><td>04/02/2026 16:21 +0600</td></tr>
-              <tr><td>Рефинансирование кредитов, полученных ранее на газификацию</td><td>RK_GAS</td><td>Активный</td><td>04/02/2026 16:22 +0600</td></tr>
-              <tr><td>Строительство современного медицинского центра</td><td>OSH_MED</td><td>Активный</td><td>05/02/2026 10:08 +0600</td></tr>
-              <tr><td>Поставка и/или разведение племенного поголовья крупного рогатого скота</td><td>PR_KRS</td><td>Активный</td><td>05/02/2026 13:53 +0600</td></tr>
-              <tr><td>Развитие электронной коммерции</td><td>ECOM_1</td><td>Активный</td><td>12/03/2026 15:49 +0600</td></tr>
-              <tr><td>Цифровые технологии</td><td>DIGITAL_01</td><td>Активный</td><td>12/03/2026 16:57 +0600</td></tr>
-              <tr><td>Ресурсосберегающие технологии</td><td>Res-1</td><td>Активный</td><td>24/06/2026 15:44 +0600</td></tr>
-            </tbody>
-          </table>
+      <!-- Документы -->
+      <div class="tabpanel" data-panel="docs">
+        <div class="open-plate">
+          <b>Открытый вопрос §6.2 — механизм <code>scope</code>.</b><br>
+          Вкладка «Документы» = кредитное досье заёмщика (п. 97: вся документация сканируется
+          и прикрепляется в кредитное досье заёмщика) <b>vs.</b> комплект отдельной заявки.
+          Разграничение уровней (субъект / заявка / кредит) не решено — не дорисовываем как очевидное.
+          Требует отдельной сессии.
         </div>
       </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-primary" id="mSelect" disabled>✓ Выбрать</button>
-      <button class="btn btn-cancel" id="mCancel">⊘ Отмена</button>
+
+      <!-- Контакты -->
+      <div class="tabpanel" data-panel="contacts">
+        <div class="open-plate">
+          <b>Открытый вопрос §6.4 — что за сущность.</b><br>
+          Представители? Реквизиты? Банковские счета (ТЗ упоминает банковские реквизиты субъекта)?
+          Модель не зафиксирована — застаблено намеренно.
+        </div>
+      </div>
+
+      <!-- Проверки -->
+      <div class="tabpanel" data-panel="checks">
+        <div class="open-plate">
+          <b>Открытый вопрос §6.1 — снимок или живой пересчёт.</b><br>
+          «Результаты проверок» (чёрный список, кредитная история, действующие кредиты, просрочки,
+          скоринг, лимит задолженности) — <b>живой пересчёт на заёмщике</b> или <b>снимок на момент заявки</b>?
+          В as-is демо-данные противоречивы («Нет активных кредитов» и рядом «Количество кредитов: 2»).
+          Если снимок — сущность принадлежит <b>заявке</b>, а не заёмщику. Не рендерим до решения.
+        </div>
+      </div>
+
+      </div>
     </div>
   </div>
 </div>
 
 <script>
-  // ---------- переключение вид «список» <-> «карточка» ----------
-  const viewList   = document.getElementById('view-list');
-  const viewDetail = document.getElementById('view-detail');
-  const pageTitle  = document.getElementById('pageTitle');
-
-  function showList() {
-    viewDetail.style.display = 'none';
-    viewList.style.display = 'flex';
-    pageTitle.textContent = 'Заемщики';
-    window.scrollTo(0, 0);
+  // навигация список ↔ карточка
+  const vList = document.getElementById('view-list');
+  const vDetail = document.getElementById('view-detail');
+  const pageTitle = document.getElementById('pageTitle');
+  const crumb = document.getElementById('crumb');
+  function showList(){
+    vDetail.classList.remove('active'); vList.classList.add('active');
+    pageTitle.textContent = 'Заёмщики'; crumb.innerHTML = '';
+    window.scrollTo(0,0);
   }
-  function showDetail() {
-    viewList.style.display = 'none';
-    viewDetail.style.display = 'flex';
-    pageTitle.textContent = 'Заемщик';
-    window.scrollTo(0, 0);
+  function showDetail(){
+    vList.classList.remove('active'); vDetail.classList.add('active');
+    pageTitle.textContent = 'Заёмщик'; crumb.innerHTML = '<a href="#">Заёмщики</a> › Карточка';
+    window.scrollTo(0,0);
   }
+  document.querySelectorAll('#listTable tbody tr.clk').forEach(r => {
+    r.addEventListener('click', () => { if (r.dataset.open) showDetail(); });
+  });
+  document.getElementById('backLink').addEventListener('click', e => { e.preventDefault(); showList(); });
 
-  // ---------- список: выбор строки + открытие карточки ----------
-  // Точно как в живом стенде (проверено 2026-07-06, borrower-open-behavior.mjs):
-  //   одинарный клик -> выделяет строку, включает Изменить/Удалить;
-  //   двойной клик / выделить+Изменить -> открывает карточку.
-  const rows = document.querySelectorAll('#rows tr');
-  const btnEdit = document.getElementById('btnEdit');
-  const btnDel  = document.getElementById('btnDel');
-  let selected = null;
-  rows.forEach(r => {
-    r.addEventListener('click', () => {
-      if (selected) selected.style.background = '';
-      selected = r; r.style.background = '#dbe9fb';
-      btnEdit.disabled = false; btnDel.disabled = false;
+  // фильтр реестра по Группе + Категории
+  const fGroup = document.getElementById('fGroup');
+  const fCat = document.getElementById('fCat');
+  const listCnt = document.getElementById('listCnt');
+  function applyFilter(){
+    const g = fGroup.value, c = fCat.value; let shown = 0;
+    document.querySelectorAll('#listTable tbody tr.clk').forEach(r => {
+      const ok = (!g || r.dataset.group === g) && (!c || r.dataset.cat === c);
+      r.style.display = ok ? '' : 'none'; if (ok) shown++;
     });
-    r.addEventListener('dblclick', showDetail);
-  });
-  btnEdit.addEventListener('click', () => { if (!btnEdit.disabled) showDetail(); });
-
-  // ---------- карточка: OK / Отмена -> назад к списку ----------
-  document.getElementById('btnOk').addEventListener('click', showList);
-  document.getElementById('btnCancel').addEventListener('click', showList);
-
-  // ---------- фильтр списка (рабочий) ----------
-  // Статус -> vaadin-select; Субъект.Отрасль -> picker. «Обновить» применяет,
-  // ✕ очищает отрасль. Фильтрация по колонкам грида (Тип-agn: Отрасль=4, Статус=5).
-  const filter = { status: '', industry: '' };
-  const closeDrops = () => document.querySelectorAll('.fdrop.open').forEach(d => d.classList.remove('open'));
-
-  function setVal(valEl, v) {
-    valEl.textContent = v;
-    valEl.classList.toggle('ph', !v);
-    valEl.dataset.empty = v ? '0' : '1';
+    listCnt.textContent = 'Показано: ' + shown;
   }
-  function bindPicker(fieldId, dropId, valId, key, openTriggerId) {
-    const field = document.getElementById(fieldId);
-    const drop  = document.getElementById(dropId);
-    const valEl = document.getElementById(valId);
-    const trigger = openTriggerId ? document.getElementById(openTriggerId) : field;
-    trigger.addEventListener('click', e => {
-      e.stopPropagation();
-      const willOpen = !drop.classList.contains('open');
-      closeDrops();
-      if (willOpen) drop.classList.add('open');
-    });
-    drop.querySelectorAll('.opt').forEach(o => o.addEventListener('click', e => {
-      e.stopPropagation();
-      filter[key] = o.dataset.v;
-      setVal(valEl, o.dataset.v);
-      drop.classList.remove('open');
-      applyFilter();
-    }));
-    return { valEl };
-  }
-  bindPicker('fStatus', 'fStatusDrop', 'fStatusVal', 'status', null);
-  document.addEventListener('click', closeDrops);
+  fGroup.addEventListener('change', applyFilter);
+  fCat.addEventListener('change', applyFilter);
+  applyFilter();
 
-  // ---------- Субъект.Отрасль: entity-picker через модалку ----------
-  // Как в живом стенде: ⋯ (или клик по полю) открывает lookup-экран
-  // «Отрасли и направления»; выбор строки + «Выбрать» / двойной клик
-  // подставляет Наименование в фильтр и сразу применяет. ✕ очищает.
-  const modal      = document.getElementById('industryModal');
-  const mRows      = document.querySelectorAll('#mRows tr');
-  const mSelect    = document.getElementById('mSelect');
-  const mEdit      = document.getElementById('mEdit');
-  const mView      = document.getElementById('mView');
-  const mDel       = document.getElementById('mDel');
-  const mSearch    = document.getElementById('mSearch');
-  const fIndVal    = document.getElementById('fIndustryVal');
-  let   mSelected  = null;
-
-  const openModal  = () => { modal.classList.add('open'); };
-  const closeModal = () => {
-    modal.classList.remove('open');
-    if (mSelected) { mSelected.classList.remove('sel'); mSelected = null; }
-    [mSelect, mEdit, mView, mDel].forEach(b => b.disabled = true);
-    mSearch.value = '';
-    mRows.forEach(r => r.style.display = '');
-  };
-  const chooseIndustry = row => {
-    const name = row.children[0].textContent.trim();
-    filter.industry = name;
-    setVal(fIndVal, name);
-    closeModal();
-    applyFilter();
-  };
-
-  // открыть модалку: клик по ⋯ или по самому полю (кроме ✕)
-  document.getElementById('fIndustryOpen').addEventListener('click', e => { e.stopPropagation(); openModal(); });
-  document.getElementById('fIndustry').addEventListener('click', e => {
-    if (e.target.closest('.clr')) return;
-    openModal();
-  });
-  // ✕ очищает отрасль
-  document.getElementById('fIndustryClr').addEventListener('click', e => {
-    e.stopPropagation();
-    filter.industry = '';
-    setVal(fIndVal, '');
-    applyFilter();
-  });
-
-  // выбор строки в модалке
-  mRows.forEach(r => {
-    r.addEventListener('click', () => {
-      if (mSelected) mSelected.classList.remove('sel');
-      mSelected = r; r.classList.add('sel');
-      [mSelect, mEdit, mView, mDel].forEach(b => b.disabled = false);
-    });
-    r.addEventListener('dblclick', () => chooseIndustry(r));
-  });
-  mSelect.addEventListener('click', () => { if (mSelected) chooseIndustry(mSelected); });
-
-  // живой поиск по наименованию отрасли
-  mSearch.addEventListener('input', () => {
-    const q = mSearch.value.trim().toLowerCase();
-    mRows.forEach(r => {
-      const name = r.children[0].textContent.trim().toLowerCase();
-      r.style.display = (!q || name.includes(q)) ? '' : 'none';
+  // вкладки
+  document.querySelectorAll('#tabs .tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('#tabs .tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
+      t.classList.add('active');
+      document.querySelector('.tabpanel[data-panel="' + t.dataset.tab + '"]').classList.add('active');
     });
   });
-
-  // закрытие модалки: ×, Отмена, клик по фону
-  document.getElementById('mClose').addEventListener('click', closeModal);
-  document.getElementById('mCancel').addEventListener('click', closeModal);
-  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-
-  // применяет фильтр к строкам грида (живой — при выборе/очистке, и по «Обновить»)
-  function applyFilter() {
-    let shown = 0;
-    rows.forEach(r => {
-      const industry = r.children[3].textContent.trim();
-      const status   = r.children[4].textContent.trim();
-      const ok = (!filter.status || status === filter.status) &&
-                 (!filter.industry || industry === filter.industry);
-      r.style.display = ok ? '' : 'none';
-      if (ok) shown++;
-    });
-    document.getElementById('rowCount').textContent = shown + ' строк';
-    // сбросить выделение скрытой строки
-    if (selected && selected.style.display === 'none') {
-      selected.style.background = ''; selected = null;
-      btnEdit.disabled = true; btnDel.disabled = true;
-    }
-  }
-  document.getElementById('btnRefresh').addEventListener('click', applyFilter);
-
-  // ---------- вкладки карточки (Vaadin tabsheet) ----------
-  const tabs = document.querySelectorAll('#tabs .tab');
-  const panels = document.querySelectorAll('#view-detail .tabpanel');
-  tabs.forEach(t => t.addEventListener('click', () => {
-    tabs.forEach(x => x.classList.remove('active'));
-    panels.forEach(p => p.classList.remove('active'));
-    t.classList.add('active');
-    document.querySelector('.tabpanel[data-panel="' + t.dataset.tab + '"]').classList.add('active');
-  }));
-
-  // ---------- таб «Кредиты»: выбор строки + «Посмотр» -> экран кредита ----------
-  // Как в живом стенде (проверено 2026-07-07, scripts/inspect/borrower-credits-view.mjs):
-  //   клик по строке -> выделяет + включает «Посмотр»; «Посмотр» ->
-  //   /loans-processing/{id}?mode=readonly («Оформление кредита», readonly).
-  const creditRows = document.querySelectorAll('.credit-row');
-  const btnCreditView = document.getElementById('btnCreditView');
-  let creditSel = null;
-  creditRows.forEach(r => {
-    r.addEventListener('click', () => {
-      if (creditSel) creditSel.style.background = '';
-      creditSel = r; r.style.background = '#dbe9fb';
-      btnCreditView.disabled = false;
-    });
-    r.addEventListener('dblclick', showLoan);
-  });
-  btnCreditView.addEventListener('click', () => { if (!btnCreditView.disabled) showLoan(); });
-
-  // ---------- вид «Оформление кредита» (readonly) ----------
-  const viewLoan = document.getElementById('view-loan');
-  function showLoan() {
-    viewDetail.style.display = 'none';
-    viewList.style.display = 'none';
-    viewLoan.style.display = 'flex';
-    pageTitle.textContent = 'Оформление кредита';
-    window.scrollTo(0, 0);
-  }
-  function backToDetail() {
-    viewLoan.style.display = 'none';
-    viewDetail.style.display = 'flex';
-    pageTitle.textContent = 'Заемщик';
-    window.scrollTo(0, 0);
-  }
-  document.getElementById('btnLoanOk').addEventListener('click', backToDetail);
-  document.getElementById('btnLoanCancel').addEventListener('click', backToDetail);
-
-  // вкладки экрана «Оформление кредита»
-  const loanTabs = document.querySelectorAll('#loanTabs .tab');
-  const loanPanels = document.querySelectorAll('#view-loan .tabpanel');
-  loanTabs.forEach(t => t.addEventListener('click', () => {
-    loanTabs.forEach(x => x.classList.remove('active'));
-    loanPanels.forEach(p => p.classList.remove('active'));
-    t.classList.add('active');
-    document.querySelector('.tabpanel[data-lpanel="' + t.dataset.ltab + '"]').classList.add('active');
-  }));
-
-  // ---------- таб «Документы»: аккордеон + переключатель типа заёмщика ----------
-  // Комплект документов зависит от типа (физ/юр): строки помечены data-ft.
-  // Счётчик секции = закрыто/всего по обязательным видимым документам.
-  const docBtype = document.getElementById('docBtype');
-  function renderDocs() {
-    const type = docBtype ? docBtype.value : 'ur';
-    document.querySelectorAll('#view-detail .doc-acc').forEach(acc => {
-      let visible = 0, reqTotal = 0, reqOk = 0;
-      acc.querySelectorAll('.doc-row').forEach(row => {
-        const show = row.dataset.ft === type || row.dataset.ft === 'both';
-        row.style.display = show ? '' : 'none';
-        if (!show) return;
-        visible++;
-        if (row.dataset.req === '1') { reqTotal++; if (row.dataset.ok === '1') reqOk++; }
-      });
-      // скрыть секцию без видимых документов
-      acc.style.display = visible ? '' : 'none';
-      const cnt = acc.querySelector('.doc-acc-count');
-      if (cnt) {
-        if (reqTotal === 0) { cnt.textContent = visible + ' опц.'; cnt.classList.remove('done'); }
-        else {
-          cnt.textContent = reqOk + '/' + reqTotal + (reqOk === reqTotal ? ' ✓' : '');
-          cnt.classList.toggle('done', reqOk === reqTotal);
-        }
-      }
-    });
-  }
-  document.querySelectorAll('#view-detail .doc-acc-head').forEach(head => {
-    head.addEventListener('click', () => head.parentElement.classList.toggle('open'));
-  });
-  if (docBtype) docBtype.addEventListener('change', renderDocs);
-  renderDocs();
-
-  // ---------- таб «Контакты»: выбор строки + Изменить/Удалить ----------
-  const contactRows = document.querySelectorAll('#contactRows tr');
-  const ctEdit = document.getElementById('ctEdit');
-  const ctDel  = document.getElementById('ctDel');
-  let contactSel = null;
-  contactRows.forEach(r => {
-    r.addEventListener('click', () => {
-      if (contactSel) contactSel.style.background = '';
-      contactSel = r; r.style.background = '#dbe9fb';
-      ctEdit.disabled = false; ctDel.disabled = false;
+  // раскрытие плиток (лестница группы / входы worst-of)
+  document.querySelectorAll('.tile-more').forEach(m => {
+    m.addEventListener('click', () => {
+      const d = document.querySelector('.tile-detail[data-detail="' + m.dataset.more + '"]');
+      const open = d.classList.toggle('open');
+      m.textContent = (open ? '▾ ' : '▸ ') + m.textContent.slice(2);
     });
   });
 </script>
