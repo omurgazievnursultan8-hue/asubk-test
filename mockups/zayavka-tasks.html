@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Задачи по заявкам</title>
+<style>
+  :root{
+    --blue:#1b4b8f; --blue-d:#143a6f; --ink:#1c2733; --muted:#6b7885;
+    --line:#e2e8f0; --bg:#f4f6f9; --card:#fff;
+    --red:#d64545; --amber:#e0a020; --gray:#9aa7b4;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:14px;line-height:1.5}
+  header{background:linear-gradient(135deg,var(--blue),var(--blue-d));color:#fff;padding:26px 32px}
+  header h1{margin:0;font-size:22px;font-weight:600}
+  header p{margin:6px 0 0;opacity:.85;font-size:13px}
+  .bar{max-width:1000px;margin:0 auto;padding:14px 32px 0;display:flex;gap:10px}
+  .bar button{font:inherit;font-size:12px;font-weight:600;color:var(--blue);
+    background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer}
+  .bar button:hover{background:var(--bg)}
+  .wrap{max-width:1000px;margin:0 auto;padding:16px 32px 60px}
+  .group{margin-top:24px}
+  .group>h2{font-size:15px;font-weight:700;color:var(--blue-d);
+    margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line);
+    display:flex;align-items:center;gap:10px}
+  .group>h2 .n{font-size:12px;font-weight:600;color:var(--muted);
+    background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:2px 10px}
+  details.task{background:var(--card);border:1px solid var(--line);border-radius:8px;margin-bottom:8px}
+  details.task[open]{border-color:#cdd9e8;box-shadow:0 1px 3px rgba(20,58,111,.06)}
+  summary{display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"▸";margin-left:auto;color:var(--gray);font-size:12px;transition:transform .15s}
+  details[open] summary::after{transform:rotate(90deg)}
+  .id{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;font-weight:600;color:var(--blue);min-width:44px}
+  .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+  .p-red{background:var(--red)} .p-amber{background:var(--amber)} .p-gray{background:var(--gray)}
+  .txt{flex:1}
+  .body{padding:2px 14px 14px 70px}
+  .body p{margin:6px 0}
+  .body .lab{display:inline-block;min-width:64px;font-weight:700;font-size:12px;
+    text-transform:uppercase;letter-spacing:.3px;vertical-align:top}
+  .lab.now{color:var(--muted)}
+  .lab.do{color:var(--blue)}
+  footer{max-width:1000px;margin:0 auto;padding:0 32px 40px;color:var(--muted);
+    font-size:12px;display:flex;gap:18px;flex-wrap:wrap}
+  footer .k{display:flex;align-items:center;gap:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Заявки и комиссии по заявкам</h1>
+  <p>Список задач для команды разработки — клик по задаче раскрывает «Сейчас» и «Сделать»</p>
+</header>
+
+<div class="bar">
+  <button onclick="document.querySelectorAll('details.task').forEach(d=>d.open=true)">Раскрыть всё</button>
+  <button onclick="document.querySelectorAll('details.task').forEach(d=>d.open=false)">Свернуть всё</button>
+</div>
+
+<div class="wrap">
+
+  <section class="group">
+    <h2>Форма «Новая заявка» <span class="n">5</span></h2>
+
+    <details class="task"><summary><span class="id">R5</span><span class="dot p-red"></span><span class="txt">Сделать «Субъект» и «Кредитная программа» обязательными</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> оба поля <code>required=false</code> на сервере — заявку можно создать без заёмщика и программы, она бессмысленна и засоряет список.</p>
+        <p><span class="lab do">Сделать</span> звёздочку <code>*</code> + inline «обязательно», серверную валидацию; блокировать сохранение, пока оба не заполнены.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R3</span><span class="dot p-amber"></span><span class="txt">Валидировать суммы, сроки и даты по границам программы</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> у суммы/срока нет min/max/step, у даты комиссии нет min — клиент не блокирует 0, отрицательное, прошлые даты.</p>
+        <p><span class="lab do">Сделать</span> сумма и срок > 0 и в пределах min/max программы; крайний срок голосования ≥ сегодня; дата заседания не раньше создания комиссии; проверка на клиенте и сервере с внятными сообщениями.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R1</span><span class="dot p-amber"></span><span class="txt">Оформить поля по дизайн-системе</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> редактируемые поля в сером disabled-стиле — обязательные, опциональные и readonly неотличимы.</p>
+        <p><span class="lab do">Сделать</span> общий компонент полей: обязательное — белый+рамка+<code>*</code>, опциональное — белый+рамка, readonly — серый.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R6</span><span class="dot p-amber"></span><span class="txt">Показывать ошибку обязательности после ввода, не при открытии</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> «Сумма»/«Срок» краснеют и пишут «обязательно» сразу при открытии, до ввода — читается как «вы ошиблись» ещё до начала.</p>
+        <p><span class="lab do">Сделать</span> ленивую валидацию — ошибка по потере фокуса или по «Сохранить», не на рендере.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R28</span><span class="dot p-amber"></span><span class="txt">Кнопку формы назвать «Сохранить» вместо «Далее»</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> форма — многошаговый мастер, кнопка «Далее» ведёт на следующий шаг.</p>
+        <p><span class="lab do">Сделать</span> один экран со всеми полями; кнопка «Сохранить» фиксирует запись и открывает карточку деталей.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="group">
+    <h2>Список заявок <span class="n">8</span></h2>
+
+    <details class="task"><summary><span class="id">R7</span><span class="dot p-amber"></span><span class="txt">Блокировать действия тулбара по статусу заявки</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> «Отправить»/«Удалить» активны для любой строки независимо от статуса — гард только по выделению (можно переотправить одобренную, удалить её).</p>
+        <p><span class="lab do">Сделать</span> блокировать «Отправить» на терминальных (Одобрено/Отклонено); «Удалить» — на Одобрено и строках со ссылками вниз (кредит/комиссия); диалог подтверждения + тост-результат; клиент и сервер.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R42</span><span class="dot p-amber"></span><span class="txt">Добавить фильтр и колонку «Стадия процесса»</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> список знает только статус (9 штук); стадия процесса не показана — спец не видит, что застряло на заключениях и что готово к отправке.</p>
+        <p><span class="lab do">Сделать</span> селект «Стадия» (5 узлов + «Готовы к отправке» и «Есть отриц. заключение»), колонку «Стадия» бейджем с сортировкой; стадия выводится из данных, новых полей не заводить.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R43</span><span class="dot p-amber"></span><span class="txt">Добавить фильтры по области/району и по исполнителю</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> нет ни территориального среза, ни среза по исполнителю — руководитель филиала не отберёт заявки подразделения, куратор области — заявки региона.</p>
+        <p><span class="lab do">Сделать</span> 4 селекта: Область и Район заявителя, Филиал/отдел, Специалист + 3 колонки; каскады область→район→подразделение→специалист. В проде ключ района — id, не имя.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R45</span><span class="dot p-amber"></span><span class="txt">Статкарточки: считать из данных, покрыть все статусы, сделать фильтром</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> плитки захардкожены и разошлись с данными; «Всего» ≠ сумме плиток; самый населённый статус «Новый» не показан; плитки некликабельны.</p>
+        <p><span class="lab do">Сделать</span> считать плитки из выборки; плитка на каждый статус включая «Новый»; клик = быстрый фильтр, повторный снимает; рамка серая при 0, статусная при >0.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R26</span><span class="dot p-amber"></span><span class="txt">Свести список к одной комиссии (кредит+залог)</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> в списке держится колонка «Статус залога» и 2 кнопки «Отправить в комиссию / в залоговую» — хвост старой двух-комиссионной модели.</p>
+        <p><span class="lab do">Сделать</span> убрать колонку «Статус залога» и вторую кнопку; один трек статуса и одна отправка в комиссию.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R44</span><span class="dot p-amber"></span><span class="txt">Добавить переключатель вида «Таблица / Карточки»</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> список только гридом; после новых колонок их 10 — на 1366px режутся, читать одну заявку неудобно.</p>
+        <p><span class="lab do">Сделать</span> сегмент «Таблица | Карточки», выбор в localStorage; карточка: ФИО, номер·дата, статус+стадия, сумма, программа, область, специалист. Фильтры и гейты — общие для обоих видов.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R27</span><span class="dot p-amber"></span><span class="txt">Присваивать структурный номер заявки (З-2026-000123)</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> «Заявка - 60» — голый сквозной счётчик, без контекста, не сортируется между годами.</p>
+        <p><span class="lab do">Сделать</span> формат <code>З</code> + год + порядковый (6 цифр); годовой сброс серии; присвоение при подаче, не в черновике; атомарный sequence БД — запретить <code>max(id)+1</code> и клиентский счётчик (гонка → дубль).</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R8</span><span class="dot p-amber"></span><span class="txt">Убрать колонку «Дополнительная информация»</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> «Дополнительная информация» — свободный текст, чаще пустой, колонка-балласт.</p>
+        <p><span class="lab do">Сделать</span> убрать колонку; опционально добавить счётчик голосов (n/4) и «Дата создания». Сумма/срок (запрос и одобрено) остаются на вкладке «Условия».</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="group">
+    <h2>Карточка заявки <span class="n">6</span></h2>
+
+    <details class="task"><summary><span class="id">R22</span><span class="dot p-amber"></span><span class="txt">Управляемые переходы по 9 статусам и действия ЖЦ</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> статусы задокументированы, но управляемых переходов и действий воркфлоу в UI нет.</p>
+        <p><span class="lab do">Сделать</span> провести заявку по 9 статусам управляемыми переходами; действия тулбара по статусу — «Сформировать кредит», «Привязать решение + программу», «Зарегистрировать договоры», «Пересоздать», «Отозвать»; с аудитом в Историю.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R10</span><span class="dot p-amber"></span><span class="txt">Блокировать редактирование полей по статусу</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> на одобренной заявке «Запрашиваемая сумма» и «Номер телефона» остаются редактируемыми, остальное readonly.</p>
+        <p><span class="lab do">Сделать</span> блокировать поля по статусу — у одобренной заявки условия полностью read-only (или все редактируемы по явному праву).</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R31</span><span class="dot p-amber"></span><span class="txt">Вкладка «Общая информация»: данные заявителя и переход к заёмщику</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> обзорная вкладка выписана лишь частично; сквозной навигации заявка→заёмщик нет.</p>
+        <p><span class="lab do">Сделать</span> секции «Данные заявителя» (ИНН, телефон, адрес) + «Статус заявки» с вертикальным таймлайном + «Дополнительная информация»; клик по ИНН открывает карточку заёмщика; редактируемость по фазе×роли.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R16</span><span class="dot p-amber"></span><span class="txt">Логировать статусы и решения комиссии в «Историю»</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> таб «История» пуст для заявки, прошедшей Подача→Одобрено — аудит-трейла нет.</p>
+        <p><span class="lab do">Сделать</span> логировать переходы статусов и решения комиссии в Историю (дата/заголовок/детали/автор).</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R2</span><span class="dot p-amber"></span><span class="txt">Отдельная страница «Просмотр» (readonly)</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> в тулбаре нет «Просмотр» — инспекция вынуждает вход в редактирование; у соседних «Комиссий» readonly-режим уже есть.</p>
+        <p><span class="lab do">Сделать</span> отдельную страницу деталей: «Просмотр» из тулбара + двойной клик по строке (readonly); со страницы «Изменить» → режим правки.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R17</span><span class="dot p-gray"></span><span class="txt">Убрать повтор шапки на табах, прояснить id и номер</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> «Заявка - 60» ≠ id в URL (28); 5 полей шапки повторяются на всех 9 табах.</p>
+        <p><span class="lab do">Сделать</span> косметика — свернуть повтор шапки, прояснить id vs отображаемый номер.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="group">
+    <h2>Условия, группа, залог <span class="n">8</span></h2>
+
+    <details class="task"><summary><span class="id">R18</span><span class="dot p-amber"></span><span class="txt">Вкладка «Условия кредита»: провенанс программа → заёмщик → комиссия</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> одобренные условия и запрос заёмщика разбросаны; неясно, кто задал значение — программа, заёмщик или комиссия.</p>
+        <p><span class="lab do">Сделать</span> вкладку с 3 слоями провенанса; на каждом редактируемом условии diff «было → стало» — цепочка со стрелкой и тегом источника; где значение единственное — без стрелки, изменение не фабриковать.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R29</span><span class="dot p-amber"></span><span class="txt">Разграничить редактируемость условий по фазе и роли</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> часть условий свободно-редактируема вне рамок программы, часть readonly без основания; правки специалиста и комиссии не разграничены.</p>
+        <p><span class="lab do">Сделать</span> 3 класса: readonly (единичное значение программы), ограничено программой (select из её опций / число в min–max), свободно (операционные условия); gate по фазе×роли; правки реально сохраняются в объект заявки.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R19</span><span class="dot p-amber"></span><span class="txt">Вкладка «Члены группы» с лимитами и гейтом</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> групповой продукт (1 кредит / N траншей на членов) в UI заявки не отражён.</p>
+        <p><span class="lab do">Сделать</span> условную вкладку (видна для групповых программ): список членов, транш на каждого, Σ = сумма кредита; лимиты 3–10 членов и доля ≤ 40% как гейт отправки; удаление члена запрещено после одобрения.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R30</span><span class="dot p-amber"></span><span class="txt">График группового займа: по-членный и общий свод</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> график один общий на кредит — транш, дата освоения и остаток каждого члена не разведены.</p>
+        <p><span class="lab do">Сделать</span> дропдаун «График по: член / Вся группа»; у члена свой график от его транша и даты; «Вся группа» — read-only свод; для не-групповых — поле «Дата выдачи».</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R20</span><span class="dot p-amber"></span><span class="txt">Вкладка «Залог» и коэффициент покрытия как гейт</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> предметы залога и покрытие в деталях заявки не сведены.</p>
+        <p><span class="lab do">Сделать</span> условную вкладку (виды залога из программы, собственник из реестра); коэффициент покрытия Σоценок ÷ сумма ≥ порога как гейт отправки в комиссию с человекочитаемой причиной блокировки; добавление через модалку.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R11</span><span class="dot p-amber"></span><span class="txt">Считать проценты в графике погашения</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> в графике «Проценты» = 0,00 во всех строках при ставке 12% годовых; амортизируется только основной долг.</p>
+        <p><span class="lab do">Сделать</span> рассчитывать проценты по ставке за период; проверить генератор графика.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R21</span><span class="dot p-amber"></span><span class="txt">Секция «Проектные документы»</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> генерируемые проектные документы (бизнес-план, финмодель) в наборе документов заявки отдельно не выделены.</p>
+        <p><span class="lab do">Сделать</span> секцию/вкладку «Проектные документы» с отдельным жизненным циклом от печатных бланков и договорных шаблонов.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R13</span><span class="dot p-amber"></span><span class="txt">Блокировать правку графика после одобрения</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> «Построить график»/«Добавить строку» активны на одобренной заявке.</p>
+        <p><span class="lab do">Сделать</span> правку графика под гейтом «Изменить»; право по фазе×роли (специалист@черновик / комиссия@зафиксирован); вне edit-mode график read-only.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="group">
+    <h2>Документы <span class="n">6</span></h2>
+
+    <details class="task"><summary><span class="id">R12</span><span class="dot p-amber"></span><span class="txt">Сделать обязательные документы условием одобрения</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> обязательные документы пусты на одобренной заявке, «Загрузить» активен после одобрения.</p>
+        <p><span class="lab do">Сделать</span> обязательные документы — условие одобрения; блокировать загрузку после прохождения документного этапа.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R35</span><span class="dot p-amber"></span><span class="txt">Воркфлоу: документы → заключения → комиссия → комитет</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> моделируется упрощённый путь: спец собирает документы → отправить в комиссию → голосование.</p>
+        <p><span class="lab do">Сделать</span> полный процесс: 2-уровневая комплектация (спец проверяет → головной филиал подтверждает), заключения отделов, комиссия предварительно изучает документы, заседание комитета с протоколом и подписями; гейт «Отправить» ужесточён.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R41</span><span class="dot p-amber"></span><span class="txt">Вкладка «Заключения»: отделы, ЖЦ, отрицательный вердикт как гейт</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> 4 захардкоженных отдела, всегда обязательных; заключение — плоская запись без ЖЦ; отрицательный вердикт ничего не блокирует.</p>
+        <p><span class="lab do">Сделать</span> состав отделов назначает спец (риск и кредитный несъёмные, залоговый авто при залоге, остальные из справочника); ЖЦ pending → draft → submitted; отрицательное заключение блокирует отправку.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R46</span><span class="dot p-amber"></span><span class="txt">Вкладка «Документы»: командный центр — стадии, очередь, процент</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> по свёрнутым аккордеонам не видно одним взглядом, какие документы на какой стадии и по каким нужно действие.</p>
+        <p><span class="lab do">Сделать</span> 3 блока над аккордеонами: сегментный прогресс (Собрано → Принято спецом → Подтверждено ГФ), конвейер стадий-фильтров, очередь «Требуют вашего действия» по роли.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R37</span><span class="dot p-amber"></span><span class="txt">Групповой кредит: документы по каждому члену группы</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> при групповой программе заявка несёт один комплект на субъекта заявки, хотя паспорт, ИНН, согласия принадлежат члену; гейт не видит, у кого комплект не закрыт.</p>
+        <p><span class="lab do">Сделать</span> документы на уровень члена; селектор «Документы по: Вся группа / член»; гейт называет членов поимённо; тип комплекта — по субъекту члена (физлицо/юрлицо).</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R36</span><span class="dot p-amber"></span><span class="txt">Запрашивать документы из госсистем (ГРС, ГНС, Минюст, Соцфонд, кредбюро)</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> моделируется только ручная загрузка сканов; часть комплекта доступна из госсистем, но в UI не отражена.</p>
+        <p><span class="lab do">Сделать</span> у документов с источником — кнопка «Запросить из X»; статус «Запрошено» с «Отменить»/«Ответ получен» → «Загружен»; гейт ждёт ответа интеграции по обязательным документам.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="group">
+    <h2>Комиссия <span class="n">6</span></h2>
+
+    <details class="task"><summary><span class="id">R38</span><span class="dot p-red"></span><span class="txt">Кворум-гейт итогового решения и единая карточка</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> председатель выносит решение при нуле голосов — кнопки не связаны с голосованием; члены не видят голосов друг друга; у одной сущности два экрана.</p>
+        <p><span class="lab do">Сделать</span> гейт: решение недоступно, пока нет кворума (⌊n/2⌋+1) + номер протокола + дата заседания; прогресс над блоком решения; голос в строке своего члена, повторный заблокирован; одна карточка. Кворум валидировать и на сервере.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R4</span><span class="dot p-amber"></span><span class="txt">Прописать правила комиссии: аудит финала, 4-eyes, дедлайн</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> голосование реализовано, но правила работы комиссии в UI не видны.</p>
+        <p><span class="lab do">Сделать</span> аудит-запись финала (кто/когда/решение, особенно при расхождении с тэлли); 4-eyes предупреждение, если автор = член по своей заявке; дедлайн члена принуждается уведомлением; одна комиссия судит кредит+залог.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R39</span><span class="dot p-amber"></span><span class="txt">Список комиссий: рабочая очередь, сроки, читаемый грид</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> список — реестр, а не рабочий стол: не видно, где ждут моего голоса и что просрочено; константные и всегда-пустые колонки.</p>
+        <p><span class="lab do">Сделать</span> плитку + фильтр «Ждут моего голоса»; колонку «Крайний срок» с чипом просрочки; «Тип решения» → статус-чип; «Голоса» = мини-полоса «N из M»; убрать балластные колонки; структурный номер К-2026-000138.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R47</span><span class="dot p-amber"></span><span class="txt">Разнести фазы заявка ↔ комиссия, одна модель решения</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> решение принимается в двух местах с расходящимися правилами — таб «Комиссия» карточки (без кворума) и модуль комиссий (кворум-гейт).</p>
+        <p><span class="lab do">Сделать</span> движок решения один — в модуле «Комиссии»; в карточке заявки фаза B (заседание) — read-only зеркало итога; фаза A (предварительное изучение документов) остаётся в карточке.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R40</span><span class="dot p-amber"></span><span class="txt">Прогресс голосования, диалоги, пустые состояния</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> полоса прогресса одноцветная при 4 категориях; цвет «Отклонили» проваливает контраст WCAG; пустые гриды, диалоги без Escape.</p>
+        <p><span class="lab do">Сделать</span> стек-сегменты по 4 категориям + «Проголосовало N из M · кворум K»; цвета из палитры; empty states с действием; Escape и клик по подложке закрывают диалог; красная кнопка для деструктива.</p>
+      </div>
+    </details>
+
+    <details class="task"><summary><span class="id">R14</span><span class="dot p-amber"></span><span class="txt">Развести дубль колонки «Сотрудник» (Логин / ФИО)</span></summary>
+      <div class="body">
+        <p><span class="lab now">Сейчас</span> в гриде решений комиссии две колонки с одинаковым заголовком «Сотрудник» (логин и ФИО).</p>
+        <p><span class="lab do">Сделать</span> разные заголовки — «Логин» и «ФИО» (или «Должность»).</p>
+      </div>
+    </details>
+  </section>
+
+</div>
+
+<footer>
+  <span class="k"><span class="dot p-red"></span>Высокий</span>
+  <span class="k"><span class="dot p-amber"></span>Средний</span>
+  <span class="k"><span class="dot p-gray"></span>Косметика</span>
+</footer>
+
+</body>
+</html>
