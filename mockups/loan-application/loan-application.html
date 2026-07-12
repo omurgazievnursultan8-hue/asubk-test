@@ -1846,15 +1846,14 @@ table.grid thead th, table.grid tbody td{ overflow:hidden; text-overflow:ellipsi
             <div class="cform-section">
               <div class="section-h">Условия кредита</div>
               <div class="cform-grid">
-                <div class="field required span2" id="cf-program-field">
+                <div class="field span2" id="cf-program-field">
                   <span class="flabel">Кредитная программа</span>
                   <div class="lookup">
                     <span class="val" id="cf-program-val"></span>
                     <button class="pick" onclick="openModal('modal-pick-program-create')" title="Выбрать">•••</button>
                     <button onclick="clearPicker('cf-program')" title="Очистить" style="font-size:13px;color:var(--text-muted)">✕</button>
                   </div>
-                  <span class="hint" id="cf-program-hint">Не выбрана — все условия задаются вручную</span>
-                  <span class="err">Поле является обязательным</span>
+                  <span class="hint" id="cf-program-hint">Не выбрана → индивидуальная заявка (поток B): условия вручную</span>
                 </div>
               </div>
               <!-- Условия = дословная копия виджетов условий программы, рендерится из cdraft (renderCond).
@@ -2318,7 +2317,7 @@ function showView(name){
   window.scrollTo(0,0);
 }
 function openModal(id){ document.getElementById(id).classList.add('open'); }
-function closeModal(id){ const el = document.getElementById(id); el.classList.remove('open'); if (id === 'modal-pick-subject'){ _subjectPickTarget = 'borrower'; el.style.zIndex = ''; } if (id === 'modal-doc-reason'){ _reasonCb = null; _docReasonPending = null; } }
+function closeModal(id){ const el = document.getElementById(id); el.classList.remove('open'); if (id === 'modal-pick-subject'){ _subjectPickTarget = 'borrower'; el.style.zIndex = ''; } if (id === 'modal-pick-program-create'){ _bindTarget = null; } if (id === 'modal-doc-reason'){ _reasonCb = null; _docReasonPending = null; } }
 /* ============================================================
    APPLICATIONS DATASET — ~22 live rows, inspected 2026-06-29
    Rows 1-8: exact data from GRID_HEADER_CELLS dump.
@@ -2583,7 +2582,7 @@ APPLICATIONS.forEach(r => {
   r.isGroup       = m.group;
   r.collKinds     = m.kinds || [];   // разрешённые виды залога — из программы
   r.commissions   = (m.commissions && m.commissions.length) ? m.commissions : ['Комиссия по заявкам'];  // комиссии-адресаты из программы: 1 → прямая отправка, 2+ → выбор
-  r.flow          = 'A';   // демо: все по программе (поток A); поток B — отдельный сценарий
+  r.flow          = r.program ? 'A' : 'B';   // поток определяется программой: выбрана → A, пусто → B (индивидуальная)
 });
 
 let _sortCol = null, _sortDir = 1, _selNum = null;
@@ -3327,6 +3326,41 @@ function formCredit(num){
   showToast(`Кредит сформирован, заявка перешла в «${to}»`, 'ok');
 }
 
+/* Привязать решение + программу — из «Ожидает решения/программы» (поток B, спек топик 4,
+   переход §4.3: «Ожидает решения/программы» → «На оформлении»). Индивидуальная заявка
+   ждала госрешения; специалист выбирает программу (её строка несёт «Решение правительства»,
+   т.е. решение привязывается вместе с программой). После привязки заявка получает конверт
+   программы и становится потоком A. Открывает тот же пикер программ, что и форма создания;
+   применение — в _doBindProgram (роутинг через _bindTarget в applyPick). */
+let _bindTarget = null;
+function bindProgramDecision(num){
+  const app = APPLICATIONS.find(a => a.num === num);
+  if (!app) return;
+  if (_role !== 'spec'){ showToast('Привязать решение и программу может только кредитный специалист', 'warn'); return; }
+  if (app.status !== 'Ожидает решения/программы'){
+    showToast('Привязка решения+программы доступна только в статусе «Ожидает решения/программы»', 'warn'); return;
+  }
+  _bindTarget = num;
+  openModal('modal-pick-program-create');
+}
+/* Применить выбранную в пикере программу к ждущей заявке (поток B → A) и двинуть на оформление. */
+function _doBindProgram(label){
+  const num = _bindTarget; _bindTarget = null;
+  closeModal('modal-pick-program-create');
+  const app = APPLICATIONS.find(a => a.num === num);
+  if (!app || !PROGRAMS_MAP[label]) return;
+  app.program = label;                 // конверт программы читается live из PROGRAMS_MAP[app.program]
+  app.flow    = 'A';                    // программа привязана → дальше как поток A
+  if (app._docs) _applyProgramPack(app);   // пакет документов из программы
+  const from = app.status;
+  app.status = 'На оформлении';
+  _audit(app, '[specialist]', 'Привязаны решение и программа · изменён статус', from, 'На оформлении', 'bindB');
+  renderGrid();
+  if (_detailApp && _detailApp.num === app.num) gotoDetail(app.num);
+  else if (_selNum === app.num) selectRow(app.num);
+  showToast(`Программа «${label}» привязана, заявка перешла в «На оформлении»`, 'ok');
+}
+
 /* ---- Режим правки: «Изменить» → редактируемые поля → «Сохранить»/«Отмена» ----
    enterEdit снимает снимок заявки и включает _editMode; поля пишутся вживую в объект
    (data-bind + bindCondInput). «Сохранить» — фиксирует (снимок сброшен); «Отмена» и
@@ -3426,6 +3460,8 @@ function renderToolbar(app){
         return `<button class="btn btn-${kind} btn-sm" onclick="withdrawApp('${_esc(app.num)}')">${label}</button>`;
       if (label === 'Сформировать кредит')
         return `<button class="btn btn-${kind} btn-sm" onclick="formCredit('${_esc(app.num)}')">${label}</button>`;
+      if (label === 'Привязать решение + программу')
+        return `<button class="btn btn-${kind} btn-sm" onclick="bindProgramDecision('${_esc(app.num)}')">${label}</button>`;
       return `<button class="btn btn-${kind} btn-sm" onclick="toolbarAction('${label}')">${label}</button>`;
     });
     /* Комиссия правит опер-условия, но своего статус-тулбара не имеет — добавим «Изменить». */
@@ -4126,8 +4162,11 @@ function graceConstraint(prog, on, type, dur, from, to){
 
 /* Фаза редактирования условий по статусу заявки. */
 function condPhase(status){
-  if (['Новый', 'Требуется доп. информация'].includes(status)) return 'draft';       // правит специалист
-  if (['На рассмотрении', 'Ожидает решения/программы'].includes(status)) return 'review';   // у комиссии — экран специалиста только для чтения
+  // draft — правит специалист. «Ожидает решения/программы» (поток B, после одобрения) вернулась
+  // к специалисту: он привязывает программу+решение и подгоняет условия под конверт программы,
+  // поэтому это draft-фаза, а не «у комиссии» (иначе спец не мог бы менять условия).
+  if (['Новый', 'Требуется доп. информация', 'Ожидает решения/программы'].includes(status)) return 'draft';
+  if (status === 'На рассмотрении') return 'review';                                  // у комиссии — экран специалиста только для чтения
   return 'locked';                                                                    // зафиксировано
 }
 
@@ -4268,7 +4307,7 @@ function renderConditions(app){
   F.push('<div class="cond-subh">Процентные ставки</div>');
   F.push(editCond
     ? condNum('Годовая ставка, %', app.annualRate || r.com || env.rate || prog.rate || '', { required:true,
-        hint: prog.stavkaType === 'Диапазон' ? `Допустимо: ${prog.stavkaMin}–${prog.stavkaMax} %` : 'Выберите ставку из вариантов программы', ...rateC, bind:'annualRate' })
+        hint: prog.stavkaType === 'Диапазон' ? `Допустимо: ${prog.stavkaMin}–${prog.stavkaMax} %` : (app.program ? 'Выберите ставку из вариантов программы' : 'Ставка вручную — обязательна'), ...rateC, bind:'annualRate' })
     : condField('Годовая ставка, %',
         _specLayers(app, 'annualRate', [['программа', r.prog || env.rate || prog.rate || ''], ['заёмщик', r.bor || (ov.rate ? '' : (app.annualRate || ''))], ['комиссия', r.com || '']])));
   F.push(inh('Тип основной ставки', prog.stavkaType || prog.rateType));
@@ -7227,7 +7266,7 @@ function openCreateModal(){
   cdraft = CP({}); _progSnapshot = null; _condTouched = new Set(); _createProgram = null;
   condComboOpen = null; condMsOpen = {}; t2AddOpen = null;
   const progHint = document.getElementById('cf-program-hint');
-  if (progHint) progHint.textContent = 'Не выбрана — все условия задаются вручную';
+  if (progHint) progHint.textContent = 'Не выбрана → индивидуальная заявка (поток B): условия вручную';
   renderCond();
   document.getElementById('cf-addr').value  = '';
   document.getElementById('cf-phone').value = '+996 ';
@@ -7252,7 +7291,7 @@ function clearPicker(fieldId){
   if (fieldId === 'cf-program'){
     _createProgram = null; _progSnapshot = null;
     const ph = document.getElementById('cf-program-hint');
-    if (ph) ph.textContent = 'Не выбрана — все условия задаются вручную';
+    if (ph) ph.textContent = 'Не выбрана → индивидуальная заявка (поток B): условия вручную';
     renderCond();   // снять справку/чипы; введённые значения сохранить
   }
 }
@@ -7274,7 +7313,7 @@ function selectProgram(label){
   saveCondInputs();                       // сохранить всё, что оператор ввёл до выбора программы
   applyProgramSnapshot(_createProgram);
   const ph = document.getElementById('cf-program-hint');
-  if (ph) ph.textContent = _createProgram ? 'Выбрана — значения подставлены как справка, можно менять' : 'Не выбрана — все условия задаются вручную';
+  if (ph) ph.textContent = _createProgram ? 'Выбрана → поток A: значения-справка, можно менять' : 'Не выбрана → индивидуальная заявка (поток B): условия вручную';
   renderCond();
   closeModal('modal-pick-program-create');
 }
@@ -7310,7 +7349,10 @@ function applyPick(kind){
     }
     else selectSubject(d.val, d.addr || '');
   }
-  else if (kind === 'program') selectProgram(d.val);
+  else if (kind === 'program'){
+    if (_bindTarget) _doBindProgram(d.val);      // привязка к ждущей заявке (поток B), не форма создания
+    else selectProgram(d.val);
+  }
   else if (kind === 'source')  selectSource(d.val);
   _pick[kind] = null;
 }
@@ -7675,7 +7717,7 @@ function condSecRates(){
     : '';
   return `<div class="cond-sec"><div class="section-h">Процентные ставки</div><div class="cform-grid">
     ${condCombo('Тип основной ставки','rateType',['Фиксированная','Диапазон'])}
-    ${range ? condF('Значение ставки с','rateMin',{unit:'%'})+condF('Значение ставки по','rateMax',{unit:'%'})
+    ${range ? condF('Значение ставки с','rateMin',{unit:'%',req:true,oninput:"condTouch('rateMin');validateRate()",err:'Обязательное поле'})+condF('Значение ставки по','rateMax',{unit:'%',req:true,oninput:"condTouch('rateMax');validateRate()",err:'Обязательное поле'})
             : condMsCombo('Значение фиксированной ставки','rateValues',RATE_OPTS,'%')}
     ${condCheck('Использовать плавающую ставку','floatRate')}
     ${float}
@@ -7736,8 +7778,8 @@ function condSecPayments(){
       ${condCombo('Обработка нерабочих дней','weekend',CLK.weekend)}
       ${condCombo('Привязка последнего платежа','lastPaymentAnchor',CLK.lastPaymentAnchor)}
       ${byMonths ? condF('Метод погашения кредита','repayMethod',{type:'text'}) : condCombo('Метод погашения кредита','repayMethod',CLK.repayMethod)}
-      ${condF('Минимальное кол-во дней (освоение→1й платёж)','minDays',{type:'number',unit:'дней'})}
-      ${condF('Максимальное кол-во дней (освоение→1й платёж)','maxDays',{type:'number',unit:'дней'})}
+      ${condF('Минимальное кол-во дней (освоение→1й платёж)','minDays',{type:'number',unit:'дней',req:true,oninput:"condTouch('minDays');validateMinDays()",err:'Обязательное поле'})}
+      ${condF('Максимальное кол-во дней (освоение→1й платёж)','maxDays',{type:'number',unit:'дней',req:true,oninput:"condTouch('maxDays');validateMaxDays()",err:'Обязательное поле'})}
     </div></div>
   </div></div>`;
 }
@@ -7781,11 +7823,11 @@ function validateSubject(){
   document.getElementById('cf-subject-field').classList.toggle('invalid', !ok);
   return ok;
 }
-// P3-R5: Кредитная программа required
+// P3-R5: Кредитная программа ОПЦИОНАЛЬНА — пусто = поток B (индивидуальная заявка).
+// Наличие программы выбирает поток (A/B), незаполненность ошибкой не является.
 function validateProgram(){
-  const ok = !!document.getElementById('cf-program-val').textContent.trim();
-  document.getElementById('cf-program-field').classList.toggle('invalid', !ok);
-  return ok;
+  document.getElementById('cf-program-field').classList.remove('invalid');
+  return true;
 }
 // P3-R3: сумма > 0 AND within program bounds (when a program is chosen)
 function validateAmount(){
@@ -7862,16 +7904,50 @@ function validatePhone(){
 /** validateCreate — called by «Далее»; runs every field validator so all errors
  *  surface at once. Returns true only if all pass (P3-R5 subject+program required,
  *  P3-R3 amount/term bounds, phone format). */
+/** Мин./макс. кол-во дней (освоение→1й платёж) — обязательны при создании (вариант A,
+ *  заказчик 2026-07-12): «все условия должны быть заполнены», в т.ч. без программы (поток B).
+ *  Требуется непустое целое ≥ 0. */
+function _validateDays(key){
+  saveCondInputs();
+  const raw = String(cdraft[key]||'').trim();
+  const n = parseInt(raw, 10);
+  const ok = raw !== '' && Number.isInteger(n) && n >= 0 && String(n) === raw;
+  const field = document.querySelector(`#cf-cond-body [data-field="${key}"]`);
+  if (field) field.classList.toggle('invalid', !ok);
+  return ok;
+}
+function validateMinDays(){ return _validateDays('minDays'); }
+function validateMaxDays(){ return _validateDays('maxDays'); }
+/** Годовая ставка обязательна при создании (вариант A). Модель формы: «Фиксированная» →
+ *  хотя бы одно значение в rateValues; «Диапазон» → заполнены rateMin и rateMax (числа). */
+function validateRate(){
+  saveCondInputs();
+  const range = cdraft.rateType === 'Диапазон';
+  let ok, fieldKey;
+  if (range){
+    const lo = t2num(cdraft.rateMin), hi = t2num(cdraft.rateMax);
+    ok = String(cdraft.rateMin||'').trim() !== '' && String(cdraft.rateMax||'').trim() !== '' && !isNaN(lo) && !isNaN(hi);
+    fieldKey = 'rateMin';
+  } else {
+    ok = Array.isArray(cdraft.rateValues) && cdraft.rateValues.length > 0;
+    fieldKey = 'rateValues';
+  }
+  const field = document.querySelector(`#cf-cond-body [data-field="${fieldKey}"]`);
+  if (field) field.classList.toggle('invalid', !ok);
+  return ok;
+}
 function validateCreate(){
   // Evaluate all (no short-circuit) so every invalid field lights up.
-  const okSubject = validateSubject();
-  const okProgram = validateProgram();
+  const okSubject = validateSubject();       // P3-R5: только Субъект обязателен
   const okAmount  = validateAmount();
   const okTerm    = validateTerm();
   const okPhone   = validatePhone();
   const okPayday  = validatePayday();        // schedule day-of-month 1–31 (optional)
-  const okProgSel = validateProgSelects();   // required program-driven selects (2+ value attrs)
-  return okSubject && okProgram && okAmount && okTerm && okPhone && okPayday && okProgSel;
+  const okProgSel = validateProgSelects();   // program-driven selects — проверяются лишь когда программа выбрана (поток A)
+  const okMinDays = validateMinDays();       // вариант A: условия обязательны при создании (в т.ч. поток B)
+  const okMaxDays = validateMaxDays();
+  const okRate    = validateRate();
+  return okSubject && okAmount && okTerm && okPhone && okPayday && okProgSel && okMinDays && okMaxDays && okRate;
 }
 
 /* ============================================================
@@ -7999,6 +8075,8 @@ function submitCreate(){
     status: 'Новый',
     collateralStatus: '',
     program: document.getElementById('cf-program-val').textContent || '',
+    // Поток задаётся программой: выбрана → A (кредит сразу), пусто → B (индивидуальная, кредит после привязки программы)
+    flow: (document.getElementById('cf-program-val').textContent.trim() ? 'A' : 'B'),
     amount: amountStr,
     term: String(cdraft.requestedTerm || ''),
     phone: document.getElementById('cf-phone').value || '',
