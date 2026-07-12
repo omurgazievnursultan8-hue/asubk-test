@@ -8042,7 +8042,19 @@ function showToast(text, type){
 
 /** submitCreate — validates; on success pushes new row, re-renders, closes modal, opens detail. */
 function submitCreate(){
-  if (!validateCreate()) return;
+  if (!validateCreate()){
+    // Не молчим: вариант A добавил обязательные условия (ставка, мин./макс. дней) — без
+    // явного фидбэка «Сохранить не работает». Подсветку .invalid дополняем тостом + прокруткой.
+    const bad = document.querySelector('#view-create .invalid, #cf-cond-body .invalid');
+    if (bad){
+      const sec = bad.closest('.cond-sec, .cond-acc');   // раскрыть свёрнутую секцию условий, если есть
+      if (sec && sec.classList.contains('cond-acc')) sec.classList.add('open');
+      bad.scrollIntoView({ block:'center', behavior:'smooth' });
+      const inp = bad.querySelector('input,select,textarea'); if (inp) inp.focus();
+    }
+    showToast('Не создано: заполните обязательные поля (субъект, сумма, срок, ставка, мин./макс. кол-во дней)', 'warn');
+    return;
+  }
 
   // Формат номера заявки: З-ГГГГ-NNNNNN (спек §5.7). Серия сбрасывается по году.
   // Демо-мокап: год фиксирован, серия = max существующей + 2 (нечётная демо-последовательность).
