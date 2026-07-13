@@ -1,0 +1,1888 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Информация о ведомстве · АСУБК (v2)</title>
+<!--
+  РАБОЧИЙ ПРОТОТИП (single-file, MVP) — модуль «Управление информацией о ведомстве» (TO-BE).
+  Версия 2 (переработка). Не картинка: логика ниже ИСПОЛНЯЕТСЯ.
+  Спека: `ASUBK-vedomstvo-logika.md`. Модуль подсистемы администрирования (ТЗ АСУБК-3).
+
+  ЧТО РЕАЛИЗОВАНО (и что разработчик обязан сохранить)
+
+  1. КЛАСС — ИНФОРМАЦИОННАЯ ВИТРИНА (§1). Read-mostly. Ни бизнес-логики кредитования, ни
+     workflow, ни статусов «черновик/на рассмотрении», ни четырёхглазки, ни версионности
+     собственных полей. Единственный процессный элемент — технический аудит-лог (§6).
+     ⚠ Эффективное датирование реквизитов ОТКЛОНЕНО (§1, решение 3). См. п. 9.
+
+  2. SINGLETON (§2). Одна запись на всю систему. Создание/удаление недоступны (кроме первичной
+     инициализации). Кнопок «+ Ведомство» / «Удалить» НЕТ by design. Правка — только Админ.
+
+  3. СВОИ БЛОКИ vs ЗЕРКАЛА (§3) — ключевой шов. Модуль ВЛАДЕЕТ: Общая инфо, Хронология,
+     Реквизиты (регистрационные + банковские), Документы, Контакты — единственный источник
+     правды, правятся здесь. ЗЕРКАЛИТ: Оргструктура, Показатели — только чтение,
+     «ссылка, а не копия»: не хранятся тут, читаются из модуля-источника, правка → переход
+     в модуль-источник. Копировать зеркало в карточку = два расходящихся источника правды
+     = АНТИПАТТЕРН.
+
+  4. БАНКОВСКИЕ РЕКВИЗИТЫ — МНОЖЕСТВЕННЫЕ (§4). У холдинга N счетов (валюты/назначения).
+     ИНВАРИАНТ: не более одного счёта с флагом «основной» В РАЗРЕЗЕ ВАЛЮТЫ (checkMainAccount),
+     считается ТОЛЬКО ПО ДЕЙСТВУЮЩИМ счетам. Демо содержит валидное состояние; переключатель
+     «сломать инвариант» показывает баннер нарушения. Счёт ПОГАШЕНИЯ задолженности заёмщиком —
+     ВНЕ модуля (кредит/программа/линия).
+
+  5. ПОКАЗАТЕЛИ — ЗАФИКСИРОВАННЫЙ СРЕЗ (§7 В-3). Витрина показывает срез, посчитанный модулем
+     статистики в нерабочее время, с явной пометкой ДАТЫ РАСЧЁТА — не считает «на лету».
+     Только всеорганизационные агрегаты (§7 В-2); разрез по подразделению/сотруднику — это
+     управленческая отчётность с ограничением доступа, ЕЙ ЗДЕСЬ НЕ МЕСТО.
+
+  6. ГРАНИЦЫ (§2). Внешние госорганы (МФКР, Кабмин, регистрирующие/нотариальные/залоговые
+     конторы, банки заёмщика, суды, КИБ «Ишеним») — НЕ здесь, их место — справочники. Модуль
+     описывает ТОЛЬКО ОАО «Госфинхолдинг». Оргструктура-зеркало — до подразделений без
+     персоналий (§7 В-1, рекомендация а): ФИО руководителя как публичный атрибут узла,
+     а не ссылка на чувствительную карточку сотрудника.
+
+  --- добавлено в переработке (§8, решения Р-1…Р-9) ---
+
+  7. СЧЁТ НЕ УДАЛЯЕТСЯ, А ЗАКРЫВАЕТСЯ ДАТОЙ (§8 Р-1). Реквизиты счёта могли попасть в договоры,
+     платёжные поручения и печатные формы — задним числом их стереть нельзя. Модель append-only:
+     `closedAt`. Закрытый счёт автоматически теряет флаг «основной» и НЕ УЧАСТВУЕТ в подсчёте
+     инварианта. Кнопки «Удалить счёт» нет нигде.
+
+  8. КЛАССИФИЦИРУЮЩИЕ ПОЛЯ — ТОЛЬКО ИЗ СПРАВОЧНИКОВ (§8 Р-2). Банк, валюта, назначение счёта,
+     орган регистрации, тип телефона/e-mail/документа — селекты из модуля справочников (здесь
+     имитация `REF`). Free-text для них = расхождение значений между модулями = АНТИПАТТЕРН.
+     БИК принадлежит банку, а не нашему счёту: подставляется из справочника, read-only.
+
+  9. ПЕЧАТНАЯ КАРТОЧКА — СТРОГО «НА СЕЙЧАС» (§8 Р-4). Формируется на текущий момент и помечается
+     «Сформировано {дата}». Версионность реквизитов не вводится — карточка не претендует на
+     воспроизведение состояния на прошлую дату.
+     ⚠ ЕСЛИ к этому модулю привяжут шаблоны договоров / платёжных документов, требующие
+     состояния «на дату», — решение 3 (§1, отклонённое эффективное датирование) подлежит
+     НЕМЕДЛЕННОМУ ПЕРЕСМОТРУ. Иначе получим тихую подмену исторических реквизитов.
+
+ 10. ДОКУМЕНТЫ ВЕДОМСТВА (§8 Р-5). Устав, свидетельство, лицензии, разрешения: карточка
+     документа + ссылка на вложение, срок действия → производный статус (бессрочный /
+     действует / истекает ≤90 дн. / истёк). Файлы физически хранит ПОДСИСТЕМА
+     ДОКУМЕНТООБОРОТА — модуль ведомства не является файловым хранилищем.
+     Документ удалять МОЖНО (в отличие от счёта): это вложение, а не реквизит, ушедший в чужие
+     документы. Удаление пишется в аудит.
+
+ 11. ДАТА ПРОСМОТРА РЕЗОЛВИТ ТОЛЬКО ЗЕРКАЛА (§8 Р-7). Поле в шапке — «Дата просмотра»; на неё
+     резолвятся Оргструктура (nodesAt/nameAt/headAt — функции модуля-источника, здесь имитация)
+     и Показатели (ближайший зафиксированный срез ≤ даты). Собственные блоки версионности НЕ
+     ИМЕЮТ — при `date ≠ today` на них выводится плашка «показано актуальное состояние»,
+     иначе пользователь решит, что вся страница историческая.
+
+ 12. АУДИТ — ОБЩЕСИСТЕМНОЕ ХРАНИЛИЩЕ (§8 Р-9). Записи живут в подсистеме администрирования со
+     `scope`; вкладка ведомства — ОТФИЛЬТРОВАННОЕ ПРЕДСТАВЛЕНИЕ (`scope:'vedomstvo'`) с фильтрами,
+     пагинацией и выгрузкой CSV. Это НЕ версионность: восстановление состояния «на дату» из
+     журнала как пользовательская функция по-прежнему не предполагается (§1, решение 3).
+     `objId` обязателен для сущностей с множественностью (счёт, документ, событие, телефон) —
+     иначе по записи журнала нельзя найти объект.
+
+  ОТКЛОНЕНО (§8 Р-6) — ДВУЯЗЫЧИЕ НАИМЕНОВАНИЯ (кыр/рус) не вводится, работаем только с русским.
+     Если печатная карточка или договоры потребуют официального наименования на государственном
+     языке — решение пересматривается.
+
+  РОЛИ: Администратор (правит собственные блоки), Наблюдатель (только чтение). canEdit().
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.nav-group-h{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); color:rgba(24,39,57,0.82); }
+.nav-item{ display:block; padding:7px 16px 7px 32px; text-decoration:none; color:rgba(27,43,65,0.69);
+  font:var(--weight-regular) var(--text-base)/1.625 var(--asubk-font); cursor:pointer; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.topbar .date-wrap{ display:flex; align-items:center; gap:8px; }
+.topbar .date-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.topbar input[type=date]{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; cursor:pointer; }
+.topbar .role-wrap{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+.topbar .role-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.rsel{ position:relative; display:flex; align-items:center; }
+.rsel select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 26px 0 10px;
+  appearance:none; cursor:pointer; }
+.rsel .caret{ position:absolute; right:8px; pointer-events:none; color:var(--text-muted); display:flex; }
+.topbar .today-btn{ height:32px; }
+
+/* ---- tabs ---- */
+.detail-tabbar{ display:flex; overflow-x:auto; padding:6px 20px 0; border-bottom:1px solid var(--border-default); }
+.dtab{ flex:none; border:none; background:transparent; padding:11px 15px;
+  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap;
+  display:inline-flex; align-items:center; gap:7px; }
+.dtab:hover{ color:var(--text-body); }
+.dtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.dtab .mirror-tag{ font:var(--weight-medium) 10px/1 var(--asubk-font); color:var(--text-placeholder);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:2px 6px; }
+.dtab .cnt-tag{ font:var(--weight-semibold) 10px/1 var(--asubk-font); color:#fff;
+  background:var(--asubk-red); border-radius:var(--radius-pill); padding:3px 6px; }
+.content{ flex:1; overflow:auto; }
+.panel-wrap{ padding:20px 24px 48px; max-width:1080px; }
+.detail-panel{ display:none; }
+.detail-panel.active{ display:block; }
+
+/* ---- org header (карточка ведомства) ---- */
+.org-head{ display:flex; align-items:center; gap:18px; margin-bottom:8px; }
+.org-logo{ width:64px; height:64px; flex:none; border-radius:var(--radius-lg); background:var(--asubk-blue-tint);
+  display:flex; align-items:center; justify-content:center; color:var(--asubk-blue); overflow:hidden; }
+.org-logo img{ width:100%; height:100%; object-fit:contain; }
+.org-head .oh-name{ font:var(--weight-semibold) 22px/1.2 var(--asubk-font); color:var(--text-heading); }
+.org-head .oh-sub{ font:var(--font-label); color:var(--text-muted); margin-top:4px; }
+.org-head .oh-sub b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.org-head .oh-grow{ flex:1; }
+.org-head .oh-right{ text-align:right; }
+
+/* ---- banners ---- */
+.banner{ display:flex; align-items:flex-start; gap:10px; border-radius:var(--radius-md);
+  padding:10px 14px; margin:14px 0; font:var(--font-label); }
+.banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
+.banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.banner svg{ flex:none; margin-top:1px; }
+.banner .grow{ flex:1; }
+
+/* ---- mirror banner (зеркало) ---- */
+.mirror-bar{ display:flex; align-items:center; gap:12px; border:1px solid var(--border-default);
+  border-left:3px solid var(--asubk-blue); border-radius:var(--radius-md); background:var(--asubk-blue-tint);
+  padding:12px 16px; margin-bottom:18px; }
+.mirror-bar .mb-txt{ flex:1; font:var(--font-label); color:var(--text-body); }
+.mirror-bar .mb-txt b{ color:var(--text-heading); font-weight:var(--weight-semibold); }
+.mirror-bar .mb-txt .mono{ color:var(--asubk-blue); }
+
+/* ---- sections ---- */
+.section{ border:1px solid var(--border-default); border-radius:var(--radius-md); margin-bottom:18px;
+  background:var(--surface-card); overflow:hidden; }
+.section-h{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:12px 16px; border-bottom:1px solid var(--border-default); background:var(--surface-panel); }
+.section-h .sh-t{ font:var(--weight-semibold) 15px/1.2 var(--asubk-font); color:var(--text-heading); }
+.section-h .sh-act{ display:flex; align-items:center; gap:8px; }
+.section-b{ padding:16px; }
+.section-b.tscroll{ overflow-x:auto; }         /* широкие таблицы скроллятся внутри секции */
+.section-tools{ display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:10px 16px; border-bottom:1px solid var(--asubk-grid-line); background:var(--surface-hover);
+  font:var(--font-label); color:var(--text-muted); }
+.section-tools label{ display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+
+/* ---- key-value grid ---- */
+.kv{ display:grid; grid-template-columns:220px 1fr; gap:0; }
+.kv > dt{ padding:9px 0; font:var(--font-label); color:var(--text-muted);
+  border-bottom:1px solid var(--asubk-grid-line); }
+.kv > dd{ padding:9px 0; margin:0; font:var(--weight-regular) var(--text-base)/1.4 var(--asubk-font);
+  color:var(--text-body); border-bottom:1px solid var(--asubk-grid-line); }
+.kv > dt:last-of-type, .kv > dd:last-of-type{ border-bottom:none; }
+@media(max-width:640px){ .kv{ grid-template-columns:1fr; } .kv > dt{ border-bottom:none; padding-bottom:0; } }
+
+/* ---- tables ---- */
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); background:var(--surface-card); }
+table.cgrid thead th{ text-align:left; padding:10px 10px; background:var(--surface-panel);
+  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-medium) var(--text-sm)/1.35 var(--asubk-font);
+  color:var(--text-body); white-space:nowrap; }
+table.cgrid tbody td{ padding:10px 10px; border-bottom:1px solid var(--asubk-grid-line); vertical-align:top; color:var(--text-body); }
+table.cgrid tbody tr:last-child td{ border-bottom:none; }
+table.cgrid tbody tr.closed td{ color:var(--text-placeholder); background:var(--asubk-tint-fill); }
+table.cgrid tbody tr.closed .acc-no{ text-decoration:line-through; }
+table.cgrid td.nw, table.cgrid th.nw{ white-space:nowrap; }
+.muted{ color:var(--text-muted); }
+.mono{ font-variant-numeric:tabular-nums; font-family:ui-monospace,Menlo,Consolas,monospace; }
+.num{ font-variant-numeric:tabular-nums; text-align:right; }
+.empty{ padding:22px 16px; text-align:center; color:var(--text-placeholder); font:var(--font-label); }
+
+/* ---- pills ---- */
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+
+/* ---- buttons ---- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:32px; padding:0 12px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); cursor:pointer; white-space:nowrap;
+  text-decoration:none; }
+.btn:disabled{ opacity:.4; cursor:not-allowed; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-danger{ background:var(--action-danger); color:#fff; }
+.btn-danger:hover:not(:disabled){ background:var(--asubk-red-hover); }
+.btn-link{ background:transparent; color:var(--text-link); border:none; padding:0 4px; height:auto; }
+.btn-link:hover{ text-decoration:underline; }
+.readonly-tag{ font:var(--font-label); color:var(--text-muted); display:inline-flex; align-items:center; gap:6px; }
+
+/* ---- chronology timeline ---- */
+.tl{ list-style:none; margin:0; padding:0; border-left:2px solid var(--border-default); margin-left:8px; }
+.tl li{ position:relative; padding:0 0 18px 22px; }
+.tl li::before{ content:''; position:absolute; left:-7px; top:3px; width:12px; height:12px; border-radius:50%;
+  background:var(--surface-card); border:2px solid var(--asubk-blue); }
+.tl li .td{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
+.tl li .tt{ font:var(--weight-medium) var(--text-base)/1.35 var(--asubk-font); color:var(--text-body); margin-top:2px; }
+.tl li .tv{ font:var(--font-label); color:var(--text-muted); margin-top:2px; max-width:760px; }
+
+/* ---- metrics cards ---- */
+.metrics{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+@media(max-width:900px){ .metrics{ grid-template-columns:repeat(2,1fr); } }
+.metric{ background:var(--surface-panel); border-radius:var(--radius-md); padding:14px 16px; }
+.metric .ml{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:6px; }
+.metric .mrow{ display:flex; align-items:flex-end; justify-content:space-between; gap:8px; }
+.metric .mv{ font:var(--weight-semibold) 22px/1.15 var(--asubk-font); color:var(--text-heading);
+  font-variant-numeric:tabular-nums; white-space:nowrap; }
+.metric .mu{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:3px; }
+.metric .spark{ flex:none; }
+.metric .md{ font:var(--weight-medium) 12px/1.3 var(--asubk-font); margin-top:8px;
+  padding-top:8px; border-top:1px solid var(--asubk-grid-line); }
+.metric .md.up{ color:var(--asubk-green); } .metric .md.down{ color:var(--asubk-red); }
+.metric .md.flat{ color:var(--text-muted); }
+.metric .md .mdn{ color:var(--text-placeholder); font-weight:var(--weight-regular); }
+
+/* ---- org tree (зеркало) ---- */
+.otree{ list-style:none; margin:0; padding:0; }
+.otree li{ padding:8px 12px; border-bottom:1px solid var(--asubk-grid-line); }
+.otree li:last-child{ border-bottom:none; }
+.otree .on{ font:var(--weight-medium) var(--text-base)/1.3 var(--asubk-font); color:var(--text-heading); }
+.otree .oh{ font:var(--font-label); color:var(--text-muted); }
+.otree .l1{ padding-left:12px; } .otree .l2{ padding-left:34px; } .otree .l3{ padding-left:56px; }
+
+/* ---- audit log ---- */
+.audit{ font:var(--font-label); }
+.audit .ae{ display:grid; grid-template-columns:150px 170px 150px 1fr; gap:12px; padding:9px 12px;
+  border-bottom:1px solid var(--asubk-grid-line); }
+.audit .ae:last-child{ border-bottom:none; }
+.audit .ae .aw{ color:var(--text-muted); }
+.audit .ae .ab{ color:var(--text-heading); font-weight:var(--weight-medium); }
+.audit .ae .ao{ color:var(--text-muted); }
+.audit .ae .ad .arrow{ color:var(--text-placeholder); }
+.audit .ae .ad del{ color:var(--asubk-red); text-decoration:line-through; }
+.audit .ae .ad ins{ color:var(--asubk-green); text-decoration:none; }
+.hint{ font:var(--font-label); color:var(--text-muted); margin-top:6px; }
+.checkline{ display:flex; align-items:center; gap:8px; font:var(--font-label); color:var(--text-muted); }
+
+/* ---- filter bar (журнал) ---- */
+.filters{ display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; padding:12px 16px;
+  border-bottom:1px solid var(--asubk-grid-line); background:var(--surface-hover); }
+.filters .ff{ display:flex; flex-direction:column; gap:4px; }
+.filters .ff > label{ font:var(--weight-regular) 12px/1.2 var(--asubk-font); color:var(--text-muted); }
+.filters select, .filters input[type=date]{ height:32px; border-radius:var(--radius-md);
+  border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-body);
+  font:var(--font-label); padding:0 8px; }
+.filters .grow{ flex:1; }
+.pager{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:10px 16px; border-top:1px solid var(--asubk-grid-line); font:var(--font-label); color:var(--text-muted); }
+.pager .pg{ display:flex; align-items:center; gap:8px; }
+
+/* ---- документы ---- */
+.doc-file{ display:inline-flex; align-items:center; gap:6px; color:var(--text-link); white-space:nowrap;
+  cursor:pointer; background:none; border:none; font:var(--font-label); padding:0; }
+.doc-file:hover{ text-decoration:underline; }
+
+/* ---- контакты: типизированные списки ---- */
+.tlist{ list-style:none; margin:0; padding:0; }
+.tlist li{ display:flex; align-items:center; gap:8px; padding:3px 0; }
+.tlist li .tv{ font-variant-numeric:tabular-nums; }
+.tlist li .tn{ color:var(--text-placeholder); font-size:13px; }
+
+/* ---- row actions ---- */
+.rowact{ border:none; background:transparent; color:var(--text-link); cursor:pointer;
+  font:var(--weight-medium) 13px/1 var(--asubk-font); padding:3px 6px; border-radius:var(--radius-sm); }
+.rowact:hover{ background:var(--surface-hover); text-decoration:underline; }
+.rowact.del{ color:var(--asubk-red); }
+.tl li .tl-actions{ display:inline-flex; gap:4px; margin-left:8px; vertical-align:middle; }
+
+/* ---- модалка ---- */
+.modal-back{ position:fixed; inset:0; background:rgba(24,39,57,0.38); display:none;
+  align-items:center; justify-content:center; z-index:50; }
+.modal-back.open{ display:flex; }
+.modal{ width:520px; max-width:calc(100vw - 40px); max-height:calc(100vh - 60px); background:var(--surface-page);
+  border-radius:var(--radius-lg); box-shadow:0 12px 44px rgba(24,39,57,0.28); overflow:hidden;
+  display:flex; flex-direction:column; }
+.modal.wide{ width:760px; }
+.modal-h{ padding:16px 20px; border-bottom:1px solid var(--border-default);
+  font:var(--font-page-title); color:var(--text-heading); flex:none; }
+.modal-b{ padding:18px 20px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; }
+.modal-f{ padding:14px 20px; border-top:1px solid var(--border-default); display:flex;
+  align-items:center; justify-content:flex-end; gap:10px; flex:none; }
+.modal-f .spacer{ flex:1; }
+.fld{ display:flex; flex-direction:column; gap:5px; }
+.fld > label{ font:var(--font-label); color:var(--text-muted); }
+.fld input, .fld select, .fld textarea{ border-radius:var(--radius-md);
+  border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-body);
+  font:var(--font-label); padding:8px 10px; width:100%; font-family:inherit; }
+.fld input, .fld select{ height:var(--control-h); padding:0 10px; }
+.fld textarea{ resize:vertical; min-height:64px; line-height:1.4; }
+.fld input:focus, .fld select:focus, .fld textarea:focus{ outline:none; border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+.fld input:disabled{ background:var(--asubk-disabled-fill); color:var(--text-muted); cursor:not-allowed; }
+.fld input.bad, .fld select.bad{ border-color:var(--asubk-red); background:#FFF7F7; }
+.fld.row2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.fld-check{ display:flex; align-items:center; gap:8px; font:var(--font-label); color:var(--text-body); }
+.fld-check input:disabled + span{ color:var(--text-disabled); }
+.fhint{ font:var(--weight-regular) 12px/1.35 var(--asubk-font); color:var(--text-placeholder); }
+.fhint.ref::before{ content:'⛁ '; }
+.modal-note{ font:var(--font-label); color:var(--text-muted); background:var(--asubk-tint-fill);
+  border-radius:var(--radius-md); padding:9px 12px; }
+.modal-err{ font:var(--weight-medium) 13px/1.3 var(--asubk-font); color:var(--asubk-red); min-height:16px; margin-right:auto; }
+
+/* ---- toast ---- */
+.toast{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px);
+  background:var(--asubk-ink); color:#fff; padding:11px 18px; border-radius:var(--radius-md);
+  font:var(--font-label); box-shadow:0 8px 28px rgba(24,39,57,0.32); opacity:0; pointer-events:none;
+  transition:opacity 160ms ease, transform 160ms ease; z-index:60; max-width:520px; }
+.toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+.toast .mono{ color:#9fd0ff; }
+
+/* ---- печатная карточка организации (§8 Р-4) ---- */
+#printRoot{ display:none; }
+.pcard{ font:var(--font-body); color:#000; }
+.pcard h1{ font:var(--weight-bold) 18px/1.3 var(--asubk-font); margin:0 0 2px; }
+.pcard h2{ font:var(--weight-semibold) 14px/1.3 var(--asubk-font); margin:18px 0 6px;
+  border-bottom:1px solid #999; padding-bottom:3px; }
+.pcard .p-head{ display:flex; align-items:center; gap:14px; margin-bottom:6px; }
+.pcard .p-logo{ width:56px; height:56px; flex:none; border:1px solid #ccc; border-radius:6px;
+  display:flex; align-items:center; justify-content:center; overflow:hidden; font:12px var(--asubk-font); color:#888; }
+.pcard .p-logo img{ width:100%; height:100%; object-fit:contain; }
+.pcard .p-sub{ font:var(--font-label); color:#555; }
+.pcard table{ width:100%; border-collapse:collapse; font:var(--font-label); }
+.pcard table th, .pcard table td{ border:1px solid #bbb; padding:5px 8px; text-align:left; }
+.pcard dl{ display:grid; grid-template-columns:210px 1fr; gap:0; margin:0; }
+.pcard dl dt{ padding:4px 0; font:var(--font-label); color:#555; }
+.pcard dl dd{ padding:4px 0; margin:0; font:var(--font-label); color:#000; }
+.pcard .p-foot{ margin-top:18px; padding-top:8px; border-top:1px solid #999;
+  font:var(--weight-regular) 12px/1.4 var(--asubk-font); color:#555; }
+
+@media print{
+  .app, .modal-back, .toast{ display:none !important; }
+  #printRoot{ display:block !important; padding:0; }
+  @page{ margin:16mm; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav">
+      <div class="nav-group-h">Администрирование</div>
+      <a class="nav-item">Пользователи и роли</a>
+      <a class="nav-item" href="../org-structure/org-structure.html">Организационная структура</a>
+      <a class="nav-item active">Информация о ведомстве</a>
+      <a class="nav-item">Справочники</a>
+      <a class="nav-item">Статистика и показатели</a>
+    </div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="menu" title="Меню">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </span>
+      <span class="crumb-title">Информация о ведомстве</span>
+      <div class="date-wrap">
+        <label for="dateInp">Дата&nbsp;просмотра</label>
+        <input type="date" id="dateInp" min="2020-01-01" max="2026-07-12" value="2026-07-12">
+        <button class="btn btn-secondary today-btn" id="todayBtn" style="display:none">Сегодня</button>
+      </div>
+      <div class="role-wrap">
+        <label for="roleSel">Роль</label>
+        <div class="rsel">
+          <select id="roleSel">
+            <option value="admin">Администратор</option>
+            <option value="obs">Наблюдатель</option>
+          </select>
+          <span class="caret"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></span>
+        </div>
+      </div>
+    </header>
+
+    <div class="detail-tabbar" id="tabbar"></div>
+    <div class="content">
+      <div class="detail-panel active" id="p-general"></div>
+      <div class="detail-panel" id="p-chrono"></div>
+      <div class="detail-panel" id="p-reqs"></div>
+      <div class="detail-panel" id="p-docs"></div>
+      <div class="detail-panel" id="p-contacts"></div>
+      <div class="detail-panel" id="p-orgstruct"></div>
+      <div class="detail-panel" id="p-metrics"></div>
+      <div class="detail-panel" id="p-audit"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-back" id="modalBack">
+  <div class="modal" id="modalBox" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="modal-h" id="mTitle"></div>
+    <div class="modal-b" id="mBody"></div>
+    <div class="modal-f">
+      <span class="modal-err" id="mErr"></span>
+      <button class="btn btn-danger" id="mDelete" style="display:none">Удалить</button>
+      <button class="btn btn-secondary" id="mCancel">Отмена</button>
+      <button class="btn btn-primary" id="mSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- §8 Р-4: печатная форма живёт ВНЕ .app — при печати скрывается всё остальное -->
+<div id="printRoot"></div>
+
+<script>
+/* =========================================================================
+   СОСТОЯНИЕ. Singleton (§2) — одна запись ORG. Свои блоки редактируемы (§3.1),
+   зеркала (orgstruct, metrics) только читаются из модулей-источников (§3.2).
+   ========================================================================= */
+const TODAY = '2026-07-12';
+
+/* -------------------------------------------------------------------------
+   §8 Р-2. СПРАВОЧНИКИ — ЧУЖОЙ МОДУЛЬ (ТЗ, «модуль управления справочниками»).
+   Здесь имитация: в проде это зеркало, значения приходят из модуля справочников.
+   FREE-TEXT ДЛЯ ЭТИХ ПОЛЕЙ ЗАПРЕЩЁН — иначе получим расхождение значений между
+   модулями (в одном «ОАО «РСК Банк»», в другом «РСК банк», в третьем «RSK»),
+   и ни один отчёт по ним не сойдётся.
+   ------------------------------------------------------------------------- */
+const REF = {
+  CCY: [ {code:'KGS', name:'Сом'}, {code:'USD', name:'Доллар США'},
+         {code:'EUR', name:'Евро'}, {code:'RUB', name:'Российский рубль'} ],
+
+  BANKS: [ {id:'b1', name:'ОАО «РСК Банк»',   bik:'129001'},
+           {id:'b2', name:'ЗАО «Демир Банк»', bik:'118002'},
+           {id:'b3', name:'ОАО «Айыл Банк»',  bik:'135004'},
+           {id:'b4', name:'ОАО «Оптима Банк»',bik:'109006'} ],
+
+  REG_ORGS: [ {id:'r1', name:'Министерство юстиции Кыргызской Республики'},
+              {id:'r2', name:'Государственная налоговая служба при МФ КР'},
+              {id:'r3', name:'Национальный статистический комитет КР'} ],
+
+  ACCT_PURPOSE: [ {id:'p1', name:'Расчётный'},
+                  {id:'p2', name:'Спецсчёт бюджетных средств'},
+                  {id:'p3', name:'Валютный (привлечённое финансирование)'},
+                  {id:'p4', name:'Валютный (грантовые средства)'},
+                  {id:'p5', name:'Депозитный'} ],
+
+  PHONE_TYPES: [ {id:'t1', name:'Приёмная'}, {id:'t2', name:'Горячая линия'},
+                 {id:'t3', name:'Антикоррупционная линия'}, {id:'t4', name:'Канцелярия'},
+                 {id:'t5', name:'Факс'} ],
+
+  EMAIL_TYPES: [ {id:'e1', name:'Общий'}, {id:'e2', name:'Для обращений граждан'},
+                 {id:'e3', name:'СЭД'} ],
+
+  DOC_TYPES: [ {id:'d1', name:'Устав'}, {id:'d2', name:'Свидетельство о регистрации'},
+               {id:'d3', name:'Лицензия'}, {id:'d4', name:'Разрешение'},
+               {id:'d5', name:'Постановление об учреждении'} ],
+};
+const refName = (list, id) => (list.find(x=>x.id===id)||{}).name || '—';
+const bankOf  = id => REF.BANKS.find(b=>b.id===id) || {name:'—', bik:'—'};
+const ccyName = code => (REF.CCY.find(c=>c.code===code)||{}).name || code;
+
+/* -------------------------------------------------------------------------
+   §8 Р-3. ВАЛИДАТОРЫ. Применяются НА СОХРАНЕНИЕ (жёсткая блокировка) + подсветкой
+   в реальном времени при потере фокуса. Кнопка «Сохранить» остаётся активной —
+   проверка всё равно на сохранении, не плодим состояние.
+   ------------------------------------------------------------------------- */
+const V = {
+  inn:   v => /^\d{14}$/.test(v),          // ИНН КР — 14 цифр
+  okpo:  v => /^\d{8}$/.test(v),           // ОКПО — 8 цифр
+  bik:   v => /^\d{6}$/.test(v),           // БИК — 6 цифр
+  acct:  v => /^\d{16}$/.test(v),          // номер счёта — 16 цифр
+  email: v => /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(v),
+  url:   v => /^https?:\/\/[^\s]+\.[^\s]+$/.test(v),
+  phone: v => /^\+996[\s\d()\-]{9,}$/.test(v),
+  date:  v => /^\d{4}-\d{2}-\d{2}$/.test(v),
+};
+
+// §3.1 ОБЩАЯ ИНФОРМАЦИЯ (своя, кардинальность 1)
+// §8 Р-6 ОТКЛОНЕНО: двуязычие наименования (кыр/рус) не вводится — только русский.
+const ORG = {
+  fullName:  'Открытое акционерное общество «Государственный финансовый холдинг»',
+  shortName: 'ОАО «Госфинхолдинг»',
+  descr:     'Оператор государственных кредитных программ Кыргызской Республики. Осуществляет выдачу и сопровождение льготных кредитов за счёт государственных средств и привлечённого финансирования.',
+  logo:      null,          // dataURL/objectURL, загружается пользователем (§8 Р-9 мелочи п.4)
+  logoName:  'gfh-logo.svg',
+};
+
+// §3.1 ХРОНОЛОГИЯ (своя, N, сортировка по дате убыв.)
+const CHRONO = [
+  { id:'ch1', date:'2024-11-15', title:'Запуск программы льготного агрокредитования', descr:'Начало выдачи кредитов сельхозпроизводителям по ставке 6% годовых за счёт средств республиканского бюджета.' },
+  { id:'ch2', date:'2023-05-20', title:'Переход на АСУБК',                            descr:'Ввод в промышленную эксплуатацию автоматизированной системы управления банковским кредитованием.' },
+  { id:'ch3', date:'2021-03-10', title:'Открытие Ошского филиала',                    descr:'Расширение присутствия в южном регионе республики.' },
+  { id:'ch4', date:'2020-01-01', title:'Учреждение ОАО «Госфинхолдинг»',              descr:'Создание организации-оператора государственных кредитных программ.' },
+];
+let chronoSeq = 5, accountSeq = 6, docSeq = 5, phoneSeq = 5, emailSeq = 4, auditSeq = 100;
+
+// §3.1 РЕГИСТРАЦИОННЫЕ ДАННЫЕ (свои, 1). §8 Р-2: орган регистрации — ссылка в справочник.
+const REG = {
+  certNo:   '0012345',
+  certDate: '2020-01-15',
+  regOrgId: 'r1',
+  inn:      '01234202010012',
+  okpo:     '29876543',
+};
+
+/* §4 + §8 Р-1. БАНКОВСКИЕ РЕКВИЗИТЫ (свои, N) — append-only: счёт НЕ УДАЛЯЕТСЯ,
+   а закрывается датой (`closedAt`). Инвариант «≤1 основной в разрезе валюты»
+   считается ТОЛЬКО ПО ДЕЙСТВУЮЩИМ счетам.
+   §8 Р-2: bank+bik схлопнуты в bankId (БИК принадлежит банку, а не нашему счёту). */
+const ACCOUNTS = [
+  { id:'ac1', bankId:'b1', acc:'1290010000012345', ccy:'KGS', purposeId:'p1',
+    main:true,  openedAt:'2020-02-01', closedAt:null },
+  { id:'ac2', bankId:'b1', acc:'1290010000098765', ccy:'KGS', purposeId:'p2',
+    main:false, openedAt:'2021-06-15', closedAt:null },
+  { id:'ac3', bankId:'b2', acc:'1180020000054321', ccy:'USD', purposeId:'p3',
+    main:true,  openedAt:'2022-03-01', closedAt:null },
+  { id:'ac4', bankId:'b3', acc:'1350040000011223', ccy:'EUR', purposeId:'p4',
+    main:true,  openedAt:'2025-05-20', closedAt:null },
+  { id:'ac5', bankId:'b4', acc:'1090060000077777', ccy:'KGS', purposeId:'p1',
+    main:false, openedAt:'2020-02-01', closedAt:'2023-09-30' }, // демо: закрытый счёт
+];
+
+/* §8 Р-5. ДОКУМЕНТЫ ВЕДОМСТВА: уставные, регистрационные, лицензии, разрешения.
+   Срок действия → производный индикатор истечения (не хранится, вычисляется).
+   Файл — вложение подсистемы документооборота; здесь имитация. */
+const DOCS = [
+  { id:'dc1', typeId:'d1', title:'Устав ОАО «Госфинхолдинг»',                    no:'—',
+    issued:'2020-01-15', expires:null,         org:'Общее собрание акционеров',  file:'ustav-2020.pdf',  size:'1,8 МБ' },
+  { id:'dc2', typeId:'d2', title:'Свидетельство о государственной регистрации',  no:'0012345',
+    issued:'2020-01-15', expires:null,         org:'Министерство юстиции КР',    file:'svid-reg.pdf',    size:'420 КБ' },
+  { id:'dc3', typeId:'d3', title:'Лицензия на осуществление кредитных операций', no:'ЛК-0087',
+    issued:'2024-08-01', expires:'2026-08-01', org:'Национальный банк КР',       file:'licenziya.pdf',   size:'610 КБ' },
+  { id:'dc4', typeId:'d4', title:'Разрешение на обработку персональных данных',  no:'РПД-114',
+    issued:'2023-02-10', expires:'2026-02-10', org:'Уполномоченный орган по ПД', file:'razreshenie.pdf', size:'300 КБ' },
+];
+
+// §3.1 КОНТАКТНЫЕ ДАННЫЕ (свои, N по типам). §8 Р-2: телефоны и почты — типизированные списки.
+const CONTACTS = {
+  phones: [
+    { id:'ph1', typeId:'t1', value:'+996 (312) 61-00-00', note:'' },
+    { id:'ph2', typeId:'t2', value:'+996 (312) 61-00-01', note:'круглосуточно' },
+    { id:'ph3', typeId:'t3', value:'+996 (312) 61-00-99', note:'приём сообщений о коррупции' },
+    { id:'ph4', typeId:'t5', value:'+996 (312) 61-00-10', note:'' },
+  ],
+  emails: [
+    { id:'em1', typeId:'e1', value:'info@gfh.gov.kg',     note:'' },
+    { id:'em2', typeId:'e2', value:'priem@gfh.gov.kg',    note:'обращения граждан, ответ в 14 дней' },
+    { id:'em3', typeId:'e3', value:'gfh@ed.gov.kg',       note:'СЭД «Инфодокс», идентификатор GFH-001' },
+  ],
+  site:      'https://gfh.gov.kg',
+  legalAddr: '720040, г. Бишкек, пр. Чуй, 106',
+  factAddr:  '720040, г. Бишкек, пр. Чуй, 106',
+  workHours: 'пн–пт, 09:00–18:00, обед 12:30–13:30',
+  receptHours:'вт и чт, 14:00–17:00, по предварительной записи',
+};
+
+/* §3.2 + §8 Р-7. ЗЕРКАЛО: оргструктура. Источник ВЕРСИОНЕН — узлы создаются, переименовываются,
+   ликвидируются; руководители сменяются. Зеркало резолвится на ДАТУ ПРОСМОТРА функциями
+   модуля-источника (там это nameAt / parentAt / head). Здесь — их имитация.
+   Без персоналий (§7 В-1 а): ФИО руководителя — публичный атрибут узла, а не ссылка на
+   чувствительную карточку сотрудника. */
+const ORGSTRUCT_SOURCE = {
+  source:'Модуль управления организационной структурой',
+  link:'../org-structure/org-structure.html',
+  nodes:[
+    { id:'n1', lvl:0, type:'ГО',          from:'2020-01-01', to:null,
+      names:[{from:'2020-01-01', name:'Головной офис'}],
+      heads:[{from:'2020-01-01', to:null, name:'Асанов А. А.', post:'Председатель'}] },
+
+    { id:'n2', lvl:1, type:'департамент', from:'2020-03-01', to:null,
+      names:[{from:'2020-03-01', name:'Кредитный департамент'}],
+      heads:[{from:'2020-03-01', to:'2024-01-31', name:'Джумабаев С. Р.', post:'Начальник департамента'},
+             {from:'2024-02-01', to:null,         name:'Ормонов Б. К.',   post:'Начальник департамента'}] },
+
+    // переименование: отдел → департамент (демонстрирует nameAt)
+    { id:'n3', lvl:1, type:'департамент', from:'2020-03-01', to:null,
+      names:[{from:'2020-03-01', name:'Отдел рисков'},
+             {from:'2023-01-01', name:'Департамент рисков'}],
+      heads:[{from:'2020-03-01', to:null, name:'Бекова Г. Т.', post:'Начальник департамента'}] },
+
+    // создан позже (на 2020 год его в дереве нет)
+    { id:'n4', lvl:1, type:'филиал',      from:'2021-03-10', to:null,
+      names:[{from:'2021-03-10', name:'Ошский филиал'}],
+      heads:[] },                                   // вакансия
+
+    { id:'n5', lvl:2, type:'отдел',       from:'2022-05-01', to:null,
+      names:[{from:'2022-05-01', name:'Отдел рисков Ошского филиала'}],
+      heads:[{from:'2022-05-01', to:null, name:'Ташиев М. Ы.', post:'Начальник отдела'}] },
+
+    // ликвидированный узел (на 2021 год виден, на 2026 — нет)
+    { id:'n6', lvl:1, type:'отдел',       from:'2020-03-01', to:'2022-12-31',
+      names:[{from:'2020-03-01', name:'Отдел внешних заимствований'}],
+      heads:[{from:'2020-03-01', to:'2022-12-31', name:'Сыдыков Э. А.', post:'Начальник отдела'}] },
+  ],
+};
+const nodesAt = d => ORGSTRUCT_SOURCE.nodes.filter(n => n.from <= d && (!n.to || n.to >= d));
+const nameAt  = (n,d) => { const v = [...n.names].filter(x=>x.from<=d).sort((a,b)=>a.from<b.from?1:-1)[0];
+                           return v ? v.name : '—'; };
+const headAt  = (n,d) => { const h = n.heads.find(h=>h.from<=d && (!h.to || h.to>=d));
+                           return h ? `${h.name} — ${h.post}` : '— вакансия'; };
+
+/* §3.2 + §7 В-3 ЗЕРКАЛО: показатели (источник — модуль статистики). ЗАФИКСИРОВАННЫЕ СРЕЗЫ,
+   посчитаны в нерабочее время, с датой расчёта. Витрина не считает «на лету».
+   Только всеорганизационные агрегаты (§7 В-2). */
+const METRIC_SNAPSHOTS = [
+  { calcDate:'2026-07-12', portfolio:14820000000, issuedYtd:3140000000, overdueShare:4.2, borrowers:18742 },
+  { calcDate:'2026-06-30', portfolio:14510000000, issuedYtd:2760000000, overdueShare:4.5, borrowers:18310 },
+  { calcDate:'2025-12-31', portfolio:13240000000, issuedYtd:5980000000, overdueShare:5.1, borrowers:17020 },
+  { calcDate:'2024-12-31', portfolio:10110000000, issuedYtd:4200000000, overdueShare:6.3, borrowers:13540 },
+];
+
+/* §6 + §8 Р-9. АУДИТ. Хранилище ОБЩЕСИСТЕМНОЕ (подсистема администрирования): записи всех
+   модулей лежат вместе и различаются полем `scope`. Вкладка ведомства — отфильтрованное
+   представление (scope === 'vedomstvo'). objId/objLabel обязательны для сущностей с
+   множественностью — иначе по записи журнала нельзя найти объект. Это НЕ версионность. */
+const AUDIT = [
+  { id:'a24', scope:'vedomstvo', when:'2026-07-01 09:14', who:'Сламкулов А. О.', block:'Контакты',               objId:'ph2', objLabel:'Телефон · Горячая линия',           field:'Номер',           from:'+996 (312) 61-00-05', to:'+996 (312) 61-00-01' },
+  { id:'a23', scope:'vedomstvo', when:'2026-06-18 16:02', who:'Сламкулов А. О.', block:'Контакты',               objId:'—',   objLabel:'Часы приёма граждан',               field:'Значение',        from:'—', to:'вт и чт, 14:00–17:00, по предварительной записи' },
+  { id:'a22', scope:'vedomstvo', when:'2026-06-02 11:47', who:'Асанов А. А.',    block:'Документы',              objId:'dc4', objLabel:'Разрешение РПД-114',                field:'Срок действия',   from:'2025-02-10', to:'2026-02-10' },
+  { id:'a21', scope:'vedomstvo', when:'2026-05-28 10:11', who:'Ормонов Б. К.',   block:'Банковские реквизиты',   objId:'ac4', objLabel:'Счёт EUR · Айыл Банк',              field:'Назначение',      from:'Валютный (привлечённое финансирование)', to:'Валютный (грантовые средства)' },
+  { id:'a20', scope:'vedomstvo', when:'2026-05-20 15:42', who:'Ормонов Б. К.',   block:'Банковские реквизиты',   objId:'ac4', objLabel:'Счёт EUR · Айыл Банк',              field:'Счёт',            from:'—', to:'добавлен' },
+  { id:'a19', scope:'vedomstvo', when:'2026-04-14 09:05', who:'Асанов А. А.',    block:'Общая информация',       objId:'—',   objLabel:'Карточка организации',              field:'Логотип',         from:'gfh-logo-2020.svg', to:'gfh-logo.svg' },
+  { id:'a18', scope:'vedomstvo', when:'2026-03-30 17:29', who:'Сламкулов А. О.', block:'Контакты',               objId:'em2', objLabel:'E-mail · Для обращений граждан',    field:'Адрес',           from:'—', to:'priem@gfh.gov.kg' },
+  { id:'a17', scope:'vedomstvo', when:'2026-02-11 13:20', who:'Асанов А. А.',    block:'Документы',              objId:'dc3', objLabel:'Лицензия ЛК-0087',                  field:'Файл',            from:'licenziya-2024.pdf', to:'licenziya.pdf' },
+  { id:'a16', scope:'vedomstvo', when:'2026-01-19 08:52', who:'Ормонов Б. К.',   block:'Регистрационные данные', objId:'—',   objLabel:'Регистрационные данные',            field:'ОКПО',            from:'29876500', to:'29876543' },
+  { id:'a15', scope:'vedomstvo', when:'2025-12-22 14:38', who:'Сламкулов А. О.', block:'Хронология',             objId:'ch1', objLabel:'Событие 2024-11-15',                field:'Описание',        from:'Начало выдачи кредитов сельхозпроизводителям.', to:'Начало выдачи кредитов сельхозпроизводителям по ставке 6% годовых за счёт средств республиканского бюджета.' },
+  { id:'a14', scope:'vedomstvo', when:'2025-11-15 11:03', who:'Сламкулов А. О.', block:'Хронология',             objId:'ch1', objLabel:'Событие 2024-11-15',                field:'Событие',         from:'—', to:'«Запуск программы льготного агрокредитования»' },
+  { id:'a13', scope:'vedomstvo', when:'2025-10-08 15:14', who:'Асанов А. А.',    block:'Документы',              objId:'dc9', objLabel:'Разрешение РПД-090 (устар.)',       field:'Документ',        from:'«Разрешение РПД-090»', to:'удалён' },
+  { id:'a12', scope:'vedomstvo', when:'2025-09-01 10:47', who:'Ормонов Б. К.',   block:'Банковские реквизиты',   objId:'ac2', objLabel:'Счёт KGS · РСК Банк (спецсчёт)',    field:'Назначение',      from:'Расчётный', to:'Спецсчёт бюджетных средств' },
+  { id:'a11', scope:'vedomstvo', when:'2025-07-16 12:31', who:'Сламкулов А. О.', block:'Контакты',               objId:'—',   objLabel:'Карточка организации',              field:'Адрес сайта',     from:'http://gfh.gov.kg', to:'https://gfh.gov.kg' },
+  { id:'a10', scope:'vedomstvo', when:'2025-06-03 09:26', who:'Асанов А. А.',    block:'Общая информация',       objId:'—',   objLabel:'Карточка организации',              field:'Полное наименование', from:'ОАО «Государственный финансовый холдинг»', to:'Открытое акционерное общество «Государственный финансовый холдинг»' },
+  { id:'a09', scope:'vedomstvo', when:'2025-04-21 16:55', who:'Ормонов Б. К.',   block:'Банковские реквизиты',   objId:'ac3', objLabel:'Счёт USD · Демир Банк',             field:'Основной',        from:'не основной', to:'основной' },
+  { id:'a08', scope:'vedomstvo', when:'2025-02-08 10:30', who:'Асанов А. А.',    block:'Общая информация',       objId:'—',   objLabel:'Карточка организации',              field:'Краткое описание', from:'Оператор кредитных программ.', to:'Оператор государственных кредитных программ КР.' },
+  { id:'a07', scope:'vedomstvo', when:'2024-12-11 13:44', who:'Сламкулов А. О.', block:'Контакты',               objId:'ph3', objLabel:'Телефон · Антикоррупционная линия', field:'Номер',           from:'—', to:'+996 (312) 61-00-99' },
+  { id:'a06', scope:'vedomstvo', when:'2024-11-15 09:12', who:'Сламкулов А. О.', block:'Хронология',             objId:'ch1', objLabel:'Событие 2024-11-15',                field:'Событие',         from:'—', to:'«Запуск программы льготного агрокредитования»' },
+  { id:'a05', scope:'vedomstvo', when:'2024-10-02 11:38', who:'Ормонов Б. К.',   block:'Банковские реквизиты',   objId:'ac5', objLabel:'Счёт KGS · Оптима Банк',            field:'Дата закрытия',   from:'—', to:'2023-09-30' },
+  { id:'a04', scope:'vedomstvo', when:'2024-08-19 14:07', who:'Асанов А. А.',    block:'Документы',              objId:'dc3', objLabel:'Лицензия ЛК-0087',                  field:'Документ',        from:'—', to:'добавлен' },
+  { id:'a03', scope:'vedomstvo', when:'2024-06-05 10:22', who:'Ормонов Б. К.',   block:'Регистрационные данные', objId:'—',   objLabel:'Регистрационные данные',            field:'Орган регистрации', from:'Минюст КР', to:'Министерство юстиции Кыргызской Республики' },
+  { id:'a02', scope:'vedomstvo', when:'2024-03-27 15:49', who:'Сламкулов А. О.', block:'Контакты',               objId:'—',   objLabel:'Карточка организации',              field:'Фактический адрес', from:'720000, г. Бишкек, ул. Тоголок Молдо, 17', to:'720040, г. Бишкек, пр. Чуй, 106' },
+  { id:'a01', scope:'vedomstvo', when:'2024-01-15 08:30', who:'Асанов А. А.',    block:'Общая информация',       objId:'—',   objLabel:'Карточка организации',              field:'Краткое наименование', from:'ГФХ', to:'ОАО «Госфинхолдинг»' },
+  // записи ЧУЖИХ модулей — лежат в том же общесистемном хранилище и в этой вкладке НЕ видны
+  { id:'x02', scope:'users',      when:'2026-07-05 10:00', who:'Асанов А. А.', block:'Пользователи', objId:'u17', objLabel:'Пользователь u17', field:'Роль', from:'Наблюдатель', to:'Администратор' },
+  { id:'x01', scope:'orgstruct',  when:'2026-06-11 09:31', who:'Ормонов Б. К.', block:'Оргструктура', objId:'n4', objLabel:'Ошский филиал', field:'Руководитель', from:'Мамытов К. К.', to:'— вакансия' },
+];
+const AUDIT_BLOCKS = ['Общая информация','Хронология','Регистрационные данные','Банковские реквизиты','Документы','Контакты'];
+
+/* =========================================================================
+   ВКЛАДКИ (§5). Собственные — правит Админ; зеркала — все читают.
+   ========================================================================= */
+const TABS = [
+  { id:'general',   label:'Общая информация', own:true  },
+  { id:'chrono',    label:'Хронология',       own:true  },
+  { id:'reqs',      label:'Реквизиты',        own:true  },
+  { id:'docs',      label:'Документы',        own:true  },   // §8 Р-5
+  { id:'contacts',  label:'Контакты',         own:true  },
+  { id:'orgstruct', label:'Оргструктура',     own:false },   // зеркало, резолвится на дату (Р-7)
+  { id:'metrics',   label:'Показатели',       own:false },   // зеркало, резолвится на дату (Р-7, Р-8)
+  { id:'audit',     label:'Журнал изменений', own:true, adminOnly:true }, // Р-9
+];
+
+const state = {
+  tab:'general', role:'admin', date:TODAY, breakInvariant:false,
+  acctFilter:'active',                                     // §8 Р-1: «Действующие» | «Все»
+  audit:{ block:'', who:'', from:'', to:'', page:1 },       // §8 Р-9
+};
+const canEdit = ()=> state.role==='admin';
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtSom = n => (n/1e9).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' млрд';
+const fmtDate = iso => iso ? iso.split('-').reverse().join('.') : '—';
+const num = v => String(v).replace('.',',');
+
+const ICONS = {
+  lock:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3.5" y="7" width="9" height="6.5" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>',
+  ext:'<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 3H3.5v9.5h9.5V10"/><path d="M9.5 3H13v3.5M13 3L7.5 8.5"/></svg>',
+  edit:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M11 2.5l2.5 2.5L6 12.5 3 13.5l1-3z"/></svg>',
+  info:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5v.2" stroke-width="1.5"/></svg>',
+  warn:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M8 2l6 11H2L8 2z"/><path d="M8 6.5v3M8 11.2v.2" stroke-width="1.5"/></svg>',
+  ok:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6"/><path d="M5 8l2 2 4-4" stroke-width="1.4"/></svg>',
+  block:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6"/><path d="M4 4l8 8"/></svg>',
+  clock:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></svg>',
+  file:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M9 1.5H4.5v13h7V4z"/><path d="M9 1.5V4h2.5"/></svg>',
+  copy:'<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="5.5" y="5.5" width="8" height="9" rx="1"/><path d="M10.5 5.5v-3h-8v9h3"/></svg>',
+  print:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4.5 6V2h7v4"/><rect x="2.5" y="6" width="11" height="5" rx="1"/><path d="M4.5 9.5h7v5h-7z"/></svg>',
+  down:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M2.5 13.5h11"/></svg>',
+};
+
+function banner(kind, icon, html){ return `<div class="banner ${kind}">${icon}<span class="grow">${html}</span></div>`; }
+function editBtn(label, act){ return canEdit()
+  ? `<button class="btn btn-secondary" data-act="${act}">${ICONS.edit}<span>${label||'Редактировать'}</span></button>`
+  : `<span class="readonly-tag">${ICONS.lock} только чтение</span>`; }
+
+/* =========================================================================
+   §8 Р-7. ПЛАШКА «ДАТА ПРОСМОТРА ≠ СЕГОДНЯ» на собственных вкладках.
+   Без неё пользователь решит, что вся страница историческая.
+   ========================================================================= */
+function ownDateNote(){
+  if(state.date === TODAY) return '';
+  return banner('warn', ICONS.clock,
+    `<b>Дата просмотра — ${esc(fmtDate(state.date))}, это не сегодня.</b> Собственные блоки ведомства версионности не имеют (§1, решение 3) — здесь показано <b>актуальное состояние</b> на сегодня. На дату просмотра резолвятся только зеркала: «Оргструктура» и «Показатели».`);
+}
+
+/* =========================================================================
+   §4 + §8 Р-1. ИНВАРИАНТ — не более одного «основного» счёта в разрезе валюты,
+   СЧИТАЕТСЯ ТОЛЬКО ПО ДЕЙСТВУЮЩИМ СЧЕТАМ (закрытый основным быть не может).
+   ========================================================================= */
+const isActive = a => !a.closedAt;
+function accountsAll(){
+  return state.breakInvariant
+    ? ACCOUNTS.map(a=> a.id==='ac2' ? {...a, main:true} : a) // демо-поломка: 2 основных в KGS
+    : ACCOUNTS;
+}
+function accountsView(){
+  const all = accountsAll();
+  return state.acctFilter==='active' ? all.filter(isActive) : all;
+}
+function checkMainAccount(list){
+  const byCcy = {};
+  list.filter(a=> a.main && isActive(a)).forEach(a=> byCcy[a.ccy]=(byCcy[a.ccy]||0)+1);
+  return Object.entries(byCcy).filter(([,n])=>n>1).map(([c])=>c); // валюты с нарушением
+}
+
+/* =========================================================================
+   §8 Р-5. ПРОИЗВОДНЫЙ СТАТУС ДОКУМЕНТА — вычисляется, не хранится.
+   Считается на СЕГОДНЯ: документы — собственный блок, версионности нет (§8 Р-7).
+   ========================================================================= */
+function docStatus(d, today){
+  if(!d.expires) return { kind:'perm', label:'Бессрочный', pill:'neutral' };
+  const days = Math.round((new Date(d.expires) - new Date(today)) / 86400000);
+  if(days < 0)   return { kind:'expired', label:`Истёк ${fmtDate(d.expires)}`,       pill:'err'  };
+  if(days <= 90) return { kind:'soon',    label:`Истекает через ${days} дн.`,        pill:'warn' };
+  return                { kind:'ok',      label:`Действует до ${fmtDate(d.expires)}`, pill:'ok'   };
+}
+const docsExpired = ()=> DOCS.filter(d=> docStatus(d,TODAY).kind==='expired');
+const docsSoon    = ()=> DOCS.filter(d=> docStatus(d,TODAY).kind==='soon');
+
+/* =========================================================================
+   §8 Р-9 (мелочи п.5). ПОЛНОТА КАРТОЧКИ — исполняемая проверка, не декорация.
+   ========================================================================= */
+function completeness(){
+  const has = v => !!(v && String(v).trim());
+  const checks = [
+    ['Полное наименование',   has(ORG.fullName)],
+    ['Краткое наименование',  has(ORG.shortName)],
+    ['Краткое описание',      has(ORG.descr)],
+    ['ИНН',                   V.inn(REG.inn||'')],
+    ['ОКПО',                  V.okpo(REG.okpo||'')],
+    ['Свидетельство о регистрации', has(REG.certNo) && has(REG.certDate)],
+    ['Юридический адрес',     has(CONTACTS.legalAddr)],
+    ['Хотя бы один действующий счёт', ACCOUNTS.some(isActive)],
+    ['Хотя бы один телефон',  CONTACTS.phones.length>0],
+    ['Телефон антикоррупционной линии', CONTACTS.phones.some(p=>p.typeId==='t3')],
+    ['Электронная почта',     CONTACTS.emails.length>0],
+    ['Адрес сайта',           V.url(CONTACTS.site||'')],
+    ['Документ типа «Устав»', DOCS.some(d=>d.typeId==='d1')],
+  ];
+  const missing = checks.filter(([,ok])=>!ok).map(([n])=>n);
+  return { filled: checks.length - missing.length, total: checks.length, missing };
+}
+
+/* =========================================================================
+   РЕНДЕР ВКЛАДОК
+   ========================================================================= */
+function renderTabs(){
+  const bar = document.getElementById('tabbar');
+  const expired = docsExpired().length;
+  bar.innerHTML = TABS.filter(t=>!(t.adminOnly && !canEdit())).map(t=>{
+    const active = state.tab===t.id ? ' active' : '';
+    let tag = t.own ? '' : `<span class="mirror-tag">зеркало</span>`;
+    if(t.id==='docs' && expired) tag = `<span class="cnt-tag" title="просроченных документов">${expired}</span>`;
+    return `<button class="dtab${active}" data-tab="${t.id}">${esc(t.label)}${tag}</button>`;
+  }).join('');
+  bar.querySelectorAll('.dtab').forEach(b=> b.onclick=()=>{ state.tab=b.dataset.tab; renderAll(); });
+}
+
+function orgHead(){
+  const c = completeness();
+  const pillKind = c.missing.length ? 'warn' : 'ok';
+  const tip = c.missing.length ? 'Не заполнено: '+c.missing.join('; ') : 'Все обязательные поля заполнены';
+  const logo = ORG.logo
+    ? `<img src="${esc(ORG.logo)}" alt="Логотип">`
+    : `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 21h18M4 21V9l8-5 8 5v12M9 21v-5h6v5"/></svg>`;
+  return `<div class="org-head">
+    <div class="org-logo">${logo}</div>
+    <div>
+      <div class="oh-name">${esc(ORG.shortName)}</div>
+      <div class="oh-sub"><b>Singleton</b> · одна запись на систему (§2) · создание и удаление недоступны by design</div>
+    </div>
+    <div class="oh-grow"></div>
+    <div class="oh-right">
+      <span class="pill ${pillKind}" title="${esc(tip)}">Карточка заполнена ${c.filled}/${c.total}</span>
+    </div>
+  </div>`;
+}
+
+function renderGeneral(){
+  const el = document.getElementById('p-general');
+  el.innerHTML = `<div class="panel-wrap">
+    ${orgHead()}
+    ${ownDateNote()}
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Общая информация</span>${editBtn('Редактировать','edit-general')}</div>
+      <div class="section-b">
+        <dl class="kv">
+          <dt>Полное наименование</dt><dd>${esc(ORG.fullName)}</dd>
+          <dt>Краткое наименование</dt><dd>${esc(ORG.shortName)}</dd>
+          <dt>Краткое описание</dt><dd>${esc(ORG.descr)}</dd>
+          <dt>Логотип</dt><dd>${ORG.logo
+            ? `<span class="muted">загружен · ${esc(ORG.logoName)}</span>`
+            : `<span class="muted">не загружен · показан плейсхолдер</span>`}</dd>
+        </dl>
+      </div>
+    </div>
+    ${banner('info', ICONS.info, '<b>Границы модуля (§2).</b> Здесь — только ОАО «Госфинхолдинг». Внешние госорганы (МФКР, Кабинет Министров, регистрирующие и нотариальные конторы, банки заёмщика, суды, КИБ «Ишеним») в этом модуле не хранятся — их место в справочниках.')}
+    ${banner('info', ICONS.block, '<b>Отклонено (§8 Р-6): двуязычие наименования.</b> Кыргызская версия наименования не вводится — работаем только с русским. Если печатная карточка или шаблоны договоров потребуют официального наименования на государственном языке, решение подлежит пересмотру.')}
+  </div>`;
+}
+
+function renderChrono(){
+  const el = document.getElementById('p-chrono');
+  const items = [...CHRONO].sort((a,b)=> a.date<b.date?1:-1); // убыв.
+  el.innerHTML = `<div class="panel-wrap">
+    ${ownDateNote()}
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Хронология · важные события</span>${editBtn('Добавить событие','add-chrono')}</div>
+      <div class="section-b">
+        <ul class="tl">
+          ${items.map(e=>`<li>
+            <div class="td">${esc(fmtDate(e.date))}${canEdit()?`<span class="tl-actions"><button class="rowact" data-act="edit-chrono" data-id="${e.id}">изм.</button><button class="rowact del" data-act="del-chrono" data-id="${e.id}">удалить</button></span>`:''}</div>
+            <div class="tt">${esc(e.title)}</div>
+            <div class="tv">${esc(e.descr)}</div>
+          </li>`).join('')}
+        </ul>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---- Реквизиты (§3.1 регистрационные + §4 банковские) ---- */
+function renderReqs(){
+  const el = document.getElementById('p-reqs');
+  const all = accountsAll();
+  const rows = accountsView();
+  const nActive = all.filter(isActive).length, nClosed = all.length - nActive;
+  const bad = checkMainAccount(all);
+  const invBanner = bad.length
+    ? banner('danger', ICONS.block, `<b>Нарушение инварианта §4:</b> более одного <b>действующего</b> счёта с флагом «основной» в разрезе валюты — ${bad.join(', ')}. На каждую валюту допускается ровно один основной счёт.`)
+    : banner('ok', ICONS.ok, 'Инвариант §4 соблюдён: на каждую валюту не более одного основного счёта (закрытые счета в подсчёт не входят).');
+
+  el.innerHTML = `<div class="panel-wrap">
+    ${ownDateNote()}
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Регистрационные данные</span>${editBtn('Редактировать','edit-reg')}</div>
+      <div class="section-b">
+        <dl class="kv">
+          <dt>Свидетельство о регистрации №</dt><dd class="mono">${esc(REG.certNo)}</dd>
+          <dt>Дата выдачи</dt><dd>${esc(fmtDate(REG.certDate))}</dd>
+          <dt>Орган регистрации</dt><dd>${esc(refName(REF.REG_ORGS, REG.regOrgId))} <span class="pill neutral">справочник</span></dd>
+          <dt>ИНН</dt><dd class="mono">${esc(REG.inn)}</dd>
+          <dt>ОКПО</dt><dd class="mono">${esc(REG.okpo)}</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-h">
+        <span class="sh-t">Банковские реквизиты · <span class="muted" style="font-weight:400">действующих: ${nActive}, закрытых: ${nClosed}</span></span>
+        <span class="sh-act">
+          <button class="btn btn-secondary" data-act="print-card">${ICONS.print}<span>Карточка организации</span></button>
+          ${editBtn('Добавить счёт','add-account')}
+        </span>
+      </div>
+      <div class="section-tools">
+        <span>Показывать:</span>
+        <label><input type="radio" name="acctf" value="active" ${state.acctFilter==='active'?'checked':''}> Действующие</label>
+        <label><input type="radio" name="acctf" value="all" ${state.acctFilter==='all'?'checked':''}> Все</label>
+        <span class="grow"></span>
+      </div>
+      <div class="section-b tscroll" style="padding:0">
+        <table class="cgrid">
+          <thead><tr><th>Банк</th><th>БИК</th><th>Номер счёта</th><th>Валюта</th><th>Назначение</th><th class="nw">Открыт</th><th>Статус</th><th></th></tr></thead>
+          <tbody>
+            ${rows.length ? rows.map(a=>{
+              const b = bankOf(a.bankId), closed = !isActive(a);
+              return `<tr class="${closed?'closed':''}">
+              <td class="nw">${esc(b.name)}</td>
+              <td class="mono">${esc(b.bik)}</td>
+              <td class="mono acc-no">${esc(a.acc)}</td>
+              <td>${esc(a.ccy)}</td>
+              <td>${esc(refName(REF.ACCT_PURPOSE, a.purposeId))}</td>
+              <td class="mono nw">${esc(fmtDate(a.openedAt))}</td>
+              <td class="nw">${closed
+                    ? `<span class="pill neutral">закрыт ${esc(fmtDate(a.closedAt))}</span>`
+                    : (a.main ? '<span class="pill ok">основной</span>' : '<span class="muted">действует</span>')}</td>
+              <td style="white-space:nowrap">
+                <button class="rowact" data-act="copy-reqs" data-id="${a.id}" ${closed?'disabled style="opacity:.35"':''}>${ICONS.copy} копировать</button>
+                ${canEdit()?`<button class="rowact" data-act="edit-account" data-id="${a.id}">изм.</button>`:''}
+                ${canEdit() && !closed ?`<button class="rowact del" data-act="close-account" data-id="${a.id}">закрыть</button>`:''}
+              </td>
+            </tr>`;}).join('')
+            : `<tr><td colspan="8" class="empty">Нет счетов по выбранному фильтру.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ${invBanner}
+    <div class="checkline" style="margin:-6px 0 14px">
+      <input type="checkbox" id="brkInv" ${state.breakInvariant?'checked':''}>
+      <label for="brkInv">демо: сделать счёт «Спецсчёт бюджетных средств» тоже основным (сломать инвариант в KGS)</label>
+    </div>
+    ${banner('info', ICONS.info, '<b>Счёт не удаляется (§8 Р-1).</b> Реквизиты счёта могли попасть в договоры, платёжные поручения и печатные формы — задним числом стереть их нельзя. Счёт выводится из обращения <b>датой закрытия</b>; в справочниках выбора он больше не предлагается, но остаётся видимым в истории. При закрытии флаг «основной» снимается автоматически, и счёт перестаёт учитываться в инварианте §4.')}
+    ${banner('info', ICONS.info, '<b>Печатная карточка — строго «на сейчас» (§8 Р-4).</b> Формируется на текущий момент и помечается датой формирования. Версионность реквизитов не вводится (§1, решение 3) — карточка <b>не воспроизводит</b> состояние на прошлую дату. ⚠ Если к модулю привяжут шаблоны договоров или платёжных документов, требующие состояния «на дату», — решение 3 подлежит немедленному пересмотру.')}
+    ${banner('info', ICONS.info, '<b>Граница ответственности (§4).</b> Счёт, <b>на который заёмщик погашает задолженность</b>, к этому модулю не относится — он принадлежит кредиту / линии финансирования / программе (кредитором может быть Кабинет Министров в лице МФКР, тогда счёт казначейский). Здесь — только справочные реквизиты организации.')}
+  </div>`;
+  const brk = document.getElementById('brkInv');
+  if(brk) brk.onchange = ()=>{ state.breakInvariant = brk.checked; renderReqs(); };
+  el.querySelectorAll('input[name=acctf]').forEach(r=> r.onchange = ()=>{ state.acctFilter = r.value; renderReqs(); });
+}
+
+/* ---- §8 Р-5. Документы ведомства ---- */
+function renderDocs(){
+  const el = document.getElementById('p-docs');
+  const exp = docsExpired(), soon = docsSoon();
+  const sum = exp.length
+    ? banner('danger', ICONS.block, `<b>Просрочено документов: ${exp.length}</b> — требуется продление. ${exp.map(d=>esc(d.title)).join('; ')}.`)
+    : soon.length
+      ? banner('warn', ICONS.warn, `<b>Истекает срок действия: ${soon.length}</b> — запланируйте продление. ${soon.map(d=>esc(d.title)).join('; ')}.`)
+      : banner('ok', ICONS.ok, '<b>Все документы действительны.</b> Просроченных и истекающих в ближайшие 90 дней нет.');
+
+  const items = [...DOCS].sort((a,b)=> a.issued<b.issued?1:-1);
+  el.innerHTML = `<div class="panel-wrap">
+    ${ownDateNote()}
+    ${sum}
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Документы ведомства · <span class="muted" style="font-weight:400">${DOCS.length}</span></span>${editBtn('Добавить документ','add-doc')}</div>
+      <div class="section-b tscroll" style="padding:0">
+        <table class="cgrid">
+          <thead><tr><th>Тип</th><th>Наименование</th><th>Номер</th><th class="nw">Выдан</th><th>Орган выдачи</th><th class="nw">Срок</th><th>Файл</th>${canEdit()?'<th></th>':''}</tr></thead>
+          <tbody>
+            ${items.length ? items.map(d=>{
+              const st = docStatus(d, TODAY);
+              return `<tr>
+              <td>${esc(refName(REF.DOC_TYPES, d.typeId))}</td>
+              <td>${esc(d.title)}</td>
+              <td class="mono">${esc(d.no)}</td>
+              <td class="mono nw">${esc(fmtDate(d.issued))}</td>
+              <td>${esc(d.org)}</td>
+              <td class="nw"><span class="pill ${st.pill}">${esc(st.label)}</span></td>
+              <td class="nw"><button class="doc-file" data-act="dl-doc" data-id="${d.id}">${ICONS.file}<span>${esc(d.file)}</span></button>
+                  <div class="muted" style="font-size:12px">${esc(d.size)}</div></td>
+              ${canEdit()?`<td class="nw"><button class="rowact" data-act="edit-doc" data-id="${d.id}">изм.</button><button class="rowact del" data-act="del-doc" data-id="${d.id}">удалить</button></td>`:''}
+            </tr>`;}).join('')
+            : `<tr><td colspan="8" class="empty">Документы не заведены.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ${banner('info', ICONS.info, '<b>Модуль ведомства — не файловое хранилище (§8 Р-5).</b> Файлы физически хранятся в <b>подсистеме документооборота</b>; здесь — карточка документа (тип, номер, срок, орган выдачи) и ссылка на вложение. Срок действия — производный индикатор, он вычисляется из даты, а не хранится отдельным статусом: иначе статус разъедется с датой.')}
+    ${banner('info', ICONS.info, '<b>Документ удалять можно</b> — в отличие от банковского счёта (§8 Р-1). Счёт мог уйти в чужие договоры и платёжные поручения, документ — это вложение карточки. Удаление всё равно пишется в журнал изменений (§6).')}
+  </div>`;
+}
+
+/* ---- Контакты (§3.1) ---- */
+function renderContacts(){
+  const el = document.getElementById('p-contacts');
+  const hasAnticorr = CONTACTS.phones.some(p=>p.typeId==='t3');
+  const acWarn = hasAnticorr ? '' : banner('warn', ICONS.warn,
+    '<b>Не заведён телефон антикоррупционной линии</b> — обязательный реквизит государственной организации. Добавьте телефон с типом «Антикоррупционная линия».');
+
+  const phoneList = CONTACTS.phones.map(p=>`<li>
+      <span class="pill neutral">${esc(refName(REF.PHONE_TYPES, p.typeId))}</span>
+      <span class="tv mono">${esc(p.value)}</span>
+      ${p.note?`<span class="tn">· ${esc(p.note)}</span>`:''}
+      ${canEdit()?`<span class="tl-actions"><button class="rowact" data-act="edit-phone" data-id="${p.id}">изм.</button><button class="rowact del" data-act="del-phone" data-id="${p.id}">удалить</button></span>`:''}
+    </li>`).join('') || '<li class="muted">Телефоны не заведены.</li>';
+
+  const emailList = CONTACTS.emails.map(m=>`<li>
+      <span class="pill neutral">${esc(refName(REF.EMAIL_TYPES, m.typeId))}</span>
+      <span class="tv">${esc(m.value)}</span>
+      ${m.note?`<span class="tn">· ${esc(m.note)}</span>`:''}
+      ${canEdit()?`<span class="tl-actions"><button class="rowact" data-act="edit-email" data-id="${m.id}">изм.</button><button class="rowact del" data-act="del-email" data-id="${m.id}">удалить</button></span>`:''}
+    </li>`).join('') || '<li class="muted">Адреса не заведены.</li>';
+
+  el.innerHTML = `<div class="panel-wrap">
+    ${ownDateNote()}
+    ${acWarn}
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Телефоны</span>${editBtn('Добавить телефон','add-phone')}</div>
+      <div class="section-b"><ul class="tlist">${phoneList}</ul></div>
+    </div>
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Электронная почта</span>${editBtn('Добавить адрес','add-email')}</div>
+      <div class="section-b"><ul class="tlist">${emailList}</ul></div>
+    </div>
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Адреса, сайт и режим работы</span>${editBtn('Редактировать','edit-contacts')}</div>
+      <div class="section-b">
+        <dl class="kv">
+          <dt>Адрес сайта</dt><dd>${esc(CONTACTS.site)}</dd>
+          <dt>Юридический адрес</dt><dd>${esc(CONTACTS.legalAddr)}</dd>
+          <dt>Фактический адрес</dt><dd>${esc(CONTACTS.factAddr)}</dd>
+          <dt>Часы работы</dt><dd>${esc(CONTACTS.workHours)}</dd>
+          <dt>Часы приёма граждан</dt><dd>${esc(CONTACTS.receptHours)}</dd>
+        </dl>
+      </div>
+    </div>
+    ${banner('info', ICONS.info, '<b>Типы — из справочника (§8 Р-2).</b> Телефон и e-mail хранятся типизированным списком (тип + значение + примечание), а не строками в текстовом поле: по типу строятся проверки (например, обязательность антикоррупционной линии) и выгрузки на портал. Свободный текст такую проверку сделать не позволяет.')}
+  </div>`;
+}
+
+/* ---- Зеркала (§3.2) ---- */
+function mirrorBar(source, extra, href){
+  const go = href
+    ? `<a class="btn btn-secondary" href="${esc(href)}" target="_blank" rel="noopener">${ICONS.ext}<span>Перейти к редактированию</span></a>`
+    : `<button class="btn btn-secondary" data-act="goto-source" data-src="${esc(source)}">${ICONS.ext}<span>Перейти к источнику</span></button>`;
+  return `<div class="mirror-bar">
+    <span class="grow mb-txt"><b>Зеркало (§3.2)</b> — ссылка, а не копия. Источник правды: <span class="mono">${esc(source)}</span>. Данные не хранятся в карточке ведомства и не редактируются отсюда.${extra?' '+extra:''}</span>
+    ${go}
+  </div>`;
+}
+
+function renderOrgstruct(){
+  const el = document.getElementById('p-orgstruct');
+  const src = ORGSTRUCT_SOURCE, d = state.date;
+  const nodes = nodesAt(d);
+  el.innerHTML = `<div class="panel-wrap">
+    ${mirrorBar(src.source, `Дерево резолвится модулем-источником <b>на ${esc(fmtDate(d))}</b>.`, src.link)}
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Организационная структура на ${esc(fmtDate(d))}</span>
+        <span class="pill neutral">до подразделений · без персоналий</span></div>
+      <div class="section-b" style="padding:0">
+        <ul class="otree">
+          ${nodes.length ? nodes.map(n=>`<li class="l${n.lvl}">
+            <div class="on">${esc(nameAt(n,d))} <span class="oh">· ${esc(n.type)}</span></div>
+            <div class="oh">Руководитель: ${esc(headAt(n,d))}</div>
+          </li>`).join('')
+          : `<li class="empty">На выбранную дату подразделений не существовало.</li>`}
+        </ul>
+      </div>
+    </div>
+    ${banner('info', ICONS.clock, '<b>Зеркало резолвится на дату просмотра (§8 Р-7).</b> Оргструктура в модуле-источнике <b>версионна</b>: узлы создаются, переименовываются и ликвидируются, руководители сменяются. Витрина не хранит копию дерева — она запрашивает у источника состояние на дату (там это <span class="mono">nameAt / parentAt / headAt</span>). Сдвиньте «Дату просмотра» в шапке: на 01.06.2020 Ошского филиала ещё нет, «Департамент рисков» называется «Отдел рисков», а Кредитным департаментом руководит Джумабаев.')}
+    ${banner('info', ICONS.info, '<b>Глубина зеркала (§7 В-1, реком. «а»).</b> Витрина показывает дерево до подразделений и территориальных органов. ФИО руководителя — публичный атрибут узла, а не ссылка на карточку сотрудника: чувствительные данные (паспорт, состав семьи, взыскания) в общедоступную витрину не тянутся.')}
+  </div>`;
+}
+
+/* ---- §8 Р-8. Показатели: срез на дату + дельта к предыдущему срезу + спарклайн ---- */
+const METRIC_DEFS = [
+  { key:'portfolio',    label:'Объём портфеля',        unit:'сом',           fmt:v=>fmtSom(v),                  mode:'pct',  goodUp:true  },
+  { key:'issuedYtd',    label:'Выдано с начала года',  unit:'сом',           fmt:v=>fmtSom(v),                  mode:'pct',  goodUp:true  },
+  { key:'overdueShare', label:'Доля просрочки',        unit:'от портфеля',   fmt:v=>num(v)+'%',                 mode:'pp',   goodUp:false },
+  { key:'borrowers',    label:'Количество заёмщиков',  unit:'активных',      fmt:v=>v.toLocaleString('ru-RU'),  mode:'pct',  goodUp:true  },
+];
+
+/* Спарклайн — inline SVG по ВСЕМ срезам в хронологическом порядке (не только до выбранной
+   даты: иначе на ранней дате линия вырождается в точку). Точка выбранного среза выделена. */
+function sparkline(values, idx){
+  const W=104, H=30, P=4;
+  const min = Math.min(...values), max = Math.max(...values), span = (max-min) || 1;
+  const x = i => P + i*(W-2*P)/Math.max(values.length-1,1);
+  const y = v => H-P - (v-min)/span*(H-2*P);
+  const pts = values.map((v,i)=> `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  return `<svg class="spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
+    <polyline points="${pts}" fill="none" stroke="var(--asubk-blue)" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${x(idx).toFixed(1)}" cy="${y(values[idx]).toFixed(1)}" r="3" fill="var(--asubk-ink)"/>
+  </svg>`;
+}
+
+function deltaHtml(def, snap, prev){
+  if(!prev) return `<div class="md flat">Первый зафиксированный срез — сравнивать не с чем.</div>`;
+  const cur = snap[def.key], old = prev[def.key];
+  const diff = cur - old;
+  if(Math.abs(diff) < 1e-9) return `<div class="md flat">без изменений <span class="mdn">к ${fmtDate(prev.calcDate)}</span></div>`;
+  // §8 Р-8: доля просрочки — ПРОЦЕНТНЫЕ ПУНКТЫ (не процент от процента!), остальное — проценты.
+  const val = def.mode==='pp'
+    ? num(Math.abs(diff).toFixed(1))+' п.п.'
+    : num((Math.abs(diff)/old*100).toFixed(1))+' %';
+  const up = diff > 0;
+  const good = up === def.goodUp;                        // рост просрочки — плохо, рост портфеля — хорошо
+  return `<div class="md ${good?'up':'down'}">${up?'↑':'↓'} ${val} <span class="mdn">к ${fmtDate(prev.calcDate)}</span></div>`;
+}
+
+function renderMetrics(){
+  const el = document.getElementById('p-metrics');
+  const d = state.date;
+  const asc  = [...METRIC_SNAPSHOTS].sort((a,b)=> a.calcDate<b.calcDate?-1:1);   // хронологически
+  const desc = [...asc].reverse();
+  // §7 В-3 — показываем ЗАФИКСИРОВАННЫЙ срез на дату ≤ выбранной (не «на лету»)
+  const snap = desc.find(s=>s.calcDate<=d) || asc[0];
+  const i    = asc.indexOf(snap);
+  const prev = i > 0 ? asc[i-1] : null;
+
+  el.innerHTML = `<div class="panel-wrap">
+    ${mirrorBar('Модуль статистики (подсистема обработки информации)')}
+    <div class="section">
+      <div class="section-h">
+        <span class="sh-t">Показатели · всеорганизационные агрегаты</span>
+        <span class="pill info">срез рассчитан ${esc(fmtDate(snap.calcDate))}</span>
+      </div>
+      <div class="section-b">
+        <div class="metrics">
+          ${METRIC_DEFS.map(def=>`<div class="metric">
+            <div class="ml">${esc(def.label)}</div>
+            <div class="mrow">
+              <div><div class="mv">${esc(def.fmt(snap[def.key]))}</div><div class="mu">${esc(def.unit)}</div></div>
+              ${sparkline(asc.map(s=>s[def.key]), i)}
+            </div>
+            ${deltaHtml(def, snap, prev)}
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>
+    ${banner('warn', ICONS.warn, '<b>Зафиксированный срез (§7 В-3).</b> Модуль статистики считает показатели в нерабочее время и фиксирует их в БД; последующая корректировка данных не влияет на ранее зафиксированные расчёты. Витрина показывает <b>сохранённый срез с датой расчёта</b>, а не считает «на лету». Сдвиньте «Дату просмотра» в шапке — подставится ближайший зафиксированный срез на эту дату.')}
+    ${banner('info', ICONS.info, '<b>Уровень агрегации (§7 В-2).</b> Только всеорганизационные агрегаты. Разрез «по подразделению» или «по сотруднику» — это управленческая отчётность с ограничением доступа, её место в модуле отчётности, а не в общедоступной витрине.')}
+    ${banner('info', ICONS.info, '<b>Дельта считается к предыдущему срезу (§8 Р-8).</b> Для доли просрочки изменение выражено в <b>процентных пунктах</b>, а не в процентах: 4,5 % → 4,2 % — это −0,3 п.п., а не −6,7 %. Спарклайн строится по всем зафиксированным срезам; кружок — выбранный.')}
+  </div>`;
+}
+
+/* ---- §8 Р-9. Журнал изменений: фильтры, пагинация, CSV ---- */
+const PAGE_SIZE = 10;
+function auditRows(){
+  const f = state.audit;
+  return AUDIT
+    .filter(a=> a.scope==='vedomstvo')                  // отфильтрованное представление общесистемного лога
+    .filter(a=> !f.block || a.block===f.block)
+    .filter(a=> !f.who   || a.who===f.who)
+    .filter(a=> !f.from  || a.when.slice(0,10) >= f.from)
+    .filter(a=> !f.to    || a.when.slice(0,10) <= f.to)
+    .sort((a,b)=> a.when<b.when?1:-1);
+}
+function renderAudit(){
+  const el = document.getElementById('p-audit');
+  const f = state.audit;
+  const rows = auditRows();
+  const pages = Math.max(1, Math.ceil(rows.length/PAGE_SIZE));
+  if(f.page > pages) f.page = pages;
+  const slice = rows.slice((f.page-1)*PAGE_SIZE, f.page*PAGE_SIZE);
+  const whoList = [...new Set(AUDIT.filter(a=>a.scope==='vedomstvo').map(a=>a.who))].sort();
+
+  el.innerHTML = `<div class="panel-wrap">
+    <div class="section">
+      <div class="section-h"><span class="sh-t">Журнал изменений (audit log)</span>
+        <span class="sh-act">
+          <button class="btn btn-secondary" data-act="csv-audit">${ICONS.down}<span>Выгрузить CSV</span></button>
+          <span class="readonly-tag">${ICONS.lock} технический · только чтение</span>
+        </span>
+      </div>
+      <div class="filters">
+        <div class="ff"><label for="afBlock">Блок</label>
+          <select id="afBlock"><option value="">Все блоки</option>
+            ${AUDIT_BLOCKS.map(b=>`<option value="${esc(b)}"${f.block===b?' selected':''}>${esc(b)}</option>`).join('')}
+          </select></div>
+        <div class="ff"><label for="afWho">Пользователь</label>
+          <select id="afWho"><option value="">Все пользователи</option>
+            ${whoList.map(w=>`<option value="${esc(w)}"${f.who===w?' selected':''}>${esc(w)}</option>`).join('')}
+          </select></div>
+        <div class="ff"><label for="afFrom">Период с</label><input type="date" id="afFrom" value="${esc(f.from)}"></div>
+        <div class="ff"><label for="afTo">по</label><input type="date" id="afTo" value="${esc(f.to)}"></div>
+        <div class="ff"><label>&nbsp;</label><button class="btn btn-secondary" id="afReset">Сбросить</button></div>
+        <span class="grow"></span>
+        <div class="ff"><label>&nbsp;</label><span class="readonly-tag">найдено: <b>&nbsp;${rows.length}</b></span></div>
+      </div>
+      <div class="section-b" style="padding:0">
+        <div class="audit">
+          <div class="ae" style="background:var(--surface-panel)">
+            <div class="aw" style="font-weight:500;color:var(--text-heading)">Когда · кто</div>
+            <div class="ab">Блок · поле</div>
+            <div class="ao" style="color:var(--text-heading);font-weight:500">Объект</div>
+            <div class="ad" style="color:var(--text-heading);font-weight:500">Было → стало</div>
+          </div>
+          ${slice.length ? slice.map(a=>`<div class="ae">
+            <div class="aw">${esc(a.when)}<br><span class="muted">${esc(a.who)}</span></div>
+            <div class="ab">${esc(a.block)}<br><span class="muted" style="font-weight:400">${esc(a.field)}</span></div>
+            <div class="ao">${esc(a.objLabel)}<br><span class="mono muted" style="font-size:12px">${esc(a.objId)}</span></div>
+            <div class="ad"><del>${esc(a.from)}</del> <span class="arrow">→</span> <ins>${esc(a.to)}</ins></div>
+          </div>`).join('') : `<div class="empty">По заданным фильтрам записей нет.</div>`}
+        </div>
+      </div>
+      <div class="pager">
+        <span>Показано ${slice.length} из ${rows.length}</span>
+        <span class="pg">
+          <button class="btn btn-secondary" data-act="pg-prev" ${f.page<=1?'disabled':''}>‹ Назад</button>
+          <span>стр. ${f.page} из ${pages}</span>
+          <button class="btn btn-secondary" data-act="pg-next" ${f.page>=pages?'disabled':''}>Далее ›</button>
+        </span>
+      </div>
+    </div>
+    ${banner('info', ICONS.info, '<b>Хранилище аудита — общесистемное (§8 Р-9).</b> Записи всех модулей лежат в подсистеме администрирования и различаются полем <span class="mono">scope</span>. Эта вкладка — <b>отфильтрованное представление</b> (<span class="mono">scope = vedomstvo</span>), а не отдельный журнал: в демо-данных есть записи модулей «Пользователи» и «Оргструктура» — здесь они не показываются. Поле <span class="mono">objId</span> обязательно для сущностей с множественностью (счёт, документ, событие, телефон) — иначе по записи журнала нельзя найти объект.')}
+    ${banner('info', ICONS.block, '<b>Не версионность (§6).</b> Журнал технический: кто/когда/что/было→стало. Восстановление состояния «на дату» из него как пользовательская функция <b>не предполагается</b> — эффективное датирование реквизитов отклонено (§1, решение 3).')}
+  </div>`;
+
+  const rerender = ()=>{ state.audit.page = 1; renderAudit(); };
+  document.getElementById('afBlock').onchange = e=>{ state.audit.block = e.target.value; rerender(); };
+  document.getElementById('afWho').onchange   = e=>{ state.audit.who   = e.target.value; rerender(); };
+  document.getElementById('afFrom').onchange  = e=>{ state.audit.from  = e.target.value; rerender(); };
+  document.getElementById('afTo').onchange    = e=>{ state.audit.to    = e.target.value; rerender(); };
+  document.getElementById('afReset').onclick  = ()=>{ state.audit = {block:'',who:'',from:'',to:'',page:1}; renderAudit(); };
+}
+
+function renderAll(){
+  renderTabs();
+  document.querySelectorAll('.detail-panel').forEach(p=> p.classList.remove('active'));
+  const panel = document.getElementById('p-'+state.tab);
+  if(panel) panel.classList.add('active');
+  const btn = document.getElementById('todayBtn');
+  if(btn) btn.style.display = state.date===TODAY ? 'none' : '';
+  ({ general:renderGeneral, chrono:renderChrono, reqs:renderReqs, docs:renderDocs, contacts:renderContacts,
+     orgstruct:renderOrgstruct, metrics:renderMetrics, audit:renderAudit }[state.tab] || renderGeneral)();
+}
+
+/* =========================================================================
+   §6 + §8 Р-9. АУДИТ — каждое изменение собственного блока пишет запись.
+   audit(block, field, from, to, objId, objLabel)
+   ========================================================================= */
+function nowStamp(){
+  const d = new Date(), p = n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+const CURRENT_USER = 'Сламкулов А. О.';
+function audit(block, field, from, to, objId, objLabel){
+  if(String(from)===String(to)) return;
+  AUDIT.unshift({ id:'a'+(auditSeq++), scope:'vedomstvo', when:nowStamp(), who:CURRENT_USER,
+    block, objId:objId||'—', objLabel:objLabel||'Карточка организации',
+    field, from:from||'—', to:to||'—' });
+}
+
+/* =========================================================================
+   ТОСТ
+   ========================================================================= */
+let toastTimer = null;
+function toast(html){
+  const t = document.getElementById('toast');
+  t.innerHTML = html; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=> t.classList.remove('show'), 3200);
+}
+
+/* =========================================================================
+   МОДАЛКА — общий каркас. openModal({title, body, onSave, onDelete, deleteLabel, wide})
+   onSave/onDelete возвращают строку-ошибку, чтобы не закрывать окно.
+   ========================================================================= */
+const mBack = document.getElementById('modalBack');
+const mBox  = document.getElementById('modalBox');
+let modalCtx = null;
+function defaultSave(){
+  if(!modalCtx || !modalCtx.onSave) return closeModal();
+  const err = modalCtx.onSave();
+  if(err){ document.getElementById('mErr').textContent = err; return; }
+  closeModal(); renderAll();
+}
+function openModal(cfg){
+  modalCtx = cfg;
+  document.getElementById('mTitle').textContent = cfg.title;
+  document.getElementById('mBody').innerHTML = cfg.body;
+  document.getElementById('mErr').textContent = '';
+  mBox.classList.toggle('wide', !!cfg.wide);
+  const del = document.getElementById('mDelete');
+  if(cfg.onDelete){ del.style.display=''; del.textContent = cfg.deleteLabel||'Удалить'; } else del.style.display='none';
+  const save = document.getElementById('mSave');
+  save.style.display = cfg.hideSave ? 'none' : '';
+  save.textContent = cfg.saveLabel || 'Сохранить';
+  save.onclick = cfg.onPrimary || defaultSave;   // печатная карточка подменяет действие только на себя
+  mBack.classList.add('open');
+  if(cfg.onOpen) cfg.onOpen();
+  const first = document.querySelector('#mBody input:not([disabled]), #mBody textarea, #mBody select');
+  if(first) first.focus();
+}
+function closeModal(){ mBack.classList.remove('open'); mBox.classList.remove('wide'); modalCtx = null; }
+function mVal(id){ const el = document.getElementById(id); return el ? String(el.value).trim() : ''; }
+function mChecked(id){ const el = document.getElementById(id); return el ? el.checked : false; }
+
+document.getElementById('mCancel').onclick = closeModal;
+mBack.onclick = e=>{ if(e.target===mBack) closeModal(); };
+document.getElementById('mSave').onclick = defaultSave;
+document.getElementById('mDelete').onclick = ()=>{
+  if(!modalCtx || !modalCtx.onDelete) return;
+  const err = modalCtx.onDelete();
+  if(err){ document.getElementById('mErr').textContent = err; return; }
+  closeModal(); renderAll();
+};
+document.addEventListener('keydown', e=>{
+  if(!mBack.classList.contains('open')) return;
+  if(e.key==='Escape') closeModal();
+  if(e.key==='Enter' && e.target.tagName!=='TEXTAREA' && !modalCtx?.onPrimary) document.getElementById('mSave').click();
+});
+
+/* §8 Р-3. Подсветка «в реальном времени»: на потере фокуса поле с data-v проверяется
+   валидатором. Кнопка «Сохранить» НЕ блокируется — жёсткая проверка всё равно на сохранении,
+   так мы не плодим второе состояние формы. */
+document.getElementById('mBody').addEventListener('focusout', e=>{
+  const el = e.target;
+  if(!el.dataset || !el.dataset.v) return;
+  const fn = V[el.dataset.v]; if(!fn) return;
+  const v = String(el.value).trim();
+  el.classList.toggle('bad', !!v && !fn(v));
+});
+
+/* =========================================================================
+   ПОЛЯ ФОРМ
+   ========================================================================= */
+function fld(id, label, val, hint, vtype){ return `<div class="fld"><label for="${id}">${label}</label>
+  <input type="text" id="${id}" value="${esc(val||'')}"${vtype?` data-v="${vtype}"`:''}>${hint?`<span class="fhint">${hint}</span>`:''}</div>`; }
+function fldArea(id, label, val){ return `<div class="fld"><label for="${id}">${label}</label>
+  <textarea id="${id}">${esc(val||'')}</textarea></div>`; }
+function fldDate(id, label, val, hint){ return `<div class="fld"><label for="${id}">${label}</label>
+  <input type="date" id="${id}" value="${esc(val||'')}">${hint?`<span class="fhint">${hint}</span>`:''}</div>`; }
+function fldRO(id, label, val, hint){ return `<div class="fld"><label for="${id}">${label}</label>
+  <input type="text" id="${id}" value="${esc(val||'')}" disabled>${hint?`<span class="fhint">${hint}</span>`:''}</div>`; }
+/* §8 Р-2. Селект из справочника + маркер источника: разработчик должен видеть, что значения
+   приходят из чужого модуля и free-text здесь запрещён. */
+function selectFld(id, label, list, val, refLabel, keyField){
+  const k = keyField || 'id';
+  const opts = list.map(x=>`<option value="${esc(x[k])}"${String(x[k])===String(val)?' selected':''}>${esc(x.name)}${k==='code'?' ('+esc(x.code)+')':''}</option>`).join('');
+  return `<div class="fld"><label for="${id}">${label}</label>
+    <select id="${id}">${opts}</select>
+    ${refLabel?`<span class="fhint ref">из справочника «${esc(refLabel)}»</span>`:''}</div>`;
+}
+
+/* =========================================================================
+   ФОРМЫ РЕДАКТИРОВАНИЯ собственных блоков (§3.1). Наблюдателю недоступны (guard).
+   ========================================================================= */
+function editGeneral(){
+  openModal({ title:'Общая информация', body:
+    fld('gfFull','Полное наименование', ORG.fullName) +
+    fld('gfShort','Краткое наименование', ORG.shortName) +
+    fldArea('gfDescr','Краткое описание', ORG.descr) +
+    `<div class="fld"><label for="gfLogo">Логотип</label>
+      <input type="file" id="gfLogo" accept="image/*">
+      <span class="fhint">PNG/SVG, квадратный. Текущий: ${esc(ORG.logoName||'не загружен')}</span></div>` +
+    `<div class="modal-note">§1 · без версионности: сохраняется актуальное состояние, история — в журнале изменений (§6).<br>§8 Р-6 · двуязычие наименования отклонено — поле только на русском.</div>`,
+    onSave(){
+      const full=mVal('gfFull'), short=mVal('gfShort'), descr=mVal('gfDescr');
+      if(!full || !short) return 'Наименования обязательны.';
+      audit('Общая информация','Полное наименование', ORG.fullName, full);
+      audit('Общая информация','Краткое наименование', ORG.shortName, short);
+      audit('Общая информация','Краткое описание', ORG.descr, descr);
+      ORG.fullName=full; ORG.shortName=short; ORG.descr=descr;
+      const f = document.getElementById('gfLogo').files[0];
+      if(f){
+        audit('Общая информация','Логотип', ORG.logoName||'—', f.name);
+        if(ORG.logo) URL.revokeObjectURL(ORG.logo);
+        ORG.logo = URL.createObjectURL(f); ORG.logoName = f.name;
+      }
+    }});
+}
+
+function editReg(){
+  openModal({ title:'Регистрационные данные', body:
+    `<div class="fld row2">${fld('rgNo','Свидетельство №', REG.certNo)}${fldDate('rgDate','Дата выдачи', REG.certDate,'не может быть в будущем')}</div>` +
+    selectFld('rgOrg','Орган регистрации', REF.REG_ORGS, REG.regOrgId, 'Регистрирующие органы') +
+    `<div class="fld row2">${fld('rgInn','ИНН', REG.inn, '14 цифр', 'inn')}${fld('rgOkpo','ОКПО', REG.okpo, '8 цифр', 'okpo')}</div>` +
+    `<div class="modal-note">§8 Р-3 · форматы проверяются жёстко: сохранение блокируется, пока ИНН/ОКПО не соответствуют формату.</div>`,
+    onSave(){
+      const no=mVal('rgNo'), dt=mVal('rgDate'), orgId=mVal('rgOrg'), inn=mVal('rgInn'), okpo=mVal('rgOkpo');
+      if(!no) return 'Номер свидетельства обязателен.';
+      if(!V.date(dt)) return 'Укажите дату выдачи свидетельства.';
+      if(dt > TODAY) return 'Дата выдачи не может быть в будущем.';
+      if(!V.inn(inn))  return 'ИНН должен содержать ровно 14 цифр.';
+      if(!V.okpo(okpo))return 'ОКПО должен содержать ровно 8 цифр.';
+      audit('Регистрационные данные','Свидетельство №', REG.certNo, no);
+      audit('Регистрационные данные','Дата выдачи', REG.certDate, dt);
+      audit('Регистрационные данные','Орган регистрации', refName(REF.REG_ORGS,REG.regOrgId), refName(REF.REG_ORGS,orgId));
+      audit('Регистрационные данные','ИНН', REG.inn, inn);
+      audit('Регистрационные данные','ОКПО', REG.okpo, okpo);
+      REG.certNo=no; REG.certDate=dt; REG.regOrgId=orgId; REG.inn=inn; REG.okpo=okpo;
+    }});
+}
+
+function editContacts(){
+  openModal({ title:'Адреса, сайт и режим работы', body:
+    fld('ctSite','Адрес сайта', CONTACTS.site, 'начинается с http:// или https://', 'url') +
+    fld('ctLegal','Юридический адрес', CONTACTS.legalAddr) +
+    fld('ctFact','Фактический адрес', CONTACTS.factAddr) +
+    fld('ctWork','Часы работы', CONTACTS.workHours, 'например: пн–пт, 09:00–18:00, обед 12:30–13:30') +
+    fld('ctRecept','Часы приёма граждан', CONTACTS.receptHours, 'свободный текст'),
+    onSave(){
+      const site=mVal('ctSite');
+      if(!V.url(site)) return 'Адрес сайта должен начинаться с http:// или https://.';
+      if(!mVal('ctLegal')) return 'Юридический адрес обязателен.';
+      audit('Контакты','Адрес сайта', CONTACTS.site, site);
+      audit('Контакты','Юридический адрес', CONTACTS.legalAddr, mVal('ctLegal'));
+      audit('Контакты','Фактический адрес', CONTACTS.factAddr, mVal('ctFact'));
+      audit('Контакты','Часы работы', CONTACTS.workHours, mVal('ctWork'));
+      audit('Контакты','Часы приёма граждан', CONTACTS.receptHours, mVal('ctRecept'));
+      CONTACTS.site=site; CONTACTS.legalAddr=mVal('ctLegal'); CONTACTS.factAddr=mVal('ctFact');
+      CONTACTS.workHours=mVal('ctWork'); CONTACTS.receptHours=mVal('ctRecept');
+    }});
+}
+
+/* ---- Телефон (§8 Р-2: тип — из справочника) ---- */
+function phoneForm(p){
+  const isNew = !p;
+  p = p || { typeId:'t1', value:'', note:'' };
+  openModal({ title:isNew?'Новый телефон':'Телефон', body:
+    selectFld('phType','Тип', REF.PHONE_TYPES, p.typeId, 'Типы телефонов') +
+    fld('phVal','Номер', p.value, '+996 (312) 61-00-00', 'phone') +
+    fld('phNote','Примечание', p.note, 'необязательно') +
+    `<div class="modal-note">§8 Р-2 · тип телефона — из справочника, не свободный текст: по типу строятся проверки (обязательность антикоррупционной линии) и выгрузка на портал.</div>`,
+    onSave(){
+      const typeId=mVal('phType'), value=mVal('phVal'), note=mVal('phNote');
+      if(!V.phone(value)) return 'Телефон в формате +996 (312) 61-00-00.';
+      const label = 'Телефон · '+refName(REF.PHONE_TYPES, typeId);
+      if(isNew){
+        p.id='ph'+(phoneSeq++); p.typeId=typeId; p.value=value; p.note=note;
+        CONTACTS.phones.push(p);
+        audit('Контакты','Номер','—', value, p.id, label);
+      } else {
+        audit('Контакты','Тип', refName(REF.PHONE_TYPES,p.typeId), refName(REF.PHONE_TYPES,typeId), p.id, label);
+        audit('Контакты','Номер', p.value, value, p.id, label);
+        audit('Контакты','Примечание', p.note, note, p.id, label);
+        p.typeId=typeId; p.value=value; p.note=note;
+      }
+    },
+    onDelete: isNew ? null : function(){
+      const i = CONTACTS.phones.indexOf(p); if(i>=0) CONTACTS.phones.splice(i,1);
+      audit('Контакты','Телефон', p.value, 'удалён', p.id, 'Телефон · '+refName(REF.PHONE_TYPES,p.typeId));
+    },
+    deleteLabel:'Удалить телефон' });
+}
+
+/* ---- E-mail ---- */
+function emailForm(m){
+  const isNew = !m;
+  m = m || { typeId:'e1', value:'', note:'' };
+  openModal({ title:isNew?'Новый адрес':'Электронная почта', body:
+    selectFld('emType','Тип', REF.EMAIL_TYPES, m.typeId, 'Типы адресов электронной почты') +
+    fld('emVal','Адрес', m.value, 'name@domain.kg', 'email') +
+    fld('emNote','Примечание', m.note, 'необязательно'),
+    onSave(){
+      const typeId=mVal('emType'), value=mVal('emVal'), note=mVal('emNote');
+      if(!V.email(value)) return 'Некорректный адрес электронной почты.';
+      const label = 'E-mail · '+refName(REF.EMAIL_TYPES, typeId);
+      if(isNew){
+        m.id='em'+(emailSeq++); m.typeId=typeId; m.value=value; m.note=note;
+        CONTACTS.emails.push(m);
+        audit('Контакты','Адрес','—', value, m.id, label);
+      } else {
+        audit('Контакты','Тип', refName(REF.EMAIL_TYPES,m.typeId), refName(REF.EMAIL_TYPES,typeId), m.id, label);
+        audit('Контакты','Адрес', m.value, value, m.id, label);
+        audit('Контакты','Примечание', m.note, note, m.id, label);
+        m.typeId=typeId; m.value=value; m.note=note;
+      }
+    },
+    onDelete: isNew ? null : function(){
+      const i = CONTACTS.emails.indexOf(m); if(i>=0) CONTACTS.emails.splice(i,1);
+      audit('Контакты','E-mail', m.value, 'удалён', m.id, 'E-mail · '+refName(REF.EMAIL_TYPES,m.typeId));
+    },
+    deleteLabel:'Удалить адрес' });
+}
+
+/* ---- Хронология (§3.1, N) ---- */
+function chronoForm(ev){
+  const isNew = !ev;
+  ev = ev || { date:TODAY, title:'', descr:'' };
+  openModal({ title:isNew?'Новое событие':'Событие хронологии', body:
+    fldDate('chDate','Дата', ev.date, 'не может быть в будущем') +
+    fld('chTitle','Заголовок', ev.title) + fldArea('chDescr','Описание', ev.descr),
+    onSave(){
+      const date=mVal('chDate'), title=mVal('chTitle'), descr=mVal('chDescr');
+      if(!V.date(date) || !title) return 'Дата и заголовок обязательны.';
+      if(date > TODAY) return 'Событие не может быть датировано будущим.';
+      if(isNew){
+        ev.id='ch'+(chronoSeq++); ev.date=date; ev.title=title; ev.descr=descr;
+        CHRONO.push(ev);
+        audit('Хронология','Событие','—', '«'+title+'»', ev.id, 'Событие '+date);
+      } else {
+        const label = 'Событие '+ev.date;
+        audit('Хронология','Дата', ev.date, date, ev.id, label);
+        audit('Хронология','Заголовок', ev.title, title, ev.id, label);
+        audit('Хронология','Описание', ev.descr, descr, ev.id, label);
+        ev.date=date; ev.title=title; ev.descr=descr;
+      }
+    },
+    onDelete: isNew ? null : function(){
+      const i=CHRONO.indexOf(ev); if(i>=0) CHRONO.splice(i,1);
+      audit('Хронология','Событие','«'+ev.title+'»','удалено', ev.id, 'Событие '+ev.date);
+    },
+    deleteLabel:'Удалить событие' });
+}
+
+/* =========================================================================
+   §4 + §8 Р-1/Р-2/Р-3. БАНКОВСКИЙ СЧЁТ.
+   - банк, валюта, назначение — селекты из справочников; БИК подставляется, read-only;
+   - кнопки «Удалить счёт» НЕТ: закрытие датой (closeAccountForm);
+   - у закрытого счёта чекбокс «основной» disabled;
+   - номер счёта: 16 цифр + уникальность среди ДЕЙСТВУЮЩИХ.
+   ========================================================================= */
+function accountForm(ac){
+  const isNew = !ac;
+  ac = ac || { bankId:'b1', acc:'', ccy:'KGS', purposeId:'p1', main:false, openedAt:TODAY, closedAt:null };
+  const closed = !!ac.closedAt;
+  openModal({ title: isNew ? 'Новый счёт' : (closed ? 'Банковский счёт (закрыт)' : 'Банковский счёт'), body:
+    selectFld('acBank','Банк', REF.BANKS, ac.bankId, 'Банки') +
+    `<div class="fld row2">
+       ${fldRO('acBik','БИК', bankOf(ac.bankId).bik, 'подставляется из справочника — принадлежит банку, а не счёту')}
+       ${fld('acNo','Номер счёта', ac.acc, '16 цифр', 'acct')}
+     </div>` +
+    `<div class="fld row2">
+       ${selectFld('acCcy','Валюта', REF.CCY, ac.ccy, 'Валюты', 'code')}
+       ${selectFld('acPurp','Назначение', REF.ACCT_PURPOSE, ac.purposeId, 'Назначения счетов')}
+     </div>` +
+    `<div class="fld row2">
+       ${fldDate('acOpen','Дата открытия', ac.openedAt)}
+       ${closed ? fldRO('acClose','Дата закрытия', ac.closedAt, 'счёт закрыт — см. §8 Р-1') : ''}
+     </div>` +
+    `<label class="fld-check"><input type="checkbox" id="acMain"${ac.main?' checked':''}${closed?' disabled':''}> <span>Основной счёт по валюте${closed?' — закрытый счёт основным быть не может':''}</span></label>` +
+    `<div class="modal-note">§4 · инвариант: не более одного <b>действующего</b> основного счёта в разрезе валюты. При установке «основной» флаг у других действующих счетов той же валюты снимается автоматически.<br>§8 Р-1 · счёт не удаляется — он закрывается датой.</div>`,
+    onOpen(){
+      // БИК следует за банком: он атрибут банка, а не нашего счёта
+      document.getElementById('acBank').onchange = e=>{
+        document.getElementById('acBik').value = bankOf(e.target.value).bik;
+      };
+    },
+    onSave(){
+      const bankId=mVal('acBank'), no=mVal('acNo'), ccy=mVal('acCcy'), purposeId=mVal('acPurp'),
+            openedAt=mVal('acOpen'), main = closed ? false : mChecked('acMain');
+      if(!V.acct(no)) return 'Номер счёта должен содержать ровно 16 цифр.';
+      const dup = ACCOUNTS.some(x=> x!==ac && x.acc===no && isActive(x));
+      if(dup) return 'Счёт с таким номером уже заведён.';
+      if(!V.date(openedAt)) return 'Укажите дату открытия счёта.';
+      if(ac.closedAt && openedAt > ac.closedAt) return 'Дата открытия не может быть позже даты закрытия.';
+      const label = 'Счёт '+ccy+' · '+bankOf(bankId).name;
+      if(isNew){
+        ac.id='ac'+(accountSeq++);
+        Object.assign(ac, {bankId, acc:no, ccy, purposeId, openedAt, main});
+        ACCOUNTS.push(ac);
+        audit('Банковские реквизиты','Счёт','—','добавлен', ac.id, label);
+      } else {
+        audit('Банковские реквизиты','Банк', bankOf(ac.bankId).name, bankOf(bankId).name, ac.id, label);
+        audit('Банковские реквизиты','Номер счёта', ac.acc, no, ac.id, label);
+        audit('Банковские реквизиты','Валюта', ac.ccy, ccy, ac.id, label);
+        audit('Банковские реквизиты','Назначение', refName(REF.ACCT_PURPOSE,ac.purposeId), refName(REF.ACCT_PURPOSE,purposeId), ac.id, label);
+        audit('Банковские реквизиты','Дата открытия', ac.openedAt, openedAt, ac.id, label);
+        audit('Банковские реквизиты','Основной', ac.main?'основной':'не основной', main?'основной':'не основной', ac.id, label);
+        Object.assign(ac, {bankId, acc:no, ccy, purposeId, openedAt, main});
+      }
+      // §4 держим инвариант — только среди ДЕЙСТВУЮЩИХ
+      if(main) ACCOUNTS.forEach(x=>{ if(x!==ac && x.ccy===ccy && isActive(x)) x.main=false; });
+    }});
+  // кнопки «Удалить счёт» здесь нет by design (§8 Р-1)
+}
+
+function closeAccountForm(ac){
+  const label = 'Счёт '+ac.ccy+' · '+bankOf(ac.bankId).name;
+  openModal({ title:'Закрытие счёта', saveLabel:'Закрыть счёт', body:
+    `<div class="modal-note">Счёт <span class="mono">${esc(ac.acc)}</span> · ${esc(bankOf(ac.bankId).name)} · ${esc(ac.ccy)}. Открыт ${esc(fmtDate(ac.openedAt))}.</div>` +
+    fldDate('clDate','Дата закрытия', TODAY, 'не может быть раньше даты открытия') +
+    `<div class="modal-note">§8 Р-1 · счёт <b>не удаляется</b>: его реквизиты могли попасть в договоры, платёжные поручения и печатные формы. После закрытия счёт исчезает из справочников выбора, но остаётся видимым в истории.${ac.main?'<br><b>Флаг «основной» будет снят автоматически</b> — закрытый счёт основным быть не может.':''}</div>`,
+    onSave(){
+      const dt = mVal('clDate');
+      if(!V.date(dt)) return 'Дата закрытия обязательна.';
+      if(dt < ac.openedAt) return 'Дата закрытия не может быть раньше даты открытия ('+fmtDate(ac.openedAt)+').';
+      audit('Банковские реквизиты','Дата закрытия','—', dt, ac.id, label);
+      if(ac.main){
+        audit('Банковские реквизиты','Основной','основной','не основной (счёт закрыт)', ac.id, label);
+        ac.main = false;                          // закрытый не может быть основным
+      }
+      ac.closedAt = dt;
+      toast(`Счёт <span class="mono">${esc(ac.acc)}</span> закрыт ${esc(fmtDate(dt))}. Запись сохранена в истории (§8 Р-1).`);
+    }});
+}
+
+/* =========================================================================
+   §8 Р-5. ДОКУМЕНТ ВЕДОМСТВА.
+   ========================================================================= */
+function docForm(d){
+  const isNew = !d;
+  d = d || { typeId:'d3', title:'', no:'', issued:TODAY, expires:'', org:'', file:'', size:'' };
+  const perm = !d.expires;
+  openModal({ title:isNew?'Новый документ':'Документ ведомства', body:
+    selectFld('dcType','Тип документа', REF.DOC_TYPES, d.typeId, 'Типы документов') +
+    fld('dcTitle','Наименование', d.title) +
+    `<div class="fld row2">${fld('dcNo','Номер', d.no)}${fldDate('dcIssued','Дата выдачи', d.issued)}</div>` +
+    fld('dcOrg','Орган выдачи', d.org) +
+    `<label class="fld-check"><input type="checkbox" id="dcPerm"${perm?' checked':''}> <span>Бессрочный</span></label>` +
+    fldDate('dcExp','Действует до', d.expires||'') +
+    `<div class="fld"><label for="dcFile">Файл</label>
+      <input type="file" id="dcFile">
+      <span class="fhint">${d.file?'текущий: '+esc(d.file)+' · '+esc(d.size):'файл не приложен'} — хранится в подсистеме документооборота</span></div>`,
+    onOpen(){
+      const p = document.getElementById('dcPerm'), e = document.getElementById('dcExp');
+      const sync = ()=>{ e.disabled = p.checked; if(p.checked) e.value=''; };
+      p.onchange = sync; sync();
+    },
+    onSave(){
+      const typeId=mVal('dcType'), title=mVal('dcTitle'), no=mVal('dcNo'), issued=mVal('dcIssued'),
+            org=mVal('dcOrg'), permanent=mChecked('dcPerm'), expires = permanent ? null : mVal('dcExp');
+      if(!title) return 'Наименование документа обязательно.';
+      if(!V.date(issued)) return 'Укажите дату выдачи.';
+      if(issued > TODAY) return 'Дата выдачи не может быть в будущем.';
+      if(!permanent){
+        if(!V.date(expires||'')) return 'Укажите срок действия или отметьте «Бессрочный».';
+        if(expires <= issued)    return 'Срок действия должен быть позже даты выдачи.';
+      }
+      const f = document.getElementById('dcFile').files[0];
+      const label = refName(REF.DOC_TYPES, typeId)+(no && no!=='—' ? ' '+no : '');
+      if(isNew){
+        d.id='dc'+(docSeq++);
+        Object.assign(d, {typeId,title,no:no||'—',issued,expires,org});
+        if(f){ d.file=f.name; d.size=(f.size/1024>1024? (f.size/1048576).toFixed(1)+' МБ' : Math.round(f.size/1024)+' КБ'); }
+        DOCS.push(d);
+        audit('Документы','Документ','—','добавлен', d.id, label);
+      } else {
+        audit('Документы','Тип', refName(REF.DOC_TYPES,d.typeId), refName(REF.DOC_TYPES,typeId), d.id, label);
+        audit('Документы','Наименование', d.title, title, d.id, label);
+        audit('Документы','Номер', d.no, no||'—', d.id, label);
+        audit('Документы','Дата выдачи', d.issued, issued, d.id, label);
+        audit('Документы','Орган выдачи', d.org, org, d.id, label);
+        audit('Документы','Срок действия', d.expires||'бессрочный', expires||'бессрочный', d.id, label);
+        if(f) audit('Документы','Файл', d.file||'—', f.name, d.id, label);
+        Object.assign(d, {typeId,title,no:no||'—',issued,expires,org});
+        if(f){ d.file=f.name; d.size=(f.size/1024>1024? (f.size/1048576).toFixed(1)+' МБ' : Math.round(f.size/1024)+' КБ'); }
+      }
+    },
+    onDelete: isNew ? null : function(){
+      const i=DOCS.indexOf(d); if(i>=0) DOCS.splice(i,1);
+      audit('Документы','Документ','«'+d.title+'»','удалён', d.id, refName(REF.DOC_TYPES,d.typeId)+' '+d.no);
+    },
+    deleteLabel:'Удалить документ' });
+}
+
+/* =========================================================================
+   §8 Р-4. КОПИРОВАНИЕ РЕКВИЗИТОВ + ПЕЧАТНАЯ КАРТОЧКА — строго «на сейчас».
+   ========================================================================= */
+function reqsBlock(ac){
+  const b = bankOf(ac.bankId);
+  return [
+    'Получатель: ' + ORG.shortName,
+    'ИНН: ' + REG.inn,
+    'ОКПО: ' + REG.okpo,
+    'Банк: ' + b.name,
+    'БИК: ' + b.bik,
+    'Счёт: ' + ac.acc + ' (' + ac.ccy + ')',
+    'Назначение: ' + refName(REF.ACCT_PURPOSE, ac.purposeId),
+  ].join('\n');
+}
+/* clipboard API часто заблокирован в iframe-песочнице → fallback обязателен */
+function copyText(text){
+  const done = ()=> toast('Реквизиты счёта скопированы в буфер обмена. Данные — <b>на текущий момент</b> (§8 Р-4).');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=> fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly','');
+  ta.style.cssText = 'position:fixed;top:-1000px;left:-1000px;opacity:0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try{ ok = document.execCommand('copy'); }catch(e){ ok = false; }
+  document.body.removeChild(ta);
+  ok ? done() : toast('Не удалось скопировать автоматически — выделите реквизиты вручную.');
+}
+
+function printCardHtml(){
+  const stamp = (()=>{ const d=new Date(), p=n=>String(n).padStart(2,'0');
+    return `${p(d.getDate())}.${p(d.getMonth()+1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; })();
+  const active = ACCOUNTS.filter(isActive);
+  const phones = CONTACTS.phones.map(p=> `${refName(REF.PHONE_TYPES,p.typeId)}: ${p.value}`).join('; ');
+  const emails = CONTACTS.emails.map(m=> `${refName(REF.EMAIL_TYPES,m.typeId)}: ${m.value}`).join('; ');
+  return `<div class="pcard">
+    <div class="p-head">
+      <div class="p-logo">${ORG.logo?`<img src="${esc(ORG.logo)}" alt="">`:'логотип'}</div>
+      <div>
+        <h1>${esc(ORG.fullName)}</h1>
+        <div class="p-sub">${esc(ORG.shortName)}</div>
+      </div>
+    </div>
+    <h2>Регистрационные данные</h2>
+    <dl>
+      <dt>Свидетельство о регистрации №</dt><dd>${esc(REG.certNo)} от ${esc(fmtDate(REG.certDate))}</dd>
+      <dt>Орган регистрации</dt><dd>${esc(refName(REF.REG_ORGS, REG.regOrgId))}</dd>
+      <dt>ИНН</dt><dd>${esc(REG.inn)}</dd>
+      <dt>ОКПО</dt><dd>${esc(REG.okpo)}</dd>
+    </dl>
+    <h2>Адреса и контакты</h2>
+    <dl>
+      <dt>Юридический адрес</dt><dd>${esc(CONTACTS.legalAddr)}</dd>
+      <dt>Фактический адрес</dt><dd>${esc(CONTACTS.factAddr)}</dd>
+      <dt>Телефоны</dt><dd>${esc(phones)}</dd>
+      <dt>Электронная почта</dt><dd>${esc(emails)}</dd>
+      <dt>Адрес сайта</dt><dd>${esc(CONTACTS.site)}</dd>
+      <dt>Часы работы</dt><dd>${esc(CONTACTS.workHours)}</dd>
+    </dl>
+    <h2>Банковские реквизиты (действующие счета)</h2>
+    <table>
+      <thead><tr><th>Банк</th><th>БИК</th><th>Номер счёта</th><th>Валюта</th><th>Назначение</th><th>Основной</th></tr></thead>
+      <tbody>
+        ${active.map(a=>{ const b=bankOf(a.bankId); return `<tr>
+          <td>${esc(b.name)}</td><td>${esc(b.bik)}</td><td>${esc(a.acc)}</td>
+          <td>${esc(a.ccy)}</td><td>${esc(refName(REF.ACCT_PURPOSE,a.purposeId))}</td>
+          <td>${a.main?'да':'—'}</td></tr>`; }).join('')}
+      </tbody>
+    </table>
+    <div class="p-foot">
+      Сформировано ${esc(stamp)}. Документ носит справочный характер.<br>
+      Реквизиты приведены <b>по состоянию на момент формирования</b>: модуль не хранит версий реквизитов
+      (§1, решение 3), карточка не воспроизводит состояние на прошлую дату. Закрытые счета не печатаются.
+    </div>
+  </div>`;
+}
+function openPrintCard(){
+  const html = printCardHtml();
+  document.getElementById('printRoot').innerHTML = html;   // печатается он, .app скрыт @media print
+  openModal({ title:'Карточка организации · предпросмотр', wide:true, saveLabel:'Печать',
+    onPrimary: ()=> window.print(),
+    body:`<div style="border:1px solid var(--border-default);border-radius:var(--radius-md);padding:16px">${html}</div>`
+       + `<div class="modal-note">§8 Р-4 · карточка формируется <b>на текущий момент</b> и помечается датой формирования. Версионность реквизитов не вводится — воспроизвести состояние на прошлую дату эта форма не может и не должна. Печатаются только <b>действующие</b> счета.</div>` });
+}
+
+/* =========================================================================
+   §8 Р-9. ВЫГРУЗКА CSV (отфильтрованного набора, не всей таблицы).
+   BOM ﻿ — иначе Excel ломает кириллицу. Разделитель «;» — русская локаль Excel.
+   ========================================================================= */
+function downloadCsv(rows, filename){
+  const csv = rows.map(r => r.map(c => '"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(';')).join('\n');
+  const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'});   // BOM — иначе Excel ломает кириллицу
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(a.href), 1000);
+}
+function exportAudit(){
+  const rows = auditRows();
+  const head = ['Дата и время','Пользователь','Блок','Объект','Поле','Было','Стало'];
+  const body = rows.map(a=> [a.when, a.who, a.block, a.objLabel+' ('+a.objId+')', a.field, a.from, a.to]);
+  downloadCsv([head, ...body], 'audit-vedomstvo.csv');
+  toast(`Выгружено записей: <b>${rows.length}</b> (отфильтрованный набор, не весь журнал).`);
+}
+
+/* =========================================================================
+   ДЕЛЕГИРОВАНИЕ КЛИКОВ по data-act (кнопки перерисовываются — слушатель один).
+   ========================================================================= */
+const READ_ACTS = ['goto-source','copy-reqs','print-card','dl-doc','csv-audit','pg-prev','pg-next'];
+document.querySelector('.content').addEventListener('click', e=>{
+  const b = e.target.closest('[data-act]'); if(!b || b.disabled) return;
+  const act = b.dataset.act, id = b.dataset.id;
+  if(!canEdit() && !READ_ACTS.includes(act)) return; // §2/§5 правка только Админ
+  switch(act){
+    case 'edit-general':  editGeneral(); break;
+    case 'edit-reg':      editReg(); break;
+    case 'edit-contacts': editContacts(); break;
+
+    case 'add-chrono':    chronoForm(null); break;
+    case 'edit-chrono':   chronoForm(CHRONO.find(x=>x.id===id)); break;
+    case 'del-chrono':    { const ev=CHRONO.find(x=>x.id===id); if(ev){ CHRONO.splice(CHRONO.indexOf(ev),1);
+                            audit('Хронология','Событие','«'+ev.title+'»','удалено', ev.id, 'Событие '+ev.date); renderAll(); } break; }
+
+    case 'add-account':   accountForm(null); break;
+    case 'edit-account':  accountForm(ACCOUNTS.find(x=>x.id===id)); break;
+    case 'close-account': closeAccountForm(ACCOUNTS.find(x=>x.id===id)); break;   // §8 Р-1: вместо удаления
+    case 'copy-reqs':     { const ac=ACCOUNTS.find(x=>x.id===id); if(ac) copyText(reqsBlock(ac)); break; }
+    case 'print-card':    openPrintCard(); break;
+
+    case 'add-doc':       docForm(null); break;
+    case 'edit-doc':      docForm(DOCS.find(x=>x.id===id)); break;
+    case 'del-doc':       { const d=DOCS.find(x=>x.id===id); if(d && confirm('Удалить документ «'+d.title+'»? Удаление будет записано в журнал изменений.')){
+                            DOCS.splice(DOCS.indexOf(d),1);
+                            audit('Документы','Документ','«'+d.title+'»','удалён', d.id, refName(REF.DOC_TYPES,d.typeId)+' '+d.no);
+                            renderAll(); } break; }
+    case 'dl-doc':        { const d=DOCS.find(x=>x.id===id);
+                            toast(`Скачивание файла <span class="mono">${esc(d?d.file:'')}</span> (демо). Файлы хранит подсистема документооборота, не модуль ведомства.`); break; }
+
+    case 'add-phone':     phoneForm(null); break;
+    case 'edit-phone':    phoneForm(CONTACTS.phones.find(x=>x.id===id)); break;
+    case 'del-phone':     { const p=CONTACTS.phones.find(x=>x.id===id); if(p){ CONTACTS.phones.splice(CONTACTS.phones.indexOf(p),1);
+                            audit('Контакты','Телефон', p.value,'удалён', p.id, 'Телефон · '+refName(REF.PHONE_TYPES,p.typeId)); renderAll(); } break; }
+    case 'add-email':     emailForm(null); break;
+    case 'edit-email':    emailForm(CONTACTS.emails.find(x=>x.id===id)); break;
+    case 'del-email':     { const m=CONTACTS.emails.find(x=>x.id===id); if(m){ CONTACTS.emails.splice(CONTACTS.emails.indexOf(m),1);
+                            audit('Контакты','E-mail', m.value,'удалён', m.id, 'E-mail · '+refName(REF.EMAIL_TYPES,m.typeId)); renderAll(); } break; }
+
+    case 'csv-audit':     exportAudit(); break;
+    case 'pg-prev':       state.audit.page = Math.max(1, state.audit.page-1); renderAudit(); break;
+    case 'pg-next':       state.audit.page = state.audit.page+1; renderAudit(); break;
+
+    case 'goto-source':   toast(`Зеркало (§3.2): редактирование в модуле-источнике — <span class="mono">${esc(b.dataset.src)}</span>. Из карточки ведомства зеркало не правится.`); break;
+  }
+});
+
+/* ---- боковое меню и выход (демо-заглушки) ---- */
+document.querySelectorAll('.nav-item').forEach(a=> a.addEventListener('click', ev=>{
+  if(a.classList.contains('active')){ ev.preventDefault(); return; }
+  if(a.getAttribute('href')) return;                   // реальные ссылки на соседние мокапы
+  ev.preventDefault();
+  toast(`Раздел «${a.textContent.trim()}» — отдельный модуль АСУБК (в этом прототипе не реализован).`);
+}));
+document.querySelector('.icon-btn').addEventListener('click', ()=> toast('Выход из системы (демо).'));
+
+/* ---- события шапки ---- */
+document.getElementById('roleSel').onchange = e=>{
+  state.role = e.target.value;
+  if(state.tab==='audit' && !canEdit()) state.tab='general'; // наблюдателю журнал недоступен
+  renderAll();
+};
+// §8 Р-7: дата просмотра пронизывает ОБА зеркала и включает плашку на собственных вкладках
+document.getElementById('dateInp').onchange = e=>{ state.date = e.target.value; renderAll(); };
+document.getElementById('todayBtn').onclick = ()=>{
+  state.date = TODAY; document.getElementById('dateInp').value = TODAY; renderAll();
+};
+
+renderAll();
+</script>
+</body>
+</html>
