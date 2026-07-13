@@ -211,16 +211,25 @@
   /* ---------- список: jmix-generic-filter ---------- */
   .view{display:none;} .view.active{display:block;}
   .filter-head{display:flex;align-items:center;gap:var(--space-s);font-size:var(--fs-m);
-    color:var(--secondary-text);padding:var(--space-s) 0;user-select:none;}
-  .filter-head .caret{font-size:11px;color:var(--tertiary-text);}
-  /* карточка фильтра: vaadin-form-layout, метки справа (theme=label-align-end) */
+    color:var(--secondary-text);padding:var(--space-s) 0;user-select:none;cursor:pointer;}
+  .filter-head:hover{color:var(--primary-text);}
+  .filter-head .caret{font-size:11px;color:var(--tertiary-text);transition:transform .15s;}
+  .filter-head.collapsed .caret{transform:rotate(-90deg);}
+  .filter-head .fbadge{background:var(--primary);color:#fff;font-size:var(--fs-xxs);font-weight:600;
+    border-radius:10px;padding:1px 8px;}
+  .filter-body.collapsed{display:none;}
+  /* карточка фильтра: компактная строка — поля рядом, метка над полем, применение «на лету» */
   .list-filter{border:1px solid var(--contrast-20);border-radius:var(--radius);
-    padding:var(--space-m);display:grid;grid-template-columns:200px 1fr;gap:var(--space-s) var(--space-m);
-    align-items:center;margin-bottom:var(--space-s);}
-  .list-filter .fl{text-align:right;font-size:var(--fs-s);font-weight:500;color:var(--secondary-text);}
-  .list-filter input,.list-filter select{width:100%;}
+    padding:var(--space-s) var(--space-m);display:flex;flex-wrap:wrap;
+    gap:var(--space-s) var(--space-m);align-items:end;margin-bottom:var(--space-s);}
+  .list-filter .ff{display:flex;flex-direction:column;gap:2px;flex:1 1 180px;min-width:150px;max-width:260px;}
+  .list-filter .fl{font-size:var(--fs-xs,11px);font-weight:500;color:var(--secondary-text);
+    text-transform:uppercase;letter-spacing:.02em;}
+  .list-filter input,.list-filter select{width:100%;height:32px;font-size:var(--fs-s);}
   .filter-bar{display:flex;align-items:center;gap:var(--space-s);flex-wrap:wrap;margin-bottom:var(--space-m);}
   .filter-bar .hintlink{color:var(--tertiary-text);font-size:var(--fs-m);}
+  .filter-bar .live{color:var(--tertiary-text);font-size:var(--fs-s);}
+  #fReset{font-size:var(--fs-s);}
   /* панель действий над гридом */
   .action-bar{display:flex;align-items:center;gap:var(--space-s);flex-wrap:wrap;margin-bottom:var(--space-s);}
   .action-bar .spacer{flex:1;}
@@ -341,39 +350,56 @@
     <div class="view active" id="view-list">
       <div class="content">
 
-        <div class="filter-head"><span class="caret">⌄</span> Фильтр : Фильтры *</div>
+        <div class="filter-head collapsed" id="filterHead">
+          <span class="caret">⌄</span> Фильтр : Фильтры *
+          <span class="fbadge" id="fBadge" hidden></span>
+        </div>
+        <div class="filter-body collapsed" id="filterBody">
         <div class="list-filter">
-          <label class="fl" for="fQ">Заёмщик содержит</label>
-          <input type="text" id="fQ" placeholder="Наименование или Ф.И.О.">
-          <label class="fl" for="fNum">Номер кредита содержит</label>
-          <input type="text" id="fNum" placeholder="">
-          <label class="fl" for="fRegion">Область =</label>
-          <select id="fRegion">
-            <option value="">Все</option>
-            <option>Чуйская</option><option>г. Бишкек</option><option>Нарынская</option>
-            <option>Ошская</option><option>Иссык-Кульская</option>
-          </select>
-          <label class="fl" for="fDistrict">Район =</label>
-          <select id="fDistrict">
-            <option value="">Все</option>
-            <option>Сокулукский</option><option>Аламудунский</option><option>Ленинский (г. Бишкек)</option>
-            <option>Ак-Талинский</option>
-          </select>
-          <label class="fl" for="fGroup">Группа платёжеспособности =</label>
-          <select id="fGroup">
-            <option value="">Все</option>
-            <option value="1.1">1.1 · Погашение по графику</option>
-            <option value="2.1">2.1 · Работа с судом</option>
-            <option value="2.2">2.2 · Исполнительные листы</option>
-            <option value="2.3">2.3 · Инициирование банкротства</option>
-            <option value="5">5 · Погашенные</option>
-          </select>
+          <div class="ff">
+            <label class="fl" for="fQ">Заёмщик</label>
+            <input type="text" id="fQ" placeholder="Наименование или Ф.И.О.">
+          </div>
+          <div class="ff">
+            <label class="fl" for="fNum">Номер кредита</label>
+            <input type="text" id="fNum" placeholder="напр. КР-2025">
+          </div>
+          <div class="ff">
+            <label class="fl" for="fRegion">Область</label>
+            <select id="fRegion">
+              <option value="">Все</option>
+              <option>Чуйская</option><option>г. Бишкек</option><option>Нарынская</option>
+              <option>Ошская</option><option>Иссык-Кульская</option>
+            </select>
+          </div>
+          <div class="ff">
+            <label class="fl" for="fDistrict">Район</label>
+            <select id="fDistrict">
+              <option value="">Все</option>
+              <option>Сокулукский</option><option>Аламудунский</option><option>Ленинский (г. Бишкек)</option>
+              <option>Ак-Талинский</option>
+            </select>
+          </div>
+          <div class="ff">
+            <label class="fl" for="fGroup">Группа платёжеспособности</label>
+            <select id="fGroup">
+              <option value="">Все</option>
+              <option value="1.1">1.1 · Погашение по графику</option>
+              <option value="1.2">1.2 · Просрочка, досудебная работа</option>
+              <option value="2.1">2.1 · Работа с судом</option>
+              <option value="2.2">2.2 · Исполнительные листы</option>
+              <option value="2.3">2.3 · Инициирование банкротства</option>
+              <option value="5">5 · Погашенные</option>
+            </select>
+          </div>
         </div>
         <div class="filter-bar">
-          <button class="btn btn-success">Обновить</button>
+          <button class="btn btn-secondary" id="fReset">Сбросить</button>
           <button class="btn btn-icon" title="Настройки фильтра">⚙</button>
           <span class="hintlink">Добавить условие поиска</span>
+          <span class="live" id="fCount"></span>
         </div>
+        </div><!-- /filter-body -->
 
         <div class="action-bar">
           <button class="btn btn-primary">+ Добавить кредит ▾</button>
@@ -387,114 +413,28 @@
             <table class="grid" id="listTable">
               <thead>
                 <tr>
-                  <th>Номер</th>
                   <th>Заёмщик</th>
-                  <th>Тип</th>
+                  <th>Номер договора</th>
                   <th class="num">Сумма по договору</th>
                   <th>Валюта</th>
                   <th class="num">Остаток (KGS)</th>
-                  <th class="num">Просрочка</th>
+                  <th class="num">Просрочка (дн. / KGS)</th>
                   <th>Группа</th>
                   <th>Статус кредита</th>
                   <th>Куратор</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr class="clk" data-open="1" data-group="2.2" data-district="Сокулукский">
-                  <td class="who">Газификация-2024-07</td>
-                  <td>ОАО «АгроТехСервис»</td>
-                  <td><span class="badge b-type">кредит</span></td>
-                  <td class="num">500 000,00</td>
-                  <td>USD</td>
-                  <td class="num">41 200 000,00</td>
-                  <td class="num cat-high">210 дн.</td>
-                  <td><span class="grp-badge"><span class="grp-code">2.2</span></span></td>
-                  <td><span class="badge b-err">Просрочен</span></td>
-                  <td class="muted">Токтосунов Б. М.</td>
-                </tr>
-                <tr class="clk" data-group="2.2" data-district="Сокулукский">
-                  <td class="who" style="padding-left:30px">↳ Газификация-2024-07/Р1</td>
-                  <td>ОАО «АгроТехСервис»</td>
-                  <td><span class="badge b-type">реструктуризация</span></td>
-                  <td class="num">457 777,78</td>
-                  <td>USD</td>
-                  <td class="num muted">—</td>
-                  <td class="num muted">—</td>
-                  <td class="muted">—</td>
-                  <td><span class="badge b-gray">Оформление</span></td>
-                  <td class="muted">Токтосунов Б. М.</td>
-                </tr>
-                <tr class="clk" data-group="2.1" data-district="Сокулукский">
-                  <td class="who">АПК-2023-014</td>
-                  <td>ОАО «АгроТехСервис»</td>
-                  <td><span class="badge b-type">кредит</span></td>
-                  <td class="num">12 000 000,00</td>
-                  <td>KGS</td>
-                  <td class="num">8 400 000,00</td>
-                  <td class="num cat-mid">45 дн.</td>
-                  <td><span class="grp-badge"><span class="grp-code">2.1</span></span></td>
-                  <td><span class="badge b-err">Просрочен</span></td>
-                  <td class="muted">Асанов А. К.</td>
-                </tr>
-                <tr class="clk" data-group="2.1" data-district="Сокулукский">
-                  <td class="who" style="padding-left:30px">↳ АПК-2023-014/Т2</td>
-                  <td>ОАО «АгроТехСервис»</td>
-                  <td><span class="badge b-type">транш</span></td>
-                  <td class="num">4 000 000,00</td>
-                  <td>KGS</td>
-                  <td class="num muted">в кредите</td>
-                  <td class="num muted">—</td>
-                  <td class="muted">—</td>
-                  <td><span class="badge b-ok">Освоен</span></td>
-                  <td class="muted">Асанов А. К.</td>
-                </tr>
-                <tr class="clk" data-group="2.3" data-district="Сокулукский">
-                  <td class="who">Модернизация-2022-102</td>
-                  <td>ОАО «АгроТехСервис»</td>
-                  <td><span class="badge b-type">кредит</span></td>
-                  <td class="num">8 000 000,00</td>
-                  <td>KGS</td>
-                  <td class="num">8 000 000,00</td>
-                  <td class="num">0 дн.</td>
-                  <td><span class="grp-badge"><span class="grp-code">2.3</span></span></td>
-                  <td><span class="badge b-proc">Действует</span></td>
-                  <td class="muted">Жумабеков Э. Н.</td>
-                </tr>
-                <tr class="clk" data-group="1.1" data-district="Аламудунский">
-                  <td class="who">Стройпрог-2025-031</td>
-                  <td>ОсОО «СветаГрад»</td>
-                  <td><span class="badge b-type">кредит</span></td>
-                  <td class="num">3 000 000,00</td>
-                  <td>KGS</td>
-                  <td class="num">2 450 000,00</td>
-                  <td class="num">0 дн.</td>
-                  <td><span class="grp-badge"><span class="grp-code">1.1</span></span></td>
-                  <td><span class="badge b-proc">Действует</span></td>
-                  <td class="muted">Осмонова Г. Т.</td>
-                </tr>
-                <tr class="clk" data-group="5" data-district="Ленинский (г. Бишкек)">
-                  <td class="who">Техника-2019-004</td>
-                  <td>ИП Дуйшеев К. Т.</td>
-                  <td><span class="badge b-type">кредит</span></td>
-                  <td class="num">1 200 000,00</td>
-                  <td>KGS</td>
-                  <td class="num">0,00</td>
-                  <td class="num">0 дн.</td>
-                  <td><span class="grp-badge"><span class="grp-code">5</span></span></td>
-                  <td><span class="badge b-ok">Погашен</span></td>
-                  <td class="muted">Асанов А. К.</td>
-                </tr>
-              </tbody>
+              <tbody id="listBody"></tbody>
             </table>
             <div class="pager">
-              <span>Отображение <b>1–7</b> из <b>100</b> записей</span>
+              <span id="pagerInfo"></span>
               <div class="pages">
                 <span class="pg dis">«</span><span class="pg dis">‹</span>
-                <span class="pg active">1</span><span class="pg">2</span><span class="pg">3</span>
-                <span class="pg">…</span><span class="pg">›</span><span class="pg">»</span>
+                <span class="pg active">1</span>
+                <span class="pg dis">›</span><span class="pg dis">»</span>
               </div>
               <span>На странице:
-                <select style="height:30px;min-width:70px"><option>10</option><option>20</option><option>30</option><option>50</option><option>100</option></select>
+                <select style="height:30px;min-width:70px"><option>20</option><option>30</option><option>50</option><option>100</option></select>
               </span>
             </div>
           </div>
@@ -503,7 +443,7 @@
       </div>
     </div>
 
-    <!-- ==================== ВИД: КАРТОЧКА ==================== -->
+    <!-- ==================== ВИД: КАРТОЧКА (рендерится из LOANS) ==================== -->
     <div class="view" id="view-detail">
       <div class="content">
 
@@ -512,18 +452,8 @@
       <!-- ---------- Идентификация ---------- -->
       <div class="id-bar">
         <div class="id-main">
-          <div class="id-name">
-            Газификация-2024-07
-            <span class="badge b-type" style="font-size:13px">кредит</span>
-            <span class="badge b-err" style="font-size:13px">Просрочен · 210 дн.</span>
-          </div>
-          <div class="id-sub">
-            <span>Заёмщик: <a class="lnk" href="#">ОАО «АгроТехСервис»</a> · ИНН <b>01204199910016</b></span>
-            <span>Вид: <b>Иностранный кредит</b></span>
-            <span>Кредитная линия: <b>Кредит АБР</b></span>
-            <span>Договор от <b>05.02.2024</b> · срок возврата <b>05.02.2029</b></span>
-            <span>Куратор: <b>Токтосунов Б. М.</b></span>
-          </div>
+          <div class="id-name" id="dName"></div>
+          <div class="id-sub" id="dSub"></div>
         </div>
         <div class="id-actions">
           <button class="btn btn-secondary">Изменить</button>
@@ -541,43 +471,7 @@
       </div>
 
       <!-- ---------- Плитки состояния ---------- -->
-      <div class="state-row">
-        <div class="tile">
-          <div class="tile-lbl">Остаток задолженности <span class="lock" title="снапшот батч-калькулятора">на 13.07.2026</span></div>
-          <div class="tile-val">457 777,78 <span style="font-size:15px;color:var(--secondary-text)">USD</span></div>
-          <div class="tile-basis">
-            ≈ <b>41 200 000,00 KGS</b> по курсу НБКР <b>90,0000</b> на 13.07.2026<br>
-            осн. 400 000,00 · проц. 42 777,78 · штрафы 15 000,00
-          </div>
-        </div>
-        <div class="tile">
-          <div class="tile-lbl">Категория риска <span class="lock">по кредиту</span></div>
-          <div class="tile-val cat-mid"><span class="dot d-mid"></span>Средний</div>
-          <div class="tile-basis">
-            по дням просрочки (210) → <b class="cat-high">высокий</b>, <b>подавлен оверлеем</b><br>
-            факторов риска нет · честная категория: средний
-          </div>
-        </div>
-        <div class="tile">
-          <div class="tile-lbl">Группа платёжеспособности <span class="lock">🔒 выводится</span></div>
-          <div class="tile-val"><span class="grp-badge"><span class="grp-code">2.2</span></span></div>
-          <div class="tile-basis">
-            исполнительные листы · подтверждена фаза<br>
-            процедура <b>№68410</b> (вкладка «Взыскание»)
-          </div>
-        </div>
-        <div class="tile">
-          <div class="tile-lbl">Оверлей <span class="lock">слой</span></div>
-          <div class="ov-item">
-            <div class="ov-h">⏸ Подавление 181-го дня</div>
-            <div class="ov-m">
-              источник — <b>реструктуризация Р1</b> (на рассмотрении с 12.06.2026)<br>
-              дедлайн <b>21.08.2026</b> · осталось 40 из 70 кал. дней
-            </div>
-          </div>
-          <div class="muted" style="font-size:12px">По отказу/истечении → ночной пересчёт → высокий.</div>
-        </div>
-      </div>
+      <div class="state-row" id="dTiles"></div>
 
       <!-- ---------- Вкладки ---------- -->
       <div class="tabs" id="tabs">
@@ -599,762 +493,22 @@
         <div class="tab" data-tab="extra">Дополнительно</div>
       </div>
 
-      <!-- ==================== Общая информация ==================== -->
-      <div class="tabpanel active" data-panel="general">
-
-        <div class="section">
-          <div class="section-head">Параметры кредита
-          </div>
-          <div class="fields">
-            <div class="f"><span class="fk">Тип</span>
-              <span class="fv"><span class="badge b-type">кредит</span></span></div>
-            <div class="f"><span class="fk">Вид кредита</span><span class="fv">Иностранный кредит</span></div>
-
-            <div class="f"><span class="fk">Сумма по договору</span>
-              <span class="fv">500 000,00 <b>USD</b> <span class="muted">≈ 45 000 000,00 KGS</span></span></div>
-            <div class="f"><span class="fk">Валюта</span>
-              <span class="fv">USD <span class="muted">курс НБКР 90,0000 на 13.07.2026</span></span></div>
-
-            <div class="f"><span class="fk">Дата договора</span><span class="fv">05.02.2024</span></div>
-            <div class="f"><span class="fk">Срок возврата</span><span class="fv">05.02.2029 <span class="muted">(60 мес.)</span></span></div>
-
-            <div class="f"><span class="fk">Основание выдачи кредита</span>
-              <span class="fv"><a class="lnk" href="#">Решение ПКР №312 от 20.12.2023</a></span></div>
-            <div class="f"><span class="fk">Дата полного погашения</span><span class="fv" style="font-weight:400;color:var(--secondary-text)">— (не погашен)</span></div>
-
-            <div class="f"><span class="fk">Статус заявки</span>
-              <span class="fv"><span class="badge b-gray">Одобрено</span></span></div>
-            <div class="f"><span class="fk">Статус кредита</span>
-              <span class="fv"><span class="badge b-err">Просрочен</span></span>
-              <span class="chg">изменить</span></div>
-
-            <div class="f"><span class="fk">Группа платёжеспособности</span>
-              <span class="fv"><span class="grp-badge"><span class="grp-code">2.2</span> Исполнит. листы</span></span>
-              <span class="chg" title="выводится классификатором, вручную не задаётся">🔒 выводится</span></div>
-            <div class="f"><span class="fk">Кредитная линия</span><span class="fv">Кредит АБР</span><span class="chg">изменить</span></div>
-
-            <div class="f"><span class="fk">Основной кредит</span><span class="fv">Да</span><span class="chg">изменить</span></div>
-            <div class="f"><span class="fk">Куратор (ведущий)</span><span class="fv">Токтосунов Б. М.
-              <span class="muted">Региональное представительство · с 05.02.2024</span></span></div>
-
-            <div class="f span2"><span class="fk">Аудит</span>
-              <span class="fv" style="font-weight:400">Внесён: <b>Токтосунов Б. М.</b> · 05.02.2024 &nbsp;·&nbsp;
-              Изменён: <b>Осмонова Г. Т.</b> · 12.06.2026</span></div>
-          </div>
-        </div>
-
-        <div class="section">
-          <div class="section-head">Счёт погашения
-            <span class="ha"><button class="btn btn-secondary btn-sm">Обновить лицевые счета</button></span>
-          </div>
-          <div class="fields">
-            <div class="f"><span class="fk">Счёт погашения</span>
-              <span class="fv">Бюджетных ссуд и иностранных кредитов <span class="muted">4400011001000240</span></span>
-              <span class="chg">изменить</span></div>
-            <div class="f"><span class="fk">Вид счёта погашения</span><span class="fv">Республиканский бюджет</span><span class="chg">изменить</span></div>
-            <div class="f"><span class="fk">ПИН / ИНН</span><span class="fv">01204199910016</span></div>
-            <div class="f"><span class="fk">Информация по счёту</span><span class="fv" style="font-weight:400;color:var(--secondary-text)">обновлена 13.07.2026 03:15</span></div>
-          </div>
-        </div>
-
-      </div><!-- /Общая -->
-
-      <!-- ==================== Оформление ==================== -->
-      <div class="tabpanel" data-panel="registration">
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Оформление
-          </div>
-          <div class="fields">
-            <div class="f"><span class="fk">Номер регистрации</span><span class="fv">56</span></div>
-            <div class="f"><span class="fk">Дата регистрации</span><span class="fv">05.02.2024</span></div>
-            <div class="f span2"><span class="fk">Скан договора</span>
-              <span class="fv"><a class="lnk" href="#">dogovor_gaz_2024_07.pdf</a>
-                <span class="muted">загрузил Токтосунов Б. М. · 06.02.2024</span></span></div>
-            <div class="f span2"><span class="fk">Комментарии</span>
-              <span class="fv" style="font-weight:400">Договор подписан в редакции протокола разногласий от 03.02.2024.</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ==================== Заёмщик ==================== -->
-      <div class="tabpanel" data-panel="borrower">
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Заёмщик
-            <span class="ha"><button class="btn btn-secondary btn-sm">Открыть карточку заёмщика</button></span>
-          </div>
-          <div class="fields">
-            <div class="f"><span class="fk">Основной заёмщик</span>
-              <span class="fv"><a class="lnk" href="#">ОАО «АгроТехСервис»</a></span></div>
-            <div class="f"><span class="fk">ПИН / ИНН</span><span class="fv">01204199910016</span></div>
-            <div class="f"><span class="fk">Субъект</span>
-              <span class="fv"><a class="lnk" href="#">организация #6041</a> <span class="muted">заёмщик — роль над субъектом</span></span></div>
-            <div class="f"><span class="fk">Отрасль / Район</span><span class="fv">Машиностроение · Сокулукский</span></div>
-            <div class="f span2"><span class="fk">Прочие кредиты заёмщика</span>
-              <span class="fv" style="font-weight:400">АПК-2023-014 (просрочка 45 дн.) · Модернизация-2022-102 (кат. высокий, нецелевое) —
-              категория заёмщика = <b class="cat-high">worst-of</b> по кредитам</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ==================== Условия кредита ==================== -->
-      <div class="tabpanel" data-panel="terms">
-
-        <div class="section">
-          <div class="section-head">Версии условий
-            <span class="hint">действует последняя версия с датой вступления ≤ дате расчёта</span>
-            <span class="ha"><button class="btn btn-secondary btn-sm">+ Новая версия условий</button></span>
-          </div>
-          <div class="section-body scroll-x">
-            <table class="grid">
-              <thead>
-                <tr>
-                  <th>#</th><th>Начало действия</th><th class="num">Проц. ставка</th>
-                  <th class="num">Штраф по осн.с.</th><th class="num">Штраф по проц.</th>
-                  <th>Метод дней (мес./год)</th><th>Плавающая ставка</th><th>Статус</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>2</td><td>01.01.2026</td><td class="num">Euribor-6m + 2,50</td>
-                  <td class="num">0,10 %</td><td class="num">0,05 %</td>
-                  <td class="muted">календарный 365 / 365</td>
-                  <td><span class="badge b-type">Euribor-6m</span> <span class="muted">маржа 2,50</span></td>
-                  <td><span class="badge b-ok">Действует</span></td>
-                </tr>
-                <tr>
-                  <td>1</td><td>05.02.2024</td><td class="num">4,00 %</td>
-                  <td class="num">0,10 %</td><td class="num">0,05 %</td>
-                  <td class="muted">финансовый / финансовый</td>
-                  <td class="muted">—</td>
-                  <td><span class="badge b-gray">Завершена 31.12.2025</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Версия №2 — параметры начисления
-            <span class="hint">форма редактирует выбранную версию, а не «текущее состояние кредита»</span>
-          </div>
-          <div class="subtabs">
-            <span class="subtab active" data-sub="terms" data-idx="0">Общие условия</span>
-            <span class="subtab" data-sub="terms" data-idx="1">Условия траншей</span>
-          </div>
-          <div class="subpanel active" data-subpanel="terms-0">
-            <div class="fields">
-              <div class="f"><span class="fk">Начало действия</span><span class="fv">01.01.2026</span></div>
-              <div class="f"><span class="fk">Процентная ставка</span><span class="fv">Euribor-6m + маржа 2,50</span></div>
-              <div class="f"><span class="fk">Вид плавающей ставки</span>
-                <span class="fv">Euribor-6m <span class="muted">ряд: 33 061 запись, ежедн.</span></span></div>
-              <div class="f"><span class="fk">Период начисления</span><span class="fv">Аннуитет</span></div>
-              <div class="f"><span class="fk">Метод погашения</span><span class="fv">Аннуитетный</span></div>
-              <div class="f"><span class="fk">Периодичность платежа</span><span class="fv">Ежеквартально</span></div>
-              <div class="f"><span class="fk">Штраф за просрочку по осн. с.</span><span class="fv">0,10 % <span class="muted">фиксированная</span></span></div>
-              <div class="f"><span class="fk">Штраф за просрочку по процентам</span><span class="fv">0,05 % <span class="muted">фиксированная</span></span></div>
-              <div class="f"><span class="fk">Предельный лимит штрафов</span><span class="fv">10,00 %</span></div>
-              <div class="f"><span class="fk">Дата предельного начисления</span><span class="fv" style="font-weight:400;color:var(--secondary-text)">—</span></div>
-              <div class="f"><span class="fk">Очередь погашения</span>
-                <span class="fv">Осн. сумма → проценты → штрафы</span></div>
-              <div class="f"><span class="fk">Метод расчёта дней</span>
-                <span class="fv">календарный 365 / 365 <span class="muted">(старый вариант — «финансовый»)</span></span></div>
-              <div class="f"><span class="fk">Процент за резерв</span><span class="fv">0,00 %</span></div>
-            </div>
-          </div>
-          <div class="subpanel" data-subpanel="terms-1">
-            <div class="section-body scroll-x">
-              <table class="grid">
-                <thead>
-                  <tr><th>Статус</th><th>Начало действия</th><th class="num">Срок</th><th class="num">Ставка</th>
-                    <th>Плавающая</th><th class="num">Маржа</th><th>Валюта</th><th>Периодичность</th><th>Метод погашения</th></tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td><span class="badge b-ok">Действует</span></td><td>31.03.2026</td><td class="num">24</td>
-                    <td class="num">Euribor-6m</td><td>да</td><td class="num">2,50</td><td>USD</td>
-                    <td>Ежеквартально</td><td>Аннуитетный</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div><!-- /Условия -->
-
-      <!-- ==================== График ==================== -->
-      <div class="tabpanel" data-panel="schedule">
-
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">График погашения
-            <span class="hint">версия условий №2 · валюта USD · ежеквартально</span>
-            <span class="ha">
-              <button class="btn btn-secondary btn-sm">Построить график</button>
-              <button class="btn btn-secondary btn-sm">✎ Править позицию</button>
-              <button class="btn btn-secondary btn-sm">🖨 PDF</button>
-              <button class="btn btn-secondary btn-sm">🖨 Excel</button>
-            </span>
-          </div>
-          <div class="section-body scroll-x">
-            <table class="grid">
-              <thead>
-                <tr>
-                  <th>№</th><th>Дата</th>
-                  <th class="num">Освоение</th>
-                  <th class="num">Осн. сумма</th><th class="num">Проценты</th>
-                  <th class="num">Нак. проценты</th>
-                  <th class="num">Нак. штраф</th>
-                  <th>Статус</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>1</td><td>05.05.2024</td><td class="num">300 000,00</td><td class="num">0,00</td><td class="num">3 000,00</td><td class="num">0,00</td><td class="num">0,00</td><td><span class="badge b-ok">Оплачена</span></td></tr>
-                <tr><td>2</td><td>05.08.2024</td><td class="num">200 000,00</td><td class="num">20 000,00</td><td class="num">4 500,00</td><td class="num">0,00</td><td class="num">0,00</td><td><span class="badge b-ok">Оплачена</span></td></tr>
-                <tr><td>3</td><td>05.11.2024</td><td class="num">0,00</td><td class="num">25 000,00</td><td class="num">5 000,00</td><td class="num">0,00</td><td class="num">0,00</td><td><span class="badge b-ok">Оплачена</span></td></tr>
-                <tr><td>4</td><td>05.02.2025</td><td class="num">0,00</td><td class="num">25 000,00</td><td class="num">4 800,00</td><td class="num">0,00</td><td class="num">0,00</td><td><span class="badge b-ok">Оплачена</span></td></tr>
-                <tr><td>5</td><td>05.05.2025</td><td class="num">0,00</td><td class="num">30 000,00</td><td class="num">4 600,00</td><td class="num">4 600,00</td><td class="num">2 100,00</td><td><span class="badge b-err">Просрочена</span></td></tr>
-                <tr><td>6</td><td>05.08.2025</td><td class="num">0,00</td><td class="num">30 000,00</td><td class="num">4 400,00</td><td class="num">9 000,00</td><td class="num">5 400,00</td><td><span class="badge b-err">Просрочена</span></td></tr>
-                <tr><td>7</td><td>05.11.2025</td><td class="num">0,00</td><td class="num">30 000,00</td><td class="num">4 200,00</td><td class="num">13 200,00</td><td class="num">9 800,00</td><td><span class="badge b-err">Просрочена</span></td></tr>
-                <tr><td>8</td><td>05.02.2026</td><td class="num">0,00</td><td class="num">30 000,00</td><td class="num">4 000,00</td><td class="num">17 200,00</td><td class="num">15 000,00</td><td><span class="badge b-err">Просрочена</span></td></tr>
-                <tr><td>9</td><td>05.05.2026</td><td class="num">0,00</td><td class="num">30 000,00</td><td class="num">3 800,00</td><td class="num">21 000,00</td><td class="num">15 000,00</td><td><span class="badge b-proc">Действует</span></td></tr>
-                <tr class="muted"><td colspan="8" style="text-align:center">… ещё 11 позиций до 05.02.2029 …</td></tr>
-                <tr class="total">
-                  <td colspan="2">Итого</td>
-                  <td class="num">500 000,00</td><td class="num">500 000,00</td><td class="num">73 500,00</td>
-                  <td class="num">42 777,78</td><td class="num">15 000,00</td><td></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div><!-- /График -->
-
-      <!-- ==================== Транши ==================== -->
-      <div class="tabpanel" data-panel="tranches">
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Транши
-            <span class="hint">освоение кредитной линии частями; у транша — свои условия (см. «Условия кредита» → «Условия траншей»)</span>
-            <span class="ha"><button class="btn btn-secondary btn-sm">+ Транш</button></span>
-          </div>
-          <div class="section-body scroll-x">
-            <table class="grid">
-              <thead>
-                <tr><th>#</th><th>Дата транша</th><th class="num">Сумма</th><th>Валюта</th>
-                  <th class="num">Курс на дату</th><th class="num">Эквивалент KGS</th><th>Статус</th></tr>
-              </thead>
-              <tbody>
-                <tr><td>1</td><td>05.05.2024</td><td class="num">300 000,00</td><td>USD</td><td class="num">87,4500</td><td class="num">26 235 000,00</td><td><span class="badge b-ok">Освоен</span></td></tr>
-                <tr><td>2</td><td>05.08.2024</td><td class="num">200 000,00</td><td>USD</td><td class="num">88,1000</td><td class="num">17 620 000,00</td><td><span class="badge b-ok">Освоен</span></td></tr>
-                <tr class="total"><td colspan="2">Итого</td><td class="num">500 000,00</td><td>USD</td><td class="num">—</td><td class="num">43 855 000,00</td><td></td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- ==================== Субкредиты ==================== -->
-      <div class="tabpanel" data-panel="subloans">
-
-        <div class="section">
-          <div class="section-head">Реструктуризация Газификация-2024-07/Р1
-            <span class="hint">подана 12.06.2026 · на рассмотрении · срок +24 мес.</span>
-            <span class="ha"><button class="btn btn-secondary btn-sm">Открыть карточку Р1</button></span>
-          </div>
-          <div class="fields">
-            <div class="f"><span class="fk">Статус</span><span class="fv"><span class="badge b-gray">Оформление · на рассмотрении</span></span></div>
-            <div class="f"><span class="fk">Дедлайн рассмотрения</span><span class="fv">21.08.2026 <span class="muted">70 кал. дней (п. 18)</span></span></div>
-            <div class="f"><span class="fk">Сумма реструктуризации</span><span class="fv">457 777,78 USD</span></div>
-            <div class="f"><span class="fk">Влияние на категорию</span>
-              <span class="fv"><span class="badge b-ov">⏸ оверлей подавления</span> <span class="muted">до утверждения категория не растёт</span></span></div>
-          </div>
-        </div>
-
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Субкредиты
-            <span class="hint">исходные кредиты, обёрнутые реструктуризацией</span>
-          </div>
-          <div class="section-body scroll-x">
-            <table class="grid">
-              <thead>
-                <tr><th>Рег. номер</th><th>Дата регистрации</th><th class="num">Сумма по договору</th>
-                  <th>Валюта</th><th>Вид</th><th>Статус</th></tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td class="who"><a class="lnk" href="#">Газификация-2024-07</a></td>
-                  <td>05.02.2024</td><td class="num">500 000,00</td><td>USD</td>
-                  <td>Иностранный кредит</td><td><span class="badge b-err">Просрочен</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div><!-- /Субкредиты -->
-
-      <!-- ==================== Расчёты ==================== -->
-      <div class="tabpanel" data-panel="calc">
-        <div class="toolbar">
-          <span class="fl muted">Расчёт на дату</span>
-          <input type="text" value="13.07.2026" style="width:120px">
-          <button class="btn btn-primary btn-sm">Расчёт</button>
-          <button class="btn btn-secondary btn-sm">Обновить данные</button>
-          <span class="sep"></span>
-          <button class="btn btn-secondary btn-sm">Акт сверки</button>
-          <button class="btn btn-secondary btn-sm">Претензия</button>
-          <button class="btn btn-secondary btn-sm">Реестр погашений</button>
-          <button class="btn btn-secondary btn-sm">Уведомление</button>
-        </div>
-
-        <div class="section">
-          <div class="section-head">Свод на 13.07.2026
-            <span class="hint">последний пересчёт 13.07.2026 03:15 (ночной батч) · валюта USD</span>
-          </div>
-          <div class="sumrow">
-            <div class="sumcell"><div class="sk">Всего освоено</div><div class="sv">500 000,00</div><div class="se">≈ 45 000 000 KGS</div></div>
-            <div class="sumcell"><div class="sk">Всего погашено</div><div class="sv">42 222,22</div><div class="se">≈ 3 800 000 KGS</div></div>
-            <div class="sumcell"><div class="sk">Остаток всего</div><div class="sv">457 777,78</div><div class="se">≈ 41 200 000 KGS</div></div>
-            <div class="sumcell"><div class="sk">в т.ч. штрафы</div><div class="sv">15 000,00</div><div class="se">лимит 10 % достигнут</div></div>
-            <div class="sumcell"><div class="sk">Всего просрочено</div><div class="sv cat-high">120 000,00</div><div class="se">210 дн.</div></div>
-          </div>
-        </div>
-
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Журнал расчётов
-            <span class="hint">снапшот на дату — клик по строке открывает состояние долга на ту дату</span>
-          </div>
-          <div class="section-body scroll-x">
-            <table class="grid">
-              <thead>
-                <tr>
-                  <th>№</th><th>На дату</th><th class="num">Всего освоено</th><th class="num">Всего погашено</th>
-                  <th class="num">Остаток всего</th><th class="num">Ост. осн.</th><th class="num">Ост. проц.</th>
-                  <th class="num">Ост. штраф.</th><th class="num">Всего просрочено</th><th>Курс</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr class="clk">
-                  <td>4</td><td class="who">13.07.2026</td><td class="num">500 000,00</td><td class="num">42 222,22</td>
-                  <td class="num">457 777,78</td><td class="num">400 000,00</td><td class="num">42 777,78</td>
-                  <td class="num">15 000,00</td><td class="num">120 000,00</td><td>90,0000</td>
-                  <td><span class="muted">🖨</span></td>
-                </tr>
-                <tr class="clk">
-                  <td>3</td><td>02.03.2026</td><td class="num">500 000,00</td><td class="num">42 222,22</td>
-                  <td class="num">450 977,78</td><td class="num">400 000,00</td><td class="num">37 977,78</td>
-                  <td class="num">13 000,00</td><td class="num">90 000,00</td><td>89,2000</td>
-                  <td><span class="muted">🖨</span></td>
-                </tr>
-                <tr class="clk">
-                  <td>2</td><td>05.11.2025</td><td class="num">500 000,00</td><td class="num">42 222,22</td>
-                  <td class="num">438 177,78</td><td class="num">430 000,00</td><td class="num">13 200,00</td>
-                  <td class="num">9 800,00</td><td class="num">60 000,00</td><td>88,5000</td>
-                  <td><span class="muted">🖨</span></td>
-                </tr>
-                <tr class="clk">
-                  <td>1</td><td>05.05.2025</td><td class="num">500 000,00</td><td class="num">42 222,22</td>
-                  <td class="num">424 477,78</td><td class="num">460 000,00</td><td class="num">4 600,00</td>
-                  <td class="num">2 100,00</td><td class="num">30 000,00</td><td>87,4500</td>
-                  <td><span class="muted">🖨</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div><!-- /Расчёты -->
-
-      <!-- ==================== Детальный расчёт ==================== -->
-      <div class="tabpanel" data-panel="detcalc">
-        <div class="toolbar">
-          <span class="fl muted">Транш</span>
-          <select style="min-width:200px"><option>Все транши</option><option>Транш №1 — 300 000,00</option><option>Транш №2 — 200 000,00</option></select>
-          <span class="fl muted">Дата расчёта</span>
-          <input type="text" value="13.07.2026" style="width:120px">
-          <button class="btn btn-primary btn-sm">Рассчитать</button>
-          <button class="btn btn-secondary btn-sm">Расчёт на весь график</button>
-          <button class="btn btn-secondary btn-sm">Начислить ОД и проценты</button>
-          <button class="btn btn-secondary btn-sm">Начислить пеню</button>
-        </div>
-
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Детальный расчёт</div>
-          <div class="section-body scroll-x">
-            <table class="grid">
-              <thead>
-                <tr>
-                  <th>№</th><th>Дата события</th><th class="num">Получено средств</th><th class="num">Ост. по осн. сумме</th>
-                  <th class="num">Погашение осн. факт</th><th class="num">Погашение осн. по графику</th><th class="num">Просрочено по осн.</th>
-                  <th class="num">Кол-во дней</th><th class="num">Начислено процентов</th><th class="num">Погашено процентов</th>
-                  <th class="num">Просрочено по проц.</th><th class="num">Начислено штрафов</th><th class="num">Остаток по штрафам</th>
-                  <th class="num">Всего погашено</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>1</td><td>05.05.2024</td><td class="num">300 000,00</td><td class="num">300 000,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td></tr>
-                <tr><td>2</td><td>05.08.2024</td><td class="num">200 000,00</td><td class="num">480 000,00</td><td class="num">20 000,00</td><td class="num">20 000,00</td><td class="num">0,00</td><td class="num">92</td><td class="num">4 500,00</td><td class="num">4 500,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">24 500,00</td></tr>
-                <tr><td>3</td><td>05.05.2025</td><td class="num">0,00</td><td class="num">430 000,00</td><td class="num">0,00</td><td class="num">30 000,00</td><td class="num">30 000,00</td><td class="num">273</td><td class="num">4 600,00</td><td class="num">0,00</td><td class="num">4 600,00</td><td class="num">2 100,00</td><td class="num">2 100,00</td><td class="num">42 222,22</td></tr>
-                <tr><td>4</td><td>13.07.2026</td><td class="num">0,00</td><td class="num">400 000,00</td><td class="num">0,00</td><td class="num">120 000,00</td><td class="num">120 000,00</td><td class="num">210</td><td class="num">42 777,78</td><td class="num">0,00</td><td class="num">42 777,78</td><td class="num">15 000,00</td><td class="num">15 000,00</td><td class="num">42 222,22</td></tr>
-                <tr class="total"><td colspan="2">Итого</td><td class="num">500 000,00</td><td class="num">400 000,00</td><td class="num">0,00</td><td class="num">170 000,00</td><td class="num">120 000,00</td><td class="num">—</td><td class="num">42 777,78</td><td class="num">4 500,00</td><td class="num">42 777,78</td><td class="num">15 000,00</td><td class="num">15 000,00</td><td class="num">42 222,22</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- ==================== Платежи ==================== -->
-      <div class="tabpanel" data-panel="payments">
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Платежи
-            <span class="ha">
-              <button class="btn btn-secondary btn-sm">+ Платёж</button>
-              <button class="btn btn-secondary btn-sm">🖨 Реестр погашений</button>
-            </span>
-          </div>
-          <div class="section-body scroll-x">
-            <table class="grid">
-              <thead>
-                <tr>
-                  <th>№</th><th>Дата</th><th>Номер документа</th><th>Транш</th>
-                  <th class="num">Итого</th><th class="num">Осн. сумма</th><th class="num">Проценты</th>
-                  <th class="num">Штрафы / пеня</th><th class="num">Комиссия</th>
-                  <th>Вид платежа</th>
-                  <th>Статус</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>3</td><td>05.11.2024</td><td>№235100177</td><td>—</td><td class="num">17 722,22</td><td class="num">15 000,00</td><td class="num">2 722,22</td><td class="num">0,00</td><td class="num">0,00</td><td>денежными средствами</td><td><span class="badge b-ok">Действует</span></td></tr>
-                <tr><td>2</td><td>05.08.2024</td><td>1057</td><td>Транш №2</td><td class="num">14 500,00</td><td class="num">10 000,00</td><td class="num">4 500,00</td><td class="num">0,00</td><td class="num">0,00</td><td>денежными средствами</td><td><span class="badge b-ok">Действует</span></td></tr>
-                <tr><td>1</td><td>05.05.2024</td><td>б/н</td><td>Транш №1</td><td class="num">10 000,00</td><td class="num">10 000,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td><td>принятие имущества</td><td><span class="badge b-gray">Аннулирован</span></td></tr>
-                <tr class="total"><td colspan="4">Итого</td><td class="num">42 222,22</td><td class="num">35 000,00</td><td class="num">7 222,22</td><td class="num">0,00</td><td class="num">0,00</td><td></td><td></td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- ==================== Резерв ==================== -->
-      <div class="tabpanel" data-panel="reserve">
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Резерв</div>
-          <div class="section-body scroll-x">
-            <table class="grid">
-              <thead><tr><th>№</th><th>Дата</th><th class="num">Сумма кредита</th><th class="num">Освоено</th>
-                <th class="num">Резерв</th><th class="num">Процент</th><th class="num">Начислено</th></tr></thead>
-              <tbody>
-                <tr><td>1</td><td>05.05.2024</td><td class="num">500 000,00</td><td class="num">300 000,00</td><td class="num">200 000,00</td><td class="num">0,00</td><td class="num">0,00</td></tr>
-                <tr><td>2</td><td>05.08.2024</td><td class="num">500 000,00</td><td class="num">500 000,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- ==================== Код оплаты ==================== -->
-      <div class="tabpanel" data-panel="paycode">
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Код оплаты</div>
-          <div class="section-body">
-            <table class="grid">
-              <thead><tr><th style="width:34%">Назначение</th><th style="width:33%">Код оплаты</th><th>Заёмщик</th></tr></thead>
-              <tbody>
-                <tr><td>Погашение основной суммы</td><td class="who">4400011001000240</td><td>ОАО «АгроТехСервис»</td></tr>
-                <tr><td>Погашение процентов</td><td class="who">4400011001000241</td><td>ОАО «АгроТехСервис»</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- ==================== Обеспечение ==================== -->
-      <div class="tabpanel" data-panel="security">
-
-        <div class="section">
-          <div class="section-head">Свод обеспечения
-          </div>
-          <div class="section-body" style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
-            <div style="border:1px solid var(--green-card-border);background:var(--green-card-bg);border-radius:6px;padding:12px 14px">
-              <div style="font-weight:700;font-size:14px;color:var(--success)">Действующие · 2 ед.</div>
-              <div class="muted" style="margin-top:6px;line-height:1.6">
-                Оценочная стоимость: <b style="color:var(--body-text)">18 500 000</b> KGS<br>
-                Залоговая стоимость: <b style="color:var(--body-text)">12 950 000</b> KGS<br>
-                Покрытие долга (41 200 000 KGS): <b class="cat-high">31 %</b>
-              </div>
-            </div>
-            <div style="border:1px solid var(--border);background:#fbfcfd;border-radius:6px;padding:12px 14px">
-              <div style="font-weight:700;font-size:14px;color:var(--secondary-text)">Снятые · 1 ед.</div>
-              <div class="muted" style="margin-top:6px;line-height:1.6">
-                Оценочная стоимость: <b style="color:var(--body-text)">4 000 000</b> KGS<br>
-                Причина: замена предмета залога (10.03.2026)
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="section">
-          <div class="section-head">Обеспечительные договоры
-            <span class="hint">залог + поручительство одной таблицей; M:N с кредитами</span>
-            <span class="ha">
-              <button class="btn btn-secondary btn-sm">+ Договор залога</button>
-              <button class="btn btn-secondary btn-sm">+ Договор поручительства</button>
-              <button class="btn btn-secondary btn-sm">🔗 Выбрать существующий</button>
-            </span>
-          </div>
-          <div class="section-body scroll-x">
-            <table class="grid">
-              <thead>
-                <tr>
-                  <th>№ договора</th><th>Вид</th><th>Залогодатель / поручитель</th>
-                  <th>Нотариус</th><th>Кредиты (M:N)</th>
-                  <th class="num">Оценочная</th><th class="num">Залоговая</th><th>Статус</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td class="who">ЗД-2024-119</td><td>Залог · оборудование</td>
-                  <td><a class="lnk" href="#">ОАО «АгроТехСервис»</a> <span class="muted">субъект #6041</span></td>
-                  <td class="muted">Абдыкадырова А. Т.</td>
-                  <td class="muted">Газификация-2024-07 · Модернизация-2022-102</td>
-                  <td class="num">15 500 000</td><td class="num">10 850 000</td>
-                  <td><span class="badge b-ok">действующий</span></td>
-                </tr>
-                <tr>
-                  <td class="who">ПД-2024-030</td><td>Поручительство</td>
-                  <td><a class="lnk" href="#">Сыдыков Ж. А.</a> <span class="muted">физлицо #63540</span></td>
-                  <td class="muted">Абдыкадырова А. Т.</td>
-                  <td class="muted">Газификация-2024-07</td>
-                  <td class="num">3 000 000</td><td class="num">2 100 000</td>
-                  <td><span class="badge b-ok">действующий</span></td>
-                </tr>
-                <tr>
-                  <td class="who">ЗД-2022-044</td><td>Залог · транспорт</td>
-                  <td><a class="lnk" href="#">ОАО «АгроТехСервис»</a></td>
-                  <td class="muted">Абдыкадырова А. Т.</td>
-                  <td class="muted">Газификация-2024-07</td>
-                  <td class="num">4 000 000</td><td class="num muted">—</td>
-                  <td><span class="badge b-gray">снят · 10.03.2026</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Обследования предметов залога
-            <span class="ha">
-              <button class="btn btn-secondary btn-sm">+ Обследование</button>
-              <button class="btn btn-secondary btn-sm">🖨 Акт обследования</button>
-            </span>
-          </div>
-          <div class="section-body">
-            <table class="grid">
-              <thead><tr><th style="width:14%">Дата</th><th style="width:22%">Договор / предмет</th>
-                <th style="width:22%">Куратор</th><th style="width:20%">Результат</th><th>Вложение</th></tr></thead>
-              <tbody>
-                <tr>
-                  <td>14.02.2026</td><td>ЗД-2024-119 · линия розлива</td><td>Токтосунов Б. М.</td>
-                  <td><span class="badge b-ok">В наличии, состояние удовл.</span></td>
-                  <td><a class="lnk" href="#">akt_obsled_119.pdf</a></td>
-                </tr>
-                <tr>
-                  <td>10.03.2026</td><td>ЗД-2022-044 · автопогрузчик</td><td>Токтосунов Б. М.</td>
-                  <td><span class="badge b-err">Утрачен</span></td>
-                  <td><a class="lnk" href="#">izveshenie_044.pdf</a> <span class="muted">извещение об утрате</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div><!-- /Обеспечение -->
-
-      <!-- ==================== Взыскание ==================== -->
-      <div class="tabpanel" data-panel="enforce">
-
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Процедуры и фазы по кредиту
-            <span class="ha"><button class="btn btn-secondary btn-sm">Открыть в модуле взыскания</button></span>
-          </div>
-          <div class="section-body">
-            <div class="proc">
-              <div class="proc-h">
-                <span class="lvl">процедура</span>
-                <span class="p-name">Процедура №68410 — исполнительное производство</span>
-                <span class="muted">открыта 02.03.2026 · 41 200 000 KGS</span>
-                <span class="badge b-proc">в работе</span>
-              </div>
-              <div class="phase">
-                <div class="phase-h">
-                  <span class="lvl">фаза</span><b>Претензия</b>
-                  <span class="muted">02.03.2026 · 40 500 000 KGS</span>
-                  <span class="badge b-ok">завершена · 16.03.2026</span>
-                </div>
-                <div class="ev">событие · 12.03.2026 — ответ должника: заявлена реструктуризация</div>
-              </div>
-              <div class="phase">
-                <div class="phase-h">
-                  <span class="lvl">фаза</span><b>Решение суда</b>
-                  <span class="muted">02.03.2026 · 41 200 000 KGS</span>
-                  <span class="badge b-ok">завершена · 20.03.2026</span>
-                </div>
-                <div class="ev">событие · 18.03.2026 — решение вступило в законную силу</div>
-              </div>
-              <div class="phase">
-                <div class="phase-h">
-                  <span class="lvl">фаза</span><b>Исполнительный лист</b>
-                  <span class="muted">25.03.2026 · 41 200 000 KGS</span>
-                  <span class="badge b-proc">на исполнении</span>
-                  <span class="badge b-gray">подтверждена → группа 2.2</span>
-                </div>
-                <div class="ev">событие · 14.04.2026 — лист передан в СЧИ Сокулукского района</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div><!-- /Взыскание -->
-
-      <!-- ==================== Примечания ==================== -->
-      <div class="tabpanel" data-panel="notes">
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Примечания
-            <span class="ha">
-              <select style="min-width:200px">
-                <option>Тип — все</option><option>Обычное</option><option>Примечание куратора</option>
-                <option>Примечание (ОПП)</option><option>Примечание (залог)</option><option>Примечание (ОИП)</option>
-              </select>
-              <button class="btn btn-secondary btn-sm">+ Примечание</button>
-            </span>
-          </div>
-          <div class="section-body">
-            <div class="note">
-              <div class="note-h"><span class="badge b-proc">Примечание куратора</span>
-                <span>Токтосунов Б. М. · 12.06.2026</span></div>
-              <div class="note-b">Заёмщик подал заявление на реструктуризацию (Р1), срок рассмотрения — 70 кал. дней.
-                До решения комитета взыскание по исполнительному листу не форсировать.</div>
-            </div>
-            <div class="note">
-              <div class="note-h"><span class="badge b-gray">Примечание (ОПП)</span>
-                <span>Осмонова Г. Т. · 02.03.2026 · отдел проблемных кредитов</span></div>
-              <div class="note-b">Кредит принят в работу ОПП. Претензия направлена 02.03.2026, ответ получен 12.03.2026.</div>
-            </div>
-            <div class="note">
-              <div class="note-h"><span class="badge b-gray">Примечание (залог)</span>
-                <span>Токтосунов Б. М. · 10.03.2026</span></div>
-              <div class="note-b">Автопогрузчик (ЗД-2022-044) утрачен, направлено извещение. Требуется замена предмета залога:
-                текущее покрытие долга — 31 %.</div>
-            </div>
-            <div class="note">
-              <div class="note-h"><span class="badge b-gray">Примечание (ОИП)</span>
-                <span>—</span></div>
-              <div class="note-b muted">Нет записей. Заполняется отделом исполнительного производства после передачи листа в СЧИ.</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ==================== Дополнительно ==================== -->
-      <div class="tabpanel" data-panel="extra">
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Дополнительно
-          </div>
-          <div class="subtabs">
-            <span class="subtab active" data-sub="ex" data-idx="0">Товар</span>
-            <span class="subtab" data-sub="ex" data-idx="1">Перевод долга</span>
-            <span class="subtab" data-sub="ex" data-idx="2">Списание</span>
-            <span class="subtab" data-sub="ex" data-idx="3">Банкротство и судебные решения</span>
-            <span class="subtab" data-sub="ex" data-idx="4">Начисление</span>
-            <span class="subtab" data-sub="ex" data-idx="5">План</span>
-          </div>
-
-          <div class="subpanel active" data-subpanel="ex-0">
-            <div class="section-body">
-              <table class="grid">
-                <thead><tr><th style="width:8%">#</th><th style="width:30%">Вид товара</th>
-                  <th style="width:14%" class="num">Кол-во</th><th style="width:16%">Ед. измерения</th>
-                  <th class="num">Оценка, KGS</th></tr></thead>
-                <tbody>
-                  <tr><td colspan="5" class="muted" style="text-align:center;padding:18px">
-                    Нет записей — кредит выдан денежными средствами.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="subpanel" data-subpanel="ex-1">
-            <div class="section-body">
-              <table class="grid">
-                <thead><tr><th style="width:14%">Дата</th><th style="width:24%">С заёмщика</th>
-                  <th style="width:24%">На заёмщика</th><th class="num" style="width:16%">Сумма</th>
-                  <th>Основание</th></tr></thead>
-                <tbody>
-                  <tr><td colspan="5" class="muted" style="text-align:center;padding:18px">Нет записей.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="subpanel" data-subpanel="ex-2">
-            <div class="section-body">
-              <table class="grid">
-                <thead><tr><th style="width:14%">Дата</th><th style="width:22%">Вид списания</th>
-                  <th class="num" style="width:16%">Сумма</th><th style="width:24%">Основание</th><th>Кто провёл</th></tr></thead>
-                <tbody>
-                  <tr><td colspan="5" class="muted" style="text-align:center;padding:18px">Нет записей.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="subpanel" data-subpanel="ex-3">
-            <div class="section-body">
-              <table class="grid">
-                <thead><tr><th style="width:14%">Дата</th><th style="width:20%">Вид</th>
-                  <th style="width:26%">Орган / суд</th><th style="width:20%">Результат</th><th>Документ</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td>18.03.2026</td><td>Судебное решение</td><td>Сокулукский районный суд</td>
-                    <td><span class="badge b-ok">Удовлетворено полностью</span></td>
-                    <td><a class="lnk" href="#">reshenie_68410.pdf</a></td>
-                  </tr>
-                  <tr>
-                    <td class="muted">—</td><td>Банкротство</td><td class="muted">—</td>
-                    <td class="muted">процедура не открыта <span class="muted">(по этому кредиту)</span></td>
-                    <td class="muted">—</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="subpanel" data-subpanel="ex-4">
-            <div class="section-body scroll-x">
-              <table class="grid">
-                <thead><tr><th>Дата</th><th>Вид начисления</th><th class="num">Сумма</th><th>Валюта</th>
-                  <th>Основание (версия условий)</th><th>Запустил</th></tr></thead>
-                <tbody>
-                  <tr><td>13.07.2026 03:15</td><td>Пеня</td><td class="num">2 000,00</td><td>USD</td><td class="muted">версия №2 · 0,10 %/дн.</td><td class="muted">ночной батч</td></tr>
-                  <tr><td>13.07.2026 03:15</td><td>Проценты</td><td class="num">4 777,78</td><td>USD</td><td class="muted">версия №2 · Euribor-6m + 2,50</td><td class="muted">ночной батч</td></tr>
-                  <tr><td>05.05.2026 03:15</td><td>Проценты</td><td class="num">3 800,00</td><td>USD</td><td class="muted">версия №2</td><td class="muted">ночной батч</td></tr>
-                  <tr><td>02.03.2026 11:40</td><td>Пеня (ручное)</td><td class="num">1 000,00</td><td>USD</td><td class="muted">решение ОПП</td><td class="muted">Осмонова Г. Т.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="subpanel" data-subpanel="ex-5">
-            <div class="section-body">
-              <table class="grid">
-                <thead><tr><th style="width:16%">Период</th><th class="num" style="width:20%">План погашения</th>
-                  <th class="num" style="width:20%">Факт</th><th class="num" style="width:16%">Отклонение</th>
-                  <th>Комментарий</th></tr></thead>
-                <tbody>
-                  <tr><td>2025 г.</td><td class="num">120 000,00 USD</td><td class="num">0,00</td>
-                    <td class="num cat-high">−120 000,00</td><td class="muted">взыскание, платежи не поступали</td></tr>
-                  <tr><td>2026 г.</td><td class="num">120 000,00 USD</td><td class="num">0,00</td>
-                    <td class="num cat-high">−120 000,00</td><td class="muted">на рассмотрении реструктуризация</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-      </div><!-- /Дополнительно -->
+      <div class="tabpanel active" data-panel="general"></div>
+      <div class="tabpanel" data-panel="registration"></div>
+      <div class="tabpanel" data-panel="borrower"></div>
+      <div class="tabpanel" data-panel="terms"></div>
+      <div class="tabpanel" data-panel="schedule"></div>
+      <div class="tabpanel" data-panel="tranches"></div>
+      <div class="tabpanel" data-panel="subloans"></div>
+      <div class="tabpanel" data-panel="calc"></div>
+      <div class="tabpanel" data-panel="detcalc"></div>
+      <div class="tabpanel" data-panel="payments"></div>
+      <div class="tabpanel" data-panel="reserve"></div>
+      <div class="tabpanel" data-panel="paycode"></div>
+      <div class="tabpanel" data-panel="security"></div>
+      <div class="tabpanel" data-panel="enforce"></div>
+      <div class="tabpanel" data-panel="notes"></div>
+      <div class="tabpanel" data-panel="extra"></div>
 
       </div>
     </div>
@@ -1362,50 +516,1097 @@
 </div>
 
 <script>
+/* ============================================================
+   Демо-данные и движок карточки.
+   Каждый кредит описан короткой спецификацией; график, платежи,
+   расчёты, детальный расчёт и резерв выводятся из неё, поэтому
+   цифры во всех вкладках согласованы между собой.
+   ============================================================ */
+
+const TODAY = '13.07.2026';
+const FX = { KGS: 1, USD: 90.0, EUR: 98.5 };          // курс НБКР на дату расчёта
+const PERIOD_M = { 'Ежемесячно': 1, 'Ежеквартально': 3, 'Полугодие': 6, 'Ежегодно': 12 };
+
+const DISTRICTS = {
+  'Сокулукский': 'Чуйская', 'Аламудунский': 'Чуйская',
+  'Ленинский (г. Бишкек)': 'г. Бишкек', 'Октябрьский (г. Бишкек)': 'г. Бишкек',
+  'Ак-Талинский': 'Нарынская', 'Кара-Суйский': 'Ошская', 'Тонский': 'Иссык-Кульская',
+};
+
+const nf2 = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nf0 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
+const m = n => nf2.format(n || 0);
+const m0 = n => nf0.format(n || 0);
+const pd = s => { const [d, mo, y] = s.split('.').map(Number); return new Date(y, mo - 1, d); };
+const fd = d => String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear();
+const addM = (d, k) => new Date(d.getFullYear(), d.getMonth() + k, Math.min(d.getDate(), 28));
+const dd = (a, b) => Math.round((b - a) / 86400000);
+const T = pd(TODAY);
+
+const BADGE = {
+  'Просрочен': 'b-err', 'Действует': 'b-proc', 'Погашен': 'b-ok',
+  'Оформление': 'b-gray', 'Освоен': 'b-ok', 'Аннулирован': 'b-gray',
+};
+const bdg = s => '<span class="badge ' + (BADGE[s] || 'b-gray') + '">' + s + '</span>';
+const grp = g => g && g !== '—'
+  ? '<span class="grp-badge"><span class="grp-code">' + g + '</span></span>'
+  : '<span class="muted">—</span>';
+const GRP_NAME = {
+  '1.1': 'Погашение по графику', '1.2': 'Просрочка, досудебная работа',
+  '2.1': 'Работа с судом', '2.2': 'Исполнительные листы',
+  '2.3': 'Инициирование банкротства', '5': 'Погашенные',
+};
+const empty = (cols, text) =>
+  '<tr><td colspan="' + cols + '" class="muted" style="text-align:center;padding:18px">' + text + '</td></tr>';
+
+/* ---------------- спецификации кредитов ---------------- */
+const SPECS = [
+  {
+    num: 'Газификация-2024-07', type: 'кредит', kind: 'Иностранный кредит', line: 'Кредит АБР',
+    borrower: 'ОАО «АгроТехСервис»', inn: '01204199910016', subject: 'организация #6041',
+    sector: 'Машиностроение', district: 'Сокулукский', curator: 'Токтосунов Б. М.',
+    currency: 'USD', amount: 500000, rate: 4.0, rateText: 'Euribor-6m + 2,50',
+    floating: 'Euribor-6m', margin: 2.5,
+    contract: '05.02.2024', months: 60, period: 'Ежеквартально', method: 'Аннуитетный',
+    status: 'Просрочен', group: '2.2', paid: 6,
+    basis: 'Решение ПКР №312 от 20.12.2023', regNo: '56', regDate: '05.02.2024',
+    scan: 'dogovor_gaz_2024_07.pdf',
+    comment: 'Договор подписан в редакции протокола разногласий от 03.02.2024.',
+    disb: [{ date: '05.05.2024', amt: 300000, fx: 87.45 }, { date: '05.08.2024', amt: 200000, fx: 88.10 }],
+    overlay: {
+      title: '⏸ Подавление 181-го дня', src: 'реструктуризация Р1 (на рассмотрении с 12.06.2026)',
+      deadline: '21.08.2026', left: 'осталось 40 из 70 кал. дней',
+      tail: 'По отказу/истечении → ночной пересчёт → высокий.',
+    },
+    versions: [
+      { n: 2, from: '01.01.2026', rate: 'Euribor-6m + 2,50', pen: '0,10 %', peni: '0,05 %', days: 'календарный 365 / 365', float: 'Euribor-6m', margin: '2,50', st: 'Действует' },
+      { n: 1, from: '05.02.2024', rate: '4,00 %', pen: '0,10 %', peni: '0,05 %', days: 'финансовый / финансовый', float: '—', margin: '—', st: 'Завершена 31.12.2025' },
+    ],
+    contracts: [
+      { no: 'ЗД-2024-119', kind: 'Залог · оборудование', who: 'ОАО «АгроТехСервис»', whoRef: 'субъект #6041', not: 'Абдыкадырова А. Т.', loans: 'Газификация-2024-07 · Модернизация-2022-102', val: 15500000, pledge: 10850000, st: 'действующий' },
+      { no: 'ПД-2024-030', kind: 'Поручительство', who: 'Сыдыков Ж. А.', whoRef: 'физлицо #63540', not: 'Абдыкадырова А. Т.', loans: 'Газификация-2024-07', val: 3000000, pledge: 2100000, st: 'действующий' },
+      { no: 'ЗД-2022-044', kind: 'Залог · транспорт', who: 'ОАО «АгроТехСервис»', not: 'Абдыкадырова А. Т.', loans: 'Газификация-2024-07', val: 4000000, pledge: 0, st: 'снят · 10.03.2026' },
+    ],
+    inspections: [
+      { date: '14.02.2026', obj: 'ЗД-2024-119 · линия розлива', cur: 'Токтосунов Б. М.', res: 'В наличии, состояние удовл.', ok: true, file: 'akt_obsled_119.pdf' },
+      { date: '10.03.2026', obj: 'ЗД-2022-044 · автопогрузчик', cur: 'Токтосунов Б. М.', res: 'Утрачен', ok: false, file: 'izveshenie_044.pdf', fileNote: 'извещение об утрате' },
+    ],
+    procedures: [{
+      no: '68410', kind: 'исполнительное производство', opened: '02.03.2026', st: 'в работе',
+      phases: [
+        { name: 'Претензия', date: '02.03.2026', st: 'завершена · 16.03.2026', ok: true, ev: 'событие · 12.03.2026 — ответ должника: заявлена реструктуризация' },
+        { name: 'Решение суда', date: '02.03.2026', st: 'завершена · 20.03.2026', ok: true, ev: 'событие · 18.03.2026 — решение вступило в законную силу' },
+        { name: 'Исполнительный лист', date: '25.03.2026', st: 'на исполнении', ok: false, note: 'подтверждена → группа 2.2', ev: 'событие · 14.04.2026 — лист передан в СЧИ Сокулукского района' },
+      ],
+    }],
+    notes: [
+      { t: 'Примечание куратора', hi: true, who: 'Токтосунов Б. М. · 12.06.2026', txt: 'Заёмщик подал заявление на реструктуризацию (Р1), срок рассмотрения — 70 кал. дней. До решения комитета взыскание по исполнительному листу не форсировать.' },
+      { t: 'Примечание (ОПП)', who: 'Осмонова Г. Т. · 02.03.2026 · отдел проблемных кредитов', txt: 'Кредит принят в работу ОПП. Претензия направлена 02.03.2026, ответ получен 12.03.2026.' },
+      { t: 'Примечание (залог)', who: 'Токтосунов Б. М. · 10.03.2026', txt: 'Автопогрузчик (ЗД-2022-044) утрачен, направлено извещение. Требуется замена предмета залога.' },
+    ],
+    court: [{ date: '18.03.2026', kind: 'Судебное решение', org: 'Сокулукский районный суд', res: 'Удовлетворено полностью', ok: true, file: 'reshenie_68410.pdf' }],
+  },
+  {
+    num: 'Газификация-2024-07/Р1', type: 'реструктуризация', parent: 'Газификация-2024-07',
+    kind: 'Реструктуризация', line: 'Кредит АБР',
+    borrower: 'ОАО «АгроТехСервис»', inn: '01204199910016', subject: 'организация #6041',
+    sector: 'Машиностроение', district: 'Сокулукский', curator: 'Токтосунов Б. М.',
+    currency: 'USD', amount: 460000, rate: 4.0,
+    contract: '12.06.2026', months: 84, period: 'Ежеквартально', method: 'Аннуитетный',
+    status: 'Оформление', group: '—', paid: 0, disb: [],
+    basis: 'Заявление заёмщика от 12.06.2026 · на рассмотрении комитета',
+    regNo: '—', regDate: '—',
+    comment: 'Дедлайн рассмотрения 21.08.2026 (70 кал. дней, п. 18). Срок продлевается на 24 мес.',
+    notes: [{ t: 'Примечание куратора', hi: true, who: 'Токтосунов Б. М. · 12.06.2026', txt: 'Пока заявка на рассмотрении, категория риска по основному кредиту подавлена оверлеем.' }],
+  },
+  {
+    num: 'АПК-2023-014', type: 'кредит', kind: 'Бюджетная ссуда', line: 'Фонд развития',
+    borrower: 'ОАО «АгроТехСервис»', inn: '01204199910016', subject: 'организация #6041',
+    sector: 'Машиностроение', district: 'Сокулукский', curator: 'Асанов А. К.',
+    currency: 'KGS', amount: 12000000, rate: 8.0,
+    contract: '05.09.2023', months: 48, period: 'Ежеквартально', method: 'Равными долями',
+    status: 'Просрочен', group: '2.1', paid: 9,
+    basis: 'Решение ПКР №201 от 14.08.2023', regNo: '38', regDate: '05.09.2023',
+    scan: 'dogovor_apk_2023_014.pdf',
+    disb: [{ date: '05.09.2023', amt: 8000000, fx: 1 }, { date: '05.03.2024', amt: 4000000, fx: 1 }],
+    procedures: [{
+      no: '68120', kind: 'претензионно-исковая работа', opened: '28.05.2026', st: 'в работе',
+      phases: [
+        { name: 'Претензия', date: '28.05.2026', st: 'завершена · 11.06.2026', ok: true, ev: 'событие · 09.06.2026 — ответ должника: гарантийное письмо' },
+        { name: 'Исковое заявление', date: '15.06.2026', st: 'в суде', ok: false, note: 'подтверждена → группа 2.1', ev: 'событие · 30.06.2026 — иск принят к производству' },
+      ],
+    }],
+    notes: [{ t: 'Примечание (ОПП)', who: 'Асанов А. К. · 28.05.2026', txt: 'Гарантийное письмо о погашении до 01.09.2026. Иск не отзывать до фактического поступления.' }],
+  },
+  {
+    num: 'АПК-2023-014/Т2', type: 'транш', parent: 'АПК-2023-014', kind: 'Транш кредитной линии',
+    line: 'Фонд развития',
+    borrower: 'ОАО «АгроТехСервис»', inn: '01204199910016', subject: 'организация #6041',
+    sector: 'Машиностроение', district: 'Сокулукский', curator: 'Асанов А. К.',
+    currency: 'KGS', amount: 4000000, rate: 8.0,
+    contract: '05.03.2024', months: 36, period: 'Ежеквартально', method: 'Равными долями',
+    status: 'Освоен', group: '—', paid: 0, disb: [{ date: '05.03.2024', amt: 4000000, fx: 1 }],
+    basis: 'Решение ПКР №201 от 14.08.2023', regNo: '38/2', regDate: '05.03.2024',
+    inTrunk: true,
+  },
+  {
+    num: 'Модернизация-2022-102', type: 'кредит', kind: 'Бюджетная ссуда', line: 'Фонд развития',
+    borrower: 'ОАО «АгроТехСервис»', inn: '01204199910016', subject: 'организация #6041',
+    sector: 'Машиностроение', district: 'Сокулукский', curator: 'Жумабеков Э. Н.',
+    currency: 'KGS', amount: 8000000, rate: 6.0,
+    contract: '15.11.2022', months: 60, period: 'Ежеквартально', method: 'Равными долями',
+    status: 'Просрочен', group: '2.3', paid: 12,
+    riskOverride: 'высокий', riskNote: 'фактор риска: нецелевое использование (акт проверки 04.02.2026)',
+    basis: 'Решение ПКР №145 от 30.09.2022', regNo: '21', regDate: '15.11.2022',
+    procedures: [{
+      no: '68251', kind: 'банкротство', opened: '19.02.2026', st: 'в работе',
+      phases: [{ name: 'Инициирование банкротства', date: '19.02.2026', st: 'подано в суд', ok: false, note: 'подтверждена → группа 2.3', ev: 'событие · 05.03.2026 — заявление принято' }],
+    }],
+    notes: [{ t: 'Примечание куратора', who: 'Жумабеков Э. Н. · 04.02.2026', txt: 'Проверка целевого использования: средства направлены на пополнение оборотных средств вместо закупки оборудования.' }],
+  },
+  {
+    num: 'Стройпрог-2025-031', type: 'кредит', kind: 'Бюджетная ссуда', line: 'Фонд развития',
+    borrower: 'ОсОО «СветаГрад»', inn: '02508201910045', subject: 'организация #6110',
+    sector: 'Строительство', district: 'Аламудунский', curator: 'Осмонова Г. Т.',
+    currency: 'KGS', amount: 3000000, rate: 10.0,
+    contract: '20.01.2025', months: 36, period: 'Ежемесячно', method: 'Аннуитетный',
+    status: 'Действует', group: '1.1', paid: 17,
+    basis: 'Решение ПКР №402 от 25.12.2024', regNo: '71', regDate: '20.01.2025',
+    scan: 'dogovor_stroy_2025_031.pdf',
+    contracts: [{ no: 'ЗД-2025-008', kind: 'Залог · недвижимость', who: 'ОсОО «СветаГрад»', whoRef: 'субъект #6110', not: 'Мамытова Ч. К.', loans: 'Стройпрог-2025-031', val: 5200000, pledge: 3640000, st: 'действующий' }],
+    inspections: [{ date: '20.01.2026', obj: 'ЗД-2025-008 · склад, ул. Ак-Босого 14', cur: 'Осмонова Г. Т.', res: 'В наличии, состояние удовл.', ok: true, file: 'akt_obsled_008.pdf' }],
+  },
+  {
+    num: 'Техника-2019-004', type: 'кредит', kind: 'Бюджетная ссуда', line: 'Фонд развития',
+    borrower: 'ИП Дуйшеев К. Т.', inn: '22903197800112', subject: 'физлицо #58203',
+    sector: 'Торговля', district: 'Ленинский (г. Бишкек)', curator: 'Асанов А. К.',
+    currency: 'KGS', amount: 1200000, rate: 12.0,
+    contract: '12.03.2019', months: 60, period: 'Ежеквартально', method: 'Равными долями',
+    status: 'Погашен', group: '5', paid: 20, closed: '12.03.2024',
+    basis: 'Решение ПКР №77 от 28.01.2019', regNo: '9', regDate: '12.03.2019',
+  },
+  {
+    num: 'Агропром-2025-118', type: 'кредит', kind: 'Бюджетная ссуда', line: 'Фонд развития',
+    borrower: 'ОсОО «Ак-Дан»', inn: '01711202110037', subject: 'организация #6203',
+    sector: 'Пищевая промышленность', district: 'Аламудунский', curator: 'Осмонова Г. Т.',
+    currency: 'KGS', amount: 25000000, rate: 7.0,
+    contract: '03.03.2025', months: 60, period: 'Ежеквартально', method: 'Равными долями',
+    status: 'Действует', group: '1.1', paid: 5,
+    basis: 'Решение ПКР №418 от 06.02.2025', regNo: '83', regDate: '03.03.2025',
+    scan: 'dogovor_agroprom_2025_118.pdf',
+    contracts: [{ no: 'ЗД-2025-042', kind: 'Залог · оборудование', who: 'ОсОО «Ак-Дан»', whoRef: 'субъект #6203', not: 'Мамытова Ч. К.', loans: 'Агропром-2025-118', val: 34000000, pledge: 23800000, st: 'действующий' }],
+  },
+  {
+    num: 'Энергоэффект-2021-077', type: 'кредит', kind: 'Иностранный кредит', line: 'Кредит ЕБРР',
+    borrower: 'ОсОО «ЖылууЖай»', inn: '02902201810099', subject: 'организация #6155',
+    sector: 'Энергетика', district: 'Октябрьский (г. Бишкек)', curator: 'Жумабеков Э. Н.',
+    currency: 'KGS', amount: 15000000, rate: 9.0,
+    contract: '18.06.2021', months: 84, period: 'Ежеквартально', method: 'Равными долями',
+    status: 'Просрочен', group: '2.1', paid: 18,
+    basis: 'Решение ПКР №98 от 12.05.2021', regNo: '17', regDate: '18.06.2021',
+    procedures: [{
+      no: '68302', kind: 'претензионно-исковая работа', opened: '20.04.2026', st: 'в работе',
+      phases: [{ name: 'Претензия', date: '20.04.2026', st: 'завершена · 05.05.2026', ok: true, ev: 'событие · 30.04.2026 — ответ не получен' },
+      { name: 'Исковое заявление', date: '12.05.2026', st: 'в суде', ok: false, note: 'подтверждена → группа 2.1', ev: 'событие · 02.06.2026 — назначено заседание на 28.07.2026' }],
+    }],
+  },
+  {
+    num: 'Ирригация-2024-055', type: 'кредит', kind: 'Иностранный кредит', line: 'Кредит АБР',
+    borrower: 'ОсОО «Нарын-Суу»', inn: '03105202410021', subject: 'организация #6301',
+    sector: 'Ирригация', district: 'Ак-Талинский', curator: 'Жумабеков Э. Н.',
+    currency: 'USD', amount: 750000, rate: 3.5,
+    contract: '22.04.2024', months: 84, period: 'Полугодие', method: 'Равными долями',
+    status: 'Действует', group: '1.1', paid: 4,
+    basis: 'Решение ПКР №330 от 15.03.2024', regNo: '62', regDate: '22.04.2024',
+    scan: 'dogovor_irrig_2024_055.pdf',
+    disb: [{ date: '22.05.2024', amt: 450000, fx: 87.90 }],
+  },
+  {
+    num: 'Ирригация-2024-055/Т1', type: 'транш', parent: 'Ирригация-2024-055', kind: 'Транш кредитной линии',
+    line: 'Кредит АБР',
+    borrower: 'ОсОО «Нарын-Суу»', inn: '03105202410021', subject: 'организация #6301',
+    sector: 'Ирригация', district: 'Ак-Талинский', curator: 'Жумабеков Э. Н.',
+    currency: 'USD', amount: 450000, rate: 3.5,
+    contract: '22.05.2024', months: 72, period: 'Полугодие', method: 'Равными долями',
+    status: 'Освоен', group: '—', paid: 0, disb: [{ date: '22.05.2024', amt: 450000, fx: 87.90 }],
+    regNo: '62/1', regDate: '22.05.2024', inTrunk: true,
+  },
+  {
+    num: 'Ирригация-2024-055/Т2', type: 'транш', parent: 'Ирригация-2024-055', kind: 'Транш кредитной линии',
+    line: 'Кредит АБР',
+    borrower: 'ОсОО «Нарын-Суу»', inn: '03105202410021', subject: 'организация #6301',
+    sector: 'Ирригация', district: 'Ак-Талинский', curator: 'Жумабеков Э. Н.',
+    currency: 'USD', amount: 300000, rate: 3.5,
+    contract: '10.09.2026', months: 60, period: 'Полугодие', method: 'Равными долями',
+    status: 'Оформление', group: '—', paid: 0, disb: [],
+    regNo: '62/2', regDate: '—',
+    comment: 'Транш не освоен: ожидается акт выполненных работ по первому этапу.',
+  },
+  {
+    num: 'Теплица-2023-201', type: 'кредит', kind: 'Бюджетная ссуда', line: 'Фонд развития',
+    borrower: 'КФХ «Ала-Тоо Агро»', inn: '12604198500073', subject: 'физлицо #62881',
+    sector: 'Сельское хозяйство', district: 'Кара-Суйский', curator: 'Асанов А. К.',
+    currency: 'KGS', amount: 6500000, rate: 8.0,
+    contract: '01.08.2023', months: 60, period: 'Ежеквартально', method: 'Равными долями',
+    status: 'Просрочен', group: '1.2', paid: 10,
+    basis: 'Решение ПКР №190 от 20.06.2023', regNo: '33', regDate: '01.08.2023',
+    notes: [{ t: 'Примечание куратора', who: 'Асанов А. К. · 20.06.2026', txt: 'Просрочка сезонная: заёмщик обещает погасить после реализации урожая (сентябрь).' }],
+  },
+  {
+    num: 'Логистика-2022-140', type: 'кредит', kind: 'Иностранный кредит', line: 'Кредит ЕБРР',
+    borrower: 'ОсОО «Тянь-Шань Логистик»', inn: '02207201510064', subject: 'организация #6088',
+    sector: 'Транспорт', district: 'Ленинский (г. Бишкек)', curator: 'Осмонова Г. Т.',
+    currency: 'EUR', amount: 300000, rate: 5.0,
+    contract: '14.09.2022', months: 60, period: 'Ежеквартально', method: 'Аннуитетный',
+    status: 'Действует', group: '1.1', paid: 16,
+    basis: 'Решение ПКР №130 от 05.08.2022', regNo: '25', regDate: '14.09.2022',
+    disb: [{ date: '14.09.2022', amt: 300000, fx: 84.20 }],
+    contracts: [{ no: 'ЗД-2022-061', kind: 'Залог · транспорт', who: 'ОсОО «Тянь-Шань Логистик»', whoRef: 'субъект #6088', not: 'Абдыкадырова А. Т.', loans: 'Логистика-2022-140', val: 41000000, pledge: 28700000, st: 'действующий' }],
+  },
+  {
+    num: 'Швейпром-2020-019', type: 'кредит', kind: 'Бюджетная ссуда', line: 'Фонд развития',
+    borrower: 'ОсОО «Кыял Текстиль»', inn: '01402201610058', subject: 'организация #5977',
+    sector: 'Лёгкая промышленность', district: 'Сокулукский', curator: 'Осмонова Г. Т.',
+    currency: 'KGS', amount: 4200000, rate: 11.0,
+    contract: '03.02.2020', months: 60, period: 'Ежеквартально', method: 'Равными долями',
+    status: 'Погашен', group: '5', paid: 20, closed: '03.02.2025',
+    basis: 'Решение ПКР №88 от 16.12.2019', regNo: '12', regDate: '03.02.2020',
+  },
+  {
+    num: 'Мясокомбинат-2019-008', type: 'кредит', kind: 'Бюджетная ссуда', line: 'Фонд развития',
+    borrower: 'ОАО «Тумар Фуд»', inn: '01806201410029', subject: 'организация #5901',
+    sector: 'Пищевая промышленность', district: 'Аламудунский', curator: 'Жумабеков Э. Н.',
+    currency: 'KGS', amount: 30000000, rate: 10.0,
+    contract: '25.06.2019', months: 84, period: 'Ежеквартально', method: 'Равными долями',
+    status: 'Просрочен', group: '2.3', paid: 23,
+    basis: 'Решение ПКР №64 от 10.04.2019', regNo: '7', regDate: '25.06.2019',
+    procedures: [{
+      no: '67840', kind: 'банкротство', opened: '11.11.2025', st: 'в работе',
+      phases: [
+        { name: 'Претензия', date: '14.08.2025', st: 'завершена · 29.08.2025', ok: true, ev: 'событие · 25.08.2025 — ответ не получен' },
+        { name: 'Решение суда', date: '02.10.2025', st: 'завершена · 27.10.2025', ok: true, ev: 'событие · 27.10.2025 — иск удовлетворён полностью' },
+        { name: 'Инициирование банкротства', date: '11.11.2025', st: 'конкурсное производство', ok: false, note: 'подтверждена → группа 2.3', ev: 'событие · 20.01.2026 — назначен спецадминистратор' },
+      ],
+    }],
+    contracts: [{ no: 'ЗД-2019-011', kind: 'Залог · недвижимость', who: 'ОАО «Тумар Фуд»', whoRef: 'субъект #5901', not: 'Абдыкадырова А. Т.', loans: 'Мясокомбинат-2019-008', val: 22000000, pledge: 15400000, st: 'действующий' }],
+    inspections: [{ date: '15.01.2026', obj: 'ЗД-2019-011 · цех, с. Лебединовка', cur: 'Жумабеков Э. Н.', res: 'В наличии, состояние неудовл.', ok: false, file: 'akt_obsled_011.pdf' }],
+    notes: [{ t: 'Примечание (ОИП)', who: 'Жумабеков Э. Н. · 20.01.2026', txt: 'Конкурсное производство. Требование включено в реестр кредиторов, очередь 3.' }],
+    court: [{ date: '27.10.2025', kind: 'Судебное решение', org: 'Аламудунский районный суд', res: 'Удовлетворено полностью', ok: true, file: 'reshenie_67840.pdf' },
+    { date: '11.11.2025', kind: 'Банкротство', org: 'Межрайонный суд', res: 'Конкурсное производство', ok: false, file: 'bankrotstvo_67840.pdf' }],
+  },
+  {
+    num: 'Птицефабрика-2021-063', type: 'кредит', kind: 'Бюджетная ссуда', line: 'Фонд развития',
+    borrower: 'ОсОО «Алтын Куш»', inn: '02110201710082', subject: 'организация #6042',
+    sector: 'Сельское хозяйство', district: 'Тонский', curator: 'Осмонова Г. Т.',
+    currency: 'KGS', amount: 18000000, rate: 9.0,
+    contract: '09.04.2021', months: 84, period: 'Ежеквартально', method: 'Равными долями',
+    status: 'Действует', group: '1.1', paid: 21,
+    basis: 'Решение ПКР №91 от 26.02.2021', regNo: '15', regDate: '09.04.2021',
+    notes: [{ t: 'Примечание куратора', who: 'Осмонова Г. Т. · 15.01.2026', txt: 'Реструктуризация Р1 утверждена комитетом: срок +48 мес., ставка сохранена.' }],
+  },
+  {
+    num: 'Птицефабрика-2021-063/Р1', type: 'реструктуризация', parent: 'Птицефабрика-2021-063',
+    kind: 'Реструктуризация', line: 'Фонд развития',
+    borrower: 'ОсОО «Алтын Куш»', inn: '02110201710082', subject: 'организация #6042',
+    sector: 'Сельское хозяйство', district: 'Тонский', curator: 'Осмонова Г. Т.',
+    currency: 'KGS', amount: 9500000, rate: 9.0,
+    contract: '15.01.2026', months: 48, period: 'Ежеквартально', method: 'Равными долями',
+    status: 'Действует', group: '1.1', paid: 2,
+    basis: 'Протокол кредитного комитета №4 от 15.01.2026', regNo: '15/Р1', regDate: '15.01.2026',
+    scan: 'restrukt_063_r1.pdf',
+  },
+  {
+    num: 'Хлебзавод-2018-002', type: 'кредит', kind: 'Бюджетная ссуда', line: 'Фонд развития',
+    borrower: 'ОсОО «Нан Плюс»', inn: '01203201310017', subject: 'организация #5744',
+    sector: 'Пищевая промышленность', district: 'Сокулукский', curator: 'Асанов А. К.',
+    currency: 'KGS', amount: 2800000, rate: 12.0,
+    contract: '17.07.2018', months: 60, period: 'Ежеквартально', method: 'Равными долями',
+    status: 'Погашен', group: '5', paid: 20, closed: '20.11.2022',
+    basis: 'Решение ПКР №51 от 22.05.2018', regNo: '4', regDate: '17.07.2018',
+    comment: 'Погашен досрочно 20.11.2022.',
+  },
+  {
+    num: 'Гидро-2025-009', type: 'кредит', kind: 'Иностранный кредит', line: 'Кредит АБР',
+    borrower: 'ОсОО «Кичи-Гэс»', inn: '02904202410093', subject: 'организация #6402',
+    sector: 'Энергетика', district: 'Тонский', curator: 'Жумабеков Э. Н.',
+    currency: 'USD', amount: 1200000, rate: 4.0,
+    contract: '30.06.2026', months: 96, period: 'Полугодие', method: 'Равными долями',
+    status: 'Оформление', group: '—', paid: 0, disb: [],
+    basis: 'Решение ПКР №455 от 12.05.2026', regNo: '90', regDate: '30.06.2026',
+    comment: 'Договор зарегистрирован, освоение не начато — ожидается открытие спецсчёта.',
+  },
+];
+
+/* ---------------- движок: вывод графика и остатков ---------------- */
+function build(s) {
+  const l = Object.assign({}, s);
+  l.disb = s.disb || [{ date: s.contract, amt: s.amount, fx: FX[s.currency] }];
+  l.penP = 0.10; l.penI = 0.05;                       // %/день
+  const pm = PERIOD_M[l.period];
+  const n = Math.max(1, Math.round(l.months / pm));
+  const c0 = pd(l.contract);
+  l.due = fd(addM(c0, l.months));
+  l.disbursed = l.disb.reduce((a, d) => a + d.amt, 0);
+  // график и долг считаются от освоенной суммы; пока освоения нет — от договорной, но долга не возникает
+  l.notDisb = l.disbursed === 0;
+  l.base = l.notDisb ? l.amount : l.disbursed;
+
+  const princ = l.base / n;
+  let rem = l.base, rows = [];
+  for (let i = 1; i <= n; i++) {
+    const date = addM(c0, i * pm);
+    const interest = rem * (l.rate / 100) * (pm / 12);
+    const p = (i === n) ? rem : princ;
+    const st = l.notDisb ? 'Ожидается'
+      : i <= l.paid ? 'Оплачена' : (date <= T ? 'Просрочена' : 'Ожидается');
+    const odDays = st === 'Просрочена' ? dd(date, T) : 0;
+    // пеня: % в день на просроченную часть, с предельным лимитом 10 % от суммы кредита
+    const pen = st === 'Просрочена' ? p * (l.penP / 100) * odDays + interest * (l.penI / 100) * odDays : 0;
+    rows.push({ i, date, dateS: fd(date), principal: p, interest, st, odDays, pen, rem: rem - p });
+    rem -= p;
+  }
+  // лимит штрафов
+  const cap = l.base * 0.10;
+  let penSum = rows.reduce((a, r) => a + r.pen, 0);
+  if (penSum > cap) { const k = cap / penSum; rows.forEach(r => r.pen *= k); penSum = cap; l.penCapped = true; }
+  l.schedule = rows;
+  l.n = n;
+
+  const paidRows = rows.filter(r => r.st === 'Оплачена');
+  const odRows = rows.filter(r => r.st === 'Просрочена');
+  l.paidPrincipal = paidRows.reduce((a, r) => a + r.principal, 0);
+  l.paidInterest = paidRows.reduce((a, r) => a + r.interest, 0);
+  l.repaid = l.paidPrincipal + l.paidInterest;
+  const zero = l.status === 'Погашен' || l.notDisb;
+  l.balP = zero ? 0 : l.base - l.paidPrincipal;
+  l.balI = zero ? 0 : odRows.reduce((a, r) => a + r.interest, 0);
+  l.balF = zero ? 0 : penSum;
+  l.balance = l.balP + l.balI + l.balF;
+  l.balanceKGS = l.balance * FX[l.currency];
+  l.odDays = odRows.length ? dd(odRows[0].date, T) : 0;
+  l.odAmount = odRows.reduce((a, r) => a + r.principal + r.interest, 0);
+  l.accrInterest = rows.reduce((a, r) => a + r.interest, 0);
+
+  // категория риска: по дням просрочки, если не переопределена фактором
+  l.riskAuto = l.odDays > 180 ? 'высокий' : l.odDays > 30 ? 'средний' : 'низкий';
+  l.risk = l.riskOverride || l.riskAuto;
+  if (l.overlay) l.risk = l.riskAuto === 'высокий' ? 'средний' : l.riskAuto;   // оверлей подавляет рост
+
+  // платежи — по оплаченным позициям графика
+  l.payments = paidRows.map((r, k) => ({
+    i: k + 1, date: r.dateS, doc: k === 0 ? 'б/н' : String(1000 + l.num.length * 7 + k * 13),
+    total: r.principal + r.interest, principal: r.principal, interest: r.interest,
+  })).reverse();
+
+  return l;
+}
+
+const LOANS = SPECS.map(build);
+const byNum = Object.fromEntries(LOANS.map(l => [l.num, l]));
+// транш — часть основного кредита: своей задолженности, просрочки и категории у него нет,
+// долг и риск живут на карточке основного кредита
+LOANS.filter(l => l.type === 'транш').forEach(l => {
+  const p = byNum[l.parent];
+  l.balP = l.balI = l.balF = l.balance = l.balanceKGS = 0;
+  l.odDays = 0; l.odAmount = 0;
+  l.schedule.forEach(r => { if (r.st === 'Просрочена') r.st = 'В кредите'; });
+  l.risk = l.riskAuto = p ? p.risk : 'низкий';
+  l.inParent = true;
+});
+const kgs = (v, cur) => cur === 'KGS' ? '' : ' <span class="muted">≈ ' + m0(v * FX[cur]) + ' KGS</span>';
+const cat = r => r === 'высокий' ? 'cat-high' : r === 'средний' ? 'cat-mid' : 'cat-low';
+const dot = r => r === 'высокий' ? 'd-high' : r === 'средний' ? 'd-mid' : 'd-low';
+
+/* ---------------- реестр ---------------- */
+// в реестре — только основные кредиты; транши и реструктуризации видны в карточке
+// соответствующего кредита (вкладки «Транши» / «Условия кредита»)
+const MAIN = LOANS.filter(l => l.type === 'кредит');
+const childrenOf = num => LOANS.filter(l => l.parent === num);
+
+function renderList() {
+  const tb = document.getElementById('listBody');
+  tb.innerHTML = MAIN.map(l => {
+    const kids = childrenOf(l.num);
+    const nt = kids.filter(k => k.type === 'транш').length;
+    const nr = kids.filter(k => k.type === 'реструктуризация').length;
+    const marks = (nt ? '<span class="badge b-type" title="траншей: ' + nt + '">Т·' + nt + '</span>' : '')
+      + (nr ? '<span class="badge b-type" title="реструктуризаций: ' + nr + '">Р·' + nr + '</span>' : '');
+    const bal = l.status === 'Оформление' ? '<span class="muted">—</span>' : m(l.balanceKGS);
+    // просрочка: дни + просроченная сумма (осн. + проценты), приведена к KGS как и остаток
+    const od = l.odDays
+      ? '<span class="' + (l.odDays > 180 ? 'cat-high' : l.odDays > 30 ? 'cat-mid' : '') + '">' + l.odDays + ' дн.</span>'
+        + '<br><span class="muted">' + m0(l.odAmount * FX[l.currency]) + '</span>'
+      : '<span class="muted">0 дн.</span>';
+    return '<tr class="clk" data-num="' + l.num + '" data-group="' + l.group + '" data-district="' + l.district + '">'
+      + '<td class="who" style="white-space:normal">' + l.borrower + '</td>'
+      + '<td style="white-space:nowrap">' + l.num + (marks ? ' ' + marks : '') + '</td>'
+      + '<td class="num">' + m(l.amount) + '</td>'
+      + '<td>' + l.currency + '</td>'
+      + '<td class="num">' + bal + '</td>'
+      + '<td class="num">' + od + '</td>'
+      + '<td>' + grp(l.group) + '</td>'
+      + '<td>' + bdg(l.status) + '</td>'
+      + '<td class="muted">' + l.curator + '</td></tr>';
+  }).join('');
+}
+
+/* ---------------- карточка ---------------- */
+function P(name, html) { document.querySelector('.tabpanel[data-panel="' + name + '"]').innerHTML = html; }
+const F = (k, v, chg) => '<div class="f"><span class="fk">' + k + '</span><span class="fv">' + v + '</span>'
+  + (chg ? '<span class="chg">' + chg + '</span>' : '') + '</div>';
+
+function renderDetail(l) {
+  const cur = l.currency;
+  const isOpen = l.status === 'Оформление';
+
+  document.getElementById('dName').innerHTML = l.num
+    + ' <span class="badge b-type" style="font-size:13px">' + l.type + '</span> '
+    + '<span class="badge ' + BADGE[l.status] + '" style="font-size:13px">' + l.status
+    + (l.odDays ? ' · ' + l.odDays + ' дн.' : '') + '</span>';
+
+  document.getElementById('dSub').innerHTML = [
+    'Заёмщик: <a class="lnk" href="#">' + l.borrower + '</a> · ИНН <b>' + l.inn + '</b>',
+    // транш/реструктуризация в реестре не показываются — только из карточки основного кредита
+    ...(l.parent ? ['Основной кредит: <a class="lnk" href="#" data-goto="' + l.parent + '">' + l.parent + '</a>'] : []),
+    'Вид: <b>' + l.kind + '</b>',
+    'Кредитная линия: <b>' + l.line + '</b>',
+    'Договор от <b>' + l.contract + '</b> · срок возврата <b>' + l.due + '</b>',
+    'Куратор: <b>' + l.curator + '</b>',
+  ].map(x => '<span>' + x + '</span>').join('');
+
+  /* ---- плитки ---- */
+  const tileBal = '<div class="tile"><div class="tile-lbl">Остаток задолженности '
+    + '<span class="lock" title="снапшот батч-калькулятора">на ' + TODAY + '</span></div>'
+    + '<div class="tile-val">' + m(l.balance) + ' <span style="font-size:15px;color:var(--secondary-text)">' + cur + '</span></div>'
+    + '<div class="tile-basis">'
+    + (l.inParent
+      ? 'долг учитывается в основном кредите <b><a class="lnk" href="#" data-goto="' + l.parent + '">' + l.parent + '</a></b><br>освоено ' + m(l.disbursed) + ' ' + cur
+      : l.notDisb
+        ? 'освоение не начато — задолженности нет<br>сумма по договору ' + m(l.amount) + ' ' + cur
+        : (cur === 'KGS' ? '' : '≈ <b>' + m(l.balanceKGS) + ' KGS</b> по курсу НБКР <b>' + m(FX[cur]) + '</b> на ' + TODAY + '<br>')
+        + 'осн. ' + m(l.balP) + ' · проц. ' + m(l.balI) + ' · штрафы ' + m(l.balF)
+        + (l.penCapped ? ' <b class="cat-high">(лимит 10 % достигнут)</b>' : ''))
+    + '</div></div>';
+
+  const tileRisk = '<div class="tile"><div class="tile-lbl">Категория риска <span class="lock">по кредиту</span></div>'
+    + '<div class="tile-val ' + cat(l.risk) + '"><span class="dot ' + dot(l.risk) + '"></span>'
+    + l.risk[0].toUpperCase() + l.risk.slice(1) + '</div>'
+    + '<div class="tile-basis">'
+    + (l.inParent
+      ? 'наследуется от основного кредита <b>' + l.parent + '</b><br>у транша своей категории нет'
+      : 'по дням просрочки (' + l.odDays + ') → <b class="' + cat(l.riskAuto) + '">' + l.riskAuto + '</b>'
+      + (l.overlay ? ', <b>подавлен оверлеем</b>' : '') + '<br>'
+      + (l.riskNote ? l.riskNote : 'факторов риска нет · честная категория: ' + l.risk))
+    + '</div></div>';
+
+  const tileGrp = '<div class="tile"><div class="tile-lbl">Группа платёжеспособности <span class="lock">🔒 выводится</span></div>'
+    + '<div class="tile-val">' + grp(l.group) + '</div>'
+    + '<div class="tile-basis">' + (GRP_NAME[l.group] || 'не присваивается для типа «' + l.type + '»')
+    + (l.procedures ? '<br>процедура <b>№' + l.procedures[0].no + '</b> (вкладка «Взыскание»)' : '') + '</div></div>';
+
+  const tileOv = l.overlay
+    ? '<div class="tile"><div class="tile-lbl">Оверлей <span class="lock">слой</span></div>'
+    + '<div class="ov-item"><div class="ov-h">' + l.overlay.title + '</div>'
+    + '<div class="ov-m">источник — <b>' + l.overlay.src + '</b><br>дедлайн <b>' + l.overlay.deadline + '</b> · ' + l.overlay.left + '</div></div>'
+    + '<div class="muted" style="font-size:12px">' + l.overlay.tail + '</div></div>'
+    : '<div class="tile"><div class="tile-lbl">Оверлей <span class="lock">слой</span></div>'
+    + '<div class="tile-val" style="font-size:16px;color:var(--secondary-text)">Нет активных слоёв</div>'
+    + '<div class="tile-basis">категория считается напрямую по дням просрочки и факторам риска</div></div>';
+
+  document.getElementById('dTiles').innerHTML = tileBal + tileRisk + tileGrp + tileOv;
+
+  /* ---- Общая информация ---- */
+  P('general',
+    '<div class="section"><div class="section-head">Параметры кредита</div><div class="fields">'
+    + F('Тип', '<span class="badge b-type">' + l.type + '</span>')
+    + F('Вид кредита', l.kind)
+    + F('Сумма по договору', m(l.amount) + ' <b>' + cur + '</b>' + kgs(l.amount, cur))
+    + F('Валюта', cur + (cur === 'KGS' ? '' : ' <span class="muted">курс НБКР ' + m(FX[cur]) + ' на ' + TODAY + '</span>'))
+    + F('Дата договора', l.contract)
+    + F('Срок возврата', l.due + ' <span class="muted">(' + l.months + ' мес.)</span>')
+    + F('Основание выдачи кредита', '<a class="lnk" href="#">' + (l.basis || '—') + '</a>')
+    + F('Дата полного погашения', l.closed || '<span style="font-weight:400;color:var(--secondary-text)">— (не погашен)</span>')
+    + F('Статус заявки', '<span class="badge b-gray">' + (isOpen ? 'На рассмотрении' : 'Одобрено') + '</span>')
+    + F('Статус кредита', bdg(l.status), 'изменить')
+    + F('Группа платёжеспособности', grp(l.group) + (GRP_NAME[l.group] ? ' <span class="muted">' + GRP_NAME[l.group] + '</span>' : ''),
+      '🔒 выводится')
+    + F('Кредитная линия', l.line, 'изменить')
+    + F('Основной кредит', l.parent ? 'Нет <span class="muted">(входит в ' + l.parent + ')</span>' : 'Да', 'изменить')
+    + F('Куратор (ведущий)', l.curator + ' <span class="muted">Региональное представительство · с ' + l.contract + '</span>')
+    + '<div class="f span2"><span class="fk">Аудит</span><span class="fv" style="font-weight:400">Внесён: <b>'
+    + l.curator + '</b> · ' + l.contract + ' &nbsp;·&nbsp; Изменён: <b>Осмонова Г. Т.</b> · ' + TODAY + '</span></div>'
+    + '</div></div>'
+    + '<div class="section"><div class="section-head">Счёт погашения'
+    + '<span class="ha"><button class="btn btn-secondary btn-sm">Обновить лицевые счета</button></span></div><div class="fields">'
+    + F('Счёт погашения', 'Бюджетных ссуд и иностранных кредитов <span class="muted">' + acct(l, 0) + '</span>', 'изменить')
+    + F('Вид счёта погашения', 'Республиканский бюджет', 'изменить')
+    + F('ПИН / ИНН', l.inn)
+    + F('Информация по счёту', '<span style="font-weight:400;color:var(--secondary-text)">обновлена ' + TODAY + ' 03:15</span>')
+    + '</div></div>');
+
+  /* ---- Оформление ---- */
+  P('registration',
+    '<div class="section" style="margin-bottom:0"><div class="section-head">Оформление</div><div class="fields">'
+    + F('Номер регистрации', l.regNo || '—')
+    + F('Дата регистрации', l.regDate || '—')
+    + '<div class="f span2"><span class="fk">Скан договора</span><span class="fv">'
+    + (l.scan ? '<a class="lnk" href="#">' + l.scan + '</a> <span class="muted">загрузил ' + l.curator + '</span>'
+      : '<span style="font-weight:400;color:var(--secondary-text)">— не загружен</span>') + '</span></div>'
+    + '<div class="f span2"><span class="fk">Комментарии</span><span class="fv" style="font-weight:400">'
+    + (l.comment || '<span class="muted">—</span>') + '</span></div>'
+    + '</div></div>');
+
+  /* ---- Заёмщик ---- */
+  const others = LOANS.filter(x => x.borrower === l.borrower && x.num !== l.num && x.type === 'кредит');
+  const worst = others.concat([l]).reduce((a, x) => a.risk === 'высокий' ? a : (x.risk === 'высокий' ? x : a), l);
+  P('borrower',
+    '<div class="section" style="margin-bottom:0"><div class="section-head">Заёмщик'
+    + '<span class="ha"><button class="btn btn-secondary btn-sm">Открыть карточку заёмщика</button></span></div><div class="fields">'
+    + F('Основной заёмщик', '<a class="lnk" href="#">' + l.borrower + '</a>')
+    + F('ПИН / ИНН', l.inn)
+    + F('Субъект', '<a class="lnk" href="#">' + l.subject + '</a> <span class="muted">заёмщик — роль над субъектом</span>')
+    + F('Отрасль / Район', l.sector + ' · ' + l.district + ' <span class="muted">(' + DISTRICTS[l.district] + ')</span>')
+    + '<div class="f span2"><span class="fk">Прочие кредиты заёмщика</span><span class="fv" style="font-weight:400">'
+    + (others.length
+      ? others.map(x => x.num + ' (' + (x.odDays ? 'просрочка ' + x.odDays + ' дн.' : x.status.toLowerCase()) + ')').join(' · ')
+      + ' — категория заёмщика = <b class="' + cat(worst.risk) + '">worst-of</b> по кредитам: ' + worst.risk
+      : '<span class="muted">других кредитов нет</span>')
+    + '</span></div></div></div>');
+
+  /* ---- Условия ---- */
+  const vs = l.versions || [{
+    n: 1, from: l.contract, rate: m(l.rate) + ' %', pen: '0,10 %', peni: '0,05 %',
+    days: 'календарный 365 / 365', float: '—', margin: '—', st: 'Действует',
+  }];
+  const vcur = vs[0];
+  P('terms',
+    '<div class="section"><div class="section-head">Версии условий'
+    + '<span class="hint">действует последняя версия с датой вступления ≤ дате расчёта</span>'
+    + '<span class="ha"><button class="btn btn-secondary btn-sm">+ Новая версия условий</button></span></div>'
+    + '<div class="section-body scroll-x"><table class="grid"><thead><tr>'
+    + '<th>#</th><th>Начало действия</th><th class="num">Проц. ставка</th><th class="num">Штраф по осн.с.</th>'
+    + '<th class="num">Штраф по проц.</th><th>Метод дней (мес./год)</th><th>Плавающая ставка</th><th>Статус</th>'
+    + '</tr></thead><tbody>'
+    + vs.map(v => '<tr><td>' + v.n + '</td><td>' + v.from + '</td><td class="num">' + v.rate + '</td>'
+      + '<td class="num">' + v.pen + '</td><td class="num">' + v.peni + '</td>'
+      + '<td class="muted">' + v.days + '</td>'
+      + '<td>' + (v.float === '—' ? '<span class="muted">—</span>'
+        : '<span class="badge b-type">' + v.float + '</span> <span class="muted">маржа ' + v.margin + '</span>') + '</td>'
+      + '<td>' + (v.st === 'Действует' ? '<span class="badge b-ok">Действует</span>' : '<span class="badge b-gray">' + v.st + '</span>') + '</td></tr>').join('')
+    + '</tbody></table></div></div>'
+    + '<div class="section" style="margin-bottom:0"><div class="section-head">Версия №' + vcur.n + ' — параметры начисления'
+    + '<span class="hint">форма редактирует выбранную версию, а не «текущее состояние кредита»</span></div><div class="fields">'
+    + F('Начало действия', vcur.from)
+    + F('Процентная ставка', l.rateText || (m(l.rate) + ' %'))
+    + F('Вид плавающей ставки', l.floating ? l.floating + ' <span class="muted">маржа ' + m(l.margin) + '</span>' : '<span class="muted">—</span>')
+    + F('Период начисления', l.method === 'Аннуитетный' ? 'Аннуитет' : 'Равными долями')
+    + F('Метод погашения', l.method)
+    + F('Периодичность платежа', l.period)
+    + F('Штраф за просрочку по осн. с.', '0,10 % <span class="muted">фиксированная</span>')
+    + F('Штраф за просрочку по процентам', '0,05 % <span class="muted">фиксированная</span>')
+    + F('Предельный лимит штрафов', '10,00 %' + (l.penCapped ? ' <b class="cat-high">достигнут</b>' : ''))
+    + F('Очередь погашения', 'Осн. сумма → проценты → штрафы')
+    + F('Метод расчёта дней', 'календарный 365 / 365')
+    + F('Процент за резерв', '0,00 %')
+    + '</div></div>');
+
+  /* ---- График ---- */
+  const shown = l.schedule.filter(r => r.i <= Math.max(9, l.paid + 3));
+  const rest = l.n - shown.length;
+  P('schedule',
+    '<div class="section" style="margin-bottom:0"><div class="section-head">График погашения'
+    + '<span class="hint">версия условий №' + vcur.n + ' · валюта ' + cur + ' · ' + l.period.toLowerCase() + ' · ' + l.n + ' позиций</span>'
+    + '<span class="ha"><button class="btn btn-secondary btn-sm">Построить график</button>'
+    + '<button class="btn btn-secondary btn-sm">✎ Править позицию</button>'
+    + '<button class="btn btn-secondary btn-sm">🖨 PDF</button>'
+    + '<button class="btn btn-secondary btn-sm">🖨 Excel</button></span></div>'
+    + '<div class="section-body scroll-x"><table class="grid"><thead><tr>'
+    + '<th>№</th><th>Дата</th><th class="num">Освоение</th><th class="num">Осн. сумма</th><th class="num">Проценты</th>'
+    + '<th class="num">Нак. штраф</th><th class="num">Остаток осн.</th><th>Статус</th></tr></thead><tbody>'
+    + shown.map(r => {
+      const dis = l.disb.find(d => d.date === r.dateS);
+      return '<tr><td>' + r.i + '</td><td>' + r.dateS + '</td>'
+        + '<td class="num">' + (dis ? m(dis.amt) : '<span class="muted">—</span>') + '</td>'
+        + '<td class="num">' + m(r.principal) + '</td><td class="num">' + m(r.interest) + '</td>'
+        + '<td class="num">' + (r.pen ? m(r.pen) : '0,00') + '</td>'
+        + '<td class="num">' + m(r.rem) + '</td>'
+        + '<td>' + (r.st === 'Оплачена' ? '<span class="badge b-ok">Оплачена</span>'
+          : r.st === 'Просрочена' ? '<span class="badge b-err">Просрочена</span>'
+            : '<span class="badge b-gray">' + r.st + '</span>') + '</td></tr>';
+    }).join('')
+    + (rest > 0 ? '<tr class="muted"><td colspan="8" style="text-align:center">… ещё ' + rest + ' позиций до ' + l.due + ' …</td></tr>' : '')
+    + '<tr class="total"><td colspan="2">Итого</td><td class="num">' + m(l.disbursed) + '</td>'
+    + '<td class="num">' + m(l.base) + '</td><td class="num">' + m(l.accrInterest) + '</td>'
+    + '<td class="num">' + m(l.balF) + '</td><td class="num">—</td><td></td></tr>'
+    + '</tbody></table></div></div>');
+
+  /* ---- Транши ---- */
+  const kids = LOANS.filter(x => x.parent === l.num);
+  const trs = kids.filter(x => x.type === 'транш');
+  P('tranches',
+    '<div class="section" style="margin-bottom:0"><div class="section-head">Транши'
+    + '<span class="hint">освоение кредитной линии частями; у транша — свои условия</span>'
+    + '<span class="ha"><button class="btn btn-secondary btn-sm">+ Транш</button></span></div>'
+    + '<div class="section-body scroll-x"><table class="grid"><thead><tr>'
+    + '<th>#</th><th>Дата транша</th><th class="num">Сумма</th><th>Валюта</th>'
+    + '<th class="num">Курс на дату</th><th class="num">Эквивалент KGS</th><th>Статус</th></tr></thead><tbody>'
+    + (l.disb.length
+      ? l.disb.map((d, i) => '<tr><td>' + (i + 1) + '</td><td>' + d.date + '</td><td class="num">' + m(d.amt) + '</td>'
+        + '<td>' + cur + '</td><td class="num">' + m(d.fx || FX[cur]) + '</td>'
+        + '<td class="num">' + m(d.amt * (d.fx || FX[cur])) + '</td>'
+        + '<td><span class="badge b-ok">Освоен</span></td></tr>').join('')
+      + trs.filter(t => t.status === 'Оформление').map((t, i) => '<tr><td>' + (l.disb.length + i + 1) + '</td>'
+        + '<td class="muted">план ' + t.contract + '</td><td class="num">' + m(t.amount) + '</td><td>' + t.currency + '</td>'
+        + '<td class="num muted">—</td><td class="num muted">—</td>'
+        + '<td><span class="badge b-gray">Не освоен</span></td></tr>').join('')
+      + '<tr class="total"><td colspan="2">Итого освоено</td><td class="num">' + m(l.disbursed) + '</td><td>' + cur + '</td>'
+      + '<td class="num">—</td><td class="num">' + m(l.disb.reduce((a, d) => a + d.amt * (d.fx || FX[cur]), 0)) + '</td><td></td></tr>'
+      : empty(7, 'Освоение не начато — траншей нет.'))
+    + '</tbody></table></div></div>');
+
+  /* ---- Субкредиты ---- */
+  const restr = kids.filter(x => x.type === 'реструктуризация');
+  P('subloans',
+    (restr.length
+      ? restr.map(r => '<div class="section"><div class="section-head">Реструктуризация ' + r.num
+        + '<span class="hint">подана ' + r.contract + ' · ' + r.status.toLowerCase() + ' · срок ' + r.months + ' мес.</span>'
+        + '<span class="ha"><button class="btn btn-secondary btn-sm" data-goto="' + r.num + '">Открыть карточку ' + r.num.split('/')[1] + '</button></span></div>'
+        + '<div class="fields">'
+        + F('Статус', bdg(r.status))
+        + F('Сумма реструктуризации', m(r.amount) + ' ' + r.currency)
+        + F('Влияние на категорию', l.overlay
+          ? '<span class="badge b-ov">⏸ оверлей подавления</span> <span class="muted">до утверждения категория не растёт</span>'
+          : '<span class="muted">утверждена — оверлей снят</span>')
+        + '</div></div>').join('')
+      : '')
+    + '<div class="section" style="margin-bottom:0"><div class="section-head">'
+    + (l.parent ? 'Основной кредит' : 'Субкредиты')
+    + '<span class="hint">' + (l.parent ? 'кредит, частью которого является эта запись' : 'записи, обёрнутые этим кредитом') + '</span></div>'
+    + '<div class="section-body scroll-x"><table class="grid"><thead><tr>'
+    + '<th>Рег. номер</th><th>Дата регистрации</th><th class="num">Сумма по договору</th>'
+    + '<th>Валюта</th><th>Вид</th><th>Статус</th></tr></thead><tbody>'
+    + (l.parent
+      ? row2(byNum[l.parent])
+      : kids.length ? kids.map(row2).join('') : empty(6, 'Субкредитов и траншей нет.'))
+    + '</tbody></table></div></div>');
+
+  /* ---- Расчёты ---- */
+  P('calc',
+    '<div class="toolbar"><span class="fl muted">Расчёт на дату</span>'
+    + '<input type="text" value="' + TODAY + '" style="width:120px">'
+    + '<button class="btn btn-primary btn-sm">Расчёт</button>'
+    + '<button class="btn btn-secondary btn-sm">Обновить данные</button><span class="sep"></span>'
+    + '<button class="btn btn-secondary btn-sm">Акт сверки</button>'
+    + '<button class="btn btn-secondary btn-sm">Претензия</button>'
+    + '<button class="btn btn-secondary btn-sm">Реестр погашений</button>'
+    + '<button class="btn btn-secondary btn-sm">Уведомление</button></div>'
+    + '<div class="section"><div class="section-head">Свод на ' + TODAY
+    + '<span class="hint">последний пересчёт ' + TODAY + ' 03:15 (ночной батч) · валюта ' + cur + '</span></div>'
+    + '<div class="sumrow">'
+    + sc('Всего освоено', m(l.disbursed), cur === 'KGS' ? '' : '≈ ' + m0(l.disbursed * FX[cur]) + ' KGS')
+    + sc('Всего погашено', m(l.repaid), cur === 'KGS' ? '' : '≈ ' + m0(l.repaid * FX[cur]) + ' KGS')
+    + sc('Остаток всего', m(l.balance), cur === 'KGS' ? '' : '≈ ' + m0(l.balanceKGS) + ' KGS')
+    + sc('в т.ч. штрафы', m(l.balF), l.penCapped ? 'лимит 10 % достигнут' : 'лимит 10 % не достигнут')
+    + sc('Всего просрочено', m(l.odAmount), l.odDays + ' дн.', l.odDays > 0)
+    + '</div></div>'
+    + '<div class="section" style="margin-bottom:0"><div class="section-head">Журнал расчётов'
+    + '<span class="hint">снапшот на дату — клик по строке открывает состояние долга на ту дату</span></div>'
+    + '<div class="section-body scroll-x"><table class="grid"><thead><tr>'
+    + '<th>№</th><th>На дату</th><th class="num">Всего освоено</th><th class="num">Всего погашено</th>'
+    + '<th class="num">Остаток всего</th><th class="num">Ост. осн.</th><th class="num">Ост. проц.</th>'
+    + '<th class="num">Ост. штраф.</th><th class="num">Всего просрочено</th><th>Курс</th><th></th>'
+    + '</tr></thead><tbody>' + journal(l) + '</tbody></table></div></div>');
+
+  /* ---- Детальный расчёт ---- */
+  P('detcalc',
+    '<div class="toolbar"><span class="fl muted">Транш</span>'
+    + '<select style="min-width:200px"><option>Все транши</option>'
+    + l.disb.map((d, i) => '<option>Транш №' + (i + 1) + ' — ' + m(d.amt) + '</option>').join('') + '</select>'
+    + '<span class="fl muted">Дата расчёта</span><input type="text" value="' + TODAY + '" style="width:120px">'
+    + '<button class="btn btn-primary btn-sm">Рассчитать</button>'
+    + '<button class="btn btn-secondary btn-sm">Расчёт на весь график</button>'
+    + '<button class="btn btn-secondary btn-sm">Начислить ОД и проценты</button>'
+    + '<button class="btn btn-secondary btn-sm">Начислить пеню</button></div>'
+    + '<div class="section" style="margin-bottom:0"><div class="section-head">Детальный расчёт'
+    + '<span class="hint">события до даты расчёта · валюта ' + cur + '</span></div>'
+    + '<div class="section-body scroll-x"><table class="grid"><thead><tr>'
+    + '<th>№</th><th>Дата события</th><th class="num">Получено средств</th><th class="num">Ост. по осн. сумме</th>'
+    + '<th class="num">Погашение осн. факт</th><th class="num">Погашение осн. по графику</th><th class="num">Просрочено по осн.</th>'
+    + '<th class="num">Начислено процентов</th><th class="num">Погашено процентов</th>'
+    + '<th class="num">Просрочено по проц.</th><th class="num">Начислено штрафов</th><th class="num">Всего погашено</th>'
+    + '</tr></thead><tbody>' + detcalc(l) + '</tbody></table></div></div>');
+
+  /* ---- Платежи ---- */
+  P('payments',
+    '<div class="section" style="margin-bottom:0"><div class="section-head">Платежи'
+    + '<span class="ha"><button class="btn btn-secondary btn-sm">+ Платёж</button>'
+    + '<button class="btn btn-secondary btn-sm">🖨 Реестр погашений</button></span></div>'
+    + '<div class="section-body scroll-x"><table class="grid"><thead><tr>'
+    + '<th>№</th><th>Дата</th><th>Номер документа</th><th class="num">Итого</th><th class="num">Осн. сумма</th>'
+    + '<th class="num">Проценты</th><th class="num">Штрафы / пеня</th><th class="num">Комиссия</th>'
+    + '<th>Вид платежа</th><th>Статус</th></tr></thead><tbody>'
+    + (l.payments.length
+      ? l.payments.map(p => '<tr><td>' + p.i + '</td><td>' + p.date + '</td><td>' + p.doc + '</td>'
+        + '<td class="num">' + m(p.total) + '</td><td class="num">' + m(p.principal) + '</td>'
+        + '<td class="num">' + m(p.interest) + '</td><td class="num">0,00</td><td class="num">0,00</td>'
+        + '<td>денежными средствами</td><td><span class="badge b-ok">Действует</span></td></tr>').join('')
+      + '<tr class="total"><td colspan="3">Итого</td><td class="num">' + m(l.repaid) + '</td>'
+      + '<td class="num">' + m(l.paidPrincipal) + '</td><td class="num">' + m(l.paidInterest) + '</td>'
+      + '<td class="num">0,00</td><td class="num">0,00</td><td></td><td></td></tr>'
+      : empty(10, 'Платежей не было.'))
+    + '</tbody></table></div></div>');
+
+  /* ---- Резерв ---- */
+  let cum = 0;
+  P('reserve',
+    '<div class="section" style="margin-bottom:0"><div class="section-head">Резерв'
+    + '<span class="hint">неосвоенный остаток кредитной линии</span></div>'
+    + '<div class="section-body scroll-x"><table class="grid"><thead><tr>'
+    + '<th>№</th><th>Дата</th><th class="num">Сумма кредита</th><th class="num">Освоено</th>'
+    + '<th class="num">Резерв</th><th class="num">Процент</th><th class="num">Начислено</th></tr></thead><tbody>'
+    + (l.disb.length
+      ? l.disb.map((d, i) => { cum += d.amt; return '<tr><td>' + (i + 1) + '</td><td>' + d.date + '</td>'
+        + '<td class="num">' + m(l.amount) + '</td><td class="num">' + m(cum) + '</td>'
+        + '<td class="num">' + m(l.amount - cum) + '</td><td class="num">0,00</td><td class="num">0,00</td></tr>'; }).join('')
+      : empty(7, 'Освоение не начато — вся сумма в резерве.'))
+    + '</tbody></table></div></div>');
+
+  /* ---- Код оплаты ---- */
+  P('paycode',
+    '<div class="section" style="margin-bottom:0"><div class="section-head">Код оплаты</div>'
+    + '<div class="section-body"><table class="grid"><thead><tr>'
+    + '<th style="width:34%">Назначение</th><th style="width:33%">Код оплаты</th><th>Заёмщик</th></tr></thead><tbody>'
+    + '<tr><td>Погашение основной суммы</td><td class="who">' + acct(l, 0) + '</td><td>' + l.borrower + '</td></tr>'
+    + '<tr><td>Погашение процентов</td><td class="who">' + acct(l, 1) + '</td><td>' + l.borrower + '</td></tr>'
+    + '</tbody></table></div></div>');
+
+  /* ---- Обеспечение ---- */
+  const cs = l.contracts || [], ins = l.inspections || [];
+  const act = cs.filter(c => c.st === 'действующий');
+  const off = cs.filter(c => c.st !== 'действующий');
+  const val = act.reduce((a, c) => a + c.val, 0), pl = act.reduce((a, c) => a + c.pledge, 0);
+  const covr = l.balanceKGS ? Math.round(pl / l.balanceKGS * 100) : 0;
+  P('security',
+    (cs.length
+      ? '<div class="section"><div class="section-head">Свод обеспечения</div>'
+      + '<div class="section-body" style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:14px">'
+      + '<div style="border:1px solid var(--green-card-border);background:var(--green-card-bg);border-radius:6px;padding:12px 14px">'
+      + '<div style="font-weight:700;font-size:14px;color:var(--success)">Действующие · ' + act.length + ' ед.</div>'
+      + '<div class="muted" style="margin-top:6px;line-height:1.6">'
+      + 'Оценочная стоимость: <b style="color:var(--body-text)">' + m0(val) + '</b> KGS<br>'
+      + 'Залоговая стоимость: <b style="color:var(--body-text)">' + m0(pl) + '</b> KGS<br>'
+      + 'Покрытие долга (' + m0(l.balanceKGS) + ' KGS): <b class="' + (covr < 100 ? 'cat-high' : 'cat-low') + '">' + covr + ' %</b>'
+      + '</div></div>'
+      + '<div style="border:1px solid var(--border);background:#fbfcfd;border-radius:6px;padding:12px 14px">'
+      + '<div style="font-weight:700;font-size:14px;color:var(--secondary-text)">Снятые · ' + off.length + ' ед.</div>'
+      + '<div class="muted" style="margin-top:6px;line-height:1.6">'
+      + (off.length ? 'Оценочная стоимость: <b style="color:var(--body-text)">' + m0(off.reduce((a, c) => a + c.val, 0)) + '</b> KGS<br>'
+        + 'Основание: ' + off.map(c => c.st).join(', ') : 'Нет снятых договоров.') + '</div></div></div></div>'
+      : '')
+    + '<div class="section"><div class="section-head">Обеспечительные договоры'
+    + '<span class="hint">залог + поручительство одной таблицей; M:N с кредитами</span>'
+    + '<span class="ha"><button class="btn btn-secondary btn-sm">+ Договор залога</button>'
+    + '<button class="btn btn-secondary btn-sm">+ Договор поручительства</button>'
+    + '<button class="btn btn-secondary btn-sm">🔗 Выбрать существующий</button></span></div>'
+    + '<div class="section-body scroll-x"><table class="grid"><thead><tr>'
+    + '<th>№ договора</th><th>Вид</th><th>Залогодатель / поручитель</th><th>Нотариус</th><th>Кредиты (M:N)</th>'
+    + '<th class="num">Оценочная</th><th class="num">Залоговая</th><th>Статус</th></tr></thead><tbody>'
+    + (cs.length ? cs.map(c => '<tr><td class="who">' + c.no + '</td><td>' + c.kind + '</td>'
+      + '<td><a class="lnk" href="#">' + c.who + '</a>' + (c.whoRef ? ' <span class="muted">' + c.whoRef + '</span>' : '') + '</td>'
+      + '<td class="muted">' + c.not + '</td><td class="muted">' + c.loans + '</td>'
+      + '<td class="num">' + m0(c.val) + '</td>'
+      + '<td class="num">' + (c.pledge ? m0(c.pledge) : '<span class="muted">—</span>') + '</td>'
+      + '<td>' + (c.st === 'действующий' ? '<span class="badge b-ok">действующий</span>'
+        : '<span class="badge b-gray">' + c.st + '</span>') + '</td></tr>').join('')
+      : empty(8, 'Обеспечение не оформлено — бланковый кредит.'))
+    + '</tbody></table></div></div>'
+    + '<div class="section" style="margin-bottom:0"><div class="section-head">Обследования предметов залога'
+    + '<span class="ha"><button class="btn btn-secondary btn-sm">+ Обследование</button>'
+    + '<button class="btn btn-secondary btn-sm">🖨 Акт обследования</button></span></div>'
+    + '<div class="section-body"><table class="grid"><thead><tr>'
+    + '<th style="width:14%">Дата</th><th style="width:24%">Договор / предмет</th><th style="width:20%">Куратор</th>'
+    + '<th style="width:22%">Результат</th><th>Вложение</th></tr></thead><tbody>'
+    + (ins.length ? ins.map(x => '<tr><td>' + x.date + '</td><td>' + x.obj + '</td><td>' + x.cur + '</td>'
+      + '<td><span class="badge ' + (x.ok ? 'b-ok' : 'b-err') + '">' + x.res + '</span></td>'
+      + '<td><a class="lnk" href="#">' + x.file + '</a>'
+      + (x.fileNote ? ' <span class="muted">' + x.fileNote + '</span>' : '') + '</td></tr>').join('')
+      : empty(5, 'Обследований не проводилось.'))
+    + '</tbody></table></div></div>');
+
+  /* ---- Взыскание ---- */
+  const prs = l.procedures || [];
+  P('enforce',
+    '<div class="section" style="margin-bottom:0"><div class="section-head">Процедуры и фазы по кредиту'
+    + '<span class="ha"><button class="btn btn-secondary btn-sm">Открыть в модуле взыскания</button></span></div>'
+    + '<div class="section-body">'
+    + (prs.length ? prs.map(p => '<div class="proc"><div class="proc-h">'
+      + '<span class="lvl">процедура</span>'
+      + '<span class="p-name">Процедура №' + p.no + ' — ' + p.kind + '</span>'
+      + '<span class="muted">открыта ' + p.opened + ' · ' + m0(l.balanceKGS) + ' KGS</span>'
+      + '<span class="badge b-proc">' + p.st + '</span></div>'
+      + p.phases.map(f => '<div class="phase"><div class="phase-h">'
+        + '<span class="lvl">фаза</span><b>' + f.name + '</b>'
+        + '<span class="muted">' + f.date + '</span>'
+        + '<span class="badge ' + (f.ok ? 'b-ok' : 'b-proc') + '">' + f.st + '</span>'
+        + (f.note ? '<span class="badge b-gray">' + f.note + '</span>' : '') + '</div>'
+        + '<div class="ev">' + f.ev + '</div></div>').join('')
+      + '</div>').join('')
+      : '<div class="muted" style="padding:24px;text-align:center">Процедур взыскания нет — кредит обслуживается по графику.</div>')
+    + '</div></div>');
+
+  /* ---- Примечания ---- */
+  const ns = l.notes || [];
+  P('notes',
+    '<div class="section" style="margin-bottom:0"><div class="section-head">Примечания'
+    + '<span class="ha"><select style="min-width:200px"><option>Тип — все</option><option>Обычное</option>'
+    + '<option>Примечание куратора</option><option>Примечание (ОПП)</option><option>Примечание (залог)</option>'
+    + '<option>Примечание (ОИП)</option></select>'
+    + '<button class="btn btn-secondary btn-sm">+ Примечание</button></span></div>'
+    + '<div class="section-body">'
+    + (ns.length ? ns.map(x => '<div class="note"><div class="note-h">'
+      + '<span class="badge ' + (x.hi ? 'b-proc' : 'b-gray') + '">' + x.t + '</span><span>' + x.who + '</span></div>'
+      + '<div class="note-b">' + x.txt + '</div></div>').join('')
+      : '<div class="muted" style="padding:24px;text-align:center">Примечаний нет.</div>')
+    + '</div></div>');
+
+  /* ---- Дополнительно ---- */
+  const court = l.court || [];
+  P('extra',
+    '<div class="section" style="margin-bottom:0"><div class="section-head">Дополнительно</div>'
+    + '<div class="subtabs">'
+    + ['Товар', 'Перевод долга', 'Списание', 'Банкротство и судебные решения', 'Начисление', 'План']
+      .map((t, i) => '<span class="subtab' + (i === 0 ? ' active' : '') + '" data-sub="ex" data-idx="' + i + '">' + t + '</span>').join('')
+    + '</div>'
+    + '<div class="subpanel active" data-subpanel="ex-0"><div class="section-body"><table class="grid">'
+    + '<thead><tr><th style="width:8%">#</th><th style="width:30%">Вид товара</th><th class="num" style="width:14%">Кол-во</th>'
+    + '<th style="width:16%">Ед. измерения</th><th class="num">Оценка, KGS</th></tr></thead><tbody>'
+    + empty(5, 'Нет записей — кредит выдан денежными средствами.') + '</tbody></table></div></div>'
+    + '<div class="subpanel" data-subpanel="ex-1"><div class="section-body"><table class="grid">'
+    + '<thead><tr><th style="width:14%">Дата</th><th style="width:24%">С заёмщика</th><th style="width:24%">На заёмщика</th>'
+    + '<th class="num" style="width:16%">Сумма</th><th>Основание</th></tr></thead><tbody>'
+    + empty(5, 'Нет записей.') + '</tbody></table></div></div>'
+    + '<div class="subpanel" data-subpanel="ex-2"><div class="section-body"><table class="grid">'
+    + '<thead><tr><th style="width:14%">Дата</th><th style="width:22%">Вид списания</th><th class="num" style="width:16%">Сумма</th>'
+    + '<th style="width:24%">Основание</th><th>Кто провёл</th></tr></thead><tbody>'
+    + empty(5, 'Нет записей.') + '</tbody></table></div></div>'
+    + '<div class="subpanel" data-subpanel="ex-3"><div class="section-body"><table class="grid">'
+    + '<thead><tr><th style="width:14%">Дата</th><th style="width:20%">Вид</th><th style="width:26%">Орган / суд</th>'
+    + '<th style="width:20%">Результат</th><th>Документ</th></tr></thead><tbody>'
+    + (court.length ? court.map(c => '<tr><td>' + c.date + '</td><td>' + c.kind + '</td><td>' + c.org + '</td>'
+      + '<td><span class="badge ' + (c.ok ? 'b-ok' : 'b-proc') + '">' + c.res + '</span></td>'
+      + '<td><a class="lnk" href="#">' + c.file + '</a></td></tr>').join('')
+      : empty(5, 'Судебных решений и процедур банкротства нет.')) + '</tbody></table></div></div>'
+    + '<div class="subpanel" data-subpanel="ex-4"><div class="section-body scroll-x"><table class="grid">'
+    + '<thead><tr><th>Дата</th><th>Вид начисления</th><th class="num">Сумма</th><th>Валюта</th>'
+    + '<th>Основание (версия условий)</th><th>Запустил</th></tr></thead><tbody>' + accruals(l, vcur) + '</tbody></table></div></div>'
+    + '<div class="subpanel" data-subpanel="ex-5"><div class="section-body"><table class="grid">'
+    + '<thead><tr><th style="width:16%">Период</th><th class="num" style="width:20%">План погашения</th>'
+    + '<th class="num" style="width:20%">Факт</th><th class="num" style="width:16%">Отклонение</th>'
+    + '<th>Комментарий</th></tr></thead><tbody>' + plan(l) + '</tbody></table></div></div>'
+    + '</div>');
+
+  // вкладки, которых у кредита нет
+  const hide = { tranches: !l.disb.length && !trs.length, subloans: !kids.length && !l.parent };
+  document.querySelectorAll('#tabs .tab').forEach(t => { t.hidden = !!hide[t.dataset.tab]; });
+  openTab('general');
+}
+
+/* ---------------- вспомогательные рендеры ---------------- */
+function acct(l, i) { return '44000110010002' + String(40 + i + (l.num.length % 5)).slice(0, 2); }
+function sc(k, v, e, warn) {
+  return '<div class="sumcell"><div class="sk">' + k + '</div>'
+    + '<div class="sv' + (warn ? ' cat-high' : '') + '">' + v + '</div>'
+    + '<div class="se">' + (e || '&nbsp;') + '</div></div>';
+}
+function row2(x) {
+  return '<tr><td class="who"><a class="lnk" href="#" data-goto="' + x.num + '">' + x.num + '</a></td>'
+    + '<td>' + (x.regDate || x.contract) + '</td><td class="num">' + m(x.amount) + '</td>'
+    + '<td>' + x.currency + '</td><td>' + x.kind + '</td><td>' + bdg(x.status) + '</td></tr>';
+}
+// журнал расчётов: снапшоты на даты последних событий графика
+function journal(l) {
+  const past = l.schedule.filter(r => r.date <= T);
+  if (!past.length) return empty(11, 'Расчёты не проводились — освоение не начато.');
+  const dates = past.slice(-3).map(r => r.date).concat([T]);
+  return dates.map((D, i) => {
+    const rows = l.schedule.filter(r => r.date <= D);
+    const paid = rows.filter(r => r.st === 'Оплачена');
+    const od = rows.filter(r => r.st === 'Просрочена');
+    const repaid = paid.reduce((a, r) => a + r.principal + r.interest, 0);
+    const bp = l.status === 'Погашен' && D >= T ? 0 : l.amount - paid.reduce((a, r) => a + r.principal, 0);
+    const bi = od.reduce((a, r) => a + r.interest, 0);
+    const bf = od.reduce((a, r) => a + r.pen * (dd(r.date, D) / Math.max(1, r.odDays)), 0);
+    const disb = l.disb.filter(d => pd(d.date) <= D).reduce((a, d) => a + d.amt, 0);
+    const odAmt = od.reduce((a, r) => a + r.principal + r.interest, 0);
+    return '<tr class="clk"><td>' + (i + 1) + '</td>'
+      + '<td' + (i === dates.length - 1 ? ' class="who"' : '') + '>' + fd(D) + '</td>'
+      + '<td class="num">' + m(disb) + '</td><td class="num">' + m(repaid) + '</td>'
+      + '<td class="num">' + m(bp + bi + bf) + '</td><td class="num">' + m(bp) + '</td>'
+      + '<td class="num">' + m(bi) + '</td><td class="num">' + m(bf) + '</td>'
+      + '<td class="num">' + m(odAmt) + '</td><td>' + m(FX[l.currency]) + '</td>'
+      + '<td><span class="muted">🖨</span></td></tr>';
+  }).reverse().join('');
+}
+// детальный расчёт: строка на каждое событие графика до даты расчёта
+function detcalc(l) {
+  const past = l.schedule.filter(r => r.date <= T);
+  if (!past.length) return empty(12, 'Событий до даты расчёта нет.');
+  let rem = l.base, totalPaid = 0, k = 0;
+  const rows = past.map(r => {
+    const dis = l.disb.find(d => d.date === r.dateS);
+    const paidP = r.st === 'Оплачена' ? r.principal : 0;
+    const paidI = r.st === 'Оплачена' ? r.interest : 0;
+    totalPaid += paidP + paidI;
+    rem -= paidP;
+    k++;
+    return '<tr><td>' + k + '</td><td>' + r.dateS + '</td>'
+      + '<td class="num">' + (dis ? m(dis.amt) : '0,00') + '</td>'
+      + '<td class="num">' + m(rem) + '</td>'
+      + '<td class="num">' + m(paidP) + '</td><td class="num">' + m(r.principal) + '</td>'
+      + '<td class="num">' + (r.st === 'Просрочена' ? m(r.principal) : '0,00') + '</td>'
+      + '<td class="num">' + m(r.interest) + '</td><td class="num">' + m(paidI) + '</td>'
+      + '<td class="num">' + (r.st === 'Просрочена' ? m(r.interest) : '0,00') + '</td>'
+      + '<td class="num">' + m(r.pen) + '</td><td class="num">' + m(totalPaid) + '</td></tr>';
+  });
+  return rows.join('')
+    + '<tr class="total"><td colspan="2">Итого</td><td class="num">' + m(l.disbursed) + '</td>'
+    + '<td class="num">' + m(l.balP) + '</td><td class="num">' + m(l.paidPrincipal) + '</td>'
+    + '<td class="num">' + m(past.reduce((a, r) => a + r.principal, 0)) + '</td>'
+    + '<td class="num">' + m(past.filter(r => r.st === 'Просрочена').reduce((a, r) => a + r.principal, 0)) + '</td>'
+    + '<td class="num">' + m(past.reduce((a, r) => a + r.interest, 0)) + '</td>'
+    + '<td class="num">' + m(l.paidInterest) + '</td><td class="num">' + m(l.balI) + '</td>'
+    + '<td class="num">' + m(l.balF) + '</td><td class="num">' + m(l.repaid) + '</td></tr>';
+}
+function accruals(l, v) {
+  if (!l.disb.length) return empty(6, 'Начислений нет — освоение не начато.');
+  const last = l.schedule.filter(r => r.date <= T).slice(-2).reverse();
+  return last.map(r => '<tr><td>' + r.dateS + ' 03:15</td><td>Проценты</td>'
+    + '<td class="num">' + m(r.interest) + '</td><td>' + l.currency + '</td>'
+    + '<td class="muted">версия №' + v.n + ' · ' + (l.rateText || m(l.rate) + ' %') + '</td>'
+    + '<td class="muted">ночной батч</td></tr>'
+    + (r.pen ? '<tr><td>' + TODAY + ' 03:15</td><td>Пеня</td><td class="num">' + m(r.pen) + '</td>'
+      + '<td>' + l.currency + '</td><td class="muted">версия №' + v.n + ' · 0,10 %/дн.</td>'
+      + '<td class="muted">ночной батч</td></tr>' : '')).join('');
+}
+function plan(l) {
+  const years = [...new Set(l.schedule.map(r => r.date.getFullYear()))].filter(y => y <= T.getFullYear() && y >= T.getFullYear() - 1);
+  if (!years.length) return empty(5, 'Плановых периодов до даты расчёта нет.');
+  return years.map(y => {
+    const rows = l.schedule.filter(r => r.date.getFullYear() === y);
+    const planSum = rows.reduce((a, r) => a + r.principal + r.interest, 0);
+    const fact = rows.filter(r => r.st === 'Оплачена').reduce((a, r) => a + r.principal + r.interest, 0);
+    const dev = fact - planSum;
+    return '<tr><td>' + y + ' г.</td><td class="num">' + m(planSum) + ' ' + l.currency + '</td>'
+      + '<td class="num">' + m(fact) + '</td>'
+      + '<td class="num' + (dev < 0 ? ' cat-high' : '') + '">' + (dev < 0 ? '−' : '') + m(Math.abs(dev)) + '</td>'
+      + '<td class="muted">' + (dev < 0 ? 'платежи поступили не полностью' : 'план выполнен') + '</td></tr>';
+  }).join('');
+}
+</script>
+<script>
   const vList = document.getElementById('view-list');
   const vDetail = document.getElementById('view-detail');
   const pageTitle = document.getElementById('pageTitle');
   const crumb = document.getElementById('crumb');
+
+  renderList();
+  document.getElementById('pagerInfo').innerHTML =
+    'Отображение <b>1–' + MAIN.length + '</b> из <b>' + MAIN.length + '</b> записей';
 
   function showList(){
     vDetail.classList.remove('active'); vList.classList.add('active');
     pageTitle.textContent = 'Кредиты'; crumb.innerHTML = '';
     window.scrollTo(0,0);
   }
-  function showDetail(){
+  function showDetail(num){
+    const l = byNum[num]; if (!l) return;
+    renderDetail(l);
     vList.classList.remove('active'); vDetail.classList.add('active');
-    pageTitle.textContent = 'Кредит'; crumb.innerHTML = '<a href="#">Кредиты</a> › Газификация-2024-07';
+    pageTitle.textContent = 'Кредит'; crumb.innerHTML = '<a href="#">Кредиты</a> › ' + num;
     window.scrollTo(0,0);
   }
-  document.querySelectorAll('#listTable tbody tr.clk').forEach(r => {
-    r.addEventListener('click', () => { if (r.dataset.open) showDetail(); });
+  // клик по строке реестра — открыть карточку этого кредита
+  document.getElementById('listBody').addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-num]');
+    if (tr) showDetail(tr.dataset.num);
+  });
+  // переходы между связанными кредитами внутри карточки
+  document.addEventListener('click', e => {
+    const g = e.target.closest('[data-goto]');
+    if (g) { e.preventDefault(); showDetail(g.dataset.goto); }
   });
   document.getElementById('backLink').addEventListener('click', e => { e.preventDefault(); showList(); });
 
-  // фильтр реестра
+  // ---------- фильтр реестра: применяется «на лету», без кнопки «Обновить» ----------
   const fQ = document.getElementById('fQ');
   const fNum = document.getElementById('fNum');
+  const fRegion = document.getElementById('fRegion');
   const fDistrict = document.getElementById('fDistrict');
   const fGroup = document.getElementById('fGroup');
+  const fCount = document.getElementById('fCount');
+  const fBadge = document.getElementById('fBadge');
+
+  // сворачивание фильтра (по умолчанию свёрнут)
+  const filterHead = document.getElementById('filterHead');
+  const filterBody = document.getElementById('filterBody');
+  filterHead.addEventListener('click', () => {
+    const closed = filterHead.classList.toggle('collapsed');
+    filterBody.classList.toggle('collapsed', closed);
+  });
+
+  // списки области/района строятся из данных
+  const regions = [...new Set(Object.values(DISTRICTS))].sort();
+  fRegion.innerHTML = '<option value="">Все</option>' + regions.map(r => '<option>' + r + '</option>').join('');
+  const districts = [...new Set(MAIN.map(l => l.district))].sort();
+  fDistrict.innerHTML = '<option value="">Все</option>' + districts.map(d => '<option>' + d + '</option>').join('');
+
   function applyFilter(){
     const q = fQ.value.trim().toLowerCase();
     const n = fNum.value.trim().toLowerCase();
-    const d = fDistrict.value, g = fGroup.value;
-    document.querySelectorAll('#listTable tbody tr.clk').forEach(r => {
-      const num = r.children[0].textContent.toLowerCase();
-      const who = r.children[1].textContent.toLowerCase();
+    const reg = fRegion.value, d = fDistrict.value, g = fGroup.value;
+    const rows = document.querySelectorAll('#listBody tr[data-num]');
+    let shown = 0;
+    rows.forEach(r => {
+      const who = r.children[0].textContent.toLowerCase();
+      const num = r.children[1].textContent.toLowerCase();
       const ok = (!q || who.includes(q))
         && (!n || num.includes(n))
+        && (!reg || DISTRICTS[r.dataset.district] === reg)
         && (!d || r.dataset.district === d)
         && (!g || r.dataset.group === g);
       r.style.display = ok ? '' : 'none';
+      if (ok) shown++;
     });
+    fCount.textContent = shown === rows.length ? '' : 'Показано ' + shown + ' из ' + rows.length;
+    const active = [q, n, reg, d, g].filter(Boolean).length;
+    fBadge.textContent = active || '';
+    fBadge.hidden = !active;
   }
-  [fQ, fNum, fDistrict, fGroup].forEach(el => {
-    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', applyFilter);
+  // район сужается до выбранной области
+  function syncDistricts(){
+    const reg = fRegion.value;
+    let dropped = false;
+    [...fDistrict.options].forEach(o => {
+      if (!o.value) return;
+      const ok = !reg || DISTRICTS[o.value] === reg;
+      o.hidden = !ok;
+      if (o.selected && !ok) dropped = true;
+    });
+    if (dropped) fDistrict.value = '';
+  }
+  [fQ, fNum, fRegion, fDistrict, fGroup].forEach(el => {
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
+      if (el === fRegion) syncDistricts();
+      applyFilter();
+    });
+  });
+  document.getElementById('fReset').addEventListener('click', () => {
+    fQ.value = ''; fNum.value = ''; fRegion.value = ''; fGroup.value = '';
+    syncDistricts(); fDistrict.value = '';
+    applyFilter();
   });
 
-  // вкладки
+  // ---------- вкладки ----------
   function openTab(name){
     document.querySelectorAll('#tabs .tab').forEach(x => x.classList.remove('active'));
     document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
@@ -1417,15 +1618,15 @@
     t.addEventListener('click', () => openTab(t.dataset.tab));
   });
 
-  // под-вкладки («Условия», «Дополнительно»)
-  document.querySelectorAll('.subtab').forEach(s => {
-    s.addEventListener('click', () => {
-      const grp = s.dataset.sub, idx = s.dataset.idx;
-      document.querySelectorAll('.subtab[data-sub="' + grp + '"]').forEach(x => x.classList.remove('active'));
-      document.querySelectorAll('[data-subpanel^="' + grp + '-"]').forEach(p => p.classList.remove('active'));
-      s.classList.add('active');
-      document.querySelector('[data-subpanel="' + grp + '-' + idx + '"]').classList.add('active');
-    });
+  // под-вкладки («Условия», «Дополнительно») — панели перерисовываются, поэтому делегирование
+  document.addEventListener('click', e => {
+    const s = e.target.closest('.subtab');
+    if (!s) return;
+    const g = s.dataset.sub, idx = s.dataset.idx;
+    document.querySelectorAll('.subtab[data-sub="' + g + '"]').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('[data-subpanel^="' + g + '-"]').forEach(p => p.classList.remove('active'));
+    s.classList.add('active');
+    document.querySelector('[data-subpanel="' + g + '-' + idx + '"]').classList.add('active');
   });
 
   // меню печатных форм
