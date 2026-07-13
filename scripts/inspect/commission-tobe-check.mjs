@@ -19,30 +19,48 @@ await page.goto(FILE, { waitUntil: 'load' });
 const ok = (name, cond) => console.log(`${cond ? '  ok' : 'FAIL'}  ${name}`);
 
 // --- список ---
-ok('3 строки в гриде', (await page.locator('#rows tr').count()) === 3);
-ok('плитка «Всего комиссий» = 3', (await page.locator('.statcard').nth(1).locator('.sc-num').innerText()) === '3');
+ok('14 строк в гриде', (await page.locator('#rows tr').count()) === 14);
+ok('плитка «Всего комиссий» = 14', (await page.locator('.statcard').nth(1).locator('.sc-num').innerText()) === '14');
 ok('статус — чип, не текст', (await page.locator('#row138 .badge.review').count()) === 1);
 ok('просрочка 140 подсвечена', (await page.locator('#row140 .badge.overdue').innerText()).includes('Просрочен 2'));
+ok('крайний срок 144 = сегодня', (await page.locator('#row144 td:nth-child(6) .badge.review').innerText()) === 'Сегодня');
 
-// «Ждут моего голоса» (роль по умолчанию — председатель): только 138
+// «Ждут моего голоса» (роль по умолчанию — председатель): 138, 144, 147, 149
 await page.click('.statcard.mine');
-ok('фильтр «моя очередь» → 1 строка', (await page.locator('#rows tr').count()) === 1);
+ok('фильтр «моя очередь» → 4 строки', (await page.locator('#rows tr').count()) === 4);
 ok('чип фильтра появился', (await page.locator('#fChips .chip').count()) === 1);
 await page.click('.chip button');
-ok('чип снят → 3 строки', (await page.locator('#rows tr').count()) === 3);
+ok('чип снят → 14 строк', (await page.locator('#rows tr').count()) === 14);
+
+// 145 — единственная запись с пройденным гейтом: 3 из 5, кворум 3, протокол № 5
+await page.click('#row145');
+await page.click('#btnOpen');
+ok('145: прогресс 3 из 5', (await page.locator('#c-votetitle').innerText()) === 'Проголосовало 3 из 5');
+ok('145: кворум набран', (await page.locator('#c-quorum').innerText()).includes('набран')
+  && !(await page.locator('#c-quorum').innerText()).includes('не набран'));
+ok('145: гейт пройден — «Одобрить» активна',
+  !(await page.locator('#c-final .btn-approve').isDisabled()));
+await page.click('#crumbBack');
 
 // --- карточка 138: кворум не набран → решение заблокировано ---
 await page.click('#row138');
 await page.click('#btnOpen');
 ok('прогресс «Проголосовало 0 из 2»', (await page.locator('#c-votetitle').innerText()) === 'Проголосовало 0 из 2');
 ok('кворум не набран', (await page.locator('#c-quorum').innerText()).includes('не набран'));
-const gate = await page.locator('#c-final .note-banner').innerText();
+// в #c-final теперь два баннера: гейт (первый) и «что будет после одобрения» (второй, поток A/B)
+const gate = await page.locator('#c-final .note-banner').first().innerText();
 ok('гейт называет причину (кворум)', gate.includes('Кворум не набран: проголосовало 0 из 2, требуется 2'));
 ok('«Одобрить» disabled', await page.locator('#c-final .btn-approve').isDisabled());
 
 // заполняем протокол — кнопки всё ещё заблокированы (нет голосов)
 await page.fill('#f-protNo', '7');
-await page.fill('#f-meetDate', '10.07.2026');
+ok('«Дата заседания» — календарь, а не текстовое поле',
+  (await page.locator('#f-meetDate').getAttribute('type')) === 'date');
+ok('дата заседания ограничена сегодняшним днём',
+  (await page.locator('#f-meetDate').getAttribute('max')) === '2026-07-10');
+await page.fill('#f-meetDate', '2026-07-10');   // «Дата заседания» — <input type="date">, значение в ISO
+ok('дата легла в модель в дд.мм.гггг',
+  (await page.evaluate(() => RECORDS.find(r => r.id === '138').meetDate)) === '10.07.2026');
 ok('после протокола гейт всё ещё держит (нет кворума)', await page.locator('#c-final .btn-approve').isDisabled());
 
 // --- голос председателя ---
