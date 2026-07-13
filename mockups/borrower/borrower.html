@@ -52,17 +52,21 @@
 
   /* main */
   .main{flex:1;min-width:0;display:flex;flex-direction:column;}
-  .topbar{display:flex;align-items:center;gap:16px;padding:16px 26px;border-bottom:1px solid var(--border);}
+  .topbar{display:flex;align-items:center;gap:16px;padding:12px 26px;border-bottom:1px solid var(--border);}
   .burger{font-size:22px;color:var(--secondary-text);cursor:pointer;line-height:1;}
-  .topbar .title{font-weight:700;font-size:20px;}
-  .crumb{color:var(--secondary-text);font-size:14px;}
-  .crumb a{color:var(--primary-text);text-decoration:none;}
-  .content{padding:20px 26px 40px;flex:1;}
+  .topbar .title{font-weight:700;font-size:16px;}
+  .back-arrow{display:none;align-items:center;justify-content:center;width:32px;height:32px;margin:-4px 0;
+    border-radius:var(--radius);color:var(--primary-text);}
+  .back-arrow svg{width:24px;height:24px;}
+  .back-arrow:hover{background:var(--filter-bg);}
+  .topbar.on-detail .back-arrow{display:inline-flex;}
+  .content{padding:10px 26px 40px;flex:1;}
 
   .btn{font-family:var(--font);font-size:15px;font-weight:600;border-radius:var(--radius);padding:8px 16px;
     border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;}
   .btn-secondary{background:var(--filter-bg);color:var(--secondary-text);border-color:var(--field-border);}
   .btn-primary{background:var(--primary);color:#fff;}
+  .btn-success{background:var(--success-btn);color:#fff;border-color:var(--success-btn);}
   .btn-sm{font-size:13px;padding:6px 11px;}
 
   input[type=text],input[type=date],select{font-family:var(--font);font-size:14px;color:var(--body-text);background:#fff;
@@ -71,7 +75,7 @@
 
   /* ---------- фильтр реестра — jmix-generic-filter, 1:1 со стендом
        (снято 13.07.2026, scripts/inspect/filter-styles2.mjs, /loan-applicants) ---------- */
-  .jf{margin:4px 0 8px;}
+  .jf{margin:0 0 8px;}
   .jf-summary{display:inline-flex;align-items:center;gap:8px;height:36px;padding:8px 0;
     font-size:16px;font-weight:500;line-height:20px;color:var(--secondary-text);cursor:pointer;user-select:none;}
   .jf-summary .caret{flex:0 0 auto;width:16px;height:16px;transition:transform .12s;}
@@ -120,15 +124,12 @@
   .id-sub b{color:var(--body-text);font-weight:600;}
   .id-actions{display:flex;gap:8px;flex:0 0 auto;position:relative;}
 
-  .menu{position:absolute;right:0;top:42px;background:#fff;border:1px solid var(--border-strong);border-radius:6px;
-    box-shadow:0 6px 20px rgba(20,35,60,.14);min-width:280px;z-index:20;display:none;padding:5px;}
-  .menu.open{display:block;}
-  .menu-i{padding:8px 11px;font-size:14px;border-radius:4px;cursor:pointer;display:flex;justify-content:space-between;gap:12px;}
-  .menu-i:hover{background:var(--filter-bg);}
-  .menu-i .m-src{font-size:11px;color:var(--secondary-text);}
-
   /* ---------- 3 плитки состояния ---------- */
+  .gen-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start;margin-bottom:22px;}
+  .gen-col{display:flex;flex-direction:column;gap:14px;min-width:0;}
+  .gen-col > .section{margin-bottom:0 !important;}
   .state-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px;}
+  @media (max-width:1100px){ .gen-grid{grid-template-columns:minmax(0,1fr);} }
   .tile{border:1px solid var(--panel-border);border-radius:6px;padding:14px 16px;background:#fff;display:flex;flex-direction:column;gap:8px;}
   .tile-lbl{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--secondary-text);font-weight:600;
     display:flex;align-items:center;gap:6px;}
@@ -172,6 +173,7 @@
   table.grid tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;
     color:var(--body-text);}
   table.grid tbody tr:last-child td{border-bottom:0;}
+  table.grid tbody tr:nth-child(even) td{background:var(--field-bg);}
   td.mono{font-variant-numeric:tabular-nums;}
 
   /* реестр: сортируемая шапка + строки-ссылки */
@@ -237,6 +239,7 @@
   .f .fk{color:var(--secondary-text);flex:0 0 190px;font-size:13px;}
   .f .fv{font-weight:600;}
   .f.span2{grid-column:1 / -1;}
+  .gen-grid .fields{grid-template-columns:minmax(0,1fr);}
 
   /* дерево взыскания */
   .proc{border:1px solid var(--panel-border);border-radius:6px;margin:0 16px 14px;overflow:hidden;}
@@ -327,8 +330,8 @@
               <div class="nav-item">Отделы</div>
               <div class="nav-item">Кредиторы</div>
               <div class="nav-item">Процентные ставки</div>
-              <div class="nav-item">Группа платежоспособности</div>
-              <div class="nav-item">Группа заемщика</div>
+              <div class="nav-item">Группа заёмщика</div>
+              <div class="nav-item">Подгруппа заёмщика</div>
             </div>
           </div>
         </div>
@@ -345,17 +348,19 @@
 
   <!-- ===================== MAIN ===================== -->
   <div class="main">
-    <div class="topbar">
+    <div class="topbar" id="topbar">
       <span class="burger">☰</span>
+      <a href="#" class="back-arrow" id="backLink" title="К списку заёмщиков" aria-label="К списку заёмщиков">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      </a>
       <span class="title" id="pageTitle">Список заёмщиков</span>
-      <span class="crumb" id="crumb">Система кредитования › Заёмщики</span>
     </div>
 
     <!-- ==================== ВИД: СПИСОК ==================== -->
     <div class="view active" id="view-list">
       <div class="content">
 
-        <div class="jf" id="jf">
+        <div class="jf collapsed" id="jf">
           <div class="jf-summary" id="jfToggle">
             <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             <span>Фильтр : Фильтры *</span>
@@ -399,16 +404,29 @@
                 </select></span>
               </div>
               <div class="jf-row">
-                <span class="jf-label" title="Группа платёжеспособности =">Группа платёжеспособности =</span>
+                <span class="jf-label" title="Группа заёмщика =">Группа заёмщика =</span>
                 <span class="jf-ctl"><select id="f-group">
                   <option value=""></option>
-                  <option value="1.1">1.1 · Погашение по графику</option>
-                  <option value="2.1">2.1 · Работа с судом</option>
-                  <option value="2.2">2.2 · Исполнительные листы</option>
-                  <option value="2.3">2.3 · Инициирование банкротства</option>
-                  <option value="3.1">3.1 · Процедура банкротства</option>
-                  <option value="4">4 · Безнадёжные долги</option>
-                  <option value="5">5 · Погашенные</option>
+                  <option value="1">1. Платежеспособные</option>
+                  <option value="2">2. Неплатежеспособные</option>
+                  <option value="3">3. Предприятия-банкроты</option>
+                  <option value="4">4. Безнадежные долги</option>
+                  <option value="5">5. Погашенные долги</option>
+                </select></span>
+              </div>
+              <div class="jf-row">
+                <span class="jf-label" title="Подгруппа заёмщика =">Подгруппа заёмщика =</span>
+                <span class="jf-ctl"><select id="f-sub">
+                  <option value=""></option>
+                  <option value="1.1">1.1. Производят погашение по графику</option>
+                  <option value="1.2">1.2. Производят погашение с отставанием от графиков</option>
+                  <option value="2.1">2.1. Работа с судебными органами</option>
+                  <option value="2.2">2.2. Работа по исполнительным листам</option>
+                  <option value="2.3">2.3. Работа по инициированию банкротства</option>
+                  <option value="3.1">3.1. Проводится процедура банкротства</option>
+                  <option value="3.2">3.2. Процедура банкротства завершена</option>
+                  <option value="4">4. Безнадежные долги</option>
+                  <option value="5">5. Погашенные долги</option>
                 </select></span>
               </div>
               <div class="jf-row">
@@ -423,7 +441,7 @@
             </div>
 
             <div class="jf-actions">
-              <button class="btn btn-primary" id="fApply">
+              <button class="btn btn-success" id="fApply">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                 Обновить
               </button>
@@ -453,13 +471,14 @@
           <table class="grid" id="listTable">
             <thead>
               <tr>
-                <th style="width:13%" data-sort="inn">ИНН <span class="sort">↕</span></th>
-                <th style="width:22%" data-sort="name">Наименование <span class="sort">↕</span></th>
-                <th style="width:9%"  data-sort="type">Тип <span class="sort">↕</span></th>
-                <th style="width:14%" data-sort="sector">Отрасль <span class="sort">↕</span></th>
-                <th style="width:11%" data-sort="district">Район <span class="sort">↕</span></th>
-                <th style="width:21%" data-sort="group">Группа платёжеспособности <span class="sort">↕</span></th>
-                <th style="width:11%" data-sort="cat">Категория риска <span class="sort">↕</span></th>
+                <th style="width:12%" data-sort="inn">ИНН <span class="sort">↕</span></th>
+                <th style="width:19%" data-sort="name">Наименование <span class="sort">↕</span></th>
+                <th style="width:7%"  data-sort="type">Тип <span class="sort">↕</span></th>
+                <th style="width:12%" data-sort="sector">Отрасль <span class="sort">↕</span></th>
+                <th style="width:10%" data-sort="district">Район <span class="sort">↕</span></th>
+                <th style="width:15%" data-sort="group">Группа заёмщика <span class="sort">↕</span></th>
+                <th style="width:15%" data-sort="sub">Подгруппа <span class="sort">↕</span></th>
+                <th style="width:10%" data-sort="cat">Категория риска <span class="sort">↕</span></th>
               </tr>
             </thead>
             <tbody id="listBody"></tbody>
@@ -474,29 +493,19 @@
     <div class="view" id="view-detail">
       <div class="content">
 
-      <a href="#" id="backLink" style="display:inline-flex;gap:6px;color:var(--primary-text);text-decoration:none;font-size:14px;margin-bottom:14px">‹ к списку заёмщиков</a>
-
       <div class="id-bar">
         <div class="id-main">
           <div class="id-name" id="cName"></div>
           <div class="id-sub" id="cSub"></div>
         </div>
         <div class="id-actions">
-          <button class="btn btn-secondary">Изменить</button>
-          <button class="btn btn-secondary">Кредитное досье</button>
-          <button class="btn btn-secondary" id="printBtn">🖨 Печатные формы ▾</button>
-          <div class="menu" id="printMenu">
-            <div class="menu-i">Претензия <span class="m-src">на дату расчёта</span></div>
-            <div class="menu-i">Акт сверки <span class="m-src">на дату расчёта</span></div>
-            <div class="menu-i">Сведения о заёмщике <span class="m-src">сводка</span></div>
-            <div class="menu-i">Извещение (утрата залога) <span class="m-src">форма №5</span></div>
-          </div>
+          <button class="btn btn-secondary">Редактировать</button>
         </div>
       </div>
 
       <div class="tabs" id="tabs">
         <div class="tab active" data-tab="general">Общая информация</div>
-        <div class="tab" data-tab="subject">Субъект</div>
+        <div class="tab" data-tab="contacts">Контакты</div>
         <div class="tab" data-tab="credits">Кредиты</div>
         <div class="tab" data-tab="collateral">Обеспечение</div>
         <div class="tab" data-tab="enforce">Взыскание</div>
@@ -504,12 +513,10 @@
         <div class="tab" data-tab="curatorship">Кураторство</div>
         <div class="tab" data-tab="history">История</div>
         <div class="tab" data-tab="docs">Документы</div>
-        <div class="tab" data-tab="contacts">Контакты</div>
         <div class="tab" data-tab="checks">Результаты проверок</div>
       </div>
 
       <div class="tabpanel active" data-panel="general" id="pGeneral"></div>
-      <div class="tabpanel" data-panel="subject" id="pSubject"></div>
       <div class="tabpanel" data-panel="credits" id="pCredits"></div>
       <div class="tabpanel" data-panel="collateral" id="pCollateral"></div>
       <div class="tabpanel" data-panel="enforce" id="pEnforce"></div>
@@ -520,6 +527,22 @@
       <div class="tabpanel" data-panel="contacts" id="pContacts"></div>
       <div class="tabpanel" data-panel="checks" id="pChecks"></div>
 
+      </div>
+    </div>
+
+    <!-- ==================== ВИД: СУБЪЕКТ (организация / физлицо) ==================== -->
+    <div class="view" id="view-subject">
+      <div class="content">
+        <div class="id-bar">
+          <div class="id-main">
+            <div class="id-name" id="sName"></div>
+            <div class="id-sub" id="sSub"></div>
+          </div>
+          <div class="id-actions">
+            <button class="btn btn-secondary">Редактировать</button>
+          </div>
+        </div>
+        <div id="sBody"></div>
       </div>
     </div>
   </div>
@@ -548,7 +571,7 @@ const DATA = [
   act:{txt:'1 · Акт сверки составлен', badge:'b-ok'},
   note:'Реорганизация 2024 г., прежнее наименование ОАО «Агромаш».',
   audit:{by:'Асанов А. К.', date:'15.01.2023', chgBy:'Жумабеков Э. Н.', chgDate:'20.06.2026'},
-  group:{code:'2.3', label:'Инициирование банкротства',
+  group:{code:'2.3', label:'Работа по инициированию банкротства',
     basis:'<b>переведён 20.06.2026</b> · сектор по работе с активами<br>по решению о банкротстве кредита <b>Модернизация-2022-102</b>',
     steps:[['Блок 1 (состояния субъекта):','нет — банкротство не идёт целиком, безнадёжных нет'],
            ['Блок 2 (кредит в процедуре):','2.1 АПК · 2.2 Газификация · <b>2.3 Модернизация</b> → берём наиболее продвинутую'],
@@ -618,8 +641,7 @@ const DATA = [
         {rel:'Фаза взыскания', relId:'Претензия · проц. №68252', kind:'Претензионное письмо', file:'pretenziya_68252.pdf', date:'14.05.2025', by:'Осмонова Г. Т.'}],
   contacts:[{k:'Телефон (осн.)', v:'+996 312 55-14-08', n:'приёмная'},
             {k:'Телефон (моб.)', v:'+996 555 12-34-56', n:'руководитель'},
-            {k:'E-mail', v:'info@agrotech.kg', n:'—'},
-            {k:'Адрес фактический', v:'Чуйская обл., Сокулукский р-н, с. Селекционное, ул. Заводская 12', n:'совпадает с юридическим'}],
+            {k:'E-mail', v:'info@agrotech.kg', n:'—'}],
   reps:[{role:'Руководитель', name:'Сыдыков Ж. А.', pid:'#63540', inn:'10203197800145', phone:'+996 555 12-34-56', from:'15.01.2023'},
         {role:'Гл. бухгалтер', name:'Медетова И. К.', pid:'#63541', inn:'21504198500712', phone:'+996 700 88-21-09', from:'03.09.2024'}],
   banks:[{b:'ОАО «РСК Банк»', bik:'129001', acc:'1290012345678901', n:'основной'},
@@ -634,7 +656,7 @@ const DATA = [
   village:'Лебединовка', addr:'ул. Мира 4', phone:'+996 312 31-77-20', email:'office@svetagrad.kg',
   kind:'Обычный', kindBadge:'b-ok', act:{txt:'1 · Акт сверки составлен', badge:'b-ok'},
   note:'—', audit:{by:'Токтосунов Б. М.', date:'02.02.2024', chgBy:'Токтосунов Б. М.', chgDate:'11.06.2026'},
-  group:{code:'1.1', label:'Погашение по графику',
+  group:{code:'1.1', label:'Производят погашение по графику',
     basis:'<b>с выдачи кредита</b> · просрочек нет, платежи по графику',
     steps:[['Блок 1 (состояния субъекта):','нет'],['Блок 2 (кредит в процедуре):','нет — процедур взыскания не открыто'],['Итог:','<b>1.1</b> — базовая группа']]},
   cat:{level:'Низкий', basis:'<b>низкий</b> · просрочка 0 дн., стоп-факторов нет',
@@ -658,8 +680,7 @@ const DATA = [
         {rel:'Кредит', relId:'Строительство-2024-31', kind:'Кредитный договор', file:'dogovor_str_031.pdf', date:'14.02.2024', by:'Токтосунов Б. М.'},
         {rel:'Договор залога', relId:'ЗД-2024-052', kind:'Отчёт об оценке', file:'ocenka_zd_052.pdf', date:'20.02.2024', by:'Токтосунов Б. М.'}],
   contacts:[{k:'Телефон (осн.)', v:'+996 312 31-77-20', n:'офис'},
-            {k:'E-mail', v:'office@svetagrad.kg', n:'—'},
-            {k:'Адрес фактический', v:'Чуйская обл., Аламудунский р-н, с. Лебединовка, ул. Мира 4', n:'совпадает с юридическим'}],
+            {k:'E-mail', v:'office@svetagrad.kg', n:'—'}],
   reps:[{role:'Руководитель', name:'Абдырахманов С. К.', pid:'#63701', inn:'12208198100234', phone:'+996 770 45-11-02', from:'25.01.2020'}],
   banks:[{b:'ОАО «Айыл Банк»', bik:'135001', acc:'1350011122334455', n:'основной'}],
   units:[{id:5610, name:'Руководство', n:'—'}],
@@ -673,7 +694,7 @@ const DATA = [
   kind:'Обычный', kindBadge:'b-ok', act:{txt:'2 · Акт сверки не составлен', badge:'b-gray'},
   note:'Отказ от подписания акта сверки от 04.05.2026.',
   audit:{by:'Осмонова Г. Т.', date:'18.07.2022', chgBy:'Осмонова Г. Т.', chgDate:'05.06.2026'},
-  group:{code:'2.2', label:'Исполнительные листы',
+  group:{code:'2.2', label:'Работа по исполнительным листам',
     basis:'<b>переведён 05.06.2026</b> · ДПО<br>по кредиту <b>Микро-2022-208</b> выдан исполнительный лист',
     steps:[['Блок 1 (состояния субъекта):','нет'],['Блок 2 (кредит в процедуре):','<b>2.2</b> Микро-2022-208 — исполнительное производство'],['Итог:','<b>2.2</b> (п. 66)']]},
   cat:{level:'Средний', basis:'<b>средний</b> · просрочка 95 дн. по Микро-2022-208', note:'стоп-факторов нет',
@@ -694,8 +715,7 @@ const DATA = [
   docs:[{rel:'Субъект', relId:'физлицо #63612', kind:'Паспорт', file:'passport_63612.pdf', date:'18.07.2022', by:'Осмонова Г. Т.'},
         {rel:'Кредит', relId:'Микро-2022-208', kind:'Кредитный договор', file:'dogovor_micro_208.pdf', date:'20.07.2022', by:'Осмонова Г. Т.'},
         {rel:'Фаза взыскания', relId:'Исполнительный лист · проц. №69015', kind:'Исполнительный лист', file:'ispolnit_69015.pdf', date:'05.06.2026', by:'Осмонова Г. Т.'}],
-  contacts:[{k:'Телефон (моб.)', v:'+996 555 90-14-77', n:'основной'},
-            {k:'Адрес фактический', v:'г. Бишкек, ул. Ахунбаева 118, кв. 12', n:'—'}],
+  contacts:[{k:'Телефон (моб.)', v:'+996 555 90-14-77', n:'основной'}],
   reps:[], banks:[], units:[],
   blacklist:false, score:52, limit:{used:1850000, total:5000000}
 },
@@ -707,7 +727,7 @@ const DATA = [
   kind:'Находятся в стадии банкротства', kindBadge:'b-gray', act:{txt:'3 · Не требуется', badge:'b-gray'},
   note:'Введена процедура банкротства решением суда от 14.02.2026.',
   audit:{by:'Жумабеков Э. Н.', date:'10.10.2019', chgBy:'Жумабеков Э. Н.', chgDate:'14.02.2026'},
-  group:{code:'3.1', label:'Процедура банкротства',
+  group:{code:'3.1', label:'Проводится процедура банкротства',
     basis:'<b>переведён 14.02.2026</b> · сектор по работе с активами<br>решение суда о введении процедуры банкротства',
     steps:[['Блок 1 (состояния субъекта):','<b>да</b> — банкротство идёт по субъекту целиком → доминирует над блоком 2'],
            ['Блок 2 (кредит в процедуре):','2.2 Дороги-2021-77 — не учитывается (перебит блоком 1)'],['Итог:','<b>3.1</b> (п. 70)']]},
@@ -736,8 +756,7 @@ const DATA = [
   docs:[{rel:'Субъект', relId:'организация #5988', kind:'Свидетельство о регистрации', file:'svidetelstvo_5988.pdf', date:'10.10.2019', by:'Жумабеков Э. Н.'},
         {rel:'Фаза взыскания', relId:'Процедура банкротства · №68740', kind:'Решение суда', file:'reshenie_68740.pdf', date:'14.02.2026', by:'Жумабеков Э. Н.'}],
   contacts:[{k:'Телефон (осн.)', v:'+996 312 66-01-45', n:'приёмная'},
-            {k:'E-mail', v:'info@kyrgyzjol.kg', n:'—'},
-            {k:'Адрес фактический', v:'г. Бишкек, пр. Чуй 214', n:'—'}],
+            {k:'E-mail', v:'info@kyrgyzjol.kg', n:'—'}],
   reps:[{role:'Спец. администратор', name:'Ниязов Т. Б.', pid:'#63888', inn:'10511197600921', phone:'+996 707 30-10-10', from:'06.04.2026'}],
   banks:[{b:'ОАО «РСК Банк»', bik:'129001', acc:'1290099887766554', n:'счёт под администрированием'}],
   units:[{id:5301, name:'Управление', n:'—'}, {id:5302, name:'Дорожно-строительный участок', n:'г. Бишкек'}],
@@ -748,10 +767,12 @@ const DATA = [
   subj:{kind:'org', id:6155, doc:{t:'Свидетельство', num:'ГР-0077512', date:'31.07.2015', by:'Минюст КР'}},
   sector:'Пищевая и перерабатывающая', district:'Ак-Талинский', region:'Нарынская', aokrug:'Тоголок-Молдо а/о',
   village:'Кара-Ой', addr:'ул. Ленина 2', phone:'+996 700 11-22-33', email:'—',
+  /* фактический адрес отличается от юридического — та же структура полей */
+  fact:{region:'г. Бишкек', district:'Первомайский (г. Бишкек)', aokrug:'—', village:'—', addr:'ул. Токтогула 125, оф. 7'},
   kind:'Безнадёжные долги', kindBadge:'b-gray', act:{txt:'1 · Акт сверки составлен', badge:'b-ok'},
   note:'Долг признан безнадёжным решением Правления от 18.05.2026 №П-77.',
   audit:{by:'Асанов А. К.', date:'12.03.2018', chgBy:'Жумабеков Э. Н.', chgDate:'18.05.2026'},
-  group:{code:'4', label:'Безнадёжные долги',
+  group:{code:'4', label:'Безнадежные долги',
     basis:'<b>переведён 18.05.2026</b> · решение Правления №П-77<br>взыскание исчерпано, имущества нет',
     steps:[['Блок 1 (состояния субъекта):','<b>да</b> — долг признан безнадёжным'],['Блок 2:','не учитывается'],['Итог:','<b>4</b> (п. 72)']]},
   cat:{level:'Высокий', basis:'<b>высокий</b> · безнадёжный долг', note:'⚠ стоп-фактор: безнадёжность',
@@ -773,8 +794,7 @@ const DATA = [
            {date:'02.02.2025 · 11:15', kind:'kur', title:'Исполнительное производство окончено', body:'Имущество реализовано полностью, остаток долга 11 700 000 KGS не покрыт.'}],
   docs:[{rel:'Кредит', relId:'Переработка-2018-44', kind:'Кредитный договор', file:'dogovor_pererab_044.pdf', date:'12.03.2018', by:'Асанов А. К.'},
         {rel:'Фаза взыскания', relId:'Признание безнадёжным · №66120', kind:'Решение Правления №П-77', file:'reshenie_p77.pdf', date:'18.05.2026', by:'Жумабеков Э. Н.'}],
-  contacts:[{k:'Телефон (моб.)', v:'+996 700 11-22-33', n:'директор'},
-            {k:'Адрес фактический', v:'Нарынская обл., Ак-Талинский р-н, с. Кара-Ой, ул. Ленина 2', n:'—'}],
+  contacts:[{k:'Телефон (моб.)', v:'+996 700 11-22-33', n:'директор'}],
   reps:[{role:'Руководитель', name:'Кубанычбеков А. Т.', pid:'#63099', inn:'20905198000456', phone:'+996 700 11-22-33', from:'31.07.2015'}],
   banks:[], units:[{id:5470, name:'Руководство', n:'—'}],
   blacklist:true, score:12, limit:{used:11700000, total:15000000}
@@ -808,8 +828,7 @@ const DATA = [
   docs:[{rel:'Субъект', relId:'физлицо #63545', kind:'Паспорт', file:'passport_63545.pdf', date:'14.04.2023', by:'Асанов А. К.'},
         {rel:'Кредит', relId:'Агро-2023-091', kind:'Кредитный договор', file:'dogovor_agro_091.pdf', date:'20.04.2023', by:'Асанов А. К.'},
         {rel:'Фаза взыскания', relId:'Претензия · проц. №68990', kind:'Претензионное письмо', file:'pretenziya_68990.pdf', date:'02.04.2026', by:'Осмонова Г. Т.'}],
-  contacts:[{k:'Телефон (моб.)', v:'+996 777 21-08-64', n:'основной'},
-            {k:'Адрес фактический', v:'Чуйская обл., Аламудунский р-н, с. Кой-Таш, ул. Садовая 7', n:'—'}],
+  contacts:[{k:'Телефон (моб.)', v:'+996 777 21-08-64', n:'основной'}],
   reps:[], banks:[], units:[],
   blacklist:false, score:57, limit:{used:3950000, total:8000000}
 },
@@ -821,7 +840,7 @@ const DATA = [
   kind:'Обычный', kindBadge:'b-ok', act:{txt:'1 · Акт сверки составлен', badge:'b-ok'},
   note:'Кредит погашен досрочно 28.02.2026.',
   audit:{by:'Токтосунов Б. М.', date:'11.01.2021', chgBy:'Токтосунов Б. М.', chgDate:'28.02.2026'},
-  group:{code:'5', label:'Погашенные',
+  group:{code:'5', label:'Погашенные долги',
     basis:'<b>переведён 28.02.2026</b> · кредит погашен полностью, остаток 0',
     steps:[['Блок 1 (состояния субъекта):','нет'],['Блок 2:','процедур нет'],['Итог:','<b>5</b> — все кредиты закрыты (п. 73)']]},
   cat:{level:'Низкий', basis:'<b>низкий</b> · долга нет', note:'история без просрочек',
@@ -840,8 +859,7 @@ const DATA = [
   docs:[{rel:'Кредит', relId:'Ирригация-2021-12', kind:'Кредитный договор', file:'dogovor_irrig_012.pdf', date:'11.01.2021', by:'Токтосунов Б. М.'},
         {rel:'Кредит', relId:'Ирригация-2021-12', kind:'Справка о погашении', file:'spravka_pogashenie.pdf', date:'28.02.2026', by:'Токтосунов Б. М.'}],
   contacts:[{k:'Телефон (осн.)', v:'+996 312 44-90-12', n:'офис'},
-            {k:'E-mail', v:'bereke@mail.kg', n:'—'},
-            {k:'Адрес фактический', v:'Чуйская обл., Сокулукский р-н, г. Шопоков, ул. Речная 21', n:'—'}],
+            {k:'E-mail', v:'bereke@mail.kg', n:'—'}],
   reps:[{role:'Руководитель', name:'Молдалиев К. Ж.', pid:'#63420', inn:'11003197500118', phone:'+996 555 77-01-23', from:'15.02.2008'}],
   banks:[{b:'ОАО «Айыл Банк»', bik:'135001', acc:'1350044556677889', n:'основной'}],
   units:[{id:5720, name:'Руководство', n:'—'}],
@@ -855,7 +873,7 @@ const DATA = [
   kind:'Групповой заёмщик (ГЗПМ)', kindBadge:'b-type', act:{txt:'1 · Акт сверки составлен', badge:'b-ok'},
   note:'Групповой заёмщик: 4 физлица, солидарная ответственность.',
   audit:{by:'Асанов А. К.', date:'22.07.2019', chgBy:'Асанов А. К.', chgDate:'05.07.2026'},
-  group:{code:'1.1', label:'Погашение по графику',
+  group:{code:'1.1', label:'Производят погашение по графику',
     basis:'<b>с выдачи кредита</b> · платежи по графику, просрочек нет',
     steps:[['Блок 1 (состояния субъекта):','нет'],['Блок 2:','процедур нет'],['Итог:','<b>1.1</b>']]},
   cat:{level:'Низкий', basis:'<b>низкий</b> · просрочка 0 дн.', note:'солидарная ответственность членов группы',
@@ -874,8 +892,7 @@ const DATA = [
   docs:[{rel:'Субъект', relId:'организация #6301', kind:'Свидетельство о регистрации', file:'svidetelstvo_6301.pdf', date:'22.07.2019', by:'Асанов А. К.'},
         {rel:'Кредит', relId:'Швейный-2025-08', kind:'Кредитный договор', file:'dogovor_shvey_008.pdf', date:'14.03.2025', by:'Асанов А. К.'},
         {rel:'Договор залога', relId:'ПД-2025-041', kind:'Договор поручительства', file:'poruchit_041.pdf', date:'14.03.2025', by:'Асанов А. К.'}],
-  contacts:[{k:'Телефон (моб.)', v:'+996 550 66-77-88', n:'старшая группы'},
-            {k:'Адрес фактический', v:'г. Бишкек, ул. Профсоюзная 30', n:'—'}],
+  contacts:[{k:'Телефон (моб.)', v:'+996 550 66-77-88', n:'старшая группы'}],
   reps:[{role:'Старшая группы', name:'Шамшыбекова И. М.', pid:'#63710', inn:'22208198800341', phone:'+996 550 66-77-88', from:'22.07.2019'}],
   banks:[{b:'ОАО «РСК Банк»', bik:'129001', acc:'1290033445566778', n:'основной'}],
   units:[],
@@ -894,24 +911,80 @@ document.querySelectorAll('.nav-group').forEach(g => {
 
 const vList = document.getElementById('view-list');
 const vDetail = document.getElementById('view-detail');
+const vSubject = document.getElementById('view-subject');
 const pageTitle = document.getElementById('pageTitle');
-const crumb = document.getElementById('crumb');
+const topbar = document.getElementById('topbar');
+let current = null;   /* открытый заёмщик, null = список */
+let currentSubj = null;   /* открытая страница субъекта, null = не открыта */
+
+function showOnly(v){ [vList, vDetail, vSubject].forEach(x => x.classList.toggle('active', x === v)); }
+
 function showList(){
-  vDetail.classList.remove('active'); vList.classList.add('active');
+  current = null; currentSubj = null;
+  showOnly(vList);
   pageTitle.textContent = 'Список заёмщиков';
-  crumb.innerHTML = 'Система кредитования › Заёмщики';
+  topbar.classList.remove('on-detail');
   window.scrollTo(0,0);
 }
-function showDetail(b){
+function showDetail(b, tab){
+  current = b; currentSubj = null;
   renderCard(b);
-  vList.classList.remove('active'); vDetail.classList.add('active');
+  showOnly(vDetail);
   pageTitle.textContent = 'Заёмщик';
-  crumb.innerHTML = 'Система кредитования › <a href="#" id="crumbBack">Заёмщики</a> › ' + esc(b.name);
-  document.getElementById('crumbBack').addEventListener('click', e => { e.preventDefault(); showList(); });
-  openTab('general');
+  topbar.classList.add('on-detail');
+  openTab(tab || lastTab());
   window.scrollTo(0,0);
 }
-document.getElementById('backLink').addEventListener('click', e => { e.preventDefault(); showList(); });
+/* страница субъекта — отдельный экран, не вкладка карточки */
+function showSubject(b){
+  current = b; currentSubj = b;
+  renderSubject(b);
+  showOnly(vSubject);
+  pageTitle.textContent = b.subj.kind === 'person' ? 'Физическое лицо' : 'Организация';
+  topbar.classList.add('on-detail');
+  window.scrollTo(0,0);
+}
+/* последняя открытая вкладка помнится между заёмщиками и перезагрузками */
+const TAB_KEY = 'asubk.borrower.tab';
+function lastTab(){
+  let t = null;
+  try { t = localStorage.getItem(TAB_KEY); } catch(e){}
+  return t && document.querySelector('#tabs .tab[data-tab="' + t + '"]') ? t : 'general';
+}
+function rememberTab(t){ try { localStorage.setItem(TAB_KEY, t); } catch(e){} }
+/* стрелка «назад»: со страницы субъекта — к заёмщику, из карточки — к списку */
+document.getElementById('backLink').addEventListener('click', e => {
+  e.preventDefault();
+  location.hash = currentSubj ? '#/b/' + currentSubj.inn : '';
+});
+
+/* ---------- роутинг по hash: вид переживает F5 ----------
+   #/b/<ИНН>[/<вкладка>] — карточка, #/s/<ИНН> — субъект, пустой hash — список */
+function writeHash(){
+  if (currentSubj) { location.hash = '#/s/' + currentSubj.inn; return; }
+  location.hash = current ? '#/b/' + current.inn + '/' + activeTab() : '';
+}
+function route(){
+  const s = /^#\/s\/([0-9]+)$/.exec(location.hash);
+  const sb = s && DATA.find(x => x.inn === s[1]);
+  if (sb) { showSubject(sb); return; }
+  const m = /^#\/b\/([0-9]+)(?:\/([a-z]+))?$/.exec(location.hash);
+  const b = m && DATA.find(x => x.inn === m[1]);
+  if (b) showDetail(b, m[2] && document.querySelector('#tabs .tab[data-tab="' + m[2] + '"]') ? m[2] : null);
+  else showList();
+}
+window.addEventListener('hashchange', route);
+
+/* ---------- справочники группы/подгруппы ----------
+   Значения взяты 1:1 из легаси: /debtorGroup/list и /debtorSubGroup/list (85.113.29.29:8080),
+   снято 2026-07-13. b.group.code — код ПОДгруппы (1.1 … 5); группа = первый уровень кода.
+   В /debtorSubGroup/list есть мусорная запись «5,2Тилек апп» — в мокап не переносится. */
+const GROUPS = { '1':'Платежеспособные', '2':'Неплатежеспособные', '3':'Предприятия-банкроты',
+                 '4':'Безнадежные долги', '5':'Погашенные долги' };
+const gTop = code => String(code).split('.')[0];
+const gTopLabel = code => GROUPS[gTop(code)] || '—';
+const grpBadge = (code, label) =>
+  '<span class="grp-badge"><span class="grp-code">' + code + '</span> ' + esc(label) + '</span>';
 
 /* ---------- реестр: рендер, фильтр, сортировка ---------- */
 const FIELDS = [
@@ -920,6 +993,7 @@ const FIELDS = [
   { key:'sector',   el:'f-sector'   },
   { key:'district', el:'f-district' },
   { key:'group',    el:'f-group'    },
+  { key:'sub',      el:'f-sub'      },
   { key:'cat',      el:'f-cat'      }
 ];
 let active = {};
@@ -935,12 +1009,14 @@ function matches(b){
   if (active.inn && !b.inn.includes(active.inn)) return false;
   if (active.sector && b.sector !== active.sector) return false;
   if (active.district && b.district !== active.district) return false;
-  if (active.group && b.group.code !== active.group) return false;
+  if (active.group && gTop(b.group.code) !== active.group) return false;
+  if (active.sub && b.group.code !== active.sub) return false;
   if (active.cat && b.cat.level !== active.cat) return false;
   return true;
 }
 function sortVal(b, k){
-  if (k === 'group') return b.group.code;
+  if (k === 'group') return gTop(b.group.code);
+  if (k === 'sub') return b.group.code;
   if (k === 'cat') return ({ 'Низкий':1, 'Средний':2, 'Высокий':3 })[b.cat.level];
   return b[k];
 }
@@ -961,9 +1037,10 @@ function renderList(){
       '<td>' + b.type + '</td>' +
       '<td class="muted" title="' + esc(b.sector) + '">' + esc(b.sector) + '</td>' +
       '<td class="muted" title="' + esc(b.district) + '">' + esc(b.district) + '</td>' +
-      '<td><span class="grp-badge"><span class="grp-code">' + b.group.code + '</span> ' + esc(b.group.label) + '</span></td>' +
+      '<td>' + grpBadge(gTop(b.group.code), gTopLabel(b.group.code)) + '</td>' +
+      '<td>' + grpBadge(b.group.code, b.group.label) + '</td>' +
       '<td>' + catCell(b.cat.level) + '</td>';
-    tr.addEventListener('click', () => showDetail(b));
+    tr.addEventListener('click', () => { location.hash = '#/b/' + b.inn + '/general'; });
     tb.appendChild(tr);
   });
   document.getElementById('listEmpty').hidden = rows.length > 0;
@@ -1016,49 +1093,76 @@ function table(head, rows){
   return '<table class="grid"><thead><tr>' + head + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
 }
 
+/* ---------- страница субъекта (организация / физлицо) ---------- */
+function renderSubject(b){
+  const person = b.subj.kind === 'person';
+  document.getElementById('sName').textContent = b.name;
+  document.getElementById('sSub').innerHTML =
+    '<span>' + (person ? 'Физлицо' : 'Организация') + ' <b>#' + b.subj.id + '</b></span>' +
+    '<span>ИНН <b>' + b.inn + '</b></span>' +
+    '<span>Заёмщик <a class="lnk" href="#/b/' + b.inn + '">' + esc(b.name) + '</a></span>';
+
+  let h = sect('Реквизиты', '', '<button class="btn btn-secondary btn-sm">Редактировать</button>',
+    '<div class="fields">' +
+      '<div class="f"><span class="fk">Полное наименование</span><span class="fv">' + esc(b.name) + '</span></div>' +
+      '<div class="f"><span class="fk">ИНН</span><span class="fv">' + b.inn + '</span></div>' +
+      '<div class="f"><span class="fk">Вид документа</span><span class="fv">' + b.subj.doc.t + '</span></div>' +
+      '<div class="f"><span class="fk">Номер документа</span><span class="fv">' + b.subj.doc.num + '</span></div>' +
+      '<div class="f"><span class="fk">Дата выдачи</span><span class="fv">' + b.subj.doc.date + '</span></div>' +
+      '<div class="f"><span class="fk">Кем выдано</span><span class="fv">' + b.subj.doc.by + '</span></div>' +
+    '</div>');
+  if (b.members) h += sect('Члены группы (ГЗПМ)', 'солидарная ответственность', '',
+    table('<th style="width:8%">#</th><th>Ф.И.О.</th>',
+      b.members.map((m,i) => '<tr><td class="muted">' + (i+1) + '</td><td class="who">' + esc(m) + '</td></tr>')));
+  if (b.reps.length) h += sect('Представители', '', '',
+    table('<th style="width:26%">Роль</th><th style="width:34%">Физлицо</th><th style="width:22%">ИНН</th><th style="width:18%">Телефон</th>',
+      b.reps.map(r => '<tr><td>' + r.role + '</td><td class="who"><a class="lnk" href="#">' + esc(r.name) + '</a> <span class="muted">' + r.pid + '</span></td>' +
+        '<td class="mono">' + r.inn + '</td><td>' + r.phone + '</td></tr>')));
+  if (!person) {
+    h += sect('Банковские реквизиты', '', '<button class="btn btn-secondary btn-sm">+ Добавить банковские данные</button>',
+      table('<th style="width:34%">Наименование банка</th><th style="width:14%">БИК</th><th style="width:28%">Расчётный счёт</th><th>Примечание</th>',
+        b.banks.map(x => '<tr><td class="who">' + esc(x.b) + '</td><td class="mono">' + x.bik + '</td><td class="mono">' + x.acc + '</td><td class="muted">' + x.n + '</td></tr>')));
+    h += sect('Организационная структура', '', '<button class="btn btn-secondary btn-sm">+ Добавить подразделение</button>',
+      table('<th style="width:12%">ID</th><th style="width:40%">Наименование</th><th>Примечание</th>',
+        b.units.map(u => '<tr><td class="muted">' + u.id + '</td><td class="who">' + esc(u.name) + '</td><td class="muted">' + u.n + '</td></tr>')));
+  }
+  document.getElementById('sBody').innerHTML = h;
+}
+
 function renderCard(b){
   const act = activeCredits(b);
   document.getElementById('cName').textContent = b.name;
   document.getElementById('cSub').innerHTML =
-    '<span>ИНН <b>' + b.inn + '</b></span>' +
-    '<span>' + b.type + '</span>' +
-    '<span>Субъект: <a class="lnk" href="#" data-goto="subject">' + subjLabel(b) + '</a></span>' +
-    '<span>Кредитов: <b>' + act.length + '</b> действующих</span>' +
-    '<span>Долг: <b>' + fmt(totalDebt(b)) + '</b> KGS</span>';
+    '<span>ИНН <a class="lnk" href="#/s/' + b.inn + '" title="Открыть ' + esc(subjLabel(b)) + '"><b>' +
+      b.inn + '</b></a></span>';
 
   /* --- Общая --- */
   const g = b.group, c = b.cat;
   document.getElementById('pGeneral').innerHTML =
-    '<div class="section"><div class="section-head">Реквизиты<span class="ha">' +
-      '<button class="btn btn-secondary btn-sm">Изменить вид заёмщика</button>' +
-      '<button class="btn btn-secondary btn-sm">Редактировать</button></span></div>' +
-      '<div class="fields">' +
-      '<div class="f"><span class="fk">Область</span><span class="fv">' + b.region + '</span></div>' +
-      '<div class="f"><span class="fk">Район</span><span class="fv">' + b.district + '</span></div>' +
-      '<div class="f"><span class="fk">Аильный округ</span><span class="fv">' + b.aokrug + '</span></div>' +
-      '<div class="f"><span class="fk">Село</span><span class="fv">' + b.village + '</span></div>' +
-      '<div class="f span2"><span class="fk">Адрес</span><span class="fv">' + b.addr + '</span></div>' +
-      '<div class="f"><span class="fk">Отрасль</span><span class="fv">' + b.sector + '</span></div>' +
-      '<div class="f"><span class="fk">Тел. номер</span><span class="fv">' + b.phone + '</span></div>' +
-      '<div class="f"><span class="fk">Вид заёмщика</span><span class="fv"><span class="badge ' + b.kindBadge + '">' + b.kind + '</span></span></div>' +
-      '<div class="f"><span class="fk">Статус акта сверки</span><span class="fv"><span class="badge ' + b.act.badge + '">' + b.act.txt + '</span></span></div>' +
-      '<div class="f span2"><span class="fk">Примечание</span><span class="fv" style="font-weight:400">' + b.note + '</span></div>' +
-      '<div class="f span2"><span class="fk">Аудит</span><span class="fv" style="font-weight:400">Внесён: <b>' + b.audit.by + '</b> · ' + b.audit.date +
-        ' &nbsp;·&nbsp; Изменён: <b>' + b.audit.chgBy + '</b> · ' + b.audit.chgDate + '</span></div>' +
-      '</div></div>' +
+    '<div class="gen-grid">' +
 
-    '<div class="state-row">' +
+    '<div class="gen-col">' +
       '<div class="tile">' +
-        '<div class="tile-lbl">Группа платёжеспособности <span class="lock">🔒 выводится</span></div>' +
-        '<div class="tile-val"><span class="grp-badge"><span class="grp-code">' + g.code + '</span> ' + g.label + '</span></div>' +
+        '<div class="tile-lbl">Группа заёмщика <span class="lock">🔒 выводится</span></div>' +
+        '<div class="tile-val">' + grpBadge(gTop(g.code), gTopLabel(g.code)) + '</div>' +
+        '<div class="tile-basis">первый уровень кода подгруппы (' + g.code + ')</div>' +
+        '<div class="ro-note" style="align-self:flex-start">🔒 read-only · ручной ввод невозможен (в т.ч. админ)</div>' +
+      '</div>' +
+
+      '<div class="tile">' +
+        '<div class="tile-lbl">Подгруппа заёмщика <span class="lock">🔒 выводится</span></div>' +
+        '<div class="tile-val">' + grpBadge(g.code, g.label) + '</div>' +
         '<div class="tile-basis">' + g.basis + '</div>' +
         '<div class="ro-note" style="align-self:flex-start">🔒 read-only · ручной ввод невозможен (в т.ч. админ)</div>' +
-        '<div class="tile-more" data-more="grp">▸ как выведена группа</div>' +
+        '<div class="tile-more" data-more="grp">▸ как выведена подгруппа</div>' +
         '<div class="tile-detail" data-detail="grp">' +
           '<div class="muted" style="margin-bottom:6px">Лестница с доминированием (шкала 1.1…5 не ординальна):</div>' +
           g.steps.map(s => '<div class="step"><span class="k">' + s[0] + '</span> ' + s[1] + '</div>').join('') +
         '</div>' +
       '</div>' +
+    '</div>' +
+
+    '<div class="gen-col">' +
       '<div class="tile">' +
         '<div class="tile-lbl">Категория риска <span class="lock">🔒 worst-of</span></div>' +
         '<div class="tile-val cat-' + catCls(c.level) + '"><span class="dot d-' + catCls(c.level) + '"></span>' + c.level + '</div>' +
@@ -1069,6 +1173,9 @@ function renderCard(b){
           c.steps.map(s => '<div class="step"><span class="k">' + s[0] + '</span> ' + s[1] + '</div>').join('') +
         '</div>' +
       '</div>' +
+    '</div>' +
+
+    '<div class="gen-col">' +
       '<div class="tile">' +
         '<div class="tile-lbl">Оверлей <span class="lock">слой</span></div>' +
         (b.overlay
@@ -1076,34 +1183,17 @@ function renderCard(b){
             '<div class="muted" style="font-size:12px;margin-top:2px">' + b.overlay.note + '</div>'
           : '<div class="muted" style="font-size:13px;line-height:1.5">Активных оверлеев нет — категория риска считается напрямую (worst-of по кредитам), без подавлений.</div>') +
       '</div>' +
-    '</div>';
 
-  /* --- Субъект --- */
-  let subjHtml = sect('Субъект — ' + subjLabel(b), '', '<button class="btn btn-secondary btn-sm">Открыть карточку субъекта</button>',
-    '<div class="fields">' +
-      '<div class="f"><span class="fk">Полное наименование</span><span class="fv">' + esc(b.name) + '</span></div>' +
-      '<div class="f"><span class="fk">Вид документа</span><span class="fv">' + b.subj.doc.t + '</span></div>' +
-      '<div class="f"><span class="fk">Номер документа</span><span class="fv">' + b.subj.doc.num + '</span></div>' +
-      '<div class="f"><span class="fk">Дата выдачи</span><span class="fv">' + b.subj.doc.date + '</span></div>' +
-      '<div class="f"><span class="fk">Кем выдано</span><span class="fv">' + b.subj.doc.by + '</span></div>' +
-      '<div class="f"><span class="fk">ИНН</span><span class="fv">' + b.inn + '</span></div>' +
-    '</div>');
-  if (b.members) subjHtml += sect('Члены группы (ГЗПМ)', 'солидарная ответственность', '',
-    table('<th style="width:8%">#</th><th>Ф.И.О.</th>',
-      b.members.map((m,i) => '<tr><td class="muted">' + (i+1) + '</td><td class="who">' + esc(m) + '</td></tr>')));
-  if (b.reps.length) subjHtml += sect('Представители', '', '',
-    table('<th style="width:26%">Роль</th><th style="width:34%">Физлицо</th><th style="width:22%">ИНН</th><th style="width:18%">Телефон</th>',
-      b.reps.map(r => '<tr><td>' + r.role + '</td><td class="who"><a class="lnk" href="#">' + esc(r.name) + '</a> <span class="muted">' + r.pid + '</span></td>' +
-        '<td class="mono">' + r.inn + '</td><td>' + r.phone + '</td></tr>')));
-  if (b.subj.kind !== 'person') {
-    subjHtml += sect('Банковские реквизиты', '', '<button class="btn btn-secondary btn-sm">+ Добавить банковские данные</button>',
-      table('<th style="width:34%">Наименование банка</th><th style="width:14%">БИК</th><th style="width:28%">Расчётный счёт</th><th>Примечание</th>',
-        b.banks.map(x => '<tr><td class="who">' + esc(x.b) + '</td><td class="mono">' + x.bik + '</td><td class="mono">' + x.acc + '</td><td class="muted">' + x.n + '</td></tr>')));
-    subjHtml += sect('Организационная структура', '', '<button class="btn btn-secondary btn-sm">+ Добавить подразделение</button>',
-      table('<th style="width:12%">ID</th><th style="width:40%">Наименование</th><th>Примечание</th>',
-        b.units.map(u => '<tr><td class="muted">' + u.id + '</td><td class="who">' + esc(u.name) + '</td><td class="muted">' + u.n + '</td></tr>')));
-  }
-  document.getElementById('pSubject').innerHTML = subjHtml;
+      sect('Служебное', '', '',
+        '<div class="fields">' +
+        '<div class="f"><span class="fk">Отрасль</span><span class="fv">' + b.sector + '</span></div>' +
+        '<div class="f"><span class="fk">Примечание</span><span class="fv" style="font-weight:400">' + b.note + '</span></div>' +
+        '<div class="f"><span class="fk">Внесён</span><span class="fv" style="font-weight:400"><b>' + b.audit.by + '</b> · ' + b.audit.date + '</span></div>' +
+        '<div class="f"><span class="fk">Изменён</span><span class="fv" style="font-weight:400"><b>' + b.audit.chgBy + '</b> · ' + b.audit.chgDate + '</span></div>' +
+        '</div>') +
+    '</div>' +
+
+    '</div>';
 
   /* --- Кредиты --- */
   const credRows = b.credits.map(c => {
@@ -1231,15 +1321,45 @@ function renderCard(b){
         '<span class="muted">' + d.relId + '</span></td><td>' + d.kind + '</td>' +
         '<td><a class="lnk" href="#">' + d.file + '</a></td><td class="muted">' + d.date + '</td><td class="muted">' + d.by + '</td></tr>')));
 
-  /* --- Контакты --- */
-  let contactsHtml = sect('Контактные данные', '', '<button class="btn btn-secondary btn-sm">+ Добавить контакт</button>',
-    table('<th style="width:24%">Вид</th><th style="width:40%">Значение</th><th>Примечание</th>',
-      b.contacts.map(x => '<tr><td>' + x.k + '</td><td class="who">' + x.v + '</td><td class="muted">' + x.n + '</td></tr>')));
-  if (b.reps.length) contactsHtml += sect('Представители', '', '',
-    table('<th style="width:26%">Роль</th><th style="width:34%">Физлицо</th><th style="width:22%">Телефон</th><th style="width:18%">Действует с</th>',
-      b.reps.map(r => '<tr><td>' + r.role + '</td><td class="who"><a class="lnk" href="#">' + esc(r.name) + '</a> <span class="muted">' + r.pid + '</span></td>' +
-        '<td>' + r.phone + '</td><td class="muted">' + r.from + '</td></tr>')));
-  document.getElementById('pContacts').innerHTML = contactsHtml;
+  /* --- Контакты (3 колонки: адреса · контакты · представители) --- */
+  /* b.fact — фактический адрес той же структуры; отсутствует = совпадает с юридическим */
+  const addrFields = a =>
+    '<div class="fields">' +
+    '<div class="f"><span class="fk">Область</span><span class="fv">' + esc(a.region) + '</span></div>' +
+    '<div class="f"><span class="fk">Район</span><span class="fv">' + esc(a.district) + '</span></div>' +
+    '<div class="f"><span class="fk">Аильный округ</span><span class="fv">' + esc(a.aokrug) + '</span></div>' +
+    '<div class="f"><span class="fk">Село</span><span class="fv">' + esc(a.village) + '</span></div>' +
+    '<div class="f"><span class="fk">Адрес</span><span class="fv">' + esc(a.addr) + '</span></div>' +
+    '</div>';
+  const editBtn = '<button class="btn btn-secondary btn-sm">Редактировать</button>';
+  let cAddr = sect(b.fact ? 'Юридический адрес' : 'Адрес',
+    b.fact ? '' : 'юридический и фактический совпадают', editBtn, addrFields(b));
+  if (b.fact) cAddr += sect('Фактический адрес', '', editBtn, addrFields(b.fact));
+  /* контакты и представители — тот же key→value формат, что у адреса */
+  const cData = sect('Контактные данные', '', '<button class="btn btn-secondary btn-sm">+ Добавить</button>',
+    '<div class="fields">' +
+      b.contacts.map(x => '<div class="f"><span class="fk" style="flex:0 0 120px">' + esc(x.k) + '</span>' +
+        '<span class="fv">' + esc(x.v) +
+        (x.n && x.n !== '—' ? ' <span class="muted" style="font-weight:400">· ' + esc(x.n) + '</span>' : '') +
+        '</span></div>').join('') +
+    '</div>');
+  const repFields = r =>
+    '<div class="fields">' +
+    '<div class="f"><span class="fk">ФИО</span><span class="fv"><a class="lnk" href="#">' + esc(r.name) + '</a></span></div>' +
+    '<div class="f"><span class="fk">ИНН</span><span class="fv">' + esc(r.inn || '—') + '</span></div>' +
+    '<div class="f"><span class="fk">Телефон</span><span class="fv">' + esc(r.phone) + '</span></div>' +
+    '<div class="f"><span class="fk">Действует с</span><span class="fv">' + esc(r.from) + '</span></div>' +
+    '</div>';
+  const cReps = b.reps.length
+    ? b.reps.map(r => sect(r.role, r.pid, editBtn, repFields(r))).join('')
+    : sect('Представители', 'не указаны', '<button class="btn btn-secondary btn-sm">+ Добавить</button>',
+        '<div class="fields"><div class="f"><span class="fk muted">—</span></div></div>');
+  document.getElementById('pContacts').innerHTML =
+    '<div class="gen-grid">' +
+    '<div class="gen-col">' + cAddr + '</div>' +
+    '<div class="gen-col">' + cReps + '</div>' +
+    '<div class="gen-col">' + cData + '</div>' +
+    '</div>';
 
   /* --- Результаты проверок (считаются из данных заёмщика) --- */
   const od = maxOverdue(b);
@@ -1274,7 +1394,7 @@ function renderCard(b){
     });
   });
   document.querySelectorAll('[data-goto]').forEach(a => {
-    a.addEventListener('click', e => { e.preventDefault(); openTab(a.dataset.goto); window.scrollTo(0,0); });
+    a.addEventListener('click', e => { e.preventDefault(); openTab(a.dataset.goto); writeHash(); window.scrollTo(0,0); });
   });
 }
 
@@ -1283,17 +1403,17 @@ function openTab(name){
   document.querySelectorAll('#tabs .tab').forEach(x => x.classList.remove('active'));
   document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
   document.querySelector('#tabs .tab[data-tab="' + name + '"]').classList.add('active');
+  rememberTab(name);
   document.querySelector('.tabpanel[data-panel="' + name + '"]').classList.add('active');
 }
-document.querySelectorAll('#tabs .tab').forEach(t => t.addEventListener('click', () => openTab(t.dataset.tab)));
-
-/* ---------- меню печатных форм ---------- */
-const printBtn = document.getElementById('printBtn');
-const printMenu = document.getElementById('printMenu');
-printBtn.addEventListener('click', e => { e.stopPropagation(); printMenu.classList.toggle('open'); });
-document.addEventListener('click', () => printMenu.classList.remove('open'));
+function activeTab(){
+  const t = document.querySelector('#tabs .tab.active');
+  return t ? t.dataset.tab : 'general';
+}
+document.querySelectorAll('#tabs .tab').forEach(t => t.addEventListener('click', () => { openTab(t.dataset.tab); writeHash(); }));
 
 renderList();
+route();   /* восстановить вид из hash после перезагрузки */
 </script>
 </body>
 </html>
