@@ -6,13 +6,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **coordination, QA, and documentation workspace** for the **ASUBK Credit
 Module** — NOT the application source. The actual app is a separate codebase
-(repo URL is still TBD in `references.md`). The app is a live **Jmix-on-Vaadin**
-Java SPA, Russian-language, running only on the test env:
+(repo URL is still TBD in `references.md`).
 
-- **Test env:** https://fkftest.okmot.kg/ — login at `/login`, creds `admin` / `admin`.
+There are **two live systems**, and most confusion comes from mixing them up:
 
-Work here = inspect the running app, document what it does, log defects, and
+- **New app (target, "to-be").** https://fkftest.okmot.kg/ — **Jmix-on-Vaadin** Java SPA,
+  Russian-language, test env only. Login at `/login`, creds `admin` / `admin`.
+- **Legacy app (predecessor, "as-is").** http://85.113.29.29:8080/ — the old FKF/ASUBK
+  system it replaces. Different stack, different vendor. **No login script and no
+  credentials in this repo** — the session lives in the user's real Chrome profile
+  (user: Сламкулов А.О., `/user/1/details`). Surveyed to build a "было → стало" baseline
+  so nothing is lost in the rewrite; the survey lives in `requirements/legacy/`
+  (`00-plan.md` = nav map + phase table).
+
+Work here = inspect the running apps, document what they do, log defects, and
 write improvement proposals for the dev team. You generally do not write app code.
+
+## Two systems, two browsers
+
+|  | new app | legacy app |
+|--|---------|-----------|
+| host | `fkftest.okmot.kg` | `85.113.29.29:8080` |
+| driven by | **Playwright** — `scripts/inspect/*.mjs`, profile `.auth/profile` | **MCP `claude-in-chrome`** — the user's already-logged-in Chrome |
+| scripts | ~180 | **none — do not write any** |
+
+Legacy gotcha (E2E-11): jQuery handlers in the legacy app **ignore a synthetic `.click()`**
+— several buttons (e.g. «Претензия» in РАСЧЕТЫ) only fire on a real mouse click via the
+`computer` tool. This is an automation artifact, not a product defect.
 
 ## The core workflow
 
@@ -33,6 +53,16 @@ Track state in `STATUS.md`; `README.md` maps which file holds what.
 - **Numbering:** each phase has two independent counters — `Pn-NN` for defects
   (in `qa-findings.md`) and `Pn-Rn` for recommendations (in `TODO.md`). Phase 1
   recommendations are the legacy `R1–R7` form; later phases use `P2-R*`, `P3-R*`, …
+- **`Pn` is overloaded — do not merge the counters.** In `requirements/legacy/*`,
+  `P1…P13` numbers the **modules of the OLD system** (P1 Заёмщики · P2 Кредиты ·
+  P3 Погашения · P4 Залог · P5 Взыскание · P8 Физлица/Организации · P11 Прочее ·
+  P12 Справочники; P6/P7/P9/P10/P13 are out of scope). In `qa-findings.md` / `TODO.md`,
+  `Pn-NN` / `Pn-Rn` numbers the **phases of the NEW app**. Same prefix, unrelated meaning.
+- **Legacy defect IDs.** Per-phase legacy defects are prose ("Дефекты-кандидаты" at the end
+  of each `requirements/legacy/NN-*.md`) and have no IDs. The only numbered ones are
+  **`E2E-01…E2E-14`** in `requirements/legacy/20-e2e-cycle-plan.md`. They are **not yet
+  folded into `notes/qa-findings.md`** — when porting them, keep an `E2E-` prefix so they
+  never collide with the new app's `Pn-NN`.
 - **Severity scale** (used in `qa-findings.md` and TODO priorities): 🔴 blocker ·
   🟠 major · 🟡 minor · 🔵 cosmetic. TODO priority chips: 🔴 Высокий / 🟡 Средний / 🟢 Низкий.
 - **`TODO.md` is written in Russian and is the single source of truth.** It is
@@ -55,7 +85,14 @@ python3 scripts/annotate.py               # reads/writes files in screenshots/
 # Push TODO.md -> Google Sheet (Russian, one tab per section).
 python3 scripts/sync_todos.py             # live push
 python3 scripts/sync_todos.py --dry-run   # preview rows, no network
+
+# Render a TZ (техзадание) section to a self-contained HTML page
+# (gov-blue design system, sticky sidebar nav auto-built from h2/h3).
+python3 scripts/build_tz_html.py requirements/tz/03-zayavka-komissiya.md [out.html]
 ```
+
+`build_tz_html.py` gotcha: the banner kick-line and the routes strip are **hardcoded to
+раздел 03** — rendering any other TZ section requires editing the script first.
 
 There is no build/test/lint — this repo holds docs, scripts, and assets only
 (`npm test` is a placeholder that errors).
@@ -75,3 +112,22 @@ There is no build/test/lint — this repo holds docs, scripts, and assets only
   data reset later, so don't worry about cleaning up created records.
 - The module map in `requirements/overview.md` was reconstructed from the running
   app, not from authoritative project docs — treat it as a working draft.
+- **The legacy E2E run is already done — read it, don't redo it.** A full credit cycle was
+  driven end to end on the legacy stand on 2026-07-12/13 (borrower → decision → loan →
+  collateral → guarantor → inspection → disbursement → payments → overdue → collection
+  (procedure + 4 phases) → full repayment → closure). Every created id (person-63545,
+  debtor-54693, order-734, loan-60540, procedure-68252, phases 84374–84377) is in the
+  «Журнал прогона» table of `requirements/legacy/20-e2e-cycle-plan.md`.
+- **Six legacy architecture findings** that drive the new design (details in the same file,
+  §«ИТОГ ПРОГОНА»): borrower is a thin wrapper over a subject (subject has its own separate
+  id); loan terms are versioned but the **payment schedule is typed in by hand** — no
+  autogeneration; collateral and guarantee share one "обеспечительный договор" pattern;
+  **the outstanding balance is a batch snapshot, not realtime** — it is decoupled from
+  payments (E2E-09); collection is 4 levels deep (заёмщик → процедура → фаза → событие);
+  closing is manual at every level with **no zero-balance validation** (E2E-13/14 — the
+  orphan 0,01 kopeck).
+- `screenshots/legacy/` is referenced in the legacy docs but **does not exist** — there are
+  no legacy screenshots yet.
+- `README.md`, `STATUS.md`, and `requirements/README.md` are **stale**: they do not mention
+  `requirements/legacy/` at all (and only partly mention `requirements/tz/`). STATUS.md's
+  "Last updated" is 2026-07-12, before the legacy work landed.
