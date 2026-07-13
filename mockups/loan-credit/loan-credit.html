@@ -1,1292 +1,1438 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Кредиты · АСУБК</title>
-<!--
-  MOCKUP (single-file, interactive) — образец для команды разработки, не прод-код.
-  Раздел «Кредиты» (список /loansCredit · деталь /loan-credits/{id}).
-  Точная копия живого тест-стенда https://fkftest.okmot.kg/, инспекция 2026-07-06,
-  скрипт scripts/inspect/loan-credit-clone.mjs (запись 18 = «Номер регистрации 56»,
-  заёмщик ОсОО «Бек Кабель», ПИН 01912201610212).
-
-  Стиль списка сверен пиксель-в-пиксель с live (computed styles, 2026-07-07,
-  scripts/inspect/loan-credit-computed*.mjs): шрифт 14px/500 шапка · 14px/400 тело,
-  цвет rgba(24,39,57,.94), паддинг 0/16px, строки 56/35px, только гориз. гридлайны
-  rgba(26,57,96,.1), белая шапка, тулбар-кнопки 16px, база 16px.
-
-  Две части: список (15 строк) → деталь «Редактирование кредита» (11 вкладок).
-  Все вкладки и содержимое соответствуют живой системе. Как-есть клон:
-  воспроизводит поведение и дефекты, без улучшений (см. P5-* в notes/qa-findings.md).
-
-  ПРИМЕЧАНИЕ по данным: деталь наполняется одним полностью заполненным образцом
-  (запись 56). При клике по другим строкам списка открывается тот же образец —
-  демо-ограничение макета, а не дефект живой системы.
-
-  Клики воспроизводят живые диалоги: ••• → экран-браузер справочника, «Добавить»
-  на Транши/Платеж → форма создания, поля даты → календарь (см.
-  scripts/inspect/loan-credit-clicks*.mjs, loan-credit-final2.mjs).
--->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Кредит — карточка — АСУБК</title>
 <style>
-:root{
-  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
-  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
-  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
-  --asubk-ink:#192434;
-  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
-  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
-  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
-  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
-  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
-  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
-  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
-  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
-  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
-  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
-  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
-  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
-  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
-  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
-  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
-  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
-  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
-  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
-  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
-  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
-  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
-  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
-  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
-  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
-  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
-  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
-  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
-  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
-  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
-  --control-h:36px; --header-h:56px; --sidebar-w:320px;
-  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
-}
-*{ box-sizing:border-box; }
-html,body{ margin:0; height:100%; }
-body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
-::-webkit-scrollbar{ width:8px; height:8px; }
-::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
-a{ color:inherit; }
+  /* ------------------------------------------------------------------
+     Дизайн-система = живой стенд https://fkftest.okmot.kg/ (Jmix + Vaadin, тема Lumo).
+     Значения сняты с работающего приложения 2026-07-13 скриптами
+     scripts/inspect/ui-style-dump.mjs и ui-style-dump2.mjs (.auth/ui-style*.json):
+       шрифт 16/1.625 -apple-system…  ·  сайдбар 280px  ·  навбар 56px
+       поле/кнопка 36px, radius 4px  ·  поле = заливка contrast-10 без рамки
+       вкладка 44px, 16/500, подчёркивание 2px primary
+       грид: рамка contrast-20, шапка 56px 14/500, строка 36px 16/400
+       primary #006af5, primary-text #005fdb, выделение меню primary-10pct
+     ------------------------------------------------------------------ */
+  :root{
+    /* --- цвета Lumo (как отдаёт стенд) --- */
+    --primary:hsl(214,100%,48%);              /* #006af5 */
+    --primary-text:hsl(214,100%,43%);         /* #005fdb */
+    --primary-10:hsla(214,100%,60%,.13);      /* подсветка активного пункта меню */
+    --body-text:hsla(214,40%,16%,.94);
+    --secondary-text:hsla(214,42%,18%,.69);
+    --tertiary-text:hsla(214,45%,20%,.52);
+    --disabled-text:hsla(214,50%,22%,.26);
+    --header-text:hsl(214,35%,15%);           /* заголовки: #192434 */
+    --contrast-5:hsla(214,61%,25%,.05);       /* фон вторичной кнопки */
+    --contrast-10:hsla(214,57%,24%,.1);       /* заливка поля, разделители */
+    --contrast-20:hsla(214,53%,23%,.16);      /* рамка грида/панели */
+    --contrast-30:hsla(214,50%,22%,.26);
+    --success:hsl(145,72%,30%);
+    --success-text:hsl(145,85%,25%);
+    --success-10:hsla(145,72%,31%,.1);
+    --error:hsl(3,85%,48%);
+    --error-text:hsl(3,89%,42%);
+    --error-10:hsla(3,85%,49%,.1);
+    --warn:hsl(48,100%,50%);
+    --warn-text:hsl(32,100%,30%);
+    --warn-10:hsla(48,100%,50%,.25);
+    --base:#fff;
+    /* --- метрики Lumo --- */
+    --radius:4px;                 /* --lumo-border-radius-m */
+    --radius-l:8px;               /* --lumo-border-radius-l */
+    --size-m:36px;                /* --lumo-size-m: поля и кнопки */
+    --size-xl:56px;               /* --lumo-size-xl: навбар, шапка грида */
+    --space-xs:4px; --space-s:8px; --space-m:16px; --space-l:24px;
+    --fs-xxs:12px; --fs-xs:13px; --fs-s:14px; --fs-m:16px; --fs-l:18px; --fs-xl:22px;
+    --lh-m:1.625; --lh-s:1.375;
+    --shadow-m:0 2px 6px -1px hsla(214,53%,23%,.16), 0 8px 24px -4px hsla(214,47%,21%,.38);
+    --font:-apple-system,BlinkMacSystemFont,"Roboto","Segoe UI",Helvetica,Arial,sans-serif;
+    /* совместимость со старыми именами внутри макета */
+    --border:var(--contrast-10); --border-strong:var(--contrast-20);
+    --panel-border:var(--contrast-20); --field-border:var(--contrast-20);
+    --field-bg:var(--contrast-10); --filter-bg:var(--contrast-5);
+    --grid-hover:var(--primary-10);
+    --green-card-bg:var(--success-10); --green-card-border:hsla(145,72%,31%,.3);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:var(--font);color:var(--body-text);background:var(--base);
+    font-size:var(--fs-m);line-height:var(--lh-m);}
+  .app{display:flex;min-height:100vh;}
 
-.app{ display:flex; height:100vh; width:100%; }
+  /* ---------- сайдбар: vaadin-app-layout[part=drawer] + jmix-list-menu ---------- */
+  .sidebar{width:280px;flex:0 0 280px;background:var(--base);border-right:1px solid var(--contrast-10);
+    display:flex;flex-direction:column;}
+  .sidebar .brand{height:var(--size-xl);display:flex;align-items:center;padding:0 var(--space-m);
+    font-size:var(--fs-m);font-weight:600;color:var(--header-text);}
+  .nav{flex:1;overflow-y:auto;padding:0 var(--space-s);color:var(--secondary-text);}
+  /* vaadin-details-summary группы меню: 700, secondary, chevron слева */
+  .nav-group{display:flex;align-items:center;gap:var(--space-s);padding:var(--space-s);margin-top:var(--space-s);
+    border-radius:var(--radius);font-size:var(--fs-m);font-weight:700;color:var(--secondary-text);
+    user-select:none;cursor:pointer;}
+  .nav-group:hover{background:var(--contrast-5);}
+  .nav-group .caret{font-size:11px;width:12px;flex:0 0 12px;color:var(--tertiary-text);}
+  .nav-group.open .caret{transform:rotate(90deg);}
+  /* .jmix-menu-item-link: padding 8px, текст 14/500, line-height 1.375 */
+  .nav-item{display:flex;align-items:center;gap:var(--space-s);padding:var(--space-s);margin-left:var(--space-l);
+    border-radius:var(--radius);font-size:var(--fs-s);font-weight:500;line-height:var(--lh-s);
+    color:var(--secondary-text);cursor:pointer;}
+  .nav-item:hover{background:var(--contrast-5);}
+  .nav-item.active{background:var(--primary-10);color:var(--primary-text);}
+  .nav-sub{margin-left:var(--space-l);}
+  .nav-sub .nav-group{font-size:var(--fs-s);}
+  .nav-sub .nav-item{margin-left:var(--space-l);}
+  .sidebar .footer{padding:var(--space-s) var(--space-m);display:flex;align-items:center;
+    justify-content:space-between;font-size:var(--fs-s);color:var(--secondary-text);}
+  .logout{width:var(--size-m);height:var(--size-m);border:0;border-radius:var(--radius);background:var(--contrast-5);
+    display:flex;align-items:center;justify-content:center;color:var(--primary-text);cursor:pointer;}
 
-/* ---- sidebar ---- */
-.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
-  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
-.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
-  color:var(--text-heading); letter-spacing:0.04em; }
-.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
-.nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
-  border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
-.nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
-.nav-sub > .nav-toggle{ padding:8px 16px 8px 32px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font); }
-.nav-toggle:hover{ background:rgba(24,39,57,0.04); }
-.nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
-  transition:transform 120ms ease; flex:none; }
-.nav-group.open > .nav-toggle .chev, .nav-sub.open > .nav-toggle .chev{ transform:rotate(90deg); }
-.nav-toggle .lbl{ flex:1; }
-.nav-children{ display:none; }
-.nav-group.open > .nav-children, .nav-sub.open > .nav-children{ display:block; }
-.nav-item{ display:block; padding:7px 16px 7px 52px; text-decoration:none; color:rgba(27,43,65,0.69);
-  font:var(--weight-regular) var(--text-base)/1.625 var(--asubk-font); cursor:pointer; }
-.nav-item.headerless{ padding-left:40px; }
-.nav-item:hover{ background:rgba(24,39,57,0.05); }
-.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
-.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
-.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
-.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
-  padding:7px; border-radius:4px; display:flex; }
+  /* ---------- навбар + контент ---------- */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .topbar{display:flex;align-items:center;gap:var(--space-m);height:var(--size-xl);flex:0 0 var(--size-xl);
+    padding:0 var(--space-m);border-bottom:1px solid var(--contrast-10);}
+  .burger{font-size:20px;color:var(--secondary-text);cursor:pointer;line-height:1;}
+  .topbar .title{font-size:var(--fs-l);font-weight:600;color:var(--header-text);}
+  .crumb{color:var(--secondary-text);font-size:var(--fs-s);}
+  .crumb a{color:var(--primary-text);text-decoration:none;}
+  .content{padding:var(--space-m) var(--space-m) 40px;flex:1;min-width:0;}
 
-/* ---- main ---- */
-.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
-.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
-  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
-.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
-.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+  /* ---------- кнопки: vaadin-button 36px / radius 4 / 16px ---------- */
+  .btn{font-family:var(--font);font-size:var(--fs-m);font-weight:500;line-height:var(--lh-m);
+    height:var(--size-m);border-radius:var(--radius);padding:0 14px;border:0;cursor:pointer;
+    display:inline-flex;align-items:center;gap:var(--space-s);white-space:nowrap;
+    background:var(--contrast-5);color:var(--primary-text);}
+  .btn:hover{background:var(--contrast-10);}
+  .btn-secondary{background:var(--contrast-5);color:var(--primary-text);}
+  .btn-primary{background:var(--primary);color:#fff;font-weight:600;}
+  .btn-primary:hover{background:hsl(214,100%,43%);}
+  .btn-success{background:var(--success);color:#fff;font-weight:600;}   /* «Обновить» на стенде — зелёная */
+  .btn-success:hover{background:hsl(145,72%,26%);}
+  .btn-icon{width:var(--size-m);padding:0;justify-content:center;}
+  .btn-disabled{color:var(--disabled-text);cursor:default;}
+  .btn-disabled:hover{background:var(--contrast-5);}
+  .btn-sm{height:30px;font-size:var(--fs-s);padding:0 10px;}
+  .btn-link{background:transparent;color:var(--primary-text);padding:0 var(--space-s);}
+  .btn-link:hover{background:transparent;text-decoration:underline;}
 
-.content{ flex:1; overflow:auto; display:flex; flex-direction:column; min-width:0; }
-.view{ display:none; flex-direction:column; min-height:0; }
+  /* ---------- поля: vaadin-text-field — заливка contrast-10, БЕЗ рамки ---------- */
+  input[type=text],input[type=date],input[type=number],select,textarea{
+    font-family:var(--font);font-size:var(--fs-m);font-weight:500;color:var(--body-text);
+    background:var(--contrast-10);border:0;border-radius:var(--radius);
+    height:var(--size-m);padding:0 var(--space-s);outline:0;}
+  input:focus,select:focus,textarea:focus{box-shadow:0 0 0 2px var(--primary);}
+  input::placeholder{color:var(--tertiary-text);font-weight:400;}
+  .fld-label{display:block;font-size:var(--fs-s);font-weight:500;color:var(--secondary-text);
+    line-height:1;margin-bottom:var(--space-xs);}
 
-/* ---- buttons ---- */
-.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
-  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
-  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
-.btn:disabled{ opacity:.45; cursor:not-allowed; }
-.btn svg{ flex:none; }
-.btn-primary{ background:var(--action-primary); color:#fff; }
-.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
-.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
-.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
-.btn-success{ background:var(--action-success); color:#fff; }
-.btn-success:hover:not(:disabled){ background:var(--asubk-green-hover); }
-.btn-sm{ height:32px; padding:0 10px; }
-/* tinted grid-toolbar buttons (Добавить/Открыть/Удалить/Редактировать/расчёт) */
-.btn-tint{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none;
-  font-weight:var(--weight-medium); }
-.btn-tint:hover:not(:disabled){ background:rgba(25,59,103,0.10); color:var(--action-primary-hover); }
-.btn-tint:disabled{ opacity:1; color:var(--text-disabled); cursor:not-allowed; }
-.btn-tint.danger{ color:var(--action-danger); }
-.btn-tint.danger:hover:not(:disabled){ background:var(--status-error-bg); }
+  /* ---------- Идентификация ---------- */
+  .id-bar{display:flex;align-items:flex-start;gap:var(--space-m);margin-bottom:var(--space-m);}
+  .id-main{flex:1;min-width:0;}
+  .id-name{font-size:var(--fs-xl);font-weight:600;line-height:1.25;color:var(--header-text);
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .id-sub{color:var(--secondary-text);font-size:var(--fs-s);margin-top:var(--space-xs);
+    display:flex;gap:var(--space-m);flex-wrap:wrap;}
+  .id-sub b{color:var(--body-text);font-weight:600;}
+  .id-actions{display:flex;gap:var(--space-s);flex:0 0 auto;position:relative;}
 
-/* ---- L1: split «Обновить» ---- */
-.split{ position:relative; display:inline-flex; }
-.split > .btn{ border-radius:0; }
-.split > .btn:first-child{ border-top-left-radius:var(--radius-md); border-bottom-left-radius:var(--radius-md); }
-.split > .btn.caret{ padding:0 7px; border-top-right-radius:var(--radius-md); border-bottom-right-radius:var(--radius-md);
-  border-left:1px solid rgba(255,255,255,0.35); }
-.split-menu{ display:none; position:absolute; top:calc(100% + 4px); left:0; min-width:210px; z-index:30;
-  background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
-  box-shadow:0 10px 30px rgba(16,28,46,0.18); padding:4px; }
-.split.open .split-menu{ display:block; }
-.split-menu button{ display:block; width:100%; text-align:left; border:none; background:transparent; cursor:pointer;
-  padding:8px 10px; border-radius:var(--radius-sm); font:var(--font-label); color:var(--text-body); }
-.split-menu button:hover{ background:var(--surface-hover); }
-.gear-btn{ width:var(--control-h); height:var(--control-h); border:none;
-  background:var(--asubk-tint-fill); border-radius:var(--radius-md); color:var(--text-link); cursor:pointer;
-  display:inline-flex; align-items:center; justify-content:center; }
-.gear-btn:hover{ background:rgba(25,59,103,0.10); }
+  /* меню печати  — vaadin-context-menu overlay */
+  .menu{position:absolute;right:0;top:42px;background:var(--base);border-radius:var(--radius);
+    box-shadow:var(--shadow-m);min-width:300px;z-index:20;display:none;padding:var(--space-xs);}
+  .menu.open{display:block;}
+  .menu-i{padding:var(--space-s) 12px;font-size:var(--fs-s);border-radius:var(--radius);cursor:pointer;
+    display:flex;justify-content:space-between;gap:12px;}
+  .menu-i:hover{background:var(--primary-10);color:var(--primary-text);}
+  .menu-i .m-src{font-size:var(--fs-xxs);color:var(--secondary-text);}
 
-/* ---- list: filter head + toolbar ---- */
-.filter-head{ display:flex; align-items:center; gap:6px; padding:12px 20px 4px; cursor:pointer;
-  font:var(--weight-medium) var(--text-base)/1.25 var(--asubk-font); color:rgba(27,43,65,0.69); user-select:none; }
-.filter-head .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5); transition:transform 120ms ease; }
-.filter-head.open .chev{ transform:rotate(90deg); }
-.tb-actions{ display:flex; align-items:center; gap:10px; padding:8px 20px 12px; flex-wrap:wrap; }
-.add-cond{ display:inline-flex; align-items:center; gap:6px; background:none; border:none; cursor:pointer;
-  color:var(--text-link); font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); padding:0 4px; }
-.add-cond:hover{ text-decoration:underline; }
-.rowtools{ display:flex; align-items:center; gap:10px; padding:0 20px 8px; }
-.rowtools .spacer{ flex:1; }
-.pager{ display:flex; align-items:center; gap:6px; color:var(--text-muted);
-  font:var(--weight-regular) var(--text-base)/1 var(--asubk-font); }
-.pager button{ min-width:30px; height:30px; border:1px solid var(--border-default); background:var(--surface-card);
-  border-radius:var(--radius-sm); cursor:pointer; color:var(--text-body); }
-.pager button:disabled{ opacity:.4; cursor:not-allowed; }
+  /* ---------- плитки состояния (как KPI-плитки в реестре заявок) ---------- */
+  .state-row{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-m);margin-bottom:var(--space-m);}
+  .tile{border:1px solid var(--contrast-20);border-radius:var(--radius);padding:var(--space-s) var(--space-m);
+    background:var(--base);display:flex;flex-direction:column;gap:6px;}
+  .tile-lbl{font-size:var(--fs-s);color:var(--secondary-text);font-weight:500;
+    display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .tile-lbl .lock{font-size:var(--fs-xxs);color:var(--secondary-text);background:var(--contrast-5);
+    border-radius:var(--radius);padding:0 5px;font-weight:500;}
+  .tile-val{font-size:var(--fs-xl);font-weight:600;line-height:1.2;display:flex;align-items:center;
+    gap:var(--space-s);flex-wrap:wrap;}
+  .tile-basis{font-size:var(--fs-xs);color:var(--secondary-text);line-height:var(--lh-s);}
+  .tile-basis b{color:var(--body-text);font-weight:600;}
 
-/* ---- grid (list) ---- */
-.grid-wrap{ padding:0 20px 20px; overflow:auto; }
-/* Гридлайны как в live: белая шапка, только горизонтальные линии, без верт. границ,
-   строки 35px, шапка 56px, паддинг 0/16px, шрифт 14px/500 (проверено 2026-07-07). */
-table.grid{ width:100%; border-collapse:collapse; font:var(--font-label); table-layout:fixed;
-  border:1px solid var(--border-default); background:var(--surface-card); }
-table.grid thead th{ text-align:left; height:56px; padding:0 16px; background:var(--surface-card);
-  border-bottom:1px solid var(--asubk-grid-line);
-  font:var(--weight-medium) var(--text-sm)/1.375 var(--asubk-font); color:var(--text-body);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; user-select:none; vertical-align:middle; }
-table.grid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; }
-table.grid tbody td{ height:35px; padding:0 16px; border-bottom:1px solid var(--asubk-grid-line);
-  color:var(--text-body); vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-table.grid tbody tr{ cursor:pointer; }
-table.grid tbody tr:hover{ background:var(--surface-hover); }
-table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:0 0 auto;}
+  .d-low{background:var(--success);} .d-mid{background:var(--warn);} .d-high{background:var(--error);}
+  .cat-low{color:var(--success-text);} .cat-mid{color:var(--warn-text);} .cat-high{color:var(--error-text);}
+  .grp-badge{display:inline-flex;align-items:center;gap:7px;}
+  .grp-code{background:var(--primary);color:#fff;border-radius:var(--radius);font-size:var(--fs-m);
+    font-weight:600;padding:0 8px;}
+  .ov-item{background:var(--warn-10);border-radius:var(--radius);padding:var(--space-s);
+    font-size:var(--fs-xs);line-height:var(--lh-s);}
+  .ov-item .ov-h{font-weight:600;color:var(--warn-text);display:flex;align-items:center;gap:6px;}
+  .ov-item .ov-m{color:var(--secondary-text);margin-top:2px;}
 
-/* ---- detail ---- */
-.detail-tabbar-wrap{ position:relative; border-bottom:1px solid var(--border-default);
-  background:var(--surface-page); flex:none; }
-.detail-tabbar{ display:flex; overflow-x:auto; padding:6px 44px 0 20px; scrollbar-width:none; }
-.detail-tabbar::-webkit-scrollbar{ display:none; }
-.dtab{ flex:none; border:none; background:transparent; padding:11px 15px;
-  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
-  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
-.dtab:hover{ color:var(--text-body); }
-.dtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
-.tabbar-chevron{ position:absolute; right:8px; top:50%; transform:translateY(-50%); width:28px; height:28px;
-  background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
-  display:flex; align-items:center; justify-content:center; color:var(--text-muted); cursor:pointer; }
-.tabbar-chevron:hover{ background:var(--surface-hover); }
+  /* ---------- секции = панель вокруг vaadin-grid ---------- */
+  .section{border:1px solid var(--contrast-20);border-radius:var(--radius);margin-bottom:var(--space-m);overflow:hidden;}
+  .section-head{padding:var(--space-s) var(--space-m);font-weight:600;font-size:var(--fs-m);color:var(--header-text);
+    border-bottom:1px solid var(--contrast-10);display:flex;align-items:center;justify-content:space-between;
+    gap:12px;background:var(--base);flex-wrap:wrap;}
+  .section-head .hint{font-weight:400;font-size:var(--fs-xs);color:var(--secondary-text);}
+  .section-head .ha{display:flex;gap:var(--space-s);flex:0 0 auto;flex-wrap:wrap;}
+  .section-body{padding:0;}
 
-.panel-wrap{ padding:18px 20px 8px; }
-.panel-card{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:20px 24px; }
-.detail-panel{ display:none; }
-.detail-panel.active{ display:block; }
+  /* vaadin-grid: шапка 56px 14/500, ячейка 16/400, padding 4px 16px, строка 36px */
+  table.grid{width:100%;border-collapse:collapse;}
+  table.grid thead th{text-align:left;font-weight:500;font-size:var(--fs-s);line-height:var(--lh-s);
+    color:var(--body-text);height:var(--size-xl);padding:var(--space-xs) var(--space-m);
+    border-bottom:1px solid var(--contrast-10);background:var(--base);white-space:nowrap;}
+  table.grid tbody td{padding:var(--space-s) var(--space-m);border-bottom:1px solid var(--contrast-10);
+    font-size:var(--fs-s);line-height:var(--lh-s);vertical-align:top;}
+  table.grid tbody tr:last-child td{border-bottom:0;}
+  table.grid tr.total td{font-weight:600;border-top:1px solid var(--contrast-20);}
+  .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .who{font-weight:600;white-space:nowrap;} .muted{color:var(--secondary-text);font-size:var(--fs-xs);}
+  a.lnk{color:var(--primary-text);text-decoration:none;} a.lnk:hover{text-decoration:underline;}
+  .scroll-x{overflow-x:auto;}
+  /* вкладки: vaadin-tabs — 44px, 16/500, подчёркивание 2px */
+  .tabs{display:flex;gap:0;border-bottom:1px solid var(--contrast-10);margin-bottom:var(--space-m);flex-wrap:wrap;}
+  .tab{height:44px;display:inline-flex;align-items:center;padding:0 12px;font-size:var(--fs-m);font-weight:500;
+    color:var(--body-text);cursor:pointer;border-bottom:2px solid transparent;user-select:none;white-space:nowrap;}
+  .tab:hover{color:var(--primary-text);}
+  .tab.active{color:var(--primary-text);border-bottom-color:var(--primary);}
+  .tabpanel{display:none;} .tabpanel.active{display:block;}
 
-/* two-column form (label above) */
-.f2{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; max-width:1500px; }
-.f2.col-span-wide{ max-width:none; }
-.field{ display:flex; flex-direction:column; gap:6px; }
-.field .flabel{ font:var(--font-label); color:var(--text-muted); }
-.field.col-span{ grid-column:1 / -1; }
-.control{ position:relative; display:flex; align-items:center; }
-.control input, .control select, .note-area{ width:100%; height:var(--control-h); border-radius:var(--radius-md);
-  background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
-  border:1px solid var(--border-strong); outline:none; padding:0 var(--space-2);
-  transition:box-shadow 120ms ease, border-color 120ms ease; }
-.control select{ cursor:pointer; appearance:none; padding-right:30px; }
-.control input:focus, .control select:focus, .note-area:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
-/* as-is: readonly / grey-filled look (P2-01 live defect kept) */
-.control input[readonly], .ro input, .ro .note-area{ background:var(--surface-input); color:var(--text-muted); border:1px solid transparent; cursor:default; }
-.control input[readonly]:focus{ border-color:transparent; box-shadow:none; }
-.grey input, .grey select{ background:var(--surface-input); border-color:transparent; }
-.control .cal, .control .caret{ position:absolute; right:9px; pointer-events:none; color:var(--text-muted); display:flex; }
-.note-area{ height:auto; min-height:80px; padding:10px 12px; resize:vertical; line-height:1.5; }
-/* paired date-time widgets (as-is P5-06: date | time split, unlabeled) */
-.dtpair{ display:grid; grid-template-columns:1fr 1fr; gap:0 10px; }
+  /* под-вкладки («Дополнительно», «Условия») — vaadin-tabs theme=small */
+  .subtabs{display:flex;gap:0;flex-wrap:wrap;padding:0 var(--space-m);border-bottom:1px solid var(--contrast-10);}
+  .subtab{height:38px;display:inline-flex;align-items:center;padding:0 12px;font-size:var(--fs-s);font-weight:500;
+    color:var(--secondary-text);cursor:pointer;user-select:none;border-bottom:2px solid transparent;}
+  .subtab:hover{color:var(--primary-text);}
+  .subtab.active{color:var(--primary-text);border-bottom-color:var(--primary);}
+  .subpanel{display:none;} .subpanel.active{display:block;}
 
-/* lookup (picker) — ••• / × / eye */
-.lookup{ display:flex; align-items:center; height:var(--control-h); background:var(--surface-input);
-  border-radius:var(--radius-md); border:1px solid transparent; padding-left:var(--space-2); }
-.lookup .val{ flex:1; font:var(--font-body); font-weight:var(--weight-medium); color:var(--text-body);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.lookup .val.ph{ color:var(--text-placeholder); }
-.lookup button{ display:inline-flex; align-items:center; justify-content:center; width:32px; height:var(--control-h);
-  border:none; background:transparent; color:var(--text-link); cursor:pointer; }
-.lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
+  /* ---------- список: jmix-generic-filter ---------- */
+  .view{display:none;} .view.active{display:block;}
+  .filter-head{display:flex;align-items:center;gap:var(--space-s);font-size:var(--fs-m);
+    color:var(--secondary-text);padding:var(--space-s) 0;user-select:none;}
+  .filter-head .caret{font-size:11px;color:var(--tertiary-text);}
+  /* карточка фильтра: vaadin-form-layout, метки справа (theme=label-align-end) */
+  .list-filter{border:1px solid var(--contrast-20);border-radius:var(--radius);
+    padding:var(--space-m);display:grid;grid-template-columns:200px 1fr;gap:var(--space-s) var(--space-m);
+    align-items:center;margin-bottom:var(--space-s);}
+  .list-filter .fl{text-align:right;font-size:var(--fs-s);font-weight:500;color:var(--secondary-text);}
+  .list-filter input,.list-filter select{width:100%;}
+  .filter-bar{display:flex;align-items:center;gap:var(--space-s);flex-wrap:wrap;margin-bottom:var(--space-m);}
+  .filter-bar .hintlink{color:var(--tertiary-text);font-size:var(--fs-m);}
+  /* панель действий над гридом */
+  .action-bar{display:flex;align-items:center;gap:var(--space-s);flex-wrap:wrap;margin-bottom:var(--space-s);}
+  .action-bar .spacer{flex:1;}
+  table.grid tbody tr.clk{cursor:pointer;} table.grid tbody tr.clk:hover{background:var(--primary-10);}
+  .pager{display:flex;align-items:center;justify-content:space-between;gap:var(--space-m);
+    padding:var(--space-s) var(--space-m);border-top:1px solid var(--contrast-10);
+    font-size:var(--fs-s);color:var(--secondary-text);flex-wrap:wrap;}
+  .pages{display:flex;gap:.3em;align-items:center;}   /* --jmix-simple-pagination-gap */
+  .pg{min-width:30px;height:30px;border:0;border-radius:var(--radius);background:transparent;
+    display:inline-flex;align-items:center;justify-content:center;font-size:var(--fs-s);
+    color:var(--primary-text);cursor:pointer;padding:0 7px;}
+  .pg:hover{background:var(--contrast-5);}
+  .pg.active{background:var(--primary-10);color:var(--primary-text);font-weight:600;}
+  .pg.dis{color:var(--disabled-text);cursor:default;}
 
-/* nested sub-tabs (Условия кредита) */
-.subtabs{ display:flex; gap:2px; border-bottom:1px solid var(--border-default); margin-bottom:20px; }
-.subtab{ border:none; background:transparent; padding:9px 4px; margin-right:22px;
-  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
-  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; }
-.subtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
-.subpanel{ display:none; }
-.subpanel.active{ display:block; }
-.empty-note{ padding:30px 4px; color:var(--text-placeholder); font:var(--font-label); }
+  .badge{font-size:var(--fs-xxs);border-radius:var(--radius);padding:1px 7px;font-weight:600;
+    display:inline-block;white-space:nowrap;}
+  .b-ov{background:var(--warn-10);color:var(--warn-text);}
+  .b-proc{background:var(--primary-10);color:var(--primary-text);}
+  .b-ok{background:var(--success-10);color:var(--success-text);}
+  .b-gray{background:var(--contrast-5);color:var(--secondary-text);}
+  .b-type{background:#f2ecff;color:#5b34c7;}
+  .b-err{background:var(--error-10);color:var(--error-text);}
 
-/* summary field row (График) */
-.sumrow{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:0 24px; margin-bottom:18px; max-width:1500px; }
+  /* тулбар «на дату» */
+  .toolbar{display:flex;align-items:center;gap:var(--space-s);flex-wrap:wrap;
+    border:1px solid var(--contrast-20);border-radius:var(--radius);padding:var(--space-s) var(--space-m);
+    margin-bottom:var(--space-m);}
+  .toolbar .sep{width:1px;height:24px;background:var(--contrast-10);margin:0 3px;}
 
-/* toolbar above collection grid */
-.gtoolbar{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
-.gtoolbar .sel{ display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+  /* поля — vaadin-form-layout, 2 колонки; метка 14/500 secondary, значение 16/400 */
+  .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 var(--space-l);
+    padding:var(--space-m);}
+  .f{display:flex;gap:var(--space-m);padding:6px 0;border-bottom:1px solid var(--contrast-10);
+    font-size:var(--fs-m);align-items:baseline;}
+  .f .fk{color:var(--secondary-text);flex:0 0 210px;font-size:var(--fs-s);font-weight:500;}
+  .f .fv{font-weight:500;}
+  .f.span2{grid-column:1 / -1;}
+  .f .chg{margin-left:auto;font-size:var(--fs-s);color:var(--primary-text);cursor:pointer;white-space:nowrap;}
+  .f .chg:hover{text-decoration:underline;}
 
-/* collection grid */
-.cgrid-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; min-height:120px; }
-table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); white-space:nowrap; }
-table.cgrid thead th{ position:sticky; top:0; text-align:left; padding:10px 12px; background:var(--surface-card);
-  border-bottom:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
-  color:var(--text-heading); cursor:pointer; user-select:none; }
-table.cgrid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; font-weight:400; }
-table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--border-default); color:var(--text-body); }
-table.cgrid tbody tr{ cursor:pointer; }
-table.cgrid tbody tr:hover{ background:var(--surface-hover); }
-table.cgrid tbody tr.sel{ background:var(--asubk-nav-active); }
-table.cgrid tr.total td, table.cgrid tbody tr.total td{ font-weight:var(--weight-bold); color:var(--text-heading);
-  background:var(--surface-hover); border-top:1px solid var(--border-strong); }
-table.cgrid tbody tr.total.green td{ background:var(--asubk-green-tint); }
-.cgrid-empty{ min-height:240px; }
-.upload-row{ display:flex; align-items:center; gap:10px; margin-top:16px; }
-.filename{ font:var(--font-label); color:var(--text-muted); }
-.section-h{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:0 0 14px; }
+  /* свод сумм */
+  .sumrow{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--space-s);padding:var(--space-m);}
+  .sumcell{border:1px solid var(--contrast-20);border-radius:var(--radius);padding:var(--space-s) 12px;}
+  .sumcell .sk{font-size:var(--fs-s);color:var(--secondary-text);}
+  .sumcell .sv{font-size:var(--fs-l);font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums;}
+  .sumcell .se{font-size:var(--fs-xxs);color:var(--secondary-text);margin-top:2px;}
 
-/* ---- footer OK/Отмена ---- */
-.footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
-  padding:14px 20px; display:flex; align-items:center; gap:12px; }
+  /* дерево взыскания */
+  .proc{border:1px solid var(--contrast-20);border-radius:var(--radius);margin:0 var(--space-m) var(--space-s);overflow:hidden;}
+  .proc:first-of-type{margin-top:var(--space-m);}
+  .proc-h{padding:var(--space-s) 12px;border-bottom:1px solid var(--contrast-10);
+    display:flex;align-items:center;gap:var(--space-s);font-size:var(--fs-s);flex-wrap:wrap;}
+  .proc-h .p-name{font-weight:600;}
+  .phase{padding:var(--space-s) 12px;border-bottom:1px solid var(--contrast-10);font-size:var(--fs-s);}
+  .phase:last-child{border-bottom:0;}
+  .phase-h{display:flex;align-items:center;gap:var(--space-s);flex-wrap:wrap;}
+  .ev{margin:6px 0 0 18px;padding-left:12px;border-left:2px solid var(--contrast-10);
+    font-size:var(--fs-xs);color:var(--secondary-text);}
+  .lvl{font-size:var(--fs-xxs);font-weight:600;color:var(--secondary-text);background:var(--contrast-5);
+    border-radius:var(--radius);padding:0 5px;}
 
-/* ============================================================
-   MODALS / OVERLAYS — picker (entity-browser) + form dialogs
-   ============================================================ */
-.overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:none; align-items:center;
-  justify-content:center; z-index:60; padding:24px; }
-.overlay.open{ display:flex; }
-.modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(1040px,100%); max-height:88vh;
-  display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(16,28,46,0.4); }
-.modal.form{ width:min(1100px,100%); }
-.modal.form.narrow{ width:min(620px,100%); }
-.modal-h{ padding:18px 24px 12px; display:flex; align-items:center; gap:10px; }
-.modal-h .mt{ font:var(--weight-bold) 20px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
-.modal-x{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); display:flex; padding:4px; }
-.modal-x:hover{ color:var(--text-body); }
-.modal-b{ padding:0 24px 8px; overflow:auto; flex:1; }
-.modal-f{ padding:14px 24px 20px; display:flex; gap:12px; }
+  /* примечания */
+  .note{border:1px solid var(--contrast-20);border-radius:var(--radius);padding:var(--space-s) 12px;
+    margin:0 var(--space-m) var(--space-s);}
+  .note:first-of-type{margin-top:var(--space-m);}
+  .note-h{display:flex;align-items:center;gap:var(--space-s);font-size:var(--fs-xs);color:var(--secondary-text);}
+  .note-b{font-size:var(--fs-s);margin-top:4px;line-height:var(--lh-s);}    border-radius:var(--radius);font-size:var(--fs-s);line-height:var(--lh-s);color:#4a2ea6;}
 
-/* entity-browser dialog innards (Фильтр + toolbar + grid + Выбрать/Отмена) */
-.eb-createbar{ display:flex; gap:10px; align-items:center; margin:6px 0 12px; flex-wrap:wrap; }
-.eb-create{ background:var(--action-primary); color:#fff; border:none; }
-.eb-create:hover{ background:var(--action-primary-hover); }
-.eb-grid-wrap{ border:1px solid var(--border-strong); border-radius:var(--radius-md); overflow:auto; max-height:44vh; }
-.eb-grid-wrap thead tr{ outline:1.5px solid var(--asubk-blue); outline-offset:-1.5px; }
-table.eb-grid{ width:100%; border-collapse:collapse; font:var(--font-label); white-space:nowrap; }
-table.eb-grid thead th{ position:sticky; top:0; background:var(--surface-panel); text-align:left; z-index:1;
-  padding:11px 14px; border-bottom:1px solid var(--border-default); color:var(--text-heading);
-  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); }
-table.eb-grid thead th .sort{ color:var(--asubk-blue); margin-left:6px; font-size:12px; font-weight:400; }
-table.eb-grid tbody td{ padding:11px 14px; border-bottom:1px solid var(--border-default); color:var(--text-body); }
-table.eb-grid tbody tr{ cursor:pointer; }
-table.eb-grid tbody tr:hover{ background:var(--surface-hover); }
-table.eb-grid tbody tr.sel{ background:var(--asubk-nav-active); }
-table.eb-grid tbody tr:last-child td{ border-bottom:none; }
-.eb-empty{ padding:60px 0; text-align:center; color:var(--text-placeholder); font:var(--font-label); }
-/* filter condition row (Статус = •••) — status-filtered entity browsers */
-.eb-cond{ display:flex; align-items:center; gap:10px; padding:4px 0 8px; flex-wrap:wrap; }
-.eb-cond .cond-label{ font:var(--font-label); color:var(--text-body); font-weight:var(--weight-medium); }
-.eb-cond .cond-op{ font:var(--font-label); color:var(--text-muted); padding:0 2px; }
-.eb-cond .lookup{ min-width:240px; }
-.filter-head .req-star{ color:var(--action-danger); margin-left:2px; }
-
-/* form dialog: 2-col, as-is grey-filled look (P2-01) + eager required red (P7) */
-.mform{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; padding-top:8px; }
-.mform .field{ gap:6px; }
-.mform .field .flabel{ font:var(--font-label); color:var(--text-muted); }
-.mform .field.req .flabel::after{ content:" •"; color:var(--action-danger); }
-.mform .field.foc .flabel{ color:var(--asubk-blue); }
-.mform .field.foc .control input{ border-color:var(--asubk-blue); box-shadow:0 0 0 3px var(--asubk-blue-tint); background:var(--surface-card); }
-.mform .control input, .mform .control select{ background:var(--surface-input); border-color:transparent; }
-.mform .control input.dashed{ background:var(--surface-card); border:1px dashed var(--border-strong); }
-.mform .field.err .control input, .mform .field.err .control select{ background:rgba(224,58,58,0.10); border-color:transparent; }
-.mform .field.err .errmsg{ display:block; }
-.mform .errmsg{ display:none; font:var(--weight-medium) 12px/1.3 var(--asubk-font); color:var(--action-danger); margin-top:3px; }
-.mform .col-span{ grid-column:1 / -1; }
-.zsub-title{ font:var(--weight-bold) 17px/1.2 var(--asubk-font); color:var(--text-heading); margin:22px 0 12px; }
-.zcond-grid{ display:grid; grid-template-columns:150px 1fr; gap:10px 14px; align-items:center;
-  background:var(--surface-panel); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:6px; }
-.zcond-l{ font:var(--font-label); color:var(--text-body); }
-.zcond-c{ min-width:0; }
-.zcond-c .control input{ background:var(--surface-input); border-color:transparent; }
-.zcond-op{ font:var(--font-label); color:var(--asubk-blue); font-weight:var(--weight-medium); }
-.check{ display:flex; align-items:center; gap:8px; font:var(--font-body); color:var(--text-body); cursor:pointer; }
-.check .box{ width:18px; height:18px; border:1.5px solid var(--border-strong); border-radius:3px; background:var(--surface-card); }
-
-/* mini calendar popup (date picker) */
-.calpop{ position:absolute; z-index:70; background:var(--surface-card); border:1px solid var(--border-default);
-  border-radius:var(--radius-md); box-shadow:0 12px 34px rgba(16,28,46,0.22); padding:10px; width:252px; display:none; }
-.calpop.open{ display:block; }
-.cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
-.cal-head button{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); padding:4px 8px; border-radius:var(--radius-sm); }
-.cal-head button:hover{ background:var(--surface-hover); }
-.cal-title{ font:var(--weight-semibold) var(--text-sm)/1 var(--asubk-font); color:var(--text-heading); }
-.cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
-.cal-grid .dow{ font:var(--weight-medium) 11px/1 var(--asubk-font); color:var(--text-muted); text-align:center; padding:4px 0; }
-.cal-grid .day{ text-align:center; padding:6px 0; font:var(--font-label); border-radius:var(--radius-sm); cursor:pointer; }
-.cal-grid .day:hover{ background:var(--surface-hover); }
-.cal-grid .day.today{ outline:1px solid var(--asubk-blue); }
-.cal-grid .day.sel{ background:var(--asubk-blue); color:#fff; }
-.cal-grid .day.mute{ color:var(--text-placeholder); }
-
-/* time picker popup (Vaadin-style hourly list) */
-.timepop{ position:absolute; z-index:70; background:var(--surface-card); border:1px solid var(--border-default);
-  border-radius:var(--radius-md); box-shadow:0 12px 34px rgba(16,28,46,0.22); padding:4px; width:120px;
-  max-height:236px; overflow-y:auto; display:none; }
-.timepop.open{ display:block; }
-.timepop .topt{ padding:6px 12px; font:var(--font-label); border-radius:var(--radius-sm); cursor:pointer; }
-.timepop .topt:hover{ background:var(--surface-hover); }
-.timepop .topt.sel{ background:var(--asubk-blue); color:#fff; }
-
-/* ---- toast ---- */
-.toast-wrap{ position:fixed; right:20px; bottom:20px; display:flex; flex-direction:column; gap:10px; z-index:80; }
-.toast{ min-width:260px; max-width:420px; padding:12px 14px; border-radius:var(--radius-md);
-  background:var(--asubk-ink); color:#fff; font:var(--font-label); box-shadow:0 10px 30px rgba(16,28,46,0.3);
-  display:flex; gap:10px; align-items:flex-start; }
-.toast.ok{ background:var(--asubk-green); }
-.toast.warn{ background:var(--asubk-amber); }
 </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- ============ SIDEBAR ============ -->
-  <nav class="sidebar">
+  <!-- ===================== SIDEBAR ===================== -->
+  <!-- Меню повторяет живой стенд: группы vaadin-details, пункт .jmix-menu-item-link,
+       активный — подсветка --lumo-primary-color-10pct (снято ui-style-dump2.mjs). -->
+  <aside class="sidebar">
     <div class="brand">АСУБК</div>
-    <div class="nav" id="nav"></div>
-    <div class="sidebar-foot">
+    <nav class="nav">
+      <div class="nav-group"><span class="caret">›</span>Приложение</div>
+
+      <div class="nav-group open"><span class="caret">›</span>Система кредитования</div>
+      <div class="nav-item">Решение правительства</div>
+      <div class="nav-item">Кредитные программы</div>
+      <div class="nav-item">Заявки</div>
+      <div class="nav-item">Комиссии по заявкам</div>
+      <div class="nav-item">Заемщики</div>
+      <div class="nav-item active">Кредиты</div>
+      <div class="nav-sub">
+        <div class="nav-group"><span class="caret">›</span>Залог</div>
+        <div class="nav-group"><span class="caret">›</span>Справочники</div>
+      </div>
+
+      <div class="nav-group"><span class="caret">›</span>Поручительства</div>
+      <div class="nav-group"><span class="caret">›</span>Корпоративное управление</div>
+      <div class="nav-group"><span class="caret">›</span>Субсидии</div>
+      <div class="nav-group"><span class="caret">›</span>Взыскание задолженности</div>
+      <div class="nav-group"><span class="caret">›</span>Справочники</div>
+      <div class="nav-group"><span class="caret">›</span>Сервисы</div>
+      <div class="nav-group"><span class="caret">›</span>Администрирование</div>
+    </nav>
+    <div class="footer">
       <span>[admin]</span>
-      <button class="icon-btn" title="Выйти" aria-label="Выйти">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-      </button>
+      <div class="logout" title="Выход">⇥</div>
     </div>
-  </nav>
+  </aside>
 
-  <!-- ============ MAIN ============ -->
+  <!-- ===================== MAIN ===================== -->
   <div class="main">
-    <header class="topbar">
-      <span class="menu" title="Меню">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-      </span>
-      <span class="crumb-title" id="crumbTitle">Кредиты</span>
-    </header>
+    <div class="topbar">
+      <span class="burger">☰</span>
+      <span class="title" id="pageTitle">Кредиты</span>
+      <span class="crumb" id="crumb"></span>
+    </div>
 
-    <div class="content">
+    <!-- ==================== ВИД: СПИСОК ==================== -->
+    <div class="view active" id="view-list">
+      <div class="content">
 
-      <!-- ============ LIST VIEW ============ -->
-      <section class="view" id="view-list" style="display:flex;">
-        <div class="filter-head open" id="filterHead" onclick="this.classList.toggle('open')">
-          <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
-          <span>Фильтр</span>
+        <div class="filter-head"><span class="caret">⌄</span> Фильтр : Фильтры *</div>
+        <div class="list-filter">
+          <label class="fl" for="fQ">Заёмщик содержит</label>
+          <input type="text" id="fQ" placeholder="Наименование или Ф.И.О.">
+          <label class="fl" for="fNum">Номер кредита содержит</label>
+          <input type="text" id="fNum" placeholder="">
+          <label class="fl" for="fRegion">Область =</label>
+          <select id="fRegion">
+            <option value="">Все</option>
+            <option>Чуйская</option><option>г. Бишкек</option><option>Нарынская</option>
+            <option>Ошская</option><option>Иссык-Кульская</option>
+          </select>
+          <label class="fl" for="fDistrict">Район =</label>
+          <select id="fDistrict">
+            <option value="">Все</option>
+            <option>Сокулукский</option><option>Аламудунский</option><option>Ленинский (г. Бишкек)</option>
+            <option>Ак-Талинский</option>
+          </select>
+          <label class="fl" for="fGroup">Группа платёжеспособности =</label>
+          <select id="fGroup">
+            <option value="">Все</option>
+            <option value="1.1">1.1 · Погашение по графику</option>
+            <option value="2.1">2.1 · Работа с судом</option>
+            <option value="2.2">2.2 · Исполнительные листы</option>
+            <option value="2.3">2.3 · Инициирование банкротства</option>
+            <option value="5">5 · Погашенные</option>
+          </select>
         </div>
-        <div class="tb-actions">
-          <div class="split" id="splitRefresh">
-            <button class="btn btn-success" onclick="toast('Список обновлён')">Обновить</button>
-            <button class="btn btn-success caret" onclick="document.getElementById('splitRefresh').classList.toggle('open');event.stopPropagation();">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-            </button>
-            <div class="split-menu">
-              <button onclick="toast('Обновить');closeSplit()">Обновить</button>
-              <button onclick="toast('Применить и обновить');closeSplit()">Применить и обновить</button>
+        <div class="filter-bar">
+          <button class="btn btn-success">Обновить</button>
+          <button class="btn btn-icon" title="Настройки фильтра">⚙</button>
+          <span class="hintlink">Добавить условие поиска</span>
+        </div>
+
+        <div class="action-bar">
+          <button class="btn btn-primary">+ Добавить кредит ▾</button>
+          <button class="btn btn-disabled">✎ Изменить</button>
+          <button class="btn btn-disabled">👁 Просмотр</button>
+          <button class="btn btn-icon" title="Настройки таблицы">⚙</button>
+        </div>
+
+        <div class="section" style="margin-bottom:0">
+          <div class="section-body scroll-x">
+            <table class="grid" id="listTable">
+              <thead>
+                <tr>
+                  <th>Номер</th>
+                  <th>Заёмщик</th>
+                  <th>Тип</th>
+                  <th class="num">Сумма по договору</th>
+                  <th>Валюта</th>
+                  <th class="num">Остаток (KGS)</th>
+                  <th class="num">Просрочка</th>
+                  <th>Группа</th>
+                  <th>Статус кредита</th>
+                  <th>Куратор</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="clk" data-open="1" data-group="2.2" data-district="Сокулукский">
+                  <td class="who">Газификация-2024-07</td>
+                  <td>ОАО «АгроТехСервис»</td>
+                  <td><span class="badge b-type">кредит</span></td>
+                  <td class="num">500 000,00</td>
+                  <td>USD</td>
+                  <td class="num">41 200 000,00</td>
+                  <td class="num cat-high">210 дн.</td>
+                  <td><span class="grp-badge"><span class="grp-code">2.2</span></span></td>
+                  <td><span class="badge b-err">Просрочен</span></td>
+                  <td class="muted">Токтосунов Б. М.</td>
+                </tr>
+                <tr class="clk" data-group="2.2" data-district="Сокулукский">
+                  <td class="who" style="padding-left:30px">↳ Газификация-2024-07/Р1</td>
+                  <td>ОАО «АгроТехСервис»</td>
+                  <td><span class="badge b-type">реструктуризация</span></td>
+                  <td class="num">457 777,78</td>
+                  <td>USD</td>
+                  <td class="num muted">—</td>
+                  <td class="num muted">—</td>
+                  <td class="muted">—</td>
+                  <td><span class="badge b-gray">Оформление</span></td>
+                  <td class="muted">Токтосунов Б. М.</td>
+                </tr>
+                <tr class="clk" data-group="2.1" data-district="Сокулукский">
+                  <td class="who">АПК-2023-014</td>
+                  <td>ОАО «АгроТехСервис»</td>
+                  <td><span class="badge b-type">кредит</span></td>
+                  <td class="num">12 000 000,00</td>
+                  <td>KGS</td>
+                  <td class="num">8 400 000,00</td>
+                  <td class="num cat-mid">45 дн.</td>
+                  <td><span class="grp-badge"><span class="grp-code">2.1</span></span></td>
+                  <td><span class="badge b-err">Просрочен</span></td>
+                  <td class="muted">Асанов А. К.</td>
+                </tr>
+                <tr class="clk" data-group="2.1" data-district="Сокулукский">
+                  <td class="who" style="padding-left:30px">↳ АПК-2023-014/Т2</td>
+                  <td>ОАО «АгроТехСервис»</td>
+                  <td><span class="badge b-type">транш</span></td>
+                  <td class="num">4 000 000,00</td>
+                  <td>KGS</td>
+                  <td class="num muted">в кредите</td>
+                  <td class="num muted">—</td>
+                  <td class="muted">—</td>
+                  <td><span class="badge b-ok">Освоен</span></td>
+                  <td class="muted">Асанов А. К.</td>
+                </tr>
+                <tr class="clk" data-group="2.3" data-district="Сокулукский">
+                  <td class="who">Модернизация-2022-102</td>
+                  <td>ОАО «АгроТехСервис»</td>
+                  <td><span class="badge b-type">кредит</span></td>
+                  <td class="num">8 000 000,00</td>
+                  <td>KGS</td>
+                  <td class="num">8 000 000,00</td>
+                  <td class="num">0 дн.</td>
+                  <td><span class="grp-badge"><span class="grp-code">2.3</span></span></td>
+                  <td><span class="badge b-proc">Действует</span></td>
+                  <td class="muted">Жумабеков Э. Н.</td>
+                </tr>
+                <tr class="clk" data-group="1.1" data-district="Аламудунский">
+                  <td class="who">Стройпрог-2025-031</td>
+                  <td>ОсОО «СветаГрад»</td>
+                  <td><span class="badge b-type">кредит</span></td>
+                  <td class="num">3 000 000,00</td>
+                  <td>KGS</td>
+                  <td class="num">2 450 000,00</td>
+                  <td class="num">0 дн.</td>
+                  <td><span class="grp-badge"><span class="grp-code">1.1</span></span></td>
+                  <td><span class="badge b-proc">Действует</span></td>
+                  <td class="muted">Осмонова Г. Т.</td>
+                </tr>
+                <tr class="clk" data-group="5" data-district="Ленинский (г. Бишкек)">
+                  <td class="who">Техника-2019-004</td>
+                  <td>ИП Дуйшеев К. Т.</td>
+                  <td><span class="badge b-type">кредит</span></td>
+                  <td class="num">1 200 000,00</td>
+                  <td>KGS</td>
+                  <td class="num">0,00</td>
+                  <td class="num">0 дн.</td>
+                  <td><span class="grp-badge"><span class="grp-code">5</span></span></td>
+                  <td><span class="badge b-ok">Погашен</span></td>
+                  <td class="muted">Асанов А. К.</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="pager">
+              <span>Отображение <b>1–7</b> из <b>100</b> записей</span>
+              <div class="pages">
+                <span class="pg dis">«</span><span class="pg dis">‹</span>
+                <span class="pg active">1</span><span class="pg">2</span><span class="pg">3</span>
+                <span class="pg">…</span><span class="pg">›</span><span class="pg">»</span>
+              </div>
+              <span>На странице:
+                <select style="height:30px;min-width:70px"><option>10</option><option>20</option><option>30</option><option>50</option><option>100</option></select>
+              </span>
             </div>
           </div>
-          <button class="gear-btn" title="Настройки">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </button>
-          <button class="add-cond">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-            Добавить условие поиска
-          </button>
         </div>
-        <div class="rowtools">
-          <button class="btn btn-tint" id="btnEdit" disabled onclick="openDetail(selectedRow)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
-            Изменить</button>
-          <button class="btn btn-tint" id="btnView" disabled onclick="openDetail(selectedRow)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            Просмотр</button>
-          <div class="spacer"></div>
-          <div class="pager">
-            <button disabled>«</button><button disabled>‹</button>
-            <span>15 строк</span>
-            <button disabled>›</button><button disabled>»</button>
+
+      </div>
+    </div>
+
+    <!-- ==================== ВИД: КАРТОЧКА ==================== -->
+    <div class="view" id="view-detail">
+      <div class="content">
+
+      <a href="#" id="backLink" style="display:inline-flex;gap:6px;color:var(--primary-text);text-decoration:none;font-size:14px;margin-bottom:14px">‹ к списку кредитов</a>
+
+      <!-- ---------- Идентификация ---------- -->
+      <div class="id-bar">
+        <div class="id-main">
+          <div class="id-name">
+            Газификация-2024-07
+            <span class="badge b-type" style="font-size:13px">кредит</span>
+            <span class="badge b-err" style="font-size:13px">Просрочен · 210 дн.</span>
+          </div>
+          <div class="id-sub">
+            <span>Заёмщик: <a class="lnk" href="#">ОАО «АгроТехСервис»</a> · ИНН <b>01204199910016</b></span>
+            <span>Вид: <b>Иностранный кредит</b></span>
+            <span>Кредитная линия: <b>Кредит АБР</b></span>
+            <span>Договор от <b>05.02.2024</b> · срок возврата <b>05.02.2029</b></span>
+            <span>Куратор: <b>Токтосунов Б. М.</b></span>
           </div>
         </div>
-        <div class="grid-wrap">
-          <table class="grid" id="listGrid">
-            <!-- живой грид: 11 колонок РАВНОЙ ширины (~9.09% каждая), проверено 2026-07-07 -->
-            <colgroup>
-              <col style="width:9.09%"><col style="width:9.09%"><col style="width:9.09%"><col style="width:9.09%">
-              <col style="width:9.09%"><col style="width:9.09%"><col style="width:9.09%"><col style="width:9.09%">
-              <col style="width:9.09%"><col style="width:9.09%"><col style="width:9.10%">
-            </colgroup>
-            <thead><tr id="listHead"></tr></thead>
-            <tbody id="listBody"></tbody>
-          </table>
+        <div class="id-actions">
+          <button class="btn btn-secondary">Изменить</button>
+          <button class="btn btn-secondary" id="printBtn">🖨 Печатные формы ▾</button>
+          <div class="menu" id="printMenu">
+            <div class="menu-i">Акт сверки <span class="m-src">на дату расчёта</span></div>
+            <div class="menu-i">Претензия <span class="m-src">на дату расчёта</span></div>
+            <div class="menu-i">Реестр погашений <span class="m-src">на дату расчёта</span></div>
+            <div class="menu-i">Уведомление <span class="m-src">должнику</span></div>
+            <div class="menu-i">График погашения <span class="m-src">PDF / Excel</span></div>
+            <div class="menu-i">Акт обследования залога <span class="m-src">форма</span></div>
+            <div class="menu-i">Извещение об утрате залога <span class="m-src">форма №5</span></div>
+          </div>
         </div>
-      </section>
+      </div>
 
-      <!-- ============ DETAIL VIEW ============ -->
-      <section class="view" id="view-detail">
-        <div class="detail-tabbar-wrap">
-          <div class="detail-tabbar" id="detailTabbar"></div>
-          <button class="tabbar-chevron" onclick="scrollTabs()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-          </button>
+      <!-- ---------- Плитки состояния ---------- -->
+      <div class="state-row">
+        <div class="tile">
+          <div class="tile-lbl">Остаток задолженности <span class="lock" title="снапшот батч-калькулятора">на 13.07.2026</span></div>
+          <div class="tile-val">457 777,78 <span style="font-size:15px;color:var(--secondary-text)">USD</span></div>
+          <div class="tile-basis">
+            ≈ <b>41 200 000,00 KGS</b> по курсу НБКР <b>90,0000</b> на 13.07.2026<br>
+            осн. 400 000,00 · проц. 42 777,78 · штрафы 15 000,00
+          </div>
         </div>
-        <div class="content" style="overflow:visible;">
-          <div id="detailPanels"></div>
+        <div class="tile">
+          <div class="tile-lbl">Категория риска <span class="lock">по кредиту</span></div>
+          <div class="tile-val cat-mid"><span class="dot d-mid"></span>Средний</div>
+          <div class="tile-basis">
+            по дням просрочки (210) → <b class="cat-high">высокий</b>, <b>подавлен оверлеем</b><br>
+            факторов риска нет · честная категория: средний
+          </div>
         </div>
-        <div class="footer">
-          <button class="btn btn-primary" onclick="toast('Сохранено');showView('list')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-            OK</button>
-          <button class="btn btn-secondary" onclick="showView('list')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
-            Отмена</button>
+        <div class="tile">
+          <div class="tile-lbl">Группа платёжеспособности <span class="lock">🔒 выводится</span></div>
+          <div class="tile-val"><span class="grp-badge"><span class="grp-code">2.2</span></span></div>
+          <div class="tile-basis">
+            исполнительные листы · подтверждена фаза<br>
+            процедура <b>№68410</b> (вкладка «Взыскание»)
+          </div>
         </div>
-      </section>
+        <div class="tile">
+          <div class="tile-lbl">Оверлей <span class="lock">слой</span></div>
+          <div class="ov-item">
+            <div class="ov-h">⏸ Подавление 181-го дня</div>
+            <div class="ov-m">
+              источник — <b>реструктуризация Р1</b> (на рассмотрении с 12.06.2026)<br>
+              дедлайн <b>21.08.2026</b> · осталось 40 из 70 кал. дней
+            </div>
+          </div>
+          <div class="muted" style="font-size:12px">По отказу/истечении → ночной пересчёт → высокий.</div>
+        </div>
+      </div>
 
+      <!-- ---------- Вкладки ---------- -->
+      <div class="tabs" id="tabs">
+        <div class="tab active" data-tab="general">Общая информация</div>
+        <div class="tab" data-tab="registration">Оформление</div>
+        <div class="tab" data-tab="borrower">Заёмщик</div>
+        <div class="tab" data-tab="terms">Условия кредита</div>
+        <div class="tab" data-tab="schedule">График</div>
+        <div class="tab" data-tab="tranches">Транши</div>
+        <div class="tab" data-tab="subloans">Субкредиты</div>
+        <div class="tab" data-tab="calc">Расчёты</div>
+        <div class="tab" data-tab="detcalc">Детальный расчёт</div>
+        <div class="tab" data-tab="payments">Платежи</div>
+        <div class="tab" data-tab="reserve">Резерв</div>
+        <div class="tab" data-tab="paycode">Код оплаты</div>
+        <div class="tab" data-tab="security">Обеспечение</div>
+        <div class="tab" data-tab="enforce">Взыскание</div>
+        <div class="tab" data-tab="notes">Примечания</div>
+        <div class="tab" data-tab="extra">Дополнительно</div>
+      </div>
+
+      <!-- ==================== Общая информация ==================== -->
+      <div class="tabpanel active" data-panel="general">
+
+        <div class="section">
+          <div class="section-head">Параметры кредита
+          </div>
+          <div class="fields">
+            <div class="f"><span class="fk">Тип</span>
+              <span class="fv"><span class="badge b-type">кредит</span></span></div>
+            <div class="f"><span class="fk">Вид кредита</span><span class="fv">Иностранный кредит</span></div>
+
+            <div class="f"><span class="fk">Сумма по договору</span>
+              <span class="fv">500 000,00 <b>USD</b> <span class="muted">≈ 45 000 000,00 KGS</span></span></div>
+            <div class="f"><span class="fk">Валюта</span>
+              <span class="fv">USD <span class="muted">курс НБКР 90,0000 на 13.07.2026</span></span></div>
+
+            <div class="f"><span class="fk">Дата договора</span><span class="fv">05.02.2024</span></div>
+            <div class="f"><span class="fk">Срок возврата</span><span class="fv">05.02.2029 <span class="muted">(60 мес.)</span></span></div>
+
+            <div class="f"><span class="fk">Основание выдачи кредита</span>
+              <span class="fv"><a class="lnk" href="#">Решение ПКР №312 от 20.12.2023</a></span></div>
+            <div class="f"><span class="fk">Дата полного погашения</span><span class="fv" style="font-weight:400;color:var(--secondary-text)">— (не погашен)</span></div>
+
+            <div class="f"><span class="fk">Статус заявки</span>
+              <span class="fv"><span class="badge b-gray">Одобрено</span></span></div>
+            <div class="f"><span class="fk">Статус кредита</span>
+              <span class="fv"><span class="badge b-err">Просрочен</span></span>
+              <span class="chg">изменить</span></div>
+
+            <div class="f"><span class="fk">Группа платёжеспособности</span>
+              <span class="fv"><span class="grp-badge"><span class="grp-code">2.2</span> Исполнит. листы</span></span>
+              <span class="chg" title="выводится классификатором, вручную не задаётся">🔒 выводится</span></div>
+            <div class="f"><span class="fk">Кредитная линия</span><span class="fv">Кредит АБР</span><span class="chg">изменить</span></div>
+
+            <div class="f"><span class="fk">Основной кредит</span><span class="fv">Да</span><span class="chg">изменить</span></div>
+            <div class="f"><span class="fk">Куратор (ведущий)</span><span class="fv">Токтосунов Б. М.
+              <span class="muted">Региональное представительство · с 05.02.2024</span></span></div>
+
+            <div class="f span2"><span class="fk">Аудит</span>
+              <span class="fv" style="font-weight:400">Внесён: <b>Токтосунов Б. М.</b> · 05.02.2024 &nbsp;·&nbsp;
+              Изменён: <b>Осмонова Г. Т.</b> · 12.06.2026</span></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">Счёт погашения
+            <span class="ha"><button class="btn btn-secondary btn-sm">Обновить лицевые счета</button></span>
+          </div>
+          <div class="fields">
+            <div class="f"><span class="fk">Счёт погашения</span>
+              <span class="fv">Бюджетных ссуд и иностранных кредитов <span class="muted">4400011001000240</span></span>
+              <span class="chg">изменить</span></div>
+            <div class="f"><span class="fk">Вид счёта погашения</span><span class="fv">Республиканский бюджет</span><span class="chg">изменить</span></div>
+            <div class="f"><span class="fk">ПИН / ИНН</span><span class="fv">01204199910016</span></div>
+            <div class="f"><span class="fk">Информация по счёту</span><span class="fv" style="font-weight:400;color:var(--secondary-text)">обновлена 13.07.2026 03:15</span></div>
+          </div>
+        </div>
+
+      </div><!-- /Общая -->
+
+      <!-- ==================== Оформление ==================== -->
+      <div class="tabpanel" data-panel="registration">
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Оформление
+          </div>
+          <div class="fields">
+            <div class="f"><span class="fk">Номер регистрации</span><span class="fv">56</span></div>
+            <div class="f"><span class="fk">Дата регистрации</span><span class="fv">05.02.2024</span></div>
+            <div class="f span2"><span class="fk">Скан договора</span>
+              <span class="fv"><a class="lnk" href="#">dogovor_gaz_2024_07.pdf</a>
+                <span class="muted">загрузил Токтосунов Б. М. · 06.02.2024</span></span></div>
+            <div class="f span2"><span class="fk">Комментарии</span>
+              <span class="fv" style="font-weight:400">Договор подписан в редакции протокола разногласий от 03.02.2024.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Заёмщик ==================== -->
+      <div class="tabpanel" data-panel="borrower">
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Заёмщик
+            <span class="ha"><button class="btn btn-secondary btn-sm">Открыть карточку заёмщика</button></span>
+          </div>
+          <div class="fields">
+            <div class="f"><span class="fk">Основной заёмщик</span>
+              <span class="fv"><a class="lnk" href="#">ОАО «АгроТехСервис»</a></span></div>
+            <div class="f"><span class="fk">ПИН / ИНН</span><span class="fv">01204199910016</span></div>
+            <div class="f"><span class="fk">Субъект</span>
+              <span class="fv"><a class="lnk" href="#">организация #6041</a> <span class="muted">заёмщик — роль над субъектом</span></span></div>
+            <div class="f"><span class="fk">Отрасль / Район</span><span class="fv">Машиностроение · Сокулукский</span></div>
+            <div class="f span2"><span class="fk">Прочие кредиты заёмщика</span>
+              <span class="fv" style="font-weight:400">АПК-2023-014 (просрочка 45 дн.) · Модернизация-2022-102 (кат. высокий, нецелевое) —
+              категория заёмщика = <b class="cat-high">worst-of</b> по кредитам</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Условия кредита ==================== -->
+      <div class="tabpanel" data-panel="terms">
+
+        <div class="section">
+          <div class="section-head">Версии условий
+            <span class="hint">действует последняя версия с датой вступления ≤ дате расчёта</span>
+            <span class="ha"><button class="btn btn-secondary btn-sm">+ Новая версия условий</button></span>
+          </div>
+          <div class="section-body scroll-x">
+            <table class="grid">
+              <thead>
+                <tr>
+                  <th>#</th><th>Начало действия</th><th class="num">Проц. ставка</th>
+                  <th class="num">Штраф по осн.с.</th><th class="num">Штраф по проц.</th>
+                  <th>Метод дней (мес./год)</th><th>Плавающая ставка</th><th>Статус</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>2</td><td>01.01.2026</td><td class="num">Euribor-6m + 2,50</td>
+                  <td class="num">0,10 %</td><td class="num">0,05 %</td>
+                  <td class="muted">календарный 365 / 365</td>
+                  <td><span class="badge b-type">Euribor-6m</span> <span class="muted">маржа 2,50</span></td>
+                  <td><span class="badge b-ok">Действует</span></td>
+                </tr>
+                <tr>
+                  <td>1</td><td>05.02.2024</td><td class="num">4,00 %</td>
+                  <td class="num">0,10 %</td><td class="num">0,05 %</td>
+                  <td class="muted">финансовый / финансовый</td>
+                  <td class="muted">—</td>
+                  <td><span class="badge b-gray">Завершена 31.12.2025</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Версия №2 — параметры начисления
+            <span class="hint">форма редактирует выбранную версию, а не «текущее состояние кредита»</span>
+          </div>
+          <div class="subtabs">
+            <span class="subtab active" data-sub="terms" data-idx="0">Общие условия</span>
+            <span class="subtab" data-sub="terms" data-idx="1">Условия траншей</span>
+          </div>
+          <div class="subpanel active" data-subpanel="terms-0">
+            <div class="fields">
+              <div class="f"><span class="fk">Начало действия</span><span class="fv">01.01.2026</span></div>
+              <div class="f"><span class="fk">Процентная ставка</span><span class="fv">Euribor-6m + маржа 2,50</span></div>
+              <div class="f"><span class="fk">Вид плавающей ставки</span>
+                <span class="fv">Euribor-6m <span class="muted">ряд: 33 061 запись, ежедн.</span></span></div>
+              <div class="f"><span class="fk">Период начисления</span><span class="fv">Аннуитет</span></div>
+              <div class="f"><span class="fk">Метод погашения</span><span class="fv">Аннуитетный</span></div>
+              <div class="f"><span class="fk">Периодичность платежа</span><span class="fv">Ежеквартально</span></div>
+              <div class="f"><span class="fk">Штраф за просрочку по осн. с.</span><span class="fv">0,10 % <span class="muted">фиксированная</span></span></div>
+              <div class="f"><span class="fk">Штраф за просрочку по процентам</span><span class="fv">0,05 % <span class="muted">фиксированная</span></span></div>
+              <div class="f"><span class="fk">Предельный лимит штрафов</span><span class="fv">10,00 %</span></div>
+              <div class="f"><span class="fk">Дата предельного начисления</span><span class="fv" style="font-weight:400;color:var(--secondary-text)">—</span></div>
+              <div class="f"><span class="fk">Очередь погашения</span>
+                <span class="fv">Осн. сумма → проценты → штрафы</span></div>
+              <div class="f"><span class="fk">Метод расчёта дней</span>
+                <span class="fv">календарный 365 / 365 <span class="muted">(старый вариант — «финансовый»)</span></span></div>
+              <div class="f"><span class="fk">Процент за резерв</span><span class="fv">0,00 %</span></div>
+            </div>
+          </div>
+          <div class="subpanel" data-subpanel="terms-1">
+            <div class="section-body scroll-x">
+              <table class="grid">
+                <thead>
+                  <tr><th>Статус</th><th>Начало действия</th><th class="num">Срок</th><th class="num">Ставка</th>
+                    <th>Плавающая</th><th class="num">Маржа</th><th>Валюта</th><th>Периодичность</th><th>Метод погашения</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="badge b-ok">Действует</span></td><td>31.03.2026</td><td class="num">24</td>
+                    <td class="num">Euribor-6m</td><td>да</td><td class="num">2,50</td><td>USD</td>
+                    <td>Ежеквартально</td><td>Аннуитетный</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div><!-- /Условия -->
+
+      <!-- ==================== График ==================== -->
+      <div class="tabpanel" data-panel="schedule">
+
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">График погашения
+            <span class="hint">версия условий №2 · валюта USD · ежеквартально</span>
+            <span class="ha">
+              <button class="btn btn-secondary btn-sm">Построить график</button>
+              <button class="btn btn-secondary btn-sm">✎ Править позицию</button>
+              <button class="btn btn-secondary btn-sm">🖨 PDF</button>
+              <button class="btn btn-secondary btn-sm">🖨 Excel</button>
+            </span>
+          </div>
+          <div class="section-body scroll-x">
+            <table class="grid">
+              <thead>
+                <tr>
+                  <th>№</th><th>Дата</th>
+                  <th class="num">Освоение</th>
+                  <th class="num">Осн. сумма</th><th class="num">Проценты</th>
+                  <th class="num">Нак. проценты</th>
+                  <th class="num">Нак. штраф</th>
+                  <th>Статус</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>1</td><td>05.05.2024</td><td class="num">300 000,00</td><td class="num">0,00</td><td class="num">3 000,00</td><td class="num">0,00</td><td class="num">0,00</td><td><span class="badge b-ok">Оплачена</span></td></tr>
+                <tr><td>2</td><td>05.08.2024</td><td class="num">200 000,00</td><td class="num">20 000,00</td><td class="num">4 500,00</td><td class="num">0,00</td><td class="num">0,00</td><td><span class="badge b-ok">Оплачена</span></td></tr>
+                <tr><td>3</td><td>05.11.2024</td><td class="num">0,00</td><td class="num">25 000,00</td><td class="num">5 000,00</td><td class="num">0,00</td><td class="num">0,00</td><td><span class="badge b-ok">Оплачена</span></td></tr>
+                <tr><td>4</td><td>05.02.2025</td><td class="num">0,00</td><td class="num">25 000,00</td><td class="num">4 800,00</td><td class="num">0,00</td><td class="num">0,00</td><td><span class="badge b-ok">Оплачена</span></td></tr>
+                <tr><td>5</td><td>05.05.2025</td><td class="num">0,00</td><td class="num">30 000,00</td><td class="num">4 600,00</td><td class="num">4 600,00</td><td class="num">2 100,00</td><td><span class="badge b-err">Просрочена</span></td></tr>
+                <tr><td>6</td><td>05.08.2025</td><td class="num">0,00</td><td class="num">30 000,00</td><td class="num">4 400,00</td><td class="num">9 000,00</td><td class="num">5 400,00</td><td><span class="badge b-err">Просрочена</span></td></tr>
+                <tr><td>7</td><td>05.11.2025</td><td class="num">0,00</td><td class="num">30 000,00</td><td class="num">4 200,00</td><td class="num">13 200,00</td><td class="num">9 800,00</td><td><span class="badge b-err">Просрочена</span></td></tr>
+                <tr><td>8</td><td>05.02.2026</td><td class="num">0,00</td><td class="num">30 000,00</td><td class="num">4 000,00</td><td class="num">17 200,00</td><td class="num">15 000,00</td><td><span class="badge b-err">Просрочена</span></td></tr>
+                <tr><td>9</td><td>05.05.2026</td><td class="num">0,00</td><td class="num">30 000,00</td><td class="num">3 800,00</td><td class="num">21 000,00</td><td class="num">15 000,00</td><td><span class="badge b-proc">Действует</span></td></tr>
+                <tr class="muted"><td colspan="8" style="text-align:center">… ещё 11 позиций до 05.02.2029 …</td></tr>
+                <tr class="total">
+                  <td colspan="2">Итого</td>
+                  <td class="num">500 000,00</td><td class="num">500 000,00</td><td class="num">73 500,00</td>
+                  <td class="num">42 777,78</td><td class="num">15 000,00</td><td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div><!-- /График -->
+
+      <!-- ==================== Транши ==================== -->
+      <div class="tabpanel" data-panel="tranches">
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Транши
+            <span class="hint">освоение кредитной линии частями; у транша — свои условия (см. «Условия кредита» → «Условия траншей»)</span>
+            <span class="ha"><button class="btn btn-secondary btn-sm">+ Транш</button></span>
+          </div>
+          <div class="section-body scroll-x">
+            <table class="grid">
+              <thead>
+                <tr><th>#</th><th>Дата транша</th><th class="num">Сумма</th><th>Валюта</th>
+                  <th class="num">Курс на дату</th><th class="num">Эквивалент KGS</th><th>Статус</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>1</td><td>05.05.2024</td><td class="num">300 000,00</td><td>USD</td><td class="num">87,4500</td><td class="num">26 235 000,00</td><td><span class="badge b-ok">Освоен</span></td></tr>
+                <tr><td>2</td><td>05.08.2024</td><td class="num">200 000,00</td><td>USD</td><td class="num">88,1000</td><td class="num">17 620 000,00</td><td><span class="badge b-ok">Освоен</span></td></tr>
+                <tr class="total"><td colspan="2">Итого</td><td class="num">500 000,00</td><td>USD</td><td class="num">—</td><td class="num">43 855 000,00</td><td></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Субкредиты ==================== -->
+      <div class="tabpanel" data-panel="subloans">
+
+        <div class="section">
+          <div class="section-head">Реструктуризация Газификация-2024-07/Р1
+            <span class="hint">подана 12.06.2026 · на рассмотрении · срок +24 мес.</span>
+            <span class="ha"><button class="btn btn-secondary btn-sm">Открыть карточку Р1</button></span>
+          </div>
+          <div class="fields">
+            <div class="f"><span class="fk">Статус</span><span class="fv"><span class="badge b-gray">Оформление · на рассмотрении</span></span></div>
+            <div class="f"><span class="fk">Дедлайн рассмотрения</span><span class="fv">21.08.2026 <span class="muted">70 кал. дней (п. 18)</span></span></div>
+            <div class="f"><span class="fk">Сумма реструктуризации</span><span class="fv">457 777,78 USD</span></div>
+            <div class="f"><span class="fk">Влияние на категорию</span>
+              <span class="fv"><span class="badge b-ov">⏸ оверлей подавления</span> <span class="muted">до утверждения категория не растёт</span></span></div>
+          </div>
+        </div>
+
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Субкредиты
+            <span class="hint">исходные кредиты, обёрнутые реструктуризацией</span>
+          </div>
+          <div class="section-body scroll-x">
+            <table class="grid">
+              <thead>
+                <tr><th>Рег. номер</th><th>Дата регистрации</th><th class="num">Сумма по договору</th>
+                  <th>Валюта</th><th>Вид</th><th>Статус</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="who"><a class="lnk" href="#">Газификация-2024-07</a></td>
+                  <td>05.02.2024</td><td class="num">500 000,00</td><td>USD</td>
+                  <td>Иностранный кредит</td><td><span class="badge b-err">Просрочен</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div><!-- /Субкредиты -->
+
+      <!-- ==================== Расчёты ==================== -->
+      <div class="tabpanel" data-panel="calc">
+        <div class="toolbar">
+          <span class="fl muted">Расчёт на дату</span>
+          <input type="text" value="13.07.2026" style="width:120px">
+          <button class="btn btn-primary btn-sm">Расчёт</button>
+          <button class="btn btn-secondary btn-sm">Обновить данные</button>
+          <span class="sep"></span>
+          <button class="btn btn-secondary btn-sm">Акт сверки</button>
+          <button class="btn btn-secondary btn-sm">Претензия</button>
+          <button class="btn btn-secondary btn-sm">Реестр погашений</button>
+          <button class="btn btn-secondary btn-sm">Уведомление</button>
+        </div>
+
+        <div class="section">
+          <div class="section-head">Свод на 13.07.2026
+            <span class="hint">последний пересчёт 13.07.2026 03:15 (ночной батч) · валюта USD</span>
+          </div>
+          <div class="sumrow">
+            <div class="sumcell"><div class="sk">Всего освоено</div><div class="sv">500 000,00</div><div class="se">≈ 45 000 000 KGS</div></div>
+            <div class="sumcell"><div class="sk">Всего погашено</div><div class="sv">42 222,22</div><div class="se">≈ 3 800 000 KGS</div></div>
+            <div class="sumcell"><div class="sk">Остаток всего</div><div class="sv">457 777,78</div><div class="se">≈ 41 200 000 KGS</div></div>
+            <div class="sumcell"><div class="sk">в т.ч. штрафы</div><div class="sv">15 000,00</div><div class="se">лимит 10 % достигнут</div></div>
+            <div class="sumcell"><div class="sk">Всего просрочено</div><div class="sv cat-high">120 000,00</div><div class="se">210 дн.</div></div>
+          </div>
+        </div>
+
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Журнал расчётов
+            <span class="hint">снапшот на дату — клик по строке открывает состояние долга на ту дату</span>
+          </div>
+          <div class="section-body scroll-x">
+            <table class="grid">
+              <thead>
+                <tr>
+                  <th>№</th><th>На дату</th><th class="num">Всего освоено</th><th class="num">Всего погашено</th>
+                  <th class="num">Остаток всего</th><th class="num">Ост. осн.</th><th class="num">Ост. проц.</th>
+                  <th class="num">Ост. штраф.</th><th class="num">Всего просрочено</th><th>Курс</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="clk">
+                  <td>4</td><td class="who">13.07.2026</td><td class="num">500 000,00</td><td class="num">42 222,22</td>
+                  <td class="num">457 777,78</td><td class="num">400 000,00</td><td class="num">42 777,78</td>
+                  <td class="num">15 000,00</td><td class="num">120 000,00</td><td>90,0000</td>
+                  <td><span class="muted">🖨</span></td>
+                </tr>
+                <tr class="clk">
+                  <td>3</td><td>02.03.2026</td><td class="num">500 000,00</td><td class="num">42 222,22</td>
+                  <td class="num">450 977,78</td><td class="num">400 000,00</td><td class="num">37 977,78</td>
+                  <td class="num">13 000,00</td><td class="num">90 000,00</td><td>89,2000</td>
+                  <td><span class="muted">🖨</span></td>
+                </tr>
+                <tr class="clk">
+                  <td>2</td><td>05.11.2025</td><td class="num">500 000,00</td><td class="num">42 222,22</td>
+                  <td class="num">438 177,78</td><td class="num">430 000,00</td><td class="num">13 200,00</td>
+                  <td class="num">9 800,00</td><td class="num">60 000,00</td><td>88,5000</td>
+                  <td><span class="muted">🖨</span></td>
+                </tr>
+                <tr class="clk">
+                  <td>1</td><td>05.05.2025</td><td class="num">500 000,00</td><td class="num">42 222,22</td>
+                  <td class="num">424 477,78</td><td class="num">460 000,00</td><td class="num">4 600,00</td>
+                  <td class="num">2 100,00</td><td class="num">30 000,00</td><td>87,4500</td>
+                  <td><span class="muted">🖨</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div><!-- /Расчёты -->
+
+      <!-- ==================== Детальный расчёт ==================== -->
+      <div class="tabpanel" data-panel="detcalc">
+        <div class="toolbar">
+          <span class="fl muted">Транш</span>
+          <select style="min-width:200px"><option>Все транши</option><option>Транш №1 — 300 000,00</option><option>Транш №2 — 200 000,00</option></select>
+          <span class="fl muted">Дата расчёта</span>
+          <input type="text" value="13.07.2026" style="width:120px">
+          <button class="btn btn-primary btn-sm">Рассчитать</button>
+          <button class="btn btn-secondary btn-sm">Расчёт на весь график</button>
+          <button class="btn btn-secondary btn-sm">Начислить ОД и проценты</button>
+          <button class="btn btn-secondary btn-sm">Начислить пеню</button>
+        </div>
+
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Детальный расчёт</div>
+          <div class="section-body scroll-x">
+            <table class="grid">
+              <thead>
+                <tr>
+                  <th>№</th><th>Дата события</th><th class="num">Получено средств</th><th class="num">Ост. по осн. сумме</th>
+                  <th class="num">Погашение осн. факт</th><th class="num">Погашение осн. по графику</th><th class="num">Просрочено по осн.</th>
+                  <th class="num">Кол-во дней</th><th class="num">Начислено процентов</th><th class="num">Погашено процентов</th>
+                  <th class="num">Просрочено по проц.</th><th class="num">Начислено штрафов</th><th class="num">Остаток по штрафам</th>
+                  <th class="num">Всего погашено</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>1</td><td>05.05.2024</td><td class="num">300 000,00</td><td class="num">300 000,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td></tr>
+                <tr><td>2</td><td>05.08.2024</td><td class="num">200 000,00</td><td class="num">480 000,00</td><td class="num">20 000,00</td><td class="num">20 000,00</td><td class="num">0,00</td><td class="num">92</td><td class="num">4 500,00</td><td class="num">4 500,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">24 500,00</td></tr>
+                <tr><td>3</td><td>05.05.2025</td><td class="num">0,00</td><td class="num">430 000,00</td><td class="num">0,00</td><td class="num">30 000,00</td><td class="num">30 000,00</td><td class="num">273</td><td class="num">4 600,00</td><td class="num">0,00</td><td class="num">4 600,00</td><td class="num">2 100,00</td><td class="num">2 100,00</td><td class="num">42 222,22</td></tr>
+                <tr><td>4</td><td>13.07.2026</td><td class="num">0,00</td><td class="num">400 000,00</td><td class="num">0,00</td><td class="num">120 000,00</td><td class="num">120 000,00</td><td class="num">210</td><td class="num">42 777,78</td><td class="num">0,00</td><td class="num">42 777,78</td><td class="num">15 000,00</td><td class="num">15 000,00</td><td class="num">42 222,22</td></tr>
+                <tr class="total"><td colspan="2">Итого</td><td class="num">500 000,00</td><td class="num">400 000,00</td><td class="num">0,00</td><td class="num">170 000,00</td><td class="num">120 000,00</td><td class="num">—</td><td class="num">42 777,78</td><td class="num">4 500,00</td><td class="num">42 777,78</td><td class="num">15 000,00</td><td class="num">15 000,00</td><td class="num">42 222,22</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Платежи ==================== -->
+      <div class="tabpanel" data-panel="payments">
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Платежи
+            <span class="ha">
+              <button class="btn btn-secondary btn-sm">+ Платёж</button>
+              <button class="btn btn-secondary btn-sm">🖨 Реестр погашений</button>
+            </span>
+          </div>
+          <div class="section-body scroll-x">
+            <table class="grid">
+              <thead>
+                <tr>
+                  <th>№</th><th>Дата</th><th>Номер документа</th><th>Транш</th>
+                  <th class="num">Итого</th><th class="num">Осн. сумма</th><th class="num">Проценты</th>
+                  <th class="num">Штрафы / пеня</th><th class="num">Комиссия</th>
+                  <th>Вид платежа</th>
+                  <th>Статус</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>3</td><td>05.11.2024</td><td>№235100177</td><td>—</td><td class="num">17 722,22</td><td class="num">15 000,00</td><td class="num">2 722,22</td><td class="num">0,00</td><td class="num">0,00</td><td>денежными средствами</td><td><span class="badge b-ok">Действует</span></td></tr>
+                <tr><td>2</td><td>05.08.2024</td><td>1057</td><td>Транш №2</td><td class="num">14 500,00</td><td class="num">10 000,00</td><td class="num">4 500,00</td><td class="num">0,00</td><td class="num">0,00</td><td>денежными средствами</td><td><span class="badge b-ok">Действует</span></td></tr>
+                <tr><td>1</td><td>05.05.2024</td><td>б/н</td><td>Транш №1</td><td class="num">10 000,00</td><td class="num">10 000,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td><td>принятие имущества</td><td><span class="badge b-gray">Аннулирован</span></td></tr>
+                <tr class="total"><td colspan="4">Итого</td><td class="num">42 222,22</td><td class="num">35 000,00</td><td class="num">7 222,22</td><td class="num">0,00</td><td class="num">0,00</td><td></td><td></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Резерв ==================== -->
+      <div class="tabpanel" data-panel="reserve">
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Резерв</div>
+          <div class="section-body scroll-x">
+            <table class="grid">
+              <thead><tr><th>№</th><th>Дата</th><th class="num">Сумма кредита</th><th class="num">Освоено</th>
+                <th class="num">Резерв</th><th class="num">Процент</th><th class="num">Начислено</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>05.05.2024</td><td class="num">500 000,00</td><td class="num">300 000,00</td><td class="num">200 000,00</td><td class="num">0,00</td><td class="num">0,00</td></tr>
+                <tr><td>2</td><td>05.08.2024</td><td class="num">500 000,00</td><td class="num">500 000,00</td><td class="num">0,00</td><td class="num">0,00</td><td class="num">0,00</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Код оплаты ==================== -->
+      <div class="tabpanel" data-panel="paycode">
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Код оплаты</div>
+          <div class="section-body">
+            <table class="grid">
+              <thead><tr><th style="width:34%">Назначение</th><th style="width:33%">Код оплаты</th><th>Заёмщик</th></tr></thead>
+              <tbody>
+                <tr><td>Погашение основной суммы</td><td class="who">4400011001000240</td><td>ОАО «АгроТехСервис»</td></tr>
+                <tr><td>Погашение процентов</td><td class="who">4400011001000241</td><td>ОАО «АгроТехСервис»</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Обеспечение ==================== -->
+      <div class="tabpanel" data-panel="security">
+
+        <div class="section">
+          <div class="section-head">Свод обеспечения
+          </div>
+          <div class="section-body" style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div style="border:1px solid var(--green-card-border);background:var(--green-card-bg);border-radius:6px;padding:12px 14px">
+              <div style="font-weight:700;font-size:14px;color:var(--success)">Действующие · 2 ед.</div>
+              <div class="muted" style="margin-top:6px;line-height:1.6">
+                Оценочная стоимость: <b style="color:var(--body-text)">18 500 000</b> KGS<br>
+                Залоговая стоимость: <b style="color:var(--body-text)">12 950 000</b> KGS<br>
+                Покрытие долга (41 200 000 KGS): <b class="cat-high">31 %</b>
+              </div>
+            </div>
+            <div style="border:1px solid var(--border);background:#fbfcfd;border-radius:6px;padding:12px 14px">
+              <div style="font-weight:700;font-size:14px;color:var(--secondary-text)">Снятые · 1 ед.</div>
+              <div class="muted" style="margin-top:6px;line-height:1.6">
+                Оценочная стоимость: <b style="color:var(--body-text)">4 000 000</b> KGS<br>
+                Причина: замена предмета залога (10.03.2026)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">Обеспечительные договоры
+            <span class="hint">залог + поручительство одной таблицей; M:N с кредитами</span>
+            <span class="ha">
+              <button class="btn btn-secondary btn-sm">+ Договор залога</button>
+              <button class="btn btn-secondary btn-sm">+ Договор поручительства</button>
+              <button class="btn btn-secondary btn-sm">🔗 Выбрать существующий</button>
+            </span>
+          </div>
+          <div class="section-body scroll-x">
+            <table class="grid">
+              <thead>
+                <tr>
+                  <th>№ договора</th><th>Вид</th><th>Залогодатель / поручитель</th>
+                  <th>Нотариус</th><th>Кредиты (M:N)</th>
+                  <th class="num">Оценочная</th><th class="num">Залоговая</th><th>Статус</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="who">ЗД-2024-119</td><td>Залог · оборудование</td>
+                  <td><a class="lnk" href="#">ОАО «АгроТехСервис»</a> <span class="muted">субъект #6041</span></td>
+                  <td class="muted">Абдыкадырова А. Т.</td>
+                  <td class="muted">Газификация-2024-07 · Модернизация-2022-102</td>
+                  <td class="num">15 500 000</td><td class="num">10 850 000</td>
+                  <td><span class="badge b-ok">действующий</span></td>
+                </tr>
+                <tr>
+                  <td class="who">ПД-2024-030</td><td>Поручительство</td>
+                  <td><a class="lnk" href="#">Сыдыков Ж. А.</a> <span class="muted">физлицо #63540</span></td>
+                  <td class="muted">Абдыкадырова А. Т.</td>
+                  <td class="muted">Газификация-2024-07</td>
+                  <td class="num">3 000 000</td><td class="num">2 100 000</td>
+                  <td><span class="badge b-ok">действующий</span></td>
+                </tr>
+                <tr>
+                  <td class="who">ЗД-2022-044</td><td>Залог · транспорт</td>
+                  <td><a class="lnk" href="#">ОАО «АгроТехСервис»</a></td>
+                  <td class="muted">Абдыкадырова А. Т.</td>
+                  <td class="muted">Газификация-2024-07</td>
+                  <td class="num">4 000 000</td><td class="num muted">—</td>
+                  <td><span class="badge b-gray">снят · 10.03.2026</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Обследования предметов залога
+            <span class="ha">
+              <button class="btn btn-secondary btn-sm">+ Обследование</button>
+              <button class="btn btn-secondary btn-sm">🖨 Акт обследования</button>
+            </span>
+          </div>
+          <div class="section-body">
+            <table class="grid">
+              <thead><tr><th style="width:14%">Дата</th><th style="width:22%">Договор / предмет</th>
+                <th style="width:22%">Куратор</th><th style="width:20%">Результат</th><th>Вложение</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>14.02.2026</td><td>ЗД-2024-119 · линия розлива</td><td>Токтосунов Б. М.</td>
+                  <td><span class="badge b-ok">В наличии, состояние удовл.</span></td>
+                  <td><a class="lnk" href="#">akt_obsled_119.pdf</a></td>
+                </tr>
+                <tr>
+                  <td>10.03.2026</td><td>ЗД-2022-044 · автопогрузчик</td><td>Токтосунов Б. М.</td>
+                  <td><span class="badge b-err">Утрачен</span></td>
+                  <td><a class="lnk" href="#">izveshenie_044.pdf</a> <span class="muted">извещение об утрате</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div><!-- /Обеспечение -->
+
+      <!-- ==================== Взыскание ==================== -->
+      <div class="tabpanel" data-panel="enforce">
+
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Процедуры и фазы по кредиту
+            <span class="ha"><button class="btn btn-secondary btn-sm">Открыть в модуле взыскания</button></span>
+          </div>
+          <div class="section-body">
+            <div class="proc">
+              <div class="proc-h">
+                <span class="lvl">процедура</span>
+                <span class="p-name">Процедура №68410 — исполнительное производство</span>
+                <span class="muted">открыта 02.03.2026 · 41 200 000 KGS</span>
+                <span class="badge b-proc">в работе</span>
+              </div>
+              <div class="phase">
+                <div class="phase-h">
+                  <span class="lvl">фаза</span><b>Претензия</b>
+                  <span class="muted">02.03.2026 · 40 500 000 KGS</span>
+                  <span class="badge b-ok">завершена · 16.03.2026</span>
+                </div>
+                <div class="ev">событие · 12.03.2026 — ответ должника: заявлена реструктуризация</div>
+              </div>
+              <div class="phase">
+                <div class="phase-h">
+                  <span class="lvl">фаза</span><b>Решение суда</b>
+                  <span class="muted">02.03.2026 · 41 200 000 KGS</span>
+                  <span class="badge b-ok">завершена · 20.03.2026</span>
+                </div>
+                <div class="ev">событие · 18.03.2026 — решение вступило в законную силу</div>
+              </div>
+              <div class="phase">
+                <div class="phase-h">
+                  <span class="lvl">фаза</span><b>Исполнительный лист</b>
+                  <span class="muted">25.03.2026 · 41 200 000 KGS</span>
+                  <span class="badge b-proc">на исполнении</span>
+                  <span class="badge b-gray">подтверждена → группа 2.2</span>
+                </div>
+                <div class="ev">событие · 14.04.2026 — лист передан в СЧИ Сокулукского района</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /Взыскание -->
+
+      <!-- ==================== Примечания ==================== -->
+      <div class="tabpanel" data-panel="notes">
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Примечания
+            <span class="ha">
+              <select style="min-width:200px">
+                <option>Тип — все</option><option>Обычное</option><option>Примечание куратора</option>
+                <option>Примечание (ОПП)</option><option>Примечание (залог)</option><option>Примечание (ОИП)</option>
+              </select>
+              <button class="btn btn-secondary btn-sm">+ Примечание</button>
+            </span>
+          </div>
+          <div class="section-body">
+            <div class="note">
+              <div class="note-h"><span class="badge b-proc">Примечание куратора</span>
+                <span>Токтосунов Б. М. · 12.06.2026</span></div>
+              <div class="note-b">Заёмщик подал заявление на реструктуризацию (Р1), срок рассмотрения — 70 кал. дней.
+                До решения комитета взыскание по исполнительному листу не форсировать.</div>
+            </div>
+            <div class="note">
+              <div class="note-h"><span class="badge b-gray">Примечание (ОПП)</span>
+                <span>Осмонова Г. Т. · 02.03.2026 · отдел проблемных кредитов</span></div>
+              <div class="note-b">Кредит принят в работу ОПП. Претензия направлена 02.03.2026, ответ получен 12.03.2026.</div>
+            </div>
+            <div class="note">
+              <div class="note-h"><span class="badge b-gray">Примечание (залог)</span>
+                <span>Токтосунов Б. М. · 10.03.2026</span></div>
+              <div class="note-b">Автопогрузчик (ЗД-2022-044) утрачен, направлено извещение. Требуется замена предмета залога:
+                текущее покрытие долга — 31 %.</div>
+            </div>
+            <div class="note">
+              <div class="note-h"><span class="badge b-gray">Примечание (ОИП)</span>
+                <span>—</span></div>
+              <div class="note-b muted">Нет записей. Заполняется отделом исполнительного производства после передачи листа в СЧИ.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Дополнительно ==================== -->
+      <div class="tabpanel" data-panel="extra">
+        <div class="section" style="margin-bottom:0">
+          <div class="section-head">Дополнительно
+          </div>
+          <div class="subtabs">
+            <span class="subtab active" data-sub="ex" data-idx="0">Товар</span>
+            <span class="subtab" data-sub="ex" data-idx="1">Перевод долга</span>
+            <span class="subtab" data-sub="ex" data-idx="2">Списание</span>
+            <span class="subtab" data-sub="ex" data-idx="3">Банкротство и судебные решения</span>
+            <span class="subtab" data-sub="ex" data-idx="4">Начисление</span>
+            <span class="subtab" data-sub="ex" data-idx="5">План</span>
+          </div>
+
+          <div class="subpanel active" data-subpanel="ex-0">
+            <div class="section-body">
+              <table class="grid">
+                <thead><tr><th style="width:8%">#</th><th style="width:30%">Вид товара</th>
+                  <th style="width:14%" class="num">Кол-во</th><th style="width:16%">Ед. измерения</th>
+                  <th class="num">Оценка, KGS</th></tr></thead>
+                <tbody>
+                  <tr><td colspan="5" class="muted" style="text-align:center;padding:18px">
+                    Нет записей — кредит выдан денежными средствами.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="subpanel" data-subpanel="ex-1">
+            <div class="section-body">
+              <table class="grid">
+                <thead><tr><th style="width:14%">Дата</th><th style="width:24%">С заёмщика</th>
+                  <th style="width:24%">На заёмщика</th><th class="num" style="width:16%">Сумма</th>
+                  <th>Основание</th></tr></thead>
+                <tbody>
+                  <tr><td colspan="5" class="muted" style="text-align:center;padding:18px">Нет записей.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="subpanel" data-subpanel="ex-2">
+            <div class="section-body">
+              <table class="grid">
+                <thead><tr><th style="width:14%">Дата</th><th style="width:22%">Вид списания</th>
+                  <th class="num" style="width:16%">Сумма</th><th style="width:24%">Основание</th><th>Кто провёл</th></tr></thead>
+                <tbody>
+                  <tr><td colspan="5" class="muted" style="text-align:center;padding:18px">Нет записей.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="subpanel" data-subpanel="ex-3">
+            <div class="section-body">
+              <table class="grid">
+                <thead><tr><th style="width:14%">Дата</th><th style="width:20%">Вид</th>
+                  <th style="width:26%">Орган / суд</th><th style="width:20%">Результат</th><th>Документ</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td>18.03.2026</td><td>Судебное решение</td><td>Сокулукский районный суд</td>
+                    <td><span class="badge b-ok">Удовлетворено полностью</span></td>
+                    <td><a class="lnk" href="#">reshenie_68410.pdf</a></td>
+                  </tr>
+                  <tr>
+                    <td class="muted">—</td><td>Банкротство</td><td class="muted">—</td>
+                    <td class="muted">процедура не открыта <span class="muted">(по этому кредиту)</span></td>
+                    <td class="muted">—</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="subpanel" data-subpanel="ex-4">
+            <div class="section-body scroll-x">
+              <table class="grid">
+                <thead><tr><th>Дата</th><th>Вид начисления</th><th class="num">Сумма</th><th>Валюта</th>
+                  <th>Основание (версия условий)</th><th>Запустил</th></tr></thead>
+                <tbody>
+                  <tr><td>13.07.2026 03:15</td><td>Пеня</td><td class="num">2 000,00</td><td>USD</td><td class="muted">версия №2 · 0,10 %/дн.</td><td class="muted">ночной батч</td></tr>
+                  <tr><td>13.07.2026 03:15</td><td>Проценты</td><td class="num">4 777,78</td><td>USD</td><td class="muted">версия №2 · Euribor-6m + 2,50</td><td class="muted">ночной батч</td></tr>
+                  <tr><td>05.05.2026 03:15</td><td>Проценты</td><td class="num">3 800,00</td><td>USD</td><td class="muted">версия №2</td><td class="muted">ночной батч</td></tr>
+                  <tr><td>02.03.2026 11:40</td><td>Пеня (ручное)</td><td class="num">1 000,00</td><td>USD</td><td class="muted">решение ОПП</td><td class="muted">Осмонова Г. Т.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="subpanel" data-subpanel="ex-5">
+            <div class="section-body">
+              <table class="grid">
+                <thead><tr><th style="width:16%">Период</th><th class="num" style="width:20%">План погашения</th>
+                  <th class="num" style="width:20%">Факт</th><th class="num" style="width:16%">Отклонение</th>
+                  <th>Комментарий</th></tr></thead>
+                <tbody>
+                  <tr><td>2025 г.</td><td class="num">120 000,00 USD</td><td class="num">0,00</td>
+                    <td class="num cat-high">−120 000,00</td><td class="muted">взыскание, платежи не поступали</td></tr>
+                  <tr><td>2026 г.</td><td class="num">120 000,00 USD</td><td class="num">0,00</td>
+                    <td class="num cat-high">−120 000,00</td><td class="muted">на рассмотрении реструктуризация</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /Дополнительно -->
+
+      </div>
     </div>
   </div>
 </div>
 
-<div class="overlay" id="modalHost" onclick="if(event.target===this)closeModal()"></div>
-<div class="calpop" id="calPop"></div>
-<div class="timepop" id="timePop"></div>
-<div class="toast-wrap" id="toastWrap"></div>
-
 <script>
-/* ============================================================
-   SIDEBAR NAVIGATION TREE (matches live sidebar; «Кредиты» active)
-   ============================================================ */
-const TREE = [
-  { id:"app", label:"Приложение", open:true, subs:[
-    { id:"app-all", headerless:true, items:[
-      { label:"Users" }, { label:"Подразделения" }, { label:"Сотрудники подразделения" },
-      { label:"Освоение" }, { label:"Резерв" }, { label:"Платеж" },
-      { label:"Список Траншей" }, { label:"LoanLedger" } ]} ]},
-  { id:"k", label:"Система кредитования", subs:[
-    { id:"k-app", label:"Заявки и комиссии", items:[ { label:"Заявки" }, { label:"Комиссии по заявкам" } ]},
-    { id:"k-prog", label:"Программы и решения", items:[ { label:"Решение правительства" }, { label:"Кредитные программы" } ]},
-    { id:"k-borr", label:"Заёмщики", items:[ { label:"Заёмщики" } ]},
-    { id:"k-loan", label:"Кредиты и транши", open:true, items:[ { label:"Кредиты", active:true }, { label:"Список траншей" } ]},
-    { id:"k-disb", label:"Освоение и платежи", items:[ { label:"Освоение" }, { label:"Платеж" }, { label:"Резерв" } ]},
-    { id:"k-col", label:"Залог", items:[ { label:"Мониторинг залога" } ]} ]},
-  { id:"g", label:"Поручительства", subs:[ { id:"g-all", headerless:true, items:[ { label:"Анкеты поручительств" }, { label:"Решения по поручительству" } ]} ]},
-  { id:"c", label:"Корпоративное управление", subs:[ { id:"c-all", headerless:true, items:[ { label:"Реестр компаний" }, { label:"Аналитика KPI" }, { label:"Документы" } ]} ]},
-  { id:"sugs", label:"СУГС", subs:[ { id:"sugs-all", headerless:true, items:[ { label:"СУГС" } ]} ]},
-  { id:"debt", label:"Взыскание задолженности", subs:[ { id:"debt-all", headerless:true, items:[ { label:"Взыскание задолженности" } ]} ]},
-  { id:"d", label:"Справочники", subs:[ { id:"d-all", headerless:true, items:[ { label:"Справочники" } ]} ]},
-  { id:"srv", label:"Сервисы", subs:[ { id:"srv-all", headerless:true, items:[ { label:"Сервисы" } ]} ]},
-  { id:"adm", label:"Администрирование", subs:[ { id:"adm-all", headerless:true, items:[ { label:"Администрирование" } ]} ]},
-  { id:"r", label:"Отчёты", subs:[ { id:"r-all", headerless:true, items:[ { label:"Отчёты" } ]} ]},
-  { id:"sec", label:"Безопасность", subs:[ { id:"sec-all", headerless:true, items:[ { label:"Безопасность" } ]} ]},
-];
-const chevSvg = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
-function renderNav(){
-  const nav = document.getElementById('nav');
-  nav.innerHTML = TREE.map(g => {
-    const subs = g.subs.map(sg => {
-      const items = sg.items.map(it =>
-        `<a class="nav-item${sg.headerless?' headerless':''}${it.active?' active':''}" onclick="return false;">${it.label}</a>`
-      ).join('');
-      if (sg.headerless) return `<div class="nav-sub open"><div class="nav-children">${items}</div></div>`;
-      return `<div class="nav-sub${sg.open?' open':''}"><button class="nav-toggle">${chevSvg(14)}<span class="lbl">${sg.label}</span></button><div class="nav-children">${items}</div></div>`;
-    }).join('');
-    return `<div class="nav-group${g.open?' open':''}"><button class="nav-toggle">${chevSvg(16)}<span class="lbl">${g.label}</span></button><div class="nav-children">${subs}</div></div>`;
-  }).join('');
-  nav.querySelectorAll('.nav-toggle').forEach(btn =>
-    btn.addEventListener('click', () => btn.parentElement.classList.toggle('open')));
-}
-renderNav();
+  const vList = document.getElementById('view-list');
+  const vDetail = document.getElementById('view-detail');
+  const pageTitle = document.getElementById('pageTitle');
+  const crumb = document.getElementById('crumb');
 
-/* ============================================================
-   LIST DATASET — /loansCredit, 15 rows, inspected 2026-07-07.
-   Значения показаны как в живом гриде (обрезка колонок — CSS ellipsis по ширине).
-   Список наследует статус ЗАЯВКИ («Статус заявки»), а не кредита (P5-04).
-   ============================================================ */
-const LIST_COLS = ['Номер регистрации','Заемщик','Запрошенная сумма','Запрошенный срок',
-  'Одобренная сумма','Одобренный срок','Статус заявки','Дата регистрации',
-  'Ответственное лицо','Итоговая сумма платежей','Всего платежей'];
-const LIST_ROWS = [
-  ['',        '01211202…','1 000 000,00','6', '1 000 000,00','6', 'Одобрено',  '',          '','1 042 100,46','6'],
-  ['',        '21812199…','5 000 000,00','24','5 000 000,00','24','Одобрено',  '',          '','',            '0'],
-  ['222',     '21812199…','1 000 000,00','24','1 000 000,00','24','Одобрено',  '01.01.20…','','1 000 000,00','24'],
-  ['123',     '20907199…','1 000 000,00','24','1 000 000,00','24','Одобрено',  '17.06.20…','','1 000 000,00','24'],
-  ['Расчет-1','01204199…','1 000 000,00','12','','',                'Одобрено',  '01.01.20…','','1 054 99…',   '12'],
-  ['111',     '01204199…','200 000,00',  '24','200 000,00','24',    'Одобрено',  '13.05.20…','','221 495,62',  '24'],
-  ['',        '01103199…','1 000 000,00','',  '','',                'Одобрено',  '',          '','',            '0'],
-  ['2',       '02712199…','200,00',      '24','200,00','24',        'На рассмотрении','',      '','221,47',      '24'],
-  ['',        '01103199…','188 000,00',  '12','','',                'Отклонено', '',          '','',            '0'],
-  ['',        '22407199…','500 000,00',  '6', '','',                'Требуется доп. информация','','','520 000,00','6'],
-  ['56',      '01912201…','250 000,00',  '36','150 000,00','24',    'На рассмотрении','',      '','166 121,73',  '24'],
-  ['55',      '20907199…','100 000,00',  '12','','',                'На рассмотрении','',      '','105 499,05',  '12'],
-  ['3',       '20507200…','150 000,00',  '12','150 000,00','12',    'Отклонено', '01.01.20…','','205 873,68',  '12'],
-  ['1',       '10203199…','1 000 000,00','6', '1 000 000,00','6',   'Одобрено',  '01.06.20…','','1 020 83…',   '6'],
-  ['5',       '20507200…','500 000,00',  '24','500 000,00','24',    'Отклонено', '',          '','540 513,73',  '24'],
-];
-let selectedRow = -1;
-
-function renderList(){
-  document.getElementById('listHead').innerHTML =
-    LIST_COLS.map(c => `<th title="${c}">${c}<span class="sort">⇅</span></th>`).join('');
-  document.getElementById('listBody').innerHTML = LIST_ROWS.map((r,i) =>
-    `<tr onclick="selectRow(${i})" ondblclick="openDetail(${i})">${r.map(c=>`<td title="${c}">${c||''}</td>`).join('')}</tr>`
-  ).join('');
-}
-function selectRow(i){
-  selectedRow = i;
-  document.querySelectorAll('#listBody tr').forEach((tr,idx)=>tr.classList.toggle('sel',idx===i));
-  document.getElementById('btnEdit').disabled = false;
-  document.getElementById('btnView').disabled = false;
-}
-function closeSplit(){ document.getElementById('splitRefresh').classList.remove('open'); }
-
-/* ============================================================
-   DETAIL — «Редактирование кредита», 11 tabs.
-   Data = live record 18 (Номер регистрации 56), inspected 2026-07-06.
-   ============================================================ */
-const TABS = ['Общая информация','Оформление','Заемщик','Условия кредита','График погашений',
-  'Транши','Резерв','Платеж','Код оплаты','Детальный расчет','Залог'];
-
-/* helpers to build controls */
-const ro  = (label,val) => `<div class="field"><span class="flabel">${label}</span><div class="control ro"><input value="${val}" readonly></div></div>`;
-const inp = (label,val,grey) => `<div class="field"><span class="flabel">${label}</span><div class="control${grey?' grey':''}"><input value="${val}"></div></div>`;
-const sel = (label,val,opts) => `<div class="field"><span class="flabel">${label}</span><div class="control grey"><select>${opts.map(o=>`<option${o===val?' selected':''}>${o}</option>`).join('')}</select>${caret()}</div></div>`;
-const caret = () => `<span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>`;
-const calSvg = () => `<span class="cal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>`;
-const clockSvg = () => `<span class="cal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>`;
-const eye = (label) => `<button title="Просмотр" onclick="viewPicker('${esc(label)}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`;
-const esc = s => (s||'').replace(/'/g,"\\'");
-/* datetime pair: date field (calendar) + time field (clock) */
-const dt = (label) => `<div class="field"><span class="flabel">${label}</span><div class="dtpair"><div class="control grey"><input placeholder="" onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div><div class="control grey"><input placeholder="" onclick="openTime(this)" readonly style="cursor:pointer">${clockSvg()}</div></div></div>`;
-/* picker (lookup) — ••• opens entity-browser dialog / × clears / eye views */
-const pick = (label,val,withEye) => `<div class="field"><span class="flabel">${label}</span><div class="lookup" data-key="${label}"><span class="val${val?'':' ph'}">${val||''}</span><button class="pick" title="Выбрать" onclick="openPicker('${esc(label)}',this)">•••</button><button title="Очистить" onclick="clearPicker(this)">×</button>${withEye?eye(label):''}</div></div>`;
-
-/* ---- schedule (24 payments) — computed at loan level (interest ≠ 0) ---- */
-const SCHEDULE = [
-  ['1','15.05.2026 00:00','6 921,74','5 671,74','1 250,00'],['2','15.06.2026 00:00','6 921,74','5 719,00','1 202,74'],
-  ['3','15.07.2026 00:00','6 921,74','5 766,66','1 155,08'],['4','17.08.2026 00:00','6 921,74','5 814,72','1 107,02'],
-  ['5','15.09.2026 00:00','6 921,74','5 863,17','1 058,57'],['6','15.10.2026 00:00','6 921,74','5 912,03','1 009,71'],
-  ['7','16.11.2026 00:00','6 921,74','5 961,30','960,44'],['8','15.12.2026 00:00','6 921,74','6 010,98','910,76'],
-  ['9','15.01.2027 00:00','6 921,74','6 061,07','860,67'],['10','15.02.2027 00:00','6 921,74','6 111,58','810,16'],
-  ['11','15.03.2027 00:00','6 921,74','6 162,51','759,23'],['12','15.04.2027 00:00','6 921,74','6 213,86','707,88'],
-  ['13','17.05.2027 00:00','6 921,74','6 265,65','656,09'],['14','15.06.2027 00:00','6 921,74','6 317,86','603,88'],
-  ['15','15.07.2027 00:00','6 921,74','6 370,51','551,23'],['16','16.08.2027 00:00','6 921,74','6 423,60','498,14'],
-  ['17','15.09.2027 00:00','6 921,74','6 477,13','444,61'],['18','15.10.2027 00:00','6 921,74','6 531,10','390,64'],
-  ['19','15.11.2027 00:00','6 921,74','6 585,53','336,21'],['20','15.12.2027 00:00','6 921,74','6 640,41','281,33'],
-  ['21','17.01.2028 00:00','6 921,74','6 695,74','226,00'],['22','15.02.2028 00:00','6 921,74','6 751,54','170,20'],
-  ['23','15.03.2028 00:00','6 921,74','6 807,80','113,94'],['24','17.04.2028 00:00','6 924,03','6 866,29','57,74'],
-];
-const scheduleGrid = () => `
-  <table class="cgrid">
-    <thead><tr>${['№ платежа','Дата платежа','Сумма платежа','Основной долг','Проценты']
-      .map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
-    <tbody>
-      ${SCHEDULE.map(r=>`<tr>${r.map((c,ci)=>`<td>${c}</td>`).join('')}</tr>`).join('')}
-      <tr class="total"><td>Итого:</td><td></td><td>166121.73</td><td>150000.00</td><td>16121.73</td></tr>
-    </tbody>
-  </table>`;
-
-function reg(label,val){ return ro(label,val); }
-
-/* ---- panel builders ---- */
-function panelObschaya(){
-  return `<div class="panel-wrap"><div class="panel-card"><div class="f2">
-    ${inp('Сумма по договору','250 000,00')}
-    ${ro('Одобренная сумма','150000.00')}
-    ${pick('Вид кредита','')}
-    ${dt('Дата договора')}
-    ${pick('Основание выдачи кредита','')}
-    ${pick('Группа платежеспособности','')}
-    ${pick('Кредитная линия','')}
-    ${sel('Статус кредита','На рассмотрении',['Новый','Одобрено','Отклонено','Требуется доп. информация','На рассмотрении'])}
-    ${inp('Основной','')}
-    ${ro('Дата полного погашения','17.04.2028')}
-    ${inp('срок возврата','36',true)}
-    ${ro('Внесено','admin (10.04.2026 14:10)')}
-    ${ro('Измнен','admin (29.05.2026 10:23)')}
-    ${pick('Счет погашения','')}
-    ${ro('Пин','01912201610212')}
-    ${ro('Информацию по счету','-')}
-    ${pick('Вид счета погашения','')}
-    ${pick('Куратор','')}
-  </div></div></div>`;
-}
-function panelOformlenie(){
-  return `<div class="panel-wrap"><div class="panel-card"><div class="f2">
-    ${inp('Номер регистрации','56')}
-    ${dt('Дата регистрации')}
-    <div class="field col-span"><span class="flabel">Комментарии</span><div class="control"><input value="1"></div></div>
-    </div>
-    <div class="field col-span" style="margin-top:4px"><span class="flabel">Скан зарегистрированного договора</span>
-      <div class="upload-row">
-        <button class="btn btn-tint btn-sm" onclick="toast('Выбор файла')">Загрузить</button>
-        <span class="filename">Файл не выбран</span>
-      </div>
-    </div>
-  </div></div></div>`;
-}
-function panelZaemshik(){
-  return `<div class="panel-wrap"><div class="panel-card"><div class="f2">
-    ${ro('Основной заемщик','01912201610212 - ОсОО &quot;Бек Кабель&quot;')}
-    ${ro('ПИН/ИНН','01912201610212')}
-    <div class="field col-span"><span class="flabel">Наименование / ФИО</span><div class="control ro"><input value="Общество с ограниченной ответственностью &quot;Бек Кабель&quot;" readonly></div></div>
-  </div></div></div>`;
-}
-function panelUslovia(){
-  const common = `<div class="f2">
-    ${dt('Начало действия')}
-    ${ro('Процентная ставка','')}
-    ${pick('Период начисления','Аннуитет',true)}
-    ${pick('Вид плавающих ставок','',true)}
-    ${inp('Процент за резерв','0,00',true)}
-    ${sel('Метод погашения кредита','Аннуитетный',['Аннуитетный','Дифференцированный'])}
-    ${inp('Штраф за просрочку по осн.с.','0,10',true)}
-    ${sel('Вид штрафа за просрочку по осн.с.','Фиксированная',['Фиксированная','Плавающая'])}
-    ${inp('Штраф за просрочку по процентам','0,05',true)}
-    ${sel('Вид штрафа за просрочку по процентам','Фиксированная',['Фиксированная','Плавающая'])}
-    ${inp('Предельный лимит начисления штрафов','10,00',true)}
-    ${ro('Дата предельного начсиления штрафов','-')}
-    ${pick('Очередь погашения','Основная сумма, проценты, шрафы',true)}
-    ${pick('Метод расчета кол-ва дней в период','календарный 365',true)}
-    ${ro('Метод расчета кол-ва дней в год','-')}
-  </div>`;
-  return `<div class="panel-wrap"><div class="panel-card">
-    <div class="subtabs">
-      <button class="subtab active" onclick="switchSub(this,0)">Общие условия</button>
-      <button class="subtab" onclick="switchSub(this,1)">Условия траншей</button>
-    </div>
-    <div class="subpanel active">${common}</div>
-    <div class="subpanel">${trancheConditions()}</div>
-  </div></div>`;
-}
-/* «Условия траншей» — грид условий по траншам + инлайн-форма редактирования.
-   Снято с живого стенда 2026-07-06 (scripts/inspect/loan-credit-final2.mjs). */
-function trancheConditions(){
-  const cols=['Статус','Начало действия','Срок','Годовая ставка','Плавающая','Тип плавающей ставки','Маржа','Валюта','Периодичность','Метод погашения'];
-  const row=['Active','31.03.2026 00:00','24','10,00','','','','KGS','Ежемесячно','Аннуитетный'];
-  return `
-    <div class="cgrid-wrap" style="min-height:200px;margin-bottom:20px;"><table class="cgrid">
-      <thead><tr>${cols.map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
-      <tbody><tr class="sel" onclick="selCrow(this)">${row.map(c=>`<td>${c}</td>`).join('')}</tr></tbody>
-    </table></div>
-    <div class="f2">
-      ${sel('Статус','Active',['Active','Draft','Closed'])}
-      ${dt('Дата действия условия')}
-      ${inp('Срок','24',true)}
-      ${inp('Процентная ставка','10,00',true)}
-      <div class="field col-span" style="max-width:none"><label class="check"><span class="box"></span>Плавающая ставка</label></div>
-      ${pick('Тип плавающей ставки','',true)}
-      ${inp('Маржа плавающей ставки','',true)}
-      ${pick('Валюта','KGS')}
-      ${sel('Периодичность платежа','Ежемесячно',['Ежемесячно','Ежеквартально','Раз в полугодие','Ежегодно'])}
-      ${pick('Период начисления','Аннуитет',true)}
-    </div>`;
-}
-function panelGrafik(){
-  return `<div class="panel-wrap"><div class="panel-card">
-    <div class="sumrow">
-      ${ro('Всего платежей','24')}
-      ${ro('Сумма кредита','150000,00')}
-      ${ro('Сумма процентов','16121,73')}
-      ${ro('Регулярный платеж','6921,74')}
-      ${ro('Итоговая сумма платежей','166121,73')}
-    </div>
-    <div class="gtoolbar"><button class="btn btn-primary btn-sm" onclick="toast('График построен')">Построить график</button></div>
-    <div class="cgrid-wrap">${scheduleGrid()}</div>
-  </div></div>`;
-}
-function panelTranshi(){
-  return `<div class="panel-wrap"><div class="panel-card">
-    <div class="gtoolbar">
-      <button class="btn btn-tint btn-sm" onclick="openTrancheForm()">Добавить</button>
-      <button class="btn btn-tint btn-sm" onclick="openTrancheForm()">Открыть</button>
-      <button class="btn btn-tint btn-sm danger" onclick="toast('Удалить транш')">Удалить</button>
-    </div>
-    <div class="cgrid-wrap cgrid-empty"><table class="cgrid">
-      <thead><tr>${['Заемщик','ПИН/ИНН','Сумма','Дата транша'].map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
-      <tbody><tr onclick="selCrow(this)"><td>Общество с ограниченной ответст…</td><td>01912201610212</td><td>100 000,00</td><td></td></tr></tbody>
-    </table></div>
-  </div></div>`;
-}
-function panelRezerv(){
-  const rzDates = ['18.05.2026','18.06.2026','18.07.2026','18.08.2026','18.09.2026','18.10.2026',
-    '18.11.2026','18.12.2026','18.01.2027','18.02.2027','18.03.2027','18.04.2027','18.05.2027',
-    '18.06.2027','18.07.2027','18.08.2027','18.09.2027','18.10.2027','18.11.2027','18.12.2027',
-    '18.01.2028','18.02.2028','18.03.2028','18.04.2028'];
-  const rows = rzDates.map((d,i)=>[String(i+1),d,'150 000,00','50 000,00','100 000,00','0,00','0,00']);
-  return `<div class="panel-wrap"><div class="panel-card">
-    <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr>${['№','Дата','Сумма кредита','Освоено','Резерв','Процент','Начислено'].map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
-      <tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
-    </table></div>
-  </div></div>`;
-}
-function panelPlatezh(){
-  return `<div class="panel-wrap"><div class="panel-card">
-    <div class="gtoolbar">
-      <button class="btn btn-tint btn-sm" onclick="openPaymentForm()">Добавить</button>
-      <button class="btn btn-tint btn-sm" onclick="openPaymentForm()">Редактировать</button>
-    </div>
-    <div class="cgrid-wrap cgrid-empty"><table class="cgrid">
-      <thead><tr>${['Номер','Дата','Транш','Сумма','Основной долг','Проценты','Пеня','Комиссия','Тип'].map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
-      <tbody></tbody>
-    </table></div>
-  </div></div>`;
-}
-function panelKodOplaty(){
-  return `<div class="panel-wrap"><div class="panel-card">
-    <div class="cgrid-wrap cgrid-empty"><table class="cgrid">
-      <thead><tr>${['Назначение','Код оплаты','Заемщик'].map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
-      <tbody></tbody>
-    </table></div>
-  </div></div>`;
-}
-const DR_COLS = ['№','Дата события','Получено средств','Остаток задолженности по основной сумме',
-  'Фактическое погашение основной суммы','Погашение основной суммы по графику','Просроченная по основному долгу',
-  'Количество дней','Начислено процентов','Погашение процентов факт','Погашение процентов по графику текущих',
-  'Погашение процентов по графику накопленных','Просроченная по процентам','Начисление штрафов/пени',
-  'Погашение штрафов факт','Погашение штрафов по графику текущих','Погашение штрафов по графику накопленных',
-  'Штрафы/пеня нарастающим','Остаток по штрафам','Всего погашено'];
-const DR_ROWS = [
-  ['1','18.05.2026','50 000,00','50 000,00','0,00','0,00','0,00','0','0,00','0,00','0,00','0,00','0,00','0,00','0,00','0,00','0,00','0,00','0,00','0,00'],
-  ['2','15.06.2026','0,00','50 000,00','0,00','1 890,58','1 890,58','28','416,67','0,00','416,67','416,67','416,67','0,00','0,00','0,00','0,00','0,00','0,00','0,00'],
-];
-const DR_TOTAL = ['Итого','','50 000,00','50 000,00','0,00','1 890,58','1 890,58','','416,67','0,00','416,67','416,67','416,67','0,00','0,00','0,00','0,00','0,00','0,00','0,00'];
-function panelDetRaschet(){
-  return `<div class="panel-wrap"><div class="panel-card">
-    <div class="f2" style="max-width:1100px;margin-bottom:16px;">
-      ${sel('Транш','Транш #1 - 100000.00',['Транш #1 - 100000.00'])}
-      <div class="field"><span class="flabel">Дата расчета</span><div class="control grey"><input value="06.07.2026" onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div></div>
-    </div>
-    <div class="gtoolbar">
-      <button class="btn btn-tint btn-sm" onclick="toast('Рассчитать')">Рассчитать</button>
-      <button class="btn btn-tint btn-sm" onclick="toast('Расчет на весь график')">Расчет на весь график</button>
-      <button class="btn btn-tint btn-sm" onclick="toast('Начислить ОД и проценты')">Начислить ОД и проценты</button>
-      <button class="btn btn-tint btn-sm" onclick="toast('Начислить пеню')">Начислить пеню</button>
-    </div>
-    <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr>${DR_COLS.map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
-      <tbody>
-        ${DR_ROWS.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}
-        <tr class="total green">${DR_TOTAL.map(c=>`<td>${c}</td>`).join('')}</tr>
-      </tbody>
-    </table></div>
-  </div></div>`;
-}
-/* «Залог» — залоговое обеспечение (внешний модуль). Оригинал: split-кнопка
-   «Добавить ▾» (пункты «Создать новый…» / «Выбрать существующий…»),
-   «Редактировать», «Просмотр». Редактировать/Просмотр без выбранной строки →
-   уведомление «Выберите залоговый договор». Снято с живого стенда 2026-07-07,
-   scripts/inspect/loan-credit-zalog*.mjs, запись 18. */
-function panelZalog(){
-  const chev = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:4px"><path d="M6 9l6 6 6-6"/></svg>`;
-  return `<div class="panel-wrap"><div class="panel-card">
-    <div class="gtoolbar">
-      <div class="split" id="zalogAdd">
-        <button class="btn btn-tint btn-sm" onclick="toggleSplit('zalogAdd',event)">Добавить${chev}</button>
-        <div class="split-menu">
-          <button onclick="closeSplitById('zalogAdd');openZalogForm()">Создать новый залоговый договор</button>
-          <button onclick="closeSplitById('zalogAdd');openZalogPicker()">Выбрать существующий залоговый договор</button>
-        </div>
-      </div>
-      <button class="btn btn-tint btn-sm" onclick="zalogAction('edit')">Редактировать</button>
-      <button class="btn btn-tint btn-sm" onclick="zalogAction('view')">Просмотр</button>
-    </div>
-    <div class="cgrid-wrap cgrid-empty"><table class="cgrid" id="zalogGrid">
-      <thead><tr>${['Номер','Кредиты','Дата','Заемщик','Залогодатель','Наименование','Вид','Кол-во','Стоимость']
-        .map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
-      <tbody></tbody>
-    </table></div>
-  </div></div>`;
-}
-/* Редактировать/Просмотр требуют выбранную строку; грид пуст → warn, как в оригинале */
-function zalogAction(kind){
-  const sel = document.querySelector('#zalogGrid tbody tr.sel');
-  if(!sel){ toast('Выберите залоговый договор','warn'); return; }
-  toast(kind==='edit' ? 'Редактирование залога' : 'Просмотр залога');
-}
-function toggleSplit(id,ev){
-  ev.stopPropagation();
-  const el = document.getElementById(id);
-  document.querySelectorAll('.split.open').forEach(s=>{ if(s!==el) s.classList.remove('open'); });
-  el.classList.toggle('open');
-}
-function closeSplitById(id){ document.getElementById(id)?.classList.remove('open'); }
-
-/* ---- «Создать новый залоговый договор» → диалог «Залоговый договор».
-   Поля и подраздел «Предметы залога» сняты с живого стенда 2026-07-07
-   (scripts/inspect/loan-credit-zalog-opts.mjs, ID 18). ---- */
-function openZalogForm(){
-  const reqTxt = (label,foc) => `<div class="field req err${foc?' foc':''}"><span class="flabel">${label}</span><div class="control"><input value=""></div><span class="errmsg" style="display:block">Заполните поле "${label}"</span></div>`;
-  const reqDate = (label) => `<div class="field req err"><span class="flabel">${label}</span><div class="control"><input value="" onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div><span class="errmsg" style="display:block">Заполните поле "${label}"</span></div>`;
-  const optTxt = (label) => `<div class="field"><span class="flabel">${label}</span><div class="control"><input value="" readonly class="dashed"></div></div>`;
-  const optDate = (label) => `<div class="field"><span class="flabel">${label}</span><div class="control"><input value="" onclick="openCalendar(this)" readonly style="cursor:pointer" class="dashed">${calSvg()}</div></div>`;
-  const body = `<div class="mform">
-      <div class="field"><span class="flabel">Кредит</span><div class="control"><input value='01912201610212 - ОсОО &quot;Бек Кабель&quot;' class="dashed" readonly></div></div>
-      ${reqTxt('№ договора',true)}
-      ${reqDate('Дата договора')}
-      ${reqTxt('Номер нотариальной регистрации')}
-      ${reqDate('Дата нотариальной регистрации')}
-      ${reqTxt('Нотариус')}
-      ${optTxt('Номер налож. запр.')}
-      ${optDate('Дата ареста')}
-      ${optTxt('Номер зал. рег. свид.')}
-      ${optDate('Дата регистрации')}
-      <div class="field col-span"><span class="flabel">Примечание</span><div class="control"><textarea rows="2" style="width:100%;resize:vertical;border:none;background:var(--surface-input);border-radius:var(--radius-md);padding:9px 12px;font:var(--font-label);color:var(--text-body);box-sizing:border-box"></textarea></div></div>
-    </div>
-    <div class="zsub-title">Предметы залога</div>
-    <div class="gtoolbar">
-      <button class="btn btn-primary btn-sm" onclick="toast('Создание предмета залога')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Создать</button>
-      <button class="btn btn-tint btn-sm" disabled>Изменить</button>
-      <button class="btn btn-tint btn-sm" disabled>Удалить</button>
-    </div>
-    <div class="cgrid-wrap cgrid-empty"><table class="cgrid">
-      <thead><tr>${['Предмет залога','Наименование','Залогодатель','Оценочная стоимость','Залоговая стоимость']
-        .map(h=>`<th>${h}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
-      <tbody></tbody>
-    </table></div>`;
-  const host = document.getElementById('modalHost');
-  host.innerHTML = `<div class="modal form" onclick="event.stopPropagation()">
-    <div class="modal-h"><span class="mt">Залоговый договор</span>
-      <button class="modal-x" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
-    <div class="modal-b">${body}</div>
-    <div class="modal-f">
-      <button class="btn btn-primary" onclick="toast('Сохранено');closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>OK</button>
-      <button class="btn btn-secondary" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Отмена</button>
-    </div>
-  </div>`;
-  host.classList.add('open');
-}
-
-/* ---- «Выбрать существующий залоговый договор» → entity-browser
-   «Список залоговых договоров». Колонки/строка/фильтр сняты с живого стенда
-   2026-07-07 (loan-credit-zalog-opts.mjs, loan-credit-zalog-opt1cols.mjs). ---- */
-const ZALOG_COLS = ['Номер договора','Дата договора','Договоры кредита','Заемщик','Залогодатель',
-  'Нотариальный номер','Дата нотариата','Предметы залога','Виды залога','Количество','Оценочная стоимость'];
-const ZALOG_ROW = ['123','01.07.2026','111','01204199910016 - ОАО "О!Банк"','20101198900280 - ОЗОНОВ АЗИЗ КАНАТБЕКОВИЧ',
-  '123','02.07.2026','123','Недвижимость','123,00','123,00'];
-let zalogPickSel = -1;
-function openZalogPicker(){
-  zalogPickSel = -1;
-  const cond = (label,ctrl) => `<span class="zcond-l">${label}</span><div class="zcond-c">${ctrl}</div>`;
-  const txtC = `<div class="control"><input value=""></div>`;
-  const dateC = `<div class="zcond-op">=</div><div class="control"><input value="" onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div>`;
-  const pickC = `<div class="lookup"><span class="val ph"></span><button class="pick" title="Выбрать" onclick="toast('Открытие справочника')">•••</button><button title="Очистить" onclick="clearPicker(this)">×</button></div>`;
-  const host = document.getElementById('modalHost');
-  host.innerHTML = `<div class="modal" onclick="event.stopPropagation()" style="width:min(1180px,100%)">
-    <div class="modal-h"><span class="mt">Список залоговых договоров</span>
-      <button class="modal-x" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
-    <div class="modal-b">
-      <div class="filter-head open" style="padding:0 0 4px" onclick="this.classList.toggle('open')">
-        <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span><span>Фильтр : Поиск <span class="req-star">*</span></span></div>
-      <div class="zcond-grid">
-        ${cond('№ договора зал.',txtC)}
-        ${cond('Дата договора',`<div style="display:flex;align-items:center;gap:8px">${dateC}</div>`)}
-        ${cond('Заемщик',pickC)}
-        ${cond('Залогодатель',pickC)}
-        ${cond('Предмет залога',txtC)}
-        ${cond('Вид залога',pickC)}
-      </div>
-      <div class="tb-actions" style="padding:8px 0 12px">
-        <div class="split" id="zalogSplit"><button class="btn btn-success" onclick="toast('Обновлено')">Обновить</button>
-          <button class="btn btn-success caret" onclick="document.getElementById('zalogSplit').classList.toggle('open');event.stopPropagation();"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
-          <div class="split-menu"><button onclick="toast('Обновить')">Обновить</button><button onclick="toast('Применить и обновить')">Применить и обновить</button></div></div>
-        <button class="gear-btn" title="Настройки"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
-        <button class="add-cond"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Добавить условие поиска</button>
-      </div>
-      <div class="eb-createbar">
-        <button class="btn btn-secondary btn-sm" onclick="zalogPickAction('view')">Просмотр</button>
-        <button class="btn btn-secondary btn-sm" onclick="zalogPickAction('edit')">Редактировать</button>
-        <button class="btn btn-secondary btn-sm" onclick="toast('Открытие кредита')">Кредит</button>
-        <div style="flex:1"></div>
-        <div class="pager"><button disabled>«</button><button disabled>‹</button><span>1 строка</span><button disabled>›</button><button disabled>»</button></div>
-      </div>
-      <div class="eb-grid-wrap"><table class="eb-grid">
-        <thead><tr>${ZALOG_COLS.map(c=>`<th>${c}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
-        <tbody><tr onclick="zalogPickSelect(0)">${ZALOG_ROW.map(c=>`<td>${c}</td>`).join('')}</tr></tbody>
-      </table></div>
-    </div>
-    <div class="modal-f">
-      <button class="btn btn-primary" id="zalogPickBtn" disabled onclick="zalogPickApply()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Выбрать</button>
-      <button class="btn btn-secondary" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Отмена</button>
-    </div>
-  </div>`;
-  host.classList.add('open');
-}
-function zalogPickSelect(i){
-  zalogPickSel = i;
-  document.querySelectorAll('#modalHost .eb-grid tbody tr').forEach((tr,idx)=>tr.classList.toggle('sel',idx===i));
-  document.getElementById('zalogPickBtn').disabled = false;
-}
-function zalogPickAction(kind){
-  if(zalogPickSel<0){ toast('Выберите залоговый договор','warn'); return; }
-  toast(kind==='edit' ? 'Редактирование залога' : 'Просмотр залога');
-}
-function zalogPickApply(){
-  if(zalogPickSel<0) return;
-  // map picker row → залог tab grid (Номер·Кредиты·Дата·Заемщик·Залогодатель·Наименование·Вид·Кол-во·Стоимость)
-  const r = ZALOG_ROW;
-  const row = [r[0], r[2], r[1], r[3], r[4], r[7], r[8], r[9], r[10]];
-  const grid = document.getElementById('zalogGrid');
-  grid.querySelector('tbody').innerHTML = `<tr onclick="selCrow(this)">${row.map(c=>`<td>${c}</td>`).join('')}</tr>`;
-  grid.closest('.cgrid-wrap').classList.remove('cgrid-empty');
-  closeModal();
-  toast('Залоговый договор добавлен');
-}
-const PANEL_BUILDERS = [panelObschaya,panelOformlenie,panelZaemshik,panelUslovia,panelGrafik,
-  panelTranshi,panelRezerv,panelPlatezh,panelKodOplaty,panelDetRaschet,panelZalog];
-
-let activeTab = 0;
-function renderDetail(){
-  document.getElementById('detailTabbar').innerHTML = TABS.map((t,i)=>
-    `<button class="dtab${i===activeTab?' active':''}" onclick="switchTab(${i})">${t}</button>`).join('');
-  document.getElementById('detailPanels').innerHTML = TABS.map((t,i)=>
-    `<div class="detail-panel${i===activeTab?' active':''}" id="dpanel-${i}">${PANEL_BUILDERS[i]()}</div>`).join('');
-}
-function switchTab(i){
-  activeTab = i;
-  document.querySelectorAll('.dtab').forEach((b,idx)=>b.classList.toggle('active',idx===i));
-  document.querySelectorAll('.detail-panel').forEach((p,idx)=>p.classList.toggle('active',idx===i));
-  document.querySelector('.content').scrollTop = 0;
-}
-function switchSub(btn,i){
-  const card = btn.closest('.panel-card');
-  card.querySelectorAll('.subtab').forEach((b,idx)=>b.classList.toggle('active',idx===i));
-  card.querySelectorAll('.subpanel').forEach((p,idx)=>p.classList.toggle('active',idx===i));
-}
-function selCrow(tr){ tr.parentElement.querySelectorAll('tr').forEach(r=>r.classList.remove('sel')); tr.classList.add('sel'); }
-function scrollTabs(){ document.getElementById('detailTabbar').scrollBy({left:240,behavior:'smooth'}); }
-
-/* ============================================================
-   ROUTER + toast
-   ============================================================ */
-function showView(name){
-  document.getElementById('view-list').style.display   = (name==='list')   ? 'flex' : 'none';
-  document.getElementById('view-detail').style.display = (name==='detail') ? 'flex' : 'none';
-  document.getElementById('crumbTitle').textContent = (name==='detail') ? 'Редактирование кредита' : 'Кредиты';
-  window.scrollTo(0,0);
-}
-function openDetail(i){
-  if(i<0) i=0;
-  activeTab = 0;
-  renderDetail();
-  showView('detail');
-}
-function toast(msg, type){
-  const w = document.getElementById('toastWrap');
-  const el = document.createElement('div');
-  el.className = 'toast ' + (type || 'ok');
-  const icon = type==='warn'
-    ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>`
-    : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`;
-  el.innerHTML = `${icon}<span>${msg}</span>`;
-  w.appendChild(el);
-  setTimeout(()=>el.remove(), 2200);
-}
-document.addEventListener('click', e=>{ if(!e.target.closest('.split')){ closeSplit(); document.querySelectorAll('.split.open').forEach(s=>s.classList.remove('open')); } });
-
-/* ============================================================
-   ENTITY-BROWSER PICKER DIALOGS (••• справочники)
-   Данные и структура сняты с живого стенда 2026-07-06
-   (scripts/inspect/loan-credit-clicks*.mjs). Каждый ••• открывает
-   тот же экран-браузер сущности, что и в оригинале.
-   ============================================================ */
-const REFBOOKS = {
-  'Вид кредита': { title:'Вид кредита', cols:['Наименование'],
-    rows:[['Бюджетная ссуда'],['Бюджетный кредит'],['ЮСАИД'],['МАР'],['Фонд развитие регионов'],['Имущественные активы']] },
-  'Основание выдачи кредита': { title:'Решение правительства', workflow:true, statusFilter:true,
-    cols:['Наименование','Краткое наименование','Статус','Код','Номер решения','Вид решения','Дата решения','Действует','Последнее изменение'],
-    rows:[
-      ['Решение тестовое для теста','РПКР №213','Отклонён','1111','','Распоряжение','14.01.2024','Нет','14.01.2024'],
-      ['Кабинет министров','№424','Отклонён','','','Распоряжение','14.01.2024','Нет','15.01.2024'],
-      ['Распоряжение Мэрии г.','Мэрия г.','Отклонён','','от 16 д…','РКМКР','27.01.2024','Нет','27.01.2024'],
-      ['Тестовое ПКР','ПКР ТЕСТ','Действует','6','12','Основное','11.12.2024','Да','11.12.2024'],
-      ['Тестовый','Тест','Отклонён','1001','56','Основное','11.05.2025','Нет','11.05.2025'],
-      ['Решение №352','Решение','Отклонён','10','352','Основное','29.10.2024','Нет','29.10.2024'],
-      ['ПКМКР Фонды','Фонды развития','Отклонён','5','45','Постановление','10.02.2024','Нет','10.02.2024'],
-      ['Распоряжение №80-р','№80-р','Отклонён','80-р','80-р','Распоряжение','14.02.2024','Нет','14.02.2024'],
-      ['Распоряжение поддержки','Поддержка','Действует','MSB11','45-р','Основное','12.03.2024','Да','12.03.2024'],
-      ['Постановление ПКМ','ПКМ №123','Отклонён','РКМ123','123','Постановление','15.06.2024','Нет','15.06.2024'],
-      ['Решение о субсидировании','Субсидии АПК','Действует','7','78','Основное','20.07.2024','Да','20.07.2024'],
-      ['Постановление №210','ПКМ №210','Отклонён','210','210','Постановление','03.08.2024','Нет','03.08.2024'],
-      ['Распоряжение №95-р','№95-р','Действует','95-р','95-р','Распоряжение','19.09.2024','Да','19.09.2024'],
-      ['Решение по агросектору','Агро','Отклонён','АГ12','12-а','Основное','07.10.2024','Нет','07.10.2024'],
-      ['ПКМКР Развитие села','Село','Действует','8','89','Постановление','25.11.2024','Да','25.11.2024'],
-      ['Распоряжение №130-р','№130-р','Отклонён','130-р','130-р','Распоряжение','16.01.2025','Нет','16.01.2025'],
-      ['Решение №400','Решение','Действует','9','400','Основное','28.02.2025','Да','28.02.2025'],
-    ] },
-  'Кредитная линия': { title:'Кредитная линия', cols:['Кредитная линия'], rows:[['АРР'],['ФРР']] },
-  'Группа платежеспособности': { title:'Группа платежоспособности', cols:['Гр. платежесп.'], rows:[] },
-  'Счет погашения': { title:'Счет погашения', cols:['Счет погашения'], rows:[['123']] },
-  'Вид счета погашения': { title:'Вид счета погашения', cols:['Вид счета погашения'], rows:[['123'],['321'],['Накопительный счет']] },
-  'Куратор': { title:'Субъекты', cols:['Тип','Субъект'],
-    rows:[['Юр. лицо','01204199910016 - ОАО "О!Банк"'],['Физ. лицо','22407199000740 - ТЕМИРЛАН УУЛУ ТОБОКЕЛ'],
-      ['Физ. лицо','20101198900280 - ОЗОНОВ АЗИЗ КАНАТБЕКОВИЧ'],['Юр. лицо','01211202110139 - ГП "Инфосистемс" при МФКР'],
-      ['Физ. лицо','12407197000126 - АЛЫКУЛОВА РАНАГУЛ ОМУРКАНОВНА']] },
-  /* tab «Условия кредита» pickers (значение = как в детали) */
-  'Период начисления': { title:'Период начисления', cols:['Наименование'], rows:[['Аннуитет'],['Дифференцированный']] },
-  'Вид плавающих ставок': { title:'Вид плавающих ставок', cols:['Наименование'], rows:[] },
-  'Очередь погашения': { title:'Очередь погашения', cols:['Наименование'],
-    rows:[['Основная сумма, проценты, шрафы'],['Проценты, основная сумма, шрафы'],['Шрафы, проценты, основная сумма']] },
-  'Метод расчета кол-ва дней в период': { title:'Метод расчета кол-ва дней в период', cols:['Наименование'],
-    rows:[['календарный 365'],['календарный 360'],['фактический']] },
-};
-let pickerCtx = { key:null, anchor:null, selIdx:-1 };
-
-function closeModal(){ document.getElementById('modalHost').classList.remove('open'); document.getElementById('modalHost').innerHTML=''; }
-function openPicker(key, anchor){
-  const rb = REFBOOKS[key];
-  if(!rb){ toast('Справочник: '+key); return; }
-  pickerCtx = { key, anchor, selIdx:-1 };
-  const host = document.getElementById('modalHost');
-  const gear = `<button class="gear-btn" title="Настройки"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`;
-  const body = rb.rows.length
-    ? `<div class="eb-grid-wrap"><table class="eb-grid">
-         <thead><tr>${rb.cols.map(c=>`<th>${c}<span class="sort">⇅</span></th>`).join('')}</tr></thead>
-         <tbody>${rb.rows.map((r,i)=>`<tr onclick="pickSel(${i})">${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
-       </table></div>`
-    : `<div class="eb-grid-wrap"><table class="eb-grid"><thead><tr>${rb.cols.map(c=>`<th>${c}<span class="sort">⇅</span></th>`).join('')}</tr></thead><tbody></tbody></table><div class="eb-empty">Нет данных</div></div>`;
-  /* status-filtered entity browsers (Решение правительства) get a required
-     status label, a pre-populated «Статус =» condition row, and the full
-     workflow action bar; simple pickers keep their bare toolbar. */
-  const filterLabel = rb.statusFilter
-    ? `Фильтр : фильтр по статусу <span class="req-star">*</span>`
-    : `Фильтр`;
-  const condRow = rb.statusFilter
-    ? `<div class="eb-cond">
-         <span class="cond-label">Статус</span><span class="cond-op">=</span>
-         <div class="lookup"><span class="val ph"></span>
-           <button class="pick" title="Выбрать" onclick="toast('Статус')">•••</button>
-           <button title="Очистить" onclick="clearPicker(this)">×</button></div>
-       </div>`
-    : '';
-  const wf = (label) => `<button class="btn btn-secondary btn-sm eb-wf" disabled onclick="toast('${label}')">${label}</button>`;
-  const workflowBtns = rb.workflow
-    ? `${wf('Просмотр')}${wf('Отправить')}${wf('Отозвать')}${wf('Одобрить')}${wf('Отклонить')}${wf('Вернуть на доработку')}${wf('Закрыть')}${wf('Вернуть на рассмотрение')}`
-    : '';
-  host.innerHTML = `<div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-h"><span class="mt">${rb.title}</span>
-      <button class="modal-x" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
-    <div class="modal-b">
-      <div class="filter-head${rb.statusFilter?' open':''}" style="padding:0 0 4px" onclick="this.classList.toggle('open')">
-        <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span><span>${filterLabel}</span></div>
-      ${condRow}
-      <div class="tb-actions" style="padding:8px 0 12px">
-        <div class="split" id="ebSplit"><button class="btn btn-success" onclick="toast('Обновлено')">Обновить</button>
-          <button class="btn btn-success caret" onclick="document.getElementById('ebSplit').classList.toggle('open');event.stopPropagation();"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
-          <div class="split-menu"><button onclick="toast('Обновить')">Обновить</button><button onclick="toast('Применить и обновить')">Применить и обновить</button></div></div>
-        ${gear}
-        <button class="add-cond"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Добавить условие поиска</button>
-      </div>
-      <div class="eb-createbar">
-        <button class="btn eb-create btn-sm" onclick="toast('Создать запись')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Создать</button>
-        <button class="btn btn-secondary btn-sm" id="ebEdit" disabled onclick="toast('Изменить')">Изменить</button>
-        <button class="btn btn-secondary btn-sm" id="ebDel" disabled onclick="toast('Удалить')">Удалить</button>
-        ${workflowBtns}
-        <div style="flex:1"></div>
-        <div class="pager"><button disabled>«</button><button disabled>‹</button><span>${rb.rows.length} строк</span><button disabled>›</button><button disabled>»</button></div>
-      </div>
-      ${body}
-    </div>
-    <div class="modal-f">
-      <button class="btn btn-primary" id="ebPick" disabled onclick="pickApply()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Выбрать</button>
-      <button class="btn btn-secondary" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Отмена</button>
-    </div>
-  </div>`;
-  host.classList.add('open');
-}
-function pickSel(i){
-  pickerCtx.selIdx = i;
-  document.querySelectorAll('#modalHost .eb-grid tbody tr').forEach((tr,idx)=>tr.classList.toggle('sel',idx===i));
-  document.getElementById('ebPick').disabled = false;
-  document.getElementById('ebEdit').disabled = false;
-  document.getElementById('ebDel').disabled = false;
-  document.querySelectorAll('#modalHost .eb-wf').forEach(b=>b.disabled=false);
-}
-function pickApply(){
-  const rb = REFBOOKS[pickerCtx.key];
-  const row = rb.rows[pickerCtx.selIdx];
-  const val = row[row.length-1]; // display last col (name / subject)
-  if(pickerCtx.anchor){
-    const lookup = pickerCtx.anchor.closest('.lookup');
-    const span = lookup.querySelector('.val');
-    span.textContent = val; span.classList.remove('ph');
+  function showList(){
+    vDetail.classList.remove('active'); vList.classList.add('active');
+    pageTitle.textContent = 'Кредиты'; crumb.innerHTML = '';
+    window.scrollTo(0,0);
   }
-  closeModal();
-  toast('Выбрано: '+val);
-}
-function clearPicker(btn){
-  const span = btn.closest('.lookup').querySelector('.val');
-  span.textContent=''; span.classList.add('ph');
-}
-function viewPicker(key){
-  const lookup = [...document.querySelectorAll('.lookup')].find(l=>l.dataset.key===key);
-  const v = lookup?.querySelector('.val')?.textContent.trim();
-  toast(v ? ('Просмотр: '+v) : 'Значение не выбрано');
-}
+  function showDetail(){
+    vList.classList.remove('active'); vDetail.classList.add('active');
+    pageTitle.textContent = 'Кредит'; crumb.innerHTML = '<a href="#">Кредиты</a> › Газификация-2024-07';
+    window.scrollTo(0,0);
+  }
+  document.querySelectorAll('#listTable tbody tr.clk').forEach(r => {
+    r.addEventListener('click', () => { if (r.dataset.open) showDetail(); });
+  });
+  document.getElementById('backLink').addEventListener('click', e => { e.preventDefault(); showList(); });
 
-/* ============================================================
-   FORM DIALOGS — «Создание транша» / «Платеж» (snap 2026-07-06)
-   ============================================================ */
-const mfInp = (label,val,{req,ro,dashed,foc}={}) =>
-  `<div class="field${req?' req':''}${foc?' foc':''}"><span class="flabel">${label}</span><div class="control"><input value="${val||''}"${ro?' readonly':''}${dashed?' class="dashed"':''}></div><span class="errmsg">Заполните поле "${label}"</span></div>`;
-const mfErr = (label,val) =>
-  `<div class="field req err"><span class="flabel">${label}</span><div class="control"><input value="${val||''}"></div><span class="errmsg">Заполните поле "${label}"</span></div>`;
-const mfSel = (label,val,opts,{req}={}) =>
-  `<div class="field${req?' req':''}"><span class="flabel">${label}</span><div class="control"><select>${(opts||['']).map(o=>`<option${o===val?' selected':''}>${o}</option>`).join('')}</select>${caret()}</div></div>`;
-const mfPick = (label,val) =>
-  `<div class="field"><span class="flabel">${label}</span><div class="lookup"><span class="val${val?'':' ph'}">${val||''}</span><button class="pick" onclick="toast('Открытие справочника')">•••</button><button onclick="clearPicker(this)">×</button></div></div>`;
-const mfDt = (label,val) =>
-  `<div class="field"><span class="flabel">${label}</span><div class="control"><input value="${val||''}" onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div></div>`;
-const mfDtPair = (label) =>
-  `<div class="field"><span class="flabel">${label}</span><div class="dtpair"><div class="control"><input onclick="openCalendar(this)" readonly style="cursor:pointer">${calSvg()}</div><div class="control"><input onclick="openTime(this)" readonly style="cursor:pointer">${clockSvg()}</div></div></div>`;
-const mfCheck = (label) => `<div class="field col-span"><label class="check"><span class="box"></span>${label}</label></div>`;
+  // фильтр реестра
+  const fQ = document.getElementById('fQ');
+  const fNum = document.getElementById('fNum');
+  const fDistrict = document.getElementById('fDistrict');
+  const fGroup = document.getElementById('fGroup');
+  function applyFilter(){
+    const q = fQ.value.trim().toLowerCase();
+    const n = fNum.value.trim().toLowerCase();
+    const d = fDistrict.value, g = fGroup.value;
+    document.querySelectorAll('#listTable tbody tr.clk').forEach(r => {
+      const num = r.children[0].textContent.toLowerCase();
+      const who = r.children[1].textContent.toLowerCase();
+      const ok = (!q || who.includes(q))
+        && (!n || num.includes(n))
+        && (!d || r.dataset.district === d)
+        && (!g || r.dataset.group === g);
+      r.style.display = ok ? '' : 'none';
+    });
+  }
+  [fQ, fNum, fDistrict, fGroup].forEach(el => {
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', applyFilter);
+  });
 
-function openForm(title, bodyHtml, narrow){
-  const host = document.getElementById('modalHost');
-  host.innerHTML = `<div class="modal form${narrow?' narrow':''}" onclick="event.stopPropagation()">
-    <div class="modal-h"><span class="mt">${title}</span>
-      <button class="modal-x" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
-    <div class="modal-b"><div class="mform">${bodyHtml}</div></div>
-    <div class="modal-f">
-      <button class="btn btn-primary" onclick="toast('Сохранено');closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>OK</button>
-      <button class="btn btn-secondary" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Отмена</button>
-    </div>
-  </div>`;
-  host.classList.add('open');
-}
-function openTrancheForm(){
-  openForm('Создание транша', `
-    ${mfInp('Одобренная сумма кредита','150000.00',{ro:true})}
-    ${mfInp('Уже распределено по траншам','100000.00',{ro:true})}
-    ${mfInp('Доступно к распределению','50000.00',{ro:true})}
-    <div class="field col-span"><span class="flabel" style="color:var(--asubk-blue)">Заемщик</span><div class="lookup" style="border:1px solid var(--asubk-blue);box-shadow:0 0 0 3px var(--asubk-blue-tint)"><span class="val">01912201610212 - ОсОО "Бек Кабель"</span><button class="pick" onclick="toast('Выбор заемщика')">•••</button><button onclick="clearPicker(this)">×</button>${eye('Заемщик')}</div></div>
-    ${mfInp('ПИН/ИНН','01912201610212',{ro:true})}
-    ${mfInp('Сумма транша','')}
-    ${mfDt('Дата транша','06.07.2026')}
-  `, true);
-}
-function openPaymentForm(){
-  openForm('Платеж', `
-    ${mfInp('Статус','',{foc:true})}
-    ${mfInp('Payment uuid','',{ro:true})}
-    ${mfInp('Payment version','',{ro:true})}
-    ${mfSel('Статус платежа','',['','Проведён','Отменён','Черновик'])}
-    ${mfInp('Код транзакции','',{dashed:true})}
-    ${mfErr('Номер платежа','')}
-    ${mfDt('Дата платежа','06.07.2026')}
-    ${mfErr('Общая сумма платежа','')}
-    ${mfInp('Сумма основного долга','',{ro:true})}
-    ${mfInp('Сумма процентов','',{ro:true})}
-    ${mfInp('Сумма штрафа (пени)','',{ro:true})}
-    ${mfInp('Сумма комиссии','')}
-    ${mfCheck('Валютный')}
-    ${mfInp('Курс валюты','',{ro:true})}
-    <div class="field"><span class="flabel">Кредит</span><div class="control"><input value='01912201610212 - ОсОО "Бек Кабель"' class="dashed" readonly></div></div>
-    ${mfSel('Транш/Субкредит','',[''],{req:true}).replace('field req','field req err').replace('</select>'+caret()+'</div>','</select>'+caret()+'</div><span class="errmsg" style="display:block">Заполните поле "Транш/Субкредит"</span>')}
-    ${mfPick('Тип платежа','')}
-    ${mfInp('Описание','',{ro:true})}
-    ${mfDtPair('Дата записи')}
-  `);
-}
+  // вкладки
+  function openTab(name){
+    document.querySelectorAll('#tabs .tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
+    document.querySelector('#tabs .tab[data-tab="' + name + '"]').classList.add('active');
+    document.querySelector('.tabpanel[data-panel="' + name + '"]').classList.add('active');
+    window.scrollTo(0,0);
+  }
+  document.querySelectorAll('#tabs .tab').forEach(t => {
+    t.addEventListener('click', () => openTab(t.dataset.tab));
+  });
 
-/* ============================================================
-   CALENDAR POPUP (date-picker) — month grid, prev/next
-   ============================================================ */
-const calState = { input:null, y:2026, m:6, sel:6 };
-const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-function openCalendar(input){
-  const pop = document.getElementById('calPop');
-  if(calState.input===input && pop.classList.contains('open')){ pop.classList.remove('open'); calState.input=null; return; }
-  calState.input = input; calState.y=2026; calState.m=6;
-  renderCalendar();
-  const r = input.getBoundingClientRect();
-  pop.style.left = Math.min(r.left, window.innerWidth-270)+'px';
-  pop.style.top = (r.bottom+4)+'px';
-  pop.classList.add('open');
-}
-function renderCalendar(){
-  const pop = document.getElementById('calPop');
-  const {y,m} = calState;
-  const first = new Date(y,m,1).getDay(); const start=(first+6)%7; // Mon-first
-  const dim = new Date(y,m+1,0).getDate();
-  const dows=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
-  let cells='';
-  for(let i=0;i<start;i++) cells+=`<div class="day mute"></div>`;
-  for(let d=1;d<=dim;d++){ const isSel=(d===calState.sel && m===6); const isToday=(d===6 && m===6);
-    cells+=`<div class="day${isSel?' sel':''}${isToday&&!isSel?' today':''}" onclick="pickDay(${d})">${d}</div>`; }
-  pop.innerHTML = `<div class="cal-head">
-      <button onclick="calNav(-1)">‹</button><span class="cal-title">${MONTHS[m]} ${y}</span><button onclick="calNav(1)">›</button>
-    </div><div class="cal-grid">${dows.map(d=>`<div class="dow">${d}</div>`).join('')}${cells}</div>`;
-}
-function calNav(d){ calState.m+=d; if(calState.m<0){calState.m=11;calState.y--;} if(calState.m>11){calState.m=0;calState.y++;} renderCalendar(); }
-function pickDay(d){
-  calState.sel=d;
-  const dd=String(d).padStart(2,'0'), mm=String(calState.m+1).padStart(2,'0');
-  if(calState.input) calState.input.value = `${dd}.${mm}.${calState.y}`;
-  document.getElementById('calPop').classList.remove('open'); calState.input=null;
-}
-/* ---- time picker (Vaadin-style hourly list 00:00–23:00) ---- */
-const timeState = { input:null };
-function openTime(input){
-  const pop = document.getElementById('timePop');
-  if(timeState.input===input && pop.classList.contains('open')){ pop.classList.remove('open'); timeState.input=null; return; }
-  document.getElementById('calPop').classList.remove('open'); calState.input=null;
-  timeState.input = input;
-  const cur = input.value;
-  pop.innerHTML = Array.from({length:24}, (_,h)=>{
-    const t = String(h).padStart(2,'0')+':00';
-    return `<div class="topt${t===cur?' sel':''}" onclick="pickTime('${t}')">${t}</div>`;
-  }).join('');
-  const r = input.getBoundingClientRect();
-  pop.style.left = Math.min(r.left, window.innerWidth-130)+'px';
-  pop.style.top = (r.bottom+4)+'px';
-  pop.classList.add('open');
-  const sel = pop.querySelector('.topt.sel'); if(sel) sel.scrollIntoView({block:'center'});
-}
-function pickTime(t){
-  if(timeState.input) timeState.input.value = t;
-  document.getElementById('timePop').classList.remove('open'); timeState.input=null;
-}
-document.addEventListener('click', e=>{
-  if(!e.target.closest('.calpop') && !(e.target.closest('.control') && e.target.tagName==='INPUT'))
-    document.getElementById('calPop').classList.remove('open');
-  if(!e.target.closest('.timepop') && !(e.target.closest('.control') && e.target.tagName==='INPUT'))
-    document.getElementById('timePop').classList.remove('open');
-});
+  // под-вкладки («Условия», «Дополнительно»)
+  document.querySelectorAll('.subtab').forEach(s => {
+    s.addEventListener('click', () => {
+      const grp = s.dataset.sub, idx = s.dataset.idx;
+      document.querySelectorAll('.subtab[data-sub="' + grp + '"]').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('[data-subpanel^="' + grp + '-"]').forEach(p => p.classList.remove('active'));
+      s.classList.add('active');
+      document.querySelector('[data-subpanel="' + grp + '-' + idx + '"]').classList.add('active');
+    });
+  });
 
-renderList();
+  // меню печатных форм
+  const printBtn = document.getElementById('printBtn');
+  const printMenu = document.getElementById('printMenu');
+  printBtn.addEventListener('click', e => { e.stopPropagation(); printMenu.classList.toggle('open'); });
+  document.addEventListener('click', () => printMenu.classList.remove('open'));
 </script>
 </body>
 </html>
