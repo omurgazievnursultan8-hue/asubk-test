@@ -3,35 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Заёмщик — карточка TO-BE — АСУБК</title>
-<!--
-  Карточка заёмщика — TO-BE предложение для дев-команды.
-  Рендер логики из ASUBK-zaemshik-logika.md (оси залочены 12.07.2026).
-  Что показывает:
-    • Шапка — 3 плитки состояния: Группа платёжеспособности (read-only, выведена),
-      Категория риска (worst-of, честно + подпись-основание), Оверлей (отдельный слой).
-    • Свод кураторства — по всем кредитам, поимённо; асимметрия отстранения по ИНН.
-    • Вкладки: Кредиты (worst-of входы покредитно), История (передачи + переводы групп),
-      Документы/Контакты/Проверки — застаблены с плашкой «открытый вопрос §6».
-  Дизайн-система: gov-blue Lumo (токены из as-is borrower.html).
-  Демо-заёмщик: ОАО "АгроТехСервис", ИНН 01204199910016, 3 кредита в разных процедурах.
-    - АПК-2023-014        просрочка 45 дн → средний · процедура 2.1 (суд)
-    - Газификация-2024-07 просрочка 210 дн → ОВЕРЛЕЙ подавления 181-го (реструкт., -40 дн)
-                          → категория кредита честно «средний» · процедура 2.2 (исп. листы)
-    - Модернизация-2022   просрочка 0 дн, но НЕЦЕЛЕВОЕ + решение Комитета → высокий · 2.3
-    Категория заёмщика = worst-of = ВЫСОКИЙ (за нецелевое, нулевая просрочка).
-    Группа заёмщика = лестница: кредиты в 2.1/2.2/2.3 → блок 2, макс = 2.3.
--->
+<title>Заёмщик — карточка (v2) — АСУБК</title>
 <style>
   :root{
     --primary:#006af5; --primary-text:#005fdb; --primary-hover:#0059d1;
-    --body-text:#1b2a3d; --secondary-text:rgba(38,55,78,0.69);
+    --body-text:hsla(214,40%,16%,.94); --secondary-text:hsla(214,42%,18%,.69);
     --success:#158a4e; --error:#e02020; --warn:#c77700;
     --green-card-bg:#eaf7f0; --green-card-border:#cdeadb;
+    --blue-tint:#e7f0ff;
     --border:#dbe0e6; --border-strong:#c7ced6;
     --field-bg:#f6f8fa; --filter-bg:#eef1f4; --field-border:#c9d0d8;
+    --contrast-5:hsla(214,61%,25%,.05); --contrast-10:hsla(214,57%,24%,.1); --contrast-20:hsla(214,53%,23%,.16);
+    --primary-10:hsla(214,100%,60%,.13);
+    --field-fill:rgba(26,57,96,.1); --success-btn:rgb(21,132,67); --disabled-text:rgba(28,52,84,.26);
     --panel-border:#e3e7ec; --grid-hover:#f3f7fd;
-    --radius:4px;
+    --radius:4px; --control-h:36px;
     --font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box;}
@@ -39,19 +25,30 @@
   body{font-family:var(--font);color:var(--body-text);background:#fff;font-size:16px;line-height:1.4;}
   .app{display:flex;min-height:100vh;}
 
-  /* sidebar */
-  .sidebar{width:278px;flex:0 0 278px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;}
-  .sidebar .brand{font-weight:700;font-size:20px;padding:18px 22px;}
-  .nav{flex:1;overflow-y:auto;padding:0 8px;}
-  .nav-group{font-weight:600;padding:12px 14px;display:flex;align-items:center;gap:8px;user-select:none;font-size:15px;}
-  .nav-group .caret{color:var(--secondary-text);font-size:12px;width:12px;display:inline-block;}
-  .nav-group.open{color:var(--primary-text);}
-  .nav-item{padding:8px 14px 8px 20px;font-size:15px;border-radius:var(--radius);cursor:default;}
-  .nav-item:hover{background:var(--filter-bg);}
-  .nav-item.active{background:var(--filter-bg);color:var(--primary-text);font-weight:600;}
-  .sidebar .footer{border-top:1px solid var(--border);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;}
-  .logout{width:38px;height:38px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--filter-bg);
+  /* sidebar — 1:1 со стендом (jmix-list-menu, снято 13.07.2026 scripts/inspect/sidebar-styles2.mjs) */
+  .sidebar{width:279px;flex:0 0 279px;min-width:220px;background:#fff;border-right:1px solid var(--contrast-20);
+    display:flex;flex-direction:column;max-height:100vh;}
+  .sidebar .brand{font-size:16px;font-weight:600;line-height:20px;color:#192434;padding:0 16px;margin:16px 0 12px;
+    display:flex;align-items:center;}
+  .nav{flex:1;overflow-y:auto;padding:0 8px;color:var(--secondary-text);}
+  .nav-block{padding:8px 0;}
+  .nav-group{display:flex;align-items:center;gap:8px;height:36px;padding:8px;border-radius:var(--radius);
+    font-size:14px;font-weight:700;line-height:1.25;color:var(--secondary-text);cursor:pointer;user-select:none;}
+  .nav-group:hover{background:var(--contrast-5);}
+  .nav-group .caret{flex:0 0 auto;width:16px;height:16px;color:var(--secondary-text);transition:transform .12s;}
+  .nav-group.collapsed .caret{transform:rotate(-90deg);}
+  .nav-list{margin-inline-start:24px;}
+  .nav-list.hidden{display:none;}
+  .nav-item{display:flex;align-items:center;gap:8px;padding:8px;border-radius:var(--radius);
+    font-size:14px;font-weight:500;line-height:1.375;color:var(--secondary-text);cursor:pointer;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .nav-item:hover{background:var(--contrast-5);}
+  .nav-item.active{color:var(--primary-text);background:var(--primary-10);}
+  .sidebar .footer{border-top:1px solid var(--contrast-10);padding:12px 16px;display:flex;align-items:center;
+    justify-content:space-between;font-size:14px;color:var(--secondary-text);}
+  .logout{width:36px;height:36px;border:1px solid transparent;border-radius:var(--radius);background:var(--primary-10);
     display:flex;align-items:center;justify-content:center;color:var(--primary-text);cursor:pointer;}
+  .logout:hover{background:rgba(51,139,255,.22);}
 
   /* main */
   .main{flex:1;min-width:0;display:flex;flex-direction:column;}
@@ -66,6 +63,54 @@
     border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;}
   .btn-secondary{background:var(--filter-bg);color:var(--secondary-text);border-color:var(--field-border);}
   .btn-primary{background:var(--primary);color:#fff;}
+  .btn-sm{font-size:13px;padding:6px 11px;}
+
+  input[type=text],input[type=date],select{font-family:var(--font);font-size:14px;color:var(--body-text);background:#fff;
+    border:1px solid var(--field-border);border-radius:var(--radius);height:var(--control-h);padding:0 8px;}
+  input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--blue-tint);}
+
+  /* ---------- фильтр реестра — jmix-generic-filter, 1:1 со стендом
+       (снято 13.07.2026, scripts/inspect/filter-styles2.mjs, /loan-applicants) ---------- */
+  .jf{margin:4px 0 8px;}
+  .jf-summary{display:inline-flex;align-items:center;gap:8px;height:36px;padding:8px 0;
+    font-size:16px;font-weight:500;line-height:20px;color:var(--secondary-text);cursor:pointer;user-select:none;}
+  .jf-summary .caret{flex:0 0 auto;width:16px;height:16px;transition:transform .12s;}
+  .jf.collapsed .caret{transform:rotate(-90deg);}
+  .jf.collapsed .jf-body{display:none;}
+  .jf-panel{border:1px solid var(--contrast-20);border-radius:8px;padding:16px;margin:8px 0;
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px 24px;}
+  .jf-row{display:flex;flex-direction:column;gap:4px;min-width:0;}
+  .jf-label{font-size:14px;font-weight:500;line-height:18px;color:var(--secondary-text);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .jf-ctl{flex:1;min-width:0;position:relative;display:flex;align-items:center;gap:4px;}
+  .jf-ctl input,.jf-ctl select{flex:1;min-width:0;height:36px;border:none;border-radius:var(--radius);
+    background:var(--field-fill);color:var(--body-text);font-family:var(--font);font-size:16px;padding:0 6px;
+    appearance:none;-webkit-appearance:none;}
+  .jf-ctl select{padding-right:28px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='rgba(28,46,69,0.6)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat:no-repeat;background-position:right 4px center;background-size:20px 20px;}
+  .jf-ctl input:focus,.jf-ctl select:focus{outline:2px solid var(--primary);outline-offset:-2px;box-shadow:none;}
+  .jf-clear{flex:0 0 auto;width:24px;height:24px;border:none;border-radius:3px;background:var(--primary-10);
+    color:var(--primary-text);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+    position:absolute;right:5px;}
+  .jf-actions{display:flex;align-items:center;gap:8px;height:44px;}
+  .btn-tertiary{height:var(--control-h);padding:0 14px;border:none;border-radius:var(--radius);
+    background:var(--contrast-5);color:var(--primary-text);
+    font-family:var(--font);font-size:15px;font-weight:600;cursor:pointer;}
+  .btn-tertiary:hover{background:var(--contrast-10);}
+  .btn-icon{width:var(--control-h);height:var(--control-h);border:1px solid var(--field-border);border-radius:var(--radius);
+    background:#fff;color:var(--primary-text);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
+  .btn-icon:hover{background:var(--filter-bg);}
+
+  /* тулбар списка */
+  .jt{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 12px;}
+  .jt .tb-spacer{flex:1;}
+  .jpag{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--secondary-text);}
+  .jpag .nav{min-width:30px;height:30px;border:1px solid var(--field-border);border-radius:var(--radius);background:#fff;
+    color:var(--body-text);display:inline-flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;}
+  .jpag .nav:hover{background:var(--filter-bg);}
+  .jpag .nav.dis{opacity:.4;cursor:not-allowed;}
+  .jpag .cnt{padding:0 6px;white-space:nowrap;}
 
   /* ---------- Идентификация ---------- */
   .id-bar{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px;}
@@ -73,7 +118,14 @@
   .id-name{font-size:22px;font-weight:700;line-height:1.25;}
   .id-sub{color:var(--secondary-text);font-size:14px;margin-top:4px;display:flex;gap:14px;flex-wrap:wrap;}
   .id-sub b{color:var(--body-text);font-weight:600;}
-  .id-actions{display:flex;gap:8px;flex:0 0 auto;}
+  .id-actions{display:flex;gap:8px;flex:0 0 auto;position:relative;}
+
+  .menu{position:absolute;right:0;top:42px;background:#fff;border:1px solid var(--border-strong);border-radius:6px;
+    box-shadow:0 6px 20px rgba(20,35,60,.14);min-width:280px;z-index:20;display:none;padding:5px;}
+  .menu.open{display:block;}
+  .menu-i{padding:8px 11px;font-size:14px;border-radius:4px;cursor:pointer;display:flex;justify-content:space-between;gap:12px;}
+  .menu-i:hover{background:var(--filter-bg);}
+  .menu-i .m-src{font-size:11px;color:var(--secondary-text);}
 
   /* ---------- 3 плитки состояния ---------- */
   .state-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px;}
@@ -92,7 +144,6 @@
   .tile-detail .step{display:flex;gap:8px;padding:2px 0;}
   .tile-detail .step .k{color:var(--secondary-text);flex:0 0 auto;}
 
-  /* dots */
   .dot{width:11px;height:11px;border-radius:50%;display:inline-block;flex:0 0 auto;}
   .d-low{background:var(--success);} .d-mid{background:var(--warn);} .d-high{background:var(--error);}
   .cat-low{color:var(--success);} .cat-mid{color:var(--warn);} .cat-high{color:var(--error);}
@@ -102,69 +153,102 @@
   .ro-note{font-size:11px;color:var(--secondary-text);border:1px dashed var(--border-strong);border-radius:3px;
     padding:1px 6px;display:inline-flex;align-items:center;gap:4px;}
 
-  /* overlay tile */
   .ov-item{border:1px solid #f0dcc0;background:#fdf6ec;border-radius:5px;padding:8px 10px;font-size:13px;line-height:1.4;}
   .ov-item .ov-h{font-weight:600;color:var(--warn);display:flex;align-items:center;gap:6px;}
   .ov-item .ov-m{color:var(--secondary-text);margin-top:2px;}
-  .ov-empty{font-size:13px;color:var(--secondary-text);}
 
   /* ---------- панель / секции ---------- */
   .section{border:1px solid var(--panel-border);border-radius:6px;margin-bottom:20px;overflow:hidden;}
   .section-head{padding:12px 16px;font-weight:700;font-size:15px;border-bottom:1px solid var(--panel-border);
-    display:flex;align-items:center;justify-content:space-between;background:#fbfcfd;}
+    display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fbfcfd;}
   .section-head .hint{font-weight:400;font-size:12px;color:var(--secondary-text);}
+  .section-head .ha{display:flex;gap:7px;flex:0 0 auto;align-items:center;}
   .section-body{padding:0;}
 
-  table.grid{width:100%;border-collapse:collapse;}
-  table.grid thead th{text-align:left;font-weight:700;font-size:13px;color:var(--body-text);
-    padding:10px 16px;border-bottom:1px solid var(--border);background:#fbfcfd;}
-  table.grid tbody td{padding:11px 16px;border-bottom:1px solid #eef1f4;font-size:14px;vertical-align:top;}
+  table.grid{width:100%;border-collapse:collapse;font-size:14px;}
+  table.grid thead th{position:sticky;top:0;z-index:1;text-align:left;font-weight:600;font-size:14px;line-height:1.3;
+    color:#192434;padding:11px 12px;border-bottom:1px solid var(--border-strong);background:var(--field-bg);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  table.grid tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;
+    color:var(--body-text);}
   table.grid tbody tr:last-child td{border-bottom:0;}
+  td.mono{font-variant-numeric:tabular-nums;}
+
+  /* реестр: сортируемая шапка + строки-ссылки */
+  #listTable{table-layout:fixed;}
+  #listTable thead th{cursor:pointer;user-select:none;}
+  #listTable thead th .sort{color:#9aa6b4;margin-left:4px;font-size:11px;font-weight:400;}
+  #listTable thead th.sorted .sort{color:var(--primary-text);}
+  #listTable tbody td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .grid-wrap{border:1px solid var(--border-strong);border-radius:6px;overflow:auto;max-height:60vh;background:#fff;}
+  .empty-rows{padding:34px 16px;text-align:center;color:var(--secondary-text);font-size:14px;}
   .who{font-weight:600;} .muted{color:var(--secondary-text);font-size:13px;}
   .role{font-size:12px;border-radius:3px;padding:1px 7px;font-weight:600;display:inline-block;}
-  .role-lead{background:#e7f0ff;color:var(--primary-text);}
+  .role-lead{background:var(--blue-tint);color:var(--primary-text);}
   .role-co{background:var(--filter-bg);color:var(--secondary-text);}
   .row-off td{background:#fff5f5;}
   .off-tag{font-size:12px;color:var(--error);font-weight:600;display:inline-flex;align-items:center;gap:5px;}
+  a.lnk{color:var(--primary-text);text-decoration:none;} a.lnk:hover{text-decoration:underline;}
 
-  /* конфликт-плашка */
   .warn-plate{margin:0;padding:11px 16px;background:#fff5f5;border-top:1px solid #f3d6d6;font-size:13px;
     color:#8a2020;line-height:1.45;display:flex;gap:9px;align-items:flex-start;}
   .warn-plate .ic{flex:0 0 auto;font-size:15px;}
-  .info-plate{margin:14px 0;padding:11px 16px;background:#eef4ff;border:1px solid #d3e2ff;border-radius:6px;
-    font-size:13px;color:var(--primary-text);line-height:1.45;display:flex;gap:9px;align-items:flex-start;}
-  .open-plate{padding:14px 16px;background:#fbfaf5;border:1px dashed #e0d6b8;border-radius:6px;
-    font-size:13px;color:#7a6a2e;line-height:1.5;}
-  .open-plate b{color:#5f5220;}
 
   /* ---------- вкладки ---------- */
-  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px;}
-  .tab{padding:10px 16px;font-size:15px;font-weight:600;color:var(--secondary-text);cursor:pointer;
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap;}
+  .tab{padding:10px 14px;font-size:15px;font-weight:600;color:var(--secondary-text);cursor:pointer;
     border-bottom:2px solid transparent;user-select:none;}
   .tab:hover{color:var(--body-text);}
   .tab.active{color:var(--primary-text);border-bottom-color:var(--primary);}
   .tabpanel{display:none;} .tabpanel.active{display:block;}
 
-  /* ---------- ВИД: СПИСОК (реестр) ---------- */
+  /* ---------- вид: список ---------- */
   .view{display:none;} .view.active{display:block;}
-  .list-filter{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;
-    border:1px solid var(--panel-border);border-radius:6px;padding:12px 16px;background:#fbfcfd;}
-  .list-filter .fl{color:var(--secondary-text);font-size:14px;}
-  .list-filter select{font-family:var(--font);font-size:14px;color:var(--body-text);background:#fff;
-    border:1px solid var(--field-border);border-radius:var(--radius);height:34px;padding:0 8px;min-width:190px;}
-  .list-filter .spacer{flex:1;}
-  .list-filter .cnt{color:var(--secondary-text);font-size:13px;}
   table.grid tbody tr.clk{cursor:pointer;} table.grid tbody tr.clk:hover{background:var(--grid-hover);}
   .cat-cell{display:inline-flex;align-items:center;gap:7px;font-weight:600;}
-  .old-col{text-decoration:line-through;color:var(--secondary-text);}
 
-  /* worst-of ячейка */
+  .pager{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 16px;
+    border-top:1px solid var(--border);background:#fbfcfd;font-size:13px;color:var(--secondary-text);flex-wrap:wrap;}
+  .pages{display:flex;gap:4px;align-items:center;}
+  .pg{min-width:30px;height:30px;border:1px solid var(--field-border);border-radius:var(--radius);background:#fff;
+    display:inline-flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;padding:0 7px;}
+  .pg:hover{background:var(--filter-bg);} .pg.active{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:700;}
+  .pg.dis{color:var(--secondary-text);cursor:default;background:var(--filter-bg);}
+
   .wo{display:flex;flex-direction:column;gap:3px;}
   .wo-in{font-size:12px;color:var(--secondary-text);display:flex;gap:6px;align-items:center;}
   .wo-in .win{color:var(--error);font-weight:700;}
   .badge{font-size:12px;border-radius:3px;padding:1px 7px;font-weight:600;display:inline-block;white-space:nowrap;}
   .b-ov{background:#fdf1e0;color:var(--warn);border:1px solid #f0dcc0;}
-  .b-proc{background:#eef4ff;color:var(--primary-text);}
+  .b-proc{background:var(--blue-tint);color:var(--primary-text);}
+  .b-ok{background:var(--green-card-bg);color:var(--success);border:1px solid var(--green-card-border);}
+  .b-gray{background:var(--filter-bg);color:var(--secondary-text);border:1px solid var(--border);}
+  .b-type{background:#f2ecff;color:#5b34c7;border:1px solid #ded0ff;}
+
+  /* тулбар «на дату» */
+  .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--panel-border);
+    border-radius:6px;padding:11px 14px;background:#fbfcfd;margin-bottom:14px;}
+  .toolbar .sep{width:1px;height:24px;background:var(--border);margin:0 3px;}
+  .toolbar .fl{font-size:13px;}
+
+  /* поля реквизитов */
+  .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 26px;padding:14px 16px;}
+  .f{display:flex;gap:10px;padding:5px 0;border-bottom:1px solid #f2f5f8;font-size:14px;}
+  .f .fk{color:var(--secondary-text);flex:0 0 190px;font-size:13px;}
+  .f .fv{font-weight:600;}
+  .f.span2{grid-column:1 / -1;}
+
+  /* дерево взыскания */
+  .proc{border:1px solid var(--panel-border);border-radius:6px;margin:0 16px 14px;overflow:hidden;}
+  .proc:first-of-type{margin-top:14px;}
+  .proc-h{padding:10px 14px;background:#fbfcfd;border-bottom:1px solid var(--panel-border);
+    display:flex;align-items:center;gap:10px;font-size:14px;flex-wrap:wrap;}
+  .proc-h .p-name{font-weight:700;}
+  .phase{padding:10px 14px;border-bottom:1px solid #eef1f4;font-size:14px;}
+  .phase:last-child{border-bottom:0;}
+  .phase-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .ev{margin:7px 0 0 18px;padding-left:12px;border-left:2px solid var(--border);font-size:13px;color:var(--secondary-text);}
+  .lvl{font-size:10px;font-weight:700;color:var(--secondary-text);border:1px solid var(--border);border-radius:3px;padding:0 5px;}
 
   /* таймлайн */
   .tl{position:relative;padding-left:26px;}
@@ -172,13 +256,13 @@
   .tl-item{position:relative;padding:0 0 18px 0;}
   .tl-item::before{content:"";position:absolute;left:-22px;top:4px;width:11px;height:11px;border-radius:50%;
     background:#fff;border:2px solid var(--primary);}
-  .tl-item.grp::before{border-color:var(--primary);} .tl-item.kur::before{border-color:var(--success);}
+  .tl-item.kur::before{border-color:var(--success);}
   .tl-item.risk::before{border-color:var(--error);} .tl-item.conf::before{border-color:var(--warn);}
   .tl-date{font-size:12px;color:var(--secondary-text);font-weight:600;}
   .tl-title{font-weight:600;font-size:14px;margin-top:1px;}
   .tl-body{font-size:13px;color:var(--secondary-text);margin-top:2px;line-height:1.45;}
   .tl-kind{font-size:11px;text-transform:uppercase;letter-spacing:.03em;border-radius:3px;padding:1px 6px;font-weight:600;margin-left:8px;}
-  .k-grp{background:#e7f0ff;color:var(--primary-text);} .k-kur{background:var(--green-card-bg);color:var(--success);}
+  .k-grp{background:var(--blue-tint);color:var(--primary-text);} .k-kur{background:var(--green-card-bg);color:var(--success);}
   .k-risk{background:#fdeaea;color:var(--error);} .k-conf{background:#fdf1e0;color:var(--warn);}
 </style>
 </head>
@@ -189,20 +273,73 @@
   <aside class="sidebar">
     <div class="brand">АСУБК</div>
     <nav class="nav">
-      <div class="nav-group open"><span class="caret">⌄</span>Приложение</div>
-      <div class="nav-item">Users</div>
-      <div class="nav-item">Подразделения</div>
-      <div class="nav-item">Сотрудники подразделения</div>
-      <div class="nav-item active">Заёмщики</div>
-      <div class="nav-item">Платеж</div>
-      <div class="nav-group"><span class="caret">›</span>Система кредитования</div>
-      <div class="nav-group"><span class="caret">›</span>Взыскание задолженности</div>
-      <div class="nav-group"><span class="caret">›</span>Справочники</div>
-      <div class="nav-group"><span class="caret">›</span>Администрирование</div>
+
+      <div class="nav-block">
+        <div class="nav-group collapsed" data-group="app">
+          <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          Приложение
+        </div>
+        <div class="nav-list hidden" data-list="app">
+          <div class="nav-item">Подразделения</div>
+          <div class="nav-item">Сотрудники подразделения</div>
+          <div class="nav-item">Освоение</div>
+          <div class="nav-item">Резерв</div>
+          <div class="nav-item">Платеж</div>
+          <div class="nav-item">Список Траншей</div>
+          <div class="nav-item">Решение суда</div>
+        </div>
+      </div>
+
+      <div class="nav-block">
+        <div class="nav-group" data-group="loan">
+          <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          Система кредитования
+        </div>
+        <div class="nav-list" data-list="loan">
+          <div class="nav-item">Решение правительства</div>
+          <div class="nav-item">Кредитные программы</div>
+          <div class="nav-item">Заявки</div>
+          <div class="nav-item">Комиссии по заявкам</div>
+          <div class="nav-item active">Заемщики</div>
+          <div class="nav-item">Кредиты</div>
+
+          <div class="nav-block">
+            <div class="nav-group collapsed" data-group="col">
+              <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              Залог
+            </div>
+            <div class="nav-list hidden" data-list="col">
+              <div class="nav-item">Мониторинг залога</div>
+              <div class="nav-item">Список залоговых договоров</div>
+              <div class="nav-item">Список предметов залога</div>
+            </div>
+          </div>
+
+          <div class="nav-block">
+            <div class="nav-group collapsed" data-group="ref">
+              <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              Справочники
+            </div>
+            <div class="nav-list hidden" data-list="ref">
+              <div class="nav-item">Комиссии</div>
+              <div class="nav-item">Сотрудники</div>
+              <div class="nav-item">Должности</div>
+              <div class="nav-item">Отделы</div>
+              <div class="nav-item">Кредиторы</div>
+              <div class="nav-item">Процентные ставки</div>
+              <div class="nav-item">Группа платежоспособности</div>
+              <div class="nav-item">Группа заемщика</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </nav>
     <div class="footer">
       <span>[admin]</span>
-      <div class="logout" title="Выход">⇥</div>
+      <div class="logout" title="Выход">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </div>
     </div>
   </aside>
 
@@ -210,111 +347,126 @@
   <div class="main">
     <div class="topbar">
       <span class="burger">☰</span>
-      <span class="title" id="pageTitle">Заёмщики</span>
-      <span class="crumb" id="crumb"></span>
+      <span class="title" id="pageTitle">Список заёмщиков</span>
+      <span class="crumb" id="crumb">Система кредитования › Заёмщики</span>
     </div>
 
-    <!-- ==================== ВИД: СПИСОК (реестр §3) ==================== -->
+    <!-- ==================== ВИД: СПИСОК ==================== -->
     <div class="view active" id="view-list">
       <div class="content">
-        <!-- §3: колонка «Статус» удалена (ЖЦ записи, конфликтует с группой 5).
-             Вместо неё — Группа + Категория риска, по ним же фильтр. -->
-        <div class="list-filter">
-          <span class="fl">Группа =</span>
-          <select id="fGroup">
-            <option value="">— любая —</option>
-            <option value="1.1">1.1 · Погашение по графику</option>
-            <option value="2.1">2.1 · Работа с судом</option>
-            <option value="2.2">2.2 · Исполнительные листы</option>
-            <option value="2.3">2.3 · Инициирование банкротства</option>
-            <option value="3.1">3.1 · Процедура банкротства</option>
-            <option value="4">4 · Безнадёжные долги</option>
-            <option value="5">5 · Погашенные</option>
-          </select>
-          <span class="fl">Категория риска =</span>
-          <select id="fCat">
-            <option value="">— любая —</option>
-            <option value="Низкий">Низкий</option>
-            <option value="Средний">Средний</option>
-            <option value="Высокий">Высокий</option>
-          </select>
-          <span class="spacer"></span>
-          <span class="cnt" id="listCnt"></span>
-        </div>
 
-        <div class="section" style="margin-bottom:0">
-          <div class="section-body">
-            <table class="grid" id="listTable">
-              <thead>
-                <tr>
-                  <th style="width:16%">ИНН</th>
-                  <th style="width:30%">Наименование</th>
-                  <th style="width:10%">Тип</th>
-                  <th style="width:26%">Группа платёжеспособности</th>
-                  <th style="width:18%">Категория риска <span class="muted" style="font-weight:400">(было: Статус <span class="old-col">Активный</span>)</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr class="clk" data-open="1" data-group="2.3" data-cat="Высокий">
-                  <td>01204199910016</td>
-                  <td class="who">ОАО «АгроТехСервис»</td>
-                  <td>Юр. лицо</td>
-                  <td><span class="grp-badge"><span class="grp-code">2.3</span> Инициирование банкротства</span></td>
-                  <td><span class="cat-cell cat-high"><span class="dot d-high"></span> Высокий</span></td>
-                </tr>
-                <tr class="clk" data-group="1.1" data-cat="Низкий">
-                  <td>02501202010045</td>
-                  <td class="who">ОсОО «СветаГрад»</td>
-                  <td>Юр. лицо</td>
-                  <td><span class="grp-badge"><span class="grp-code">1.1</span> Погашение по графику</span></td>
-                  <td><span class="cat-cell cat-low"><span class="dot d-low"></span> Низкий</span></td>
-                </tr>
-                <tr class="clk" data-group="2.2" data-cat="Средний">
-                  <td>22505198500789</td>
-                  <td class="who">ИП Дуйшеев К. Т.</td>
-                  <td>ИП</td>
-                  <td><span class="grp-badge"><span class="grp-code">2.2</span> Исполнительные листы</span></td>
-                  <td><span class="cat-cell cat-mid"><span class="dot d-mid"></span> Средний</span></td>
-                </tr>
-                <tr class="clk" data-group="3.1" data-cat="Высокий">
-                  <td>01909199720033</td>
-                  <td class="who">ОАО «КыргызЖол»</td>
-                  <td>Юр. лицо</td>
-                  <td><span class="grp-badge"><span class="grp-code">3.1</span> Процедура банкротства</span></td>
-                  <td><span class="cat-cell cat-high"><span class="dot d-high"></span> Высокий</span></td>
-                </tr>
-                <tr class="clk" data-group="4" data-cat="Высокий">
-                  <td>03107201510222</td>
-                  <td class="who">ОсОО «АкТаш»</td>
-                  <td>Юр. лицо</td>
-                  <td><span class="grp-badge"><span class="grp-code">4</span> Безнадёжные долги</span></td>
-                  <td><span class="cat-cell cat-high"><span class="dot d-high"></span> Высокий</span></td>
-                </tr>
-                <tr class="clk" data-group="2.1" data-cat="Средний">
-                  <td>12803199000456</td>
-                  <td class="who">ИП Асанова Н.</td>
-                  <td>ИП</td>
-                  <td><span class="grp-badge"><span class="grp-code">2.1</span> Работа с судом</span></td>
-                  <td><span class="cat-cell cat-mid"><span class="dot d-mid"></span> Средний</span></td>
-                </tr>
-                <tr class="clk" data-group="5" data-cat="Низкий">
-                  <td>01502200811077</td>
-                  <td class="who">ОсОО «Береке»</td>
-                  <td>Юр. лицо</td>
-                  <td><span class="grp-badge"><span class="grp-code">5</span> Погашенные</span></td>
-                  <td><span class="cat-cell cat-low"><span class="dot d-low"></span> Низкий</span></td>
-                </tr>
-              </tbody>
-            </table>
+        <div class="jf" id="jf">
+          <div class="jf-summary" id="jfToggle">
+            <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span>Фильтр : Фильтры *</span>
+          </div>
+
+          <div class="jf-body">
+            <div class="jf-panel">
+              <div class="jf-row">
+                <span class="jf-label" title="Наименование содержит">Наименование содержит</span>
+                <span class="jf-ctl"><input type="text" id="f-name" placeholder=""></span>
+              </div>
+              <div class="jf-row">
+                <span class="jf-label" title="ИНН содержит">ИНН содержит</span>
+                <span class="jf-ctl"><input type="text" id="f-inn" placeholder=""></span>
+              </div>
+              <div class="jf-row">
+                <span class="jf-label" title="Субъект.Отрасль =">Субъект.Отрасль =</span>
+                <span class="jf-ctl"><select id="f-sector">
+                  <option value=""></option>
+                  <option>Агропромышленный комплекс</option>
+                  <option>Энергетический комплекс</option>
+                  <option>Строительный комплекс</option>
+                  <option>Лёгкая промышленность</option>
+                  <option>Пищевая и перерабатывающая</option>
+                  <option>Машиностроение</option>
+                  <option>Транспорт и связь</option>
+                  <option>Водное хозяйство</option>
+                  <option>Частное предпринимательство</option>
+                  <option>Предприятия прочих отраслей</option>
+                </select></span>
+              </div>
+              <div class="jf-row">
+                <span class="jf-label" title="Субъект.Район =">Субъект.Район =</span>
+                <span class="jf-ctl"><select id="f-district">
+                  <option value=""></option>
+                  <option>Сокулукский</option>
+                  <option>Аламудунский</option>
+                  <option>Ленинский (г. Бишкек)</option>
+                  <option>Первомайский (г. Бишкек)</option>
+                  <option>Ак-Талинский</option>
+                </select></span>
+              </div>
+              <div class="jf-row">
+                <span class="jf-label" title="Группа платёжеспособности =">Группа платёжеспособности =</span>
+                <span class="jf-ctl"><select id="f-group">
+                  <option value=""></option>
+                  <option value="1.1">1.1 · Погашение по графику</option>
+                  <option value="2.1">2.1 · Работа с судом</option>
+                  <option value="2.2">2.2 · Исполнительные листы</option>
+                  <option value="2.3">2.3 · Инициирование банкротства</option>
+                  <option value="3.1">3.1 · Процедура банкротства</option>
+                  <option value="4">4 · Безнадёжные долги</option>
+                  <option value="5">5 · Погашенные</option>
+                </select></span>
+              </div>
+              <div class="jf-row">
+                <span class="jf-label" title="Категория риска =">Категория риска =</span>
+                <span class="jf-ctl"><select id="f-cat">
+                  <option value=""></option>
+                  <option>Низкий</option>
+                  <option>Средний</option>
+                  <option>Высокий</option>
+                </select></span>
+              </div>
+            </div>
+
+            <div class="jf-actions">
+              <button class="btn btn-primary" id="fApply">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                Обновить
+              </button>
+              <button class="btn btn-secondary" id="fReset">Сбросить</button>
+              <button class="btn-tertiary" id="fAddCond">+ Условие поиска</button>
+              <span style="flex:1"></span>
+              <button class="btn-icon" title="Настройки фильтра">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </button>
+            </div>
           </div>
         </div>
-        <div class="info-plate">
-          <span class="ic">ℹ</span>
-          <span><b>§3.</b> Колонка «Статус» (Активный / В обработке) удалена — она описывает ЖЦ записи
-          в справочнике, а не состояние заёмщика, и конфликтует с группой 5 «Погашенные». Вместо неё —
-          <b>Группа</b> + <b>Категория риска</b>, по ним фильтр. Реестр становится рабочим инструментом
-          куратора, а не справочником. Клик по строке ОАО «АгроТехСервис» → карточка.</span>
+
+        <div class="jt">
+          <button class="btn btn-primary btn-sm">+ Добавить заёмщика</button>
+          <button class="btn btn-secondary btn-sm" id="tbOpen" disabled>Открыть</button>
+          <button class="btn btn-secondary btn-sm">Экспорт</button>
+          <div class="tb-spacer"></div>
+          <div class="jpag">
+            <span class="nav dis">«</span><span class="nav dis">‹</span>
+            <span class="cnt" id="rowCount">8 строк</span>
+            <span class="nav">›</span><span class="nav">»</span>
+          </div>
         </div>
+
+        <div class="grid-wrap">
+          <table class="grid" id="listTable">
+            <thead>
+              <tr>
+                <th style="width:13%" data-sort="inn">ИНН <span class="sort">↕</span></th>
+                <th style="width:22%" data-sort="name">Наименование <span class="sort">↕</span></th>
+                <th style="width:9%"  data-sort="type">Тип <span class="sort">↕</span></th>
+                <th style="width:14%" data-sort="sector">Отрасль <span class="sort">↕</span></th>
+                <th style="width:11%" data-sort="district">Район <span class="sort">↕</span></th>
+                <th style="width:21%" data-sort="group">Группа платёжеспособности <span class="sort">↕</span></th>
+                <th style="width:11%" data-sort="cat">Категория риска <span class="sort">↕</span></th>
+              </tr>
+            </thead>
+            <tbody id="listBody"></tbody>
+          </table>
+          <div class="empty-rows" id="listEmpty" hidden>Записей не найдено — измените условия фильтра.</div>
+        </div>
+
       </div>
     </div>
 
@@ -324,26 +476,29 @@
 
       <a href="#" id="backLink" style="display:inline-flex;gap:6px;color:var(--primary-text);text-decoration:none;font-size:14px;margin-bottom:14px">‹ к списку заёмщиков</a>
 
-      <!-- ---------- Идентификация ---------- -->
       <div class="id-bar">
         <div class="id-main">
-          <div class="id-name">ОАО «АгроТехСервис»</div>
-          <div class="id-sub">
-            <span>ИНН <b>01204199910016</b></span>
-            <span>Юридическое лицо</span>
-            <span>Кредитов: <b>3</b> действующих</span>
-          </div>
+          <div class="id-name" id="cName"></div>
+          <div class="id-sub" id="cSub"></div>
         </div>
         <div class="id-actions">
           <button class="btn btn-secondary">Изменить</button>
           <button class="btn btn-secondary">Кредитное досье</button>
+          <button class="btn btn-secondary" id="printBtn">🖨 Печатные формы ▾</button>
+          <div class="menu" id="printMenu">
+            <div class="menu-i">Претензия <span class="m-src">на дату расчёта</span></div>
+            <div class="menu-i">Акт сверки <span class="m-src">на дату расчёта</span></div>
+            <div class="menu-i">Сведения о заёмщике <span class="m-src">сводка</span></div>
+            <div class="menu-i">Извещение (утрата залога) <span class="m-src">форма №5</span></div>
+          </div>
         </div>
       </div>
 
-      <!-- ---------- Вкладки ---------- -->
       <div class="tabs" id="tabs">
         <div class="tab active" data-tab="general">Общая информация</div>
+        <div class="tab" data-tab="subject">Субъект</div>
         <div class="tab" data-tab="credits">Кредиты</div>
+        <div class="tab" data-tab="collateral">Обеспечение</div>
         <div class="tab" data-tab="enforce">Взыскание</div>
         <div class="tab" data-tab="acts">Акты сверок</div>
         <div class="tab" data-tab="curatorship">Кураторство</div>
@@ -353,425 +508,17 @@
         <div class="tab" data-tab="checks">Результаты проверок</div>
       </div>
 
-      <!-- Общая информация (по умолчанию) -->
-      <div class="tabpanel active" data-panel="general">
-
-        <!-- Реквизиты: отрасль, адрес/гео, аудит-штамп (adopt #5) -->
-        <div class="section" style="margin-bottom:20px">
-          <div class="section-head">Реквизиты <span class="hint">идентификация субъекта</span></div>
-          <div class="section-body" style="padding:14px 16px;line-height:1.75">
-            <div><span class="muted">Отрасль:</span> <b>Машиностроение</b></div>
-            <div><span class="muted">Адрес:</span> <b>Чуйская обл.</b> · Сокулукский р-н · Кара-Суу а/о · с. Селекционное · ул. Заводская 12</div>
-            <div style="margin-top:6px;font-size:13px" class="muted">Внесён: <b style="color:var(--body-text)">Асанов А. К.</b> · 15.01.2023 &nbsp;·&nbsp; Изменён: <b style="color:var(--body-text)">Жумабеков Э. Н.</b> · 20.06.2026</div>
-          </div>
-        </div>
-
-        <!-- ---------- 3 плитки состояния ---------- -->
-        <div class="state-row">
-
-        <!-- Плитка 1: Группа платёжеспособности -->
-        <div class="tile">
-          <div class="tile-lbl">Группа платёжеспособности
-            <span class="lock" title="ось залочена 12.07.2026">🔒 выводится</span>
-          </div>
-          <div class="tile-val">
-            <span class="grp-badge"><span class="grp-code">2.3</span> Инициирование банкротства</span>
-          </div>
-          <div class="tile-basis">
-            <b>переведён 20.06.2026</b> · сектор по работе с активами<br>
-            по решению о банкротстве кредита <b>Модернизация-2022-102</b>
-          </div>
-          <div class="ro-note" style="align-self:flex-start">🔒 read-only · ручной ввод невозможен (в т.ч. админ)</div>
-          <div class="tile-more" data-more="grp">▸ как выведена группа</div>
-          <div class="tile-detail" data-detail="grp">
-            <div class="muted" style="margin-bottom:6px">Лестница с доминированием (шкала 1.1…5 не ординальна):</div>
-            <div class="step"><span class="k">Блок 1 (состояния субъекта):</span> нет — банкротство не идёт целиком, безнадёжных нет</div>
-            <div class="step"><span class="k">Блок 2 (кредит в процедуре):</span> 2.1 АПК · 2.2 Газификация · <b>2.3 Модернизация</b> → берём наиболее продвинутую</div>
-            <div class="step"><span class="k">Итог:</span> <b>2.3</b> — подтверждён сектором по работе с активами (п. 69)</div>
-          </div>
-        </div>
-
-        <!-- Плитка 2: Категория риска -->
-        <div class="tile">
-          <div class="tile-lbl">Категория риска
-            <span class="lock">🔒 worst-of</span>
-          </div>
-          <div class="tile-val cat-high"><span class="dot d-high"></span>Высокий</div>
-          <div class="tile-basis">
-            <b>высокий · нецелевое использование средств</b><br>
-            решение Комитета от <b>12.05.2026 №КБ-118</b> · кредит Модернизация-2022-102
-          </div>
-          <div class="ro-note" style="align-self:flex-start" title="категория не является функцией от дней просрочки">⚠ просрочка по кредиту = 0 дн.</div>
-          <div class="tile-more" data-more="cat">▸ входы worst-of по кредитам</div>
-          <div class="tile-detail" data-detail="cat">
-            <div class="step"><span class="k">АПК-2023-014:</span> по дням 45 → средний · факторов нет → <b class="cat-mid">средний</b></div>
-            <div class="step"><span class="k">Газификация-2024-07:</span> по дням 210 → высокий, <b class="cat-mid">подавлен → средний</b> (оверлей, см. плитку справа)</div>
-            <div class="step"><span class="k">Модернизация-2022-102:</span> по дням 0 → низкий · <b class="cat-high">фактор: нецелевое (реш. Комитета) → высокий</b></div>
-            <div class="step"><span class="k">worst-of заёмщика:</span> <b class="cat-high">высокий</b> — за нецелевое, при нулевой просрочке</div>
-          </div>
-        </div>
-
-        <!-- Плитка 3: Оверлей -->
-        <div class="tile">
-          <div class="tile-lbl">Оверлей
-            <span class="lock" title="отдельный слой, не значение категории">слой</span>
-          </div>
-          <div class="ov-item">
-            <div class="ov-h">⏸ Подавление 181-го дня</div>
-            <div class="ov-m">
-              кредит <b>Газификация-2024-07</b> · рассмотрение реструктуризации (п. 18)<br>
-              дедлайн <b>21.08.2026</b> · осталось 40 из 70 кал. дней
-            </div>
-          </div>
-          <div class="muted" style="font-size:12px;margin-top:2px">
-            Давит только переход средний→высокий. Категория кредита показана честно
-            («средний»), а не «высокий (отложен)». По истечении/отказе → ночной пересчёт → высокий.
-          </div>
-        </div>
-      </div>
-
-      </div><!-- /Общая информация -->
-
-      <!-- Кураторство -->
-      <div class="tabpanel" data-panel="curatorship">
-      <!-- ---------- Свод кураторства ---------- -->
-      <div class="section">
-        <div class="section-head">
-          Свод кураторства
-          <span class="hint">кураторство — на кредите, поимённо (п. 96); карточка показывает свод по всем кредитам</span>
-        </div>
-        <div class="section-body">
-          <table class="grid">
-            <thead>
-              <tr>
-                <th style="width:22%">Кредит</th>
-                <th style="width:26%">Подразделение</th>
-                <th style="width:22%">Сотрудник</th>
-                <th style="width:15%">Роль</th>
-                <th style="width:15%">Период</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td class="who">АПК-2023-014</td>
-                <td>Отраслевой департамент промышленности</td>
-                <td>Асанов А. К.</td>
-                <td><span class="role role-lead">ведущий</span></td>
-                <td class="muted">с 15.01.2023</td>
-              </tr>
-              <tr>
-                <td class="muted">↳ совместно (п. 31)</td>
-                <td>ДПО / отдел проблемных кредитов</td>
-                <td>Осмонова Г. Т.</td>
-                <td><span class="role role-co">соисполнитель</span></td>
-                <td class="muted">с 10.03.2026</td>
-              </tr>
-              <tr>
-                <td class="who">Газификация-2024-07</td>
-                <td>Региональное представительство</td>
-                <td>Токтосунов Б. М.</td>
-                <td><span class="role role-lead">ведущий</span></td>
-                <td class="muted">с 05.02.2024</td>
-              </tr>
-              <tr>
-                <td class="who">Модернизация-2022-102</td>
-                <td>Сектор по работе с активами</td>
-                <td>Жумабеков Э. Н.</td>
-                <td><span class="role role-lead">ведущий</span></td>
-                <td class="muted">с 20.06.2026</td>
-              </tr>
-              <tr class="row-off">
-                <td class="muted">↳ ранее</td>
-                <td>ДПО / отдел проблемных кредитов</td>
-                <td>Марипов Д. С.</td>
-                <td><span class="off-tag">⊘ отстранён</span></td>
-                <td class="muted">15.06.2026</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="warn-plate">
-            <span class="ic">⊘</span>
-            <span><b>Асимметрия назначение / отстранение (п. 92).</b> Марипов Д. С. заявил
-            конфликт интересов по кредиту Модернизация-2022-102 — и потерял доступ ко
-            <b>всем кредитам этого ИНН</b>, не только к одному. Конфликт — свойство пары
-            «работник ↔ заёмщик», а не «работник ↔ кредит».</span>
-          </div>
-        </div>
-      </div>
-
-      </div><!-- /Кураторство -->
-
-      <!-- Кредиты -->
-      <div class="tabpanel" data-panel="credits">
-        <div class="section" style="margin-bottom:0">
-          <div class="section-body">
-            <table class="grid">
-              <thead>
-                <tr>
-                  <th style="width:20%">Договор</th>
-                  <th style="width:12%">Просрочка</th>
-                  <th style="width:30%">Категория (worst-of)</th>
-                  <th style="width:22%">Процедура → группа</th>
-                  <th style="width:16%">Оверлей</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td class="who">АПК-2023-014
-                    <div class="muted" style="font-weight:400;margin-top:3px">12 000 000 → ост. <b>8 400 000</b> KGS · Бюджетный</div>
-                  </td>
-                  <td>45 дн.</td>
-                  <td>
-                    <div class="wo">
-                      <span class="cat-mid" style="font-weight:700"><span class="dot d-mid"></span> Средний</span>
-                      <span class="wo-in">по дням: средний · по факторам: —</span>
-                    </div>
-                  </td>
-                  <td><span class="badge b-proc">2.1 · работа с судом</span></td>
-                  <td class="muted">—</td>
-                </tr>
-                <tr>
-                  <td class="who">Газификация-2024-07
-                    <div class="muted" style="font-weight:400;margin-top:3px">45 000 000 → ост. <b>41 200 000</b> KGS · Иностранный кредит</div>
-                  </td>
-                  <td>210 дн.</td>
-                  <td>
-                    <div class="wo">
-                      <span class="cat-mid" style="font-weight:700"><span class="dot d-mid"></span> Средний</span>
-                      <span class="wo-in">по дням: <span class="win">высокий</span> → подавлен оверлеем · честно: средний</span>
-                    </div>
-                  </td>
-                  <td><span class="badge b-proc">2.2 · исполнит. листы</span></td>
-                  <td><span class="badge b-ov">⏸ подавление −40 дн</span></td>
-                </tr>
-                <tr>
-                  <td class="who">Модернизация-2022-102
-                    <div class="muted" style="font-weight:400;margin-top:3px">8 000 000 → ост. <b>8 000 000</b> KGS · Бюджетный</div>
-                  </td>
-                  <td>0 дн.</td>
-                  <td>
-                    <div class="wo">
-                      <span class="cat-high" style="font-weight:700"><span class="dot d-high"></span> Высокий</span>
-                      <span class="wo-in">по дням: низкий · по факторам: <span class="win">нецелевое (реш. Комитета)</span></span>
-                    </div>
-                  </td>
-                  <td><span class="badge b-proc">2.3 · банкротство (иниц.)</span></td>
-                  <td class="muted">—</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <!-- adopt #4: сводка обеспечения (Действующие / Снятые) из старой системы -->
-        <div class="section" style="margin-top:16px;margin-bottom:0">
-          <div class="section-head">Обеспечение <span class="hint">свод залогов по всем кредитам ИНН · залог на уровне кредита (модуль обеспечения)</span></div>
-          <div class="section-body" style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
-            <div style="border:1px solid var(--green-card-border);background:var(--green-card-bg);border-radius:6px;padding:12px 14px">
-              <div style="font-weight:700;font-size:14px;color:var(--success)">Действующие · 3 ед.</div>
-              <div class="muted" style="margin-top:6px;line-height:1.6">
-                Оценочная стоимость: <b style="color:var(--body-text)">31 500 000</b> KGS<br>
-                Залоговая стоимость: <b style="color:var(--body-text)">22 050 000</b> KGS
-              </div>
-            </div>
-            <div style="border:1px solid var(--border);background:#fbfcfd;border-radius:6px;padding:12px 14px">
-              <div style="font-weight:700;font-size:14px;color:var(--secondary-text)">Снятые · 1 ед.</div>
-              <div class="muted" style="margin-top:6px;line-height:1.6">
-                Оценочная стоимость: <b style="color:var(--body-text)">4 000 000</b> KGS<br>
-                Причина: погашение части долга (АПК-2023-014)
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="info-plate">
-          <span class="ic">ℹ</span>
-          <span>Категория заёмщика = <b>worst-of категорий всех кредитов</b> = <b class="cat-high">Высокий</b>
-          (от Модернизация-2022-102). Подавление 181-го дня применяется <b>на уровне кредита, до worst-of</b> —
-          иначе оверлей по одному кредиту глушил бы риск по остальным.</span>
-        </div>
-      </div>
-
-      <!-- Взыскание (adopt #3: фазы принуд. взыскания, §0 «Фаза взыскания» M:N ↔ кредит) -->
-      <div class="tabpanel" data-panel="enforce">
-        <div class="section" style="margin-bottom:0">
-          <div class="section-body">
-            <table class="grid">
-              <thead>
-                <tr>
-                  <th style="width:22%">Кредит</th>
-                  <th style="width:20%">Вид фазы</th>
-                  <th style="width:13%">Дата фазы</th>
-                  <th style="width:15%">Сумма фазы</th>
-                  <th style="width:14%">Статус фазы</th>
-                  <th style="width:16%">Завершение</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td class="who">АПК-2023-014</td>
-                  <td>Судебное взыскание</td>
-                  <td class="muted">14.05.2025</td>
-                  <td>8 400 000 KGS</td>
-                  <td><span class="badge b-proc">в работе</span></td>
-                  <td class="muted">—</td>
-                </tr>
-                <tr>
-                  <td class="who">Газификация-2024-07</td>
-                  <td>Исполнительное производство</td>
-                  <td class="muted">02.03.2026</td>
-                  <td>41 200 000 KGS</td>
-                  <td><span class="badge b-proc">в работе</span></td>
-                  <td class="muted">—</td>
-                </tr>
-                <tr>
-                  <td class="who">Модернизация-2022-102</td>
-                  <td>Инициирование банкротства</td>
-                  <td class="muted">20.06.2026</td>
-                  <td>8 000 000 KGS</td>
-                  <td><span class="badge b-proc">инициировано</span></td>
-                  <td class="muted">—</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div class="info-plate">
-          <span class="ic">ℹ</span>
-          <span><b>§0 «Фаза взыскания».</b> Фаза — процесс M:N над кредитами: одна фаза может охватывать
-          несколько кредитов, у кредита может быть несколько фаз. Из старой системы взяты колонки
-          <b>Вид / Дата фазы / Сумма фазы / Статус фазы / Дата и сумма завершения</b>. Группа
-          платёжеспособности выводится из <b>подтверждённого статуса</b> текущей фазы (п. 65/69), а не задаётся вручную.</span>
-        </div>
-      </div>
-
-      <!-- Акты сверок (adopt #2: подтверждающий документ группы 4/5, п. 88) -->
-      <div class="tabpanel" data-panel="acts">
-        <div class="section" style="margin-bottom:0">
-          <div class="section-head">Акты сверок
-            <span class="hint">акт — подтверждающий документ; ручной статус акта = четырёхглазый шаг §2.1, группа выводится следом</span>
-          </div>
-          <div class="section-body">
-            <table class="grid">
-              <thead>
-                <tr>
-                  <th style="width:8%">#</th>
-                  <th style="width:24%">Кредит</th>
-                  <th style="width:16%">Дата</th>
-                  <th style="width:20%">Сумма</th>
-                  <th style="width:32%">Статус акта</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>1</td>
-                  <td class="who">АПК-2023-014</td>
-                  <td class="muted">10.03.2026</td>
-                  <td>8 400 000 KGS</td>
-                  <td><span class="badge b-proc">составлен · подтверждён</span></td>
-                </tr>
-                <tr>
-                  <td>2</td>
-                  <td class="who">Газификация-2024-07</td>
-                  <td class="muted">—</td>
-                  <td class="muted">—</td>
-                  <td><span class="ro-note">акт сверки не составлен</span></td>
-                </tr>
-                <tr>
-                  <td>3</td>
-                  <td class="who">Модернизация-2022-102</td>
-                  <td class="muted">—</td>
-                  <td class="muted">—</td>
-                  <td><span class="ro-note">акт сверки не составлен</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div class="info-plate">
-          <span class="ic">ℹ</span>
-          <span><b>п. 88.</b> Акт сверки о полном погашении — подтверждающий документ перехода в
-          <b>группу 5 «Погашенные»</b>. Кнопка «Поменять статус акта сверки» в старой системе = ровно тот
-          ручной подтверждающий шаг из <b>§2.1</b>: куратор подтверждает статус процедуры → классификатор
-          выводит группу. Старая система это <b>подтверждает</b>. Untranslated ключ
-          <code>LABEL.DEBTOR.ACT_STATUS</code> из старой системы — дефект, <b>не переносим</b>.</span>
-        </div>
-      </div>
-
-      <!-- История -->
-      <div class="tabpanel" data-panel="history">
-        <div class="section">
-          <div class="section-head">История <span class="hint">журнал передач кураторства + переводы между группами (не перезаписывается)</span></div>
-          <div class="section-body" style="padding:18px 20px">
-            <div class="tl">
-              <div class="tl-item grp">
-                <div class="tl-date">20.06.2026 · 11:40</div>
-                <div class="tl-title">Перевод группы платёжеспособности: 2.2 → 2.3 <span class="tl-kind k-grp">группа</span></div>
-                <div class="tl-body">Основание: подтверждён статус процедуры «инициирование банкротства» по кредиту
-                  Модернизация-2022-102 · сектор по работе с активами (п. 69). Группа выведена классификатором автоматически.</div>
-              </div>
-              <div class="tl-item kur">
-                <div class="tl-date">20.06.2026 · 11:35</div>
-                <div class="tl-title">Кураторство: кредит Модернизация-2022-102 передан сектору по работе с активами <span class="tl-kind k-kur">кураторство</span></div>
-                <div class="tl-body">Ведущий: Жумабеков Э. Н. · основание: переход к процедуре банкротства.</div>
-              </div>
-              <div class="tl-item conf">
-                <div class="tl-date">15.06.2026 · 09:12</div>
-                <div class="tl-title">Конфликт интересов: Марипов Д. С. отстранён от заёмщика <span class="tl-kind k-conf">конфликт</span></div>
-                <div class="tl-body">Заявлен при вынесении вопроса на комитет. Техническое отстранение — сняты права
-                  на <b>все кредиты ИНН</b>. Уведомлён СВБ; письменное уведомление Правления в течение 3 кал. дней (п. 92).</div>
-              </div>
-              <div class="tl-item risk">
-                <div class="tl-date">12.05.2026 · 16:20</div>
-                <div class="tl-title">Категория риска: Модернизация-2022-102 → высокий <span class="tl-kind k-risk">риск</span></div>
-                <div class="tl-body">Фактор: нецелевое использование средств · решение Комитета по администрированию
-                  бюджетных кредитов от 12.05.2026 №КБ-118 (п. 12). Просрочка = 0 дн.</div>
-              </div>
-              <div class="tl-item kur">
-                <div class="tl-date">10.03.2026 · 10:05</div>
-                <div class="tl-title">Кураторство: подключён отдел проблемных кредитов (совместно) <span class="tl-kind k-kur">кураторство</span></div>
-                <div class="tl-body">Кредит АПК-2023-014 · Осмонова Г. Т. — соисполнитель. После досудебных мер работа
-                  ведётся совместно с отраслевым департаментом (п. 31).</div>
-              </div>
-              <div class="tl-item grp">
-                <div class="tl-date">14.05.2025 · 14:00</div>
-                <div class="tl-title">Перевод группы: 1.1 → 2.1 <span class="tl-kind k-grp">группа</span></div>
-                <div class="tl-body">Подтверждён статус «работа с судебными органами» по кредиту АПК-2023-014 · ДПО (п. 65).</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Документы -->
-      <div class="tabpanel" data-panel="docs">
-        <div class="open-plate">
-          <b>Открытый вопрос §6.2 — механизм <code>scope</code>.</b><br>
-          Вкладка «Документы» = кредитное досье заёмщика (п. 97: вся документация сканируется
-          и прикрепляется в кредитное досье заёмщика) <b>vs.</b> комплект отдельной заявки.
-          Разграничение уровней (субъект / заявка / кредит) не решено — не дорисовываем как очевидное.
-          Требует отдельной сессии.
-        </div>
-      </div>
-
-      <!-- Контакты -->
-      <div class="tabpanel" data-panel="contacts">
-        <div class="open-plate">
-          <b>Открытый вопрос §6.4 — что за сущность.</b><br>
-          Представители? Реквизиты? Банковские счета (ТЗ упоминает банковские реквизиты субъекта)?
-          Модель не зафиксирована — застаблено намеренно.
-        </div>
-      </div>
-
-      <!-- Проверки -->
-      <div class="tabpanel" data-panel="checks">
-        <div class="open-plate">
-          <b>Открытый вопрос §6.1 — снимок или живой пересчёт.</b><br>
-          «Результаты проверок» (чёрный список, кредитная история, действующие кредиты, просрочки,
-          скоринг, лимит задолженности) — <b>живой пересчёт на заёмщике</b> или <b>снимок на момент заявки</b>?
-          В as-is демо-данные противоречивы («Нет активных кредитов» и рядом «Количество кредитов: 2»).
-          Если снимок — сущность принадлежит <b>заявке</b>, а не заёмщику. Не рендерим до решения.
-        </div>
-      </div>
+      <div class="tabpanel active" data-panel="general" id="pGeneral"></div>
+      <div class="tabpanel" data-panel="subject" id="pSubject"></div>
+      <div class="tabpanel" data-panel="credits" id="pCredits"></div>
+      <div class="tabpanel" data-panel="collateral" id="pCollateral"></div>
+      <div class="tabpanel" data-panel="enforce" id="pEnforce"></div>
+      <div class="tabpanel" data-panel="acts" id="pActs"></div>
+      <div class="tabpanel" data-panel="curatorship" id="pCuratorship"></div>
+      <div class="tabpanel" data-panel="history" id="pHistory"></div>
+      <div class="tabpanel" data-panel="docs" id="pDocs"></div>
+      <div class="tabpanel" data-panel="contacts" id="pContacts"></div>
+      <div class="tabpanel" data-panel="checks" id="pChecks"></div>
 
       </div>
     </div>
@@ -779,52 +526,746 @@
 </div>
 
 <script>
-  // навигация список ↔ карточка
-  const vList = document.getElementById('view-list');
-  const vDetail = document.getElementById('view-detail');
-  const pageTitle = document.getElementById('pageTitle');
-  const crumb = document.getElementById('crumb');
-  function showList(){
-    vDetail.classList.remove('active'); vList.classList.add('active');
-    pageTitle.textContent = 'Заёмщики'; crumb.innerHTML = '';
-    window.scrollTo(0,0);
-  }
-  function showDetail(){
-    vList.classList.remove('active'); vDetail.classList.add('active');
-    pageTitle.textContent = 'Заёмщик'; crumb.innerHTML = '<a href="#">Заёмщики</a> › Карточка';
-    window.scrollTo(0,0);
-  }
-  document.querySelectorAll('#listTable tbody tr.clk').forEach(r => {
-    r.addEventListener('click', () => { if (r.dataset.open) showDetail(); });
-  });
-  document.getElementById('backLink').addEventListener('click', e => { e.preventDefault(); showList(); });
+/* =======================================================================
+   Демо-данные реестра заёмщиков. Карточка целиком рендерится из записи —
+   любая строка списка открывает СВОИ данные (кредиты, обеспечение,
+   взыскание, акты, кураторы, история, документы, проверки).
+   «Сегодня» зафиксировано = 13.07.2026.
+   ======================================================================= */
+const TODAY = '13.07.2026';
+const fmt = n => n.toLocaleString('ru-RU');
+const catCls = c => c === 'Высокий' ? 'high' : c === 'Средний' ? 'mid' : 'low';
+const catCell = c => '<span class="cat-cell cat-' + catCls(c) + '"><span class="dot d-' + catCls(c) + '"></span> ' + c + '</span>';
+const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
 
-  // фильтр реестра по Группе + Категории
-  const fGroup = document.getElementById('fGroup');
-  const fCat = document.getElementById('fCat');
-  const listCnt = document.getElementById('listCnt');
-  function applyFilter(){
-    const g = fGroup.value, c = fCat.value; let shown = 0;
-    document.querySelectorAll('#listTable tbody tr.clk').forEach(r => {
-      const ok = (!g || r.dataset.group === g) && (!c || r.dataset.cat === c);
-      r.style.display = ok ? '' : 'none'; if (ok) shown++;
-    });
-    listCnt.textContent = 'Показано: ' + shown;
-  }
-  fGroup.addEventListener('change', applyFilter);
-  fCat.addEventListener('change', applyFilter);
-  applyFilter();
+const DATA = [
+{
+  inn:'01204199910016', name:'ОАО «АгроТехСервис»', type:'Юр. лицо',
+  subj:{kind:'org', id:6041, doc:{t:'Свидетельство', num:'ГР-0044182', date:'12.04.1999', by:'Минюст КР'}},
+  sector:'Машиностроение', district:'Сокулукский', region:'Чуйская', aokrug:'Кара-Суу а/о',
+  village:'Селекционное', addr:'ул. Заводская 12', phone:'+996 312 55-14-08', email:'info@agrotech.kg',
+  kind:'Находятся в стадии банкротства', kindBadge:'b-gray',
+  act:{txt:'1 · Акт сверки составлен', badge:'b-ok'},
+  note:'Реорганизация 2024 г., прежнее наименование ОАО «Агромаш».',
+  audit:{by:'Асанов А. К.', date:'15.01.2023', chgBy:'Жумабеков Э. Н.', chgDate:'20.06.2026'},
+  group:{code:'2.3', label:'Инициирование банкротства',
+    basis:'<b>переведён 20.06.2026</b> · сектор по работе с активами<br>по решению о банкротстве кредита <b>Модернизация-2022-102</b>',
+    steps:[['Блок 1 (состояния субъекта):','нет — банкротство не идёт целиком, безнадёжных нет'],
+           ['Блок 2 (кредит в процедуре):','2.1 АПК · 2.2 Газификация · <b>2.3 Модернизация</b> → берём наиболее продвинутую'],
+           ['Итог:','<b>2.3</b> — подтверждён сектором по работе с активами (п. 69)']]},
+  cat:{level:'Высокий',
+    basis:'<b>высокий · нецелевое использование средств</b><br>решение Комитета от <b>12.05.2026 №КБ-118</b> · кредит Модернизация-2022-102',
+    note:'⚠ просрочка по кредиту = 0 дн.',
+    steps:[['АПК-2023-014:','по дням 45 → средний · факторов нет → <b class="cat-mid">средний</b>'],
+           ['Газификация-2024-07:','по дням 210 → высокий, <b class="cat-mid">подавлен → средний</b> (оверлей)'],
+           ['Модернизация-2022-102:','по дням 0 · <b class="cat-high">фактор: нецелевое → высокий</b>'],
+           ['worst-of заёмщика:','<b class="cat-high">высокий</b> — за нецелевое, при нулевой просрочке']]},
+  overlay:{title:'⏸ Подавление 181-го дня',
+    body:'кредит <b>Газификация-2024-07</b> · рассмотрение реструктуризации (п. 18)<br>дедлайн <b>21.08.2026</b> · осталось 40 из 70 кал. дней',
+    note:'Давит только переход средний→высокий. Категория кредита показана честно («средний»). По истечении/отказе → ночной пересчёт → высокий.'},
+  credits:[
+    {num:'АПК-2023-014', row:'кредит', sum:12000000, debt:8400000, src:'Бюджетный', over:'45 дн.',
+     cat:'Средний', catIn:'по дням: средний · по факторам: —', proc:'2.1 · работа с судом', ov:'—'},
+    {num:'АПК-2023-014/Т2', row:'транш', meta:'транш 2 · 4 000 000 KGS · освоен 12.09.2023',
+     over:'—', catTxt:'наследует кредит', proc:'—', ov:'—'},
+    {num:'Газификация-2024-07', row:'кредит', sum:45000000, debt:41200000, src:'Иностранный кредит', over:'210 дн.',
+     cat:'Средний', catIn:'по дням: <span class="win">высокий</span> → подавлен оверлеем · честно: средний',
+     proc:'2.2 · исполнит. листы', ov:'<span class="badge b-ov">⏸ подавление −40 дн</span>'},
+    {num:'Газификация-2024-07/Р1', row:'реструктуризация', meta:'на рассмотрении · подана 12.06.2026 · срок +24 мес.',
+     over:'—', catTxt:'не влияет до утверждения', proc:'—', ov:'<span class="badge b-ov">⏸ источник оверлея</span>'},
+    {num:'Модернизация-2022-102', row:'кредит', sum:8000000, debt:8000000, src:'Бюджетный', over:'0 дн.',
+     cat:'Высокий', catIn:'по дням: низкий · по факторам: <span class="win">нецелевое (реш. Комитета)</span>',
+     proc:'2.3 · банкротство (иниц.)', ov:'—'}],
+  col:{act:{n:3, ev:31500000, pl:22050000}, off:{n:1, ev:4000000, why:'погашение части долга (АПК-2023-014)'},
+    rows:[
+      {num:'ЗД-2023-081', kind:'Залог · недвижимость', owner:'ОАО «АгроТехСервис»', cr:'АПК-2023-014', val:'14 000 000 KGS', st:'<span class="badge b-ok">действующий</span>'},
+      {num:'ЗД-2024-119', kind:'Залог · оборудование', owner:'ОАО «АгроТехСервис»', cr:'Газификация-2024-07 · Модернизация-2022-102<div>🔗 связан с ЗД-2023-081</div>', val:'6 550 000 KGS', st:'<span class="badge b-ok">действующий</span>'},
+      {num:'ПД-2024-030', kind:'Поручительство', owner:'Сыдыков Ж. А. <span class="muted">физлицо #63540</span>', cr:'Газификация-2024-07', val:'1 500 000 KGS', st:'<span class="badge b-ok">действующий</span>'},
+      {num:'ЗД-2022-044', kind:'Залог · транспорт', owner:'ОАО «АгроТехСервис»', cr:'АПК-2023-014', val:'4 000 000 KGS', st:'<span class="badge b-gray">снят · 10.03.2026</span>'}]},
+  procs:[
+    {num:'68252', title:'судебное взыскание', opened:'14.05.2025', credit:'АПК-2023-014', sum:8400000, st:'в работе',
+     phases:[{name:'Претензия', date:'14.05.2025', sum:8400000, st:'<span class="badge b-ok">завершена · 02.06.2025</span>',
+              ev:['28.05.2025 — ответ должника: отказ от добровольного погашения']},
+             {name:'Исковое заявление', date:'10.06.2025', sum:8400000, st:'<span class="badge b-proc">в работе</span>',
+              ev:['22.09.2025 — судебное заседание, Сокулукский районный суд','14.11.2025 — заседание отложено, ходатайство ответчика']}]},
+    {num:'68410', title:'исполнительное производство', opened:'02.03.2026', credit:'Газификация-2024-07', sum:41200000, st:'в работе',
+     phases:[{name:'Решение суда', date:'02.03.2026', sum:41200000, st:'<span class="badge b-ok">завершена · 20.03.2026</span>',
+              ev:['18.03.2026 — решение вступило в законную силу']},
+             {name:'Исполнительный лист', date:'25.03.2026', sum:41200000, st:'<span class="badge b-proc">в работе</span>',
+              ev:['14.04.2026 — лист передан в СЧИ Сокулукского района']}]},
+    {num:'68533', title:'банкротство', opened:'20.06.2026', credit:'Модернизация-2022-102', sum:8000000, st:'инициировано',
+     phases:[{name:'Инициирование банкротства', date:'20.06.2026', sum:8000000, st:'<span class="badge b-proc">в работе</span>',
+              ev:['20.06.2026 — заявление подано; подтверждён статус → группа 2.3']}]}],
+  acts:[{cr:'АПК-2023-014', date:'10.03.2026', sum:8400000, st:'<span class="badge b-ok">1 · Акт сверки составлен</span>', by:'Осмонова Г. Т. · 10.03.2026'},
+        {cr:'Газификация-2024-07', st:'<span class="badge b-gray">2 · Акт сверки не составлен</span>'},
+        {cr:'Модернизация-2022-102', st:'<span class="badge b-gray">3 · Не требуется</span>'}],
+  curators:[{cr:'АПК-2023-014', dept:'Отраслевой департамент промышленности', who:'Асанов А. К.', role:'lead', from:'с 15.01.2023'},
+            {cr:'↳ совместно', dept:'ДПО / отдел проблемных кредитов', who:'Осмонова Г. Т.', role:'co', from:'с 10.03.2026'},
+            {cr:'Газификация-2024-07', dept:'Региональное представительство', who:'Токтосунов Б. М.', role:'lead', from:'с 05.02.2024'},
+            {cr:'Модернизация-2022-102', dept:'Сектор по работе с активами', who:'Жумабеков Э. Н.', role:'lead', from:'с 20.06.2026'},
+            {cr:'↳ ранее', dept:'ДПО / отдел проблемных кредитов', who:'Марипов Д. С.', role:'off', from:'15.06.2026'}],
+  curWarn:'Марипов Д. С. заявил конфликт интересов по кредиту Модернизация-2022-102 — доступ снят ко <b>всем кредитам этого ИНН</b> (п. 92).',
+  history:[
+    {date:'20.06.2026 · 11:40', kind:'grp', title:'Перевод группы платёжеспособности: 2.2 → 2.3', body:'Основание: подтверждён статус фазы «инициирование банкротства» (процедура №68533, кредит Модернизация-2022-102) · сектор по работе с активами (п. 69).'},
+    {date:'20.06.2026 · 11:35', kind:'kur', title:'Кураторство: кредит Модернизация-2022-102 передан сектору по работе с активами', body:'Ведущий: Жумабеков Э. Н. · основание: переход к процедуре банкротства.'},
+    {date:'15.06.2026 · 09:12', kind:'conf', title:'Конфликт интересов: Марипов Д. С. отстранён от заёмщика', body:'Сняты права на <b>все кредиты ИНН</b>. Уведомлён СВБ; письменное уведомление Правления в течение 3 кал. дней (п. 92).'},
+    {date:'12.05.2026 · 16:20', kind:'risk', title:'Категория риска: Модернизация-2022-102 → высокий', body:'Фактор: нецелевое использование средств · решение Комитета от 12.05.2026 №КБ-118 (п. 12). Просрочка = 0 дн.'},
+    {date:'14.05.2025 · 14:00', kind:'grp', title:'Перевод группы: 1.1 → 2.1', body:'Подтверждён статус «работа с судебными органами» по кредиту АПК-2023-014 · ДПО (п. 65).'}],
+  docs:[{rel:'Субъект', relId:'организация #6041', kind:'Свидетельство о регистрации', file:'svidetelstvo_6041.pdf', date:'15.01.2023', by:'Асанов А. К.'},
+        {rel:'Заявка', relId:'З-2023-0142', kind:'Бизнес-план', file:'bp_agrotech_2023.pdf', date:'20.01.2023', by:'Асанов А. К.'},
+        {rel:'Кредит', relId:'АПК-2023-014', kind:'Кредитный договор', file:'dogovor_apk_014.pdf', date:'01.02.2023', by:'Асанов А. К.'},
+        {rel:'Договор залога', relId:'ЗД-2024-119', kind:'Отчёт об оценке', file:'ocenka_zd_119.pdf', date:'14.02.2024', by:'Токтосунов Б. М.'},
+        {rel:'Фаза взыскания', relId:'Претензия · проц. №68252', kind:'Претензионное письмо', file:'pretenziya_68252.pdf', date:'14.05.2025', by:'Осмонова Г. Т.'}],
+  contacts:[{k:'Телефон (осн.)', v:'+996 312 55-14-08', n:'приёмная'},
+            {k:'Телефон (моб.)', v:'+996 555 12-34-56', n:'руководитель'},
+            {k:'E-mail', v:'info@agrotech.kg', n:'—'},
+            {k:'Адрес фактический', v:'Чуйская обл., Сокулукский р-н, с. Селекционное, ул. Заводская 12', n:'совпадает с юридическим'}],
+  reps:[{role:'Руководитель', name:'Сыдыков Ж. А.', pid:'#63540', inn:'10203197800145', phone:'+996 555 12-34-56', from:'15.01.2023'},
+        {role:'Гл. бухгалтер', name:'Медетова И. К.', pid:'#63541', inn:'21504198500712', phone:'+996 700 88-21-09', from:'03.09.2024'}],
+  banks:[{b:'ОАО «РСК Банк»', bik:'129001', acc:'1290012345678901', n:'основной'},
+         {b:'ОАО «Айыл Банк»', bik:'135001', acc:'1350019876543210', n:'для субсидий'}],
+  units:[{id:5550, name:'Руководство', n:'—'}, {id:5551, name:'Производственный цех', n:'с. Селекционное'}],
+  blacklist:false, score:38, limit:{used:57600000, total:80000000}
+},
+{
+  inn:'02501202010045', name:'ОсОО «СветаГрад»', type:'Юр. лицо',
+  subj:{kind:'org', id:6102, doc:{t:'Свидетельство', num:'ГР-0091044', date:'25.01.2020', by:'Минюст КР'}},
+  sector:'Строительный комплекс', district:'Аламудунский', region:'Чуйская', aokrug:'Лебединовский а/о',
+  village:'Лебединовка', addr:'ул. Мира 4', phone:'+996 312 31-77-20', email:'office@svetagrad.kg',
+  kind:'Обычный', kindBadge:'b-ok', act:{txt:'1 · Акт сверки составлен', badge:'b-ok'},
+  note:'—', audit:{by:'Токтосунов Б. М.', date:'02.02.2024', chgBy:'Токтосунов Б. М.', chgDate:'11.06.2026'},
+  group:{code:'1.1', label:'Погашение по графику',
+    basis:'<b>с выдачи кредита</b> · просрочек нет, платежи по графику',
+    steps:[['Блок 1 (состояния субъекта):','нет'],['Блок 2 (кредит в процедуре):','нет — процедур взыскания не открыто'],['Итог:','<b>1.1</b> — базовая группа']]},
+  cat:{level:'Низкий', basis:'<b>низкий</b> · просрочка 0 дн., стоп-факторов нет',
+    note:'проверено ночным пересчётом 13.07.2026',
+    steps:[['Строительство-2024-31:','по дням 0 → низкий · факторов нет → <b class="cat-low">низкий</b>'],['worst-of заёмщика:','<b class="cat-low">низкий</b>']]},
+  overlay:null,
+  credits:[{num:'Строительство-2024-31', row:'кредит', sum:20000000, debt:14300000, src:'Бюджетный', over:'0 дн.',
+     cat:'Низкий', catIn:'по дням: низкий · по факторам: —', proc:'—', ov:'—'},
+    {num:'Строительство-2024-31/Т1', row:'транш', meta:'транш 1 · 10 000 000 KGS · освоен 14.03.2024', over:'—', catTxt:'наследует кредит', proc:'—', ov:'—'},
+    {num:'Строительство-2024-31/Т2', row:'транш', meta:'транш 2 · 10 000 000 KGS · освоен 02.09.2024', over:'—', catTxt:'наследует кредит', proc:'—', ov:'—'}],
+  col:{act:{n:1, ev:24000000, pl:16800000}, off:null,
+    rows:[{num:'ЗД-2024-052', kind:'Залог · недвижимость', owner:'ОсОО «СветаГрад»', cr:'Строительство-2024-31', val:'16 800 000 KGS', st:'<span class="badge b-ok">действующий</span>'}]},
+  procs:[],
+  acts:[{cr:'Строительство-2024-31', date:'30.06.2026', sum:14300000, st:'<span class="badge b-ok">1 · Акт сверки составлен</span>', by:'Токтосунов Б. М. · 30.06.2026'}],
+  curators:[{cr:'Строительство-2024-31', dept:'Региональное представительство', who:'Токтосунов Б. М.', role:'lead', from:'с 02.02.2024'}],
+  curWarn:null,
+  history:[{date:'30.06.2026 · 15:10', kind:'kur', title:'Акт сверки составлен и подтверждён', body:'Кредит Строительство-2024-31 · остаток 14 300 000 KGS.'},
+           {date:'02.09.2024 · 10:00', kind:'kur', title:'Освоен транш 2 (10 000 000 KGS)', body:'Кредит Строительство-2024-31.'},
+           {date:'02.02.2024 · 09:20', kind:'grp', title:'Заёмщик заведён, группа 1.1', body:'Кредит выдан по программе «Строительство» · куратор Токтосунов Б. М.'}],
+  docs:[{rel:'Субъект', relId:'организация #6102', kind:'Свидетельство о регистрации', file:'svidetelstvo_6102.pdf', date:'02.02.2024', by:'Токтосунов Б. М.'},
+        {rel:'Кредит', relId:'Строительство-2024-31', kind:'Кредитный договор', file:'dogovor_str_031.pdf', date:'14.02.2024', by:'Токтосунов Б. М.'},
+        {rel:'Договор залога', relId:'ЗД-2024-052', kind:'Отчёт об оценке', file:'ocenka_zd_052.pdf', date:'20.02.2024', by:'Токтосунов Б. М.'}],
+  contacts:[{k:'Телефон (осн.)', v:'+996 312 31-77-20', n:'офис'},
+            {k:'E-mail', v:'office@svetagrad.kg', n:'—'},
+            {k:'Адрес фактический', v:'Чуйская обл., Аламудунский р-н, с. Лебединовка, ул. Мира 4', n:'совпадает с юридическим'}],
+  reps:[{role:'Руководитель', name:'Абдырахманов С. К.', pid:'#63701', inn:'12208198100234', phone:'+996 770 45-11-02', from:'25.01.2020'}],
+  banks:[{b:'ОАО «Айыл Банк»', bik:'135001', acc:'1350011122334455', n:'основной'}],
+  units:[{id:5610, name:'Руководство', n:'—'}],
+  blacklist:false, score:78, limit:{used:14300000, total:40000000}
+},
+{
+  inn:'22505198500789', name:'ИП Дуйшеев К. Т.', type:'ИП',
+  subj:{kind:'person', id:63612, doc:{t:'Паспорт', num:'ID0912344', date:'11.06.2015', by:'МКК 50-08'}},
+  sector:'Частное предпринимательство', district:'Ленинский (г. Бишкек)', region:'г. Бишкек', aokrug:'Ленинский район',
+  village:'—', addr:'ул. Ахунбаева 118, кв. 12', phone:'+996 555 90-14-77', email:'—',
+  kind:'Обычный', kindBadge:'b-ok', act:{txt:'2 · Акт сверки не составлен', badge:'b-gray'},
+  note:'Отказ от подписания акта сверки от 04.05.2026.',
+  audit:{by:'Осмонова Г. Т.', date:'18.07.2022', chgBy:'Осмонова Г. Т.', chgDate:'05.06.2026'},
+  group:{code:'2.2', label:'Исполнительные листы',
+    basis:'<b>переведён 05.06.2026</b> · ДПО<br>по кредиту <b>Микро-2022-208</b> выдан исполнительный лист',
+    steps:[['Блок 1 (состояния субъекта):','нет'],['Блок 2 (кредит в процедуре):','<b>2.2</b> Микро-2022-208 — исполнительное производство'],['Итог:','<b>2.2</b> (п. 66)']]},
+  cat:{level:'Средний', basis:'<b>средний</b> · просрочка 95 дн. по Микро-2022-208', note:'стоп-факторов нет',
+    steps:[['Микро-2022-208:','по дням 95 → средний · факторов нет → <b class="cat-mid">средний</b>'],['worst-of заёмщика:','<b class="cat-mid">средний</b>']]},
+  overlay:null,
+  credits:[{num:'Микро-2022-208', row:'кредит', sum:3000000, debt:1850000, src:'Бюджетный', over:'95 дн.',
+     cat:'Средний', catIn:'по дням: средний · по факторам: —', proc:'2.2 · исполнит. листы', ov:'—'}],
+  col:{act:{n:1, ev:2600000, pl:1820000}, off:null,
+    rows:[{num:'ПД-2022-014', kind:'Поручительство', owner:'Дуйшеева А. М. <span class="muted">физлицо #63613</span>', cr:'Микро-2022-208', val:'1 820 000 KGS', st:'<span class="badge b-ok">действующий</span>'}]},
+  procs:[{num:'69015', title:'исполнительное производство', opened:'05.06.2026', credit:'Микро-2022-208', sum:1850000, st:'в работе',
+     phases:[{name:'Решение суда', date:'12.04.2026', sum:1850000, st:'<span class="badge b-ok">завершена · 28.05.2026</span>', ev:['28.05.2026 — решение вступило в законную силу']},
+             {name:'Исполнительный лист', date:'05.06.2026', sum:1850000, st:'<span class="badge b-proc">в работе</span>', ev:['20.06.2026 — лист передан в СЧИ Ленинского района']}]}],
+  acts:[{cr:'Микро-2022-208', st:'<span class="badge b-gray">2 · Акт сверки не составлен</span>'}],
+  curators:[{cr:'Микро-2022-208', dept:'ДПО / отдел проблемных кредитов', who:'Осмонова Г. Т.', role:'lead', from:'с 05.06.2026'}],
+  curWarn:null,
+  history:[{date:'05.06.2026 · 12:00', kind:'grp', title:'Перевод группы: 2.1 → 2.2', body:'Выдан исполнительный лист по кредиту Микро-2022-208 (процедура №69015).'},
+           {date:'12.04.2026 · 10:30', kind:'risk', title:'Категория риска: средний (просрочка 95 дн.)', body:'Ночной пересчёт по дням просрочки.'}],
+  docs:[{rel:'Субъект', relId:'физлицо #63612', kind:'Паспорт', file:'passport_63612.pdf', date:'18.07.2022', by:'Осмонова Г. Т.'},
+        {rel:'Кредит', relId:'Микро-2022-208', kind:'Кредитный договор', file:'dogovor_micro_208.pdf', date:'20.07.2022', by:'Осмонова Г. Т.'},
+        {rel:'Фаза взыскания', relId:'Исполнительный лист · проц. №69015', kind:'Исполнительный лист', file:'ispolnit_69015.pdf', date:'05.06.2026', by:'Осмонова Г. Т.'}],
+  contacts:[{k:'Телефон (моб.)', v:'+996 555 90-14-77', n:'основной'},
+            {k:'Адрес фактический', v:'г. Бишкек, ул. Ахунбаева 118, кв. 12', n:'—'}],
+  reps:[], banks:[], units:[],
+  blacklist:false, score:52, limit:{used:1850000, total:5000000}
+},
+{
+  inn:'01909199720033', name:'ОАО «КыргызЖол»', type:'Юр. лицо',
+  subj:{kind:'org', id:5988, doc:{t:'Свидетельство', num:'ГР-0031907', date:'19.09.1997', by:'Минюст КР'}},
+  sector:'Транспорт и связь', district:'Первомайский (г. Бишкек)', region:'г. Бишкек', aokrug:'Первомайский район',
+  village:'—', addr:'пр. Чуй 214', phone:'+996 312 66-01-45', email:'info@kyrgyzjol.kg',
+  kind:'Находятся в стадии банкротства', kindBadge:'b-gray', act:{txt:'3 · Не требуется', badge:'b-gray'},
+  note:'Введена процедура банкротства решением суда от 14.02.2026.',
+  audit:{by:'Жумабеков Э. Н.', date:'10.10.2019', chgBy:'Жумабеков Э. Н.', chgDate:'14.02.2026'},
+  group:{code:'3.1', label:'Процедура банкротства',
+    basis:'<b>переведён 14.02.2026</b> · сектор по работе с активами<br>решение суда о введении процедуры банкротства',
+    steps:[['Блок 1 (состояния субъекта):','<b>да</b> — банкротство идёт по субъекту целиком → доминирует над блоком 2'],
+           ['Блок 2 (кредит в процедуре):','2.2 Дороги-2021-77 — не учитывается (перебит блоком 1)'],['Итог:','<b>3.1</b> (п. 70)']]},
+  cat:{level:'Высокий', basis:'<b>высокий</b> · процедура банкротства + просрочка 320 дн.', note:'⚠ стоп-фактор: банкротство',
+    steps:[['Дороги-2021-77:','по дням 320 → <b class="cat-high">высокий</b>'],['Транспорт-2023-05:','по дням 140 → средний · фактор: банкротство → <b class="cat-high">высокий</b>'],['worst-of заёмщика:','<b class="cat-high">высокий</b>']]},
+  overlay:null,
+  credits:[{num:'Дороги-2021-77', row:'кредит', sum:120000000, debt:96500000, src:'Иностранный кредит', over:'320 дн.',
+     cat:'Высокий', catIn:'по дням: высокий · по факторам: <span class="win">банкротство</span>', proc:'3.1 · банкротство', ov:'—'},
+    {num:'Транспорт-2023-05', row:'кредит', sum:30000000, debt:28900000, src:'Бюджетный', over:'140 дн.',
+     cat:'Высокий', catIn:'по дням: средний · по факторам: <span class="win">банкротство</span>', proc:'3.1 · банкротство', ov:'—'}],
+  col:{act:{n:2, ev:88000000, pl:61600000}, off:null,
+    rows:[{num:'ЗД-2021-014', kind:'Залог · недвижимость', owner:'ОАО «КыргызЖол»', cr:'Дороги-2021-77', val:'52 000 000 KGS', st:'<span class="badge b-ok">действующий</span>'},
+          {num:'ЗД-2023-002', kind:'Залог · транспорт', owner:'ОАО «КыргызЖол»', cr:'Транспорт-2023-05', val:'9 600 000 KGS', st:'<span class="badge b-ok">действующий</span>'}]},
+  procs:[{num:'68740', title:'банкротство', opened:'14.02.2026', credit:'Дороги-2021-77 · Транспорт-2023-05', sum:125400000, st:'в работе',
+     phases:[{name:'Инициирование банкротства', date:'20.11.2025', sum:125400000, st:'<span class="badge b-ok">завершена · 14.02.2026</span>', ev:['20.11.2025 — заявление подано в суд']},
+             {name:'Процедура банкротства (специальное администрирование)', date:'14.02.2026', sum:125400000, st:'<span class="badge b-proc">в работе</span>',
+              ev:['14.02.2026 — решение суда: введена процедура; группа → 3.1','06.04.2026 — назначен спец. администратор','12.06.2026 — реестр требований кредиторов сформирован']}]}],
+  acts:[{cr:'Дороги-2021-77', st:'<span class="badge b-gray">3 · Не требуется</span>'},
+        {cr:'Транспорт-2023-05', st:'<span class="badge b-gray">3 · Не требуется</span>'}],
+  curators:[{cr:'Дороги-2021-77', dept:'Сектор по работе с активами', who:'Жумабеков Э. Н.', role:'lead', from:'с 14.02.2026'},
+            {cr:'Транспорт-2023-05', dept:'Сектор по работе с активами', who:'Жумабеков Э. Н.', role:'lead', from:'с 14.02.2026'}],
+  curWarn:null,
+  history:[{date:'14.02.2026 · 16:45', kind:'grp', title:'Перевод группы: 2.2 → 3.1', body:'Решение суда о введении процедуры банкротства (процедура №68740). Блок 1 доминирует над блоком 2 (п. 70).'},
+           {date:'20.11.2025 · 09:00', kind:'grp', title:'Инициировано банкротство', body:'Заявление подано по кредитам Дороги-2021-77 и Транспорт-2023-05.'},
+           {date:'03.03.2025 · 14:20', kind:'risk', title:'Категория риска: высокий', body:'Просрочка по Дороги-2021-77 превысила 180 дн.'}],
+  docs:[{rel:'Субъект', relId:'организация #5988', kind:'Свидетельство о регистрации', file:'svidetelstvo_5988.pdf', date:'10.10.2019', by:'Жумабеков Э. Н.'},
+        {rel:'Фаза взыскания', relId:'Процедура банкротства · №68740', kind:'Решение суда', file:'reshenie_68740.pdf', date:'14.02.2026', by:'Жумабеков Э. Н.'}],
+  contacts:[{k:'Телефон (осн.)', v:'+996 312 66-01-45', n:'приёмная'},
+            {k:'E-mail', v:'info@kyrgyzjol.kg', n:'—'},
+            {k:'Адрес фактический', v:'г. Бишкек, пр. Чуй 214', n:'—'}],
+  reps:[{role:'Спец. администратор', name:'Ниязов Т. Б.', pid:'#63888', inn:'10511197600921', phone:'+996 707 30-10-10', from:'06.04.2026'}],
+  banks:[{b:'ОАО «РСК Банк»', bik:'129001', acc:'1290099887766554', n:'счёт под администрированием'}],
+  units:[{id:5301, name:'Управление', n:'—'}, {id:5302, name:'Дорожно-строительный участок', n:'г. Бишкек'}],
+  blacklist:true, score:21, limit:{used:125400000, total:150000000}
+},
+{
+  inn:'03107201510222', name:'ОсОО «АкТаш»', type:'Юр. лицо',
+  subj:{kind:'org', id:6155, doc:{t:'Свидетельство', num:'ГР-0077512', date:'31.07.2015', by:'Минюст КР'}},
+  sector:'Пищевая и перерабатывающая', district:'Ак-Талинский', region:'Нарынская', aokrug:'Тоголок-Молдо а/о',
+  village:'Кара-Ой', addr:'ул. Ленина 2', phone:'+996 700 11-22-33', email:'—',
+  kind:'Безнадёжные долги', kindBadge:'b-gray', act:{txt:'1 · Акт сверки составлен', badge:'b-ok'},
+  note:'Долг признан безнадёжным решением Правления от 18.05.2026 №П-77.',
+  audit:{by:'Асанов А. К.', date:'12.03.2018', chgBy:'Жумабеков Э. Н.', chgDate:'18.05.2026'},
+  group:{code:'4', label:'Безнадёжные долги',
+    basis:'<b>переведён 18.05.2026</b> · решение Правления №П-77<br>взыскание исчерпано, имущества нет',
+    steps:[['Блок 1 (состояния субъекта):','<b>да</b> — долг признан безнадёжным'],['Блок 2:','не учитывается'],['Итог:','<b>4</b> (п. 72)']]},
+  cat:{level:'Высокий', basis:'<b>высокий</b> · безнадёжный долг', note:'⚠ стоп-фактор: безнадёжность',
+    steps:[['Переработка-2018-44:','просрочка 1 240 дн. · <b class="cat-high">высокий</b>'],['worst-of заёмщика:','<b class="cat-high">высокий</b>']]},
+  overlay:null,
+  credits:[{num:'Переработка-2018-44', row:'кредит', sum:15000000, debt:11700000, src:'Бюджетный', over:'1 240 дн.',
+     cat:'Высокий', catIn:'по дням: высокий · по факторам: <span class="win">безнадёжный долг</span>', proc:'4 · безнадёжный', ov:'—'}],
+  col:{act:{n:0, ev:0, pl:0}, off:{n:2, ev:9000000, why:'реализация залога в ходе взыскания (2024–2025)'},
+    rows:[{num:'ЗД-2018-030', kind:'Залог · оборудование', owner:'ОсОО «АкТаш»', cr:'Переработка-2018-44', val:'6 000 000 KGS', st:'<span class="badge b-gray">снят · 14.08.2024 (реализован)</span>'},
+          {num:'ЗД-2018-031', kind:'Залог · транспорт', owner:'ОсОО «АкТаш»', cr:'Переработка-2018-44', val:'3 000 000 KGS', st:'<span class="badge b-gray">снят · 02.02.2025 (реализован)</span>'}]},
+  procs:[{num:'66120', title:'судебное взыскание', opened:'10.09.2021', credit:'Переработка-2018-44', sum:11700000, st:'завершена',
+     phases:[{name:'Исковое заявление', date:'10.09.2021', sum:14200000, st:'<span class="badge b-ok">завершена · 02.03.2022</span>', ev:['02.03.2022 — иск удовлетворён']},
+             {name:'Исполнительный лист', date:'15.03.2022', sum:14200000, st:'<span class="badge b-ok">завершена · 02.02.2025</span>', ev:['14.08.2024 — реализовано оборудование (6 000 000 KGS)','02.02.2025 — реализован транспорт (3 000 000 KGS)','02.02.2025 — имущество исчерпано, производство окончено']},
+             {name:'Признание долга безнадёжным', date:'18.05.2026', sum:11700000, st:'<span class="badge b-ok">завершена · 18.05.2026</span>', ev:['18.05.2026 — решение Правления №П-77; группа → 4']}]}],
+  acts:[{cr:'Переработка-2018-44', date:'18.05.2026', sum:11700000, st:'<span class="badge b-ok">1 · Акт сверки составлен</span>', by:'Жумабеков Э. Н. · 18.05.2026'}],
+  curators:[{cr:'Переработка-2018-44', dept:'Сектор по работе с активами', who:'Жумабеков Э. Н.', role:'lead', from:'с 10.09.2021'}],
+  curWarn:null,
+  history:[{date:'18.05.2026 · 17:00', kind:'grp', title:'Перевод группы: 2.2 → 4 (безнадёжные долги)', body:'Решение Правления №П-77 · взыскание исчерпано (процедура №66120).'},
+           {date:'02.02.2025 · 11:15', kind:'kur', title:'Исполнительное производство окончено', body:'Имущество реализовано полностью, остаток долга 11 700 000 KGS не покрыт.'}],
+  docs:[{rel:'Кредит', relId:'Переработка-2018-44', kind:'Кредитный договор', file:'dogovor_pererab_044.pdf', date:'12.03.2018', by:'Асанов А. К.'},
+        {rel:'Фаза взыскания', relId:'Признание безнадёжным · №66120', kind:'Решение Правления №П-77', file:'reshenie_p77.pdf', date:'18.05.2026', by:'Жумабеков Э. Н.'}],
+  contacts:[{k:'Телефон (моб.)', v:'+996 700 11-22-33', n:'директор'},
+            {k:'Адрес фактический', v:'Нарынская обл., Ак-Талинский р-н, с. Кара-Ой, ул. Ленина 2', n:'—'}],
+  reps:[{role:'Руководитель', name:'Кубанычбеков А. Т.', pid:'#63099', inn:'20905198000456', phone:'+996 700 11-22-33', from:'31.07.2015'}],
+  banks:[], units:[{id:5470, name:'Руководство', n:'—'}],
+  blacklist:true, score:12, limit:{used:11700000, total:15000000}
+},
+{
+  inn:'12803199000456', name:'ИП Асанова Н.', type:'ИП',
+  subj:{kind:'person', id:63545, doc:{t:'Паспорт', num:'ID2201981', date:'02.02.2018', by:'МКК 50-01'}},
+  sector:'Агропромышленный комплекс', district:'Аламудунский', region:'Чуйская', aokrug:'Ленинский а/о',
+  village:'Кой-Таш', addr:'ул. Садовая 7', phone:'+996 777 21-08-64', email:'—',
+  kind:'Обычный', kindBadge:'b-ok', act:{txt:'1 · Акт сверки составлен', badge:'b-ok'},
+  note:'—', audit:{by:'Асанов А. К.', date:'14.04.2023', chgBy:'Осмонова Г. Т.', chgDate:'22.05.2026'},
+  group:{code:'2.1', label:'Работа с судебными органами',
+    basis:'<b>переведён 22.05.2026</b> · ДПО<br>подан иск по кредиту <b>Агро-2023-091</b>',
+    steps:[['Блок 1 (состояния субъекта):','нет'],['Блок 2 (кредит в процедуре):','<b>2.1</b> Агро-2023-091 — иск в суде'],['Итог:','<b>2.1</b> (п. 65)']]},
+  cat:{level:'Средний', basis:'<b>средний</b> · просрочка 120 дн.', note:'стоп-факторов нет',
+    steps:[['Агро-2023-091:','по дням 120 → средний → <b class="cat-mid">средний</b>'],['worst-of заёмщика:','<b class="cat-mid">средний</b>']]},
+  overlay:null,
+  credits:[{num:'Агро-2023-091', row:'кредит', sum:5000000, debt:3950000, src:'Бюджетный', over:'120 дн.',
+     cat:'Средний', catIn:'по дням: средний · по факторам: —', proc:'2.1 · работа с судом', ov:'—'}],
+  col:{act:{n:1, ev:5400000, pl:3780000}, off:null,
+    rows:[{num:'ЗД-2023-118', kind:'Залог · сельхозтехника', owner:'Асанова Н. <span class="muted">физлицо #63545</span>', cr:'Агро-2023-091', val:'3 780 000 KGS', st:'<span class="badge b-ok">действующий</span>'}]},
+  procs:[{num:'68990', title:'судебное взыскание', opened:'22.05.2026', credit:'Агро-2023-091', sum:3950000, st:'в работе',
+     phases:[{name:'Претензия', date:'02.04.2026', sum:3950000, st:'<span class="badge b-ok">завершена · 06.05.2026</span>', ev:['28.04.2026 — ответ должника: просьба о реструктуризации']},
+             {name:'Исковое заявление', date:'22.05.2026', sum:3950000, st:'<span class="badge b-proc">в работе</span>', ev:['30.06.2026 — иск принят к производству, Аламудунский районный суд']}]}],
+  acts:[{cr:'Агро-2023-091', date:'02.04.2026', sum:3950000, st:'<span class="badge b-ok">1 · Акт сверки составлен</span>', by:'Осмонова Г. Т. · 02.04.2026'}],
+  curators:[{cr:'Агро-2023-091', dept:'ДПО / отдел проблемных кредитов', who:'Осмонова Г. Т.', role:'lead', from:'с 22.05.2026'},
+            {cr:'↳ ранее', dept:'Отраслевой департамент АПК', who:'Асанов А. К.', role:'co', from:'14.04.2023 — 22.05.2026'}],
+  curWarn:null,
+  history:[{date:'22.05.2026 · 10:40', kind:'grp', title:'Перевод группы: 1.1 → 2.1', body:'Подан иск по кредиту Агро-2023-091 (процедура №68990) · ДПО (п. 65).'},
+           {date:'02.04.2026 · 09:00', kind:'risk', title:'Категория риска: низкий → средний', body:'Просрочка достигла 90 дн.'}],
+  docs:[{rel:'Субъект', relId:'физлицо #63545', kind:'Паспорт', file:'passport_63545.pdf', date:'14.04.2023', by:'Асанов А. К.'},
+        {rel:'Кредит', relId:'Агро-2023-091', kind:'Кредитный договор', file:'dogovor_agro_091.pdf', date:'20.04.2023', by:'Асанов А. К.'},
+        {rel:'Фаза взыскания', relId:'Претензия · проц. №68990', kind:'Претензионное письмо', file:'pretenziya_68990.pdf', date:'02.04.2026', by:'Осмонова Г. Т.'}],
+  contacts:[{k:'Телефон (моб.)', v:'+996 777 21-08-64', n:'основной'},
+            {k:'Адрес фактический', v:'Чуйская обл., Аламудунский р-н, с. Кой-Таш, ул. Садовая 7', n:'—'}],
+  reps:[], banks:[], units:[],
+  blacklist:false, score:57, limit:{used:3950000, total:8000000}
+},
+{
+  inn:'01502200811077', name:'ОсОО «Береке»', type:'Юр. лицо',
+  subj:{kind:'org', id:6210, doc:{t:'Свидетельство', num:'ГР-0060118', date:'15.02.2008', by:'Минюст КР'}},
+  sector:'Водное хозяйство', district:'Сокулукский', region:'Чуйская', aokrug:'Сокулукский а/о',
+  village:'Шопоков', addr:'ул. Речная 21', phone:'+996 312 44-90-12', email:'bereke@mail.kg',
+  kind:'Обычный', kindBadge:'b-ok', act:{txt:'1 · Акт сверки составлен', badge:'b-ok'},
+  note:'Кредит погашен досрочно 28.02.2026.',
+  audit:{by:'Токтосунов Б. М.', date:'11.01.2021', chgBy:'Токтосунов Б. М.', chgDate:'28.02.2026'},
+  group:{code:'5', label:'Погашенные',
+    basis:'<b>переведён 28.02.2026</b> · кредит погашен полностью, остаток 0',
+    steps:[['Блок 1 (состояния субъекта):','нет'],['Блок 2:','процедур нет'],['Итог:','<b>5</b> — все кредиты закрыты (п. 73)']]},
+  cat:{level:'Низкий', basis:'<b>низкий</b> · долга нет', note:'история без просрочек',
+    steps:[['Ирригация-2021-12:','погашен, просрочек не было → <b class="cat-low">низкий</b>'],['worst-of заёмщика:','<b class="cat-low">низкий</b>']]},
+  overlay:null,
+  credits:[{num:'Ирригация-2021-12', row:'кредит', sum:9000000, debt:0, src:'Бюджетный', over:'0 дн.',
+     cat:'Низкий', catIn:'погашен 28.02.2026 · просрочек не было', proc:'5 · погашенные', ov:'—'}],
+  col:{act:{n:0, ev:0, pl:0}, off:{n:1, ev:12000000, why:'полное погашение кредита (Ирригация-2021-12)'},
+    rows:[{num:'ЗД-2021-066', kind:'Залог · недвижимость', owner:'ОсОО «Береке»', cr:'Ирригация-2021-12', val:'8 400 000 KGS', st:'<span class="badge b-gray">снят · 28.02.2026 (погашение)</span>'}]},
+  procs:[],
+  acts:[{cr:'Ирригация-2021-12', date:'28.02.2026', sum:0, st:'<span class="badge b-ok">1 · Акт сверки составлен</span>', by:'Токтосунов Б. М. · 28.02.2026'}],
+  curators:[{cr:'Ирригация-2021-12', dept:'Региональное представительство', who:'Токтосунов Б. М.', role:'lead', from:'11.01.2021 — 28.02.2026'}],
+  curWarn:null,
+  history:[{date:'28.02.2026 · 15:30', kind:'grp', title:'Перевод группы: 1.1 → 5 (погашенные)', body:'Кредит Ирригация-2021-12 погашен досрочно; залог ЗД-2021-066 снят.'},
+           {date:'11.01.2021 · 09:45', kind:'kur', title:'Кредит выдан, куратор назначен', body:'Ирригация-2021-12 · 9 000 000 KGS · Токтосунов Б. М.'}],
+  docs:[{rel:'Кредит', relId:'Ирригация-2021-12', kind:'Кредитный договор', file:'dogovor_irrig_012.pdf', date:'11.01.2021', by:'Токтосунов Б. М.'},
+        {rel:'Кредит', relId:'Ирригация-2021-12', kind:'Справка о погашении', file:'spravka_pogashenie.pdf', date:'28.02.2026', by:'Токтосунов Б. М.'}],
+  contacts:[{k:'Телефон (осн.)', v:'+996 312 44-90-12', n:'офис'},
+            {k:'E-mail', v:'bereke@mail.kg', n:'—'},
+            {k:'Адрес фактический', v:'Чуйская обл., Сокулукский р-н, г. Шопоков, ул. Речная 21', n:'—'}],
+  reps:[{role:'Руководитель', name:'Молдалиев К. Ж.', pid:'#63420', inn:'11003197500118', phone:'+996 555 77-01-23', from:'15.02.2008'}],
+  banks:[{b:'ОАО «Айыл Банк»', bik:'135001', acc:'1350044556677889', n:'основной'}],
+  units:[{id:5720, name:'Руководство', n:'—'}],
+  blacklist:false, score:91, limit:{used:0, total:20000000}
+},
+{
+  inn:'02207201910311', name:'ГЗПМ «Ак-Талаа»', type:'Группа',
+  subj:{kind:'group', id:6301, doc:{t:'Свидетельство', num:'ГР-0088201', date:'22.07.2019', by:'Минюст КР'}},
+  sector:'Лёгкая промышленность', district:'Ленинский (г. Бишкек)', region:'г. Бишкек', aokrug:'Ленинский район',
+  village:'—', addr:'ул. Профсоюзная 30', phone:'+996 550 66-77-88', email:'—',
+  kind:'Групповой заёмщик (ГЗПМ)', kindBadge:'b-type', act:{txt:'1 · Акт сверки составлен', badge:'b-ok'},
+  note:'Групповой заёмщик: 4 физлица, солидарная ответственность.',
+  audit:{by:'Асанов А. К.', date:'22.07.2019', chgBy:'Асанов А. К.', chgDate:'05.07.2026'},
+  group:{code:'1.1', label:'Погашение по графику',
+    basis:'<b>с выдачи кредита</b> · платежи по графику, просрочек нет',
+    steps:[['Блок 1 (состояния субъекта):','нет'],['Блок 2:','процедур нет'],['Итог:','<b>1.1</b>']]},
+  cat:{level:'Низкий', basis:'<b>низкий</b> · просрочка 0 дн.', note:'солидарная ответственность членов группы',
+    steps:[['Швейный-2025-08:','по дням 0 → <b class="cat-low">низкий</b>'],['worst-of заёмщика:','<b class="cat-low">низкий</b>']]},
+  overlay:null,
+  credits:[{num:'Швейный-2025-08', row:'кредит', sum:4000000, debt:2600000, src:'Бюджетный', over:'0 дн.',
+     cat:'Низкий', catIn:'по дням: низкий · по факторам: —', proc:'—', ov:'—'}],
+  col:{act:{n:1, ev:0, pl:4000000}, off:null,
+    rows:[{num:'ПД-2025-041', kind:'Поручительство (солидарное)', owner:'4 члена группы', cr:'Швейный-2025-08', val:'4 000 000 KGS', st:'<span class="badge b-ok">действующий</span>'}]},
+  procs:[],
+  acts:[{cr:'Швейный-2025-08', date:'05.07.2026', sum:2600000, st:'<span class="badge b-ok">1 · Акт сверки составлен</span>', by:'Асанов А. К. · 05.07.2026'}],
+  curators:[{cr:'Швейный-2025-08', dept:'Отраслевой департамент промышленности', who:'Асанов А. К.', role:'lead', from:'с 22.07.2019'}],
+  curWarn:null,
+  history:[{date:'05.07.2026 · 12:00', kind:'kur', title:'Акт сверки составлен', body:'Остаток 2 600 000 KGS · подтверждён всеми членами группы.'},
+           {date:'14.03.2025 · 10:00', kind:'grp', title:'Выдан кредит Швейный-2025-08', body:'Солидарное поручительство 4 членов группы (ПД-2025-041).'}],
+  docs:[{rel:'Субъект', relId:'организация #6301', kind:'Свидетельство о регистрации', file:'svidetelstvo_6301.pdf', date:'22.07.2019', by:'Асанов А. К.'},
+        {rel:'Кредит', relId:'Швейный-2025-08', kind:'Кредитный договор', file:'dogovor_shvey_008.pdf', date:'14.03.2025', by:'Асанов А. К.'},
+        {rel:'Договор залога', relId:'ПД-2025-041', kind:'Договор поручительства', file:'poruchit_041.pdf', date:'14.03.2025', by:'Асанов А. К.'}],
+  contacts:[{k:'Телефон (моб.)', v:'+996 550 66-77-88', n:'старшая группы'},
+            {k:'Адрес фактический', v:'г. Бишкек, ул. Профсоюзная 30', n:'—'}],
+  reps:[{role:'Старшая группы', name:'Шамшыбекова И. М.', pid:'#63710', inn:'22208198800341', phone:'+996 550 66-77-88', from:'22.07.2019'}],
+  banks:[{b:'ОАО «РСК Банк»', bik:'129001', acc:'1290033445566778', n:'основной'}],
+  units:[],
+  members:['Шамшыбекова Ирина Масалбековна','Карагулова Айчүрөк Т.','Осмонова Бегимай К.','Турдубекова Нургүл А.'],
+  blacklist:false, score:84, limit:{used:2600000, total:6000000}
+}
+];
 
-  // вкладки
-  document.querySelectorAll('#tabs .tab').forEach(t => {
-    t.addEventListener('click', () => {
-      document.querySelectorAll('#tabs .tab').forEach(x => x.classList.remove('active'));
-      document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
-      t.classList.add('active');
-      document.querySelector('.tabpanel[data-panel="' + t.dataset.tab + '"]').classList.add('active');
-    });
+/* ---------- сайдбар ---------- */
+document.querySelectorAll('.nav-group').forEach(g => {
+  g.addEventListener('click', () => {
+    g.classList.toggle('collapsed');
+    document.querySelector('.nav-list[data-list="' + g.dataset.group + '"]').classList.toggle('hidden');
   });
-  // раскрытие плиток (лестница группы / входы worst-of)
+});
+
+const vList = document.getElementById('view-list');
+const vDetail = document.getElementById('view-detail');
+const pageTitle = document.getElementById('pageTitle');
+const crumb = document.getElementById('crumb');
+function showList(){
+  vDetail.classList.remove('active'); vList.classList.add('active');
+  pageTitle.textContent = 'Список заёмщиков';
+  crumb.innerHTML = 'Система кредитования › Заёмщики';
+  window.scrollTo(0,0);
+}
+function showDetail(b){
+  renderCard(b);
+  vList.classList.remove('active'); vDetail.classList.add('active');
+  pageTitle.textContent = 'Заёмщик';
+  crumb.innerHTML = 'Система кредитования › <a href="#" id="crumbBack">Заёмщики</a> › ' + esc(b.name);
+  document.getElementById('crumbBack').addEventListener('click', e => { e.preventDefault(); showList(); });
+  openTab('general');
+  window.scrollTo(0,0);
+}
+document.getElementById('backLink').addEventListener('click', e => { e.preventDefault(); showList(); });
+
+/* ---------- реестр: рендер, фильтр, сортировка ---------- */
+const FIELDS = [
+  { key:'name',     el:'f-name'     },
+  { key:'inn',      el:'f-inn'      },
+  { key:'sector',   el:'f-sector'   },
+  { key:'district', el:'f-district' },
+  { key:'group',    el:'f-group'    },
+  { key:'cat',      el:'f-cat'      }
+];
+let active = {};
+let sortKey = null, sortDir = 1;
+
+function readFields(){
+  const v = {};
+  FIELDS.forEach(f => { const val = document.getElementById(f.el).value.trim(); if (val) v[f.key] = val; });
+  return v;
+}
+function matches(b){
+  if (active.name && !b.name.toLowerCase().includes(active.name.toLowerCase())) return false;
+  if (active.inn && !b.inn.includes(active.inn)) return false;
+  if (active.sector && b.sector !== active.sector) return false;
+  if (active.district && b.district !== active.district) return false;
+  if (active.group && b.group.code !== active.group) return false;
+  if (active.cat && b.cat.level !== active.cat) return false;
+  return true;
+}
+function sortVal(b, k){
+  if (k === 'group') return b.group.code;
+  if (k === 'cat') return ({ 'Низкий':1, 'Средний':2, 'Высокий':3 })[b.cat.level];
+  return b[k];
+}
+function renderList(){
+  let rows = DATA.filter(matches);
+  if (sortKey) rows = rows.slice().sort((x,y) => {
+    const a = sortVal(x, sortKey), b = sortVal(y, sortKey);
+    return (a > b ? 1 : a < b ? -1 : 0) * sortDir;
+  });
+  const tb = document.getElementById('listBody');
+  tb.innerHTML = '';
+  rows.forEach(b => {
+    const tr = document.createElement('tr');
+    tr.className = 'clk';
+    tr.innerHTML =
+      '<td class="mono">' + b.inn + '</td>' +
+      '<td class="who" title="' + esc(b.name) + '">' + esc(b.name) + (b.type === 'Группа' ? ' <span class="badge b-type">ГЗПМ</span>' : '') + '</td>' +
+      '<td>' + b.type + '</td>' +
+      '<td class="muted" title="' + esc(b.sector) + '">' + esc(b.sector) + '</td>' +
+      '<td class="muted" title="' + esc(b.district) + '">' + esc(b.district) + '</td>' +
+      '<td><span class="grp-badge"><span class="grp-code">' + b.group.code + '</span> ' + esc(b.group.label) + '</span></td>' +
+      '<td>' + catCell(b.cat.level) + '</td>';
+    tr.addEventListener('click', () => showDetail(b));
+    tb.appendChild(tr);
+  });
+  document.getElementById('listEmpty').hidden = rows.length > 0;
+  document.getElementById('rowCount').textContent = rows.length + ' строк';
+}
+function applyFilter(){ active = readFields(); renderList(); }
+function resetFilter(){ FIELDS.forEach(f => document.getElementById(f.el).value = ''); active = {}; renderList(); }
+
+document.getElementById('jfToggle').addEventListener('click', () => document.getElementById('jf').classList.toggle('collapsed'));
+document.getElementById('fApply').addEventListener('click', applyFilter);
+document.getElementById('fReset').addEventListener('click', resetFilter);
+/* условия применяются сразу — «Обновить» ждать не нужно */
+FIELDS.forEach(f => {
+  const el = document.getElementById(f.el);
+  el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', applyFilter);
+});
+document.querySelectorAll('#listTable thead th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const k = th.dataset.sort;
+    sortDir = (sortKey === k) ? -sortDir : 1;
+    sortKey = k;
+    document.querySelectorAll('#listTable thead th').forEach(x => {
+      x.classList.toggle('sorted', x === th);
+      const s = x.querySelector('.sort');
+      if (s) s.textContent = x === th ? (sortDir === 1 ? '↑' : '↓') : '↕';
+    });
+    renderList();
+  });
+});
+
+/* ---------- карточка ---------- */
+function subjLabel(b){
+  return (b.subj.kind === 'person' ? 'физлицо' : 'организация') + ' #' + b.subj.id;
+}
+function activeCredits(b){ return b.credits.filter(c => c.row === 'кредит' && c.debt > 0); }
+function totalDebt(b){ return activeCredits(b).reduce((s,c) => s + c.debt, 0); }
+function maxOverdue(b){
+  const d = activeCredits(b).map(c => parseInt(String(c.over).replace(/\D/g,''),10) || 0);
+  return d.length ? Math.max.apply(null, d) : 0;
+}
+function empty(txt){ return '<div class="empty-rows">' + txt + '</div>'; }
+function sect(title, hint, actions, body){
+  return '<div class="section" style="margin-bottom:18px"><div class="section-head">' + title +
+    (hint ? ' <span class="hint">' + hint + '</span>' : '') +
+    (actions ? '<span class="ha">' + actions + '</span>' : '') +
+    '</div><div class="section-body">' + body + '</div></div>';
+}
+function table(head, rows){
+  if (!rows.length) return empty('Записей не найдено.');
+  return '<table class="grid"><thead><tr>' + head + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+}
+
+function renderCard(b){
+  const act = activeCredits(b);
+  document.getElementById('cName').textContent = b.name;
+  document.getElementById('cSub').innerHTML =
+    '<span>ИНН <b>' + b.inn + '</b></span>' +
+    '<span>' + b.type + '</span>' +
+    '<span>Субъект: <a class="lnk" href="#" data-goto="subject">' + subjLabel(b) + '</a></span>' +
+    '<span>Кредитов: <b>' + act.length + '</b> действующих</span>' +
+    '<span>Долг: <b>' + fmt(totalDebt(b)) + '</b> KGS</span>';
+
+  /* --- Общая --- */
+  const g = b.group, c = b.cat;
+  document.getElementById('pGeneral').innerHTML =
+    '<div class="section"><div class="section-head">Реквизиты<span class="ha">' +
+      '<button class="btn btn-secondary btn-sm">Изменить вид заёмщика</button>' +
+      '<button class="btn btn-secondary btn-sm">Редактировать</button></span></div>' +
+      '<div class="fields">' +
+      '<div class="f"><span class="fk">Область</span><span class="fv">' + b.region + '</span></div>' +
+      '<div class="f"><span class="fk">Район</span><span class="fv">' + b.district + '</span></div>' +
+      '<div class="f"><span class="fk">Аильный округ</span><span class="fv">' + b.aokrug + '</span></div>' +
+      '<div class="f"><span class="fk">Село</span><span class="fv">' + b.village + '</span></div>' +
+      '<div class="f span2"><span class="fk">Адрес</span><span class="fv">' + b.addr + '</span></div>' +
+      '<div class="f"><span class="fk">Отрасль</span><span class="fv">' + b.sector + '</span></div>' +
+      '<div class="f"><span class="fk">Тел. номер</span><span class="fv">' + b.phone + '</span></div>' +
+      '<div class="f"><span class="fk">Вид заёмщика</span><span class="fv"><span class="badge ' + b.kindBadge + '">' + b.kind + '</span></span></div>' +
+      '<div class="f"><span class="fk">Статус акта сверки</span><span class="fv"><span class="badge ' + b.act.badge + '">' + b.act.txt + '</span></span></div>' +
+      '<div class="f span2"><span class="fk">Примечание</span><span class="fv" style="font-weight:400">' + b.note + '</span></div>' +
+      '<div class="f span2"><span class="fk">Аудит</span><span class="fv" style="font-weight:400">Внесён: <b>' + b.audit.by + '</b> · ' + b.audit.date +
+        ' &nbsp;·&nbsp; Изменён: <b>' + b.audit.chgBy + '</b> · ' + b.audit.chgDate + '</span></div>' +
+      '</div></div>' +
+
+    '<div class="state-row">' +
+      '<div class="tile">' +
+        '<div class="tile-lbl">Группа платёжеспособности <span class="lock">🔒 выводится</span></div>' +
+        '<div class="tile-val"><span class="grp-badge"><span class="grp-code">' + g.code + '</span> ' + g.label + '</span></div>' +
+        '<div class="tile-basis">' + g.basis + '</div>' +
+        '<div class="ro-note" style="align-self:flex-start">🔒 read-only · ручной ввод невозможен (в т.ч. админ)</div>' +
+        '<div class="tile-more" data-more="grp">▸ как выведена группа</div>' +
+        '<div class="tile-detail" data-detail="grp">' +
+          '<div class="muted" style="margin-bottom:6px">Лестница с доминированием (шкала 1.1…5 не ординальна):</div>' +
+          g.steps.map(s => '<div class="step"><span class="k">' + s[0] + '</span> ' + s[1] + '</div>').join('') +
+        '</div>' +
+      '</div>' +
+      '<div class="tile">' +
+        '<div class="tile-lbl">Категория риска <span class="lock">🔒 worst-of</span></div>' +
+        '<div class="tile-val cat-' + catCls(c.level) + '"><span class="dot d-' + catCls(c.level) + '"></span>' + c.level + '</div>' +
+        '<div class="tile-basis">' + c.basis + '</div>' +
+        (c.note ? '<div class="ro-note" style="align-self:flex-start">' + c.note + '</div>' : '') +
+        '<div class="tile-more" data-more="cat">▸ входы worst-of по кредитам</div>' +
+        '<div class="tile-detail" data-detail="cat">' +
+          c.steps.map(s => '<div class="step"><span class="k">' + s[0] + '</span> ' + s[1] + '</div>').join('') +
+        '</div>' +
+      '</div>' +
+      '<div class="tile">' +
+        '<div class="tile-lbl">Оверлей <span class="lock">слой</span></div>' +
+        (b.overlay
+          ? '<div class="ov-item"><div class="ov-h">' + b.overlay.title + '</div><div class="ov-m">' + b.overlay.body + '</div></div>' +
+            '<div class="muted" style="font-size:12px;margin-top:2px">' + b.overlay.note + '</div>'
+          : '<div class="muted" style="font-size:13px;line-height:1.5">Активных оверлеев нет — категория риска считается напрямую (worst-of по кредитам), без подавлений.</div>') +
+      '</div>' +
+    '</div>';
+
+  /* --- Субъект --- */
+  let subjHtml = sect('Субъект — ' + subjLabel(b), '', '<button class="btn btn-secondary btn-sm">Открыть карточку субъекта</button>',
+    '<div class="fields">' +
+      '<div class="f"><span class="fk">Полное наименование</span><span class="fv">' + esc(b.name) + '</span></div>' +
+      '<div class="f"><span class="fk">Вид документа</span><span class="fv">' + b.subj.doc.t + '</span></div>' +
+      '<div class="f"><span class="fk">Номер документа</span><span class="fv">' + b.subj.doc.num + '</span></div>' +
+      '<div class="f"><span class="fk">Дата выдачи</span><span class="fv">' + b.subj.doc.date + '</span></div>' +
+      '<div class="f"><span class="fk">Кем выдано</span><span class="fv">' + b.subj.doc.by + '</span></div>' +
+      '<div class="f"><span class="fk">ИНН</span><span class="fv">' + b.inn + '</span></div>' +
+    '</div>');
+  if (b.members) subjHtml += sect('Члены группы (ГЗПМ)', 'солидарная ответственность', '',
+    table('<th style="width:8%">#</th><th>Ф.И.О.</th>',
+      b.members.map((m,i) => '<tr><td class="muted">' + (i+1) + '</td><td class="who">' + esc(m) + '</td></tr>')));
+  if (b.reps.length) subjHtml += sect('Представители', '', '',
+    table('<th style="width:26%">Роль</th><th style="width:34%">Физлицо</th><th style="width:22%">ИНН</th><th style="width:18%">Телефон</th>',
+      b.reps.map(r => '<tr><td>' + r.role + '</td><td class="who"><a class="lnk" href="#">' + esc(r.name) + '</a> <span class="muted">' + r.pid + '</span></td>' +
+        '<td class="mono">' + r.inn + '</td><td>' + r.phone + '</td></tr>')));
+  if (b.subj.kind !== 'person') {
+    subjHtml += sect('Банковские реквизиты', '', '<button class="btn btn-secondary btn-sm">+ Добавить банковские данные</button>',
+      table('<th style="width:34%">Наименование банка</th><th style="width:14%">БИК</th><th style="width:28%">Расчётный счёт</th><th>Примечание</th>',
+        b.banks.map(x => '<tr><td class="who">' + esc(x.b) + '</td><td class="mono">' + x.bik + '</td><td class="mono">' + x.acc + '</td><td class="muted">' + x.n + '</td></tr>')));
+    subjHtml += sect('Организационная структура', '', '<button class="btn btn-secondary btn-sm">+ Добавить подразделение</button>',
+      table('<th style="width:12%">ID</th><th style="width:40%">Наименование</th><th>Примечание</th>',
+        b.units.map(u => '<tr><td class="muted">' + u.id + '</td><td class="who">' + esc(u.name) + '</td><td class="muted">' + u.n + '</td></tr>')));
+  }
+  document.getElementById('pSubject').innerHTML = subjHtml;
+
+  /* --- Кредиты --- */
+  const credRows = b.credits.map(c => {
+    if (c.row === 'кредит') return '<tr>' +
+      '<td class="who">' + c.num + '<div class="muted" style="font-weight:400;margin-top:3px">' + fmt(c.sum) + ' → ост. <b>' + fmt(c.debt) + '</b> KGS · ' + c.src + '</div></td>' +
+      '<td><span class="badge b-type">кредит</span></td>' +
+      '<td>' + c.over + '</td>' +
+      '<td><div class="wo"><span class="cat-' + catCls(c.cat) + '" style="font-weight:700"><span class="dot d-' + catCls(c.cat) + '"></span> ' + c.cat + '</span>' +
+        '<span class="wo-in">' + c.catIn + '</span></div></td>' +
+      '<td>' + (c.proc === '—' ? '<span class="muted">—</span>' : '<span class="badge b-proc">' + c.proc + '</span>') + '</td>' +
+      '<td class="muted">' + c.ov + '</td></tr>';
+    return '<tr>' +
+      '<td style="padding-left:34px">↳ <span class="who">' + c.num + '</span><div class="muted" style="margin-top:3px">' + c.meta + '</div></td>' +
+      '<td><span class="badge b-type">' + c.row + '</span></td>' +
+      '<td class="muted">' + c.over + '</td>' +
+      '<td class="muted">' + c.catTxt + '</td>' +
+      '<td class="muted">' + c.proc + '</td>' +
+      '<td class="muted">' + c.ov + '</td></tr>';
+  });
+  document.getElementById('pCredits').innerHTML =
+    '<div class="toolbar">' +
+      '<span class="fl muted">Расчёт на дату</span>' +
+      '<input type="text" value="' + TODAY + '" style="width:120px">' +
+      '<button class="btn btn-primary btn-sm">Расчёт</button>' +
+      '<button class="btn btn-secondary btn-sm">Обновить данные</button>' +
+      '<span class="sep"></span>' +
+      '<button class="btn btn-secondary btn-sm">Акт сверки</button>' +
+      '<button class="btn btn-secondary btn-sm">Претензия</button>' +
+      '<button class="btn btn-secondary btn-sm">Сведения о заёмщике</button>' +
+      '<span class="sep"></span>' +
+      '<button class="btn btn-secondary btn-sm">+ Кредит</button>' +
+      '<button class="btn btn-secondary btn-sm">+ Транш</button>' +
+      '<button class="btn btn-secondary btn-sm">+ Реструктуризация</button>' +
+    '</div>' +
+    sect('Кредиты', 'остатки на <b>' + TODAY + '</b> · последний пересчёт ' + TODAY + ' 03:15', '',
+      table('<th style="width:24%">Договор</th><th style="width:12%">Тип</th><th style="width:10%">Просрочка</th>' +
+            '<th style="width:24%">Категория (worst-of)</th><th style="width:18%">Процедура → группа</th><th style="width:12%">Оверлей</th>', credRows));
+
+  /* --- Обеспечение --- */
+  const col = b.col;
+  const colCards =
+    '<div class="section-body" style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
+      '<div style="border:1px solid var(--green-card-border);background:var(--green-card-bg);border-radius:6px;padding:12px 14px">' +
+        '<div style="font-weight:700;font-size:14px;color:var(--success)">Действующие · ' + col.act.n + ' ед.</div>' +
+        '<div class="muted" style="margin-top:6px;line-height:1.6">Оценочная стоимость: <b style="color:var(--body-text)">' + fmt(col.act.ev) + '</b> KGS<br>' +
+        'Залоговая стоимость: <b style="color:var(--body-text)">' + fmt(col.act.pl) + '</b> KGS</div></div>' +
+      '<div style="border:1px solid var(--border);background:#fbfcfd;border-radius:6px;padding:12px 14px">' +
+        '<div style="font-weight:700;font-size:14px;color:var(--secondary-text)">Снятые · ' + (col.off ? col.off.n : 0) + ' ед.</div>' +
+        '<div class="muted" style="margin-top:6px;line-height:1.6">' +
+          (col.off ? 'Оценочная стоимость: <b style="color:var(--body-text)">' + fmt(col.off.ev) + '</b> KGS<br>Причина: ' + col.off.why : 'Снятых договоров нет') +
+        '</div></div>' +
+    '</div>';
+  document.getElementById('pCollateral').innerHTML =
+    '<div class="section" style="margin-bottom:18px"><div class="section-head">Свод обеспечения <span class="hint">по всем кредитам ИНН</span></div>' + colCards + '</div>' +
+    sect('Обеспечительные договоры', '',
+      '<button class="btn btn-secondary btn-sm">+ Новый договор залога</button>' +
+      '<button class="btn btn-secondary btn-sm">🔗 Связка с другим договором</button>' +
+      '<button class="btn btn-secondary btn-sm">🖨 Извещение (утрата)</button>',
+      table('<th style="width:16%">№ договора</th><th style="width:16%">Вид</th><th style="width:22%">Залогодатель / поручитель</th>' +
+            '<th style="width:20%">Кредиты</th><th style="width:14%">Залоговая ст-ть</th><th style="width:12%">Статус</th>',
+        col.rows.map(r => '<tr><td class="who">' + r.num + '</td><td>' + r.kind + '</td>' +
+          '<td><a class="lnk" href="#">' + r.owner + '</a></td><td class="muted">' + r.cr + '</td>' +
+          '<td>' + r.val + '</td><td>' + r.st + '</td></tr>')));
+
+  /* --- Взыскание --- */
+  document.getElementById('pEnforce').innerHTML = sect(
+    'Принудительное взыскание', 'процедура → фаза → событие', '<button class="btn btn-secondary btn-sm">+ Процедура</button>',
+    b.procs.length
+      ? b.procs.map(p =>
+          '<div class="proc"><div class="proc-h">' +
+            '<span class="lvl">процедура</span>' +
+            '<span class="p-name">Процедура №' + p.num + ' — ' + p.title + '</span>' +
+            '<span class="muted">открыта ' + p.opened + ' · кредит ' + p.credit + ' · ' + fmt(p.sum) + ' KGS</span>' +
+            '<span class="badge b-proc">' + p.st + '</span><span style="flex:1"></span>' +
+            '<button class="btn btn-secondary btn-sm">+ Фаза</button></div>' +
+            p.phases.map(f =>
+              '<div class="phase"><div class="phase-h"><span class="lvl">фаза</span><b>' + f.name + '</b>' +
+              '<span class="muted">' + f.date + ' · ' + fmt(f.sum) + ' KGS</span>' + f.st + '</div>' +
+              f.ev.map(e => '<div class="ev">событие · ' + e + '</div>').join('') + '</div>').join('') +
+          '</div>').join('')
+      : empty('Процедур принудительного взыскания нет. Заёмщик обслуживается в обычном режиме.'));
+
+  /* --- Акты сверок --- */
+  document.getElementById('pActs').innerHTML = sect('Акты сверок', '',
+    '<button class="btn btn-secondary btn-sm">🖨 Сформировать акт</button>' +
+    '<button class="btn btn-primary btn-sm">Поменять статус акта сверки</button>',
+    table('<th style="width:6%">#</th><th style="width:24%">Кредит</th><th style="width:14%">Дата</th><th style="width:18%">Сумма</th><th>Статус акта</th>',
+      b.acts.map((a,i) => '<tr><td>' + (i+1) + '</td><td class="who">' + a.cr + '</td>' +
+        '<td class="muted">' + (a.date || '—') + '</td>' +
+        '<td>' + (a.sum === undefined ? '<span class="muted">—</span>' : fmt(a.sum) + ' KGS') + '</td>' +
+        '<td>' + a.st + (a.by ? '<div class="muted" style="margin-top:3px">подтвердил: ' + a.by + '</div>' : '') + '</td></tr>')));
+
+  /* --- Кураторство --- */
+  document.getElementById('pCuratorship').innerHTML =
+    '<div class="section" style="margin-bottom:0"><div class="section-head">Свод кураторства <span class="hint">кураторство ведётся на кредите, поимённо</span></div>' +
+    '<div class="section-body">' +
+    table('<th style="width:22%">Кредит</th><th style="width:26%">Подразделение</th><th style="width:22%">Сотрудник</th><th style="width:15%">Роль</th><th style="width:15%">Период</th>',
+      b.curators.map(k => '<tr' + (k.role === 'off' ? ' class="row-off"' : '') + '>' +
+        '<td class="' + (k.cr.startsWith('↳') ? 'muted' : 'who') + '">' + k.cr + '</td>' +
+        '<td>' + k.dept + '</td><td>' + k.who + '</td>' +
+        '<td>' + (k.role === 'off' ? '<span class="off-tag">⊘ отстранён</span>'
+                : '<span class="role role-' + (k.role === 'lead' ? 'lead">ведущий' : 'co">соисполнитель') + '</span>') + '</td>' +
+        '<td class="muted">' + k.from + '</td></tr>')) +
+    (b.curWarn ? '<div class="warn-plate"><span class="ic">⊘</span><span>' + b.curWarn + '</span></div>' : '') +
+    '</div></div>';
+
+  /* --- История --- */
+  document.getElementById('pHistory').innerHTML =
+    '<div class="section"><div class="section-head">История <span class="hint">переводы между группами, кураторство, категория риска</span></div>' +
+    '<div class="section-body" style="padding:18px 20px"><div class="tl">' +
+    b.history.map(h => '<div class="tl-item ' + h.kind + '"><div class="tl-date">' + h.date + '</div>' +
+      '<div class="tl-title">' + h.title + ' <span class="tl-kind k-' + h.kind + '">' +
+      ({grp:'группа', kur:'кураторство', conf:'конфликт', risk:'риск'}[h.kind] || h.kind) + '</span></div>' +
+      '<div class="tl-body">' + h.body + '</div></div>').join('') +
+    '</div></div></div>';
+
+  /* --- Документы --- */
+  document.getElementById('pDocs').innerHTML = sect('Документы (кредитное досье)', '',
+    '<select style="min-width:190px"><option>Относительно — все</option><option>Субъект</option><option>Заявка</option>' +
+    '<option>Кредит</option><option>Договор залога</option><option>Фаза взыскания</option></select>' +
+    '<button class="btn btn-secondary btn-sm">+ Прикрепить</button>',
+    table('<th style="width:30%">Относительно</th><th style="width:26%">Вид документа</th><th style="width:24%">Файл</th>' +
+          '<th style="width:10%">Дата</th><th style="width:10%">Кто приложил</th>',
+      b.docs.map(d => '<tr><td><span class="badge ' + (d.rel === 'Субъект' ? 'b-gray' : 'b-proc') + '">' + d.rel + '</span> ' +
+        '<span class="muted">' + d.relId + '</span></td><td>' + d.kind + '</td>' +
+        '<td><a class="lnk" href="#">' + d.file + '</a></td><td class="muted">' + d.date + '</td><td class="muted">' + d.by + '</td></tr>')));
+
+  /* --- Контакты --- */
+  let contactsHtml = sect('Контактные данные', '', '<button class="btn btn-secondary btn-sm">+ Добавить контакт</button>',
+    table('<th style="width:24%">Вид</th><th style="width:40%">Значение</th><th>Примечание</th>',
+      b.contacts.map(x => '<tr><td>' + x.k + '</td><td class="who">' + x.v + '</td><td class="muted">' + x.n + '</td></tr>')));
+  if (b.reps.length) contactsHtml += sect('Представители', '', '',
+    table('<th style="width:26%">Роль</th><th style="width:34%">Физлицо</th><th style="width:22%">Телефон</th><th style="width:18%">Действует с</th>',
+      b.reps.map(r => '<tr><td>' + r.role + '</td><td class="who"><a class="lnk" href="#">' + esc(r.name) + '</a> <span class="muted">' + r.pid + '</span></td>' +
+        '<td>' + r.phone + '</td><td class="muted">' + r.from + '</td></tr>')));
+  document.getElementById('pContacts').innerHTML = contactsHtml;
+
+  /* --- Результаты проверок (считаются из данных заёмщика) --- */
+  const od = maxOverdue(b);
+  const worstCredit = act.slice().sort((x,y) => (parseInt(String(y.over).replace(/\D/g,''),10)||0) - (parseInt(String(x.over).replace(/\D/g,''),10)||0))[0];
+  const lim = b.limit;
+  const pct = lim.total ? Math.round(lim.used / lim.total * 100) : 0;
+  const scoreCat = b.score >= 70 ? 'Низкий' : b.score >= 45 ? 'Средний' : 'Высокий';
+  const checks = [
+    ['Чёрный список', b.blacklist ? '<span class="badge b-ov">значится</span>' : '<span class="badge b-ok">не значится</span>',
+      'реестр ЧС · сверка по ИНН'],
+    ['Кредитная история', od > 0 ? '<span class="badge b-ov">есть просрочки</span>' : '<span class="badge b-ok">без просрочек</span>',
+      od > 0 ? 'макс. просрочка ' + fmt(od) + ' дн. (' + worstCredit.num + ')' : 'просрочек по действующим кредитам нет'],
+    ['Действующие кредиты', '<span class="who">' + act.length + '</span>',
+      act.length ? act.map(c => c.num).join(' · ') : 'действующих кредитов нет'],
+    ['Лимит задолженности', '<span class="badge b-gray">' + fmt(lim.used) + ' / ' + fmt(lim.total) + ' KGS</span>',
+      pct + ' % лимита по программе'],
+    ['Скоринг', catCell(scoreCat).replace(scoreCat, b.score + ' / 100'), b.cat.basis.replace(/<[^>]+>/g,'')],
+    ['Решения судов', b.procs.length ? '<span class="badge b-ov">' + b.procs.length + ' производств</span>' : '<span class="badge b-ok">нет</span>',
+      b.procs.length ? b.procs.map(p => '№' + p.num).join(', ') : 'судебных производств нет']
+  ];
+  document.getElementById('pChecks').innerHTML = sect('Результаты проверок', 'на ' + TODAY,
+    '<button class="btn btn-secondary btn-sm">Проверить заново</button>',
+    table('<th style="width:30%">Проверка</th><th style="width:20%">Результат</th><th style="width:34%">Основание</th><th style="width:16%">Дата проверки</th>',
+      checks.map(k => '<tr><td class="who">' + k[0] + '</td><td>' + k[1] + '</td><td class="muted">' + k[2] + '</td><td class="muted">' + TODAY + '</td></tr>')));
+
+  /* повесить обработчики на свежесозданные элементы карточки */
   document.querySelectorAll('.tile-more').forEach(m => {
     m.addEventListener('click', () => {
       const d = document.querySelector('.tile-detail[data-detail="' + m.dataset.more + '"]');
@@ -832,6 +1273,27 @@
       m.textContent = (open ? '▾ ' : '▸ ') + m.textContent.slice(2);
     });
   });
+  document.querySelectorAll('[data-goto]').forEach(a => {
+    a.addEventListener('click', e => { e.preventDefault(); openTab(a.dataset.goto); window.scrollTo(0,0); });
+  });
+}
+
+/* ---------- вкладки карточки ---------- */
+function openTab(name){
+  document.querySelectorAll('#tabs .tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
+  document.querySelector('#tabs .tab[data-tab="' + name + '"]').classList.add('active');
+  document.querySelector('.tabpanel[data-panel="' + name + '"]').classList.add('active');
+}
+document.querySelectorAll('#tabs .tab').forEach(t => t.addEventListener('click', () => openTab(t.dataset.tab)));
+
+/* ---------- меню печатных форм ---------- */
+const printBtn = document.getElementById('printBtn');
+const printMenu = document.getElementById('printMenu');
+printBtn.addEventListener('click', e => { e.stopPropagation(); printMenu.classList.toggle('open'); });
+document.addEventListener('click', () => printMenu.classList.remove('open'));
+
+renderList();
 </script>
 </body>
 </html>
