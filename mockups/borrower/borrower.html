@@ -162,8 +162,18 @@
   .section{border:1px solid var(--panel-border);border-radius:6px;margin-bottom:20px;overflow:hidden;}
   .section-head{padding:12px 16px;font-weight:700;font-size:15px;border-bottom:1px solid var(--panel-border);
     display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fbfcfd;}
+  /* секция без заголовка — рамки карточки нет, шапка со своей границей остаётся */
+  .section.bare{border:0;border-radius:0;overflow:visible;}
+  .section.bare .section-head{background:transparent;padding-left:0;padding-right:0;}
+  /* рамки карточки нет — таблицу обводим сами: бока на теле секции, низ на последней строке */
+  .section.bare .section-body{border-left:1px solid var(--border);border-right:1px solid var(--border);}
+  .section.bare table.grid tbody tr:last-child td{border-bottom:1px solid var(--border);}
+  /* если под таблицей пагинатор — низ рисует он (у строки границу снимаем, чтобы не двоило) */
+  .section.bare .section-body:has(.pager) table.grid tbody tr:last-child td{border-bottom:0;}
+  .section.bare .pager{border-bottom:1px solid var(--border);}
   .section-head .hint{font-weight:400;font-size:12px;color:var(--secondary-text);}
-  .section-head .ha{display:flex;gap:7px;flex:0 0 auto;align-items:center;}
+  /* margin-left:auto — чтобы правый слот прижимался вправо и при пустом заголовке секции */
+  .section-head .ha{display:flex;gap:7px;flex:0 0 auto;align-items:center;margin-left:auto;}
   .section-body{padding:0;}
 
   table.grid{width:100%;border-collapse:collapse;font-size:14px;}
@@ -240,6 +250,18 @@
   table.grid tbody tr.clk{cursor:pointer;} table.grid tbody tr.clk:hover{background:var(--grid-hover);}
   .cat-cell{display:inline-flex;align-items:center;gap:7px;font-weight:600;}
 
+  /* нумерация строк + выборка чекбоксами */
+  table.grid th.chk, table.grid td.chk{width:36px;text-align:center;padding-left:10px;padding-right:0;}
+  table.grid th.rownum, table.grid td.rownum{width:34px;text-align:right;padding-right:8px;color:var(--secondary-text);}
+  table.grid td.chk input{width:15px;height:15px;margin:0;cursor:pointer;accent-color:var(--primary);}
+  table.grid th.chk input{width:15px;height:15px;margin:0;cursor:pointer;accent-color:var(--primary);}
+  /* перебивает зебру (tr:nth-child(even) td) — потому правило на td */
+  table.grid tbody tr.sel td{background:#eaf2fe;}
+  /* итоговая строка: отбита сверху, фон как у шапки, суммы жирные */
+  table.grid tfoot td{padding:10px 12px;font-weight:700;background:var(--filter-bg);
+    border-top:2px solid var(--border-strong);}
+  table.grid tfoot td.win{color:var(--error);}
+
   .pager{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 16px;
     border-top:1px solid var(--border);background:#fbfcfd;font-size:13px;color:var(--secondary-text);flex-wrap:wrap;}
   .pages{display:flex;gap:4px;align-items:center;}
@@ -251,6 +273,7 @@
   .wo{display:flex;flex-direction:column;gap:3px;}
   .wo-in{font-size:12px;color:var(--secondary-text);display:flex;gap:6px;align-items:center;}
   .wo-in .win{color:var(--error);font-weight:700;}
+  .win{color:var(--error);font-weight:700;}
   .badge{font-size:12px;border-radius:3px;padding:1px 7px;font-weight:600;display:inline-block;white-space:nowrap;}
   .b-ov{background:#fdf1e0;color:var(--warn);border:1px solid #f0dcc0;}
   .b-proc{background:var(--blue-tint);color:var(--primary-text);}
@@ -638,16 +661,16 @@ const DATA = [
     body:'кредит <b>Газификация-2024-07</b> · рассмотрение реструктуризации (п. 18)<br>дедлайн <b>21.08.2026</b> · осталось 40 из 70 кал. дней',
     note:'Давит только переход средний→высокий. Категория кредита показана честно («средний»). По истечении/отказе → ночной пересчёт → высокий.'},
   credits:[
-    {num:'АПК-2023-014', row:'кредит', sum:12000000, debt:8400000, src:'Бюджетный', over:'45 дн.',
+    {num:'АПК-2023-014', row:'кредит', kind:'Бюджетный кредит', gov:'ПП КР №412 от 18.08.2022', date:'10.02.2023', sum:12000000, debt:8400000, src:'Бюджетный', over:'45 дн.', ovSum:640000,
      cat:'Средний', catIn:'по дням: средний · по факторам: —', proc:'2.1 · работа с судом', ov:'—'},
     {num:'АПК-2023-014/Т2', row:'транш', meta:'транш 2 · 4 000 000 KGS · освоен 12.09.2023',
      over:'—', catTxt:'наследует кредит', proc:'—', ov:'—'},
-    {num:'Газификация-2024-07', row:'кредит', sum:45000000, debt:41200000, src:'Иностранный кредит', over:'210 дн.',
+    {num:'Газификация-2024-07', row:'кредит', kind:'Иностранный кредит', gov:'ПП КР №77 от 14.02.2024', date:'05.04.2024', sum:45000000, debt:41200000, src:'Иностранный кредит', over:'210 дн.', ovSum:5820000,
      cat:'Средний', catIn:'по дням: <span class="win">высокий</span> → подавлен оверлеем · честно: средний',
      proc:'2.2 · исполнит. листы', ov:'<span class="badge b-ov">⏸ подавление −40 дн</span>'},
     {num:'Газификация-2024-07/Р1', row:'реструктуризация', meta:'на рассмотрении · подана 12.06.2026 · срок +24 мес.',
      over:'—', catTxt:'не влияет до утверждения', proc:'—', ov:'<span class="badge b-ov">⏸ источник оверлея</span>'},
-    {num:'Модернизация-2022-102', row:'кредит', sum:8000000, debt:8000000, src:'Бюджетный', over:'0 дн.',
+    {num:'Модернизация-2022-102', row:'кредит', kind:'Бюджетный кредит', gov:'ПП КР №301 от 07.06.2022', date:'22.09.2022', sum:8000000, debt:8000000, src:'Бюджетный', over:'0 дн.', ovSum:0,
      cat:'Высокий', catIn:'по дням: низкий · по факторам: <span class="win">нецелевое (реш. Комитета)</span>',
      proc:'2.3 · банкротство (иниц.)', ov:'—'}],
   col:{act:{n:3, ev:31500000, pl:22050000}, off:{n:1, ev:4000000, why:'погашение части долга (АПК-2023-014)'},
@@ -714,7 +737,7 @@ const DATA = [
     note:'проверено ночным пересчётом 13.07.2026',
     steps:[['Строительство-2024-31:','по дням 0 → низкий · факторов нет → <b class="cat-low">низкий</b>'],['worst-of заёмщика:','<b class="cat-low">низкий</b>']]},
   overlay:null,
-  credits:[{num:'Строительство-2024-31', row:'кредит', sum:20000000, debt:14300000, src:'Бюджетный', over:'0 дн.',
+  credits:[{num:'Строительство-2024-31', row:'кредит', kind:'Бюджетный кредит', gov:'ПП КР №77 от 14.02.2024', date:'02.02.2024', sum:20000000, debt:14300000, src:'Бюджетный', over:'0 дн.', ovSum:0,
      cat:'Низкий', catIn:'по дням: низкий · по факторам: —', proc:'—', ov:'—'},
     {num:'Строительство-2024-31/Т1', row:'транш', meta:'транш 1 · 10 000 000 KGS · освоен 14.03.2024', over:'—', catTxt:'наследует кредит', proc:'—', ov:'—'},
     {num:'Строительство-2024-31/Т2', row:'транш', meta:'транш 2 · 10 000 000 KGS · освоен 02.09.2024', over:'—', catTxt:'наследует кредит', proc:'—', ov:'—'}],
@@ -751,7 +774,7 @@ const DATA = [
   cat:{level:'Средний', basis:'<b>средний</b> · просрочка 95 дн. по Микро-2022-208', note:'стоп-факторов нет',
     steps:[['Микро-2022-208:','по дням 95 → средний · факторов нет → <b class="cat-mid">средний</b>'],['worst-of заёмщика:','<b class="cat-mid">средний</b>']]},
   overlay:null,
-  credits:[{num:'Микро-2022-208', row:'кредит', sum:3000000, debt:1850000, src:'Бюджетный', over:'95 дн.',
+  credits:[{num:'Микро-2022-208', row:'кредит', kind:'Бюджетный кредит', gov:'ПП КР №301 от 07.06.2022', date:'18.07.2022', sum:3000000, debt:1850000, src:'Бюджетный', over:'95 дн.', ovSum:410000,
      cat:'Средний', catIn:'по дням: средний · по факторам: —', proc:'2.2 · исполнит. листы', ov:'—'}],
   col:{act:{n:1, ev:2600000, pl:1820000}, off:null,
     rows:[{num:'ПД-2022-014', kind:'Поручительство', owner:'Дуйшеева А. М. <span class="muted">физлицо #63613</span>', cr:'Микро-2022-208', val:'1 820 000 KGS', st:'<span class="badge b-ok">действующий</span>'}]},
@@ -785,9 +808,9 @@ const DATA = [
   cat:{level:'Высокий', basis:'<b>высокий</b> · процедура банкротства + просрочка 320 дн.', note:'⚠ стоп-фактор: банкротство',
     steps:[['Дороги-2021-77:','по дням 320 → <b class="cat-high">высокий</b>'],['Транспорт-2023-05:','по дням 140 → средний · фактор: банкротство → <b class="cat-high">высокий</b>'],['worst-of заёмщика:','<b class="cat-high">высокий</b>']]},
   overlay:null,
-  credits:[{num:'Дороги-2021-77', row:'кредит', sum:120000000, debt:96500000, src:'Иностранный кредит', over:'320 дн.',
+  credits:[{num:'Дороги-2021-77', row:'кредит', kind:'Иностранный кредит', gov:'ПП КР №155 от 12.03.2021', date:'27.05.2021', sum:120000000, debt:96500000, src:'Иностранный кредит', over:'320 дн.', ovSum:18700000,
      cat:'Высокий', catIn:'по дням: высокий · по факторам: <span class="win">банкротство</span>', proc:'3.1 · банкротство', ov:'—'},
-    {num:'Транспорт-2023-05', row:'кредит', sum:30000000, debt:28900000, src:'Бюджетный', over:'140 дн.',
+    {num:'Транспорт-2023-05', row:'кредит', kind:'Бюджетный кредит', gov:'ПП КР №412 от 18.08.2022', date:'16.01.2023', sum:30000000, debt:28900000, src:'Бюджетный', over:'140 дн.', ovSum:2140000,
      cat:'Высокий', catIn:'по дням: средний · по факторам: <span class="win">банкротство</span>', proc:'3.1 · банкротство', ov:'—'}],
   col:{act:{n:2, ev:88000000, pl:61600000}, off:null,
     rows:[{num:'ЗД-2021-014', kind:'Залог · недвижимость', owner:'ОАО «КыргызЖол»', cr:'Дороги-2021-77', val:'52 000 000 KGS', st:'<span class="badge b-ok">действующий</span>'},
@@ -829,7 +852,7 @@ const DATA = [
   cat:{level:'Высокий', basis:'<b>высокий</b> · безнадёжный долг', note:'⚠ стоп-фактор: безнадёжность',
     steps:[['Переработка-2018-44:','просрочка 1 240 дн. · <b class="cat-high">высокий</b>'],['worst-of заёмщика:','<b class="cat-high">высокий</b>']]},
   overlay:null,
-  credits:[{num:'Переработка-2018-44', row:'кредит', sum:15000000, debt:11700000, src:'Бюджетный', over:'1 240 дн.',
+  credits:[{num:'Переработка-2018-44', row:'кредит', kind:'Бюджетный кредит', gov:'ПП КР №64 от 02.02.2018', date:'12.03.2018', sum:15000000, debt:11700000, src:'Бюджетный', over:'1 240 дн.', ovSum:6350000,
      cat:'Высокий', catIn:'по дням: высокий · по факторам: <span class="win">безнадёжный долг</span>', proc:'4 · безнадёжный', ov:'—'}],
   col:{act:{n:0, ev:0, pl:0}, off:{n:2, ev:9000000, why:'реализация залога в ходе взыскания (2024–2025)'},
     rows:[{num:'ЗД-2018-030', kind:'Залог · оборудование', owner:'ОсОО «АкТаш»', cr:'Переработка-2018-44', val:'6 000 000 KGS', st:'<span class="badge b-gray">снят · 14.08.2024 (реализован)</span>'},
@@ -863,7 +886,7 @@ const DATA = [
   cat:{level:'Средний', basis:'<b>средний</b> · просрочка 120 дн.', note:'стоп-факторов нет',
     steps:[['Агро-2023-091:','по дням 120 → средний → <b class="cat-mid">средний</b>'],['worst-of заёмщика:','<b class="cat-mid">средний</b>']]},
   overlay:null,
-  credits:[{num:'Агро-2023-091', row:'кредит', sum:5000000, debt:3950000, src:'Бюджетный', over:'120 дн.',
+  credits:[{num:'Агро-2023-091', row:'кредит', kind:'Бюджетный кредит', gov:'ПП КР №412 от 18.08.2022', date:'20.04.2023', sum:5000000, debt:3950000, src:'Бюджетный', over:'120 дн.', ovSum:730000,
      cat:'Средний', catIn:'по дням: средний · по факторам: —', proc:'2.1 · работа с судом', ov:'—'}],
   col:{act:{n:1, ev:5400000, pl:3780000}, off:null,
     rows:[{num:'ЗД-2023-118', kind:'Залог · сельхозтехника', owner:'Асанова Н. <span class="muted">физлицо #63545</span>', cr:'Агро-2023-091', val:'3 780 000 KGS', st:'<span class="badge b-ok">действующий</span>'}]},
@@ -897,7 +920,7 @@ const DATA = [
   cat:{level:'Низкий', basis:'<b>низкий</b> · долга нет', note:'история без просрочек',
     steps:[['Ирригация-2021-12:','погашен, просрочек не было → <b class="cat-low">низкий</b>'],['worst-of заёмщика:','<b class="cat-low">низкий</b>']]},
   overlay:null,
-  credits:[{num:'Ирригация-2021-12', row:'кредит', sum:9000000, debt:0, src:'Бюджетный', over:'0 дн.',
+  credits:[{num:'Ирригация-2021-12', row:'кредит', kind:'Бюджетный кредит', gov:'ПП КР №155 от 12.03.2021', date:'11.01.2021', sum:9000000, debt:0, src:'Бюджетный', over:'0 дн.', ovSum:0,
      cat:'Низкий', catIn:'погашен 28.02.2026 · просрочек не было', proc:'5 · погашенные', ov:'—'}],
   col:{act:{n:0, ev:0, pl:0}, off:{n:1, ev:12000000, why:'полное погашение кредита (Ирригация-2021-12)'},
     rows:[{num:'ЗД-2021-066', kind:'Залог · недвижимость', owner:'ОсОО «Береке»', cr:'Ирригация-2021-12', val:'8 400 000 KGS', st:'<span class="badge b-gray">снят · 28.02.2026 (погашение)</span>'}]},
@@ -930,7 +953,7 @@ const DATA = [
   cat:{level:'Низкий', basis:'<b>низкий</b> · просрочка 0 дн.', note:'солидарная ответственность членов группы',
     steps:[['Швейный-2025-08:','по дням 0 → <b class="cat-low">низкий</b>'],['worst-of заёмщика:','<b class="cat-low">низкий</b>']]},
   overlay:null,
-  credits:[{num:'Швейный-2025-08', row:'кредит', sum:4000000, debt:2600000, src:'Бюджетный', over:'0 дн.',
+  credits:[{num:'Швейный-2025-08', row:'кредит', kind:'Бюджетный кредит', gov:'ПП КР №21 от 20.01.2025', date:'14.03.2025', sum:4000000, debt:2600000, src:'Бюджетный', over:'0 дн.', ovSum:0,
      cat:'Низкий', catIn:'по дням: низкий · по факторам: —', proc:'—', ov:'—'}],
   col:{act:{n:1, ev:0, pl:4000000}, off:null,
     rows:[{num:'ПД-2025-041', kind:'Поручительство (солидарное)', owner:'4 члена группы', cr:'Швейный-2025-08', val:'4 000 000 KGS', st:'<span class="badge b-ok">действующий</span>'}]},
@@ -1182,14 +1205,16 @@ function maxOverdue(b){
 }
 function empty(txt){ return '<div class="empty-rows">' + txt + '</div>'; }
 function sect(title, hint, actions, body){
-  return '<div class="section" style="margin-bottom:18px"><div class="section-head">' + title +
+  /* без заголовка секция рисуется без рамки-карточки (класс bare) */
+  return '<div class="section' + (title ? '' : ' bare') + '" style="margin-bottom:18px"><div class="section-head">' + title +
     (hint ? ' <span class="hint">' + hint + '</span>' : '') +
     (actions ? '<span class="ha">' + actions + '</span>' : '') +
     '</div><div class="section-body">' + body + '</div></div>';
 }
-function table(head, rows){
+function table(head, rows, foot){
   if (!rows.length) return empty('Записей не найдено.');
-  return '<table class="grid"><thead><tr>' + head + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+  return '<table class="grid"><thead><tr>' + head + '</tr></thead><tbody>' + rows.join('') + '</tbody>' +
+    (foot ? '<tfoot><tr>' + foot + '</tr></tfoot>' : '') + '</table>';
 }
 
 /* ---------- страница субъекта (организация / физлицо) ---------- */
@@ -1295,23 +1320,68 @@ function renderCard(b){
     '</div>';
 
   /* --- Кредиты --- */
-  const credRows = b.credits.map(c => {
-    if (c.row === 'кредит') return '<tr>' +
-      '<td class="who">' + c.num + '<div class="muted" style="font-weight:400;margin-top:3px">' + fmt(c.sum) + ' → ост. <b>' + fmt(c.debt) + '</b> KGS · ' + c.src + '</div></td>' +
-      '<td><span class="badge b-type">кредит</span></td>' +
-      '<td>' + c.over + '</td>' +
-      '<td><div class="wo"><span class="cat-' + catCls(c.cat) + '" style="font-weight:700"><span class="dot d-' + catCls(c.cat) + '"></span> ' + c.cat + '</span>' +
-        '<span class="wo-in">' + c.catIn + '</span></div></td>' +
-      '<td>' + (c.proc === '—' ? '<span class="muted">—</span>' : '<span class="badge b-proc">' + c.proc + '</span>') + '</td>' +
-      '<td class="muted">' + c.ov + '</td></tr>';
-    return '<tr>' +
-      '<td style="padding-left:34px">↳ <span class="who">' + c.num + '</span><div class="muted" style="margin-top:3px">' + c.meta + '</div></td>' +
-      '<td><span class="badge b-type">' + c.row + '</span></td>' +
-      '<td class="muted">' + c.over + '</td>' +
-      '<td class="muted">' + c.catTxt + '</td>' +
-      '<td class="muted">' + c.proc + '</td>' +
-      '<td class="muted">' + c.ov + '</td></tr>';
-  });
+  /* на вкладке — только кредиты; транши и реструктуризации живут в карточке кредита */
+  const credList = b.credits.filter(c => c.row === 'кредит');
+  let crSize = 10, crPage = 1;
+
+  const credRow = (c, no) =>
+    '<tr>' +
+      '<td class="chk"><input type="checkbox" class="cr-chk"></td>' +
+      '<td class="rownum">' + no + '</td>' +
+      /* решение правительства — второй строкой под номером договора */
+      '<td class="who">' + c.num + '<div class="muted" style="font-weight:400;margin-top:3px">' + c.gov + '</div></td>' +
+      '<td class="muted">' + c.kind + '</td>' +
+      '<td>' + c.date + '</td>' +
+      '<td>' + fmt(c.sum) + ' <span class="muted">KGS</span></td>' +
+      '<td><b>' + fmt(c.debt) + '</b> <span class="muted">KGS</span></td>' +
+      /* просрочка = дни + сумма; нулевую просрочку не подсвечиваем */
+      '<td>' + (c.ovSum
+        ? '<span class="win">' + c.over + '</span><div class="muted" style="margin-top:3px">' + fmt(c.ovSum) + ' KGS</div>'
+        : c.over + '<div class="muted" style="margin-top:3px">0 KGS</div>') + '</td>' +
+      /* только итоговая категория; расшифровка (по дням/по факторам) — в карточке кредита */
+      '<td><span class="cat-' + catCls(c.cat) + '" style="font-weight:700"><span class="dot d-' + catCls(c.cat) + '"></span> ' + c.cat + '</span></td></tr>';
+
+  /* строки текущей страницы; нумерация сквозная по всему списку, не по странице */
+  const credRowsPage = () => {
+    const from = (crPage - 1) * crSize;
+    return credList.slice(from, from + crSize).map((c, i) => credRow(c, from + i + 1));
+  };
+
+  /* итоги считаем по всему списку кредитов, а не по текущей странице */
+  const credFoot = () => {
+    const t = credList.reduce((a, c) => ({ sum: a.sum + c.sum, debt: a.debt + c.debt, ov: a.ov + (c.ovSum || 0) }),
+                              { sum: 0, debt: 0, ov: 0 });
+    return '<td class="chk"></td><td class="rownum"></td>' +
+      '<td>Итого <span class="muted" style="font-weight:400">· ' + credList.length + ' кред.</span></td>' +
+      '<td></td><td></td>' +
+      '<td>' + fmt(t.sum) + ' <span class="muted">KGS</span></td>' +
+      '<td>' + fmt(t.debt) + ' <span class="muted">KGS</span></td>' +
+      '<td' + (t.ov ? ' class="win"' : '') + '>' + fmt(t.ov) + ' <span class="muted">KGS</span></td>' +
+      '<td></td>';
+  };
+
+  const credPager = () => {
+    const total = credList.length, last = Math.max(1, Math.ceil(total / crSize));
+    const from = total ? (crPage - 1) * crSize + 1 : 0, to = Math.min(crPage * crSize, total);
+    const pg = (label, page, opts) =>
+      '<button class="pg' + (opts === 'dis' ? ' dis' : '') + (opts === 'act' ? ' active' : '') + '"' +
+      (opts === 'dis' ? ' disabled' : ' data-pg="' + page + '"') + '>' + label + '</button>';
+    let pages = '';
+    for (let p = 1; p <= last; p++) pages += pg(p, p, p === crPage ? 'act' : '');
+    return '<div class="pager">' +
+      '<span>Показано <b>' + from + '–' + to + '</b> из <b>' + total + '</b></span>' +
+      '<div class="pages">' +
+        pg('«', 1, crPage === 1 ? 'dis' : '') + pg('‹', crPage - 1, crPage === 1 ? 'dis' : '') +
+        pages +
+        pg('›', crPage + 1, crPage === last ? 'dis' : '') + pg('»', last, crPage === last ? 'dis' : '') +
+      '</div>' +
+      '<span>Строк на странице ' +
+        '<select id="crSize" style="width:auto;min-width:70px">' +
+          [10, 25, 50, 100].map(n => '<option' + (n === crSize ? ' selected' : '') + '>' + n + '</option>').join('') +
+        '</select></span>' +
+    '</div>';
+  };
+
   document.getElementById('pCredits').innerHTML =
     '<div class="toolbar">' +
       '<span class="fl muted">По состоянию на</span>' +
@@ -1332,12 +1402,53 @@ function renderCard(b){
       /* транш и реструктуризация заводятся внутри карточки кредита — здесь одна кнопка */
       '<button class="btn btn-secondary btn-sm">+ Добавить кредит</button>' +
     '</div>' +
-    sect('Кредиты', 'остатки на <b>' + TODAY + '</b> · последний пересчёт ' + TODAY + ' 03:15', '',
-      table('<th style="width:24%">Договор</th><th style="width:12%">Тип</th><th style="width:10%">Просрочка</th>' +
-            '<th style="width:24%">Категория (worst-of)</th><th style="width:18%">Процедура → группа</th><th style="width:12%">Оверлей</th>', credRows));
+    /* заголовок секции пуст — название вкладки уже «Кредиты», дублировать незачем */
+    /* заголовка нет (дубль вкладки); отметку о пересчёте кладём в правый слот шапки секции */
+    sect('', '', '<span class="hint">остатки на <b>' + TODAY + '</b> · последний пересчёт ' + TODAY + ' 03:15</span>',
+      '<div id="crWrap"></div>');
   const genDd = document.getElementById('genDd');
   document.getElementById('genBtn').addEventListener('click', e => { e.stopPropagation(); genDd.classList.toggle('open'); });
   genDd.querySelectorAll('.dd-i').forEach(i => i.addEventListener('click', () => genDd.classList.remove('open')));
+
+  /* таблица кредитов перерисовывается при смене страницы / размера страницы */
+  const crWrap = document.getElementById('crWrap');
+  function renderCredits(){
+    crWrap.innerHTML =
+      table('<th class="chk"><input type="checkbox" id="crAll" title="Выбрать все"></th><th class="rownum">#</th>' +
+            /* колонки «Тип» нет — в таблице только кредиты */
+            '<th style="width:22%">Договор</th><th style="width:13%">Вид кредита</th>' +
+            '<th style="width:9%">Дата</th><th style="width:13%">Сумма</th><th style="width:13%">Остаток</th>' +
+            '<th style="width:12%">Просрочка</th><th style="width:12%">Категория риска</th>', credRowsPage(), credFoot()) +
+      credPager();
+
+    /* выборка строк: «выбрать все» + подсветка выбранного (в пределах страницы) */
+    const crAll  = crWrap.querySelector('#crAll');
+    const crChks = [...crWrap.querySelectorAll('.cr-chk')];
+    const syncAll = () => {
+      const on = crChks.filter(x => x.checked).length;
+      crAll.checked = on === crChks.length && on > 0;
+      crAll.indeterminate = on > 0 && on < crChks.length;
+    };
+    crAll.addEventListener('change', () => {
+      crChks.forEach(x => { x.checked = crAll.checked; x.closest('tr').classList.toggle('sel', x.checked); });
+      crAll.indeterminate = false;
+    });
+    crChks.forEach(x => x.addEventListener('change', () => {
+      x.closest('tr').classList.toggle('sel', x.checked);
+      syncAll();
+    }));
+
+    crWrap.querySelectorAll('.pg[data-pg]').forEach(btn => btn.addEventListener('click', () => {
+      crPage = +btn.dataset.pg;
+      renderCredits();
+    }));
+    crWrap.querySelector('#crSize').addEventListener('change', e => {
+      crSize = +e.target.value;
+      crPage = 1;   /* размер страницы сменился — старая страница может не существовать */
+      renderCredits();
+    });
+  }
+  renderCredits();
 
   /* --- Обеспечение --- */
   const col = b.col;
