@@ -157,6 +157,78 @@ check('печатный слой прячет сайдбар',
   await page.evaluate(() => [...document.styleSheets[0].cssRules]
     .some(r => r.conditionText === 'print' && r.cssText.includes('.sidebar'))));
 
+// --- Справочник должностей: создание ---
+await page.click('#viewTabs .dtab[data-view=titles]');
+const titlesBefore = await page.locator('#titlesBody table.cgrid tbody tr').count();
+await page.click('#addTitleBtn');
+await page.fill('#mtName', 'Ведущий специалист');
+await page.selectOption('#mtCat', 'специалист');
+await page.click('#mtSubmit');
+check('должность добавлена в справочник',
+  await page.locator('#titlesBody table.cgrid tbody tr').count() === titlesBefore + 1);
+check('новая должность нигде не используется',
+  (await page.locator('#titlesBody table.cgrid tbody tr').last().innerText()).includes('не используется'));
+await page.click('#addTitleBtn');
+await page.fill('#mtName', 'Ведущий специалист');
+await page.click('#mtSubmit');
+check('дубль наименования должности отклонён',
+  (await page.locator('#mtErr').innerText()).length > 0
+  && await page.locator('#titlesBody table.cgrid tbody tr').count() === titlesBefore + 1);
+await page.click('#mtCancel');
+await page.selectOption('#roleSel', 'obs');
+check('Наблюдатель: «+ Должность» задизейблена', await page.locator('#addTitleBtn').isDisabled());
+await page.selectOption('#roleSel', 'hr');
+
+// --- Штатная позиция в карточке узла ---
+await page.click('#viewTabs .dtab[data-view=units]');
+await page.locator('.tree-scroll .trow[data-id=sector]').click();
+await page.click('#tabbar .dtab[data-tab=staff]');
+const posBefore = await page.locator('#p-staff table.cgrid tbody tr').count();
+await page.click('#addPosBtn');
+await page.selectOption('#mpTitle', { label: 'Ведущий специалист' });
+await page.fill('#mpUnits', '2');
+await page.click('#mpSubmit');
+check('штатная позиция добавлена в узел',
+  await page.locator('#p-staff table.cgrid tbody tr').count() === posBefore + 1);
+check('новая позиция вакантна',
+  (await page.locator('#p-staff table.cgrid tbody tr').last().innerText()).includes('вакансия'));
+// у «Сектора мониторинга» уже есть первое лицо (ps_sector) — второе запрещено
+await page.click('#addPosBtn');
+await page.selectOption('#mpTitle', { label: 'Ведущий специалист' });
+await page.check('#mpHeadChk');
+await page.click('#mpSubmit');
+check('второе «первое лицо» в узле отклонено',
+  (await page.locator('#mpErr').innerText()).includes('первое лицо'));
+await page.click('#mpCancel');
+
+// --- Назначение на позицию ---
+const rowVac = page.locator('#p-staff table.cgrid tbody tr', { hasText: 'Заведующий сектором' });
+await rowVac.locator('.asgbtn').click();
+await page.selectOption('#maEmp', { label: 'Иманова Н. С.' });   // у неё уже есть основное (ps_creditsp)
+await page.selectOption('#maKind', 'main');
+await page.click('#maSubmit');
+check('второе основное назначение сотруднику отклонено',
+  (await page.locator('#maErr').innerText()).includes('основное'));
+await page.selectOption('#maKind', 'combine');
+await page.fill('#maRate', '0.5');
+await page.click('#maSubmit');
+check('совместительство на вакансию оформлено',
+  (await rowVac.innerText()).includes('совмест.'));
+// совместитель первым лицом не становится: head() смотрит только и.о. → основное,
+// поэтому вакансия руководителя обязана остаться (метрика и рабочий список — заодно).
+check('совместитель не закрывает вакансию руководителя',
+  await page.evaluate(() => metricsAt(state.date).vac.head) === 2
+  && await page.evaluate(() => problemsAt(state.date).headVacant.some(x => x.unitId === 'sector')));
+// основное назначение — закрывает
+await rowVac.locator('.asgbtn').click();
+await page.selectOption('#maEmp', { label: 'Сыдыков Э. Ж.' });   // основного назначения не имеет
+await page.selectOption('#maKind', 'main');
+await page.click('#maSubmit');
+check('основное назначение закрывает вакансию руководителя',
+  await page.evaluate(() => metricsAt(state.date).vac.head) === 1);
+check('«Сектор» ушёл из рабочего списка вакансий',
+  await page.evaluate(() => problemsAt(state.date).headVacant.every(x => x.unitId !== 'sector')));
+
 // --- Task 8: скриншоты для дев-команды ---
 // reload обязателен: тест выше создал узел «Отдел взыскания», он живёт в памяти
 // страницы и иначе попал бы на все скриншоты.

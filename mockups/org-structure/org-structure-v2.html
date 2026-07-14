@@ -404,6 +404,13 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
 .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
 .empty{ font:var(--font-label); color:var(--text-muted); padding:14px 4px; }
 .readonly-tag{ font:var(--font-label); color:var(--text-muted); display:inline-flex; align-items:center; gap:6px; }
+/* заголовок секции с кнопкой создания справа */
+.section-h.row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.fld.chk{ flex-direction:row; align-items:center; gap:8px; }
+.fld.chk input{ height:auto; width:auto; }
+.fld.chk > label{ color:var(--text-body); }
+.fld-row{ display:flex; gap:12px; }
+.fld-row > .fld{ flex:1; }
 
 /* ---- печать паспорта оргструктуры на дату среза ---- */
 @media print{
@@ -535,6 +542,110 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
         <span class="modal-err" id="auErr"></span>
         <button class="btn btn-secondary" id="auCancel">Отмена</button>
         <button class="btn btn-primary" id="auSubmit">Создать узел</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- должность: глобальный справочник, к узлу не привязана -->
+  <div class="modal-back" id="mtBack">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mtHead">
+      <div class="modal-h" id="mtHead">Новая должность</div>
+      <div class="modal-b">
+        <div class="fld">
+          <label for="mtName">Наименование</label>
+          <input type="text" id="mtName" placeholder="напр. Ведущий специалист" autocomplete="off">
+        </div>
+        <div class="fld">
+          <label for="mtCat">Категория</label>
+          <select id="mtCat">
+            <option value="руководящая">руководящая</option>
+            <option value="специалист" selected>специалист</option>
+            <option value="технический">технический</option>
+            <option value="обслуживающий">обслуживающий</option>
+          </select>
+        </div>
+        <div class="fld chk">
+          <input type="checkbox" id="mtLead">
+          <label for="mtLead">Руководящая должность</label>
+        </div>
+        <div class="modal-note">Должность — справочник. Чтобы она появилась в узле, заведите в нём штатную позицию.</div>
+      </div>
+      <div class="modal-f">
+        <span class="modal-err" id="mtErr"></span>
+        <button class="btn btn-secondary" id="mtCancel">Отмена</button>
+        <button class="btn btn-primary" id="mtSubmit">Создать должность</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- штатная позиция: должность × узел -->
+  <div class="modal-back" id="mpBack">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mpHead">
+      <div class="modal-h" id="mpHead">Новая штатная позиция</div>
+      <div class="modal-b">
+        <div class="fld">
+          <label for="mpTitle">Должность из справочника</label>
+          <select id="mpTitle"></select>
+        </div>
+        <div class="fld">
+          <label for="mpUnits">Штатных единиц</label>
+          <input type="number" id="mpUnits" min="1" step="1" value="1">
+        </div>
+        <div class="fld chk">
+          <input type="checkbox" id="mpHeadChk">
+          <label for="mpHeadChk">Первое лицо узла (руководитель)</label>
+        </div>
+        <div class="modal-note">Узел: <b id="mpUnit"></b>. Первое лицо в узле может быть только одно.</div>
+      </div>
+      <div class="modal-f">
+        <span class="modal-err" id="mpErr"></span>
+        <button class="btn btn-secondary" id="mpCancel">Отмена</button>
+        <button class="btn btn-primary" id="mpSubmit">Создать позицию</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- назначение на штатную позицию: основное / совместительство / и.о. -->
+  <div class="modal-back" id="maBack">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="maHead">
+      <div class="modal-h" id="maHead">Назначение на позицию</div>
+      <div class="modal-b">
+        <div class="fld">
+          <label for="maEmp">Сотрудник</label>
+          <select id="maEmp"></select>
+        </div>
+        <div class="fld">
+          <label for="maKind">Вид</label>
+          <select id="maKind">
+            <option value="main" selected>основное</option>
+            <option value="combine">совместительство</option>
+            <option value="acting">и.о.</option>
+          </select>
+        </div>
+        <div class="fld-row">
+          <div class="fld">
+            <label for="maFrom">С даты</label>
+            <input type="date" id="maFrom">
+          </div>
+          <div class="fld" id="maToFld">
+            <label for="maTo">По дату</label>
+            <input type="date" id="maTo">
+          </div>
+        </div>
+        <div class="fld" id="maRateFld">
+          <label for="maRate">Доля ставки</label>
+          <input type="number" id="maRate" min="0.1" max="1" step="0.1" value="1">
+        </div>
+        <div class="fld" id="maReasonFld">
+          <label for="maReason">Основание и.о.</label>
+          <input type="text" id="maReason" placeholder="напр. отпуск основного" autocomplete="off">
+        </div>
+        <div class="modal-note">Позиция: <b id="maPos"></b>. Основное назначение у сотрудника может быть только одно.</div>
+      </div>
+      <div class="modal-f">
+        <span class="modal-err" id="maErr"></span>
+        <button class="btn btn-secondary" id="maCancel">Отмена</button>
+        <button class="btn btn-primary" id="maSubmit">Назначить</button>
       </div>
     </div>
   </div>
@@ -744,7 +855,9 @@ function metricsAt(d){
 
   // вакансии: позиция без единого действующего назначения (и.о. вакансию не закрывает — он временный)
   const vacPos  = poss.filter(p=>!ASSIGN.some(a=>a.posId===p.id && spanActive(a,d)));
-  const vacHead = vacPos.filter(p=>p.isHead);
+  // руководитель — по правилам head(): и.о. → основное. Совместитель первым лицом не становится,
+  // поэтому у руководящей позиции своё условие вакантности, а не «нет ни одного назначения».
+  const vacHead = poss.filter(p=>p.isHead && !mainOn(p.id,d) && !actingOn(p.id,d));
 
   const ios = ACTING.filter(a=>posIds.has(a.posId) && spanActive(a,d));
   const expiring = ios.filter(a=>a.to!=null && daysBetween(d,a.to) <= EXPIRING_DAYS);
@@ -996,6 +1109,7 @@ function renderStaff(){
   const d = state.date, id = state.sel;
   const el = document.getElementById('p-staff');
   if(!existsAt(id,d)){ el.innerHTML = notYet(id,d); return; }
+  const liq = liquidatedAt(id,d);
   const poss = POSITIONS.filter(p=>p.unitId===id);
   const rows = poss.map(p=>{
     const occ = occupantsOf(p.id,d);
@@ -1007,19 +1121,25 @@ function renderStaff(){
       if(o.kind==='combine') return `<div>${fmtEmp(o.empId)} <span class="pill neutral">совмест.</span> <span class="muted">доля ${o.rate}</span></div>`;
       return `<div><b>${fmtEmp(o.empId)}</b> <span class="pill ok">основное</span> <span class="muted">доля ${o.rate}</span></div>`;
     }).join('');
+    const asg = `<button class="btn btn-secondary asgbtn" data-pos="${p.id}" style="height:28px; padding:0 10px; font-size:13px"
+      ${(canEdit() && !liq)?'':'disabled'}>Назначить</button>`;
     return `<tr>
       <td><b>${esc(t.name)}</b>${p.isHead?' <span class="pill info">первое лицо</span>':''}<div class="muted">${esc(t.cat)}${t.lead?' · руководящая':''}</div></td>
       <td class="mono">${p.units}</td>
-      <td>${cell}</td></tr>`;
-  }).join('') || `<tr><td colspan="3" class="muted">Штатных позиций на дату нет.</td></tr>`;
+      <td>${cell}</td>
+      <td>${asg}</td></tr>`;
+  }).join('') || `<tr><td colspan="4" class="muted">Штатных позиций на дату нет.</td></tr>`;
 
   const inv = checkMainInvariant(d);
 
   el.innerHTML = `
     <div class="panel-wrap">
-      <div class="section-h">Штатное расписание — ${esc(nameAt(id,d))}</div>
+      <div class="section-h row">
+        <span>Штатное расписание — ${esc(nameAt(id,d))}</span>
+        <button class="addbtn" id="addPosBtn" ${(canEdit() && !liq)?'':'disabled'}>+ Штатная позиция</button>
+      </div>
       <table class="cgrid">
-        <thead><tr><th style="width:38%">Позиция (должность)</th><th style="width:8%">Ед.</th><th>Кто на дату</th></tr></thead>
+        <thead><tr><th style="width:34%">Позиция (должность)</th><th style="width:8%">Ед.</th><th>Кто на дату</th><th style="width:12%"></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div class="section-h">Одно основное назначение на сотрудника</div>
@@ -1027,6 +1147,108 @@ function renderStaff(){
         ? banner('danger', ICONS.block, 'Нарушение: '+inv.map(fmtEmp).join(', ')+' — более одного основного назначения на дату.')
         : banner('ok', ICONS.ok, 'Соблюдён: на выбранную дату у каждого сотрудника не более одного основного назначения.') }
     </div>`;
+
+  const ap = document.getElementById('addPosBtn');
+  if(ap) ap.onclick = openAddPos;
+  el.querySelectorAll('.asgbtn').forEach(b=> b.onclick = ()=> openAssign(b.dataset.pos));
+}
+
+/* ---- ШТАТНАЯ ПОЗИЦИЯ = должность × узел. Живёт в узле (state.sel), первое лицо — одно. ---- */
+function openAddPos(){
+  if(!canEdit()) return;
+  const d = state.date, id = state.sel;
+  const sel = document.getElementById('mpTitle');
+  sel.innerHTML = Object.entries(TITLES)
+    .sort((a,b)=> a[1].name<b[1].name?-1:1)
+    .map(([tid,t])=>`<option value="${tid}">${esc(t.name)}</option>`).join('');
+  document.getElementById('mpUnits').value = '1';
+  document.getElementById('mpHeadChk').checked = false;
+  document.getElementById('mpErr').textContent = '';
+  document.getElementById('mpUnit').textContent = nameAt(id,d);
+  document.getElementById('mpBack').classList.add('open');
+}
+function submitAddPos(){
+  const err = document.getElementById('mpErr');
+  const d = state.date, unitId = state.sel;
+  const titleId = document.getElementById('mpTitle').value;
+  const units = Number(document.getElementById('mpUnits').value);
+  const isHead = document.getElementById('mpHeadChk').checked;
+  if(!titleId){ err.textContent = 'Выберите должность.'; return; }
+  if(!(units >= 1)){ err.textContent = 'Штатных единиц должно быть не меньше одной.'; return; }
+  if(isHead && headPosOf(unitId)){
+    err.textContent = 'У узла уже есть первое лицо — '+TITLES[headPosOf(unitId).titleId].name+'.'; return;
+  }
+  let base = 'ps_'+(POSITIONS.length+1), pid = base, n = 1;
+  while(POSITIONS.some(p=>p.id===pid)){ pid = base+'_'+(n++); }
+  POSITIONS.push({ id:pid, unitId, titleId, units, isHead });
+  document.getElementById('mpBack').classList.remove('open');
+  render();
+  toast(`Позиция «${TITLES[titleId].name}» заведена в «${nameAt(unitId,d)}»`);
+}
+
+/* ---- НАЗНАЧЕНИЕ на позицию: основное / совместительство (ASSIGN) либо и.о. (ACTING). ---- */
+let asgPos = null;
+function openAssign(posId){
+  if(!canEdit()) return;
+  asgPos = posId;
+  const d = state.date, p = POSITIONS.find(x=>x.id===posId);
+  document.getElementById('maEmp').innerHTML = Object.entries(EMPLOYEES)
+    .map(([eid,fio])=>`<option value="${eid}">${esc(fio)}</option>`).join('');
+  document.getElementById('maKind').value = 'main';
+  document.getElementById('maFrom').value = d;
+  document.getElementById('maTo').value = '';
+  document.getElementById('maRate').value = '1';
+  document.getElementById('maReason').value = '';
+  document.getElementById('maErr').textContent = '';
+  document.getElementById('maPos').textContent = TITLES[p.titleId].name+' · '+nameAt(p.unitId,d);
+  syncAssignFields();
+  document.getElementById('maBack').classList.add('open');
+}
+// и.о. — срочная роль поверх позиции: обязателен конец и основание, доли ставки нет.
+function syncAssignFields(){
+  const acting = document.getElementById('maKind').value === 'acting';
+  document.getElementById('maRateFld').style.display   = acting ? 'none' : 'flex';
+  document.getElementById('maReasonFld').style.display = acting ? 'flex' : 'none';
+}
+function submitAssign(){
+  const err = document.getElementById('maErr');
+  const d = state.date, posId = asgPos;
+  const p = POSITIONS.find(x=>x.id===posId);
+  const empId = document.getElementById('maEmp').value;
+  const kind  = document.getElementById('maKind').value;
+  const from  = document.getElementById('maFrom').value || d;
+  const to    = document.getElementById('maTo').value || null;
+  const rate  = Number(document.getElementById('maRate').value);
+  const reason= document.getElementById('maReason').value.trim();
+  if(to && to < from){ err.textContent = 'Дата окончания раньше даты начала.'; return; }
+
+  if(kind === 'acting'){
+    if(!to){ err.textContent = 'У и.о. обязателен срок окончания.'; return; }
+    if(!reason){ err.textContent = 'Укажите основание и.о.'; return; }
+    if(ACTING.some(a=>a.posId===posId && spanActive(a,from))){
+      err.textContent = 'На позиции уже есть действующий и.о. на эту дату.'; return;
+    }
+    let base = 'io'+(ACTING.length+1), id = base, n = 1;
+    while(ACTING.some(a=>a.id===id)){ id = base+'_'+(n++); }
+    ACTING.push({ id, posId, empId, from, to, reason });
+  } else {
+    if(!(rate > 0 && rate <= 1)){ err.textContent = 'Доля ставки — от 0,1 до 1.'; return; }
+    if(kind === 'main'){
+      // инвариант: одно основное назначение на сотрудника…
+      if(ASSIGN.some(a=>a.empId===empId && a.kind==='main' && spanActive(a,from))){
+        err.textContent = 'У сотрудника уже есть основное назначение на эту дату — оформите совместительство.'; return;
+      }
+      // …и одно основное на позицию
+      if(mainOn(posId, from)){ err.textContent = 'Позиция уже занята по основному назначению.'; return; }
+    }
+    let base = 'a'+(ASSIGN.length+1), id = base, n = 1;
+    while(ASSIGN.some(a=>a.id===id)){ id = base+'_'+(n++); }
+    ASSIGN.push({ id, empId, posId, kind, from, to, rate });
+  }
+  document.getElementById('maBack').classList.remove('open');
+  render();
+  const what = kind==='acting' ? 'и.о.' : kind==='combine' ? 'совместительство' : 'основное назначение';
+  toast(`${fmtEmp(empId)} — ${what} на «${TITLES[p.titleId].name}» с ${from}`);
 }
 
 /* ---- ИСТОРИЯ ---- */
@@ -1186,11 +1408,41 @@ function renderTitles(){
       <td>${where}</td></tr>`;
   }).join('');
   document.getElementById('titlesBody').innerHTML = `
-    <div class="section-h" style="margin-top:4px">Справочник должностей</div>
+    <div class="section-h row" style="margin-top:4px">
+      <span>Справочник должностей</span>
+      <button class="addbtn" id="addTitleBtn" ${canEdit()?'':'disabled'}>+ Должность</button>
+    </div>
     <table class="cgrid">
       <thead><tr><th style="width:24%">Должность</th><th style="width:14%">Категория</th><th style="width:12%">Руководящая</th><th style="width:12%">Штатных позиций</th><th>Где используется (на дату)</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+  document.getElementById('addTitleBtn').onclick = openAddTitle;
+}
+
+/* ---- ДОЛЖНОСТЬ (справочник). Не привязана к узлу и не версионируется:
+   в узле она проявляется только через штатную позицию. ---- */
+function openAddTitle(){
+  if(!canEdit()) return;
+  document.getElementById('mtName').value = '';
+  document.getElementById('mtCat').value = 'специалист';
+  document.getElementById('mtLead').checked = false;
+  document.getElementById('mtErr').textContent = '';
+  document.getElementById('mtBack').classList.add('open');
+  document.getElementById('mtName').focus();
+}
+function submitAddTitle(){
+  const err = document.getElementById('mtErr');
+  const name = document.getElementById('mtName').value.trim();
+  if(!name){ err.textContent = 'Укажите наименование.'; return; }
+  if(Object.values(TITLES).some(t=>t.name.toLowerCase()===name.toLowerCase())){
+    err.textContent = 'Такая должность в справочнике уже есть.'; return;
+  }
+  let base = 't_'+(Object.keys(TITLES).length+1), id = base, n = 1;
+  while(TITLES[id]){ id = base+'_'+(n++); }
+  TITLES[id] = { name, cat:document.getElementById('mtCat').value, lead:document.getElementById('mtLead').checked };
+  document.getElementById('mtBack').classList.remove('open');
+  render();
+  toast(`Должность «${name}» добавлена в справочник`);
 }
 
 /* ---- §6 СОТРУДНИКИ ПОДРАЗДЕЛЕНИЯ — сотрудник действует в нескольких узлах (осн. + совмест. + и.о.) ---- */
@@ -1551,8 +1803,19 @@ document.getElementById('addUnitBtn').onclick = openAddUnit;
 document.getElementById('ovPrint').onclick = ()=> window.print();
 document.getElementById('auCancel').onclick = closeAddUnit;
 document.getElementById('auSubmit').onclick = submitAddUnit;
-document.getElementById('modalBack').addEventListener('click', e=>{ if(e.target.id==='modalBack') closeAddUnit(); });
-document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeAddUnit(); });
+document.getElementById('mtCancel').onclick = closeModals;
+document.getElementById('mtSubmit').onclick = submitAddTitle;
+document.getElementById('mpCancel').onclick = closeModals;
+document.getElementById('mpSubmit').onclick = submitAddPos;
+document.getElementById('maCancel').onclick = closeModals;
+document.getElementById('maSubmit').onclick = submitAssign;
+document.getElementById('maKind').addEventListener('change', syncAssignFields);
+// клик по подложке любой модалки и Escape закрывают всё открытое
+function closeModals(){ document.querySelectorAll('.modal-back.open').forEach(m=>m.classList.remove('open')); }
+document.querySelectorAll('.modal-back').forEach(m=>{
+  m.addEventListener('click', e=>{ if(e.target===m) closeModals(); });
+});
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModals(); });
 
 renderNav();
 render();
