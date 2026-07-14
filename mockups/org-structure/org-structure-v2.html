@@ -398,7 +398,7 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
       <span class="crumb-title">Оргструктура · Обзор</span>
       <div class="date-wrap">
         <label for="dateInp">Дата&nbsp;среза</label>
-        <input type="date" id="dateInp" min="2020-01-01" max="2026-07-11">
+        <input type="date" id="dateInp" min="2019-01-01" max="2026-07-11">
         <button class="date-chip" data-d="2022-03-01">2022</button>
         <button class="date-chip" data-d="2023-09-01">2023</button>
         <button class="date-chip" data-d="2026-07-11">Сегодня</button>
@@ -1226,10 +1226,72 @@ function submitAddUnit(){
 }
 window.openAddUnit = openAddUnit;
 
-/* ---- дашборд «Обзор» (заполняется в задачах 3–7) ---- */
+/* =========================================================================
+   ДАШБОРД «ОБЗОР» — рендер. Всё производное, всё на дату среза.
+   ========================================================================= */
+function deltaHtml(cur, prev, invert){
+  const diff = cur - prev;
+  if(!diff) return `<div class="md flat">без изменений за год</div>`;
+  const good = invert ? diff < 0 : diff > 0;
+  return `<div class="md ${good?'up':'down'}">${diff>0?'+':''}${diff} за год</div>`;
+}
+
+function metricsHtml(m, mp){
+  const types = Object.entries(m.units.byType).map(([t,n])=>esc(t)+' '+n).join(' · ') || '—';
+  const tile = (key, cls, label, val, sub, delta) =>
+    `<button class="metric ${cls}" data-jump="${key}">
+       <div class="ml">${label}</div><div class="mv">${val}</div><div class="mu">${sub}</div>${delta||''}
+     </button>`;
+  return `<div class="metrics">
+    ${tile('units','', 'Действующих узлов', m.units.total, types, deltaHtml(m.units.total, mp.units.total, false))}
+    ${tile('staff','', 'Штат и факт', m.staff.pct+'%', `${m.staff.filled} из ${m.staff.planned} ед. — укомплектованность`, deltaHtml(m.staff.pct, mp.staff.pct, false))}
+    ${tile('vac', m.vac.head?'err':'', 'Вакансии', m.vac.total, m.vac.head? `в т.ч. вакансий руководителя: ${m.vac.head}` : 'вакансий руководителя нет', deltaHtml(m.vac.total, mp.vac.total, true))}
+    ${tile('acting', m.acting.expiring?'warn':'', 'И.о.', m.acting.total, m.acting.expiring? `истекают ≤ ${EXPIRING_DAYS} дн.: ${m.acting.expiring}` : 'истекающих нет', deltaHtml(m.acting.total, mp.acting.total, false))}
+    ${tile('combine','', 'Совместительства', m.combine, 'действующих на дату', deltaHtml(m.combine, mp.combine, false))}
+    ${tile('inv', m.inv.length?'err':'', 'Нарушения инварианта', m.inv.length, m.inv.length? m.inv.map(fmtEmp).join(', ') : '«одно основное назначение» соблюдён', '')}
+  </div>`;
+}
+
+// Клик по плитке ведёт в рабочий список, который эту цифру объясняет.
+// Плитки без своего списка (узлы, совместительства) не кликабельны — ложная связка хуже её отсутствия.
+const METRIC_JUMP = { vac:'headVacant', acting:'actingExpiring', inv:'invariant', staff:'noStaff' };
+function bindMetricJumps(){
+  document.querySelectorAll('#ovBody .metric').forEach(b=>{
+    const t = METRIC_JUMP[b.dataset.jump];
+    if(!t){ b.style.cursor = 'default'; return; }
+    b.onclick = ()=>{
+      state.prob = t;
+      renderOverviewDash();
+      document.getElementById('probs')?.scrollIntoView({ behavior:'smooth', block:'start' });
+    };
+  });
+}
+
 function renderOverviewDash(){
-  document.getElementById('ovAsOf').textContent = state.date;
-  document.getElementById('ovBody').innerHTML = '';
+  const d = state.date;
+  document.getElementById('ovAsOf').textContent = d;
+  const el = document.getElementById('ovBody');
+
+  const m  = metricsAt(d);
+  const mp = metricsAt(shiftYear(d,-1));
+
+  // пустой срез — структуры на дату ещё нет
+  if(m.units.total === 0){
+    el.innerHTML = banner('info', ICONS.info,
+      '<b>На выбранную дату структура не существует.</b> Первый узел создан 2020-01-01 — сдвиньте дату среза вперёд. Создание узла доступно: он родится на дату среза.')
+      + metricsHtml(m, mp);
+    bindMetricJumps();
+    return;
+  }
+
+  let banners = '';
+  if(rootVacantAt(d)) banners += banner('danger', ICONS.block,
+    '<b>Ошибка конфигурации:</b> руководящая позиция корня вакантна на дату — контролёр не определяется ни для одного узла (§5/§7).');
+  if(m.inv.length) banners += banner('danger', ICONS.block,
+    '<b>Нарушение инварианта §4:</b> более одного основного назначения — '+m.inv.map(fmtEmp).join(', '));
+
+  el.innerHTML = banners + metricsHtml(m, mp);
+  bindMetricJumps();
 }
 
 /* ---- оркестровка ---- */
