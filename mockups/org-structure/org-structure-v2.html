@@ -248,7 +248,6 @@ a{ color:inherit; }
 .dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:10px 14px; }
 .dim .dl{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:5px; }
 .dim .dv{ font:var(--weight-semibold) 16px/1.25 var(--asubk-font); color:var(--text-heading); }
-.dim .src{ font:var(--weight-regular) 11px/1.35 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
 
 /* ---- chain of command ---- */
 .section-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:22px 0 4px; }
@@ -342,7 +341,6 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
   border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-body);
   font:var(--font-label); padding:0 10px; }
 .fld input:focus, .fld select:focus{ outline:none; border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
-.fhint{ font:var(--weight-regular) 12px/1.35 var(--asubk-font); color:var(--text-placeholder); }
 .modal-note{ font:var(--font-label); color:var(--text-muted); background:var(--asubk-tint-fill);
   border-radius:var(--radius-md); padding:9px 12px; }
 .modal-err{ font:var(--weight-medium) 13px/1.3 var(--asubk-font); color:var(--asubk-red); min-height:16px; margin-right:auto; }
@@ -516,7 +514,7 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
           <input type="text" id="auName" placeholder="напр. Отдел взыскания Ошского филиала" autocomplete="off">
         </div>
         <div class="fld">
-          <label for="auType">Тип узла (§1 — один из типов иерархии)</label>
+          <label for="auType">Тип узла</label>
           <select id="auType">
             <option value="филиал">филиал</option>
             <option value="департамент">департамент</option>
@@ -527,13 +525,12 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
         <div class="fld">
           <label for="auParent">Родитель в дереве</label>
           <select id="auParent"></select>
-          <span class="fhint">§1 · вложенность выражается одним деревом; территориальность — атрибут, не второе дерево.</span>
         </div>
         <div class="fld">
           <label for="auTerr">Территория обслуживания (через запятую, необязательно)</label>
           <input type="text" id="auTerr" placeholder="напр. Баткенская область, город Баткен" autocomplete="off">
         </div>
-        <div class="modal-note">§2 · дата создания = <b id="auDate"></b> (дата среза). Узел проявится на эту дату и позже; сдвиньте срез в прошлое — его не будет. Штатные позиции и назначения добавляются отдельно (§3/§4), пока их нет — руководитель эскалирует к родителю (§5).</div>
+        <div class="modal-note">Дата создания = <b id="auDate"></b> (дата среза). Штатные позиции и назначения добавляются отдельно.</div>
       </div>
       <div class="modal-f">
         <span class="modal-err" id="auErr"></span>
@@ -935,10 +932,10 @@ function renderOverview(){
   let banners = '';
   const rootHeadVacant = (()=>{ const p=headPosOf('go'); return !actingOn(p.id,d)&&!mainOn(p.id,d); })();
   if(rootHeadVacant) banners += banner('danger', ICONS.block,
-    '<b>Ошибка конфигурации:</b> руководящая позиция корня (ГО) вакантна на дату. Система не может определить контролёра ни для одного задания. §7 запрещает оставлять её пустой.');
+    '<b>Ошибка конфигурации:</b> руководящая позиция корня (ГО) вакантна на дату — контролёр не определяется ни для одного задания.');
   const inv = checkMainInvariant(d);
   if(inv.length) banners += banner('danger', ICONS.block,
-    '<b>Нарушение инварианта §4:</b> у сотрудника более одного основного назначения — '+inv.map(fmtEmp).join(', '));
+    '<b>Нарушение:</b> у сотрудника более одного основного назначения — '+inv.map(fmtEmp).join(', '));
   if(liq) banners += banner('warn', ICONS.warn,
     `<b>Ликвидировано ${u.liquidated}.</b> Это снимок: выбрать узел в новых операциях нельзя. `+
     (u.successor?`Правопреемник — <b>${esc(nameAt(u.successor,d))}</b>.`:'Правопреемник не указан.'));
@@ -950,17 +947,17 @@ function renderOverview(){
   } else if(h.escalatedFrom){
     headBlock = banner('warn', ICONS.warn,
       `Локально узел без руководителя — <b>эскалация</b> к «${esc(nameAt(h.at,d))}». Причина: <b>${h.reason}</b>. `+
-      `Руководитель на дату — <b>${fmtEmp(h.empId)}</b> (${h.via}). Эскалация фиксируется в задании (§7 → п.98).`);
+      `Руководитель на дату — <b>${fmtEmp(h.empId)}</b> (${h.via}).`);
   } else {
     headBlock = banner('ok', ICONS.ok,
       `Руководитель на дату — <b>${fmtEmp(h.empId)}</b> (${h.via}${h.actingReason?', '+h.actingReason:''}).`);
   }
 
   const dims = `<div class="phead-dims">
-    <div class="dim"><div class="dl">Тип узла</div><div class="dv">${esc(u.type)}</div><div class="src">§1 · один из типов иерархии</div></div>
-    <div class="dim"><div class="dl">Родитель на дату</div><div class="dv">${par?esc(nameAt(par,d)):'— (корень)'}</div><div class="src">§2 · parentAt(${d})</div></div>
-    <div class="dim"><div class="dl">Статус</div><div class="dv">${liq?'ликвидировано':'действующее'}</div><div class="src">§2 · снимок при ликвидации</div></div>
-    <div class="dim"><div class="dl">Территория</div><div class="dv">${u.territory.length?esc(u.territory.join(', ')):'—'}</div><div class="src">§1 · атрибут узла, не 2-е дерево</div></div>
+    <div class="dim"><div class="dl">Тип узла</div><div class="dv">${esc(u.type)}</div></div>
+    <div class="dim"><div class="dl">Родитель на дату</div><div class="dv">${par?esc(nameAt(par,d)):'— (корень)'}</div></div>
+    <div class="dim"><div class="dl">Статус</div><div class="dv">${liq?'ликвидировано':'действующее'}</div></div>
+    <div class="dim"><div class="dl">Территория</div><div class="dv">${u.territory.length?esc(u.territory.join(', ')):'—'}</div></div>
   </div>`;
 
   // цепочка вверх
@@ -990,7 +987,7 @@ function renderOverview(){
         ${dims}
       </div>
       <div class="section-h">Цепочка ответственности (снизу вверх)</div>
-      <p class="section-note">Не хранится — вычисляется из дерева на дату события (§9). Используется п. 96 Порядка и маршрутом контролёров заданий. Жёлтым помечены звенья, полученные <b>эскалацией</b> из-за вакансии ниже.</p>
+      <p class="section-note">Жёлтым помечены звенья, полученные <b>эскалацией</b> из-за вакансии ниже.</p>
       <ul class="chain">${chainHtml}</ul>
     </div>`;
 }
@@ -1022,16 +1019,14 @@ function renderStaff(){
   el.innerHTML = `
     <div class="panel-wrap">
       <div class="section-h">Штатное расписание — ${esc(nameAt(id,d))}</div>
-      <p class="section-note">§3: должность (справочник) ≠ штатная позиция (должность × узел). Признак «первое лицо» — у позиции. §4: и.о. приоритетнее основного; роль навешивается на назначение, не на сотрудника.</p>
       <table class="cgrid">
         <thead><tr><th style="width:38%">Позиция (должность)</th><th style="width:8%">Ед.</th><th>Кто на дату</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <div class="section-h">Инвариант §4 — одно основное назначение на сотрудника</div>
+      <div class="section-h">Одно основное назначение на сотрудника</div>
       ${ inv.length
         ? banner('danger', ICONS.block, 'Нарушение: '+inv.map(fmtEmp).join(', ')+' — более одного основного назначения на дату.')
         : banner('ok', ICONS.ok, 'Соблюдён: на выбранную дату у каждого сотрудника не более одного основного назначения.') }
-      <p class="hint">Гл. специалист <b>${fmtEmp('e_spec')}</b> действует в двух узлах (основное в Кредитном департаменте + совместительство в Отделе рисков Оша). Фильтр «Филиал/отдел специалиста» обязан искать по <b>всем</b> назначениям — иначе совместитель выпадет из выборки (§10).</p>
     </div>`;
 }
 
@@ -1062,11 +1057,9 @@ function renderHistory(){
 
   el.innerHTML = `
     <div class="panel-wrap">
-      <div class="section-h">История наименований — §2</div>
-      <p class="section-note">Переименование — тот же <span class="mono">unitId</span> и новая запись. На дату среза резолвится имя на эту дату — сдвиньте дату вверху, старое имя проявится в прошлом.</p>
+      <div class="section-h">История наименований</div>
       <ul class="tl">${nameTl}</ul>
-      <div class="section-h">История подчинённости — §2</div>
-      <p class="section-note">Переподчинение — новая версия <span class="mono">parentId</span>. Без версионирования старая иерархия не восстановилась бы в отчётах за прошлый период и цепочка п. 96 считалась бы неверно.</p>
+      <div class="section-h">История подчинённости</div>
       <ul class="tl">${parTl}</ul>
       <div class="section-h">Жизненный цикл узла</div>
       <ul class="tl">${liqTl}</ul>
@@ -1082,8 +1075,8 @@ function renderLiq(){
   if(liquidatedAt(id,d)){
     el.innerHTML = `<div class="panel-wrap">
       <div class="section-h">Ликвидация — ${esc(nameAt(id,d))}</div>
-      ${banner('warn', ICONS.warn, `Узел уже ликвидирован <b>${u.liquidated}</b>. Снимок доступен для ссылок из прошлых операций, но в новых операциях недоступен (§2).`)}
-      ${u.successor?banner('info', ICONS.info, `Правопреемник — <b>${esc(nameAt(u.successor,d))}</b>. Оргструктура только фиксирует; массовую передачу дел разгребают потребители (кураторство, задания).`):''}
+      ${banner('warn', ICONS.warn, `Узел уже ликвидирован <b>${u.liquidated}</b>. В новых операциях недоступен.`)}
+      ${u.successor?banner('info', ICONS.info, `Правопреемник — <b>${esc(nameAt(u.successor,d))}</b>.`):''}
       ${eventLogHtml()}
     </div>`;
     return;
@@ -1110,13 +1103,12 @@ function renderLiq(){
         'Осиротеет территория: '+esc(terr.join(', '))+'. Предупреждение, не блокировка — покрытие пересматривают потребители.')
     : gate('pass', ICONS.ok, '3. Территория обслуживания', 'Узел территорию не обслуживает — осиротевших областей нет.');
 
-  const rootGate = isRoot ? gate('block', ICONS.block, '0. Корень дерева', 'Головной офис — корень, ликвидации не подлежит (§2).') : '';
+  const rootGate = isRoot ? gate('block', ICONS.block, '0. Корень дерева', 'Головной офис — корень, ликвидации не подлежит.') : '';
   const blocked = isRoot || kidsActive.length>0 || assignsActive.length>0;
 
   el.innerHTML = `
     <div class="panel-wrap">
       <div class="section-h">Ликвидация — ${esc(nameAt(id,d))}</div>
-      <p class="section-note">§6/§8: оргструктура защищает <b>дерево и штатку</b>, но не дела. Блокирующие гейты обходить нельзя. При успехе наружу уходит только событие <span class="mono">unit.liquidated(id, дата, правопреемник?)</span> — потребители реагируют сами.</p>
       ${rootGate}${gateChildren}${gateAssign}${gateTerr}
       <div style="margin:16px 0; display:flex; gap:10px; align-items:center;">
         <button class="btn btn-danger" id="liqBtn" ${(blocked||!canEdit())?'disabled':''}>Ликвидировать узел</button>
@@ -1141,9 +1133,8 @@ function banner(kind,icon,html){ return `<div class="phead-banner ${kind}">${ico
 function gate(kind,icon,head,desc){ return `<div class="gate ${kind}"><span class="gi">${icon}</span><div class="gt"><div class="gh">${head}</div><div class="gd">${desc}</div></div></div>`; }
 function notYet(id,d){ return `<div class="panel-wrap">${banner('info',ICONS.info,`Узел ещё не создан на выбранную дату (создан ${unit(id).created}). Сдвиньте дату среза вперёд.`)}</div>`; }
 function eventLogHtml(){
-  return `<div class="section-h">События наружу (§8/§9)</div>
-    <p class="section-note">Потребители контракта (кураторство, задания, взыскание) подписаны на эти события. Оргструктура ничего за них не пересчитывает.</p>
-    <div class="event-log">${ EVENT_LOG.length? EVENT_LOG.map(e=>`<div class="ev"><code>${esc(e)}</code></div>`).join('') : '<div class="hint">Событий пока нет. Ликвидируйте пригодный узел (напр. «Сектор мониторинга»), чтобы увидеть событие.</div>' }</div>`;
+  return `<div class="section-h">События наружу</div>
+    <div class="event-log">${ EVENT_LOG.length? EVENT_LOG.map(e=>`<div class="ev"><code>${esc(e)}</code></div>`).join('') : '<div class="hint">Событий пока нет.</div>' }</div>`;
 }
 
 /* ---- nav-меню сайдбара (как в остальных мокапах; §10 — точки входа модуля) ---- */
@@ -1196,13 +1187,11 @@ function renderTitles(){
       <td>${where}</td></tr>`;
   }).join('');
   document.getElementById('titlesBody').innerHTML = `
-    <div class="section-h" style="margin-top:4px">Справочник должностей — §3</div>
-    <p class="section-note">Должность — <b>глобальный справочник</b> (наименование + категория + признак «руководящая»). Она НЕ равна штатной позиции: одна должность (напр. «Начальник департамента») живёт в нескольких узлах разными штатными позициями. «Первое лицо» — свойство позиции, а не должности. Занятость показана на дату среза.</p>
+    <div class="section-h" style="margin-top:4px">Справочник должностей</div>
     <table class="cgrid">
       <thead><tr><th style="width:24%">Должность</th><th style="width:14%">Категория</th><th style="width:12%">Руководящая</th><th style="width:12%">Штатных позиций</th><th>Где используется (на дату)</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>
-    <p class="hint">Открытый вопрос спеки §11.2: канонический перечень категорий (руководящая / специалист / технический / обслуживающий) — здесь показаны только встретившиеся.</p>`;
+    </table>`;
 }
 
 /* ---- §6 СОТРУДНИКИ ПОДРАЗДЕЛЕНИЯ — сотрудник действует в нескольких узлах (осн. + совмест. + и.о.) ---- */
@@ -1223,8 +1212,7 @@ function renderPeople(){
     return `<tr><td><b>${esc(fio)}</b></td><td>${cell}</td></tr>`;
   }).join('');
   document.getElementById('peopleBody').innerHTML = `
-    <div class="section-h" style="margin-top:4px">Сотрудники подразделения — §6</div>
-    <p class="section-note">«Подразделение сотрудника» — не одно значение. Сотрудник может действовать в нескольких узлах: основное назначение + совместительства + и.о. Фильтр «Филиал/отдел» обязан искать по <b>всем</b> назначениям (§10). Показано на дату среза.</p>
+    <div class="section-h" style="margin-top:4px">Сотрудники подразделения</div>
     <table class="cgrid">
       <thead><tr><th style="width:26%">Сотрудник</th><th>Где действует (узел · должность · вид)</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -1515,9 +1503,9 @@ function renderOverviewDash(){
 
   let banners = '';
   if(rootVacantAt(d)) banners += banner('danger', ICONS.block,
-    '<b>Ошибка конфигурации:</b> руководящая позиция корня вакантна на дату — контролёр не определяется ни для одного узла (§5/§7).');
+    '<b>Ошибка конфигурации:</b> руководящая позиция корня вакантна на дату — контролёр не определяется ни для одного узла.');
   if(m.inv.length) banners += banner('danger', ICONS.block,
-    '<b>Нарушение инварианта §4:</b> более одного основного назначения — '+m.inv.map(fmtEmp).join(', '));
+    '<b>Нарушение:</b> более одного основного назначения — '+m.inv.map(fmtEmp).join(', '));
 
   el.innerHTML = banners + metricsHtml(m, mp) + probsHtml(d) + miniTreeHtml(d)
                + staffRollHtml(d) + changesHtml(d);
