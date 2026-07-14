@@ -121,6 +121,24 @@ check('лента: и.о. от 2026-06-01 в ленте есть',
   (await page.locator('#changes').innerText()).includes('И.о.'));
 await page.selectOption('#chgWin', '30');
 
+// --- Task 7: создание узла с дашборда ---
+// (v1 submitAddUnit вид не меняет — падает здесь именно тост, которого ещё нет)
+const unitsBefore = Number(await page.locator('#ovBody .metric[data-jump=units] .mv').innerText());
+await page.click('#ovAdd');
+await page.fill('#auName', 'Отдел взыскания Ошского филиала');
+await page.selectOption('#auParent', 'osh');
+await page.click('#auSubmit');
+check('остались на «Обзоре» после создания', await page.locator('#view-overview').isVisible());
+check('счётчик узлов вырос',
+  Number(await page.locator('#ovBody .metric[data-jump=units] .mv').innerText()) === unitsBefore + 1);
+check('показан тост', await page.locator('#toast.show').isVisible());
+await page.locator('#probs .dtab[data-prob=noStaff]').click();
+check('новый узел попал в «Узлы без штатки»',
+  (await page.locator('#probs').innerText()).includes('Отдел взыскания'));
+check('печатный слой прячет сайдбар',
+  await page.evaluate(() => [...document.styleSheets[0].cssRules]
+    .some(r => r.conditionText === 'print' && r.cssText.includes('.sidebar'))));
+
 await ctx.close();
 console.log(fails.length ? `\n${fails.length} FAILED` : '\nALL PASS');
 process.exit(fails.length ? 1 : 0);

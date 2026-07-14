@@ -377,6 +377,16 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
 .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
 .empty{ font:var(--font-label); color:var(--text-muted); padding:14px 4px; }
 .readonly-tag{ font:var(--font-label); color:var(--text-muted); display:inline-flex; align-items:center; gap:6px; }
+
+/* ---- печать паспорта оргструктуры на дату среза ---- */
+@media print{
+  .sidebar, .topbar, .section-tools, #probTabs, #treeExpand, #chgWin, .toast{ display:none !important; }
+  .app{ display:block; height:auto; }
+  .content{ overflow:visible; }
+  .ovwrap{ max-width:none; padding:0; }
+  .section{ break-inside:avoid; }
+  .metric{ cursor:default; }
+}
 </style>
 </head>
 <body>
@@ -1222,11 +1232,22 @@ function submitAddUnit(){
   UNITS.push({ id, type, territory:terr, created:d, liquidated:null, successor:null });
   BASE_PARENT[id] = parentId;
   NAME_VER.push({ unitId:id, name, from:d, to:null });
-  state.sel = id; state.tab = 'overview';
+  // Узел выбираем всегда, но вид не трогаем: создание с «Обзора» оставляет на «Обзоре»,
+  // где счётчики и списки пересчитаются сами.
+  state.sel = id;
+  if(state.view !== 'overview') state.tab = 'overview';
   closeAddUnit();
   render();
+  toast(`Узел «${name}» создан на ${d}`);
 }
 window.openAddUnit = openAddUnit;
+
+let toastT = null;
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('show'), 2600);
+}
 
 /* =========================================================================
    ДАШБОРД «ОБЗОР» — рендер. Всё производное, всё на дату среза.
