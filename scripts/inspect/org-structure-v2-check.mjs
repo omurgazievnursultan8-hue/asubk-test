@@ -27,6 +27,30 @@ check('в nav есть пункт «Обзор»',
 check('дерево подразделений НЕ показано на Обзоре',
   !(await page.locator('#view-units').isVisible()));
 
+// --- Task 2: слой производных функций (на 2026-07-11, демо-данные v1) ---
+const m = await page.evaluate(() => metricsAt('2026-07-11'));
+check('metricsAt: 7 узлов создано, 1 ликвидирован → 6 живых', m.units.total === 6);
+check('metricsAt: 9 штатных единиц (1+1+1+2+1+1+1+1)', m.staff.planned === 9);
+check('metricsAt: вакансия руководителя — 2 (Ошский филиал, Сектор)', m.vac.head === 2);
+check('metricsAt: 1 действующее и.о.', m.acting.total === 1);
+check('metricsAt: и.о. истекает ≤30 дней (до 2026-07-31)', m.acting.expiring === 1);
+check('metricsAt: 1 совместительство', m.combine === 1);
+check('metricsAt: инвариант не нарушен', m.inv.length === 0);
+
+const p = await page.evaluate(() => problemsAt('2026-07-11'));
+check('problemsAt: вакансия руководителя у osh и sector',
+  p.headVacant.map(x => x.unitId).sort().join(',') === 'osh,sector');
+check('problemsAt: и.о. истекает — 1 запись', p.actingExpiring.length === 1);
+check('problemsAt: ликвидация заблокирована у go (корень) и osh (потомки+назначения)',
+  p.liqBlocked.map(x => x.unitId).includes('osh') && p.liqBlocked.map(x => x.unitId).includes('go'));
+check('problemsAt: узлы без штатки — их нет в демо-данных', p.noStaff.length === 0);
+
+const ch = await page.evaluate(() => changesSince('2024-07-01', 3650).map(e => e.kind));
+check('changesSince: за 10 лет есть создания, переименование, переподчинение, ликвидация',
+  ['create', 'rename', 'move', 'liquidate'].every(k => ch.includes(k)));
+check('changesSince: и.о. тоже событие ленты',
+  (await page.evaluate(() => changesSince('2026-07-11', 60).some(e => e.kind === 'acting'))));
+
 await ctx.close();
 console.log(fails.length ? `\n${fails.length} FAILED` : '\nALL PASS');
 process.exit(fails.length ? 1 : 0);

@@ -658,11 +658,166 @@ function checkMainInvariant(d){
 }
 
 /* =========================================================================
+   ПРОИЗВОДНЫЕ ДЛЯ ДАШБОРДА «ОБЗОР». Чистые функции, всё считается НА ДАТУ.
+   Новых сущностей нет — только агрегаты над UNITS/POSITIONS/ASSIGN/ACTING.
+   ========================================================================= */
+const EXPIRING_DAYS = 30;   // окно «и.о. скоро истекает»
+const CHANGES_DAYS  = 30;   // окно ленты изменений по умолчанию
+
+// дата ± n лет; 29 февраля в невисокосном году схлопывается в 28-е (иначе Date.parse → NaN)
+function shiftYear(d,n){
+  const [y,m,dd] = d.split('-').map(Number);
+  const y2 = y + n;
+  const leap = (y2%4===0 && y2%100!==0) || y2%400===0;
+  const day = (m===2 && dd===29 && !leap) ? 28 : dd;
+  return `${y2}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+function daysBetween(a,b){ return Math.round((Date.parse(b)-Date.parse(a))/86400000); }
+
+function liveUnitsAt(d){ return UNITS.filter(u=>existsAt(u.id,d) && !liquidatedAt(u.id,d)); }
+function positionsAt(d){ const live=new Set(liveUnitsAt(d).map(u=>u.id)); return POSITIONS.filter(p=>live.has(p.unitId)); }
+
+// §5 корень без руководителя — контролёр не определяется ни для одного узла.
+function rootVacantAt(d){
+  const root = liveUnitsAt(d).find(u=>parentAt(u.id,d)==null);
+  if(!root) return false;
+  const hp = headPosOf(root.id);
+  return !!hp && !mainOn(hp.id,d) && !actingOn(hp.id,d);
+}
+
+function metricsAt(d){
+  const live = liveUnitsAt(d);
+  const byType = {};
+  live.forEach(u=> byType[u.type]=(byType[u.type]||0)+1);
+
+  const poss = positionsAt(d);
+  const planned = poss.reduce((s,p)=>s+p.units,0);
+  // занято: сумма долей ставок действующих назначений на позициях живых узлов (и.о. — не назначение, не считаем)
+  const posIds = new Set(poss.map(p=>p.id));
+  const acts = ASSIGN.filter(a=>posIds.has(a.posId) && spanActive(a,d));
+  const filled = acts.reduce((s,a)=>s+a.rate,0);
+
+  // вакансии: позиция без единого действующего назначения (и.о. вакансию не закрывает — он временный)
+  const vacPos  = poss.filter(p=>!ASSIGN.some(a=>a.posId===p.id && spanActive(a,d)));
+  const vacHead = vacPos.filter(p=>p.isHead);
+
+  const ios = ACTING.filter(a=>posIds.has(a.posId) && spanActive(a,d));
+  const expiring = ios.filter(a=>a.to!=null && daysBetween(d,a.to) <= EXPIRING_DAYS);
+
+  return {
+    units:  { total: live.length, byType },
+    staff:  { planned, filled, pct: planned ? Math.round(filled/planned*100) : 0 },
+    vac:    { total: vacPos.length, head: vacHead.length },
+    acting: { total: ios.length, expiring: expiring.length },
+    combine: acts.filter(a=>a.kind==='combine').length,
+    inv: checkMainInvariant(d),
+  };
+}
+
+function problemsAt(d){
+  const live = liveUnitsAt(d);
+  const posIds = new Set(positionsAt(d).map(p=>p.id));
+
+  const headVacant = live.filter(u=>{
+    const hp = headPosOf(u.id);
+    return hp && !mainOn(hp.id,d) && !actingOn(hp.id,d);
+  }).map(u=>{
+    const hp = headPosOf(u.id);
+    // «вакантно с» — конец последнего основного назначения на позицию, иначе дата создания узла
+    const last = ASSIGN.filter(a=>a.posId===hp.id && a.kind==='main' && a.to!=null).sort((a,b)=>a.to<b.to?1:-1)[0];
+    const since = last ? last.to : u.created;
+    return { unitId:u.id, posId:hp.id, since, days: daysBetween(since,d) };
+  });
+
+  const actingExpiring = ACTING.filter(a=>posIds.has(a.posId) && spanActive(a,d) && a.to!=null
+      && daysBetween(d,a.to) <= EXPIRING_DAYS)
+    .map(a=>{ const p=POSITIONS.find(x=>x.id===a.posId);
+      return { unitId:p.unitId, posId:a.posId, empId:a.empId, to:a.to, days:daysBetween(d,a.to), reason:a.reason }; });
+
+  const invariant = checkMainInvariant(d).map(empId=>({
+    empId,
+    posIds: ASSIGN.filter(a=>a.empId===empId && a.kind==='main' && spanActive(a,d)).map(a=>a.posId),
+  }));
+
+  const noStaff = live.filter(u=>!POSITIONS.some(p=>p.unitId===u.id)).map(u=>({ unitId:u.id }));
+
+  const liqBlocked = live.map(u=>{
+    const reasons = [];
+    if(parentAt(u.id,d)==null) reasons.push('корень дерева');
+    const kids = childrenAt(u.id,d).filter(k=>!liquidatedAt(k.id,d));
+    if(kids.length) reasons.push('действующие потомки: '+kids.map(k=>nameAt(k.id,d)).join(', '));
+    const occ = POSITIONS.filter(p=>p.unitId===u.id).flatMap(p=>occupantsOf(p.id,d));
+    if(occ.length) reasons.push('действующие назначения/и.о.: '+occ.length);
+    return reasons.length ? { unitId:u.id, reasons } : null;
+  }).filter(Boolean);
+
+  // территория ликвидированного узла, которую на дату не обслуживает ни один живой узел.
+  // Правопреемник сам по себе территорию НЕ наследует — её надо перенести явно, поэтому
+  // successor показываем в строке, но из списка запись не убираем.
+  const covered = new Set(live.flatMap(u=>u.territory));
+  const orphanTerr = UNITS.filter(u=>liquidatedAt(u.id,d))
+    .flatMap(u=>u.territory.filter(t=>!covered.has(t))
+      .map(t=>({ terr:t, unitId:u.id, since:u.liquidated, successor:u.successor })));
+
+  return { headVacant, actingExpiring, invariant, noStaff, liqBlocked, orphanTerr };
+}
+
+function staffRollupAt(d){
+  const live = liveUnitsAt(d);
+  const rows = {};
+  live.forEach(u=>{
+    const r = rows[u.type] || (rows[u.type]={ type:u.type, planned:0, filled:0, vac:0 });
+    POSITIONS.filter(p=>p.unitId===u.id).forEach(p=>{
+      r.planned += p.units;
+      const acts = ASSIGN.filter(a=>a.posId===p.id && spanActive(a,d));
+      r.filled  += acts.reduce((s,a)=>s+a.rate,0);
+      if(!acts.length) r.vac += 1;
+    });
+  });
+  return Object.values(rows).sort((a,b)=>b.planned-a.planned);
+}
+
+// Лента изменений: события восстанавливаются из версий (отдельного журнала в модели нет).
+function changesSince(d, days){
+  const from = new Date(Date.parse(d) - days*86400000).toISOString().slice(0,10);
+  const inWin = x => x>=from && x<=d;
+  const out = [];
+  UNITS.forEach(u=>{
+    if(inWin(u.created)) out.push({ date:u.created, kind:'create', unitId:u.id, text:'Создан узел' });
+    if(u.liquidated && inWin(u.liquidated)) out.push({ date:u.liquidated, kind:'liquidate', unitId:u.id,
+      text:'Ликвидация'+(u.successor?' · правопреемник '+nameAt(u.successor,d):'') });
+  });
+  NAME_VER.forEach(v=>{
+    if(v.from!==unit(v.unitId).created && inWin(v.from))
+      out.push({ date:v.from, kind:'rename', unitId:v.unitId, text:'Переименование → '+v.name });
+  });
+  PARENT_VER.forEach(v=>{
+    if(v.from!==unit(v.unitId).created && inWin(v.from))
+      out.push({ date:v.from, kind:'move', unitId:v.unitId, text:'Переподчинение → '+nameAt(v.parentId,d) });
+  });
+  ASSIGN.forEach(a=>{
+    if(!inWin(a.from)) return;
+    const p = POSITIONS.find(x=>x.id===a.posId); if(!p) return;
+    out.push({ date:a.from, kind:'assign', unitId:p.unitId,
+      text:'Назначение · '+fmtEmp(a.empId)+' → '+TITLES[p.titleId].name+(a.kind==='combine'?' (совмест.)':'') });
+  });
+  // и.о. — тоже изменение состава руководства, иначе самое свежее событие модели в ленту не попадёт
+  ACTING.forEach(a=>{
+    if(!inWin(a.from)) return;
+    const p = POSITIONS.find(x=>x.id===a.posId); if(!p) return;
+    out.push({ date:a.from, kind:'acting', unitId:p.unitId,
+      text:'И.о. · '+fmtEmp(a.empId)+' → '+TITLES[p.titleId].name+(a.to?' до '+a.to:'')+' ('+a.reason+')' });
+  });
+  return out.sort((a,b)=>a.date<b.date?1:-1);
+}
+
+/* =========================================================================
    ВИД / РЕНДЕР
    ========================================================================= */
 const state = { date:TODAY, role:'hr', sel:'osh', tab:'overview', collapsed:{}, view:'overview',
-                prob:'headVacant',   // активный рабочий список блока «Требует внимания»
-                treeAll:false };     // мини-дерево: раскрыто ли целиком
+                prob:'headVacant',        // активный рабочий список блока «Требует внимания»
+                treeAll:false,            // мини-дерево: раскрыто ли целиком
+                chgWin:CHANGES_DAYS };    // окно ленты изменений, дней
 const EVENT_LOG = [];
 const canEdit = ()=> state.role==='hr';
 const esc = s => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
