@@ -67,6 +67,32 @@ check('пустой срез: метрики нулевые',
   (await page.locator('#ovBody .metric[data-jump=units] .mv').innerText()).trim() === '0');
 await page.click('.date-chip[data-d="2026-07-11"]');
 
+// --- Task 4: рабочие списки ---
+check('есть секция «Требует внимания»',
+  (await page.locator('#probs .sh-t').innerText()).includes('Требует внимания'));
+check('6 табов проблем', await page.locator('#probs .dtab').count() === 6);
+await page.locator('#probs .dtab[data-prob=headVacant]').click();
+check('таб вакансий показывает 2 строки',
+  await page.locator('#probs table.cgrid tbody tr').count() === 2);
+await page.locator('#probs .dtab[data-prob=noStaff]').click();
+check('пустой список пишет «Нарушений нет», а не прячется',
+  (await page.locator('#probs').innerText()).includes('Нарушений нет'));
+
+// клик по строке уводит в карточку узла
+await page.locator('#probs .dtab[data-prob=headVacant]').click();
+await page.locator('#probs table.cgrid tbody tr').first().click();
+check('переход в вид «Подразделения»', await page.locator('#view-units').isVisible());
+check('открыта вкладка «Штатка»',
+  await page.locator('#tabbar .dtab[data-tab=staff]').evaluate(el => el.classList.contains('active')));
+await page.locator('.nav-item', { hasText: 'Обзор' }).click();
+
+// роль Наблюдателя гасит действия
+await page.selectOption('#roleSel', 'obs');
+check('Наблюдатель: «+ Подразделение» задизейблена', await page.locator('#ovAdd').isDisabled());
+check('Наблюдатель: кнопки действий в списке задизейблены',
+  await page.locator('#probs .rowact').first().isDisabled());
+await page.selectOption('#roleSel', 'hr');
+
 await ctx.close();
 console.log(fails.length ? `\n${fails.length} FAILED` : '\nALL PASS');
 process.exit(fails.length ? 1 : 0);

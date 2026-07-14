@@ -1267,6 +1267,97 @@ function bindMetricJumps(){
   });
 }
 
+/* ---- блок «Требует внимания»: шесть рабочих списков ---- */
+const PROB_TABS = [
+  { key:'headVacant',     label:'Вакансия руководителя' },
+  { key:'actingExpiring', label:'И.о. истекает' },
+  { key:'invariant',      label:'Нарушение «одно основное»' },
+  { key:'noStaff',        label:'Узлы без штатки' },
+  { key:'liqBlocked',     label:'Ликвидация заблокирована' },
+  { key:'orphanTerr',     label:'Осиротевшая территория' },
+];
+
+function probsHtml(d){
+  const p = problemsAt(d);
+  const cur = state.prob;
+  const tabs = PROB_TABS.map(t=>{
+    const n = p[t.key].length;
+    return `<button class="dtab${t.key===cur?' active':''}" data-prob="${t.key}">${t.label}${n?` <span class="pill ${t.key==='orphanTerr'?'warn':'err'}">${n}</span>`:''}</button>`;
+  }).join('');
+
+  const rows = p[cur];
+  let head = '', body = '';
+  const act = (label)=> `<button class="btn btn-secondary rowact" style="height:28px; padding:0 10px; font-size:13px" ${canEdit()?'':'disabled'}>${label}</button>`;
+
+  if(!rows.length){
+    body = `<div class="empty">Нарушений нет на выбранную дату.</div>`;
+  } else if(cur==='headVacant'){
+    head = '<tr><th>Узел</th><th>Тип</th><th>Родитель</th><th>Вакантно с</th><th>Дней</th><th></th></tr>';
+    body = rows.map(r=>{ const u=unit(r.unitId); const par=parentAt(r.unitId,d);
+      return `<tr data-unit="${r.unitId}" data-tab="staff"><td><b>${esc(nameAt(r.unitId,d))}</b></td><td>${esc(u.type)}</td>
+        <td>${par?esc(nameAt(par,d)):'— (корень)'}</td><td class="mono">${r.since}</td>
+        <td class="mono">${r.days}</td><td>${act('Назначить')}</td></tr>`; }).join('');
+  } else if(cur==='actingExpiring'){
+    head = '<tr><th>Узел</th><th>Сотрудник</th><th>До</th><th>Осталось дней</th><th>Основание</th><th></th></tr>';
+    body = rows.map(r=>`<tr data-unit="${r.unitId}" data-tab="staff"><td><b>${esc(nameAt(r.unitId,d))}</b></td>
+      <td>${fmtEmp(r.empId)}</td><td class="mono">${r.to}</td><td class="mono">${r.days}</td>
+      <td class="muted">${esc(r.reason)}</td><td>${act('Продлить')}</td></tr>`).join('');
+  } else if(cur==='invariant'){
+    head = '<tr><th>Сотрудник</th><th>Конфликтующие позиции</th></tr>';
+    body = rows.map(r=>{ const first=POSITIONS.find(p2=>p2.id===r.posIds[0]);
+      return `<tr data-unit="${first?first.unitId:''}" data-tab="staff"><td><b>${fmtEmp(r.empId)}</b></td>
+        <td>${r.posIds.map(pid=>{ const p2=POSITIONS.find(x=>x.id===pid);
+          return `<div>${esc(nameAt(p2.unitId,d))} · ${esc(TITLES[p2.titleId].name)}</div>`; }).join('')}</td></tr>`; }).join('');
+  } else if(cur==='noStaff'){
+    head = '<tr><th>Узел</th><th>Тип</th><th>Создан</th><th></th></tr>';
+    body = rows.map(r=>{ const u=unit(r.unitId);
+      return `<tr data-unit="${r.unitId}" data-tab="staff"><td><b>${esc(nameAt(r.unitId,d))}</b></td>
+        <td>${esc(u.type)}</td><td class="mono">${u.created}</td><td>${act('Добавить позицию')}</td></tr>`; }).join('');
+  } else if(cur==='liqBlocked'){
+    head = '<tr><th>Узел</th><th>Сработавшие гейты</th></tr>';
+    body = rows.map(r=>`<tr data-unit="${r.unitId}" data-tab="liq"><td><b>${esc(nameAt(r.unitId,d))}</b></td>
+      <td>${r.reasons.map(x=>`<div class="muted">${esc(x)}</div>`).join('')}</td></tr>`).join('');
+  } else if(cur==='orphanTerr'){
+    head = '<tr><th>Территория</th><th>Осиротела с</th><th>Бывший узел</th><th>Правопреемник</th></tr>';
+    body = rows.map(r=>`<tr data-unit="${r.unitId}" data-tab="overview"><td><b>${esc(r.terr)}</b></td>
+      <td class="mono">${r.since}</td><td class="muted">${esc(nameAt(r.unitId,d))}</td>
+      <td class="muted">${r.successor ? esc(nameAt(r.successor,d))+' — территорию не унаследовал' : '— не назначен'}</td></tr>`).join('');
+  }
+
+  const table = rows.length
+    ? `<table class="cgrid"><thead>${head}</thead><tbody>${body}</tbody></table>`
+    : body;
+
+  return `<div class="section" id="probs">
+    <div class="sec-h"><span class="sh-t">Требует внимания</span>
+      <span class="sh-act readonly-tag">${canEdit()?'':'роль «Наблюдатель» — только чтение'}</span></div>
+    <div class="detail-tabbar" id="probTabs" style="padding:6px 10px 0">${tabs}</div>
+    <div class="sec-b tscroll">${table}</div>
+  </div>`;
+}
+
+// переход в карточку узла из любого списка дашборда
+function gotoUnit(unitId, tab){
+  if(!unitId) return;
+  state.view='units'; state.sel=unitId; state.tab=tab||'overview';
+  document.querySelectorAll('.nav-item').forEach(a=>a.classList.toggle('active', a.textContent==='Подразделения'));
+  document.querySelector('.crumb-title').textContent = 'Подразделения';
+  render();
+}
+
+function bindProbs(){
+  document.querySelectorAll('#probTabs .dtab').forEach(t=>{
+    t.onclick = ()=>{ state.prob = t.dataset.prob; renderOverviewDash(); };
+  });
+  document.querySelectorAll('#probs table.cgrid tbody tr').forEach(tr=>{
+    tr.style.cursor = 'pointer';
+    tr.onclick = (e)=>{
+      if(e.target.closest('.rowact')) return;   // кнопка действия — не переход
+      gotoUnit(tr.dataset.unit, tr.dataset.tab);
+    };
+  });
+}
+
 function renderOverviewDash(){
   const d = state.date;
   document.getElementById('ovAsOf').textContent = d;
@@ -1279,8 +1370,8 @@ function renderOverviewDash(){
   if(m.units.total === 0){
     el.innerHTML = banner('info', ICONS.info,
       '<b>На выбранную дату структура не существует.</b> Первый узел создан 2020-01-01 — сдвиньте дату среза вперёд. Создание узла доступно: он родится на дату среза.')
-      + metricsHtml(m, mp);
-    bindMetricJumps();
+      + metricsHtml(m, mp) + probsHtml(d);
+    bindMetricJumps(); bindProbs();
     return;
   }
 
@@ -1290,8 +1381,8 @@ function renderOverviewDash(){
   if(m.inv.length) banners += banner('danger', ICONS.block,
     '<b>Нарушение инварианта §4:</b> более одного основного назначения — '+m.inv.map(fmtEmp).join(', '));
 
-  el.innerHTML = banners + metricsHtml(m, mp);
-  bindMetricJumps();
+  el.innerHTML = banners + metricsHtml(m, mp) + probsHtml(d);
+  bindMetricJumps(); bindProbs();
 }
 
 /* ---- оркестровка ---- */
