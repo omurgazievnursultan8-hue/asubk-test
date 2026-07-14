@@ -41,7 +41,7 @@ check('вкладки видов не перебивают вкладки кар
   await page.locator('#viewTabs .dtab.active').count() === 1);
 
 // --- Task 2: слой производных функций (на 2026-07-11, демо-данные ФКФ:
-// ГО → 3 блока зампредов + служба внутр. аудита напрямую; РП вместо филиалов) ---
+// ГО → 3 блока зампредов + служба внутр. аудита напрямую; РП (региональные представительства) вместо филиалов) ---
 const m = await page.evaluate(() => metricsAt('2026-07-11'));
 check('metricsAt: 12 подразделений создано, 1 закрыто → 11 действующих', m.units.total === 11);
 check('metricsAt: 14 ставок по штату (13 единиц, у гл. специалиста ГО — 2)', m.staff.planned === 14);
@@ -81,7 +81,7 @@ check('департаменты и службы висят под блоками
 check('служба — уровень департамента: у неё Начальник службы и свои штатные единицы',
   await page.evaluate(d => UNITS.filter(u => u.type === 'служба')
     .every(u => TITLES[headPosOf(u.id).titleId].name === 'Начальник службы'), D));
-check('региональное представительство подчиняется своему блоку',
+check('РП подчиняется своему блоку',
   await page.evaluate(d => parentAt('osh', d) === 'blk_reg' && parentAt('jal', d) === 'blk_reg', D));
 check('вакансия в Ошском РП поднимает обязанности в Блок регионального развития, а не в ГО',
   await page.evaluate(d => { const h = head('osh', d);
@@ -170,7 +170,7 @@ check('на «Обзоре» кнопки создания нет', await page.l
 const unitsBefore = Number(await page.locator('#ovBody .metric[data-jump=units] .mv').innerText());
 await page.click('#viewTabs .dtab[data-view=units]');
 await page.click('#addUnitBtn');
-await page.fill('#auName', 'Отдел взыскания Ошского представительства');
+await page.fill('#auName', 'Отдел взыскания Ошского РП');
 await page.selectOption('#auParent', 'osh');
 await page.click('#auSubmit');
 check('после создания остались на «Подразделениях»', await page.locator('#view-units').isVisible());

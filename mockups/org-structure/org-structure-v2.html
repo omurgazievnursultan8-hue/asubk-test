@@ -47,8 +47,8 @@
      (`territory`), а не вторая структура. Уровни ФКФ: Председатель (ГО) → БЛОКИ (у каждого
      зампреда свой) → департаменты и СЛУЖБЫ (служба = уровень департамента) → отделы, секторы.
      Часть служб подчиняется Председателю напрямую, минуя блок (внутренний аудит).
-     У регионального представительства есть собственные внутренние отделы — вложенность
-     выражается только при одной структуре (Отдел рисков Ошского представительства).
+     У РП есть собственные внутренние отделы — вложенность
+     выражается только при одной структуре (Отдел рисков Ошского РП).
 
   2. ИСТОРИЧНОСТЬ = ИДЕНТИЧНОСТЬ + ВЕРСИИ (шов №2). Подразделение НИКОГДА не удаляется.
      • НАЗВАНИЕ версионируется (NAME_VER) — переименование это тот же `unitId` и новая запись;
@@ -99,7 +99,7 @@
 
   ГРАНИЦА: слова «куратор» модуль не знает. Матрица кураторства, лента передач, конфликт
   интересов — чужой модуль-потребитель. Открыто (§11): ДВОЙНОЕ ПОДЧИНЕНИЕ (админ. директор
-  регионального представительства vs функц. директор департамента ГО) — здесь показано как ОДНО
+  РП vs функц. директор департамента ГО) — здесь показано как ОДНО
   (админ.) подчинение.
 -->
 <style>
@@ -530,7 +530,7 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
       <div class="modal-b">
         <div class="fld">
           <label for="auName">Название</label>
-          <input type="text" id="auName" placeholder="напр. Отдел взыскания Ошского представительства" autocomplete="off">
+          <input type="text" id="auName" placeholder="напр. Отдел взыскания Ошского РП" autocomplete="off">
         </div>
         <div class="fld">
           <label for="auType">Тип подразделения</label>
@@ -538,7 +538,7 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
             <option value="блок">блок</option>
             <option value="департамент">департамент</option>
             <option value="служба">служба</option>
-            <option value="региональное представительство">региональное представительство</option>
+            <option value="РП">РП (региональное представительство)</option>
             <option value="отдел" selected>отдел</option>
             <option value="сектор">сектор</option>
           </select>
@@ -675,7 +675,7 @@ const TODAY = '2026-07-11';
 // §1 ПОДРАЗДЕЛЕНИЯ. territory — атрибут подразделения (не вторая структура). parentId — БАЗОВОЕ подчинение
 // (переопределяется PARENT_VER на дату). liquidated/successor — §2/§6.
 // Типы (ФКФ): ГО · блок (зона зампреда) · департамент · служба (уровень департамента) ·
-// региональное представительство · отдел · сектор. Филиалов нет.
+// РП (региональное представительство) · отдел · сектор. Филиалов нет.
 const UNITS = [
   { id:'go',        type:'ГО',                             territory:[], created:'2020-01-01', liquidated:null, successor:null },
   { id:'blk_cred',  type:'блок',                           territory:[], created:'2020-02-01', liquidated:null, successor:null },
@@ -687,9 +687,9 @@ const UNITS = [
   // служба внутреннего аудита подчиняется Председателю напрямую, минуя блоки
   { id:'audit',     type:'служба',                         territory:[], created:'2020-02-01', liquidated:null, successor:null },
   { id:'sector',    type:'сектор',                         territory:[], created:'2020-03-01', liquidated:null, successor:null },
-  { id:'osh',       type:'региональное представительство', territory:['Ошская область','город Ош'], created:'2021-01-01', liquidated:null, successor:null },
+  { id:'osh',       type:'РП'                          , territory:['Ошская область','город Ош'], created:'2021-01-01', liquidated:null, successor:null },
   { id:'oshrisk',   type:'отдел',                          territory:[], created:'2021-02-01', liquidated:null, successor:null },
-  { id:'jal',       type:'региональное представительство', territory:['Джалал-Абадская область'], created:'2021-01-01', liquidated:'2024-06-01', successor:'osh' },
+  { id:'jal',       type:'РП'                          , territory:['Джалал-Абадская область'], created:'2021-01-01', liquidated:'2024-06-01', successor:'osh' },
 ];
 // базовое подчинение (для подразделений без версий переподчинения)
 const BASE_PARENT = { go:null, blk_cred:'go', blk_risk:'go', blk_reg:'go',
@@ -708,9 +708,9 @@ const NAME_VER = [
   { unitId:'audit',    name:'Служба внутреннего аудита',              from:'2020-02-01', to:null },
   { unitId:'sector',   name:'Сектор сопровождения',                   from:'2020-03-01', to:'2023-06-01' },
   { unitId:'sector',   name:'Сектор мониторинга',                     from:'2023-06-01', to:null },
-  { unitId:'osh',      name:'Ошское региональное представительство',  from:'2021-01-01', to:null },
-  { unitId:'oshrisk',  name:'Отдел рисков Ошского представительства', from:'2021-02-01', to:null },
-  { unitId:'jal',      name:'Джалал-Абадское региональное представительство', from:'2021-01-01', to:null },
+  { unitId:'osh',      name:'Ошское РП',  from:'2021-01-01', to:null },
+  { unitId:'oshrisk',  name:'Отдел рисков Ошского РП', from:'2021-02-01', to:null },
+  { unitId:'jal',      name:'Джалал-Абадское РП', from:'2021-01-01', to:null },
 ];
 
 // §2 ПОДЧИНЁННОСТЬ версионируется. Отдел рисков Оша: функц. (Департамент рисков ГО) → админ. (Ошское РП) с 2023-01-01.
@@ -725,7 +725,7 @@ const TITLES = {
   vice:   { name:'Заместитель председателя',                cat:'руководящая',  lead:true },
   dep:    { name:'Директор департамента',                   cat:'руководящая',  lead:true },
   hserv:  { name:'Начальник службы',                        cat:'руководящая',  lead:true },
-  repr:   { name:'Руководитель регионального представительства', cat:'руководящая', lead:true },
+  repr:   { name:'Руководитель РП', cat:'руководящая', lead:true },
   hoff:   { name:'Начальник отдела',                        cat:'руководящая',  lead:true },
   hsec:   { name:'Заведующий сектором',                     cat:'руководящая',  lead:true },
   chief:  { name:'Главный специалист',                      cat:'специалист',   lead:false },
@@ -1052,7 +1052,7 @@ const ICONS = {
   ok:'<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>',
   info:'<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M8 7v4M8 5v.2" stroke="currentColor" stroke-width="1.5"/></svg>',
 };
-function typeIcon(t){ if(t==='ГО') return ICONS.go; if(t==='региональное представительство') return ICONS.branch;
+function typeIcon(t){ if(t==='ГО') return ICONS.go; if(t==='РП') return ICONS.branch;
   if(t==='блок'||t==='департамент'||t==='служба'||t==='сектор') return ICONS.dept; return ICONS.unit; }
 
 /* ---- дерево ---- */
