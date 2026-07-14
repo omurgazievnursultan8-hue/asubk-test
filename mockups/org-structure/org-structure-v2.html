@@ -1416,6 +1416,36 @@ function bindTree(){
   });
 }
 
+/* ---- лента изменений ---- */
+const CHG_LABEL = { create:'Создание', rename:'Переименование', move:'Переподчинение',
+                    liquidate:'Ликвидация', assign:'Назначение', acting:'И.о.' };
+
+function changesHtml(d){
+  const win = state.chgWin;
+  const evs = changesSince(d, win);
+  const body = evs.length
+    ? `<div class="audit">${evs.map(e=>`<div class="ae" data-unit="${e.unitId}" style="cursor:pointer">
+         <span class="aw">${e.date}</span>
+         <span class="ab">${CHG_LABEL[e.kind]||e.kind}</span>
+         <span>${esc(nameAt(e.unitId,d))} — ${esc(e.text)}</span></div>`).join('')}</div>`
+    : `<div class="empty">Изменений за ${win} дн. до ${d} нет.</div>`;
+  return `<div class="section" id="changes">
+    <div class="sec-h"><span class="sh-t">Последние изменения</span>
+      <span class="sh-act"><select id="chgWin" style="height:28px; border-radius:var(--radius-md); border:1px solid var(--border-strong); background:var(--surface-card); font:var(--font-label); padding:0 8px;">
+        <option value="30"${win===30?' selected':''}>30 дней</option>
+        <option value="365"${win===365?' selected':''}>365 дней</option>
+      </select></span></div>
+    <div class="sec-b tscroll">${body}</div></div>`;
+}
+
+function bindChanges(){
+  const s = document.getElementById('chgWin');
+  if(s) s.onchange = ()=>{ state.chgWin = Number(s.value); renderOverviewDash(); };
+  document.querySelectorAll('#changes .ae').forEach(r=>{
+    r.onclick = ()=> gotoUnit(r.dataset.unit, 'history');
+  });
+}
+
 function renderOverviewDash(){
   const d = state.date;
   document.getElementById('ovAsOf').textContent = d;
@@ -1439,8 +1469,9 @@ function renderOverviewDash(){
   if(m.inv.length) banners += banner('danger', ICONS.block,
     '<b>Нарушение инварианта §4:</b> более одного основного назначения — '+m.inv.map(fmtEmp).join(', '));
 
-  el.innerHTML = banners + metricsHtml(m, mp) + probsHtml(d) + miniTreeHtml(d) + staffRollHtml(d);
-  bindMetricJumps(); bindProbs(); bindTree();
+  el.innerHTML = banners + metricsHtml(m, mp) + probsHtml(d) + miniTreeHtml(d)
+               + staffRollHtml(d) + changesHtml(d);
+  bindMetricJumps(); bindProbs(); bindTree(); bindChanges();
 }
 
 /* ---- оркестровка ---- */

@@ -111,6 +111,16 @@ await page.locator('.nav-item', { hasText: 'Обзор' }).click();
 check('«Штат и факт»: строка на каждый тип узла',
   await page.locator('#staffRoll tbody tr').count() >= 3);
 
+// --- Task 6: лента изменений ---
+check('лента: за 30 дней от 2026-07-11 событий нет → пустое состояние',
+  (await page.locator('#changes').innerText()).includes('Изменений за'));
+await page.selectOption('#chgWin', '365');
+check('лента: за 365 дней события появились',
+  await page.locator('#changes .ae').count() > 0);
+check('лента: и.о. от 2026-06-01 в ленте есть',
+  (await page.locator('#changes').innerText()).includes('И.о.'));
+await page.selectOption('#chgWin', '30');
+
 await ctx.close();
 console.log(fails.length ? `\n${fails.length} FAILED` : '\nALL PASS');
 process.exit(fails.length ? 1 : 0);
