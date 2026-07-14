@@ -44,8 +44,11 @@
 
   1. ОДНА СТРУКТУРА (шов №1). «Структурные подразделения» и «территориальные органы» ТЗ —
      подразделения РАЗНОГО ТИПА в ОДНОЙ иерархии. Территориальность — атрибут подразделения
-     (`territory`), а не вторая структура. У филиала есть собственные внутренние отделы —
-     вложенность выражается только при одной структуре (Отдел рисков Ошского филиала).
+     (`territory`), а не вторая структура. Уровни ФКФ: Председатель (ГО) → БЛОКИ (у каждого
+     зампреда свой) → департаменты и СЛУЖБЫ (служба = уровень департамента) → отделы, секторы.
+     Часть служб подчиняется Председателю напрямую, минуя блок (внутренний аудит).
+     У регионального представительства есть собственные внутренние отделы — вложенность
+     выражается только при одной структуре (Отдел рисков Ошского представительства).
 
   2. ИСТОРИЧНОСТЬ = ИДЕНТИЧНОСТЬ + ВЕРСИИ (шов №2). Подразделение НИКОГДА не удаляется.
      • НАЗВАНИЕ версионируется (NAME_VER) — переименование это тот же `unitId` и новая запись;
@@ -87,16 +90,17 @@
   РОЛИ: Кадровик (правит, закрывает), Наблюдатель (только чтение). canEdit().
 
   ДЕМО-ДАННЫЕ покрывают все ветки: переименованное подразделение (Сектор), смена вышестоящего
-  (Отдел рисков Оша: функц. → админ.), вакантная руководящая единица (Ошский филиал → обязанности
-  переданы наверх, в ГО), и.о. на время отпуска из другого подразделения (Кредитный департамент),
-  совместитель в двух подразделениях (гл. специалист), закрытое подразделение с исторической
-  записью и передачей функций (Джалал-Абад), провал двух проверок перед закрытием (Ошский филиал:
-  подчинённые + назначения + территория без подразделения), успешное закрытие листа с событием
-  наружу (Сектор мониторинга).
+  (Отдел рисков Оша: функц. → админ.), вакантная руководящая единица (Ошское РП → обязанности
+  переданы наверх, в Блок регионального развития), и.о. на время отпуска из другого подразделения
+  (Кредитный департамент), совместитель в двух подразделениях (гл. специалист), закрытое
+  подразделение с исторической записью и передачей функций (Джалал-Абадское РП), провал двух
+  проверок перед закрытием (Ошское РП: подчинённые + назначения + территория без подразделения),
+  успешное закрытие листа с событием наружу (Сектор мониторинга).
 
   ГРАНИЦА: слова «куратор» модуль не знает. Матрица кураторства, лента передач, конфликт
   интересов — чужой модуль-потребитель. Открыто (§11): ДВОЙНОЕ ПОДЧИНЕНИЕ (админ. директор
-  филиала vs функц. начальник департамента ГО) — здесь показано как ОДНО (админ.) подчинение.
+  регионального представительства vs функц. директор департамента ГО) — здесь показано как ОДНО
+  (админ.) подчинение.
 -->
 <style>
 :root{
@@ -526,13 +530,15 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
       <div class="modal-b">
         <div class="fld">
           <label for="auName">Название</label>
-          <input type="text" id="auName" placeholder="напр. Отдел взыскания Ошского филиала" autocomplete="off">
+          <input type="text" id="auName" placeholder="напр. Отдел взыскания Ошского представительства" autocomplete="off">
         </div>
         <div class="fld">
           <label for="auType">Тип подразделения</label>
           <select id="auType">
-            <option value="филиал">филиал</option>
+            <option value="блок">блок</option>
             <option value="департамент">департамент</option>
+            <option value="служба">служба</option>
+            <option value="региональное представительство">региональное представительство</option>
             <option value="отдел" selected>отдел</option>
             <option value="сектор">сектор</option>
           </select>
@@ -668,31 +674,46 @@ const TODAY = '2026-07-11';
 
 // §1 ПОДРАЗДЕЛЕНИЯ. territory — атрибут подразделения (не вторая структура). parentId — БАЗОВОЕ подчинение
 // (переопределяется PARENT_VER на дату). liquidated/successor — §2/§6.
+// Типы (ФКФ): ГО · блок (зона зампреда) · департамент · служба (уровень департамента) ·
+// региональное представительство · отдел · сектор. Филиалов нет.
 const UNITS = [
-  { id:'go',       type:'ГО',         territory:[], created:'2020-01-01', liquidated:null, successor:null },
-  { id:'riskgo',   type:'департамент', territory:[], created:'2020-02-01', liquidated:null, successor:null },
-  { id:'creditgo', type:'департамент', territory:[], created:'2020-02-01', liquidated:null, successor:null },
-  { id:'sector',   type:'сектор',      territory:[], created:'2020-03-01', liquidated:null, successor:null },
-  { id:'osh',      type:'филиал',      territory:['Ошская область','город Ош'], created:'2021-01-01', liquidated:null, successor:null },
-  { id:'oshrisk',  type:'отдел',       territory:[], created:'2021-02-01', liquidated:null, successor:null },
-  { id:'jal',      type:'филиал',      territory:['Джалал-Абадская область'], created:'2021-01-01', liquidated:'2024-06-01', successor:'osh' },
+  { id:'go',        type:'ГО',                             territory:[], created:'2020-01-01', liquidated:null, successor:null },
+  { id:'blk_cred',  type:'блок',                           territory:[], created:'2020-02-01', liquidated:null, successor:null },
+  { id:'blk_risk',  type:'блок',                           territory:[], created:'2020-02-01', liquidated:null, successor:null },
+  { id:'blk_reg',   type:'блок',                           territory:[], created:'2021-01-01', liquidated:null, successor:null },
+  { id:'creditgo',  type:'департамент',                    territory:[], created:'2020-02-01', liquidated:null, successor:null },
+  { id:'riskgo',    type:'департамент',                    territory:[], created:'2020-02-01', liquidated:null, successor:null },
+  { id:'underwr',   type:'служба',                         territory:[], created:'2020-03-01', liquidated:null, successor:null },
+  // служба внутреннего аудита подчиняется Председателю напрямую, минуя блоки
+  { id:'audit',     type:'служба',                         territory:[], created:'2020-02-01', liquidated:null, successor:null },
+  { id:'sector',    type:'сектор',                         territory:[], created:'2020-03-01', liquidated:null, successor:null },
+  { id:'osh',       type:'региональное представительство', territory:['Ошская область','город Ош'], created:'2021-01-01', liquidated:null, successor:null },
+  { id:'oshrisk',   type:'отдел',                          territory:[], created:'2021-02-01', liquidated:null, successor:null },
+  { id:'jal',       type:'региональное представительство', territory:['Джалал-Абадская область'], created:'2021-01-01', liquidated:'2024-06-01', successor:'osh' },
 ];
 // базовое подчинение (для подразделений без версий переподчинения)
-const BASE_PARENT = { go:null, riskgo:'go', creditgo:'go', sector:'creditgo', osh:'go', oshrisk:'osh', jal:'go' };
+const BASE_PARENT = { go:null, blk_cred:'go', blk_risk:'go', blk_reg:'go',
+                      creditgo:'blk_cred', underwr:'blk_cred', riskgo:'blk_risk',
+                      audit:'go', sector:'creditgo', osh:'blk_reg', oshrisk:'osh', jal:'blk_reg' };
 
 // §2 НАЗВАНИЕ версионируется. Сектор переименован 2023-06-01.
 const NAME_VER = [
-  { unitId:'go',       name:'Головной офис',                 from:'2020-01-01', to:null },
-  { unitId:'riskgo',   name:'Департамент рисков',            from:'2020-02-01', to:null },
-  { unitId:'creditgo', name:'Кредитный департамент',         from:'2020-02-01', to:null },
-  { unitId:'sector',   name:'Сектор сопровождения',          from:'2020-03-01', to:'2023-06-01' },
-  { unitId:'sector',   name:'Сектор мониторинга',            from:'2023-06-01', to:null },
-  { unitId:'osh',      name:'Ошский филиал',                 from:'2021-01-01', to:null },
-  { unitId:'oshrisk',  name:'Отдел рисков Ошского филиала',  from:'2021-02-01', to:null },
-  { unitId:'jal',      name:'Джалал-Абадский филиал',        from:'2021-01-01', to:null },
+  { unitId:'go',       name:'Головной офис',                          from:'2020-01-01', to:null },
+  { unitId:'blk_cred', name:'Блок кредитования',                      from:'2020-02-01', to:null },
+  { unitId:'blk_risk', name:'Блок рисков',                            from:'2020-02-01', to:null },
+  { unitId:'blk_reg',  name:'Блок регионального развития',            from:'2021-01-01', to:null },
+  { unitId:'creditgo', name:'Кредитный департамент',                  from:'2020-02-01', to:null },
+  { unitId:'riskgo',   name:'Департамент рисков',                     from:'2020-02-01', to:null },
+  { unitId:'underwr',  name:'Служба андеррайтинга',                   from:'2020-03-01', to:null },
+  { unitId:'audit',    name:'Служба внутреннего аудита',              from:'2020-02-01', to:null },
+  { unitId:'sector',   name:'Сектор сопровождения',                   from:'2020-03-01', to:'2023-06-01' },
+  { unitId:'sector',   name:'Сектор мониторинга',                     from:'2023-06-01', to:null },
+  { unitId:'osh',      name:'Ошское региональное представительство',  from:'2021-01-01', to:null },
+  { unitId:'oshrisk',  name:'Отдел рисков Ошского представительства', from:'2021-02-01', to:null },
+  { unitId:'jal',      name:'Джалал-Абадское региональное представительство', from:'2021-01-01', to:null },
 ];
 
-// §2 ПОДЧИНЁННОСТЬ версионируется. Отдел рисков Оша: функц. (Департамент рисков ГО) → админ. (Ошский филиал) с 2023-01-01.
+// §2 ПОДЧИНЁННОСТЬ версионируется. Отдел рисков Оша: функц. (Департамент рисков ГО) → админ. (Ошское РП) с 2023-01-01.
 const PARENT_VER = [
   { unitId:'oshrisk', parentId:'riskgo', from:'2021-02-01', to:'2023-01-01' },
   { unitId:'oshrisk', parentId:'osh',    from:'2023-01-01', to:null },
@@ -700,49 +721,68 @@ const PARENT_VER = [
 
 // §3 ДОЛЖНОСТИ (справочник): название + категория (+ признак руководящая).
 const TITLES = {
-  chair:  { name:'Председатель',           cat:'руководящая',  lead:true },
-  dep:    { name:'Начальник департамента', cat:'руководящая',  lead:true },
-  dir:    { name:'Директор филиала',       cat:'руководящая',  lead:true },
-  hoff:   { name:'Начальник отдела',       cat:'руководящая',  lead:true },
-  hsec:   { name:'Заведующий сектором',    cat:'руководящая',  lead:true },
-  chief:  { name:'Главный специалист',     cat:'специалист',   lead:false },
+  chair:  { name:'Председатель',                            cat:'руководящая',  lead:true },
+  vice:   { name:'Заместитель председателя',                cat:'руководящая',  lead:true },
+  dep:    { name:'Директор департамента',                   cat:'руководящая',  lead:true },
+  hserv:  { name:'Начальник службы',                        cat:'руководящая',  lead:true },
+  repr:   { name:'Руководитель регионального представительства', cat:'руководящая', lead:true },
+  hoff:   { name:'Начальник отдела',                        cat:'руководящая',  lead:true },
+  hsec:   { name:'Заведующий сектором',                     cat:'руководящая',  lead:true },
+  chief:  { name:'Главный специалист',                      cat:'специалист',   lead:false },
 };
 
 // §3 ШТАТНЫЕ ЕДИНИЦЫ: должность × подразделение + число ставок + isHead («руководитель подразделения»).
+// Руководитель блока — зампред: именно так «блок зампреда» выражается структурой, без второго дерева.
 const POSITIONS = [
   { id:'ps_go',       unitId:'go',       titleId:'chair', units:1, isHead:true  },
-  { id:'ps_riskgo',   unitId:'riskgo',   titleId:'dep',   units:1, isHead:true  },
+  { id:'ps_blkcred',  unitId:'blk_cred', titleId:'vice',  units:1, isHead:true  },
+  { id:'ps_blkrisk',  unitId:'blk_risk', titleId:'vice',  units:1, isHead:true  },
+  { id:'ps_blkreg',   unitId:'blk_reg',  titleId:'vice',  units:1, isHead:true  },
   { id:'ps_creditgo', unitId:'creditgo', titleId:'dep',   units:1, isHead:true  },
   { id:'ps_creditsp', unitId:'creditgo', titleId:'chief', units:2, isHead:false },
+  { id:'ps_riskgo',   unitId:'riskgo',   titleId:'dep',   units:1, isHead:true  },
+  { id:'ps_underwr',  unitId:'underwr',  titleId:'hserv', units:1, isHead:true  },
+  { id:'ps_audit',    unitId:'audit',    titleId:'hserv', units:1, isHead:true  },
   { id:'ps_sector',   unitId:'sector',   titleId:'hsec',  units:1, isHead:true  },
-  { id:'ps_osh',      unitId:'osh',      titleId:'dir',   units:1, isHead:true  },
+  { id:'ps_osh',      unitId:'osh',      titleId:'repr',  units:1, isHead:true  },
   { id:'ps_oshrisk',  unitId:'oshrisk',  titleId:'hoff',  units:1, isHead:true  },
   { id:'ps_oshrsp',   unitId:'oshrisk',  titleId:'chief', units:1, isHead:false },
+  { id:'ps_jal',      unitId:'jal',      titleId:'repr',  units:1, isHead:true  },
 ];
 
 const EMPLOYEES = {
-  e_dir:  'Асанов А. А.',
-  e_risk: 'Бекова Г. Т.',
-  e_cred: 'Ормонов Б. К.',
-  e_oshr: 'Ташиев М. Ы.',
-  e_spec: 'Иманова Н. С.',
-  e_io:   'Сыдыков Э. Ж.',
+  e_chair: 'Асанов А. А.',
+  e_vpc:   'Жумабаев К. С.',
+  e_vpr:   'Абдрахманова А. Т.',
+  e_vpg:   'Мураталиев Т. Б.',
+  e_cred:  'Ормонов Б. К.',
+  e_risk:  'Бекова Г. Т.',
+  e_und:   'Каримов Р. Э.',
+  e_aud:   'Осмонова Ж. К.',
+  e_oshr:  'Ташиев М. Ы.',
+  e_spec:  'Иманова Н. С.',
+  e_io:    'Сыдыков Э. Ж.',
 };
 
 // §4 НАЗНАЧЕНИЯ: сотрудник × штатная единица + тип(main/combine) + даты + ставка.
 const ASSIGN = [
-  { id:'a1', empId:'e_dir',  posId:'ps_go',       kind:'main',    from:'2020-01-01', to:null, rate:1.0 },
-  { id:'a2', empId:'e_risk', posId:'ps_riskgo',   kind:'main',    from:'2020-02-01', to:null, rate:1.0 },
-  { id:'a3', empId:'e_cred', posId:'ps_creditgo', kind:'main',    from:'2020-02-01', to:null, rate:1.0 },
-  { id:'a4', empId:'e_oshr', posId:'ps_oshrisk',  kind:'main',    from:'2021-02-01', to:null, rate:1.0 },
+  { id:'a1',  empId:'e_chair', posId:'ps_go',       kind:'main',    from:'2020-01-01', to:null, rate:1.0 },
+  { id:'a2',  empId:'e_vpc',   posId:'ps_blkcred',  kind:'main',    from:'2020-02-01', to:null, rate:1.0 },
+  { id:'a3',  empId:'e_vpr',   posId:'ps_blkrisk',  kind:'main',    from:'2020-02-01', to:null, rate:1.0 },
+  { id:'a4',  empId:'e_vpg',   posId:'ps_blkreg',   kind:'main',    from:'2021-01-01', to:null, rate:1.0 },
+  { id:'a5',  empId:'e_cred',  posId:'ps_creditgo', kind:'main',    from:'2020-02-01', to:null, rate:1.0 },
+  { id:'a6',  empId:'e_risk',  posId:'ps_riskgo',   kind:'main',    from:'2020-02-01', to:null, rate:1.0 },
+  { id:'a7',  empId:'e_und',   posId:'ps_underwr',  kind:'main',    from:'2020-03-01', to:null, rate:1.0 },
+  { id:'a8',  empId:'e_aud',   posId:'ps_audit',    kind:'main',    from:'2020-02-01', to:null, rate:1.0 },
+  { id:'a9',  empId:'e_oshr',  posId:'ps_oshrisk',  kind:'main',    from:'2021-02-01', to:null, rate:1.0 },
   // Гл. специалист: ОСНОВНОЕ в Кредитном департаменте ГО + СОВМЕСТИТЕЛЬСТВО в Отделе рисков Оша (§10 — фильтр по всем назначениям).
-  { id:'a5', empId:'e_spec', posId:'ps_creditsp', kind:'main',    from:'2022-05-01', to:null, rate:1.0 },
-  { id:'a6', empId:'e_spec', posId:'ps_oshrsp',   kind:'combine', from:'2024-01-01', to:null, rate:0.5 },
-  // Ошский филиал (ps_osh, Директор) — ВАКАНТ: назначения НЕТ → руководитель берётся из ГО (передача наверх).
+  { id:'a10', empId:'e_spec',  posId:'ps_creditsp', kind:'main',    from:'2022-05-01', to:null, rate:1.0 },
+  { id:'a11', empId:'e_spec',  posId:'ps_oshrsp',   kind:'combine', from:'2024-01-01', to:null, rate:0.5 },
+  // Ошское РП (ps_osh) — ВАКАНТ: назначения НЕТ → руководитель берётся выше, из Блока регионального развития.
   // Сектор мониторинга (ps_sector) — ВАКАНТ (лист без назначений) → пригоден к закрытию.
 ];
 
-// §4 И.О. — НЕ назначение, отдельная сущность поверх штатной единицы. Начальник Кредитного департамента
+// §4 И.О. — НЕ назначение, отдельная сущность поверх штатной единицы. Директор Кредитного департамента
 // в отпуске 2026-06-01..2026-07-31, и.о. — Сыдыков (из другого подразделения, Департамент рисков). Приоритет над основным.
 const ACTING = [
   { id:'io1', posId:'ps_creditgo', empId:'e_io', from:'2026-06-01', to:'2026-07-31', reason:'отпуск основного' },
@@ -1012,8 +1052,8 @@ const ICONS = {
   ok:'<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>',
   info:'<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M8 7v4M8 5v.2" stroke="currentColor" stroke-width="1.5"/></svg>',
 };
-function typeIcon(t){ if(t==='ГО') return ICONS.go; if(t==='филиал') return ICONS.branch;
-  if(t==='департамент'||t==='сектор') return ICONS.dept; return ICONS.unit; }
+function typeIcon(t){ if(t==='ГО') return ICONS.go; if(t==='региональное представительство') return ICONS.branch;
+  if(t==='блок'||t==='департамент'||t==='служба'||t==='сектор') return ICONS.dept; return ICONS.unit; }
 
 /* ---- дерево ---- */
 function renderTree(){
