@@ -833,6 +833,16 @@ function daysBetween(a,b){ return Math.round((Date.parse(b)-Date.parse(a))/86400
 function liveUnitsAt(d){ return UNITS.filter(u=>existsAt(u.id,d) && !liquidatedAt(u.id,d)); }
 function positionsAt(d){ const live=new Set(liveUnitsAt(d).map(u=>u.id)); return POSITIONS.filter(p=>live.has(p.unitId)); }
 
+// штатка одного узла на дату: план, занято (сумма долей ставок), вакантных позиций.
+function unitStaffAt(id,d){
+  const poss = POSITIONS.filter(p=>p.unitId===id);
+  const planned = poss.reduce((s,p)=>s+p.units,0);
+  const acts = ASSIGN.filter(a=>poss.some(p=>p.id===a.posId) && spanActive(a,d));
+  const filled = acts.reduce((s,a)=>s+a.rate,0);
+  const vacant = poss.filter(p=>!ASSIGN.some(a=>a.posId===p.id && spanActive(a,d))).length;
+  return { positions:poss.length, planned, filled, vacant, pct: planned ? Math.round(filled/planned*100) : 0 };
+}
+
 // §5 корень без руководителя — контролёр не определяется ни для одного узла.
 function rootVacantAt(d){
   const root = liveUnitsAt(d).find(u=>parentAt(u.id,d)==null);
@@ -1065,11 +1075,16 @@ function renderOverview(){
       `Руководитель на дату — <b>${fmtEmp(h.empId)}</b> (${h.via}${h.actingReason?', '+h.actingReason:''}).`);
   }
 
+  const st = unitStaffAt(id,d);
   const dims = `<div class="phead-dims">
     <div class="dim"><div class="dl">Тип узла</div><div class="dv">${esc(u.type)}</div></div>
     <div class="dim"><div class="dl">Родитель на дату</div><div class="dv">${par?esc(nameAt(par,d)):'— (корень)'}</div></div>
     <div class="dim"><div class="dl">Статус</div><div class="dv">${liq?'ликвидировано':'действующее'}</div></div>
     <div class="dim"><div class="dl">Территория</div><div class="dv">${u.territory.length?esc(u.territory.join(', ')):'—'}</div></div>
+    <div class="dim"><div class="dl">Штат, ед.</div><div class="dv" id="ovUnitPlanned">${st.planned}</div></div>
+    <div class="dim"><div class="dl">Занято, ед.</div><div class="dv">${st.filled} <span class="muted" style="font:var(--font-label)">${st.pct}%</span></div></div>
+    <div class="dim"><div class="dl">Вакантных позиций</div><div class="dv">${st.vacant || '—'}</div></div>
+    <div class="dim"><div class="dl">Штатных позиций</div><div class="dv">${st.positions}</div></div>
   </div>`;
 
   // цепочка вверх
@@ -1124,7 +1139,7 @@ function renderStaff(){
     const asg = `<button class="btn btn-secondary asgbtn" data-pos="${p.id}" style="height:28px; padding:0 10px; font-size:13px"
       ${(canEdit() && !liq)?'':'disabled'}>Назначить</button>`;
     return `<tr>
-      <td><b>${esc(t.name)}</b>${p.isHead?' <span class="pill info">первое лицо</span>':''}<div class="muted">${esc(t.cat)}${t.lead?' · руководящая':''}</div></td>
+      <td><b>${esc(t.name)}</b>${p.isHead?' <span class="pill info">первое лицо</span>':''}<div class="muted">${esc(t.cat)}${(t.lead && t.cat!=='руководящая')?' · руководящая':''}</div></td>
       <td class="mono">${p.units}</td>
       <td>${cell}</td>
       <td>${asg}</td></tr>`;

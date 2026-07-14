@@ -229,6 +229,22 @@ check('основное назначение закрывает вакансию
 check('«Сектор» ушёл из рабочего списка вакансий',
   await page.evaluate(() => problemsAt(state.date).headVacant.every(x => x.unitId !== 'sector')));
 
+// --- новая позиция видна в «Обзоре» карточки узла ---
+await page.click('#viewTabs .dtab[data-view=units]');
+await page.locator('.tree-scroll .trow[data-id=osh]').click();
+await page.click('#tabbar .dtab[data-tab=overview]');
+const plannedBefore = Number(await page.locator('#ovUnitPlanned').innerText());
+await page.click('#tabbar .dtab[data-tab=staff]');
+await page.click('#addPosBtn');
+await page.selectOption('#mpTitle', { label: 'Главный специалист' });
+await page.fill('#mpUnits', '3');
+await page.click('#mpSubmit');
+await page.click('#tabbar .dtab[data-tab=overview]');
+check('«Обзор» узла показывает штат и он вырос на 3 ед.',
+  Number(await page.locator('#ovUnitPlanned').innerText()) === plannedBefore + 3);
+check('«Обзор» узла показывает вакантные позиции',
+  (await page.locator('#p-overview').innerText()).includes('Вакантных позиций'));
+
 // --- Task 8: скриншоты для дев-команды ---
 // reload обязателен: тест выше создал узел «Отдел взыскания», он живёт в памяти
 // страницы и иначе попал бы на все скриншоты.
