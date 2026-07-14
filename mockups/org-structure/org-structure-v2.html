@@ -363,6 +363,8 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
 .otree .oh{ font:var(--font-label); color:var(--text-muted); }
 .otree li.liq .on{ color:var(--text-muted); text-decoration:line-through; }
 .otree .l1{ padding-left:12px; } .otree .l2{ padding-left:34px; } .otree .l3{ padding-left:56px; }
+.otree .dotv{ width:7px; height:7px; border-radius:50%; background:var(--asubk-red); flex:none; }
+.otree .tico{ flex:none; display:inline-flex; color:var(--text-muted); }
 .audit{ font:var(--font-label); }
 .audit .ae{ display:grid; grid-template-columns:110px 150px 1fr; gap:12px; padding:9px 12px;
   border-bottom:1px solid var(--asubk-grid-line); }
@@ -1358,6 +1360,62 @@ function bindProbs(){
   });
 }
 
+/* ---- мини-дерево на дату + сводка «штат и факт» ---- */
+function miniTreeHtml(d){
+  const roots = liveUnitsAt(d).filter(u=>parentAt(u.id,d)==null).map(u=>u.id);
+  const maxLvl = state.treeAll ? 99 : 1;   // 0 = корень, 1 = его дети
+  const lines = [];
+  function walk(id, lvl){
+    if(lvl > maxLvl) return;
+    const u = unit(id);
+    const liq = liquidatedAt(id,d);
+    const hp = headPosOf(id);
+    const vacant = hp && !mainOn(hp.id,d) && !actingOn(hp.id,d);
+    // у ликвидированного узла руководителя не показываем: head() эскалировал бы к родителю
+    // и нарисовал живого начальника у зачёркнутой строки.
+    let who;
+    if(liq){ who = 'ликвидирован '+u.liquidated; }
+    else { const h = head(id,d);
+      who = h.error ? '<span style="color:var(--asubk-red)">руководитель не определён</span>'
+                    : `${fmtEmp(h.empId)} · ${h.via}${h.escalatedFrom?' (эскалация)':''}`; }
+    lines.push(`<li class="l${Math.min(lvl,3)}${liq?' liq':''}" data-unit="${id}">
+      <span class="tico">${typeIcon(u.type)}</span>
+      <span class="on">${esc(nameAt(id,d))}</span>
+      ${vacant && !liq ? '<span class="dotv" title="вакансия руководителя"></span>' : ''}
+      <span class="oh">${who}</span></li>`);
+    childrenAt(id,d).forEach(k=>walk(k.id, lvl+1));
+  }
+  roots.forEach(r=>walk(r,0));
+  return `<div class="section" id="miniTree">
+    <div class="sec-h"><span class="sh-t">Дерево на ${d}</span>
+      <span class="sh-act"><button class="btn btn-secondary" id="treeExpand" style="height:28px; padding:0 10px; font-size:13px">${state.treeAll?'Свернуть':'Раскрыть всё'}</button></span></div>
+    <ul class="otree">${lines.join('')}</ul>
+  </div>`;
+}
+
+function staffRollHtml(d){
+  const rows = staffRollupAt(d).map(r=>`<tr>
+    <td><b>${esc(r.type)}</b></td>
+    <td class="mono">${r.planned}</td>
+    <td class="mono">${r.filled}</td>
+    <td class="mono">${r.vac ? `<span class="pill warn">${r.vac}</span>` : '—'}</td>
+    <td class="mono">${r.planned ? Math.round(r.filled/r.planned*100) : 0}%</td></tr>`).join('')
+    || '<tr><td colspan="5" class="muted">Штатных позиций на дату нет.</td></tr>';
+  return `<div class="section" id="staffRoll">
+    <div class="sec-h"><span class="sh-t">Штат и факт по типам узлов</span></div>
+    <div class="sec-b tscroll"><table class="cgrid">
+      <thead><tr><th>Тип узла</th><th>Штат, ед.</th><th>Занято</th><th>Вакансий</th><th>Укомпл.</th></tr></thead>
+      <tbody>${rows}</tbody></table></div></div>`;
+}
+
+function bindTree(){
+  const b = document.getElementById('treeExpand');
+  if(b) b.onclick = ()=>{ state.treeAll = !state.treeAll; renderOverviewDash(); };
+  document.querySelectorAll('#miniTree .otree li').forEach(li=>{
+    li.onclick = ()=> gotoUnit(li.dataset.unit, 'overview');
+  });
+}
+
 function renderOverviewDash(){
   const d = state.date;
   document.getElementById('ovAsOf').textContent = d;
@@ -1381,8 +1439,8 @@ function renderOverviewDash(){
   if(m.inv.length) banners += banner('danger', ICONS.block,
     '<b>Нарушение инварианта §4:</b> более одного основного назначения — '+m.inv.map(fmtEmp).join(', '));
 
-  el.innerHTML = banners + metricsHtml(m, mp) + probsHtml(d);
-  bindMetricJumps(); bindProbs();
+  el.innerHTML = banners + metricsHtml(m, mp) + probsHtml(d) + miniTreeHtml(d) + staffRollHtml(d);
+  bindMetricJumps(); bindProbs(); bindTree();
 }
 
 /* ---- оркестровка ---- */
