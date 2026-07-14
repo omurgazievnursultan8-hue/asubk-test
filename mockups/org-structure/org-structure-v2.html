@@ -467,7 +467,6 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
         <span class="hint" style="margin:0">Данные на <b id="ovAsOf"></b></span>
         <span style="margin-left:auto; display:flex; gap:8px;">
           <button class="btn btn-secondary" id="ovPrint">Печать паспорта</button>
-          <button class="btn btn-primary" id="ovAdd">+ Подразделение</button>
         </span>
       </div>
       <div class="content"><div class="ovwrap" id="ovBody"></div></div>
@@ -1515,7 +1514,6 @@ function renderOverviewDash(){
 /* ---- оркестровка ---- */
 function render(){
   const ab = document.getElementById('addUnitBtn'); if(ab) ab.disabled = !canEdit();
-  document.getElementById('ovAdd').disabled = !canEdit();
   document.querySelectorAll('#viewTabs .dtab').forEach(t=>t.classList.toggle('active', t.dataset.view===state.view));
   document.getElementById('view-overview').style.display = state.view==='overview' ? 'flex' : 'none';
   document.getElementById('view-units').style.display  = state.view==='units'  ? 'flex' : 'none';
@@ -1550,7 +1548,6 @@ dateInp.addEventListener('change', ()=>{ state.date=dateInp.value||TODAY; render
 document.querySelectorAll('.date-chip').forEach(b=> b.onclick=()=>{ state.date=b.dataset.d; dateInp.value=b.dataset.d; render(); });
 document.getElementById('roleSel').addEventListener('change', e=>{ state.role=e.target.value; render(); });
 document.getElementById('addUnitBtn').onclick = openAddUnit;
-document.getElementById('ovAdd').onclick = openAddUnit;
 document.getElementById('ovPrint').onclick = ()=> window.print();
 document.getElementById('auCancel').onclick = closeAddUnit;
 document.getElementById('auSubmit').onclick = submitAddUnit;

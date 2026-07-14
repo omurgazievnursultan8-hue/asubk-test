@@ -101,10 +101,12 @@ await page.click('#viewTabs .dtab[data-view=overview]');
 
 // роль Наблюдателя гасит действия
 await page.selectOption('#roleSel', 'obs');
-check('Наблюдатель: «+ Подразделение» задизейблена', await page.locator('#ovAdd').isDisabled());
 check('Наблюдатель: кнопки действий в списке задизейблены',
   await page.locator('#probs .rowact').first().isDisabled());
+await page.click('#viewTabs .dtab[data-view=units]');
+check('Наблюдатель: «+ Подразделение» задизейблена', await page.locator('#addUnitBtn').isDisabled());
 await page.selectOption('#roleSel', 'hr');
+await page.click('#viewTabs .dtab[data-view=overview]');
 
 // --- Task 5: мини-дерево и штат/факт ---
 // ГО + 4 ребёнка: riskgo, creditgo, osh и ликвидированный jal (childrenAt не фильтрует
@@ -134,17 +136,20 @@ check('лента: и.о. от 2026-06-01 в ленте есть',
   (await page.locator('#changes').innerText()).includes('И.о.'));
 await page.selectOption('#chgWin', '30');
 
-// --- Task 7: создание узла с дашборда ---
-// (v1 submitAddUnit вид не меняет — падает здесь именно тост, которого ещё нет)
+// --- Task 7: создание узла ---
+// Кнопка «+ Подразделение» живёт только на вкладке «Подразделения» (одна точка входа).
+check('на «Обзоре» кнопки создания нет', await page.locator('#ovAdd').count() === 0);
 const unitsBefore = Number(await page.locator('#ovBody .metric[data-jump=units] .mv').innerText());
-await page.click('#ovAdd');
+await page.click('#viewTabs .dtab[data-view=units]');
+await page.click('#addUnitBtn');
 await page.fill('#auName', 'Отдел взыскания Ошского филиала');
 await page.selectOption('#auParent', 'osh');
 await page.click('#auSubmit');
-check('остались на «Обзоре» после создания', await page.locator('#view-overview').isVisible());
-check('счётчик узлов вырос',
-  Number(await page.locator('#ovBody .metric[data-jump=units] .mv').innerText()) === unitsBefore + 1);
+check('после создания остались на «Подразделениях»', await page.locator('#view-units').isVisible());
 check('показан тост', await page.locator('#toast.show').isVisible());
+await page.click('#viewTabs .dtab[data-view=overview]');
+check('счётчик узлов на «Обзоре» вырос',
+  Number(await page.locator('#ovBody .metric[data-jump=units] .mv').innerText()) === unitsBefore + 1);
 await page.locator('#probs .dtab[data-prob=noStaff]').click();
 check('новый узел попал в «Узлы без штатки»',
   (await page.locator('#probs').innerText()).includes('Отдел взыскания'));
