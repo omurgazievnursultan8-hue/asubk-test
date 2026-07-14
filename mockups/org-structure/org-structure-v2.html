@@ -10,8 +10,9 @@
   План:  docs/superpowers/plans/2026-07-14-org-structure-v2.md
   Проверка: node scripts/inspect/org-structure-v2-check.mjs
 
-  Модуль = ОДИН пункт сайдбара. Четыре вида (Обзор · Подразделения · Должности ·
-  Сотрудники) — вкладки одной страницы (#viewTabs), дата и роль общие для всех.
+  Модуль = ОДИН пункт сайдбара. Три вида (Обзор · Подразделения · Должности) —
+  вкладки одной страницы (#viewTabs), дата и роль общие для всех. Сотрудников ведёт
+  отдельный модуль (mockups/employee/employee-v2.html); здесь только штат и назначения.
   Осторожно: цикл подсветки вкладок карточки подразделения заскоуплен на #tabbar — без этого
   он снимал бы .active с вкладок видов (у них data-view, а не data-tab).
 
@@ -467,6 +468,22 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
 .minibtn.danger{ color:var(--asubk-red); border-color:rgba(224,58,58,0.4); }
 .minibtn:disabled{ opacity:.45; cursor:not-allowed; }
 .card-acts{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+/* дропдаун действий карточки, поднятый в шапку */
+.dropdown{ position:relative; flex-shrink:0; }
+.head-acts{ margin-top:0; }
+.dd-btn .dd-chev{ margin-left:6px; font-size:11px; }
+.dropdown.open .dd-chev{ transform:rotate(180deg); display:inline-block; }
+.dd-menu{ display:none; position:absolute; top:calc(100% + 6px); right:0; z-index:50; min-width:220px;
+  background:var(--surface-card); border:1px solid var(--border-strong); border-radius:var(--radius-md);
+  box-shadow:0 8px 24px rgba(24,39,57,0.14); padding:6px; }
+.dropdown.open .dd-menu{ display:block; }
+.dd-sec{ font:var(--font-label); color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em;
+  padding:6px 10px 4px; }
+.dd-item{ display:block; width:100%; text-align:left; appearance:none; border:none; background:none;
+  padding:8px 10px; border-radius:var(--radius-sm); font:var(--font-body); color:var(--text-body); cursor:pointer; }
+.dd-item:hover:not(:disabled){ background:var(--surface-hover); }
+.dd-item:disabled{ opacity:.45; cursor:not-allowed; }
+.dd-div{ height:1px; background:var(--border-default); margin:6px 4px; }
 
 /* ---- печать карточки оргструктуры на выбранную дату ---- */
 @media print{
@@ -522,7 +539,6 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
       <button class="dtab" data-view="overview">Обзор</button>
       <button class="dtab" data-view="units">Подразделения</button>
       <button class="dtab" data-view="titles">Должности</button>
-      <button class="dtab" data-view="people">Сотрудники подразделения</button>
     </div>
 
     <div class="mainview" id="view-overview">
@@ -564,9 +580,6 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
       <div class="content"><div class="panel-wrap" id="titlesBody"></div></div>
     </div>
 
-    <div class="mainview" id="view-people" style="display:none">
-      <div class="content"><div class="panel-wrap" id="peopleBody"></div></div>
-    </div>
   </div>
 
   <div class="modal-back" id="modalBack">
@@ -1186,7 +1199,8 @@ const state = { date:TODAY, role:'hr', sel:'osh', tab:'overview', collapsed:{}, 
                 prob:'headVacant',        // активный рабочий список блока «Требует внимания»
                 treeAll:false,            // мини-дерево: раскрыто ли целиком
                 chgWin:CHANGES_DAYS,      // окно ленты изменений, дней
-                q:'', qT:'', qP:'' };     // поиск: структура · должности · сотрудники
+                q:'', qT:'',              // поиск: структура · должности
+                tCat:'' };                // фильтр таба «Должности» по категории
 const EVENT_LOG = [];
 const canEdit = ()=> state.role==='hr';
 const esc = s => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
@@ -1321,17 +1335,24 @@ function renderOverview(){
               <span class="pill ${liq?'neutral':'info'}">${esc(u.type)}</span></div>
             <div class="phead-sub">Создано <b>${u.created}</b>${liq?` · закрыто <b>${u.liquidated}</b>`:''} · <span class="mono">unitId=${id}</span></div>
           </div>
+          <div class="dropdown head-acts" id="caMenu">
+            <button class="btn btn-secondary dd-btn" id="caMenuBtn" aria-haspopup="true" aria-expanded="false">
+              Действия <span class="dd-chev">▾</span></button>
+            <div class="dd-menu" role="menu">
+              <div class="dd-sec">Редактирование</div>
+              <button class="dd-item" id="caRename" role="menuitem" ${(canEdit()&&!liq)?'':'disabled'}>Переименовать</button>
+              <button class="dd-item" id="caType" role="menuitem" ${(canEdit()&&!liq)?'':'disabled'}>Изменить тип</button>
+              <button class="dd-item" id="caMove" role="menuitem" ${(canEdit()&&!liq&&par)?'':'disabled'}>Переподчинить</button>
+              <button class="dd-item" id="caTerr" role="menuitem" ${(canEdit()&&!liq)?'':'disabled'}>Территория</button>
+              <div class="dd-div"></div>
+              <button class="dd-item" id="caExport" role="menuitem">Экспорт штатки (CSV)</button>
+              <button class="dd-item" id="caPrint" role="menuitem">Печать карточки</button>
+            </div>
+          </div>
         </div>
         ${banners}
         ${headBlock}
         ${dims}
-      </div>
-      <div class="card-acts">
-        <button class="btn btn-secondary" id="caRename" ${(canEdit()&&!liq)?'':'disabled'}>Переименовать</button>
-        <button class="btn btn-secondary" id="caMove" ${(canEdit()&&!liq&&par)?'':'disabled'}>Переподчинить</button>
-        <button class="btn btn-secondary" id="caTerr" ${(canEdit()&&!liq)?'':'disabled'}>Территория</button>
-        <button class="btn btn-secondary" id="caExport">Экспорт штатки (CSV)</button>
-        <button class="btn btn-secondary" id="caPrint">Печать карточки</button>
       </div>
       <div class="section-h">Кому подчиняется (снизу вверх)</div>
       <p class="section-note">Жёлтым помечены звенья, куда обязанности <b>переданы наверх</b> из-за вакансии ниже.</p>
@@ -1339,11 +1360,25 @@ function renderOverview(){
     </div>`;
 
   document.getElementById('caRename').onclick = openRename;
+  document.getElementById('caType').onclick   = openChangeType;
   document.getElementById('caMove').onclick   = openReparent;
   document.getElementById('caTerr').onclick   = openTerritory;
   document.getElementById('caExport').onclick = ()=> exportStaff(id,d);
   document.getElementById('caPrint').onclick  = ()=> window.print();
+  wireDropdown('caMenu','caMenuBtn');
 }
+
+/* дропдаун действий: открытие/закрытие, закрытие по выбору пункта и клику вне */
+function wireDropdown(wrapId, btnId){
+  const dd = document.getElementById(wrapId); if(!dd) return;
+  const btn = document.getElementById(btnId);
+  btn.onclick = e=>{ e.stopPropagation(); const open=dd.classList.toggle('open'); btn.setAttribute('aria-expanded', open); };
+  dd.querySelectorAll('.dd-item').forEach(i=> i.addEventListener('click', ()=> dd.classList.remove('open')));
+}
+// клик вне открытого дропдауна — закрыть
+document.addEventListener('click', e=>{
+  document.querySelectorAll('.dropdown.open').forEach(dd=>{ if(!dd.contains(e.target)) dd.classList.remove('open'); });
+});
 
 /* ---- ШТАТНОЕ РАСПИСАНИЕ ---- */
 function renderStaff(){
@@ -1881,6 +1916,26 @@ function openRename(){
     }});
 }
 
+// тип — статичный атрибут (не версионируется): смена типа = исправление классификации на всю историю
+const UNIT_TYPES = ['блок','департамент','служба','РП','отдел','сектор'];
+function openChangeType(){
+  const id = state.sel, u = unit(id);
+  openForm({
+    title:'Изменение типа подразделения', submit:'Изменить тип',
+    fields:[{ k:'type', label:'Тип подразделения', type:'select',
+              options:UNIT_TYPES.map(t=>({v:t,t})), value:u.type }],
+    note:'Тип — это <b>классификация</b>, а не датированное событие: он не версионируется, поэтому изменение применяется ко всей истории подразделения. Меняйте только для исправления ошибочного типа.',
+    onSubmit(v){
+      if(!v.type) return 'Выберите тип.';
+      if(v.type === u.type) return 'Тип не изменился.';
+      const prev = u.type;
+      u.type = v.type;
+      logEvent(`unit.retyped(id="${id}", было="${prev}", стало="${v.type}")`);
+      toast(`Тип «${nameAt(id,state.date)}»: ${prev} → ${v.type}`);
+      return null;
+    }});
+}
+
 function openReparent(){
   const d = state.date, id = state.sel, u = unit(id);
   const cur = parentAt(id,d);
@@ -2009,9 +2064,10 @@ window.navClick = navClick;
 /* ---- §3 ДОЛЖНОСТИ (справочник) — глобальный, одна должность живёт во многих подразделениях ---- */
 function renderTitles(){
   const d = state.date, q = state.qT.trim().toLowerCase();
-  const rows = Object.entries(TITLES)
+  const entries = Object.entries(TITLES)
     .filter(([,t])=> !q || t.name.toLowerCase().includes(q) || t.cat.toLowerCase().includes(q))
-    .map(([tid,t])=>{
+    .filter(([,t])=> !state.tCat || t.cat === state.tCat);
+  const rows = entries.map(([tid,t])=>{
     const poss = POSITIONS.filter(p=>p.titleId===tid && posActive(p,d));
     const usedEver = POSITIONS.some(p=>p.titleId===tid);
     const where = poss.map(p=>{
@@ -2032,11 +2088,14 @@ function renderTitles(){
           title="${usedEver?'Должность используется в штатных единицах — удалить нельзя':''}">Удалить</button>
       </div></td></tr>`;
   }).join('') || '<tr><td colspan="6" class="muted">Ничего не найдено.</td></tr>';
+  const opt = (v,label,cur)=>`<option value="${v}"${v===cur?' selected':''}>${label}</option>`;
+  const catOpts = ['руководящая','специалист','технический','обслуживающий'];
   document.getElementById('titlesBody').innerHTML = `
     <div class="section-h row" style="margin-top:4px">
       <span>Справочник должностей</span>
       <span style="display:flex; gap:8px; align-items:center">
         <input type="search" class="srch" id="titlesQ" placeholder="Поиск по должности" value="${esc(state.qT)}" autocomplete="off">
+        <select class="srch" id="fltCat" title="Категория" style="min-width:auto">${opt('','Все категории',state.tCat)}${catOpts.map(c=>opt(c,c,state.tCat)).join('')}</select>
         <button class="addbtn" id="addTitleBtn" ${canEdit()?'':'disabled'}>+ Должность</button>
       </span>
     </div>
@@ -2048,6 +2107,7 @@ function renderTitles(){
   const qi = document.getElementById('titlesQ');
   qi.oninput = ()=>{ state.qT = qi.value; renderTitles();
                      const n = document.getElementById('titlesQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
+  document.getElementById('fltCat').onchange = e=>{ state.tCat = e.target.value; renderTitles(); };
   document.querySelectorAll('[data-edtitle]').forEach(b=> b.onclick = ()=> openEditTitle(b.dataset.edtitle));
   document.querySelectorAll('[data-deltitle]').forEach(b=> b.onclick = ()=> openDelTitle(b.dataset.deltitle));
 }
@@ -2111,56 +2171,6 @@ function submitAddTitle(){
   document.getElementById('mtBack').classList.remove('open');
   render();
   toast(`Должность «${name}» добавлена в справочник`);
-}
-
-/* ---- §6 СОТРУДНИКИ ПОДРАЗДЕЛЕНИЯ — сотрудник действует в нескольких подразделениях (осн. + совмест. + и.о.) ---- */
-function renderPeople(){
-  const d = state.date, q = state.qP.trim().toLowerCase();
-  const rows = Object.entries(EMPLOYEES).filter(([,fio])=> !q || fio.toLowerCase().includes(q)).map(([eid,fio])=>{
-    const acts = ASSIGN.filter(a=>a.empId===eid && spanActive(a,d));
-    const ios  = ACTING.filter(a=>a.empId===eid && spanActive(a,d));
-    if(!acts.length && !ios.length) return `<tr><td><b>${esc(fio)}</b></td><td class="muted">нет действующих назначений на дату</td></tr>`;
-    const cell = acts.map(a=>{
-      const p = posById(a.posId);
-      const tag = a.kind==='main' ? '<span class="pill ok">основное</span>' : '<span class="pill neutral">совмест.</span>';
-      return `<div>${esc(nameAt(p.unitId,d))} · ${esc(TITLES[p.titleId].name)} ${tag} <span class="muted">ставка ${a.rate}</span></div>`;
-    }).join('') + ios.map(a=>{
-      const p = posById(a.posId);
-      return `<div>${esc(nameAt(p.unitId,d))} · ${esc(TITLES[p.titleId].name)} <span class="pill info">и.о.</span> <span class="muted">${a.from}…${a.to}</span></div>`;
-    }).join('');
-    return `<tr><td><b>${esc(fio)}</b></td><td>${cell}</td></tr>`;
-  }).join('') || '<tr><td colspan="2" class="muted">Ничего не найдено.</td></tr>';
-  document.getElementById('peopleBody').innerHTML = `
-    <div class="section-h row" style="margin-top:4px">
-      <span>Сотрудники подразделения</span>
-      <span style="display:flex; gap:8px; align-items:center">
-        <input type="search" class="srch" id="peopleQ" placeholder="Поиск по ФИО" value="${esc(state.qP)}" autocomplete="off">
-        <button class="addbtn" id="addEmpBtn" ${canEdit()?'':'disabled'}>+ Сотрудник</button>
-      </span>
-    </div>
-    <table class="cgrid">
-      <thead><tr><th style="width:26%">Сотрудник</th><th>Где действует (подразделение · должность · тип)</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <p class="section-note">Карточка сотрудника (личные данные, стаж, приказы) — чужой модуль. Здесь заводится только ФИО,
-    чтобы человека было кого назначить на штатную единицу.</p>`;
-  const qi = document.getElementById('peopleQ');
-  qi.oninput = ()=>{ state.qP = qi.value; renderPeople();
-                     const n = document.getElementById('peopleQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
-  document.getElementById('addEmpBtn').onclick = ()=> openForm({
-    title:'Новый сотрудник', submit:'Добавить',
-    fields:[{ k:'fio', label:'ФИО', value:'' }],
-    note:'Заглушка чужого модуля: без этого нового человека нечем принять на штатную единицу.',
-    onSubmit(v){
-      const fio = v.fio.trim();
-      if(!fio) return 'Укажите ФИО.';
-      if(Object.values(EMPLOYEES).some(x=>x.toLowerCase()===fio.toLowerCase())) return 'Такой сотрудник уже есть.';
-      let base='e_'+(Object.keys(EMPLOYEES).length+1), id=base, n=1;
-      while(EMPLOYEES[id]){ id = base+'_'+(n++); }
-      EMPLOYEES[id] = fio;
-      toast(`Сотрудник «${fio}» добавлен`);
-      return null;
-    }});
 }
 
 /* ---- §1/§2 ДОБАВЛЕНИЕ ПОДРАЗДЕЛЕНИЯ. Рождается «на выбранную дату»: created=state.date, название — версия с этой даты.
@@ -2493,10 +2503,8 @@ function render(){
   document.getElementById('view-overview').style.display = state.view==='overview' ? 'flex' : 'none';
   document.getElementById('view-units').style.display  = state.view==='units'  ? 'flex' : 'none';
   document.getElementById('view-titles').style.display = state.view==='titles' ? 'flex' : 'none';
-  document.getElementById('view-people').style.display = state.view==='people' ? 'flex' : 'none';
   if(state.view==='overview'){ renderOverviewDash(); return; }
   if(state.view==='titles'){ renderTitles(); return; }
-  if(state.view==='people'){ renderPeople(); return; }
   renderTree();
   document.querySelectorAll('#tabbar .dtab').forEach(t=>t.classList.toggle('active', t.dataset.tab===state.tab));
   document.querySelectorAll('.detail-panel').forEach(p=>p.classList.remove('active'));
