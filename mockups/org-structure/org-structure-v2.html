@@ -28,6 +28,31 @@
   штатная единица = POSITIONS · ставка = rate/units · руководитель подразделения = isHead
   основное место работы = kind 'main' · и.о. = ACTING · закрытие = liquidated.
 
+  ---
+
+  ДОРАБОТКА v3 (план: docs/superpowers/plans/2026-07-14-org-structure-v3-crud.md,
+  приёмка: scripts/inspect/org-structure-v2-audit.mjs). Раньше модуль умел ТОЛЬКО СОЗДАВАТЬ:
+  изменить нельзя было ничего, закрыть — только пустой лист. Что изменилось:
+
+  • ШТАТ СТАЛ ИСТОРИЧНЫМ. POSITIONS получили срок жизни (from/to), а число ставок и признак
+    «руководитель» уехали в версии POS_VER — как название (NAME_VER) и подчинённость (PARENT_VER).
+    Единица, заведённая сегодня, больше не «была» пять лет назад. headPosOf/unitsAt/isHeadAt — на дату.
+  • ИСТОРИЧНОСТЬ СТАЛА ДЕЙСТВИЕМ, а не демо-данными: переименование и переподчинение создают ВЕРСИЮ.
+  • КАДРОВЫЙ ОБОРОТ В ОБЕ СТОРОНЫ: освобождение (ASSIGN.to), прекращение и продление и.о. (ACTING.to),
+    правка и закрытие штатной единицы. Без этого проверки перед закрытием были непроходимы.
+  • ЗАКРЫТИЕ доводится до конца: дата + правопреемник + передача территории + подтверждение;
+    добавлена проверка «события после даты закрытия»; появилась отмена закрытия.
+  • ВАЛИДАЦИИ по интервалу, а не в точке: одно основное место работы, один человек на единице,
+    сумма ставок ≤ числу ставок, даты внутри жизни подразделения и единицы, предельный срок и.о.
+    (MAX_ACTING_DAYS), целые ставки, один верхний уровень, уникальные названия.
+  • ОДНО ПРАВИЛО ВАКАНТНОСТИ: и.о. вакансию не закрывает, а прикрывает — подразделение остаётся
+    в рабочем списке с пометкой. Раньше две формулы на одной плитке расходились.
+  • ТЕРРИТОРИЯ — справочник TERRITORIES, а не свободный текст (опечатка ломала расчёт покрытия).
+  • Поиск (структура/должности/сотрудники), экспорт CSV, печать карточки, заведение сотрудника.
+
+  Событие наружу `unit.liquidated(id, дата, правопреемник?)` контракт сохраняет;
+  добавлены `unit.renamed` / `unit.moved` / `unit.reopened`.
+
   CSS-ловушка: в vedomstvo.html секции зовутся .section-h / .section-b, но в v1 имя
   .section-h УЖЕ ЗАНЯТО заголовком секции и используется во всех трёх старых видах.
   Здесь они переименованы в .sec-h / .sec-b — не переименовывайте обратно.
@@ -425,6 +450,24 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
 .fld-row{ display:flex; gap:12px; }
 .fld-row > .fld{ flex:1; }
 
+/* справочник территорий, поиск, действия в строках таблиц */
+.chklist{ display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; max-height:170px; overflow:auto;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); padding:8px 10px; background:var(--surface-card); }
+.chkrow{ display:flex; align-items:center; gap:7px; font:var(--font-body); color:var(--text-body); cursor:pointer; }
+.chkrow input{ width:15px; height:15px; margin:0; accent-color:var(--asubk-blue); }
+.tree-search{ padding:8px 10px; border-bottom:1px solid var(--border-default); background:var(--surface-card); }
+.tree-search input{ width:100%; height:30px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  padding:0 10px; font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+.srch{ height:30px; border:1px solid var(--border-default); border-radius:var(--radius-md); padding:0 10px;
+  font:var(--font-body); color:var(--text-body); background:var(--surface-card); min-width:220px; }
+.rowbtns{ display:flex; gap:6px; flex-wrap:wrap; }
+.minibtn{ height:26px; padding:0 9px; font:var(--font-label); border-radius:var(--radius-md); cursor:pointer;
+  border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-link); white-space:nowrap; }
+.minibtn:hover:not(:disabled){ background:var(--surface-hover); }
+.minibtn.danger{ color:var(--asubk-red); border-color:rgba(224,58,58,0.4); }
+.minibtn:disabled{ opacity:.45; cursor:not-allowed; }
+.card-acts{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+
 /* ---- печать карточки оргструктуры на выбранную дату ---- */
 @media print{
   .sidebar, .topbar, .viewtabs, .section-tools, #probTabs, #treeExpand, #chgWin, .toast{ display:none !important; }
@@ -486,7 +529,8 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
       <div class="section-tools">
         <span class="hint" style="margin:0">Данные на <b id="ovAsOf"></b></span>
         <span style="margin-left:auto; display:flex; gap:8px;">
-          <button class="btn btn-secondary" id="ovPrint">Печать карточки</button>
+          <button class="btn btn-secondary" id="ovExport">Экспорт структуры (CSV)</button>
+          <button class="btn btn-secondary" id="ovPrint">Печать обзора</button>
         </span>
       </div>
       <div class="content"><div class="ovwrap" id="ovBody"></div></div>
@@ -496,6 +540,7 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
       <div class="workarea">
         <div class="tree-pane">
           <div class="tree-pane-h"><span>Структура подразделений на дату</span><button class="addbtn" id="addUnitBtn" title="Добавить подразделение на выбранную дату">+ Подразделение</button></div>
+          <div class="tree-search"><input type="search" id="treeQ" placeholder="Поиск по названию" autocomplete="off"></div>
           <div class="tree-scroll" id="tree"></div>
         </div>
         <div class="detail-pane">
@@ -548,8 +593,8 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
           <select id="auParent"></select>
         </div>
         <div class="fld">
-          <label for="auTerr">Территория обслуживания (через запятую, необязательно)</label>
-          <input type="text" id="auTerr" placeholder="напр. Баткенская область, город Баткен" autocomplete="off">
+          <label>Территория обслуживания (необязательно)</label>
+          <div class="chklist" id="auTerr"></div>
         </div>
         <div class="modal-note">Дата создания = <b id="auDate"></b> (выбранная дата). Штатные единицы и назначения добавляются отдельно.</div>
       </div>
@@ -664,6 +709,20 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
       </div>
     </div>
   </div>
+
+  <!-- общая форма: переименование, переподчинение, территория, правка/закрытие штатной единицы,
+       освобождение, продление и.о., закрытие подразделения, правка справочника, новый сотрудник -->
+  <div class="modal-back" id="gfBack">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="gfHead">
+      <div class="modal-h" id="gfHead"></div>
+      <div class="modal-b" id="gfBody"></div>
+      <div class="modal-f">
+        <span class="modal-err" id="gfErr"></span>
+        <button class="btn btn-secondary" id="gfCancel">Отмена</button>
+        <button class="btn btn-primary" id="gfSubmit">Сохранить</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -731,24 +790,53 @@ const TITLES = {
   chief:  { name:'Главный специалист',                      cat:'специалист',   lead:false },
 };
 
-// §3 ШТАТНЫЕ ЕДИНИЦЫ: должность × подразделение + число ставок + isHead («руководитель подразделения»).
+// §3 ШТАТНЫЕ ЕДИНИЦЫ: должность × подразделение. Единица ЖИВЁТ ВО ВРЕМЕНИ (from/to) — как и подразделение,
+// а её атрибуты (число ставок, признак «руководитель подразделения») ВЕРСИОНИРУЮТСЯ в POS_VER.
+// Иначе штатка, заведённая сегодня, «была» и пять лет назад — историю численности не восстановить.
 // Руководитель блока — зампред: именно так «блок зампреда» выражается структурой, без второго дерева.
 const POSITIONS = [
-  { id:'ps_go',       unitId:'go',       titleId:'chair', units:1, isHead:true  },
-  { id:'ps_blkcred',  unitId:'blk_cred', titleId:'vice',  units:1, isHead:true  },
-  { id:'ps_blkrisk',  unitId:'blk_risk', titleId:'vice',  units:1, isHead:true  },
-  { id:'ps_blkreg',   unitId:'blk_reg',  titleId:'vice',  units:1, isHead:true  },
-  { id:'ps_creditgo', unitId:'creditgo', titleId:'dep',   units:1, isHead:true  },
-  { id:'ps_creditsp', unitId:'creditgo', titleId:'chief', units:2, isHead:false },
-  { id:'ps_riskgo',   unitId:'riskgo',   titleId:'dep',   units:1, isHead:true  },
-  { id:'ps_underwr',  unitId:'underwr',  titleId:'hserv', units:1, isHead:true  },
-  { id:'ps_audit',    unitId:'audit',    titleId:'hserv', units:1, isHead:true  },
-  { id:'ps_sector',   unitId:'sector',   titleId:'hsec',  units:1, isHead:true  },
-  { id:'ps_osh',      unitId:'osh',      titleId:'repr',  units:1, isHead:true  },
-  { id:'ps_oshrisk',  unitId:'oshrisk',  titleId:'hoff',  units:1, isHead:true  },
-  { id:'ps_oshrsp',   unitId:'oshrisk',  titleId:'chief', units:1, isHead:false },
-  { id:'ps_jal',      unitId:'jal',      titleId:'repr',  units:1, isHead:true  },
+  { id:'ps_go',       unitId:'go',       titleId:'chair', from:'2020-01-01', to:null },
+  { id:'ps_blkcred',  unitId:'blk_cred', titleId:'vice',  from:'2020-02-01', to:null },
+  { id:'ps_blkrisk',  unitId:'blk_risk', titleId:'vice',  from:'2020-02-01', to:null },
+  { id:'ps_blkreg',   unitId:'blk_reg',  titleId:'vice',  from:'2021-01-01', to:null },
+  { id:'ps_creditgo', unitId:'creditgo', titleId:'dep',   from:'2020-02-01', to:null },
+  { id:'ps_creditsp', unitId:'creditgo', titleId:'chief', from:'2020-02-01', to:null },
+  { id:'ps_riskgo',   unitId:'riskgo',   titleId:'dep',   from:'2020-02-01', to:null },
+  { id:'ps_underwr',  unitId:'underwr',  titleId:'hserv', from:'2020-03-01', to:null },
+  { id:'ps_audit',    unitId:'audit',    titleId:'hserv', from:'2020-02-01', to:null },
+  { id:'ps_sector',   unitId:'sector',   titleId:'hsec',  from:'2020-03-01', to:null },
+  { id:'ps_osh',      unitId:'osh',      titleId:'repr',  from:'2021-01-01', to:null },
+  { id:'ps_oshrisk',  unitId:'oshrisk',  titleId:'hoff',  from:'2021-02-01', to:null },
+  { id:'ps_oshrsp',   unitId:'oshrisk',  titleId:'chief', from:'2021-02-01', to:null },
+  { id:'ps_jal',      unitId:'jal',      titleId:'repr',  from:'2021-01-01', to:null },
 ];
+// §3 версии атрибутов штатной единицы. Гл. специалисту Кредитного департамента добавили вторую ставку
+// с 2024-01-01 — на 2023 год штат подразделения меньше, и «Обзор» это показывает.
+const POS_VER = [
+  { posId:'ps_go',       units:1, isHead:true,  from:'2020-01-01', to:null },
+  { posId:'ps_blkcred',  units:1, isHead:true,  from:'2020-02-01', to:null },
+  { posId:'ps_blkrisk',  units:1, isHead:true,  from:'2020-02-01', to:null },
+  { posId:'ps_blkreg',   units:1, isHead:true,  from:'2021-01-01', to:null },
+  { posId:'ps_creditgo', units:1, isHead:true,  from:'2020-02-01', to:null },
+  { posId:'ps_creditsp', units:1, isHead:false, from:'2020-02-01', to:'2024-01-01' },
+  { posId:'ps_creditsp', units:2, isHead:false, from:'2024-01-01', to:null },
+  { posId:'ps_riskgo',   units:1, isHead:true,  from:'2020-02-01', to:null },
+  { posId:'ps_underwr',  units:1, isHead:true,  from:'2020-03-01', to:null },
+  { posId:'ps_audit',    units:1, isHead:true,  from:'2020-02-01', to:null },
+  { posId:'ps_sector',   units:1, isHead:true,  from:'2020-03-01', to:null },
+  { posId:'ps_osh',      units:1, isHead:true,  from:'2021-01-01', to:null },
+  { posId:'ps_oshrisk',  units:1, isHead:true,  from:'2021-02-01', to:null },
+  { posId:'ps_oshrsp',   units:1, isHead:false, from:'2021-02-01', to:null },
+  { posId:'ps_jal',      units:1, isHead:true,  from:'2021-01-01', to:null },
+];
+
+// §1 Территория — справочник, а не свободный текст: «Джалал-Абадская обл.» и «Джалал-Абадская область»
+// иначе считаются разными территориями, и покрытие после закрытия РП вычисляется неверно.
+const TERRITORIES = ['Баткенская область','Джалал-Абадская область','Иссык-Кульская область','Нарынская область',
+  'Ошская область','Таласская область','Чуйская область','город Бишкек','город Ош'];
+
+// §4 предельный срок и.о. — иначе временная роль оформляется навсегда и маскирует вакансию.
+const MAX_ACTING_DAYS = 183;
 
 const EMPLOYEES = {
   e_chair: 'Асанов А. А.',
@@ -811,15 +899,27 @@ function childrenAt(pid,d){
   return UNITS.filter(u=>existsAt(u.id,d) && parentAt(u.id,d)===pid);
 }
 
+// §3 штатная единица живёт во времени, её атрибуты версионируются.
+const posActive = (p,d)=> p.from<=d && (p.to==null || d<=p.to);
+function posById(id){ return POSITIONS.find(p=>p.id===id); }
+function posAttrAt(posId,d){
+  const vs = POS_VER.filter(v=>v.posId===posId).sort((a,b)=>a.from<b.from?-1:1);
+  return vs.find(v=>verActive(v,d)) || vs[vs.length-1] || { units:0, isHead:false };
+}
+function unitsAt(posId,d){ return posAttrAt(posId,d).units; }
+function isHeadAt(posId,d){ return !!posAttrAt(posId,d).isHead; }
+function unitPositionsAt(unitId,d){ return POSITIONS.filter(p=>p.unitId===unitId && posActive(p,d)); }
+
 // §4 штатные единицы подразделения + кто на них на дату (и.о. приоритетнее основного).
-function headPosOf(unitId){ return POSITIONS.find(p=>p.unitId===unitId && p.isHead); }
+function headPosOf(unitId,d){ return unitPositionsAt(unitId,d).find(p=>isHeadAt(p.id,d)); }
 function actingOn(posId,d){ return ACTING.find(a=>a.posId===posId && spanActive(a,d)); }
 function mainOn(posId,d){ return ASSIGN.find(a=>a.posId===posId && a.kind==='main' && spanActive(a,d)); }
 function occupantsOf(posId,d){
   const io = actingOn(posId,d);
   const list = [];
-  if(io) list.push({ empId:io.empId, kind:'acting', reason:io.reason, from:io.from, to:io.to });
-  ASSIGN.filter(a=>a.posId===posId && spanActive(a,d)).forEach(a=>list.push({ empId:a.empId, kind:a.kind, rate:a.rate }));
+  if(io) list.push({ id:io.id, empId:io.empId, kind:'acting', reason:io.reason, from:io.from, to:io.to });
+  ASSIGN.filter(a=>a.posId===posId && spanActive(a,d))
+    .forEach(a=>list.push({ id:a.id, empId:a.empId, kind:a.kind, rate:a.rate, from:a.from, to:a.to }));
   return list;
 }
 
@@ -827,7 +927,7 @@ function occupantsOf(posId,d){
 function head(unitId,d){
   let cur = unitId, escFrom = null, reason = null, guard = 0;
   while(cur && guard++ < 20){
-    const pos = headPosOf(cur);
+    const pos = headPosOf(cur,d);
     if(pos){
       const io = actingOn(pos.id,d);
       if(io) return { empId:io.empId, via:'и.о.', at:cur, escalatedFrom:escFrom, reason, actingReason:io.reason };
@@ -845,7 +945,7 @@ function head(unitId,d){
 function chainUp(unitId,d){
   const out = []; let cur = unitId, guard=0;
   while(cur && guard++ < 20){
-    const pos = headPosOf(cur);
+    const pos = headPosOf(cur,d);
     let occ = null;
     if(pos){ const io=actingOn(pos.id,d); const mn=mainOn(pos.id,d);
       if(io) occ={ empId:io.empId, via:'и.о.' }; else if(mn) occ={ empId:mn.empId, via:'основной' }; }
@@ -880,24 +980,63 @@ function shiftYear(d,n){
 function daysBetween(a,b){ return Math.round((Date.parse(b)-Date.parse(a))/86400000); }
 
 function liveUnitsAt(d){ return UNITS.filter(u=>existsAt(u.id,d) && !liquidatedAt(u.id,d)); }
-function positionsAt(d){ const live=new Set(liveUnitsAt(d).map(u=>u.id)); return POSITIONS.filter(p=>live.has(p.unitId)); }
+function positionsAt(d){ const live=new Set(liveUnitsAt(d).map(u=>u.id)); return POSITIONS.filter(p=>live.has(p.unitId) && posActive(p,d)); }
 
 // штатное расписание одного подразделения на дату: план, занято (сумма ставок), вакантных единиц.
 function unitStaffAt(id,d){
-  const poss = POSITIONS.filter(p=>p.unitId===id);
-  const planned = poss.reduce((s,p)=>s+p.units,0);
+  const poss = unitPositionsAt(id,d);
+  const planned = poss.reduce((s,p)=>s+unitsAt(p.id,d),0);
   const acts = ASSIGN.filter(a=>poss.some(p=>p.id===a.posId) && spanActive(a,d));
-  const filled = acts.reduce((s,a)=>s+a.rate,0);
+  const filled = round1(acts.reduce((s,a)=>s+a.rate,0));
   const vacant = poss.filter(p=>!ASSIGN.some(a=>a.posId===p.id && spanActive(a,d))).length;
-  return { positions:poss.length, planned, filled, vacant, pct: planned ? Math.round(filled/planned*100) : 0 };
+  return { positions:poss.length, planned, filled, vacant, free: round1(planned-filled),
+           pct: planned ? Math.round(filled/planned*100) : 0 };
 }
 
 // §5 верхний уровень без руководителя — согласующий не определяется ни для одного подразделения.
 function rootVacantAt(d){
   const root = liveUnitsAt(d).find(u=>parentAt(u.id,d)==null);
   if(!root) return false;
-  const hp = headPosOf(root.id);
+  const hp = headPosOf(root.id,d);
   return !!hp && !mainOn(hp.id,d) && !actingOn(hp.id,d);
+}
+
+// ставки складываются по 0,5 — без округления вылезает 10.499999999999998
+const round1 = n => Math.round(n*10)/10;
+
+// пересечение полуоткрытых интервалов (to==null — бессрочно). Правила назначений проверяются
+// НА ВЕСЬ ИНТЕРВАЛ, а не в точке начала: иначе задним числом заводится второе основное место работы.
+const overlaps = (a,b)=> (a.to==null || b.from<=a.to) && (b.to==null || a.from<=b.to);
+
+// занято ставок на единице в момент d, без учёта проверяемого назначения
+function ratesOn(posId,d,exceptId){
+  return round1(ASSIGN.filter(a=>a.posId===posId && a.id!==exceptId && spanActive(a,d))
+    .reduce((s,a)=>s+a.rate,0));
+}
+
+// §6 что мешает закрыть подразделение на дату. Одна функция на рабочий список и на вкладку «Закрытие» —
+// иначе список говорит одно, а кнопка ведёт себя иначе.
+function liqBlockers(id,d){
+  const reasons = [];
+  if(parentAt(id,d)==null) reasons.push('верхний уровень структуры');
+  const kids = childrenAt(id,d).filter(k=>!liquidatedAt(k.id,d));
+  if(kids.length) reasons.push('действующие подчинённые: '+kids.map(k=>nameAt(k.id,d)).join(', '));
+  const occ = unitPositionsAt(id,d).flatMap(p=>occupantsOf(p.id,d));
+  if(occ.length) reasons.push('действующие назначения/и.о.: '+occ.length);
+  const later = laterEvents(id,d);
+  if(later.length) reasons.push('события после даты закрытия: '+later.join('; '));
+  return reasons;
+}
+
+// события подразделения ПОЗЖЕ даты d — закрывать «задним числом» поверх них нельзя
+function laterEvents(id,d){
+  const out = [];
+  NAME_VER.filter(v=>v.unitId===id && v.from>d).forEach(v=>out.push('переименование '+v.from));
+  PARENT_VER.filter(v=>v.unitId===id && v.from>d).forEach(v=>out.push('переподчинение '+v.from));
+  const pids = POSITIONS.filter(p=>p.unitId===id).map(p=>p.id);
+  ASSIGN.filter(a=>pids.includes(a.posId) && a.from>d).forEach(a=>out.push('назначение '+a.from));
+  ACTING.filter(a=>pids.includes(a.posId) && a.from>d).forEach(a=>out.push('и.о. '+a.from));
+  return out;
 }
 
 function metricsAt(d){
@@ -906,17 +1045,18 @@ function metricsAt(d){
   live.forEach(u=> byType[u.type]=(byType[u.type]||0)+1);
 
   const poss = positionsAt(d);
-  const planned = poss.reduce((s,p)=>s+p.units,0);
+  const planned = poss.reduce((s,p)=>s+unitsAt(p.id,d),0);
   // занято: сумма ставок действующих назначений в действующих подразделениях (и.о. — не назначение, не считаем)
   const posIds = new Set(poss.map(p=>p.id));
   const acts = ASSIGN.filter(a=>posIds.has(a.posId) && spanActive(a,d));
-  const filled = acts.reduce((s,a)=>s+a.rate,0);
+  const filled = round1(acts.reduce((s,a)=>s+a.rate,0));
 
-  // вакансии: штатная единица без единого действующего назначения (и.о. вакансию не закрывает — он временный)
+  // ОДНО ПРАВИЛО ВАКАНТНОСТИ: и.о. вакансию НЕ закрывает — он её только прикрывает.
+  // Раньше «Вакансии всего» и «в т.ч. руководителя» считались по разным формулам, и назначение и.о.
+  // беззвучно убирало подразделение из рабочего списка, не меняя общий счётчик.
   const vacPos  = poss.filter(p=>!ASSIGN.some(a=>a.posId===p.id && spanActive(a,d)));
-  // руководитель — по правилам head(): и.о. → основное. Совместитель руководителем не становится,
-  // поэтому у руководящей единицы своё условие вакантности, а не «нет ни одного назначения».
-  const vacHead = poss.filter(p=>p.isHead && !mainOn(p.id,d) && !actingOn(p.id,d));
+  const vacHead = poss.filter(p=>isHeadAt(p.id,d) && !mainOn(p.id,d));
+  const vacHeadOpen = vacHead.filter(p=>!actingOn(p.id,d));   // даже и.о. не прикрыто
 
   const ios = ACTING.filter(a=>posIds.has(a.posId) && spanActive(a,d));
   const expiring = ios.filter(a=>a.to!=null && daysBetween(d,a.to) <= EXPIRING_DAYS);
@@ -924,7 +1064,8 @@ function metricsAt(d){
   return {
     units:  { total: live.length, byType },
     staff:  { planned, filled, pct: planned ? Math.round(filled/planned*100) : 0 },
-    vac:    { total: vacPos.length, head: vacHead.length },
+    vac:    { free: round1(planned-filled), pos: vacPos.length,
+              head: vacHead.length, headOpen: vacHeadOpen.length },
     acting: { total: ios.length, expiring: expiring.length },
     combine: acts.filter(a=>a.kind==='combine').length,
     inv: checkMainInvariant(d),
@@ -935,20 +1076,23 @@ function problemsAt(d){
   const live = liveUnitsAt(d);
   const posIds = new Set(positionsAt(d).map(p=>p.id));
 
+  // и.о. вакансию не закрывает: подразделение остаётся в списке, но помечается «прикрыто и.о.».
   const headVacant = live.filter(u=>{
-    const hp = headPosOf(u.id);
-    return hp && !mainOn(hp.id,d) && !actingOn(hp.id,d);
+    const hp = headPosOf(u.id,d);
+    return hp && !mainOn(hp.id,d);
   }).map(u=>{
-    const hp = headPosOf(u.id);
+    const hp = headPosOf(u.id,d);
     // «вакантно с» — конец последнего основного назначения на единицу, иначе дата создания подразделения
     const last = ASSIGN.filter(a=>a.posId===hp.id && a.kind==='main' && a.to!=null).sort((a,b)=>a.to<b.to?1:-1)[0];
     const since = last ? last.to : u.created;
-    return { unitId:u.id, posId:hp.id, since, days: daysBetween(since,d) };
+    const io = actingOn(hp.id,d);
+    return { unitId:u.id, posId:hp.id, since, days: daysBetween(since,d),
+             acting: io ? { empId:io.empId, to:io.to } : null };
   });
 
   const actingExpiring = ACTING.filter(a=>posIds.has(a.posId) && spanActive(a,d) && a.to!=null
       && daysBetween(d,a.to) <= EXPIRING_DAYS)
-    .map(a=>{ const p=POSITIONS.find(x=>x.id===a.posId);
+    .map(a=>{ const p=posById(a.posId);
       return { unitId:p.unitId, posId:a.posId, empId:a.empId, to:a.to, days:daysBetween(d,a.to), reason:a.reason }; });
 
   const invariant = checkMainInvariant(d).map(empId=>({
@@ -956,15 +1100,10 @@ function problemsAt(d){
     posIds: ASSIGN.filter(a=>a.empId===empId && a.kind==='main' && spanActive(a,d)).map(a=>a.posId),
   }));
 
-  const noStaff = live.filter(u=>!POSITIONS.some(p=>p.unitId===u.id)).map(u=>({ unitId:u.id }));
+  const noStaff = live.filter(u=>!unitPositionsAt(u.id,d).length).map(u=>({ unitId:u.id }));
 
   const liqBlocked = live.map(u=>{
-    const reasons = [];
-    if(parentAt(u.id,d)==null) reasons.push('верхний уровень структуры');
-    const kids = childrenAt(u.id,d).filter(k=>!liquidatedAt(k.id,d));
-    if(kids.length) reasons.push('действующие подчинённые: '+kids.map(k=>nameAt(k.id,d)).join(', '));
-    const occ = POSITIONS.filter(p=>p.unitId===u.id).flatMap(p=>occupantsOf(p.id,d));
-    if(occ.length) reasons.push('действующие назначения/и.о.: '+occ.length);
+    const reasons = liqBlockers(u.id,d);
     return reasons.length ? { unitId:u.id, reasons } : null;
   }).filter(Boolean);
 
@@ -984,10 +1123,10 @@ function staffRollupAt(d){
   const rows = {};
   live.forEach(u=>{
     const r = rows[u.type] || (rows[u.type]={ type:u.type, planned:0, filled:0, vac:0 });
-    POSITIONS.filter(p=>p.unitId===u.id).forEach(p=>{
-      r.planned += p.units;
+    unitPositionsAt(u.id,d).forEach(p=>{
+      r.planned += unitsAt(p.id,d);
       const acts = ASSIGN.filter(a=>a.posId===p.id && spanActive(a,d));
-      r.filled  += acts.reduce((s,a)=>s+a.rate,0);
+      r.filled  = round1(r.filled + acts.reduce((s,a)=>s+a.rate,0));
       if(!acts.length) r.vac += 1;
     });
   });
@@ -1013,15 +1152,27 @@ function changesSince(d, days){
       out.push({ date:v.from, kind:'move', unitId:v.unitId, text:'Смена вышестоящего → '+nameAt(v.parentId,d) });
   });
   ASSIGN.forEach(a=>{
-    if(!inWin(a.from)) return;
-    const p = POSITIONS.find(x=>x.id===a.posId); if(!p) return;
-    out.push({ date:a.from, kind:'assign', unitId:p.unitId,
+    const p = posById(a.posId); if(!p) return;
+    if(inWin(a.from)) out.push({ date:a.from, kind:'assign', unitId:p.unitId,
       text:'Назначение · '+fmtEmp(a.empId)+' → '+TITLES[p.titleId].name+(a.kind==='combine'?' (совмест.)':'') });
+    if(a.to && inWin(a.to)) out.push({ date:a.to, kind:'release', unitId:p.unitId,
+      text:'Освобождение · '+fmtEmp(a.empId)+' — '+TITLES[p.titleId].name });
+  });
+  POSITIONS.forEach(p=>{
+    if(inWin(p.from) && p.from!==unit(p.unitId).created)
+      out.push({ date:p.from, kind:'posAdd', unitId:p.unitId, text:'Штатная единица · '+TITLES[p.titleId].name });
+    if(p.to && inWin(p.to))
+      out.push({ date:p.to, kind:'posClose', unitId:p.unitId, text:'Закрытие штатной единицы · '+TITLES[p.titleId].name });
+  });
+  POS_VER.forEach(v=>{
+    const p = posById(v.posId); if(!p || v.from===p.from || !inWin(v.from)) return;
+    out.push({ date:v.from, kind:'posVer', unitId:p.unitId,
+      text:'Штатная единица · '+TITLES[p.titleId].name+' — ставок: '+v.units+(v.isHead?', руководитель':'') });
   });
   // и.о. — тоже изменение состава руководства, иначе самое свежее событие модели в ленту не попадёт
   ACTING.forEach(a=>{
     if(!inWin(a.from)) return;
-    const p = POSITIONS.find(x=>x.id===a.posId); if(!p) return;
+    const p = posById(a.posId); if(!p) return;
     out.push({ date:a.from, kind:'acting', unitId:p.unitId,
       text:'И.о. · '+fmtEmp(a.empId)+' → '+TITLES[p.titleId].name+(a.to?' до '+a.to:'')+' ('+a.reason+')' });
   });
@@ -1034,7 +1185,8 @@ function changesSince(d, days){
 const state = { date:TODAY, role:'hr', sel:'osh', tab:'overview', collapsed:{}, view:'overview',
                 prob:'headVacant',        // активный рабочий список блока «Требует внимания»
                 treeAll:false,            // мини-дерево: раскрыто ли целиком
-                chgWin:CHANGES_DAYS };    // окно ленты изменений, дней
+                chgWin:CHANGES_DAYS,      // окно ленты изменений, дней
+                q:'', qT:'', qP:'' };     // поиск: структура · должности · сотрудники
 const EVENT_LOG = [];
 const canEdit = ()=> state.role==='hr';
 const esc = s => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
@@ -1056,23 +1208,36 @@ function typeIcon(t){ if(t==='ГО') return ICONS.go; if(t==='РП') return ICON
   if(t==='блок'||t==='департамент'||t==='служба'||t==='сектор') return ICONS.dept; return ICONS.unit; }
 
 /* ---- дерево ---- */
+// поиск по структуре: показываем совпавшие подразделения ВМЕСТЕ С предками — иначе ветка обрывается
+let treeKeep = null;
 function renderTree(){
   const d = state.date;
-  const rootIds = UNITS.filter(u=>existsAt(u.id,d) && parentAt(u.id,d)==null).map(u=>u.id);
+  const q = state.q.trim().toLowerCase();
+  treeKeep = null;
+  if(q){
+    treeKeep = new Set();
+    UNITS.filter(u=>existsAt(u.id,d) && nameAt(u.id,d).toLowerCase().includes(q)).forEach(u=>{
+      let cur = u.id;
+      while(cur){ treeKeep.add(cur); cur = parentAt(cur,d); }
+    });
+  }
+  const rootIds = UNITS.filter(u=>existsAt(u.id,d) && parentAt(u.id,d)==null)
+    .filter(u=>!treeKeep || treeKeep.has(u.id)).map(u=>u.id);
   const html = rootIds.map(id=>treeNode(id,d)).join('');
-  document.getElementById('tree').innerHTML = html || '<div class="hint" style="padding:12px">На выбранную дату структура пуста.</div>';
+  document.getElementById('tree').innerHTML = html ||
+    `<div class="hint" style="padding:12px">${q?'Ничего не найдено.':'На выбранную дату структура пуста.'}</div>`;
 }
 function treeNode(id,d){
-  const kids = childrenAt(id,d).map(u=>u.id);
+  const kids = childrenAt(id,d).map(u=>u.id).filter(k=>!treeKeep || treeKeep.has(k));
   const u = unit(id);
   const liq = liquidatedAt(id,d);
   const sel = state.sel===id ? ' sel':'';
-  const isCol = state.collapsed[id];
+  const isCol = treeKeep ? false : state.collapsed[id];   // при поиске ветки не сворачиваем
   const hasKids = kids.length>0;
   const twcls = hasKids ? '' : ' leaf';
   const chev = hasKids ? (isCol?'<span style="display:inline-flex">'+ICONS.chev+'</span>':'<span style="transform:rotate(90deg);display:inline-flex">'+ICONS.chev+'</span>') : '';
   // вакантная руководящая единица → красная точка-индикатор
-  const hp = headPosOf(id);
+  const hp = headPosOf(id,d);
   const vacant = hp && !actingOn(hp.id,d) && !mainOn(hp.id,d);
   const dot = (vacant && !liq) ? '<span class="dotv" title="вакансия руководителя"></span>' : '';
   let h = `<div class="tnode">
@@ -1101,8 +1266,7 @@ function renderOverview(){
 
   // баннеры
   let banners = '';
-  const rootHeadVacant = (()=>{ const p=headPosOf('go'); return !actingOn(p.id,d)&&!mainOn(p.id,d); })();
-  if(rootHeadVacant) banners += banner('danger', ICONS.block,
+  if(rootVacantAt(d)) banners += banner('danger', ICONS.block,
     '<b>Ошибка в структуре:</b> руководитель верхнего уровня (ГО) не назначен на дату — согласующий не определяется ни для одного задания.');
   const inv = checkMainInvariant(d);
   if(inv.length) banners += banner('danger', ICONS.block,
@@ -1162,10 +1326,23 @@ function renderOverview(){
         ${headBlock}
         ${dims}
       </div>
+      <div class="card-acts">
+        <button class="btn btn-secondary" id="caRename" ${(canEdit()&&!liq)?'':'disabled'}>Переименовать</button>
+        <button class="btn btn-secondary" id="caMove" ${(canEdit()&&!liq&&par)?'':'disabled'}>Переподчинить</button>
+        <button class="btn btn-secondary" id="caTerr" ${(canEdit()&&!liq)?'':'disabled'}>Территория</button>
+        <button class="btn btn-secondary" id="caExport">Экспорт штатки (CSV)</button>
+        <button class="btn btn-secondary" id="caPrint">Печать карточки</button>
+      </div>
       <div class="section-h">Кому подчиняется (снизу вверх)</div>
       <p class="section-note">Жёлтым помечены звенья, куда обязанности <b>переданы наверх</b> из-за вакансии ниже.</p>
       <ul class="chain">${chainHtml}</ul>
     </div>`;
+
+  document.getElementById('caRename').onclick = openRename;
+  document.getElementById('caMove').onclick   = openReparent;
+  document.getElementById('caTerr').onclick   = openTerritory;
+  document.getElementById('caExport').onclick = ()=> exportStaff(id,d);
+  document.getElementById('caPrint').onclick  = ()=> window.print();
 }
 
 /* ---- ШТАТНОЕ РАСПИСАНИЕ ---- */
@@ -1174,24 +1351,35 @@ function renderStaff(){
   const el = document.getElementById('p-staff');
   if(!existsAt(id,d)){ el.innerHTML = notYet(id,d); return; }
   const liq = liquidatedAt(id,d);
-  const poss = POSITIONS.filter(p=>p.unitId===id);
+  const poss = unitPositionsAt(id,d);
+  const ed = canEdit() && !liq;
   const rows = poss.map(p=>{
     const occ = occupantsOf(p.id,d);
     const t = TITLES[p.titleId];
+    const free = round1(unitsAt(p.id,d) - ratesOn(p.id,d));
     let cell;
     if(!occ.length){ cell = `<span class="pill warn">вакансия</span>`; }
     else cell = occ.map(o=>{
-      if(o.kind==='acting') return `<div><b>${fmtEmp(o.empId)}</b> <span class="pill info">и.о.</span> <span class="muted">${o.reason}, ${o.from}…${o.to}</span></div>`;
-      if(o.kind==='combine') return `<div>${fmtEmp(o.empId)} <span class="pill neutral">совмест.</span> <span class="muted">ставка ${o.rate}</span></div>`;
-      return `<div><b>${fmtEmp(o.empId)}</b> <span class="pill ok">основное</span> <span class="muted">ставка ${o.rate}</span></div>`;
+      // у каждой строки занятости — своё действие: и.о. продлевают или прекращают, назначенного освобождают
+      if(o.kind==='acting') return `<div><b>${fmtEmp(o.empId)}</b> <span class="pill info">и.о.</span>
+        <span class="muted">${esc(o.reason)}, ${o.from}…${o.to}</span>
+        <span class="rowbtns" style="display:inline-flex; margin-left:6px">
+          <button class="minibtn" data-ext="${o.id}" ${ed?'':'disabled'}>Продлить</button>
+          <button class="minibtn danger" data-stopio="${o.id}" ${ed?'':'disabled'}>Прекратить и.о.</button></span></div>`;
+      const tag = o.kind==='combine' ? '<span class="pill neutral">совмест.</span>' : '<span class="pill ok">основное</span>';
+      return `<div><b>${fmtEmp(o.empId)}</b> ${tag} <span class="muted">ставка ${o.rate}</span>
+        <button class="minibtn danger" data-rel="${o.id}" style="margin-left:6px" ${ed?'':'disabled'}>Освободить</button></div>`;
     }).join('');
-    const asg = `<button class="btn btn-secondary asgbtn" data-pos="${p.id}" style="height:28px; padding:0 10px; font-size:13px"
-      ${(canEdit() && !liq)?'':'disabled'}>Назначить</button>`;
     return `<tr>
-      <td><b>${esc(t.name)}</b>${p.isHead?' <span class="pill info">руководитель</span>':''}<div class="muted">${esc(t.cat)}${(t.lead && t.cat!=='руководящая')?' · руководящая':''}</div></td>
-      <td class="mono">${p.units}</td>
+      <td><b>${esc(t.name)}</b>${isHeadAt(p.id,d)?' <span class="pill info">руководитель</span>':''}<div class="muted">${esc(t.cat)}${(t.lead && t.cat!=='руководящая')?' · руководящая':''}</div></td>
+      <td class="mono">${unitsAt(p.id,d)}${free>0?` <span class="muted">своб. ${free}</span>`:''}</td>
       <td>${cell}</td>
-      <td>${asg}</td></tr>`;
+      <td><div class="rowbtns">
+        <button class="minibtn asgbtn" data-pos="${p.id}" ${(ed && free>0)?'':'disabled'}
+          title="${free>0?'':'Свободных ставок нет'}">Назначить</button>
+        <button class="minibtn" data-editpos="${p.id}" ${ed?'':'disabled'}>Изменить</button>
+        <button class="minibtn danger" data-closepos="${p.id}" ${ed?'':'disabled'}>Закрыть</button>
+      </div></td></tr>`;
   }).join('') || `<tr><td colspan="4" class="muted">Штатных единиц на дату нет.</td></tr>`;
 
   const inv = checkMainInvariant(d);
@@ -1200,10 +1388,13 @@ function renderStaff(){
     <div class="panel-wrap">
       <div class="section-h row">
         <span>Штатное расписание — ${esc(nameAt(id,d))}</span>
-        <button class="addbtn" id="addPosBtn" ${(canEdit() && !liq)?'':'disabled'}>+ Штатная единица</button>
+        <span style="display:flex; gap:8px">
+          <button class="minibtn" id="staffExport">Экспорт (CSV)</button>
+          <button class="addbtn" id="addPosBtn" ${ed?'':'disabled'}>+ Штатная единица</button>
+        </span>
       </div>
       <table class="cgrid">
-        <thead><tr><th style="width:34%">Должность</th><th style="width:8%">Ставок</th><th>Кто на дату</th><th style="width:12%"></th></tr></thead>
+        <thead><tr><th style="width:30%">Должность</th><th style="width:12%">Ставок</th><th>Кто на дату</th><th style="width:22%"></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div class="section-h">Одно основное место работы на сотрудника</div>
@@ -1214,13 +1405,21 @@ function renderStaff(){
 
   const ap = document.getElementById('addPosBtn');
   if(ap) ap.onclick = openAddPos;
+  document.getElementById('staffExport').onclick = ()=> exportStaff(id,d);
   el.querySelectorAll('.asgbtn').forEach(b=> b.onclick = ()=> openAssign(b.dataset.pos));
+  el.querySelectorAll('[data-editpos]').forEach(b=> b.onclick = ()=> openEditPos(b.dataset.editpos));
+  el.querySelectorAll('[data-closepos]').forEach(b=> b.onclick = ()=> openClosePos(b.dataset.closepos));
+  el.querySelectorAll('[data-rel]').forEach(b=> b.onclick = ()=> openRelease(b.dataset.rel));
+  el.querySelectorAll('[data-ext]').forEach(b=> b.onclick = ()=> openExtendActing(b.dataset.ext));
+  el.querySelectorAll('[data-stopio]').forEach(b=> b.onclick = ()=> openStopActing(b.dataset.stopio));
 }
 
 /* ---- ШТАТНАЯ ЕДИНИЦА = должность × подразделение. Живёт в подразделении (state.sel), руководитель — один. ---- */
-function openAddPos(){
+let posUnit = null;   // подразделение, в котором заводим единицу (из рабочего списка — не обязательно выбранное)
+function openAddPos(unitId){
   if(!canEdit()) return;
-  const d = state.date, id = state.sel;
+  const d = state.date, id = (typeof unitId==='string' && unitId) ? unitId : state.sel;
+  posUnit = id;
   const sel = document.getElementById('mpTitle');
   sel.innerHTML = Object.entries(TITLES)
     .sort((a,b)=> a[1].name<b[1].name?-1:1)
@@ -1233,21 +1432,128 @@ function openAddPos(){
 }
 function submitAddPos(){
   const err = document.getElementById('mpErr');
-  const d = state.date, unitId = state.sel;
+  const d = state.date, unitId = posUnit || state.sel;
   const titleId = document.getElementById('mpTitle').value;
   const units = Number(document.getElementById('mpUnits').value);
   const isHead = document.getElementById('mpHeadChk').checked;
   if(!titleId){ err.textContent = 'Выберите должность.'; return; }
-  if(!(units >= 1)){ err.textContent = 'Количество ставок — не меньше одной.'; return; }
-  if(isHead && headPosOf(unitId)){
-    err.textContent = 'У подразделения уже есть руководитель — '+TITLES[headPosOf(unitId).titleId].name+'.'; return;
+  if(!Number.isInteger(units) || units < 1){ err.textContent = 'Количество ставок — целое число, не меньше одной.'; return; }
+  const hp = headPosOf(unitId,d);
+  if(isHead && hp){
+    err.textContent = 'У подразделения уже есть руководитель — '+TITLES[hp.titleId].name+'.'; return;
   }
   let base = 'ps_'+(POSITIONS.length+1), pid = base, n = 1;
   while(POSITIONS.some(p=>p.id===pid)){ pid = base+'_'+(n++); }
-  POSITIONS.push({ id:pid, unitId, titleId, units, isHead });
+  POSITIONS.push({ id:pid, unitId, titleId, from:d, to:null });
+  POS_VER.push({ posId:pid, units, isHead, from:d, to:null });
+  posUnit = null;
   document.getElementById('mpBack').classList.remove('open');
   render();
-  toast(`Штатная единица «${TITLES[titleId].name}» заведена в «${nameAt(unitId,d)}»`);
+  toast(`Штатная единица «${TITLES[titleId].name}» заведена в «${nameAt(unitId,d)}» с ${d}`);
+}
+
+/* ---- ПРАВКА ШТАТНОЙ ЕДИНИЦЫ: ставки и признак руководителя ВЕРСИОНИРУЮТСЯ, как название подразделения ---- */
+function openEditPos(posId){
+  const d = state.date, p = posById(posId), cur = posAttrAt(posId,d);
+  openForm({
+    title: 'Штатная единица — '+TITLES[p.titleId].name,
+    fields: [
+      { k:'units', label:'Количество ставок', type:'number', min:1, step:1, value:cur.units },
+      { k:'isHead', label:'Это руководитель подразделения', type:'checkbox', value:cur.isHead },
+      { k:'date',  label:'С даты', type:'date', value:d },
+    ],
+    note:'Новые значения действуют с указанной даты — прежние остаются в истории и продолжают показываться на прошлые даты.',
+    submit:'Сохранить',
+    onSubmit(v){
+      if(!Number.isInteger(v.units) || v.units < 1) return 'Количество ставок — целое число, не меньше одной.';
+      if(!v.date) return 'Укажите дату.';
+      if(v.date < p.from) return 'Дата раньше появления штатной единицы ('+p.from+').';
+      const busy = ratesOn(posId, v.date);
+      if(v.units < busy) return `Занято ${busy} ставки — сократить до ${v.units} нельзя, сначала освободите людей.`;
+      const other = headPosOf(p.unitId, v.date);
+      if(v.isHead && other && other.id !== posId)
+        return 'У подразделения уже есть руководитель — '+TITLES[other.titleId].name+'.';
+      if(v.units===cur.units && !!v.isHead===!!cur.isHead) return 'Ничего не изменилось.';
+      const vs = POS_VER.filter(x=>x.posId===posId).sort((a,b)=>a.from<b.from?-1:1);
+      const last = vs[vs.length-1];
+      if(v.date <= last.from) return 'Дата должна быть позже начала действующей версии ('+last.from+').';
+      last.to = v.date;
+      POS_VER.push({ posId, units:v.units, isHead:v.isHead, from:v.date, to:null });
+      toast(`Штатная единица «${TITLES[p.titleId].name}»: ставок ${v.units}${v.isHead?', руководитель':''} — с ${v.date}`);
+      return null;
+    }});
+}
+function openClosePos(posId){
+  const d = state.date, p = posById(posId);
+  openForm({
+    title:'Закрытие штатной единицы', danger:true, submit:'Закрыть единицу',
+    fields:[{ k:'date', label:'Дата закрытия', type:'date', value:d }],
+    note:'Единица не удаляется: у неё проставляется дата окончания. На прошлые даты она по-прежнему видна.',
+    onSubmit(v){
+      if(!v.date) return 'Укажите дату.';
+      if(v.date < p.from) return 'Дата раньше появления штатной единицы ('+p.from+').';
+      const occ = occupantsOf(posId, v.date);
+      if(occ.length) return 'На единице есть действующие: '+occ.map(o=>fmtEmp(o.empId)).join(', ')+'. Сначала освободите.';
+      const later = ASSIGN.filter(a=>a.posId===posId && a.from > v.date).length
+                  + ACTING.filter(a=>a.posId===posId && a.from > v.date).length;
+      if(later) return 'После этой даты на единице есть назначения — закрыть нельзя.';
+      p.to = v.date;
+      toast(`Штатная единица «${TITLES[p.titleId].name}» закрыта ${v.date}`);
+      return null;
+    }});
+}
+
+/* ---- ОСВОБОЖДЕНИЕ / ПРЕКРАЩЕНИЕ И.О. / ПРОДЛЕНИЕ И.О. — кадровый оборот в обратную сторону ---- */
+function openRelease(asgId){
+  const d = state.date, a = ASSIGN.find(x=>x.id===asgId), p = posById(a.posId);
+  openForm({
+    title:'Освобождение от должности', danger:true, submit:'Освободить',
+    fields:[{ k:'date', label:'Последний день работы', type:'date', value:d }],
+    note:`${fmtEmp(a.empId)} — ${esc(TITLES[p.titleId].name)}, ${esc(nameAt(p.unitId,d))}. Назначение не удаляется: у него проставляется дата окончания.`,
+    onSubmit(v){
+      if(!v.date) return 'Укажите дату.';
+      if(v.date < a.from) return 'Дата раньше начала назначения ('+a.from+').';
+      if(a.to && v.date > a.to) return 'Назначение уже закончилось '+a.to+'.';
+      a.to = v.date;
+      toast(`${fmtEmp(a.empId)} освобождён(а) с ${v.date}`);
+      return null;
+    }});
+}
+function openStopActing(ioId){
+  const d = state.date, io = ACTING.find(x=>x.id===ioId), p = posById(io.posId);
+  openForm({
+    title:'Прекращение и.о.', danger:true, submit:'Прекратить',
+    fields:[{ k:'date', label:'Последний день и.о.', type:'date', value:d }],
+    note:`${fmtEmp(io.empId)} — и.о. на «${esc(TITLES[p.titleId].name)}». Досрочное прекращение: основной руководитель возвращается к обязанностям.`,
+    onSubmit(v){
+      if(!v.date) return 'Укажите дату.';
+      if(v.date < io.from) return 'Дата раньше начала и.о. ('+io.from+').';
+      io.to = v.date;
+      toast(`И.о. ${fmtEmp(io.empId)} прекращён с ${v.date}`);
+      return null;
+    }});
+}
+function openExtendActing(ioId){
+  const d = state.date, io = ACTING.find(x=>x.id===ioId), p = posById(io.posId);
+  openForm({
+    title:'Продление и.о.', submit:'Продлить',
+    fields:[
+      { k:'to', label:'Новый срок окончания', type:'date', value:io.to },
+      { k:'reason', label:'Документ-основание', value:io.reason },
+    ],
+    note:`${fmtEmp(io.empId)} — и.о. на «${esc(TITLES[p.titleId].name)}» до ${io.to}. Предельный срок и.о. — ${MAX_ACTING_DAYS} дн. от начала.`,
+    onSubmit(v){
+      if(!v.to) return 'Укажите новый срок.';
+      if(v.to <= io.to) return 'Новый срок должен быть позже текущего ('+io.to+').';
+      if(daysBetween(io.from, v.to) > MAX_ACTING_DAYS)
+        return `Предельный срок и.о. — ${MAX_ACTING_DAYS} дн. от ${io.from}. Дольше — закрывайте вакансию основным назначением.`;
+      if(ACTING.some(x=>x.posId===io.posId && x.id!==io.id && overlaps(x,{from:io.from, to:v.to})))
+        return 'Пересекается с другим и.о. на этой штатной единице.';
+      io.to = v.to;
+      if(v.reason.trim()) io.reason = v.reason.trim();
+      toast(`И.о. ${fmtEmp(io.empId)} продлён до ${v.to}`);
+      return null;
+    }});
 }
 
 /* ---- НАЗНАЧЕНИЕ на штатную единицу: основное место работы / совместительство (ASSIGN) либо и.о. (ACTING). ---- */
@@ -1255,7 +1561,7 @@ let asgPos = null;
 function openAssign(posId){
   if(!canEdit()) return;
   asgPos = posId;
-  const d = state.date, p = POSITIONS.find(x=>x.id===posId);
+  const d = state.date, p = posById(posId);
   document.getElementById('maEmp').innerHTML = Object.entries(EMPLOYEES)
     .map(([eid,fio])=>`<option value="${eid}">${esc(fio)}</option>`).join('');
   document.getElementById('maKind').value = 'main';
@@ -1276,34 +1582,56 @@ function syncAssignFields(){
 }
 function submitAssign(){
   const err = document.getElementById('maErr');
+  const fail = m => { err.textContent = m; };
   const d = state.date, posId = asgPos;
-  const p = POSITIONS.find(x=>x.id===posId);
+  const p = posById(posId), u = unit(p.unitId);
   const empId = document.getElementById('maEmp').value;
   const kind  = document.getElementById('maKind').value;
   const from  = document.getElementById('maFrom').value || d;
   const to    = document.getElementById('maTo').value || null;
   const rate  = Number(document.getElementById('maRate').value);
   const reason= document.getElementById('maReason').value.trim();
-  if(to && to < from){ err.textContent = 'Дата окончания раньше даты начала.'; return; }
+  const span  = { from, to };
+  if(to && to < from) return fail('Дата окончания раньше даты начала.');
+
+  // §4 назначение живёт внутри срока жизни подразделения И штатной единицы
+  if(from < u.created) return fail(`Подразделение создано ${u.created} — назначить раньше нельзя.`);
+  if(u.liquidated && from >= u.liquidated) return fail(`Подразделение закрыто ${u.liquidated}.`);
+  if(from < p.from) return fail(`Штатная единица заведена ${p.from} — назначить раньше нельзя.`);
+  if(p.to && from > p.to) return fail(`Штатная единица закрыта ${p.to}.`);
+  if(p.to && (to==null || to > p.to)) return fail(`Штатная единица закрыта ${p.to} — назначение не может длиться дольше.`);
+
+  // один и тот же человек на одной и той же единице в пересекающийся период — нельзя (в т.ч. два совместительства)
+  if(ASSIGN.some(a=>a.empId===empId && a.posId===posId && overlaps(a,span)))
+    return fail('Этот сотрудник уже назначен на эту штатную единицу в пересекающийся период.');
 
   if(kind === 'acting'){
-    if(!to){ err.textContent = 'У исполняющего обязанности обязателен срок окончания.'; return; }
-    if(!reason){ err.textContent = 'Укажите документ-основание.'; return; }
-    if(ACTING.some(a=>a.posId===posId && spanActive(a,from))){
-      err.textContent = 'На штатной единице уже есть действующий и.о. на эту дату.'; return;
-    }
+    if(!to) return fail('У исполняющего обязанности обязателен срок окончания.');
+    if(!reason) return fail('Укажите документ-основание.');
+    if(daysBetween(from, to) > MAX_ACTING_DAYS)
+      return fail(`Предельный срок и.о. — ${MAX_ACTING_DAYS} дн. Дольше — закрывайте вакансию основным назначением.`);
+    // пересечение проверяем ПО ИНТЕРВАЛУ, а не в точке начала
+    if(ACTING.some(a=>a.posId===posId && overlaps(a,span)))
+      return fail('На штатной единице уже есть и.о. в пересекающийся период.');
     let base = 'io'+(ACTING.length+1), id = base, n = 1;
     while(ACTING.some(a=>a.id===id)){ id = base+'_'+(n++); }
     ACTING.push({ id, posId, empId, from, to, reason });
   } else {
-    if(!(rate > 0 && rate <= 1)){ err.textContent = 'Ставка — от 0,1 до 1.'; return; }
+    if(!(rate > 0 && rate <= 1)) return fail('Ставка — от 0,1 до 1.');
     if(kind === 'main'){
-      // правило: одно основное место работы на сотрудника…
-      if(ASSIGN.some(a=>a.empId===empId && a.kind==='main' && spanActive(a,from))){
-        err.textContent = 'У сотрудника уже есть основное место работы на эту дату — оформите совместительство.'; return;
-      }
-      // …и одно основное на штатную единицу
-      if(mainOn(posId, from)){ err.textContent = 'Штатная единица уже занята по основному месту работы.'; return; }
+      // правило: одно основное место работы на сотрудника — НА ВЕСЬ ИНТЕРВАЛ, не только на дату начала
+      const clash = ASSIGN.find(a=>a.empId===empId && a.kind==='main' && overlaps(a,span));
+      if(clash) return fail(`У сотрудника уже есть основное место работы (${clash.from}…${clash.to||'бессрочно'}) — оформите совместительство или сначала освободите.`);
+      const busy = ASSIGN.find(a=>a.posId===posId && a.kind==='main' && overlaps(a,span));
+      if(busy) return fail('Штатная единица уже занята по основному месту работы в этот период.');
+    }
+    // §3 сумма ставок не может превысить число ставок по штату — проверяем на каждой границе интервала
+    const marks = [from, ...ASSIGN.filter(a=>a.posId===posId && overlaps(a,span)).map(a=>a.from)]
+      .filter(x=> x>=from && (to==null || x<=to));
+    for(const m of marks){
+      const cap = unitsAt(posId,m);
+      if(round1(ratesOn(posId,m) + rate) > cap)
+        return fail(`На ${m} по штату ${cap} ставки, занято ${ratesOn(posId,m)} — ещё ${rate} не помещается.`);
     }
     let base = 'a'+(ASSIGN.length+1), id = base, n = 1;
     while(ASSIGN.some(a=>a.id===id)){ id = base+'_'+(n++); }
@@ -1361,59 +1689,284 @@ function renderLiq(){
     el.innerHTML = `<div class="panel-wrap">
       <div class="section-h">Закрытие — ${esc(nameAt(id,d))}</div>
       ${banner('warn', ICONS.warn, `Подразделение уже закрыто <b>${u.liquidated}</b>. В новых операциях недоступно.`)}
-      ${u.successor?banner('info', ICONS.info, `Функции переданы — <b>${esc(nameAt(u.successor,d))}</b>.`):''}
+      ${u.successor?banner('info', ICONS.info, `Функции переданы — <b>${esc(nameAt(u.successor,d))}</b>.`)
+                   :banner('info', ICONS.info, 'Кому переданы функции — не указано.')}
+      <div class="card-acts">
+        <button class="btn btn-secondary" id="reopenBtn" ${canEdit()?'':'disabled'}>Отменить закрытие</button>
+      </div>
       ${eventLogHtml()}
     </div>`;
+    const rb = document.getElementById('reopenBtn');
+    if(rb) rb.onclick = ()=> openForm({
+      title:'Отмена закрытия', submit:'Открыть заново',
+      fields:[],
+      note:`«${esc(nameAt(id,d))}» снова станет действующим. Ошибочное закрытие — единственная причина для этого действия; потребители уже получили событие <span class="mono">unit.liquidated</span> и получат <span class="mono">unit.reopened</span>.`,
+      onSubmit(){
+        u.liquidated = null; u.successor = null;
+        logEvent(`unit.reopened(id="${id}", дата="${state.date}")`);
+        toast(`«${nameAt(id,state.date)}» снова действует`);
+        return null;
+      }});
     return;
   }
 
-  // §8 проверки перед закрытием
+  // §8 проверки перед закрытием — тот же liqBlockers(), что питает рабочий список на «Обзоре»
   const isRoot = parentAt(id,d)==null;
   const kidsActive = childrenAt(id,d).filter(k=>!liquidatedAt(k.id,d));
-  const assignsActive = POSITIONS.filter(p=>p.unitId===id).flatMap(p=>occupantsOf(p.id,d).map(o=>({...o,pos:p})));
+  const assignsActive = unitPositionsAt(id,d).flatMap(p=>occupantsOf(p.id,d).map(o=>({...o,pos:p})));
+  const later = laterEvents(id,d);
   const terr = u.territory;
 
   const gateChildren = gate(kidsActive.length? 'block':'pass', kidsActive.length?ICONS.block:ICONS.ok,
     '1. Действующие подчинённые подразделения',
     kidsActive.length
-      ? 'Есть действующие подчинённые: '+kidsActive.map(k=>esc(nameAt(k.id,d))).join(', ')+'. Сначала переподчинить или закрыть снизу вверх — структура не должна рваться.'
+      ? 'Есть действующие подчинённые: '+kidsActive.map(k=>esc(nameAt(k.id,d))).join(', ')+'. Сначала переподчинить (кнопка «Переподчинить» в их карточке) или закрыть снизу вверх — структура не должна рваться.'
       : 'Действующих подчинённых нет — структура не порвётся.');
   const gateAssign = gate(assignsActive.length?'block':'pass', assignsActive.length?ICONS.block:ICONS.ok,
     '2. Действующие назначения / и.о.',
     assignsActive.length
-      ? 'На штатных единицах есть действующие: '+assignsActive.map(o=>fmtEmp(o.empId)+' ('+(o.kind==='acting'?'и.о.':o.kind==='combine'?'совмест.':'основное')+')').join(', ')+'. Сначала кадровый перевод / освобождение.'
+      ? 'На штатных единицах есть действующие: '+assignsActive.map(o=>fmtEmp(o.empId)+' ('+(o.kind==='acting'?'и.о.':o.kind==='combine'?'совмест.':'основное')+')').join(', ')+'. Освободите их на вкладке «Штатное расписание» (кнопки «Освободить» / «Прекратить и.о.»).'
       : 'Действующих назначений в подразделении нет.');
+  const gateLater = gate(later.length?'block':'pass', later.length?ICONS.block:ICONS.ok,
+    '3. События после даты закрытия',
+    later.length
+      ? 'В подразделении есть события позже выбранной даты: '+esc(later.join('; '))+'. Закрыть задним числом поверх них нельзя — выберите дату не раньше последнего события.'
+      : 'Событий позже выбранной даты нет.');
   const gateTerr = terr.length
-    ? gate('warn', ICONS.warn, '3. Территория обслуживания (некритично)',
-        'Территория останется без подразделения: '+esc(terr.join(', '))+'. Предупреждение, не блокировка — покрытие пересматривают потребители.')
-    : gate('pass', ICONS.ok, '3. Территория обслуживания', 'Подразделение территорию не обслуживает — областей без покрытия нет.');
+    ? gate('warn', ICONS.warn, '4. Территория обслуживания (некритично)',
+        'Территория останется без подразделения: '+esc(terr.join(', '))+'. Не блокировка: при закрытии можно передать территорию тому, кому переданы функции.')
+    : gate('pass', ICONS.ok, '4. Территория обслуживания', 'Подразделение территорию не обслуживает — областей без покрытия нет.');
 
   const rootGate = isRoot ? gate('block', ICONS.block, '0. Верхний уровень', 'Головной офис — верхний уровень, закрытию не подлежит.') : '';
-  const blocked = isRoot || kidsActive.length>0 || assignsActive.length>0;
+  const blocked = isRoot || kidsActive.length>0 || assignsActive.length>0 || later.length>0;
 
   el.innerHTML = `
     <div class="panel-wrap">
       <div class="section-h">Закрытие — ${esc(nameAt(id,d))}</div>
-      ${rootGate}${gateChildren}${gateAssign}${gateTerr}
+      ${rootGate}${gateChildren}${gateAssign}${gateLater}${gateTerr}
       <div style="margin:16px 0; display:flex; gap:10px; align-items:center;">
         <button class="btn btn-danger" id="liqBtn" ${(blocked||!canEdit())?'disabled':''}>Закрыть подразделение</button>
         <span class="hint" style="margin:0">${
           !canEdit() ? 'Роль «Наблюдатель» — только чтение.'
           : blocked ? 'Заблокировано проверками выше — снимите блокировки.'
-          : 'Проверки пройдены. Действие пометит подразделение закрытым на выбранную дату и отправит событие в лог.'}</span>
+          : 'Проверки пройдены. Дата, правопреемник и подтверждение — в форме закрытия.'}</span>
       </div>
       ${eventLogHtml()}
     </div>`;
 
   const btn = document.getElementById('liqBtn');
-  if(btn) btn.onclick = ()=>{
-    u.liquidated = state.date;
-    EVENT_LOG.unshift(`unit.liquidated(id="${id}", дата="${state.date}"${u.successor?`, правопреемник="${u.successor}"`:''})`);
-    render();
+  if(btn) btn.onclick = ()=> openLiquidate(id);
+}
+
+/* ---- ЗАКРЫТИЕ: дата + кому переданы функции + территория + подтверждение (необратимо) ---- */
+function openLiquidate(id){
+  const d = state.date, u = unit(id);
+  const banned = [id, ...descendantsOf(id,d)];
+  openForm({
+    title:'Закрытие подразделения', danger:true, submit:'Закрыть подразделение',
+    fields:[
+      { k:'date', label:'Дата закрытия', type:'date', value:d },
+      { k:'succ', label:'Кому переданы функции', type:'select',
+        options:[{v:'',t:'— не указано'}, ...liveOpts(d, banned)], value:'' },
+      ...(u.territory.length ? [{ k:'moveTerr', label:'Передать территорию правопреемнику ('+u.territory.join(', ')+')', type:'checkbox', value:true }] : []),
+      { k:'ok', label:'Подтверждаю: подразделение закрывается, действие меняет структуру', type:'checkbox', value:false },
+    ],
+    note:'Подразделение не удаляется — оно получает статус «закрыто» и остаётся исторической записью. Наружу уходит событие <span class="mono">unit.liquidated</span>.',
+    onSubmit(v){
+      if(!v.ok) return 'Подтвердите закрытие галочкой.';
+      if(!v.date) return 'Укажите дату.';
+      if(v.date < u.created) return 'Дата раньше создания подразделения ('+u.created+').';
+      const blockers = liqBlockers(id, v.date);
+      if(blockers.length) return 'На эту дату закрыть нельзя: '+blockers.join('; ')+'.';
+      if(v.moveTerr && !v.succ) return 'Передать территорию некому — выберите правопреемника или снимите галочку.';
+      u.liquidated = v.date;
+      u.successor = v.succ || null;
+      if(v.moveTerr && v.succ){
+        const s = unit(v.succ);
+        s.territory = [...new Set([...s.territory, ...u.territory])];
+        u.territory = [];
+      }
+      logEvent(`unit.liquidated(id="${id}", дата="${v.date}"${u.successor?`, правопреемник="${u.successor}"`:''})`);
+      toast(`«${nameAt(id,v.date)}» закрыто ${v.date}`);
+      return null;
+    }});
+}
+
+/* =========================================================================
+   ОБЩАЯ ФОРМА. Все действия, добавленные в v3 (переименование, переподчинение, территория,
+   правка/закрытие штатной единицы, освобождение, продление и.о., закрытие подразделения,
+   правка справочника, новый сотрудник), — это одна модалка + декларативный конфиг.
+   onSubmit(v) возвращает строку-ошибку или null; при null — закрыть, перерисовать.
+   ========================================================================= */
+let gfSubmit = null;
+function openForm(cfg){
+  if(!canEdit()) return;
+  document.getElementById('gfHead').textContent = cfg.title;
+  document.getElementById('gfErr').textContent = '';
+  document.getElementById('gfBody').innerHTML = (cfg.fields||[]).map(f=>{
+    const fid = 'gf_'+f.k;
+    if(f.type==='checkbox')
+      return `<div class="fld chk"><input type="checkbox" id="${fid}" ${f.value?'checked':''}><label for="${fid}">${esc(f.label)}</label></div>`;
+    if(f.type==='select')
+      return `<div class="fld"><label for="${fid}">${esc(f.label)}</label><select id="${fid}">`+
+        f.options.map(o=>`<option value="${esc(o.v)}"${o.v===f.value?' selected':''}>${esc(o.t)}</option>`).join('')+`</select></div>`;
+    if(f.type==='checklist')
+      return `<div class="fld"><label>${esc(f.label)}</label><div class="chklist">`+
+        f.options.map(o=>`<label class="chkrow"><input type="checkbox" data-cl="${f.k}" value="${esc(o)}"${(f.value||[]).includes(o)?' checked':''}> ${esc(o)}</label>`).join('')+`</div></div>`;
+    const attrs = f.type==='number' ? `min="${f.min??1}" step="${f.step??1}"` : '';
+    return `<div class="fld"><label for="${fid}">${esc(f.label)}</label>`+
+      `<input type="${f.type||'text'}" id="${fid}" ${attrs} value="${f.value!=null?esc(f.value):''}" autocomplete="off"></div>`;
+  }).join('') + (cfg.note ? `<div class="modal-note">${cfg.note}</div>` : '');
+
+  const sb = document.getElementById('gfSubmit');
+  sb.textContent = cfg.submit || 'Сохранить';
+  sb.className = 'btn ' + (cfg.danger ? 'btn-danger' : 'btn-primary');
+  gfSubmit = ()=>{
+    const v = {};
+    (cfg.fields||[]).forEach(f=>{
+      const el = document.getElementById('gf_'+f.k);
+      if(f.type==='checkbox')       v[f.k] = el.checked;
+      else if(f.type==='checklist') v[f.k] = [...document.querySelectorAll(`[data-cl="${f.k}"]:checked`)].map(x=>x.value);
+      else if(f.type==='number')    v[f.k] = Number(el.value);
+      else                          v[f.k] = el.value;
+    });
+    const e = cfg.onSubmit(v);
+    if(e){ document.getElementById('gfErr').textContent = e; return; }
+    closeModals(); render();
   };
+  document.getElementById('gfBack').classList.add('open');
+  const first = document.querySelector('#gfBody input, #gfBody select');
+  if(first) first.focus();
+}
+
+/* ---- §2 ИСТОРИЧНОСТЬ КАК ДЕЙСТВИЕ: переименование и переподчинение создают ВЕРСИЮ, а не переписывают запись ---- */
+function liveOpts(d, exclude){
+  return liveUnitsAt(d).filter(u=>!exclude || !exclude.includes(u.id))
+    .sort((a,b)=> nameAt(a.id,d)<nameAt(b.id,d)?-1:1)
+    .map(u=>({ v:u.id, t:nameAt(u.id,d) }));
+}
+// потомки на дату — чтобы подразделение нельзя было подчинить самому себе или своему потомку (цикл)
+function descendantsOf(id,d){
+  const out = [];
+  (function walk(x){ childrenAt(x,d).forEach(k=>{ out.push(k.id); walk(k.id); }); })(id);
+  return out;
+}
+function dupNameAt(name,d,exceptId){
+  return liveUnitsAt(d).some(u=>u.id!==exceptId && nameAt(u.id,d).toLowerCase()===name.toLowerCase());
+}
+
+function openRename(){
+  const d = state.date, id = state.sel, u = unit(id);
+  openForm({
+    title:'Переименование подразделения', submit:'Переименовать',
+    fields:[{ k:'name', label:'Новое название', value:nameAt(id,d) },
+            { k:'date', label:'С даты', type:'date', value:d }],
+    note:'Это тот же <span class="mono">unitId</span> и новая версия названия: на прошлые даты подразделение по-прежнему называется по-старому.',
+    onSubmit(v){
+      const name = v.name.trim();
+      if(!name) return 'Укажите название.';
+      if(!v.date) return 'Укажите дату.';
+      if(v.date < u.created) return 'Дата раньше создания подразделения ('+u.created+').';
+      if(u.liquidated && v.date >= u.liquidated) return 'Подразделение закрыто '+u.liquidated+' — переименовать нельзя.';
+      const vs = NAME_VER.filter(x=>x.unitId===id).sort((a,b)=>a.from<b.from?-1:1);
+      const last = vs[vs.length-1];
+      if(v.date <= last.from) return 'Дата должна быть позже начала действующего названия ('+last.from+').';
+      if(name === last.name) return 'Название не изменилось.';
+      if(dupNameAt(name, v.date, id)) return 'Подразделение с таким названием уже действует.';
+      last.to = v.date;
+      NAME_VER.push({ unitId:id, name, from:v.date, to:null });
+      logEvent(`unit.renamed(id="${id}", название="${name}", дата="${v.date}")`);
+      toast(`Переименовано: «${name}» с ${v.date}`);
+      return null;
+    }});
+}
+
+function openReparent(){
+  const d = state.date, id = state.sel, u = unit(id);
+  const cur = parentAt(id,d);
+  const banned = [id, ...descendantsOf(id,d)];
+  openForm({
+    title:'Переподчинение', submit:'Переподчинить',
+    fields:[{ k:'parent', label:'Новое вышестоящее', type:'select', options:liveOpts(d, banned), value:cur },
+            { k:'date',   label:'С даты', type:'date', value:d }],
+    note:'Подчинённость версионируется: на прошлые даты структура восстанавливается прежней. Свои подчинённые уходят вместе с подразделением.',
+    onSubmit(v){
+      if(cur == null) return 'Верхний уровень структуры переподчинить нельзя.';
+      if(!v.parent) return 'Выберите вышестоящее подразделение.';
+      if(v.parent === cur) return 'Подчинённость не изменилась.';
+      if(banned.includes(v.parent)) return 'Нельзя подчинить подразделение самому себе или своему подчинённому — получится цикл.';
+      if(!v.date) return 'Укажите дату.';
+      if(v.date < u.created) return 'Дата раньше создания подразделения ('+u.created+').';
+      if(u.liquidated && v.date >= u.liquidated) return 'Подразделение закрыто '+u.liquidated+'.';
+      const np = unit(v.parent);
+      if(v.date < np.created) return 'Вышестоящее создано '+np.created+' — раньше подчинить нельзя.';
+      if(liquidatedAt(v.parent, v.date)) return 'Вышестоящее закрыто на эту дату.';
+      let vs = PARENT_VER.filter(x=>x.unitId===id).sort((a,b)=>a.from<b.from?-1:1);
+      if(!vs.length){   // базовое подчинение материализуем в версию — иначе прошлое потеряется
+        const base = { unitId:id, parentId:BASE_PARENT[id], from:u.created, to:null };
+        PARENT_VER.push(base); vs = [base];
+      }
+      const last = vs[vs.length-1];
+      if(v.date <= last.from) return 'Дата должна быть позже начала действующего подчинения ('+last.from+').';
+      last.to = v.date;
+      PARENT_VER.push({ unitId:id, parentId:v.parent, from:v.date, to:null });
+      logEvent(`unit.moved(id="${id}", вышестоящее="${v.parent}", дата="${v.date}")`);
+      toast(`Переподчинено в «${nameAt(v.parent,v.date)}» с ${v.date}`);
+      return null;
+    }});
+}
+
+function openTerritory(){
+  const d = state.date, id = state.sel, u = unit(id);
+  openForm({
+    title:'Территория обслуживания', submit:'Сохранить',
+    fields:[{ k:'terr', label:'Области и города', type:'checklist', options:TERRITORIES, value:u.territory }],
+    note:'Территория — справочник, а не свободный текст: иначе «Ошская обл.» и «Ошская область» считаются разными и покрытие вычисляется неверно.',
+    onSubmit(v){
+      const taken = v.terr.filter(t => liveUnitsAt(d).some(x=>x.id!==id && x.territory.includes(t)));
+      if(taken.length) return 'Уже обслуживается другим подразделением: '+taken.join(', ')+'.';
+      u.territory = v.terr;
+      toast('Территория обновлена');
+      return null;
+    }});
+}
+
+/* ---- ЭКСПОРТ. Кадрам нужна выгрузка под приказ, а не только экран. ---- */
+function downloadCsv(name, rows){
+  const csv = '﻿' + rows.map(r=>r.map(c=>{
+    const s = String(c ?? '');
+    return /[";\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  }).join(';')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('Выгружено: '+name);
+}
+function exportStructure(d){
+  const rows = [['Подразделение','Тип','Вышестоящее','Руководитель на дату','Ставок по штату','Занято','Территория']];
+  liveUnitsAt(d).forEach(u=>{
+    const st = unitStaffAt(u.id,d), h = head(u.id,d), par = parentAt(u.id,d);
+    rows.push([nameAt(u.id,d), u.type, par?nameAt(par,d):'—',
+      h.error ? 'не определён' : fmtEmp(h.empId)+(h.escalatedFrom?' (передано наверх)':''),
+      st.planned, st.filled, u.territory.join(', ')]);
+  });
+  downloadCsv(`оргструктура_${d}.csv`, rows);
+}
+function exportStaff(id,d){
+  const rows = [['Должность','Категория','Руководитель','Ставок','Сотрудник','Тип','Ставка']];
+  unitPositionsAt(id,d).forEach(p=>{
+    const t = TITLES[p.titleId], occ = occupantsOf(p.id,d);
+    if(!occ.length) rows.push([t.name, t.cat, isHeadAt(p.id,d)?'да':'', unitsAt(p.id,d), 'ВАКАНСИЯ','','']);
+    else occ.forEach(o=>rows.push([t.name, t.cat, isHeadAt(p.id,d)?'да':'', unitsAt(p.id,d), fmtEmp(o.empId),
+      o.kind==='acting'?'и.о.':o.kind==='combine'?'совместительство':'основное', o.rate ?? '']));
+  });
+  downloadCsv(`штат_${nameAt(id,d)}_${d}.csv`, rows);
 }
 
 /* ---- helpers ---- */
+function logEvent(e){ EVENT_LOG.unshift(e); }
 function banner(kind,icon,html){ return `<div class="phead-banner ${kind}">${icon}<div>${html}</div></div>`; }
 function gate(kind,icon,head,desc){ return `<div class="gate ${kind}"><span class="gi">${icon}</span><div class="gt"><div class="gh">${head}</div><div class="gd">${desc}</div></div></div>`; }
 function notYet(id,d){ return `<div class="panel-wrap">${banner('info',ICONS.info,`Подразделение ещё не создано на выбранную дату (создано ${unit(id).created}). Выберите более позднюю дату.`)}</div>`; }
@@ -1455,13 +2008,16 @@ window.navClick = navClick;
 
 /* ---- §3 ДОЛЖНОСТИ (справочник) — глобальный, одна должность живёт во многих подразделениях ---- */
 function renderTitles(){
-  const d = state.date;
-  const rows = Object.entries(TITLES).map(([tid,t])=>{
-    const poss = POSITIONS.filter(p=>p.titleId===tid);
+  const d = state.date, q = state.qT.trim().toLowerCase();
+  const rows = Object.entries(TITLES)
+    .filter(([,t])=> !q || t.name.toLowerCase().includes(q) || t.cat.toLowerCase().includes(q))
+    .map(([tid,t])=>{
+    const poss = POSITIONS.filter(p=>p.titleId===tid && posActive(p,d));
+    const usedEver = POSITIONS.some(p=>p.titleId===tid);
     const where = poss.map(p=>{
       const occ = occupantsOf(p.id,d);
       const filled = occ.length>0;
-      return `<div>${esc(nameAt(p.unitId,d))}${p.isHead?' <span class="pill info">руководитель</span>':''} `+
+      return `<div>${esc(nameAt(p.unitId,d))}${isHeadAt(p.id,d)?' <span class="pill info">руководитель</span>':''} `+
         (filled ? `<span class="pill ok">занята</span>` : `<span class="pill warn">вакансия</span>`)+`</div>`;
     }).join('') || '<span class="muted">не используется</span>';
     return `<tr>
@@ -1469,18 +2025,66 @@ function renderTitles(){
       <td>${esc(t.cat)}</td>
       <td>${t.lead?'<span class="pill info">да</span>':'<span class="muted">—</span>'}</td>
       <td class="mono">${poss.length}</td>
-      <td>${where}</td></tr>`;
-  }).join('');
+      <td>${where}</td>
+      <td><div class="rowbtns">
+        <button class="minibtn" data-edtitle="${tid}" ${canEdit()?'':'disabled'}>Изменить</button>
+        <button class="minibtn danger" data-deltitle="${tid}" ${(canEdit() && !usedEver)?'':'disabled'}
+          title="${usedEver?'Должность используется в штатных единицах — удалить нельзя':''}">Удалить</button>
+      </div></td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="muted">Ничего не найдено.</td></tr>';
   document.getElementById('titlesBody').innerHTML = `
     <div class="section-h row" style="margin-top:4px">
       <span>Справочник должностей</span>
-      <button class="addbtn" id="addTitleBtn" ${canEdit()?'':'disabled'}>+ Должность</button>
+      <span style="display:flex; gap:8px; align-items:center">
+        <input type="search" class="srch" id="titlesQ" placeholder="Поиск по должности" value="${esc(state.qT)}" autocomplete="off">
+        <button class="addbtn" id="addTitleBtn" ${canEdit()?'':'disabled'}>+ Должность</button>
+      </span>
     </div>
     <table class="cgrid">
-      <thead><tr><th style="width:24%">Должность</th><th style="width:14%">Категория</th><th style="width:12%">Руководящая</th><th style="width:12%">Штатных единиц</th><th>Где используется (на дату)</th></tr></thead>
+      <thead><tr><th style="width:22%">Должность</th><th style="width:12%">Категория</th><th style="width:10%">Руководящая</th><th style="width:10%">Штатных единиц</th><th>Где используется (на дату)</th><th style="width:16%"></th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
   document.getElementById('addTitleBtn').onclick = openAddTitle;
+  const qi = document.getElementById('titlesQ');
+  qi.oninput = ()=>{ state.qT = qi.value; renderTitles();
+                     const n = document.getElementById('titlesQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
+  document.querySelectorAll('[data-edtitle]').forEach(b=> b.onclick = ()=> openEditTitle(b.dataset.edtitle));
+  document.querySelectorAll('[data-deltitle]').forEach(b=> b.onclick = ()=> openDelTitle(b.dataset.deltitle));
+}
+
+function openEditTitle(tid){
+  const t = TITLES[tid];
+  openForm({
+    title:'Должность — '+t.name, submit:'Сохранить',
+    fields:[
+      { k:'name', label:'Название', value:t.name },
+      { k:'cat',  label:'Категория', type:'select', value:t.cat,
+        options:['руководящая','специалист','технический','обслуживающий'].map(c=>({v:c,t:c})) },
+      { k:'lead', label:'Руководящая должность', type:'checkbox', value:t.lead },
+    ],
+    note:'Справочник должностей не версионируется: правка меняет название во всех штатных единицах, где должность используется, на любую дату.',
+    onSubmit(v){
+      const name = v.name.trim();
+      if(!name) return 'Укажите название.';
+      if(Object.entries(TITLES).some(([id2,x])=>id2!==tid && x.name.toLowerCase()===name.toLowerCase()))
+        return 'Такая должность в справочнике уже есть.';
+      TITLES[tid] = { name, cat:v.cat, lead:v.lead };
+      toast(`Должность «${name}» изменена`);
+      return null;
+    }});
+}
+function openDelTitle(tid){
+  const t = TITLES[tid];
+  openForm({
+    title:'Удаление должности', danger:true, submit:'Удалить',
+    fields:[],
+    note:`«${esc(t.name)}» ни в одной штатной единице не используется — запись справочника можно удалить безопасно.`,
+    onSubmit(){
+      if(POSITIONS.some(p=>p.titleId===tid)) return 'Должность используется в штатных единицах — удалить нельзя.';
+      delete TITLES[tid];
+      toast(`Должность «${t.name}» удалена из справочника`);
+      return null;
+    }});
 }
 
 /* ---- ДОЛЖНОСТЬ (справочник). Не привязана к подразделению и не версионируется:
@@ -1511,27 +2115,52 @@ function submitAddTitle(){
 
 /* ---- §6 СОТРУДНИКИ ПОДРАЗДЕЛЕНИЯ — сотрудник действует в нескольких подразделениях (осн. + совмест. + и.о.) ---- */
 function renderPeople(){
-  const d = state.date;
-  const rows = Object.entries(EMPLOYEES).map(([eid,fio])=>{
+  const d = state.date, q = state.qP.trim().toLowerCase();
+  const rows = Object.entries(EMPLOYEES).filter(([,fio])=> !q || fio.toLowerCase().includes(q)).map(([eid,fio])=>{
     const acts = ASSIGN.filter(a=>a.empId===eid && spanActive(a,d));
     const ios  = ACTING.filter(a=>a.empId===eid && spanActive(a,d));
     if(!acts.length && !ios.length) return `<tr><td><b>${esc(fio)}</b></td><td class="muted">нет действующих назначений на дату</td></tr>`;
     const cell = acts.map(a=>{
-      const p = POSITIONS.find(x=>x.id===a.posId);
+      const p = posById(a.posId);
       const tag = a.kind==='main' ? '<span class="pill ok">основное</span>' : '<span class="pill neutral">совмест.</span>';
       return `<div>${esc(nameAt(p.unitId,d))} · ${esc(TITLES[p.titleId].name)} ${tag} <span class="muted">ставка ${a.rate}</span></div>`;
     }).join('') + ios.map(a=>{
-      const p = POSITIONS.find(x=>x.id===a.posId);
+      const p = posById(a.posId);
       return `<div>${esc(nameAt(p.unitId,d))} · ${esc(TITLES[p.titleId].name)} <span class="pill info">и.о.</span> <span class="muted">${a.from}…${a.to}</span></div>`;
     }).join('');
     return `<tr><td><b>${esc(fio)}</b></td><td>${cell}</td></tr>`;
-  }).join('');
+  }).join('') || '<tr><td colspan="2" class="muted">Ничего не найдено.</td></tr>';
   document.getElementById('peopleBody').innerHTML = `
-    <div class="section-h" style="margin-top:4px">Сотрудники подразделения</div>
+    <div class="section-h row" style="margin-top:4px">
+      <span>Сотрудники подразделения</span>
+      <span style="display:flex; gap:8px; align-items:center">
+        <input type="search" class="srch" id="peopleQ" placeholder="Поиск по ФИО" value="${esc(state.qP)}" autocomplete="off">
+        <button class="addbtn" id="addEmpBtn" ${canEdit()?'':'disabled'}>+ Сотрудник</button>
+      </span>
+    </div>
     <table class="cgrid">
       <thead><tr><th style="width:26%">Сотрудник</th><th>Где действует (подразделение · должность · тип)</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>`;
+    </table>
+    <p class="section-note">Карточка сотрудника (личные данные, стаж, приказы) — чужой модуль. Здесь заводится только ФИО,
+    чтобы человека было кого назначить на штатную единицу.</p>`;
+  const qi = document.getElementById('peopleQ');
+  qi.oninput = ()=>{ state.qP = qi.value; renderPeople();
+                     const n = document.getElementById('peopleQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
+  document.getElementById('addEmpBtn').onclick = ()=> openForm({
+    title:'Новый сотрудник', submit:'Добавить',
+    fields:[{ k:'fio', label:'ФИО', value:'' }],
+    note:'Заглушка чужого модуля: без этого нового человека нечем принять на штатную единицу.',
+    onSubmit(v){
+      const fio = v.fio.trim();
+      if(!fio) return 'Укажите ФИО.';
+      if(Object.values(EMPLOYEES).some(x=>x.toLowerCase()===fio.toLowerCase())) return 'Такой сотрудник уже есть.';
+      let base='e_'+(Object.keys(EMPLOYEES).length+1), id=base, n=1;
+      while(EMPLOYEES[id]){ id = base+'_'+(n++); }
+      EMPLOYEES[id] = fio;
+      toast(`Сотрудник «${fio}» добавлен`);
+      return null;
+    }});
 }
 
 /* ---- §1/§2 ДОБАВЛЕНИЕ ПОДРАЗДЕЛЕНИЯ. Рождается «на выбранную дату»: created=state.date, название — версия с этой даты.
@@ -1543,10 +2172,13 @@ function openAddUnit(){
     .sort((a,b)=> nameAt(a.id,d)<nameAt(b.id,d)?-1:1)
     .map(u=>`<option value="${u.id}">${esc(nameAt(u.id,d))}</option>`).join('');
   const psel = document.getElementById('auParent');
-  psel.innerHTML = '<option value="">— верхний уровень (без вышестоящего)</option>'+opts;
-  psel.value = (existsAt(state.sel,d) && !liquidatedAt(state.sel,d)) ? state.sel : '';
+  // верхний уровень предлагаем, только если корня на дату ещё нет — второе дерево структуру разрывает
+  const rootExists = liveUnitsAt(d).some(u=>parentAt(u.id,d)==null);
+  psel.innerHTML = (rootExists ? '' : '<option value="">— верхний уровень (без вышестоящего)</option>')+opts;
+  psel.value = (existsAt(state.sel,d) && !liquidatedAt(state.sel,d)) ? state.sel : (rootExists ? psel.options[0]?.value : '');
   document.getElementById('auName').value = '';
-  document.getElementById('auTerr').value = '';
+  document.getElementById('auTerr').innerHTML = TERRITORIES.map(t=>
+    `<label class="chkrow"><input type="checkbox" data-terr value="${esc(t)}"> ${esc(t)}</label>`).join('');
   document.getElementById('auType').value = 'отдел';
   document.getElementById('auErr').textContent = '';
   document.getElementById('auDate').textContent = d;
@@ -1556,11 +2188,18 @@ function openAddUnit(){
 function closeAddUnit(){ document.getElementById('modalBack').classList.remove('open'); }
 function submitAddUnit(){
   const d = state.date;
+  const err = document.getElementById('auErr');
   const name = document.getElementById('auName').value.trim();
   const type = document.getElementById('auType').value;
   const parentId = document.getElementById('auParent').value || null;
-  const terr = document.getElementById('auTerr').value.split(',').map(s=>s.trim()).filter(Boolean);
-  if(!name){ document.getElementById('auErr').textContent = 'Укажите название.'; return; }
+  const terr = [...document.querySelectorAll('#auTerr [data-terr]:checked')].map(x=>x.value);
+  if(!name){ err.textContent = 'Укажите название.'; return; }
+  if(dupNameAt(name, d)){ err.textContent = 'Подразделение с таким названием уже действует.'; return; }
+  if(parentId == null && liveUnitsAt(d).some(u=>parentAt(u.id,d)==null)){
+    err.textContent = 'Верхний уровень структуры уже есть — второе дерево разорвёт подчинённость.'; return;
+  }
+  const taken = terr.filter(t => liveUnitsAt(d).some(x=>x.territory.includes(t)));
+  if(taken.length){ err.textContent = 'Территория уже обслуживается: '+taken.join(', ')+'.'; return; }
   let base = 'u_'+(UNITS.length+1), id = base, n = 1;
   while(UNITS.some(u=>u.id===id)){ id = base+'_'+(n++); }
   UNITS.push({ id, type, territory:terr, created:d, liquidated:null, successor:null });
@@ -1602,7 +2241,9 @@ function metricsHtml(m, mp){
   return `<div class="metrics">
     ${tile('units','', 'Действующих подразделений', m.units.total, types, deltaHtml(m.units.total, mp.units.total, false))}
     ${tile('staff','', 'Штат и факт', m.staff.pct+'%', `${m.staff.filled} из ${m.staff.planned} ставок — заполнено`, deltaHtml(m.staff.pct, mp.staff.pct, false))}
-    ${tile('vac', m.vac.head?'err':'', 'Вакансии', m.vac.total, m.vac.head? `в т.ч. вакансий руководителя: ${m.vac.head}` : 'вакансий руководителя нет', deltaHtml(m.vac.total, mp.vac.total, true))}
+    ${tile('vac', m.vac.headOpen?'err':(m.vac.head?'warn':''), 'Вакантных ставок', m.vac.free,
+       m.vac.head ? `вакансий руководителя: ${m.vac.head}${m.vac.head>m.vac.headOpen?` (прикрыто и.о.: ${m.vac.head-m.vac.headOpen})`:''}`
+                  : 'вакансий руководителя нет', deltaHtml(m.vac.free, mp.vac.free, true))}
     ${tile('acting', m.acting.expiring?'warn':'', 'Исполняющие обязанности', m.acting.total, m.acting.expiring? `истекают ≤ ${EXPIRING_DAYS} дн.: ${m.acting.expiring}` : 'истекающих нет', deltaHtml(m.acting.total, mp.acting.total, false))}
     ${tile('combine','', 'Совместительства', m.combine, 'действующих на дату', deltaHtml(m.combine, mp.combine, false))}
     ${tile('inv', m.inv.length?'err':'', 'Несколько основных мест работы', m.inv.length, m.inv.length? m.inv.map(fmtEmp).join(', ') : 'у всех по одному основному месту работы', '')}
@@ -1644,32 +2285,39 @@ function probsHtml(d){
 
   const rows = p[cur];
   let head = '', body = '';
-  const act = (label)=> `<button class="btn btn-secondary rowact" style="height:28px; padding:0 10px; font-size:13px" ${canEdit()?'':'disabled'}>${label}</button>`;
+  // кнопка действия ведёт в ту же форму, что и в карточке подразделения: список не «показывает проблему»,
+  // а решает её на месте. data-act/data-arg разбираются в bindProbs.
+  const act = (label, a, arg)=> `<button class="btn btn-secondary rowact" style="height:28px; padding:0 10px; font-size:13px"
+    data-act="${a}" data-arg="${arg}" ${canEdit()?'':'disabled'}>${label}</button>`;
 
   if(!rows.length){
     body = `<div class="empty">Нарушений нет на выбранную дату.</div>`;
   } else if(cur==='headVacant'){
-    head = '<tr><th>Подразделение</th><th>Тип</th><th>Вышестоящее</th><th>Вакантно с</th><th>Дней</th><th></th></tr>';
+    head = '<tr><th>Подразделение</th><th>Тип</th><th>Вышестоящее</th><th>Вакантно с</th><th>Дней</th><th>Прикрыто и.о.</th><th></th></tr>';
     body = rows.map(r=>{ const u=unit(r.unitId); const par=parentAt(r.unitId,d);
       return `<tr data-unit="${r.unitId}" data-tab="staff"><td><b>${esc(nameAt(r.unitId,d))}</b></td><td>${esc(u.type)}</td>
         <td>${par?esc(nameAt(par,d)):'— (верхний уровень)'}</td><td class="mono">${r.since}</td>
-        <td class="mono">${r.days}</td><td>${act('Назначить')}</td></tr>`; }).join('');
+        <td class="mono">${r.days}</td>
+        <td>${r.acting?`<span class="pill info">${fmtEmp(r.acting.empId)} до ${r.acting.to}</span>`:'<span class="pill err">нет</span>'}</td>
+        <td>${act('Назначить','assign',r.posId)}</td></tr>`; }).join('');
   } else if(cur==='actingExpiring'){
     head = '<tr><th>Подразделение</th><th>Сотрудник</th><th>До</th><th>Осталось дней</th><th>Причина</th><th></th></tr>';
-    body = rows.map(r=>`<tr data-unit="${r.unitId}" data-tab="staff"><td><b>${esc(nameAt(r.unitId,d))}</b></td>
+    body = rows.map(r=>{ const io = ACTING.find(a=>a.posId===r.posId && spanActive(a,d));
+      return `<tr data-unit="${r.unitId}" data-tab="staff"><td><b>${esc(nameAt(r.unitId,d))}</b></td>
       <td>${fmtEmp(r.empId)}</td><td class="mono">${r.to}</td><td class="mono">${r.days}</td>
-      <td class="muted">${esc(r.reason)}</td><td>${act('Продлить')}</td></tr>`).join('');
+      <td class="muted">${esc(r.reason)}</td><td>${act('Продлить','extend',io?io.id:'')}</td></tr>`; }).join('');
   } else if(cur==='invariant'){
     head = '<tr><th>Сотрудник</th><th>Конфликтующие места работы</th></tr>';
-    body = rows.map(r=>{ const first=POSITIONS.find(p2=>p2.id===r.posIds[0]);
+    body = rows.map(r=>{ const first=posById(r.posIds[0]);
       return `<tr data-unit="${first?first.unitId:''}" data-tab="staff"><td><b>${fmtEmp(r.empId)}</b></td>
-        <td>${r.posIds.map(pid=>{ const p2=POSITIONS.find(x=>x.id===pid);
+        <td>${r.posIds.map(pid=>{ const p2=posById(pid);
           return `<div>${esc(nameAt(p2.unitId,d))} · ${esc(TITLES[p2.titleId].name)}</div>`; }).join('')}</td></tr>`; }).join('');
   } else if(cur==='noStaff'){
     head = '<tr><th>Подразделение</th><th>Тип</th><th>Создано</th><th></th></tr>';
     body = rows.map(r=>{ const u=unit(r.unitId);
       return `<tr data-unit="${r.unitId}" data-tab="staff"><td><b>${esc(nameAt(r.unitId,d))}</b></td>
-        <td>${esc(u.type)}</td><td class="mono">${u.created}</td><td>${act('Добавить штатную единицу')}</td></tr>`; }).join('');
+        <td>${esc(u.type)}</td><td class="mono">${u.created}</td>
+        <td>${act('Добавить штатную единицу','addpos',r.unitId)}</td></tr>`; }).join('');
   } else if(cur==='liqBlocked'){
     head = '<tr><th>Подразделение</th><th>Что мешает</th></tr>';
     body = rows.map(r=>`<tr data-unit="${r.unitId}" data-tab="liq"><td><b>${esc(nameAt(r.unitId,d))}</b></td>
@@ -1711,6 +2359,16 @@ function bindProbs(){
       gotoUnit(tr.dataset.unit, tr.dataset.tab);
     };
   });
+  // кнопки действий рабочих списков открывают ту же форму, что и карточка подразделения
+  document.querySelectorAll('#probs .rowact').forEach(b=>{
+    b.onclick = ()=>{
+      const { act, arg } = b.dataset;
+      if(act==='assign'){ const p = posById(arg); if(!p) return;
+        state.sel = p.unitId; openAssign(arg); }
+      else if(act==='extend' && arg) openExtendActing(arg);
+      else if(act==='addpos'){ state.sel = arg; openAddPos(arg); }
+    };
+  });
 }
 
 /* ---- мини-дерево на дату + сводка «штат и факт» ---- */
@@ -1722,7 +2380,7 @@ function miniTreeHtml(d){
     if(lvl > maxLvl) return;
     const u = unit(id);
     const liq = liquidatedAt(id,d);
-    const hp = headPosOf(id);
+    const hp = headPosOf(id,d);
     const vacant = hp && !mainOn(hp.id,d) && !actingOn(hp.id,d);
     // у закрытого подразделения руководителя не показываем: head() поднялся бы к вышестоящему
     // и нарисовал живого начальника у зачёркнутой строки.
@@ -1771,7 +2429,8 @@ function bindTree(){
 
 /* ---- лента изменений ---- */
 const CHG_LABEL = { create:'Создание', rename:'Переименование', move:'Смена вышестоящего',
-                    liquidate:'Закрытие', assign:'Назначение', acting:'И.о.' };
+                    liquidate:'Закрытие', assign:'Назначение', acting:'И.о.', release:'Освобождение',
+                    posAdd:'Штатная единица', posClose:'Закрытие единицы', posVer:'Изменение штата' };
 
 function changesHtml(d){
   const win = state.chgWin;
@@ -1865,6 +2524,11 @@ document.querySelectorAll('.date-chip').forEach(b=> b.onclick=()=>{ state.date=b
 document.getElementById('roleSel').addEventListener('change', e=>{ state.role=e.target.value; render(); });
 document.getElementById('addUnitBtn').onclick = openAddUnit;
 document.getElementById('ovPrint').onclick = ()=> window.print();
+document.getElementById('ovExport').onclick = ()=> exportStructure(state.date);
+const treeQ = document.getElementById('treeQ');
+treeQ.addEventListener('input', ()=>{ state.q = treeQ.value; renderTree(); });
+document.getElementById('gfCancel').onclick = closeModals;
+document.getElementById('gfSubmit').onclick = ()=> gfSubmit && gfSubmit();
 document.getElementById('auCancel').onclick = closeAddUnit;
 document.getElementById('auSubmit').onclick = submitAddUnit;
 document.getElementById('mtCancel').onclick = closeModals;
