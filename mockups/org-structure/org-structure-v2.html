@@ -10,6 +10,11 @@
   План:  docs/superpowers/plans/2026-07-14-org-structure-v2.md
   Проверка: node scripts/inspect/org-structure-v2-check.mjs
 
+  Модуль = ОДИН пункт сайдбара. Четыре вида (Обзор · Подразделения · Должности ·
+  Сотрудники) — вкладки одной страницы (#viewTabs), дата среза и роль общие для всех.
+  Осторожно: цикл подсветки вкладок карточки узла заскоуплен на #tabbar — без этого
+  он снимал бы .active с вкладок видов (у них data-view, а не data-tab).
+
   Новых сущностей нет: 6 KPI-плиток, блок «Требует внимания» (6 рабочих списков),
   мини-дерево, «штат и факт», лента изменений — всё производное от модели v1
   (UNITS / NAME_VER / PARENT_VER / TITLES / POSITIONS / ASSIGN / ACTING) через
@@ -348,6 +353,7 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
    ВНИМАНИЕ: в vedomstvo эти классы зовутся .section-h / .section-b, но в v1 имя
    .section-h УЖЕ ЗАНЯТО заголовком секции (строка ~230) и используется во всех трёх
    существующих видах. Поэтому здесь они переименованы в .sec-h / .sec-b. */
+.viewtabs{ background:var(--surface-card); flex:none; }
 .ovwrap{ padding:18px 20px 40px; max-width:1180px; }
 .section{ border:1px solid var(--border-default); border-radius:var(--radius-md); margin-bottom:18px;
   background:var(--surface-card); }
@@ -403,7 +409,7 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
 
 /* ---- печать паспорта оргструктуры на дату среза ---- */
 @media print{
-  .sidebar, .topbar, .section-tools, #probTabs, #treeExpand, #chgWin, .toast{ display:none !important; }
+  .sidebar, .topbar, .viewtabs, .section-tools, #probTabs, #treeExpand, #chgWin, .toast{ display:none !important; }
   .app{ display:block; height:auto; }
   .content{ overflow:visible; }
   .ovwrap{ max-width:none; padding:0; }
@@ -430,7 +436,7 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
       <span class="menu" title="Меню">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </span>
-      <span class="crumb-title">Оргструктура · Обзор</span>
+      <span class="crumb-title">Оргструктура</span>
       <div class="date-wrap">
         <label for="dateInp">Дата&nbsp;среза</label>
         <input type="date" id="dateInp" min="2019-01-01" max="2026-07-11">
@@ -449,6 +455,14 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
         </div>
       </div>
     </header>
+
+    <!-- четыре вида модуля — вкладки одной страницы, а не четыре пункта меню -->
+    <div class="detail-tabbar viewtabs" id="viewTabs">
+      <button class="dtab" data-view="overview">Обзор</button>
+      <button class="dtab" data-view="units">Подразделения</button>
+      <button class="dtab" data-view="titles">Должности</button>
+      <button class="dtab" data-view="people">Сотрудники подразделения</button>
+    </div>
 
     <div class="mainview" id="view-overview">
       <div class="section-tools">
@@ -1141,10 +1155,7 @@ const NAV = [
   { id:"z", label:"Залоговое обеспечение", subs:[ { id:"z-all", headerless:true, items:[ {label:"Предметы залога"} ]} ]},
   { id:"org", label:"Организационная структура", open:true, subs:[
     { id:"org-all", headerless:true, items:[
-      { label:"Обзор", active:true },
-      { label:"Подразделения" },
-      { label:"Должности" },
-      { label:"Сотрудники подразделения" } ]} ]},
+      { label:"Оргструктура", active:true } ]} ]},
   { id:"d", label:"Справочники", subs:[ { id:"d-all", headerless:true, items:[ {label:"Справочники"} ]} ]},
   { id:"adm", label:"Администрирование", subs:[ { id:"adm-all", headerless:true, items:[ {label:"Администрирование"} ]} ]},
 ];
@@ -1159,13 +1170,10 @@ function renderNav(){
     return `<div class="nav-group${g.open?' open':''}"><button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">${chev(14)}<span class="lbl">${g.label}</span></button><div class="nav-children">${subs}</div></div>`;
   }).join('');
 }
+// Модуль — один пункт меню. Четыре вида переключаются вкладками (#viewTabs), а не сайдбаром.
 function navClick(l){
   document.querySelectorAll('.nav-item').forEach(a=>a.classList.toggle('active', a.textContent===l));
-  const map = { 'Обзор':'overview', 'Подразделения':'units', 'Должности':'titles', 'Сотрудники подразделения':'people' };
-  const v = map[l];
-  if(v){ state.view = v;
-    document.querySelector('.crumb-title').textContent = (v==='overview') ? 'Оргструктура · Обзор' : l;
-    render(); }
+  if(l==='Оргструктура'){ state.view = 'overview'; render(); }
 }
 window.navClick = navClick;
 
@@ -1382,12 +1390,10 @@ function probsHtml(d){
   </div>`;
 }
 
-// переход в карточку узла из любого списка дашборда
+// переход в карточку узла из любого списка дашборда — просто смена вкладки вида
 function gotoUnit(unitId, tab){
   if(!unitId) return;
   state.view='units'; state.sel=unitId; state.tab=tab||'overview';
-  document.querySelectorAll('.nav-item').forEach(a=>a.classList.toggle('active', a.textContent==='Подразделения'));
-  document.querySelector('.crumb-title').textContent = 'Подразделения';
   render();
 }
 
@@ -1522,6 +1528,7 @@ function renderOverviewDash(){
 function render(){
   const ab = document.getElementById('addUnitBtn'); if(ab) ab.disabled = !canEdit();
   document.getElementById('ovAdd').disabled = !canEdit();
+  document.querySelectorAll('#viewTabs .dtab').forEach(t=>t.classList.toggle('active', t.dataset.view===state.view));
   document.getElementById('view-overview').style.display = state.view==='overview' ? 'flex' : 'none';
   document.getElementById('view-units').style.display  = state.view==='units'  ? 'flex' : 'none';
   document.getElementById('view-titles').style.display = state.view==='titles' ? 'flex' : 'none';
@@ -1530,7 +1537,7 @@ function render(){
   if(state.view==='titles'){ renderTitles(); return; }
   if(state.view==='people'){ renderPeople(); return; }
   renderTree();
-  document.querySelectorAll('.dtab').forEach(t=>t.classList.toggle('active', t.dataset.tab===state.tab));
+  document.querySelectorAll('#tabbar .dtab').forEach(t=>t.classList.toggle('active', t.dataset.tab===state.tab));
   document.querySelectorAll('.detail-panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('p-'+state.tab).classList.add('active');
   renderOverview(); renderStaff(); renderHistory(); renderLiq();
@@ -1542,6 +1549,9 @@ document.getElementById('tree').addEventListener('click', e=>{
   if(tog && tog.querySelector('svg')){ const id=tog.dataset.toggle; state.collapsed[id]=!state.collapsed[id]; renderTree(); e.stopPropagation(); return; }
   const row = e.target.closest('.trow');
   if(row){ state.sel=row.dataset.id; render(); }
+});
+document.getElementById('viewTabs').addEventListener('click', e=>{
+  const t=e.target.closest('.dtab'); if(!t) return; state.view=t.dataset.view; render();
 });
 document.getElementById('tabbar').addEventListener('click', e=>{
   const t=e.target.closest('.dtab'); if(!t) return; state.tab=t.dataset.tab; render();

@@ -20,12 +20,25 @@ await page.goto(FILE, { waitUntil: 'load' });
 
 // --- Task 1: каркас вида «Обзор» ---
 check('view-overview виден по умолчанию', await page.locator('#view-overview').isVisible());
-check('crumb-title = «Оргструктура · Обзор»',
-  (await page.locator('.crumb-title').innerText()).includes('Обзор'));
-check('в nav есть пункт «Обзор»',
-  await page.locator('.nav-item', { hasText: 'Обзор' }).count() === 1);
+check('crumb-title = «Оргструктура»',
+  (await page.locator('.crumb-title').innerText()).trim() === 'Оргструктура');
 check('дерево подразделений НЕ показано на Обзоре',
   !(await page.locator('#view-units').isVisible()));
+
+// --- четыре вида — вкладки одной страницы ---
+check('модуль занимает один пункт сайдбара',
+  await page.locator('.nav-item', { hasText: 'Оргструктура' }).count() === 1);
+check('в таббаре 4 вкладки', await page.locator('#viewTabs .dtab').count() === 4);
+check('вкладка «Обзор» активна по умолчанию',
+  await page.locator('#viewTabs .dtab[data-view=overview]').evaluate(el => el.classList.contains('active')));
+for (const [v, id] of [['units', '#view-units'], ['titles', '#view-titles'], ['people', '#view-people'], ['overview', '#view-overview']]) {
+  await page.click(`#viewTabs .dtab[data-view=${v}]`);
+  check(`вкладка ${v} показывает ${id} и подсвечена`,
+    await page.locator(id).isVisible()
+    && await page.locator(`#viewTabs .dtab[data-view=${v}]`).evaluate(el => el.classList.contains('active')));
+}
+check('вкладки видов не перебивают вкладки карточки узла (#tabbar)',
+  await page.locator('#viewTabs .dtab.active').count() === 1);
 
 // --- Task 2: слой производных функций (на 2026-07-11, демо-данные v1) ---
 const m = await page.evaluate(() => metricsAt('2026-07-11'));
@@ -84,7 +97,7 @@ await page.locator('#probs table.cgrid tbody tr').first().click();
 check('переход в вид «Подразделения»', await page.locator('#view-units').isVisible());
 check('открыта вкладка «Штатка»',
   await page.locator('#tabbar .dtab[data-tab=staff]').evaluate(el => el.classList.contains('active')));
-await page.locator('.nav-item', { hasText: 'Обзор' }).click();
+await page.click('#viewTabs .dtab[data-view=overview]');
 
 // роль Наблюдателя гасит действия
 await page.selectOption('#roleSel', 'obs');
@@ -107,7 +120,7 @@ check('вакансия руководителя помечена точкой',
   await page.locator('#miniTree .otree li .dotv').count() >= 1);
 await page.locator('#miniTree .otree li').first().click();
 check('клик по узлу открывает карточку', await page.locator('#view-units').isVisible());
-await page.locator('.nav-item', { hasText: 'Обзор' }).click();
+await page.click('#viewTabs .dtab[data-view=overview]');
 check('«Штат и факт»: строка на каждый тип узла',
   await page.locator('#staffRoll tbody tr').count() >= 3);
 
