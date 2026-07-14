@@ -3,8 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Организационная структура · АСУБК</title>
+<title>Оргструктура · Обзор · АСУБК</title>
 <!--
+  ВЕРСИЯ 2 — ГЛАВНАЯ СТРАНИЦА «ОБЗОР» (дашборд на дату среза).
+  Спека: docs/superpowers/specs/2026-07-14-org-structure-v2-design.md
+  План:  docs/superpowers/plans/2026-07-14-org-structure-v2.md
+  Проверка: node scripts/inspect/org-structure-v2-check.mjs
+
+  Новых сущностей нет: 6 KPI-плиток, блок «Требует внимания» (6 рабочих списков),
+  мини-дерево, «штат и факт», лента изменений — всё производное от модели v1
+  (UNITS / NAME_VER / PARENT_VER / TITLES / POSITIONS / ASSIGN / ACTING) через
+  чистые функции metricsAt / problemsAt / staffRollupAt / changesSince.
+  Дельта метрик считается к дате «год назад» (shiftYear(d,-1)) — «предыдущего чипа»
+  для произвольной даты не существует.
+  Границы прежние: кураторство, карточки сотрудников и ведомство — чужие модули.
+
+  CSS-ловушка: в vedomstvo.html секции зовутся .section-h / .section-b, но в v1 имя
+  .section-h УЖЕ ЗАНЯТО заголовком секции и используется во всех трёх старых видах.
+  Здесь они переименованы в .sec-h / .sec-b — не переименовывайте обратно.
+
+  ---
+
   РАБОЧИЙ ПРОТОТИП (single-file, MVP) — модуль «Управление организационной структурой» (TO-BE).
   Это не картинка-мокап: вся логика ниже ИСПОЛНЯЕТСЯ. Резолв на дату, вычисление руководителя,
   эскалация, инварианты назначений и гейты ликвидации считаются в рантайме от состояния.
@@ -338,6 +357,10 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
 .sec-h .sh-act{ display:flex; align-items:center; gap:8px; }
 .sec-b{ padding:16px; }
 .sec-b.tscroll{ overflow-x:auto; }
+/* шесть табов не влезают в 1180px — переносим, иначе последний («Осиротевшая
+   территория») молча обрезается краем секции */
+#probTabs{ flex-wrap:wrap; row-gap:2px; }
+#probTabs .dtab{ white-space:nowrap; }
 .section-tools{ display:flex; align-items:center; gap:14px; flex-wrap:wrap;
   padding:12px 20px; border-bottom:1px solid var(--border-default); }
 .metrics{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:18px; }

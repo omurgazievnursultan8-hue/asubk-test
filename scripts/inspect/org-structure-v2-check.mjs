@@ -139,6 +139,23 @@ check('печатный слой прячет сайдбар',
   await page.evaluate(() => [...document.styleSheets[0].cssRules]
     .some(r => r.conditionText === 'print' && r.cssText.includes('.sidebar'))));
 
+// --- Task 8: скриншоты для дев-команды ---
+// reload обязателен: тест выше создал узел «Отдел взыскания», он живёт в памяти
+// страницы и иначе попал бы на все скриншоты.
+await page.reload({ waitUntil: 'load' });
+for (const [d, label] of [['2026-07-11', 'today'], ['2023-09-01', '2023']]) {
+  await page.click(`.date-chip[data-d="${d}"]`);
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: `.auth/org-v2-${label}-hr.png`, fullPage: true });
+}
+await page.click('.date-chip[data-d="2026-07-11"]');
+await page.selectOption('#roleSel', 'obs');
+await page.waitForTimeout(200);
+await page.screenshot({ path: '.auth/org-v2-today-obs.png', fullPage: true });
+await page.selectOption('#roleSel', 'hr');
+check('снят скриншот на 2026-07-11 без фантомного узла',
+  !(await page.locator('#ovBody').innerText()).includes('Отдел взыскания'));
+
 await ctx.close();
 console.log(fails.length ? `\n${fails.length} FAILED` : '\nALL PASS');
 process.exit(fails.length ? 1 : 0);
