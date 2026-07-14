@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const url = 'file://' + path.join(root, 'mockups/org-structure/org-structure-v2.html');
+const url = 'file://' + path.join(root, 'mockups/org-structure/org-structure.html');
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { cond ? (pass++, console.log('PASS  ' + name)) : (fail++, console.log('FAIL  ' + name)); };

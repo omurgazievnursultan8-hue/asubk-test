@@ -1,5 +1,5 @@
 /**
- * Проверка мокапа «Оргструктура v2 — Обзор» (mockups/org-structure/org-structure-v2.html).
+ * Проверка мокапа «Оргструктура v2 — Обзор» (mockups/org-structure/org-structure.html).
  * Playwright + system Chrome, файл открывается по file://. Растёт от задачи к задаче.
  * Запуск: node scripts/inspect/org-structure-v2-check.mjs
  */
@@ -7,7 +7,7 @@ import { chromium } from 'playwright-core';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
-const FILE = pathToFileURL(resolve('mockups/org-structure/org-structure-v2.html')).href;
+const FILE = pathToFileURL(resolve('mockups/org-structure/org-structure.html')).href;
 const fails = [];
 const ok = (name) => console.log('PASS  ' + name);
 const check = (name, cond) => cond ? ok(name) : (fails.push(name), console.log('FAIL  ' + name));
