@@ -431,6 +431,16 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
 .otree .l1{ padding-left:12px; } .otree .l2{ padding-left:34px; } .otree .l3{ padding-left:56px; }
 .otree .dotv{ width:7px; height:7px; border-radius:50%; background:var(--asubk-red); flex:none; }
 .otree .tico{ flex:none; display:inline-flex; color:var(--text-muted); }
+/* объединённый блок «Структура и штат»: дерево в таблице с числовыми колонками */
+.otree-tbl td:first-child{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.otree-tbl .on{ font:var(--weight-medium) var(--text-base)/1.3 var(--asubk-font); color:var(--text-heading); }
+.otree-tbl .oh{ width:100%; font:var(--font-label); color:var(--text-muted); padding-left:22px; }
+.otree-tbl .tico{ flex:none; display:inline-flex; color:var(--text-muted); }
+.otree-tbl .dotv{ width:7px; height:7px; border-radius:50%; background:var(--asubk-red); flex:none; }
+.otree-tbl tr.otr{ cursor:pointer; }
+.otree-tbl tr.otr:hover{ background:var(--surface-hover); }
+.otree-tbl tr.liq .on{ color:var(--text-muted); text-decoration:line-through; }
+.otree-tbl tr.otr-total td{ border-top:2px solid var(--border-strong); background:var(--surface-hover); }
 .audit{ font:var(--font-label); }
 .audit .ae{ display:grid; grid-template-columns:110px 150px 1fr; gap:12px; padding:9px 12px;
   border-bottom:1px solid var(--asubk-grid-line); }
@@ -468,6 +478,11 @@ kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; backgrou
 .minibtn.danger{ color:var(--asubk-red); border-color:rgba(224,58,58,0.4); }
 .minibtn:disabled{ opacity:.45; cursor:not-allowed; }
 .card-acts{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+/* чипы прямых подчинённых на «Обзоре» — клик = переход к подразделению */
+.kid-chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:2px; }
+.kid-chip{ display:inline-flex; align-items:center; gap:7px; padding:6px 11px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); background:#fff; cursor:pointer; font:var(--font-label); color:var(--text-body); }
+.kid-chip:hover{ border-color:var(--asubk-blue); background:var(--status-info-bg); }
 /* дропдаун действий карточки, поднятый в шапку */
 .dropdown{ position:relative; flex-shrink:0; }
 .head-acts{ margin-top:0; }
@@ -1302,17 +1317,20 @@ function renderOverview(){
       `Руководитель на дату — <b>${fmtEmp(h.empId)}</b> (${h.via}${h.actingReason?', '+h.actingReason:''}).`);
   }
 
+  // Тип не дублируем (pill у имени), Статус не дублируем (баннер/pill). Штат — сводка 4→1,
+  // детали живут на вкладке «Штат». Кол-во штатных единиц/вакансий смотрят там же.
   const st = unitStaffAt(id,d);
   const dims = `<div class="phead-dims">
-    <div class="dim"><div class="dl">Тип подразделения</div><div class="dv">${esc(u.type)}</div></div>
     <div class="dim"><div class="dl">Вышестоящее на дату</div><div class="dv">${par?esc(nameAt(par,d)):'— (верхний уровень)'}</div></div>
-    <div class="dim"><div class="dl">Статус</div><div class="dv">${liq?'закрыто':'действующее'}</div></div>
     <div class="dim"><div class="dl">Территория</div><div class="dv">${u.territory.length?esc(u.territory.join(', ')):'—'}</div></div>
-    <div class="dim"><div class="dl">Ставок по штату</div><div class="dv" id="ovUnitPlanned">${st.planned}</div></div>
-    <div class="dim"><div class="dl">Занято ставок</div><div class="dv">${st.filled} <span class="muted" style="font:var(--font-label)">${st.pct}%</span></div></div>
-    <div class="dim"><div class="dl">Вакантных единиц</div><div class="dv">${st.vacant || '—'}</div></div>
-    <div class="dim"><div class="dl">Штатных единиц</div><div class="dv">${st.positions}</div></div>
+    <div class="dim"><div class="dl">Занято ставок</div><div class="dv" id="ovUnitPlanned">${st.filled} / ${st.planned} <span class="muted" style="font:var(--font-label)">${st.pct}%</span></div></div>
   </div>`;
+
+  // прямые подчинённые подразделения (обзор вниз — цепочка ниже смотрит вверх)
+  const kids = childrenAt(id,d);
+  const kidsHtml = kids.length
+    ? `<div class="kid-chips">${kids.map(k=>`<button class="kid-chip" data-goto="${k.id}">${esc(nameAt(k.id,d))}<span class="pill ${liquidatedAt(k.id,d)?'neutral':'info'}">${esc(k.type)}</span></button>`).join('')}</div>`
+    : `<p class="section-note">Нет подчинённых подразделений на дату.</p>`;
 
   // цепочка вверх
   const chain = chainUp(id,d);
@@ -1354,6 +1372,8 @@ function renderOverview(){
         ${headBlock}
         ${dims}
       </div>
+      <div class="section-h">Прямые подчинённые (${kids.length})</div>
+      ${kidsHtml}
       <div class="section-h">Кому подчиняется (снизу вверх)</div>
       <p class="section-note">Жёлтым помечены звенья, куда обязанности <b>переданы наверх</b> из-за вакансии ниже.</p>
       <ul class="chain">${chainHtml}</ul>
@@ -1365,6 +1385,7 @@ function renderOverview(){
   document.getElementById('caTerr').onclick   = openTerritory;
   document.getElementById('caExport').onclick = ()=> exportStaff(id,d);
   document.getElementById('caPrint').onclick  = ()=> window.print();
+  el.querySelectorAll('[data-goto]').forEach(b=> b.onclick = ()=>{ state.sel = b.dataset.goto; render(); });
   wireDropdown('caMenu','caMenuBtn');
 }
 
@@ -2287,10 +2308,15 @@ const PROB_TABS = [
 
 function probsHtml(d){
   const p = problemsAt(d);
-  const cur = state.prob;
-  const tabs = PROB_TABS.map(t=>{
+  // показываем только непустые списки; всё чисто на дату → блок не рендерим вовсе
+  const active = PROB_TABS.filter(t=> p[t.key].length);
+  if(!active.length) return '';
+  // выбранная вкладка могла опустеть (сменилась дата/решили проблему) — уводим на первый непустой список
+  let cur = state.prob;
+  if(!active.some(t=>t.key===cur)){ cur = active[0].key; state.prob = cur; }
+  const tabs = active.map(t=>{
     const n = p[t.key].length;
-    return `<button class="dtab${t.key===cur?' active':''}" data-prob="${t.key}">${t.label}${n?` <span class="pill ${t.key==='orphanTerr'?'warn':'err'}">${n}</span>`:''}</button>`;
+    return `<button class="dtab${t.key===cur?' active':''}" data-prob="${t.key}">${t.label} <span class="pill ${t.key==='orphanTerr'?'warn':'err'}">${n}</span></button>`;
   }).join('');
 
   const rows = p[cur];
@@ -2382,10 +2408,27 @@ function bindProbs(){
 }
 
 /* ---- мини-дерево на дату + сводка «штат и факт» ---- */
+// подразделение + все его действующие потомки (для накопительного штата в строке дерева)
+function subtreeUnitIds(id,d){
+  const acc = [id];
+  childrenAt(id,d).forEach(k=>acc.push(...subtreeUnitIds(k.id,d)));
+  return acc;
+}
+// накопительный штат: сумма по подразделению и всем подчинённым — «все данные ГО/блока/…»
+function subtreeStaffAt(id,d){
+  let planned=0, filled=0, vacant=0;
+  subtreeUnitIds(id,d).filter(x=>!liquidatedAt(x,d)).forEach(x=>{
+    const s = unitStaffAt(x,d); planned+=s.planned; filled=round1(filled+s.filled); vacant+=s.vacant;
+  });
+  return { planned, filled, vacant, pct: planned ? Math.round(filled/planned*100) : 0 };
+}
+
+// Структура + штат по подразделениям в одном блоке: дерево, на каждой строке — руководитель
+// и НАКОПИТЕЛЬНЫЙ штат (подразделение + подчинённые). «Итого» = все действующие.
 function miniTreeHtml(d){
   const roots = liveUnitsAt(d).filter(u=>parentAt(u.id,d)==null).map(u=>u.id);
   const maxLvl = state.treeAll ? 99 : 1;   // 0 = корень, 1 = его дети
-  const lines = [];
+  const rows = [];
   function walk(id, lvl){
     if(lvl > maxLvl) return;
     const u = unit(id);
@@ -2399,41 +2442,46 @@ function miniTreeHtml(d){
     else { const h = head(id,d);
       who = h.error ? '<span style="color:var(--asubk-red)">руководитель не определён</span>'
                     : `${fmtEmp(h.empId)} · ${h.via}${h.escalatedFrom?' (передано наверх)':''}`; }
-    lines.push(`<li class="l${Math.min(lvl,3)}${liq?' liq':''}" data-unit="${id}">
-      <span class="tico">${typeIcon(u.type)}</span>
-      <span class="on">${esc(nameAt(id,d))}</span>
-      ${vacant && !liq ? '<span class="dotv" title="вакансия руководителя"></span>' : ''}
-      <span class="oh">${who}</span></li>`);
+    const st = liq ? null : subtreeStaffAt(id,d);   // накопительно: с подчинёнными
+    const pad = 12 + Math.min(lvl,4)*18;
+    rows.push(`<tr class="otr${liq?' liq':''}" data-unit="${id}">
+      <td style="padding-left:${pad}px">
+        <span class="tico">${typeIcon(u.type)}</span>
+        <span class="on">${esc(nameAt(id,d))}</span>
+        ${vacant && !liq ? '<span class="dotv" title="вакансия руководителя"></span>' : ''}
+        <div class="oh">${who}</div></td>
+      <td class="mono">${st ? st.planned : '—'}</td>
+      <td class="mono">${st ? st.filled : '—'}</td>
+      <td class="mono">${st ? (st.vacant ? `<span class="pill warn">${st.vacant}</span>` : '—') : '—'}</td>
+      <td class="mono">${st ? st.pct+'%' : '—'}</td></tr>`);
     childrenAt(id,d).forEach(k=>walk(k.id, lvl+1));
   }
   roots.forEach(r=>walk(r,0));
-  return `<div class="section" id="miniTree">
-    <div class="sec-h"><span class="sh-t">Структура на ${d}</span>
-      <span class="sh-act"><button class="btn btn-secondary" id="treeExpand" style="height:28px; padding:0 10px; font-size:13px">${state.treeAll?'Свернуть':'Раскрыть всё'}</button></span></div>
-    <ul class="otree">${lines.join('')}</ul>
-  </div>`;
-}
 
-function staffRollHtml(d){
-  const rows = staffRollupAt(d).map(r=>`<tr>
-    <td><b>${esc(r.type)}</b></td>
-    <td class="mono">${r.planned}</td>
-    <td class="mono">${r.filled}</td>
-    <td class="mono">${r.vac ? `<span class="pill warn">${r.vac}</span>` : '—'}</td>
-    <td class="mono">${r.planned ? Math.round(r.filled/r.planned*100) : 0}%</td></tr>`).join('')
-    || '<tr><td colspan="5" class="muted">Штатных единиц на дату нет.</td></tr>';
-  return `<div class="section" id="staffRoll">
-    <div class="sec-h"><span class="sh-t">Штат и факт по типам подразделений</span></div>
-    <div class="sec-b tscroll"><table class="cgrid">
-      <thead><tr><th>Тип подразделения</th><th>Ставок по штату</th><th>Занято</th><th>Вакансий</th><th>Заполнено</th></tr></thead>
-      <tbody>${rows}</tbody></table></div></div>`;
+  // Итого — по всем действующим подразделениям на дату, независимо от свёртки дерева
+  let tp=0, tf=0, tv=0;
+  liveUnitsAt(d).forEach(u=>{ const st=unitStaffAt(u.id,d); tp+=st.planned; tf=round1(tf+st.filled); tv+=st.vacant; });
+  const total = `<tr class="otr-total"><td><b>Итого действующие</b></td>
+    <td class="mono"><b>${tp}</b></td><td class="mono"><b>${round1(tf)}</b></td>
+    <td class="mono">${tv?`<span class="pill warn">${tv}</span>`:'—'}</td>
+    <td class="mono"><b>${tp?Math.round(tf/tp*100):0}%</b></td></tr>`;
+
+  return `<div class="section" id="miniTree">
+    <div class="sec-h"><span class="sh-t">Структура и штат на ${d}</span>
+      <span class="sh-act"><button class="btn btn-secondary" id="treeExpand" style="height:28px; padding:0 10px; font-size:13px">${state.treeAll?'Свернуть':'Раскрыть всё'}</button></span></div>
+    <div class="hint" style="padding:2px 12px 8px">Штат — накопительный: строка включает подразделение и все подчинённые (ГО — вся организация).</div>
+    <div class="sec-b tscroll"><table class="cgrid otree-tbl">
+      <thead><tr><th>Подразделение · руководитель</th><th style="width:11%">Ставок</th><th style="width:11%">Занято</th><th style="width:11%">Вакансий</th><th style="width:12%">Заполнено</th></tr></thead>
+      <tbody>${rows.join('')}${total}</tbody></table></div>
+  </div>`;
 }
 
 function bindTree(){
   const b = document.getElementById('treeExpand');
   if(b) b.onclick = ()=>{ state.treeAll = !state.treeAll; renderOverviewDash(); };
-  document.querySelectorAll('#miniTree .otree li').forEach(li=>{
-    li.onclick = ()=> gotoUnit(li.dataset.unit, 'overview');
+  document.querySelectorAll('#miniTree tbody tr[data-unit]').forEach(tr=>{
+    tr.style.cursor = 'pointer';
+    tr.onclick = ()=> gotoUnit(tr.dataset.unit, 'overview');
   });
 }
 
@@ -2492,7 +2540,7 @@ function renderOverviewDash(){
     '<b>Ошибка:</b> несколько основных мест работы — '+m.inv.map(fmtEmp).join(', '));
 
   el.innerHTML = banners + metricsHtml(m, mp) + probsHtml(d) + miniTreeHtml(d)
-               + staffRollHtml(d) + changesHtml(d);
+               + changesHtml(d);
   bindMetricJumps(); bindProbs(); bindTree(); bindChanges();
 }
 
