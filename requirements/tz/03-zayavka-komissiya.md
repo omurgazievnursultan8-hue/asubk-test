@@ -1,3 +1,6 @@
+<!-- tz-kick: Техническое задание · Раздел 03 · целевая модель (to-be) -->
+<!-- tz-routes: /loan-applications · /loan-applications/{id} · /loan-application-commissions -->
+
 # 03. Заявка / Комиссия по заявкам (целевая модель, to-be)
 
 > **Статус документа:** целевая (to-be) спецификация. Источник истины — задачи

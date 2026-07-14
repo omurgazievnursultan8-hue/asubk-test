@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Задачи по ведомству · Фаза 10 · АСУБК</title>
+<!--
+  Читаемое представление бэклога Фазы 10 «Информация о ведомстве».
+  Источник истины — TODO.md (раздел «Фаза 10»), задачи P10-R1…P10-R11.
+  Здесь та же информация, переписанная человеческим языком: боль → что сделать.
+  Технические подробности (имена функций мокапа, разделы ТЗ) спрятаны
+  в раскрывашку «Для разработчика» в каждой карточке.
+  Сгенерировано 2026-07-14. При правке TODO.md — обновить и этот файл.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC;
+  --asubk-link:#005FDB; --asubk-green:#158443;
+  --asubk-red:#E03A3A; --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --border-default:var(--asubk-border-base);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(24,39,57,0.06);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; }
+body{ font:400 16px/1.5 var(--asubk-font); color:var(--text-body); background:var(--asubk-gray-100); }
+
+.wrap{ max-width:1160px; margin:0 auto; padding:0 24px 64px; }
+
+/* ---- шапка ---- */
+.hero{ background:var(--asubk-white); border-bottom:1px solid var(--border-default); padding:28px 0 22px; margin-bottom:20px; }
+.hero .wrap{ padding-bottom:0; }
+.crumbs{ font-size:13px; color:var(--text-muted); margin-bottom:8px; }
+h1{ font:600 26px/1.25 var(--asubk-font); color:var(--text-heading); margin:0 0 8px; }
+.lead{ color:var(--text-muted); font-size:15px; max-width:78ch; margin:0 0 18px; }
+.lead code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px; font-size:13px; }
+
+/* ---- плитки ---- */
+.tiles{ display:flex; flex-wrap:wrap; gap:10px; }
+.tile{ appearance:none; cursor:pointer; text-align:left; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 16px; min-width:132px;
+  font:inherit; color:inherit; transition:border-color .12s, box-shadow .12s; }
+.tile:hover{ border-color:var(--asubk-border-strong); }
+.tile.on{ border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+.tile .n{ display:block; font:600 24px/1.15 var(--asubk-font); color:var(--text-heading); }
+.tile .l{ display:block; font-size:13px; color:var(--text-muted); margin-top:2px; }
+.tile.crit .n{ color:var(--asubk-red); }
+.tile.major .n{ color:var(--asubk-amber); }
+
+/* ---- панель фильтров ---- */
+.bar{ position:sticky; top:0; z-index:5; background:var(--asubk-gray-100);
+  padding:14px 0 12px; margin-bottom:4px; border-bottom:1px solid var(--border-default); }
+.bar .row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.search{ flex:1; min-width:240px; height:36px; padding:0 12px; font:inherit; font-size:14px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.search:focus{ outline:none; border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+select{ height:36px; padding:0 8px; font:inherit; font-size:14px; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); color:inherit; }
+.btn{ height:36px; padding:0 14px; font:inherit; font-size:14px; cursor:pointer;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.btn:hover{ background:var(--asubk-gray-50); }
+.btn-p{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+.btn-p:hover{ background:var(--asubk-blue-hover); }
+.count{ font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap; }
+
+/* ---- группа темы ---- */
+.group{ margin-top:26px; }
+.group > h2{ font:600 15px/1.3 var(--asubk-font); color:var(--text-muted); margin:0 0 10px;
+  text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:8px; }
+.group > h2 .g-n{ font-weight:400; color:var(--asubk-ink-45); text-transform:none; letter-spacing:0; }
+
+/* ---- карточка ---- */
+.card{ background:var(--asubk-white); border:1px solid var(--border-default); border-left:3px solid var(--asubk-gray-200);
+  border-radius:var(--radius-lg); padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow-card); }
+.card.p-crit{ border-left-color:var(--asubk-red); }
+.card.p-major{ border-left-color:var(--asubk-amber); }
+.card.p-minor{ border-left-color:var(--asubk-blue); }
+.card.p-cosm{ border-left-color:var(--asubk-gray-200); }
+.card.st-merged, .card.st-done{ opacity:.72; }
+
+.c-head{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; }
+.id{ font:600 13px/1 var(--asubk-font); letter-spacing:.02em; color:var(--asubk-link);
+  background:var(--asubk-blue-tint); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.c-title{ font:600 17px/1.35 var(--asubk-font); color:var(--text-heading); flex:1; min-width:260px; margin:0; }
+
+.chip{ font-size:12px; line-height:1; padding:5px 9px; border-radius:var(--radius-pill); white-space:nowrap; font-weight:500; }
+.chip-crit{ background:var(--asubk-red-tint); color:#9E1F1F; }
+.chip-major{ background:var(--asubk-amber-tint); color:#8A6508; }
+.chip-minor{ background:var(--asubk-blue-tint); color:#04479E; }
+.chip-cosm{ background:var(--asubk-gray-150); color:var(--text-muted); }
+.chip-mock{ background:var(--asubk-green-tint); color:#0E5C2F; }
+.chip-open{ background:var(--asubk-gray-150); color:var(--text-muted); }
+.chip-merged{ background:var(--asubk-gray-150); color:var(--text-muted); }
+.chip-done{ background:var(--asubk-green-tint); color:#0E5C2F; }
+.chip-ask{ background:var(--asubk-amber-tint); color:#8A6508; }
+
+.blk{ margin-top:12px; }
+.blk .lbl{ font:600 12px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); display:block; margin-bottom:5px; }
+.blk p{ margin:0; font-size:15px; }
+.blk ul{ margin:0; padding-left:20px; font-size:15px; }
+.blk li{ margin-bottom:4px; }
+.blk li:last-child{ margin-bottom:0; }
+.pain{ color:var(--text-muted); }
+.pain b{ color:var(--text-body); font-weight:600; }
+
+.c-foot{ margin-top:13px; padding-top:11px; border-top:1px solid var(--asubk-gray-150);
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tag{ font-size:12px; color:var(--text-muted); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep{ font-size:12px; color:var(--asubk-link); background:var(--asubk-white);
+  border:1px solid rgba(0,106,245,0.25); border-radius:var(--radius-pill); padding:3px 9px; }
+
+details{ margin-top:11px; border-top:1px solid var(--asubk-gray-150); padding-top:9px; }
+details summary{ cursor:pointer; font-size:13px; color:var(--text-muted); list-style:none; user-select:none; }
+details summary::-webkit-details-marker{ display:none; }
+details summary::before{ content:'▸ '; color:var(--asubk-ink-45); }
+details[open] summary::before{ content:'▾ '; }
+details summary:hover{ color:var(--asubk-link); }
+.dev{ margin-top:8px; font-size:13.5px; color:var(--text-muted); background:var(--asubk-gray-50);
+  border:1px solid var(--asubk-gray-150); border-radius:var(--radius-md); padding:10px 12px; }
+.dev ul{ margin:0; padding-left:18px; }
+.dev li{ margin-bottom:4px; }
+.dev code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; color:var(--asubk-ink); }
+.dev .warn{ color:#8A6508; }
+
+.empty{ text-align:center; padding:48px 0; color:var(--text-muted); font-size:15px; }
+.legend{ margin-top:32px; font-size:13px; color:var(--text-muted); border-top:1px solid var(--border-default); padding-top:14px; }
+.legend b{ color:var(--text-body); }
+@media print{ .bar{ position:static; } details{ display:none; } .card{ break-inside:avoid; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumbs">АСУБК · Модуль управления информацией о ведомстве · Бэклог</div>
+    <h1>Фаза 10 — Информация о ведомстве</h1>
+    <p class="lead">
+      11 задач для команды разработки. Живого экрана в приложении нет — модуль проектируется
+      с нуля, поэтому дефектов стенда по нему тоже нет. Источник истины — <code>TODO.md</code>,
+      раздел «Фаза 10»; здесь то же самое человеческим языком: <b>в чём боль → что сделать</b>.
+      Эталон интерфейса — <code>mockups/vedomstvo/vedomstvo.html</code>,
+      спецификация — <code>requirements/tz/09-vedomstvo.md</code>.
+    </p>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="bar">
+    <div class="row">
+      <input class="search" id="q" type="search" placeholder="Поиск по номеру, заголовку, тексту…" autocomplete="off">
+      <select id="fTheme"><option value="">Все темы</option></select>
+      <select id="fPrio">
+        <option value="">Любой приоритет</option>
+        <option value="crit">🔴 Блокер</option>
+        <option value="major">🟠 Важно</option>
+        <option value="minor">🟡 Средне</option>
+        <option value="cosm">🔵 Косметика</option>
+      </select>
+      <select id="fState">
+        <option value="">Любое состояние</option>
+        <option value="mock">Есть эталон в мокапе</option>
+        <option value="open">Только постановка</option>
+        <option value="ask">Ждёт ответа заказчика</option>
+      </select>
+      <button class="btn" id="reset">Сбросить</button>
+      <button class="btn btn-p" id="expand">Раскрыть тех. детали</button>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="legend">
+    <p><b>Приоритет:</b> 🔴 блокер · 🟠 важно · 🟡 средне · 🔵 косметика.</p>
+    <p><b>Состояние:</b> <b>Есть эталон в мокапе</b> — поведение отрисовано и проверено в HTML-мокапе
+       <code>mockups/vedomstvo/vedomstvo.html</code>, разработке остаётся перенести на Jmix.
+       <b>Только постановка</b> — описано словами, эталона нет. <b>Ждёт ответа заказчика</b> — есть открытый
+       вопрос (список — §14 ТЗ), без ответа делать нельзя.</p>
+    <p>Дефектов живого стенда по этой фазе нет: экрана в приложении не существует, модуль спроектирован с нуля.</p>
+  </div>
+</div>
+
+<script>
+/* ── Данные. Порядок = порядок в TODO.md. ─────────────────────────────── */
+const THEMES = {
+  model:  'Модель данных',
+  acct:   'Банковские счета',
+  dict:   'Справочники',
+  docs:   'Документы ведомства',
+  mirror: 'Зеркала: оргструктура и показатели',
+  audit:  'Журнал изменений',
+  qual:   'Валидация и полнота карточки',
+  print:  'Печать и роли',
+};
+
+const T = [
+{ id:'P10-R1', prio:'crit', theme:'model', state:'mock',
+  title:'Ведомство — одна запись на систему: создавать и удалять её нельзя',
+  pain:'Если сделать карточку организации обычным CRUD-справочником, рано или поздно в системе появятся два «Госфинхолдинга» (или ни одного). А на эту запись ссылаются платёжки, печатные формы договоров и титульные листы отчётов — она обязана быть ровно одна.',
+  todo:['Сущность «Ведомство» — singleton: одна запись, кнопок «Создать» и «Удалить» нет ни в каком виде; доступны только чтение и редактирование блоков.',
+        'Собственные блоки (хранятся здесь): общая информация (1:1 — наименования, описание, логотип), регистрационные данные (1:1), хронология событий (1:N, сортировка по дате убыв.), банковские счета (1:N), документы (1:N), контакты (1:N по типам + адреса и режим работы).',
+        'Зеркала (данные чужих модулей, только чтение): оргструктура и показатели — см. P10-R5 и P10-R6.',
+        'Наименование ведётся только на русском — двуязычие (кыр/рус) не вводится.'],
+  deps:['P10-R5','P10-R6'], dev:['ТЗ: <code>requirements/tz/09-vedomstvo.md</code> §3.','Эталон: объекты <code>ORG</code>, <code>REG</code>, <code>CHRONO</code>, <code>ACCOUNTS</code>, <code>DOCS</code>, <code>CONTACTS</code>; вкладки — массив <code>TABS</code> (флаг <code>own</code> = собственный блок).'] },
+
+{ id:'P10-R2', prio:'crit', theme:'acct', state:'mock',
+  title:'Счёт нельзя удалять — только закрывать датой; «основной» счёт может быть один на валюту',
+  pain:'Удалённый счёт обрывает ссылку из платёжного поручения трёхлетней давности: старый платёж указывает в пустоту, печатная форма договора перестаёт воспроизводиться. Второй риск — два «основных» счёта в одной валюте: система не знает, какой подставлять в платёжку по умолчанию, и подставляет случайный.',
+  todo:['Счёт <b>не удаляется</b>, а закрывается датой (поле «Дата закрытия»). Закрытые счета видны в режиме «Все» — приглушённо, с датой закрытия.',
+        'Инвариант: <b>не более одного «основного» счёта в разрезе валюты</b>, считается <b>только по действующим</b> счетам.',
+        'При закрытии счёта флаг «основной» снимается автоматически — закрытый счёт основным быть не может.',
+        'Нарушение инварианта — блокирующая ошибка сохранения (красный баннер с перечнем валют), а не мягкое предупреждение.',
+        'Фильтр «Действующие / Все» (по умолчанию — действующие) и действие «Копировать реквизиты» (доступно и наблюдателю).'],
+  deps:['P10-R3'], dev:['ТЗ §5. Эталон: <code>checkMainAccount()</code>, <code>accountsView()</code>, <code>closeAccountForm()</code>; <code>state.acctFilter</code>.','Номер счёта — 16 цифр (<code>V.acct</code>), БИК приходит из справочника банков, а не вводится.'] },
+
+{ id:'P10-R3', prio:'crit', theme:'dict', state:'mock',
+  title:'Банк, валюта, назначение счёта и типы контактов — только из справочников, свободный текст запрещён',
+  pain:'Свободный ввод даёт разнобой написаний между модулями: «ОАО «РСК Банк»», «РСК банк», «RSK». После этого ни один отчёт по банку не сходится, а платёжка уходит с реквизитами, которых нет в справочнике банков.',
+  todo:['Ссылками в модуль справочников: банк счёта, валюта, назначение счёта, орган регистрации, тип телефона, тип e-mail, тип документа.',
+        '<b>БИК принадлежит банку, а не нашему счёту</b> — отдельным полем в форме счёта не вводится, подтягивается вместе с банком.',
+        'В формах — выпадающие списки, ввод произвольного значения недоступен.'],
+  deps:[], dev:['ТЗ §4. Эталон: объект <code>REF</code> (<code>BANKS</code>, <code>CCY</code>, <code>ACCT_PURPOSE</code>, <code>REG_ORGS</code>, <code>PHONE_TYPES</code>, <code>EMAIL_TYPES</code>, <code>DOC_TYPES</code>) + <code>refName()</code>, <code>bankOf()</code>.','Смежная задача по справочникам целиком — <code>P8-R1</code>.'] },
+
+{ id:'P10-R4', prio:'major', theme:'docs', state:'mock',
+  title:'Документы ведомства: статус срока действия должен вычисляться, а не храниться',
+  pain:'Устав, свидетельство, лицензия, разрешения — документы, которыми организация действует. Если статус («действует» / «истёк») хранить полем, он протухает ровно в тот день, когда становится важен: просроченная лицензия — это остановка кредитных операций, а в системе она всё ещё «действует».',
+  todo:['Карточка документа: тип (справочник), наименование, номер, дата выдачи, срок действия (может быть пустым = бессрочный), выдавший орган, файл-вложение.',
+        'Статус <b>вычисляется на текущую дату</b>, не хранится: Бессрочный · Действует до ДД.ММ.ГГГГ · Истекает через N дн. (порог 90) · Истёк ДД.ММ.ГГГГ.',
+        'Над списком — сводка комплекта: сколько просрочено, сколько истекает в ближайшие 90 дней, либо «все действительны».',
+        'Файл — вложение подсистемы документооборота; модуль хранит ссылку и метаданные (имя, размер), скачивание доступно и наблюдателю.'],
+  deps:['P10-R3'], dev:['ТЗ §6. Эталон: <code>docStatus(d, today)</code>, <code>docsExpired()</code>, <code>docsSoon()</code>.','Порог 90 дней — открытый вопрос к владельцу (ТЗ §14, п. 3).'] },
+
+{ id:'P10-R5', prio:'major', theme:'mirror', state:'mock',
+  title:'Оргструктура на вкладке — зеркало модуля-источника и показывается на выбранную дату',
+  pain:'Соблазн — скопировать дерево подразделений в карточку ведомства. Тогда оно немедленно разъедется с настоящей оргструктурой. Второй подвох: узлы версионны (создаются, переименовываются, ликвидируются, руководители сменяются) — «текущее состояние» не отвечает на вопрос «а как было на дату договора».',
+  todo:['Вкладка — <b>только чтение</b>: данные читаются из модуля оргструктуры, редактирование — только там. Здесь ссылка, а не копия.',
+        'Дерево резолвится <b>на выбранную дату просмотра</b>: имя узла, его существование и руководитель — на эту дату, а не на сегодня.',
+        'Глубина — до подразделений, <b>без персоналий</b>: ФИО руководителя — публичный атрибут узла, а не ссылка на кадровую карточку сотрудника.',
+        '«Вакансия» — валидное состояние узла, а не ошибка данных.',
+        'На дату, когда подразделений ещё не существовало, — пустое состояние, а не сегодняшнее дерево.'],
+  deps:['P10-R1'], dev:['ТЗ §7. Эталон: <code>ORGSTRUCT_SOURCE</code> + <code>nodesAt()</code> / <code>nameAt()</code> / <code>headAt()</code>; вкладка <code>own:false</code>.','Модуль-источник: <code>mockups/org-structure/org-structure.html</code>, спека <code>docs/superpowers/specs/2026-07-14-org-structure-v2-design.md</code>.'] },
+
+{ id:'P10-R6', prio:'major', theme:'mirror', state:'mock',
+  title:'Показатели — зафиксированные срезы, а не расчёт на лету; просрочка меряется в процентных пунктах',
+  pain:'Если считать портфель и долю просрочки прямо на открытии страницы, витрина будет каждый раз давать новые цифры (и класть базу на живых запросах). А дельту доли просрочки легко посчитать неверно: 4,5 % → 4,2 % это «минус 0,3 процентных пункта», а не «минус 6,7 %».',
+  todo:['Агрегаты считает модуль статистики <b>батчем в нерабочее время</b> и хранит срезами с датой расчёта; витрина показывает последний срез на дату ≤ выбранной и подписывает дату расчёта.',
+        'Состав — только всеорганизационные агрегаты: объём портфеля, выдано с начала года, доля просрочки, количество заёмщиков. Разрезы по подразделениям — не здесь.',
+        'Дельта — к предыдущему срезу, с подписью даты сравнения. <b>Доля просрочки — в п.п.</b>, остальное — в процентах.',
+        'Окраска по смыслу показателя: рост портфеля — хорошо, рост просрочки — плохо.',
+        'Первый зафиксированный срез сравнивать не с чем — так и писать, а не рисовать «0 %».'],
+  deps:['P10-R1'], dev:['ТЗ §8. Эталон: <code>METRIC_SNAPSHOTS</code>, <code>METRIC_DEFS</code> (<code>mode:\'pp\'</code> для просрочки), <code>deltaHtml()</code>, <code>sparkline()</code>.'] },
+
+{ id:'P10-R7', prio:'major', theme:'audit', state:'mock',
+  title:'Журнал изменений — представление общесистемного лога, а не собственный лог модуля',
+  pain:'Если каждый модуль заведёт свой журнал, единого ответа на вопрос «кто и когда менял данные» в системе не будет. Вторая ловушка: писать в журнал «Изменён телефон» без ссылки на объект — по такой записи невозможно понять, какой именно из четырёх телефонов правили.',
+  todo:['Хранилище аудита — общее (подсистема администрирования), записи модулей различаются полем <code>scope</code>. Вкладка ведомства = фильтр <code>scope = vedomstvo</code>; своего лога не заводить.',
+        'Запись: когда · кто · блок · <b>объект (id + человекочитаемая подпись)</b> · поле · было → стало. Объект обязателен для блоков с множественностью (счета, документы, контакты, хронология) — иначе запись бессмысленна.',
+        'Это журнал, а не версионность: откат по записи не предусмотрен.',
+        'UI: фильтры (блок, пользователь, период), пагинация, выгрузка CSV. Вкладка видна <b>только администратору</b>.'],
+  deps:['P10-R1'], dev:['ТЗ §10. Эталон: массив <code>AUDIT</code> (поле <code>scope</code>, записи чужих модулей лежат рядом и не показываются), функция <code>audit(block, field, from, to, objId, objLabel)</code>, <code>renderAudit()</code>, <code>exportAudit()</code>.'] },
+
+{ id:'P10-R8', prio:'minor', theme:'qual', state:'mock',
+  title:'Форматы ИНН, ОКПО, БИК, счёта, телефона и сайта не проверяются',
+  pain:'ИНН из 13 цифр или счёт из 15 знаков проходят в базу молча, а всплывают в платёжке. Проверка на клиенте «по мере ввода» с блокировкой кнопки «Сохранить» — тоже плохо: пользователь не понимает, почему кнопка серая.',
+  todo:['Валидаторы: ИНН — 14 цифр, ОКПО — 8, БИК — 6, номер счёта — 16, e-mail, адрес сайта (http/https), телефон (+996).',
+        'Проверка <b>жёсткая на сохранении</b> + подсветка поля при потере фокуса.',
+        'Кнопку «Сохранить» не блокировать — проверка всё равно на сохранении, лишнее состояние не плодим.',
+        'Ошибка показывается текстом в форме, а не молчаливым сбросом значения.'],
+  deps:[], dev:['ТЗ §9.1. Эталон: объект <code>V</code> (<code>V.inn</code>, <code>V.okpo</code>, <code>V.bik</code>, <code>V.acct</code>, <code>V.email</code>, <code>V.url</code>, <code>V.phone</code>, <code>V.date</code>); <code>onSave</code> модалки возвращает строку-ошибку и окно не закрывается.'] },
+
+{ id:'P10-R9', prio:'minor', theme:'qual', state:'mock',
+  title:'Индикатор полноты карточки должен быть исполняемой проверкой, а не картинкой',
+  pain:'«Карточка заполнена» без проверки — это шильдик, который всегда зелёный. Между тем отсутствие телефона антикоррупционной линии или устава — это нарушение требований к госоргану, и узнавать о нём из проверки, а не из письма надзорного органа.',
+  todo:['Чек-лист обязательного минимума: наименования (полное, краткое), описание, ИНН, ОКПО, свидетельство о регистрации (номер + дата), юридический адрес, ≥ 1 <b>действующий</b> счёт, ≥ 1 телефон, телефон <b>антикоррупционной линии</b>, e-mail, адрес сайта, документ типа «Устав».',
+        'В шапке организации — «Карточка заполнена N/M» со списком незаполненного во всплывающей подсказке; цвет — по наличию пропусков.',
+        'Пункты считаются теми же валидаторами, что и формы (P10-R8), а не отдельной логикой.',
+        'Отсутствие антикоррупционной линии дополнительно выводится предупреждением на вкладке «Контакты».'],
+  deps:['P10-R8'], dev:['ТЗ §9.2. Эталон: <code>completeness()</code> → <code>{filled, total, missing}</code>; пилюля в <code>orgHead()</code>, предупреждение <code>acWarn</code> в <code>renderContacts()</code>.','Состав чек-листа утверждает владелец (ТЗ §14, п. 4).'] },
+
+{ id:'P10-R10', prio:'minor', theme:'print', state:'mock',
+  title:'Печатная «Карточка организации» — одной кнопкой, без выписывания реквизитов руками',
+  pain:'Реквизиты организации нужны постоянно: приложить к договору, отправить контрагенту, вложить в отчёт. Сейчас их каждый раз перепечатывают вручную из разных мест — отсюда опечатки в номере счёта.',
+  todo:['Кнопка «Карточка организации» — в шапке организации на первой вкладке; доступна и наблюдателю.',
+        'Формирует одностраничную выжимку для печати/PDF: наименования и описание, регистрационные данные (ИНН, ОКПО, свидетельство, орган регистрации), <b>действующие</b> счета с реквизитами, контакты (телефоны, почты, адреса, сайт, режим работы), дата формирования.',
+        'Закрытые счета в печатную форму не попадают — это карточка «как есть сейчас», по ней платят.'],
+  deps:['P10-R2'], dev:['ТЗ §12. Эталон: <code>openPrintCard()</code>, кнопка <code>data-act="print-card"</code> в <code>orgHead()</code>.','Копирование реквизитов отдельного счёта в буфер — <code>copy-reqs</code> / <code>reqsBlock(ac)</code>.'] },
+
+{ id:'P10-R11', prio:'cosm', theme:'print', state:'ask',
+  title:'Роли: правит только администратор, остальные — только чтение (но действия у них остаются)',
+  pain:'Карточка ведомства меняется редко и затрагивает всех — право правки должно быть узким. Но «только чтение» часто понимают как «ничего нельзя»: у наблюдателя отбирают и копирование реквизитов, и печать, после чего он всё равно перепечатывает счёт руками.',
+  todo:['Редактирование собственных блоков — только Администратор. Наблюдатель видит те же вкладки с меткой «только чтение» вместо кнопок правки.',
+        'Вкладка «Журнал изменений» — админская, наблюдателю не видна.',
+        'Наблюдателю остаются: копирование реквизитов счёта, печать карточки организации, скачивание файла документа, фильтры и пагинация — это не редактирование.',
+        '<b>Открытый вопрос:</b> вправе ли канцелярия править контакты (например, часы приёма) без прав администратора — нужна ли вторая роль.'],
+  deps:['P10-R7'], dev:['ТЗ §11 и §14 (п. 1). Эталон: <code>canEdit()</code>, <code>editBtn()</code>, список <code>READ_ACTS</code>, флаг <code>adminOnly</code> у вкладки журнала.'] },
+];
+
+/* ── Рендер ───────────────────────────────────────────────────────────── */
+const PRIO_META = {
+  crit:  { chip:'🔴 Блокер',    cls:'chip-crit'  },
+  major: { chip:'🟠 Важно',     cls:'chip-major' },
+  minor: { chip:'🟡 Средне',    cls:'chip-minor' },
+  cosm:  { chip:'🔵 Косметика', cls:'chip-cosm'  },
+};
+const STATE_META = {
+  mock:   { chip:'Есть эталон в мокапе',   cls:'chip-mock'   },
+  open:   { chip:'Только постановка',      cls:'chip-open'   },
+  ask:    { chip:'❓ Ждёт заказчика',       cls:'chip-ask'    },
+  merged: { chip:'Поглощена',              cls:'chip-merged' },
+  done:   { chip:'✓ Закрыта',              cls:'chip-done'   },
+};
+
+const F = { q:'', theme:'', prio:'', state:'' };
+
+const themeSel = document.getElementById('fTheme');
+Object.entries(THEMES).forEach(([k,v]) => {
+  const n = T.filter(t => t.theme === k).length;
+  themeSel.insertAdjacentHTML('beforeend', `<option value="${k}">${v} (${n})</option>`);
+});
+
+function tiles(){
+  const live = T.filter(t => t.state !== 'merged' && t.state !== 'done');
+  const data = [
+    { k:'', l:'Всего задач', n:T.length, cls:'' },
+    { k:'crit',  l:'🔴 Блокеры',   n:live.filter(t=>t.prio==='crit').length,  cls:'crit' },
+    { k:'major', l:'🟠 Важные',    n:live.filter(t=>t.prio==='major').length, cls:'major' },
+    { k:'minor', l:'🟡 Средние',   n:live.filter(t=>t.prio==='minor').length, cls:'' },
+    { k:'cosm',  l:'🔵 Косметика', n:live.filter(t=>t.prio==='cosm').length,  cls:'' },
+  ];
+  document.getElementById('tiles').innerHTML = data.map(d =>
+    `<button class="tile ${d.cls} ${F.prio===d.k && d.k ? 'on':''}" data-prio="${d.k}">
+       <span class="n">${d.n}</span><span class="l">${d.l}</span></button>`).join('');
+  document.querySelectorAll('.tile').forEach(b => b.onclick = () => {
+    const p = b.dataset.prio;
+    F.prio = (F.prio === p || !p) ? '' : p;
+    document.getElementById('fPrio').value = F.prio;
+    render();
+  });
+}
+
+function card(t){
+  const pm = PRIO_META[t.prio], sm = STATE_META[t.state];
+  const dev = t.dev && t.dev.length
+    ? `<details><summary>Для разработчика — эталон, дефекты, ловушки</summary>
+         <div class="dev"><ul>${t.dev.map(d=>`<li>${d}</li>`).join('')}</ul></div></details>` : '';
+  const deps = (t.deps||[]).map(d=>`<span class="dep">↔ ${d}</span>`).join('');
+  return `<article class="card p-${t.prio} st-${t.state}" data-id="${t.id}">
+    <div class="c-head">
+      <span class="id">${t.id}</span>
+      <h3 class="c-title">${t.title}</h3>
+      <span class="chip ${pm.cls}">${pm.chip}</span>
+      <span class="chip ${sm.cls}">${sm.chip}</span>
+    </div>
+    <div class="blk"><span class="lbl">В чём проблема</span><p class="pain">${t.pain}</p></div>
+    <div class="blk"><span class="lbl">Что сделать</span><ul>${t.todo.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+    <div class="c-foot"><span class="tag">${THEMES[t.theme]}</span>${deps}</div>
+    ${dev}
+  </article>`;
+}
+
+function render(){
+  const q = F.q.trim().toLowerCase();
+  const sel = T.filter(t => {
+    if (F.theme && t.theme !== F.theme) return false;
+    if (F.prio  && t.prio  !== F.prio)  return false;
+    if (F.state && t.state !== F.state) return false;
+    if (!q) return true;
+    const hay = (t.id + ' ' + t.title + ' ' + t.pain + ' ' + t.todo.join(' ') + ' ' + (t.dev||[]).join(' ')).toLowerCase();
+    return hay.includes(q);
+  });
+
+  const list = document.getElementById('list');
+  if (!sel.length){ list.innerHTML = '<div class="empty">Ничего не найдено. Сбросьте фильтры.</div>'; }
+  else {
+    const order = Object.keys(THEMES);
+    list.innerHTML = order.filter(k => sel.some(t => t.theme === k)).map(k => {
+      const rows = sel.filter(t => t.theme === k);
+      return `<section class="group"><h2>${THEMES[k]} <span class="g-n">· ${rows.length}</span></h2>
+              ${rows.map(card).join('')}</section>`;
+    }).join('');
+  }
+  document.getElementById('count').textContent = `Показано ${sel.length} из ${T.length}`;
+  tiles();
+}
+
+document.getElementById('q').oninput      = e => { F.q = e.target.value; render(); };
+document.getElementById('fTheme').onchange= e => { F.theme = e.target.value; render(); };
+document.getElementById('fPrio').onchange = e => { F.prio  = e.target.value; render(); };
+document.getElementById('fState').onchange= e => { F.state = e.target.value; render(); };
+document.getElementById('reset').onclick  = () => {
+  F.q=''; F.theme=''; F.prio=''; F.state='';
+  document.getElementById('q').value=''; document.getElementById('fTheme').value='';
+  document.getElementById('fPrio').value=''; document.getElementById('fState').value='';
+  render();
+};
+let expanded = false;
+document.getElementById('expand').onclick = e => {
+  expanded = !expanded;
+  document.querySelectorAll('details').forEach(d => d.open = expanded);
+  e.target.textContent = expanded ? 'Свернуть тех. детали' : 'Раскрыть тех. детали';
+};
+
+render();
+</script>
+</body>
+</html>

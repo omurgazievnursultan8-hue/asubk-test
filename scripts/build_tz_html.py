@@ -3,6 +3,12 @@
 design system (matches requirements/tz/*.html). Builds a sticky sidebar nav from
 h2/h3 headings.
 
+The header banner (kick-line and routes strip) is taken from optional HTML
+comments at the top of the markdown file; without them defaults are used:
+
+    <!-- tz-kick: Техническое задание · Раздел 09 · целевая модель (to-be) -->
+    <!-- tz-routes: /vedomstvo -->
+
 Usage:
     python3 scripts/build_tz_html.py requirements/tz/03-zayavka-komissiya.md
     # -> writes requirements/tz/03-zayavka-komissiya.html
@@ -75,6 +81,18 @@ def main() -> None:
     out = Path(sys.argv[2]) if len(sys.argv) > 2 else src.with_suffix(".html")
     text = src.read_text(encoding="utf-8")
 
+    # Header banner: overridable per document via HTML comments.
+    kick = "Техническое задание · целевая модель (to-be)"
+    routes = ""
+    m = re.search(r"<!--\s*tz-kick:\s*(.+?)\s*-->", text)
+    if m:
+        kick = m.group(1)
+    m = re.search(r"<!--\s*tz-routes:\s*(.+?)\s*-->", text)
+    if m:
+        routes = m.group(1)
+
+    text = re.sub(r"<!--\s*tz-(?:kick|routes):.*?-->\n?", "", text)
+
     # Pull the H1 title (first "# ..." line) out for the header banner.
     title = "ТЗ"
     lines = text.splitlines()
@@ -115,9 +133,9 @@ def main() -> None:
 </head>
 <body>
 <header>
-  <div class="kick">Техническое задание · Раздел 03 · целевая модель (to-be)</div>
+  <div class="kick">{_html.escape(kick)}</div>
   <h1>{_html.escape(title)}</h1>
-  <div class="routes">/loan-applications · /loan-applications/{{id}} · /loan-application-commissions</div>
+  <div class="routes">{_html.escape(routes)}</div>
 </header>
 <div class="layout">
 <nav>
