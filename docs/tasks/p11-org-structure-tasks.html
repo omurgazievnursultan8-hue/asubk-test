@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Задачи по оргструктуре · Модуль P11 · АСУБК</title>
+<!--
+  Читаемое представление бэклога модуля «Оргструктура», задачи P11-R1…P11-R13.
+  Источник истины — TODO.md (раздел «### Оргструктура»).
+  Здесь та же информация человеческим языком: в чём боль → что сделать.
+  Технические подробности (имена таблиц/функций мокапа) спрятаны
+  в раскрывашку «Для разработчика» в каждой карточке.
+  Порядок карточек = порядок сборки: разработчик идёт сверху вниз.
+  Сгенерировано 2026-07-15. При правке TODO.md — обновить и этот файл.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC;
+  --asubk-link:#005FDB; --asubk-green:#158443;
+  --asubk-red:#E03A3A; --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --border-default:var(--asubk-border-base);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(24,39,57,0.06);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; }
+body{ font:400 16px/1.5 var(--asubk-font); color:var(--text-body); background:var(--asubk-gray-100); }
+
+.wrap{ max-width:1160px; margin:0 auto; padding:0 24px 64px; }
+
+/* ---- шапка ---- */
+.hero{ background:var(--asubk-white); border-bottom:1px solid var(--border-default); padding:28px 0 22px; margin-bottom:20px; }
+.hero .wrap{ padding-bottom:0; }
+.crumbs{ font-size:13px; color:var(--text-muted); margin-bottom:8px; }
+h1{ font:600 26px/1.25 var(--asubk-font); color:var(--text-heading); margin:0 0 8px; }
+.lead{ color:var(--text-muted); font-size:15px; max-width:78ch; margin:0 0 18px; }
+.lead code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px; font-size:13px; }
+.lead b{ color:var(--text-body); }
+
+/* ---- плитки ---- */
+.tiles{ display:flex; flex-wrap:wrap; gap:10px; }
+.tile{ appearance:none; cursor:pointer; text-align:left; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 16px; min-width:132px;
+  font:inherit; color:inherit; transition:border-color .12s, box-shadow .12s; }
+.tile:hover{ border-color:var(--asubk-border-strong); }
+.tile.on{ border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+.tile .n{ display:block; font:600 24px/1.15 var(--asubk-font); color:var(--text-heading); }
+.tile .l{ display:block; font-size:13px; color:var(--text-muted); margin-top:2px; }
+.tile.crit .n{ color:var(--asubk-red); }
+.tile.major .n{ color:var(--asubk-amber); }
+
+/* ---- панель фильтров ---- */
+.bar{ position:sticky; top:0; z-index:5; background:var(--asubk-gray-100);
+  padding:14px 0 12px; margin-bottom:4px; border-bottom:1px solid var(--border-default); }
+.bar .row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.search{ flex:1; min-width:240px; height:36px; padding:0 12px; font:inherit; font-size:14px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.search:focus{ outline:none; border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+select{ height:36px; padding:0 8px; font:inherit; font-size:14px; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); color:inherit; }
+.btn{ height:36px; padding:0 14px; font:inherit; font-size:14px; cursor:pointer;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.btn:hover{ background:var(--asubk-gray-50); }
+.btn-p{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+.btn-p:hover{ background:var(--asubk-blue-hover); }
+.count{ font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap; }
+
+/* ---- группа темы ---- */
+.group{ margin-top:26px; }
+.group > h2{ font:600 15px/1.3 var(--asubk-font); color:var(--text-muted); margin:0 0 10px;
+  text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:8px; }
+.group > h2 .g-n{ font-weight:400; color:var(--asubk-ink-45); text-transform:none; letter-spacing:0; }
+
+/* ---- карточка ---- */
+.card{ background:var(--asubk-white); border:1px solid var(--border-default); border-left:3px solid var(--asubk-gray-200);
+  border-radius:var(--radius-lg); padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow-card); }
+.card.p-crit{ border-left-color:var(--asubk-red); }
+.card.p-major{ border-left-color:var(--asubk-amber); }
+.card.p-minor{ border-left-color:var(--asubk-blue); }
+.card.p-cosm{ border-left-color:var(--asubk-gray-200); }
+
+.c-head{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; }
+.id{ font:600 13px/1 var(--asubk-font); letter-spacing:.02em; color:var(--asubk-link);
+  background:var(--asubk-blue-tint); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.step{ font:600 12px/1 var(--asubk-font); color:var(--asubk-ink-45); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.c-title{ font:600 17px/1.35 var(--asubk-font); color:var(--text-heading); flex:1; min-width:260px; margin:0; }
+
+.chip{ font-size:12px; line-height:1; padding:5px 9px; border-radius:var(--radius-pill); white-space:nowrap; font-weight:500; }
+.chip-crit{ background:var(--asubk-red-tint); color:#9E1F1F; }
+.chip-major{ background:var(--asubk-amber-tint); color:#8A6508; }
+.chip-minor{ background:var(--asubk-blue-tint); color:#04479E; }
+.chip-cosm{ background:var(--asubk-gray-150); color:var(--text-muted); }
+.chip-mock{ background:var(--asubk-green-tint); color:#0E5C2F; }
+.chip-open{ background:var(--asubk-gray-150); color:var(--text-muted); }
+
+.blk{ margin-top:12px; }
+.blk .lbl{ font:600 12px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); display:block; margin-bottom:5px; }
+.blk p{ margin:0; font-size:15px; }
+.blk ul{ margin:0; padding-left:20px; font-size:15px; }
+.blk li{ margin-bottom:4px; }
+.blk li:last-child{ margin-bottom:0; }
+.pain{ color:var(--text-muted); }
+.pain b{ color:var(--text-body); font-weight:600; }
+
+.c-foot{ margin-top:13px; padding-top:11px; border-top:1px solid var(--asubk-gray-150);
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tag{ font-size:12px; color:var(--text-muted); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep{ font-size:12px; color:var(--asubk-link); background:var(--asubk-white);
+  border:1px solid rgba(0,106,245,0.25); border-radius:var(--radius-pill); padding:3px 9px; }
+
+details{ margin-top:11px; border-top:1px solid var(--asubk-gray-150); padding-top:9px; }
+details summary{ cursor:pointer; font-size:13px; color:var(--text-muted); list-style:none; user-select:none; }
+details summary::-webkit-details-marker{ display:none; }
+details summary::before{ content:'▸ '; color:var(--asubk-ink-45); }
+details[open] summary::before{ content:'▾ '; }
+details summary:hover{ color:var(--asubk-link); }
+.dev{ margin-top:8px; font-size:13.5px; color:var(--text-muted); background:var(--asubk-gray-50);
+  border:1px solid var(--asubk-gray-150); border-radius:var(--radius-md); padding:10px 12px; }
+.dev ul{ margin:0; padding-left:18px; }
+.dev li{ margin-bottom:4px; }
+.dev code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; color:var(--asubk-ink); }
+
+.empty{ text-align:center; padding:48px 0; color:var(--text-muted); font-size:15px; }
+.legend{ margin-top:32px; font-size:13px; color:var(--text-muted); border-top:1px solid var(--border-default); padding-top:14px; }
+.legend b{ color:var(--text-body); }
+@media print{ .bar{ position:static; } details{ display:none; } .card{ break-inside:avoid; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumbs">АСУБК · Модуль «Оргструктура» · Бэклог</div>
+    <h1>Оргструктура — задачи для команды разработки</h1>
+    <p class="lead">
+      13 задач, выстроенных <b>в порядке сборки</b>: разработчик идёт сверху вниз — сначала
+      каркас страницы, потом виды, потом операции внутри них. Живого экрана в приложении нет —
+      модуль проектируется с нуля, поэтому дефектов стенда по нему тоже нет. Источник истины —
+      <code>TODO.md</code>, раздел «Оргструктура»; здесь то же самое человеческим языком:
+      <b>в чём боль → что сделать</b>. Эталон интерфейса и поведения —
+      готовый рабочий макет <code>mockups/org-structure/org-structure.html</code>
+      (проверен в браузере 2026-07-15).
+    </p>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="bar">
+    <div class="row">
+      <input class="search" id="q" type="search" placeholder="Поиск по номеру, заголовку, тексту…" autocomplete="off">
+      <select id="fTheme"><option value="">Все этапы</option></select>
+      <select id="fPrio">
+        <option value="">Любой приоритет</option>
+        <option value="crit">🔴 Блокер</option>
+        <option value="major">🟠 Важно</option>
+        <option value="minor">🟡 Средне</option>
+      </select>
+      <button class="btn" id="reset">Сбросить</button>
+      <button class="btn btn-p" id="expand">Раскрыть тех. детали</button>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="legend">
+    <p><b>Приоритет:</b> 🔴 блокер (без этого модуль не работает) · 🟠 важно · 🟡 средне.</p>
+    <p><b>Порядок сборки.</b> Номер шага в начале карточки — рекомендованная очерёдность.
+       Начинают с каркаса (шаги 1–2), затем виды (3–4), затем всё, что живёт внутри видов.
+       Значок <span class="chip chip-mock">Есть эталон в макете</span> значит, что поведение уже
+       отрисовано и проверено в <code>mockups/org-structure/org-structure.html</code> — разработке
+       остаётся перенести его на боевую платформу (Jmix).</p>
+    <p>Дефектов живого стенда по этому модулю нет: экрана в приложении не существует,
+       модуль спроектирован с нуля.</p>
+  </div>
+</div>
+
+<script>
+/* ── Данные. Порядок = порядок сборки (как в TODO.md). ─────────────────── */
+const THEMES = {
+  base:   'Шаг 1–2 · Каркас и историчность',
+  views:  'Шаг 3–4 · Виды модуля',
+  head:   'Руководитель узла',
+  staff:  'Должности и штатное расписание',
+  ops:    'Операции над подразделением',
+  hr:     'Кадры: назначения и и.о.',
+  valid:  'Проверки данных',
+  liquid: 'Ликвидация подразделения',
+  integ:  'Связь с модулями и выгрузки',
+};
+
+const T = [
+{ id:'P11-R1', step:'Шаг 1', prio:'crit', theme:'base', state:'mock',
+  title:'Начальная страница модуля: три вкладки, дата просмотра и роли',
+  pain:'Это точка входа в модуль. Пока нет каркаса — страницы с тремя видами и общими переключателями сверху (дата, роль) — остальные задачи некуда вешать. Поэтому делается первой.',
+  todo:['Каркас страницы: меню слева, верхняя панель, переключение трёх вкладок — <b>Обзор</b>, <b>Подразделения</b>, <b>Должности</b>. По умолчанию открыт «Обзор».',
+        '<b>Дата просмотра</b> в верхней панели (поле даты + быстрые кнопки 2022 / 2023 / Сегодня). Смена даты пересчитывает весь экран — всё показывается на выбранный день, а не «на сейчас».',
+        'Две роли: <b>Кадровик</b> (может менять данные) и <b>Наблюдатель</b> (только смотрит). У наблюдателя все кнопки действий выключены, а просмотр, выгрузка и печать остаются.',
+        'Крайний случай: дата раньше, чем появилось первое подразделение → показать плашку «На выбранную дату структура не существует», счётчики = 0, кнопка создания первого подразделения доступна.'],
+  deps:['P11-R2','P11-R3','P11-R4','P11-R6'],
+  dev:['Эталон — <code>mockups/org-structure/org-structure.html</code>; единый гейт прав — <code>canEdit()</code>.',
+       'Вкладки уводят в: Обзор (P11-R3) · Подразделения (P11-R4) · Должности (P11-R6). «Пустой срез» — дата раньше создания корня.'] },
+
+{ id:'P11-R2', step:'Шаг 2', prio:'crit', theme:'base', state:'mock',
+  title:'Данные «на выбранную дату» — ядро всего модуля',
+  pain:'Структура меняется во времени: подразделения переименовывают, переподчиняют, закрывают, штат правят. Если хранить только «как сейчас», нельзя ответить на вопрос «а как выглядела структура на дату договора». А этот ответ нужен и зеркалу в «Ведомстве», и отчётам, и журналу.',
+  todo:['Меняющиеся во времени свойства хранить как <b>историю интервалов</b> «с какой даты по какую»: название, вышестоящее подразделение, число ставок и признак руководителя у штатной единицы.',
+        '<b>Тип подразделения</b> (филиал / департамент / отдел / сектор) историю не ведёт — это просто ярлык, меняется целиком.',
+        'У каждой сущности есть срок жизни: подразделение (дата создания / закрытия), штатная единица, назначение сотрудника, и.о.',
+        'Единое правило границ дат зафиксировать один раз и применять везде; вся выдача (дерево, карточка, счётчики, выгрузка) считается на дату просмотра.',
+        'Проверка: подразделение, заведённое в 2026 году, на дату 2021 года не видно.'],
+  deps:['P11-R1'],
+  dev:['Версии — таблицы интервалов <code>NAME_VER</code> / <code>PARENT_VER</code> / <code>POS_VER</code>. Тождество/срок жизни — <code>UNITS</code>, <code>POSITIONS</code>, <code>ASSIGN</code>, <code>ACTING</code> (from/to).',
+       'Границы: версии — конец исключающий (<code>from ≤ d &lt; to</code>); назначения/и.о. — конец включающий (<code>from ≤ d ≤ to</code>). Потребитель историчности — зеркало в «Ведомстве» (P10-R5).'] },
+
+{ id:'P11-R3', step:'Шаг 3', prio:'major', theme:'views', state:'mock',
+  title:'Вкладка «Обзор» — сводка состояния и рабочие списки',
+  pain:'Без сводного экрана состояние структуры — где вакансия руководителя, где истекает и.о., где застряла ликвидация — видно только обходом дерева, подразделение за подразделением. Долго и легко что-то пропустить.',
+  todo:['<b>6 плиток-счётчиков</b> на дату просмотра, каждая кликабельна и ведёт в нужный список/вид: действующих подразделений по типам · штат и факт (% укомплектованности) · вакансии (в т.ч. руководителей) · и.о. (в т.ч. истекающие в ближайшие 30 дней) · совместительства · нарушения правила «одно основное место». Рядом — изменение к прошлой дате.',
+        '<b>Раздел «Требует внимания»</b> — 6 рабочих списков; строка кликабельна и ведёт прямо в нужное место карточки подразделения: вакансия руководителя (+«Назначить») · и.о. истекает или просрочено (+«Продлить») · нарушение «одно основное» · подразделения без штата · ликвидация заблокирована (с указанием, что мешает) · территория без обслуживающего подразделения.',
+        'Пустой список показывать как «Нарушений нет», а не прятать — иначе пустота читается как «не проверяли».',
+        'Вакансия у самого верхнего подразделения — это не рядовое нарушение, а <b>отдельный красный баннер</b> над плитками: без него рвётся вся цепочка ответственности.',
+        'Мини-дерево на дату (только просмотр) + лента изменений за последние 30 дней.'],
+  deps:['P11-R4','P11-R5'],
+  dev:['Плитки — <code>metricsAt</code>, списки — <code>problemsAt</code>; строки уводят deep-link в карточку узла на нужную вкладку. И.о. вакансию прикрывает, а не закрывает (см. P11-R10).'] },
+
+{ id:'P11-R4', step:'Шаг 4', prio:'major', theme:'views', state:'mock',
+  title:'Вкладка «Подразделения» — дерево слева, карточка подразделения справа',
+  pain:'Нужен основной рабочий экран структуры: дерево подразделений слева, детали выбранного — справа.',
+  todo:['Дерево на дату с поиском (фильтр по названию, при находке разворачиваются все родители, есть сброс) и выбором подразделения.',
+        'Карточка подразделения из четырёх вкладок: <b>Обзор</b> (реквизиты + цепочка, кто руководитель, P11-R5) · <b>Штатное расписание</b> (P11-R7) · <b>История</b> (когда переименовывали, переподчиняли, весь жизненный цикл; с пометкой «на выбранную дату») · <b>Ликвидация</b> (P11-R11).',
+        'Все операции над подразделением (переименование, смена типа, переподчинение, территория) запускаются прямо из карточки — см. P11-R8.'],
+  deps:['P11-R5','P11-R7','P11-R8','P11-R11'],
+  dev:['Дерево — <code>renderTree</code>/<code>childrenAt</code>; карточка — четыре вкладки, History рисует таймлайны версий <code>NAME_VER</code>/<code>PARENT_VER</code>.'] },
+
+{ id:'P11-R5', step:'Шаг 5', prio:'major', theme:'head', state:'mock',
+  title:'Кто руководитель подразделения — вычисляется, а не хранится полем',
+  pain:'«Руководитель» — не поле в карточке, а расчёт на дату. Руководящая штатная единица может быть вакантна или занята через и.о., а руководитель на эту дату может смениться. При этом ФИО руководителя читают другие модули (в «Ведомстве» это публичный атрибут подразделения, и вакансия — нормальное состояние, а не ошибка).',
+  todo:['Найти руководящую штатную единицу подразделения на дату.',
+        'Определить, кто её занимает: сначала основной сотрудник → если нет, действующий и.о. → если и его нет, <b>вакансия</b>.',
+        'Если единица вакантна или её нет — подниматься вверх по цепочке подчинения («передано наверх») и в карточке показывать эту цепочку снизу вверх: кто фактически отвечает.',
+        'Вакансию руководителя показывать как отдельное состояние. И.о. вакансию <b>прикрывает</b>, но не закрывает (см. P11-R10).'],
+  deps:['P11-R10'],
+  dev:['<code>headPosOf(unitId, дата)</code> → руководящая единица по <code>isHead</code> из <code>POS_VER</code>; занятость — основное <code>ASSIGN</code> → <code>ACTING</code> → вакансия; каскад вверх — <code>chainUp</code>. Потребитель — зеркало P10-R5.'] },
+
+{ id:'P11-R6', step:'Шаг 6', prio:'minor', theme:'staff', state:'mock',
+  title:'Вкладка «Должности» — справочник названий должностей',
+  pain:'Должность («главный специалист», «начальник отдела») — переиспользуемое название, общее для всех подразделений; оно отдельно от конкретных штатных единиц. Нужен простой справочник с защитой от удаления того, что уже используется.',
+  todo:['Список должностей + добавление (название обязательно, иначе подсказка «Укажите название»).',
+        'Удалять можно только неиспользуемые: если на должность ссылается хоть одна штатная единица — кнопка «Удалить» недоступна; свободную удаляют с подтверждением.',
+        'Признак «руководящая» ставится не на должность, а на конкретную штатную единицу подразделения (см. P11-R7).'],
+  deps:['P11-R7'],
+  dev:['Справочник <code>TITLES</code>; защита удаления — проверка ссылок из <code>POSITIONS</code>.'] },
+
+{ id:'P11-R7', step:'Шаг 7', prio:'major', theme:'staff', state:'mock',
+  title:'Штатное расписание подразделения — единицы, ставки, признак руководителя',
+  pain:'Штатная единица — не строка справочника, а живущая во времени часть подразделения: у неё есть срок жизни, а число ставок и признак руководителя со временем меняются и должны сохранять историю.',
+  todo:['На вкладке «Штатное расписание» — единицы подразделения на дату: должность, число ставок, сколько занято, признак руководителя, вакансии.',
+        '<b>Добавить единицу</b> (должность + число ставок + флажок «руководящая»); число ставок — только целое, не меньше 1.',
+        '<b>Изменить единицу</b> (ставки / признак руководителя) — с даты, новой версией, не затирая прошлое.',
+        '<b>Закрыть единицу</b> — запрещено, пока на ней есть действующие назначения.',
+        'В подразделении не больше одной руководящей единицы (проверка, см. P11-R10).'],
+  deps:['P11-R6','P11-R10'],
+  dev:['Единица — <code>POSITIONS</code> (from/to); версии атрибутов — <code>POS_VER</code>. Дробные ставки не допускать.'] },
+
+{ id:'P11-R8', step:'Шаг 8', prio:'crit', theme:'ops', state:'mock',
+  title:'Операции над подразделением: переименование, переподчинение, территория, тип',
+  pain:'Правка структуры должна <b>писать историю</b>, а не затирать текущее значение — иначе теряется ответ на «как было раньше». Часть операций ведёт историю, часть — нет, и это надо развести.',
+  todo:['<b>Переименование</b> — прежнее название закрывается датой, новое открывается с выбранного дня; дубль названия среди действующих подразделений запрещён.',
+        '<b>Переподчинение</b> (сменить вышестоящее) — новой версией с даты. Запреты: зациклить, подчинить самому себе, сделать второй верхний уровень при уже существующем, трогать закрытое. Дата перемещения — строго позже начала текущего подчинения; эффект виден только на датах от перемещения и дальше.',
+        '<b>Территория обслуживания</b> — не свободный текст, а выбор из справочника (7 областей + 2 города) галочками. Одну территорию не могут обслуживать два подразделения (подсказка «Уже обслуживается другим подразделением»).',
+        '<b>Смена типа</b> (филиал / отдел…) — историю не ведёт: меняется по всей истории сразу, значок обновляется мгновенно.'],
+  deps:['P11-R10'],
+  dev:['<code>NAME_VER</code> / <code>PARENT_VER</code>; справочник <code>TERRITORIES</code> (непересечение). Тип — неверсируемый классификатор.'] },
+
+{ id:'P11-R9', step:'Шаг 9', prio:'major', theme:'hr', state:'mock',
+  title:'Кадровый оборот: назначение, освобождение, совместительство, и.о.',
+  pain:'Нужен полный оборот в обе стороны — не только «назначить», но и освободить, оформить совместительство, продлить или прекратить исполнение обязанностей.',
+  todo:['<b>Назначение</b> на штатную единицу: основное место или совместительство; дата — в пределах срока жизни подразделения и единицы.',
+        '<b>Освобождение</b> — закрыть назначение датой.',
+        '<b>И.о.</b> — назначить, <b>продлить</b> и <b>прекратить</b>; срок и.о. не больше 183 дней.',
+        'Три «мёртвые» кнопки в разделе «Требует внимания» подключить к действиям: «Назначить» → форма назначения на руководящую единицу, «Продлить» → продление и.о., «Добавить штатную единицу» → форма новой единицы в нужном подразделении.'],
+  deps:['P11-R10'],
+  dev:['Назначения — <code>ASSIGN</code> (main/combine), и.о. — <code>ACTING</code>; <code>MAX_ACTING_DAYS = 183</code>.'] },
+
+{ id:'P11-R10', step:'Шаг 10', prio:'crit', theme:'valid', state:'mock',
+  title:'Набор проверок — чтобы в структуру не попадали заведомо неверные данные',
+  pain:'Без проверок в базу молча проходят абсурдные данные: занятость 200 %, два основных места у одного человека, бесконечное и.о., два подразделения с одинаковым названием. Всплывает это потом, в отчёте или платёжке.',
+  todo:['Занято + новое назначение не больше числа ставок единицы — на каждом отрезке времени.',
+        '<b>Одно основное место</b> у сотрудника — по пересечению периодов, а не в одной точке (подсказка «У сотрудника уже есть основное место работы — оформите совместительство»).',
+        'Нельзя дважды посадить одного человека совместителем на ту же единицу с пересечением дат.',
+        'Даты назначения — внутри срока жизни подразделения и штатной единицы.',
+        'Не больше одной руководящей единицы на подразделение; один верхний уровень на дату.',
+        'Число ставок — целое, не меньше 1. Срок и.о. — не больше 183 дней. Дубль названия среди действующих запрещён.',
+        'Дата перемещения или закрытия — не раньше создания и не раньше уже записанных событий.',
+        'Все проверки — <b>и на экране, и на сервере</b>, каждая с понятным сообщением.'],
+  deps:[],
+  dev:['Занятость по границам интервалов; «одно основное» — через пересечение (<code>overlaps</code>), не по <code>from</code>. Проверки дублируются на сервере.'] },
+
+{ id:'P11-R11', step:'Шаг 11', prio:'major', theme:'liquid', state:'mock',
+  title:'Ликвидация подразделения — с проверками и возможностью отменить',
+  pain:'Закрытие подразделения должно убедиться, что закрывать нечего и функции есть кому передать, и оставаться обратимым: случайный клик не должен хоронить подразделение навсегда.',
+  todo:['Форма закрытия: дата + <b>кому переданы функции</b> (правопреемник из действующих подразделений) + флажок «передать территорию правопреемнику» + обязательная галочка-подтверждение (иначе «Подтвердите закрытие галочкой»).',
+        'Кнопка «Ликвидировать» гаснет и перечисляет, что мешает: есть действующие дочерние подразделения · есть действующие назначения · это верхний уровень · есть события после даты закрытия.',
+        '<b>Отмена закрытия</b> возвращает подразделение. Закрытое не входит в счётчики штата, но остаётся в дереве (зачёркнутым) и в ленте изменений.'],
+  deps:['P11-R12'],
+  dev:['Гейты закрытия + reopen; наружу — событие <code>unit.liquidated(id, дата, правопреемник?)</code> (см. P11-R12).'] },
+
+{ id:'P11-R12', step:'Шаг 12', prio:'major', theme:'integ', state:'mock',
+  title:'Сообщения наружу — чтобы другие модули узнавали об изменениях структуры',
+  pain:'Зеркало в «Ведомстве», кураторство и карточки сотрудников должны узнавать, когда подразделение переименовали, переместили или закрыли. Нужен стабильный, предсказуемый способ их об этом уведомлять.',
+  todo:['Публиковать события: переименование · перемещение · ликвидация (с указанием, кому переданы функции) · возврат из ликвидации.',
+        'Событие ликвидации несёт правопреемника — куда переданы функции и территория, чтобы получатели перецепили свои ссылки на него.',
+        'События датированы и не ломаются от повторной доставки (получатели тоже историчны и считают всё на свою дату).'],
+  deps:[],
+  dev:['<code>unit.renamed</code> · <code>unit.moved</code> · <code>unit.liquidated(id, дата, правопреемник?)</code> · <code>unit.reopened</code>. Идемпотентны и датированы. Потребитель — P10-R5.'] },
+
+{ id:'P11-R13', step:'Шаг 13', prio:'minor', theme:'integ', state:'mock',
+  title:'Выгрузка в таблицу и печать «Паспорт оргструктуры на дату»',
+  pain:'Нужна выгрузка состояния структуры на выбранную дату — в таблицу и на печать.',
+  todo:['Выгрузка структуры в таблицу (файл для Excel): подразделение · тип · вышестоящее · руководитель на дату · ставок по штату · занято · территория.',
+        'Печать «Паспорт оргструктуры на дату».',
+        'Согласовать, как считаются «ставки/занято» в выгрузке и на «Обзоре»: в таблице — по подразделению напрямую, на «Обзоре» — с учётом вложенных. Либо свести к одному правилу, либо подписать оба числа, чтобы разница не читалась как ошибка.'],
+  deps:['P11-R3'],
+  dev:['CSV: разделитель <code>;</code> (RU-Excel), UTF-8 BOM. Печать — <code>@media print</code>. Расхождение «по узлу» vs «rollup по поддереву» — подписать.'] },
+];
+
+/* ── Рендер ───────────────────────────────────────────────────────────── */
+const PRIO_META = {
+  crit:  { chip:'🔴 Блокер',    cls:'chip-crit'  },
+  major: { chip:'🟠 Важно',     cls:'chip-major' },
+  minor: { chip:'🟡 Средне',    cls:'chip-minor' },
+};
+const STATE_META = {
+  mock: { chip:'Есть эталон в макете', cls:'chip-mock' },
+  open: { chip:'Только постановка',    cls:'chip-open' },
+};
+
+const F = { q:'', theme:'', prio:'', state:'' };
+
+const themeSel = document.getElementById('fTheme');
+Object.entries(THEMES).forEach(([k,v]) => {
+  const n = T.filter(t => t.theme === k).length;
+  themeSel.insertAdjacentHTML('beforeend', `<option value="${k}">${v} (${n})</option>`);
+});
+
+function tiles(){
+  const data = [
+    { k:'', l:'Всего задач', n:T.length, cls:'' },
+    { k:'crit',  l:'🔴 Блокеры', n:T.filter(t=>t.prio==='crit').length,  cls:'crit' },
+    { k:'major', l:'🟠 Важные',  n:T.filter(t=>t.prio==='major').length, cls:'major' },
+    { k:'minor', l:'🟡 Средние', n:T.filter(t=>t.prio==='minor').length, cls:'' },
+  ];
+  document.getElementById('tiles').innerHTML = data.map(d =>
+    `<button class="tile ${d.cls} ${F.prio===d.k && d.k ? 'on':''}" data-prio="${d.k}">
+       <span class="n">${d.n}</span><span class="l">${d.l}</span></button>`).join('');
+  document.querySelectorAll('.tile').forEach(b => b.onclick = () => {
+    const p = b.dataset.prio;
+    F.prio = (F.prio === p || !p) ? '' : p;
+    document.getElementById('fPrio').value = F.prio;
+    render();
+  });
+}
+
+function card(t){
+  const pm = PRIO_META[t.prio], sm = STATE_META[t.state];
+  const dev = t.dev && t.dev.length
+    ? `<details><summary>Для разработчика — эталон и ловушки</summary>
+         <div class="dev"><ul>${t.dev.map(d=>`<li>${d}</li>`).join('')}</ul></div></details>` : '';
+  const deps = (t.deps||[]).map(d=>`<span class="dep">↔ ${d}</span>`).join('');
+  return `<article class="card p-${t.prio}" data-id="${t.id}">
+    <div class="c-head">
+      <span class="id">${t.id}</span>
+      <span class="step">${t.step}</span>
+      <h3 class="c-title">${t.title}</h3>
+      <span class="chip ${pm.cls}">${pm.chip}</span>
+      <span class="chip ${sm.cls}">${sm.chip}</span>
+    </div>
+    <div class="blk"><span class="lbl">В чём проблема</span><p class="pain">${t.pain}</p></div>
+    <div class="blk"><span class="lbl">Что сделать</span><ul>${t.todo.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+    <div class="c-foot"><span class="tag">${THEMES[t.theme]}</span>${deps}</div>
+    ${dev}
+  </article>`;
+}
+
+function render(){
+  const q = F.q.trim().toLowerCase();
+  const sel = T.filter(t => {
+    if (F.theme && t.theme !== F.theme) return false;
+    if (F.prio  && t.prio  !== F.prio)  return false;
+    if (!q) return true;
+    const hay = (t.id + ' ' + t.title + ' ' + t.pain + ' ' + t.todo.join(' ') + ' ' + (t.dev||[]).join(' ')).toLowerCase();
+    return hay.includes(q);
+  });
+
+  const list = document.getElementById('list');
+  if (!sel.length){ list.innerHTML = '<div class="empty">Ничего не найдено. Сбросьте фильтры.</div>'; }
+  else {
+    const order = Object.keys(THEMES);
+    list.innerHTML = order.filter(k => sel.some(t => t.theme === k)).map(k => {
+      const rows = sel.filter(t => t.theme === k);
+      return `<section class="group"><h2>${THEMES[k]} <span class="g-n">· ${rows.length}</span></h2>
+              ${rows.map(card).join('')}</section>`;
+    }).join('');
+  }
+  document.getElementById('count').textContent = `Показано ${sel.length} из ${T.length}`;
+  tiles();
+}
+
+document.getElementById('q').oninput       = e => { F.q = e.target.value; render(); };
+document.getElementById('fTheme').onchange = e => { F.theme = e.target.value; render(); };
+document.getElementById('fPrio').onchange  = e => { F.prio  = e.target.value; render(); };
+document.getElementById('reset').onclick   = () => {
+  F.q=''; F.theme=''; F.prio=''; F.state='';
+  document.getElementById('q').value=''; document.getElementById('fTheme').value='';
+  document.getElementById('fPrio').value='';
+  render();
+};
+let expanded = false;
+document.getElementById('expand').onclick = e => {
+  expanded = !expanded;
+  document.querySelectorAll('details').forEach(d => d.open = expanded);
+  e.target.textContent = expanded ? 'Свернуть тех. детали' : 'Раскрыть тех. детали';
+};
+
+render();
+</script>
+</body>
+</html>
