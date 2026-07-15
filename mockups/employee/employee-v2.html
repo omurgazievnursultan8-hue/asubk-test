@@ -187,6 +187,27 @@
   .st-k{font-size:12px;color:var(--secondary-text);text-transform:uppercase;letter-spacing:.03em;}
   .card-actions{display:flex;gap:10px;margin:0 0 16px;flex-wrap:wrap;align-items:center;}
   .ro-note{color:var(--secondary-text);font-size:13px;}
+  .card-nav{margin-left:auto;display:flex;gap:6px;align-items:center;}
+  .nav-btn{border:1px solid var(--border);background:#fff;border-radius:3px;min-width:32px;height:30px;
+    padding:0 8px;cursor:pointer;font-size:14px;color:var(--primary-text);}
+  .nav-btn:hover:not(:disabled){background:var(--field-bg);}
+  .nav-btn:disabled{opacity:.4;cursor:default;}
+  .nav-pos{font-size:12px;color:var(--secondary-text);margin:0 4px;}
+  .photo.up{cursor:pointer;position:relative;}
+  .photo.up:hover{border-color:var(--primary);}
+  .photo.up::after{content:'✎';position:absolute;right:-2px;bottom:-2px;width:20px;height:20px;
+    border-radius:50%;background:var(--primary,#1f5fbf);color:#fff;font-size:11px;
+    display:flex;align-items:center;justify-content:center;border:2px solid #fff;}
+  .tab-cnt{display:inline-block;min-width:16px;padding:0 4px;margin-left:5px;border-radius:8px;
+    background:var(--field-bg);border:1px solid var(--border);font-size:11px;font-weight:600;
+    color:var(--secondary-text);vertical-align:middle;line-height:15px;text-align:center;}
+  .tab.active .tab-cnt{background:#e9f1fe;border-color:#bcd6fb;color:var(--primary,#1f5fbf);}
+  @media print{
+    .card-nav,.card-actions,.viewtabs,.topbar,.sidebar,.filter-card,.toolbar,.row-btn,.btn-edit,.tab-toolbar{display:none !important;}
+    .mainview{display:block !important;}
+    .tabs{border:none;} .tab:not(.active){display:none;}
+    body{background:#fff;} .content{padding:0;}
+  }
   .dropdown{position:relative;flex-shrink:0;}
   .dd-btn .dd-chev{margin-left:6px;font-size:11px;display:inline-block;transition:transform 120ms ease;}
   .dropdown.open .dd-chev{transform:rotate(180deg);}
@@ -431,7 +452,14 @@
 
         <div class="toolbar">
           <button class="btn btn-green" id="btnCreate">＋ Создать</button>
-          <button class="btn btn-secondary" id="btnOpen" disabled>Открыть</button>
+          <div class="dropdown" id="expMenu">
+            <button class="btn btn-secondary dd-btn" id="expMenuBtn" aria-haspopup="true" aria-expanded="false">⭳ Выгрузка <span class="dd-chev">▾</span></button>
+            <div class="dd-menu" role="menu">
+              <button class="dd-item" data-exp="xls" role="menuitem">Excel (.xls)</button>
+              <button class="dd-item" data-exp="csv" role="menuitem">CSV (.csv)</button>
+              <button class="dd-item" data-exp="doc" role="menuitem">Word (.doc)</button>
+            </div>
+          </div>
           <span class="rowcount" id="rowCount"></span>
         </div>
 
@@ -710,7 +738,7 @@ const EMPLOYEES = [
    work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'4 этаж', room:'каб. 240'},
    resume:'Начальник отдела департамента взыскания.',
    pass:{birth:'03.10.1984', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 7708899',
-         issued:'04.11.2016', valid:'04.11.2026', family:'женат', addr:'г. Бишкек, ул. Киевская, 77-14'}},
+         issued:'10.09.2016', valid:'10.09.2026', family:'женат', addr:'г. Бишкек, ул. Киевская, 77-14'}},
 ];
 
 // НАЗНАЧЕНИЕ = ПЕРИОД занятия позиции (не событие). to=null → открытый период.
@@ -873,7 +901,6 @@ function plural(n, one, few, many){                      // 1 заёмщик · 
   return n + ' ' + w;
 }
 const addDays = (d,n) => { const t = new Date(Date.parse(d) + n*86400000); return t.toISOString().slice(0,10); };
-function plural(n, one, few, many){ const m10=n%10, m100=n%100; if(m10===1&&m100!==11)return one; if(m10>=2&&m10<=4&&(m100<10||m100>=20))return few; return many; }
 function stazhText(from, to){
   const a=new Date(from), b=new Date(to);
   let months=(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth());
@@ -881,8 +908,8 @@ function stazhText(from, to){
   if(months<0) months=0;
   const y=Math.floor(months/12), mo=months%12;
   const parts=[];
-  if(y) parts.push(y+' '+plural(y,'год','года','лет'));
-  parts.push(mo+' '+plural(mo,'месяц','месяца','месяцев'));
+  if(y) parts.push(plural(y,'год','года','лет'));
+  parts.push(plural(mo,'месяц','месяца','месяцев'));
   return parts.join(' ');
 }
 const spanActive = (from,to,d) => from <= d && (to == null || to >= d);
@@ -1027,6 +1054,18 @@ function problemsAt(d){
       P.push({sev:'warn', ic:'🟡', emp:e.id, t:`${e.fio} — роли не пересмотрены после перевода (${fmt(a.rolesStale)})`,
         w:'Работу не блокирует. Роли правит администратор, уведомление отправлено.', act:'Открыть карточку', fn:'open'});
 
+    // паспорт — данные класса B: строку видит только тот, кому открыт этот класс
+    const pv = e.pass && e.pass.valid ? e.pass.valid.split('.').reverse().join('-') : null;
+    if (pv && canSee('B', e.id)){
+      const left = days(d, pv);
+      if (left < 0)
+        P.push({sev:'err', ic:'🔴', emp:e.id, t:`${e.fio} — паспорт просрочен (${fmt(pv)})`,
+          w:'Срок действия документа истёк — требуется замена.', act:'Открыть карточку', fn:'open'});
+      else if (left <= 90)
+        P.push({sev:'warn', ic:'🟡', emp:e.id, t:`${e.fio} — паспорт истекает через ${left} дн. (${fmt(pv)})`,
+          w:'Меньше 90 дней до окончания срока. Напомнить о замене.', act:'Открыть карточку', fn:'open'});
+    }
+
     assignsAt(e.id, d).filter(x => x.kind === 'acting' && x.to).forEach(x => {
       const left = days(d, x.to);
       if (left >= 0 && left <= ACTING_WINDOW)
@@ -1052,6 +1091,29 @@ function metricsAt(d){
   const drafts = EMPLOYEES.filter(e => hrStatusAt(e.id, d) === 'Оформляется');
   return {live:live.length, away:away.length, noSub:noSub.length, noAcct:noAcct.length,
           drafts:drafts.length, fired:EMPLOYEES.filter(e => hrStatusAt(e.id, d) === 'Уволен').length};
+}
+// --- ближайшие отсутствия и выходы (окно вперёд от даты среза) ---------------
+const UPCOMING_WINDOW = 14;
+function upcomingAt(d, win){
+  win = win || UPCOMING_WINDOW;
+  const until = addDays(d, win);
+  const ev = [];
+  EMPLOYEES.forEach(e => {
+    if (hrStatusAt(e.id, d) === 'Уволен') return;
+    ABSENCE.forEach(b => {
+      if (b.emp !== e.id || b.cancelled) return;
+      const end = b.factTo || b.planTo;
+      if (b.from > d && b.from <= until)                       // уходит
+        ev.push({when:b.from, emp:e.id, ic:'➡️', t:`уходит: ${b.kind.toLowerCase()} по ${fmt(end)}`, warn:!b.sub});
+      if (b.from <= d && end > d && end <= until)              // выходит
+        ev.push({when:end, emp:e.id, ic:'⬅️', t:`выходит после «${b.kind.toLowerCase()}»`});
+    });
+    assignsAt(e.id, d).forEach(a => {                          // и.о. заканчивается
+      if (a.kind === 'acting' && a.to && a.to > d && a.to <= until)
+        ev.push({when:a.to, emp:e.id, ic:'⏳', t:`и.о. «${a.post}» заканчивается`});
+    });
+  });
+  return ev.sort((x,y) => x.when < y.when ? -1 : x.when > y.when ? 1 : 0);
 }
 
 /* =========================================================================
@@ -1133,7 +1195,7 @@ function renderAll(){ renderOverview(); renderList(); renderCard(); syncChips();
 
 /* ---------- ОБЗОР ---------- */
 function renderOverview(){
-  const d = asOf, m = metricsAt(d), P = problemsAt(d);
+  const d = asOf, m = metricsAt(d), P = problemsAt(d), U = upcomingAt(d);
   $('#ovBody').innerHTML = `
     <div class="kpis">
       <div class="kpi"><div class="kn">${m.live}</div><div class="kl">Работает</div></div>
@@ -1154,46 +1216,28 @@ function renderOverview(){
         </div>`).join('') : '<div class="prob-empty">✔ На выбранную дату проблем нет.</div>'}
     </div>
 
-    <div class="proj-card">
-      <h4>🔗 Кому уйдёт задание на ${fmt(d)}</h4>
-      <div class="fgrp" style="margin-bottom:12px;max-width:520px;">
-        <label for="raSel">Куратор</label>
-        <select id="raSel" style="flex:1">${CURATOR.map(c => {
-          const e = EMPLOYEES.find(x => acct(x.id) && acct(x.id).login === c.login);
-          return e ? `<option value="${e.id}">${esc(e.fio)} (${c.login})</option>` : '';
-        }).join('')}</select>
-      </div>
-      <div id="raOut"></div>
+    <div class="prob">
+      <div class="prob-h">📅 Ближайшие ${UPCOMING_WINDOW} дней <span class="muted">· с ${fmt(d)} · ${U.length ? U.length + ' соб.' : 'нет событий'}</span></div>
+      ${U.length ? U.map(u => `
+        <div class="prob-row" data-up="${u.emp}" style="cursor:pointer">
+          <span class="pi">${u.ic}</span>
+          <div class="pb"><div><b>${fmt(u.when)}</b> · ${esc(shortFio(u.emp))} — ${esc(u.t)}</div>
+            ${u.warn ? '<div class="pw">замещение не оформлено</div>' : ''}</div>
+        </div>`).join('') : `<div class="prob-empty">На ближайшие ${UPCOMING_WINDOW} дней отпусков, выходов и истечений и.о. нет.</div>`}
     </div>`;
-  $('#raSel').addEventListener('change', renderResolve);
   document.querySelectorAll('[data-prob]').forEach(b => b.addEventListener('click', () => {
     const p = P[+b.dataset.prob];
     if (p.fn === 'openAbsence'){ openCard(p.emp); goTab('otsut'); openAbsence(); }
     else { openCard(p.emp); }
   }));
-  renderResolve();
-}
-function renderResolve(){
-  const id = $('#raSel') && $('#raSel').value; if (!id) return;
-  const r = resolveActor(id, asOf);
-  const cls = r.hole ? 'err' : r.router ? 'warn' : 'ok';
-  $('#raOut').innerHTML = `
-    <div class="banner ${cls}" style="margin:0;">
-      <span class="ic">${r.hole ? '🔴' : r.router ? '🔀' : '✔'}</span>
-      <div>
-        <b>Ответственный:</b> ${r.assignee ? '<code>'+r.assignee+'</code>' : '—'} ·
-        <b>Задание уйдёт к:</b> ${r.router ? '<code>'+r.router+'</code>' : '<i>нему же (напрямую)</i>'}<br>
-        ${esc(r.note)}
-      </div>
-    </div>`;
+  document.querySelectorAll('[data-up]').forEach(r => r.addEventListener('click', () => openCard(r.dataset.up)));
 }
 
 /* ---------- СПИСОК ---------- */
-function renderList(){
-  const d = asOf;
+function listRows(d){
   const fs = $('#fStatus').value, fu = $('#fUnit').value, fa = $('#fAvail').value;
   const q  = $('#fQ').value.trim().toLowerCase();
-  const rows = EMPLOYEES.filter(e => {
+  return EMPLOYEES.filter(e => {
     const st = hrStatusAt(e.id, d);
     const m  = mainAt(e.id, d);
     const av = availabilityAt(e.id, d);
@@ -1204,6 +1248,10 @@ function renderList(){
     if (q && !(e.fio.toLowerCase().includes(q) || e.tab.includes(q))) return false;
     return true;
   });
+}
+function renderList(){
+  const d = asOf;
+  const rows = listRows(d);
   $('#rows').innerHTML = rows.length ? rows.map(e => {
     const st = hrStatusAt(e.id, d);
     const stc = st === 'Работает' ? 'b-ok b-dot' : st === 'Оформляется' ? 'b-warn b-dot' : 'b-muted b-dot';
@@ -1223,7 +1271,6 @@ function renderList(){
       selectedId = tr.dataset.id;
       document.querySelectorAll('#rows tr').forEach(x => x.classList.remove('sel'));
       tr.classList.add('sel');
-      $('#btnOpen').disabled = false;
     });
     tr.addEventListener('dblclick', () => openCard(tr.dataset.id));
   });
@@ -1244,6 +1291,41 @@ const TABS = [
   {k:'docs',    n:'Документы'},
   {k:'history', n:'История'},
 ];
+// число записей на вкладке — показываем чипом, чтобы наполнение было видно без клика
+function tabCount(k, e, d){
+  switch (k){
+    case 'naznach': return ASSIGN.filter(a => a.emp === e.id).length;
+    case 'otsut':   return ABSENCE.filter(b => b.emp === e.id).length;
+    case 'obraz':   return EDU.filter(x => x.emp === e.id).length;
+    case 'semya':   return FAMILY.filter(x => x.emp === e.id).length;
+    case 'stazh':   return WORKHIST.filter(x => x.emp === e.id).length;
+    case 'nagrady': return AWARDS.filter(x => x.emp === e.id).length;
+    case 'docs':    return DOCS.filter(x => x.emp === e.id && canSee(CLASS_OF_TAB[x.tab], e.id)).length;
+    default:        return null;   // без счётчика
+  }
+}
+// стаж в организации — ЕДИНЫЙ источник: сумма main-назначений (используют Общая и вкладка Стаж)
+function orgStazhMonths(id, d){
+  return ASSIGN.filter(a => a.emp === id && a.kind === 'main')
+    .reduce((s, a) => s + monthsBetween(a.from, a.to && a.to < d ? a.to : d), 0);
+}
+// полнота личного дела — чего не хватает (только для тех, кто правит карточку)
+function dossierGaps(e, d){
+  const g = [];
+  if (!e.pass || !e.pass.num)                            g.push('паспорт');
+  if (!EDU.some(x => x.emp === e.id))                    g.push('образование');
+  if (!ASSIGN.some(a => a.emp === e.id))                 g.push('назначение');
+  if (!e.phone && !(e.work && e.work.addr))             g.push('контакты');
+  if (!acct(e.id) && hrStatusAt(e.id, d) === 'Работает') g.push('учётная запись');
+  return g;
+}
+// соседи по текущему отфильтрованному списку — для навигации ← →
+function cardSiblings(){
+  const list = (typeof listRows === 'function') ? listRows(asOf) : EMPLOYEES;
+  const ids = (list.length ? list : EMPLOYEES).map(e => e.id);
+  const i = ids.indexOf(openId);
+  return { ids, i: i < 0 ? 0 : i, prev: i > 0 ? ids[i-1] : null, next: (i >= 0 && i < ids.length-1) ? ids[i+1] : null };
+}
 function openCard(id){ openId = id; cardTab = 'obshee'; obEdit = resEdit = false; $('#vtabCard').style.display=''; goView('card'); renderCard(); }
 function goTab(k){ cardTab = k; obEdit = resEdit = false; renderCard(); saveState(); }
 
@@ -1280,7 +1362,7 @@ function renderCard(){
 
   $('#cardBody').innerHTML = `
     <div class="header-card">
-      <div class="photo">👤</div>
+      <div class="photo${ro ? '' : ' up'}" id="empPhoto" ${ro ? '' : 'title="Загрузить фото"'}>👤</div>
       <div class="header-mid">
         <p class="emp-name">${esc(e.fio)}</p>
         <p class="emp-sub">Табельный № <b>${e.tab}</b> · <span class="calc">${esc(deptPostAt(e.id, d))}</span></p>
@@ -1311,13 +1393,22 @@ function renderCard(){
       ${ro ? `<span class="ro-note">🔒 Только для чтения: ${st === 'Уволен'
           ? 'сотрудник уволен ' + fmt(e.fired) + ' — карточка сохраняется, изменения запрещены.'
           : 'ваша роль не правит кадровые данные.'}</span>` : ''}
+      ${(() => { const s = cardSiblings(); return `
+      <div class="card-nav">
+        <button class="nav-btn" id="btnPrint" title="Печать карточки">🖨 Печать</button>
+        <button class="nav-btn" id="navPrev" ${s.prev ? '' : 'disabled'} title="Предыдущий">←</button>
+        <span class="nav-pos">${s.i+1} из ${s.ids.length}</span>
+        <button class="nav-btn" id="navNext" ${s.next ? '' : 'disabled'} title="Следующий">→</button>
+      </div>`; })()}
     </div>
 
     <div class="tabs" id="tabs">
       ${visTabs.map(t => {
         const cls = CLASS_OF_TAB[t.k];
         const chip = cls === 'A' ? '' : `<span class="cls cls-${cls}" title="Уровень доступа ${cls} — видят не все роли">${cls}</span>`;
-        return `<button class="tab ${cardTab===t.k?'active':''}" data-tab="${t.k}">${t.n}${chip}</button>`;
+        const cnt = tabCount(t.k, e, d);
+        const cb = cnt != null ? `<span class="tab-cnt" title="записей: ${cnt}">${cnt}</span>` : '';
+        return `<button class="tab ${cardTab===t.k?'active':''}" data-tab="${t.k}">${t.n}${cb}${chip}</button>`;
       }).join('')}
       ${TABS.filter(t => !canSeeTab(t.k, e.id)).length
         ? `<span class="muted" style="align-self:center;margin-left:10px;">🔒 нет доступа: ${TABS.filter(t=>!canSeeTab(t.k,e.id)).map(t=>t.n).join(' · ')}</span>` : ''}
@@ -1326,6 +1417,12 @@ function renderCard(){
     <div id="panel">${panelHtml(cardTab, e, d)}</div>`;
 
   document.querySelectorAll('#tabs .tab').forEach(t => t.addEventListener('click', () => goTab(t.dataset.tab)));
+  { const s = cardSiblings();
+    const pv = $('#navPrev'), nx = $('#navNext'), pr = $('#btnPrint'), ph = $('#empPhoto');
+    if (pv && s.prev) pv.addEventListener('click', () => openCard(s.prev));
+    if (nx && s.next) nx.addEventListener('click', () => openCard(s.next));
+    if (pr) pr.addEventListener('click', () => window.print());
+    if (ph && !ro) ph.addEventListener('click', () => toast('Загрузка фото — заглушка мокапа')); }
   if (!ro && st === 'Оформляется'){
     $('#btnHire').addEventListener('click', openHire);
   } else if (!ro){
@@ -1366,7 +1463,8 @@ function panelHtml(k, e, d){
 
 function pObshee(e, d){
   const pinVisible = canSee('B', e.id);   // ПИН — персональные данные, уровень B
-  const stazh = e.hired ? stazhText(e.hired, e.fired || d) : '—';
+  const stazh = e.hired ? durText(orgStazhMonths(e.id, d)) : '—';   // единый источник со вкладкой «Стаж»
+  const gaps  = canEdit(e.id) ? dossierGaps(e, d) : [];
   const mgr = managerOf(e.id, d);
   const mgrPost = mgr ? ((mainAt(mgr.id, d) || {}).post || '') : '';
   const ro = !canEdit(e.id);
@@ -1376,6 +1474,8 @@ function pObshee(e, d){
     ? `<input class="kv-inp" id="${id}" value="${esc(val || '')}">`
     : esc(val || '—');
   return `
+    ${gaps.length ? `<div class="banner warn"><span class="ic">🟠</span>
+      <div><b>Личное дело заполнено не полностью.</b> Не хватает: ${gaps.map(esc).join(' · ')}.</div></div>` : ''}
     <div class="section-head">
       <div class="section-title">Общая информация</div>
       ${ro ? '' : obEdit
@@ -1433,6 +1533,7 @@ function pNaznach(e, d){
   return `
     <div class="section-title">Назначения</div><hr class="section-rule">
     <div class="tab-toolbar">
+      ${canEdit(e.id) ? '<button class="btn btn-secondary" onclick="openTransfer()">⇄ Оформить перевод</button>' : ''}
       <span class="spacer"></span>
       <span class="muted">Сумма действующих ставок на ${fmt(d)}: <b>${sum.toFixed(1)}</b> из 1.5 допустимых</span>
     </div>
@@ -1462,7 +1563,7 @@ function pOtsut(e, d){
   const covers = ABSENCE.filter(b => b.sub === e.id && !b.cancelled).sort((x,y) => y.from.localeCompare(x.from));
   return `
     <div class="section-title">Отсутствия и замещения</div><hr class="section-rule">
-
+    ${canEdit(e.id) ? '<div class="tab-toolbar"><button class="btn btn-secondary" onclick="openAbsence()">＋ Оформить отсутствие</button></div>' : ''}
     <div class="grid-wrap"><table class="dtable">
       <colgroup><col style="width:18%"><col style="width:11%"><col style="width:11%"><col style="width:10%"><col style="width:22%"><col style="width:14%"><col style="width:14%"></colgroup>
       <thead><tr><th>Вид</th><th>с</th><th>по (план)</th><th>факт</th><th>Основание</th><th>Замещающий</th><th>Состояние</th></tr></thead>
@@ -1491,7 +1592,7 @@ function pOtsut(e, d){
 function pUz(e, d){
   const a = acct(e.id);
   if (!a) return `
-    <div class="section-title">Учётная запись и кураторство</div><hr class="section-rule">
+    <div class="section-title">Учётная запись и заёмщики</div><hr class="section-rule">
     <div class="banner err"><span class="ic">🔴</span>
       <div><b>Учётной записи нет.</b> Сотруднику нельзя назначить задание, он не может замещать другого и не может быть куратором.
         Учётную запись заводит администратор.</div></div>`;
@@ -1501,7 +1602,7 @@ function pUz(e, d){
   const r = resolveActor(e.id, d);
   const st = acctStateAt(e.id, d);
   return `
-    <div class="section-title">Учётная запись и кураторство <span class="badge b-muted" style="vertical-align:middle;">только для чтения</span></div>
+    <div class="section-title">Учётная запись и заёмщики <span class="badge b-muted" style="vertical-align:middle;">только для чтения</span></div>
     <hr class="section-rule">
     ${a.rolesStale ? `<div class="banner warn"><span class="ic">⚠️</span>
       <div><b>Роли не пересмотрены после перевода (${fmt(a.rolesStale)}).</b> Уведомление администратору отправлено.</div></div>` : ''}
@@ -1542,7 +1643,7 @@ function pPasport(e, d){
   const p = e.pass;
   const old = (PASS_HIST[e.id] || []);
   return `
-    <div class="section-title">Паспортные данные <span class="cls cls-B" style="font-size:11px;vertical-align:middle;" title="Видят кадры и сам сотрудник">уровень B</span></div>
+    <div class="section-title">Паспортные данные</div>
     <hr class="section-rule">
     ${canEdit(e.id) ? `<div class="tab-toolbar">
       <button class="btn btn-secondary" data-add="pass">⇄ Заменить паспорт</button></div>` : ''}
@@ -1557,7 +1658,7 @@ function pPasport(e, d){
       <div class="k">Срок действия</div><div>${p.valid}</div>
       <div class="k">Семейное положение</div><div>${p.family}</div>
       <div class="k">Адрес регистрации</div><div>${esc(p.addr)}</div>
-      <div class="k">Адрес фактического проживания</div><div>${esc(p.addr)}</div>
+      <div class="k">Адрес фактического проживания</div><div>${p.addrFact ? esc(p.addrFact) : '<span class="muted">совпадает с адресом регистрации</span>'}</div>
     </div>
     ${old.length ? `
       <div class="section-sub" style="margin-top:18px;">Прежние паспорта</div><hr class="section-rule">
@@ -2283,13 +2384,50 @@ $('#roleSel').addEventListener('change', ev => {
       : `Роль «${ev.target.selectedOptions[0].text}»: доступные уровни ${seen}.`);
 });
 ['fStatus','fUnit','fAvail','fQ'].forEach(id =>
-  $('#'+id).addEventListener('input', () => { selectedId = null; $('#btnOpen').disabled = true; renderList(); }));
+  $('#'+id).addEventListener('input', () => { selectedId = null; renderList(); }));
 $('#fReset').addEventListener('click', () => {
   $('#fStatus').value = ''; $('#fUnit').value = ''; $('#fAvail').value = ''; $('#fQ').value = '';
   renderList();
 });
-$('#btnOpen').addEventListener('click', () => { if (selectedId) openCard(selectedId); });
 $('#btnCreate').addEventListener('click', openCreate);
+
+// --- выгрузка списка (на дату среза, с учётом фильтров) ------------------
+function download(name, mime, content){
+  const blob = new Blob([content], {type: mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+function exportList(kind){
+  const d = asOf, rows = listRows(d);
+  const cols = ['Табельный №','ФИО','Подразделение · Должность','Кадровый статус','Доступность','Учётная запись'];
+  const data = rows.map(e => [e.tab, e.fio, deptPostAt(e.id, d),
+    hrStatusAt(e.id, d), availabilityAt(e.id, d).t, acctStateAt(e.id, d).t]);
+  const base = `Сотрудники_${fmt(d).replace(/\./g,'-')}`;
+  if (kind === 'csv'){
+    const q = s => `"${String(s).replace(/"/g,'""')}"`;
+    const body = '﻿' + [cols, ...data].map(r => r.map(q).join(';')).join('\r\n');
+    download(base + '.csv', 'text/csv;charset=utf-8', body);
+  } else {
+    const cap = `Сотрудники · на ${fmt(d)} · ${rows.length} из ${EMPLOYEES.length}`;
+    const th = cols.map(c => `<th>${esc(c)}</th>`).join('');
+    const tr = data.map(r => `<tr>${r.map(c => `<td>${esc(String(c))}</td>`).join('')}</tr>`).join('');
+    const html = `<html><head><meta charset="utf-8"></head><body><p><b>${esc(cap)}</b></p>`
+      + `<table border="1" cellspacing="0" cellpadding="4"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></body></html>`;
+    if (kind === 'xls') download(base + '.xls', 'application/vnd.ms-excel', html);
+    else                download(base + '.doc', 'application/msword',   html);
+  }
+}
+(() => {
+  const em = $('#expMenu');
+  $('#expMenuBtn').addEventListener('click', ev => { ev.stopPropagation();
+    const o = em.classList.toggle('open'); $('#expMenuBtn').setAttribute('aria-expanded', o); });
+  em.querySelectorAll('.dd-item').forEach(i => i.addEventListener('click', () => {
+    em.classList.remove('open'); exportList(i.dataset.exp);
+  }));
+})();
 
 const NAV = [
   {label:'Система кредитования', items:['Заявки','Комиссии по заявкам','Заёмщики','Кредиты']},
