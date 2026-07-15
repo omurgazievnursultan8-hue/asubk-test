@@ -230,6 +230,9 @@
   .grid-wrap{border:1px solid var(--border);border-radius:3px;overflow:hidden;}
   .tab-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
   .tab-toolbar .spacer{margin-left:auto;}
+  .src-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:8px 12px;
+    background:#f0f4fa;border:1px solid #d7e0ee;border-left:3px solid #2f6fb0;border-radius:6px;font-size:12px;}
+  .src-banner .src-sync{margin-left:auto;color:#5b6b80;white-space:nowrap;}
   .lnk{color:var(--primary-text);cursor:pointer;font-size:13px;}
   .lnk:hover{text-decoration:underline;}
 
@@ -246,6 +249,9 @@
   /* учётная запись и кураторство */
   .proj-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   @media(max-width:1000px){.proj-grid{grid-template-columns:1fr;}}
+  .ob-cols{display:grid;grid-template-columns:1fr 1fr;gap:0 48px;align-items:start;}
+  .ob-cols .section-sub:first-child{margin-top:0;}
+  @media(max-width:1000px){.ob-cols{grid-template-columns:1fr;}}
   .proj-card{border:1px solid var(--panel-border);border-radius:var(--radius);padding:13px 15px;}
   .proj-card h4{margin:0 0 8px;font-size:15px;}
   .proj-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #f0f2f5;font-size:14px;}
@@ -432,19 +438,19 @@
         <div class="toolbar">
           <button class="btn btn-green" id="btnCreate">＋ Создать</button>
           <button class="btn btn-secondary" id="btnOpen" disabled>Открыть</button>
+          <button class="btn btn-secondary" id="btnExport">⭳ Экспорт в Excel</button>
           <span class="rowcount" id="rowCount"></span>
         </div>
 
         <div class="grid">
           <table>
-            <colgroup><col style="width:9%"><col style="width:23%"><col style="width:25%"><col style="width:13%"><col style="width:18%"><col style="width:12%"></colgroup>
+            <colgroup><col style="width:26%"><col style="width:30%"><col style="width:16%"><col style="width:16%"><col style="width:12%"></colgroup>
             <thead><tr>
-              <th>Табельный №</th>
               <th>ФИО</th>
               <th>Подразделение · Должность</th>
-              <th>Кадровый статус</th>
               <th>Доступность</th>
-              <th>Учётная запись</th>
+              <th>Телефон</th>
+              <th>Кабинет</th>
             </tr></thead>
             <tbody id="rows"></tbody>
           </table>
@@ -593,7 +599,7 @@ let selectedId = null;       // выделенная строка списка
 let openId = null;           // открытая карточка
 let cardTab = 'obshee';
 let curView = 'overview';     // активная вкладка (запоминается между перезагрузками)
-let obEdit = false, resEdit = false;   // режим правки полей табов «Общая» / «Резюме»
+let obEdit = false;   // режим правки полей таба «Общая»
 
 const UNITS = {
   uk:'Управление кредитования', otr:'Отраслевой департамент', vzy:'Департамент взыскания',
@@ -633,82 +639,70 @@ const EMPLOYEES = [
    phone:'+996 (555) 12-34-56', wphone:'+996 (312) 66-00-42, вн. 214',
    mail:'a.slamkulov@mail.kg', wmail:'a.slamkulov@fkf.kg',
    work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'3 этаж', room:'каб. 214'},
-   resume:'Специалист по сопровождению кредитов агропромышленного комплекса. Ведёт портфель заёмщиков южного региона. Опыт реструктуризации и досудебного взыскания.',
    pass:{birth:'28.03.1990', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 4471209',
          issued:'12.02.2025', valid:'12.02.2035', family:'женат', addr:'г. Бишкек, ул. Токтогула, 118-24'}},
   {id:'e087', person:'p63540', tab:'0087', fio:'Иванов Антон Сергеевич', hired:'2019-09-02', fired:null,
    pin:'20109198800111', soate:'41708 802 810', cat:'Основной персонал · кредитование',
    phone:'+996 (700) 40-11-02', wphone:'вн. 219', mail:'a.ivanov@mail.kg', wmail:'a.ivanov@fkf.kg',
    work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'2 этаж', room:'каб. 219'},
-   resume:'Ведущий кредитный аналитик. Замещает коллег по управлению кредитования.',
    pass:{birth:'01.09.1988', sex:'муж.', nat:'русский', citiz:'Кыргызская Республика', num:'AN 3310044',
          issued:'03.03.2020', valid:'03.03.2030', family:'женат', addr:'г. Бишкек, мкр. Асанбай, 14-7'}},
   {id:'e113', person:'p63612', tab:'0113', fio:'Петрова Светлана Викторовна', hired:'2017-05-15', fired:null,
    pin:'21505198500222', soate:'41708 802 810', cat:'Руководящий состав',
    phone:'+996 (555) 77-88-99', wphone:'вн. 230', mail:'s.petrova@mail.kg', wmail:'s.petrova@fkf.kg',
    work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'3 этаж', room:'каб. 230'},
-   resume:'Начальник отдела отраслевого кредитования.',
    pass:{birth:'15.05.1985', sex:'жен.', nat:'русская', citiz:'Кыргызская Республика', num:'AN 2201188',
          issued:'20.06.2018', valid:'20.06.2028', family:'замужем', addr:'г. Бишкек, ул. Ахунбаева, 91-3'}},
   {id:'e125', person:'p63613', tab:'0125', fio:'Матраимов Максат Кубанович', hired:'2020-02-10', fired:null,
    pin:'21002199200333', soate:'41708 802 810', cat:'Основной персонал · кредитование',
    phone:'+996 (770) 21-33-44', wphone:'вн. 233', mail:'m.matraimov@mail.kg', wmail:'m.matraimov@fkf.kg',
    work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'3 этаж', room:'каб. 233'},
-   resume:'Главный специалист отраслевого департамента, портфель промышленных кредитов.',
    pass:{birth:'10.02.1992', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 5512003',
          issued:'11.01.2022', valid:'11.01.2032', family:'женат', addr:'г. Ош, ул. Ленина, 220-11'}},
   {id:'e160', tab:'0160', fio:'Тынчтыкбек кызы Марал', hired:'2021-11-01', fired:null,
    pin:'12511199500444', soate:'41707 210 800', cat:'Основной персонал · взыскание',
    phone:'+996 (555) 60-70-80', wphone:'вн. 241', mail:'m.tynchtykbek@mail.kg', wmail:'m.tynchtykbek@fkf.kg',
    work:{addr:'г. Ош, ул. Курманжан Датка, 40 (Ошский филиал)', floor:'2 этаж', room:'каб. 241'},
-   resume:'Ведущий специалист департамента взыскания, южный регион.',
    pass:{birth:'25.11.1995', sex:'жен.', nat:'кыргызка', citiz:'Кыргызская Республика', num:'AN 6603311',
          issued:'02.12.2021', valid:'02.12.2031', family:'не замужем', addr:'г. Ош, мкр. Анар, 3-18'}},
   {id:'e161', tab:'0161', fio:'Бектурганов Эрнис Нурдинович', hired:'2022-03-14', fired:null,
    pin:'20403199600555', soate:'41707 210 800', cat:'Основной персонал · взыскание',
    phone:'+996 (700) 11-22-33', wphone:'вн. 242', mail:'e.bekturganov@mail.kg', wmail:'e.bekturganov@fkf.kg',
    work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'4 этаж', room:'каб. 242'},
-   resume:'Специалист департамента взыскания.',
    pass:{birth:'04.03.1996', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 7714422',
          issued:'15.03.2022', valid:'15.03.2032', family:'холост', addr:'г. Бишкек, ул. Байтик Баатыра, 55'}},
   {id:'e178', tab:'0178', fio:'Сооронова Рыскан Атаевна', hired:'2019-01-21', fired:null,
    pin:'12101199000666', soate:'41708 802 810', cat:'Юридическое сопровождение',
    phone:'+996 (555) 33-44-55', wphone:'вн. 251', mail:'r.sooronova@mail.kg', wmail:'r.sooronova@fkf.kg',
    work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'4 этаж', room:'каб. 251'},
-   resume:'Юрисконсульт, сопровождение договоров залога и поручительства.',
    pass:{birth:'21.01.1990', sex:'жен.', nat:'кыргызка', citiz:'Кыргызская Республика', num:'AN 1109988',
          issued:'22.02.2019', valid:'22.02.2029', family:'замужем', addr:'г. Бишкек, ул. Фрунзе, 402-9'}},
   {id:'e180', tab:'0180', fio:'Меңдибаев Амантур Кылычбекович', hired:'2023-06-05', fired:null,
    pin:'20506199400777', soate:'41708 802 810', cat:'Обеспечивающий персонал',
    phone:'+996 (770) 90-10-20', wphone:'вн. 260', mail:'a.mendibaev@mail.kg', wmail:'a.mendibaev@fkf.kg',
    work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'1 этаж', room:'каб. 106'},
-   resume:'Бухгалтер, участок расчётов по кредитам.',
    pass:{birth:'05.06.1994', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 8815533',
          issued:'06.07.2023', valid:'06.07.2033', family:'женат', addr:'г. Бишкек, ул. Жибек Жолу, 17-2'}},
   {id:'e191', tab:'0191', fio:'Темирлан уулу Тобокел', hired:'2026-07-20', fired:null,
    pin:'20207200100888', soate:'41708 802 810', cat:'—',
    phone:'+996 (555) 01-02-03', wphone:'—', mail:'t.tobokel@mail.kg', wmail:'—',
-   resume:'—',
    pass:{birth:'07.02.2001', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 9920044',
          issued:'10.03.2024', valid:'10.03.2034', family:'холост', addr:'г. Бишкек, ул. Панфилова, 3-1'}},
   {id:'e033', tab:'0033', fio:'Орозбаева Гулнара Турсуновна', hired:'2014-04-01', fired:'2025-11-14',
    pin:'11004198300999', soate:'41708 802 810', cat:'Основной персонал · кредитование',
    phone:'+996 (555) 12-00-00', wphone:'—', mail:'g.orozbaeva@mail.kg', wmail:'—',
-   resume:'Ведущий специалист управления кредитования (уволена 14.11.2025).',
    pass:{birth:'10.04.1983', sex:'жен.', nat:'кыргызка', citiz:'Кыргызская Республика', num:'AN 4405566',
          issued:'01.05.2015', valid:'01.05.2025', family:'замужем', addr:'г. Бишкек, ул. Горького, 12-5'}},
   {id:'e201', tab:'0201', fio:'Жумабеков Канат Эркинович', hired:'2024-08-19', fired:null,
    pin:'21908199700121', soate:'41708 802 810', cat:'Основной персонал · кредитование',
    phone:'+996 (700) 55-66-77', wphone:'вн. 235', mail:'k.jumabekov@mail.kg', wmail:'k.jumabekov@fkf.kg',
    work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'3 этаж', room:'каб. 235'},
-   resume:'Специалист отраслевого департамента.',
    pass:{birth:'19.08.1997', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 3312277',
          issued:'20.09.2024', valid:'20.09.2034', family:'холост', addr:'г. Бишкек, ул. Абдрахманова, 150'}},
   {id:'e044', tab:'0044', fio:'Абдыкадыров Руслан Муратович', hired:'2016-10-03', fired:null,
    pin:'20310198400131', soate:'41707 210 800', cat:'Руководящий состав',
    phone:'+996 (555) 44-55-66', wphone:'вн. 240', mail:'r.abdykadyrov@mail.kg', wmail:'r.abdykadyrov@fkf.kg',
    work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'4 этаж', room:'каб. 240'},
-   resume:'Начальник отдела департамента взыскания.',
    pass:{birth:'03.10.1984', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 7708899',
          issued:'04.11.2016', valid:'04.11.2026', family:'женат', addr:'г. Бишкек, ул. Киевская, 77-14'}},
 ];
@@ -836,14 +830,30 @@ let AWARDS = [
   {emp:'e125', kind:'Поощрение', name:'Благодарность', org:'ФКФ', date:'2025-06-02', off:null, note:'Досрочное закрытие плана'},
 ];
 
+// Владение языками — список на сотрудника (уровень — из справочника).
+let LANGS = [
+  {emp:'e142', lang:'Кыргызский', level:'Родной'},
+  {emp:'e142', lang:'Русский',    level:'Свободно'},
+  {emp:'e142', lang:'Английский', level:'Хорошо'},
+  {emp:'e125', lang:'Русский',    level:'Родной'},
+  {emp:'e125', lang:'Кыргызский', level:'Свободно'},
+];
+// Воинский учёт — одна запись на сотрудника (военный билет). Женщины/иностранцы — «невоеннообязанный».
+let MIL = [
+  {emp:'e142', rel:'военнообязанный', num:'АН 1234567', cat:'А — годен', rank:'сержант запаса', vus:'021001', komis:'Первомайский РВК г. Бишкек'},
+  {emp:'e125', rel:'военнообязанный', num:'АН 7654321', cat:'Б — годен с ограничениями', rank:'рядовой запаса', vus:'100182', komis:'Свердловский РВК г. Бишкек'},
+];
+
 // Паспорт заменяется версией: прежний не затирается, он нужен старым кредитным документам.
 let PASS_HIST = {
   e142: [{num:'AN 2210877', issued:'14.03.2015', replaced:'2025-02-04', base:'Замена по сроку действия'}],
 };
+// дата/время последней синхронизации паспортных данных из Тундук (ГРС) — по сотруднику
+let PASS_SYNC = {};
 
 // Строки вкладок правятся по id — раздаём его тем записям, что заданы в модели вручную.
 let rowSeq = 0;
-[EDU, FAMILY, WORKHIST, AWARDS, DOCS].forEach(arr => arr.forEach(x => x.id = 'r' + (++rowSeq)));
+[EDU, FAMILY, WORKHIST, AWARDS, LANGS, MIL, DOCS].forEach(arr => arr.forEach(x => x.id = 'r' + (++rowSeq)));
 
 let AUDIT = [
   {emp:'e142', when:'2026-07-01 09:12', who:'hr.kadyrova', kind:'', what:'<b>Отсутствие (вкл. 3):</b> оформлен ежегодный отпуск 10.08–23.08.2026, замещающий Иванов А. С. · осн. Приказ №77-о'},
@@ -867,12 +877,8 @@ const fmt = d => d ? d.split('-').reverse().join('.') : '—';
 const shortFio = id => { const e = emp(id); if(!e) return '—';
   const p = e.fio.split(' '); return p[0] + ' ' + (p[1]?p[1][0]+'.':'') + (p[2]?p[2][0]+'.':''); };
 const days = (a,b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
-function plural(n, one, few, many){                      // 1 заёмщик · 2 заёмщика · 5 заёмщиков
-  const t = n % 100, u = n % 10;
-  const w = (t >= 11 && t <= 14) ? many : u === 1 ? one : (u >= 2 && u <= 4) ? few : many;
-  return n + ' ' + w;
-}
 const addDays = (d,n) => { const t = new Date(Date.parse(d) + n*86400000); return t.toISOString().slice(0,10); };
+// возвращает ТОЛЬКО слово по числу («год/года/лет») — число подставляет вызывающий
 function plural(n, one, few, many){ const m10=n%10, m100=n%100; if(m10===1&&m100!==11)return one; if(m10>=2&&m10<=4&&(m100<10||m100>=20))return few; return many; }
 function stazhText(from, to){
   const a=new Date(from), b=new Date(to);
@@ -987,9 +993,9 @@ function assignIssues(id, d){
 }
 
 // --- уровни доступа: право на КЛАСС ДАННЫХ, а не на экран --------------------
-const CLASS_OF_TAB = {obshee:'A', naznach:'A', otsut:'A', uz:'A', docs:'A', history:'A',
-                      resume:'A', pasport:'B', obraz:'B', semya:'B', stazh:'B', nagrady:'C'};
-const ROLE_CLASSES = {hr:['A','B','C'], admin:['A'], head:['A','C'], self:['A','B'], cred:['A']};
+const CLASS_OF_TAB = {obshee:'A', uz:'A', naznach:'A', otsut:'A', docs:'A', history:'A',
+                      pasport:'B', obraz:'B', semya:'B', stazh:'B', yazyki:'B', voinuch:'B', nagrady:'C'};
+const ROLE_CLASSES = {hr:['A','B','C'], admin:['A'], head:['A','C'], self:['A','B','C'], cred:['A']};
 function canSee(cls, empId){
   if (cls === 'A') return true;
   if (role === 'self') return empId === SELF && ROLE_CLASSES.self.includes(cls);
@@ -1012,7 +1018,7 @@ function problemsAt(d){
     if (st === 'Работает' && b && !b.sub && cur && cur.borrowers > 0)
       P.push({sev:'err', ic:'🔴', emp:e.id,
         t:`${e.fio} — отсутствует (${b.kind.toLowerCase()}) до ${fmt(b.factTo||b.planTo)}, замещение не оформлено`,
-        w:`За ним закреплено ${plural(cur.borrowers,'заёмщик','заёмщика','заёмщиков')} и ${plural(TASKS.filter(t=>t.login===a.login).length,'открытое задание','открытых задания','открытых заданий')} — принять их некому.`,
+        w:`За ним закреплено ${cur.borrowers} ${plural(cur.borrowers,'заёмщик','заёмщика','заёмщиков')} и ${TASKS.filter(t=>t.login===a.login).length} ${plural(TASKS.filter(t=>t.login===a.login).length,'открытое задание','открытых задания','открытых заданий')} — принять их некому.`,
         act:'Оформить замещение', fn:'openAbsence'});
 
     if (st === 'Работает' && !a)
@@ -1035,7 +1041,7 @@ function problemsAt(d){
     });
 
     if (cur && cur.conflict > 0)
-      P.push({sev:'warn', ic:'🟡', emp:e.id, t:`${e.fio} — конфликт интересов: ${plural(cur.conflict,'заёмщик','заёмщика','заёмщиков')}`,
+      P.push({sev:'warn', ic:'🟡', emp:e.id, t:`${e.fio} — конфликт интересов: ${cur.conflict} ${plural(cur.conflict,'заёмщик','заёмщика','заёмщиков')}`,
         w:'Совпадение по составу семьи. Отстранён только от этого заёмщика, остальных ведёт как обычно.', act:'Открыть карточку', fn:'open'});
 
     assignIssues(e.id, d).forEach(msg =>
@@ -1069,7 +1075,6 @@ function doCreate(f){
     id, person:f.person, tab:f.tab, fio:p.fio, hired:null, fired:null,
     pin:p.pin, soate:p.soate, cat:f.cat,
     phone:f.phone || '—', wphone:'—', mail:f.mail || '—', wmail:'—',
-    resume:'—',
     pass:{birth:p.birth === '—' ? '—' : fmt(p.birth), sex:p.sex, nat:'—', citiz:'Кыргызская Республика',
           num:'—', issued:'—', valid:'—', family:'—', addr:p.addr}
   });
@@ -1129,7 +1134,15 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const badge = o => `<span class="badge ${o.c}">${esc(o.t)}</span>`;
 
-function renderAll(){ renderOverview(); renderList(); renderCard(); syncChips(); saveState(); }
+function renderAll(){ renderOverview(); renderList(); renderCard(); syncChips(); applyViewAccess(); saveState(); }
+
+// «Обзор» (дашборд «Требует внимания») виден только кадрам — прочим прячем кнопку и уводим в список.
+function applyViewAccess(){
+  const ovBtn = document.querySelector('.vtab[data-view="overview"]');
+  const ok = role === 'hr';
+  if (ovBtn) ovBtn.style.display = ok ? '' : 'none';
+  if (!ok && curView === 'overview') goView('list');
+}
 
 /* ---------- ОБЗОР ---------- */
 function renderOverview(){
@@ -1189,11 +1202,12 @@ function renderResolve(){
 }
 
 /* ---------- СПИСОК ---------- */
-function renderList(){
+// Список сотрудников по текущему фильтру и дате среза — один источник для таблицы и экспорта.
+function currentListRows(){
   const d = asOf;
   const fs = $('#fStatus').value, fu = $('#fUnit').value, fa = $('#fAvail').value;
   const q  = $('#fQ').value.trim().toLowerCase();
-  const rows = EMPLOYEES.filter(e => {
+  return EMPLOYEES.filter(e => {
     const st = hrStatusAt(e.id, d);
     const m  = mainAt(e.id, d);
     const av = availabilityAt(e.id, d);
@@ -1204,18 +1218,20 @@ function renderList(){
     if (q && !(e.fio.toLowerCase().includes(q) || e.tab.includes(q))) return false;
     return true;
   });
+}
+function renderList(){
+  const d = asOf;
+  const rows = currentListRows();
   $('#rows').innerHTML = rows.length ? rows.map(e => {
     const st = hrStatusAt(e.id, d);
-    const stc = st === 'Работает' ? 'b-ok b-dot' : st === 'Оформляется' ? 'b-warn b-dot' : 'b-muted b-dot';
     return `<tr data-id="${e.id}" class="${st==='Уволен'?'gone':''}${selectedId===e.id?' sel':''}">
-      <td>${e.tab}</td>
       <td>${esc(e.fio)}</td>
       <td>${esc(deptPostAt(e.id, d))}</td>
-      <td><span class="badge ${stc}">${st}</span></td>
       <td>${badge(availabilityAt(e.id, d))}</td>
-      <td>${badge(acctStateAt(e.id, d))}</td>
+      <td>${esc(e.wphone || '—')}<br><span class="muted">${esc(e.phone || '—')}</span></td>
+      <td>${esc(e.work && e.work.room || '—')}</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="6" class="empty-row">Под фильтр на ${fmt(d)} никто не подходит.</td></tr>`;
+  }).join('') : `<tr><td colspan="5" class="empty-row">Под фильтр на ${fmt(d)} никто не подходит.</td></tr>`;
 
   $('#rowCount').textContent = `${rows.length} из ${EMPLOYEES.length} · на ${fmt(d)}`;
   document.querySelectorAll('#rows tr[data-id]').forEach(tr => {
@@ -1232,20 +1248,21 @@ function renderList(){
 /* ---------- КАРТОЧКА ---------- */
 const TABS = [
   {k:'obshee',  n:'Общая'},
-  {k:'resume',  n:'Резюме'},
   {k:'naznach', n:'Назначения'},
   {k:'otsut',   n:'Отсутствия и замещения'},
-  {k:'uz',      n:'Учётная запись и заёмщики'},
+  {k:'uz',      n:'Учётная запись'},
   {k:'pasport', n:'Паспорт'},
   {k:'obraz',   n:'Образование'},
   {k:'semya',   n:'Семья'},
+  {k:'yazyki',  n:'Языки'},
+  {k:'voinuch', n:'Воинский учёт'},
   {k:'stazh',   n:'Стаж'},
   {k:'nagrady', n:'Награды / взыскания'},
   {k:'docs',    n:'Документы'},
   {k:'history', n:'История'},
 ];
-function openCard(id){ openId = id; cardTab = 'obshee'; obEdit = resEdit = false; $('#vtabCard').style.display=''; goView('card'); renderCard(); }
-function goTab(k){ cardTab = k; obEdit = resEdit = false; renderCard(); saveState(); }
+function openCard(id){ openId = id; cardTab = 'obshee'; obEdit = false; $('#vtabCard').style.display=''; goView('card'); renderCard(); }
+function goTab(k){ cardTab = k; obEdit = false; renderCard(); saveState(); }
 
 function editObshee(){ obEdit = true; renderCard(); }
 function cancelObshee(){ obEdit = false; renderCard(); }
@@ -1259,13 +1276,6 @@ function saveObshee(){
   e.work.floor = $('#obFloor').value.trim();
   e.work.room  = $('#obRoom').value.trim();
   obEdit = false; renderCard(); toast('Данные сохранены');
-}
-function editResume(){ resEdit = true; renderCard(); }
-function cancelResume(){ resEdit = false; renderCard(); }
-function saveResume(){
-  const e = emp(openId); if (!e) return;
-  e.resume = $('#resText').value.trim();
-  resEdit = false; renderCard(); toast('Резюме сохранено');
 }
 
 function renderCard(){
@@ -1319,8 +1329,6 @@ function renderCard(){
         const chip = cls === 'A' ? '' : `<span class="cls cls-${cls}" title="Уровень доступа ${cls} — видят не все роли">${cls}</span>`;
         return `<button class="tab ${cardTab===t.k?'active':''}" data-tab="${t.k}">${t.n}${chip}</button>`;
       }).join('')}
-      ${TABS.filter(t => !canSeeTab(t.k, e.id)).length
-        ? `<span class="muted" style="align-self:center;margin-left:10px;">🔒 нет доступа: ${TABS.filter(t=>!canSeeTab(t.k,e.id)).map(t=>t.n).join(' · ')}</span>` : ''}
     </div>
 
     <div id="panel">${panelHtml(cardTab, e, d)}</div>`;
@@ -1350,15 +1358,16 @@ function renderCard(){
 function panelHtml(k, e, d){
   switch (k){
     case 'obshee':  return pObshee(e, d);
-    case 'resume':  return pResume(e, d);
+    case 'uz':      return pUz(e, d);
     case 'naznach': return pNaznach(e, d);
     case 'otsut':   return pOtsut(e, d);
-    case 'uz':      return pUz(e, d);
     case 'docs':    return pDocs(e, d);
     case 'history': return pHistory(e, d);
     case 'pasport': return pPasport(e, d);
     case 'obraz':   return pObraz(e, d);
     case 'semya':   return pSemya(e, d);
+    case 'yazyki':  return pLang(e, d);
+    case 'voinuch': return pMil(e, d);
     case 'stazh':   return pStazh(e, d);
     case 'nagrady': return pNagrady(e, d);
   }
@@ -1376,13 +1385,10 @@ function pObshee(e, d){
     ? `<input class="kv-inp" id="${id}" value="${esc(val || '')}">`
     : esc(val || '—');
   return `
-    <div class="section-head">
-      <div class="section-title">Общая информация</div>
+    <div class="section-head"><div class="section-sub" style="margin-top:0;">Основные данные</div>
       ${ro ? '' : obEdit
         ? `<span class="edit-actions"><button class="btn-edit" onclick="saveObshee()">✔ Сохранить</button><button class="btn-edit muted" onclick="cancelObshee()">Отмена</button></span>`
-        : `<button class="btn-edit" onclick="editObshee()">✎ Изменить</button>`}
-    </div>
-    <hr class="section-rule">
+        : `<button class="btn-edit" onclick="editObshee()">✎ Изменить</button>`}</div><hr class="section-rule">
     <div class="kv-grid" style="margin-bottom:8px;">
       <div class="k">ИНН</div>
       <div>${pinVisible
@@ -1411,20 +1417,40 @@ function pObshee(e, d){
 `;
 }
 
-function pResume(e, d){
-  const ro = !canEdit(e.id);
+function pUz(e, d){
+  const a = acct(e.id);
+  const st = a ? acctStateAt(e.id, d) : null;
+  const roles = a ? ROLES.filter(r => r.login === a.login) : [];
+  const cur = a ? curatorOf(a.login) : null;
+  const blockedWorking = a && st.state === 'blocked' && hrStatusAt(e.id, d) === 'Работает';
   return `
-    <div class="section-head">
-      <div class="section-title">Резюме / автобиография</div>
-      ${ro ? '' : resEdit
-        ? `<span class="edit-actions"><button class="btn-edit" onclick="saveResume()">✔ Сохранить</button><button class="btn-edit muted" onclick="cancelResume()">Отмена</button></span>`
-        : `<button class="btn-edit" onclick="editResume()">✎ Изменить</button>`}
+    <div class="section-sub" style="margin-top:0;">Учётная запись <span class="badge b-muted" style="vertical-align:middle;">только для чтения · администратор</span></div><hr class="section-rule">
+    ${!a ? `<div class="banner err"><span class="ic">🔴</span>
+      <div><b>Учётной записи нет.</b> Сотруднику нельзя назначить задание, он не может замещать другого и не может быть куратором. Учётную запись заводит администратор.</div></div>`
+    : `${a.rolesStale ? `<div class="banner warn"><span class="ic">⚠️</span>
+      <div><b>Роли не пересмотрены после перевода (${fmt(a.rolesStale)}).</b> Уведомление администратору отправлено.</div></div>` : ''}
+    ${blockedWorking ? `<div class="banner err"><span class="ic">🔴</span>
+      <div><b>Учётная запись заблокирована, хотя сотрудник работает.</b> Разбирает администратор.</div></div>` : ''}
+    <div class="kv-grid" style="margin-bottom:8px;">
+      <div class="k">Логин</div><div><code>${a.login}</code></div>
+      <div class="k">Состояние</div><div>${badge(st)}</div>
+      <div class="k">Создана</div><div>${fmt(a.created)} · ${esc(a.by)}</div>
+      <div class="k">Последний вход</div><div>${esc(a.last)}</div>
     </div>
-    <hr class="section-rule">
-    ${resEdit
-      ? `<textarea class="kv-inp" id="resText" placeholder="Резюме / автобиография">${esc(e.resume || '')}</textarea>`
-      : `<p style="max-width:760px;font-size:15px;">${esc(e.resume) || '<span class="muted">—</span>'}</p>`}`;
+    <div class="section-sub">Роли</div><hr class="section-rule">
+    <div class="kv-grid" style="margin-bottom:8px;">
+      ${roles.length ? roles.map(x => `<div class="k">${esc(unitName(x.unit))}</div><div><span class="badge b-info">${esc(x.role)}</span></div>`).join('')
+        : `<div class="k">Ролей нет</div><div><span class="badge b-muted">—</span></div>`}
+    </div>
+    <div class="section-sub">Что курирует</div><hr class="section-rule">
+    <div class="kv-grid" style="margin-bottom:8px;">
+      ${cur && cur.borrowers ? `<div class="k">Отрасль</div><div>${esc(cur.sector)}</div>
+      <div class="k">Область / район</div><div>${esc(cur.region)}</div>
+      <div class="k">Вид заёмщика / кредита</div><div>${esc(cur.kind)}</div>`
+        : `<div class="k">Ничего не курирует</div><div><span class="badge b-muted">—</span></div>`}
+    </div>`}`;
 }
+
 
 function pNaznach(e, d){
   const list = ASSIGN.filter(a => a.emp === e.id).sort((x,y) => y.from.localeCompare(x.from));
@@ -1488,65 +1514,22 @@ function pOtsut(e, d){
       </table></div>` : ''}`;
 }
 
-function pUz(e, d){
-  const a = acct(e.id);
-  if (!a) return `
-    <div class="section-title">Учётная запись и кураторство</div><hr class="section-rule">
-    <div class="banner err"><span class="ic">🔴</span>
-      <div><b>Учётной записи нет.</b> Сотруднику нельзя назначить задание, он не может замещать другого и не может быть куратором.
-        Учётную запись заводит администратор.</div></div>`;
-  const cur = curatorOf(a.login);
-  const roles = ROLES.filter(r => r.login === a.login);
-  const tasks = TASKS.filter(t => t.login === a.login);
-  const r = resolveActor(e.id, d);
-  const st = acctStateAt(e.id, d);
-  return `
-    <div class="section-title">Учётная запись и кураторство <span class="badge b-muted" style="vertical-align:middle;">только для чтения</span></div>
-    <hr class="section-rule">
-    ${a.rolesStale ? `<div class="banner warn"><span class="ic">⚠️</span>
-      <div><b>Роли не пересмотрены после перевода (${fmt(a.rolesStale)}).</b> Уведомление администратору отправлено.</div></div>` : ''}
-    ${st.state === 'blocked' && hrStatusAt(e.id,d) === 'Работает' ? `<div class="banner err"><span class="ic">🔴</span>
-      <div><b>Учётная запись заблокирована, хотя сотрудник работает.</b> Разбирает администратор.</div></div>` : ''}
-    <div class="proj-grid">
-      <div class="proj-card"><h4>Учётная запись</h4>
-        <div class="proj-row"><span class="pk">Логин</span><span><code>${a.login}</code></span></div>
-        <div class="proj-row"><span class="pk">Состояние</span><span>${badge(st)}</span></div>
-        <div class="proj-row"><span class="pk">Создана</span><span>${fmt(a.created)} · ${a.by}</span></div>
-        <div class="proj-row"><span class="pk">Последний вход</span><span>${a.last}</span></div>
-      </div>
-      <div class="proj-card"><h4>Роли</h4>
-        ${roles.length ? roles.map(x => `<div class="proj-row"><span class="pk">${esc(unitName(x.unit))}</span>
-          <span><span class="badge b-info">${esc(x.role)}</span></span></div>`).join('')
-          : '<div class="proj-row"><span class="pk">Ролей нет</span><span class="badge b-muted">—</span></div>'}
-      </div>
-      <div class="proj-card"><h4>Что курирует</h4>
-        ${cur && cur.borrowers ? `
-          <div class="proj-row"><span class="pk">Отрасль</span><span>${esc(cur.sector)}</span></div>
-          <div class="proj-row"><span class="pk">Область / район</span><span>${esc(cur.region)}</span></div>
-          <div class="proj-row"><span class="pk">Вид заёмщика / кредита</span><span>${esc(cur.kind)}</span></div>`
-          : '<div class="proj-row"><span class="pk">Ничего не курирует</span><span class="badge b-muted">—</span></div>'}
-      </div>
-      <div class="proj-card"><h4>Закреплённые заёмщики и задания</h4>
-        <div class="proj-row"><span class="pk">Закреплено заёмщиков</span>
-          <span><b>${cur ? cur.borrowers : 0}</b> ${cur && cur.borrowers ? '<span class="lnk">открыть список →</span>' : ''}</span></div>
-        <div class="proj-row"><span class="pk">Открытых заданий</span><span><b>${tasks.length}</b></span></div>
-        <div class="proj-row"><span class="pk">Задания уходят</span>
-          <span>${r.router ? 'уходят к <b>'+r.router+'</b>' : r.hole ? '<span class="badge b-err">отсутствует, замещения нет</span>' : 'уходят напрямую'}</span></div>
-        <div class="proj-row"><span class="pk">Конфликт интересов</span>
-          <span>${cur && cur.conflict ? `<span class="badge b-err">${plural(cur.conflict,'заёмщик','заёмщика','заёмщиков')}</span> — отстранён <span class="lnk">детали</span>` : '<span class="badge b-ok">нет</span>'}</span></div>
-      </div>
-    </div>`;
-}
 
 function pPasport(e, d){
   const p = e.pass;
   const old = (PASS_HIST[e.id] || []);
+  const synced = PASS_SYNC[e.id] || '14.07.2026 08:40';
   return `
     <div class="section-title">Паспортные данные <span class="cls cls-B" style="font-size:11px;vertical-align:middle;" title="Видят кадры и сам сотрудник">уровень B</span></div>
     <hr class="section-rule">
-    ${canEdit(e.id) ? `<div class="tab-toolbar">
-      <button class="btn btn-secondary" data-add="pass">⇄ Заменить паспорт</button></div>` : ''}
+    <div class="src-banner">
+      <span class="badge b-info">🔒 Тундук · ГРС</span>
+      <span class="muted">Получено из государственного реестра. Правка вручную недоступна.</span>
+      <span class="src-sync">Синхронизировано ${synced}</span>
+      ${canEdit(e.id) ? `<button class="btn btn-secondary" data-add="passSync">⟳ Обновить из Тундук</button>` : ''}
+    </div>
     <div class="kv-grid" style="max-width:660px;">
+      <div class="k">ПИН</div><div class="mask">${esc(e.pin)}</div>
       <div class="k">Фамилия · Имя · Отчество</div><div>${esc(e.fio)}</div>
       <div class="k">Дата рождения</div><div>${p.birth}</div>
       <div class="k">Пол</div><div>${p.sex}</div>
@@ -1557,7 +1540,6 @@ function pPasport(e, d){
       <div class="k">Срок действия</div><div>${p.valid}</div>
       <div class="k">Семейное положение</div><div>${p.family}</div>
       <div class="k">Адрес регистрации</div><div>${esc(p.addr)}</div>
-      <div class="k">Адрес фактического проживания</div><div>${esc(p.addr)}</div>
     </div>
     ${old.length ? `
       <div class="section-sub" style="margin-top:18px;">Прежние паспорта</div><hr class="section-rule">
@@ -1579,9 +1561,28 @@ function monthsBetween(from, to){
 }
 function durText(mm){
   const y = Math.floor(mm / 12), m = mm % 12;
-  const py = y ? plural(y,'год','года','лет') : '';
-  const pm = m ? plural(m,'месяц','месяца','месяцев') : '';
+  // plural() возвращает только слово («лет») — число подставляем здесь
+  const py = y ? y + ' ' + plural(y,'год','года','лет') : '';
+  const pm = m ? m + ' ' + plural(m,'месяц','месяца','месяцев') : '';
   return [py, pm].filter(Boolean).join(' ') || 'меньше месяца';
+}
+// Стаж по набору периодов: сливаем смежные (зазор ≤ 1 дня) и перекрывающиеся интервалы,
+// потом считаем месяцы один раз на слитый span — иначе остаток дней теряется на каждом стыке
+// (45+54 давало 99 вместо 100), а перекрытие давало бы двойной счёт.
+function coveredMonths(list, d){
+  const DAY = 86400000;
+  const segs = list
+    .map(a => [a.from, (a.to && a.to < d) ? a.to : d])
+    .filter(([f, t]) => f < t)
+    .sort((x, y) => x[0].localeCompare(y[0]));
+  let total = 0, curF = null, curT = null;
+  for (const [f, t] of segs){
+    if (curT === null){ curF = f; curT = t; }
+    else if (Date.parse(f) - Date.parse(curT) <= DAY){ if (t > curT) curT = t; }  // стык/перекрытие → продлить
+    else { total += monthsBetween(curF, curT); curF = f; curT = t; }              // реальный разрыв → закрыть период
+  }
+  if (curT !== null) total += monthsBetween(curF, curT);
+  return total;
 }
 
 // кнопка «＋ Добавить» и действия в строке — только у того, кто правит карточку
@@ -1600,20 +1601,16 @@ function pObraz(e, d){
     <div class="section-title">Образование и сертификаты</div><hr class="section-rule">
     ${addBtn('edu', 'Добавить запись')}
     <div class="grid-wrap"><table class="dtable">
-      <colgroup><col style="width:11%"><col style="width:15%"><col style="width:20%"><col style="width:22%"><col style="width:7%"><col style="width:13%"><col style="width:12%">${raCol()}</colgroup>
-      <thead><tr><th>Вид</th><th>Уровень</th><th>Специальность</th><th>Учебное заведение</th><th>Год</th><th>Номер</th><th>Действует до</th>${raHead()}</tr></thead>
+      <colgroup><col style="width:12%"><col style="width:17%"><col style="width:24%"><col style="width:26%"><col style="width:8%"><col style="width:13%">${raCol()}</colgroup>
+      <thead><tr><th>Вид</th><th>Уровень</th><th>Специальность</th><th>Учебное заведение</th><th>Год</th><th>Номер</th>${raHead()}</tr></thead>
       <tbody>${list.length ? list.map(x => {
-        const expired = x.till && x.till < d;
-        return `<tr class="${expired?'closed':''}">
+        return `<tr>
           <td><span class="badge ${x.type==='Диплом'?'b-info':'b-muted'}">${esc(x.type)}</span></td>
           <td>${esc(x.level)}</td><td>${esc(x.spec)}</td><td>${esc(x.org)}</td>
           <td>${x.year}</td><td>${esc(x.num)}</td>
-          <td>${x.till
-                ? (expired ? `${fmt(x.till)} <span class="badge b-warn">истёк</span>` : fmt(x.till))
-                : '<span class="muted">бессрочно</span>'}</td>
           ${rowAct('edu', x)}
         </tr>`;
-      }).join('') : `<tr><td colspan="${cols(7)}" class="empty-row">Записей об образовании нет.</td></tr>`}</tbody>
+      }).join('') : `<tr><td colspan="${cols(6)}" class="empty-row">Записей об образовании нет.</td></tr>`}</tbody>
     </table></div>`;
 }
 
@@ -1637,11 +1634,42 @@ function pSemya(e, d){
     </table></div>`;
 }
 
+function pLang(e, d){
+  const list = LANGS.filter(x => x.emp === e.id);
+  return `
+    <div class="section-title">Владение языками</div><hr class="section-rule">
+    ${addBtn('lang', 'Добавить язык')}
+    <div class="grid-wrap"><table class="dtable">
+      <colgroup><col style="width:40%"><col style="width:45%">${raCol()}</colgroup>
+      <thead><tr><th>Язык</th><th>Уровень владения</th>${raHead()}</tr></thead>
+      <tbody>${list.length ? list.map(x => `<tr>
+        <td>${esc(x.lang)}</td><td>${esc(x.level)}</td>
+        ${rowAct('lang', x)}
+      </tr>`).join('') : `<tr><td colspan="${cols(2)}" class="empty-row">Сведений о языках нет.</td></tr>`}</tbody>
+    </table></div>`;
+}
+
+function pMil(e, d){
+  const list = MIL.filter(x => x.emp === e.id);
+  return `
+    <div class="section-title">Воинский учёт</div><hr class="section-rule">
+    ${addBtn('mil', 'Добавить сведения')}
+    <div class="grid-wrap"><table class="dtable">
+      <colgroup><col style="width:20%"><col style="width:17%"><col style="width:20%"><col style="width:16%"><col style="width:9%"><col style="width:18%">${raCol()}</colgroup>
+      <thead><tr><th>Отношение к воинской обязанности</th><th>Военный билет</th><th>Категория годности</th><th>Звание</th><th>ВУС</th><th>Военкомат</th>${raHead()}</tr></thead>
+      <tbody>${list.length ? list.map(x => `<tr>
+        <td>${esc(x.rel)}</td><td>${esc(x.num || '—')}</td><td>${esc(x.cat || '—')}</td>
+        <td>${esc(x.rank || '—')}</td><td>${esc(x.vus || '—')}</td><td>${esc(x.komis || '—')}</td>
+        ${rowAct('mil', x)}
+      </tr>`).join('') : `<tr><td colspan="${cols(6)}" class="empty-row">Сведений о воинском учёте нет.</td></tr>`}</tbody>
+    </table></div>`;
+}
+
 function pStazh(e, d){
   const list = WORKHIST.filter(x => x.emp === e.id).sort((a,b) => b.from.localeCompare(a.from));
   const before = list.reduce((s, x) => s + monthsBetween(x.from, x.to), 0);
   const mains  = ASSIGN.filter(a => a.emp === e.id && a.kind === 'main');
-  const here   = mains.reduce((s, a) => s + monthsBetween(a.from, a.to && a.to < d ? a.to : d), 0);
+  const here   = coveredMonths(mains, d);
   return `
     <div class="section-title">Трудовой стаж</div><hr class="section-rule">
     <div class="kv-grid" style="margin-bottom:14px;">
@@ -1718,7 +1746,7 @@ function pDocs(e, d){
         </div>
       </div>`).join('') || '<p class="muted">Доступных документов нет.</p>'}
     ${hidden ? `<div class="banner warn"><span class="ic">🔒</span>
-      <div><b>Скрыто по уровню доступа: ${plural(hidden,'документ','документа','документов')}.</b></div></div>` : ''}`;
+      <div><b>Скрыто по уровню доступа: ${hidden} ${plural(hidden,'документ','документа','документов')}.</b></div></div>` : ''}`;
 }
 
 function pHistory(e, d){
@@ -1796,17 +1824,30 @@ $('#dsConfirm').addEventListener('click', () => {
 /* =========================================================================
    5а. СТРОКИ ВКЛАДОК — одна форма на все справочные таблицы карточки
    ========================================================================= */
+// Справочник уровней образования — единый источник; набор значений зависит от вида документа.
+const EDU_LEVELS = {
+  'Диплом':       ['Среднее профессиональное','Незаконченное высшее','Высшее (бакалавриат)','Высшее (специалитет)','Магистратура','Аспирантура','Кандидат наук','Доктор наук'],
+  'Сертификат':   ['Базовый','Средний','Продвинутый','Профессиональный','Повышение квалификации'],
+  'Свидетельство':['Профессиональная переподготовка','Рабочая профессия','Курсы'],
+};
+
+// Справочник органов, налагающих поощрение/взыскание — единый источник, набор зависит от вида.
+// Взыскание налагает только работодатель (ТК КР); поощрение может быть и внешним (гос./отраслевым).
+const AWARD_ORGS = {
+  'Поощрение':['ФКФ','Министерство финансов КР','Кабинет Министров КР','Президент КР','Профсоюз ФКФ'],
+  'Взыскание':['ФКФ','Непосредственный руководитель'],
+};
+
 const ROW_SPECS = {
   edu: {
     arr: () => EDU, title:'Запись об образовании', tab:'obraz',
     fields:[
       {k:'type',  l:'Вид',               t:'select', opts:['Диплом','Сертификат','Свидетельство'], req:true},
-      {k:'level', l:'Уровень',           t:'text',   req:true},
+      {k:'level', l:'Уровень',           t:'select', dep:'type', opts:EDU_LEVELS, req:true},
       {k:'spec',  l:'Специальность',     t:'text',   req:true},
       {k:'org',   l:'Учебное заведение', t:'text',   req:true},
       {k:'year',  l:'Год окончания',     t:'number', req:true},
       {k:'num',   l:'Номер документа',   t:'text'},
-      {k:'till',  l:'Действует до (для сертификата)', t:'date'},
     ],
     name: x => `${x.type}: ${x.spec}`,
   },
@@ -1836,13 +1877,33 @@ const ROW_SPECS = {
     fields:[
       {k:'kind', l:'Вид',          t:'select', opts:['Поощрение','Взыскание'], req:true},
       {k:'name', l:'Наименование', t:'text', req:true},
-      {k:'org',  l:'Орган',        t:'text', req:true},
+      {k:'org',  l:'Орган',        t:'select', dep:'kind', opts:AWARD_ORGS, req:true},
       {k:'date', l:'Дата',         t:'date', req:true},
       {k:'off',  l:'Дата снятия (для взыскания)', t:'date'},
       {k:'note', l:'Примечание',   t:'text'},
     ],
     name: x => `${x.kind}: ${x.name}`,
     check: x => x.off && x.off < x.date ? 'Дата снятия раньше даты взыскания.' : null,
+  },
+  lang: {
+    arr: () => LANGS, title:'Язык', tab:'yazyki',
+    fields:[
+      {k:'lang',  l:'Язык',             t:'select', opts:['Кыргызский','Русский','Английский','Турецкий','Немецкий','Французский','Китайский','Арабский','Узбекский','Казахский','Таджикский','Корейский','Японский'], req:true},
+      {k:'level', l:'Уровень владения', t:'select', opts:['Родной','Свободно','Хорошо','Базовый','Со словарём'], req:true},
+    ],
+    name: x => `${x.lang} — ${x.level}`,
+  },
+  mil: {
+    arr: () => MIL, title:'Воинский учёт', tab:'voinuch',
+    fields:[
+      {k:'rel',   l:'Отношение к воинской обязанности', t:'select', opts:['военнообязанный','невоеннообязанный','снят с учёта'], req:true},
+      {k:'num',   l:'Военный билет (серия, номер)', t:'text'},
+      {k:'cat',   l:'Категория годности', t:'select', opts:['А — годен','Б — годен с ограничениями','В — ограниченно годен','Г — временно негоден','Д — негоден']},
+      {k:'rank',  l:'Воинское звание', t:'text'},
+      {k:'vus',   l:'ВУС', t:'text'},
+      {k:'komis', l:'Военкомат', t:'text'},
+    ],
+    name: x => `Военный билет ${x.num || ''}`.trim(),
   },
   doc: {
     arr: () => DOCS, title:'Документ', tab:'docs', addOnly:true,
@@ -1860,6 +1921,7 @@ const ROW_SPECS = {
 let rwKind = null, rwId = null;
 function openRow(kind, id){
   if (kind === 'pass') return openPassport();
+  if (kind === 'passSync') return syncPassport();
   rwKind = kind; rwId = id;
   const sp = ROW_SPECS[kind];
   const rec = id ? sp.arr().find(x => x.id === id) : null;
@@ -1867,7 +1929,11 @@ function openRow(kind, id){
   $('#rwBody').innerHTML = sp.fields.map(f => {
     const v = rec ? (rec[f.k] ?? '') : (f.k === 'date' ? asOf : '');
     if (f.t === 'select'){
-      const opts = f.opts.map(o => Array.isArray(o) ? o : [o, o]);
+      // зависимый список (напр. «Уровень» от «Вид»): опции берём из справочника по значению ведущего поля
+      const raw = f.dep
+        ? (f.opts[rec ? rec[f.dep] : sp.fields.find(x => x.k === f.dep).opts[0]] || [])
+        : f.opts;
+      const opts = raw.map(o => Array.isArray(o) ? o : [o, o]);
       return `<div class="fld"><label for="rw_${f.k}">${f.l}</label>
         <select id="rw_${f.k}">${opts.map(([val,lab]) =>
           `<option value="${esc(val)}" ${String(v)===val?'selected':''}>${esc(lab)}</option>`).join('')}</select></div>`;
@@ -1876,6 +1942,16 @@ function openRow(kind, id){
       <input id="rw_${f.k}" type="${f.t}" value="${esc(v)}" autocomplete="off"></div>`;
   }).join('') + '<div id="rwErr"></div>';
   sp.fields.forEach(f => $('#rw_'+f.k).addEventListener('input', checkRow));
+  // пересобрать зависимый select при смене ведущего поля
+  sp.fields.filter(f => f.dep).forEach(f => {
+    const master = $('#rw_'+f.dep);
+    master.addEventListener('change', () => {
+      const list = (f.opts[master.value] || []).map(o => Array.isArray(o) ? o : [o, o]);
+      $('#rw_'+f.k).innerHTML = list.map(([val,lab]) =>
+        `<option value="${esc(val)}">${esc(lab)}</option>`).join('');
+      checkRow();
+    });
+  });
   checkRow();
   $('#rwConfirm').onclick = saveRow;
   openModal('mRow');
@@ -1986,6 +2062,14 @@ function savePassport(){
   closeModal('mRow');
   renderAll();
   toast('Паспорт заменён. Прежний номер сохранён — старые кредитные документы на него ссылаются.');
+}
+// «⟳ Обновить из Тундук» — повторный запрос паспортных данных из ГРС. Ручной правки нет.
+function syncPassport(){
+  const e = emp(openId);
+  PASS_SYNC[e.id] = fmt(asOf) + ' 09:15';
+  audit(e.id, `<b>Паспорт (вкл. 5, B):</b> данные обновлены из Тундук (ГРС). Расхождений с реестром нет.`, '');
+  renderAll();
+  toast('Данные актуальны. Синхронизировано с ГРС через Тундук.');
 }
 
 /* --- создание карточки: сотрудник = ссылка на физлицо + кадровые поля --- */
@@ -2228,6 +2312,7 @@ $('#abConfirm').addEventListener('click', () => {
    6. КАРКАС: виды, дата, роль, модалки, навигация, тост
    ========================================================================= */
 function goView(v){
+  if (v === 'overview' && role !== 'hr') v = 'list';   // «Обзор» — только кадры
   curView = v;
   document.querySelectorAll('.vtab').forEach(t => t.classList.toggle('active', t.dataset.view === v));
   document.querySelectorAll('.mainview').forEach(m => m.classList.toggle('active', m.id === 'view-' + v));
@@ -2290,6 +2375,26 @@ $('#fReset').addEventListener('click', () => {
 });
 $('#btnOpen').addEventListener('click', () => { if (selectedId) openCard(selectedId); });
 $('#btnCreate').addEventListener('click', openCreate);
+
+// Экспорт списка в Excel — HTML-таблица как .xls (кириллица через UTF-8 BOM), по текущему фильтру и дате.
+function exportExcel(){
+  const d = asOf, rows = currentListRows();
+  const head = ['ФИО','Подразделение · Должность','Доступность','Рабочий телефон','Мобильный телефон','Кабинет'];
+  const body = rows.map(e => [
+    e.fio, deptPostAt(e.id, d), availabilityAt(e.id, d).t,
+    e.wphone || '—', e.phone || '—', (e.work && e.work.room) || '—',
+  ].map(c => `<td>${esc(c)}</td>`).join('')).map(tr => `<tr>${tr}</tr>`).join('');
+  const html = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head>`
+    + `<body><table border="1"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>`
+    + `<tbody>${body}</tbody></table></body></html>`;
+  const url = URL.createObjectURL(new Blob(['﻿' + html], {type:'application/vnd.ms-excel'}));
+  const a = document.createElement('a');
+  a.href = url; a.download = `Сотрудники_${fmt(d).replace(/\./g,'-')}.xls`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast(`Выгружено в Excel: ${rows.length} строк на ${fmt(d)}.`);
+}
+$('#btnExport').addEventListener('click', exportExcel);
 
 const NAV = [
   {label:'Система кредитования', items:['Заявки','Комиссии по заявкам','Заёмщики','Кредиты']},
