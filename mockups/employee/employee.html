@@ -622,7 +622,6 @@
 const TODAY = '2026-07-14';
 let asOf = TODAY;            // дата среза
 let role = 'hr';             // текущая роль
-let SELF = 'e142';           // чья карточка «своя» для роли self
 let selectedId = null;       // выделенная строка списка
 let openId = null;           // открытая карточка
 let cardTab = 'obshee';
@@ -1026,7 +1025,8 @@ const CLASS_OF_TAB = {obshee:'A', uz:'A', naznach:'A', otsut:'A', docs:'A', hist
 const ROLE_CLASSES = {hr:['A','B','C'], admin:['A'], head:['A','C'], self:['A','B','C'], cred:['A']};
 function canSee(cls, empId){
   if (cls === 'A') return true;
-  if (role === 'self') return empId === SELF && ROLE_CLASSES.self.includes(cls);
+  // «Сам сотрудник» — это владелец ОТКРЫТОЙ карточки: любая открытая карточка считается своей,
+  // поэтому self видит все классы независимо от того, кого он смотрит (empId не проверяем).
   return ROLE_CLASSES[role].includes(cls);
 }
 const canSeeTab = (tabKey, empId) => canSee(CLASS_OF_TAB[tabKey], empId);
@@ -2509,7 +2509,7 @@ $('#roleSel').addEventListener('change', ev => {
   renderAll();
   const seen = ROLE_CLASSES[role].join(' · ');
   toast(role === 'cred' ? 'Кредитный специалист: кадровое дело и взыскания недоступны — этих вкладок и документов он не видит.'
-      : role === 'self' ? 'Сам сотрудник видит своё кадровое дело только в своей карточке (Сламкулов). В чужой — лишь общие данные.'
+      : role === 'self' ? 'Сам сотрудник видит своё кадровое дело в своей карточке — любая открытая карточка считается своей.'
       : `Роль «${ev.target.selectedOptions[0].text}»: доступные уровни ${seen}.`);
 });
 ['fStatus','fUnit','fAvail','fQ'].forEach(id =>
