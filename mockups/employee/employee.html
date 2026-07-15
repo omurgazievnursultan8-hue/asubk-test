@@ -224,7 +224,8 @@
   /* ---------- TABS карточки ---------- */
   .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap;}
   .tab{appearance:none;border:0;background:transparent;font-family:var(--font);padding:9px 12px 11px;font-size:15px;
-    color:var(--secondary-text);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px;}
+    color:var(--secondary-text);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px;
+    white-space:nowrap;}
   .tab:hover{color:var(--primary-text);}
   .tab.active{color:var(--primary-text);border-bottom-color:var(--primary-text);font-weight:600;}
   .tab .cls{font-size:10px;font-weight:700;border-radius:3px;padding:0 4px;}
@@ -1291,7 +1292,7 @@ function renderList(){
 const TABS = [
   {k:'obshee',  n:'Общая'},
   {k:'naznach', n:'Назначения'},
-  {k:'otsut',   n:'Отсутствия и замещения'},
+  {k:'otsut',   n:'Отсутствия'},
   {k:'uz',      n:'Учётная запись'},
   {k:'pasport', n:'Паспорт'},
   {k:'obraz',   n:'Образование'},
@@ -1409,11 +1410,9 @@ function renderCard(){
 
     <div class="tabs" id="tabs">
       ${visTabs.map(t => {
-        const cls = CLASS_OF_TAB[t.k];
-        const chip = cls === 'A' ? '' : `<span class="cls cls-${cls}" title="Уровень доступа ${cls} — видят не все роли">${cls}</span>`;
         const cnt = tabCount(t.k, e, d);
         const cb = cnt != null ? `<span class="tab-cnt" title="записей: ${cnt}">${cnt}</span>` : '';
-        return `<button class="tab ${cardTab===t.k?'active':''}" data-tab="${t.k}">${t.n}${cb}${chip}</button>`;
+        return `<button class="tab ${cardTab===t.k?'active':''}" data-tab="${t.k}">${t.n}${cb}</button>`;
       }).join('')}
     </div>
 
