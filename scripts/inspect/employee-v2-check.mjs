@@ -1,6 +1,6 @@
 import { chromium } from 'playwright-core';
 
-const URL = 'file:///home/azamat/projects/asubk-credit-module/mockups/employee/employee-v2.html';
+const URL = 'file:///home/azamat/projects/asubk-credit-module/mockups/employee/employee.html';
 const SHOT = '/tmp/claude-1000/-home-azamat-projects-asubk-credit-module/07f081d2-bc47-4310-b2ec-16a646d67b34/scratchpad';
 
 const b = await chromium.launch({ channel: 'chrome' });

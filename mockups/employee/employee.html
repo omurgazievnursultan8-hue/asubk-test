@@ -3,26 +3,37 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Сотрудники — АСУБК (мокап TO-BE)</title>
+<title>Сотрудники · АСУБК</title>
 <!--
-  Модуль управления информацией о сотрудниках (АСУБК Credit Module) — в одном файле.
-  Мокап TO-BE по спецификации ASUBK-sotrudniki-logika.md (секция 14 мастер-дока).
-  По решению заказчика мокап изначально «не разрабатывается»; этот файл — визуализация
-  спеки для дев-команды по прямому запросу.
+  Модуль «Сотрудники» (АСУБК Credit Module), версия 2. Предшественник — employee.html,
+  где всё было захардкожено в разметке. Здесь логика исполняется.
 
-  Токены дизайн-системы взяты из mockups/borrower/borrower.html (Jmix on Vaadin / Lumo,
-  gov-blue). Структура — тот же двухвидовый SPA: список + карточка.
+  ГЛАВНЫЙ ВОДОРАЗДЕЛ. В состоянии лежат только ФАКТЫ (EMPLOYEES / ASSIGN / ABSENCE /
+  ACCOUNTS / ROLES / CURATOR / TASKS / DOCS / AUDIT). Все статусы — ПРОИЗВОДНЫЕ,
+  считаются чистыми функциями на дату среза. Поля employee.status в модели нет.
 
-  Что показано (фокус «карточка целиком»):
-    • Список сотрудников — разные состояния 3 осей (§4 спеки).
-    • Карточка: шапка с 3 независимыми осями (кадровый статус · доступность · УЗ),
-      11 вкладок. Наполнены ключевые: 2 Назначения (периоды+приказ), 3 Отсутствия
-      и замещения, 4 УЗ и кураторство (проекция-гейт), 10 Документы, 11 История.
-      Вкладки класса B/C — заглушки ПОД ГРИФОМ (данные не раскрыты; §3 наследование грифа).
-    • Два жёстких гейта как модалки (упрощённо): Перевод (решение по кураторству — §6.2/§9.2)
-      и Увольнение (нулевые обязательства — §9.4).
-  Иллюстрируемые дефекты/сигналы: «тихая дыра кураторства при переводе», флаг
-  «роли не пересмотрены», флаг «исполнитель отсутствует, замещения нет».
+  ТРИ НЕЗАВИСИМЫЕ ОСИ — три функции, три владельца:
+    hrStatusAt(e,d)      кадровый статус   — меняют кадры приказом
+    availabilityAt(e,d)  доступность       — считается из отсутствий, вручную не ставится
+    acctStateAt(e,d)     учётная запись    — меняет администратор
+  Склеивать их в один «статус сотрудника» нельзя — их некуда записать.
+
+  ЧТО ИСПОЛНЯЕТСЯ
+   1. Дата среза пересчитывает всё: подразделение/должность (mainAt), доступность,
+      состояние отсутствия, истечение и.о. Чипы 2021-12-31 / 2026-07-14 / 2026-08-12.
+   2. Уровни доступа A/B/C — атрибут ДАННЫХ, не экрана: canSee(class, role, empId);
+      документ наследует уровень своей вкладки (DOCS[].tab -> CLASS_OF_TAB).
+   3. Перевод: doTransfer() атомарно закрывает период (по = дата−1) и открывает новый.
+      Решение по закреплённым заёмщикам обязательно — сами они не переходят.
+   4. Увольнение: dismissBlockers() читает CURATOR/TASKS/ABSENCE; пока не ноль — кнопка
+      мертва. doDismiss() закрывает периоды, отменяет будущие отсутствия, блокирует
+      (не удаляет) учётную запись, снимает заёмщиков, переводит карточку в read-only.
+   5. resolveActor(e,d) — контракт наружу: задание назначается на учётную запись куратора,
+      при активном замещении маршрутизируется на замещающего; ответственность на кураторе.
+   6. validateSubstitute() — три правила замещающего: работает · не отсутствует в пересечении ·
+      имеет действующую учётную запись. Плюс запрет цепочки замещений.
+
+  Токены дизайн-системы — из mockups/borrower/borrower.html (Jmix on Vaadin / Lumo).
 -->
 <style>
   :root{
@@ -36,7 +47,6 @@
     --success:#158a4e;
     --error:#e02020;
     --green-card-bg:#eaf7f0;
-    --green-card-border:#cdeadb;
     --border:#dbe0e6;
     --border-strong:#c7ced6;
     --field-bg:#f6f8fa;
@@ -44,102 +54,74 @@
     --field-border:#c9d0d8;
     --panel-border:#e3e7ec;
     --grid-hover:#f3f7fd;
+    --grid-sel:#dbe9fb;
     --radius:4px;
-    --font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+    --font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{font-family:var(--font);color:var(--body-text);background:#fff;font-size:16px;line-height:1.4;}
   .app{display:flex;min-height:100vh;}
+  .muted{color:var(--secondary-text);font-size:13px;}
+  .muted b{color:var(--body-text);font-weight:600;}
 
-  /* ---------- SIDEBAR (data-driven, как во всех остальных мокапах) ---------- */
-  .sidebar{width:320px;flex:0 0 320px;background:#eff1f4;border-right:1px solid var(--border);display:flex;flex-direction:column;}
-  .sidebar .brand{padding:18px 16px 14px;font-weight:600;font-size:17px;letter-spacing:0.04em;color:var(--body-text);}
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{width:300px;flex:0 0 300px;background:#eff1f4;border-right:1px solid var(--border);display:flex;flex-direction:column;}
+  .sidebar .brand{padding:18px 16px 14px;font-weight:600;font-size:17px;letter-spacing:0.04em;}
   .nav{flex:1;overflow-y:auto;padding-bottom:8px;}
   .nav-toggle{display:flex;align-items:center;gap:8px;width:100%;appearance:none;border:none;background:transparent;
     color:var(--body-text);cursor:pointer;text-align:left;font-family:inherit;}
-  .nav-group > .nav-toggle{padding:9px 16px;font-weight:600;font-size:15px;line-height:1.3;}
-  .nav-sub > .nav-toggle{padding:8px 16px 8px 32px;font-weight:600;font-size:14px;line-height:1.3;}
+  .nav-group > .nav-toggle{padding:9px 16px;font-weight:600;font-size:15px;}
   .nav-toggle:hover{background:var(--filter-bg);}
-  .nav-toggle .chev{display:inline-flex;align-items:center;color:var(--secondary-text);transition:transform 120ms ease;flex:none;}
-  .nav-group.open > .nav-toggle .chev,.nav-sub.open > .nav-toggle .chev{transform:rotate(90deg);}
-  .nav-toggle .lbl{flex:1;}
+  .nav-toggle .chev{display:inline-flex;color:var(--secondary-text);transition:transform 120ms ease;flex:none;}
+  .nav-group.open > .nav-toggle .chev{transform:rotate(90deg);}
   .nav-children{display:none;}
-  .nav-group.open > .nav-children,.nav-sub.open > .nav-children{display:block;}
-  .nav-item{display:block;padding:7px 16px 7px 52px;font-size:16px;line-height:1.625;color:var(--secondary-text);text-decoration:none;cursor:pointer;}
-  .nav-item.headerless{padding-left:40px;}
+  .nav-group.open > .nav-children{display:block;}
+  .nav-item{display:block;padding:7px 16px 7px 40px;font-size:16px;line-height:1.6;color:var(--secondary-text);
+    text-decoration:none;cursor:pointer;}
   .nav-item:hover{background:rgba(24,39,57,0.05);}
   .nav-item.active{background:rgba(51,139,255,0.13);color:var(--body-text);font-weight:600;}
-  .sidebar-foot{border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:12px 18px;color:var(--secondary-text);}
-  .sidebar-foot span{font-size:14px;}
-  .icon-btn{border:none;background:rgba(24,39,57,0.05);color:var(--primary-text);cursor:pointer;
-    padding:7px;border-radius:var(--radius);display:flex;}
+  .sidebar-foot{border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;
+    padding:12px 18px;color:var(--secondary-text);font-size:14px;}
+  .icon-btn{border:none;background:rgba(24,39,57,0.05);color:var(--primary-text);cursor:pointer;padding:7px;border-radius:var(--radius);display:flex;}
 
-  /* ---------- MAIN ---------- */
+  /* ---------- TOPBAR ---------- */
   .main{flex:1;min-width:0;display:flex;flex-direction:column;}
-  .topbar{display:flex;align-items:center;gap:16px;padding:16px 26px;border-bottom:1px solid var(--border);}
-  .burger{font-size:22px;color:var(--secondary-text);cursor:pointer;line-height:1;}
+  .topbar{display:flex;align-items:center;gap:16px;padding:12px 26px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
   .topbar .title{font-weight:700;font-size:20px;}
-  .topbar .role-switch{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--secondary-text);font-size:14px;}
-  .topbar .role-switch select{height:32px;border:1px solid var(--field-border);border-radius:var(--radius);
+  .date-wrap,.role-wrap{display:flex;align-items:center;gap:8px;color:var(--secondary-text);font-size:13px;}
+  .date-wrap{margin-left:auto;}
+  .date-wrap input,.role-wrap select{height:32px;border:1px solid var(--field-border);border-radius:var(--radius);
     background:var(--field-bg);font-family:var(--font);font-size:14px;color:var(--body-text);padding:0 8px;}
-  .view{flex:1;display:flex;flex-direction:column;}
-  .content{padding:16px 26px 26px;flex:1;}
+  .date-chip{height:26px;padding:0 9px;border:1px solid var(--field-border);background:#fff;border-radius:999px;
+    font-family:var(--font);font-size:12px;color:var(--primary-text);cursor:pointer;}
+  .date-chip:hover{background:var(--grid-hover);}
+  .date-chip.on{background:var(--primary);border-color:var(--primary);color:#fff;}
 
-  .btn{font-family:var(--font);font-size:16px;font-weight:600;border-radius:var(--radius);padding:9px 18px;
+  /* ---------- VIEW TABS ---------- */
+  .viewtabs{display:flex;gap:2px;border-bottom:1px solid var(--border);padding:0 26px;}
+  .vtab{appearance:none;border:0;background:transparent;font-family:var(--font);font-size:15px;font-weight:600;
+    color:var(--secondary-text);padding:11px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .vtab:hover{color:var(--primary-text);}
+  .vtab.active{color:var(--primary-text);border-bottom-color:var(--primary-text);}
+  .content{padding:18px 26px 30px;flex:1;}
+  .mainview{display:none;flex:1;flex-direction:column;}
+  .mainview.active{display:flex;}
+
+  /* ---------- BUTTONS ---------- */
+  .btn{font-family:var(--font);font-size:15px;font-weight:600;border-radius:var(--radius);padding:8px 16px;
     border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;}
-  .btn[disabled]{opacity:.55;cursor:not-allowed;}
+  .btn[disabled]{opacity:.5;cursor:not-allowed;}
   .btn-secondary{background:var(--filter-bg);color:var(--secondary-text);border-color:var(--field-border);}
+  .btn-secondary:not([disabled]):hover{background:#e4e8ed;}
   .btn-primary{background:var(--primary);color:#fff;}
-  .btn-primary:hover{background:var(--primary-hover);}
-  .btn-cancel{background:#fff;color:var(--primary-text);border-color:var(--border-strong);}
-  .btn-green{background:var(--green-btn);color:#fff;border-radius:var(--radius) 0 0 var(--radius);}
+  .btn-primary:not([disabled]):hover{background:var(--primary-hover);}
+  .btn-green{background:var(--green-btn);color:#fff;}
   .btn-green:hover{background:var(--green-btn-hover);}
-  .btn-green-split{background:var(--green-btn);color:#fff;border-left:1px solid rgba(255,255,255,.35);
-    border-radius:0 var(--radius) var(--radius) 0;padding:9px 10px;}
-  .btn-icon{background:var(--filter-bg);color:var(--primary-text);border-color:var(--field-border);padding:9px 11px;}
-  .btn-danger-solid{background:#fff;color:#ca150c;border-color:#e6b3ae;}
-  .btn-danger-solid:hover{background:#fdeaea;}
-
-  /* ---------- LIST ---------- */
-  .filter-head{display:flex;align-items:center;gap:8px;color:var(--primary-text);font-size:16px;padding:6px 2px 12px;cursor:default;}
-  .filter-card{border:1px solid var(--panel-border);border-radius:3px;padding:16px 18px;margin-bottom:16px;}
-  .filter-row{display:flex;align-items:center;gap:14px;}
-  .filter-row .fl{width:120px;color:var(--secondary-text);font-size:15px;flex:0 0 120px;}
-  .filter-field{flex:1;position:relative;background:rgba(26,57,96,0.08);border:0;
-    border-radius:var(--radius);height:36px;display:flex;align-items:center;padding:0 10px;cursor:pointer;}
-  .filter-field .val{flex:1;color:var(--body-text);font-size:16px;}
-  .filter-field .val.ph{color:transparent;}
-  .filter-field .chev{color:var(--secondary-text);font-size:16px;margin-left:8px;}
-  .fdrop{position:absolute;top:40px;left:0;right:0;z-index:20;background:#fff;border:1px solid var(--border);
-    border-radius:var(--radius);box-shadow:0 4px 16px rgba(24,39,57,0.14);padding:4px 0;display:none;}
-  .fdrop.open{display:block;}
-  .fdrop .opt{padding:8px 12px;font-size:16px;cursor:pointer;}
-  .fdrop .opt:hover{background:var(--grid-hover);}
-  .fdrop .opt.empty{color:var(--secondary-text);min-height:20px;}
-
-  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
-  .add-cond{color:var(--secondary-text);font-size:16px;margin-left:6px;cursor:default;}
-  .toolbar2{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
-  .rowcount{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--body-text);font-size:16px;}
-  .pager{display:flex;gap:10px;color:var(--secondary-text);}
-  .toolbar2 #btnEdit,.toolbar2 #btnDel{background:rgba(25,59,103,0.05);border-color:transparent;
-    height:36px;padding:0 14px;color:rgba(28,52,84,0.26);}
-  .toolbar2 #btnEdit:not([disabled]){color:#005fdb;}
-  .toolbar2 #btnDel:not([disabled]){color:#ca150c;}
-
-  #view-list .grid{border:1px solid var(--border);border-radius:3px;overflow:hidden;}
-  #view-list table{width:100%;border-collapse:collapse;table-layout:fixed;}
-  #view-list thead th{text-align:left;font-weight:700;color:var(--body-text);font-size:15px;padding:10px 16px;
-    border-bottom:1px solid var(--border);white-space:nowrap;}
-  #view-list thead th .sort{color:var(--secondary-text);font-size:13px;margin-left:6px;}
-  #view-list tbody td{padding:9px 16px;border-bottom:1px solid #eef1f4;font-size:15px;color:var(--body-text);
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  #view-list tbody tr{cursor:pointer;}
-  #view-list tbody tr:hover{background:var(--grid-hover);}
-  #view-list tbody tr:last-child td{border-bottom:0;}
-  col.c-tab{width:9%;} col.c-fio{width:24%;} col.c-dept{width:26%;}
-  col.c-kstat{width:12%;} col.c-avail{width:16%;} col.c-uz{width:13%;}
+  .btn-cancel{background:#fff;color:var(--primary-text);border-color:var(--border-strong);}
+  .btn-danger{background:#fff;color:#ca150c;border-color:#e6b3ae;}
+  .btn-danger:not([disabled]):hover{background:#fdeaea;}
+  .btn-sm{padding:4px 10px;font-size:13px;}
 
   /* ---------- BADGES (3 оси) ---------- */
   .badge{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;
@@ -151,99 +133,128 @@
   .b-err{color:var(--error);background:#fdeaea;}
   .b-dot::before{content:"●";font-size:9px;}
 
-  /* ---------- CARD HEADER ---------- */
-  .header-card{border:1px solid var(--panel-border);border-radius:3px;padding:18px 22px;
-    display:flex;gap:26px;margin-bottom:16px;}
-  .photo{flex:0 0 96px;width:96px;height:120px;border:1px solid var(--border);border-radius:var(--radius);
-    background:var(--field-bg);display:flex;align-items:center;justify-content:center;color:var(--secondary-text);font-size:34px;}
-  .header-mid{flex:1;min-width:0;}
-  .emp-name{font-size:22px;font-weight:700;margin:0 0 2px;}
-  .emp-sub{color:var(--secondary-text);font-size:15px;margin-bottom:12px;}
+  /* ---------- LIST ---------- */
+  .filter-card{border:1px solid var(--panel-border);border-radius:3px;padding:14px 16px;margin-bottom:14px;
+    display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+  .fgrp{display:flex;align-items:center;gap:8px;}
+  .fgrp label{color:var(--secondary-text);font-size:14px;}
+  .fgrp select,.fgrp input{height:34px;border:1px solid var(--field-border);border-radius:var(--radius);
+    background:var(--field-bg);font-family:var(--font);font-size:15px;color:var(--body-text);padding:0 8px;}
+  .fgrp input{width:230px;}
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .rowcount{margin-left:auto;color:var(--body-text);font-size:15px;}
+  .grid{border:1px solid var(--border);border-radius:3px;overflow:hidden;}
+  .grid table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  .grid thead th{text-align:left;font-weight:700;font-size:14px;padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  .grid tbody td{padding:9px 14px;border-bottom:1px solid #eef1f4;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .grid tbody tr{cursor:pointer;}
+  .grid tbody tr:hover{background:var(--grid-hover);}
+  .grid tbody tr.sel{background:var(--grid-sel);}
+  .grid tbody tr:last-child td{border-bottom:0;}
+  .grid tbody tr.gone td{color:var(--secondary-text);background:#fbfcfd;}
+  .empty-row{padding:26px;text-align:center;color:var(--secondary-text);}
+
+  /* ---------- ОБЗОР ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;}
+  .kpi{border:1px solid var(--panel-border);border-radius:var(--radius);padding:12px 14px;}
+  .kpi .kn{font-size:26px;font-weight:700;line-height:1.2;}
+  .kpi .kl{font-size:13px;color:var(--secondary-text);margin-top:2px;}
+  .kpi.bad .kn{color:var(--error);} .kpi.warn .kn{color:#9a6a00;}
+  .prob{border:1px solid var(--panel-border);border-radius:var(--radius);padding:0;margin-bottom:20px;overflow:hidden;}
+  .prob-h{padding:11px 16px;background:var(--filter-bg);font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;}
+  .prob-row{display:flex;gap:12px;align-items:flex-start;padding:11px 16px;border-top:1px solid #eef1f4;font-size:14px;}
+  .prob-row .pi{flex:0 0 20px;}
+  .prob-row .pb{flex:1;min-width:0;}
+  .prob-row .pw{font-size:13px;color:var(--secondary-text);margin-top:2px;}
+  .prob-row .pa{flex:none;}
+  .prob-empty{padding:18px 16px;color:var(--success);font-size:14px;}
+
+  /* ---------- CARD ---------- */
+  .backlink{display:inline-flex;align-items:center;gap:6px;color:var(--primary-text);font-size:14px;cursor:pointer;margin-bottom:12px;}
+  .backlink:hover{text-decoration:underline;}
+  .header-card{border:1px solid var(--panel-border);border-radius:3px;padding:12px 18px;display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+  .photo{flex:0 0 76px;width:76px;height:76px;border:1px solid var(--border);border-radius:50%;
+    background:var(--field-bg);display:flex;align-items:center;justify-content:center;font-size:34px;}
+  .header-mid{flex:1;min-width:280px;}
+  .emp-name{font-size:20px;font-weight:700;margin:0 0 1px;}
+  .emp-sub{color:var(--secondary-text);font-size:14px;margin:0 0 8px;}
   .emp-sub .calc{color:var(--primary-text);}
-  .kv-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px;align-items:center;max-width:520px;}
+  .calc-tag{font-size:11px;font-weight:600;color:var(--primary-text);background:#e9f1fe;border-radius:3px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
+  .kv-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px;align-items:center;max-width:620px;}
   .kv-grid .k{color:var(--secondary-text);}
-  .calc-tag{font-size:11px;font-weight:600;color:var(--primary-text);background:#e9f1fe;border-radius:3px;
-    padding:1px 6px;margin-left:6px;vertical-align:middle;}
-  /* блок 3 осей */
-  .axes{flex:0 0 300px;display:flex;flex-direction:column;gap:10px;border-left:1px solid var(--border);padding-left:22px;}
-  .axis .al{font-size:12px;color:var(--secondary-text);text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px;}
-  .axis .av{font-size:15px;}
-  .axis .an{font-size:12px;color:var(--secondary-text);margin-top:2px;}
+  .status-row{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;}
+  .st-axis{display:flex;align-items:center;gap:7px;}
+  .st-k{font-size:12px;color:var(--secondary-text);text-transform:uppercase;letter-spacing:.03em;}
+  .card-actions{display:flex;gap:10px;margin:0 0 16px;flex-wrap:wrap;align-items:center;}
+  .ro-note{color:var(--secondary-text);font-size:13px;}
+  .dropdown{position:relative;flex-shrink:0;}
+  .dd-btn .dd-chev{margin-left:6px;font-size:11px;display:inline-block;transition:transform 120ms ease;}
+  .dropdown.open .dd-chev{transform:rotate(180deg);}
+  .dd-menu{display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:50;min-width:230px;
+    background:#fff;border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:0 8px 24px rgba(24,39,57,0.14);padding:6px;}
+  .dropdown.open .dd-menu{display:block;}
+  .dd-item{display:block;width:100%;text-align:left;appearance:none;border:none;background:none;
+    padding:9px 11px;border-radius:var(--radius);font-size:15px;color:var(--primary-text);cursor:pointer;}
+  .dd-item:hover{background:var(--field-bg);}
+  .dd-item.dd-danger{color:#ca150c;}
+  .dd-div{height:1px;background:var(--border);margin:6px 4px;}
 
-  .card-actions{display:flex;gap:10px;margin:0 0 16px;flex-wrap:wrap;}
-
-  /* ---------- TABS ---------- */
-  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px;flex-wrap:wrap;}
-  .tab{padding:9px 12px 11px;font-size:15px;font-weight:500;color:var(--secondary-text);cursor:pointer;
-    border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px;}
+  /* ---------- TABS карточки ---------- */
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap;}
+  .tab{appearance:none;border:0;background:transparent;font-family:var(--font);padding:9px 12px 11px;font-size:15px;
+    color:var(--secondary-text);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px;}
   .tab:hover{color:var(--primary-text);}
-  .tab.active{color:var(--primary-text);border-bottom-color:var(--primary-text);}
-  .tab .lock{font-size:12px;}
+  .tab.active{color:var(--primary-text);border-bottom-color:var(--primary-text);font-weight:600;}
   .tab .cls{font-size:10px;font-weight:700;border-radius:3px;padding:0 4px;}
   .cls-B{color:#9a6a00;background:#fdf3dd;}
   .cls-C{color:var(--error);background:#fdeaea;}
-  .tabpanel{display:none;}
-  .tabpanel.active{display:block;}
-
-  .section-title{font-size:20px;font-weight:700;margin:2px 0 4px;}
-  .section-rule{border:0;border-top:1px solid var(--border);margin:10px 0 18px;}
-  .panel-note{color:var(--secondary-text);font-size:14px;margin:0 0 16px;}
-  .panel-note b{color:var(--body-text);font-weight:600;}
+  .section-title{font-size:19px;font-weight:700;margin:2px 0 4px;}
+  .section-sub{font-size:16px;font-weight:700;margin:20px 0 4px;}
+  .section-rule{border:0;border-top:1px solid var(--border);margin:9px 0 16px;}
+  .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
+  .section-head .section-title{margin-bottom:0;}
+  .btn-edit{appearance:none;border:0;background:transparent;font-family:var(--font);font-size:14px;font-weight:600;
+    color:var(--primary);cursor:pointer;padding:2px 4px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+  .btn-edit:hover{text-decoration:underline;}
+  .btn-edit.muted{color:var(--secondary-text);}
+  .edit-actions{display:inline-flex;gap:10px;flex:0 0 auto;}
+  .mask{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em;}
 
   /* таблицы вкладок */
-  .dtable{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:6px;}
-  .dtable thead th{text-align:left;font-weight:700;color:var(--body-text);font-size:14px;padding:10px 14px;
-    border-bottom:1px solid var(--border);white-space:nowrap;}
-  .dtable tbody td{padding:10px 14px;border-bottom:1px solid #eef1f4;font-size:14px;color:var(--body-text);
-    vertical-align:top;}
+  .dtable{width:100%;border-collapse:collapse;table-layout:fixed;}
+  .dtable thead th{text-align:left;font-weight:700;font-size:13px;padding:10px 13px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  .dtable tbody td{padding:10px 13px;border-bottom:1px solid #eef1f4;font-size:14px;vertical-align:top;}
   .dtable tbody tr:last-child td{border-bottom:0;}
-  .dtable .closed td{background:#fbfcfd;color:var(--secondary-text);}
-  .dtable .muted{color:var(--secondary-text);font-size:13px;}
+  .dtable tr.closed td{background:#fbfcfd;color:var(--secondary-text);}
   .grid-wrap{border:1px solid var(--border);border-radius:3px;overflow:hidden;}
-  .tab-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:2px;flex-wrap:wrap;}
+  .tab-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
   .tab-toolbar .spacer{margin-left:auto;}
   .lnk{color:var(--primary-text);cursor:pointer;font-size:13px;}
   .lnk:hover{text-decoration:underline;}
 
-  /* info / warn banners */
-  .banner{border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;font-size:14px;display:flex;gap:10px;align-items:flex-start;}
-  .banner .ic{flex:0 0 20px;font-size:16px;line-height:1.3;}
+  /* баннеры */
+  .banner{border-radius:var(--radius);padding:11px 14px;margin:0 0 14px;font-size:14px;display:flex;gap:10px;align-items:flex-start;}
+  .banner .ic{flex:0 0 18px;line-height:1.3;}
   .banner.warn{background:#fdf3dd;border:1px solid #f0dca8;color:#7a5600;}
   .banner.err{background:#fdeaea;border:1px solid #f2c4c0;color:#9a1b14;}
   .banner.info{background:#e9f1fe;border:1px solid #c7ddfb;color:#0a4aa8;}
+  .banner.ok{background:var(--green-card-bg);border:1px solid #cdeadb;color:#126b3e;}
   .banner b{font-weight:700;}
-  .banner code{background:rgba(0,0,0,.05);border-radius:3px;padding:0 4px;}
-  .bridge-banner .map{display:inline-block;background:rgba(255,255,255,.6);border:1px solid #c7ddfb;border-radius:3px;padding:0 5px;margin:2px 2px 0 0;font-size:13px;white-space:nowrap;}
-  .bridge-banner .map b{font-weight:700;}
-  .lk-fields .defect{color:#9a1b14;font-size:12px;font-weight:600;}
-  .lk-grid-cols{font-size:13px;color:var(--secondary-text);}
-  .lk-grid-cols b{color:var(--body-text);font-weight:600;}
+  .banner code{background:rgba(0,0,0,.05);border-radius:3px;padding:0 4px;font-size:13px;}
 
-  /* проекция вкладки 4 */
-  .proj-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  /* учётная запись и кураторство */
+  .proj-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   @media(max-width:1000px){.proj-grid{grid-template-columns:1fr;}}
-  .proj-card{border:1px solid var(--panel-border);border-radius:var(--radius);padding:14px 16px;}
-  .proj-card h4{margin:0 0 10px;font-size:15px;}
+  .proj-card{border:1px solid var(--panel-border);border-radius:var(--radius);padding:13px 15px;}
+  .proj-card h4{margin:0 0 8px;font-size:15px;}
   .proj-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #f0f2f5;font-size:14px;}
   .proj-row:last-child{border-bottom:0;}
   .proj-row .pk{color:var(--secondary-text);}
-  .chips{display:flex;flex-wrap:wrap;gap:6px;}
 
-  /* гриф-заглушка B/C */
-  .locked{border:1px dashed var(--border-strong);border-radius:6px;padding:26px 24px;background:repeating-linear-gradient(45deg,#fafbfc,#fafbfc 12px,#f4f6f8 12px,#f4f6f8 24px);}
-  .locked .lk-head{display:flex;align-items:center;gap:12px;margin-bottom:4px;}
-  .locked .lk-ic{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex:0 0 40px;}
-  .locked.cB .lk-ic{background:#fdf3dd;color:#9a6a00;}
-  .locked.cC .lk-ic{background:#fdeaea;color:var(--error);}
-  .locked .lk-title{font-size:17px;font-weight:700;}
-  .locked .lk-sub{color:var(--secondary-text);font-size:14px;}
-  .locked .lk-fields{display:grid;grid-template-columns:180px 1fr;gap:10px 16px;margin-top:14px;max-width:560px;}
-  .locked .lk-fields .k{color:var(--secondary-text);font-size:14px;}
-  .locked .lk-fields .v{height:16px;border-radius:3px;background:#e3e7ec;}
-
-  /* документы (аккордеон) */
-  .doc-acc{border:1px solid var(--panel-border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;}
-  .doc-acc-head{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;background:var(--filter-bg);user-select:none;}
+  /* документы */
+  .doc-acc{border:1px solid var(--panel-border);border-radius:var(--radius);overflow:hidden;margin-bottom:10px;}
+  .doc-acc-head{display:flex;align-items:center;gap:10px;padding:11px 15px;cursor:pointer;background:var(--filter-bg);user-select:none;}
   .doc-acc-head .chev{color:var(--secondary-text);transition:transform .12s ease;display:inline-block;width:12px;}
   .doc-acc.open .doc-acc-head .chev{transform:rotate(90deg);}
   .doc-acc-title{font-weight:700;font-size:15px;}
@@ -251,864 +262,2074 @@
     background:#fff;border:1px solid var(--border);border-radius:999px;padding:2px 10px;}
   .doc-acc-body{display:none;}
   .doc-acc.open .doc-acc-body{display:block;}
-  .doc-row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid #eef1f4;flex-wrap:wrap;}
+  .doc-row{display:flex;align-items:center;gap:12px;padding:10px 15px;border-top:1px solid #eef1f4;flex-wrap:wrap;}
   .doc-row .dname{flex:1;min-width:200px;font-size:14px;}
   .doc-row .dmeta{flex-basis:100%;font-size:13px;color:var(--secondary-text);}
 
-  /* таймлайн истории */
-  .timeline{position:relative;padding-left:26px;margin-top:8px;}
-  .timeline::before{content:"";position:absolute;left:8px;top:4px;bottom:4px;width:2px;background:var(--border);}
-  .tl-item{position:relative;padding:0 0 18px;}
+  /* таймлайн */
+  .timeline{position:relative;padding-left:24px;margin-top:6px;}
+  .timeline::before{content:"";position:absolute;left:7px;top:4px;bottom:4px;width:2px;background:var(--border);}
+  .tl-item{position:relative;padding:0 0 16px;}
   .tl-item:last-child{padding-bottom:0;}
-  .tl-dot{position:absolute;left:-22px;top:3px;width:11px;height:11px;border-radius:50%;
+  .tl-dot{position:absolute;left:-22px;top:4px;width:11px;height:11px;border-radius:50%;
     background:var(--primary);border:2px solid #fff;box-shadow:0 0 0 1px var(--border);}
   .tl-dot.ok{background:var(--success);} .tl-dot.muted{background:var(--secondary-text);} .tl-dot.warn{background:#d99500;}
   .tl-when{font-size:13px;color:var(--secondary-text);margin-bottom:2px;}
   .tl-what{font-size:14px;}
   .tl-what b{font-weight:600;}
 
-  .footer-bar{display:flex;gap:12px;padding:18px 26px 26px;border-top:1px solid var(--border);}
-
-  /* ---------- MODAL (гейты) ---------- */
+  /* ---------- MODAL ---------- */
   .modal-overlay{position:fixed;inset:0;background:rgba(24,39,57,0.34);z-index:100;
     display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;}
   .modal-overlay.open{display:flex;}
-  .modal{background:#fff;border-radius:6px;box-shadow:0 12px 40px rgba(24,39,57,0.30);
-    width:100%;max-width:640px;display:flex;flex-direction:column;max-height:90vh;overflow:hidden;}
-  .modal-head{display:flex;align-items:flex-start;justify-content:space-between;padding:18px 22px 12px;}
-  .modal-title{font-weight:700;font-size:19px;}
-  .modal-title .st{display:block;font-weight:400;font-size:13px;color:var(--secondary-text);margin-top:3px;}
+  .modal{background:#fff;border-radius:6px;box-shadow:0 12px 40px rgba(24,39,57,0.3);
+    width:100%;max-width:660px;display:flex;flex-direction:column;max-height:88vh;overflow:hidden;}
+  .modal-head{display:flex;align-items:flex-start;justify-content:space-between;padding:18px 22px 10px;}
+  .modal-title{font-weight:700;font-size:18px;}
   .modal-x{width:28px;height:28px;border:0;background:transparent;color:var(--secondary-text);font-size:18px;cursor:pointer;border-radius:var(--radius);flex:0 0 28px;}
   .modal-x:hover{background:var(--filter-bg);}
   .modal-body{padding:0 22px 14px;overflow-y:auto;}
-  .modal-foot{display:flex;gap:12px;padding:14px 22px 18px;border-top:1px solid var(--border);align-items:center;}
+  .modal-foot{display:flex;gap:12px;padding:13px 22px 18px;border-top:1px solid var(--border);align-items:center;}
   .modal-foot .spacer{margin-left:auto;}
-  .op-box{background:var(--field-bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;font-size:14px;margin:4px 0 16px;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--body-text);}
+  .op-box{background:var(--field-bg);border:1px solid var(--border);border-radius:var(--radius);padding:11px 13px;
+    font-size:13px;margin:4px 0 14px;font-family:ui-monospace,Menlo,Consolas,monospace;}
   .gate-q{font-size:15px;font-weight:600;margin:14px 0 8px;}
-  .radio-row{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;cursor:pointer;}
+  .radio-row{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:var(--radius);
+    padding:11px 13px;margin-bottom:9px;cursor:pointer;}
   .radio-row.sel{border-color:var(--primary);background:#f5f9ff;}
   .radio-row input{margin-top:3px;}
-  .radio-row .rt{font-size:14px;}
-  .radio-row .rt b{font-weight:700;}
-  .radio-row .rt .rd{color:var(--secondary-text);font-size:13px;display:block;margin-top:2px;}
+  .radio-row .rt{font-size:14px;flex:1;}
+  .radio-row .rd{color:var(--secondary-text);font-size:13px;display:block;margin-top:2px;}
+  .radio-row select{margin-top:8px;height:32px;width:100%;border:1px solid var(--field-border);border-radius:var(--radius);
+    background:#fff;font-family:var(--font);font-size:14px;padding:0 8px;}
   .oblig{list-style:none;padding:0;margin:6px 0 0;}
   .oblig li{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f2f5;font-size:14px;}
   .oblig li:last-child{border-bottom:0;}
   .oblig .ost{margin-left:auto;display:flex;align-items:center;gap:10px;}
   .oblig .cnt{font-weight:700;}
-  .field-inline{display:flex;flex-direction:column;gap:4px;margin-bottom:14px;}
-  .field-inline label{font-size:13px;color:var(--secondary-text);}
-  .field-inline input,.field-inline select{height:36px;border:1px solid var(--field-border);border-radius:var(--radius);
-    background:var(--field-bg);font-family:var(--font);font-size:15px;color:var(--body-text);padding:0 10px;}
+  .fld{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
+  .fld label{font-size:13px;color:var(--secondary-text);}
+  .fld input,.fld select,.fld textarea{border:1px solid var(--field-border);border-radius:var(--radius);
+    background:var(--field-bg);font-family:var(--font);font-size:15px;color:var(--body-text);padding:8px 10px;}
+  .fld select,.fld input{height:36px;}
+  .fld-err{color:var(--error);font-size:13px;font-weight:600;margin:-6px 0 12px;}
+  .kv-inp{width:100%;max-width:340px;height:32px;border:1px solid var(--field-border);border-radius:var(--radius);
+    background:#fff;font-family:var(--font);font-size:14px;color:var(--body-text);padding:0 8px;box-sizing:border-box;}
+  textarea.kv-inp{height:auto;min-height:120px;max-width:760px;padding:8px;resize:vertical;line-height:1.5;}
+
+  /* действия в строке таблицы */
+  .row-btn{width:26px;height:26px;border:1px solid var(--border);border-radius:var(--radius);
+    background:#fff;color:var(--secondary-text);cursor:pointer;font-size:13px;line-height:1;}
+  .row-btn:hover{background:var(--filter-bg);color:var(--body-text);}
+  .row-btn.del:hover{background:#fdeaea;color:var(--error);border-color:var(--error);}
+  .dtable td.ra{white-space:nowrap;}
+  .dtable td.ra .row-btn + .row-btn{margin-left:4px;}
+  .doc-row .row-btn{margin-left:4px;}
+
+  /* поле-справочник (lookup) + диалог выбора */
+  .lookup{display:flex;align-items:center;height:36px;background:var(--field-bg);
+    border:1px solid var(--field-border);border-radius:var(--radius);overflow:hidden;}
+  .lookup .val{flex:1;padding:0 10px;font-size:15px;color:var(--secondary-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .lookup .val.filled{color:var(--body-text);}
+  .lookup button{width:36px;height:34px;border:0;border-left:1px solid var(--field-border);
+    background:#fff;color:var(--primary);cursor:pointer;font-size:13px;}
+  .lookup button:hover{background:var(--filter-bg);}
+  .lk-search{width:100%;height:34px;border:1px solid var(--field-border);border-radius:var(--radius);
+    background:#fff;font-family:var(--font);font-size:14px;padding:0 10px;margin-bottom:10px;}
+  .lk-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:auto;max-height:320px;}
+  .lk-wrap table{width:100%;border-collapse:collapse;}
+  .lk-wrap th{position:sticky;top:0;background:#fff;text-align:left;font-size:13px;font-weight:700;
+    padding:9px 12px;border-bottom:1px solid var(--border);}
+  .lk-wrap td{padding:9px 12px;border-bottom:1px solid #eef1f4;font-size:14px;}
+  .lk-wrap tr[data-p]{cursor:pointer;}
+  .lk-wrap tr[data-p]:hover{background:var(--grid-hover);}
+  .lk-wrap tr.sel{background:#e8f1fd;}
+  .lk-wrap tr.taken{color:var(--secondary-text);cursor:not-allowed;}
+  .lk-wrap tr.taken:hover{background:transparent;}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1b2a3d;color:#fff;
-    padding:12px 20px;border-radius:6px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:200;display:none;max-width:520px;}
+    padding:12px 20px;border-radius:6px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:200;
+    display:none;max-width:560px;}
   .toast.show{display:block;}
 </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- ===================== SIDEBAR ===================== -->
   <aside class="sidebar">
     <div class="brand">АСУБК</div>
     <div class="nav" id="nav"></div>
     <div class="sidebar-foot">
-      <span>[admin]</span>
+      <span id="whoami">[hr.kadyrova]</span>
       <button class="icon-btn" title="Выйти" aria-label="Выйти">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
       </button>
     </div>
   </aside>
 
-  <!-- ===================== MAIN ===================== -->
   <div class="main">
-    <div class="topbar">
-      <span class="burger">☰</span>
-      <span class="title" id="pageTitle">Сотрудники</span>
-      <span class="role-switch">Роль:
+    <header class="topbar">
+      <span class="title">Сотрудники</span>
+      <div class="date-wrap">
+        <label for="dateInp">Дата&nbsp;среза</label>
+        <input type="date" id="dateInp" min="2018-01-01" max="2027-12-31">
+        <button class="date-chip" data-d="2021-12-31">до перевода</button>
+        <button class="date-chip" data-d="2026-07-14">сегодня</button>
+        <button class="date-chip" data-d="2026-08-12">в отпуске</button>
+      </div>
+      <div class="role-wrap">
+        <label for="roleSel">Роль</label>
         <select id="roleSel">
-          <option value="hr">Кадры (HR)</option>
+          <option value="hr">Кадры</option>
           <option value="admin">Администратор системы</option>
+          <option value="head">Руководство</option>
           <option value="self">Сам сотрудник</option>
           <option value="cred">Кредитный специалист</option>
         </select>
-      </span>
+      </div>
+    </header>
+
+    <div class="viewtabs" id="viewTabs">
+      <button class="vtab active" data-view="overview">Обзор</button>
+      <button class="vtab" data-view="list">Сотрудники</button>
+      <button class="vtab" data-view="card" id="vtabCard" style="display:none">Карточка</button>
     </div>
 
-    <!-- ==================== ВИД: СПИСОК ==================== -->
-    <div class="view" id="view-list">
-      <div class="content">
+    <!-- ===================== ОБЗОР ===================== -->
+    <div class="mainview active" id="view-overview">
+      <div class="content" id="ovBody"></div>
+    </div>
 
-        <div class="filter-head"><span class="caret">⌄</span>Фильтр : Фильтры *</div>
+    <!-- ===================== СПИСОК ===================== -->
+    <div class="mainview" id="view-list">
+      <div class="content">
         <div class="filter-card">
-          <div class="filter-row">
-            <div class="fl">Кадровый статус =</div>
-            <div class="filter-field" id="fStatus">
-              <span class="val ph" id="fStatusVal" data-empty="1"></span>
-              <span class="chev">⌄</span>
-              <div class="fdrop" id="fStatusDrop">
-                <div class="opt empty" data-v=""></div>
-                <div class="opt" data-v="Работает">Работает</div>
-                <div class="opt" data-v="Оформляется">Оформляется</div>
-                <div class="opt" data-v="Уволен">Уволен</div>
-              </div>
-            </div>
+          <div class="fgrp">
+            <label for="fStatus">Кадровый статус</label>
+            <select id="fStatus">
+              <option value="">— все —</option>
+              <option>Работает</option><option>Оформляется</option><option>Уволен</option>
+            </select>
           </div>
+          <div class="fgrp">
+            <label for="fUnit">Подразделение</label>
+            <select id="fUnit"></select>
+          </div>
+          <div class="fgrp">
+            <label for="fAvail">Доступность</label>
+            <select id="fAvail">
+              <option value="">— все —</option>
+              <option value="here">На месте</option>
+              <option value="away">Отсутствует</option>
+            </select>
+          </div>
+          <div class="fgrp">
+            <label for="fQ">Поиск</label>
+            <input id="fQ" type="search" placeholder="ФИО или табельный №" autocomplete="off">
+          </div>
+          <button class="btn btn-secondary btn-sm" id="fReset">Сбросить</button>
         </div>
 
         <div class="toolbar">
-          <div style="display:flex;">
-            <button class="btn btn-green" id="btnRefresh">Обновить</button>
-            <button class="btn btn-green-split">⌄</button>
-          </div>
-          <button class="btn btn-icon" title="Настройки">⚙</button>
-          <span class="add-cond">Добавить условие поиска</span>
-        </div>
-
-        <div class="toolbar2">
-          <button class="btn btn-secondary" id="btnCreate">＋ Создать</button>
-          <button class="btn btn-secondary" id="btnEdit" disabled>✎ Открыть</button>
-          <button class="btn btn-secondary" id="btnDel" disabled>🗑 Удалить</button>
-          <div class="rowcount">
-            <div class="pager"><span>«</span><span>‹</span></div>
-            <span id="rowCount">12 строк</span>
-            <div class="pager"><span>›</span><span>»</span></div>
-          </div>
+          <button class="btn btn-green" id="btnCreate">＋ Создать</button>
+          <button class="btn btn-secondary" id="btnOpen" disabled>Открыть</button>
+          <span class="rowcount" id="rowCount"></span>
         </div>
 
         <div class="grid">
           <table>
-            <colgroup>
-              <col class="c-tab"><col class="c-fio"><col class="c-dept"><col class="c-kstat"><col class="c-avail"><col class="c-uz">
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Табельный № <span class="sort">⇅</span></th>
-                <th>ФИО <span class="sort">⇅</span></th>
-                <th>Подразделение · Должность <span class="sort" title="вычисляется из действующего периода">⚙</span></th>
-                <th>Кадровый статус <span class="sort">⇅</span></th>
-                <th>Доступность <span class="sort" title="вычисляется из отсутствий">⚙</span></th>
-                <th>УЗ <span class="sort">⇅</span></th>
-              </tr>
-            </thead>
-            <tbody id="rows">
-              <tr data-open="1">
-                <td>0142</td><td>СЛАМКУЛОВ АЗАМАТ ОМУРГАЗИЕВИЧ</td>
-                <td>Управление кредитования · Ведущий специалист</td>
-                <td><span class="badge b-ok b-dot">Работает</span></td>
-                <td><span class="badge b-ok">На месте</span></td>
-                <td><span class="badge b-info">активна</span></td>
-              </tr>
-              <tr>
-                <td>0087</td><td>ИВАНОВ АНТОН СЕРГЕЕВИЧ</td>
-                <td>Управление кредитования · Гл. специалист</td>
-                <td><span class="badge b-ok b-dot">Работает</span></td>
-                <td><span class="badge b-ok">На месте · замещает Сламкулова</span></td>
-                <td><span class="badge b-info">активна</span></td>
-              </tr>
-              <tr>
-                <td>0113</td><td>ПЕТРОВА СВЕТЛАНА ВИКТОРОВНА</td>
-                <td>Отраслевой департамент · Начальник отдела</td>
-                <td><span class="badge b-ok b-dot">Работает</span></td>
-                <td><span class="badge b-warn">В отпуске до 24.07 · замещ.: Иванов</span></td>
-                <td><span class="badge b-info">активна</span></td>
-              </tr>
-              <tr>
-                <td>0125</td><td>МАТРАИМОВ МАКСАТ КУБАНОВИЧ</td>
-                <td>Отраслевой департамент · Гл. специалист</td>
-                <td><span class="badge b-ok b-dot">Работает</span></td>
-                <td><span class="badge b-warn">На больничном · замещения нет</span></td>
-                <td><span class="badge b-info">активна</span></td>
-              </tr>
-              <tr>
-                <td>0160</td><td>ТЫНЧТЫКБЕК КЫЗЫ МАРАЛ</td>
-                <td>Департамент взыскания · Ведущий специалист</td>
-                <td><span class="badge b-ok b-dot">Работает</span></td>
-                <td><span class="badge b-warn">В командировке (Ош) до 15.07</span></td>
-                <td><span class="badge b-info">активна</span></td>
-              </tr>
-              <tr>
-                <td>0161</td><td>БЕКТУРГАНОВ ЭРНИС НУРДИНОВИЧ</td>
-                <td>Департамент взыскания · Специалист</td>
-                <td><span class="badge b-ok b-dot">Работает</span></td>
-                <td><span class="badge b-ok">На месте</span></td>
-                <td><span class="badge b-info">активна</span></td>
-              </tr>
-              <tr>
-                <td>0178</td><td>СООРОНОВА РЫСКАН АТАЕВНА</td>
-                <td>Юридический отдел · Юрисконсульт</td>
-                <td><span class="badge b-ok b-dot">Работает</span></td>
-                <td><span class="badge b-ok">На месте</span></td>
-                <td><span class="badge b-err">заблокирована</span></td>
-              </tr>
-              <tr>
-                <td>0180</td><td>МЕҢДИБАЕВ АМАНТУР КЫЛЫЧБЕКОВИЧ</td>
-                <td>Бухгалтерия · Бухгалтер</td>
-                <td><span class="badge b-ok b-dot">Работает</span></td>
-                <td><span class="badge b-ok">На месте</span></td>
-                <td><span class="badge b-muted">нет УЗ</span></td>
-              </tr>
-              <tr>
-                <td>0191</td><td>ТЕМИРЛАН УУЛУ ТОБОКЕЛ</td>
-                <td>— · —</td>
-                <td><span class="badge b-warn b-dot">Оформляется</span></td>
-                <td><span class="badge b-muted">—</span></td>
-                <td><span class="badge b-muted">нет УЗ</span></td>
-              </tr>
-              <tr>
-                <td>0033</td><td>ОРОЗБАЕВА ГУЛНАРА ТУРСУНОВНА</td>
-                <td>Управление кредитования · Ведущий специалист</td>
-                <td><span class="badge b-muted b-dot">Уволен</span></td>
-                <td><span class="badge b-muted">вне организации</span></td>
-                <td><span class="badge b-err">заблокирована</span></td>
-              </tr>
-              <tr>
-                <td>0201</td><td>ЖУМАБЕКОВ КАНАТ ЭРКИНОВИЧ</td>
-                <td>Отраслевой департамент · Специалист</td>
-                <td><span class="badge b-ok b-dot">Работает</span></td>
-                <td><span class="badge b-ok">На месте</span></td>
-                <td><span class="badge b-info">активна</span></td>
-              </tr>
-              <tr>
-                <td>0044</td><td>АБДЫКАДЫРОВ РУСЛАН МУРАТОВИЧ</td>
-                <td>Департамент взыскания · Начальник отдела</td>
-                <td><span class="badge b-ok b-dot">Работает</span></td>
-                <td><span class="badge b-ok">На месте</span></td>
-                <td><span class="badge b-info">активна</span></td>
-              </tr>
-            </tbody>
+            <colgroup><col style="width:9%"><col style="width:23%"><col style="width:25%"><col style="width:13%"><col style="width:18%"><col style="width:12%"></colgroup>
+            <thead><tr>
+              <th>Табельный №</th>
+              <th>ФИО</th>
+              <th>Подразделение · Должность</th>
+              <th>Кадровый статус</th>
+              <th>Доступность</th>
+              <th>Учётная запись</th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
           </table>
         </div>
-
       </div>
     </div>
 
-    <!-- ==================== ВИД: КАРТОЧКА ==================== -->
-    <div class="view" id="view-detail" style="display:none;">
-      <div class="content">
-
-        <!-- ---------- HEADER (класс A, вне вкладок) ---------- -->
-        <div class="header-card">
-          <div class="photo">👤</div>
-          <div class="header-mid">
-            <p class="emp-name">Сламкулов Азамат Омургазиевич</p>
-            <p class="emp-sub">Табельный № <b>0142</b> · <span class="calc">Управление кредитования · Ведущий специалист</span><span class="calc-tag">вычисляется</span></p>
-            <div class="kv-grid">
-              <div class="k">Служебный телефон</div><div>+996 (312) 66-00-42, вн. 214</div>
-              <div class="k">Служебный e-mail</div><div>a.slamkulov@fkf.kg</div>
-              <div class="k">Учётная запись</div><div>a.slamkulov <span class="badge b-info">активна</span></div>
-            </div>
-          </div>
-          <!-- 3 независимые оси состояния (§4) -->
-          <div class="axes">
-            <div class="axis">
-              <div class="al">Кадровый статус</div>
-              <div class="av"><span class="badge b-ok b-dot">Работает</span></div>
-              <div class="an">правовая связь · меняет HR приказом</div>
-            </div>
-            <div class="axis">
-              <div class="al">Доступность</div>
-              <div class="av"><span class="badge b-ok">На месте</span></div>
-              <div class="an">вычисляется из отсутствий</div>
-            </div>
-            <div class="axis">
-              <div class="al">Состояние УЗ</div>
-              <div class="av"><span class="badge b-info">активна</span></div>
-              <div class="an">доступ к системе · меняет администратор</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card-actions">
-          <button class="btn btn-primary" id="btnTransfer">⇄ Перевод</button>
-          <button class="btn btn-secondary" id="btnAbsence">🗓 Оформить отсутствие</button>
-          <button class="btn btn-danger-solid" id="btnDismiss">⛔ Уволить</button>
-        </div>
-
-        <!-- ---------- МОСТ AS-IS → TO-BE ---------- -->
-        <div class="banner info bridge-banner">
-          <span class="ic">🔀</span>
-          <div>
-            <b>Мост AS-IS → TO-BE.</b> Online-карточка <code>/employees</code> (8 вкладок, проверено 2026-07-12
-            <code>scripts/inspect/employees-live.mjs</code>) переразложена в эту TO-BE-структуру. Реальные поля online сохранены
-            дословно; надстройка — периоды/статусы/грифы — добавлена. Соответствие:
-            <span class="map"><b>Осн. информация</b> → Общая (ПИН/СОАТЕ/физлицо/автобио/резюме)</span> ·
-            <span class="map"><b>Паспортные данные</b> → Паспорт (B)</span> ·
-            <span class="map"><b>Образование · Состав семьи · Награды · Стаж работы</b> → одноимённые вкладки (grid как в online)</span> ·
-            <span class="map"><b>Командировки и отпуска</b> → Отсутствия и замещения (+ поле «Замещающий», в online его нет)</span> ·
-            <span class="map"><b>Контактные данные</b> → блок в шапке/Общей</span>.
-            Нет в online: Назначения-периоды · УЗ/кураторство · 3 оси статусов · Документы-по-грифу · История · гейты.
-          </div>
-        </div>
-
-        <!-- ---------- TABS ---------- -->
-        <div class="tabs" id="tabs">
-          <div class="tab active" data-tab="obshee">Общая</div>
-          <div class="tab" data-tab="naznach">Назначения</div>
-          <div class="tab" data-tab="otsut">Отсутствия и замещения</div>
-          <div class="tab" data-tab="uz">УЗ и кураторство</div>
-          <div class="tab" data-tab="pasport"><span class="lock">🔒</span>Паспорт <span class="cls cls-B">B</span></div>
-          <div class="tab" data-tab="obraz"><span class="lock">🔒</span>Образование <span class="cls cls-B">B</span></div>
-          <div class="tab" data-tab="semya"><span class="lock">🔒</span>Семья <span class="cls cls-B">B</span></div>
-          <div class="tab" data-tab="stazh"><span class="lock">🔒</span>Стаж <span class="cls cls-B">B</span></div>
-          <div class="tab" data-tab="nagrady"><span class="lock">🔒</span>Награды/взыскания <span class="cls cls-C">C</span></div>
-          <div class="tab" data-tab="docs">Документы</div>
-          <div class="tab" data-tab="history">История</div>
-        </div>
-
-        <!-- ===== Вкладка 1: Общая (A) ===== -->
-        <div class="tabpanel active" data-panel="obshee">
-          <div class="section-title">Общая информация</div>
-          <hr class="section-rule">
-          <p class="panel-note">Класс <b>A</b> (операционный профиль) — читают все пользователи системы.
-            Резюме/автобиографию правит <b>сам сотрудник</b>; остальное — HR.</p>
-          <div class="kv-grid" style="max-width:620px;margin-bottom:18px;">
-            <div class="k">Физ. лицо <span class="calc-tag">справочник</span></div><div>Сламкулов Азамат Омургазиевич <span class="muted">(online: picker «Физ. лицо» — человек ≠ сотрудник)</span></div>
-            <div class="k">ПИН (14 цифр)</div><div>2 •••• •••• •••• <span class="badge b-muted">B</span></div>
-            <div class="k">СОАТЕ</div><div>417 •• ••• <span class="muted">(online-поле «СОАТЕ»)</span></div>
-            <div class="k">Категория должности</div><div>Основной персонал · кредитование</div>
-            <div class="k">Внутренний стаж</div><div>с 01.01.2022 (4 г. 6 мес.) <span class="calc-tag">вычисляется из вкл. «Назначения»</span></div>
-            <div class="k">Дата приёма</div><div>12.03.2018</div>
-          </div>
-          <div class="section-title" style="font-size:16px;">Контактные данные <span class="badge b-muted" style="vertical-align:middle;">online: отд. вкладка</span></div>
-          <hr class="section-rule">
-          <div class="kv-grid" style="max-width:620px;margin-bottom:18px;">
-            <div class="k">Мобильный телефон</div><div>+996 (555) 12-34-56</div>
-            <div class="k">Рабочий телефон</div><div>+996 (312) 66-00-42, вн. 214</div>
-            <div class="k">Электронная почта</div><div>a.slamkulov@mail.kg</div>
-            <div class="k">Рабочая эл. почта</div><div>a.slamkulov@fkf.kg</div>
-          </div>
-          <div class="section-title" style="font-size:16px;">Резюме / автобиография <span class="badge b-muted" style="vertical-align:middle;">online: Автобиография 0/2000 + файл · Резюме файл</span></div>
-          <hr class="section-rule">
-          <p style="max-width:720px;color:var(--body-text);font-size:15px;">Специалист по сопровождению кредитов агропромышленного комплекса.
-            Ведёт портфель заёмщиков южного региона. Опыт работы с реструктуризацией и досудебным взысканием.</p>
-          <p class="panel-note">📝 Это единственное поле карточки, доступное на запись самому сотруднику.</p>
-        </div>
-
-        <!-- ===== Вкладка 2: Назначения (A, периоды+приказ) ===== -->
-        <div class="tabpanel" data-panel="naznach">
-          <div class="section-title">Назначения</div>
-          <hr class="section-rule">
-          <p class="panel-note">Запись = <b>период занятия позиции</b> (не событие). Приём и перевод — операции над периодами.
-            «Текущее подразделение/должность» в шапке <b>вычисляется</b> из действующего периода.</p>
-          <div class="tab-toolbar">
-            <button class="btn btn-primary" onclick="openTransfer()">⇄ Перевод (атомарно)</button>
-            <button class="btn btn-secondary">＋ Совмещение / врио</button>
-            <span class="spacer"></span>
-            <span class="muted">Σ действующих ставок: <b>1.5</b> / порог 1.5</span>
-          </div>
-          <div class="grid-wrap">
-            <table class="dtable">
-              <colgroup><col style="width:10%"><col style="width:10%"><col style="width:22%"><col style="width:18%"><col style="width:10%"><col style="width:8%"><col style="width:22%"></colgroup>
-              <thead><tr>
-                <th>с</th><th>по</th><th>Подразделение</th><th>Должность</th><th>Вид</th><th>Ставка</th><th>Основание</th>
-              </tr></thead>
-              <tbody>
-                <tr>
-                  <td>01.01.2022</td><td><span class="badge b-ok">действующий</span></td>
-                  <td>Управление кредитования</td><td>Ведущий специалист</td>
-                  <td><span class="badge b-info">основное</span></td><td>1.0</td>
-                  <td>Приказ о переводе №14-к от 30.12.2021 <span class="lnk">📎 скан</span></td>
-                </tr>
-                <tr>
-                  <td>01.06.2024</td><td><span class="badge b-ok">действующий</span></td>
-                  <td>Отраслевой департамент</td><td>И.о. начальника отдела</td>
-                  <td><span class="badge b-warn">врио</span></td><td>0.5</td>
-                  <td>Приказ №51-к от 31.05.2024 <span class="lnk">📎 скан</span><div class="muted">врио вакантной должности — реальная вторая позиция (§6)</div></td>
-                </tr>
-                <tr class="closed">
-                  <td>12.03.2018</td><td>31.12.2021</td>
-                  <td>Отраслевой департамент</td><td>Главный специалист</td>
-                  <td><span class="badge b-muted">основное</span></td><td>1.0</td>
-                  <td>Приказ о приёме №8-к от 12.03.2018<div class="muted">закрыт · ✎ только «корректировка» с причиной → аудит</div></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="banner info" style="margin-top:16px;">
-            <span class="ic">ℹ️</span>
-            <div>Инварианты: периоды <b>основное</b> не пересекаются · открытый период (по=∅) ровно один и только при статусе «Работает» ·
-              совмещение может пересекаться, Σ ставок ≤ 1.5 · разрыв допустим только между увольнением и повторным приёмом.</div>
-          </div>
-        </div>
-
-        <!-- ===== Вкладка 3: Отсутствия и замещения (A) ===== -->
-        <div class="tabpanel" data-panel="otsut">
-          <div class="section-title">Отсутствия и замещения</div>
-          <hr class="section-rule">
-          <p class="panel-note">Операционный контракт наружу: подсистема заданий читает именно эту вкладку.
-            «Состояние» <b>вычисляется</b> (Запланировано/Идёт/Завершено); «Отменено» — вручную.</p>
-          <div class="tab-toolbar">
-            <button class="btn btn-primary">＋ Оформить отсутствие</button>
-          </div>
-          <div class="grid-wrap">
-            <table class="dtable">
-              <colgroup><col style="width:18%"><col style="width:11%"><col style="width:11%"><col style="width:11%"><col style="width:19%"><col style="width:16%"><col style="width:14%"></colgroup>
-              <thead><tr>
-                <th>Вид</th><th>с</th><th>по (план)</th><th>факт</th><th>Основание</th><th>Замещающий</th><th>Состояние</th>
-              </tr></thead>
-              <tbody>
-                <tr>
-                  <td>Ежегодный отпуск</td><td>10.08.2026</td><td>23.08.2026</td><td class="muted">—</td>
-                  <td>Приказ №77-о от 01.07.2026 <span class="lnk">📎</span></td>
-                  <td>Иванов А. С.</td>
-                  <td><span class="badge b-muted">Запланировано</span></td>
-                </tr>
-                <tr>
-                  <td>Больничный</td><td>02.06.2026</td><td>06.06.2026</td><td>06.06.2026</td>
-                  <td>Листок нетрудоспособности №БЛ-3391<div class="muted">не приказ · введён задним числом</div></td>
-                  <td class="muted">—</td>
-                  <td><span class="badge b-ok">Завершено</span></td>
-                </tr>
-                <tr class="closed">
-                  <td>Командировка (Бишкек)</td><td>14.04.2026</td><td>18.04.2026</td><td>17.04.2026</td>
-                  <td>Приказ №39-к <span class="lnk">📎</span></td>
-                  <td>Иванов А. С.</td>
-                  <td><span class="badge b-ok">Завершено</span><div class="muted">досрочный выход → делегация снята 17.04</div></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="banner info" style="margin-top:16px;">
-            <span class="ic">ℹ️</span>
-            <div>Больничный — ретро-ввод разрешён (листок нетрудоспособности ≠ приказ). Отпуск/командировка вводятся вперёд.
-              Замещающий обязан: статус «Работает» · не отсутствует в пересечении · <b>иметь активную УЗ</b>. Замещение всегда полное;
-              транзитивность запрещена (А замещает Б, Б замещает В → задания В не уезжают к А).</div>
-          </div>
-        </div>
-
-        <!-- ===== Вкладка 4: УЗ и кураторство (A, проекция read-only) ===== -->
-        <div class="tabpanel" data-panel="uz">
-          <div class="section-title">Учётная запись и кураторство <span class="badge b-muted" style="vertical-align:middle;">проекция · read-only</span></div>
-          <hr class="section-rule">
-          <p class="panel-note">Единственный экран, где кадровая карточка встречается с операционной реальностью.
-            Ничего не пишет — служит <b>гейтом перевода и увольнения</b>. Кураторство висит на <b>УЗ</b>, не на сотруднике.</p>
-
-          <div class="banner warn">
-            <span class="ic">⚠️</span>
-            <div><b>Роли не пересмотрены после перевода (01.01.2022).</b> Уведомление отправлено администратору 30.12.2021.
-              Флаг <b>не блокирует</b> работу; правит роли администратор, не HR.</div>
-          </div>
-
-          <div class="proj-grid">
-            <div class="proj-card">
-              <h4>Учётная запись</h4>
-              <div class="proj-row"><span class="pk">Логин</span><span>a.slamkulov</span></div>
-              <div class="proj-row"><span class="pk">Состояние</span><span class="badge b-info">активна</span></div>
-              <div class="proj-row"><span class="pk">Создана</span><span>15.03.2018 · admin</span></div>
-              <div class="proj-row"><span class="pk">Последний вход</span><span>11.07.2026 09:14</span></div>
-            </div>
-            <div class="proj-card">
-              <h4>Роли <span class="muted">(политика различается по подразделениям)</span></h4>
-              <div class="proj-row"><span class="pk">Управление кредитования</span><span class="chips"><span class="badge b-info">Кредитный специалист</span></span></div>
-              <div class="proj-row"><span class="pk">Отраслевой департамент</span><span class="chips"><span class="badge b-info">И.о. начальника отдела</span></span></div>
-            </div>
-            <div class="proj-card">
-              <h4>Зоны кураторства</h4>
-              <div class="proj-row"><span class="pk">Отрасль</span><span>Агропромышленный комплекс</span></div>
-              <div class="proj-row"><span class="pk">Область / район</span><span>Ошская обл. · все районы</span></div>
-              <div class="proj-row"><span class="pk">Вид заёмщика / кредита</span><span>Физ. лица · льготные</span></div>
-            </div>
-            <div class="proj-card">
-              <h4>Закреплённые заёмщики</h4>
-              <div class="proj-row"><span class="pk">Всего на УЗ</span><span><b>14</b> <span class="lnk">открыть список →</span></span></div>
-              <div class="proj-row"><span class="pk">Действующие делегации</span>
-                <span>задания уходят: <b>Иванову А.</b> (10.08–23.08)</span></div>
-              <div class="proj-row"><span class="pk">Конфликт интересов</span>
-                <span><span class="badge b-err">1 заёмщик</span> — УЗ отстранена <span class="lnk">детали</span></span></div>
-            </div>
-          </div>
-
-          <div class="banner info" style="margin-top:16px;">
-            <span class="ic">🔗</span>
-            <div><b>resolveActor(УЗ, дата)</b> читает эту вкладку. Задание <b>назначается</b> на УЗ куратора, при активном замещении
-              <b>маршрутизируется</b> на УЗ замещающего; в аудите хранятся обе. Персональная ответственность остаётся на кураторе
-              (Порядок, п. 96), даже если действие совершил замещающий.</div>
-          </div>
-        </div>
-
-        <!-- ===== Вкладки B: Паспорт / Образование / Семья / Стаж ===== -->
-        <div class="tabpanel" data-panel="pasport">
-          <div class="locked cB">
-            <div class="lk-head">
-              <div class="lk-ic">🔒</div>
-              <div>
-                <div class="lk-title">Паспортные данные — класс B (кадровое дело)</div>
-                <div class="lk-sub">Доступ на чтение: <b>HR + сам сотрудник</b>. Запись: HR. Ваша роль (<span id="roleLabelP">Кадры (HR)</span>) — доступ есть, содержимое скрыто в мокапе.</div>
-              </div>
-            </div>
-            <p class="panel-note" style="margin:8px 0 0;">Гриф — атрибут <b>данных</b>, а не экрана. Документ (скан паспорта) наследует гриф B
-              и не виден через общий список документов у кредитного специалиста.</p>
-            <p class="panel-note" style="margin:6px 0 0;">Поля дословно из online-вкладки «Паспортные данные» (14 полей). Значения скрыты грифом B.</p>
-            <div class="lk-fields">
-              <div class="k">Фамилия</div><div class="v"></div>
-              <div class="k">Имя</div><div class="v"></div>
-              <div class="k">Отчество</div><div class="v"></div>
-              <div class="k">Дата рождения</div><div class="v"></div>
-              <div class="k">Пол</div><div class="v"></div>
-              <div class="k">Национальность</div><div class="v"></div>
-              <div class="k">Номер паспорта</div><div class="v"></div>
-              <div class="k">Серия паспорта</div><div class="v"></div>
-              <div class="k">Гражданство <span class="defect">⚠ online: «Employee.citizenship» — непереведённый ключ (дефект)</span></div><div class="v"></div>
-              <div class="k">Дата выдачи</div><div class="v"></div>
-              <div class="k">Срок действия</div><div class="v"></div>
-              <div class="k">Семейное положение</div><div class="v"></div>
-              <div class="k">Адрес</div><div class="v"></div>
-              <div class="k">Адрес фактического проживания</div><div class="v"></div>
-            </div>
-          </div>
-        </div>
-        <div class="tabpanel" data-panel="obraz">
-          <div class="locked cB">
-            <div class="lk-head"><div class="lk-ic">🔒</div><div>
-              <div class="lk-title">Образование и сертификаты — класс B</div>
-              <div class="lk-sub">HR + сам сотрудник. Срок действия сертификатов обязателен (оценка/аудит истекают).</div></div></div>
-            <p class="panel-note" style="margin:8px 0 0;">Online: <b>таблица</b> (Создать/Изменить/Удалить). Колонки дословно:</p>
-            <p class="lk-grid-cols" style="margin:6px 0 0;"><b>Тип документа</b> · <b>Уровень образования</b> · <b>Специальность</b> · <b>Учебное заведение</b> · <b>Год окончания</b></p>
-            <p class="panel-note" style="margin:6px 0 0;">TO-BE добавляет: № диплома · сертификат + срок действия (истечение → сигнал оценки/аудита).</p>
-          </div>
-        </div>
-        <div class="tabpanel" data-panel="semya">
-          <div class="locked cB">
-            <div class="lk-head"><div class="lk-ic">🔒</div><div>
-              <div class="lk-title">Состав семьи — класс B</div>
-              <div class="lk-sub">HR + сам сотрудник.</div></div></div>
-            <p class="panel-note" style="margin:8px 0 0;"><b>Не связывать с реестром заёмщиков ссылкой.</b> Совпадение ФИО+ДР —
-              сигнал для проверки конфликта интересов, а не автоматическое ограничение.</p>
-            <p class="panel-note" style="margin:8px 0 0;">Online: <b>таблица</b> (Создать/Изменить/Удалить). Колонки дословно:</p>
-            <p class="lk-grid-cols" style="margin:6px 0 0;"><b>Кем приходится</b> · <b>ФИО</b> · <b>Мобильный телефон</b> · <b>Дата рождения</b></p>
-          </div>
-        </div>
-        <div class="tabpanel" data-panel="stazh">
-          <div class="locked cB">
-            <div class="lk-head"><div class="lk-ic">🔒</div><div>
-              <div class="lk-title">Трудовой стаж (внешний) — класс B</div>
-              <div class="lk-sub">Из трудовой книжки; системой не используется.</div></div></div>
-            <p class="panel-note" style="margin:8px 0 0;"><b>Внутренний стаж здесь не дублируется</b> — он вычисляется из вкладки «Назначения»
-              (внешний — кадровый факт, внутренний — операционный, от него зависят права).</p>
-            <p class="panel-note" style="margin:8px 0 0;">Online: поле <b>«Общий стаж»</b> (вычисляемое) + <b>таблица</b> (Создать/Изменить/Удалить). Колонки дословно:</p>
-            <p class="lk-grid-cols" style="margin:6px 0 0;"><b>Организация</b> · <b>Должность</b> · <b>Период с</b> · <b>По</b> · <b>Стаж</b></p>
-            <p class="panel-note" style="margin:6px 0 0;">👉 «Период с / По» в online — единственный прецедент историчности; на нём держится аргумент периодов-назначений во вкл. «Назначения».</p>
-          </div>
-        </div>
-        <div class="tabpanel" data-panel="nagrady">
-          <div class="locked cC">
-            <div class="lk-head"><div class="lk-ic">🔒</div><div>
-              <div class="lk-title">Награды, чины, взыскания — класс C (дисциплинарное)</div>
-              <div class="lk-sub">Доступ: <b>HR + руководство</b>. Кредитный специалист не видит.</div></div></div>
-            <p class="panel-note" style="margin:8px 0 0;">У взыскания — <b>дата снятия</b> (погашается по сроку) → индикатор действующее/погашено.
-              Действующее взыскание — read-only факт; автоматических ограничений прав в АСУБК не влечёт.</p>
-            <p class="panel-note" style="margin:8px 0 0;">Online-вкладка «Награды, чин, взыскания»: <b>таблица</b> (Создать/Изменить/Удалить). Колонки дословно:</p>
-            <p class="lk-grid-cols" style="margin:6px 0 0;"><b>Вид</b> · <b>Наименование</b> · <b>Орган</b> · <b>Дата</b> · <b>Примечание</b></p>
-            <p class="panel-note" style="margin:6px 0 0;">TO-BE добавляет к взысканию: <b>дата снятия</b> (в online её нет → нельзя отличить действующее от погашенного).</p>
-          </div>
-        </div>
-
-        <!-- ===== Вкладка 10: Документы ===== -->
-        <div class="tabpanel" data-panel="docs">
-          <div class="section-title">Документы</div>
-          <hr class="section-rule">
-          <p class="panel-note">Общий каталог сканов (версия · кто · когда). Документ <b>наследует гриф</b> родительской вкладки:
-            скан паспорта не появляется в общем списке у кредитного специалиста.</p>
-          <div class="doc-acc open">
-            <div class="doc-acc-head"><span class="chev">›</span><span class="doc-acc-title">Класс A · операционные</span><span class="doc-acc-count">3</span></div>
-            <div class="doc-acc-body">
-              <div class="doc-row"><span class="dname">Приказ о приёме №8-к.pdf</span><span class="badge b-muted">A</span>
-                <div class="dmeta">v1 · 12.03.2018 · hr.kadyrova</div></div>
-              <div class="doc-row"><span class="dname">Приказ о переводе №14-к.pdf</span><span class="badge b-muted">A</span>
-                <div class="dmeta">v1 · 30.12.2021 · hr.kadyrova</div></div>
-              <div class="doc-row"><span class="dname">Приказ №51-к (врио).pdf</span><span class="badge b-muted">A</span>
-                <div class="dmeta">v1 · 31.05.2024 · hr.kadyrova</div></div>
-            </div>
-          </div>
-          <div class="doc-acc">
-            <div class="doc-acc-head"><span class="chev">›</span><span class="doc-acc-title">Класс B · кадровое дело <span class="cls cls-B" style="font-size:10px;">🔒 гриф B</span></span><span class="doc-acc-count">2</span></div>
-            <div class="doc-acc-body">
-              <div class="doc-row"><span class="dname">Скан паспорта.pdf</span><span class="badge b-warn">B</span>
-                <div class="dmeta">v2 · 04.02.2025 · hr.kadyrova · виден только HR и самому сотруднику</div></div>
-              <div class="doc-row"><span class="dname">Диплом.pdf</span><span class="badge b-warn">B</span>
-                <div class="dmeta">v1 · 15.03.2018 · hr.kadyrova</div></div>
-            </div>
-          </div>
-          <div class="banner warn" style="margin-top:6px;">
-            <span class="ic">🟡</span>
-            <div><b>Открытая развилка:</b> <code>scope</code> документов — канонизировать ли как единый механизм для сотрудника и заёмщика
-              (общий каталог с <code>borrower.html</code>). Решать один раз, для обоих модулей.</div>
-          </div>
-        </div>
-
-        <!-- ===== Вкладка 11: История ===== -->
-        <div class="tabpanel" data-panel="history">
-          <div class="section-title">История <span class="badge b-muted" style="vertical-align:middle;">аудит</span></div>
-          <hr class="section-rule">
-          <p class="panel-note">field-level по вкладкам 2/3/5 (юридически значимое) · статусные вехи по остальному.
-            Просмотр истории B/C сам под грифом B/C.</p>
-          <div class="timeline">
-            <div class="tl-item"><div class="tl-dot warn"></div>
-              <div class="tl-when">01.06.2024 10:20 · hr.kadyrova</div>
-              <div class="tl-what"><b>Назначение (вкл. 2):</b> добавлен период «врио начальника отдела», ставка 0.5 · осн. Приказ №51-к</div></div>
-            <div class="tl-item"><div class="tl-dot ok"></div>
-              <div class="tl-when">30.12.2021 15:40 · hr.kadyrova</div>
-              <div class="tl-what"><b>Перевод (атомарно):</b> закрыт период «Гл. специалист, Отраслевой деп.» (по 31.12.2021) + открыт
-                «Вед. специалист, Управление кредитования» (с 01.01.2022) · осн. Приказ №14-к.
-                Кураторство сохранено осознанно (та же зона ответственности) → запись в аудит.</div></div>
-            <div class="tl-item"><div class="tl-dot muted"></div>
-              <div class="tl-when">30.12.2021 15:40 · система</div>
-              <div class="tl-what">Флаг <b>«роли не пересмотрены»</b> поднят на вкл. 4; уведомление администратору</div></div>
-            <div class="tl-item"><div class="tl-dot"></div>
-              <div class="tl-when">04.02.2025 11:05 · hr.kadyrova</div>
-              <div class="tl-what"><b>Паспорт (вкл. 5, B):</b> новая версия документа (замена паспорта); старый номер сохранён для прежних кредитных документов</div></div>
-            <div class="tl-item"><div class="tl-dot ok"></div>
-              <div class="tl-when">15.03.2018 09:00 · admin</div>
-              <div class="tl-what"><b>Активация:</b> статус Оформляется → Работает · заведена УЗ a.slamkulov</div></div>
-          </div>
-        </div>
-
-      </div>
-      <div class="footer-bar">
-        <button class="btn btn-primary" id="btnOk">OK</button>
-        <button class="btn btn-cancel" id="btnCancel">Отмена</button>
-      </div>
+    <!-- ===================== КАРТОЧКА ===================== -->
+    <div class="mainview" id="view-card">
+      <div class="content" id="cardBody"></div>
     </div>
-
   </div>
 </div>
 
 <!-- ==================== ГЕЙТ: ПЕРЕВОД ==================== -->
 <div class="modal-overlay" id="mTransfer">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true">
     <div class="modal-head">
-      <div class="modal-title">Перевод — главный гейт модуля
-        <span class="st">Кадровый статус не меняется. Меняется вкладка «Назначения» атомарно.</span></div>
-      <button class="modal-x" data-close>✕</button>
+      <div class="modal-title">Перевод</div>
+      <button class="modal-x" data-close aria-label="Закрыть">✕</button>
     </div>
-    <div class="modal-body">
-      <div class="field-inline"><label>Новое подразделение</label>
-        <select id="trDept">
-          <option>Бухгалтерия</option>
-          <option>Юридический отдел</option>
-          <option>Департамент взыскания</option>
-          <option>Отраслевой департамент</option>
-        </select></div>
-      <div class="field-inline"><label>Дата перевода</label><input type="date" value="2026-08-01"></div>
-      <div class="field-inline"><label>Основание (приказ №)</label><input placeholder="напр. №62-к от 28.07.2026"></div>
-
-      <div class="op-box">закрыть текущий период  (по = дата_перевода − 1)<br>открыть новый период    (с  = дата_перевода)<br><span style="color:var(--secondary-text)">— одна транзакция, один приказ</span></div>
-
-      <div class="banner err">
-        <span class="ic">⚠️</span>
-        <div><b>Тихая дыра в ответственности.</b> Кураторство висит на УЗ и <b>не переезжает и не аннулируется само</b>.
-          После перевода в «Бухгалтерию» сотрудник формально останется куратором <b>14 заёмщиков</b>, фактически будучи вне темы.</div>
-      </div>
-
-      <div class="gate-q">Решение по кураторству — обязательно (без него перевод не проводится):</div>
-      <label class="radio-row" data-gate="tr">
-        <input type="radio" name="curDecision">
-        <span class="rt"><b>(а) Переназначить</b> закреплённых заёмщиков на другую УЗ
-          <span class="rd">14 заёмщиков → выбрать УЗ-получателя (список из вкладки 4)</span></span>
-      </label>
-      <label class="radio-row" data-gate="tr">
-        <input type="radio" name="curDecision">
-        <span class="rt"><b>(б) Сохранить осознанно</b> — зона ответственности та же
-          <span class="rd">явная отметка · причина фиксируется в аудите</span></span>
-      </label>
-
-      <div class="banner info">
-        <span class="ic">ℹ️</span>
-        <div>Роли — <b>не блокирующий</b> флаг: перевод отправит уведомление администратору и поднимет на вкл. 4 флаг
-          «роли не пересмотрены». Правит роли администратор, не HR.</div>
-      </div>
-    </div>
+    <div class="modal-body" id="trBody"></div>
     <div class="modal-foot">
       <button class="btn btn-primary" id="trConfirm" disabled>Провести перевод</button>
       <button class="btn btn-cancel" data-close>Отмена</button>
       <span class="spacer"></span>
-      <span class="muted" id="trHint" style="color:var(--secondary-text);font-size:13px;">Выберите (а) или (б)</span>
+      <span class="muted" id="trHint"></span>
     </div>
   </div>
 </div>
 
 <!-- ==================== ГЕЙТ: УВОЛЬНЕНИЕ ==================== -->
 <div class="modal-overlay" id="mDismiss">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true">
     <div class="modal-head">
-      <div class="modal-title">Увольнение — самый жёсткий гейт
-        <span class="st">Гейт «нулевых обязательств». Без нуля по всем строкам — увольнение не проводится.</span></div>
-      <button class="modal-x" data-close>✕</button>
+      <div class="modal-title">Увольнение</div>
+      <button class="modal-x" data-close aria-label="Закрыть">✕</button>
     </div>
-    <div class="modal-body">
-      <p class="panel-note" style="margin-top:6px;">Проверка обязательств читается из вкладки 4. Разбирайте каждую строку до нуля:</p>
-      <ul class="oblig" id="obligList">
-        <li data-ob><span>Закреплённые заёмщики → переназначить (приказ)</span>
-          <span class="ost"><span class="badge b-err cnt">14</span> <button class="btn btn-secondary" style="padding:4px 10px;font-size:13px;" onclick="resolveOblig(this)">Переназначить</button></span></li>
-        <li data-ob><span>Открытые задания → переназначить или закрыть</span>
-          <span class="ost"><span class="badge b-err cnt">3</span> <button class="btn btn-secondary" style="padding:4px 10px;font-size:13px;" onclick="resolveOblig(this)">Разобрать</button></span></li>
-        <li data-ob><span>Активные замещения, где он замещающий → снять</span>
-          <span class="ost"><span class="badge b-warn cnt">1</span> <button class="btn btn-secondary" style="padding:4px 10px;font-size:13px;" onclick="resolveOblig(this)">Снять</button></span></li>
-        <li data-ob><span>Незавершённые процессы взыскания → передать с фиксацией</span>
-          <span class="ost"><span class="badge b-ok cnt">0</span></span></li>
-      </ul>
-
-      <div class="banner info" style="margin-top:16px;">
-        <span class="ic">ℹ️</span>
-        <div>Далее автоматически: закрыть открытый период (по = дата увольнения) · отменить будущие отсутствия ·
-          статус → <b>Уволен</b> · <b>УЗ блокируется</b> (не удаляется) · кураторство заблокированной УЗ обнуляется.
-          Уволенный остаётся в системе <b>read-only</b>; активированный сотрудник не удаляется никогда.</div>
-      </div>
-      <div class="banner warn">
-        <span class="ic">🟡</span>
-        <div>Увольнение <b>задним числом</b> разрешено: действия УЗ после даты увольнения не блокируются, а попадают в <b>отчёт расхождений</b>.</div>
-      </div>
-    </div>
+    <div class="modal-body" id="dsBody"></div>
     <div class="modal-foot">
-      <button class="btn btn-danger-solid" id="dsConfirm" disabled>⛔ Уволить</button>
+      <button class="btn btn-danger" id="dsConfirm" disabled>⛔ Уволить</button>
       <button class="btn btn-cancel" data-close>Отмена</button>
       <span class="spacer"></span>
-      <span class="muted" id="dsHint" style="color:var(--secondary-text);font-size:13px;">Обязательств не ноль</span>
+      <span class="muted" id="dsHint"></span>
     </div>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- ==================== ФОРМА: НОВЫЙ СОТРУДНИК ==================== -->
+<div class="modal-overlay" id="mCreate">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <div class="modal-title">Новый сотрудник</div>
+      <button class="modal-x" data-close aria-label="Закрыть">✕</button>
+    </div>
+    <div class="modal-body" id="crBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-green" id="crConfirm">Создать карточку</button>
+      <button class="btn btn-cancel" data-close>Отмена</button>
+      <span class="spacer"></span>
+      <span class="muted" id="crHint"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== ФОРМА: СТРОКА ВКЛАДКИ (образование / семья / стаж / награды / документы / паспорт) ==================== -->
+<div class="modal-overlay" id="mRow">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <div class="modal-title" id="rwTitle"></div>
+      <button class="modal-x" data-close aria-label="Закрыть">✕</button>
+    </div>
+    <div class="modal-body" id="rwBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="rwConfirm">Сохранить</button>
+      <button class="btn btn-cancel" data-close>Отмена</button>
+      <span class="spacer"></span>
+      <span class="muted" id="rwHint"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== СПРАВОЧНИК: ФИЗИЧЕСКИЕ ЛИЦА ==================== -->
+<div class="modal-overlay" id="mPerson">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <div class="modal-title">Физические лица</div>
+      <button class="modal-x" data-close aria-label="Закрыть">✕</button>
+    </div>
+    <div class="modal-body" id="pkBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="pkConfirm" disabled>Выбрать</button>
+      <button class="btn btn-secondary" id="pkNew">＋ Новое физ. лицо</button>
+      <button class="btn btn-cancel" data-close>Отмена</button>
+      <span class="spacer"></span>
+      <span class="muted" id="pkHint"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== ФОРМА: ПРИКАЗ О ПРИЁМЕ ==================== -->
+<div class="modal-overlay" id="mHire">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <div class="modal-title">Приказ о приёме</div>
+      <button class="modal-x" data-close aria-label="Закрыть">✕</button>
+    </div>
+    <div class="modal-body" id="hiBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-green" id="hiConfirm">Провести приём</button>
+      <button class="btn btn-cancel" data-close>Отмена</button>
+      <span class="spacer"></span>
+      <span class="muted" id="hiHint"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== ФОРМА: ОТСУТСТВИЕ ==================== -->
+<div class="modal-overlay" id="mAbsence">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <div class="modal-title">Оформить отсутствие</div>
+      <button class="modal-x" data-close aria-label="Закрыть">✕</button>
+    </div>
+    <div class="modal-body" id="abBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="abConfirm">Оформить</button>
+      <button class="btn btn-cancel" data-close>Отмена</button>
+      <span class="spacer"></span>
+      <span class="muted" id="abHint"></span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
 
 <script>
-  // ---------- переключение вид «список» <-> «карточка» ----------
-  const viewList   = document.getElementById('view-list');
-  const viewDetail = document.getElementById('view-detail');
-  const pageTitle  = document.getElementById('pageTitle');
-  function showList(){ viewDetail.style.display='none'; viewList.style.display='flex'; pageTitle.textContent='Сотрудники'; window.scrollTo(0,0); }
-  function showDetail(){ viewList.style.display='none'; viewDetail.style.display='flex'; pageTitle.textContent='Сотрудник'; window.scrollTo(0,0); }
+/* =========================================================================
+   1. СОСТОЯНИЕ — только ФАКТЫ. Ни одного поля «статус» ни на одной сущности.
+   ========================================================================= */
+const TODAY = '2026-07-14';
+let asOf = TODAY;            // дата среза
+let role = 'hr';             // текущая роль
+let SELF = 'e142';           // чья карточка «своя» для роли self
+let selectedId = null;       // выделенная строка списка
+let openId = null;           // открытая карточка
+let cardTab = 'obshee';
+let curView = 'overview';     // активная вкладка (запоминается между перезагрузками)
+let obEdit = false, resEdit = false;   // режим правки полей табов «Общая» / «Резюме»
 
-  // ---------- список: выбор строки + открытие ----------
-  const rows = document.querySelectorAll('#rows tr');
-  const btnEdit = document.getElementById('btnEdit');
-  const btnDel  = document.getElementById('btnDel');
-  let selected = null;
-  rows.forEach(r => {
-    r.addEventListener('click', () => {
-      if (selected) selected.style.background='';
-      selected = r; r.style.background='#dbe9fb';
-      btnEdit.disabled=false; btnDel.disabled=false;
+const UNITS = {
+  uk:'Управление кредитования', otr:'Отраслевой департамент', vzy:'Департамент взыскания',
+  jur:'Юридический отдел', buh:'Бухгалтерия'
+};
+
+// Справочник физических лиц. Человек ≠ сотрудник: физлицо живёт отдельно и может быть
+// заёмщиком, поручителем, залогодателем — сотрудник лишь ссылается на него (person).
+let PERSONS = [
+  {id:'p63545', fio:'Сламкулов Азамат Омургазиевич', pin:'22803199012345', birth:'1990-03-28', sex:'муж.',
+   addr:'г. Бишкек, ул. Токтогула, 118-24', soate:'41708 802 810'},
+  {id:'p63540', fio:'Иванов Антон Сергеевич', pin:'20109198800111', birth:'1988-09-01', sex:'муж.',
+   addr:'г. Бишкек, мкр. Асанбай, 14-7', soate:'41708 802 810'},
+  {id:'p63612', fio:'Петрова Светлана Викторовна', pin:'21505198500222', birth:'1985-05-15', sex:'жен.',
+   addr:'г. Бишкек, ул. Ахунбаева, 91-3', soate:'41708 802 810'},
+  {id:'p63613', fio:'Матраимов Максат Кубанович', pin:'21002199200333', birth:'1992-02-10', sex:'муж.',
+   addr:'г. Ош, ул. Ленина, 220-11', soate:'41708 802 810'},
+  {id:'p70118', fio:'Асанов Бакыт Нурланович', pin:'20504199800234', birth:'1998-04-05', sex:'муж.',
+   addr:'г. Бишкек, ул. Панфилова, 12-4', soate:'41708 802 810'},
+  {id:'p70119', fio:'Дуйшеева Айнура Мелисовна', pin:'12207199100345', birth:'1991-07-22', sex:'жен.',
+   addr:'г. Бишкек, ул. Московская, 210-16', soate:'41708 802 810'},
+  {id:'p70120', fio:'Сыдыков Жоомарт Асанович', pin:'21311199300456', birth:'1993-11-13', sex:'муж.',
+   addr:'г. Ош, ул. Курманжан Датка, 40', soate:'41707 210 800'},
+  {id:'p70121', fio:'Осмонова Гулмира Токтогуловна', pin:'11809198700567', birth:'1987-09-18', sex:'жен.',
+   addr:'г. Бишкек, ул. Юнусалиева, 6-2', soate:'41708 802 810'},
+  {id:'p70122', fio:'Абдиев Нурбек Талантович', pin:'20102199500678', birth:'1995-01-02', sex:'муж.',
+   addr:'г. Кара-Балта, ул. Кожомбердиева, 3', soate:'41703 210 800'},
+];
+const person = id => PERSONS.find(p => p.id === id) || null;
+// физлицо уже привязано к сотруднику? второй карточки на того же человека быть не должно
+const personTaken = pid => EMPLOYEES.find(e => e.person === pid) || null;
+
+// Сотрудник = правовая связь + кадровое дело. hired/fired — единственные кадровые «даты жизни».
+const EMPLOYEES = [
+  {id:'e142', person:'p63545', tab:'0142', fio:'Сламкулов Азамат Омургазиевич', hired:'2018-03-12', fired:null,
+   pin:'22803199012345', soate:'41708 802 810', cat:'Основной персонал · кредитование',
+   phone:'+996 (555) 12-34-56', wphone:'+996 (312) 66-00-42, вн. 214',
+   mail:'a.slamkulov@mail.kg', wmail:'a.slamkulov@fkf.kg',
+   work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'3 этаж', room:'каб. 214'},
+   resume:'Специалист по сопровождению кредитов агропромышленного комплекса. Ведёт портфель заёмщиков южного региона. Опыт реструктуризации и досудебного взыскания.',
+   pass:{birth:'28.03.1990', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 4471209',
+         issued:'12.02.2025', valid:'12.02.2035', family:'женат', addr:'г. Бишкек, ул. Токтогула, 118-24'}},
+  {id:'e087', person:'p63540', tab:'0087', fio:'Иванов Антон Сергеевич', hired:'2019-09-02', fired:null,
+   pin:'20109198800111', soate:'41708 802 810', cat:'Основной персонал · кредитование',
+   phone:'+996 (700) 40-11-02', wphone:'вн. 219', mail:'a.ivanov@mail.kg', wmail:'a.ivanov@fkf.kg',
+   work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'2 этаж', room:'каб. 219'},
+   resume:'Ведущий кредитный аналитик. Замещает коллег по управлению кредитования.',
+   pass:{birth:'01.09.1988', sex:'муж.', nat:'русский', citiz:'Кыргызская Республика', num:'AN 3310044',
+         issued:'03.03.2020', valid:'03.03.2030', family:'женат', addr:'г. Бишкек, мкр. Асанбай, 14-7'}},
+  {id:'e113', person:'p63612', tab:'0113', fio:'Петрова Светлана Викторовна', hired:'2017-05-15', fired:null,
+   pin:'21505198500222', soate:'41708 802 810', cat:'Руководящий состав',
+   phone:'+996 (555) 77-88-99', wphone:'вн. 230', mail:'s.petrova@mail.kg', wmail:'s.petrova@fkf.kg',
+   work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'3 этаж', room:'каб. 230'},
+   resume:'Начальник отдела отраслевого кредитования.',
+   pass:{birth:'15.05.1985', sex:'жен.', nat:'русская', citiz:'Кыргызская Республика', num:'AN 2201188',
+         issued:'20.06.2018', valid:'20.06.2028', family:'замужем', addr:'г. Бишкек, ул. Ахунбаева, 91-3'}},
+  {id:'e125', person:'p63613', tab:'0125', fio:'Матраимов Максат Кубанович', hired:'2020-02-10', fired:null,
+   pin:'21002199200333', soate:'41708 802 810', cat:'Основной персонал · кредитование',
+   phone:'+996 (770) 21-33-44', wphone:'вн. 233', mail:'m.matraimov@mail.kg', wmail:'m.matraimov@fkf.kg',
+   work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'3 этаж', room:'каб. 233'},
+   resume:'Главный специалист отраслевого департамента, портфель промышленных кредитов.',
+   pass:{birth:'10.02.1992', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 5512003',
+         issued:'11.01.2022', valid:'11.01.2032', family:'женат', addr:'г. Ош, ул. Ленина, 220-11'}},
+  {id:'e160', tab:'0160', fio:'Тынчтыкбек кызы Марал', hired:'2021-11-01', fired:null,
+   pin:'12511199500444', soate:'41707 210 800', cat:'Основной персонал · взыскание',
+   phone:'+996 (555) 60-70-80', wphone:'вн. 241', mail:'m.tynchtykbek@mail.kg', wmail:'m.tynchtykbek@fkf.kg',
+   work:{addr:'г. Ош, ул. Курманжан Датка, 40 (Ошский филиал)', floor:'2 этаж', room:'каб. 241'},
+   resume:'Ведущий специалист департамента взыскания, южный регион.',
+   pass:{birth:'25.11.1995', sex:'жен.', nat:'кыргызка', citiz:'Кыргызская Республика', num:'AN 6603311',
+         issued:'02.12.2021', valid:'02.12.2031', family:'не замужем', addr:'г. Ош, мкр. Анар, 3-18'}},
+  {id:'e161', tab:'0161', fio:'Бектурганов Эрнис Нурдинович', hired:'2022-03-14', fired:null,
+   pin:'20403199600555', soate:'41707 210 800', cat:'Основной персонал · взыскание',
+   phone:'+996 (700) 11-22-33', wphone:'вн. 242', mail:'e.bekturganov@mail.kg', wmail:'e.bekturganov@fkf.kg',
+   work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'4 этаж', room:'каб. 242'},
+   resume:'Специалист департамента взыскания.',
+   pass:{birth:'04.03.1996', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 7714422',
+         issued:'15.03.2022', valid:'15.03.2032', family:'холост', addr:'г. Бишкек, ул. Байтик Баатыра, 55'}},
+  {id:'e178', tab:'0178', fio:'Сооронова Рыскан Атаевна', hired:'2019-01-21', fired:null,
+   pin:'12101199000666', soate:'41708 802 810', cat:'Юридическое сопровождение',
+   phone:'+996 (555) 33-44-55', wphone:'вн. 251', mail:'r.sooronova@mail.kg', wmail:'r.sooronova@fkf.kg',
+   work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'4 этаж', room:'каб. 251'},
+   resume:'Юрисконсульт, сопровождение договоров залога и поручительства.',
+   pass:{birth:'21.01.1990', sex:'жен.', nat:'кыргызка', citiz:'Кыргызская Республика', num:'AN 1109988',
+         issued:'22.02.2019', valid:'22.02.2029', family:'замужем', addr:'г. Бишкек, ул. Фрунзе, 402-9'}},
+  {id:'e180', tab:'0180', fio:'Меңдибаев Амантур Кылычбекович', hired:'2023-06-05', fired:null,
+   pin:'20506199400777', soate:'41708 802 810', cat:'Обеспечивающий персонал',
+   phone:'+996 (770) 90-10-20', wphone:'вн. 260', mail:'a.mendibaev@mail.kg', wmail:'a.mendibaev@fkf.kg',
+   work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'1 этаж', room:'каб. 106'},
+   resume:'Бухгалтер, участок расчётов по кредитам.',
+   pass:{birth:'05.06.1994', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 8815533',
+         issued:'06.07.2023', valid:'06.07.2033', family:'женат', addr:'г. Бишкек, ул. Жибек Жолу, 17-2'}},
+  {id:'e191', tab:'0191', fio:'Темирлан уулу Тобокел', hired:'2026-07-20', fired:null,
+   pin:'20207200100888', soate:'41708 802 810', cat:'—',
+   phone:'+996 (555) 01-02-03', wphone:'—', mail:'t.tobokel@mail.kg', wmail:'—',
+   resume:'—',
+   pass:{birth:'07.02.2001', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 9920044',
+         issued:'10.03.2024', valid:'10.03.2034', family:'холост', addr:'г. Бишкек, ул. Панфилова, 3-1'}},
+  {id:'e033', tab:'0033', fio:'Орозбаева Гулнара Турсуновна', hired:'2014-04-01', fired:'2025-11-14',
+   pin:'11004198300999', soate:'41708 802 810', cat:'Основной персонал · кредитование',
+   phone:'+996 (555) 12-00-00', wphone:'—', mail:'g.orozbaeva@mail.kg', wmail:'—',
+   resume:'Ведущий специалист управления кредитования (уволена 14.11.2025).',
+   pass:{birth:'10.04.1983', sex:'жен.', nat:'кыргызка', citiz:'Кыргызская Республика', num:'AN 4405566',
+         issued:'01.05.2015', valid:'01.05.2025', family:'замужем', addr:'г. Бишкек, ул. Горького, 12-5'}},
+  {id:'e201', tab:'0201', fio:'Жумабеков Канат Эркинович', hired:'2024-08-19', fired:null,
+   pin:'21908199700121', soate:'41708 802 810', cat:'Основной персонал · кредитование',
+   phone:'+996 (700) 55-66-77', wphone:'вн. 235', mail:'k.jumabekov@mail.kg', wmail:'k.jumabekov@fkf.kg',
+   work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'3 этаж', room:'каб. 235'},
+   resume:'Специалист отраслевого департамента.',
+   pass:{birth:'19.08.1997', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 3312277',
+         issued:'20.09.2024', valid:'20.09.2034', family:'холост', addr:'г. Бишкек, ул. Абдрахманова, 150'}},
+  {id:'e044', tab:'0044', fio:'Абдыкадыров Руслан Муратович', hired:'2016-10-03', fired:null,
+   pin:'20310198400131', soate:'41707 210 800', cat:'Руководящий состав',
+   phone:'+996 (555) 44-55-66', wphone:'вн. 240', mail:'r.abdykadyrov@mail.kg', wmail:'r.abdykadyrov@fkf.kg',
+   work:{addr:'г. Бишкек, ул. Тоголок Молдо, 40 (головной офис)', floor:'4 этаж', room:'каб. 240'},
+   resume:'Начальник отдела департамента взыскания.',
+   pass:{birth:'03.10.1984', sex:'муж.', nat:'кыргыз', citiz:'Кыргызская Республика', num:'AN 7708899',
+         issued:'04.11.2016', valid:'04.11.2026', family:'женат', addr:'г. Бишкек, ул. Киевская, 77-14'}},
+];
+
+// НАЗНАЧЕНИЕ = ПЕРИОД занятия позиции (не событие). to=null → открытый период.
+// kind: main (основное) | combo (совмещение) | acting (врио)
+let ASSIGN = [
+  {id:'a1', emp:'e142', from:'2018-03-12', to:'2021-12-31', unit:'otr', post:'Главный специалист',    kind:'main',   rate:1.0, order:'Приказ о приёме №8-к от 12.03.2018'},
+  {id:'a2', emp:'e142', from:'2022-01-01', to:null,         unit:'uk',  post:'Ведущий специалист',    kind:'main',   rate:1.0, order:'Приказ о переводе №14-к от 30.12.2021'},
+  {id:'a3', emp:'e142', from:'2024-06-01', to:'2026-07-31', unit:'otr', post:'И.о. начальника отдела',kind:'acting', rate:0.5, order:'Приказ №51-к от 31.05.2024'},
+  {id:'a4', emp:'e087', from:'2019-09-02', to:null, unit:'uk',  post:'Главный специалист',   kind:'main', rate:1.0, order:'Приказ о приёме №22-к от 02.09.2019'},
+  {id:'a5', emp:'e113', from:'2017-05-15', to:null, unit:'otr', post:'Начальник отдела',     kind:'main', rate:1.0, order:'Приказ о приёме №11-к от 15.05.2017'},
+  {id:'a6', emp:'e125', from:'2020-02-10', to:null, unit:'otr', post:'Главный специалист',   kind:'main', rate:1.0, order:'Приказ о приёме №4-к от 10.02.2020'},
+  {id:'a7', emp:'e160', from:'2021-11-01', to:null, unit:'vzy', post:'Ведущий специалист',   kind:'main', rate:1.0, order:'Приказ о приёме №61-к от 01.11.2021'},
+  {id:'a8', emp:'e161', from:'2022-03-14', to:null, unit:'vzy', post:'Специалист',           kind:'main', rate:1.0, order:'Приказ о приёме №19-к от 14.03.2022'},
+  {id:'a9', emp:'e178', from:'2019-01-21', to:null, unit:'jur', post:'Юрисконсульт',         kind:'main', rate:1.0, order:'Приказ о приёме №2-к от 21.01.2019'},
+  {id:'a10',emp:'e180', from:'2023-06-05', to:null, unit:'buh', post:'Бухгалтер',            kind:'main', rate:1.0, order:'Приказ о приёме №30-к от 05.06.2023'},
+  {id:'a11',emp:'e033', from:'2014-04-01', to:'2025-11-14', unit:'uk', post:'Ведущий специалист', kind:'main', rate:1.0, order:'Приказ о приёме №9-к от 01.04.2014'},
+  {id:'a12',emp:'e201', from:'2024-08-19', to:null, unit:'otr', post:'Специалист',           kind:'main', rate:1.0, order:'Приказ о приёме №44-к от 19.08.2024'},
+  {id:'a13',emp:'e044', from:'2016-10-03', to:null, unit:'vzy', post:'Начальник отдела',     kind:'main', rate:1.0, order:'Приказ о приёме №35-к от 03.10.2016'},
+  // e191 назначений НЕ имеет → «Оформляется» (черновик, операционно невидим)
+];
+
+// ОТСУТСТВИЕ. Состояние (Запланировано/Идёт/Завершено) вычисляется, «Отменено» — флаг.
+let ABSENCE = [
+  {id:'b1', emp:'e142', kind:'Ежегодный отпуск', from:'2026-08-10', planTo:'2026-08-23', factTo:null,
+   base:'Приказ №77-о от 01.07.2026', sub:'e087', cancelled:false},
+  {id:'b2', emp:'e142', kind:'Больничный', from:'2026-06-02', planTo:'2026-06-06', factTo:'2026-06-06',
+   base:'Листок нетрудоспособности №БЛ-3391 (не приказ · ретро-ввод)', sub:null, cancelled:false},
+  {id:'b3', emp:'e142', kind:'Командировка (Бишкек)', from:'2026-04-14', planTo:'2026-04-18', factTo:'2026-04-17',
+   base:'Приказ №39-к', sub:'e087', cancelled:false},
+  {id:'b4', emp:'e113', kind:'Ежегодный отпуск', from:'2026-07-05', planTo:'2026-07-24', factTo:null,
+   base:'Приказ №70-о от 25.06.2026', sub:'e087', cancelled:false},
+  {id:'b5', emp:'e125', kind:'Больничный', from:'2026-07-10', planTo:'2026-07-20', factTo:null,
+   base:'Листок нетрудоспособности №БЛ-4102', sub:null, cancelled:false},
+  {id:'b6', emp:'e160', kind:'Командировка (Ош)', from:'2026-07-08', planTo:'2026-07-15', factTo:null,
+   base:'Приказ №74-к от 03.07.2026', sub:'e161', cancelled:false},
+];
+
+// УЗ. Кураторство висит ЗДЕСЬ, не на сотруднике. blocked ≠ удалена.
+let ACCOUNTS = [
+  {login:'a.slamkulov',   emp:'e142', state:'active',  created:'2018-03-15', by:'admin', last:'2026-07-13 09:14', rolesStale:'2021-12-30'},
+  {login:'a.ivanov',      emp:'e087', state:'active',  created:'2019-09-05', by:'admin', last:'2026-07-14 08:31', rolesStale:null},
+  {login:'s.petrova',     emp:'e113', state:'active',  created:'2017-05-20', by:'admin', last:'2026-07-03 17:02', rolesStale:null},
+  {login:'m.matraimov',   emp:'e125', state:'active',  created:'2020-02-14', by:'admin', last:'2026-07-09 16:40', rolesStale:null},
+  {login:'m.tynchtykbek', emp:'e160', state:'active',  created:'2021-11-05', by:'admin', last:'2026-07-14 10:05', rolesStale:null},
+  {login:'e.bekturganov', emp:'e161', state:'active',  created:'2022-03-18', by:'admin', last:'2026-07-14 09:50', rolesStale:null},
+  {login:'r.sooronova',   emp:'e178', state:'blocked', created:'2019-01-25', by:'admin', last:'2026-05-30 11:12', rolesStale:null},
+  {login:'g.orozbaeva',   emp:'e033', state:'blocked', created:'2014-04-05', by:'admin', last:'2025-11-14 18:00', rolesStale:null},
+  {login:'k.jumabekov',   emp:'e201', state:'active',  created:'2024-08-22', by:'admin', last:'2026-07-13 12:20', rolesStale:null},
+  {login:'r.abdykadyrov', emp:'e044', state:'active',  created:'2016-10-07', by:'admin', last:'2026-07-14 08:05', rolesStale:null},
+  // e180 (Меңдибаев) и e191 (Темирлан уулу) УЗ не имеют
+];
+
+let ROLES = [
+  {login:'a.slamkulov', unit:'uk',  role:'Кредитный специалист'},
+  {login:'a.slamkulov', unit:'otr', role:'И.о. начальника отдела'},
+  {login:'a.ivanov',    unit:'uk',  role:'Кредитный специалист'},
+  {login:'s.petrova',   unit:'otr', role:'Начальник отдела'},
+  {login:'m.matraimov', unit:'otr', role:'Кредитный специалист'},
+  {login:'m.tynchtykbek', unit:'vzy', role:'Специалист по взысканию'},
+  {login:'e.bekturganov', unit:'vzy', role:'Специалист по взысканию'},
+  {login:'r.abdykadyrov', unit:'vzy', role:'Начальник отдела'},
+  {login:'k.jumabekov', unit:'otr', role:'Кредитный специалист'},
+];
+
+// Зоны кураторства + закреплённые заёмщики — атрибут УЗ.
+let CURATOR = [
+  {login:'a.slamkulov', sector:'Агропромышленный комплекс', region:'Ошская обл. · все районы',
+   kind:'Физ. лица · льготные', borrowers:14, conflict:1},
+  {login:'m.matraimov', sector:'Промышленность', region:'Чуйская обл.',
+   kind:'Юр. лица · инвестиционные', borrowers:6, conflict:0},
+  {login:'a.ivanov', sector:'Торговля и услуги', region:'г. Бишкек',
+   kind:'Физ. лица · стандартные', borrowers:9, conflict:0},
+];
+
+let TASKS = [
+  {id:'t1', login:'a.slamkulov', title:'Проверка залога по кредиту №60540', due:'2026-07-20'},
+  {id:'t2', login:'a.slamkulov', title:'Согласование графика по заявке №1188', due:'2026-07-25'},
+  {id:'t3', login:'a.slamkulov', title:'Выезд к заёмщику (Кара-Суу)', due:'2026-08-02'},
+  {id:'t4', login:'m.matraimov', title:'Мониторинг целевого использования №60911', due:'2026-07-18'},
+];
+
+// Документ НАСЛЕДУЕТ гриф родительской вкладки → tab, а не собственный класс.
+let DOCS = [
+  {emp:'e142', name:'Приказ о приёме №8-к.pdf',      tab:'naznach', v:1, date:'2018-03-12', by:'hr.kadyrova'},
+  {emp:'e142', name:'Приказ о переводе №14-к.pdf',   tab:'naznach', v:1, date:'2021-12-30', by:'hr.kadyrova'},
+  {emp:'e142', name:'Приказ №51-к (врио).pdf',       tab:'naznach', v:1, date:'2024-05-31', by:'hr.kadyrova'},
+  {emp:'e142', name:'Приказ №77-о (отпуск).pdf',     tab:'otsut',   v:1, date:'2026-07-01', by:'hr.kadyrova'},
+  {emp:'e142', name:'Скан паспорта.pdf',             tab:'pasport', v:2, date:'2025-02-04', by:'hr.kadyrova'},
+  {emp:'e142', name:'Диплом.pdf',                    tab:'obraz',   v:1, date:'2018-03-15', by:'hr.kadyrova'},
+  {emp:'e142', name:'Выписка о поощрении.pdf',       tab:'nagrady', v:1, date:'2023-12-20', by:'hr.kadyrova'},
+];
+
+// Образование и сертификаты. Сертификат имеет срок действия → «истёк» вычисляется на дату среза.
+let EDU = [
+  {emp:'e142', type:'Диплом', level:'Высшее', spec:'Финансы и кредит', org:'КНУ им. Ж. Баласагына', year:2012, num:'ВД №114287', till:null},
+  {emp:'e142', type:'Диплом', level:'Магистратура', spec:'Банковское дело', org:'АУЦА', year:2015, num:'МД №220119', till:null},
+  {emp:'e142', type:'Сертификат', level:'Повышение квалификации', spec:'Оценка кредитных рисков', org:'Учебный центр НБКР', year:2023, num:'СТ-2023/441', till:'2026-11-30'},
+  {emp:'e142', type:'Сертификат', level:'Повышение квалификации', spec:'Противодействие ОД/ФТ', org:'Госфиннадзор', year:2021, num:'СТ-2021/903', till:'2024-06-01'},
+  {emp:'e125', type:'Диплом', level:'Высшее', spec:'Экономика предприятия', org:'КГУСТА', year:2014, num:'ВД №330441', till:null},
+  {emp:'e087', type:'Диплом', level:'Высшее', spec:'Бухгалтерский учёт и аудит', org:'КЭУ им. М. Рыскулбекова', year:2011, num:'ВД №099210', till:null},
+];
+
+// Состав семьи.
+let FAMILY = [
+  {emp:'e142', rel:'Супруга', fio:'Сламкулова Айгуль Бакытовна', phone:'+996 (555) 88-11-22', birth:'1992-07-19'},
+  {emp:'e142', rel:'Сын',     fio:'Сламкулов Тимур Азаматович',  phone:'—',                   birth:'2016-04-03'},
+  {emp:'e142', rel:'Дочь',    fio:'Сламкулова Амина Азаматовна', phone:'—',                   birth:'2020-09-27'},
+  {emp:'e125', rel:'Супруга', fio:'Матраимова Нургуль Асановна', phone:'+996 (770) 44-55-66', birth:'1994-02-11'},
+];
+
+// Трудовой стаж ДО приёма (из трудовой книжки). Стаж в организации считается из ASSIGN.
+let WORKHIST = [
+  {emp:'e142', org:'ОАО «Айыл Банк»',       post:'Кредитный эксперт',    from:'2012-08-01', to:'2015-05-31'},
+  {emp:'e142', org:'ЗАО «Кыргызкоммерцбанк»', post:'Старший специалист', from:'2015-06-15', to:'2018-02-28'},
+  {emp:'e125', org:'ОсОО «Агроинвест»',     post:'Экономист',            from:'2015-03-01', to:'2020-01-31'},
+];
+
+// Награды / чины / взыскания. Взыскание «снимается» датой → действующее вычисляется на дату среза.
+let AWARDS = [
+  {emp:'e142', kind:'Поощрение', name:'Почётная грамота ФКФ', org:'ФКФ', date:'2023-12-20', off:null, note:'За вклад в развитие льготного кредитования'},
+  {emp:'e142', kind:'Взыскание', name:'Замечание', org:'ФКФ', date:'2024-03-11', off:'2025-03-11', note:'Нарушение срока сдачи отчёта'},
+  {emp:'e142', kind:'Взыскание', name:'Выговор', org:'ФКФ', date:'2026-05-18', off:null, note:'Просрочка мониторинга целевого использования'},
+  {emp:'e125', kind:'Поощрение', name:'Благодарность', org:'ФКФ', date:'2025-06-02', off:null, note:'Досрочное закрытие плана'},
+];
+
+// Паспорт заменяется версией: прежний не затирается, он нужен старым кредитным документам.
+let PASS_HIST = {
+  e142: [{num:'AN 2210877', issued:'14.03.2015', replaced:'2025-02-04', base:'Замена по сроку действия'}],
+};
+
+// Строки вкладок правятся по id — раздаём его тем записям, что заданы в модели вручную.
+let rowSeq = 0;
+[EDU, FAMILY, WORKHIST, AWARDS, DOCS].forEach(arr => arr.forEach(x => x.id = 'r' + (++rowSeq)));
+
+let AUDIT = [
+  {emp:'e142', when:'2026-07-01 09:12', who:'hr.kadyrova', kind:'', what:'<b>Отсутствие (вкл. 3):</b> оформлен ежегодный отпуск 10.08–23.08.2026, замещающий Иванов А. С. · осн. Приказ №77-о'},
+  {emp:'e142', when:'2025-02-04 11:05', who:'hr.kadyrova', kind:'', what:'<b>Паспорт (вкл. 5, B):</b> новая версия документа (замена паспорта); старый номер сохранён для прежних кредитных документов'},
+  {emp:'e142', when:'2024-06-01 10:20', who:'hr.kadyrova', kind:'warn', what:'<b>Назначение (вкл. 2):</b> открыт период «врио начальника отдела», ставка 0.5 · осн. Приказ №51-к'},
+  {emp:'e142', when:'2021-12-30 15:40', who:'система',     kind:'muted', what:'Флаг <b>«роли не пересмотрены»</b> поднят на вкл. 4; уведомление администратору'},
+  {emp:'e142', when:'2021-12-30 15:40', who:'hr.kadyrova', kind:'ok', what:'<b>Перевод (атомарно):</b> закрыт период «Гл. специалист, Отраслевой деп.» (по 31.12.2021) + открыт «Вед. специалист, Управление кредитования» (с 01.01.2022) · осн. Приказ №14-к. Кураторство <b>сохранено осознанно</b> (та же зона ответственности) → запись в аудит'},
+  {emp:'e142', when:'2018-03-15 09:00', who:'admin',       kind:'ok', what:'<b>Приём:</b> Оформляется → Работает · заведена учётная запись a.slamkulov'},
+  {emp:'e033', when:'2025-11-14 17:30', who:'hr.kadyrova', kind:'muted', what:'<b>Увольнение:</b> период назначения закрыт, учётная запись заблокирована, заёмщики сняты · осн. Приказ №88-к'},
+  {emp:'e125', when:'2026-07-10 08:05', who:'hr.kadyrova', kind:'warn', what:'<b>Отсутствие (вкл. 3):</b> больничный 10.07–20.07.2026, <b>замещающий не назначен</b>'},
+];
+
+/* =========================================================================
+   2. ЧИСТЫЕ ФУНКЦИИ. Всё производное считается ЗДЕСЬ и нигде больше.
+   ========================================================================= */
+const emp = id => EMPLOYEES.find(e => e.id === id);
+const unitName = u => UNITS[u] || '—';
+const acct = id => ACCOUNTS.find(a => a.emp === id);
+const curatorOf = login => CURATOR.find(c => c.login === login);
+const fmt = d => d ? d.split('-').reverse().join('.') : '—';
+const shortFio = id => { const e = emp(id); if(!e) return '—';
+  const p = e.fio.split(' '); return p[0] + ' ' + (p[1]?p[1][0]+'.':'') + (p[2]?p[2][0]+'.':''); };
+const days = (a,b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+function plural(n, one, few, many){                      // 1 заёмщик · 2 заёмщика · 5 заёмщиков
+  const t = n % 100, u = n % 10;
+  const w = (t >= 11 && t <= 14) ? many : u === 1 ? one : (u >= 2 && u <= 4) ? few : many;
+  return n + ' ' + w;
+}
+const addDays = (d,n) => { const t = new Date(Date.parse(d) + n*86400000); return t.toISOString().slice(0,10); };
+function plural(n, one, few, many){ const m10=n%10, m100=n%100; if(m10===1&&m100!==11)return one; if(m10>=2&&m10<=4&&(m100<10||m100>=20))return few; return many; }
+function stazhText(from, to){
+  const a=new Date(from), b=new Date(to);
+  let months=(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth());
+  if(b.getDate()<a.getDate()) months--;
+  if(months<0) months=0;
+  const y=Math.floor(months/12), mo=months%12;
+  const parts=[];
+  if(y) parts.push(y+' '+plural(y,'год','года','лет'));
+  parts.push(mo+' '+plural(mo,'месяц','месяца','месяцев'));
+  return parts.join(' ');
+}
+const spanActive = (from,to,d) => from <= d && (to == null || to >= d);
+
+// --- ось 1: кадровый статус (правовая связь) --------------------------------
+function hrStatusAt(id, d){
+  const e = emp(id);
+  if (e.fired && e.fired <= d) return 'Уволен';
+  if (assignsAt(id, d).some(a => a.kind === 'main')) return 'Работает';
+  return 'Оформляется';           // черновик: правовой связи ещё/уже нет
+}
+function assignsAt(id, d){ return ASSIGN.filter(a => a.emp === id && spanActive(a.from, a.to, d)); }
+function mainAt(id, d){ return assignsAt(id, d).find(a => a.kind === 'main') || null; }
+function deptPostAt(id, d){ const m = mainAt(id, d); return m ? unitName(m.unit) + ' · ' + m.post : '— · —'; }
+// Руководитель = начальник подразделения текущего основного назначения.
+const HEAD_OF_UNIT = { uk:'e142', otr:'e113', vzy:'e044', jur:'e178', buh:'e180' };
+// Начальники отделов подчиняются директору (e113). Директор — корень, руководителя нет.
+const MANAGER_OF = { e142:'e113', e044:'e113', e178:'e113', e180:'e113' };
+function managerOf(id, d){
+  if (MANAGER_OF[id]) return emp(MANAGER_OF[id]) || null;
+  const m = mainAt(id, d); if (!m) return null;
+  const hid = HEAD_OF_UNIT[m.unit];
+  if (!hid || hid === id) return null;             // сам руководитель подразделения
+  return emp(hid) || null;
+}
+function rateSumAt(id, d){ return assignsAt(id, d).reduce((s,a) => s + a.rate, 0); }
+
+// --- ось 2: доступность (вычисляется из ABSENCE, никто её не «ставит») ------
+function absenceAt(id, d){
+  return ABSENCE.find(b => b.emp === id && !b.cancelled && spanActive(b.from, b.factTo || b.planTo, d)) || null;
+}
+function absenceStateAt(b, d){
+  if (b.cancelled) return {t:'Отменено', c:'b-muted'};
+  const end = b.factTo || b.planTo;
+  if (b.from > d) return {t:'Запланировано', c:'b-muted'};
+  if (end < d)    return {t:'Завершено',     c:'b-ok'};
+  return {t:'Идёт', c:'b-warn'};
+}
+function substitutingFor(id, d){   // кого этот сотрудник замещает на дату
+  return ABSENCE.filter(b => b.sub === id && !b.cancelled && spanActive(b.from, b.factTo||b.planTo, d))
+                .map(b => b.emp);
+}
+function availabilityAt(id, d){
+  const st = hrStatusAt(id, d);
+  if (st === 'Уволен')      return {t:'вне организации', c:'b-muted'};
+  if (st === 'Оформляется') return {t:'—', c:'b-muted'};
+  const b = absenceAt(id, d);
+  if (b){
+    const kind = b.kind.startsWith('Больнич') ? 'На больничном'
+               : b.kind.startsWith('Команд')  ? b.kind
+               : 'В отпуске';
+    const tail = b.sub ? ' · замещает ' + shortFio(b.sub) : ' · замещения нет';
+    return {t:`${kind} до ${fmt(b.factTo||b.planTo)}${tail}`, c: b.sub ? 'b-warn' : 'b-err', away:true};
+  }
+  const covering = substitutingFor(id, d);
+  if (covering.length) return {t:'На месте · замещает ' + covering.map(shortFio).join(', '), c:'b-ok'};
+  return {t:'На месте', c:'b-ok'};
+}
+
+// --- ось 3: состояние УЗ (доступ; меняет администратор) ---------------------
+function acctStateAt(id, d){
+  const a = acct(id);
+  if (!a) return {t:'не заведена', c:'b-muted', state:null};
+  if (a.state === 'blocked') return {t:'заблокирована', c:'b-err', state:'blocked'};
+  return {t:'активна', c:'b-info', state:'active'};
+}
+
+// --- контракт наружу: кому уедет задание ------------------------------------
+function resolveActor(id, d){
+  const a = acct(id);
+  if (!a || a.state !== 'active') return {assignee:null, router:null, note:'Учётной записи нет или она заблокирована — задание назначить не на кого.'};
+  const b = absenceAt(id, d);
+  if (b && b.sub){
+    const sa = acct(b.sub);
+    if (sa && sa.state === 'active')
+      return {assignee:a.login, router:sa.login,
+              note:`Активное замещение до ${fmt(b.factTo||b.planTo)}. Ответственность остаётся на кураторе.`};
+  }
+  if (b && !b.sub)
+    return {assignee:a.login, router:null,
+            note:`Отсутствует до ${fmt(b.factTo||b.planTo)}, замещение не оформлено.`, hole:true};
+  return {assignee:a.login, router:null, note:'На месте — задание уходит напрямую.'};
+}
+
+// --- правила назначений ------------------------------------------------------
+function assignIssues(id, d){
+  const out = [];
+  const list = ASSIGN.filter(a => a.emp === id);
+  const mains = list.filter(a => a.kind === 'main');
+  for (let i = 0; i < mains.length; i++)
+    for (let j = i+1; j < mains.length; j++){
+      const A = mains[i], B = mains[j];
+      const ov = A.from <= (B.to || '9999-12-31') && B.from <= (A.to || '9999-12-31');
+      if (ov) out.push(`Периоды «основное» пересекаются: ${fmt(A.from)}… и ${fmt(B.from)}…`);
+    }
+  const sum = rateSumAt(id, d);
+  if (sum > 1.5) out.push(`Сумма ставок ${sum.toFixed(1)} — больше допустимых 1.5`);
+  const open = list.filter(a => a.to == null);
+  if (open.length > 1) out.push('Больше одного действующего периода «основное»');
+  if (open.length && hrStatusAt(id, d) === 'Уволен') out.push('Сотрудник уволен, но период назначения не закрыт');
+  return out;
+}
+
+// --- уровни доступа: право на КЛАСС ДАННЫХ, а не на экран --------------------
+const CLASS_OF_TAB = {obshee:'A', naznach:'A', otsut:'A', uz:'A', docs:'A', history:'A',
+                      resume:'A', pasport:'B', obraz:'B', semya:'B', stazh:'B', nagrady:'C'};
+const ROLE_CLASSES = {hr:['A','B','C'], admin:['A'], head:['A','C'], self:['A','B'], cred:['A']};
+function canSee(cls, empId){
+  if (cls === 'A') return true;
+  if (role === 'self') return empId === SELF && ROLE_CLASSES.self.includes(cls);
+  return ROLE_CLASSES[role].includes(cls);
+}
+const canSeeTab = (tabKey, empId) => canSee(CLASS_OF_TAB[tabKey], empId);
+const canEdit = id => (role === 'hr') && hrStatusAt(id, asOf) !== 'Уволен';   // read-only после увольнения
+
+// --- дашборд «Требует внимания» ---------------------------------------------
+const ACTING_WINDOW = 30;
+function problemsAt(d){
+  const P = [];
+  EMPLOYEES.forEach(e => {
+    const st = hrStatusAt(e.id, d);
+    if (st === 'Уволен') return;
+    const a = acct(e.id);
+    const cur = a ? curatorOf(a.login) : null;
+    const b = absenceAt(e.id, d);
+
+    if (st === 'Работает' && b && !b.sub && cur && cur.borrowers > 0)
+      P.push({sev:'err', ic:'🔴', emp:e.id,
+        t:`${e.fio} — отсутствует (${b.kind.toLowerCase()}) до ${fmt(b.factTo||b.planTo)}, замещение не оформлено`,
+        w:`За ним закреплено ${plural(cur.borrowers,'заёмщик','заёмщика','заёмщиков')} и ${plural(TASKS.filter(t=>t.login===a.login).length,'открытое задание','открытых задания','открытых заданий')} — принять их некому.`,
+        act:'Оформить замещение', fn:'openAbsence'});
+
+    if (st === 'Работает' && !a)
+      P.push({sev:'err', ic:'🔴', emp:e.id, t:`${e.fio} — работает, но учётной записи нет`,
+        w:'Задание назначить нельзя, замещать других не может.', act:'Открыть карточку', fn:'open'});
+
+    if (st === 'Работает' && a && a.state === 'blocked')
+      P.push({sev:'err', ic:'🔴', emp:e.id, t:`${e.fio} — работает, но учётная запись заблокирована`,
+        w:'Доступа в систему нет. Разбирает администратор.', act:'Открыть карточку', fn:'open'});
+
+    if (a && a.rolesStale)
+      P.push({sev:'warn', ic:'🟡', emp:e.id, t:`${e.fio} — роли не пересмотрены после перевода (${fmt(a.rolesStale)})`,
+        w:'Работу не блокирует. Роли правит администратор, уведомление отправлено.', act:'Открыть карточку', fn:'open'});
+
+    assignsAt(e.id, d).filter(x => x.kind === 'acting' && x.to).forEach(x => {
+      const left = days(d, x.to);
+      if (left >= 0 && left <= ACTING_WINDOW)
+        P.push({sev:'warn', ic:'🟡', emp:e.id, t:`${e.fio} — «${x.post}» заканчивается через ${left} дн. (${fmt(x.to)})`,
+          w:'Дальше должность снова вакантна: продлить приказом или закрыть.', act:'Открыть карточку', fn:'open'});
     });
-    // карточка проработана только для СЛАМКУЛОВА (data-open); остальные строки — демо-данные списка
-    r.addEventListener('dblclick', () => { if (r.dataset.open) showDetail(); else toast('В мокапе проработана карточка одного сотрудника (Сламкулов) — откройте его.'); });
-  });
-  btnEdit.addEventListener('click', () => { if (!btnEdit.disabled){ if(selected && selected.dataset.open){ showDetail(); } else { toast('В мокапе проработана карточка Сламкулова — выберите его.'); } } });
-  document.getElementById('btnOk').addEventListener('click', showList);
-  document.getElementById('btnCancel').addEventListener('click', showList);
-  document.getElementById('btnCreate').addEventListener('click', () => toast('Создание: HR заводит карточку в статусе «Оформляется» (черновик, операционно невидим).'));
 
-  // ---------- фильтр (демонстрационный) ----------
-  const closeDrops = () => document.querySelectorAll('.fdrop.open').forEach(d => d.classList.remove('open'));
-  const fStatus = document.getElementById('fStatus');
-  const fStatusVal = document.getElementById('fStatusVal');
-  fStatus.addEventListener('click', e => { e.stopPropagation(); const d=document.getElementById('fStatusDrop'); const willOpen=!d.classList.contains('open'); closeDrops(); if(willOpen)d.classList.add('open'); });
-  document.querySelectorAll('#fStatusDrop .opt').forEach(o => o.addEventListener('click', e => {
-    e.stopPropagation(); const v=o.dataset.v; fStatusVal.textContent=v; fStatusVal.classList.toggle('ph',!v);
-    document.getElementById('fStatusDrop').classList.remove('open');
+    if (cur && cur.conflict > 0)
+      P.push({sev:'warn', ic:'🟡', emp:e.id, t:`${e.fio} — конфликт интересов: ${plural(cur.conflict,'заёмщик','заёмщика','заёмщиков')}`,
+        w:'Совпадение по составу семьи. Отстранён только от этого заёмщика, остальных ведёт как обычно.', act:'Открыть карточку', fn:'open'});
+
+    assignIssues(e.id, d).forEach(msg =>
+      P.push({sev:'err', ic:'🔴', emp:e.id, t:`${e.fio} — ошибка в назначениях`, w:msg, act:'Открыть карточку', fn:'open'}));
+  });
+  const rank = {err:0, warn:1};
+  return P.sort((x,y) => rank[x.sev] - rank[y.sev]);
+}
+function metricsAt(d){
+  const live = EMPLOYEES.filter(e => hrStatusAt(e.id, d) === 'Работает');
+  const away = live.filter(e => availabilityAt(e.id, d).away);
+  const noSub = away.filter(e => { const b = absenceAt(e.id, d); return b && !b.sub; });
+  const noAcct = live.filter(e => !acct(e.id));
+  const drafts = EMPLOYEES.filter(e => hrStatusAt(e.id, d) === 'Оформляется');
+  return {live:live.length, away:away.length, noSub:noSub.length, noAcct:noAcct.length,
+          drafts:drafts.length, fired:EMPLOYEES.filter(e => hrStatusAt(e.id, d) === 'Уволен').length};
+}
+
+/* =========================================================================
+   3. МУТАЦИИ — только через гейты. Каждая пишет в AUDIT.
+   ========================================================================= */
+function audit(empId, what, kind){
+  AUDIT.unshift({emp:empId, when: asOf.split('-').reverse().join('.') + ' ' + '12:00', who: role === 'hr' ? 'hr.kadyrova' : role, kind: kind||'', what});
+}
+// Создание — только карточка (кадровое дело) со ссылкой на физлицо из справочника.
+// Назначения нет → hrStatusAt даёт «Оформляется».
+function doCreate(f){
+  const id = 'e' + (900 + EMPLOYEES.filter(e => e.id.startsWith('e9')).length + 1);
+  const p = person(f.person);
+  EMPLOYEES.push({
+    id, person:f.person, tab:f.tab, fio:p.fio, hired:null, fired:null,
+    pin:p.pin, soate:p.soate, cat:f.cat,
+    phone:f.phone || '—', wphone:'—', mail:f.mail || '—', wmail:'—',
+    resume:'—',
+    pass:{birth:p.birth === '—' ? '—' : fmt(p.birth), sex:p.sex, nat:'—', citiz:'Кыргызская Республика',
+          num:'—', issued:'—', valid:'—', family:'—', addr:p.addr}
+  });
+  audit(id, `<b>Создана карточка:</b> физлицо ${esc(p.fio)} (ПИН ${p.pin}), табельный № ${esc(f.tab)}. Назначения нет → статус «Оформляется», сотрудник операционно невидим.`, 'warn');
+  return id;
+}
+// Приём = открытие первого периода назначения. Статус «Работает» получается сам.
+function doHire(id, unit, post, date, rate, order){
+  const e = emp(id);
+  e.hired = date;
+  ASSIGN.push({id:'a'+(ASSIGN.length+1), emp:id, from:date, to:null, unit, post, kind:'main', rate, order});
+  audit(id, `<b>Приём:</b> открыт период «${post}, ${unitName(unit)}» с ${fmt(date)} · осн. ${order}. Учётной записи нет — её заводит администратор.`, 'ok');
+}
+function doTransfer(id, unit, post, date, order){
+  const m = mainAt(id, asOf);
+  if (m) m.to = addDays(date, -1);                                   // закрыть период
+  ASSIGN.push({id:'a'+(ASSIGN.length+1), emp:id, from:date, to:null, // открыть новый — одна транзакция
+               unit, post, kind:'main', rate:1.0, order});
+  const a = acct(id);
+  if (a) a.rolesStale = date;                                        // не блокирует, но флаг поднят
+  audit(id, `<b>Перевод (атомарно):</b> закрыт период «${m ? m.post + ', ' + unitName(m.unit) : '—'}» (по ${fmt(addDays(date,-1))}) + открыт «${post}, ${unitName(unit)}» (с ${fmt(date)}) · осн. ${order}.`, 'ok');
+  audit(id, 'Отмечено: <b>роли не пересмотрены</b> после перевода; уведомление администратору', 'muted');
+}
+function doDismiss(id, date, order){
+  const e = emp(id);
+  e.fired = date;
+  ASSIGN.filter(a => a.emp === id && a.to == null).forEach(a => a.to = date);   // закрыть открытые периоды
+  ABSENCE.filter(b => b.emp === id && b.from > date).forEach(b => b.cancelled = true); // отменить будущие
+  const a = acct(id);
+  if (a) a.state = 'blocked';                               // блокируется, НЕ удаляется
+  audit(id, `<b>Увольнение:</b> ${fmt(date)} · осн. ${order}. Периоды назначений закрыты · будущие отсутствия отменены · учётная запись заблокирована · карточка только для чтения.`, 'muted');
+}
+function doAbsence(id, kind, from, to, base, subId){
+  ABSENCE.push({id:'b'+(ABSENCE.length+1), emp:id, kind, from, planTo:to, factTo:null, base,
+                sub: subId || null, cancelled:false});
+  audit(id, `<b>Отсутствие:</b> ${kind.toLowerCase()} ${fmt(from)}–${fmt(to)}, ${subId ? 'замещающий ' + shortFio(subId) : '<b>замещающий не назначен</b>'} · осн. ${base}`, subId ? '' : 'warn');
+}
+// 3 правила замещающего: работает · не отсутствует в пересечении · есть учётная запись
+function validateSubstitute(subId, empId, from, to){
+  if (!subId) return null;
+  if (subId === empId) return 'Сотрудник не может замещать сам себя.';
+  if (hrStatusAt(subId, from) !== 'Работает') return `${shortFio(subId)}: на дату начала не работает.`;
+  const clash = ABSENCE.find(b => b.emp === subId && !b.cancelled &&
+                 b.from <= to && (b.factTo || b.planTo) >= from);
+  if (clash) return `${shortFio(subId)}: в это время отсутствует (${fmt(clash.from)}–${fmt(clash.factTo||clash.planTo)}) — периоды пересекаются.`;
+  const a = acct(subId);
+  if (!a || a.state !== 'active') return `${shortFio(subId)}: нет действующей учётной записи — задания передать некуда.`;
+  const trans = ABSENCE.find(b => b.emp === subId && b.sub && !b.cancelled && b.from <= to && (b.factTo||b.planTo) >= from);
+  if (trans) return `${shortFio(subId)}: в это время уже замещают его самого — цепочка замещений не допускается.`;
+  return null;
+}
+
+/* =========================================================================
+   4. РЕНДЕР
+   ========================================================================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const badge = o => `<span class="badge ${o.c}">${esc(o.t)}</span>`;
+
+function renderAll(){ renderOverview(); renderList(); renderCard(); syncChips(); saveState(); }
+
+/* ---------- ОБЗОР ---------- */
+function renderOverview(){
+  const d = asOf, m = metricsAt(d), P = problemsAt(d);
+  $('#ovBody').innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="kn">${m.live}</div><div class="kl">Работает</div></div>
+      <div class="kpi ${m.away?'warn':''}"><div class="kn">${m.away}</div><div class="kl">Отсутствует на дату</div></div>
+      <div class="kpi ${m.noSub?'bad':''}"><div class="kn">${m.noSub}</div><div class="kl">Без замещения</div></div>
+      <div class="kpi ${m.noAcct?'bad':''}"><div class="kn">${m.noAcct}</div><div class="kl">Без учётной записи</div></div>
+      <div class="kpi"><div class="kn">${m.drafts}</div><div class="kl">Оформляется</div></div>
+      <div class="kpi"><div class="kn">${m.fired}</div><div class="kl">Уволен</div></div>
+    </div>
+
+    <div class="prob">
+      <div class="prob-h">⚠️ Требует внимания <span class="muted">· на ${fmt(d)} · ${P.length ? P.length + ' шт.' : 'чисто'}</span></div>
+      ${P.length ? P.map((p,i) => `
+        <div class="prob-row">
+          <span class="pi">${p.ic}</span>
+          <div class="pb"><div>${esc(p.t)}</div><div class="pw">${esc(p.w)}</div></div>
+          <span class="pa"><button class="btn btn-secondary btn-sm" data-prob="${i}">${esc(p.act)}</button></span>
+        </div>`).join('') : '<div class="prob-empty">✔ На выбранную дату проблем нет.</div>'}
+    </div>
+
+    <div class="proj-card">
+      <h4>🔗 Кому уйдёт задание на ${fmt(d)}</h4>
+      <div class="fgrp" style="margin-bottom:12px;max-width:520px;">
+        <label for="raSel">Куратор</label>
+        <select id="raSel" style="flex:1">${CURATOR.map(c => {
+          const e = EMPLOYEES.find(x => acct(x.id) && acct(x.id).login === c.login);
+          return e ? `<option value="${e.id}">${esc(e.fio)} (${c.login})</option>` : '';
+        }).join('')}</select>
+      </div>
+      <div id="raOut"></div>
+    </div>`;
+  $('#raSel').addEventListener('change', renderResolve);
+  document.querySelectorAll('[data-prob]').forEach(b => b.addEventListener('click', () => {
+    const p = P[+b.dataset.prob];
+    if (p.fn === 'openAbsence'){ openCard(p.emp); goTab('otsut'); openAbsence(); }
+    else { openCard(p.emp); }
   }));
-  document.addEventListener('click', closeDrops);
-  document.getElementById('btnRefresh').addEventListener('click', () => toast('Фильтр применён (демо).'));
+  renderResolve();
+}
+function renderResolve(){
+  const id = $('#raSel') && $('#raSel').value; if (!id) return;
+  const r = resolveActor(id, asOf);
+  const cls = r.hole ? 'err' : r.router ? 'warn' : 'ok';
+  $('#raOut').innerHTML = `
+    <div class="banner ${cls}" style="margin:0;">
+      <span class="ic">${r.hole ? '🔴' : r.router ? '🔀' : '✔'}</span>
+      <div>
+        <b>Ответственный:</b> ${r.assignee ? '<code>'+r.assignee+'</code>' : '—'} ·
+        <b>Задание уйдёт к:</b> ${r.router ? '<code>'+r.router+'</code>' : '<i>нему же (напрямую)</i>'}<br>
+        ${esc(r.note)}
+      </div>
+    </div>`;
+}
 
-  // ---------- вкладки карточки ----------
-  const tabs = document.querySelectorAll('#tabs .tab');
-  tabs.forEach(t => t.addEventListener('click', () => {
-    tabs.forEach(x => x.classList.remove('active'));
-    t.classList.add('active');
-    const key = t.dataset.tab;
-    document.querySelectorAll('.tabpanel').forEach(p => p.classList.toggle('active', p.dataset.panel===key));
-    window.scrollTo(0, 0);
+/* ---------- СПИСОК ---------- */
+function renderList(){
+  const d = asOf;
+  const fs = $('#fStatus').value, fu = $('#fUnit').value, fa = $('#fAvail').value;
+  const q  = $('#fQ').value.trim().toLowerCase();
+  const rows = EMPLOYEES.filter(e => {
+    const st = hrStatusAt(e.id, d);
+    const m  = mainAt(e.id, d);
+    const av = availabilityAt(e.id, d);
+    if (fs && st !== fs) return false;
+    if (fu && (!m || m.unit !== fu)) return false;
+    if (fa === 'here' && av.away) return false;
+    if (fa === 'away' && !av.away) return false;
+    if (q && !(e.fio.toLowerCase().includes(q) || e.tab.includes(q))) return false;
+    return true;
+  });
+  $('#rows').innerHTML = rows.length ? rows.map(e => {
+    const st = hrStatusAt(e.id, d);
+    const stc = st === 'Работает' ? 'b-ok b-dot' : st === 'Оформляется' ? 'b-warn b-dot' : 'b-muted b-dot';
+    return `<tr data-id="${e.id}" class="${st==='Уволен'?'gone':''}${selectedId===e.id?' sel':''}">
+      <td>${e.tab}</td>
+      <td>${esc(e.fio)}</td>
+      <td>${esc(deptPostAt(e.id, d))}</td>
+      <td><span class="badge ${stc}">${st}</span></td>
+      <td>${badge(availabilityAt(e.id, d))}</td>
+      <td>${badge(acctStateAt(e.id, d))}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="6" class="empty-row">Под фильтр на ${fmt(d)} никто не подходит.</td></tr>`;
+
+  $('#rowCount').textContent = `${rows.length} из ${EMPLOYEES.length} · на ${fmt(d)}`;
+  document.querySelectorAll('#rows tr[data-id]').forEach(tr => {
+    tr.addEventListener('click', () => {
+      selectedId = tr.dataset.id;
+      document.querySelectorAll('#rows tr').forEach(x => x.classList.remove('sel'));
+      tr.classList.add('sel');
+      $('#btnOpen').disabled = false;
+    });
+    tr.addEventListener('dblclick', () => openCard(tr.dataset.id));
+  });
+}
+
+/* ---------- КАРТОЧКА ---------- */
+const TABS = [
+  {k:'obshee',  n:'Общая'},
+  {k:'resume',  n:'Резюме'},
+  {k:'naznach', n:'Назначения'},
+  {k:'otsut',   n:'Отсутствия и замещения'},
+  {k:'uz',      n:'Учётная запись и заёмщики'},
+  {k:'pasport', n:'Паспорт'},
+  {k:'obraz',   n:'Образование'},
+  {k:'semya',   n:'Семья'},
+  {k:'stazh',   n:'Стаж'},
+  {k:'nagrady', n:'Награды / взыскания'},
+  {k:'docs',    n:'Документы'},
+  {k:'history', n:'История'},
+];
+function openCard(id){ openId = id; cardTab = 'obshee'; obEdit = resEdit = false; $('#vtabCard').style.display=''; goView('card'); renderCard(); }
+function goTab(k){ cardTab = k; obEdit = resEdit = false; renderCard(); saveState(); }
+
+function editObshee(){ obEdit = true; renderCard(); }
+function cancelObshee(){ obEdit = false; renderCard(); }
+function saveObshee(){
+  const e = emp(openId); if (!e) return;
+  e.phone  = $('#obPhone').value.trim();
+  e.wphone = $('#obWphone').value.trim();
+  e.wmail  = $('#obWmail').value.trim();
+  e.work = e.work || {};
+  e.work.addr  = $('#obAddr').value.trim();
+  e.work.floor = $('#obFloor').value.trim();
+  e.work.room  = $('#obRoom').value.trim();
+  obEdit = false; renderCard(); toast('Данные сохранены');
+}
+function editResume(){ resEdit = true; renderCard(); }
+function cancelResume(){ resEdit = false; renderCard(); }
+function saveResume(){
+  const e = emp(openId); if (!e) return;
+  e.resume = $('#resText').value.trim();
+  resEdit = false; renderCard(); toast('Резюме сохранено');
+}
+
+function renderCard(){
+  if (!openId){ $('#cardBody').innerHTML = ''; return; }
+  const d = asOf, e = emp(openId);
+  const st = hrStatusAt(e.id, d), av = availabilityAt(e.id, d), ac = acctStateAt(e.id, d);
+  const stc = st === 'Работает' ? 'b-ok b-dot' : st === 'Оформляется' ? 'b-warn b-dot' : 'b-muted b-dot';
+  const a = acct(e.id);
+  const ro = !canEdit(e.id);
+  const visTabs = TABS.filter(t => canSeeTab(t.k, e.id));
+  if (!visTabs.some(t => t.k === cardTab)) cardTab = 'obshee';
+
+  $('#cardBody').innerHTML = `
+    <div class="header-card">
+      <div class="photo">👤</div>
+      <div class="header-mid">
+        <p class="emp-name">${esc(e.fio)}</p>
+        <p class="emp-sub">Табельный № <b>${e.tab}</b> · <span class="calc">${esc(deptPostAt(e.id, d))}</span></p>
+        <div class="axes status-row">
+          <span class="st-axis" title="Кадровый статус — меняют кадры приказом">
+            <span class="st-k">Кадровый</span><span class="badge ${stc}">${st}</span></span>
+          <span class="st-axis" title="Доступность — считается из отсутствий">
+            <span class="st-k">Доступность</span>${badge(av)}</span>
+          <span class="st-axis" title="Учётная запись — меняет администратор">
+            <span class="st-k">Учётная запись</span>${badge(ac)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-actions">
+      ${ro ? '' : st === 'Оформляется' ? `
+        <button class="btn btn-green" id="btnHire">✔ Провести приказ о приёме</button>
+        <span class="ro-note">Пока приказ не проведён, сотрудник в работе не участвует: ни назначения, ни заёмщиков, ни заданий.</span>` : `
+        <div class="dropdown" id="actMenu">
+          <button class="btn btn-primary dd-btn" id="actMenuBtn" aria-haspopup="true" aria-expanded="false">Оформить <span class="dd-chev">▾</span></button>
+          <div class="dd-menu" role="menu">
+            <button class="dd-item" id="btnTransfer" role="menuitem">⇄ Перевод</button>
+            <button class="dd-item" id="btnAbsence" role="menuitem">＋ Отсутствие</button>
+            <div class="dd-div"></div>
+            <button class="dd-item dd-danger" id="btnDismiss" role="menuitem">⛔ Увольнение</button>
+          </div>
+        </div>`}
+      ${ro ? `<span class="ro-note">🔒 Только для чтения: ${st === 'Уволен'
+          ? 'сотрудник уволен ' + fmt(e.fired) + ' — карточка сохраняется, изменения запрещены.'
+          : 'ваша роль не правит кадровые данные.'}</span>` : ''}
+    </div>
+
+    <div class="tabs" id="tabs">
+      ${visTabs.map(t => {
+        const cls = CLASS_OF_TAB[t.k];
+        const chip = cls === 'A' ? '' : `<span class="cls cls-${cls}" title="Уровень доступа ${cls} — видят не все роли">${cls}</span>`;
+        return `<button class="tab ${cardTab===t.k?'active':''}" data-tab="${t.k}">${t.n}${chip}</button>`;
+      }).join('')}
+      ${TABS.filter(t => !canSeeTab(t.k, e.id)).length
+        ? `<span class="muted" style="align-self:center;margin-left:10px;">🔒 нет доступа: ${TABS.filter(t=>!canSeeTab(t.k,e.id)).map(t=>t.n).join(' · ')}</span>` : ''}
+    </div>
+
+    <div id="panel">${panelHtml(cardTab, e, d)}</div>`;
+
+  document.querySelectorAll('#tabs .tab').forEach(t => t.addEventListener('click', () => goTab(t.dataset.tab)));
+  if (!ro && st === 'Оформляется'){
+    $('#btnHire').addEventListener('click', openHire);
+  } else if (!ro){
+    const am = $('#actMenu');
+    $('#actMenuBtn').onclick = ev => { ev.stopPropagation();
+      const o = am.classList.toggle('open'); $('#actMenuBtn').setAttribute('aria-expanded', o); };
+    am.querySelectorAll('.dd-item').forEach(i => i.addEventListener('click', () => am.classList.remove('open')));
+    $('#btnTransfer').addEventListener('click', openTransfer);
+    $('#btnAbsence').addEventListener('click', openAbsence);
+    $('#btnDismiss').addEventListener('click', openDismiss);
+  }
+  document.querySelectorAll('.doc-acc-head').forEach(h =>
+    h.addEventListener('click', () => h.parentElement.classList.toggle('open')));
+  document.querySelectorAll('[data-add]').forEach(b =>
+    b.addEventListener('click', () => openRow(b.dataset.add, null)));
+  document.querySelectorAll('[data-edit]').forEach(b =>
+    b.addEventListener('click', () => openRow(b.dataset.edit, b.dataset.id)));
+  document.querySelectorAll('[data-del]').forEach(b =>
+    b.addEventListener('click', () => delRow(b.dataset.del, b.dataset.id)));
+}
+
+function panelHtml(k, e, d){
+  switch (k){
+    case 'obshee':  return pObshee(e, d);
+    case 'resume':  return pResume(e, d);
+    case 'naznach': return pNaznach(e, d);
+    case 'otsut':   return pOtsut(e, d);
+    case 'uz':      return pUz(e, d);
+    case 'docs':    return pDocs(e, d);
+    case 'history': return pHistory(e, d);
+    case 'pasport': return pPasport(e, d);
+    case 'obraz':   return pObraz(e, d);
+    case 'semya':   return pSemya(e, d);
+    case 'stazh':   return pStazh(e, d);
+    case 'nagrady': return pNagrady(e, d);
+  }
+}
+
+function pObshee(e, d){
+  const pinVisible = canSee('B', e.id);   // ПИН — персональные данные, уровень B
+  const stazh = e.hired ? stazhText(e.hired, e.fired || d) : '—';
+  const mgr = managerOf(e.id, d);
+  const mgrPost = mgr ? ((mainAt(mgr.id, d) || {}).post || '') : '';
+  const ro = !canEdit(e.id);
+  const w = e.work || {};
+  // поле: в режиме правки — input, иначе текст
+  const F = (val, id) => obEdit
+    ? `<input class="kv-inp" id="${id}" value="${esc(val || '')}">`
+    : esc(val || '—');
+  return `
+    <div class="section-head">
+      <div class="section-title">Общая информация</div>
+      ${ro ? '' : obEdit
+        ? `<span class="edit-actions"><button class="btn-edit" onclick="saveObshee()">✔ Сохранить</button><button class="btn-edit muted" onclick="cancelObshee()">Отмена</button></span>`
+        : `<button class="btn-edit" onclick="editObshee()">✎ Изменить</button>`}
+    </div>
+    <hr class="section-rule">
+    <div class="kv-grid" style="margin-bottom:8px;">
+      <div class="k">ИНН</div>
+      <div>${pinVisible
+        ? `<a class="lnk mask" href="#" title="Открыть карточку физлица в справочнике">${e.pin}</a>`
+        : `<span class="mask">${e.pin.slice(0,1)} •••• •••• ••••</span> <span class="badge b-warn">нет доступа</span>`}</div>
+      <div class="k">Дата приёма</div><div>${fmt(e.hired)}</div>
+      <div class="k">Стаж в организации</div><div>${stazh} <span class="calc-tag">вычисляется</span></div>
+      <div class="k">Непосредственный руководитель</div>
+      <div>${mgr
+        ? `<a class="lnk" href="#" onclick="openCard('${mgr.id}');return false;" title="Открыть карточку руководителя">${esc(shortFio(mgr.id))}</a>${mgrPost ? ` <span class="muted">· ${esc(mgrPost)}</span>` : ''}`
+        : '<span class="muted">не назначен</span>'}</div>
+      ${e.fired ? `<div class="k">Дата увольнения</div><div>${fmt(e.fired)}</div>` : ''}
+    </div>
+    <div class="section-sub">Контактные данные</div><hr class="section-rule">
+    <div class="kv-grid" style="margin-bottom:8px;">
+      <div class="k">Мобильный телефон</div><div>${F(e.phone, 'obPhone')}</div>
+      <div class="k">Рабочий телефон</div><div>${F(e.wphone, 'obWphone')}</div>
+      <div class="k">Корпоративная почта</div><div>${F(e.wmail, 'obWmail')}</div>
+    </div>
+    <div class="section-sub">Рабочее место</div><hr class="section-rule">
+    <div class="kv-grid" style="margin-bottom:8px;">
+      <div class="k">Адрес</div><div>${F(w.addr, 'obAddr')}</div>
+      <div class="k">Этаж</div><div>${F(w.floor, 'obFloor')}</div>
+      <div class="k">Кабинет</div><div>${F(w.room, 'obRoom')}</div>
+    </div>
+`;
+}
+
+function pResume(e, d){
+  const ro = !canEdit(e.id);
+  return `
+    <div class="section-head">
+      <div class="section-title">Резюме / автобиография</div>
+      ${ro ? '' : resEdit
+        ? `<span class="edit-actions"><button class="btn-edit" onclick="saveResume()">✔ Сохранить</button><button class="btn-edit muted" onclick="cancelResume()">Отмена</button></span>`
+        : `<button class="btn-edit" onclick="editResume()">✎ Изменить</button>`}
+    </div>
+    <hr class="section-rule">
+    ${resEdit
+      ? `<textarea class="kv-inp" id="resText" placeholder="Резюме / автобиография">${esc(e.resume || '')}</textarea>`
+      : `<p style="max-width:760px;font-size:15px;">${esc(e.resume) || '<span class="muted">—</span>'}</p>`}`;
+}
+
+function pNaznach(e, d){
+  const list = ASSIGN.filter(a => a.emp === e.id).sort((x,y) => y.from.localeCompare(x.from));
+  const sum = rateSumAt(e.id, d);
+  const issues = assignIssues(e.id, d);
+  return `
+    <div class="section-title">Назначения</div><hr class="section-rule">
+    <div class="tab-toolbar">
+      <span class="spacer"></span>
+      <span class="muted">Сумма действующих ставок на ${fmt(d)}: <b>${sum.toFixed(1)}</b> из 1.5 допустимых</span>
+    </div>
+    ${issues.length
+      ? `<div class="banner err"><span class="ic">🔴</span><div><b>Нарушено правило:</b> ${issues.map(esc).join(' · ')}</div></div>`
+      : ''}
+    <div class="grid-wrap"><table class="dtable">
+      <colgroup><col style="width:10%"><col style="width:12%"><col style="width:21%"><col style="width:18%"><col style="width:10%"><col style="width:7%"><col style="width:22%"></colgroup>
+      <thead><tr><th>с</th><th>по</th><th>Подразделение</th><th>Должность</th><th>Вид</th><th>Ставка</th><th>Основание</th></tr></thead>
+      <tbody>${list.length ? list.map(a => {
+        const act = spanActive(a.from, a.to, d);
+        const kb = a.kind === 'main' ? ['основное', act?'b-info':'b-muted']
+                 : a.kind === 'acting' ? ['и.о.','b-warn'] : ['совмещение','b-info'];
+        return `<tr class="${act?'':'closed'}">
+          <td>${fmt(a.from)}</td>
+          <td>${a.to == null ? '<span class="badge b-ok">действующий</span>' : fmt(a.to)}</td>
+          <td>${esc(unitName(a.unit))}</td><td>${esc(a.post)}</td>
+          <td><span class="badge ${kb[1]}">${kb[0]}</span></td><td>${a.rate.toFixed(1)}</td>
+          <td>${esc(a.order)} <span class="lnk">📎 скан</span></td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="7" class="empty-row">Назначений нет.</td></tr>'}</tbody>
+    </table></div>`;
+}
+
+function pOtsut(e, d){
+  const list = ABSENCE.filter(b => b.emp === e.id).sort((x,y) => y.from.localeCompare(x.from));
+  const covers = ABSENCE.filter(b => b.sub === e.id && !b.cancelled).sort((x,y) => y.from.localeCompare(x.from));
+  return `
+    <div class="section-title">Отсутствия и замещения</div><hr class="section-rule">
+
+    <div class="grid-wrap"><table class="dtable">
+      <colgroup><col style="width:18%"><col style="width:11%"><col style="width:11%"><col style="width:10%"><col style="width:22%"><col style="width:14%"><col style="width:14%"></colgroup>
+      <thead><tr><th>Вид</th><th>с</th><th>по (план)</th><th>факт</th><th>Основание</th><th>Замещающий</th><th>Состояние</th></tr></thead>
+      <tbody>${list.length ? list.map(b => {
+        const s = absenceStateAt(b, d);
+        return `<tr class="${b.cancelled ? 'closed' : ''}">
+          <td>${esc(b.kind)}</td><td>${fmt(b.from)}</td><td>${fmt(b.planTo)}</td>
+          <td>${b.factTo ? fmt(b.factTo) : '<span class="muted">—</span>'}</td>
+          <td>${esc(b.base)} <span class="lnk">📎</span></td>
+          <td>${b.sub ? esc(shortFio(b.sub)) : '<span class="badge b-err">нет</span>'}</td>
+          <td><span class="badge ${s.c}">${s.t}</span>
+            ${b.factTo && b.factTo < b.planTo ? '<div class="muted">вышел досрочно ' + fmt(b.factTo) + ' — замещение снято</div>' : ''}</td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="7" class="empty-row">Отсутствий не оформлено.</td></tr>'}</tbody>
+    </table></div>
+    ${covers.length ? `
+      <div class="section-sub">Замещает других</div><hr class="section-rule">
+      <div class="grid-wrap"><table class="dtable">
+        <thead><tr><th>Кого</th><th>Период</th><th>Состояние</th></tr></thead>
+        <tbody>${covers.map(b => { const s = absenceStateAt(b, d); return `<tr>
+          <td>${esc(emp(b.emp).fio)}</td><td>${fmt(b.from)} – ${fmt(b.factTo||b.planTo)}</td>
+          <td><span class="badge ${s.c}">${s.t}</span></td></tr>`; }).join('')}</tbody>
+      </table></div>` : ''}`;
+}
+
+function pUz(e, d){
+  const a = acct(e.id);
+  if (!a) return `
+    <div class="section-title">Учётная запись и кураторство</div><hr class="section-rule">
+    <div class="banner err"><span class="ic">🔴</span>
+      <div><b>Учётной записи нет.</b> Сотруднику нельзя назначить задание, он не может замещать другого и не может быть куратором.
+        Учётную запись заводит администратор.</div></div>`;
+  const cur = curatorOf(a.login);
+  const roles = ROLES.filter(r => r.login === a.login);
+  const tasks = TASKS.filter(t => t.login === a.login);
+  const r = resolveActor(e.id, d);
+  const st = acctStateAt(e.id, d);
+  return `
+    <div class="section-title">Учётная запись и кураторство <span class="badge b-muted" style="vertical-align:middle;">только для чтения</span></div>
+    <hr class="section-rule">
+    ${a.rolesStale ? `<div class="banner warn"><span class="ic">⚠️</span>
+      <div><b>Роли не пересмотрены после перевода (${fmt(a.rolesStale)}).</b> Уведомление администратору отправлено.</div></div>` : ''}
+    ${st.state === 'blocked' && hrStatusAt(e.id,d) === 'Работает' ? `<div class="banner err"><span class="ic">🔴</span>
+      <div><b>Учётная запись заблокирована, хотя сотрудник работает.</b> Разбирает администратор.</div></div>` : ''}
+    <div class="proj-grid">
+      <div class="proj-card"><h4>Учётная запись</h4>
+        <div class="proj-row"><span class="pk">Логин</span><span><code>${a.login}</code></span></div>
+        <div class="proj-row"><span class="pk">Состояние</span><span>${badge(st)}</span></div>
+        <div class="proj-row"><span class="pk">Создана</span><span>${fmt(a.created)} · ${a.by}</span></div>
+        <div class="proj-row"><span class="pk">Последний вход</span><span>${a.last}</span></div>
+      </div>
+      <div class="proj-card"><h4>Роли</h4>
+        ${roles.length ? roles.map(x => `<div class="proj-row"><span class="pk">${esc(unitName(x.unit))}</span>
+          <span><span class="badge b-info">${esc(x.role)}</span></span></div>`).join('')
+          : '<div class="proj-row"><span class="pk">Ролей нет</span><span class="badge b-muted">—</span></div>'}
+      </div>
+      <div class="proj-card"><h4>Что курирует</h4>
+        ${cur && cur.borrowers ? `
+          <div class="proj-row"><span class="pk">Отрасль</span><span>${esc(cur.sector)}</span></div>
+          <div class="proj-row"><span class="pk">Область / район</span><span>${esc(cur.region)}</span></div>
+          <div class="proj-row"><span class="pk">Вид заёмщика / кредита</span><span>${esc(cur.kind)}</span></div>`
+          : '<div class="proj-row"><span class="pk">Ничего не курирует</span><span class="badge b-muted">—</span></div>'}
+      </div>
+      <div class="proj-card"><h4>Закреплённые заёмщики и задания</h4>
+        <div class="proj-row"><span class="pk">Закреплено заёмщиков</span>
+          <span><b>${cur ? cur.borrowers : 0}</b> ${cur && cur.borrowers ? '<span class="lnk">открыть список →</span>' : ''}</span></div>
+        <div class="proj-row"><span class="pk">Открытых заданий</span><span><b>${tasks.length}</b></span></div>
+        <div class="proj-row"><span class="pk">Задания уходят</span>
+          <span>${r.router ? 'уходят к <b>'+r.router+'</b>' : r.hole ? '<span class="badge b-err">отсутствует, замещения нет</span>' : 'уходят напрямую'}</span></div>
+        <div class="proj-row"><span class="pk">Конфликт интересов</span>
+          <span>${cur && cur.conflict ? `<span class="badge b-err">${plural(cur.conflict,'заёмщик','заёмщика','заёмщиков')}</span> — отстранён <span class="lnk">детали</span>` : '<span class="badge b-ok">нет</span>'}</span></div>
+      </div>
+    </div>`;
+}
+
+function pPasport(e, d){
+  const p = e.pass;
+  const old = (PASS_HIST[e.id] || []);
+  return `
+    <div class="section-title">Паспортные данные <span class="cls cls-B" style="font-size:11px;vertical-align:middle;" title="Видят кадры и сам сотрудник">уровень B</span></div>
+    <hr class="section-rule">
+    ${canEdit(e.id) ? `<div class="tab-toolbar">
+      <button class="btn btn-secondary" data-add="pass">⇄ Заменить паспорт</button></div>` : ''}
+    <div class="kv-grid" style="max-width:660px;">
+      <div class="k">Фамилия · Имя · Отчество</div><div>${esc(e.fio)}</div>
+      <div class="k">Дата рождения</div><div>${p.birth}</div>
+      <div class="k">Пол</div><div>${p.sex}</div>
+      <div class="k">Национальность</div><div>${p.nat}</div>
+      <div class="k">Гражданство</div><div>${p.citiz}</div>
+      <div class="k">Серия и номер паспорта</div><div class="mask">${p.num}</div>
+      <div class="k">Дата выдачи</div><div>${p.issued}</div>
+      <div class="k">Срок действия</div><div>${p.valid}</div>
+      <div class="k">Семейное положение</div><div>${p.family}</div>
+      <div class="k">Адрес регистрации</div><div>${esc(p.addr)}</div>
+      <div class="k">Адрес фактического проживания</div><div>${esc(p.addr)}</div>
+    </div>
+    ${old.length ? `
+      <div class="section-sub" style="margin-top:18px;">Прежние паспорта</div><hr class="section-rule">
+      <div class="grid-wrap"><table class="dtable">
+        <colgroup><col style="width:26%"><col style="width:20%"><col style="width:20%"><col></colgroup>
+        <thead><tr><th>Серия и номер</th><th>Выдан</th><th>Заменён</th><th>Основание замены</th></tr></thead>
+        <tbody>${old.map(x => `<tr class="closed">
+          <td class="mask">${esc(x.num)}</td><td>${x.issued}</td><td>${fmt(x.replaced)}</td>
+          <td>${esc(x.base)}</td></tr>`).join('')}</tbody>
+      </table></div>` : ''}`;
+}
+
+// --- стаж: полных месяцев между датами -> «7 л. 3 мес.»
+function monthsBetween(from, to){
+  const [y1,m1,d1] = from.split('-').map(Number), [y2,m2,d2] = to.split('-').map(Number);
+  let mm = (y2 - y1) * 12 + (m2 - m1);
+  if (d2 < d1) mm--;
+  return Math.max(0, mm);
+}
+function durText(mm){
+  const y = Math.floor(mm / 12), m = mm % 12;
+  const py = y ? plural(y,'год','года','лет') : '';
+  const pm = m ? plural(m,'месяц','месяца','месяцев') : '';
+  return [py, pm].filter(Boolean).join(' ') || 'меньше месяца';
+}
+
+// кнопка «＋ Добавить» и действия в строке — только у того, кто правит карточку
+const addBtn = (kind, label) => canEdit(openId)
+  ? `<div class="tab-toolbar"><button class="btn btn-secondary" data-add="${kind}">＋ ${label}</button></div>` : '';
+const rowAct = (kind, x) => canEdit(openId)
+  ? `<td class="ra"><button class="row-btn" data-edit="${kind}" data-id="${x.id}" title="Изменить">✎</button>
+       <button class="row-btn del" data-del="${kind}" data-id="${x.id}" title="Удалить">✕</button></td>` : '';
+const raHead = () => canEdit(openId) ? '<th style="width:70px"></th>' : '';
+const raCol  = () => canEdit(openId) ? '<col style="width:70px">' : '';
+const cols   = n => n + (canEdit(openId) ? 1 : 0);
+
+function pObraz(e, d){
+  const list = EDU.filter(x => x.emp === e.id).sort((a,b) => b.year - a.year);
+  return `
+    <div class="section-title">Образование и сертификаты</div><hr class="section-rule">
+    ${addBtn('edu', 'Добавить запись')}
+    <div class="grid-wrap"><table class="dtable">
+      <colgroup><col style="width:11%"><col style="width:15%"><col style="width:20%"><col style="width:22%"><col style="width:7%"><col style="width:13%"><col style="width:12%">${raCol()}</colgroup>
+      <thead><tr><th>Вид</th><th>Уровень</th><th>Специальность</th><th>Учебное заведение</th><th>Год</th><th>Номер</th><th>Действует до</th>${raHead()}</tr></thead>
+      <tbody>${list.length ? list.map(x => {
+        const expired = x.till && x.till < d;
+        return `<tr class="${expired?'closed':''}">
+          <td><span class="badge ${x.type==='Диплом'?'b-info':'b-muted'}">${esc(x.type)}</span></td>
+          <td>${esc(x.level)}</td><td>${esc(x.spec)}</td><td>${esc(x.org)}</td>
+          <td>${x.year}</td><td>${esc(x.num)}</td>
+          <td>${x.till
+                ? (expired ? `${fmt(x.till)} <span class="badge b-warn">истёк</span>` : fmt(x.till))
+                : '<span class="muted">бессрочно</span>'}</td>
+          ${rowAct('edu', x)}
+        </tr>`;
+      }).join('') : `<tr><td colspan="${cols(7)}" class="empty-row">Записей об образовании нет.</td></tr>`}</tbody>
+    </table></div>`;
+}
+
+function pSemya(e, d){
+  const list = FAMILY.filter(x => x.emp === e.id);
+  return `
+    <div class="section-title">Состав семьи</div><hr class="section-rule">
+    ${addBtn('family', 'Добавить члена семьи')}
+    <div class="grid-wrap"><table class="dtable">
+      <colgroup><col style="width:16%"><col style="width:36%"><col style="width:24%"><col style="width:14%"><col style="width:10%">${raCol()}</colgroup>
+      <thead><tr><th>Кем приходится</th><th>ФИО</th><th>Телефон</th><th>Дата рождения</th><th>Возраст</th>${raHead()}</tr></thead>
+      <tbody>${list.length ? list.map(x => {
+        const age = Math.floor(monthsBetween(x.birth, d) / 12);
+        return `<tr>
+          <td>${esc(x.rel)}</td><td>${esc(x.fio)}</td><td>${esc(x.phone)}</td>
+          <td>${fmt(x.birth)}</td>
+          <td>${age} <span class="calc-tag">на ${fmt(d)}</span></td>
+          ${rowAct('family', x)}
+        </tr>`;
+      }).join('') : `<tr><td colspan="${cols(5)}" class="empty-row">Сведений о семье нет.</td></tr>`}</tbody>
+    </table></div>`;
+}
+
+function pStazh(e, d){
+  const list = WORKHIST.filter(x => x.emp === e.id).sort((a,b) => b.from.localeCompare(a.from));
+  const before = list.reduce((s, x) => s + monthsBetween(x.from, x.to), 0);
+  const mains  = ASSIGN.filter(a => a.emp === e.id && a.kind === 'main');
+  const here   = mains.reduce((s, a) => s + monthsBetween(a.from, a.to && a.to < d ? a.to : d), 0);
+  return `
+    <div class="section-title">Трудовой стаж</div><hr class="section-rule">
+    <div class="kv-grid" style="margin-bottom:14px;">
+      <div class="k">Стаж до приёма</div><div>${durText(before)} <span class="calc-tag">сумма периодов ниже</span></div>
+      <div class="k">Стаж в организации</div><div>${durText(here)} <span class="calc-tag">из назначений, на ${fmt(d)}</span></div>
+      <div class="k">Общий стаж</div><div><b>${durText(before + here)}</b></div>
+    </div>
+    <div class="section-sub">Места работы до приёма</div><hr class="section-rule">
+    ${addBtn('work', 'Добавить место работы')}
+    <div class="grid-wrap"><table class="dtable">
+      <colgroup><col style="width:34%"><col style="width:26%"><col style="width:13%"><col style="width:13%"><col style="width:14%">${raCol()}</colgroup>
+      <thead><tr><th>Организация</th><th>Должность</th><th>с</th><th>по</th><th>Стаж</th>${raHead()}</tr></thead>
+      <tbody>${list.length ? list.map(x => `<tr>
+        <td>${esc(x.org)}</td><td>${esc(x.post)}</td>
+        <td>${fmt(x.from)}</td><td>${fmt(x.to)}</td>
+        <td>${durText(monthsBetween(x.from, x.to))}</td>
+        ${rowAct('work', x)}
+      </tr>`).join('') : `<tr><td colspan="${cols(5)}" class="empty-row">Стажа до приёма нет — организация первое место работы.</td></tr>`}</tbody>
+    </table></div>`;
+}
+
+function pNagrady(e, d){
+  const list = AWARDS.filter(x => x.emp === e.id).sort((a,b) => b.date.localeCompare(a.date));
+  const activePen = list.filter(x => x.kind === 'Взыскание' && x.date <= d && !(x.off && x.off <= d)).length;
+  return `
+    <div class="section-title">Награды и взыскания</div><hr class="section-rule">
+    ${activePen
+      ? `<div class="banner warn"><span class="ic">🟠</span><div>Действующих взысканий на ${fmt(d)}: <b>${activePen}</b></div></div>`
+      : ''}
+    ${addBtn('award', 'Добавить запись')}
+    <div class="grid-wrap"><table class="dtable">
+      <colgroup><col style="width:12%"><col style="width:20%"><col style="width:9%"><col style="width:11%"><col style="width:13%"><col style="width:35%">${raCol()}</colgroup>
+      <thead><tr><th>Вид</th><th>Наименование</th><th>Орган</th><th>Дата</th><th>Снято</th><th>Примечание</th>${raHead()}</tr></thead>
+      <tbody>${list.length ? list.map(x => {
+        const pen = x.kind === 'Взыскание';
+        const gone = !pen || (x.off && x.off <= d) || x.date > d;
+        return `<tr class="${gone?'closed':''}">
+          <td><span class="badge ${pen ? (gone?'b-muted':'b-warn') : 'b-ok'}">${esc(x.kind)}</span></td>
+          <td>${esc(x.name)}</td><td>${esc(x.org)}</td><td>${fmt(x.date)}</td>
+          <td>${pen
+                ? (x.off ? fmt(x.off) : '<span class="badge b-warn">не снято</span>')
+                : '<span class="muted">—</span>'}</td>
+          <td class="muted">${esc(x.note)}</td>
+          ${rowAct('award', x)}
+        </tr>`;
+      }).join('') : `<tr><td colspan="${cols(6)}" class="empty-row">Наград и взысканий нет.</td></tr>`}</tbody>
+    </table></div>`;
+}
+
+function pDocs(e, d){
+  const mine = DOCS.filter(x => x.emp === e.id);
+  const visible = mine.filter(x => canSee(CLASS_OF_TAB[x.tab], e.id));
+  const hidden  = mine.length - visible.length;
+  const groups = {};
+  visible.forEach(x => { const c = CLASS_OF_TAB[x.tab]; (groups[c] = groups[c] || []).push(x); });
+  const GN = {A:'Уровень A · приказы и основания', B:'Уровень B · кадровое дело', C:'Уровень C · дисциплинарные'};
+  return `
+    <div class="section-title">Документы</div><hr class="section-rule">
+    ${addBtn('doc', 'Загрузить документ')}
+    ${Object.keys(groups).sort().map((c,i) => `
+      <div class="doc-acc ${i===0?'open':''}">
+        <div class="doc-acc-head"><span class="chev">›</span>
+          <span class="doc-acc-title">${GN[c]}</span>
+          ${c!=='A'?`<span class="cls cls-${c}">🔒 ${c}</span>`:''}
+          <span class="doc-acc-count">${groups[c].length}</span></div>
+        <div class="doc-acc-body">
+          ${groups[c].map(x => `<div class="doc-row">
+            <span class="dname">📄 ${esc(x.name)}</span>
+            <span class="badge ${c==='A'?'b-muted':c==='B'?'b-warn':'b-err'}">${c}</span>
+            <span class="lnk">скачать</span>
+            ${canEdit(e.id) ? `<button class="row-btn del" data-del="doc" data-id="${x.id}" title="Удалить">✕</button>` : ''}
+            <div class="dmeta">версия ${x.v} · ${fmt(x.date)} · ${x.by} · вкладка «${TABS.find(t=>t.k===x.tab).n}»</div>
+          </div>`).join('')}
+        </div>
+      </div>`).join('') || '<p class="muted">Доступных документов нет.</p>'}
+    ${hidden ? `<div class="banner warn"><span class="ic">🔒</span>
+      <div><b>Скрыто по уровню доступа: ${plural(hidden,'документ','документа','документов')}.</b></div></div>` : ''}`;
+}
+
+function pHistory(e, d){
+  const items = AUDIT.filter(x => x.emp === e.id);
+  return `
+    <div class="section-title">История изменений</div>
+    <hr class="section-rule">
+    <div class="timeline">
+      ${items.length ? items.map(x => `
+        <div class="tl-item"><div class="tl-dot ${x.kind}"></div>
+          <div class="tl-when">${x.when} · ${x.who}</div>
+          <div class="tl-what">${x.what}</div></div>`).join('')
+        : '<p class="muted">Записей нет.</p>'}
+    </div>`;
+}
+
+/* =========================================================================
+   5. ГЕЙТЫ (модалки) — читают состояние, пишут состояние
+   ========================================================================= */
+
+function openTransfer(){
+  const e = emp(openId), d = asOf;
+  const m = mainAt(e.id, d);
+  const dt = addDays(asOf, 18);
+
+  $('#trBody').innerHTML = `
+    <div class="banner info" style="margin-top:6px;"><span class="ic">ℹ️</span>
+      <div>Сейчас: <b>${m ? esc(m.post + ', ' + unitName(m.unit)) : '—'}</b> с ${m ? fmt(m.from) : '—'}.</div></div>
+    <div class="fld"><label for="trUnit">Новое подразделение</label>
+      <select id="trUnit">${Object.entries(UNITS).map(([k,v]) =>
+        `<option value="${k}" ${m && m.unit===k ? 'disabled' : ''}>${v}</option>`).join('')}</select></div>
+    <div class="fld"><label for="trPost">Новая должность</label>
+      <input id="trPost" value="Ведущий специалист"></div>
+    <div class="fld"><label for="trDate">Дата перевода</label>
+      <input type="date" id="trDate" value="${dt}"></div>
+    <div class="fld"><label for="trOrder">Основание (приказ)</label>
+      <input id="trOrder" placeholder="напр. Приказ №62-к от ${fmt(addDays(dt,-3))}" value="Приказ №62-к от ${fmt(addDays(dt,-3))}"></div>`;
+
+  $('#trHint').textContent = '';
+  $('#trConfirm').disabled = false;
+  openModal('mTransfer');
+}
+$('#trConfirm').addEventListener('click', () => {
+  const unit = $('#trUnit').value, post = $('#trPost').value.trim() || 'Специалист';
+  const date = $('#trDate').value, order = $('#trOrder').value.trim() || 'приказ не указан';
+  doTransfer(openId, unit, post, date, order);
+  closeModal('mTransfer');
+  renderAll();
+  toast('Перевод проведён. Роли требуют пересмотра администратором.' +
+    (date > asOf ? ` Вступает в силу ${fmt(date)} — поставьте эту дату среза, чтобы увидеть новое подразделение.` : ''));
+});
+
+function openDismiss(){
+  renderDismiss();
+  openModal('mDismiss');
+}
+function renderDismiss(){
+  $('#dsBody').innerHTML = `
+    <div class="fld" style="margin-top:6px;"><label for="dsDate">Дата увольнения</label><input type="date" id="dsDate" value="${asOf}"></div>
+    <div class="fld"><label for="dsOrder">Основание (приказ)</label><input id="dsOrder" value="Приказ №90-к от ${fmt(asOf)}"></div>
+    <div class="banner info"><span class="ic">ℹ️</span>
+      <div>После подтверждения: период назначения закроется, будущие отсутствия отменятся, учётная запись заблокируется,
+        карточка станет доступной только для чтения. Удалить сотрудника нельзя.</div></div>`;
+  $('#dsConfirm').disabled = false;
+  $('#dsHint').textContent = '';
+}
+$('#dsConfirm').addEventListener('click', () => {
+  const date = $('#dsDate').value, order = $('#dsOrder').value.trim() || 'приказ не указан';
+  doDismiss(openId, date, order);
+  closeModal('mDismiss');
+  renderAll();
+  toast('Сотрудник уволен. Учётная запись заблокирована, карточка доступна только для чтения.');
+});
+
+/* =========================================================================
+   5а. СТРОКИ ВКЛАДОК — одна форма на все справочные таблицы карточки
+   ========================================================================= */
+const ROW_SPECS = {
+  edu: {
+    arr: () => EDU, title:'Запись об образовании', tab:'obraz',
+    fields:[
+      {k:'type',  l:'Вид',               t:'select', opts:['Диплом','Сертификат','Свидетельство'], req:true},
+      {k:'level', l:'Уровень',           t:'text',   req:true},
+      {k:'spec',  l:'Специальность',     t:'text',   req:true},
+      {k:'org',   l:'Учебное заведение', t:'text',   req:true},
+      {k:'year',  l:'Год окончания',     t:'number', req:true},
+      {k:'num',   l:'Номер документа',   t:'text'},
+      {k:'till',  l:'Действует до (для сертификата)', t:'date'},
+    ],
+    name: x => `${x.type}: ${x.spec}`,
+  },
+  family: {
+    arr: () => FAMILY, title:'Член семьи', tab:'semya',
+    fields:[
+      {k:'rel',   l:'Кем приходится', t:'select', opts:['Супруг','Супруга','Сын','Дочь','Отец','Мать','Брат','Сестра'], req:true},
+      {k:'fio',   l:'ФИО',            t:'text', req:true},
+      {k:'phone', l:'Телефон',        t:'text'},
+      {k:'birth', l:'Дата рождения',  t:'date', req:true},
+    ],
+    name: x => `${x.rel} — ${x.fio}`,
+  },
+  work: {
+    arr: () => WORKHIST, title:'Место работы до приёма', tab:'stazh',
+    fields:[
+      {k:'org',  l:'Организация', t:'text', req:true},
+      {k:'post', l:'Должность',   t:'text', req:true},
+      {k:'from', l:'с',           t:'date', req:true},
+      {k:'to',   l:'по',          t:'date', req:true},
+    ],
+    name: x => `${x.org} — ${x.post}`,
+    check: x => x.from > x.to ? 'Дата «по» раньше даты «с».' : null,
+  },
+  award: {
+    arr: () => AWARDS, title:'Награда или взыскание', tab:'nagrady',
+    fields:[
+      {k:'kind', l:'Вид',          t:'select', opts:['Поощрение','Взыскание'], req:true},
+      {k:'name', l:'Наименование', t:'text', req:true},
+      {k:'org',  l:'Орган',        t:'text', req:true},
+      {k:'date', l:'Дата',         t:'date', req:true},
+      {k:'off',  l:'Дата снятия (для взыскания)', t:'date'},
+      {k:'note', l:'Примечание',   t:'text'},
+    ],
+    name: x => `${x.kind}: ${x.name}`,
+    check: x => x.off && x.off < x.date ? 'Дата снятия раньше даты взыскания.' : null,
+  },
+  doc: {
+    arr: () => DOCS, title:'Документ', tab:'docs', addOnly:true,
+    fields:[
+      {k:'tab',  l:'К какой вкладке относится', t:'select', req:true,
+       opts:[['naznach','Назначения'],['otsut','Отсутствия и замещения'],['pasport','Паспорт'],
+             ['obraz','Образование'],['semya','Семья'],['stazh','Стаж'],['nagrady','Награды / взыскания']]},
+      {k:'name', l:'Файл',  t:'text', req:true},
+      {k:'date', l:'Дата документа', t:'date', req:true},
+    ],
+    name: x => x.name,
+  },
+};
+
+let rwKind = null, rwId = null;
+function openRow(kind, id){
+  if (kind === 'pass') return openPassport();
+  rwKind = kind; rwId = id;
+  const sp = ROW_SPECS[kind];
+  const rec = id ? sp.arr().find(x => x.id === id) : null;
+  $('#rwTitle').textContent = (rec ? 'Изменить: ' : 'Добавить: ') + sp.title.toLowerCase();
+  $('#rwBody').innerHTML = sp.fields.map(f => {
+    const v = rec ? (rec[f.k] ?? '') : (f.k === 'date' ? asOf : '');
+    if (f.t === 'select'){
+      const opts = f.opts.map(o => Array.isArray(o) ? o : [o, o]);
+      return `<div class="fld"><label for="rw_${f.k}">${f.l}</label>
+        <select id="rw_${f.k}">${opts.map(([val,lab]) =>
+          `<option value="${esc(val)}" ${String(v)===val?'selected':''}>${esc(lab)}</option>`).join('')}</select></div>`;
+    }
+    return `<div class="fld"><label for="rw_${f.k}">${f.l}</label>
+      <input id="rw_${f.k}" type="${f.t}" value="${esc(v)}" autocomplete="off"></div>`;
+  }).join('') + '<div id="rwErr"></div>';
+  sp.fields.forEach(f => $('#rw_'+f.k).addEventListener('input', checkRow));
+  checkRow();
+  $('#rwConfirm').onclick = saveRow;
+  openModal('mRow');
+}
+function rowValues(){
+  const sp = ROW_SPECS[rwKind], out = {};
+  sp.fields.forEach(f => {
+    const raw = $('#rw_'+f.k).value.trim();
+    out[f.k] = f.t === 'number' ? (raw ? Number(raw) : null)
+             : f.t === 'date'   ? (raw || null)          // пустая дата = «нет срока», это значимо
+             : (raw || '—');
+  });
+  return out;
+}
+function rowErrors(){
+  const sp = ROW_SPECS[rwKind], v = rowValues(), out = [];
+  sp.fields.filter(f => f.req).forEach(f => { if (v[f.k] == null || v[f.k] === '') out.push(`${f.l}: не заполнено.`); });
+  if (!out.length && sp.check){ const e = sp.check(v); if (e) out.push(e); }
+  return out;
+}
+function checkRow(){
+  const errs = rowErrors();
+  $('#rwErr').innerHTML = errs.map(x => `<div class="fld-err">🔴 ${esc(x)}</div>`).join('');
+  $('#rwConfirm').disabled = errs.length > 0;
+  $('#rwHint').textContent = errs.length ? 'Заполните обязательные поля' : 'Готово к сохранению';
+}
+function saveRow(){
+  if (rowErrors().length) return;
+  const sp = ROW_SPECS[rwKind], v = rowValues(), tabName = TABS.find(t => t.k === sp.tab).n;
+  if (rwId){
+    const rec = sp.arr().find(x => x.id === rwId);
+    Object.assign(rec, v);
+    audit(openId, `<b>${tabName}:</b> изменена запись «${esc(sp.name(rec))}»`, '');
+    toast('Запись изменена.');
+  } else {
+    const rec = {id:'r'+(++rowSeq), emp:openId, ...v};
+    if (rwKind === 'doc'){                       // версия документа = какой он по счёту с таким именем
+      rec.v = DOCS.filter(x => x.emp === openId && x.name === rec.name).length + 1;
+      rec.by = 'hr.kadyrova';
+    }
+    sp.arr().push(rec);
+    audit(openId, `<b>${tabName}:</b> добавлена запись «${esc(sp.name(rec))}»`, 'ok');
+    toast(rwKind === 'doc' && rec.v > 1
+      ? `Загружена версия ${rec.v} документа — прежняя сохранена.`
+      : 'Запись добавлена.');
+  }
+  closeModal('mRow');
+  renderAll();
+}
+function delRow(kind, id){
+  const sp = ROW_SPECS[kind], arr = sp.arr();
+  const i = arr.findIndex(x => x.id === id);
+  if (i < 0) return;
+  const rec = arr[i];
+  const tabName = TABS.find(t => t.k === sp.tab).n;
+  arr.splice(i, 1);
+  audit(openId, `<b>${tabName}:</b> удалена запись «${esc(sp.name(rec))}»`, 'warn');
+  toast('Запись удалена.');
+  renderAll();
+}
+
+/* --- паспорт: не правится по месту, а заменяется версией --- */
+function openPassport(){
+  const e = emp(openId), p = e.pass;
+  $('#rwTitle').textContent = 'Замена паспорта';
+  $('#rwBody').innerHTML = `
+    <div class="fld"><label>Действующий паспорт</label>
+      <input value="${esc(p.num)} · выдан ${p.issued}" disabled></div>
+    <div class="fld"><label for="ps_num">Серия и номер нового паспорта</label>
+      <input id="ps_num" placeholder="AN 0000000" value="" autocomplete="off"></div>
+    <div class="fld"><label for="ps_issued">Дата выдачи</label><input type="date" id="ps_issued" value="${asOf}"></div>
+    <div class="fld"><label for="ps_valid">Срок действия</label><input type="date" id="ps_valid" value=""></div>
+    <div class="fld"><label for="ps_nat">Национальность</label><input id="ps_nat" value="${esc(p.nat)}"></div>
+    <div class="fld"><label for="ps_family">Семейное положение</label>
+      <select id="ps_family">${['холост','женат','замужем','не замужем','разведён','разведена'].map(o =>
+        `<option ${p.family===o?'selected':''}>${o}</option>`).join('')}</select></div>
+    <div class="fld"><label for="ps_addr">Адрес регистрации</label><input id="ps_addr" value="${esc(p.addr)}"></div>
+    <div class="fld"><label for="ps_base">Основание замены</label>
+      <select id="ps_base"><option>Замена по сроку действия</option><option>Смена фамилии</option>
+        <option>Утрата паспорта</option><option>Обмен на биометрический</option></select></div>
+    <div class="op-box">прежний паспорт уходит в историю, не затирается<br>скан загружается новой версией — старые кредитные документы ссылаются на прежний номер</div>
+    <div id="rwErr"></div>`;
+  ['ps_num','ps_valid'].forEach(id => $('#'+id).addEventListener('input', checkPassport));
+  checkPassport();
+  openModal('mRow');
+  $('#rwConfirm').onclick = savePassport;
+}
+function checkPassport(){
+  const errs = [];
+  if (!$('#ps_num').value.trim()) errs.push('Серия и номер: не заполнено.');
+  if (!$('#ps_valid').value) errs.push('Срок действия: не заполнено.');
+  else if ($('#ps_valid').value <= $('#ps_issued').value) errs.push('Срок действия раньше даты выдачи.');
+  $('#rwErr').innerHTML = errs.map(x => `<div class="fld-err">🔴 ${esc(x)}</div>`).join('');
+  $('#rwConfirm').disabled = errs.length > 0;
+  $('#rwHint').textContent = errs.length ? 'Заполните обязательные поля' : 'Готово к замене';
+}
+function savePassport(){
+  const e = emp(openId), p = e.pass;
+  (PASS_HIST[e.id] = PASS_HIST[e.id] || []).unshift(
+    {num:p.num, issued:p.issued, replaced:asOf, base:$('#ps_base').value});
+  const num = $('#ps_num').value.trim();
+  e.pass = {...p, num, issued:fmt($('#ps_issued').value), valid:fmt($('#ps_valid').value),
+            nat:$('#ps_nat').value.trim() || '—', family:$('#ps_family').value,
+            addr:$('#ps_addr').value.trim() || '—'};
+  const v = DOCS.filter(x => x.emp === e.id && x.tab === 'pasport').length + 1;
+  DOCS.push({id:'r'+(++rowSeq), emp:e.id, name:'Скан паспорта.pdf', tab:'pasport', v, date:asOf, by:'hr.kadyrova'});
+  audit(e.id, `<b>Паспорт:</b> замена (${$('#ps_base').value}). Новый ${esc(num)} с ${fmt($('#ps_issued').value)}; прежний ${esc(p.num)} сохранён в истории. Скан загружен версией ${v}.`, '');
+  closeModal('mRow');
+  renderAll();
+  toast('Паспорт заменён. Прежний номер сохранён — старые кредитные документы на него ссылаются.');
+}
+
+/* --- создание карточки: сотрудник = ссылка на физлицо + кадровые поля --- */
+let crPerson = null;      // выбранное физлицо
+function openCreate(){
+  if (role !== 'hr'){ toast('Карточки заводят кадры. Смените роль на «Кадры».'); return; }
+  crPerson = null;
+  $('#crBody').innerHTML = `
+    <div class="fld"><label for="crPersonLk">Физ. лицо <span class="calc-tag">справочник</span></label>
+      <div class="lookup" id="crPersonLk">
+        <span class="val" id="crPersonVal">не выбрано</span>
+        <button type="button" id="crPersonPick" title="Выбрать из справочника">•••</button>
+        <button type="button" id="crPersonClear" title="Очистить">✕</button>
+      </div></div>
+    <div id="crFrom"></div>
+    <div class="fld"><label for="crTab">Табельный номер</label>
+      <input id="crTab" maxlength="4" placeholder="0207" autocomplete="off"></div>
+    <div class="fld"><label for="crCat">Категория персонала</label>
+      <select id="crCat">
+        <option>Основной персонал · кредитование</option>
+        <option>Основной персонал · взыскание</option>
+        <option>Руководящий состав</option>
+        <option>Юридическое сопровождение</option>
+        <option>Обеспечивающий персонал</option>
+      </select></div>
+    <div class="fld"><label for="crPhone">Мобильный телефон</label>
+      <input id="crPhone" placeholder="+996 (555) 00-00-00" autocomplete="off"></div>
+    <div class="fld"><label for="crMail">Личная эл. почта</label>
+      <input id="crMail" placeholder="name@mail.kg" autocomplete="off"></div>
+    <div class="op-box">завести кадровое дело со ссылкой на физлицо<br>статус «Оформляется» — до приказа о приёме сотрудник операционно невидим</div>
+    <div id="crErr"></div>`;
+  $('#crPersonPick').addEventListener('click', openPersonPicker);
+  $('#crPersonClear').addEventListener('click', () => { crPerson = null; renderCrPerson(); });
+  $('#crTab').addEventListener('input', checkCreate);
+  renderCrPerson();
+  openModal('mCreate');
+}
+// ФИО/ПИН/дата рождения/адрес не вводятся руками — они принадлежат физлицу
+function renderCrPerson(){
+  const p = crPerson ? person(crPerson) : null;
+  $('#crPersonVal').textContent = p ? `${p.pin} — ${p.fio}` : 'не выбрано';
+  $('#crPersonVal').classList.toggle('filled', !!p);
+  $('#crFrom').innerHTML = p ? `
+    <div class="kv-grid" style="margin:-4px 0 14px;">
+      <div class="k">ПИН</div><div><span class="mask">${p.pin}</span></div>
+      <div class="k">Дата рождения</div><div>${fmt(p.birth)}</div>
+      <div class="k">Пол</div><div>${p.sex}</div>
+      <div class="k">Адрес регистрации</div><div>${esc(p.addr)}</div>
+      <div class="k">СОАТЕ</div><div>${esc(p.soate)}</div>
+    </div>` : '';
+  checkCreate();
+}
+function createErrors(){
+  const out = [];
+  const tab = $('#crTab').value.trim();
+  if (!crPerson) out.push('Физ. лицо не выбрано.');
+  else if (personTaken(crPerson)) out.push(`На это физлицо уже заведена карточка: ${personTaken(crPerson).fio}, табельный № ${personTaken(crPerson).tab}.`);
+  if (!/^\d{4}$/.test(tab)) out.push('Табельный номер: 4 цифры.');
+  else if (EMPLOYEES.some(e => e.tab === tab)) out.push('Табельный номер занят.');
+  return out;
+}
+function checkCreate(){
+  const errs = createErrors();
+  $('#crErr').innerHTML = errs.map(x => `<div class="fld-err">🔴 ${esc(x)}</div>`).join('');
+  $('#crConfirm').disabled = errs.length > 0;
+  $('#crHint').textContent = errs.length ? 'Заполните обязательные поля' : 'Готово к созданию';
+}
+$('#crConfirm').addEventListener('click', () => {
+  if (createErrors().length) return;
+  const id = doCreate({
+    person: crPerson, tab: $('#crTab').value.trim(), cat: $('#crCat').value,
+    phone: $('#crPhone').value.trim(), mail: $('#crMail').value.trim()
+  });
+  closeModal('mCreate');
+  openCard(id);
+  renderAll();
+  toast('Карточка создана в статусе «Оформляется». Проведите приказ о приёме — статус станет «Работает» сам.');
+});
+
+/* --- справочник физлиц --- */
+let pkSel = null, pkQ = '', pkAdd = false;
+function openPersonPicker(){
+  pkSel = null; pkQ = ''; pkAdd = false;
+  renderPicker();
+  openModal('mPerson');
+}
+function renderPicker(){
+  const q = pkQ.trim().toLowerCase();
+  const list = PERSONS.filter(p => !q || p.fio.toLowerCase().includes(q) || p.pin.includes(q));
+  $('#pkBody').innerHTML = `
+    <input class="lk-search" id="pkQ" type="search" placeholder="Поиск по ФИО или ПИН…" value="${esc(pkQ)}">
+    <div class="lk-wrap">
+      <table>
+        <thead><tr><th style="width:34%">ПИН</th><th>ФИО</th><th style="width:20%">Дата рождения</th></tr></thead>
+        <tbody>${list.length ? list.map(p => {
+          const taken = personTaken(p.id);
+          return `<tr class="${taken?'taken':''} ${pkSel===p.id?'sel':''}" ${taken?'':`data-p="${p.id}"`}>
+            <td><span class="mask">${p.pin}</span></td>
+            <td>${esc(p.fio)}${taken ? ' <span class="badge b-muted">уже сотрудник</span>' : ''}</td>
+            <td>${fmt(p.birth)}</td>
+          </tr>`;
+        }).join('') : '<tr><td colspan="3" class="empty-row">Ничего не найдено.</td></tr>'}</tbody>
+      </table>
+    </div>
+    ${pkAdd ? `
+      <div class="section-sub" style="margin-top:16px;">Новое физ. лицо</div><hr class="section-rule">
+      <div class="fld"><label for="npFio">ФИО</label>
+        <input id="npFio" placeholder="Фамилия Имя Отчество" autocomplete="off"></div>
+      <div class="fld"><label for="npPin">ПИН (14 цифр)</label>
+        <input id="npPin" maxlength="14" placeholder="20101199500000" autocomplete="off"></div>
+      <div class="fld"><label for="npBirth">Дата рождения</label>
+        <input type="date" id="npBirth"></div>
+      <div class="fld"><label for="npSex">Пол</label>
+        <select id="npSex"><option>муж.</option><option>жен.</option></select></div>
+      <div class="fld"><label for="npAddr">Адрес регистрации</label>
+        <input id="npAddr" placeholder="г. Бишкек, ул. …" autocomplete="off"></div>
+      <div id="npErr"></div>
+      <button class="btn btn-green" id="npSave">Добавить в справочник</button>` : ''}`;
+  const inp = $('#pkQ');
+  inp.addEventListener('input', () => { pkQ = inp.value; pkSel = null; renderPicker(); $('#pkQ').focus(); });
+  document.querySelectorAll('#pkBody tr[data-p]').forEach(tr => {
+    tr.addEventListener('click', () => { pkSel = tr.dataset.p; renderPicker(); });
+    tr.addEventListener('dblclick', () => { pkSel = tr.dataset.p; applyPerson(); });
+  });
+  if (pkAdd) $('#npSave').addEventListener('click', saveNewPerson);
+  $('#pkConfirm').disabled = !pkSel;
+  $('#pkHint').textContent = pkSel ? 'Строка выбрана' : pkAdd ? 'Заполните нового' : 'Выберите физлицо';
+}
+function applyPerson(){
+  if (!pkSel) return;
+  crPerson = pkSel;
+  closeModal('mPerson');
+  renderCrPerson();
+}
+$('#pkConfirm').addEventListener('click', applyPerson);
+$('#pkNew').addEventListener('click', () => { pkAdd = true; renderPicker(); $('#npFio').focus(); });
+// физлица нет в справочнике — заводится здесь же и сразу подставляется в карточку
+function saveNewPerson(){
+  const fio = $('#npFio').value.trim(), pin = $('#npPin').value.trim();
+  const errs = [];
+  if (fio.split(/\s+/).filter(Boolean).length < 2) errs.push('ФИО: нужны минимум фамилия и имя.');
+  if (!/^\d{14}$/.test(pin)) errs.push('ПИН: ровно 14 цифр.');
+  else if (PERSONS.some(p => p.pin === pin)) errs.push('Физлицо с таким ПИН уже есть в справочнике.');
+  $('#npErr').innerHTML = errs.map(x => `<div class="fld-err">🔴 ${esc(x)}</div>`).join('');
+  if (errs.length) return;
+  const id = 'p' + (80000 + PERSONS.length);
+  PERSONS.push({id, fio, pin, birth: $('#npBirth').value || '—', sex: $('#npSex').value,
+                addr: $('#npAddr').value.trim() || '—', soate:'41708 802 810'});
+  pkSel = id; pkAdd = false;
+  applyPerson();
+  toast('Физлицо добавлено в справочник и подставлено в карточку.');
+}
+
+/* --- приказ о приёме: первый период назначения --- */
+function openHire(){
+  const e = emp(openId);
+  $('#hiBody').innerHTML = `
+    <div class="fld"><label for="hiUnit">Подразделение</label>
+      <select id="hiUnit">${Object.entries(UNITS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+    <div class="fld"><label for="hiPost">Должность</label>
+      <input id="hiPost" value="Специалист"></div>
+    <div class="fld"><label for="hiDate">Дата приёма</label>
+      <input type="date" id="hiDate" value="${asOf}"></div>
+    <div class="fld"><label for="hiRate">Ставка</label>
+      <select id="hiRate"><option value="1">1.0</option><option value="0.5">0.5</option></select></div>
+    <div class="fld"><label for="hiOrder">Основание (приказ)</label>
+      <input id="hiOrder" value="Приказ о приёме №95-к от ${fmt(asOf)}"></div>
+    <div class="op-box">открыть период назначения (с = дата приёма, без даты окончания)<br>кадровый статус станет «Работает» — он считается из назначений, отдельно его никто не ставит</div>
+    <div class="banner warn"><span class="ic">🟠</span>
+      <div>Учётная запись не заводится: её создаёт администратор. До этого ${esc(shortFio(e.id))} попадёт в «Требует внимания» как работающий без учётной записи.</div></div>
+    <div id="hiErr"></div>`;
+  $('#hiDate').addEventListener('change', checkHire);
+  $('#hiPost').addEventListener('input', checkHire);
+  checkHire();
+  openModal('mHire');
+}
+function checkHire(){
+  const bad = !$('#hiPost').value.trim() ? 'Должность не указана.'
+            : !$('#hiDate').value ? 'Дата приёма не указана.' : '';
+  const future = !bad && $('#hiDate').value > asOf;
+  $('#hiErr').innerHTML = bad ? `<div class="fld-err">🔴 ${esc(bad)}</div>` : '';
+  $('#hiConfirm').disabled = !!bad;
+  $('#hiHint').textContent = bad ? 'Заполните поля'
+                          : future ? 'Приём будущей датой — на сегодня статус останется «Оформляется»'
+                          : 'Готово к проведению';
+}
+$('#hiConfirm').addEventListener('click', () => {
+  const date = $('#hiDate').value;
+  doHire(openId, $('#hiUnit').value, $('#hiPost').value.trim(), date,
+         parseFloat($('#hiRate').value), $('#hiOrder').value.trim() || 'приказ не указан');
+  closeModal('mHire');
+  renderAll();
+  toast(date > asOf
+    ? `Приём проведён с ${fmt(date)}. На дату среза ${fmt(asOf)} сотрудник ещё «Оформляется» — сдвиньте дату среза.`
+    : 'Приём проведён. Статус «Работает» — он вычислен из назначения. Учётную запись заводит администратор.');
+});
+
+function openAbsence(){
+  const e = emp(openId), d = asOf;
+  const cands = EMPLOYEES.filter(x => x.id !== e.id && hrStatusAt(x.id, d) !== 'Уволен');
+  $('#abBody').innerHTML = `
+    <div class="fld"><label for="abKind">Вид отсутствия</label>
+      <select id="abKind">
+        <option>Ежегодный отпуск</option><option>Больничный</option>
+        <option>Командировка (Бишкек)</option><option>Командировка (Ош)</option><option>Учебный отпуск</option>
+      </select></div>
+    <div class="fld"><label for="abFrom">С</label><input type="date" id="abFrom" value="${addDays(asOf, 7)}"></div>
+    <div class="fld"><label for="abTo">По (план)</label><input type="date" id="abTo" value="${addDays(asOf, 18)}"></div>
+    <div class="fld"><label for="abBase">Основание</label>
+      <input id="abBase" value="Приказ №80-о от ${fmt(asOf)}"></div>
+    <div class="fld"><label for="abSub">Замещающий</label>
+      <select id="abSub">
+        <option value="">— без замещающего —</option>
+        ${cands.map(x => `<option value="${x.id}">${esc(x.fio)}</option>`).join('')}
+      </select></div>
+    <div id="abErr"></div>`;
+  ['abSub','abFrom','abTo'].forEach(id => $('#'+id).addEventListener('change', checkAbs));
+  checkAbs();
+  openModal('mAbsence');
+}
+function checkAbs(){
+  const err = validateSubstitute($('#abSub').value, openId, $('#abFrom').value, $('#abTo').value);
+  const bad = $('#abFrom').value > $('#abTo').value;
+  $('#abErr').innerHTML = bad ? '<div class="fld-err">Дата «по» раньше даты «с».</div>'
+                        : err  ? `<div class="fld-err">🔴 ${esc(err)}</div>` : '';
+  $('#abConfirm').disabled = !!(err || bad);
+  $('#abHint').textContent = (err || bad) ? 'Замещающий не подходит'
+                           : $('#abSub').value ? 'Замещающий подходит' : 'Замещающий не выбран';
+}
+$('#abConfirm').addEventListener('click', () => {
+  doAbsence(openId, $('#abKind').value, $('#abFrom').value, $('#abTo').value,
+            $('#abBase').value.trim() || 'основание не указано', $('#abSub').value || null);
+  closeModal('mAbsence');
+  renderAll();
+  toast($('#abSub') && $('#abSub').value ? 'Отсутствие оформлено, замещение действует.'
+       : 'Отсутствие оформлено без замещающего — задания будут копиться. См. «Требует внимания».');
+});
+
+/* =========================================================================
+   6. КАРКАС: виды, дата, роль, модалки, навигация, тост
+   ========================================================================= */
+function goView(v){
+  curView = v;
+  document.querySelectorAll('.vtab').forEach(t => t.classList.toggle('active', t.dataset.view === v));
+  document.querySelectorAll('.mainview').forEach(m => m.classList.toggle('active', m.id === 'view-' + v));
+  window.scrollTo(0, 0);
+  saveState();
+}
+const LS_KEY = 'empV2State';
+function saveState(){
+  try { localStorage.setItem(LS_KEY, JSON.stringify(
+    { v: curView, openId, cardTab, asOf, role, sel: selectedId })); } catch (e) {}
+}
+function restoreState(){
+  let s; try { s = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) {}
+  if (!s) return;
+  if (s.asOf) asOf = s.asOf;
+  if (s.role) role = s.role;
+  if (s.sel) selectedId = s.sel;
+  if (s.openId && emp(s.openId)) { openId = s.openId; cardTab = s.cardTab || 'obshee'; }
+  curView = s.v || 'overview';
+  if (curView === 'card' && !openId) curView = 'list';   // карточки уже нет — уходим в список
+}
+document.querySelectorAll('.vtab').forEach(t => t.addEventListener('click', () => goView(t.dataset.view)));
+
+function openModal(id){ $('#'+id).classList.add('open'); }
+function closeModal(id){ $('#'+id).classList.remove('open'); }
+document.querySelectorAll('[data-close]').forEach(b =>
+  b.addEventListener('click', () => b.closest('.modal-overlay').classList.remove('open')));
+document.querySelectorAll('.modal-overlay').forEach(ov =>
+  ov.addEventListener('click', ex => { if (ex.target === ov) ov.classList.remove('open'); }));
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(o => o.classList.remove('open'));
+});
+// клик вне открытого меню действий — закрыть
+document.addEventListener('click', ev => {
+  document.querySelectorAll('.dropdown.open').forEach(dd => { if (!dd.contains(ev.target)) dd.classList.remove('open'); });
+});
+
+$('#dateInp').addEventListener('change', ev => { asOf = ev.target.value || TODAY; renderAll(); });
+document.querySelectorAll('.date-chip').forEach(c => c.addEventListener('click', () => {
+  asOf = c.dataset.d; $('#dateInp').value = asOf; renderAll();
+}));
+function syncChips(){
+  document.querySelectorAll('.date-chip').forEach(c => c.classList.toggle('on', c.dataset.d === asOf));
+}
+$('#roleSel').addEventListener('change', ev => {
+  role = ev.target.value;
+  const who = {hr:'hr.kadyrova', admin:'admin', head:'director', self:'a.slamkulov', cred:'k.jumabekov'}[role];
+  $('#whoami').textContent = '[' + who + ']';
+  renderAll();
+  const seen = ROLE_CLASSES[role].join(' · ');
+  toast(role === 'cred' ? 'Кредитный специалист: кадровое дело и взыскания недоступны — этих вкладок и документов он не видит.'
+      : role === 'self' ? 'Сам сотрудник видит своё кадровое дело только в своей карточке (Сламкулов). В чужой — лишь общие данные.'
+      : `Роль «${ev.target.selectedOptions[0].text}»: доступные уровни ${seen}.`);
+});
+['fStatus','fUnit','fAvail','fQ'].forEach(id =>
+  $('#'+id).addEventListener('input', () => { selectedId = null; $('#btnOpen').disabled = true; renderList(); }));
+$('#fReset').addEventListener('click', () => {
+  $('#fStatus').value = ''; $('#fUnit').value = ''; $('#fAvail').value = ''; $('#fQ').value = '';
+  renderList();
+});
+$('#btnOpen').addEventListener('click', () => { if (selectedId) openCard(selectedId); });
+$('#btnCreate').addEventListener('click', openCreate);
+
+const NAV = [
+  {label:'Система кредитования', items:['Заявки','Комиссии по заявкам','Заёмщики','Кредиты']},
+  {label:'Залоговое обеспечение', items:['Предметы залога']},
+  {label:'Организационная структура', items:['Подразделения','Должности']},
+  {label:'Администрирование', open:true, items:['Пользователи','Сотрудники','Роли и политики']},
+  {label:'Справочники', items:['Справочники']},
+  {label:'Отчёты', items:['Отчёты']},
+];
+function renderNav(){
+  $('#nav').innerHTML = NAV.map(g => `
+    <div class="nav-group ${g.open ? 'open' : ''}">
+      <button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">
+        <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></span>
+        <span class="lbl">${g.label}</span></button>
+      <div class="nav-children">
+        ${g.items.map(i => `<a class="nav-item ${i==='Сотрудники'?'active':''}" data-nav="${i}">${i}</a>`).join('')}
+      </div></div>`).join('');
+  document.querySelectorAll('[data-nav]').forEach(a => a.addEventListener('click', () => {
+    if (a.dataset.nav !== 'Сотрудники') toast('В прототипе показан только раздел «Сотрудники».');
   }));
+}
 
-  // ---------- роль (влияет только на подпись доступа B) ----------
-  const roleSel = document.getElementById('roleSel');
-  roleSel.addEventListener('change', () => {
-    const map={hr:'Кадры (HR)',admin:'Администратор системы',self:'Сам сотрудник',cred:'Кредитный специалист'};
-    const lbl=document.getElementById('roleLabelP'); if(lbl) lbl.textContent=map[roleSel.value];
-    if(roleSel.value==='cred') toast('Кредитный специалист: вкладки B/C и их документы скрыты грифом — доступа нет.');
-  });
+let toastT;
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 4200);
+}
 
-  // ---------- модалки-гейты ----------
-  function openModal(id){ document.getElementById(id).classList.add('open'); }
-  function closeModal(el){ el.closest('.modal-overlay').classList.remove('open'); }
-  document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeModal(b)));
-  document.querySelectorAll('.modal-overlay').forEach(ov => ov.addEventListener('click', e => { if(e.target===ov) ov.classList.remove('open'); }));
-
-  function openTransfer(){ openModal('mTransfer'); }
-  document.getElementById('btnTransfer').addEventListener('click', openTransfer);
-  document.getElementById('btnAbsence').addEventListener('click', () => toast('Отсутствие оформляется во вкладке «Отсутствия и замещения».'));
-  document.getElementById('btnDismiss').addEventListener('click', () => openModal('mDismiss'));
-
-  // гейт перевода: без выбора (а)/(б) кнопка недоступна
-  document.querySelectorAll('.radio-row[data-gate="tr"]').forEach(row => row.addEventListener('click', () => {
-    document.querySelectorAll('.radio-row[data-gate="tr"]').forEach(r => r.classList.remove('sel'));
-    row.classList.add('sel'); row.querySelector('input').checked=true;
-    document.getElementById('trConfirm').disabled=false;
-    document.getElementById('trHint').textContent='Решение принято';
-  }));
-  document.getElementById('trConfirm').addEventListener('click', () => {
-    document.getElementById('mTransfer').classList.remove('open');
-    toast('Перевод проведён атомарно. Флаг «роли не пересмотрены» поднят на вкл. 4.');
-  });
-
-  // гейт увольнения: пока не все обязательства = 0, кнопка недоступна
-  function refreshDismiss(){
-    const cnts=[...document.querySelectorAll('#obligList .cnt')].map(c=>parseInt(c.textContent,10)||0);
-    const zero=cnts.every(n=>n===0);
-    document.getElementById('dsConfirm').disabled=!zero;
-    document.getElementById('dsHint').textContent=zero?'Обязательства обнулены':'Обязательств не ноль';
-  }
-  function resolveOblig(btn){
-    const li=btn.closest('[data-ob]'); const cnt=li.querySelector('.cnt');
-    cnt.textContent='0'; cnt.className='badge b-ok cnt'; btn.remove();
-    refreshDismiss();
-  }
-  document.getElementById('dsConfirm').addEventListener('click', () => {
-    document.getElementById('mDismiss').classList.remove('open');
-    toast('Уволен. УЗ заблокирована (не удалена), кураторство обнулено, карточка → read-only.');
-  });
-
-  // ---------- документы: аккордеон ----------
-  document.querySelectorAll('.doc-acc-head').forEach(h => h.addEventListener('click', () => h.parentElement.classList.toggle('open')));
-
-  // ---------- сайдбар (data-driven nav, как в остальных мокапах; §10 — точки входа модуля) ----------
-  const NAV = [
-    { label:"Система кредитования", subs:[
-      { label:"Заявки и комиссии", items:[ {label:"Заявки"}, {label:"Комиссии по заявкам"} ]},
-      { label:"Заёмщики", items:[ {label:"Заёмщики"} ]},
-      { label:"Кредиты и транши", items:[ {label:"Кредиты"} ]} ]},
-    { label:"Залоговое обеспечение", subs:[ { headerless:true, items:[ {label:"Предметы залога"} ]} ]},
-    { label:"Организационная структура", subs:[ { headerless:true, items:[
-      {label:"Подразделения"}, {label:"Должности"} ]} ]},
-    { label:"Администрирование", open:true, subs:[ { headerless:true, items:[
-      {label:"Пользователи (УЗ)"},
-      {label:"Сотрудники", active:true},
-      {label:"Роли и политики"} ]} ]},
-    { label:"Справочники", subs:[ { headerless:true, items:[ {label:"Справочники"} ]} ]},
-    { label:"Отчёты", subs:[ { headerless:true, items:[ {label:"Отчёты"} ]} ]},
-  ];
-  const chev = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
-  function renderNav(){
-    document.getElementById('nav').innerHTML = NAV.map(g=>{
-      const subs = (g.subs||[]).map(s=>{
-        const items = (s.items||[]).map(it=>`<a class="nav-item${s.headerless?' headerless':''}${it.active?' active':''}" onclick="navClick(this)">${it.label}</a>`).join('');
-        if(s.headerless) return `<div class="nav-children" style="display:block">${items}</div>`;
-        return `<div class="nav-sub${s.open?' open':''}"><button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">${chev(13)}<span class="lbl">${s.label}</span></button><div class="nav-children">${items}</div></div>`;
-      }).join('');
-      return `<div class="nav-group${g.open?' open':''}"><button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">${chev(14)}<span class="lbl">${g.label}</span></button><div class="nav-children">${subs}</div></div>`;
-    }).join('');
-  }
-  function navClick(a){
-    document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
-    a.classList.add('active');
-    if(a.textContent.trim()!=='Сотрудники') toast('В мокапе проработан только модуль «Сотрудники».');
-  }
-  window.navClick = navClick;
-  renderNav();
-
-  // ---------- toast ----------
-  let toastT;
-  function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),3800); }
+/* ---------- старт ---------- */
+restoreState();                                  // вернуть открытую карточку/вкладку после рефреша
+$('#dateInp').value = asOf;
+$('#roleSel').value = role;
+$('#whoami').textContent = '[' + {hr:'hr.kadyrova', admin:'admin', head:'director', self:'a.slamkulov', cred:'k.jumabekov'}[role] + ']';
+$('#fUnit').innerHTML = '<option value="">— все —</option>' +
+  Object.entries(UNITS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+renderNav();
+if (openId) $('#vtabCard').style.display = '';   // показать вкладку «Карточка»
+renderAll();
+goView(curView);                                 // активировать сохранённую вкладку
 </script>
 </body>
 </html>
