@@ -1,0 +1,1644 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>АСУБК — Управление пользователями</title>
+<!--
+  users.html — мокап модуля управления пользователями АСУБК (ОАО «Госфинхолдинг»).
+  Источник истины по логике: ASUBK-users-logika.md. Спека главнее промпта.
+  Один самодостаточный файл, vanilla JS, без сети, без localStorage — состояние в памяти.
+  Структура скрипта: DATA · CORE (resolvePermission + помощники §7) · HELPERS(UI) ·
+  RENDER (экраны §4) · ACTIONS · DEMO · BOOT.
+  Ключевой тезис (§4.1): переключается ПОЛЬЗОВАТЕЛЬ, роль/scope/сеть вычисляются из модели.
+-->
+<style>
+  :root{
+    --primary:#006af5; --primary-text:#005fdb; --primary-hover:#0059d1;
+    --green-btn:#2e8b3d; --green-btn-hover:#277633;
+    --body-text:#1b2a3d; --secondary-text:rgba(38,55,78,0.69);
+    --success:#158a4e; --error:#e02020; --green-card-bg:#eaf7f0;
+    --border:#dbe0e6; --border-strong:#c7ced6; --field-bg:#f6f8fa; --filter-bg:#eef1f4;
+    --field-border:#c9d0d8; --panel-border:#e3e7ec; --grid-hover:#f3f7fd; --grid-sel:#dbe9fb;
+    --radius:4px;
+    --font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:var(--font);color:var(--body-text);background:#fff;font-size:16px;line-height:1.4;}
+  .app{display:flex;min-height:100vh;}
+  .muted{color:var(--secondary-text);font-size:13px;}
+  .muted b{color:var(--body-text);font-weight:600;}
+  a.lnk,.lnk{color:var(--primary-text);cursor:pointer;font-size:14px;text-decoration:none;}
+  .lnk:hover{text-decoration:underline;}
+  code{background:rgba(0,0,0,.05);border-radius:3px;padding:0 4px;font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;}
+
+  /* SIDEBAR */
+  .sidebar{width:280px;flex:0 0 280px;background:#eff1f4;border-right:1px solid var(--border);display:flex;flex-direction:column;}
+  .sidebar .brand{padding:18px 16px 6px;font-weight:600;font-size:17px;letter-spacing:0.04em;}
+  .sidebar .brand small{display:block;font-weight:500;font-size:12px;color:var(--secondary-text);letter-spacing:0;margin-top:3px;}
+  .nav{flex:1;overflow-y:auto;padding:8px 0;}
+  .nav-group{padding:9px 16px 3px;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--secondary-text);}
+  .nav-item{display:flex;align-items:center;gap:9px;padding:8px 16px 8px 20px;font-size:15px;color:var(--secondary-text);cursor:pointer;border-left:3px solid transparent;}
+  .nav-item:hover{background:rgba(24,39,57,0.05);}
+  .nav-item.active{background:rgba(51,139,255,0.13);color:var(--body-text);font-weight:600;border-left-color:var(--primary);}
+  .nav-item .ic{flex:0 0 18px;display:inline-flex;color:currentColor;}
+  .nav-item .cnt{margin-left:auto;font-size:12px;font-weight:600;color:var(--secondary-text);background:#fff;border:1px solid var(--border);border-radius:999px;padding:0 7px;}
+  .sidebar-foot{border-top:1px solid var(--border);padding:12px 16px;color:var(--secondary-text);font-size:13px;}
+
+  /* TOPBAR */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .topbar{display:flex;align-items:center;gap:14px;padding:11px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .topbar .title{font-weight:700;font-size:20px;}
+  .topbar .crumb{color:var(--secondary-text);font-size:13px;}
+  .who-wrap{margin-left:auto;display:flex;align-items:center;gap:9px;}
+  .who-wrap label{color:var(--secondary-text);font-size:12px;}
+  .who-wrap select{height:34px;border:1px solid var(--field-border);border-radius:var(--radius);
+    background:var(--field-bg);font-family:var(--font);font-size:14px;color:var(--body-text);padding:0 8px;max-width:340px;}
+  .net-toggle{display:flex;align-items:center;gap:0;border:1px solid var(--field-border);border-radius:999px;overflow:hidden;}
+  .net-toggle button{appearance:none;border:0;background:#fff;font-family:var(--font);font-size:12px;font-weight:600;
+    color:var(--secondary-text);padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:5px;}
+  .net-toggle button.on{background:var(--primary);color:#fff;}
+  .net-toggle button.on.ext{background:#b46200;}
+  .content{padding:18px 24px 40px;flex:1;overflow-x:auto;}
+
+  /* BUTTONS */
+  .btn{font-family:var(--font);font-size:15px;font-weight:600;border-radius:var(--radius);padding:8px 15px;
+    border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;}
+  .btn[disabled]{opacity:.5;cursor:not-allowed;}
+  .btn-secondary{background:var(--filter-bg);color:var(--secondary-text);border-color:var(--field-border);}
+  .btn-secondary:not([disabled]):hover{background:#e4e8ed;}
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-primary:not([disabled]):hover{background:var(--primary-hover);}
+  .btn-green{background:var(--green-btn);color:#fff;}
+  .btn-green:not([disabled]):hover{background:var(--green-btn-hover);}
+  .btn-cancel{background:#fff;color:var(--primary-text);border-color:var(--border-strong);}
+  .btn-danger{background:#fff;color:#ca150c;border-color:#e6b3ae;}
+  .btn-danger:not([disabled]):hover{background:#fdeaea;}
+  .btn-sm{padding:5px 11px;font-size:13px;}
+
+  /* BADGES */
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;
+    padding:2px 9px;border-radius:999px;white-space:nowrap;line-height:1.6;}
+  .b-ok{color:var(--success);background:var(--green-card-bg);}
+  .b-muted{color:var(--secondary-text);background:var(--filter-bg);}
+  .b-info{color:var(--primary-text);background:#e9f1fe;}
+  .b-warn{color:#9a6a00;background:#fdf3dd;}
+  .b-err{color:var(--error);background:#fdeaea;}
+  .b-dot::before{content:"●";font-size:8px;}
+
+  /* LIST / FILTERS */
+  .filter-card{border:1px solid var(--panel-border);border-radius:3px;padding:12px 14px;margin-bottom:14px;
+    display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+  .fgrp{display:flex;align-items:center;gap:7px;}
+  .fgrp label{color:var(--secondary-text);font-size:13px;}
+  .fgrp select,.fgrp input{height:34px;border:1px solid var(--field-border);border-radius:var(--radius);
+    background:var(--field-bg);font-family:var(--font);font-size:14px;color:var(--body-text);padding:0 8px;}
+  .fgrp input{width:220px;}
+  .toolbar{display:flex;align-items:center;gap:9px;margin-bottom:11px;flex-wrap:wrap;}
+  .rowcount{margin-left:auto;color:var(--body-text);font-size:14px;}
+  .grid{border:1px solid var(--border);border-radius:3px;overflow:auto;}
+  .grid table{width:100%;border-collapse:collapse;}
+  .grid thead th{text-align:left;font-weight:700;font-size:13px;padding:10px 13px;border-bottom:1px solid var(--border);white-space:nowrap;background:#fbfcfd;position:sticky;top:0;z-index:1;}
+  .grid tbody td{padding:9px 13px;border-bottom:1px solid #eef1f4;font-size:14px;white-space:nowrap;}
+  .grid tbody tr[data-open]{cursor:pointer;}
+  .grid tbody tr[data-open]:hover{background:var(--grid-hover);}
+  .grid tbody tr.sel{background:var(--grid-sel);}
+  .grid tbody tr:last-child td{border-bottom:0;}
+  .grid tbody tr.gone td{color:var(--secondary-text);background:#fbfcfd;}
+  .empty-row{padding:24px;text-align:center;color:var(--secondary-text);}
+
+  /* CARD */
+  .backlink{display:inline-flex;align-items:center;gap:6px;color:var(--primary-text);font-size:14px;cursor:pointer;margin-bottom:12px;}
+  .backlink:hover{text-decoration:underline;}
+  .header-card{border:1px solid var(--panel-border);border-radius:4px;padding:14px 18px;display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+  .avatar{flex:0 0 60px;width:60px;height:60px;border:1px solid var(--border);border-radius:50%;
+    background:var(--field-bg);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--primary-text);}
+  .header-mid{flex:1;min-width:260px;}
+  .obj-name{font-size:20px;font-weight:700;margin:0 0 2px;}
+  .obj-sub{color:var(--secondary-text);font-size:14px;margin:0 0 8px;}
+  .status-row{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;}
+  .card-actions{display:flex;gap:9px;margin:0 0 16px;flex-wrap:wrap;align-items:center;}
+  .kv-grid{display:grid;grid-template-columns:auto 1fr;gap:7px 16px;font-size:15px;align-items:center;max-width:640px;}
+  .kv-grid .k{color:var(--secondary-text);}
+  .mask{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em;}
+
+  /* TABS */
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap;}
+  .tab{appearance:none;border:0;background:transparent;font-family:var(--font);padding:9px 12px 11px;font-size:15px;
+    color:var(--secondary-text);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
+  .tab:hover{color:var(--primary-text);}
+  .tab.active{color:var(--primary-text);border-bottom-color:var(--primary-text);font-weight:600;}
+  .tab-cnt{display:inline-block;min-width:16px;padding:0 4px;border-radius:8px;background:var(--field-bg);border:1px solid var(--border);
+    font-size:11px;font-weight:600;color:var(--secondary-text);text-align:center;line-height:15px;}
+  .tab.active .tab-cnt{background:#e9f1fe;border-color:#bcd6fb;color:var(--primary-text);}
+  .section-title{font-size:18px;font-weight:700;margin:2px 0 4px;}
+  .section-sub{font-size:15px;font-weight:700;margin:22px 0 8px;}
+  .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:8px;}
+
+  /* dtable (вкладки) */
+  .dtable{width:100%;border-collapse:collapse;}
+  .dtable thead th{text-align:left;font-weight:700;font-size:13px;padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap;background:#fbfcfd;}
+  .dtable tbody td{padding:9px 12px;border-bottom:1px solid #eef1f4;font-size:14px;vertical-align:top;}
+  .dtable tbody tr:last-child td{border-bottom:0;}
+  .dtable tr.closed td{background:#fbfcfd;color:var(--secondary-text);}
+  .grid-wrap{border:1px solid var(--border);border-radius:3px;overflow:auto;}
+
+  /* banners */
+  .banner{border-radius:var(--radius);padding:11px 14px;margin:0 0 14px;font-size:14px;display:flex;gap:10px;align-items:flex-start;}
+  .banner .ic{flex:0 0 18px;line-height:1.3;}
+  .banner.warn{background:#fdf3dd;border:1px solid #f0dca8;color:#7a5600;}
+  .banner.err{background:#fdeaea;border:1px solid #f2c4c0;color:#9a1b14;}
+  .banner.info{background:#e9f1fe;border:1px solid #c7ddfb;color:#0a4aa8;}
+  .banner.ok{background:var(--green-card-bg);border:1px solid #cdeadb;color:#126b3e;}
+  .banner b{font-weight:700;}
+
+  /* forms */
+  .fld{display:flex;flex-direction:column;gap:4px;margin-bottom:13px;}
+  .fld label{font-size:13px;color:var(--secondary-text);}
+  .fld input,.fld select,.fld textarea{border:1px solid var(--field-border);border-radius:var(--radius);
+    background:var(--field-bg);font-family:var(--font);font-size:15px;color:var(--body-text);padding:8px 10px;}
+  .fld select,.fld input{height:36px;}
+  .fld textarea{min-height:70px;resize:vertical;}
+  .fld-err{color:var(--error);font-size:13px;font-weight:600;margin:-7px 0 12px;}
+  .chk-row{display:flex;align-items:center;gap:8px;font-size:14px;padding:4px 0;}
+  .cols2{display:grid;grid-template-columns:1fr 1fr;gap:0 40px;align-items:start;}
+  @media(max-width:900px){.cols2{grid-template-columns:1fr;}}
+
+  /* MODAL */
+  .modal-overlay{position:fixed;inset:0;background:rgba(24,39,57,0.34);z-index:100;
+    display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:#fff;border-radius:6px;box-shadow:0 12px 40px rgba(24,39,57,0.3);
+    width:100%;max-width:640px;display:flex;flex-direction:column;max-height:88vh;overflow:hidden;}
+  .modal.wide{max-width:860px;}
+  .modal-head{display:flex;align-items:flex-start;justify-content:space-between;padding:17px 22px 10px;}
+  .modal-title{font-weight:700;font-size:18px;}
+  .modal-x{width:28px;height:28px;border:0;background:transparent;color:var(--secondary-text);font-size:18px;cursor:pointer;border-radius:var(--radius);flex:0 0 28px;}
+  .modal-x:hover{background:var(--filter-bg);}
+  .modal-body{padding:2px 22px 14px;overflow-y:auto;}
+  .modal-foot{display:flex;gap:10px;padding:13px 22px 18px;border-top:1px solid var(--border);align-items:center;flex-wrap:wrap;}
+  .modal-foot .spacer{margin-left:auto;}
+  .op-box{background:var(--field-bg);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;
+    font-size:13px;margin:4px 0 12px;font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-word;}
+  .pw-show{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:20px;font-weight:700;letter-spacing:.06em;
+    background:#0f1c2e;color:#7ee0a0;padding:12px 16px;border-radius:var(--radius);text-align:center;user-select:all;}
+
+  /* TOAST */
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1b2a3d;color:#fff;
+    padding:12px 20px;border-radius:6px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:200;
+    display:none;max-width:600px;}
+  .toast.show{display:block;}
+  .toast.err{background:#8a1410;} .toast.ok{background:#12603a;}
+
+  /* PERMISSION TREE / MATRIX */
+  .ptree{border:1px solid var(--border);border-radius:4px;overflow:hidden;}
+  .ptree .pg{background:var(--filter-bg);font-weight:700;font-size:13px;padding:8px 12px;border-bottom:1px solid var(--border);}
+  .ptree table{width:100%;border-collapse:collapse;}
+  .ptree th{font-size:11px;font-weight:700;color:var(--secondary-text);text-transform:uppercase;letter-spacing:.03em;
+    text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);width:92px;}
+  .ptree th.fn{text-align:left;width:auto;padding-left:12px;}
+  .ptree td{padding:7px 4px;border-bottom:1px solid #eef1f4;font-size:14px;text-align:center;}
+  .ptree td.fn{text-align:left;padding-left:12px;}
+  .ptree tr:last-child td{border-bottom:0;}
+  .pc{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:22px;border-radius:4px;
+    font-size:12px;font-weight:700;padding:0 6px;cursor:default;}
+  .pc-ok{background:var(--green-card-bg);color:var(--success);}
+  .pc-no{background:var(--filter-bg);color:var(--secondary-text);}
+  .pc-deny{background:#fdf3dd;color:#9a6a00;}
+  .pc-scope{background:#eaf0fb;color:#4360a8;}
+  .pc-net{background:#fdeaea;color:var(--error);}
+  .pc-na{color:#c7ced6;}
+  .mx-chk{width:17px;height:17px;cursor:pointer;}
+  .mx-na{color:#c7ced6;font-size:12px;}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--secondary-text);margin:8px 0 0;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .legend i{width:13px;height:13px;border-radius:3px;display:inline-block;}
+
+  /* DEMO panel */
+  .demo-panel{border:1px solid #d7e0ee;background:#f0f4fa;border-left:3px solid var(--primary);border-radius:6px;
+    padding:12px 15px;margin-bottom:16px;}
+  .demo-panel h4{margin:0 0 8px;font-size:14px;display:flex;align-items:center;gap:8px;}
+  .demo-list{display:grid;grid-template-columns:1fr 1fr;gap:7px 18px;}
+  @media(max-width:900px){.demo-list{grid-template-columns:1fr;}}
+  .demo-item{font-size:13px;line-height:1.45;}
+  .demo-item b{color:var(--primary-text);}
+  .demo-run{appearance:none;border:1px solid var(--field-border);background:#fff;border-radius:999px;
+    font-size:11px;font-weight:600;color:var(--primary-text);padding:2px 9px;cursor:pointer;margin-left:6px;}
+  .demo-run:hover{background:var(--grid-hover);}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:#e9f1fe;color:var(--primary-text);}
+  .kv2{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:14px;}
+  .kv2 .k{color:var(--secondary-text);}
+</style>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">АСУБК<small>Управление пользователями · подсистема 1.1</small></div>
+    <div class="nav" id="nav"></div>
+    <div class="sidebar-foot" id="foot"></div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <span class="title" id="scrTitle">—</span>
+      <div class="who-wrap">
+        <label for="whoSel">Текущий пользователь</label>
+        <select id="whoSel" onchange="switchUser(this.value)"></select>
+        <div class="net-toggle" id="netToggle"></div>
+      </div>
+    </header>
+    <div class="content" id="screen"></div>
+  </div>
+</div>
+<div class="modal-overlay" id="modalHost"><div class="modal" id="modalBox"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================================
+   DATA — демо-состояние (в памяти). Сброс: resetDemo(). §2 спеки.
+   Все id, статусы, действия — из вокабуляра спеки, без синонимов.
+   ============================================================================ */
+const INIT = () => ({
+
+/* 2.4 ПОДРАЗДЕЛЕНИЕ (внешняя, владелец — отдел кадров). Дерево, isHeadOffice. */
+DEPARTMENTS: [
+  {id:'D0', code:'ГО',    name:'Головной офис',            parentId:null, isHeadOffice:true},
+  {id:'D1', code:'Ф-СЕВ', name:'Филиал «Север»',           parentId:'D0', isHeadOffice:false},
+  {id:'D2', code:'Ф-ЮГ',  name:'Филиал «Юг»',              parentId:'D0', isHeadOffice:false},
+  {id:'D3', code:'ОР',    name:'Отдел рисков',             parentId:'D0', isHeadOffice:false},
+  {id:'D4', code:'ЮР',    name:'Юридический отдел',         parentId:'D0', isHeadOffice:false},
+  {id:'D5', code:'ОБ',    name:'Отдел безопасности',        parentId:'D0', isHeadOffice:false},
+],
+
+/* 3.2 РЕЕСТР ФУНКЦИЙ — системный, только для чтения. Дерево повторяет навигацию.
+   actions[] — какие из view/create/edit/delete/execute применимы к функции.
+   objectCheck — проверка_принадлежности_объекта (§7): headOffice | commissionMember | deptOfConclusion.
+   critical — попадает под сетевое ограничение (§6.3). */
+FUNCTIONS: [
+  {id:'f-dec',      group:'Решения',            name:'Решения госоргана',                         actions:['view','create','edit','delete','execute']},
+  {id:'f-prog',     group:'Кредитные программы', name:'Кредитные программы',                       actions:['view','create','edit','execute']},
+  {id:'f-app',      group:'Заявки',             name:'Заявки',                                    actions:['view','create','edit']},
+  {id:'f-app-send', group:'Заявки',             name:'Заявка · Отправить в комиссию',             actions:['execute']},
+  {id:'f-app-conf', group:'Заявки',             name:'Заявка · Подтвердить комплект (2-й уровень)', actions:['execute'], objectCheck:'headOffice'},
+  {id:'f-loan',     group:'Кредиты',            name:'Кредиты',                                   actions:['view','edit']},
+  {id:'f-loan-wo',  group:'Кредиты',            name:'Кредит · Списание задолженности',            actions:['execute'], critical:true},
+  {id:'f-borr',     group:'Заёмщики',           name:'Заёмщики',                                  actions:['view','create','edit']},
+  {id:'f-coll',     group:'Залоги',             name:'Залоги',                                    actions:['view','edit']},
+  {id:'f-coll-rel', group:'Залоги',             name:'Залог · Снятие залога',                      actions:['execute'], critical:true},
+  {id:'f-comm',     group:'Комиссия',           name:'Комиссия',                                  actions:['view']},
+  {id:'f-comm-vote',group:'Комиссия',           name:'Комиссия · Голосовать / подтвердить',        actions:['execute'], objectCheck:'commissionMember'},
+  {id:'f-vzysk',    group:'Взыскание',          name:'Взыскание',                                 actions:['view','create','edit','execute']},
+  {id:'f-rep',      group:'Отчёты',             name:'Отчёты',                                    actions:['view']},
+  {id:'f-dict',     group:'Справочники',        name:'Справочники',                               actions:['view','edit']},
+  {id:'f-users',    group:'Система',            name:'Пользователи',                              actions:['view','create','edit','execute']},
+  {id:'f-roles',    group:'Система',            name:'Роли',                                      actions:['view','create','edit','delete']},
+  {id:'f-rassign',  group:'Система',            name:'Роли · Назначение роли',                     actions:['execute'], critical:true},
+  {id:'f-subst',    group:'Система',            name:'Замещения',                                 actions:['view','create','execute'], critical:true},
+  {id:'f-netpol',   group:'Система',            name:'Сетевые политики',                          actions:['view','edit']},
+  {id:'f-audit',    group:'Система',            name:'Журнал аудита',                             actions:['view']},
+],
+
+/* 5.1 СЕТЕВАЯ ПОЛИТИКА */
+NETWORK_POLICIES: [
+  {id:'NP1', name:'Корпоративная сеть',   ipRanges:['10.10.0.0/16'], macList:[], description:'IP-диапазон офисов ОАО «Госфинхолдинг»'},
+  {id:'NP2', name:'Только головной офис',  ipRanges:['10.10.1.0/24'], macList:['AC:DE:48:00:11:22'], description:'Подсеть головного офиса'},
+],
+
+/* 5.1 ОГРАНИЧЕНИЕ ФУНКЦИИ: функция×действие → policyId (§6.3 — критичные операции) */
+FUNCTION_NET_RESTRICTIONS: [
+  {funcId:'f-loan-wo',  action:'execute', policyId:'NP1'},
+  {funcId:'f-coll-rel', action:'execute', policyId:'NP1'},
+  {funcId:'f-rassign',  action:'execute', policyId:'NP1'},
+  {funcId:'f-subst',    action:'create',  policyId:'NP1'},
+],
+
+/* 2.3 РОЛЬ. permissions[] = набор {funcId, actions[]}. globalScope — флаг роли (§4.2). */
+ROLES: [
+  {id:'R1', code:'ADMIN',   name:'Администратор',       globalScope:true,  status:'Действует',
+   description:'Полное администрирование подсистемы «Система». Действия аудируются наравне со всеми (§8.5).',
+   permissions:[
+     {funcId:'f-users',   actions:['view','create','edit','execute']},
+     {funcId:'f-roles',   actions:['view','create','edit','delete']},
+     {funcId:'f-rassign', actions:['execute']},
+     {funcId:'f-subst',   actions:['view','create','execute']},
+     {funcId:'f-netpol',  actions:['view','edit']},
+     {funcId:'f-audit',   actions:['view']},
+     {funcId:'f-dict',    actions:['view','edit']},
+   ]},
+  {id:'R2', code:'SPEC',    name:'Кредитный специалист', globalScope:false, status:'Действует',
+   description:'Ведёт заявки и кредиты. execute на переходах заявки. Scope — из подразделения сотрудника.',
+   permissions:[
+     {funcId:'f-app',      actions:['view','create','edit']},
+     {funcId:'f-app-send', actions:['execute']},
+     {funcId:'f-app-conf', actions:['execute']},
+     {funcId:'f-borr',     actions:['view','create','edit']},
+     {funcId:'f-loan',     actions:['view','edit']},
+     {funcId:'f-coll',     actions:['view','edit']},
+     {funcId:'f-rep',      actions:['view']},
+   ]},
+  {id:'R3', code:'DEPT',    name:'Отдел (заключение)',   globalScope:false, status:'Действует',
+   description:'Одна роль на все отделы (§4.3/Р9). «Свой отдел» проверяется через scope, а не отдельной ролью.',
+   permissions:[
+     {funcId:'f-app',  actions:['view','edit']},
+     {funcId:'f-rep',  actions:['view']},
+   ]},
+  {id:'R4', code:'COMM',    name:'Член комиссии',        globalScope:false, status:'Действует',
+   description:'Голосует в комиссии. execute на голосовании — только по составу конкретной комиссии (objectCheck).',
+   permissions:[
+     {funcId:'f-comm',      actions:['view']},
+     {funcId:'f-comm-vote', actions:['execute']},
+     {funcId:'f-app',       actions:['view']},
+   ]},
+  {id:'R5', code:'CURATOR', name:'Куратор',              globalScope:false, status:'Действует',
+   description:'Кураторский scope на закреплённых кредитах/заёмщиках — независимо от подразделения (§4.2).',
+   permissions:[
+     {funcId:'f-loan',    actions:['view','edit']},
+     {funcId:'f-loan-wo', actions:['execute']},
+     {funcId:'f-borr',    actions:['view']},
+     {funcId:'f-coll',    actions:['view','edit']},
+     {funcId:'f-coll-rel',actions:['execute']},
+     {funcId:'f-vzysk',   actions:['view','create','edit','execute']},
+     {funcId:'f-rep',     actions:['view']},
+   ]},
+  {id:'R6', code:'AUDITOR', name:'Аудитор',              globalScope:true,  status:'Действует',
+   description:'globalScope, но ТОЛЬКО view (в т.ч. на аудит). Ничего не меняет.',
+   permissions:[
+     {funcId:'f-app',   actions:['view']},
+     {funcId:'f-loan',  actions:['view']},
+     {funcId:'f-borr',  actions:['view']},
+     {funcId:'f-coll',  actions:['view']},
+     {funcId:'f-vzysk', actions:['view']},
+     {funcId:'f-comm',  actions:['view']},
+     {funcId:'f-rep',   actions:['view']},
+     {funcId:'f-audit', actions:['view']},
+     {funcId:'f-users', actions:['view']},
+     {funcId:'f-roles', actions:['view']},
+   ]},
+  {id:'R7', code:'INSP-OLD',name:'Старший инспектор (архив)', globalScope:false, status:'Архивная',
+   description:'Архивная роль — не назначается новым УЗ, но видна в истории (§2.3).',
+   permissions:[
+     {funcId:'f-app',  actions:['view','edit']},
+     {funcId:'f-loan', actions:['view']},
+   ]},
+],
+
+/* 2.1 СОТРУДНИК (внешняя, владелец — отдел кадров). deptId — источник строчной видимости. */
+EMPLOYEES: [
+  {id:'E1',  fio:'Асанов Азамат Асанович',      tabNum:'0154', deptId:'D1', position:'Кредитный специалист',        hrStatus:'Работает',      email:'a.asanov@gfh.kg',  phone:'+996700100101'},
+  {id:'E2',  fio:'Бекова Бермет Бакытовна',      tabNum:'0088', deptId:'D0', position:'Кредитный специалист',        hrStatus:'Работает',      email:'b.bekova@gfh.kg',  phone:'+996700100088'},
+  {id:'E3',  fio:'Дуйшенов Данияр Дуйшенович',   tabNum:'0231', deptId:'D2', position:'Кредитный специалист',        hrStatus:'Работает',      email:'d.duishenov@gfh.kg',phone:'+996700100231'},
+  {id:'E4',  fio:'Керимова Каныкей Кубанычбековна',tabNum:'0177',deptId:'D3', position:'Аналитик-юрист',              hrStatus:'Работает',      email:'k.kerimova@gfh.kg',phone:'+996700100177'},
+  {id:'E5',  fio:'Осмонов Омурбек Осмонович',    tabNum:'0042', deptId:'D0', position:'Куратор кредитов',            hrStatus:'В отпуске',     email:'o.osmonov@gfh.kg', phone:'+996700100042'},
+  {id:'E6',  fio:'Садыков Санжар Садыкович',     tabNum:'0061', deptId:'D0', position:'Куратор кредитов',            hrStatus:'Работает',      email:'s.sadykov@gfh.kg', phone:'+996700100061'},
+  {id:'E7',  fio:'Турсунова Тахмина Талантовна', tabNum:'0009', deptId:'D5', position:'Администратор системы',        hrStatus:'Работает',      email:'t.tursunova@gfh.kg',phone:'+996700100009'},
+  {id:'E8',  fio:'Умаров Урмат Умарович',        tabNum:'0013', deptId:'D4', position:'Внутренний аудитор',          hrStatus:'Работает',      email:'u.umarov@gfh.kg',  phone:'+996700100013'},
+  {id:'E9',  fio:'Нурланов Нурлан Нурланович',   tabNum:'0198', deptId:'D1', position:'Кредитный специалист',        hrStatus:'Работает',      email:'n.nurlanov@gfh.kg',phone:'+996700100198'},
+  {id:'E10', fio:'Эркинов Эрлан Эркинович',      tabNum:'0205', deptId:'D2', position:'Кредитный специалист',        hrStatus:'Уволен',        email:'e.erkinov@gfh.kg', phone:'+996700100205'},
+  {id:'E11', fio:'Жумаев Жоомарт Жумаевич',      tabNum:'0071', deptId:'D0', position:'Член кредитной комиссии',      hrStatus:'Работает',      email:'j.jumaev@gfh.kg',  phone:'+996700100071'},
+],
+
+/* 2.2 УЧЁТНАЯ ЗАПИСЬ. Пароль — только hash, никогда не отображается (§8.1). */
+ACCOUNTS: [
+  {id:'A1',  login:'a.asanov',       type:'Личная',      employeeId:'E1',  status:'Активна',       mustChangePassword:false, passwordChangedAt:'2026-05-11', failedAttempts:0, lastLoginAt:'2026-07-15 09:12', lastLoginIp:'10.10.2.31', createdBy:'A7', createdAt:'2026-01-20'},
+  {id:'A2',  login:'b.bekova',       type:'Личная',      employeeId:'E2',  status:'Активна',       mustChangePassword:false, passwordChangedAt:'2026-06-02', failedAttempts:0, lastLoginAt:'2026-07-15 08:40', lastLoginIp:'10.10.1.15', createdBy:'A7', createdAt:'2026-01-20'},
+  {id:'A3',  login:'d.duishenov',    type:'Личная',      employeeId:'E3',  status:'Активна',       mustChangePassword:false, passwordChangedAt:'2026-04-19', failedAttempts:1, lastLoginAt:'2026-07-14 17:55', lastLoginIp:'10.10.3.9',  createdBy:'A7', createdAt:'2026-02-03'},
+  {id:'A4',  login:'k.kerimova',     type:'Личная',      employeeId:'E4',  status:'Активна',       mustChangePassword:false, passwordChangedAt:'2026-06-20', failedAttempts:0, lastLoginAt:'2026-07-15 10:02', lastLoginIp:'10.10.1.44', createdBy:'A7', createdAt:'2026-02-10'},
+  {id:'A5',  login:'o.osmonov',      type:'Личная',      employeeId:'E5',  status:'Активна',       mustChangePassword:false, passwordChangedAt:'2026-03-30', failedAttempts:0, lastLoginAt:'2026-07-04 12:20', lastLoginIp:'10.10.1.7',  createdBy:'A7', createdAt:'2026-01-15'},
+  {id:'A6',  login:'s.sadykov',      type:'Личная',      employeeId:'E6',  status:'Активна',       mustChangePassword:false, passwordChangedAt:'2026-05-25', failedAttempts:0, lastLoginAt:'2026-07-15 09:31', lastLoginIp:'10.10.1.8',  createdBy:'A7', createdAt:'2026-01-15'},
+  {id:'A7',  login:'admin',          type:'Личная',      employeeId:'E7',  status:'Активна',       mustChangePassword:false, passwordChangedAt:'2026-07-01', failedAttempts:0, lastLoginAt:'2026-07-16 08:05', lastLoginIp:'10.10.1.2',  createdBy:'A7', createdAt:'2026-01-10'},
+  {id:'A8',  login:'auditor',        type:'Личная',      employeeId:'E8',  status:'Активна',       mustChangePassword:false, passwordChangedAt:'2026-06-15', failedAttempts:0, lastLoginAt:'2026-07-16 07:50', lastLoginIp:'10.10.1.61', createdBy:'A7', createdAt:'2026-01-10'},
+  {id:'A9',  login:'n.nurlanov',     type:'Личная',      employeeId:'E9',  status:'Заблокирована', mustChangePassword:false, passwordChangedAt:'2026-04-01', failedAttempts:5, lastLoginAt:'2026-07-10 14:03', lastLoginIp:'10.10.2.77', createdBy:'A7', createdAt:'2026-02-14'},
+  {id:'A10', login:'e.erkinov',      type:'Личная',      employeeId:'E10', status:'Отключена',     mustChangePassword:false, passwordChangedAt:'2026-03-11', failedAttempts:0, lastLoginAt:'2026-06-28 16:41', lastLoginIp:'10.10.3.12', createdBy:'A7', createdAt:'2026-02-14'},
+  {id:'A11', login:'svc.integration',type:'Техническая', employeeId:null,  status:'Активна',       mustChangePassword:false, passwordChangedAt:'2026-01-05', failedAttempts:0, lastLoginAt:'2026-07-16 03:00', lastLoginIp:'10.10.1.250',createdBy:'A7', createdAt:'2026-01-05'},
+  {id:'A12', login:'j.jumaev',       type:'Личная',      employeeId:'E11', status:'Активна',       mustChangePassword:false, passwordChangedAt:'2026-06-10', failedAttempts:0, lastLoginAt:'2026-07-15 11:15', lastLoginIp:'10.10.1.33', createdBy:'A7', createdAt:'2026-02-01'},
+],
+
+/* 2.5 НАЗНАЧЕНИЕ РОЛИ (junction). Снятие = revokedAt, строка не удаляется. */
+ROLE_ASSIGNMENTS: [
+  {id:'RA1',  accountId:'A1',  roleId:'R2', assignedBy:'A7', assignedAt:'2026-01-20', revokedAt:null},
+  {id:'RA2',  accountId:'A2',  roleId:'R2', assignedBy:'A7', assignedAt:'2026-01-20', revokedAt:null},
+  {id:'RA3',  accountId:'A3',  roleId:'R2', assignedBy:'A7', assignedAt:'2026-02-03', revokedAt:null},
+  {id:'RA4a', accountId:'A4',  roleId:'R3', assignedBy:'A7', assignedAt:'2026-02-10', revokedAt:null},
+  {id:'RA4b', accountId:'A4',  roleId:'R5', assignedBy:'A7', assignedAt:'2026-03-01', revokedAt:null},
+  {id:'RA5',  accountId:'A5',  roleId:'R5', assignedBy:'A7', assignedAt:'2026-01-15', revokedAt:null},
+  {id:'RA6',  accountId:'A6',  roleId:'R5', assignedBy:'A7', assignedAt:'2026-01-15', revokedAt:null},
+  {id:'RA7',  accountId:'A7',  roleId:'R1', assignedBy:'A7', assignedAt:'2026-01-10', revokedAt:null},
+  {id:'RA8',  accountId:'A8',  roleId:'R6', assignedBy:'A7', assignedAt:'2026-01-10', revokedAt:null},
+  {id:'RA9',  accountId:'A9',  roleId:'R2', assignedBy:'A7', assignedAt:'2026-02-14', revokedAt:null},
+  {id:'RA10', accountId:'A10', roleId:'R2', assignedBy:'A7', assignedAt:'2026-02-14', revokedAt:null},
+  {id:'RA11', accountId:'A11', roleId:'R2', assignedBy:'A7', assignedAt:'2026-01-05', revokedAt:null},
+  {id:'RA12', accountId:'A12', roleId:'R4', assignedBy:'A7', assignedAt:'2026-02-01', revokedAt:null},
+],
+
+/* 2.6 ПОЛИТИКА РОЛИ В ПОДРАЗДЕЛЕНИИ — только сужает (deniedPermissions вычитается). */
+DEPT_ROLE_POLICIES: [
+  {id:'PL1', roleId:'R2', deptId:'D2', deniedPermissions:[{funcId:'f-app-send', action:'execute'}],
+   note:'Филиал «Юг»: отправка в комиссию изъята — идёт через головной офис.'},
+],
+
+/* Кураторство: accountId → закреплённые записи. Наследуется замещающим (§2.7.1). */
+CURATORSHIPS: [
+  {accountId:'A5', recordIds:['rec1','rec2']},
+  {accountId:'A6', recordIds:['rec4']},
+  {accountId:'A4', recordIds:['rec1']},
+],
+
+/* Членство в комиссиях (данные заявки, не оргструктура — §4.3). */
+COMMISSION_MEMBERS: [
+  {commissionId:'C1', accountIds:['A12']},
+],
+
+/* Фиктивные записи для проверки scope и «автора». */
+RECORDS: [
+  {id:'rec1', type:'Кредит', name:'Кредит №60540 — ОсОО «Агро-Инвест»', deptId:'D1', ownerId:'A1', commissionId:null},
+  {id:'rec2', type:'Кредит', name:'Кредит №60541 — ИП Садыр уулу',      deptId:'D0', ownerId:'A2', commissionId:null},
+  {id:'rec3', type:'Заявка', name:'Заявка №1204 — ОсОО «СтройГрад»',      deptId:'D2', ownerId:'A3', commissionId:'C1'},
+  {id:'rec4', type:'Заявка', name:'Заявка №1205 — ФХ «Нур-Береке»',       deptId:'D1', ownerId:'A1', commissionId:'C1'},
+],
+
+/* 2.7 ЗАМЕЩЕНИЕ. roleIds ⊆ ролей замещаемого. overrideWarning — продавленный V7 (§6.2). */
+SUBSTITUTIONS: [
+  {id:'S1', absentEmployeeId:'E5', substituteAccountId:'A6', dateFrom:'2026-07-01', dateTo:'2026-07-25', orderRef:'Приказ №112-О (отпуск)',
+   roleIds:['R5'], status:'Действует', createdBy:'A7', createdAt:'2026-06-28', overrideWarning:null},
+  {id:'S2', absentEmployeeId:'E2', substituteAccountId:'A12', dateFrom:'2026-08-05', dateTo:'2026-08-19', orderRef:'Приказ №130-К (командировка)',
+   roleIds:['R2'], status:'Запланировано', createdBy:'A7', createdAt:'2026-07-14', overrideWarning:null},
+  {id:'S3', absentEmployeeId:'E11', substituteAccountId:'A5', dateFrom:'2026-05-06', dateTo:'2026-05-20', orderRef:'Приказ №77-О (отпуск)',
+   roleIds:['R4'], status:'Завершено', createdBy:'A7', createdAt:'2026-05-01', overrideWarning:null},
+  {id:'S4', absentEmployeeId:'E2', substituteAccountId:'A12', dateFrom:'2026-04-10', dateTo:'2026-04-24', orderRef:'Приказ №51-К (командировка)',
+   roleIds:['R2'], status:'Завершено', createdBy:'A7', createdAt:'2026-04-08',
+   overrideWarning:'V7: замещающий уже имеет подтверждающую роль «Член комиссии», получает исполняющую «Кредитный специалист» — «четыре глаза» схлопываются в одни. Продавлено администратором.'},
+],
+
+/* 8.3 СЕССИИ — одновременные разрешены. */
+SESSIONS: [
+  {sessionId:'sess-a1-01', accountId:'A1', ip:'10.10.2.31', device:'Chrome 126 · Windows',  startedAt:'2026-07-16 08:55'},
+  {sessionId:'sess-a2-01', accountId:'A2', ip:'10.10.1.15', device:'Chrome 126 · Windows',  startedAt:'2026-07-16 08:40'},
+  {sessionId:'sess-a2-02', accountId:'A2', ip:'10.10.1.15', device:'Safari · iPhone',        startedAt:'2026-07-16 09:10'},
+  {sessionId:'sess-a7-01', accountId:'A7', ip:'10.10.1.2',  device:'Chrome 126 · Windows',  startedAt:'2026-07-16 08:05'},
+  {sessionId:'sess-a4-01', accountId:'A4', ip:'10.10.1.44', device:'Firefox · Windows',      startedAt:'2026-07-16 10:00'},
+  {sessionId:'sess-a11-01',accountId:'A11',ip:'10.10.1.250',device:'Интеграционный агент',   startedAt:'2026-07-16 03:00'},
+],
+
+/* 2.6/8.5 АУДИТ — append-only. Записи замораживаются, не редактируются и не удаляются. */
+AUDIT: [
+  {ts:'2026-07-16 08:05:12', actorAccountId:'A7', sessionId:'sess-a7-01', ip:'10.10.1.2',  action:'Вход в систему',        objectType:'УЗ',        objectId:'A7',  before:null,             after:'Активна',           onBehalfOf:null},
+  {ts:'2026-07-15 16:20:41', actorAccountId:'A7', sessionId:'sess-a7-old', ip:'10.10.1.2', action:'Сброс пароля',           objectType:'УЗ',        objectId:'A3',  before:null,             after:'mustChangePassword=true', onBehalfOf:null},
+  {ts:'2026-07-14 11:02:00', actorAccountId:'A7', sessionId:'sess-a7-old', ip:'10.10.1.2', action:'Создание замещения',     objectType:'Замещение', objectId:'S2',  before:null,             after:'Запланировано',     onBehalfOf:null},
+  {ts:'2026-07-10 14:03:55', actorAccountId:null, sessionId:'—',          ip:'10.10.2.77', action:'Автоблокировка (5 неудачных попыток)', objectType:'УЗ', objectId:'A9', before:'Активна', after:'Заблокирована', onBehalfOf:null},
+  {ts:'2026-07-04 12:20:10', actorAccountId:'A5', sessionId:'sess-a5-old', ip:'10.10.1.7', action:'Правка кредита',          objectType:'Кредит',    objectId:'rec1', before:'ставка 18%',    after:'ставка 17,5%',      onBehalfOf:null},
+  {ts:'2026-06-28 09:14:22', actorAccountId:'A7', sessionId:'sess-a7-old', ip:'10.10.1.2', action:'Создание замещения',     objectType:'Замещение', objectId:'S1',  before:null,             after:'Действует',         onBehalfOf:null},
+  {ts:'2026-06-20 15:31:09', actorAccountId:'A7', sessionId:'sess-a7-old', ip:'10.10.1.2', action:'Назначение роли',         objectType:'УЗ',        objectId:'A4',  before:null,             after:'Роль «Куратор»',    onBehalfOf:null},
+  {ts:'2026-05-06 08:00:00', actorAccountId:null, sessionId:'—',          ip:'—',          action:'Автопереход замещения',   objectType:'Замещение', objectId:'S3',  before:'Запланировано',  after:'Действует',         onBehalfOf:null},
+  {ts:'2026-04-08 10:45:31', actorAccountId:'A7', sessionId:'sess-a7-old', ip:'10.10.1.2', action:'Продавливание предупреждения V7', objectType:'Замещение', objectId:'S4', before:null, after:'Создано с нарушением «четырёх глаз»', onBehalfOf:null},
+  {ts:'2026-04-10 08:00:00', actorAccountId:'A12',sessionId:'sess-a12-x', ip:'10.10.1.33', action:'Отправка заявки в комиссию', objectType:'Заявка', objectId:'rec4', before:'Черновик', after:'На рассмотрении', onBehalfOf:'E2'},
+  {ts:'2026-02-14 09:00:00', actorAccountId:'A7', sessionId:'sess-a7-old', ip:'10.10.1.2', action:'Создание УЗ',             objectType:'УЗ',        objectId:'A9',  before:null,             after:'Создана',           onBehalfOf:null},
+  {ts:'2026-01-20 09:00:00', actorAccountId:'A7', sessionId:'sess-a7-old', ip:'10.10.1.2', action:'Создание УЗ',             objectType:'УЗ',        objectId:'A1',  before:null,             after:'Создана',           onBehalfOf:null},
+],
+
+});
+
+/* Сборка состояния: сид-записи аудита сразу замораживаются — инвариант append-only (§8.5)
+   покрывает и предзагруженную историю, а не только рантайм-записи. */
+function buildDB(){ const d = INIT(); d.AUDIT.forEach(Object.freeze); return d; }
+let DB = buildDB();
+
+/* ============================================================================
+   STATE — вид, текущий пользователь, сетевой контекст (§3 ctx).
+   ============================================================================ */
+const STATE = {
+  screen:'check',
+  currentAccountId:'A7',   // старт: администратор
+  inOffice:true,
+  sel:{},                  // выбранные строки по экранам
+  card:{},                 // открытая карточка + вкладка
+};
+
+/* Сетевой контекст сессии: демо-тумблер «в офисе / вне офиса» задаёт ip. */
+function ctxNow(){
+  return STATE.inOffice
+    ? {ip:'10.10.1.15', mac:'AC:DE:48:00:11:22', place:'офис'}
+    : {ip:'203.0.113.7', mac:'00:00:00:00:00:00', place:'вне офиса'};
+}
+function currentAccount(){ return byId('ACCOUNTS', STATE.currentAccountId); }
+
+/* ============================================================================
+   CORE — вычислитель прав. Единственный гейт UI (§7). Порядок проверки строгий.
+   ============================================================================ */
+
+// --- мелкие помощники ---
+function byId(coll, id){ return DB[coll].find(x => x.id === id) || null; }
+function fn(id){ return DB.FUNCTIONS.find(f => f.id === id) || null; }
+function role(id){ return DB.ROLES.find(r => r.id === id) || null; }
+function dept(id){ return DB.DEPARTMENTS.find(d => d.id === id) || null; }
+function employeeOf(acc){ return acc && acc.employeeId ? byId('EMPLOYEES', acc.employeeId) : null; }
+function deptOfAccount(acc){ const e = employeeOf(acc); return e ? e.deptId : null; }
+function accountByEmployee(empId){ return DB.ACCOUNTS.find(a => a.employeeId === empId) || null; }
+function deptDescendants(deptId){ // головной офис видит своё + подчинённые по дереву
+  const out = [deptId];
+  const walk = pid => DB.DEPARTMENTS.filter(d => d.parentId === pid).forEach(c => { out.push(c.id); walk(c.id); });
+  const d = dept(deptId); if (d && d.isHeadOffice) walk(deptId);
+  return out;
+}
+function periodsOverlap(a1,a2,b1,b2){ return a1 <= b2 && b1 <= a2; }
+
+// --- сеть: IP в CIDR ---
+function ipToLong(ip){ const p = ip.split('.').map(Number); if (p.length!==4||p.some(n=>isNaN(n))) return null; return ((p[0]<<24)>>>0)+(p[1]<<16)+(p[2]<<8)+p[3]; }
+function ipInCidr(ip, cidr){
+  const [net, bitsRaw] = cidr.split('/'); const bits = parseInt(bitsRaw,10);
+  const a = ipToLong(ip), b = ipToLong(net); if (a===null||b===null) return false;
+  const mask = bits===0 ? 0 : (~((1<<(32-bits))-1))>>>0;
+  return (a & mask) === (b & mask);
+}
+function ipInPolicy(ctx, policy){
+  const okIp = (policy.ipRanges||[]).some(c => ipInCidr(ctx.ip, c));
+  // MAC — вспомогательно (§5.3: по HTTP не передаётся; в мокапе учитываем, если политика его задаёт)
+  const okMac = !(policy.macList||[]).length || policy.macList.includes(ctx.mac);
+  return okIp && okMac;
+}
+
+/* effectiveRoles(account) — роли УЗ (активные назначения) + роли активного замещения.
+   Возвращает [{role, origin:'own'|'subst', substId?}]. §3.3 */
+function effectiveRoles(acc){
+  const out = [];
+  DB.ROLE_ASSIGNMENTS
+    .filter(a => a.accountId === acc.id && !a.revokedAt)
+    .forEach(a => { const r = role(a.roleId); if (r) out.push({role:r, origin:'own'}); });
+  activeSubstitutionsFor(acc).forEach(s =>
+    s.roleIds.forEach(rid => { const r = role(rid); if (r && !out.some(o=>o.role.id===rid)) out.push({role:r, origin:'subst', substId:s.id}); })
+  );
+  return out;
+}
+function isSubstituting(acc){ return activeSubstitutionsFor(acc).length > 0; }
+function activeSubstitutionsFor(acc){
+  return DB.SUBSTITUTIONS.filter(s => s.substituteAccountId === acc.id && s.status === 'Действует');
+}
+function hasGlobalScope(acc){ return effectiveRoles(acc).some(o => o.role.globalScope); }
+
+/* Изъятия политикой подразделения для acc: {funcId,action} множество (строки-ключи). §2.6 */
+function deniedSetFor(acc){
+  const d = deptOfAccount(acc); const set = new Set();
+  if (!d) return set;
+  effectiveRoles(acc).forEach(o => {
+    DB.DEPT_ROLE_POLICIES
+      .filter(p => p.roleId === o.role.id && p.deptId === d)
+      .forEach(p => (p.deniedPermissions||[]).forEach(dp => set.add(dp.funcId + '|' + dp.action)));
+  });
+  return set;
+}
+
+/* Функциональная проверка: 'ok' | 'no-role' | 'denied-by-policy'. §7 шаг 1 */
+function functionalCheck(acc, funcId, action){
+  const inRole = effectiveRoles(acc).some(o =>
+    o.role.permissions.some(p => p.funcId === funcId && p.actions.includes(action)));
+  if (!inRole) return 'no-role';
+  if (deniedSetFor(acc).has(funcId + '|' + action)) return 'denied-by-policy';
+  return 'ok';
+}
+
+/* scope(УЗ) — §4.2. Возвращает true, если запись в scope. */
+function recordInScope(acc, record){
+  if (hasGlobalScope(acc)) return true;
+  const d = deptOfAccount(acc);
+  if (d && deptDescendants(d).includes(record.deptId)) return true;         // подразделение + дерево
+  if (curatedRecordIds(acc).includes(record.id)) return true;              // кураторство (свой + замещаемого)
+  if (record.ownerId === acc.id) return true;                             // владелец == пользователь
+  return false;
+}
+/* Кураторские записи: свои + замещаемого при активном замещении (§2.7.1). */
+function curatedRecordIds(acc){
+  const ids = new Set();
+  (DB.CURATORSHIPS.find(c => c.accountId === acc.id)?.recordIds || []).forEach(r => ids.add(r));
+  activeSubstitutionsFor(acc).forEach(s => {
+    const absentAcc = accountByEmployee(s.absentEmployeeId);
+    if (absentAcc) (DB.CURATORSHIPS.find(c => c.accountId === absentAcc.id)?.recordIds || []).forEach(r => ids.add(r));
+  });
+  return [...ids];
+}
+
+/* Проверка принадлежности объекта (§7): headOffice | commissionMember | deptOfConclusion. */
+function objectCheckPass(acc, func, record){
+  if (!func.objectCheck) return true;
+  if (func.objectCheck === 'headOffice'){ const d = dept(deptOfAccount(acc)); return !!(d && d.isHeadOffice); }
+  if (func.objectCheck === 'commissionMember'){
+    if (!record || !record.commissionId) return null; // не оценивается без записи
+    const m = DB.COMMISSION_MEMBERS.find(c => c.commissionId === record.commissionId);
+    return !!(m && m.accountIds.includes(acc.id));
+  }
+  if (func.objectCheck === 'deptOfConclusion'){
+    if (!record) return null;
+    return record.deptId === deptOfAccount(acc);
+  }
+  return true;
+}
+
+/* Сетевая проверка (§5): функция×действие → политика; ip/mac ctx. */
+function networkCheck(func, action, ctx){
+  const r = DB.FUNCTION_NET_RESTRICTIONS.find(x => x.funcId === func.id && x.action === action);
+  if (!r) return {restricted:false, ok:true, policy:null};
+  const policy = byId('NETWORK_POLICIES', r.policyId);
+  return {restricted:true, ok:policy ? ipInPolicy(ctx, policy) : false, policy};
+}
+
+/* ---- ЕДИНЫЙ ВЫЧИСЛИТЕЛЬ ПРАВ (§7) ----
+   resolvePermission(user, func, action, record?, ctx) → {allowed, reason, detail}
+   reason: 'ok'|'no-role'|'denied-by-policy'|'out-of-scope'|'blocked-by-network'|'pending-control' */
+function resolvePermission(user, func, action, record, ctx){
+  ctx = ctx || ctxNow();
+  if (typeof func === 'string') func = fn(func);
+  if (!func) return {allowed:false, reason:'no-role', detail:'Функция не найдена'};
+
+  // 1. Функциональное измерение (роль ∪ роли замещения, минус изъятия политики)
+  const fc = functionalCheck(user, func.id, action);
+  if (fc === 'no-role')
+    return {allowed:false, reason:'no-role', detail:`Ни одна роль УЗ не даёт «${action}» на «${func.name}»`};
+  if (fc === 'denied-by-policy')
+    return {allowed:false, reason:'denied-by-policy', detail:`Разрешение изъято политикой подразделения «${dept(deptOfAccount(user))?.name || '—'}»`};
+
+  // 2. Строчное измерение (только при наличии записи; §4.2 — порядок: функция → scope)
+  if (record){
+    if (!recordInScope(user, record))
+      return {allowed:false, reason:'out-of-scope', detail:`Запись «${record.name}» вне scope пользователя`};
+  }
+  // проверка принадлежности объекта (headOffice — по пользователю; остальные — по записи)
+  const oc = objectCheckPass(user, func, record);
+  if (oc === false){
+    const why = func.objectCheck === 'headOffice' ? 'доступно только сотруднику головного офиса'
+      : func.objectCheck === 'commissionMember' ? 'пользователь не входит в состав этой комиссии'
+      : 'запись не относится к подразделению-исполнителю пользователя';
+    return {allowed:false, reason:'out-of-scope', detail:why};
+  }
+
+  // 3. Сетевое измерение (§5)
+  const nc = networkCheck(func, action, ctx);
+  if (nc.restricted && !nc.ok)
+    return {allowed:false, reason:'blocked-by-network', detail:`Доступно только из сети «${nc.policy?.name || '—'}» (сейчас ${ctx.place}, ip ${ctx.ip})`};
+
+  // 4. Многоуровневый контроль (§6 — отложен, точка расширения)
+  /* SLOT: multi-level control (deferred) — здесь появится ветка «уйти в очередь подтверждения».
+     Сейчас условие константно true; при реализации вернёт reason:'pending-control'. */
+  const controlSingleLevel = true;
+  if (!controlSingleLevel)
+    return {allowed:false, reason:'pending-control', detail:'Действие уходит в очередь подтверждения'};
+
+  return {allowed:true, reason:'ok', detail:'ok'};
+}
+
+/* Текстовое описание эффективного scope (§4.2) — для карточек и «Проверки прав». */
+function effectiveScopeText(acc){
+  if (hasGlobalScope(acc)) return 'Глобальный (globalScope) — видит все записи системы';
+  const parts = [];
+  const d = deptOfAccount(acc);
+  if (d){
+    const chain = deptDescendants(d);
+    parts.push(chain.length > 1
+      ? `Подразделение «${dept(d).name}» + подчинённые по дереву (${chain.length} подр.)`
+      : `Подразделение «${dept(d).name}»`);
+  }
+  const cur = curatedRecordIds(acc);
+  if (cur.length){
+    const own = (DB.CURATORSHIPS.find(c=>c.accountId===acc.id)?.recordIds||[]).length;
+    const viaSub = cur.length - own;
+    parts.push(`Кураторство: ${own} своих${viaSub>0?` + ${viaSub} по замещению`:''}`);
+  }
+  parts.push('Владелец записей (где ownerId == УЗ)');
+  if (!d && !cur.length) return 'Пустой scope — техническая УЗ без сотрудника и без кураторства (§4.2)';
+  return parts.join(' · ');
+}
+
+/* ============================================================================
+   HELPERS (UI) — общие. Аудит append-only, модалки, тосты.
+   ============================================================================ */
+const $ = sel => document.querySelector(sel);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function nowTs(){ const d = new Date(); const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
+function fioOf(acc){ const e = employeeOf(acc); return e ? e.fio : (acc.type==='Техническая' ? '— (техническая)' : '—'); }
+function deptName(id){ const d = dept(id); return d ? d.name : '—'; }
+function shortFio(fio){ const [a,b,c] = String(fio).split(' '); return b&&c ? `${a} ${b[0]}.${c[0]}.` : fio; }
+function currentSession(){
+  const s = DB.SESSIONS.find(x => x.accountId === STATE.currentAccountId);
+  const ctx = ctxNow();
+  return s ? {sessionId:s.sessionId, ip:ctx.ip} : {sessionId:'sess-live', ip:ctx.ip};
+}
+
+/* АУДИТ — единственный способ записи; заморозка => append-only (§8.5). Нет edit/delete API. */
+function writeAudit({action, objectType, objectId, before=null, after=null, actorAccountId, sessionId, ip}){
+  const acc = currentAccount();
+  const ses = currentSession();
+  const isSystem = actorAccountId === null;           // системное действие (§2.2.1: «система»)
+  const actor = (actorAccountId !== undefined) ? actorAccountId : acc.id;
+  const sub = isSystem ? null : activeSubstitutionsFor(acc)[0];
+  const entry = Object.freeze({
+    ts: nowTs(),
+    actorAccountId: actor,
+    sessionId: (sessionId !== undefined) ? sessionId : (isSystem ? '—' : ses.sessionId),
+    ip: (ip !== undefined) ? ip : (isSystem ? '—' : ses.ip),
+    action, objectType, objectId, before, after,
+    onBehalfOf: sub ? sub.absentEmployeeId : null,
+  });
+  DB.AUDIT.unshift(entry);
+}
+
+/* Тост */
+let toastTimer = null;
+function toast(msg, type){
+  const t = $('#toast'); t.className = 'toast show' + (type ? ' '+type : ''); t.textContent = msg;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+/* Модалка. openModal({title, body, buttons:[{label,cls,onClick,keepOpen}], wide}) */
+function openModal(opts){
+  const box = $('#modalBox');
+  box.className = 'modal' + (opts.wide ? ' wide' : '');
+  const btns = (opts.buttons||[{label:'Закрыть', cls:'btn-cancel'}]).map((b,i) =>
+    `<button class="btn ${b.cls||'btn-secondary'}" data-mbtn="${i}">${esc(b.label)}</button>`).join('');
+  box.innerHTML =
+    `<div class="modal-head"><div class="modal-title">${esc(opts.title||'')}</div>
+       <button class="modal-x" data-mclose aria-label="Закрыть">✕</button></div>
+     <div class="modal-body">${opts.body||''}</div>
+     <div class="modal-foot">${opts.footLeft||''}<span class="spacer"></span>${btns}</div>`;
+  $('#modalHost').classList.add('open');
+  box.querySelector('[data-mclose]').onclick = closeModal;
+  (opts.buttons||[]).forEach((b,i) => {
+    const el = box.querySelector(`[data-mbtn="${i}"]`);
+    if (el) el.onclick = () => { const r = b.onClick ? b.onClick() : true; if (r !== false && !b.keepOpen) closeModal(); };
+  });
+  if (opts.onOpen) opts.onOpen(box);
+}
+function closeModal(){ $('#modalHost').classList.remove('open'); $('#modalBox').innerHTML=''; }
+
+/* Бейдж статуса УЗ / роли / замещения */
+function statusBadge(status){
+  const map = {
+    'Активна':'b-ok', 'Действует':'b-ok', 'Работает':'b-ok',
+    'Создана':'b-info', 'Запланировано':'b-info',
+    'Заблокирована':'b-warn', 'В отпуске':'b-warn', 'В командировке':'b-warn',
+    'Отключена':'b-err', 'Уволен':'b-err', 'Прервано досрочно':'b-err',
+    'Завершено':'b-muted', 'Архивная':'b-muted',
+  };
+  return `<span class="badge ${map[status]||'b-muted'} b-dot">${esc(status)}</span>`;
+}
+function reasonBadge(res){
+  const map = {
+    'ok':['pc-ok','Доступно'], 'no-role':['pc-no','Нет роли'], 'denied-by-policy':['pc-deny','Изъято политикой'],
+    'out-of-scope':['pc-scope','Вне scope'], 'blocked-by-network':['pc-net','Блокировано сетью'], 'pending-control':['pc-deny','На контроле'],
+  };
+  const [c,t] = map[res.reason] || ['pc-no','—'];
+  return `<span class="pc ${c}" title="${esc(res.detail)}">${t}</span>`;
+}
+function svg(path, extra){ return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra||''}>${path}</svg>`; }
+
+/* ============================================================================
+   NAV + SHELL
+   ============================================================================ */
+const NAV = [
+  {group:'Система'},
+  {key:'users',    title:'Пользователи',    ic:'<circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/>', coll:'ACCOUNTS'},
+  {key:'roles',    title:'Роли',            ic:'<path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 17l-5.5 2.5 1-6.3L3 8.9 9 8z"/>', coll:'ROLES'},
+  {key:'subst',    title:'Замещения',       ic:'<path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>', coll:'SUBSTITUTIONS'},
+  {key:'netpol',   title:'Сетевые политики',ic:'<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/>', coll:'NETWORK_POLICIES'},
+  {key:'audit',    title:'Журнал аудита',   ic:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>', coll:'AUDIT'},
+  {key:'check',    title:'Проверка прав',   ic:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>'},
+];
+function renderNav(){
+  const nav = $('#nav');
+  nav.innerHTML = NAV.map(n => {
+    if (n.group) return `<div class="nav-group">${esc(n.group)}</div>`;
+    const cnt = n.coll ? `<span class="cnt">${DB[n.coll].length}</span>` : '';
+    return `<div class="nav-item ${STATE.screen===n.key?'active':''}" onclick="navigate('${n.key}')">
+              <span class="ic">${svg(n.ic)}</span>${esc(n.title)}${cnt}</div>`;
+  }).join('');
+}
+function renderFoot(){
+  const acc = currentAccount();
+  $('#foot').innerHTML = `Вы вошли как <b style="color:var(--body-text)">${esc(acc.login)}</b><br>${esc(shortFio(fioOf(acc)))} · аудит ведётся`;
+}
+function renderWho(){
+  const sel = $('#whoSel');
+  sel.innerHTML = DB.ACCOUNTS.map(a => {
+    const roles = effectiveRoles(a).map(o=>o.role.code).join(',') || '—';
+    return `<option value="${a.id}" ${a.id===STATE.currentAccountId?'selected':''}>${esc(a.login)} · ${esc(shortFio(fioOf(a)))} [${esc(roles)}]</option>`;
+  }).join('');
+  const ctx = ctxNow();
+  $('#netToggle').innerHTML =
+    `<button class="${STATE.inOffice?'on':''}" onclick="setNet(true)">${svg('<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>')} В офисе</button>
+     <button class="${!STATE.inOffice?'on ext':''}" onclick="setNet(false)">${svg('<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>')} Вне офиса</button>`;
+}
+function switchUser(id){ STATE.currentAccountId = id; STATE.card = {}; render(); toast('Текущий пользователь: '+byId('ACCOUNTS',id).login); }
+function setNet(v){ STATE.inOffice = v; render(); toast('Сетевой контекст: '+ctxNow().place+' (ip '+ctxNow().ip+')'); }
+function navigate(key){ STATE.screen = key; STATE.card = {}; render(); }
+
+/* Диспетчер экранов. Реализации — ниже (RENDER). */
+const SCREENS = {};
+function render(){
+  renderNav(); renderFoot(); renderWho();
+  const titleMap = {users:'Пользователи', roles:'Роли', subst:'Замещения', netpol:'Сетевые политики', audit:'Журнал аудита', check:'Проверка прав'};
+  $('#scrTitle').textContent = titleMap[STATE.screen] || '—';
+  const host = $('#screen');
+  (SCREENS[STATE.screen] || (h => h.innerHTML='<div class="banner err">Экран не найден</div>'))(host);
+}
+
+/* Сброс демо-данных к исходному состоянию (§0.4). */
+function resetDemo(){ DB = buildDB(); STATE.screen='check'; STATE.currentAccountId='A7'; STATE.inOffice=true; STATE.card={}; render(); toast('Демо-данные сброшены', 'ok'); }
+
+/* ============================================================================
+   DEMO — панель сценариев приёмки (§5). Подсвечивает, где проверяется каждый.
+   ============================================================================ */
+const DEMO_SCENARIOS = [
+  {n:1, t:'Роль ≠ scope', d:'Асанов (филиал) и Бекова (головной офис) — <b>одна роль</b> «Кредитный специалист», но разный scope; у головного доступно «Подтвердить комплект».', run:'s1'},
+  {n:2, t:'Политика сужает', d:'Асанов (Ф-Север) и Дуйшенов (Ф-Юг) — идентичный набор ролей; «Отправить в комиссию» изъято политикой Ф-Юг.', run:'s2'},
+  {n:3, t:'Замещение', d:'Садыков замещает Осмонова: получает его кураторские кредиты + роль; действие в аудите пишется «(замещая …)».', run:'s3'},
+  {n:4, t:'Валидации V1–V7', d:'Форма создания замещения прогоняет V1–V6 (блокировки) и V7 (продавливаемое предупреждение) вживую.', run:'s4'},
+  {n:5, t:'Сетевой контроль', d:'Тумблер «вне офиса»: критичные действия (списание, снятие залога, назначение ролей) блокируются с подсказкой — не исчезают.', run:'s5'},
+  {n:6, t:'Жизненный цикл УЗ', d:'Нурланов — автоблокировка после 5 попыток; Эркинов — «Отключена» (уволен), возврат невозможен. Имитация входа доступна в карточке.', run:'s6'},
+  {n:7, t:'Аудит append-only', d:'У администратора в журнале нет кнопок правки/удаления; его собственные действия там присутствуют.', run:'s7'},
+];
+function demoPanel(active){
+  return `<div class="demo-panel">
+    <h4>🎯 Демо-сценарии приёмки (§5) — нажмите «показать», чтобы воспроизвести</h4>
+    <div class="demo-list">${DEMO_SCENARIOS.map(s=>`
+      <div class="demo-item"><span class="pill">${s.n}</span> <b>${s.t}.</b> ${s.d}
+        <button class="demo-run" onclick="demoRun('${s.run}')">показать →</button></div>`).join('')}</div>
+  </div>`;
+}
+function demoRun(id){
+  const go = (msg)=>toast(msg);
+  switch(id){
+    case 's1': STATE.currentAccountId='A1'; STATE.inOffice=true; STATE.screen='check'; render();
+      go('Сценарий 1: вы — Асанов (филиал). Переключите на «b.bekova» — тот же SPEC, но другой scope.'); break;
+    case 's2': STATE.currentAccountId='A3'; STATE.screen='check'; render();
+      go('Сценарий 2: вы — Дуйшенов (Ф-Юг). «Отправить в комиссию» изъято политикой — см. дерево функций.'); break;
+    case 's3': STATE.currentAccountId='A6'; STATE.screen='check'; render();
+      go('Сценарий 3: вы — Садыков. В scope появились кураторские кредиты Осмонова (по замещению S1).'); break;
+    case 's4': STATE.currentAccountId='A7'; STATE.screen='subst'; render(); setTimeout(()=>openSubstForm(),50);
+      go('Сценарий 4: открыта форма создания замещения. Меняйте поля — V1–V7 срабатывают вживую.'); break;
+    case 's5': STATE.currentAccountId='A6'; STATE.inOffice=false; STATE.screen='check'; render();
+      go('Сценарий 5: вы вне офиса. Критичные execute стали «Блокировано сетью» (не исчезли).'); break;
+    case 's6': STATE.currentAccountId='A7'; STATE.screen='users'; render();
+      go('Сценарий 6: список УЗ. Нурланов — Заблокирована; Эркинов — Отключена (уволен).'); break;
+    case 's7': STATE.currentAccountId='A7'; STATE.screen='audit'; render();
+      go('Сценарий 7: журнал аудита. Кнопок правки/удаления нет ни у кого, включая администратора.'); break;
+  }
+}
+
+/* ============================================================================
+   RENDER — §4.6 ПРОВЕРКА ПРАВ (эталонный «рентген» модели).
+   Весь гейтинг идёт через resolvePermission — здесь он визуализирован целиком.
+   ============================================================================ */
+const ACTIONS_ALL = ['view','create','edit','delete','execute'];
+SCREENS.check = function(host){
+  const acc = currentAccount();
+  const ctx = ctxNow();
+  const roles = effectiveRoles(acc);
+  const rolesHtml = roles.length
+    ? roles.map(o=>`<span class="badge ${o.origin==='subst'?'b-info':'b-muted'}" title="${o.origin==='subst'?'по активному замещению':'собственная роль'}">${esc(o.role.name)}${o.origin==='subst'?' · по замещению':''}</span>`).join(' ')
+    : '<span class="muted">нет активных ролей</span>';
+
+  // Функциональное дерево: группы функций × действия. Оценка без записи (§ капабилити-срез).
+  const groups = [...new Set(DB.FUNCTIONS.map(f=>f.group))];
+  let tree = `<div class="ptree"><table><thead><tr><th class="fn">Функция</th>${
+    ACTIONS_ALL.map(a=>`<th>${a}</th>`).join('')}</tr></thead><tbody>`;
+  groups.forEach(g=>{
+    tree += `<tr><td class="fn" colspan="6" style="background:var(--filter-bg);font-weight:700;font-size:12px">${esc(g)}</td></tr>`;
+    DB.FUNCTIONS.filter(f=>f.group===g).forEach(f=>{
+      tree += `<tr><td class="fn">${esc(f.name)}${f.critical?' <span class="badge b-warn" style="font-size:10px">крит.</span>':''}${f.objectCheck?` <span class="muted" title="проверка принадлежности объекта">⊕${esc(f.objectCheck)}</span>`:''}</td>`;
+      ACTIONS_ALL.forEach(a=>{
+        if (!f.actions.includes(a)){ tree += `<td><span class="pc-na">·</span></td>`; return; }
+        const res = resolvePermission(acc, f, a, null, ctx);
+        tree += `<td>${reasonBadge(res)}</td>`;
+      });
+      tree += `</tr>`;
+    });
+  });
+  tree += `</tbody></table></div>`;
+
+  // Строчный срез: реальные записи × доступ (демонстрирует scope, политику, сеть на записи).
+  let recs = `<div class="grid-wrap"><table class="dtable"><thead><tr>
+    <th>Запись</th><th>Подразд.</th><th>Владелец</th><th>Просмотр</th><th>Критичное действие</th><th>Почему</th></tr></thead><tbody>`;
+  DB.RECORDS.forEach(r=>{
+    const viewFn = r.type==='Кредит' ? fn('f-loan') : fn('f-app');
+    const critFn = r.type==='Кредит' ? fn('f-loan-wo') : fn('f-app-send');
+    const vRes = resolvePermission(acc, viewFn, 'view', r, ctx);
+    const cRes = resolvePermission(acc, critFn, 'execute', r, ctx);
+    recs += `<tr><td>${esc(r.name)}</td><td>${esc(dept(r.deptId).code)}</td><td>${esc(byId('ACCOUNTS',r.ownerId)?.login||'—')}</td>
+      <td>${reasonBadge(vRes)}</td><td>${reasonBadge(cRes)} <span class="muted">${esc(critFn.name.split('·')[1]||'')}</span></td>
+      <td class="muted">${esc(vRes.allowed?cRes.detail:vRes.detail)}</td></tr>`;
+  });
+  recs += `</tbody></table></div>`;
+
+  host.innerHTML = demoPanel('check') + `
+    <div class="banner info"><span class="ic">🔍</span><div>Этот экран — «рентген» модели: каждая ячейка ниже — результат <code>resolvePermission()</code>.
+      Переключайте <b>пользователя</b> и <b>сеть</b> в шапке — роль, scope и сетевой контекст вычисляются из модели (§4.1).</div></div>
+
+    <div class="header-card">
+      <div class="avatar">${esc((fioOf(acc)[0]||'?'))}</div>
+      <div class="header-mid">
+        <div class="obj-name">${esc(fioOf(acc))} <span class="muted">· ${esc(acc.login)}</span></div>
+        <div class="obj-sub">${esc(acc.type)} · ${esc(deptName(deptOfAccount(acc)))} · ${statusBadge(acc.status)} ${isSubstituting(acc)?'<span class="badge b-info">замещает</span>':''}</div>
+        <div style="margin-bottom:6px">${rolesHtml}</div>
+        <div class="kv2"><span class="k">Эффективный scope</span><span>${esc(effectiveScopeText(acc))}</span>
+          <span class="k">Сетевой контекст</span><span>${esc(ctx.place)} · ip <code>${esc(ctx.ip)}</code></span></div>
+      </div>
+    </div>
+
+    <div class="section-title">Функциональные права × действия</div>
+    <div class="muted" style="margin-bottom:8px">Оценка функциональной доступности (без конкретной записи). Строчный scope проверяется на записях ниже.</div>
+    ${tree}
+    <div class="legend">
+      <span><i class="pc-ok" style="background:var(--green-card-bg)"></i> доступно</span>
+      <span><i style="background:var(--filter-bg)"></i> нет роли</span>
+      <span><i style="background:#fdf3dd"></i> изъято политикой</span>
+      <span><i style="background:#eaf0fb"></i> вне scope</span>
+      <span><i style="background:#fdeaea"></i> блокировано сетью</span>
+      <span>⊕ — проверка принадлежности объекта</span>
+    </div>
+
+    <div class="section-sub">Строчный доступ на реальных записях (scope · политика · сеть)</div>
+    ${recs}`;
+};
+
+/* Гейт-кнопка: no-role → кнопка скрыта (нет права вовсе, §5.2); прочие reason → показана
+   заблокированной с подсказкой (право есть, но место/политика/scope не те). */
+function permBtn(func, action, record, o){
+  const res = resolvePermission(currentAccount(), func, action, record || null);
+  if (res.reason === 'no-role') return '';
+  const cls = o.cls || 'btn-secondary';
+  if (res.allowed) return `<button class="btn ${cls} ${o.sm?'btn-sm':''}" onclick="${o.onclick}">${esc(o.label)}</button>`;
+  return `<button class="btn ${cls} ${o.sm?'btn-sm':''}" disabled title="${esc(res.detail)}">${esc(o.label)} 🔒</button>`;
+}
+function can(func, action, record){ return resolvePermission(currentAccount(), func, action, record||null).allowed; }
+
+/* ============================================================================
+   RENDER — §4.1/4.2 ПОЛЬЗОВАТЕЛИ (список + карточка)
+   ============================================================================ */
+SCREENS.users = function(host){
+  if (STATE.card.kind === 'user') return renderUserCard(host, STATE.card.id);
+  const f = STATE.filt_users || (STATE.filt_users = {dept:'', status:'', role:'', type:'', q:''});
+  let rows = DB.ACCOUNTS.filter(a=>{
+    if (f.dept && deptOfAccount(a) !== f.dept) return false;
+    if (f.status && a.status !== f.status) return false;
+    if (f.type && a.type !== f.type) return false;
+    if (f.role && !effectiveRoles(a).some(o=>o.role.id===f.role)) return false;
+    if (f.q){ const s=(a.login+' '+fioOf(a)).toLowerCase(); if(!s.includes(f.q.toLowerCase())) return false; }
+    return true;
+  });
+  const opt = (arr,cur,val,lab)=>arr.map(x=>`<option value="${val(x)}" ${val(x)===cur?'selected':''}>${esc(lab(x))}</option>`).join('');
+  const toolbar =
+    permBtn(fn('f-users'),'create',null,{label:'Создать',cls:'btn-primary',onclick:'openCreateAccount()'}) +
+    permBtn(fn('f-users'),'edit',null,{label:'Изменить',onclick:'openEditSelected()'}) +
+    permBtn(fn('f-users'),'execute',null,{label:'Заблокировать',onclick:"lifecycleSelected('block')"}) +
+    permBtn(fn('f-users'),'execute',null,{label:'Разблокировать',onclick:"lifecycleSelected('unblock')"}) +
+    permBtn(fn('f-users'),'execute',null,{label:'Отключить',cls:'btn-danger',onclick:"lifecycleSelected('disable')"}) +
+    permBtn(fn('f-users'),'execute',null,{label:'Сбросить пароль',onclick:"lifecycleSelected('reset')"}) +
+    permBtn(fn('f-users'),'execute',null,{label:'Завершить сессии',onclick:"lifecycleSelected('endsessions')"});
+
+  host.innerHTML = demoPanel('users') + `
+    <div class="filter-card">
+      <div class="fgrp"><label>Подразделение</label><select onchange="setUF('dept',this.value)"><option value="">все</option>${opt(DB.DEPARTMENTS,f.dept,d=>d.id,d=>d.name)}</select></div>
+      <div class="fgrp"><label>Статус</label><select onchange="setUF('status',this.value)"><option value="">все</option>${['Создана','Активна','Заблокирована','Отключена'].map(s=>`<option ${s===f.status?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="fgrp"><label>Роль</label><select onchange="setUF('role',this.value)"><option value="">все</option>${opt(DB.ROLES,f.role,r=>r.id,r=>r.name)}</select></div>
+      <div class="fgrp"><label>Тип</label><select onchange="setUF('type',this.value)"><option value="">все</option><option ${f.type==='Личная'?'selected':''}>Личная</option><option ${f.type==='Техническая'?'selected':''}>Техническая</option></select></div>
+      <div class="fgrp"><input placeholder="поиск: логин / ФИО" value="${esc(f.q)}" oninput="setUF('q',this.value)"></div>
+    </div>
+    <div class="toolbar">${toolbar}<span class="rowcount">${rows.length} УЗ</span></div>
+    <div class="grid"><table><thead><tr>
+      <th>Логин</th><th>ФИО</th><th>Подразделение</th><th>Должность</th><th>Роли</th><th>Статус</th><th>Последний вход</th><th>Замещение</th>
+    </tr></thead><tbody>${rows.length?rows.map(userRow).join(''):'<tr><td colspan="8" class="empty-row">Нет УЗ по фильтру</td></tr>'}</tbody></table></div>`;
+};
+function userRow(a){
+  const e = employeeOf(a);
+  const roles = effectiveRoles(a);
+  const own = roles.filter(o=>o.origin==='own');
+  const rolesCell = own.length
+    ? `<span class="tab-cnt" title="${esc(own.map(o=>o.role.name).join(', '))}">${own.length}</span> ${esc(own[0].role.code)}${own.length>1?' +'+(own.length-1):''}`
+    : '<span class="muted">—</span>';
+  let sub = '';
+  if (isSubstituting(a)) sub = '<span class="badge b-info">замещает</span>';
+  else if (DB.SUBSTITUTIONS.some(s=>s.absentEmployeeId===a.employeeId && s.status==='Действует')) sub='<span class="badge b-warn">замещается</span>';
+  const selCls = STATE.sel.users===a.id?'sel':'';
+  return `<tr data-open class="${a.status==='Отключена'?'gone ':''}${selCls}" onclick="selUser('${a.id}')" ondblclick="openUserCard('${a.id}')" title="клик — выбрать, двойной клик — карточка">
+    <td><b>${esc(a.login)}</b></td><td>${esc(fioOf(a))}</td><td>${esc(e?deptName(e.deptId):'—')}</td>
+    <td>${esc(e?e.position:'—')}</td><td>${rolesCell}</td><td>${statusBadge(a.status)}</td>
+    <td class="muted">${esc(a.lastLoginAt||'—')}</td><td>${sub||'<span class="muted">—</span>'}</td></tr>`;
+}
+function setUF(k,v){ STATE.filt_users[k]=v; render(); }
+function openUserCard(id){ STATE.screen='users'; STATE.card = {kind:'user', id, tab:'obshee'}; render(); }
+function userTab(t){ STATE.card.tab = t; render(); }
+
+function renderUserCard(host, id){
+  const a = byId('ACCOUNTS', id), e = employeeOf(a);
+  const tabs = [['obshee','Общая информация'],['roles','Роли'],['subst','Замещения'],['sessions','Сессии'],['history','История']];
+  const tab = STATE.card.tab || 'obshee';
+  const actions =
+    permBtn(fn('f-users'),'execute',null,{label:'Имитация неудачного входа',sm:true,onclick:`simFailedLogin('${id}')`}) +
+    (a.status==='Активна'?permBtn(fn('f-users'),'execute',null,{label:'Заблокировать',sm:true,onclick:`doLifecycle('${id}','block')`}):'') +
+    (a.status==='Заблокирована'?permBtn(fn('f-users'),'execute',null,{label:'Разблокировать',cls:'btn-green',sm:true,onclick:`doLifecycle('${id}','unblock')`}):'') +
+    (a.status==='Отключена'?`<button class="btn btn-secondary btn-sm" disabled title="Переход «Отключена → Активна» невозможен (§2.2.1). Заводится новая УЗ.">Разблокировать 🔒</button>`:'') +
+    (a.status!=='Отключена'?permBtn(fn('f-users'),'execute',null,{label:'Сбросить пароль',sm:true,onclick:`doLifecycle('${id}','reset')`}):'') +
+    (a.status!=='Отключена'?permBtn(fn('f-users'),'execute',null,{label:'Отключить',cls:'btn-danger',sm:true,onclick:`doLifecycle('${id}','disable')`}):'');
+
+  host.innerHTML = `
+    <div class="backlink" onclick="backToUsers()">← Список УЗ</div>
+    <div class="header-card">
+      <div class="avatar">${esc(fioOf(a)[0]||'?')}</div>
+      <div class="header-mid">
+        <div class="obj-name">${esc(a.login)}</div>
+        <div class="obj-sub">${esc(fioOf(a))} · ${esc(a.type)} · ${esc(e?deptName(e.deptId):'без подразделения')}</div>
+        <div class="status-row">${statusBadge(a.status)}${a.mustChangePassword?'<span class="badge b-warn">требует смены пароля</span>':''}${isSubstituting(a)?'<span class="badge b-info">замещает</span>':''}</div>
+      </div>
+    </div>
+    <div class="card-actions">${actions||'<span class="ro-note muted">Действия недоступны для текущего пользователя</span>'}</div>
+    <div class="tabs">${tabs.map(([k,l])=>`<button class="tab ${tab===k?'active':''}" onclick="userTab('${k}')">${l}</button>`).join('')}</div>
+    <div id="userTabBody">${userTabBody(a, tab)}</div>`;
+}
+function backToUsers(){ STATE.card={}; render(); }
+function userTabBody(a, tab){
+  const e = employeeOf(a);
+  if (tab==='obshee'){
+    return `<div class="cols2"><div>
+      <div class="section-sub" style="margin-top:0">Учётная запись</div>
+      <div class="kv-grid">
+        <span class="k">Логин</span><span><b>${esc(a.login)}</b> <span class="muted">(не переиспользуется, §2.2)</span></span>
+        <span class="k">Тип</span><span>${esc(a.type)}</span>
+        <span class="k">Статус</span><span>${statusBadge(a.status)}</span>
+        <span class="k">Пароль</span><span class="mask">•••••••• ${permBtn(fn('f-users'),'execute',null,{label:'Сбросить',sm:true,onclick:`doLifecycle('${a.id}','reset')`})}<br><span class="muted" style="font-size:12px">значение не отображается никогда (§8.1/8.2)</span></span>
+        <span class="k">Смена пароля</span><span>${a.mustChangePassword?'<span class="badge b-warn">требуется при входе</span>':'не требуется'}</span>
+        <span class="k">Пароль изменён</span><span>${esc(a.passwordChangedAt||'—')}</span>
+        <span class="k">Неудачных попыток</span><span>${a.failedAttempts} ${a.failedAttempts>=5?'<span class="badge b-err">порог</span>':''}</span>
+        <span class="k">Создана</span><span>${esc(a.createdAt)} · кем ${esc(byId('ACCOUNTS',a.createdBy)?.login||'—')}</span>
+        <span class="k">Последний вход</span><span>${esc(a.lastLoginAt||'—')} · ip <code>${esc(a.lastLoginIp||'—')}</code></span>
+      </div></div><div>
+      <div class="section-sub" style="margin-top:0">Сотрудник <span class="muted">(факт из HR, read-only)</span></div>
+      ${e?`<div class="kv-grid">
+        <span class="k">Ф.И.О.</span><span>${esc(e.fio)}</span>
+        <span class="k">Таб. номер</span><span>${esc(e.tabNum)}</span>
+        <span class="k">Подразделение</span><span>${esc(deptName(e.deptId))} <span class="muted">— источник scope</span></span>
+        <span class="k">Должность</span><span>${esc(e.position)}</span>
+        <span class="k">HR-статус</span><span>${statusBadge(e.hrStatus)}</span>
+        <span class="k">E-mail</span><span>${esc(e.email)}</span>
+      </div>${e.hrStatus==='Уволен'?'<div class="banner err" style="margin-top:12px"><span class="ic">⛔</span><div>Сотрудник уволен → УЗ автоматически <b>Отключена</b> (§2.2.1). Вход закрыт, карточка и роли сохранены для истории.</div></div>':''}
+      <div class="banner info" style="margin-top:12px"><span class="ic">🧪</span><div>Демо жизненного цикла: изменить HR-статус сотрудника.
+        ${e.hrStatus!=='Уволен'?`<button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="hrDismiss('${a.id}')">Уволить сотрудника</button>`:''}</div></div>`
+      :`<div class="banner warn"><span class="ic">⚙️</span><div>Техническая УЗ — сотрудника нет (<code>employeeId:null</code>). Как следствие — <b>пустой строчный scope</b> (§4.2).</div></div>`}
+    </div></div>`;
+  }
+  if (tab==='roles'){
+    const asg = DB.ROLE_ASSIGNMENTS.filter(x=>x.accountId===a.id);
+    const rows = asg.map(x=>{const r=role(x.roleId); return `<tr class="${x.revokedAt?'closed':''}"><td>${esc(r.name)} <span class="muted">(${esc(r.code)})</span> ${r.globalScope?'<span class="badge b-info">globalScope</span>':''} ${r.status==='Архивная'?statusBadge('Архивная'):''}</td>
+      <td class="muted">${esc(x.assignedAt)} · ${esc(byId('ACCOUNTS',x.assignedBy)?.login||'—')}</td>
+      <td>${x.revokedAt?`<span class="muted">снята ${esc(x.revokedAt)}</span>`:permBtn(fn('f-rassign'),'execute',null,{label:'Снять роль',cls:'btn-danger',sm:true,onclick:`revokeRole('${a.id}','${x.id}')`})}</td></tr>`;}).join('');
+    const substRoles = activeSubstitutionsFor(a).flatMap(s=>s.roleIds.map(rid=>({r:role(rid),s})));
+    const substHtml = substRoles.length?`<div class="banner info"><span class="ic">↔</span><div>По активному замещению добавлены роли: ${substRoles.map(x=>`<b>${esc(x.r.name)}</b>`).join(', ')} (не удаляются здесь — управляются на экране «Замещения»).</div></div>`:'';
+    return `<div class="section-head"><div class="section-title">Назначенные роли</div>${permBtn(fn('f-rassign'),'execute',null,{label:'Назначить роль',cls:'btn-primary',sm:true,onclick:`openAssignRole('${a.id}')`})}</div>
+      ${substHtml}
+      <div class="grid-wrap"><table class="dtable"><thead><tr><th>Роль</th><th>Назначена</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="3" class="empty-row">Нет назначений</td></tr>'}</tbody></table></div>
+      <div class="section-sub">Эффективные права УЗ <span class="muted">(объединение ролей − изъятия политики; §3.3)</span></div>
+      ${effPermTree(a)}`;
+  }
+  if (tab==='subst'){
+    const asSub = DB.SUBSTITUTIONS.filter(s=>s.substituteAccountId===a.id);
+    const asAbsent = DB.SUBSTITUTIONS.filter(s=>s.absentEmployeeId===a.employeeId);
+    const row = (s,role)=>`<tr><td>${role}</td><td>${esc(byId('EMPLOYEES',s.absentEmployeeId)?.fio||'—')} → ${esc(fioOf(byId('ACCOUNTS',s.substituteAccountId)))}</td>
+      <td>${esc(s.dateFrom)} — ${esc(s.dateTo)}</td><td>${esc(s.orderRef)}</td><td>${statusBadge(s.status)}</td></tr>`;
+    const all=[...asSub.map(s=>row(s,'замещающий')),...asAbsent.map(s=>row(s,'замещаемый'))];
+    return `<div class="grid-wrap"><table class="dtable"><thead><tr><th>Роль в замещении</th><th>Кто → кто</th><th>Период</th><th>Основание</th><th>Статус</th></tr></thead><tbody>${all.join('')||'<tr><td colspan="5" class="empty-row">Замещений нет</td></tr>'}</tbody></table></div>`;
+  }
+  if (tab==='sessions'){
+    const ss = DB.SESSIONS.filter(s=>s.accountId===a.id);
+    const rows = ss.map(s=>`<tr><td><code>${esc(s.sessionId)}</code></td><td>${esc(s.ip)}</td><td>${esc(s.device)}</td><td class="muted">${esc(s.startedAt)}</td>
+      <td>${permBtn(fn('f-users'),'execute',null,{label:'Завершить',cls:'btn-danger',sm:true,onclick:`endSession('${a.id}','${s.sessionId}')`})}</td></tr>`).join('');
+    return `<div class="banner info"><span class="ic">🔐</span><div>Одновременные сессии одной УЗ разрешены (§8.3). Каждая запись аудита несёт <b>sessionId + IP</b>.</div></div>
+      <div class="section-head"><div class="section-title">Активные сессии</div>${ss.length?permBtn(fn('f-users'),'execute',null,{label:'Завершить все',cls:'btn-danger',sm:true,onclick:`endAllSessions('${a.id}')`}):''}</div>
+      <div class="grid-wrap"><table class="dtable"><thead><tr><th>Сессия</th><th>IP</th><th>Устройство</th><th>Начало</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty-row">Активных сессий нет</td></tr>'}</tbody></table></div>`;
+  }
+  if (tab==='history'){
+    const slice = DB.AUDIT.filter(x=>x.objectId===a.id || x.actorAccountId===a.id);
+    return `<div class="banner info"><span class="ic">📓</span><div>Срез журнала аудита по этой УЗ — <b>только чтение</b>. Правка/удаление недоступны никому (§8.5).</div></div>
+      ${auditTable(slice, false)}`;
+  }
+}
+
+/* Эффективное дерево прав УЗ (свёрнутое, с отметками) */
+function effPermTree(a){
+  const denied = deniedSetFor(a);
+  const groups=[...new Set(DB.FUNCTIONS.map(f=>f.group))];
+  let out='<div class="ptree"><table><thead><tr><th class="fn">Функция</th>'+ACTIONS_ALL.map(x=>`<th>${x}</th>`).join('')+'</tr></thead><tbody>';
+  groups.forEach(g=>{
+    const fs=DB.FUNCTIONS.filter(f=>f.group===g);
+    const anyGranted=fs.some(f=>f.actions.some(ac=>functionalCheck(a,f.id,ac)!=='no-role'));
+    if(!anyGranted) return;
+    out+=`<tr><td class="fn" colspan="6" style="background:var(--filter-bg);font-weight:700;font-size:12px">${esc(g)}</td></tr>`;
+    fs.forEach(f=>{
+      if(!f.actions.some(ac=>functionalCheck(a,f.id,ac)!=='no-role')) return;
+      out+=`<tr><td class="fn">${esc(f.name)}</td>`;
+      ACTIONS_ALL.forEach(ac=>{
+        if(!f.actions.includes(ac)){out+='<td><span class="pc-na">·</span></td>';return;}
+        const fc=functionalCheck(a,f.id,ac);
+        if(fc==='no-role') out+='<td><span class="pc-na">·</span></td>';
+        else if(fc==='denied-by-policy') out+='<td><span class="pc pc-deny" title="изъято политикой подразделения">изъято</span></td>';
+        else out+='<td><span class="pc pc-ok">✓</span></td>';
+      });
+      out+='</tr>';
+    });
+  });
+  out+='</tbody></table></div>';
+  if([...denied].length) out+=`<div class="muted" style="margin-top:6px">⚠ Политикой подразделения изъято: ${[...denied].map(k=>{const [fid,ac]=k.split('|');return `${fn(fid).name} · ${ac}`;}).join('; ')}</div>`;
+  return out;
+}
+
+/* ============================================================================
+   ACTIONS — ЖЦ УЗ (§2.2.1 / §4.1). Все действия меняют состояние + пишут аудит.
+   ============================================================================ */
+function selUser(id){ STATE.sel.users = id; render(); }
+function lifecycleSelected(op){
+  const id = STATE.sel.users;
+  if (!id) return toast('Сначала выберите УЗ в списке (клик по строке)', 'err');
+  if (op==='endsessions') return endAllSessions(id);
+  doLifecycle(id, op);
+}
+function openEditSelected(){
+  const id = STATE.sel.users;
+  if (!id) return toast('Сначала выберите УЗ в списке', 'err');
+  openUserCard(id); toast('Правка полей — в карточке УЗ');
+}
+function genPassword(){ const cs='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789#$%&'; let p=''; for(let i=0;i<10;i++) p+=cs[Math.floor(Math.random()*cs.length)]; return p; }
+function interruptSubstOfAccount(accId, why){
+  DB.SUBSTITUTIONS.filter(s=>s.substituteAccountId===accId && (s.status==='Действует'||s.status==='Запланировано'))
+    .forEach(s=>{ const b=s.status; s.status='Прервано досрочно'; writeAudit({action:'Замещение прервано досрочно', objectType:'Замещение', objectId:s.id, before:b, after:'Прервано досрочно ('+why+')'}); });
+}
+function doLifecycle(id, op){
+  const a = byId('ACCOUNTS', id); if(!a) return;
+  if (op==='block'){
+    if (a.status!=='Активна') return toast('Блокировка доступна только для «Активна»', 'err');
+    const b=a.status; a.status='Заблокирована'; writeAudit({action:'Блокировка УЗ', objectType:'УЗ', objectId:id, before:b, after:'Заблокирована'});
+    toast('УЗ '+a.login+' заблокирована'); render();
+  } else if (op==='unblock'){
+    if (a.status!=='Заблокирована') return toast('Разблокировать можно только «Заблокирована»', 'err');
+    const b=a.status; a.status='Активна'; a.failedAttempts=0; writeAudit({action:'Разблокировка УЗ', objectType:'УЗ', objectId:id, before:b, after:'Активна'});
+    toast('УЗ '+a.login+' разблокирована', 'ok'); render();
+  } else if (op==='disable'){
+    openModal({title:'Отключение УЗ — терминально', body:
+      `<div class="banner err"><span class="ic">⛔</span><div>Отключение <b>необратимо</b>: переход «Отключена → Активна» невозможен (§2.2.1). При восстановлении сотрудника заводится новая УЗ с новым логином.</div></div>
+       <div class="kv2"><span class="k">УЗ</span><span><b>${esc(a.login)}</b> · ${esc(fioOf(a))}</span></div>`,
+      buttons:[{label:'Отмена', cls:'btn-cancel'}, {label:'Отключить', cls:'btn-danger', onClick:()=>{
+        const b=a.status; a.status='Отключена';
+        const ss=DB.SESSIONS.filter(s=>s.accountId===id).length; DB.SESSIONS=DB.SESSIONS.filter(s=>s.accountId!==id);
+        interruptSubstOfAccount(id,'отключение УЗ');
+        writeAudit({action:'Отключение УЗ', objectType:'УЗ', objectId:id, before:b, after:'Отключена'+(ss?` (+завершено сессий: ${ss})`:'')});
+        toast('УЗ '+a.login+' отключена', 'ok'); render();
+      }}]});
+  } else if (op==='reset'){
+    if (a.status==='Отключена') return toast('УЗ отключена — сброс невозможен', 'err');
+    const pw = genPassword(); a.mustChangePassword=true; a.passwordChangedAt=nowTs().slice(0,10);
+    writeAudit({action:'Сброс пароля', objectType:'УЗ', objectId:id, before:null, after:'mustChangePassword=true'});
+    openModal({title:'Временный пароль выдан', body:
+      `<div class="banner warn"><span class="ic">🔑</span><div>Показывается <b>один раз</b>. Администратор не знает пароль пользователя — только сбрасывает его (§8.2). Значение нигде более не отображается.</div></div>
+       <div class="muted" style="margin-bottom:6px">Временный пароль для <b>${esc(a.login)}</b> (потребуется смена при входе):</div>
+       <div class="pw-show">${esc(pw)}</div>`,
+      buttons:[{label:'Готово', cls:'btn-primary'}]});
+    render();
+  }
+}
+function simFailedLogin(id){
+  const a=byId('ACCOUNTS',id);
+  if (a.status!=='Активна' && a.status!=='Создана') return toast('Вход в статусе «'+a.status+'» невозможен', 'err');
+  a.failedAttempts++;
+  if (a.failedAttempts>=5){
+    const b=a.status; a.status='Заблокирована';
+    writeAudit({action:'Автоблокировка (5 неудачных попыток)', objectType:'УЗ', objectId:id, before:b, after:'Заблокирована', actorAccountId:null, ip:a.lastLoginIp||'—'});
+    toast('5 неудачных попыток → УЗ автоматически заблокирована', 'err');
+  } else {
+    toast('Неудачная попытка входа: '+a.failedAttempts+'/5');
+  }
+  render();
+}
+function hrDismiss(id){
+  const a=byId('ACCOUNTS',id), e=employeeOf(a); if(!e) return;
+  openModal({title:'Увольнение сотрудника (HR-событие)', body:
+    `<div class="banner err"><span class="ic">⛔</span><div>Увольнение сотрудника (<code>hrStatus=Уволен</code>) → УЗ автоматически <b>Отключена</b> (§2.2.1). Возврат невозможен.</div></div>
+     <div class="kv2"><span class="k">Сотрудник</span><span>${esc(e.fio)}</span><span class="k">УЗ</span><span>${esc(a.login)}</span></div>`,
+    buttons:[{label:'Отмена',cls:'btn-cancel'},{label:'Уволить',cls:'btn-danger',onClick:()=>{
+      e.hrStatus='Уволен'; const b=a.status; a.status='Отключена';
+      DB.SESSIONS=DB.SESSIONS.filter(s=>s.accountId!==id); interruptSubstOfAccount(id,'увольнение');
+      writeAudit({action:'Увольнение сотрудника → отключение УЗ', objectType:'УЗ', objectId:id, before:b, after:'Отключена'});
+      toast('Сотрудник уволен, УЗ отключена', 'ok'); render();
+    }}]});
+}
+function endSession(id, sid){
+  DB.SESSIONS=DB.SESSIONS.filter(s=>s.sessionId!==sid);
+  writeAudit({action:'Завершение сессии', objectType:'УЗ', objectId:id, before:sid, after:'завершена'});
+  toast('Сессия завершена'); render();
+}
+function endAllSessions(id){
+  const n=DB.SESSIONS.filter(s=>s.accountId===id).length;
+  if(!n) return toast('Нет активных сессий');
+  DB.SESSIONS=DB.SESSIONS.filter(s=>s.accountId!==id);
+  writeAudit({action:'Завершение всех сессий', objectType:'УЗ', objectId:id, before:n+' сессий', after:'завершены'});
+  toast('Завершено сессий: '+n, 'ok'); render();
+}
+function openAssignRole(id){
+  const a=byId('ACCOUNTS',id);
+  const active=new Set(DB.ROLE_ASSIGNMENTS.filter(x=>x.accountId===id&&!x.revokedAt).map(x=>x.roleId));
+  const avail=DB.ROLES.filter(r=>r.status==='Действует'&&!active.has(r.id)); // Архивная не назначается новым (§2.3)
+  if(!avail.length) return toast('Нет доступных для назначения ролей', 'err');
+  openModal({title:'Назначить роль — '+a.login, body:
+    `<div class="banner info"><span class="ic">↔</span><div>Назначение роли — критичное действие: аудируется и ограничено сетевой политикой (§6.3). Архивные роли новым УЗ не назначаются.</div></div>
+     <div class="fld"><label>Роль</label><select id="asgRole">${avail.map(r=>`<option value="${r.id}">${esc(r.name)} (${esc(r.code)})${r.globalScope?' · globalScope':''}</option>`).join('')}</select></div>`,
+    buttons:[{label:'Отмена',cls:'btn-cancel'},{label:'Назначить',cls:'btn-primary',onClick:()=>{
+      const rid=document.getElementById('asgRole').value;
+      DB.ROLE_ASSIGNMENTS.push({id:'RA'+Date.now(), accountId:id, roleId:rid, assignedBy:STATE.currentAccountId, assignedAt:nowTs().slice(0,10), revokedAt:null});
+      writeAudit({action:'Назначение роли', objectType:'УЗ', objectId:id, before:null, after:'Роль «'+role(rid).name+'»'});
+      toast('Роль назначена', 'ok'); render();
+    }}]});
+}
+function revokeRole(id, raId){
+  const ra=DB.ROLE_ASSIGNMENTS.find(x=>x.id===raId); if(!ra||ra.revokedAt) return;
+  ra.revokedAt=nowTs().slice(0,10); ra.revokedBy=STATE.currentAccountId;
+  writeAudit({action:'Снятие роли', objectType:'УЗ', objectId:id, before:'Роль «'+role(ra.roleId).name+'»', after:'снята (строка сохранена)'});
+  toast('Роль снята (revokedAt проставлен, строка не удалена)'); render();
+}
+function openCreateAccount(){
+  const withAcc=new Set(DB.ACCOUNTS.map(a=>a.employeeId).filter(Boolean));
+  const free=DB.EMPLOYEES.filter(e=>!withAcc.has(e.id)&&e.hrStatus!=='Уволен');
+  openModal({title:'Новая учётная запись', body:
+    `<div class="cols2"><div>
+      <div class="fld"><label>Логин (уникален, не переиспользуется)</label><input id="caLogin" placeholder="напр. i.ivanov"></div>
+      <div class="fld"><label>Тип</label><select id="caType" onchange="caTypeChange()"><option>Личная</option><option>Техническая</option></select></div>
+     </div><div>
+      <div class="fld" id="caEmpFld"><label>Сотрудник (1:1, из HR)</label><select id="caEmp">${free.length?free.map(e=>`<option value="${e.id}">${esc(e.fio)} · ${esc(deptName(e.deptId))}</option>`).join(''):'<option value="">— все сотрудники уже имеют УЗ —</option>'}</select></div>
+     </div></div>
+     <div class="fld-err" id="caErr" style="display:none"></div>
+     <div class="banner info"><span class="ic">ℹ️</span><div>УЗ создаётся в статусе <b>Создана</b> с флагом обязательной смены пароля. Роли назначаются отдельно (вкладка «Роли»).</div></div>`,
+    buttons:[{label:'Отмена',cls:'btn-cancel'},{label:'Создать',cls:'btn-primary',keepOpen:true,onClick:()=>{
+      const login=document.getElementById('caLogin').value.trim();
+      const type=document.getElementById('caType').value;
+      const empId=type==='Личная'?document.getElementById('caEmp').value:null;
+      const err=document.getElementById('caErr');
+      const show=m=>{err.style.display='';err.textContent=m;};
+      if(!login) return show('Укажите логин');
+      if(DB.ACCOUNTS.some(a=>a.login.toLowerCase()===login.toLowerCase())) return show('Логин уже использовался — переиспользование запрещено (§2.2)');
+      if(type==='Личная'&&!empId) return show('Выберите сотрудника (для личной УЗ обязательно)');
+      const id='A'+Date.now();
+      DB.ACCOUNTS.push({id, login, type, employeeId:empId, status:'Создана', mustChangePassword:true, passwordChangedAt:nowTs().slice(0,10), failedAttempts:0, lastLoginAt:null, lastLoginIp:null, createdBy:STATE.currentAccountId, createdAt:nowTs().slice(0,10)});
+      writeAudit({action:'Создание УЗ', objectType:'УЗ', objectId:id, before:null, after:'Создана'});
+      closeModal(); toast('УЗ «'+login+'» создана', 'ok'); STATE.sel.users=id; render();
+    }}]});
+}
+function caTypeChange(){ const t=document.getElementById('caType').value; document.getElementById('caEmpFld').style.opacity=t==='Техническая'?'.4':'1'; document.getElementById('caEmp').disabled=t==='Техническая'; }
+
+/* Таблица аудита (read-only). Используется на вкладке «История» и экране «Журнал аудита». */
+function auditTable(entries, withActor){
+  const rows=entries.map(x=>{
+    const actor=x.actorAccountId?byId('ACCOUNTS',x.actorAccountId):null;
+    const obh=x.onBehalfOf?` <span class="badge b-info" title="действие по замещению">замещая ${esc(shortFio(byId('EMPLOYEES',x.onBehalfOf)?.fio||x.onBehalfOf))}</span>`:'';
+    return `<tr><td class="muted" style="white-space:nowrap">${esc(x.ts)}</td>
+      <td>${esc(actor?actor.login:'система')}${obh}</td>
+      <td class="muted"><code>${esc(x.sessionId)}</code></td><td class="muted">${esc(x.ip)}</td>
+      <td>${esc(x.action)}</td><td>${esc(x.objectType)} <span class="muted">${esc(x.objectId)}</span></td>
+      <td class="muted">${x.before?esc(x.before)+' → ':''}${esc(x.after||'')}</td></tr>`;
+  }).join('');
+  return `<div class="grid-wrap"><table class="dtable"><thead><tr>
+    <th>Время</th><th>Пользователь</th><th>Сессия</th><th>IP</th><th>Действие</th><th>Объект</th><th>Было → стало</th>
+  </tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty-row">Записей нет</td></tr>'}</tbody></table></div>`;
+}
+
+/* ============================================================================
+   RENDER — §4.3 РОЛИ (список + карточка: матрица, политики)
+   ============================================================================ */
+SCREENS.roles = function(host){
+  if (STATE.card.kind==='role') return renderRoleCard(host, STATE.card.id);
+  const rows=DB.ROLES.map(r=>{
+    const cnt=DB.ROLE_ASSIGNMENTS.filter(x=>x.roleId===r.id&&!x.revokedAt).length;
+    return `<tr data-open onclick="openRoleCard('${r.id}')"><td><code>${esc(r.code)}</code></td><td><b>${esc(r.name)}</b></td>
+      <td class="muted" style="white-space:normal;max-width:360px">${esc(r.description)}</td>
+      <td>${r.globalScope?'<span class="badge b-info">да</span>':'<span class="muted">нет</span>'}</td>
+      <td>${cnt}</td><td>${statusBadge(r.status)}</td></tr>`;
+  }).join('');
+  host.innerHTML = `
+    <div class="banner info"><span class="ic">🧩</span><div>Роль отвечает «что я вообще умею»; scope — «имею ли право трогать эту запись» (§4.1). Реестр функций — системный, только для чтения; администратор компонует роли, но не создаёт функции (§3.2).</div></div>
+    <div class="toolbar">${permBtn(fn('f-roles'),'create',null,{label:'Создать роль',cls:'btn-primary',onclick:'openCreateRole()'})}<span class="rowcount">${DB.ROLES.length} ролей</span></div>
+    <div class="grid"><table><thead><tr><th>Код</th><th>Наименование</th><th>Описание</th><th>globalScope</th><th>Назначений</th><th>Статус</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+};
+function openRoleCard(id){ STATE.screen='roles'; STATE.card={kind:'role', id, tab:'obshee', polDept:''}; render(); }
+function roleTab(t){ STATE.card.tab=t; render(); }
+function renderRoleCard(host, id){
+  const r=role(id);
+  const tab=STATE.card.tab||'obshee';
+  const tabs=[['obshee','Общая информация'],['matrix','Матрица разрешений'],['policy','Политики по подразделениям'],['users','Пользователи с ролью']];
+  host.innerHTML=`
+    <div class="backlink" onclick="backToRoles()">← Список ролей</div>
+    <div class="header-card"><div class="avatar">${esc(r.code[0])}</div><div class="header-mid">
+      <div class="obj-name">${esc(r.name)} <span class="muted">· ${esc(r.code)}</span></div>
+      <div class="obj-sub">${esc(r.description)}</div>
+      <div class="status-row">${statusBadge(r.status)}${r.globalScope?'<span class="badge b-info">globalScope — снимает строчное ограничение</span>':''}</div>
+    </div></div>
+    <div class="tabs">${tabs.map(([k,l])=>`<button class="tab ${tab===k?'active':''}" onclick="roleTab('${k}')">${l}</button>`).join('')}</div>
+    <div>${roleTabBody(r, tab)}</div>`;
+}
+function backToRoles(){ STATE.card={}; render(); }
+function roleTabBody(r, tab){
+  if(tab==='obshee'){
+    return `<div class="kv-grid">
+      <span class="k">Код</span><span><code>${esc(r.code)}</code></span>
+      <span class="k">Наименование</span><span>${esc(r.name)}</span>
+      <span class="k">Описание</span><span>${esc(r.description)}</span>
+      <span class="k">globalScope</span><span>${r.globalScope?'да — видит все записи (§4.2)':'нет — scope из подразделения/кураторства'}</span>
+      <span class="k">Статус</span><span>${statusBadge(r.status)}</span>
+      <span class="k">Разрешений</span><span>${r.permissions.reduce((s,p)=>s+p.actions.length,0)} (по ${r.permissions.length} функциям)</span>
+    </div>${r.status==='Архивная'?'<div class="banner warn" style="margin-top:14px"><span class="ic">🗄</span><div>Архивная роль: не назначается новым УЗ, но остаётся у тех, кому назначена, и видна в истории (§2.3). Матрица — только чтение.</div></div>':''}`;
+  }
+  if(tab==='matrix'){
+    const editable = r.status==='Действует' && can(fn('f-roles'),'edit');
+    const groups=[...new Set(DB.FUNCTIONS.map(f=>f.group))];
+    let t=`<div class="banner ${editable?'info':'warn'}"><span class="ic">${editable?'✏️':'🔒'}</span><div>${editable?'Правки меняют роль в памяти немедленно (для действующих ролей). Чекбокс доступен только для применимых к функции действий.':'Только чтение: '+(r.status==='Архивная'?'архивная роль':'нет права edit на «Роли» у текущего пользователя')+'.'}</div></div>`;
+    t+=`<div class="ptree"><table><thead><tr><th class="fn">Функция</th>${ACTIONS_ALL.map(a=>`<th>${a}</th>`).join('')}</tr></thead><tbody>`;
+    groups.forEach(g=>{
+      t+=`<tr><td class="fn" colspan="6" style="background:var(--filter-bg);font-weight:700;font-size:12px">${esc(g)}</td></tr>`;
+      DB.FUNCTIONS.filter(f=>f.group===g).forEach(f=>{
+        const perm=r.permissions.find(p=>p.funcId===f.id);
+        t+=`<tr><td class="fn">${esc(f.name)}</td>`;
+        ACTIONS_ALL.forEach(a=>{
+          if(!f.actions.includes(a)){ t+=`<td><span class="mx-na">—</span></td>`; return; }
+          const on=perm&&perm.actions.includes(a);
+          t+=`<td><input type="checkbox" class="mx-chk" ${on?'checked':''} ${editable?'':'disabled'} onchange="toggleRolePerm('${r.id}','${f.id}','${a}')"></td>`;
+        });
+        t+=`</tr>`;
+      });
+    });
+    t+=`</tbody></table></div>`;
+    return t;
+  }
+  if(tab==='policy'){
+    const dsel=STATE.card.polDept||'';
+    const pols=DB.DEPT_ROLE_POLICIES.filter(p=>p.roleId===r.id);
+    let rows=pols.map(p=>`<tr><td>${esc(deptName(p.deptId))}</td>
+      <td>${p.deniedPermissions.map(dp=>`${esc(fn(dp.funcId).name)} · <b>${esc(dp.action)}</b>`).join('<br>')}</td>
+      <td class="muted" style="white-space:normal">${esc(p.note||'')}</td>
+      <td>${can(fn('f-roles'),'edit')?`<button class="btn btn-danger btn-sm" onclick="removePolicy('${p.id}')">Убрать</button>`:''}</td></tr>`).join('');
+    let cmp='';
+    if(dsel){
+      const fake={id:'__probe',permissions:r.permissions}; // сравнение базовых и эффективных прав в подразделении
+      const denied=new Set(pols.filter(p=>p.deptId===dsel).flatMap(p=>p.deniedPermissions.map(dp=>dp.funcId+'|'+dp.action)));
+      const base=r.permissions.flatMap(p=>p.actions.map(a=>({f:p.funcId,a})));
+      cmp=`<div class="cols2"><div><div class="section-sub">Базовые права роли</div><ul class="muted">${base.map(x=>`<li>${esc(fn(x.f).name)} · ${x.a}</li>`).join('')}</ul></div>
+        <div><div class="section-sub">Эффективные в «${esc(deptName(dsel))}»</div><ul class="muted">${base.map(x=>{const k=x.f+'|'+x.a;const off=denied.has(k);return `<li style="${off?'text-decoration:line-through;color:var(--error)':''}">${esc(fn(x.f).name)} · ${x.a}${off?' — изъято':''}</li>`;}).join('')}</ul></div></div>`;
+    }
+    return `<div class="banner info"><span class="ic">➖</span><div>Политика подразделения может права <b>только сужать</b> (§2.6). Расширение запрещено — единственный источник прав это роль.</div></div>
+      <div class="section-head"><div class="section-title">Изъятия по подразделениям</div>${can(fn('f-roles'),'edit')?`<button class="btn btn-primary btn-sm" onclick="openAddPolicy('${r.id}')">Добавить изъятие</button>`:''}</div>
+      <div class="grid-wrap"><table class="dtable"><thead><tr><th>Подразделение</th><th>Изъятые разрешения</th><th>Примечание</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="4" class="empty-row">Изъятий нет — роль действует в базовом объёме</td></tr>'}</tbody></table></div>
+      <div class="section-sub">Сравнение базовых и эффективных прав</div>
+      <div class="fld" style="max-width:340px"><label>Подразделение</label><select onchange="STATE.card.polDept=this.value;render()"><option value="">— выберите —</option>${DB.DEPARTMENTS.map(d=>`<option value="${d.id}" ${d.id===dsel?'selected':''}>${esc(d.name)}</option>`).join('')}</select></div>
+      ${cmp}`;
+  }
+  if(tab==='users'){
+    const accs=DB.ROLE_ASSIGNMENTS.filter(x=>x.roleId===r.id&&!x.revokedAt).map(x=>byId('ACCOUNTS',x.accountId)).filter(Boolean);
+    return `<div class="grid-wrap"><table class="dtable"><thead><tr><th>Логин</th><th>ФИО</th><th>Подразделение</th><th>Статус</th></tr></thead>
+      <tbody>${accs.map(a=>`<tr data-open onclick="STATE.screen='users';openUserCard('${a.id}')"><td><b>${esc(a.login)}</b></td><td>${esc(fioOf(a))}</td><td>${esc(deptName(deptOfAccount(a)))}</td><td>${statusBadge(a.status)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty-row">Нет назначений</td></tr>'}</tbody></table></div>`;
+  }
+}
+function toggleRolePerm(roleId, funcId, action){
+  const r=role(roleId); let perm=r.permissions.find(p=>p.funcId===funcId);
+  if(!perm){ perm={funcId, actions:[]}; r.permissions.push(perm); }
+  const i=perm.actions.indexOf(action);
+  if(i>=0){ perm.actions.splice(i,1); if(!perm.actions.length) r.permissions=r.permissions.filter(p=>p.funcId!==funcId); }
+  else perm.actions.push(action);
+  writeAudit({action:'Правка матрицы роли', objectType:'Роль', objectId:roleId, before:null, after:`${fn(funcId).name} · ${action} → ${i>=0?'снято':'добавлено'}`});
+  render();
+}
+function openAddPolicy(roleId){
+  const r=role(roleId);
+  const perms=r.permissions.flatMap(p=>p.actions.map(a=>({funcId:p.funcId,action:a})));
+  openModal({title:'Добавить изъятие политики', body:
+    `<div class="fld"><label>Подразделение</label><select id="apDept">${DB.DEPARTMENTS.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('')}</select></div>
+     <div class="fld"><label>Изъять разрешение</label><select id="apPerm">${perms.map(p=>`<option value="${p.funcId}|${p.action}">${esc(fn(p.funcId).name)} · ${p.action}</option>`).join('')}</select></div>
+     <div class="fld"><label>Примечание</label><input id="apNote" placeholder="основание"></div>`,
+    buttons:[{label:'Отмена',cls:'btn-cancel'},{label:'Добавить',cls:'btn-primary',onClick:()=>{
+      const deptId=document.getElementById('apDept').value;
+      const [funcId,action]=document.getElementById('apPerm').value.split('|');
+      const note=document.getElementById('apNote').value.trim();
+      let p=DB.DEPT_ROLE_POLICIES.find(x=>x.roleId===roleId&&x.deptId===deptId);
+      if(!p){ p={id:'PL'+Date.now(), roleId, deptId, deniedPermissions:[], note}; DB.DEPT_ROLE_POLICIES.push(p); }
+      if(!p.deniedPermissions.some(dp=>dp.funcId===funcId&&dp.action===action)) p.deniedPermissions.push({funcId,action});
+      if(note) p.note=note;
+      writeAudit({action:'Изменение политики подразделения', objectType:'Роль', objectId:roleId, before:null, after:`Изъято «${fn(funcId).name} · ${action}» в «${deptName(deptId)}»`});
+      toast('Изъятие добавлено — роль сужена в подразделении', 'ok'); render();
+    }}]});
+}
+function removePolicy(pid){
+  const p=DB.DEPT_ROLE_POLICIES.find(x=>x.id===pid); if(!p) return;
+  DB.DEPT_ROLE_POLICIES=DB.DEPT_ROLE_POLICIES.filter(x=>x.id!==pid);
+  writeAudit({action:'Изменение политики подразделения', objectType:'Роль', objectId:p.roleId, before:'изъятия в «'+deptName(p.deptId)+'»', after:'сняты'});
+  toast('Изъятие снято'); render();
+}
+function openCreateRole(){
+  openModal({title:'Новая роль', body:
+    `<div class="fld"><label>Код</label><input id="crCode" placeholder="напр. RISK-VIEW"></div>
+     <div class="fld"><label>Наименование</label><input id="crName"></div>
+     <div class="fld"><label>Описание</label><input id="crDesc"></div>
+     <div class="chk-row"><input type="checkbox" id="crGlobal"><label for="crGlobal">globalScope (видит все записи)</label></div>
+     <div class="banner info"><span class="ic">ℹ️</span><div>Разрешения настраиваются в матрице после создания.</div></div>`,
+    buttons:[{label:'Отмена',cls:'btn-cancel'},{label:'Создать',cls:'btn-primary',onClick:()=>{
+      const code=document.getElementById('crCode').value.trim()||'ROLE-'+Date.now();
+      const id='R'+Date.now();
+      DB.ROLES.push({id, code, name:document.getElementById('crName').value.trim()||code, description:document.getElementById('crDesc').value.trim(), globalScope:document.getElementById('crGlobal').checked, status:'Действует', permissions:[]});
+      writeAudit({action:'Создание роли', objectType:'Роль', objectId:id, before:null, after:'Действует'});
+      toast('Роль создана — настройте матрицу разрешений', 'ok'); openRoleCard(id);
+    }}]});
+}
+
+/* ============================================================================
+   RENDER — §4.4 ЗАМЕЩЕНИЯ (список + форма с валидацией V1–V7)
+   ============================================================================ */
+function roleIsConfirming(r){ return r.permissions.some(p=>p.funcId==='f-comm-vote'&&p.actions.includes('execute')); }
+function roleIsExecuting(r){ return r.permissions.some(p=>['f-app-send','f-loan-wo','f-coll-rel'].includes(p.funcId)&&p.actions.includes('execute')); }
+SCREENS.subst = function(host){
+  const rows=DB.SUBSTITUTIONS.map(s=>{
+    const abs=byId('EMPLOYEES',s.absentEmployeeId), sub=byId('ACCOUNTS',s.substituteAccountId);
+    const canInt=(s.status==='Действует'||s.status==='Запланировано')&&can(fn('f-subst'),'execute');
+    return `<tr><td>${esc(abs?abs.fio:'—')}</td><td>${esc(fioOf(sub))} <span class="muted">(${esc(sub.login)})</span></td>
+      <td>${esc(deptName(abs?abs.deptId:null))}</td><td>${esc(s.dateFrom)} — ${esc(s.dateTo)}</td>
+      <td><span class="tab-cnt" title="${esc(s.roleIds.map(r=>role(r).name).join(', '))}">${s.roleIds.length}</span></td>
+      <td>${esc(s.orderRef)}</td><td>${statusBadge(s.status)}${s.overrideWarning?' <span class="badge b-warn" title="'+esc(s.overrideWarning)+'">V7 продавлено</span>':''}</td>
+      <td>${canInt?`<button class="btn btn-danger btn-sm" onclick="interruptSubst('${s.id}')">Прервать</button>`:''}</td></tr>`;
+  }).join('');
+  host.innerHTML=`
+    <div class="banner info"><span class="ic">↔</span><div>Замещающий действует <b>под своей УЗ</b> — вход под чужим логином не предусмотрен (§2.7.1). Наследуются роли + персональные привязки (кураторство, членство), но не расширяется подразделенческий scope.</div></div>
+    <div class="toolbar">${permBtn(fn('f-subst'),'create',null,{label:'Создать замещение',cls:'btn-primary',onclick:'openSubstForm()'})}<span class="rowcount">${DB.SUBSTITUTIONS.length} замещений</span></div>
+    <div class="grid"><table><thead><tr><th>Замещаемый</th><th>Замещающий</th><th>Подразделение</th><th>Период</th><th>Роли</th><th>Основание</th><th>Статус</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+};
+let SUBFORM=null;
+function openSubstForm(){
+  if(!can(fn('f-subst'),'create')){ const r=resolvePermission(currentAccount(),fn('f-subst'),'create',null); return toast(r.detail,'err'); }
+  const candAbsent=DB.EMPLOYEES.filter(e=>{const a=accountByEmployee(e.id);return a&&DB.ROLE_ASSIGNMENTS.some(x=>x.accountId===a.id&&!x.revokedAt);});
+  SUBFORM={absentEmployeeId:candAbsent[0]?.id||'', substituteAccountId:'', dateFrom:'', dateTo:'', roleIds:[], orderRef:'', showAll:false};
+  openModal({wide:true, title:'Создание замещения — валидация V1–V7 (§2.7.2)', body:`<div id="sfBody"></div>`,
+    buttons:[{label:'Отмена',cls:'btn-cancel'},{label:'Создать',cls:'btn-primary',keepOpen:true,onClick:submitSubst}],
+    onOpen:()=>renderSubstForm()});
+}
+function sfSet(k,v){ if(k==='absentEmployeeId'){SUBFORM.roleIds=[];SUBFORM.substituteAccountId='';} SUBFORM[k]=v; renderSubstForm(); }
+function sfToggleRole(rid){ const i=SUBFORM.roleIds.indexOf(rid); if(i>=0)SUBFORM.roleIds.splice(i,1); else SUBFORM.roleIds.push(rid); renderSubstForm(); }
+function absentRolesOf(empId){ const a=accountByEmployee(empId); return a?DB.ROLE_ASSIGNMENTS.filter(x=>x.accountId===a.id&&!x.revokedAt).map(x=>role(x.roleId)):[]; }
+function validateSubst(){
+  const f=SUBFORM, errs=[]; let warn=null;
+  const absEmp=byId('EMPLOYEES',f.absentEmployeeId);
+  const subAcc=f.substituteAccountId?byId('ACCOUNTS',f.substituteAccountId):null;
+  if(!absEmp) errs.push('Выберите замещаемого');
+  if(!subAcc) errs.push('Выберите замещающего');
+  if(!f.dateFrom||!f.dateTo) errs.push('Укажите период (с/по)');
+  if(f.dateFrom&&f.dateTo&&f.dateFrom>f.dateTo) errs.push('Дата «с» позже даты «по»');
+  if(absEmp&&subAcc){
+    if(subAcc.employeeId===absEmp.id) errs.push('V6: замещающий не может совпадать с замещаемым');
+    if(deptOfAccount(subAcc)!==absEmp.deptId) errs.push('V1: замещающий и замещаемый должны быть из одного подразделения ('+deptName(absEmp.deptId)+')');
+    if(subAcc.status!=='Активна') errs.push('V5: УЗ замещающего должна быть в статусе «Активна» (сейчас «'+subAcc.status+'»)');
+    const abRoles=absentRolesOf(absEmp.id).map(r=>r.id);
+    if(f.roleIds.length&&!f.roleIds.every(r=>abRoles.includes(r))) errs.push('V4: роли замещения должны быть подмножеством ролей замещаемого');
+    if(!f.roleIds.length) errs.push('Выберите хотя бы одну роль');
+    if(f.dateFrom&&f.dateTo){
+      const clashAbs=DB.SUBSTITUTIONS.some(s=>s.absentEmployeeId===absEmp.id&&(s.status==='Действует'||s.status==='Запланировано')&&periodsOverlap(f.dateFrom,f.dateTo,s.dateFrom,s.dateTo));
+      if(clashAbs) errs.push('V2: у замещаемого уже есть замещение с пересекающимся периодом');
+      const clashSub=DB.SUBSTITUTIONS.some(s=>s.substituteAccountId===subAcc.id&&(s.status==='Действует'||s.status==='Запланировано')&&periodsOverlap(f.dateFrom,f.dateTo,s.dateFrom,s.dateTo));
+      if(clashSub) errs.push('V3: у замещающего уже есть замещение с пересекающимся периодом');
+    }
+    // V7 — предупреждение (продавливаемое)
+    const subConfirming=effectiveRoles(subAcc).some(o=>roleIsConfirming(o.role));
+    const delegExecuting=f.roleIds.some(rid=>roleIsExecuting(role(rid)));
+    if(!errs.length&&subConfirming&&delegExecuting)
+      warn='V7: замещающий уже имеет подтверждающую роль, а по замещению получает исполняющую — «четыре глаза» схлопываются в одни (§6.2).';
+  }
+  return {errs, warn, ok:errs.length===0};
+}
+function renderSubstForm(){
+  const f=SUBFORM, box=document.getElementById('sfBody'); if(!box) return;
+  const candAbsent=DB.EMPLOYEES.filter(e=>{const a=accountByEmployee(e.id);return a&&DB.ROLE_ASSIGNMENTS.some(x=>x.accountId===a.id&&!x.revokedAt);});
+  const absEmp=byId('EMPLOYEES',f.absentEmployeeId);
+  let subCandidates=DB.ACCOUNTS.filter(a=>a.type==='Личная'&&a.employeeId&&(f.showAll||!absEmp||deptOfAccount(a)===absEmp.deptId));
+  const abRoles=absEmp?absentRolesOf(absEmp.id):[];
+  const v=validateSubst();
+  box.innerHTML=`
+    <div class="cols2"><div>
+      <div class="fld"><label>Замещаемый (отсутствующий сотрудник)</label>
+        <select onchange="sfSet('absentEmployeeId',this.value)">${candAbsent.map(e=>`<option value="${e.id}" ${e.id===f.absentEmployeeId?'selected':''}>${esc(e.fio)} · ${esc(deptName(e.deptId))} · ${esc(e.hrStatus)}</option>`).join('')}</select></div>
+      <div class="fld"><label>Замещающий (УЗ) <span class="muted">${f.showAll?'— все подразделения':'— фильтр: то же подразделение (V1)'}</span></label>
+        <select onchange="sfSet('substituteAccountId',this.value)"><option value="">— выберите —</option>${subCandidates.map(a=>`<option value="${a.id}" ${a.id===f.substituteAccountId?'selected':''}>${esc(fioOf(a))} · ${esc(deptName(deptOfAccount(a)))} · ${esc(a.status)}</option>`).join('')}</select></div>
+      <div class="chk-row"><input type="checkbox" id="sfAll" ${f.showAll?'checked':''} onchange="sfSet('showAll',this.checked)"><label for="sfAll">показать УЗ всех подразделений (для демонстрации V1-блокировки)</label></div>
+    </div><div>
+      <div class="fld"><label>Период с</label><input type="date" value="${esc(f.dateFrom)}" onchange="sfSet('dateFrom',this.value)"></div>
+      <div class="fld"><label>Период по</label><input type="date" value="${esc(f.dateTo)}" onchange="sfSet('dateTo',this.value)"></div>
+      <div class="fld"><label>Основание (приказ)</label><input value="${esc(f.orderRef)}" placeholder="Приказ №… (отпуск/командировка)" onchange="sfSet('orderRef',this.value)"></div>
+    </div></div>
+    <div class="section-sub">Роли замещения <span class="muted">— только из ролей замещаемого (V4)</span></div>
+    ${abRoles.length?abRoles.map(r=>`<div class="chk-row"><input type="checkbox" id="sfr_${r.id}" ${f.roleIds.includes(r.id)?'checked':''} onchange="sfToggleRole('${r.id}')"><label for="sfr_${r.id}">${esc(r.name)} (${esc(r.code)})${roleIsConfirming(r)?' <span class="badge b-info">подтверждающая</span>':''}${roleIsExecuting(r)?' <span class="badge b-warn">исполняющая</span>':''}</label></div>`).join(''):'<div class="muted">У замещаемого нет активных ролей</div>'}
+    <div style="margin-top:14px">
+      ${v.errs.length?`<div class="banner err"><span class="ic">⛔</span><div><b>Блокирующие проверки:</b><ul style="margin:6px 0 0;padding-left:18px">${v.errs.map(e=>`<li>${esc(e)}</li>`).join('')}</ul></div></div>`:''}
+      ${(!v.errs.length&&v.warn)?`<div class="banner warn"><span class="ic">⚠️</span><div><b>Предупреждение (продавливаемое):</b> ${esc(v.warn)}<br>Кнопка стала «Всё равно создать» — факт продавливания попадёт в аудит.</div></div>`:''}
+      ${(v.ok&&!v.warn)?`<div class="banner ok"><span class="ic">✓</span><div>Все проверки пройдены — можно создавать.</div></div>`:''}
+    </div>`;
+  // синхронизируем подпись кнопки создания
+  const btn=document.querySelector('#modalBox [data-mbtn="1"]');
+  if(btn){ btn.disabled=!v.ok; btn.textContent=(v.ok&&v.warn)?'Всё равно создать (продавить V7)':'Создать'; btn.className='btn '+((v.ok&&v.warn)?'btn-danger':'btn-primary'); }
+}
+function submitSubst(){
+  const v=validateSubst(); if(!v.ok){ toast('Есть блокирующие проверки', 'err'); return false; }
+  const f=SUBFORM, absEmp=byId('EMPLOYEES',f.absentEmployeeId);
+  const today=nowTs().slice(0,10);
+  const status=f.dateFrom>today?'Запланировано':'Действует';
+  const id='S'+Date.now();
+  DB.SUBSTITUTIONS.push({id, absentEmployeeId:f.absentEmployeeId, substituteAccountId:f.substituteAccountId, dateFrom:f.dateFrom, dateTo:f.dateTo, orderRef:f.orderRef||'—', roleIds:[...f.roleIds], status, createdBy:STATE.currentAccountId, createdAt:today, overrideWarning:v.warn||null});
+  writeAudit({action:'Создание замещения', objectType:'Замещение', objectId:id, before:null, after:status});
+  if(v.warn) writeAudit({action:'Продавливание предупреждения V7', objectType:'Замещение', objectId:id, before:null, after:'Создано с нарушением «четырёх глаз»'});
+  closeModal(); toast('Замещение создано ('+status+')'+(v.warn?' — V7 продавлено':''), 'ok'); render();
+  return true;
+}
+function interruptSubst(id){
+  const s=byId('SUBSTITUTIONS',id); if(!s) return;
+  openModal({title:'Прервать замещение досрочно', body:
+    `<div class="fld"><label>Причина</label><input id="isReason" placeholder="напр. выход из отпуска"></div>`,
+    buttons:[{label:'Отмена',cls:'btn-cancel'},{label:'Прервать',cls:'btn-danger',onClick:()=>{
+      const why=document.getElementById('isReason').value.trim()||'без указания';
+      const b=s.status; s.status='Прервано досрочно';
+      writeAudit({action:'Замещение прервано досрочно', objectType:'Замещение', objectId:id, before:b, after:'Прервано досрочно ('+why+')'});
+      toast('Замещение прервано'); render();
+    }}]});
+}
+
+/* ============================================================================
+   RENDER — §4.5 СЕТЕВЫЕ ПОЛИТИКИ (список + привязка к функциям)
+   ============================================================================ */
+SCREENS.netpol = function(host){
+  const ctx=ctxNow();
+  const cards=DB.NETWORK_POLICIES.map(p=>{
+    const match=ipInPolicy(ctx,p);
+    return `<div class="proj-card" style="border:1px solid var(--panel-border);border-radius:6px;padding:14px 16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px"><b style="font-size:16px">${esc(p.name)}</b> <code>${esc(p.id)}</code>
+        <span class="badge ${match?'b-ok':'b-muted'} b-dot" style="margin-left:auto">${match?'ваш ip совпадает':'ваш ip вне политики'}</span></div>
+      <div class="muted" style="margin:6px 0">${esc(p.description)}</div>
+      <div class="kv2"><span class="k">IP-диапазоны</span><span>${p.ipRanges.map(x=>`<code>${esc(x)}</code>`).join(' ')||'—'}</span>
+        <span class="k">MAC</span><span>${p.macList.length?p.macList.map(x=>`<code>${esc(x)}</code>`).join(' '):'<span class="muted">не задан</span>'}</span></div>
+    </div>`;
+  }).join('');
+  const bind=DB.FUNCTION_NET_RESTRICTIONS.map((r,i)=>`<tr><td>${esc(fn(r.funcId).name)}</td><td><b>${esc(r.action)}</b></td>
+    <td>${esc(byId('NETWORK_POLICIES',r.policyId)?.name||'—')}</td>
+    <td>${can(fn('f-netpol'),'edit')?`<button class="btn btn-danger btn-sm" onclick="removeBinding(${i})">Убрать</button>`:''}</td></tr>`).join('');
+  host.innerHTML=`
+    <div class="banner info"><span class="ic">🌐</span><div>Ограничение вешается на <b>функции</b>, а не на УЗ (§5.1). Недоступная по сети кнопка показывается <b>заблокированной</b> с подсказкой, а не прячется (§5.2). MAC по HTTP не передаётся — только внутренняя сеть/агент (§5.3, ОВ-2).</div></div>
+    <div class="section-title">Политики</div>
+    ${cards}
+    <div class="section-head"><div class="section-title">Привязка политик к функциям (функция × действие → политика)</div>${permBtn(fn('f-netpol'),'edit',null,{label:'Добавить привязку',cls:'btn-primary',sm:true,onclick:'openAddBinding()'})}</div>
+    <div class="grid-wrap"><table class="dtable"><thead><tr><th>Функция</th><th>Действие</th><th>Политика</th><th></th></tr></thead><tbody>${bind||'<tr><td colspan="4" class="empty-row">Привязок нет</td></tr>'}</tbody></table></div>
+    <div class="muted" style="margin-top:8px">Проверить эффект: переключите тумблер «в офисе / вне офиса» в шапке и откройте «Проверка прав» — критичные execute сменят состояние.</div>`;
+};
+function openAddBinding(){
+  const crit=DB.FUNCTIONS.filter(f=>f.actions.includes('execute'));
+  openModal({title:'Привязать функцию к сетевой политике', body:
+    `<div class="fld"><label>Функция</label><select id="abFunc" onchange="abFuncChange()">${crit.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('')}</select></div>
+     <div class="fld"><label>Действие</label><select id="abAction"></select></div>
+     <div class="fld"><label>Политика</label><select id="abPol">${DB.NETWORK_POLICIES.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div>`,
+    buttons:[{label:'Отмена',cls:'btn-cancel'},{label:'Привязать',cls:'btn-primary',onClick:()=>{
+      const funcId=document.getElementById('abFunc').value, action=document.getElementById('abAction').value, policyId=document.getElementById('abPol').value;
+      if(DB.FUNCTION_NET_RESTRICTIONS.some(r=>r.funcId===funcId&&r.action===action)){ toast('Такая привязка уже есть','err'); return; }
+      DB.FUNCTION_NET_RESTRICTIONS.push({funcId, action, policyId});
+      writeAudit({action:'Изменение сетевой политики', objectType:'Функция', objectId:funcId, before:null, after:`${action} → политика «${byId('NETWORK_POLICIES',policyId).name}»`});
+      toast('Привязка добавлена — гейтинг изменён', 'ok'); render();
+    }}], onOpen:abFuncChange});
+}
+function abFuncChange(){ const f=fn(document.getElementById('abFunc').value); document.getElementById('abAction').innerHTML=f.actions.map(a=>`<option value="${a}">${a}</option>`).join(''); }
+function removeBinding(i){
+  const r=DB.FUNCTION_NET_RESTRICTIONS[i]; if(!r) return;
+  DB.FUNCTION_NET_RESTRICTIONS.splice(i,1);
+  writeAudit({action:'Изменение сетевой политики', objectType:'Функция', objectId:r.funcId, before:`${r.action} → «${byId('NETWORK_POLICIES',r.policyId)?.name}»`, after:'ограничение снято'});
+  toast('Привязка снята — функция доступна отовсюду'); render();
+}
+
+/* ============================================================================
+   RENDER — §4.7 ЖУРНАЛ АУДИТА (только чтение; без кнопок правки/удаления)
+   ============================================================================ */
+SCREENS.audit = function(host){
+  const f=STATE.filt_audit||(STATE.filt_audit={from:'',to:'',actor:'',dept:'',action:''});
+  const actions=[...new Set(DB.AUDIT.map(x=>x.action))];
+  let rows=DB.AUDIT.filter(x=>{
+    if(f.from&&x.ts.slice(0,10)<f.from) return false;
+    if(f.to&&x.ts.slice(0,10)>f.to) return false;
+    if(f.action&&x.action!==f.action) return false;
+    if(f.actor){ const a=x.actorAccountId?byId('ACCOUNTS',x.actorAccountId):null; const s=((a?fioOf(a)+' '+a.login:'система')).toLowerCase(); if(!s.includes(f.actor.toLowerCase())) return false; }
+    if(f.dept){ const a=x.actorAccountId?byId('ACCOUNTS',x.actorAccountId):null; if(!a||deptOfAccount(a)!==f.dept) return false; }
+    return true;
+  });
+  host.innerHTML=`
+    <div class="banner ok"><span class="ic">🔒</span><div>Журнал <b>append-only</b>: не редактируется и не удаляется <b>никем, включая администратора</b> (§8.5). Действия администратора аудируются наравне со всеми. Ни одной кнопки правки/удаления ниже нет.</div></div>
+    <div class="filter-card">
+      <div class="fgrp"><label>С</label><input type="date" value="${esc(f.from)}" onchange="setAF('from',this.value)"></div>
+      <div class="fgrp"><label>По</label><input type="date" value="${esc(f.to)}" onchange="setAF('to',this.value)"></div>
+      <div class="fgrp"><label>ФИО/логин</label><input value="${esc(f.actor)}" oninput="setAF('actor',this.value)"></div>
+      <div class="fgrp"><label>Отдел</label><select onchange="setAF('dept',this.value)"><option value="">все</option>${DB.DEPARTMENTS.map(d=>`<option value="${d.id}" ${d.id===f.dept?'selected':''}>${esc(d.name)}</option>`).join('')}</select></div>
+      <div class="fgrp"><label>Действие</label><select onchange="setAF('action',this.value)"><option value="">все</option>${actions.map(a=>`<option ${a===f.action?'selected':''}>${esc(a)}</option>`).join('')}</select></div>
+    </div>
+    <div class="toolbar"><span class="rowcount">${rows.length} записей</span></div>
+    ${auditTable(rows, true)}`;
+};
+function setAF(k,v){ STATE.filt_audit[k]=v; render(); }
+
+//__SCREENS__
+
+/* Тест-хук: даёт headless smoke-тесту доступ к DB/STATE (let-биндинги не попадают на window). */
+if (typeof window !== 'undefined'){ window.__db = () => DB; window.__state = STATE; }
+
+/* BOOT */
+render();
+</script>
