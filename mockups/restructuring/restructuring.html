@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Реструктуризация задолженности · АСУБК</title>
+<!--
+  MOCKUP (single-file, interactive) — TO-BE модуля «Реструктуризация (урегулирование)
+  задолженности» (реестр заявок → карточка заявки → справочник видов). Образец для
+  команды разработки, не прод-код. Экрана реструктуризации в живой системе нет — модуль
+  проектируется с нуля.
+
+  Канон логики: mockups/restructuring/ASUBK-restrukturizatsiya-logika.md (решения Р-1…Р-19).
+  Регуляторная база: п.18–19 «Порядка мониторинга, взыскания и урегулирования
+  задолженности ОАО "Госфинхолдинг"». Стиль сверен с mockups/collateral/zalog.html.
+  Проверка: node scripts/inspect/restructuring-check.mjs
+
+  РЕАЛИЗОВАННЫЕ РЕШЕНИЯ
+   Р-1  Единица работы — ЗАЯВКА; якорь = ИНН; один ИНН на заявку.
+   Р-2  Охват: только один ИНН; запрет кредита с другой активной заявкой (тост).
+   Р-3  Справочник видов: разрешённые параметры + документы + режим просрочки;
+        на заявке — объединение параметров/документов выбранных видов.
+   Р-4  Конвейер 6 стадий; стадия ПРОИЗВОДНА от owned-фактов (stageOf).
+   Р-5  Заключения (СРМиК/ДПО); куратор добавляет заключанта → новое требование гейта.
+   Р-6  Комитет→Минфин: позиция необязывающая; письмо всегда (5 р.д.); решение Минфина
+        канон, обязателен реквизит письма.
+   Р-7  Дедлайны — производные от якоря стадии; просрочка = флаг+история, НЕ блокировка.
+   Р-8  Оформление: доп. соглашение (номер+дата обязательны) активирует версию.
+   Р-9  Капитализация / прощение — документированные операции на дату вступления
+        (компенсирующие, не удаление).
+   Р-10 Режим просрочки из вида: (1) в новый график + обнуление счётчика · (2) сохраняется.
+   Р-11 Новые условия версии, поля ограничены объединением видов; diff-таблица.
+   Р-12 Автоматика швов: пауза (весь процесс, 70 к.д.) + оверлей 181-го дня.
+   Р-13 Пеня во время паузы продолжает начисляться (info-plate).
+   Р-14 Оси заёмщика не трогаем; счётчик реструктуризаций на кредите +1.
+   Р-15 Гейт обеспечения (coverGate) + waiver комиссии по залогу с обязательным основанием.
+   Р-16 История append-only; ничего не удаляется/не переписывается.
+   Р-17 6 ролей; права через canX(); чужое действие → тост.
+   Р-18 5 демо-цепочек.
+   Р-19 Зеркальная дисциплина: производное (дедлайны, гейты, покрытие, стадия) не хранится.
+
+  ДЕМО-ОГРАНИЧЕНИЯ
+   • «Сегодня» демо зафиксировано (TODAY) — счётчики дедлайнов считаются от него.
+   • Рабочие дни для дедлайна письма — простой календарь (сб/вс), без праздников.
+   • Расчёт графика — детерминированный аннуитет-упрощение (демонстрация «версия вперёд»),
+     не банковский расчётный движок.
+   • Мини-зеркало взыскания — read-only панель на демо-данных, навигация внутристраничная.
+
+  ОТКРЫТЫЕ ВОПРОСЫ (спека §17)
+   1. Приоритет при разных режимах просрочки у нескольких видов одной заявки.
+   2. Источник производственного календаря праздников для дедлайна письма.
+   3. Лимит повторов реструктуризации (счётчик растёт неограниченно).
+
+  SMOKE (node scripts/inspect/restructuring-check.mjs):
+   SMOKE 2026-07-19 · 11/11 PASS
+      PASS  #1  до=false после=true
+      PASS  #2  closed=true opened=true reblock=true
+      PASS  #3  rateBefore=false grew=true
+      PASS  #4  pause=true overlay=true nextDay=true risk=true
+      PASS  #5  blocked=true unlocked=true
+      PASS  #6  bad=true good=true activated=true
+      PASS  #7  mode1_zeroed=true mode2_kept=true
+      PASS  #8  busy=RS-1004 free=нет
+      PASS  #9  observerAllowed=false curatorRegDS=true
+      PASS  #10  kinds=5 sawRate=true
+      PASS  #11  grew=true stage0=true packetClosed=true conflictSeen=true
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:300px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+.app{ display:flex; height:100vh; width:100%; }
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 6px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.brand small{ display:block; font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); letter-spacing:0; margin-top:3px; }
+.nav{ flex:1; overflow-y:auto; padding:10px 0 8px; }
+.nav-item{ display:flex; align-items:center; gap:10px; padding:9px 18px; text-decoration:none;
+  color:rgba(27,43,65,0.72); font:var(--weight-medium) var(--text-base)/1.4 var(--asubk-font); cursor:pointer; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
+.nav-item svg{ flex:none; color:var(--text-muted); }
+.sidebar-foot{ padding:12px 16px; color:var(--text-placeholder); font:var(--font-label); border-top:1px solid var(--border-default); }
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.crumb-title .bk{ color:var(--text-link); cursor:pointer; }
+.crumb-title .bk:hover{ text-decoration:underline; }
+.role-wrap{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+.role-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.role-wrap select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; cursor:pointer; }
+.content{ flex:1; overflow:auto; display:flex; flex-direction:column; min-width:0; }
+.view{ display:none; flex-direction:column; }
+.view.active{ display:flex; }
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-success{ background:var(--action-success); color:#fff; }
+.btn-success:hover:not(:disabled){ background:var(--asubk-green-hover); }
+.btn-danger{ background:var(--action-danger); color:#fff; }
+.btn-sm{ height:32px; padding:0 10px; font-size:var(--text-sm); }
+.btn-tint{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none; font-weight:var(--weight-medium); }
+.btn-tint:hover:not(:disabled){ background:rgba(25,59,103,0.10); }
+.filter-head{ display:flex; align-items:center; gap:12px; padding:14px 20px 4px; flex-wrap:wrap; }
+.filter-head .fl{ display:flex; align-items:center; gap:6px; font:var(--font-label); color:var(--text-muted); }
+.filter-head select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); font:var(--font-label); padding:0 8px; cursor:pointer; }
+.tb-actions{ display:flex; align-items:center; gap:10px; padding:10px 20px 12px; }
+.tb-actions .spacer{ flex:1; }
+.grid-wrap{ padding:0 20px 20px; overflow:auto; }
+table.grid{ width:100%; border-collapse:collapse; font:var(--font-label);
+  border:1px solid var(--border-default); background:var(--surface-card); }
+table.grid thead th{ text-align:left; height:46px; padding:0 14px; background:var(--surface-card);
+  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-semibold) var(--text-sm)/1.375 var(--asubk-font);
+  color:var(--text-heading); white-space:nowrap; }
+table.grid tbody td{ height:40px; padding:0 14px; border-bottom:1px solid var(--asubk-grid-line);
+  color:var(--text-body); vertical-align:middle; }
+table.grid tbody tr{ cursor:pointer; }
+table.grid tbody tr:hover{ background:var(--surface-hover); }
+table.grid tbody tr.overdue td{ background:rgba(224,58,58,0.06); }
+table.grid tbody tr.terminal td{ color:var(--text-muted); }
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.low{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.mid{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.high{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.dl-red{ color:var(--asubk-red); font-weight:600; }
+.dl-ok{ color:var(--text-muted); }
+.detail-tabbar{ display:flex; overflow-x:auto; padding:6px 20px 0; border-bottom:1px solid var(--border-default);
+  background:var(--surface-page); flex:none; }
+.dtab{ flex:none; border:none; background:transparent; padding:11px 14px;
+  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
+.dtab:hover{ color:var(--text-body); }
+.dtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.panel-wrap{ padding:18px 20px 8px; max-width:1200px; }
+.detail-panel{ display:none; }
+.detail-panel.active{ display:block; }
+.phead{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:16px 20px; margin-bottom:18px; }
+.phead-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
+.phead-name .nm{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
+.phead-sub{ font:var(--font-label); color:var(--text-muted); margin-top:4px; }
+.phead-sub b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.phead-dims{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+@media(max-width:760px){ .phead-dims{ grid-template-columns:repeat(2,1fr); } }
+.dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:10px 14px; }
+.dim .dl{ font:12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:5px; }
+.dim .dv{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); }
+.dim .src{ font:11px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
+.timeline{ display:flex; flex-wrap:wrap; align-items:center; gap:0; margin:2px 0 18px; }
+.tl-step{ display:flex; align-items:center; gap:8px; padding:6px 0; }
+.tl-dot{ width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font:var(--weight-bold) 12px/1 var(--asubk-font); flex:none; }
+.tl-dot.done{ background:var(--asubk-green); color:#fff; }
+.tl-dot.cur{ background:var(--asubk-blue); color:#fff; }
+.tl-dot.todo{ background:var(--surface-input); color:var(--text-placeholder); }
+.tl-lbl{ font:var(--font-label); color:var(--text-body); }
+.tl-lbl small{ display:block; color:var(--text-placeholder); font-size:11px; }
+.tl-lbl.todo{ color:var(--text-placeholder); }
+.tl-lbl .dl-red{ font-size:11px; }
+.tl-arrow{ color:var(--text-placeholder); margin:0 10px; }
+.section-h{ font:var(--weight-semibold) 17px/1.2 var(--asubk-font); color:var(--text-heading); margin:2px 0 6px; }
+.section-note{ font:var(--font-label); color:var(--text-muted); margin:0 0 14px; max-width:900px; }
+.gtoolbar{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
+.gtoolbar .spacer{ flex:1; }
+.cgrid-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; min-height:60px; margin-bottom:16px; }
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); white-space:nowrap; }
+table.cgrid thead th{ text-align:left; padding:10px 12px; background:var(--surface-card);
+  border-bottom:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
+  color:var(--text-heading); }
+table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--border-default); color:var(--text-body); vertical-align:middle; }
+table.cgrid tbody tr:last-child td{ border-bottom:none; }
+.numcell{ text-align:right; font-variant-numeric:tabular-nums; }
+.diff-old{ color:var(--text-muted); text-decoration:line-through; }
+.diff-new{ color:var(--asubk-green); font-weight:600; }
+.diff-changed td{ background:rgba(0,106,245,0.05); }
+.rowlink{ color:var(--text-link); cursor:pointer; }
+.rowlink:hover{ text-decoration:underline; }
+.flagline,.okline,.infoline,.warnline{ display:flex; gap:8px; align-items:flex-start; border-radius:var(--radius-md);
+  padding:10px 12px; font:var(--font-label); margin:0 0 14px; }
+.flagline{ background:var(--status-error-bg); color:var(--asubk-red); }
+.okline{ background:var(--status-success-bg); color:var(--asubk-green); }
+.infoline{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.warnline{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.gatechip{ display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); }
+.gatechip.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.gatechip.no{ background:var(--status-error-bg); color:var(--asubk-red); }
+.f2{ display:grid; grid-template-columns:1fr 1fr; gap:14px 32px; align-items:start; max-width:920px; }
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field.col-span{ grid-column:1 / -1; }
+.field .flabel{ font:var(--font-label); color:var(--text-muted); }
+.field .flabel .ro-tag{ color:var(--text-placeholder); font-size:11px; }
+.field input,.field select,.field textarea{ height:var(--control-h); border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
+  border:1px solid var(--border-strong); outline:none; padding:0 10px; width:100%; }
+.field textarea{ height:auto; min-height:70px; padding:8px 10px; resize:vertical; font-weight:400; }
+.field input:focus,.field select:focus,.field textarea:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.field input:disabled,.field select:disabled,.field textarea:disabled{ background:var(--surface-input); color:var(--text-muted); border-color:transparent; cursor:not-allowed; }
+.chk{ display:flex; align-items:center; gap:8px; font:var(--font-label); color:var(--text-body); padding:4px 0; }
+.chk input{ width:16px; height:16px; }
+.concl-card{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:12px; }
+.concl-card .ch{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.concl-card .ch .cn{ font:var(--weight-semibold) 15px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
+.ops-list{ border:1px solid var(--border-default); border-radius:var(--radius-md); margin:10px 0 16px; }
+.op-row{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--asubk-grid-line); font:var(--font-label); }
+.op-row:last-child{ border-bottom:none; }
+.op-row .op-t{ flex:1; }
+.op-empty{ padding:14px 12px; color:var(--text-placeholder); font:var(--font-label); }
+.hist{ border-left:2px solid var(--border-strong); margin-left:6px; }
+.hrow{ position:relative; padding:10px 0 10px 22px; border-bottom:1px solid var(--asubk-grid-line); }
+.hrow::before{ content:""; position:absolute; left:-5px; top:16px; width:8px; height:8px; border-radius:50%; background:var(--asubk-blue); }
+.hrow.auto::before{ background:var(--asubk-amber); }
+.hrow.waiver::before{ background:var(--asubk-red); }
+.hrow .hwhen{ font:var(--weight-medium) 13px/1.3 var(--asubk-font); color:var(--text-muted); }
+.hrow .hwhat{ font:var(--font-label); color:var(--text-body); margin-top:2px; }
+.hrow .hwho{ font:12px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:2px; }
+.mirror{ border:1px solid var(--border-strong); border-radius:var(--radius-md); padding:14px 16px; background:var(--surface-panel); margin-bottom:16px; }
+.mirror .mh{ display:flex; align-items:center; gap:8px; margin-bottom:8px; font:var(--weight-semibold) 14px/1.2 var(--asubk-font); color:var(--text-heading); }
+.mirror .mbanner{ background:var(--status-warning-bg); color:var(--asubk-amber); border-radius:var(--radius-md); padding:8px 12px; font:var(--font-label); margin-bottom:8px; }
+.mirror .mrow{ display:flex; justify-content:space-between; padding:4px 0; font:var(--font-label); border-bottom:1px solid var(--asubk-grid-line); }
+.mirror .mrow:last-child{ border-bottom:none; }
+.mirror .mrow span:first-child{ color:var(--text-muted); }
+.footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
+  padding:14px 20px; display:flex; align-items:center; gap:12px; }
+.footer .spacer{ flex:1; }
+.overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:none; align-items:center;
+  justify-content:center; z-index:60; padding:24px; }
+.overlay.open{ display:flex; }
+.modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(680px,100%); max-height:88vh;
+  display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(16,28,46,0.4); }
+.modal.wide{ width:min(920px,100%); }
+.modal-h{ padding:18px 24px 12px; display:flex; align-items:center; gap:10px; }
+.modal-h .mt{ font:var(--weight-bold) 19px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
+.modal-x{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); font-size:20px; line-height:1; padding:4px 8px; }
+.modal-b{ padding:4px 24px 8px; overflow:auto; flex:1; }
+.modal-f{ padding:14px 24px 20px; display:flex; gap:12px; justify-content:flex-end; }
+.mform{ display:grid; grid-template-columns:1fr 1fr; gap:14px 32px; align-items:start; padding-top:6px; }
+.mform .field.col-span{ grid-column:1 / -1; }
+.mform .field.req .flabel::after{ content:" •"; color:var(--action-danger); }
+.toast-wrap{ position:fixed; right:20px; bottom:20px; display:flex; flex-direction:column; gap:10px; z-index:80; }
+.toast{ min-width:260px; max-width:440px; padding:12px 14px; border-radius:var(--radius-md);
+  background:var(--asubk-ink); color:#fff; font:var(--font-label); box-shadow:0 10px 30px rgba(16,28,46,0.3); }
+.toast.ok{ background:var(--asubk-green); }
+.toast.warn{ background:var(--asubk-amber); }
+.toast.err{ background:var(--asubk-red); }
+.badge-set{ display:flex; gap:6px; flex-wrap:wrap; }
+.mode-tag{ font-size:11px; color:var(--text-placeholder); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">АСУБК<small>Реструктуризация задолженности</small></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="sidebar-foot">Макет · gov-blue · TO-BE</div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb-title" id="crumb">Реестр заявок</div>
+      <div class="role-wrap">
+        <label>Роль</label>
+        <select id="roleSel" onchange="RS.setRole(this.value)"></select>
+      </div>
+    </div>
+    <div class="content">
+      <section class="view active" id="view-list"></section>
+      <section class="view" id="view-card"></section>
+      <section class="view" id="view-dict"></section>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="overlay"></div>
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+"use strict";
+/* ================= МОДЕЛЬ ДАННЫХ (owned-факты; производное НЕ хранится, Р-19) ============ */
+const TODAY = '2026-07-19';                                   // «сегодня» демо
+const PARAM_KEYS = [                                          // ключи параметров версии (Р-11)
+  ['term','Срок, мес.'],['schedule','Периодичность'],['rate','Ставка, %'],
+  ['grace','Льготные периоды'],['capInterest','Капитализация %'],['capPenalty','Капитализация штрафов'],
+  ['forgive','Прощение санкций'],['dayMethod','Метод расчёта дней'],['base','База начисления'],
+  ['nonworking','Обработка нерабочих дней'],['repayMethod','Метод погашения']
+];
+const PARAM_LABEL = Object.fromEntries(PARAM_KEYS);
+const STAGES = ['Регистрация обращения','Анализ','Комитет','Направлено в Минфин','Решение Минфина','Оформление'];
+const ROLES  = ['Куратор ОД','Заключант СРМиК','Заключант ДПО','Секретарь комитета','Администратор','Наблюдатель'];
+
+/* права роли → действия (Р-17) */
+const RIGHTS = {
+  'Куратор ОД':      ['createApp','addCredit','toggleDoc','startAnalysis','returnApp','addConcl','fixLetter','fixMinfin','editVersion','calcGraph','regDS','waiver'],
+  'Заключант СРМиК': ['editConcl:СРМиК'],
+  'Заключант ДПО':   ['editConcl:ДПО'],
+  'Секретарь комитета':['fixCommittee'],
+  'Администратор':   ['manageDict'],
+  'Наблюдатель':     []
+};
+
+/* Справочник видов (Р-3). params — множество разрешённых ключей; overdueMode 1|2 (Р-10). */
+function seedKinds(){ return [
+  { id:'K1', name:'Пролонгация', params:['term','schedule','nonworking'],
+    docs:['Заявление','Обоснование причин','Финансовый прогноз'], overdueMode:1, limits:'Не более +24 мес. к сроку' },
+  { id:'K2', name:'Изменение графика', params:['schedule','grace','dayMethod','repayMethod'],
+    docs:['Заявление','График-предложение'], overdueMode:2, limits:'Тело долга не меняется' },
+  { id:'K3', name:'Льготный период', params:['grace','schedule'],
+    docs:['Заявление','Обоснование причин'], overdueMode:1, limits:'Льгота ≤6 мес.' },
+  { id:'K4', name:'Капитализация + прощение штрафов', params:['capInterest','capPenalty','forgive','term'],
+    docs:['Заявление','Акт сверки','Решение комитета'], overdueMode:2, limits:'Прощение только по санкциям' }
+]; }
+
+/* Кредиты (зеркала; остаток/просрочка read-only). requiredCoverPct — порог покрытия (Р-15). */
+function seedCredits(){ return [
+  { id:'CR-60540', no:'КД-60540', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
+    balance:4200000, odDays:96, odSum:512000, collProc:'ВЗ-734', restructCount:1,
+    collateralValue:6100000, requiredCoverPct:120, insuredUntil:'2027-03-01', tech:true, techAgeYears:6, techMaxAge:12,
+    terms:{term:36,schedule:'ежемесячно',rate:8,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-60541', no:'КД-60541', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
+    balance:1850000, odDays:96, odSum:210000, collProc:'ВЗ-734', restructCount:1,
+    collateralValue:2050000, requiredCoverPct:120, insuredUntil:'2026-10-01', tech:true, techAgeYears:9, techMaxAge:12,
+    terms:{term:24,schedule:'ежемесячно',rate:9,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-58120', no:'КД-58120', inn:'01703198800077', borrower:'ИП Садыков Т.',
+    balance:980000, odDays:34, odSum:44000, collProc:null, restructCount:0,
+    collateralValue:1400000, requiredCoverPct:120, insuredUntil:'2028-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    terms:{term:18,schedule:'ежемесячно',rate:10,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-59003', no:'КД-59003', inn:'01703198800077', borrower:'ИП Садыков Т.',
+    balance:2650000, odDays:220, odSum:390000, collProc:'ВЗ-701', restructCount:2,
+    collateralValue:3300000, requiredCoverPct:120, insuredUntil:'2027-06-01', tech:false, techAgeYears:0, techMaxAge:0,
+    terms:{term:30,schedule:'ежемесячно',rate:8,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-61200', no:'КД-61200', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
+    balance:3100000, odDays:12, odSum:0, collProc:null, restructCount:0,
+    collateralValue:4000000, requiredCoverPct:120, insuredUntil:'2029-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    terms:{term:48,schedule:'ежемесячно',rate:7,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} }
+]; }
+
+/* Процессы взыскания (read-only зеркало, Р-12). */
+const COLL_PROCS = {
+  'ВЗ-734': { id:'ВЗ-734', inn:'02508199700123', phase:'Претензия', catDays:96, paused:false, pausedBy:null },
+  'ВЗ-701': { id:'ВЗ-701', inn:'01703198800077', phase:'Иск', catDays:220, paused:false, pausedBy:null }
+};
+
+let state = {};
+function seed(){
+  state = { role:'Куратор ОД', view:'list', curApp:null, curTab:'req',
+    filterStage:'', filterOutcome:'', kinds:seedKinds(), credits:seedCredits(), procs:JSON.parse(JSON.stringify(COLL_PROCS)), apps:[] };
+  buildDemoApps();
+}
+
+/* ---- утилиты дат (Р-7): производные счётчики, ничего не хранится ---- */
+const D = s => new Date(s+'T00:00:00Z');
+const daysBetween = (a,b) => Math.round((D(b)-D(a))/86400000);
+function addCalDays(s,n){ const d=D(s); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+function addWorkDays(s,n){ let d=D(s),added=0; while(added<n){ d.setUTCDate(d.getUTCDate()+1); const wd=d.getUTCDay(); if(wd!==0&&wd!==6) added++; } return d.toISOString().slice(0,10); }
+const fmt = n => Number(n||0).toLocaleString('ru-RU',{minimumFractionDigits:0,maximumFractionDigits:0});
+const fmt2= n => Number(n||0).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ================= ПРОИЗВОДНЫЕ (Р-19: считаем, не храним) ================= */
+const creditById = id => state.credits.find(c=>c.id===id);
+const kindById   = id => state.kinds.find(k=>k.id===id);
+const appById    = id => state.apps.find(a=>a.id===id);
+
+/* объединение разрешённых параметров выбранных видов (Р-3 ↔ Р-11) */
+function allowedParams(app){ const s=new Set(); app.kindIds.forEach(id=>{ const k=kindById(id); if(k) k.params.forEach(p=>s.add(p)); }); return s; }
+/* объединение требуемых документов (Р-3, гейт стадии 1) */
+function requiredDocs(app){ const s=new Set(); app.kindIds.forEach(id=>{ const k=kindById(id); if(k) k.docs.forEach(d=>s.add(d)); }); return [...s]; }
+
+/* стадия — производная от owned-фактов (Р-4) */
+function stageOf(app){
+  if(app.outcome==='возврат') return {idx:0, closed:true, label:'Возвращена без рассмотрения'};
+  if(app.ds && app.ds.no)     return {idx:5, closed:true, label:'Закрыта (оформлена)'};
+  if(app.outcome==='отказ')   return {idx:4, closed:true, label:'Отказ Минфина'};
+  if(app.minfin && app.minfin.fixed) return {idx:5, closed:false, label:'Оформление'};
+  if(app.letterSent && app.letterSent.fixed) return {idx:3, closed:false, label:'Направлено в Минфин'};
+  if(app.committee && app.committee.fixed)   return {idx:2, closed:false, label:'Комитет'};
+  if(app.analysisStarted)     return {idx:1, closed:false, label:'Анализ'};
+  return {idx:0, closed:false, label:'Регистрация обращения'};
+}
+
+/* дедлайн активной стадии (Р-7) */
+function deadline(app){
+  const st = stageOf(app); if(st.closed) return null;
+  if(st.idx===1) { const due=addCalDays(app.regDate,30); return mkDl('Анализ',30,'к.д.',app.regDate,due); }
+  if(st.idx===2) { if(app.committee&&app.committee.date){ const due=addWorkDays(app.committee.date,5); return mkDl('Письмо в Минфин',5,'р.д.',app.committee.date,due);} return null; }
+  if(st.idx===3) { if(app.letterSent&&app.letterSent.date){ const due=addCalDays(app.letterSent.date,70); return mkDl('Решение Минфина',70,'к.д.',app.letterSent.date,due);} return null; }
+  return null;
+}
+function mkDl(name,limit,unit,anchor,due){ const rem=daysBetween(TODAY,due); return {name,limit,unit,anchor,due,remaining:rem,overdue:rem<0}; }
+
+/* гейты (Р-19: производные предикаты) */
+function packetGate(app){ const req=requiredDocs(app); const missing=req.filter(d=>!app.packetDocs[d]); return {ok:missing.length===0 && req.length>0, missing, req}; }
+function conclGate(app){ const pending=app.conclusions.filter(c=>!c.visa).map(c=>c.dept); return {ok:pending.length===0 && app.conclusions.length>0, pending}; }
+function minfinGate(app){ const m=app.minfin||{}; return {ok:!!m.decision && !!(m.letterRef&&m.letterRef.trim())}; }
+function dsGate(app){ const d=app.ds||{}; return {ok:!!(d.no&&d.no.trim()) && !!(d.date&&d.date.trim())}; }
+
+/* остаток на новых условиях (демо-упрощение): тело то же, влияет срок/ставка на maturity */
+function newMaturity(app,cr){ const term=(app.version&&app.version.params.term)||cr.terms.term; return addCalDays(app.regDate, term*30); }
+function coverGate(app,cr){
+  const required = cr.requiredCoverPct;
+  const cover = Math.round(cr.collateralValue / cr.balance * 100);
+  const coverOk = cover >= required;
+  const mat = newMaturity(app,cr);
+  const ageOk = !cr.tech || (cr.techAgeYears + Math.ceil(((app.version&&app.version.params.term)||cr.terms.term)/12) <= cr.techMaxAge);
+  const insured = daysBetween(mat, cr.insuredUntil) >= 0;
+  const waived = !!(app.waiver && app.waiver.granted);
+  const ok = (coverOk && ageOk && insured) || waived;
+  return {required,cover,coverOk,ageOk,insured,waived,ok,maturity:mat};
+}
+/* агрегат гейта обеспечения по всем кредитам заявки */
+function coverGateApp(app){ const rows=app.creditIds.map(id=>({cr:creditById(id),g:coverGate(app,creditById(id))})); const ok=rows.every(r=>r.g.ok); return {rows,ok}; }
+
+/* активная заявка на кредите (Р-2): любая незакрытая заявка, кроме текущей */
+function activeAppOnCredit(creditId, exceptAppId){
+  return state.apps.find(a=>a.id!==exceptAppId && !stageOf(a).closed && a.creditIds.includes(creditId));
+}
+function canAdvance(app){
+  const st=stageOf(app);
+  if(st.idx===0) return {to:'Анализ', ok:packetGate(app).ok, why:'Пакет документов неполон'};
+  if(st.idx===1) return {to:'Комитет', ok:conclGate(app).ok && app.creditIds.length>0, why:'Не все заключения завизированы / пустой охват'};
+  return null;
+}
+
+/* права (Р-17) */
+function canX(action){ return (RIGHTS[state.role]||[]).includes(action); }
+function guard(action){ if(!canX(action)){ toast('Роль «'+state.role+'» не может выполнить это действие','err'); return false; } return true; }
+
+/* ================= ДЕМО-ЦЕПОЧКИ (Р-18) ================= */
+function baseApp(id,inn,borrower,kindIds,creditIds,regDate){
+  return { id,inn,borrower,kindIds:[...kindIds],creditIds:[...creditIds],regDate,
+    packetDocs:{}, analysisStarted:false, conclusions:[], committee:null, letterSent:null, minfin:null,
+    version:null, ds:null, waiver:null, ops:[], automation:[], outcome:null, history:[] };
+}
+function H(app,what,who,cls){ app.history.push({when:app._t||app.regDate, what, who:who||'', cls:cls||''}); }
+function defaultConclusions(){ return [ {dept:'СРМиК',text:'',visa:false,visaDate:null}, {dept:'ДПО',text:'',visa:false,visaDate:null} ]; }
+function fillDocs(app){ requiredDocs(app).forEach(d=>app.packetDocs[d]=true); }
+function versionFrom(cr){ return { params:{...cr.terms}, state:'проект', source:'заёмщик', graph:[] }; }
+
+function buildDemoApps(){
+  const A=[];
+
+  /* 1) ПОЛНЫЙ ПУТЬ — 2 кредита одного ИНН, Пролонгация+Капитализация, оформлена доп.согл.,
+        был красный гейт обеспечения снятый waiver-ом, автоматика паузы/снятия, капитализация. */
+  let a1=baseApp('RS-1001','02508199700123','ОсОО «Ак-Жол Агро»',['K1','K4'],['CR-60540','CR-60541'],'2026-03-02');
+  fillDocs(a1); a1.analysisStarted=true;
+  a1.conclusions=defaultConclusions();
+  a1.conclusions[0].text='Финансовое положение восстановимо, поддержать.'; a1.conclusions[0].visa=true; a1.conclusions[0].visaDate='2026-03-18';
+  a1.conclusions[1].text='Правовых препятствий нет.'; a1.conclusions[1].visa=true; a1.conclusions[1].visaDate='2026-03-20';
+  a1.committee={fixed:true,position:'целесообразно',date:'2026-03-25'};
+  a1.letterSent={fixed:true,date:'2026-03-30'};
+  a1.minfin={fixed:true,decision:'одобрено',letterRef:'МФ-исх-1120 от 2026-05-28',date:'2026-05-28'};
+  a1.version=versionFrom(creditById('CR-60540')); a1.version.params.term=60; a1.version.params.rate=7; a1.version.state='действует';
+  a1.waiver={granted:true,reason:'Комиссия по залогу: покрытие ниже 120% компенсируется поручительством учредителя (протокол №14).',by:'Комиссия по залогу',date:'2026-06-02'};
+  a1.ds={no:'ДС-60540/2 от 2026-06-05',date:'2026-06-05'};
+  a1.ops=[
+    {type:'Капитализация процентов', detail:'Начисленные % 118 000 → в тело долга', before:4200000, after:4318000},
+    {type:'Капитализация штрафов', detail:'Штрафы 61 000 → в тело долга', before:4318000, after:4379000},
+    {type:'Прощение санкций', detail:'Списание пени 12 000 (основание: решение комитета №14) — компенсирующая запись', before:12000, after:0},
+    {type:'Режим просрочки', detail:'Вид «Капитализация»: режим (2) — просрочка сохраняется со своим счётчиком', mode:2}
+  ];
+  a1.automation=[
+    {when:'2026-03-30',kind:'pause',text:'Пауза поставлена в процессе взыскания ВЗ-734 (scope: весь процесс, дедлайн 70 к.д.)'},
+    {when:'2026-03-30',kind:'overlay',text:'Оверлей подавления 181-го дня поставлен на кредит КД-60540'},
+    {when:'2026-06-05',kind:'unpause',text:'Оформление завершено — пауза снята штатно, взыскание закрыто по кредитам заявки'}
+  ];
+  a1._t='2026-03-02'; H(a1,'Заявка зарегистрирована. Виды: Пролонгация, Капитализация + прощение штрафов.','Куратор ОД');
+  a1._t='2026-03-05'; H(a1,'Пакет документов укомплектован → переход в «Анализ».','Куратор ОД');
+  a1._t='2026-03-18'; H(a1,'Заключение СРМиК завизировано.','Заключант СРМиК');
+  a1._t='2026-03-20'; H(a1,'Заключение ДПО завизировано.','Заключант ДПО');
+  a1._t='2026-03-25'; H(a1,'Позиция комитета: целесообразно. Дедлайн письма 5 р.д.','Секретарь комитета');
+  a1._t='2026-03-30'; H(a1,'Письмо в Минфин направлено. Пауза взыскания ВЗ-734 (весь процесс, 70 к.д.); оверлей 181-го дня на КД-60540.','Куратор ОД','auto');
+  a1._t='2026-05-28'; H(a1,'Решение Минфина: ОДОБРЕНО (МФ-исх-1120 от 2026-05-28).','Куратор ОД');
+  a1._t='2026-06-02'; H(a1,'Гейт обеспечения по КД-60540 не пройден (покрытие <120%). WAIVER комиссии по залогу — основание зафиксировано.','Комиссия по залогу','waiver');
+  a1._t='2026-06-05'; H(a1,'Доп. соглашение ДС-60540/2 зарегистрировано. Версия «действует» с 2026-06-05. Капитализация %/штрафов, прощение санкций (компенсирующей записью). Счётчик реструктуризаций +1.','Куратор ОД');
+  a1._t='2026-06-06'; H(a1,'Пауза снята штатно, взыскание закрыто. Оси заёмщика не менялись (только классификатор).','Система','auto');
+  A.push(a1);
+
+  /* 2) ОТКАЗ МИНФИНА — постановка и снятие паузы/оверлея следующим днём, возобновление с фазы. */
+  let a2=baseApp('RS-1002','01703198800077','ИП Садыков Т.',['K3'],['CR-59003'],'2026-04-10');
+  fillDocs(a2); a2.analysisStarted=true;
+  a2.conclusions=defaultConclusions();
+  a2.conclusions[0].text='Риск повторной просрочки высок.'; a2.conclusions[0].visa=true; a2.conclusions[0].visaDate='2026-04-24';
+  a2.conclusions[1].text='Замечаний нет.'; a2.conclusions[1].visa=true; a2.conclusions[1].visaDate='2026-04-25';
+  a2.committee={fixed:true,position:'нецелесообразно',date:'2026-04-28'};
+  a2.letterSent={fixed:true,date:'2026-05-04'};
+  a2.minfin={fixed:true,decision:'отказ',letterRef:'МФ-исх-1301 от 2026-06-30',date:'2026-06-30'};
+  a2.outcome='отказ';
+  a2.automation=[
+    {when:'2026-05-04',kind:'pause',text:'Пауза поставлена в процессе взыскания ВЗ-701 (scope: весь процесс, дедлайн 70 к.д.)'},
+    {when:'2026-05-04',kind:'overlay',text:'Оверлей подавления 181-го дня поставлен на кредит КД-59003'},
+    {when:'2026-07-01',kind:'unpause',text:'Отказ Минфина зафиксирован 2026-06-30 → снятие следующим календарным днём (2026-07-01): взыскание возобновлено с фазы «Иск».'},
+    {when:'2026-07-01',kind:'risk',text:'Ночной пересчёт категории → высокий (следующим календарным днём после отказа).'}
+  ];
+  a2._t='2026-04-10'; H(a2,'Заявка зарегистрирована. Вид: Льготный период.','Куратор ОД');
+  a2._t='2026-04-28'; H(a2,'Позиция комитета: нецелесообразно. Письмо в Минфин направляется всё равно (регламент п.19).','Секретарь комитета');
+  a2._t='2026-05-04'; H(a2,'Письмо направлено. Пауза ВЗ-701 (весь процесс, 70 к.д.); оверлей 181-го дня на КД-59003.','Куратор ОД','auto');
+  a2._t='2026-06-30'; H(a2,'Решение Минфина: ОТКАЗ (МФ-исх-1301 от 2026-06-30).','Куратор ОД');
+  a2._t='2026-07-01'; H(a2,'Снятие паузы/оверлея следующим днём. Взыскание возобновлено с фазы «Иск». Категория → высокий (ночной пересчёт).','Система','auto');
+  A.push(a2);
+
+  /* 3) ВОЗВРАТ БЕЗ РАССМОТРЕНИЯ — неполный пакет, исход на первой стадии. */
+  let a3=baseApp('RS-1003','01703198800077','ИП Садыков Т.',['K1'],['CR-58120'],'2026-06-25');
+  a3.packetDocs['Заявление']=true;  // Обоснование причин и Финансовый прогноз отсутствуют
+  a3.outcome='возврат';
+  a3._t='2026-06-25'; H(a3,'Заявка зарегистрирована. Вид: Пролонгация.','Куратор ОД');
+  a3._t='2026-06-27'; H(a3,'Пакет неполон (нет: Обоснование причин, Финансовый прогноз). Исход: возвращена без рассмотрения.','Куратор ОД');
+  A.push(a3);
+
+  /* 4) АКТИВНАЯ В РАБОТЕ — стадия «Анализ», дедлайн 30 к.д. частично, одно заключение без визы. */
+  let a4=baseApp('RS-1004','02508199700123','ОсОО «Ак-Жол Агро»',['K2'],['CR-61200'],'2026-07-02');
+  fillDocs(a4); a4.analysisStarted=true;
+  a4.conclusions=defaultConclusions();
+  a4.conclusions[0].text='График реалистичен, поддержать.'; a4.conclusions[0].visa=true; a4.conclusions[0].visaDate='2026-07-14';
+  a4.conclusions[1].text=''; a4.conclusions[1].visa=false;  // ДПО не завизировано → гейт комитета закрыт
+  a4.version=versionFrom(creditById('CR-61200'));
+  a4._t='2026-07-02'; H(a4,'Заявка зарегистрирована. Вид: Изменение графика.','Куратор ОД');
+  a4._t='2026-07-03'; H(a4,'Пакет укомплектован → «Анализ». Дедлайн 30 к.д. (до '+addCalDays('2026-07-02',30)+').','Куратор ОД');
+  a4._t='2026-07-14'; H(a4,'Заключение СРМиК завизировано. Заключение ДПО — в работе.','Заключант СРМиК');
+  A.push(a4);
+
+  /* 5) ИЗМЕНЁННЫЕ УСЛОВИЯ — исход «одобрена с изменёнными условиями»; кредит со счётчиком=2. */
+  let a5=baseApp('RS-1005','01703198800077','ИП Садыков Т.',['K1'],['CR-59003'],'2025-11-10');
+  fillDocs(a5); a5.analysisStarted=true;
+  a5.conclusions=defaultConclusions(); a5.conclusions.forEach(c=>{c.visa=true;c.visaDate='2025-11-24';c.text='Поддержать.';});
+  a5.committee={fixed:true,position:'целесообразно',date:'2025-11-28'};
+  a5.letterSent={fixed:true,date:'2025-12-02'};
+  a5.minfin={fixed:true,decision:'изм',letterRef:'МФ-исх-0980 от 2026-01-20',date:'2026-01-20'};
+  a5.version=versionFrom(creditById('CR-59003')); a5.version.params.term=42; a5.version.params.rate=8; a5.version.source='минфин'; a5.version.state='действует';
+  a5.ds={no:'ДС-59003/2 от 2026-01-30',date:'2026-01-30'};
+  a5.ops=[{type:'Режим просрочки', detail:'Вид «Пролонгация»: режим (1) — в новый график + обнуление счётчика дней', mode:1}];
+  a5._t='2025-11-10'; H(a5,'Заявка зарегистрирована. Вид: Пролонгация.','Куратор ОД');
+  a5._t='2026-01-20'; H(a5,'Решение Минфина: ОДОБРЕНО С ИЗМЕНЁННЫМИ УСЛОВИЯМИ — срок 42 мес (просили 48), ставка 8%. Источник условий: Минфин.','Куратор ОД');
+  a5._t='2026-01-30'; H(a5,'ДС-59003/2 зарегистрировано. Режим просрочки (1): счётчик дней обнулён. Счётчик реструктуризаций +1 (стал 2).','Куратор ОД');
+  A.push(a5);
+
+  state.apps=A;
+}
+
+/* ================= РЕНДЕР: НАВИГАЦИЯ + ШАПКА ================= */
+function icon(p){ return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'; }
+const IC={ list:'<rect x="3" y="4" width="18" height="4"/><rect x="3" y="10" width="18" height="4"/><rect x="3" y="16" width="18" height="4"/>',
+  book:'<path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 3v18"/>' };
+function renderNav(){
+  const nav=document.getElementById('nav');
+  nav.innerHTML =
+    navItem('list','Реестр заявок',IC.list, state.view==='list'||state.view==='card') +
+    navItem('dict','Справочник видов',IC.book, state.view==='dict');
+}
+function navItem(v,label,ic,active){ return `<a class="nav-item ${active?'active':''}" onclick="RS.go('${v}')">${icon(ic)}<span>${label}</span></a>`; }
+function renderRoles(){
+  const s=document.getElementById('roleSel');
+  s.innerHTML=ROLES.map(r=>`<option ${r===state.role?'selected':''}>${r}</option>`).join('');
+}
+
+/* ================= РЕНДЕР: РЕЕСТР ЗАЯВОК ================= */
+function stageLabel(app){ return stageOf(app).label; }
+function outcomeChip(app){
+  const o=app.outcome;
+  if(o==='возврат') return '<span class="pill neutral">возврат без рассмотрения</span>';
+  if(o==='отказ')   return '<span class="pill high">отказ Минфина</span>';
+  if(app.ds&&app.ds.no){ return o==='изм'?'<span class="pill low">одобрена (изм. условия)</span>':'<span class="pill low">одобрена</span>'; }
+  if(app.minfin&&app.minfin.fixed) return app.minfin.decision==='отказ'?'<span class="pill high">отказ</span>':'<span class="pill info">на оформлении</span>';
+  return '<span class="pill neutral">в работе</span>';
+}
+function renderList(){
+  const v=document.getElementById('view-list');
+  let rows=state.apps.filter(a=>{
+    if(state.filterStage && stageLabel(a)!==state.filterStage && !(state.filterStage==='Закрыта'&&stageOf(a).closed)) return false;
+    if(state.filterOutcome){ const oc=(a.outcome||'в работе'); if(oc!==state.filterOutcome) return false; }
+    return true;
+  });
+  const body = rows.map(a=>{
+    const dl=deadline(a); const st=stageOf(a);
+    const kinds=a.kindIds.map(id=>kindById(id)?.name).filter(Boolean).join(', ');
+    let dlCell='—';
+    if(dl){ dlCell = dl.overdue ? `<span class="dl-red">просрочен на ${-dl.remaining} дн.</span>` : `<span class="dl-ok">осталось ${dl.remaining} дн.</span>`; }
+    return `<tr class="${dl&&dl.overdue?'overdue':''} ${st.closed?'terminal':''}" onclick="RS.openApp('${a.id}')">
+      <td>${a.id}</td>
+      <td>${esc(a.borrower)}<br><span class="mode-tag">${a.inn}</span></td>
+      <td>${a.creditIds.map(id=>creditById(id)?.no).join(', ')}</td>
+      <td>${esc(kinds)}</td>
+      <td>${esc(st.label)}</td>
+      <td>${dlCell}</td>
+      <td>${outcomeChip(a)}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--text-placeholder);height:80px">Нет заявок по фильтру</td></tr>`;
+  v.innerHTML = `
+    <div class="filter-head">
+      <div class="fl">Стадия <select onchange="RS.setFilter('stage',this.value)">
+        ${['','Регистрация обращения','Анализ','Комитет','Направлено в Минфин','Оформление','Закрыта'].map(s=>`<option value="${s}" ${state.filterStage===s?'selected':''}>${s||'все'}</option>`).join('')}
+      </select></div>
+      <div class="fl">Исход <select onchange="RS.setFilter('outcome',this.value)">
+        ${['','в работе','одобрена','изм','отказ','возврат'].map(s=>`<option value="${s}" ${state.filterOutcome===s?'selected':''}>${s||'все'}</option>`).join('')}
+      </select></div>
+    </div>
+    <div class="tb-actions">
+      <button class="btn btn-primary btn-sm" ${canX('createApp')?'':'disabled'} onclick="RS.newApp()">+ Новая заявка</button>
+      <div class="spacer"></div>
+      <span class="mode-tag">«Сегодня» демо: ${TODAY}</span>
+    </div>
+    <div class="grid-wrap">
+      <table class="grid"><thead><tr>
+        <th>№ заявки</th><th>Заёмщик (ИНН)</th><th>Кредиты</th><th>Виды</th><th>Стадия</th><th>Дедлайн</th><th>Исход</th>
+      </tr></thead><tbody>${body}</tbody></table>
+    </div>`;
+}
+
+/* ================= РЕНДЕР: КАРТОЧКА ЗАЯВКИ ================= */
+const TABS=[['req','Обращение'],['scope','Охват'],['concl','Заключения'],['terms','Новые условия'],['minfin','Комитет / Минфин'],['formal','Оформление'],['hist','История']];
+function openApp(id){ state.curApp=id; state.view='card'; state.curTab='req'; render(); }
+function setTab(t){ state.curTab=t; render(); }
+
+function renderCard(){
+  const v=document.getElementById('view-card'); const app=appById(state.curApp); if(!app){ state.view='list'; return render(); }
+  const st=stageOf(app);
+  const tabbar = TABS.map(([k,l])=>`<button class="dtab ${state.curTab===k?'active':''}" onclick="RS.setTab('${k}')">${l}</button>`).join('');
+  v.innerHTML = phead(app,st) + `<div class="detail-tabbar">${tabbar}</div>` +
+    `<div class="panel-wrap">${panel(app)}</div>` + footer(app);
+}
+function phead(app,st){
+  const kinds=app.kindIds.map(id=>kindById(id)?.name).filter(Boolean).join(', ');
+  const steps = STAGES.map((s,i)=>{
+    let cls = i<st.idx?'done': i===st.idx&&!st.closed?'cur':'todo';
+    if(st.closed && i<=st.idx) cls='done';
+    const dl = (i===st.idx && !st.closed) ? deadline(app) : null;
+    let sub='';
+    if(dl){ sub = dl.overdue?`<span class="dl-red">просрочен ${-dl.remaining} дн.</span>`:`осталось ${dl.remaining} дн.`; }
+    return `<div class="tl-step"><span class="tl-dot ${cls}">${cls==='done'?'✓':i+1}</span>
+      <span class="tl-lbl ${cls==='todo'?'todo':''}">${s}${sub?`<small>${sub}</small>`:''}</span></div>` +
+      (i<STAGES.length-1?`<span class="tl-arrow">→</span>`:'');
+  }).join('');
+  return `<div class="panel-wrap"><div class="phead">
+    <div class="phead-top">
+      <div class="phead-name"><span class="nm">${app.id}</span>
+        <div class="phead-sub"><b>${esc(app.borrower)}</b> · ИНН ${app.inn} · виды: ${esc(kinds)||'—'} · кредиты: ${app.creditIds.map(id=>creditById(id)?.no).join(', ')||'—'}</div>
+      </div>
+      <div>${outcomeChip(app)}</div>
+    </div>
+    <div class="timeline">${steps}</div>
+  </div></div>`;
+}
+function footer(app){
+  return `<div class="footer">
+    <button class="btn btn-secondary" onclick="RS.go('list')">← К реестру</button>
+    <div class="spacer"></div>${advanceBtn(app)}</div>`;
+}
+function advanceBtn(app){
+  const adv=canAdvance(app); if(!adv) return '';
+  return `<button class="btn btn-primary" ${adv.ok?'':'disabled title="'+esc(adv.why)+'"'} onclick="RS.advance('${app.id}')">Перевести в «${adv.to}»</button>`;
+}
+
+/* --- панели вкладок --- */
+function panel(app){
+  switch(state.curTab){
+    case 'req': return pReq(app);
+    case 'scope': return pScope(app);
+    case 'concl': return pConcl(app);
+    case 'terms': return pTerms(app);
+    case 'minfin': return pMinfin(app);
+    case 'formal': return pFormal(app);
+    case 'hist': return pHist(app);
+  }
+  return '';
+}
+
+/* 1. Обращение — чек-лист пакета = объединение документов видов; гейт стадии 1 */
+function pReq(app){
+  const st=stageOf(app); const g=packetGate(app);
+  const docs = g.req.map(d=>`<label class="chk"><input type="checkbox" ${app.packetDocs[d]?'checked':''}
+     ${st.idx>0||st.closed?'disabled':''} onchange="RS.toggleDoc('${app.id}','${esc(d)}',this.checked)"> ${esc(d)}</label>`).join('') ||
+     '<div class="op-empty">Виды не выбраны — требований к пакету нет.</div>';
+  let gate='';
+  if(st.idx===0 && !st.closed){
+    gate = g.ok
+      ? `<div class="okline">Пакет полон. Переход в «Анализ» доступен (кнопка внизу).</div>`
+      : `<div class="flagline">Пакет неполон (нет: ${g.missing.map(esc).join(', ')||'—'}). Гейт стадии 1: доступен только исход «возвращена без рассмотрения» либо докомплект. Переход в «Анализ» заблокирован.</div>`;
+  }
+  const retBtn = (st.idx===0 && !st.closed)
+    ? `<button class="btn btn-secondary btn-sm" onclick="RS.returnApp('${app.id}')">Вернуть без рассмотрения</button>` : '';
+  return `<div class="detail-panel active">
+    <div class="section-h">Обращение</div>
+    <div class="section-note">Дата регистрации: <b>${app.regDate}</b>. Требования к пакету — объединение документов выбранных видов (Р-3).</div>
+    ${gate}
+    <div class="f2" style="max-width:520px">${docs}</div>
+    <div style="margin-top:14px">${retBtn}</div>
+  </div>`;
+}
+
+/* 2. Охват — таблица кредитов; валидации ИНН и «другая активная заявка» (Р-2) */
+function pScope(app){
+  const rows=app.creditIds.map(id=>{ const c=creditById(id); const other=activeAppOnCredit(id,app.id);
+    return `<tr>
+      <td>${c.no}</td><td class="numcell">${fmt(c.balance)}</td>
+      <td>${c.odDays} дн. / ${fmt(c.odSum)}</td>
+      <td>${c.collProc?`<span class="rowlink" onclick="RS.showMirror('${c.collProc}','${app.id}')">${c.collProc}</span>`:'—'}</td>
+      <td>${other?`<span class="pill high">${other.id}</span>`:'<span class="pill low">нет</span>'}</td>
+      <td>реструкт.: ${c.restructCount}</td>
+    </tr>`; }).join('') || `<tr><td colspan="6" class="op-empty">Охват пуст</td></tr>`;
+  const st=stageOf(app);
+  const addBtn = (!st.closed) ? `<button class="btn btn-primary btn-sm" onclick="RS.openAddCredit('${app.id}')">+ Добавить кредит</button>`:'';
+  return `<div class="detail-panel active">
+    <div class="section-h">Охват заявки</div>
+    <div class="section-note">Только кредиты ИНН <b>${app.inn}</b>. Кредит с другой активной заявкой добавить нельзя (Р-2). Остаток/просрочка — read-only снимки.</div>
+    <div class="gtoolbar">${addBtn}</div>
+    <div class="cgrid-wrap"><table class="cgrid"><thead><tr>
+      <th>Кредит</th><th class="numcell">Остаток</th><th>Просрочка</th><th>Взыскание</th><th>Другая активная заявка</th><th>Счётчик</th>
+    </tr></thead><tbody>${rows}</tbody></table></div>
+  </div>`;
+}
+
+/* 3. Заключения (Р-5) */
+function pConcl(app){
+  const g=conclGate(app);
+  const cards=app.conclusions.map((c,i)=>{
+    const mine = canX('editConcl:'+c.dept);
+    return `<div class="concl-card">
+      <div class="ch"><span class="cn">Заключение: ${esc(c.dept)}</span>
+        ${c.visa?`<span class="gatechip ok">✓ виза ${c.visaDate}</span>`:`<span class="gatechip no">без визы</span>`}</div>
+      <div class="field col-span"><textarea ${mine&&!c.visa?'':'disabled'} placeholder="${mine?'Текст заключения…':'Правит только заключант '+esc(c.dept)}"
+        onchange="RS.setConclText('${app.id}',${i},this.value)">${esc(c.text)}</textarea></div>
+      <div style="margin-top:8px">
+        ${!c.visa?`<button class="btn btn-success btn-sm" ${mine?'':'disabled'} onclick="RS.visaConcl('${app.id}',${i})">Завизировать</button>`
+          :`<span class="mode-tag">Завизировано ${c.visaDate}</span>`}
+      </div>
+    </div>`;
+  }).join('');
+  const gate = g.ok
+    ? `<div class="okline">Все затребованные заключения завизированы. Гейт «в Комитет» открыт.</div>`
+    : `<div class="warnline">Ожидают визы: ${g.pending.map(esc).join(', ')}. Гейт «в Комитет» закрыт.</div>`;
+  return `<div class="detail-panel active">
+    <div class="section-h">Заключения подразделений</div>
+    <div class="section-note">Куратор может добавить заключанта — это добавит требование к гейту комитета (Р-5).</div>
+    ${gate}
+    <div class="gtoolbar"><button class="btn btn-secondary btn-sm" onclick="RS.openAddConcl('${app.id}')">+ Добавить заключанта</button></div>
+    ${cards}
+  </div>`;
+}
+
+/* 4. Новые условия (Р-11) + diff */
+function pTerms(app){
+  const cr=creditById(app.creditIds[0]);
+  if(!cr) return `<div class="detail-panel active"><div class="op-empty">Добавьте кредит в охват.</div></div>`;
+  if(!app.version){ app.version=versionFrom(cr); }
+  const allow=allowedParams(app); const st=stageOf(app);
+  const editable = !st.closed && canX('editVersion');
+  const fields = PARAM_KEYS.map(([k,label])=>{
+    const isAllowed=allow.has(k); const val=app.version.params[k]!==undefined?app.version.params[k]:(cr.terms[k]??'');
+    const dis = !editable || !isAllowed;
+    return `<div class="field"><span class="flabel">${label} ${isAllowed?'':'<span class="ro-tag">(вид не разрешает)</span>'}</span>
+      <input value="${esc(val)}" ${dis?'disabled':''} onchange="RS.setParam('${app.id}','${k}',this.value)"></div>`;
+  }).join('');
+  const diffRows = PARAM_KEYS.map(([k,label])=>{
+    const oldV=cr.terms[k]??'—', newV=app.version.params[k]!==undefined?app.version.params[k]:oldV;
+    const changed=String(oldV)!==String(newV);
+    return `<tr class="${changed?'diff-changed':''}"><td>${label}</td>
+      <td class="${changed?'diff-old':''}">${esc(oldV)}</td>
+      <td class="${changed?'diff-new':''}">${esc(newV)}</td></tr>`;
+  }).join('');
+  const graph = app.version.graph.length
+    ? `<div class="cgrid-wrap" style="max-width:520px"><table class="cgrid"><thead><tr><th>№</th><th>Дата</th><th class="numcell">Платёж</th></tr></thead><tbody>
+        ${app.version.graph.map(g=>`<tr><td>${g.n}</td><td>${g.date}</td><td class="numcell">${fmt2(g.pay)}</td></tr>`).join('')}
+       </tbody></table></div>`
+    : '<div class="op-empty">График не рассчитан. Нажмите «Рассчитать график».</div>';
+  const srcTag = app.version.source==='минфин' ? `<span class="pill info">условия Минфина</span>` : '';
+  return `<div class="detail-panel active">
+    <div class="section-h">Новые условия версии ${srcTag}</div>
+    <div class="section-note">Редактируемы только параметры, разрешённые видами заявки (Р-3). Остальные видимы, но read-only. Кредит-база: ${cr.no}. Состояние версии: <b>${app.version.state}</b>.</div>
+    <div class="f2">${fields}</div>
+    <div class="gtoolbar" style="margin-top:14px"><button class="btn btn-secondary btn-sm" ${editable?'':'disabled'} onclick="RS.calcGraph('${app.id}')">Рассчитать график</button></div>
+    ${graph}
+    <div class="section-h" style="margin-top:18px">Diff — старая / новая версия</div>
+    <div class="cgrid-wrap" style="max-width:640px"><table class="cgrid"><thead><tr><th>Параметр</th><th>Старая</th><th>Новая</th></tr></thead><tbody>${diffRows}</tbody></table></div>
+  </div>`;
+}
+
+/* 5. Комитет / Минфин (Р-6) */
+function pMinfin(app){
+  const st=stageOf(app); const c=app.committee||{}; const l=app.letterSent||{}; const m=app.minfin||{};
+  const dl=deadline(app);
+  const committeeBlock = c.fixed
+    ? `<div class="okline">Позиция комитета: <b>${esc(c.position)}</b> (${c.date}). Позиция необязывающая — письмо направляется всегда.</div>`
+    : `<div class="field" style="max-width:420px"><span class="flabel">Позиция комитета</span>
+        <select id="cpos"><option value="целесообразно">целесообразно</option><option value="нецелесообразно">нецелесообразно</option></select>
+        <div style="margin-top:8px"><button class="btn btn-success btn-sm" onclick="RS.fixCommittee('${app.id}')">Зафиксировать позицию</button></div></div>`;
+  let letterBlock='';
+  if(c.fixed){
+    letterBlock = l.fixed
+      ? `<div class="okline">Письмо в Минфин направлено ${l.date}. Включена пауза взыскания + дедлайн решения 70 к.д. (см. вкладку История / блок «Автоматика» ниже).</div>`
+      : `<div class="warnline">Дедлайн письма: ${dl?(dl.overdue?`<span class="dl-red">просрочен ${-dl.remaining} дн.</span>`:`осталось ${dl.remaining} дн.`):'5 р.д.'} (флаг, не блокировка). Письмо направляется при любой позиции.</div>
+         <button class="btn btn-primary btn-sm" onclick="RS.fixLetter('${app.id}')">Зафиксировать отправку письма</button>`;
+  }
+  let minfinBlock='';
+  if(l.fixed){
+    minfinBlock = m.fixed
+      ? `<div class="${m.decision==='отказ'?'flagline':'okline'}">Решение Минфина: <b>${decLabel(m.decision)}</b> · реквизит: ${esc(m.letterRef)} (${m.date}).</div>`
+      : `<div class="f2" style="max-width:640px">
+          <div class="field"><span class="flabel">Решение</span><select id="mdec">
+            <option value="одобрено">одобрено</option><option value="изм">одобрено с изменёнными условиями</option><option value="отказ">отказ</option></select></div>
+          <div class="field"><span class="flabel">Реквизит письма Минфина •</span><input id="mref" placeholder="МФ-исх-№ от дата"></div>
+          <div class="field col-span"><button class="btn btn-primary btn-sm" onclick="RS.fixMinfin('${app.id}')">Зафиксировать решение Минфина</button>
+            <span class="mode-tag" style="margin-left:8px">Без реквизита кнопка отклонит фиксацию (minfinGate).</span></div>
+        </div>`;
+  }
+  const auto = automationBlock(app);
+  return `<div class="detail-panel active">
+    <div class="section-h">Комитет</div>${committeeBlock}
+    <div class="section-h" style="margin-top:18px">Письмо в Минфин</div>${letterBlock||'<div class="op-empty">Сначала зафиксируйте позицию комитета.</div>'}
+    <div class="section-h" style="margin-top:18px">Решение Минфина</div>${minfinBlock||'<div class="op-empty">Сначала зафиксируйте отправку письма.</div>'}
+    ${auto}
+  </div>`;
+}
+function decLabel(d){ return d==='изм'?'одобрено с изменёнными условиями':d==='отказ'?'отказ':'одобрено'; }
+
+/* Блок «Автоматика» (Р-12/13/14) + мини-зеркало */
+function automationBlock(app){
+  if(!app.automation.length) return '';
+  const events=app.automation.map(e=>`<div class="op-row"><span class="pill ${e.kind==='risk'?'high':e.kind==='unpause'?'low':'mid'}">${e.kind}</span><span class="op-t">${esc(e.text)}</span><span class="mode-tag">${e.when}</span></div>`).join('');
+  const cr=creditById(app.creditIds[0]); const proc=cr&&cr.collProc?state.procs[cr.collProc]:null;
+  const paused = app.letterSent&&app.letterSent.fixed && !(app.outcome==='отказ'||(app.ds&&app.ds.no));
+  const mirror = proc ? `<div class="mirror">
+      <div class="mh">Зеркало процесса взыскания ${proc.id} (read-only)</div>
+      ${paused?`<div class="mbanner">⏸ Пауза (scope: весь процесс, дедлайн 70 к.д.) — источник: заявка <span class="rowlink" onclick="RS.openApp('${app.id}')">${app.id}</span></div>`:''}
+      <div class="mrow"><span>Фаза</span><span>${proc.phase}</span></div>
+      <div class="mrow"><span>Дней в категории</span><span>${proc.catDays}</span></div>
+      <div class="mrow"><span>Заёмщик (ИНН)</span><span>${proc.inn}</span></div>
+    </div>`:'';
+  return `<div class="section-h" style="margin-top:20px">Автоматика швов</div>
+    <div class="ops-list">${events}</div>
+    ${mirror}
+    <div class="infoline">Пени во время паузы <b>продолжают начисляться</b> (Р-13). Пауза останавливает меры, не обязательства.</div>
+    <div class="infoline">Оси заёмщика <b>не трогаем</b> (Р-14): группа и риск-категория меняются только классификатором; счётчик реструктуризаций на кредите +1.</div>`;
+}
+
+/* 6. Оформление (Р-8, Р-15) */
+function pFormal(app){
+  const approved = app.minfin&&app.minfin.fixed&&app.minfin.decision!=='отказ';
+  if(!approved) return `<div class="detail-panel active"><div class="op-empty">Оформление доступно после одобрения Минфином.</div></div>`;
+  const cga=coverGateApp(app);
+  const rows=cga.rows.map(({cr,g})=>`<tr>
+    <td>${cr.no}</td>
+    <td class="numcell">${g.cover}% / ≥${g.required}%</td>
+    <td>${g.coverOk?'<span class="gatechip ok">покрытие ✓</span>':'<span class="gatechip no">покрытие ✗</span>'}</td>
+    <td>${cr.tech?(g.ageOk?'<span class="gatechip ok">возраст ✓</span>':'<span class="gatechip no">возраст ✗</span>'):'<span class="mode-tag">не техника</span>'}</td>
+    <td>${g.insured?'<span class="gatechip ok">страховка ✓</span>':'<span class="gatechip no">страховка ✗</span>'}</td>
+  </tr>`).join('');
+  const waived = app.waiver&&app.waiver.granted;
+  let gateLine;
+  if(cga.ok && !waived) gateLine=`<div class="okline">Гейт обеспечения пройден по всем кредитам. Регистрация доп. соглашения доступна.</div>`;
+  else if(waived) gateLine=`<div class="warnline">Гейт обеспечения снят WAIVER-ом комиссии по залогу. Основание: ${esc(app.waiver.reason)} (${app.waiver.date}).</div>`;
+  else gateLine=`<div class="flagline">Гейт обеспечения не пройден — регистрация доп. соглашения заблокирована. Разблокировка — «Решение комиссии по залогу» с обязательным основанием.</div>`;
+  const done = app.ds&&app.ds.no;
+  const dsBlock = done
+    ? `<div class="okline">Доп. соглашение <b>${esc(app.ds.no)}</b> зарегистрировано. Версия «действует» с ${app.ds.date}. Счётчик реструктуризаций кредитов +1.</div>`
+    : `<div class="gtoolbar">
+        ${(!cga.ok && !waived)?`<button class="btn btn-danger btn-sm" onclick="RS.openWaiver('${app.id}')">Решение комиссии по залогу (waiver)</button>`:''}
+        <button class="btn btn-primary btn-sm" ${(cga.ok||waived)?'':'disabled'} onclick="RS.openDS('${app.id}')">Зарегистрировать доп. соглашение</button>
+      </div>`;
+  const ops = app.ops.length
+    ? `<div class="ops-list">${app.ops.map(o=>`<div class="op-row"><span class="op-t"><b>${esc(o.type)}</b> — ${esc(o.detail)}</span>${o.before!==undefined?`<span class="mode-tag">${fmt(o.before)} → ${fmt(o.after)}</span>`:''}</div>`).join('')}</div>`
+    : '<div class="op-empty">Операции на дату вступления появятся при активации версии (Р-9/Р-10).</div>';
+  return `<div class="detail-panel active">
+    <div class="section-h">Гейт обеспечения (на новых условиях)</div>
+    <div class="section-note">Покрытие = залоговая стоимость / остаток ≥ порог. Возраст техники против нового срока. Страховка на новый срок (Р-15).</div>
+    ${gateLine}
+    <div class="cgrid-wrap" style="max-width:760px"><table class="cgrid"><thead><tr><th>Кредит</th><th class="numcell">Покрытие</th><th>Покрытие</th><th>Возраст</th><th>Страховка</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="section-h" style="margin-top:18px">Доп. соглашение</div>${dsBlock}
+    <div class="section-h" style="margin-top:18px">Операции на дату вступления</div>${ops}
+  </div>`;
+}
+
+/* 7. История (Р-16, append-only) */
+function pHist(app){
+  const rows=[...app.history].map(h=>`<div class="hrow ${h.cls||''}">
+    <div class="hwhen">${h.when}</div><div class="hwhat">${esc(h.what)}</div>${h.who?`<div class="hwho">${esc(h.who)}</div>`:''}
+  </div>`).join('');
+  return `<div class="detail-panel active">
+    <div class="section-h">История заявки</div>
+    <div class="section-note">Append-only. Записи не удаляются и не переписываются; отмена — компенсирующей записью (Р-16).</div>
+    <div class="hist">${rows||'<div class="op-empty">Пусто</div>'}</div>
+  </div>`;
+}
+
+/* ================= СПРАВОЧНИК ВИДОВ (Р-3) ================= */
+function renderDict(){
+  const v=document.getElementById('view-dict');
+  const rows=state.kinds.map(k=>`<tr>
+    <td><b>${esc(k.name)}</b></td>
+    <td>${[...k.params].map(p=>PARAM_LABEL[p]||p).join(', ')}</td>
+    <td>${k.docs.map(esc).join(', ')}</td>
+    <td>${k.overdueMode===1?'(1) в новый график + обнуление':'(2) сохраняется'}</td>
+    <td>${esc(k.limits||'')}</td>
+  </tr>`).join('');
+  v.innerHTML=`
+    <div class="tb-actions">
+      <button class="btn btn-primary btn-sm" ${canX('manageDict')?'':'disabled'} onclick="RS.openNewKind()">+ Новый вид</button>
+      <div class="spacer"></div>
+      <span class="mode-tag">Конструктор — роль Администратор. Новый вид сразу доступен в заявках.</span>
+    </div>
+    <div class="grid-wrap"><table class="grid"><thead><tr>
+      <th>Вид</th><th>Разрешённые параметры</th><th>Документы</th><th>Режим просрочки</th><th>Ограничения</th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+/* ================= МОДАЛКИ ================= */
+const overlay = () => document.getElementById('overlay');
+function modal(html){ overlay().innerHTML=html; overlay().classList.add('open'); }
+function closeModal(){ overlay().classList.remove('open'); overlay().innerHTML=''; }
+const mhead = t => `<div class="modal-h"><span class="mt">${t}</span><button class="modal-x" onclick="RS.closeModal()">×</button></div>`;
+
+function openAddCredit(appId){
+  if(!guard('addCredit')) return; const app=appById(appId);
+  const cands=state.credits.filter(c=>!app.creditIds.includes(c.id));
+  const opts=cands.map(c=>`<option value="${c.id}">${c.no} · ${c.borrower} · ИНН ${c.inn} · остаток ${fmt(c.balance)}</option>`).join('');
+  modal(`<div class="modal">${mhead('Добавить кредит в охват')}<div class="modal-b">
+    <div class="section-note">Валидации Р-2: тот же ИНН (${app.inn}); кредит без другой активной заявки.</div>
+    <div class="field"><span class="flabel">Кредит</span><select id="addcr">${opts||'<option value="">нет кандидатов</option>'}</select></div>
+  </div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
+    <button class="btn btn-primary" onclick="RS.addCredit('${appId}')">Добавить</button></div></div>`);
+}
+function addCredit(appId){
+  const app=appById(appId); const id=document.getElementById('addcr').value; const c=creditById(id); if(!c) return;
+  if(c.inn!==app.inn){ toast('Кредит другого ИНН — добавить нельзя (Р-2)','err'); return; }
+  const other=activeAppOnCredit(id,appId);
+  if(other){ toast('Кредит уже в активной заявке '+other.id+' — добавить нельзя (Р-2)','err'); return; }
+  app.creditIds.push(id); app._t=TODAY; H(app,'В охват добавлен кредит '+c.no+'.',state.role);
+  closeModal(); toast('Кредит добавлен','ok'); render();
+}
+
+function openAddConcl(appId){
+  if(!guard('addConcl')) return;
+  modal(`<div class="modal">${mhead('Добавить подразделение-заключанта')}<div class="modal-b">
+    <div class="section-note">Добавит новое требование к гейту «в Комитет» (Р-5).</div>
+    <div class="field"><span class="flabel">Название подразделения</span><input id="ncdept" placeholder="напр. Юридический департамент"></div>
+  </div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
+    <button class="btn btn-primary" onclick="RS.addConcl('${appId}')">Добавить</button></div></div>`);
+}
+function addConcl(appId){
+  const app=appById(appId); const dept=(document.getElementById('ncdept').value||'').trim();
+  if(!dept){ toast('Укажите подразделение','err'); return; }
+  app.conclusions.push({dept,text:'',visa:false,visaDate:null}); app._t=TODAY; H(app,'Добавлен заключант: '+dept+'.',state.role);
+  closeModal(); toast('Заключант добавлен — гейт комитета обновлён','ok'); render();
+}
+
+function openWaiver(appId){
+  if(!guard('waiver')) return;
+  modal(`<div class="modal">${mhead('Решение комиссии по залогу (waiver)')}<div class="modal-b">
+    <div class="flagline">Гейт обеспечения не пройден. Основание обязательно — оно пишется в историю (Р-16).</div>
+    <div class="field col-span"><span class="flabel">Основание •</span><textarea id="wreason" placeholder="Протокол комиссии, компенсирующее обеспечение, …"></textarea></div>
+  </div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
+    <button class="btn btn-danger" onclick="RS.grantWaiver('${appId}')">Снять блокировку (waiver)</button></div></div>`);
+}
+function grantWaiver(appId){
+  const app=appById(appId); const reason=(document.getElementById('wreason').value||'').trim();
+  if(!reason){ toast('Основание обязательно','err'); return; }
+  app.waiver={granted:true,reason,by:'Комиссия по залогу',date:TODAY}; app._t=TODAY;
+  H(app,'WAIVER комиссии по залогу: '+reason,'Комиссия по залогу','waiver');
+  closeModal(); toast('Гейт обеспечения снят waiver-ом','ok'); render();
+}
+
+function openDS(appId){
+  if(!guard('regDS')) return; const app=appById(appId);
+  const cga=coverGateApp(app);
+  if(!cga.ok && !(app.waiver&&app.waiver.granted)){ toast('Гейт обеспечения не пройден — сначала waiver','err'); return; }
+  modal(`<div class="modal">${mhead('Регистрация доп. соглашения')}<div class="modal-b"><div class="mform">
+    <div class="field req"><span class="flabel">Номер доп. соглашения</span><input id="dsno" placeholder="ДС-…"></div>
+    <div class="field req"><span class="flabel">Дата</span><input id="dsdate" type="date" value="${TODAY}"></div>
+    <div class="field col-span"><div class="section-note">Оба реквизита обязательны (Р-8). При регистрации: версия «действует», операции на дату вступления, счётчик реструктуризаций +1.</div></div>
+  </div></div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
+    <button class="btn btn-primary" onclick="RS.regDS('${appId}')">Зарегистрировать</button></div></div>`);
+}
+function regDS(appId){
+  const app=appById(appId); const no=(document.getElementById('dsno').value||'').trim(); const date=(document.getElementById('dsdate').value||'').trim();
+  if(!no||!date){ toast('Номер и дата обязательны (Р-8)','err'); return; }
+  app.ds={no,date};
+  if(!app.outcome) app.outcome = app.minfin.decision==='изм'?'изм':'одобрена';
+  if(app.version) app.version.state='действует';
+  applyEntryOps(app);
+  app.creditIds.forEach(id=>{ const c=creditById(id); c.restructCount+=1; });
+  app._t=date; H(app,'Доп. соглашение '+no+' зарегистрировано. Версия «действует» с '+date+'. Операции на дату вступления выполнены. Счётчик реструктуризаций +1.',state.role);
+  const cr=creditById(app.creditIds[0]);
+  if(cr&&cr.collProc){ app.automation.push({when:date,kind:'unpause',text:'Оформление завершено — пауза снята штатно, взыскание закрыто по кредитам заявки'}); }
+  closeModal(); toast('Доп. соглашение зарегистрировано — версия действует','ok'); render();
+}
+function applyEntryOps(app){
+  const kinds=app.kindIds.map(kindById);
+  const cr=creditById(app.creditIds[0]);
+  if(kinds.some(k=>k&&k.params.includes('capInterest'))) app.ops.push({type:'Капитализация процентов',detail:'Начисленные % перенесены в тело долга',before:cr.balance,after:cr.balance});
+  if(kinds.some(k=>k&&k.params.includes('capPenalty'))) app.ops.push({type:'Капитализация штрафов',detail:'Штрафы перенесены в тело долга',before:cr.balance,after:cr.balance});
+  if(kinds.some(k=>k&&k.params.includes('forgive'))) app.ops.push({type:'Прощение санкций',detail:'Списание пени компенсирующей записью (не удаление)',before:cr.odSum,after:0});
+  const mode = kinds.find(k=>k)?.overdueMode||2;
+  app.ops.push({type:'Режим просрочки',detail:mode===1?'режим (1): в новый график + обнуление счётчика дней':'режим (2): просрочка сохраняется со своим счётчиком',mode});
+  if(mode===1 && cr){ H(app,'Режим просрочки (1): счётчик дней просрочки обнулён ('+cr.odDays+' → 0).','Система'); cr.odDays=0; }
+}
+
+function openNewKind(){
+  if(!guard('manageDict')) return;
+  const chks=PARAM_KEYS.map(([k,l])=>`<label class="chk"><input type="checkbox" value="${k}" class="npk"> ${l}</label>`).join('');
+  modal(`<div class="modal wide">${mhead('Новый вид реструктуризации')}<div class="modal-b"><div class="mform">
+    <div class="field req col-span"><span class="flabel">Название</span><input id="nkname"></div>
+    <div class="field col-span"><span class="flabel">Разрешённые параметры</span><div class="f2" style="grid-template-columns:1fr 1fr 1fr">${chks}</div></div>
+    <div class="field col-span"><span class="flabel">Требуемые документы (через запятую)</span><input id="nkdocs" value="Заявление"></div>
+    <div class="field req"><span class="flabel">Режим просрочки</span><select id="nkmode"><option value="1">(1) в новый график + обнуление счётчика</option><option value="2">(2) просрочка сохраняется</option></select></div>
+    <div class="field"><span class="flabel">Ограничения</span><input id="nklim"></div>
+  </div></div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
+    <button class="btn btn-primary" onclick="RS.addKind()">Создать вид</button></div></div>`);
+}
+function addKind(){
+  const name=(document.getElementById('nkname').value||'').trim(); if(!name){ toast('Название обязательно','err'); return; }
+  const params=[...document.querySelectorAll('.npk:checked')].map(x=>x.value);
+  const docs=(document.getElementById('nkdocs').value||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const mode=+document.getElementById('nkmode').value; const limits=(document.getElementById('nklim').value||'').trim();
+  const id='K'+(state.kinds.length+1)+'_'+Date.now().toString(36);
+  state.kinds.push({id,name,params,docs,overdueMode:mode,limits});
+  closeModal(); toast('Вид создан — доступен в заявках','ok'); render();
+}
+
+function showMirror(procId,appId){
+  const p=state.procs[procId]; if(!p) return;
+  const app=appById(appId); const paused=app&&app.letterSent&&app.letterSent.fixed&&!(app.outcome==='отказ'||(app.ds&&app.ds.no));
+  modal(`<div class="modal">${mhead('Процесс взыскания '+procId+' (read-only)')}<div class="modal-b">
+    ${paused?`<div class="warnline">⏸ Пауза (весь процесс, 70 к.д.) — источник: заявка ${appId}</div>`:''}
+    <div class="mirror"><div class="mrow"><span>Фаза</span><span>${p.phase}</span></div>
+    <div class="mrow"><span>Дней в категории</span><span>${p.catDays}</span></div>
+    <div class="mrow"><span>Заёмщик (ИНН)</span><span>${p.inn}</span></div></div>
+    <div class="section-note">Зеркало read-only. Условия кредита из зеркала не редактируются.</div>
+  </div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Закрыть</button></div></div>`);
+}
+
+/* ================= ДЕЙСТВИЯ (мутации owned-фактов) ================= */
+function toggleDoc(appId,doc,val){ if(!guard('toggleDoc')) return; const app=appById(appId); app.packetDocs[doc]=val; render(); }
+function returnApp(appId){ if(!guard('returnApp')) return; const app=appById(appId); app.outcome='возврат'; app._t=TODAY;
+  H(app,'Исход: возвращена без рассмотрения (неполный пакет).',state.role); toast('Заявка возвращена без рассмотрения','ok'); render(); }
+function setConclText(appId,i,val){ const app=appById(appId); if(!canX('editConcl:'+app.conclusions[i].dept)){ return; } app.conclusions[i].text=val; }
+function visaConcl(appId,i){ const app=appById(appId); const c=app.conclusions[i];
+  if(!canX('editConcl:'+c.dept)){ toast('Визирует только заключант '+c.dept,'err'); return; }
+  if(!c.text.trim()){ toast('Заполните текст заключения','err'); return; }
+  c.visa=true; c.visaDate=TODAY; app._t=TODAY; H(app,'Заключение '+c.dept+' завизировано.','Заключант '+c.dept); toast('Завизировано','ok'); render(); }
+function fixCommittee(appId){ if(!guard('fixCommittee')) return; const app=appById(appId);
+  const pos=document.getElementById('cpos').value; app.committee={fixed:true,position:pos,date:TODAY}; app._t=TODAY;
+  H(app,'Позиция комитета: '+pos+'. Дедлайн письма 5 р.д.','Секретарь комитета'); toast('Позиция комитета зафиксирована','ok'); render(); }
+function fixLetter(appId){ if(!guard('fixLetter')) return; const app=appById(appId);
+  app.letterSent={fixed:true,date:TODAY}; app._t=TODAY;
+  const cr=creditById(app.creditIds[0]);
+  app.automation.push({when:TODAY,kind:'pause',text:'Пауза поставлена в процессе взыскания '+(cr&&cr.collProc||'—')+' (scope: весь процесс, дедлайн 70 к.д.)'});
+  if(cr) app.automation.push({when:TODAY,kind:'overlay',text:'Оверлей подавления 181-го дня поставлен на кредит '+cr.no});
+  H(app,'Письмо в Минфин направлено. Пауза взыскания (весь процесс, 70 к.д.) + оверлей 181-го дня.','Куратор ОД','auto');
+  toast('Отправка письма зафиксирована — автоматика паузы включена','ok'); render(); }
+function fixMinfin(appId){ if(!guard('fixMinfin')) return; const app=appById(appId);
+  const dec=document.getElementById('mdec').value; const ref=(document.getElementById('mref').value||'').trim();
+  if(!ref){ toast('Реквизит письма Минфина обязателен (minfinGate)','err'); return; }
+  app.minfin={fixed:true,decision:dec,letterRef:ref,date:TODAY}; app._t=TODAY;
+  H(app,'Решение Минфина: '+decLabel(dec)+' ('+ref+').','Куратор ОД');
+  if(dec==='отказ'){ app.outcome='отказ';
+    const cr=creditById(app.creditIds[0]); const nd=addCalDays(TODAY,1);
+    app.automation.push({when:nd,kind:'unpause',text:'Отказ зафиксирован '+TODAY+' → снятие следующим календарным днём ('+nd+'): взыскание возобновлено с фазы «'+(cr&&cr.collProc?state.procs[cr.collProc].phase:'—')+'».'});
+    app.automation.push({when:nd,kind:'risk',text:'Ночной пересчёт категории → высокий (следующим календарным днём после отказа).'});
+    H(app,'Снятие паузы/оверлея следующим днём; взыскание возобновлено с сохранённой фазы; категория → высокий.','Система','auto');
+    toast('Отказ зафиксирован','ok');
+  } else if(dec==='изм'){ if(app.version) app.version.source='минфин';
+    H(app,'Условия — версия Минфина (то, что утвердили). Откройте вкладку «Новые условия» для правки.','Куратор ОД'); toast('Одобрено с изменёнными условиями','ok');
+  } else { toast('Решение Минфина зафиксировано','ok'); }
+  render(); }
+function setParam(appId,k,val){ const app=appById(appId); if(!canX('editVersion')){ toast('Условия правит Куратор ОД','err'); return; }
+  if(!allowedParams(app).has(k)){ toast('Параметр не разрешён выбранными видами (Р-3)','err'); return; }
+  const num=Number(val); app.version.params[k]=(val!==''&&!isNaN(num)&&/^[0-9.]+$/.test(val))?num:val; }
+function calcGraph(appId){ if(!guard('calcGraph')) return; const app=appById(appId); const cr=creditById(app.creditIds[0]);
+  const term=Number(app.version.params.term)||cr.terms.term; const rate=Number(app.version.params.rate)||cr.terms.rate;
+  const P=cr.balance, r=rate/100/12, n=term;
+  const pay = r>0 ? P*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1) : P/n;
+  app.version.graph=Array.from({length:Math.min(n,6)},(_,i)=>({n:i+1,date:addCalDays(app.regDate,(i+1)*30),pay}));
+  toast('График рассчитан (демо-аннуитет)','ok'); render(); }
+function advance(appId){ const app=appById(appId); const adv=canAdvance(app); if(!adv||!adv.ok){ toast(adv?adv.why:'Нет перехода','err'); return; }
+  if(adv.to==='Анализ'){ if(!guard('startAnalysis')) return; app.analysisStarted=true; app._t=TODAY; H(app,'Пакет укомплектован → переход в «Анализ». Дедлайн 30 к.д.',state.role); toast('Переход выполнен','ok'); render(); return; }
+  if(adv.to==='Комитет'){ toast('Заключения завизированы — зафиксируйте позицию комитета во вкладке «Комитет / Минфин»','ok'); state.curTab='minfin'; render(); return; }
+}
+
+/* ================= МАРШРУТ / ИНИЦИАЛИЗАЦИЯ ================= */
+/* создание новой заявки (Р-1: заявка — единица работы, привязана к ИНН; Р-2: охват одного ИНН) */
+function newApp(){
+  if(!guard('createApp')) return;
+  const inns=[...new Map(state.credits.map(c=>[c.inn,c.borrower])).entries()];
+  const innOpts=inns.map(([inn,b],i)=>`<option value="${inn}" ${i===0?'selected':''}>${esc(b)} · ИНН ${inn}</option>`).join('');
+  const kinds=state.kinds.map(k=>`<label class="chk"><input type="checkbox" class="nakind" value="${k.id}"> ${esc(k.name)}</label>`).join('');
+  modal(`<div class="modal wide">${mhead('Новая заявка на реструктуризацию')}<div class="modal-b"><div class="mform">
+    <div class="field req"><span class="flabel">Заёмщик (ИНН)</span><select id="nainn" onchange="RS.naFillCredits()">${innOpts}</select></div>
+    <div class="field req"><span class="flabel">Дата регистрации обращения</span><input id="nadate" value="${TODAY}" placeholder="ГГГГ-ММ-ДД"></div>
+    <div class="field col-span"><span class="flabel">Охват — кредиты этого ИНН <span class="ro-tag">(Р-2: кредит с активной заявкой недоступен)</span></span>
+      <div id="nacredits" class="f2" style="max-width:640px"></div></div>
+    <div class="field col-span"><span class="flabel">Виды реструктуризации <span class="ro-tag">(Р-3; определяют пакет документов и разрешённые параметры)</span></span>
+      <div class="f2" style="grid-template-columns:1fr 1fr">${kinds}</div></div>
+    <div class="section-note">Заключения (СРМиК/ДПО), чек-лист пакета и конвейер стадий создаются автоматически. Заявка стартует на стадии «Регистрация обращения».</div>
+  </div></div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
+    <button class="btn btn-primary" onclick="RS.createApp()">Создать заявку</button></div></div>`);
+  naFillCredits();
+}
+function naFillCredits(){
+  const inn=document.getElementById('nainn').value;
+  const list=state.credits.filter(c=>c.inn===inn).map(c=>{
+    const other=activeAppOnCredit(c.id,'__new__');
+    return `<label class="chk" ${other?'style="opacity:.5"':''}><input type="checkbox" class="nacred" value="${c.id}" ${other?'disabled':''}>
+      ${c.no} · остаток ${fmt(c.balance)} · просрочка ${c.odDays} дн.${other?` · занят заявкой ${other.id}`:''}</label>`;
+  }).join('') || '<div class="op-empty">У ИНН нет кредитов</div>';
+  document.getElementById('nacredits').innerHTML=list;
+}
+function nextAppId(){ let n=1001; const ids=new Set(state.apps.map(a=>a.id)); while(ids.has('RS-'+n)) n++; return 'RS-'+n; }
+function createApp(){
+  if(!guard('createApp')) return;
+  const inn=document.getElementById('nainn').value;
+  const borrower=(state.credits.find(c=>c.inn===inn)||{}).borrower||'';
+  const regDate=(document.getElementById('nadate').value||'').trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(regDate)){ toast('Дата регистрации в формате ГГГГ-ММ-ДД','err'); return; }
+  const creditIds=[...document.querySelectorAll('.nacred:checked')].map(x=>x.value);
+  if(!creditIds.length){ toast('Выберите хотя бы один кредит охвата','err'); return; }
+  const bad=creditIds.find(id=>activeAppOnCredit(id,'__new__'));
+  if(bad){ toast('Кредит '+creditById(bad).no+' в другой активной заявке (Р-2)','err'); return; }
+  const kindIds=[...document.querySelectorAll('.nakind:checked')].map(x=>x.value);
+  if(!kindIds.length){ toast('Выберите хотя бы один вид реструктуризации','err'); return; }
+  const id=nextAppId();
+  const app=baseApp(id,inn,borrower,kindIds,creditIds,regDate);
+  app.conclusions=defaultConclusions();
+  app._t=regDate;
+  H(app,'Заявка зарегистрирована. Охват: '+creditIds.map(i=>creditById(i).no).join(', ')+'. Виды: '+kindIds.map(i=>kindById(i).name).join(', ')+'.',state.role);
+  state.apps.push(app);
+  closeModal(); toast('Заявка '+id+' создана — стадия «Регистрация обращения»','ok'); openApp(id);
+}
+function setFilter(k,v){ if(k==='stage') state.filterStage=v; else state.filterOutcome=v; render(); }
+function go(view){ state.view=view; if(view==='list') state.curApp=null; render(); }
+function setRole(r){ state.role=r; render(); }
+
+function render(){
+  document.getElementById('view-list').classList.toggle('active',state.view==='list');
+  document.getElementById('view-card').classList.toggle('active',state.view==='card');
+  document.getElementById('view-dict').classList.toggle('active',state.view==='dict');
+  document.getElementById('crumb').innerHTML =
+    state.view==='card' ? `<span class="bk" onclick="RS.go('list')">Реестр заявок</span> / ${state.curApp||''}`
+    : state.view==='dict' ? 'Справочник видов' : 'Реестр заявок';
+  renderNav(); renderRoles();
+  if(state.view==='list') renderList();
+  else if(state.view==='card') renderCard();
+  else if(state.view==='dict') renderDict();
+}
+
+function toast(msg,kind){ const w=document.getElementById('toastWrap'); if(!w) return; const t=document.createElement('div');
+  t.className='toast'+(kind?' '+kind:''); t.innerHTML=`<span>${esc(msg)}</span>`; w.appendChild(t); setTimeout(()=>t.remove(),4200); }
+
+/* публичный слой (UI + headless-check) */
+const RS = {
+  go, setRole, setTab, openApp, newApp, naFillCredits, createApp, nextAppId, setFilter, closeModal,
+  toggleDoc, returnApp, setConclText, visaConcl, openAddConcl, addConcl,
+  openAddCredit, addCredit, fixCommittee, fixLetter, fixMinfin, setParam, calcGraph, advance,
+  openWaiver, grantWaiver, openDS, regDS, openNewKind, addKind, showMirror,
+  get state(){ return state; }, seed, stageOf, deadline, packetGate, conclGate, minfinGate, dsGate,
+  coverGate, coverGateApp, allowedParams, requiredDocs, activeAppOnCredit, canAdvance, canX,
+  appById, creditById, kindById, applyEntryOps, TODAY, STAGES, ROLES,
+  __baseApp: baseApp
+};
+if(typeof window!=='undefined') window.RS=RS;
+
+seed();
+if(typeof document!=='undefined' && document.getElementById('view-list')){
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&overlay().classList.contains('open')) closeModal(); });
+  render();
+}
+</script>
+</body>
+</html>
