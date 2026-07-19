@@ -869,7 +869,7 @@ const ITEMS = [
     lastSurvey:'14.05.2026', lastReval:'14.05.2026',
     revals:[ {date:'14.05.2026', appraised:100000, report:'ОЦ-2026/59', note:'первичная оценка'} ],
     surveys:[ {date:'14.05.2026', act:'АО-2026/22', outcome:'в норме', note:'осмотр при оформлении'} ],
-    history:[ {when:'14.05.2026 16:05', what:'Override залоговой стоимости: 50 000,00 (расчётная) → 60 000,00 — ВЫШЕ расчётной, обоснование зафиксировано', who:'Комиссия по залогу'},
+    history:[ {when:'14.05.2026 16:05', what:'Решение комиссии по залоговой стоимости: 50 000,00 (расчётная) → 60 000,00 — ВЫШЕ расчётной, обоснование зафиксировано', who:'Комиссия по залогу'},
               {when:'14.05.2026 10:00', what:'Предмет зарегистрирован в реестре', who:'Залоговый специалист'} ] },
 
   { id:'П-006', kind:'Недвижимое имущество', name:'Производственная база, с. Лебединовка', pledger:'01705199200338',
@@ -1137,7 +1137,7 @@ const CONTRACTS = [
     notary:'Нотариус Осмоналиев Т.Б.', notaryNo:'НР-2026/0771', notaryDate:'20.05.2026', cert:'ЗС-2026/0233',
     credits:['К-40'], allocs:[ {item:'П-005', credit:'К-40', share:48000} ],
     undercovered:null, addenda:[],
-    history:[ {when:'20.05.2026 15:10', what:'Договор зарегистрирован. Покрытие К-40: 120,0% (залоговая П-005 — по override комиссии)', who:'Залоговый специалист'} ] },
+    history:[ {when:'20.05.2026 15:10', what:'Договор зарегистрирован. Покрытие К-40: 120,0% (залоговая П-005 — по решению комиссии)', who:'Залоговый специалист'} ] },
 
   /* ПРОВАЛ КОНТРОЛЬНОГО ГЕЙТА: 245 000 залоговой на кредит 250 000 → 98% < 120%.
      Регистрация будет заблокирована до решения комиссии по залогу. */
@@ -1644,7 +1644,7 @@ function rowsItems(){
     return { id: it.id, sort:{ id:it.id, kind:it.kind, name:it.name, pledger:clientName(it.pledger),
         pledge:pledgeValue(it), st },
       cells:[ it.id, it.kind, esc(it.name), esc(clientName(it.pledger)),
-        `<span class="numcell">${fmt(pledgeValue(it))}${it.override ? (isOverAbove(it) ? ' <span class="pill high" title="override выше расчётной">override ↑</span>' : ' <span class="pill neutral">override</span>') : ''}</span>`,
+        `<span class="numcell">${fmt(pledgeValue(it))}${it.override ? (isOverAbove(it) ? ' <span class="pill high" title="решение комиссии выше расчётной">комиссия ↑</span>' : ' <span class="pill neutral" title="залоговая по решению комиссии">комиссия</span>') : ''}</span>`,
         `<span class="axis"><span class="pill ${lienCls(st)}">${st}</span>${banPill(it)}</span>`,
         ctrlBadge(it) ] };
   });
@@ -1829,7 +1829,7 @@ function itemPanels(it){
     ${it.needReval ? `<div class="phead-banner warn"><span>Обследование зафиксировало ухудшение состояния → требуется досрочная переоценка (вне планового цикла).</span></div>` : ''}
     <div class="phead-dims">
       ${kpi('Оценочная стоимость', fmt(it.appraised), `owned · отчёт ${esc(it.apprReport)} от ${it.apprDate}`)}
-      ${kpi('Залоговая стоимость', fmt(pv), it.override ? `override комиссии${isOverAbove(it)?' ↑ выше расчётной':''} · расчётная ${fmt(cp)}` : `derived · ${fmt(it.appraised)} × ${coefOf(it.kind)}`)}
+      ${kpi('Залоговая стоимость', fmt(pv), it.override ? `решение комиссии${isOverAbove(it)?' ↑ выше расчётной':''} · расчётная ${fmt(cp)}` : `расчётная · ${fmt(it.appraised)} × ${coefOf(it.kind)}`)}
       ${kpi('Отнесено', fmt(allocatedLegal(it.id)+allocatedDraft(it.id)), `доли по договорам (действ. ${fmt(allocatedLegal(it.id))} + черновики ${fmt(allocatedDraft(it.id))})`)}
       ${kpi('Доступно', fmt(availableOf(it)), 'залоговая − отнесённое · база для перезалога')}
     </div></div>`;
@@ -1858,24 +1858,32 @@ function itemPanels(it){
     <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openAttach('item','${it.id}')">Прикрепить файл</button></div>
     ${fileTable(it.files)}</div>`;
 
+  const zBadge = it.override
+    ? (isOverAbove(it)
+        ? '<span class="pill high" title="решение комиссии выше расчётной — вне положения">решение комиссии ↑</span>'
+        : '<span class="pill neutral" title="залоговая установлена решением комиссии по залогу">решение комиссии</span>')
+    : '<span class="pill info" title="залоговая = оценочная × коэффициент вида">расчётная</span>';
   const p1 = `<div class="panel-wrap">
     <p class="section-h">Стоимость</p>
     <div class="panel-card" style="margin-bottom:16px"><div class="f2">
       ${ro('Оценочная (owned)', fmt(it.appraised))}
       ${ro('Коэффициент вида «'+it.kind+'» (справочник)', String(coefOf(it.kind)).replace('.',','))}
-      ${ro('Расчётная залоговая', fmt(cp))}
-      ${ro('Фактическая залоговая (в расчёте покрытия)', fmt(pv))}
+      <div class="field col-span"><span class="flabel">Залоговая стоимость (в расчёте покрытия)</span>
+        <div class="control ro" style="gap:8px">
+          <input value="${esc(fmt(pv))}" readonly style="width:auto;flex:1">
+          ${zBadge}
+        </div></div>
     </div>
     ${it.override ? `<div class="${isOverAbove(it)?'flagline':'infoline'}" style="margin-top:14px">
-      <span><b>Override комиссии по залогу:</b> ${fmt(it.override.value)} (расчётная ${fmt(cp)})${isOverAbove(it)
+      <span><b>Решение комиссии по залогу:</b> ${fmt(it.override.value)} (расчётная ${fmt(cp)})${isOverAbove(it)
         ? ' — <b>ВЫШЕ расчётной</b>: по положению недопустимо (коэффициент — дисконт риска/спроса, §2.1). Проведено как ИСКЛЮЧИТЕЛЬНОЕ решение, помечено «сверх дисконта — вне положения» (Р-10):' : ' — снижение (ниже/равно расчётной), консервативно, в рамках положения.'}
       ${isOverAbove(it) ? `<br>«${esc(it.override.obosn)}»<br><span class="formula">${esc(it.override.by)} · ${it.override.date}</span>` : ''}</span></div>`
-      : `<p class="formula" style="margin-top:14px">Override не задан — залоговая полностью производна.</p>`}
+      : `<p class="formula" style="margin-top:14px">Решение комиссии не вносилось — залоговая расчётная (оценочная × коэффициент).</p>`}
     </div>
     <p class="section-h">История переоценок</p>
     <div class="gtoolbar">
       <button class="btn btn-tint btn-sm" onclick="openReval('${it.id}')">Провести переоценку</button>
-      <button class="btn btn-tint btn-sm" onclick="openOverride('${it.id}')">Изменить залоговую (комиссия)</button>
+      <button class="btn btn-tint btn-sm" onclick="openOverride('${it.id}')">Изменить залоговую стоимость (решение комиссии)</button>
     </div>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Дата</th><th>Отчёт оценщика</th><th class="numcell">Оценочная</th><th class="numcell">Залоговая (расч.)</th><th>Примечание</th></tr></thead>
@@ -1993,15 +2001,11 @@ function itemPanels(it){
   return [p0,p1,p2,p3,p4,p6,p5,pFiles];
 }
 function itemFooter(it){
+  // Действия предмета живут в тулбарах своих вкладок (переоценка → «Стоимость»,
+  // запрет → «Запрет на отчуждение», обследование → «Обследования») — рядом со
+  // своим статусом, гейтами и историей. Футер несёт только выход из карточки.
   return `<button class="btn btn-secondary" onclick="showView('list')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Закрыть</button>
-    <div style="flex:1"></div>
-    <button class="btn btn-tint" onclick="openSurvey('${it.id}')">Обследование</button>
-    <button class="btn btn-tint" onclick="openReval('${it.id}')">Переоценка</button>
-    ${it.ban
-      ? `<button class="btn btn-tint danger" onclick="openBanRelease('${it.id}')" ${allocatedLegal(it.id)===0?'':'disabled'} title="${allocatedLegal(it.id)===0?'':'Полное снятие нельзя, пока по предмету закреплены доли'}">Снять запрет</button>`
-      : `<button class="btn btn-tint" onclick="openBan('${it.id}')" ${banRequired(it)?'':'disabled'} title="${banRequired(it)?'':'Наложить запрет можно только на обременённый зарегистрированным договором предмет'}">Наложить запрет</button>`}
-    <button class="btn btn-primary" onclick="openOverride('${it.id}')">Изменить залоговую</button>`;
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Закрыть</button>`;
 }
 
 /* ---------- КАРТОЧКА ЗАЛОГОВОГО ДОГОВОРА ---------- */
@@ -2182,7 +2186,7 @@ function openNewItem(){
     <p class="section-h" style="font-size:15px;margin:16px 0 2px">Детали предмета (набор полей зависит от вида залога)</p>
     <div id="niDetails" class="mform"></div>
     <div id="niExtra"></div>
-    <div class="warn-inline"><span>Залоговая стоимость <b>не вводится</b> — она производна: оценочная × коэффициент вида (справочник). Изменить её может только комиссия по залогу через override, и превышение расчётной требует обоснования.</span></div>
+    <div class="warn-inline"><span>Залоговая стоимость <b>не вводится</b> — она производна: оценочная × коэффициент вида (справочник). Изменить её может только комиссия по залогу (решением комиссии), и превышение расчётной требует обоснования.</span></div>
     </div>${mfoot('Создать','saveNewItem()')}</div>`);
   document.getElementById('niKind').addEventListener('change', niKindChange);
   niKindChange();
@@ -2309,7 +2313,7 @@ function openOverride(id){
     <label class="chk" id="ovExcWrap" style="display:none;margin-top:8px"><input type="checkbox" id="ovException"> Исключительное решение комиссии — сверх дисконта, вне положения (Р-10)</label>
     </div>
     <div class="modal-f">
-      ${it.override ? `<button class="btn btn-tint danger" onclick="clearOverride('${id}')">Снять override</button>` : ''}
+      ${it.override ? `<button class="btn btn-tint danger" onclick="clearOverride('${id}')">Отменить решение комиссии</button>` : ''}
       <div style="flex:1"></div>
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
       <button class="btn btn-primary" onclick="saveOverride('${id}')">Сохранить</button>
@@ -2334,14 +2338,14 @@ function saveOverride(id){
   if(v < alloc) toast('Внимание: новая залоговая '+fmt(v)+' МЕНЬШЕ суммы закреплённых долей '+fmt(alloc)+' — доли будут усечены в расчёте покрытия','warn');
   const old = pledgeValue(it);
   it.override = { value:v, obosn: ob, by: role, date: TODAY, beyondDiscount: above };
-  hist(it, `Override залоговой: ${fmt(old)} → ${fmt(v)} (расчётная ${fmt(cp)})${above ? ' — ВЫШЕ расчётной: ИСКЛЮЧИТЕЛЬНОЕ решение сверх дисконта, ВНЕ ПОЛОЖЕНИЯ (Р-10). Обоснование: «'+ob+'»' : ' — снижение (консервативно), в рамках положения'}`);
+  hist(it, `Решение комиссии по залоговой: ${fmt(old)} → ${fmt(v)} (расчётная ${fmt(cp)})${above ? ' — ВЫШЕ расчётной: ИСКЛЮЧИТЕЛЬНОЕ решение сверх дисконта, ВНЕ ПОЛОЖЕНИЯ (Р-10). Обоснование: «'+ob+'»' : ' — снижение (консервативно), в рамках положения'}`);
   closeModal(); toast(above?'Установлено исключительное значение (вне положения) — помечено флагом':'Залоговая стоимость установлена: '+fmt(v), above?'warn':'ok'); refresh();
 }
 function clearOverride(id){
   const it = item(id), old = pledgeValue(it);
   it.override = null;
-  hist(it, `Override снят: залоговая ${fmt(old)} → ${fmt(calcPledge(it))} (снова производная)`);
-  closeModal(); toast('Override снят, залоговая снова производна','ok'); refresh();
+  hist(it, `Решение комиссии отменено: залоговая ${fmt(old)} → ${fmt(calcPledge(it))} (снова расчётная)`);
+  closeModal(); toast('Решение комиссии отменено, залоговая снова расчётная','ok'); refresh();
 }
 
 /* ---------- ЗАПРЕТ НА ОТЧУЖДЕНИЕ: НАЛОЖЕНИЕ / СНЯТИЕ (наш шаг оформления) ----------
