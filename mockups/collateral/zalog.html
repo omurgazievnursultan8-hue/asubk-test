@@ -1519,6 +1519,14 @@ const HEADS = {
   guarantees: ['№','Договор поручит.','Обеспечиваемый кредит','Поручитель','Сумма','Статус'],
   monitor:    ['Критичность','Тип','Объект','Описание','Что делать'],
 };
+/* Ширины столбцов (table-layout:fixed). '' = гибкая колонка — забирает остаток
+   ширины (обычно текстовое «Наименование»/«Заёмщик»/«Описание»). */
+const WIDTHS = {
+  items:      ['72px','200px','','220px','195px','180px','170px'],
+  contracts:  ['72px','150px','','150px','110px','100px','130px','100px'],
+  guarantees: ['72px','170px','220px','','130px','140px'],
+  monitor:    ['110px','180px','220px','',''],
+};
 function minCoverage(c){
   const cs = ctx(isActive(c) ? null : c);
   const list = c.credits.map(id => coverage(cs, id).ratio);
@@ -1596,8 +1604,8 @@ function renderList(){
   document.getElementById('btnNewLbl').textContent = reg==='contracts' ? 'Новый залоговый договор' : 'Новый предмет залога';
   document.getElementById('btnNew').style.display = (reg==='monitor'||reg==='guarantees') ? 'none' : 'inline-flex';
 
-  const heads = HEADS[reg];
-  document.getElementById('listHead').innerHTML = heads.map((h,i)=>`<th onclick="sortBy(${i})">${h}<span class="sort">↕</span></th>`).join('');
+  const heads = HEADS[reg], ws = WIDTHS[reg] || [];
+  document.getElementById('listHead').innerHTML = heads.map((h,i)=>`<th${ws[i]?` style="width:${ws[i]}"`:''} onclick="sortBy(${i})">${h}<span class="sort">↕</span></th>`).join('');
   let rows = reg==='items' ? rowsItems() : reg==='contracts' ? rowsContracts() : reg==='guarantees' ? rowsGuarantees() : rowsMonitor();
   if(sortKey !== null){
     const keys = Object.keys(rows.length ? rows[0].sort : {});
