@@ -678,6 +678,10 @@ const addMonths = (s,m) => { const dt = d2n(s); dt.setMonth(dt.getMonth()+m); re
 const isOverdue = s => s && d2n(s) < d2n(TODAY);
 const daysLeft  = s => Math.round((d2n(s) - d2n(TODAY)) / 86400000);
 const isDate = s => /^\d{2}\.\d{2}\.\d{4}$/.test(String(s||'').trim());
+/* Мост «дд.мм.гггг» ↔ ISO «гггг-мм-дд» для нативного <input type="date">.
+   Хранение и вывод остаются в дд.мм.гггг — конвертация только на границе поля. */
+const d2iso = s => { s = String(s||'').trim(); if(!isDate(s)) return ''; const [d,m,y] = s.split('.'); return `${y}-${m}-${d}`; };
+const iso2d = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s||'').trim()); return m ? `${m[3]}.${m[2]}.${m[1]}` : String(s||'').trim(); };
 const fmt  = n => Number(n||0).toLocaleString('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2});
 const num  = s => { const v = Number(String(s??'').replace(/\s/g,'').replace(',','.')); return isFinite(v) ? v : NaN; };
 const pct  = x => (x*100).toFixed(1).replace('.',',') + '%';
@@ -2150,6 +2154,8 @@ const mfoot = (okLbl, okFn, okCls) => `<div class="modal-f"><button class="btn b
 const caret = () => `<span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>`;
 const fin = (id,l,v,req,span) => `<div class="field${req?' req':''}${span?' col-span':''}"><span class="flabel">${l}</span>
   <div class="control"><input id="${id}" value="${esc(v??'')}"></div></div>`;
+const fdate = (id,l,v,req,span) => `<div class="field${req?' req':''}${span?' col-span':''}"><span class="flabel">${l}</span>
+  <div class="control"><input type="date" id="${id}" value="${d2iso(v)}"></div></div>`;
 const fsel = (id,l,opts,v,span) => `<div class="field${span?' col-span':''}"><span class="flabel">${l}</span>
   <div class="control grey"><select id="${id}">${opts.map(o=>`<option value="${esc(o.v??o)}"${(o.v??o)===v?' selected':''}>${esc(o.t??o)}</option>`).join('')}</select>${caret()}</div></div>`;
 const ftxt = (id,l,v) => `<div class="field col-span"><span class="flabel">${l}</span><textarea id="${id}" class="note-area">${esc(v??'')}</textarea></div>`;
@@ -2173,7 +2179,7 @@ function openNewItem(){
       ${fsel('niUnit','Единица измерения', QUANTITY_UNITS, 'ед.')}
       ${fin('niLegalDoc','Правоустанавливающий документ (госакт / свидетельство)','',true)}
       ${fin('niVal','Оценочная стоимость (из отчёта оценщика)','',true)}
-      ${fin('niDate','Дата оценки (дд.мм.гггг)', TODAY, true)}
+      ${fdate('niDate','Дата оценки', TODAY, true)}
       ${fin('niRep','Отчёт оценщика (номер)','',true)}
     </div>
     <p class="section-h" style="font-size:15px;margin:16px 0 2px">Детали предмета</p>
@@ -2201,7 +2207,7 @@ function niKindChange(){
       ${fin('niYear','Год выпуска (техника)','',true)}
       ${fsel('niOrigin','Происхождение', ['СНГ','Дальнее зарубежье'], 'СНГ')}
       ${fin('niPolicy','Страховой полис (номер)','',true)}
-      ${fin('niTill','Полис действует до (дд.мм.гггг)','',true)}
+      ${fdate('niTill','Полис действует до','',true)}
     </div>`;
   if(tvo) html += `<label class="chk" style="margin-top:8px"><input type="checkbox" id="niNotProhibited"> Подтверждаю: предмет не подпадает под ограничения по составу</label>`;
   box.innerHTML = html;
@@ -2209,7 +2215,7 @@ function niKindChange(){
 function saveNewItem(){
   const kind = val('niKind'), name = val('niName').trim(), pledger = val('niPledger'), pledgerType = val('niPledgerType'),
         qty = num(val('niQty')), unit = val('niUnit'), legalDoc = val('niLegalDoc').trim(),
-        v = num(val('niVal')), date = val('niDate').trim(), rep = val('niRep').trim();
+        v = num(val('niVal')), date = iso2d(val('niDate')), rep = val('niRep').trim();
   if(!name || !rep) return toast('Заполните наименование и отчёт оценщика','warn');
   if(!legalDoc) return toast('Укажите правоустанавливающий документ (госакт / свидетельство)','warn');
   if(!(qty > 0)) return toast('Количество должно быть положительным числом','warn');
@@ -2227,7 +2233,7 @@ function saveNewItem(){
   let extra = {};
   if(tech){
     const year = Math.round(num(val('niYear'))), origin = val('niOrigin'),
-          policy = val('niPolicy').trim(), till = val('niTill').trim();
+          policy = val('niPolicy').trim(), till = iso2d(val('niTill'));
     if(!(year > 1900)) return toast('Укажите корректный год выпуска техники','warn');
     const age = CUR_YEAR - year, limit = TECH_AGE_LIMIT[origin];
     if(age > limit) return toast(`Приём отклонён (§2.5): срок эксплуатации ${age} лет превышает лимит ${limit} лет для «${origin}»`,'warn');
@@ -2255,7 +2261,7 @@ function openReval(id){
   const it = item(id);
   modal(`<div class="modal form">${mhead('Переоценка · '+it.id)}
     <div class="modal-b"><div class="mform">
-      ${fin('rvDate','Дата переоценки', TODAY, true)}
+      ${fdate('rvDate','Дата переоценки', TODAY, true)}
       ${fin('rvRep','Отчёт оценщика (номер)','',true)}
       ${fin('rvVal','Новая оценочная стоимость', String(it.appraised), true)}
       ${fin('rvOld','Текущая оценочная', fmt(it.appraised))}
@@ -2266,7 +2272,7 @@ function openReval(id){
   document.getElementById('rvOld').readOnly = true;
 }
 function saveReval(id){
-  const it = item(id), v = num(val('rvVal')), date = val('rvDate').trim(), rep = val('rvRep').trim(), note = val('rvNote').trim();
+  const it = item(id), v = num(val('rvVal')), date = iso2d(val('rvDate')), rep = val('rvRep').trim(), note = val('rvNote').trim();
   if(!(v > 0)) return toast('Оценочная стоимость должна быть положительным числом','warn');
   if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
   if(!rep) return toast('Укажите номер отчёта оценщика','warn');
@@ -2353,14 +2359,14 @@ function openBan(id){
     <div class="modal-b"><div class="mform">
       ${fsel('bnOrgan','Регистрирующий орган', ORG_REGISTRY, organOf(it), true)}
       ${fin('bnReg','Рег. № запрета в органе','',true)}
-      ${fin('bnDate','Дата наложения', TODAY, true)}
+      ${fdate('bnDate','Дата наложения', TODAY, true)}
       ${ro('Договоры-основания', grounds.join(', '))}
     </div>
     <div class="warn-inline"><span>Основания (${grounds.join(', ')}) заполнятся автоматически. Срок наложения: до ${banDeadline(it)}.</span></div>
     </div>${mfoot('Наложить запрет','saveBan(\''+id+'\')','btn-primary')}</div>`);
 }
 function saveBan(id){
-  const it = item(id), organ = val('bnOrgan').trim(), regNo = val('bnReg').trim(), date = val('bnDate').trim();
+  const it = item(id), organ = val('bnOrgan').trim(), regNo = val('bnReg').trim(), date = iso2d(val('bnDate'));
   if(!banRequired(it)) return toast('Оснований для запрета нет','warn');
   if(!organ) return toast('Укажите регистрирующий орган','warn');
   if(!regNo) return toast('Укажите рег. № запрета','warn');
@@ -2387,7 +2393,7 @@ function openBanRelease(id){
       ${fsel('rbChannel','Канал оформления снятия', RELEASE_CHANNELS, 'doc', true)}
       ${fsel('rbGround','Основание снятия', RELEASE_GROUNDS, 'Полное погашение обязательства', true)}
       ${fin('rbAct','Реквизит акта / № документа снятия','',true)}
-      ${fin('rbDate','Дата снятия', TODAY, true)}
+      ${fdate('rbDate','Дата снятия', TODAY, true)}
       ${ro('Орган', it.ban.organ)}
     </div>
     <div class="warn-inline"><span>Действующий запрет: ${esc(it.ban.organ)} · ${esc(it.ban.regNo)} от ${it.ban.date}. Доли обнулились — снятие допустимо. Пройдите цепочку согласования:</span></div>
@@ -2395,7 +2401,7 @@ function openBanRelease(id){
     </div>${mfoot('Снять запрет','saveRelease(\''+id+'\')','btn-primary')}</div>`);
 }
 function saveRelease(id){
-  const it = item(id), ground = val('rbGround'), act = val('rbAct').trim(), date = val('rbDate').trim(),
+  const it = item(id), ground = val('rbGround'), act = val('rbAct').trim(), date = iso2d(val('rbDate')),
         channel = val('rbChannel'), chLbl = (RELEASE_CHANNELS.find(c=>c.v===channel)||{}).t || channel;
   if(allocatedLegal(it.id) > 0) return toast('По предмету снова закреплены доли — снятие невозможно','warn');
   if(!act) return toast('Укажите реквизит акта / № документа снятия','warn');
@@ -2418,14 +2424,14 @@ function openPartialRelease(id){
       ${fsel('prBasis','Основание', ['Продажа части предмета по решению суда','Продажа части по решению спецадминистратора','Передача части предмета ГФХ в счёт погашения','Иное (при достаточном ликвидном остатке)'], null, true)}
       ${fin('prPart','Часть предмета (описание / доля)','',true)}
       ${fin('prAct','Реквизит акта','',true)}
-      ${fin('prDate','Дата', TODAY, true)}
+      ${fdate('prDate','Дата', TODAY, true)}
     </div>
     ${overdueCr.length ? `<div class="flagline"><span>По кредитам ${overdueCr.join(', ')} есть просроченная задолженность — частичное снятие не допускается. Погасите просрочку.</span></div>`
       : `<div class="warn-inline"><span>Запрет на отчуждение <b>сохраняется на оставшуюся часть</b> предмета.</span></div>`}
     </div>${overdueCr.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>` : mfoot('Оформить частичное снятие','savePartialRelease(\''+id+'\')','btn-primary')}</div>`);
 }
 function savePartialRelease(id){
-  const it = item(id), basis = val('prBasis'), part = val('prPart').trim(), act = val('prAct').trim(), date = val('prDate').trim();
+  const it = item(id), basis = val('prBasis'), part = val('prPart').trim(), act = val('prAct').trim(), date = iso2d(val('prDate'));
   if(!part) return toast('Опишите часть предмета','warn');
   if(!act) return toast('Укажите реквизит акта','warn');
   if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
@@ -2444,7 +2450,7 @@ function openConsent(id){
   modal(`<div class="modal form">${mhead('Согласие на действия с залогом (без снятия запрета) · '+it.id)}
     <div class="modal-b"><div class="mform">
       ${fsel('cnAction','Действие', CONSENT_ACTIONS, CONSENT_ACTIONS[2], true)}
-      ${fin('cnDate','Дата', TODAY, true)}
+      ${fdate('cnDate','Дата', TODAY, true)}
       ${fin('cnDoc','Реквизит заявления / согласия','',true)}
       ${fsel('cnDecision','Решение', ['положительное','отрицательное'], 'положительное')}
       <label class="chk col-span"><input type="checkbox" id="cnReval"> Требуется переоценка после действия (за счёт залогодателя)</label>
@@ -2454,7 +2460,7 @@ function openConsent(id){
     </div>${mfoot('Зафиксировать согласие','saveConsent(\''+id+'\')')}</div>`);
 }
 function saveConsent(id){
-  const it = item(id), action = val('cnAction'), date = val('cnDate').trim(), doc = val('cnDoc').trim(),
+  const it = item(id), action = val('cnAction'), date = iso2d(val('cnDate')), doc = val('cnDoc').trim(),
         decision = val('cnDecision'), revalReq = (document.getElementById('cnReval')||{}).checked, note = val('cnNote').trim();
   if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
   if(!doc) return toast('Укажите реквизит заявления/согласия','warn');
@@ -2474,15 +2480,15 @@ function openRestoreNotice(id){
   modal(`<div class="modal form">${mhead('Извещение о восполнении предмета залога · '+it.id)}
     <div class="modal-b"><div class="mform">
       ${fin('rnDoc','Реквизит извещения', rn.doc||'', true)}
-      ${fin('rnDate','Дата вручения', rn.date||TODAY, true)}
-      ${fin('rnDeadline','Срок восполнения до (дд.мм.гггг)', rn.deadline||'', true)}
+      ${fdate('rnDate','Дата вручения', rn.date||TODAY, true)}
+      ${fdate('rnDeadline','Срок восполнения до', rn.deadline||'', true)}
       ${fsel('rnResolved','Итог', ['(не завершено)','восполнено','отказ'], rn.resolved||'(не завершено)')}
     </div>
     <div class="warn-inline"><span>До истечения срока восполнения взыскание не поднимается. При отказе или истечении срока материалы идут во взыскание.</span></div>
     </div>${mfoot('Сохранить извещение','saveRestoreNotice(\''+id+'\')')}</div>`);
 }
 function saveRestoreNotice(id){
-  const it = item(id), doc = val('rnDoc').trim(), date = val('rnDate').trim(), deadline = val('rnDeadline').trim(),
+  const it = item(id), doc = val('rnDoc').trim(), date = iso2d(val('rnDate')), deadline = iso2d(val('rnDeadline')),
         sel = val('rnResolved'), resolved = sel==='(не завершено)' ? null : sel;
   if(!doc) return toast('Укажите реквизит извещения','warn');
   if(!isDate(date)) return toast('Дата вручения — в формате дд.мм.гггг','warn');
@@ -2516,7 +2522,7 @@ function openSurvey(id){
   const it = item(id);
   modal(`<div class="modal form">${mhead('Обследование предмета · '+it.id)}
     <div class="modal-b"><div class="mform">
-      ${fin('svDate','Дата обследования', TODAY, true)}
+      ${fdate('svDate','Дата обследования', TODAY, true)}
       ${fin('svAct','Номер акта','',true)}
       ${fsel('svOut','Исход (состояние предмета)', SURVEY_RESULTS.map(r=>r.v), 'Хорошее', true)}
       ${ftxt('svNote','Примечание','')}
@@ -2524,7 +2530,7 @@ function openSurvey(id){
     </div>${mfoot('Зарегистрировать акт','saveSurvey(\''+id+'\')')}</div>`);
 }
 function saveSurvey(id){
-  const it = item(id), date = val('svDate').trim(), act = val('svAct').trim(), out = val('svOut'), note = val('svNote').trim();
+  const it = item(id), date = iso2d(val('svDate')), act = val('svAct').trim(), out = val('svOut'), note = val('svNote').trim();
   if(!act) return toast('Укажите номер акта','warn');
   if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
   const effect = surveyEffect(out);                 // 6-значный классификатор → эффект в модели
@@ -2643,10 +2649,10 @@ function openRegister(cid){
         : (gate.ok ? `<div class="okline" style="margin-top:10px"><span>Гейт предпосылок пройден: обязательные согласия и справки приложены.</span></div>` : '')}
       ${okAll ? `<div class="mform">
         ${fin('rgNo','Номер договора','',true)}
-        ${fin('rgDate','Дата договора', TODAY, true)}
+        ${fdate('rgDate','Дата договора', TODAY, true)}
         ${fin('rgNotary','Нотариус','',true)}
         ${fin('rgNotaryNo','№ нотариальной регистрации','',true)}
-        ${fin('rgNotaryDate','Дата нотариальной регистрации', TODAY, true)}
+        ${fdate('rgNotaryDate','Дата нотариальной регистрации', TODAY, true)}
         ${fin('rgCert','Залоговое рег. свидетельство','',true)}
       </div>` : ''}
     </div>
@@ -2683,8 +2689,8 @@ function doRegister(cid){
   /* Р-5: гейт предпосылок оформления §5.2 — обязателен для регистрации. */
   const pm = [...new Set(c.allocs.map(a=>a.item))].flatMap(iid=>prereqMissing(item(iid)).map(m=>({iid,...m})));
   if(pm.length) return toast('Гейт предпосылок §5.2 не пройден: '+pm.map(m=>m.iid+' — '+m.label).join('; '),'warn');
-  const no = val('rgNo').trim(), date = val('rgDate').trim(), notary = val('rgNotary').trim(),
-        nno = val('rgNotaryNo').trim(), ndate = val('rgNotaryDate').trim(), cert = val('rgCert').trim();
+  const no = val('rgNo').trim(), date = iso2d(val('rgDate')), notary = val('rgNotary').trim(),
+        nno = val('rgNotaryNo').trim(), ndate = iso2d(val('rgNotaryDate')), cert = val('rgCert').trim();
   if(!no || !notary || !nno || !cert) return toast('Заполните все юридические реквизиты','warn');
   if(!isDate(date) || !isDate(ndate)) return toast('Даты — в формате дд.мм.гггг','warn');
   Object.assign(c, { no, date, notary, notaryNo:nno, notaryDate:ndate, cert, status:ACTIVE });
