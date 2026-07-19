@@ -637,7 +637,6 @@ const TREE = [
     { id:"z-all", headerless:true, items:[
       { label:"Предметы залога", active:true },
       { label:"Залоговые договоры" },
-      { label:"Поручительства" },
       { label:"Мониторинг залога" } ]} ]},
   { id:"debt", label:"Взыскание задолженности", subs:[
     { id:"debt-all", headerless:true, items:[ {label:"Процессы взыскания"} ]} ]},
@@ -660,7 +659,6 @@ function renderNav(){
 function navClick(l){
   if(l==='Предметы залога'){ reg='items'; showView('list'); renderList(); }
   else if(l==='Залоговые договоры'){ reg='contracts'; showView('list'); renderList(); }
-  else if(l==='Поручительства'){ reg='guarantees'; showView('list'); renderList(); }
   else if(l==='Мониторинг залога'){ reg='monitor'; showView('list'); renderList(); }
   else toast('Демо-прототип: доступен раздел «Залоговое обеспечение»');
   document.querySelectorAll('.nav-item').forEach(a=>a.classList.toggle('active', a.textContent===l));
@@ -1051,22 +1049,6 @@ const KIND_MIGRATION = [
   { from:'Прочие',                 to:'— (по решению комиссии)',  note:'разносится вручную при импорте' },
 ];
 
-/* РЕЕСТР ПОРУЧИТЕЛЬСТВ (перенос параллельного вида обеспечения из прежней системы).
-   В прежней системе — отдельная сущность «заёмщик · нотариус · поручитель». В §22
-   поручительство — иная форма обеспечения (зеркало-флаг credit.otherSecurity в расчёте
-   покрытия), но карточка договора поручительства ведётся здесь как read-модель. */
-const GUARANTEES = [
-  { id:'ПР-001', no:'ДП-2026/12', date:'12.04.2026', credit:'К-56', inn:'01912201610212',
-    guarantor:'Осмонов Б.Т. (физ. лицо)', guarantorInn:'12345198500011',
-    notary:'Нотариус Абдылдаева Г.К.', notaryNo:'НР-2026/2210', amount:80000,
-    status:'Действующий', note:'солидарная ответственность в пределах суммы' },
-  { id:'ПР-002', no:'ДП-2026/34', date:'20.05.2026', credit:'К-40', inn:'20308197700219',
-    guarantor:'ОсОО «Бек Кабель»', guarantorInn:'01912201610212',
-    notary:'Нотариус Садыкова А.Т.', notaryNo:'НР-2026/2515', amount:40000,
-    status:'Действующий', note:'обеспечивает часть обязательства' },
-];
-const guarantee = id => GUARANTEES.find(g=>g.id===id);
-const guarByCredit = cid => GUARANTEES.filter(g=>g.credit===cid && g.status==='Действующий');
 
 /* ---- Поля предмета из Положения (Р-4/5/7/8): тип залогодателя, согласия без снятия
    запрета, предпосылки оформления, атрибуты техники, извещение о восполнении. Демо-значения
@@ -1564,22 +1546,16 @@ const FILTERS = {
     { key:'inn',    label:'Заёмщик содержит', type:'text'   },
     { key:'status', label:'Статус =',         type:'select' },
   ],
-  guarantees: [
-    { key:'no',        label:'Договор содержит',    type:'text'   },
-    { key:'guarantor', label:'Поручитель содержит', type:'text'   },
-    { key:'status',    label:'Статус =',            type:'select' },
-  ],
   monitor: [
     { key:'type', label:'Тип =',          type:'select' },
     { key:'obj',  label:'Объект содержит', type:'text'   },
   ],
 };
-const activeFilter = { items:{}, contracts:{}, guarantees:{}, monitor:{} };
+const activeFilter = { items:{}, contracts:{}, monitor:{} };
 let filterPanelReg = null;
 
 function regRows(){
-  return reg==='items' ? rowsItems() : reg==='contracts' ? rowsContracts()
-       : reg==='guarantees' ? rowsGuarantees() : rowsMonitor();
+  return reg==='items' ? rowsItems() : reg==='contracts' ? rowsContracts() : rowsMonitor();
 }
 function filterRows(rows){
   const f = activeFilter[reg] || {};
@@ -1618,7 +1594,6 @@ function renderFilterPanel(){
 const HEADS = {
   items:      ['№','Вид залога','Наименование','Залогодатель','Залоговая','Статус','Контроль'],
   contracts:  ['№','Договор','Заёмщик','Статус','Предметов','Кредитов','Мин. покрытие','Доп. согл.'],
-  guarantees: ['№','Договор поручит.','Обеспечиваемый кредит','Поручитель','Сумма','Статус'],
   monitor:    ['Критичность','Тип','Объект','Описание','Что делать'],
 };
 /* Ширины столбцов (table-layout:fixed). '' = гибкая колонка — забирает остаток
@@ -1626,7 +1601,6 @@ const HEADS = {
 const WIDTHS = {
   items:      ['72px','200px','','220px','195px','180px','170px'],
   contracts:  ['72px','150px','','150px','110px','100px','130px','100px'],
-  guarantees: ['72px','170px','220px','','130px','140px'],
   monitor:    ['110px','180px','220px','',''],
 };
 function minCoverage(c){
@@ -1674,37 +1648,9 @@ function rowsMonitor(){
     cells:[ `<span class="pill ${t.crit==='high'?'high':'mid'}">${t.crit==='high'?'высокая':'средняя'}</span>`,
       esc(t.type), esc(t.objLbl), esc(t.text), esc(t.act) ] }));
 }
-/* Реестр поручительств (параллельная залогу форма обеспечения, перенос из прежней системы). */
-function rowsGuarantees(){
-  return GUARANTEES.map(g => ({ id:g.id,
-    sort:{ id:g.id, no:g.no, credit:g.credit, guarantor:g.guarantor, amount:g.amount, status:g.status },
-    cells:[ g.id, esc(g.no), esc(g.credit)+' · '+esc((credit(g.credit)||{}).num||''),
-      esc(g.guarantor), `<span class="numcell">${fmt(g.amount)}</span>`,
-      `<span class="pill ${g.status==='Действующий'?'low':'neutral'}">${esc(g.status)}</span>` ] }));
-}
-function openGuarantee(id){
-  const g = guarantee(id); if(!g) return;
-  const cr = credit(g.credit) || {};
-  modal(`<div class="modal form">${mhead('Договор поручительства · '+g.id)}
-    <div class="modal-b"><div class="f2">
-      ${ro('№ договора поручительства', g.no)}
-      ${ro('Дата', g.date)}
-      ${ro('Обеспечиваемый кредит', g.credit+' · '+(cr.num||''))}
-      ${ro('Заёмщик', clientName(g.inn)+' · ИНН '+g.inn)}
-      ${ro('Поручитель', g.guarantor)}
-      ${ro('ИНН поручителя', g.guarantorInn)}
-      ${ro('Нотариус', g.notary)}
-      ${ro('№ нотар. регистрации', g.notaryNo)}
-      ${ro('Сумма поручительства', fmt(g.amount))}
-      ${ro('Статус', g.status)}
-    </div>
-    <div class="warn-inline"><span>Поручительство — иная (параллельная залогу) форма обеспечения. В расчёте покрытия §22 участвует как зеркало-флаг <b>credit.otherSecurity</b> (Р-10); детальная карточка договора поручительства перенесена из прежней системы как read-модель. ${cr.otherSecurity ? '' : '<b>Внимание:</b> у кредита '+g.credit+' флаг иного обеспечения не выставлен — синхронизировать при интеграции с модулем кредитов.'}${g.note ? '<br>'+esc(g.note) : ''}</span></div>
-    </div><div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div></div>`);
-}
-
 function renderList(){
   document.getElementById('btnNewLbl').textContent = reg==='contracts' ? 'Новый залоговый договор' : 'Новый предмет залога';
-  document.getElementById('btnNew').style.display = (reg==='monitor'||reg==='guarantees') ? 'none' : 'inline-flex';
+  document.getElementById('btnNew').style.display = (reg==='monitor') ? 'none' : 'inline-flex';
 
   if(filterPanelReg !== reg) renderFilterPanel();
 
@@ -1723,7 +1669,7 @@ function renderList(){
     <tr data-id="${r.id}" onclick="selectRow('${r.id}')" ondblclick="openSelected()">
       ${r.cells.map(c=>`<td>${c}</td>`).join('')}
     </tr>`).join('') || `<tr><td colspan="${heads.length}"><div class="cgrid-empty">Записей нет</div></td></tr>`;
-  const noun = reg==='items' ? 'предметов' : reg==='contracts' ? 'договоров' : reg==='guarantees' ? 'поручительств' : 'активных триггеров';
+  const noun = reg==='items' ? 'предметов' : reg==='contracts' ? 'договоров' : 'активных триггеров';
   const active = Object.keys(activeFilter[reg]||{}).length;
   document.getElementById('pagerCount').textContent = rows.length+' '+noun+(active ? ' (фильтр)' : '');
   document.getElementById('jfSummary').textContent = active ? `Фильтр · ${active} активно` : 'Фильтр';
@@ -1735,7 +1681,6 @@ function openSelected(){
   if(!selected) return;
   if(item(selected)) openCard('item', selected);
   else if(contract(selected)) openCard('contract', selected);
-  else if(guarantee(selected)) openGuarantee(selected);
   else if(credit(selected)) toast('Переход в карточку кредита '+credit(selected).num+' (модуль «Кредиты»)');
 }
 function onNew(){ if(!canEdit()) return denyEdit(); reg==='contracts' ? openNewContract() : openNewItem(); }
