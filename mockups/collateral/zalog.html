@@ -1743,7 +1743,7 @@ function onNew(){ if(!canEdit()) return denyEdit(); reg==='contracts' ? openNewC
 /* ============================================================
    КАРТОЧКИ — вкладки и панели
    ============================================================ */
-const TABS_ITEM = ['Основное','Стоимость и переоценки','Запрет на отчуждение','Обследования','Обеспечиваемые кредиты','Предпосылки и техника','История','Вложения'];
+const TABS_ITEM = ['Основное','Стоимость и переоценки','Запрет на отчуждение','Обследования','Обеспечиваемые кредиты','Документы','История'];
 const TABS_CTR  = ['Общая информация','Предметы и доли','Кредиты и покрытие','Доп соглашения','История'];
 let curTab = 0;
 
@@ -1856,10 +1856,9 @@ function itemPanels(it){
     <div class="f2">${detailRows(it)}</div>
     </div></div>`;
 
-  const pFiles = `<div class="panel-wrap">
-    <p class="section-h">Вложения</p>
+  const filesSection = `<p class="section-h" style="margin-top:22px">Вложения</p>
     <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openAttach('item','${it.id}')">Прикрепить файл</button></div>
-    ${fileTable(it.files)}</div>`;
+    ${fileTable(it.files)}`;
 
   const zBadge = it.override
     ? (isOverAbove(it)
@@ -1999,9 +1998,10 @@ function itemPanels(it){
     <div class="${miss.length?'flagline':'okline'}"><span>${miss.length ? ('Не приложены обязательные документы: '+miss.map(m=>esc(m.label)).join('; ')+'. Регистрация договора будет заблокирована.') : 'Все обязательные предпосылки закрыты.'}</span></div>
     <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Предпосылка</th><th>Что требуется</th><th>Статус</th><th>Документ</th>${canEdit()?'<th></th>':''}</tr></thead><tbody>${prereqRows}</tbody></table></div>
     ${techBlock}
+    ${filesSection}
     </div>`;
 
-  return [p0,p1,p2,p3,p4,p6,p5,pFiles];
+  return [p0,p1,p2,p3,p4,p6,p5];
 }
 function itemFooter(it){
   // Действия предмета живут в тулбарах своих вкладок (переоценка → «Стоимость»,
