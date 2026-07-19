@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Задачи по модулю «Сотрудники» · P12 · АСУБК</title>
+<!--
+  Читаемое представление бэклога модуля «Сотрудники», задачи P12-R1…P12-R20.
+  Источник истины — TODO.md (раздел «### Сотрудники»).
+  Здесь та же информация человеческим языком: в чём боль → что сделать.
+  Технические подробности (имена таблиц/функций мокапа) спрятаны
+  в раскрывашку «Для разработчика» в каждой карточке.
+  Порядок карточек = порядок сборки: разработчик идёт сверху вниз (порядок строгий).
+  Сгенерировано 2026-07-19. При правке TODO.md — обновить и этот файл.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC;
+  --asubk-link:#005FDB; --asubk-green:#158443;
+  --asubk-red:#E03A3A; --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --border-default:var(--asubk-border-base);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(24,39,57,0.06);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; }
+body{ font:400 16px/1.5 var(--asubk-font); color:var(--text-body); background:var(--asubk-gray-100); }
+
+.wrap{ max-width:1160px; margin:0 auto; padding:0 24px 64px; }
+
+/* ---- шапка ---- */
+.hero{ background:var(--asubk-white); border-bottom:1px solid var(--border-default); padding:28px 0 22px; margin-bottom:20px; }
+.hero .wrap{ padding-bottom:0; }
+.crumbs{ font-size:13px; color:var(--text-muted); margin-bottom:8px; }
+h1{ font:600 26px/1.25 var(--asubk-font); color:var(--text-heading); margin:0 0 8px; }
+.lead{ color:var(--text-muted); font-size:15px; max-width:78ch; margin:0 0 18px; }
+.lead code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px; font-size:13px; }
+.lead b{ color:var(--text-body); }
+
+/* ---- плитки ---- */
+.tiles{ display:flex; flex-wrap:wrap; gap:10px; }
+.tile{ appearance:none; cursor:pointer; text-align:left; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 16px; min-width:132px;
+  font:inherit; color:inherit; transition:border-color .12s, box-shadow .12s; }
+.tile:hover{ border-color:var(--asubk-border-strong); }
+.tile.on{ border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+.tile .n{ display:block; font:600 24px/1.15 var(--asubk-font); color:var(--text-heading); }
+.tile .l{ display:block; font-size:13px; color:var(--text-muted); margin-top:2px; }
+.tile.crit .n{ color:var(--asubk-red); }
+.tile.major .n{ color:var(--asubk-amber); }
+
+/* ---- панель фильтров ---- */
+.bar{ position:sticky; top:0; z-index:5; background:var(--asubk-gray-100);
+  padding:14px 0 12px; margin-bottom:4px; border-bottom:1px solid var(--border-default); }
+.bar .row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.search{ flex:1; min-width:240px; height:36px; padding:0 12px; font:inherit; font-size:14px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.search:focus{ outline:none; border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+select{ height:36px; padding:0 8px; font:inherit; font-size:14px; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); color:inherit; }
+.btn{ height:36px; padding:0 14px; font:inherit; font-size:14px; cursor:pointer;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.btn:hover{ background:var(--asubk-gray-50); }
+.btn-p{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+.btn-p:hover{ background:var(--asubk-blue-hover); }
+.count{ font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap; }
+
+/* ---- группа темы ---- */
+.group{ margin-top:26px; }
+.group > h2{ font:600 15px/1.3 var(--asubk-font); color:var(--text-muted); margin:0 0 10px;
+  text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:8px; }
+.group > h2 .g-n{ font-weight:400; color:var(--asubk-ink-45); text-transform:none; letter-spacing:0; }
+
+/* ---- карточка ---- */
+.card{ background:var(--asubk-white); border:1px solid var(--border-default); border-left:3px solid var(--asubk-gray-200);
+  border-radius:var(--radius-lg); padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow-card); }
+.card.p-crit{ border-left-color:var(--asubk-red); }
+.card.p-major{ border-left-color:var(--asubk-amber); }
+.card.p-minor{ border-left-color:var(--asubk-blue); }
+.card.p-cosm{ border-left-color:var(--asubk-gray-200); }
+
+.c-head{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; }
+.id{ font:600 13px/1 var(--asubk-font); letter-spacing:.02em; color:var(--asubk-link);
+  background:var(--asubk-blue-tint); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.step{ font:600 12px/1 var(--asubk-font); color:var(--asubk-ink-45); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.c-title{ font:600 17px/1.35 var(--asubk-font); color:var(--text-heading); flex:1; min-width:260px; margin:0; }
+
+.chip{ font-size:12px; line-height:1; padding:5px 9px; border-radius:var(--radius-pill); white-space:nowrap; font-weight:500; }
+.chip-crit{ background:var(--asubk-red-tint); color:#9E1F1F; }
+.chip-major{ background:var(--asubk-amber-tint); color:#8A6508; }
+.chip-minor{ background:var(--asubk-blue-tint); color:#04479E; }
+.chip-cosm{ background:var(--asubk-gray-150); color:var(--text-muted); }
+.chip-mock{ background:var(--asubk-green-tint); color:#0E5C2F; }
+.chip-open{ background:var(--asubk-gray-150); color:var(--text-muted); }
+
+.blk{ margin-top:12px; }
+.blk .lbl{ font:600 12px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); display:block; margin-bottom:5px; }
+.blk p{ margin:0; font-size:15px; }
+.blk ul{ margin:0; padding-left:20px; font-size:15px; }
+.blk li{ margin-bottom:4px; }
+.blk li:last-child{ margin-bottom:0; }
+.pain{ color:var(--text-muted); }
+.pain b{ color:var(--text-body); font-weight:600; }
+
+.c-foot{ margin-top:13px; padding-top:11px; border-top:1px solid var(--asubk-gray-150);
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tag{ font-size:12px; color:var(--text-muted); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep{ font-size:12px; color:var(--asubk-link); background:var(--asubk-white);
+  border:1px solid rgba(0,106,245,0.25); border-radius:var(--radius-pill); padding:3px 9px; }
+
+details{ margin-top:11px; border-top:1px solid var(--asubk-gray-150); padding-top:9px; }
+details summary{ cursor:pointer; font-size:13px; color:var(--text-muted); list-style:none; user-select:none; }
+details summary::-webkit-details-marker{ display:none; }
+details summary::before{ content:'▸ '; color:var(--asubk-ink-45); }
+details[open] summary::before{ content:'▾ '; }
+details summary:hover{ color:var(--asubk-link); }
+.dev{ margin-top:8px; font-size:13.5px; color:var(--text-muted); background:var(--asubk-gray-50);
+  border:1px solid var(--asubk-gray-150); border-radius:var(--radius-md); padding:10px 12px; }
+.dev ul{ margin:0; padding-left:18px; }
+.dev li{ margin-bottom:4px; }
+.dev code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; color:var(--asubk-ink); }
+
+.empty{ text-align:center; padding:48px 0; color:var(--text-muted); font-size:15px; }
+.legend{ margin-top:32px; font-size:13px; color:var(--text-muted); border-top:1px solid var(--border-default); padding-top:14px; }
+.legend b{ color:var(--text-body); }
+@media print{ .bar{ position:static; } details{ display:none; } .card{ break-inside:avoid; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumbs">АСУБК · Модуль «Сотрудники» (администрирование) · Бэклог</div>
+    <h1>Сотрудники — задачи для команды разработки</h1>
+    <p class="lead">
+      20 задач, выстроенных <b>в строгом порядке сборки</b>: разработчик идёт сверху вниз —
+      сначала ядро (каркас, модель «только факты», три оси статуса, доступ), затем виды,
+      затем операции внутри них. Не начинать следующую, пока не закрыта предыдущая. Это
+      <b>отдельный модуль администрирования</b>, а не фаза кредитного цикла; живого экрана
+      в приложении нет — модуль проектируется с нуля, поэтому дефектов стенда по нему тоже нет.
+      Источник истины — <code>TODO.md</code>, раздел «Сотрудники»; здесь то же самое человеческим
+      языком: <b>в чём боль → что сделать</b>. Эталон интерфейса и поведения — готовый рабочий
+      макет <code>mockups/employee/employee.html</code> (проверен в браузере 2026-07-18).
+    </p>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="bar">
+    <div class="row">
+      <input class="search" id="q" type="search" placeholder="Поиск по номеру, заголовку, тексту…" autocomplete="off">
+      <select id="fTheme"><option value="">Все этапы</option></select>
+      <select id="fPrio">
+        <option value="">Любой приоритет</option>
+        <option value="crit">🔴 Блокер</option>
+        <option value="major">🟠 Важно</option>
+        <option value="minor">🟡 Средне</option>
+      </select>
+      <button class="btn" id="reset">Сбросить</button>
+      <button class="btn btn-p" id="expand">Раскрыть тех. детали</button>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="legend">
+    <p><b>Приоритет:</b> 🔴 блокер (без этого модуль не работает) · 🟠 важно · 🟡 средне.</p>
+    <p><b>Порядок сборки — строгий.</b> Номер шага в начале карточки — обязательная очерёдность;
+       нумерация = порядок зависимостей: каждая задача опирается на уже сделанные и ни на одну из
+       будущих. Ядро (шаги 1–6) — фундамент; без него остальное некуда вешать.
+       Значок <span class="chip chip-mock">Есть эталон в макете</span> значит, что поведение уже
+       отрисовано и проверено в <code>mockups/employee/employee.html</code> — разработке
+       остаётся перенести его на боевую платформу (Jmix).</p>
+    <p>Дефектов живого стенда по этому модулю нет: экрана в приложении не существует,
+       модуль спроектирован с нуля.</p>
+  </div>
+</div>
+
+<script>
+/* ── Данные. Порядок = строгий порядок сборки (как в TODO.md). ──────────── */
+const THEMES = {
+  core:     'Шаг 1–6 · Ядро: каркас, данные, три оси, доступ',
+  list:     'Шаг 7 · Список сотрудников',
+  card:     'Шаг 8–9 · Карточка: каркас и вкладки',
+  assign:   'Шаг 10–11 · Назначения и перевод',
+  link:     'Шаг 12–13 · Учётная запись, заёмщики, отсутствия',
+  person:   'Шаг 14 · Справочник физлиц',
+  life:     'Шаг 15–16 · Приём и увольнение',
+  dossier:  'Шаг 17–18 · Личное дело и паспорт',
+  overview: 'Шаг 19–20 · Обзор, история, выгрузка',
+};
+
+const T = [
+{ id:'P12-R1', step:'Шаг 1', prio:'crit', theme:'core', state:'mock',
+  title:'Каркас модуля: три вида, дата среза, роли',
+  pain:'Это точка входа в модуль. Пока нет каркаса — страницы с тремя видами и общими контролами сверху (дата среза, роль) — остальные задачи некуда вешать. Поэтому делается первой.',
+  todo:['Каркас страницы: сайдбар «Администрирование» + топбар; переключение трёх видов — <b>Обзор</b> (P12-R19) · <b>Список сотрудников</b> (P12-R7) · <b>Карточка</b> (P12-R8). По умолчанию для кадров — «Обзор», для остальных — «Список».',
+        '<b>Дата среза</b> в топбаре (поле даты + быстрые кнопки «до перевода» / «сегодня» / «в отпуске»). Смена даты пересчитывает весь экран на эту дату (модель — P12-R2).',
+        'Выбор роли: <b>Кадры · Администратор · Руководство · Сам сотрудник · Кредитный специалист</b>. Роль определяет доступ (P12-R6) и видимость вида «Обзор» (только кадры).',
+        'Сохранение состояния экрана (вид, карточка, вкладка, дата, роль) — переживает перезагрузку.'],
+  deps:['P12-R2','P12-R6','P12-R7','P12-R8','P12-R19'],
+  dev:['Эталон — <code>mockups/employee/employee.html</code>. Дата среза — <code>asOf</code> (по умолчанию <code>TODAY</code>); «Обзор» виден только при <code>role === \'hr\'</code>, иначе кнопка прячется и уводит в список.'] },
+
+{ id:'P12-R2', step:'Шаг 2', prio:'crit', theme:'core', state:'mock',
+  title:'Данные — только факты, статус считается на дату',
+  pain:'Статус сотрудника меняется во времени и по трём независимым осям. Если хранить его полем, придётся вручную поддерживать согласованность при каждом приёме, переводе, отпуске и блокировке записи — а рассинхрон всплывёт потом.',
+  todo:['В данных — <b>только факты</b>: сотрудники (<code>EMPLOYEES</code>), назначения (<code>ASSIGN</code>), отсутствия (<code>ABSENCE</code>), учётные записи (<code>ACCOUNTS</code>), роли, кураторство, задания, документы, аудит, справочники. Поля «статус» нет ни у одной сущности.',
+        'Всё производное считается функциями на дату среза и в модели не хранится.',
+        'Три независимые оси, у каждой свой владелец: <b>кадровый статус</b> (кадры) · <b>доступность</b> (из отсутствий) · <b>учётная запись</b> (администратор). Их нельзя объединять в один «статус».',
+        'Сотрудник ссылается на физлицо (<code>person</code>), а не дублирует ФИО/ПИН/адрес (P12-R14).',
+        'Проверка: карточка, заведённая будущей датой, на более ранней дате невидима.'],
+  deps:['P12-R1','P12-R14'],
+  dev:['Сущности-факты + справочники; всё производное — чистые функции на <code>asOf</code>. Три оси: P12-R3 (кадровый) · P12-R4 (доступность) · P12-R5 (учётная запись).'] },
+
+{ id:'P12-R3', step:'Шаг 3', prio:'crit', theme:'core', state:'mock',
+  title:'Ось 1 — кадровый статус из назначений',
+  pain:'«Работает / Оформляется / Уволен» — не флаг, а вывод из действующего назначения на дату. Флаг рассинхронизируется с реальными приказами; расчёт — нет.',
+  todo:['Назначения (<code>ASSIGN</code>) — <b>периоды</b> (с / по, открытый период = без даты «по»), а не события; виды: основное / совмещение / и.о., у каждого — ставка и приказ-основание.',
+        'Действующие назначения и основное на дату (<code>assignsAt</code> / <code>mainAt</code>).',
+        'Кадровый статус на дату (<code>hrStatusAt</code>): есть дата увольнения → «Уволен»; есть открытое основное → «Работает»; иначе «Оформляется» (черновик, в работе не виден).',
+        'Подразделение, должность (<code>deptPostAt</code>) и непосредственный руководитель тоже вычисляются на дату из основного назначения.'],
+  deps:['P12-R2'],
+  dev:['<code>ASSIGN</code> — периоды с видами <code>main</code>/<code>combo</code>/<code>acting</code>. Открытый период = <code>to == null</code>.'] },
+
+{ id:'P12-R4', step:'Шаг 4', prio:'major', theme:'core', state:'mock',
+  title:'Ось 2 — доступность из отсутствий',
+  pain:'«На месте / отсутствует / замещает» никто не должен ставить руками — это выжимка из отсутствий на дату. Ручной флаг снова разойдётся с фактами отпусков и больничных.',
+  todo:['Отсутствия (<code>ABSENCE</code>) — периоды (с / план по / факт по, замещающий, отменено); состояние записи (Запланировано / Идёт / Завершено) вычисляется, «Отменено» — флаг.',
+        'Доступность на дату (<code>availabilityAt</code>): «В отпуске / на больничном / командировка до … · замещает X» либо «замещения нет» (красным); обратная сторона — «На месте · замещает Y».',
+        'Досрочный выход снимает замещение — отразить в подписи.'],
+  deps:['P12-R2'],
+  dev:['<code>ABSENCE</code>: с / планПо / фактПо / замещающий / отменено. Состояние — вычисляемое; «Отменено» — единственный флаг.'] },
+
+{ id:'P12-R5', step:'Шаг 5', prio:'major', theme:'core', state:'mock',
+  title:'Ось 3 — состояние учётной записи',
+  pain:'Доступ в систему — отдельная ось, её ведёт администратор, а не кадры. Заблокированная запись ≠ удалённая, и работающий сотрудник может вообще не иметь записи — это надо показывать, а не молчать.',
+  todo:['Учётные записи (<code>ACCOUNTS</code>): логин, состояние (активна / заблокирована), кем и когда создана, последний вход, признак «роли не пересмотрены»; кураторство висит на учётной записи, а не на сотруднике.',
+        'Состояние записи на дату (<code>acctStateAt</code>): активна / заблокирована / не заведена.',
+        'Краевые случаи для «Обзора» (P12-R19): работает без записи · работает с заблокированной записью · роли не пересмотрены после перевода.'],
+  deps:['P12-R2'],
+  dev:['<code>ACCOUNTS</code> + признак <code>rolesStale</code>. Кураторство — на записи, не на сотруднике (важно для маршрутизации, P12-R12).'] },
+
+{ id:'P12-R6', step:'Шаг 6', prio:'major', theme:'core', state:'mock',
+  title:'Уровни доступа A/B/C',
+  pain:'Прятать надо не экраны, а классы данных — иначе видимость по ролям придётся прописывать в каждом отдельном месте и рано или поздно где-то забыть.',
+  todo:['Класс — свойство вкладки (<code>CLASS_OF_TAB</code>): <b>A</b> — общее / назначения / учётная запись / документы; <b>B</b> — паспорт / образование / семья / стаж / языки / воинский учёт; <b>C</b> — награды / взыскания.',
+        'Видимость по матрице ролей (<code>canSee</code>): кадры — A/B/C · администратор — A · руководство — A/C · кредитный — A · «сам сотрудник» — всё (любая открытая карточка считается своей).',
+        'Документ наследует класс своей вкладки, своего класса не имеет.',
+        'Скрытые строки и документы показывать плашкой «Скрыто по уровню доступа», а не молча.'],
+  deps:['P12-R2'],
+  dev:['<code>CLASS_OF_TAB</code> + матрица <code>canSee(role, class)</code>. Скрытие — с плашкой, не пустым местом.'] },
+
+{ id:'P12-R7', step:'Шаг 7', prio:'major', theme:'list', state:'mock',
+  title:'Вид «Список» — фильтры и грид на дату',
+  pain:'Без рабочего списка с фильтрами сотрудника не найти и в карточку не войти.',
+  todo:['Фильтры: кадровый статус · подразделение · доступность (на месте / отсутствует) · поиск по ФИО или табельному номеру; сброс.',
+        'Грид (ФИО · Подразделение · Должность · Доступность · Телефон · Кабинет) — все колонки на дату среза; уволенные — приглушённой строкой.',
+        'Счётчик «N из M на ‹дату›»; клик — выделение, двойной клик — открыть карточку.',
+        'Пустой результат — «Под фильтр на ‹дату› никто не подходит».'],
+  deps:['P12-R3','P12-R4','P12-R8'],
+  dev:['Все колонки грида — на <code>asOf</code> через <code>deptPostAt</code>/<code>availabilityAt</code>. Уволенные — приглушены, не спрятаны.'] },
+
+{ id:'P12-R8', step:'Шаг 8', prio:'major', theme:'card', state:'mock',
+  title:'Вид «Карточка» — каркас (шапка, вкладки, навигация, печать)',
+  pain:'Контейнер карточки: шапка с тремя осями статуса и переключение вкладок; на него вешаются R9–R19.',
+  todo:['Шапка: фото, ФИО, табельный номер, подразделение и должность на дату, три бейджа осей (Кадровый / Доступность / Учётная запись).',
+        'Панель действий по статусу: «Оформляется» → «Провести приказ о приёме» (P12-R15); «Работает» → меню «Оформить» (Перевод / Отсутствие / Увольнение); при увольнении или недостатке прав — только чтение, с пояснением почему.',
+        'Лента вкладок только из доступных по уровню (P12-R6), со счётчиком записей; навигация ← → по текущему списку; печать карточки.',
+        'Фото — заглушка загрузки (мокап).'],
+  deps:['P12-R6','P12-R7'],
+  dev:['Три бейджа = три оси (R3/R4/R5). Лента вкладок фильтруется через <code>canSee</code>. Навигация ← → идёт по текущей выборке списка.'] },
+
+{ id:'P12-R9', step:'Шаг 9', prio:'major', theme:'card', state:'mock',
+  title:'Вкладка «Общая»',
+  pain:'Первая содержательная вкладка: вычисляемые поля (стаж, руководитель) и единственные редактируемые кадрами контакты.',
+  todo:['ИНН/ПИН под классом B (маскируется без доступа, ссылка на карточку физлица — с доступом); дата приёма; стаж в организации (единый источник — сумма основных назначений, P12-R18); непосредственный руководитель; дата увольнения — если есть.',
+        'Баннер «Личное дело заполнено не полностью» со списком нехватки (паспорт / образование / назначение / контакты / запись) — только для кадров.',
+        'Правка контактов и рабочего места (телефоны, почта, адрес, кабинет) — для кадров и не уволенного (<code>canEdit</code>).'],
+  deps:['P12-R8'],
+  dev:['Стаж — из <code>coveredMonths</code> (единый источник, P12-R18), не считать отдельно. Правка полей — только под <code>canEdit</code>.'] },
+
+{ id:'P12-R10', step:'Шаг 10', prio:'major', theme:'assign', state:'mock',
+  title:'Вкладка «Назначения»',
+  pain:'Назначения — историчная таблица периодов; без проверок туда попадают пересечения и перегруз по ставкам, а всплывает это в расчёте стажа и в зарплате.',
+  todo:['Таблица периодов (с / по / подразделение / должность / вид / ставка / основание со сканом), действующий период — бейджем.',
+        'Сумма действующих ставок на дату с лимитом (сообщение при превышении 1.5).',
+        'Проверки (<code>assignIssues</code>): пересечение основных периодов · сумма ставок больше 1.5 · более одного открытого основного · открытый период у уволенного — красным баннером.',
+        'Кнопка «Оформить перевод» → P12-R11.'],
+  deps:['P12-R3'],
+  dev:['<code>assignIssues</code> проверяет пересечения по периодам, не по точке. Лимит суммы ставок — 1.5.'] },
+
+{ id:'P12-R11', step:'Шаг 11', prio:'crit', theme:'assign', state:'mock',
+  title:'Перевод — одной операцией',
+  pain:'Перевод — одна транзакция «закрыть старый период и открыть новый»; половинчатое выполнение рвёт историю (то две открытые основные, то дыра в стаже).',
+  todo:['Перевод (<code>doTransfer</code>): закрыть действующее основное (по = дата − 1) и открыть новое (с = дата) <b>одной операцией</b>.',
+        'Поднять на учётной записи признак «роли не пересмотрены» (<code>rolesStale</code>) — не блокирует работу, уходит в «Требует внимания» и уведомление администратору.',
+        'Перевод будущей датой: на текущей дате новое подразделение не видно — предложить сдвинуть дату среза.',
+        'Запись в аудит (P12-R20).'],
+  deps:['P12-R10'],
+  dev:['<code>doTransfer</code> — атомарно: close(old, дата−1) + open(new, дата). Будущая дата → подсказка сдвинуть <code>asOf</code>.'] },
+
+{ id:'P12-R12', step:'Шаг 12', prio:'major', theme:'link', state:'mock',
+  title:'Вкладка «Учётная запись и заёмщики»',
+  pain:'Стык модуля с кредитным контуром: куда уйдёт задание, если куратор в отпуске. Без явной маршрутизации задания либо теряются, либо уходят не туда.',
+  todo:['Карточки: учётная запись (логин / состояние / создана / последний вход) · роли по подразделениям · что курирует (отрасль / регион / вид заёмщика, число заёмщиков) — только для чтения (ведёт администратор).',
+        'Маршрутизация задания (<code>resolveActor</code>): задание — на учётную запись куратора; при замещении уходит замещающему, но ответственность остаётся на кураторе; при отсутствии без замещения задания копятся.',
+        'Баннеры краевых случаев из P12-R5 (нет записи / заблокирована при «Работает» / роли не пересмотрены).'],
+  deps:['P12-R5'],
+  dev:['<code>resolveActor</code> → {assignee, router, note}: нет активной записи → назначить не на кого; замещение → уходит замещающему при сохранении ответственности.'] },
+
+{ id:'P12-R13', step:'Шаг 13', prio:'major', theme:'link', state:'mock',
+  title:'Вкладка «Отсутствия»',
+  pain:'Оформить отпуск / больничный / командировку и назначить замещающего — но так, чтобы нельзя было назначить того, кто сам в отпуске или без учётной записи.',
+  todo:['Таблица отсутствий (вид / с / план по / факт / основание / замещающий / состояние) и блок «Замещает других».',
+        'Форма «Оформить отсутствие»: вид, период, основание, замещающий.',
+        'Проверка замещающего (<code>validateSubstitute</code>): работает на дату начала · не отсутствует в пересечении периодов · имеет действующую учётную запись; нельзя назначить того, кого самого в этот период замещают, и нельзя замещать себя.',
+        'Без замещающего оформление разрешено, но с предупреждением «задания будут копиться» (P12-R19).'],
+  deps:['P12-R4','P12-R12'],
+  dev:['<code>validateSubstitute</code> — три условия + запрет замещать себя / замещаемого. Без замещающего разрешено с предупреждением.'] },
+
+{ id:'P12-R14', step:'Шаг 14', prio:'crit', theme:'person', state:'mock',
+  title:'Справочник физлиц (физлицо ≠ сотрудник)',
+  pain:'Человек живёт отдельно от сотрудника (может быть заёмщиком / поручителем / залогодателем); второй кадровой карточки на того же человека быть не должно.',
+  todo:['Справочник физлиц (<code>PERSONS</code>): ПИН, ФИО, дата рождения, пол, адрес, СОАТЕ; сотрудник ссылается на физлицо (<code>person</code>).',
+        'Диалог выбора: поиск по ФИО/ПИН; физлицо, на которое уже заведена карточка, помечается «уже сотрудник» и не выбирается.',
+        'Создание нового физлица прямо из диалога (ФИО от 2 слов, ПИН ровно 14 цифр, запрет дубля ПИН) с подстановкой в карточку.'],
+  deps:['P12-R2'],
+  dev:['<code>PERSONS</code> общий с заёмщиками/поручителями. ПИН — ровно 14 цифр, уникален. «Уже сотрудник» — не выбирается.'] },
+
+{ id:'P12-R15', step:'Шаг 15', prio:'major', theme:'life', state:'mock',
+  title:'Приём: создание карточки и приказ («Оформляется» → «Работает»)',
+  pain:'Приём двухшаговый: сначала заводится кадровое дело (черновик), потом приказом открывается первый период — статус получается сам, его не выставляют руками.',
+  todo:['Создание карточки (<code>doCreate</code>): ссылка на физлицо (P12-R14) + табельный номер (4 цифры, уникален) + категория + контакты; назначения нет → «Оформляется», в работе не виден; ФИО/ПИН/адрес берутся из физлица.',
+        'Приказ о приёме (<code>doHire</code>): открывает первое основное назначение (подразделение / должность / дата / ставка / основание) → «Работает».',
+        'Учётную запись заводит администратор — до этого сотрудник попадёт в «Требует внимания» как работающий без записи; приём будущей датой оставляет «Оформляется» на текущей дате.'],
+  deps:['P12-R3','P12-R14'],
+  dev:['<code>doCreate</code> → статус «Оформляется» (нет ASSIGN); <code>doHire</code> открывает первое основное → «Работает». Табельный — 4 цифры, уникален.'] },
+
+{ id:'P12-R16', step:'Шаг 16', prio:'crit', theme:'life', state:'mock',
+  title:'Увольнение',
+  pain:'Уволить можно, только когда передать нечего; удалять сотрудника нельзя — на него ссылаются кредитные документы.',
+  todo:['Блокеры увольнения (<code>dismissBlockers</code>) читают кураторство, задания, отсутствия; пока не ноль — кнопка «Уволить» неактивна, сработавшие блокеры перечислены.',
+        'Увольнение (<code>doDismiss</code>): закрыть открытые назначения, отменить будущие отсутствия, <b>заблокировать (не удалить)</b> учётную запись, снять закреплённых заёмщиков, перевести карточку в режим чтения.',
+        'Запись в аудит; после увольнения карточка сохраняется и открывается только на чтение.'],
+  deps:['P12-R11','P12-R12'],
+  dev:['<code>dismissBlockers</code> — кураторство/задания/отсутствия ≠ 0. <code>doDismiss</code> блокирует запись, не удаляет; карточка → read-only.'] },
+
+{ id:'P12-R17', step:'Шаг 17', prio:'minor', theme:'dossier', state:'mock',
+  title:'Вкладки личного дела — единая форма-строка',
+  pain:'Шесть табличных вкладок (образование, семья, стаж, языки, воинский учёт, награды / взыскания) — один паттерн строки; дублировать форму шесть раз не нужно.',
+  todo:['Единая модалка строки по описанию полей (<code>ROW_SPECS</code>): вид / уровень с зависимым списком, проверка обязательных полей и порядка дат.',
+        'Справочники единым источником: уровни образования (зависят от вида документа), органы поощрения / взыскания (взыскание налагает только работодатель), языки и уровни, категории годности.',
+        'Вычисляемое на дату: истёкший сертификат, действующее взыскание (снято / не снято), возраст члена семьи, стаж по месту работы.',
+        'Правка / удаление строки и «＋ Добавить» — только у кого есть право (<code>canEdit</code>).'],
+  deps:['P12-R6','P12-R8'],
+  dev:['<code>ROW_SPECS</code> — одна модалка, шесть конфигураций. Зависимые списки (уровень от вида документа) — из справочников. Всё «действующее» — на <code>asOf</code>.'] },
+
+{ id:'P12-R18', step:'Шаг 18', prio:'minor', theme:'dossier', state:'mock',
+  title:'Паспорт — из Тундук/ГРС, замена версией, единый стаж',
+  pain:'Паспорт приходит из госреестра (руками не правится); при замене прежний номер нужен старым кредитным документам; стаж не должен считаться двумя способами.',
+  todo:['Вкладка «Паспорт» помечена источником «Тундук · ГРС», ручной правки нет; кнопка «⟳ Обновить из Тундук» с отметкой времени.',
+        'Замена паспорта — новой версией: прежний уходит в историю (не затирается), старые кредитные документы ссылаются на прежний номер.',
+        'Стаж — единый источник (<code>coveredMonths</code>): смежные (зазор ≤ 1 дня) и перекрывающиеся периоды сливаются, месяцы считаются один раз на слитый интервал.'],
+  deps:['P12-R9'],
+  dev:['<code>coveredMonths</code> сливает смежные (≤1 день) и перекрывающиеся периоды — единственный источник стажа (см. P12-R9). Паспорт — версионируется, не затирается.'] },
+
+{ id:'P12-R19', step:'Шаг 19', prio:'major', theme:'overview', state:'mock',
+  title:'Вид «Обзор» — «Требует внимания», KPI, ближайшие дни (только кадры)',
+  pain:'Без сводного экрана проблемы (отсутствие без замещения, работа без записи, истекающий паспорт или и.о., конфликт интересов) видны только обходом карточек — долго и что-то пропустишь.',
+  todo:['KPI на дату: Работает · Отсутствует · Без замещения · Без учётной записи · Оформляется · Уволен.',
+        'Список «Требует внимания» (<code>problemsAt</code>), ранжирован по тяжести (🔴/🟡), каждая строка кликабельна → нужная карточка / вкладка / форма; паспортные проблемы — только тем, кому открыт класс B.',
+        'Ближайшие дни (<code>upcomingAt</code>): кто уходит / выходит / у кого заканчивается и.о.',
+        'Пустой список — «На выбранную дату проблем нет»; вид доступен только кадрам.'],
+  deps:['P12-R4','P12-R5','P12-R13'],
+  dev:['<code>problemsAt</code> ранжирует по тяжести; строки — deep-link в карточку/вкладку. Паспортные проблемы фильтруются по классу B. Вид виден только <code>role === \'hr\'</code>.'] },
+
+{ id:'P12-R20', step:'Шаг 20', prio:'minor', theme:'overview', state:'mock',
+  title:'История/аудит, выгрузка списка, сохранение состояния',
+  pain:'Каждое кадровое действие должно оставлять след, а список — выгружаться. Завершающая задача, замыкающая R1–R19.',
+  todo:['Каждое изменение (создание, приём, перевод, отсутствие, увольнение, правки строк, замена паспорта) пишет запись в аудит (<code>AUDIT</code>); вкладка «История» — таймлайн на карточке.',
+        'Выгрузка списка (на дату среза, с фильтрами) в Excel (.xls) / CSV (<code>;</code>, UTF-8 BOM под RU-Excel) / Word (.doc).',
+        'Сохранение состояния экрана (см. P12-R1): после увольнения или удаления открытой карточки корректно уводить в список.'],
+  deps:['P12-R1','P12-R16'],
+  dev:['<code>AUDIT</code> пишется из всех операций (doCreate/doHire/doTransfer/doDismiss/правки строк/замена паспорта). CSV — <code>;</code> + UTF-8 BOM.'] },
+];
+
+/* ── Рендер ───────────────────────────────────────────────────────────── */
+const PRIO_META = {
+  crit:  { chip:'🔴 Блокер',    cls:'chip-crit'  },
+  major: { chip:'🟠 Важно',     cls:'chip-major' },
+  minor: { chip:'🟡 Средне',    cls:'chip-minor' },
+};
+const STATE_META = {
+  mock: { chip:'Есть эталон в макете', cls:'chip-mock' },
+  open: { chip:'Только постановка',    cls:'chip-open' },
+};
+
+const F = { q:'', theme:'', prio:'', state:'' };
+
+const themeSel = document.getElementById('fTheme');
+Object.entries(THEMES).forEach(([k,v]) => {
+  const n = T.filter(t => t.theme === k).length;
+  themeSel.insertAdjacentHTML('beforeend', `<option value="${k}">${v} (${n})</option>`);
+});
+
+function tiles(){
+  const data = [
+    { k:'', l:'Всего задач', n:T.length, cls:'' },
+    { k:'crit',  l:'🔴 Блокеры', n:T.filter(t=>t.prio==='crit').length,  cls:'crit' },
+    { k:'major', l:'🟠 Важные',  n:T.filter(t=>t.prio==='major').length, cls:'major' },
+    { k:'minor', l:'🟡 Средние', n:T.filter(t=>t.prio==='minor').length, cls:'' },
+  ];
+  document.getElementById('tiles').innerHTML = data.map(d =>
+    `<button class="tile ${d.cls} ${F.prio===d.k && d.k ? 'on':''}" data-prio="${d.k}">
+       <span class="n">${d.n}</span><span class="l">${d.l}</span></button>`).join('');
+  document.querySelectorAll('.tile').forEach(b => b.onclick = () => {
+    const p = b.dataset.prio;
+    F.prio = (F.prio === p || !p) ? '' : p;
+    document.getElementById('fPrio').value = F.prio;
+    render();
+  });
+}
+
+function card(t){
+  const pm = PRIO_META[t.prio], sm = STATE_META[t.state];
+  const dev = t.dev && t.dev.length
+    ? `<details><summary>Для разработчика — эталон и ловушки</summary>
+         <div class="dev"><ul>${t.dev.map(d=>`<li>${d}</li>`).join('')}</ul></div></details>` : '';
+  const deps = (t.deps||[]).map(d=>`<span class="dep">↔ ${d}</span>`).join('');
+  return `<article class="card p-${t.prio}" data-id="${t.id}">
+    <div class="c-head">
+      <span class="id">${t.id}</span>
+      <span class="step">${t.step}</span>
+      <h3 class="c-title">${t.title}</h3>
+      <span class="chip ${pm.cls}">${pm.chip}</span>
+      <span class="chip ${sm.cls}">${sm.chip}</span>
+    </div>
+    <div class="blk"><span class="lbl">В чём проблема</span><p class="pain">${t.pain}</p></div>
+    <div class="blk"><span class="lbl">Что сделать</span><ul>${t.todo.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+    <div class="c-foot"><span class="tag">${THEMES[t.theme]}</span>${deps}</div>
+    ${dev}
+  </article>`;
+}
+
+function render(){
+  const q = F.q.trim().toLowerCase();
+  const sel = T.filter(t => {
+    if (F.theme && t.theme !== F.theme) return false;
+    if (F.prio  && t.prio  !== F.prio)  return false;
+    if (!q) return true;
+    const hay = (t.id + ' ' + t.title + ' ' + t.pain + ' ' + t.todo.join(' ') + ' ' + (t.dev||[]).join(' ')).toLowerCase();
+    return hay.includes(q);
+  });
+
+  const list = document.getElementById('list');
+  if (!sel.length){ list.innerHTML = '<div class="empty">Ничего не найдено. Сбросьте фильтры.</div>'; }
+  else {
+    const order = Object.keys(THEMES);
+    list.innerHTML = order.filter(k => sel.some(t => t.theme === k)).map(k => {
+      const rows = sel.filter(t => t.theme === k);
+      return `<section class="group"><h2>${THEMES[k]} <span class="g-n">· ${rows.length}</span></h2>
+              ${rows.map(card).join('')}</section>`;
+    }).join('');
+  }
+  document.getElementById('count').textContent = `Показано ${sel.length} из ${T.length}`;
+  tiles();
+}
+
+document.getElementById('q').oninput       = e => { F.q = e.target.value; render(); };
+document.getElementById('fTheme').onchange = e => { F.theme = e.target.value; render(); };
+document.getElementById('fPrio').onchange  = e => { F.prio  = e.target.value; render(); };
+document.getElementById('reset').onclick   = () => {
+  F.q=''; F.theme=''; F.prio=''; F.state='';
+  document.getElementById('q').value=''; document.getElementById('fTheme').value='';
+  document.getElementById('fPrio').value='';
+  render();
+};
+let expanded = false;
+document.getElementById('expand').onclick = e => {
+  expanded = !expanded;
+  document.querySelectorAll('details').forEach(d => d.open = expanded);
+  e.target.textContent = expanded ? 'Свернуть тех. детали' : 'Раскрыть тех. детали';
+};
+
+render();
+</script>
+</body>
+</html>
