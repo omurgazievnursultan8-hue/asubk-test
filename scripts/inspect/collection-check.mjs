@@ -513,6 +513,20 @@ const meryResp = page.locator('#detailPanels .detail-panel.active');
 ok('в «Журнале мер» есть колонка «Ответственный»', (await meryResp.locator('thead th:has-text("Ответственный")').count()) === 1);
 ok('ФИО ответственного отрисовано', /Тукинова|Танаев|Осмонов/.test(await meryResp.innerText()));
 
+// === #4 Вложения ===
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="142"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab:has-text("Журнал мер")');
+const meryDocs = page.locator('#detailPanels .detail-panel.active');
+ok('в «Журнале мер» есть колонка «Вложения»', (await meryDocs.locator('thead th:has-text("Вложения")').count()) === 1);
+ok('есть кнопка-скрепка со счётчиком', (await meryDocs.locator('button.docs-btn').first().isVisible()));
+await meryDocs.locator('button.docs-btn').first().click();
+ok('модалка вложений открылась', await page.locator('#modalHost.open').isVisible());
+ok('в модалке перечислены сканы', /квитанц|скан|\.pdf/i.test(await page.locator('#modalHost').innerText()));
+await page.keyboard.press('Escape');
+ok('модалка вложений закрылась по Escape', !(await page.locator('#modalHost.open').isVisible()));
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);

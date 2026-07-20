@@ -619,10 +619,10 @@ const PROCESSES = [
       debt:{ principal:{accrued:40000,paid:0}, interest:{accrued:2600,paid:0}, penalty:{accrued:6300,paid:0}, fees:{accrued:0,paid:0} },
       debtNote:'Требование выросло с первоначальных 42 600,00 за счёт начисленной пени.' } ],
     measures:[
-      {sec:'Досудебный', kind:'Первичная претензия', date:'12.11.2025', num:'ПР-118', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'42 600,00', responsible:'Тукинова А.С.'},
-      {sec:'Досудебный', kind:'Повторная претензия', date:'01.12.2025', num:'ПР-140', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'42 600,00', responsible:'Тукинова А.С.'},
+      {sec:'Досудебный', kind:'Первичная претензия', date:'12.11.2025', num:'ПР-118', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'42 600,00', responsible:'Тукинова А.С.', docs:[{name:'СЭД-квитанция ПР-118.pdf', kind:'подтверждение вручения'}]},
+      {sec:'Досудебный', kind:'Повторная претензия', date:'01.12.2025', num:'ПР-140', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'42 600,00', responsible:'Тукинова А.С.', docs:[{name:'Почтовое уведомление ПР-140.pdf', kind:'подтверждение вручения'}]},
       {sec:'Досудебный', kind:'Требование поручителю', date:'01.12.2025', num:'ТР-141', purpose:'солидарное требование', deliver:'СЭД (квитанция)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'42 600,00', responsible:'Тукинова А.С.'},
-      {sec:'Судебный', kind:'Исковое заявление', date:'20.05.2026', num:'ИСК-77', purpose:'взыскание просроченной суммы', deliver:'подано в суд', delivered:true, result:'на рассмотрении', stageEx:'на рассмотрении', sum:'48 900,00', responsible:'Тукинова А.С.'},
+      {sec:'Судебный', kind:'Исковое заявление', date:'20.05.2026', num:'ИСК-77', purpose:'взыскание просроченной суммы', deliver:'подано в суд', delivered:true, result:'на рассмотрении', stageEx:'на рассмотрении', sum:'48 900,00', responsible:'Тукинова А.С.', docs:[{name:'Исковое заявление ИСК-77.pdf', kind:'процессуальный документ'},{name:'Расчёт задолженности.xlsx', kind:'приложение'}]},
     ],
     hearings:[
       {measureNum:'ИСК-77', kind:'Извещение о назначении судебного процесса', place:'Первомайский районный суд г. Бишкек', when:'02.06.2026 10:30', participants:['Тукинова А.С. (представитель ФКФ)'], status:'на рассмотрении', substatus:'назначено к предварительному слушанию'},
@@ -1003,12 +1003,16 @@ function panelOhvat(){
 /* ---- panel: Журнал мер ---- */
 function panelMery(){
   const p=curProc;
-  const rows = p.measures.map(m=>{
+  const rows = p.measures.map((m, mi) => {
     const bad = needsDelivery(m.kind) && !m.delivered;
+    const nDocs = (m.docs || []).length;
+    const docCell = nDocs
+      ? `<button class="docs-btn btn-tint btn-sm" onclick="openDocsModal('${p.id}',${mi})" title="Вложения">📎 ${nDocs}</button>`
+      : '<span style="color:var(--text-placeholder)">—</span>';
     return `<tr class="${bad ? 'mrow-undelivered' : ''}">
       <td>${m.sec}</td><td>${m.kind}</td><td>${m.date}</td><td>${m.num}</td>
       <td>${m.deliver}${bad ? ' <span class="pill mid">не исполнена: нет подтверждения вручения</span>' : ''}</td>
-      <td>${m.result}</td><td>${m.stageEx}</td><td>${m.responsible || '—'}</td><td style="text-align:right">${m.sum}</td></tr>`;
+      <td>${m.result}</td><td>${m.stageEx}</td><td>${docCell}</td><td>${m.responsible || '—'}</td><td style="text-align:right">${m.sum}</td></tr>`;
   }).join('');
   return `<div class="panel-wrap">
     ${phaseTimeline()}
@@ -1018,7 +1022,7 @@ function panelMery(){
       <button class="btn btn-tint btn-sm" onclick="openMeasureModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Зарегистрировать меру</button>
     </div>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Раздел</th><th>Вид меры</th><th>Дата</th><th>Номер</th><th>Направление / вручение</th><th>Результат</th><th>Стадия</th><th>Ответственный</th><th style="text-align:right">Сумма</th></tr></thead>
+      <thead><tr><th>Раздел</th><th>Вид меры</th><th>Дата</th><th>Номер</th><th>Направление / вручение</th><th>Результат</th><th>Стадия</th><th>Вложения</th><th>Ответственный</th><th style="text-align:right">Сумма</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div></div>`;
 }
@@ -1180,6 +1184,7 @@ function openMeasureModal(){
       ${sel('Способ направления / вручения','СЭД (квитанция)',['СЭД (квитанция)','Почта (уведомление о вручении)','Отметка заёмщика','Подано в суд','Зарегистрировано в госоргане','Не направлялась'])}
       ${sel('Результат','на рассмотрении',['на рассмотрении','без изменения','частичное погашение','полное погашение','положительный','отрицательный'])}
       <div class="field col-span"><span class="flabel">Назначение (цель)</span><div class="control"><input value=""></div></div>
+      <div class="field col-span"><span class="flabel">Скан документа / подтверждения вручения</span><div class="control grey"><input type="file"></div></div>
     </div>
     <div class="warn-inline" id="mWarnPhase"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Это <b>мера-веха</b>: сохранение сдвинет фазу процесса. Фаза двигается только так — селектора фазы в системе нет.</span></div>
     <div class="warn-inline" id="mWarnDelivery"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Без подтверждения вручения мера не считается исполненной и не годится как доказательство в суде.</span></div>
@@ -1188,6 +1193,21 @@ function openMeasureModal(){
   </div>`;
   host.classList.add('open');
   syncMeasureWarnings();
+}
+function openDocsModal(procId, mIdx){
+  const p = PROCESSES.find(x => x.id === procId) || curProc;
+  const m = p.measures[mIdx];
+  const list = (m.docs || []).map(d => `<tr><td>${d.name}</td><td>${d.kind}</td></tr>`).join('')
+    || `<tr><td colspan="2"><div class="cgrid-empty">Вложений нет</div></td></tr>`;
+  const host = document.getElementById('modalHost');
+  host.innerHTML = `<div class="modal narrow">
+    <div class="modal-h"><span class="mt">Вложения меры ${m.num || m.kind}</span><button class="modal-x" onclick="closeModal()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="modal-b"><div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Файл</th><th>Тип документа</th></tr></thead><tbody>${list}</tbody>
+    </table></div></div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>
+  </div>`;
+  host.classList.add('open');
 }
 function syncMeasureWarnings(){
   const kind = document.getElementById('mKind').value;
