@@ -504,6 +504,15 @@ await page.click('#btnOpen');
 await page.click('#detailTabbar .dtab:has-text("Заседания")');
 ok('у 133 заседаний нет (пустое состояние)', (await page.locator('#detailPanels .detail-panel.active .cgrid-empty').count()) === 1);
 
+// === #5 Ответственный ===
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="142"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab:has-text("Журнал мер")');
+const meryResp = page.locator('#detailPanels .detail-panel.active');
+ok('в «Журнале мер» есть колонка «Ответственный»', (await meryResp.locator('thead th:has-text("Ответственный")').count()) === 1);
+ok('ФИО ответственного отрисовано', /Тукинова|Танаев|Осмонов/.test(await meryResp.innerText()));
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);
