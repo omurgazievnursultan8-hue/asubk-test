@@ -1598,6 +1598,10 @@ function triggers(){
 let role = 'Залоговый специалист';
 const canEdit       = () => role === 'Залоговый специалист';
 const canCommission = () => role === 'Комиссия по залогу';
+/* Доп соглашение доступно обеим ролям: специалист собирает пакет, комиссия допускает
+   недопокрытие/понижение ликвидности с обоснованием. Раньше openDs пускал только
+   специалиста → ветка допуска комиссией была недостижима. */
+const canDs = () => canEdit() || canCommission();
 function onRoleChange(){ role = document.getElementById('roleSel').value; toast('Роль: '+role);
   renderList(); if(cur) openCard(cur.type, cur.id); }
 function denyEdit(){ toast('Роль «'+role+'» не имеет права на это действие','warn'); }
@@ -1871,7 +1875,7 @@ function onNew(){ if(!canEdit()) return denyEdit(); if(reg==='contracts') openNe
    КАРТОЧКИ — вкладки и панели
    ============================================================ */
 const TABS_ITEM = ['Основное','Стоимость и переоценки','Запрет на отчуждение','Обследования','Обеспечиваемые кредиты','Документы','История'];
-const TABS_CTR  = ['Общая информация','Предметы и доли','Кредиты и покрытие','Доп соглашения','История'];
+const TABS_CTR  = ['Общая информация','Предметы и доли','Кредиты и покрытие','Доп соглашения','Документы','История'];
 let curTab = 0;
 
 function openCard(type, id, tab){
@@ -2157,7 +2161,7 @@ function ctrPanels(c){
     <div class="phead-top">
       <div class="phead-name"><span class="nm">${c.no || 'Залоговый договор (черновик)'}</span>
         <a onclick="toast('Переход в карточку заёмщика (модуль «Заёмщики»)')">${esc(clientName(c.inn))} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></a>
-        <div class="phead-sub" style="width:100%">${c.id} · ${c.credits.length} кредит(ов) · ${items.length} предмет(ов)${thirdParty.length ? ' · <b>имущественный залог третьего лица</b>' : ''}</div>
+        <div class="phead-sub" style="width:100%">${c.id} · ${c.credits.length} кредит(ов) · ${items.length} предмет(ов)</div>
       </div>
       <span class="phead-owner"><span class="pill ${isActive(c)?'low':c.status==='На рассмотрении комиссии'?'high':'neutral'}">${c.status}</span></span>
     </div>
@@ -2169,29 +2173,34 @@ function ctrPanels(c){
     <div class="phead-dims">
       ${kpi('Статус', c.status, 'ЖЦ договора')}
       ${kpi('Мин. покрытие', c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}">${pct(mc)}</span>`, 'худший кредит договора · порог по составу (120/150%)')}
-      ${kpi('Залоговая масса', fmt(c.allocs.reduce((s,a)=>s+effShare(cs, a.item, a.share),0)), 'Σ эффективных долей')}
-      ${kpi('Доп соглашений', String(c.addenda.length), 'конверты версионирования')}
     </div></div>`;
 
-  const p0 = `<div class="panel-wrap">${head}<div class="panel-card"><div class="f2">
+  const p0 = `<div class="panel-wrap">${head}<div class="panel-card">
+    <p class="section-h" style="font-size:16px;margin-top:0">Договор</p>
+    <div class="f2">
       ${ro('Номер договора', c.no || '—')}
       ${ro('Дата договора', c.date || '—')}
       ${ro('Заёмщик (кредиты договора)', clientName(c.inn)+' · ИНН '+c.inn)}
       ${ro('Залогодатель(и)', [...new Set(items.map(i=>clientName(item(i).pledger)))].join(', ') || '—')}
+    </div>
+    <p class="section-h" style="font-size:16px;margin-top:18px">Регистрация</p>
+    <div class="f2">
       ${ro('Нотариус', c.notary || '—')}
       ${ro('№ / дата нотариальной регистрации', c.notaryNo ? c.notaryNo+' от '+c.notaryDate : '—')}
       ${ro('Залоговое рег. свидетельство', c.cert || '—')}
-      ${ro('Статус', c.status)}
-      ${isActive(c) ? ro('Запреты на отчуждение', `${banPlaced.length} из ${banItems.length} наложено`) : ''}
     </div>
     ${banMiss.length ? `<div class="flagline" style="margin-top:14px"><span>Оформление не завершено: по предметам ${banMiss.join(', ')} не наложен запрет на отчуждение (срок до ${banDeadline(item(banMiss[0]))}). Договор зарегистрирован, но залог не защищён от продажи.</span></div>` : ''}
     ${thirdParty.length ? `<div class="infoline" style="margin-top:14px"><span>В договоре есть предметы, чей залогодатель ≠ заёмщик (${thirdParty.map(i=>i+' · '+clientName(item(i).pledger)).join('; ')}). Имущественный залог третьего лица — отвечает только заложенным предметом.</span></div>` : ''}
-    <p class="section-h" style="font-size:16px;margin-top:18px">Вложения договора</p>
-    <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openAttach('contract','${c.id}')">Прикрепить файл</button></div>
-    ${fileTable(c.files)}
     </div></div>`;
 
   const editable = isDraftish(c) && canEdit();
+  /* Группировка по предмету: атрибуты предмета (вид/залогодатель/залоговая/запрет)
+     rowspan'ятся, под-строки — по кредитам, которые предмет обеспечивает.
+     Убирает построчный дубль, когда один предмет обеспечивает несколько кредитов. */
+  const itemGroups = [];
+  c.allocs.forEach((a,i)=>{ let g = itemGroups.find(x=>x.item===a.item); if(!g){ g = { item:a.item, rows:[] }; itemGroups.push(g); } g.rows.push({ a, i }); });
+  const totalEff = c.allocs.reduce((s,a)=>s+effShare(cs, a.item, a.share),0);
+  const colCount = editable ? 8 : 7;
   const p1 = `<div class="panel-wrap">
     <p class="section-h">Предметы и доли</p>
     ${editable ? `<div class="gtoolbar">
@@ -2200,32 +2209,49 @@ function ctrPanels(c){
       <button class="btn btn-tint btn-sm" onclick="openAlloc('${c.id}')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Привязать существующий</button></div>` : ''}
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Предмет</th><th>Вид</th><th>Залогодатель</th><th>Кредит</th><th class="numcell">Залоговая</th><th class="numcell">Доля</th><th class="numcell">Эффективная</th><th>Запрет</th>${editable?'<th></th>':''}</tr></thead>
-      <tbody>${c.allocs.length ? c.allocs.map((a,i)=>{ const it = item(a.item); return `<tr>
-        <td><span class="rowlink" onclick="openCard('item','${it.id}')">${it.id} · ${esc(it.name)}</span></td>
-        <td>${esc(it.kind)}</td><td>${esc(clientName(it.pledger))}</td><td>${a.credit}</td>
-        <td class="numcell">${fmt(pledgeValue(it))}</td>
-        <td class="numcell">${fmt(a.share)}</td>
-        <td class="numcell">${fmt(effShare(cs, it.id, a.share))}${effShare(cs, it.id, a.share) < a.share - 0.005 ? ' <span class="pill high" title="залоговая упала ниже суммы долей">усечена</span>' : ''}</td>
-        <td><span class="rowlink" onclick="openCard('item','${it.id}',2)">${banPill(it)}</span></td>
-        ${editable ? `<td><button class="btn btn-tint btn-sm danger" onclick="dropAlloc('${c.id}',${i})">Убрать</button></td>` : ''}</tr>`; }).join('')
-        : `<tr><td colspan="${editable?9:8}"><div class="cgrid-empty">Предметы не привязаны</div></td></tr>`}</tbody>
+      <thead><tr><th>Предмет</th><th>Вид</th><th>Залогодатель</th><th>Кредит</th><th class="numcell">Залоговая</th><th class="numcell">Доля</th><th>Запрет</th>${editable?'<th></th>':''}</tr></thead>
+      <tbody>${itemGroups.length ? itemGroups.map(g=>{ const it = item(g.item), rs = g.rows.length;
+        return g.rows.map((r,ri)=>{ const a = r.a, eff = effShare(cs, it.id, a.share);
+          const creditCell = `<td>${a.credit}</td>`;
+          const shareCell = `<td class="numcell">${fmt(a.share)}${eff < a.share - 0.005 ? ` <span class="pill high" title="залоговая упала ниже суммы долей — фактически учтено ${fmt(eff)}">усечена → ${fmt(eff)}</span>` : ''}</td>`;
+          const actionCell = editable ? `<td><button class="btn btn-tint btn-sm danger" onclick="dropAlloc('${c.id}',${r.i})">Убрать</button></td>` : '';
+          if(ri>0) return `<tr>${creditCell}${shareCell}${actionCell}</tr>`;
+          return `<tr>
+            <td rowspan="${rs}" style="vertical-align:top"><span class="rowlink" onclick="openCard('item','${it.id}')">${it.id} · ${esc(it.name)}</span></td>
+            <td rowspan="${rs}" style="vertical-align:top">${esc(it.kind)}</td>
+            <td rowspan="${rs}" style="vertical-align:top">${esc(clientName(it.pledger))}</td>
+            ${creditCell}
+            <td rowspan="${rs}" class="numcell" style="vertical-align:top">${fmt(pledgeValue(it))}</td>
+            ${shareCell}
+            <td rowspan="${rs}" style="vertical-align:top"><span class="rowlink" onclick="openCard('item','${it.id}',2)">${banPill(it)}</span></td>
+            ${actionCell}</tr>`;
+        }).join('');
+      }).join('') + `<tr class="total"><td colspan="5">Итого — залоговая масса договора</td><td class="numcell">${fmt(totalEff)}</td><td${editable?' colspan="2"':''}></td></tr>`
+        : `<tr><td colspan="${colCount}"><div class="cgrid-empty">Предметы не привязаны</div></td></tr>`}</tbody>
     </table></div></div>`;
 
+  const totAmt = c.credits.reduce((s,id)=>s+credit(id).amount,0);
+  const totSec = c.credits.reduce((s,id)=>{ const r = gate.rows.find(x=>x.id===id); return s + r.sum; },0);
   const p2 = `<div class="panel-wrap">
     <p class="section-h">Кредиты и покрытие</p>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Кредит</th><th>Договор</th><th class="numcell">Сумма кредита</th><th class="numcell">Порог</th><th class="numcell">Требуется</th><th class="numcell">Обеспечено</th><th>Покрытие</th><th>Доля ликвида</th><th>Статус кредита</th>${canEdit()&&isActive(c)?'<th></th>':''}</tr></thead>
-      <tbody>${c.credits.map(id=>{ const r = gate.rows.find(x=>x.id===id), cr = credit(id); return `<tr>
+      <thead><tr><th>Кредит</th><th>Договор</th><th class="numcell">Сумма кредита</th><th class="numcell">Порог / требуется</th><th class="numcell">Обеспечено</th><th class="numcell">Дефицит / излишек</th><th>Покрытие</th><th>Доля ликвида</th><th>Статус кредита</th>${canEdit()&&isActive(c)?'<th></th>':''}</tr></thead>
+      <tbody>${c.credits.map(id=>{ const r = gate.rows.find(x=>x.id===id), cr = credit(id);
+        const need = cr.amount*r.req, deficit = need - r.sum;
+        const defCell = r.other ? '<span class="pill neutral">—</span>'
+          : (deficit > 0.005 ? `<span class="diff-dn" title="не хватает обеспечения — догрузить/заменить предмет">−${fmt(deficit)}</span>`
+                             : `<span class="diff-up" title="обеспечение выше требуемого">+${fmt(-deficit)}</span>`);
+        return `<tr>
         <td>${id}${r.other?` <span class="pill info" title="${esc(r.other.type)} — вне залогового гейта">иная форма</span>`:''}</td><td>${esc(cr.num)}</td>
         <td class="numcell">${fmt(cr.amount)}</td>
-        <td class="numcell">${pct(r.req)}</td>
-        <td class="numcell">${fmt(cr.amount*r.req)}</td>
+        <td class="numcell">${r.other ? '<span class="pill neutral">—</span>' : `${pct(r.req)} · ${fmt(need)}`}</td>
         <td class="numcell">${fmt(r.sum)}</td>
+        <td class="numcell">${defCell}</td>
         <td><span class="pill ${r.ok?'low':(r.covOk?'mid':'high')}">${pct(r.ratio)}</span></td>
         <td>${r.liqApplies ? `<span class="pill ${r.liqOk?'low':'high'}">${pct(r.liqShare)} / 80%</span>` : '<span class="pill neutral">—</span>'}</td>
         <td>${cr.status}${cr.overdue?' <span class="pill high">просрочка</span>':''}</td>
-        ${canEdit()&&isActive(c) ? `<td>${cr.status==='Действующий' ? `<button class="btn btn-tint btn-sm" onclick="repay('${c.id}','${id}')">Отметить погашенным</button>` : '—'}</td>` : ''}</tr>`; }).join('')}</tbody>
+        ${canEdit()&&isActive(c) ? `<td>${cr.status==='Действующий' ? `<button class="btn btn-tint btn-sm" onclick="repay('${c.id}','${id}')">Отметить погашенным</button>` : '—'}</td>` : ''}</tr>`; }).join('')}
+        <tr class="total"><td colspan="2">Итого по договору</td><td class="numcell">${fmt(totAmt)}</td><td class="numcell"></td><td class="numcell">${fmt(totSec)}</td><td class="numcell"></td><td><span class="pill ${totSec>=totAmt?'low':'high'}">${pct(totAmt ? totSec/totAmt : 0)}</span></td><td></td><td></td>${canEdit()&&isActive(c)?'<td></td>':''}</tr></tbody>
     </table></div>
     ${gate.ok ? `<div class="okline" style="margin-top:14px"><span>Гейт покрытия пройден по всем кредитам договора.</span></div>`
       : `<div class="flagline" style="margin-top:14px"><span>Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)} (порог ${pct(r.req)}${r.liqApplies&&!r.liqOk?`, доля ликвида ${pct(r.liqShare)}<80%`:''})`).join(', ')}. ${isActive(c)
@@ -2235,7 +2261,7 @@ function ctrPanels(c){
 
   const p3 = `<div class="panel-wrap">
     <p class="section-h">Доп соглашения</p>
-    ${isActive(c) && canEdit() ? `<div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openDs('${c.id}')">
+    ${isActive(c) && canDs() ? `<div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openDs('${c.id}')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Новое доп соглашение</button></div>`
       : ''}
     ${c.addenda.length ? c.addenda.map(d=>`<div class="panel-card" style="margin-bottom:14px">
@@ -2251,11 +2277,16 @@ function ctrPanels(c){
     </div>`).join('') : `<div class="cgrid-empty" style="border:1px solid var(--border-default);border-radius:4px">Доп соглашений нет</div>`}
     </div>`;
 
+  const pDocs = `<div class="panel-wrap">
+    <p class="section-h">Документы договора</p>
+    <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openAttach('contract','${c.id}')">Прикрепить файл</button></div>
+    ${fileTable(c.files)}</div>`;
+
   const p4 = `<div class="panel-wrap">
     <p class="section-h">История договора</p>
     <div class="hist">${[...c.history].reverse().map(h=>`<div class="hrow"><div class="hwhen">${h.when}</div><div class="hwhat">${esc(h.what)}</div><div class="hwho">${esc(h.who)}</div></div>`).join('')}</div></div>`;
 
-  return [p0,p1,p2,p3,p4];
+  return [p0,p1,p2,p3,pDocs,p4];
 }
 function ctrFooter(c){
   const back = `<button class="btn btn-secondary" onclick="showView('list')">
@@ -2266,7 +2297,7 @@ function ctrFooter(c){
     return back + `<button class="btn btn-tint" onclick="openRegister('${c.id}')">Повторить проверку гейта</button>
       <button class="btn btn-primary" onclick="openCommission('${c.id}')">Решение комиссии по залогу</button>`;
   if(isActive(c))
-    return back + `<button class="btn btn-primary" onclick="openDs('${c.id}')">Новое доп соглашение</button>`;
+    return back + (canDs() ? `<button class="btn btn-primary" onclick="openDs('${c.id}')">Новое доп соглашение</button>` : '');
   return back;
 }
 
@@ -2949,7 +2980,7 @@ function saveCommission(cid){
 /* ---------- ДОП СОГЛАШЕНИЕ — CHANGESET (конверт версионирования) ---------- */
 let ds = { cid:null, ops:[] };
 function openDs(cid){
-  if(!canEdit()) return denyEdit();
+  if(!canDs()) return denyEdit();
   ds = { cid, ops: [] };
   renderDs();
 }
@@ -3002,10 +3033,18 @@ function renderDs(){
   const repDrop = reps.some(r=>r.drop && !r.overdue);
   const needCommission = (!after.ok || repDrop);        // допуск комиссией (покрытие ниже порога / понижение ликвидности)
   const inCtr  = [...new Set(v.allocs.map(a=>a.item))];
+  /* Р-?: показываем порог ДО/ПОСЛЕ — смена состава обеспечения (напр. добавили товары
+     в обороте) поднимает порог 120→150%, из-за чего гейт может падать ДАЖЕ при росте
+     покрытия. Без этих колонок офицер не понимает, почему «стало больше», а гейт красный. */
+  let reqRose = false;
   const rows = after.rows.map(r => {
     const b = before.rows.find(x=>x.id===r.id);
+    const reqUp = b && r.req > b.req + 0.0001;
+    if(reqUp) reqRose = true;
     return `<tr><td>${r.id}</td><td>${b ? pct(b.ratio) : '—'}</td>
       <td class="${!b || r.ratio >= b.ratio ? 'diff-up':'diff-dn'}">${pct(r.ratio)}</td>
+      <td>${b ? pct(b.req) : '—'}</td>
+      <td${reqUp?' class="diff-dn" title="порог вырос — в обеспечение добавлен низколиквидный вид"':''}>${pct(r.req)}${reqUp?' ↑':''}</td>
       <td><span class="pill ${r.ok?'low':'high'}">${r.ok?`≥${pct(r.req)}`:`<${pct(r.req)}`}</span></td></tr>`; }).join('');
   /* Р-6: строка ликвидности до/после для замен + индикатор допустимости. */
   const repRows = reps.map(r=>`<tr><td>${r.credit}</td>
@@ -3048,8 +3087,9 @@ function renderDs(){
 
       <p class="section-h" style="font-size:16px;margin-top:14px">Снимок before / after (чистый эффект пакета)</p>
       <div class="cgrid-wrap"><table class="cgrid">
-        <thead><tr><th>Кредит</th><th>Покрытие до</th><th>Покрытие после</th><th>Гейт</th></tr></thead>
+        <thead><tr><th>Кредит</th><th>Покрытие до</th><th>Покрытие после</th><th>Порог до</th><th>Порог после</th><th>Гейт</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
+      ${reqRose ? `<div class="infoline" style="margin-top:10px"><span>Порог вырос: в обеспечение добавлен низколиквидный вид (товары в обороте / движимое) — состав перешёл в режим 150%. Рост покрытия может не компенсировать рост порога.</span></div>` : ''}
 
       ${breach.length ? `<div class="flagline" style="margin-top:12px"><span>Инвариант нарушен: по ${breach.map(b=>`${b.id} (Σ долей ${fmt(b.alloc)} > залоговая ${fmt(b.pledge)})`).join('; ')}. Пакет не может быть зарегистрирован.</span></div>` : ''}
       ${repOverdue.length ? `<div class="flagline" style="margin-top:12px"><span>Замена невозможна: по кредиту ${repOverdue.map(r=>r.credit).join(', ')} есть просроченная задолженность. Погасите просрочку и повторите.</span></div>` : ''}
@@ -3090,6 +3130,12 @@ function dsAdd(){
     const id = val('dsItem'), cr = val('dsCredit'), sh = num(val('dsShare'));
     if(!id || !cr) return toast('Выберите предмет и кредит','warn');
     if(!(sh > 0)) return toast('Доля должна быть положительным числом','warn');
+    /* Advisory: доступное с учётом уже добавленных в пакет вводов по этому предмету.
+       Не блокируем (в пакете может быть вывод, освобождающий место) — жёсткий guard = инвариант. */
+    const pkgIn = ds.ops.filter(o=>o.type==='in' && o.item===id).reduce((s,o)=>s+o.share,0);
+    const avail = availableOf(item(id)) - pkgIn;
+    if(sh > avail + 0.005)
+      toast(`Внимание: доля ${fmt(sh)} превышает доступное по ${id} (${fmt(Math.max(0,avail))}). Без вывода другого залога это нарушит инвариант.`,'warn');
     ds.ops.push({ type:'in', item:id, credit:cr, share:sh });
   }
   if(t==='share'){
