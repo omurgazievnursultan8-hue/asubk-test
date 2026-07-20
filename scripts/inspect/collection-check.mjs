@@ -454,6 +454,38 @@ ok('104: title «Фазы» — исход терминального проце
 const phaseTitle097 = await page.locator('#listBody tr[data-id="097"] td').nth(3).getAttribute('title');
 ok('097: title «Фазы» — исход терминального процесса', !!phaseTitle097 && phaseTitle097.includes('Безнадёжный долг'));
 
+// === #1 Расчёт долга ===
+await page.goto(FILE, { waitUntil: 'load' });
+const fin = await page.evaluate(() => ({
+  hasFmt: typeof fmtKGS === 'function',
+  fmt: typeof fmtKGS === 'function' && fmtKGS(40000),
+  hasLeft: typeof debtLeft === 'function',
+  left: typeof debtLeft === 'function' && debtLeft({accrued:48900, paid:900}),
+  // инвариант сумм: итог начислено = сумма меры-основания фазы, для всех процессов
+  invariantOk: (typeof phaseMeasureSum === 'function') && PROCESSES.every(p => {
+    const c = p.credits[0];
+    if (!c || !c.debt) return false;
+    const acc = ['principal','interest','penalty','fees'].reduce((s,k)=>s+c.debt[k].accrued, 0);
+    const ms = phaseMeasureSum(p);
+    return ms === null ? false : Math.abs(acc - ms) < 0.005;
+  }),
+  penaltyNote151: PROCESSES.find(p=>p.id==='151').credits[0].debt.penalty.note || '',
+  writtenOff097: !!PROCESSES.find(p=>p.id==='097').credits[0].writtenOff,
+}));
+ok('fmtKGS форматирует с пробелом-разделителем', fin.fmt === '40 000,00');
+ok('debtLeft = начислено − погашено', fin.left === 48000);
+ok('инвариант: итог по статьям = сумма меры-основания фазы (все процессы)', fin.invariantOk === true);
+ok('у 151 пеня несёт метку открытого вопроса (пауза)', /откр|пауз/i.test(fin.penaltyNote151));
+ok('у 097 требование помечено «списано»', fin.writtenOff097 === true);
+
+await page.click('#listBody tr[data-id="142"]');
+await page.click('#btnOpen');
+ok('после Task 2 вкладок 8', (await page.locator('#detailTabbar .dtab').count()) === 8);
+await page.click('#detailTabbar .dtab:has-text("Расчёт долга")');
+const rasch = page.locator('#detailPanels .detail-panel.active');
+ok('в «Расчёт долга» есть итоговая строка', (await rasch.locator('table.cgrid tr.total').count()) >= 1);
+ok('итог 142 = 48 900,00', (await rasch.locator('table.cgrid tr.total').first().innerText()).includes('48 900,00'));
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);

@@ -615,7 +615,9 @@ const PROCESSES = [
     phase:'Иск', catDays:214, group:'2.1',
     owner:'Отдел проблемных кредитов', opened:'12.11.2025', basis:'первичная претензия',
     overlay:null, outcome:null, closed:'',
-    credits:[ {id:'56', num:'Дог. №56 от 10.04.2024', subject:'просроченная сумма', claim:'42 600,00', coll:'—'} ],
+    credits:[ {id:'56', num:'Дог. №56 от 10.04.2024', subject:'просроченная сумма', claim:'42 600,00', coll:'—',
+      debt:{ principal:{accrued:40000,paid:0}, interest:{accrued:2600,paid:0}, penalty:{accrued:6300,paid:0}, fees:{accrued:0,paid:0} },
+      debtNote:'Требование выросло с первоначальных 42 600,00 за счёт начисленной пени.' } ],
     measures:[
       {sec:'Досудебный', kind:'Первичная претензия', date:'12.11.2025', num:'ПР-118', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'42 600,00'},
       {sec:'Досудебный', kind:'Повторная претензия', date:'01.12.2025', num:'ПР-140', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'42 600,00'},
@@ -639,7 +641,8 @@ const PROCESSES = [
     phase:'Извещение', catDays:214, group:'2.1',
     owner:'Департамент правового обеспечения', opened:'02.06.2026', basis:'служебная записка',
     overlay:{type:'Пауза', label:'реструктуризация', until:'18.09.2026', scope:'весь процесс'}, outcome:null, closed:'',
-    credits:[ {id:'56', num:'Дог. №56 от 10.04.2024', subject:'залог', claim:'150 000,00', coll:'Недвижимость (склад)'} ],
+    credits:[ {id:'56', num:'Дог. №56 от 10.04.2024', subject:'залог', claim:'150 000,00', coll:'Недвижимость (склад)',
+      debt:{ principal:{accrued:140000,paid:0}, interest:{accrued:6000,paid:0}, penalty:{accrued:4000,paid:0,note:'начисление при паузе — открытый вопрос'}, fees:{accrued:0,paid:0} } } ],
     measures:[
       {sec:'Судебный', kind:'Извещение об обращении на залог', date:'02.06.2026', num:'ИЗВ-09', purpose:'начало обращения взыскания', deliver:'зарегистрировано в госоргане', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'150 000,00'},
     ],
@@ -664,7 +667,8 @@ const PROCESSES = [
     /* Единственный процесс в демо-данных с механизмом «Событие» — иначе красная ветка
        overlayBanner()/panelSpecial() существует только в коде и никогда не видна вживую. */
     overlay:{type:'Событие', label:'смерть заёмщика', until:'', scope:'весь процесс'}, outcome:null, closed:'',
-    credits:[ {id:'88', num:'Дог. №88 от 03.02.2025', subject:'просроченная сумма', claim:'18 200,00', coll:'—'} ],
+    credits:[ {id:'88', num:'Дог. №88 от 03.02.2025', subject:'просроченная сумма', claim:'18 200,00', coll:'—',
+      debt:{ principal:{accrued:17000,paid:0}, interest:{accrued:800,paid:0}, penalty:{accrued:400,paid:0}, fees:{accrued:0,paid:0} } } ],
     measures:[
       {sec:'Досудебный', kind:'Первичная претензия', date:'05.06.2026', num:'ПР-201', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'18 200,00'},
       {sec:'Досудебный', kind:'Повторная претензия', date:'24.06.2026', num:'ПР-233', purpose:'погашение + предупреждение', deliver:'почта (в пути)', delivered:false, result:'на рассмотрении', stageEx:'на исполнении', sum:'18 200,00'},
@@ -684,7 +688,9 @@ const PROCESSES = [
     phase:'На исполнении', catDays:410, group:'2.2',
     owner:'Отдел проблемных кредитов', opened:'01.02.2025', basis:'первичная претензия',
     overlay:{type:'Соглашение', label:'мировое соглашение', until:'', scope:'график погашения'}, outcome:null, closed:'',
-    credits:[ {id:'40', num:'Дог. №40 от 15.09.2023', subject:'полный остаток', claim:'96 400,00', coll:'Транспорт'} ],
+    credits:[ {id:'40', num:'Дог. №40 от 15.09.2023', subject:'полный остаток', claim:'96 400,00', coll:'Транспорт',
+      debt:{ principal:{accrued:88000,paid:20000}, interest:{accrued:5000,paid:1000}, penalty:{accrued:3400,paid:0}, fees:{accrued:0,paid:0} },
+      debtNote:'Погашение идёт по графику мирового соглашения (МС-12).' } ],
     measures:[
       {sec:'Судебный', kind:'Мировое соглашение', date:'18.03.2026', num:'МС-12', purpose:'график погашения', deliver:'утверждено судом', delivered:true, result:'полностью на сумму', stageEx:'исполнено', sum:'96 400,00'},
       {sec:'Исполнительное', kind:'Исполнительный лист', date:'20.02.2026', num:'ИЛ-305', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:'на исполнении', stageEx:'на исполнении', sum:'96 400,00'},
@@ -708,7 +714,9 @@ const PROCESSES = [
     phase:'На исполнении', catDays:512, group:'2.2',
     owner:'Сектор по работе с активами', opened:'18.01.2025', basis:'служебная записка в ДПО',
     overlay:null, outcome:'Принятие имущества', closed:'14.05.2026',
-    credits:[ {id:'71', num:'Дог. №71 от 22.08.2023', subject:'залог', claim:'310 000,00', coll:'Имущественный комплекс'} ],
+    credits:[ {id:'71', num:'Дог. №71 от 22.08.2023', subject:'залог', claim:'310 000,00', coll:'Имущественный комплекс',
+      debt:{ principal:{accrued:290000,paid:280000}, interest:{accrued:12000,paid:10000}, penalty:{accrued:8000,paid:5000}, fees:{accrued:0,paid:0} },
+      debtNote:'Имущество принято на 295 000,00; остаток 15 000,00 — судьба остатка не определена (ср. E2E-14).' } ],
     measures:[
       {sec:'Судебный', kind:'Извещение об обращении на залог', date:'18.01.2025', num:'ИЗВ-03', purpose:'начало обращения взыскания', deliver:'зарегистрировано в госоргане', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'310 000,00'},
       {sec:'Исполнительное', kind:'Исполнительный лист', date:'02.09.2025', num:'ИЛ-288', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:'на исполнении', stageEx:'исполнено', sum:'310 000,00'},
@@ -736,7 +744,9 @@ const PROCESSES = [
     phase:'На исполнении', catDays:890, group:'4',
     owner:'Сектор по работе с активами', opened:'03.03.2024', basis:'первичная претензия',
     overlay:null, outcome:'Безнадёжный долг', closed:'27.06.2026',
-    credits:[ {id:'33', num:'Дог. №33 от 11.01.2022', subject:'полный остаток', claim:'64 800,00', coll:'—'} ],
+    credits:[ {id:'33', num:'Дог. №33 от 11.01.2022', subject:'полный остаток', claim:'64 800,00', coll:'—',
+      debt:{ principal:{accrued:60000,paid:0}, interest:{accrued:3000,paid:0}, penalty:{accrued:1800,paid:0}, fees:{accrued:0,paid:0} },
+      writtenOff:true } ],
     measures:[
       {sec:'Досудебный', kind:'Первичная претензия', date:'03.03.2024', num:'ПР-045', purpose:'погашение', deliver:'почта (вручено)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'64 800,00'},
       {sec:'Судебный', kind:'Исковое заявление', date:'10.10.2024', num:'ИСК-52', purpose:'взыскание полного остатка', deliver:'подано в суд', delivered:true, result:'положительный', stageEx:'исполнено', sum:'64 800,00'},
@@ -768,6 +778,22 @@ const procNo = id => `В-2026-${String(id).padStart(6, '0')}`;
    ============================================================ */
 const catOf   = days  => days <= 5 ? 'norm' : days <= 180 ? 'mid' : 'high';
 const stageOf = phase => PHASES_PRE.includes(phase) ? 'Досудебная' : 'Принудительная';
+
+/* ---- Финансовая разбивка требования (#1) ---- */
+const DEBT_BUCKETS = ['principal','interest','penalty','fees'];
+const DEBT_LABELS  = {principal:'Основная сумма', interest:'Проценты', penalty:'Пеня / фин. санкции', fees:'Сборы'};
+/* Формат суммы в стиле макета: 40000 → '40 000,00' (обычный пробел, не U+202F от toLocaleString). */
+const fmtKGS   = n => n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+/* Разбор зашитой строки суммы обратно в число: '48 900,00' → 48900. */
+const parseSum = s => Number(String(s).replace(/\s/g, '').replace(',', '.'));
+/* Остаток bucket'а — производное, в данных не хранится. */
+const debtLeft = b => b.accrued - b.paid;
+/* Сумма меры, установившей текущую фазу (инвариант сумм привязан к ней, не к последней мере). */
+function phaseMeasureSum(p){
+  const kind = PHASE_BY_MEASURE[p.phase];
+  const m = [...p.measures].reverse().find(x => x.kind === kind);
+  return m ? parseSum(m.sum) : null;
+}
 
 /* Терминальный процесс — работа завершена (исход есть). Короткая подпись баннера overlay в списке. */
 const isTerminal   = p => Boolean(p.outcome);
@@ -869,7 +895,7 @@ const pickRO = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div c
 /* ============================================================
    DETAIL — tabs + panels
    ============================================================ */
-const TABS = ['Общая информация','Охват','Журнал мер','Передачи дела','Особые состояния','Залог / реализация','История'];
+const TABS = ['Общая информация','Охват','Расчёт долга','Журнал мер','Передачи дела','Особые состояния','Залог / реализация','История'];
 let curProc=null, curTab=0;
 function openDetail(id){
   curProc = PROCESSES.find(p=>p.id===id) || PROCESSES[0];
@@ -1068,8 +1094,43 @@ function panelHistory(){
   </div>`;
 }
 
+/* ---- panel: Расчёт долга (#1) ---- */
+function panelRaschet(){
+  const p = curProc;
+  const blocks = p.credits.map(c => {
+    if(!c.debt) return '';
+    const rows = DEBT_BUCKETS.map(k => {
+      const b = c.debt[k];
+      const left = c.writtenOff ? '<span class="pill neutral">списано</span>' : fmtKGS(debtLeft(b));
+      const note = b.note ? ` <span class="pill mid">${b.note}</span>` : '';
+      return `<tr><td>${DEBT_LABELS[k]}${note}</td>
+        <td style="text-align:right">${fmtKGS(b.accrued)}</td>
+        <td style="text-align:right">${fmtKGS(b.paid)}</td>
+        <td style="text-align:right">${left}</td></tr>`;
+    }).join('');
+    const tAcc  = DEBT_BUCKETS.reduce((s,k)=>s + c.debt[k].accrued, 0);
+    const tPaid = DEBT_BUCKETS.reduce((s,k)=>s + c.debt[k].paid, 0);
+    const tLeft = c.writtenOff ? '<span class="pill neutral">списано</span>' : fmtKGS(tAcc - tPaid);
+    const noteBlk = c.debtNote ? `<p class="section-note" style="margin-top:8px">${c.debtNote}</p>` : '';
+    return `<p class="section-h" style="margin-top:14px">${c.num}</p>
+      <div class="cgrid-wrap"><table class="cgrid">
+        <thead><tr><th>Статья долга</th><th style="text-align:right">Начислено</th><th style="text-align:right">Погашено</th><th style="text-align:right">Остаток</th></tr></thead>
+        <tbody>${rows}
+          <tr class="total"><td>Итого</td><td style="text-align:right">${fmtKGS(tAcc)}</td><td style="text-align:right">${fmtKGS(tPaid)}</td><td style="text-align:right">${tLeft}</td></tr>
+        </tbody></table></div>${noteBlk}`;
+  }).join('');
+  return `<div class="panel-wrap">
+    <p class="section-h">Расчёт долга</p>
+    <p class="section-note">Разбивка требования на статьи (основная · проценты · пеня · сборы) с начислено / погашено / остаток. Порядок направления погашения (waterfall): при наличии судебного акта — сначала на присуждённую сумму; иначе основная → проценты → пеня → сборы. Пересчёт демонстрационный; итог «Начислено» сходится с суммой меры-основания текущей фазы.</p>
+    ${blocks}
+    <div class="gtoolbar" style="margin-top:12px">
+      <button class="btn btn-tint btn-sm" onclick="toast('Распределение погашения по waterfall (демо)')">Распределить погашение</button>
+    </div>
+  </div>`;
+}
+
 function renderPanels(){
-  const builders=[panelObschaya,panelOhvat,panelMery,panelHandoffs,panelSpecial,panelZalog,panelHistory];
+  const builders=[panelObschaya,panelOhvat,panelRaschet,panelMery,panelHandoffs,panelSpecial,panelZalog,panelHistory];
   document.getElementById('detailPanels').innerHTML =
     builders.map((b,i)=>`<div class="detail-panel${i===0?' active':''}">${b()}</div>`).join('');
 }
