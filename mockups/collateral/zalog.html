@@ -400,6 +400,26 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .lookup button{ display:inline-flex; align-items:center; justify-content:center; width:32px; height:var(--control-h);
   border:none; background:transparent; color:var(--text-link); cursor:pointer; }
 .lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
+.lookup .clr{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); font-size:13px;
+  width:28px; height:var(--control-h); }
+.lookup .clr:hover{ color:var(--text-body); }
+
+/* ── online-system entity picker (клон живого Jmix ••• entity-browser) ── */
+.picker-bar{ display:flex; align-items:center; gap:10px; margin:6px 0 12px; }
+.picker-search{ flex:1; height:34px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-body); padding:0 12px; }
+.picker-search:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); outline:none; }
+.lk-table-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; max-height:360px; }
+table.lk-table{ width:100%; border-collapse:collapse; font:var(--font-body); white-space:nowrap; }
+table.lk-table thead th{ position:sticky; top:0; background:var(--surface-panel); text-align:left; z-index:1;
+  font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-muted);
+  padding:9px 12px; border-bottom:1px solid var(--border-default); }
+table.lk-table tbody td{ padding:9px 12px; border-bottom:1px solid var(--border-default); color:var(--text-body); }
+table.lk-table tbody tr{ cursor:pointer; }
+table.lk-table tbody tr:hover{ background:var(--surface-hover); }
+table.lk-table tbody tr.sel{ background:var(--asubk-nav-active); }
+table.lk-table tbody tr:last-child td{ border-bottom:none; }
+.lk-empty{ padding:22px 12px; text-align:center; color:var(--text-placeholder); font:var(--font-label); }
 
 /* section heading + toolbar above collection grid */
 .section-h{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:0 0 6px; }
@@ -622,6 +642,7 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
 </div>
 
 <div class="overlay" id="modalHost" onclick="if(event.target===this)closeModal()"></div>
+<div class="overlay" id="pickHost" style="z-index:70" onclick="if(event.target===this)pclose()"></div>
 <div class="toast-wrap" id="toastWrap"></div>
 <script>
 /* ============================================================
@@ -2090,9 +2111,14 @@ function ctrFooter(c){
    Каждое действие: валидация → мутация → запись в историю → перерисовка.
    ============================================================ */
 const host = () => document.getElementById('modalHost');
+const phost = () => document.getElementById('pickHost');
+function pmodal(html){ phost().innerHTML = html; phost().classList.add('open'); }
+function pclose(){ phost().classList.remove('open'); phost().innerHTML = ''; }
 function modal(html){ host().innerHTML = html; host().classList.add('open'); }
 function closeModal(){ host().classList.remove('open'); host().innerHTML = ''; }
 const mhead = t => `<div class="modal-h"><span class="mt">${t}</span><button class="modal-x" onclick="closeModal()">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;
+const mhead2 = t => `<div class="modal-h"><span class="mt">${t}</span><button class="modal-x" onclick="pclose()">
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;
 const mfoot = (okLbl, okFn, okCls) => `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
   <button class="btn ${okCls||'btn-primary'}" onclick="${okFn}">${okLbl}</button></div>`;
@@ -2503,22 +2529,73 @@ function openNewContract(){
   if(!canEdit()) return denyEdit();
   modal(`<div class="modal form">${mhead('Новый залоговый договор')}
     <div class="modal-b"><div class="mform">
-      ${fsel('ncInn','Заёмщик', clientOpts(), null, true)}
+      <div class="field req col-span"><span class="flabel">Заёмщик</span>
+        <div class="lookup">
+          <span class="val ph" id="ncInnVal">Не выбран</span>
+          <input type="hidden" id="ncInn">
+          <button class="pick" onclick="openBorrowerPicker()" title="Выбрать">•••</button>
+          <button class="clr" onclick="clearBorrower()" title="Очистить">✕</button>
+        </div></div>
       <div class="field col-span"><span class="flabel">Кредиты договора</span>
         <div id="ncCredits" class="ops-list"></div></div>
     </div>
     </div>${mfoot('Создать черновик','saveNewContract()')}</div>`);
-  document.getElementById('ncInn').addEventListener('change', ncCredits); ncCredits();
+  ncCredits();
 }
 function ncCredits(){
   const inn = val('ncInn');
+  if(!inn){ document.getElementById('ncCredits').innerHTML = `<div class="op-empty">Сначала выберите заёмщика</div>`; return; }
   const list = CREDITS.filter(c=>c.inn===inn && c.status==='Действующий');
   document.getElementById('ncCredits').innerHTML = list.length ? list.map(c=>`<div class="op-row">
       <label class="chk"><input type="checkbox" class="ncChk" value="${c.id}"> ${c.id} · ${esc(c.num)} · сумма ${fmt(c.amount)} · требуется обеспечение ${fmt(c.amount*COVER_MIN)}</label></div>`).join('')
     : `<div class="op-empty">У клиента нет действующих кредитов</div>`;
 }
+
+/* ── выбор заёмщика как в онлайн-системе: ••• → entity-lookup «Заёмщики» (поиск + грид + Выбрать) ── */
+let _bpSel = null;
+function openBorrowerPicker(){
+  _bpSel = null;
+  pmodal(`<div class="modal lkwide" style="width:min(720px,100%)">${mhead2('Заёмщики')}
+    <div class="modal-b">
+      <div class="picker-bar"><input class="picker-search" id="bpSearch" type="search" placeholder="Поиск по наименованию или ИНН…" oninput="bpRender()"></div>
+      <div class="lk-table-wrap">
+        <table class="lk-table">
+          <thead><tr><th style="width:150px">ИНН</th><th>Заёмщик</th><th style="width:210px">Платёжеспособность</th></tr></thead>
+          <tbody id="bpBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="pclose()">Отмена</button>
+      <button class="btn btn-primary" onclick="applyBorrower()">Выбрать</button></div></div>`);
+  bpRender();
+  const s = document.getElementById('bpSearch'); if(s) s.focus();
+}
+function bpRender(){
+  const q = (val('bpSearch')||'').trim().toLowerCase();
+  const rows = CLIENTS.filter(c=> !q || c.name.toLowerCase().includes(q) || c.inn.includes(q));
+  const body = document.getElementById('bpBody');
+  body.innerHTML = rows.length ? rows.map(c=>`<tr data-inn="${c.inn}" onclick="bpRow(this)" ondblclick="bpRow(this);applyBorrower()">
+      <td>${esc(c.inn)}</td><td>${esc(c.name)}</td><td>${esc(c.solvency||'—')}</td></tr>`).join('')
+    : `<tr><td colspan="3" class="lk-empty">Ничего не найдено</td></tr>`;
+}
+function bpRow(tr){
+  tr.closest('tbody').querySelectorAll('tr.sel').forEach(r=>r.classList.remove('sel'));
+  tr.classList.add('sel'); _bpSel = tr.dataset.inn;
+}
+function applyBorrower(){
+  if(!_bpSel) return toast('Выберите строку','warn');
+  document.getElementById('ncInn').value = _bpSel;
+  const v = document.getElementById('ncInnVal'); v.textContent = clientName(_bpSel)+' · ИНН '+_bpSel; v.classList.remove('ph');
+  pclose(); ncCredits();
+}
+function clearBorrower(){
+  document.getElementById('ncInn').value = '';
+  const v = document.getElementById('ncInnVal'); v.textContent = 'Не выбран'; v.classList.add('ph');
+  ncCredits();
+}
 function saveNewContract(){
   const inn = val('ncInn');
+  if(!inn) return toast('Выберите заёмщика','warn');
   const ids = [...document.querySelectorAll('.ncChk:checked')].map(x=>x.value);
   if(!ids.length) return toast('Выберите хотя бы один кредит','warn');
   const c = { id: nextId(CONTRACTS,'Д-'), no:'', date:'', status:'Оформляется', inn,
