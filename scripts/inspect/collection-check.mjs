@@ -539,6 +539,26 @@ ok('есть кнопка «Аннулировать»', (await meryReg.locator(
 await meryReg.locator('button:has-text("Аннулировать")').first().click();
 ok('аннулирование меры-вехи даёт тост об откате фазы', /откач|фаз/i.test(await page.locator('#toastWrap').innerText()));
 
+// === #3 Кросс-процессные реестры + фильтры стадии ===
+await page.goto(FILE, { waitUntil: 'load' });
+// реестр заседаний
+await page.click('.nav-item:has-text("Заседания (реестр)")');
+ok('реестр заседаний открылся', await page.locator('#view-hearings').isVisible());
+ok('в реестре заседаний собраны заседания всех процессов (>=3)', (await page.locator('#hearingsBody tr').count()) >= 3);
+ok('в реестре заседаний есть фильтр по датам', (await page.locator('#view-hearings input[type="date"]').count()) === 2);
+// реестр претензий
+await page.click('.nav-item:has-text("Претензии (реестр)")');
+ok('реестр претензий открылся', await page.locator('#view-claims').isVisible());
+ok('в реестре претензий есть строка-черновик', /черновик/i.test(await page.locator('#claimsBody').innerText()));
+// фильтр стадии
+await page.click('.nav-item:has-text("Судебный порядок")');
+ok('фильтр «Судебный порядок» вернул к списку', await page.locator('#view-list').isVisible());
+const filtered = await page.locator('#listBody tr').count();
+ok('судебный фильтр отсеивает часть процессов', filtered > 0 && filtered < 6);
+// сброс через «Процессы взыскания»
+await page.click('.nav-item:has-text("Процессы взыскания")');
+ok('сброс фильтра возвращает 6 процессов', (await page.locator('#listBody tr').count()) === 6);
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);

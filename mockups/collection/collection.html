@@ -525,6 +525,31 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
         </div>
       </section>
 
+      <!-- ============ РЕЕСТР ЗАСЕДАНИЙ ============ -->
+      <section class="view" id="view-hearings">
+        <div class="grid-wrap" style="padding-top:16px">
+          <div class="gtoolbar">
+            <span class="section-note">С даты <input type="date"></span>
+            <span class="section-note">по дату <input type="date"></span>
+            <button class="btn btn-tint btn-sm" onclick="toast('Фильтр применён (демо)')">Применить</button>
+          </div>
+          <div class="cgrid-wrap"><table class="cgrid">
+            <thead><tr><th>Заёмщик</th><th>Процесс</th><th>Мера</th><th>Вид события</th><th>Место</th><th>Дата / время</th><th>Статус</th></tr></thead>
+            <tbody id="hearingsBody"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ============ РЕЕСТР ПРЕТЕНЗИЙ ============ -->
+      <section class="view" id="view-claims">
+        <div class="grid-wrap" style="padding-top:16px">
+          <div class="cgrid-wrap"><table class="cgrid">
+            <thead><tr><th>Статус</th><th>Номер</th><th>Дата рег.</th><th>Заёмщик</th><th>Процесс</th><th style="text-align:right">Сумма</th></tr></thead>
+            <tbody id="claimsBody"></tbody>
+          </table></div>
+        </div>
+      </section>
+
     </div>
   </div>
 </div>
@@ -547,7 +572,8 @@ const TREE = [
     { id:"debt-all", headerless:true, items:[
       { label:"Процессы взыскания", active:true },
       { label:"Досудебный порядок" }, { label:"Судебный порядок" },
-      { label:"Исполнительное производство" }, { label:"Отчуждение активов" } ]} ]},
+      { label:"Исполнительное производство" }, { label:"Отчуждение активов" },
+      { label:"Заседания (реестр)" }, { label:"Претензии (реестр)" } ]} ]},
   { id:"d", label:"Справочники", subs:[ { id:"d-all", headerless:true, items:[ {label:"Справочники"} ]} ]},
   { id:"r", label:"Отчёты", subs:[ { id:"r-all", headerless:true, items:[ {label:"Отчёты"} ]} ]},
   { id:"adm", label:"Администрирование", subs:[ { id:"adm-all", headerless:true, items:[ {label:"Администрирование"} ]} ]},
@@ -565,7 +591,17 @@ function renderNav(){
     return `<div class="nav-group${g.open?' open':''}"><button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">${chev(14)}<span class="lbl">${g.label}</span></button><div class="nav-children">${subs}</div></div>`;
   }).join('');
 }
-function navClick(l){ if(l!=="Процессы взыскания") toast("Демо-макет: доступен раздел «Процессы взыскания»"); }
+function navClick(l){
+  if(l === 'Процессы взыскания'){ stageFilter = null; renderList(); showView('list'); return; }
+  if(l === 'Заседания (реестр)'){ renderHearingsRegistry(); showView('hearings'); return; }
+  if(l === 'Претензии (реестр)'){ renderClaimsRegistry(); showView('claims'); return; }
+  const secMap = {
+    'Досудебный порядок':'Досудебный', 'Судебный порядок':'Судебный',
+    'Исполнительное производство':'Исполнительное', 'Отчуждение активов':'Отчуждение',
+  };
+  if(l in secMap){ stageFilter = secMap[l]; renderList(); showView('list'); toast(`Фильтр: ${l}`); return; }
+  toast('Демо-макет: раздел в разработке');
+}
 
 /* ============================================================
    SAMPLE DATA — процессы взыскания
@@ -859,6 +895,7 @@ const catCls   = c => c === 'norm' ? 'low'   : c === 'mid' ? 'mid'     : 'high';
    LIST
    ============================================================ */
 let selectedRow = null, sortKey='id', sortDir=1;
+let stageFilter = null;   // фильтр по разделу мер (sec): 'Досудебный' | 'Судебный' | 'Исполнительное' | 'Отчуждение'
 const LIST_COLS = [
   {k:'id', t:'№ процесса'}, {k:'borrower', t:'Заёмщик'}, {k:'scope', t:'Охват'},
   {k:'phase', t:'Фаза'}, {k:'cat', t:'Категория'}, {k:'group', t:'Группа'}, {k:'owner', t:'Владелец'},
@@ -866,7 +903,9 @@ const LIST_COLS = [
 function renderList(){
   document.getElementById('listHead').innerHTML =
     LIST_COLS.map(c=>`<th onclick="sortList('${c.k}')">${c.t}<span class="sort">↕</span></th>`).join('');
-  const rows = [...PROCESSES].sort((a,b)=>{
+  let src = [...PROCESSES];
+  if(stageFilter) src = src.filter(p => p.measures.some(m => m.sec === stageFilter));
+  const rows = src.sort((a,b)=>{
     // «Категория» не хранится в данных — сортируем по catDays, иначе порядок «Высокий/Норма/Средний» будет алфавитным, а не по тяжести риска.
     const key = sortKey==='cat' ? 'catDays' : sortKey;
     let x=a[key], y=b[key];
@@ -885,7 +924,7 @@ function renderList(){
       <td>${p.group}</td>
       <td title="${escAttr(p.owner)}">${p.owner}</td>
     </tr>`).join('');
-  document.getElementById('pagerCount').textContent = PROCESSES.length+' процессов';
+  document.getElementById('pagerCount').textContent = rows.length + ' процессов';
 }
 function sortList(k){ if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=1;} renderList(); if(selectedRow) selectRow(selectedRow); }
 function selectRow(id,el){
@@ -1248,7 +1287,8 @@ function closeModal(){ document.getElementById('modalHost').classList.remove('op
    ============================================================ */
 function showView(v){ document.querySelectorAll('.view').forEach(s=>s.style.display='none');
   document.getElementById('view-'+v).style.display='flex';
-  if(v==='list') document.getElementById('crumbTitle').textContent='Взыскание задолженности'; }
+  const titles = {list:'Взыскание задолженности', hearings:'Реестр заседаний', claims:'Реестр претензий'};
+  if(titles[v]) document.getElementById('crumbTitle').textContent = titles[v]; }
 function scrollTabs(){ document.getElementById('detailTabbar').scrollBy({left:200,behavior:'smooth'}); }
 function closeSplit(){ document.getElementById('splitRefresh').classList.remove('open'); }
 function onRoleChange(){ toast('Роль: '+document.getElementById('roleSel').value); }
@@ -1261,6 +1301,30 @@ function toast(msg,kind){ const w=document.getElementById('toastWrap');
 document.addEventListener('keydown', e => {
   if(e.key === 'Escape' && document.getElementById('modalHost').classList.contains('open')) closeModal();
 });
+
+/* ---- Кросс-процессные реестры (#3) ---- */
+function renderHearingsRegistry(){
+  const rows = PROCESSES.flatMap(p => (p.hearings || []).map(h => `<tr class="rowlink" onclick="openDetail('${p.id}')">
+    <td>${p.borrower}</td><td>${procNo(p.id)}</td><td>${h.measureNum}</td><td>${h.kind}</td>
+    <td>${h.place}</td><td>${h.when}</td>
+    <td>${h.status}${h.substatus ? ` <span class="pill mid">${h.substatus}</span>` : ''}</td></tr>`)).join('');
+  document.getElementById('hearingsBody').innerHTML = rows
+    || `<tr><td colspan="7"><div class="cgrid-empty">Заседаний нет</div></td></tr>`;
+}
+const CLAIM_KINDS = new Set(['Первичная претензия','Повторная претензия','Требование поручителю','Требование гаранту','Требование отраслевому госоргану']);
+function renderClaimsRegistry(){
+  const rows = PROCESSES.flatMap(p => p.measures
+    .filter(m => CLAIM_KINDS.has(m.kind))
+    .map(m => {
+      const draft = m.regState === 'черновик';
+      const pill = draft ? '<span class="pill mid">черновик</span>' : '<span class="pill low">зарегистрирована</span>';
+      return `<tr class="rowlink" onclick="openDetail('${p.id}')">
+        <td>${pill}</td><td>${m.num || '—'}</td><td>${m.date || '—'}</td>
+        <td>${p.borrower}</td><td>${procNo(p.id)}</td><td style="text-align:right">${m.sum}</td></tr>`;
+    })).join('');
+  document.getElementById('claimsBody').innerHTML = rows
+    || `<tr><td colspan="6"><div class="cgrid-empty">Претензий нет</div></td></tr>`;
+}
 
 renderNav(); renderList();
 
