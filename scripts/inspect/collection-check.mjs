@@ -527,6 +527,18 @@ ok('в модалке перечислены сканы', /квитанц|ска
 await page.keyboard.press('Escape');
 ok('модалка вложений закрылась по Escape', !(await page.locator('#modalHost.open').isVisible()));
 
+// === #6 Состояние претензии + аннулирование ===
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="133"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab:has-text("Журнал мер")');
+const meryReg = page.locator('#detailPanels .detail-panel.active');
+ok('у 133 есть мера-черновик (pill «черновик»)', (await meryReg.locator('.pill:has-text("черновик")').count()) >= 1);
+ok('есть кнопка «Аннулировать»', (await meryReg.locator('button:has-text("Аннулировать")').first().isVisible()));
+// аннулирование меры-вехи показывает откат фазы
+await meryReg.locator('button:has-text("Аннулировать")').first().click();
+ok('аннулирование меры-вехи даёт тост об откате фазы', /откач|фаз/i.test(await page.locator('#toastWrap').innerText()));
+
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
 console.log(`ПРОВАЛЕНО АССЕРТОВ: ${fails}`);

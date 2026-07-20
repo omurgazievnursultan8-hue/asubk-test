@@ -678,6 +678,7 @@ const PROCESSES = [
     measures:[
       {sec:'Досудебный', kind:'Первичная претензия', date:'05.06.2026', num:'ПР-201', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:'без изменения', stageEx:'исполнено', sum:'18 200,00', responsible:'Осмонов К.'},
       {sec:'Досудебный', kind:'Повторная претензия', date:'24.06.2026', num:'ПР-233', purpose:'погашение + предупреждение', deliver:'почта (в пути)', delivered:false, result:'на рассмотрении', stageEx:'на исполнении', sum:'18 200,00', responsible:'Осмонов К.'},
+      {sec:'Досудебный', kind:'Требование отраслевому госоргану', date:'', num:'', purpose:'уведомление отраслевого госоргана', deliver:'Не направлялась', delivered:false, result:'на рассмотрении', stageEx:'черновик', sum:'18 200,00', responsible:'Осмонов К.', regState:'черновик'},
     ],
     hearings:[],
     handoffs:[],
@@ -1004,15 +1005,17 @@ function panelOhvat(){
 function panelMery(){
   const p=curProc;
   const rows = p.measures.map((m, mi) => {
-    const bad = needsDelivery(m.kind) && !m.delivered;
+    const bad = needsDelivery(m.kind) && !m.delivered && m.regState !== 'черновик';
     const nDocs = (m.docs || []).length;
     const docCell = nDocs
       ? `<button class="docs-btn btn-tint btn-sm" onclick="openDocsModal('${p.id}',${mi})" title="Вложения">📎 ${nDocs}</button>`
       : '<span style="color:var(--text-placeholder)">—</span>';
     return `<tr class="${bad ? 'mrow-undelivered' : ''}">
-      <td>${m.sec}</td><td>${m.kind}</td><td>${m.date}</td><td>${m.num}</td>
+      <td>${m.sec}</td><td>${m.kind}</td><td>${m.date}</td>
+      <td>${m.num || ''}${m.regState === 'черновик' ? ' <span class="pill mid">черновик</span>' : ''}</td>
       <td>${m.deliver}${bad ? ' <span class="pill mid">не исполнена: нет подтверждения вручения</span>' : ''}</td>
-      <td>${m.result}</td><td>${m.stageEx}</td><td>${docCell}</td><td>${m.responsible || '—'}</td><td style="text-align:right">${m.sum}</td></tr>`;
+      <td>${m.result}</td><td>${m.stageEx}</td><td>${docCell}</td><td>${m.responsible || '—'}</td><td style="text-align:right">${m.sum}</td>
+      <td><button class="btn-tint btn-sm danger" onclick="annulMeasure('${escAttr(m.kind)}')">Аннулировать</button></td></tr>`;
   }).join('');
   return `<div class="panel-wrap">
     ${phaseTimeline()}
@@ -1022,7 +1025,7 @@ function panelMery(){
       <button class="btn btn-tint btn-sm" onclick="openMeasureModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Зарегистрировать меру</button>
     </div>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Раздел</th><th>Вид меры</th><th>Дата</th><th>Номер</th><th>Направление / вручение</th><th>Результат</th><th>Стадия</th><th>Вложения</th><th>Ответственный</th><th style="text-align:right">Сумма</th></tr></thead>
+      <thead><tr><th>Раздел</th><th>Вид меры</th><th>Дата</th><th>Номер</th><th>Направление / вручение</th><th>Результат</th><th>Стадия</th><th>Вложения</th><th>Ответственный</th><th style="text-align:right">Сумма</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div></div>`;
 }
@@ -1172,6 +1175,12 @@ function renderPanels(){
 /* ============================================================
    MODALS (demo): регистрация меры, добавление кредита
    ============================================================ */
+/* Аннулирование меры (#6). Веха — единственный обратный ход в forward-only машине фаз:
+   откат к предыдущей вехе. Демо: тост + (в проде) запись в Историю. */
+function annulMeasure(kind){
+  if(isMilestone(kind)) toast('Мера аннулирована → фаза откачена к предыдущей вехе (демо)', 'warn');
+  else toast('Мера аннулирована (демо)');
+}
 function openMeasureModal(){
   const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal form">
