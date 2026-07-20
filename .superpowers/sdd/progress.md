@@ -86,3 +86,53 @@ Base: 3c75e79
   - Minor 4 (обёртка над page.evaluate) — оставлен намеренно, dev-only харнесс.
   - Регрессия от b5f3e9d: «Повторная претензия» + метка «событие» не влезали (scrollWidth 241 > clientWidth 235), фиксер закоммитил с красным ассертом. Исправлено 2ce9de1: colgroup 10.5/14.5/14.3/21.5/9/7.5/22.7, ассерты усилены (запас метки ≥4px, покрытие всех th и td).
   - Итог: 186 ассертов ok, 0 ошибок консоли, exit 0.
+
+---
+
+# Прогресс: взыскание — дозагрузка legacy-фич (2026-07-20)
+
+Plan: docs/superpowers/plans/2026-07-20-collection-mockup-legacy-additions.md
+Spec: docs/superpowers/specs/2026-07-20-collection-mockup-legacy-additions-design.md
+Branch: feat/collection-legacy-additions
+Base: 99681b5
+Проверка: node scripts/inspect/collection-check.mjs (baseline 186 ассертов PASS)
+
+- Task 1: харденинг check-скрипта — complete (commit 686b9ed, 186/186 PASS, review clean)
+  Minor (только в самоотчёте, не в коде): счётчики вхождений nth в report неточны.
+
+- Task 2: вкладка «Расчёт долга» — complete (commit 8ed89bb, все PASS +8 ассертов, review clean)
+  Инвариант сумм проверен вручную для всех 6 процессов (в т.ч. 104: ИЛ-288=310000, не КИ-06=295000).
+
+- Task 3: вкладка «Заседания» — complete (commit 9c0f9c5, 212 PASS, review clean)
+  Правка: устаревший Task-2 ассерт «вкладок 8»→9 (TABS — общий массив, легитимно).
+
+- Task 4: ответственный (ФИО) в журнале мер — complete (commit bce907b, все PASS, review clean)
+  ПРИМЕЧАНИЕ: рабочее дерево содержит НЕ мои правки mockups/collateral/zalog.html (WIP
+  параллельной сессии). Мои коммиты его не трогают. Не откатывать.
+
+- Task 5: вложения-сканы на мере — complete (commit 4e318c5, все PASS, review clean)
+  Параллельная сессия влезла коммитом 28d1a82 (zalog.html) между Task 4 и 5 — на МОЮ ветку.
+  Minor (в финальное ревью): openDocsModal не использует escAttr (данные статичны, как и в panelMery).
+
+- Task 6: черновик/зарегистр. + аннулирование меры-вехи — complete (commit fc2efc2, 222 PASS, review clean)
+  Отступление (проверено ревью, принято): +`&& m.regState !== 'черновик'` во флаг «не исполнена» —
+  черновик «Не направлялась» не является проваленной доставкой (семантически верно, не маскировка теста).
+
+- Task 7: реестры заседаний/претензий + фильтры стадии — complete (commit c8c3fc0, все PASS +8, review clean)
+
+- Task 8: доки (шапка макета + TODO P9-R9) — complete (commit 46475d5, все PASS, review clean)
+  TODO auto-sync hook не срабатывал (ветка не влита). zalog.html чужой — не в коммите.
+
+## Все 8 задач complete. Финальное whole-branch ревью — далее.
+
+## ФИНАЛ
+- Whole-branch review (opus): READY TO MERGE. Ни Critical/Important.
+  Инвариант сумм подтверждён для всех 6 процессов (104 не совпадает с КИ-06 — верно).
+  panelMery 11/11 столбцов согласованы после накопления Task 4/5/6. TABS/builders 9/9.
+- Minor'ы (все приемлемы для демо): phaseMeasureSum — app-dead (только тест-инвариант);
+  registry-строка openDetail→вкладка 0, а спек §3 хотел вкладку «Заседания» (мелкое отступление);
+  .rowlink на <tr> красит всю строку; «Применить» дат — только тост; waterfall — заметка без схемы стрелок;
+  openDocsModal без escAttr / aria — унаследованный стиль файла.
+- Верификация: node scripts/inspect/collection-check.mjs → все ассерты PASS, 0 ошибок консоли.
+- ВНИМАНИЕ: ветка feat/collection-legacy-additions содержит ЧУЖОЙ коммит 28d1a82 (zalog.html,
+  параллельная сессия) + незакоммиченные правки zalog.html в рабочем дереве. Не мои.
