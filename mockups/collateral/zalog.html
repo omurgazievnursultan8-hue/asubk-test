@@ -607,9 +607,6 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             <span id="btnNewLbl">Новый предмет залога</span>
           </button>
-          <button class="gear-btn" title="Справочник коэффициентов и интервалов контроля" onclick="openRefbook()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </button>
         </div>
         <div class="rowtools">
           <div class="spacer"></div>
@@ -637,6 +634,14 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
         <div class="footer" id="detailFooter"></div>
       </section>
 
+      <!-- ============ REFBOOK VIEW (регламентные параметры залога) ============ -->
+      <section class="view" id="view-refbook">
+        <div class="content" style="overflow:auto;">
+          <div id="refbookPanel" style="padding:18px 24px 24px;max-width:1100px;"></div>
+        </div>
+        <div class="footer" id="refbookFooter"></div>
+      </section>
+
     </div>
   </div>
 </div>
@@ -658,7 +663,8 @@ const TREE = [
     { id:"z-all", headerless:true, items:[
       { label:"Предметы залога", active:true },
       { label:"Залоговые договоры" },
-      { label:"Мониторинг залога" } ]} ]},
+      { label:"Мониторинг залога" },
+      { label:"Регламентные параметры залога" } ]} ]},
   { id:"debt", label:"Взыскание задолженности", subs:[
     { id:"debt-all", headerless:true, items:[ {label:"Процессы взыскания"} ]} ]},
   { id:"d", label:"Справочники", subs:[ { id:"d-all", headerless:true, items:[ {label:"Справочники"} ]} ]},
@@ -681,6 +687,7 @@ function navClick(l){
   if(l==='Предметы залога'){ reg='items'; showView('list'); renderList(); }
   else if(l==='Залоговые договоры'){ reg='contracts'; showView('list'); renderList(); }
   else if(l==='Мониторинг залога'){ reg='monitor'; showView('list'); renderList(); }
+  else if(l==='Регламентные параметры залога'){ showView('refbook'); renderRefbook(); }
   else toast('Демо-прототип: доступен раздел «Залоговое обеспечение»');
   document.querySelectorAll('.nav-item').forEach(a=>a.classList.toggle('active', a.textContent===l));
 }
@@ -1670,8 +1677,10 @@ function rowsMonitor(){
       esc(t.type), esc(t.objLbl), esc(t.text), esc(t.act) ] }));
 }
 function renderList(){
-  document.getElementById('btnNewLbl').textContent = reg==='contracts' ? 'Новый залоговый договор' : 'Новый предмет залога';
-  document.getElementById('btnNew').style.display = (reg==='monitor') ? 'none' : 'inline-flex';
+  document.getElementById('btnNewLbl').textContent = 'Новый залоговый договор';
+  /* Предмет рождается только на карточке договора → в реестре «Предметы» кнопки создания нет
+     (read-only проекция). Кнопка есть лишь на списке договоров. */
+  document.getElementById('btnNew').style.display = (reg==='contracts') ? 'inline-flex' : 'none';
 
   if(filterPanelReg !== reg) renderFilterPanel();
 
@@ -1704,7 +1713,8 @@ function openSelected(){
   else if(contract(selected)) openCard('contract', selected);
   else if(credit(selected)) toast('Переход в карточку кредита '+credit(selected).num+' (модуль «Кредиты»)');
 }
-function onNew(){ if(!canEdit()) return denyEdit(); reg==='contracts' ? openNewContract() : openNewItem(); }
+/* Кнопка списка создаёт только договор. Предмет рождается на карточке договора (openNewItem с targetCid). */
+function onNew(){ if(!canEdit()) return denyEdit(); if(reg==='contracts') openNewContract(); }
 
 /* ============================================================
    КАРТОЧКИ — вкладки и панели
@@ -2033,8 +2043,11 @@ function ctrPanels(c){
   const editable = isDraftish(c) && canEdit();
   const p1 = `<div class="panel-wrap">
     <p class="section-h">Предметы и доли</p>
-    ${editable ? `<div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openAlloc('${c.id}')">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Привязать предмет</button></div>` : ''}
+    ${editable ? `<div class="gtoolbar">
+      <button class="btn btn-tint btn-sm" onclick="openNewItem('${c.id}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Создать новый предмет</button>
+      <button class="btn btn-tint btn-sm" onclick="openAlloc('${c.id}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Привязать существующий</button></div>` : ''}
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Предмет</th><th>Вид</th><th>Залогодатель</th><th>Кредит</th><th class="numcell">Залоговая</th><th class="numcell">Доля</th><th class="numcell">Эффективная</th><th>Запрет</th>${editable?'<th></th>':''}</tr></thead>
       <tbody>${c.allocs.length ? c.allocs.map((a,i)=>{ const it = item(a.item); return `<tr>
@@ -2137,9 +2150,14 @@ function refresh(){ renderList(); if(cur) openCard(cur.type, cur.id, curTab); }
 const clientOpts = () => CLIENTS.map(c=>({v:c.inn, t:c.name+' · ИНН '+c.inn}));
 const nextId = (arr, pfx) => pfx + String(arr.length+1).padStart(3,'0');
 
-/* ---------- НОВЫЙ ПРЕДМЕТ ЗАЛОГА ---------- */
-function openNewItem(){
+/* ---------- НОВЫЙ ПРЕДМЕТ ЗАЛОГА ----------
+   Точка рождения предмета — карточка залогового договора (targetCid). Предмет пишется
+   в реестр (single source), затем сразу цепляется привязка к этому договору + кредиту
+   (доля). Реестр «Предметы» — read-only проекция, из него предметы не рождаются. */
+let _newItemTarget = null;
+function openNewItem(targetCid){
   if(!canEdit()) return denyEdit();
+  _newItemTarget = targetCid || null;
   modal(`<div class="modal form">${mhead('Новый предмет залога')}
     <div class="modal-b"><div class="mform">
       ${fsel('niKind','Вид залога', Object.keys(KINDS), 'Недвижимое имущество')}
@@ -2223,7 +2241,13 @@ function saveNewItem(){
   normalizeItem(it);
   hist(it, `Предмет зарегистрирован в реестре. Оценочная ${fmt(v)} → залоговая (расч.) ${fmt(calcPledge(it))}`);
   ITEMS.push(it); closeModal(); toast('Предмет '+it.id+' создан. Залоговая: '+fmt(calcPledge(it)),'ok');
-  reg='items'; selected = it.id; refresh();
+  const target = _newItemTarget; _newItemTarget = null;
+  if(target && contract(target)){
+    /* рождён с карточки договора → сразу привязка к этому договору + кредиту (доля) */
+    openAlloc(target, it.id);
+  } else {
+    reg='items'; selected = it.id; refresh();
+  }
 }
 
 /* ---------- ПЕРЕОЦЕНКА (событие: меняет ОЦЕНОЧНУЮ; залоговая и покрытие — следом) ---------- */
@@ -2606,13 +2630,13 @@ function saveNewContract(){
 }
 
 /* ---------- ПРИВЯЗКА ПРЕДМЕТА К ЧЕРНОВИКУ (перезалог считается здесь же) ---------- */
-function openAlloc(cid){
+function openAlloc(cid, preItemId){
   if(!canEdit()) return denyEdit();
   const c = contract(cid);
   const opts = ITEMS.filter(i=>!i.lost).map(i=>({v:i.id, t:`${i.id} · ${i.name} · залогодатель ${clientName(i.pledger)} · доступно ${fmt(availableOf(i))}`}));
   modal(`<div class="modal form">${mhead('Привязать предмет · '+cid)}
     <div class="modal-b"><div class="mform">
-      ${fsel('alItem','Предмет из реестра', opts, null, true)}
+      ${fsel('alItem','Предмет из реестра', opts, preItemId||null, true)}
       ${fsel('alCredit','Кредит договора', c.credits.map(id=>({v:id, t:id+' · '+credit(id).num+' · требуется '+fmt(credit(id).amount*COVER_MIN)})))}
       ${fin('alShare','Отнесённая доля (часть залоговой стоимости)','',true)}
     </div>
@@ -3014,11 +3038,13 @@ function doRepay(cid, creditId){
   refresh();
 }
 
-/* ---------- СПРАВОЧНИК: регламентные параметры залога ---------- */
-function openRefbook(){
+/* ---------- СПРАВОЧНИК: регламентные параметры залога (отдельная страница) ----------
+   Раньше был модалкой по шестерёнке; вынесен в самостоятельный раздел сайдбара
+   «Регламентные параметры залога». refbookInner() строит тело, renderRefbook() —
+   рендерит его как страницу (view-refbook) с футером «Сохранить». */
+function refbookInner(){
   const kinds = Object.keys(KINDS), grp = ['Платёжеспособные','Неплатёжеспособные','Предприятия-банкроты'];
-  modal(`<div class="modal">${mhead('Справочник: регламентные параметры залога')}
-    <div class="modal-b">
+  return `
       <p class="section-h" style="font-size:16px">Пороги обеспеченности (§2.3–2.4)</p>
       <div class="mform">
         ${fin('rb-cov-liq','Ликвидный залог, % (недвижимость / кред. портфель)', String(Math.round(COVER_LIQUID*100)))}
@@ -3062,8 +3088,18 @@ function openRefbook(){
       <div class="cgrid-wrap"><table class="cgrid">
         <thead><tr><th>Прежний вид</th><th>Вид в §22</th><th>Правило переноса</th></tr></thead>
         <tbody>${KIND_MIGRATION.map(m=>`<tr><td>${esc(m.from)}</td><td>${esc(m.to)}</td><td>${esc(m.note)}</td></tr>`).join('')}</tbody>
-      </table></div>
-    </div>${mfoot('Сохранить справочник','saveRefbook()')}</div>`);
+      </table></div>`;
+}
+function renderRefbook(){
+  document.getElementById('refbookPanel').innerHTML =
+    `<p class="section-h" style="font-size:20px;margin:0 0 4px">Справочник: регламентные параметры залога</p>
+     <p style="color:var(--text-muted);font-size:13px;margin:0 0 16px">Регламентируется администратором. Изменения пересчитывают залоговую стоимость, покрытие, интервалы контроля и валидации приёма по всему модулю.</p>`
+    + refbookInner();
+  document.getElementById('refbookFooter').innerHTML =
+    `<div style="flex:1"></div><button class="btn btn-primary" onclick="saveRefbook()">Сохранить справочник</button>`;
+  document.getElementById('crumbTitle').textContent = 'Регламентные параметры залога';
+  cur = null;
+  document.querySelectorAll('.nav-item').forEach(a=>a.classList.toggle('active', a.textContent==='Регламентные параметры залога'));
 }
 function saveRefbook(){
   const bd = num(val('rb-ban-days')), cl = num(val('rb-cov-liq')), cm = num(val('rb-cov-mov')), ls = num(val('rb-liqshare')),
@@ -3093,7 +3129,7 @@ function saveRefbook(){
   BAN_DEADLINE_DAYS = Math.round(bd);
   COVER_LIQUID = cl/100; COVER_MOVABLE = cm/100; LIQUID_SHARE_MIN = ls/100;
   TECH_AGE_LIMIT['СНГ'] = Math.round(ageS); TECH_AGE_LIMIT['Дальнее зарубежье'] = Math.round(ageF);
-  closeModal(); toast('Справочник сохранён — параметры пересчитаны','ok'); refresh();
+  toast('Справочник сохранён — параметры пересчитаны','ok'); refresh(); renderRefbook();
 }
 
 /* ============================================================
