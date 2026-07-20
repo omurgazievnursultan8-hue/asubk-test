@@ -480,11 +480,29 @@ ok('у 097 требование помечено «списано»', fin.writte
 
 await page.click('#listBody tr[data-id="142"]');
 await page.click('#btnOpen');
-ok('после Task 2 вкладок 8', (await page.locator('#detailTabbar .dtab').count()) === 8);
+ok('после Task 2 вкладок 9', (await page.locator('#detailTabbar .dtab').count()) === 9);
 await page.click('#detailTabbar .dtab:has-text("Расчёт долга")');
 const rasch = page.locator('#detailPanels .detail-panel.active');
 ok('в «Расчёт долга» есть итоговая строка', (await rasch.locator('table.cgrid tr.total').count()) >= 1);
 ok('итог 142 = 48 900,00', (await rasch.locator('table.cgrid tr.total').first().innerText()).includes('48 900,00'));
+
+// === #2 Заседания ===
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="142"]');
+await page.click('#btnOpen');
+ok('после Task 3 вкладок 9', (await page.locator('#detailTabbar .dtab').count()) === 9);
+await page.click('#detailTabbar .dtab:has-text("Заседания")');
+const hear = page.locator('#detailPanels .detail-panel.active');
+ok('у 142 три заседания', (await hear.locator('table.cgrid tbody tr').count()) === 3);
+ok('заседание ссылается на меру ИСК-77', (await hear.innerText()).includes('ИСК-77'));
+ok('есть подстатус отложения', /отлож/i.test(await hear.innerText()));
+ok('есть место — районный суд', /районный суд/i.test(await hear.innerText()));
+// у досудебного 133 — пустое состояние
+await page.goto(FILE, { waitUntil: 'load' });
+await page.click('#listBody tr[data-id="133"]');
+await page.click('#btnOpen');
+await page.click('#detailTabbar .dtab:has-text("Заседания")');
+ok('у 133 заседаний нет (пустое состояние)', (await page.locator('#detailPanels .detail-panel.active .cgrid-empty').count()) === 1);
 
 console.log(`\nОШИБОК КОНСОЛИ: ${errors.length}`);
 errors.forEach(e => console.log('  ' + e));
