@@ -2628,7 +2628,7 @@ function itemPanels(it){
   const rcIt = bs ? itemRiskCategory(it) : null;
   const effIt = bs ? effectiveInterval(bs.group, movableOf(it), rcIt, RISK_TIGHTENING_APPROVAL) : null;
   const intervalNote = (bs && effIt != null && effIt !== bs.interval)
-    ? ` (норматив §2.3 — ${bs.interval} мес.; действующий — ${effIt} мес., ПОР п.10, категория риска «${rcIt}»)`
+    ? ` (норматив Прил.2 §2.3 — ${bs.interval} мес.; действующий — ${effIt} мес., ПОР п.10, категория риска «${rcIt}»)`
     : '';
   const surveyLbl = ns ? (ns + (isOverdue(ns) ? ' — ПРОСРОЧЕНО' : '') + intervalNote)
     : (bs && bs.bankrupt ? 'по договору со спецадминистратором (банкрот)' : 'не планируется (предмет никого не обеспечивает)');
@@ -3517,10 +3517,11 @@ function saveSurvey(id){
   const oneSided = !!(document.getElementById('svOneSided')||{}).checked;
   const presenceConfirmed = !!(document.getElementById('svPresence')||{}).checked;
   const signers = svSigners();
+  const gfhName = val('svGfhName').trim(), gfhPost = val('svGfhPost').trim();
   const v = surveyValidate({conclusion, photos, oneSided, presenceConfirmed, signers});
   if(!v.ok) return toast(v.msg,'warn');
   const effect = surveyEffect(out);                 // 6-значный классификатор → эффект в модели
-  it.surveys.push({date, act, outcome:out, effect, note, conclusion, photos, oneSided, presenceConfirmed, signers});
+  it.surveys.push({date, act, outcome:out, effect, note, conclusion, photos, oneSided, presenceConfirmed, signers, gfhName, gfhPost});
   it.lastSurvey = date;
   if(effect === 'ok'){
     it.needReval = false; it.lost = false; it.restoreNotice = null;   // возврат в норму снимает извещение/утрату
@@ -3761,7 +3762,7 @@ function doRegister(cid){
   if(pm.length) return toast('Гейт предпосылок §5.2 не пройден: '+pm.map(m=>m.iid+' — '+m.label).join('; '),'warn');
   /* Р-13 (П1 §2.6): гейт решения КМ — обязателен для регистрации. */
   const km = c.credits.filter(id => kmGateBlocked(credit(id)));
-  if(km.length) return toast('Гейт §2.6 не пройден: обеспеченность по решению КМ не установлена — '+km.join(', '),'warn');
+  if(km.length) return toast('Гейт П1 §2.6 не пройден: обеспеченность по решению КМ не установлена — '+km.join(', '),'warn');
   /* Р-18 (П1 §3.5): гейт стоп-листа — та же повторная проверка, что и в openRegister. */
   const sm = [...new Set(c.allocs.map(a=>a.item))].map(iid => ({ iid, v: stopListCheck(stopFieldsOf(item(iid))) })).filter(x => x.v.block);
   if(sm.length) return toast('Гейт стоп-листа П1 §3.5 не пройден: '+sm.map(x=>x.iid+' — '+x.v.msg).join('; '),'warn');
@@ -4276,7 +4277,7 @@ function refbookInner(){
 
       <p class="section-h" style="font-size:16px;margin-top:16px">Коэффициент, ранг ликвидности, переоценка, орган (по виду)</p>
       <div class="cgrid-wrap"><table class="cgrid">
-        <thead><tr><th>Вид залога</th><th>Коэффициент (§2.1)${srcTag('норматив — П1 §2.1')}</th><th>Ранг ликвидности (§8)${srcTag('норматив — §8')}</th><th>Переоценка, мес.${srcTag('внутренний (вне положения)')}</th><th>Регистрирующий орган${srcTag('внутренний (операционный)')}</th><th class="numcell">Предметов</th></tr></thead>
+        <thead><tr><th>Вид залога</th><th>Коэффициент (§2.1)${srcTag('норматив — П1 §2.1')}</th><th>Ранг ликвидности (ПОЛ §8)${srcTag('норматив — ПОЛ §8')}</th><th>Переоценка, мес.${srcTag('внутренний (вне положения)')}</th><th>Регистрирующий орган${srcTag('внутренний (операционный)')}</th><th class="numcell">Предметов</th></tr></thead>
         <tbody>${kinds.map(k=>`<tr>
           <td>${esc(k)}${KINDS[k].movable&&!KINDS[k].liquid?' <span class="pill neutral">движ. неликв.</span>':(KINDS[k].liquid?' <span class="pill low">ликвид</span>':'')}</td>
           <td>${kCell('rb-k-'+k, KINDS[k].k, 90)}</td>
