@@ -2100,6 +2100,7 @@ const caret = ()=>`<span class="caret"><svg width="14" height="14" viewBox="0 0 
 const ro  = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div class="control ro"><input value="${escAttr(v||'')}" readonly></div></div>`;
 const sel = (l,v,opts,id)=>`<div class="field"><span class="flabel">${l}</span><div class="control grey"><select${id?` id="${id}"`:''}>${opts.map(o=>`<option${o===v?' selected':''}>${o}</option>`).join('')}</select>${caret()}</div></div>`;
 const inp = (l,v,id)=>`<div class="field"><span class="flabel">${l}</span><div class="control grey"><input${id?` id="${id}"`:''} value="${escAttr(v||'')}"></div></div>`;
+const dinp = (l,v,id)=>`<div class="field"><span class="flabel">${l}</span><div class="control grey"><input type="date"${id?` id="${id}"`:''} value="${escAttr(v||'')}"></div></div>`;
 const pickRO = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div class="lookup"><span class="val${v?'':' ph'}">${escAttr(v||'')}</span><button class="pick" title="Открыть" onclick="toast('Переход в связанную карточку (демо)')">•••</button></div></div>`;
 
 /* ============================================================
@@ -2527,11 +2528,16 @@ function panelProcedure(){
 /* ---- panel: Комитеты (вопросы на коллегиальные органы + гейты §6.3) ---- */
 function panelKomitety(){
   const p=curProc;
-  const qs=(p.committeeQuestions||[]).map(q=>`<tr>
+  const qs=(p.committeeQuestions||[]).map((q,qi)=>{
+    const decided=!!q.decision;
+    const dcell = !decided ? '— <span class="pill mid">не рассмотрено</span>'
+      : `${q.decision} ${q.positive?'<span class="pill low">положительное</span>':'<span class="pill high">отклонено</span>'}`;
+    const act = decided ? '—' : `<button class="btn btn-tint btn-sm" onclick="openDecisionModal(${qi})">Внести решение</button>`;
+    return `<tr>
     <td>${q.organ}</td><td>${q.initiator}</td><td>${q.subject}</td><td>${(q.credits||[]).join(', ')}</td>
-    <td>${q.meetingDate||'—'}</td><td>${q.decision||'—'} ${q.positive?'<span class="pill low">положительное</span>':'<span class="pill mid">не рассмотрено</span>'}</td>
-    <td>${q.protocolNo?`${q.protocolNo} от ${q.protocolDate}`:'—'}</td></tr>`).join('')
-    || `<tr><td colspan="7"><div class="cgrid-empty">Вопросов на коллегиальные органы нет</div></td></tr>`;
+    <td>${q.meetingDate||'—'}</td><td>${dcell}</td>
+    <td>${q.protocolNo?`${q.protocolNo} от ${q.protocolDate}`:'—'}</td><td>${act}</td></tr>`;}).join('')
+    || `<tr><td colspan="8"><div class="cgrid-empty">Вопросов на коллегиальные органы нет</div></td></tr>`;
   const gateRows=Object.keys(RULES.gates).map(k=>{
     const r=gateReason(p,k);
     return `<tr><td>${RULES.gates[k].label}</td><td>${RULES.gates[k].poruchenie?'Председатель Правления':RULES.gates[k].organ}</td><td>п. ${RULES.gates[k].point}</td>
@@ -2540,14 +2546,82 @@ function panelKomitety(){
   return `<div class="panel-wrap">
     <p class="section-h">Вопросы на коллегиальные органы</p>
     <p class="section-note">Пять органов (Р-6, закрытый справочник), не «решение комитета». Реестр вопросов — общесистемный слой.</p>
-    <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="toast('Вынесение вопроса на коллегиальный орган (демо)')">Вынести вопрос</button></div>
+    <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openCommitteeQuestionModal()">Вынести вопрос</button></div>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Орган</th><th>Инициатор</th><th>Предмет</th><th>Кредиты</th><th>Заседание</th><th>Решение</th><th>Протокол</th></tr></thead>
+      <thead><tr><th>Орган</th><th>Инициатор</th><th>Предмет</th><th>Кредиты</th><th>Заседание</th><th>Решение</th><th>Протокол</th><th></th></tr></thead>
       <tbody>${qs}</tbody></table></div>
     <p class="section-h" style="margin-top:20px">Гейты необратимых действий (§6.3)</p>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Действие</th><th>Орган</th><th>Пункт</th><th>Статус</th><th>Причина</th></tr></thead>
       <tbody>${gateRows}</tbody></table></div></div>`;
+}
+
+/* ---- Вынесение вопроса на коллегиальный орган + внесение решения (гейты §6.3) ----
+   Вынести → pending-вопрос (decision пусто). Решение вносится отдельно: положительное
+   открывает гейт §6.3. Гейт «Исковое заявление» читает флаг p.poruchenie; остальные —
+   committeeQuestions по органу (gateReason), поэтому доп. флаг им не нужен. */
+function committeeCreditRows(){
+  return (curProc.credits||[]).map((c,i)=>`<label style="display:flex;gap:8px;align-items:center;font-size:13px;padding:3px 0">
+    <input type="checkbox" class="ccCredit" value="${escAttr(c.num)}"${i===0?' checked':''}> ${c.num}</label>`).join('')
+    || '<span class="section-note">Кредитов у процесса нет</span>';
+}
+function openCommitteeQuestionModal(){
+  const host=document.getElementById('modalHost');
+  const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'';
+  host.innerHTML=`<div class="modal form">
+    <div class="modal-h"><span class="mt">Вынести вопрос на коллегиальный орган</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
+    <div class="modal-b"><p class="section-note">Пять органов (Р-6, закрытый справочник). Вопрос выносится в статусе «не рассмотрено»; решение и протокол вносятся отдельно после заседания.</p>
+    <div class="mform">
+      ${sel('Орган','Председатель Правления',ORGANS,'cqOrgan')}
+      ${inp('Инициатор (подразделение)',role,'cqInit')}
+      <div class="field col-span"><span class="flabel">Предмет</span><div class="control grey"><input id="cqSubject" placeholder="напр. Поручение об инициировании судебного взыскания"></div></div>
+      <div class="field col-span"><span class="flabel">Кредиты</span><div class="control" style="flex-direction:column;align-items:flex-start;padding:6px 10px">${committeeCreditRows()}</div></div>
+    </div></div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="saveCommitteeQuestion()">Вынести</button></div>
+  </div>`;
+  host.classList.add('open');
+}
+function saveCommitteeQuestion(){
+  const val=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const organ=val('cqOrgan'), subject=val('cqSubject')||'(без предмета)', initiator=val('cqInit')||'—';
+  const credits=[...document.querySelectorAll('.ccCredit:checked')].map(c=>c.value);
+  curProc.committeeQuestions=curProc.committeeQuestions||[];
+  curProc.committeeQuestions.unshift({organ,initiator,subject,credits,meetingDate:'',decision:'',positive:false,protocolNo:'',protocolDate:''});
+  curProc.history=curProc.history||[];
+  curProc.history.unshift({when:TODAY+' 12:00',what:`Вопрос вынесен на «${organ}»: ${subject}`,who:initiator});
+  closeModal(); renderPanels(); toast('Вопрос вынесен на коллегиальный орган (демо)','ok');
+}
+function openDecisionModal(idx){
+  const q=curProc.committeeQuestions[idx]; if(!q) return;
+  const host=document.getElementById('modalHost');
+  host.innerHTML=`<div class="modal form">
+    <div class="modal-h"><span class="mt">Внести решение органа</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
+    <div class="modal-b"><p class="section-note"><b>${q.organ}</b> · ${q.subject}. Положительное решение (выдано/разрешено) открывает соответствующий гейт §6.3.</p>
+    <div class="mform">
+      ${sel('Решение','выдано',['выдано','разрешено','отказано','возвращено без рассмотрения'],'dcDecision')}
+      ${dinp('Дата заседания','','dcMeeting')}
+      ${inp('Протокол №','','dcProtNo')}
+      ${dinp('Дата протокола','','dcProtDate')}
+    </div></div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="saveDecision(${idx})">Сохранить</button></div>
+  </div>`;
+  host.classList.add('open');
+}
+function saveDecision(idx){
+  const q=curProc.committeeQuestions[idx]; if(!q) return;
+  const val=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const decision=val('dcDecision'), positive=(decision==='выдано'||decision==='разрешено');
+  q.decision=decision; q.positive=positive;
+  q.meetingDate=val('dcMeeting')||q.meetingDate||TODAY;
+  q.protocolNo=val('dcProtNo'); q.protocolDate=val('dcProtDate')||q.meetingDate;
+  // Связка с гейтом-поручением: положительное решение Председателя Правления → флаг
+  const gk=Object.keys(RULES.gates).find(k=>RULES.gates[k].poruchenie && RULES.gates[k].organ===q.organ);
+  if(positive && gk) curProc.poruchenie=true;
+  const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'—';
+  curProc.history=curProc.history||[];
+  curProc.history.unshift({when:TODAY+' 12:30',what:`Решение «${q.organ}»: ${decision}${q.protocolNo?' ('+q.protocolNo+')':''} — ${q.subject}`,who:role});
+  closeModal(); renderPanels();
+  toast(positive?'Решение внесено — гейт разблокирован (демо)':'Решение внесено (демо)', positive?'ok':undefined);
 }
 
 /* ---- panel: Особые состояния (типизированы) ---- */
@@ -2668,9 +2742,9 @@ function openMeasureModal(){
     <div class="modal-b"><div class="mform">
       <div class="field"><span class="flabel">Вид меры</span><div class="control grey"><select id="mKind" onchange="syncMeasureWarnings()">${measureKindOptions('Исковое заявление')}</select>${caret()}</div></div>
       <div class="field"><span class="flabel">Раздел</span><div class="control ro"><input id="mSection" value="${sectionOf('Исковое заявление')}" readonly title="Производное от вида меры — вручную не задаётся"></div></div>
-      ${inp('Дата события (Р-7)','','mDateEvent')}
-      ${inp('Дата получения в ГФХ','','mDateGfh')}
-      ${inp('Дата регистрации в АСУБК','','mDateReg')}
+      ${dinp('Дата события (Р-7)','','mDateEvent')}
+      ${dinp('Дата получения в ГФХ','','mDateGfh')}
+      ${dinp('Дата регистрации в АСУБК','','mDateReg')}
       ${inp('Номер','','mNum')}
       ${sel('Направление / вручение','Подано в суд',['СЭД (квитанция)','Почта (уведомление о вручении)','Отметка заёмщика','Подано в суд','Зарегистрировано в госоргане','Не направлялась'],'mDeliver')}
       ${sel('Результат','определение суда',RESULT_GROUPS,'mResult')}
