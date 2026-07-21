@@ -382,4 +382,21 @@ test('R17-26: основной + сверх → допуск только ком
   eq(v.block, false); eq(v.needCommittee, true);
 });
 
+// Р-18 (П1 §3.5): стоп-лист как исполняемая проверка (была только справочная витрина
+// PROHIBITED_KINDS) — применяется и при приёме предмета (saveNewItem), и на гейте
+// регистрации договора (openRegister), через единый stopListCheck.
+test('R18-28: земля с/х → отказ без права допуска', () => {
+  const { zt } = load();
+  const v = zt.stopListCheck({landPurpose:'сельскохозяйственного назначения'});
+  eq(v.block, true); eq(v.committeeCanOverride, false); has(v.msg, 'Закон КР');
+});
+test('R18-29: износ ≥ предела → отказ', () => {
+  const { zt } = load();
+  eq(zt.stopListCheck({wearPct:78}).block, true);
+});
+test('R18-30: снятый чек-бокс оборотоспособности → отказ', () => {
+  const { zt } = load();
+  eq(zt.stopListCheck({circulable:false}).block, true);
+});
+
 report();

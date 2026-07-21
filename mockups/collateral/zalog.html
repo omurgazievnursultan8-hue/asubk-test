@@ -820,6 +820,39 @@ const PROHIBITED_KINDS = [
   'Товары одного наименования в большом количестве',
   'Изъятое из оборота / ограниченное в обороте имущество',
 ];
+/* Р-18 (П1 §3.5): стоп-лист как ИСПОЛНЯЕМАЯ проверка — PROHIBITED_KINDS выше остаётся
+   read-only справочной витриной (см. refbookInner), эта функция — рядом с каждым пунктом
+   стоп-листа проставляет реализующую валидацию. Применяется дважды: при приёме предмета
+   (saveNewItem) и повторно на гейте регистрации залогового договора (openRegister/doRegister),
+   т.к. предмет мог быть принят до Р-18 либо его состояние могло измениться между приёмом
+   и регистрацией. Земля с/х назначения и износ ≥ предела — жёсткие отказы без права
+   комитета на допуск (committeeCanOverride:false); прочие пункты блокируют без этого поля. */
+let WEAR_LIMIT = 70;
+function stopListCheck(f){
+  if (f.landPurpose === 'сельскохозяйственного назначения')
+    return { block:true, committeeCanOverride:false, msg:'Приём отклонён (П1 §3.5, Закон КР «О залоге» п.3 ст.6): земли сельскохозяйственного назначения в залог не принимаются.' };
+  if (typeof f.wearPct === 'number' && f.wearPct >= WEAR_LIMIT)
+    return { block:true, committeeCanOverride:false, msg:`Приём отклонён (П1 §3.5): физический износ ${f.wearPct}% при пределе ${WEAR_LIMIT}%.` };
+  if (f.morallyObsolete === true) return { block:true, msg:'Приём отклонён (П1 §3.5): морально устаревшее оборудование.' };
+  if (f.circulable === false) return { block:true, msg:'Приём отклонён (П1 §3.5): имущество изъято/ограничено в обороте.' };
+  // ТМЦ — три флага; каждый снятый блокирует с цитатой пункта
+  if (f.perishable === true)     return { block:true, msg:'Приём отклонён (П1 §3.5): скоропортящиеся товары.' };
+  if (f.lowDemand === true)      return { block:true, msg:'Приём отклонён (П1 §3.5): товарно-материальные ценности, не пользующиеся спросом.' };
+  if (f.singleNameBulk === true) return { block:true, msg:'Приём отклонён (П1 §3.5): товары одного наименования в большом количестве.' };
+  return { block:false };
+}
+/* Обратное отображение: сохранённый предмет реестра → форма stopListCheck. Единый источник
+   истины для saveNewItem (приём) и гейта регистрации (повторная проверка). Предметы, заведённые
+   до Р-18 (сид-данные), не несут этих полей — отсутствующее поле возвращается как undefined,
+   а не как блокирующее значение, поэтому такие предметы гейт НЕ блокирует (см. guard'ы
+   === true / === false / typeof в stopListCheck). */
+function stopFieldsOf(it){
+  return {
+    landPurpose: it.landPurpose, wearPct: it.wearPct, morallyObsolete: it.morallyObsolete,
+    circulable: it.circulable, perishable: it.perishable, lowDemand: it.lowDemand,
+    singleNameBulk: it.singleNameBulk,
+  };
+}
 
 /* ПОРОГИ ОБЕСПЕЧЕННОСТИ (Прил.1 §2.3–2.4). Порог — ФУНКЦИЯ состава обеспечения кредита
    (requiredCover), а не единая константа. Значения правятся администратором в справочнике. */
@@ -2582,19 +2615,34 @@ function niKindChange(){
   }
   const K = KINDS[kind] || {}, tech = !!K.tech, tvo = kind === 'Товары в обороте';
   const secRole = !!K.movable && !tvo;   // Р-17: роль обеспечения — шире, чем «техника» (движимое, кроме ТМЦ)
+  const realEstate = kind === 'Недвижимое имущество';
   let html = '';
   if(secRole) html += `<div class="mform" style="margin-top:4px">
       ${fsel('niSecurityRole','Роль обеспечения', ['основной','дополнительный'], 'основной')}
+    </div>`;
+  /* Р-18 (П1 §3.5): земли с/х назначения в залог не принимаются — жёсткий отказ без права
+     допуска комитетом, см. stopListCheck. */
+  if(realEstate) html += `<div class="mform" style="margin-top:4px">
+      ${fsel('niLandPurpose','Целевое назначение земли', ['—','сельскохозяйственного назначения','населённых пунктов','промышленности','иное'], '—')}
     </div>`;
   if(tech) html += `<div class="mform" style="margin-top:4px">
       ${fin('niYear','Год выпуска (техника)','',true)}
       ${fsel('niOrigin','Происхождение', ['СНГ','Дальнее зарубежье'], 'СНГ')}
       ${fin('niPolicy','Страховой полис (номер)','',true)}
       ${fdate('niTill','Полис действует до','',true)}
+      ${fin('niWearPct','Физический износ, %','')}
     </div>
     <label class="chk" style="margin-top:8px"><input type="checkbox" id="niTechCond"> Техника в исправном техническом состоянии и находится в эксплуатации (П1 §3.3)</label>
+    <label class="chk" style="margin-top:4px"><input type="checkbox" id="niNotObsolete"> Оборудование морально не устарело (П1 §3.5)</label>
     <div class="mform" style="margin-top:4px">${fin('niTechAct','Реквизит акта осмотра (П1 §3.3)','',true)}</div>`;
-  if(tvo) html += `<label class="chk" style="margin-top:8px"><input type="checkbox" id="niNotProhibited"> Подтверждаю: предмет не подпадает под ограничения по составу</label>`;
+  /* Р-18: «Товары в обороте» — три раздельных подтверждения §3.5 вместо одного общего
+     чек-бокса (был niNotProhibited); каждое снятое подтверждение блокирует приём отдельно
+     (stopListCheck: perishable / lowDemand / singleNameBulk). */
+  if(tvo) html += `<label class="chk" style="margin-top:8px"><input type="checkbox" id="niNotPerishable"> Товар не относится к скоропортящимся</label>
+    <label class="chk" style="margin-top:4px"><input type="checkbox" id="niDemandOk"> Товар пользуется устойчивым спросом (обоснование приложено)</label>
+    <label class="chk" style="margin-top:4px"><input type="checkbox" id="niNotBulkSingle"> Не является товаром одного наименования в большом количестве</label>`;
+  /* Р-18: общее подтверждение оборотоспособности — для ВСЕХ видов залога, не только ТМЦ. */
+  html += `<label class="chk" style="margin-top:8px"><input type="checkbox" id="niCirculable"> Имущество не изъято и не ограничено в обороте (П1 §3.5)</label>`;
   box.innerHTML = html;
 }
 function saveNewItem(){
@@ -2616,8 +2664,10 @@ function saveNewItem(){
   const ident = details[PRIMARY_DETAIL[kind]] || name;   // краткий идентификатор для шапки/списка
   const K = KINDS[kind] || {}, tech = !!K.tech, tvo = kind === 'Товары в обороте';
   const secRole = !!K.movable && !tvo;   // Р-17: та же граница, что и в niKindChange
+  const realEstate = kind === 'Недвижимое имущество';
   let extra = {};
   if(secRole) extra.securityRole = val('niSecurityRole') || 'основной';
+  if(realEstate) extra.landPurpose = val('niLandPurpose');   // Р-18: '—' не блокирует, см. stopListCheck
   if(tech){
     const year = Math.round(num(val('niYear'))), origin = val('niOrigin'),
           policy = val('niPolicy').trim(), till = iso2d(val('niTill'));
@@ -2631,9 +2681,20 @@ function saveNewItem(){
     if(till && !isDate(till)) return toast('Дата окончания полиса — в формате дд.мм.гггг','warn');
     extra = { ...extra, year, origin, insured:{ present:true, policy, till }, techCondition:{ ok:true, act:techAct } };
     if(ageChk.needCommittee) extra.committeeReq = { reason:'возраст техники сверх лимита §2.5 — допуск основного обеспечения по решению комитета §3.4', msg: ageChk.msg };
+    /* Р-18 (П1 §3.5): физический износ и моральное устаревание — стоп-лист, не §3.3-осмотр. */
+    const wearRaw = val('niWearPct').trim();
+    if(wearRaw !== '') extra.wearPct = num(wearRaw);
+    extra.morallyObsolete = !((document.getElementById('niNotObsolete')||{}).checked);
   }
-  if(tvo && !((document.getElementById('niNotProhibited')||{}).checked))
-    return toast('Подтвердите, что «Товары в обороте» не подпадают под ограничения §3.5','warn');
+  if(tvo){
+    /* Р-18: три раздельных подтверждения ТМЦ — снятое подтверждение выставляет блокирующий флаг */
+    extra.perishable     = !((document.getElementById('niNotPerishable')||{}).checked);
+    extra.lowDemand       = !((document.getElementById('niDemandOk')||{}).checked);
+    extra.singleNameBulk  = !((document.getElementById('niNotBulkSingle')||{}).checked);
+  }
+  extra.circulable = Boolean((document.getElementById('niCirculable')||{}).checked);   // Р-18: все виды
+  const stop = stopListCheck(extra);
+  if(stop.block) return toast(stop.msg,'warn');
   const it = { id: nextId(ITEMS,'П-'), kind, name, pledger, pledgerType, ident, qty, unit, legalDoc, details, files:[],
     appraised:v, apprDate:date, apprReport:rep,
     override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false,
@@ -3094,7 +3155,8 @@ function dropAlloc(cid, idx){
   toast('Предмет отвязан от черновика','ok'); refresh();
 }
 
-/* ---------- РЕГИСТРАЦИЯ ДОГОВОРА (три гейта: покрытие + предпосылки оформления §5.2 + решение КМ §2.6) ---------- */
+/* ---------- РЕГИСТРАЦИЯ ДОГОВОРА (четыре гейта: покрытие + предпосылки оформления §5.2 +
+   решение КМ §2.6 + стоп-лист §3.5, Р-18) ---------- */
 function openRegister(cid){
   if(!canCurate()) return denyEdit();
   const c = contract(cid), gate = gateCheck(c);
@@ -3107,7 +3169,11 @@ function openRegister(cid){
   /* Р-13 (П1 §2.6): третий гейт — заёмщик под категорией с обеспеченностью по решению КМ,
      а решение ещё не внесено ни на один кредит договора. */
   const kmMiss = c.credits.filter(id => kmGateBlocked(credit(id)));
-  const okAll = gate.ok && !prereqMiss.length && !kmMiss.length;
+  /* Р-18 (П1 §3.5): четвёртый гейт — повторная проверка стоп-листа на момент регистрации.
+     Предмет мог быть принят до Р-18 (стоп-поля отсутствуют → stopFieldsOf возвращает undefined
+     → не блокирует), либо его состояние могло измениться между приёмом и регистрацией. */
+  const stopMiss = its.map(iid => ({ iid, v: stopListCheck(stopFieldsOf(item(iid))) })).filter(x => x.v.block);
+  const okAll = gate.ok && !prereqMiss.length && !kmMiss.length && !stopMiss.length;
   modal(`<div class="modal form">${mhead('Регистрация залогового договора · '+cid)}
     <div class="modal-b">
       <div class="cgrid-wrap" style="margin-bottom:14px"><table class="cgrid">
@@ -3118,6 +3184,7 @@ function openRegister(cid){
       ${prereqMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Гейт предпосылок НЕ пройден: не приложены обязательные документы — ${prereqMiss.map(m=>`${m.iid}: ${esc(m.label)}`).join('; ')}. Приложите их на карточке предмета и повторите регистрацию.</span></div>`
         : (gate.ok ? `<div class="okline" style="margin-top:10px"><span>Гейт предпосылок пройден: обязательные согласия и справки приложены.</span></div>` : '')}
       ${kmMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Заёмщик относится к категории П1 §2.6 (${esc([...new Set(kmMiss.map(id=>credit(id).borrowerCategory))].join(', '))}). Обеспеченность устанавливается решением Кабинета Министров — укажите реквизиты решения.</span></div>` : ''}
+      ${stopMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Гейт стоп-листа П1 §3.5 НЕ пройден: ${stopMiss.map(x=>`${x.iid}: ${esc(x.v.msg)}`).join('; ')}. Регистрация невозможна.</span></div>` : ''}
       ${okAll ? `<div class="mform">
         ${fin('rgNo','Номер договора','',true)}
         ${fdate('rgDate','Дата договора', TODAY, true)}
@@ -3131,8 +3198,9 @@ function openRegister(cid){
       : (!gate.ok ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
          <button class="btn btn-primary" onclick="toCommission('${cid}')">Направить в комитет по администрированию бюджетных кредитов</button></div>`
         : (prereqMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
-          : `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-             <button class="btn btn-primary" onclick="openKmDecision('${cid}')">Указать решение КМ</button></div>`))}
+          : (stopMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
+            : `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+               <button class="btn btn-primary" onclick="openKmDecision('${cid}')">Указать решение КМ</button></div>`)))}
     </div>`);
 }
 /* Постобработка запрета при переводе договора в «Зарегистрирован».
@@ -3165,6 +3233,9 @@ function doRegister(cid){
   /* Р-13 (П1 §2.6): гейт решения КМ — обязателен для регистрации. */
   const km = c.credits.filter(id => kmGateBlocked(credit(id)));
   if(km.length) return toast('Гейт §2.6 не пройден: обеспеченность по решению КМ не установлена — '+km.join(', '),'warn');
+  /* Р-18 (П1 §3.5): гейт стоп-листа — та же повторная проверка, что и в openRegister. */
+  const sm = [...new Set(c.allocs.map(a=>a.item))].map(iid => ({ iid, v: stopListCheck(stopFieldsOf(item(iid))) })).filter(x => x.v.block);
+  if(sm.length) return toast('Гейт стоп-листа П1 §3.5 не пройден: '+sm.map(x=>x.iid+' — '+x.v.msg).join('; '),'warn');
   const no = val('rgNo').trim(), date = iso2d(val('rgDate')), notary = val('rgNotary').trim(),
         nno = val('rgNotaryNo').trim(), ndate = iso2d(val('rgNotaryDate')), cert = val('rgCert').trim();
   if(!no || !notary || !nno || !cert) return toast('Заполните все юридические реквизиты','warn');
@@ -3659,6 +3730,7 @@ if (typeof window !== 'undefined') window.__zt = {
   surveyInterval, effectiveInterval, RISK_TIGHTENING, SURVEY_MIN_MONTHS, RISK_TIGHTENING_APPROVAL,
   itemRiskCategory, borrowerSolvency, nextSurvey, addMonths,
   techAgeCheck,
+  stopListCheck, stopFieldsOf,
 };
 </script>
 </body>
