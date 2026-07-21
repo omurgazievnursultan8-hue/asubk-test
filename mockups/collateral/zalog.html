@@ -2017,7 +2017,7 @@ function rowsContracts(){
         items:new Set(c.allocs.map(a=>a.item)).size, credits:c.credits.length, mc, add:c.addenda.length },
       cells:[ c.id, c.no ? esc(c.no) : '<span style="color:var(--text-placeholder)">— не зарегистрирован —</span>',
         esc(clientName(c.inn)),
-        `<span class="pill ${stPill}">${c.status}</span>${c.undercovered ? ` <span class="pill high" title="${esc(reqTooltip(c))}">допуск &lt;порога</span>` : ''}`,
+        `<span class="pill ${stPill}">${c.status}</span>${c.undercovered ? ` <span class="pill high" title="${esc(reqTooltip(c))}">допуск &lt;порога</span>` : ''}${c.replacementRefusal ? ` <span class="pill high" title="${esc(c.replacementRefusal.reason)}">отказ в замене</span>` : ''}`,
         `<span class="numcell">${new Set(c.allocs.map(a=>a.item)).size}</span>`,
         `<span class="numcell">${c.credits.length}</span>`,
         c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}">${pct(mc)}</span>`,
@@ -2059,7 +2059,7 @@ function contractCard(c){
   const stPill = c.status===ACTIVE ? 'low' : c.status==='Оформляется' ? 'neutral' : c.status==='Закрыт' ? 'neutral' : 'high';
   const nItems = new Set(c.allocs.map(a=>a.item)).size;
   const cov = c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}">${pct(mc)}</span>`;
-  const badges = `<span class="pill ${stPill}">${c.status}</span>${c.undercovered ? ` <span class="pill high" title="${esc(reqTooltip(c))}">допуск &lt;порога</span>` : ''}`;
+  const badges = `<span class="pill ${stPill}">${c.status}</span>${c.undercovered ? ` <span class="pill high" title="${esc(reqTooltip(c))}">допуск &lt;порога</span>` : ''}${c.replacementRefusal ? ` <span class="pill high" title="${esc(c.replacementRefusal.reason)}">отказ в замене</span>` : ''}`;
   return `<div class="pcard ${c.id===selected?'sel':''}" onclick="selectRow('${c.id}')" ondblclick="openSelected()">
     <div class="pcard-head">
       <div class="pcard-ava" style="background:${AVA_CTR[c.status]||'#5B6B7E'}">${docIcon()}</div>
@@ -2444,6 +2444,8 @@ function ctrPanels(c){
       <span>Контрольный гейт покрытия не пройден (${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — регистрация ЗАБЛОКИРОВАНА до решения комитета по администрированию бюджетных кредитов. Комиссия либо возвращает на доработку (догрузить/заменить предмет), либо допускает недообеспеченный кредит с обязательным обоснованием.</span></div>` : ''}
     ${c.undercovered ? `<div class="phead-banner warn">
       <span>Допущен комиссией с покрытием ниже порога ${pct(c.undercovered.req)} (${pct(c.undercovered.ratio)}). Обоснование: «${esc(c.undercovered.obosn)}» · ${esc(c.undercovered.by)} · ${c.undercovered.date}</span></div>` : ''}
+    ${c.replacementRefusal ? `<div class="phead-banner warn">
+      <span>Отказано в замене залога по кредиту(ам) ${c.replacementRefusal.credits.join(', ')} (Прил.3 §3.5). Причина: «${esc(c.replacementRefusal.reason)}» · ${esc(c.replacementRefusal.by)} · ${c.replacementRefusal.date}</span></div>` : ''}
     <div class="phead-dims">
       ${kpi('Статус', c.status, 'ЖЦ договора')}
       ${kpi('Мин. покрытие', c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}">${pct(mc)}</span>`, `худший кредит договора · порог по составу (${pct(COVER_LIQUID)}/${pct(COVER_MOVABLE)})`)}
@@ -3459,6 +3461,29 @@ function replacementInfo(c, ops){
     .map(x => ({ ...x, drop: x.inRank < x.outRank, overdue: Boolean((credit(x.credit)||{}).overdue) }));
 }
 
+/* Р-14 (Прил.3 §3.5): РАВНОЦЕННОСТЬ ЗАМЕНЫ. Сравниваем эффективную стоимость выводимых
+   долей (усечённую пропорционально, как и в покрытии — effShare) с залоговой стоимостью
+   вводимых предметов (не больше вводимой доли — физически больше стоимости предмета не
+   введёшь). Считается по ВСЕМУ пакету, не по кредиту — пакет либо равноценен целиком. */
+function replacementValues(c, ops){
+  const cs = ctx(c);
+  const outValue = ops.filter(o=>o.type==='out')
+    .flatMap(o => c.allocs.filter(a=>a.item===o.item))
+    .reduce((s,a) => s + effShare(cs, a.item, a.share), 0);
+  const inValue = ops.filter(o=>o.type==='in')
+    .reduce((s,o) => s + Math.min(o.share, pledgeValue(item(o.item))), 0);
+  return { outValue, inValue };
+}
+/* Р-14 (Прил.3 §3.5): ГЕЙТ ЗАМЕНЫ — четыре условия. Равноценность и согласие/заключение —
+   новые жёсткие требования; rankOk (Р-6) передаётся вызывающим кодом (!reps.some(r=>r.drop)). */
+function replacementGate({outValue, inValue, deptConsent, dakConclusion, rankOk}){
+  const equivalenceOk = inValue >= outValue;
+  const consentOk = Boolean(deptConsent && deptConsent.trim());
+  const dakOk = Boolean(dakConclusion && dakConclusion.trim());
+  const blocked = !(equivalenceOk && consentOk && dakOk && rankOk);
+  return { equivalenceOk, consentOk, dakOk, rankOk, blocked };
+}
+
 function renderDs(){
   const c = contract(ds.cid);
   const v = applyOps(c, ds.ops);
@@ -3467,7 +3492,21 @@ function renderDs(){
   const reps = replacementInfo(c, ds.ops);
   const repOverdue = reps.filter(r=>r.overdue);
   const repDrop = reps.some(r=>r.drop && !r.overdue);
-  const needCommission = (!after.ok || repDrop);        // допуск комиссией (покрытие ниже порога / понижение ликвидности)
+  /* Р-14 (Прил.3 §3.5): равноценность пакета замены (Σ вводимой стоимости ≥ Σ эфф.
+     выводимой). Недостача равноценности идёт по тому же пути допуска, что покрытие/
+     ликвидность — комиссия с обоснованием, НЕ отдельный жёсткий блок. */
+  const { outValue, inValue } = reps.length ? replacementValues(c, ds.ops) : { outValue:0, inValue:0 };
+  const rankOk = !reps.some(r=>r.drop);
+  const repEquivShort = reps.length && inValue < outValue;
+  const needCommission = (!after.ok || repDrop || repEquivShort);   // допуск комиссией (покрытие ниже порога / понижение ликвидности / равноценность)
+  /* Согласие отраслевого департамента и заключение ДАК — читаем из ПРЕДЫДУЩЕГО рендера
+     (при dsAdd/dsDel renderDs() вызывается повторно ДО замены DOM — старые значения полей
+     ещё доступны), чтобы не терять ввод офицера при добавлении/удалении операций пакета. */
+  const prevDeptConsent = val('dsDeptConsent');
+  const prevDeptChk = Boolean((document.getElementById('dsDeptConsentChk')||{}).checked);
+  const prevDakConclusion = val('dsDakConclusion');
+  const gate = reps.length ? replacementGate({ outValue, inValue, deptConsent: prevDeptConsent, dakConclusion: prevDakConclusion, rankOk }) : null;
+  const repDeptDakMissing = reps.length && (!prevDeptConsent.trim() || !prevDeptChk || !prevDakConclusion.trim());
   const inCtr  = [...new Set(v.allocs.map(a=>a.item))];
   /* Р-?: показываем порог ДО/ПОСЛЕ — смена состава обеспечения (напр. добавили товары
      в обороте) поднимает порог 120→150%, из-за чего гейт может падать ДАЖЕ при росте
@@ -3519,7 +3558,28 @@ function renderDs(){
       ${reps.length ? `<p class="section-h" style="font-size:16px;margin-top:14px">Замена залога — ликвидность</p>
       <div class="cgrid-wrap"><table class="cgrid">
         <thead><tr><th>Кредит</th><th>Выводится</th><th>Вводится</th><th>Допустимость</th></tr></thead>
-        <tbody>${repRows}</tbody></table></div>` : ''}
+        <tbody>${repRows}</tbody></table></div>
+
+      <p class="section-h" style="font-size:16px;margin-top:14px">Замена — условия (Прил.3 §3.5)</p>
+      <div class="cgrid-wrap"><table class="cgrid">
+        <thead><tr><th>Условие</th><th>Значение</th><th>Статус</th></tr></thead>
+        <tbody>
+          <tr><td>Равноценность</td><td>выводится ${fmt(outValue)} / вводится ${fmt(inValue)}</td>
+            <td><span class="pill ${gate.equivalenceOk?'low':'high'}">${gate.equivalenceOk?'соблюдена':'не соблюдена'}</span></td></tr>
+          <tr><td>Согласие отраслевого департамента</td><td>${esc(prevDeptConsent||'—')}</td>
+            <td><span class="pill ${gate.consentOk && prevDeptChk?'low':'high'}">${gate.consentOk && prevDeptChk?'получено':'требуется'}</span></td></tr>
+          <tr><td>Заключение ДАК о ликвидности</td><td>${esc(prevDakConclusion||'—')}</td>
+            <td><span class="pill ${gate.dakOk?'low':'high'}">${gate.dakOk?'представлено':'требуется'}</span></td></tr>
+          <tr><td>Ранг ликвидности не понижается</td><td>—</td>
+            <td><span class="pill ${gate.rankOk?'low':'high'}">${gate.rankOk?'ок':'падает'}</span></td></tr>
+        </tbody></table></div>
+      <div class="mform" style="margin-top:10px">
+        ${fin('dsDeptConsent','Реквизит согласования отраслевого департамента', prevDeptConsent, true, true)}
+        <label class="chk col-span" style="margin-top:-6px"><input type="checkbox" id="dsDeptConsentChk"${prevDeptChk?' checked':''}> Отраслевой департамент согласовал замену (П3 §3.5)</label>
+        ${fin('dsDakConclusion','Заключение ДАК о ликвидности', prevDakConclusion, true, true)}
+      </div>
+      <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-tint btn-sm danger" onclick="dsRefuseReplacement()">Отказать в замене</button></div>
+      ${ftxt('dsRefuseReason','Причина отказа в замене (заполните перед «Отказать в замене»)','')}` : ''}
 
       <p class="section-h" style="font-size:16px;margin-top:14px">Снимок before / after (чистый эффект пакета)</p>
       <div class="cgrid-wrap"><table class="cgrid">
@@ -3531,20 +3591,35 @@ function renderDs(){
       ${repOverdue.length ? `<div class="flagline" style="margin-top:12px"><span>Замена невозможна: по кредиту ${repOverdue.map(r=>r.credit).join(', ')} есть просроченная задолженность. Погасите просрочку и повторите.</span></div>` : ''}
       ${!breach.length && !repOverdue.length && needCommission ? `<div class="flagline" style="margin-top:12px"><span>${[
           !after.ok ? `покрытие ниже порога (${after.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)+' < '+pct(r.req)).join(', ')})` : '',
-          repDrop ? `замена понижает ликвидность (${reps.filter(r=>r.drop&&!r.overdue).map(r=>r.credit+': Σ'+r.outRank+'→Σ'+r.inRank).join(', ')})` : ''
+          repDrop ? `замена понижает ликвидность (${reps.filter(r=>r.drop&&!r.overdue).map(r=>r.credit+': Σ'+r.outRank+'→Σ'+r.inRank).join(', ')})` : '',
+          repEquivShort ? `замена не равноценна (выводится ${fmt(outValue)} > вводится ${fmt(inValue)})` : ''
         ].filter(Boolean).join('; ')}. Регистрация блокируется — допуск только решением комитета по администрированию бюджетных кредитов с обоснованием.</span>
-        </div>${canCommittee() ? ftxt('dsObosn','Обоснование комитета по администрированию бюджетных кредитов (для допуска: покрытие/ликвидность)','') : '<p class="formula">Смените роль на «Комитет по администрированию бюджетных кредитов», чтобы допустить пакет с обоснованием.</p>'}` : ''}
+        </div>${canCommittee() ? ftxt('dsObosn','Обоснование комитета по администрированию бюджетных кредитов (для допуска: покрытие/ликвидность/равноценность)','') : '<p class="formula">Смените роль на «Комитет по администрированию бюджетных кредитов», чтобы допустить пакет с обоснованием.</p>'}` : ''}
       ${!breach.length && !repOverdue.length && !needCommission ? `<div class="okline" style="margin-top:12px"><span>Чистый эффект пакета проходит гейт по всем кредитам договора${reps.length?' (замена ликвидность не понижает)':''}.</span></div>` : ''}
     </div>
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-      <button class="btn btn-primary" ${(!ds.ops.length || breach.length || repOverdue.length || (needCommission && !canCommittee())) ? 'disabled' : ''}
+      <button class="btn btn-primary" id="dsRegBtn" ${(!ds.ops.length || breach.length || repOverdue.length || (needCommission && !canCommittee()) || repDeptDakMissing) ? 'disabled' : ''}
         onclick="dsRegister()">Зарегистрировать доп соглашение</button>
     </div></div>`);
 
   window.__dsOpts = { outOpts, inOpts, shareOpts, credOpts };
   document.getElementById('dsType').addEventListener('change', dsParams);
   dsParams();
+  /* Р-14: два новых жёстких поля (согласие департамента / заключение ДАК) набираются
+     живьём — без полного renderDs() на каждый символ. baseDisabled — все прочие причины
+     блокировки кнопки, не зависящие от этих двух полей. */
+  if(reps.length){
+    const baseDisabled = !ds.ops.length || breach.length || repOverdue.length || (needCommission && !canCommittee());
+    const btn = document.getElementById('dsRegBtn');
+    const syncGate = () => {
+      const missing = !val('dsDeptConsent').trim() || !document.getElementById('dsDeptConsentChk').checked || !val('dsDakConclusion').trim();
+      btn.disabled = baseDisabled || missing;
+    };
+    document.getElementById('dsDeptConsent').addEventListener('input', syncGate);
+    document.getElementById('dsDeptConsentChk').addEventListener('change', syncGate);
+    document.getElementById('dsDakConclusion').addEventListener('input', syncGate);
+  }
 }
 function dsParams(){
   const t = val('dsType'), o = window.__dsOpts, box = document.getElementById('dsParams');
@@ -3596,16 +3671,28 @@ function dsRegister(){
   const reps = replacementInfo(c, ds.ops);
   const repOverdue = reps.filter(r=>r.overdue);
   if(repOverdue.length) return toast('Замена при просроченной задолженности не допускается (§8): кредит '+repOverdue.map(r=>r.credit).join(', '),'warn');
+  /* Р-14 (Прил.3 §3.5): согласие отраслевого департамента и заключение ДАК о ликвидности —
+     ДВА новых жёстких требования при замене. Не проходят через комитет — обязательны всегда. */
+  let deptConsent = '', dakConclusion = '';
+  if(reps.length){
+    deptConsent = val('dsDeptConsent').trim();
+    dakConclusion = val('dsDakConclusion').trim();
+    const deptChk = Boolean((document.getElementById('dsDeptConsentChk')||{}).checked);
+    if(!deptConsent || !deptChk) return toast('Замена требует согласия отраслевого департамента (Прил.3 §3.5): укажите реквизит и подтвердите чек-боксом','warn');
+    if(!dakConclusion) return toast('Замена требует заключения ДАК о ликвидности (Прил.3 §3.5)','warn');
+  }
   const repDrop = reps.some(r=>r.drop && !r.overdue);
+  const { outValue, inValue } = reps.length ? replacementValues(c, ds.ops) : { outValue:0, inValue:0 };
+  const repEquivShort = reps.length && inValue < outValue;
   const before = gateCheck(c), after = gateCheck(v);
   /* Худший по покрытию кредит пакета — тот же смысл, что и Math.min(...ratio) ниже,
      но с сохранением его req (Д-2): порог — функция состава, не константа 120%. */
   const worst = after.rows.reduce((a,b)=> b.ratio<a.ratio?b:a);
   let obosn = '';
-  if(!after.ok || repDrop){
-    if(!canCommittee()) return toast('Гейт не пройден (покрытие/ликвидность): допуск возможен только комитетом по администрированию бюджетных кредитов','warn');
+  if(!after.ok || repDrop || repEquivShort){
+    if(!canCommittee()) return toast('Гейт не пройден (покрытие/ликвидность/равноценность): допуск возможен только комитетом по администрированию бюджетных кредитов','warn');
     obosn = val('dsObosn').trim();
-    if(!obosn) return toast('Допуск (покрытие ниже порога / понижение ликвидности) требует обоснования','warn');
+    if(!obosn) return toast('Допуск (покрытие ниже порога / понижение ликвидности / равноценность) требует обоснования','warn');
   }
   const no = 'ДС-' + String(c.addenda.length+1).padStart(2,'0') + '/' + TODAY.slice(6);
   const diff = after.rows.map(r => {
@@ -3614,7 +3701,9 @@ function dsRegister(){
   });
   const opLines = ds.ops.map(opText);
   reps.forEach(r => opLines.push(`Ликвидность (замена по ${r.credit}): ранг Σ${r.outRank} → Σ${r.inRank}${r.drop?' — понижение, допущено комиссией':' — не понижается'}`));
-  c.addenda.push({ no, date: TODAY, ops: opLines, diff, obosn, req: worst.req });
+  if(reps.length) opLines.push(`Равноценность замены: выводится ${fmt(outValue)} / вводится ${fmt(inValue)}${repEquivShort?' — не соблюдена, допущено комиссией':' — соблюдена'}. Согласие департамента: «${deptConsent}». Заключение ДАК: «${dakConclusion}».`);
+  c.addenda.push({ no, date: TODAY, ops: opLines, diff, obosn, req: worst.req,
+    replacement: reps.length ? { deptConsent, dakConclusion, outValue, inValue, equivalenceOk: !repEquivShort } : null });
   const touched = [...new Set(c.allocs.map(a=>a.item))];   // предметы договора ДО применения пакета
   c.allocs = v.allocs; c.credits = v.credits;
   c.allocs.forEach(a => { item(a.item).everPledged = true; });
@@ -3629,6 +3718,20 @@ function dsRegister(){
   if(!after.ok) c.undercovered = { ratio: worst.ratio, req: worst.req, obosn, by: role, date: TODAY };
   hist(c, `Доп соглашение ${no} зарегистрировано (${ds.ops.length} операц.): ${ds.ops.map(opText).join(' · ')}. Покрытие после: ${after.rows.map(r=>r.id+' — '+pct(r.ratio)).join(', ')}${obosn ? `. Допущено комиссией ниже порога ${pct(worst.req)}: «${obosn}»` : ''}`);
   closeModal(); toast('Доп соглашение '+no+' зарегистрировано — изменения вступили в силу','ok');
+  ds = { cid:null, ops:[] }; refresh();
+}
+/* Р-14: «Отказать в замене» — альтернатива регистрации, когда офицер/комиссия решает НЕ
+   допускать замену (равноценность/согласие/ДАК/ранг не устраивают). История — обязательна;
+   реестр мониторинга не трогаем (см. бриф) — заметка всплывает на карточке договора. */
+function dsRefuseReplacement(){
+  const c = contract(ds.cid);
+  const reps = replacementInfo(c, ds.ops);
+  if(!reps.length) return;
+  const reason = val('dsRefuseReason').trim();
+  if(!reason) return toast('Укажите причину отказа в замене','warn');
+  c.replacementRefusal = { date: TODAY, reason, by: role, credits: reps.map(r=>r.credit) };
+  hist(c, `Отказано в замене залога по кредиту(ам) ${reps.map(r=>r.credit).join(', ')} (Прил.3 §3.5): «${reason}»`);
+  closeModal(); toast('Отказ в замене зафиксирован — история договора обновлена','warn');
   ds = { cid:null, ops:[] }; refresh();
 }
 
@@ -3815,6 +3918,7 @@ if (typeof window !== 'undefined') window.__zt = {
   stopListCheck, stopFieldsOf,
   surveyValidate,
   custodyValid, leaseCoversCredit,
+  replacementGate, replacementValues,
 };
 </script>
 </body>
