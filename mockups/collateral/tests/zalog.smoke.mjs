@@ -1,4 +1,4 @@
-import { load, test, ok, eq, hasNot, report } from './harness.mjs';
+import { load, test, ok, eq, near, has, hasNot, report } from './harness.mjs';
 
 test('S0: файл грузится, шов __zt доступен', () => {
   const { zt } = load();
@@ -43,7 +43,7 @@ test('D2-1: нет литерала «120%» в пользовательских
     notary:'', notaryNo:'', notaryDate:'', cert:'',
     credits:['К-Т1'], allocs:[{item:'П-Т1', credit:'К-Т1', share:90000}, {item:'П-Т2', credit:'К-Т1', share:65000}],
     undercovered:null, addenda:[], history:[] });
-  eq(zt.requiredCover('К-Т1', zt.CONTRACTS.filter(c=>c.id==='Д-Т1')), zt.COVER_MOVABLE, 'сценарий теста должен давать порог 150%');
+  eq(zt.requiredCover('К-Т1', zt.CONTRACTS.filter(c=>c.id==='Д-Т1')).req, zt.COVER_MOVABLE, 'сценарий теста должен давать порог 150%');
   const gate = win.gateCheck(zt.contract('Д-Т1'));
   ok(gate.ok, 'сценарий теста должен проходить гейт покрытия (150% + доля ликвида >=80%)');
   win.openRegister('Д-Т1');
@@ -55,6 +55,21 @@ test('D2-1: нет литерала «120%» в пользовательских
   const html = win.document.body.innerHTML;
   // грубая проверка: хардкод-строки триггеров не содержат фиксированного «120%»
   hasNot(html, 'Гейт 120%', 'тост «Гейт 120% пройден» — хардкод');
+});
+
+// R13: requiredCover возвращает {req,source} вместо голого числа — порог всегда несёт
+// свою нормативную ссылку (П1 §2.3/§2.4/§2.6), а не «магическое число» без пояснения.
+test('R13-1: requiredCover возвращает {req,source}', () => {
+  const { zt } = load();
+  const r = zt.requiredCover('К-56', zt.CONTRACTS.filter(c=>c.status==='Зарегистрирован'));
+  eq(typeof r.req, 'number'); ok(typeof r.source === 'string' && r.source.length>0);
+});
+test('R13-2: чисто ликвидный состав → 1.2 и источник П1 §2.3', () => {
+  const { zt } = load();
+  // К-56 (Д-001, «Зарегистрирован») обеспечен единственным предметом П-001 —
+  // «Недвижимое имущество» (liquid:true, movable:false) — состав чисто ликвидный.
+  const r = zt.requiredCover('К-56', zt.CONTRACTS.filter(c=>c.status==='Зарегистрирован'));
+  near(r.req, 1.2, 'ликвидный порог'); has(r.source, 'П1 §2.3');
 });
 
 report();

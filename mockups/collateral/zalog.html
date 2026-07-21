@@ -1358,12 +1358,17 @@ function creditItems(cs, creditId){
   return [...ids].map(item);
 }
 function requiredCover(creditId, cs){
+  const cr = credit(creditId);
+  if (cr && cr.kmDecision) return { req: cr.kmDecision.coverPct/100,
+    source: 'решение КМ ' + cr.kmDecision.no + ' от ' + cr.kmDecision.date + ' (П1 §2.6)' };
   const hasMovableIlliquid = creditItems(cs, creditId).some(it => isMovable(it) && !isLiquid(it));
-  return hasMovableIlliquid ? COVER_MOVABLE : COVER_LIQUID;
+  return hasMovableIlliquid
+    ? { req: COVER_MOVABLE, source: 'П1 §2.4 (движимый неликвидный залог)' }
+    : { req: COVER_LIQUID,  source: 'П1 §2.3 (ликвидный залог)' };
 }
 /* Доля ЛИКВИДНОГО залога в сумме кредита (Р-1 п.3). Применяется только когда порог = 150%
    (в покрытии есть движимый неликвидный предмет): тогда доля ликвида должна быть ≥ 80%. */
-const liquidShareApplies = (creditId, cs) => requiredCover(creditId, cs) === COVER_MOVABLE;
+const liquidShareApplies = (creditId, cs) => requiredCover(creditId, cs).req === COVER_MOVABLE;
 function liquidShare(creditId, cs){
   const cr = credit(creditId);
   const liq = cs.reduce((s,c)=> s + c.allocs.filter(a=>a.credit===creditId)
@@ -1378,13 +1383,13 @@ function coverage(cs, creditId){
   const other = creditOther(creditId);
   const sum = cs.reduce((s,c)=> s + c.allocs.filter(a=>a.credit===creditId)
                  .reduce((t,a)=> t + effShare(cs, a.item, a.share), 0), 0);
-  const req = requiredCover(creditId, cs);
+  const { req, source } = requiredCover(creditId, cs);
   const ratio = cr.amount ? sum/cr.amount : 0;
   const covOk = cr.amount ? ratio >= req : true;
   const liqApplies = liquidShareApplies(creditId, cs);
   const liqShare = liqApplies ? liquidShare(creditId, cs) : null;
   const liqOk = liqApplies ? liqShare >= LIQUID_SHARE_MIN - 1e-9 : true;
-  return { sum, amount: cr.amount, ratio, req, covOk, liqOk, liqApplies, liqShare, other,
+  return { sum, amount: cr.amount, ratio, req, source, covOk, liqOk, liqApplies, liqShare, other,
            ok: other ? true : (covOk && liqOk) };
 }
 /* ГЕЙТ покрытия — один код на два места: регистрация договора и регистрация доп соглашения.
@@ -1733,7 +1738,7 @@ function minCoverage(c){
    договора — тултип раскрывает порог по каждому кредиту отдельно. */
 function reqTooltip(c){
   const cs = ctx(isActive(c) ? null : c);
-  return c.credits.map(id => `${id} — ${pct(requiredCover(id, cs))}`).join(', ');
+  return c.credits.map(id => { const r = requiredCover(id, cs); return `${id} — ${pct(r.req)} (${r.source})`; }).join(', ');
 }
 function ctrlBadge(it){
   const s = isOverdue(nextSurvey(it)), r = isOverdue(nextReval(it));
@@ -2825,7 +2830,7 @@ function openAlloc(cid, preItemId){
   modal(`<div class="modal form">${mhead('Привязать предмет · '+cid)}
     <div class="modal-b"><div class="mform">
       ${fsel('alItem','Предмет из реестра', opts, preItemId||null, true)}
-      ${fsel('alCredit','Кредит договора', c.credits.map(id=>({v:id, t:id+' · '+credit(id).num+' · требуется '+fmt(credit(id).amount*requiredCover(id, ctx(c)))})))}
+      ${fsel('alCredit','Кредит договора', c.credits.map(id=>({v:id, t:id+' · '+credit(id).num+' · требуется '+fmt(credit(id).amount*requiredCover(id, ctx(c)).req)})))}
       ${fin('alShare','Отнесённая доля (часть залоговой стоимости)','',true)}
     </div>
     <div class="warn-inline" id="alInfo"></div>
@@ -2839,7 +2844,7 @@ function openAlloc(cid, preItemId){
        чтобы порог 120%↔150% пересчитывался на лету при смене предмета в селекторе. */
     const draftWithItem = { ...c, allocs: [...c.allocs, { item: it.id, credit: crId, share: 0 }] };
     const ctxWithDraft = ctx(draftWithItem);
-    const req = requiredCover(crId, ctxWithDraft);
+    const { req } = requiredCover(crId, ctxWithDraft);
     const ls = liquidShare(crId, ctxWithDraft);
     document.getElementById('alInfo').innerHTML = `<span>Залоговая ${fmt(pledgeValue(it))} · уже обременено действующими договорами ${fmt(leg)} · <b>доступно ${fmt(av)}</b>.
       ${leg > 0 ? 'Это <b>перезалог</b> на остаточную стоимость предмета.' : ''}
