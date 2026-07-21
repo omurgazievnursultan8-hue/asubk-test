@@ -786,19 +786,27 @@ const esc  = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&l
    Периодичность ОБСЛЕДОВАНИЯ здесь НЕ хранится — она в SURVEY_MATRIX (группа
    платёжеспособности × движимость, Прил.2 §2.3). reval — интервал ПЕРЕОЦЕНКИ —
    положением НЕ регламентирован: это внутренний параметр (Р-3 п.5), не смешивать с обследованием.
-   «Кредитный портфель» как вид залога в справочнике отсутствует — не добавляем, но семантику
-   на будущее закладываем: это ликвидный вид (liquid:true, §2.3). */
+   «Кредитный портфель» — ликвидный вид залога в справочнике (liquid:true, П1 §2.3).
+   tech — физически изнашиваемая техника (транспорт/оборудование/сельхозтехника): на этот
+   признак смотрит гейт формы «Год выпуска»/«Страховой полис» (Р-7, isTech). Он у́же, чем
+   movable — «Кредитный портфель», «Ценные бумаги», «Право аренды» тоже движимые (Р-6, гейт
+   замены), но не физический актив, который стареет и страхуется. */
 const KINDS = {
   'Недвижимое имущество':  { k:0.7, reval:24, organ:'Госрегистр (недвижимое имущество)', liquid:true,  movable:false, liquidityRank:5 },
-  'Транспортное средство': { k:0.5, reval:12, organ:'ГРС (реестр транспортных средств)', liquid:false, movable:true,  liquidityRank:3 },
-  'Оборудование':          { k:0.5, reval:12, organ:'Реестр залогов движимого имущества', liquid:false, movable:true,  liquidityRank:3 },
-  'Сельхозтехника':        { k:0.5, reval:12, organ:'Реестр залогов движимого имущества', liquid:false, movable:true,  liquidityRank:3 },
+  'Транспортное средство': { k:0.5, reval:12, organ:'ГРС (реестр транспортных средств)', liquid:false, movable:true,  liquidityRank:3, tech:true },
+  'Оборудование':          { k:0.5, reval:12, organ:'Реестр залогов движимого имущества', liquid:false, movable:true,  liquidityRank:3, tech:true },
+  'Сельхозтехника':        { k:0.5, reval:12, organ:'Реестр залогов движимого имущества', liquid:false, movable:true,  liquidityRank:3, tech:true },
   'Товары в обороте':      { k:0.4, reval:6,  organ:'Реестр залогов движимого имущества', liquid:false, movable:true,  liquidityRank:1 },
   /* «Скот / поголовье» удалён — §3.5 прямо запрещает приём в залог с/х животных (Р-2, PROHIBITED_KINDS). */
+  'Кредитный портфель':         { k:0.7, reval:12, organ:'Единый гос. реестр прав требования на движимое имущество', liquid:true,  movable:true,  liquidityRank:5 },
+  'Имущественный комплекс':     { k:0.7, reval:24, organ:'Госрегистр (недвижимое имущество)', liquid:true,  movable:false, liquidityRank:5 },
+  'Незавершённое строительство':{ k:0.6, reval:24, organ:'Госрегистр (недвижимое имущество)', liquid:true,  movable:false, liquidityRank:4 },
+  'Ценные бумаги':              { k:0.5, reval:12, organ:'Реестр залогов движимого имущества', liquid:false, movable:true,  liquidityRank:4 },
+  'Право аренды':               { k:0.4, reval:12, organ:'по виду арендованного имущества', liquid:false, movable:true,  liquidityRank:2 },
 };
 const isLiquid  = it => Boolean((KINDS[it.kind]||{}).liquid);
 const isMovable = it => Boolean((KINDS[it.kind]||{}).movable);
-const isTech    = it => isMovable(it) && it.kind !== 'Товары в обороте';   // техника: возраст/страховка (Р-7)
+const isTech    = it => Boolean((KINDS[it.kind]||{}).tech);   // техника: возраст/страховка (Р-7)
 
 /* СТОП-ЛИСТ §3.5 (Р-2): виды/предметы, НЕ принимаемые в залог. Регламентная константа,
    показывается в справочнике read-only. «Товары в обороте» принимаются, но специалист
@@ -1084,11 +1092,46 @@ const KIND_FIELDS = {
     { k:'batchDate',  l:'Дата партии / ведомости' },
     { k:'storeAddr',  l:'Место хранения' },
   ],
+  'Кредитный портфель': [
+    { k:'creditorName', l:'Кредитор-залогодатель', req:true },
+    { k:'registryNo',   l:'№ в реестре прав требования', req:true },
+    { k:'contractsCount', l:'Кол-во кредитных договоров в портфеле' },
+    { k:'portfolioType', l:'Тип портфеля', sel:['Потребительский','Ипотечный','Корпоративный','Смешанный'] },
+    { k:'assignDate',   l:'Дата уступки прав требования' },
+  ],
+  'Имущественный комплекс': [
+    { k:'cadastre', l:'Кадастровый / идентификационный код', req:true },
+    { k:'address',  l:'Адрес местонахождения', req:true },
+    { k:'composition', l:'Состав комплекса (перечень объектов)' },
+    { k:'areaTotal', l:'Общая площадь, кв.м' },
+  ],
+  'Незавершённое строительство': [
+    { k:'cadastre', l:'Кадастровый / идентификационный код', req:true },
+    { k:'address',  l:'Адрес местонахождения', req:true },
+    { k:'readiness', l:'Степень готовности, %' },
+    { k:'permit',   l:'Разрешение на строительство' },
+  ],
+  'Ценные бумаги': [
+    { k:'issuer',   l:'Эмитент', req:true },
+    { k:'secType',  l:'Вид ценной бумаги', sel:['Акция','Облигация','Вексель','Депозитный сертификат'] },
+    { k:'isin',     l:'ISIN / номер выпуска' },
+    { k:'qtyPapers',l:'Количество' },
+    { k:'depo',     l:'Депозитарий / реестродержатель' },
+  ],
+  'Право аренды': [
+    { k:'leaseObject', l:'Объект аренды', req:true },
+    { k:'lessor',      l:'Арендодатель', req:true },
+    { k:'leaseNo',     l:'Договор аренды №' },
+    { k:'leaseTill',   l:'Срок аренды до' },
+    { k:'underKind',   l:'Вид арендованного имущества', sel:['Недвижимость','Транспорт','Оборудование','Иное'] },
+  ],
 };
 /* Поле-идентификатор, из которого производится краткий it.ident (шапка/список). */
 const PRIMARY_DETAIL = {
   'Недвижимое имущество':'cadastre', 'Транспортное средство':'vin',
   'Оборудование':'factoryNo', 'Сельхозтехника':'factoryNo', 'Товары в обороте':'goodsName',
+  'Кредитный портфель':'registryNo', 'Имущественный комплекс':'cadastre',
+  'Незавершённое строительство':'cadastre', 'Ценные бумаги':'isin', 'Право аренды':'leaseObject',
 };
 
 /* КЛАССИФИКАТОР ИСХОДА ОБСЛЕДОВАНИЯ (6 значений, дословно из прежней системы,
@@ -1119,6 +1162,7 @@ const ORG_REGISTRY = [
   'Реестр залогов движимого имущества',
   'Служба судебных исполнителей',
   'Нотариальная контора',
+  'Единый гос. реестр прав требования на движимое имущество',
 ];
 
 /* КАРТА МИГРАЦИИ ВИДОВ (прежние 9 → §22). Справочная константа для импорта
@@ -1132,7 +1176,7 @@ const KIND_MIGRATION = [
   { from:'Товары в обороте',       to:'Товары в обороте',       note:'без изменений' },
   { from:'Готовая продукция',      to:'Товары в обороте',       note:'goodsName из наименования' },
   { from:'Скот / поголовье',       to:'— (запрещён §3.5)',       note:'приём прекращён; действующие записи ведутся до погашения/замены, новые не создаются' },
-  { from:'Кредитный портфель',     to:'— (в §22 отсутствует)',   note:'ведётся в отдельном модуле; семантика liquid заложена на будущее' },
+  { from:'Кредитный портфель',     to:'Кредитный портфель',      note:'переносится как есть, ликвидный вид (П1 §2.3)' },
   { from:'Прочие',                 to:'— (по решению комиссии)',  note:'разносится вручную при импорте' },
 ];
 
@@ -2440,7 +2484,7 @@ function niKindChange(){
       ? fsel('nd_'+f.k, f.l, f.sel, f.sel[0])
       : fin('nd_'+f.k, f.l, '', !!f.req)).join('');
   }
-  const K = KINDS[kind] || {}, tech = K.movable && kind !== 'Товары в обороте', tvo = kind === 'Товары в обороте';
+  const K = KINDS[kind] || {}, tech = !!K.tech, tvo = kind === 'Товары в обороте';
   let html = '';
   if(tech) html += `<div class="mform" style="margin-top:4px">
       ${fin('niYear','Год выпуска (техника)','',true)}
@@ -2468,7 +2512,7 @@ function saveNewItem(){
     if(dv) details[f.k] = dv;
   }
   const ident = details[PRIMARY_DETAIL[kind]] || name;   // краткий идентификатор для шапки/списка
-  const K = KINDS[kind] || {}, tech = K.movable && kind !== 'Товары в обороте', tvo = kind === 'Товары в обороте';
+  const K = KINDS[kind] || {}, tech = !!K.tech, tvo = kind === 'Товары в обороте';
   let extra = {};
   if(tech){
     const year = Math.round(num(val('niYear'))), origin = val('niOrigin'),
@@ -3445,7 +3489,7 @@ renderNav(); renderList();
 if (typeof window !== 'undefined') window.__zt = {
   requiredCover, coverage, calcPledge, pledgeValue, coefOf, effShare, allocatedIn,
   guaranteeReq, guaranteeExpired,
-  KINDS, COVER_LIQUID, COVER_MOVABLE, COVER_GUARANTEE, COVER_GUARANTEE_FX,
+  KINDS, KIND_FIELDS, COVER_LIQUID, COVER_MOVABLE, COVER_GUARANTEE, COVER_GUARANTEE_FX,
   SURVEY_MATRIX, CREDITS, ITEMS, CONTRACTS, credit, item, contract,
   canCurate, canCommittee, canHeadOfDept, canHeadOfUnit,
 };

@@ -269,4 +269,50 @@ test('T3-1: openAlloc — дефолт доли учитывает залог к
   eq(win.document.getElementById('alShare').value, '70000', 'дефолт доли нетто-считается по coverage-wide secPledge, а не только по долям этого черновика');
 });
 
+// Р-12 (П1 §2.2): 5 новых видов залога добавлены в КIND_FIELDS вместе с миграцией
+// «Кредитный портфель». Тесты брифа (win.KIND_FIELDS) сломаны так же, как D1-1/R19-1:
+// top-level const в классическом <script> не становится свойством window — проверяем
+// через шов __zt (см. комментарий к R19-2).
+test('R12-12: кредитный портфель — ликвидный, порог 120%', () => {
+  const { zt } = load();
+  ok(zt.KINDS['Кредитный портфель'], 'вид отсутствует');
+  eq(zt.KINDS['Кредитный портфель'].liquid, true);
+});
+test('R12-13: KIND_FIELDS для новых видов — непустой набор с обязательным полем', () => {
+  const { zt } = load();
+  ok(zt.KIND_FIELDS['Ценные бумаги'] && zt.KIND_FIELDS['Ценные бумаги'].length > 0, 'набор полей отсутствует');
+  ok(zt.KIND_FIELDS['Ценные бумаги'].some(f => f.req), 'нет ни одного обязательного поля');
+});
+
+// R12-14: пороги requiredCover для новых видов — «Кредитный портфель» движимый, но
+// liquid:true (§2.3) -> 120%; «Ценные бумаги» движимый и liquid:false (§2.4) -> 150%.
+// Одновременно доказывает, что новые виды НЕ считаются «движимым неликвидом» из-за
+// movable:true — porog зависит от liquid, а не только от movable (см. requiredCover).
+test('R12-14a: кредит обеспечен только «Кредитный портфель» -> порог 120% (П1 §2.3)', () => {
+  const { zt } = load();
+  zt.CREDITS.push({ id:'К-Т6', num:'Тестовый кредит Т6', inn:'22105198800047', amount:100000, status:'Действующий', overdue:false, otherSecurity:null });
+  zt.ITEMS.push({ id:'П-Т6', kind:'Кредитный портфель', name:'Тестовый портфель', pledger:'22105198800047',
+    ident:'ТЕСТ-6', appraised:200000, apprDate:'01.07.2026', apprReport:'ОЦ-ТЕСТ6',
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false,
+    lastSurvey:'01.07.2026', lastReval:'01.07.2026', revals:[], surveys:[], history:[] });
+  zt.CONTRACTS.push({ id:'Д-Т6', no:'', date:'', status:'Зарегистрирован', inn:'22105198800047',
+    notary:'', notaryNo:'', notaryDate:'', cert:'',
+    credits:['К-Т6'], allocs:[{item:'П-Т6', credit:'К-Т6', share:120000}], undercovered:null, addenda:[], history:[] });
+  const cs = zt.CONTRACTS.filter(c=>c.status==='Зарегистрирован');
+  eq(zt.requiredCover('К-Т6', cs).req, zt.COVER_LIQUID, 'кредитный портфель — ликвидный вид, требуемый порог 120%');
+});
+test('R12-14b: кредит обеспечен только «Ценные бумаги» -> порог 150% (П1 §2.4)', () => {
+  const { zt } = load();
+  zt.CREDITS.push({ id:'К-Т7', num:'Тестовый кредит Т7', inn:'22105198800047', amount:100000, status:'Действующий', overdue:false, otherSecurity:null });
+  zt.ITEMS.push({ id:'П-Т7', kind:'Ценные бумаги', name:'Тестовые бумаги', pledger:'22105198800047',
+    ident:'ТЕСТ-7', appraised:200000, apprDate:'01.07.2026', apprReport:'ОЦ-ТЕСТ7',
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false,
+    lastSurvey:'01.07.2026', lastReval:'01.07.2026', revals:[], surveys:[], history:[] });
+  zt.CONTRACTS.push({ id:'Д-Т7', no:'', date:'', status:'Зарегистрирован', inn:'22105198800047',
+    notary:'', notaryNo:'', notaryDate:'', cert:'',
+    credits:['К-Т7'], allocs:[{item:'П-Т7', credit:'К-Т7', share:150000}], undercovered:null, addenda:[], history:[] });
+  const cs = zt.CONTRACTS.filter(c=>c.status==='Зарегистрирован');
+  eq(zt.requiredCover('К-Т7', cs).req, zt.COVER_MOVABLE, 'ценные бумаги — движимый неликвидный вид, требуемый порог 150%');
+});
+
 report();
