@@ -2832,11 +2832,24 @@ function openAlloc(cid, preItemId){
     </div>${mfoot('Привязать','saveAlloc(\''+cid+'\')')}</div>`);
   const sync = () => {
     const it = item(val('alItem')); if(!it) return;
+    const crId = val('alCredit');
     const av = availableOf(it), leg = allocatedLegal(it.id);
+    /* Порог зависит от СОСТАВА обеспечения (Р-1, П1 §2.3–2.4) — учитываем гипотетически
+       и предмет, выбранный в этом диалоге прямо сейчас, ещё до сохранения привязки,
+       чтобы порог 120%↔150% пересчитывался на лету при смене предмета в селекторе. */
+    const draftWithItem = { ...c, allocs: [...c.allocs, { item: it.id, credit: crId, share: 0 }] };
+    const ctxWithDraft = ctx(draftWithItem);
+    const req = requiredCover(crId, ctxWithDraft);
+    const ls = liquidShare(crId, ctxWithDraft);
     document.getElementById('alInfo').innerHTML = `<span>Залоговая ${fmt(pledgeValue(it))} · уже обременено действующими договорами ${fmt(leg)} · <b>доступно ${fmt(av)}</b>.
       ${leg > 0 ? 'Это <b>перезалог</b> на остаточную стоимость предмета.' : ''}
-      ${it.ban ? `<br>По предмету уже действует запрет ${esc(it.ban.regNo)} — при регистрации будет дополнен основанием.` : ''}</span>`;
-    document.getElementById('alShare').value = document.getElementById('alShare').value || String(Math.min(av, credit(val('alCredit')).amount*requiredCover(val('alCredit'), ctx(c))));
+      ${it.ban ? `<br>По предмету уже действует запрет ${esc(it.ban.regNo)} — при регистрации будет дополнен основанием.` : ''}
+      <br>Порог по текущему составу: ${pct(req)} (${req===COVER_MOVABLE?'в покрытии есть движимый неликвидный предмет — П1 §2.4':'ликвидный состав — П1 §2.3'}). Доля ликвида: ${pct(ls)} при минимуме 80%.</span>`;
+    /* Д-3: дефолт доли = недостающее ДО ПОРОГА, а не полное требуемое покрытие —
+       учитывает доли, уже отнесённые на этот кредит в текущем черновике. */
+    const cr = credit(crId);
+    const alreadyByCredit = c.allocs.filter(a=>a.credit===crId).reduce((s,a)=>s+a.share,0);
+    document.getElementById('alShare').value = document.getElementById('alShare').value || String(Math.min(av, Math.max(0, cr.amount*req - alreadyByCredit)));
   };
   document.getElementById('alItem').addEventListener('change', ()=>{ document.getElementById('alShare').value=''; sync(); });
   document.getElementById('alCredit').addEventListener('change', ()=>{ document.getElementById('alShare').value=''; sync(); });
