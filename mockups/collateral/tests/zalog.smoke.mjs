@@ -145,4 +145,128 @@ test('R19-2: гварды переименованы (шов __zt) и стары
   eq(win.eval('typeof canCommission'), 'undefined', 'старое имя canCommission удалено как биндинг верхнего уровня');
 });
 
+// Р-11 (§9–10, Прил.1 §2.3): индекс обеспеченности = idxPledge (залог) + idxGuar (банковская
+// гарантия). guaranteeReq(cr) требует otherSecurity.type==='банковская гарантия' (иначе null) —
+// фикстуры брифа без `type` против реальной реализации возвращали бы null, поэтому здесь
+// `type` явно указан в каждой фикстуре.
+test('R11-6: гарантия в валюте кредита на 100% -> порог индекса 1.0', () => {
+  const { zt } = load();
+  eq(zt.guaranteeReq({ currency:'KGS', otherSecurity:{ type:'банковская гарантия', currency:'KGS' } }), 1.0);
+});
+test('R11-7: гарантия в иной валюте -> порог 1.2', () => {
+  const { zt } = load();
+  eq(zt.guaranteeReq({ currency:'KGS', otherSecurity:{ type:'банковская гарантия', currency:'USD' } }), 1.2);
+});
+test('R11-6b: guaranteeReq — null без банковской гарантии (нет otherSecurity либо иной type)', () => {
+  const { zt } = load();
+  eq(zt.guaranteeReq({ currency:'KGS', otherSecurity:null }), null, 'нет otherSecurity');
+  eq(zt.guaranteeReq({ currency:'KGS', otherSecurity:{ type:'поручительство', currency:'KGS' } }), null, 'поручительство — не банковская гарантия');
+});
+test('R11-6c: guaranteeReq — отсутствие currency трактуется как KGS с обеих сторон', () => {
+  const { zt } = load();
+  eq(zt.guaranteeReq({ otherSecurity:{ type:'банковская гарантия' } }), 1.0, 'обе стороны дефолтятся к KGS -> совпадают -> 100%');
+});
+test('R11-6d: guaranteeExpired — сравнение till с TODAY (11.07.2026)', () => {
+  const { zt } = load();
+  eq(zt.guaranteeExpired({ till:'01.01.2020' }), true, 'till в прошлом — истекла');
+  eq(zt.guaranteeExpired({ till:'01.01.2030' }), false, 'till в будущем — не истекла');
+  eq(zt.guaranteeExpired({}), false, 'нет till — не считается истёкшей');
+});
+
+// R11-8: индекс = idxPledge + idxGuar на СКОНСТРУИРОВАННОМ кредите (реальная формула,
+// не demo-ветка) — 50% гарантией + 50% залогом должны вместе обеспечить кредит; просадка
+// доли залога ниже 50% должна провалить гейт (index<1). Настоящие assert'ы, не ok(true)-стаб.
+test('R11-8: индекс обеспеченности 0.5(гарантия)+0.5(залог) -> обеспечен; просадка доли -> нет', () => {
+  const { zt, win } = load();
+  zt.CREDITS.push({ id:'К-Т2', num:'Тестовый кредит Т2', inn:'22105198800047', amount:100000, currency:'KGS',
+    status:'Действующий', overdue:false,
+    otherSecurity:{ type:'банковская гарантия', docNo:'БГ-ТЕСТ/1', bank:'Тестбанк', amount:50000, currency:'KGS',
+      from:'01.06.2026', till:'01.06.2027', note:'тест' } });
+  const it = win.normalizeItem({ id:'П-Т3', kind:'Недвижимое имущество', name:'Тестовое здание Т2', pledger:'22105198800047',
+    ident:'ТЕСТ-3', appraised:100000, apprDate:'01.07.2026', apprReport:'ОЦ-ТЕСТ3',
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false,
+    lastSurvey:'01.07.2026', lastReval:'01.07.2026', revals:[], surveys:[], history:[] });
+  it.prereqs.encumbranceCert.present = true;
+  zt.ITEMS.push(it);
+  const c = { id:'Д-Т2', no:'ЗД-ТЕСТ/2', date:'01.06.2026', status:'Зарегистрирован', inn:'22105198800047',
+    notary:'Т', notaryNo:'Т', notaryDate:'01.06.2026', cert:'Т',
+    credits:['К-Т2'], allocs:[{ item:'П-Т3', credit:'К-Т2', share:60000 }], undercovered:null, addenda:[], history:[] };
+  zt.CONTRACTS.push(c);
+  const cs = zt.CONTRACTS.filter(x=>x.id==='Д-Т2');
+  const row1 = zt.coverage(cs, 'К-Т2');
+  // залог: 60 000 / (100 000 × 1.2 порог ликвида) = 0.5; гарантия: 50 000 / (100 000 × 1.0) = 0.5.
+  near(row1.idxPledge, 0.5, 'доля индекса от залога');
+  near(row1.idxGuar, 0.5, 'доля индекса от гарантии');
+  near(row1.index, 1.0, 'суммарный индекс = 1.0');
+  eq(row1.ok, true, 'index>=1 и доля ликвида не применяется (порог 120%) — обеспечен');
+  c.allocs[0].share = 30000; // просадка доли залога вдвое
+  const row2 = zt.coverage(cs, 'К-Т2');
+  near(row2.index, 0.75, 'суммарный индекс упал ниже 1');
+  eq(row2.ok, false, 'index<1 — гейт не пройден');
+});
+
+// К-95 (Р-10 demo) обеспечен ТОЛЬКО банковской гарантией (Д-008 без залоговых долей).
+// До Р-11 это форсировалось mirror-хаком `ok: other ? true : ...`; теперь ok должен
+// вытекать из реального idxGuar>=1, а не из голого наличия otherSecurity.
+test('R11-9: К-95 обеспечен банковской гарантией — реальный индекс, не mirror-хак', () => {
+  const { zt } = load();
+  const cs = zt.CONTRACTS.filter(c=>c.status==='Зарегистрирован');
+  const row = zt.coverage(cs, 'К-95');
+  ok(row.gReq !== null, 'гарантия распознана — gReq не null');
+  ok(row.idxGuar >= 1, 'гарантия покрывает кредит на >=100% (К-95, amount=120000)');
+  eq(row.ok, true, 'кредит обеспечен гарантией');
+});
+
+// Триггеры истечения гарантии (Р-11, §9–10): «Срок банковской гарантии истёк» (high) когда
+// till < TODAY; «Гарантия истекает» (mid) когда till в пределах GUAR_WARN_DAYS=60 дней.
+test('R11-10: триггеры истечения банковской гарантии', () => {
+  const { zt, win } = load();
+  zt.CREDITS.push({ id:'К-ТГ1', num:'Тестовый кредит ТГ1', inn:'22105198800047', amount:50000, currency:'KGS',
+    status:'Действующий', overdue:false,
+    otherSecurity:{ type:'банковская гарантия', currency:'KGS', amount:60000, from:'01.01.2025', till:'01.01.2026' } });
+  zt.CONTRACTS.push({ id:'Д-ТГ1', no:'ЗД-ТГ1', date:'01.01.2025', status:'Зарегистрирован', inn:'22105198800047',
+    notary:'Т', notaryNo:'Т', notaryDate:'01.01.2025', cert:'Т', credits:['К-ТГ1'], allocs:[], undercovered:null, addenda:[], history:[] });
+  zt.CREDITS.push({ id:'К-ТГ2', num:'Тестовый кредит ТГ2', inn:'22105198800047', amount:50000, currency:'KGS',
+    status:'Действующий', overdue:false,
+    otherSecurity:{ type:'банковская гарантия', currency:'KGS', amount:60000, from:'01.01.2025', till:'20.08.2026' } });
+  zt.CONTRACTS.push({ id:'Д-ТГ2', no:'ЗД-ТГ2', date:'01.01.2025', status:'Зарегистрирован', inn:'22105198800047',
+    notary:'Т', notaryNo:'Т', notaryDate:'01.01.2025', cert:'Т', credits:['К-ТГ2'], allocs:[], undercovered:null, addenda:[], history:[] });
+  const trg = win.triggers();
+  ok(trg.some(t=>t.type==='Срок банковской гарантии истёк' && t.obj==='К-ТГ1' && t.crit==='high'), 'истёкшая гарантия (till 01.01.2026 < TODAY) -> high триггер');
+  ok(trg.some(t=>t.type==='Гарантия истекает' && t.obj==='К-ТГ2' && t.crit==='mid'), 'гарантия истекает через ~40 дней (<=60) -> mid триггер');
+});
+
+// T3 (Р-11): дефолт доли в openAlloc нетто считается по coverage-wide secPledge кредита
+// (эффективные доли ВО ВСЕХ действующих договорах + черновик), а не только по долям
+// текущего черновика — иначе дефолт завышал бы недостающую сумму для кредита, уже частично
+// закрытого залогом по ДРУГОМУ договору.
+test('T3-1: openAlloc — дефолт доли учитывает залог кредита на других действующих договорах', () => {
+  const { zt, win } = load();
+  // К-Т3: 100 000, уже наполовину закрыт (50 000) активным договором Д-Т3a (другой договор).
+  zt.CREDITS.push({ id:'К-Т3', num:'Тестовый кредит Т3', inn:'22105198800047', amount:100000, status:'Действующий', overdue:false, otherSecurity:null });
+  const itA = win.normalizeItem({ id:'П-Т4', kind:'Недвижимое имущество', name:'Уже заложено', pledger:'22105198800047',
+    ident:'ТЕСТ-4', appraised:100000, apprDate:'01.07.2026', apprReport:'ОЦ-ТЕСТ4',
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false,
+    lastSurvey:'01.07.2026', lastReval:'01.07.2026', revals:[], surveys:[], history:[] });
+  itA.prereqs.encumbranceCert.present = true;
+  const itB = win.normalizeItem({ id:'П-Т5', kind:'Недвижимое имущество', name:'Новый предмет черновика', pledger:'22105198800047',
+    ident:'ТЕСТ-5', appraised:400000, apprDate:'01.07.2026', apprReport:'ОЦ-ТЕСТ5',
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false,
+    lastSurvey:'01.07.2026', lastReval:'01.07.2026', revals:[], surveys:[], history:[] });
+  itB.prereqs.encumbranceCert.present = true;
+  zt.ITEMS.push(itA, itB);
+  zt.CONTRACTS.push({ id:'Д-Т3a', no:'ЗД-ТЕСТ/3a', date:'01.06.2026', status:'Зарегистрирован', inn:'22105198800047',
+    notary:'Т', notaryNo:'Т', notaryDate:'01.06.2026', cert:'Т',
+    credits:['К-Т3'], allocs:[{ item:'П-Т4', credit:'К-Т3', share:50000 }], undercovered:null, addenda:[], history:[] });
+  const draft = { id:'Д-Т3b', no:'', date:'', status:'Оформляется', inn:'22105198800047',
+    notary:'', notaryNo:'', notaryDate:'', cert:'', credits:['К-Т3'], allocs:[], undercovered:null, addenda:[], history:[] };
+  zt.CONTRACTS.push(draft);
+  win.openAlloc('Д-Т3b', 'П-Т5');
+  win.document.getElementById('alCredit').value = 'К-Т3';
+  win.document.getElementById('alItem').dispatchEvent(new win.Event('change'));
+  // Порог 120% (чисто ликвидный состав): требуется 100000×1.2=120000; уже закрыто 50000
+  // на ДРУГОМ договоре -> дефолт доли должен быть 120000-50000=70000, а не 120000-0.
+  eq(win.document.getElementById('alShare').value, '70000', 'дефолт доли нетто-считается по coverage-wide secPledge, а не только по долям этого черновика');
+});
+
 report();

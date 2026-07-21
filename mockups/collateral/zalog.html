@@ -127,7 +127,8 @@
   срок в будущем молчит (П-010) и срок истёк → взыскание (П-011) (Р-8); черновики с
   невыполненными предпосылками §5.2 — муниципальное без ОМСУ (П-012 / Д-010) и имущество супругов
   без согласия супруга (П-013 / Д-011) (Р-5); истёкший полис техники → триггер (П-002, Р-7);
-  кредит под банковскую гарантию без залоговых долей — без ложного триггера (К-95 / Д-008, Р-10).
+  кредит под банковскую гарантию без залоговых долей — покрыт индексом обеспеченности через
+  гарантию, без ложного триггера (К-95 / Д-008, Р-10/Р-11).
 
   ОТКРЫТО (Р-10 — согласуемые архитектурные решения; реализованы флаги/пометки, развороты
   логики подтвердить отдельно):
@@ -135,11 +136,11 @@
       (коэффициент — дисконт риска/спроса, §2.1): проводится только как исключительное
       решение с пометкой «сверх дисконта — вне положения» (флаг isOverAbove / beyondDiscount).
       Полный запрет подъёма — на согласование.
-    • ПАРАЛЛЕЛЬНЫЕ ФОРМЫ ОБЕСПЕЧЕНИЯ (§9–10, Прил.1 §2.3). Банковская гарантия/поручительство
-      входят в обеспеченность; здесь — только mirror-флаг credit.otherSecurity, выводящий
-      кредит из-под залогового гейта (без ложного триггера недостаточности). Полная модель
-      гарантии/поручительства — в отдельном модуле обеспечения. Личное поручительство (П2)
-      как сущность здесь не моделируется.
+    • ПАРАЛЛЕЛЬНЫЕ ФОРМЫ ОБЕСПЕЧЕНИЯ (§9–10, Прил.1 §2.3). Р-11: банковская гарантия реально
+      входит в индекс обеспеченности (coverage().index = idxPledge + idxGuar, порог 100%/120%
+      по валюте — guaranteeReq); прежний mirror-флаг (ok:true при одном факте наличия
+      otherSecurity) снят. Поручительство остаётся справочным полем на карточке и в индекс
+      НЕ входит — личное поручительство (П2) как сущность здесь не моделируется.
 -->
 <style>
 :root{
@@ -817,8 +818,9 @@ const PROHIBITED_KINDS = [
 let COVER_LIQUID     = 1.2;  // ликвидные виды (недвижимость, кредитный портфель) — ≥ 120%
 let COVER_MOVABLE    = 1.5;  // движимая неликвидная техника/оборудование/ТМЦ — ≥ 150%
 let LIQUID_SHARE_MIN = 0.8;  // при движимом неликвидном залоге доля ликвида ≥ 80% суммы кредита
-const COVER_GUARANTEE    = 1.0;// TODO §2.3: банковская гарантия ≥ 100% — гарантии в мокапе не моделируются (Р-10 mirror-флаг)
-const COVER_GUARANTEE_FX = 1.2;// TODO §2.3: гарантия в валюте ≠ валюте кредита → ≥ 120%
+const COVER_GUARANTEE    = 1.0;// П1 §2.3: банковская гарантия в валюте кредита — ≥ 100%
+const COVER_GUARANTEE_FX = 1.2;// П1 §2.3: гарантия в валюте ≠ валюте кредита — ≥ 120%
+const GUAR_WARN_DAYS = 60;     // Р-11: горизонт предупреждения об истечении гарантии, дней
 
 /* ТЕХНИКА (Прил.1 §2.5, Р-7): предельный срок эксплуатации по происхождению. Справочный параметр. */
 const TECH_AGE_LIMIT = { 'СНГ':15, 'Дальнее зарубежье':20 };
@@ -864,11 +866,11 @@ const clientName = inn => (CLIENTS.find(c=>c.inn===inn)||{}).name || inn;
 /* Кредиты — читаются из кредитного модуля (здесь: срез, нужный залогу).
    overdue — ЗЕРКАЛО просроченной задолженности из модулей взыскания/платежей (Р-6, §8):
      при просрочке замена залога не допускается. read-only здесь.
-   otherSecurity — ЗЕРКАЛО иной формы обеспечения (Р-10, §9–10, Прил.1 §2.3):
-     банковская гарантия / поручительство. Их полная модель — в отдельном модуле
-     обеспечения; здесь только флаг: кредит с ним ВЫВОДИТСЯ из-под залогового гейта
-     (гарантия входит в обеспеченность), чтобы отсутствие залога не давало ложный
-     триггер «недостаточность». */
+   currency — валюта кредита; отсутствие поля трактуется как 'KGS' (см. guaranteeReq).
+   otherSecurity — иная форма обеспечения (§9–10, Прил.1 §2.3): банковская гарантия
+     {type:'банковская гарантия', docNo, bank, amount, currency, from, till, note} — реально
+     входит в индекс обеспеченности (coverage().idxGuar, Р-11); либо поручительство
+     {type:'поручительство', ...} — справочно на карточке, в индекс НЕ входит. */
 const CREDITS = [
   { id:'К-56', num:'Дог. №56 от 10.04.2024', inn:'01912201610212', amount:200000, status:'Действующий', overdue:false, otherSecurity:null },
   { id:'К-77', num:'Дог. №77 от 18.09.2025', inn:'01912201610212', amount:90000,  status:'Действующий', overdue:false, otherSecurity:null },
@@ -878,11 +880,13 @@ const CREDITS = [
   { id:'К-40', num:'Дог. №40 от 20.05.2026', inn:'20308197700219', amount:40000,  status:'Действующий', overdue:false, otherSecurity:null },
   { id:'К-71', num:'Дог. №71 от 22.08.2023', inn:'01705199200338', amount:250000, status:'Действующий', overdue:false, otherSecurity:null },
   { id:'К-33', num:'Дог. №33 от 05.01.2024', inn:'22105198800047', amount:50000,  status:'Погашен',     overdue:false, otherSecurity:null },
-  /* Р-10 demo: кредит обеспечен банковской гарантией (иная форма). Привязан к
-     зарегистрированному договору Д-008 БЕЗ залоговых долей — без флага дал бы 0% и
-     ложный триггер недостаточности; флаг выводит его из-под залогового гейта. */
-  { id:'К-95', num:'Дог. №95 от 01.06.2026', inn:'01705199200338', amount:120000, status:'Действующий', overdue:false,
-    otherSecurity:{ type:'банковская гарантия', note:'Гарантия банка-партнёра БГ-2026/044; полная модель — в модуле обеспечения' } },
+  /* Р-10/Р-11 demo: кредит обеспечен банковской гарантией (иная форма). Привязан к
+     зарегистрированному договору Д-008 БЕЗ залоговых долей — покрытие целиком из idxGuar
+     (гарантия 130000 в валюте кредита ÷ (120000×100%) ≈ 108% > 100%, П1 §2.3): индекс ≥1
+     реально, без прежнего mirror-хака. */
+  { id:'К-95', num:'Дог. №95 от 01.06.2026', inn:'01705199200338', amount:120000, currency:'KGS', status:'Действующий', overdue:false,
+    otherSecurity:{ type:'банковская гарантия', docNo:'БГ-2026/044', bank:'Банк-партнёр', amount:130000, currency:'KGS',
+      from:'01.06.2026', till:'01.06.2027', note:'Гарантия банка-партнёра БГ-2026/044' } },
 ];
 const credit = id => CREDITS.find(c=>c.id===id);
 const creditOther = id => (credit(id)||{}).otherSecurity || null;
@@ -1354,10 +1358,10 @@ function effShare(cs, itemId, share){
   const pv = pledgeValue(it), tot = allocatedIn(cs, itemId);
   return tot <= pv ? share : share * (pv / tot);
 }
-/* ПОРОГ ПОКРЫТИЯ — ФУНКЦИЯ состава обеспечения кредита (Р-1, Прил.1 §2.3–2.4), не константа.
-   Если в покрытие входит хоть один движимый неликвидный предмет → 150%, иначе → 120%.
-   Валютная ветвь банковской гарантии (100/120%) — параметр на будущее: гарантии в этом
-   мокапе не моделируются (Р-10, флаг credit.otherSecurity). */
+/* ПОРОГ ПОКРЫТИЯ ЗАЛОГОМ — ФУНКЦИЯ состава обеспечения кредита (Р-1, Прил.1 §2.3–2.4), не
+   константа. Если в покрытие входит хоть один движимый неликвидный предмет → 150%, иначе →
+   120%. Порог банковской гарантии (100/120% по валюте) — отдельная функция guaranteeReq()
+   ниже; обе величины комбинируются в coverage().index (Р-11). */
 function creditItems(cs, creditId){
   const ids = new Set();
   cs.forEach(c => c.allocs.filter(a=>a.credit===creditId).forEach(a=>ids.add(a.item)));
@@ -1381,9 +1385,28 @@ function liquidShare(creditId, cs){
                  .reduce((t,a)=> t + (isLiquid(item(a.item)) ? effShare(cs, a.item, a.share) : 0), 0), 0);
   return cr.amount ? liq/cr.amount : 1;
 }
-/* Покрытие кредита = Σ эффективных отнесённых долей ÷ сумма кредита ≥ requiredCover(...).
-   Провал доли ликвида — подпункт того же гейта (не новый статус). Кредит с иной формой
-   обеспечения (гарантия/поручительство, Р-10) выводится из-под залогового гейта. */
+/* БАНКОВСКАЯ ГАРАНТИЯ (§9–10, Прил.1 §2.3, Р-11). Порог зависит от валюты гарантии
+   относительно валюты кредита: та же валюта → 100%, иная → 120% (курсовой запас).
+   Отсутствие currency на кредите/гарантии трактуется как 'KGS'. Не банковская гарантия
+   (напр. поручительство) либо отсутствие otherSecurity → null (в индекс не входит). */
+function guaranteeReq(cr){
+  const g = cr && cr.otherSecurity;
+  if(!g || g.type !== 'банковская гарантия') return null;
+  const cc = cr.currency || 'KGS', gc = g.currency || 'KGS';
+  return gc === cc ? COVER_GUARANTEE : COVER_GUARANTEE_FX;
+}
+/* Гарантия истекла — сравнение till с TODAY (мокап-дата, см. d2n/TODAY выше).
+   Гарантия без till (не заполнена) не считается истёкшей. */
+function guaranteeExpired(g){
+  return g && g.till ? d2n(g.till) < d2n(TODAY) : false;
+}
+/* Покрытие кредита = ИНДЕКС обеспеченности (Р-11, §9–10, Прил.1 §2.3–2.4):
+     index = idxPledge (Σ эффективных отнесённых долей залога ÷ (сумма кредита × её порог))
+           + idxGuar   (сумма действующей банковской гарантии ÷ (сумма кредита × её порог)).
+   Обеспечен, когда index ≥ 1 И (если применим) доля ликвида в залоговой части ≥ 80%
+   (liqOk — подпункт того же гейта, не новый статус). Просроченная гарантия (till < TODAY)
+   в idxGuar не участвует (guaranteeExpired). Поручительство в индекс НЕ входит — остаётся
+   справочным полем `other` на карточке. */
 function coverage(cs, creditId){
   const cr = credit(creditId);
   const other = creditOther(creditId);
@@ -1395,8 +1418,17 @@ function coverage(cs, creditId){
   const liqApplies = liquidShareApplies(creditId, cs);
   const liqShare = liqApplies ? liquidShare(creditId, cs) : null;
   const liqOk = liqApplies ? liqShare >= LIQUID_SHARE_MIN - 1e-9 : true;
+  const secPledge = sum;
+  const idxPledge = cr.amount ? secPledge / (cr.amount * req) : 0;
+  let idxGuar = 0, gReq = null;
+  if (other && other.type === 'банковская гарантия' && !guaranteeExpired(other)) {
+    gReq = guaranteeReq(cr);
+    idxGuar = cr.amount ? (other.amount || 0) / (cr.amount * gReq) : 0;
+  }
+  const index = idxPledge + idxGuar;
   return { sum, amount: cr.amount, ratio, req, source, covOk, liqOk, liqApplies, liqShare, other,
-           ok: other ? true : (covOk && liqOk) };
+           secPledge, idxPledge, idxGuar, gReq, index,
+           ok: (index >= 1) && liqOk };
 }
 /* ГЕЙТ покрытия — один код на два места: регистрация договора и регистрация доп соглашения.
    Порог у каждого кредита свой (requiredCover); доля ликвида — подпункт того же гейта. */
@@ -1530,8 +1562,8 @@ function triggers(){
   cs.forEach(c => c.credits.forEach(id => {
     if(seen.has(id)) return; seen.add(id);
     const cov = coverage(cs, id);
-    /* Кредит с иной формой обеспечения (Р-10) выведен из-под залогового гейта — cov.ok=true,
-       ложный триггер недостаточности не поднимается. */
+    /* Кредит с банковской гарантией реально учтён в index (idxGuar, Р-11) — ложный триггер
+       недостаточности не поднимается, если гарантия+залог фактически покрывают порог. */
     if(!cov.ok){
       const parts = [];
       if(!cov.covOk) parts.push(`покрытие ${pct(cov.ratio)} < ${pct(cov.req)} (обеспечено ${fmt(cov.sum)} из ${fmt(cov.amount*cov.req)} требуемых)`);
@@ -1539,6 +1571,22 @@ function triggers(){
       out.push({ type:'Недостаточность обеспечения', crit:'high', obj:id,
         objLbl:`${id} · ${credit(id).num}`, ctr:c.id, text: parts.join('; '),
         act:'Открыть трек взыскания по обеспечению / догрузить или заменить предмет' });
+    }
+    /* Р-11: истечение банковской гарантии — самостоятельный триггер (§9–10), не зависит от
+       того, покрывает ли гарантия порог. */
+    const g = cov.other;
+    if(g && g.type === 'банковская гарантия'){
+      if(guaranteeExpired(g)){
+        out.push({ type:'Срок банковской гарантии истёк', crit:'high', obj:id,
+          objLbl:`${id} · ${credit(id).num}`, ctr:c.id,
+          text:`Банковская гарантия${g.docNo?' '+g.docNo:''} истекла ${g.till}`,
+          act:'Обновить/продлить банковскую гарантию либо перекрыть залогом' });
+      } else if(g.till && daysLeft(g.till) <= GUAR_WARN_DAYS){
+        out.push({ type:'Гарантия истекает', crit:'mid', obj:id,
+          objLbl:`${id} · ${credit(id).num}`, ctr:c.id,
+          text:`Банковская гарантия${g.docNo?' '+g.docNo:''} истекает ${g.till} (через ${daysLeft(g.till)} дн.)`,
+          act:'Инициировать продление гарантии заблаговременно' });
+      }
     }
   }));
   ITEMS.forEach(it => {
@@ -2255,23 +2303,25 @@ function ctrPanels(c){
   const p2 = `<div class="panel-wrap">
     <p class="section-h">Кредиты и покрытие</p>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Кредит</th><th>Договор</th><th class="numcell">Сумма кредита</th><th class="numcell">Порог / требуется</th><th class="numcell">Обеспечено</th><th class="numcell">Дефицит / излишек</th><th>Покрытие</th><th>Доля ликвида</th><th>Статус кредита</th>${canCurate()&&isActive(c)?'<th></th>':''}</tr></thead>
+      <thead><tr><th>Кредит</th><th>Договор</th><th class="numcell">Сумма кредита</th><th class="numcell">Порог / требуется</th><th class="numcell">Обеспечено</th><th class="numcell">Дефицит / излишек</th><th>Покрытие</th><th>Индекс обеспеченности</th><th>Доля ликвида</th><th>Статус кредита</th>${canCurate()&&isActive(c)?'<th></th>':''}</tr></thead>
       <tbody>${c.credits.map(id=>{ const r = gate.rows.find(x=>x.id===id), cr = credit(id);
         const need = cr.amount*r.req, deficit = need - r.sum;
         const defCell = r.other ? '<span class="pill neutral">—</span>'
           : (deficit > 0.005 ? `<span class="diff-dn" title="не хватает обеспечения — догрузить/заменить предмет">−${fmt(deficit)}</span>`
                              : `<span class="diff-up" title="обеспечение выше требуемого">+${fmt(-deficit)}</span>`);
+        const otherNote = r.other ? (r.other.type==='банковская гарантия' ? 'учтена в индексе обеспеченности (Р-11)' : 'вне залогового гейта, справочно') : '';
         return `<tr>
-        <td>${id}${r.other?` <span class="pill info" title="${esc(r.other.type)} — вне залогового гейта">иная форма</span>`:''}</td><td>${esc(cr.num)}</td>
+        <td>${id}${r.other?` <span class="pill info" title="${esc(r.other.type)} — ${otherNote}">иная форма</span>`:''}</td><td>${esc(cr.num)}</td>
         <td class="numcell">${fmt(cr.amount)}</td>
         <td class="numcell">${r.other ? '<span class="pill neutral">—</span>' : `${pct(r.req)} · ${fmt(need)}`}</td>
         <td class="numcell">${fmt(r.sum)}</td>
         <td class="numcell">${defCell}</td>
         <td><span class="pill ${r.ok?'low':(r.covOk?'mid':'high')}">${pct(r.ratio)}</span></td>
+        <td><span class="pill ${r.index>=1?'low':'high'}" title="залог ${pct(r.idxPledge)}${r.gReq?` + гарантия ${pct(r.idxGuar)} (порог ${pct(r.gReq)})`:''} = индекс ${pct(r.index)}">${pct(r.index)}</span></td>
         <td>${r.liqApplies ? `<span class="pill ${r.liqOk?'low':'high'}">${pct(r.liqShare)} / 80%</span>` : '<span class="pill neutral">—</span>'}</td>
         <td>${cr.status}${cr.overdue?' <span class="pill high">просрочка</span>':''}</td>
         ${canCurate()&&isActive(c) ? `<td>${cr.status==='Действующий' ? `<button class="btn btn-tint btn-sm" onclick="repay('${c.id}','${id}')">Отметить погашенным</button>` : '—'}</td>` : ''}</tr>`; }).join('')}
-        <tr class="total"><td colspan="2">Итого по договору</td><td class="numcell">${fmt(totAmt)}</td><td class="numcell"></td><td class="numcell">${fmt(totSec)}</td><td class="numcell"></td><td><span class="pill ${totSec>=totAmt?'low':'high'}">${pct(totAmt ? totSec/totAmt : 0)}</span></td><td></td><td></td>${canCurate()&&isActive(c)?'<td></td>':''}</tr></tbody>
+        <tr class="total"><td colspan="2">Итого по договору</td><td class="numcell">${fmt(totAmt)}</td><td class="numcell"></td><td class="numcell">${fmt(totSec)}</td><td class="numcell"></td><td><span class="pill ${totSec>=totAmt?'low':'high'}">${pct(totAmt ? totSec/totAmt : 0)}</span></td><td></td><td></td><td></td>${canCurate()&&isActive(c)?'<td></td>':''}</tr></tbody>
     </table></div>
     ${gate.ok ? `<div class="okline" style="margin-top:14px"><span>Гейт покрытия пройден по всем кредитам договора.</span></div>`
       : `<div class="flagline" style="margin-top:14px"><span>Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)} (порог ${pct(r.req)}${r.liqApplies&&!r.liqOk?`, доля ликвида ${pct(r.liqShare)}<80%`:''})`).join(', ')}. ${isActive(c)
@@ -2858,10 +2908,13 @@ function openAlloc(cid, preItemId){
       ${leg > 0 ? 'Это <b>перезалог</b> на остаточную стоимость предмета.' : ''}
       ${it.ban ? `<br>По предмету уже действует запрет ${esc(it.ban.regNo)} — при регистрации будет дополнен основанием.` : ''}
       <br>Порог по текущему составу: ${pct(req)} (${req===COVER_MOVABLE?'в покрытии есть движимый неликвидный предмет — П1 §2.4':'ликвидный состав — П1 §2.3'}). Доля ликвида: ${pct(ls)} при минимуме 80%.</span>`;
-    /* Д-3: дефолт доли = недостающее ДО ПОРОГА, а не полное требуемое покрытие —
-       учитывает доли, уже отнесённые на этот кредит в текущем черновике. */
+    /* Д-3/Т3: дефолт доли = недостающее ДО ПОРОГА, а не полное требуемое покрытие. Т3 (Р-11):
+       нетто считается по coverage-wide secPledge кредита — эффективные доли залога на этом
+       кредите ВО ВСЕХ действующих договорах + в этом черновике (ctxWithDraft), а не только по
+       долям текущего черновика, иначе дефолт завышал бы недостающую сумму для кредита, уже
+       частично закрытого залогом по ДРУГОМУ договору. */
     const cr = credit(crId);
-    const alreadyByCredit = c.allocs.filter(a=>a.credit===crId).reduce((s,a)=>s+a.share,0);
+    const alreadyByCredit = coverage(ctxWithDraft, crId).secPledge;
     document.getElementById('alShare').value = document.getElementById('alShare').value || String(Math.min(av, Math.max(0, cr.amount*req - alreadyByCredit)));
   };
   document.getElementById('alItem').addEventListener('change', ()=>{ document.getElementById('alShare').value=''; sync(); });
@@ -3387,11 +3440,11 @@ document.addEventListener('keydown', e => { if(e.key==='Escape' && host().classL
 renderNav(); renderList();
 
 /* Тест-шов: экспорт внутренних функций и состояния для jsdom-смоук-тестов (mockups/collateral/tests/).
-   Только символы, верифицированные grep'ом на момент задачи 0 — объект дополняется по мере
-   появления новых функций/констант в последующих задачах (guaranteeReq, effectiveInterval и т.п. —
-   пока не существуют, поэтому в шве отсутствуют, чтобы не падать ReferenceError). */
+   Символы верифицированы grep'ом на момент своей задачи; объект дополняется по мере появления
+   новых функций/констант в последующих задачах (Р-11: guaranteeReq, guaranteeExpired). */
 if (typeof window !== 'undefined') window.__zt = {
   requiredCover, coverage, calcPledge, pledgeValue, coefOf, effShare, allocatedIn,
+  guaranteeReq, guaranteeExpired,
   KINDS, COVER_LIQUID, COVER_MOVABLE, COVER_GUARANTEE, COVER_GUARANTEE_FX,
   SURVEY_MATRIX, CREDITS, ITEMS, CONTRACTS, credit, item, contract,
   canCurate, canCommittee, canHeadOfDept, canHeadOfUnit,
