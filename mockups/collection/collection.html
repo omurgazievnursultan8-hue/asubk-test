@@ -244,6 +244,21 @@ a{ color:inherit; }
 .tile .tl{ font:var(--font-label); color:var(--text-muted); margin-top:2px; }
 .tile.warn .tv{ color:var(--asubk-amber); }
 .tile.err  .tv{ color:var(--asubk-red); }
+.filter-body{ display:none; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px 16px; padding:6px 20px 14px; }
+.filter-head.open + .filter-body{ display:grid; }
+.filter-body .field{ min-width:0; }
+.range-pair{ display:flex; align-items:center; gap:8px; }
+.range-pair input{ width:100%; height:var(--control-h); border-radius:var(--radius-md); background:var(--surface-input);
+  color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium); border:1px solid transparent;
+  outline:none; padding:0 var(--space-2); transition:box-shadow 120ms ease, border-color 120ms ease; }
+.range-pair input:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.filter-actions{ grid-column:1 / -1; display:flex; justify-content:flex-end; gap:10px; align-items:center; }
+.filter-chips{ display:flex; flex-wrap:wrap; gap:6px; padding:0 20px; }
+.filter-chips:empty{ display:none; }
+.fchip{ display:inline-flex; align-items:center; gap:4px; background:var(--asubk-blue-tint); color:var(--asubk-blue);
+  border-radius:var(--radius-pill); padding:3px 4px 3px 10px; font:var(--font-label); }
+.fchip button{ border:none; background:none; cursor:pointer; color:inherit; font-size:15px; line-height:1; padding:0 4px; border-radius:var(--radius-pill); }
+.fchip button:hover{ background:rgba(255,255,255,0.5); }
 
 /* ---- grid (list) ---- */
 .grid-wrap{ padding:0 20px 20px; overflow:auto; }
@@ -503,25 +518,8 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
           <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
           <span>Фильтр</span>
         </div>
-        <div class="tb-actions">
-          <div class="split" id="splitRefresh">
-            <button class="btn btn-success" onclick="toast('Список обновлён')">Обновить</button>
-            <button class="btn btn-success caret" onclick="document.getElementById('splitRefresh').classList.toggle('open');event.stopPropagation();">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-            </button>
-            <div class="split-menu">
-              <button onclick="toast('Обновить');closeSplit()">Обновить</button>
-              <button onclick="toast('Применить и обновить');closeSplit()">Применить и обновить</button>
-            </div>
-          </div>
-          <button class="gear-btn" title="Настройка колонок" onclick="toast('Настройка видимости колонок (демо)')">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </button>
-          <button class="add-cond">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-            Добавить условие поиска
-          </button>
-        </div>
+        <div class="filter-body" id="filterBody"></div>
+        <div class="filter-chips" id="filterChips"></div>
         <div class="tiles" id="listTiles"></div>
         <div class="rowtools">
           <button class="btn btn-tint" id="btnOpen" disabled onclick="openDetail(selectedRow)">
@@ -789,6 +787,57 @@ const MEASURE_KINDS = [
   'Заключение комиссии о безнадёжности','Акт Кабинета Министров о списании',
   'Решение уполномоченного госоргана о списании','Акт сверки о полном погашении',
 ];
+/* РАЗДЕЛ — производная от вида меры (каждый вид принадлежит ровно одному разделу),
+   вручную не задаётся — как «фаза из журнала». Ключи покрывают все MEASURE_KINDS;
+   раздел согласован с контурами К0…К7 (Исполнительный лист → Судебный: устанавливает
+   фазу «Исполнительный лист» контура К3). */
+const KIND_SECTION = {
+  // Досудебный
+  'Первичная претензия':'Досудебный','Повторная претензия':'Досудебный','Требование поручителю':'Досудебный',
+  'Требование гаранту':'Досудебный','Требование отраслевому госоргану':'Досудебный','Акт сверки':'Досудебный',
+  'Безакцептное списание':'Досудебный','Платёжное требование в банк':'Досудебный','Служебная записка в ДПО':'Досудебный',
+  'Акт сверки о полном погашении':'Досудебный',
+  // Внесудебный залог
+  'Извещение об обращении на залог':'Внесудебный залог',
+  // Судебный
+  'Исковое заявление':'Судебный','Уточнение исковых требований':'Судебный','Увеличение исковых требований':'Судебный',
+  'Уменьшение исковых требований':'Судебный','Исковое заявление на понуждение':'Судебный',
+  'Заявление об изменении способа и порядка исполнения':'Судебный','Заявление о восстановлении пропущенных сроков':'Судебный',
+  'Заявление о выдаче исполнительных листов':'Судебный','Заявление по вновь открывшимся обстоятельствам':'Судебный',
+  'Заявление по новым обстоятельствам':'Судебный','Исковое возражение':'Судебный',
+  'Возражение на апелляционную жалобу':'Судебный','Возражение на кассационную жалобу':'Судебный','Частная жалоба':'Судебный',
+  'Апелляционная жалоба':'Судебный','Кассационная жалоба':'Судебный','Письмо в правоохранительные органы':'Судебный',
+  'Иск стороны в отношении Фонда':'Судебный','Решение суда':'Судебный','Судебный приказ':'Судебный',
+  'Определение суда':'Судебный','Мировое соглашение':'Судебный','Соглашение о добровольном исполнении':'Судебный',
+  'Исполнительный лист':'Судебный',
+  // Исполнительное
+  'Постановление на исполнении':'Исполнительное','Письмо в ПССИ':'Исполнительное','Постановление о возврате ИЛ':'Исполнительное',
+  'Акт несостоявшихся торгов':'Исполнительное',
+  // Правопреемство
+  'Заявление об установлении правопреемника':'Правопреемство','Решение суда (отсутствие правопреемника)':'Правопреемство',
+  // Банкротство
+  'Заявление на банкротство':'Банкротство','Инициирование банкротства':'Банкротство','Признание банкротом':'Банкротство',
+  'Завершение процедуры банкротства':'Банкротство',
+  // Безнадёжная
+  'Заключение комиссии о безнадёжности':'Безнадёжная','Акт Кабинета Министров о списании':'Безнадёжная',
+  'Решение уполномоченного госоргана о списании':'Безнадёжная',
+};
+const sectionOf = kind => KIND_SECTION[kind] || 'Досудебный';
+/* Порядок разделов для группировки списка «Вид меры» (optgroup) — эскалация К0…К7. */
+const SECTION_ORDER = ['Досудебный','Внесудебный залог','Судебный','Исполнительное','Правопреемство','Банкротство','Безнадёжная'];
+/* Список фильтруется двумя гейтами:
+   1) последовательность (§3.1) — вехи/разделы не по стадии эскалации в список НЕ попадают;
+   2) роль В-9 (subdivReason) — виды вне полномочий текущей роли в список НЕ попадают.
+   Роль видит только то, что реально может отправить. Гейты органа/окна оставлены на measureGate
+   (зависят от даты/органа-контрагента, а не от «какой вид меры»). */
+function measureKindOptions(selected){
+  const p = curProc;
+  return SECTION_ORDER.map(sec=>{
+    const opts = MEASURE_KINDS.filter(k=>sectionOf(k)===sec && (!p || !sequenceReason(p,k)) && !subdivReason(k));
+    if(!opts.length) return '';
+    return `<optgroup label="${sec}">${opts.map(k=>`<option${k===selected?' selected':''}>${k}</option>`).join('')}</optgroup>`;
+  }).join('');
+}
 /* Вид меры-вехи → фаза, которую она устанавливает. */
 const MILESTONE_PHASE = {
   'Первичная претензия':'Претензия', 'Повторная претензия':'Повторная претензия',
@@ -832,13 +881,31 @@ const ROLE_SUBDIV = {
   'Отдел проблемных кредитов (ОПК)':'ОПК', 'Сектор по работе с активами (САК)':'САК',
   'Отраслевой департамент (ОД)':'ОД', 'Наблюдатель':'—',
 };
+/* Ответственное подразделение ПО РАЗДЕЛУ — покрывает все 48 видов (В-9 без белых пятен).
+   Явная запись MEASURE_SUBDIV перекрывает этот дефолт по конкретному виду. */
+const SECTION_SUBDIV = {
+  'Досудебный':['ДАК','ОД','РП'], 'Внесудебный залог':['ДПО'],
+  'Судебный':['ОПК'], 'Правопреемство':['ОПК'], 'Исполнительное':['ОПК'],
+  'Банкротство':['САК'], 'Безнадёжная':['САК'],
+};
+const subdivOf = kind => MEASURE_SUBDIV[kind] || SECTION_SUBDIV[sectionOf(kind)] || null;
 function subdivReason(kind){
-  const allowed = MEASURE_SUBDIV[kind];
+  const allowed = subdivOf(kind);
   if(!allowed) return null;                                   // мера без ограничения полномочий
   const role = document.getElementById('roleSel') ? document.getElementById('roleSel').value : '';
   const my = ROLE_SUBDIV[role] || '—';
   if(allowed.includes(my) || (my==='ОД' && (allowed.includes('ДАК')||allowed.includes('РП')))) return null;
   return `Регистрация «${kind}» — полномочие подразделения ${allowed.join(' / ')} (В-9). Текущая роль (${my}) вне матрицы.`;
+}
+/* Роль без подразделения (ROLE_SUBDIV → «—», напр. Наблюдатель) — read-only: мер не регистрирует,
+   кнопка регистрации ей не показывается (не только гейтится). Data-driven — переживёт новые роли. */
+function availableKinds(p){
+  return MEASURE_KINDS.filter(k => (!p || !sequenceReason(p,k)) && !subdivReason(k));
+}
+function canRegisterMeasures(){
+  const role = document.getElementById('roleSel') ? document.getElementById('roleSel').value : '';
+  if((ROLE_SUBDIV[role] || '—') === '—') return false;        // роль-наблюдатель: мер не регистрирует
+  return availableKinds(curProc).length > 0;                  // нет доступных видов для роли+стадии — нет кнопки
 }
 
 /* В-2 ТРИ ОСИ РЕЗУЛЬТАТА — справочники (не схлопывать: входы показателей ТЗ). */
@@ -874,6 +941,45 @@ function gateReason(p, kind){
   if(qs.some(q => q.positive)) return null;
   const raised = qs.length > 0;
   return `${g.label} требует решения органа «${g.organ}» (п. ${g.point}). Вопрос ${raised ? 'вынесен, но не рассмотрен' : 'не вынесен'}.`;
+}
+
+/* ГЕЙТ ПОСЛЕДОВАТЕЛЬНОСТИ (§3.1 + дизайн-док §5): веха-мера не регистрируется в обход
+   порядка. Две проверки, данные из CONTOURS (выдуманного графа переходов нет):
+   (а) ВНУТРИ контура — фаза φ на позиции i требует предыдущей фазы φ(i−1);
+   (б) ВХОД в контур (i=0) — требует пройденной предыдущей СТАДИИ эскалации: досудебная
+       (К1) до принудительной (К2/К3), суд/залог до исполнительного (К4), исполнительное
+       до банкротства (К6) и безнадёжной (К7). Иначе иск/банкротство можно было бы подать
+       из свежей досудебки, минуя претензионный порядок. Уровень = ступень эскалации;
+       разрешён вход на текущую ступень или следующую (curL ≥ tgtL−1).
+   Не-вехи не гейтятся. null → разрешено; строка → причина. */
+const CONTOUR_LEVEL = { 'К0':0, 'К1':1, 'К2':2, 'К3':2, 'К5':2, 'К4':3, 'К6':4, 'К7':5 };
+/* Ступень эскалации РАЗДЕЛА (не только вех) — по контуру раздела. Гейт применяется ко
+   ВСЕМ видам меры: судебные жалобы/уточнения, заявление на банкротство и т.п. — тоже
+   вне досудебной стадии, а не только вехи. */
+const SECTION_CLEVEL = { 'Досудебный':1, 'Внесудебный залог':2, 'Судебный':2, 'Правопреемство':2, 'Исполнительное':3, 'Банкротство':4, 'Безнадёжная':5 };
+function contourOfPhase(ph){ for(const c in CONTOURS){ if(CONTOURS[c].phases.includes(ph)) return c; } return null; }
+function sequenceReason(p, kind){
+  const curC = contourOfPhase(p.phase) || p.contour;
+  const curL = CONTOUR_LEVEL[curC] ?? 0;
+  // (1) СТАДИЯ раздела — для всех видов: раздел выше текущей ступени +1 недоступен
+  const secL = SECTION_CLEVEL[sectionOf(kind)] ?? 1;
+  if(secL > curL + 1)
+    return `Мера раздела «${sectionOf(kind)}» — соответствующая стадия ещё не достигнута. Процесс в контуре ${curC} (${CONTOURS[curC]?CONTOURS[curC].name:'—'}). Сначала исчерпайте досудебный/предыдущий этап.`;
+  // (2) ВНУТРИ контура — веха на позиции i требует предыдущей фазы φ(i−1)
+  const ph = MILESTONE_PHASE[kind]; if(!ph) return null;              // не веха — стадийного гейта достаточно
+  let C=null, i=-1;
+  for(const c in CONTOURS){ const idx=CONTOURS[c].phases.indexOf(ph); if(idx>=0){ C=c; i=idx; break; } }
+  if(!C) return null;
+  // (2a) ВЕХА УЖЕ ПРОЙДЕНА — если текущая фаза в том же контуре на позиции ≥ i,
+  //      машина линейная (§3.1): возврат к более ранней/текущей вехе не предусмотрен.
+  //      Закрывает баг: «Первичная претензия» (i=0) оставалась доступна на фазе «Повторная претензия».
+  const j = CONTOURS[C].phases.indexOf(p.phase);
+  if(j >= 0 && j >= i)
+    return `Мера «${kind}» устанавливает фазу «${ph}» (позиция ${i+1} контура ${C}). Процесс уже на фазе «${p.phase}» (позиция ${j+1}) — возврат к более ранней или текущей вехе не предусмотрен (§3.1).`;
+  if(i<=0) return null;
+  const prereq = CONTOURS[C].phases[i-1];
+  if(p.phase === prereq) return null;
+  return `Мера «${kind}» устанавливает фазу «${ph}» — в контуре ${C} (${CONTOURS[C].name}) ей предшествует «${prereq}». Текущая фаза процесса — «${p.phase}». Сначала зарегистрируйте предыдущую веху последовательности.`;
 }
 
 /* §9.4 ГЕЙТ ПЕРЕСЕЧЕНИЯ на судебной стадии: два активных судебных процесса по одному
@@ -1290,6 +1396,643 @@ const PROCESSES = [
     history:[
       {when:'19.07.2026 11:00', what:'Смена процедуры «Работа с судебными органами» → ожидает подтверждения принимающей стороны (ОПК), счётчик 5 р.д. (п. 98)', who:'Куратор ОД'},
       {when:'05.02.2026 14:00', what:'Мера «Повторная претензия» ПР-372 → фаза «Повторная претензия»', who:'Куратор ОД'} ] },
+
+  /* ==========================================================================
+     ДОП. ДЕМО-НАБОР (301–356) — по 2–3 процесса на ситуацию, для нагрузки/тестов.
+     Ситуации помечены SIT-*. Данные лаконичны; умолчания добирает normalize().
+     ========================================================================== */
+
+  // ── SIT-A · К0 авто-открытие, ОКНО ОЖИДАНИЯ ОТКРЫТО (плитка «В окне ожидания») ──
+  { id:'301', borrower:'ОсОО «Ала-Тоо Курулуш»', inn:'02501202400551', region:'г. Бишкек / Октябрьский',
+    scope:'просроченная сумма', contour:'К0', phase:'Досудебное урегулирование',
+    owner:'Куратор ОД', curator:'Кадыров М.', opened:'18.07.2026', openedBy:'система', basis:'просрочка 6 дней',
+    window:{ open:true, days:5, until:'23.07.2026', closedBy:null, gateDay:'11', claimDay:'20' },
+    credits:[ {id:'401', num:'Дог. №401 от 14.02.2025', subject:'просроченная сумма', claim:'27 500,00', overdueDays:7,
+      debt:{ principal:{accrued:26500,paid:0}, interest:{accrued:1000,paid:0} } } ],
+    procedure:{ status:'Первичный ввод', since:'18.07.2026', by:'СИТ', receiving:'ОД', confirm:{ state:'подтверждена', at:'18.07.2026', deadlineRd:5 } },
+    deadlines:[ { action:'Первичная претензия', due:'01.08.2026', base:'6-й день просрочки', leftDays:10, overdue:false, point:'17.2' } ],
+    history:[ {when:'18.07.2026 06:00', what:'Процесс открыт автоматически (6-й день просрочки)', who:'Система'} ] },
+
+  { id:'302', borrower:'ИП Асылбеков Т.', inn:'20411198800123', region:'Ошская обл. / Узгенский',
+    scope:'просроченная сумма', contour:'К0', phase:'Досудебное урегулирование',
+    owner:'Куратор ОД', curator:'Исаева А.', opened:'19.07.2026', openedBy:'система', basis:'просрочка 6 дней',
+    window:{ open:true, days:5, until:'24.07.2026', closedBy:null, gateDay:'11', claimDay:'20' },
+    credits:[ {id:'402', num:'Дог. №402 от 03.06.2025', subject:'просроченная сумма', claim:'4 300,00', overdueDays:6,
+      debt:{ principal:{accrued:4200,paid:0}, interest:{accrued:100,paid:0} } } ],
+    procedure:{ status:'Первичный ввод', since:'19.07.2026', by:'СИТ', receiving:'ОД', confirm:{ state:'подтверждена', at:'19.07.2026', deadlineRd:5 } },
+    history:[ {when:'19.07.2026 06:00', what:'Процесс открыт автоматически (6-й день просрочки)', who:'Система'} ] },
+
+  { id:'303', borrower:'ОсОО «Нур-Береке»', inn:'01808202100777', region:'Чуйская обл. / Московский',
+    scope:'просроченная сумма', contour:'К0', phase:'Досудебное урегулирование',
+    owner:'Куратор ОД', curator:'Турдубаев К.', opened:'16.07.2026', openedBy:'система', basis:'просрочка 6 дней',
+    window:{ open:true, days:5, until:'21.07.2026', closedBy:null, gateDay:'11', claimDay:'20' },
+    credits:[ {id:'403', num:'Дог. №403 от 22.11.2024', subject:'просроченная сумма', claim:'61 000,00', overdueDays:9,
+      debt:{ principal:{accrued:58000,paid:0}, interest:{accrued:3000,paid:0} } } ],
+    procedure:{ status:'Первичный ввод', since:'16.07.2026', by:'СИТ', receiving:'ОД', confirm:{ state:'подтверждена', at:'16.07.2026', deadlineRd:5 } },
+    deadlines:[ { action:'Открытие гейта первичной претензии (окно 5 к.д.)', due:'21.07.2026', base:'начало просрочки (день 11)', leftDays:1, overdue:false, point:'Р-8' } ],
+    history:[ {when:'16.07.2026 06:00', what:'Процесс открыт автоматически (6-й день просрочки)', who:'Система'} ] },
+
+  // ── SIT-B · К0 окно ЗАКРЫТО (истечение срока / отметка куратора) ──
+  { id:'304', borrower:'ОсОО «Темир-Жол Сервис»', inn:'02902201900662', region:'Джалал-Абадская обл. / Базар-Коргонский',
+    scope:'просроченная сумма', contour:'К0', phase:'Досудебное урегулирование',
+    owner:'Куратор ОД', curator:'Мурзаева Н.', opened:'08.07.2026', openedBy:'система', basis:'просрочка 6 дней',
+    window:{ open:false, days:5, until:'16.07.2026', closedBy:'истечение срока' },
+    credits:[ {id:'404', num:'Дог. №404 от 01.03.2025', subject:'просроченная сумма', claim:'19 800,00', overdueDays:16,
+      debt:{ principal:{accrued:19000,paid:0}, interest:{accrued:800,paid:0} } } ],
+    procedure:{ status:'Первичный ввод', since:'08.07.2026', by:'СИТ', receiving:'ОД', confirm:{ state:'подтверждена', at:'08.07.2026', deadlineRd:5 } },
+    deadlines:[ { action:'Первичная претензия', due:'23.07.2026', base:'6-й день просрочки', leftDays:2, overdue:false, point:'17.2' } ],
+    history:[ {when:'16.07.2026 00:00', what:'Окно ожидания зачисления закрыто по истечении срока (5 к.д.) → гейт первичной претензии открыт', who:'Система'} ] },
+
+  { id:'305', borrower:'ИП Кубанычбекова А.', inn:'21903198500338', region:'Таласская обл. / Бакай-Атинский',
+    scope:'просроченная сумма', contour:'К0', phase:'Досудебное урегулирование',
+    owner:'Куратор ОД', curator:'Асанбеков Д.', opened:'10.07.2026', openedBy:'система', basis:'просрочка 6 дней',
+    window:{ open:false, days:5, until:'18.07.2026', closedBy:'отметка куратора' },
+    credits:[ {id:'405', num:'Дог. №405 от 19.04.2025', subject:'просроченная сумма', claim:'7 200,00', overdueDays:13,
+      debt:{ principal:{accrued:7000,paid:0}, interest:{accrued:200,paid:0} } } ],
+    procedure:{ status:'Первичный ввод', since:'10.07.2026', by:'СИТ', receiving:'ОД', confirm:{ state:'подтверждена', at:'10.07.2026', deadlineRd:5 } },
+    history:[ {when:'15.07.2026 11:30', what:'Окно ожидания закрыто досрочно: «зачисление не подтверждено» (п. 17.2)', who:'Куратор ОД'} ] },
+
+  // ── SIT-C · К0 РЕТРО-ЗАКРЫТ (скрыт по умолчанию, Р-9) ──
+  { id:'306', borrower:'ОсОО «Кут-Инвест»', inn:'01502201700882', region:'Иссык-Кульская обл. / Джети-Огузский',
+    scope:'просроченная сумма', contour:'К0', phase:'Досудебное урегулирование',
+    owner:'Куратор ОД', curator:'Осмонов К.', opened:'01.07.2026', openedBy:'система', basis:'просрочка 6 дней',
+    outcome:'Закрыт: платёж подтверждён задним числом', closed:'09.07.2026',
+    credits:[ {id:'406', num:'Дог. №406 от 05.02.2025', subject:'просроченная сумма', claim:'0,00', overdueDays:0,
+      treasuryDelay:{ days:9, doc:'ПП-4502 от 07.07.2026', confirmedBy:'СРМК', date:'08.07.2026' },
+      debt:{ principal:{accrued:0,paid:0} } } ],
+    history:[ {when:'09.07.2026 10:00', what:'Платёж подтверждён задним числом (задержка казначейства 9 дн, ПП-4502) → процесс закрыт ретроспективно (Р-9)', who:'СРМК'} ] },
+
+  { id:'307', borrower:'ИП Джумабаев С.', inn:'20308197700554', region:'Баткенская обл. / Лейлекский',
+    scope:'просроченная сумма', contour:'К0', phase:'Досудебное урегулирование',
+    owner:'Куратор ОД', curator:'Маматов Э.', opened:'28.06.2026', openedBy:'система', basis:'просрочка 6 дней',
+    outcome:'Закрыт: платёж подтверждён задним числом', closed:'05.07.2026',
+    credits:[ {id:'407', num:'Дог. №407 от 30.09.2024', subject:'просроченная сумма', claim:'0,00', overdueDays:0,
+      treasuryDelay:{ days:7, doc:'ПП-4488 от 03.07.2026', confirmedBy:'СРМК', date:'04.07.2026' },
+      debt:{ principal:{accrued:0,paid:0} } } ],
+    history:[ {when:'05.07.2026 09:20', what:'Платёж подтверждён задним числом (задержка казначейства 7 дн) → процесс закрыт ретроспективно (Р-9)', who:'СРМК'} ] },
+
+  // ── SIT-D · К1 ПРЕТЕНЗИЯ (первичная зарегистрирована) ──
+  { id:'308', borrower:'ОсОО «Береке-Агро»', inn:'02804202000441', region:'Чуйская обл. / Сокулукский',
+    scope:'просроченная сумма', contour:'К1', phase:'Претензия',
+    owner:'Куратор ДАК', curator:'Ниязова Э.', opened:'20.06.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'408', num:'Дог. №408 от 11.03.2025', subject:'просроченная сумма', claim:'33 000,00', overdueDays:34, bezakceptRight:false,
+      debt:{ principal:{accrued:31000,paid:0}, interest:{accrued:2000,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'18.06.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'20.06.2026', deadlineRd:5 } },
+    measures:[ {sec:'Досудебный', kind:'Первичная претензия', dates:D('20.06.2026','20.06.2026','20.06.2026'), num:'ПР-460', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'33 000,00', responsible:'Ниязова Э.'} ],
+    deadlines:[ { action:'Срок исполнения первичной претензии', due:'04.07.2026', base:'дата направления', leftDays:-17, overdue:true, point:'17.2' } ],
+    history:[ {when:'20.06.2026 09:00', what:'Мера «Первичная претензия» ПР-460 → фаза «Претензия»', who:'Куратор ДАК'} ] },
+
+  { id:'309', borrower:'ОсОО «Эне-Сай Логистик»', inn:'01607201800993', region:'г. Бишкек / Ленинский',
+    scope:'просроченная сумма', contour:'К1', phase:'Претензия',
+    owner:'Куратор ДАК', curator:'Токтосунова Б.', opened:'12.06.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'409', num:'Дог. №409 от 08.01.2025', subject:'просроченная сумма', claim:'120 000,00', overdueDays:44, bezakceptRight:false,
+      debt:{ principal:{accrued:115000,paid:0}, interest:{accrued:5000,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'10.06.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'12.06.2026', deadlineRd:5 } },
+    measures:[ {sec:'Досудебный', kind:'Первичная претензия', dates:D('12.06.2026','12.06.2026','12.06.2026'), num:'ПР-451', purpose:'погашение', deliver:'почта (вручено)', delivered:true, result:{group:'частичное погашение', value:'частично на сумму'}, resultKind:'положительный', execStage:'на исполнении', sum:'120 000,00', responsible:'Токтосунова Б.'} ],
+    history:[ {when:'12.06.2026 14:30', what:'Мера «Первичная претензия» ПР-451 → фаза «Претензия», частичное погашение', who:'Куратор ДАК'} ] },
+
+  { id:'310', borrower:'ИП Сооронбаева Ж.', inn:'22607199300881', region:'Нарынская обл. / Ат-Башинский',
+    scope:'просроченная сумма', contour:'К1', phase:'Претензия',
+    owner:'Куратор ОД', curator:'Жээнбеков Н.', opened:'25.06.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'410', num:'Дог. №410 от 17.05.2025', subject:'просроченная сумма', claim:'9 500,00', overdueDays:28, bezakceptRight:false,
+      debt:{ principal:{accrued:9200,paid:0}, interest:{accrued:300,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'23.06.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'25.06.2026', deadlineRd:5 } },
+    measures:[ {sec:'Досудебный', kind:'Первичная претензия', dates:D('25.06.2026','25.06.2026','25.06.2026'), num:'ПР-463', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'9 500,00', responsible:'Жээнбеков Н.'} ],
+    history:[ {when:'25.06.2026 10:00', what:'Мера «Первичная претензия» ПР-463 → фаза «Претензия»', who:'Куратор ОД'} ] },
+
+  // ── SIT-E · К1 ПОВТОРНАЯ ПРЕТЕНЗИЯ, безакцепт НЕДОСТУПЕН (нет права по договору) ──
+  { id:'311', borrower:'ОсОО «Ак-Кеме Трейд»', inn:'01912201610558', region:'г. Ош / Ошский',
+    scope:'просроченная сумма', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ОД', curator:'Бекболотов Р.', opened:'02.05.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'411', num:'Дог. №411 от 02.02.2024', subject:'просроченная сумма', claim:'52 000,00', overdueDays:88, bezakceptRight:false,
+      debt:{ principal:{accrued:49000,paid:0}, interest:{accrued:2500,paid:0}, penalty:{accrued:500,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'28.04.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'02.05.2026', deadlineRd:5 } },
+    measures:[
+      {sec:'Досудебный', kind:'Первичная претензия', dates:D('02.05.2026','02.05.2026','02.05.2026'), num:'ПР-389', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'52 000,00', responsible:'Бекболотов Р.'},
+      {sec:'Досудебный', kind:'Повторная претензия', dates:D('28.05.2026','28.05.2026','28.05.2026'), num:'ПР-404', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'52 000,00', responsible:'Бекболотов Р.'},
+    ],
+    history:[ {when:'28.05.2026 15:00', what:'Мера «Повторная претензия» ПР-404 → фаза «Повторная претензия». Безакцепт недоступен: право по договору не предусмотрено', who:'Куратор ОД'} ] },
+
+  { id:'312', borrower:'ОсОО «Замир-Групп»', inn:'02501202400119', region:'Ошская обл. / Кара-Суйский',
+    scope:'просроченная сумма', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ОД', curator:'Кадыров М.', opened:'10.05.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'412', num:'Дог. №412 от 15.04.2024', subject:'просроченная сумма', claim:'38 500,00', overdueDays:79, bezakceptRight:false,
+      debt:{ principal:{accrued:36000,paid:0}, interest:{accrued:2000,paid:0}, penalty:{accrued:500,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'06.05.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'10.05.2026', deadlineRd:5 } },
+    measures:[
+      {sec:'Досудебный', kind:'Первичная претензия', dates:D('10.05.2026','10.05.2026','10.05.2026'), num:'ПР-395', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'38 500,00', responsible:'Кадыров М.'},
+      {sec:'Досудебный', kind:'Повторная претензия', dates:D('05.06.2026','05.06.2026','05.06.2026'), num:'ПР-419', purpose:'погашение + предупреждение', deliver:'почта (не вручено)', delivered:false, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'38 500,00', responsible:'Кадыров М.'},
+    ],
+    history:[ {when:'05.06.2026 12:00', what:'Мера «Повторная претензия» ПР-419 → фаза «Повторная претензия». Вручение не подтверждено (п. 20.2)', who:'Куратор ОД'} ] },
+
+  // ── SIT-F · К1 безакцепт ДОСТУПЕН, гейт комитета НЕ пройден (плитка «Заблокировано гейтом») ──
+  { id:'313', borrower:'ОсОО «Манас-Ресурс»', inn:'01808202100264', region:'г. Бишкек / Свердловский',
+    scope:'просроченная сумма', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ДАК', curator:'Токтосунова Б.', opened:'15.05.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'413', num:'Дог. №413 от 20.03.2024', subject:'просроченная сумма', claim:'75 000,00', overdueDays:92, bezakceptRight:true,
+      debt:{ principal:{accrued:70000,paid:0}, interest:{accrued:4000,paid:0}, penalty:{accrued:1000,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'11.05.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'15.05.2026', deadlineRd:5 } },
+    measures:[
+      {sec:'Досудебный', kind:'Первичная претензия', dates:D('15.05.2026','15.05.2026','15.05.2026'), num:'ПР-397', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'75 000,00', responsible:'Токтосунова Б.'},
+      {sec:'Досудебный', kind:'Повторная претензия', dates:D('10.06.2026','10.06.2026','10.06.2026'), num:'ПР-423', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'75 000,00', responsible:'Токтосунова Б.'},
+    ],
+    deadlines:[ { action:'Вынос безакцепта на Комитет (проекты ДАК)', due:'24.06.2026', base:'дата повторного направления требований', leftDays:-27, overdue:true, point:'17.5' } ],
+    history:[ {when:'10.06.2026 11:00', what:'Мера «Повторная претензия» ПР-423 → фаза «Повторная претензия». Безакцепт доступен, вопрос на Комитет не вынесен', who:'Куратор ДАК'} ] },
+
+  { id:'314', borrower:'ОсОО «Иссык-Куль Строй»', inn:'22105198800048', region:'Иссык-Кульская обл. / Тюпский',
+    scope:'просроченная сумма', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ДАК', curator:'Ниязова Э.', opened:'08.05.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'414', num:'Дог. №414 от 01.02.2024', subject:'просроченная сумма', claim:'96 000,00', overdueDays:101, bezakceptRight:true,
+      debt:{ principal:{accrued:90000,paid:0}, interest:{accrued:5000,paid:0}, penalty:{accrued:1000,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'04.05.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'08.05.2026', deadlineRd:5 } },
+    committeeQuestions:[ { organ:ORGANS[0], initiator:'ДАК', subject:'Запуск безакцептного списания', credits:['Дог. №414'], meetingDate:'02.07.2026', decision:'вынесен, не рассмотрен', positive:false, protocolNo:'—', protocolDate:'' } ],
+    measures:[
+      {sec:'Досудебный', kind:'Первичная претензия', dates:D('08.05.2026','08.05.2026','08.05.2026'), num:'ПР-393', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'96 000,00', responsible:'Ниязова Э.'},
+      {sec:'Досудебный', kind:'Повторная претензия', dates:D('03.06.2026','03.06.2026','03.06.2026'), num:'ПР-416', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'96 000,00', responsible:'Ниязова Э.'},
+    ],
+    history:[ {when:'02.07.2026 10:00', what:'Вопрос безакцептного списания вынесен на Комитет (не рассмотрен) — регистрация меры заблокирована гейтом', who:'Куратор ДАК'} ] },
+
+  // ── SIT-G · К1 безакцепт, гейт комитета ПРОЙДЕН → фаза «Безакцептное списание» ──
+  { id:'315', borrower:'ОсОО «Чуй-Дан»', inn:'02902201900155', region:'Чуйская обл. / Аламудунский',
+    scope:'просроченная сумма', contour:'К1', phase:'Безакцептное списание',
+    owner:'Куратор ДАК', curator:'Садыков Б.', opened:'20.04.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'415', num:'Дог. №415 от 10.01.2024', subject:'просроченная сумма', claim:'110 000,00', overdueDays:118, bezakceptRight:true,
+      debt:{ principal:{accrued:100000,paid:0}, interest:{accrued:8000,paid:0}, penalty:{accrued:2000,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'16.04.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'20.04.2026', deadlineRd:5 } },
+    committeeQuestions:[ { organ:ORGANS[0], initiator:'ДАК', subject:'Запуск безакцептного списания', credits:['Дог. №415'], meetingDate:'20.06.2026', decision:'разрешено', positive:true, protocolNo:'КАК-31', protocolDate:'20.06.2026' } ],
+    measures:[
+      {sec:'Досудебный', kind:'Повторная претензия', dates:D('15.05.2026','15.05.2026','15.05.2026'), num:'ПР-410Б', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'110 000,00', responsible:'Садыков Б.'},
+      {sec:'Досудебный', kind:'Безакцептное списание', dates:D('25.06.2026','25.06.2026','25.06.2026'), num:'БС-07', purpose:'бесспорное списание со счетов', deliver:'платёжное требование в банк', delivered:true, result:{group:'частичное погашение', value:'частично на сумму'}, resultKind:'положительный', execStage:'на исполнении', sum:'110 000,00', responsible:'Садыков Б.'},
+    ],
+    history:[ {when:'25.06.2026 09:30', what:'Мера «Безакцептное списание» БС-07 → фаза «Безакцептное списание» (решение Комитета КАК-31)', who:'Куратор ДАК'} ] },
+
+  { id:'316', borrower:'ОсОО «Талас-Агро»', inn:'01104201400288', region:'Таласская обл. / Таласский',
+    scope:'просроченная сумма', contour:'К1', phase:'Безакцептное списание',
+    owner:'Куратор ДАК', curator:'Асанбеков Д.', opened:'12.04.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'416', num:'Дог. №416 от 05.12.2023', subject:'просроченная сумма', claim:'64 000,00', overdueDays:126, bezakceptRight:true,
+      debt:{ principal:{accrued:60000,paid:0}, interest:{accrued:3500,paid:0}, penalty:{accrued:500,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'08.04.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'12.04.2026', deadlineRd:5 } },
+    committeeQuestions:[ { organ:ORGANS[0], initiator:'ДАК', subject:'Запуск безакцептного списания', credits:['Дог. №416'], meetingDate:'18.06.2026', decision:'разрешено', positive:true, protocolNo:'КАК-29', protocolDate:'18.06.2026' } ],
+    measures:[
+      {sec:'Досудебный', kind:'Повторная претензия', dates:D('10.05.2026','10.05.2026','10.05.2026'), num:'ПР-408', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'64 000,00', responsible:'Асанбеков Д.'},
+      {sec:'Досудебный', kind:'Безакцептное списание', dates:D('22.06.2026','22.06.2026','22.06.2026'), num:'БС-05', purpose:'бесспорное списание со счетов', deliver:'платёжное требование в банк', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'64 000,00', responsible:'Асанбеков Д.'},
+    ],
+    history:[ {when:'22.06.2026 14:00', what:'Мера «Безакцептное списание» БС-05 → фаза «Безакцептное списание» (решение Комитета КАК-29)', who:'Куратор ДАК'} ] },
+
+  // ── SIT-H · ПАУЗА guarantee_letter (п. 18) ──
+  { id:'317', borrower:'ОсОО «Ынтымак-Курулуш»', inn:'01502201700340', region:'г. Бишкек / Первомайский',
+    scope:'просроченная сумма', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ОД', curator:'Токтосунова Б.', opened:'01.05.2026', openedBy:'куратор', basis:'первичная претензия',
+    pause:{ type:'guarantee_letter', point:'18', until:'05.09.2026', active:true, note:'заёмщик направил гарантийное письмо; отсрочка ≤70 к.д.' },
+    credits:[ {id:'417', num:'Дог. №417 от 12.02.2024', subject:'просроченная сумма', claim:'48 000,00', overdueDays:94, bezakceptRight:true,
+      debt:{ principal:{accrued:45000,paid:0}, interest:{accrued:2500,paid:0}, penalty:{accrued:500,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'27.04.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'01.05.2026', deadlineRd:5 } },
+    measures:[ {sec:'Досудебный', kind:'Повторная претензия', dates:D('20.05.2026','20.05.2026','20.05.2026'), num:'ПР-411', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'48 000,00', responsible:'Токтосунова Б.'} ],
+    deadlines:[ { action:'Отсрочка по гарантийному письму', due:'05.09.2026', base:'дата направления письма в ГФХ', leftDays:46, overdue:false, point:'18' } ],
+    history:[ {when:'27.06.2026 10:00', what:'Пауза «Гарантийное письмо» до 05.09.2026 (п. 18): меры приостановлены', who:'Куратор ОД'} ] },
+
+  { id:'318', borrower:'ОсОО «Достук-Инвест»', inn:'21903198500072', region:'Ошская обл. / Узгенский',
+    scope:'просроченная сумма', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ОД', curator:'Бекболотов Р.', opened:'10.04.2026', openedBy:'куратор', basis:'первичная претензия',
+    pause:{ type:'guarantee_letter', point:'18', until:'', active:false, note:'условия гарантийного письма нарушены — безакцепт возобновляется в 10 р.д. без уведомления' },
+    credits:[ {id:'418', num:'Дог. №418 от 08.01.2024', subject:'просроченная сумма', claim:'71 000,00', overdueDays:132, bezakceptRight:true,
+      debt:{ principal:{accrued:66000,paid:0}, interest:{accrued:4000,paid:0}, penalty:{accrued:1000,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'06.04.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'10.04.2026', deadlineRd:5 } },
+    measures:[ {sec:'Досудебный', kind:'Повторная претензия', dates:D('05.05.2026','05.05.2026','05.05.2026'), num:'ПР-405', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'71 000,00', responsible:'Бекболотов Р.'} ],
+    deadlines:[ { action:'Возобновление безакцепта при нарушении гарантийного письма', due:'20.07.2026', base:'факт нарушения условий письма', leftDays:-1, overdue:true, point:'18' } ],
+    history:[ {when:'06.07.2026 09:00', what:'Нарушены условия гарантийного письма → пауза снята, возобновление безакцепта (п. 18)', who:'Куратор ОД'} ] },
+
+  // ── SIT-I · ПАУЗА restructuring — displayPhase показывает «Рассмотрение вопроса реструктуризации» ──
+  { id:'319', borrower:'ОсОО «Кара-Балта Кант»', inn:'01607201800623', region:'Чуйская обл. / Московский',
+    scope:'просроченная сумма', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ОД', curator:'Мурзаева Н.', opened:'15.03.2026', openedBy:'куратор', basis:'первичная претензия',
+    pause:{ type:'restructuring', point:'19', until:'20.09.2026', active:true, note:'обращение заёмщика о реструктуризации, письмо в уполномоченный госорган направлено' },
+    credits:[ {id:'419', num:'Дог. №419 от 03.11.2023', subject:'просроченная сумма', claim:'140 000,00', overdueDays:196, suppress181:{until:'20.09.2026', reason:'рассмотрение реструктуризации', days:15},
+      debt:{ principal:{accrued:130000,paid:0}, interest:{accrued:8000,paid:0}, penalty:{accrued:2000,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'11.03.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'15.03.2026', deadlineRd:5 } },
+    deadlines:[ { action:'Приостановка мер на период решения госоргана', due:'20.09.2026', base:'дата направления письма (реструктуризация)', leftDays:61, overdue:false, point:'19' } ],
+    history:[ {when:'05.07.2026 13:00', what:'Пауза «Рассмотрение реструктуризации» до 20.09.2026 (п. 19): подавление 181-го дня', who:'Куратор ОД'} ] },
+
+  { id:'320', borrower:'ОсОО «Нарын-Энерго»', inn:'02211199100155', region:'Нарынская обл. / Нарынский',
+    scope:'залог', contour:'К3', phase:'Иск',
+    owner:'Отдел проблемных кредитов (ОПК)', curator:'Эрнисов Б.Т.', opened:'20.01.2026', openedBy:'куратор', basis:'служебная записка', poruchenie:true,
+    pause:{ type:'restructuring', point:'19', until:'15.09.2026', active:true, note:'обращение о реструктуризации на судебной стадии' },
+    credits:[ {id:'420', num:'Дог. №420 от 05.06.2023', subject:'залог', claim:'260 000,00', overdueDays:240, suppress181:{until:'15.09.2026', reason:'рассмотрение реструктуризации', days:59},
+      debt:{ principal:{accrued:240000,paid:0}, interest:{accrued:15000,paid:0}, penalty:{accrued:5000,paid:0} } } ],
+    procedure:{ status:'Работа с судебными органами', since:'20.01.2026', by:'ДПО', receiving:'ОПК', confirm:{ state:'подтверждена', at:'21.01.2026', deadlineRd:5 } },
+    measures:[ {sec:'Судебный', kind:'Исковое заявление', dates:D('20.02.2026','20.02.2026','20.02.2026'), num:'ИСК-82', purpose:'взыскание', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'260 000,00', responsible:'Эрнисов Б.Т.'} ],
+    history:[ {when:'01.07.2026 10:00', what:'Пауза «Рассмотрение реструктуризации» до 15.09.2026 (п. 19), фаза «Иск» сохранена', who:'Куратор ОД'} ] },
+
+  // ── SIT-J · К2 ИЗВЕЩЕНИЕ (внесудебный залог), гейт комитета ПРОЙДЕН ──
+  { id:'321', borrower:'ОсОО «Ак-Марал Недвижимость»', inn:'01912201610559', region:'г. Бишкек / Ленинский',
+    scope:'залог', contour:'К2', phase:'Извещение',
+    owner:'Департамент правового обеспечения (ДПО)', curator:'Танаев У.Ш.', opened:'10.05.2026', openedBy:'куратор', basis:'служебная записка',
+    committeeQuestions:[ { organ:ORGANS[2], initiator:'ДПО', subject:'Начало внесудебного обращения взыскания на залог', credits:['Дог. №421'], meetingDate:'05.05.2026', decision:'разрешено', positive:true, protocolNo:'КИ-26', protocolDate:'05.05.2026' } ],
+    credits:[ {id:'421', num:'Дог. №421 от 08.03.2024', subject:'залог', claim:'320 000,00', overdueDays:210,
+      debt:{ principal:{accrued:300000,paid:0}, interest:{accrued:15000,paid:0}, penalty:{accrued:5000,paid:0} } } ],
+    procedure:{ status:'Работа с судебными органами', since:'10.05.2026', by:'ОД', receiving:'ДПО', confirm:{ state:'подтверждена', at:'11.05.2026', deadlineRd:5 } },
+    measures:[ {sec:'Внесудебный залог', kind:'Извещение об обращении на залог', dates:D('10.05.2026','10.05.2026','10.05.2026'), num:'ИЗВ-12', purpose:'начало обращения взыскания', deliver:'зарегистрировано в госоргане', delivered:true, result:{group:'определение суда', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'320 000,00', responsible:'Танаев У.Ш.'} ],
+    colls:[ {item:'Торговое помещение, пр. Чуй 120', kind:'Недвижимость', pledge:'320 000,00', order:'внесудебный', real:'подготовка к торгам', ban:'', startPrice:{value:'320 000,00', report:'Отчёт об оценке №ОЦ-91 от 20.04.2026'}} ],
+    history:[ {when:'10.05.2026 09:00', what:'Мера «Извещение об обращении на залог» ИЗВ-12 → фаза «Извещение» (решение КИ-26)', who:'ДПО'} ] },
+
+  { id:'322', borrower:'ОсОО «Джалал-Абад Ойл»', inn:'02804202000442', region:'Джалал-Абадская обл. / Сузакский',
+    scope:'залог', contour:'К2', phase:'Извещение',
+    owner:'Департамент правового обеспечения (ДПО)', curator:'Танаев У.Ш.', opened:'02.06.2026', openedBy:'куратор', basis:'служебная записка',
+    committeeQuestions:[ { organ:ORGANS[2], initiator:'ДПО', subject:'Начало внесудебного обращения взыскания на залог', credits:['Дог. №422'], meetingDate:'28.05.2026', decision:'разрешено', positive:true, protocolNo:'КИ-27', protocolDate:'28.05.2026' } ],
+    credits:[ {id:'422', num:'Дог. №422 от 15.05.2024', subject:'залог', claim:'185 000,00', overdueDays:188,
+      debt:{ principal:{accrued:175000,paid:0}, interest:{accrued:8000,paid:0}, penalty:{accrued:2000,paid:0} } } ],
+    procedure:{ status:'Работа с судебными органами', since:'02.06.2026', by:'ОД', receiving:'ДПО', confirm:{ state:'подтверждена', at:'03.06.2026', deadlineRd:5 } },
+    measures:[ {sec:'Внесудебный залог', kind:'Извещение об обращении на залог', dates:D('02.06.2026','02.06.2026','02.06.2026'), num:'ИЗВ-14', purpose:'начало обращения взыскания', deliver:'зарегистрировано в госоргане', delivered:true, result:{group:'определение суда', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'185 000,00', responsible:'Танаев У.Ш.', accelerated:true} ],
+    colls:[ {item:'АЗС с земельным участком', kind:'Недвижимость', pledge:'185 000,00', order:'внесудебный', real:'подготовка к торгам', ban:'', startPrice:{value:'185 000,00', report:'Отчёт об оценке №ОЦ-93 от 12.05.2026'}} ],
+    history:[ {when:'02.06.2026 09:30', what:'Мера «Извещение об обращении на залог» ИЗВ-14 → фаза «Извещение», требование ускорено (п. 20.4)', who:'ДПО'} ] },
+
+  // ── SIT-K · К2 гейт комитета НЕ пройден, извещение не зарегистрировано (плитка «Заблокировано гейтом») ──
+  { id:'323', borrower:'ОсОО «Кен-Булак Майнинг»', inn:'01808202100265', region:'Ошская обл. / Кара-Суйский',
+    scope:'залог', contour:'К2', phase:'Извещение',
+    owner:'Департамент правового обеспечения (ДПО)', curator:'Танаев У.Ш.', opened:'01.07.2026', openedBy:'куратор', basis:'служебная записка',
+    credits:[ {id:'423', num:'Дог. №423 от 10.04.2024', subject:'залог', claim:'400 000,00', overdueDays:205,
+      debt:{ principal:{accrued:380000,paid:0}, interest:{accrued:16000,paid:0}, penalty:{accrued:4000,paid:0} } } ],
+    procedure:{ status:'Работа с судебными органами', since:'01.07.2026', by:'ОД', receiving:'ДПО', confirm:{ state:'подтверждена', at:'02.07.2026', deadlineRd:5 } },
+    colls:[ {item:'Карьер с оборудованием', kind:'Имущественный комплекс', pledge:'400 000,00', order:'внесудебный', real:'—', ban:'', startPrice:null} ],
+    deadlines:[ { action:'Проверка пакета и формирование извещения', due:'15.07.2026', base:'получение записки и полного пакета', leftDays:-6, overdue:true, point:'20.3' } ],
+    history:[ {when:'01.07.2026 08:00', what:'Служебная записка получена. Вопрос о внесудебном обращении на залог на Комитет не вынесен — извещение заблокировано гейтом', who:'ДПО'} ] },
+
+  { id:'324', borrower:'ОсОО «Бишкек Молл»', inn:'02501202400120', region:'г. Бишкек / Октябрьский',
+    scope:'залог', contour:'К2', phase:'Извещение',
+    owner:'Департамент правового обеспечения (ДПО)', curator:'Танаев У.Ш.', opened:'25.06.2026', openedBy:'куратор', basis:'служебная записка',
+    committeeQuestions:[ { organ:ORGANS[2], initiator:'ДПО', subject:'Начало внесудебного обращения взыскания на залог', credits:['Дог. №424'], meetingDate:'10.07.2026', decision:'вынесен, не рассмотрен', positive:false, protocolNo:'—', protocolDate:'' } ],
+    credits:[ {id:'424', num:'Дог. №424 от 20.02.2024', subject:'залог', claim:'520 000,00', overdueDays:198,
+      debt:{ principal:{accrued:490000,paid:0}, interest:{accrued:24000,paid:0}, penalty:{accrued:6000,paid:0} } } ],
+    procedure:{ status:'Работа с судебными органами', since:'25.06.2026', by:'ОД', receiving:'ДПО', confirm:{ state:'подтверждена', at:'26.06.2026', deadlineRd:5 } },
+    colls:[ {item:'Торгово-развлекательный центр', kind:'Недвижимость', pledge:'520 000,00', order:'внесудебный', real:'—', ban:'', startPrice:null} ],
+    history:[ {when:'10.07.2026 11:00', what:'Вопрос о внесудебном обращении вынесен на Комитет (не рассмотрен) — извещение заблокировано гейтом', who:'ДПО'} ] },
+
+  // ── SIT-L · К3 ИСК (судебный процесс) ──
+  { id:'325', borrower:'ОсОО «Ош-Текстиль»', inn:'01912201610560', region:'г. Ош / Ошский',
+    scope:'просроченная сумма', contour:'К3', phase:'Иск',
+    owner:'Отдел проблемных кредитов (ОПК)', curator:'Тукинова А.С.', opened:'10.12.2025', openedBy:'куратор', basis:'первичная претензия', poruchenie:true,
+    credits:[ {id:'425', num:'Дог. №425 от 08.05.2024', subject:'просроченная сумма', claim:'88 000,00', overdueDays:220,
+      debt:{ principal:{accrued:82000,paid:0}, interest:{accrued:4000,paid:0}, penalty:{accrued:2000,paid:0} } } ],
+    procedure:{ status:'Работа с судебными органами', since:'20.05.2026', by:'ДПО', receiving:'ОПК', confirm:{ state:'подтверждена', at:'21.05.2026', deadlineRd:5 } },
+    committeeQuestions:[ { organ:ORGANS[4], initiator:'ОПК', subject:'Поручение об инициировании судебного взыскания', credits:['Дог. №425'], meetingDate:'15.05.2026', decision:'поручение выдано', positive:true, protocolNo:'ПП-80', protocolDate:'15.05.2026' } ],
+    measures:[ {sec:'Судебный', kind:'Исковое заявление', dates:D('22.05.2026','22.05.2026','22.05.2026'), num:'ИСК-79', purpose:'взыскание просроченной суммы', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'88 000,00', responsible:'Тукинова А.С.'} ],
+    hearings:[ {measureNum:'ИСК-79', kind:'Судебный процесс', place:'Ошский городской суд', when:'20.06.2026 11:00', participants:['Тукинова А.С.'], status:'на рассмотрении', substatus:'назначено к слушанию'} ],
+    history:[ {when:'22.05.2026 10:00', what:'Мера «Исковое заявление» ИСК-79 → фаза «Иск»', who:'ОПК'} ] },
+
+  { id:'326', borrower:'ОсОО «Каинды-Кант»', inn:'02902201900156', region:'Чуйская обл. / Ысык-Атинский',
+    scope:'просроченная сумма', contour:'К3', phase:'Иск',
+    owner:'Отдел проблемных кредитов (ОПК)', curator:'Эрнисов Б.Т.', opened:'05.11.2025', openedBy:'куратор', basis:'первичная претензия', poruchenie:true,
+    credits:[ {id:'426', num:'Дог. №426 от 12.03.2024', subject:'просроченная сумма', claim:'156 000,00', overdueDays:255,
+      debt:{ principal:{accrued:145000,paid:0}, interest:{accrued:8000,paid:0}, penalty:{accrued:3000,paid:0} } } ],
+    procedure:{ status:'Работа с судебными органами', since:'12.05.2026', by:'ДПО', receiving:'ОПК', confirm:{ state:'подтверждена', at:'13.05.2026', deadlineRd:5 } },
+    committeeQuestions:[ { organ:ORGANS[4], initiator:'ОПК', subject:'Поручение об инициировании судебного взыскания', credits:['Дог. №426'], meetingDate:'08.05.2026', decision:'поручение выдано', positive:true, protocolNo:'ПП-79', protocolDate:'08.05.2026' } ],
+    measures:[ {sec:'Судебный', kind:'Исковое заявление', dates:D('14.05.2026','14.05.2026','14.05.2026'), num:'ИСК-76', purpose:'взыскание', deliver:'подано в суд', delivered:true, result:{group:'судебный приказ', value:'выдан'}, resultKind:'положительный', execStage:'на исполнении', sum:'156 000,00', responsible:'Эрнисов Б.Т.'} ],
+    history:[ {when:'14.05.2026 09:00', what:'Мера «Исковое заявление» ИСК-76 → фаза «Иск», выдан судебный приказ', who:'ОПК'} ] },
+
+  // ── SIT-M · К3 РЕШЕНИЕ СУДА / ИСПОЛНИТЕЛЬНЫЙ ЛИСТ ──
+  { id:'327', borrower:'ОсОО «Лейлек-Строй»', inn:'01502201700341', region:'Баткенская обл. / Лейлекский',
+    scope:'просроченная сумма', contour:'К3', phase:'Решение суда',
+    owner:'Отдел проблемных кредитов (ОПК)', curator:'Тукинова А.С.', opened:'01.10.2025', openedBy:'куратор', basis:'первичная претензия', poruchenie:true,
+    credits:[ {id:'427', num:'Дог. №427 от 05.02.2024', subject:'просроченная сумма', claim:'98 000,00', overdueDays:280,
+      debt:{ principal:{accrued:90000,paid:0}, interest:{accrued:6000,paid:0}, penalty:{accrued:2000,paid:0} } } ],
+    procedure:{ status:'Работа с судебными органами', since:'20.04.2026', by:'ДПО', receiving:'ОПК', confirm:{ state:'подтверждена', at:'21.04.2026', deadlineRd:5 } },
+    measures:[
+      {sec:'Судебный', kind:'Исковое заявление', dates:D('01.03.2026','01.03.2026','01.03.2026'), num:'ИСК-70', purpose:'взыскание', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'принято'}, resultKind:'без изменения', execStage:'на исполнении', sum:'98 000,00', responsible:'Тукинова А.С.'},
+      {sec:'Судебный', kind:'Решение суда', dates:D('20.05.2026','20.05.2026','20.05.2026'), num:'РС-33', purpose:'взыскание в полном объёме', deliver:'вынесено судом', delivered:true, result:{group:'решение суда', value:'полностью на сумму'}, resultKind:'положительный', execStage:'на исполнении', sum:'98 000,00', responsible:'Тукинова А.С.'},
+    ],
+    deadlines:[ { action:'Апелляционная жалоба', due:'19.06.2026', base:'дата вынесения решения', leftDays:-31, overdue:true, point:'30.2' } ],
+    history:[ {when:'20.05.2026 15:00', what:'Мера «Решение суда» РС-33 → фаза «Решение суда»', who:'ОПК'} ] },
+
+  { id:'328', borrower:'ОсОО «Кочкор-Агро»', inn:'02211199100156', region:'Нарынская обл. / Ат-Башинский',
+    scope:'просроченная сумма', contour:'К3', phase:'Исполнительный лист',
+    owner:'Отдел проблемных кредитов (ОПК)', curator:'Эрнисов Б.Т.', opened:'15.09.2025', openedBy:'куратор', basis:'первичная претензия', poruchenie:true,
+    credits:[ {id:'428', num:'Дог. №428 от 10.01.2024', subject:'просроченная сумма', claim:'134 000,00', overdueDays:300,
+      debt:{ principal:{accrued:124000,paid:0}, interest:{accrued:7000,paid:0}, penalty:{accrued:3000,paid:0} } } ],
+    procedure:{ status:'Соответствие ИЛ требованиям законодательства', since:'01.06.2026', by:'ОПК', receiving:'ОПК', confirm:{ state:'подтверждена', at:'02.06.2026', deadlineRd:5 } },
+    measures:[
+      {sec:'Судебный', kind:'Решение суда', dates:D('01.05.2026','01.05.2026','01.05.2026'), num:'РС-30', purpose:'взыскание', deliver:'вынесено судом', delivered:true, result:{group:'решение суда', value:'полностью на сумму'}, resultKind:'положительный', execStage:'на исполнении', sum:'134 000,00', responsible:'Эрнисов Б.Т.'},
+      {sec:'Судебный', kind:'Исполнительный лист', dates:D('01.06.2026','01.06.2026','01.06.2026'), num:'ИЛ-320', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:{group:'полное исполнение исполнительного листа', value:'на исполнении'}, resultKind:'без изменения', execStage:'на исполнении', sum:'134 000,00', responsible:'Эрнисов Б.Т.'},
+    ],
+    history:[ {when:'01.06.2026 10:00', what:'Мера «Исполнительный лист» ИЛ-320 → фаза «Исполнительный лист»', who:'ОПК'} ] },
+
+  // ── SIT-N · СРОКИ обжалования (просроченный дедлайн — плитка «Просрочен срок») ──
+  { id:'329', borrower:'ОсОО «Токмок-Металл»', inn:'01607201800624', region:'Чуйская обл. / Аламудунский',
+    scope:'просроченная сумма', contour:'К3', phase:'Решение суда',
+    owner:'Отдел проблемных кредитов (ОПК)', curator:'Тукинова А.С.', opened:'20.08.2025', openedBy:'куратор', basis:'первичная претензия', poruchenie:true,
+    credits:[ {id:'429', num:'Дог. №429 от 03.12.2023', subject:'просроченная сумма', claim:'210 000,00', overdueDays:320,
+      debt:{ principal:{accrued:195000,paid:0}, interest:{accrued:11000,paid:0}, penalty:{accrued:4000,paid:0} } } ],
+    procedure:{ status:'Работа с судебными органами', since:'10.06.2026', by:'ДПО', receiving:'ОПК', confirm:{ state:'подтверждена', at:'11.06.2026', deadlineRd:5 } },
+    measures:[ {sec:'Судебный', kind:'Решение суда', dates:D('05.06.2026','12.06.2026','14.06.2026'), num:'РС-35', purpose:'взыскание', deliver:'вынесено судом', delivered:true, result:{group:'решение суда', value:'частично на сумму'}, resultKind:'положительный', execStage:'на рассмотрении', sum:'210 000,00', responsible:'Тукинова А.С.'} ],
+    deadlines:[ { action:'Апелляционная жалоба', due:'12.07.2026', base:'дата вынесения решения (05.06, акт получен 12.06)', leftDays:-9, overdue:true, point:'30.2' } ],
+    history:[ {when:'14.06.2026 09:00', what:'Решение суда РС-35 (частично) зарегистрировано; акт получен с задержкой доставки', who:'ОПК'} ] },
+
+  { id:'330', borrower:'ОсОО «Кемин-Ресурс»', inn:'01808202100266', region:'Чуйская обл. / Московский',
+    scope:'просроченная сумма', contour:'К3', phase:'Решение суда',
+    owner:'Отдел проблемных кредитов (ОПК)', curator:'Эрнисов Б.Т.', opened:'10.07.2025', openedBy:'куратор', basis:'первичная претензия', poruchenie:true,
+    credits:[ {id:'430', num:'Дог. №430 от 20.10.2023', subject:'просроченная сумма', claim:'175 000,00', overdueDays:345,
+      debt:{ principal:{accrued:160000,paid:0}, interest:{accrued:10000,paid:0}, penalty:{accrued:5000,paid:0} } } ],
+    procedure:{ status:'Работа с судебными органами', since:'15.05.2026', by:'ДПО', receiving:'ОПК', confirm:{ state:'подтверждена', at:'16.05.2026', deadlineRd:5 } },
+    measures:[ {sec:'Судебный', kind:'Апелляционная жалоба', dates:D('01.06.2026','01.06.2026','01.06.2026'), num:'АЖ-08', purpose:'обжалование решения', deliver:'подана в суд', delivered:true, result:{group:'определение суда', value:'на рассмотрении'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'175 000,00', responsible:'Эрнисов Б.Т.'} ],
+    deadlines:[ { action:'Кассационная жалоба', due:'01.09.2026', base:'дата вынесения акта апелляционной инстанции', leftDays:42, overdue:false, point:'30.3' } ],
+    history:[ {when:'01.06.2026 11:00', what:'Апелляционная жалоба АЖ-08 подана (мера внутри фазы «Решение суда»)', who:'ОПК'} ] },
+
+  // ── SIT-O · К4 НА ИСПОЛНЕНИИ (арест / торги / реализация с возвратом) ──
+  { id:'331', borrower:'ОсОО «Ак-Суу Транс»', inn:'02804202000443', region:'Иссык-Кульская обл. / Джети-Огузский',
+    scope:'полный остаток', contour:'К4', phase:'На исполнении',
+    owner:'Сектор по работе с активами (САК)', curator:'Сагындыков М.', opened:'01.03.2025', openedBy:'куратор', basis:'служебная записка', poruchenie:true,
+    credits:[ {id:'431', num:'Дог. №431 от 15.09.2023', subject:'полный остаток', claim:'88 000,00', overdueDays:400,
+      debt:{ principal:{accrued:80000,paid:0}, interest:{accrued:6000,paid:0}, penalty:{accrued:2000,paid:0} } } ],
+    procedure:{ status:'Соответствие ИЛ требованиям законодательства', since:'10.05.2026', by:'ОПК', receiving:'ОПК', confirm:{ state:'подтверждена', at:'11.05.2026', deadlineRd:5 } },
+    measures:[ {sec:'Исполнительное', kind:'Исполнительный лист', dates:D('01.04.2026','01.04.2026','01.04.2026'), num:'ИЛ-310', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:{group:'полное исполнение исполнительного листа', value:'на исполнении'}, resultKind:'без изменения', execStage:'на исполнении', sum:'88 000,00', responsible:'Сагындыков М.'} ],
+    colls:[ {item:'Автобус туристический', kind:'Транспорт', pledge:'60 000,00', order:'судебный', real:'арест наложен', ban:''} ],
+    history:[ {when:'01.04.2026 10:00', what:'Мера «Исполнительный лист» ИЛ-310 → фаза «На исполнении», наложен арест', who:'ОПК'} ] },
+
+  { id:'332', borrower:'ОсОО «Сокулук-Мебель»', inn:'02902201900157', region:'Чуйская обл. / Сокулукский',
+    scope:'залог', contour:'К4', phase:'На исполнении',
+    owner:'Сектор по работе с активами (САК)', curator:'Сагындыков М.', opened:'20.01.2025', openedBy:'куратор', basis:'служебная записка', poruchenie:true,
+    credits:[ {id:'432', num:'Дог. №432 от 08.08.2023', subject:'залог', claim:'240 000,00', overdueDays:470,
+      debt:{ principal:{accrued:210000,paid:0}, interest:{accrued:18000,paid:0}, penalty:{accrued:9000,paid:0}, costs:{accrued:5000,paid:0} } } ],
+    procedure:{ status:'Передан в сектор по работе с активами', since:'01.05.2026', by:'ДПО', receiving:'САК', confirm:{ state:'подтверждена', at:'02.05.2026', deadlineRd:5 } },
+    measures:[ {sec:'Исполнительное', kind:'Акт несостоявшихся торгов', dates:D('15.04.2026','15.04.2026','15.04.2026'), num:'АТ-13', purpose:'фиксация провала торгов', deliver:'акт ПССИ', delivered:true, result:{group:'торги не состоялись', value:'торги не состоялись'}, resultKind:'отрицательный', execStage:'на исполнении', sum:'240 000,00', responsible:'Сагындыков М.'} ],
+    colls:[ {item:'Мебельный цех, с. Сокулук', kind:'Недвижимость', pledge:'250 000,00', order:'судебный', real:'торги не состоялись (1 раз)', ban:'', startPrice:{value:'250 000,00', report:'Отчёт об оценке №ОЦ-95 от 10.03.2026'}} ],
+    history:[ {when:'15.04.2026 12:00', what:'Мера «Акт несостоявшихся торгов» АТ-13 зарегистрирована — первые торги не состоялись', who:'САК'} ] },
+
+  { id:'333', borrower:'ОсОО «Кара-Кол Резорт»', inn:'22105198800049', region:'Иссык-Кульская обл. / Тюпский',
+    scope:'залог', contour:'К4', phase:'На исполнении',
+    owner:'Сектор по работе с активами (САК)', curator:'Дүйшөнов А.', opened:'10.12.2024', openedBy:'куратор', basis:'служебная записка', poruchenie:true,
+    credits:[ {id:'433', num:'Дог. №433 от 05.05.2023', subject:'залог', claim:'260 000,00', overdueDays:520,
+      debt:{ principal:{accrued:210000,paid:0}, interest:{accrued:20000,paid:0}, penalty:{accrued:6000,paid:0}, costs:{accrued:6000,paid:0} },
+      debtNote:'Имущество реализовано на 300 000,00 — выручка покрывает долг с остатком, подлежащим возврату залогодателю (п. 49).' } ],
+    realization:{ proceeds:300000, note:'выручка от реализации предмета залога (п. 49)' },
+    procedure:{ status:'Передан в сектор по работе с активами', since:'20.05.2026', by:'ДПО', receiving:'САК', confirm:{ state:'подтверждена', at:'21.05.2026', deadlineRd:5 } },
+    measures:[ {sec:'Исполнительное', kind:'Исполнительный лист', dates:D('01.03.2026','01.03.2026','01.03.2026'), num:'ИЛ-300', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:{group:'полное исполнение исполнительного листа', value:'на исполнении'}, resultKind:'без изменения', execStage:'на исполнении', sum:'260 000,00', responsible:'Дүйшөнов А.'} ],
+    colls:[ {item:'База отдыха на побережье', kind:'Недвижимость', pledge:'320 000,00', order:'судебный', real:'реализовано на торгах', ban:'', startPrice:{value:'320 000,00', report:'Отчёт об оценке №ОЦ-97 от 15.04.2026'}} ],
+    history:[ {when:'10.06.2026 14:00', what:'Предмет залога реализован на 300 000,00; распределение по п. 49 с возвратом залогодателю', who:'САК'} ] },
+
+  // ── SIT-P · СОГЛАШЕНИЯ (мировое пп. 22–24 / добровольное исполнение п. 37) ──
+  { id:'334', borrower:'ОсОО «Ынтымак-Логистик»', inn:'01912201610561', region:'г. Бишкек / Первомайский',
+    scope:'полный остаток', contour:'К3', phase:'Решение суда',
+    owner:'Отдел проблемных кредитов (ОПК)', curator:'Эрнисов Б.Т.', opened:'01.02.2025', openedBy:'куратор', basis:'первичная претензия', poruchenie:true,
+    agreements:[ { type:'mirovoe', num:'МС-15', approvedByCourt:true, years:3, notWorse:true, note:'утверждено судом · график 3 года · условия не льготнее прежних (пп. 22–24)' } ],
+    credits:[ {id:'434', num:'Дог. №434 от 10.06.2024', subject:'полный остаток', claim:'112 000,00', overdueDays:360,
+      debt:{ principal:{accrued:100000,paid:15000}, interest:{accrued:8000,paid:1000}, penalty:{accrued:4000,paid:0} },
+      debtNote:'Погашение по графику мирового соглашения МС-15.' } ],
+    procedure:{ status:'Работа с судебными органами', since:'01.04.2026', by:'ДПО', receiving:'ОПК', confirm:{ state:'подтверждена', at:'02.04.2026', deadlineRd:5 } },
+    measures:[ {sec:'Судебный', kind:'Мировое соглашение', dates:D('15.04.2026','15.04.2026','15.04.2026'), num:'МС-15', purpose:'график погашения', deliver:'утверждено судом', delivered:true, result:{group:'решение суда', value:'полностью на сумму'}, resultKind:'положительный', execStage:'на исполнении', sum:'112 000,00', responsible:'Эрнисов Б.Т.'} ],
+    history:[ {when:'15.04.2026 12:00', what:'Мировое соглашение МС-15 (график 3 года, п. 24)', who:'ОПК'} ] },
+
+  { id:'335', borrower:'ИП Байызбеков М.', inn:'20308197700555', region:'Джалал-Абадская обл. / Базар-Коргонский',
+    scope:'полный остаток', contour:'К4', phase:'На исполнении',
+    owner:'Отдел проблемных кредитов (ОПК)', curator:'Тукинова А.С.', opened:'10.01.2025', openedBy:'куратор', basis:'первичная претензия', poruchenie:true,
+    agreements:[ { type:'dobrovolnoe', num:'СДИ-5', note:'заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)' } ],
+    credits:[ {id:'435', num:'Дог. №435 от 05.03.2024', subject:'полный остаток', claim:'54 000,00', overdueDays:330,
+      debt:{ principal:{accrued:48000,paid:8000}, interest:{accrued:4000,paid:0}, penalty:{accrued:2000,paid:0} },
+      debtNote:'Погашение по соглашению о добровольном исполнении СДИ-5.' } ],
+    procedure:{ status:'Соответствие ИЛ требованиям законодательства', since:'01.05.2026', by:'ОПК', receiving:'ОПК', confirm:{ state:'подтверждена', at:'02.05.2026', deadlineRd:5 } },
+    measures:[ {sec:'Исполнительное', kind:'Исполнительный лист', dates:D('01.04.2026','01.04.2026','01.04.2026'), num:'ИЛ-315', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:{group:'полное исполнение исполнительного листа', value:'на исполнении'}, resultKind:'без изменения', execStage:'на исполнении', sum:'54 000,00', responsible:'Тукинова А.С.'} ],
+    history:[ {when:'20.05.2026 10:00', what:'Соглашение о добровольном исполнении СДИ-5 (п. 37)', who:'ОПК'} ] },
+
+  // ── SIT-Q · К5 ПРАВОПРЕЕМСТВО (смерть заёмщика — отдельный контур) ──
+  { id:'336', borrower:'КФХ «Ат-Башы»', inn:'22105198800050', region:'Нарынская обл. / Ат-Башинский',
+    scope:'просроченная сумма', contour:'К5', phase:'Заявление об установлении правопреемника',
+    owner:'Куратор ОД', curator:'Осмонов К.', opened:'01.05.2026', openedBy:'куратор', basis:'первичная претензия', phaseStatus:'Не погашено',
+    credits:[ {id:'436', num:'Дог. №436 от 10.02.2025', subject:'просроченная сумма', claim:'24 000,00', overdueDays:110,
+      debt:{ principal:{accrued:22000,paid:0}, interest:{accrued:1500,paid:0}, penalty:{accrued:500,paid:0} } } ],
+    procedure:{ status:'Передан в УПО', since:'25.06.2026', by:'ОД', receiving:'УПО', confirm:{ state:'подтверждена', at:'26.06.2026', deadlineRd:5 } },
+    measures:[ {sec:'Правопреемство', kind:'Заявление об установлении правопреемника', dates:D('28.06.2026','28.06.2026','28.06.2026'), num:'ЗПП-07', purpose:'установление правопреемника (п. 79)', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'24 000,00', responsible:'Осмонов К.'} ],
+    history:[ {when:'25.06.2026 09:00', what:'Смерть заёмщика → контур К5 «Правопреемство», процедура «Передан в УПО» (п. 65)', who:'Куратор ОД'} ] },
+
+  { id:'337', borrower:'ИП Эсенгулова Б.', inn:'21903198500073', region:'Таласская обл. / Таласский',
+    scope:'просроченная сумма', contour:'К5', phase:'Решение суда (отсутствие правопреемника)',
+    owner:'Куратор ОД', curator:'Асанбеков Д.', opened:'01.03.2026', openedBy:'куратор', basis:'первичная претензия', phaseStatus:'Не погашено',
+    credits:[ {id:'437', num:'Дог. №437 от 05.01.2025', subject:'просроченная сумма', claim:'16 000,00', overdueDays:150,
+      debt:{ principal:{accrued:15000,paid:0}, interest:{accrued:800,paid:0}, penalty:{accrued:200,paid:0} } } ],
+    procedure:{ status:'Безнадежные субъекты (умершие субъекты)', since:'20.06.2026', by:'ОД', receiving:'УПО', confirm:{ state:'подтверждена', at:'21.06.2026', deadlineRd:5 } },
+    measures:[
+      {sec:'Правопреемство', kind:'Заявление об установлении правопреемника', dates:D('01.05.2026','01.05.2026','01.05.2026'), num:'ЗПП-04', purpose:'установление правопреемника', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'16 000,00', responsible:'Асанбеков Д.'},
+      {sec:'Правопреемство', kind:'Решение суда (отсутствие правопреемника)', dates:D('15.06.2026','15.06.2026','15.06.2026'), num:'РС-40', purpose:'установление отсутствия правопреемника', deliver:'вынесено судом', delivered:true, result:{group:'решение суда', value:'отсутствие правопреемника'}, resultKind:'отрицательный', execStage:'на исполнении', sum:'16 000,00', responsible:'Асанбеков Д.'},
+    ],
+    history:[ {when:'15.06.2026 10:00', what:'Мера «Решение суда (отсутствие правопреемника)» РС-40 → фаза; далее признание безнадёжной (п. 80)', who:'Куратор ОД'} ] },
+
+  // ── SIT-R · К6 БАНКРОТСТВО (инициирование / признано / завершено — терминал) ──
+  { id:'338', borrower:'ОсОО «Гранд-Ош»', inn:'01912201610562', region:'г. Ош / Ошский',
+    scope:'полный остаток', contour:'К6', phase:'Инициирование банкротства',
+    owner:'Сектор по работе с активами (САК)', curator:'Дүйшөнов А.', opened:'01.02.2025', openedBy:'куратор', basis:'постановление о возврате ИЛ',
+    credits:[ {id:'438', num:'Дог. №438 от 10.06.2023', subject:'полный остаток', claim:'220 000,00', overdueDays:560,
+      debt:{ principal:{accrued:205000,paid:0}, interest:{accrued:12000,paid:0}, penalty:{accrued:3000,paid:0} } } ],
+    procedure:{ status:'Передан в сектор по работе с активами', since:'01.06.2026', by:'ДПО', receiving:'САК', confirm:{ state:'подтверждена', at:'02.06.2026', deadlineRd:5 } },
+    measures:[ {sec:'Банкротство', kind:'Инициирование банкротства', dates:D('15.06.2026','15.06.2026','15.06.2026'), num:'БНК-11', purpose:'инициирование (п. 69)', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'220 000,00', responsible:'Дүйшөнов А.'} ],
+    history:[ {when:'15.06.2026 11:00', what:'Мера «Инициирование банкротства» БНК-11 → фаза «Инициирование банкротства»', who:'САК'} ] },
+
+  { id:'339', borrower:'ОсОО «Мега-Билд»', inn:'02501202400121', region:'г. Бишкек / Свердловский',
+    scope:'полный остаток', contour:'К6', phase:'Признано банкротом',
+    owner:'Сектор по работе с активами (САК)', curator:'Дүйшөнов А.', opened:'10.10.2024', openedBy:'куратор', basis:'постановление о возврате ИЛ',
+    credits:[ {id:'439', num:'Дог. №439 от 05.03.2023', subject:'полный остаток', claim:'340 000,00', overdueDays:640,
+      debt:{ principal:{accrued:310000,paid:0}, interest:{accrued:22000,paid:0}, penalty:{accrued:8000,paid:0} },
+      debtNote:'При признании банкротом сроки всех обязательств считаются наступившими (п. 71).' } ],
+    procedure:{ status:'Процедура банкротства', since:'20.05.2026', by:'САК', receiving:'САК', confirm:{ state:'подтверждена', at:'21.05.2026', deadlineRd:5 } },
+    measures:[ {sec:'Банкротство', kind:'Признание банкротом', dates:D('20.05.2026','20.05.2026','20.05.2026'), num:'БНК-12', purpose:'признание банкротом (п. 70)', deliver:'решение суда', delivered:true, result:{group:'решение суда', value:'о банкротстве'}, resultKind:'положительный', execStage:'на исполнении', sum:'340 000,00', responsible:'Дүйшөнов А.'} ],
+    history:[ {when:'20.05.2026 14:00', what:'Мера «Признание банкротом» БНК-12 → фаза «Признано банкротом»', who:'САК'} ] },
+
+  { id:'340', borrower:'ОсОО «Синим-Трейд»', inn:'01808202100267', region:'Чуйская обл. / Аламудунский',
+    scope:'полный остаток', contour:'К6', phase:'Завершена процедура банкротства',
+    owner:'Сектор по работе с активами (САК)', curator:'Дүйшөнов А.', opened:'01.06.2024', openedBy:'куратор', basis:'постановление о возврате ИЛ',
+    outcome:'Завершена процедура банкротства', closed:'01.07.2026',
+    credits:[ {id:'440', num:'Дог. №440 от 10.01.2023', subject:'полный остаток', claim:'280 000,00', overdueDays:720,
+      debt:{ principal:{accrued:260000,paid:0}, interest:{accrued:15000,paid:0}, penalty:{accrued:5000,paid:0} },
+      debtNote:'Процедура банкротства завершена; прекращение права требования вносит СИТ (п. 72).' } ],
+    procedure:{ status:'Процедура банкротства завершена', since:'01.07.2026', by:'САК', receiving:'СИТ', confirm:{ state:'подтверждена', at:'01.07.2026', deadlineRd:5 } },
+    measures:[ {sec:'Банкротство', kind:'Завершение процедуры банкротства', dates:D('01.07.2026','01.07.2026','01.07.2026'), num:'БНК-14', purpose:'завершение процедуры (п. 72)', deliver:'определение суда', delivered:true, result:{group:'решение суда', value:'о завершении'}, resultKind:'положительный', execStage:'на исполнении', sum:'280 000,00', responsible:'Дүйшөнов А.'} ],
+    history:[ {when:'01.07.2026 15:00', what:'Мера «Завершение процедуры банкротства» БНК-14 → терминал «Завершена процедура банкротства», группа 3.2', who:'САК'} ] },
+
+  // ── SIT-S · К7 БЕЗНАДЁЖНАЯ (маршрут А не списан / маршрут Б списан / умерший) ──
+  { id:'341', borrower:'ОсОО «Чолпон-Ата Девелопмент»', inn:'02902201900158', region:'Иссык-Кульская обл. / Джети-Огузский',
+    scope:'полный остаток', contour:'К7', phase:'Ликвидация юр. лица',
+    owner:'Сектор по работе с активами (САК)', curator:'Тукинова А.С.', opened:'01.09.2023', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'441', num:'Дог. №441 от 05.02.2022', subject:'полный остаток', claim:'96 000,00', overdueDays:920,
+      debt:{ principal:{accrued:88000,paid:0}, interest:{accrued:6000,paid:0}, penalty:{accrued:2000,paid:0} },
+      debtNote:'Заключение комиссии о безнадёжности вынесено → группа 4. НЕ списана: маршрут А (п. 84) требует акта Кабмина.' } ],
+    procedure:{ status:'Заключение комиссии о безнадёжности', since:'25.06.2026', by:'САК', receiving:'СИТ', confirm:{ state:'подтверждена', at:'25.06.2026', deadlineRd:5 } },
+    committeeQuestions:[ { organ:ORGANS[3], initiator:'САК', subject:'Заключение о признании задолженности безнадёжной', credits:['Дог. №441'], meetingDate:'25.06.2026', decision:'заключение вынесено', positive:true, protocolNo:'КБ-04', protocolDate:'25.06.2026' } ],
+    measures:[ {sec:'Безнадёжная', kind:'Заключение комиссии о безнадёжности', dates:D('25.06.2026','25.06.2026','25.06.2026'), num:'КБ-04', purpose:'признание долга безнадёжным (п. 83)', deliver:'протокол комиссии', delivered:true, result:{group:'решение суда', value:'на понуждение'}, resultKind:'положительный', execStage:'на рассмотрении', sum:'96 000,00', responsible:'Тукинова А.С.'} ],
+    history:[ {when:'25.06.2026 15:00', what:'Заключение комиссии о безнадёжности КБ-04 → группа 4. Списание НЕ произведено: ожидается акт Кабмина (маршрут А, п. 84)', who:'Комиссия'} ] },
+
+  { id:'342', borrower:'ОсОО «Феникс-Капитал»', inn:'01502201700342', region:'г. Бишкек / Ленинский',
+    scope:'полный остаток', contour:'К7', phase:'Приговор суда',
+    owner:'Сектор по работе с активами (САК)', curator:'Маматов Э.', opened:'14.06.2023', openedBy:'куратор', basis:'первичная претензия',
+    outcome:'Списана', closed:'01.07.2026',
+    credits:[ {id:'442', num:'Дог. №442 от 07.03.2021', subject:'полный остаток', claim:'175 000,00', overdueDays:1100,
+      debt:{ principal:{accrued:165000,paid:0}, interest:{accrued:8000,paid:0}, penalty:{accrued:2000,paid:0} },
+      debtNote:'Списана уполномоченным госорганом на основании обвинительного приговора минуя Кабмин (маршрут Б, п. 87).' } ],
+    procedure:{ status:'Безнадежные субъекты (обвинительный приговор суда)', since:'01.07.2026', by:'САК', receiving:'СИТ', confirm:{ state:'подтверждена', at:'01.07.2026', deadlineRd:5 } },
+    measures:[ {sec:'Безнадёжная', kind:'Решение уполномоченного госоргана о списании', dates:D('01.07.2026','01.07.2026','01.07.2026'), num:'СП-06', purpose:'списание по приговору (п. 87)', deliver:'решение госоргана', delivered:true, result:{group:'решение суда', value:'полностью на сумму'}, resultKind:'положительный', execStage:'на исполнении', sum:'175 000,00', responsible:'Маматов Э.'} ],
+    history:[ {when:'01.07.2026 12:00', what:'Списание уполномоченным госорганом на основании обвинительного приговора (маршрут Б, пп. 85–87)', who:'Уполномоченный госорган'} ] },
+
+  { id:'343', borrower:'ИП Абдырахманов К.', inn:'20411198800124', region:'Ошская обл. / Кара-Суйский',
+    scope:'полный остаток', contour:'К7', phase:'Решение суда (умерший / отсутствующий / недееспособный)',
+    owner:'Сектор по работе с активами (САК)', curator:'Маматов Э.', opened:'01.08.2023', openedBy:'куратор', basis:'первичная претензия',
+    outcome:'Признана безнадёжной', closed:'28.06.2026',
+    credits:[ {id:'443', num:'Дог. №443 от 05.04.2021', subject:'полный остаток', claim:'42 000,00', overdueDays:1050,
+      debt:{ principal:{accrued:38000,paid:0}, interest:{accrued:3000,paid:0}, penalty:{accrued:1000,paid:0} },
+      debtNote:'Заёмщик признан судом умершим; задолженность признана безнадёжной (п. 80).' } ],
+    procedure:{ status:'Безнадежные субъекты (умершие / отсутствующие / недееспособные)', since:'28.06.2026', by:'САК', receiving:'СИТ', confirm:{ state:'подтверждена', at:'28.06.2026', deadlineRd:5 } },
+    committeeQuestions:[ { organ:ORGANS[3], initiator:'САК', subject:'Заключение о признании задолженности безнадёжной', credits:['Дог. №443'], meetingDate:'28.06.2026', decision:'заключение вынесено', positive:true, protocolNo:'КБ-05', protocolDate:'28.06.2026' } ],
+    measures:[ {sec:'Безнадёжная', kind:'Заключение комиссии о безнадёжности', dates:D('28.06.2026','28.06.2026','28.06.2026'), num:'КБ-05', purpose:'признание долга безнадёжным (п. 80)', deliver:'протокол комиссии', delivered:true, result:{group:'решение суда', value:'на понуждение'}, resultKind:'положительный', execStage:'на исполнении', sum:'42 000,00', responsible:'Маматов Э.'} ],
+    history:[ {when:'28.06.2026 14:30', what:'Заёмщик признан судом умершим → заключение о безнадёжности (п. 80), терминал «Признана безнадёжной»', who:'Комиссия'} ] },
+
+  // ── SIT-T · ТЕРМИНАЛ «Полное погашение» (акт сверки п. 88, группа 5) ──
+  { id:'344', borrower:'ОсОО «Дан-Азык»', inn:'01607201800625', region:'Чуйская обл. / Ысык-Атинский',
+    scope:'полный остаток', contour:'К4', phase:'На исполнении',
+    owner:'Отраслевой департамент (ОД)', curator:'Абдиев С.', opened:'01.05.2025', openedBy:'куратор', basis:'первичная претензия',
+    outcome:'Полное погашение', closed:'05.07.2026',
+    credits:[ {id:'444', num:'Дог. №444 от 10.11.2024', subject:'полный остаток', claim:'0,00', overdueDays:0,
+      debt:{ principal:{accrued:60000,paid:60000}, interest:{accrued:3000,paid:3000}, penalty:{accrued:800,paid:800} },
+      debtNote:'Долг погашен полностью; подписан акт сверки о полном погашении (п. 88).' } ],
+    procedure:{ status:'Акт сверки о полном погашении', since:'05.07.2026', by:'ОД', receiving:'СИТ', confirm:{ state:'подтверждена', at:'05.07.2026', deadlineRd:5 } },
+    measures:[ {sec:'Досудебный', kind:'Акт сверки о полном погашении', dates:D('05.07.2026','05.07.2026','05.07.2026'), num:'АС-21', purpose:'фиксация полного погашения (п. 88)', deliver:'подписан сторонами', delivered:true, result:{group:'полное погашение', value:'полное погашение'}, resultKind:'положительный', execStage:'на исполнении', sum:'63 800,00', responsible:'Абдиев С.'} ],
+    history:[ {when:'05.07.2026 16:00', what:'Акт сверки о полном погашении АС-21 → терминал «Полное погашение», группа 5', who:'ОД'} ] },
+
+  { id:'345', borrower:'ИП Тологонова С.', inn:'22607199300882', region:'Баткенская обл. / Кадамжайский',
+    scope:'просроченная сумма', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ОД', curator:'Жээнбеков Н.', opened:'01.04.2026', openedBy:'куратор', basis:'первичная претензия',
+    outcome:'Полное погашение', closed:'02.07.2026',
+    credits:[ {id:'445', num:'Дог. №445 от 05.01.2025', subject:'просроченная сумма', claim:'0,00', overdueDays:0,
+      debt:{ principal:{accrued:18000,paid:18000}, interest:{accrued:900,paid:900} },
+      debtNote:'Погашено после повторной претензии; акт сверки подписан.' } ],
+    procedure:{ status:'Акт сверки о полном погашении', since:'02.07.2026', by:'ОД', receiving:'СИТ', confirm:{ state:'подтверждена', at:'02.07.2026', deadlineRd:5 } },
+    measures:[ {sec:'Досудебный', kind:'Акт сверки о полном погашении', dates:D('02.07.2026','02.07.2026','02.07.2026'), num:'АС-20', purpose:'фиксация полного погашения (п. 88)', deliver:'подписан сторонами', delivered:true, result:{group:'полное погашение', value:'полное погашение'}, resultKind:'положительный', execStage:'на исполнении', sum:'18 900,00', responsible:'Жээнбеков Н.'} ],
+    history:[ {when:'02.07.2026 11:00', what:'Полное погашение после повторной претензии → терминал, группа 5', who:'ОД'} ] },
+
+  // ── SIT-U · ПРОЦЕДУРА ОЖИДАЕТ ПОДТВЕРЖДЕНИЯ (плитка «Ожидает подтверждения процедуры») ──
+  { id:'346', borrower:'ОсОО «Бакай-Ата Агро»', inn:'01912201610563', region:'Таласская обл. / Бакай-Атинский',
+    scope:'просроченная сумма', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ОД', curator:'Мурзаева Н.', opened:'01.05.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'446', num:'Дог. №446 от 10.02.2024', subject:'просроченная сумма', claim:'58 000,00', overdueDays:98,
+      debt:{ principal:{accrued:54000,paid:0}, interest:{accrued:3000,paid:0}, penalty:{accrued:1000,paid:0} } } ],
+    procedure:{ status:'Работа с судебными органами', since:'20.07.2026', by:'ОД', receiving:'ОПК', confirm:{ state:'ожидает', at:null, deadlineRd:5, leftRd:4, until:'27.07.2026' } },
+    measures:[ {sec:'Досудебный', kind:'Повторная претензия', dates:D('01.06.2026','01.06.2026','01.06.2026'), num:'ПР-420', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'58 000,00', responsible:'Мурзаева Н.'} ],
+    deadlines:[ { action:'Подтверждение или отклонение статуса процедуры', due:'27.07.2026', base:'смена статуса процедуры (20.07.2026)', leftDays:4, overdue:false, point:'98' } ],
+    history:[ {when:'20.07.2026 10:00', what:'Смена процедуры «Работа с судебными органами» → ожидает подтверждения ОПК, счётчик 5 р.д. (п. 98)', who:'Куратор ОД'} ] },
+
+  { id:'347', borrower:'ОсОО «Панфилов-Строй»', inn:'02804202000444', region:'Чуйская обл. / Московский',
+    scope:'залог', contour:'К4', phase:'На исполнении',
+    owner:'Департамент правового обеспечения (ДПО)', curator:'Танаев У.Ш.', opened:'01.03.2026', openedBy:'куратор', basis:'служебная записка',
+    credits:[ {id:'447', num:'Дог. №447 от 05.09.2023', subject:'залог', claim:'190 000,00', overdueDays:300,
+      debt:{ principal:{accrued:175000,paid:0}, interest:{accrued:12000,paid:0}, penalty:{accrued:3000,paid:0} } } ],
+    procedure:{ status:'Передан в сектор по работе с активами', since:'21.07.2026', by:'ДПО', receiving:'САК', confirm:{ state:'ожидает', at:null, deadlineRd:5, leftRd:5, until:'28.07.2026' } },
+    measures:[ {sec:'Исполнительное', kind:'Исполнительный лист', dates:D('01.06.2026','01.06.2026','01.06.2026'), num:'ИЛ-318', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:{group:'полное исполнение исполнительного листа', value:'на исполнении'}, resultKind:'без изменения', execStage:'на исполнении', sum:'190 000,00', responsible:'Танаев У.Ш.'} ],
+    deadlines:[ { action:'Подтверждение или отклонение статуса процедуры', due:'28.07.2026', base:'смена статуса процедуры (21.07.2026)', leftDays:5, overdue:false, point:'98' } ],
+    history:[ {when:'21.07.2026 09:00', what:'Передача в САК → ожидает подтверждения принимающей стороны (п. 98)', who:'ДПО'} ] },
+
+  // ── SIT-V · ПРОЦЕДУРА ранее ОТКЛОНЕНА, затем подтверждена (procHistory) ──
+  { id:'348', borrower:'ОсОО «Кадамжай-Сурьма»', inn:'01502201700343', region:'Баткенская обл. / Кадамжайский',
+    scope:'залог', contour:'К4', phase:'На исполнении',
+    owner:'Сектор по работе с активами (САК)', curator:'Сагындыков М.', opened:'10.01.2025', openedBy:'куратор', basis:'служебная записка', poruchenie:true,
+    credits:[ {id:'448', num:'Дог. №448 от 05.06.2023', subject:'залог', claim:'270 000,00', overdueDays:490,
+      debt:{ principal:{accrued:240000,paid:0}, interest:{accrued:20000,paid:0}, penalty:{accrued:6000,paid:0}, costs:{accrued:4000,paid:0} } } ],
+    procedure:{ status:'Передан в сектор по работе с активами', since:'10.05.2026', by:'ДПО', receiving:'САК', confirm:{ state:'подтверждена', at:'10.05.2026', deadlineRd:5 } },
+    procHistory:[
+      {status:'Передан в сектор по работе с активами', since:'25.04.2026', by:'ДПО', receiving:'САК', done:'25.04.2026', confirm:'отклонена', rejected:['Акт несостоявшихся торгов','Акт сверки, подписанный сторонами']},
+      {status:'Передан в сектор по работе с активами', since:'10.05.2026', by:'ДПО', receiving:'САК', done:'10.05.2026', confirm:'подтверждена', rejected:[]},
+    ],
+    measures:[ {sec:'Исполнительное', kind:'Акт несостоявшихся торгов', dates:D('20.04.2026','20.04.2026','20.04.2026'), num:'АТ-14', purpose:'фиксация провала торгов', deliver:'акт ПССИ', delivered:true, result:{group:'торги не состоялись', value:'торги не состоялись'}, resultKind:'отрицательный', execStage:'на исполнении', sum:'270 000,00', responsible:'Сагындыков М.'} ],
+    colls:[ {item:'Обогатительная фабрика', kind:'Имущественный комплекс', pledge:'280 000,00', order:'судебный', real:'торги не состоялись (2 раза) → принято на баланс', ban:'предприятие как имущественный комплекс', startPrice:{value:'300 000,00', report:'Отчёт об оценке №ОЦ-99 от 10.03.2026'}} ],
+    history:[
+      {when:'10.05.2026 10:00', what:'Смена процедуры подтверждена (пакет дополнен)', who:'САК'},
+      {when:'25.04.2026 09:00', what:'Смена процедуры ОТКЛОНЕНА: не предоставлены «Акт несостоявшихся торгов», «Акт сверки»', who:'САК'} ] },
+
+  { id:'349', borrower:'ОсОО «Ак-Талаа Инвест»', inn:'02211199100157', region:'Нарынская обл. / Нарынский',
+    scope:'просроченная сумма', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ОД', curator:'Жээнбеков Н.', opened:'01.05.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'449', num:'Дог. №449 от 10.02.2024', subject:'просроченная сумма', claim:'44 000,00', overdueDays:96,
+      debt:{ principal:{accrued:41000,paid:0}, interest:{accrued:2500,paid:0}, penalty:{accrued:500,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'15.07.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'отклонена', at:'18.07.2026', deadlineRd:5 } },
+    procHistory:[ {status:'Передан в отраслевые отделы', since:'15.07.2026', by:'ОД', receiving:'ДАК', done:'18.07.2026', confirm:'отклонена', rejected:['Расчёт задолженности не подписан отраслевым отделом']} ],
+    measures:[ {sec:'Досудебный', kind:'Повторная претензия', dates:D('01.06.2026','01.06.2026','01.06.2026'), num:'ПР-421', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'44 000,00', responsible:'Жээнбеков Н.'} ],
+    history:[ {when:'18.07.2026 14:00', what:'Смена процедуры ОТКЛОНЕНА принимающей стороной: расчёт не подписан отраслевым отделом (п. 98)', who:'ДАК'} ] },
+
+  // ── SIT-W · КОНФЛИКТ ИНТЕРЕСОВ (куратор отстранён / конфликт снят) ──
+  { id:'350', borrower:'ОсОО «Родник-Плюс»', inn:'01912201610564', region:'г. Бишкек / Октябрьский',
+    scope:'просроченная сумма', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ОД', curator:'Кадыров М.', opened:'01.05.2026', openedBy:'куратор', basis:'первичная претензия',
+    conflict:{ declared:true, date:'15.07.2026', basis:'супруг работника — учредитель заёмщика', status:'на рассмотрении Правления', curatorSuspended:true },
+    credits:[ {id:'450', num:'Дог. №450 от 10.02.2024', subject:'просроченная сумма', claim:'62 000,00', overdueDays:100,
+      debt:{ principal:{accrued:58000,paid:0}, interest:{accrued:3000,paid:0}, penalty:{accrued:1000,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'01.06.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'03.06.2026', deadlineRd:5 } },
+    measures:[ {sec:'Досудебный', kind:'Повторная претензия', dates:D('01.06.2026','01.06.2026','01.06.2026'), num:'ПР-422', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'62 000,00', responsible:'Кадыров М.'} ],
+    deadlines:[ { action:'Уведомление о конфликте интересов', due:'18.07.2026', base:'закрепление куратора / вынос на комитет', leftDays:-3, overdue:true, point:'92' } ],
+    history:[ {when:'15.07.2026 11:00', what:'Заявлен конфликт интересов → куратор отстранён до решения Правления (п. 92)', who:'Кадыров М.'} ] },
+
+  { id:'351', borrower:'ОсОО «Максат-Строй»', inn:'02501202400122', region:'г. Бишкек / Первомайский',
+    scope:'просроченная сумма', contour:'К1', phase:'Претензия',
+    owner:'Куратор ОД', curator:'Исаева А.', opened:'10.06.2026', openedBy:'куратор', basis:'первичная претензия',
+    conflict:{ declared:true, date:'20.06.2026', basis:'ранее оказывал услуги заёмщику', status:'конфликт не подтверждён, куратор восстановлен', curatorSuspended:false },
+    credits:[ {id:'451', num:'Дог. №451 от 10.03.2025', subject:'просроченная сумма', claim:'28 000,00', overdueDays:40,
+      debt:{ principal:{accrued:26000,paid:0}, interest:{accrued:2000,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'08.06.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'10.06.2026', deadlineRd:5 } },
+    measures:[ {sec:'Досудебный', kind:'Первичная претензия', dates:D('10.06.2026','10.06.2026','10.06.2026'), num:'ПР-452', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'28 000,00', responsible:'Исаева А.'} ],
+    history:[ {when:'25.06.2026 10:00', what:'Конфликт интересов не подтверждён Правлением → куратор восстановлен (п. 92)', who:'Правление'} ] },
+
+  // ── SIT-X · КАТЕГОРИЯ РИСКА — worst-of, подавление 181-го, факторы (Р-5) ──
+  { id:'352', borrower:'ОсОО «Триумф-Ош»', inn:'01808202100268', region:'г. Ош / Ошский',
+    scope:'просроченная сумма', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ОД', curator:'Бекболотов Р.', opened:'01.03.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'452', num:'Дог. №452 от 05.09.2023', subject:'просроченная сумма', claim:'150 000,00', overdueDays:230,
+      debt:{ principal:{accrued:140000,paid:0}, interest:{accrued:8000,paid:0}, penalty:{accrued:2000,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'25.02.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'01.03.2026', deadlineRd:5 } },
+    measures:[ {sec:'Досудебный', kind:'Повторная претензия', dates:D('01.04.2026','01.04.2026','01.04.2026'), num:'ПР-425', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'150 000,00', responsible:'Бекболотов Р.'} ],
+    history:[ {when:'01.04.2026 12:00', what:'Категория «высокий» по дням (230 к.д.), подавления нет', who:'Куратор ОД'} ] },
+
+  { id:'353', borrower:'ОсОО «Ак-Жол Финанс»', inn:'02902201900159', region:'г. Бишкек / Свердловский',
+    scope:'просроченная сумма', contour:'К1', phase:'Претензия',
+    owner:'Куратор ДАК', curator:'Ниязова Э.', opened:'20.06.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[ {id:'453', num:'Дог. №453 от 10.04.2025', subject:'просроченная сумма', claim:'95 000,00', overdueDays:3,
+      factors:[ {kind:'ухудшение финансового состояния', level:'mid', committee:'Комитет по администрированию бюджетных кредитов', decision:'КАК-18', date:'01.06.2026'} ],
+      debt:{ principal:{accrued:92000,paid:0}, interest:{accrued:3000,paid:0} } } ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'18.06.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'20.06.2026', deadlineRd:5 } },
+    measures:[ {sec:'Досудебный', kind:'Первичная претензия', dates:D('20.06.2026','20.06.2026','20.06.2026'), num:'ПР-456', purpose:'погашение', deliver:'СЭД (квитанция)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'95 000,00', responsible:'Ниязова Э.'} ],
+    history:[ {when:'01.06.2026 10:00', what:'Комитет (КАК-18): фактор «ухудшение финансового состояния» → категория «средний» при 3 днях просрочки (п. 12)', who:'Комитет ДАК'} ] },
+
+  { id:'354', borrower:'ОсОО «Юг-Агро-Холдинг»', inn:'01502201700344', region:'Джалал-Абадская обл. / Сузакский',
+    scope:'просроченная сумма', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ОД', curator:'Садыков Б.', opened:'01.02.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[
+      {id:'454', num:'Дог. №454 от 05.05.2024', subject:'просроченная сумма', claim:'70 000,00', overdueDays:200, suppress181:{until:'01.09.2026', reason:'рассмотрение реструктуризации', days:19},
+        debt:{ principal:{accrued:66000,paid:0}, interest:{accrued:3000,paid:0}, penalty:{accrued:1000,paid:0} } },
+      {id:'455', num:'Дог. №455 от 18.08.2024', subject:'просроченная сумма', claim:'30 000,00', overdueDays:60,
+        debt:{ principal:{accrued:28000,paid:0}, interest:{accrued:2000,paid:0} } },
+    ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'28.01.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'01.02.2026', deadlineRd:5 } },
+    measures:[ {sec:'Досудебный', kind:'Повторная претензия', dates:D('01.03.2026','01.03.2026','01.03.2026'), num:'ПР-424', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'100 000,00', responsible:'Садыков Б.'} ],
+    history:[ {when:'01.03.2026 12:00', what:'Два кредита: №454 подавление 181-го (→ средний), №455 средний по дням; worst-of процесса — «средний»', who:'Куратор ОД'} ] },
+
+  // ── SIT-Y · МНОГОКРЕДИТНЫЙ процесс, РАЗНЫЕ ОХВАТЫ (много-ко-многим) ──
+  { id:'355', borrower:'ОсОО «Империал-Групп»', inn:'01912201610565', region:'г. Бишкек / Ленинский',
+    scope:'смешанный', contour:'К1', phase:'Повторная претензия',
+    owner:'Куратор ОД', curator:'Токтосунова Б.', opened:'01.03.2026', openedBy:'куратор', basis:'первичная претензия',
+    credits:[
+      {id:'456', num:'Дог. №456 от 05.04.2024', subject:'просроченная сумма', claim:'80 000,00', overdueDays:150,
+        debt:{ principal:{accrued:75000,paid:0}, interest:{accrued:4000,paid:0}, penalty:{accrued:1000,paid:0} } },
+      {id:'457', num:'Дог. №457 от 10.06.2024', subject:'залог', claim:'220 000,00', overdueDays:95,
+        debt:{ principal:{accrued:205000,paid:0}, interest:{accrued:12000,paid:0}, penalty:{accrued:3000,paid:0} } },
+    ],
+    procedure:{ status:'Передан в отраслевые отделы', since:'25.02.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'01.03.2026', deadlineRd:5 } },
+    measures:[ {sec:'Досудебный', kind:'Повторная претензия', dates:D('01.04.2026','01.04.2026','01.04.2026'), num:'ПР-426', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'300 000,00', responsible:'Токтосунова Б.'} ],
+    history:[ {when:'01.04.2026 12:00', what:'Процесс охватывает два кредита разных предметов требования (просроченная сумма + залог)', who:'Куратор ОД'} ] },
+
+  { id:'356', borrower:'ОсОО «Евразия-Трейд»', inn:'02804202000445', region:'Чуйская обл. / Аламудунский',
+    scope:'смешанный', contour:'К3', phase:'Иск',
+    owner:'Отдел проблемных кредитов (ОПК)', curator:'Тукинова А.С.', opened:'01.12.2025', openedBy:'куратор', basis:'первичная претензия', poruchenie:true,
+    credits:[
+      {id:'458', num:'Дог. №458 от 05.03.2024', subject:'просроченная сумма', claim:'130 000,00', overdueDays:250,
+        debt:{ principal:{accrued:120000,paid:0}, interest:{accrued:8000,paid:0}, penalty:{accrued:2000,paid:0} } },
+      {id:'459', num:'Дог. №459 от 10.05.2024', subject:'полный остаток', claim:'90 000,00', overdueDays:210,
+        debt:{ principal:{accrued:82000,paid:0}, interest:{accrued:6000,paid:0}, penalty:{accrued:2000,paid:0} } },
+    ],
+    procedure:{ status:'Работа с судебными органами', since:'01.05.2026', by:'ДПО', receiving:'ОПК', confirm:{ state:'подтверждена', at:'02.05.2026', deadlineRd:5 } },
+    committeeQuestions:[ { organ:ORGANS[4], initiator:'ОПК', subject:'Поручение об инициировании судебного взыскания', credits:['Дог. №458','Дог. №459'], meetingDate:'25.04.2026', decision:'поручение выдано', positive:true, protocolNo:'ПП-81', protocolDate:'25.04.2026' } ],
+    measures:[ {sec:'Судебный', kind:'Исковое заявление', dates:D('05.05.2026','05.05.2026','05.05.2026'), num:'ИСК-83', purpose:'взыскание по двум договорам', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'220 000,00', responsible:'Тукинова А.С.'} ],
+    history:[ {when:'05.05.2026 10:00', what:'Единое исковое заявление ИСК-83 по двум кредитам процесса (просроченная сумма + полный остаток)', who:'ОПК'} ] },
 ];
 
 /* ---- normalize: заполняем умолчания, чтобы данные держать лаконичными ---- */
@@ -1313,7 +2056,7 @@ const claimSum = p => (p.credits || []).reduce((s,c)=> s + parseSum(c.claim || '
 const caret = ()=>`<span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>`;
 const ro  = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div class="control ro"><input value="${escAttr(v||'')}" readonly></div></div>`;
 const sel = (l,v,opts,id)=>`<div class="field"><span class="flabel">${l}</span><div class="control grey"><select${id?` id="${id}"`:''}>${opts.map(o=>`<option${o===v?' selected':''}>${o}</option>`).join('')}</select>${caret()}</div></div>`;
-const inp = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div class="control grey"><input value="${escAttr(v||'')}"></div></div>`;
+const inp = (l,v,id)=>`<div class="field"><span class="flabel">${l}</span><div class="control grey"><input${id?` id="${id}"`:''} value="${escAttr(v||'')}"></div></div>`;
 const pickRO = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div class="lookup"><span class="val${v?'':' ph'}">${escAttr(v||'')}</span><button class="pick" title="Открыть" onclick="toast('Переход в связанную карточку (демо)')">•••</button></div></div>`;
 
 /* ============================================================
@@ -1322,6 +2065,7 @@ const pickRO = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div c
 let selectedRow = null, sortKey='id', sortDir=1;
 let stageFilter = null;   // фильтр стадии из сайдбара: значение stageOf()
 let tileFilter  = null;   // фильтр плитки: 'gate' | 'window' | 'procWait' | 'overdue'
+let filterState = {};     // полевой фильтр списка (11 полей, живой; Контур→Фаза и Область→Район зависимые)
 
 /* Активный блокирующий гейт комитета: нужное следующее действие контура заблокировано. */
 function gateBlocked(p){
@@ -1338,11 +2082,39 @@ function listStatus(p){
 }
 const TILE_LABELS = { gate:'Заблокировано гейтом комитета', window:'В окне ожидания', procWait:'Ожидает подтверждения процедуры', overdue:'Просрочен срок' };
 
-function visibleProcesses(){
+const uniq      = a => [...new Set(a)].sort((x,y)=>String(x).localeCompare(String(y),'ru'));
+const oblastOf  = r => String(r||'').split(' / ')[0] || '';
+const raionOf   = r => String(r||'').split(' / ')[1] || '';
+
+/* Полевой фильтр: процесс проходит, только если удовлетворяет ВСЕМ заданным полям. */
+function passFilters(p){
+  const f = filterState;
+  if(f.q){ const q=f.q.toLowerCase(); if(!(String(p.borrower).toLowerCase().includes(q) || String(p.inn||'').includes(f.q))) return false; }
+  if(f.curator && p.curator!==f.curator)          return false;
+  if(f.owner   && p.owner!==f.owner)              return false;
+  if(f.oblast  && oblastOf(p.region)!==f.oblast)  return false;
+  if(f.raion   && raionOf(p.region)!==f.raion)    return false;
+  if(f.contour && p.contour!==f.contour)          return false;
+  if(f.phase   && p.phase!==f.phase)              return false;
+  if(f.cat     && catOfProcess(p)!==f.cat)        return false;
+  if(f.group   && (groupOf(p)||'')!==f.group)     return false;
+  if(f.scope   && p.scope!==f.scope)              return false;
+  if(f.odMin!=null  && maxOverdue(p) < f.odMin)   return false;
+  if(f.odMax!=null  && maxOverdue(p) > f.odMax)   return false;
+  if(f.sumMin!=null && claimSum(p)   < f.sumMin)  return false;
+  if(f.sumMax!=null && claimSum(p)   > f.sumMax)  return false;
+  return true;
+}
+/* База для СПИСКА и ПЛИТОК: всё, кроме плиточного фильтра — чтобы «Всего» = набор под полевым фильтром. */
+function baseSet(){
   const retro = document.getElementById('retroToggle') && document.getElementById('retroToggle').checked;
   let src = PROCESSES.filter(p => retro ? true : !isRetroClosed(p));   // Р-9: ретро-закрытые скрыты по умолчанию
   if(stageFilter) src = src.filter(p => stageOf(p.phase) === stageFilter);
-  if(tileFilter)  src = src.filter(p => listStatus(p) === tileFilter);
+  return src.filter(passFilters);
+}
+function visibleProcesses(){
+  let src = baseSet();
+  if(tileFilter) src = src.filter(p => listStatus(p) === tileFilter);
   return src;
 }
 
@@ -1371,7 +2143,7 @@ function sortVal(p, k){
   }
 }
 function renderTiles(){
-  const src = PROCESSES.filter(p => (document.getElementById('retroToggle')&&document.getElementById('retroToggle').checked) ? true : !isRetroClosed(p));
+  const src = baseSet();   // плитки отражают полевой фильтр и стадию (кроме самого плиточного фильтра)
   const by = k => src.filter(p => listStatus(p) === k).length;
   const tiles = [
     { key:null,      lbl:'Всего',                             n:src.length,     cls:'' },
@@ -1437,6 +2209,7 @@ function openDetail(id){
   curProc = PROCESSES.find(p=>p.id===id) || PROCESSES[0];
   curTab=0; catOpen=false; renderTabs(); renderPanels(); showView('detail');
   document.getElementById('crumbTitle').textContent = `${procNo(curProc.id)} · ${curProc.borrower} · ${displayPhase(curProc)}`;
+  setHash('detail/'+curProc.id);   // сохранить вид в URL — переживёт F5
 }
 function renderTabs(){
   document.getElementById('detailTabbar').innerHTML =
@@ -1635,9 +2408,9 @@ function panelMery(){
     ${phaseTimeline()}
     <p class="section-h">Журнал мер</p>
     <p class="section-note">Фаза двигается ТОЛЬКО регистрацией меры-вехи. Три независимые оси результата (В-2): результат · вид · стадия исполнения — не схлопывать, это входы показателей ТЗ. Аннулирование заменено на сторно (И-3): запись остаётся зачёркнутой, веха откатывает фазу. Сумма отправленного документа иммутабельна (И-1) — расхождение помечается, не переписывается.</p>
-    <div class="gtoolbar">
+    ${canRegisterMeasures()?`<div class="gtoolbar">
       <button class="btn btn-tint btn-sm" onclick="openMeasureModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Зарегистрировать меру</button>
-    </div>
+    </div>`:''}
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Раздел</th><th>Вид меры</th><th>Дата рег.</th><th>Номер</th><th>Направление / вручение</th><th>Результат</th><th>Вид</th><th>Стадия исп.</th><th>Вложения</th><th>Ответственный</th><th style="text-align:right">Сумма</th><th></th></tr></thead>
       <tbody>${rows||`<tr><td colspan="12"><div class="cgrid-empty">Мер ещё нет — процесс в К0 (авто-открытие, ноль мер) это нормальное состояние</div></td></tr>`}</tbody>
@@ -1787,7 +2560,22 @@ function panelHistory(){
 function renderPanels(){
   const builders=[panelObschaya,panelOhvat,panelRaschet,panelMery,panelSud,panelProcedure,panelKomitety,panelSpecial,panelZalog,panelHistory];
   document.getElementById('detailPanels').innerHTML=builders.map((b,i)=>`<div class="detail-panel${i===curTab?' active':''}">${b()}</div>`).join('');
+  persistState();   // демо-персист: каждая мутация процесса зовёт renderPanels → сохраняем состояние
 }
+/* ДЕМО-ПЕРСИСТ (localStorage): внесённые в макете данные переживают F5.
+   Сброс к сид-данным — кнопкой «Сбросить демо» или ?reset в URL. Версия в ключе:
+   при изменении структуры сида поднять, чтобы старый снимок не перекрывал новый. */
+const STORE_KEY='asubk-collection-state-v1';
+function persistState(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(PROCESSES)); }catch(e){} }
+function restoreState(){
+  try{
+    if(/[?&]reset\b/.test(location.search)){ localStorage.removeItem(STORE_KEY); return; }
+    const raw=localStorage.getItem(STORE_KEY); if(!raw) return;
+    const data=JSON.parse(raw); if(!Array.isArray(data)||!data.length) return;
+    PROCESSES.length=0; data.forEach(p=>PROCESSES.push(p));   // мутируем const-массив на месте
+  }catch(e){}
+}
+function resetDemo(){ try{ localStorage.removeItem(STORE_KEY); }catch(e){} location.href=location.pathname; }
 /* ============================================================
    ИНТЕРАКТИВ: гейты, регистрация меры, сторно, В-8, окно, процедура.
    ============================================================ */
@@ -1808,6 +2596,7 @@ function measureGate(p, kind){
   if(kind==='Первичная претензия' && p.window && p.window.open)
     return { kind:'window', reason:`Окно ожидания зачисления открыто до ${p.window.until}: регистрация первичной претензии заблокирована. Закройте окно отметкой куратора или дождитесь истечения.` };
   const sub=subdivReason(kind); if(sub) return { kind:'subdiv', reason:sub };
+  const seq=sequenceReason(p,kind); if(seq) return { kind:'sequence', reason:seq };
   const gr=gateReason(p,kind); if(gr) return { kind:'gate', reason:gr };
   if(kind==='Исковое заявление'){
     for(const c of (p.credits||[])){ const cr=crossingOnCourt(p,c); if(cr)
@@ -1820,17 +2609,17 @@ function openMeasureModal(){
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Регистрация меры</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
     <div class="modal-b"><div class="mform">
-      ${sel('Раздел','Судебный',['Досудебный','Внесудебный залог','Судебный','Исполнительное','Правопреемство','Банкротство','Безнадёжная'])}
-      <div class="field"><span class="flabel">Вид меры</span><div class="control grey"><select id="mKind" onchange="syncMeasureWarnings()">${MEASURE_KINDS.map(k=>`<option${k==='Исковое заявление'?' selected':''}>${k}</option>`).join('')}</select>${caret()}</div></div>
-      ${inp('Дата события (Р-7)','')}
-      ${inp('Дата получения в ГФХ','')}
-      ${inp('Дата регистрации в АСУБК','')}
-      ${inp('Номер','')}
-      ${sel('Направление / вручение','Подано в суд',['СЭД (квитанция)','Почта (уведомление о вручении)','Отметка заёмщика','Подано в суд','Зарегистрировано в госоргане','Не направлялась'])}
-      ${sel('Результат','определение суда',RESULT_GROUPS)}
-      ${sel('Вид результата (В-2)','без изменения',RESULT_KINDS)}
-      ${sel('Стадия исполнения (В-2)','на рассмотрении',EXEC_STAGES)}
-      <div class="field col-span"><span class="flabel">Назначение (цель)</span><div class="control"><input value=""></div></div>
+      <div class="field"><span class="flabel">Вид меры</span><div class="control grey"><select id="mKind" onchange="syncMeasureWarnings()">${measureKindOptions('Исковое заявление')}</select>${caret()}</div></div>
+      <div class="field"><span class="flabel">Раздел</span><div class="control ro"><input id="mSection" value="${sectionOf('Исковое заявление')}" readonly title="Производное от вида меры — вручную не задаётся"></div></div>
+      ${inp('Дата события (Р-7)','','mDateEvent')}
+      ${inp('Дата получения в ГФХ','','mDateGfh')}
+      ${inp('Дата регистрации в АСУБК','','mDateReg')}
+      ${inp('Номер','','mNum')}
+      ${sel('Направление / вручение','Подано в суд',['СЭД (квитанция)','Почта (уведомление о вручении)','Отметка заёмщика','Подано в суд','Зарегистрировано в госоргане','Не направлялась'],'mDeliver')}
+      ${sel('Результат','определение суда',RESULT_GROUPS,'mResult')}
+      ${sel('Вид результата (В-2)','без изменения',RESULT_KINDS,'mResultKind')}
+      ${sel('Стадия исполнения (В-2)','на рассмотрении',EXEC_STAGES,'mExecStage')}
+      <div class="field col-span"><span class="flabel">Назначение (цель)</span><div class="control"><input id="mPurpose" value=""></div></div>
     </div>
     <div class="warn-inline" id="mWarnPhase">${warnIcon()}<span>Это <b>мера-веха</b>: сохранение сдвинет фазу процесса. Фаза двигается только так — селектора фазы нет.</span></div>
     <div class="warn-inline" id="mWarnDelivery">${warnIcon()}<span>Без подтверждения вручения мера не считается исполненной и не годится как доказательство (п. 20.2).</span></div>
@@ -1842,6 +2631,7 @@ function openMeasureModal(){
 }
 function syncMeasureWarnings(){
   const kind=document.getElementById('mKind').value;
+  const secEl=document.getElementById('mSection'); if(secEl) secEl.value=sectionOf(kind);   // раздел выводится из вида меры
   document.getElementById('mWarnPhase').style.display=isMilestone(kind)?'flex':'none';
   document.getElementById('mWarnDelivery').style.display=needsDelivery(kind)?'flex':'none';
   const g=measureGate(curProc,kind);
@@ -1858,12 +2648,28 @@ function saveMeasure(){
   const kind=document.getElementById('mKind').value;
   if(measureGate(curProc,kind)){ toast('Действие заблокировано гейтом','err'); return; }
   if(kind==='Извещение об обращении на залог'){ closeModal(); recalcOnIzveschenie(); return; }
+  const val=id=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
+  const reg=val('mDateReg')||TODAY, ev=val('mDateEvent')||reg, gfh=val('mDateGfh')||reg;
+  const deliver=val('mDeliver');
+  const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'Текущая роль';
+  // И-1: сумма документа = требование по кредиту на момент регистрации (иммутабельна)
+  const sum=(curProc.credits&&curProc.credits[0]&&curProc.credits[0].claim)||'—';
+  curProc.measures=curProc.measures||[];
+  curProc.measures.unshift({
+    sec:sectionOf(kind), kind, dates:D(ev,gfh,reg), num:val('mNum'),
+    purpose:val('mPurpose'), deliver, delivered:!!deliver&&deliver!=='Не направлялась',
+    result:{value:val('mResult')}, resultKind:val('mResultKind'), execStage:val('mExecStage'),
+    docs:[], sum, responsible:role,
+  });
   closeModal();
   if(isMilestone(kind)){
     const ph=MILESTONE_PHASE[kind]; curProc.phase=ph;
-    curProc.history.unshift({when:TODAY+' 12:00', what:`Мера «${kind}» зарегистрирована → фаза «${ph}»`, who:'Текущая роль'});
+    curProc.history.unshift({when:TODAY+' 12:00', what:`Мера «${kind}»${val('mNum')?' '+val('mNum'):''} зарегистрирована → фаза «${ph}»`, who:role});
     renderPanels(); toast(`Мера-веха зарегистрирована → фаза «${ph}» (демо)`,'ok');
-  } else toast('Мера зарегистрирована (демо)','ok');
+  } else {
+    curProc.history.unshift({when:TODAY+' 12:00', what:`Мера «${kind}»${val('mNum')?' '+val('mNum'):''} зарегистрирована`, who:role});
+    renderPanels(); toast('Мера зарегистрирована (демо)','ok');
+  }
 }
 /* В-8: ускорение долга при извещении — пересчёт на клике (не зашит). */
 function recalcOnIzveschenie(){
@@ -2034,7 +2840,21 @@ const alertIcon = ()=>`<svg width="16" height="16" viewBox="0 0 24 24" fill="non
 function showView(v){ document.querySelectorAll('.view').forEach(s=>s.style.display='none');
   document.getElementById('view-'+v).style.display='flex';
   const titles={list:'Взыскание задолженности',hearings:'Реестр заседаний',claims:'Реестр претензий',committee:'Вопросы на коллегиальные органы',deadlines:'Сроки на контроле'};
-  if(titles[v]) document.getElementById('crumbTitle').textContent=titles[v]; }
+  if(titles[v]) document.getElementById('crumbTitle').textContent=titles[v];
+  if(v!=='detail') setHash(v);   // detail пишет openDetail (с id); остальные виды — по имени
+}
+/* Персист вида в URL-хеше — при F5 страница остаётся на месте.
+   lastHash отсекает hashchange, вызванные нашей же setHash (hashchange асинхронный,
+   синхронный флаг тут не сработал бы); реагируем только на навигацию назад/вперёд. */
+let lastHash='';
+function setHash(h){ lastHash=h; if(('#'+h)!==location.hash) location.hash=h; }
+function restoreFromHash(){
+  const h=(location.hash||'').replace(/^#/,'');
+  if(h.startsWith('detail/')){ const id=h.slice(7); if(PROCESSES.some(p=>p.id===id)){ openDetail(id); return; } }
+  const views=['list','hearings','claims','committee','deadlines'];
+  showView(views.includes(h)?h:'list');
+}
+window.addEventListener('hashchange',()=>{ if(location.hash!==('#'+lastHash)) restoreFromHash(); });
 function scrollTabs(){ document.getElementById('detailTabbar').scrollBy({left:200,behavior:'smooth'}); }
 function closeSplit(){ document.getElementById('splitRefresh').classList.remove('open'); }
 function onRoleChange(){ toast('Роль: '+document.getElementById('roleSel').value); if(curProc && document.getElementById('view-detail').style.display!=='none') renderPanels(); }
@@ -2043,7 +2863,104 @@ function toast(msg,kind){ const w=document.getElementById('toastWrap'); const t=
 function closeModal(){ const h=document.getElementById('modalHost'); h.classList.remove('open'); h.innerHTML=''; }
 document.addEventListener('keydown', e=>{ if(e.key==='Escape' && document.getElementById('modalHost').classList.contains('open')) closeModal(); });
 
-renderNav(); renderList();
+/* ============================================================
+   ПОЛЕВОЙ ФИЛЬТР СПИСКА — панель, чипы, зависимые селекты. Живой (без «Применить»).
+   ============================================================ */
+const CAT_OPTS  = [['norm','Норма'],['mid','Средний'],['high','Высокий']];
+const CHIP_LABEL = { q:'Поиск', curator:'Куратор', owner:'Владелец', scope:'Предмет', oblast:'Область',
+  raion:'Район', contour:'Контур', phase:'Фаза', cat:'Категория', group:'Группа',
+  odMin:'Дней просрочки ≥', odMax:'Дней просрочки ≤', sumMin:'Сумма ≥', sumMax:'Сумма ≤' };
+
+function fopts(list, sel){
+  return `<option value="">— все —</option>` + list.map(o=>{
+    const [v,t] = Array.isArray(o) ? o : [o,o];
+    return `<option value="${escAttr(v)}"${String(v)===String(sel??'')?' selected':''}>${t}</option>`;
+  }).join('');
+}
+function fsel(id,label,list,sel,on,dis){
+  return `<div class="field"><span class="flabel">${label}</span>
+    <div class="control grey"><select id="${id}"${dis?' disabled':''} onchange="${on}">${fopts(list,sel)}</select>${caret()}</div></div>`;
+}
+function ftext(id,label,val,on){
+  return `<div class="field"><span class="flabel">${label}</span>
+    <div class="control grey"><input id="${id}" value="${escAttr(val||'')}" oninput="${on}" placeholder="имя или ИНН"></div></div>`;
+}
+function frange(label,kMin,kMax){
+  return `<div class="field"><span class="flabel">${label}</span>
+    <div class="range-pair">
+      <input type="number" min="0" value="${filterState[kMin]??''}" oninput="setNum('${kMin}',this.value)" placeholder="от">
+      <span>–</span>
+      <input type="number" min="0" value="${filterState[kMax]??''}" oninput="setNum('${kMax}',this.value)" placeholder="до">
+    </div></div>`;
+}
+function renderFilterBar(){
+  const f = filterState;
+  const curators = uniq(PROCESSES.map(p=>p.curator).filter(x=>x&&x!=='—'));
+  const owners   = uniq(PROCESSES.map(p=>p.owner).filter(x=>x&&x!=='—'));
+  const oblasti  = uniq(PROCESSES.map(p=>oblastOf(p.region)).filter(Boolean));
+  const raiony   = f.oblast ? uniq(PROCESSES.filter(p=>oblastOf(p.region)===f.oblast).map(p=>raionOf(p.region)).filter(Boolean)) : [];
+  const groups   = uniq(PROCESSES.map(p=>groupOf(p)).filter(Boolean));
+  const scopes   = uniq(PROCESSES.map(p=>p.scope).filter(Boolean));
+  const contours = Object.keys(CONTOURS).map(k=>[k, `${k} — ${CONTOURS[k].name}`]);
+  const phases   = f.contour ? CONTOURS[f.contour].phases : [];
+  document.getElementById('filterBody').innerHTML = `
+    ${ftext('f-q','Заёмщик / ИНН', f.q, "setF('q',this.value)")}
+    ${fsel('f-curator','Куратор', curators, f.curator, "setF('curator',this.value)")}
+    ${fsel('f-owner','Владелец (отдел)', owners, f.owner, "setF('owner',this.value)")}
+    ${fsel('f-scope','Предмет требования', scopes, f.scope, "setF('scope',this.value)")}
+    ${fsel('f-oblast','Область', oblasti, f.oblast, "setDep('oblast',this.value)")}
+    ${fsel('f-raion','Район', raiony, f.raion, "setF('raion',this.value)", !f.oblast)}
+    ${fsel('f-contour','Контур', contours, f.contour, "setDep('contour',this.value)")}
+    ${fsel('f-phase','Фаза', phases, f.phase, "setF('phase',this.value)", !f.contour)}
+    ${fsel('f-cat','Категория риска', CAT_OPTS, f.cat, "setF('cat',this.value)")}
+    ${fsel('f-group','Группа платёжеспособности', groups, f.group, "setF('group',this.value)")}
+    ${frange('Дней просрочки','odMin','odMax')}
+    ${frange('Сумма требования','sumMin','sumMax')}
+    <div class="filter-actions">
+      <div class="split" id="splitRefresh">
+        <button class="btn btn-success" onclick="toast('Список обновлён')">Обновить</button>
+        <button class="btn btn-success caret" onclick="document.getElementById('splitRefresh').classList.toggle('open');event.stopPropagation();">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="split-menu">
+          <button onclick="toast('Обновить');closeSplit()">Обновить</button>
+          <button onclick="toast('Применить и обновить');closeSplit()">Применить и обновить</button>
+        </div>
+      </div>
+      <button class="gear-btn" title="Настройка колонок" onclick="toast('Настройка видимости колонок (демо)')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <span style="flex:1"></span>
+      <button class="btn btn-secondary" onclick="resetFilters()">Сбросить</button>
+    </div>`;
+}
+function renderChips(){
+  const keys = Object.keys(filterState).filter(k=>filterState[k]!=null && filterState[k]!=='');
+  document.getElementById('filterChips').innerHTML = keys.map(k=>{
+    const v = k==='cat' ? catLabel(filterState[k]) : filterState[k];
+    return `<span class="fchip">${CHIP_LABEL[k]||k}: ${escAttr(v)}<button title="убрать" onclick="clearFilter('${k}')">×</button></span>`;
+  }).join('');
+}
+/* обычное поле: живое, без пересборки панели (текст сохраняет фокус) */
+function setF(k,v){ if(v!=='' && v!=null) filterState[k]=v; else delete filterState[k]; renderList(); renderChips(); }
+/* числовой диапазон */
+function setNum(k,v){ v=String(v).trim(); if(v==='') delete filterState[k]; else filterState[k]=Number(v); renderList(); renderChips(); }
+/* зависимое поле: меняет набор дочернего → пересобираем панель */
+function setDep(k,v){
+  if(v) filterState[k]=v; else delete filterState[k];
+  if(k==='contour') delete filterState.phase;
+  if(k==='oblast')  delete filterState.raion;
+  renderFilterBar(); renderList(); renderChips();
+}
+function clearFilter(k){
+  delete filterState[k];
+  if(k==='contour') delete filterState.phase;
+  if(k==='oblast')  delete filterState.raion;
+  renderFilterBar(); renderList(); renderChips();
+}
+function resetFilters(){ filterState={}; renderFilterBar(); renderList(); renderChips(); }
+
+restoreState(); renderNav(); renderFilterBar(); renderChips(); renderList(); restoreFromHash();
 </script>
 </body>
 </html>
