@@ -478,7 +478,7 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
 /* settings screen tabs */
 .settings-tabbar{ display:flex; gap:4px; border-bottom:1px solid var(--border-strong); margin-bottom:16px; }
 .settings-tab{ padding:8px 16px; cursor:pointer; border:none; background:none; font:var(--font-label); color:var(--text-muted); border-bottom:2px solid transparent; }
-.settings-tab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:600; }
+.settings-tab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
 .settings-grid,.role-grid{ border-collapse:collapse; width:100%; }
 .settings-grid th,.settings-grid td,.role-grid th,.role-grid td{ border:1px solid var(--border-strong); padding:6px 10px; text-align:center; font:var(--font-body); }
 .settings-grid th:first-child,.settings-grid td:first-child,.role-grid th:first-child,.role-grid td:first-child{ text-align:left; }
@@ -930,7 +930,7 @@ function availableKinds(p){
 }
 function canRegisterMeasures(){
   const role = document.getElementById('roleSel') ? document.getElementById('roleSel').value : '';
-  if((RULES.roleSubdiv[role] || '—') === '—') return false;        // роль-наблюдатель: мер не регистрирует
+  if((RULES.roleSubdiv[role] || '—') === '—') return false;   // роль-наблюдатель: мер не регистрирует
   return availableKinds(curProc).length > 0;                  // нет доступных видов для роли+стадии — нет кнопки
 }
 
@@ -2460,7 +2460,7 @@ function panelMery(){
     </table></div></div>`;
 }
 function phaseTimeline(){
-  const p=curProc; if(!CONTOURS[p.contour]) return '';
+  const p=curProc; const cont=CONTOURS[p.contour]; if(!cont) return '';
   let phases=phasesOf(p.contour).slice();
   // §3.4 безакцепт — условная ветка: показываем только при праве у кредита охвата
   if(p.contour==='К1' && !(p.credits||[]).some(c=>c.bezakceptRight)) phases=phases.filter(x=>x!==CONDITIONAL_PHASE);
@@ -2471,7 +2471,7 @@ function phaseTimeline(){
     const mark=st==='done'?'✓':cond?'?':(i+1);
     return `<div class="tl-step"><span class="tl-dot ${st}">${mark}</span><span class="tl-lbl ${st==='todo'?'todo':cond?'cond':''}">${ph}</span></div>${i<phases.length-1?'<span class="tl-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>':''}`;
   }).join('');
-  return `<div class="tl-contour">Контур ${p.contour} · ${CONTOURS[p.contour].name}${p.contour==='К1'&&(p.credits||[]).some(c=>c.bezakceptRight)?' · безакцепт доступен (флаг договора)':''}</div><div class="timeline">${steps}</div>`;
+  return `<div class="tl-contour">Контур ${p.contour} · ${cont.name}${p.contour==='К1'&&(p.credits||[]).some(c=>c.bezakceptRight)?' · безакцепт доступен (флаг договора)':''}</div><div class="timeline">${steps}</div>`;
 }
 
 /* ---- panel: Суд (судебные акты В-1 + заседания) ---- */
