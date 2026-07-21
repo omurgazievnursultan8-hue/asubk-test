@@ -854,6 +854,25 @@ function stopFieldsOf(it){
   };
 }
 
+/* Р-16 (ПОЛ §6.4 п.7): способ хранения предмета залога — обязательное поле формы
+   регистрации (openRegister/doRegister). Допустимы только два значения; предмет либо
+   остаётся у залогодателя (обычный режим обследования), либо передаётся залогодержателю
+   (интервал обследования не применяется — см. openRegister). */
+function custodyValid(v){ return v === 'у залогодателя' || v === 'у залогодержателя'; }
+/* Р-16 (ПОЛ §6.4 п.6): предмет залога «Право аренды» — срок аренды должен покрывать срок
+   кредита, иначе по окончании аренды обеспечение выбывает раньше погашения. Даты парсятся
+   тем же d2n, что и везде в файле (единственный парсер дат в кодовой базе — своего
+   parseDate здесь нет). Если хотя бы одна дата отсутствует/не парсится — сравнивать не с
+   чем, предупреждение не показывается (в сидовых данных КРЕДИТ вообще не несёт срока
+   погашения — см. CREDITS ниже; это осознанно, не баг). */
+function leaseCoversCredit(item, credit){
+  const lt = item && item.leaseTill ? d2n(item.leaseTill) : null;
+  const ct = credit && credit.creditTill ? d2n(credit.creditTill) : null;
+  if(!lt || isNaN(lt) || !ct || isNaN(ct)) return { warn:false };
+  const covers = lt >= ct;
+  return covers ? { warn:false } : { warn:true, msg:'Срок аренды истекает раньше срока кредита (ПОЛ §6.4 п.6) — требуется решение комитета' };
+}
+
 /* ПОРОГИ ОБЕСПЕЧЕННОСТИ (Прил.1 §2.3–2.4). Порог — ФУНКЦИЯ состава обеспечения кредита
    (requiredCover), а не единая константа. Значения правятся администратором в справочнике. */
 let COVER_LIQUID     = 1.2;  // ликвидные виды (недвижимость, кредитный портфель) — ≥ 120%
@@ -1157,12 +1176,15 @@ const KIND_FIELDS = {
     { k:'qtyPapers',l:'Количество' },
     { k:'depo',     l:'Депозитарий / реестродержатель' },
   ],
+  /* Р-16 (ПОЛ §6.4 п.6): leaseTill — обязателен (нужен для leaseCoversCredit); добавлено
+     согласие арендодателя на залог права аренды. */
   'Право аренды': [
     { k:'leaseObject', l:'Объект аренды', req:true },
     { k:'lessor',      l:'Арендодатель', req:true },
     { k:'leaseNo',     l:'Договор аренды №' },
-    { k:'leaseTill',   l:'Срок аренды до' },
+    { k:'leaseTill',   l:'Срок аренды до', req:true },
     { k:'underKind',   l:'Вид арендованного имущества', sel:['Недвижимость','Транспорт','Оборудование','Иное'] },
+    { k:'lessorConsent', l:'Согласие арендодателя на залог права аренды', sel:['Есть','Нет'] },
   ],
 };
 /* Поле-идентификатор, из которого производится краткий it.ident (шапка/список). */
@@ -3245,7 +3267,10 @@ function openRegister(cid){
         ${fin('rgNotaryNo','№ нотариальной регистрации','',true)}
         ${fdate('rgNotaryDate','Дата нотариальной регистрации', TODAY, true)}
         ${fin('rgCert','Залоговое рег. свидетельство','',true)}
-      </div>` : ''}
+        ${fsel('rgCustody','Способ хранения предмета залога (ПОЛ §6.4 п.7)', ['у залогодателя','у залогодержателя'], 'у залогодателя')}
+        ${fin('rgCustodyPlace','Место хранения (если у залогодержателя)','')}
+      </div>
+      <div class="okline" style="margin-top:6px"><span>Если способ хранения — «у залогодержателя»: укажите место хранения; периодичность обследования не применяется, имущество у залогодержателя (ПОЛ §6.4 п.7).</span></div>` : ''}
     </div>
     ${okAll ? mfoot('Зарегистрировать','doRegister(\''+cid+'\')','btn-success')
       : (!gate.ok ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
@@ -3290,10 +3315,14 @@ function doRegister(cid){
   const sm = [...new Set(c.allocs.map(a=>a.item))].map(iid => ({ iid, v: stopListCheck(stopFieldsOf(item(iid))) })).filter(x => x.v.block);
   if(sm.length) return toast('Гейт стоп-листа П1 §3.5 не пройден: '+sm.map(x=>x.iid+' — '+x.v.msg).join('; '),'warn');
   const no = val('rgNo').trim(), date = iso2d(val('rgDate')), notary = val('rgNotary').trim(),
-        nno = val('rgNotaryNo').trim(), ndate = iso2d(val('rgNotaryDate')), cert = val('rgCert').trim();
+        nno = val('rgNotaryNo').trim(), ndate = iso2d(val('rgNotaryDate')), cert = val('rgCert').trim(),
+        custody = val('rgCustody'), custodyPlace = val('rgCustodyPlace').trim();
   if(!no || !notary || !nno || !cert) return toast('Заполните все юридические реквизиты','warn');
   if(!isDate(date) || !isDate(ndate)) return toast('Даты — в формате дд.мм.гггг','warn');
-  Object.assign(c, { no, date, notary, notaryNo:nno, notaryDate:ndate, cert, status:ACTIVE });
+  /* Р-16 (ПОЛ §6.4 п.7): способ хранения — обязательное поле регистрации. */
+  if(!custodyValid(custody)) return toast('Укажите способ хранения предмета залога (ПОЛ §6.4 п.7)','warn');
+  if(custody === 'у залогодержателя' && !custodyPlace) return toast('Укажите место хранения — предмет передаётся залогодержателю (ПОЛ §6.4 п.7)','warn');
+  Object.assign(c, { no, date, notary, notaryNo:nno, notaryDate:ndate, cert, status:ACTIVE, custody, custodyPlace: custody === 'у залогодержателя' ? custodyPlace : '' });
   c.allocs.forEach(a => { item(a.item).everPledged = true; });
   hist(c, `Договор зарегистрирован (${no}). Покрытие: ${gate.rows.map(r=>r.id+' — '+pct(r.ratio)).join(', ')}. С этого момента предметы юридически обременены.`);
   const missing = afterRegister(c);
@@ -3785,6 +3814,7 @@ if (typeof window !== 'undefined') window.__zt = {
   techAgeCheck,
   stopListCheck, stopFieldsOf,
   surveyValidate,
+  custodyValid, leaseCoversCredit,
 };
 </script>
 </body>
