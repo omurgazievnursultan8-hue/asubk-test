@@ -813,7 +813,6 @@ let COVER_MOVABLE    = 1.5;  // движимая неликвидная техн
 let LIQUID_SHARE_MIN = 0.8;  // при движимом неликвидном залоге доля ликвида ≥ 80% суммы кредита
 const COVER_GUARANTEE    = 1.0;// TODO §2.3: банковская гарантия ≥ 100% — гарантии в мокапе не моделируются (Р-10 mirror-флаг)
 const COVER_GUARANTEE_FX = 1.2;// TODO §2.3: гарантия в валюте ≠ валюте кредита → ≥ 120%
-const COVER_MIN = COVER_LIQUID;// значение по умолчанию для обратной совместимости отображения
 
 /* ТЕХНИКА (Прил.1 §2.5, Р-7): предельный срок эксплуатации по происхождению. Справочный параметр. */
 const TECH_AGE_LIMIT = { 'СНГ':15, 'Дальнее зарубежье':20 };
@@ -2751,7 +2750,8 @@ function ncCredits(){
   if(!inn){ document.getElementById('ncCredits').innerHTML = `<div class="op-empty">Сначала выберите заёмщика</div>`; return; }
   const list = CREDITS.filter(c=>c.inn===inn && c.status==='Действующий');
   document.getElementById('ncCredits').innerHTML = list.length ? list.map(c=>`<div class="op-row">
-      <label class="chk"><input type="checkbox" class="ncChk" value="${c.id}"> ${c.id} · ${esc(c.num)} · сумма ${fmt(c.amount)} · требуется обеспечение ${fmt(c.amount*COVER_MIN)}</label></div>`).join('')
+      <label class="chk"><input type="checkbox" class="ncChk" value="${c.id}"> ${c.id} · ${esc(c.num)} · сумма ${fmt(c.amount)} · требуется: 120% — ${fmt(c.amount*COVER_LIQUID)} (ликвидный) / 150% — ${fmt(c.amount*COVER_MOVABLE)} (движимый неликвидный)</label></div>`).join('')
+      + `<div class="formula">Итоговый порог определяется составом обеспечения (П1 §2.3–2.4).</div>`
     : `<div class="op-empty">У клиента нет действующих кредитов</div>`;
 }
 
@@ -2817,7 +2817,7 @@ function openAlloc(cid, preItemId){
   modal(`<div class="modal form">${mhead('Привязать предмет · '+cid)}
     <div class="modal-b"><div class="mform">
       ${fsel('alItem','Предмет из реестра', opts, preItemId||null, true)}
-      ${fsel('alCredit','Кредит договора', c.credits.map(id=>({v:id, t:id+' · '+credit(id).num+' · требуется '+fmt(credit(id).amount*COVER_MIN)})))}
+      ${fsel('alCredit','Кредит договора', c.credits.map(id=>({v:id, t:id+' · '+credit(id).num+' · требуется '+fmt(credit(id).amount*requiredCover(id, ctx(c)))})))}
       ${fin('alShare','Отнесённая доля (часть залоговой стоимости)','',true)}
     </div>
     <div class="warn-inline" id="alInfo"></div>
@@ -2828,7 +2828,7 @@ function openAlloc(cid, preItemId){
     document.getElementById('alInfo').innerHTML = `<span>Залоговая ${fmt(pledgeValue(it))} · уже обременено действующими договорами ${fmt(leg)} · <b>доступно ${fmt(av)}</b>.
       ${leg > 0 ? 'Это <b>перезалог</b> на остаточную стоимость предмета.' : ''}
       ${it.ban ? `<br>По предмету уже действует запрет ${esc(it.ban.regNo)} — при регистрации будет дополнен основанием.` : ''}</span>`;
-    document.getElementById('alShare').value = document.getElementById('alShare').value || String(Math.min(av, credit(val('alCredit')).amount*COVER_MIN));
+    document.getElementById('alShare').value = document.getElementById('alShare').value || String(Math.min(av, credit(val('alCredit')).amount*requiredCover(val('alCredit'), ctx(c))));
   };
   document.getElementById('alItem').addEventListener('change', ()=>{ document.getElementById('alShare').value=''; sync(); });
   document.getElementById('alCredit').addEventListener('change', ()=>{ document.getElementById('alShare').value=''; sync(); });
