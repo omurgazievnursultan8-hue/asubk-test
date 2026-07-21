@@ -878,21 +878,27 @@ const clientName = inn => (CLIENTS.find(c=>c.inn===inn)||{}).name || inn;
    otherSecurity — иная форма обеспечения (§9–10, Прил.1 §2.3): банковская гарантия
      {type:'банковская гарантия', docNo, bank, amount, currency, from, till, note} — реально
      входит в индекс обеспеченности (coverage().idxGuar, Р-11); либо поручительство
-     {type:'поручительство', ...} — справочно на карточке, в индекс НЕ входит. */
+     {type:'поручительство', ...} — справочно на карточке, в индекс НЕ входит.
+   riskCategory — ЗЕРКАЛО категории риска из кредитного модуля (Р-22, ПОР п.10):
+     'Низкий' | 'Средний' | 'Высокий'; read-only здесь, только читается для ужесточения
+     периодичности обследования сверх матрицы (effectiveInterval). Отсутствие поля
+     трактуется как 'Низкий' (коэф. 1.0, без ужесточения). */
 const CREDITS = [
-  { id:'К-56', num:'Дог. №56 от 10.04.2024', inn:'01912201610212', amount:200000, status:'Действующий', overdue:false, otherSecurity:null },
-  { id:'К-77', num:'Дог. №77 от 18.09.2025', inn:'01912201610212', amount:90000,  status:'Действующий', overdue:false, otherSecurity:null },
-  { id:'К-88', num:'Дог. №88 от 03.02.2025', inn:'22105198800047', amount:150000, status:'Действующий', overdue:false, otherSecurity:null },
-  /* Р-6 demo: по К-90 зеркалится просрочка → замена залога в доп соглашении Д-006 будет заблокирована. */
-  { id:'К-90', num:'Дог. №90 от 11.11.2025', inn:'22105198800047', amount:60000,  status:'Действующий', overdue:true,  otherSecurity:null },
-  { id:'К-40', num:'Дог. №40 от 20.05.2026', inn:'20308197700219', amount:40000,  status:'Действующий', overdue:false, otherSecurity:null },
-  { id:'К-71', num:'Дог. №71 от 22.08.2023', inn:'01705199200338', amount:250000, status:'Действующий', overdue:false, otherSecurity:null },
-  { id:'К-33', num:'Дог. №33 от 05.01.2024', inn:'22105198800047', amount:50000,  status:'Погашен',     overdue:false, otherSecurity:null },
+  { id:'К-56', num:'Дог. №56 от 10.04.2024', inn:'01912201610212', amount:200000, status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий' },
+  { id:'К-77', num:'Дог. №77 от 18.09.2025', inn:'01912201610212', amount:90000,  status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий' },
+  { id:'К-88', num:'Дог. №88 от 03.02.2025', inn:'22105198800047', amount:150000, status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий' },
+  /* Р-6 demo: по К-90 зеркалится просрочка → замена залога в доп соглашении Д-006 будет заблокирована.
+     Р-22 demo: риск «Средний» (коэф 0.5) → интервал обследования П-002 ужесточается 12→6 мес. */
+  { id:'К-90', num:'Дог. №90 от 11.11.2025', inn:'22105198800047', amount:60000,  status:'Действующий', overdue:true,  otherSecurity:null, riskCategory:'Средний' },
+  /* Р-22 demo: риск «Высокий» (коэф 0.25) → интервал обследования П-005 ужесточается 24→6 мес. */
+  { id:'К-40', num:'Дог. №40 от 20.05.2026', inn:'20308197700219', amount:40000,  status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Высокий' },
+  { id:'К-71', num:'Дог. №71 от 22.08.2023', inn:'01705199200338', amount:250000, status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий' },
+  { id:'К-33', num:'Дог. №33 от 05.01.2024', inn:'22105198800047', amount:50000,  status:'Погашен',     overdue:false, otherSecurity:null, riskCategory:'Низкий' },
   /* Р-10/Р-11 demo: кредит обеспечен банковской гарантией (иная форма). Привязан к
      зарегистрированному договору Д-008 БЕЗ залоговых долей — покрытие целиком из idxGuar
      (гарантия 130000 в валюте кредита ÷ (120000×100%) ≈ 108% > 100%, П1 §2.3): индекс ≥1
      реально, без прежнего mirror-хака. */
-  { id:'К-95', num:'Дог. №95 от 01.06.2026', inn:'01705199200338', amount:120000, currency:'KGS', status:'Действующий', overdue:false,
+  { id:'К-95', num:'Дог. №95 от 01.06.2026', inn:'01705199200338', amount:120000, currency:'KGS', status:'Действующий', overdue:false, riskCategory:'Низкий',
     otherSecurity:{ type:'банковская гарантия', docNo:'БГ-2026/044', bank:'Банк-партнёр', amount:130000, currency:'KGS',
       from:'01.06.2026', till:'01.06.2027', note:'Гарантия банка-партнёра БГ-2026/044' } },
 ];
@@ -1561,12 +1567,47 @@ function borrowerSolvency(it){
   numeric.forEach(g => { if(surveyInterval(g, mv) < surveyInterval(best, mv)) best = g; });
   return { group: best, interval: surveyInterval(best, mv), bankrupt: false };
 }
+
+/* Р-22 (ПОР п.10): ужесточение периодичности обследования по категории риска — слой
+   ПОВЕРХ матрицы платёжеспособности (Прил.2 §2.3), а не замена ей. Действует только
+   при согласовании зампреда (RISK_TIGHTENING_APPROVAL.approved) — иначе используется
+   чистая матрица. Нижний предел SURVEY_MIN_MONTHS не даёт ужесточению уйти в абсурд
+   (напр. банкрот исключён отдельно: effectiveInterval возвращает undefined). */
+let RISK_TIGHTENING   = { 'Низкий':1.0, 'Средний':0.5, 'Высокий':0.25 }; // ПОР п.10 — ужесточение периодичности по категории риска
+let SURVEY_MIN_MONTHS = 3;                                               // нижний предел интервала после ужесточения
+let RISK_TIGHTENING_APPROVAL = { approved:true, req:'СЗ зампреда №СЗ-2026/07 от 09.07.2026', date:'09.07.2026' }; // ПОР п.10: ужесточение — с согласования зампреда
+function effectiveInterval(group, movable, riskCat, approval){
+  const base = surveyInterval(group, movable);
+  if (base == null) return undefined;               // банкрот (null) / неизвестная группа (undefined) — оба через `==`
+  if (!approval || !approval.approved || !riskCat) return base;
+  const k = RISK_TIGHTENING[riskCat] ?? 1.0;
+  return Math.max(SURVEY_MIN_MONTHS, Math.round(base * k));
+}
+/* Категория риска предмета: worst-of по кредитам АКТИВНЫХ договоров, отнёсших предмет
+   (параллельно borrowerSolvency, но по риску, не по платёжеспособности заёмщика).
+   riskCategory — ЗЕРКАЛО из кредитного модуля (см. комментарий у CREDITS); отсутствие
+   поля трактуется как 'Низкий' (коэф. 1.0, без ужесточения). Худший риск = наименьший
+   коэффициент RISK_TIGHTENING (Высокий 0.25 < Средний 0.5 < Низкий 1.0). */
+function itemRiskCategory(it){
+  const cats = [];
+  CONTRACTS.filter(c => isActive(c) && c.allocs.some(a=>a.item===it.id))
+           .forEach(c => c.credits.forEach(id => cats.push(credit(id).riskCategory || 'Низкий')));
+  if(!cats.length) return 'Низкий';
+  let worst = cats[0];
+  cats.forEach(c => { if((RISK_TIGHTENING[c] ?? 1.0) < (RISK_TIGHTENING[worst] ?? 1.0)) worst = c; });
+  return worst;
+}
 /* Дата следующего обследования: null, если предмет никого не обеспечивает или заёмщик —
-   банкрот (обследование «по договору со спецадминистратором», авто-просрочка не поднимается). */
+   банкрот (обследование «по договору со спецадминистратором», авто-просрочка не поднимается).
+   Интервал — ДЕЙСТВУЮЩИЙ (effectiveInterval, Р-22/ПОР п.10), не базовый матричный: при
+   риске «Низкий» либо отсутствии согласования зампреда effectiveInterval вернёт базовый
+   интервал без изменений — поведение для нетронутых ужесточением предметов сохраняется. */
 function nextSurvey(it){
   const s = borrowerSolvency(it);
   if(!s || s.interval == null) return null;
-  return addMonths(it.lastSurvey, s.interval);
+  const eff = effectiveInterval(s.group, movableOf(it), itemRiskCategory(it), RISK_TIGHTENING_APPROVAL);
+  if(eff == null) return null;
+  return addMonths(it.lastSurvey, eff);
 }
 const nextReval = it => addMonths(it.lastReval, (KINDS[it.kind]||{reval:24}).reval);
 
@@ -1677,11 +1718,17 @@ function triggers(){
       obj:it.id, objLbl:`${it.id} · ${it.name}`,
       text:`Доли по предмету обнулились (кредит погашен / предмет выведен), запрет ${it.ban.regNo} от ${it.ban.date} продолжает действовать в «${organOf(it)}»`,
       act:`Снять запрет в «${organOf(it)}»` });
-    /* Р-3: обследование планируется по матрице; банкрот / не-обеспечивающий предмет → nextSurvey=null, авто-просрочка не поднимается. */
+    /* Р-3: обследование планируется по матрице; банкрот / не-обеспечивающий предмет → nextSurvey=null, авто-просрочка не поднимается.
+       Р-22 (ПОР п.10): интервал в триггере — ДЕЙСТВУЮЩИЙ (может быть ужесточён категорией
+       риска); если он отличается от нормативного матричного, показываем оба. */
     const ns = nextSurvey(it);
     if(ns && isOverdue(ns)){ const s = borrowerSolvency(it);
+      const rc = itemRiskCategory(it), eff = effectiveInterval(s.group, movableOf(it), rc, RISK_TIGHTENING_APPROVAL);
+      const intervalTxt = (eff != null && eff !== s.interval)
+        ? `${s.interval} мес. по матрице §2.3, действующий — ${eff} мес. (ПОР п.10, категория риска «${rc}»)`
+        : `${s.interval} мес.`;
       out.push({ type:'Просрочен контроль: обследование', crit:'mid', obj:it.id, objLbl:`${it.id} · ${it.name}`,
-        text:`Плановая дата ${ns} (просрочка ${Math.abs(daysLeft(ns))} дн.). Интервал ${s.interval} мес. — группа «${s.group}» × ${movableOf(it)?'движимое':'недвижимое'} (матрица §2.3)`,
+        text:`Плановая дата ${ns} (просрочка ${Math.abs(daysLeft(ns))} дн.). Интервал ${intervalTxt} — группа «${s.group}» × ${movableOf(it)?'движимое':'недвижимое'}`,
         act:'Провести обследование' });
     }
     if(isOverdue(nextReval(it))) out.push({ type:'Просрочен контроль: переоценка', crit:'mid', obj:it.id,
@@ -2056,7 +2103,15 @@ function saveAttach(scope, id){
 function itemPanels(it){
   const st = lienStatus(it), pv = pledgeValue(it), cp = calcPledge(it);
   const ns = nextSurvey(it), bs = borrowerSolvency(it);
-  const surveyLbl = ns ? (ns + (isOverdue(ns) ? ' — ПРОСРОЧЕНО' : ''))
+  /* Р-22 (ПОР п.10): если действующий интервал ужесточён относительно нормативной
+     матрицы (§2.3), показываем ОБА — норматив и действующий (с категорией риска).
+     Равны → показываем только один, как до Р-22. */
+  const rcIt = bs ? itemRiskCategory(it) : null;
+  const effIt = bs ? effectiveInterval(bs.group, movableOf(it), rcIt, RISK_TIGHTENING_APPROVAL) : null;
+  const intervalNote = (bs && effIt != null && effIt !== bs.interval)
+    ? ` (норматив §2.3 — ${bs.interval} мес.; действующий — ${effIt} мес., ПОР п.10, категория риска «${rcIt}»)`
+    : '';
+  const surveyLbl = ns ? (ns + (isOverdue(ns) ? ' — ПРОСРОЧЕНО' : '') + intervalNote)
     : (bs && bs.bankrupt ? 'по договору со спецадминистратором (банкрот)' : 'не планируется (предмет никого не обеспечивает)');
   const head = `<div class="phead">
     <div class="phead-top">
@@ -3397,7 +3452,7 @@ function refbookInner(){
           <td class="numcell">${ITEMS.filter(i=>i.kind===k).length}</td></tr>`).join('')}</tbody>
       </table></div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Периодичность обследования — матрица (Прил.2 §2.3)</p>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Периодичность обследования — норматив, матрица (Прил.2 §2.3)</p>
       <div class="cgrid-wrap"><table class="cgrid">
         <thead><tr><th>Группа платёжеспособности</th><th>Недвижимое, мес.</th><th>Движимое, мес.</th></tr></thead>
         <tbody>${grp.map(g=>`<tr><td>${esc(g)}</td>
@@ -3406,6 +3461,19 @@ function refbookInner(){
             : `<td><div class="control" style="width:90px"><input id="rb-sm-im-${esc(g)}" value="${SURVEY_MATRIX[g].immovable}"></div></td>
                <td><div class="control" style="width:90px"><input id="rb-sm-mv-${esc(g)}" value="${SURVEY_MATRIX[g].movable}"></div></td>`}</tr>`).join('')}</tbody>
       </table></div>
+
+      <p class="section-h" style="font-size:16px;margin-top:16px">Ужесточение периодичности по категории риска — read-only, норматив (ПОР п.10)</p>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Слой ПОВЕРХ матрицы выше: действующий интервал = max(мин., матрица × коэффициент), только при согласовании зампреда. Не редактируется здесь — параметр положения, не справочника.</p>
+      <div class="cgrid-wrap"><table class="cgrid">
+        <thead><tr><th>Категория риска</th><th>Коэффициент</th></tr></thead>
+        <tbody>${Object.keys(RISK_TIGHTENING).map(rc=>`<tr><td>${esc(rc)}</td><td>${RISK_TIGHTENING[rc]}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <div class="mform" style="margin-top:8px">
+        ${ro('Нижний предел интервала после ужесточения', SURVEY_MIN_MONTHS + ' мес. (ПОР п.10)')}
+        ${ro('Согласование зампреда', RISK_TIGHTENING_APPROVAL.approved
+          ? `предоставлено · ${esc(RISK_TIGHTENING_APPROVAL.req)} от ${RISK_TIGHTENING_APPROVAL.date}`
+          : 'не предоставлено — действует чистая матрица §2.3, без ужесточения')}
+      </div>
 
       <p class="section-h" style="font-size:16px;margin-top:16px">Предельный срок эксплуатации техники (§2.5)</p>
       <div class="mform">
@@ -3492,6 +3560,8 @@ if (typeof window !== 'undefined') window.__zt = {
   KINDS, KIND_FIELDS, COVER_LIQUID, COVER_MOVABLE, COVER_GUARANTEE, COVER_GUARANTEE_FX,
   SURVEY_MATRIX, CREDITS, ITEMS, CONTRACTS, credit, item, contract,
   canCurate, canCommittee, canHeadOfDept, canHeadOfUnit,
+  surveyInterval, effectiveInterval, RISK_TIGHTENING, SURVEY_MIN_MONTHS, RISK_TIGHTENING_APPROVAL,
+  itemRiskCategory, borrowerSolvency, nextSurvey, addMonths,
 };
 </script>
 </body>
