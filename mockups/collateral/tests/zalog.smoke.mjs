@@ -1,4 +1,4 @@
-import { load, test, ok, eq, near, has, hasNot, report } from './harness.mjs';
+import { load, test, ok, no, eq, near, has, hasNot, report } from './harness.mjs';
 
 test('S0: файл грузится, шов __zt доступен', () => {
   const { zt } = load();
@@ -218,16 +218,129 @@ test('R11-8: индекс обеспеченности 0.5(гарантия)+0.5
   eq(row2.ok, false, 'index<1 — гейт не пройден');
 });
 
-// К-95 (Р-10 demo) обеспечен ТОЛЬКО банковской гарантией (Д-008 без залоговых долей).
-// До Р-11 это форсировалось mirror-хаком `ok: other ? true : ...`; теперь ok должен
-// вытекать из реального idxGuar>=1, а не из голого наличия otherSecurity.
-test('R11-9: К-95 обеспечен банковской гарантией — реальный индекс, не mirror-хак', () => {
+// К-95 (Р-10/Р-11 demo, доработано §17 п.1) обеспечен ТОЛЬКО банковской гарантией
+// (Д-008 без залоговых долей), гарантия в ИНОЙ валюте (USD), чем кредит (KGS) —
+// курсовой порог 120% (COVER_GUARANTEE_FX). Реальный расчёт (не mirror-хак) даёт
+// idxGuar≈0,55 < 1 — НЕ обеспечен. Второй блок — синтетический кредит с гарантией
+// В ВАЛЮТЕ кредита демонстрирует обратный случай (idxGuar>=1, тоже реальный расчёт,
+// не голое наличие otherSecurity), сохраняя исходный смысл теста.
+test('R11-9: банковская гарантия — реальный индекс, не mirror-хак (иная валюта / валюта кредита)', () => {
   const { zt } = load();
   const cs = zt.CONTRACTS.filter(c=>c.status==='Зарегистрирован');
-  const row = zt.coverage(cs, 'К-95');
-  ok(row.gReq !== null, 'гарантия распознана — gReq не null');
-  ok(row.idxGuar >= 1, 'гарантия покрывает кредит на >=100% (К-95, amount=120000)');
-  eq(row.ok, true, 'кредит обеспечен гарантией');
+  const rowFx = zt.coverage(cs, 'К-95');
+  ok(rowFx.gReq !== null, 'гарантия распознана — gReq не null');
+  near(rowFx.idxGuar, 0.55, 'USD-гарантия 132000 при курсовом пороге 120% от 200000 (К-95)', 0.01);
+  eq(rowFx.ok, false, 'гарантия в иной валюте не покрывает кредит — реальный расчёт, не mirror-хак');
+
+  zt.CREDITS.push({ id:'К-Т9', num:'Тестовый кредит Т9', inn:'22105198800047', amount:100000, currency:'KGS',
+    status:'Действующий', overdue:false,
+    otherSecurity:{ type:'банковская гарантия', docNo:'БГ-ТЕСТ/9', bank:'Тестбанк', amount:100000, currency:'KGS', from:'01.01.2026', till:'01.01.2027' } });
+  zt.CONTRACTS.push({ id:'Д-Т9', no:'ЗД-ТЕСТ/9', date:'01.01.2026', status:'Зарегистрирован', inn:'22105198800047',
+    notary:'Т', notaryNo:'Т', notaryDate:'01.01.2026', cert:'Т', credits:['К-Т9'], allocs:[], undercovered:null, addenda:[], history:[] });
+  const cs2 = zt.CONTRACTS.filter(c=>c.status==='Зарегистрирован');
+  const rowKgs = zt.coverage(cs2, 'К-Т9');
+  ok(rowKgs.idxGuar >= 1, 'гарантия в валюте кредита покрывает кредит на >=100%');
+  eq(rowKgs.ok, true, 'кредит обеспечен гарантией в валюте кредита — реальный индекс, не mirror-хак');
+});
+
+// R11-11 (§17 п.11 брифа — «поручительство не входит в индекс»): guaranteeReq/coverage
+// признают ТОЛЬКО type==='банковская гарантия'; поручительство остаётся справочным полем
+// otherSecurity на карточке кредита, но в idxGuar/index не участвует (Р-21 — осознанная
+// граница модуля). Настоящие ассерты на наблюдаемом поведении, не ok(true)-заглушка.
+test('R11-11: поручительство не входит в индекс обеспеченности', () => {
+  const { zt } = load();
+  zt.CREDITS.push({ id:'К-Т11', num:'Тестовый кредит Т11', inn:'22105198800047', amount:100000, currency:'KGS',
+    status:'Действующий', overdue:false,
+    otherSecurity:{ type:'поручительство', guarantor:'Иванов И.И.', amount:200000, currency:'KGS' } });
+  zt.CONTRACTS.push({ id:'Д-Т11', no:'ЗД-ТЕСТ/11', date:'01.07.2026', status:'Зарегистрирован', inn:'22105198800047',
+    notary:'Т', notaryNo:'Т', notaryDate:'01.07.2026', cert:'Т', credits:['К-Т11'], allocs:[], undercovered:null, addenda:[], history:[] });
+  const cs = zt.CONTRACTS.filter(c=>c.status==='Зарегистрирован');
+  const row = zt.coverage(cs, 'К-Т11');
+  eq(zt.guaranteeReq(zt.credit('К-Т11')), null, 'поручительство не распознаётся как банковская гарантия — gReq null');
+  eq(row.idxGuar, 0, 'поручительство не даёт вклада в idxGuar (в индекс не входит)');
+  eq(row.ok, false, 'без залоговых долей и с поручительством вне индекса кредит формально не обеспечен');
+});
+
+// Демо §17 п.1/п.2 (Р-11): индексы обеспеченности по демо-данным задачи 22 — К-99
+// (смешанное: гарантия 0,50 + залог 0,50 → ≈1,00, обеспечен) и К-95 (гарантия в иной
+// валюте ≈0,55 < 1, не обеспечен). Аргументы coverage(cs, creditId) — cs ПЕРВЫМ.
+test('Демо §17 п.1-2: индексы обеспеченности К-99 (смешанное) и К-95 (FX-гарантия)', () => {
+  const { zt } = load();
+  const cs = zt.CONTRACTS.filter(c=>c.status==='Зарегистрирован');
+  const rowMix = zt.coverage(cs, 'К-99');
+  near(rowMix.idxPledge, 0.50, 'доля индекса от залога (К-99)', 0.01);
+  near(rowMix.idxGuar, 0.50, 'доля индекса от гарантии (К-99)', 0.01);
+  near(rowMix.index, 1.00, 'смешанное 0.5+0.5 (К-99)', 0.01);
+  ok(rowMix.ok, 'К-99 обеспечен смешанным залогом+гарантией');
+  no(zt.coverage(cs, 'К-95').ok, 'гарантия USD ≈0.55 — К-95 не обеспечен');
+});
+
+// Демо §17 п.3 (Р-12): «Кредитный портфель» — ликвидный вид, порог 120%, покрытие К-100
+// ровно на пороге (120000/100000=120,0%).
+test('Демо §17 п.3: кредитный портфель — ликвидный залог, порог 120%', () => {
+  const { zt } = load();
+  const cs = zt.CONTRACTS.filter(c=>c.status==='Зарегистрирован');
+  ok(zt.KINDS['Кредитный портфель'].liquid, 'кредитный портфель — ликвидный вид (справочник)');
+  eq(zt.requiredCover('К-100', cs).req, zt.COVER_LIQUID, 'порог для портфеля — ликвидный 120%, не движимый неликвидный 150%');
+  near(zt.coverage(cs, 'К-100').ratio, 1.2, 'покрытие К-100 ровно на пороге 120%', 0.005);
+  ok(zt.coverage(cs, 'К-100').ok, 'К-100 обеспечен');
+});
+
+// Демо §17 п.4 (Р-16): «Право аренды» П-017 — срок аренды (01.03.2027) короче срока
+// кредита-образца К-104 (01.01.2028) → leaseCoversCredit предупреждает.
+test('Демо §17 п.4: право аренды короче срока кредита — предупреждение leaseCoversCredit', () => {
+  const { zt } = load();
+  const w = zt.leaseCoversCredit(zt.item('П-017'), zt.credit('К-104'));
+  eq(w.warn, true, 'срок аренды короче срока кредита — предупреждение (ПОЛ §6.4 п.6)');
+});
+
+// Демо §17 п.5 (Р-13): К-101 без kmDecision — блок; К-102 с kmDecision(coverPct=100) — не блок,
+// requiredCover читает порог из решения КМ.
+test('Демо §17 п.5: kmGateBlocked — К-101 блокирован, К-102 (с решением КМ) — нет', () => {
+  const { zt } = load();
+  const cs = zt.CONTRACTS.filter(c=>c.status==='Зарегистрирован');
+  eq(zt.kmGateBlocked(zt.credit('К-101')), true, 'К-101 — категория без kmDecision — блок регистрации');
+  eq(zt.kmGateBlocked(zt.credit('К-102')), false, 'К-102 — решение КМ внесено — блок снят');
+  eq(zt.requiredCover('К-102', cs).req, 1.0, 'requiredCover читает порог 100% из kmDecision.coverPct');
+  ok(zt.coverage(cs, 'К-102').ok, 'К-102 обеспечен по порогу решения КМ (100%)');
+});
+
+// Демо §17 п.8 (Р-17): трактор П-020 (2008, СНГ) — возраст 18 лет > лимита 15. В роли
+// основного залога — не блокирован, идёт на решение комитета; в роли дополнительного —
+// жёсткий блок без права комитета на допуск.
+test('Демо §17 п.8: возраст техники сверх лимита — роль основной/дополнительный', () => {
+  const { zt } = load();
+  const it = zt.item('П-020');
+  eq(it.year, 2008); eq(it.origin, 'СНГ');
+  const asMain = zt.techAgeCheck({ securityRole:'основной', origin:it.origin, age:2026-it.year });
+  eq(asMain.block, false, 'основной залог сверх лимита — не блокируется на приёме');
+  eq(asMain.needCommittee, true, 'основной залог сверх лимита — уходит на решение комитета');
+  const asExtra = zt.techAgeCheck({ securityRole:'дополнительный', origin:it.origin, age:2026-it.year });
+  eq(asExtra.block, true, 'дополнительный залог сверх лимита — жёсткий блок');
+});
+
+// Демо §17 п.9 (Р-18): земля с/х назначения (П-021) и оборудование с износом 78% (П-022) —
+// оба блокируются стоп-листом без права комитета на допуск (committeeCanOverride:false).
+test('Демо §17 п.9: стоп-лист — земля с/х назначения и износ ≥ предела', () => {
+  const { zt } = load();
+  const land = zt.stopListCheck(zt.stopFieldsOf(zt.item('П-021')));
+  eq(land.block, true, 'земля сельскохозяйственного назначения — блок');
+  eq(land.committeeCanOverride, false, 'земля с/х — комитет не может допустить');
+  const worn = zt.stopListCheck(zt.stopFieldsOf(zt.item('П-022')));
+  eq(worn.block, true, 'износ 78% ≥ предела 70% — блок');
+  eq(worn.committeeCanOverride, false, 'износ сверх предела — комитет не может допустить');
+});
+
+// Демо §17 п.11 (Р-20, ПБК п.2.1): П-023 — запрет наложен (regNo есть), отметка в
+// оригиналах не получена (markInOriginals:false) → banFullyRegistered=false → триггер
+// «Запрет наложен, отметка не получена» (mid) должен присутствовать среди triggers().
+test('Демо §17 п.11: запрет без отметки в оригиналах — banFullyRegistered=false и триггер', () => {
+  const { zt, win } = load();
+  const it = zt.item('П-023');
+  eq(zt.banFullyRegistered(it.ban), false, 'regNo есть, markInOriginals:false — не полностью оформлен');
+  const trg = win.triggers();
+  ok(trg.some(t=>t.type==='Запрет наложен, отметка не получена' && t.obj==='П-023'),
+    'триггер «Запрет наложен, отметка не получена» для П-023 должен присутствовать');
 });
 
 // Триггеры истечения гарантии (Р-11, §9–10): «Срок банковской гарантии истёк» (high) когда
