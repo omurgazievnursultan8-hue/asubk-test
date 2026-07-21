@@ -491,4 +491,22 @@ test('R19-35: незавершённый маршрут документов →
   ok(typeof zt.docRouteIncomplete === 'function');
 });
 
+// Р-23 (ПОР п.12 п.п.2): модуль залога не меняет категорию кредитного риска — он
+// публикует кандидатов на факторы риска в комитет по администрированию бюджетных
+// кредитов. riskFactorCandidates() — чистая функция (S18 §18 п.43-46).
+test('R23-43: истёкший полис → фактор «Средний», ПОР п.12 п.п.2', () => {
+  const { zt } = load();
+  const cands = zt.riskFactorCandidates();
+  ok(Array.isArray(cands));
+  const f = cands.find(c => /страхов/i.test(c.fact));
+  if (f) { eq(f.category, 'Средний'); has(f.basis, 'ПОР п.12'); eq(f.needsCommittee, true); }
+});
+test('R23-46: залоговый триггер не меняет solvency и не пишет риск', () => {
+  const { win, zt } = load();
+  // riskFactorCandidates не мутирует ITEMS/CREDITS solvency-поля
+  const before = JSON.stringify(zt.CREDITS.map(c=>c.riskCategory));
+  zt.riskFactorCandidates();
+  eq(JSON.stringify(zt.CREDITS.map(c=>c.riskCategory)), before, 'категория риска не должна меняться');
+});
+
 report();

@@ -675,6 +675,13 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
           </table>
         </div>
         <div class="cards-wrap" id="cardsWrap" style="display:none;"></div>
+        <div class="panel-wrap" id="riskFactorsPanel" style="display:none;">
+          <p class="section-h">Факторы для комитета по администрированию бюджетных кредитов</p>
+          <div class="cgrid-wrap"><table class="cgrid">
+            <thead><tr><th>Кредит</th><th>Заёмщик</th><th>Предмет</th><th>Факт</th><th>Ссылка ПОР</th><th></th></tr></thead>
+            <tbody id="riskFactorsBody"></tbody>
+          </table></div>
+        </div>
       </section>
 
       <!-- ============ DETAIL VIEW (предмет / договор) ============ -->
@@ -1831,6 +1838,22 @@ const techAge       = it => (isTech(it) && it.year) ? CUR_YEAR - it.year : null;
 const techAgeLimit  = it => TECH_AGE_LIMIT[it.origin] ?? TECH_AGE_LIMIT['СНГ'];
 const techInsuredOk = it => !isTech(it) || Boolean(it.insured && it.insured.present);
 const techPolicyExpired = it => isTech(it) && it.insured && it.insured.present && it.insured.till && isOverdue(it.insured.till);
+/* Р-23 (ПОР п.12 п.п.2): модуль залога НЕ трогает категорию кредитного риска — он лишь
+   ПУБЛИКУЕТ кандидатов на факторы риска в комитет по администрированию бюджетных
+   кредитов; решение о фактическом изменении категории — за комитетом (кредитный модуль).
+   Чистая функция: только читает ITEMS/CONTRACTS/CREDITS, ничего не мутирует.
+   Сейчас заведён один фактор (истёкший полис страхования техники) — таблица §15 промпта
+   (покрытие ниже / утрата предмета → снимает основание «Низкий») пока не populated. */
+function riskFactorCandidates(){
+  const out = [];
+  ITEMS.forEach(it => {
+    if(!techPolicyExpired(it)) return;
+    const cids = [...new Set(CONTRACTS.filter(c=>isActive(c)&&c.allocs.some(a=>a.item===it.id)).flatMap(c=>c.credits))];
+    cids.forEach(cid => out.push({ creditId:cid, category:'Средний', basis:'ПОР п.12 п.п.2',
+      fact:`Полис страхования техники ${it.id} истёк`, itemId:it.id, needsCommittee:true }));
+  });
+  return out;
+}
 /* Р-17 (П1 §2.5, §3.4): возраст сверх лимита блокирует ЖЁСТКО только «дополнительный» залог;
    «основной» залог сверх лимита не блокируется на приёме — уходит на решение комитета. */
 function techAgeCheck({securityRole, origin, age}){
@@ -1914,7 +1937,7 @@ function triggers(){
     /* Р-7: страховой полис техники-обеспечения истёк. */
     if(techPolicyExpired(it) && banRequired(it)) out.push({ type:'Страхование техники истекло', crit:'mid',
       obj:it.id, objLbl:`${it.id} · ${it.name}`,
-      text:`Полис ${it.insured.policy} истёк ${it.insured.till} — техника-обеспечение должна быть застрахована (§3.4)`, act:'Обновить страховой полис' });
+      text:`Полис ${it.insured.policy} истёк ${it.insured.till} — техника-обеспечение должна быть застрахована (§3.4)`, act:'Направить фактор среднего кредитного риска в комитет (ПОР п.12 п.п.2)' });
     /* ЗАЛОГ БЕЗ ЗАПРЕТА — дыра в обеспечении: залогодатель может продать предмет
        без нашего ведома. Это дефект оформления, а не формальность. */
     if(banMissing(it)) out.push({ type:'Залог без запрета на отчуждение', crit: banOverdue(it) ? 'high' : 'mid',
@@ -2155,6 +2178,38 @@ function rowsMonitor(){
       esc(t.type), esc(t.objLbl), esc(t.text), esc(t.act) ] }));
 }
 
+/* ---- Р-23 (ПОР п.12 п.п.2): панель «Факторы для комитета по администрированию бюджетных
+   кредитов» в реестре мониторинга — витрина riskFactorCandidates() с действием «Направить
+   фактор в комитет». Отправка пишет запись в историю ПРЕДМЕТА (дата/роль/реквизит, hist())
+   и блокирует повтор по тому же (creditId+fact) до снятия — снятие фактора комитетом
+   в этом мокапе не моделируется (за пределами модуля залога). */
+const riskFactorsSent = {};
+function sendRiskFactor(creditId, fact, itemId){
+  if(!canCurate()) return denyEdit();
+  const key = creditId+'|'+fact;
+  if(riskFactorsSent[key]) return;
+  riskFactorsSent[key] = { when: nowStamp(), who: role };
+  const it = item(itemId);
+  if(it) hist(it, `Фактор кредитного риска «${fact}» по кредиту ${creditId} направлен в Комитет по администрированию бюджетных кредитов (ПОР п.12 п.п.2)`);
+  toast('Фактор направлен в комитет','ok');
+  renderRiskFactorsPanel();
+}
+function renderRiskFactorsPanel(){
+  const wrap = document.getElementById('riskFactorsPanel');
+  if(!wrap) return;
+  if(reg !== 'monitor'){ wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  const cands = riskFactorCandidates();
+  document.getElementById('riskFactorsBody').innerHTML = cands.length ? cands.map(c => {
+    const key = c.creditId+'|'+c.fact, sent = riskFactorsSent[key], cr = credit(c.creditId), pit = item(c.itemId);
+    const action = sent
+      ? `<span class="pill neutral" title="${esc(sent.when)} · ${esc(sent.who)}">направлен</span>`
+      : `<button class="btn btn-secondary btn-sm" onclick="sendRiskFactor('${c.creditId}','${esc(c.fact).replace(/'/g,"\\'")}','${c.itemId}')">Направить фактор в комитет</button>`;
+    return `<tr><td>${esc(cr ? cr.num : c.creditId)}</td><td>${esc(clientName((cr||{}).inn))}</td>`
+      + `<td>${c.itemId} · ${esc((pit||{}).name||'')}</td><td>${esc(c.fact)}</td><td>${esc(c.basis)}</td><td>${action}</td></tr>`;
+  }).join('') : `<tr><td colspan="6"><div class="cgrid-empty">Факторов нет</div></td></tr>`;
+}
+
 /* ---- карточки реестров (вид «Карточки»). Данные/фильтр/сортировка — те же,
    что в таблице: на вход идёт уже отфильтрованный+отсортированный список строк. ---- */
 const cardField = (l,v,span) => `<div class="pcard-field${span?' span2':''}"><span class="pcard-flabel">${l}</span><span class="pcard-fval">${v}</span></div>`;
@@ -2245,6 +2300,7 @@ function renderList(){
   document.getElementById('gridWrap').style.display  = view==='cards' ? 'none' : '';
   document.getElementById('cardsWrap').style.display = view==='cards' ? '' : 'none';
   if(view==='cards') renderCards(rows);
+  renderRiskFactorsPanel();
 }
 function sortBy(i){ if(sortKey===i) sortDir*=-1; else { sortKey=i; sortDir=1; } renderList(); }
 function selectRow(id){ selected = id; renderList(); }
@@ -4078,6 +4134,7 @@ if (typeof window !== 'undefined') window.__zt = {
   replacementGate, replacementValues,
   banFullyRegistered, releaseValid,
   overrideAllowed, docRouteIncomplete,
+  riskFactorCandidates,
 };
 </script>
 </body>
