@@ -3064,7 +3064,17 @@ function toggleV9(kind, subdiv){
   persistRules(); renderSettings(); renderList();
 }
 function setRoleSubdiv(role, subdiv){ RULES.roleSubdiv[role]=subdiv; persistRules(); renderSettings(); renderList(); }
-function renderSettingsStage(){ return '<div class="section-note">—</div>'; }
+function renderSettingsStage(){
+  const rows=SECTION_ORDER.map(sec=>{
+    const cur=RULES.sectionClevel[sec] ?? 1;
+    const opts=[0,1,2,3,4,5].map(n=>`<option ${cur===n?'selected':''}>${n}</option>`).join('');
+    return `<tr><td>${sec}</td><td><select onchange="setSectionClevel('${sec.replace(/'/g,"\\'")}',this.value)">${opts}</select></td></tr>`;
+  }).join('');
+  return `<p class="section-note">Ступень эскалации, начиная с которой раздел доступен. Раздел открывается, когда контур процесса достиг этой ступени (0 — с самого начала, 5 — только на безнадёжной). Уровни контуров: К0=0, К1=1, К2/К3/К5=2, К4=3, К6=4, К7=5.</p>
+    <table class="settings-grid" style="max-width:520px"><thead><tr><th>Раздел</th><th>Мин. ступень</th></tr></thead><tbody>${rows}</tbody></table>
+    <div style="margin-top:12px"><button class="btn btn-tint" onclick="resetRulesSection('sectionClevel');renderSettings();renderList();toast('Стадии сброшены к дефолту','ok')">Сбросить стадии к дефолту</button></div>`;
+}
+function setSectionClevel(section, level){ RULES.sectionClevel[section]=Number(level); persistRules(); renderSettings(); renderList(); }
 function renderSettingsGates(){ return '<div class="section-note">—</div>'; }
 function renderSettingsPhases(){ return '<div class="section-note">—</div>'; }
 

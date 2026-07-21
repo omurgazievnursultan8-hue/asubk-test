@@ -232,6 +232,18 @@ ok('55. группа не выведена при неподтверждённо
   })()`));
   ok('74. setRoleSubdiv меняет роль→подразделение', m.ev(`(()=>{ setRoleSubdiv('Наблюдатель','ОД'); return RULES.roleSubdiv['Наблюдатель']==='ОД'; })()`)); }
 
+// ───────── Вкладка Стадии (Task 5) ─────────
+{ const m = mk(); m.ev("showView('settings'); showSettingsTab('stage')");
+  ok('75. вкладка Стадии рендерит селект на каждый раздел',
+    m.$$('#settingsHost .settings-grid tbody tr select').length === m.ev("SECTION_ORDER.length"));
+  ok('76. повышение sectionClevel блокирует меру раздела на низкой ступени', m.ev(`(()=>{
+    const p=PROCESSES.find(x=>x.contour==='К1'); // досудечка, curL=1
+    const before=sequenceReason(p,'Акт сверки'); // Досудебный, secL=1 → open
+    setSectionClevel('Досудебный',4);
+    const after=sequenceReason(p,'Акт сверки'); // secL=4 > 1+1 → blocked
+    return !before && !!after;
+  })()`)); }
+
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));
 console.log(`ВСЕГО ПРОВЕРОК: ${n} · ПРОВАЛЕНО: ${fails}`);
