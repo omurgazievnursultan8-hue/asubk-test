@@ -1367,6 +1367,26 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
   CONTRACTS.push({ id:'Д-011', no:'', date:'', status:'Оформляется', inn:'20308197700219',
     notary:'', notaryNo:'', notaryDate:'', cert:'', credits:['К-98'], allocs:[{item:'П-013', credit:'К-98', share:91000}], undercovered:null, addenda:[],
     history:[{when:'06.06.2026 10:30', what:'Договор создан (черновик). Не приложено нотариальное согласие супруга — регистрация заблокирована (§5.2)', who:'Залоговый специалист'}] });
+
+  // Р-13 (П1 §2.6): заёмщик-госпредприятие под категорией, чья обеспеченность
+  // устанавливается решением Кабинета Министров — kmDecision ещё не внесено. Покрытие
+  // и предпосылки §5.2 у П-014 намеренно уже в порядке — при открытии регистрации
+  // Д-012 должен сработать ТОЛЬКО гейт §2.6 (kmGateBlocked), демонстрируя его отдельно
+  // от гейта покрытия/предпосылок. appraised подобран так, что calcPledge (200000×0.7=
+  // 140000) покрывает даже дефолтный (без kmDecision) порог 120% от суммы кредита
+  // (100000×1.2=120000) — 140000 ≥ 120000.
+  CREDITS.push({ id:'К-101', num:'Дог. №101 от 07.06.2026', inn:'20308197700219', amount:100000, status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий', borrowerCategory:'Госпредприятие', kmDecision:null });
+  const kmItem = normalizeItem({ id:'П-014', kind:'Недвижимое имущество', name:'Административное здание, категория П1 §2.6', pledger:'20308197700219',
+    pledgerType:'Госпредприятие', ident:'Кадастровый № 1-03-07-0555', appraised:200000, apprDate:'07.06.2026', apprReport:'ОЦ-2026/101',
+    details:{ reType:'Здание', cadastre:'1-03-07-0555', address:'г. Бишкек, ул. Чуй, 128', areaTotal:'610', areaBuilt:'580', areaLand:'900', builtYear:'2005', commDate:'01.03.2005' },
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false, lastSurvey:'07.06.2026', lastReval:'07.06.2026',
+    prereqs:{ ownerConsent:{present:true, doc:'Решение уполномоченного органа №УП-2026/14'}, spouseConsent:{present:true, doc:'—'}, encumbranceCert:{present:true, doc:'Справка ГР-2026/101'} },
+    revals:[{date:'07.06.2026', appraised:200000, report:'ОЦ-2026/101', note:'первичная оценка'}], surveys:[],
+    history:[{when:'07.06.2026 10:00', what:'Предмет зарегистрирован (заёмщик — категория П1 §2.6, госпредприятие)', who:'Куратор отдела залогового обеспечения'}] });
+  ITEMS.push(kmItem);
+  CONTRACTS.push({ id:'Д-012', no:'', date:'', status:'Оформляется', inn:'20308197700219',
+    notary:'', notaryNo:'', notaryDate:'', cert:'', credits:['К-101'], allocs:[{item:'П-014', credit:'К-101', share:140000}], undercovered:null, addenda:[],
+    history:[{when:'07.06.2026 10:30', what:'Договор создан (черновик). Заёмщик под категорией П1 §2.6 — обеспеченность по решению КМ ещё не установлена', who:'Куратор отдела залогового обеспечения'}] });
 })();
 
 /* ============================================================
@@ -1480,6 +1500,12 @@ function coverage(cs, creditId){
            secPledge, idxPledge, idxGuar, gReq, index,
            ok: (index >= 1) && liqOk };
 }
+/* ГЕЙТ §2.6 (Р-13, П1 §2.6): заёмщик под категорией, чья обеспеченность устанавливается
+   решением Кабинета Министров, — регистрация ЗАБЛОКИРОВАНА, пока решение не внесено на
+   кредит (borrowerCategory задана, kmDecision — нет). Как только kmDecision внесено, гейт
+   снят; requiredCover() выше уже читает kmDecision.coverPct для самого расчёта порога —
+   этот предикат отвечает только за допуск к регистрации, не дублирует ту арифметику. */
+function kmGateBlocked(cr){ return Boolean(cr.borrowerCategory) && !cr.kmDecision; }
 /* ГЕЙТ покрытия — один код на два места: регистрация договора и регистрация доп соглашения.
    Порог у каждого кредита свой (requiredCover); доля ликвида — подпункт того же гейта. */
 function gateCheck(virtual){
@@ -3049,7 +3075,10 @@ function openRegister(cid){
   /* Р-5: гейт предпосылок оформления — отдельный от гейта покрытия; для регистрации проходят оба. */
   const its = [...new Set(c.allocs.map(a=>a.item))];
   const prereqMiss = its.flatMap(iid => prereqMissing(item(iid)).map(m=>({iid, ...m})));
-  const okAll = gate.ok && !prereqMiss.length;
+  /* Р-13 (П1 §2.6): третий гейт — заёмщик под категорией с обеспеченностью по решению КМ,
+     а решение ещё не внесено ни на один кредит договора. */
+  const kmMiss = c.credits.filter(id => kmGateBlocked(credit(id)));
+  const okAll = gate.ok && !prereqMiss.length && !kmMiss.length;
   modal(`<div class="modal form">${mhead('Регистрация залогового договора · '+cid)}
     <div class="modal-b">
       <div class="cgrid-wrap" style="margin-bottom:14px"><table class="cgrid">
@@ -3059,6 +3088,7 @@ function openRegister(cid){
         : `<div class="flagline"><span>Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)+' (порог '+pct(r.req)+')').join(', ')}. Регистрация блокируется; договор уходит на рассмотрение комитета по администрированию бюджетных кредитов.</span></div>`}
       ${prereqMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Гейт предпосылок НЕ пройден: не приложены обязательные документы — ${prereqMiss.map(m=>`${m.iid}: ${esc(m.label)}`).join('; ')}. Приложите их на карточке предмета и повторите регистрацию.</span></div>`
         : (gate.ok ? `<div class="okline" style="margin-top:10px"><span>Гейт предпосылок пройден: обязательные согласия и справки приложены.</span></div>` : '')}
+      ${kmMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Заёмщик относится к категории П1 §2.6 (${esc([...new Set(kmMiss.map(id=>credit(id).borrowerCategory))].join(', '))}). Обеспеченность устанавливается решением Кабинета Министров — укажите реквизиты решения.</span></div>` : ''}
       ${okAll ? `<div class="mform">
         ${fin('rgNo','Номер договора','',true)}
         ${fdate('rgDate','Дата договора', TODAY, true)}
@@ -3071,7 +3101,9 @@ function openRegister(cid){
     ${okAll ? mfoot('Зарегистрировать','doRegister(\''+cid+'\')','btn-success')
       : (!gate.ok ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
          <button class="btn btn-primary" onclick="toCommission('${cid}')">Направить в комитет по администрированию бюджетных кредитов</button></div>`
-        : `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`)}
+        : (prereqMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
+          : `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+             <button class="btn btn-primary" onclick="openKmDecision('${cid}')">Указать решение КМ</button></div>`))}
     </div>`);
 }
 /* Постобработка запрета при переводе договора в «Зарегистрирован».
@@ -3101,6 +3133,9 @@ function doRegister(cid){
   /* Р-5: гейт предпосылок оформления §5.2 — обязателен для регистрации. */
   const pm = [...new Set(c.allocs.map(a=>a.item))].flatMap(iid=>prereqMissing(item(iid)).map(m=>({iid,...m})));
   if(pm.length) return toast('Гейт предпосылок §5.2 не пройден: '+pm.map(m=>m.iid+' — '+m.label).join('; '),'warn');
+  /* Р-13 (П1 §2.6): гейт решения КМ — обязателен для регистрации. */
+  const km = c.credits.filter(id => kmGateBlocked(credit(id)));
+  if(km.length) return toast('Гейт §2.6 не пройден: обеспеченность по решению КМ не установлена — '+km.join(', '),'warn');
   const no = val('rgNo').trim(), date = iso2d(val('rgDate')), notary = val('rgNotary').trim(),
         nno = val('rgNotaryNo').trim(), ndate = iso2d(val('rgNotaryDate')), cert = val('rgCert').trim();
   if(!no || !notary || !nno || !cert) return toast('Заполните все юридические реквизиты','warn');
@@ -3118,6 +3153,38 @@ function toCommission(cid){
   c.status = 'На рассмотрении комиссии';
   hist(c, `Регистрация заблокирована контрольным гейтом: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}. Направлено в комитет по администрированию бюджетных кредитов.`);
   closeModal(); toast('Договор направлен в комитет по администрированию бюджетных кредитов','warn'); refresh();
+}
+
+/* ---------- РЕШЕНИЕ КАБИНЕТА МИНИСТРОВ (Р-13, П1 §2.6) — вводится на карточке ДОГОВОРА
+   (не в кредитном модуле): заёмщик под категорией §2.6 не имеет собственного расчёта
+   обеспеченности — её устанавливает решение КМ, applies ко ВСЕМ кредитам договора,
+   у которых заполнена borrowerCategory. requiredCover() уже читает kmDecision.coverPct —
+   после сохранения requiredCover/coverage у этих кредитов автоматически переходят на
+   % из решения (см. requiredCover выше). ---------- */
+function openKmDecision(cid){
+  if(!canCurate()) return denyEdit();
+  const c = contract(cid);
+  modal(`<div class="modal form">${mhead('Решение Кабинета Министров · '+cid)}
+    <div class="modal-b">
+      <div class="mform">
+        ${fin('kmNo','№ решения','',true)}
+        ${fdate('kmDate','Дата решения', TODAY, true)}
+        ${fin('kmPct','% обеспеченности','',true)}
+      </div>
+      <div class="warn-inline"><span>Реквизиты применяются ко всем кредитам договора, относящимся к категории П1 §2.6 (${esc([...new Set(c.credits.filter(id=>(credit(id)||{}).borrowerCategory).map(id=>credit(id).borrowerCategory))].join(', '))}).</span></div>
+    </div>${mfoot('Сохранить решение','saveKmDecision(\''+cid+'\')')}</div>`);
+}
+function saveKmDecision(cid){
+  const c = contract(cid), no = val('kmNo').trim(), date = iso2d(val('kmDate')), coverPct = num(val('kmPct'));
+  if(!no) return toast('Укажите номер решения','warn');
+  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  if(!(coverPct > 0)) return toast('% обеспеченности должен быть положительным числом','warn');
+  const decision = { no, date, coverPct };
+  const applied = [];
+  c.credits.forEach(id => { const cr = credit(id); if(cr && cr.borrowerCategory){ cr.kmDecision = decision; applied.push(id); } });
+  hist(c, `Решение Кабинета Министров ${no} от ${date} (П1 §2.6): обеспеченность ${coverPct}% — применено к кредитам ${applied.join(', ')}`);
+  closeModal(); toast('Решение КМ сохранено — гейт §2.6 снят','ok');
+  openRegister(cid);
 }
 
 /* ---------- РЕШЕНИЕ КОМИТЕТА ПО АДМИНИСТРИРОВАНИЮ БЮДЖЕТНЫХ КРЕДИТОВ (обоснование обязательно для допуска) ---------- */
@@ -3555,7 +3622,7 @@ renderNav(); renderList();
    Символы верифицированы grep'ом на момент своей задачи; объект дополняется по мере появления
    новых функций/констант в последующих задачах (Р-11: guaranteeReq, guaranteeExpired). */
 if (typeof window !== 'undefined') window.__zt = {
-  requiredCover, coverage, calcPledge, pledgeValue, coefOf, effShare, allocatedIn,
+  requiredCover, coverage, calcPledge, pledgeValue, coefOf, effShare, allocatedIn, kmGateBlocked,
   guaranteeReq, guaranteeExpired,
   KINDS, KIND_FIELDS, COVER_LIQUID, COVER_MOVABLE, COVER_GUARANTEE, COVER_GUARANTEE_FX,
   SURVEY_MATRIX, CREDITS, ITEMS, CONTRACTS, credit, item, contract,
