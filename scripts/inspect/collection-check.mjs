@@ -174,6 +174,19 @@ ok('53. terminal-процессы приглушены (097/207/208 + скрыт
 ok('54. группа выводится из подтверждённой процедуры (208 → 5)', g.ev("groupOf(PROCESSES.find(p=>p.id==='208'))") === '5');
 ok('55. группа не выведена при неподтверждённой процедуре (210)', g.ev("groupOf(PROCESSES.find(p=>p.id==='210'))") === null);
 
+// ───────── RULES: единый слой правил (Task 1) ─────────
+{ const m = mk();
+  ok('58. RULES.measureSubdiv идентичен литералу MEASURE_SUBDIV',
+    m.ev("JSON.stringify(RULES.measureSubdiv)===JSON.stringify(MEASURE_SUBDIV)"));
+  ok('59. RULES.sectionClevel идентичен литералу SECTION_CLEVEL',
+    m.ev("JSON.stringify(RULES.sectionClevel)===JSON.stringify(SECTION_CLEVEL)"));
+  ok('60. RULES.contourPhases.К1 совпадает с CONTOURS.К1.phases',
+    m.ev("JSON.stringify(RULES.contourPhases['К1'])===JSON.stringify(CONTOURS['К1'].phases)"));
+  ok('61. phasesOf(К1) читает порядок из RULES',
+    m.ev("phasesOf('К1').join('>')")==='Претензия>Повторная претензия>Безакцептное списание');
+  ok('62. RULES_DEFAULTS заморожен',
+    m.ev("Object.isFrozen(RULES_DEFAULTS)")===true); }
+
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));
 console.log(`ВСЕГО ПРОВЕРОК: ${n} · ПРОВАЛЕНО: ${fails}`);
