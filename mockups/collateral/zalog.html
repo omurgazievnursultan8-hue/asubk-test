@@ -886,8 +886,9 @@ const GUAR_WARN_DAYS = 60;     // Р-11: горизонт предупрежде
 const TECH_AGE_LIMIT = { 'СНГ':15, 'Дальнее зарубежье':20 };
 const CUR_YEAR = Number(TODAY.slice(6));
 /* Срок наложения запрета на отчуждение после нотариального удостоверения договора.
-   Регламентный параметр (администратор правит в справочнике) — до его истечения
-   залог юридически оформлен, но фактически НЕ защищён от продажи залогодателем. */
+   ВНУТРЕННИЙ параметр модуля (в ПОЛ/П1-П3 отсутствует — нормативно срок не задан;
+   администратор правит в справочнике) — до его истечения залог юридически оформлен,
+   но фактически НЕ защищён от продажи залогодателем. */
 let BAN_DEADLINE_DAYS = 5;   // рабочих дней (правится в справочнике)
 /* Прибавляет N рабочих дней к дате (сб/вс пропускаются).
    TODO: производственный календарь праздников здесь не учитывается. */
@@ -968,7 +969,7 @@ const ITEMS = [
     override:null,
     /* ПЕРЕЗАЛОГ ПОД ОДНИМ ЗАПРЕТОМ: запрет наложен на вещь один раз (Д-001),
        второй договор Д-002 добавлен в основания — повторное наложение не требуется. */
-    ban:{ organ:'Госрегистр (недвижимое имущество)', regNo:'ЗПО-2024/0417', date:'12.04.2024', contracts:['Д-001','Д-002'], pendingRelease:false },
+    ban:{ organ:'Госрегистр (недвижимое имущество)', regNo:'ЗПО-2024/0417', date:'12.04.2024', contracts:['Д-001','Д-002'], pendingRelease:false, markInOriginals:true, confirmedBy:'Куратор залога' },
     lost:false, realizing:false, needReval:false, everPledged:true,
     lastSurvey:'15.03.2026', lastReval:'20.01.2026',
     revals:[ {date:'20.01.2026', appraised:400000, report:'ОЦ-2026/03', note:'плановая переоценка'} ],
@@ -981,7 +982,7 @@ const ITEMS = [
     ident:'Инв. № ОБ-4471', appraised:110000, apprDate:'20.06.2026', apprReport:'ОЦ-2026/88',
     details:{ brand:'Hyundai R220LC-9S', factoryNo:'HHIHR220KM0004471', engineNo:'D6BR-1189044', invNo:'ОБ-4471', releaseDate:'2019' },
     override:null,
-    ban:{ organ:'Реестр залогов движимого имущества', regNo:'ЗПО-2025/1876', date:'12.11.2025', contracts:['Д-006'], pendingRelease:false },
+    ban:{ organ:'Реестр залогов движимого имущества', regNo:'ЗПО-2025/1876', date:'12.11.2025', contracts:['Д-006'], pendingRelease:false, markInOriginals:true, confirmedBy:'Куратор залога' },
     lost:false, realizing:false, needReval:false, everPledged:true,
     lastSurvey:'10.02.2026', lastReval:'20.06.2026',
     revals:[ {date:'12.02.2025', appraised:160000, report:'ОЦ-2025/14', note:'первичная оценка'},
@@ -994,7 +995,7 @@ const ITEMS = [
     ident:'Ведомость ТВО-2025/9', appraised:200000, apprDate:'05.04.2026', apprReport:'ОЦ-2026/31',
     details:{ goodsName:'Кабельная продукция (силовой кабель ВВГнг)', batchDate:'ТВО-2025/9 от 18.09.2025', storeAddr:'г. Бишкек, ул. Промышленная, 4, склад' },
     override:null,
-    ban:{ organ:'Реестр залогов движимого имущества', regNo:'ЗПО-2025/1041', date:'19.09.2025', contracts:['Д-002'], pendingRelease:false },
+    ban:{ organ:'Реестр залогов движимого имущества', regNo:'ЗПО-2025/1041', date:'19.09.2025', contracts:['Д-002'], pendingRelease:false, markInOriginals:true, confirmedBy:'Куратор залога' },
     lost:false, realizing:false, needReval:false, everPledged:true,
     lastSurvey:'05.04.2026', lastReval:'05.04.2026',
     revals:[ {date:'05.04.2026', appraised:200000, report:'ОЦ-2026/31', note:'плановая переоценка'} ],
@@ -1005,7 +1006,7 @@ const ITEMS = [
     ident:'Кадастровый № 1-01-08-1145', appraised:300000, apprDate:'03.02.2025', apprReport:'ОЦ-2025/07',
     details:{ reType:'Квартира', cadastre:'1-01-08-1145', address:'г. Бишкек, ул. Ахунбаева, 12, кв. 45', areaTotal:'68,4', areaLiving:'41,2', builtYear:'2011', commDate:'25.12.2011' },
     override:null,
-    ban:{ organ:'Госрегистр (недвижимое имущество)', regNo:'ЗПО-2025/0128', date:'05.02.2025', contracts:['Д-003'], pendingRelease:false },
+    ban:{ organ:'Госрегистр (недвижимое имущество)', regNo:'ЗПО-2025/0128', date:'05.02.2025', contracts:['Д-003'], pendingRelease:false, markInOriginals:true, confirmedBy:'Куратор залога' },
     lost:false, realizing:false, needReval:false, everPledged:true,
     lastSurvey:'20.01.2026', lastReval:'03.02.2025',
     revals:[ {date:'03.02.2025', appraised:300000, report:'ОЦ-2025/07', note:'первичная оценка'} ],
@@ -1052,7 +1053,7 @@ const ITEMS = [
     ident:'Зав. № TR-892-00417', appraised:70000, apprDate:'05.01.2024', apprReport:'ОЦ-2024/02',
     details:{ brand:'МТЗ-892 «Беларус»', factoryNo:'TR-892-00417', engineNo:'Д-243-1099887', invNo:'СХ-0417', releaseDate:'2018' },
     override:null,
-    ban:{ organ:'Реестр залогов движимого имущества', regNo:'ЗПО-2024/0102', date:'09.01.2024', contracts:['Д-007'], pendingRelease:true },
+    ban:{ organ:'Реестр залогов движимого имущества', regNo:'ЗПО-2024/0102', date:'09.01.2024', contracts:['Д-007'], pendingRelease:true, markInOriginals:true, confirmedBy:'Куратор залога' },
     lost:false, realizing:false, needReval:false, everPledged:true,
     lastSurvey:'05.01.2026', lastReval:'05.01.2024',
     revals:[ {date:'05.01.2024', appraised:70000, report:'ОЦ-2024/02', note:'первичная оценка'} ],
@@ -1378,7 +1379,7 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
   ITEMS.push(normalizeItem({ id:'П-009', kind:'Недвижимое имущество', name:'Административное здание, г. Токмок', pledger:'01705199200338',
     pledgerType:'АО / хоз. общество', ident:'Кадастровый № 5-11-03-0210', appraised:200000, apprDate:'02.06.2026', apprReport:'ОЦ-2026/95',
     details:{ reType:'Здание', cadastre:'5-11-03-0210', address:'г. Токмок, ул. Ленина, 22', areaTotal:'860', areaBuilt:'820', areaLand:'1200', builtYear:'2003', commDate:'15.09.2003' },
-    override:null, ban:{ organ:'Госрегистр (недвижимое имущество)', regNo:'ЗПО-2026/0631', date:'03.06.2026', contracts:['Д-009'], pendingRelease:false },
+    override:null, ban:{ organ:'Госрегистр (недвижимое имущество)', regNo:'ЗПО-2026/0631', date:'03.06.2026', contracts:['Д-009'], pendingRelease:false, markInOriginals:true, confirmedBy:'Куратор залога' },
     lost:false, realizing:false, needReval:false, everPledged:true, lastSurvey:'02.06.2026', lastReval:'02.06.2026',
     revals:[{date:'02.06.2026', appraised:200000, report:'ОЦ-2026/95', note:'первичная оценка'}],
     surveys:[{date:'02.06.2026', act:'АО-2026/40', outcome:'в норме', note:'осмотр при оформлении'}],
@@ -1624,6 +1625,19 @@ const banRequired = it => allocatedLegal(it.id) > 0;                 // запр
 const banMissing  = it => banRequired(it) && !it.ban;               // ДЕФЕКТ ОФОРМЛЕНИЯ
 const banOverdue  = it => banMissing(it) && isOverdue(banDeadline(it));
 const banStale    = it => Boolean(it.ban) && allocatedLegal(it.id) === 0;  // подлежит снятию
+/* Р-20 (ПБК п.2.1): запрет на отчуждение накладывает ЗАЛОГОДАТЕЛЬ в регистрирующем
+   органе; мы контролируем наложение и принимаем ОТМЕТКУ о запрете в оригиналах
+   правоустанавливающих документов. Запрет зарегистрирован (regNo), но пока не
+   получена и не зафиксирована отметка в оригиналах — оформление НЕ завершено. */
+function banFullyRegistered(b){ return Boolean(b && b.regNo && b.markInOriginals); }
+/* Р-9/Р-20 (ПБК п.2.2): при снятии по основанию «Полное погашение обязательства»
+   обязателен реквизит акта сверки о погашении задолженности. Доп. гейт к
+   существующей цепочке согласования (RELEASE_APPROVALS) — не замена. */
+function releaseValid({basis, reconAct}){
+  if (basis === 'Полное погашение обязательства' && !(reconAct && reconAct.trim()))
+    return { ok:false, msg:'Требуется реквизит акта сверки о погашении задолженности (ПБК п.2.2)' };
+  return { ok:true };
+}
 function banStatus(it){
   if(it.ban) return allocatedLegal(it.id) === 0 ? 'подлежит снятию' : 'наложен';
   if(!banRequired(it)) return 'не требуется';
@@ -1821,6 +1835,13 @@ function triggers(){
       obj:it.id, objLbl:`${it.id} · ${it.name}`,
       text:`Доли по предмету обнулились (кредит погашен / предмет выведен), запрет ${it.ban.regNo} от ${it.ban.date} продолжает действовать в «${organOf(it)}»`,
       act:`Снять запрет в «${organOf(it)}»` });
+    /* Р-20 (ПБК п.2.1): запрет наложен залогодателем и зарегистрирован (regNo есть),
+       но отметка о запрете в оригиналах правоустанавливающих документов ещё не
+       получена и не зафиксирована — оформление не завершено, риск не закрыт. */
+    if(it.ban && !banFullyRegistered(it.ban)) out.push({ type:'Запрет наложен, отметка не получена', crit:'mid',
+      obj:it.id, objLbl:`${it.id} · ${it.name}`,
+      text:`Запрет ${it.ban.regNo} от ${it.ban.date} наложен залогодателем в «${organOf(it)}», но отметка о запрете в оригиналах правоустанавливающих документов не получена и не зафиксирована (ПБК п.2.1)`,
+      act:'Получить и зафиксировать отметку о запрете в оригиналах правоустанавливающих документов' });
     /* Р-3: обследование планируется по матрице; банкрот / не-обеспечивающий предмет → nextSurvey=null, авто-просрочка не поднимается.
        Р-22 (ПОР п.10): интервал в триггере — ДЕЙСТВУЮЩИЙ (может быть ужесточён категорией
        риска); если он отличается от нормативного матричного, показываем оба. */
@@ -2227,8 +2248,9 @@ function itemPanels(it){
     ${banMissing(it) ? `<div class="phead-banner danger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
       <span>Залог не защищён от продажи: договор(ы) ${banContracts(it).join(', ')} зарегистрированы, но запрет на отчуждение в «${esc(organOf(it))}» не наложен. Залогодатель может продать предмет без нашего ведома. Срок наложения: до ${banDeadline(it)}${banOverdue(it) ? ` — ПРОСРОЧЕН на ${Math.abs(daysLeft(banDeadline(it)))} дн.` : ''}.</span></div>` : ''}
     ${banStale(it) ? `<div class="phead-banner warn"><span>Доли по предмету обнулились, а запрет ${esc(it.ban.regNo)} от ${it.ban.date} продолжает действовать в «${esc(organOf(it))}». Имущество клиента заблокировано без правового основания — требуется снятие запрета отдельным актом.</span></div>` : ''}
-    ${it.ban && !banStale(it) ? `<div class="phead-banner ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
-      <span>Запрет на отчуждение наложен: ${esc(organOf(it))} · ${esc(it.ban.regNo)} от ${it.ban.date}. Предмет не может быть продан без нашего ведома.</span></div>` : ''}
+    ${it.ban && !banStale(it) && banFullyRegistered(it.ban) ? `<div class="phead-banner ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+      <span>Запрет на отчуждение наложен залогодателем: ${esc(organOf(it))} · ${esc(it.ban.regNo)} от ${it.ban.date}. Отметка получена в оригиналах правоустанавливающих документов. Предмет не может быть продан без нашего ведома.</span></div>` : ''}
+    ${it.ban && !banStale(it) && !banFullyRegistered(it.ban) ? `<div class="phead-banner warn"><span>Запрет ${esc(it.ban.regNo)} от ${it.ban.date} наложен залогодателем в «${esc(organOf(it))}», но отметка о запрете в оригиналах правоустанавливающих документов ещё не получена (ПБК п.2.1).</span></div>` : ''}
     ${it.lost ? `<div class="phead-banner danger"><span>Предмет утрачен по акту обследования — стоимость исключена из покрытия (залоговая = 0).</span></div>` : ''}
     ${it.needReval ? `<div class="phead-banner warn"><span>Обследование зафиксировало ухудшение состояния → требуется досрочная переоценка (вне планового цикла).</span></div>` : ''}
     <div class="phead-dims">
@@ -2304,7 +2326,7 @@ function itemPanels(it){
   const p2 = `<div class="panel-wrap">
     <p class="section-h">Запрет на отчуждение</p>
     <div class="gtoolbar">
-      <button class="btn btn-tint btn-sm" onclick="openBan('${it.id}')" ${canPlace?'':'disabled'} title="${canPlace?'':'Наложить можно только на обременённый зарегистрированным договором предмет'}">Наложить запрет</button>
+      <button class="btn btn-tint btn-sm" onclick="openBan('${it.id}')" ${canPlace?'':'disabled'} title="${canPlace?'':'Зарегистрировать можно только по обременённому зарегистрированным договором предмету'}">Зарегистрировать наложение запрета залогодателем</button>
       <button class="btn btn-tint btn-sm" onclick="openConsent('${it.id}')" ${it.ban?'':'disabled'} title="${it.ban?'':'Согласие выдаётся только по действующему запрету'}">Согласие на действия (без снятия)</button>
       <button class="btn btn-tint btn-sm danger" onclick="openBanRelease('${it.id}')" ${canRelease?'':'disabled'} title="${canRelease?'':'Полное снятие нельзя, пока по предмету закреплены доли'}">Снять запрет (полное)</button>
       <button class="btn btn-tint btn-sm" onclick="openPartialRelease('${it.id}')" ${it.ban?'':'disabled'} title="${it.ban?'частичное снятие запрета с части предмета':'Нет действующего запрета'}">Частичное снятие</button>
@@ -2315,14 +2337,16 @@ function itemPanels(it){
         ${ro('Рег. № запрета', it.ban.regNo)}
         ${ro('Дата наложения', it.ban.date)}
         ${ro('Договоры-основания', it.ban.contracts.join(', '))}
+        ${ro('Отметка в оригиналах', it.ban.markInOriginals ? `получена · подтвердил: ${esc(it.ban.confirmedBy||'—')}` : 'не получена (ПБК п.2.1)')}
         ${ro('Подлежит снятию', it.ban.pendingRelease ? 'да — доли обнулились, оформить акт снятия' : 'нет — предмет обеспечивает кредит')}
       </div>
       ${banStale(it) ? `<div class="phead-banner warn" style="margin:14px 0 0"><span>Доли обнулились — запрет продолжает действовать в органе. Снимите его отдельным актом.</span></div>`
-        : `<div class="okline" style="margin:14px 0 0"><span>Предмет защищён от продажи.</span></div>`}
+        : (banFullyRegistered(it.ban) ? `<div class="okline" style="margin:14px 0 0"><span>Предмет защищён от продажи.</span></div>`
+          : `<div class="phead-banner warn" style="margin:14px 0 0"><span>Отметка о запрете в оригиналах правоустанавливающих документов ещё не получена (ПБК п.2.1).</span></div>`)}
       ${(it.consents&&it.consents.length) ? `<p class="section-h" style="font-size:16px;margin-top:18px">Согласия на действия (запрет сохраняется в силе)</p>
         <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Действие</th><th>Дата</th><th>Документ</th><th>Решение</th><th>Переоценка</th><th>Примечание</th></tr></thead><tbody>${consentsRows}</tbody></table></div>` : ''}
       </div>`
-      : (banRequired(it) ? `<div class="flagline"><span>Запрет НЕ наложен, а договор(ы) ${banContracts(it).join(', ')} уже зарегистрированы. Залог не защищён от продажи. Срок наложения в «${esc(organOf(it))}»: до ${banDeadline(it)}${banOverdue(it) ? ` — ПРОСРОЧЕН на ${Math.abs(daysLeft(banDeadline(it)))} дн.` : ''}. Нажмите «Наложить запрет».</span></div>`
+      : (banRequired(it) ? `<div class="flagline"><span>Запрет НЕ наложен, а договор(ы) ${banContracts(it).join(', ')} уже зарегистрированы. Залог не защищён от продажи. Срок наложения в «${esc(organOf(it))}»: до ${banDeadline(it)}${banOverdue(it) ? ` — ПРОСРОЧЕН на ${Math.abs(daysLeft(banDeadline(it)))} дн.` : ''}. Нажмите «Зарегистрировать наложение запрета залогодателем».</span></div>`
         : `<div class="okline"><span>Запрет не требуется: предмет не обременён ни одним зарегистрированным договором — оснований для наложения нет.</span></div>`)}
     </div>`;
 
@@ -2847,30 +2871,33 @@ function openBan(id){
   if(!canCurate()) return denyEdit();
   const it = item(id);
   /* Предусловие: наложить запрет на свободный предмет нельзя — оснований нет. */
-  if(!banRequired(it)) return toast('Наложить запрет нельзя: предмет не обременён ни одним зарегистрированным договором — оснований нет','warn');
+  if(!banRequired(it)) return toast('Регистрировать наложение запрета нельзя: предмет не обременён ни одним зарегистрированным договором — оснований нет','warn');
   if(it.ban) return toast('Запрет уже наложен: '+it.ban.regNo+'. При перезалоге он дополняется основанием автоматически при регистрации договора','warn');
   const grounds = banContracts(it);
-  modal(`<div class="modal form">${mhead('Наложение запрета на отчуждение · '+it.id)}
+  modal(`<div class="modal form">${mhead('Регистрация наложения запрета на отчуждение · '+it.id)}
     <div class="modal-b"><div class="mform">
       ${fsel('bnOrgan','Регистрирующий орган', ORG_REGISTRY, organOf(it), true)}
       ${fin('bnReg','Рег. № запрета в органе','',true)}
       ${fdate('bnDate','Дата наложения', TODAY, true)}
       ${ro('Договоры-основания', grounds.join(', '))}
     </div>
-    <div class="warn-inline"><span>Основания (${grounds.join(', ')}) заполнятся автоматически. Срок наложения: до ${banDeadline(it)}.</span></div>
-    </div>${mfoot('Наложить запрет','saveBan(\''+id+'\')','btn-primary')}</div>`);
+    <div class="warn-inline"><span>Запрет накладывает ЗАЛОГОДАТЕЛЬ в регистрирующем органе (ПБК п.2.1); основания (${grounds.join(', ')}) заполнятся автоматически. Срок наложения: до ${banDeadline(it)}.</span></div>
+    <label class="chk col-span" style="margin-top:8px"><input type="checkbox" id="bnMark"> Отметка о запрете получена в оригиналах правоустанавливающих документов (ПБК п.2.1)</label>
+    </div>${mfoot('Зарегистрировать наложение запрета залогодателем','saveBan(\''+id+'\')','btn-primary')}</div>`);
 }
 function saveBan(id){
-  const it = item(id), organ = val('bnOrgan').trim(), regNo = val('bnReg').trim(), date = iso2d(val('bnDate'));
+  const it = item(id), organ = val('bnOrgan').trim(), regNo = val('bnReg').trim(), date = iso2d(val('bnDate')),
+        markInOriginals = Boolean((document.getElementById('bnMark')||{}).checked);
   if(!banRequired(it)) return toast('Оснований для запрета нет','warn');
   if(!organ) return toast('Укажите регистрирующий орган','warn');
   if(!regNo) return toast('Укажите рег. № запрета','warn');
   if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
   const grounds = banContracts(it);
-  it.ban = { organ, regNo, date, contracts: grounds, pendingRelease:false };
-  hist(it, `Наложен запрет на отчуждение: ${organ} · ${regNo} от ${date} (основания ${grounds.join(', ')}). Предмет не может быть продан без нашего ведома.`);
-  grounds.forEach(cid => hist(contract(cid), `По предмету ${it.id} наложен запрет на отчуждение: ${organ} · ${regNo} от ${date}`));
-  closeModal(); toast('Запрет на отчуждение наложен — залог защищён от продажи','ok'); refresh();
+  const confirmedBy = markInOriginals ? role : '';
+  it.ban = { organ, regNo, date, contracts: grounds, pendingRelease:false, markInOriginals, confirmedBy };
+  hist(it, `Зарегистрировано наложение запрета на отчуждение залогодателем: ${organ} · ${regNo} от ${date} (основания ${grounds.join(', ')}).${markInOriginals ? ` Отметка о запрете получена в оригиналах правоустанавливающих документов (подтвердил: ${confirmedBy}).` : ' Отметка о запрете в оригиналах правоустанавливающих документов ЕЩЁ НЕ получена.'} Предмет не может быть продан без нашего ведома.`);
+  grounds.forEach(cid => hist(contract(cid), `По предмету ${it.id} зарегистрировано наложение запрета на отчуждение залогодателем: ${organ} · ${regNo} от ${date}`));
+  closeModal(); toast(markInOriginals ? 'Наложение запрета зарегистрировано, отметка в оригиналах получена — залог защищён от продажи' : 'Наложение запрета зарегистрировано — отметка в оригиналах ещё не получена','ok'); refresh();
 }
 /* ---------- СНЯТИЕ ЗАПРЕТА (Р-9): классифицированное основание + цепочка согласования + частичное снятие ---------- */
 function openBanRelease(id){
@@ -2889,22 +2916,32 @@ function openBanRelease(id){
       ${fsel('rbGround','Основание снятия', RELEASE_GROUNDS, 'Полное погашение обязательства', true)}
       ${fin('rbAct','Реквизит акта / № документа снятия','',true)}
       ${fdate('rbDate','Дата снятия', TODAY, true)}
+      <div id="rbReconWrap">${fin('rbReconAct','Реквизит акта сверки о погашении задолженности (ПБК п.2.2)','',true)}</div>
       ${ro('Орган', it.ban.organ)}
     </div>
     <div class="warn-inline"><span>Действующий запрет: ${esc(it.ban.organ)} · ${esc(it.ban.regNo)} от ${it.ban.date}. Доли обнулились — снятие допустимо. Пройдите цепочку согласования:</span></div>
     <div class="ops-list" style="margin-top:8px">${RELEASE_APPROVALS.map((a,i)=>`<div class="op-row"><label class="chk"><input type="checkbox" class="rbAppr" id="rbAppr${i}"> ${esc(a)}</label></div>`).join('')}</div>
     </div>${mfoot('Снять запрет','saveRelease(\''+id+'\')','btn-primary')}</div>`);
+  const syncRecon = () => { document.getElementById('rbReconWrap').style.display =
+    val('rbGround') === 'Полное погашение обязательства' ? '' : 'none'; };
+  document.getElementById('rbGround').addEventListener('change', syncRecon); syncRecon();
 }
 function saveRelease(id){
   const it = item(id), ground = val('rbGround'), act = val('rbAct').trim(), date = iso2d(val('rbDate')),
+        reconAct = val('rbReconAct').trim(),
         channel = val('rbChannel'), chLbl = (RELEASE_CHANNELS.find(c=>c.v===channel)||{}).t || channel;
   if(allocatedLegal(it.id) > 0) return toast('По предмету снова закреплены доли — снятие невозможно','warn');
   if(!act) return toast('Укажите реквизит акта / № документа снятия','warn');
   if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
   if(![...document.querySelectorAll('.rbAppr')].every(x=>x.checked))
     return toast('Пройдите всю цепочку согласования снятия (Прил.3 §3.2)','warn');
+  /* Р-20/Р-9 (ПБК п.2.2): доп. гейт — снятие по «Полное погашение обязательства»
+     требует реквизит акта сверки о погашении задолженности. Дополняет, а не
+     заменяет цепочку согласования и требование акта снятия (act) выше. */
+  const rv = releaseValid({basis:ground, reconAct});
+  if(!rv.ok) return toast(rv.msg,'warn');
   const was = it.ban;
-  hist(it, `Запрет на отчуждение снят (${chLbl.toLowerCase()}): основание «${ground}», акт/№ ${act} от ${date} (был ${was.organ} · ${was.regNo} от ${was.date}). Цепочка согласования пройдена. Предмет свободен от обременения.`);
+  hist(it, `Запрет на отчуждение снят (${chLbl.toLowerCase()}): основание «${ground}», акт/№ ${act} от ${date}${reconAct ? `, акт сверки ${reconAct}` : ''} (был ${was.organ} · ${was.regNo} от ${was.date}). Цепочка согласования пройдена. Предмет свободен от обременения.`);
   it.ban = null;
   closeModal(); toast('Запрет на отчуждение снят','ok'); refresh();
 }
@@ -3919,6 +3956,7 @@ if (typeof window !== 'undefined') window.__zt = {
   surveyValidate,
   custodyValid, leaseCoversCredit,
   replacementGate, replacementValues,
+  banFullyRegistered, releaseValid,
 };
 </script>
 </body>

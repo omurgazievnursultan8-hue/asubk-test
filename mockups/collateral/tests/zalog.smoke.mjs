@@ -464,4 +464,17 @@ test('R14-18: все четыре условия выполнены → допу
   eq(v.equivalenceOk, true); eq(v.consentOk, true); eq(v.dakOk, true); eq(v.rankOk, true); eq(v.blocked, false);
 });
 
+// Р-20 (ПБК п.2.1): запрет на отчуждение накладывает залогодатель, мы контролируем
+// и принимаем отметку о запрете в оригиналах правоустанавливающих документов.
+test('R20-36: regNo без markInOriginals → «отметка не получена», триггер mid', () => {
+  const { zt } = load();
+  eq(zt.banFullyRegistered({regNo:'ЗПО-1', markInOriginals:false}), false);
+  eq(zt.banFullyRegistered({regNo:'ЗПО-1', markInOriginals:true, confirmedBy:'Куратор'}), true);
+});
+test('R20-37: снятие «Полное погашение» без акта сверки → блок', () => {
+  const { zt } = load();
+  eq(zt.releaseValid({basis:'Полное погашение обязательства', reconAct:''}).ok, false);
+  eq(zt.releaseValid({basis:'Полное погашение обязательства', reconAct:'АС-1'}).ok, true);
+});
+
 report();
