@@ -1592,7 +1592,7 @@ function triggers(){
   CONTRACTS.filter(c=>c.status==='На рассмотрении комиссии').forEach(c => { const bad = gateCheck(c).rows.filter(r=>!r.ok);
     out.push({
     type:'Регистрация заблокирована', crit:'high', obj:c.id, objLbl:`${c.id} · ${clientName(c.inn)}`,
-    text:`Контрольный гейт покрытия не пройден (${bad.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)}`).join('; ')}, П1 §2.3) — договор ждёт решения комиссии по залогу`,
+    text:`Контрольный гейт покрытия не пройден (${bad.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — договор ждёт решения комиссии по залогу`,
     act:'Решение комиссии: вернуть на доработку либо допустить с обоснованием' }); });
   return out;
 }
@@ -2179,7 +2179,7 @@ function ctrPanels(c){
     </div>
     ${c.status==='На рассмотрении комиссии' ? `<div class="phead-banner danger">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
-      <span>Контрольный гейт покрытия не пройден (${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)}`).join('; ')}, П1 §2.3) — регистрация ЗАБЛОКИРОВАНА до решения комиссии по залогу. Комиссия либо возвращает на доработку (догрузить/заменить предмет), либо допускает недообеспеченный кредит с обязательным обоснованием.</span></div>` : ''}
+      <span>Контрольный гейт покрытия не пройден (${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — регистрация ЗАБЛОКИРОВАНА до решения комиссии по залогу. Комиссия либо возвращает на доработку (догрузить/заменить предмет), либо допускает недообеспеченный кредит с обязательным обоснованием.</span></div>` : ''}
     ${c.undercovered ? `<div class="phead-banner warn">
       <span>Допущен комиссией с покрытием ниже порога ${pct(c.undercovered.req)} (${pct(c.undercovered.ratio)}). Обоснование: «${esc(c.undercovered.obosn)}» · ${esc(c.undercovered.by)} · ${c.undercovered.date}</span></div>` : ''}
     <div class="phead-dims">
