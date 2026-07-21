@@ -523,4 +523,60 @@ test('R21-1: блок «ОТКРЫТО (Р-10)» удалён', () => {
   has(html, 'ГРАНИЦЫ МОДУЛЯ (Р-21');
 });
 
+// §16 (задача 20): справочник «Регламентные параметры залога» — ~21 параметр, каждый
+// несёт пометку источника: «норматив — <цитата>» (Положение/приложения, read-only без
+// реквизита решения Правления) либо «внутренний» (операционный, свободно редактируется).
+// Ref-1 — тест из брифа, дан ДОСЛОВНО. Он слабый (просто ищет обе подстроки где угодно
+// в файле, включая JS-комментарии) — Ref-2..Ref-5 ниже проверяют реальную реализацию:
+// гейтинг read-only по реквизиту Правления и то, что saveRefbook не спотыкается о
+// заблокированные норматив-поля.
+test('Ref-1: каждый параметр несёт пометку норматив/внутренний', () => {
+  const { win } = load();
+  const html = win.document.documentElement.outerHTML;
+  has(html, 'норматив'); has(html, 'внутренний');
+});
+test('Ref-2: без реквизита Правления норматив-поля read-only (без id), с реквизитом — редактируемы', () => {
+  const { win } = load();
+  win.renderRefbook();
+  ok(!win.document.getElementById('rb-cov-liq'), 'rb-cov-liq (норматив) не должен быть editable input без реквизита');
+  ok(!win.document.getElementById('rb-cov-guar'), 'rb-cov-guar (норматив) не должен быть editable input без реквизита');
+  ok(!win.document.getElementById('rb-wear'), 'rb-wear (норматив) не должен быть editable input без реквизита');
+  // внутренние параметры editable всегда, вне зависимости от реквизита
+  ok(win.document.getElementById('rb-ban-days'), 'rb-ban-days (внутренний) должен быть editable input');
+  ok(win.document.getElementById('rb-doc-route'), 'rb-doc-route (внутренний) должен быть editable input');
+  win.document.getElementById('rb-board-req').value = 'Протокол Правления №1 от 01.01.2026';
+  win.rbToggleBoard();
+  ok(win.document.getElementById('rb-cov-liq'), 'с реквизитом Правления норматив-поле должно стать editable input');
+  ok(win.document.getElementById('rb-cov-guar'), 'с реквизитом Правления норматив-поле должно стать editable input');
+});
+test('Ref-3: saveRefbook не спотыкается о заблокированные (read-only) норматив-поля', () => {
+  const { win } = load();
+  win.renderRefbook();
+  ok(!win.document.getElementById('rb-cov-liq'), 'без реквизита норматив-поле read-only');
+  win.saveRefbook();
+  const toasts = [...win.document.querySelectorAll('#toastWrap .toast')];
+  ok(toasts.some(t => t.className.includes('ok')), 'сохранение без реквизита Правления должно пройти успешно, а не упасть на locked-полях');
+});
+test('Ref-4: read-only классификаторы указывают реализующую валидацию', () => {
+  const { win } = load();
+  win.renderRefbook();
+  const html = win.document.getElementById('refbookPanel').innerHTML;
+  has(html, 'реализует stopListCheck');
+  has(html, 'гейт saveRelease/releaseValid');
+  has(html, 'цепочка saveRelease');
+});
+test('Ref-5: новые параметры справочника (COVER_GUARANTEE/_FX, WEAR_LIMIT, DOC_ROUTE_DAYS, каналы снятия, реестр органов) отрендерены с пометками', () => {
+  const { win } = load();
+  win.renderRefbook();
+  const html = win.document.getElementById('refbookPanel').innerHTML;
+  has(html, 'Банковская гарантия в валюте кредита');
+  has(html, 'Банковская гарантия в иной валюте');
+  has(html, 'Предел физического износа техники');
+  has(html, 'Срок маршрута документов');
+  has(html, 'Каналы оформления снятия запрета');
+  has(html, 'Реестр регистрирующих органов');
+  ok(win.document.getElementById('rb-relch-0'), 'канал снятия #0 должен быть editable input');
+  ok(win.document.getElementById('rb-org-0'), 'орган реестра #0 должен быть editable input');
+});
+
 report();

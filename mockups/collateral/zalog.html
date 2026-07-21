@@ -886,8 +886,8 @@ function leaseCoversCredit(item, credit){
 let COVER_LIQUID     = 1.2;  // ликвидные виды (недвижимость, кредитный портфель) — ≥ 120%
 let COVER_MOVABLE    = 1.5;  // движимая неликвидная техника/оборудование/ТМЦ — ≥ 150%
 let LIQUID_SHARE_MIN = 0.8;  // при движимом неликвидном залоге доля ликвида ≥ 80% суммы кредита
-const COVER_GUARANTEE    = 1.0;// П1 §2.3: банковская гарантия в валюте кредита — ≥ 100%
-const COVER_GUARANTEE_FX = 1.2;// П1 §2.3: гарантия в валюте ≠ валюте кредита — ≥ 120%
+let COVER_GUARANTEE    = 1.0;// П1 §2.3: банковская гарантия в валюте кредита — ≥ 100% (справочник §16, норматив)
+let COVER_GUARANTEE_FX = 1.2;// П1 §2.3: гарантия в валюте ≠ валюте кредита — ≥ 120% (справочник §16, норматив)
 const GUAR_WARN_DAYS = 60;     // Р-11: горизонт предупреждения об истечении гарантии, дней
 
 /* ТЕХНИКА (Прил.1 §2.5, Р-7): предельный срок эксплуатации по происхождению. Справочный параметр. */
@@ -1868,7 +1868,7 @@ function techAgeCheck({securityRole, origin, age}){
 /* Р-19 (ПОЛ §11): срок, после которого незавершённый маршрут кредитно-залоговых документов
    поднимает контрольный триггер (см. triggers() / docRouteIncomplete). ВНУТРЕННИЙ параметр
    модуля — в ПОЛ/П1-П3 конкретный срок не задан, правится администратором в справочнике. */
-const DOC_ROUTE_DAYS = 30;
+let DOC_ROUTE_DAYS = 30;
 
 /* ТРИГГЕРЫ. Собираются из состояния; не хранятся. Триггер «недостаточность
    обеспечения» уходит во взыскание отдельным треком по причине «обеспечение» —
@@ -3994,61 +3994,110 @@ function doRepay(cid, creditId){
 /* ---------- СПРАВОЧНИК: регламентные параметры залога (отдельная страница) ----------
    Раньше был модалкой по шестерёнке; вынесен в самостоятельный раздел сайдбара
    «Регламентные параметры залога». refbookInner() строит тело, renderRefbook() —
-   рендерит его как страницу (view-refbook) с футером «Сохранить». */
+   рендерит его как страницу (view-refbook) с футером «Сохранить».
+
+   §16 задачи: КАЖДЫЙ параметр несёт пометку источника — «норматив — <цитата>»
+   (взят из Положения/приложений, П1/Прил.2/Прил.3/ПОР) либо «внутренний»
+   (операционный параметр без нормативной базы). Норматив-параметры по умолчанию
+   read-only: правка требует реквизита решения Правления (rb-board-req, сессионное
+   состояние rbBoardReq) — без него поля выводятся через ro(), без id, и saveRefbook
+   их не трогает. Внутренние параметры (BAN_DEADLINE_DAYS, DOC_ROUTE_DAYS,
+   KINDS.reval/organ, RELEASE_CHANNELS, ORG_REGISTRY) всегда свободно редактируемы. */
+let rbBoardReq = '';
+function rbToggleBoard(){ rbBoardReq = val('rb-board-req'); renderRefbook(); }
+/* Единая метка источника — синий pill «норматив — …», серый pill «внутренний …». */
+const srcTag = t => `<span class="pill ${t.indexOf('норматив')===0?'info':'neutral'}" style="font-weight:400;margin-left:8px">${esc(t)}</span>`;
 function refbookInner(){
   const kinds = Object.keys(KINDS), grp = ['Платёжеспособные','Неплатёжеспособные','Предприятия-банкроты'];
+  const boardOk = Boolean(rbBoardReq && rbBoardReq.trim());
+  /* норматив-поле (mform): при отсутствии реквизита — ro() без id (saveRefbook его не читает). */
+  const nfin = (id,label,value,cite) => boardOk
+    ? fin(id, label+srcTag('норматив — '+cite), value)
+    : ro(label+srcTag('норматив — '+cite), value);
+  /* внутреннее поле (mform) — всегда editable input. */
+  const ifin = (id,label,value,note) => fin(id, label+srcTag('внутренний'+(note?` (${note})`:'')), value);
+  /* ячейка таблицы (норматив-колонка КИНДС/матрицы): read-only без id, если реквизит не введён. */
+  const kCell = (id,value,w) => boardOk
+    ? `<div class="control" style="width:${w}px"><input id="${id}" value="${esc(value)}"></div>`
+    : `<div class="control ro" style="width:${w}px"><input value="${esc(value)}" readonly></div>`;
   return `
-      <p class="section-h" style="font-size:16px">Пороги обеспеченности (§2.3–2.4)</p>
+      <p class="section-h" style="font-size:16px">Правка нормативных параметров</p>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Параметры${srcTag('норматив — …')} взяты из Положения/приложений и по умолчанию read-only — правка требует реквизита решения Правления ниже. Параметры${srcTag('внутренний')} — операционные, без нормативной базы, редактируются свободно.</p>
+      <div class="mform" style="margin-bottom:4px">
+        <div class="field"><span class="flabel">Реквизит решения Правления (для правки нормативных параметров)</span>
+          <div class="control"><input id="rb-board-req" value="${esc(rbBoardReq)}" onchange="rbToggleBoard()" placeholder="напр. Протокол Правления №… от …"></div></div>
+      </div>
+
+      <p class="section-h" style="font-size:16px;margin-top:16px">Пороги обеспеченности (§2.3–2.4) и сроки</p>
       <div class="mform">
-        ${fin('rb-cov-liq','Ликвидный залог, % (недвижимость / кред. портфель)', String(Math.round(COVER_LIQUID*100)))}
-        ${fin('rb-cov-mov','Движимый неликвидный залог, % (техника / ТМЦ)', String(Math.round(COVER_MOVABLE*100)))}
-        ${fin('rb-liqshare','Мин. доля ликвида, % (при движимом неликвидном)', String(Math.round(LIQUID_SHARE_MIN*100)))}
-        ${fin('rb-ban-days','Срок наложения запрета, рабочих дней', String(BAN_DEADLINE_DAYS))}
+        ${nfin('rb-cov-liq','Ликвидный залог, % (недвижимость / кред. портфель)', String(Math.round(COVER_LIQUID*100)), 'П1 §2.3/§2.4')}
+        ${nfin('rb-cov-mov','Движимый неликвидный залог, % (техника / ТМЦ)', String(Math.round(COVER_MOVABLE*100)), 'П1 §2.3')}
+        ${nfin('rb-liqshare','Мин. доля ликвида, % (при движимом неликвидном)', String(Math.round(LIQUID_SHARE_MIN*100)), 'П1 §2.3')}
+        ${nfin('rb-cov-guar','Банковская гарантия в валюте кредита, %', String(Math.round(COVER_GUARANTEE*100)), 'П1 §2.3')}
+        ${nfin('rb-cov-guar-fx','Банковская гарантия в иной валюте, %', String(Math.round(COVER_GUARANTEE_FX*100)), 'П1 §2.3')}
+        ${ifin('rb-ban-days','Срок наложения запрета, рабочих дней', String(BAN_DEADLINE_DAYS), 'в ПОЛ/П1-П3 отсутствует')}
+        ${ifin('rb-doc-route','Срок маршрута документов до архивного шага, дней', String(DOC_ROUTE_DAYS))}
       </div>
 
       <p class="section-h" style="font-size:16px;margin-top:16px">Коэффициент, ранг ликвидности, переоценка, орган (по виду)</p>
       <div class="cgrid-wrap"><table class="cgrid">
-        <thead><tr><th>Вид залога</th><th>Коэффициент (§2.1)</th><th>Ранг ликвидности (§8)</th><th>Переоценка, мес. (вне положения)</th><th>Регистрирующий орган (запрет)</th><th class="numcell">Предметов</th></tr></thead>
+        <thead><tr><th>Вид залога</th><th>Коэффициент (§2.1)${srcTag('норматив — П1 §2.1')}</th><th>Ранг ликвидности (§8)${srcTag('норматив — §8')}</th><th>Переоценка, мес.${srcTag('внутренний (вне положения)')}</th><th>Регистрирующий орган${srcTag('внутренний (операционный)')}</th><th class="numcell">Предметов</th></tr></thead>
         <tbody>${kinds.map(k=>`<tr>
           <td>${esc(k)}${KINDS[k].movable&&!KINDS[k].liquid?' <span class="pill neutral">движ. неликв.</span>':(KINDS[k].liquid?' <span class="pill low">ликвид</span>':'')}</td>
-          <td><div class="control" style="width:90px"><input id="rb-k-${esc(k)}" value="${KINDS[k].k}"></div></td>
-          <td><div class="control" style="width:80px"><input id="rb-lr-${esc(k)}" value="${KINDS[k].liquidityRank}"></div></td>
+          <td>${kCell('rb-k-'+k, KINDS[k].k, 90)}</td>
+          <td>${kCell('rb-lr-'+k, KINDS[k].liquidityRank, 80)}</td>
           <td><div class="control" style="width:90px"><input id="rb-r-${esc(k)}" value="${KINDS[k].reval}"></div></td>
           <td><div class="control" style="min-width:240px"><input id="rb-o-${esc(k)}" value="${esc(KINDS[k].organ)}"></div></td>
           <td class="numcell">${ITEMS.filter(i=>i.kind===k).length}</td></tr>`).join('')}</tbody>
       </table></div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Периодичность обследования — норматив, матрица (Прил.2 §2.3)</p>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Периодичность обследования — матрица (Прил.2 §2.3)${srcTag('норматив — Прил.2 §2.3')}</p>
       <div class="cgrid-wrap"><table class="cgrid">
         <thead><tr><th>Группа платёжеспособности</th><th>Недвижимое, мес.</th><th>Движимое, мес.</th></tr></thead>
         <tbody>${grp.map(g=>`<tr><td>${esc(g)}</td>
           ${g==='Предприятия-банкроты'
             ? `<td colspan="2">по договору со спецадминистратором</td>`
-            : `<td><div class="control" style="width:90px"><input id="rb-sm-im-${esc(g)}" value="${SURVEY_MATRIX[g].immovable}"></div></td>
-               <td><div class="control" style="width:90px"><input id="rb-sm-mv-${esc(g)}" value="${SURVEY_MATRIX[g].movable}"></div></td>`}</tr>`).join('')}</tbody>
+            : `<td>${kCell('rb-sm-im-'+g, SURVEY_MATRIX[g].immovable, 90)}</td>
+               <td>${kCell('rb-sm-mv-'+g, SURVEY_MATRIX[g].movable, 90)}</td>`}</tr>`).join('')}</tbody>
       </table></div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Ужесточение периодичности по категории риска — read-only, норматив (ПОР п.10)</p>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Ужесточение периодичности по категории риска — read-only, норматив (ПОР п.10)${srcTag('норматив — ПОР п.10')}</p>
       <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Слой ПОВЕРХ матрицы выше: действующий интервал = max(мин., матрица × коэффициент), только при согласовании зампреда. Не редактируется здесь — параметр положения, не справочника.</p>
       <div class="cgrid-wrap"><table class="cgrid">
         <thead><tr><th>Категория риска</th><th>Коэффициент</th></tr></thead>
         <tbody>${Object.keys(RISK_TIGHTENING).map(rc=>`<tr><td>${esc(rc)}</td><td>${RISK_TIGHTENING[rc]}</td></tr>`).join('')}</tbody>
       </table></div>
       <div class="mform" style="margin-top:8px">
-        ${ro('Нижний предел интервала после ужесточения', SURVEY_MIN_MONTHS + ' мес. (ПОР п.10)')}
+        ${ro('Нижний предел интервала после ужесточения'+srcTag('норматив — ПОР п.10'), SURVEY_MIN_MONTHS + ' мес. (ПОР п.10)')}
         ${ro('Согласование зампреда', RISK_TIGHTENING_APPROVAL.approved
           ? `предоставлено · ${esc(RISK_TIGHTENING_APPROVAL.req)} от ${RISK_TIGHTENING_APPROVAL.date}`
           : 'не предоставлено — действует чистая матрица §2.3, без ужесточения')}
       </div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Предельный срок эксплуатации техники (§2.5)</p>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Предельный срок эксплуатации техники (§2.5) и предел износа (§3.5)</p>
       <div class="mform">
-        ${fin('rb-age-sng','СНГ, лет', String(TECH_AGE_LIMIT['СНГ']))}
-        ${fin('rb-age-far','Дальнее зарубежье, лет', String(TECH_AGE_LIMIT['Дальнее зарубежье']))}
+        ${nfin('rb-age-sng','СНГ, лет', String(TECH_AGE_LIMIT['СНГ']), 'П1 §2.5')}
+        ${nfin('rb-age-far','Дальнее зарубежье, лет', String(TECH_AGE_LIMIT['Дальнее зарубежье']), 'П1 §2.5')}
+        ${nfin('rb-wear','Предел физического износа техники, %', String(WEAR_LIMIT), 'П1 §3.5')}
       </div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Не принимается в залог — стоп-лист §3.5 (регламентная константа, read-only)</p>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Не принимается в залог — стоп-лист §3.5${srcTag('норматив — П1 §3.5')}</p>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Регламентная константа, read-only; реализует stopListCheck.</p>
       <div class="ops-list">${PROHIBITED_KINDS.map(p=>`<div class="op-row"><span class="op-t">${esc(p)}</span></div>`).join('')}</div>
+
+      <p class="section-h" style="font-size:16px;margin-top:16px">Снятие запрета — основания (§7.2 / Прил.3 §2.1)${srcTag('норматив — §7.2 / Прил.3 §2.1')}</p>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Read-only классификатор оснований снятия; гейт saveRelease/releaseValid.</p>
+      <div class="ops-list">${RELEASE_GROUNDS.map(g=>`<div class="op-row"><span class="op-t">${esc(g)}</span></div>`).join('')}</div>
+
+      <p class="section-h" style="font-size:16px;margin-top:16px">Снятие запрета — цепочка согласования (Прил.3 §3.2)${srcTag('норматив — Прил.3 §3.2')}</p>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Read-only чек-лист; цепочка saveRelease.</p>
+      <div class="ops-list">${RELEASE_APPROVALS.map(a=>`<div class="op-row"><span class="op-t">${esc(a)}</span></div>`).join('')}</div>
+
+      <p class="section-h" style="font-size:16px;margin-top:16px">Каналы оформления снятия запрета${srcTag('внутренний (перенесён из прежней системы)')}</p>
+      <div class="ops-list">${RELEASE_CHANNELS.map((c,i)=>`<div class="op-row"><span style="flex:none;width:70px;color:var(--text-placeholder);font-size:12px">${esc(c.v)}</span><div class="control" style="flex:1"><input id="rb-relch-${i}" value="${esc(c.t)}"></div></div>`).join('')}</div>
+
+      <p class="section-h" style="font-size:16px;margin-top:16px">Реестр регистрирующих органов${srcTag('внутренний (операционный)')}</p>
+      <div class="ops-list">${ORG_REGISTRY.map((o,i)=>`<div class="op-row"><div class="control" style="flex:1"><input id="rb-org-${i}" value="${esc(o)}"></div></div>`).join('')}</div>
 
       <p class="section-h" style="font-size:16px;margin-top:16px">Миграция видов залога: прежняя система → §22 (импорт исторических договоров)</p>
       <div class="cgrid-wrap"><table class="cgrid">
@@ -4068,33 +4117,78 @@ function renderRefbook(){
   document.querySelectorAll('.nav-item').forEach(a=>a.classList.toggle('active', a.textContent==='Регламентные параметры залога'));
 }
 function saveRefbook(){
-  const bd = num(val('rb-ban-days')), cl = num(val('rb-cov-liq')), cm = num(val('rb-cov-mov')), ls = num(val('rb-liqshare')),
-        ageS = num(val('rb-age-sng')), ageF = num(val('rb-age-far'));
+  /* §16: норматив-поля существуют в DOM (имеют id) только когда введён реквизит
+     решения Правления (rb-board-req) — refbookInner() рендерит их иначе через ro()
+     без id. boardOk синхронизирует это состояние на случай, если onchange поля
+     rb-board-req не успел сработать до клика «Сохранить». */
+  rbBoardReq = val('rb-board-req');
+  const boardOk = Boolean(rbBoardReq && rbBoardReq.trim());
+
+  // ВНУТРЕННИЕ параметры — всегда в DOM, всегда валидируются и сохраняются.
+  const bd = num(val('rb-ban-days')), docRoute = num(val('rb-doc-route'));
   if(!(bd > 0)) return toast('Срок наложения запрета — положительное число рабочих дней','warn');
-  if(!(cl >= 100)) return toast('Порог ликвидного залога — не менее 100%','warn');
-  if(!(cm >= 100)) return toast('Порог движимого неликвидного залога — не менее 100%','warn');
-  if(!(ls > 0 && ls <= 100)) return toast('Доля ликвида — в диапазоне (0; 100]%','warn');
-  if(!(ageS > 0) || !(ageF > 0)) return toast('Лимиты возраста техники — положительные','warn');
-  const draft = {};
+  if(!(docRoute > 0)) return toast('Срок маршрута документов — положительное число дней','warn');
+  const revalDraft = {};
   for(const k of Object.keys(KINDS)){
-    const kf = num(val('rb-k-'+k)), lr = num(val('rb-lr-'+k)), r = num(val('rb-r-'+k)), o = val('rb-o-'+k).trim();
-    if(!(kf > 0 && kf <= 1)) return toast('Коэффициент «'+k+'» — в диапазоне (0; 1]','warn');
-    if(!(lr >= 0)) return toast('Ранг ликвидности «'+k+'» — число ≥ 0','warn');
+    const r = num(val('rb-r-'+k)), o = val('rb-o-'+k).trim();
     if(!(r > 0)) return toast('Интервал переоценки «'+k+'» — положительный','warn');
     if(!o) return toast('Укажите регистрирующий орган для «'+k+'»','warn');
-    draft[k] = { ...KINDS[k], k:kf, liquidityRank:Math.round(lr), reval:Math.round(r), organ:o };
+    revalDraft[k] = { reval:Math.round(r), organ:o };
   }
-  const sm = {};
-  for(const g of ['Платёжеспособные','Неплатёжеспособные']){
-    const im = num(val('rb-sm-im-'+g)), mv = num(val('rb-sm-mv-'+g));
-    if(!(im > 0) || !(mv > 0)) return toast('Интервалы обследования «'+g+'» — положительные','warn');
-    sm[g] = { immovable:Math.round(im), movable:Math.round(mv) };
+
+  // НОРМАТИВ-параметры — читаются/валидируются, только если решение Правления введено;
+  // при boardOk===false соответствующие id отсутствуют в DOM (read-only через ro()) —
+  // не трогаем их, num(val(...)) на несуществующий id сюда не вызывается вовсе.
+  let cl = COVER_LIQUID, cm = COVER_MOVABLE, ls = LIQUID_SHARE_MIN, cg = COVER_GUARANTEE, cgfx = COVER_GUARANTEE_FX,
+      ageS = TECH_AGE_LIMIT['СНГ'], ageF = TECH_AGE_LIMIT['Дальнее зарубежье'], wear = WEAR_LIMIT;
+  const kindDraft = {}, smDraft = {};
+  if(boardOk){
+    const clV = num(val('rb-cov-liq')), cmV = num(val('rb-cov-mov')), lsV = num(val('rb-liqshare')),
+          cgV = num(val('rb-cov-guar')), cgfxV = num(val('rb-cov-guar-fx'));
+    if(!(clV >= 100)) return toast('Порог ликвидного залога — не менее 100%','warn');
+    if(!(cmV >= 100)) return toast('Порог движимого неликвидного залога — не менее 100%','warn');
+    if(!(lsV > 0 && lsV <= 100)) return toast('Доля ликвида — в диапазоне (0; 100]%','warn');
+    if(!(cgV >= 100)) return toast('Гарантия в валюте кредита — не менее 100%','warn');
+    if(!(cgfxV >= 100)) return toast('Гарантия в иной валюте — не менее 100%','warn');
+    cl = clV/100; cm = cmV/100; ls = lsV/100; cg = cgV/100; cgfx = cgfxV/100;
+
+    const ageSV = num(val('rb-age-sng')), ageFV = num(val('rb-age-far')), wearV = num(val('rb-wear'));
+    if(!(ageSV > 0) || !(ageFV > 0)) return toast('Лимиты возраста техники — положительные','warn');
+    if(!(wearV > 0 && wearV <= 100)) return toast('Предел износа техники — в диапазоне (0; 100]%','warn');
+    ageS = ageSV; ageF = ageFV; wear = wearV;
+
+    for(const k of Object.keys(KINDS)){
+      const kf = num(val('rb-k-'+k)), lr = num(val('rb-lr-'+k));
+      if(!(kf > 0 && kf <= 1)) return toast('Коэффициент «'+k+'» — в диапазоне (0; 1]','warn');
+      if(!(lr >= 0)) return toast('Ранг ликвидности «'+k+'» — число ≥ 0','warn');
+      kindDraft[k] = { k:kf, liquidityRank:Math.round(lr) };
+    }
+    for(const g of ['Платёжеспособные','Неплатёжеспособные']){
+      const im = num(val('rb-sm-im-'+g)), mv = num(val('rb-sm-mv-'+g));
+      if(!(im > 0) || !(mv > 0)) return toast('Интервалы обследования «'+g+'» — положительные','warn');
+      smDraft[g] = { immovable:Math.round(im), movable:Math.round(mv) };
+    }
   }
-  Object.keys(draft).forEach(k => KINDS[k] = draft[k]);
-  Object.keys(sm).forEach(g => SURVEY_MATRIX[g] = sm[g]);
+
+  // применяем: KINDS мутируется точечно — норматив-поля (k/liquidityRank) только если
+  // были в DOM и провалидированы, внутренние (reval/organ) — всегда.
+  Object.keys(KINDS).forEach(k=>{
+    if(kindDraft[k]){ KINDS[k].k = kindDraft[k].k; KINDS[k].liquidityRank = kindDraft[k].liquidityRank; }
+    KINDS[k].reval = revalDraft[k].reval; KINDS[k].organ = revalDraft[k].organ;
+  });
+  Object.keys(smDraft).forEach(g => SURVEY_MATRIX[g] = smDraft[g]);
   BAN_DEADLINE_DAYS = Math.round(bd);
-  COVER_LIQUID = cl/100; COVER_MOVABLE = cm/100; LIQUID_SHARE_MIN = ls/100;
+  DOC_ROUTE_DAYS = Math.round(docRoute);
+  COVER_LIQUID = cl; COVER_MOVABLE = cm; LIQUID_SHARE_MIN = ls;
+  COVER_GUARANTEE = cg; COVER_GUARANTEE_FX = cgfx;
   TECH_AGE_LIMIT['СНГ'] = Math.round(ageS); TECH_AGE_LIMIT['Дальнее зарубежье'] = Math.round(ageF);
+  WEAR_LIMIT = Math.round(wear);
+
+  // ВНУТРЕННИЕ списки (свободно редактируемые всегда): каналы снятия запрета, реестр
+  // регистрирующих органов — пустая правка построчно игнорируется (сохраняем прежнее).
+  RELEASE_CHANNELS.forEach((c,i)=>{ const t = val('rb-relch-'+i).trim(); if(t) c.t = t; });
+  ORG_REGISTRY.forEach((o,i)=>{ const t = val('rb-org-'+i).trim(); if(t) ORG_REGISTRY[i] = t; });
+
   toast('Справочник сохранён — параметры пересчитаны','ok'); refresh(); renderRefbook();
 }
 
