@@ -1,4 +1,4 @@
-import { load, test, ok, eq, report } from './harness.mjs';
+import { load, test, ok, eq, hasNot, report } from './harness.mjs';
 
 test('S0: файл грузится, шов __zt доступен', () => {
   const { zt } = load();
@@ -15,6 +15,46 @@ test('D1-1: COVER_MIN отсутствует как символ', () => {
   // поэтому проверяем сам биндинг верхнего уровня скрипта через win.eval, а не
   // typeof win.COVER_MIN (та проверка была бы 'undefined' и до фикса — не РЕД).
   eq(win.eval('typeof COVER_MIN'), 'undefined', 'COVER_MIN должен быть удалён как символ верхнего уровня');
+});
+
+// D2: хардкод «120%» в пользовательских строках заменяется на pct(req) — порог покрытия
+// не всегда 120% (ликвид), для состава с движимым неликвидным предметом это 150%
+// (requiredCover, П1 §2.3–2.4). Прогон полного цикла регистрации черновика с таким
+// составом не должен нигде показать фиксированные «Гейт 120%».
+test('D2-1: нет литерала «120%» в пользовательских строках при пороге 150%', () => {
+  const { win, zt } = load();
+  // Кредит К-Т1 обеспечен ДВУМЯ предметами: ликвидным (недвижимость) на 90% суммы
+  // (Р-1 п.3 требует долю ликвида ≥80%, когда порог 150%) и движимым неликвидным
+  // (оборудование) — присутствие последнего переводит requiredCover на 150% (П1 §2.3–2.4).
+  zt.CREDITS.push({ id:'К-Т1', num:'Тестовый кредит Т1', inn:'22105198800047', amount:100000, status:'Действующий', overdue:false, otherSecurity:null });
+  const liquidIt = win.normalizeItem({ id:'П-Т1', kind:'Недвижимое имущество', name:'Тестовое здание', pledger:'22105198800047',
+    ident:'ТЕСТ-1', appraised:200000, apprDate:'01.07.2026', apprReport:'ОЦ-ТЕСТ1',
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false,
+    lastSurvey:'01.07.2026', lastReval:'01.07.2026', revals:[], surveys:[], history:[] });
+  liquidIt.prereqs.encumbranceCert.present = true;
+  const movableIt = win.normalizeItem({ id:'П-Т2', kind:'Оборудование', name:'Тестовый станок', pledger:'22105198800047',
+    ident:'ТЕСТ-2', appraised:400000, apprDate:'01.07.2026', apprReport:'ОЦ-ТЕСТ2',
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false,
+    lastSurvey:'01.07.2026', lastReval:'01.07.2026', revals:[], surveys:[], history:[] });
+  movableIt.prereqs.encumbranceCert.present = true;
+  zt.ITEMS.push(liquidIt, movableIt);
+  // 90 000 (ликвид, 90%>=80%) + 65 000 (движимое неликвидное) = 155 000 на 100 000 кредита = 155% >= 150%.
+  zt.CONTRACTS.push({ id:'Д-Т1', no:'', date:'', status:'Оформляется', inn:'22105198800047',
+    notary:'', notaryNo:'', notaryDate:'', cert:'',
+    credits:['К-Т1'], allocs:[{item:'П-Т1', credit:'К-Т1', share:90000}, {item:'П-Т2', credit:'К-Т1', share:65000}],
+    undercovered:null, addenda:[], history:[] });
+  eq(zt.requiredCover('К-Т1', zt.CONTRACTS.filter(c=>c.id==='Д-Т1')), zt.COVER_MOVABLE, 'сценарий теста должен давать порог 150%');
+  const gate = win.gateCheck(zt.contract('Д-Т1'));
+  ok(gate.ok, 'сценарий теста должен проходить гейт покрытия (150% + доля ликвида >=80%)');
+  win.openRegister('Д-Т1');
+  win.document.getElementById('rgNo').value = 'ЗД-ТЕСТ/1';
+  win.document.getElementById('rgNotary').value = 'Нотариус Тест';
+  win.document.getElementById('rgNotaryNo').value = 'НР-ТЕСТ/1';
+  win.document.getElementById('rgCert').value = 'ЗС-ТЕСТ/1';
+  win.doRegister('Д-Т1');
+  const html = win.document.body.innerHTML;
+  // грубая проверка: хардкод-строки триггеров не содержат фиксированного «120%»
+  hasNot(html, 'Гейт 120%', 'тост «Гейт 120% пройден» — хардкод');
 });
 
 report();

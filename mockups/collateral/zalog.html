@@ -1584,10 +1584,11 @@ function triggers(){
     if(isOverdue(nextReval(it))) out.push({ type:'Просрочен контроль: переоценка', crit:'mid', obj:it.id,
       objLbl:`${it.id} · ${it.name}`, text:`Плановая дата ${nextReval(it)} (просрочка ${Math.abs(daysLeft(nextReval(it)))} дн. · интервал вне положения)`, act:'Провести переоценку' });
   });
-  CONTRACTS.filter(c=>c.status==='На рассмотрении комиссии').forEach(c => out.push({
+  CONTRACTS.filter(c=>c.status==='На рассмотрении комиссии').forEach(c => { const bad = gateCheck(c).rows.filter(r=>!r.ok);
+    out.push({
     type:'Регистрация заблокирована', crit:'high', obj:c.id, objLbl:`${c.id} · ${clientName(c.inn)}`,
-    text:'Контрольный гейт 120% не пройден — договор ждёт решения комиссии по залогу',
-    act:'Решение комиссии: вернуть на доработку либо допустить с обоснованием' }));
+    text:`Контрольный гейт покрытия не пройден (${bad.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)}`).join('; ')}, П1 §2.3) — договор ждёт решения комиссии по залогу`,
+    act:'Решение комиссии: вернуть на доработку либо допустить с обоснованием' }); });
   return out;
 }
 
@@ -1727,6 +1728,13 @@ function minCoverage(c){
   const list = c.credits.map(id => coverage(cs, id).ratio);
   return list.length ? Math.min(...list) : 0;
 }
+/* Порог покрытия — функция состава (requiredCover), не константа (Д-2): пилюля
+   «допуск <порога» на реестре/карточке не может показать одно число на все кредиты
+   договора — тултип раскрывает порог по каждому кредиту отдельно. */
+function reqTooltip(c){
+  const cs = ctx(isActive(c) ? null : c);
+  return c.credits.map(id => `${id} — ${pct(requiredCover(id, cs))}`).join(', ');
+}
 function ctrlBadge(it){
   const s = isOverdue(nextSurvey(it)), r = isOverdue(nextReval(it));
   if(s && r) return '<span class="pill high">обслед. + переоц.</span>';
@@ -1754,7 +1762,7 @@ function rowsContracts(){
         items:new Set(c.allocs.map(a=>a.item)).size, credits:c.credits.length, mc, add:c.addenda.length },
       cells:[ c.id, c.no ? esc(c.no) : '<span style="color:var(--text-placeholder)">— не зарегистрирован —</span>',
         esc(clientName(c.inn)),
-        `<span class="pill ${stPill}">${c.status}</span>${c.undercovered ? ' <span class="pill high">допуск &lt;120%</span>' : ''}`,
+        `<span class="pill ${stPill}">${c.status}</span>${c.undercovered ? ` <span class="pill high" title="${esc(reqTooltip(c))}">допуск &lt;порога</span>` : ''}`,
         `<span class="numcell">${new Set(c.allocs.map(a=>a.item)).size}</span>`,
         `<span class="numcell">${c.credits.length}</span>`,
         c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}">${pct(mc)}</span>`,
@@ -1796,7 +1804,7 @@ function contractCard(c){
   const stPill = c.status===ACTIVE ? 'low' : c.status==='Оформляется' ? 'neutral' : c.status==='Закрыт' ? 'neutral' : 'high';
   const nItems = new Set(c.allocs.map(a=>a.item)).size;
   const cov = c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}">${pct(mc)}</span>`;
-  const badges = `<span class="pill ${stPill}">${c.status}</span>${c.undercovered ? ' <span class="pill high">допуск &lt;120%</span>' : ''}`;
+  const badges = `<span class="pill ${stPill}">${c.status}</span>${c.undercovered ? ` <span class="pill high" title="${esc(reqTooltip(c))}">допуск &lt;порога</span>` : ''}`;
   return `<div class="pcard ${c.id===selected?'sel':''}" onclick="selectRow('${c.id}')" ondblclick="openSelected()">
     <div class="pcard-head">
       <div class="pcard-ava" style="background:${AVA_CTR[c.status]||'#5B6B7E'}">${docIcon()}</div>
@@ -2166,12 +2174,12 @@ function ctrPanels(c){
     </div>
     ${c.status==='На рассмотрении комиссии' ? `<div class="phead-banner danger">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
-      <span>Контрольный гейт 120% не пройден — регистрация ЗАБЛОКИРОВАНА до решения комиссии по залогу. Комиссия либо возвращает на доработку (догрузить/заменить предмет), либо допускает недообеспеченный кредит с обязательным обоснованием.</span></div>` : ''}
+      <span>Контрольный гейт покрытия не пройден (${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)}`).join('; ')}, П1 §2.3) — регистрация ЗАБЛОКИРОВАНА до решения комиссии по залогу. Комиссия либо возвращает на доработку (догрузить/заменить предмет), либо допускает недообеспеченный кредит с обязательным обоснованием.</span></div>` : ''}
     ${c.undercovered ? `<div class="phead-banner warn">
-      <span>Допущен комиссией с покрытием ниже 120% (${pct(c.undercovered.ratio)}). Обоснование: «${esc(c.undercovered.obosn)}» · ${esc(c.undercovered.by)} · ${c.undercovered.date}</span></div>` : ''}
+      <span>Допущен комиссией с покрытием ниже порога ${pct(c.undercovered.req)} (${pct(c.undercovered.ratio)}). Обоснование: «${esc(c.undercovered.obosn)}» · ${esc(c.undercovered.by)} · ${c.undercovered.date}</span></div>` : ''}
     <div class="phead-dims">
       ${kpi('Статус', c.status, 'ЖЦ договора')}
-      ${kpi('Мин. покрытие', c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}">${pct(mc)}</span>`, 'худший кредит договора · порог по составу (120/150%)')}
+      ${kpi('Мин. покрытие', c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}">${pct(mc)}</span>`, `худший кредит договора · порог по составу (${pct(COVER_LIQUID)}/${pct(COVER_MOVABLE)})`)}
     </div></div>`;
 
   const p0 = `<div class="panel-wrap">${head}<div class="panel-card">
@@ -2272,7 +2280,7 @@ function ctrPanels(c){
         <thead><tr><th>Кредит</th><th>Покрытие до</th><th>Покрытие после</th></tr></thead>
         <tbody>${d.diff.map(x=>`<tr><td>${x.id}</td><td>${x.before}</td>
           <td class="${x.up?'diff-up':'diff-dn'}">${x.after}</td></tr>`).join('')}</tbody></table></div>
-      ${d.obosn ? `<div class="flagline" style="margin-top:12px"><span>Допущено комиссией ниже 120%. Обоснование: «${esc(d.obosn)}»</span></div>` : ''}
+      ${d.obosn ? `<div class="flagline" style="margin-top:12px"><span>Допущено комиссией ниже порога ${pct(d.req)}. Обоснование: «${esc(d.obosn)}»</span></div>` : ''}
     </div>`).join('') : `<div class="cgrid-empty" style="border:1px solid var(--border-default);border-radius:4px">Доп соглашений нет</div>`}
     </div>`;
 
@@ -2750,7 +2758,7 @@ function ncCredits(){
   if(!inn){ document.getElementById('ncCredits').innerHTML = `<div class="op-empty">Сначала выберите заёмщика</div>`; return; }
   const list = CREDITS.filter(c=>c.inn===inn && c.status==='Действующий');
   document.getElementById('ncCredits').innerHTML = list.length ? list.map(c=>`<div class="op-row">
-      <label class="chk"><input type="checkbox" class="ncChk" value="${c.id}"> ${c.id} · ${esc(c.num)} · сумма ${fmt(c.amount)} · требуется: 120% — ${fmt(c.amount*COVER_LIQUID)} (ликвидный) / 150% — ${fmt(c.amount*COVER_MOVABLE)} (движимый неликвидный)</label></div>`).join('')
+      <label class="chk"><input type="checkbox" class="ncChk" value="${c.id}"> ${c.id} · ${esc(c.num)} · сумма ${fmt(c.amount)} · требуется: ${pct(COVER_LIQUID)} — ${fmt(c.amount*COVER_LIQUID)} (ликвидный) / ${pct(COVER_MOVABLE)} — ${fmt(c.amount*COVER_MOVABLE)} (движимый неликвидный)</label></div>`).join('')
       + `<div class="formula">Итоговый порог определяется составом обеспечения (П1 §2.3–2.4).</div>`
     : `<div class="op-empty">У клиента нет действующих кредитов</div>`;
 }
@@ -2923,7 +2931,7 @@ function doRegister(cid){
   c.allocs.forEach(a => { item(a.item).everPledged = true; });
   hist(c, `Договор зарегистрирован (${no}). Покрытие: ${gate.rows.map(r=>r.id+' — '+pct(r.ratio)).join(', ')}. С этого момента предметы юридически обременены.`);
   const missing = afterRegister(c);
-  closeModal(); toast('Договор зарегистрирован. Гейт 120% пройден','ok');
+  closeModal(); toast(`Договор зарегистрирован. Гейт покрытия пройден: ${gate.rows.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)}`).join('; ')}`,'ok');
   if(missing.length) toast(`Наложите запрет на отчуждение в «${organOf(missing[0])}» до ${banDeadline(missing[0])} — до этого залог не защищён от продажи`,'warn');
   refresh();
 }
@@ -2948,7 +2956,7 @@ function openCommission(cid){
           {v:'admit',  t:'Допустить недообеспеченный кредит (с обоснованием)'} ], 'return')}
         ${ftxt('cmObosn','Обоснование (обязательно для допуска)','')}
       </div>
-      <div class="warn-inline"><span>Обоснование фиксируется в договоре и в истории, договор помечается флагом «допуск &lt;120%».</span></div>
+      <div class="warn-inline"><span>Обоснование фиксируется в договоре и в истории, договор помечается флагом «допуск &lt;порога».</span></div>
     </div>${mfoot('Провести решение','saveCommission(\''+cid+'\')')}</div>`);
 }
 function saveCommission(cid){
@@ -2963,14 +2971,17 @@ function saveCommission(cid){
   const pm = [...new Set(c.allocs.map(a=>a.item))].flatMap(iid=>prereqMissing(item(iid)).map(m=>({iid,...m})));
   if(pm.length) return toast('Регистрация невозможна: гейт предпосылок §5.2 — '+pm.map(m=>m.iid+' — '+m.label).join('; '),'warn');
   const no = 'ЗД-' + TODAY.slice(6) + '/' + c.id.slice(2) + '-1';
+  /* Худший по покрытию кредит — тот же выбор, что и Math.min(...ratio) ниже, но с
+     сохранением его req (Д-2): порог — функция состава, не константа 120%. */
+  const worst = gate.rows.reduce((a,b)=> b.ratio<a.ratio?b:a);
   Object.assign(c, { status:ACTIVE, no: c.no || no, date: c.date || TODAY,
     notary: c.notary || 'Нотариус (реквизиты уточняются)', notaryNo: c.notaryNo || 'НР-' + TODAY.slice(6) + '/0000',
     notaryDate: c.notaryDate || TODAY, cert: c.cert || 'ЗС-' + TODAY.slice(6) + '/0000',
-    undercovered: { ratio: Math.min(...gate.rows.map(r=>r.ratio)), obosn: ob, by: role, date: TODAY } });
+    undercovered: { ratio: worst.ratio, req: worst.req, obosn: ob, by: role, date: TODAY } });
   c.allocs.forEach(a => { item(a.item).everPledged = true; });
   hist(c, `Комиссия по залогу: ДОПУЩЕН недообеспеченный кредит (${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}). Обоснование: «${ob}». Договор зарегистрирован.`);
   const missing = afterRegister(c);
-  closeModal(); toast('Комиссия допустила договор с покрытием ниже 120% — флаг зафиксирован','warn');
+  closeModal(); toast(`Комиссия допустила договор с покрытием ниже порога ${pct(worst.req)} — флаг зафиксирован`,'warn');
   if(missing.length) toast(`Наложите запрет на отчуждение в «${organOf(missing[0])}» до ${banDeadline(missing[0])} — до этого залог не защищён от продажи`,'warn');
   refresh();
 }
@@ -3057,7 +3068,7 @@ function renderDs(){
   const inOpts    = ITEMS.filter(i=>!i.lost).map(i=>({v:i.id, t:`${i.id} · ${i.name} · доступно ${fmt(availableOf(i))}`}));
   const shareOpts = v.allocs.map((a,i)=>({v:i, t:`${a.item} / ${a.credit} · текущая доля ${fmt(a.share)}`}));
   const credOpts  = CREDITS.filter(cr=>cr.inn===c.inn && cr.status==='Действующий' && !v.credits.includes(cr.id))
-                           .map(cr=>({v:cr.id, t:`${cr.id} · ${cr.num} · сумма ${fmt(cr.amount)} · порог по составу (120/150%)`}));
+                           .map(cr=>({v:cr.id, t:`${cr.id} · ${cr.num} · сумма ${fmt(cr.amount)} · порог по составу (${pct(COVER_LIQUID)}/${pct(COVER_MOVABLE)})`}));
 
   modal(`<div class="modal">${mhead('Доп соглашение к '+(c.no||c.id)+' — пакет изменений (changeset)')}
     <div class="modal-b">
@@ -3160,6 +3171,9 @@ function dsRegister(){
   if(repOverdue.length) return toast('Замена при просроченной задолженности не допускается (§8): кредит '+repOverdue.map(r=>r.credit).join(', '),'warn');
   const repDrop = reps.some(r=>r.drop && !r.overdue);
   const before = gateCheck(c), after = gateCheck(v);
+  /* Худший по покрытию кредит пакета — тот же смысл, что и Math.min(...ratio) ниже,
+     но с сохранением его req (Д-2): порог — функция состава, не константа 120%. */
+  const worst = after.rows.reduce((a,b)=> b.ratio<a.ratio?b:a);
   let obosn = '';
   if(!after.ok || repDrop){
     if(!canCommission()) return toast('Гейт не пройден (покрытие/ликвидность): допуск возможен только комиссией по залогу','warn');
@@ -3173,7 +3187,7 @@ function dsRegister(){
   });
   const opLines = ds.ops.map(opText);
   reps.forEach(r => opLines.push(`Ликвидность (замена по ${r.credit}): ранг Σ${r.outRank} → Σ${r.inRank}${r.drop?' — понижение, допущено комиссией':' — не понижается'}`));
-  c.addenda.push({ no, date: TODAY, ops: opLines, diff, obosn });
+  c.addenda.push({ no, date: TODAY, ops: opLines, diff, obosn, req: worst.req });
   const touched = [...new Set(c.allocs.map(a=>a.item))];   // предметы договора ДО применения пакета
   c.allocs = v.allocs; c.credits = v.credits;
   c.allocs.forEach(a => { item(a.item).everPledged = true; });
@@ -3185,8 +3199,8 @@ function dsRegister(){
       hist(it, `Предмет выведен доп соглашением ${no} — запрет на отчуждение ${it.ban.regNo} подлежит снятию в «${organOf(it)}» (снятие оформляется актом)`);
     }
   });
-  if(!after.ok) c.undercovered = { ratio: Math.min(...after.rows.map(r=>r.ratio)), obosn, by: role, date: TODAY };
-  hist(c, `Доп соглашение ${no} зарегистрировано (${ds.ops.length} операц.): ${ds.ops.map(opText).join(' · ')}. Покрытие после: ${after.rows.map(r=>r.id+' — '+pct(r.ratio)).join(', ')}${obosn ? '. Допущено комиссией ниже 120%: «'+obosn+'»' : ''}`);
+  if(!after.ok) c.undercovered = { ratio: worst.ratio, req: worst.req, obosn, by: role, date: TODAY };
+  hist(c, `Доп соглашение ${no} зарегистрировано (${ds.ops.length} операц.): ${ds.ops.map(opText).join(' · ')}. Покрытие после: ${after.rows.map(r=>r.id+' — '+pct(r.ratio)).join(', ')}${obosn ? `. Допущено комиссией ниже порога ${pct(worst.req)}: «${obosn}»` : ''}`);
   closeModal(); toast('Доп соглашение '+no+' зарегистрировано — изменения вступили в силу','ok');
   ds = { cid:null, ops:[] }; refresh();
 }
