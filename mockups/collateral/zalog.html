@@ -3345,6 +3345,16 @@ function toast(msg, kind){
 document.addEventListener('keydown', e => { if(e.key==='Escape' && host().classList.contains('open')) closeModal(); });
 
 renderNav(); renderList();
+
+/* Тест-шов: экспорт внутренних функций и состояния для jsdom-смоук-тестов (mockups/collateral/tests/).
+   Только символы, верифицированные grep'ом на момент задачи 0 — объект дополняется по мере
+   появления новых функций/констант в последующих задачах (guaranteeReq, effectiveInterval и т.п. —
+   пока не существуют, поэтому в шве отсутствуют, чтобы не падать ReferenceError). */
+if (typeof window !== 'undefined') window.__zt = {
+  requiredCover, coverage, calcPledge, pledgeValue, coefOf, effShare, allocatedIn,
+  KINDS, COVER_LIQUID, COVER_MOVABLE, COVER_GUARANTEE, COVER_GUARANTEE_FX,
+  SURVEY_MATRIX, CREDITS, ITEMS, CONTRACTS, credit, item, contract,
+};
 </script>
 </body>
 </html>
