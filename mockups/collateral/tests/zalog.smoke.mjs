@@ -578,5 +578,13 @@ test('Ref-5: новые параметры справочника (COVER_GUARANT
   ok(win.document.getElementById('rb-relch-0'), 'канал снятия #0 должен быть editable input');
   ok(win.document.getElementById('rb-org-0'), 'орган реестра #0 должен быть editable input');
 });
+test('Ref-6: SURVEY_MATRIX read-only (как PROHIBITED_KINDS), с реализующей валидацией surveyInterval', () => {
+  const { win } = load();
+  win.renderRefbook();
+  const smInputs = [...win.document.querySelectorAll('[id^="rb-sm-"]')];
+  eq(smInputs.length, 0, 'SURVEY_MATRIX не должна рендериться editable input-полями (rb-sm-im-*/rb-sm-mv-*)');
+  const html = win.document.getElementById('refbookPanel').innerHTML;
+  has(html, 'реализует surveyInterval');
+});
 
 report();

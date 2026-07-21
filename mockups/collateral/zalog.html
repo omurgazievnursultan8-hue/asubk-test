@@ -4052,13 +4052,14 @@ function refbookInner(){
       </table></div>
 
       <p class="section-h" style="font-size:16px;margin-top:16px">Периодичность обследования — матрица (Прил.2 §2.3)${srcTag('норматив — Прил.2 §2.3')}</p>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Регламентная константа, read-only; реализует surveyInterval().</p>
       <div class="cgrid-wrap"><table class="cgrid">
         <thead><tr><th>Группа платёжеспособности</th><th>Недвижимое, мес.</th><th>Движимое, мес.</th></tr></thead>
         <tbody>${grp.map(g=>`<tr><td>${esc(g)}</td>
           ${g==='Предприятия-банкроты'
             ? `<td colspan="2">по договору со спецадминистратором</td>`
-            : `<td>${kCell('rb-sm-im-'+g, SURVEY_MATRIX[g].immovable, 90)}</td>
-               <td>${kCell('rb-sm-mv-'+g, SURVEY_MATRIX[g].movable, 90)}</td>`}</tr>`).join('')}</tbody>
+            : `<td>${SURVEY_MATRIX[g].immovable}</td>
+               <td>${SURVEY_MATRIX[g].movable}</td>`}</tr>`).join('')}</tbody>
       </table></div>
 
       <p class="section-h" style="font-size:16px;margin-top:16px">Ужесточение периодичности по категории риска — read-only, норматив (ПОР п.10)${srcTag('норматив — ПОР п.10')}</p>
@@ -4141,7 +4142,7 @@ function saveRefbook(){
   // не трогаем их, num(val(...)) на несуществующий id сюда не вызывается вовсе.
   let cl = COVER_LIQUID, cm = COVER_MOVABLE, ls = LIQUID_SHARE_MIN, cg = COVER_GUARANTEE, cgfx = COVER_GUARANTEE_FX,
       ageS = TECH_AGE_LIMIT['СНГ'], ageF = TECH_AGE_LIMIT['Дальнее зарубежье'], wear = WEAR_LIMIT;
-  const kindDraft = {}, smDraft = {};
+  const kindDraft = {};
   if(boardOk){
     const clV = num(val('rb-cov-liq')), cmV = num(val('rb-cov-mov')), lsV = num(val('rb-liqshare')),
           cgV = num(val('rb-cov-guar')), cgfxV = num(val('rb-cov-guar-fx'));
@@ -4163,11 +4164,6 @@ function saveRefbook(){
       if(!(lr >= 0)) return toast('Ранг ликвидности «'+k+'» — число ≥ 0','warn');
       kindDraft[k] = { k:kf, liquidityRank:Math.round(lr) };
     }
-    for(const g of ['Платёжеспособные','Неплатёжеспособные']){
-      const im = num(val('rb-sm-im-'+g)), mv = num(val('rb-sm-mv-'+g));
-      if(!(im > 0) || !(mv > 0)) return toast('Интервалы обследования «'+g+'» — положительные','warn');
-      smDraft[g] = { immovable:Math.round(im), movable:Math.round(mv) };
-    }
   }
 
   // применяем: KINDS мутируется точечно — норматив-поля (k/liquidityRank) только если
@@ -4176,7 +4172,6 @@ function saveRefbook(){
     if(kindDraft[k]){ KINDS[k].k = kindDraft[k].k; KINDS[k].liquidityRank = kindDraft[k].liquidityRank; }
     KINDS[k].reval = revalDraft[k].reval; KINDS[k].organ = revalDraft[k].organ;
   });
-  Object.keys(smDraft).forEach(g => SURVEY_MATRIX[g] = smDraft[g]);
   BAN_DEADLINE_DAYS = Math.round(bd);
   DOC_ROUTE_DAYS = Math.round(docRoute);
   COVER_LIQUID = cl; COVER_MOVABLE = cm; LIQUID_SHARE_MIN = ls;
