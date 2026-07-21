@@ -474,6 +474,15 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
 .toast.ok{ background:var(--asubk-green); }
 .toast.warn{ background:var(--asubk-amber); }
 .toast.err{ background:var(--asubk-red); }
+
+/* settings screen tabs */
+.settings-tabbar{ display:flex; gap:4px; border-bottom:1px solid var(--border-strong); margin-bottom:16px; }
+.settings-tab{ padding:8px 16px; cursor:pointer; border:none; background:none; font:var(--font-label); color:var(--text-muted); border-bottom:2px solid transparent; }
+.settings-tab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:600; }
+.settings-grid{ border-collapse:collapse; width:100%; }
+.settings-grid th,.settings-grid td{ border:1px solid var(--border-strong); padding:6px 10px; text-align:center; font:var(--font-body); }
+.settings-grid th:first-child,.settings-grid td:first-child{ text-align:left; }
+.warn-badge{ color:#b45309; font-size:12px; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -509,6 +518,9 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
           <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
         </div>
       </div>
+      <button class="menu" title="Настройки правил" style="margin-left:12px;background:none;border:none" onclick="showView('settings')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
     </header>
 
     <div class="content">
@@ -539,6 +551,19 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
             <thead><tr id="listHead"></tr></thead>
             <tbody id="listBody"></tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- ============ SETTINGS VIEW ============ -->
+      <section class="view" id="view-settings">
+        <div class="grid-wrap" style="padding:16px;display:block;overflow:auto">
+          <div class="settings-tabbar" id="settingsTabbar"></div>
+          <div id="settingsHost"></div>
+        </div>
+        <div class="footer">
+          <button class="btn btn-secondary" onclick="if(confirm('Сбросить ВСЕ правила к дефолту?')){resetRulesAll();renderSettings();renderList();toast('Все правила сброшены к дефолту','ok');}">Сбросить все правила</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-secondary" onclick="showView('list')">Закрыть</button>
         </div>
       </section>
 
@@ -2870,7 +2895,8 @@ const warnIcon = ()=>`<svg width="16" height="16" viewBox="0 0 24 24" fill="none
 const alertIcon = ()=>`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>`;
 function showView(v){ document.querySelectorAll('.view').forEach(s=>s.style.display='none');
   document.getElementById('view-'+v).style.display='flex';
-  const titles={list:'Взыскание задолженности',hearings:'Реестр заседаний',claims:'Реестр претензий',committee:'Вопросы на коллегиальные органы',deadlines:'Сроки на контроле'};
+  const titles={list:'Взыскание задолженности',hearings:'Реестр заседаний',claims:'Реестр претензий',committee:'Вопросы на коллегиальные органы',deadlines:'Сроки на контроле',settings:'Настройки правил доступности мер'};
+  if(v==='settings') renderSettings();
   if(titles[v]) document.getElementById('crumbTitle').textContent=titles[v];
   if(v!=='detail') setHash(v);   // detail пишет openDetail (с id); остальные виды — по имени
 }
@@ -2882,7 +2908,7 @@ function setHash(h){ lastHash=h; if(('#'+h)!==location.hash) location.hash=h; }
 function restoreFromHash(){
   const h=(location.hash||'').replace(/^#/,'');
   if(h.startsWith('detail/')){ const id=h.slice(7); if(PROCESSES.some(p=>p.id===id)){ openDetail(id); return; } }
-  const views=['list','hearings','claims','committee','deadlines'];
+  const views=['list','hearings','claims','committee','deadlines','settings'];
   showView(views.includes(h)?h:'list');
 }
 window.addEventListener('hashchange',()=>{ if(location.hash!==('#'+lastHash)) restoreFromHash(); });
@@ -2990,6 +3016,24 @@ function clearFilter(k){
   renderFilterBar(); renderList(); renderChips();
 }
 function resetFilters(){ filterState={}; renderFilterBar(); renderList(); renderChips(); }
+
+/* ============================================================
+   ЭКРАН НАСТРОЕК ПРАВИЛ (#settings). Четыре вкладки; каждая правит одну ось RULES,
+   зовёт persistRules() и перерисовку. Наблюдатель-роль сюда доступ имеет — это админ-экран.
+   ============================================================ */
+let settingsTab='v9';
+const SETTINGS_TABS=[['v9','В-9 «Кому»'],['stage','Стадии'],['gates','Гейты'],['phases','Фазы']];
+function renderSettings(){
+  const bar=SETTINGS_TABS.map(([k,l])=>`<button class="settings-tab${k===settingsTab?' active':''}" onclick="showSettingsTab('${k}')">${l}</button>`).join('');
+  document.getElementById('settingsTabbar').innerHTML=bar;
+  const body={v9:renderSettingsV9,stage:renderSettingsStage,gates:renderSettingsGates,phases:renderSettingsPhases}[settingsTab]();
+  document.getElementById('settingsHost').innerHTML=body;
+}
+function showSettingsTab(tab){ settingsTab=tab; renderSettings(); }
+function renderSettingsV9(){ return '<div class="section-note">—</div>'; }
+function renderSettingsStage(){ return '<div class="section-note">—</div>'; }
+function renderSettingsGates(){ return '<div class="section-note">—</div>'; }
+function renderSettingsPhases(){ return '<div class="section-note">—</div>'; }
 
 restoreRules(); restoreState(); renderNav(); renderFilterBar(); renderChips(); renderList(); restoreFromHash();
 </script>

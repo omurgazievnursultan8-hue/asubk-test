@@ -204,6 +204,17 @@ ok('55. группа не выведена при неподтверждённо
     return Object.keys(RULES.gates).length>0 && RULES.sectionClevel['Судебный']===5;
   })()`)); }
 
+// ───────── Экран настроек: каркас (Task 3) ─────────
+{ const m = mk();
+  m.ev("showView('settings')");
+  ok('66. showView(settings) показывает view-settings',
+    m.$('#view-settings').style.display==='flex');
+  ok('67. showView(settings) пишет hash', m.ev("location.hash")==='#settings');
+  ok('68. на экране настроек 4 вкладки', m.$$('#view-settings .settings-tab').length===4);
+  ok('69. переключение вкладки меняет settingsTab', m.ev("(()=>{ showSettingsTab('gates'); return settingsTab; })()")==='gates');
+  const m2 = mk(); m2.w.location.hash='#settings'; m2.ev("restoreFromHash()");
+  ok('70. restoreFromHash открывает настройки по #settings', m2.$('#view-settings').style.display==='flex'); }
+
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));
 console.log(`ВСЕГО ПРОВЕРОК: ${n} · ПРОВАЛЕНО: ${fails}`);
