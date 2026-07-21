@@ -960,7 +960,7 @@ const GATES = {
 /* null → разрешено; строка → причина блокировки (§6.3, паттерн sendGateReason). */
 function gateReason(p, kind){
   const g = RULES.gates[kind];
-  if(!g) return null;
+  if(!g || g.off) return null;   // гейт отключён на #settings
   if(g.poruchenie) return p.poruchenie ? null
     : `Регистрация «${kind}» требует поручения Председателя Правления (п. ${g.point}). Поручение не выдано.`;
   const qs = (p.committeeQuestions || []).filter(q => q.organ === g.organ);
@@ -3075,7 +3075,23 @@ function renderSettingsStage(){
     <div style="margin-top:12px"><button class="btn btn-tint" onclick="resetRulesSection('sectionClevel');renderSettings();renderList();toast('Стадии сброшены к дефолту','ok')">Сбросить стадии к дефолту</button></div>`;
 }
 function setSectionClevel(section, level){ RULES.sectionClevel[section]=Number(level); persistRules(); renderSettings(); renderList(); }
-function renderSettingsGates(){ return '<div class="section-note">—</div>'; }
+function renderSettingsGates(){
+  const rows=Object.keys(RULES.gates).map(k=>{
+    const g=RULES.gates[k];
+    const req=g.poruchenie?'поручение Председателя Правления':(g.organ||'решение органа');
+    return `<tr><td>${k}</td>
+      <td><input type="checkbox" ${g.off?'':'checked'} onchange="toggleGate('${k.replace(/'/g,"\\'")}')"></td>
+      <td class="section-note" style="text-align:left">${req} · п. ${g.point||'—'}</td></tr>`;
+  }).join('');
+  return `<p class="section-note">Какие виды мер требуют предварительного решения перед регистрацией. Снятая галочка — гейт отключён (мера регистрируется без решения органа/поручения). Тип требования у каждого гейта фиксирован справочником.</p>
+    <table class="settings-grid"><thead><tr><th>Вид меры</th><th>Гейт активен</th><th>Что требуется</th></tr></thead><tbody>${rows}</tbody></table>
+    <div style="margin-top:12px"><button class="btn btn-tint" onclick="resetRulesSection('gates');renderSettings();renderList();toast('Гейты сброшены к дефолту','ok')">Сбросить гейты к дефолту</button></div>`;
+}
+function toggleGate(kind){
+  const g=RULES.gates[kind]; if(!g) return;
+  if(g.off) delete g.off; else g.off=true;
+  persistRules(); renderSettings(); renderList();
+}
 function renderSettingsPhases(){ return '<div class="section-note">—</div>'; }
 
 restoreRules(); restoreState(); renderNav(); renderFilterBar(); renderChips(); renderList(); restoreFromHash();

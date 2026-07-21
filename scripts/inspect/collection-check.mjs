@@ -244,6 +244,18 @@ ok('55. группа не выведена при неподтверждённо
     return !before && !!after;
   })()`)); }
 
+// ───────── Вкладка Гейты (Task 6) ─────────
+{ const m = mk(); m.ev("showView('settings'); showSettingsTab('gates')");
+  ok('77. вкладка Гейты рендерит строку на каждый гейт',
+    m.$$('#settingsHost .settings-grid tbody tr').length === m.ev("Object.keys(RULES.gates).length"));
+  ok('78. отключение гейта разблокирует Исковое на процессе без поручения', m.ev(`(()=>{
+    const p=PROCESSES.find(x=>x.id==='151'); // нет poruchenie
+    const before=gateReason(p,'Исковое заявление'); // требует поручения → blocked
+    toggleGate('Исковое заявление');           // гейт → off
+    const after=gateReason(p,'Исковое заявление'); // гейт снят → null
+    return !!before && !after;
+  })()`)); }
+
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));
 console.log(`ВСЕГО ПРОВЕРОК: ${n} · ПРОВАЛЕНО: ${fails}`);
