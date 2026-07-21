@@ -399,4 +399,18 @@ test('R18-30: снятый чек-бокс оборотоспособности 
   eq(zt.stopListCheck({circulable:false}).block, true);
 });
 
+// Р-15 (П2 §2.4): акт обследования не сохраняется без заключения/фотофиксации; при
+// одностороннем акте требуется подтверждённое наличие имущества, иначе — подписи ГФХ
+// и залогодателя.
+test('R15-19/20: сохранение без фото/заключения → блок', () => {
+  const { zt } = load();
+  eq(zt.surveyValidate({conclusion:'', photos:['a.jpg'], oneSided:false, signers:['ГФХ','залогодатель']}).ok, false);
+  eq(zt.surveyValidate({conclusion:'осмотр', photos:[], oneSided:false, signers:['ГФХ','залогодатель']}).ok, false);
+});
+test('R15-21: односторонний без подтверждения наличия → блок; с → ок', () => {
+  const { zt } = load();
+  eq(zt.surveyValidate({conclusion:'x', photos:['a'], oneSided:true, presenceConfirmed:false, signers:['ГФХ']}).ok, false);
+  eq(zt.surveyValidate({conclusion:'x', photos:['a'], oneSided:true, presenceConfirmed:true, signers:['ГФХ']}).ok, true);
+});
+
 report();

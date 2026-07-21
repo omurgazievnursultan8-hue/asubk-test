@@ -1193,6 +1193,17 @@ const surveyEffect = out => {
   return 'reval';
 };
 
+/* Р-15 (П2 §2.4): акт обследования — валидный гейт сохранения. Заключение и
+   фотофиксация (§2.3) обязательны всегда; при одностороннем акте — подтверждённое
+   наличие имущества, иначе — подписи представителя ГФХ и залогодателя. */
+function surveyValidate(a){
+  if (!a.conclusion || !a.conclusion.trim()) return { ok:false, msg:'Заключение обязательно (П2 §2.4)' };
+  if (!a.photos || !a.photos.length) return { ok:false, msg:'Фотофиксация обязательна (П2 §2.3)' };
+  if (a.oneSided) { if (!a.presenceConfirmed) return { ok:false, msg:'Односторонний акт допустим только при подтверждённом наличии имущества (П2 §2.4)' }; }
+  else { const s = a.signers||[]; if (!(s.includes('ГФХ') && s.includes('залогодатель'))) return { ok:false, msg:'Требуются подписи представителя ГФХ и залогодателя (П2 §2.4)' }; }
+  return { ok:true };
+}
+
 /* РЕЕСТР ОРГАНИЗАЦИЙ-РЕГИСТРАТОРОВ (место наложения ареста = ссылка на орган, а не
    свободный текст — как в прежней системе). Список = органы из KINDS + судебные. */
 const ORG_REGISTRY = [
@@ -2306,7 +2317,7 @@ function itemPanels(it){
     ${(it.lost||it.needReval) ? renderRestoreBlock(it) : ''}
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Дата</th><th>Акт</th><th>Исход</th><th>Примечание</th></tr></thead>
-      <tbody>${[...it.surveys].reverse().map(s=>{const ef=surveyEffect(s.outcome);return `<tr><td>${s.date}</td><td>${esc(s.act)}</td>
+      <tbody>${[...it.surveys].reverse().map(s=>{const ef=surveyEffect(s.outcome);return `<tr><td>${s.date}</td><td>${esc(s.act)}${s.oneSided ? ` <span class="pill mid" title="Сторона уклонилась от подписания (П2 §2.4)">односторонний</span>` : ''}</td>
         <td><span class="pill ${ef==='ok'?'low':ef==='lost'?'high':'mid'}">${esc(s.outcome)}</span></td>
         <td>${esc(s.note||'')}</td></tr>`}).join('')}</tbody>
     </table></div></div>`;
@@ -2976,7 +2987,10 @@ function togglePrereq(id, key){
   toast(now?'Документ приложен':'Документ откреплён','ok'); refresh();
 }
 
-/* ---------- ОБСЛЕДОВАНИЕ (классифицированный исход ветвит действие) ---------- */
+/* ---------- ОБСЛЕДОВАНИЕ (классифицированный исход ветвит действие) ----------
+   Р-15 (П2 §2.4): акт обследования — заключение и фотофиксация (§2.3) обязательны
+   всегда; при одностороннем акте (сторона уклонилась) — подтверждённое наличие
+   имущества, иначе — подписи представителя ГФХ и залогодателя (surveyValidate). */
 function openSurvey(id){
   if(!canCurate()) return denyEdit();
   const it = item(id);
@@ -2985,16 +2999,55 @@ function openSurvey(id){
       ${fdate('svDate','Дата обследования', TODAY, true)}
       ${fin('svAct','Номер акта','',true)}
       ${fsel('svOut','Исход (состояние предмета)', SURVEY_RESULTS.map(r=>r.v), 'Хорошее', true)}
+      <div class="field req col-span"><span class="flabel">Заключение</span>
+        <textarea id="svConclusion" class="note-area"></textarea></div>
+      <div class="field req col-span"><span class="flabel">Фотофиксация (файлы, минимум 1)</span>
+        <div class="control"><input type="file" id="svPhotos" multiple accept="image/*"></div></div>
       ${ftxt('svNote','Примечание','')}
+      <label class="chk col-span" style="margin-top:8px"><input type="checkbox" id="svOneSided"> Односторонний акт (сторона уклонилась от подписания)</label>
+      <label class="chk col-span" id="svPresenceWrap" style="display:none"><input type="checkbox" id="svPresence"> Подтверждено наличие имущества по факту осмотра</label>
+      <div class="field col-span" id="svSignersWrap"><span class="flabel">Подписанты (участники обследования)</span>
+        <label class="chk"><input type="checkbox" id="svSignGfh"> Представитель ГФХ</label>
+        <label class="chk"><input type="checkbox" id="svSignPledgor"> Залогодатель</label>
+        <label class="chk"><input type="checkbox" id="svSignBorrower"> Заёмщик</label>
+        <label class="chk"><input type="checkbox" id="svSignPoa"> По доверенности</label>
+        <div class="control" style="margin-top:6px"><input id="svPoaReq" placeholder="Реквизиты доверенности"></div>
+      </div>
+      <div class="field col-span"><span class="flabel">ФИО / должность представителя ГФХ</span>
+        <div class="control"><input id="svGfhName" placeholder="ФИО"></div>
+        <div class="control" style="margin-top:6px"><input id="svGfhPost" placeholder="Должность"></div>
+      </div>
     </div>
     </div>${mfoot('Зарегистрировать акт','saveSurvey(\''+id+'\')')}</div>`);
+  const syncOneSided = () => {
+    const os = (document.getElementById('svOneSided')||{}).checked;
+    document.getElementById('svPresenceWrap').style.display = os ? 'flex' : 'none';
+    document.getElementById('svSignersWrap').style.display = os ? 'none' : '';
+  };
+  document.getElementById('svOneSided').addEventListener('change', syncOneSided); syncOneSided();
+}
+function svSigners(){
+  const s = [];
+  if((document.getElementById('svSignGfh')||{}).checked) s.push('ГФХ');
+  if((document.getElementById('svSignPledgor')||{}).checked) s.push('залогодатель');
+  if((document.getElementById('svSignBorrower')||{}).checked) s.push('заёмщик');
+  if((document.getElementById('svSignPoa')||{}).checked) s.push('по доверенности'+(val('svPoaReq').trim()?' ('+val('svPoaReq').trim()+')':''));
+  return s;
 }
 function saveSurvey(id){
   const it = item(id), date = iso2d(val('svDate')), act = val('svAct').trim(), out = val('svOut'), note = val('svNote').trim();
   if(!act) return toast('Укажите номер акта','warn');
   if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  const conclusion = val('svConclusion').trim();
+  const photosEl = document.getElementById('svPhotos');
+  const photos = (photosEl && photosEl.files) ? Array.from(photosEl.files).map(f=>f.name) : [];
+  const oneSided = !!(document.getElementById('svOneSided')||{}).checked;
+  const presenceConfirmed = !!(document.getElementById('svPresence')||{}).checked;
+  const signers = svSigners();
+  const v = surveyValidate({conclusion, photos, oneSided, presenceConfirmed, signers});
+  if(!v.ok) return toast(v.msg,'warn');
   const effect = surveyEffect(out);                 // 6-значный классификатор → эффект в модели
-  it.surveys.push({date, act, outcome:out, effect, note});
+  it.surveys.push({date, act, outcome:out, effect, note, conclusion, photos, oneSided, presenceConfirmed, signers});
   it.lastSurvey = date;
   if(effect === 'ok'){
     it.needReval = false; it.lost = false; it.restoreNotice = null;   // возврат в норму снимает извещение/утрату
@@ -3731,6 +3784,7 @@ if (typeof window !== 'undefined') window.__zt = {
   itemRiskCategory, borrowerSolvency, nextSurvey, addMonths,
   techAgeCheck,
   stopListCheck, stopFieldsOf,
+  surveyValidate,
 };
 </script>
 </body>
