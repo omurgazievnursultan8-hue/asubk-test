@@ -2461,10 +2461,13 @@ function panelMery(){
     </table></div></div>`;
 }
 function phaseTimeline(){
-  const p=curProc; const cont=CONTOURS[p.contour]; if(!cont) return '';
-  let phases=phasesOf(p.contour).slice();
+  const p=curProc;
+  // контур ТЕКУЩЕЙ фазы (§3.1) — производная от p.phase, а не статичного p.contour:
+  // веха-мера двигает фазу через saveMeasure, и таймлайн должен идти за ней.
+  const ck=contourOfPhase(p.phase)||p.contour; const cont=CONTOURS[ck]; if(!cont) return '';
+  let phases=phasesOf(ck).slice();
   // §3.4 безакцепт — условная ветка: показываем только при праве у кредита охвата
-  if(p.contour==='К1' && !(p.credits||[]).some(c=>c.bezakceptRight)) phases=phases.filter(x=>x!==CONDITIONAL_PHASE);
+  if(ck==='К1' && !(p.credits||[]).some(c=>c.bezakceptRight)) phases=phases.filter(x=>x!==CONDITIONAL_PHASE);
   const curIdx=phases.indexOf(p.phase);
   const steps=phases.map((ph,i)=>{
     const cond=ph===CONDITIONAL_PHASE;
@@ -2472,7 +2475,7 @@ function phaseTimeline(){
     const mark=st==='done'?'✓':cond?'?':(i+1);
     return `<div class="tl-step"><span class="tl-dot ${st}">${mark}</span><span class="tl-lbl ${st==='todo'?'todo':cond?'cond':''}">${ph}</span></div>${i<phases.length-1?'<span class="tl-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>':''}`;
   }).join('');
-  return `<div class="tl-contour">Контур ${p.contour} · ${cont.name}${p.contour==='К1'&&(p.credits||[]).some(c=>c.bezakceptRight)?' · безакцепт доступен (флаг договора)':''}</div><div class="timeline">${steps}</div>`;
+  return `<div class="tl-contour">Контур ${ck} · ${cont.name}${ck==='К1'&&(p.credits||[]).some(c=>c.bezakceptRight)?' · безакцепт доступен (флаг договора)':''}</div><div class="timeline">${steps}</div>`;
 }
 
 /* ---- panel: Суд (судебные акты В-1 + заседания) ---- */
@@ -2794,7 +2797,7 @@ function saveMeasure(){
   });
   closeModal();
   if(isMilestone(kind)){
-    const ph=MILESTONE_PHASE[kind]; curProc.phase=ph;
+    const ph=MILESTONE_PHASE[kind]; curProc.phase=ph; curProc.contour=contourOfPhase(ph)||curProc.contour;
     curProc.history.unshift({when:TODAY+' 12:00', what:`Мера «${kind}»${val('mNum')?' '+val('mNum'):''} зарегистрирована → фаза «${ph}»`, who:role});
     renderPanels(); toast(`Мера-веха зарегистрирована → фаза «${ph}» (демо)`,'ok');
   } else {
@@ -2813,7 +2816,7 @@ function recalcOnIzveschenie(){
   </div>`; host.classList.add('open');
 }
 function applyIzveschenie(to){
-  const p=curProc; p.phase='Извещение'; p.credits[0].subject='полный остаток'; p.credits[0].claim=fmtKGS(to);
+  const p=curProc; p.phase='Извещение'; p.contour=contourOfPhase('Извещение')||p.contour; p.credits[0].subject='полный остаток'; p.credits[0].claim=fmtKGS(to);
   p.history.unshift({when:TODAY+' 12:00', what:`Извещение зарегистрировано → фаза «Извещение», требование ускорено до полного остатка ${fmtKGS(to)} (п. 20.4)`, who:'ДПО'});
   closeModal(); renderPanels(); toast('Извещение зарегистрировано, долг пересчитан на полную сумму','ok');
 }
@@ -2836,7 +2839,7 @@ function doStorno(mi){
     // откат фазы к предыдущей мере-вехе
     const prev=[...curProc.measures].filter(x=>x!==m && isMilestone(x.kind) && !x.storno).pop();
     const ph=prev?MILESTONE_PHASE[prev.kind]:'Досудебное урегулирование';
-    curProc.phase=ph;
+    curProc.phase=ph; curProc.contour=contourOfPhase(ph)||curProc.contour;
     curProc.history.unshift({when:TODAY+' 13:00', what:`Сторно меры «${m.kind}» (${reason}) → откат фазы к «${ph}»`, who:'Текущая роль'});
     msg=`Мера-веха сторнирована → фаза откачена к «${ph}»`;
   } else curProc.history.unshift({when:TODAY+' 13:00', what:`Сторно меры «${m.kind}» (${reason})`, who:'Текущая роль'});
