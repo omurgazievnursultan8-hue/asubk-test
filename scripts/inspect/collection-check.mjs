@@ -215,6 +215,23 @@ ok('55. группа не выведена при неподтверждённо
   const m2 = mk(); m2.w.location.hash='#settings'; m2.ev("restoreFromHash()");
   ok('70. restoreFromHash открывает настройки по #settings', m2.$('#view-settings').style.display==='flex'); }
 
+// ───────── Вкладка В-9 (Task 4) ─────────
+{ const m = mk(); m.ev("showView('settings'); showSettingsTab('v9')");
+  ok('71. грид В-9 рендерит строку на каждый вид меры',
+    m.$$('#settingsHost .settings-grid tbody tr').length === m.ev("MEASURE_KINDS.length"));
+  ok('72. toggleV9 снимает последнее подразделение → вид исчезает из availableKinds', m.ev(`(()=>{
+    RULES.measureSubdiv['Первичная претензия']=['ОД'];
+    document.getElementById('roleSel').value='Куратор ОД / ДАК / РП';
+    toggleV9('Первичная претензия','ОД');   // снять единственное
+    const p=PROCESSES.find(x=>x.phase==='Досудебное урегулирование')||PROCESSES.find(x=>x.contour==='К0')||PROCESSES[0];
+    return !availableKinds(p).includes('Первичная претензия');
+  })()`));
+  ok('73. вид без подразделений помечается предупреждением', m.ev(`(()=>{
+    RULES.measureSubdiv['Акт сверки']=[]; renderSettings();
+    return document.getElementById('settingsHost').innerHTML.includes('никто не сможет');
+  })()`));
+  ok('74. setRoleSubdiv меняет роль→подразделение', m.ev(`(()=>{ setRoleSubdiv('Наблюдатель','ОД'); return RULES.roleSubdiv['Наблюдатель']==='ОД'; })()`)); }
+
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));
 console.log(`ВСЕГО ПРОВЕРОК: ${n} · ПРОВАЛЕНО: ${fails}`);

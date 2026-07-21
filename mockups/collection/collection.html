@@ -479,9 +479,10 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
 .settings-tabbar{ display:flex; gap:4px; border-bottom:1px solid var(--border-strong); margin-bottom:16px; }
 .settings-tab{ padding:8px 16px; cursor:pointer; border:none; background:none; font:var(--font-label); color:var(--text-muted); border-bottom:2px solid transparent; }
 .settings-tab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:600; }
-.settings-grid{ border-collapse:collapse; width:100%; }
-.settings-grid th,.settings-grid td{ border:1px solid var(--border-strong); padding:6px 10px; text-align:center; font:var(--font-body); }
-.settings-grid th:first-child,.settings-grid td:first-child{ text-align:left; }
+.settings-grid,.role-grid{ border-collapse:collapse; width:100%; }
+.settings-grid th,.settings-grid td,.role-grid th,.role-grid td{ border:1px solid var(--border-strong); padding:6px 10px; text-align:center; font:var(--font-body); }
+.settings-grid th:first-child,.settings-grid td:first-child,.role-grid th:first-child,.role-grid td:first-child{ text-align:left; }
+.v9-sec-label{ font:11px/1.2 var(--font-label); color:var(--text-muted); }
 .warn-badge{ color:#b45309; font-size:12px; white-space:nowrap; }
 </style>
 </head>
@@ -3030,7 +3031,39 @@ function renderSettings(){
   document.getElementById('settingsHost').innerHTML=body;
 }
 function showSettingsTab(tab){ settingsTab=tab; renderSettings(); }
-function renderSettingsV9(){ return '<div class="section-note">—</div>'; }
+const V9_SUBDIVS=['ДАК','ОД','РП','ДПО','ОПК','САК'];
+function renderSettingsV9(){
+  const head=`<tr><th>Вид меры</th>${V9_SUBDIVS.map(s=>`<th>${s}</th>`).join('')}<th></th></tr>`;
+  let prevSec=null;
+  const rows=SECTION_ORDER.map(sec=>{
+    const kinds=MEASURE_KINDS.filter(k=>sectionOf(k)===sec);
+    return kinds.map(k=>{
+      const allowed=subdivOf(k)||[];
+      const cells=V9_SUBDIVS.map(s=>`<td><input type="checkbox" ${allowed.includes(s)?'checked':''} onchange="toggleV9('${k.replace(/'/g,"\\'")}','${s}')"></td>`).join('');
+      const warn=allowed.length===0?'<td class="warn-badge">⚠ никто не сможет зарегистрировать</td>':'<td></td>';
+      const secLabel=sec!==prevSec?`<div class="v9-sec-label">${sec}</div>`:'';
+      prevSec=sec;
+      return `<tr><td>${secLabel}${k}</td>${cells}${warn}</tr>`;
+    }).join('');
+  }).join('');
+  const roleRows=Object.keys(RULES.roleSubdiv).map(role=>{
+    const opts=['—',...V9_SUBDIVS].map(s=>`<option ${RULES.roleSubdiv[role]===s?'selected':''}>${s}</option>`).join('');
+    return `<tr><td>${role}</td><td><select onchange="setRoleSubdiv('${role.replace(/'/g,"\\'")}',this.value)">${opts}</select></td></tr>`;
+  }).join('');
+  return `<p class="section-note">Галочка = подразделение может регистрировать этот вид меры (матрица В-9). Пусто в строке — вид недоступен никому.</p>
+    <table class="settings-grid"><thead>${head}</thead><tbody>${rows}</tbody></table>
+    <p class="section-h" style="margin-top:20px">Роль → подразделение</p>
+    <table class="role-grid" style="max-width:520px"><thead><tr><th>Роль</th><th>Подразделение</th></tr></thead><tbody>${roleRows}</tbody></table>
+    <div style="margin-top:12px"><button class="btn btn-tint" onclick="resetRulesSection('measureSubdiv');resetRulesSection('sectionSubdiv');resetRulesSection('roleSubdiv');renderSettings();renderList();toast('В-9 сброшена к дефолту','ok')">Сбросить В-9 к дефолту</button></div>`;
+}
+function toggleV9(kind, subdiv){
+  const cur=(RULES.measureSubdiv[kind] || subdivOf(kind) || []).slice();
+  const i=cur.indexOf(subdiv);
+  if(i>=0) cur.splice(i,1); else cur.push(subdiv);
+  RULES.measureSubdiv[kind]=cur;
+  persistRules(); renderSettings(); renderList();
+}
+function setRoleSubdiv(role, subdiv){ RULES.roleSubdiv[role]=subdiv; persistRules(); renderSettings(); renderList(); }
 function renderSettingsStage(){ return '<div class="section-note">—</div>'; }
 function renderSettingsGates(){ return '<div class="section-note">—</div>'; }
 function renderSettingsPhases(){ return '<div class="section-note">—</div>'; }
