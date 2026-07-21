@@ -120,4 +120,29 @@ test('D1-4: требуемое покрытие меняется при смен
   has(mov.source, 'П1 §2.4');
 });
 
+// Р-19 (ПОЛ §9.1): роль «Комиссия по залогу» и гварды canEdit/canCommission переименованы
+// на нормативную матрицу ролей. Тест брифа (typeof win.canCurate/win.canCommission) был
+// сломан: top-level const/let в классическом <script> не становятся свойствами window, так
+// что win.canCurate === undefined ДО и ПОСЛЕ фикса (ложный REDpass), а
+// eq(typeof win.canCommission,'undefined') проходит вакуумно (никогда не был window-полем).
+// Проверяем по-настоящему: существование — через шов __zt (куда фикс обязан экспортировать
+// все 4 гварда), удаление старого имени — через лексический биндинг верхнего уровня скрипта
+// (win.eval видит и читает тот же скоуп, что видит сам скрипт — см. комментарий к R13-4).
+test('R19-1: роль «Комиссия по залогу» отсутствует в файле (любой регистр/падеж «по залогу»)', () => {
+  const { win } = load();
+  const html = win.document.documentElement.outerHTML;
+  hasNot(html, 'Комиссия по залогу', '«Комиссия по залогу» должна быть переименована');
+  hasNot(html.toLowerCase(), 'комиссия по залогу', 'нет и в нижнем регистре (именительный)');
+  hasNot(html.toLowerCase(), 'комиссии по залогу', 'нет и в нижнем регистре (родительный/дательный)');
+});
+test('R19-2: гварды переименованы (шов __zt) и старые имена удалены (лексический скоуп)', () => {
+  const { win, zt } = load();
+  ok(typeof zt.canCurate === 'function', 'canCurate — в шве __zt');
+  ok(typeof zt.canCommittee === 'function', 'canCommittee — в шве __zt');
+  ok(typeof zt.canHeadOfDept === 'function', 'canHeadOfDept — в шве __zt');
+  ok(typeof zt.canHeadOfUnit === 'function', 'canHeadOfUnit — в шве __zt');
+  eq(win.eval('typeof canEdit'), 'undefined', 'старое имя canEdit удалено как биндинг верхнего уровня');
+  eq(win.eval('typeof canCommission'), 'undefined', 'старое имя canCommission удалено как биндинг верхнего уровня');
+});
+
 report();

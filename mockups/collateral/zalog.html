@@ -44,7 +44,7 @@
   5. ГЕЙТ 120% — ДВА МЕСТА, ОДИН КОД (gateCheck).
      • Регистрация залогового договора — контрольный гейт.
      • Регистрация доп соглашения — тот же гейт по ЧИСТОМУ ЭФФЕКТУ пакета (net).
-     Провал → договор уходит в статус «На рассмотрении комиссии по залогу»
+     Провал → договор уходит в статус «На рассмотрении комиссии»
      (не «зарегистрирован с ошибкой» и не «молча пропущен»). Комиссия либо возвращает
      на доработку, либо допускает недообеспеченный кредит с ОБЯЗАТЕЛЬНЫМ обоснованием.
 
@@ -106,8 +106,12 @@
     Р-9  СНЯТИЕ ЗАПРЕТА (§7.2, Прил.3): классификатор из оснований + чек-лист согласования,
          гейтующий кнопку; частичное снятие с части предмета — отдельным действием.
 
-  РОЛИ: Залоговый специалист (правит), Комиссия по залогу (override стоимости и решение
-  по гейту), Наблюдатель (только чтение). Права проверяются в canEdit()/canCommission().
+  РОЛИ (ПОЛ §9.1): Куратор отдела залогового обеспечения / Заведующий отделом залогового
+  обеспечения (правят, canCurate), Комитет по администрированию бюджетных кредитов (override
+  стоимости и решение по гейту, canCommittee), Начальник Департамента администрирования
+  кредитов (canHeadOfDept), Наблюдатель (только чтение). Права проверяются в
+  canCurate()/canCommittee(); canHeadOfDept()/canHeadOfUnit() — под гейт замены/override
+  задачами Р-19 далее по плану (шаг замены/переопределения).
 
   ДЕМО-ДАННЫЕ покрывают все ветки: перезалог под ОДНИМ запретом с двумя основаниями
   (П-001, ban.contracts=[Д-001,Д-002]), третье-лицо-залог с наложенным запретом
@@ -613,8 +617,10 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
         <label>Роль:</label>
         <div class="rsel">
           <select id="roleSel" onchange="onRoleChange()">
-            <option>Залоговый специалист</option>
-            <option>Комиссия по залогу</option>
+            <option>Куратор отдела залогового обеспечения</option>
+            <option>Заведующий отделом залогового обеспечения</option>
+            <option>Начальник Департамента администрирования кредитов</option>
+            <option>Комитет по администрированию бюджетных кредитов</option>
             <option>Наблюдатель</option>
           </select>
           <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
@@ -940,7 +946,7 @@ const ITEMS = [
   { id:'П-005', kind:'Транспортное средство', name:'Грузовой автомобиль MAN TGS', pledger:'20308197700219',
     ident:'VIN WMA06XZZ8LM123456', appraised:100000, apprDate:'14.05.2026', apprReport:'ОЦ-2026/59',
     details:{ brand:'MAN TGS 33.400 6x4', plate:'01KG777AAA', vin:'WMA06XZZ8LM123456', engineNo:'D2066LF34-50912774', chassisNo:'WMA06XZZ8LM123456', releaseDate:'2020' },
-    override:{ value:60000, obosn:'Ликвидная модель, устойчивый спрос на вторичном рынке; протокол комиссии по залогу №14 от 14.05.2026', by:'Комиссия по залогу', date:'14.05.2026' },
+    override:{ value:60000, obosn:'Ликвидная модель, устойчивый спрос на вторичном рынке; протокол комитета по администрированию бюджетных кредитов №14 от 14.05.2026', by:'Комитет по администрированию бюджетных кредитов', date:'14.05.2026' },
     /* НАМЕРЕННЫЙ ДЕФЕКТ ОФОРМЛЕНИЯ: договор Д-004 зарегистрирован 20.05.2026, но
        запрет на отчуждение так и не наложен → залогодатель может продать грузовик
        без нашего ведома. Дедлайн (нотар. дата + 5 раб. дней) истёк → триггер high. */
@@ -948,7 +954,7 @@ const ITEMS = [
     lastSurvey:'14.05.2026', lastReval:'14.05.2026',
     revals:[ {date:'14.05.2026', appraised:100000, report:'ОЦ-2026/59', note:'первичная оценка'} ],
     surveys:[ {date:'14.05.2026', act:'АО-2026/22', outcome:'в норме', note:'осмотр при оформлении'} ],
-    history:[ {when:'14.05.2026 16:05', what:'Решение комиссии по залоговой стоимости: 50 000,00 (расчётная) → 60 000,00 — ВЫШЕ расчётной, обоснование зафиксировано', who:'Комиссия по залогу'},
+    history:[ {when:'14.05.2026 16:05', what:'Решение комиссии по залоговой стоимости: 50 000,00 (расчётная) → 60 000,00 — ВЫШЕ расчётной, обоснование зафиксировано', who:'Комитет по администрированию бюджетных кредитов'},
               {when:'14.05.2026 10:00', what:'Предмет зарегистрирован в реестре', who:'Залоговый специалист'} ] },
 
   { id:'П-006', kind:'Недвижимое имущество', name:'Производственная база, с. Лебединовка', pledger:'01705199200338',
@@ -1203,7 +1209,7 @@ const CONTRACTS = [
     history:[ {when:'20.05.2026 15:10', what:'Договор зарегистрирован. Покрытие К-40: 120,0% (залоговая П-005 — по решению комиссии)', who:'Залоговый специалист'} ] },
 
   /* ПРОВАЛ КОНТРОЛЬНОГО ГЕЙТА: 245 000 залоговой на кредит 250 000 → 98% < 120%.
-     Регистрация будет заблокирована до решения комиссии по залогу. */
+     Регистрация будет заблокирована до решения комитета по администрированию бюджетных кредитов. */
   { id:'Д-005', no:'', date:'', status:'Оформляется', inn:'01705199200338',
     notary:'', notaryNo:'', notaryDate:'', cert:'',
     credits:['К-71'], allocs:[ {item:'П-006', credit:'К-71', share:245000} ],
@@ -1592,7 +1598,7 @@ function triggers(){
   CONTRACTS.filter(c=>c.status==='На рассмотрении комиссии').forEach(c => { const bad = gateCheck(c).rows.filter(r=>!r.ok);
     out.push({
     type:'Регистрация заблокирована', crit:'high', obj:c.id, objLbl:`${c.id} · ${clientName(c.inn)}`,
-    text:`Контрольный гейт покрытия не пройден (${bad.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — договор ждёт решения комиссии по залогу`,
+    text:`Контрольный гейт покрытия не пройден (${bad.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — договор ждёт решения комитета по администрированию бюджетных кредитов`,
     act:'Решение комиссии: вернуть на доработку либо допустить с обоснованием' }); });
   return out;
 }
@@ -1600,17 +1606,19 @@ function triggers(){
 /* ============================================================
    РОЛИ
    ============================================================ */
-let role = 'Залоговый специалист';
-const canEdit       = () => role === 'Залоговый специалист';
-const canCommission = () => role === 'Комиссия по залогу';
-/* Доп соглашение доступно обеим ролям: специалист собирает пакет, комиссия допускает
-   недопокрытие/понижение ликвидности с обоснованием. Раньше openDs пускал только
-   специалиста → ветка допуска комиссией была недостижима. */
-const canDs = () => canEdit() || canCommission();
+let role = 'Куратор отдела залогового обеспечения';
+const canCurate    = () => ['Куратор отдела залогового обеспечения','Заведующий отделом залогового обеспечения'].includes(role);
+const canCommittee = () => role === 'Комитет по администрированию бюджетных кредитов';
+const canHeadOfDept = () => role === 'Начальник Департамента администрирования кредитов';
+const canHeadOfUnit = () => role === 'Заведующий отделом залогового обеспечения';
+/* Доп соглашение доступно обеим ролям: куратор/заведующий собирают пакет, комитет
+   допускает недопокрытие/понижение ликвидности с обоснованием. Раньше openDs пускал только
+   куратора → ветка допуска комитетом была недостижима. */
+const canDs = () => canCurate() || canCommittee();
 function onRoleChange(){ role = document.getElementById('roleSel').value; toast('Роль: '+role);
   renderList(); if(cur) openCard(cur.type, cur.id); }
 function denyEdit(){ toast('Роль «'+role+'» не имеет права на это действие','warn'); }
-function denyComm(){ toast('Действие доступно только роли «Комиссия по залогу»','warn'); }
+function denyComm(){ toast('Действие доступно только роли «Комитет по администрированию бюджетных кредитов»','warn'); }
 
 /* ============================================================
    РЕЕСТРЫ (три списка: предметы / договоры / мониторинг)
@@ -1881,7 +1889,7 @@ function openSelected(){
   else if(credit(selected)) toast('Переход в карточку кредита '+credit(selected).num+' (модуль «Кредиты»)');
 }
 /* Кнопка списка создаёт только договор. Предмет рождается на карточке договора (openNewItem с targetCid). */
-function onNew(){ if(!canEdit()) return denyEdit(); if(reg==='contracts') openNewContract(); }
+function onNew(){ if(!canCurate()) return denyEdit(); if(reg==='contracts') openNewContract(); }
 
 /* ============================================================
    КАРТОЧКИ — вкладки и панели
@@ -1935,7 +1943,7 @@ function fileTable(files){
   </table></div>`;
 }
 function openAttach(scope, id){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   modal(`<div class="modal form">${mhead('Прикрепить файл')}
     <div class="modal-b"><div class="mform">
       ${fsel('atTag','Тип документа', FILE_TAGS, FILE_TAGS[0], true)}
@@ -2006,7 +2014,7 @@ function itemPanels(it){
   const zBadge = it.override
     ? (isOverAbove(it)
         ? '<span class="pill high" title="решение комиссии выше расчётной — вне положения">решение комиссии ↑</span>'
-        : '<span class="pill neutral" title="залоговая установлена решением комиссии по залогу">решение комиссии</span>')
+        : '<span class="pill neutral" title="залоговая установлена решением комитета по администрированию бюджетных кредитов">решение комиссии</span>')
     : '<span class="pill info" title="залоговая = оценочная × коэффициент вида">расчётная</span>';
   const p1 = `<div class="panel-wrap">
     <p class="section-h">Стоимость</p>
@@ -2020,7 +2028,7 @@ function itemPanels(it){
         </div></div>
     </div>
     ${it.override ? `<div class="${isOverAbove(it)?'flagline':'infoline'}" style="margin-top:14px">
-      <span><b>Решение комиссии по залогу:</b> ${fmt(it.override.value)} (расчётная ${fmt(cp)})${isOverAbove(it)
+      <span><b>Решение комитета по администрированию бюджетных кредитов:</b> ${fmt(it.override.value)} (расчётная ${fmt(cp)})${isOverAbove(it)
         ? ' — <b>выше расчётной</b>, вне положения:' : ' — снижение, в рамках положения.'}
       ${isOverAbove(it) ? `<br>«${esc(it.override.obosn)}»<br><span class="formula">${esc(it.override.by)} · ${it.override.date}</span>` : ''}</span></div>`
       : ''}
@@ -2121,7 +2129,7 @@ function itemPanels(it){
     const label = k==='ownerConsent' ? 'Согласие собственника' : k==='spouseConsent' ? 'Согласие супруга(и)' : 'Справка об отсутствии ограничений';
     return `<tr><td>${label}</td><td>${esc(rq.label)}</td><td><span class="pill ${cls}">${stt}</span></td>
       <td>${(pr[k]||{}).doc?esc(pr[k].doc):'—'}</td>
-      ${canEdit()?`<td>${need?`<button class="btn btn-tint btn-sm" onclick="togglePrereq('${it.id}','${k}')">${present?'Открепить':'Приложить документ'}</button>`:'—'}</td>`:''}</tr>`;
+      ${canCurate()?`<td>${need?`<button class="btn btn-tint btn-sm" onclick="togglePrereq('${it.id}','${k}')">${present?'Открепить':'Приложить документ'}</button>`:'—'}</td>`:''}</tr>`;
   }).join('');
   const miss = prereqMissing(it);
   const techBlock = isTech(it) ? `<p class="section-h" style="margin-top:20px">Техническая допустимость</p>
@@ -2139,7 +2147,7 @@ function itemPanels(it){
   const p6 = `<div class="panel-wrap">
     <p class="section-h">Предпосылки оформления</p>
     <div class="${miss.length?'flagline':'okline'}"><span>${miss.length ? ('Не приложены обязательные документы: '+miss.map(m=>esc(m.label)).join('; ')+'. Регистрация договора будет заблокирована.') : 'Все обязательные предпосылки закрыты.'}</span></div>
-    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Предпосылка</th><th>Что требуется</th><th>Статус</th><th>Документ</th>${canEdit()?'<th></th>':''}</tr></thead><tbody>${prereqRows}</tbody></table></div>
+    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Предпосылка</th><th>Что требуется</th><th>Статус</th><th>Документ</th>${canCurate()?'<th></th>':''}</tr></thead><tbody>${prereqRows}</tbody></table></div>
     ${techBlock}
     ${filesSection}
     </div>`;
@@ -2179,7 +2187,7 @@ function ctrPanels(c){
     </div>
     ${c.status==='На рассмотрении комиссии' ? `<div class="phead-banner danger">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
-      <span>Контрольный гейт покрытия не пройден (${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — регистрация ЗАБЛОКИРОВАНА до решения комиссии по залогу. Комиссия либо возвращает на доработку (догрузить/заменить предмет), либо допускает недообеспеченный кредит с обязательным обоснованием.</span></div>` : ''}
+      <span>Контрольный гейт покрытия не пройден (${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — регистрация ЗАБЛОКИРОВАНА до решения комитета по администрированию бюджетных кредитов. Комиссия либо возвращает на доработку (догрузить/заменить предмет), либо допускает недообеспеченный кредит с обязательным обоснованием.</span></div>` : ''}
     ${c.undercovered ? `<div class="phead-banner warn">
       <span>Допущен комиссией с покрытием ниже порога ${pct(c.undercovered.req)} (${pct(c.undercovered.ratio)}). Обоснование: «${esc(c.undercovered.obosn)}» · ${esc(c.undercovered.by)} · ${c.undercovered.date}</span></div>` : ''}
     <div class="phead-dims">
@@ -2205,7 +2213,7 @@ function ctrPanels(c){
     ${thirdParty.length ? `<div class="infoline" style="margin-top:14px"><span>В договоре есть предметы, чей залогодатель ≠ заёмщик (${thirdParty.map(i=>i+' · '+clientName(item(i).pledger)).join('; ')}). Имущественный залог третьего лица — отвечает только заложенным предметом.</span></div>` : ''}
     </div></div>`;
 
-  const editable = isDraftish(c) && canEdit();
+  const editable = isDraftish(c) && canCurate();
   /* Группировка по предмету: атрибуты предмета (вид/залогодатель/залоговая/запрет)
      rowspan'ятся, под-строки — по кредитам, которые предмет обеспечивает.
      Убирает построчный дубль, когда один предмет обеспечивает несколько кредитов. */
@@ -2247,7 +2255,7 @@ function ctrPanels(c){
   const p2 = `<div class="panel-wrap">
     <p class="section-h">Кредиты и покрытие</p>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Кредит</th><th>Договор</th><th class="numcell">Сумма кредита</th><th class="numcell">Порог / требуется</th><th class="numcell">Обеспечено</th><th class="numcell">Дефицит / излишек</th><th>Покрытие</th><th>Доля ликвида</th><th>Статус кредита</th>${canEdit()&&isActive(c)?'<th></th>':''}</tr></thead>
+      <thead><tr><th>Кредит</th><th>Договор</th><th class="numcell">Сумма кредита</th><th class="numcell">Порог / требуется</th><th class="numcell">Обеспечено</th><th class="numcell">Дефицит / излишек</th><th>Покрытие</th><th>Доля ликвида</th><th>Статус кредита</th>${canCurate()&&isActive(c)?'<th></th>':''}</tr></thead>
       <tbody>${c.credits.map(id=>{ const r = gate.rows.find(x=>x.id===id), cr = credit(id);
         const need = cr.amount*r.req, deficit = need - r.sum;
         const defCell = r.other ? '<span class="pill neutral">—</span>'
@@ -2262,8 +2270,8 @@ function ctrPanels(c){
         <td><span class="pill ${r.ok?'low':(r.covOk?'mid':'high')}">${pct(r.ratio)}</span></td>
         <td>${r.liqApplies ? `<span class="pill ${r.liqOk?'low':'high'}">${pct(r.liqShare)} / 80%</span>` : '<span class="pill neutral">—</span>'}</td>
         <td>${cr.status}${cr.overdue?' <span class="pill high">просрочка</span>':''}</td>
-        ${canEdit()&&isActive(c) ? `<td>${cr.status==='Действующий' ? `<button class="btn btn-tint btn-sm" onclick="repay('${c.id}','${id}')">Отметить погашенным</button>` : '—'}</td>` : ''}</tr>`; }).join('')}
-        <tr class="total"><td colspan="2">Итого по договору</td><td class="numcell">${fmt(totAmt)}</td><td class="numcell"></td><td class="numcell">${fmt(totSec)}</td><td class="numcell"></td><td><span class="pill ${totSec>=totAmt?'low':'high'}">${pct(totAmt ? totSec/totAmt : 0)}</span></td><td></td><td></td>${canEdit()&&isActive(c)?'<td></td>':''}</tr></tbody>
+        ${canCurate()&&isActive(c) ? `<td>${cr.status==='Действующий' ? `<button class="btn btn-tint btn-sm" onclick="repay('${c.id}','${id}')">Отметить погашенным</button>` : '—'}</td>` : ''}</tr>`; }).join('')}
+        <tr class="total"><td colspan="2">Итого по договору</td><td class="numcell">${fmt(totAmt)}</td><td class="numcell"></td><td class="numcell">${fmt(totSec)}</td><td class="numcell"></td><td><span class="pill ${totSec>=totAmt?'low':'high'}">${pct(totAmt ? totSec/totAmt : 0)}</span></td><td></td><td></td>${canCurate()&&isActive(c)?'<td></td>':''}</tr></tbody>
     </table></div>
     ${gate.ok ? `<div class="okline" style="margin-top:14px"><span>Гейт покрытия пройден по всем кредитам договора.</span></div>`
       : `<div class="flagline" style="margin-top:14px"><span>Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)} (порог ${pct(r.req)}${r.liqApplies&&!r.liqOk?`, доля ликвида ${pct(r.liqShare)}<80%`:''})`).join(', ')}. ${isActive(c)
@@ -2307,7 +2315,7 @@ function ctrFooter(c){
     return back + `<button class="btn btn-primary" onclick="openRegister('${c.id}')">Зарегистрировать договор</button>`;
   if(c.status==='На рассмотрении комиссии')
     return back + `<button class="btn btn-tint" onclick="openRegister('${c.id}')">Повторить проверку гейта</button>
-      <button class="btn btn-primary" onclick="openCommission('${c.id}')">Решение комиссии по залогу</button>`;
+      <button class="btn btn-primary" onclick="openCommission('${c.id}')">Решение комитета по администрированию бюджетных кредитов</button>`;
   return back;
 }
 
@@ -2348,7 +2356,7 @@ const nextId = (arr, pfx) => pfx + String(arr.length+1).padStart(3,'0');
    (доля). Реестр «Предметы» — read-only проекция, из него предметы не рождаются. */
 let _newItemTarget = null;
 function openNewItem(targetCid){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   _newItemTarget = targetCid || null;
   modal(`<div class="modal form">${mhead('Новый предмет залога')}
     <div class="modal-b"><div class="mform">
@@ -2444,7 +2452,7 @@ function saveNewItem(){
 
 /* ---------- ПЕРЕОЦЕНКА (событие: меняет ОЦЕНОЧНУЮ; залоговая и покрытие — следом) ---------- */
 function openReval(id){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   const it = item(id);
   modal(`<div class="modal form">${mhead('Переоценка · '+it.id)}
     <div class="modal-b"><div class="mform">
@@ -2484,7 +2492,7 @@ function saveReval(id){
    трактуется как НАРУШЕНИЕ: требует исключительного решения с явной пометкой «сверх дисконта —
    вне положения». Флаг isOverAbove маркирует нарушение, а не рядовой кейс. ---------- */
 function openOverride(id){
-  if(!canCommission()) return denyComm();
+  if(!canCommittee()) return denyComm();
   const it = item(id), cp = calcPledge(it);
   modal(`<div class="modal form">${mhead('Фактическая залоговая стоимость · '+it.id)}
     <div class="modal-b"><div class="mform">
@@ -2536,7 +2544,7 @@ function clearOverride(id){
    основание). Снятие — под гейтом: пока живы доли, снять нельзя. Оба действия —
    роль «Залоговый специалист». Залоговую ось не трогают (оси независимы). */
 function openBan(id){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   const it = item(id);
   /* Предусловие: наложить запрет на свободный предмет нельзя — оснований нет. */
   if(!banRequired(it)) return toast('Наложить запрет нельзя: предмет не обременён ни одним зарегистрированным договором — оснований нет','warn');
@@ -2566,7 +2574,7 @@ function saveBan(id){
 }
 /* ---------- СНЯТИЕ ЗАПРЕТА (Р-9): классифицированное основание + цепочка согласования + частичное снятие ---------- */
 function openBanRelease(id){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   const it = item(id);
   if(!it.ban) return toast('Запрет не наложен','warn');
   /* ГЕЙТ ПОЛНОГО СНЯТИЯ: нельзя снять, пока по предмету живы доли (частичное — отдельным действием). */
@@ -2602,7 +2610,7 @@ function saveRelease(id){
 }
 /* Частичное снятие с части предмета (Прил.3 §3.3.1): запрет на остаток сохраняется. */
 function openPartialRelease(id){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   const it = item(id);
   if(!it.ban) return toast('Нет действующего запрета','warn');
   const overdueCr = [...new Set(CONTRACTS.filter(c=>isActive(c)&&c.allocs.some(a=>a.item===it.id)).flatMap(c=>c.credits))].filter(x=>(credit(x)||{}).overdue);
@@ -2631,7 +2639,7 @@ function savePartialRelease(id){
 
 /* ---------- СОГЛАСИЕ НА ДЕЙСТВИЯ БЕЗ СНЯТИЯ ЗАПРЕТА (Р-4, §8, Прил.3 §4) ---------- */
 function openConsent(id){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   const it = item(id);
   if(!it.ban) return toast('Согласие на действия выдаётся только по действующему запрету','warn');
   modal(`<div class="modal form">${mhead('Согласие на действия с залогом (без снятия запрета) · '+it.id)}
@@ -2660,7 +2668,7 @@ function saveConsent(id){
 
 /* ---------- ИЗВЕЩЕНИЕ О ВОСПОЛНЕНИИ (Р-8, Прил.2 §2.5) ---------- */
 function openRestoreNotice(id){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   const it = item(id);
   if(!(it.lost||it.needReval)) return toast('Извещение оформляется при исходе обследования «ухудшение»/«утрата»','warn');
   const rn = it.restoreNotice || {};
@@ -2694,7 +2702,7 @@ function saveRestoreNotice(id){
 
 /* ---------- ПРЕДПОСЫЛКИ §5.2: приложить / открепить документ (Р-5) ---------- */
 function togglePrereq(id, key){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   const it = item(id); it.prereqs[key] = it.prereqs[key] || {};
   const now = !it.prereqs[key].present;
   it.prereqs[key].present = now;
@@ -2705,7 +2713,7 @@ function togglePrereq(id, key){
 
 /* ---------- ОБСЛЕДОВАНИЕ (классифицированный исход ветвит действие) ---------- */
 function openSurvey(id){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   const it = item(id);
   modal(`<div class="modal form">${mhead('Обследование предмета · '+it.id)}
     <div class="modal-b"><div class="mform">
@@ -2742,7 +2750,7 @@ function saveSurvey(id){
 
 /* ---------- НОВЫЙ ЗАЛОГОВЫЙ ДОГОВОР (черновик) ---------- */
 function openNewContract(){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   modal(`<div class="modal form">${mhead('Новый залоговый договор')}
     <div class="modal-b"><div class="mform">
       <div class="field req col-span"><span class="flabel">Заёмщик</span>
@@ -2824,7 +2832,7 @@ function saveNewContract(){
 
 /* ---------- ПРИВЯЗКА ПРЕДМЕТА К ЧЕРНОВИКУ (перезалог считается здесь же) ---------- */
 function openAlloc(cid, preItemId){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   const c = contract(cid);
   const opts = ITEMS.filter(i=>!i.lost).map(i=>({v:i.id, t:`${i.id} · ${i.name} · залогодатель ${clientName(i.pledger)} · доступно ${fmt(availableOf(i))}`}));
   modal(`<div class="modal form">${mhead('Привязать предмет · '+cid)}
@@ -2881,7 +2889,7 @@ function dropAlloc(cid, idx){
 
 /* ---------- РЕГИСТРАЦИЯ ДОГОВОРА (два гейта: покрытие + предпосылки оформления §5.2) ---------- */
 function openRegister(cid){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   const c = contract(cid), gate = gateCheck(c);
   const rows = gate.rows.map(r=>`<tr><td>${r.id}</td><td class="numcell">${fmt(r.amount)}</td>
     <td class="numcell">${pct(r.req)}</td><td class="numcell">${fmt(r.amount*r.req)}</td><td class="numcell">${fmt(r.sum)}</td>
@@ -2896,7 +2904,7 @@ function openRegister(cid){
         <thead><tr><th>Кредит</th><th class="numcell">Сумма</th><th class="numcell">Порог</th><th class="numcell">Требуется</th><th class="numcell">Обеспечено</th><th>Покрытие</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
       ${gate.ok ? `<div class="okline"><span>Гейт покрытия пройден.</span></div>`
-        : `<div class="flagline"><span>Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)+' (порог '+pct(r.req)+')').join(', ')}. Регистрация блокируется; договор уходит на рассмотрение комиссии по залогу.</span></div>`}
+        : `<div class="flagline"><span>Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)+' (порог '+pct(r.req)+')').join(', ')}. Регистрация блокируется; договор уходит на рассмотрение комитета по администрированию бюджетных кредитов.</span></div>`}
       ${prereqMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Гейт предпосылок НЕ пройден: не приложены обязательные документы — ${prereqMiss.map(m=>`${m.iid}: ${esc(m.label)}`).join('; ')}. Приложите их на карточке предмета и повторите регистрацию.</span></div>`
         : (gate.ok ? `<div class="okline" style="margin-top:10px"><span>Гейт предпосылок пройден: обязательные согласия и справки приложены.</span></div>` : '')}
       ${okAll ? `<div class="mform">
@@ -2910,7 +2918,7 @@ function openRegister(cid){
     </div>
     ${okAll ? mfoot('Зарегистрировать','doRegister(\''+cid+'\')','btn-success')
       : (!gate.ok ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-         <button class="btn btn-primary" onclick="toCommission('${cid}')">Направить в комиссию по залогу</button></div>`
+         <button class="btn btn-primary" onclick="toCommission('${cid}')">Направить в комитет по администрированию бюджетных кредитов</button></div>`
         : `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`)}
     </div>`);
 }
@@ -2956,16 +2964,16 @@ function doRegister(cid){
 function toCommission(cid){
   const c = contract(cid), gate = gateCheck(c);
   c.status = 'На рассмотрении комиссии';
-  hist(c, `Регистрация заблокирована контрольным гейтом: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}. Направлено в комиссию по залогу.`);
-  closeModal(); toast('Договор направлен в комиссию по залогу','warn'); refresh();
+  hist(c, `Регистрация заблокирована контрольным гейтом: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}. Направлено в комитет по администрированию бюджетных кредитов.`);
+  closeModal(); toast('Договор направлен в комитет по администрированию бюджетных кредитов','warn'); refresh();
 }
 
-/* ---------- РЕШЕНИЕ КОМИССИИ ПО ЗАЛОГУ (обоснование обязательно для допуска) ---------- */
+/* ---------- РЕШЕНИЕ КОМИТЕТА ПО АДМИНИСТРИРОВАНИЮ БЮДЖЕТНЫХ КРЕДИТОВ (обоснование обязательно для допуска) ---------- */
 function openCommission(cid){
-  if(!canCommission()) return denyComm();
+  if(!canCommittee()) return denyComm();
   const c = contract(cid), gate = gateCheck(c);
   const bad = gate.rows.filter(r=>!r.ok);
-  modal(`<div class="modal form">${mhead('Решение комиссии по залогу · '+cid)}
+  modal(`<div class="modal form">${mhead('Решение комитета по администрированию бюджетных кредитов · '+cid)}
     <div class="modal-b">
       <div class="flagline"><span>Недообеспечение: ${bad.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (не хватает ${fmt(Math.max(0, r.amount*r.req - r.sum))}${r.liqApplies&&!r.liqOk?`; доля ликвида ${pct(r.liqShare)}<80%`:''})`).join('; ')}</span></div>
       <div class="mform one">
@@ -2981,7 +2989,7 @@ function saveCommission(cid){
   const c = contract(cid), dec = val('cmDec'), ob = val('cmObosn').trim(), gate = gateCheck(c);
   if(dec === 'return'){
     c.status = 'Оформляется';
-    hist(c, `Комиссия по залогу: возврат на доработку${ob ? ' — '+ob : ''}`);
+    hist(c, `Комитет по администрированию бюджетных кредитов: возврат на доработку${ob ? ' — '+ob : ''}`);
     closeModal(); toast('Возвращено на доработку','ok'); return refresh();
   }
   if(!ob) return toast('Допуск ниже порога требует обоснования','warn');
@@ -2997,7 +3005,7 @@ function saveCommission(cid){
     notaryDate: c.notaryDate || TODAY, cert: c.cert || 'ЗС-' + TODAY.slice(6) + '/0000',
     undercovered: { ratio: worst.ratio, req: worst.req, obosn: ob, by: role, date: TODAY } });
   c.allocs.forEach(a => { item(a.item).everPledged = true; });
-  hist(c, `Комиссия по залогу: ДОПУЩЕН недообеспеченный кредит (${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}). Обоснование: «${ob}». Договор зарегистрирован.`);
+  hist(c, `Комитет по администрированию бюджетных кредитов: ДОПУЩЕН недообеспеченный кредит (${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}). Обоснование: «${ob}». Договор зарегистрирован.`);
   const missing = afterRegister(c);
   closeModal(); toast(`Комиссия допустила договор с покрытием ниже порога ${pct(worst.req)} — флаг зафиксирован`,'warn');
   if(missing.length) toast(`Наложите запрет на отчуждение в «${organOf(missing[0])}» до ${banDeadline(missing[0])} — до этого залог не защищён от продажи`,'warn');
@@ -3123,13 +3131,13 @@ function renderDs(){
       ${!breach.length && !repOverdue.length && needCommission ? `<div class="flagline" style="margin-top:12px"><span>${[
           !after.ok ? `покрытие ниже порога (${after.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)+' < '+pct(r.req)).join(', ')})` : '',
           repDrop ? `замена понижает ликвидность (${reps.filter(r=>r.drop&&!r.overdue).map(r=>r.credit+': Σ'+r.outRank+'→Σ'+r.inRank).join(', ')})` : ''
-        ].filter(Boolean).join('; ')}. Регистрация блокируется — допуск только решением комиссии по залогу с обоснованием.</span>
-        </div>${canCommission() ? ftxt('dsObosn','Обоснование комиссии по залогу (для допуска: покрытие/ликвидность)','') : '<p class="formula">Смените роль на «Комиссия по залогу», чтобы допустить пакет с обоснованием.</p>'}` : ''}
+        ].filter(Boolean).join('; ')}. Регистрация блокируется — допуск только решением комитета по администрированию бюджетных кредитов с обоснованием.</span>
+        </div>${canCommittee() ? ftxt('dsObosn','Обоснование комитета по администрированию бюджетных кредитов (для допуска: покрытие/ликвидность)','') : '<p class="formula">Смените роль на «Комитет по администрированию бюджетных кредитов», чтобы допустить пакет с обоснованием.</p>'}` : ''}
       ${!breach.length && !repOverdue.length && !needCommission ? `<div class="okline" style="margin-top:12px"><span>Чистый эффект пакета проходит гейт по всем кредитам договора${reps.length?' (замена ликвидность не понижает)':''}.</span></div>` : ''}
     </div>
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-      <button class="btn btn-primary" ${(!ds.ops.length || breach.length || repOverdue.length || (needCommission && !canCommission())) ? 'disabled' : ''}
+      <button class="btn btn-primary" ${(!ds.ops.length || breach.length || repOverdue.length || (needCommission && !canCommittee())) ? 'disabled' : ''}
         onclick="dsRegister()">Зарегистрировать доп соглашение</button>
     </div></div>`);
 
@@ -3194,7 +3202,7 @@ function dsRegister(){
   const worst = after.rows.reduce((a,b)=> b.ratio<a.ratio?b:a);
   let obosn = '';
   if(!after.ok || repDrop){
-    if(!canCommission()) return toast('Гейт не пройден (покрытие/ликвидность): допуск возможен только комиссией по залогу','warn');
+    if(!canCommittee()) return toast('Гейт не пройден (покрытие/ликвидность): допуск возможен только комитетом по администрированию бюджетных кредитов','warn');
     obosn = val('dsObosn').trim();
     if(!obosn) return toast('Допуск (покрытие ниже порога / понижение ликвидности) требует обоснования','warn');
   }
@@ -3225,7 +3233,7 @@ function dsRegister(){
 
 /* ---------- ПОГАШЕНИЕ КРЕДИТА → АВТОМАТИЧЕСКОЕ ВЫСВОБОЖДЕНИЕ ДОЛЕЙ (§4.2) ---------- */
 function repay(cid, creditId){
-  if(!canEdit()) return denyEdit();
+  if(!canCurate()) return denyEdit();
   const cr = credit(creditId);
   modal(`<div class="modal form narrow">${mhead('Полное погашение кредита · '+creditId)}
     <div class="modal-b">
@@ -3386,6 +3394,7 @@ if (typeof window !== 'undefined') window.__zt = {
   requiredCover, coverage, calcPledge, pledgeValue, coefOf, effShare, allocatedIn,
   KINDS, COVER_LIQUID, COVER_MOVABLE, COVER_GUARANTEE, COVER_GUARANTEE_FX,
   SURVEY_MATRIX, CREDITS, ITEMS, CONTRACTS, credit, item, contract,
+  canCurate, canCommittee, canHeadOfDept, canHeadOfUnit,
 };
 </script>
 </body>
