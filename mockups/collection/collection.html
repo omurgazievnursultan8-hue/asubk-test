@@ -2593,6 +2593,20 @@ function restoreState(){
   }catch(e){}
 }
 function resetDemo(){ try{ localStorage.removeItem(STORE_KEY); }catch(e){} location.href=location.pathname; }
+
+/* Персист ПРАВИЛ — отдельный ключ от процессов. При смене схемы правил поднять версию. */
+const RULES_KEY='asubk-collection-rules-v1';
+function persistRules(){ try{ localStorage.setItem(RULES_KEY, JSON.stringify(RULES)); }catch(e){} }
+function restoreRules(){
+  try{
+    if(/[?&]reset\b/.test(location.search)){ localStorage.removeItem(RULES_KEY); return; }
+    const raw=localStorage.getItem(RULES_KEY); if(!raw) return;
+    const data=JSON.parse(raw); if(!data || typeof data!=='object') return;
+    Object.keys(RULES_DEFAULTS).forEach(k=>{ if(data[k]!=null) RULES[k]=data[k]; });
+  }catch(e){}
+}
+function resetRulesAll(){ RULES=deepClone(RULES_DEFAULTS); persistRules(); }
+function resetRulesSection(key){ RULES[key]=deepClone(RULES_DEFAULTS[key]); persistRules(); }
 /* ============================================================
    ИНТЕРАКТИВ: гейты, регистрация меры, сторно, В-8, окно, процедура.
    ============================================================ */
@@ -2977,7 +2991,7 @@ function clearFilter(k){
 }
 function resetFilters(){ filterState={}; renderFilterBar(); renderList(); renderChips(); }
 
-restoreState(); renderNav(); renderFilterBar(); renderChips(); renderList(); restoreFromHash();
+restoreRules(); restoreState(); renderNav(); renderFilterBar(); renderChips(); renderList(); restoreFromHash();
 </script>
 </body>
 </html>

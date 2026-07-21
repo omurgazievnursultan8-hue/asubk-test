@@ -12,7 +12,9 @@ function mk(){
   const errs = [];
   const vc = new VirtualConsole();
   vc.on('jsdomError', e => errs.push('jsdomError: ' + (e.detail?.message || e.message)));
-  const dom = new JSDOM(HTML, { runScripts: 'dangerously', virtualConsole: vc });
+  /* url задаёт неопальный origin — без него jsdom бросает SecurityError на
+     любом реальном обращении к localStorage (нужен тестам персиста RULES, Task 2). */
+  const dom = new JSDOM(HTML, { runScripts: 'dangerously', virtualConsole: vc, url: 'http://localhost/' });
   const w = dom.window, doc = w.document;
   const ev = s => w.eval(s);
   const $  = s => doc.querySelector(s);
@@ -186,6 +188,21 @@ ok('55. группа не выведена при неподтверждённо
     m.ev("phasesOf('К1').join('>')")==='Претензия>Повторная претензия>Безакцептное списание');
   ok('62. RULES_DEFAULTS заморожен',
     m.ev("Object.isFrozen(RULES_DEFAULTS)")===true); }
+
+// ───────── RULES: персист и сброс (Task 2) ─────────
+{ const m = mk();
+  ok('63. persistRules пишет ключ RULES_KEY', m.ev(`(()=>{
+    RULES.sectionClevel['Досудебный']=3; persistRules();
+    return localStorage.getItem(RULES_KEY) && JSON.parse(localStorage.getItem(RULES_KEY)).sectionClevel['Досудебный']===3;
+  })()`));
+  ok('64. resetRulesAll восстанавливает дефолт', m.ev(`(()=>{
+    RULES.sectionClevel['Досудебный']=3; resetRulesAll();
+    return RULES.sectionClevel['Досудебный']===RULES_DEFAULTS.sectionClevel['Досудебный'];
+  })()`));
+  ok('65. resetRulesSection сбрасывает одну ось', m.ev(`(()=>{
+    RULES.gates={}; RULES.sectionClevel['Судебный']=5; resetRulesSection('gates');
+    return Object.keys(RULES.gates).length>0 && RULES.sectionClevel['Судебный']===5;
+  })()`)); }
 
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));
