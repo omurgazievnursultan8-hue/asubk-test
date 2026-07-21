@@ -3092,7 +3092,27 @@ function toggleGate(kind){
   if(g.off) delete g.off; else g.off=true;
   persistRules(); renderSettings(); renderList();
 }
-function renderSettingsPhases(){ return '<div class="section-note">—</div>'; }
+function renderSettingsPhases(){
+  const blocks=Object.keys(CONTOURS).map(c=>{
+    const phases=phasesOf(c);
+    const items=phases.map((ph,i)=>`<tr>
+      <td style="text-align:left">${i+1}. ${ph}</td>
+      <td><button class="btn btn-tint" ${i===0?'disabled':''} onclick="movePhase('${c}',${i},-1)" title="Вверх">↑</button>
+          <button class="btn btn-tint" ${i===phases.length-1?'disabled':''} onclick="movePhase('${c}',${i},1)" title="Вниз">↓</button></td></tr>`).join('');
+    return `<div class="phase-contour" style="margin-bottom:16px">
+      <p class="section-h">${c} · ${CONTOURS[c].name}</p>
+      <table class="settings-grid" style="max-width:520px"><tbody>${items}</tbody></table></div>`;
+  }).join('');
+  return `<p class="section-note">Порядок вех внутри контура задаёт последовательность-предусловие для вех-мер (§3.1): веха на позиции i требует предыдущей фазы φ(i−1). Добавление/удаление фаз недоступно — только переупорядочивание.</p>
+    ${blocks}
+    <div style="margin-top:12px"><button class="btn btn-tint" onclick="resetRulesSection('contourPhases');renderSettings();renderList();toast('Порядок фаз сброшен к дефолту','ok')">Сбросить порядок фаз к дефолту</button></div>`;
+}
+function movePhase(contour, i, dir){
+  const arr=RULES.contourPhases[contour]; if(!arr) return;
+  const j=i+dir; if(j<0 || j>=arr.length) return;
+  [arr[i],arr[j]]=[arr[j],arr[i]];
+  persistRules(); renderSettings(); renderList();
+}
 
 restoreRules(); restoreState(); renderNav(); renderFilterBar(); renderChips(); renderList(); restoreFromHash();
 </script>

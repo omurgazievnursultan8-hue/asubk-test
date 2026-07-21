@@ -256,6 +256,24 @@ ok('55. группа не выведена при неподтверждённо
     return !!before && !after;
   })()`)); }
 
+// ───────── Вкладка Фазы (Task 7) ─────────
+{ const m = mk(); m.ev("showView('settings'); showSettingsTab('phases')");
+  ok('79. вкладка Фазы рендерит блок на каждый контур',
+    m.$$('#settingsHost .phase-contour').length === m.ev("Object.keys(CONTOURS).length"));
+  ok('80. movePhase меняет порядок в RULES.contourPhases', m.ev(`(()=>{
+    movePhase('К1',0,1); // Претензия <-> Повторная претензия
+    return phasesOf('К1')[0]==='Повторная претензия' && phasesOf('К1')[1]==='Претензия';
+  })()`));
+  ok('81. переупорядочивание меняет предусловие sequenceReason', m.ev(`(()=>{
+    resetRulesSection('contourPhases');
+    const p=PROCESSES.find(x=>x.phase==='Претензия'); // фаза Претензия
+    const before=sequenceReason(p,'Повторная претензия'); // prereq=Претензия==фаза → open
+    movePhase('К1',0,1); // теперь Повторная на позиции 0, prereq иной
+    const after=sequenceReason(p,'Повторная претензия');
+    resetRulesSection('contourPhases');
+    return !before && !!after;
+  })()`)); }
+
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));
 console.log(`ВСЕГО ПРОВЕРОК: ${n} · ПРОВАЛЕНО: ${fails}`);
