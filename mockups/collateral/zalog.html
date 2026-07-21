@@ -1222,6 +1222,9 @@ function normalizeItem(it){
     it.origin = it.origin || d.origin || 'СНГ';
     it.insured= it.insured|| d.insured || { present:false, policy:'', till:'' };
   }
+  /* Р-17: роль обеспечения (основной/дополнительный) — только для движимых видов, кроме
+     «Товары в обороте» (та же граница, что и у формы приёма, см. niKindChange/saveNewItem). */
+  if(isMovable(it) && it.kind !== 'Товары в обороте') it.securityRole = it.securityRole || 'основной';
   if(!it.prereqs){
     const absent = new Set(d.prereqAbsent || []);
     const mk = key => ({ present: !absent.has(key), doc: absent.has(key) ? '' : 'приложено при оформлении' });
@@ -1660,9 +1663,17 @@ function prereqMissing(it){
 /* ---- ТЕХНИКА (Р-7, Прил.1 §2.5, §3.4). Возраст и страховка — производные проверки. */
 const techAge       = it => (isTech(it) && it.year) ? CUR_YEAR - it.year : null;
 const techAgeLimit  = it => TECH_AGE_LIMIT[it.origin] ?? TECH_AGE_LIMIT['СНГ'];
-const techAgeOk     = it => { const a = techAge(it); return a == null ? true : a <= techAgeLimit(it); };
 const techInsuredOk = it => !isTech(it) || Boolean(it.insured && it.insured.present);
 const techPolicyExpired = it => isTech(it) && it.insured && it.insured.present && it.insured.till && isOverdue(it.insured.till);
+/* Р-17 (П1 §2.5, §3.4): возраст сверх лимита блокирует ЖЁСТКО только «дополнительный» залог;
+   «основной» залог сверх лимита не блокируется на приёме — уходит на решение комитета. */
+function techAgeCheck({securityRole, origin, age}){
+  const lim = TECH_AGE_LIMIT[origin] ?? 15;
+  if (age <= lim) return { block:false, needCommittee:false };
+  if (securityRole === 'дополнительный')
+    return { block:true, needCommittee:false, msg:`Приём отклонён (П1 §2.5): срок эксплуатации ${age} лет превышает лимит ${lim} лет для «${origin}»` };
+  return { block:false, needCommittee:true, msg:`П1 §2.5 устанавливает лимит для дополнительного залога. Приём техники такого возраста в качестве основного обеспечения требует решения комитета с обоснованием по П1 §3.4.` };
+}
 
 /* ТРИГГЕРЫ. Собираются из состояния; не хранятся. Триггер «недостаточность
    обеспечения» уходит во взыскание отдельным треком по причине «обеспечение» —
@@ -2305,14 +2316,18 @@ function itemPanels(it){
       ${canCurate()?`<td>${need?`<button class="btn btn-tint btn-sm" onclick="togglePrereq('${it.id}','${k}')">${present?'Открепить':'Приложить документ'}</button>`:'—'}</td>`:''}</tr>`;
   }).join('');
   const miss = prereqMissing(it);
+  /* Р-17: возрастной флаг не всегда «приём не допускается» — жёсткий блок только для
+     «дополнительный» залог сверх лимита; «основной» сверх лимита — допуск решением комитета. */
+  const ageChk = techAge(it)!=null ? techAgeCheck({ securityRole: it.securityRole||'основной', origin: it.origin, age: techAge(it) }) : null;
   const techBlock = isTech(it) ? `<p class="section-h" style="margin-top:20px">Техническая допустимость</p>
     <div class="panel-card"><div class="f2">
       ${ro('Год выпуска', it.year||'—')}
       ${ro('Возраст', techAge(it)!=null ? techAge(it)+' лет (лимит '+techAgeLimit(it)+' — '+it.origin+')' : '—')}
       ${ro('Происхождение', it.origin||'—')}
+      ${ro('Роль обеспечения', it.securityRole||'—')}
       ${ro('Страховой полис', it.insured&&it.insured.present ? (it.insured.policy+(it.insured.till?' · до '+it.insured.till:'')) : 'нет')}
     </div>
-    ${!techAgeOk(it) ? `<div class="flagline" style="margin-top:12px"><span>Возраст техники ${techAge(it)} лет превышает лимит ${techAgeLimit(it)} лет (${it.origin}) — приём не допускается.</span></div>` : ''}
+    ${ageChk && (ageChk.block || ageChk.needCommittee) ? `<div class="flagline" style="margin-top:12px"><span>${esc(ageChk.msg)}</span></div>` : ''}
     ${!techInsuredOk(it) ? `<div class="flagline" style="margin-top:12px"><span>Техника-обеспечение не застрахована.</span></div>`
       : techPolicyExpired(it) ? `<div class="flagline" style="margin-top:12px"><span>Страховой полис ${esc(it.insured.policy)} истёк ${it.insured.till} — триггер «страхование техники истекло».</span></div>`
       : `<div class="okline" style="margin-top:12px"><span>Техническая допустимость соблюдена.</span></div>`}
@@ -2566,13 +2581,19 @@ function niKindChange(){
       : fin('nd_'+f.k, f.l, '', !!f.req)).join('');
   }
   const K = KINDS[kind] || {}, tech = !!K.tech, tvo = kind === 'Товары в обороте';
+  const secRole = !!K.movable && !tvo;   // Р-17: роль обеспечения — шире, чем «техника» (движимое, кроме ТМЦ)
   let html = '';
+  if(secRole) html += `<div class="mform" style="margin-top:4px">
+      ${fsel('niSecurityRole','Роль обеспечения', ['основной','дополнительный'], 'основной')}
+    </div>`;
   if(tech) html += `<div class="mform" style="margin-top:4px">
       ${fin('niYear','Год выпуска (техника)','',true)}
       ${fsel('niOrigin','Происхождение', ['СНГ','Дальнее зарубежье'], 'СНГ')}
       ${fin('niPolicy','Страховой полис (номер)','',true)}
       ${fdate('niTill','Полис действует до','',true)}
-    </div>`;
+    </div>
+    <label class="chk" style="margin-top:8px"><input type="checkbox" id="niTechCond"> Техника в исправном техническом состоянии и находится в эксплуатации (П1 §3.3)</label>
+    <div class="mform" style="margin-top:4px">${fin('niTechAct','Реквизит акта осмотра (П1 §3.3)','',true)}</div>`;
   if(tvo) html += `<label class="chk" style="margin-top:8px"><input type="checkbox" id="niNotProhibited"> Подтверждаю: предмет не подпадает под ограничения по составу</label>`;
   box.innerHTML = html;
 }
@@ -2594,16 +2615,22 @@ function saveNewItem(){
   }
   const ident = details[PRIMARY_DETAIL[kind]] || name;   // краткий идентификатор для шапки/списка
   const K = KINDS[kind] || {}, tech = !!K.tech, tvo = kind === 'Товары в обороте';
+  const secRole = !!K.movable && !tvo;   // Р-17: та же граница, что и в niKindChange
   let extra = {};
+  if(secRole) extra.securityRole = val('niSecurityRole') || 'основной';
   if(tech){
     const year = Math.round(num(val('niYear'))), origin = val('niOrigin'),
           policy = val('niPolicy').trim(), till = iso2d(val('niTill'));
     if(!(year > 1900)) return toast('Укажите корректный год выпуска техники','warn');
-    const age = CUR_YEAR - year, limit = TECH_AGE_LIMIT[origin];
-    if(age > limit) return toast(`Приём отклонён (§2.5): срок эксплуатации ${age} лет превышает лимит ${limit} лет для «${origin}»`,'warn');
+    const techCondOk = Boolean((document.getElementById('niTechCond')||{}).checked), techAct = val('niTechAct').trim();
+    if(!techCondOk || !techAct) return toast('Приём отклонён (П1 §3.3): подтвердите исправное техническое состояние техники и укажите реквизит акта осмотра','warn');
+    const age = CUR_YEAR - year;
+    const ageChk = techAgeCheck({ securityRole: extra.securityRole, origin, age });
+    if(ageChk.block) return toast(ageChk.msg,'warn');
     if(!policy) return toast('Приём отклонён (§3.4): техника-обеспечение должна быть застрахована — укажите полис','warn');
     if(till && !isDate(till)) return toast('Дата окончания полиса — в формате дд.мм.гггг','warn');
-    extra = { year, origin, insured:{ present:true, policy, till } };
+    extra = { ...extra, year, origin, insured:{ present:true, policy, till }, techCondition:{ ok:true, act:techAct } };
+    if(ageChk.needCommittee) extra.committeeReq = { reason:'возраст техники сверх лимита §2.5 — допуск основного обеспечения по решению комитета §3.4', msg: ageChk.msg };
   }
   if(tvo && !((document.getElementById('niNotProhibited')||{}).checked))
     return toast('Подтвердите, что «Товары в обороте» не подпадают под ограничения §3.5','warn');
@@ -2615,7 +2642,9 @@ function saveNewItem(){
     surveys:[], history:[] };
   normalizeItem(it);
   hist(it, `Предмет зарегистрирован в реестре. Оценочная ${fmt(v)} → залоговая (расч.) ${fmt(calcPledge(it))}`);
+  if(it.committeeReq) hist(it, `П1 §3.4: ${it.committeeReq.reason}`);
   ITEMS.push(it); closeModal(); toast('Предмет '+it.id+' создан. Залоговая: '+fmt(calcPledge(it)),'ok');
+  if(it.committeeReq) toast(it.committeeReq.msg,'warn');
   const target = _newItemTarget; _newItemTarget = null;
   if(target && contract(target)){
     /* рождён с карточки договора → сразу привязка к этому договору + кредиту (доля) */
@@ -3629,6 +3658,7 @@ if (typeof window !== 'undefined') window.__zt = {
   canCurate, canCommittee, canHeadOfDept, canHeadOfUnit,
   surveyInterval, effectiveInterval, RISK_TIGHTENING, SURVEY_MIN_MONTHS, RISK_TIGHTENING_APPROVAL,
   itemRiskCategory, borrowerSolvency, nextSurvey, addMonths,
+  techAgeCheck,
 };
 </script>
 </body>
