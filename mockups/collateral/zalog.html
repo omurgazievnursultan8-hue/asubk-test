@@ -2858,6 +2858,39 @@ function docRouteBlock(c){
     </table></div>`;
 }
 
+/* Р-5 (§5.2): обязательный пакет документов договора — АГРЕГАТ по всем предметам.
+   Каждый предмет несёт свой набор обязательных предпосылок (prereqReq зависит от
+   pledgerType). Показываем только ОБЯЗАТЕЛЬНЫЕ строки (чек-лист «что должно быть»),
+   красным — отсутствующие. Тот же togglePrereq, что и на карточке предмета: правка
+   инлайн (refresh перерисует карточку договора и пересчитает этот блок). Это ровно
+   гейт предпосылок §5.2 — тот, что блокирует регистрацию (см. openRegister/doRegister). */
+function prereqBlock(c){
+  const its = [...new Set(c.allocs.map(a=>a.item))].map(item);
+  if(!its.length) return '';
+  const rows = [];
+  its.forEach(it => { const req = prereqReq(it), pr = it.prereqs || {};
+    PREREQ_KEYS.filter(k => req[k].required).forEach(k => {
+      const present = (pr[k]||{}).present;
+      rows.push(`<tr>
+        <td><span class="rowlink" onclick="openCard('item','${it.id}',5)">${it.id} · ${esc(it.name)}</span></td>
+        <td>${esc(req[k].label)}</td>
+        <td><span class="pill ${present?'low':'high'}">${present?'приложено':'обязателен, отсутствует'}</span></td>
+        <td>${(pr[k]||{}).doc ? esc(pr[k].doc) : '—'}</td>
+        ${canCurate()?`<td><button class="btn btn-tint btn-sm" onclick="togglePrereq('${it.id}','${k}')">${present?'Открепить':'Приложить документ'}</button></td>`:''}
+      </tr>`);
+    });
+  });
+  const miss = its.flatMap(prereqMissing);
+  const head = `<p class="section-h" style="margin-top:0">Обязательный пакет документов (§5.2)</p>
+    <div class="${miss.length?'flagline':'okline'}" style="margin-bottom:12px"><span>${miss.length
+      ? ('Не приложено обязательных документов: '+miss.length+'. Регистрация договора заблокирована гейтом предпосылок §5.2.')
+      : 'Обязательный пакет §5.2 собран полностью.'}</span></div>`;
+  if(!rows.length) return head + `<div class="cgrid-empty" style="border:1px solid var(--border-default);border-radius:4px;margin-bottom:22px">По предметам договора обязательных предпосылок §5.2 нет</div>`;
+  return head + `<div class="cgrid-wrap" style="margin-bottom:22px"><table class="cgrid">
+    <thead><tr><th>Предмет</th><th>Что требуется</th><th>Статус</th><th>Документ</th>${canCurate()?'<th></th>':''}</tr></thead>
+    <tbody>${rows.join('')}</tbody></table></div>`;
+}
+
 /* ---------- КАРТОЧКА ЗАЛОГОВОГО ДОГОВОРА ---------- */
 function ctrPanels(c){
   const virtual = isActive(c) ? null : c;
@@ -2995,6 +3028,7 @@ function ctrPanels(c){
     </div>`;
 
   const pDocs = `<div class="panel-wrap">
+    ${prereqBlock(c)}
     ${docRouteBlock(c)}
     <p class="section-h">Документы договора</p>
     <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openAttach('contract','${c.id}')">Прикрепить файл</button></div>
