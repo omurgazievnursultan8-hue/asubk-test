@@ -111,9 +111,11 @@ ok('32. безакцепт заблокирован без решения ком
     /поручени/i.test(m.ev("measureGate(PROCESSES.find(p=>p.id==='204'),'Исковое заявление').reason"))); }
 ok('34. внесудебный порядок недоступен для имущественного комплекса (жёсткая блокировка)',
   g.ev("PROCESSES.find(p=>p.id==='104').colls.some(c=>/имущественный комплекс/.test(c.ban))"));
-{ const m = mk(); m.ev("openDetail('120')"); m.ev("switchTab(6)"); m.ev("openAgreementModal()");
-  m.$('#modalHost .mform input').value = '6'; m.ev("agSync()");
-  ok('35. мировое соглашение свыше 5 лет заблокировано (кнопка Save disabled)', m.$('#agSave').disabled === true); }
+{ const m = mk(); m.ev("openDetail('120')"); m.ev("openAgreementModal()");
+  // МС-1: срок графика >5 лет ПРИ истёкших сроках → гейт блокирует сохранение (п. 24).
+  m.doc.getElementById('agYears').value = '6'; m.doc.getElementById('agExpired').checked = true; m.ev("agSync()");
+  ok('35. МС-1: срок >5 лет при истёкших сроках — гейт блокирует Save',
+    m.$('#agSave').disabled === true && /не превышает 5 лет/.test(m.$('#agTermGate').textContent)); }
 { const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
   // 142 уже на фазе «Иск» (ИСК-77 подан): в measureGate его корректно перехватывает более ранний
   // гейт «веха пройдена» (sequence). Детекцию пересечения проверяем напрямую (симметрично 36b).
@@ -166,7 +168,7 @@ ok('47. конфликт интересов блокирует действия 
     /пересчитано с|пересчита/i.test(m.$('#modalHost').textContent)); }
 
 // ───────── Дополнительно: целостность и отсутствие ошибок консоли ─────────
-ok('50. 69 процессов в списке по умолчанию (ретро-закрытые 203/306/307 скрыты)', g.$$('#listBody tr').length === 69);
+ok('50. 70 процессов в списке по умолчанию (ретро-закрытые 203/306/307 скрыты; +337 МС-проект)', g.$$('#listBody tr').length === 70);
 ok('51. 13 колонок В-11 в списке', g.$$('#listHead th').length === 13);
 ok('52. title у обрезаемых колонок (Заёмщик/Охват/Фаза/Процедура/Владелец)', g.$$('#listBody tr').every(tr => {
   const t = i => tr.children[i].getAttribute('title');
@@ -273,6 +275,61 @@ ok('55. группа не выведена при неподтверждённо
     resetRulesSection('contourPhases');
     return !before && !!after;
   })()`)); }
+
+// ───────── Мировое соглашение: решения МС-1…МС-7 ─────────
+// Пур-функции (без DOM).
+ok('82. МС-1: срок производный ≈ 3.5 (8 платежей × 6 мес)',
+  g.ev("msTermYears(msSeedSchedule('15.08.2026',6,8,96400))") === 3.5);
+ok('83. МС-1: срок производный === 3.0 (7 платежей × 6 мес)',
+  g.ev("msTermYears(msSeedSchedule('15.10.2026',6,7,112000))") === 3.0);
+ok('84. МС-1: гейт блок при >5 лет и истёкших сроках', g.ev("msTermGate(true,6).level") === 'block');
+ok('85. МС-1: гейт warn (не блок) при >5 лет без истёкших', g.ev("msTermGate(false,6).level") === 'warn');
+ok('86. МС-1: гейт ok при ≤5 лет', g.ev("msTermGate(true,5).level") === 'ok' && g.ev("msTermGate(true,3.5).level") === 'ok');
+ok('87. МС-1: дефолт истёкших сроков из ускорения (п. 114)',
+  g.ev("msExpiredDefault({scope:'полный остаток'})") === true
+  && g.ev("msExpiredDefault({scope:'просроченная сумма',measures:[]})") === false);
+ok('88. МС-5: мировое допустимо на судебной стадии, не раньше',
+  g.ev("msStageEligible({phase:'Иск',measures:[]},'mirovoe').ok") === true
+  && g.ev("msStageEligible({phase:'Извещение',measures:[]},'mirovoe').ok") === false);
+ok('89. МС-5: добровольное требует судебного акта',
+  g.ev("msStageEligible({measures:[{kind:'Решение суда',delivered:true}]},'dobrovolnoe').ok") === true
+  && g.ev("msStageEligible({phase:'Иск',measures:[]},'dobrovolnoe').ok") === false);
+ok('90. МС-2: аттестация «не льготнее» — только при attested',
+  g.ev("msNotWorseOk({notWorse:{attested:true}})") === true
+  && g.ev("msNotWorseOk({notWorse:{attested:false}})") === false
+  && g.ev("msNotWorseOk({})") === false);
+ok('91. МС-4: мини-гейт графика (нужен и отдел, и непустой schedule[])',
+  g.ev("msScheduleReady({scheduleBy:'ОД',schedule:[{pay:'15.08.2026',principal:1}]})") === true
+  && g.ev("msScheduleReady({scheduleBy:'',schedule:[{pay:'15.08.2026',principal:1}]})") === false
+  && g.ev("msScheduleReady({scheduleBy:'ОД',schedule:[]})") === false);
+ok('92. МС-1: каскад графика — последний остаток 0, сумма тела == итог', g.ev(`(()=>{
+  const a=PROCESSES.find(p=>p.id==='120').agreements[0];
+  const total=a.schedule.reduce((s,r)=>s+r.principal,0);
+  const rows=msComputeRows(a,{rate:a.rate,base:365,start:a.approvedAt,principalTotal:total});
+  const sump=rows.reduce((s,r)=>s+r.principal,0);
+  return Math.abs(rows[rows.length-1].close)<0.01 && Math.abs(sump-total)<0.01;
+})()`));
+
+// DOM/переходы (МС-3/МС-7).
+{ const m = mk(); m.ev("openDetail('337')"); m.ev("msApprove('МС-18')");
+  ok('93. МС-3: утверждение под гейтом (337: график + аттестация есть)',
+    m.ev("_msFind('МС-18').status") === 'утверждено судом');
+  ok('94. МС-3: без графика отраслевого утвердить нельзя', m.ev(`(()=>{
+    const a=_msFind('МС-18'); a.status='проект'; a.scheduleBy=''; msApprove('МС-18'); return a.status;
+  })()`) === 'проект'); }
+{ const m = mk(); m.ev("openDetail('337')"); m.ev("msReject('МС-18')");
+  ok('95. МС-3: отказ в утверждении', m.ev("_msFind('МС-18').status") === 'отказано в утверждении'); }
+{ const m = mk(); m.ev("openDetail('120')"); m.ev("msBreach('МС-12')");
+  ok('96. МС-7: нарушение утверждённого МС ставит флаг breached',
+    m.ev("_msFind('МС-12').breached") === true); }
+{ const m = mk(); m.ev("openDetail('337')");
+  ok('97. МС-7: msBreach не трогает проект (не утверждён судом)', m.ev(`(()=>{
+    const a=_msFind('МС-18'); const b=a.breached; msBreach('МС-18'); return a.breached===b && !a.breached;
+  })()`)); }
+ok('98. МС-3: баннер зависит от статуса (утверждено / проект / нарушено)',
+  /утверждено судом/.test(g.ev("msBanner(PROCESSES.find(p=>p.id==='120').agreements[0])"))
+  && /проект, не утверждён/.test(g.ev("msBanner(PROCESSES.find(p=>p.id==='337').agreements[0])"))
+  && /нарушено/.test(g.ev("msBanner({type:'mirovoe',num:'X',breached:true})")));
 
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));

@@ -322,7 +322,14 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .phead-banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
 .phead-banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
 .phead-banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
+.phead-banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
 .phead-banner svg{ flex:none; margin-top:1px; }
+.ms-card{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:14px 16px; margin-top:12px; background:#fff; }
+.ms-card-h{ display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.ms-card-h .mt{ font-weight:600; }
+.ms-meta{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:6px 18px; margin-bottom:6px; font-size:13px; }
+.ms-meta b{ color:var(--text-muted); font-weight:500; }
+.ms-acts{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
 .phead-banner .b-act{ margin-left:auto; }
 .phead-dims{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
 @media(max-width:900px){ .phead-dims{ grid-template-columns:repeat(3,1fr); } }
@@ -1169,6 +1176,83 @@ const DEADLINE_TEMPLATES = [
    Пустые массивы/умолчания заполняет normalize() — данные держим лаконичными.
    ============================================================ */
 const D = (event, received, registered) => ({ event, received, registered });   // три даты (Р-7)
+
+/* ============================================================
+   МИРОВОЕ СОГЛАШЕНИЕ — логика (решения МС-1…МС-7).
+   Нумерация МС-* локальна: Р-1…Р-11 модуля взыскания заняты.
+   Паттерн графика — из loan-application.html (материализованные входы
+   {pay, principal} + каскадный пересчёт производных, аналог _computeRows).
+   ============================================================ */
+function msNum(s){ return parseFloat(String(s ?? '').replace(/\s/g,'').replace(',','.')) || 0; }
+function msD(s){ const m=/^(\d{2})\.(\d{2})\.(\d{4})$/.exec(String(s||'').trim()); return m?new Date(+m[3],+m[2]-1,+m[1]):null; }
+function msFmtD(d){ return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`; }
+
+/* МС-4: материализовать график равными долями тела (демо-данные и модалка). */
+function msSeedSchedule(start, stepMonths, count, total){
+  const d0=msD(start); if(!d0 || count<1) return [];
+  const each=Math.round((total/count)*100)/100, rows=[];
+  for(let i=0;i<count;i++){
+    const d=new Date(d0.getFullYear(), d0.getMonth()+stepMonths*i, d0.getDate());
+    const principal = i===count-1 ? +(total-each*(count-1)).toFixed(2) : each;   // последний добирает остаток
+    rows.push({ pay:msFmtD(d), principal });
+  }
+  return rows;
+}
+
+/* МС-1: срок МС — ПРОИЗВОДНЫЙ размах графика (первая→последняя дата), в годах. */
+function msTermYears(schedule){
+  const ds=(schedule||[]).map(r=>msD(r.pay)).filter(Boolean).sort((a,b)=>a-b);
+  if(ds.length<2) return null;
+  return Math.round(((ds[ds.length-1]-ds[0])/(365*86400000))*10)/10;
+}
+
+/* МС-1: гейт срока. Жёсткий блок ≤5 лет ТОЛЬКО при истёкших сроках (п. 24); иначе >5 — предупреждение. */
+function msTermGate(expiredTerms, termYears){
+  if(termYears==null) return { level:'ok', msg:'' };
+  if(termYears>5 && expiredTerms) return { level:'block',
+    msg:`Срок МС по обязательствам с истёкшими сроками исполнения не превышает 5 лет (п. 24). Из графика ≈ ${termYears} лет — заблокировано.` };
+  if(termYears>5) return { level:'warn',
+    msg:`Срок графика ≈ ${termYears} лет. Ограничение 5 лет (п. 24) применяется только к обязательствам с истёкшими сроками — отметьте флаг, если применимо.` };
+  return { level:'ok', msg:'' };
+}
+
+/* МС-1: истёкшие сроки по умолчанию — из ускорения долга (п. 114). */
+function msExpiredDefault(p){ return p.scope==='полный остаток' || (p.measures||[]).some(m=>m.accelerated); }
+
+/* МС-5: стадийная допустимость регистрации. */
+const MS_SUIT_PHASES = new Set(['Иск','Решение суда']);
+function msHasSuit(p){ return MS_SUIT_PHASES.has(p.phase) || (p.measures||[]).some(m=>/иск/i.test(m.kind)); }
+function msHasCourtAct(p){ return (p.measures||[]).some(m=>m.delivered && /решение суда|исполнительный лист|мировое соглашение/i.test(m.kind)); }
+function msStageEligible(p, type){
+  if(type==='mirovoe')
+    return msHasSuit(p) ? { ok:true, reason:'' }
+      : { ok:false, reason:'Мировое соглашение заключается на судебной стадии — по процессу нет поданного иска (п. 22).' };
+  return msHasCourtAct(p) ? { ok:true, reason:'' }
+    : { ok:false, reason:'Соглашение о добровольном исполнении возможно только при наличии судебного акта (п. 37).' };
+}
+
+/* МС-2 / МС-4: гейты-предусловия утверждения. */
+function msNotWorseOk(a){ return !!(a.notWorse && a.notWorse.attested); }
+function msScheduleReady(a){ return !!(a.scheduleBy && Array.isArray(a.schedule) && a.schedule.length>0); }
+
+/* МС-1: производные строки графика (дни/проценты/платёж/остаток) — аналог _computeRows заявки. */
+function msComputeRows(a, opts){
+  opts=opts||{};
+  const rate=+opts.rate||0, base=opts.base||365;
+  const total = opts.principalTotal!=null ? opts.principalTotal : (a.schedule||[]).reduce((s,r)=>s+(+r.principal||0),0);
+  let open=total, start=msD(opts.start) || msD((a.schedule&&a.schedule[0]&&a.schedule[0].pay));
+  return (a.schedule||[]).map((r,i)=>{
+    const pay=msD(r.pay);
+    const days=start&&pay?Math.max(0,Math.round((pay-start)/86400000)):0;
+    const interest=open*rate/100*days/base;
+    const principal=Math.min(Math.max(0,+r.principal||0), open);
+    const close=+(open-principal).toFixed(2), total2=interest+principal;
+    const row={ k:i+1, pay:r.pay, days, open, interest, principal, total:total2, close };
+    open=close; start=pay;
+    return row;
+  });
+}
+
 const PROCESSES = [
 
   // 201 — Р-4 авто-открытие · Р-8 окно открыто · гейт претензии закрыт · два срока сразу
@@ -1308,8 +1392,12 @@ const PROCESSES = [
     scope:'полный остаток', contour:'К4', phase:'На исполнении',
     owner:'Отдел проблемных кредитов (ОПК)', curator:'Эрнисов Б.Т.', opened:'01.02.2025', openedBy:'куратор', basis:'первичная претензия', poruchenie:true,
     agreements:[
-      { type:'mirovoe', num:'МС-12', approvedByCourt:true, years:4, notWorse:true, note:'утверждено судом · график ≤5 лет · условия не льготнее прежних (пп. 22–24)' },
-      { type:'dobrovolnoe', num:'СДИ-3', note:'заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)' },
+      { type:'mirovoe', num:'МС-12', status:'утверждено судом', approvedAt:'18.03.2026', expiredTerms:true,
+        notWorse:{ attested:true, basis:'ставка 12% и график не мягче исходных условий договора №40', by:'Эрнисов Б.Т.' },
+        draftedBy:'ОПК · Эрнисов Б.Т.', scheduleBy:'Отраслевой отдел (ОД) · Асанов К.', rate:12, breached:false,
+        schedule:msSeedSchedule('15.08.2026',6,8,96400),
+        note:'утверждено судом · погашение по графику МС (пп. 22–24)' },
+      { type:'dobrovolnoe', num:'СДИ-3', status:'заключено', breached:false, note:'заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)' },
     ],
     credits:[ {id:'40', num:'Дог. №40 от 15.09.2023', subject:'полный остаток', claim:'96 400,00', overdueDays:410,
       debt:{ principal:{accrued:88000,paid:20000}, interest:{accrued:5000,paid:1000}, penalty:{accrued:3400,paid:0} },
@@ -1859,7 +1947,11 @@ const PROCESSES = [
   { id:'334', borrower:'ОсОО «Ынтымак-Логистик»', inn:'01912201610561', region:'г. Бишкек / Первомайский',
     scope:'полный остаток', contour:'К3', phase:'Решение суда',
     owner:'Отдел проблемных кредитов (ОПК)', curator:'Эрнисов Б.Т.', opened:'01.02.2025', openedBy:'куратор', basis:'первичная претензия', poruchenie:true,
-    agreements:[ { type:'mirovoe', num:'МС-15', approvedByCourt:true, years:3, notWorse:true, note:'утверждено судом · график 3 года · условия не льготнее прежних (пп. 22–24)' } ],
+    agreements:[ { type:'mirovoe', num:'МС-15', status:'утверждено судом', approvedAt:'15.04.2026', expiredTerms:true,
+        notWorse:{ attested:true, basis:'условия не льготнее договора №434', by:'Эрнисов Б.Т.' },
+        draftedBy:'ОПК · Эрнисов Б.Т.', scheduleBy:'Отраслевой отдел (ОД) · Мамбетова Ж.', rate:12, breached:false,
+        schedule:msSeedSchedule('15.10.2026',6,7,112000),
+        note:'утверждено судом · погашение по графику МС (пп. 22–24)' } ],
     credits:[ {id:'434', num:'Дог. №434 от 10.06.2024', subject:'полный остаток', claim:'112 000,00', overdueDays:360,
       debt:{ principal:{accrued:100000,paid:15000}, interest:{accrued:8000,paid:1000}, penalty:{accrued:4000,paid:0} },
       debtNote:'Погашение по графику мирового соглашения МС-15.' } ],
@@ -1870,13 +1962,30 @@ const PROCESSES = [
   { id:'335', borrower:'ИП Байызбеков М.', inn:'20308197700555', region:'Джалал-Абадская обл. / Базар-Коргонский',
     scope:'полный остаток', contour:'К4', phase:'На исполнении',
     owner:'Отдел проблемных кредитов (ОПК)', curator:'Тукинова А.С.', opened:'10.01.2025', openedBy:'куратор', basis:'первичная претензия', poruchenie:true,
-    agreements:[ { type:'dobrovolnoe', num:'СДИ-5', note:'заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)' } ],
+    agreements:[ { type:'dobrovolnoe', num:'СДИ-5', status:'заключено', breached:false, note:'заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)' } ],
     credits:[ {id:'435', num:'Дог. №435 от 05.03.2024', subject:'полный остаток', claim:'54 000,00', overdueDays:330,
       debt:{ principal:{accrued:48000,paid:8000}, interest:{accrued:4000,paid:0}, penalty:{accrued:2000,paid:0} },
       debtNote:'Погашение по соглашению о добровольном исполнении СДИ-5.' } ],
     procedure:{ status:'Соответствие ИЛ требованиям законодательства', since:'01.05.2026', by:'ОПК', receiving:'ОПК', confirm:{ state:'подтверждена', at:'02.05.2026', deadlineRd:5 } },
     measures:[ {sec:'Исполнительное', kind:'Исполнительный лист', dates:D('01.04.2026','01.04.2026','01.04.2026'), num:'ИЛ-315', purpose:'принудительное исполнение', deliver:'передан приставам', delivered:true, result:{group:'полное исполнение исполнительного листа', value:'на исполнении'}, resultKind:'без изменения', execStage:'на исполнении', sum:'54 000,00', responsible:'Тукинова А.С.'} ],
     history:[ {when:'20.05.2026 10:00', what:'Соглашение о добровольном исполнении СДИ-5 (п. 37)', who:'ОПК'} ] },
+
+  // 337 — МС-7 · проект мирового соглашения на судебной стадии (статусы, мини-гейт, переходы)
+  { id:'337', borrower:'ОсОО «Талас-Агро»', inn:'01804201900332', region:'Таласская обл. / Таласский',
+    scope:'полный остаток', contour:'К3', phase:'Иск',
+    owner:'Отдел проблемных кредитов (ОПК)', curator:'Эрнисов Б.Т.', opened:'05.02.2025', openedBy:'куратор', basis:'первичная претензия', poruchenie:true,
+    agreements:[ { type:'mirovoe', num:'МС-18', status:'проект', expiredTerms:true,
+        notWorse:{ attested:true, basis:'график и ставка не мягче исходных условий договора №437', by:'Эрнисов Б.Т.' },
+        draftedBy:'ОПК · Эрнисов Б.Т.', scheduleBy:'Отраслевой отдел (ОД) · Асанов К.', rate:12, breached:false,
+        schedule:msSeedSchedule('15.09.2026',6,6,78000),
+        note:'проект · график от отраслевого · подлежит утверждению судом (пп. 22–24)' } ],
+    credits:[ {id:'437', num:'Дог. №437 от 12.04.2024', subject:'полный остаток', claim:'78 000,00', overdueDays:280,
+      debt:{ principal:{accrued:70000,paid:6000}, interest:{accrued:6000,paid:0}, penalty:{accrued:2000,paid:0} },
+      debtNote:'Проект МС МС-18 подготовлен; до утверждения судом погашение — по требованию иска, взыскание продолжается.' } ],
+    procedure:{ status:'Работа с судебными органами', since:'01.06.2026', by:'ДПО', receiving:'ОПК', confirm:{ state:'подтверждена', at:'02.06.2026', deadlineRd:5 } },
+    measures:[ {sec:'Судебный', kind:'Исковое заявление', dates:D('20.05.2026','20.05.2026','20.05.2026'), num:'ИСК-18', purpose:'взыскание в судебном порядке', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'78 000,00', responsible:'Эрнисов Б.Т.'} ],
+    history:[ {when:'10.07.2026 11:00', what:'Проект мирового соглашения МС-18 (срок ≈ 2,5 года; график — отраслевой отдел; не льготнее — подтверждено), подлежит утверждению судом', who:'ОПК'},
+      {when:'20.05.2026 10:00', what:'Мера «Исковое заявление» ИСК-18 → фаза «Иск»', who:'ОПК'} ] },
 
   // ── SIT-Q · К5 ПРАВОПРЕЕМСТВО (смерть заёмщика — отдельный контур) ──
   { id:'336', borrower:'КФХ «Ат-Башы»', inn:'22105198800050', region:'Нарынская обл. / Ат-Башинский',
@@ -2330,9 +2439,7 @@ function headerBanners(p){
   if(p.pause) out += `<div class="phead-banner warn">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>
     <span>Пауза (${p.pause.type==='restructuring'?'рассмотрение реструктуризации, п. 19':'гарантийное письмо, п. 18'}): ${p.pause.from?`с ${p.pause.from} `:''}до ${p.pause.until} · фаза сохранена${p.pause.type==='restructuring'?' · отображается как «Рассмотрение вопроса реструктуризации» · подавление 181-го дня':''} · счётчик дней не заморожен.</span></div>`;
-  for(const a of (p.agreements||[])) out += `<div class="phead-banner info">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-    <span>${a.type==='mirovoe'?'Мировое соглашение':'Соглашение о добровольном исполнении'} ${a.num}: ${a.note}</span></div>`;
+  for(const a of (p.agreements||[])) out += msBanner(a);
   return out;
 }
 function phaseHeader(){
@@ -2723,11 +2830,12 @@ function saveDecision(idx){
 function panelSpecial(){
   const p=curProc; const rows=[];
   if(p.pause) rows.push(`<tr><td><span class="pill mid">пауза</span></td><td>${p.pause.type==='restructuring'?'Рассмотрение реструктуризации (п. 19)':'Отсрочка по гарантийному письму (п. 18)'}</td><td>${p.pause.note}</td><td>${p.pause.from?`с ${p.pause.from} `:''}до ${p.pause.until}</td></tr>`);
-  for(const a of (p.agreements||[])) rows.push(`<tr><td><span class="pill info">соглашение</span></td><td>${a.type==='mirovoe'?'Мировое соглашение (пп. 22–24)':'Соглашение о добровольном исполнении (п. 37)'} ${a.num}</td><td>${a.note}</td><td>—</td></tr>`);
+  for(const a of (p.agreements||[]).filter(a=>a.type==='dobrovolnoe'))
+    rows.push(`<tr><td><span class="pill info">соглашение</span></td><td>Соглашение о добровольном исполнении (п. 37) ${a.num}${a.breached?' <span class="pill high">нарушено</span>':''}</td><td>${a.note}</td><td>—</td></tr>`);
   if(p.conflict) rows.push(`<tr><td><span class="pill high">конфликт интересов</span></td><td>Гл. 16 (п. 92)</td><td>${p.conflict.basis} · ${p.conflict.status}${p.conflict.curatorSuspended?' · куратор отстранён':''}</td><td>${p.conflict.date}</td></tr>`);
   return `<div class="panel-wrap">
     <p class="section-h">Особые состояния</p>
-    <p class="section-note">Типизированные основания: пауза guarantee_letter (п. 18) / restructuring (п. 19) — поведением управляет тип, не метка; два соглашения (мировое пп. 22–24 / добровольное исполнение п. 37, разное утверждение судом); конфликт интересов (гл. 16). Смерть заёмщика — не оверлей, а контур К5. Счётчик дней при паузе не замораживается.</p>
+    <p class="section-note">Типизированные основания: пауза (п. 18 / п. 19), соглашения (мировое пп. 22–24 — карточки ниже; добровольное исполнение п. 37 — в таблице), конфликт интересов (гл. 16). Смерть заёмщика — контур К5, не оверлей. Мировое соглашение: срок производный из графика (МС-1); «не льготнее» — аттестация (МС-2); статусы проект/утверждено/отказано (МС-3); проект — ОПК, график — отраслевой отдел (МС-4); регистрация на судебной стадии (МС-5).</p>
     <div class="gtoolbar">
       ${p.pause
         ? `<button class="btn btn-tint btn-sm" onclick="liftPause()">Снять паузу</button>`
@@ -2737,7 +2845,100 @@ function panelSpecial(){
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Тип</th><th>Основание / пункт</th><th>Примечание</th><th>Срок</th></tr></thead>
       <tbody>${rows.join('')||`<tr><td colspan="4"><div class="cgrid-empty">Особых состояний нет</div></td></tr>`}</tbody>
-    </table></div></div>`;
+    </table></div>
+    ${msCards(p)}
+  </div>`;
+}
+
+/* Баннер соглашения в шапке — статус-зависимый (МС-3/МС-7). */
+function msBanner(a){
+  const doc=`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`;
+  const warn=`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>`;
+  if(a.type==='dobrovolnoe') return `<div class="phead-banner info">${doc}<span>Соглашение о добровольном исполнении ${a.num}: ${a.note}</span></div>`;
+  if(a.breached) return `<div class="phead-banner danger">${warn}<span>Мировое соглашение ${a.num} нарушено — истребование исполнительного листа по условиям МС, принудительное исполнение (п. 37).</span></div>`;
+  const t=msTermYears(a.schedule);
+  if(a.status==='утверждено судом') return `<div class="phead-banner ok">${doc}<span>Мировое соглашение ${a.num} утверждено судом · график ≈ ${t??'?'} лет · погашение по графику МС (пп. 22–24).</span></div>`;
+  if(a.status==='отказано в утверждении') return `<div class="phead-banner danger">${warn}<span>В утверждении мирового соглашения ${a.num} отказано — взыскание продолжается.</span></div>`;
+  return `<div class="phead-banner warn">${warn}<span>Мировое соглашение ${a.num}: проект, не утверждён судом — погашение по графику МС начнётся после утверждения; взыскание продолжается.</span></div>`;
+}
+
+function msStatusPill(a){
+  if(a.breached) return '<span class="pill high">нарушено</span>';
+  if(a.status==='утверждено судом') return '<span class="pill low">утверждено судом</span>';
+  if(a.status==='отказано в утверждении') return '<span class="pill high">отказано</span>';
+  return '<span class="pill mid">проект</span>';
+}
+
+/* МС-1: таблица графика с производными колонками. */
+function msSchedTable(a){
+  const total=(a.schedule||[]).reduce((s,r)=>s+(+r.principal||0),0);
+  const rows=msComputeRows(a,{ rate:a.rate||0, base:365, start:a.approvedAt||(a.schedule&&a.schedule[0]&&a.schedule[0].pay), principalTotal:total });
+  if(!rows.length) return '<div class="cgrid-empty">График не приложен</div>';
+  const body=rows.map(r=>`<tr><td>${r.k}</td><td>${r.pay}</td><td style="text-align:right">${fmtKGS(r.open)}</td><td style="text-align:right">${fmtKGS(r.interest)}</td><td style="text-align:right">${fmtKGS(r.principal)}</td><td style="text-align:right">${fmtKGS(r.total)}</td><td style="text-align:right">${fmtKGS(r.close)}</td></tr>`).join('');
+  return `<div class="cgrid-wrap"><table class="cgrid">
+    <thead><tr><th>№</th><th>Дата платежа</th><th style="text-align:right">Остаток на начало</th><th style="text-align:right">Проценты</th><th style="text-align:right">Осн. долг</th><th style="text-align:right">Платёж ИТОГО</th><th style="text-align:right">Остаток на конец</th></tr></thead>
+    <tbody>${body}</tbody></table></div>`;
+}
+
+/* Карточки мировых соглашений: авторство, гейты (МС-1/МС-2/МС-4), график, переходы (МС-3/МС-7), пометка МС-6. */
+function msCards(p){
+  const mir=(p.agreements||[]).filter(a=>a.type==='mirovoe');
+  if(!mir.length) return '';
+  return mir.map(a=>{
+    const t=msTermYears(a.schedule), tg=msTermGate(a.expiredTerms, t);
+    const termPill = tg.level==='block'?`<span class="pill high">≈ ${t} лет · превышает 5 (п. 24)</span>` : tg.level==='warn'?`<span class="pill mid">≈ ${t} лет</span>` : `<span class="pill low">≈ ${t??'?'} лет</span>`;
+    const att = msNotWorseOk(a) ? `<span class="pill low">подтверждено</span>${a.notWorse.basis?` · <span class="src">${escAttr(a.notWorse.basis)}</span>`:''}` : '<span class="pill high">не подтверждено</span>';
+    const schedGate = msScheduleReady(a) ? '' : `<div class="warn-inline" style="margin-top:8px">${warnIcon()}<span>График от отраслевого отдела не приложен (п. 23) — МС нельзя утвердить.</span></div>`;
+    let acts='';
+    if(a.status==='проект'){
+      const canApprove = msScheduleReady(a) && msNotWorseOk(a) && tg.level!=='block';
+      acts=`<button class="btn btn-tint btn-sm" ${canApprove?'':'disabled'} onclick="msApprove('${escAttr(a.num)}')">Утвердить судом</button>
+            <button class="btn btn-tint btn-sm danger" onclick="msReject('${escAttr(a.num)}')">Отказ в утверждении</button>`;
+    } else if(a.status==='утверждено судом' && !a.breached){
+      acts=`<button class="btn btn-tint btn-sm danger" onclick="msBreach('${escAttr(a.num)}')">Зафиксировать нарушение МС</button>`;
+    }
+    const flag6=`<div class="section-note" style="margin-top:8px">⚑ Открытый вопрос (§13): утверждение МС судом = судебный акт ⇒ прекращение начисления неустойки на дату утверждения (п. 7.2)? — на согласовании (платежи).</div>`;
+    return `<div class="ms-card">
+      <div class="ms-card-h"><span class="mt">Мировое соглашение ${a.num}</span>${msStatusPill(a)}<span class="pill info">пп. 22–24</span></div>
+      <div class="ms-meta">
+        <div><b>Проект (ОПК, п. 23):</b> ${escAttr(a.draftedBy||'—')}</div>
+        <div><b>График (отраслевой отдел, п. 23):</b> ${escAttr(a.scheduleBy||'—')}</div>
+        <div><b>Обязательства с истёкшими сроками:</b> ${a.expiredTerms?'да':'нет'}</div>
+        <div><b>Срок (из графика, МС-1):</b> ${termPill}</div>
+        <div style="grid-column:1/-1"><b>Не льготнее ранее принятых (п. 24):</b> ${att}</div>
+      </div>
+      ${tg.level==='block'?`<div class="gate-inline">${alertIcon()}<span>${tg.msg}</span></div>`:tg.level==='warn'?`<div class="warn-inline">${warnIcon()}<span>${tg.msg}</span></div>`:''}
+      ${schedGate}
+      <p class="section-h" style="margin-top:12px">График погашения по мировому соглашению</p>
+      ${msSchedTable(a)}
+      ${flag6}
+      ${acts?`<div class="ms-acts">${acts}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+/* МС-3 / МС-7: переходы статуса. */
+function _msFind(num){ return (curProc.agreements||[]).find(a=>a.num===num); }
+function msApprove(num){
+  const a=_msFind(num); if(!a) return;
+  if(!(msScheduleReady(a)&&msNotWorseOk(a))){ toast('Нельзя утвердить: нужен график отраслевого и подтверждение «не льготнее»','err'); return; }
+  const tg=msTermGate(a.expiredTerms, msTermYears(a.schedule));
+  if(tg.level==='block'){ toast(tg.msg,'err'); return; }
+  a.status='утверждено судом'; a.approvedAt=TODAY; a.note='утверждено судом · погашение по графику МС (пп. 22–24)';
+  curProc.history.unshift({ when:TODAY+' 12:00', what:`Мировое соглашение ${num} утверждено судом → погашение по графику МС (пп. 22–24)`, who:'ОПК' });
+  renderPanels(); toast('МС утверждено судом (демо)','ok');
+}
+function msReject(num){
+  const a=_msFind(num); if(!a) return;
+  a.status='отказано в утверждении'; a.note='в утверждении отказано · взыскание продолжается';
+  curProc.history.unshift({ when:TODAY+' 12:00', what:`В утверждении мирового соглашения ${num} отказано → взыскание продолжается`, who:'Суд/ОПК' });
+  renderPanels(); toast('В утверждении МС отказано (демо)','warn');
+}
+function msBreach(num){
+  const a=_msFind(num); if(!a || a.status!=='утверждено судом') return;
+  a.breached=true; a.note='нарушено · истребование ИЛ по условиям МС (принудительное исполнение)';
+  curProc.history.unshift({ when:TODAY+' 12:00', what:`Нарушение мирового соглашения ${num} → истребование исполнительного листа по условиям МС, принудительное исполнение (п. 37)`, who:'ОПК' });
+  renderPanels(); toast('Нарушение МС зафиксировано — задача на истребование ИЛ (демо)','warn');
 }
 /* Типы паузы — поведением управляет type, не метка (В-4). guarantee_letter п.18 /
    restructuring п.19; для реструктуризации шапка сама включает оверлей и подавление. */
@@ -3148,45 +3349,81 @@ function doProcChange(){
   curProc.history.unshift({when:TODAY+' 11:00', what:`Смена процедуры → «${st}», ожидает подтверждения (5 р.д., п. 98)`, who:'Текущая роль'});
   closeModal(); renderPanels(); toast('Статус процедуры сменён — ожидает подтверждения','ok');
 }
-/* В-4: мировое соглашение — гейт ≤5 лет (п. 24). */
+/* Регистрация соглашения (МС-1 срок·гейт · МС-2 аттестация · МС-4 авторство · МС-5 стадия). */
 function openAgreementModal(){
-  const host=document.getElementById('modalHost');
+  const p=curProc; const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Регистрация соглашения</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
-    <div class="modal-b"><p class="section-note">Мировое соглашение утверждается судом (пп. 22–24); соглашение о добровольном исполнении заключается после вынесения акта и судом не утверждается (п. 37).</p><div class="mform">
-      ${sel('Тип','Мировое соглашение',['Мировое соглашение','Соглашение о добровольном исполнении'],'agType')}
-      ${inp('Номер соглашения','','agNum')}
-      ${inp('Срок графика, лет','6','agYears')}
-    </div><div id="agGate"></div></div>
-    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" id="agSave" onclick="saveAgreement()">Сохранить</button></div>
+    <div class="modal-b">
+      <div class="mform">
+        ${sel('Тип','Мировое соглашение',['Мировое соглашение','Соглашение о добровольном исполнении'],'agType')}
+        ${inp('Номер','','agNum')}
+      </div>
+      <div id="agStage"></div>
+      <div id="agMirovoe">
+        <div class="mform" style="margin-top:8px">
+          ${inp('Проект подготовил (ОПК, п. 23)','ОПК · ','agDrafted')}
+          ${inp('График предоставил (отраслевой отдел, п. 23)','','agSchedBy')}
+          ${inp('Срок графика, лет','6','agYears')}
+        </div>
+        <label class="chk-row" style="margin-top:8px"><span><input type="checkbox" id="agExpired"> Обязательства с истёкшими сроками исполнения (п. 24)</span><span></span><span></span></label>
+        <div id="agTermGate"></div>
+        <label class="chk-row" style="margin-top:8px"><span><input type="checkbox" id="agNotWorse"> Условия МС не льготнее ранее принятых обязательств (п. 24)</span><span></span><span></span></label>
+        ${inp('Обоснование «не льготнее»','','agBasis')}
+        <div id="agAttGate"></div>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" id="agSave" onclick="agSave()">Сохранить</button></div>
   </div>`; host.classList.add('open');
-  const inputs=host.querySelectorAll('input,select'); inputs.forEach(i=>i.oninput=agSync); host.querySelector('#agType').onchange=agSync; agSync();
+  document.getElementById('agExpired').checked = msExpiredDefault(p);
+  host.querySelectorAll('input,select').forEach(i=>{ i.oninput=agSync; i.onchange=agSync; });
+  agSync();
 }
 function agSync(){
-  const type=document.getElementById('agType').value;
-  const years=parseFloat((document.getElementById('agYears')||{}).value)||0;
-  const box=document.getElementById('agGate'); const save=document.getElementById('agSave');
-  if(type==='Мировое соглашение' && years>5){
-    box.innerHTML=`<div class="gate-inline">${alertIcon()}<span>Мировое соглашение при истёкших сроках исполнения не превышает 5 лет (п. 24). Указано ${years} — заблокировано.</span></div>`; save.disabled=true;
-  } else { box.innerHTML=''; save.disabled=false; }
+  const p=curProc;
+  const type = document.getElementById('agType').value==='Мировое соглашение' ? 'mirovoe' : 'dobrovolnoe';
+  document.getElementById('agMirovoe').style.display = type==='mirovoe' ? '' : 'none';
+  const st=msStageEligible(p, type);                                    // МС-5
+  document.getElementById('agStage').innerHTML = st.ok ? '' : `<div class="gate-inline">${alertIcon()}<span>${st.reason}</span></div>`;
+  let ok=st.ok;
+  if(type==='mirovoe'){
+    const expired=document.getElementById('agExpired').checked;
+    const years=parseFloat((document.getElementById('agYears')||{}).value)||null;
+    const tg=msTermGate(expired, years);                               // МС-1
+    document.getElementById('agTermGate').innerHTML = tg.level==='block'?`<div class="gate-inline">${alertIcon()}<span>${tg.msg}</span></div>` : tg.level==='warn'?`<div class="warn-inline">${warnIcon()}<span>${tg.msg}</span></div>` : '';
+    const misses=[];                                                    // МС-2 + МС-4
+    if(!document.getElementById('agNotWorse').checked) misses.push('подтвердите «условия не льготнее ранее принятых» (п. 24)');
+    if(!(document.getElementById('agSchedBy')||{}).value.trim()) misses.push('укажите отраслевой отдел, предоставивший график (п. 23)');
+    document.getElementById('agAttGate').innerHTML = misses.length?`<div class="warn-inline">${warnIcon()}<span>Перед сохранением: ${misses.join('; ')}.</span></div>`:'';
+    if(tg.level==='block' || misses.length) ok=false;
+  }
+  document.getElementById('agSave').disabled = !ok;
 }
-function saveAgreement(){
-  const val=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
-  const typeLabel=val('agType'), type=(typeLabel==='Мировое соглашение')?'mirovoe':'dobrovolnoe';
-  const years=parseFloat(val('agYears'))||0;
-  if(type==='mirovoe' && years>5){ toast('Мировое соглашение при истёкших сроках ≤5 лет (п. 24)','warn'); return; }
-  curProc.agreements=curProc.agreements||[];
-  const prefix=(type==='mirovoe')?'МС-':'СДИ-';
-  const num=val('agNum')||prefix+(curProc.agreements.length+1);
-  const note=(type==='mirovoe')
-    ? `утверждается судом · график ${years} г. · условия не льготнее прежних (пп. 22–24)`
-    : `заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)`;
-  curProc.agreements.push({type,num,years,approvedByCourt:type==='mirovoe',notWorse:true,note});
-  const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'—';
-  curProc.history=curProc.history||[];
-  curProc.history.unshift({when:TODAY+' 10:00',what:`Зарегистрировано соглашение: ${typeLabel} ${num}`,who:role});
-  closeModal(); renderPanels();
-  toast('Соглашение зарегистрировано (демо)','ok');
+function agSave(){
+  const p=curProc;
+  const type = document.getElementById('agType').value==='Мировое соглашение' ? 'mirovoe' : 'dobrovolnoe';
+  const role = document.getElementById('roleSel')?document.getElementById('roleSel').value:'—';
+  p.agreements=p.agreements||[];
+  if(type==='mirovoe'){
+    const num=(document.getElementById('agNum')||{}).value || 'МС-новый';
+    const expired=document.getElementById('agExpired').checked;
+    const years=Math.max(0.5, parseFloat((document.getElementById('agYears')||{}).value)||1);
+    const drafted=(document.getElementById('agDrafted')||{}).value||'ОПК';
+    const schedBy=(document.getElementById('agSchedBy')||{}).value||'';
+    const basis=(document.getElementById('agBasis')||{}).value||'';
+    const total=msNum((p.credits[0]||{}).claim);
+    const schedule=msSeedSchedule(TODAY, 6, Math.max(2, Math.round(years*2)), total);   // график ≈ years, срок далее ПРОИЗВОДНЫЙ
+    p.agreements.push({ type:'mirovoe', num, status:'проект', expiredTerms:expired,
+      notWorse:{ attested:true, basis, by:role }, draftedBy:drafted, scheduleBy:schedBy, rate:0, breached:false,
+      schedule, note:'проект · график от отраслевого · подлежит утверждению судом (пп. 22–24)' });
+    p.history.unshift({ when:TODAY+' 12:30', what:`Проект мирового соглашения ${num} (срок ≈ ${msTermYears(schedule)} лет; график — отраслевой отдел; не льготнее — подтверждено), подлежит утверждению судом`, who:role });
+  } else {
+    const num=(document.getElementById('agNum')||{}).value || 'СДИ-новый';
+    p.agreements.push({ type:'dobrovolnoe', num, status:'заключено', breached:false,
+      note:'заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)' });
+    p.history.unshift({ when:TODAY+' 12:30', what:`Соглашение о добровольном исполнении ${num} (п. 37)`, who:role });
+  }
+  closeModal(); renderPanels(); toast('Соглашение зарегистрировано (демо)','ok');
 }
 
 /* ============================================================
