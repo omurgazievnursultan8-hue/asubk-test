@@ -2553,7 +2553,7 @@ function onNew(){ if(!canCurate()) return denyEdit(); if(reg==='contracts') open
    КАРТОЧКИ — вкладки и панели
    ============================================================ */
 const TABS_ITEM = ['Основное','Стоимость и переоценки','Запрет на отчуждение','Обследования','Обеспечиваемые кредиты','Документы','История'];
-const TABS_CTR  = ['Общая информация','Предметы и доли','Кредиты и покрытие','Доп соглашения','Документы','История'];
+const TABS_CTR  = ['Общая информация','Предметы залога','Обеспеченность кредитов','Доп соглашения','Документы','История'];
 let curTab = 0;
 
 function openCard(type, id, tab){
@@ -2775,7 +2775,7 @@ function itemPanels(it){
         ? '— НАРУШЕН. Доли усечены пропорционально в расчёте покрытия (юридический объём договора не меняется), кредиты уходят в триггер «недостаточность обеспечения».'
         : '— соблюдён. Доступно для перезалога: '+fmt(availableOf(it))+'.'}</span></div>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Договор</th><th>Статус</th><th>Кредит</th><th class="numcell">Доля (юр.)</th><th class="numcell">Эффективная доля</th><th>Приоритет</th></tr></thead>
+      <thead><tr><th>Договор</th><th>Статус</th><th>Кредит</th><th class="numcell">Обеспечивает (юр.)</th><th class="numcell">Обеспечивает факт.</th><th>Приоритет</th></tr></thead>
       <tbody>${arows.length ? arows.map(({c,a},i)=>`<tr>
         <td><span class="rowlink" onclick="openCard('contract','${c.id}')">${c.id} ${esc(c.no||'(черновик)')}</span></td>
         <td><span class="pill ${isActive(c)?'low':'neutral'}">${c.status}</span></td>
@@ -2920,14 +2920,13 @@ function ctrPanels(c){
   const totalEff = c.allocs.reduce((s,a)=>s+effShare(cs, a.item, a.share),0);
   const colCount = editable ? 8 : 7;
   const p1 = `<div class="panel-wrap">
-    <p class="section-h">Предметы и доли</p>
     ${editable ? `<div class="gtoolbar">
       <button class="btn btn-tint btn-sm" onclick="openNewItem('${c.id}')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Создать новый предмет</button>
       <button class="btn btn-tint btn-sm" onclick="openAlloc('${c.id}')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Привязать существующий</button></div>` : ''}
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Предмет</th><th>Вид</th><th>Залогодатель</th><th>Кредит</th><th class="numcell">Залоговая</th><th class="numcell">Доля</th><th>Запрет</th>${editable?'<th></th>':''}</tr></thead>
+      <thead><tr><th>Предмет</th><th>Вид</th><th>Залогодатель</th><th>Кредит</th><th class="numcell">Залоговая стоимость</th><th class="numcell">Обеспечивает</th><th>Запрет</th>${editable?'<th></th>':''}</tr></thead>
       <tbody>${itemGroups.length ? itemGroups.map(g=>{ const it = item(g.item), rs = g.rows.length;
         return g.rows.map((r,ri)=>{ const a = r.a, eff = effShare(cs, it.id, a.share);
           const creditCell = `<td>${a.credit}</td>`;
@@ -2944,14 +2943,13 @@ function ctrPanels(c){
             <td rowspan="${rs}" style="vertical-align:top"><span class="rowlink" onclick="openCard('item','${it.id}',2)">${banPill(it)}</span></td>
             ${actionCell}</tr>`;
         }).join('');
-      }).join('') + `<tr class="total"><td colspan="5">Итого — залоговая масса договора</td><td class="numcell">${fmt(totalEff)}</td><td${editable?' colspan="2"':''}></td></tr>`
+      }).join('') + `<tr class="total"><td colspan="5">Итого — обеспечено по договору</td><td class="numcell">${fmt(totalEff)}</td><td${editable?' colspan="2"':''}></td></tr>`
         : `<tr><td colspan="${colCount}"><div class="cgrid-empty">Предметы не привязаны</div></td></tr>`}</tbody>
     </table></div></div>`;
 
   const totAmt = c.credits.reduce((s,id)=>s+credit(id).amount,0);
   const totSec = c.credits.reduce((s,id)=>{ const r = gate.rows.find(x=>x.id===id); return s + r.sum; },0);
   const p2 = `<div class="panel-wrap">
-    <p class="section-h">Кредиты и покрытие</p>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Кредит</th><th>Договор</th><th class="numcell">Сумма кредита</th><th class="numcell">Порог / требуется</th><th class="numcell">Обеспечено</th><th class="numcell">Дефицит / излишек</th><th>Покрытие</th><th>Индекс обеспеченности</th><th>Доля ликвида</th><th>Статус кредита</th>${canCurate()&&isActive(c)?'<th></th>':''}</tr></thead>
       <tbody>${c.credits.map(id=>{ const r = gate.rows.find(x=>x.id===id), cr = credit(id);
@@ -2980,7 +2978,6 @@ function ctrPanels(c){
     </div>`;
 
   const p3 = `<div class="panel-wrap">
-    <p class="section-h">Доп соглашения</p>
     ${isActive(c) && canDs() ? `<div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openDs('${c.id}')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Новое доп соглашение</button></div>`
       : ''}
@@ -3004,7 +3001,6 @@ function ctrPanels(c){
     ${fileTable(c.files)}</div>`;
 
   const p4 = `<div class="panel-wrap">
-    <p class="section-h">История договора</p>
     <div class="hist">${[...c.history].reverse().map(h=>`<div class="hrow"><div class="hwhen">${h.when}</div><div class="hwhat">${esc(h.what)}</div><div class="hwho">${esc(h.who)}</div></div>`).join('')}</div></div>`;
 
   return [p0,p1,p2,p3,pDocs,p4];
@@ -3631,7 +3627,7 @@ function openAlloc(cid, preItemId){
     <div class="modal-b"><div class="mform">
       ${fsel('alItem','Предмет из реестра', opts, preItemId||null, true)}
       ${fsel('alCredit','Кредит договора', c.credits.map(id=>({v:id, t:id+' · '+credit(id).num+' · требуется '+fmt(credit(id).amount*requiredCover(id, ctx(c)).req)})))}
-      ${fin('alShare','Отнесённая доля (часть залоговой стоимости)','',true)}
+      ${fin('alShare','Обеспечивает (часть залоговой стоимости)','',true)}
     </div>
     <div class="warn-inline" id="alInfo"></div>
     </div>${mfoot('Привязать','saveAlloc(\''+cid+'\')')}</div>`);
