@@ -2315,7 +2315,7 @@ function headerBanners(p){
     <span>Куратор отстранён от работы с заёмщиком до решения Правления (п. 92): ${p.conflict.basis}. Все действия регистрации для этой роли заблокированы.</span></div>`;
   if(p.pause) out += `<div class="phead-banner warn">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>
-    <span>Пауза (${p.pause.type==='restructuring'?'рассмотрение реструктуризации, п. 19':'гарантийное письмо, п. 18'}): до ${p.pause.until} · фаза сохранена${p.pause.type==='restructuring'?' · отображается как «Рассмотрение вопроса реструктуризации» · подавление 181-го дня':''} · счётчик дней не заморожен.</span></div>`;
+    <span>Пауза (${p.pause.type==='restructuring'?'рассмотрение реструктуризации, п. 19':'гарантийное письмо, п. 18'}): ${p.pause.from?`с ${p.pause.from} `:''}до ${p.pause.until} · фаза сохранена${p.pause.type==='restructuring'?' · отображается как «Рассмотрение вопроса реструктуризации» · подавление 181-го дня':''} · счётчик дней не заморожен.</span></div>`;
   for(const a of (p.agreements||[])) out += `<div class="phead-banner info">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
     <span>${a.type==='mirovoe'?'Мировое соглашение':'Соглашение о добровольном исполнении'} ${a.num}: ${a.note}</span></div>`;
@@ -2708,20 +2708,76 @@ function saveDecision(idx){
 /* ---- panel: Особые состояния (типизированы) ---- */
 function panelSpecial(){
   const p=curProc; const rows=[];
-  if(p.pause) rows.push(`<tr><td><span class="pill mid">пауза</span></td><td>${p.pause.type==='restructuring'?'Рассмотрение реструктуризации (п. 19)':'Отсрочка по гарантийному письму (п. 18)'}</td><td>${p.pause.note}</td><td>до ${p.pause.until}</td></tr>`);
+  if(p.pause) rows.push(`<tr><td><span class="pill mid">пауза</span></td><td>${p.pause.type==='restructuring'?'Рассмотрение реструктуризации (п. 19)':'Отсрочка по гарантийному письму (п. 18)'}</td><td>${p.pause.note}</td><td>${p.pause.from?`с ${p.pause.from} `:''}до ${p.pause.until}</td></tr>`);
   for(const a of (p.agreements||[])) rows.push(`<tr><td><span class="pill info">соглашение</span></td><td>${a.type==='mirovoe'?'Мировое соглашение (пп. 22–24)':'Соглашение о добровольном исполнении (п. 37)'} ${a.num}</td><td>${a.note}</td><td>—</td></tr>`);
   if(p.conflict) rows.push(`<tr><td><span class="pill high">конфликт интересов</span></td><td>Гл. 16 (п. 92)</td><td>${p.conflict.basis} · ${p.conflict.status}${p.conflict.curatorSuspended?' · куратор отстранён':''}</td><td>${p.conflict.date}</td></tr>`);
   return `<div class="panel-wrap">
     <p class="section-h">Особые состояния</p>
     <p class="section-note">Типизированные основания: пауза guarantee_letter (п. 18) / restructuring (п. 19) — поведением управляет тип, не метка; два соглашения (мировое пп. 22–24 / добровольное исполнение п. 37, разное утверждение судом); конфликт интересов (гл. 16). Смерть заёмщика — не оверлей, а контур К5. Счётчик дней при паузе не замораживается.</p>
     <div class="gtoolbar">
-      <button class="btn btn-tint btn-sm" onclick="toast('Постановка на паузу — выбор типа (демо)')">Поставить на паузу</button>
+      ${p.pause
+        ? `<button class="btn btn-tint btn-sm" onclick="liftPause()">Снять паузу</button>`
+        : `<button class="btn btn-tint btn-sm" onclick="openPauseModal()">Поставить на паузу</button>`}
       <button class="btn btn-tint btn-sm" onclick="openAgreementModal()">Соглашение</button>
     </div>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Тип</th><th>Основание / пункт</th><th>Примечание</th><th>Срок</th></tr></thead>
       <tbody>${rows.join('')||`<tr><td colspan="4"><div class="cgrid-empty">Особых состояний нет</div></td></tr>`}</tbody>
     </table></div></div>`;
+}
+/* Типы паузы — поведением управляет type, не метка (В-4). guarantee_letter п.18 /
+   restructuring п.19; для реструктуризации шапка сама включает оверлей и подавление. */
+const PAUSE_TYPES=[
+  {label:'Гарантийное письмо (п. 18)', type:'guarantee_letter', point:'18', note:'заёмщик направил гарантийное письмо; отсрочка ≤70 к.д. При нарушении — возобновление безакцепта в 10 р.д. без уведомления заёмщику'},
+  {label:'Рассмотрение реструктуризации (п. 19)', type:'restructuring', point:'19', note:'обращение заёмщика о реструктуризации, письмо в уполномоченный госорган направлено'},
+];
+const ruDate = iso => { if(!iso) return ''; const[y,m,d]=iso.split('-'); return (d&&m&&y)?`${d}.${m}.${y}`:iso; };
+const ruToIso = ru => { if(!ru) return ''; const[d,m,y]=ru.split('.'); return (d&&m&&y)?`${y}-${m}-${d}`:''; };
+const daysBetween = (fromRu,toRu) => { const p=s=>{const[d,m,y]=s.split('.');return new Date(+y,+m-1,+d);}; return Math.round((p(toRu)-p(fromRu))/864e5); };
+function openPauseModal(){
+  if(curProc.pause){ toast('Процесс уже на паузе — сначала снимите текущую','warn'); return; }
+  const host=document.getElementById('modalHost');
+  host.innerHTML=`<div class="modal form">
+    <div class="modal-h"><span class="mt">Постановка на паузу</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
+    <div class="modal-b"><p class="section-note">Тип определяет поведение (В-4): гарантийное письмо (п. 18) — отсрочка ≤70 к.д.; реструктуризация (п. 19) — оверлей на фазу, подавление 181-го дня и категории. Счётчик дней не замораживается.</p><div class="mform">
+      ${sel('Тип паузы',PAUSE_TYPES[0].label,PAUSE_TYPES.map(t=>t.label),'pauseType')}
+      ${dinp('Действует с',ruToIso(TODAY),'pauseFrom')}
+      ${dinp('Действует до','','pauseUntil')}
+      ${inp('Примечание',PAUSE_TYPES[0].note,'pauseNote')}
+    </div></div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="savePause()">Поставить на паузу</button></div>
+  </div>`; host.classList.add('open');
+  host.querySelector('#pauseType').onchange=onPauseTypeChange;
+}
+/* Смена типа подставляет типовое примечание, пока пользователь его не переписал вручную. */
+function onPauseTypeChange(){
+  const meta=PAUSE_TYPES.find(t=>t.label===document.getElementById('pauseType').value);
+  const noteEl=document.getElementById('pauseNote');
+  if(meta && PAUSE_TYPES.some(t=>t.note===noteEl.value)) noteEl.value=meta.note;   // не затирать ручной текст
+}
+function savePause(){
+  const val=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const meta=PAUSE_TYPES.find(t=>t.label===val('pauseType')); if(!meta) return;
+  const from=ruDate(val('pauseFrom'))||TODAY, until=ruDate(val('pauseUntil'));
+  if(!until){ toast('Укажите дату «действует до»','warn'); return; }
+  if(daysBetween(from,until)<0){ toast('«До» не может быть раньше «с»','warn'); return; }
+  if(meta.type==='guarantee_letter' && daysBetween(from,until)>70){ toast('Отсрочка по гарантийному письму ≤70 к.д. (п. 18)','warn'); return; }
+  curProc.pause={ type:meta.type, point:meta.point, from, until, active:true, note:val('pauseNote')||meta.note };
+  const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'—';
+  curProc.history=curProc.history||[];
+  curProc.history.unshift({when:TODAY+' 10:00',what:`Поставлено на паузу: ${meta.label}, с ${from} до ${until}`,who:role});
+  closeModal(); renderPanels();
+  toast('Пауза зарегистрирована (демо)','ok');
+}
+function liftPause(){
+  if(!curProc.pause) return;
+  const meta=PAUSE_TYPES.find(t=>t.type===curProc.pause.type);
+  curProc.pause=null;
+  const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'—';
+  curProc.history=curProc.history||[];
+  curProc.history.unshift({when:TODAY+' 10:00',what:`Пауза снята: ${meta?meta.label:'—'}`,who:role});
+  renderPanels();
+  toast('Пауза снята (демо)','ok');
 }
 
 /* ---- panel: Залог / реализация (запрет внесудебного п. 42 — жёсткий) ---- */
@@ -2979,21 +3035,40 @@ function openAgreementModal(){
   const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Регистрация соглашения</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
-    <div class="modal-b"><div class="mform">
+    <div class="modal-b"><p class="section-note">Мировое соглашение утверждается судом (пп. 22–24); соглашение о добровольном исполнении заключается после вынесения акта и судом не утверждается (п. 37).</p><div class="mform">
       ${sel('Тип','Мировое соглашение',['Мировое соглашение','Соглашение о добровольном исполнении'],'agType')}
-      ${inp('Срок графика, лет','6')}
+      ${inp('Номер соглашения','','agNum')}
+      ${inp('Срок графика, лет','6','agYears')}
     </div><div id="agGate"></div></div>
-    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" id="agSave" onclick="closeModal();toast('Соглашение зарегистрировано (демо)','ok')">Сохранить</button></div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" id="agSave" onclick="saveAgreement()">Сохранить</button></div>
   </div>`; host.classList.add('open');
   const inputs=host.querySelectorAll('input,select'); inputs.forEach(i=>i.oninput=agSync); host.querySelector('#agType').onchange=agSync; agSync();
 }
 function agSync(){
   const type=document.getElementById('agType').value;
-  const years=parseFloat((document.querySelector('#modalHost .mform input')||{}).value)||0;
+  const years=parseFloat((document.getElementById('agYears')||{}).value)||0;
   const box=document.getElementById('agGate'); const save=document.getElementById('agSave');
   if(type==='Мировое соглашение' && years>5){
     box.innerHTML=`<div class="gate-inline">${alertIcon()}<span>Мировое соглашение при истёкших сроках исполнения не превышает 5 лет (п. 24). Указано ${years} — заблокировано.</span></div>`; save.disabled=true;
   } else { box.innerHTML=''; save.disabled=false; }
+}
+function saveAgreement(){
+  const val=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const typeLabel=val('agType'), type=(typeLabel==='Мировое соглашение')?'mirovoe':'dobrovolnoe';
+  const years=parseFloat(val('agYears'))||0;
+  if(type==='mirovoe' && years>5){ toast('Мировое соглашение при истёкших сроках ≤5 лет (п. 24)','warn'); return; }
+  curProc.agreements=curProc.agreements||[];
+  const prefix=(type==='mirovoe')?'МС-':'СДИ-';
+  const num=val('agNum')||prefix+(curProc.agreements.length+1);
+  const note=(type==='mirovoe')
+    ? `утверждается судом · график ${years} г. · условия не льготнее прежних (пп. 22–24)`
+    : `заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)`;
+  curProc.agreements.push({type,num,years,approvedByCourt:type==='mirovoe',notWorse:true,note});
+  const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'—';
+  curProc.history=curProc.history||[];
+  curProc.history.unshift({when:TODAY+' 10:00',what:`Зарегистрировано соглашение: ${typeLabel} ${num}`,who:role});
+  closeModal(); renderPanels();
+  toast('Соглашение зарегистрировано (демо)','ok');
 }
 
 /* ============================================================
