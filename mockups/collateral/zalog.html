@@ -771,10 +771,11 @@ const TREE = [
     { id:"k-prog", label:"Программы и решения", items:[ {label:"Решение правительства"}, {label:"Кредитные программы"} ]},
     { id:"k-borr", label:"Заёмщики", items:[ {label:"Заёмщики"} ]},
     { id:"k-loan", label:"Кредиты и транши", items:[ {label:"Кредиты"}, {label:"Список траншей"} ]} ]},
-  { id:"z", label:"Залоговое обеспечение", open:true, subs:[
+  { id:"z", label:"Обеспечение", open:true, subs:[
     { id:"z-all", headerless:true, items:[
       { label:"Предметы залога", active:true },
       { label:"Залоговые договоры" },
+      { label:"Поручительство" },
       { label:"Мониторинг залога" },
       { label:"Регламентные параметры залога" } ]} ]},
   { id:"debt", label:"Взыскание задолженности", subs:[
@@ -798,6 +799,7 @@ function renderNav(){
 function navClick(l){
   if(l==='Предметы залога'){ reg='items'; showView('list'); renderList(); }
   else if(l==='Залоговые договоры'){ reg='contracts'; showView('list'); renderList(); }
+  else if(l==='Поручительство'){ reg='sureties'; showView('list'); renderList(); }
   else if(l==='Мониторинг залога'){ reg='monitor'; showView('list'); renderList(); }
   else if(l==='Регламентные параметры залога'){ showView('refbook'); renderRefbook(); }
   else toast('Демо-прототип: доступен раздел «Залоговое обеспечение»');
@@ -1766,6 +1768,154 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
 })();
 
 /* ============================================================
+   §14. ПОРУЧИТЕЛЬСТВО (личное обеспечение) — Р-24…Р-27.
+   • Р-24: параллельный слой обеспеченности, в индекс coverage() НЕ входит
+     («величина неизмерима» — солидарная ответственность всем имуществом за весь
+     долг, фиксированной оценочной суммы нет; §14.1, Прил.7 п.2.9).
+   • Р-25: полноценная сущность — ПОРУЧИТЕЛЬ (реестр-якорь) + ДОГОВОР
+     ПОРУЧИТЕЛЬСТВА (юр-обёртка И ребро M:N «поручитель × кредит»). Доли нет.
+   • Р-26: гейты допуска §9.1/9.2 — жёсткие блокираторы «черновик → действует».
+   • Р-27: в этом же модуле обеспечения.
+   Арифметика индекса (coverage/idxPledge/idxGuar/пороги) НЕ читает эти данные.
+   ============================================================ */
+
+/* Ветка 5 (§14.6): кредит, обеспеченный ТОЛЬКО поручительством — ни залога, ни
+   гарантии, ни залогового договора → coverage().index = 0, но есть действующий
+   договор поручительства (слой). Триггер недостаточности НЕ подавляется
+   (Решение 4 отложено, §14.7). Регресс-инвариант Р-24 (index при наличии/отсутствии
+   поручительства идентичен) держится тривиально: coverage() поручительство не читает. */
+CREDITS.push({ id:'К-105', num:'Дог. №105 от 01.07.2026', inn:'20308197700219', amount:120000, status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий' });
+
+/* ПОРУЧИТЕЛЬ (реестр-якорь, ПРЧ-NNN; owned-поля §14.3). Долговременная запись лица,
+   переиспользуется между договорами; держит данные допуска §9.1/9.2.
+     type — «физическое» / «юридическое» (переключает применимость гейтов Г1/Г2/Г4);
+     incomeStable+incomeDoc — Г2; overdueGFH+overdueExternal+externalRef — Г3;
+     married+spouseConsent{notary,regNo,date} — Г4. */
+const GUARANTORS = [
+  // Ветка 1: физлицо, все применимые гейты пройдены → ДП-001 «действует».
+  { id:'ПРЧ-001', type:'физическое', name:'Осмонов Бакыт Турдубекович', pin:'12345198500011', birthDate:'15.03.1985',
+    incomeStable:true, incomeDoc:'Справка о доходах СД-2024/311 от 05.04.2024',
+    overdueGFH:false, overdueExternal:false, externalRef:'Декларация об отсутствии просрочки перед иными ФКУ от 05.04.2024',
+    married:true, spouseConsent:{ notary:'Нотариус Абдылдаева Г.К.', regNo:'НС-2024/0455', date:'08.04.2024' },
+    contacts:'+996 700 112233', address:'г. Бишкек, ул. Чуй, 12, кв. 5',
+    history:[{ when:'05.04.2024 09:30', what:'Поручитель заведён в реестр (физлицо)', who:'Куратор отдела залогового обеспечения' }] },
+  // Ветка 2: юрлицо → применимы только Г3/Г5.
+  { id:'ПРЧ-002', type:'юридическое', name:'ОсОО «Гарант-Инвест»', pin:'02110202010088', birthDate:'',
+    incomeStable:false, incomeDoc:'',
+    overdueGFH:false, overdueExternal:false, externalRef:'Справка об отсутствии задолженности СБ-2025/077 от 30.01.2025',
+    married:false, spouseConsent:null,
+    contacts:'+996 312 900900', address:'г. Бишкек, пр. Манаса, 40',
+    history:[{ when:'30.01.2025 11:00', what:'Поручитель заведён в реестр (юрлицо)', who:'Куратор отдела залогового обеспечения' }] },
+  // Ветка 3: физлицо, возраст > 70 на дату договора → Г1 провален.
+  { id:'ПРЧ-003', type:'физическое', name:'Ибраев Кубанычбек Асанович', pin:'10101195000022', birthDate:'10.01.1950',
+    incomeStable:true, incomeDoc:'Справка о доходах СД-2025/612 от 15.09.2025',
+    overdueGFH:false, overdueExternal:false, externalRef:'Декларация от 15.09.2025',
+    married:false, spouseConsent:null,
+    contacts:'+996 555 445566', address:'г. Ош, ул. Ленина, 3',
+    history:[{ when:'15.09.2025 10:00', what:'Поручитель заведён в реестр (физлицо)', who:'Куратор отдела залогового обеспечения' }] },
+  // Ветка 4: физлицо в браке БЕЗ нотариального согласия супруга → Г4 провален.
+  { id:'ПРЧ-004', type:'физическое', name:'Сыдыкова Айгуль Маратовна', pin:'20308198500219', birthDate:'20.08.1985',
+    incomeStable:true, incomeDoc:'Справка о доходах СД-2025/705 от 01.02.2025',
+    overdueGFH:false, overdueExternal:false, externalRef:'Декларация от 01.02.2025',
+    married:true, spouseConsent:null,
+    contacts:'+996 770 778899', address:'г. Бишкек, мкр. Асанбай, 22-14',
+    history:[{ when:'01.02.2025 14:20', what:'Поручитель заведён в реестр (физлицо)', who:'Куратор отдела залогового обеспечения' }] },
+  // Ветка 5: физлицо-поручитель по кредиту без залога и гарантии (все гейты пройдены).
+  { id:'ПРЧ-005', type:'физическое', name:'Турдубеков Эрлан Замирович', pin:'20308198000455', birthDate:'05.05.1980',
+    incomeStable:true, incomeDoc:'Справка о доходах СД-2026/188 от 28.06.2026',
+    overdueGFH:false, overdueExternal:false, externalRef:'Декларация от 28.06.2026',
+    married:false, spouseConsent:null,
+    contacts:'+996 700 334455', address:'г. Бишкек, ул. Токтогула, 100',
+    history:[{ when:'28.06.2026 09:00', what:'Поручитель заведён в реестр (физлицо)', who:'Куратор отдела залогового обеспечения' }] },
+];
+const guarantor = id => GUARANTORS.find(g=>g.id===id);
+const guarantorIsPerson = g => Boolean(g) && g.type === 'физическое';
+
+/* ДОГОВОР ПОРУЧИТЕЛЬСТВА (ДП-NNN, юр-обёртка + ребро M:N; owned-поля §14.3). Каждый
+   договор связывает ровно одного поручителя с ровно одним кредитом (Прил.7). Доли не
+   несёт — scope солидарный на всю сумму (И-14.2). ЖЦ: черновик → действует → снято. */
+const SURETIES = [
+  // Ветка 1 + M:N (сторона поручителя, кредит №1): ПРЧ-001 → К-56.
+  { id:'ДП-001', no:'ДП-2024/56-1', date:'10.04.2024', guarantor:'ПРЧ-001', credit:'К-56',
+    notary:{ name:'Нотариус Абдылдаева Г.К.', regNo:'НР-2024/1190', date:'10.04.2024' },
+    form:'типовая, Приложение 7', status:'действует', scope:'солидарно на всю сумму обязательства',
+    history:[{ when:'10.04.2024 14:10', what:'Договор поручительства заключён и нотариально удостоверён; допуск §9.1/9.2 пройден → действует', who:'Куратор отдела залогового обеспечения' }] },
+  // Ветка 2: юрлицо-поручитель ПРЧ-002 → К-88.
+  { id:'ДП-002', no:'ДП-2025/88-1', date:'03.02.2025', guarantor:'ПРЧ-002', credit:'К-88',
+    notary:{ name:'Нотариус Осмоналиев Т.Б.', regNo:'НР-2025/0336', date:'03.02.2025' },
+    form:'типовая, Приложение 7', status:'действует', scope:'солидарно на всю сумму обязательства',
+    history:[{ when:'03.02.2025 10:50', what:'Договор поручительства (юрлицо) заключён и нотариально удостоверён; Г3/Г5 пройдены → действует', who:'Куратор отдела залогового обеспечения' }] },
+  // Ветка 3: физлицо, возраст > 70 → Г1 провален, застревает в черновике.
+  { id:'ДП-003', no:'ДП-2025/77-1', date:'18.09.2025', guarantor:'ПРЧ-003', credit:'К-77',
+    notary:{ name:'Нотариус Абдылдаева Г.К.', regNo:'НР-2025/2044', date:'18.09.2025' },
+    form:'типовая, Приложение 7', status:'черновик', scope:'солидарно на всю сумму обязательства',
+    history:[{ when:'18.09.2025 12:00', what:'Договор поручительства создан (черновик). Перевод в «действует» заблокирован: поручитель вне возрастного диапазона §9.1 (Г1)', who:'Куратор отдела залогового обеспечения' }] },
+  // Ветка 4 + M:N (сторона кредита: К-88 получает второго поручителя): ПРЧ-004 → К-88.
+  { id:'ДП-004', no:'ДП-2025/88-2', date:'05.02.2025', guarantor:'ПРЧ-004', credit:'К-88',
+    notary:{ name:'Нотариус Осмоналиев Т.Б.', regNo:'НР-2025/0340', date:'05.02.2025' },
+    form:'типовая, Приложение 7', status:'черновик', scope:'солидарно на всю сумму обязательства',
+    history:[{ when:'05.02.2025 15:30', what:'Договор поручительства создан (черновик). Перевод в «действует» заблокирован: нет нотариально удостоверенного согласия супруга §9.2 (Г4)', who:'Куратор отдела залогового обеспечения' }] },
+  // Ветка 5: кредит К-105 обеспечен ТОЛЬКО поручительством (нет залога/гарантии).
+  { id:'ДП-005', no:'ДП-2026/105-1', date:'01.07.2026', guarantor:'ПРЧ-005', credit:'К-105',
+    notary:{ name:'Нотариус Осмоналиев Т.Б.', regNo:'НР-2026/0999', date:'01.07.2026' },
+    form:'типовая, Приложение 7', status:'действует', scope:'солидарно на всю сумму обязательства',
+    history:[{ when:'01.07.2026 10:15', what:'Договор поручительства заключён и нотариально удостоверён; допуск пройден → действует. Кредит К-105 обеспечен только поручительством (index=0, слой параллельный)', who:'Куратор отдела залогового обеспечения' }] },
+  // M:N (сторона поручителя, кредит №2): ПРЧ-001 → К-77 (второй кредит того же поручителя).
+  { id:'ДП-006', no:'ДП-2026/77-2', date:'20.06.2026', guarantor:'ПРЧ-001', credit:'К-77',
+    notary:{ name:'Нотариус Абдылдаева Г.К.', regNo:'НР-2026/0880', date:'20.06.2026' },
+    form:'типовая, Приложение 7', status:'действует', scope:'солидарно на всю сумму обязательства',
+    history:[{ when:'20.06.2026 11:40', what:'Договор поручительства заключён и нотариально удостоверён; допуск пройден → действует. Тот же поручитель ПРЧ-001 по второму кредиту (M:N)', who:'Куратор отдела залогового обеспечения' }] },
+];
+const surety = id => SURETIES.find(s=>s.id===id);
+/* Ребро M:N читается с двух сторон. Аксессоры возвращают ВСЕ договоры (любой статус);
+   слой обеспеченности фильтрует по «действует» отдельно (activeSuretiesOfCredit). */
+const suretiesOfCredit    = creditId => SURETIES.filter(s=>s.credit===creditId);
+const suretiesOfGuarantor = gId => SURETIES.filter(s=>s.guarantor===gId);
+const activeSuretiesOfCredit = creditId => suretiesOfCredit(creditId).filter(s=>s.status==='действует');
+
+/* Возраст на дату (Г1). Единый парсер дат — d2n (как везде в файле). */
+function ageAt(birth, at){
+  const b = d2n(birth), a = d2n(at);
+  if(!birth || !at || isNaN(b) || isNaN(a)) return null;
+  let age = a.getFullYear() - b.getFullYear();
+  const m = a.getMonth() - b.getMonth();
+  if(m < 0 || (m === 0 && a.getDate() < b.getDate())) age--;
+  return age;
+}
+const spouseConsentFilled = sc => Boolean(sc && sc.notary && sc.regNo && sc.date);
+const notaryFilled        = n  => Boolean(n && n.name && n.regNo && n.date);
+
+/* ГЕЙТ ДОПУСКА §9.1/§9.2 (Р-26) → { ok, fails:[{code,text}] }. Тип лица поручителя
+   переключает применимость: для юрлица Г1/Г2/Г4 неприменимы, действуют Г3/Г5.
+   Пройденный гейт (ok) — жёсткое условие перевода «черновик → действует» (§14.4). */
+function guarantorGate(dpId){
+  const s = surety(dpId); if(!s) return { ok:false, fails:[{ code:'—', text:'Договор поручительства не найден' }] };
+  const g = guarantor(s.guarantor); if(!g) return { ok:false, fails:[{ code:'И-14.1', text:'Поручитель не найден (нарушен инвариант И-14.1)' }] };
+  const person = guarantorIsPerson(g), fails = [];
+  if(person){
+    const age = ageAt(g.birthDate, s.date);
+    if(age === null || age < 18 || age > 70)
+      fails.push({ code:'Г1', text:`Поручитель вне возрастного диапазона §9.1 (18–70 лет): ${age === null ? 'дата рождения не указана' : age + ' лет на дату договора'}` });
+    if(!(g.incomeStable && g.incomeDoc))
+      fails.push({ code:'Г2', text:'Не подтверждён стабильный ежемесячный доход §9.1 (нужен документ-подтверждение)' });
+  }
+  if(!(!g.overdueGFH && !g.overdueExternal))
+    fails.push({ code:'Г3', text:`Есть просроченная задолженность §9.1${g.overdueGFH ? ' (перед ГФХ)' : ''}${g.overdueExternal ? ' (перед иными ФКУ)' : ''}` });
+  if(person && g.married && !spouseConsentFilled(g.spouseConsent))
+    fails.push({ code:'Г4', text:'Нет нотариально удостоверенного согласия супруга(и) §9.2' });
+  if(!notaryFilled(s.notary))
+    fails.push({ code:'Г5', text:'Договор поручительства не удостоверён нотариально §9.2 (нет реквизитов)' });
+  return { ok: fails.length === 0, fails };
+}
+
+/* ЖЦ договора поручительства (§14.4). Статусы объявлены в перечне; «предъявлено» —
+   hook под будущую связку со взысканием (Решение 4 отложено, §14.7), механики нет. */
+const SURETY_STATUSES = ['черновик','действует','снято','предъявлено'];
+/* И-14.3 (Прил.7 п.4.2): снятие договора допускается ТОЛЬКО при полном погашении
+   обеспечиваемого кредита. Досрочное снятие при непогашенном кредите запрещено. */
+const suretyReleaseAllowed = dpId => { const s = surety(dpId); return Boolean(s) && (credit(s.credit)||{}).status === 'Погашен'; };
+
+/* ============================================================
    ВЫЧИСЛЯЕМЫЙ СЛОЙ — здесь живёт ВСЯ арифметика залога.
    Ничего из этого не хранится в данных: залоговая, отнесено, доступно,
    покрытие, статус предмета, просрочка контроля, триггеры — производные.
@@ -2254,11 +2404,12 @@ let reg = 'items', selected = null, cur = null, sortKey = null, sortDir = 1;
    Вид хранится ОТДЕЛЬНО на каждый реестр (ключ zalog.listView). «monitor» — лента
    триггеров, карточек не имеет: тумблер на ней скрыт, вид всегда таблица. ---- */
 const LIST_VIEW_KEY = 'zalog.listView';
-const CARD_REGS = ['items','contracts'];
+const CARD_REGS = ['items','contracts','sureties'];
 function loadListView(){
   try{ const o = JSON.parse(localStorage.getItem(LIST_VIEW_KEY)||'{}');
-    return { items: o.items==='cards'?'cards':'table', contracts: o.contracts==='cards'?'cards':'table' };
-  }catch(e){ return { items:'table', contracts:'table' }; }
+    return { items: o.items==='cards'?'cards':'table', contracts: o.contracts==='cards'?'cards':'table',
+             sureties: o.sureties==='cards'?'cards':'table' };
+  }catch(e){ return { items:'table', contracts:'table', sureties:'table' }; }
 }
 let listView = loadListView();
 const regView = () => CARD_REGS.includes(reg) ? listView[reg] : 'table';
@@ -2308,12 +2459,20 @@ const FILTERS = {
     { key:'type', label:'Тип =',          type:'select' },
     { key:'obj',  label:'Объект содержит', type:'text'   },
   ],
+  sureties: [
+    { key:'name',   label:'Поручитель содержит', type:'text'   },
+    { key:'ptype',  label:'Тип лица =',          type:'select' },
+    { key:'credit', label:'Кредит содержит',     type:'text'   },
+    { key:'status', label:'Статус ЖЦ =',         type:'select' },
+    { key:'gate',   label:'Допуск §9.1/9.2 =',   type:'select' },
+  ],
 };
-const activeFilter = { items:{}, contracts:{}, monitor:{} };
+const activeFilter = { items:{}, contracts:{}, monitor:{}, sureties:{} };
 let filterPanelReg = null;
 
 function regRows(){
-  return reg==='items' ? rowsItems() : reg==='contracts' ? rowsContracts() : rowsMonitor();
+  return reg==='items' ? rowsItems() : reg==='contracts' ? rowsContracts()
+       : reg==='sureties' ? rowsSureties() : rowsMonitor();
 }
 function filterRows(rows){
   const f = activeFilter[reg] || {};
@@ -2353,6 +2512,7 @@ const HEADS = {
   items:      ['№','Вид залога','Наименование','Залогодатель','Залоговая','Статус','Контроль'],
   contracts:  ['№','Договор','Заёмщик','Статус','Предметов','Кредитов','Мин. покрытие','Доп. согл.'],
   monitor:    ['Критичность','Тип','Объект','Описание','Что делать'],
+  sureties:   ['№','Договор','Поручитель','Тип лица','Кредит','Статус ЖЦ','Допуск §9.1/9.2'],
 };
 /* Ширины столбцов (table-layout:fixed). '' = гибкая колонка — забирает остаток
    ширины (обычно текстовое «Наименование»/«Заёмщик»/«Описание»). */
@@ -2360,6 +2520,7 @@ const WIDTHS = {
   items:      ['72px','200px','','220px','195px','180px','170px'],
   contracts:  ['72px','150px','','150px','110px','100px','130px','100px'],
   monitor:    ['110px','180px','220px','',''],
+  sureties:   ['80px','140px','','130px','90px','130px','230px'],
 };
 function minCoverage(c){
   const cs = ctx(isActive(c) ? null : c);
@@ -2412,6 +2573,38 @@ function rowsMonitor(){
     sort:{ crit:t.crit==='high'?0:1, type:t.type, obj:t.objLbl },
     cells:[ `<span class="pill ${t.crit==='high'?'high':'mid'}">${t.crit==='high'?'высокая':'средняя'}</span>`,
       esc(t.type), esc(t.objLbl), esc(t.text), esc(t.act) ] }));
+}
+/* ---- реестр «Поручительство» (§14, Р-25). Строка = договор поручительства (ребро M:N).
+   Индикатор гейта §9.1/9.2 — вычисляемый (guarantorGate), не хранимый. ---- */
+const SUR_ST_CLS = { 'черновик':'neutral', 'действует':'low', 'снято':'neutral', 'предъявлено':'high' };
+const suretyStatusPill = s => `<span class="pill ${SUR_ST_CLS[s.status]||'neutral'}">${s.status}</span>`;
+function gatePill(dpId){
+  const g = guarantorGate(dpId);
+  return g.ok
+    ? `<span class="pill low" title="Допуск §9.1/9.2 пройден">допущен</span>`
+    : `<span class="pill high" title="${esc(g.fails.map(f=>f.code+': '+f.text).join(' · '))}">${g.fails.map(f=>f.code).join(', ')}: не пройден</span>`;
+}
+function rowsSureties(){
+  return SURETIES.map(s => {
+    const g = guarantor(s.guarantor) || {}, gate = guarantorGate(s.id);
+    return { id:s.id, sort:{ id:s.id, no:s.no, name:g.name||s.guarantor, ptype:g.type||'', credit:s.credit,
+        status:s.status, gate: gate.ok ? 'допущен' : 'не пройден' },
+      cells:[ s.id, esc(s.no||'—'), esc(g.name||s.guarantor), esc(g.type||'—'), esc(s.credit),
+        suretyStatusPill(s), gatePill(s.id) ] };
+  });
+}
+/* СЛОЙ ОБЕСПЕЧЕННОСТИ (Р-24) — информационный, вне индекса coverage(). Пометка «иная
+   форма» для поручительства несёт ярлык «параллельный слой, в индекс не входит»
+   (у гарантии — «учтена в индексе (Р-11)»). */
+function suretyMarkPill(creditId){
+  const act = activeSuretiesOfCredit(creditId);
+  return act.length ? ` <span class="pill info" title="поручительство — параллельный слой, в индекс не входит (Р-24)">иная форма: поручительство</span>` : '';
+}
+function suretyLayerLine(creditId){
+  const act = activeSuretiesOfCredit(creditId);
+  if(!act.length) return '';
+  const list = act.map(s=>{ const g = guarantor(s.guarantor)||{}; return `${s.guarantor} · ${g.name||''}`; }).join('; ');
+  return `Поручительство по ${creditId}: ${act.length} действующ${act.length===1?'ий':'их'} (${list}) — солидарно на всю сумму обязательства.`;
 }
 
 /* ---- Р-23 (ПОР п.12 п.п.2): панель «Факторы для комитета по администрированию бюджетных
@@ -2493,17 +2686,42 @@ function contractCard(c){
     </div>
   </div>`;
 }
+const AVA_SUR = { 'черновик':'#5B6B7E', 'действует':'#158443', 'снято':'#8A97A6', 'предъявлено':'#B4232B' };
+const SUR_ICON = '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>';
+function suretyCard(s){
+  const g = guarantor(s.guarantor) || {}, gate = guarantorGate(s.id);
+  const gateBadge = gate.ok ? '<span class="pill low">допущен</span>'
+    : `<span class="pill high" title="${esc(gate.fails.map(f=>f.code+': '+f.text).join(' · '))}">${gate.fails.map(f=>f.code).join(', ')}: не пройден</span>`;
+  return `<div class="pcard ${s.id===selected?'sel':''}" onclick="selectRow('${s.id}')" ondblclick="openSelected()">
+    <div class="pcard-head">
+      <div class="pcard-ava" style="background:${AVA_SUR[s.status]||'#5B6B7E'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SUR_ICON}</svg></div>
+      <div class="pcard-title">
+        <div class="pcard-name" title="${esc(g.name||s.guarantor)}">${esc(g.name||s.guarantor)}</div>
+        <div class="pcard-sub">${s.id} · ${esc(s.no||'черновик')} · ${esc(g.type||'—')}</div>
+      </div>
+      <span class="pcard-chev">${_chev}</span>
+    </div>
+    <div class="pcard-badges">${suretyStatusPill(s)} ${gateBadge}</div>
+    <div class="pcard-fields">
+      ${cardField('Кредит', esc(s.credit))}
+      ${cardField('Объём', 'солидарно на всю сумму', true)}
+    </div>
+  </div>`;
+}
 function renderCards(rows){
   const el = document.getElementById('cardsWrap');
   if(!rows.length){ el.innerHTML = `<div class="cards-empty">Записей нет</div>`; return; }
-  const card = reg==='items' ? (r=>itemCard(item(r.id))) : (r=>contractCard(contract(r.id)));
+  const card = reg==='items' ? (r=>itemCard(item(r.id)))
+             : reg==='sureties' ? (r=>suretyCard(surety(r.id)))
+             : (r=>contractCard(contract(r.id)));
   el.innerHTML = `<div class="cards-grid">${rows.map(card).join('')}</div>`;
 }
 function renderList(){
-  document.getElementById('btnNewLbl').textContent = 'Новый залоговый договор';
   /* Предмет рождается только на карточке договора → в реестре «Предметы» кнопки создания нет
-     (read-only проекция). Кнопка есть лишь на списке договоров. */
-  document.getElementById('btnNew').style.display = (reg==='contracts') ? 'inline-flex' : 'none';
+     (read-only проекция). Авторитетная кнопка «Создать» живёт в реестрах договоров и
+     поручительств (единственный владелец); в карточке кредита — контекстные ярлыки-ссылки. */
+  document.getElementById('btnNewLbl').textContent = reg==='sureties' ? 'Новый договор поручительства' : 'Новый залоговый договор';
+  document.getElementById('btnNew').style.display = (reg==='contracts' || reg==='sureties') ? 'inline-flex' : 'none';
 
   if(filterPanelReg !== reg) renderFilterPanel();
 
@@ -2522,7 +2740,8 @@ function renderList(){
     <tr data-id="${r.id}" onclick="selectRow('${r.id}')" ondblclick="openSelected()">
       ${r.cells.map(c=>`<td>${c}</td>`).join('')}
     </tr>`).join('') || `<tr><td colspan="${heads.length}"><div class="cgrid-empty">Записей нет</div></td></tr>`;
-  const noun = reg==='items' ? 'предметов' : reg==='contracts' ? 'договоров' : 'активных триггеров';
+  const noun = reg==='items' ? 'предметов' : reg==='contracts' ? 'договоров'
+             : reg==='sureties' ? 'договоров поручительства' : 'активных триггеров';
   const active = Object.keys(activeFilter[reg]||{}).length;
   document.getElementById('pagerCount').textContent = rows.length+' '+noun+(active ? ' (фильтр)' : '');
   document.getElementById('jfSummary').textContent = active ? `Фильтр · ${active} активно` : 'Фильтр';
@@ -2544,28 +2763,37 @@ function openSelected(){
   if(!selected) return;
   if(item(selected)) openCard('item', selected);
   else if(contract(selected)) openCard('contract', selected);
+  else if(surety(selected)) openCard('surety', selected);
   else if(credit(selected)) toast('Переход в карточку кредита '+credit(selected).num+' (модуль «Кредиты»)');
 }
-/* Кнопка списка создаёт только договор. Предмет рождается на карточке договора (openNewItem с targetCid). */
-function onNew(){ if(!canCurate()) return denyEdit(); if(reg==='contracts') openNewContract(); }
+/* Авторитетная кнопка «Создать»: договор залога (реестр договоров) либо договор
+   поручительства (реестр поручительств). Предмет рождается на карточке договора. */
+function onNew(){ if(!canCurate()) return denyEdit();
+  if(reg==='contracts') openNewContract();
+  else if(reg==='sureties') openNewSurety();
+}
 
 /* ============================================================
    КАРТОЧКИ — вкладки и панели
    ============================================================ */
 const TABS_ITEM = ['Основное','Стоимость и переоценки','Запрет на отчуждение','Обследования','Обеспечиваемые кредиты','Документы','История'];
 const TABS_CTR  = ['Общая информация','Предметы залога','Обеспеченность кредитов','Доп соглашения','Документы','История'];
+const TABS_SUR  = ['Основное','Допуск §9.1/9.2','История'];
 let curTab = 0;
 
 function openCard(type, id, tab){
   cur = { type, id }; curTab = tab ?? 0;
-  const tabs = type==='item' ? TABS_ITEM : TABS_CTR;
+  const tabs = type==='item' ? TABS_ITEM : type==='surety' ? TABS_SUR : TABS_CTR;
   document.getElementById('detailTabbar').innerHTML =
     tabs.map((t,i)=>`<button class="dtab${i===curTab?' active':''}" onclick="openCard('${type}','${id}',${i})">${t}</button>`).join('');
-  const panels = type==='item' ? itemPanels(item(id)) : ctrPanels(contract(id));
+  const panels = type==='item' ? itemPanels(item(id)) : type==='surety' ? surPanels(surety(id)) : ctrPanels(contract(id));
   document.getElementById('detailPanels').innerHTML = panels[curTab];
-  document.getElementById('detailFooter').innerHTML = type==='item' ? itemFooter(item(id)) : ctrFooter(contract(id));
+  document.getElementById('detailFooter').innerHTML = type==='item' ? itemFooter(item(id)) : type==='surety' ? surFooter(surety(id)) : ctrFooter(contract(id));
   document.getElementById('crumbTitle').textContent = type==='item'
-    ? `${id} · ${item(id).name}` : `${id} · ${contract(id).no || 'черновик'} · ${clientName(contract(id).inn)}`;
+    ? `${id} · ${item(id).name}`
+    : type==='surety'
+    ? `${id} · ${surety(id).no || 'черновик'} · ${(guarantor(surety(id).guarantor)||{}).name || surety(id).guarantor}`
+    : `${id} · ${contract(id).no || 'черновик'} · ${clientName(contract(id).inn)}`;
   showView('detail');
 }
 const kpi = (l,v,src) => `<div class="dim"><div class="dl">${l}</div><div class="dv">${v}</div><div class="src">${src}</div></div>`;
@@ -2992,7 +3220,7 @@ function ctrPanels(c){
                              : `<span class="diff-up" title="обеспечение выше требуемого">+${fmt(-deficit)}</span>`);
         const otherNote = r.other ? (r.other.type==='банковская гарантия' ? 'учтена в индексе обеспеченности (Р-11)' : 'вне залогового гейта, справочно') : '';
         return `<tr>
-        <td>${id}${r.other?` <span class="pill info" title="${esc(r.other.type)} — ${otherNote}">иная форма</span>`:''}</td><td>${esc(cr.num)}</td>
+        <td>${id}${r.other?` <span class="pill info" title="${esc(r.other.type)} — ${otherNote}">иная форма</span>`:''}${suretyMarkPill(id)}</td><td>${esc(cr.num)}</td>
         <td class="numcell">${fmt(cr.amount)}</td>
         <td class="numcell">${r.other ? '<span class="pill neutral">—</span>' : `${pct(r.req)} · ${fmt(need)}`}</td>
         <td class="numcell">${fmt(r.sum)}</td>
@@ -3008,6 +3236,8 @@ function ctrPanels(c){
       : `<div class="flagline" style="margin-top:14px"><span>Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)} (порог ${pct(r.req)}${r.liqApplies&&!r.liqOk?`, доля ликвида ${pct(r.liqShare)}<80%`:''})`).join(', ')}. ${isActive(c)
         ? 'Триггер «недостаточность обеспечения» во взыскание.'
         : 'Регистрация заблокирована до решения комиссии.'}</span></div>`}
+    ${(()=>{ const lines = c.credits.map(id=>suretyLayerLine(id)).filter(Boolean);
+      return lines.length ? `<div class="infoline" style="margin-top:14px"><span><b>Слой поручительства (Р-24, вне индекса):</b><br>${lines.map(esc).join('<br>')}</span></div>` : ''; })()}
     </div>`;
 
   const p3 = `<div class="panel-wrap">
@@ -3051,6 +3281,216 @@ function ctrFooter(c){
 }
 
 /* ============================================================
+   КАРТОЧКА ДОГОВОРА ПОРУЧИТЕЛЬСТВА (§14, Р-25/Р-26). Вкладки TABS_SUR:
+   «Основное» / «Допуск §9.1/9.2» / «История». Форма — «типовая, Приложение 7».
+   ============================================================ */
+/* Метаданные гейтов допуска (Р-26). person — применим только к физлицу;
+   married — дополнительно только когда физлицо в браке; иначе применим всегда. */
+const GATE_DEFS = [
+  { code:'Г1', norm:'§9.1', text:'Возраст поручителя-физлица ∈ [18; 70] на дату договора', person:true },
+  { code:'Г2', norm:'§9.1', text:'Подтверждённый стабильный ежемесячный доход (документ-подтверждение)', person:true },
+  { code:'Г3', norm:'§9.1', text:'Отсутствие просроченной задолженности: перед ГФХ и иными ФКУ', both:true },
+  { code:'Г4', norm:'§9.2', text:'Нотариально удостоверенное согласие супруга(и)', person:true, married:true },
+  { code:'Г5', norm:'§9.2', text:'Нотариальное удостоверение самого договора поручительства', both:true },
+];
+function gateApplies(def, g){
+  if(def.both) return true;
+  if(!guarantorIsPerson(g)) return false;      // Г1/Г2/Г4 — только физлицо
+  if(def.married) return Boolean(g.married);    // Г4 — только физлицо в браке
+  return true;
+}
+function surPanels(s){
+  const g = guarantor(s.guarantor) || {}, cr = credit(s.credit) || {}, gate = guarantorGate(s.id);
+  const failByCode = {}; gate.fails.forEach(f=>failByCode[f.code]=f.text);
+  const gateBadge = gate.ok ? '<span class="pill low">допущен §9.1/9.2</span>'
+    : `<span class="pill high">не пройден: ${gate.fails.map(f=>f.code).join(', ')}</span>`;
+  const head = `<div class="phead">
+    <div class="phead-top">
+      <div class="phead-name"><span class="nm">${esc(g.name||s.guarantor)}</span>
+        <div class="phead-sub" style="width:100%">${s.id} · ${esc(s.no||'черновик')} · ${esc(g.type||'—')} · кредит ${esc(s.credit)}</div>
+      </div>
+      <span class="phead-owner">${suretyStatusPill(s)}</span>
+    </div>
+    <div class="phead-dims">
+      ${kpi('Статус ЖЦ', s.status, 'договор поручительства (§14.4)')}
+      ${kpi('Допуск §9.1/9.2', gateBadge, 'гейт Р-26 (вычисляется)')}
+      ${kpi('Объём ответственности', 'солидарно на всю сумму', 'Прил.7 п.2.1 — доли нет (И-14.2)')}
+    </div></div>`;
+
+  const p0 = `<div class="panel-wrap">${head}<div class="panel-card">
+    <p class="section-h" style="font-size:16px;margin-top:0">Договор поручительства</p>
+    <div class="f2">
+      ${ro('Номер договора', s.no || '—')}
+      ${ro('Дата договора', s.date || '—')}
+      ${ro('Форма', s.form || '—')}
+      ${ro('Объём (scope)', s.scope || '—')}
+    </div>
+    <p class="section-h" style="font-size:16px;margin-top:18px">Поручитель</p>
+    <div class="f2">
+      ${ro('Идентификатор', s.guarantor)}
+      ${ro('Тип лица', g.type || '—')}
+      ${ro('ФИО / наименование', g.name || '—')}
+      ${ro('Персональный номер (ПИН/ИНН)', g.pin || '—')}
+      ${guarantorIsPerson(g) ? ro('Дата рождения', g.birthDate || '—') : ''}
+      ${ro('Контакты', g.contacts || '—')}
+      ${ro('Адрес', g.address || '—')}
+    </div>
+    <p class="section-h" style="font-size:16px;margin-top:18px">Обеспечиваемый кредит</p>
+    <div class="f2">
+      ${ro('Кредит', s.credit + (cr.num ? ' · '+cr.num : ''))}
+      ${ro('Заёмщик', cr.inn ? clientName(cr.inn)+' · ИНН '+cr.inn : '—')}
+      ${ro('Сумма кредита', cr.amount!=null ? fmt(cr.amount) : '—')}
+      ${ro('Статус кредита', cr.status || '—')}
+    </div>
+    <p class="section-h" style="font-size:16px;margin-top:18px">Нотариальное удостоверение (Г5, §9.2)</p>
+    <div class="f2">
+      ${ro('Нотариус', (s.notary||{}).name || '—')}
+      ${ro('Реестровый №', (s.notary||{}).regNo || '—')}
+      ${ro('Дата удостоверения', (s.notary||{}).date || '—')}
+    </div>
+    <div class="infoline" style="margin-top:14px"><span>Поручительство — <b>параллельный слой обеспеченности</b>: в индекс покрытия <code>coverage().index</code> не входит (Р-24, §14.1). Солидарная ответственность всем имуществом за весь долг, без фиксированной оценочной суммы.</span></div>
+    </div></div>`;
+
+  const rows = GATE_DEFS.map(def=>{
+    const applies = gateApplies(def, g);
+    const failed = applies && (def.code in failByCode);
+    const stCell = !applies ? '<span class="pill neutral">неприменимо</span>'
+      : failed ? '<span class="pill high">не пройден</span>' : '<span class="pill low">пройден</span>';
+    const why = !applies ? (guarantorIsPerson(g) ? '—' : 'юрлицо — гейт не применяется')
+      : failed ? esc(failByCode[def.code]) : 'условие выполнено';
+    return `<tr><td>${def.code}</td><td>${def.norm}</td><td>${esc(def.text)}</td><td>${stCell}</td><td>${why}</td></tr>`;
+  }).join('');
+  const p1 = `<div class="panel-wrap"><div class="panel-card">
+    <p class="section-h" style="font-size:16px;margin-top:0">Гейты допуска §9.1 / §9.2 (Р-26)</p>
+    <div class="infoline" style="margin-bottom:12px"><span>Тип лица «${esc(g.type||'—')}» переключает применимость: для юрлица Г1/Г2/Г4 неприменимы, действуют Г3/Г5. Перевод «черновик → действует» разрешён только при пройденных применимых гейтах.</span></div>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th style="width:56px">Гейт</th><th style="width:64px">Норма</th><th>Условие</th><th style="width:130px">Статус</th><th>Причина / примечание</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    ${gate.ok
+      ? `<div class="okline" style="margin-top:14px"><span>Все применимые гейты §9.1/9.2 пройдены — договор допустим к переводу в «действует».</span></div>`
+      : `<div class="flagline" style="margin-top:14px"><span>Допуск не пройден: ${gate.fails.map(f=>f.code+' — '+esc(f.text)).join('; ')}. Договор остаётся в статусе «черновик» и в слое обеспеченности не участвует.</span></div>`}
+    </div></div>`;
+
+  const p2 = `<div class="panel-wrap"><div class="cgrid-wrap"><table class="cgrid">
+    <thead><tr><th style="width:150px">Когда</th><th>Событие</th><th style="width:230px">Кто</th></tr></thead>
+    <tbody>${(s.history||[]).map(h=>`<tr><td>${esc(h.when)}</td><td>${esc(h.what)}</td><td>${esc(h.who)}</td></tr>`).join('')
+      || `<tr><td colspan="3"><div class="cgrid-empty">История пуста</div></td></tr>`}</tbody>
+  </table></div></div>`;
+
+  return [p0, p1, p2];
+}
+function surFooter(s){
+  const back = `<button class="btn btn-secondary" onclick="showView('list')">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Закрыть</button><div style="flex:1"></div>`;
+  if(!canCurate()) return back;
+  if(s.status==='черновик')
+    return back + `<button class="btn btn-primary" onclick="activateSurety('${s.id}')">Перевести в «действует»</button>`;
+  if(s.status==='действует')
+    return back + `<button class="btn btn-tint" onclick="releaseSurety('${s.id}')">Снять (при погашении)</button>`;
+  return back;
+}
+
+/* ЖЦ-действия (§14.4). Мутация → запись в history → перерисовка. Гейтит canCurate()
+   (куратор / заведующий отделом залогового обеспечения, ПОЛ §9.1). */
+function activateSurety(dpId){
+  if(!canCurate()) return denyEdit();
+  const s = surety(dpId); if(!s) return;
+  if(s.status !== 'черновик') return toast('Перевод возможен только из статуса «черновик»','warn');
+  const gate = guarantorGate(dpId);
+  if(!gate.ok) return toast('Допуск §9.1/9.2 не пройден: '+gate.fails.map(f=>f.code).join(', ')+' — перевод заблокирован (Р-26)','warn');
+  s.status = 'действует';
+  hist(s, 'Допуск §9.1/9.2 подтверждён, договор нотариально удостоверён → переведён в «действует» (§14.4)');
+  toast(dpId+' переведён в «действует»','ok'); refresh();
+}
+function releaseSurety(dpId){
+  if(!canCurate()) return denyEdit();
+  const s = surety(dpId); if(!s) return;
+  if(s.status !== 'действует') return toast('Снять можно только действующий договор','warn');
+  if(!suretyReleaseAllowed(dpId))
+    return toast('Досрочное снятие запрещено (Прил.7 п.4.2, И-14.3): снятие допускается только при полном погашении кредита '+s.credit,'warn');
+  s.status = 'снято';
+  hist(s, 'Обеспеченный кредит '+s.credit+' полностью погашён → поручительство снято (И-14.3, Прил.7 п.4.2)');
+  toast(dpId+' снят (кредит погашен)','ok'); refresh();
+}
+
+/* ---------- СОЗДАНИЕ ДОГОВОРА ПОРУЧИТЕЛЬСТВА (авторитетная кнопка реестра) ---------- */
+const YN = [{v:'нет',t:'Нет'},{v:'да',t:'Да'}];
+const isYes = id => val(id) === 'да';
+const guarantorOpts = () => GUARANTORS.map(g=>({ v:g.id, t:`${g.id} · ${g.name} · ${g.type}` }));
+function surCreditOpts(){ return CREDITS.filter(c=>c.status==='Действующий').map(c=>({ v:c.id, t:`${c.id} · ${c.num} · сумма ${fmt(c.amount)}` })); }
+function openNewSurety(){
+  if(!canCurate()) return denyEdit();
+  modal(`<div class="modal form">${mhead('Новый договор поручительства (Приложение 7)')}
+    <div class="modal-b"><div class="mform">
+      <div class="field req col-span"><span class="flabel">Поручитель</span>
+        <div class="control grey" style="display:flex;gap:8px;align-items:center">
+          <select id="nsGuar" style="flex:1">${guarantorOpts().map(o=>`<option value="${esc(o.v)}">${esc(o.t)}</option>`).join('')}</select>
+          <button class="btn btn-tint btn-sm" type="button" onclick="openNewGuarantor()">+ Новый поручитель</button>
+        </div></div>
+      ${fsel('nsCredit','Обеспечиваемый кредит', surCreditOpts(), null, true)}
+      ${fin('nsNo','Номер договора','')}
+      ${fdate('nsDate','Дата договора', TODAY)}
+      ${fin('nsNotaryName','Нотариус','')}
+      ${fin('nsNotaryNo','Реестровый № нотариуса','')}
+      ${fdate('nsNotaryDate','Дата удостоверения', TODAY)}
+    </div>
+    <div class="infoline" style="margin:2px 14px 0"><span>Договор создаётся в статусе «черновик». Перевод в «действует» — на карточке, после прохождения гейтов §9.1/9.2 (Р-26).</span></div>
+    </div>${mfoot('Создать черновик','saveNewSurety()')}</div>`);
+}
+function saveNewSurety(){
+  const gId = val('nsGuar'), creditId = val('nsCredit');
+  if(!gId || !guarantor(gId)) return toast('Выберите поручителя','warn');
+  if(!creditId) return toast('Выберите кредит','warn');
+  const s = { id: nextId(SURETIES,'ДП-'), no: val('nsNo').trim(), date: iso2d(val('nsDate')),
+    guarantor: gId, credit: creditId,
+    notary:{ name: val('nsNotaryName').trim(), regNo: val('nsNotaryNo').trim(), date: iso2d(val('nsNotaryDate')) },
+    form:'типовая, Приложение 7', status:'черновик', scope:'солидарно на всю сумму обязательства', history:[] };
+  hist(s, `Договор поручительства создан (черновик). Поручитель ${gId}, кредит ${creditId}`);
+  SURETIES.push(s); closeModal(); toast('Черновик '+s.id+' создан','ok');
+  reg='sureties'; openCard('surety', s.id, 1);
+}
+/* Быстрое заведение поручителя в реестр-якорь (ПРЧ). Открывается поверх формы договора
+   (pick-host), после сохранения дозаполняет select поручителей. */
+function openNewGuarantor(){
+  pmodal(`<div class="modal form" style="width:min(640px,100%)">${mhead2('Новый поручитель')}
+    <div class="modal-b"><div class="mform">
+      ${fsel('ngType','Тип лица', [{v:'физическое',t:'Физическое лицо'},{v:'юридическое',t:'Юридическое лицо'}], 'физическое', true)}
+      ${fin('ngName','ФИО / наименование','', true, true)}
+      ${fin('ngPin','Персональный номер (ПИН/ИНН)','')}
+      ${fdate('ngBirth','Дата рождения (физлицо, Г1)','')}
+      ${fsel('ngIncome','Стабильный доход подтверждён (Г2)', YN, 'нет')}
+      ${fin('ngIncomeDoc','Документ о доходе','', false, true)}
+      ${fsel('ngOverGFH','Просрочка перед ГФХ (Г3)', YN, 'нет')}
+      ${fsel('ngOverExt','Просрочка перед иными ФКУ (Г3)', YN, 'нет')}
+      ${fsel('ngMarried','Состоит в браке (Г4)', YN, 'нет')}
+      ${fin('ngScNotary','Согласие супруга: нотариус (Г4)','')}
+      ${fin('ngScNo','Согласие супруга: реестровый №','')}
+      ${fin('ngContacts','Контакты','')}
+      ${fin('ngAddress','Адрес','', false, true)}
+    </div>
+    </div>${mfoot2('Сохранить поручителя','saveNewGuarantor()')}</div>`);
+}
+function saveNewGuarantor(){
+  const type = val('ngType'), name = val('ngName').trim();
+  if(!name) return toast('Укажите ФИО / наименование','warn');
+  const person = type === 'физическое';
+  const g = { id: nextId(GUARANTORS,'ПРЧ-'), type, name, pin: val('ngPin').trim(),
+    birthDate: person ? iso2d(val('ngBirth')) : '',
+    incomeStable: person ? isYes('ngIncome') : false, incomeDoc: val('ngIncomeDoc').trim(),
+    overdueGFH: isYes('ngOverGFH'), overdueExternal: isYes('ngOverExt'), externalRef:'',
+    married: person ? isYes('ngMarried') : false,
+    spouseConsent: (person && isYes('ngMarried') && val('ngScNotary').trim())
+      ? { notary: val('ngScNotary').trim(), regNo: val('ngScNo').trim(), date: TODAY } : null,
+    contacts: val('ngContacts').trim(), address: val('ngAddress').trim(), history:[] };
+  g.history.push({ when: nowStamp(), what:'Поручитель заведён в реестр ('+type+')', who: role });
+  GUARANTORS.push(g); pclose();
+  const sel = document.getElementById('nsGuar');
+  if(sel){ sel.innerHTML = guarantorOpts().map(o=>`<option value="${esc(o.v)}"${o.v===g.id?' selected':''}>${esc(o.t)}</option>`).join(''); }
+  toast('Поручитель '+g.id+' заведён','ok');
+}
+
+/* ============================================================
    ДИАЛОГИ И ДЕЙСТВИЯ — здесь состояние РЕАЛЬНО меняется.
    Каждое действие: валидация → мутация → запись в историю → перерисовка.
    ============================================================ */
@@ -3065,6 +3505,8 @@ const mhead = t => `<div class="modal-h"><span class="mt">${t}</span><button cla
 const mhead2 = t => `<div class="modal-h"><span class="mt">${t}</span><button class="modal-x" onclick="pclose()">
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;
 const mfoot = (okLbl, okFn, okCls) => `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+  <button class="btn ${okCls||'btn-primary'}" onclick="${okFn}">${okLbl}</button></div>`;
+const mfoot2 = (okLbl, okFn, okCls) => `<div class="modal-f"><button class="btn btn-secondary" onclick="pclose()">Отмена</button>
   <button class="btn ${okCls||'btn-primary'}" onclick="${okFn}">${okLbl}</button></div>`;
 const caret = () => `<span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>`;
 const fin = (id,l,v,req,span) => `<div class="field${req?' req':''}${span?' col-span':''}"><span class="flabel">${l}</span>
@@ -4061,7 +4503,7 @@ function renderDs(){
       <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-tint btn-sm danger" onclick="dsRefuseReplacement()">Отказать в замене</button></div>
       ${ftxt('dsRefuseReason','Причина отказа в замене (заполните перед «Отказать в замене»)','')}` : ''}
 
-      <p class="section-h" style="font-size:16px;margin-top:14px">Снимок before / after (чистый эффект пакета)</p>
+      <p class="section-h" style="font-size:16px;margin-top:14px">Сравнение «до → после» — что в итоге изменилось</p>
       <div class="cgrid-wrap"><table class="cgrid">
         <thead><tr><th>Кредит</th><th>Покрытие до</th><th>Покрытие после</th><th>Порог до</th><th>Порог после</th><th>Гейт</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
@@ -4491,6 +4933,10 @@ if (typeof window !== 'undefined') window.__zt = {
   banFullyRegistered, releaseValid,
   overrideAllowed, docRouteIncomplete,
   riskFactorCandidates,
+  // §14 поручительство (Р-24…Р-27)
+  GUARANTORS, SURETIES, guarantor, surety, suretiesOfCredit, suretiesOfGuarantor,
+  activeSuretiesOfCredit, guarantorGate, guarantorIsPerson, ageAt,
+  suretyReleaseAllowed, suretyLayerLine, SURETY_STATUSES,
 };
 </script>
 </body>
