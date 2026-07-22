@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Задачи по модулю «Залоговое обеспечение» · P13 · АСУБК</title>
+<!--
+  Читаемое представление бэклога модуля «Залоговое обеспечение», задачи P13-R1…P13-R15.
+  Источник истины — TODO.md (раздел «### Залоговое обеспечение»).
+  Здесь та же информация человеческим языком: в чём боль → что сделать.
+  Технические подробности (имена сущностей/функций мокапа) спрятаны
+  в раскрывашку «Для разработчика» в каждой карточке.
+  Порядок карточек = порядок сборки: разработчик идёт сверху вниз (порядок строгий).
+  Сгенерировано 2026-07-22. При правке TODO.md — обновить и этот файл.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC;
+  --asubk-link:#005FDB; --asubk-green:#158443;
+  --asubk-red:#E03A3A; --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --border-default:var(--asubk-border-base);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(24,39,57,0.06);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; }
+body{ font:400 16px/1.5 var(--asubk-font); color:var(--text-body); background:var(--asubk-gray-100); }
+
+.wrap{ max-width:1160px; margin:0 auto; padding:0 24px 64px; }
+
+/* ---- шапка ---- */
+.hero{ background:var(--asubk-white); border-bottom:1px solid var(--border-default); padding:28px 0 22px; margin-bottom:20px; }
+.hero .wrap{ padding-bottom:0; }
+.crumbs{ font-size:13px; color:var(--text-muted); margin-bottom:8px; }
+h1{ font:600 26px/1.25 var(--asubk-font); color:var(--text-heading); margin:0 0 8px; }
+.lead{ color:var(--text-muted); font-size:15px; max-width:78ch; margin:0 0 18px; }
+.lead code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px; font-size:13px; }
+.lead b{ color:var(--text-body); }
+
+/* ---- плитки ---- */
+.tiles{ display:flex; flex-wrap:wrap; gap:10px; }
+.tile{ appearance:none; cursor:pointer; text-align:left; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 16px; min-width:132px;
+  font:inherit; color:inherit; transition:border-color .12s, box-shadow .12s; }
+.tile:hover{ border-color:var(--asubk-border-strong); }
+.tile.on{ border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+.tile .n{ display:block; font:600 24px/1.15 var(--asubk-font); color:var(--text-heading); }
+.tile .l{ display:block; font-size:13px; color:var(--text-muted); margin-top:2px; }
+.tile.crit .n{ color:var(--asubk-red); }
+.tile.major .n{ color:var(--asubk-amber); }
+
+/* ---- панель фильтров ---- */
+.bar{ position:sticky; top:0; z-index:5; background:var(--asubk-gray-100);
+  padding:14px 0 12px; margin-bottom:4px; border-bottom:1px solid var(--border-default); }
+.bar .row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.search{ flex:1; min-width:240px; height:36px; padding:0 12px; font:inherit; font-size:14px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.search:focus{ outline:none; border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+select{ height:36px; padding:0 8px; font:inherit; font-size:14px; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); color:inherit; }
+.btn{ height:36px; padding:0 14px; font:inherit; font-size:14px; cursor:pointer;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.btn:hover{ background:var(--asubk-gray-50); }
+.btn-p{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+.btn-p:hover{ background:var(--asubk-blue-hover); }
+.count{ font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap; }
+
+/* ---- группа темы ---- */
+.group{ margin-top:26px; }
+.group > h2{ font:600 15px/1.3 var(--asubk-font); color:var(--text-muted); margin:0 0 10px;
+  text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:8px; }
+.group > h2 .g-n{ font-weight:400; color:var(--asubk-ink-45); text-transform:none; letter-spacing:0; }
+
+/* ---- карточка ---- */
+.card{ background:var(--asubk-white); border:1px solid var(--border-default); border-left:3px solid var(--asubk-gray-200);
+  border-radius:var(--radius-lg); padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow-card); }
+.card.p-crit{ border-left-color:var(--asubk-red); }
+.card.p-major{ border-left-color:var(--asubk-amber); }
+.card.p-minor{ border-left-color:var(--asubk-blue); }
+.card.p-cosm{ border-left-color:var(--asubk-gray-200); }
+
+.c-head{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; }
+.id{ font:600 13px/1 var(--asubk-font); letter-spacing:.02em; color:var(--asubk-link);
+  background:var(--asubk-blue-tint); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.step{ font:600 12px/1 var(--asubk-font); color:var(--asubk-ink-45); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.c-title{ font:600 17px/1.35 var(--asubk-font); color:var(--text-heading); flex:1; min-width:260px; margin:0; }
+
+.chip{ font-size:12px; line-height:1; padding:5px 9px; border-radius:var(--radius-pill); white-space:nowrap; font-weight:500; }
+.chip-crit{ background:var(--asubk-red-tint); color:#9E1F1F; }
+.chip-major{ background:var(--asubk-amber-tint); color:#8A6508; }
+.chip-minor{ background:var(--asubk-blue-tint); color:#04479E; }
+.chip-cosm{ background:var(--asubk-gray-150); color:var(--text-muted); }
+.chip-mock{ background:var(--asubk-green-tint); color:#0E5C2F; }
+.chip-open{ background:var(--asubk-gray-150); color:var(--text-muted); }
+
+.blk{ margin-top:12px; }
+.blk .lbl{ font:600 12px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); display:block; margin-bottom:5px; }
+.blk p{ margin:0; font-size:15px; }
+.blk ul{ margin:0; padding-left:20px; font-size:15px; }
+.blk li{ margin-bottom:4px; }
+.blk li:last-child{ margin-bottom:0; }
+.pain{ color:var(--text-muted); }
+.pain b{ color:var(--text-body); font-weight:600; }
+
+.c-foot{ margin-top:13px; padding-top:11px; border-top:1px solid var(--asubk-gray-150);
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tag{ font-size:12px; color:var(--text-muted); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep{ font-size:12px; color:var(--asubk-link); background:var(--asubk-white);
+  border:1px solid rgba(0,106,245,0.25); border-radius:var(--radius-pill); padding:3px 9px; }
+
+details{ margin-top:11px; border-top:1px solid var(--asubk-gray-150); padding-top:9px; }
+details summary{ cursor:pointer; font-size:13px; color:var(--text-muted); list-style:none; user-select:none; }
+details summary::-webkit-details-marker{ display:none; }
+details summary::before{ content:'▸ '; color:var(--asubk-ink-45); }
+details[open] summary::before{ content:'▾ '; }
+details summary:hover{ color:var(--asubk-link); }
+.dev{ margin-top:8px; font-size:13.5px; color:var(--text-muted); background:var(--asubk-gray-50);
+  border:1px solid var(--asubk-gray-150); border-radius:var(--radius-md); padding:10px 12px; }
+.dev ul{ margin:0; padding-left:18px; }
+.dev li{ margin-bottom:4px; }
+.dev code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; color:var(--asubk-ink); }
+
+.empty{ text-align:center; padding:48px 0; color:var(--text-muted); font-size:15px; }
+.legend{ margin-top:32px; font-size:13px; color:var(--text-muted); border-top:1px solid var(--border-default); padding-top:14px; }
+.legend b{ color:var(--text-body); }
+@media print{ .bar{ position:static; } details{ display:none; } .card{ break-inside:avoid; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumbs">АСУБК · Модуль «Залоговое обеспечение» (сквозной) · Бэклог</div>
+    <h1>Залоговое обеспечение — задачи для команды разработки</h1>
+    <p class="lead">
+      15 задач, выстроенных <b>в строгом порядке сборки</b>: разработчик идёт сверху вниз —
+      сначала ядро (каркас, справочники, модель «только факты», карточка предмета, залоговая
+      стоимость, отнесение и покрытие), затем договор и его версионирование, мониторинг,
+      проброс в смежные модули, поручительство и нормативный аудит. Не начинать следующую,
+      пока не закрыта предыдущая. Это <b>сквозной модуль</b> (не одна фаза цикла — живёт на
+      программе, заявке, кредите, в мониторинге и взыскании); отдельного живого экрана в
+      приложении нет — модуль проектируется с нуля, поэтому дефектов стенда по нему тоже нет.
+      Источник истины — <code>TODO.md</code>, раздел «Залоговое обеспечение»; здесь то же самое
+      человеческим языком: <b>в чём боль → что сделать</b>. Эталон интерфейса и поведения —
+      готовый рабочий макет <code>mockups/collateral/zalog.html</code> (тесты 78/78). Решения
+      опираются на «Положение о работе с залогом» №22 от 12.12.2025 (5 архитектурных швов + Р-1…Р-27).
+    </p>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="bar">
+    <div class="row">
+      <input class="search" id="q" type="search" placeholder="Поиск по номеру, заголовку, тексту…" autocomplete="off">
+      <select id="fTheme"><option value="">Все этапы</option></select>
+      <select id="fPrio">
+        <option value="">Любой приоритет</option>
+        <option value="crit">🔴 Блокер</option>
+        <option value="major">🟠 Важно</option>
+        <option value="cosm">🔵 Косметика</option>
+      </select>
+      <button class="btn" id="reset">Сбросить</button>
+      <button class="btn btn-p" id="expand">Раскрыть тех. детали</button>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="legend">
+    <p><b>Приоритет:</b> 🔴 блокер (без этого модуль не работает) · 🟠 важно · 🔵 косметика / вторично.</p>
+    <p><b>Порядок сборки — строгий.</b> Номер шага в начале карточки — обязательная очерёдность;
+       нумерация = порядок зависимостей: каждая задача опирается на уже сделанные и ни на одну из
+       будущих. Ядро (шаги 1–5) — фундамент; без него остальное некуда вешать.
+       Значок <span class="chip chip-mock">Есть эталон в макете</span> значит, что поведение уже
+       отрисовано и проверено в <code>mockups/collateral/zalog.html</code> (тесты 78/78) — разработке
+       остаётся перенести его на боевую платформу (Jmix).</p>
+    <p>Дефектов живого стенда по этому модулю нет: отдельного экрана в приложении не существует,
+       модуль спроектирован с нуля. Записей по P13 в <code>notes/qa-findings.md</code> не будет.</p>
+  </div>
+</div>
+
+<script>
+/* ── Данные. Порядок = строгий порядок сборки (как в TODO.md). ──────────── */
+const THEMES = {
+  core:     'Шаг 1–2 · Ядро: каркас, справочники, модель «только факты»',
+  item:     'Шаг 3–5 · Предмет: карточка, стоимость, доли и покрытие',
+  contract: 'Шаг 6–7 · Договор: регистрация, запрет на отчуждение',
+  version:  'Шаг 8–9 · Версионирование: доп соглашение, перезалог',
+  monitor:  'Шаг 10–11 · Мониторинг и вложения',
+  spread:   'Шаг 12–13 · Проброс в смежные модули и миграция',
+  surety:   'Шаг 14 · Поручительство (П2) — параллельный слой',
+  audit:    'Шаг 15 · Нормативный аудит «Положения №22»',
+};
+
+const T = [
+{ id:'P13-R1', step:'Шаг 1', prio:'crit', theme:'core', state:'mock',
+  title:'Каркас модуля залога + справочники залога',
+  pain:'Точка входа в модуль. Пока нет двухуровневого каркаса (сайдбар с экранами + карточки предмета и договора с вкладками) и справочников, на которые опирается вся логика, — остальные задачи некуда вешать. Поэтому делается первой.',
+  todo:['Двухуровневый каркас: сайдбар — отдельные экраны <b>«Предметы залога» · «Залоговые договоры» · «Поручительство» (R14) · «Мониторинг залога» · «Регламентные параметры залога»</b>.',
+        '<b>Карточка предмета</b> — вкладки: Основное · Стоимость и переоценки · Запрет на отчуждение · Обследования · Обеспечиваемые кредиты · Документы · История. Запрет / обследования / стоимость висят на <b>предмете</b>, не на договоре.',
+        '<b>Карточка договора</b> — вкладки: Общая информация · Предметы залога · Обеспеченность кредитов · Доп соглашения · Документы · История.',
+        'Справочники залога (админ-ведомые, заводятся первыми): залоговый коэффициент по виду (<b>10 видов</b>), регистрирующий орган и срок наложения запрета, интервалы обследования / переоценки, стоп-лист запрещённых видов (§3.5), классификаторы (исход обследования, основания снятия запрета, действия-согласия).',
+        'Экран «Регламентные параметры залога» разделяет <b>норматив</b> (read-only, правка под реквизит решения Правления) и <b>внутренние</b> параметры.'],
+  deps:['P13-R2','P13-R3','P13-R6'],
+  dev:['Эталон — <code>mockups/collateral/zalog.html</code>. Роли → единый гейт <code>canEdit</code>. Коэффициенты: недвиж. 0,7 / ТС 0,5 / оборуд. 0,5 / сельхозтех. 0,5 / ТМЦ 0,4 + расширение Р-12: кред. портфель 0,7 / имущ. комплекс 0,7 / незаверш. строит. 0,6 / ценные бумаги 0,5 / право аренды 0,4.'] },
+
+{ id:'P13-R2', step:'Шаг 2', prio:'crit', theme:'core', state:'mock',
+  title:'Данные — только факты, статус и покрытие считаются на лету',
+  pain:'Статус предмета и покрытие меняются во времени и по нескольким осям — их не хранят полем, а вычисляют. Модель держит только факты; иначе рассинхрон всплывёт потом.',
+  todo:['В данных — <b>только факты</b>: предметы (реестр), залоговые договоры, отнесение залога (доли предмет↔кредит), обследования, доп соглашения, справочники. Полей «статус» / «покрытие» нет ни у одной сущности.',
+        '<b>Предмет залога — сущность 1-го класса</b> (реестр): заявка и договор <b>ссылаются</b> на один предмет, не копируют (аналог заёмщика как мастер-записи); «наследование» → «привязка».',
+        'Кардинальности: предмет ↔ активный договор <b>1:N</b> (перезалог, R9) · договор ↔ кредит <b>1:N одного заёмщика</b> (перекрёстное обеспечение).',
+        'Инвариант <code>Σ долей предмета ≤ залоговая стоимость</code> — нельзя раздать больше, чем стоит; задвоение исключено моделью.',
+        'Всё производное (оси статуса, покрытие, просроченный контроль) считается на дату функциями.'],
+  deps:['P13-R1','P13-R3'],
+  dev:['Отнесение залога — <b>отдельная junction-сущность</b> <code>ОТНЕСЕНИЕ_ЗАЛОГА(договор, предмет, кредит, доля)</code>, а не JSON-поле на договоре (в макете держится как <code>contract.allocs[]</code> для демо — в реале это связующая таблица). Структурный аналог <code>ОХВАТ_ПРОЦЕССА</code> из взыскания. Производное — чистые функции: <code>allocatedLegal</code>/<code>allocatedDraft</code>/<code>availableOf</code>/<code>coverage</code>, ничего не хранится.'] },
+
+{ id:'P13-R3', step:'Шаг 3', prio:'crit', theme:'item', state:'mock',
+  title:'Карточка предмета: поля по виду залога + количество + правоуст. документ + залогодатель',
+  pain:'Предмет описывается по-разному под каждый вид. Одно поле-идентификатор теряет фактографию (VIN квартиры и кадастр экскаватора в один текст) и ломает поиск/отчётность — главный пробел карточки (GAP #1–3).',
+  todo:['Owned-поля предмета: вид, наименование/описание, оценочная стоимость + дата оценки + отчёт оценщика, залогодатель, идентификаторы по виду. Юр-поля (№ договора, нотар. регистрация, свидетельство) — на договоре, не на предмете (R6).',
+        '<b>Блоки полей по виду:</b> недвижимость — кадастр/адрес/площади/даты постройки и ввода/правоуст. документ; ТС — марка/гос.номер/заводской №/двигатель/шасси/кузов; оборудование и сельхозтехника — марка/заводской №/агрегатные №; товары в обороте — наименование/дата партии.',
+        '<b>Количество + единица измерения</b> (шт/кг/тонн/кв.м/куб.м/метр/ед.) — без них не описать «100 тонн зерна» / «5 ед. техники».',
+        '<b>Правоустанавливающий документ</b> (госакт/свидетельство) — отдельно от отчёта оценщика: право собственности ≠ оценка.',
+        '<b>Залогодатель — ссылка на клиентский реестр</b> (тот же мастер, что заёмщик), не строка. Залогодатель ≠ заёмщик = имущественный залог 3-го лица (П3) — рассматривается комиссией <b>как залог</b>, не поручительство.'],
+  deps:['P13-R2'],
+  dev:['Блоки полей по виду — образец <code>niKindChange</code>; количество — <code>quantity</code> + ед. изм. Терминология П1/П2/П3 — §11 (П2 — R14).'] },
+
+{ id:'P13-R4', step:'Шаг 4', prio:'crit', theme:'item', state:'mock',
+  title:'Залоговая стоимость: оценочная → залоговая через коэффициент, override',
+  pain:'Оценочная (рыночная) стоимость не гарантирует возврат — Фонд защищает возвратная залоговая. Она производна от оценочной через регламентный дисконт по виду (шов №1).',
+  todo:['Оценочная — <b>owned</b> (из отчёта оценщика); залоговая — <b>производна</b> = <code>оценочная × коэффициент[вид]</code>, read-only «расчётная».',
+        '<b>Override</b> фактической залоговой комиссией: ≤ расчётной — свободно (консервативнее); > расчётной — флаг «сверх дисконта — вне положения» (полный запрет подъёма — на согласование с залоговым отделом).',
+        'Переоценка (R10) обновляет оценочную → залоговая пересчитывается сама.'],
+  deps:['P13-R1','P13-R3'],
+  dev:['<code>pledgeValue = appraised × k[kind]</code> (справочник R1). Override-флаги <code>beyondDiscount</code>/<code>isOverAbove</code> (Р-10; ужесточены Р-19 — override только вниз, см. R15).'] },
+
+{ id:'P13-R5', step:'Шаг 5', prio:'crit', theme:'item', state:'mock',
+  title:'Отнесение долей + покрытие + гейты порога',
+  pain:'Покрытие — вычисляемый оверлей поверх долей, а не статус. Порог зависит от состава обеспечения, а не единая константа 120% (§2, §4, Р-1).',
+  todo:['Отнесённая доля — часть залоговой предмета за конкретный кредит; <b>покрытие кредита = Σ отнесённых долей ÷ сумма кредита</b>.',
+        '<b>Порог = функция состава:</b> ликвидные виды ≥ 120%; движимый неликвид (техника/ТМЦ) ≥ 150% <b>и</b> доля ликвида ≥ 80% суммы кредита. Провал доли — подпункт того же гейта, не новый статус.',
+        'Гейт <b>заявки</b> (предварительный, «Отправить в комиссию») — на залоговой базе; гейт <b>кредита</b> (контрольный) — пересчёт по фактической при регистрации договора (R6).',
+        '<b>Форк 2 (&lt; порога):</b> регистрация блокируется до комиссии по залогу — догрузить/заменить предмет либо обязательное обоснование допуска.',
+        'Состав формулы финализирует R14 (входит ли поручительство в 120%) — по умолчанию гейт считает <b>только залог</b>.'],
+  deps:['P13-R3','P13-R4'],
+  dev:['<code>requiredCover</code> (Р-1); признаки <code>liquid</code>/<code>movable</code> на видах; <code>liquidShare</code> ≥ 0,8. Эффективная доля усекается пропорц. при падении залоговой (<code>effShare</code>).'] },
+
+{ id:'P13-R6', step:'Шаг 6', prio:'major', theme:'contract', state:'mock',
+  title:'Регистрация залогового договора: гейт предпосылок + стоп-лист + техника',
+  pain:'Регистрация договора — правовой акт, создающий залог. До неё проверяются предпосылки оформления и допустимость предмета; гейт покрытия — отдельно (Р-2, Р-5, Р-7).',
+  todo:['Форма регистрации: № договора, дата, нотариус, № и дата нотар. регистрации, залоговое рег. свидетельство; <b>несколько кредитов на договор</b> (мультиселект, покрытие по каждому — R5).',
+        '<b>Предпосылки §5.2 (Р-5):</b> согласие собственника/супруга, справка об отсутствии ограничений — обязательность производна от типа залогодателя; гейт регистрации <b>отдельный</b> от гейта покрытия, оба должны пройти.',
+        '<b>Стоп-лист §3.5 (Р-2):</b> «Скот/поголовье» удалён из принимаемых видов; для «Товаров в обороте» — обязательное подтверждение непопадания под §3.5.',
+        '<b>Техника §2.5/§3.4 (Р-7):</b> для движимой техники — год/происхождение/страхование; возраст ≤ 15 лет (СНГ) / ≤ 20 (дальнее заруб.) + обязательное страхование; истёкший полис → триггер.',
+        'Регистрация переводит залоговую ось предмета <code>свободен → в залоге</code> и включает контрольный гейт покрытия (R5, форк 2).'],
+  deps:['P13-R5'],
+  dev:['<code>pledgerType</code> + <code>prereqs</code>; read-only <code>PROHIBITED_KINDS</code>; <code>TECH_AGE_LIMIT</code>. Дополнено в R15: Р-13 (3-й гейт — решение КМ), Р-16 (хранение), Р-17 (роль обеспечения), Р-18 (стоп-лист как исполняемая валидация).'] },
+
+{ id:'P13-R7', step:'Шаг 7', prio:'major', theme:'contract', state:'mock',
+  title:'Запрет на отчуждение — двухслойный статус, наложение / снятие, согласия',
+  pain:'Запрет — обязательный шаг оформления после нотариуса, отдельная ось: залог может быть, а имущество не защищено от продажи — плоский статус это затирает (§3.1, Р-4, Р-9).',
+  todo:['<b>Две независимые оси</b>, не схлопывать: <i>залоговая</i> (<code>свободен · в залоге · реализуется · освобождён</code>) + <i>запрета на отчуждение</i> (<code>не требуется · не наложен · просрочен · наложен · подлежит снятию</code>).',
+        'Порядок «<b>нотариус → запрет</b>»: после регистрации (R6) накладываем запрет в органе (по виду, R1); <b>один запрет на предмет</b> (перезалог добавляет основание, не второй запрет); сторонний арест не моделируется; место наложения = ссылка на орган.',
+        'Срок = нотар. дата + 5 раб. дней; просрочка → ось «просрочен» → триггер «залог без запрета».',
+        'Согласие на действия без снятия (Р-4): не снимает и не ослабляет запрет; при переоценке — триггер «за счёт залогодателя».',
+        '<b>Снятие под гейтом <code>allocatedLegal = 0</code></b> (пока живы доли — блок); основание из справочника + чек-лист согласований; частичное снятие с части предмета; снятие — акт во внешнем органе, автоматом не происходит.'],
+  deps:['P13-R6'],
+  dev:['<code>consents[]</code>/<code>CONSENT_ACTIONS</code>, <code>RELEASE_GROUNDS</code>/<code>RELEASE_APPROVALS</code>, <code>pendingRelease</code>. Дополнено Р-20 (запрет накладывает залогодатель, мы контролируем и принимаем отметку) — см. R15.'] },
+
+{ id:'P13-R8', step:'Шаг 8', prio:'major', theme:'version', state:'mock',
+  title:'Доп соглашение — конверт версионирования договора (changeset)',
+  pain:'Замена залога, освобождение доли и закрепление переоценки — не отдельные операции, а изменения одного действующего договора. Без единого конверта между двумя правками предмет повиснет без обеспечения (§7).',
+  todo:['Доп соглашение версионирует: состав предметов (ввод/вывод), доли отнесения, залоговую стоимость (закрепление переоценки R10), состав кредитов договора.',
+        '<b>Гранулярность — changeset</b>: ≥ 1 изменение в одном акте; гейт валидирует <b>net-эффект пакета</b> (покрытие «после применения» vs порог).',
+        'Мини-ЖЦ <code>оформляется → зарегистрировано</code>: эффект на покрытие и юр-обременение — <b>на регистрации</b>, не на черновике.',
+        '<b>Сравнение «до → после»</b>: состав обеспечения до пакета и после; строка «Ликвидность до → после»; замена с понижением ликвидности — допуск только комиссией с обоснованием; замена при просрочке — жёсткий блок.',
+        'Граница: наложение/снятие запрета (R7) и обследования (R10) — <b>не</b> доп соглашения.'],
+  deps:['P13-R5','P13-R6'],
+  dev:['<code>liquidityRank</code>; net-эффект переиспользует форк 2 R5. Дополнено Р-14 (гейт замены залога: равноценность, согласие отраслевого департамента, заключение ДАК, ранг ликвидности) — см. R15.'] },
+
+{ id:'P13-R9', step:'Шаг 9', prio:'major', theme:'version', state:'mock',
+  title:'Перезалог + высвобождение доли',
+  pain:'Тот же предмет можно заложить повторно на остаток, а долю — освободить при погашении. Экономический остаток и юр-обременение нельзя схлопывать (иначе Д2 на стоимость, ещё занятую Д1) (§4.1, §4.2).',
+  todo:['<b>Перезалог — только внутренний остаточный:</b> новый договор Д2 на <code>доступную залоговую = залоговая − Σ отнесённого по действующим договорам</code>; чужие внешние/младшие залоги <b>не принимаем</b>; блок, если доступной не хватает на порог нового кредита (R5, форк 2).',
+        '<b>Приоритет</b> наших договоров на предмете = порядок регистрации (Д1 старше Д2), производный, нужен на взыскании.',
+        '<b>Высвобождение доли:</b> полное погашение / закрытие договора Д1 → <b>автоматически</b>; <b>частичное</b> погашение на живом кредите → <b>только доп соглашением</b> (R8), доля статична (не усыхает от платежей по ОД).',
+        'Коэффициент покрытия при погашении растёт сам (оверлей), но остаток открывается под перезалог <b>только после доп соглашения</b>.'],
+  deps:['P13-R5','P13-R8'],
+  dev:['<code>availableOf</code> = <code>pledgeValue − allocatedLegal − allocatedDraft</code>. Ранг залогодержателя вручную не вводим — производный от порядка регистрации.'] },
+
+{ id:'P13-R10', step:'Шаг 10', prio:'major', theme:'monitor', state:'mock',
+  title:'Мониторинг: обследование + переоценка (единый планировщик) → сигнал во взыскание',
+  pain:'Обследование (существование актива) и переоценка (стоимость) — разные события с одним расписанием. Падение покрытия должно поднимать трек взыскания, не трогая риск и группу платёжеспособности (§8, §6, Р-3, Р-8).',
+  todo:['<b>Единый планировщик дат контроля</b> на предмете: <code>next_survey_date</code> / <code>next_revaluation_date</code> = последняя ± интервал; наступила → «Мониторинг залога» как <b>просроченный контроль</b> (оверлей, не статус).',
+        'Периодичность обследования — <b>матрица «группа платёжеспособности × движимое/недвижимое»</b>; группа worst-of по заёмщикам; банкрот → «по договору со спецадминистратором». Интервал переоценки — внутренний параметр, не смешивать.',
+        '<b>Классифицированный исход обследования</b> (6 значений: хорошее / удовл. / утраченное / повреждённое / аварийное / треб. ремонт): норма → +интервал; ухудшение → триггер «требуется переоценка»; утрата → триггер «недостаточность обеспечения».',
+        '<b>Извещение о восполнении (Р-8):</b> при ухудшении/утрате триггер взыскания <b>не сразу</b> — сперва задача-извещение со сроком; взыскание — по истечении срока/отказу.',
+        '<b>Переоценка:</b> новая оценочная → залоговая производна (R4) → покрытие пересчитывается; падение &lt; порога на действующем кредите → <b>трек взыскания по обеспечению</b> (параллельно треку по просрочке); <b>не трогает</b> риск-категорию и группу платёжеспособности.'],
+  deps:['P13-R4','P13-R7'],
+  dev:['<code>SURVEY_MATRIX</code> (Р-3). Дополнено в R15: Р-15 (модалка обследования — заключение, участники, фотофиксация ≥1, колонка «Акт»), Р-22 (риск-зависимый интервал: <code>RISK_TIGHTENING</code> + <code>SURVEY_MIN_MONTHS</code>, worst-of), Р-23 (факторы для комитета).'] },
+
+{ id:'P13-R11', step:'Шаг 11', prio:'major', theme:'monitor', state:'mock',
+  title:'Вложения / файлы (сканы) на договоре, предмете, обследовании',
+  pain:'Юридически обязательные сканы (право собственности, оценка, акты, согласия) должны храниться на каждом уровне. В legacy это вкладка «Информация», в макете — 0 (GAP #4).',
+  todo:['Прикрепление файлов на <b>договоре / предмете / обследовании</b>: правоуст. документ, отчёт оценщика, акты обследования, согласия.',
+        'Увязать с подсистемой документооборота.'],
+  deps:['P13-R3','P13-R6'],
+  dev:['Три уровня вложений: договор · предмет · обследование.'] },
+
+{ id:'P13-R12', step:'Шаг 12', prio:'major', theme:'spread', state:'mock',
+  title:'Проброс залоговой логики в смежные мокапы (as-is → to-be)',
+  pain:'Решения приняты в zalog.html, но смежные мокапы ещё не обновлены (§9) — залоговая логика должна прорасти в программу, заявку, кредит, заёмщика и взыскание.',
+  todo:['<code>loan-program.html</code> — залоговый коэффициент <b>и интервалы контроля</b> (обследование/переоценка) в справочник по виду; порог покрытия из программы (P2-R21).',
+        '<code>loan-application.html</code> — оценочная как ввод, залоговая расчётная read-only; <code>coverageOf()</code> перевести на <code>it.val × коэффициент[kind]</code>; гейт <code>sendReady()</code> на залоговую базу; предметы — привязка из реестра вместо локального <code>_collateral</code> (P3-R20).',
+        '<code>loan-credit.html</code> — договор предзаполнен привязанными предметами; override + флаг при &gt; расчётной; контрольный гейт при регистрации; перезалог; доп соглашение; запрет на отчуждение.',
+        '<code>borrower.html</code> — роль залогодателя (в т.ч. за чужие кредиты); <code>collection.html</code> — трек по причине «обеспечение» параллельно треку по просрочке.'],
+  deps:['P13-R5','P13-R7','P13-R10'],
+  dev:['Потребители: программа (P2-R21) · заявка (P3-R20) · кредит · заёмщик · взыскание. Приём факторов для комитета — тоже правка <code>borrower.html</code> (Р-23).'] },
+
+{ id:'P13-R13', step:'Шаг 13', prio:'cosm', theme:'spread', state:'mock',
+  title:'План миграции удалённых видов залога (данные legacy)',
+  pain:'Справочник видов пересобран (10 видов против 9 legacy: часть удалена стоп-листом, часть добавлена). Без плана миграции исторические договоры залога не импортируются (GAP #9) — 🔵 → 🔴, если делаем миграцию.',
+  todo:['Маппинг <b>вид → новый вид</b> + перенос <code>detailsN</code> в поля R3.',
+        '<b>Скот/поголовье</b> (запрещён §3.5 — приём прекращён, действующие записи ведутся до погашения/замены); <b>Участок</b> → «Недвижимое имущество»; <b>Готовая продукция</b> → «Товары в обороте»; <b>Кредитный портфель</b> → как есть (Р-12, ликвидный); <b>Прочие</b> → вручную по решению комиссии при импорте.'],
+  deps:['P13-R1','P13-R3'],
+  dev:['Эталон маппинга реализован в макете — <code>KIND_MIGRATION</code>.'] },
+
+{ id:'P13-R14', step:'Шаг 14', prio:'crit', theme:'surety', state:'mock',
+  title:'Личное поручительство П2 — параллельный слой обеспечения (Р-24…Р-27)',
+  pain:'Личное поручительство (третье лицо ручается обязательством, не имуществом; ~730 договоров в legacy) — отдельная сущность обеспечения в этом же модуле, но в индекс покрытия 120% НЕ входит (солидарная ответственность всем имуществом, фиксированной оценочной суммы нет; §14). Решение заказчика принято (вариант «б»). Ядро (R5) не трогается.',
+  todo:['<b>Сущности (Р-25):</b> ПОРУЧИТЕЛЬ (реестр-якорь <code>ПРЧ-NNN</code>, ссылка на клиентский реестр, держит данные допуска §9.1/9.2) + ДОГОВОР ПОРУЧИТЕЛЬСТВА (юр-обёртка и ребро <b>M:N</b> «поручитель × кредит»); доли нет.',
+        '<b>Гейты допуска §9.1/9.2 (Р-26)</b> — жёсткие блокираторы перехода «черновик → действует» (в реестре — <code>допущен</code> / <code>Гn: не пройден</code>).',
+        'Живёт в модуле обеспечения (свой ЖЦ договора: черновик/действует/…); при взыскании — отдельный трек претензии к поручителю (проброс в <code>collection.html</code>, R12).',
+        '<b>Р-24 (§14.6):</b> кредит, обеспеченный ТОЛЬКО поручительством → <code>coverage().index = 0</code>, но действующий слой есть; триггер недостаточности не подавляется.',
+        '<b>Карточка поручительства — вкладки:</b> Основное · Допуск §9.1/9.2 · История (эталон <code>TABS_SUR</code>).'],
+  deps:['P13-R5'],
+  dev:['<code>coverage()</code> данные поручительства не читает (регресс-инвариант Р-24). Эталон реализован в <code>zalog.html</code> (тип лица + допуск §9.1/9.2). Решение 4 отложено (§14.7).'] },
+
+{ id:'P13-R15', step:'Шаг 15', prio:'major', theme:'audit', state:'mock',
+  title:'Нормативный аудит «Положения №22» — надстройки над ядром (Р-11…Р-23)',
+  pain:'Аудит zalog-fix (2026-07-21) добавил 13 нормативных решений поверх ядра R1–R11; все влиты в макет (тесты 78/78), реал их ещё не несёт. Не отдельные экраны, а доведение приёма/гейтов/операций до буквы Положения — каждое под свой § и реквизит.',
+  todo:['<b>Р-11 — банковская гарантия как 2-й тип обеспечения:</b> индекс <code>Σзалог/(amount×req) + Σгарантия/(amount×guaranteeReq) ≥ 1</code>; триггеры «гарантия истекла» / «истекает ≤ 60 дн.».',
+        '<b>Р-13 — 3-й гейт регистрации (решение КМ):</b> категория заёмщика заполнена + решение КМ пусто → блок; разблокировка вводом реквизитов.',
+        '<b>Р-14 — гейт замены залога (доп соглашение):</b> равноценность по стоимости, согласие отраслевого департамента, заключение ДАК, ранг ликвидности; действие «Отказать в замене».',
+        '<b>Р-15 — модалка обследования:</b> производные read-only, обязательное заключение, участники-мультиввод, односторонний акт + подтверждение наличия, фотофиксация ≥ 1; колонка «Акт» в реестре.',
+        '<b>Р-16 — хранение (<code>custody</code>):</b> обязательно при регистрации; для права аренды — срок аренды + покрытие срока кредита; «у залогодержателя» — место хранения + снятие интервала обследования.',
+        '<b>Р-17 — роль обеспечения + возраст техники:</b> основной/дополнительный; дополнительный + сверх-возраст = жёсткий блок, основной + сверх = решение комитета; чек-бокс исправного состояния + реквизит акта осмотра.',
+        '<b>Р-18 — стоп-лист §3.5 как исполняемая валидация:</b> с/х земля → блок без права допуска, износ ≥ лимита + моральное устаревание, три подтверждения для ТМЦ.',
+        '<b>Р-19 — override только вниз + маршрут документов:</b> <code>value ≤ calcPledge</code>, заведующий, обоснование обязательно; незавершённый маршрут документов ПОЛ §11 — блок + триггер.',
+        '<b>Р-20 — ось запрета: наложение залогодателем</b> (ПБК п.2.1) — мы контролируем и принимаем отметку; снятие — реквизит акта сверки при полном погашении.',
+        '<b>Р-22 — риск-зависимый интервал обследования:</b> матрица read-only + слой ужесточения по риску + минимум; эффективный = <code>max(min, round(матрица × коэф[риск]))</code>, worst-of; банкроты без слоёв.',
+        '<b>Р-23 — факторы для комитета:</b> отдельный поток (не в триггерах), панель в реестре мониторинга + действие «Направить фактор в комитет»; приём — правка <code>borrower.html</code>.',
+        '<b>Р-21 — границы модуля обеспечения:</b> зафиксировать в шапке/справочнике как осознанную границу (закрывает Р-10).'],
+  deps:['P13-R6','P13-R8','P13-R10'],
+  dev:['Источник — <code>docs/superpowers/{plans,specs}/2026-07-21-zalog-fix*</code>. Тесты 78/78. Р-12 (расширение видов до 10) влит в R1; Р-24…Р-27 (поручительство) — в R14.'] },
+];
+
+/* ── Рендер ───────────────────────────────────────────────────────────── */
+const PRIO_META = {
+  crit:  { chip:'🔴 Блокер',    cls:'chip-crit'  },
+  major: { chip:'🟠 Важно',     cls:'chip-major' },
+  minor: { chip:'🟡 Средне',    cls:'chip-minor' },
+  cosm:  { chip:'🔵 Косметика',  cls:'chip-cosm'  },
+};
+const STATE_META = {
+  mock: { chip:'Есть эталон в макете', cls:'chip-mock' },
+  open: { chip:'Только постановка',    cls:'chip-open' },
+};
+
+const F = { q:'', theme:'', prio:'', state:'' };
+
+const themeSel = document.getElementById('fTheme');
+Object.entries(THEMES).forEach(([k,v]) => {
+  const n = T.filter(t => t.theme === k).length;
+  themeSel.insertAdjacentHTML('beforeend', `<option value="${k}">${v} (${n})</option>`);
+});
+
+function tiles(){
+  const data = [
+    { k:'', l:'Всего задач', n:T.length, cls:'' },
+    { k:'crit',  l:'🔴 Блокеры',  n:T.filter(t=>t.prio==='crit').length,  cls:'crit' },
+    { k:'major', l:'🟠 Важные',   n:T.filter(t=>t.prio==='major').length, cls:'major' },
+    { k:'cosm',  l:'🔵 Косметика', n:T.filter(t=>t.prio==='cosm').length,  cls:'' },
+  ];
+  document.getElementById('tiles').innerHTML = data.map(d =>
+    `<button class="tile ${d.cls} ${F.prio===d.k && d.k ? 'on':''}" data-prio="${d.k}">
+       <span class="n">${d.n}</span><span class="l">${d.l}</span></button>`).join('');
+  document.querySelectorAll('.tile').forEach(b => b.onclick = () => {
+    const p = b.dataset.prio;
+    F.prio = (F.prio === p || !p) ? '' : p;
+    document.getElementById('fPrio').value = F.prio;
+    render();
+  });
+}
+
+function card(t){
+  const pm = PRIO_META[t.prio], sm = STATE_META[t.state];
+  const dev = t.dev && t.dev.length
+    ? `<details><summary>Для разработчика — эталон и ловушки</summary>
+         <div class="dev"><ul>${t.dev.map(d=>`<li>${d}</li>`).join('')}</ul></div></details>` : '';
+  const deps = (t.deps||[]).map(d=>`<span class="dep">↔ ${d}</span>`).join('');
+  return `<article class="card p-${t.prio}" data-id="${t.id}">
+    <div class="c-head">
+      <span class="id">${t.id}</span>
+      <span class="step">${t.step}</span>
+      <h3 class="c-title">${t.title}</h3>
+      <span class="chip ${pm.cls}">${pm.chip}</span>
+      <span class="chip ${sm.cls}">${sm.chip}</span>
+    </div>
+    <div class="blk"><span class="lbl">В чём проблема</span><p class="pain">${t.pain}</p></div>
+    <div class="blk"><span class="lbl">Что сделать</span><ul>${t.todo.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+    <div class="c-foot"><span class="tag">${THEMES[t.theme]}</span>${deps}</div>
+    ${dev}
+  </article>`;
+}
+
+function render(){
+  const q = F.q.trim().toLowerCase();
+  const sel = T.filter(t => {
+    if (F.theme && t.theme !== F.theme) return false;
+    if (F.prio  && t.prio  !== F.prio)  return false;
+    if (!q) return true;
+    const hay = (t.id + ' ' + t.title + ' ' + t.pain + ' ' + t.todo.join(' ') + ' ' + (t.dev||[]).join(' ')).toLowerCase();
+    return hay.includes(q);
+  });
+
+  const list = document.getElementById('list');
+  if (!sel.length){ list.innerHTML = '<div class="empty">Ничего не найдено. Сбросьте фильтры.</div>'; }
+  else {
+    const order = Object.keys(THEMES);
+    list.innerHTML = order.filter(k => sel.some(t => t.theme === k)).map(k => {
+      const rows = sel.filter(t => t.theme === k);
+      return `<section class="group"><h2>${THEMES[k]} <span class="g-n">· ${rows.length}</span></h2>
+              ${rows.map(card).join('')}</section>`;
+    }).join('');
+  }
+  document.getElementById('count').textContent = `Показано ${sel.length} из ${T.length}`;
+  tiles();
+}
+
+document.getElementById('q').oninput       = e => { F.q = e.target.value; render(); };
+document.getElementById('fTheme').onchange = e => { F.theme = e.target.value; render(); };
+document.getElementById('fPrio').onchange  = e => { F.prio  = e.target.value; render(); };
+document.getElementById('reset').onclick   = () => {
+  F.q=''; F.theme=''; F.prio=''; F.state='';
+  document.getElementById('q').value=''; document.getElementById('fTheme').value='';
+  document.getElementById('fPrio').value='';
+  render();
+};
+let expanded = false;
+document.getElementById('expand').onclick = e => {
+  expanded = !expanded;
+  document.querySelectorAll('details').forEach(d => d.open = expanded);
+  e.target.textContent = expanded ? 'Свернуть тех. детали' : 'Раскрыть тех. детали';
+};
+
+render();
+</script>
+</body>
+</html>
