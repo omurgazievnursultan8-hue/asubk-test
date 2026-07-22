@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Задачи по модулю «Взыскание задолженности» · P14 · АСУБК</title>
+<!--
+  Читаемое представление бэклога модуля «Взыскание задолженности», задачи P14-R1…P14-R20.
+  Источник истины — TODO.md (раздел «### Взыскание задолженности»).
+  Здесь та же информация человеческим языком: в чём боль → что сделать.
+  Технические подробности (имена функций/справочников мокапа) спрятаны
+  в раскрывашку «Для разработчика» в каждой карточке.
+  Порядок карточек = порядок сборки: разработчик идёт сверху вниз (порядок строгий).
+  Сгенерировано 2026-07-22. При правке TODO.md — обновить и этот файл.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC;
+  --asubk-link:#005FDB; --asubk-green:#158443;
+  --asubk-red:#E03A3A; --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --border-default:var(--asubk-border-base);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(24,39,57,0.06);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; }
+body{ font:400 16px/1.5 var(--asubk-font); color:var(--text-body); background:var(--asubk-gray-100); }
+
+.wrap{ max-width:1160px; margin:0 auto; padding:0 24px 64px; }
+
+/* ---- шапка ---- */
+.hero{ background:var(--asubk-white); border-bottom:1px solid var(--border-default); padding:28px 0 22px; margin-bottom:20px; }
+.hero .wrap{ padding-bottom:0; }
+.crumbs{ font-size:13px; color:var(--text-muted); margin-bottom:8px; }
+h1{ font:600 26px/1.25 var(--asubk-font); color:var(--text-heading); margin:0 0 8px; }
+.lead{ color:var(--text-muted); font-size:15px; max-width:78ch; margin:0 0 18px; }
+.lead code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px; font-size:13px; }
+.lead b{ color:var(--text-body); }
+
+/* ---- плитки ---- */
+.tiles{ display:flex; flex-wrap:wrap; gap:10px; }
+.tile{ appearance:none; cursor:pointer; text-align:left; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 16px; min-width:132px;
+  font:inherit; color:inherit; transition:border-color .12s, box-shadow .12s; }
+.tile:hover{ border-color:var(--asubk-border-strong); }
+.tile.on{ border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+.tile .n{ display:block; font:600 24px/1.15 var(--asubk-font); color:var(--text-heading); }
+.tile .l{ display:block; font-size:13px; color:var(--text-muted); margin-top:2px; }
+.tile.crit .n{ color:var(--asubk-red); }
+.tile.major .n{ color:var(--asubk-amber); }
+
+/* ---- панель фильтров ---- */
+.bar{ position:sticky; top:0; z-index:5; background:var(--asubk-gray-100);
+  padding:14px 0 12px; margin-bottom:4px; border-bottom:1px solid var(--border-default); }
+.bar .row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.search{ flex:1; min-width:240px; height:36px; padding:0 12px; font:inherit; font-size:14px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.search:focus{ outline:none; border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+select{ height:36px; padding:0 8px; font:inherit; font-size:14px; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); color:inherit; }
+.btn{ height:36px; padding:0 14px; font:inherit; font-size:14px; cursor:pointer;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.btn:hover{ background:var(--asubk-gray-50); }
+.btn-p{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+.btn-p:hover{ background:var(--asubk-blue-hover); }
+.count{ font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap; }
+
+/* ---- группа темы ---- */
+.group{ margin-top:26px; }
+.group > h2{ font:600 15px/1.3 var(--asubk-font); color:var(--text-muted); margin:0 0 10px;
+  text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:8px; }
+.group > h2 .g-n{ font-weight:400; color:var(--asubk-ink-45); text-transform:none; letter-spacing:0; }
+
+/* ---- карточка ---- */
+.card{ background:var(--asubk-white); border:1px solid var(--border-default); border-left:3px solid var(--asubk-gray-200);
+  border-radius:var(--radius-lg); padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow-card); }
+.card.p-crit{ border-left-color:var(--asubk-red); }
+.card.p-major{ border-left-color:var(--asubk-amber); }
+.card.p-minor{ border-left-color:var(--asubk-blue); }
+.card.p-cosm{ border-left-color:var(--asubk-gray-200); }
+
+.c-head{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; }
+.id{ font:600 13px/1 var(--asubk-font); letter-spacing:.02em; color:var(--asubk-link);
+  background:var(--asubk-blue-tint); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.step{ font:600 12px/1 var(--asubk-font); color:var(--asubk-ink-45); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.c-title{ font:600 17px/1.35 var(--asubk-font); color:var(--text-heading); flex:1; min-width:260px; margin:0; }
+
+.chip{ font-size:12px; line-height:1; padding:5px 9px; border-radius:var(--radius-pill); white-space:nowrap; font-weight:500; }
+.chip-crit{ background:var(--asubk-red-tint); color:#9E1F1F; }
+.chip-major{ background:var(--asubk-amber-tint); color:#8A6508; }
+.chip-minor{ background:var(--asubk-blue-tint); color:#04479E; }
+.chip-cosm{ background:var(--asubk-gray-150); color:var(--text-muted); }
+.chip-mock{ background:var(--asubk-green-tint); color:#0E5C2F; }
+.chip-open{ background:var(--asubk-gray-150); color:var(--text-muted); }
+
+.blk{ margin-top:12px; }
+.blk .lbl{ font:600 12px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); display:block; margin-bottom:5px; }
+.blk p{ margin:0; font-size:15px; }
+.blk ul{ margin:0; padding-left:20px; font-size:15px; }
+.blk li{ margin-bottom:4px; }
+.blk li:last-child{ margin-bottom:0; }
+.pain{ color:var(--text-muted); }
+.pain b{ color:var(--text-body); font-weight:600; }
+
+.c-foot{ margin-top:13px; padding-top:11px; border-top:1px solid var(--asubk-gray-150);
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tag{ font-size:12px; color:var(--text-muted); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep{ font-size:12px; color:var(--asubk-link); background:var(--asubk-white);
+  border:1px solid rgba(0,106,245,0.25); border-radius:var(--radius-pill); padding:3px 9px; }
+
+details{ margin-top:11px; border-top:1px solid var(--asubk-gray-150); padding-top:9px; }
+details summary{ cursor:pointer; font-size:13px; color:var(--text-muted); list-style:none; user-select:none; }
+details summary::-webkit-details-marker{ display:none; }
+details summary::before{ content:'▸ '; color:var(--asubk-ink-45); }
+details[open] summary::before{ content:'▾ '; }
+details summary:hover{ color:var(--asubk-link); }
+.dev{ margin-top:8px; font-size:13.5px; color:var(--text-muted); background:var(--asubk-gray-50);
+  border:1px solid var(--asubk-gray-150); border-radius:var(--radius-md); padding:10px 12px; }
+.dev ul{ margin:0; padding-left:18px; }
+.dev li{ margin-bottom:4px; }
+.dev code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; color:var(--asubk-ink); }
+
+.empty{ text-align:center; padding:48px 0; color:var(--text-muted); font-size:15px; }
+.legend{ margin-top:32px; font-size:13px; color:var(--text-muted); border-top:1px solid var(--border-default); padding-top:14px; }
+.legend b{ color:var(--text-body); }
+@media print{ .bar{ position:static; } details{ display:none; } .card{ break-inside:avoid; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumbs">АСУБК · Модуль «Взыскание задолженности» · Бэклог</div>
+    <h1>Взыскание задолженности — задачи для команды разработки</h1>
+    <p class="lead">
+      20 задач, выстроенных <b>в строгом порядке сборки</b>: разработчик идёт сверху вниз —
+      сначала ядро (каркас, модель «только факты», две ведущие оси, машина фаз, категория),
+      затем виды, затем меры, сроки, гейты и особые состояния. Не начинать следующую, пока не
+      закрыта предыдущая. Это <b>сквозной модуль</b>, живущий поверх любого кредита в просрочке,
+      а не одна фаза кредитного цикла; живого экрана в приложении нет — модуль проектируется
+      с нуля, поэтому дефектов стенда по нему тоже нет. Источник истины — <code>TODO.md</code>,
+      раздел «Взыскание задолженности» (P14-R1…P14-R20); он <b>разворачивает старый P9-R1…R9</b>
+      (фаза 9) до фундамент-первого плана. Здесь то же самое человеческим языком:
+      <b>в чём боль → что сделать</b>. Эталон интерфейса и поведения — готовый макет
+      <code>mockups/collection/collection.html</code> v2 (проверка — <code>node
+      scripts/inspect/collection-check.mjs</code>, jsdom).
+    </p>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="bar">
+    <div class="row">
+      <input class="search" id="q" type="search" placeholder="Поиск по номеру, заголовку, тексту…" autocomplete="off">
+      <select id="fTheme"><option value="">Все этапы</option></select>
+      <select id="fPrio">
+        <option value="">Любой приоритет</option>
+        <option value="crit">🔴 Блокер</option>
+        <option value="major">🟠 Важно</option>
+        <option value="minor">🟡 Средне</option>
+      </select>
+      <button class="btn" id="reset">Сбросить</button>
+      <button class="btn btn-p" id="expand">Раскрыть тех. детали</button>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="legend">
+    <p><b>Приоритет:</b> 🔴 блокер (без этого модуль не работает) · 🟠 важно · 🟡 средне.</p>
+    <p><b>Порядок сборки — строгий.</b> Номер шага в начале карточки — обязательная очерёдность;
+       нумерация = порядок зависимостей: каждая задача опирается на уже сделанные и ни на одну из
+       будущих. Ядро (шаги 1–7) — фундамент; без него меры, сроки, гейты и особые состояния некуда вешать.
+       Значок <span class="chip chip-mock">Есть эталон в макете</span> значит, что поведение уже
+       отрисовано и проверено в <code>mockups/collection/collection.html</code> — разработке
+       остаётся перенести его на боевую платформу (Jmix).</p>
+    <p>Дефектов живого стенда по этому модулю нет: экрана в приложении не существует,
+       модуль спроектирован с нуля по нормативу «Порядок мониторинга, взыскания и урегулирования
+       задолженности» (99 п.) + ТЗ АСУБК-3, разд. 2.5.</p>
+  </div>
+</div>
+
+<script>
+/* ── Данные. Порядок = строгий порядок сборки (как в TODO.md). ──────────── */
+const THEMES = {
+  core:    'Шаг 1–5 · Ядро: каркас, факты, две оси, машина фаз, категория',
+  list:    'Шаг 6 · Список процессов',
+  card:    'Шаг 7 · Карточка: шапка и вкладки',
+  open:    'Шаг 8 · Открытие и окно ожидания',
+  measure: 'Шаг 9–11 · Меры: регистрация, вручение, сторно',
+  legal:   'Шаг 12–14 · Сроки, органы, ускорение долга',
+  money:   'Шаг 15 · Расчёт долга',
+  special: 'Шаг 16–17 · Особые состояния и залог',
+  flow:    'Шаг 18–20 · Передача, правила, история',
+};
+
+const T = [
+{ id:'P14-R1', step:'Шаг 1', prio:'crit', theme:'core', state:'mock',
+  title:'Каркас модуля: три вида, сайдбар, фильтр стадии, сохранение состояния',
+  pain:'Это точка входа в модуль. Пока нет каркаса — страницы с переключением видов и сайдбаром — остальные задачи некуда вешать. Поэтому делается первой.',
+  todo:['Каркас: сайдбар «Взыскание» + топбар; три вида — <b>Список процессов</b> (P14-R6) · <b>Карточка процесса</b> (P14-R7) · <b>Настройки правил</b> (P14-R19); плюс кросс-процессные <b>Реестры</b> (P14-R20).',
+        'Сайдбар-навигация с фильтром <b>стадии</b> — по <code>stageOf(phase)</code>, НЕ по наличию меры (закрывает Д-4).',
+        'Сохранение вида / карточки / вкладки в URL-хэше — переживает F5.'],
+  deps:['P14-R4','P14-R6','P14-R7','P14-R19','P14-R20'],
+  dev:['Эталон — <code>mockups/collection/collection.html</code>. Вид в хэше — <code>setHash()</code>; фильтр стадии — по <code>stageOf</code>, не по мерам (Д-4).'] },
+
+{ id:'P14-R2', step:'Шаг 2', prio:'crit', theme:'core', state:'mock',
+  title:'Модель-факты: процесс ↔ заёмщик ↔ кредиты («Охват»)',
+  pain:'Единица работы — процесс взыскания на одного заёмщика. Если хранить категорию/стадию/группу полями, они разойдутся с фактами при каждой мере и платеже. Всё производное считается, а не хранится.',
+  todo:['<b>Процесс</b> привязан к ОДНОМУ заёмщику (ИНН — якорь); связь <b>процесс ↔ кредиты — многие-ко-многим</b>, различаются предметом требования и суммой («Охват»).',
+        'В данных — только факты: процессы (<code>PROCESSES</code>), кредиты охвата, меры, платежи, справочники. Полей «статус» / «категория» / «стадия» / «группа» нет ни у одной сущности.',
+        'Всё производное — функции (фаза-производные, <code>catOf*</code>, <code>stageOf</code>, <code>groupOf</code>, <code>displayPhase</code>) — в модели не хранится.',
+        'Процесс ссылается на заёмщика и кредиты, ФИО/сумму не дублирует.'],
+  deps:[],
+  dev:['<code>PROCESSES</code> + связь процесс↔кредиты (many-to-many) с полем «Охват». Всё производное — чистые функции, полей <code>cat</code>/<code>stage</code>/<code>group</code> нет.'] },
+
+{ id:'P14-R3', step:'Шаг 3', prio:'crit', theme:'core', state:'mock',
+  title:'Две ведущие оси: ФАЗА и ПРОЦЕДУРА (группа выводится)',
+  pain:'Юридический факт (фаза) и орг-состояние дела (процедура) — разные оси. Слить их в один «статус» — как в кадрах слить приказ и доступ: рано или поздно разойдётся (Р-1).',
+  todo:['<b>Фаза</b> — юр. факт, двигается ТОЛЬКО регистрацией меры-вехи; селектора фаз в UI нет.',
+        '<b>Процедура</b> — орг. состояние (закрытый словарь статусов); смена = запись в журнал с <b>ожиданием подтверждения принимающей стороны</b> (п. 98).',
+        '<b>Группа платёжеспособности</b> ВЫВОДИТСЯ из подтверждённого статуса процедуры (<code>groupOf</code>), вручную не задаётся.',
+        'Подпись источника у каждой оси (откуда значение).'],
+  deps:['P14-R2'],
+  dev:['<code>PROCEDURE_DICT</code> (закрытый словарь) + <code>procConfirmed</code>/<code>confirmProc</code>/<code>doRejectProc</code> (п. 98). <code>groupOf</code> считает группу из подтверждённой процедуры, не хранит.'] },
+
+{ id:'P14-R4', step:'Шаг 4', prio:'crit', theme:'core', state:'mock',
+  title:'Машина фаз — семь контуров К0…К7, стадия и отображаемая фаза',
+  pain:'Фазы — не одна цепочка, а семь контуров с терминалами. Стадия и «что показать в шапке» — производные от фазы; хранить их полем нельзя, иначе снова рассинхрон.',
+  todo:['<b>Семь контуров К0…К7</b> (§3.1); таймлайн рисует контур текущей фазы. Безакцептное списание — УСЛОВНАЯ ветка К1 (§3.4), в таймлайне только при <code>bezakceptRight:true</code> у кредита. Смерть заёмщика — контур К5, НЕ оверлей.',
+        'Терминалы (§3.3): Полное погашение · Признана безнадёжной · Списана · Завершена процедура банкротства.',
+        '<b>Стадия</b> = <code>stageOf(phase)</code>, 4 значения (§3.5): Досудебный порядок · Судебный порядок · Исполнительное производство · Отчуждение активов.',
+        '<b>Отображаемая фаза</b> (<code>displayPhase</code>, §3.6): хранятся <code>phase</code> + <code>overlay</code>; при оверлее реструктуризации показывается «Рассмотрение вопроса реструктуризации». <code>displayPhase</code> вызывается ВЕЗДЕ, где показывается фаза.'],
+  deps:['P14-R3'],
+  dev:['<code>CONTOURS</code>/<code>CONTOUR_LEVEL</code>/<code>contourOfPhase</code>, <code>PHASE_STAGE</code>→<code>stageOf</code>, <code>displayPhase</code>. Веху ставит только мера-веха (<code>MILESTONE_PHASE</code>, P14-R9).'] },
+
+{ id:'P14-R5', step:'Шаг 5', prio:'crit', theme:'core', state:'mock',
+  title:'Категория риска — worst-of на уровне кредита',
+  pain:'Категория должна считаться снизу вверх (день → кредит → процесс), а не как функция дней на процессе — иначе получаются Д-1/Д-2 (категория не бьётся с реальностью по кредитам).',
+  todo:['<code>catByDays</code> (0–5 норма / 6–180 средний / 181+ высокий) · <code>catOfCredit</code> (worst-of дней с подавлением 181-го + факторы, п. 12) · <code>catOfProcess</code> (worst-of по кредитам).',
+        '<b>Подавление 181-го дня — на уровне КРЕДИТА</b>, до worst-of; категория показывается честно («по дням 214 → высокий, подавлен → средний»).',
+        'Полей <code>cat</code>/<code>catDays</code> на процессе НЕТ.'],
+  deps:['P14-R2'],
+  dev:['<code>catByDays</code>/<code>catLevelOfCredit</code>/<code>catOfCredit</code>/<code>catOfProcess</code>, <code>CAT_RANK</code>. Подавление 181-го — до worst-of, на уровне кредита. Раскрытие входов в шапке — <code>catExpand</code>.'] },
+
+{ id:'P14-R6', step:'Шаг 6', prio:'major', theme:'list', state:'mock',
+  title:'Вид «Список процессов» — колонки, плитки-фильтры, полевой фильтр',
+  pain:'Без рабочего списка процесс не найти и в карточку не войти. Фильтры живые, без кнопки «Применить».',
+  todo:['Колонки списка (В-11) на дату, плитки-фильтры (счётчики по стадии/категории), фильтр стадии — по <code>stageOf</code> (Д-4).',
+        'Полевой фильтр: панель, чипы, зависимые селекты, живой пересчёт.',
+        'Клик по строке → карточка (P14-R7); пустой результат — понятная плашка.'],
+  deps:['P14-R4','P14-R5','P14-R7'],
+  dev:['<code>visibleProcesses</code> + плитки-фильтры; фильтр стадии через <code>stageOf</code>, не через наличие меры (Д-4). Фильтр живой, без «Применить».'] },
+
+{ id:'P14-R7', step:'Шаг 7', prio:'major', theme:'card', state:'mock',
+  title:'Вид «Карточка» — шапка (5 плиток) + лента 9 вкладок',
+  pain:'Контейнер карточки: пять плиток-индикаторов и переключение вкладок; на него вешаются R8–R18.',
+  todo:['Шапка — <b>пять плиток</b>: Стадия · Фаза · Процедура · Категория · Группа; ни одна не редактируется, у каждой подпись источника; плитка «Категория» раскрывает входы worst-of покредитно (паттерн <code>borrower.html</code>).',
+        'Лента <b>девяти вкладок</b>: Общая информация · Кредиты · Журнал мер · Суд · Ведение дела · Согласования · Особые состояния · Залог / реализация · История; навигация ← →.',
+        'Карточка read-only → в футере только «Закрыть».',
+        'Баннеры особых состояний (<code>headerBanners</code>) — каркас (наполнение в R16).'],
+  deps:['P14-R6'],
+  dev:['<code>TABS</code> (9 вкладок), <code>phaseHeader</code> (5 плиток), <code>headerBanners</code>. Плитки read-only, каждая с подписью источника; «Категория» → <code>catExpand</code>.'] },
+
+{ id:'P14-R8', step:'Шаг 8', prio:'major', theme:'open', state:'mock',
+  title:'Открытие процесса и окно ожидания зачисления',
+  pain:'Процесс должен открываться сам на 6-й день просрочки с нулём мер (нормальное состояние). До зачисления платежа первичная претензия под гейтом — иначе шлём претензию по уже пришедшим деньгам (Р-4/Р-8).',
+  todo:['<b>Авто-открытие</b> (Р-4) на 6-й день просрочки, фаза «Досудебное урегулирование», ноль мер.',
+        '<b>Окно ожидания зачисления</b> (Р-8, ≤14 к.д., по умолч. 5): пока открыто — гейт первичной претензии закрыт; закрывается по истечении либо отметкой куратора (п. 17.2).',
+        'Ретроспективное закрытие (Р-9) — процесс скрыт по умолчанию.'],
+  deps:['P14-R7'],
+  dev:['Окно — на процессе (<code>window.open</code>/<code>until</code>); закрытие отметкой — <code>closeWindowMark()</code>. Гейт первичной претензии открывается по истечении окна или отметке.'] },
+
+{ id:'P14-R9', step:'Шаг 9', prio:'major', theme:'measure', state:'mock',
+  title:'Вкладка «Журнал мер» — регистрация меры, три оси результата, матрицы',
+  pain:'Мера — атом взыскания. Её результат раскладывается на три независимые оси, а допустимость задаётся матрицами. Схлопнуть оси или прописать допустимость в коде — потерять входы расчётных показателей ТЗ (В-2/В-3/В-9).',
+  todo:['Справочник видов меры (В-3, пополняемый) + матрица «фаза ← вид меры-вехи» (веха двигает фазу) + матрица «вид меры × подразделение» (В-9).',
+        'Регистрация меры с <b>тремя осями результата</b>: <code>result</code> · <code>resultKind</code> · <code>execStage</code> — не схлопывать.',
+        'Слой правил доступности мер (<code>RULES</code>) — какие меры разрешены в текущем состоянии (правится на #settings, P14-R19).'],
+  deps:['P14-R4'],
+  dev:['<code>MEASURE_KINDS</code>/<code>MEASURE_SUBDIV</code>/<code>MILESTONE_PHASE</code>, три оси <code>RESULT_GROUPS</code>/<code>EXEC_STAGES</code>. <code>openMeasureModal</code>/<code>saveMeasure</code>; допустимость — <code>canRegisterMeasures</code>/<code>measureGate</code>.'] },
+
+{ id:'P14-R10', step:'Шаг 10', prio:'major', theme:'measure', state:'mock',
+  title:'Подтверждение вручения меры',
+  pain:'Мера без подтверждения вручения не исполнена и не годится как доказательство в суде — иск разваливается на «а вы точно вручили претензию?».',
+  todo:['Для претензий, требований обеспечителям и извещений — подтверждение вручения (способ + тип + дата + скан).',
+        'До подтверждения мера не двигает фазу-веху и помечается неисполненной.',
+        'Загрузка скана — демо-заглушка (тост).'],
+  deps:['P14-R9'],
+  dev:['Реквизиты вручения на мере; веха (<code>movePhase</code>) не срабатывает, пока вручение не подтверждено. Скан — демо (тост).'] },
+
+{ id:'P14-R11', step:'Шаг 11', prio:'major', theme:'measure', state:'mock',
+  title:'Сторно и иммутабельность отправленного документа',
+  pain:'Ошибочную меру нельзя тихо удалить — она уже в истории и, возможно, в суде. Отправленный документ переписывать нельзя, иначе теряется доказательная цепочка (И-1/И-3).',
+  todo:['<b>Сторно</b> вместо аннулирования (И-3): запись, не удаление; если сторнируется веха — откат фазы.',
+        'Отправленный документ иммутабелен (И-1): расхождение суммы <b>помечается</b>, сумма не переписывается.',
+        'След сторно виден в журнале мер и истории (P14-R20).'],
+  deps:['P14-R9'],
+  dev:['<code>openStornoModal</code>/<code>doStorno</code> — запись сторно, не delete; веха → откат фазы. Отправленный документ read-only, расхождение суммы помечается, не переписывается.'] },
+
+{ id:'P14-R12', step:'Шаг 12', prio:'minor', theme:'legal', state:'mock',
+  title:'Сроки порядка — расчётное поле, шаблоны, три даты факта',
+  pain:'Срок — не сущность-задание с назначениями и продлениями, а расчёт от базы шаблона. Заводить «задания» — раздуть модель и считать остаток от даты ввода, а не от факта (Р-3 вариант 3Б / Р-7).',
+  todo:['Справочник шаблонов <code>DEADLINE_TEMPLATES</code> (§5.3) с базой отсчёта и пунктом; <b>без</b> сущности «задание»/назначений/продлений.',
+        'Три даты внешнего факта (Р-7): <code>event</code> / <code>received</code> / <code>registered</code>; остаток срока — от базы шаблона, не от даты ввода.',
+        'Индикация просроченного / близкого срока в карточке и списке.'],
+  deps:['P14-R9'],
+  dev:['<code>DEADLINE_TEMPLATES</code> — только расчётное поле (вариант 3Б). Остаток — от базы шаблона по трём датам факта (<code>event</code>/<code>received</code>/<code>registered</code>).'] },
+
+{ id:'P14-R13', step:'Шаг 13', prio:'major', theme:'legal', state:'mock',
+  title:'Коллегиальные органы и гейты необратимых действий',
+  pain:'Необратимые действия (иск, безакцепт, списание, внесудебное обращение) должны блокироваться до положительного решения профильного органа. Абстрактное «решение комитета» — мало: органов ровно пять (Р-6).',
+  todo:['Справочник <b>пяти органов</b> (Р-6, закрытый), не абстрактное «решение комитета».',
+        '<b>Гейты</b> необратимых действий (§6.3): блокировка до положительного решения, причина текстом; подача иска — поручение Председателя (п. 21).',
+        'Гейт пересечения на судебной стадии; вкладки «Суд» / «Согласования» показывают статусы решений.'],
+  deps:['P14-R9'],
+  dev:['<code>GATES</code>/<code>gateBlocked</code>/<code>gateReason</code>/<code>toggleGate</code>, <code>openDecisionModal</code>/<code>openCommitteeQuestionModal</code>. Судебный гейт пересечения — <code>schedGate</code>/<code>msHasSuit</code>.'] },
+
+{ id:'P14-R14', step:'Шаг 14', prio:'minor', theme:'legal', state:'mock',
+  title:'Ускорение долга при извещении (В-8)',
+  pain:'Регистрация извещения влечёт досрочное наступление всего долга — требуемая сумма должна пересчитаться с просроченной части на полный остаток прямо на клике, а не остаться прежней (В-8, п. 20.4).',
+  todo:['При регистрации извещения — пересчёт требуемой суммы с просроченной части на полный остаток (на клике).',
+        'При наличии решения суда погашение сначала направляется на сумму по судебному акту.',
+        'Показать до / после в расчёте долга (P14-R15).'],
+  deps:['P14-R9','P14-R15'],
+  dev:['Флаг <code>accelerated</code> на кредите/процессе; пересчёт требуемой суммы на клике извещения (В-8). При судебном акте — приоритет суммы по акту в распределении (§9.2).'] },
+
+{ id:'P14-R15', step:'Шаг 15', prio:'major', theme:'money', state:'mock',
+  title:'Вкладка «Расчёт долга» — пять статей, два распределения',
+  pain:'Долг раскладывается на пять статей, а погашение распределяется по-разному: обычный waterfall и выручка от реализации залога (расходы → залогодержатель → возврат залогодателю). Один порядок на всё — ошибка в деньгах (§9).',
+  todo:['<b>Пять статей</b> долга (+<code>costs</code> «Расходы по обращению взыскания и реализации»), финразбивка по буквам обязательства.',
+        '<b>Два распределения</b> (§9.2): обычный waterfall и выручка от реализации залога (п. 49: расходы → залогодержатель → ВОЗВРАТ залогодателю).',
+        'Непокрытый остаток → п. 33; интерактивное распределение погашения (оба режима).'],
+  deps:['P14-R2'],
+  dev:['<code>DEBT_BUCKETS</code>/<code>DEBT_LABELS</code>/<code>debtTotals</code>/<code>debtLeft</code>; два распределения — обычный waterfall и <code>distributeRealization</code> (п. 49). Непокрытый остаток → п. 33.'] },
+
+{ id:'P14-R16', step:'Шаг 16', prio:'major', theme:'special', state:'mock',
+  title:'Вкладка «Особые состояния» — паузы, соглашения, смерть, конфликт интересов',
+  pain:'Особые состояния нельзя сливать с фазой: пауза и соглашение сохраняют фазу, смерть — это контур К5, а конфликт интересов отстраняет куратора. Свалить всё в «статус» — потерять типизацию (Р-10, гл. 16).',
+  todo:['<b>Паузы</b> типизированы: гарантийное письмо (п. 18) / реструктуризация (п. 19); фаза сохранена, счётчик дней НЕ заморожен; реструктуризация даёт оверлей <code>displayPhase</code> + подавление 181-го.',
+        '<b>Два соглашения</b>: мировое (пп. 22–24) / добровольное исполнение (п. 37) — новый график и мониторинг, не пауза.',
+        '<b>Конфликт интересов</b> (гл. 16): отстранение куратора до решения Правления (п. 92), все действия регистрации для роли заблокированы.',
+        'Баннеры особых состояний в шапке (наполнение каркаса R7).'],
+  deps:['P14-R7','P14-R4'],
+  dev:['<code>openPauseModal</code>/<code>savePause</code>/<code>liftPause</code>/<code>onPauseTypeChange</code>; соглашения — <code>openAgreementModal</code>. Смерть = контур К5 (не оверлей). Конфликт — <code>conflict.curatorSuspended</code> в <code>headerBanners</code>.'] },
+
+{ id:'P14-R17', step:'Шаг 17', prio:'major', theme:'special', state:'mock',
+  title:'Вкладка «Залог / реализация» — порядок обращения и ЖЦ реализации',
+  pain:'Обращение взыскания на залог и реализация — типизированный жизненный цикл, стыкованный с модулем обеспечения (P13). Без типизации ЖЦ выручка и расходы попадают в расчёт долга как попало.',
+  todo:['Порядок обращения взыскания (п. 42) и типизированный ЖЦ реализации (п. 48/49).',
+        'Стык с модулем обеспечения (P13): трек по предметам залога процесса.',
+        'Выручка от реализации уходит в распределение §9.2 (P14-R15).'],
+  deps:['P14-R15'],
+  dev:['<code>panelZalog</code>, <code>openRealizationModal</code>/<code>markRealized</code>/<code>distributeRealization</code> (п. 48/49). Стык с модулем обеспечения P13 (трек по предметам).'] },
+
+{ id:'P14-R18', step:'Шаг 18', prio:'minor', theme:'flow', state:'mock',
+  title:'Вкладки «Ведение дела» / «Согласования» — эстафета передачи дела',
+  pain:'Дело идёт по подразделениям эстафетой; приём пакета должен подтверждаться или отклоняться принимающей стороной с причиной — иначе дело «уходит в никуда» (п. 98).',
+  todo:['Эстафета: куратор → ДПО → отдел проблемных кредитов → ПССИ / сектор активов.',
+        'Передача с <b>подтверждением или отклонением</b> пакета (паттерн «четырёх глаз», п. 98, срок 5 р.д.), причина отклонения текстом.',
+        'Смена процедуры (P14-R3) отражается записью в журнал с ожиданием подтверждения.'],
+  deps:['P14-R3'],
+  dev:['<code>openProcChangeModal</code>/<code>doProcChange</code>/<code>openRejectProc</code>/<code>doRejectProc</code> (п. 98, «четыре глаза»). Эстафета подразделений — из справочника оргструктуры.'] },
+
+{ id:'P14-R19', step:'Шаг 19', prio:'major', theme:'flow', state:'mock',
+  title:'Экран «Настройки правил» (#settings) — живой слой RULES',
+  pain:'Доступность мер и матрицы — конфигурация, а не код. Зашить их в код — каждое изменение норматива через релиз.',
+  todo:['Экран настроек (#settings), четыре вкладки; каждая правит одну ось <code>RULES</code> (живой слой доступности мер).',
+        'Справочники видов меры / органов / шаблонов сроков — редактируемы отсюда.',
+        'Изменение правил сразу влияет на гейты регистрации (P14-R9/R13).'],
+  deps:['P14-R9','P14-R13'],
+  dev:['<code>SETTINGS_TABS</code>, <code>renderSettingsGates</code>/<code>renderSettingsPhases</code>; <code>RULES_DEFAULTS</code>/<code>RULES_KEY</code> — живой слой, правится без релиза, сразу влияет на <code>measureGate</code>.'] },
+
+{ id:'P14-R20', step:'Шаг 20', prio:'minor', theme:'flow', state:'mock',
+  title:'Вкладка «История», кросс-процессные реестры, сохранение состояния',
+  pain:'Каждое действие должно оставлять след, а процессы — сводиться в кросс-реестры. Завершающая задача, замыкающая R1–R19.',
+  todo:['Вкладка «История» — таймлайн событий процесса (открытие, меры, сторно, смена процедуры, паузы/соглашения, передачи).',
+        'Кросс-процессные <b>реестры</b> (мер / сроков / согласований / залога) поверх всех процессов.',
+        'Сохранение состояния экрана (см. P14-R1): после закрытия карточки корректно уводить в список.'],
+  deps:['P14-R1','P14-R11'],
+  dev:['Таймлайн истории на карточке; кросс-процессные реестры поверх <code>PROCESSES</code>. Состояние экрана — в хэше (см. P14-R1).'] },
+];
+
+/* ── Рендер ───────────────────────────────────────────────────────────── */
+const PRIO_META = {
+  crit:  { chip:'🔴 Блокер',    cls:'chip-crit'  },
+  major: { chip:'🟠 Важно',     cls:'chip-major' },
+  minor: { chip:'🟡 Средне',    cls:'chip-minor' },
+};
+const STATE_META = {
+  mock: { chip:'Есть эталон в макете', cls:'chip-mock' },
+  open: { chip:'Только постановка',    cls:'chip-open' },
+};
+
+const F = { q:'', theme:'', prio:'', state:'' };
+
+const themeSel = document.getElementById('fTheme');
+Object.entries(THEMES).forEach(([k,v]) => {
+  const n = T.filter(t => t.theme === k).length;
+  themeSel.insertAdjacentHTML('beforeend', `<option value="${k}">${v} (${n})</option>`);
+});
+
+function tiles(){
+  const data = [
+    { k:'', l:'Всего задач', n:T.length, cls:'' },
+    { k:'crit',  l:'🔴 Блокеры', n:T.filter(t=>t.prio==='crit').length,  cls:'crit' },
+    { k:'major', l:'🟠 Важные',  n:T.filter(t=>t.prio==='major').length, cls:'major' },
+    { k:'minor', l:'🟡 Средние', n:T.filter(t=>t.prio==='minor').length, cls:'' },
+  ];
+  document.getElementById('tiles').innerHTML = data.map(d =>
+    `<button class="tile ${d.cls} ${F.prio===d.k && d.k ? 'on':''}" data-prio="${d.k}">
+       <span class="n">${d.n}</span><span class="l">${d.l}</span></button>`).join('');
+  document.querySelectorAll('.tile').forEach(b => b.onclick = () => {
+    const p = b.dataset.prio;
+    F.prio = (F.prio === p || !p) ? '' : p;
+    document.getElementById('fPrio').value = F.prio;
+    render();
+  });
+}
+
+function card(t){
+  const pm = PRIO_META[t.prio], sm = STATE_META[t.state];
+  const dev = t.dev && t.dev.length
+    ? `<details><summary>Для разработчика — эталон и ловушки</summary>
+         <div class="dev"><ul>${t.dev.map(d=>`<li>${d}</li>`).join('')}</ul></div></details>` : '';
+  const deps = (t.deps||[]).map(d=>`<span class="dep">↔ ${d}</span>`).join('');
+  return `<article class="card p-${t.prio}" data-id="${t.id}">
+    <div class="c-head">
+      <span class="id">${t.id}</span>
+      <span class="step">${t.step}</span>
+      <h3 class="c-title">${t.title}</h3>
+      <span class="chip ${pm.cls}">${pm.chip}</span>
+      <span class="chip ${sm.cls}">${sm.chip}</span>
+    </div>
+    <div class="blk"><span class="lbl">В чём проблема</span><p class="pain">${t.pain}</p></div>
+    <div class="blk"><span class="lbl">Что сделать</span><ul>${t.todo.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+    <div class="c-foot"><span class="tag">${THEMES[t.theme]}</span>${deps}</div>
+    ${dev}
+  </article>`;
+}
+
+function render(){
+  const q = F.q.trim().toLowerCase();
+  const sel = T.filter(t => {
+    if (F.theme && t.theme !== F.theme) return false;
+    if (F.prio  && t.prio  !== F.prio)  return false;
+    if (!q) return true;
+    const hay = (t.id + ' ' + t.title + ' ' + t.pain + ' ' + t.todo.join(' ') + ' ' + (t.dev||[]).join(' ')).toLowerCase();
+    return hay.includes(q);
+  });
+
+  const list = document.getElementById('list');
+  if (!sel.length){ list.innerHTML = '<div class="empty">Ничего не найдено. Сбросьте фильтры.</div>'; }
+  else {
+    const order = Object.keys(THEMES);
+    list.innerHTML = order.filter(k => sel.some(t => t.theme === k)).map(k => {
+      const rows = sel.filter(t => t.theme === k);
+      return `<section class="group"><h2>${THEMES[k]} <span class="g-n">· ${rows.length}</span></h2>
+              ${rows.map(card).join('')}</section>`;
+    }).join('');
+  }
+  document.getElementById('count').textContent = `Показано ${sel.length} из ${T.length}`;
+  tiles();
+}
+
+document.getElementById('q').oninput       = e => { F.q = e.target.value; render(); };
+document.getElementById('fTheme').onchange = e => { F.theme = e.target.value; render(); };
+document.getElementById('fPrio').onchange  = e => { F.prio  = e.target.value; render(); };
+document.getElementById('reset').onclick   = () => {
+  F.q=''; F.theme=''; F.prio=''; F.state='';
+  document.getElementById('q').value=''; document.getElementById('fTheme').value='';
+  document.getElementById('fPrio').value='';
+  render();
+};
+let expanded = false;
+document.getElementById('expand').onclick = e => {
+  expanded = !expanded;
+  document.querySelectorAll('details').forEach(d => d.open = expanded);
+  e.target.textContent = expanded ? 'Свернуть тех. детали' : 'Раскрыть тех. детали';
+};
+
+render();
+</script>
+</body>
+</html>
