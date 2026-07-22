@@ -48,11 +48,11 @@ ok('8. displayPhase объявлена и применяется (151 → «Ра
 
 // ───────── Машина фаз (9–17) ─────────
 ok('9. семь контуров К0…К7 присутствуют', g.ev("['К0','К1','К2','К3','К4','К5','К6','К7'].every(k=>k in CONTOURS)"));
-g.ev("openDetail('206')"); g.ev("switchTab(3)");
+g.ev("openDetail('206')"); g.ev("switchTab(2)");
 ok('10. таймлайн К6 показывает три шага банкротства', g.active().querySelectorAll('.tl-step').length === 3);
-g.ev("openDetail('204')"); g.ev("switchTab(3)");
+g.ev("openDetail('204')"); g.ev("switchTab(2)");
 const tl204 = g.active().querySelector('.timeline').textContent;
-g.ev("openDetail('205')"); g.ev("switchTab(3)");
+g.ev("openDetail('205')"); g.ev("switchTab(2)");
 const tl205 = g.active().querySelector('.timeline').textContent;
 ok('11. безакцепт в таймлайне только при праве договора (204 да, 205 нет)',
   /Безакцептное списание/.test(tl204) && !/Безакцептное списание/.test(tl205));
@@ -111,7 +111,7 @@ ok('32. безакцепт заблокирован без решения ком
     /поручени/i.test(m.ev("measureGate(PROCESSES.find(p=>p.id==='204'),'Исковое заявление').reason"))); }
 ok('34. внесудебный порядок недоступен для имущественного комплекса (жёсткая блокировка)',
   g.ev("PROCESSES.find(p=>p.id==='104').colls.some(c=>/имущественный комплекс/.test(c.ban))"));
-{ const m = mk(); m.ev("openDetail('120')"); m.ev("switchTab(7)"); m.ev("openAgreementModal()");
+{ const m = mk(); m.ev("openDetail('120')"); m.ev("switchTab(6)"); m.ev("openAgreementModal()");
   m.$('#modalHost .mform input').value = '6'; m.ev("agSync()");
   ok('35. мировое соглашение свыше 5 лет заблокировано (кнопка Save disabled)', m.$('#agSave').disabled === true); }
 { const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
@@ -140,13 +140,13 @@ ok('39. три оси результата независимы (142 иск: res
   ok('40. сторно не удаляет строку', m.ev("curProc.measures.length") === before && m.ev(`curProc.measures[${idx}].storno!=null`));
   ok('41. сторно меры-вехи откатывает фазу к предыдущей вехе (Иск → Повторная претензия)',
     m.ev("curProc.phase") === 'Повторная претензия'); }
-g.ev("openDetail('142')"); g.ev("switchTab(3)");
+g.ev("openDetail('142')"); g.ev("switchTab(2)");
 ok('42. расхождение суммы помечено, сумма документа не переписана',
   /сумма расходится с расчётом/.test(g.active().textContent)
   && g.ev("PROCESSES.find(p=>p.id==='142').measures.find(x=>x.kind==='Исковое заявление').sum") === '48 900,00');
 ok('43. пять статей долга (DEBT_BUCKETS + costs)',
   g.ev("DEBT_BUCKETS.length") === 5 && g.ev("'costs' in DEBT_LABELS"));
-g.ev("openDetail('104')"); g.ev("switchTab(2)");
+g.ev("openDetail('104')"); g.ev("switchTab(1)");
 ok('44. строка возврата залогодателю присутствует при реализации залога (104)',
   /Возврат залогодателю/.test(g.active().textContent));
 ok('45. непокрытый остаток ссылается на п. 33 (104)', /п\. 33/.test(g.active().textContent));

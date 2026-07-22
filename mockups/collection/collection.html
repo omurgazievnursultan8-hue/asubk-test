@@ -484,6 +484,21 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
 .settings-grid th:first-child,.settings-grid td:first-child,.role-grid th:first-child,.role-grid td:first-child{ text-align:left; }
 .v9-sec-label{ font:var(--font-label); font-weight:var(--weight-semibold); color:var(--text-muted); }
 .warn-badge{ color:#b45309; font-size:12px; white-space:nowrap; }
+
+/* объединённая вкладка «Кредиты»: сворачиваемая карточка на кредит (details/summary) */
+.credit-card{ border:1px solid var(--border-strong); border-radius:var(--radius-md); margin-top:12px; background:#fff; overflow:hidden; }
+.credit-card[open]{ box-shadow:0 1px 4px rgba(16,28,46,0.06); }
+.credit-head{ list-style:none; cursor:pointer; padding:12px 14px; display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.credit-head::-webkit-details-marker{ display:none; }
+.credit-head:hover{ background:var(--surface-muted,#f6f8fb); }
+.credit-head .tw{ transition:transform .15s; color:var(--text-muted); font-size:12px; }
+.credit-card[open] .credit-head .tw{ transform:rotate(90deg); }
+.credit-head .cnum{ font-weight:var(--weight-semibold); color:var(--asubk-blue); }
+.credit-head .csub{ color:var(--text-muted); font:var(--font-label); }
+.credit-head .cright{ margin-left:auto; text-align:right; }
+.credit-head .cright .amt{ font-weight:var(--weight-semibold); }
+.credit-head .cright .aml{ display:block; color:var(--text-muted); font-size:11px; }
+.credit-body{ padding:0 14px 14px; border-top:1px solid var(--border-subtle,#eef1f6); }
 </style>
 </head>
 <body>
@@ -2101,7 +2116,6 @@ const ro  = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div clas
 const sel = (l,v,opts,id)=>`<div class="field"><span class="flabel">${l}</span><div class="control grey"><select${id?` id="${id}"`:''}>${opts.map(o=>`<option${o===v?' selected':''}>${o}</option>`).join('')}</select>${caret()}</div></div>`;
 const inp = (l,v,id)=>`<div class="field"><span class="flabel">${l}</span><div class="control grey"><input${id?` id="${id}"`:''} value="${escAttr(v||'')}"></div></div>`;
 const dinp = (l,v,id)=>`<div class="field"><span class="flabel">${l}</span><div class="control grey"><input type="date"${id?` id="${id}"`:''} value="${escAttr(v||'')}"></div></div>`;
-const pickRO = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div class="lookup"><span class="val${v?'':' ph'}">${escAttr(v||'')}</span><button class="pick" title="Открыть" onclick="toast('Переход в связанную карточку (демо)')">•••</button></div></div>`;
 
 /* ============================================================
    LIST — колонки В-11, плитки-фильтры, фильтр стадии по stageOf (Д-4).
@@ -2247,7 +2261,7 @@ function selectRow(id){
 /* ============================================================
    DETAIL — вкладки + шапка (5 плиток) + баннеры особых состояний.
    ============================================================ */
-const TABS = ['Общая информация','Охват','Расчёт долга','Журнал мер','Суд','Процедура','Комитеты','Особые состояния','Залог / реализация','История'];
+const TABS = ['Общая информация','Кредиты','Журнал мер','Суд','Процедура','Комитеты','Особые состояния','Залог / реализация','История'];
 let curProc=null, curTab=0, catOpen=false;
 function openDetail(id){
   curProc = PROCESSES.find(p=>p.id===id) || PROCESSES[0];
@@ -2340,17 +2354,12 @@ function panelObschaya(){
       ${ro('Дата открытия', p.opened)}
       ${ro('Кем открыт', p.openedBy==='система'?'система (авто, 6-й день просрочки)':'куратор')}
       ${ro('Основание открытия', p.basis)}
-      ${pickRO('Заёмщик', p.borrower+' (ИНН '+p.inn+')')}
-      ${ro('Вид охвата', p.scope)}
-      ${ro('Область / район', p.region)}
-      ${ro('Подразделение-владелец', p.owner)}
-      ${ro('Текущая фаза', displayPhase(p))}
-      ${ro('Стадия', stageOf(p.phase))}
+      ${ro('Куратор', p.curator)}
       ${p.phaseStatus?ro('Статус фазы', p.phaseStatus):''}
       ${ro('Исход', p.outcome || '—')}
       ${ro('Дата закрытия', p.closed || '—')}
     </div>
-    <p class="section-note" style="margin-top:16px">Шапка выше — панель-индикатор: категория вычисляется worst-of по кредитам, фаза двигается регистрацией меры-вехи, группа выводится из подтверждённой процедуры. Эти поля не редактируются напрямую.</p>
+    <p class="section-note" style="margin-top:16px">Здесь — жизненный цикл процесса (открытие · основание · исход · закрытие). Заёмщик, охват, регион, владелец, фаза, стадия, категория и группа — в шапке-индикаторе выше (видна на всех вкладках), не дублируются. Значения шапки не редактируются напрямую: категория — worst-of по кредитам, фаза двигается регистрацией меры-вехи, группа выводится из подтверждённой процедуры.</p>
     </div>
     <p class="section-h" style="margin-top:20px">Сроки на контроле</p>
     <p class="section-note">Расчётные поля (Р-3, вариант 3Б): остаток срока считается от базы отсчёта шаблона (Р-7), не от даты ввода. Сущности «задание», назначения исполнителей, переназначения и продления в объём модуля не входят — только вычисление и показ. Справочник шаблонов: <b>DEADLINE_TEMPLATES</b> (${DEADLINE_TEMPLATES.length} строк, §5.3).</p>
@@ -2360,16 +2369,41 @@ function panelObschaya(){
 }
 const templTerm = action => { const t=DEADLINE_TEMPLATES.find(x=>x.action===action); return t?t.term:'—'; };
 
-/* ---- panel: Охват (категория покредитно + мягкое предупреждение пересечения) ---- */
+/* ---- panel: Кредиты (охват + расчёт долга объединены; карточка на кредит) ----
+   Свёрнута = скоуп-строка (предмет · категория worst-of · обеспечение · остаток долга).
+   Развёрнута = 5 статей долга §9. Процессные блоки — пересечение сверху, реализация снизу. */
+function debtTableHtml(c){
+  const rows=DEBT_BUCKETS.map(k=>{
+    const b=c.debt[k]; if(!b) return '';
+    const note=b.note?` <span class="pill mid">${b.note}</span>`:'';
+    return `<tr><td>${DEBT_LABELS[k]}${note}</td><td style="text-align:right">${fmtKGS(b.accrued||0)}</td><td style="text-align:right">${fmtKGS(b.paid||0)}</td><td style="text-align:right">${fmtKGS(debtLeft(b))}</td></tr>`;
+  }).join('');
+  const t=debtTotals(c);
+  return `<div class="cgrid-wrap" style="margin-top:12px"><table class="cgrid">
+      <thead><tr><th>Статья долга</th><th style="text-align:right">Начислено</th><th style="text-align:right">Погашено</th><th style="text-align:right">Остаток</th></tr></thead>
+      <tbody>${rows}<tr class="total"><td>Итого</td><td style="text-align:right">${fmtKGS(t.acc)}</td><td style="text-align:right">${fmtKGS(t.paid)}</td><td style="text-align:right">${fmtKGS(t.left)}</td></tr></tbody>
+    </table></div>${c.debtNote?`<p class="section-note" style="margin-top:8px">${c.debtNote}</p>`:''}`;
+}
 function panelOhvat(){
   const p=curProc;
-  const rows = (p.credits||[]).map(c=>{
+  const cards = (p.credits||[]).map(c=>{
     const r=catOfCredit(c);
     const inputs = `по дням ${r.days}${r.suppressed?' (подавлен)':''}${r.factor?' · фактор '+catLabel(r.factor):''} → <span class="pill ${catCls(r.level)}">${catLabel(r.level)}</span>`;
-    return `<tr>
-      <td><span class="rowlink" onclick="toast('Переход в карточку кредита ${escAttr(c.num)} (демо)')">${c.num}</span></td>
-      <td>${c.subject}</td><td style="text-align:right">${c.claim}</td>
-      <td>${inputs}</td><td>${c.coll}${c.bezakceptRight?' <span class="pill info">безакцепт по договору</span>':''}</td></tr>`;
+    const coll = `${c.coll}${c.bezakceptRight?' <span class="pill info">безакцепт по договору</span>':''}`;
+    const headAmt = c.debt
+      ? `<span class="amt">${fmtKGS(debtTotals(c).left)}</span><span class="aml">остаток долга</span>`
+      : `<span class="amt">${c.claim}</span><span class="aml">сумма требования</span>`;
+    const body = c.debt ? debtTableHtml(c)
+      : `<p class="section-note" style="margin-top:12px">Расчёт долга по кредиту не заведён. Сумма требования: <b>${c.claim}</b>.</p>`;
+    return `<details class="credit-card">
+      <summary class="credit-head">
+        <span class="tw">▸</span>
+        <span class="cnum rowlink" onclick="event.preventDefault();event.stopPropagation();toast('Переход в карточку кредита ${escAttr(c.num)} (демо)')">${c.num}</span>
+        <span class="csub">${c.subject} · ${inputs} · обеспечение: ${coll}</span>
+        <span class="cright">${headAmt}</span>
+      </summary>
+      <div class="credit-body">${body}</div>
+    </details>`;
   }).join('');
   // §9.4 мягкое предупреждение о пересечении (жёсткий гейт — при регистрации иска на судебной стадии)
   const ovs = [];
@@ -2380,32 +2414,6 @@ function panelOhvat(){
   const note = ovs.length ? `<div class="overlap-note">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
     <span>${ovs.map(o=>`По ${o.c.num} идёт процесс <span class="rowlink" onclick="openDetail('${o.other.id}')">${procNo(o.other.id)}</span> (предмет: ${o.other.scope}). ${stageOf(o.other.phase)==='Судебный порядок'?'На судебной стадии регистрация иска потребует объединения охвата (п. 32).':'Проверьте, не задваивается ли требование.'}`).join('<br>')}</span></div>` : '';
-  return `<div class="panel-wrap">
-    <p class="section-h">Кредиты в процессе (охват)</p>
-    <p class="section-note">Связь процесс ↔ кредиты — многие-ко-многим; предмет требования у каждого свой. Категория показана покредитно с раскрытием входов worst-of (подавление 181-го — до worst-of, Р-5). Контроль пересечения — мягкое предупреждение; жёсткий гейт срабатывает при регистрации иска по кредиту с активным судебным процессом (§9.4).</p>
-    ${note}
-    <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Кредитный договор</th><th>Предмет требования</th><th style="text-align:right">Сумма требования</th><th>Категория (входы worst-of)</th><th>Обеспечение</th></tr></thead>
-      <tbody>${rows}</tbody></table></div></div>`;
-}
-
-/* ---- panel: Расчёт долга (5 статей + два распределения §9.2) ---- */
-function panelRaschet(){
-  const p=curProc;
-  const blocks=(p.credits||[]).map(c=>{
-    if(!c.debt) return '';
-    const rows=DEBT_BUCKETS.map(k=>{
-      const b=c.debt[k]; if(!b) return '';
-      const note=b.note?` <span class="pill mid">${b.note}</span>`:'';
-      return `<tr><td>${DEBT_LABELS[k]}${note}</td><td style="text-align:right">${fmtKGS(b.accrued||0)}</td><td style="text-align:right">${fmtKGS(b.paid||0)}</td><td style="text-align:right">${fmtKGS(debtLeft(b))}</td></tr>`;
-    }).join('');
-    const t=debtTotals(c);
-    return `<p class="section-h" style="margin-top:14px">${c.num}</p>
-      <div class="cgrid-wrap"><table class="cgrid">
-        <thead><tr><th>Статья долга</th><th style="text-align:right">Начислено</th><th style="text-align:right">Погашено</th><th style="text-align:right">Остаток</th></tr></thead>
-        <tbody>${rows}<tr class="total"><td>Итого</td><td style="text-align:right">${fmtKGS(t.acc)}</td><td style="text-align:right">${fmtKGS(t.paid)}</td><td style="text-align:right">${fmtKGS(t.left)}</td></tr></tbody>
-      </table></div>${c.debtNote?`<p class="section-note" style="margin-top:8px">${c.debtNote}</p>`:''}`;
-  }).join('');
   let realBlk='';
   if(p.realization){
     const c=p.credits[0]; const dr=distributeRealization(p.realization.proceeds,c);
@@ -2422,12 +2430,11 @@ function panelRaschet(){
       ${dr.uncovered>0?`<div class="gate-inline" style="margin-top:12px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Непокрытый остаток ${fmtKGS(dr.uncovered)} обращается на иное имущество заёмщика и (или) поручителя (п. 33). <span class="rowlink" onclick="toast('Создание меры на иное имущество (демо)')">Создать соответствующую меру</span></span></div>`:''}`;
   }
   return `<div class="panel-wrap">
-    <p class="section-h">Расчёт долга</p>
-    <p class="section-note">Пять статей (основная · проценты · пеня · сборы · расходы по обращению взыскания и реализации). Два распределения (§9.2): обычное погашение (при судебном акте — на присуждённую сумму, иначе основная → проценты → пеня → сборы) и выручка от реализации залога (п. 49, ниже).</p>
-    ${blocks}${realBlk}
-    <div class="gtoolbar" style="margin-top:12px">
-      <button class="btn btn-tint btn-sm" onclick="openDistributeModal()">Распределить погашение</button>
-    </div></div>`;
+    <p class="section-h">Кредиты в процессе</p>
+    <p class="section-note">Связь процесс ↔ кредиты — многие-ко-многим; предмет требования у каждого свой. Каждый кредит — карточка: свёрнута показывает предмет, категорию (worst-of, подавление 181-го до свёртки — Р-5) и остаток долга; разворот — расчёт из пяти статей §9 (основная · проценты · пеня · сборы · расходы). Остаток — расчётный снимок (§9), только чтение. Контроль пересечения — мягкое предупреждение; жёсткий гейт при регистрации иска по кредиту с активным судебным процессом (§9.4).</p>
+    ${note}
+    ${cards}
+    ${realBlk}</div>`;
 }
 
 /* ---- panel: Журнал мер (3 оси результата, сторно, расхождение суммы) ---- */
@@ -2678,7 +2685,7 @@ function panelHistory(){
 }
 
 function renderPanels(){
-  const builders=[panelObschaya,panelOhvat,panelRaschet,panelMery,panelSud,panelProcedure,panelKomitety,panelSpecial,panelZalog,panelHistory];
+  const builders=[panelObschaya,panelOhvat,panelMery,panelSud,panelProcedure,panelKomitety,panelSpecial,panelZalog,panelHistory];
   document.getElementById('detailPanels').innerHTML=builders.map((b,i)=>`<div class="detail-panel${i===curTab?' active':''}">${b()}</div>`).join('');
   persistState();   // демо-персист: каждая мутация процесса зовёт renderPanels → сохраняем состояние
 }
@@ -2853,24 +2860,6 @@ function openDocsModal(procId,mIdx){
     <div class="modal-b"><div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Файл</th><th>Тип</th></tr></thead><tbody>${list}</tbody></table></div></div>
     <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div></div>`;
   host.classList.add('open');
-}
-/* §9.2 распределение — явный выбор источника средств. */
-function openDistributeModal(){
-  const host=document.getElementById('modalHost');
-  host.innerHTML=`<div class="modal form">
-    <div class="modal-h"><span class="mt">Распределить погашение</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
-    <div class="modal-b"><div class="mform">
-      ${sel('Источник средств','Обычное погашение',['Обычное погашение','Выручка от реализации залога (п. 49)'],'distSrc')}
-      ${inp('Сумма','')}
-    </div>
-    <p class="section-note" id="distNote"></p></div>
-    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="closeModal();toast('Погашение распределено (демо)','ok')">Распределить</button></div>
-  </div>`;
-  host.classList.add('open');
-  const upd=()=>{ const v=document.getElementById('distSrc').value; document.getElementById('distNote').innerHTML=
-    v.includes('реализации')?'Порядок п. 49: 1) расходы по обращению взыскания → 2) требования залогодержателя → 3) возврат залогодателю (обязательная строка).'
-    :'Обычное погашение: при судебном акте — на присуждённую сумму, затем по договору; иначе основная → проценты → пеня → сборы.'; };
-  document.getElementById('distSrc').onchange=upd; upd();
 }
 /* Р-1: подтверждение / отклонение процедуры (п. 98). */
 function confirmProc(){
