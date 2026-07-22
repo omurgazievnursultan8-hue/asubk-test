@@ -2121,6 +2121,19 @@ const PROCESSES = [
     history:[ {when:'05.05.2026 10:00', what:'Единое исковое заявление ИСК-83 по двум кредитам процесса (просроченная сумма + полный остаток)', who:'ОПК'} ] },
 ];
 
+/* Реализация залога — типизированный ЖЦ (было свободной строкой real). torgiFails 0..2. */
+const REAL_STAGES = ['не начата','подготовка к торгам','торги назначены','принято на баланс','реализовано'];
+function normColl(c){
+  if(c.realStage) return;                       // уже нормализован
+  const s=(c.real||'').toLowerCase();
+  c.torgiFails = /2\s*раз|\(2/.test(s) ? 2 : /1\s*раз|\(1/.test(s) ? 1 : 0;
+  if(/реализов/.test(s))                     c.realStage='реализовано';
+  else if(/баланс/.test(s)){                  c.realStage='принято на баланс'; c.torgiFails=2; }
+  else if(/не состоял|торги назнач/.test(s))  c.realStage='торги назначены';
+  else if(/подготов/.test(s))                 c.realStage='подготовка к торгам';
+  else                                        c.realStage='не начата';
+  if(/арест/.test(s)) c.realNote='арест наложен';   // судебная мера-предшественник — сохраняем контекст
+}
 /* ---- normalize: заполняем умолчания, чтобы данные держать лаконичными ---- */
 function normalize(p){
   p.region ??= '—'; p.curator ??= '—'; p.openedBy ??= 'куратор'; p.basis ??= '—';
@@ -2129,6 +2142,7 @@ function normalize(p){
   p.procedure ??= null; p.window ??= null; p.pause ??= null; p.conflict ??= null;
   p.realization ??= null; p.phaseStatus ??= null;
   for(const c of p.credits){ c.debt ??= {}; c.overdueDays ??= 0; c.factors ??= []; c.coll ??= '—'; }
+  for(const c of p.colls) normColl(c);
   return p;
 }
 PROCESSES.forEach(normalize);
@@ -2455,7 +2469,7 @@ function panelOhvat(){
         <tr><td>2. Требования залогодержателя (основной долг, проценты, санкции)</td><td style="text-align:right">${fmtKGS(dr.toHolder)}</td></tr>
         <tr class="giveback"><td>3. Возврат залогодателю (остаток)</td><td style="text-align:right">${fmtKGS(dr.giveBack)}</td></tr>
       </tbody></table></div>
-      ${dr.uncovered>0?`<div class="gate-inline" style="margin-top:12px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Непокрытый остаток ${fmtKGS(dr.uncovered)} обращается на иное имущество заёмщика и (или) поручителя (п. 33). <span class="rowlink" onclick="toast('Создание меры на иное имущество (демо)')">Создать соответствующую меру</span></span></div>`:''}`;
+      ${dr.uncovered>0?`<div class="gate-inline" style="margin-top:12px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Непокрытый остаток ${fmtKGS(dr.uncovered)} обращается на иное имущество заёмщика и (или) поручителя (п. 33). <span class="rowlink" onclick="createOtherPropertyMeasure(${dr.uncovered})">Создать соответствующую меру</span></span></div>`:''}`;
   }
   return `<div class="panel-wrap">
     <p class="section-h">Кредиты в процессе</p>
@@ -2781,25 +2795,129 @@ function liftPause(){
 }
 
 /* ---- panel: Залог / реализация (запрет внесудебного п. 42 — жёсткий) ---- */
+/* Ячейка статуса реализации: типизированная стадия + счётчик несостоявшихся торгов. */
+function realStageCell(c){
+  const stage=c.realStage||'не начата';
+  const cls = stage==='реализовано'?'low' : stage==='принято на баланс'?'mid' : stage==='торги назначены'?'info' : 'neutral';
+  let s=`<span class="pill ${cls}">${stage}</span>`;
+  if(stage==='торги назначены' && c.torgiFails) s+=` <span class="pill mid">не состоялись ${c.torgiFails===2?'2 раза':'1 раз'}</span>`;
+  if(c.realNote) s+=`<br><span class="src">${c.realNote}</span>`;
+  return s;
+}
 function panelZalog(){
   const p=curProc;
   const rows=(p.colls||[]).length?p.colls.map((c,ci)=>`<tr>
     <td>${c.item}</td><td>${c.kind}</td><td style="text-align:right">${c.pledge}</td>
-    <td>${c.ban?'<span class="pill high">только судебный</span>':c.order}</td>
-    <td>${c.real}</td><td>${c.startPrice?`${c.startPrice.value}<br><span class="src">${c.startPrice.report}</span>`:'—'}</td>
-    <td>${c.ban?`<span class="pill high">${c.ban}</span>`:`<button class="btn-tint btn-sm" onclick="tryVnesud(${ci})">внесудебный</button>`}</td></tr>`).join('')
+    <td>${c.ban?'<span class="pill high">только судебный</span>':c.order||'<span style="color:var(--text-placeholder)">не выбран</span>'}</td>
+    <td>${realStageCell(c)}</td>
+    <td>${c.startPrice?`${c.startPrice.value}<br><span class="src">${c.startPrice.report}</span>`:'<span style="color:var(--text-placeholder)">не задана</span>'}</td>
+    <td><button class="btn-tint btn-sm" onclick="openRealizationModal(${ci})">Управление</button></td></tr>`).join('')
     :`<tr><td colspan="7"><div class="cgrid-empty">По этому процессу залог не обращается</div></td></tr>`;
   return `<div class="panel-wrap">
     <p class="section-h">Залог / реализация</p>
-    <p class="section-note">Внесудебный порядок ЖЁСТКО запрещён (п. 42) для единственного жилья, имущества значительной культурной ценности и предприятия как имущественного комплекса. Начальная продажная цена (п. 48) — из отчёта независимого оценщика.</p>
+    <p class="section-note">Внесудебный порядок ЖЁСТКО запрещён (п. 42) для единственного жилья, имущества значительной культурной ценности и предприятия как имущественного комплекса. Начальная продажная цена (п. 48) — из отчёта независимого оценщика. ЖЦ реализации: порядок обращения → нач. цена → торги → реализовано либо принято на баланс (2 несостоявшихся торгов).</p>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Предмет залога</th><th>Вид</th><th style="text-align:right">Залоговая стоимость</th><th>Порядок обращения</th><th>Статус реализации</th><th>Начальная продажная цена (п. 48)</th><th>Запрет / выбор</th></tr></thead>
+      <thead><tr><th>Предмет залога</th><th>Вид</th><th style="text-align:right">Залоговая стоимость</th><th>Порядок обращения</th><th>Статус реализации</th><th>Начальная продажная цена (п. 48)</th><th>Действие</th></tr></thead>
       <tbody>${rows}</tbody></table></div></div>`;
 }
-function tryVnesud(ci){
+/* ===== Залог: порядок обращения (п. 42) + типизированный ЖЦ реализации (п. 48/49) ===== */
+function logColl(ci, what){
   const c=curProc.colls[ci];
-  if(c.ban) toast(`Внесудебный порядок недоступен: ${c.ban} (п. 42)`, 'err');
-  else toast('Внесудебный порядок выбран (демо)');
+  const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'—';
+  curProc.history=curProc.history||[];
+  curProc.history.unshift({when:TODAY+' 10:00', what:`${c.item}: ${what}`, who:role});
+}
+function setOrder(ci, order){
+  const c=curProc.colls[ci];
+  if(order==='внесудебный' && c.ban){ toast(`Внесудебный порядок недоступен: ${c.ban} (п. 42)`,'err'); return; }
+  if(c.order===order) return;
+  c.order=order; logColl(ci, `порядок обращения — ${order}`);
+  renderPanels(); openRealizationModal(ci);
+}
+function saveStartPrice(ci){
+  const val=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const v=val('spValue');
+  if(!v){ toast('Укажите начальную продажную цену (п. 48)','warn'); return; }
+  curProc.colls[ci].startPrice={value:v, report:val('spReport')||'отчёт независимого оценщика'};
+  logColl(ci, `начальная продажная цена (п. 48) — ${v}`);
+  renderPanels(); openRealizationModal(ci);
+}
+function advanceReal(ci, to){
+  const c=curProc.colls[ci];
+  if(to==='подготовка к торгам' && !c.order){ toast('Сначала выберите порядок обращения','warn'); return; }
+  if(to==='торги назначены' && !c.startPrice){ toast('Нельзя назначить торги без начальной продажной цены (п. 48)','warn'); return; }
+  c.realStage=to; logColl(ci, `реализация — ${to}`);
+  renderPanels(); openRealizationModal(ci);
+}
+function torgiFailed(ci){
+  const c=curProc.colls[ci];
+  c.torgiFails=Math.min(2,(c.torgiFails||0)+1);
+  logColl(ci, `торги не состоялись (${c.torgiFails===2?'2 раза':'1 раз'})`);
+  renderPanels(); openRealizationModal(ci);
+}
+function acceptOnBalance(ci){
+  const c=curProc.colls[ci];
+  if((c.torgiFails||0)<2){ toast('Принятие на баланс — после двух несостоявшихся торгов','warn'); return; }
+  c.realStage='принято на баланс'; logColl(ci, 'реализация — принято на баланс (торги не состоялись 2 раза)');
+  renderPanels(); openRealizationModal(ci);
+}
+function markRealized(ci){
+  const c=curProc.colls[ci];
+  const el=document.getElementById('realProceeds');
+  const proceeds=parseSum((el?el.value:'')||'0');
+  if(!proceeds){ toast('Укажите выручку от реализации','warn'); return; }
+  c.realStage='реализовано';
+  curProc.realization={proceeds, note:'выручка от реализации предмета залога (п. 49)'};
+  logColl(ci, `реализовано на торгах, выручка ${fmtKGS(proceeds)}`);
+  closeModal(); renderPanels();
+  toast('Предмет реализован — распределение выручки во вкладке «Кредиты» (п. 49)','ok');
+}
+function createOtherPropertyMeasure(uncovered){
+  curProc.measures=curProc.measures||[];
+  curProc.measures.unshift({sec:'Исполнительное', kind:'Обращение взыскания на иное имущество (п. 33)', dates:D(TODAY,TODAY,TODAY), num:'', purpose:'обращение на иное имущество заёмщика/поручителя', deliver:'—', delivered:false, result:null, resultKind:'без изменения', execStage:'на исполнении', sum:fmtKGS(uncovered), responsible:'—'});
+  const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'—';
+  curProc.history=curProc.history||[];
+  curProc.history.unshift({when:TODAY+' 10:00', what:`Создана мера: обращение на иное имущество (п. 33), непокрытый остаток ${fmtKGS(uncovered)}`, who:role});
+  renderPanels();
+  toast('Мера на иное имущество создана — см. «Журнал мер» (п. 33)','ok');
+}
+function openRealizationModal(ci){
+  const c=curProc.colls[ci]; if(!c) return;
+  const host=document.getElementById('modalHost');
+  const stage=c.realStage||'не начата';
+  const banNote = c.ban?`<div class="gate-inline" style="margin-top:8px">${alertIcon()}<span>Внесудебный порядок запрещён: ${c.ban} (п. 42).</span></div>`:'';
+  const orderBtns = `<div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-sm ${c.order==='внесудебный'?'btn-primary':'btn-tint'}"${c.ban?' disabled':''} onclick="setOrder(${ci},'внесудебный')">Внесудебный</button>
+    <button class="btn btn-sm ${c.order==='судебный'?'btn-primary':'btn-tint'}" onclick="setOrder(${ci},'судебный')">Судебный</button>
+  </div>${banNote}`;
+  const priceForm = `<div class="mform">
+    ${inp('Начальная продажная цена (п. 48)', c.startPrice?c.startPrice.value:'', 'spValue')}
+    ${inp('Отчёт независимого оценщика', c.startPrice?c.startPrice.report:'', 'spReport')}
+  </div><button class="btn btn-tint btn-sm" onclick="saveStartPrice(${ci})" style="margin-top:8px">Сохранить цену</button>`;
+  let actions='';
+  if(stage==='не начата') actions=`<button class="btn btn-primary btn-sm" onclick="advanceReal(${ci},'подготовка к торгам')">Начать подготовку к торгам</button>`;
+  else if(stage==='подготовка к торгам') actions=`<button class="btn btn-primary btn-sm" onclick="advanceReal(${ci},'торги назначены')">Назначить торги</button><p class="section-note" style="margin-top:6px">Требуется начальная продажная цена (п. 48).</p>`;
+  else if(stage==='торги назначены'){
+    const fails=c.torgiFails||0;
+    actions=`<div class="mform"><div class="field col-span"><span class="flabel">Выручка от реализации</span><div class="control grey"><input id="realProceeds" placeholder="сумма при продаже"></div></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn btn-primary btn-sm" onclick="markRealized(${ci})">Торги состоялись — реализовано</button>
+        ${fails<2?`<button class="btn btn-tint btn-sm" onclick="torgiFailed(${ci})">Торги не состоялись (${fails}/2)</button>`:''}
+        ${fails>=2?`<button class="btn btn-tint btn-sm" onclick="acceptOnBalance(${ci})">Принять на баланс</button>`:''}
+      </div>`;
+  }
+  else actions=`<span class="pill ${stage==='реализовано'?'low':'mid'}">${stage} — терминальная стадия</span>`;
+  host.innerHTML=`<div class="modal form">
+    <div class="modal-h"><span class="mt">Обращение взыскания: ${c.item}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
+    <div class="modal-b">
+      <p class="section-note">${c.kind} · залоговая стоимость ${c.pledge}. Порядок (п. 42/48/49): выбрать порядок обращения → задать начальную продажную цену → торги → реализация либо принятие на баланс.</p>
+      <p class="section-h" style="margin-top:4px">Порядок обращения</p>${orderBtns}
+      <p class="section-h" style="margin-top:16px">Начальная продажная цена (п. 48)</p>${priceForm}
+      <p class="section-h" style="margin-top:16px">Реализация · стадия: <span class="pill info">${stage}</span></p>${actions}
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>
+  </div>`;
+  host.classList.add('open');
 }
 
 /* ---- panel: История ---- */
