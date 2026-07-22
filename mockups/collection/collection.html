@@ -432,6 +432,19 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
 .chk-flag{ font-size:12px; white-space:nowrap; }
 .chk-flag.ok{ color:var(--asubk-green); } .chk-flag.no{ color:var(--asubk-red); }
 
+/* Выборка кредитов (модалка согласования). Отдельный класс — НЕ внутри .control,
+   иначе глобальное .control input{width:100%;height:36px} растягивает чекбоксы. */
+.cpick{ display:flex; flex-direction:column; border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; }
+.cpick input[type=checkbox]{ width:16px; height:16px; flex:none; margin:0; accent-color:var(--asubk-blue); cursor:pointer; }
+.cpick-all{ display:flex; align-items:center; gap:8px; padding:8px 12px; font-size:12px; color:var(--text-muted);
+  background:var(--surface-input); border-bottom:1px solid var(--border-default); cursor:pointer; }
+.cpick-row{ display:flex; align-items:center; gap:10px; padding:9px 12px; font-size:13px; cursor:pointer; }
+.cpick-row + .cpick-row{ border-top:1px solid var(--asubk-grid-line); }
+.cpick-row:hover{ background:var(--asubk-blue-tint); }
+.cpick-main{ flex:1; min-width:0; line-height:1.35; }
+.cpick-num{ font-weight:600; } .cpick-sub{ color:var(--text-muted); }
+.cpick-claim{ color:var(--text-muted); white-space:nowrap; font-variant-numeric:tabular-nums; }
+
 /* footer */
 .footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
   padding:14px 20px; display:flex; align-items:center; gap:12px; }
@@ -529,6 +542,7 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
             <option>Отдел проблемных кредитов (ОПК)</option>
             <option>Сектор по работе с активами (САК)</option>
             <option>Отраслевой департамент (ОД)</option>
+            <option>Секретарь коллегиального органа</option>
             <option>Наблюдатель</option>
           </select>
           <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
@@ -972,6 +986,20 @@ const GATES = {
   'Заключение комиссии о безнадёжности': { organ:ORGANS[3], point:'83', label:'Признание задолженности безнадёжной' },
   'Исковое заявление':              { organ:ORGANS[4], point:'21',   label:'Подача искового заявления', poruchenie:true },
 };
+/* Справочник предметов вопроса (закрытый). Гейтовые предметы несут орган §6.3:
+   выбор предмета автоподставляет орган, чтобы связка предмет↔орган не разъезжалась.
+   Прочие — согласования без гейта. FREE → свободный текст. */
+const CQ_FREE = 'Другое (иной вопрос)';
+const CQ_SUBJECTS = [
+  ...Object.keys(GATES).map(k => ({ subject:k, organ:GATES[k].organ, gate:true })),
+  { subject:'Поручение об инициировании судебного взыскания', organ:ORGANS[4] },
+  { subject:'Списание задолженности',                          organ:ORGANS[3] },
+  { subject:CQ_FREE, organ:'', free:true },
+];
+/* Решение органа вносит только секретарь (гейт кнопки), и не по своему же вопросу
+   (запрет самоодобрения: инициатор ≠ решающий). */
+const SECRETARY_ROLE = 'Секретарь коллегиального органа';
+const currentRole = () => document.getElementById('roleSel') ? document.getElementById('roleSel').value : '';
 /* null → разрешено; строка → причина блокировки (§6.3, паттерн sendGateReason). */
 function gateReason(p, kind){
   const g = RULES.gates[kind];
@@ -2261,7 +2289,7 @@ function selectRow(id){
 /* ============================================================
    DETAIL — вкладки + шапка (5 плиток) + баннеры особых состояний.
    ============================================================ */
-const TABS = ['Общая информация','Кредиты','Журнал мер','Суд','Процедура','Комитеты','Особые состояния','Залог / реализация','История'];
+const TABS = ['Общая информация','Кредиты','Журнал мер','Суд','Ведение дела','Согласования','Особые состояния','Залог / реализация','История'];
 let curProc=null, curTab=0, catOpen=false;
 function openDetail(id){
   curProc = PROCESSES.find(p=>p.id===id) || PROCESSES[0];
@@ -2324,7 +2352,7 @@ function phaseHeader(){
 function procSourceLabel(p){
   const c=p.procedure.confirm;
   if(c.state==='подтверждена') return `подтверждена ${c.at}`;
-  if(c.state==='отклонена')    return `отклонена · см. вкладку «Процедура»`;
+  if(c.state==='отклонена')    return `отклонена · см. вкладку «Ведение дела»`;
   const left = c.leftRd ?? c.deadlineRd;
   return `ожидает подтверждения, осталось ${left} р.д. (п. 98)${left<0?' — просрочено':''}`;
 }
@@ -2446,7 +2474,7 @@ function panelMery(){
     const docCell=nDocs?`<button class="btn-tint btn-sm" onclick="openDocsModal('${p.id}',${mi})">📎 ${nDocs}</button>`:'<span style="color:var(--text-placeholder)">—</span>';
     const res=m.result?(m.result.value||m.result.group||'—'):'—';
     const sumCell=`${m.sum}${m.sumDelta?`<br><span class="pill mid">сумма расходится с расчётом, дельта ${fmtKGS(m.sumDelta)}</span>`:''}`;
-    const stornoBtn=m.storno?`<span class="pill neutral">сторно</span>`:`<button class="btn-tint btn-sm danger" onclick="openStornoModal(${mi})">Сторнировать</button>`;
+    const stornoBtn=m.storno?`<span class="pill neutral">сторно</span>`:`<button class="btn-tint btn-sm danger" onclick="openStornoModal(${mi})">Отменить</button>`;
     return `<tr class="${m.storno?'storno':bad?'mrow-undelivered':''}">
       <td>${m.sec}</td><td>${m.kind}${isMilestone(m.kind)?' <span class="pill info">веха</span>':''}</td>
       <td>${m.dates?m.dates.registered:''}</td><td>${m.num||''}</td>
@@ -2542,7 +2570,11 @@ function panelKomitety(){
     const decided=!!q.decision;
     const dcell = !decided ? '— <span class="pill mid">не рассмотрено</span>'
       : `${q.decision} ${q.positive?'<span class="pill low">положительное</span>':'<span class="pill high">отклонено</span>'}`;
-    const act = decided ? '—' : `<button class="btn btn-tint btn-sm" onclick="openDecisionModal(${qi})">Внести решение</button>`;
+    let act;
+    if(decided) act='—';
+    else if(currentRole()!==SECRETARY_ROLE) act='<span class="pill mid">ожидает секретаря органа</span>';
+    else if(q.initiator===SECRETARY_ROLE) act='<span class="pill high">внесён секретарём — решает другой</span>';
+    else act=`<button class="btn btn-tint btn-sm" onclick="openDecisionModal(${qi})">Внести решение</button>`;
     return `<tr>
     <td>${q.organ}</td><td>${q.initiator}</td><td>${q.subject}</td><td>${(q.credits||[]).join(', ')}</td>
     <td>${q.meetingDate||'—'}</td><td>${dcell}</td>
@@ -2571,9 +2603,27 @@ function panelKomitety(){
    открывает гейт §6.3. Гейт «Исковое заявление» читает флаг p.poruchenie; остальные —
    committeeQuestions по органу (gateReason), поэтому доп. флаг им не нужен. */
 function committeeCreditRows(){
-  return (curProc.credits||[]).map((c,i)=>`<label style="display:flex;gap:8px;align-items:center;font-size:13px;padding:3px 0">
-    <input type="checkbox" class="ccCredit" value="${escAttr(c.num)}"${i===0?' checked':''}> ${c.num}</label>`).join('')
-    || '<span class="section-note">Кредитов у процесса нет</span>';
+  const cs=curProc.credits||[];
+  if(!cs.length) return '<span class="section-note">Кредитов у процесса нет</span>';
+  const all = cs.length>1
+    ? `<label class="cpick-all"><input type="checkbox" id="ccAll" onchange="toggleAllCredits(this)" checked> выбрать все (${cs.length})</label>`
+    : '';
+  const rows = cs.map(c=>{
+    const od = c.overdueDays ? `<span class="pill ${c.overdueDays>30?'high':'mid'}">просрочка ${c.overdueDays} дн.</span>` : '';
+    return `<label class="cpick-row">
+      <input type="checkbox" class="ccCredit" value="${escAttr(c.num)}" onchange="syncCreditAll()" checked>
+      <span class="cpick-main"><span class="cpick-num">${escAttr(c.num)}</span>${c.subject?`<span class="cpick-sub"> · ${escAttr(c.subject)}</span>`:''}</span>
+      <span class="cpick-claim">требование ${escAttr(c.claim||'—')}</span>${od}</label>`;
+  }).join('');
+  return `<div class="cpick">${all}${rows}</div>`;
+}
+/* «Выбрать все» ↔ строки-чекбоксы кредитов. */
+function toggleAllCredits(cb){ document.querySelectorAll('.ccCredit').forEach(x=>x.checked=cb.checked); }
+function syncCreditAll(){
+  const all=document.getElementById('ccAll'); if(!all) return;
+  const boxes=[...document.querySelectorAll('.ccCredit')];
+  all.checked=boxes.every(x=>x.checked);
+  all.indeterminate=!all.checked && boxes.some(x=>x.checked);
 }
 function openCommitteeQuestionModal(){
   const host=document.getElementById('modalHost');
@@ -2582,19 +2632,36 @@ function openCommitteeQuestionModal(){
     <div class="modal-h"><span class="mt">Вынести вопрос на коллегиальный орган</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
     <div class="modal-b"><p class="section-note">Пять органов (Р-6, закрытый справочник). Вопрос выносится в статусе «не рассмотрено»; решение и протокол вносятся отдельно после заседания.</p>
     <div class="mform">
-      ${sel('Орган','Председатель Правления',ORGANS,'cqOrgan')}
+      <div class="field col-span"><span class="flabel">Предмет</span><div class="control grey"><select id="cqSubject" onchange="onCqSubjectChange()">${CQ_SUBJECTS.map(s=>`<option value="${escAttr(s.subject)}">${s.subject}${s.gate?' · открывает гейт §6.3':''}</option>`).join('')}</select>${caret()}</div></div>
+      <div class="field col-span" id="cqFreeWrap" style="display:none"><span class="flabel">Предмет (текст)</span><div class="control grey"><input id="cqSubjectFree" placeholder="сформулируйте вопрос"></div></div>
+      <div class="field"><span class="flabel">Орган</span><div class="control grey"><select id="cqOrgan">${ORGANS.map(o=>`<option>${o}</option>`).join('')}</select>${caret()}</div></div>
       ${inp('Инициатор (подразделение)',role,'cqInit')}
-      <div class="field col-span"><span class="flabel">Предмет</span><div class="control grey"><input id="cqSubject" placeholder="напр. Поручение об инициировании судебного взыскания"></div></div>
-      <div class="field col-span"><span class="flabel">Кредиты</span><div class="control" style="flex-direction:column;align-items:flex-start;padding:6px 10px">${committeeCreditRows()}</div></div>
+      <div class="field col-span"><span class="flabel">Кредиты</span>${committeeCreditRows()}</div>
     </div></div>
     <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="saveCommitteeQuestion()">Вынести</button></div>
   </div>`;
   host.classList.add('open');
+  onCqSubjectChange();
+}
+/* Предмет → орган: гейтовый предмет фиксирует свой орган (§6.3); «Другое» открывает текст. */
+function onCqSubjectChange(){
+  const sv=document.getElementById('cqSubject').value;
+  const meta=CQ_SUBJECTS.find(s=>s.subject===sv);
+  const freeWrap=document.getElementById('cqFreeWrap');
+  const organSel=document.getElementById('cqOrgan');
+  const isFree=!!(meta&&meta.free);
+  freeWrap.style.display=isFree?'':'none';
+  if(!isFree&&meta&&meta.organ) organSel.value=meta.organ;   // автоподстановка органа
+  organSel.disabled=!isFree&&!!(meta&&meta.gate);            // гейтовый орган не редактируется
 }
 function saveCommitteeQuestion(){
   const val=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
-  const organ=val('cqOrgan'), subject=val('cqSubject')||'(без предмета)', initiator=val('cqInit')||'—';
+  const subjSel=val('cqSubject');
+  const subject=(subjSel===CQ_FREE ? val('cqSubjectFree') : subjSel)||'(без предмета)';
+  const organ=val('cqOrgan'), initiator=val('cqInit')||'—';
   const credits=[...document.querySelectorAll('.ccCredit:checked')].map(c=>c.value);
+  if((curProc.credits||[]).length && !credits.length){ toast('Отметьте хотя бы один кредит','warn'); return; }
+  if(subjSel===CQ_FREE && !val('cqSubjectFree')){ toast('Сформулируйте предмет вопроса','warn'); return; }
   curProc.committeeQuestions=curProc.committeeQuestions||[];
   curProc.committeeQuestions.unshift({organ,initiator,subject,credits,meetingDate:'',decision:'',positive:false,protocolNo:'',protocolDate:''});
   curProc.history=curProc.history||[];
@@ -2603,6 +2670,8 @@ function saveCommitteeQuestion(){
 }
 function openDecisionModal(idx){
   const q=curProc.committeeQuestions[idx]; if(!q) return;
+  if(currentRole()!==SECRETARY_ROLE){ toast('Решение вносит только секретарь коллегиального органа','warn'); return; }
+  if(q.initiator===SECRETARY_ROLE){ toast('Самоодобрение запрещено: инициатор не может решать свой вопрос','warn'); return; }
   const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Внести решение органа</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
@@ -2619,6 +2688,8 @@ function openDecisionModal(idx){
 }
 function saveDecision(idx){
   const q=curProc.committeeQuestions[idx]; if(!q) return;
+  if(currentRole()!==SECRETARY_ROLE){ toast('Решение вносит только секретарь коллегиального органа','warn'); return; }
+  if(q.initiator===SECRETARY_ROLE){ toast('Самоодобрение запрещено: инициатор не может решать свой вопрос','warn'); return; }
   const val=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
   const decision=val('dcDecision'), positive=(decision==='выдано'||decision==='разрешено');
   q.decision=decision; q.positive=positive;
@@ -2832,10 +2903,10 @@ function openStornoModal(mi){
   const m=curProc.measures[mi];
   const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal form">
-    <div class="modal-h"><span class="mt">Сторнировать меру ${m.num||m.kind}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
+    <div class="modal-h"><span class="mt">Отменить меру ${m.num||m.kind}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
     <div class="modal-b"><p class="section-note">Сторно не удаляет строку (И-3): мера остаётся зачёркнутой с пометкой основания. Доступно ограниченному кругу ролей.${isMilestone(m.kind)?' <b>Это веха — сторно откатит фазу к предыдущей вехе.</b>':''}</p>
     <div class="mform"><div class="field col-span req"><span class="flabel">Основание сторно</span><div class="control"><input id="stReason" value=""></div></div></div></div>
-    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="doStorno(${mi})">Сторнировать</button></div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="doStorno(${mi})">Отменить меру</button></div>
   </div>`; host.classList.add('open');
 }
 function doStorno(mi){
