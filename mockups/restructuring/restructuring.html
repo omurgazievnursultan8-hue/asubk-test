@@ -364,6 +364,7 @@ const PARAM_KEYS = [                                          // ключи па
   ['nonworking','Обработка нерабочих дней'],['repayMethod','Метод погашения']
 ];
 const PARAM_LABEL = Object.fromEntries(PARAM_KEYS);
+const OP_KEYS = new Set(['grace','capInterest','capPenalty','forgive']);      // операции — правятся в блоке «Операции (вход)», не в гриде параметров (Р-3 fix)
 const STAGES = ['Регистрация обращения','Анализ','Комитет','Направлено в Минфин','Решение Минфина','Оформление'];
 const ROLES  = ['Куратор ОД','Заключант СРМиК','Заключант ДПО','Секретарь комитета','Администратор','Наблюдатель'];
 
@@ -1010,7 +1011,7 @@ function pTerms(app){
     <div class="dim"><div class="dl">Пеня (S)</div><div class="dv">${fmt(snap.penalty)}</div></div></div>`;
 
   /* 6.1 параметры + плашки гейтов */
-  const fields=PARAM_KEYS.map(([k,label])=>{
+  const fields=PARAM_KEYS.filter(([k])=>!OP_KEYS.has(k)).map(([k,label])=>{
     const isAllowed=allow.has(k); const val=v.params[k]!==undefined?v.params[k]:(cr.terms[k]??'');
     const dis=!editable||!isAllowed;
     let hint=''; if(k==='rate') hint=`<span class="ro-tag">мин. ${floor}%</span>`;
@@ -1023,15 +1024,16 @@ function pTerms(app){
   const inp=v.inputs;
   const graceRows=(inp.graceBlocks||[]).map((b,idx)=>`<div class="op-row">
     <span class="op-t">${b.months} мес. · ${b.type==='moratorium'?'мораторий':'interest-only'}</span>
-    ${editable?`<button class="btn btn-tint btn-sm" onclick="RS.delGrace('${app.id}',${idx})">удалить</button>`:''}</div>`).join('')
+    ${graceAllowed&&editable?`<button class="btn btn-tint btn-sm" onclick="RS.delGrace('${app.id}',${idx})">удалить</button>`:''}</div>`).join('')
     || '<div class="op-empty">Льготные периоды не заданы.</div>';
+  const forgiveOk=allow.has('forgive'), capIOk=allow.has('capInterest'), capSOk=allow.has('capPenalty');
   const opsEditor=`<div class="f2" style="max-width:640px">
-    <div class="field"><span class="flabel">Прощение санкций (0…${fmt(snap.penalty)})</span>
-      <input value="${inp.forgivePenalty}" ${editable?'':'disabled'} onchange="RS.setInput('${app.id}','forgivePenalty',this.value)"></div>
-    <div class="field"><span class="flabel">Капитализация % (0…${fmt(snap.accruedInterest)})</span>
-      <input value="${inp.capInterest}" ${editable?'':'disabled'} onchange="RS.setInput('${app.id}','capInterest',this.value)"></div>
-    <div class="field"><span class="flabel">Капитализация штрафов (0…${fmt(snap.penalty-inp.forgivePenalty)})</span>
-      <input value="${inp.capPenalty}" ${editable?'':'disabled'} onchange="RS.setInput('${app.id}','capPenalty',this.value)"></div>
+    <div class="field"><span class="flabel">Прощение санкций (0…${fmt(snap.penalty)}) ${forgiveOk?'':'<span class="ro-tag">(вид не разрешает)</span>'}</span>
+      <input value="${inp.forgivePenalty}" ${editable&&forgiveOk?'':'disabled'} onchange="RS.setInput('${app.id}','forgivePenalty',this.value)"></div>
+    <div class="field"><span class="flabel">Капитализация % (0…${fmt(snap.accruedInterest)}) ${capIOk?'':'<span class="ro-tag">(вид не разрешает)</span>'}</span>
+      <input value="${inp.capInterest}" ${editable&&capIOk?'':'disabled'} onchange="RS.setInput('${app.id}','capInterest',this.value)"></div>
+    <div class="field"><span class="flabel">Капитализация штрафов (0…${fmt(snap.penalty-inp.forgivePenalty)}) ${capSOk?'':'<span class="ro-tag">(вид не разрешает)</span>'}</span>
+      <input value="${inp.capPenalty}" ${editable&&capSOk?'':'disabled'} onchange="RS.setInput('${app.id}','capPenalty',this.value)"></div>
     <div class="field"><span class="flabel">Режим просрочки (из вида)</span>
       <input value="режим ${firstOverdueMode(app)} — ${firstOverdueMode(app)===1?'обнуление счётчика':'просрочка сохраняется'}" disabled></div>
     </div>
@@ -1065,7 +1067,7 @@ function pTerms(app){
 function termsPanels(app,cr,plan){
   const g=plan.gates;
   /* A. параметры diff */
-  const paramRows=PARAM_KEYS.map(([k,label])=>{
+  const paramRows=PARAM_KEYS.filter(([k])=>!OP_KEYS.has(k)).map(([k,label])=>{
     const oldV=cr.terms[k]??'—', newV=app.version.params[k]!==undefined?app.version.params[k]:oldV;
     const ch=String(oldV)!==String(newV);
     return `<tr class="${ch?'diff-changed':''}"><td>${label}</td><td class="${ch?'diff-old':''}">${esc(oldV)}</td><td class="${ch?'diff-new':''}">${esc(newV)}</td></tr>`;
