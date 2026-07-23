@@ -947,6 +947,11 @@ const CUR_YEAR = Number(TODAY.slice(6));
    администратор правит в справочнике) — до его истечения залог юридически оформлен,
    но фактически НЕ защищён от продажи залогодателем. */
 let BAN_DEADLINE_DAYS = 5;   // рабочих дней (правится в справочнике)
+/* Р-32: порог предупреждения о резком падении оценочной стоимости при переоценке.
+   ВНУТРЕННИЙ параметр (нормативно не задан) — падение оценочной более чем на столько
+   процентов относительно предыдущей несторнированной переоценки требует подтверждения в
+   диалоге и обязательного примечания. Правится в справочнике. */
+let REVAL_DROP_WARN = 30;    // % (правится в справочнике)
 /* Прибавляет N рабочих дней к дате (сб/вс пропускаются).
    TODO: производственный календарь праздников здесь не учитывается. */
 const addBusinessDays = (s, n) => { const dt = d2n(s); let left = n;
@@ -1481,22 +1486,12 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
     порог 150% + доля ликвида < 80% → недостаточность обеспечения.)
    ============================================================ */
 (function seedRegulationDemo(){
-  // Р-10/Р-11 (§17 п.1): кредит под банковскую гарантию, привязан к зарегистрированному договору
-  // БЕЗ долей. Гарантия в валюте USD при кредите в KGS → курсовой порог 120% (COVER_GUARANTEE_FX,
-  // П1 §2.3) даёт индекс ≈0,55 — обеспеченность НЕ закрыта, реальный расчёт (не mirror-хак)
-  // поднимает триггер «Недостаточность обеспечения».
-  CONTRACTS.push({ id:'Д-008', no:'ЗД-2026/95-1', date:'01.06.2026', status:'Зарегистрирован', inn:'01705199200338',
-    notary:'Нотариус Осмоналиев Т.Б.', notaryNo:'НР-2026/0955', notaryDate:'01.06.2026', cert:'ЗС-2026/0955',
-    credits:['К-95'], allocs:[], undercovered:null, addenda:[],
-    docRoute:[
-      {step:'Формирование пакета документов', date:'28.05.2026', who:'Куратор отдела залогового обеспечения', req:'Опись ОП-2026/95'},
-      {step:'Юридическая экспертиза', date:'30.05.2026', who:'Юридический департамент', req:'Заключение ЮЗ-2026/95'},
-      {step:'Нотариальное удостоверение договора', date:'01.06.2026', who:'Нотариус Осмоналиев Т.Б.', req:'НР-2026/0955'},
-      {step:'Государственная регистрация обременения', date:'01.06.2026', who:'Единый реестр обременений (нотариальный)', req:'ЗС-2026/0955'},
-      {step:'Постановка предмета на учёт', date:'03.06.2026', who:'Куратор отдела залогового обеспечения', req:'Реестровая запись Д-008'},
-      {step:'Архивирование (передача в архив)', date:'05.06.2026', who:'Отдел делопроизводства', req:'Арх. № АРХ-2026/95'},
-    ],
-    history:[ {when:'01.06.2026 10:00', what:'Договор оформлен под кредит К-95, обеспеченный банковской гарантией (иная форма) в валюте USD. Залоговых долей нет; валюта гарантии ≠ валюте кредита → курсовой порог 120% (П1 §2.3) — индекс обеспеченности ≈0,55, обеспеченность НЕ закрыта', who:'Куратор отдела залогового обеспечения'} ] });
+  // Р-10/Р-11 (§17 п.1): кредит К-95 обеспечен ТОЛЬКО банковской гарантией (иная форма).
+  // Р-28 (В-1=А): залоговый договор без предметов не заводится — гарантия живёт на кредите
+  // (К-95.otherSecurity), залогового договора нет вовсе. Гарантия в валюте USD при кредите в
+  // KGS → курсовой порог 120% (COVER_GUARANTEE_FX, П1 §2.3) даёт индекс ≈0,55 — обеспеченность
+  // НЕ закрыта; triggers() сканирует такие кредиты со стороны кредита и поднимает триггер
+  // «Недостаточность обеспечения» без несуществующего договора.
 
   // Р-3: заёмщик-банкрот (Тянь-Строй) → обследование «по договору со спецадминистратором», авто-просрочка не поднимается.
   CREDITS.push({ id:'К-96', num:'Дог. №96 от 02.06.2026', inn:'01705199200338', amount:100000, status:'Действующий', overdue:false, otherSecurity:null });
@@ -1926,6 +1921,7 @@ const pledgeValue = it => it.lost ? 0 : (it.override ? it.override.value : calcP
 const isOverAbove = it => Boolean(it.override) && it.override.value > calcPledge(it); // override ВЫШЕ расчётной → флаг
 
 const ACTIVE = 'Зарегистрирован';
+const CANCELLED = 'Аннулирован';                                    // Р-31: аннулированный черновик
 const isActive  = c => c.status === ACTIVE;
 const isDraftish = c => c.status === 'Оформляется' || c.status === 'На рассмотрении комиссии';
 
@@ -2062,6 +2058,36 @@ function gateCheck(virtual){
   const rows = virtual.credits.map(id => ({ id, ...coverage(cs, id) }));
   return { rows, ok: rows.every(r=>r.ok) };
 }
+/* ГЕЙТ СОДЕРЖАНИЯ (Р-28, В-1=А): залоговый договор не регистрируется без предметов.
+   coverage(cs, creditId) считает обеспеченность КРЕДИТА по всем действующим договорам,
+   поэтому пустой договор наследует чужое покрытие и проходит гейт покрытия. Отдельный
+   гейт содержания требует ≥1 отнесения с долей > 0 в самом договоре. Кредит, обеспеченный
+   ТОЛЬКО банковской гарантией, залогового договора не имеет вовсе — гарантия живёт на
+   кредите (otherSecurity), не на договоре. */
+function contentGate(c){
+  const ok = Array.isArray(c.allocs) && c.allocs.some(a => a.share > 0);
+  return { ok, msg: ok ? '' : 'В договоре нет ни одного предмета с долей > 0 — регистрация невозможна (Р-28). Отнесите предмет залога либо аннулируйте договор.' };
+}
+/* ГЕЙТ ДАТЫ СОБЫТИЯ (Р-32): дата регистрируемого события (переоценка / обследование /
+   наложение запрета / согласие / извещение) не может быть в будущем относительно даты
+   стенда (TODAY) и не раньше предыдущего события того же рода (notBefore — дата последней
+   несторнированной записи или нотариальная дата договора-основания). Возвращает {ok, msg}. */
+function eventDateValid(date, opts){
+  const o = opts || {};
+  if(!isDate(date)) return { ok:false, msg:'Дата — в формате дд.мм.гггг' };
+  if(d2n(date) > d2n(TODAY)) return { ok:false, msg:`Дата события ${date} — в будущем (дата стенда ${TODAY}). События задним числом вперёд не регистрируются.` };
+  if(o.notBefore && isDate(o.notBefore) && d2n(date) < d2n(o.notBefore))
+    return { ok:false, msg:`Дата события ${date} раньше предыдущей записи (${o.notBefore})${o.notBeforeLabel?' — '+o.notBeforeLabel:''}. Порядок событий не может нарушаться.` };
+  return { ok:true, msg:'' };
+}
+/* СТОРНО (Р-33): записи журналов не удаляются физически — помечаются voided:{by,date,reason}.
+   Производные скаляры (it.appraised, it.lastReval, it.lastSurvey) не читают массивы, поэтому
+   при сторнировании их надо пересчитать по последней НЕсторнированной записи. Массивы
+   хронологичны (push в конец), поэтому «последняя живая» = последний элемент без voided. */
+const livesReval = it => (it.revals||[]).filter(r => !r.voided);
+const livesSurvey = it => (it.surveys||[]).filter(s => !s.voided);
+const lastRevalLive = it => { const a = livesReval(it); return a.length ? a[a.length-1].date : ''; };
+const lastSurveyLive = it => { const a = livesSurvey(it); return a.length ? a[a.length-1].date : ''; };
 /* ИНВАРИАНТ: Σ долей предмета ≤ залоговая стоимость. Проверяется до сохранения. */
 function invariantBreaches(virtual){
   const cs = [...CONTRACTS.filter(c => (isActive(c)||isDraftish(c)) && c.id !== virtual.id), virtual];
@@ -2261,7 +2287,10 @@ let DOC_ROUTE_DAYS = 30;
 function triggers(){
   const out = [], cs = CONTRACTS.filter(isActive);
   const seen = new Set();
-  cs.forEach(c => c.credits.forEach(id => {
+  /* Один код на кредит: недостаточность обеспечения + жизненный цикл банковской гарантии.
+     ctrId — договор-носитель (для кредитов без договора, обеспеченных только гарантией
+     (Р-28/В-1=А), равен null: гарантия живёт на кредите, залогового договора нет). */
+  const emitCredit = (id, ctrId) => {
     if(seen.has(id)) return; seen.add(id);
     const cov = coverage(cs, id);
     /* Кредит с банковской гарантией реально учтён в index (idxGuar, Р-11) — ложный триггер
@@ -2271,7 +2300,7 @@ function triggers(){
       if(!cov.covOk) parts.push(`покрытие ${pct(cov.ratio)} < ${pct(cov.req)} (обеспечено ${fmt(cov.sum)} из ${fmt(cov.amount*cov.req)} требуемых)`);
       if(cov.liqApplies && !cov.liqOk) parts.push(`доля ликвидного залога ${pct(cov.liqShare)} < ${pct(LIQUID_SHARE_MIN)} — движимый неликвидный залог (§2.4)`);
       out.push({ type:'Недостаточность обеспечения', crit:'high', obj:id,
-        objLbl:`${id} · ${credit(id).num}`, ctr:c.id, text: parts.join('; '),
+        objLbl:`${id} · ${credit(id).num}`, ctr:ctrId, text: parts.join('; '),
         act:'Открыть трек взыскания по обеспечению / догрузить или заменить предмет' });
     }
     /* Р-11: истечение банковской гарантии — самостоятельный триггер (§9–10), не зависит от
@@ -2280,17 +2309,25 @@ function triggers(){
     if(g && g.type === 'банковская гарантия'){
       if(guaranteeExpired(g)){
         out.push({ type:'Срок банковской гарантии истёк', crit:'high', obj:id,
-          objLbl:`${id} · ${credit(id).num}`, ctr:c.id,
+          objLbl:`${id} · ${credit(id).num}`, ctr:ctrId,
           text:`Банковская гарантия${g.docNo?' '+g.docNo:''} истекла ${g.till}`,
           act:'Обновить/продлить банковскую гарантию либо перекрыть залогом' });
       } else if(g.till && daysLeft(g.till) <= GUAR_WARN_DAYS){
         out.push({ type:'Гарантия истекает', crit:'mid', obj:id,
-          objLbl:`${id} · ${credit(id).num}`, ctr:c.id,
+          objLbl:`${id} · ${credit(id).num}`, ctr:ctrId,
           text:`Банковская гарантия${g.docNo?' '+g.docNo:''} истекает ${g.till} (через ${daysLeft(g.till)} дн.)`,
           act:'Инициировать продление гарантии заблаговременно' });
       }
     }
-  }));
+  };
+  cs.forEach(c => c.credits.forEach(id => emitCredit(id, c.id)));
+  /* Р-28 (В-1=А): кредиты, обеспеченные ТОЛЬКО банковской гарантией (залогового договора
+     нет — гарантия на кредите), не попали бы в мониторинг через обход договоров. Сканируем
+     их со стороны кредита, чтобы недообеспеченность/истечение гарантии оставались видны. */
+  CREDITS.forEach(cr => {
+    const g = cr.otherSecurity;
+    if(cr.status === 'Действующий' && g && g.type === 'банковская гарантия') emitCredit(cr.id, null);
+  });
   ITEMS.forEach(it => {
     /* Р-8: утрата/ухудшение — сначала регламентный шаг «извещение о восполнении» (§2.5),
        взыскание поднимается только по истечении срока восполнения либо при отказе. */
@@ -2554,9 +2591,12 @@ function rowsItems(){
   });
 }
 function rowsContracts(){
-  return CONTRACTS.map(c => {
+  /* Р-31: аннулированные черновики остаются в реестре, но по умолчанию скрыты — видны
+     только при явном фильтре «Статус = Аннулирован». */
+  const showCancelled = (activeFilter.contracts||{}).status === CANCELLED;
+  return CONTRACTS.filter(c => showCancelled || c.status !== CANCELLED).map(c => {
     const mc = minCoverage(c);
-    const stPill = c.status===ACTIVE ? 'low' : c.status==='Оформляется' ? 'neutral' : c.status==='Закрыт' ? 'neutral' : 'high';
+    const stPill = c.status===ACTIVE ? 'low' : c.status==='Оформляется' ? 'neutral' : c.status==='Закрыт' ? 'neutral' : c.status===CANCELLED ? 'neutral' : 'high';
     return { id:c.id, sort:{ id:c.id, no:c.no, inn:clientName(c.inn), status:c.status,
         items:new Set(c.allocs.map(a=>a.item)).size, credits:c.credits.length, mc, add:c.addenda.length },
       cells:[ c.id, c.no ? esc(c.no) : '<span style="color:var(--text-placeholder)">— не зарегистрирован —</span>',
@@ -2804,12 +2844,14 @@ const ro  = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div clas
 function renderRestoreBlock(it){
   const rn = it.restoreNotice, reason = it.lost ? 'утрата' : 'ухудшение состояния';
   if(!rn || !rn.issued) return `<div class="warn-inline" style="margin:0 0 12px"><span>Обследование зафиксировало <b>${reason}</b>. Оформите извещение о восполнении и установите срок.</span></div>`;
+  if(rn.voided) return `<div class="warn-inline" style="margin:0 0 12px"><span style="text-decoration:line-through">Извещение ${esc(rn.doc||'')} от ${rn.date}</span> — <span class="pill high" title="${esc(rn.voided.reason)}">сторнировано · ${rn.voided.date}</span> ${esc(rn.voided.reason)}</span></div>`;
+  const vbtn = canHeadOfUnit() ? ` <button class="btn btn-tint btn-sm danger" onclick="openVoidRecord('${it.id}','restoreNotice',0)">Сторнировать извещение</button>` : '';
   if(rn.resolved === 'восполнено') return `<div class="okline" style="margin:0 0 12px"><span>Восполнено: ${esc(rn.doc||'')} — предмет восстановлен/заменён, взыскание не требуется.</span></div>`;
   if(rn.resolved === 'отказ' || isOverdue(rn.deadline)){
     const why = rn.resolved==='отказ' ? 'залогодатель отказался восполнить предмет' : `срок восполнения ${rn.deadline} истёк без восполнения`;
     return `<div class="flagline" style="margin:0 0 12px"><span>Извещение ${esc(rn.doc||'')} от ${rn.date}: ${why}. Замените предмет доп соглашением либо зафиксируйте отказ.</span></div>`;
   }
-  return `<div class="infoline" style="margin:0 0 12px"><span>Извещение ${esc(rn.doc||'')} от ${rn.date} вручено, срок восполнения до <b>${rn.deadline}</b> (${daysLeft(rn.deadline)} дн.). До истечения срока взыскание не поднимается.</span></div>`;
+  return `<div class="infoline" style="margin:0 0 12px"><span>Извещение ${esc(rn.doc||'')} от ${rn.date} вручено, срок восполнения до <b>${rn.deadline}</b> (${daysLeft(rn.deadline)} дн.). До истечения срока взыскание не поднимается.${vbtn}</span></div>`;
 }
 /* type-specific детали предмета для чтения (KIND_FIELDS §9.2 прежней системы) */
 function detailRows(it){
@@ -2884,7 +2926,9 @@ function itemPanels(it){
       ${kpi('Доступно', fmt(availableOf(it)), 'залоговая − отнесённое')}
     </div></div>`;
 
-  const p0 = `<div class="panel-wrap">${head}<div class="panel-card"><div class="f2">
+  const p0 = `<div class="panel-wrap">${head}<div class="panel-card">
+    ${canCurate() ? `<div class="gtoolbar" style="margin-bottom:14px"><button class="btn btn-tint btn-sm" onclick="openEditItem('${it.id}')">Исправить реквизиты</button></div>` : ''}
+    <div class="f2">
       ${ro('Вид залога', it.kind)}
       ${ro('Наименование / описание', it.name)}
       ${ro('Залогодатель', clientName(it.pledger)+' · ИНН '+it.pledger)}
@@ -2935,18 +2979,26 @@ function itemPanels(it){
       <button class="btn btn-tint btn-sm" onclick="openOverride('${it.id}')">Изменить залоговую стоимость (решение комиссии)</button>
     </div>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Дата</th><th>Отчёт оценщика</th><th class="numcell">Оценочная</th><th class="numcell">Залоговая (расч.)</th><th>Примечание</th></tr></thead>
-      <tbody>${[...it.revals].reverse().map(r=>`<tr><td>${r.date}</td><td>${esc(r.report)}</td>
-        <td class="numcell">${fmt(r.appraised)}</td><td class="numcell">${fmt(Math.round(r.appraised*coefOf(it.kind)*100)/100)}</td>
-        <td>${esc(r.note||'')}</td></tr>`).join('')}</tbody>
+      <thead><tr><th>Дата</th><th>Отчёт оценщика</th><th class="numcell">Оценочная</th><th class="numcell">Залоговая (расч.)</th><th>Примечание</th><th></th></tr></thead>
+      <tbody>${it.revals.map((r,i)=>({r,i})).reverse().map(({r,i})=>`<tr${r.voided?' class="voided-row"':''}>
+        <td${r.voided?' style="text-decoration:line-through">':'>'}${r.date}</td>
+        <td${r.voided?' style="text-decoration:line-through">':'>'}${esc(r.report)}</td>
+        <td class="numcell"${r.voided?' style="text-decoration:line-through">':'>'}${fmt(r.appraised)}</td>
+        <td class="numcell"${r.voided?' style="text-decoration:line-through">':'>'}${fmt(Math.round(r.appraised*coefOf(it.kind)*100)/100)}</td>
+        <td>${r.voided?`<span class="pill high" title="${esc(r.voided.reason)}">сторнирована · ${r.voided.date}</span> ${esc(r.voided.reason)}`:esc(r.note||'')}</td>
+        <td>${(!r.voided && canHeadOfUnit()) ? `<button class="btn btn-tint btn-sm danger" onclick="openVoidRecord('${it.id}','reval',${i})">Сторнировать</button>` : ''}</td></tr>`).join('')}</tbody>
     </table></div></div>`;
 
   const canPlace = banRequired(it) && !it.ban;          // есть основание, запрета ещё нет
   const canRelease = Boolean(it.ban) && allocatedLegal(it.id) === 0;  // доли обнулились
-  const consentsRows = (it.consents||[]).map(cn=>`<tr><td>${esc(cn.action)}</td><td>${cn.date}</td><td>${esc(cn.doc||'')}</td>
-    <td><span class="pill ${cn.decision==='положительное'?'low':'high'}">${cn.decision}</span></td>
+  const consentsRows = (it.consents||[]).map((cn,i)=>`<tr${cn.voided?' class="voided-row"':''}>
+    <td${cn.voided?' style="text-decoration:line-through">':'>'}${esc(cn.action)}</td>
+    <td${cn.voided?' style="text-decoration:line-through">':'>'}${cn.date}</td>
+    <td${cn.voided?' style="text-decoration:line-through">':'>'}${esc(cn.doc||'')}</td>
+    <td><span class="pill ${cn.voided?'neutral':cn.decision==='положительное'?'low':'high'}">${cn.decision}</span></td>
     <td>${cn.revalRequired?(cn.revalDone?'переоценка выполнена':'<span class="pill mid">требуется переоценка</span>'):'—'}</td>
-    <td>${esc(cn.note||'')}</td></tr>`).join('');
+    <td>${cn.voided?`<span class="pill high" title="${esc(cn.voided.reason)}">сторнировано · ${cn.voided.date}</span> ${esc(cn.voided.reason)}`:esc(cn.note||'')}</td>
+    <td>${(!cn.voided && canHeadOfUnit()) ? `<button class="btn btn-tint btn-sm danger" onclick="openVoidRecord('${it.id}','consent',${i})">Сторнировать</button>` : ''}</td></tr>`).join('');
   const p2 = `<div class="panel-wrap">
     <p class="section-h">Запрет на отчуждение</p>
     <div class="gtoolbar">
@@ -2968,7 +3020,7 @@ function itemPanels(it){
         : (banFullyRegistered(it.ban) ? `<div class="okline" style="margin:14px 0 0"><span>Предмет защищён от продажи.</span></div>`
           : `<div class="phead-banner warn" style="margin:14px 0 0"><span>Отметка о запрете в оригиналах правоустанавливающих документов ещё не получена (ПБК п.2.1).</span></div>`)}
       ${(it.consents&&it.consents.length) ? `<p class="section-h" style="font-size:16px;margin-top:18px">Согласия на действия (запрет сохраняется в силе)</p>
-        <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Действие</th><th>Дата</th><th>Документ</th><th>Решение</th><th>Переоценка</th><th>Примечание</th></tr></thead><tbody>${consentsRows}</tbody></table></div>` : ''}
+        <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Действие</th><th>Дата</th><th>Документ</th><th>Решение</th><th>Переоценка</th><th>Примечание</th><th></th></tr></thead><tbody>${consentsRows}</tbody></table></div>` : ''}
       </div>`
       : (banRequired(it) ? `<div class="flagline"><span>Запрет НЕ наложен, а договор(ы) ${banContracts(it).join(', ')} уже зарегистрированы. Залог не защищён от продажи. Срок наложения в «${esc(organOf(it))}»: до ${banDeadline(it)}${banOverdue(it) ? ` — ПРОСРОЧЕН на ${Math.abs(daysLeft(banDeadline(it)))} дн.` : ''}. Нажмите «Зарегистрировать наложение запрета залогодателем».</span></div>`
         : `<div class="okline"><span>Запрет не требуется: предмет не обременён ни одним зарегистрированным договором — оснований для наложения нет.</span></div>`)}
@@ -2986,10 +3038,13 @@ function itemPanels(it){
       ${(it.lost||it.needReval) ? `<button class="btn btn-tint btn-sm" onclick="openRestoreNotice('${it.id}')">${it.restoreNotice&&it.restoreNotice.issued?'Обновить извещение о восполнении':'Оформить извещение о восполнении'}</button>` : ''}</div>
     ${(it.lost||it.needReval) ? renderRestoreBlock(it) : ''}
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Дата</th><th>Акт</th><th>Исход</th><th>Примечание</th></tr></thead>
-      <tbody>${[...it.surveys].reverse().map(s=>{const ef=surveyEffect(s.outcome);return `<tr><td>${s.date}</td><td>${esc(s.act)}${s.oneSided ? ` <span class="pill mid" title="Сторона уклонилась от подписания (П2 §2.4)">односторонний</span>` : ''}</td>
-        <td><span class="pill ${ef==='ok'?'low':ef==='lost'?'high':'mid'}">${esc(s.outcome)}</span></td>
-        <td>${esc(s.note||'')}</td></tr>`}).join('')}</tbody>
+      <thead><tr><th>Дата</th><th>Акт</th><th>Исход</th><th>Примечание</th><th></th></tr></thead>
+      <tbody>${it.surveys.map((s,i)=>({s,i})).reverse().map(({s,i})=>{const ef=surveyEffect(s.outcome);return `<tr${s.voided?' class="voided-row"':''}>
+        <td${s.voided?' style="text-decoration:line-through">':'>'}${s.date}</td>
+        <td${s.voided?' style="text-decoration:line-through">':'>'}${esc(s.act)}${s.oneSided ? ` <span class="pill mid" title="Сторона уклонилась от подписания (П2 §2.4)">односторонний</span>` : ''}</td>
+        <td><span class="pill ${s.voided?'neutral':ef==='ok'?'low':ef==='lost'?'high':'mid'}"${s.voided?' style="text-decoration:line-through"':''}>${esc(s.outcome)}</span></td>
+        <td>${s.voided?`<span class="pill high" title="${esc(s.voided.reason)}">сторнирован · ${s.voided.date}</span> ${esc(s.voided.reason)}`:esc(s.note||'')}</td>
+        <td>${(!s.voided && canHeadOfUnit()) ? `<button class="btn btn-tint btn-sm danger" onclick="openVoidRecord('${it.id}','survey',${i})">Сторнировать</button>` : ''}</td></tr>`}).join('')}</tbody>
     </table></div></div>`;
 
   const cs = CONTRACTS.filter(c => (isActive(c)||isDraftish(c)) && c.allocs.some(a=>a.item===it.id));
@@ -3155,6 +3210,7 @@ function ctrPanels(c){
     </div></div>`;
 
   const p0 = `<div class="panel-wrap">${head}<div class="panel-card">
+    ${canHeadOfUnit() ? `<div class="gtoolbar" style="margin-bottom:14px"><button class="btn btn-tint btn-sm" onclick="openEditContract('${c.id}')">Исправить реквизиты договора</button></div>` : ''}
     <p class="section-h" style="font-size:16px;margin-top:0">Договор</p>
     <div class="f2">
       ${ro('Номер договора', c.no || '—')}
@@ -3272,10 +3328,16 @@ function ctrPanels(c){
 function ctrFooter(c){
   const back = `<button class="btn btn-secondary" onclick="showView('list')">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Закрыть</button><div style="flex:1"></div>`;
-  if(c.status==='Оформляется')
-    return back + `<button class="btn btn-primary" onclick="openRegister('${c.id}')">Зарегистрировать договор</button>`;
+  /* Р-31: аннулирование ошибочного черновика — только на «черновых» статусах (isDraftish). */
+  const cancelBtn = (isDraftish(c) && canCurate())
+    ? `<button class="btn btn-danger" onclick="openCancelDraft('${c.id}')">Аннулировать черновик</button>` : '';
+  if(c.status==='Оформляется'){
+    /* Р-29: договор, допущенный комитетом (undercovered) — куратор регистрирует полной формой. */
+    const admitted = c.undercovered ? `<span class="pill mid" title="Недообеспечение допущено комитетом по администрированию бюджетных кредитов">допущен комитетом</span>` : '';
+    return back + admitted + cancelBtn + `<button class="btn btn-primary" onclick="openRegister('${c.id}')">Зарегистрировать договор</button>`;
+  }
   if(c.status==='На рассмотрении комиссии')
-    return back + `<button class="btn btn-tint" onclick="openRegister('${c.id}')">Повторить проверку гейта</button>
+    return back + cancelBtn + `<button class="btn btn-tint" onclick="openRegister('${c.id}')">Повторить проверку гейта</button>
       <button class="btn btn-primary" onclick="openCommission('${c.id}')">Решение комитета по администрированию бюджетных кредитов</button>`;
   return back;
 }
@@ -3684,8 +3746,15 @@ function openReval(id){
 function saveReval(id){
   const it = item(id), v = num(val('rvVal')), date = iso2d(val('rvDate')), rep = val('rvRep').trim(), note = val('rvNote').trim();
   if(!(v > 0)) return toast('Оценочная стоимость должна быть положительным числом','warn');
-  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  /* Р-32: дата не в будущем и не раньше предыдущей несторнированной переоценки. */
+  const dv = eventDateValid(date, { notBefore: it.lastReval, notBeforeLabel:'предыдущая переоценка' });
+  if(!dv.ok) return toast(dv.msg,'warn');
   if(!rep) return toast('Укажите номер отчёта оценщика','warn');
+  /* Р-32: резкое падение оценочной относительно предыдущей несторнированной (it.appraised уже
+     откатывается к ней при сторнировании, Р-33) требует подтверждения — обязательного примечания. */
+  const prev = it.appraised;
+  if(prev > 0 && v < prev * (1 - REVAL_DROP_WARN/100) && !note)
+    return toast(`Оценочная падает на ${pct(1 - v/prev)} (порог предупреждения ${REVAL_DROP_WARN}%) — подтвердите снижение обязательным примечанием`,'warn');
   const acs0 = CONTRACTS.filter(isActive);
   const before = acs0.flatMap(c=>c.credits.map(cid=>({cid, ok:coverage(acs0, cid).ok})));
   const old = it.appraised;
@@ -3775,7 +3844,12 @@ function saveBan(id){
   if(!banRequired(it)) return toast('Оснований для запрета нет','warn');
   if(!organ) return toast('Укажите регистрирующий орган','warn');
   if(!regNo) return toast('Укажите рег. № запрета','warn');
-  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  /* Р-32: дата наложения не в будущем и не раньше нотариальной даты самого раннего
+     договора-основания (запрет не может предшествовать удостоверению обеспечения). */
+  const groundNotary = CONTRACTS.filter(c => isActive(c) && c.allocs.some(a=>a.item===it.id) && isDate(c.notaryDate))
+    .map(c=>c.notaryDate).sort((a,b)=>d2n(a)-d2n(b))[0];
+  const bdv = eventDateValid(date, { notBefore: groundNotary, notBeforeLabel:'нотариальная дата договора-основания' });
+  if(!bdv.ok) return toast(bdv.msg,'warn');
   const grounds = banContracts(it);
   const confirmedBy = markInOriginals ? role : '';
   it.ban = { organ, regNo, date, contracts: grounds, pendingRelease:false, markInOriginals, confirmedBy };
@@ -3816,7 +3890,9 @@ function saveRelease(id){
         channel = val('rbChannel'), chLbl = (RELEASE_CHANNELS.find(c=>c.v===channel)||{}).t || channel;
   if(allocatedLegal(it.id) > 0) return toast('По предмету снова закреплены доли — снятие невозможно','warn');
   if(!act) return toast('Укажите реквизит акта / № документа снятия','warn');
-  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  /* Р-32: дата снятия не в будущем и не раньше даты наложения запрета. */
+  const rdv = eventDateValid(date, { notBefore: (it.ban||{}).date, notBeforeLabel:'дата наложения запрета' });
+  if(!rdv.ok) return toast(rdv.msg,'warn');
   if(![...document.querySelectorAll('.rbAppr')].every(x=>x.checked))
     return toast('Пройдите всю цепочку согласования снятия (Прил.3 §3.2)','warn');
   /* Р-20/Р-9 (ПБК п.2.2): доп. гейт — снятие по «Полное погашение обязательства»
@@ -3850,7 +3926,7 @@ function savePartialRelease(id){
   const it = item(id), basis = val('prBasis'), part = val('prPart').trim(), act = val('prAct').trim(), date = iso2d(val('prDate'));
   if(!part) return toast('Опишите часть предмета','warn');
   if(!act) return toast('Укажите реквизит акта','warn');
-  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  { const ev = eventDateValid(date); if(!ev.ok) return toast(ev.msg,'warn'); }
   const overdueCr = [...new Set(CONTRACTS.filter(c=>isActive(c)&&c.allocs.some(a=>a.item===it.id)).flatMap(c=>c.credits))].filter(x=>(credit(x)||{}).overdue);
   if(overdueCr.length) return toast('Частичное снятие не допускается при просроченной задолженности','warn');
   (it.ban.partial ||= []).push({ part, basis, act, date });
@@ -3878,7 +3954,7 @@ function openConsent(id){
 function saveConsent(id){
   const it = item(id), action = val('cnAction'), date = iso2d(val('cnDate')), doc = val('cnDoc').trim(),
         decision = val('cnDecision'), revalReq = (document.getElementById('cnReval')||{}).checked, note = val('cnNote').trim();
-  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  { const ev = eventDateValid(date); if(!ev.ok) return toast(ev.msg,'warn'); }
   if(!doc) return toast('Укажите реквизит заявления/согласия','warn');
   const revalRequired = decision==='положительное' && revalReq;
   it.consents.push({ id:'СГ-'+(it.consents.length+1), action, date, doc, decision, note, revalRequired });
@@ -3907,7 +3983,7 @@ function saveRestoreNotice(id){
   const it = item(id), doc = val('rnDoc').trim(), date = iso2d(val('rnDate')), deadline = iso2d(val('rnDeadline')),
         sel = val('rnResolved'), resolved = sel==='(не завершено)' ? null : sel;
   if(!doc) return toast('Укажите реквизит извещения','warn');
-  if(!isDate(date)) return toast('Дата вручения — в формате дд.мм.гггг','warn');
+  { const ev = eventDateValid(date); if(!ev.ok) return toast(ev.msg,'warn'); }
   if(!isDate(deadline)) return toast('Срок восполнения — в формате дд.мм.гггг','warn');
   it.restoreNotice = { issued:true, doc, date, deadline, resolved };
   if(resolved==='восполнено'){
@@ -3982,7 +4058,7 @@ function svSigners(){
 function saveSurvey(id){
   const it = item(id), date = iso2d(val('svDate')), act = val('svAct').trim(), out = val('svOut'), note = val('svNote').trim();
   if(!act) return toast('Укажите номер акта','warn');
-  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  { const ev = eventDateValid(date, {notBefore: lastSurveyLive(it), notBeforeLabel:'предыдущее обследование'}); if(!ev.ok) return toast(ev.msg,'warn'); }
   const conclusion = val('svConclusion').trim();
   const photosEl = document.getElementById('svPhotos');
   const photos = (photosEl && photosEl.files) ? Array.from(photosEl.files).map(f=>f.name) : [];
@@ -4010,6 +4086,162 @@ function saveSurvey(id){
     toast('Утрата зафиксирована → оформите извещение о восполнении (§2.5); взыскание — только по истечении срока/отказу','warn');
   }
   closeModal(); refresh();
+}
+
+/* ---------- СТОРНИРОВАНИЕ ЖУРНАЛЬНОЙ ЗАПИСИ (Р-33) ----------
+   Записи журналов (переоценка / обследование / согласие / извещение) не удаляются
+   физически — помечаются voided:{by,date,reason}. Роль: заведующий отделом. Производные
+   скаляры (it.appraised/apprDate/apprReport/lastReval, it.lastSurvey) не читают массивы,
+   поэтому при сторно их надо пересчитать по ПОСЛЕДНЕЙ НЕсторнированной записи. У предмета
+   должна остаться базовая оценка и опорный акт обследования — сторнировать единственную
+   действующую переоценку/обследование нельзя. */
+function voidGenitive(kind){
+  return kind==='reval' ? 'переоценки' : kind==='survey' ? 'обследования'
+       : kind==='consent' ? 'согласия' : 'извещения о восполнении';
+}
+function voidRecordOf(it, kind, idx){
+  return kind==='restoreNotice' ? it.restoreNotice : ((it[kind+'s']||[])[idx]);
+}
+function voidBlockedReason(it, kind){
+  if(kind==='reval'   && livesReval(it).length  <= 1) return 'Нельзя сторнировать единственную действующую оценку — у предмета должна остаться базовая стоимость';
+  if(kind==='survey'  && livesSurvey(it).length <= 1) return 'Нельзя сторнировать единственный действующий акт — у предмета должна остаться опорная дата обследования';
+  return '';
+}
+function openVoidRecord(itemId, kind, idx){
+  if(!canHeadOfUnit()) return denyEdit();
+  const it = item(itemId), rec = voidRecordOf(it, kind, idx);
+  if(!rec || rec.voided) return toast('Запись не найдена или уже сторнирована','warn');
+  const blocked = voidBlockedReason(it, kind);
+  if(blocked) return toast(blocked,'warn');
+  const desc = kind==='reval'   ? `переоценка ${rec.date}, оценочная ${fmt(rec.appraised)} (${esc(rec.report)})`
+             : kind==='survey'  ? `акт ${esc(rec.act)} от ${rec.date}, исход «${esc(rec.outcome)}»`
+             : kind==='consent' ? `согласие «${esc(rec.action)}» от ${rec.date} (${esc(rec.doc||'')})`
+             :                    `извещение ${esc(rec.doc||'')} от ${rec.date}`;
+  modal(`<div class="modal form">${mhead('Сторнирование '+voidGenitive(kind)+' · '+it.id)}
+    <div class="modal-b"><div class="mform">
+      ${ro('Сторнируемая запись', desc)}
+      <div class="field req col-span"><span class="flabel">Причина сторнирования</span>
+        <textarea id="vdReason" class="note-area"></textarea></div>
+    </div>
+    <div class="warn-inline"><span>Запись не удаляется — помечается сторнированной. Производные (оценочная стоимость / опорные даты) пересчитаются по последней действующей записи.</span></div>
+    </div><div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-tint danger" onclick="saveVoidRecord('${itemId}','${kind}',${idx})">Сторнировать</button></div></div>`);
+}
+function saveVoidRecord(itemId, kind, idx){
+  if(!canHeadOfUnit()) return denyEdit();
+  const it = item(itemId), reason = val('vdReason').trim();
+  if(!reason) return toast('Укажите причину сторнирования','warn');
+  const rec = voidRecordOf(it, kind, idx);
+  if(!rec || rec.voided) return toast('Запись не найдена или уже сторнирована','warn');
+  const blocked = voidBlockedReason(it, kind);
+  if(blocked) return toast(blocked,'warn');
+  rec.voided = { by:role, date:TODAY, reason };
+  if(kind==='reval'){
+    const lives = livesReval(it), last = lives[lives.length-1];
+    it.appraised = last.appraised; it.apprDate = last.date; it.apprReport = last.report; it.lastReval = last.date;
+    hist(it, `Сторнирована переоценка ${rec.date} (${esc(rec.report)}): «${reason}». Оценочная откатилась к ${fmt(it.appraised)} от ${it.lastReval}. Залоговая (расч.) → ${fmt(calcPledge(it))}`);
+    toast('Переоценка сторнирована. Оценочная: '+fmt(it.appraised),'ok');
+  } else if(kind==='survey'){
+    it.lastSurvey = lastSurveyLive(it);
+    hist(it, `Сторнировано обследование ${esc(rec.act)} от ${rec.date}: «${reason}». Опорная дата обследования откатилась к ${it.lastSurvey||'—'}`);
+    toast('Обследование сторнировано','ok');
+  } else if(kind==='consent'){
+    hist(it, `Сторнировано согласие «${esc(rec.action)}» от ${rec.date}: «${reason}». Запрет на отчуждение оставался в силе — сторно согласия его не меняет`);
+    toast('Согласие сторнировано','ok');
+  } else {
+    hist(it, `Сторнировано извещение о восполнении ${esc(rec.doc||'')} от ${rec.date}: «${reason}»`);
+    toast('Извещение сторнировано','ok');
+  }
+  closeModal(); refresh();
+}
+
+/* ---------- ИСПРАВЛЕНИЕ РЕКВИЗИТОВ (Р-30) ----------
+   Правка нестоимостных реквизитов с обязательным основанием и следом «было → стало» в
+   истории. Стоимостные реквизиты (оценочная/залоговая) правятся только событиями
+   (переоценка / решение комиссии), не тут. Предмет — куратор; юр-реквизиты договора —
+   заведующий отделом. */
+function fieldDiffs(pairs){
+  return pairs.filter(p => String(p.before ?? '') !== String(p.after ?? ''))
+              .map(p => `${p.label}: «${p.before || '—'}» → «${p.after || '—'}»`);
+}
+function openEditItem(id){
+  if(!canCurate()) return denyEdit();
+  const it = item(id);
+  modal(`<div class="modal form">${mhead('Исправление реквизитов предмета · '+it.id)}
+    <div class="modal-b"><div class="mform">
+      ${fin('eiName','Наименование / описание', it.name, true, true)}
+      ${fin('eiIdent','Краткий идентификатор / кадастр / VIN', it.ident, true)}
+      ${fin('eiLegalDoc','Правоустанавливающий документ', it.legalDoc||'')}
+      ${fin('eiQty','Количество', it.qty==null?'':String(it.qty))}
+      ${fin('eiUnit','Ед. изм.', it.unit||'')}
+      ${fsel('eiPledgerType','Тип залогодателя (влияет на предпосылки §5.2)', PLEDGER_TYPES, it.pledgerType)}
+      <div class="field req col-span"><span class="flabel">Основание исправления</span>
+        <textarea id="eiReason" class="note-area"></textarea></div>
+    </div>
+    <div class="infoline"><span>Стоимостные реквизиты (оценочная, залоговая) правятся только событиями — переоценкой / решением комиссии — и здесь недоступны. Смена типа залогодателя меняет обязательный состав предпосылок §5.2.</span></div>
+    </div>${mfoot('Сохранить исправление','saveEditItem(\''+id+'\')')}</div>`);
+}
+function saveEditItem(id){
+  if(!canCurate()) return denyEdit();
+  const it = item(id), reason = val('eiReason').trim();
+  if(!reason) return toast('Укажите основание исправления','warn');
+  const name = val('eiName').trim(), ident = val('eiIdent').trim(), legalDoc = val('eiLegalDoc').trim(),
+        qtyRaw = val('eiQty').trim(), unit = val('eiUnit').trim(), pledgerType = val('eiPledgerType');
+  if(!name) return toast('Наименование не может быть пустым','warn');
+  if(!ident) return toast('Краткий идентификатор не может быть пустым','warn');
+  const qty = qtyRaw==='' ? null : num(qtyRaw);
+  if(qtyRaw!=='' && !(qty>0)) return toast('Количество — положительное число','warn');
+  const diffs = fieldDiffs([
+    {label:'наименование', before:it.name, after:name},
+    {label:'идентификатор', before:it.ident, after:ident},
+    {label:'правоуст. документ', before:it.legalDoc, after:legalDoc},
+    {label:'количество', before:it.qty, after:qty},
+    {label:'ед. изм.', before:it.unit, after:unit},
+    {label:'тип залогодателя', before:it.pledgerType, after:pledgerType},
+  ]);
+  if(!diffs.length) return toast('Изменений нет','warn');
+  it.name = name; it.ident = ident; it.legalDoc = legalDoc; it.qty = qty; it.unit = unit; it.pledgerType = pledgerType;
+  hist(it, `Исправление реквизитов предмета (основание: «${reason}»): ${diffs.join('; ')}`);
+  closeModal(); toast('Реквизиты предмета исправлены','ok'); refresh();
+}
+function openEditContract(id){
+  if(!canHeadOfUnit()) return denyEdit();
+  const c = contract(id);
+  modal(`<div class="modal form">${mhead('Исправление юр-реквизитов договора · '+c.id)}
+    <div class="modal-b"><div class="mform">
+      ${fin('ecNo','Номер договора', c.no||'', true)}
+      ${fdate('ecDate','Дата договора', c.date||'', true)}
+      ${fin('ecNotary','Нотариус', c.notary||'')}
+      ${fin('ecNotaryNo','№ нотариальной регистрации', c.notaryNo||'')}
+      ${fdate('ecNotaryDate','Дата нотариальной регистрации', c.notaryDate||'')}
+      ${fin('ecCert','Залоговое рег. свидетельство', c.cert||'')}
+      <div class="field req col-span"><span class="flabel">Основание исправления</span>
+        <textarea id="ecReason" class="note-area"></textarea></div>
+    </div>
+    <div class="infoline"><span>Правятся только юридические реквизиты договора. Состав предметов и доли — через отнесение/перезалог, не здесь.</span></div>
+    </div>${mfoot('Сохранить исправление','saveEditContract(\''+id+'\')')}</div>`);
+}
+function saveEditContract(id){
+  if(!canHeadOfUnit()) return denyEdit();
+  const c = contract(id), reason = val('ecReason').trim();
+  if(!reason) return toast('Укажите основание исправления','warn');
+  const no = val('ecNo').trim(), date = iso2d(val('ecDate')), notary = val('ecNotary').trim(),
+        notaryNo = val('ecNotaryNo').trim(), notaryDate = iso2d(val('ecNotaryDate')), cert = val('ecCert').trim();
+  if(!no) return toast('Номер договора не может быть пустым','warn');
+  if(!isDate(date)) return toast('Дата договора — в формате дд.мм.гггг','warn');
+  if(notaryDate && !isDate(notaryDate)) return toast('Дата нотариальной регистрации — в формате дд.мм.гггг','warn');
+  const diffs = fieldDiffs([
+    {label:'номер', before:c.no, after:no},
+    {label:'дата', before:c.date, after:date},
+    {label:'нотариус', before:c.notary, after:notary},
+    {label:'№ нотар. регистрации', before:c.notaryNo, after:notaryNo},
+    {label:'дата нотар. регистрации', before:c.notaryDate, after:notaryDate},
+    {label:'рег. свидетельство', before:c.cert, after:cert},
+  ]);
+  if(!diffs.length) return toast('Изменений нет','warn');
+  c.no = no; c.date = date; c.notary = notary; c.notaryNo = notaryNo; c.notaryDate = notaryDate; c.cert = cert;
+  hist(c, `Исправление юр-реквизитов договора (основание: «${reason}»): ${diffs.join('; ')}`);
+  closeModal(); toast('Реквизиты договора исправлены','ok'); refresh();
 }
 
 /* ---------- НОВЫЙ ЗАЛОГОВЫЙ ДОГОВОР (черновик) ---------- */
@@ -4172,16 +4404,23 @@ function openRegister(cid){
      Предмет мог быть принят до Р-18 (стоп-поля отсутствуют → stopFieldsOf возвращает undefined
      → не блокирует), либо его состояние могло измениться между приёмом и регистрацией. */
   const stopMiss = its.map(iid => ({ iid, v: stopListCheck(stopFieldsOf(item(iid))) })).filter(x => x.v.block);
-  const okAll = gate.ok && !prereqMiss.length && !kmMiss.length && !stopMiss.length;
+  /* Р-28 (В-1=А): гейт содержания — без предметов регистрация невозможна.
+     Р-29 (В-3=А): при допуске комитета (c.undercovered) гейт покрытия считается пройденным
+     по решению комитета — куратор довносит нотариальные реквизиты полной формой. */
+  const content = contentGate(c);
+  const gateOk = gate.ok || Boolean(c.undercovered);
+  const okAll = gateOk && content.ok && !prereqMiss.length && !kmMiss.length && !stopMiss.length;
   modal(`<div class="modal form">${mhead('Регистрация залогового договора · '+cid)}
     <div class="modal-b">
       <div class="cgrid-wrap" style="margin-bottom:14px"><table class="cgrid">
         <thead><tr><th>Кредит</th><th class="numcell">Сумма</th><th class="numcell">Порог</th><th class="numcell">Требуется</th><th class="numcell">Обеспечено</th><th>Покрытие</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
+      ${!content.ok ? `<div class="flagline"><span>${esc(content.msg)}</span></div>` : ''}
       ${gate.ok ? `<div class="okline"><span>Гейт покрытия пройден.</span></div>`
-        : `<div class="flagline"><span>Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)+' (порог '+pct(r.req)+')').join(', ')}. Регистрация блокируется; договор уходит на рассмотрение комитета по администрированию бюджетных кредитов.</span></div>`}
+        : (c.undercovered ? `<div class="okline"><span>Покрытие ниже порога, но кредит ДОПУЩЕН комитетом по администрированию бюджетных кредитов (${pct(c.undercovered.ratio)} при пороге ${pct(c.undercovered.req)}). Основание: «${esc(c.undercovered.obosn)}» (${esc(c.undercovered.by)}, ${c.undercovered.date}). Куратор довносит нотариальные реквизиты и регистрирует договор.</span></div>`
+        : `<div class="flagline"><span>Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)+' (порог '+pct(r.req)+')').join(', ')}. Регистрация блокируется; договор уходит на рассмотрение комитета по администрированию бюджетных кредитов.</span></div>`)}
       ${prereqMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Гейт предпосылок НЕ пройден: не приложены обязательные документы — ${prereqMiss.map(m=>`${m.iid}: ${esc(m.label)}`).join('; ')}. Приложите их на карточке предмета и повторите регистрацию.</span></div>`
-        : (gate.ok ? `<div class="okline" style="margin-top:10px"><span>Гейт предпосылок пройден: обязательные согласия и справки приложены.</span></div>` : '')}
+        : (gateOk && content.ok ? `<div class="okline" style="margin-top:10px"><span>Гейт предпосылок пройден: обязательные согласия и справки приложены.</span></div>` : '')}
       ${kmMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Заёмщик относится к категории П1 §2.6 (${esc([...new Set(kmMiss.map(id=>credit(id).borrowerCategory))].join(', '))}). Обеспеченность устанавливается решением Кабинета Министров — укажите реквизиты решения.</span></div>` : ''}
       ${stopMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Гейт стоп-листа П1 §3.5 НЕ пройден: ${stopMiss.map(x=>`${x.iid}: ${esc(x.v.msg)}`).join('; ')}. Регистрация невозможна.</span></div>` : ''}
       ${okAll ? `<div class="mform">
@@ -4197,12 +4436,13 @@ function openRegister(cid){
       <div class="okline" style="margin-top:6px"><span>Если способ хранения — «у залогодержателя»: укажите место хранения; периодичность обследования не применяется, имущество у залогодержателя (ПОЛ §6.4 п.7).</span></div>` : ''}
     </div>
     ${okAll ? mfoot('Зарегистрировать','doRegister(\''+cid+'\')','btn-success')
-      : (!gate.ok ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-         <button class="btn btn-primary" onclick="toCommission('${cid}')">Направить в комитет по администрированию бюджетных кредитов</button></div>`
-        : (prereqMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
-          : (stopMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
-            : `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-               <button class="btn btn-primary" onclick="openKmDecision('${cid}')">Указать решение КМ</button></div>`)))}
+      : (!content.ok ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
+        : (!gateOk ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+           <button class="btn btn-primary" onclick="toCommission('${cid}')">Направить в комитет по администрированию бюджетных кредитов</button></div>`
+          : (prereqMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
+            : (stopMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
+              : `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                 <button class="btn btn-primary" onclick="openKmDecision('${cid}')">Указать решение КМ</button></div>`))))}
     </div>`);
 }
 /* Постобработка запрета при переводе договора в «Зарегистрирован».
@@ -4227,8 +4467,12 @@ function doRegister(cid){
   const c = contract(cid);
   const breach = invariantBreaches(c);
   if(breach.length) return toast('Инвариант нарушен по '+breach.map(b=>b.id).join(', ')+' — Σ долей превышает залоговую стоимость','warn');
+  /* Р-28 (В-1=А): гейт содержания — без предметов регистрация невозможна. */
+  const cg = contentGate(c);
+  if(!cg.ok) return toast(cg.msg,'warn');
   const gate = gateCheck(c);
-  if(!gate.ok) return toast('Гейт покрытия не пройден','warn');
+  /* Р-29 (В-3=А): при допуске комитета (c.undercovered) гейт покрытия пройден по решению комитета. */
+  if(!gate.ok && !c.undercovered) return toast('Гейт покрытия не пройден','warn');
   /* Р-5: гейт предпосылок оформления §5.2 — обязателен для регистрации. */
   const pm = [...new Set(c.allocs.map(a=>a.item))].flatMap(iid=>prereqMissing(item(iid)).map(m=>({iid,...m})));
   if(pm.length) return toast('Гейт предпосылок §5.2 не пройден: '+pm.map(m=>m.iid+' — '+m.label).join('; '),'warn');
@@ -4318,23 +4562,54 @@ function saveCommission(cid){
     closeModal(); toast('Возвращено на доработку','ok'); return refresh();
   }
   if(!ob) return toast('Допуск ниже порога требует обоснования','warn');
+  /* Р-28 (В-1=А): комитет не допускает ПУСТОЙ договор — допуск касается только
+     недообеспечения, а не отсутствия предметов. */
+  const cg = contentGate(c);
+  if(!cg.ok) return toast(cg.msg,'warn');
   /* Р-5: комиссия допускает недообеспечение, но предпосылки §5.2 (согласия/справки) — не в её власти. */
   const pm = [...new Set(c.allocs.map(a=>a.item))].flatMap(iid=>prereqMissing(item(iid)).map(m=>({iid,...m})));
   if(pm.length) return toast('Регистрация невозможна: гейт предпосылок §5.2 — '+pm.map(m=>m.iid+' — '+m.label).join('; '),'warn');
-  const no = 'ЗД-' + TODAY.slice(6) + '/' + c.id.slice(2) + '-1';
   /* Худший по покрытию кредит — тот же выбор, что и Math.min(...ratio) ниже, но с
      сохранением его req (Д-2): порог — функция состава, не константа 120%. */
   const worst = gate.rows.reduce((a,b)=> b.ratio<a.ratio?b:a);
-  Object.assign(c, { status:ACTIVE, no: c.no || no, date: c.date || TODAY,
-    notary: c.notary || 'Нотариус (реквизиты уточняются)', notaryNo: c.notaryNo || 'НР-' + TODAY.slice(6) + '/0000',
-    notaryDate: c.notaryDate || TODAY, cert: c.cert || 'ЗС-' + TODAY.slice(6) + '/0000',
-    undercovered: { ratio: worst.ratio, req: worst.req, obosn: ob, by: role, date: TODAY } });
-  c.allocs.forEach(a => { item(a.item).everPledged = true; });
-  hist(c, `Комитет по администрированию бюджетных кредитов: ДОПУЩЕН недообеспеченный кредит (${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}). Обоснование: «${ob}». Договор зарегистрирован.`);
-  const missing = afterRegister(c);
-  closeModal(); toast(`Комиссия допустила договор с покрытием ниже порога ${pct(worst.req)} — флаг зафиксирован`,'warn');
-  if(missing.length) toast(`Наложите запрет на отчуждение в «${organOf(missing[0])}» до ${banDeadline(missing[0])} — до этого залог не защищён от продажи`,'warn');
+  /* Р-29 (В-3=А): КОМИТЕТ РЕШАЕТ ТОЛЬКО ВОПРОС ДОПУСКА, НЕ РЕГИСТРИРУЕТ. Нотариальных
+     реквизитов у комитета нет — их приносит куратор. Ставим флаг допуска и возвращаем
+     статус «Оформляется»; регистрацию проводит куратор через openRegister полной формой
+     (реквизиты + способ хранения), гейт покрытия у него пройден по этому допуску. */
+  c.undercovered = { ratio: worst.ratio, req: worst.req, obosn: ob, by: role, date: TODAY };
+  c.status = 'Оформляется';
+  hist(c, `Комитет по администрированию бюджетных кредитов: ДОПУЩЕН недообеспеченный кредит (${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}). Обоснование: «${ob}». Договор возвращён куратору на регистрацию (реквизиты и способ хранения довносит куратор).`);
+  closeModal(); toast(`Комитет допустил недообеспечение (порог ${pct(worst.req)}) — куратор регистрирует договор полной формой`,'ok');
   refresh();
+}
+
+/* ---------- Р-31: АННУЛИРОВАНИЕ ОШИБОЧНОГО ЧЕРНОВИКА ----------
+   Ошибочно созданный черновик нельзя было закрыть — он висел в реестре, а его доли
+   держали предметы в статусе «резервируется» (allocatedDraft) и урезали availableOf для
+   всех прочих договоров. Аннулирование доступно только на «черновых» статусах (isDraftish),
+   требует причины, снимает отнесения (освобождает доли) и оставляет запись в реестре и в
+   истории. Физического удаления нет — append-only. */
+function openCancelDraft(cid){
+  if(!canCurate()) return denyEdit();
+  const c = contract(cid);
+  if(!isDraftish(c)) return toast('Аннулировать можно только черновик (статус «Оформляется» / «На рассмотрении комиссии»)','warn');
+  modal(`<div class="modal form">${mhead('Аннулирование черновика договора · '+cid)}
+    <div class="modal-b">
+      <div class="warn-inline"><span>Отнесения предметов будут сняты (доли освобождаются), договор перейдёт в статус «Аннулирован» и останется в реестре с записью в истории. Действие необратимо.</span></div>
+      <div class="mform one">${ftxt('cdReason','Причина аннулирования (обязательно)','')}</div>
+    </div>${mfoot('Аннулировать черновик','saveCancelDraft(\''+cid+'\')','btn-danger')}</div>`);
+}
+function saveCancelDraft(cid){
+  if(!canCurate()) return denyEdit();
+  const c = contract(cid);
+  if(!isDraftish(c)) return toast('Аннулировать можно только черновик','warn');
+  const reason = val('cdReason').trim();
+  if(!reason) return toast('Укажите причину аннулирования','warn');
+  const freed = [...new Set(c.allocs.map(a=>a.item))];
+  c.allocs = [];
+  c.status = CANCELLED;
+  hist(c, `Черновик аннулирован. Причина: «${reason}». Сняты отнесения по предметам: ${freed.length ? freed.join(', ') : '—'} — доли освобождены.`);
+  closeModal(); toast('Черновик аннулирован — доли освобождены','ok'); refresh();
 }
 
 /* ---------- ДОП СОГЛАШЕНИЕ — CHANGESET (конверт версионирования) ---------- */
@@ -4919,6 +5194,12 @@ renderNav(); renderList();
    новых функций/констант в последующих задачах (Р-11: guaranteeReq, guaranteeExpired). */
 if (typeof window !== 'undefined') window.__zt = {
   requiredCover, coverage, calcPledge, pledgeValue, coefOf, effShare, allocatedIn, kmGateBlocked,
+  contentGate, isDraftish, allocatedDraft, allocatedLegal, availableOf, TODAY, triggers,
+  saveCancelDraft, openCancelDraft, CANCELLED,
+  eventDateValid, REVAL_DROP_WARN,
+  livesReval, livesSurvey, lastRevalLive, lastSurveyLive, voidBlockedReason, openVoidRecord, saveVoidRecord,
+  openEditItem, saveEditItem, openEditContract, saveEditContract, fieldDiffs,
+  saveReval, saveSurvey, doRegister, saveCommission,
   guaranteeReq, guaranteeExpired,
   KINDS, KIND_FIELDS, COVER_LIQUID, COVER_MOVABLE, COVER_GUARANTEE, COVER_GUARANTEE_FX,
   SURVEY_MATRIX, CREDITS, ITEMS, CONTRACTS, credit, item, contract,
