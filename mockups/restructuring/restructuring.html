@@ -52,7 +52,7 @@
    3. Лимит повторов реструктуризации (счётчик растёт неограниченно).
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-07-19 · 11/11 PASS
+   SMOKE 2026-07-19 · 13/13 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  rateBefore=false grew=true
@@ -64,6 +64,8 @@
       PASS  #9  observerAllowed=false curatorRegDS=true
       PASS  #10  kinds=5 sawRate=true
       PASS  #11  grew=true stage0=true packetClosed=true conflictSeen=true
+      PASS  #12  snap=true paid=true rem=22
+      PASS  #13  inputs=true shape=true
 -->
 <style>
 :root{
@@ -364,22 +366,32 @@ function seedCredits(){ return [
   { id:'CR-60540', no:'КД-60540', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
     balance:4200000, odDays:96, odSum:512000, collProc:'ВЗ-734', restructCount:1,
     collateralValue:6100000, requiredCoverPct:120, insuredUntil:'2027-03-01', tech:true, techAgeYears:6, techMaxAge:12,
+    snapshot:{ principal:4200000, overduePrincipal:380000, accruedInterest:118000, overdueInterest:118000, penalty:73000 },
+    paid:{ principalPaid:800000, interestPaid:340000, penaltyPaid:0 }, remainingTermMonths:22,
     terms:{term:36,schedule:'ежемесячно',rate:8,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
   { id:'CR-60541', no:'КД-60541', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
     balance:1850000, odDays:96, odSum:210000, collProc:'ВЗ-734', restructCount:1,
     collateralValue:2050000, requiredCoverPct:120, insuredUntil:'2026-10-01', tech:true, techAgeYears:9, techMaxAge:12,
+    snapshot:{ principal:1850000, overduePrincipal:150000, accruedInterest:52000, overdueInterest:52000, penalty:31000 },
+    paid:{ principalPaid:300000, interestPaid:120000, penaltyPaid:0 }, remainingTermMonths:14,
     terms:{term:24,schedule:'ежемесячно',rate:9,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
   { id:'CR-58120', no:'КД-58120', inn:'01703198800077', borrower:'ИП Садыков Т.',
     balance:980000, odDays:34, odSum:44000, collProc:null, restructCount:0,
     collateralValue:1400000, requiredCoverPct:120, insuredUntil:'2028-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:980000, overduePrincipal:40000, accruedInterest:18000, overdueInterest:18000, penalty:9000 },
+    paid:{ principalPaid:120000, interestPaid:60000, penaltyPaid:0 }, remainingTermMonths:10,
     terms:{term:18,schedule:'ежемесячно',rate:10,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
   { id:'CR-59003', no:'КД-59003', inn:'01703198800077', borrower:'ИП Садыков Т.',
     balance:2650000, odDays:220, odSum:390000, collProc:'ВЗ-701', restructCount:2,
     collateralValue:3300000, requiredCoverPct:120, insuredUntil:'2027-06-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:2650000, overduePrincipal:620000, accruedInterest:96000, overdueInterest:96000, penalty:84000 },
+    paid:{ principalPaid:500000, interestPaid:210000, penaltyPaid:15000 }, remainingTermMonths:16,
     terms:{term:30,schedule:'ежемесячно',rate:8,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
   { id:'CR-61200', no:'КД-61200', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
     balance:3100000, odDays:12, odSum:0, collProc:null, restructCount:0,
     collateralValue:4000000, requiredCoverPct:120, insuredUntil:'2029-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:3100000, overduePrincipal:0, accruedInterest:41000, overdueInterest:0, penalty:0 },
+    paid:{ principalPaid:200000, interestPaid:90000, penaltyPaid:0 }, remainingTermMonths:40,
     terms:{term:48,schedule:'ежемесячно',rate:7,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} }
 ]; }
 
@@ -483,7 +495,17 @@ function baseApp(id,inn,borrower,kindIds,creditIds,regDate){
 function H(app,what,who,cls){ app.history.push({when:app._t||app.regDate, what, who:who||'', cls:cls||''}); }
 function defaultConclusions(){ return [ {dept:'СРМиК',text:'',visa:false,visaDate:null}, {dept:'ДПО',text:'',visa:false,visaDate:null} ]; }
 function fillDocs(app){ requiredDocs(app).forEach(d=>app.packetDocs[d]=true); }
-function versionFrom(cr){ return { params:{...cr.terms}, state:'проект', source:'заёмщик', graph:[] }; }
+function versionFrom(cr){
+  return {
+    params:{...cr.terms},                 // 11 ключей, редактируемое подмножество по видам (Р-3)
+    cutoffDate:TODAY,                      // Р-20: дата расчёта, замораживается в версию
+    snapshot:{...cr.snapshot},             // копия снимка на момент фиксации среза
+    inputs:{ forgivePenalty:0, capInterest:0, capPenalty:0, graceBlocks:[] }, // управляющие суммы
+    overdueMode:1,                         // Р-10/Р-28: наследуется из первого вида заявки (Task 5)
+    plan:null,                             // РЕЗУЛЬТАТ расчёта; null = не рассчитано
+    graph:[], state:'проект', source:'заёмщик'
+  };
+}
 
 function buildDemoApps(){
   const A=[];
@@ -1200,7 +1222,7 @@ const RS = {
   openWaiver, grantWaiver, openDS, regDS, openNewKind, addKind, showMirror,
   get state(){ return state; }, seed, stageOf, deadline, packetGate, conclGate, minfinGate, dsGate,
   coverGate, coverGateApp, allowedParams, requiredDocs, activeAppOnCredit, canAdvance, canX,
-  appById, creditById, kindById, applyEntryOps, TODAY, STAGES, ROLES,
+  appById, creditById, kindById, applyEntryOps, versionFrom, TODAY, STAGES, ROLES,
   __baseApp: baseApp
 };
 if(typeof window!=='undefined') window.RS=RS;

@@ -144,6 +144,27 @@ const app = id => RS.appById(id);
   ok(11, grew && stage0 && packetClosed && busy, `grew=${grew} stage0=${stage0} packetClosed=${packetClosed} conflictSeen=${busy}`);
 })();
 
+/* 12. seedCredits: у каждого кредита есть snapshot/paid/remainingTermMonths с ожидаемыми числами. */
+(() => { fresh();
+  const cr = RS.creditById('CR-60540');
+  const okSnap = cr.snapshot && cr.snapshot.principal === 4200000 && cr.snapshot.overduePrincipal === 380000
+    && cr.snapshot.accruedInterest === 118000 && cr.snapshot.penalty === 73000;
+  const okPaid = cr.paid && cr.paid.principalPaid === 800000 && cr.paid.interestPaid === 340000 && cr.paid.penaltyPaid === 0;
+  const okRem  = cr.remainingTermMonths === 22;
+  ok(12, okSnap && okPaid && okRem, `snap=${!!okSnap} paid=${!!okPaid} rem=${cr.remainingTermMonths}`);
+})();
+
+/* 13. versionFrom: вход конструктора инициализирован, plan=null, snapshot скопирован. */
+(() => { fresh();
+  const cr = RS.creditById('CR-60540');
+  const v = RS.versionFrom(cr);
+  const inputsOk = v.inputs && v.inputs.forgivePenalty === 0 && v.inputs.capInterest === 0
+    && v.inputs.capPenalty === 0 && Array.isArray(v.inputs.graceBlocks) && v.inputs.graceBlocks.length === 0;
+  const shape = v.cutoffDate === RS.TODAY && v.snapshot.principal === cr.snapshot.principal
+    && v.plan === null && v.overdueMode === 1;
+  ok(13, inputsOk && shape, `inputs=${!!inputsOk} shape=${!!shape}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
