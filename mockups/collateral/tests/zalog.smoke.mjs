@@ -954,4 +954,116 @@ test('W1-7 (Р-33): единственную действующую переоц
   no(it.revals[0].voided, 'запись не сторнирована — блок сработал');
 });
 
+/* ============================================================
+   ВОЛНА 2 — роли и очередь комитета (Р-34…Р-36). См. план
+   docs/superpowers/plans/2026-07-23-restructuring-calculator.md
+   ============================================================ */
+
+// Р-34: actionBtn — при отсутствии права кнопка disabled, без onclick, с ролевым title.
+test('W2-1 (Р-34): actionBtn без права — disabled, без onclick, с title о роли', () => {
+  const { win } = load();
+  win.eval("role='Наблюдатель'");
+  const html = win.__zt.actionBtn(win.__zt.canCurate(), 'Провести переоценку', "openReval('П-001')");
+  has(html, 'disabled', 'кнопка без права — disabled');
+  hasNot(html, 'onclick', 'у disabled-кнопки нет обработчика');
+  has(html, 'не имеет права', 'title объясняет отказ по роли');
+});
+
+// Р-34: actionBtn с правом, но с блокирующим гейтом — disabled со своим blockedTitle.
+test('W2-2 (Р-34): actionBtn с правом, но заблокирован гейтом — disabled + blockedTitle', () => {
+  const { win } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const html = win.__zt.actionBtn(win.__zt.canCurate(), 'Снять запрет (полное)', "openBanRelease('П-001')",
+    { blocked:true, blockedTitle:'нельзя, пока закреплены доли' });
+  has(html, 'disabled', 'заблокированная гейтом кнопка — disabled');
+  has(html, 'нельзя, пока закреплены доли', 'показан blockedTitle, а не ролевой');
+});
+
+// Р-34 (§8): «Наблюдатель» не имеет ни одной активной кнопки действия.
+// Карточка предмета и футер договора не содержат ни одного enabled open*/save* обработчика.
+test('W2-3 (Р-34): «Наблюдатель» — ни одной активной кнопки действия', () => {
+  const { win, zt } = load();
+  win.eval("role='Наблюдатель'");
+  const it = zt.item('П-001');
+  // navigation-переходы (openCard) — не «действие»; вырезаем их перед проверкой мутирующих open*.
+  const itemHtml = win.itemPanels(it).join('').split('openCard(').join('NAV(');
+  hasNot(itemHtml, 'onclick="open', 'в карточке предмета нет активных мутирующих действий open*');
+  hasNot(itemHtml, 'onclick="save', 'в карточке предмета нет активных действий save*');
+  const draft = zt.CONTRACTS.find(c => zt.isDraftish(c));
+  const footHtml = win.ctrFooter(draft);
+  hasNot(footHtml, 'onclick="openRegister', 'футер договора без активной регистрации');
+  hasNot(footHtml, 'onclick="openCancelDraft', 'футер договора без активного аннулирования');
+  has(footHtml, 'disabled', 'кнопки футера присутствуют, но disabled (состав действий виден)');
+});
+
+// Р-34: у роли-куратора те же карточные действия — активны (регресс на «не переусердствовали»).
+test('W2-4 (Р-34): у куратора карточные действия активны', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const itemHtml = win.itemPanels(zt.item('П-001')).join('');
+  has(itemHtml, "onclick=\"openReval('П-001')", 'куратор видит активную переоценку');
+  has(itemHtml, "onclick=\"openEditItem('П-001')", 'куратор видит активную правку реквизитов');
+});
+
+// Р-35: договор «На рассмотрении комиссии» виден комитету через очередь (§8).
+// onRoleChange для комитета переключает реестр на договоры с преднастроенным фильтром.
+test('W2-5 (Р-35): комитет видит очередь «На рассмотрении комиссии»', () => {
+  const { win, zt } = load();
+  ok(zt.CONTRACTS.some(c => c.status === 'На рассмотрении комиссии'), 'в сиде есть договор в очереди комитета');
+  win.document.getElementById('roleSel').value = 'Комитет по администрированию бюджетных кредитов';
+  win.onRoleChange();
+  eq(win.eval('reg'), 'contracts', 'реестр переключён на договоры');
+  eq(win.eval('activeFilter.contracts && activeFilter.contracts.status'), 'На рассмотрении комиссии',
+    'фильтр преднастроен на статус очереди комитета');
+});
+
+// Р-35: очередь поднимает критичность триггера до high, когда ожидание > COMMITTEE_SLA.
+test('W2-6 (Р-35): просроченный SLA очереди комитета → триггер high', () => {
+  const { zt } = load();
+  const trg = zt.triggers();
+  const q = trg.find(t => t.type === 'Ожидает решения комитета' && t.obj === 'Д-008');
+  ok(q, 'триггер очереди комитета по Д-008 присутствует');
+  eq(q.crit, 'high', 'ожидание 16 дн. > SLA 10 → критичность high');
+  has(q.text, 'просрочен SLA', 'текст называет просрочку SLA');
+});
+
+// Р-35: SLA — внутренний параметр справочника, влияет на эскалацию (при большом SLA → mid).
+test('W2-7 (Р-35): рост COMMITTEE_SLA снимает эскалацию до mid', () => {
+  const { win, zt } = load();
+  win.eval('COMMITTEE_SLA = 30');
+  const q = zt.triggers().find(t => t.type === 'Ожидает решения комитета' && t.obj === 'Д-008');
+  ok(q, 'триггер очереди присутствует'); eq(q.crit, 'mid', '16 дн. < SLA 30 → mid');
+});
+
+// Р-36: документарный гейт (§5.2 предпосылки) блокирует направление в комитет —
+// в футере регистрации кнопки «Направить в комитет» нет, недообеспечение туда не уходит.
+test('W2-8 (Р-36): документарно заблокированный договор не предлагает «Направить в комитет»', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const draft = zt.contract('Д-010');   // муниципальное без согласия ОМСУ — провал §5.2
+  ok(zt.prereqMissing(zt.item(draft.allocs[0].item)).length, 'сценарий: у предмета есть незакрытая предпосылка §5.2');
+  win.openRegister('Д-010');
+  const modalHtml = win.document.getElementById('modalHost').innerHTML;
+  hasNot(modalHtml, 'Направить в комитет', 'документарный блок не открывает путь в комитет');
+});
+
+// Р-36: чистое недообеспечение (все документарные гейты пройдены) — путь в комитет открыт.
+test('W2-9 (Р-36): чистое недообеспечение открывает «Направить в комитет»', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  win.openRegister('Д-008');   // К-106: 38,9% при 120%, документарно чист
+  const modalHtml = win.document.getElementById('modalHost').innerHTML;
+  has(modalHtml, 'Направить в комитет', 'недообеспечение без документарных блоков идёт в комитет');
+});
+
+// Р-36: toCommission гейтит документарные предпосылки — вручную заблокированный договор
+// не переводится в «На рассмотрении комиссии».
+test('W2-10 (Р-36): toCommission не отправляет документарно заблокированный договор', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const before = zt.contract('Д-010').status;
+  win.toCommission('Д-010');
+  eq(zt.contract('Д-010').status, before, 'статус не изменился — документарный гейт §5.2 не пройден');
+});
+
 report();

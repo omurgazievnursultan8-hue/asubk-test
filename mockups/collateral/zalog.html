@@ -175,7 +175,7 @@
   невыполненными предпосылками §5.2 — муниципальное без ОМСУ (П-012 / Д-010) и имущество супругов
   без согласия супруга (П-013 / Д-011) (Р-5); истёкший полис техники → триггер (П-002, Р-7);
   кредит под банковскую гарантию без залоговых долей, гарантия в иной валюте (USD) — реальный
-  курсовой индекс ≈0,55 < 1, не mirror-хак, обеспеченность НЕ закрыта, триггер (К-95 / Д-008, Р-11).
+  курсовой индекс ≈0,55 < 1, не mirror-хак, обеспеченность НЕ закрыта, триггер (К-95, Р-11).
 
   ГРАНИЦЫ МОДУЛЯ (Р-21 — осознанные границы, не открытые вопросы):
     • НАПРАВЛЕНИЕ OVERRIDE — закрыто (Р-19 п.2). Залоговая стоимость может только
@@ -1009,9 +1009,9 @@ const CREDITS = [
   { id:'К-40', num:'Дог. №40 от 20.05.2026', inn:'20308197700219', amount:40000,  status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Высокий' },
   { id:'К-71', num:'Дог. №71 от 22.08.2023', inn:'01705199200338', amount:250000, status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий' },
   { id:'К-33', num:'Дог. №33 от 05.01.2024', inn:'22105198800047', amount:50000,  status:'Погашен',     overdue:false, otherSecurity:null, riskCategory:'Низкий' },
-  /* Р-10/Р-11 demo (доработано §17 п.1): кредит обеспечен банковской гарантией (иная форма).
-     Привязан к зарегистрированному договору Д-008 БЕЗ залоговых долей — покрытие целиком
-     из idxGuar. Гарантия в ИНОЙ валюте (USD), чем кредит (KGS) → курсовой порог 120%
+  /* Р-10/Р-11 demo (доработано §17 п.1): кредит обеспечен ТОЛЬКО банковской гарантией (иная
+     форма, В-1=А: гарантия живёт на кредите через otherSecurity, не залоговым договором) —
+     покрытие целиком из idxGuar. Гарантия в ИНОЙ валюте (USD), чем кредит (KGS) → курсовой порог 120%
      (guaranteeReq/COVER_GUARANTEE_FX, П1 §2.3): 132000 ÷ (200000×1.2) = 0,55 < 1 —
      реальный расчёт даёт НЕ обеспечен (не mirror-хак), поднимается триггер «Недостаточность
      обеспечения». */
@@ -1584,6 +1584,29 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
   CONTRACTS.push({ id:'Д-012', no:'', date:'', status:'Оформляется', inn:'20308197700219',
     notary:'', notaryNo:'', notaryDate:'', cert:'', credits:['К-101'], allocs:[{item:'П-014', credit:'К-101', share:140000}], undercovered:null, addenda:[],
     history:[{when:'07.06.2026 10:30', what:'Договор создан (черновик). Заёмщик под категорией П1 §2.6 — обеспеченность по решению КМ ещё не установлена', who:'Куратор отдела залогового обеспечения'}] });
+
+  /* Р-35 (ПОР): демо-договор В ОЧЕРЕДИ КОМИТЕТА — статус «На рассмотрении комиссии».
+     Провалено ТОЛЬКО покрытие (140 000 залоговой при требуемых 360 000 = 38,9%);
+     предпосылки §5.2 собраны (Физлицо → обязателен лишь encumbranceCert, он приложен),
+     стоп-лист и §2.6 неприменимы — то есть договор ЛЕГИТИМНО ждёт решения комитета,
+     а не отсеян документарным гейтом (ср. Д-005 из Р-36, где блокирует §5.2).
+     commissionSince = 25.06.2026 (16 дн. до TODAY 11.07.2026 > SLA 10) → триггер очереди
+     поднимается до высокой критичности. */
+  CREDITS.push({ id:'К-106', num:'Дог. №106 от 20.06.2026', inn:'01705199200338', amount:300000, currency:'KGS', status:'Действующий', overdue:false, riskCategory:'Низкий', otherSecurity:null });
+  const queueItem = normalizeItem({ id:'П-024', kind:'Недвижимое имущество', name:'Земельный участок, с. Беловодское', pledger:'01705199200338',
+    pledgerType:'Физлицо', ident:'Кадастровый № 4-11-03-0244', appraised:200000, apprDate:'20.06.2026', apprReport:'ОЦ-2026/106',
+    details:{ reType:'Земельный участок', cadastre:'4-11-03-0244', address:'Чуйская обл., с. Беловодское, ул. Садовая, 7', areaLand:'1200', commDate:'20.06.2026' },
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false, lastSurvey:'20.06.2026', lastReval:'20.06.2026',
+    prereqs:{ ownerConsent:{present:true, doc:'—'}, spouseConsent:{present:true, doc:'—'}, encumbranceCert:{present:true, doc:'Справка ГР-2026/106'} },
+    revals:[{date:'20.06.2026', appraised:200000, report:'ОЦ-2026/106', note:'первичная оценка'}], surveys:[],
+    history:[{when:'20.06.2026 10:00', what:'Предмет зарегистрирован (обеспечение под К-106)', who:'Куратор отдела залогового обеспечения'}] });
+  ITEMS.push(queueItem);
+  CONTRACTS.push({ id:'Д-008', no:'', date:'', status:'На рассмотрении комиссии', inn:'01705199200338',
+    notary:'', notaryNo:'', notaryDate:'', cert:'', credits:['К-106'], allocs:[{item:'П-024', credit:'К-106', share:140000}],
+    undercovered:null, addenda:[], commissionSince:'25.06.2026',
+    history:[
+      {when:'20.06.2026 11:00', what:'Договор создан (черновик)', who:'Куратор отдела залогового обеспечения'},
+      {when:'25.06.2026 09:30', what:'Регистрация заблокирована контрольным гейтом: К-106 — 38,9% при пороге 120,0%. Направлено в комитет по администрированию бюджетных кредитов.', who:'Куратор отдела залогового обеспечения'} ] });
 
   /* ============================================================
      §17 ДЕМО-ДАННЫЕ — Р-11…Р-23 (Task 22). Каждая запись покрывает один сценарий
@@ -2281,6 +2304,12 @@ function techAgeCheck({securityRole, origin, age}){
    модуля — в ПОЛ/П1-П3 конкретный срок не задан, правится администратором в справочнике. */
 let DOC_ROUTE_DAYS = 30;
 
+/* Р-35 (ПОР): срок, после которого договор, ожидающий решения комитета по
+   администрированию бюджетных кредитов («На рассмотрении комиссии»), поднимает
+   критичность триггера очереди со средней на высокую. ВНУТРЕННИЙ параметр —
+   в положениях конкретный SLA не задан, правится администратором в справочнике. */
+let COMMITTEE_SLA = 10;
+
 /* ТРИГГЕРЫ. Собираются из состояния; не хранятся. Триггер «недостаточность
    обеспечения» уходит во взыскание отдельным треком по причине «обеспечение» —
    он НЕ трогает риск-категорию и НЕ трогает группу платёжеспособности. */
@@ -2401,11 +2430,18 @@ function triggers(){
       text:`Залоговая стоимость (${fmt(pledgeValue(it))}) установлена выше расчётной (${fmt(calcPledge(it))}) по нормам прежней системы — по действующему положению (ПОЛ §2.1) такой override недопустим`,
       act:'Провести переоценку по действующему положению' });
   });
-  CONTRACTS.filter(c=>c.status==='На рассмотрении комиссии').forEach(c => { const bad = gateCheck(c).rows.filter(r=>!r.ok);
+  /* Р-35 (ПОР): входящая очередь комитета по администрированию бюджетных кредитов —
+     договоры «На рассмотрении комиссии» ждут решения. Критичность средняя, после
+     COMMITTEE_SLA дней ожидания (от commissionSince) — высокая. Так комитет видит
+     свою очередь и просроченные заявки, не зная номера договора наизусть. */
+  CONTRACTS.filter(c=>c.status==='На рассмотрении комиссии').forEach(c => {
+    const bad = gateCheck(c).rows.filter(r=>!r.ok);
+    const waited = c.commissionSince ? Math.max(0, -daysLeft(c.commissionSince)) : null;
+    const overSla = waited != null && waited > COMMITTEE_SLA;
     out.push({
-    type:'Регистрация заблокирована', crit:'high', obj:c.id, objLbl:`${c.id} · ${clientName(c.inn)}`,
-    text:`Контрольный гейт покрытия не пройден (${bad.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — договор ждёт решения комитета по администрированию бюджетных кредитов`,
-    act:'Решение комиссии: вернуть на доработку либо допустить с обоснованием' }); });
+      type:'Ожидает решения комитета', crit: overSla ? 'high' : 'mid', obj:c.id, objLbl:`${c.id} · ${clientName(c.inn)}`,
+      text:`Недообеспечение (${bad.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — договор ждёт решения комитета${c.commissionSince ? ` с ${c.commissionSince}` : ''}${waited != null ? ` (${waited} дн.${overSla ? `, просрочен SLA ${COMMITTEE_SLA} дн.` : ''})` : ''}`,
+      act:'Решение комитета: вернуть на доработку либо допустить недообеспечение с обоснованием' }); });
   /* Р-19 (ПОЛ §11): маршрут кредитно-залоговых документов не дошёл до архива дольше
      DOC_ROUTE_DAYS дней после регистрации договора. */
   CONTRACTS.filter(c => docRouteIncomplete(c, DOC_ROUTE_DAYS)).forEach(c => out.push({
@@ -2427,10 +2463,38 @@ const canHeadOfUnit = () => role === 'Заведующий отделом зал
    допускает недопокрытие/понижение ликвидности с обоснованием. Раньше openDs пускал только
    куратора → ветка допуска комитетом была недостижима. */
 const canDs = () => canCurate() || canCommittee();
-function onRoleChange(){ role = document.getElementById('roleSel').value; toast('Роль: '+role);
-  renderList(); if(cur) openCard(cur.type, cur.id); }
+function onRoleChange(){
+  role = document.getElementById('roleSel').value; toast('Роль: '+role);
+  /* Р-35: комитет по администрированию бюджетных кредитов открывает свою входящую
+     очередь — реестр договоров с преднастроенным фильтром «Статус = На рассмотрении
+     комиссии». Счётчик очереди показывает pagerCount («N договоров (фильтр)»). */
+  if(canCommittee()){
+    reg = 'contracts';
+    activeFilter.contracts = { status:'На рассмотрении комиссии' };
+    filterPanelReg = null;   // форсируем перерисовку панели фильтра под новый reg
+    cur = null; showView('list'); renderList();
+    const n = CONTRACTS.filter(c=>c.status==='На рассмотрении комиссии').length;
+    if(n) toast(`Очередь комитета: ${n} договор(ов) ждут решения`,'warn');
+    return;
+  }
+  renderList(); if(cur) openCard(cur.type, cur.id);
+}
 function denyEdit(){ toast('Роль «'+role+'» не имеет права на это действие','warn'); }
 function denyComm(){ toast('Действие доступно только роли «Комитет по администрированию бюджетных кредитов»','warn'); }
+
+/* Р-34: единое правило видимости действий. Реестровая «Создать» при отсутствии права
+   не рендерится (btnNew скрывается в renderList); карточное действие — рендерится disabled
+   с title, чтобы состав действий оставался виден роли-наблюдателю. `blocked` — вторая ось:
+   право есть, но гейт/статус не пускает (тогда свой blockedTitle). */
+function actionBtn(permOk, label, handler, opts){
+  opts = opts || {};
+  const cls = opts.cls || 'btn-tint btn-sm';
+  const blocked = Boolean(opts.blocked);
+  const disabled = !permOk || blocked;
+  const title = !permOk ? `Роль «${role}» не имеет права на это действие`
+              : (blocked ? (opts.blockedTitle || '') : '');
+  return `<button class="btn ${cls}"${disabled ? '' : ` onclick="${handler}"`}${disabled ? ' disabled' : ''}${title ? ` title="${esc(title)}"` : ''}>${label}</button>`;
+}
 
 /* ============================================================
    РЕЕСТРЫ (три списка: предметы / договоры / мониторинг)
@@ -2761,7 +2825,9 @@ function renderList(){
      (read-only проекция). Авторитетная кнопка «Создать» живёт в реестрах договоров и
      поручительств (единственный владелец); в карточке кредита — контекстные ярлыки-ссылки. */
   document.getElementById('btnNewLbl').textContent = reg==='sureties' ? 'Новый договор поручительства' : 'Новый залоговый договор';
-  document.getElementById('btnNew').style.display = (reg==='contracts' || reg==='sureties') ? 'inline-flex' : 'none';
+  /* Р-34: реестровая «Создать» — единственное действие, которое СКРЫВАЕТСЯ (а не рендерится
+     disabled): роль без права создания (Комитет, Наблюдатель) не должна видеть точку входа. */
+  document.getElementById('btnNew').style.display = ((reg==='contracts' || reg==='sureties') && canCurate()) ? 'inline-flex' : 'none';
 
   if(filterPanelReg !== reg) renderFilterPanel();
 
@@ -2927,7 +2993,7 @@ function itemPanels(it){
     </div></div>`;
 
   const p0 = `<div class="panel-wrap">${head}<div class="panel-card">
-    ${canCurate() ? `<div class="gtoolbar" style="margin-bottom:14px"><button class="btn btn-tint btn-sm" onclick="openEditItem('${it.id}')">Исправить реквизиты</button></div>` : ''}
+    <div class="gtoolbar" style="margin-bottom:14px">${actionBtn(canCurate(), 'Исправить реквизиты', `openEditItem('${it.id}')`)}</div>
     <div class="f2">
       ${ro('Вид залога', it.kind)}
       ${ro('Наименование / описание', it.name)}
@@ -2948,7 +3014,7 @@ function itemPanels(it){
     </div></div>`;
 
   const filesSection = `<p class="section-h" style="margin-top:22px">Вложения</p>
-    <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openAttach('item','${it.id}')">Прикрепить файл</button></div>
+    <div class="gtoolbar">${actionBtn(canCurate(), 'Прикрепить файл', `openAttach('item','${it.id}')`)}</div>
     ${fileTable(it.files)}`;
 
   const zBadge = it.override
@@ -2975,8 +3041,8 @@ function itemPanels(it){
     </div>
     <p class="section-h">История переоценок</p>
     <div class="gtoolbar">
-      <button class="btn btn-tint btn-sm" onclick="openReval('${it.id}')">Провести переоценку</button>
-      <button class="btn btn-tint btn-sm" onclick="openOverride('${it.id}')">Изменить залоговую стоимость (решение комиссии)</button>
+      ${actionBtn(canCurate(), 'Провести переоценку', `openReval('${it.id}')`)}
+      ${actionBtn(canHeadOfUnit(), 'Изменить залоговую стоимость (решение комиссии)', `openOverride('${it.id}')`)}
     </div>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Дата</th><th>Отчёт оценщика</th><th class="numcell">Оценочная</th><th class="numcell">Залоговая (расч.)</th><th>Примечание</th><th></th></tr></thead>
@@ -3002,10 +3068,10 @@ function itemPanels(it){
   const p2 = `<div class="panel-wrap">
     <p class="section-h">Запрет на отчуждение</p>
     <div class="gtoolbar">
-      <button class="btn btn-tint btn-sm" onclick="openBan('${it.id}')" ${canPlace?'':'disabled'} title="${canPlace?'':'Зарегистрировать можно только по обременённому зарегистрированным договором предмету'}">Зарегистрировать наложение запрета залогодателем</button>
-      <button class="btn btn-tint btn-sm" onclick="openConsent('${it.id}')" ${it.ban?'':'disabled'} title="${it.ban?'':'Согласие выдаётся только по действующему запрету'}">Согласие на действия (без снятия)</button>
-      <button class="btn btn-tint btn-sm danger" onclick="openBanRelease('${it.id}')" ${canRelease?'':'disabled'} title="${canRelease?'':'Полное снятие нельзя, пока по предмету закреплены доли'}">Снять запрет (полное)</button>
-      <button class="btn btn-tint btn-sm" onclick="openPartialRelease('${it.id}')" ${it.ban?'':'disabled'} title="${it.ban?'частичное снятие запрета с части предмета':'Нет действующего запрета'}">Частичное снятие</button>
+      ${actionBtn(canCurate(), 'Зарегистрировать наложение запрета залогодателем', `openBan('${it.id}')`, { blocked:!canPlace, blockedTitle:'Зарегистрировать можно только по обременённому зарегистрированным договором предмету' })}
+      ${actionBtn(canCurate(), 'Согласие на действия (без снятия)', `openConsent('${it.id}')`, { blocked:!it.ban, blockedTitle:'Согласие выдаётся только по действующему запрету' })}
+      ${actionBtn(canCurate(), 'Снять запрет (полное)', `openBanRelease('${it.id}')`, { cls:'btn-tint btn-sm danger', blocked:!canRelease, blockedTitle:'Полное снятие нельзя, пока по предмету закреплены доли' })}
+      ${actionBtn(canCurate(), 'Частичное снятие', `openPartialRelease('${it.id}')`, { blocked:!it.ban, blockedTitle:'Нет действующего запрета' })}
     </div>
     ${it.ban ? `<div class="panel-card"><div class="f2">
         ${ro('Статус', banStatus(it))}
@@ -3034,8 +3100,8 @@ function itemPanels(it){
       ${kpi('Следующее обследование', ns || '—', ns ? (isOverdue(ns) ? 'ПРОСРОЧЕНО на '+Math.abs(daysLeft(ns))+' дн.' : 'через '+daysLeft(ns)+' дн.') : (bs&&bs.bankrupt?'банкрот — авто-просрочка не поднимается':'не планируется'))}
       ${kpi('Следующая переоценка', nextReval(it), (isOverdue(nextReval(it)) ? 'ПРОСРОЧЕНО на '+Math.abs(daysLeft(nextReval(it)))+' дн.' : 'через '+daysLeft(nextReval(it))+' дн.'))}
     </div>
-    <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openSurvey('${it.id}')">Зарегистрировать обследование</button>
-      ${(it.lost||it.needReval) ? `<button class="btn btn-tint btn-sm" onclick="openRestoreNotice('${it.id}')">${it.restoreNotice&&it.restoreNotice.issued?'Обновить извещение о восполнении':'Оформить извещение о восполнении'}</button>` : ''}</div>
+    <div class="gtoolbar">${actionBtn(canCurate(), 'Зарегистрировать обследование', `openSurvey('${it.id}')`)}
+      ${(it.lost||it.needReval) ? actionBtn(canCurate(), it.restoreNotice&&it.restoreNotice.issued?'Обновить извещение о восполнении':'Оформить извещение о восполнении', `openRestoreNotice('${it.id}')`) : ''}</div>
     ${(it.lost||it.needReval) ? renderRestoreBlock(it) : ''}
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Дата</th><th>Акт</th><th>Исход</th><th>Примечание</th><th></th></tr></thead>
@@ -3210,7 +3276,7 @@ function ctrPanels(c){
     </div></div>`;
 
   const p0 = `<div class="panel-wrap">${head}<div class="panel-card">
-    ${canHeadOfUnit() ? `<div class="gtoolbar" style="margin-bottom:14px"><button class="btn btn-tint btn-sm" onclick="openEditContract('${c.id}')">Исправить реквизиты договора</button></div>` : ''}
+    <div class="gtoolbar" style="margin-bottom:14px">${actionBtn(canHeadOfUnit(), 'Исправить реквизиты договора', `openEditContract('${c.id}')`)}</div>
     <p class="section-h" style="font-size:16px;margin-top:0">Договор</p>
     <div class="f2">
       ${ro('Номер договора', c.no || '—')}
@@ -3317,7 +3383,7 @@ function ctrPanels(c){
     ${prereqBlock(c)}
     ${docRouteBlock(c)}
     <p class="section-h">Документы договора</p>
-    <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openAttach('contract','${c.id}')">Прикрепить файл</button></div>
+    <div class="gtoolbar">${actionBtn(canCurate(), 'Прикрепить файл', `openAttach('contract','${c.id}')`)}</div>
     ${fileTable(c.files)}</div>`;
 
   const p4 = `<div class="panel-wrap">
@@ -3328,17 +3394,18 @@ function ctrPanels(c){
 function ctrFooter(c){
   const back = `<button class="btn btn-secondary" onclick="showView('list')">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Закрыть</button><div style="flex:1"></div>`;
-  /* Р-31: аннулирование ошибочного черновика — только на «черновых» статусах (isDraftish). */
-  const cancelBtn = (isDraftish(c) && canCurate())
-    ? `<button class="btn btn-danger" onclick="openCancelDraft('${c.id}')">Аннулировать черновик</button>` : '';
+  /* Р-31/Р-34: аннулирование ошибочного черновика — только на «черновых» статусах (isDraftish),
+     кнопка видна на этих статусах, но активна лишь роли-куратору. */
+  const cancelBtn = isDraftish(c)
+    ? actionBtn(canCurate(), 'Аннулировать черновик', `openCancelDraft('${c.id}')`, { cls:'btn-danger' }) : '';
   if(c.status==='Оформляется'){
     /* Р-29: договор, допущенный комитетом (undercovered) — куратор регистрирует полной формой. */
     const admitted = c.undercovered ? `<span class="pill mid" title="Недообеспечение допущено комитетом по администрированию бюджетных кредитов">допущен комитетом</span>` : '';
-    return back + admitted + cancelBtn + `<button class="btn btn-primary" onclick="openRegister('${c.id}')">Зарегистрировать договор</button>`;
+    return back + admitted + cancelBtn + actionBtn(canCurate(), 'Зарегистрировать договор', `openRegister('${c.id}')`, { cls:'btn-primary' });
   }
   if(c.status==='На рассмотрении комиссии')
-    return back + cancelBtn + `<button class="btn btn-tint" onclick="openRegister('${c.id}')">Повторить проверку гейта</button>
-      <button class="btn btn-primary" onclick="openCommission('${c.id}')">Решение комитета по администрированию бюджетных кредитов</button>`;
+    return back + cancelBtn + actionBtn(canCurate(), 'Повторить проверку гейта', `openRegister('${c.id}')`, { cls:'btn-tint' })
+      + actionBtn(canCommittee(), 'Решение комитета по администрированию бюджетных кредитов', `openCommission('${c.id}')`, { cls:'btn-primary' });
   return back;
 }
 
@@ -4409,20 +4476,26 @@ function openRegister(cid){
      по решению комитета — куратор довносит нотариальные реквизиты полной формой. */
   const content = contentGate(c);
   const gateOk = gate.ok || Boolean(c.undercovered);
+  /* Р-36: приоритет гейтов — стоп-лист §3.5 → предпосылки §5.2 → содержание (Р-28) →
+     решение КМ §2.6 → покрытие. Первые четыре — документарные/содержательные блокираторы:
+     они закрывают И регистрацию, И отправку в комитет (кнопка «Направить в комитет» не
+     рендерится). Комитет вправе допустить ТОЛЬКО недообеспечение (покрытие), ничего иного.
+     Плашки идут в том же порядке приоритета. */
+  const docBlocked = Boolean(stopMiss.length || prereqMiss.length || !content.ok || kmMiss.length);
   const okAll = gateOk && content.ok && !prereqMiss.length && !kmMiss.length && !stopMiss.length;
   modal(`<div class="modal form">${mhead('Регистрация залогового договора · '+cid)}
     <div class="modal-b">
       <div class="cgrid-wrap" style="margin-bottom:14px"><table class="cgrid">
         <thead><tr><th>Кредит</th><th class="numcell">Сумма</th><th class="numcell">Порог</th><th class="numcell">Требуется</th><th class="numcell">Обеспечено</th><th>Покрытие</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-      ${!content.ok ? `<div class="flagline"><span>${esc(content.msg)}</span></div>` : ''}
-      ${gate.ok ? `<div class="okline"><span>Гейт покрытия пройден.</span></div>`
-        : (c.undercovered ? `<div class="okline"><span>Покрытие ниже порога, но кредит ДОПУЩЕН комитетом по администрированию бюджетных кредитов (${pct(c.undercovered.ratio)} при пороге ${pct(c.undercovered.req)}). Основание: «${esc(c.undercovered.obosn)}» (${esc(c.undercovered.by)}, ${c.undercovered.date}). Куратор довносит нотариальные реквизиты и регистрирует договор.</span></div>`
-        : `<div class="flagline"><span>Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)+' (порог '+pct(r.req)+')').join(', ')}. Регистрация блокируется; договор уходит на рассмотрение комитета по администрированию бюджетных кредитов.</span></div>`)}
-      ${prereqMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Гейт предпосылок НЕ пройден: не приложены обязательные документы — ${prereqMiss.map(m=>`${m.iid}: ${esc(m.label)}`).join('; ')}. Приложите их на карточке предмета и повторите регистрацию.</span></div>`
-        : (gateOk && content.ok ? `<div class="okline" style="margin-top:10px"><span>Гейт предпосылок пройден: обязательные согласия и справки приложены.</span></div>` : '')}
-      ${kmMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Заёмщик относится к категории П1 §2.6 (${esc([...new Set(kmMiss.map(id=>credit(id).borrowerCategory))].join(', '))}). Обеспеченность устанавливается решением Кабинета Министров — укажите реквизиты решения.</span></div>` : ''}
-      ${stopMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Гейт стоп-листа П1 §3.5 НЕ пройден: ${stopMiss.map(x=>`${x.iid}: ${esc(x.v.msg)}`).join('; ')}. Регистрация невозможна.</span></div>` : ''}
+      ${stopMiss.length ? `<div class="flagline"><span>① Гейт стоп-листа П1 §3.5 НЕ пройден: ${stopMiss.map(x=>`${x.iid}: ${esc(x.v.msg)}`).join('; ')}. Регистрация невозможна.</span></div>` : ''}
+      ${prereqMiss.length ? `<div class="flagline" style="margin-top:10px"><span>② Гейт предпосылок §5.2 НЕ пройден: не приложены обязательные документы — ${prereqMiss.map(m=>`${m.iid}: ${esc(m.label)}`).join('; ')}. Приложите их на карточке предмета и повторите регистрацию.</span></div>`
+        : (okAll ? `<div class="okline" style="margin-top:10px"><span>② Гейт предпосылок §5.2 пройден: обязательные согласия и справки приложены.</span></div>` : '')}
+      ${!content.ok ? `<div class="flagline" style="margin-top:10px"><span>③ ${esc(content.msg)}</span></div>` : ''}
+      ${kmMiss.length ? `<div class="flagline" style="margin-top:10px"><span>④ Гейт §2.6 НЕ пройден: заёмщик относится к категории П1 §2.6 (${esc([...new Set(kmMiss.map(id=>credit(id).borrowerCategory))].join(', '))}). Обеспеченность устанавливается решением Кабинета Министров — укажите реквизиты решения.</span></div>` : ''}
+      ${gate.ok ? `<div class="okline" style="margin-top:10px"><span>⑤ Гейт покрытия пройден.</span></div>`
+        : (c.undercovered ? `<div class="okline" style="margin-top:10px"><span>⑤ Покрытие ниже порога, но кредит ДОПУЩЕН комитетом по администрированию бюджетных кредитов (${pct(c.undercovered.ratio)} при пороге ${pct(c.undercovered.req)}). Основание: «${esc(c.undercovered.obosn)}» (${esc(c.undercovered.by)}, ${c.undercovered.date}). Куратор довносит нотариальные реквизиты и регистрирует договор.</span></div>`
+        : `<div class="flagline" style="margin-top:10px"><span>⑤ Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)+' (порог '+pct(r.req)+')').join(', ')}.${docBlocked ? ' Сначала устраните документарные гейты выше — в комитет уходит только недообеспечение.' : ' Регистрация блокируется; договор уходит на рассмотрение комитета по администрированию бюджетных кредитов.'}</span></div>`)}
       ${okAll ? `<div class="mform">
         ${fin('rgNo','Номер договора','',true)}
         ${fdate('rgDate','Дата договора', TODAY, true)}
@@ -4436,13 +4509,16 @@ function openRegister(cid){
       <div class="okline" style="margin-top:6px"><span>Если способ хранения — «у залогодержателя»: укажите место хранения; периодичность обследования не применяется, имущество у залогодержателя (ПОЛ §6.4 п.7).</span></div>` : ''}
     </div>
     ${okAll ? mfoot('Зарегистрировать','doRegister(\''+cid+'\')','btn-success')
-      : (!content.ok ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
-        : (!gateOk ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-           <button class="btn btn-primary" onclick="toCommission('${cid}')">Направить в комитет по администрированию бюджетных кредитов</button></div>`
-          : (prereqMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
-            : (stopMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
+      /* Р-36: документарные гейты (①②③④) блокируют и регистрацию, и комитет — кнопка
+         «Направить в комитет» не рендерится. §2.6 куратор чинит сам («Указать решение КМ»),
+         прочие — только «Закрыть». В комитет уходит ТОЛЬКО чистое недообеспечение (⑤). */
+      : (stopMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
+        : (prereqMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
+          : (!content.ok ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
+            : (kmMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                 <button class="btn btn-primary" onclick="openKmDecision('${cid}')">Указать решение КМ</button></div>`
               : `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-                 <button class="btn btn-primary" onclick="openKmDecision('${cid}')">Указать решение КМ</button></div>`))))}
+                 <button class="btn btn-primary" onclick="toCommission('${cid}')">Направить в комитет по администрированию бюджетных кредитов</button></div>`))))}
     </div>`);
 }
 /* Постобработка запрета при переводе договора в «Зарегистрирован».
@@ -4467,21 +4543,23 @@ function doRegister(cid){
   const c = contract(cid);
   const breach = invariantBreaches(c);
   if(breach.length) return toast('Инвариант нарушен по '+breach.map(b=>b.id).join(', ')+' — Σ долей превышает залоговую стоимость','warn');
-  /* Р-28 (В-1=А): гейт содержания — без предметов регистрация невозможна. */
-  const cg = contentGate(c);
-  if(!cg.ok) return toast(cg.msg,'warn');
-  const gate = gateCheck(c);
-  /* Р-29 (В-3=А): при допуске комитета (c.undercovered) гейт покрытия пройден по решению комитета. */
-  if(!gate.ok && !c.undercovered) return toast('Гейт покрытия не пройден','warn');
-  /* Р-5: гейт предпосылок оформления §5.2 — обязателен для регистрации. */
-  const pm = [...new Set(c.allocs.map(a=>a.item))].flatMap(iid=>prereqMissing(item(iid)).map(m=>({iid,...m})));
-  if(pm.length) return toast('Гейт предпосылок §5.2 не пройден: '+pm.map(m=>m.iid+' — '+m.label).join('; '),'warn');
-  /* Р-13 (П1 §2.6): гейт решения КМ — обязателен для регистрации. */
-  const km = c.credits.filter(id => kmGateBlocked(credit(id)));
-  if(km.length) return toast('Гейт П1 §2.6 не пройден: обеспеченность по решению КМ не установлена — '+km.join(', '),'warn');
-  /* Р-18 (П1 §3.5): гейт стоп-листа — та же повторная проверка, что и в openRegister. */
+  /* Р-36: проверки в фиксированном приоритете — стоп-лист §3.5 → предпосылки §5.2 →
+     содержание (Р-28) → решение КМ §2.6 → покрытие. Второй рубеж (denyEdit — первый). */
+  /* ① Р-18 (П1 §3.5): гейт стоп-листа — та же повторная проверка, что и в openRegister. */
   const sm = [...new Set(c.allocs.map(a=>a.item))].map(iid => ({ iid, v: stopListCheck(stopFieldsOf(item(iid))) })).filter(x => x.v.block);
   if(sm.length) return toast('Гейт стоп-листа П1 §3.5 не пройден: '+sm.map(x=>x.iid+' — '+x.v.msg).join('; '),'warn');
+  /* ② Р-5: гейт предпосылок оформления §5.2 — обязателен для регистрации. */
+  const pm = [...new Set(c.allocs.map(a=>a.item))].flatMap(iid=>prereqMissing(item(iid)).map(m=>({iid,...m})));
+  if(pm.length) return toast('Гейт предпосылок §5.2 не пройден: '+pm.map(m=>m.iid+' — '+m.label).join('; '),'warn');
+  /* ③ Р-28 (В-1=А): гейт содержания — без предметов регистрация невозможна. */
+  const cg = contentGate(c);
+  if(!cg.ok) return toast(cg.msg,'warn');
+  /* ④ Р-13 (П1 §2.6): гейт решения КМ — обязателен для регистрации. */
+  const km = c.credits.filter(id => kmGateBlocked(credit(id)));
+  if(km.length) return toast('Гейт П1 §2.6 не пройден: обеспеченность по решению КМ не установлена — '+km.join(', '),'warn');
+  /* ⑤ Р-29 (В-3=А): при допуске комитета (c.undercovered) гейт покрытия пройден по решению комитета. */
+  const gate = gateCheck(c);
+  if(!gate.ok && !c.undercovered) return toast('Гейт покрытия не пройден','warn');
   const no = val('rgNo').trim(), date = iso2d(val('rgDate')), notary = val('rgNotary').trim(),
         nno = val('rgNotaryNo').trim(), ndate = iso2d(val('rgNotaryDate')), cert = val('rgCert').trim(),
         custody = val('rgCustody'), custodyPlace = val('rgCustodyPlace').trim();
@@ -4500,7 +4578,17 @@ function doRegister(cid){
 }
 function toCommission(cid){
   const c = contract(cid), gate = gateCheck(c);
+  /* Р-36: в комитет уходит ТОЛЬКО недообеспечение. Документарные гейты (стоп-лист §3.5,
+     предпосылки §5.2, содержание Р-28, решение КМ §2.6) закрывают и этот маршрут —
+     второй рубеж на случай обхода UI. */
+  const its = [...new Set(c.allocs.map(a=>a.item))];
+  if(its.map(iid => stopListCheck(stopFieldsOf(item(iid)))).some(v=>v.block)) return toast('Стоп-лист П1 §3.5 не пройден — договор нельзя направить в комитет','warn');
+  if(its.some(iid => prereqMissing(item(iid)).length)) return toast('Предпосылки §5.2 не собраны — договор нельзя направить в комитет','warn');
+  if(!contentGate(c).ok) return toast('Договор без предметов нельзя направить в комитет','warn');
+  if(c.credits.some(id => kmGateBlocked(credit(id)))) return toast('Гейт §2.6 не пройден — сначала внесите решение КМ','warn');
+  if(gate.ok) return toast('Покрытие в норме — решение комитета не требуется','warn');
   c.status = 'На рассмотрении комиссии';
+  c.commissionSince = TODAY;   // Р-35: старт отсчёта SLA очереди комитета
   hist(c, `Регистрация заблокирована контрольным гейтом: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}. Направлено в комитет по администрированию бюджетных кредитов.`);
   closeModal(); toast('Договор направлен в комитет по администрированию бюджетных кредитов','warn'); refresh();
 }
@@ -5020,6 +5108,7 @@ function refbookInner(){
         ${nfin('rb-cov-guar-fx','Банковская гарантия в иной валюте, %', String(Math.round(COVER_GUARANTEE_FX*100)), 'П1 §2.3')}
         ${ifin('rb-ban-days','Срок наложения запрета, рабочих дней', String(BAN_DEADLINE_DAYS), 'в ПОЛ/П1-П3 отсутствует')}
         ${ifin('rb-doc-route','Срок маршрута документов до архивного шага, дней', String(DOC_ROUTE_DAYS))}
+        ${ifin('rb-committee-sla','SLA очереди комитета, дней (после — критичность высокая)', String(COMMITTEE_SLA))}
       </div>
 
       <p class="section-h" style="font-size:16px;margin-top:16px">Коэффициент, ранг ликвидности, переоценка, орган (по виду)</p>
@@ -5109,9 +5198,10 @@ function saveRefbook(){
   const boardOk = Boolean(rbBoardReq && rbBoardReq.trim());
 
   // ВНУТРЕННИЕ параметры — всегда в DOM, всегда валидируются и сохраняются.
-  const bd = num(val('rb-ban-days')), docRoute = num(val('rb-doc-route'));
+  const bd = num(val('rb-ban-days')), docRoute = num(val('rb-doc-route')), commSla = num(val('rb-committee-sla'));
   if(!(bd > 0)) return toast('Срок наложения запрета — положительное число рабочих дней','warn');
   if(!(docRoute > 0)) return toast('Срок маршрута документов — положительное число дней','warn');
+  if(!(commSla > 0)) return toast('SLA очереди комитета — положительное число дней','warn');
   const revalDraft = {};
   for(const k of Object.keys(KINDS)){
     const r = num(val('rb-r-'+k)), o = val('rb-o-'+k).trim();
@@ -5157,6 +5247,7 @@ function saveRefbook(){
   });
   BAN_DEADLINE_DAYS = Math.round(bd);
   DOC_ROUTE_DAYS = Math.round(docRoute);
+  COMMITTEE_SLA = Math.round(commSla);
   COVER_LIQUID = cl; COVER_MOVABLE = cm; LIQUID_SHARE_MIN = ls;
   COVER_GUARANTEE = cg; COVER_GUARANTEE_FX = cgfx;
   TECH_AGE_LIMIT['СНГ'] = Math.round(ageS); TECH_AGE_LIMIT['Дальнее зарубежье'] = Math.round(ageF);
@@ -5203,7 +5294,9 @@ if (typeof window !== 'undefined') window.__zt = {
   guaranteeReq, guaranteeExpired,
   KINDS, KIND_FIELDS, COVER_LIQUID, COVER_MOVABLE, COVER_GUARANTEE, COVER_GUARANTEE_FX,
   SURVEY_MATRIX, CREDITS, ITEMS, CONTRACTS, credit, item, contract,
-  canCurate, canCommittee, canHeadOfDept, canHeadOfUnit,
+  canCurate, canCommittee, canHeadOfDept, canHeadOfUnit, canDs,
+  // Волна 2 (Р-34/Р-35/Р-36)
+  actionBtn, toCommission, onRoleChange, gateCheck, prereqMissing, COMMITTEE_SLA,
   surveyInterval, effectiveInterval, RISK_TIGHTENING, SURVEY_MIN_MONTHS, RISK_TIGHTENING_APPROVAL,
   itemRiskCategory, borrowerSolvency, nextSurvey, addMonths,
   techAgeCheck,
