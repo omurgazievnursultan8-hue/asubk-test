@@ -776,6 +776,13 @@ GROUP_LOG.push(
 const ASSIGN     = [];   // ← kuratorstvo; Task 9
 const CONFLICTS  = [];   // ← конфликт интересов (Р-6); Task 8
 const PLEDGE_IX  = [];   // ← zalog (индекс обеспеченности); Task 5
+PLEDGE_IX.push(
+  { creditId:'C-ATS-NECEL', index:1.35, required:1.20, insured:true, itemsByRegion:[{region:'Чуй', count:2}] },
+  { creditId:'C-ATS-GAZ',   index:1.05, required:1.20, insured:false, itemsByRegion:[{region:'Чуй', count:1}] },
+  { creditId:'C-ATS-OK',    index:1.80, required:1.20, insured:true, itemsByRegion:[{region:'Бишкек', count:1}] },
+  // Ветка 14 — залоги в 2 областях (используется в Task 9 для кураторства)
+  { creditId:'C-B14-1', index:1.15, required:1.20, insured:true, itemsByRegion:[{region:'Ош', count:2},{region:'Джалал-Абад', count:1}] },
+);
 const ACTS       = [];   // ← акты сверок; Task 10
 const DOCS       = [];   // ← досье п.97 (Р-8); Task 10
 const CHECKS_EXT = [];   // ← внешние снимки КИБ/скоринг (Р-8); Task 10
@@ -844,6 +851,26 @@ function groupOf(inn, d){
   let best = null;
   for (const p of procs){ const g = PROC_GROUP[p.procedure]; if (g && (best===null || PROC_RANK[g]>PROC_RANK[best])) best = g; }
   return best || '1.1';
+}
+
+function totalDebt(inn){
+  return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY))
+    .reduce((s,c)=> s + c.debt.principal + c.debt.interest + c.debt.penalty + c.debt.fees + c.debt.costs, 0);
+}
+function overdueDebt(inn){
+  return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY) && c.overdueDays>0)
+    .reduce((s,c)=> s + c.debt.principal + c.debt.interest + c.debt.penalty + c.debt.fees + c.debt.costs, 0);
+}
+/* Зеркало zalog: worst = минимальный индекс по кредитам заёмщика; aggregate = средневзвешенный (по balance). */
+function coverageOf(inn){
+  const ix = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY))
+    .map(c => ({ cov: PLEDGE_IX.find(p=>p.creditId===c.id), bal: c.balance }))
+    .filter(x => x.cov);
+  if (!ix.length) return { worst:null, aggregate:null, required:1.20 };
+  const worst = Math.min(...ix.map(x=>x.cov.index));
+  const totBal = ix.reduce((s,x)=>s+x.bal,0) || 1;
+  const aggregate = ix.reduce((s,x)=> s + x.cov.index*x.bal, 0) / totBal;
+  return { worst, aggregate, required: ix[0].cov.required };
 }
 
 /* ═══ SECTION 3 · РЕНДЕР ═══ */
