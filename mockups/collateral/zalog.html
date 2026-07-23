@@ -345,8 +345,17 @@ a{ color:inherit; }
 .jf-actions{ display:flex; align-items:center; gap:8px; padding:8px 20px 4px; }
 .rowtools{ display:flex; align-items:center; gap:10px; padding:0 20px 8px; }
 .rowtools .spacer{ flex:1; }
+/* Р-38: общая строка поиска над реестром */
+.quicksearch{ display:flex; align-items:center; gap:6px; height:32px; padding:0 10px; min-width:240px;
+  border:1px solid var(--border-default); border-radius:var(--radius-sm); background:var(--surface-card);
+  color:var(--text-muted); }
+.quicksearch:focus-within{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+.quicksearch input{ flex:1; border:0; outline:0; background:transparent; color:var(--text-body);
+  font:var(--font-label); }
 .pager{ display:flex; align-items:center; gap:6px; color:var(--text-muted);
   font:var(--weight-regular) var(--text-base)/1 var(--asubk-font); }
+.pager .pager-nav{ display:flex; align-items:center; gap:6px; margin-left:8px; }
+.pager .pager-pos{ font-size:var(--text-sm); white-space:nowrap; }
 .pager button{ min-width:30px; height:30px; border:1px solid var(--border-default); background:var(--surface-card);
   border-radius:var(--radius-sm); cursor:pointer; color:var(--text-body); }
 .pager button:disabled{ opacity:.4; cursor:not-allowed; }
@@ -358,8 +367,12 @@ table.grid{ width:100%; border-collapse:collapse; font:var(--font-label); table-
 table.grid thead th{ text-align:left; height:56px; padding:0 16px; background:var(--surface-card);
   border-bottom:1px solid var(--asubk-grid-line);
   font:var(--weight-medium) var(--text-sm)/1.375 var(--asubk-font); color:var(--text-body);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; user-select:none; vertical-align:middle; }
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:default; user-select:none; vertical-align:middle; }
 table.grid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; }
+table.grid thead th .sort.active{ color:var(--asubk-blue); font-weight:var(--weight-bold); }
+/* Р-41: колонка «Что делать» — кнопка-действие + рабочий слой (в работе / отложено) */
+.mon-actions{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; white-space:normal; }
+.mon-act{ color:var(--text-muted); }
 table.grid tbody td{ height:35px; padding:0 16px; border-bottom:1px solid var(--asubk-grid-line);
   color:var(--text-body); vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 table.grid tbody tr{ cursor:pointer; }
@@ -703,6 +716,10 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
           </button>
         </div>
         <div class="rowtools">
+          <div class="quicksearch">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" id="quickSearch" placeholder="Поиск по строке…" oninput="onQuickSearch(this.value)" aria-label="Поиск по строке">
+          </div>
           <div class="spacer"></div>
           <div class="viewseg" id="viewSeg" role="group" aria-label="Вид списка">
             <button type="button" class="viewseg-btn active" id="segTable" onclick="setListView('table')" title="Таблица">
@@ -714,7 +731,7 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
               Карточки
             </button>
           </div>
-          <div class="pager"><span id="pagerCount"></span></div>
+          <div class="pager"><span id="pagerCount"></span><span class="pager-nav" id="pagerNav"></span></div>
         </div>
         <div class="grid-wrap" id="gridWrap">
           <table class="grid" id="listGrid">
@@ -728,6 +745,13 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
           <div class="cgrid-wrap"><table class="cgrid">
             <thead><tr><th>Кредит</th><th>Заёмщик</th><th>Предмет</th><th>Факт</th><th>Ссылка ПОР</th><th></th></tr></thead>
             <tbody id="riskFactorsBody"></tbody>
+          </table></div>
+        </div>
+        <div class="panel-wrap" id="trigWorkPanel" style="display:none;">
+          <p class="section-h">Журнал закрытых триггеров <span class="pill neutral" id="trigClosedCount"></span></p>
+          <div class="cgrid-wrap"><table class="cgrid">
+            <thead><tr><th>Тип триггера</th><th>Объект</th><th>Принято в работу</th><th>Закрыт (факт устранён)</th></tr></thead>
+            <tbody id="trigClosedBody"></tbody>
           </table></div>
         </div>
       </section>
@@ -2500,6 +2524,12 @@ function actionBtn(permOk, label, handler, opts){
    РЕЕСТРЫ (три списка: предметы / договоры / мониторинг)
    ============================================================ */
 let reg = 'items', selected = null, cur = null, sortKey = null, sortDir = 1;
+/* Р-39: размер страницы — внутренний параметр (в положениях не задан), правится в справочнике.
+   curPage сбрасывается на 1 при смене реестра/фильтра/сортировки. quickSearch — общая строка
+   поиска над реестром (Р-38): ищет по всем текстовым значениям строки, отдельно от структурных
+   фильтров, поэтому не входит в счётчик «активных условий». */
+let PAGE_SIZE = 50, curPage = 1;
+const quickSearch = { items:'', contracts:'', monitor:'', sureties:'' };
 
 /* ---- переключатель Таблица ↔ Карточки (клон паттерна loan-program).
    Вид хранится ОТДЕЛЬНО на каждый реестр (ключ zalog.listView). «monitor» — лента
@@ -2547,6 +2577,7 @@ const _chev = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strok
 const FILTERS = {
   items: [
     { key:'name',    label:'Наименование содержит', type:'text'   },
+    { key:'idx',     label:'Идентификатор / адрес содержит', type:'text' },   // Р-38: кадастр/адрес/гос.№/VIN
     { key:'kind',    label:'Вид залога =',          type:'select' },
     { key:'pledger', label:'Залогодатель содержит', type:'text'   },
     { key:'st',      label:'Статус =',              type:'select' },
@@ -2577,18 +2608,29 @@ function regRows(){
 }
 function filterRows(rows){
   const f = activeFilter[reg] || {};
-  return rows.filter(r => (FILTERS[reg]||[]).every(fld => {
-    const q = f[fld.key]; if(!q) return true;
-    const v = String(r.sort[fld.key] ?? '');
-    return fld.type==='select' ? v===q : v.toLowerCase().includes(q.toLowerCase());
-  }));
+  /* Р-38: общая строка поиска — по всем текстовым значениям строки (объединённый сорт-индекс).
+     Применяется до структурных фильтров, независимо от них. */
+  const q = (quickSearch[reg] || '').trim().toLowerCase();
+  return rows.filter(r => {
+    if(q){
+      const hay = Object.values(r.sort).map(v => String(v ?? '')).join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return (FILTERS[reg]||[]).every(fld => {
+      const fq = f[fld.key]; if(!fq) return true;
+      const v = String(r.sort[fld.key] ?? '');
+      return fld.type==='select' ? v===fq : v.toLowerCase().includes(fq.toLowerCase());
+    });
+  });
 }
+function onQuickSearch(v){ quickSearch[reg] = v; curPage = 1; renderList(); }
 function onFilter(key, val){
   const f = activeFilter[reg];
   if(val && val.trim()) f[key] = val.trim(); else delete f[key];
+  curPage = 1;
   renderList();
 }
-function resetFilter(){ activeFilter[reg] = {}; renderFilterPanel(); renderList(); }
+function resetFilter(){ activeFilter[reg] = {}; quickSearch[reg] = ''; curPage = 1; renderFilterPanel(); renderList(); }
 function renderFilterPanel(){
   filterPanelReg = reg;
   const cfg = FILTERS[reg] || [], f = activeFilter[reg] || {}, all = regRows();
@@ -2623,6 +2665,16 @@ const WIDTHS = {
   monitor:    ['110px','180px','220px','',''],
   sureties:   ['80px','140px','','130px','90px','130px','230px'],
 };
+/* Р-39: ключ сортировки на КАЖДУЮ колонку (длина ровно = числу заголовков). `null` —
+   колонка вычисляемая/несортируемая (курсора и стрелки нет). Раньше сортировка брала
+   Object.keys(rows[0].sort)[i] — ключей меньше, чем колонок, и клик по «Контроль»/«Описание»/
+   «Что делать» молча не срабатывал (keys[i] === undefined). */
+const SORT_KEYS = {
+  items:      ['id','kind','name','pledger','pledge','st', null],           // «Контроль» — вычисляемый бейдж
+  contracts:  ['id','no','inn','status','items','credits','mc','add'],
+  monitor:    ['crit','type','obj', null, null],                            // «Описание»/«Что делать» — не сортируем
+  sureties:   ['id','no','name','ptype','credit','status','gate'],
+};
 function minCoverage(c){
   const cs = ctx(isActive(c) ? null : c);
   const list = c.credits.map(id => coverage(cs, id).ratio);
@@ -2646,8 +2698,12 @@ function ctrlBadge(it){
 function rowsItems(){
   return ITEMS.map(it => {
     const st = lienStatus(it);
+    /* Р-38: сводный индекс поиска по предмету — идентификатор + все type-specific детали
+       (кадастр/адрес/гос.№/VIN/зав.№) + правоустанавливающий документ. Не колонка, только
+       для фильтра «Идентификатор/адрес» и общей строки поиска. */
+    const idx = [it.ident, it.legalDoc, ...Object.values(it.details||{})].filter(Boolean).join(' ');
     return { id: it.id, sort:{ id:it.id, kind:it.kind, name:it.name, pledger:clientName(it.pledger),
-        pledge:pledgeValue(it), st },
+        pledge:pledgeValue(it), st, idx },
       cells:[ it.id, it.kind, esc(it.name), esc(clientName(it.pledger)),
         `<span class="numcell">${fmt(pledgeValue(it))}${it.override ? (isOverAbove(it) ? ' <span class="pill high" title="решение комиссии выше расчётной">комиссия ↑</span>' : ' <span class="pill neutral" title="залоговая по решению комиссии">комиссия</span>') : ''}</span>`,
         `<span class="axis"><span class="pill ${lienCls(st)}">${st}</span>${banPill(it)}</span>`,
@@ -2672,11 +2728,104 @@ function rowsContracts(){
         `<span class="numcell">${c.addenda.length}</span>` ] };
   });
 }
+/* ============================================================
+   Р-41: МОНИТОРИНГ — РАБОЧАЯ ОЧЕРЕДЬ (не лента)
+   Триггер остаётся ВЫЧИСЛЯЕМЫМ (triggers()). Рабочий слой TRIG_WORK — надстройка над ним
+   (ответственный, «принято в работу», «отложено до»), а не подмена: закрыть триггер можно
+   только устранением ФАКТА. При исчезновении из triggers() запись, бывшая в работе, переезжает
+   в журнал закрытых (TRIG_CLOSED) — для отчётности по мониторингу.
+   ============================================================ */
+const trigId = t => t.type + '|' + t.obj;   // устойчивый ключ (тип+объект) → в data-id вместо obj
+const TRIG_WORK = {};      // trigId -> { taken:{who,date}, defer:{until,reason}|null, type, objLbl }
+const TRIG_CLOSED = [];    // { type, objLbl, taken, closedDate }
+let _deferId = null;
+function findTrig(id){ return triggers().find(x => trigId(x) === id) || null; }
+function reconcileTrigWork(){
+  const live = new Set(triggers().map(trigId));
+  Object.keys(TRIG_WORK).forEach(id => {
+    if(!live.has(id)){
+      const w = TRIG_WORK[id];
+      TRIG_CLOSED.push({ type:w.type, objLbl:w.objLbl, taken:w.taken, closedDate:TODAY });
+      delete TRIG_WORK[id];
+    }
+  });
+}
+/* «Что делать» → конкретное действие (кнопка ведёт в нужный диалог). null — прямого действия
+   нет: текст остаётся пояснением. */
+function trigAction(t){
+  const o = t.obj;
+  switch(t.type){
+    case 'Залог без запрета на отчуждение':
+    case 'Запрет наложен, отметка не получена':       return { label:'Открыть запрет', call:`openBan('${o}')` };
+    case 'Требуется снятие запрета':                   return { label:'Снять запрет',   call:`openBanRelease('${o}')` };
+    case 'Просрочен контроль: переоценка':
+    case 'Требуется переоценка после согласованного действия':
+    case 'Историческая запись прежней системы':        return { label:'Переоценка',     call:`openReval('${o}')` };
+    case 'Просрочен контроль: обследование':           return { label:'Обследование',   call:`openSurvey('${o}')` };
+    case 'Требуется извещение о восполнении предмета':
+    case 'Извещение о восполнении выдано — идёт срок':  return { label:'Извещение',      call:`openRestoreNotice('${o}')` };
+    case 'Ожидает решения комитета':                   return canCommittee() ? { label:'Решение комитета', call:`openCommission('${o}')` } : null;
+    default: return null;
+  }
+}
+function trigWorkCell(t){
+  const id = trigId(t), w = TRIG_WORK[id], act = trigAction(t);
+  const actBtn = act ? `<button class="btn btn-tint btn-sm" onclick="event.stopPropagation();${act.call}">${act.label}</button>`
+                     : `<span class="mon-act">${esc(t.act)}</span>`;
+  let work;
+  if(!w) work = `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();takeTrig('${id}')">В работу</button>`;
+  else if(w.defer) work = `<span class="pill neutral" title="${esc(w.defer.reason)}">отложено до ${esc(w.defer.until)}</span>`
+                        + ` <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();undeferTrig('${id}')">Вернуть</button>`;
+  else work = `<span class="pill low" title="ответственный: ${esc(w.taken.who)}">в работе с ${esc(w.taken.date)}</span>`
+            + ` <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openDeferTrig('${id}')">Отложить</button>`;
+  return `<div class="mon-actions">${actBtn}${work}</div>`;
+}
+function takeTrig(id){
+  const t = findTrig(id); if(!t) return;
+  TRIG_WORK[id] = { taken:{ who:role, date:TODAY }, defer:null, type:t.type, objLbl:t.objLbl };
+  toast('Триггер принят в работу','ok'); renderList();
+}
+function undeferTrig(id){ const w = TRIG_WORK[id]; if(w){ w.defer = null; renderList(); } }
+function openDeferTrig(id){
+  const t = findTrig(id); if(!t) return;
+  _deferId = id;
+  modal(`<div class="modal form">${mhead('Отложить триггер · '+esc(t.type))}
+    <div class="modal-b"><div class="mform">
+      ${fdate('dfUntil','Отложить до', TODAY, true)}
+      ${ftxt('dfReason','Причина отсрочки','')}
+    </div></div>${mfoot('Отложить','saveDeferTrig()')}</div>`);
+}
+function saveDeferTrig(){
+  const id = _deferId, until = iso2d(val('dfUntil')), reason = val('dfReason').trim();
+  if(!isDate(until)) return toast('Дата — в формате дд.мм.гггг','warn');
+  if(!reason) return toast('Укажите причину отсрочки','warn');
+  const t = findTrig(id);
+  const w = TRIG_WORK[id] || (TRIG_WORK[id] = { taken:{ who:role, date:TODAY }, type:t&&t.type, objLbl:t&&t.objLbl });
+  w.defer = { until, reason };
+  closeModal(); toast('Триггер отложен до '+until,'ok'); renderList();
+}
+function openMonitorObject(t){
+  if(item(t.obj)) openCard('item', t.obj);
+  else if(contract(t.obj)) openCard('contract', t.obj);
+  else if(credit(t.obj)) toast('Переход в карточку кредита '+credit(t.obj).num+' (модуль «Кредиты»)');
+}
+function renderTrigWorkPanel(){
+  const wrap = document.getElementById('trigWorkPanel');
+  if(!wrap) return;
+  if(reg !== 'monitor'){ wrap.style.display = 'none'; return; }
+  wrap.style.display = TRIG_CLOSED.length ? '' : 'none';
+  document.getElementById('trigClosedCount').textContent = TRIG_CLOSED.length;
+  document.getElementById('trigClosedBody').innerHTML = TRIG_CLOSED.map(c =>
+    `<tr><td>${esc(c.type)}</td><td>${esc(c.objLbl)}</td>`
+    + `<td>${c.taken ? esc(c.taken.date+' · '+c.taken.who) : '—'}</td><td>${esc(c.closedDate)}</td></tr>`
+  ).join('');
+}
 function rowsMonitor(){
-  return triggers().map((t,i) => ({ id:t.obj, kind:t.type, raw:t,
+  reconcileTrigWork();
+  return triggers().map(t => ({ id: trigId(t), obj:t.obj, kind:t.type, raw:t,
     sort:{ crit:t.crit==='high'?0:1, type:t.type, obj:t.objLbl },
     cells:[ `<span class="pill ${t.crit==='high'?'high':'mid'}">${t.crit==='high'?'высокая':'средняя'}</span>`,
-      esc(t.type), esc(t.objLbl), esc(t.text), esc(t.act) ] }));
+      esc(t.type), esc(t.objLbl), esc(t.text), trigWorkCell(t) ] }));
 }
 /* ---- реестр «Поручительство» (§14, Р-25). Строка = договор поручительства (ребро M:N).
    Индикатор гейта §9.1/9.2 — вычисляемый (guarantorGate), не хранимый. ---- */
@@ -2821,35 +2970,55 @@ function renderCards(rows){
   el.innerHTML = `<div class="cards-grid">${rows.map(card).join('')}</div>`;
 }
 function renderList(){
-  /* Предмет рождается только на карточке договора → в реестре «Предметы» кнопки создания нет
-     (read-only проекция). Авторитетная кнопка «Создать» живёт в реестрах договоров и
-     поручительств (единственный владелец); в карточке кредита — контекстные ярлыки-ссылки. */
-  document.getElementById('btnNewLbl').textContent = reg==='sureties' ? 'Новый договор поручительства' : 'Новый залоговый договор';
+  if(renderList._lastReg !== reg){ curPage = 1; renderList._lastReg = reg; }   // Р-39: смена реестра → 1-я страница
+  /* Р-37: у реестра «Предметы» авторитетная кнопка создания возвращена — имущество может быть
+     предложено на этапе заявки, когда договора ещё нет. Кнопка на карточке договора остаётся
+     контекстным ярлыком (openNewItem(cid) — предзаполняет договор и открывает привязку). */
+  document.getElementById('btnNewLbl').textContent = reg==='sureties' ? 'Новый договор поручительства'
+    : reg==='items' ? 'Новый предмет залога' : 'Новый залоговый договор';
   /* Р-34: реестровая «Создать» — единственное действие, которое СКРЫВАЕТСЯ (а не рендерится
      disabled): роль без права создания (Комитет, Наблюдатель) не должна видеть точку входа. */
-  document.getElementById('btnNew').style.display = ((reg==='contracts' || reg==='sureties') && canCurate()) ? 'inline-flex' : 'none';
+  document.getElementById('btnNew').style.display = ((reg==='contracts' || reg==='sureties' || reg==='items') && canCurate()) ? 'inline-flex' : 'none';
+  const qs = document.getElementById('quickSearch');
+  if(qs){ qs.value = quickSearch[reg] || ''; qs.style.display = reg==='monitor' ? 'none' : ''; }
 
   if(filterPanelReg !== reg) renderFilterPanel();
 
-  const heads = HEADS[reg], ws = WIDTHS[reg] || [];
-  document.getElementById('listHead').innerHTML = heads.map((h,i)=>`<th${ws[i]?` style="width:${ws[i]}"`:''} onclick="sortBy(${i})">${h}<span class="sort">↕</span></th>`).join('');
+  const heads = HEADS[reg], ws = WIDTHS[reg] || [], sks = SORT_KEYS[reg] || [];
+  /* Р-39: сортируемость и активный указатель задаются картой SORT_KEYS. Активная колонка —
+     ↑/↓ по направлению; прочие сортируемые — ↕; несортируемые (null) — без стрелки и курсора. */
+  document.getElementById('listHead').innerHTML = heads.map((h,i)=>{
+    const sortable = sks[i] != null;
+    const style = [ws[i]?`width:${ws[i]}`:'', sortable?'cursor:pointer':''].filter(Boolean).join(';');
+    const arrow = !sortable ? '' : `<span class="sort${sortKey===i?' active':''}">${sortKey===i ? (sortDir>0?'↑':'↓') : '↕'}</span>`;
+    return `<th${style?` style="${style}"`:''}${sortable?` onclick="sortBy(${i})"`:''}>${h}${arrow}</th>`;
+  }).join('');
   let rows = filterRows(regRows());
   if(sortKey !== null){
-    const keys = Object.keys(rows.length ? rows[0].sort : {});
-    const k = keys[sortKey];
+    const k = sks[sortKey];
     if(k) rows = [...rows].sort((a,b)=>{
       const x=a.sort[k], y=b.sort[k];
       return (typeof x === 'number' ? (x-y) : String(x).localeCompare(String(y),'ru')) * sortDir;
     });
   }
-  document.getElementById('listBody').innerHTML = rows.map(r=>`
+  /* Р-39: пагинация — renderList рисует только текущую страницу отфильтрованного+
+     отсортированного набора. */
+  const total = rows.length, pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if(curPage > pages) curPage = pages;
+  const pageRows = rows.slice((curPage-1)*PAGE_SIZE, curPage*PAGE_SIZE);
+  document.getElementById('listBody').innerHTML = pageRows.map(r=>`
     <tr data-id="${r.id}" onclick="selectRow('${r.id}')" ondblclick="openSelected()">
       ${r.cells.map(c=>`<td>${c}</td>`).join('')}
     </tr>`).join('') || `<tr><td colspan="${heads.length}"><div class="cgrid-empty">Записей нет</div></td></tr>`;
   const noun = reg==='items' ? 'предметов' : reg==='contracts' ? 'договоров'
              : reg==='sureties' ? 'договоров поручительства' : 'активных триггеров';
-  const active = Object.keys(activeFilter[reg]||{}).length;
-  document.getElementById('pagerCount').textContent = rows.length+' '+noun+(active ? ' (фильтр)' : '');
+  const active = Object.keys(activeFilter[reg]||{}).length + ((quickSearch[reg]||'').trim() ? 1 : 0);
+  document.getElementById('pagerCount').textContent = total+' '+noun+(active ? ' (фильтр)' : '');
+  document.getElementById('pagerNav').innerHTML = pages>1
+    ? `<button ${curPage<=1?'disabled':''} onclick="gotoPage(${curPage-1})" title="Предыдущая">‹</button>`
+      + `<span class="pager-pos">стр. ${curPage} из ${pages}</span>`
+      + `<button ${curPage>=pages?'disabled':''} onclick="gotoPage(${curPage+1})" title="Следующая">›</button>`
+    : '';
   document.getElementById('jfSummary').textContent = active ? `Фильтр · ${active} активно` : 'Фильтр';
   if(selected) document.querySelectorAll('#listBody tr').forEach(t=>t.classList.toggle('sel', t.dataset.id===selected));
 
@@ -2860,23 +3029,34 @@ function renderList(){
   document.getElementById('segCards').classList.toggle('active', view==='cards');
   document.getElementById('gridWrap').style.display  = view==='cards' ? 'none' : '';
   document.getElementById('cardsWrap').style.display = view==='cards' ? '' : 'none';
-  if(view==='cards') renderCards(rows);
+  if(view==='cards') renderCards(pageRows);
   renderRiskFactorsPanel();
+  renderTrigWorkPanel();
 }
-function sortBy(i){ if(sortKey===i) sortDir*=-1; else { sortKey=i; sortDir=1; } renderList(); }
+function sortBy(i){
+  if((SORT_KEYS[reg]||[])[i] == null) return;   // Р-39: несортируемая колонка — клик ничего не делает
+  if(sortKey===i) sortDir*=-1; else { sortKey=i; sortDir=1; }
+  curPage = 1; renderList();
+}
+function gotoPage(p){ curPage = p; renderList(); }
 function selectRow(id){ selected = id; renderList(); }
 function openSelected(){
   if(!selected) return;
+  /* Р-41: в мониторинге selected — это trigId (тип+объект), а не id записи. Открываем карточку
+     объекта, к которому относится триггер. */
+  if(reg==='monitor'){ const t = findTrig(selected); if(t) openMonitorObject(t); return; }
   if(item(selected)) openCard('item', selected);
   else if(contract(selected)) openCard('contract', selected);
   else if(surety(selected)) openCard('surety', selected);
   else if(credit(selected)) toast('Переход в карточку кредита '+credit(selected).num+' (модуль «Кредиты»)');
 }
-/* Авторитетная кнопка «Создать»: договор залога (реестр договоров) либо договор
-   поручительства (реестр поручительств). Предмет рождается на карточке договора. */
+/* Авторитетная кнопка «Создать»: предмет залога (реестр предметов, Р-37), договор залога
+   (реестр договоров) либо договор поручительства (реестр поручительств). Кнопка на карточке
+   договора — контекстный ярлык, вызывает openNewItem(cid) с предзаполнением. */
 function onNew(){ if(!canCurate()) return denyEdit();
   if(reg==='contracts') openNewContract();
   else if(reg==='sureties') openNewSurety();
+  else if(reg==='items') openNewItem();   // Р-37: авторитетная точка рождения предмета (договора ещё нет)
 }
 
 /* ============================================================
@@ -5109,6 +5289,7 @@ function refbookInner(){
         ${ifin('rb-ban-days','Срок наложения запрета, рабочих дней', String(BAN_DEADLINE_DAYS), 'в ПОЛ/П1-П3 отсутствует')}
         ${ifin('rb-doc-route','Срок маршрута документов до архивного шага, дней', String(DOC_ROUTE_DAYS))}
         ${ifin('rb-committee-sla','SLA очереди комитета, дней (после — критичность высокая)', String(COMMITTEE_SLA))}
+        ${ifin('rb-page-size','Размер страницы реестра, строк', String(PAGE_SIZE))}
       </div>
 
       <p class="section-h" style="font-size:16px;margin-top:16px">Коэффициент, ранг ликвидности, переоценка, орган (по виду)</p>
@@ -5198,10 +5379,12 @@ function saveRefbook(){
   const boardOk = Boolean(rbBoardReq && rbBoardReq.trim());
 
   // ВНУТРЕННИЕ параметры — всегда в DOM, всегда валидируются и сохраняются.
-  const bd = num(val('rb-ban-days')), docRoute = num(val('rb-doc-route')), commSla = num(val('rb-committee-sla'));
+  const bd = num(val('rb-ban-days')), docRoute = num(val('rb-doc-route')), commSla = num(val('rb-committee-sla')),
+        pageSz = num(val('rb-page-size'));
   if(!(bd > 0)) return toast('Срок наложения запрета — положительное число рабочих дней','warn');
   if(!(docRoute > 0)) return toast('Срок маршрута документов — положительное число дней','warn');
   if(!(commSla > 0)) return toast('SLA очереди комитета — положительное число дней','warn');
+  if(!(pageSz > 0)) return toast('Размер страницы реестра — положительное число строк','warn');
   const revalDraft = {};
   for(const k of Object.keys(KINDS)){
     const r = num(val('rb-r-'+k)), o = val('rb-o-'+k).trim();
@@ -5248,6 +5431,7 @@ function saveRefbook(){
   BAN_DEADLINE_DAYS = Math.round(bd);
   DOC_ROUTE_DAYS = Math.round(docRoute);
   COMMITTEE_SLA = Math.round(commSla);
+  PAGE_SIZE = Math.round(pageSz); curPage = 1;
   COVER_LIQUID = cl; COVER_MOVABLE = cm; LIQUID_SHARE_MIN = ls;
   COVER_GUARANTEE = cg; COVER_GUARANTEE_FX = cgfx;
   TECH_AGE_LIMIT['СНГ'] = Math.round(ageS); TECH_AGE_LIMIT['Дальнее зарубежье'] = Math.round(ageF);
@@ -5297,6 +5481,11 @@ if (typeof window !== 'undefined') window.__zt = {
   canCurate, canCommittee, canHeadOfDept, canHeadOfUnit, canDs,
   // Волна 2 (Р-34/Р-35/Р-36)
   actionBtn, toCommission, onRoleChange, gateCheck, prereqMissing, COMMITTEE_SLA,
+  // Волна 3 (Р-37/Р-38/Р-39/Р-41)
+  onNew, openNewItem, rowsItems, rowsMonitor, rowsContracts, filterRows, regRows,
+  FILTERS, SORT_KEYS, HEADS, sortBy, renderList, onQuickSearch, gotoPage,
+  trigId, findTrig, TRIG_WORK, TRIG_CLOSED, reconcileTrigWork, trigAction, takeTrig,
+  openDeferTrig, saveDeferTrig, undeferTrig, openMonitorObject, selectRow, openSelected,
   surveyInterval, effectiveInterval, RISK_TIGHTENING, SURVEY_MIN_MONTHS, RISK_TIGHTENING_APPROVAL,
   itemRiskCategory, borrowerSolvency, nextSurvey, addMonths,
   techAgeCheck,

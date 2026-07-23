@@ -1066,4 +1066,125 @@ test('W2-10 (Р-36): toCommission не отправляет документар
   eq(zt.contract('Д-010').status, before, 'статус не изменился — документарный гейт §5.2 не пройден');
 });
 
+/* ============================================================
+   ВОЛНА 3 — работоспособность на объёме (Р-37/Р-38/Р-39/Р-41).
+   ============================================================ */
+
+// Р-37: реестр «Предметы» — авторитетная кнопка создания вернулась (кейс «имущество на
+// этапе заявки, договора ещё нет»); подпись исправлена по реестру.
+test('W3-1 (Р-37): у куратора в реестре предметов кнопка «Новый предмет залога» видна', () => {
+  const { win } = load();
+  win.eval("reg='items'; role='Куратор отдела залогового обеспечения'");
+  win.renderList();
+  eq(win.document.getElementById('btnNew').style.display, 'inline-flex', 'кнопка создания видна в реестре предметов');
+  eq(win.document.getElementById('btnNewLbl').textContent, 'Новый предмет залога', 'подпись исправлена по реестру');
+});
+
+test('W3-2 (Р-37): роль без права создания не видит точку входа в реестре предметов', () => {
+  const { win } = load();
+  win.eval("reg='items'; role='Наблюдатель'");
+  win.renderList();
+  eq(win.document.getElementById('btnNew').style.display, 'none', 'у наблюдателя кнопка создания скрыта');
+});
+
+test('W3-2b (Р-37): onNew в реестре предметов открывает форму нового предмета', () => {
+  const { win } = load();
+  win.eval("reg='items'; role='Куратор отдела залогового обеспечения'");
+  win.onNew();
+  const m = win.document.getElementById('modalHost').innerHTML;
+  has(m, 'Новый предмет залога', 'открыта форма предмета');
+  has(m, 'saveNewItem', 'форма ведёт к сохранению предмета');
+});
+
+// Р-38: поиск по идентификаторам вида — кадастр/адрес/гос.№/VIN заведены в фильтр.
+test('W3-3 (Р-38): фильтр «Идентификатор/адрес» находит предмет по VIN', () => {
+  const { win } = load();
+  ok((win.__zt.FILTERS.items||[]).some(f=>f.key==='idx'), 'поле idx заведено в фильтр предметов');
+  win.eval("reg='items'; activeFilter.items={idx:'WMA06'}; quickSearch.items=''");
+  const rows = win.filterRows(win.rowsItems());
+  eq(rows.length, 1, 'ровно один предмет с этим VIN');
+  eq(rows[0].id, 'П-005', 'найден именно П-005 (по VIN в details)');
+});
+
+test('W3-4 (Р-38): общая строка поиска ищет по всем текстовым значениям строки', () => {
+  const { win } = load();
+  win.eval("reg='items'; activeFilter.items={}; quickSearch.items='Промышленная'");
+  const rows = win.filterRows(win.rowsItems());
+  eq(rows.length, 2, 'два предмета по адресу «Промышленная» (П-001, П-003)');
+  ok(rows.every(r=>['П-001','П-003'].includes(r.id)), 'найдены именно они');
+});
+
+// Р-39: карта SORT_KEYS длиной ровно в число колонок; несортируемые — null.
+test('W3-5 (Р-39): SORT_KEYS длиной = числу колонок для каждого реестра', () => {
+  const { win } = load();
+  const { SORT_KEYS, HEADS } = win.__zt;
+  ['items','contracts','monitor','sureties'].forEach(r =>
+    eq(SORT_KEYS[r].length, HEADS[r].length, `${r}: ключей столько же, сколько заголовков`));
+  ok(SORT_KEYS.items[6] === null, 'колонка «Контроль» помечена несортируемой');
+  ok(SORT_KEYS.monitor[3] === null && SORT_KEYS.monitor[4] === null, 'колонки «Описание»/«Что делать» несортируемы');
+});
+
+test('W3-6 (Р-39): клик по несортируемой колонке не меняет сортировку', () => {
+  const { win } = load();
+  win.eval("reg='items'; sortKey=null; sortDir=1");
+  win.sortBy(6);                       // «Контроль» → null
+  eq(win.eval('sortKey'), null, 'несортируемая колонка не активирует сортировку');
+  win.sortBy(0);                       // «№» → id
+  eq(win.eval('sortKey'), 0, 'сортируемая колонка активируется');
+});
+
+test('W3-7 (Р-39): пагинация рисует только текущую страницу', () => {
+  const { win } = load();
+  win.eval("reg='items'; PAGE_SIZE=2; curPage=1; activeFilter.items={}; quickSearch.items=''");
+  win.renderList();
+  eq(win.document.querySelectorAll('#listBody tr').length, 2, 'на странице ровно PAGE_SIZE строк');
+  has(win.document.getElementById('pagerNav').innerHTML, 'стр. 1 из', 'переключатель страниц показан');
+});
+
+// Р-41: устойчивый ключ триггера (тип+объект) в data-id — фикс двойной подсветки, когда
+// у объекта несколько триггеров.
+test('W3-8 (Р-41): у объекта с двумя триггерами строки имеют разные id (data-id)', () => {
+  const { win } = load();
+  const rows = win.rowsMonitor().filter(r => r.obj === 'П-005');
+  eq(rows.length, 2, 'у П-005 два триггера');
+  ok(rows[0].id !== rows[1].id, 'id строк различны (нет коллизии подсветки)');
+  ok(rows.every(r => r.id.includes('|П-005')), 'id = тип|объект');
+});
+
+test('W3-9 (Р-41): «Что делать» — кнопка-действие, ведущая в нужный диалог', () => {
+  const { win } = load();
+  const t = win.__zt.triggers().find(x => x.type === 'Залог без запрета на отчуждение');
+  ok(t, 'триггер «залог без запрета» присутствует');
+  const a = win.__zt.trigAction(t);
+  ok(a && a.call.includes('openBan('), 'действие ведёт в наложение запрета');
+  const cell = win.rowsMonitor().find(r => r.id === win.__zt.trigId(t)).cells[4];
+  has(cell, 'onclick', 'ячейка «Что делать» содержит кнопку');
+  has(cell, 'openBan(', 'кнопка вызывает openBan');
+});
+
+test('W3-10 (Р-41): рабочий слой — «в работе», затем журнал закрытых при устранении факта', () => {
+  const { win } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const t = win.__zt.triggers()[0], id = win.__zt.trigId(t);
+  win.takeTrig(id);
+  ok(win.__zt.TRIG_WORK[id], 'триггер принят в работу (надстройка над вычисляемым)');
+  eq(win.__zt.TRIG_WORK[id].taken.who, 'Куратор отдела залогового обеспечения', 'ответственный зафиксирован');
+  // Подделываем «устранение факта»: запись в работе, которой больше нет среди triggers().
+  win.__zt.TRIG_WORK['НЕТ_ТАКОГО|П-000'] = { taken:{who:'x',date:win.__zt.TODAY}, type:'Фиктивный', objLbl:'П-000' };
+  const before = win.__zt.TRIG_CLOSED.length;
+  win.__zt.reconcileTrigWork();
+  ok(!win.__zt.TRIG_WORK['НЕТ_ТАКОГО|П-000'], 'исчезнувший триггер снят с рабочего слоя');
+  eq(win.__zt.TRIG_CLOSED.length, before + 1, 'переехал в журнал закрытых');
+});
+
+test('W3-11 (Р-41): двойной клик по строке мониторинга открывает карточку объекта', () => {
+  const { win } = load();
+  const t = win.__zt.triggers().find(x => win.__zt.item(x.obj));
+  win.eval("reg='monitor'");
+  win.selectRow(win.__zt.trigId(t));
+  win.openSelected();
+  eq(win.eval('cur && cur.type'), 'item', 'открыта карточка предмета');
+  eq(win.eval('cur && cur.id'), t.obj, 'именно объекта триггера');
+});
+
 report();
