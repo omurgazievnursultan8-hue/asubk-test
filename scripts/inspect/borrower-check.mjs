@@ -90,5 +90,16 @@ ok('D2. overdueDebt берёт только просроченные части 
 ok('D3. coverageOf — зеркало индекса, worst ≤ aggregate (ветка 1)',
   g.ev("coverageOf('01204199910016').worst") <= g.ev("coverageOf('01204199910016').aggregate"));
 
+// ── Очередь на комитет (18–20) ──
+ok('18. событие без committeeRef стоит в очереди (ветка 5, гвоздь Р-5)',
+  g.ev("committeeQueue('05501199950051', TODAY).length") >= 1);
+ok('18b. ветка 5 категория пока Высокий только из-за истёкшего оверлея, не из очереди',
+  g.ev("committeeQueue('05501199950051', TODAY).some(e=>e.wouldGive==='high')"));
+ok('19. после FACTORS с committeeRef событие ушло из очереди, категория выросла (ветка 6)',
+  g.ev("committeeQueue('06601199960061', TODAY).length")===0);
+ok('20. dismissedAt убирает событие из очереди без изменения категории (ветка 5)',
+  g.ev("EVENTS_RAW.some(e=>e.inn==='05501199950051' && e.dismissedAt)") &&
+  g.ev("committeeQueue('05501199950051', TODAY).every(e=>!e.dismissedAt)"));
+
 console.log(`\n${n - fails}/${n} PASS`);
 process.exit(fails ? 1 : 0);

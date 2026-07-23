@@ -807,6 +807,27 @@ const RELATED    = [];   // ← реестр лиц (Р-7); Task 10
 const WORKDAYS = ['01.01.2026','02.01.2026','07.01.2026','23.02.2026','08.03.2026','09.03.2026','21.03.2026',
   '22.03.2026','23.03.2026','01.05.2026','05.05.2026','07.05.2026','09.05.2026','31.08.2026','07.11.2026'];
 
+EVENTS_RAW.push(
+  // Ветка 5 — очередь непуста: полис истёк (zalog) + уклонение акта сверки 75 к.д.; решения комитета ещё нет
+  { id:'EV-501', inn:'05501199950051', creditId:'C-B5-CLEAN', type:'Истёк полис страхования залога', detectedAt:'20.06.2026',
+    source:'zalog', wouldGive:'mid', payload:{polisNo:'INS-771'}, committeeRef:null },
+  { id:'EV-502', inn:'05501199950051', creditId:'C-B5-EXP', type:'Уклонение от акта сверки 75 к.д.', detectedAt:'01.05.2026',
+    source:'acts', wouldGive:'high', payload:{days:75}, committeeRef:null },
+  // Событие, снятое с рассмотрения (dismissedAt) — из очереди убрано, категорию не трогало
+  { id:'EV-503', inn:'05501199950051', creditId:'C-B5-CLEAN', type:'Разовая просрочка платежа', detectedAt:'10.04.2026',
+    source:'payments', wouldGive:'mid', payload:{}, committeeRef:null, dismissedAt:'15.04.2026' },
+  // Ветка 6 — событие уже вынесено и решено: committeeRef заполнен → в очереди не появляется
+  { id:'EV-601', inn:'06601199960061', creditId:'C-CHE-3', type:'Существенное ухудшение фин. состояния', detectedAt:'20.05.2026',
+    source:'collection', wouldGive:'high', payload:{}, committeeRef:'КРР-2026-40' },
+);
+COMMITTEE_REFS.push(
+  { id:'КРР-2026-40', no:'40', date:'01.06.2026', kind:'КРР', subject:'Чуй Энерго — ухудшение фин. состояния' },
+);
+FACTORS.push(
+  // Решение комитета по ветке 6 — двигает категорию (committeeRef непустой)
+  { creditId:'C-CHE-3', level:'high', type:'Ухудшение фин. состояния', committeeRef:'КРР-2026-40', from:'01.06.2026' },
+);
+
 /* ═══ SECTION 2 · ЧИСТЫЕ ФУНКЦИИ ═══ */
 /* §4 functions land here in Tasks 3–9 */
 
@@ -934,6 +955,19 @@ function obligations(inn, d){
   }
   // О-3 — задел (правопреемники при смерти, п.62); не реализуется в MVP.
   return out;
+}
+
+/* Очередь на комитет = сырые события заёмщика без решения комитета и не снятые. Категорию НЕ двигает (И-1). */
+function committeeQueue(inn, d){
+  return EVENTS_RAW
+    .filter(e => e.inn===inn && !e.committeeRef && !e.dismissedAt && dateLE(e.detectedAt, d))
+    .map(e => ({ type:e.type, source:e.source, detectedAt:e.detectedAt, wouldGive:e.wouldGive,
+                 waitingDays: calDays(e.detectedAt, d) }));
+}
+/* Календарные дни между двумя dd.mm.yyyy (грубо, для счётчика ожидания). Date.UTC — чистый статический вызов, не чтение часов. */
+function calDays(a, b){
+  const p = s => { const [d,m,y]=s.split('.').map(Number); return Math.floor((Date.UTC(y,m-1,d))/86400000); };
+  return p(b) - p(a);
 }
 
 /* ═══ SECTION 3 · РЕНДЕР ═══ */
