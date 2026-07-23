@@ -139,5 +139,17 @@ const gg = mk();
 ok('B. реестр содержит ≥10 заёмщиков и все ветки достижимы', gg.$$('#listTable tbody tr').length >= 10);
 ok('B2. фильтр группы включает 3.2 (Ш-2)', /3\.2/.test(gg.$('#view-list').textContent) || gg.ev("Object.keys(GROUP_LABEL).includes('3.2')"));
 
+// ── Переключатель вида списка: таблица ↔ карточки (финальное ревью, дефект-находка) ──
+const cv = mk();
+cv.ev("setListView('cards')");
+ok('V1. переключение на карточки: #cardsWrap видим и содержит ≥10 карточек',
+  cv.$('#cardsWrap').hidden === false && cv.$$('#cardsWrap .bcard').length >= 10);
+cv.ev("setListView('table')");
+ok('V2. переключение обратно на таблицу: #gridWrap показан, #cardsWrap скрыт',
+  cv.$('#gridWrap').hidden === false && cv.$('#cardsWrap').hidden === true);
+cv.ev("setListView('cards')");
+ok('V3. карточка без input/select (И-5): только текст и переход по клику',
+  cv.$$('#cardsWrap .bcard input, #cardsWrap .bcard select').length === 0);
+
 console.log(`\n${n - fails}/${n} PASS`);
 process.exit(fails ? 1 : 0);

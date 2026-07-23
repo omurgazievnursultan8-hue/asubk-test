@@ -6,7 +6,7 @@
 <title>Заёмщик — карточка (v2) — АСУБК</title>
 <!-- ASUBK · Управление информацией о заёмщике — исполнимый MVP
      Спека: docs/superpowers/specs/2026-07-23-borrower-rework-design.md
-     Проверка: node scripts/inspect/borrower-check.mjs  →  47/47 PASS (2026-07-23)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  50/50 PASS (2026-07-23)
      Инварианты: И-1 категорию двигает только комитет · И-2 группу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркала read-only.
@@ -1064,6 +1064,40 @@ function renderList(){
   const rc = document.getElementById('rowCount');
   if (rc) rc.textContent = SUBJECTS.length + ' строк';
 }
+function renderCards(){
+  const wrap = document.getElementById('cardsWrap');
+  if (SUBJECTS.length === 0){
+    wrap.innerHTML = `<div class="cards-empty">Записей не найдено — измените условия фильтра.</div>`;
+    return;
+  }
+  wrap.innerHTML = `<div class="cards-grid">` + SUBJECTS.map(s => {
+    const st  = (typeof subjectState==='function') ? (subjectState(s.inn,TODAY)?.kind || '—') : '—';
+    const grp = (typeof groupOf==='function') ? groupOf(s.inn,TODAY) : '—';
+    const cat = (typeof catOfBorrower==='function') ? catOfBorrower(s.inn,TODAY) : null;
+    const catTxt = cat ? CAT_LABEL[cat] : 'не применяется';
+    const obl = (typeof obligations==='function') ? obligations(s.inn,TODAY).filter(o=>o.status==='просрочено').length : 0;
+    const cq  = (typeof committeeQueue==='function') ? committeeQueue(s.inn,TODAY).length : 0;
+    return `<div class="bcard" data-inn="${esc(s.inn)}" onclick="location.hash='#/b/${s.inn}'">
+      <div class="bcard-head">
+        <div class="bcard-ava" style="background:var(--action-primary)">${esc((s.name||'?').slice(0,1))}</div>
+        <div class="bcard-title">
+          <div class="bcard-name">${esc(s.name)}</div>
+          <div class="bcard-sub">ИНН ${esc(s.inn)} · ${esc(s.personKind)}</div>
+        </div>
+        <div class="bcard-chev">›</div>
+      </div>
+      <div class="bcard-fields">
+        <div class="bcard-field"><span class="bcard-flabel">Состояние субъекта</span><span class="bcard-fval">${esc(st)}</span></div>
+        <div class="bcard-field"><span class="bcard-flabel">Группа</span><span class="bcard-fval">${esc(grp)}</span></div>
+        <div class="bcard-field"><span class="bcard-flabel">Категория</span><span class="bcard-fval">${esc(catTxt)}</span></div>
+      </div>
+      <div class="bcard-badges">
+        <span class="badge ${obl>0?'b-ov':'b-ok'}">Просроч. обязательств: ${obl}</span>
+        <span class="badge b-gray">На комитет: ${cq}</span>
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
+}
 function tile(title, valueHtml, basis, moreHtml){
   return `<div class="dim"><div class="dim-t">${esc(title)}</div><div class="dim-v">${valueHtml}</div>`
     + `<div class="src">${esc(basis)}</div>`
@@ -1338,7 +1372,7 @@ function scrollTop(){ document.documentElement.scrollTop = document.body.scrollT
 
 function showList(){
   current = null; currentSubj = null;
-  renderList();
+  if (listView === 'cards') renderCards(); else renderList();
   showOnly(vList);
   pageTitle.textContent = 'Список заёмщиков';
   topbar.classList.remove('on-detail');
@@ -1424,7 +1458,9 @@ function setListView(v){
   try { localStorage.setItem(LIST_VIEW_KEY, listView); } catch(e){}
   document.getElementById('segTable').classList.toggle('active', listView === 'table');
   document.getElementById('segCards').classList.toggle('active', listView === 'cards');
-  renderList();
+  document.getElementById('gridWrap').hidden = listView === 'cards';
+  document.getElementById('cardsWrap').hidden = listView !== 'cards';
+  if (listView === 'cards') renderCards(); else renderList();
 }
 document.getElementById('segTable').addEventListener('click', () => setListView('table'));
 document.getElementById('segCards').addEventListener('click', () => setListView('cards'));
