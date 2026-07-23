@@ -112,6 +112,8 @@
 
 
 
+
+
 -->
 <style>
 
@@ -1731,10 +1733,14 @@ if (typeof document !== 'undefined') {
     if (body) [...body.children].forEach(tr => tr.classList && tr.classList.toggle('sel', tr.dataset.id===id));
     renderRole();
   }
-  /* двойной клик / Просмотр / Изменить — карточка кредита (8 вкладок — Task 7) */
+  /* двойной клик / Просмотр / Изменить — карточка кредита (§5.2 шапка + §5.3 8 вкладок, Task 7) */
   function openDetail(id){
     const c = CR.db.credits.find(x=>x.id===id); if (!c) return;
-    selectedId = id; CR._sel = id;
+    selectedId = id; CR._sel = id; detailId = id;
+    detailTab = 'Договор';
+    detailTrancheNo = (c.tranches[0] && c.tranches[0].no) || 1;
+    calcConsolidated = false;
+    disbFormOpen = schedFormOpen = agrFormOpen = false;
     document.getElementById('view-list').style.display = 'none';
     const dv = document.getElementById('view-detail');
     dv.style.display = 'flex';
@@ -1742,13 +1748,8 @@ if (typeof document !== 'undefined') {
       <div style="padding:16px 20px 0">
         <button class="btn btn-secondary btn-sm" onclick="CR.backToList()">← Реестр</button>
       </div>
-      <div class="panel-wrap"><div class="panel-card">
-        <div class="section-h">Кредит № ${esc(c.num)} — ${esc(c.borrower.name)}</div>
-        <div class="section-note">ID ${esc(c.id)} · ЖЦ ${esc(c.lifecycle)} · договор от ${esc(c.date)} · программа ${esc(c.origin.programId)}</div>
-        <div id="cr-card-body" style="margin-top:16px;color:var(--text-placeholder);border:1px dashed var(--border-default);border-radius:var(--radius-md);padding:28px;text-align:center">
-          Карточка кредита (8 вкладок §5.2–5.3) — реализуется в Task 7. Плейсхолдер.
-        </div>
-      </div></div>`;
+      <div id="cr-card-body"></div>`;
+    renderDetail(c);
     const crumb = document.getElementById('crumb'); if (crumb) crumb.textContent = '/ Договор № ' + c.num;
   }
   function backToList(){
@@ -1805,6 +1806,518 @@ if (typeof document !== 'undefined') {
     CR.closeModal();
     toast('Заявка ' + id + ' выбрана — черновик кредита (форма создания — Task 7)', 'ok');
   }
+
+  /* ============================================================
+     КАРТОЧКА КРЕДИТА — §5.2 шапка + §5.3 8 вкладок (Task 7).
+     Всё из derive()/gate()/canRole() в рантайме (Р-11 — кэш запрещён). Зеркала
+     (Р-5…Р-10, Р-16) — read-only с замком и подписью источника. Любая мутация
+     идёт через CR.* и завершается rerenderDetail() → derive() пересчитывается заново.
+     ============================================================ */
+  let detailId = null, detailTab = 'Договор', detailTrancheNo = 1;
+  let calcConsolidated = false;
+  let disbFormOpen = false, schedFormOpen = false, agrFormOpen = false;
+  const DTABS = ['Договор','Условия','Транши и освоение','Расчёты','Платежи','Обеспечение','Проблемные','Досье'];
+
+  function currentCredit(){ return CR.db.credits.find(x => x.id === detailId); }
+  function jsAttr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+  function svgInfo(){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>'; }
+  function lockHtml(){ return '<span class="lock"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>зеркало</span>'; }
+  function catClsOf(cat){ return cat==='высокий'?'high':cat==='средний'?'mid':'low'; }
+  function pctDisb(c,d){ return c.contractAmount>0 ? Math.round(d.disbursed/c.contractAmount*100) : 0; }
+  function trancheState(t){ const s=disbursedSum(t), a=t.amount||0; return s===0?'Не освоен':s<a?'Частично освоен':'Полностью освоен'; }
+  function overlayPill(o){ const cls=o.tone==='warn'?'mid':o.tone==='danger'?'high':'info'; return `<span class="pill ${cls}">${esc(o.text)}</span>`; }
+
+  /* read-only поле (label + значение в grey-боксе); val вставляется как HTML (caller экранирует текст) */
+  function fld(label,val,o){ o=o||{};
+    const v=(val==null||val==='') ? '<span class="ph" style="color:var(--text-placeholder)">—</span>' : val;
+    return `<div class="field${o.span?' col-span':''}"><span class="flabel">${esc(label)}${o.lock?' '+lockHtml():''}</span>`
+      + `<div class="lookup"><span class="val">${v}</span></div>`
+      + (o.src?`<div class="mirror-src">Источник: ${esc(o.src)}</div>`:'') + `</div>`;
+  }
+  /* грид-коллекция внутри вкладки */
+  function cgrid(cols, rows, o){ o=o||{};
+    return `<div class="cgrid-wrap"><table class="cgrid"><thead><tr>${cols.map(c=>`<th${c.r?' style="text-align:right"':''}>${esc(c.h)}</th>`).join('')}</tr></thead>`
+      + `<tbody>${rows.length?rows.join(''):`<tr><td colspan="${cols.length}"><div class="cgrid-empty">${esc(o.empty||'Нет записей')}</div></td></tr>`}</tbody></table></div>`;
+  }
+  /* Кнопка действия с реальным гейтом (§6.3): !gate.ok||!role → визуально disabled + tooltip + toast-on-click. */
+  function actBtn(credit, action, ctx, label, onclick, cls){ cls=cls||'btn btn-secondary btn-sm';
+    const r=canRole(currentRole,action);
+    const g=credit?gate(credit,action,ctx||{}):{ok:true,reasons:[]};
+    const reasons=[]; if(!r) reasons.push('Роль «'+currentRole+'» не имеет права на это действие'); if(!g.ok) g.reasons.forEach(x=>reasons.push(x));
+    if(r&&g.ok) return `<button class="${cls}" onclick="${onclick}">${esc(label)}</button>`;
+    return `<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(reasons.join('; '))}" onclick="CR.toast('${jsAttr(reasons.join(' · '))}','warn')">${esc(label)}</button>`;
+  }
+  /* Кнопка, чей реальный гейт зависит от полей формы (Task 8): гейтим по роли, содержимое — форма/стаб. */
+  function roleBtn(action,label,onclick,cls){ cls=cls||'btn btn-secondary btn-sm';
+    if(canRole(currentRole,action)) return `<button class="${cls}" onclick="${onclick}">${esc(label)}</button>`;
+    const msg='Роль «'+currentRole+'» не имеет права на это действие';
+    return `<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(msg)}" onclick="CR.toast('${jsAttr(msg)}','warn')">${esc(label)}</button>`;
+  }
+
+  /* ---- §5.2 ШАПКА (одна несворачиваемая сводка) ---- */
+  function headerHtml(c,d){
+    const debtBal = d.debt.principal.bal + d.debt.interest.bal + d.debt.penalty.bal;
+    const light = d.coverage.ok ? 'var(--asubk-green)' : 'var(--asubk-red)';
+    const catSrc = (c.mirror&&c.mirror.borrowerRisk&&c.mirror.borrowerRisk.categorySource) || 'ночной расчёт';
+    const overlays = d.overlays.map(overlayPill).join(' ');
+    return `<div class="phead">
+      <div class="phead-top">
+        <div>
+          <div class="phead-name">
+            <span class="nm">Кредит № ${esc(c.num)}</span>
+            <span class="pill info">${esc(c.lifecycle)}</span>
+            <span class="pill neutral">${esc(d.disbState)}</span>
+            ${overlays}
+          </div>
+          <div class="phead-sub">от <b>${esc(c.date)}</b> · Заёмщик <a onclick="CR.toast('Переход в карточку заёмщика — вне объёма макета')">${esc(c.borrower.name)}</a> · Программа <a onclick="CR.toast('Переход в программу — вне объёма макета')">${esc(c.origin.programId)}</a></div>
+        </div>
+        <div class="phead-owner">ID ${esc(c.id)}<br>ИНН ${esc(c.borrower.inn)}</div>
+      </div>
+      <div class="phead-dims">
+        <div class="dim"><div class="dl">Сумма договора</div><div class="dv">${money(c.contractAmount)}</div></div>
+        <div class="dim"><div class="dl">Освоено</div><div class="dv">${money(d.disbursed)} <span style="color:var(--text-muted);font-weight:400">(${pctDisb(c,d)}%)</span></div></div>
+        <div class="dim"><div class="dl">Остаток долга</div><div class="dv">${money(debtBal)}</div></div>
+        <div class="dim"><div class="dl">Просрочка</div><div class="dv"${d.overdueDays>0?' style="color:var(--asubk-red)"':''}>${d.overdueDays} дн.</div></div>
+        <div class="dim"><div class="dl">Категория риска ${lockHtml()}</div><div class="dv cat-${catClsOf(d.riskCategory)}">${esc(d.riskCategory)}</div><div class="src">${esc(catSrc)} (Р-10)</div></div>
+        <div class="dim"><div class="dl">Покрытие ${lockHtml()}</div><div class="dv"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${light};margin-right:6px"></span>${Math.round(d.coverage.index*100)}% <span style="color:var(--text-muted);font-weight:400">/ порог ${d.coverage.req}%</span></div><div class="src">${esc(d.coverage.source)}</div></div>
+        <div class="dim"><div class="dl">Куратор ${lockHtml()}</div><div class="dv" style="font-size:14px">${esc(curatorOf(c))}</div><div class="src">Кураторство · журнал назначений (Р-9)</div></div>
+      </div>
+    </div>`;
+  }
+  function tabbarHtml(){
+    return `<div class="detail-tabbar-wrap"><div class="detail-tabbar">${DTABS.map(t=>`<button class="dtab${t===detailTab?' active':''}" onclick="CR.openTab('${jsAttr(t)}')">${esc(t)}</button>`).join('')}</div></div>`;
+  }
+
+  /* ---- ВКЛАДКА 1: Договор ---- */
+  function tabDogovor(c,d){
+    const o=c.origin;
+    const link=(id,msg)=>id?`<a class="rowlink" onclick="CR.toast('${jsAttr(msg)}')">${esc(id)}</a>`:null;
+    const subjRows=(c.subject||[]).map(s=>`<tr><td>${esc(s.kind)}</td><td>${esc(s.name)}</td><td style="text-align:right">${esc(s.qty)}</td><td style="text-align:right">${money(s.cost)}</td></tr>`);
+    const curRows=(c.mirror.curatorship||[]).map(x=>`<tr><td>${esc(x.unit)}</td><td>${esc(x.employee)}</td><td>${esc(x.role)}</td><td>${esc(x.from)}</td><td>${esc(x.to||'—')}</td></tr>`);
+    const km=c.kmDecision, dt=c.debtTransfer;
+    return `
+      <div class="section-h">Реквизиты договора</div>
+      <div class="f2">
+        ${fld('№ договора', esc(c.num))}
+        ${fld('Дата договора', esc(c.date))}
+        ${fld('№ регистрации', esc(c.reg.num))}
+        ${fld('Дата регистрации', esc(c.reg.date))}
+        ${fld('Скан договора', c.reg.scan?esc(c.reg.scan):null)}
+        ${fld('Валюта', esc(c.currency))}
+        ${fld('Комментарий регистрации', c.reg.comment?esc(c.reg.comment):null, {span:true})}
+      </div>
+
+      <div class="section-h" style="margin-top:22px">Происхождение (Р-18)</div>
+      <p class="section-note">Обязательная неизменяемая цепочка: заявка → комиссия → программа → решение правительства. Все ссылки read-only.</p>
+      <div class="f2">
+        ${fld('Заявка', link(o.applicationId,'Переход в заявку — вне объёма макета'))}
+        ${fld('Комиссия', link(o.commissionId,'Переход в комиссию — вне объёма макета'))}
+        ${fld('Программа', link(o.programId,'Переход в программу — вне объёма макета'))}
+        ${fld('Решение правительства', link(o.govDecisionId,'Переход в ПП — вне объёма макета'))}
+      </div>
+
+      <div class="section-h" style="margin-top:22px">Суммы</div>
+      <div class="f2">
+        ${fld('Одобрено (заявка)', money(c.approvedAmount))}
+        ${fld('Сумма договора (Г-1: ≤ одобрено)', money(c.contractAmount))}
+      </div>
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('saveContractAmount','Изменить сумму договора',"CR.stubAction('Изменение суммы договора')")}</div>
+
+      <div class="section-h" style="margin-top:22px">Классификация</div>
+      <div class="f2">
+        ${fld('Вид кредита', esc(c.kind))}
+        ${fld('Кредитная линия', esc(c.line))}
+        ${fld('Цель', esc(c.purpose))}
+        ${fld('Источник финансирования', esc(c.fundingSource))}
+      </div>
+
+      <div class="section-h" style="margin-top:22px">Предмет кредита</div>
+      ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Кол-во',r:1},{h:'Стоимость',r:1}], subjRows, {empty:'Предмет не задан'})}
+
+      <div class="section-h" style="margin-top:22px">Счета и код оплаты</div>
+      <div class="f2">
+        ${fld('Счёт погашения', esc(c.accounts.repayAcct))}
+        ${fld('Вид счёта', esc(c.accounts.repayAcctKind))}
+        ${fld('Код оплаты', esc(c.accounts.payCode))}
+      </div>
+
+      <div class="section-h" style="margin-top:22px">Освобождение от залога — решение КМ (Р-8)</div>
+      ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Скан', esc(km.scan))}</div>`
+        :`<p class="section-note">Решение КМ не зафиксировано. Это owned-поле кредита (не зеркало): разблокирует освоение по Г-6 при провале покрытия.</p>`}
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('setKmDecision','Указать решение КМ',"CR.stubAction('Реквизиты решения КМ')")}</div>
+
+      <div class="section-h" style="margin-top:22px">Кураторство ${lockHtml()}</div>
+      ${cgrid([{h:'Подразделение'},{h:'Сотрудник'},{h:'Роль'},{h:'С'},{h:'По'}], curRows, {empty:'Назначений нет'})}
+      <div class="mirror-src">Источник: модуль сотрудников · журнал назначений кураторства (Р-9). Зеркало — только чтение.</div>
+
+      <details style="margin-top:22px">
+        <summary style="cursor:pointer;font:var(--weight-semibold) 15px/1.3 var(--asubk-font);color:var(--text-heading)">Перевод долга — смена заёмщика (Р-14)</summary>
+        <div style="padding-top:10px">
+          ${dt?`<div class="f2">${fld('Новый заёмщик', esc(dt.newBorrower&&dt.newBorrower.name))}${fld('Соглашение', esc(dt.agreement&&dt.agreement.num))}${fld('Дата', esc(dt.date))}</div>`
+            :`<p class="section-note">Перевода долга не было. Смена заёмщика — owned-действие кредита, только зарегистрированным соглашением (Г-16).</p>`}
+          <div class="gtoolbar" style="margin-top:12px">${roleBtn('transferDebt','Оформить перевод долга',"CR.stubAction('Перевод долга')")}</div>
+        </div>
+      </details>`;
+  }
+
+  /* ---- ВКЛАДКА 2: Условия ---- */
+  function tabUsloviya(c,d){
+    const b=c.baseConditions;
+    const locked = !gate(c,'editConditions',{}).ok;                 // Г-9: не «Проект» → правки только доп. соглашением
+    const g9='Изменение условий — только доп. соглашением (Г-9)';
+    const bf=(label,val)=>`<div class="field"><span class="flabel">${esc(label)}${locked?' '+lockHtml():''}</span><div class="lookup"${locked?` title="${jsAttr(g9)}"`:''}><span class="val">${val}</span></div></div>`;
+    const dev=(t,key)=>{ const bv=b[key], tv=t.conditions[key]; return String(bv)===String(tv)?esc(tv):`<span class="diff"><span class="diff-old">${esc(bv)}</span> → <span class="diff-new">${esc(tv)}</span></span>`; };
+    const trRows=c.tranches.map(t=>`<tr><td>№${t.no}</td><td>${dev(t,'rate')}</td><td>${dev(t,'term')}</td><td>${dev(t,'method')}</td><td>${dev(t,'freq')}</td><td>${dev(t,'reserveRate')}</td></tr>`);
+    const agRows=(c.agreements||[]).map(a=>{
+      const keys=[...new Set([...Object.keys(a.before||{}),...Object.keys(a.after||{})])];
+      const diff=keys.map(k=>`${esc(k)}: <span class="diff"><span class="diff-old">${esc((a.before||{})[k])}</span> → <span class="diff-new">${esc((a.after||{})[k])}</span></span>`).join(' · ');
+      return `<tr class="${a.active?'diff-changed':''}"><td>${esc(a.num)}</td><td>${esc(a.date)}</td><td>${esc(a.source)}</td><td>${diff}</td><td>${a.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td></tr>`;
+    });
+    return `
+      <div class="section-h">Базовый комплект условий (Р-2)</div>
+      ${locked?`<div class="info-plate">${svgInfo()}<div>Условия зафиксированы: ЖЦ «${esc(c.lifecycle)}». Прямое редактирование недоступно (Г-9) — только доп. соглашением.</div></div>`:''}
+      <div class="f2" style="margin-top:12px">
+        ${bf('Ставка, %', esc(b.rate))}
+        ${bf('Плавающая', b.floating?'да':'нет')}
+        ${bf('Срок, мес.', esc(b.term))}
+        ${bf('Периодичность', esc(b.freq))}
+        ${bf('Метод погашения', esc(b.method))}
+        ${bf('Метод дней', esc(b.dayMethod))}
+        ${bf('Очередь погашения', esc(b.queue))}
+        ${bf('Ставка резерва, %', esc(b.reserveRate))}
+        ${bf('Пеня по ОД, %/дн', esc(b.penaltyMain))}
+        ${bf('Пеня по %, %/дн', esc(b.penaltyInt))}
+        ${bf('Макс. пеня, %', esc(b.penaltyMaxPct))}
+      </div>
+
+      <div class="section-h" style="margin-top:22px">Льготные периоды</div>
+      <div class="f2">
+        ${bf('Льгота по ОД, мес.', esc(b.graceMain))}
+        ${bf('Льгота по %, мес.', esc(b.graceInterest))}
+        ${bf('Отсрочка начисления, мес.', esc(b.graceAccrual))}
+      </div>
+
+      <div class="section-h" style="margin-top:22px">Условия траншей — отклонение от базы</div>
+      ${cgrid([{h:'Транш'},{h:'Ставка'},{h:'Срок'},{h:'Метод'},{h:'Периодичность'},{h:'Резерв, %'}], trRows, {empty:'Траншей нет'})}
+
+      <div class="section-h" style="margin-top:22px">Доп. соглашения (Р-4)</div>
+      ${cgrid([{h:'Номер'},{h:'Дата'},{h:'Источник'},{h:'Изменение'},{h:'Статус'}], agRows, {empty:'Соглашений нет'})}
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('addAgreement','Оформить доп. соглашение','CR.toggleAgrForm()','btn btn-primary btn-sm')}</div>
+      ${agrFormOpen?agrForm(c):''}`;
+  }
+  function agrForm(c){
+    const b=c.baseConditions;
+    return `<div class="ms-card">
+      <div class="ms-card-h"><span class="mt">Конструктор доп. соглашения (Р-4, Г-10)</span></div>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Номер ДС</span><div class="control"><input id="agrNum" placeholder="ДС-..."></div></div>
+        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="agrDate" placeholder="дд.мм.гггг"></div></div>
+        <div class="field"><span class="flabel">Ставка: было</span><div class="control"><input id="agrBeforeRate" type="number" value="${esc(b.rate)}"></div></div>
+        <div class="field"><span class="flabel">Ставка: стало</span><div class="control"><input id="agrAfterRate" type="number" value="${esc(b.rate)}"></div></div>
+        <div class="field"><span class="flabel">Срок: было</span><div class="control"><input id="agrBeforeTerm" type="number" value="${esc(b.term)}"></div></div>
+        <div class="field"><span class="flabel">Срок: стало</span><div class="control"><input id="agrAfterTerm" type="number" value="${esc(b.term)}"></div></div>
+      </div>
+      <div class="ms-acts">
+        <button class="btn btn-primary btn-sm" onclick="CR.submitAgr()">Оформить</button>
+        <button class="btn btn-secondary btn-sm" onclick="CR.toggleAgrForm()">Отмена</button>
+      </div>
+    </div>`;
+  }
+
+  /* ---- ВКЛАДКА 3: Транши и освоение ---- */
+  function tabTranshi(c,d){
+    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    const trRows=c.tranches.map(t=>{
+      const s=disbursedSum(t), rest=(t.amount||0)-s, on=sel&&t.no===sel.no;
+      return `<tr style="cursor:pointer${on?';background:var(--asubk-nav-active)':''}" onclick="CR.selectDetailTranche(${t.no})">
+        <td>№${t.no}</td><td>${esc(t.subject.name)}<br><span style="color:var(--text-muted);font-size:11px">ИНН ${esc(t.subject.inn)}</span></td>
+        <td style="text-align:right">${money(t.amount)}</td><td>${esc(t.plannedDate)}</td>
+        <td style="text-align:right">${money(s)}</td><td style="text-align:right">${money(rest)}</td>
+        <td>${esc(trancheState(t))}</td></tr>`;
+    });
+    const dbRows=((sel&&sel.disbursements)||[]).map(x=>`<tr><td>${esc(x.date)}</td><td style="text-align:right">${money(x.amount)}</td><td>${esc(x.order)}</td><td>${esc(x.purpose)}</td><td>${esc(x.doc)}</td></tr>`);
+    return `
+      <div class="section-h">Распределение суммы договора</div>
+      <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
+        <div class="dim"><div class="dl">Одобрено</div><div class="dv">${money(c.approvedAmount)}</div></div>
+        <div class="dim"><div class="dl">Сумма договора</div><div class="dv">${money(c.contractAmount)}</div></div>
+        <div class="dim"><div class="dl">Распределено по траншам</div><div class="dv">${money(d.allocated)}</div></div>
+        <div class="dim"><div class="dl">Доступно к распределению</div><div class="dv">${money(d.allocatable)}</div></div>
+      </div>
+      <div class="section-h" style="margin-top:22px">Транши (клик — выбор)</div>
+      ${cgrid([{h:'Транш'},{h:'Субъект'},{h:'Сумма',r:1},{h:'План. дата'},{h:'Освоено',r:1},{h:'Остаток',r:1},{h:'Состояние'}], trRows, {empty:'Траншей нет'})}
+      <div class="gtoolbar" style="margin-top:12px">
+        ${roleBtn('addTranche','Добавить транш',"CR.stubAction('Добавление транша')")}
+        ${actBtn(c,'addDisbursement',{trancheNo:detailTrancheNo,amount:0},'Внести освоение','CR.toggleDisbForm()','btn btn-primary btn-sm')}
+        ${roleBtn('addDisbursement','Закрыть неосвоенный остаток',"CR.stubAction('Закрытие неосвоенного остатка')")}
+      </div>
+      ${disbFormOpen?disbForm(c):''}
+      <div class="section-h" style="margin-top:22px">Освоение транша №${sel?sel.no:'—'}</div>
+      ${cgrid([{h:'Дата'},{h:'Сумма',r:1},{h:'Плат. поручение'},{h:'Назначение'},{h:'Документ'}], dbRows, {empty:'Освоений нет'})}`;
+  }
+  function disbForm(c){
+    return `<div class="ms-card">
+      <div class="ms-card-h"><span class="mt">Внести освоение (Г-4 · Г-5 · Г-6)</span></div>
+      <div class="mform">
+        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="disbTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===detailTrancheNo?' selected':''}>№${t.no} · сумма ${money(t.amount)} · освоено ${money(disbursedSum(t))}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field req"><span class="flabel">Сумма освоения</span><div class="control"><input id="disbAmount" type="number" min="0" placeholder="0"></div></div>
+        <div class="field"><span class="flabel">Плат. поручение</span><div class="control"><input id="disbOrder" placeholder="ПП-..."></div></div>
+        <div class="field"><span class="flabel">Назначение</span><div class="control"><input id="disbPurpose" placeholder="Оплата ..."></div></div>
+      </div>
+      <div class="ms-acts">
+        <button class="btn btn-primary btn-sm" onclick="CR.submitDisb()">Сохранить освоение</button>
+        <button class="btn btn-secondary btn-sm" onclick="CR.toggleDisbForm()">Отмена</button>
+      </div>
+    </div>`;
+  }
+
+  /* ---- ВКЛАДКА 4: Расчёты ---- */
+  function tabRaschety(c,d){
+    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    const st=d.scheduleTotals;
+    const verRows=((sel&&sel.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver).map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td><td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`);
+    const src = calcConsolidated ? c.tranches.flatMap(t=>(t.ledger||[]).map(l=>({t,l}))) : ((sel&&sel.ledger)||[]).map(l=>({t:sel,l}));
+    const ledRows=src.map(({t,l})=>`<tr>
+      <td style="position:sticky;left:0;background:var(--surface-card)">№${l.no}</td>
+      <td style="position:sticky;left:52px;background:var(--surface-card)">${esc(l.date)}</td>
+      <td style="text-align:right">${money(l.received)}</td>
+      <td style="text-align:right">${money(l.principalBal)}</td><td style="text-align:right">${money(l.principalPaid)}</td><td style="text-align:right">${money(l.principalDue)}</td><td style="text-align:right;color:${l.principalOverdue>0?'var(--asubk-red)':'inherit'}">${money(l.principalOverdue)}</td>
+      <td style="text-align:right">${esc(l.days)}</td>
+      <td style="text-align:right">${money(l.interestAccrued)}</td><td style="text-align:right">${money(l.interestPaid)}</td><td style="text-align:right">${money(l.interestDue)}</td><td style="text-align:right;color:${l.interestOverdue>0?'var(--asubk-red)':'inherit'}">${money(l.interestOverdue)}</td>
+      <td style="text-align:right">${money(l.penaltyAccrued)}</td><td style="text-align:right">${money(l.penaltyPaid)}</td><td style="text-align:right;color:${l.penaltyBal>0?'var(--asubk-red)':'inherit'}">${money(l.penaltyBal)}</td>
+      <td style="text-align:right">${money(l.totalPaid)}</td></tr>`);
+    const led=`<div class="cgrid-wrap"><table class="cgrid"><thead>
+      <tr><th colspan="2" style="position:sticky;left:0;background:var(--surface-card)">Позиция</th><th>Получено</th><th colspan="5">Основной долг</th><th colspan="4">Проценты</th><th colspan="3">Штрафы / пеня</th></tr>
+      <tr><th style="position:sticky;left:0;background:var(--surface-card)">№</th><th style="position:sticky;left:52px;background:var(--surface-card)">Дата</th><th>Оплата</th><th>Остаток</th><th>Погашено</th><th>К оплате</th><th>Просрочено</th><th>Дней</th><th>Начислено</th><th>Оплачено</th><th>К оплате</th><th>Просрочено</th><th>Начислено</th><th>Оплачено</th><th>Остаток</th><th>Итого</th></tr>
+      </thead><tbody>${ledRows.length?ledRows.join(''):`<tr><td colspan="16"><div class="cgrid-empty">Детального расчёта нет — сформируйте график</div></td></tr>`}</tbody></table></div>`;
+    const res=d.reserveAccrual;
+    const resBlock=res.applies?`<div class="section-h" style="margin-top:22px">Резерв за неполное освоение</div>
+      <p class="section-note">Начисляется на недоосвоенный остаток от плановой даты (ставка ${res.rate}%). Всего: <b>${money(res.totalAmount)}</b> на базу ${money(res.totalBase)}.</p>
+      ${cgrid([{h:'Транш'},{h:'База',r:1},{h:'Ставка, %',r:1},{h:'Дней',r:1},{h:'Сумма',r:1}], res.perTranche.map(p=>`<tr><td>${esc(p.trancheId)}</td><td style="text-align:right">${money(p.base)}</td><td style="text-align:right">${esc(p.rate)}</td><td style="text-align:right">${esc(p.days)}</td><td style="text-align:right">${money(p.amount)}</td></tr>`))}`:'';
+    const holdRows=(c.accrualHold||[]).map(h=>`<tr><td>${esc(h.from)}</td><td>${esc(h.to||'…')}</td><td>${esc(h.reason)}</td><td>${esc(h.doc)}</td></tr>`);
+    return `
+      <div class="section-h">График погашения</div>
+      <div class="gtoolbar">
+        <div class="field" style="max-width:320px"><span class="flabel">Транш</span><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="retro-toggle" onclick="CR.setCalcMode(${!calcConsolidated})"><input type="checkbox" ${calcConsolidated?'checked':''} onclick="event.preventDefault()"> консолидировано по кредиту</div>
+        <span class="spacer"></span>
+        ${actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.toggleSchedForm()','btn btn-primary btn-sm')}
+        ${roleBtn('holdAccrual','Приостановить начисление',"CR.stubAction('Приостановление начисления')")}
+      </div>
+      ${schedFormOpen?schedForm(c):''}
+      <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
+        <div class="dim"><div class="dl">Платежей в графике</div><div class="dv">${st.count}</div></div>
+        <div class="dim"><div class="dl">Регулярный платёж</div><div class="dv">${money(st.regularPay)}</div></div>
+        <div class="dim"><div class="dl">Σ основной долг</div><div class="dv">${money(st.principalSum)}</div></div>
+        <div class="dim"><div class="dl">Σ проценты</div><div class="dv">${money(st.interestSum)}</div></div>
+        <div class="dim"><div class="dl">Итого к погашению</div><div class="dv">${money(st.total)}</div></div>
+      </div>
+      <div class="section-h" style="margin-top:22px">Версии графика (транш №${sel?sel.no:'—'})</div>
+      ${cgrid([{h:'Версия'},{h:'Статус'},{h:'От даты'},{h:'Строк',r:1}], verRows, {empty:'Версий графика нет — сформируйте'})}
+      <div class="section-h" style="margin-top:22px">Детальный расчёт ${calcConsolidated?'(консолидировано)':'(транш №'+(sel?sel.no:'—')+')'}</div>
+      ${led}
+      ${resBlock}
+      <div class="section-h" style="margin-top:22px">Приостановление начисления (Р-17)</div>
+      ${cgrid([{h:'С'},{h:'По'},{h:'Основание'},{h:'Документ'}], holdRows, {empty:'Активных приостановок нет'})}`;
+  }
+  function schedForm(c){
+    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    const defFrom=(sel&&sel.disbursements[0]&&sel.disbursements[0].date)||'';
+    return `<div class="ms-card">
+      <div class="ms-card-h"><span class="mt">Сформировать график (Г-8)</span></div>
+      <div class="mform">
+        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="schedTranche">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}${t.disbursements.length?'':' (не освоен)'}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field req"><span class="flabel">Дата начала (от освоения)</span><div class="control"><input id="schedFrom" value="${esc(defFrom)}" placeholder="дд.мм.гггг"></div></div>
+      </div>
+      <div class="warn-inline">${svgInfo()}<div>График строится только от фактической даты освоения транша. Предыдущая активная версия архивируется (не удаляется).</div></div>
+      <div class="ms-acts">
+        <button class="btn btn-primary btn-sm" onclick="CR.submitSched()">Сформировать</button>
+        <button class="btn btn-secondary btn-sm" onclick="CR.toggleSchedForm()">Отмена</button>
+      </div>
+    </div>`;
+  }
+
+  /* ---- ВКЛАДКА 5: Платежи (зеркало модуля платежей, Р-5) ---- */
+  function tabPlatezhi(c,d){
+    const pays=(c.mirror.payments||[]);
+    const payRows=pays.map(p=>{
+      const ed=CR.paymentEditable(c,p);
+      const layers=Object.keys(p.layers||{}).length?Object.entries(p.layers).map(([k,v])=>`${esc(k)}: ${money(v)}`).join(' · '):'—';
+      return `<tr>
+        <td>${esc(p.num)}</td><td>${esc(p.date)}</td><td style="text-align:right">${money(p.amount)}</td><td>№${esc(p.tranche)}</td>
+        <td>${esc(p.reg)}</td><td>${esc(p.match)}</td><td>${p.frozen?'заморожен':'—'}</td>
+        <td>${layers}</td><td>${ed?'<span class="pill info">правка возможна</span>':'<span class="pill neutral">read-only ЦК</span>'}</td></tr>`;
+    });
+    const b=d.debt;
+    const drow=(name,x)=>`<tr><td>${name}</td><td style="text-align:right">${money(x.accrued)}</td><td style="text-align:right">${money(x.paid)}</td><td style="text-align:right;color:${x.overdue>0?'var(--asubk-red)':'inherit'}">${money(x.overdue)}</td><td style="text-align:right">${money(x.bal)}</td></tr>`;
+    const courts=(c.mirror.collection||[]).filter(x=>/суд|решени/i.test((x.subject||'')+(x.phase||'')));
+    return `
+      <div class="section-h">Платежи ${lockHtml()}</div>
+      <p class="section-note">Зеркало модуля платежей. Три оси на платёж: регистрация · сопоставление · заморозка. Слои показаны, но не редактируются здесь.</p>
+      ${cgrid([{h:'№'},{h:'Дата'},{h:'Сумма',r:1},{h:'Транш'},{h:'Регистрация'},{h:'Сопоставление'},{h:'Заморозка'},{h:'Слои'},{h:'Правка'}], payRows, {empty:'Платежей нет'})}
+      <div class="mirror-src">Источник: модуль платежей (Р-5). Ручной ввод — вызов формы владельца, платёж повисает «Ожидает ЦК» и не двигает остатки до подтверждения ЦК.</div>
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('savePayment','Внести платёж вручную',"CR.stubAction('Ручной ввод платежа')",'btn btn-primary btn-sm')}</div>
+      ${courts.length?`<div class="info-plate">${svgInfo()}<div>Есть судебное решение: возможна множественность слоёв начисления (шов №5, §10.4) — сначала сумма по решению, затем договор. Матрица очередей — вне макета.</div></div>`:''}
+      <div class="section-h" style="margin-top:22px">Задолженность (из детального расчёта)</div>
+      <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Слой</th><th style="text-align:right">Начислено</th><th style="text-align:right">Оплачено</th><th style="text-align:right">Просрочено</th><th style="text-align:right">Остаток</th></tr></thead><tbody>
+        ${drow('Основной долг', b.principal)}${drow('Проценты', b.interest)}${drow('Пеня / штрафы', b.penalty)}
+      </tbody></table></div>`;
+  }
+
+  /* ---- ВКЛАДКА 6: Обеспечение (зеркало залогового модуля, Р-7) ---- */
+  function tabObespechenie(c,d){
+    const cov=d.coverage, light=cov.ok?'var(--asubk-green)':'var(--asubk-red)';
+    const pledgeRows=[];
+    for(const p of (c.mirror.pledges||[])) for(const it of (p.items||[])){
+      pledgeRows.push(`<tr>
+        <td>${esc(p.contractNum)}</td><td>${esc(it.name)}</td><td>${esc(it.kind)}</td>
+        <td style="text-align:right">${money(it.appraised)}</td><td style="text-align:right">${money(it.pledgeValue)}</td><td style="text-align:right">${Math.round((it.share==null?1:it.share)*100)}%</td>
+        <td>${p.liquid?'<span class="pill low">ликвид</span>':'<span class="pill mid">неликвид</span>'}</td>
+        <td>${p.ban?'<span class="pill info">запрет</span>':'—'}</td>
+        <td>${(p.otherCredits&&p.otherCredits.length)?esc(p.otherCredits.join(', ')):'—'}</td></tr>`);
+    }
+    const bg=c.mirror.bankGuarantee, guars=(c.mirror.guarantees||[]);
+    return `
+      <div class="section-h">Обеспечение ${lockHtml()}</div>
+      <p class="section-note">Зеркало залогового модуля. Залоговые договоры создаются только в модуле залога (Р-7) — здесь доступна привязка существующего.</p>
+      ${cgrid([{h:'Договор залога'},{h:'Предмет'},{h:'Вид'},{h:'Оценочная',r:1},{h:'Залоговая',r:1},{h:'Доля'},{h:'Ликвидность'},{h:'Запрет отчуждения'},{h:'Также обеспечивает'}], pledgeRows, {empty:'Обеспечение не привязано'})}
+      <div class="mirror-src">Источник: модуль залога (Р-7). Данные read-only.</div>
+      <div class="section-h" style="margin-top:22px">Покрытие</div>
+      <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
+        <div class="dim"><div class="dl">Индекс покрытия</div><div class="dv"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${light};margin-right:6px"></span>${Math.round(cov.index*100)}%</div></div>
+        <div class="dim"><div class="dl">Порог</div><div class="dv">${cov.req}%</div></div>
+        <div class="dim"><div class="dl">Доля ликвида</div><div class="dv">${Math.round(cov.liquidShare*100)}%</div></div>
+        <div class="dim"><div class="dl">Статус</div><div class="dv" style="color:${light}">${cov.ok?'достаточно':'недостаточно'}</div></div>
+      </div>
+      <div class="mirror-src">База покрытия: ${esc(cov.source)}. Банковская гарантия входит в индекс, поручительство — нет.</div>
+      ${bg?`<div class="section-h" style="margin-top:22px">Банковская гарантия (в индексе)</div><div class="f2">${fld('Банк',esc(bg.bank))}${fld('Сумма',money(bg.amount))}${fld('Действует до',esc(bg.till))}</div>`:''}
+      ${guars.length?`<div class="info-plate">${svgInfo()}<div>Поручительство (${guars.map(g=>esc(g.party)).join(', ')}) — параллельный слой обеспечения, в индекс покрытия НЕ входит (открытый вопрос §10.2).</div></div>`:''}
+      <div class="gtoolbar" style="margin-top:16px">
+        ${roleBtn('linkPledge','Привязать существующий',"CR.stubAction('Привязка залогового договора (Г-13)')",'btn btn-primary btn-sm')}
+        <button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля залога — вне объёма макета')">Открыть в модуле залога</button>
+      </div>`;
+  }
+
+  /* ---- ВКЛАДКА 7: Проблемные ---- */
+  function tabProblemnye(c,d){
+    const grp=(c.mirror.borrowerRisk&&c.mirror.borrowerRisk.group)||null;
+    const byDays=d.overdueDays>=181?'высокий':d.overdueDays>=1?'средний':'низкий';
+    const byGroup=(grp==='C'||grp==='D')?'высокий':grp==='B'?'средний':'низкий';
+    const rs=c.mirror.restructuring||{count:0,active:null};
+    const collRows=(c.mirror.collection||[]).map(x=>`<tr><td>${esc(x.processId)}</td><td>${esc(x.contour)}</td><td>${esc(x.phase)}</td><td>${esc(x.subject)}</td><td style="text-align:right">${money(x.claim)}</td><td>${esc(x.since)}</td></tr>`);
+    const hasBankruptcy=d.overlays.some(o=>o.kind==='bankruptcy');
+    return `
+      <div class="section-h">Категория риска — worst-of</div>
+      <div class="cat-expand">
+        <div class="row"><span class="ck">По просрочке (${d.overdueDays} дн.):</span> <b class="cat-${catClsOf(byDays)}">${byDays}</b></div>
+        <div class="row"><span class="ck">По группе заёмщика (${esc(grp||'—')}):</span> <b class="cat-${catClsOf(byGroup)}">${byGroup}</b></div>
+        <div class="row"><span class="ck">Итоговая (худшая):</span> <b class="cat-${catClsOf(d.riskCategory)}">${d.riskCategory}</b></div>
+      </div>
+      ${d.overlays.some(o=>o.kind==='suppress181')?`<div class="info-plate">${svgInfo()}<div>Подавление 181-го дня активно: дни просрочки для категории ограничены 180 (активная реструктуризация / пауза начисления).</div></div>`:''}
+
+      <div class="section-h" style="margin-top:22px">Реструктуризация ${lockHtml()}</div>
+      ${rs.active?`<div class="f2">${fld('Стадия',esc(rs.active.stage))}${fld('Дедлайн',esc(rs.active.deadline))}${fld('Всего заявок',esc(rs.count))}</div>`
+        :`<p class="section-note">Активной реструктуризации нет. Всего заявок: ${rs.count}.</p>`}
+      <div class="mirror-src">Источник: модуль реструктуризации (Р-16). Read-only — из кредита не заводится.</div>
+
+      <div class="section-h" style="margin-top:22px">Взыскание ${lockHtml()}</div>
+      ${cgrid([{h:'Процесс'},{h:'Контур'},{h:'Фаза'},{h:'Предмет'},{h:'Требование',r:1},{h:'С даты'}], collRows, {empty:'Процессов взыскания нет'})}
+      <div class="mirror-src">Источник: модуль взыскания (Р-16). Контуры К0–К7. Read-only.</div>
+
+      <div class="section-h" style="margin-top:22px">Банкротство ${lockHtml()}</div>
+      <p class="section-note">${hasBankruptcy?'Признаки банкротства зафиксированы (зеркало модуля взыскания).':'Процедур банкротства нет.'}</p>
+      <div class="mirror-src">Источник: модуль взыскания (Р-16).</div>
+
+      <div class="gtoolbar" style="margin-top:16px">${roleBtn('writeOff','Списать',"CR.stubAction('Списание — реквизиты решения (Г-12)')",'btn btn-tint danger btn-sm')}</div>`;
+  }
+
+  /* ---- ВКЛАДКА 8: Досье ---- */
+  function docState(s){
+    const map={'принят':'low','не требуется':'neutral','на проверке':'info','загружен':'info','требуется':'mid','отклонён':'high','просрочен':'high'};
+    return `<span class="pill ${map[s]||'neutral'}">${esc(s||'—')}</span>`;
+  }
+  function tabDosye(c,d){
+    const docRows=(c.docs||[]).map(x=>`<tr><td>${esc(x.kind)}</td><td>${esc(x.name)}</td><td>${docState(x.state)}</td><td>${esc(x.date)}</td><td>${esc(x.file)}</td></tr>`);
+    const tu=c.targetUse||{};
+    const auditRows=(c.audit||[]).slice().reverse().map(a=>`<div class="hrow"><div class="hwhen">${esc(a.when)} · ${esc(a.who)}</div><div class="hwhat">${esc(a.what)}</div></div>`);
+    return `
+      <div class="section-h">Документы кредита</div>
+      <p class="section-note">Жизненный цикл документа: требуется → загружен → на проверке → принят / отклонён / не требуется / просрочен.</p>
+      ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Состояние'},{h:'Дата'},{h:'Файл'}], docRows, {empty:'Документов нет'})}
+
+      <div class="section-h" style="margin-top:22px">Целевое использование (Р-15)</div>
+      <div class="f2">
+        ${fld('Подтверждающих документов', esc((tu.docs||[]).length))}
+        ${fld('Проверок', esc((tu.checks||[]).length))}
+        ${fld('Мер реагирования', esc((tu.measures||[]).length))}
+        ${fld('Решение Комитета (нецелевое)', tu.committeeDecision?esc(tu.committeeDecision.num||'есть'):null)}
+      </div>
+
+      <div class="section-h" style="margin-top:22px">Журнал (append-only)</div>
+      <div class="gtoolbar"><div class="field" style="max-width:360px"><span class="flabel">Фильтр по типу</span><div class="control"><input placeholder="например: addDisbursement" oninput="CR.filterAudit(this.value)"></div></div></div>
+      <div class="hist" id="cr-audit">${auditRows.length?auditRows.join(''):'<div class="hrow"><div class="hwhat">Записей журнала нет</div></div>'}</div>`;
+  }
+
+  /* ---- диспетчер вкладок + рендер карточки ---- */
+  function renderTab(name, c){
+    switch(name){
+      case 'Договор': return tabDogovor(c, derive(c));
+      case 'Условия': return tabUsloviya(c, derive(c));
+      case 'Транши и освоение': return tabTranshi(c, derive(c));
+      case 'Расчёты': return tabRaschety(c, derive(c));
+      case 'Платежи': return tabPlatezhi(c, derive(c));
+      case 'Обеспечение': return tabObespechenie(c, derive(c));
+      case 'Проблемные': return tabProblemnye(c, derive(c));
+      case 'Досье': return tabDosye(c, derive(c));
+      default: return tabDogovor(c, derive(c));
+    }
+  }
+  function renderDetail(c){
+    const host=document.getElementById('cr-card-body'); if(!host) return;
+    const d=derive(c);                                              // СВЕЖИЙ расчёт на каждый рендер (Р-11)
+    host.innerHTML = `<div class="panel-wrap" style="padding-bottom:0">${headerHtml(c,d)}</div>`
+      + tabbarHtml()
+      + `<div class="panel-wrap"><div class="panel-card">${renderTab(detailTab,c)}</div></div>`;
+  }
+  function rerenderDetail(){ const c=currentCredit(); if(c) renderDetail(c); }
+  function openTab(name){ detailTab=name; disbFormOpen=schedFormOpen=agrFormOpen=false; rerenderDetail(); }
+
+  /* ---- обвязка действий карточки (onclick-строки живут в глобальной области → CR.*) ---- */
+  CR.renderDetail=renderDetail; CR.renderTab=renderTab; CR.openTab=openTab; CR.rerenderDetail=rerenderDetail;
+  CR.selectDetailTranche=function(no){ detailTrancheNo=no; rerenderDetail(); };
+  CR.setCalcMode=function(v){ calcConsolidated=!!v; rerenderDetail(); };
+  CR.stubAction=function(name){ toast('Действие «'+name+'» — форма реализуется в Task 8'); };
+  CR.filterAudit=function(q){ q=(q||'').toLowerCase(); const host=document.getElementById('cr-audit'); if(!host) return;
+    [...host.querySelectorAll('.hrow')].forEach(el=>{ el.style.display = el.textContent.toLowerCase().includes(q)?'':'none'; }); };
+  CR.toggleDisbForm=function(){ const c=currentCredit();
+    if(!disbFormOpen){ if(!canRole(currentRole,'addDisbursement')){ toast('Роль «'+currentRole+'» не может вносить освоение','warn'); return; }
+      const g=gate(c,'addDisbursement',{trancheNo:detailTrancheNo,amount:0}); if(!g.ok){ toast(g.reasons.join(' · '),'warn'); return; } }
+    disbFormOpen=!disbFormOpen; rerenderDetail(); };
+  CR.submitDisb=function(){ const c=currentCredit();
+    const no=+document.getElementById('disbTranche').value;
+    const amount=+document.getElementById('disbAmount').value||0;
+    const order=document.getElementById('disbOrder').value, purpose=document.getElementById('disbPurpose').value;
+    if(!canRole(currentRole,'addDisbursement')){ toast('Роль «'+currentRole+'» не может вносить освоение','warn'); return; }
+    const r=CR.addDisbursement(c,{trancheNo:no,amount,order,purpose}); if(!r.ok){ toast(r.reasons.join(' · '),'warn'); return; }
+    disbFormOpen=false; detailTrancheNo=no; toast('Освоение внесено: '+money(amount),'ok'); rerenderDetail(); };
+  CR.toggleSchedForm=function(){ const c=currentCredit(); const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    if(!schedFormOpen){ if(!canRole(currentRole,'buildSchedule')){ toast('Роль «'+currentRole+'» не может формировать график','warn'); return; }
+      const g=gate(c,'buildSchedule',{tranche:sel}); if(!g.ok){ toast(g.reasons.join(' · '),'warn'); return; } }
+    schedFormOpen=!schedFormOpen; rerenderDetail(); };
+  CR.submitSched=function(){ const c=currentCredit();
+    const no=+document.getElementById('schedTranche').value, from=document.getElementById('schedFrom').value;
+    if(!canRole(currentRole,'buildSchedule')){ toast('Роль «'+currentRole+'» не может формировать график','warn'); return; }
+    const r=CR.generateSchedule(c,no,{from}); if(r&&r.ok===false){ toast(r.reasons.join(' · '),'warn'); return; }
+    schedFormOpen=false; detailTrancheNo=no; toast('График сформирован: версия v'+(r.ver||'?'),'ok'); rerenderDetail(); };
+  CR.toggleAgrForm=function(){ if(!agrFormOpen && !canRole(currentRole,'addAgreement')){ toast('Роль «'+currentRole+'» не может оформлять доп. соглашения','warn'); return; }
+    agrFormOpen=!agrFormOpen; rerenderDetail(); };
+  CR.submitAgr=function(){ const c=currentCredit();
+    const num=document.getElementById('agrNum').value, date=document.getElementById('agrDate').value;
+    const before={rate:+document.getElementById('agrBeforeRate').value, term:+document.getElementById('agrBeforeTerm').value};
+    const after={rate:+document.getElementById('agrAfterRate').value, term:+document.getElementById('agrAfterTerm').value};
+    if(!canRole(currentRole,'addAgreement')){ toast('Роль «'+currentRole+'» не может оформлять доп. соглашения','warn'); return; }
+    const r=CR.addAgreement(c,{num,date,source:'кредит',before,after}); if(!r.ok){ toast(r.reasons.join(' · '),'warn'); return; }
+    agrFormOpen=false; toast('Доп. соглашение '+num+' оформлено','ok'); rerenderDetail(); };
 
   /* экспорт DOM-обвязки на CR (onclick-строки разметки живут в глобальной области) */
   CR._sel = null;
