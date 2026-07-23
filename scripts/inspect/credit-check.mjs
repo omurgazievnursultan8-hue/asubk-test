@@ -66,7 +66,48 @@ const byId = (db, id) => db.credits.find(c => c.id === id);
   ok(25, s0==='Частично освоен' && s1==='Полностью освоен', `${s0}→${s1}`);
 })();
 
-// … далее Task 2+ дописывают ok(1)…ok(28) …
+/* 1/2. Г-1: сумма договора > одобренной → блок; = → проходит. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const bad = CR.gate(c,'saveContractAmount',{value:c.approvedAmount+1}).ok;
+  const good= CR.gate(c,'saveContractAmount',{value:c.approvedAmount}).ok;
+  ok(1, bad===false); ok(2, good===true);
+})();
+/* 3. Г-2: создание из заявки без одобрения → блок. */
+(() => { const db=CR.seedDb(); const app=db.applications.find(a=>a.approved===false);
+  ok(3, CR.gate(null,'createCredit',{application:app}).ok===false);
+})();
+/* 4. Г-3: сумма транша сверх доступного остатка → блок; в пределах — проходит. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const d=CR.derive(c);
+  ok(4, CR.gate(c,'addTranche',{amount:d.allocatable+1}).ok===false
+      && CR.gate(c,'addTranche',{amount:d.allocatable}).ok===true);
+})();
+/* 6. Г-5: освоение при ЖЦ «Проект» → блок. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); c.lifecycle='Проект';
+  ok(6, CR.gate(c,'addDisbursement',{trancheNo:1, amount:1}).ok===false);
+})();
+/* 9. Г-7: регистрация без скана/комплекта → блок. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-5'); c.reg.scan=null;
+  ok(9, CR.gate(c,'register',{}).ok===false);
+})();
+/* 12. Г-9: правка ставки прямым вводом после «Зарегистрирован» → блок. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); // lifecycle≥Зарегистрирован
+  ok(12, CR.gate(c,'editConditions',{field:'rate'}).ok===false);
+})();
+/* 17. Г-13: привязка залога с чужим ИНН → блок. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const alien = db.pledgesRegistry.find(p=>p.pledgorInn!==c.borrower.inn);
+  ok(17, CR.gate(c,'linkPledge',{pledge:alien}).ok===false);
+})();
+/* 23. Г-12: списание без реквизитов решения → блок. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-3');
+  ok(23, CR.gate(c,'writeOff',{doc:null}).ok===false
+      && CR.gate(c,'writeOff',{doc:{kind:'Решение',num:'1',date:'01.07.2026'}}).ok===true);
+})();
+/* 26. Роль «Наблюдатель»: все действия заблокированы. */
+(() => { ok(26, ['saveContractAmount','addTranche','savePayment','writeOff','register']
+   .every(a => CR.canRole('Наблюдатель', a)===false)); })();
+
+// … далее Task 4+ дописывают ok(5,7,8,10,11,13…16,18,22,24,27,28) …
 
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;

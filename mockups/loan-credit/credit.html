@@ -59,13 +59,24 @@
       Макет: простой календарь (сб/вс), без праздников.
 
   SMOKE (node)
- SMOKE (node) 2026-07-23 · 6/6 PASS
+ SMOKE (node) 2026-07-23 · 16/16 PASS
    #0a ✓
    #0b ✓
    #19 ✓
    #20 ✓
    #21 ✓
    #25 ✓
+   #1 ✓
+   #2 ✓
+   #3 ✓
+   #4 ✓
+   #6 ✓
+   #9 ✓
+   #12 ✓
+   #17 ✓
+   #23 ✓
+   #26 ✓
+
 
 
 
@@ -1190,13 +1201,95 @@ function derive(c){
            reserveAccrual, scheduleTotals };
 }
 
-/* ---- gate / canRole / мутации — следующие задачи ---- */
+/* ---- 3.4 requiredDocsComplete(credit) — обязательный комплект документов (Г-7).
+   Документ считается закрывающим гейт, если его состояние окончательное и не
+   блокирующее: «принят» либо «не требуется» (§5.3: «принят / отклонён / не
+   требуется / просрочен»). Любой документ в состоянии «отклонён»/«просрочен»
+   или без явного состояния — комплект не собран. */
+function requiredDocsComplete(credit){
+  return (credit.docs || []).every(doc => doc.state === 'принят' || doc.state === 'не требуется');
+}
+
+/* ============================================================
+   4. gate(credit, action, ctx) — единая точка блокировок Г-1…Г-16 (Task 3).
+   Чистая функция: только чтение credit/ctx через derive(), никаких побочных
+   эффектов. Г-10 — внутри addAgreement (Task 5). Г-17 — структурный запрет
+   (нет кнопок «Удалить»), в gate() не участвует.
+   ============================================================ */
+function gate(credit, action, ctx = {}){
+  const r = []; const d = credit ? derive(credit) : null;
+  switch(action){
+    case 'saveContractAmount':
+      if (ctx.value > credit.approvedAmount) r.push('Сумма договора не может превышать одобренную ('+money(credit.approvedAmount)+')'); // Г-1
+      break;
+    case 'createCredit':
+      if (!ctx.application || ctx.application.approved!==true) r.push('Кредит создаётся только из одобренной заявки'); // Г-2
+      else if (ctx.application.creditId) r.push('У заявки уже есть кредит');
+      break;
+    case 'addTranche':
+      if (ctx.amount > d.allocatable) r.push('Σ сумм траншей не может превышать сумму договора (доступно '+money(d.allocatable)+')'); // Г-3
+      break;
+    case 'addDisbursement': {
+      const t = credit.tranches.find(x=>x.no===ctx.trancheNo);
+      const already = t ? disbursedSum(t) : 0;
+      if (t && ctx.amount + already > t.amount) r.push('Σ освоений транша не может превышать сумму транша'); // Г-4
+      if (!['Зарегистрирован','Действует'].includes(credit.lifecycle)) r.push('Освоение возможно только при ЖЦ «Зарегистрирован» или «Действует»'); // Г-5
+      if (!d.coverage.ok && !credit.kmDecision && !(credit.mirror && credit.mirror.pledgeWaiver)) r.push('Провал покрытия: нужны реквизиты решения КМ (Р-8) или waiver комиссии по залогу'); // Г-6
+      break;
+    }
+    case 'register': {                                                                     // Г-7
+      if (!credit.num || !credit.date || !credit.reg.scan) r.push('Нужны номер, дата и скан договора');
+      if (!requiredDocsComplete(credit)) r.push('Не собран обязательный комплект документов');
+      if (!d.coverage.ok && !credit.kmDecision && !(credit.mirror && credit.mirror.pledgeWaiver)) r.push('Не пройден гейт покрытия (или исключение Г-6)');
+      break;
+    }
+    case 'buildSchedule':
+      if (!ctx.tranche || ctx.tranche.disbursements.length===0) r.push('График строится только от фактической даты освоения транша'); // Г-8
+      break;
+    case 'editConditions':
+      if (credit.lifecycle!=='Проект') r.push('Изменение условий — только доп. соглашением'); // Г-9
+      break;
+    case 'savePayment':                                                                    // Г-11
+      if (!(ctx.amount>0)) r.push('Сумма платежа должна быть > 0');
+      if (ctx.dateAfterToday) r.push('Дата платежа не может быть в будущем');
+      if (!ctx.trancheNo) r.push('Транш обязателен');
+      break;
+    case 'writeOff':
+      if (!ctx.doc || !ctx.doc.kind || !ctx.doc.num || !ctx.doc.date) r.push('Списание — только с реквизитами решения (вид · номер · дата)'); // Г-12
+      break;
+    case 'linkPledge':
+      if (!ctx.pledge || ctx.pledge.pledgorInn !== credit.borrower.inn) r.push('Привязка — только договоры того же ИНН заёмщика'); // Г-13
+      break;
+    case 'repay':                                                                          // Г-14
+      { const b = d.debt; const nonzero = ['principal','interest','penalty'].some(k=>b[k].bal>0.005);
+        if (nonzero) r.push('«Погашен» — только при нулевом остатке по всем слоям');
+        if ((credit.mirror.collection||[]).length) r.push('Есть активный процесс взыскания'); }
+      break;
+    case 'holdAccrual':
+      if (!ctx.reason || !ctx.doc || !ctx.from) r.push('Приостановление — только с основанием, документом и датой начала'); // Г-15
+      break;
+    case 'transferDebt':
+      if (!ctx.agreement || !ctx.agreement.registered) r.push('Заёмщик не меняется без зарегистрированного соглашения'); // Г-16
+      break;
+  }
+  return { ok: r.length===0, reasons: r };
+}
+
+/* ---- 4.1 canRole(role, action) — матрица прав по ролям (§7). ---- */
+const ROLE_ACTIONS = {
+  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','addTranche','addDisbursement','buildSchedule','addAgreement','editConditions','editDocs']),
+  'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge']),
+  'Бухгалтер': new Set(['savePayment']),
+  'Начальник отдела': new Set(['createCredit','saveContractAmount','register','addTranche','addDisbursement','buildSchedule','addAgreement','editConditions','editDocs','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff']),
+  'Наблюдатель': new Set(),
+};
+function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(action); }
 
 /* ---- 5. Экспорт логического слоя (§0.2). db=null до DOM-инициализации. ---- */
 window.CR = {
   seedDb,
   db: null,
-  derive, buildSchedule,
+  derive, buildSchedule, gate, canRole,
   // утилиты — пригодятся тестам и UI
   money, pd, fd, addM, dd, toast, TODAY
 };
