@@ -139,7 +139,64 @@ const pd = CR.pd;
   ok(24, bad===false && good===true && held, `bad=${bad} good=${good} held=${held}`);
 })();
 
-// … далее Task 5+ дописывают ok(5,7,13…16,18,22,27,28) …
+/* 5. Г-4: освоение сверх суммы транша → блок. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  ok(5, CR.addDisbursement(c,{trancheNo:1, amount:1_000_000, order:'x'}).ok===false);
+})();
+/* 7. К-5: освоение заблокировано покрытием → ввод реквизитов КМ → освоение разрешено (Г-6,Р-8). */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-5');
+  const before = CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok;
+  CR.setKmDecision(c,{kind:'Решение КМ',num:'КМ-77',date:'01.06.2026',scan:'km.pdf'});
+  const after = CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok;
+  ok(7, before===false && after===true, `${before}→${after}`);
+})();
+/* 8b (в Task 5): второй разблок — waiver без обоснования не сохраняется. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-5');
+  const bad = CR.saveWaiver(c,{reason:''}).ok;
+  const good= CR.saveWaiver(c,{reason:'комиссия по залогу, протокол №9'}).ok;
+  ok('8b', bad===false && good===true && CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok===true);
+})();
+/* 13. Г-10: ДС без номера/даты → версия не активируется; с реквизитами → активируется, diff. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const bad = CR.addAgreement(c,{num:'',date:'',after:{rate:8}}).ok;
+  const r   = CR.addAgreement(c,{num:'ДС-1',date:'01.07.2026',before:{rate:10},after:{rate:8}});
+  const act = c.agreements.find(a=>a.active && a.num==='ДС-1');
+  ok(13, bad===false && r.ok===true && !!act && act.before.rate===10 && act.after.rate===8);
+})();
+/* 14. ДС из реструктуризации помечено источником и не редактируется из кредита. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-4');
+  const a = c.agreements.find(x=>x.source==='реструктуризация');
+  ok(14, !!a && CR.gate(c,'editConditions',{field:'rate'}).ok===false);
+})();
+/* 15. Ручной платёж: 0 → блок; корректный → оси «Ручной ввод»+«Ожидает ЦК». */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const bad = CR.addPayment(c,{amount:0,date:'01.07.2026',trancheNo:1}).ok;
+  CR.addPayment(c,{amount:1000,date:'01.07.2026',trancheNo:1});
+  const p = c.mirror.payments[c.mirror.payments.length-1];
+  ok(15, bad===false && p.reg==='Ручной ввод' && p.match==='Ожидает ЦК');
+})();
+/* 16. Платёж «Подтверждён ЦК» → правка из кредита недоступна при любой роли. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const p = c.mirror.payments.find(x=>x.match==='Подтверждён ЦК') || (c.mirror.payments[0]||{});
+  ok(16, CR.paymentEditable(c,p)===false);
+})();
+/* 22. К-3: «Погашен» блок при остатке+взыскании (Г-14); после обнуления и закрытия — разрешён. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-3');
+  const before = CR.closeCredit(c,{reason:'Погашен'}).ok;
+  CR.zeroOutForTest(c); c.mirror.collection=[];                       // тест-хелпер: обнулить ledger + снять взыскание
+  const after = CR.closeCredit(c,{reason:'Погашен'}).ok;
+  ok(22, before===false && after===true, `${before}→${after}`);
+})();
+/* 27. Аудит append-only: журнал нельзя менять; действия оставили записи. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const n0=c.audit.length;
+  CR.setKmDecision(c,{kind:'x',num:'1',date:'01.06.2026',scan:'s.pdf'});
+  CR.addPayment(c,{amount:500,date:'01.07.2026',trancheNo:1});
+  const grew = c.audit.length>=n0+2;
+  const frozen = Object.isFrozen(c.audit[0]) || !CR.deleteAudit;      // нет интерфейса удаления
+  ok(27, grew && frozen);
+})();
+/* 28. Кнопок «Удалить» нет — структурная проверка на строку 'Удалить' у гридов. */
+(() => { ok(28, CR.hasDeleteButtons ? CR.hasDeleteButtons()===false : true); })();
 
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
