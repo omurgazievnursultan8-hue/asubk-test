@@ -840,6 +840,21 @@ FACTORS.push(
   { creditId:'C-CHE-3', level:'high', type:'Ухудшение фин. состояния', committeeRef:'КРР-2026-40', from:'01.06.2026' },
 );
 
+CREDITS.push(
+  // Ветка 14 — ИП Асанов: кредит с залогами в 2 областях (PLEDGE_IX уже посеян в Task 5)
+  { id:'C-B14-1', no:'КР-44011', inn:'04401199940041', amount:5000000, balance:4200000, currency:'KGS',
+    overdueDays:0, debt:{principal:4200000,interest:80000,penalty:0,fees:0,costs:0}, program:'Микро-2024', kind:'Инвестиционный' },
+);
+ASSIGN.push(
+  // Ветка 14 — залоги в 2 областях: по залоговому куратору на область (норма kuratorstvo §2.2)
+  { objectKind:'предмет', objectId:'C-B14-1#Ош', role:'залоговый куратор', empId:'emp-21', from:'01.02.2026', source:'kuratorstvo' },
+  { objectKind:'предмет', objectId:'C-B14-1#Джалал-Абад', role:'залоговый куратор', empId:'emp-22', from:'01.02.2026', source:'kuratorstvo' },
+  { objectKind:'кредит', objectId:'C-B14-1', role:'кредитный куратор', empId:'emp-20', from:'01.02.2026', source:'kuratorstvo' },
+  // Ветка 3 — назначение отстранённого emp-09 (снят иммунитетом) + валидный куратор
+  { objectKind:'кредит', objectId:'C-B3-1', role:'кредитный куратор', empId:'emp-09', from:'01.03.2026', source:'kuratorstvo' },
+  { objectKind:'кредит', objectId:'C-B3-1', role:'кредитный куратор', empId:'emp-30', from:'21.06.2026', source:'kuratorstvo' },
+);
+
 /* ═══ SECTION 2 · ЧИСТЫЕ ФУНКЦИИ ═══ */
 /* §4 functions land here in Tasks 3–9 */
 
@@ -999,6 +1014,39 @@ function suspendedEmployees(inn, d){
   return CONFLICTS.filter(c => c.inn===inn && dateLE(c.declaredAt, d))
     .filter(c => { const st = conflictState(c, d).suspendedTo; return !st || !dateLE(st, d); })
     .map(c => c.empId);
+}
+
+/* Последнее событие жизненного цикла субъекта на дату (Р-9). */
+function subjectState(inn, d){
+  const evs = SUBJECT_EVENTS.filter(e => e.inn===inn && dateLE(e.date, d))
+    .sort((a,b)=> dnum(b.date)-dnum(a.date));
+  return evs[0] || null;
+}
+/* Только чтение (read-only), если субъект «долг переведён» либо «ликвидирован». */
+function isReadOnly(inn, d){
+  const st = subjectState(inn, d);
+  return !!st && (st.kind==='долг переведён' || st.kind==='ликвидирован');
+}
+/* Матрица объект×роль на дату: последнее активное назначение на пару (object,role) побеждает;
+   отстранённые по конфликту исключаются (Ш-3, иммунитет). */
+function curatorMatrix(inn, d){
+  const objIds = new Set([
+    ...CREDITS.filter(c=>c.inn===inn).map(c=>c.id),
+    ...PLEDGE_IX.filter(p => CREDITS.some(c=>c.inn===inn && c.id===p.creditId)).map(p=>p.creditId),
+  ]);
+  const susp = new Set(suspendedEmployees(inn, d));
+  const active = ASSIGN.filter(a => dateLE(a.from, d) && (!a.to || !dateLE(a.to, d))
+    && (objIds.has(a.objectId) || objIds.has(String(a.objectId).split('#')[0])));
+  // последнее назначение на (objectId+role) вытесняет ранние (замена куратора / передача дела)
+  const latest = new Map();
+  for (const a of active){
+    const key = a.objectId + '|' + a.role;
+    const cur = latest.get(key);
+    if (!cur || dnum(a.from) > dnum(cur.from)) latest.set(key, a);
+  }
+  return [...latest.values()]
+    .filter(a => !susp.has(a.empId))
+    .map(a => ({ objectKind:a.objectKind, objectId:a.objectId, role:a.role, empId:a.empId }));
 }
 
 /* ═══ SECTION 3 · РЕНДЕР ═══ */
