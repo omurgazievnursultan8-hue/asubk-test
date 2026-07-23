@@ -118,9 +118,13 @@ const pd = CR.pd;
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const t=c.tranches[1]; // не освоен
   ok(8, CR.gate(c,'buildSchedule',{tranche:t}).ok===false);
 })();
-/* 10. Р-8/Г-6→освоение после ввода КМ (проверка перехода готовится тут, финализируется в Task 5). */
+/* 10. Р-8/Г-6: покрытие блокирует освоение (84%) до ввода реквизитов решения КМ;
+   после setKmDecision гейт реально переключается false→true (не только исходный блок). */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-5');
-  ok(10, CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok===false); // покрытие 84%
+  const before = CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok; // покрытие 84%
+  CR.setKmDecision(c,{kind:'Решение КМ',num:'КМ-1',date:'01.06.2026',scan:'km.pdf'});
+  const after = CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok;
+  ok(10, before===false && after===true, `${before}→${after}`);
 })();
 /* 11. График: 1-е формирование → v1; повторное → v2, v1 остаётся архивной. */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const t=c.tranches[0];
@@ -205,6 +209,28 @@ const pd = CR.pd;
   CR.holdAccrual(c,{from:'01.06.2026',to:'01.08.2026',reason:'форс-мажор',doc:'прик.5',by:'Куратор'});
   const last = c.audit[c.audit.length-1];
   ok('27b', Object.isFrozen(last) && 'when' in last && 'who' in last && 'what' in last);
+})();
+/* 18. Р-7: вкладка «Обеспечение» никогда не предлагает «Создать залоговый договор» —
+   залоговые договоры заводятся только в модуле залога; карточка кредита предлагает
+   только «Привязать существующий». Структурная проверка src-строки (рендер вкладок
+   живёт под `if (typeof document !== 'undefined')` — вне vm-песочницы не вызывается).
+   Фраза легитимно встречается в ДВУХ комментариях (канон-шапка «РЕАЛИЗОВАННЫЕ РЕШЕНИЯ»,
+   doc-comment над linkPledge()) и в тексте-предупреждении пикера привязки («...нельзя —
+   только в модуле залога») — ни один из них не кнопка/ярлык, поэтому проверяем именно
+   отсутствие кнопочной конструкции (roleBtn(...)/<button>...), а не голое substring-отсутствие. */
+(() => {
+  const stripComments = s => s
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n').map(l => /^\s*\/\//.test(l) ? '' : l).join('\n');
+  const stripped = stripComments(src);
+  const strippedHasCode = /function\s+gate\s*\(/.test(stripped);           // strip не съел код
+  const phrase = 'Создать залоговый договор';
+  const btnPattern = new RegExp(`roleBtn\\([^)]*${phrase}[^)]*\\)|<button[^>]*>[^<]*${phrase}`, 'i');
+  const offeredAsAction = btnPattern.test(stripped);                       // кнопка/ярлык с этой фразой?
+  const linkPresent = stripped.includes('Привязать существующий');
+  ok(18, strippedHasCode && !offeredAsAction && linkPresent,
+     `code=${strippedHasCode} offeredAsAction=${offeredAsAction} link=${linkPresent}`);
 })();
 /* 28. Кнопок «Удалить» нет — структурная проверка на строку 'Удалить' у гридов. */
 (() => { ok(28, CR.hasDeleteButtons ? CR.hasDeleteButtons()===false : true); })();
