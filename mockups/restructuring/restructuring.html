@@ -52,7 +52,7 @@
    3. Лимит повторов реструктуризации (счётчик растёт неограниченно).
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-07-19 · 21/21 PASS
+   SMOKE 2026-07-19 · 23/23 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  rateBefore=false grew=true
@@ -74,6 +74,8 @@
       PASS  #19  zeroPr=true constBal=true payOk=true amort=9
       PASS  #20  zeroPay=true baseOk=true morCap=36361.2
       PASS  #21  m=9 amortRows=9 sum=1016736.11 baseAmort=1016736.11
+      PASS  #22  36=36 84=84 120=120 144=144 180=180
+      PASS  #23  f10=5 f9=4.5
 -->
 <style>
 :root{
@@ -478,6 +480,17 @@ function amortize(base, rate, termMonths, method, graceBlocks, cutoffDate, sched
   }
   return { rows, morCap, meta:{p,i,nTotal,gMor,gIo,m,baseAmort} };
 }
+
+/* Предел срока (п.90) по остатку задолженности = база после капитализации, base.total (ОВ-1). */
+function termCap(base){
+  if(base < 1000000)  return 36;    // до 1 млн → 3 года
+  if(base < 10000000) return 84;    // 1–10 млн → 7 лет
+  if(base < 20000000) return 120;   // 10–20 млн → 10 лет
+  if(base < 50000000) return 144;   // 20–50 млн → 12 лет
+  return 180;                       // 50 млн+ → 15 лет
+}
+/* Пол ставки (п.92): не ниже 50% исходной. Повышение не ограничиваем (п.91). */
+function rateFloor(origRate){ return round2((Number(origRate)||0)*0.5); }
 
 /* ================= ПРОИЗВОДНЫЕ (Р-19: считаем, не храним) ================= */
 const creditById = id => state.credits.find(c=>c.id===id);
@@ -1284,7 +1297,7 @@ const RS = {
   openWaiver, grantWaiver, openDS, regDS, openNewKind, addKind, showMirror,
   get state(){ return state; }, seed, stageOf, deadline, packetGate, conclGate, minfinGate, dsGate,
   coverGate, coverGateApp, allowedParams, requiredDocs, activeAppOnCredit, canAdvance, canX,
-  appById, creditById, kindById, applyEntryOps, versionFrom, amortize, periodMonths, round2, TODAY, STAGES, ROLES,
+  appById, creditById, kindById, applyEntryOps, versionFrom, amortize, periodMonths, round2, termCap, rateFloor, TODAY, STAGES, ROLES,
   __baseApp: baseApp
 };
 if(typeof window!=='undefined') window.RS=RS;

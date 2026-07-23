@@ -240,6 +240,18 @@ const app = id => RS.appById(id);
     `m=${meta.m} amortRows=${amort.length} sum=${sum} baseAmort=${RS.round2(meta.baseAmort)}`);
 })();
 
+/* 22. Границы termCap (нижняя граница включительно). */
+(() => { fresh();
+  const ok0 = RS.termCap(999999)===36 && RS.termCap(1000000)===84 && RS.termCap(10000000)===120
+    && RS.termCap(20000000)===144 && RS.termCap(50000000)===180;
+  ok(22, ok0, `36=${RS.termCap(999999)} 84=${RS.termCap(1000000)} 120=${RS.termCap(10000000)} 144=${RS.termCap(20000000)} 180=${RS.termCap(50000000)}`);
+})();
+
+/* 23. rateFloor = 50% исходной ставки. */
+(() => { fresh();
+  ok(23, RS.rateFloor(10)===5 && RS.rateFloor(9)===4.5, `f10=${RS.rateFloor(10)} f9=${RS.rateFloor(9)}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
