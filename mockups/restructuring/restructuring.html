@@ -52,7 +52,7 @@
    3. Лимит повторов реструктуризации (счётчик растёт неограниченно).
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-07-19 · 38/38 PASS
+   SMOKE 2026-07-19 · 41/41 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  rateBefore=false grew=true
@@ -86,8 +86,11 @@
       PASS  #31  base=true pay=true
       PASS  #32  equal=true
       PASS  #33  mode=2
+      PASS  #34  capI=true capS=true forg=true
+      PASS  #35  res=false ops=0
+      PASS  #36  cap=179000 inputs=true
       PASS  #37  total=3100000 cap=0
-      PASS  #38  n=1
+      PASS  #38  n=4
       PASS  #39  mat=2031-09-21 term=60
       PASS  #40  new=440963.56 old=329485.73
       PASS  #41  had=true reset=true
@@ -695,6 +698,7 @@ function buildDemoApps(){
   a1.letterSent={fixed:true,date:'2026-03-30'};
   a1.minfin={fixed:true,decision:'одобрено',letterRef:'МФ-исх-1120 от 2026-05-28',date:'2026-05-28'};
   a1.version=versionFrom(creditById('CR-60540')); a1.version.params.term=60; a1.version.params.rate=7; a1.version.state='действует';
+  a1.version.inputs={ forgivePenalty:12000, capInterest:118000, capPenalty:61000, graceBlocks:[] };
   a1.waiver={granted:true,reason:'Комиссия по залогу: покрытие ниже 120% компенсируется поручительством учредителя (протокол №14).',by:'Комиссия по залогу',date:'2026-06-02'};
   a1.ds={no:'ДС-60540/2 от 2026-06-05',date:'2026-06-05'};
   a1.ops=[
@@ -779,6 +783,7 @@ function buildDemoApps(){
   A.push(a5);
 
   state.apps=A;
+  A.forEach(a=>{ if(a.version && a.creditIds.length){ try{ calcRestructure(a.id); }catch(e){} } }); // согласуем планы демо-цепочек
 }
 
 /* ================= РЕНДЕР: НАВИГАЦИЯ + ШАПКА ================= */
@@ -1227,14 +1232,20 @@ function regDS(appId){
   closeModal(); toast('Доп. соглашение зарегистрировано — версия действует','ok'); render();
 }
 function applyEntryOps(app){
-  const kinds=app.kindIds.map(kindById);
+  const v=app.version, plan=v&&v.plan;
+  if(!plan){ toast('Сначала рассчитайте реструктуризацию','err'); return false; }
+  const inp=v.inputs;
+  if(inp.forgivePenalty>0){ const s=plan.base; const S=v.snapshot.penalty;
+    app.ops.push({type:'Прощение санкций',detail:'Списание пени '+fmt(inp.forgivePenalty)+' компенсирующей записью (не удаление)',before:S,after:round2(S-inp.forgivePenalty)}); }
+  if(inp.capInterest>0){ const P=v.snapshot.principal;
+    app.ops.push({type:'Капитализация процентов',detail:'Начисленные % '+fmt(inp.capInterest)+' → в тело долга',before:P,after:round2(P+inp.capInterest)}); }
+  if(inp.capPenalty>0){ const P1=round2(v.snapshot.principal+inp.capInterest);
+    app.ops.push({type:'Капитализация штрафов',detail:'Штрафы '+fmt(inp.capPenalty)+' → в тело долга',before:P1,after:round2(P1+inp.capPenalty)}); }
+  const mode=plan.overdue.mode;
+  app.ops.push({type:'Режим просрочки',detail: mode===1?'режим (1): в новый график + обнуление счётчика дней':'режим (2): просрочка сохраняется со своим счётчиком',mode});
   const cr=creditById(app.creditIds[0]);
-  if(kinds.some(k=>k&&k.params.includes('capInterest'))) app.ops.push({type:'Капитализация процентов',detail:'Начисленные % перенесены в тело долга',before:cr.balance,after:cr.balance});
-  if(kinds.some(k=>k&&k.params.includes('capPenalty'))) app.ops.push({type:'Капитализация штрафов',detail:'Штрафы перенесены в тело долга',before:cr.balance,after:cr.balance});
-  if(kinds.some(k=>k&&k.params.includes('forgive'))) app.ops.push({type:'Прощение санкций',detail:'Списание пени компенсирующей записью (не удаление)',before:cr.odSum,after:0});
-  const mode = kinds.find(k=>k)?.overdueMode||2;
-  app.ops.push({type:'Режим просрочки',detail:mode===1?'режим (1): в новый график + обнуление счётчика дней':'режим (2): просрочка сохраняется со своим счётчиком',mode});
   if(mode===1 && cr){ H(app,'Режим просрочки (1): счётчик дней просрочки обнулён ('+cr.odDays+' → 0).','Система'); cr.odDays=0; }
+  return true;
 }
 
 function openNewKind(){

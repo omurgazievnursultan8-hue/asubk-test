@@ -366,6 +366,41 @@ const app = id => RS.appById(id);
   ok(33, RS.firstOverdueMode(a) === 2, `mode=${RS.firstOverdueMode(a)}`);
 })();
 
+/* 34. applyEntryOps: суммы берутся из plan (кап.%/штрафов/прощение = inputs), режим из plan.overdue. */
+(() => { fresh();
+  const a = app('RS-1001'); const cr = RS.creditById('CR-60540');
+  a.kindIds = ['K4'];                                          // разрешает cap/forgive, overdueMode 2
+  a.version = RS.versionFrom(cr);
+  a.version.inputs = { forgivePenalty:12000, capInterest:118000, capPenalty:61000, graceBlocks:[] };
+  RS.calcRestructure(a.id);
+  a.ops = [];
+  RS.applyEntryOps(a);
+  const capI = a.ops.find(o=>o.type==='Капитализация процентов');
+  const capS = a.ops.find(o=>o.type==='Капитализация штрафов');
+  const forg = a.ops.find(o=>o.type==='Прощение санкций');
+  const capIok = capI && capI.before===4200000 && capI.after===4318000;   // P → P+cI
+  const capSok = capS && capS.before===4318000 && capS.after===4379000;   // P1 → P2
+  const forgOk = forg && forg.before===73000 && forg.after===61000;       // S → S−fS
+  ok(34, capIok && capSok && forgOk, `capI=${!!capIok} capS=${!!capSok} forg=${!!forgOk}`);
+})();
+
+/* 35. applyEntryOps без plan → блок (операции не добавлены). */
+(() => { fresh();
+  const a = app('RS-1004'); a.version = RS.versionFrom(RS.creditById(a.creditIds[0])); a.version.plan = null;
+  a.ops = [];
+  const res = RS.applyEntryOps(a);
+  ok(35, res === false && a.ops.length === 0, `res=${res} ops=${a.ops.length}`);
+})();
+
+/* 36. Демо a1 согласована: рассчитанный plan даёт кап.% 118000, кап.штрафов 61000, прощение 12000. */
+(() => { fresh();
+  const a = app('RS-1001');
+  const plan = RS.calcRestructure(a.id);
+  const capOk = plan.base.capitalized === 179000;             // 118000 + 61000
+  const inputsOk = a.version.inputs.capInterest===118000 && a.version.inputs.capPenalty===61000 && a.version.inputs.forgivePenalty===12000;
+  ok(36, capOk && inputsOk, `cap=${plan.base.capitalized} inputs=${inputsOk}`);
+})();
+
 /* 37. Пустой вход: база = P, график на P (Р-22, тест 12 промпта). */
 (() => { fresh();
   const a=app('RS-1004'); const cr=RS.creditById(a.creditIds[0]);
