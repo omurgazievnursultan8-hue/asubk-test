@@ -414,13 +414,14 @@ const app = id => RS.appById(id);
   const withBasis=a.version.plan.stack.filter(s=>s.op.includes('Снимок')||s.op.includes('Прощение')||s.op.includes('Капитализация'));
   ok(38, withBasis.every(s=>s.basis&&s.basis.length>0), `n=${withBasis.length}`);
 })();
-/* 39. Дата погашения новая = cutoff + (newTerm + Σgrace)×30 (промпт тест 28). */
+/* 39. Дата погашения новая = cutoff + newTerm×30, независимо от grace (промпт тест 28). */
 (() => { fresh();
   const a=app('RS-1001'); const cr=RS.creditById('CR-60540');
   a.version=RS.versionFrom(cr); a.version.params.term=60;
   a.version.inputs={forgivePenalty:0,capInterest:0,capPenalty:0,graceBlocks:[{months:3,type:'interest-only'}]};
   const plan=RS.calcRestructure(a.id);
-  ok(39, plan.totals.new.maturity.length===10 && plan.newTerm===60, `mat=${plan.totals.new.maturity} term=${plan.newTerm}`);
+  const exp = RS.addCalDays(a.version.cutoffDate, plan.newTerm*30);
+  ok(39, plan.totals.new.maturity===exp && plan.newTerm===60, `mat=${plan.totals.new.maturity} exp=${exp} term=${plan.newTerm}`);
 })();
 /* 40. Всего процентов старое/новое различаются при смене ставки (промпт тест 29). */
 (() => { fresh();

@@ -91,7 +91,7 @@
       PASS  #36  cap=179000 inputs=true
       PASS  #37  total=3100000 cap=0
       PASS  #38  n=4
-      PASS  #39  mat=2031-09-21 term=60
+      PASS  #39  mat=2031-06-23 exp=2031-06-23 term=60
       PASS  #40  new=440963.56 old=329485.73
       PASS  #41  had=true reset=true
 -->
@@ -551,8 +551,9 @@ function calcRestructure(appId){
   stack.push({step:5, op:'Новая база графика', after:P2, basis:'тело '+fmt(P)+' + капитализировано '+fmt(cI+cS)});
 
   /* шаги 6/7 — параметры графика */
-  const newRate=Number(v.params.rate)||cr.terms.rate;
-  const newTerm=Number(v.params.term)||cr.terms.term;
+  const numOr=(x,def)=>{ const n=Number(x); return (x===''||x==null||Number.isNaN(n))?def:n; };
+  const newRate=numOr(v.params.rate, cr.terms.rate);
+  const newTerm=numOr(v.params.term, cr.terms.term);
   const method =v.params.repayMethod||cr.terms.repayMethod;
   const schedule=v.params.schedule||cr.terms.schedule;
 
@@ -580,12 +581,11 @@ function calcRestructure(appId){
   const sumPay=rows=>round2(rows.reduce((s,r)=>s+r.pay,0));
   const sumInt=rows=>round2(rows.reduce((s,r)=>s+r.interest,0));
   const p=periodMonths(schedule);
-  const gsum=graceBlocks.reduce((s,b)=>s+(b.months||0),0);
   const totals={
     old:{ base:snap.principal, totalInterest:sumInt(scheduleOld), totalToPay:sumPay(scheduleOld),
           maturity:addCalDays(v.cutoffDate, cr.remainingTermMonths*30), regularPay: scheduleOld[0]?scheduleOld[0].pay:0 },
     new:{ base:base.total, totalInterest: termOk&&rateOk?sumInt(scheduleNew):0, totalToPay: termOk&&rateOk?sumPay(scheduleNew):0,
-          maturity:addCalDays(v.cutoffDate, (newTerm+gsum)*30),
+          maturity:addCalDays(v.cutoffDate, newTerm*30),
           regularPay: (termOk&&rateOk&&scheduleNew.length)? scheduleNew[scheduleNew.length-1].pay:0 }
   };
 
@@ -1523,7 +1523,7 @@ const RS = {
   openWaiver, grantWaiver, openDS, regDS, openNewKind, addKind, showMirror,
   get state(){ return state; }, seed, stageOf, deadline, packetGate, conclGate, minfinGate, dsGate,
   coverGate, coverGateApp, allowedParams, requiredDocs, activeAppOnCredit, canAdvance, canX,
-  appById, creditById, kindById, applyEntryOps, versionFrom, amortize, periodMonths, round2, termCap, rateFloor,
+  appById, creditById, kindById, applyEntryOps, versionFrom, amortize, periodMonths, round2, termCap, rateFloor, addCalDays,
   calcRestructure, firstOverdueMode, TODAY, STAGES, ROLES,
   setInput, setCutoff, addGrace, delGrace, termsPanels,
   __baseApp: baseApp
