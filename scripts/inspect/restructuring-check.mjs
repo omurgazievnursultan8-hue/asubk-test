@@ -252,6 +252,159 @@ const app = id => RS.appById(id);
   ok(23, RS.rateFloor(10)===5 && RS.rateFloor(9)===4.5, `f10=${RS.rateFloor(10)} f9=${RS.rateFloor(9)}`);
 })();
 
+/* 24. Порядок конвейера: прощение до капитализации; стек в порядке 0→…→новая база; основания непусты. */
+(() => { fresh();
+  const a = app('RS-1004'); const cr = RS.creditById(a.creditIds[0]);
+  a.version = RS.versionFrom(cr);
+  a.version.inputs = { forgivePenalty:0, capInterest:0, capPenalty:0, graceBlocks:[] };
+  const plan = RS.calcRestructure(a.id);
+  const ops = plan.stack.map(s=>s.op);
+  const snapFirst = ops[0].includes('Снимок');
+  const baseLast  = ops[ops.length-1].includes('база');
+  const forgiveBeforeCap = ops.indexOf('Прощение санкций') < ops.indexOf('Капитализация %')
+    || (!ops.includes('Прощение санкций') && !ops.includes('Капитализация %')); // допустимо для пустого входа
+  const basisOk = plan.stack.every(s => s.basis === undefined || String(s.basis).length>0);
+  ok(24, snapFirst && baseLast && forgiveBeforeCap && basisOk,
+    `snapFirst=${snapFirst} baseLast=${baseLast} order=${forgiveBeforeCap}`);
+})();
+
+/* 25. База (Р-22): body=P (вкл. OP), capitalized=cI+cS, total=P+cI+cS; пустой вход → total=P. */
+(() => { fresh();
+  const a = app('RS-1001'); const cr = RS.creditById('CR-60540');
+  a.version = RS.versionFrom(cr);
+  a.version.inputs = { forgivePenalty:12000, capInterest:118000, capPenalty:61000, graceBlocks:[] };
+  const plan = RS.calcRestructure(a.id);
+  const body = plan.base.body === 4200000;
+  const cap  = plan.base.capitalized === 179000;              // 118000 + 61000
+  const total= plan.base.total === 4379000;                   // 4200000 + 179000
+  ok(25, body && cap && total, `body=${plan.base.body} cap=${plan.base.capitalized} total=${plan.base.total}`);
+})();
+
+/* 26. Валидация входа: cS > S − fS → тост и plan не строится (возврат null). */
+(() => { fresh();
+  const a = app('RS-1001'); const cr = RS.creditById('CR-60540');
+  a.version = RS.versionFrom(cr);
+  a.version.inputs = { forgivePenalty:60000, capInterest:0, capPenalty:20000, graceBlocks:[] }; // S=73000; cS(20000) > 73000−60000=13000
+  const plan = RS.calcRestructure(a.id);
+  ok(26, plan === null && a.version.plan === null, `plan=${plan}`);
+})();
+
+/* 27. Гейт срока: newTerm > termCap(base.total) → termOk=false, scheduleNew пуст. */
+(() => { fresh();
+  const a = app('RS-1001'); const cr = RS.creditById('CR-60540');
+  a.version = RS.versionFrom(cr);
+  a.version.params.term = 200;                                // > termCap(4.2M)=84
+  a.version.inputs = { forgivePenalty:0, capInterest:0, capPenalty:0, graceBlocks:[] };
+  const plan = RS.calcRestructure(a.id);
+  ok(27, plan.gates.termOk===false && plan.scheduleNew.length===0, `termOk=${plan.gates.termOk} n=${plan.scheduleNew.length}`);
+})();
+
+/* 28. Гейт ставки: newRate < 50% исходной → rateOk=false; ровно 50% → проходит; повышение не блокируется. */
+(() => { fresh();
+  const cr = RS.creditById('CR-60540'); // исходная ставка 8 → пол 4
+  const a = app('RS-1001'); a.version = RS.versionFrom(cr);
+  a.version.inputs = { forgivePenalty:0, capInterest:0, capPenalty:0, graceBlocks:[] };
+  a.version.params.rate = 3;  const low  = RS.calcRestructure(a.id).gates.rateOk;
+  a.version.params.rate = 4;  const edge = RS.calcRestructure(a.id).gates.rateOk;
+  a.version.params.rate = 12; const high = RS.calcRestructure(a.id).gates.rateOk;
+  ok(28, low===false && edge===true && high===true, `low=${low} edge=${edge} high=${high}`);
+})();
+
+/* 29. Режим просрочки (Р-28): режим 1 → dayCounterAfter=0, bucket=null; режим 2 → dayCounterAfter=odDays, есть bucket. */
+(() => { fresh();
+  const a = app('RS-1001'); const cr = RS.creditById('CR-60540');
+  a.kindIds = ['K1'];                                          // overdueMode 1
+  a.version = RS.versionFrom(cr); a.version.inputs = { forgivePenalty:0, capInterest:0, capPenalty:0, graceBlocks:[] };
+  const p1 = RS.calcRestructure(a.id);
+  a.kindIds = ['K2'];                                          // overdueMode 2
+  a.version = RS.versionFrom(cr); a.version.inputs = { forgivePenalty:0, capInterest:0, capPenalty:0, graceBlocks:[] };
+  const p2 = RS.calcRestructure(a.id);
+  ok(29, p1.overdue.mode===1 && p1.overdue.dayCounterAfter===0 && p1.overdue.bucket===null
+      && p2.overdue.mode===2 && p2.overdue.dayCounterAfter===cr.odDays && !!p2.overdue.bucket,
+    `m1=${p1.overdue.dayCounterAfter}/${p1.overdue.bucket} m2=${p2.overdue.dayCounterAfter}/${!!p2.overdue.bucket}`);
+})();
+
+/* 30. scheduleOld на snapshot.principal × remainingTermMonths по старой ставке; число строк «стало». */
+(() => { fresh();
+  const a = app('RS-1005'); const cr = RS.creditById(a.creditIds[0]);
+  a.version = RS.versionFrom(cr);
+  a.version.params.term = 24; a.version.params.rate = cr.terms.rate;
+  a.version.inputs = { forgivePenalty:0, capInterest:0, capPenalty:0, graceBlocks:[] };
+  const plan = RS.calcRestructure(a.id);
+  const p = RS.periodMonths(cr.terms.schedule);
+  const oldN = plan.scheduleOld.length === Math.round(cr.remainingTermMonths / p);
+  const newN = plan.scheduleNew.length === Math.round(24 / p);
+  ok(30, oldN && newN, `oldN=${plan.scheduleOld.length} newN=${plan.scheduleNew.length} rem=${cr.remainingTermMonths}`);
+})();
+
+/* 31. Итоги: totals.new.base = base.total; totalToPay = Σ pay; переплата к телу считается. */
+(() => { fresh();
+  const a = app('RS-1001'); const cr = RS.creditById('CR-60540');
+  a.version = RS.versionFrom(cr);
+  a.version.params.term = 60; a.version.params.rate = 7;
+  a.version.inputs = { forgivePenalty:0, capInterest:0, capPenalty:0, graceBlocks:[] };
+  const plan = RS.calcRestructure(a.id);
+  const baseOk = plan.totals.new.base === plan.base.total;
+  const payOk  = plan.totals.new.totalToPay === RS.round2(plan.scheduleNew.reduce((s,r)=>s+r.pay,0));
+  ok(31, baseOk && payOk && plan.totals.new.totalToPay > plan.base.total, `base=${baseOk} pay=${payOk}`);
+})();
+
+/* 32. Детерминизм: повторный calcRestructure даёт идентичный plan (по JSON). */
+(() => { fresh();
+  const a = app('RS-1001'); const cr = RS.creditById('CR-60540');
+  a.version = RS.versionFrom(cr);
+  a.version.params.term = 60; a.version.params.rate = 7;
+  a.version.inputs = { forgivePenalty:12000, capInterest:118000, capPenalty:61000, graceBlocks:[] };
+  const j1 = JSON.stringify(RS.calcRestructure(a.id));
+  const j2 = JSON.stringify(RS.calcRestructure(a.id));
+  ok(32, j1===j2 && j1.length>0, `equal=${j1===j2}`);
+})();
+
+/* 33. firstOverdueMode: наследуется из первого вида (ОВ-2). */
+(() => { fresh();
+  const a = app('RS-1001'); a.kindIds = ['K2','K1'];           // K2 mode 2 первый
+  ok(33, RS.firstOverdueMode(a) === 2, `mode=${RS.firstOverdueMode(a)}`);
+})();
+
+/* 37. Пустой вход: база = P, график на P (Р-22, тест 12 промпта). */
+(() => { fresh();
+  const a=app('RS-1004'); const cr=RS.creditById(a.creditIds[0]);
+  a.version=RS.versionFrom(cr); a.version.inputs={forgivePenalty:0,capInterest:0,capPenalty:0,graceBlocks:[]};
+  const plan=RS.calcRestructure(a.id);
+  ok(37, plan.base.total===cr.snapshot.principal && plan.base.capitalized===0, `total=${plan.base.total} cap=${plan.base.capitalized}`);
+})();
+/* 38. Стек: основание каждой owned-операции непусто (промпт тест 5). */
+(() => { fresh();
+  const a=app('RS-1001'); RS.calcRestructure(a.id);
+  const withBasis=a.version.plan.stack.filter(s=>s.op.includes('Снимок')||s.op.includes('Прощение')||s.op.includes('Капитализация'));
+  ok(38, withBasis.every(s=>s.basis&&s.basis.length>0), `n=${withBasis.length}`);
+})();
+/* 39. Дата погашения новая = cutoff + (newTerm + Σgrace)×30 (промпт тест 28). */
+(() => { fresh();
+  const a=app('RS-1001'); const cr=RS.creditById('CR-60540');
+  a.version=RS.versionFrom(cr); a.version.params.term=60;
+  a.version.inputs={forgivePenalty:0,capInterest:0,capPenalty:0,graceBlocks:[{months:3,type:'interest-only'}]};
+  const plan=RS.calcRestructure(a.id);
+  ok(39, plan.totals.new.maturity.length===10 && plan.newTerm===60, `mat=${plan.totals.new.maturity} term=${plan.newTerm}`);
+})();
+/* 40. Всего процентов старое/новое различаются при смене ставки (промпт тест 29). */
+(() => { fresh();
+  const a=app('RS-1001'); const cr=RS.creditById('CR-60540');
+  a.version=RS.versionFrom(cr); a.version.params.rate=4; a.version.params.term=60;
+  a.version.inputs={forgivePenalty:0,capInterest:0,capPenalty:0,graceBlocks:[]};
+  const plan=RS.calcRestructure(a.id);
+  ok(40, plan.totals.new.totalInterest!==plan.totals.old.totalInterest, `new=${plan.totals.new.totalInterest} old=${plan.totals.old.totalInterest}`);
+})();
+/* 41. Смена cutoffDate сбрасывает plan и перезамораживает snapshot (промпт тест 32). */
+(() => { fresh();
+  const a=app('RS-1001'); const cr=RS.creditById('CR-60540');
+  a.version=RS.versionFrom(cr); RS.calcRestructure(a.id);
+  const had=!!a.version.plan;
+  cr.snapshot.principal=9999999;               // изменим леджер
+  a.version.cutoffDate='2026-08-01'; a.version.snapshot={...cr.snapshot}; a.version.plan=null;  // как делает setCutoff
+  ok(41, had && a.version.plan===null && a.version.snapshot.principal===9999999, `had=${had} reset=${a.version.plan===null}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);

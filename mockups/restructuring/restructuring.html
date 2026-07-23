@@ -52,7 +52,7 @@
    3. Лимит повторов реструктуризации (счётчик растёт неограниченно).
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-07-19 · 23/23 PASS
+   SMOKE 2026-07-19 · 38/38 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  rateBefore=false grew=true
@@ -76,6 +76,21 @@
       PASS  #21  m=9 amortRows=9 sum=1016736.11 baseAmort=1016736.11
       PASS  #22  36=36 84=84 120=120 144=144 180=180
       PASS  #23  f10=5 f9=4.5
+      PASS  #24  snapFirst=true baseLast=true order=true
+      PASS  #25  body=4200000 cap=179000 total=4379000
+      PASS  #26  plan=null
+      PASS  #27  termOk=false n=0
+      PASS  #28  low=false edge=true high=true
+      PASS  #29  m1=0/null m2=96/true
+      PASS  #30  oldN=16 newN=24 rem=16
+      PASS  #31  base=true pay=true
+      PASS  #32  equal=true
+      PASS  #33  mode=2
+      PASS  #37  total=3100000 cap=0
+      PASS  #38  n=1
+      PASS  #39  mat=2031-09-21 term=60
+      PASS  #40  new=440963.56 old=329485.73
+      PASS  #41  had=true reset=true
 -->
 <style>
 :root{
@@ -491,6 +506,90 @@ function termCap(base){
 }
 /* Пол ставки (п.92): не ниже 50% исходной. Повышение не ограничиваем (п.91). */
 function rateFloor(origRate){ return round2((Number(origRate)||0)*0.5); }
+
+/* ================= КОНВЕЙЕР РЕСТРУКТУРИЗАЦИИ (§3 промпта, Р-21…Р-23, Р-28) ================= */
+/* режим просрочки из первого вида заявки (ОВ-2) */
+function firstOverdueMode(app){ const k=app.kindIds.map(kindById).find(Boolean); return k?k.overdueMode:2; }
+
+/* Строит plan из owned-фактов версии. Возвращает plan (и пишет app.version.plan), либо null при
+   невалидном входе (тост + остановка). Ничего, кроме app.version.plan, не мутирует (Р-19). */
+function calcRestructure(appId){
+  const app=appById(appId); if(!app) return null;
+  const cr=creditById(app.creditIds[0]); if(!cr){ toast('Добавьте кредит в охват','err'); return null; }
+  const v=app.version; const snap=v.snapshot;
+  const P=snap.principal, OP=snap.overduePrincipal, I=snap.accruedInterest, S=snap.penalty;
+  const fS=Number(v.inputs.forgivePenalty)||0, cI=Number(v.inputs.capInterest)||0, cS=Number(v.inputs.capPenalty)||0;
+
+  /* Валидация входа (§3): 0≤fS≤S; 0≤cI≤I; 0≤cS≤S−fS */
+  if(!(fS>=0 && fS<=S)){ toast('Прощение санкций вне диапазона 0…'+fmt(S),'err'); v.plan=null; return null; }
+  if(!(cI>=0 && cI<=I)){ toast('Капитализация % вне диапазона 0…'+fmt(I),'err'); v.plan=null; return null; }
+  if(!(cS>=0 && cS<=S-fS)){ toast('Капитализация штрафов вне диапазона 0…'+fmt(S-fS),'err'); v.plan=null; return null; }
+
+  const stack=[];
+  stack.push({step:0, op:'Снимок на дату среза', after:P, basis:'леджер кредита'});           // шаг 0
+  const S1=round2(S-fS);
+  if(fS>0) stack.push({step:1, op:'Прощение санкций', before:S, delta:-fS, after:S1, basis:'решение комитета / Минфина'}); // шаг 1 (Р-23)
+  const P1=round2(P+cI);
+  if(cI>0) stack.push({step:2, op:'Капитализация %', before:P, delta:+cI, after:P1, basis:'акт сверки'});                  // шаг 2
+  const P2=round2(P1+cS);
+  if(cS>0) stack.push({step:3, op:'Капитализация штрафов', before:P1, delta:+cS, after:P2, basis:'решение комитета'});     // шаг 3
+
+  /* шаг 4 — обработка просрочки (Р-10/Р-28); OP — часть P, база не меняется */
+  const mode=firstOverdueMode(app);
+  const overdue = mode===1
+    ? { mode:1, dayCounterAfter:0, bucket:null }
+    : { mode:2, dayCounterAfter:cr.odDays, bucket:{ overduePrincipal:OP, days:cr.odDays } };
+  stack.push({step:4, op:'Обработка просрочки', delta: mode===1 ? ('счётчик '+cr.odDays+' дн. → 0') : 'просрочка сохранена',
+    basis:'вид (режим '+mode+')'});
+
+  /* шаг 5 — новая база (Р-22): тело P (вкл. OP) + капитализированная часть */
+  const base={ body:P, capitalized:round2(cI+cS), total:P2 };
+  stack.push({step:5, op:'Новая база графика', after:P2, basis:'тело '+fmt(P)+' + капитализировано '+fmt(cI+cS)});
+
+  /* шаги 6/7 — параметры графика */
+  const newRate=Number(v.params.rate)||cr.terms.rate;
+  const newTerm=Number(v.params.term)||cr.terms.term;
+  const method =v.params.repayMethod||cr.terms.repayMethod;
+  const schedule=v.params.schedule||cr.terms.schedule;
+
+  /* гейты (Р-25) — жёсткий блок */
+  const cap=termCap(base.total), floor=rateFloor(cr.terms.rate);
+  const termOk=newTerm<=cap, rateOk=newRate>=floor;
+  const messages=[];
+  if(!termOk) messages.push('Срок '+newTerm+' мес. превышает предел '+cap+' мес. для остатка '+fmt(base.total));
+  if(!rateOk) messages.push('Ставка '+newRate+'% ниже минимума '+floor+'% (50% от исходной)');
+  const gates={ termOk, rateOk, termCap:cap, rateFloor:floor, messages };
+
+  /* графики */
+  const graceBlocks=v.inputs.graceBlocks||[];
+  let scheduleNew=[], morRow=null;
+  if(termOk && rateOk){
+    const am=amortize(base.total,newRate,newTerm,method,graceBlocks,v.cutoffDate,schedule);
+    scheduleNew=am.rows;
+    if(am.morCap>0) morRow={step:2.5, op:'Капитализация % за мораторий', delta:+am.morCap, after:round2(base.total+am.morCap), basis:'льгота (мораторий)'};
+  }
+  if(morRow) stack.splice(stack.findIndex(s=>s.step===5),0,morRow);  // строка стека до «новой базы»
+  const oldAm=amortize(snap.principal,cr.terms.rate,cr.remainingTermMonths,cr.terms.repayMethod,[],v.cutoffDate,cr.terms.schedule);
+  const scheduleOld=oldAm.rows;
+
+  /* итоги */
+  const sumPay=rows=>round2(rows.reduce((s,r)=>s+r.pay,0));
+  const sumInt=rows=>round2(rows.reduce((s,r)=>s+r.interest,0));
+  const p=periodMonths(schedule);
+  const gsum=graceBlocks.reduce((s,b)=>s+(b.months||0),0);
+  const totals={
+    old:{ base:snap.principal, totalInterest:sumInt(scheduleOld), totalToPay:sumPay(scheduleOld),
+          maturity:addCalDays(v.cutoffDate, cr.remainingTermMonths*30), regularPay: scheduleOld[0]?scheduleOld[0].pay:0 },
+    new:{ base:base.total, totalInterest: termOk&&rateOk?sumInt(scheduleNew):0, totalToPay: termOk&&rateOk?sumPay(scheduleNew):0,
+          maturity:addCalDays(v.cutoffDate, (newTerm+gsum)*30),
+          regularPay: (termOk&&rateOk&&scheduleNew.length)? scheduleNew[scheduleNew.length-1].pay:0 }
+  };
+
+  const plan={ cutoffDate:v.cutoffDate, stack, base, overdue, newRate, newTerm, method,
+    scheduleNew, scheduleOld, totals, gates };
+  v.plan=plan; v.overdueMode=mode;
+  return plan;
+}
 
 /* ================= ПРОИЗВОДНЫЕ (Р-19: считаем, не храним) ================= */
 const creditById = id => state.credits.find(c=>c.id===id);
@@ -1209,12 +1308,13 @@ function fixMinfin(appId){ if(!guard('fixMinfin')) return; const app=appById(app
 function setParam(appId,k,val){ const app=appById(appId); if(!canX('editVersion')){ toast('Условия правит Куратор ОД','err'); return; }
   if(!allowedParams(app).has(k)){ toast('Параметр не разрешён выбранными видами (Р-3)','err'); return; }
   const num=Number(val); app.version.params[k]=(val!==''&&!isNaN(num)&&/^[0-9.]+$/.test(val))?num:val; }
-function calcGraph(appId){ if(!guard('calcGraph')) return; const app=appById(appId); const cr=creditById(app.creditIds[0]);
-  const term=Number(app.version.params.term)||cr.terms.term; const rate=Number(app.version.params.rate)||cr.terms.rate;
-  const P=cr.balance, r=rate/100/12, n=term;
-  const pay = r>0 ? P*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1) : P/n;
-  app.version.graph=Array.from({length:Math.min(n,6)},(_,i)=>({n:i+1,date:addCalDays(app.regDate,(i+1)*30),pay}));
-  toast('График рассчитан (демо-аннуитет)','ok'); render(); }
+function calcGraph(appId){ if(!guard('calcGraph')) return; const app=appById(appId);
+  const plan=calcRestructure(appId);
+  if(!plan) return;                                  // валидация/тост уже внутри
+  app.version.graph=plan.scheduleNew.map(r=>({n:r.n,date:r.date,pay:r.pay}));  // совместимость
+  if(!plan.gates.termOk||!plan.gates.rateOk){ toast('Реструктуризация заблокирована: '+plan.gates.messages.join('; '),'warn'); }
+  else toast('Реструктуризация рассчитана','ok');
+  render(); }
 function advance(appId){ const app=appById(appId); const adv=canAdvance(app); if(!adv||!adv.ok){ toast(adv?adv.why:'Нет перехода','err'); return; }
   if(adv.to==='Анализ'){ if(!guard('startAnalysis')) return; app.analysisStarted=true; app._t=TODAY; H(app,'Пакет укомплектован → переход в «Анализ». Дедлайн 30 к.д.',state.role); toast('Переход выполнен','ok'); render(); return; }
   if(adv.to==='Комитет'){ toast('Заключения завизированы — зафиксируйте позицию комитета во вкладке «Комитет / Минфин»','ok'); state.curTab='minfin'; render(); return; }
@@ -1286,7 +1386,7 @@ function render(){
   else if(state.view==='dict') renderDict();
 }
 
-function toast(msg,kind){ const w=document.getElementById('toastWrap'); if(!w) return; const t=document.createElement('div');
+function toast(msg,kind){ if(typeof document==='undefined') return; const w=document.getElementById('toastWrap'); if(!w) return; const t=document.createElement('div');
   t.className='toast'+(kind?' '+kind:''); t.innerHTML=`<span>${esc(msg)}</span>`; w.appendChild(t); setTimeout(()=>t.remove(),4200); }
 
 /* публичный слой (UI + headless-check) */
@@ -1297,7 +1397,8 @@ const RS = {
   openWaiver, grantWaiver, openDS, regDS, openNewKind, addKind, showMirror,
   get state(){ return state; }, seed, stageOf, deadline, packetGate, conclGate, minfinGate, dsGate,
   coverGate, coverGateApp, allowedParams, requiredDocs, activeAppOnCredit, canAdvance, canX,
-  appById, creditById, kindById, applyEntryOps, versionFrom, amortize, periodMonths, round2, termCap, rateFloor, TODAY, STAGES, ROLES,
+  appById, creditById, kindById, applyEntryOps, versionFrom, amortize, periodMonths, round2, termCap, rateFloor,
+  calcRestructure, firstOverdueMode, TODAY, STAGES, ROLES,
   __baseApp: baseApp
 };
 if(typeof window!=='undefined') window.RS=RS;
