@@ -108,6 +108,10 @@
 
 
 
+
+
+
+
 -->
 <style>
 
@@ -562,6 +566,12 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
 .warn{ display:flex; gap:8px; align-items:flex-start; background:var(--status-error-bg); color:var(--asubk-red);
   border-radius:var(--radius-md); padding:10px 12px; font:var(--font-label); margin-top:6px; }
 .warn svg{ flex:none; margin-top:2px; }
+
+/* Р-19 реестр: подсветка строк по производным оверлеям (Р-3).
+   Просрочка → янтарь, взыскание → красный; выбор строки перекрывает тинт. */
+.grid tbody tr.ov-overdue{ background:var(--asubk-amber-tint); }
+.grid tbody tr.ov-collection{ background:var(--asubk-red-tint); }
+.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 </style>
 </head>
 <body>
@@ -1585,18 +1595,225 @@ if (typeof document !== 'undefined') {
     }).join('');
   }
 
-  /* смена роли (полная матрица прав — Task 2+; здесь только запоминание и тост) */
-  CR.state = { role: 'Кредитный специалист' };
+  /* смена роли (полная матрица прав §7). currentRole — источник audit.who и гейтинга
+     кнопок реестра (renderRole). Наблюдатель — read-only: createCredit/editConditions off. */
+  CR.state = { role: currentRole };
   CR.onRoleChange = function(){
     const sel = document.getElementById('roleSel');
     CR.state.role = sel ? sel.value : CR.state.role;
     currentRole = CR.state.role;                    // синхронизация с audit.who (мутации читают currentRole)
     toast('Роль: ' + CR.state.role);
+    renderRole();                                   // пере-гейтинг доступных действий реестра
   };
-  CR.closeModal = function(){ const h = document.getElementById('modalHost'); if (h) h.classList.remove('open'); };
+  CR.closeModal = function(){ const h = document.getElementById('modalHost'); if (h){ h.classList.remove('open'); h.innerHTML=''; } };
+
+  /* ============================================================
+     Р-19 РЕЕСТР КРЕДИТОВ — DOM render layer (Task 6).
+     Реестр показывает КРЕДИТ (кредитные колонки §5.1), не заявку. Все ячейки —
+     из derive() в рантайме (Р-11, кэш запрещён). Фильтры комбинируются по AND.
+     ============================================================ */
+  let selectedId = null;
+  const filters = { program:'', curator:'', category:'', lifecycle:'', disbState:'', problem:'', odMin:'', odMax:'' };
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+  function uniq(arr){ return [...new Set(arr)].filter(x=>x && x!=='—').sort((a,b)=>String(a).localeCompare(String(b),'ru')); }
+  function optList(vals){ return ['<option value="">— все —</option>'].concat(vals.map(v=>`<option>${esc(v)}</option>`)).join(''); }
+  /* активный куратор кредита (зеркало журнала кураторства Р-9): to==null, иначе последняя запись */
+  function curatorOf(c){
+    const cs = (c.mirror && c.mirror.curatorship) || [];
+    const act = cs.find(x=>!x.to) || cs[cs.length-1];
+    return act ? act.employee : '—';
+  }
+
+  /* ---- рендер полной оболочки реестра (тулбар + фильтры + сетка) ---- */
+  function renderList(){
+    const host = document.getElementById('view-list'); if (!host) return;
+    const programs = uniq(CR.db.credits.map(c=>c.origin.programId));
+    const curators = uniq(CR.db.credits.map(curatorOf));
+    host.innerHTML = `
+      <div class="tb-actions">
+        <button class="btn btn-primary btn-sm" id="btnCreate" onclick="CR.openCreatePicker()">Создать кредит</button>
+        <button class="btn btn-secondary btn-sm" id="btnView" onclick="if(CR._sel)CR.openDetail(CR._sel)">Просмотр</button>
+        <button class="btn btn-secondary btn-sm" id="btnEdit" onclick="if(CR._sel)CR.openDetail(CR._sel)">Изменить</button>
+        <span id="regCount" style="margin-left:12px;color:var(--text-muted);font:var(--font-label)"></span>
+        <button class="btn btn-tint btn-sm" style="margin-left:auto" onclick="CR.resetDemo()">Сбросить демо-данные</button>
+      </div>
+      <div class="filter-head open" onclick="this.classList.toggle('open')">
+        <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+        Фильтры реестра
+      </div>
+      <div class="filter-body">
+        <div class="field"><span class="flabel">Программа</span><div class="control"><select id="fProgram" onchange="CR.renderRows()">${optList(programs)}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Куратор</span><div class="control"><select id="fCurator" onchange="CR.renderRows()">${optList(curators)}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Категория риска</span><div class="control"><select id="fCategory" onchange="CR.renderRows()">${optList(['низкий','средний','высокий'])}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">ЖЦ договора</span><div class="control"><select id="fLifecycle" onchange="CR.renderRows()">${optList(['Проект','Зарегистрирован','Действует','Закрыт'])}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Состояние освоения</span><div class="control"><select id="fDisb" onchange="CR.renderRows()">${optList(['Не освоен','Частично освоен','Полностью освоен','Освоение закрыто'])}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Проблемность</span><div class="control"><select id="fProblem" onchange="CR.renderRows()"><option value="">— все —</option><option value="collection">Активное взыскание</option><option value="restructuring">Активная реструктуризация</option></select><span class="caret">▾</span></div></div>
+        <div class="field col-span"><span class="flabel">Просрочка, дн (диапазон)</span><div class="range-pair"><input id="fOdMin" type="number" min="0" placeholder="от" oninput="CR.renderRows()"><span>—</span><input id="fOdMax" type="number" min="0" placeholder="до" oninput="CR.renderRows()"></div></div>
+      </div>
+      <div class="grid-wrap">
+        <table class="grid"><thead><tr>
+          <th>№ договора</th><th>Дата</th><th>Заёмщик</th><th>Программа</th>
+          <th style="text-align:right">Сумма договора</th><th style="text-align:right">Освоено</th><th style="text-align:right">Остаток долга</th><th>Просрочка, дн</th>
+          <th>Категория</th><th>ЖЦ договора</th><th>Состояние освоения</th><th>Куратор</th>
+        </tr></thead><tbody id="regBody"></tbody></table>
+      </div>`;
+    renderRows();
+    renderRole();
+  }
+
+  /* считать значения фильтров из контролов в состояние filters */
+  function readFilters(){
+    const g = id => { const e = document.getElementById(id); return e ? e.value : ''; };
+    filters.program = g('fProgram'); filters.curator = g('fCurator'); filters.category = g('fCategory');
+    filters.lifecycle = g('fLifecycle'); filters.disbState = g('fDisb'); filters.problem = g('fProblem');
+    filters.odMin = g('fOdMin'); filters.odMax = g('fOdMax');
+  }
+  /* AND-комбинация фильтров; пустой фильтр = нет ограничения */
+  function passFilters(c, d){
+    const f = filters;
+    if (f.program   && c.origin.programId !== f.program)   return false;
+    if (f.curator   && curatorOf(c) !== f.curator)         return false;
+    if (f.category  && d.riskCategory !== f.category)       return false;
+    if (f.lifecycle && c.lifecycle !== f.lifecycle)         return false;
+    if (f.disbState && d.disbState !== f.disbState)         return false;
+    if (f.odMin !== '' && d.overdueDays < +f.odMin)         return false;
+    if (f.odMax !== '' && d.overdueDays > +f.odMax)         return false;
+    if (f.problem === 'collection'    && !d.overlays.some(o=>o.kind==='collection'))    return false;
+    if (f.problem === 'restructuring' && !d.overlays.some(o=>o.kind==='restructuring')) return false;
+    return true;
+  }
+  /* одна строка реестра — все ячейки из credit + derive() */
+  function rowHtml(c, d){
+    const hasColl = d.overlays.some(o=>o.kind==='collection');
+    const hasOd   = d.overlays.some(o=>o.kind==='overdue');
+    const tint = hasColl ? ' ov-collection' : hasOd ? ' ov-overdue' : '';   // взыскание перекрывает просрочку
+    const sel  = (c.id===selectedId) ? ' sel' : '';
+    const term = (c.lifecycle==='Закрыт') ? ' terminal' : '';
+    const catCls = d.riskCategory==='высокий' ? 'high' : d.riskCategory==='средний' ? 'mid' : 'low';
+    const debtBal = d.debt.principal.bal + d.debt.interest.bal + d.debt.penalty.bal;   // остаток долга = Σ балансов трёх слоёв
+    const odCell = d.overdueDays>0 ? `<td class="overdue">${d.overdueDays}</td>` : `<td>0</td>`;
+    return `<tr data-id="${esc(c.id)}" class="${(tint+sel+term).trim()}" onclick="CR.selectRow('${esc(c.id)}')" ondblclick="CR.openDetail('${esc(c.id)}')">
+      <td>${esc(c.num)}</td>
+      <td>${esc(c.date)}</td>
+      <td>${esc(c.borrower.name)}<br><span style="color:var(--text-muted);font-size:12px">ИНН ${esc(c.borrower.inn)}</span></td>
+      <td>${esc(c.origin.programId)}</td>
+      <td style="text-align:right">${money(c.contractAmount)}</td>
+      <td style="text-align:right">${money(d.disbursed)}</td>
+      <td style="text-align:right">${money(debtBal)}</td>
+      ${odCell}
+      <td><span class="pill ${catCls}">${esc(d.riskCategory)}</span></td>
+      <td>${esc(c.lifecycle)}</td>
+      <td>${esc(d.disbState)}</td>
+      <td>${esc(curatorOf(c))}</td>
+    </tr>`;
+  }
+  /* перерисовать только строки (фильтры/выбор меняются часто, оболочка — нет) */
+  function renderRows(){
+    readFilters();
+    const body = document.getElementById('regBody'); if (!body) return;
+    const rows = [];
+    for (const c of CR.db.credits){
+      const d = derive(c);
+      if (!passFilters(c, d)) continue;
+      rows.push(rowHtml(c, d));
+    }
+    body.innerHTML = rows.length ? rows.join('')
+      : `<tr><td colspan="12" style="text-align:center;color:var(--text-placeholder);padding:20px">Ничего не найдено по фильтрам</td></tr>`;
+    const cnt = document.getElementById('regCount');
+    if (cnt) cnt.textContent = rows.length + ' из ' + CR.db.credits.length;
+  }
+
+  /* одиночный клик — выбор строки (включает Просмотр/Изменить) */
+  function selectRow(id){
+    selectedId = id; CR._sel = id;
+    const body = document.getElementById('regBody');
+    if (body) [...body.children].forEach(tr => tr.classList && tr.classList.toggle('sel', tr.dataset.id===id));
+    renderRole();
+  }
+  /* двойной клик / Просмотр / Изменить — карточка кредита (8 вкладок — Task 7) */
+  function openDetail(id){
+    const c = CR.db.credits.find(x=>x.id===id); if (!c) return;
+    selectedId = id; CR._sel = id;
+    document.getElementById('view-list').style.display = 'none';
+    const dv = document.getElementById('view-detail');
+    dv.style.display = 'flex';
+    dv.innerHTML = `
+      <div style="padding:16px 20px 0">
+        <button class="btn btn-secondary btn-sm" onclick="CR.backToList()">← Реестр</button>
+      </div>
+      <div class="panel-wrap"><div class="panel-card">
+        <div class="section-h">Кредит № ${esc(c.num)} — ${esc(c.borrower.name)}</div>
+        <div class="section-note">ID ${esc(c.id)} · ЖЦ ${esc(c.lifecycle)} · договор от ${esc(c.date)} · программа ${esc(c.origin.programId)}</div>
+        <div id="cr-card-body" style="margin-top:16px;color:var(--text-placeholder);border:1px dashed var(--border-default);border-radius:var(--radius-md);padding:28px;text-align:center">
+          Карточка кредита (8 вкладок §5.2–5.3) — реализуется в Task 7. Плейсхолдер.
+        </div>
+      </div></div>`;
+    const crumb = document.getElementById('crumb'); if (crumb) crumb.textContent = '/ Договор № ' + c.num;
+  }
+  function backToList(){
+    const dv = document.getElementById('view-detail'); if (dv){ dv.style.display='none'; dv.innerHTML=''; }
+    const lv = document.getElementById('view-list'); if (lv) lv.style.display='flex';
+    const crumb = document.getElementById('crumb'); if (crumb) crumb.textContent = '';
+  }
+  /* сброс демо-данных: свежий seedDb() + полная перерисовка (§демо-ограничения) */
+  function resetDemo(){
+    CR.db = seedDb(); selectedId = null; CR._sel = null;
+    backToList(); renderList();
+    toast('Демо-данные сброшены', 'ok');
+  }
+  /* гейтинг действий по роли: Наблюдатель — read-only (createCredit/editConditions off) */
+  function renderRole(){
+    const canCreate = canRole(currentRole, 'createCredit');
+    const canEdit   = canRole(currentRole, 'editConditions');
+    const bC = document.getElementById('btnCreate');
+    const bV = document.getElementById('btnView');
+    const bE = document.getElementById('btnEdit');
+    if (bC){ bC.disabled = !canCreate; bC.title = canCreate ? '' : 'Роль «'+currentRole+'» не имеет права создавать кредит'; }
+    if (bV){ bV.disabled = !selectedId; bV.title = selectedId ? '' : 'Выберите кредит в реестре'; }
+    if (bE){ const ok = !!selectedId && canEdit;
+      bE.disabled = !ok;
+      bE.title = !selectedId ? 'Выберите кредит в реестре'
+        : !canEdit ? 'Роль «'+currentRole+'» не имеет права изменять кредит' : ''; }
+  }
+
+  /* «Создать кредит» — picker одобренных заявок без кредита (Г-2) */
+  function openCreatePicker(){
+    if (!canRole(currentRole, 'createCredit')){ toast('Роль «'+currentRole+'» не может создавать кредит', 'warn'); return; }
+    const apps = CR.db.applications.filter(a => a.approved===true && !a.creditId);   // Г-2: только одобренные без кредита
+    const host = document.getElementById('modalHost'); if (!host) return;
+    host.innerHTML = `<div class="modal narrow">
+      <div class="modal-h"><span class="mt">Создать кредит из заявки</span>
+        <button class="modal-x" onclick="CR.closeModal()" aria-label="Закрыть">✕</button></div>
+      <div class="modal-b">
+        <p class="section-note">Показаны только одобренные заявки без привязанного кредита (гейт Г-2). Отклонённые и уже связанные не выводятся.</p>
+        ${apps.length ? `<div class="cpick">${apps.map(a=>`
+          <div class="cpick-row" onclick="CR.pickApplication('${esc(a.id)}')">
+            <div class="cpick-main"><span class="cpick-num">${esc(a.id)}</span>
+              <span class="cpick-sub"> · ${esc(a.borrower.name)} · ИНН ${esc(a.borrower.inn)}</span></div>
+            <div class="cpick-claim">${money(a.approvedAmount)}</div></div>`).join('')}</div>`
+          : `<div class="cgrid-empty">Нет одобренных заявок без кредита</div>`}
+      </div>
+      <div class="modal-f"><button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button></div>
+    </div>`;
+    host.classList.add('open');
+  }
+  function pickApplication(id){
+    const app = CR.db.applications.find(a => a.id===id);
+    const g = gate(null, 'createCredit', { application: app });   // подтверждаем Г-2 перед созданием
+    if (!g.ok){ toast(g.reasons.join('; '), 'err'); return; }
+    CR.closeModal();
+    toast('Заявка ' + id + ' выбрана — черновик кредита (форма создания — Task 7)', 'ok');
+  }
+
+  /* экспорт DOM-обвязки на CR (onclick-строки разметки живут в глобальной области) */
+  CR._sel = null;
+  CR.renderList = renderList; CR.renderRows = renderRows; CR.renderRole = renderRole;
+  CR.selectRow = selectRow; CR.openDetail = openDetail; CR.backToList = backToList;
+  CR.resetDemo = resetDemo; CR.openCreatePicker = openCreatePicker; CR.pickApplication = pickApplication;
 
   renderNav();
-  // реестр/карточка наполняются в Task 2+ — здесь скелет готов.
+  renderList();          // реестр §5.1 (Р-19); карточка (8 вкладок) — Task 7
 }
 
 </script>
