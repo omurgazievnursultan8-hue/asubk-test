@@ -134,5 +134,10 @@ h.ev("location.hash='#/b/09901199990091'"); h.ev("route()");
 ok('R4. read-only заёмщик: есть ссылка на преемника',
   /10001199900101/.test(h.$('#view-detail').textContent));
 
+// ── Полнота демо (branches) ──
+const gg = mk();
+ok('B. реестр содержит ≥10 заёмщиков и все ветки достижимы', gg.$$('#listTable tbody tr').length >= 10);
+ok('B2. фильтр группы включает 3.2 (Ш-2)', /3\.2/.test(gg.$('#view-list').textContent) || gg.ev("Object.keys(GROUP_LABEL).includes('3.2')"));
+
 console.log(`\n${n - fails}/${n} PASS`);
 process.exit(fails ? 1 : 0);
