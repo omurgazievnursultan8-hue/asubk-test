@@ -187,13 +187,24 @@ const pd = CR.pd;
   const after = CR.closeCredit(c,{reason:'Погашен'}).ok;
   ok(22, before===false && after===true, `${before}→${after}`);
 })();
-/* 27. Аудит append-only: журнал нельзя менять; действия оставили записи. */
+/* 27. Аудит append-only: журнал нельзя менять; действия оставили записи. Заморозка
+   и отсутствие delete-API — ДВА независимых assert (были слиты в один ||, из-за
+   чего заморозка не проверялась ни разу — CR.deleteAudit всегда отсутствует). */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const n0=c.audit.length;
   CR.setKmDecision(c,{kind:'x',num:'1',date:'01.06.2026',scan:'s.pdf'});
   CR.addPayment(c,{amount:500,date:'01.07.2026',trancheNo:1});
   const grew = c.audit.length>=n0+2;
-  const frozen = Object.isFrozen(c.audit[0]) || !CR.deleteAudit;      // нет интерфейса удаления
-  ok(27, grew && frozen);
+  const frozen = Object.isFrozen(c.audit[0]);                          // журнал реально заморожен
+  const noDeleteApi = !CR.deleteAudit;                                 // нет интерфейса удаления
+  ok(27, grew && frozen && noDeleteApi);
+})();
+/* 27b. Заморозка сквозная: запись Task-4-происхождения (holdAccrual) тоже идёт через
+   pushAudit — тоже заморожена и той же формы {when,who,what,...}. Ловит регрессию,
+   если кто-то снова начнёт пушить «сырой» {ts,action,note} в credit.audit напрямую. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  CR.holdAccrual(c,{from:'01.06.2026',to:'01.08.2026',reason:'форс-мажор',doc:'прик.5',by:'Куратор'});
+  const last = c.audit[c.audit.length-1];
+  ok('27b', Object.isFrozen(last) && 'when' in last && 'who' in last && 'what' in last);
 })();
 /* 28. Кнопок «Удалить» нет — структурная проверка на строку 'Удалить' у гридов. */
 (() => { ok(28, CR.hasDeleteButtons ? CR.hasDeleteButtons()===false : true); })();

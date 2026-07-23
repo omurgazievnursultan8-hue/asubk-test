@@ -59,7 +59,7 @@
       Макет: простой календарь (сб/вс), без праздников.
 
   SMOKE (node)
- SMOKE (node) 2026-07-23 · 30/30 PASS
+ SMOKE (node) 2026-07-23 · 31/31 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -89,7 +89,9 @@
    #16 ✓
    #22 ✓
    #27 ✓
+   #27b ✓
    #28 ✓
+
 
 
 
@@ -1275,6 +1277,7 @@ function gate(credit, action, ctx = {}){
       break;
     case 'addDisbursement': {
       const t = credit.tranches.find(x=>x.no===ctx.trancheNo);
+      if (!t) r.push('Транш не найден');                                // защита от неизвестного trancheNo (иначе gate проходит, а мутация падает на push в undefined)
       const already = t ? disbursedSum(t) : 0;
       if (t && ctx.amount + already > t.amount) r.push('Σ освоений транша не может превышать сумму транша'); // Г-4
       if (!['Зарегистрирован','Действует'].includes(credit.lifecycle)) r.push('Освоение возможно только при ЖЦ «Зарегистрирован» или «Действует»'); // Г-5
@@ -1358,8 +1361,8 @@ function generateSchedule(credit, trancheNo, params){
   const ver = t.schedules.reduce((m,s) => Math.max(m, s.ver || 0), 0) + 1;
   const version = { ver, active:true, generatedFrom: params.from, rows: built.rows };
   t.schedules.push(version);
-  credit.audit.push({ ts: TODAY, action:'generateSchedule',
-    note:`Сформирован график погашения v${ver} по траншу №${trancheNo} от ${params.from}` });
+  pushAudit(credit, `Сформирован график погашения v${ver} по траншу №${trancheNo} от ${params.from}`,
+    prevActive || null, version);
   return version;
 }
 
@@ -1374,8 +1377,8 @@ function holdAccrual(credit, ctx){
   const hold = { from: ctx.from, to: ctx.to || null, reason: ctx.reason, doc: ctx.doc, by: ctx.by || '' };
   credit.accrualHold.push(hold);
   for (const t of credit.tranches){ t.accrualHold = t.accrualHold || []; t.accrualHold.push(hold); }
-  credit.audit.push({ ts: TODAY, action:'holdAccrual',
-    note:`Приостановлено начисление процентов ${ctx.from}–${ctx.to || '…'} (${ctx.reason})` });
+  pushAudit(credit, `Приостановлено начисление процентов ${ctx.from}–${ctx.to || '…'} (${ctx.reason})`,
+    null, hold);
   return g;
 }
 
