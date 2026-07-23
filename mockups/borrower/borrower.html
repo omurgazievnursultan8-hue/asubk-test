@@ -260,12 +260,25 @@
   .warn-plate .ic{flex:0 0 auto;font-size:15px;}
 
   /* ---------- вкладки ---------- */
-  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border-default);margin-bottom:18px;flex-wrap:wrap;}
+  .tabs, .tabbar{display:flex;gap:2px;border-bottom:1px solid var(--border-default);margin-bottom:18px;flex-wrap:wrap;}
   .tab{padding:10px 14px;font-size:15px;font-weight:600;color:var(--text-muted);cursor:pointer;
     border-bottom:2px solid transparent;user-select:none;}
   .tab:hover{color:var(--text-body);}
   .tab.active{color:var(--text-link);border-bottom-color:var(--action-primary);}
   .tabpanel{display:none;} .tabpanel.active{display:block;}
+
+  /* ---------- карточка заёмщика v2: шапка-плитки (Task 10) ---------- */
+  .crumb{font-size:13px;color:var(--text-muted);margin-bottom:10px;}
+  .phead-dims{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px;}
+  @media (max-width:1100px){ .phead-dims{grid-template-columns:repeat(2,minmax(0,1fr));} }
+  .dim{border:1px solid var(--border-default);border-radius:6px;padding:14px 16px;background:#fff;
+    display:flex;flex-direction:column;gap:6px;min-width:0;}
+  .dim-t{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);font-weight:600;}
+  .dim-v{font-size:20px;font-weight:700;line-height:1.25;}
+  .src{font-size:13px;color:var(--text-muted);line-height:1.35;}
+  .ro-banner{margin:0 0 16px;padding:11px 16px;background:#fff5f5;border:1px solid #f3d6d6;border-radius:6px;
+    font-size:13px;color:#8a2020;}
+  table.grid.mini thead th, table.grid.mini tbody td{padding:7px 10px;font-size:13px;}
 
   /* ---------- вид: список ---------- */
   .view{display:none;} .view.active{display:block;}
@@ -590,54 +603,14 @@
     <!-- ==================== ВИД: КАРТОЧКА ==================== -->
     <div class="view" id="view-detail">
       <div class="content">
-
-      <div class="id-bar">
-        <div class="id-main">
-          <div class="id-name" id="cName"></div>
-          <div class="id-sub" id="cSub"></div>
-        </div>
-      </div>
-
-      <div class="tabs" id="tabs">
-        <div class="tab active" data-tab="general">Общая информация</div>
-        <div class="tab" data-tab="contacts">Контакты</div>
-        <div class="tab" data-tab="credits">Кредиты</div>
-        <div class="tab" data-tab="collateral">Обеспечение</div>
-        <div class="tab" data-tab="enforce">Взыскание</div>
-        <div class="tab" data-tab="acts">Акты сверок</div>
-        <div class="tab" data-tab="curatorship">Кураторство</div>
-        <div class="tab" data-tab="history">История</div>
-        <div class="tab" data-tab="docs">Документы</div>
-        <div class="tab" data-tab="checks">Результаты проверок</div>
-      </div>
-
-      <div class="tabpanel active" data-panel="general" id="pGeneral"></div>
-      <div class="tabpanel" data-panel="credits" id="pCredits"></div>
-      <div class="tabpanel" data-panel="collateral" id="pCollateral"></div>
-      <div class="tabpanel" data-panel="enforce" id="pEnforce"></div>
-      <div class="tabpanel" data-panel="acts" id="pActs"></div>
-      <div class="tabpanel" data-panel="curatorship" id="pCuratorship"></div>
-      <div class="tabpanel" data-panel="history" id="pHistory"></div>
-      <div class="tabpanel" data-panel="docs" id="pDocs"></div>
-      <div class="tabpanel" data-panel="contacts" id="pContacts"></div>
-      <div class="tabpanel" data-panel="checks" id="pChecks"></div>
-
+        <div id="cardMount"></div>
       </div>
     </div>
 
     <!-- ==================== ВИД: СУБЪЕКТ (организация / физлицо) ==================== -->
     <div class="view" id="view-subject">
       <div class="content">
-        <div class="id-bar">
-          <div class="id-main">
-            <div class="id-name" id="sName"></div>
-            <div class="id-sub" id="sSub"></div>
-          </div>
-          <div class="id-actions">
-            <button class="btn btn-secondary">Редактировать</button>
-          </div>
-        </div>
-        <div id="sBody"></div>
+        <div id="subjectMount"></div>
       </div>
     </div>
   </div>
@@ -815,6 +788,22 @@ const ACTS       = [];   // ← акты сверок; Task 10
 const DOCS       = [];   // ← досье п.97 (Р-8); Task 10
 const CHECKS_EXT = [];   // ← внешние снимки КИБ/скоринг (Р-8); Task 10
 const RELATED    = [];   // ← реестр лиц (Р-7); Task 10
+ACTS.push(
+  { id:'ACT-1', inn:'01204199910016', creditId:'C-ATS-GAZ', kind:'годовой', dueDate:'30.06.2026', status:'просрочен' },
+  { id:'ACT-2', inn:'05501199950051', creditId:'C-B5-EXP', kind:'годовой', dueDate:'20.04.2026', status:'уклонение' },
+);
+DOCS.push(
+  { id:'DOC-1', inn:'01204199910016', scope:{kind:'кредит', ref:'C-ATS-NECEL'}, type:'Кредитный договор', date:'14.02.2011', ownerModule:'credit', file:'kd-60540.pdf' },
+  { id:'DOC-2', inn:'01204199910016', scope:{kind:'заёмщик', ref:'01204199910016'}, type:'Учредительные документы', date:'14.02.2011', ownerModule:'borrower', file:'ustav.pdf' },
+);
+CHECKS_EXT.push(
+  { inn:'01204199910016', source:'КИБ Ишеним', takenAt:'01.03.2026', appId:'APP-118', payload:{rating:'B', overdueTotal:9898000} },
+  { inn:'01204199910016', source:'скоринг', takenAt:'01.03.2026', appId:'APP-118', payload:{score:612} },
+);
+RELATED.push(
+  { inn:'01204199910016', personId:'P-501', fio:'Осмонов Бакыт Кадырович', role:'Директор', share:null, from:'14.02.2011' },
+  { inn:'01204199910016', personId:'P-502', fio:'Осмонова Гульнара', role:'Учредитель', share:0.6, from:'14.02.2011' },
+);
 // WORKDAYS — праздники производственного календаря КР 2026 (ОВ-2). Будни − эти даты = рабочие дни.
 const WORKDAYS = ['01.01.2026','02.01.2026','07.01.2026','23.02.2026','08.03.2026','09.03.2026','21.03.2026',
   '22.03.2026','23.03.2026','01.05.2026','05.05.2026','07.05.2026','09.05.2026','31.08.2026','07.11.2026'];
@@ -1068,8 +1057,238 @@ function renderList(){
   const rc = document.getElementById('rowCount');
   if (rc) rc.textContent = SUBJECTS.length + ' строк';
 }
-function renderCard(b){ return ''; }
-function renderSubject(b){ return ''; }
+function tile(title, valueHtml, basis, moreHtml){
+  return `<div class="dim"><div class="dim-t">${esc(title)}</div><div class="dim-v">${valueHtml}</div>`
+    + `<div class="src">${esc(basis)}</div>`
+    + (moreHtml ? `<details class="tile-more"><summary>как выведено</summary>${moreHtml}</details>` : '')
+    + `</div>`;
+}
+const TABS = ['Общая информация','Кредиты','Мониторинг','Взыскание','Акты сверок','Кураторство',
+  'Связанные лица','Реквизиты и контакты','Документы','Проверки','История'];
+
+function catBasisHtml(inn){
+  const rows = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY)).map(c=>{
+    const r = catOfCredit(c.id, TODAY);
+    return `<tr><td>${esc(c.no)}</td><td>${r.days} дн.</td><td>${r.suppressed?'подавл. 181':'—'}</td>`
+      + `<td>${r.factors.map(f=>esc(f.type+' ('+f.committeeRef+')')).join('; ')||'—'}</td><td>${esc(CAT_LABEL[r.level])}</td></tr>`;
+  }).join('');
+  return `<table class="grid mini"><thead><tr><th>Кредит</th><th>Просрочка</th><th>Оверлей</th><th>Факторы комитета</th><th>Категория</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function groupBasisHtml(inn){
+  const myCredits = new Set(CREDITS.filter(c=>c.inn===inn).map(c=>c.id));
+  const procs = PROCESSES.filter(p=>p.credits.some(id=>myCredits.has(id)));
+  return procs.length ? procs.map(p=>`${esc(p.procedure)} — ${p.confirmed?'подтв.':'НЕ подтв.'}`).join('<br>') : 'процедур нет → 1.1';
+}
+
+/* ---------- 11 вкладок карточки — каждая строит HTML из §4-функций/массивов ---------- */
+
+/* 0. Общая информация — реквизиты Д-6. */
+function generalTab(inn){
+  const s = SUBJECTS.find(x=>x.inn===inn);
+  const doc = s.doc || {};
+  const rows = [
+    ['Тип лица', s.personKind],
+    ['Организационно-правовая форма', s.legalForm || '—'],
+    ['Форма собственности (Ш-5)', s.ownershipForm || '—'],
+    ['Отрасль', s.industry || '—'],
+    ['Документ', `${doc.kind||'—'} № ${doc.no||'—'} от ${doc.date||'—'}`],
+    ['Юридический адрес', s.addrLegal || '—'],
+    ['Фактический адрес', s.addrFact || '—'],
+    ['Дата регистрации', s.regDate || '—'],
+  ];
+  const body = '<div class="fields">' + rows.map(([k,v])=>`<div class="f"><span class="fk">${esc(k)}</span><span class="fv">${esc(v)}</span></div>`).join('') + '</div>';
+  const stamp = `<div class="tile-basis" style="padding:8px 16px;color:var(--text-muted)">Данные на ${esc(TODAY)} · ИНН ${esc(inn)}</div>`;
+  return sect('Реквизиты (Д-6)', '', '', body + stamp);
+}
+
+/* 1. Кредиты — зеркало кредитного модуля (И-5): per-credit worst-of, 5 статей долга, индекс залога. */
+function creditsTab(inn){
+  const rows = CREDITS.filter(c=>c.inn===inn).map(c=>{
+    const active = isActiveCredit(c, TODAY);
+    const cat = active ? catOfCredit(c.id, TODAY) : null;
+    const cov = PLEDGE_IX.find(p=>p.creditId===c.id);
+    return `<tr><td>${esc(c.no)}</td><td>${esc(c.program)}</td><td>${esc(c.kind)}</td>`
+      + `<td class="mono">${fmt(c.debt.principal)}</td><td class="mono">${fmt(c.debt.interest)}</td>`
+      + `<td class="mono">${fmt(c.debt.penalty)}</td><td class="mono">${fmt(c.debt.fees)}</td>`
+      + `<td class="mono">${fmt(c.debt.costs)}</td>`
+      + `<td>${active ? esc(CAT_LABEL[cat.level]) : '—'}</td>`
+      + `<td>${cov ? cov.index.toFixed(2) : '—'}</td>`
+      + `<td>${c.closedAt ? 'закрыт '+esc(c.closedAt) : 'действ.'}</td>`
+      + `<td><a class="lnk">открыть в кредитном модуле</a></td></tr>`;
+  });
+  const head = '<th>Кредит</th><th>Программа</th><th>Вид</th><th>Осн. долг</th><th>%</th><th>Пеня</th>'
+    + '<th>Комиссии</th><th>Издержки</th><th>Категория</th><th>Индекс залога</th><th>Статус</th><th></th>';
+  return sect('Кредиты', 'зеркало кредитного модуля', '', table(head, rows));
+}
+
+/* 2. Мониторинг — обязательства (Р-4) + очередь на комитет (Р-5, И-1). */
+function monitoringTab(inn){
+  const obs = obligations(inn, TODAY);
+  const obRows = obs.map(o=>`<tr><td>${esc(o.code)}</td><td>${esc(o.basis)}</td><td>${esc(o.dueDate)}</td>`
+    + `<td><span class="badge ${o.status==='просрочено'?'b-ov':'b-ok'}">${esc(o.status)}</span></td></tr>`);
+  const obHtml = table('<th>Код</th><th>Основание</th><th>Срок</th><th>Статус</th>', obRows);
+  const q = committeeQueue(inn, TODAY);
+  const qRows = q.map(e=>`<tr><td>${esc(e.type)}</td><td>${esc(e.source)}</td><td>${esc(e.detectedAt)}</td>`
+    + `<td>${esc(CAT_LABEL[e.wouldGive]||e.wouldGive)}</td><td>${e.waitingDays} дн.</td></tr>`);
+  const qHtml = table('<th>Событие</th><th>Источник</th><th>Обнаружено</th><th>Даст категорию</th><th>Ожидание</th>', qRows);
+  return sect('Обязательства', 'Р-4', '', obHtml) + sect('Очередь на комитет', 'Р-5 · категорию не двигает до решения (И-1)', '', qHtml);
+}
+
+/* 3. Взыскание — зеркало (И-5): процедуры (M:N по кредитам заёмщика), confirmed. */
+function collectionTab(inn){
+  const myCredits = new Set(CREDITS.filter(c=>c.inn===inn).map(c=>c.id));
+  const procs = PROCESSES.filter(p=>p.credits.some(id=>myCredits.has(id)));
+  const rows = procs.map(p=>`<tr><td>${esc(p.procedure)}</td><td>${esc(p.phase)}</td>`
+    + `<td>${p.confirmed?'<span class="badge b-ok">подтв.</span>':'<span class="badge b-gray">не подтв.</span>'}</td>`
+    + `<td>${p.credits.map(id=>esc((CREDITS.find(c=>c.id===id)||{}).no||id)).join(', ')}</td>`
+    + `<td><a class="lnk">открыть в модуле взыскания</a></td></tr>`);
+  return sect('Взыскание', 'зеркало модуля взыскания', '', table('<th>Процедура</th><th>Фаза</th><th>Статус</th><th>Кредиты</th><th></th>', rows));
+}
+
+/* 4. Акты сверок — ACTS заёмщика; уклонение >60 к.д. помечено кандидатом на комитет. */
+function actsTab(inn){
+  const acts = ACTS.filter(a=>a.inn===inn);
+  const rows = acts.map(a=>{
+    const overdue = a.status==='просрочен' || a.status==='уклонение';
+    const days = overdue ? calDays(a.dueDate, TODAY) : 0;
+    const flag = (a.status==='уклонение' && days>60) ? ' — кандидат в очередь на комитет' : '';
+    return `<tr><td>${esc(a.creditId)}</td><td>${esc(a.kind)}</td><td>${esc(a.dueDate)}</td>`
+      + `<td><span class="badge ${overdue?'b-ov':'b-ok'}">${esc(a.status)}</span>${esc(flag)}</td></tr>`;
+  });
+  return sect('Акты сверок', '', '', table('<th>Кредит</th><th>Вид</th><th>Срок</th><th>Статус</th>', rows));
+}
+
+/* 5. Кураторство — curatorMatrix (объект×роль) + конфликт интересов (Р-6, 3 фазы, noticeOverdue). */
+function curatorTab(inn){
+  const matrix = curatorMatrix(inn, TODAY);
+  const mRows = matrix.map(m=>`<tr><td>${esc(m.objectKind)}</td><td>${esc(m.objectId)}</td><td>${esc(m.role)}</td><td>${esc(m.empId)}</td></tr>`);
+  const mHtml = table('<th>Объект</th><th>Идентификатор</th><th>Роль</th><th>Сотрудник</th>', mRows);
+  const confs = CONFLICTS.filter(c=>c.inn===inn);
+  const cRows = confs.map(c=>{
+    const st = conflictState(c, TODAY);
+    return `<tr><td>${esc(c.empId)}</td><td>${esc(c.trigger)}</td><td>${esc(st.phase)}</td>`
+      + `<td>${st.noticeOverdue ? '<span class="badge b-ov">просрочено</span>' : '—'}</td>`
+      + `<td>${st.suspendedTo ? 'снято '+esc(st.suspendedTo) : (st.suspendedFrom?'действует с '+esc(st.suspendedFrom):'—')}</td></tr>`;
+  });
+  const cHtml = table('<th>Сотрудник</th><th>Основание</th><th>Фаза</th><th>Уведомление Правления</th><th>Отстранение</th>', cRows);
+  return sect('Кураторство', 'объект × роль', '', mHtml) + sect('Конфликт интересов', 'Р-6 / п.93', '', cHtml);
+}
+
+/* 6. Связанные лица — зеркало реестра лиц (И-5, Р-7). */
+function relatedTab(inn){
+  const rows = RELATED.filter(r=>r.inn===inn).map(r=>`<tr><td>${esc(r.fio)}</td><td>${esc(r.role)}</td>`
+    + `<td>${r.share!=null ? (r.share*100).toFixed(0)+'%' : '—'}</td><td>${esc(r.from)}</td>`
+    + `<td><a class="lnk">открыть в реестре лиц</a></td></tr>`);
+  return sect('Связанные лица', 'правка — в реестре лиц', '', table('<th>ФИО</th><th>Роль</th><th>Доля</th><th>С</th><th></th>', rows));
+}
+
+/* 7. Реквизиты и контакты — владеет модуль (не зеркало); MVP — текст без контролов. */
+function requisitesTab(inn){
+  const chans = CHANNELS.filter(c=>c.inn===inn);
+  const chRows = chans.map(c=>`<tr><td>${esc(c.kind)}</td><td>${esc(c.value)}</td><td>${esc(c.from)}</td>`
+    + `<td>${c.closedAt ? 'закрыт '+esc(c.closedAt) : 'действ.'}</td></tr>`);
+  const chHtml = table('<th>Канал</th><th>Значение</th><th>С</th><th>Статус</th>', chRows);
+  const banks = BANK_REQ.filter(b=>b.inn===inn);
+  const bRows = banks.map(b=>`<tr><td>${esc(b.bank)}</td><td class="mono">${esc(b.account)}</td><td>${esc(b.currency)}</td>`
+    + `<td>${b.main?'основной':'—'}</td><td>${esc(b.from)}</td></tr>`);
+  const bHtml = table('<th>Банк</th><th>Счёт</th><th>Валюта</th><th>Тип</th><th>С</th>', bRows);
+  return sect('Каналы связи', 'Р-10', '', chHtml) + sect('Банковские реквизиты', 'Р-10 · append-only', '', bHtml);
+}
+
+/* 8. Документы — DOCS по scope (Р-8); зеркало (И-5). */
+function docsTab(inn){
+  const docs = DOCS.filter(d=>d.inn===inn);
+  const rows = docs.map(d=>`<tr><td>${esc(d.type)}</td><td>${esc(d.scope.kind)} ${esc(d.scope.ref)}</td>`
+    + `<td>${esc(d.date)}</td><td>${esc(d.file)}</td><td><a class="lnk">открыть в ${esc(d.ownerModule)}</a></td></tr>`);
+  return sect('Документы', 'досье п.97', '', table('<th>Тип</th><th>Относится к</th><th>Дата</th><th>Файл</th><th></th>', rows));
+}
+
+/* 9. Проверки — внутренние (текущие функции) + внешние снимки CHECKS_EXT (зеркало, И-5). */
+function checksTab(inn){
+  const internal = sect('Внутренние проверки', 'текущие данные', '',
+    `<div class="fields"><div class="f"><span class="fk">Категория риска</span><span class="fv">${esc(catOfBorrower(inn,TODAY) ? CAT_LABEL[catOfBorrower(inn,TODAY)] : 'не применяется')}</span></div>`
+    + `<div class="f"><span class="fk">Группа платёжеспособности</span><span class="fv">${esc(groupOf(inn,TODAY))}</span></div></div>`);
+  const ext = CHECKS_EXT.filter(c=>c.inn===inn);
+  const rows = ext.map(c=>`<tr><td>${esc(c.source)}</td><td>${esc(c.takenAt)}</td><td>${esc(c.appId)}</td>`
+    + `<td>${esc(JSON.stringify(c.payload))}</td></tr>`);
+  const extHtml = `<div data-mirror="1">` + sect('Внешние снимки', 'КИБ / скоринг — на момент заявки', '', table('<th>Источник</th><th>Снято</th><th>Заявка</th><th>Данные</th>', rows)) + `</div>`;
+  return internal + extHtml;
+}
+
+/* 10. История — слияние CATEGORY_LOG/GROUP_LOG/SUBJECT_EVENTS/конфликтов, отсортировано по дате. */
+function historyTab(inn){
+  const items = [];
+  CATEGORY_LOG.filter(l=>l.inn===inn).forEach(l=>items.push({date:l.from, kind:'категория', text:`→ ${CAT_LABEL[l.level]} (${l.reason})`, cls:'k-risk'}));
+  GROUP_LOG.filter(l=>l.inn===inn).forEach(l=>items.push({date:l.from, kind:'группа', text:`→ ${l.group} — ${l.basis}`, cls:'k-grp'}));
+  SUBJECT_EVENTS.filter(e=>e.inn===inn).forEach(e=>items.push({date:e.date, kind:'субъект', text:`${e.kind} (${e.basis})`, cls:'k-grp'}));
+  CONFLICTS.filter(c=>c.inn===inn).forEach(c=>items.push({date:c.declaredAt, kind:'конфликт', text:`${c.trigger} — заявлен`, cls:'k-conf'}));
+  items.sort((a,b)=>dnum(a.date)-dnum(b.date));
+  if (!items.length) return empty('Событий не найдено.');
+  return '<div class="tl">' + items.map(it=>`<div class="tl-item ${esc(it.cls)}"><div class="tl-date">${esc(it.date)}`
+    + `<span class="tl-kind ${esc(it.cls)}">${esc(it.kind)}</span></div><div class="tl-body">${esc(it.text)}</div></div>`).join('') + '</div>';
+}
+
+function tabBody(inn, i){
+  switch(i){
+    case 0: return generalTab(inn);
+    case 1: return `<div data-mirror="1">${creditsTab(inn)}</div>`;
+    case 2: return monitoringTab(inn);
+    case 3: return `<div data-mirror="1">${collectionTab(inn)}</div>`;
+    case 4: return actsTab(inn);
+    case 5: return curatorTab(inn);
+    case 6: return `<div data-mirror="1">${relatedTab(inn)}</div>`;
+    case 7: return requisitesTab(inn);
+    case 8: return `<div data-mirror="1">${docsTab(inn)}</div>`;
+    case 9: return checksTab(inn);
+    case 10: return historyTab(inn);
+  }
+  return '';
+}
+
+function renderCard(inn){
+  const s = SUBJECTS.find(x=>x.inn===inn);
+  const cat = catOfBorrower(inn, TODAY);
+  const grp = groupOf(inn, TODAY);
+  const st  = subjectState(inn, TODAY);
+  const ro  = isReadOnly(inn, TODAY);
+  const ovl = CREDITS.filter(c=>c.inn===inn).flatMap(c=>OVERLAYS.filter(o=>o.creditId===c.id));
+
+  const tiles = [
+    tile('Состояние субъекта', esc(st ? st.kind : 'действует'),
+      st ? `основание: ${esc(st.basis||'—')}` : 'событий нет',
+      st && st.successorInn ? `Преемник: <a class="lnk" href="#/b/${st.successorInn}">${st.successorInn}</a>` : ''),
+    tile('Группа платёжеспособности', `<span class="grp-code">${esc(grp)}</span> ${esc(GROUP_LABEL[grp]||'')}`,
+      'ст.: лестница-доминирование', groupBasisHtml(inn)),
+    tile('Категория риска', cat ? esc(CAT_LABEL[cat]) : 'не применяется',
+      cat ? 'worst-of по действующим кредитам' : 'нет действующих кредитов (И-3)', catBasisHtml(inn)),
+    tile('Оверлеи', ovl.length ? `${ovl.length} действ.` : '—',
+      ovl.length ? 'зеркало restructuring' : 'оверлеев нет',
+      ovl.map(o=>`${esc(o.kind)} до ${esc(o.deadline)} · <a class="lnk">открыть в restructuring</a>`).join('<br>')),
+  ].join('');
+
+  const banner = ro ? `<div class="ro-banner">Карточка только для чтения — ${esc(st.kind)}.`
+    + (st.successorInn ? ` Преемник: <a class="lnk" href="#/b/${st.successorInn}">${st.successorInn}</a>` : '') + `</div>` : '';
+
+  const tabbar = `<div class="tabbar">` + TABS.map((t,i)=>`<div class="tab${i===0?' active':''}" data-tab="${i}" onclick="switchTab(${i})">${esc(t)}</div>`).join('') + `</div>`;
+  const panels = TABS.map((t,i)=>`<div class="tabpanel${i===0?' active':''}" data-panel="${i}">${tabBody(inn, i)}</div>`).join('');
+
+  return `<div class="crumb"><a class="lnk" href="#/">Заёмщики</a> / ${esc(s.name)}</div>`
+    + `<div class="phead-dims">${tiles}</div>${banner}${tabbar}${panels}`;
+}
+
+/* ---------- Субъект (#/s/<ИНН>) — собственная сущность (E2E findings), не зеркало заёмщика. ---------- */
+function renderSubject(inn){
+  const s = SUBJECTS.find(x=>x.inn===inn);
+  const evs = SUBJECT_EVENTS.filter(e=>e.inn===inn).slice().sort((a,b)=>dnum(b.date)-dnum(a.date));
+  const header = `<div class="crumb"><a class="lnk" href="#/b/${esc(inn)}">${esc(s.name)}</a> / Субъект</div>`
+    + `<div class="id-bar"><div class="id-main"><div class="id-name">${esc(s.name)}</div>`
+    + `<div class="id-sub"><span>ИНН <b>${esc(inn)}</b></span><span>${esc(s.personKind)}</span></div></div></div>`;
+  const body = generalTab(inn);
+  const evRows = evs.map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(e.kind)}</td><td>${esc(e.basis||'—')}</td><td>${esc(e.doc||'—')}</td>`
+    + `<td>${e.successorInn ? `<a class="lnk" href="#/b/${esc(e.successorInn)}">${esc(e.successorInn)}</a>` : '—'}</td></tr>`);
+  const evHtml = sect('Жизненный цикл субъекта', 'Р-9 · append-only', '', table('<th>Дата</th><th>Событие</th><th>Основание</th><th>Документ</th><th>Преемник</th>', evRows));
+  return header + body + evHtml;
+}
 
 /* ═══ SECTION 4 · ШЕЛЛ (роутер/реестр/память) ═══ */
 /* kept as-is from the stand-verified mockup */
@@ -1118,51 +1337,69 @@ function showList(){
   topbar.classList.remove('on-detail');
   scrollTop();
 }
-function showDetail(b, tab){
-  current = b; currentSubj = null;
-  renderCard(b);
+function showDetail(inn, tabIndex){
+  current = inn; currentSubj = null;
+  document.getElementById('cardMount').innerHTML = renderCard(inn);
   showOnly(vDetail);
-  pageTitle.textContent = 'Заёмщик';
+  const s = SUBJECTS.find(x => x.inn === inn);
+  pageTitle.textContent = s ? s.name : 'Заёмщик';
   topbar.classList.add('on-detail');
-  openTab(tab || lastTab());
+  switchTab(tabIndex != null ? tabIndex : lastTab(), /*fromRoute*/true);
   scrollTop();
 }
-/* страница субъекта — отдельный экран, не вкладка карточки */
-function showSubject(b){
-  current = b; currentSubj = b;
-  renderSubject(b);
+/* страница субъекта — отдельный экран, не вкладка карточки (субъект — своя сущность, E2E findings) */
+function showSubject(inn){
+  current = inn; currentSubj = inn;
+  document.getElementById('subjectMount').innerHTML = renderSubject(inn);
   showOnly(vSubject);
-  pageTitle.textContent = b.subj.kind === 'person' ? 'Физическое лицо' : 'Организация';
+  const s = SUBJECTS.find(x => x.inn === inn);
+  pageTitle.textContent = (s && s.personKind === 'физ') ? 'Физическое лицо' : 'Организация';
   topbar.classList.add('on-detail');
   scrollTop();
 }
-/* последняя открытая вкладка помнится между заёмщиками и перезагрузками */
+/* последняя открытая вкладка (индекс 0..10) помнится между заёмщиками и перезагрузками */
 const TAB_KEY = 'asubk.borrower.tab';
 function lastTab(){
   let t = null;
   try { t = localStorage.getItem(TAB_KEY); } catch(e){}
-  return t && document.querySelector('#tabs .tab[data-tab="' + t + '"]') ? t : 'general';
+  const i = t !== null ? parseInt(t, 10) : NaN;
+  return Number.isInteger(i) && i >= 0 && i < TABS.length ? i : 0;
 }
-function rememberTab(t){ try { localStorage.setItem(TAB_KEY, t); } catch(e){} }
+function rememberTab(i){ try { localStorage.setItem(TAB_KEY, String(i)); } catch(e){} }
+/* переключение вкладок карточки заёмщика (11 шт., рендерятся renderCard); вызывается inline onclick из разметки. */
+function switchTab(i, fromRoute){
+  document.querySelectorAll('.tabbar .tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
+  const tabEl = document.querySelector('.tabbar .tab[data-tab="' + i + '"]');
+  if (tabEl) tabEl.classList.add('active');
+  const panelEl = document.querySelector('.tabpanel[data-panel="' + i + '"]');
+  if (panelEl) panelEl.classList.add('active');
+  rememberTab(i);
+  if (!fromRoute) writeHash();
+}
 /* стрелка «назад»: со страницы субъекта — к заёмщику, из карточки — к списку */
 document.getElementById('backLink').addEventListener('click', e => {
   e.preventDefault();
-  location.hash = currentSubj ? '#/b/' + currentSubj.inn : '';
+  location.hash = currentSubj ? '#/b/' + currentSubj : '';
 });
 
 /* ---------- роутинг по hash: вид переживает F5 ----------
-   #/b/<ИНН>[/<вкладка>] — карточка, #/s/<ИНН> — субъект, пустой hash — список */
+   #/b/<ИНН>[/<индекс вкладки>] — карточка, #/s/<ИНН> — субъект, пустой hash — список */
 function writeHash(){
-  if (currentSubj) { location.hash = '#/s/' + currentSubj.inn; return; }
-  location.hash = current ? '#/b/' + current.inn + '/' + activeTab() : '';
+  if (currentSubj) { location.hash = '#/s/' + currentSubj; return; }
+  location.hash = current ? '#/b/' + current + '/' + activeTab() : '';
+}
+function activeTab(){
+  const t = document.querySelector('.tabbar .tab.active');
+  return t ? t.dataset.tab : '0';
 }
 function route(){
   const s = /^#\/s\/([0-9]+)$/.exec(location.hash);
   const sb = s && SUBJECTS.find(x => x.inn === s[1]);
-  if (sb) { showSubject(sb); return; }
-  const m = /^#\/b\/([0-9]+)(?:\/([a-z]+))?$/.exec(location.hash);
+  if (sb) { showSubject(sb.inn); return; }
+  const m = /^#\/b\/([0-9]+)(?:\/([0-9]+))?$/.exec(location.hash);
   const b = m && SUBJECTS.find(x => x.inn === m[1]);
-  if (b) showDetail(b, m[2] && document.querySelector('#tabs .tab[data-tab="' + m[2] + '"]') ? m[2] : null);
+  if (b) showDetail(b.inn, m[2] !== undefined ? parseInt(m[2], 10) : null);
   else showList();
 }
 window.addEventListener('hashchange', route);
@@ -1184,20 +1421,6 @@ function setListView(v){
 }
 document.getElementById('segTable').addEventListener('click', () => setListView('table'));
 document.getElementById('segCards').addEventListener('click', () => setListView('cards'));
-
-/* ---------- вкладки карточки ---------- */
-function openTab(name){
-  document.querySelectorAll('#tabs .tab').forEach(x => x.classList.remove('active'));
-  document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
-  document.querySelector('#tabs .tab[data-tab="' + name + '"]').classList.add('active');
-  rememberTab(name);
-  document.querySelector('.tabpanel[data-panel="' + name + '"]').classList.add('active');
-}
-function activeTab(){
-  const t = document.querySelector('#tabs .tab.active');
-  return t ? t.dataset.tab : 'general';
-}
-document.querySelectorAll('#tabs .tab').forEach(t => t.addEventListener('click', () => { openTab(t.dataset.tab); writeHash(); }));
 
 /* клик вне выпадающей группы «Сформировать» — закрыть меню */
 document.addEventListener('click', e => {
