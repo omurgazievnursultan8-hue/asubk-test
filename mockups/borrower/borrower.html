@@ -568,11 +568,14 @@
           <table class="grid" id="listTable">
             <thead>
               <tr>
+                <th style="width:14%" data-sort="inn">ИНН <span class="sort">↕</span></th>
                 <th style="width:24%" data-sort="name">Наименование <span class="sort">↕</span></th>
-                <th style="width:16%" data-sort="sector">Отрасль <span class="sort">↕</span></th>
-                <th style="width:13%" data-sort="district">Район <span class="sort">↕</span></th>
-                <th style="width:33%" data-sort="sub">Подгруппа <span class="sort">↕</span></th>
-                <th style="width:14%" data-sort="cat">Категория риска <span class="sort">↕</span></th>
+                <th style="width:8%" data-sort="personKind">Тип <span class="sort">↕</span></th>
+                <th style="width:14%" data-sort="state">Состояние субъекта <span class="sort">↕</span></th>
+                <th style="width:11%" data-sort="group">Группа <span class="sort">↕</span></th>
+                <th style="width:14%" data-sort="cat">Категория <span class="sort">↕</span></th>
+                <th style="width:8%" data-sort="obl">Обязательства <span class="sort">↕</span></th>
+                <th style="width:7%" data-sort="committee">На комитет <span class="sort">↕</span></th>
               </tr>
             </thead>
             <tbody id="listBody"></tbody>
@@ -645,14 +648,111 @@
 const TODAY = '13.07.2026';
 const CAT_LABEL = { low:'Низкий', mid:'Средний', high:'Высокий' };
 const CAT_RANK  = { low:0, mid:1, high:2 };
-/* fact + mirror arrays land here in Task 2 */
+
+/* ── ВЛАДЕЕТ модуль (правится здесь) ── */
+// SUBJECTS — субъект права; заёмщик — тонкая обёртка над ним (E2E findings).
+const SUBJECTS = [
+  { inn:'01204199910016', name:'ОАО «АгроТехСервис»', personKind:'юр', legalForm:'ОАО',
+    ownershipForm:'Частная', industry:'Сельское хозяйство', doc:{kind:'Свид. о рег.',no:'0012041',date:'14.02.2011'},
+    addrLegal:'г. Бишкек, ул. Ибраимова 24', addrFact:'г. Бишкек, ул. Ибраимова 24', regDate:'14.02.2011' },
+  { inn:'02201199920021', name:'ОсОО «Иссык-Куль Агро»', personKind:'юр', legalForm:'ОсОО',
+    ownershipForm:'Частная', industry:'Переработка', doc:{kind:'Свид. о рег.',no:'0022011',date:'03.05.2015'},
+    addrLegal:'г. Каракол, ул. Токтогула 5', addrFact:'г. Каракол, ул. Токтогула 5', regDate:'03.05.2015' },
+  { inn:'03301199930031', name:'ОсОО «Нарын Логистик»', personKind:'юр', legalForm:'ОсОО',
+    ownershipForm:'Частная', industry:'Логистика', doc:{kind:'Свид. о рег.',no:'0033011',date:'19.09.2017'},
+    addrLegal:'г. Нарын, ул. Ленина 12', addrFact:'г. Нарын, ул. Ленина 12', regDate:'19.09.2017' },
+  { inn:'04401199940041', name:'ИП Асанов Т.К.', personKind:'ИП',
+    ownershipForm:'Частная', industry:'Торговля', doc:{kind:'Патент',no:'0044011',date:'22.01.2019'},
+    addrLegal:'г. Ош, ул. Курманжан-Датка 8', addrFact:'г. Ош, ул. Курманжан-Датка 8', regDate:'22.01.2019' },
+  { inn:'05501199950051', name:'ОсОО «Талас Стройсервис»', personKind:'юр', legalForm:'ОсОО',
+    ownershipForm:'Частная', industry:'Строительство', doc:{kind:'Свид. о рег.',no:'0055011',date:'07.07.2016'},
+    addrLegal:'г. Талас, ул. Сарыгулова 3', addrFact:'г. Талас, ул. Сарыгулова 3', regDate:'07.07.2016' },
+  { inn:'06601199960061', name:'ОсОО «Чуй Энерго»', personKind:'юр', legalForm:'ОсОО',
+    ownershipForm:'Частная', industry:'Энергетика', doc:{kind:'Свид. о рег.',no:'0066011',date:'11.11.2014'},
+    addrLegal:'г. Токмок, ул. Гагарина 41', addrFact:'г. Токмок, ул. Гагарина 41', regDate:'11.11.2014' },
+  { inn:'07701199970071', name:'Мамбетов Кубаныч (физ.)', personKind:'физ',
+    ownershipForm:'—', industry:'—', doc:{kind:'Паспорт',no:'ID0770117',date:'—'},
+    addrLegal:'г. Джалал-Абад, ул. Токтогула 90', addrFact:'г. Джалал-Абад, ул. Токтогула 90', regDate:'—' },
+  { inn:'08801199980081', name:'ОсОО «Баткен Фрут»', personKind:'юр', legalForm:'ОсОО',
+    ownershipForm:'Частная', industry:'Сельское хозяйство', doc:{kind:'Свид. о рег.',no:'0088011',date:'28.03.2013'},
+    addrLegal:'г. Баткен, ул. Раззакова 7', addrFact:'г. Баткен, ул. Раззакова 7', regDate:'28.03.2013' },
+  { inn:'09901199990091', name:'ОсОО «Ак-Суу Майнинг»', personKind:'юр', legalForm:'ОсОО',
+    ownershipForm:'Частная', industry:'Добыча', doc:{kind:'Свид. о рег.',no:'0099011',date:'02.02.2012'},
+    addrLegal:'г. Каракол, ул. Абдрахманова 15', addrFact:'г. Каракол, ул. Абдрахманова 15', regDate:'02.02.2012' },
+  { inn:'10001199900101', name:'ОсОО «Кара-Балта Металл»', personKind:'юр', legalForm:'ОсОО',
+    ownershipForm:'Частная', industry:'Металлургия', doc:{kind:'Свид. о рег.',no:'0100011',date:'16.06.2010'},
+    addrLegal:'г. Кара-Балта, ул. Кожомбердиева 2', addrFact:'г. Кара-Балта, ул. Кожомбердиева 2', regDate:'16.06.2010' },
+];
+
+// SUBJECT_EVENTS — append-only жизненный цикл субъекта (Р-9). kind: 'создан'|'реорганизация'|
+//   'ликвидирован'|'долг переведён'|'смерть'; successorInn для перевода/правопреемства.
+const SUBJECT_EVENTS = [
+  { inn:'07701199970071', kind:'смерть', date:'20.05.2026', basis:'Свид. о смерти', doc:'СС-4471' },
+  { inn:'09901199990091', kind:'долг переведён', date:'01.04.2026', basis:'Договор перевода долга',
+    doc:'ПД-231', successorInn:'10001199900101' },
+];
+
+// CHANNELS — каналы связи (Р-10). kind: 'тел'|'email'|'адрес корресп.'; closedAt — если закрыт.
+const CHANNELS = [
+  { inn:'01204199910016', kind:'тел', value:'+996 312 66-01-24', from:'14.02.2011' },
+  { inn:'01204199910016', kind:'email', value:'info@agrotech.kg', from:'14.02.2011' },
+  { inn:'01204199910016', kind:'тел', value:'+996 312 66-00-00', from:'14.02.2011', closedAt:'01.01.2020' },
+];
+
+// BANK_REQ — банковские реквизиты append-only (Р-10). main — основной счёт.
+const BANK_REQ = [
+  { inn:'01204199910016', bank:'ОАО «РСК Банк»', account:'1234567890123456', currency:'KGS', main:true, from:'14.02.2011' },
+  { inn:'01204199910016', bank:'ОАО «Айыл Банк»', account:'9876543210987654', currency:'KGS', main:false, from:'10.03.2018' },
+];
+
+// CATEGORY_LOG — append-only журнал категории. scope=inn (заёмщик) или creditId. Триггер обязательств О-1/О-2.
+const CATEGORY_LOG = [];   // заполняется по веткам в Tasks 3/6
+// GROUP_LOG — append-only журнал группы платёжеспособности.
+const GROUP_LOG = [];      // заполняется в Task 4
+// COMMITTEE_REFS — решения комитетов. kind: 'КБК'|'КРР'.
+const COMMITTEE_REFS = [
+  { id:'КБК-2026-118', no:'118', date:'02.03.2026', kind:'КБК', subject:'Нецелевое использование, АгроТехСервис' },
+];
+
+/* ── ЗЕРКАЛА — read-only, правка = переход в модуль-источник (И-5) ── */
+const CREDITS    = [];   // ← кредитный модуль; наполняется по веткам в Tasks 3/5
+const FACTORS    = [];   // ← комитет; Tasks 3/7
+const EVENTS_RAW = [];   // ← сигналы zalog/payments/collection/acts (ОВ-6 seeded); Task 7
+const OVERLAYS   = [];   // ← restructuring (suppress181); Task 3
+const PROCESSES  = [];   // ← collection (M:N credits); Task 4/10
+const ASSIGN     = [];   // ← kuratorstvo; Task 9
+const CONFLICTS  = [];   // ← конфликт интересов (Р-6); Task 8
+const PLEDGE_IX  = [];   // ← zalog (индекс обеспеченности); Task 5
+const ACTS       = [];   // ← акты сверок; Task 10
+const DOCS       = [];   // ← досье п.97 (Р-8); Task 10
+const CHECKS_EXT = [];   // ← внешние снимки КИБ/скоринг (Р-8); Task 10
+const RELATED    = [];   // ← реестр лиц (Р-7); Task 10
+// WORKDAYS — праздники производственного календаря КР 2026 (ОВ-2). Будни − эти даты = рабочие дни.
+const WORKDAYS = ['01.01.2026','02.01.2026','07.01.2026','23.02.2026','08.03.2026','21.03.2026',
+  '22.03.2026','23.03.2026','01.05.2026','05.05.2026','07.05.2026','09.05.2026','31.08.2026','07.11.2026'];
 
 /* ═══ SECTION 2 · ЧИСТЫЕ ФУНКЦИИ ═══ */
 /* §4 functions land here in Tasks 3–9 */
 
 /* ═══ SECTION 3 · РЕНДЕР ═══ */
 /* render functions land here in Task 10 */
-function renderList(){ /* rebuilt in Task 10 */ }
+function renderList(){
+  const tb = document.querySelector('#listTable tbody');
+  tb.innerHTML = SUBJECTS.map(s => {
+    const st  = (typeof subjectState==='function') ? (subjectState(s.inn,TODAY)?.kind || '—') : '—';
+    const grp = (typeof groupOf==='function') ? groupOf(s.inn,TODAY) : '—';
+    const cat = (typeof catOfBorrower==='function') ? catOfBorrower(s.inn,TODAY) : null;
+    const catTxt = cat ? CAT_LABEL[cat] : 'не применяется';
+    const obl = (typeof obligations==='function') ? obligations(s.inn,TODAY).filter(o=>o.status==='просрочено').length : 0;
+    const cq  = (typeof committeeQueue==='function') ? committeeQueue(s.inn,TODAY).length : 0;
+    return `<tr data-inn="${s.inn}" style="cursor:pointer" onclick="location.hash='#/b/${s.inn}'">
+      <td>${esc(s.inn)}</td><td>${esc(s.name)}</td><td>${esc(s.personKind)}</td>
+      <td>${esc(st)}</td><td>${esc(grp)}</td><td>${esc(catTxt)}</td>
+      <td>${obl}</td><td>${cq}</td></tr>`;
+  }).join('');
+  const rc = document.getElementById('rowCount');
+  if (rc) rc.textContent = SUBJECTS.length + ' строк';
+}
 function renderCard(b){ return ''; }
 function renderSubject(b){ return ''; }
 
@@ -697,6 +797,7 @@ function scrollTop(){ document.documentElement.scrollTop = document.body.scrollT
 
 function showList(){
   current = null; currentSubj = null;
+  renderList();
   showOnly(vList);
   pageTitle.textContent = 'Список заёмщиков';
   topbar.classList.remove('on-detail');
@@ -742,10 +843,10 @@ function writeHash(){
 }
 function route(){
   const s = /^#\/s\/([0-9]+)$/.exec(location.hash);
-  const sb = s && DATA.find(x => x.inn === s[1]);
+  const sb = s && SUBJECTS.find(x => x.inn === s[1]);
   if (sb) { showSubject(sb); return; }
   const m = /^#\/b\/([0-9]+)(?:\/([a-z]+))?$/.exec(location.hash);
-  const b = m && DATA.find(x => x.inn === m[1]);
+  const b = m && SUBJECTS.find(x => x.inn === m[1]);
   if (b) showDetail(b, m[2] && document.querySelector('#tabs .tab[data-tab="' + m[2] + '"]') ? m[2] : null);
   else showList();
 }
