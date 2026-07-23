@@ -114,6 +114,8 @@
 
 
 
+
+
 -->
 <style>
 
@@ -1608,6 +1610,25 @@ if (typeof document !== 'undefined') {
     renderRole();                                   // пере-гейтинг доступных действий реестра
   };
   CR.closeModal = function(){ const h = document.getElementById('modalHost'); if (h){ h.classList.remove('open'); h.innerHTML=''; } };
+  /* Единый конструктор модалок (§8, canon modal-h/-b/-f). Одна оболочка на 9 форм —
+     не 9 руками собранных оверлеев. opts.cls: form (по умолч.) · narrow · (пусто = широкая). */
+  CR.openModal = function(titleHtml, bodyHtml, footerHtml, opts){
+    opts = opts || {};
+    const host = document.getElementById('modalHost'); if (!host) return;
+    host.innerHTML = `<div class="modal ${opts.cls==null?'form':opts.cls}">
+      <div class="modal-h"><span class="mt">${titleHtml}</span>
+        <button class="modal-x" onclick="CR.closeModal()" aria-label="Закрыть">✕</button></div>
+      <div class="modal-b"><div id="modalErr"></div>${bodyHtml}</div>
+      <div class="modal-f">${footerHtml||''}</div>
+    </div>`;
+    host.classList.add('open');
+  };
+  /* Гейт-провал внутри модалки: причины показываются в шапке тела формы (не молчаливый отказ, §0.3). */
+  CR.modalErr = function(reasons){
+    const box = document.getElementById('modalErr'); const list = [].concat(reasons||[]);
+    if (box) box.innerHTML = `<div class="gate-inline">${svgInfo()}<div>${list.map(esc).join('<br>')}</div></div>`;
+    toast(list.join(' · '), 'warn');
+  };
 
   /* ============================================================
      Р-19 РЕЕСТР КРЕДИТОВ — DOM render layer (Task 6).
@@ -1839,8 +1860,18 @@ if (typeof document !== 'undefined') {
     return `<div class="cgrid-wrap"><table class="cgrid"><thead><tr>${cols.map(c=>`<th${c.r?' style="text-align:right"':''}>${esc(c.h)}</th>`).join('')}</tr></thead>`
       + `<tbody>${rows.length?rows.join(''):`<tr><td colspan="${cols.length}"><div class="cgrid-empty">${esc(o.empty||'Нет записей')}</div></td></tr>`}</tbody></table></div>`;
   }
+  /* Терминал (Р-20): «Закрыт»/списан — карточка только для чтения под ЛЮБОЙ ролью (К-6).
+     UI-слой поверх gate(): логику gate() не трогаем (её проверяет smoke), но кнопки
+     мутаций на закрытом кредите гасим с пояснением (§0.3 — не молчаливый отказ). */
+  function isTerminal(c){ return !!(c && (c.lifecycle==='Закрыт' || c.closure)); }
+  function disabledBtn(label, reason, cls){ cls=cls||'btn btn-secondary btn-sm';
+    return `<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(reason)}" onclick="CR.toast('${jsAttr(reason)}','warn')">${esc(label)}</button>`;
+  }
+  function terminalReason(c){ return 'Кредит в терминальном состоянии («'+esc((c.closure&&c.closure.reason)||c.lifecycle)+'») — действия недоступны (Р-20)'; }
+
   /* Кнопка действия с реальным гейтом (§6.3): !gate.ok||!role → визуально disabled + tooltip + toast-on-click. */
   function actBtn(credit, action, ctx, label, onclick, cls){ cls=cls||'btn btn-secondary btn-sm';
+    if(isTerminal(credit)) return disabledBtn(label, terminalReason(credit), cls);
     const r=canRole(currentRole,action);
     const g=credit?gate(credit,action,ctx||{}):{ok:true,reasons:[]};
     const reasons=[]; if(!r) reasons.push('Роль «'+currentRole+'» не имеет права на это действие'); if(!g.ok) g.reasons.forEach(x=>reasons.push(x));
@@ -1849,6 +1880,8 @@ if (typeof document !== 'undefined') {
   }
   /* Кнопка, чей реальный гейт зависит от полей формы (Task 8): гейтим по роли, содержимое — форма/стаб. */
   function roleBtn(action,label,onclick,cls){ cls=cls||'btn btn-secondary btn-sm';
+    const _c=currentCredit();
+    if(isTerminal(_c)) return disabledBtn(label, terminalReason(_c), cls);
     if(canRole(currentRole,action)) return `<button class="${cls}" onclick="${onclick}">${esc(label)}</button>`;
     const msg='Роль «'+currentRole+'» не имеет права на это действие';
     return `<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(msg)}" onclick="CR.toast('${jsAttr(msg)}','warn')">${esc(label)}</button>`;
@@ -1944,7 +1977,7 @@ if (typeof document !== 'undefined') {
       <div class="section-h" style="margin-top:22px">Освобождение от залога — решение КМ (Р-8)</div>
       ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Скан', esc(km.scan))}</div>`
         :`<p class="section-note">Решение КМ не зафиксировано. Это owned-поле кредита (не зеркало): разблокирует освоение по Г-6 при провале покрытия.</p>`}
-      <div class="gtoolbar" style="margin-top:12px">${roleBtn('setKmDecision','Указать решение КМ',"CR.stubAction('Реквизиты решения КМ')")}</div>
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>
 
       <div class="section-h" style="margin-top:22px">Кураторство ${lockHtml()}</div>
       ${cgrid([{h:'Подразделение'},{h:'Сотрудник'},{h:'Роль'},{h:'С'},{h:'По'}], curRows, {empty:'Назначений нет'})}
@@ -2002,26 +2035,7 @@ if (typeof document !== 'undefined') {
 
       <div class="section-h" style="margin-top:22px">Доп. соглашения (Р-4)</div>
       ${cgrid([{h:'Номер'},{h:'Дата'},{h:'Источник'},{h:'Изменение'},{h:'Статус'}], agRows, {empty:'Соглашений нет'})}
-      <div class="gtoolbar" style="margin-top:12px">${roleBtn('addAgreement','Оформить доп. соглашение','CR.toggleAgrForm()','btn btn-primary btn-sm')}</div>
-      ${agrFormOpen?agrForm(c):''}`;
-  }
-  function agrForm(c){
-    const b=c.baseConditions;
-    return `<div class="ms-card">
-      <div class="ms-card-h"><span class="mt">Конструктор доп. соглашения (Р-4, Г-10)</span></div>
-      <div class="mform">
-        <div class="field req"><span class="flabel">Номер ДС</span><div class="control"><input id="agrNum" placeholder="ДС-..."></div></div>
-        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="agrDate" placeholder="дд.мм.гггг"></div></div>
-        <div class="field"><span class="flabel">Ставка: было</span><div class="control"><input id="agrBeforeRate" type="number" value="${esc(b.rate)}"></div></div>
-        <div class="field"><span class="flabel">Ставка: стало</span><div class="control"><input id="agrAfterRate" type="number" value="${esc(b.rate)}"></div></div>
-        <div class="field"><span class="flabel">Срок: было</span><div class="control"><input id="agrBeforeTerm" type="number" value="${esc(b.term)}"></div></div>
-        <div class="field"><span class="flabel">Срок: стало</span><div class="control"><input id="agrAfterTerm" type="number" value="${esc(b.term)}"></div></div>
-      </div>
-      <div class="ms-acts">
-        <button class="btn btn-primary btn-sm" onclick="CR.submitAgr()">Оформить</button>
-        <button class="btn btn-secondary btn-sm" onclick="CR.toggleAgrForm()">Отмена</button>
-      </div>
-    </div>`;
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('addAgreement','Оформить доп. соглашение','CR.openAgrModal()','btn btn-primary btn-sm')}</div>`;
   }
 
   /* ---- ВКЛАДКА 3: Транши и освоение ---- */
@@ -2047,28 +2061,12 @@ if (typeof document !== 'undefined') {
       <div class="section-h" style="margin-top:22px">Транши (клик — выбор)</div>
       ${cgrid([{h:'Транш'},{h:'Субъект'},{h:'Сумма',r:1},{h:'План. дата'},{h:'Освоено',r:1},{h:'Остаток',r:1},{h:'Состояние'}], trRows, {empty:'Траншей нет'})}
       <div class="gtoolbar" style="margin-top:12px">
-        ${roleBtn('addTranche','Добавить транш',"CR.stubAction('Добавление транша')")}
-        ${actBtn(c,'addDisbursement',{trancheNo:detailTrancheNo,amount:0},'Внести освоение','CR.toggleDisbForm()','btn btn-primary btn-sm')}
+        ${roleBtn('addTranche','Добавить транш','CR.openTrancheModal()')}
+        ${actBtn(c,'addDisbursement',{trancheNo:detailTrancheNo,amount:0},'Внести освоение','CR.openDisbModal()','btn btn-primary btn-sm')}
         ${roleBtn('addDisbursement','Закрыть неосвоенный остаток',"CR.stubAction('Закрытие неосвоенного остатка')")}
       </div>
-      ${disbFormOpen?disbForm(c):''}
       <div class="section-h" style="margin-top:22px">Освоение транша №${sel?sel.no:'—'}</div>
       ${cgrid([{h:'Дата'},{h:'Сумма',r:1},{h:'Плат. поручение'},{h:'Назначение'},{h:'Документ'}], dbRows, {empty:'Освоений нет'})}`;
-  }
-  function disbForm(c){
-    return `<div class="ms-card">
-      <div class="ms-card-h"><span class="mt">Внести освоение (Г-4 · Г-5 · Г-6)</span></div>
-      <div class="mform">
-        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="disbTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===detailTrancheNo?' selected':''}>№${t.no} · сумма ${money(t.amount)} · освоено ${money(disbursedSum(t))}</option>`).join('')}</select><span class="caret">▾</span></div></div>
-        <div class="field req"><span class="flabel">Сумма освоения</span><div class="control"><input id="disbAmount" type="number" min="0" placeholder="0"></div></div>
-        <div class="field"><span class="flabel">Плат. поручение</span><div class="control"><input id="disbOrder" placeholder="ПП-..."></div></div>
-        <div class="field"><span class="flabel">Назначение</span><div class="control"><input id="disbPurpose" placeholder="Оплата ..."></div></div>
-      </div>
-      <div class="ms-acts">
-        <button class="btn btn-primary btn-sm" onclick="CR.submitDisb()">Сохранить освоение</button>
-        <button class="btn btn-secondary btn-sm" onclick="CR.toggleDisbForm()">Отмена</button>
-      </div>
-    </div>`;
   }
 
   /* ---- ВКЛАДКА 4: Расчёты ---- */
@@ -2101,10 +2099,9 @@ if (typeof document !== 'undefined') {
         <div class="field" style="max-width:320px"><span class="flabel">Транш</span><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
         <div class="retro-toggle" onclick="CR.setCalcMode(${!calcConsolidated})"><input type="checkbox" ${calcConsolidated?'checked':''} onclick="event.preventDefault()"> консолидировано по кредиту</div>
         <span class="spacer"></span>
-        ${actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.toggleSchedForm()','btn btn-primary btn-sm')}
+        ${actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()','btn btn-primary btn-sm')}
         ${roleBtn('holdAccrual','Приостановить начисление',"CR.stubAction('Приостановление начисления')")}
       </div>
-      ${schedFormOpen?schedForm(c):''}
       <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
         <div class="dim"><div class="dl">Платежей в графике</div><div class="dv">${st.count}</div></div>
         <div class="dim"><div class="dl">Регулярный платёж</div><div class="dv">${money(st.regularPay)}</div></div>
@@ -2119,22 +2116,6 @@ if (typeof document !== 'undefined') {
       ${resBlock}
       <div class="section-h" style="margin-top:22px">Приостановление начисления (Р-17)</div>
       ${cgrid([{h:'С'},{h:'По'},{h:'Основание'},{h:'Документ'}], holdRows, {empty:'Активных приостановок нет'})}`;
-  }
-  function schedForm(c){
-    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
-    const defFrom=(sel&&sel.disbursements[0]&&sel.disbursements[0].date)||'';
-    return `<div class="ms-card">
-      <div class="ms-card-h"><span class="mt">Сформировать график (Г-8)</span></div>
-      <div class="mform">
-        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="schedTranche">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}${t.disbursements.length?'':' (не освоен)'}</option>`).join('')}</select><span class="caret">▾</span></div></div>
-        <div class="field req"><span class="flabel">Дата начала (от освоения)</span><div class="control"><input id="schedFrom" value="${esc(defFrom)}" placeholder="дд.мм.гггг"></div></div>
-      </div>
-      <div class="warn-inline">${svgInfo()}<div>График строится только от фактической даты освоения транша. Предыдущая активная версия архивируется (не удаляется).</div></div>
-      <div class="ms-acts">
-        <button class="btn btn-primary btn-sm" onclick="CR.submitSched()">Сформировать</button>
-        <button class="btn btn-secondary btn-sm" onclick="CR.toggleSchedForm()">Отмена</button>
-      </div>
-    </div>`;
   }
 
   /* ---- ВКЛАДКА 5: Платежи (зеркало модуля платежей, Р-5) ---- */
@@ -2156,7 +2137,7 @@ if (typeof document !== 'undefined') {
       <p class="section-note">Зеркало модуля платежей. Три оси на платёж: регистрация · сопоставление · заморозка. Слои показаны, но не редактируются здесь.</p>
       ${cgrid([{h:'№'},{h:'Дата'},{h:'Сумма',r:1},{h:'Транш'},{h:'Регистрация'},{h:'Сопоставление'},{h:'Заморозка'},{h:'Слои'},{h:'Правка'}], payRows, {empty:'Платежей нет'})}
       <div class="mirror-src">Источник: модуль платежей (Р-5). Ручной ввод — вызов формы владельца, платёж повисает «Ожидает ЦК» и не двигает остатки до подтверждения ЦК.</div>
-      <div class="gtoolbar" style="margin-top:12px">${roleBtn('savePayment','Внести платёж вручную',"CR.stubAction('Ручной ввод платежа')",'btn btn-primary btn-sm')}</div>
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('savePayment','Внести платёж вручную','CR.openPaymentModal()','btn btn-primary btn-sm')}</div>
       ${courts.length?`<div class="info-plate">${svgInfo()}<div>Есть судебное решение: возможна множественность слоёв начисления (шов №5, §10.4) — сначала сумма по решению, затем договор. Матрица очередей — вне макета.</div></div>`:''}
       <div class="section-h" style="margin-top:22px">Задолженность (из детального расчёта)</div>
       <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Слой</th><th style="text-align:right">Начислено</th><th style="text-align:right">Оплачено</th><th style="text-align:right">Просрочено</th><th style="text-align:right">Остаток</th></tr></thead><tbody>
@@ -2193,7 +2174,7 @@ if (typeof document !== 'undefined') {
       ${bg?`<div class="section-h" style="margin-top:22px">Банковская гарантия (в индексе)</div><div class="f2">${fld('Банк',esc(bg.bank))}${fld('Сумма',money(bg.amount))}${fld('Действует до',esc(bg.till))}</div>`:''}
       ${guars.length?`<div class="info-plate">${svgInfo()}<div>Поручительство (${guars.map(g=>esc(g.party)).join(', ')}) — параллельный слой обеспечения, в индекс покрытия НЕ входит (открытый вопрос §10.2).</div></div>`:''}
       <div class="gtoolbar" style="margin-top:16px">
-        ${roleBtn('linkPledge','Привязать существующий',"CR.stubAction('Привязка залогового договора (Г-13)')",'btn btn-primary btn-sm')}
+        ${roleBtn('linkPledge','Привязать существующий','CR.openPledgePicker()','btn btn-primary btn-sm')}
         <button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля залога — вне объёма макета')">Открыть в модуле залога</button>
       </div>`;
   }
@@ -2228,7 +2209,10 @@ if (typeof document !== 'undefined') {
       <p class="section-note">${hasBankruptcy?'Признаки банкротства зафиксированы (зеркало модуля взыскания).':'Процедур банкротства нет.'}</p>
       <div class="mirror-src">Источник: модуль взыскания (Р-16).</div>
 
-      <div class="gtoolbar" style="margin-top:16px">${roleBtn('writeOff','Списать',"CR.stubAction('Списание — реквизиты решения (Г-12)')",'btn btn-tint danger btn-sm')}</div>`;
+      <div class="gtoolbar" style="margin-top:16px">
+        ${actBtn(c,'repay',{},'Погасить (закрыть)','CR.openRepayModal()','btn btn-tint btn-sm')}
+        ${roleBtn('writeOff','Списать','CR.openWriteOffModal()','btn btn-tint danger btn-sm')}
+      </div>`;
   }
 
   /* ---- ВКЛАДКА 8: Досье ---- */
@@ -2286,38 +2270,234 @@ if (typeof document !== 'undefined') {
   CR.renderDetail=renderDetail; CR.renderTab=renderTab; CR.openTab=openTab; CR.rerenderDetail=rerenderDetail;
   CR.selectDetailTranche=function(no){ detailTrancheNo=no; rerenderDetail(); };
   CR.setCalcMode=function(v){ calcConsolidated=!!v; rerenderDetail(); };
-  CR.stubAction=function(name){ toast('Действие «'+name+'» — форма реализуется в Task 8'); };
+  CR.stubAction=function(name){ toast('Действие «'+name+'» — открывается в модуле-владельце (вне интерактивного демо)'); };
   CR.filterAudit=function(q){ q=(q||'').toLowerCase(); const host=document.getElementById('cr-audit'); if(!host) return;
     [...host.querySelectorAll('.hrow')].forEach(el=>{ el.style.display = el.textContent.toLowerCase().includes(q)?'':'none'; }); };
-  CR.toggleDisbForm=function(){ const c=currentCredit();
-    if(!disbFormOpen){ if(!canRole(currentRole,'addDisbursement')){ toast('Роль «'+currentRole+'» не может вносить освоение','warn'); return; }
-      const g=gate(c,'addDisbursement',{trancheNo:detailTrancheNo,amount:0}); if(!g.ok){ toast(g.reasons.join(' · '),'warn'); return; } }
-    disbFormOpen=!disbFormOpen; rerenderDetail(); };
-  CR.submitDisb=function(){ const c=currentCredit();
+  /* ============================================================
+     МОДАЛКИ (Task 8) — единый openModal/closeModal, каждая: role+terminal guard → форма →
+     мутация CR.* (внутри её gate() ре-валидируется) → при провале modalErr (§0.3, не молча),
+     при успехе closeModal + toast + rerenderDetail (derive пересчитывается заново, Р-11).
+     modalGuard: Наблюдатель и терминальный кредит НЕ могут ОТКРЫТЬ ни одну модалку.
+     ============================================================ */
+  function modalGuard(action){
+    const c = currentCredit(); if (!c) return null;
+    if (isTerminal(c)){ toast(terminalReason(c), 'warn'); return null; }
+    if (action && !canRole(currentRole, action)){ toast('Роль «'+currentRole+'» не имеет права на это действие', 'warn'); return null; }
+    return c;
+  }
+
+  /* 1) tranche (addTranche, Г-3) */
+  CR.openTrancheModal=function(){ const c=modalGuard('addTranche'); if(!c) return; const d=derive(c);
+    const body=`<p class="section-note">Условия транша наследуются от базовых условий кредита (Р-2). Σ траншей ≤ суммы договора (Г-3). Доступно к распределению: <b>${money(d.allocatable)}</b>.</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Сумма транша</span><div class="control"><input id="trAmount" type="number" min="0" placeholder="0"></div></div>
+        <div class="field"><span class="flabel">Плановая дата освоения</span><div class="control"><input id="trDate" placeholder="дд.мм.гггг"></div></div>
+        <div class="field"><span class="flabel">Субъект — наименование</span><div class="control"><input id="trSubjName" value="${esc(c.borrower.name)}"></div></div>
+        <div class="field"><span class="flabel">Субъект — ИНН</span><div class="control"><input id="trSubjInn" value="${esc(c.borrower.inn)}"></div></div>
+      </div>`;
+    CR.openModal('Добавить транш (Г-3)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitTranche()">Добавить транш</button>`);
+  };
+  CR.submitTranche=function(){ const c=modalGuard('addTranche'); if(!c) return;
+    const amount=+document.getElementById('trAmount').value||0;
+    const plannedDate=document.getElementById('trDate').value;
+    const subject={ name:document.getElementById('trSubjName').value, inn:document.getElementById('trSubjInn').value };
+    const r=CR.addTranche(c,{amount,plannedDate,subject}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Транш добавлен: '+money(amount),'ok'); rerenderDetail(); };
+
+  /* 2) disbursement (addDisbursement, Г-4·Г-5·Г-6) — апгрейд инлайн-формы до модалки */
+  CR.openDisbModal=function(){ const c=modalGuard('addDisbursement'); if(!c) return;
+    const body=`<p class="section-note">Освоение — owned кредитом, на транше (Р-6). Гейты Г-4 (Σ ≤ сумма транша) · Г-5 (ЖЦ) · Г-6 (покрытие/КМ/waiver).</p>
+      <div class="mform">
+        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="disbTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===detailTrancheNo?' selected':''}>№${t.no} · сумма ${money(t.amount)} · освоено ${money(disbursedSum(t))}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field req"><span class="flabel">Сумма освоения</span><div class="control"><input id="disbAmount" type="number" min="0" placeholder="0"></div></div>
+        <div class="field"><span class="flabel">Дата освоения</span><div class="control"><input id="disbDate" value="${esc(CR.TODAY)}"></div></div>
+        <div class="field"><span class="flabel">Плат. поручение</span><div class="control"><input id="disbOrder" placeholder="ПП-..."></div></div>
+        <div class="field col-span"><span class="flabel">Назначение</span><div class="control"><input id="disbPurpose" placeholder="Оплата ..."></div></div>
+      </div>`;
+    CR.openModal('Внести освоение (Г-4 · Г-5 · Г-6)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitDisb()">Сохранить освоение</button>`);
+  };
+  CR.submitDisb=function(){ const c=modalGuard('addDisbursement'); if(!c) return;
     const no=+document.getElementById('disbTranche').value;
     const amount=+document.getElementById('disbAmount').value||0;
+    const date=document.getElementById('disbDate').value||CR.TODAY;
     const order=document.getElementById('disbOrder').value, purpose=document.getElementById('disbPurpose').value;
-    if(!canRole(currentRole,'addDisbursement')){ toast('Роль «'+currentRole+'» не может вносить освоение','warn'); return; }
-    const r=CR.addDisbursement(c,{trancheNo:no,amount,order,purpose}); if(!r.ok){ toast(r.reasons.join(' · '),'warn'); return; }
-    disbFormOpen=false; detailTrancheNo=no; toast('Освоение внесено: '+money(amount),'ok'); rerenderDetail(); };
-  CR.toggleSchedForm=function(){ const c=currentCredit(); const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
-    if(!schedFormOpen){ if(!canRole(currentRole,'buildSchedule')){ toast('Роль «'+currentRole+'» не может формировать график','warn'); return; }
-      const g=gate(c,'buildSchedule',{tranche:sel}); if(!g.ok){ toast(g.reasons.join(' · '),'warn'); return; } }
-    schedFormOpen=!schedFormOpen; rerenderDetail(); };
-  CR.submitSched=function(){ const c=currentCredit();
+    const r=CR.addDisbursement(c,{trancheNo:no,amount,order,purpose,date}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); detailTrancheNo=no; toast('Освоение внесено: '+money(amount),'ok'); rerenderDetail(); };
+
+  /* 3) schedule-params (generateSchedule, Г-8) — апгрейд: параметры → предпросмотр (1·2·посл.) → новая версия */
+  CR.openSchedModal=function(previewFrom){ const c=modalGuard('buildSchedule'); if(!c) return;
+    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0]; const cnd=sel.conditions||{};
+    const from=(previewFrom!=null?previewFrom:((sel.disbursements[0]&&sel.disbursements[0].date)||''));
+    let preview;
+    if(from && sel.disbursements.length){ const rows=CR.buildSchedule(sel, from).rows;
+      const show=[rows[0], rows[1], rows[rows.length-1]].filter(Boolean);
+      preview=`<div class="section-h" style="margin-top:14px;font-size:15px">Предпросмотр (платёж 1 · 2 · последний)</div>
+        ${cgrid([{h:'№'},{h:'Дата'},{h:'Платёж',r:1},{h:'ОД',r:1},{h:'%',r:1}], show.map(r=>`<tr><td>№${r.no}</td><td>${esc(r.date)}</td><td style="text-align:right">${money(r.total)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td></tr>`))}`;
+    } else { preview=`<div class="warn-inline">${svgInfo()}<div>График строится только от фактической даты освоения транша (Г-8). У выбранного транша нет освоения либо не задана дата.</div></div>`; }
+    const body=`<div class="mform">
+        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="schedTranche" onchange="CR.selectDetailTranche(+this.value);CR.openSchedModal()">${c.tranches.map(t=>`<option value="${t.no}"${t.no===sel.no?' selected':''}>Транш №${t.no}${t.disbursements.length?'':' (не освоен)'}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field req"><span class="flabel">Дата освоения (старт графика)</span><div class="control"><input id="schedFrom" value="${esc(from)}" placeholder="дд.мм.гггг"></div></div>
+        <div class="field"><span class="flabel">Периодичность</span><div class="control"><input value="${esc(cnd.freq||'ежемесячно')}" readonly></div></div>
+        <div class="field"><span class="flabel">Метод погашения</span><div class="control"><input value="${esc(cnd.method||'аннуитет')}" readonly></div></div>
+        <div class="field"><span class="flabel">Льгота по ОД, мес.</span><div class="control"><input value="${esc(cnd.graceMain||0)}" readonly></div></div>
+        <div class="field"><span class="flabel">Льгота по %, мес.</span><div class="control"><input value="${esc(cnd.graceInterest||0)}" readonly></div></div>
+      </div>
+      <p class="section-note" style="margin-top:8px">Периодичность/метод/льготы наследуются из условий транша (правка — только доп. соглашением, Г-9). Предыдущая активная версия архивируется, не удаляется (Р-4).</p>
+      <div class="gtoolbar"><button class="btn btn-secondary btn-sm" onclick="CR.openSchedModal(document.getElementById('schedFrom').value)">Обновить предпросмотр</button></div>
+      ${preview}`;
+    CR.openModal('Сформировать график (Г-8)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitSched()">Сформировать (новая версия)</button>`);
+  };
+  CR.submitSched=function(){ const c=modalGuard('buildSchedule'); if(!c) return;
     const no=+document.getElementById('schedTranche').value, from=document.getElementById('schedFrom').value;
-    if(!canRole(currentRole,'buildSchedule')){ toast('Роль «'+currentRole+'» не может формировать график','warn'); return; }
-    const r=CR.generateSchedule(c,no,{from}); if(r&&r.ok===false){ toast(r.reasons.join(' · '),'warn'); return; }
-    schedFormOpen=false; detailTrancheNo=no; toast('График сформирован: версия v'+(r.ver||'?'),'ok'); rerenderDetail(); };
-  CR.toggleAgrForm=function(){ if(!agrFormOpen && !canRole(currentRole,'addAgreement')){ toast('Роль «'+currentRole+'» не может оформлять доп. соглашения','warn'); return; }
-    agrFormOpen=!agrFormOpen; rerenderDetail(); };
-  CR.submitAgr=function(){ const c=currentCredit();
+    const r=CR.generateSchedule(c,no,{from}); if(r&&r.ok===false){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); detailTrancheNo=no; toast('График сформирован: версия v'+(r.ver||'?'),'ok'); rerenderDetail(); };
+
+  /* 4) agreement/ДС (addAgreement, Г-10) — конструктор: поля → значения → diff-предпросмотр → реквизиты → активация */
+  CR.openAgrModal=function(){ const c=modalGuard('addAgreement'); if(!c) return; const b=c.baseConditions;
+    const body=`<p class="section-note">Изменение условий после регистрации — только доп. соглашением (Р-4). Активируется при наличии номера и даты (Г-10). Предыдущая версия архивируется.</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Номер ДС</span><div class="control"><input id="agrNum" placeholder="ДС-..."></div></div>
+        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="agrDate" placeholder="дд.мм.гггг"></div></div>
+        <div class="field col-span"><span class="flabel">Основание</span><div class="control"><input id="agrSource" value="кредит" placeholder="основание ДС"></div></div>
+        <div class="field"><span class="flabel">Ставка: было</span><div class="control"><input id="agrBeforeRate" type="number" value="${esc(b.rate)}" readonly></div></div>
+        <div class="field"><span class="flabel">Ставка: стало</span><div class="control"><input id="agrAfterRate" type="number" value="${esc(b.rate)}" oninput="CR.agrDiff()"></div></div>
+        <div class="field"><span class="flabel">Срок: было</span><div class="control"><input id="agrBeforeTerm" type="number" value="${esc(b.term)}" readonly></div></div>
+        <div class="field"><span class="flabel">Срок: стало</span><div class="control"><input id="agrAfterTerm" type="number" value="${esc(b.term)}" oninput="CR.agrDiff()"></div></div>
+      </div>
+      <div class="section-h" style="margin-top:14px;font-size:15px">Предпросмотр изменений (было → стало)</div>
+      <div id="agrDiff" class="cat-expand"></div>`;
+    CR.openModal('Конструктор доп. соглашения (Р-4 · Г-10)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitAgr()">Оформить и активировать</button>`);
+    CR.agrDiff();
+  };
+  CR.agrDiff=function(){ const box=document.getElementById('agrDiff'); if(!box) return;
+    const br=+document.getElementById('agrBeforeRate').value, ar=+document.getElementById('agrAfterRate').value;
+    const bt=+document.getElementById('agrBeforeTerm').value, at=+document.getElementById('agrAfterTerm').value;
+    const rows=[];
+    if(br!==ar) rows.push(`<div class="row"><span class="ck">Ставка, %</span> <span class="diff"><span class="diff-old">${esc(br)}</span> → <span class="diff-new">${esc(ar)}</span></span></div>`);
+    if(bt!==at) rows.push(`<div class="row"><span class="ck">Срок, мес.</span> <span class="diff"><span class="diff-old">${esc(bt)}</span> → <span class="diff-new">${esc(at)}</span></span></div>`);
+    box.innerHTML = rows.length?rows.join(''):`<div class="row" style="color:var(--text-placeholder)">Изменений не выбрано</div>`; };
+  CR.submitAgr=function(){ const c=modalGuard('addAgreement'); if(!c) return;
     const num=document.getElementById('agrNum').value, date=document.getElementById('agrDate').value;
+    const source=document.getElementById('agrSource').value||'кредит';
     const before={rate:+document.getElementById('agrBeforeRate').value, term:+document.getElementById('agrBeforeTerm').value};
     const after={rate:+document.getElementById('agrAfterRate').value, term:+document.getElementById('agrAfterTerm').value};
-    if(!canRole(currentRole,'addAgreement')){ toast('Роль «'+currentRole+'» не может оформлять доп. соглашения','warn'); return; }
-    const r=CR.addAgreement(c,{num,date,source:'кредит',before,after}); if(!r.ok){ toast(r.reasons.join(' · '),'warn'); return; }
-    agrFormOpen=false; toast('Доп. соглашение '+num+' оформлено','ok'); rerenderDetail(); };
+    const r=CR.addAgreement(c,{num,date,source,before,after}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Доп. соглашение '+num+' оформлено','ok'); rerenderDetail(); };
+
+  /* 5) manual-payment (addPayment, Г-11, Р-5) — «форма модуля платежей», статус «Ожидает ЦК» */
+  CR.openPaymentModal=function(){ const c=modalGuard('savePayment'); if(!c) return;
+    const body=`<div class="info-plate">${svgInfo()}<div>Форма модуля платежей (Р-5). Ручной ввод повисает «Ожидает ЦК» и НЕ двигает остатки/долг — подтверждённые остатки двигает только ЦК своим потоком.</div></div>
+      <div class="mform">
+        <div class="field"><span class="flabel">Кредит</span><div class="control"><input value="№ ${esc(c.num)} · ${esc(c.borrower.name)}" readonly></div></div>
+        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="payTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===detailTrancheNo?' selected':''}>№${t.no} · ${esc(t.subject.name)}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field req"><span class="flabel">Сумма платежа</span><div class="control"><input id="payAmount" type="number" min="0" placeholder="0"></div></div>
+        <div class="field req"><span class="flabel">Дата платежа</span><div class="control"><input id="payDate" value="${esc(CR.TODAY)}" placeholder="дд.мм.гггг"></div></div>
+      </div>`;
+    CR.openModal('Ручной ввод платежа — форма модуля платежей', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitPayment()">Отправить в модуль платежей</button>`);
+  };
+  CR.submitPayment=function(){ const c=modalGuard('savePayment'); if(!c) return;
+    const trancheNo=+document.getElementById('payTranche').value;
+    const amount=+document.getElementById('payAmount').value||0;
+    const date=document.getElementById('payDate').value;
+    const r=CR.addPayment(c,{amount,date,trancheNo}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Платёж отправлен — статус «Ожидает ЦК»','ok'); rerenderDetail(); };
+
+  /* 6) KM-decision (setKmDecision, Р-8) — разблокирует освоение с провалом покрытия (К-5) */
+  CR.openKmModal=function(){ const c=modalGuard('setKmDecision'); if(!c) return;
+    const body=`<p class="section-note">Реквизиты решения КМ об освобождении от залога (Р-8, П1 §2.6). Owned-поле кредита — разблокирует освоение при провале покрытия (Г-6).</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Вид решения</span><div class="control"><input id="kmKind" value="Решение КМ"></div></div>
+        <div class="field req"><span class="flabel">Номер</span><div class="control"><input id="kmNum" placeholder="КМ-..."></div></div>
+        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="kmDate" placeholder="дд.мм.гггг"></div></div>
+        <div class="field"><span class="flabel">Скан</span><div class="control"><input id="kmScan" placeholder="reshenie-km.pdf"></div></div>
+      </div>`;
+    CR.openModal('Решение КМ об освобождении от залога (Р-8)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitKm()">Сохранить решение</button>`);
+  };
+  CR.submitKm=function(){ const c=modalGuard('setKmDecision'); if(!c) return;
+    const kind=document.getElementById('kmKind').value, num=document.getElementById('kmNum').value;
+    const date=document.getElementById('kmDate').value, scan=document.getElementById('kmScan').value;
+    if(!num||!date){ CR.modalErr(['Номер и дата решения обязательны']); return; }
+    const r=CR.setKmDecision(c,{kind,num,date,scan}); if(r&&r.ok===false){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Решение КМ сохранено — освоение разблокировано','ok'); rerenderDetail(); };
+
+  /* 7) waiver (saveWaiver) — альтернатива КМ; роль «Начальник отдела», обоснование ОБЯЗАТЕЛЬНО (К-5) */
+  CR.openWaiverModal=function(){ const c=modalGuard('waiver'); if(!c) return;
+    const body=`<p class="section-note">Waiver залоговой комиссии (альтернатива решению КМ) — разблокирует освоение при провале покрытия (Г-6). Доступно роли «Начальник отдела». Обоснование обязательно.</p>
+      <div class="mform">
+        <div class="field req col-span"><span class="flabel">Обоснование (протокол комиссии по залогу)</span><textarea id="waiverReason" class="note-area" placeholder="Основание waiver..."></textarea></div>
+      </div>`;
+    CR.openModal('Waiver залоговой комиссии (Г-6)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitWaiver()">Сохранить waiver</button>`);
+  };
+  CR.submitWaiver=function(){ const c=modalGuard('waiver'); if(!c) return;
+    const reason=document.getElementById('waiverReason').value;
+    const r=CR.saveWaiver(c,{reason}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Waiver сохранён — освоение разблокировано','ok'); rerenderDetail(); };
+
+  /* 8) write-off (closeCredit «Списан», Г-12) — реквизиты решения обязательны */
+  CR.openWriteOffModal=function(){ const c=modalGuard('writeOff'); if(!c) return; const d=derive(c);
+    const bal=round2(d.debt.principal.bal+d.debt.interest.bal+d.debt.penalty.bal);
+    const body=`<p class="section-note">Списание — терминал с обязательными реквизитами решения (Р-20, Г-12). Без физического удаления.</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Вид решения</span><div class="control"><input id="woKind" value="Решение Правления"></div></div>
+        <div class="field req"><span class="flabel">Номер решения</span><div class="control"><input id="woNum" placeholder="РП-..."></div></div>
+        <div class="field req"><span class="flabel">Дата решения</span><div class="control"><input id="woDate" placeholder="дд.мм.гггг"></div></div>
+        <div class="field"><span class="flabel">Сумма списания</span><div class="control"><input id="woAmount" type="number" value="${esc(bal)}"></div></div>
+        <div class="field col-span"><span class="flabel">Скан</span><div class="control"><input id="woScan" placeholder="reshenie.pdf"></div></div>
+      </div>`;
+    CR.openModal('Списание кредита (Г-12)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-tint danger" onclick="CR.submitWriteOff()">Списать</button>`);
+  };
+  CR.submitWriteOff=function(){ const c=modalGuard('writeOff'); if(!c) return;
+    const doc={ kind:document.getElementById('woKind').value, num:document.getElementById('woNum').value,
+      date:document.getElementById('woDate').value, scan:document.getElementById('woScan').value,
+      amount:+document.getElementById('woAmount').value||0 };
+    const r=CR.closeCredit(c,{reason:'Списан',doc}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Кредит списан (решение '+doc.num+')','ok'); rerenderDetail(); };
+
+  /* закрытие «Погашен» (closeCredit, Г-14) — доступно только при нулевом остатке и без взыскания (К-3 — заблокировано) */
+  CR.openRepayModal=function(){ const c=modalGuard('repay'); if(!c) return;
+    const body=`<p class="section-note">Закрытие «Погашен» — терминал при нулевом остатке по всем слоям и отсутствии активного взыскания (Р-20, Г-14). Реквизиты акта сверки.</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Вид документа</span><div class="control"><input id="rpKind" value="Акт сверки"></div></div>
+        <div class="field req"><span class="flabel">Номер</span><div class="control"><input id="rpNum" placeholder="АС-..."></div></div>
+        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="rpDate" value="${esc(CR.TODAY)}"></div></div>
+        <div class="field"><span class="flabel">Скан</span><div class="control"><input id="rpScan" placeholder="akt-sverki.pdf"></div></div>
+      </div>`;
+    CR.openModal('Закрытие кредита «Погашен» (Г-14)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-success" onclick="CR.submitRepay()">Закрыть как «Погашен»</button>`);
+  };
+  CR.submitRepay=function(){ const c=modalGuard('repay'); if(!c) return;
+    const doc={ kind:document.getElementById('rpKind').value, num:document.getElementById('rpNum').value,
+      date:document.getElementById('rpDate').value, scan:document.getElementById('rpScan').value };
+    const r=CR.closeCredit(c,{reason:'Погашен',doc}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Кредит закрыт: погашен','ok'); rerenderDetail(); };
+
+  /* 9) link-pledge picker (linkPledge, Г-13) — только договоры того же ИНН + «Действует» */
+  CR.openPledgePicker=function(){ const c=modalGuard('linkPledge'); if(!c) return;
+    const linked=new Set((c.mirror.pledges||[]).map(p=>p.contractNum));
+    const avail=(CR.db.pledgesRegistry||[]).filter(p=>p.active && p.pledgorInn===c.borrower.inn && !linked.has(p.contractNum)); // Г-13
+    const body=`<p class="section-note">Показаны только действующие залоговые договоры того же ИНН заёмщика (${esc(c.borrower.inn)}), ещё не привязанные (Р-7, Г-13). Создать залоговый договор из кредита нельзя — только в модуле залога.</p>
+      ${avail.length?`<div class="cpick">${avail.map(p=>{ const v=(p.items||[]).reduce((a,it)=>a+(it.pledgeValue||0)*(it.share==null?1:it.share),0);
+        return `<div class="cpick-row" onclick="CR.pickPledge('${jsAttr(p.contractNum)}')">
+          <div class="cpick-main"><span class="cpick-num">${esc(p.contractNum)}</span>
+            <span class="cpick-sub"> · ${esc(p.pledgor)} · ${esc((p.items[0]||{}).name||'')}</span></div>
+          <div class="cpick-claim">залог ${money(v)}</div></div>`; }).join('')}</div>`
+        :`<div class="cgrid-empty">Нет доступных договоров того же ИНН для привязки</div>`}`;
+    CR.openModal('Привязать залоговый договор (Г-13)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Закрыть</button>`, {cls:'narrow'});
+  };
+  CR.pickPledge=function(num){ const c=modalGuard('linkPledge'); if(!c) return;
+    const reg=(CR.db.pledgesRegistry||[]).find(p=>p.contractNum===num); if(!reg){ CR.modalErr(['Договор не найден']); return; }
+    const pledge=Object.assign({ liquid:true, ban:false, date:CR.TODAY, otherCredits:[] }, reg);
+    const r=CR.linkPledge(c,pledge); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Залоговый договор '+num+' привязан','ok'); rerenderDetail(); };
 
   /* экспорт DOM-обвязки на CR (onclick-строки разметки живут в глобальной области) */
   CR._sel = null;
