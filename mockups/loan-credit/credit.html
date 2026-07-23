@@ -59,9 +59,15 @@
       Макет: простой календарь (сб/вс), без праздников.
 
   SMOKE (node)
- SMOKE (node) 2026-07-23 · 2/2 PASS
+ SMOKE (node) 2026-07-23 · 6/6 PASS
    #0a ✓
    #0b ✓
+   #19 ✓
+   #20 ✓
+   #21 ✓
+   #25 ✓
+
+
 
 
 
@@ -711,9 +717,17 @@ function seedDb(){
     ],
     mirror: emptyMirror({
       curatorship:[{ unit:'Отдел кредитования', employee:'Ким Л. С.', role:'ведущий', from:'22.04.2026', to:null }],
-      pledges:[{ contractNum:'ЗД-90', date:'21.04.2026', pledgor:'ОсОО «Нарын-Агро»',
-        items:[{ name:'Складское помещение', kind:'Недвижимость', appraised:700000, pledgeValue:560000, share:1 }],
-        liquid:true, ban:true, otherCredits:[] }],
+      // Состав обеспечения К-2: ликвидная недвижимость (≥80 % стоимости) + движимое
+      // НЕЛИКВИДНОЕ (спецоборудование, б/у). Доля ликвида 560000/660000 ≈ 84,8 % ≥ 80 %
+      // ⇒ порог покрытия 150 % по П1 §2.4 (переменный порог, тест #20).
+      pledges:[
+        { contractNum:'ЗД-90', date:'21.04.2026', pledgor:'ОсОО «Нарын-Агро»',
+          items:[{ name:'Складское помещение', kind:'Недвижимость', appraised:700000, pledgeValue:560000, share:1 }],
+          liquid:true, ban:true, otherCredits:[] },
+        { contractNum:'ЗД-91', date:'21.04.2026', pledgor:'ОсОО «Нарын-Агро»',
+          items:[{ name:'Технологическое оборудование (б/у)', kind:'Движимое', appraised:130000, pledgeValue:100000, share:1 }],
+          liquid:false, ban:true, otherCredits:[] }
+      ],
       borrowerRisk:{ group:'A', categorySource:'ночной расчёт' }
     })
   }));
@@ -936,12 +950,253 @@ function seedDb(){
   return { credits, applications, pledgesRegistry };
 }
 
-/* ---- 3–4. derive / gate / canRole / buildSchedule / мутации — Task 2+ ---- */
+/* ============================================================
+   3. ЧИСТЫЙ ЛОГИЧЕСКИЙ СЛОЙ — derive / buildSchedule (Task 2).
+   Все функции чистые (не трогают document); ничего из §4 не хранится в модели —
+   derive пересчитывается при каждой перерисовке, кэш запрещён (Р-11).
+   gate / canRole / мутации добавляются в следующих задачах.
+   ============================================================ */
+
+/* округление до копеек (детерминированное упрощение, не банковский движок) */
+function round2(x){ return Math.round((x + Number.EPSILON) * 100) / 100; }
+/* Σ освоений транша (Р-6) */
+function disbursedSum(t){ return (t.disbursements || []).reduce((x,d) => x + (d.amount||0), 0); }
+/* последняя (самая свежая) строка детального расчёта транша */
+function latestLedger(t){
+  return (t.ledger || []).reduce((a,b) => (b.no >= ((a && a.no) ?? -Infinity) ? b : a), null);
+}
+/* активен ли интервал приостановки начисления на «сегодня» (Р-17) */
+function holdIsActive(h){
+  if (!h || !h.from) return false;
+  const today = pd(TODAY);
+  if (pd(h.from) > today) return false;
+  return !h.to || pd(h.to) >= today;
+}
+/* оверлей «подавление 181-го дня»: активная реструктуризация с флагом или интервал
+   приостановки с явным основанием 181 (учитывается на уровне кредита, до worst-of) */
+function has181Suppression(c){
+  const r = c.mirror && c.mirror.restructuring && c.mirror.restructuring.active;
+  if (r && r.overlay181) return true;
+  return (c.accrualHold || []).some(h => /181/.test(h.reason || ''));
+}
+
+/* ---- 3.1 buildSchedule(tranche, fromDate) — амортизация от фактической даты освоения ----
+   Аннуитет либо дифференцированный (conditions.method). Учитывает льготу по ОД
+   (graceMain — только проценты) и по процентам (graceInterest — без начисления %),
+   а также интервалы приостановки начисления (t.accrualHold — финализируется в Task 4:
+   сейчас список пуст, но проверка `within` уже встроена). Возврат: {rows:[{no,date,total,principal,interest}]}. */
+function buildSchedule(tranche, fromDate){
+  const c = tranche.conditions || {};
+  const P = disbursedSum(tranche) || tranche.amount || 0;        // амортизируем освоенный ОД
+  const n = Math.max(1, c.term | 0);                             // число периодов = срок, мес.
+  const i = (c.rate || 0) / 100 / 12;                            // месячная ставка
+  const method = c.method || 'аннуитет';
+  const gMain = c.graceMain | 0;                                 // льгота по ОД (мес.)
+  const gInt  = c.graceInterest | 0;                            // льгота по процентам (мес.)
+  const holds = tranche.accrualHold || [];                      // Task 4 передаст интервалы кредита
+  const within = (dt) => holds.some(h => h && h.from &&
+    pd(h.from) <= dt && (!h.to || pd(h.to) >= dt));
+  const start = pd(fromDate);
+  const principalPeriods = Math.max(1, n - gMain);              // периодов гашения ОД после льготы
+  const annuity = (i > 0)
+    ? P * i / (1 - Math.pow(1 + i, -principalPeriods))
+    : P / principalPeriods;
+  const diffPrincipal = P / principalPeriods;
+  const rows = [];
+  let bal = P;
+  for (let k = 1; k <= n; k++){
+    const date = addM(start, k);
+    const noAccrual = within(date) || (k <= gInt) || i === 0;   // без начисления процентов
+    const interest = noAccrual ? 0 : round2(bal * i);
+    let principal;
+    if (k <= gMain) principal = 0;                              // льгота по ОД: только проценты
+    else if (method === 'дифференцированный') principal = round2(diffPrincipal);
+    else principal = round2(annuity - bal * i);                 // аннуитет: ОД = платёж − проценты
+    if (k === n) principal = round2(bal);                       // последний период гасит остаток
+    principal = Math.max(0, Math.min(principal, bal));
+    bal = round2(bal - principal);
+    rows.push({ no:k, date:fd(date), total:round2(principal + interest), principal, interest });
+  }
+  return { rows };
+}
+
+/* строки активной версии графика транша; если версии нет, но транш освоен —
+   строим на лету от первой даты освоения (для scheduleTotals/fullRepayDate) */
+function trancheScheduleRows(t){
+  const active = (t.schedules || []).find(s => s.active);
+  if (active && active.rows && active.rows.length) return active.rows;
+  const disb = (t.disbursements || []).slice().sort((a,b) => pd(a.date) - pd(b.date))[0];
+  return disb ? buildSchedule(t, disb.date).rows : [];
+}
+
+/* ---- 3.2 Помощники derive (все чистые) ---- */
+
+/* долг по трём слоям × 4 величины из детального расчёта траншей (§4) */
+function debtFromLedger(c){
+  const zero = () => ({ accrued:0, paid:0, overdue:0, bal:0 });
+  const d = { principal:zero(), interest:zero(), penalty:zero() };
+  for (const t of c.tranches){
+    const l = latestLedger(t); if (!l) continue;
+    d.principal.paid    += l.principalPaid    || 0;
+    d.principal.overdue += l.principalOverdue || 0;
+    d.principal.bal     += l.principalBal     || 0;
+    d.principal.accrued += (l.principalPaid || 0) + (l.principalBal || 0);   // всего вошло в погашение
+    d.interest.accrued  += l.interestAccrued  || 0;
+    d.interest.paid     += l.interestPaid     || 0;
+    d.interest.overdue  += l.interestOverdue  || 0;
+    d.interest.bal      += Math.max(0, (l.interestAccrued || 0) - (l.interestPaid || 0));
+    d.penalty.accrued   += l.penaltyAccrued   || 0;
+    d.penalty.paid       += l.penaltyPaid     || 0;
+    d.penalty.bal        += l.penaltyBal      || 0;
+    d.penalty.overdue    += l.penaltyBal      || 0;   // неоплаченная пеня трактуется как просроченная
+  }
+  for (const k of ['principal','interest','penalty'])
+    for (const v of ['accrued','paid','overdue','bal']) d[k][v] = round2(d[k][v]);
+  return d;
+}
+
+/* дней просрочки транша: max days среди строк расчёта с непогашенной наступившей позицией */
+function overdueDaysOfTranche(t){
+  let d = 0;
+  for (const r of (t.ledger || [])){
+    const has = (r.principalOverdue || 0) > 0 || (r.interestOverdue || 0) > 0 || (r.penaltyBal || 0) > 0;
+    if (has) d = Math.max(d, r.days || 0);
+  }
+  return d;
+}
+
+/* покрытие: база — ЗАЛОГОВАЯ стоимость (не оценочная); порог переменный;
+   банковская гарантия входит в индекс, поручительство — нет (§4, П1 §2.3/§2.4). */
+function computeCoverage(c){
+  let liq = 0, illiq = 0, hasItems = false, hasIlliquid = false;
+  for (const p of (c.mirror && c.mirror.pledges || [])){
+    for (const it of (p.items || [])){
+      const v = (it.pledgeValue || 0) * (it.share == null ? 1 : it.share);   // залоговая × доля
+      hasItems = true;
+      if (p.liquid) liq += v; else { illiq += v; hasIlliquid = true; }
+    }
+  }
+  const bank = (c.mirror && c.mirror.bankGuarantee) ? (c.mirror.bankGuarantee.amount || 0) : 0;
+  const contract = c.contractAmount || 0;
+  const index = contract > 0 ? (liq + illiq + bank) / contract : 0;
+  const totalPledge = liq + illiq;
+  const liquidShare = totalPledge > 0 ? liq / totalPledge : 0;
+  let req, source;
+  if (!hasItems){ req = 120; source = 'Обеспечение отсутствует'; }
+  else if (!hasIlliquid){ req = 120; source = 'Ликвидное обеспечение ≥120 % (П1 §2.3)'; }
+  else if (liquidShare >= 0.8){ req = 150; source = 'Движимое неликвидное при доле ликвида ≥80 % ⇒ ≥150 % (П1 §2.4)'; }
+  else { req = 150; source = 'Смешанное/неликвидное обеспечение ⇒ ≥150 % (П1 §2.4)'; }
+  return { index: round2(index), req, source, ok: index * 100 >= req, liquidShare: round2(liquidShare) };
+}
+
+/* worst-of категории (по дням + по подтверждённым факторам заёмщика).
+   Подавление 181-го дня применяется на уровне кредита ДО worst-of. */
+const CAT_ORDER = ['низкий','средний','высокий'];
+function daysToCat(d){ return d >= 181 ? 'высокий' : d >= 1 ? 'средний' : 'низкий'; }
+function groupToCat(g){ return (g === 'C' || g === 'D') ? 'высокий' : g === 'B' ? 'средний' : 'низкий'; }
+function worstCat(a,b){ return CAT_ORDER[Math.max(CAT_ORDER.indexOf(a), CAT_ORDER.indexOf(b))]; }
+function riskWorstOf(c, overdueDays){
+  const eff = has181Suppression(c) ? Math.min(overdueDays, 180) : overdueDays;   // подавление 181-го дня
+  const grp = c.mirror && c.mirror.borrowerRisk ? c.mirror.borrowerRisk.group : null;
+  return worstCat(daysToCat(eff), groupToCat(grp));
+}
+
+/* массив производных оверлеев проблемности (Р-3): не третья ось, а набор меток */
+function buildOverlays(c, overdueDays){
+  const ov = [];
+  if (overdueDays > 0) ov.push({ kind:'overdue', tone:'warn', text:`Просрочка ${overdueDays} дн.` });
+  const r = c.mirror && c.mirror.restructuring && c.mirror.restructuring.active;
+  if (r) ov.push({ kind:'restructuring', tone:'info', text:`Реструктуризация (${r.stage})` });
+  for (const col of (c.mirror && c.mirror.collection || [])){
+    ov.push({ kind:'collection', tone:'danger', text:`Взыскание ${col.contour} · ${col.phase}` });
+    if (col.contour === 'К6' || /банкрот/i.test(col.phase || ''))
+      ov.push({ kind:'bankruptcy', tone:'danger', text:'Банкротство' });
+  }
+  if ((c.accrualHold || []).some(holdIsActive))
+    ov.push({ kind:'accrual-hold', tone:'info', text:'Начисление приостановлено' });
+  if (has181Suppression(c)) ov.push({ kind:'suppress181', tone:'info', text:'Подавление 181-го дня' });
+  return ov;
+}
+
+/* дата последнего платежа активной версии графика (max по траншам) */
+function maxFullRepayDate(c){
+  let best = null;
+  for (const t of c.tranches){
+    const rows = trancheScheduleRows(t); if (!rows.length) continue;
+    const dt = pd(rows[rows.length - 1].date);
+    if (!best || dt > best) best = dt;
+  }
+  return best ? fd(best) : null;
+}
+
+/* неустойка за неполное освоение: недоосвоенный остаток транша × reserveRate за
+   период от плановой даты. При reserveRate = 0 → {applies:false} (не 24 строки нулей). */
+function computeReserve(c){
+  const per = []; let totalBase = 0, totalAmount = 0, rate = 0;
+  for (const t of c.tranches){
+    const rr = (t.conditions && t.conditions.reserveRate) || 0;
+    if (rr <= 0) continue;
+    const base = (t.amount || 0) - disbursedSum(t);
+    if (base <= 0 || !t.plannedDate) continue;
+    const days = Math.max(0, dd(pd(t.plannedDate), pd(TODAY)));
+    if (days <= 0) continue;
+    const amount = round2(base * (rr / 100) * (days / 365));
+    rate = rr; totalBase += base; totalAmount += amount;
+    per.push({ trancheId:t.id, base, rate:rr, days, amount });
+  }
+  if (!per.length) return { applies:false };
+  return { applies:true, rate, totalBase, totalAmount:round2(totalAmount), perTranche:per };
+}
+
+/* итоги активной версии графика (консолидировано по траншам) */
+function computeScheduleTotals(c){
+  let count = 0, principalSum = 0, interestSum = 0, total = 0, regularPay = 0;
+  for (const t of c.tranches){
+    const rows = trancheScheduleRows(t); if (!rows.length) continue;
+    count += rows.length;
+    for (const r of rows){ principalSum += r.principal; interestSum += r.interest; total += r.total; }
+    regularPay += rows[0].total;                                // регулярный платёж — сумма первых по траншам
+  }
+  return { count, principalSum:round2(principalSum), interestSum:round2(interestSum),
+           regularPay:round2(regularPay), total:round2(total) };
+}
+
+/* активен ли транш (не soft-closed) — для агрегатов срока (Р-13) */
+function activeTranche(t){ return !t.closed; }
+
+/* ---- 3.3 derive(credit) — ВСЕ производные §4. Ничего не хранится в модели. ---- */
+function derive(c){
+  const disbursed   = c.tranches.reduce((a,t) => a + disbursedSum(t), 0);
+  const allocated   = c.tranches.reduce((a,t) => a + (t.amount || 0), 0);
+  const undisbursed = c.contractAmount - disbursed;
+  const allocatable = c.contractAmount - allocated;
+  const disbState =
+      (allocated === 0 && disbursed === 0) ? 'Не освоен'
+    : (c.closure && undisbursed > 0 && c.closure.disbClosed) ? 'Освоение закрыто'
+    : (disbursed === 0) ? 'Не освоен'
+    : (disbursed < c.contractAmount) ? 'Частично освоен'
+    : 'Полностью освоен';
+  const debt          = debtFromLedger(c);
+  const overdueDays   = Math.max(0, ...c.tranches.map(overdueDaysOfTranche));
+  const coverage      = computeCoverage(c);
+  const riskCategory  = riskWorstOf(c, overdueDays);
+  const overlays      = buildOverlays(c, overdueDays);
+  const fullRepayDate = maxFullRepayDate(c);
+  const termAgg       = Math.max(0, ...c.tranches.filter(activeTranche).map(t => (t.conditions && t.conditions.term) || 0));
+  const reserveAccrual = computeReserve(c);
+  const scheduleTotals = computeScheduleTotals(c);
+  return { disbursed, undisbursed, allocated, allocatable, disbState, debt,
+           overdueDays, riskCategory, coverage, overlays, fullRepayDate, termAgg,
+           reserveAccrual, scheduleTotals };
+}
+
+/* ---- gate / canRole / мутации — следующие задачи ---- */
 
 /* ---- 5. Экспорт логического слоя (§0.2). db=null до DOM-инициализации. ---- */
 window.CR = {
   seedDb,
   db: null,
+  derive, buildSchedule,
   // утилиты — пригодятся тестам и UI
   money, pd, fd, addM, dd, toast, TODAY
 };
