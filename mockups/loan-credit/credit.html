@@ -63,6 +63,8 @@
    #0a ✓
    #0b ✓
 
+
+
 -->
 <style>
 
@@ -914,20 +916,20 @@ function seedDb(){
 
   /* --- Заявки: одобренная без кредита (Г-2 picker) + неодобренная --- */
   const applications = [
-    { id:'ЗАЯ-1042', status:'Одобрено',       borrower:{ inn:'01912201610212', name:'ОсОО «Бек Кабель»' },   approvedAmount:150000, hasCredit:true,  active:true },
-    { id:'ЗАЯ-1050', status:'Одобрено',       borrower:{ inn:'16240200300999', name:'ОсОО «Ак-Жол Агро»' },  approvedAmount:500000, hasCredit:false, active:true },
-    { id:'ЗАЯ-1051', status:'На рассмотрении', borrower:{ inn:'17345200400123', name:'ОсОО «Мин-Куш Голд»' }, approvedAmount:0,      hasCredit:false, active:true }
+    { id:'ЗАЯ-1042', approved:true,  borrower:{ inn:'01912201610212', name:'ОсОО «Бек Кабель»' },   approvedAmount:150000, creditId:'K-1', active:true },  // уже породила кредит K-1 (Г-2: «уже есть кредит»)
+    { id:'ЗАЯ-1050', approved:true,  borrower:{ inn:'16240200300999', name:'ОсОО «Ак-Жол Агро»' },  approvedAmount:500000, creditId:null, active:true },  // одобрена, без кредита → Г-2 picker
+    { id:'ЗАЯ-1051', approved:false, borrower:{ inn:'17345200400123', name:'ОсОО «Мин-Куш Голд»' }, approvedAmount:0,      creditId:null, active:true }   // не одобрена → создание кредита блокируется (Г-2)
   ];
 
   /* --- Реестр залоговых договоров по ИНН заёмщика (Г-13 picker), включая иностранный ИНН --- */
   const pledgesRegistry = [
-    { contractNum:'ЗД-88',  inn:'01912201610212', pledgor:'ОсОО «Бек Кабель»',       active:true,
+    { contractNum:'ЗД-88',  pledgorInn:'01912201610212', pledgor:'ОсОО «Бек Кабель»',       active:true,
       items:[{ name:'Производственное оборудование', kind:'Движимое', appraised:240000, pledgeValue:198000, share:1 }] },
-    { contractNum:'ЗД-92',  inn:'01912201610212', pledgor:'ОсОО «Бек Кабель»',       active:true,
+    { contractNum:'ЗД-92',  pledgorInn:'01912201610212', pledgor:'ОсОО «Бек Кабель»',       active:true,
       items:[{ name:'Автопогрузчик', kind:'Движимое', appraised:60000, pledgeValue:48000, share:1 }] },
-    { contractNum:'ЗД-90',  inn:'02107199800345', pledgor:'ОсОО «Нарын-Агро»',       active:true,
+    { contractNum:'ЗД-90',  pledgorInn:'02107199800345', pledgor:'ОсОО «Нарын-Агро»',       active:true,
       items:[{ name:'Складское помещение', kind:'Недвижимость', appraised:700000, pledgeValue:560000, share:1 }] },
-    { contractNum:'ЗД-99',  inn:'99001200500000', pledgor:'Kazakh Trade LLP (иностр.)', active:true, foreign:true,
+    { contractNum:'ЗД-99',  pledgorInn:'99001200500000', pledgor:'Kazakh Trade LLP (иностр.)', active:true, foreign:true,
       items:[{ name:'Транспорт', kind:'Движимое', appraised:150000, pledgeValue:120000, share:1 }] }
   ];
 
