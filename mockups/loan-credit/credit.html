@@ -118,6 +118,8 @@
 
 
 
+
+
 -->
 <style>
 
@@ -1763,7 +1765,6 @@ if (typeof document !== 'undefined') {
     detailTab = 'Договор';
     detailTrancheNo = (c.tranches[0] && c.tranches[0].no) || 1;
     calcConsolidated = false;
-    disbFormOpen = schedFormOpen = agrFormOpen = false;
     document.getElementById('view-list').style.display = 'none';
     const dv = document.getElementById('view-detail');
     dv.style.display = 'flex';
@@ -1838,8 +1839,7 @@ if (typeof document !== 'undefined') {
      ============================================================ */
   let detailId = null, detailTab = 'Договор', detailTrancheNo = 1;
   let calcConsolidated = false;
-  let disbFormOpen = false, schedFormOpen = false, agrFormOpen = false;
-  const DTABS = ['Договор','Условия','Транши и освоение','Расчёты','Платежи','Обеспечение','Проблемные','Досье'];
+  const DTABS =['Договор','Условия','Транши и освоение','Расчёты','Платежи','Обеспечение','Проблемные','Досье'];
 
   function currentCredit(){ return CR.db.credits.find(x => x.id === detailId); }
   function jsAttr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
@@ -1956,7 +1956,7 @@ if (typeof document !== 'undefined') {
         ${fld('Одобрено (заявка)', money(c.approvedAmount))}
         ${fld('Сумма договора (Г-1: ≤ одобрено)', money(c.contractAmount))}
       </div>
-      <div class="gtoolbar" style="margin-top:12px">${roleBtn('saveContractAmount','Изменить сумму договора',"CR.stubAction('Изменение суммы договора')")}</div>
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('saveContractAmount','Изменить сумму договора','CR.openContractAmountModal()','btn btn-primary btn-sm')}</div>
 
       <div class="section-h" style="margin-top:22px">Классификация</div>
       <div class="f2">
@@ -2024,6 +2024,7 @@ if (typeof document !== 'undefined') {
         ${bf('Пеня по %, %/дн', esc(b.penaltyInt))}
         ${bf('Макс. пеня, %', esc(b.penaltyMaxPct))}
       </div>
+      <div class="info-plate">${svgInfo()}<div>Срок на кредите — производный агрегат (Р-13): максимум срока по действующим траншам = <b>${esc(d.termAgg)} мес.</b>${d.fullRepayDate?` · плановая дата полного погашения <b>${esc(d.fullRepayDate)}</b>`:''}. Единственный источник срока — условия транша (не отдельное поле кредита).</div></div>
 
       <div class="section-h" style="margin-top:22px">Льготные периоды</div>
       <div class="f2">
@@ -2102,7 +2103,7 @@ if (typeof document !== 'undefined') {
         <div class="retro-toggle" onclick="CR.setCalcMode(${!calcConsolidated})"><input type="checkbox" ${calcConsolidated?'checked':''} onclick="event.preventDefault()"> консолидировано по кредиту</div>
         <span class="spacer"></span>
         ${actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()','btn btn-primary btn-sm')}
-        ${roleBtn('holdAccrual','Приостановить начисление',"CR.stubAction('Приостановление начисления')")}
+        ${roleBtn('holdAccrual','Приостановить начисление','CR.openHoldModal()')}
       </div>
       <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
         <div class="dim"><div class="dl">Платежей в графике</div><div class="dv">${st.count}</div></div>
@@ -2266,7 +2267,7 @@ if (typeof document !== 'undefined') {
       + `<div class="panel-wrap"><div class="panel-card">${renderTab(detailTab,c)}</div></div>`;
   }
   function rerenderDetail(){ const c=currentCredit(); if(c) renderDetail(c); }
-  function openTab(name){ detailTab=name; disbFormOpen=schedFormOpen=agrFormOpen=false; rerenderDetail(); }
+  function openTab(name){ detailTab=name; rerenderDetail(); }
 
   /* ---- обвязка действий карточки (onclick-строки живут в глобальной области → CR.*) ---- */
   CR.renderDetail=renderDetail; CR.renderTab=renderTab; CR.openTab=openTab; CR.rerenderDetail=rerenderDetail;
@@ -2500,6 +2501,42 @@ if (typeof document !== 'undefined') {
     const pledge=Object.assign({ liquid:true, ban:false, date:CR.TODAY, otherCredits:[] }, reg);
     const r=CR.linkPledge(c,pledge); if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Залоговый договор '+num+' привязан','ok'); rerenderDetail(); };
+
+  /* 10) contract-amount (saveContractAmount, Г-1 · Р-12) — сумма договора owned кредитом, ≤ одобренной */
+  CR.openContractAmountModal=function(){ const c=modalGuard('saveContractAmount'); if(!c) return;
+    const body=`<p class="section-note">Сумма договора owned кредитом (Р-12), зажата гейтом: не может превышать одобренную по заявке (${money(c.approvedAmount)}) — Г-1.</p>
+      <div class="mform">
+        <div class="field"><span class="flabel">Одобрено (заявка)</span><div class="control"><input value="${esc(money(c.approvedAmount))}" readonly></div></div>
+        <div class="field req"><span class="flabel">Сумма договора</span><div class="control"><input id="caAmount" type="number" min="0" value="${esc(c.contractAmount)}"></div></div>
+      </div>`;
+    CR.openModal('Изменить сумму договора (Г-1 · Р-12)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitContractAmount()">Сохранить сумму</button>`);
+  };
+  CR.submitContractAmount=function(){ const c=modalGuard('saveContractAmount'); if(!c) return;
+    const value=+document.getElementById('caAmount').value||0;
+    const g=gate(c,'saveContractAmount',{value}); if(!g.ok){ CR.modalErr(g.reasons); return; }   // ре-валидация Г-1 перед мутацией
+    const r=CR.saveContractAmount(c,value); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Сумма договора обновлена: '+money(value),'ok'); rerenderDetail(); };
+
+  /* 11) hold-accrual (holdAccrual, Р-17 · Г-15) — приостановление начисления процентов, роль «Начальник отдела»/«Куратор» */
+  CR.openHoldModal=function(){ const c=modalGuard('holdAccrual'); if(!c) return;
+    const body=`<p class="section-note">Приостановление начисления процентов (Р-17) — управляющее действие кредита. Требует основание, документ и дату начала (Г-15). Пеня при паузе продолжает начисляться. Новый интервал добавляется к действующим приостановкам — записи не удаляются.</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">С (дата начала)</span><div class="control"><input id="haFrom" placeholder="дд.мм.гггг"></div></div>
+        <div class="field"><span class="flabel">По (дата окончания)</span><div class="control"><input id="haTo" placeholder="дд.мм.гггг"></div></div>
+        <div class="field req col-span"><span class="flabel">Основание</span><div class="control"><input id="haReason" placeholder="форс-мажор, ..."></div></div>
+        <div class="field req col-span"><span class="flabel">Документ</span><div class="control"><input id="haDoc" placeholder="приказ №..."></div></div>
+      </div>`;
+    CR.openModal('Приостановить начисление (Р-17 · Г-15)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitHold()">Приостановить</button>`);
+  };
+  CR.submitHold=function(){ const c=modalGuard('holdAccrual'); if(!c) return;
+    const from=document.getElementById('haFrom').value, to=document.getElementById('haTo').value;
+    const reason=document.getElementById('haReason').value, doc=document.getElementById('haDoc').value;
+    const ctx={ from, to:to||null, reason, doc, by:currentRole };
+    const g=gate(c,'holdAccrual',ctx); if(!g.ok){ CR.modalErr(g.reasons); return; }             // ре-валидация Г-15 перед мутацией
+    const r=CR.holdAccrual(c,ctx); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Начисление приостановлено: '+from+'–'+(to||'…'),'ok'); rerenderDetail(); };
 
   /* экспорт DOM-обвязки на CR (onclick-строки разметки живут в глобальной области) */
   CR._sel = null;

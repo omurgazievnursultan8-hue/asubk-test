@@ -232,8 +232,28 @@ const pd = CR.pd;
   ok(18, strippedHasCode && !offeredAsAction && linkPresent,
      `code=${strippedHasCode} offeredAsAction=${offeredAsAction} link=${linkPresent}`);
 })();
-/* 28. Кнопок «Удалить» нет — структурная проверка на строку 'Удалить' у гридов. */
-(() => { ok(28, CR.hasDeleteButtons ? CR.hasDeleteButtons()===false : true); })();
+/* 28. Г-17: физического удаления нет — карточка НИКОГДА не предлагает кнопку «Удалить»
+   (реестр/гриды/траншы/платежи append-only, Р-20). Структурная проверка src-строки тем же
+   способом, что и #18: снимаем комментарии (<!-- -->, /* *​/, строчные //) и убеждаемся, что в
+   коде НЕТ кнопочной конструкции roleBtn(...)/actBtn(...)/<button>…, чей ярлык — «Удалить».
+   Фраза «Удалить» легитимно встречается ровно один раз — в блок-комментарии над gate()
+   («нет кнопок „Удалить“») — и снимается strip'ом, поэтому проверяем именно отсутствие
+   КНОПКИ, а не голое substring-отсутствие. НЕ тавтология: синтетический
+   <button>Удалить</button> либо roleBtn('x','Удалить',…) в НЕ-комментарном коде тест бы завалил. */
+(() => {
+  const stripComments = s => s
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n').map(l => /^\s*\/\//.test(l) ? '' : l).join('\n');
+  const stripped = stripComments(src);
+  const strippedHasCode = /function\s+gate\s*\(/.test(stripped);           // strip не съел код
+  const phrase = 'Удалить';
+  const btnPattern = new RegExp(
+    `roleBtn\\([^)]*${phrase}[^)]*\\)|actBtn\\([^)]*${phrase}[^)]*\\)|<button[^>]*>[^<]*${phrase}`, 'i');
+  const deleteBtn = btnPattern.test(stripped);                             // кнопка «Удалить» в коде?
+  ok(28, strippedHasCode && !deleteBtn,
+     `code=${strippedHasCode} deleteBtn=${deleteBtn}`);
+})();
 
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
