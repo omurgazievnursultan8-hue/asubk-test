@@ -737,6 +737,14 @@ CREDITS.push(
   { id:'C-B10-DONE', no:'КР-40120', inn:'10001199900101', amount:2000000, balance:0, currency:'KGS',
     overdueDays:0, debt:{principal:0,interest:0,penalty:0,fees:0,costs:0}, program:'Металл-2023', kind:'Оборотный', closedAt:'10.06.2026' },
 );
+CREDITS.push(
+  // Ветка 6 (Чуй Энерго) — три подтверждённые процедуры, фазы дают 2.1/2.2/2.3, max=2.3
+  { id:'C-CHE-1', no:'КР-66010', inn:'06601199960061', amount:5000000, balance:4000000, currency:'KGS', overdueDays:95, debt:{principal:4000000,interest:150000,penalty:30000,fees:0,costs:0}, program:'Энерго-2024', kind:'Оборотный' },
+  { id:'C-CHE-2', no:'КР-66011', inn:'06601199960061', amount:7000000, balance:6500000, currency:'KGS', overdueDays:150, debt:{principal:6500000,interest:280000,penalty:70000,fees:0,costs:0}, program:'Энерго-2024', kind:'Инвестиционный' },
+  { id:'C-CHE-3', no:'КР-66012', inn:'06601199960061', amount:9000000, balance:8800000, currency:'KGS', overdueDays:220, debt:{principal:8800000,interest:520000,penalty:190000,fees:0,costs:0}, program:'Энерго-2024', kind:'Инвестиционный' },
+  { id:'C-BF-1', no:'КР-88010', inn:'08801199980081', amount:3000000, balance:2900000, currency:'KGS', overdueDays:200, debt:{principal:2900000,interest:140000,penalty:60000,fees:0,costs:0}, program:'Агро-2025', kind:'Оборотный' },
+  { id:'C-M-1', no:'КР-77010', inn:'07701199970071', amount:1500000, balance:1200000, currency:'KGS', overdueDays:400, debt:{principal:1200000,interest:0,penalty:0,fees:0,costs:0}, program:'Микро-2022', kind:'Оборотный' },
+);
 FACTORS.push(
   // Нецелевое использование по решению КБК — двигает категорию (committeeRef непустой)
   { creditId:'C-ATS-NECEL', level:'high', type:'Нецелевое использование', committeeRef:'КБК-2026-118', from:'02.03.2026' },
@@ -750,6 +758,21 @@ OVERLAYS.push(
   { creditId:'C-B5-EXP', kind:'suppress181', from:'01.01.2026', deadline:'01.05.2026', sourceRef:'РСТ-402' },
 );
 const PROCESSES  = [];   // ← collection (M:N credits); Task 4/10
+PROCESSES.push(
+  // Ветка 6 (Чуй Энерго) — три подтверждённые процедуры, фазы дают 2.1/2.2/2.3, max=2.3
+  { id:'PR-601', credits:['C-CHE-1'], procedure:'Досудебное урегулирование', phase:'Уведомление должника', confirmed:true, owner:'emp-12', region:'Чуй' },
+  { id:'PR-602', credits:['C-CHE-2'], procedure:'Судебное взыскание', phase:'Иск подан', confirmed:true, owner:'emp-12', region:'Чуй' },
+  { id:'PR-603', credits:['C-CHE-3'], procedure:'Исполнительное производство', phase:'Исполнительный лист', confirmed:true, owner:'emp-12', region:'Чуй' },
+  // Ветка 8 (Баткен Фрут) — процедура НЕ подтверждена → группа не двигается (И-2)
+  { id:'PR-801', credits:['C-BF-1'], procedure:'Судебное взыскание', phase:'Иск готовится', confirmed:false, owner:'emp-13', region:'Баткен' },
+  // Ветка 7 (физлицо, умер) — завершённая процедура банкротства (терминал 3.2)
+  { id:'PR-701', credits:['C-M-1'], procedure:'Банкротство', phase:'Завершена процедура банкротства', confirmed:true, outcome:'Завершена процедура банкротства', owner:'emp-14', region:'Джалал-Абад' },
+);
+GROUP_LOG.push(
+  { inn:'06601199960061', group:'2.3', from:'01.06.2026', basis:'Исполнительное производство', confirmedBy:'КРР-2026-40' },
+  { inn:'07701199970071', group:'3.2', from:'15.05.2026', basis:'Завершение банкротства', confirmedBy:'Суд' },
+  { inn:'10001199900101', group:'5', from:'10.06.2026', basis:'Полное погашение', confirmedBy:'—' },
+);
 const ASSIGN     = [];   // ← kuratorstvo; Task 9
 const CONFLICTS  = [];   // ← конфликт интересов (Р-6); Task 8
 const PLEDGE_IX  = [];   // ← zalog (индекс обеспеченности); Task 5
@@ -796,6 +819,31 @@ function catOfBorrower(inn, d){
   if (!act.length) return null;
   return act.map(c => catOfCredit(c.id,d).level)
             .reduce((a,b)=> CAT_RANK[b]>CAT_RANK[a]?b:a, 'low');
+}
+
+const GROUP_LABEL = { '1.1':'Платёжеспособные', '2.1':'Досудебное урегулирование', '2.2':'Судебное взыскание',
+  '2.3':'Исполнительное производство', '3.1':'Процедура банкротства', '3.2':'Завершена процедура банкротства',
+  '4':'Безнадёжная', '5':'Погашен' };
+/* Block2 — кредит в процедуре (подтверждённой). Фаза → код; берётся max по CAT_RANK-подобной шкале. */
+const PROC_GROUP = { 'Досудебное урегулирование':'2.1', 'Судебное взыскание':'2.2', 'Исполнительное производство':'2.3' };
+const PROC_RANK  = { '2.1':0, '2.2':1, '2.3':2 };
+/* Block1 — терминальные исходы (доминируют над Block2). */
+const TERMINAL_GROUP = { 'Полное погашение':'5', 'Признана безнадёжной':'4', 'Списана':'4',
+  'Завершена процедура банкротства':'3.2', 'Процедура банкротства':'3.1' };
+
+function groupOf(inn, d){
+  const myCredits = new Set(CREDITS.filter(c=>c.inn===inn).map(c=>c.id));
+  const procs = PROCESSES.filter(p => p.confirmed && p.credits.some(id => myCredits.has(id)));
+  // Block1 — терминальный исход / признание (доминирует)
+  let block1 = null;
+  for (const p of procs){ const g = TERMINAL_GROUP[p.outcome] || TERMINAL_GROUP[p.procedure]; if (g && (g==='5'||g==='4'||g[0]==='3')) block1 = block1 || g; }
+  // журнал группы тоже может нести терминал (полное погашение фиксируется в GROUP_LOG)
+  for (const l of GROUP_LOG){ if (l.inn===inn && dateLE(l.from,d) && (l.group==='5'||l.group==='4'||l.group[0]==='3')) block1 = block1 || l.group; }
+  if (block1) return block1;
+  // Block2 — max фазы среди подтверждённых процедур
+  let best = null;
+  for (const p of procs){ const g = PROC_GROUP[p.procedure]; if (g && (best===null || PROC_RANK[g]>PROC_RANK[best])) best = g; }
+  return best || '1.1';
 }
 
 /* ═══ SECTION 3 · РЕНДЕР ═══ */
