@@ -59,7 +59,7 @@
       Макет: простой календарь (сб/вс), без праздников.
 
   SMOKE (node)
- SMOKE (node) 2026-07-23 · 16/16 PASS
+ SMOKE (node) 2026-07-23 · 20/20 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -76,6 +76,13 @@
    #17 ✓
    #23 ✓
    #26 ✓
+   #8 ✓
+   #10 ✓
+   #11 ✓
+   #24 ✓
+
+
+
 
 
 
@@ -600,14 +607,15 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
    экспортируется на window.CR (§0.2–0.6 канона). DOM-инициализация — только
    за if (typeof document !== 'undefined'). Порядок разделов:
      1) утилиты  2) seedDb  3) derive/gate/canRole/buildSchedule (Task 2+)
-     4) мутации (Task 2+)   5) экспорт window.CR   6) DOM render + wiring
+     4) gate/canRole (Task 3+)   5) мутации (Task 4+)   6) экспорт window.CR
+     7) DOM render + wiring
    ============================================================ */
 
 /* ---- 1. Утилиты (переиспользуются везде) ---- */
 const TODAY = '23.07.2026';                       // «сегодня» демо зафиксировано
 const nf2 = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const money = n => nf2.format(n || 0);
-const pd = s => { const [d,mo,y] = String(s).split('.').map(Number); return new Date(y, mo-1, d); };
+const pd = s => { if (s instanceof Date) return s; const [d,mo,y] = String(s).split('.').map(Number); return new Date(y, mo-1, d); };  // идемпотентна: Date на входе возвращается как есть
 const fd = d => String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
 const addM = (d,k) => new Date(d.getFullYear(), d.getMonth()+k, Math.min(d.getDate(),28));
 const dd = (a,b) => Math.round((b-a)/86400000);
@@ -999,8 +1007,11 @@ function has181Suppression(c){
 /* ---- 3.1 buildSchedule(tranche, fromDate) — амортизация от фактической даты освоения ----
    Аннуитет либо дифференцированный (conditions.method). Учитывает льготу по ОД
    (graceMain — только проценты) и по процентам (graceInterest — без начисления %),
-   а также интервалы приостановки начисления (t.accrualHold — финализируется в Task 4:
-   сейчас список пуст, но проверка `within` уже встроена). Возврат: {rows:[{no,date,total,principal,interest}]}. */
+   а также интервалы приостановки начисления (t.accrualHold — Task 4: holdAccrual пишет
+   интервал в credit.accrualHold и зеркалирует его на КАЖДЫЙ транш кредита, т.к.
+   buildSchedule принимает только транш, без ссылки на кредит; пеня при паузе не
+   затрагивается — within() участвует только в расчёте interest). Возврат:
+   {rows:[{no,date,total,principal,interest}]}. */
 function buildSchedule(tranche, fromDate){
   const c = tranche.conditions || {};
   const P = disbursedSum(tranche) || tranche.amount || 0;        // амортизируем освоенный ОД
@@ -1009,7 +1020,7 @@ function buildSchedule(tranche, fromDate){
   const method = c.method || 'аннуитет';
   const gMain = c.graceMain | 0;                                 // льгота по ОД (мес.)
   const gInt  = c.graceInterest | 0;                            // льгота по процентам (мес.)
-  const holds = tranche.accrualHold || [];                      // Task 4 передаст интервалы кредита
+  const holds = tranche.accrualHold || [];                      // зеркало credit.accrualHold (holdAccrual, Task 4)
   const within = (dt) => holds.some(h => h && h.from &&
     pd(h.from) <= dt && (!h.to || pd(h.to) >= dt));
   const start = pd(fromDate);
@@ -1290,16 +1301,61 @@ const ROLE_ACTIONS = {
 };
 function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(action); }
 
-/* ---- 5. Экспорт логического слоя (§0.2). db=null до DOM-инициализации. ---- */
+/* ============================================================
+   5. МУТАЦИИ — операции, меняющие состояние credit/tranche (Task 4+).
+   Каждая мутация: gate() → если заблокирован, возвращает {ok:false,reasons} и НЕ
+   трогает модель → если ok, применяет изменение → append-only запись в credit.audit
+   (никаких физических удалений/перезаписей — Р-4/Г-17). Функции чистые относительно
+   document (работают только с переданными объектами).
+   ============================================================ */
+
+/* версии графика транша (Р-4, Г-8): предыдущая активная версия ДЕМОТИРУЕТСЯ
+   (active:false) и остаётся в массиве как архив — не перезаписывается и не удаляется.
+   Возврат: при блоке — {ok:false,reasons:[...]} гейта; при успехе — новая версия
+   {ver,active,generatedFrom,rows}. */
+function generateSchedule(credit, trancheNo, params){
+  const t = credit.tranches.find(x => x.no === trancheNo);
+  const g = gate(credit, 'buildSchedule', { tranche: t });               // Г-8
+  if (!g.ok) return g;
+  const built = buildSchedule(t, params.from);
+  t.schedules = t.schedules || [];
+  const prevActive = t.schedules.find(s => s.active);
+  if (prevActive) prevActive.active = false;                             // архив, не удаление (Р-4)
+  const ver = t.schedules.reduce((m,s) => Math.max(m, s.ver || 0), 0) + 1;
+  const version = { ver, active:true, generatedFrom: params.from, rows: built.rows };
+  t.schedules.push(version);
+  credit.audit.push({ ts: TODAY, action:'generateSchedule',
+    note:`Сформирован график погашения v${ver} по траншу №${trancheNo} от ${params.from}` });
+  return version;
+}
+
+/* приостановка начисления процентов (Р-17, Г-15). Интервал живёт на credit.accrualHold
+   (его читают derive/buildOverlays/риск-подавление 181-го дня — не трогать это поле) И
+   зеркалируется на accrualHold КАЖДОГО транша кредита, потому что buildSchedule(tranche,
+   fromDate) получает только транш, без ссылки на кредит. Пеня при паузе продолжает
+   начисляться (within() внутри buildSchedule обнуляет только interest). */
+function holdAccrual(credit, ctx){
+  const g = gate(credit, 'holdAccrual', ctx);                            // Г-15
+  if (!g.ok) return g;
+  const hold = { from: ctx.from, to: ctx.to || null, reason: ctx.reason, doc: ctx.doc, by: ctx.by || '' };
+  credit.accrualHold.push(hold);
+  for (const t of credit.tranches){ t.accrualHold = t.accrualHold || []; t.accrualHold.push(hold); }
+  credit.audit.push({ ts: TODAY, action:'holdAccrual',
+    note:`Приостановлено начисление процентов ${ctx.from}–${ctx.to || '…'} (${ctx.reason})` });
+  return g;
+}
+
+/* ---- 6. Экспорт логического слоя (§0.2). db=null до DOM-инициализации. ---- */
 window.CR = {
   seedDb,
   db: null,
   derive, buildSchedule, gate, canRole,
+  generateSchedule, holdAccrual,
   // утилиты — пригодятся тестам и UI
   money, pd, fd, addM, dd, toast, TODAY
 };
 
-/* ---- 6. DOM: рендер и обвязка (только в браузере) ---- */
+/* ---- 7. DOM: рендер и обвязка (только в браузере) ---- */
 if (typeof document !== 'undefined') {
   CR.db = seedDb();                                  // живой изменяемый экземпляр
 

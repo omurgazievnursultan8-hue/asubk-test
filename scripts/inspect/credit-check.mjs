@@ -23,6 +23,7 @@ if (!CR) { console.error('window.CR не инициализирован'); proce
 const results = [];
 const ok = (n, cond, note = '') => results.push({ n, pass: !!cond, note });
 const byId = (db, id) => db.credits.find(c => c.id === id);
+const pd = CR.pd;
 
 /* 0a. seedDb даёт 6 демо-цепочек К-1…К-6 + фон. */
 (() => { const db = CR.seedDb();
@@ -113,7 +114,32 @@ const byId = (db, id) => db.credits.find(c => c.id === id);
 (() => { ok(26, ['saveContractAmount','addTranche','savePayment','writeOff','register']
    .every(a => CR.canRole('Наблюдатель', a)===false)); })();
 
-// … далее Task 4+ дописывают ok(5,7,8,10,11,13…16,18,22,24,27,28) …
+/* 8. Г-8: график до освоения → блок. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const t=c.tranches[1]; // не освоен
+  ok(8, CR.gate(c,'buildSchedule',{tranche:t}).ok===false);
+})();
+/* 10. Р-8/Г-6→освоение после ввода КМ (проверка перехода готовится тут, финализируется в Task 5). */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-5');
+  ok(10, CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok===false); // покрытие 84%
+})();
+/* 11. График: 1-е формирование → v1; повторное → v2, v1 остаётся архивной. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const t=c.tranches[0];
+  CR.generateSchedule(c,1,{from:t.disbursements[0].date,freq:'Ежемесячно',method:'Аннуитетный'});
+  const v1 = t.schedules.length;
+  CR.generateSchedule(c,1,{from:t.disbursements[0].date,freq:'Ежемесячно',method:'Аннуитетный'});
+  const active = t.schedules.filter(s=>s.active).length;
+  ok(11, v1>=1 && t.schedules.length===v1+1 && active===1, `n=${t.schedules.length} act=${active}`);
+})();
+/* 24. Г-15: пауза без основания → блок; с основанием → интервал без начисления процентов. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const bad = CR.holdAccrual(c,{from:'01.06.2026'}).ok;
+  const good= CR.holdAccrual(c,{from:'01.06.2026',to:'01.08.2026',reason:'форс-мажор',doc:'прик.5',by:'Куратор'}).ok;
+  const rows = CR.buildSchedule(c.tranches[0], pd(c.tranches[0].disbursements[0].date)).rows;
+  const held = rows.some(r => pd(r.date)>=pd('01.06.2026') && pd(r.date)<pd('01.08.2026') && r.interest===0);
+  ok(24, bad===false && good===true && held, `bad=${bad} good=${good} held=${held}`);
+})();
+
+// … далее Task 5+ дописывают ok(5,7,13…16,18,22,27,28) …
 
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
