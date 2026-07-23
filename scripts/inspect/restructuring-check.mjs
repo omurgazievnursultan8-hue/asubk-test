@@ -205,6 +205,41 @@ const app = id => RS.appById(id);
   ok(18, noInterest && flat, `noInt=${noInterest} flat=${flat}`);
 })();
 
+/* 19. interest-only: в льготные периоды principal=0, balance=const, pay=base×i. */
+(() => { fresh();
+  const { rows, meta } = RS.amortize(1200000, 12, 12, 'аннуитет',
+    [{months:3, type:'interest-only'}], '2026-01-01', 'ежемесячно');
+  const io = rows.slice(0,3);
+  const zeroPr = io.every(r => r.principal === 0);
+  const constBal = io.every(r => r.balance === RS.round2(1200000));
+  const payOk = io.every(r => r.pay === RS.round2(1200000 * meta.i));
+  const amortRows = rows.length - 3;
+  ok(19, zeroPr && constBal && payOk && amortRows===9, `zeroPr=${zeroPr} constBal=${constBal} payOk=${payOk} amort=${amortRows}`);
+})();
+
+/* 20. Мораторий: строки моратория pay=0; база амортизации = base×(1+i)^g; morCap>0. */
+(() => { fresh();
+  const g=3;
+  const { rows, meta, morCap } = RS.amortize(1200000, 12, 12, 'аннуитет',
+    [{months:g, type:'moratorium'}], '2026-01-01', 'ежемесячно');
+  const mor = rows.slice(0,g);
+  const zeroPay = mor.every(r => r.pay === 0 && r.principal === 0);
+  const expBase = RS.round2(1200000 * Math.pow(1+meta.i, g));
+  const baseOk = RS.round2(meta.baseAmort) === expBase;
+  const capOk = morCap === RS.round2(expBase - 1200000) && morCap > 0;
+  ok(20, zeroPay && baseOk && capOk, `zeroPay=${zeroPay} baseOk=${baseOk} morCap=${morCap}`);
+})();
+
+/* 21. Число амортизирующих строк = nTotal − gMor − gIo; Σ principal амортфазы = baseAmort. */
+(() => { fresh();
+  const { rows, meta } = RS.amortize(1000000, 10, 12, 'аннуитет',
+    [{months:2,type:'moratorium'},{months:1,type:'interest-only'}], '2026-01-01', 'ежемесячно');
+  const amort = rows.slice(meta.gMor + meta.gIo);
+  const sum = RS.round2(amort.reduce((s,r)=>s+r.principal,0));
+  ok(21, amort.length === meta.m && meta.m === 12-2-1 && sum === RS.round2(meta.baseAmort),
+    `m=${meta.m} amortRows=${amort.length} sum=${sum} baseAmort=${RS.round2(meta.baseAmort)}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);

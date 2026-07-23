@@ -52,7 +52,7 @@
    3. Лимит повторов реструктуризации (счётчик растёт неограниченно).
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-07-19 · 18/18 PASS
+   SMOKE 2026-07-19 · 21/21 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  rateBefore=false grew=true
@@ -71,6 +71,9 @@
       PASS  #16  prConst=true dec=true sum=1200000
       PASS  #17  p=3 n=8
       PASS  #18  noInt=true flat=true
+      PASS  #19  zeroPr=true constBal=true payOk=true amort=9
+      PASS  #20  zeroPay=true baseOk=true morCap=36361.2
+      PASS  #21  m=9 amortRows=9 sum=1016736.11 baseAmort=1016736.11
 -->
 <style>
 :root{
@@ -444,6 +447,13 @@ function amortize(base, rate, termMonths, method, graceBlocks, cutoffDate, sched
   /* фаза моратория: проценты капитализируются в конце льготы (Task 3 добавит строки) */
   let baseAmort = base, morCap = 0;
   if(gMor>0){ baseAmort = base*Math.pow(1+i,gMor); morCap = round2(baseAmort - base); }
+  /* фаза моратория: платёж 0, проценты отложены (капитализированы в конце льготы через baseAmort) */
+  for(let j=0;j<gMor;j++){ k++;
+    rows.push({n:k,date:dateAt(k),pay:0,principal:0,interest:0,balance:round2(base),phase:'мораторий'}); }
+  /* фаза interest-only: платятся только проценты на baseAmort, тело не гасится */
+  for(let j=0;j<gIo;j++){ k++;
+    const interest = round2(baseAmort*i);
+    rows.push({n:k,date:dateAt(k),pay:interest,principal:0,interest,balance:round2(baseAmort),phase:'льгота'}); }
   /* амортизирующая фаза на baseAmort за m периодов */
   let bal = round2(baseAmort);
   if(method==='дифференцированный'){
