@@ -81,13 +81,19 @@ const byId = (db, id) => db.credits.find(c => c.id === id);
   ok(4, CR.gate(c,'addTranche',{amount:d.allocatable+1}).ok===false
       && CR.gate(c,'addTranche',{amount:d.allocatable}).ok===true);
 })();
-/* 6. Г-5: освоение при ЖЦ «Проект» → блок. */
+/* 6. Г-5: освоение при ЖЦ «Проект» → блок. Транш №2 (50000, не освоен) — чтобы
+   Г-4 (Σ освоений > сумма транша) НЕ сработал и блокировал только Г-5;
+   assert проверяет причину, а не только ok, — иначе тест не ловит сломанный Г-5. */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1'); c.lifecycle='Проект';
-  ok(6, CR.gate(c,'addDisbursement',{trancheNo:1, amount:1}).ok===false);
+  const g = CR.gate(c,'addDisbursement',{trancheNo:2, amount:1});
+  ok(6, g.ok===false && g.reasons.some(x=>/освоение возможно только при жц/i.test(x)));
 })();
-/* 9. Г-7: регистрация без скана/комплекта → блок. */
-(() => { const db=CR.seedDb(); const c=byId(db,'K-5'); c.reg.scan=null;
-  ok(9, CR.gate(c,'register',{}).ok===false);
+/* 9. Г-7: регистрация без скана → блок. К-1 (покрытие 132%≥120%, комплект документов
+   «принят», num/date есть) — чтобы гейт покрытия/комплекта НЕ сработал и блокировал
+   только отсутствующий скан; assert проверяет причину, а не только ok. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); c.reg.scan=null;
+  const g = CR.gate(c,'register',{});
+  ok(9, g.ok===false && g.reasons.some(x=>/скан|номер, дату/i.test(x)));
 })();
 /* 12. Г-9: правка ставки прямым вводом после «Зарегистрирован» → блок. */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1'); // lifecycle≥Зарегистрирован
