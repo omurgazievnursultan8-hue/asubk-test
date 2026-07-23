@@ -300,10 +300,19 @@ function renderList(){
 
 Keep the existing table↔cards toggle and filter/sort wiring; point them at `SUBJECTS`. Ensure `renderList()` is called on load and on `route()` to the list view.
 
-- [ ] **Step 5: Run — verify S1…S6 pass.**
+- [ ] **Step 4b: Repoint `route()` from the deleted `DATA` to `SUBJECTS`.** (Task 1 removed `DATA` but left `route()` calling `DATA.find(...)` twice — it throws `ReferenceError: DATA is not defined` on any real `#/b/<ИНН>` or `#/s/<ИНН>` navigation, currently masked only because the empty default hash short-circuits the guards.) In SECTION 4, replace every `DATA.find(x => x.inn === …)` inside `route()` (and any other surviving `DATA` reference in the shell) with `SUBJECTS.find(x => x.inn === …)`. Then add a test proving navigation no longer throws:
+
+```javascript
+ok('S7. route() навигация в карточку не бросает (DATA→SUBJECTS)',
+  (() => { try { g.ev("location.hash='#/b/01204199910016'"); g.ev("route()"); return g.errs.length===0; } catch(e){ return false; } })());
+```
+
+Grep after: `grep -n '\bDATA\b' mockups/borrower/borrower.html` must return nothing.
+
+- [ ] **Step 5: Run — verify S1…S7 pass.**
 
 Run: `node scripts/inspect/borrower-check.mjs`
-Expected: `8/8 PASS` (2 scaffold + 6 state). No `jsdomError`.
+Expected: `9/9 PASS` (2 scaffold + 6 state + 1 route). No `jsdomError`.
 
 - [ ] **Step 6: Commit.**
 
