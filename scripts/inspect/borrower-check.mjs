@@ -40,7 +40,22 @@ ok('S6. WORKDAYS — массив праздников (строки dd.mm.yyyy)
 ok('S7. route() навигация в карточку не бросает (DATA→SUBJECTS)',
   (() => { try { g.ev("location.hash='#/b/01204199910016'"); g.ev("route()"); return g.errs.length===0; } catch(e){ return false; } })());
 
-// ... сценарии 1–26 добавляются по мере готовности функций ...
+// ── Категория (1–7) ──
+ok('1. catByDays границы 5/6/181', g.ev("catByDays(5)")==='low' && g.ev("catByDays(6)")==='mid' && g.ev("catByDays(181)")==='high');
+ok('2. подавление 181 до worst-of: кредит с оверлеем не Высокий по дням',
+  g.ev("catOfCredit('C-ATS-GAZ', TODAY).suppressed")===true && g.ev("catOfCredit('C-ATS-GAZ', TODAY).daysEff")!=='high');
+ok('3. подавление не трогает high от фактора комитета',
+  g.ev("catOfCredit('C-ATS-NECEL', TODAY).level")==='high' && g.ev("catOfCredit('C-ATS-NECEL', TODAY).days")===0);
+ok('4. фактор без committeeRef категорию не двигает (И-1)',
+  g.ev("catOfCredit('C-B5-CLEAN', TODAY).level")==='low');
+ok('5. worst-of=Высокий при 0 просрочке (нецелевое, ветка 1)',
+  g.ev("catOfBorrower('01204199910016', TODAY)")==='high');
+ok('6. истёкший оверлей 181 → пересчёт в Высокий',
+  g.ev("catOfCredit('C-B5-EXP', TODAY).suppressed")===false && g.ev("catOfCredit('C-B5-EXP', TODAY).level")==='high');
+ok('7. заёмщик без действующих кредитов → null (И-3, ветка 10 погашен)',
+  g.ev("catOfBorrower('10001199900101', TODAY)")===null);
+
+// ... сценарии 8–26 добавляются по мере готовности функций ...
 
 console.log(`\n${n - fails}/${n} PASS`);
 process.exit(fails ? 1 : 0);
