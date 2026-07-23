@@ -165,6 +165,46 @@ const app = id => RS.appById(id);
   ok(13, inputsOk && shape, `inputs=${!!inputsOk} shape=${!!shape}`);
 })();
 
+/* 14. Аннуитет: Σ principal = base (до копеики), последняя строка обнуляет остаток. */
+(() => { fresh();
+  const { rows } = RS.amortize(1200000, 12, 12, 'аннуитет', [], '2026-01-01', 'ежемесячно');
+  const sum = RS.round2(rows.reduce((s,r)=>s+r.principal,0));
+  const last = rows[rows.length-1];
+  ok(14, rows.length===12 && sum===1200000 && last.balance===0, `n=${rows.length} sum=${sum} lastBal=${last.balance}`);
+})();
+
+/* 15. Аннуитет: платёж (кроме последнего) постоянный. */
+(() => { fresh();
+  const { rows } = RS.amortize(1200000, 12, 12, 'аннуитет', [], '2026-01-01', 'ежемесячно');
+  const head = rows.slice(0,-1);
+  const allEq = head.every(r => r.pay === head[0].pay);
+  ok(15, allEq && head[0].pay > 0, `pay0=${head[0].pay} allEq=${allEq}`);
+})();
+
+/* 16. Дифференцированный: principal_k постоянен (кроме последнего) = base/m; платёж убывает. */
+(() => { fresh();
+  const { rows } = RS.amortize(1200000, 12, 12, 'дифференцированный', [], '2026-01-01', 'ежемесячно');
+  const head = rows.slice(0,-1);
+  const prConst = head.every(r => r.principal === head[0].principal) && head[0].principal === RS.round2(1200000/12);
+  const decreasing = rows[0].pay > rows[rows.length-1].pay;
+  const sum = RS.round2(rows.reduce((s,r)=>s+r.principal,0));
+  ok(16, prConst && decreasing && sum===1200000, `prConst=${prConst} dec=${decreasing} sum=${sum}`);
+})();
+
+/* 17. Периодность: ежеквартально → p=3, число строк = term/3. */
+(() => { fresh();
+  const { rows, meta } = RS.amortize(900000, 8, 24, 'аннуитет', [], '2026-01-01', 'ежеквартально');
+  ok(17, meta.p===3 && rows.length===8, `p=${meta.p} n=${rows.length}`);
+})();
+
+/* 18. Нулевая ставка: аннуитет вырождается в base/n, проценты 0. */
+(() => { fresh();
+  const { rows } = RS.amortize(1200000, 0, 12, 'аннуитет', [], '2026-01-01', 'ежемесячно');
+  const noInterest = rows.every(r => r.interest === 0);
+  const flat = rows.slice(0,-1).every(r => r.principal === RS.round2(1200000/12));
+  ok(18, noInterest && flat, `noInt=${noInterest} flat=${flat}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
