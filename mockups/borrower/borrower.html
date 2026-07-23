@@ -791,6 +791,18 @@ GROUP_LOG.push(
 );
 const ASSIGN     = [];   // ← kuratorstvo; Task 9
 const CONFLICTS  = [];   // ← конфликт интересов (Р-6); Task 8
+CONFLICTS.push(
+  // Ветка 1 — активный конфликт: заявлен, ещё не урегулирован → отстранение действует
+  { id:'CF-01', empId:'emp-07', inn:'01204199910016', trigger:'Родственная связь с руководством заёмщика',
+    declaredAt:'10.07.2026', svbAt:'11.07.2026', boardNoticeAt:'12.07.2026' },
+  // Ветка 12 — уведомление Правления просрочено (>3 к.д. с заявления, без boardNoticeAt)
+  { id:'CF-12', empId:'emp-08', inn:'02201199920021', trigger:'Личная заинтересованность',
+    declaredAt:'01.07.2026', svbAt:'02.07.2026' },
+  // Ветка 13 — урегулирован передачей дела: отстранение снято (suspendedTo = дата решения)
+  { id:'CF-13', empId:'emp-09', inn:'03301199930031', trigger:'Конфликт по предыдущему месту работы',
+    declaredAt:'01.06.2026', svbAt:'02.06.2026', boardNoticeAt:'03.06.2026',
+    decision:{kind:'передача дела', date:'20.06.2026', doc:'РЕШ-77'}, closedAt:'20.06.2026' },
+);
 const PLEDGE_IX  = [];   // ← zalog (индекс обеспеченности); Task 5
 PLEDGE_IX.push(
   { creditId:'C-ATS-NECEL', index:1.35, required:1.20, insured:true, itemsByRegion:[{region:'Чуй', count:2}] },
@@ -968,6 +980,25 @@ function committeeQueue(inn, d){
 function calDays(a, b){
   const p = s => { const [d,m,y]=s.split('.').map(Number); return Math.floor((Date.UTC(y,m-1,d))/86400000); };
   return p(b) - p(a);
+}
+
+/* Конфликт интересов: 3 фазы (заявлен → уведомление → на рассмотрении → урегулирован); Р-6/п.93. */
+function conflictState(c, d){
+  let phase = 'заявлен';
+  if (c.svbAt && dateLE(c.svbAt, d)) phase = 'уведомление';
+  if (c.boardNoticeAt && dateLE(c.boardNoticeAt, d)) phase = 'на рассмотрении';
+  if (c.decision && dateLE(c.decision.date, d)) phase = 'урегулирован';
+  // уведомление Правления просрочено, если прошло >3 к.д. с заявления и boardNoticeAt ещё нет (п.93)
+  const noticeOverdue = !c.boardNoticeAt && calDays(c.declaredAt, d) > 3;
+  const suspendedFrom = c.declaredAt;
+  const suspendedTo = (c.decision && c.decision.kind==='передача дела') ? c.decision.date : (c.closedAt || null);
+  return { phase, noticeOverdue, suspendedFrom, suspendedTo, outcome: c.decision ? c.decision.kind : null };
+}
+/* Все сотрудники, отстранённые от ИНН на дату: конфликт активен, если suspendedTo пуст или ещё не наступил (И-4). */
+function suspendedEmployees(inn, d){
+  return CONFLICTS.filter(c => c.inn===inn && dateLE(c.declaredAt, d))
+    .filter(c => { const st = conflictState(c, d).suspendedTo; return !st || !dateLE(st, d); })
+    .map(c => c.empId);
 }
 
 /* ═══ SECTION 3 · РЕНДЕР ═══ */
