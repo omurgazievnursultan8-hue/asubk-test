@@ -1,300 +1,211 @@
-# Прогресс: вкладка «Заключения» заявки (2026-07-10)
+# Прогресс: конструктор реструктуризации (2026-07-23)
 
-Plan: docs/superpowers/plans/2026-07-10-loan-app-conclusions-tab.md
-Spec: docs/superpowers/specs/2026-07-10-loan-app-conclusions-tab-design.md
-Worktree: /home/azamat/projects/asubk-conclusions  (ветка feat/conclusions-tab)
-Base: 1317903
-ВАЖНО: основной каталог /home/azamat/projects/asubk-credit-module занят второй сессией
-(ветка wip/collection-spec). Не работать там. Все команды — из worktree.
+Plan: docs/superpowers/plans/2026-07-23-restructuring-calculator.md
+Spec: /home/azamat/Downloads/prompt-restructuring-calculator.md
+Branch: main (docs-workspace, линейная история)
+Base: af21afe
+Smoke: node scripts/inspect/restructuring-check.mjs (node:vm, НЕ jsdom)
+Финальная цель: 41/41 PASS (11 регресс #1–11 + 30 новых #12–41)
 
-- Task 1: модель — complete (commit c53cb16, 14/14 PASS, review clean)
-  Minor (в финальное ревью): (1) поле `assigned[].locked` нигде не читается — истина в `_conclLocked()`;
-  (2) устаревший комментарий у `can().editConcl` (перепишет Task 2);
-  (3) ветка `!cc.total` в sendGateReason недостижима (risk/credit всегда назначены).
-- Task 2: роль «Отдел» + права — complete (commit 5709b62, все PASS, review clean)
-  Отступление от плана (принято): can(app) снимает _role/_deptKey в curRole/curDept — консистентно с phase.
-  Minor: _docStats/status внутри editConcl читаются «живьём»; can(app) не кэшировать через смену роли.
-- Task 3: панель назначения — complete (commits 04e51f0 + фикс 5602996, 34/34 PASS, review clean после фикса)
-  Important (исправлено): _conclPendingUnassign не обнулялся при отмене → conclUnassignCancel().
-  ВНИМАНИЕ Task 5: та же дыра возможна с _conclPendingWithdraw — сразу делать conclWithdrawCancel().
-  Minor (в финальное ревью): T3c восстанавливает статусы, но не журнал log у legal/analytics.
-- Task 4: баннер, чипы, карточки — complete (commits 7de5522 + фикс 5b33dcb, 46/46 PASS, review clean после фикса)
-  Important (исправлено): _conclOpen/_conclLogOpen/_conclOpenAll текли между заявками → _conclResetOpen() в ветке !sameApp у gotoDetail.
-  Minor (исправлено): вакуумный ассерт T4e; двойной _conclOf в reduce.
-  Minor (в финальное ревью): conclToggleAll('Свернуть') гасит и свою карточку — авто-режим «свой отдел раскрыт» после этого не действует.
-- Task 5: редактор заключения — complete (commits 905bf24 + фикс 4bb5db6, 62/62 PASS, review clean после фикса)
-  Отступление (принято): из теста убран лишний conclToggle('analytics') — setDept уже раскрывает свою карточку.
-  Сверх плана: conclWithdrawCancel() по образцу conclUnassignCancel() (дыра _conclPendingWithdraw).
-  Important (исправлено): conclToggle/ToggleAll/LogToggle/ScrollTo теряли набранный текст → _conclSnapEditable().
-  Minor (исправлено): слабый под-ассерт `other` в T5.
-- Task 6: стыки — complete (commits 8682a3e + фикс d11894e, 72/72 PASS, review clean после фикса)
-  Отступление (проверено ревью, принято): регекс T6b расширен до /документ/i — DOC_SECTIONS всегда
-  содержит перманентный блокер (egr/expired, inc/rejected), поэтому гейт печатает «отклонённые/просроченные».
-  Step 4 не потребовал правок — хвост sendGateReason уже стоял с Task 1.
-  Important (исправлено): свод в комиссии не раскрывался (клик перерисовывал скрытую tab-concl),
-  id карточек дублировались между панелями → введён ctx + _conclCardId.
-  Minor (исправлено): авто-раскрытие «своего отдела» текло в свод; вакуумный ассерт T6e.
-- Task 7: скриншот, TODO, STATUS — complete (commits b91d565, 6dd8224, 7b8fa10; 74/74 PASS)
-  ВАЖНО: план говорил «P3-R39», но этот номер занят параллельной сессией (коммит ef87803).
-  Фактический номер фичи — P3-R41. Запись переставлена после P3-R40 (порядок номеров).
-  По скриншоту найден унаследованный дефект: setRole() не синхронизировал #roleSel.value
-  → шапка врала про роль на всех скриншотах. Исправлено (6dd8224) + ассерт T6f.
-  Живой sync_todos.py в Sheet НЕ запускался (ветка не влита) — только --dry-run.
+Задачи:
+- Task 1: модель snapshot/paid/remTerm + versionFrom (#12–13)
+- Task 2: движок amortize (#14–18)
+- Task 3: льготы grace (#19–21)
+- Task 4: гейты termCap/rateFloor (#22–23)
+- Task 5: конвейер calcRestructure (#24–33, #37–41)
+- Task 6: applyEntryOps из плана + a1 (#34–36)
+- Task 7: UI 4 панели (браузер-проверка)
+- Task 8: канон Р-20…28, статус-файл, штамп
 
-## Финал
-- Whole-branch review (opus): READY TO MERGE, критики нет.
-- Финальные фиксы (1b87106): мёртвое поле `locked` убрано; успех-баннер не зовёт «отправить»
-  на заявках, уже ушедших в комиссию; счётчик условий считает только submitted+cond;
-  редактор структурно недоступен в своде комиссии (ctx-гейт).
-- Скриншот-регресс (6dd8224): setRole() синхронизирует #roleSel — шапка больше не врёт про роль.
-- Спек и TODO приведены в соответствие с реализацией (9c93995): порядок причин гейта, stage-err
-  только у нерешённых заявок, модель без `locked`, инварианты _conclSnapEditable/ctx.
-- Верификация: node scripts/inspect/conclusions-check.mjs → 87/87 PASS, 0 JS errors;
-  скриншот .auth/conclusions.png просмотрен, дефектов нет.
-- Живой sync_todos.py НЕ запускался: ветка не влита, Sheet общий.
+## Журнал
+Task 1: complete (commit af21afe..d283d0c, 13/13 PASS, review clean)
+Task 2: complete (commit d283d0c..280dafb, 18/18 PASS, approved)
+  Minor (в финальное ревью): (1) дубль циклов аннуитет/дифф в amortize — можно вынести шаг периода;
+  (2) i=rate/100×p/12 — номинальное масштабирование (не компаунд) для p>1, по контракту, заметка продукту;
+  (3) нет гварда principal<0 при экстремальных rate/term — вне охвата, для стресс-тестов движка.
+Task 3: complete (commit 280dafb..fe8acfe, 21/21 PASS, approved)
+  Minor (в финальное ревью): устаревший комментарий amortize ~стр.447 «Task 3 добавит строки» — теперь мёртвый, убрать.
+Task 4: complete (commit fe8acfe..18df941, 23/23 PASS, approved, чисто)
+Task 5: complete (commit 18df941..56f3cfc, 38/38 PASS, approved)
+  Контроллерское решение (не в брифе): (1) +5 тестов #37–41 после #33 → 15 новых в Task 5, итог 38/38 (нумерация пропускает #34–36 = Task 6);
+  (2) гвард в toast(): `if(typeof document==='undefined') return;` первой строкой — иначе calcRestructure валидация бросает под node:vm (тест #26).
+  Minor (в финальное ревью): (1) newRate/newTerm = Number(v.params.x)||cr.terms.x — при вводе 0 (ставка 0% льготная) молча откатывает к исходной; унаследовано из старого calcGraph, тикет на будущее;
+  (2) тест #39 слабый ассерт (maturity.length===10), не точная дата;
+  (3) totals.old.regularPay = первая строка, new.regularPay = последняя (асимметрия, verbatim бриф, вероятно намеренно — платёж после льготы).
+Task 6: complete (commit 19846c6..f890da2, 41/41 PASS, approved)
+  ВНИМАНИЕ ветка: между T5 (56f3cfc) и T6 вклинился ЧУЖОЙ коммит 19846c6 (docs borrower-rework, другая фича/сессия); ветка теперь feat/borrower-rework, НЕ main. Коммит только добавил spec-файл — ноль пересечений с restructuring. База ревью T6 = 19846c6 (родитель f890da2), не 56f3cfc. Спросить юзера про ветку в конце.
+  Minor (в финальное ревью): (1) `const s=plan.base;` в блоке forgivePenalty (~1238) — мёртвая переменная, verbatim из брифа, убрать;
+  (2) статический a1.ops «Прощение санкций» before/after=12000→0 (~706) расходится с новой snapshot-конвенцией applyEntryOps (73000→61000) — pre-existing, вне охвата брифа, но demo-журнал внутренне несогласован;
+  (3) `try{}catch(e){}` в reconcile-цикле (~786) глушит молча, verbatim бриф — добавить console.error.
+Task 7: complete (commit UI 1577332 + фикс Р-3 9295ea6, 41/41 PASS, approved после фикса; браузер-проверка обоих путей рендера + обеих сторон гейта)
+  ВНИМАНИЕ ветка: снова вклинились ЧУЖИЕ коммиты параллельных сессий (borrower/credit/zalog: 51bd4eb, 22b58bf, a4c81d7, afc5c04, fca1c84) — трогают borrower.html/credit.html/zalog.html, НЕ restructuring. Базы ревью изолированы вручную (T7=51bd4eb..1577332, фикс=22b58bf..9295ea6). progress.md теперь ОБЩИЙ для 4 фич (см. низ файла — borrower-план).
+  Контроллерское решение (одобрено юзером): Р-3 finding из ревью УПРАВЛЯЕТ над verbatim-планом — гейт ops-editor cap/forgive/grace по allowedParams + удаление decoy-полей из сетки «Параметры версии» (НЕ из PARAM_KEYS — там нужны для лейблов видов/авторинга). Отклонение от плана зафиксировано.
+  Minor (в финальное ревью): (1) inp.forgivePenalty/capInterest/capPenalty в value="${...}" без esc() (~1057) — не эксплойт (setInput коэрсит в Number), стиль-нестыковка; (2) matOld/matNew в Panel A без esc() (~1069) — вычисляемая дата, низкий риск; (3) addGrace всегда пушит хардкод {months:3,type:'interest-only'}, нет UI редактирования блока — verbatim бриф, функц. ограничение макета.
+Task 8: complete (commit c26d03e..c2da7f3, docs-only, 41/41 PASS, approved — обе оценки чисто, 0 находок). Канон Р-20…Р-28 (§19 logika.md), ОВ-1/ОВ-2 (§17), матрица §18 → 41/41 (2026-07-23) + строка #37–41, приложение Р-20…28 + журнал, создан ASUBK-status-razrabotki.md. Контроллер-оверрайд: брифовые «36»→«41» везде (бриф Self-Review сам это предписал). Коммит чист: 2 файла, оба mockups/restructuring/, без вклинивания (c26d03e — прямой родитель); restructuring.html не в коммите (штамп 41/41 уже байт-идентичен). ВСЕ 8 ЗАДАЧ ГОТОВЫ.
+
+ФИНАЛЬНОЕ РЕВЬЮ (opus, диапазон af21afe..c2da7f3, scoped на restructuring-файлы): вердикт MERGE AFTER FIXES. Ядро подтверждено верным — конвейер Р-21/23, база Р-22, границы гейтов Р-25 (ровно 1M/10M/20M/50M — без off-by-one), rateFloor, дисциплина Р-19. 2 Important дефекта → пофикшены (commit 8bc3351, 41/41):
+  F2 (обход регуляторного гейта): newRate/newTerm = `Number(x)||orig` — ввод 0 (0% ставка) молча откатывал к исходной, обходя rateFloor (жёсткий гейт без waiver) + рассинхрон Панель A vs график. Фикс: numOr() сохраняет литеральный 0 → rateOk=false → блок графика. Это апгрейд бывшего Minor #5 (T5) до MUST-FIX.
+  F1 (дата погашения ≠ график при grace): totals.new.maturity = cutoff+(newTerm+gsum)×30, но amortize вмещает grace ВНУТРИ срока (m=nTotal−gMor−gIo) → последняя строка на newTerm мес. Фикс: убран +gsum (и мёртвый const gsum); #39 усилен на точную дату (было mat=2031-09-21 63мес → стало 2031-06-23=exp 60мес, доказывает баг и фикс). addCalDays экспортирован в RS.
+  Git-race при фиксе: беспатхспековый commit подмёл 4 чужих staged-файла (borrower/credit), пойман через git show, откат reset --soft HEAD~1 + selective reset, чистый рекоммит 8bc3351 (2 файла). Урок: на общей ветке всегда `git add <pathspec>`, никогда голый `git commit`. Проверено контроллером: reflog cf4d669→reset→8bc3351, рабочее дерево чужих сессий не тронуто.
+  Отложено на будущее (opus триаж — DEFER для макета): F3 (мораторийная база не отражена в base.total — только при moratorium-grace, нет в демо) + 10 из 12 Minor (стиль/дубли/номинальная ставка по контракту/esc() на числовых полях/хардкод grace-блока). Список Minor — в строках Task 2/3/5/6/7 выше.
+  ГОТОВО К ЗАВЕРШЕНИЮ ВЕТКИ. Блокер: ветка feat/borrower-rework общая на 4 фичи — спросить юзера про стратегию завершения (см. ниже).
 
 ---
 
-# Прогресс: запрос документов через интеграцию (2026-07-09)
+# Прогресс: переработка borrower.html в исполнимый MVP (2026-07-23)
 
-Plan: docs/superpowers/plans/2026-07-09-loan-app-docs-integration-request.md
-Branch: feat/docs-integration-request
-Base: 3c75e79
+Plan: docs/superpowers/plans/2026-07-23-borrower-rework.md
+Spec: docs/superpowers/specs/2026-07-23-borrower-rework-design.md
+Branch: feat/borrower-rework
+Base: 51bd4eb (коммит плана)
+Smoke: node scripts/inspect/borrower-check.mjs (jsdom)
+Финальная цель: 26/26 PASS + штамп в шапке borrower.html
 
-- Task 1: модель — complete (commits 3f8dfa6, WIP-снапшот ed302f1, review clean)
-- Task 2: docRow кнопки + мета — complete (commit b97a8f5, review clean)
-- Task 3: обработчики + гейт — complete (commit 55d7bb0, review clean; Minor: T3b не ассертит формулировку гейта → фикс в Task 4)
-- Task 4: скриншот-верификация + TODO — complete (T3b gate-wording assertion added and PASS; screenshot visually confirmed; CHECKPOINT-comment + TODO.md P3-R36 added; попутно исправлен рендер-баг: мета-строки `.doc-meta` конкатенировались без разделителя из-за `meta.join('')` на голых строках — обёрнуты в `<span>`)
+Задачи (11):
+- T1 каркас: ретокен gen-1→gen-2, секции скрипта, jsdom-харнесс
+- T2 модель состояния: факт/зеркальные массивы, реестр из SUBJECTS
+- T3 категория: catByDays/isSuppressed181/catOfCredit/catOfBorrower (#1–7)
+- T4 группа: groupOf лестница-доминирование (#8–11)
+- T5 долг: totalDebt/overdueDebt/coverageOf (#D1–D3)
+- T6 обязательства: addWorkdays/obligations О-1/О-2/О-4 (#12–17)
+- T7 очередь: committeeQueue (#18–20)
+- T8 конфликт: conflictState/suspendedEmployees (#21–24)
+- T9 субъект/кураторство: subjectState/isReadOnly/curatorMatrix (#25)
+- T10 рендер: 4 плитки, 11 вкладок, зеркала read-only (#26)
+- T11 интеграция: 26/26 PASS, штамп, DoD
 
-## Финал
-- Whole-branch review (opus): READY TO MERGE. 1 Important (stale d.via badge) — исправлен коммитом 955762e + регресс-тест. Minor'ы (вложенные кавычки — по спеку; мёртвый '—' fallback) оставлены.
-- Верификация: node scripts/inspect/doc-integration-request.mjs → 15/15 PASS, 0 JS errors, скриншот .auth/doc-integration.png ок.
-- Feature-коммиты: 3f8dfa6, b97a8f5, 55d7bb0, 102b208, 955762e (+ pre-existing WIP снапшот ed302f1).
-- Task 8: пустые состояния, отклонённая передача, причина запрета — complete (commits 23251bd..64847d8, review clean)
-  - Minor от ревью: не покрыт рендер запрета у 151/120 и метка «соглашение» у 120 → фикс 64847d8, +5 ассертов, проверены на сломанном рендере.
-- Task 9: роль, сортировка, приёмка — complete (commits 2f5f706..7446ad7, review clean после фикса)
-  - Important от ревью: метка оверлея «соглашение» у 120 обрезалась (clientWidth 173 < scrollWidth 220), ячейки без title → фикс 7446ad7: colgroup 10.5/15.5/14.5/19/9/7.5/24, escAttr()+phaseFullText(), +30 ассертов (boundingBox, scrollWidth, title).
-  - Фиксер поймал вторую регрессию (обрезанные ЗАГОЛОВКИ колонок) только скриншотом — ассерты по td её не видели.
-- Task 10: TODO «Фаза 9» + STATUS — complete (commit c3ee5ce, review clean)
-  - Разметка пунктов приведена к реальной конвенции TODO.md (плоский формат из плана в файле не встречается нигде).
-  - Побочно: sync_todos.py не знал про взыскание → «Фаза 9» падала в generic-вкладку «Прочее». Фикс facfd09 (+ключ SECTION_TABS), Sheet пересинкан: 11 вкладок, «Взыскание» (9), «Прочее» исчезла.
+## Журнал
+Task 1: complete (commit afc5c04..a4c81d7, 2/2 PASS, review Approved)
+  Ветка feat/borrower-rework делится 4 сессиями (borrower/credit/zalog/restructuring), файлы непересекающиеся. База ревью = родитель МОЕГО коммита (чужие вклиниваются), НЕ branch-HEAD. Brief/report снапшочу в *-borrower-*.md.
+  Important (плечо T2): T1 удалил DATA, но route() ещё звал DATA.find → ReferenceError, замаскирован пустым хэшем. Резолюция: план Task 2 усилен Step 4b + тест S7.
+  Minor (финальное ревью): .b-ok бейдж держит border, gen-2 конвенция убирает border у success-пилюль — визуальный проход.
+Task 2: complete (commit c2da7f3..ab4e7e5, 9/9 PASS, review Approved, чисто)
+  База ревью = c2da7f3 (родитель ab4e7e5 = чужой restructuring-коммит c2da7f3 вклинился между c26d03e и моим).
+  Известный баг (плечо T9/T10 рендер субъекта): showSubject() ~стр.820 читает b.subj.kind==='person', но SUBJECTS-записи держат personKind напрямую (нет вложенного .subj) — pre-existing из T1, путь #/s/<inn>, НЕ покрыт S7 (#/b/ only). Флаг для задачи, что строит страницу субъекта.
+  Minor (не дефект): S3 (CREDITS пуст) вакуумно-истинный — зеркала наполняются позже, присуще брифу T2, не вина имплементера.
+Task 3: complete (commit f496fd5..c12628a, 16/16 PASS, review Approved, чисто)
+  База ревью = f496fd5 (родитель = чужой credit-коммит). Ревьюер вручную протрассировал тесты 2/3/5/6 — категорная математика верна (подавление 181 до worst-of, И-1 committeeRef, И-3 null).
+  Поправка брифа (контроллер): Step 5 «15/15 (8 prior)» устарел после S7-поправки T2 → реально 16/16 (9 prior+7). Имплементер попал точно.
+  Minor (финальное ревью, унаследовано из брифа, НЕ вина имплементера): catOfCredit делает CREDITS.find(id) без гварда «не найдено» — неизвестный id бросит на cr.overdueDays. Тесты плохой id не подают. Робастность-тикет.
+Task 4: complete (commit 8bc3351..31153ba, 20/20 PASS, review Approved, чисто; контроллер сам проверил смоук 20/20)
+  База ревью = 8bc3351 (родитель = чужой restructuring-коммит). Первый диспатч имплементера успел закоммитить ДО того, как долетел interrupt юзера — второй диспатч нашёл готовое и верифицировал; контроллер подтвердил git+смоук лично.
+  Поправка брифа (контроллер): Step 5 «19/19» устарел → реально 20/20 (16 prior+4). Плюс branch-11 проза в Step 3 — не реализуется (не покрыта тестами 8–11), реализован только код-сниппет.
+  Minor/design-notes (финальное ревью): (1) дублирован терминальный предикат (g==='5'||g==='4'||g[0]==='3') дважды ~стр.839/841 — helper isTerminal() убрал бы; (2) ⚠️ нет старшинства среди Block1-исходов (3.1/3.2/4/5): block1||g берёт первый по порядку итерации — не покрыто демо, бриф не задаёт правило; (3) ⚠️ myCredits в groupOf НЕ фильтрует closedAt (в отличие от catOfBorrower T3) — по брифу так и надо (тест 11 держит группу после закрытия кредита через GROUP_LOG), но несогласовано с паттерном T3 — сюрфейс для задач, что строят на groupOf.
+Task 5: complete (commit a0d3db0..ebfe701, 23/23 PASS, review Approved — 0 находок обеих оценок)
+  База ревью = a0d3db0 (родитель = чужой zalog-коммит). D1=16348000, D2=9898000 протрассированы ревьюером. coverageOf — истинное зеркало индекса (min/взвеш-средн), не сумма залогов; guard {null,null,1.20} до Math.min (нет Infinity-утечки); C-B14-1 orphan row засеян для T9, не течёт в ветку 1. Поправка брифа: «22/22»→23/23 (20 prior+3).
+Task 6: complete (commit 9174f0a..6fbbf75, 29/29 PASS, review Approved, чисто)
+  База ревью = 9174f0a (родитель = чужой credit-коммит). Самая логико-плотная задача. Контроллер вручную протрассировал рабочие дни: тест 15 требовал 09.03.2026 (Женский день перенесён с вс 08.03) в WORKDAYS — без него addWorkdays='11.03', с ним ='12.03'. Дал имплементеру точный фикс данных. Ревьюер перепроверил Zeller через Python — совпало. Поправка брифа: «28/28»→29/29 (23 prior+6). НЕТ Date() нигде (только в комменте).
+  Minor/design-notes (финальное ревью): (1) косметика — имплементер слил 2 деструктуризации в const [,mm,y] (эквивалентно); (2) ⚠️ pre-existing: totalDebt/overdueDebt хардкодят TODAY, не берут d из obligations(inn,d) — не сквозная параметризация датой, латентно для историч. запросов, вне охвата T6; (3) ⚠️ унаследовано из брифа: trig берёт РАННИЙ mid/high из CATEGORY_LOG (.sort()[0]), не последний переход — устареет при мульти-переходах, латентная неоднозначность спеки для будущей задачи.
+Task 7: complete (commit cfda0d6..b76afec, 33/33 PASS, review Approved — 0 находок)
+  База ревью = cfda0d6 (родитель = чужой zalog-коммит). Поправки брифа (контроллер): (1) тест 18 — только упрощённая версия (сложный ternary-черновик отброшен) → 4 новых теста 18/18b/19/20; (2) «31/31»→33/33 (29 prior+4); (3) waitingDays: calDays(...) вместо сломанного Math.floor()&&-хака (сам бриф в Note советовал); (4) Date.UTC(y,m-1,d) с полным набором арг — чистый детерминир. статик, РАЗРЕШЁН (не clock-read), в отличие от new Date()/Date.now(). Регрессия проверена: FACTORS-строка C-CHE-3 не двигает уровень (уже high по 220 дн) и group test 8 читает PROCESSES.
+Task 8: complete (commit 63c17eb..c631a68, 37/37 PASS, review Approved)
+  База ревью = 63c17eb (родитель = чужой credit-коммит). Поправка брифа: «35/35»→37/37 (33 prior+4). Все 4 теста протрассированы (фаза-лестница монотонный override, noticeOverdue строгий >3 к.д. + отсутствие boardNoticeAt, suspendedTo передача-дела/closedAt, И-4 по всему ИНН).
+  Minor (финальное ревью, brief-артефакт, НЕ вина имплементера): CF-01 коммент/тайтл теста-21 говорит фаза «заявлен», но по датам (svbAt/boardNoticeAt ≤ TODAY) computed = «на рассмотрении». .phase не проверяется тестом → не влияет. Наименовательная неоднозначность брифа.
+Task 9: complete (commit c631a68..98669fa, 40/40 PASS, review Approved)
+  База ревью = c631a68 (родитель = МОЙ T8-коммит, без чужого вклинивания). Поправка брифа: «38/38»→40/40 (37 prior+3: 25a/25b/25c). C-B14-1 PLEDGE_IX-orphan из T5 теперь резолвится. Механизм 25c подтверждён: emp-09 выброшен ПРАВИЛОМ latest-wins per (objectId,role) (emp-30 21.06 > emp-09 01.03), НЕ отстранением (CF-13 снят передачей дела 20.06, suspendedEmployees уже не листит emp-09) — не проходит по неверной причине. Suspension-фильтр применён ПОСЛЕ latest-wins дедупа (порядок верен).
+  Minor (финальное ревью): (1) objIds билд O(pledges×credits) на вызов — стиль/эффективность, не дефект; (2) ветка !a.to||!dateLE(a.to,d) — мёртвая (нет .to в сиде), защитный future-proof консистентно с catOfCredit.
+Task 10: complete (commit 9bec744..9602b4d, 45/45 PASS, review Approved). Самый большой диф (~38KB).
+  База ревью = 9bec744 (родитель = чужой credit-коммит). Поправка брифа: «44/44»→45/45 (40 prior+5: R1/R2/R3/26/R4). 4 плитки + 11 вкладок, И-5 data-mirror без контролов (тест 26), no-derived-in-markup (категория из CAT_LABEL[catOfBorrower]). ВСЕ 11 *Tab-хелперов определены (нет ReferenceError). ИЗВЕСТНЫЙ БАГ T2 ЗАКРЫТ: showSubject b.subj.kind → s.personKind==='физ', renderSubject читает SUBJECTS напрямую, ноль .subj в файле. Сигнатуры renderCard/renderSubject (b)→(inn) сверены во всех call-sites.
+  Minor (финальное ревью): (1) historyTab CSS-мисматч — .tl-item получает k-risk/k-grp/k-conf, но ::before красит по .risk/.kur/.conf → точки таймлайна всегда синие (косметика, тест не покрывает); (2) checksTab зовёт catOfBorrower дважды в одном выражении (лишний пересчёт); (3) st.successorInn в плитке/баннере без esc() (verbatim бриф, числовой ИНН, низкий риск); (4) historyTab GROUP_LOG и SUBJECT_EVENTS под одним бейджем k-grp (дизайн-шорткат, 4 цвета).
+Task 11: complete (commit 9602b4d..c47f7e9, 47/47 PASS, review inline — тривиальный 12-строчный диф: 2 теста B/B2 + штамп шапки, проверено контроллером лично).
+  КОНТРОЛЛЕР-ОВЕРРАЙД (как в restructuring T8): брифовые «26/26» = устаревший номинал спеки. Реальный harness-тотал = 47 (по ok()-вызовам). НЕ схлопывал/не удалял ассерты ради косметического «26» — сохранены все, штамп = фактические 47/47. Тесты B (≥10 строк) + B2 (GROUP_LABEL 3.2). DoD: gen-1 токены чисто, derived-text grep = 3 статических <option> лейбла фильтра (не значения карточки), wc=1434 (≥1200). Коммит = 2 borrower-файла (explicit pathspec, чужие working-tree правки не тронуты).
 
-## Финальное ревью
-- Whole-branch review (opus): READY TO MERGE. 4 Minor.
-  - Minor 1 (событие не показано данными) + Minor 2 (3 вида меры из данных отсутствовали в MEASURE_KINDS) — оба спорили с планом, решение человека: чинить. Коммит b5f3e9d.
-  - Minor 3 (мёртвый хелпер esc) — удалён там же.
-  - Minor 4 (обёртка над page.evaluate) — оставлен намеренно, dev-only харнесс.
-  - Регрессия от b5f3e9d: «Повторная претензия» + метка «событие» не влезали (scrollWidth 241 > clientWidth 235), фиксер закоммитил с красным ассертом. Исправлено 2ce9de1: colgroup 10.5/14.5/14.3/21.5/9/7.5/22.7, ассерты усилены (запас метки ≥4px, покрытие всех th и td).
-  - Итог: 186 ассертов ok, 0 ошибок консоли, exit 0.
+=== ВСЕ 11 ЗАДАЧ ГОТОВЫ (2026-07-23). Финальный смоук на HEAD c47f7e9 = 47/47 PASS. Штамп в шапке borrower.html = 47/47. ===
+  Драйф счётчика (накопительно +целевой номинал): план считал 26 логич. сценариев; реальные ok()-тоталы по задачам 2/9/16/20/23/29/33/37/40/45/47. Каждая задача — контроллер-поправка «brief N/N → реальный N/N» (S7-поправка T2 сдвинула всё на +1, плюс под-буквенные тесты 18b/25a-c/R*).
+  Скоуп-файлы (непересекающиеся с 3 др. сессиями): mockups/borrower/borrower.html + scripts/inspect/borrower-check.mjs. Финальное ревью-дифф = afc5c04..c47f7e9 -- <эти 2 файла> = .superpowers/sdd/review-borrower-FINAL.diff (2482 стр).
+  ОСТАЁТСЯ: (1) ~~широкое финальное ревью~~ СДЕЛАНО; (2) вопрос юзеру про стратегию завершения ОБЩЕЙ ветки feat/borrower-rework (4 фичи: borrower/credit/zalog/restructuring; restructuring уже ГОТОВ к завершению — см. верх файла).
 
----
+ФИНАЛЬНОЕ РЕВЬЮ (opus, scoped afc5c04..c47f7e9 на 2 borrower-файла): вердикт MERGE AFTER FIXES. Все 5 инвариантов И-1…И-5 держатся по всему файлу, детерминизм (единств. Date = Date.UTC в calDays, чистый), facts-only, gen-2 токены — чисто. Общие хелперы определены по одному разу, семантика консистентна. Триаж ledger подтверждён (все ~14 Minor верно классифицированы, ни один не Important).
+  1 IMPORTANT (НЕ было в ledger, пропущено потасковыми ревью): переключатель «Таблица↔Карточки» — мёртвый контрол. #cardsWrap shipped hidden и НИКОГДА не наполнялся, renderCards отсутствовал, setListView только красил кнопку+persist localStorage → клик «Карточки» сохранял сломанное состояние, но карточки не рендерились. Спека §1/§4 требует рабочий тумблер. → ПОФИКШЕНО (commit 58efe01): renderCards() из SUBJECTS теми же guarded-хелперами (без контролов, клик-открытие, значения из функций), setListView рулит видимостью gridWrap/cardsWrap + рендерит по активному виду, стартовый вид по persisted listView. +3 теста V1/V2/V3 → 50/50 PASS. Штамп шапки → 50/50. Коммит = 2 borrower-файла (git show --stat чист).
+  Minor-бэклог (DEFER, follow-up тикет — НЕ блокеры мёржа): (1) NEW: statusOf эмитит только 'в срок'/'просрочено', контракт §3 обещает ещё 'не наступило'/'исполнено' (нет факта завершения в модели, MVP-ок); (2) NEW: data-mirror не размечен на actsTab/curatorTab/monitoring-очереди (И-5 держится т.к. контролов нет нигде, но тест 26 не поймает будущий <input> в неразмеченном зеркале — робастность теста); (3) NEW: 5 мёртвых typeof-guard в renderList (все функции теперь есть); (4) esc() экранирует только &/< (не кавычки/>) в ~50 атрибут-контекстах, successorInn без esc (числовой ИНН, низкий риск); (5) historyTab CSS k-risk/k-grp/k-conf vs ::before .risk/.kur/.conf → точки таймлайна синие; (6) groupOf all-credits vs catOfBorrower active-only — НЕ баг (группа переживает закрытие через GROUP_LOG, test 11); (7) obligations/totalDebt хардкод TODAY (латентно для историч. дат); (8) groupOf Block1 без старшинства 3.1/3.2/4/5; (9) O-1 trig = ранний mid/high не последний; (10) checksTab double catOfBorrower.
 
-# Прогресс: взыскание — дозагрузка legacy-фич (2026-07-20)
-
-Plan: docs/superpowers/plans/2026-07-20-collection-mockup-legacy-additions.md
-Spec: docs/superpowers/specs/2026-07-20-collection-mockup-legacy-additions-design.md
-Branch: feat/collection-legacy-additions
-Base: 99681b5
-Проверка: node scripts/inspect/collection-check.mjs (baseline 186 ассертов PASS)
-
-- Task 1: харденинг check-скрипта — complete (commit 686b9ed, 186/186 PASS, review clean)
-  Minor (только в самоотчёте, не в коде): счётчики вхождений nth в report неточны.
-
-- Task 2: вкладка «Расчёт долга» — complete (commit 8ed89bb, все PASS +8 ассертов, review clean)
-  Инвариант сумм проверен вручную для всех 6 процессов (в т.ч. 104: ИЛ-288=310000, не КИ-06=295000).
-
-- Task 3: вкладка «Заседания» — complete (commit 9c0f9c5, 212 PASS, review clean)
-  Правка: устаревший Task-2 ассерт «вкладок 8»→9 (TABS — общий массив, легитимно).
-
-- Task 4: ответственный (ФИО) в журнале мер — complete (commit bce907b, все PASS, review clean)
-  ПРИМЕЧАНИЕ: рабочее дерево содержит НЕ мои правки mockups/collateral/zalog.html (WIP
-  параллельной сессии). Мои коммиты его не трогают. Не откатывать.
-
-- Task 5: вложения-сканы на мере — complete (commit 4e318c5, все PASS, review clean)
-  Параллельная сессия влезла коммитом 28d1a82 (zalog.html) между Task 4 и 5 — на МОЮ ветку.
-  Minor (в финальное ревью): openDocsModal не использует escAttr (данные статичны, как и в panelMery).
-
-- Task 6: черновик/зарегистр. + аннулирование меры-вехи — complete (commit fc2efc2, 222 PASS, review clean)
-  Отступление (проверено ревью, принято): +`&& m.regState !== 'черновик'` во флаг «не исполнена» —
-  черновик «Не направлялась» не является проваленной доставкой (семантически верно, не маскировка теста).
-
-- Task 7: реестры заседаний/претензий + фильтры стадии — complete (commit c8c3fc0, все PASS +8, review clean)
-
-- Task 8: доки (шапка макета + TODO P9-R9) — complete (commit 46475d5, все PASS, review clean)
-  TODO auto-sync hook не срабатывал (ветка не влита). zalog.html чужой — не в коммите.
-
-## Все 8 задач complete. Финальное whole-branch ревью — далее.
-
-## ФИНАЛ
-- Whole-branch review (opus): READY TO MERGE. Ни Critical/Important.
-  Инвариант сумм подтверждён для всех 6 процессов (104 не совпадает с КИ-06 — верно).
-  panelMery 11/11 столбцов согласованы после накопления Task 4/5/6. TABS/builders 9/9.
-- Minor'ы (все приемлемы для демо): phaseMeasureSum — app-dead (только тест-инвариант);
-  registry-строка openDetail→вкладка 0, а спек §3 хотел вкладку «Заседания» (мелкое отступление);
-  .rowlink на <tr> красит всю строку; «Применить» дат — только тост; waterfall — заметка без схемы стрелок;
-  openDocsModal без escAttr / aria — унаследованный стиль файла.
-- Верификация: node scripts/inspect/collection-check.mjs → все ассерты PASS, 0 ошибок консоли.
-- ВНИМАНИЕ: ветка feat/collection-legacy-additions содержит ЧУЖОЙ коммит 28d1a82 (zalog.html,
-  параллельная сессия) + незакоммиченные правки zalog.html в рабочем дереве. Не мои.
+=== ФИЧА BORROWER ЗАВЕРШЕНА: 11 задач + 1 фикс финального ревью, все отревьюены, HEAD 58efe01, 50/50 PASS, штамп 50/50. Готово к завершению ветки — ЖДЁТ РЕШЕНИЯ ЮЗЕРА по общей 4-фичной ветке. ===
 
 ---
 
-# Прогресс: доработка zalog.html (Д-1…Д-3, Р-11…Р-23) (2026-07-21)
+# Прогресс: мокап модуля «Кредиты» (credit.html) (2026-07-23)
 
-Plan: docs/superpowers/plans/2026-07-21-zalog-fix.md
-Spec: docs/superpowers/specs/2026-07-21-zalog-fix-design.md
-Worktree: .claude/worktrees/feat-zalog-collateral-fix (ветка worktree-feat-zalog-collateral-fix)
-Base: 3513d3f
-Проверка: npm run test:zalog (jsdom-харнесс, создаётся Task 0)
-Режим: субагент на задачу, СТОП после каждой задачи (ждать команды пользователя).
-Pre-flight решение: вакуумные ok(true)-тесты выкинуть (T1 D1-2 / T3 D3-1 / T7 R11-8 / T22 R11-11);
-  реальный ассерт только там, где доступен хелпер (D1-4/T5/T22).
+Plan: docs/superpowers/plans/2026-07-23-credit-module-mockup.md
+Spec: /home/azamat/Downloads/prompt-kredit-mockup.md (канон, решения Р-1…Р-20, гейты Г-1…Г-17)
+Branch: main (docs-workspace)
+Base: f890da2
+Smoke: node scripts/inspect/credit-check.mjs (node:vm, НЕ jsdom)
+Финальная цель: 28+ сценариев (§9) + штамп «SMOKE (node) <дата> · N/N PASS» в шапке credit.html
 
-- Task 0: харнесс + шов __zt — complete (commit 4af4f0d, 1/1 PASS, review clean)
-  jsdom@29.1.1 в devDeps; package-lock git-ignored (не коммитим). Шов: 19 существующих символов
-  (grep-проверены), исключены guaranteeReq/effectiveInterval/riskFactorCandidates (появятся в задачах).
-  Minor (в финал): отчёт сказал «шов 13 строк», факт 10 — косметика, кода не касается.
+Задачи (9):
+- Task 1: скелет + токены + модель/seed + smoke-харнесс (#0a, #0b)
+- Task 2: derive (§4) — производные, ничего не хранится
+- Task 3: gate (§6, Г-1…Г-17) + canRole (§7)
+- Task 4: buildSchedule (§4 график)
+- Task 5+: мутации, UI-вкладки, реестр, интеграция
 
-- Task 1: Д-1 удалён COVER_MIN — complete (commit d4ec5a5, 2/2 PASS, review чист: Spec ✅ / Quality Approved)
-  D1-1 тест переписан на win.eval('typeof COVER_MIN') — classic-script const не window-проперти (реальный ассерт,
-  проверено вручную: реинтродукция COVER_MIN → FAIL). D1-2 заглушка выкинута (pre-flight). ncCredits показывает обе
-  величины 120%/150% с цитатой П1 §2.3–2.4; openAlloc метка+дефолт доли через requiredCover(id, ctx(c)).
-  Хвосты (в финал/след.задачи): openAlloc дефолт доли теперь 150%-aware для движ.неликвида — полный редизайн в Task 3;
-  COVER_GUARANTEE/_FX пока только в шве — оживут в Task 7 (Р-11 гарантия).
+## Журнал
+Task 1: complete (commit f890da2..fca1c84, 2/2 PASS #0a/#0b; фикс полей seed — доп. коммит ниже)
+  Ревью-фикс (Important ×2): (1) applications.status→approved(bool), hasCredit→creditId — Task 3 gate('createCredit')/тест#3 читают a.approved/a.creditId; ЗАЯ-1042.creditId='K-1' (обе половины Г-2);
+  (2) pledgesRegistry.inn→pledgorInn — Task 3 gate('linkPledge')/тест#17 читают p.pledgorInn; сохранены совпадающий ИНН K-1 и иностранный ЗД-99.
+  Minor (в Task 9): двойная строка «SMOKE (node)» в шапке — verbatim из harness-кода плана, косметика.
+Task 2: complete (commit 22b58bf..c26d03e, path-filtered credit-only diff; 6/6 PASS #0a/0b/19/20/21/25, review Approved)
+  Seed-правка: K-2 → движимое неликвидное (ЗД-91 illiquid рядом с ЗД-90 liquid), liquidShare 84.8%≥80% → req=150 (тест #20 честный); K-1 остаётся all-liquid→120; count=15.
+  Minor (в финальное ревью): (1) порог ≥80% ветвит только label — обе ветки req=150; свериться с каноном П1§2.4 (нужно ли отдельное правило для <80%);
+  (2) debt.principal.accrued=principalPaid+bal и penalty.overdue=penaltyBal — эвристики без реальных ledger-колонок; Task 5 (Платежи) должен дать настоящие колонки, добавить // TODO Task 5 в обоих местах (сейчас размечено одно);
+  (3) строка графика в hold-период проседает под annuity (interest=0, principal=annuity−bal*i) — косметика модели, правило «нет процентов в hold» соблюдено.
+Task 3: complete (commit c26d03e..f496fd5 + фикс-тестов af82d6a, 16/16 PASS #1/2/3/4/6/9/12/17/23/26, review Approved после фикса)
+  gate() Г-1…Г-16 + canRole() 5 ролей; логика верна с первого раза (0 seed-правок), поля сверены с реальной моделью.
+  Ревью-фикс (Important ×2, тест-гигиена): (1) тест#6 (Г-5) использовал K-1 транш №1 (полностью освоен) → маскировался Г-4; → K-1 транш №2 + ассерт reason /освоение возможно только при жц/; (2) тест#9 (Г-7) на K-5 (покрытие 84%) → маскировался coverage-гейтом; → K-1 (132%) + only reg.scan=null + ассерт reason скан/номер-дата. Изоляция подтверждена: удаление целевой строки гейта роняет соответствующий тест.
+  Concerns форвардные: (1) mirror.pledgeWaiver ещё не в seed — нужен для Г-6/Г-7 exception, добавит Task 5 (waiver-мутация); (2) requiredDocsComplete (docState∈{принят,не требуется}) — трактовка §5.3, свериться при постройке вкладки Договор/register (Task 7).
+  ИНЦИДЕНТ общего бранча: первый коммит имплементера подхватил чужие staged-файлы параллельной сессии; пойман, reset --soft, перекоммичен чисто. ВПРЕДЬ: имплементерам — только `git add <явные пути>`, никогда `git add -A`/`git commit -a`.
+Task 4: complete (commit af82d6a..9174f0a, 20/20 PASS #8/10/11/24, review Approved, чисто)
+  generateSchedule (демоут active→archive, ver+1, ровно 1 active — структурный инвариант) + holdAccrual (Г-15) + threading accrualHold в buildSchedule (interest=0 в hold, penalty нетронут).
+  Реконсиляция accrualHold: holdAccrual пишет в credit.accrualHold (читают derive/overlays/Г-15) И зеркалит в каждый tranche.accrualHold (buildSchedule(tranche,..) видит через транш — сигнатура 2 арг). Оба независимых push, credit-level reads целы.
+  Побочные фиксы (TDD): (1) pd() идемпотентна — `if(s instanceof Date) return s` (тест двой-оборачивал дату → Invalid Date); (2) тест#24 → buildSchedule(...).rows (возвращает {rows}, контракт Task 2).
+  Minor (в финальное ревью): (1) pd() возвращает тот же Date ref, не клон — латентный aliasing, `new Date(s)` безопаснее (нет живого бага); (2) тест#24 `some()` слабый (из брифа) — не проверяет ВСЕ hold-строки/границы; (3) hold-зеркало не ретроактивно к траншам, добавленным позже (заметка для addTranche UI).
+Task 5: complete (commit 9174f0a..63c17eb + ревью-фикс 9bec744, 31/31 PASS #5/7/8b/13/14/15/16/22/27/27b/28, review Approved после фикса)
+  10 мутаций (saveContractAmount/addTranche/addDisbursement/setKmDecision/saveWaiver/addPayment/addAgreement/closeCredit/linkPledge/paymentEditable) + zeroOutForTest. Все: gate→ранний return без мутации→snapshot before→pushAudit(frozen)→{ok,reasons}.
+  РЕШЕНИЕ payment→debt: manual addPayment пишет ТОЛЬКО mirror.payments {reg:'Ручной ввод',match:'Ожидает ЦК'}, ledger/debt НЕ трогает — канон Р-5 «ожидает ЦК» (простейший, не десинхронит). debtFromLedger accrued/penalty.overdue остаются эвристикой + // TODO Task 5/later в обоих местах.
+  saveWaiver ставит mirror.pledgeWaiver (2-й путь разблока Г-6); K-5 стартует BLOCKED (waiver falsy) → unblock. setKmDecision — 1-й путь (Р-8).
+  Ревью-фикс (Important): все audit-push унифицированы через единый pushAudit chokepoint + Object.freeze — Task 4 generateSchedule/holdAccrual писали {ts,action,note} НЕзамороженными в обход; теперь {when,who,what,before,after} frozen везде. Тест #27 разбит (freeze | no-delete-API раздельно), +#27b (Task-4-origin frozen). +crash-guard gate addDisbursement (неизвестный trancheNo → 'Транш не найден', не TypeError).
+  Minor (в финальное ревью): (1) linkPledge audit before=count, не snapshot (косметика); (2) 'repay' добавлен в ROLE_ACTIONS['Начальник отдела'] — согласуется с §7 (line 340 «всё + списание»), инертно (gate роль не проверяет); (3) setKmDecision/linkPledge без field-level валидации ctx — отложено на формы Task 6.
+  === ЛОГИЧЕСКИЙ СЛОЙ ГОТОВ: Tasks 1–5, 31/31 PASS. Осталось: Task 6–8 (UI, браузер-проверка) + Task 9 (финал smoke/штамп/канон). ===
+Task 6 (credit): complete (commit 9bec744..78740a0, реестр /credits + вид + роль, review Approved, smoke 31/31)
+  UI-слой добавлен внутри существующего DOM-guard (typeof document!==undefined): renderList/renderRows/rowHtml/renderRole/selectRow/openDetail/backToList/resetDemo/openCreatePicker/pickApplication. Все ячейки из derive() на рендере, ничего не кэшируется на модель.
+  Браузер-проверка (контроллер, http://localhost:8899 — file:// блокирован расширением): 15/15 строк, 12 колонок Р-19 в точном порядке; тинты 3 overdue(amber)+3 collection(red); фильтр ПРГ-2→2 строки, сброс→15; роль «Наблюдатель»→btnCreate.disabled + tooltip «не имеет права создавать кредит», спец→enabled; Г-2 picker ровно [ЗАЯ-1050] (исключает ЗАЯ-1042 linked→K-1 и ЗАЯ-1051 !approved); double-click→карточка с #cr-card-body плейсхолдер + «← Реестр».
+  Minor (в финальное ревью): (1) дубль .sel CSS (стр.302 vs 574, идентичны, мёртвый код); (2) заголовок колонки «Заёмщик» vs канон «Заёмщик(ИНН+наим)» — контент верный (наим+ИНН), косметика; (3) «Остаток долга» = principal.bal+interest.bal+penalty.bal — judgment call, подтвердить с product owner (vs principal-only).
+Task 7 (credit): complete (commit 78740a0..26a6418, шапка §5.2 + 8 вкладок, review Approved opus, smoke 31/31)
+  renderDetail/renderTab/openTab: §5.2 non-collapsing header (всё из derive) + 8 вкладок в точном порядке (Договор·Условия·Транши·Расчёты·Платежи·Обеспечение·Проблемные·Досье), ни одной пустой. Хелперы fld/cgrid/actBtn/roleBtn/lockHtml — DRY по 8 вкладкам. Каждая мутация → rerenderDetail → derive заново (без кэша). Gate-disabled кнопки = visual-disable (не attribute) + title + toast-on-click (attribute disabled не даёт toast) — заблокированная кнопка НЕ достаёт до мутации (проверено ревью).
+  Задача 7/8 граница: 3 действия рабочие сейчас (addDisbursement/generateSchedule/addAgreement), остальные — role-gated заглушки toast «форма в Task 8» → Task 8 модалки.
+  Браузер-проверка (контроллер, K-1 «Бек Кабель» через http://localhost:8899): шапка — оба pill (Действует/Частично освоен), Освоено 100000(67%), Покрытие ●132%/порог 120% зелёный светофор, Категория/Покрытие/Куратор все 🔒зеркало+источник(Р-10/П1§2.3/Р-9). Договор: Р-18 4 up-link (ЗАЯ-1042→КОМ-311→программа→решение) read-only. Обеспечение: grid ЗД-88 (оценочная 240k/залоговая 198k/доля100%/ликвид/запрет), покрытие-блок, 🔒зеркало+«Источник: модуль залога Р-7 read-only», НЕТ «Создать залоговый договор» (Р-7✓). Axis-2 флип: full освоение транша №2 → disbState «Частично освоен»→«Полностью освоен», gate ok, audit frozen what=addDisbursement.
+  Minor (в финальное ревью): двойной derive в renderDetail (header + renderTab повторно) — pure/дёшево, можно прокинуть d одним вызовом.
+Task 8 (credit): complete (commit 26a6418..6cc8220, модалки + 6 цепочек, review Approved opus, smoke 31/31)
+  openModal/closeModal/modalErr (modal-h/-b/-f, один overlay) + modalGuard(action) гейтит ОТКРЫТИЕ по роли+terminal. 9 модалок: tranche/disbursement/schedule-params/agreement-ДС/manual-payment/KM-decision/waiver/write-off/link-pledge(Г-13 same-ИНН+active) + repay. Каждый submit re-check gate → на провале modalErr(reasons)+toast, без мутации (§0.3). manual-payment пишет mirror reg:'Ручной ввод'/match:'Ожидает ЦК', НЕ двигает ledger. 3 действия Task 7 (disb/sched/agr) апгрейд inline→modal, старые формы удалены чисто.
+  Браузер-проверка цепочек (контроллер, http://localhost:8899): К-1 «Сформировать график» enabled(пустой title); К-2 reserve applies=true rate2% amount1819.18 vs К-1 applies=false; К-3 repay gate false, reasons=[«нулевой остаток по всем слоям», «активный процесс взыскания»] (Г-14 dual); К-5 disb blocked cov 84% red-светофор, tooltip «Провал покрытия: КМ (Р-8) или waiver», клик по blocked→toast без модалки (§0.3✓), роль→«Начальник отдела»→модалка «Решение КМ об освобождении от залога (Р-8)» owned-поле, setKmDecision→disbGate false→true live; Наблюдатель ROLE_ACTIONS пуст→modalGuard блок открытия.
+  РОЛЕВАЯ МАТРИЦА (ключи ≠ имена мутаций): key 'waiver'(не saveWaiver) в «Начальник отдела»; setKmDecision/linkPledge/holdAccrual/writeOff/repay только «Начальник отдела»; addTranche/addDisbursement/addAgreement/saveContractAmount в «Кредитный специалист»+«Начальник отдела». gate() сам не проверяет terminal — защита закрытых кредитов ТОЛЬКО на UI (isTerminal в actBtn/roleBtn+modalGuard). K-6/K-6b addTranche gate=true (UI блокирует).
+  Minor (в финальное ревью): (1) мёртвые disbFormOpen/schedFormOpen/agrFormOpen; (2) gate addTranche/addDisbursement не режет amount=0 (req визуальный); (3) schedule-modal onchange транша → full rerenderDetail за модалкой.
+  ПРОВЕРКА «ДВУХ ПРОБЕЛОВ» — ОБА СНЯТЫ (проверял неверные имена полей):
+   (B) K-6/K-6b различаются через closure.reason: K-6=«Погашен» (акт сверки АС-30), K-6b=«Списан» (решение правления РП-77); оба lifecycle=«Закрыт» — ВЕРНО (Закрыт=терминал оси-1, closure.reason=под-состояние). §8 два терминала выполнены. НЕ пробел.
+   (A) K-4 пауза живёт в mirror.restructuring.active.pause.days=70 + overlay181=true (не в credit.accrualHold, который для ручного Р-17). Оверлеи derive = [overdue, restructuring, suppress181]. Мораторийная пауза приходит из реструктуризации, не из ручного hold — это дизайн, не пробел. Максимум Minor: текст restructuring-оверлея не упоминает «70 к.д.» явно (можно добавить «мораторий 70 к.д.»). НЕ seed-фикс.
+  ⇒ Task 9 = чистая финализация без seed-правок. Единственный тест-пробел: #18 отсутствует (из 1–28 есть все кроме 18). Minor в финал: текст restructuring-оверлея К-4 без «70 к.д.».
+Task 9 (credit): complete (commit 6cc8220..e04f9f1, финализация, review Approved sonnet, smoke 32/32)
+  Добавлен тест #18 (структурный src-string, Р-7): comment-strip источника → нет button/roleBtn с «Создать залоговый договор» (терпит 2 коммента + дисклеймер picker'а, где фраза = «нельзя») + есть «Привязать существующий». Реализатор поймал: фраза в 3-х местах (не 2 как в брифе), ассерт уточнён на button-конструкт, не naive-absence. #10 усилен: было presence-only → теперь assert disbGate false→true после setKmDecision (Р-8 unlock §7). Шапка Р-1…Р-20+§10 уже была полной; раннер перештамповал SMOKE 32/32.
+=== ВСЕ 9 ТАСКОВ ГОТОВЫ. Финальное ревью ветки (credit-scoped) + фикс-волна ниже. ===
+Финальное ревью (opus, весь credit-фичер 56f3cfc..e04f9f1 path-filtered): вердикт «Needs fixes before merge» — все 6 инвариантов держатся (derive-чистота/audit-freeze/mirror/Р-7/§0.3/DOM-guard ✓), но 2 Important. 9 логированных Minor: 8 «ship», #9 (К-4 «70 к.д.») «ship». Новые Important: (1) тест #28 Г-17 тавтологичен — CR.hasDeleteButtons нигде не определён → тернар всегда true, «нет кнопок Удалить» не проверялось; (2) «Изменить сумму договора» (saveContractAmount) и «Приостановить начисление» (holdAccrual) заглушены stubAction с неверным «в модуле-владельце», хотя это OWNED+протестированные мутации, §0.1 запрещает заглушки, §5.3 таб-4 требует интерактив. Плюс новые Minor (ship/fast-follow): termAgg/fullRepayDate мёртвые выходы derive (Р-13 не показан); debtTransfer render читает не-модельные поля (мёртвая ветка); disbState 'Освоение закрыто' недостижим (closure.disbClosed нигде не ставится); zeroOutForTest экспортится в CR.
+Фикс-волна (opus, ОДИН субагент, commit eecb0a7 «реальный тест Г-17 #28 + модалки суммы/паузы + Р-13 срок + чистка»): (1) #28 переписан как src-string как #18 — ПРОВЕРЕНО эмпирически контроллером: инъекция <button>Удалить</button> → #28 FAIL deleteBtn=true, suite 31/32; чисто → 32/32 (не тавтология). (2) openContractAmountModal (Г-1·Р-12) + openHoldModal (Р-17·Г-15) через openModal/modalGuard, gate re-check на submit — ПРОВЕРЕНО в браузере: сумма > одобренной → модалка открыта + reason Г-1 + без мутации (§0.3); в пределах → закрывается + contract 150000→140000; hold-модалка поля from/to/reason/doc. (3) мёртвые disbFormOpen/schedFormOpen/agrFormOpen удалены. (4) termAgg/fullRepayDate СУРФЕЙСнуты (Р-13 инфо-плита в «Условия», termAgg=24мес fullRepay 18.05.2028), derive-логика не тронута. smoke 32/32, шапка перештампована. Все 4 фикса верифицированы контроллером напрямую (сильнее чем diff-re-read) — отдельный re-review субагент не нужен.
 
-- Task 2: Д-2 хардкод 120%→pct(req) — complete (commit d9c8f7d, 3/3 PASS, review чист: Spec ✅ / Quality Approved)
-  Все user-facing 120%/«Гейт 120» убраны (остались только dev-комменты). D2-1 реальный ассерт (hasNot,
-  проверено вручную реверсом тоста → FAIL). +2 сайта сверх брифа (ncCredits ~2761, credOpts renderDs ~3068) — тот же класс.
-  «комитетом»→«комиссией» (в файле 0 упоминаний комитета). Stored req в c.undercovered/c.addenda[] — ЛЕГИТИМНЫЙ
-  event-time снапшот (как существующий ratio; ре-деривация переинтерпретировала бы прошлые решения под чужой порог).
-  Minor (в финал): gate.rows.reduce tie-break при равных ratio берёт первый — безвредно (= старый Math.min).
-
-- Task 3: Д-3 дефолт доли openAlloc = недостающая до порога — complete (commit 57eaab4, 3/3 PASS regression, review: Spec ✅ / Quality Approved)
-  Формула Math.min(av, Math.max(0, cr.amount*req − alreadyByCredit)); live-пересчёт порога 120↔150 через sync()/draftWithItem
-  (existing change-listeners, нового не добавляли). alInfo подсказка verbatim с П1 §2.3/§2.4. D3-1 заглушка выкинута (pre-flight);
-  реальный инвариант — в Task 5. Тула-1 хвост (редизайн дефолта) закрыт здесь.
-  *** CARRY-FORWARD в Task 5 (Р-11): alreadyByCredit сейчас draft-only (буква брифа «в черновике»), но req считается
-  cross-contract (ctxWithDraft). Несогласованность → дефолт завышает недостачу если кредит уже покрыт ДРУГИМ активным
-  договором. Сделать дефолт coverage-wide на канон-coverage из Р-11. USER-РЕШЕНИЕ: спросить defer-to-T5 vs сейчас.
-
-- Task 4: Р-13 requiredCover→{req,source} — complete (commits e7ff9fd..4d8286b, 6/6 PASS, review чист после фикса)
-  Call-site миграция ЧИСТА: 6 сайтов, все читают .req, ноль NaN/[object Object]. requiredCover body verbatim
-  (ветвь kmDecision дормантна — норма). coverage() тоже несёт .source. R13-2 К-56 (ликвид→1.2/§2.3), R13-3 К-40
-  (движ.неликвид ТС→1.5/§2.4) — реальные ассерты.
-  ФИКС (Important, commit 4d8286b): строки-пороги 1595/2182 печатали список порогов + ОДИН хардкод «П1 §2.3» —
-  неверно для §2.4-кредитов в списке. Заменено на per-credit r.source внутри .map, хардкод убран. Тем самым
-  coverage().source стал consumed (снял YAGNI-вопрос). Имплементер соврал про «optional» в брифе (фразы нет) — учтено.
-  Minor (в финал, триаж): ~8 сайтов (2259/2269/2887/2899/2952/2970/3074-75/3124) печатают pct(r.req) БЕЗ цитаты вообще
-  (не мис-цитата). Бриф «где показан порог — рядом печатать source» строго требует; но добавление в 8 инлайн-мест —
-  полиш, не корректность. Решить в финале: нужен ли source везде или только там где раньше был неверный.
-
-- ПОПРАВКА к carry-forward T3: канон-coverage/index = Task 7 (Р-11), НЕ Task 5. Task 5 = только invariant-тесты.
-  Cross-contract netting дефолта openAlloc (alreadyByCredit coverage-wide) переносится в Task 7. USER выбрал A (defer).
-
-- Task 5: coverage-инварианты Д-1/Д-3/Р-13 (test-only) — complete (commit e929fa2, 8/8 PASS, review чист: Spec ✅ / Quality Approved)
-  3 поправки контроллера применены: (1) R13-3→R13-4 (коллизия с тестом Task 4); (2) win.COVER_LIQUID=1.5 сломан
-  (classic-script let ≠ window-проп) → win.eval('COVER_LIQUID = 1.5'), строгие eq(after,1.5)/near(before,1.2) без escape;
-  (3) D1-4 оба полюса: К-56 ликвид→1.2/§2.3, К-40 движ.неликвид→1.5/§2.4. Изоляция: свежий JSDOM на load(), мутация не течёт.
-  zalog.html не тронут. Ни один тест не вакуумен.
-
-- Task 6: Р-19 матрица ролей (ПОЛ §9.1) — complete (commit d7c76dc, 10/10 PASS, review чист: Spec ✅ / Quality Approved, ноль findings)
-  canEdit→canCurate (21 сайт), canCommission→canCommittee (7), +canHeadOfDept/canHeadOfUnit (forward-decl, оживут T15/17,
-  в шве). 5 ролей ПОЛ §9.1 в <option>, дефолт role='Куратор…' (валиден). 19 copy-сайтов «комиссия по залогу»→«комитет по
-  администрированию бюджетных кредитов» (падежи ок), denyComm-текст. grep-zero старых имён. R19-1/R19-2 реальны (шов zt.* +
-  win.eval для удаления старых имён). Все 4 гварда в __zt.
-  Minor (в финал, триаж): enum-статус 'На рассмотрении комиссии' оставлен (strict-eq токен, 8 сравнений) — косметич.
-  рассинхрон с «направлено в комитет…». Переименование enum = coordinated data-change; решить в финале (rename+все сравнения
-  ИЛИ display-label мэппинг).
-
-- Task 7: Р-11 индекс обеспеченности + банковская гарантия (П1 §2.3) — complete (commits d7c76dc..f7c3d8d, 19/19 PASS, review чист: Spec ✅ / Quality Approved)
-  coverage(cs,creditId) сигнатура СОХРАНЕНА (бриф ошибочно swap — R1). ok=(index>=1)&&liqOk (liqOk-гейт НЕ потерян — R2).
-  Новые поля: secPledge/idxPledge/idxGuar/gReq/index. guaranteeReq(cr)→1.0 same-cur/1.2 FX/null; guaranteeExpired(g) через
-  d2n/TODAY; GUAR_WARN_DAYS=60; оба в шве. Мираж-хак other?true УБРАН — К-95 обогащён в живую гарантию (currency KGS,
-  amount 130000, till 01.06.2027) → idxGuar≈1.08, ok=true реально (R3). Триггеры: гарантия истекла (high)/истекает ≤60д (mid).
-  Гейт-таблица +колонка «Индекс обеспеченности». COVER_GUARANTEE/_FX TODO сняты.
-  T3 carry-forward ЗАКРЫТ (R6): openAlloc дефолт доли alreadyByCredit = coverage(ctxWithDraft,crId).secPledge — нетто по всем
-  активным договорам, не только черновик. Тест T3-1 подтверждает (120000→70000).
-  Тесты реальны (R10): R11-8 stub заменён на fixture-тест index 1.0→0.75; +К-95 idxGuar>=1; R11-6/7 fixture с type добавлен.
-  Reviewer перепроверил алгебру ok независимо: idxPledge=ratio/req ⟹ covOk⟺idxPledge≥1, idxGuar≥0 ⟹ гарантия только поднимает
-  ok, никогда не маскирует недобор → 7+ потребителей coverage() без регрессии.
-  Minor исправлен сразу (commit f7c3d8d): Д-008 seed-история описывала снятый мираж-гейт + старую роль «Залоговый специалист».
-
-- Task 8: Р-12 виды залога П1 §2.2 + KIND_FIELDS + миграция — complete (commit aa978ab, 23/23 PASS, review чист: Spec ✅ / Quality Approved, ноль findings)
-  +5 видов в KINDS (Кредитный портфель liquid, Имущ.комплекс, Незавершёнка, Ценные бумаги, Право аренды). KIND_FIELDS/
-  KIND_MIGRATION/PRIMARY_DETAIL уже существовали → РАСШИРЕНЫ (не пересозданы). Валидация generic (saveNewItem req-loop) —
-  новый код не добавлялся.
-  R3 correctness-фикс (бриф упустил): 3 из 5 новых видов movable:true, но НЕ физтехника. Введён явный флаг tech:true только на
-  ТС/Оборудование/Сельхозтехнику; isTech + tech-локали в niKindChange/saveNewItem читают KINDS[kind].tech вместо
-  movable&&!=товары. Reviewer независимо доказал truth-table isTech тождественна для всех 5 старых видов; 3 новых movable-вида
-  корректно вне физ-гейта (нет ложного «год выпуска/полис», нет ложных Р-7 триггеров). requiredCover: Кред.портфель→1.2,
-  Ценные бумаги→1.5 (тесты R12-14a/b реальны).
-  Контрадикции сняты: коммент «Кред.портфель не добавляем» переписан; KIND_MIGRATION-строка Кред.портфель→сам себя
-  (переносится как есть, П1 §2.3); «Скот §3.5» не тронут. ORG_REGISTRY +орган портфеля; шов +KIND_FIELDS (тест zt.*, не win.*).
-  Наблюдение (не дефект): Ценные бумаги PRIMARY_DETAIL→'isin' (необяз.) — как существующий ТС→'vin'.
-
-- Task 9: Р-22 слой ужесточения интервала по категории риска (ПОР п.10) — complete (commit 073cf55, 27/27 PASS, review чист: Spec ✅ / Quality Approved)
-  Калькслой: RISK_TIGHTENING {Низкий1.0/Средний0.5/Высокий0.25}, SURVEY_MIN_MONTHS=3, RISK_TIGHTENING_APPROVAL{approved:true+основание},
-  effectiveInterval(group,movable,riskCat,approval)=max(min, round(base*k)). Бриф-дефекты сняты (R1/R2): guard base==null (не ===undefined —
-  банкрот отдаёт null не undefined→иначе=3); тест R22-42 real-ключ 'Предприятия-банкроты' (бриф 'Банкрот' не существует). approval был
-  present:false (мёртвый) → approved:true живой.
-  Живая интеграция (R4/R5): +riskCategory зеркало на CREDITS (К-40 Высокий/К-90 Средний на активных договорах — тайтенинг виден);
-  itemRiskCategory(it) worst-of = наименьший коэф (Высокий тайтест); nextSurvey перевязан на effectiveInterval. Reviewer независимо
-  пересчитал: П-005 24×0.25→6, П-002 12×0.5→6; поведение тождественно для Низкий/approval-off (все матрич.значения ≥3, без клампа).
-  Dual-display норматив+действующий (карта+триггер, только при расхождении). Рефбук: read-only норм-блок (коэф/min/основание, ПОР п.10),
-  НЕ в saveRefbook. Шов +5 символов (+itemRiskCategory/borrowerSolvency/nextSurvey/surveyInterval для теста).
-  Minor (в финал): itemRiskCategory/borrowerSolvency пересчитываются в nextSurvey/itemPanels/triggers дублем — будущая экстракция
-  surveyStatus(it). Не баг (тот же паттерн, малый объём данных).
-- Task 10: Р-13 гейт §2.6 обеспеченность по решению КМ (kmGateBlocked, третий гейт регистрации, форма kmDecision) — complete (commits 9501a3a..b8e41f6, 28/28 PASS, review чист: Spec ✅ / Quality Approved; Minor стального комментария «два→три гейта» исправлен b8e41f6)
-- Task 11: Р-17 securityRole + лимит возраста техники П1 §2.5 (techAgeCheck: дополнительный→жёсткий блок, основной→допуск комитетом; §3.3 чек-бокс+акт осмотра; card honesty; убран мёртвый techAgeOk) — complete (commit 3532113, 30/30 PASS, review чист: Spec ✅ / Quality Approved; TECH_AGE_LIMIT переиспользован, 1 декларация; techAgeOk 0 ссылок)
-  - Minor (в финал T23): нет отдельных тестов на §3.3-блок / committeeReq-путь / persistence securityRole на не-tech movable — кандидаты на добор §18 (цель ≥45; сейчас 30). Behavior-shift: over-limit основной техника hard-block→committee-route (ни один seed не сверх лимита → без видимого эффекта).
-- Task 12: Р-18 стоп-лист §3.5 как валидация приёма+гейта (stopListCheck: 7 блок-условий — с/х-земля hard/Закон КР, износ≥WEAR_LIMIT 70 hard, морально устар., необоротоспособ., 3 флага ТМЦ; stopFieldsOf общий маппер; 3 чек-бокса ТМЦ+circulable+landPurpose+wearPct; гейт openRegister+doRegister defense-in-depth) — complete (commit 5c0ff7a, 33/33 PASS, review чист: Spec ✅ / Quality Approved)
-  - Seeded П-003/П-007 не блокируются (все поля undefined → guards fail closed, подтверждено трассировкой). WEAR_LIMIT 1 деклар., niNotProhibited 0 code-ссылок (только объясняющий комментарий). Minor (комментарий с niNotProhibited) — оставлен как корректный контекст миграции.
-- Task 13: Р-15 акт обследования П2 §2.4 (surveyValidate: заключение+фото обязательны, односторонний→presenceConfirmed, двусторонний→signers⊇{ГФХ,залогодатель}; жёсткий гейт в saveSurvey перед push; модалка +заключение/фото/односторонний/подтверждение/signers; пилюля «односторонний» в колонке Акт) — complete (commit 82d8a83, 35/35 PASS, review чист: Spec ✅ / Quality Approved)
-  - Порядок проверок и цитаты (П2 §2.4/§2.3) verbatim из брифа, трассированы все 4 кейса; эффект-ветвление ok/reval/lost цело; seam +surveyValidate; scope чист.
-  - Minor (в финал T23): svGfhName/svGfhPost поля в модалке рендерятся, но нигде не читаются — молча теряют ввод ГФХ ФИО+должность (бриф хотел их захват). Либо вписать в survey-record, либо убрать.
-- Task 14: Р-16 custody + право аренды (custodyValid: только 'у залогодателя'/'у залогодержателя'; leaseCoversCredit через d2n с guard пропущенных дат ПОЛ §6.4 п.6; custody-селект в openRegister ПОЛ §6.4 п.7 + Место хранения при 'у залогодержателя', персист в doRegister; KIND_FIELDS['Право аренды'] leaseTill req + lessorConsent) — complete (commit 44c709b, 39/39 PASS, review чист: Spec ✅ / Quality Approved)
-  - РЕЗОЛЮЦИИ: parseDate из брифа НЕ существует → d2n (стр.758), parseDate не создан; leaseCoversCredit guard'ит пропущенные даты→warn:false; CREDITS без creditTill — данные не фабриковались, живого warning-баннера нет (guard молчит). Все 4 кейса трассированы, npm run test:zalog = 39 passed. Др. валидаторы (kmGateBlocked/stopListCheck/techAgeCheck/surveyValidate) не тронуты.
-  - Minor (в финал T23): rgCustody (fsel) и rgCustodyPlace (fin,false) без визуального маркера обязательности — предсуществующее ограничение хелперов fin/fsel, логика гейта в doRegister цела (toast ловит). Низкий импакт.
-- Task 15: Р-14 гейт замены П3 §3.5 (replacementGate: equivalenceOk=inValue>=outValue, consentOk/dakOk из непустых строк, rankOk=!drop, blocked=!(все 4); байт-в-байт бриф + seam; replacementValues хелпер out/in; панель условий в renderDs; dsDeptConsent+dsDakConclusion — два НОВЫХ жёстких поля, button disabled при пустых; «Отказать в замене» → hist(c)) — complete (commit d819ea5, 43/43 PASS, review чист: Spec ✅ / Quality Approved)
-  - CRITICAL проверка Р-6 ПРОЙДЕНА: overdue hard-block цел (repOverdue→toast до новых проверок), rank drop остался committee-override (repDrop||repEquivShort OR'd в существующую obosn-ветвь, НЕ новый жёсткий блок), demo Д-006/К-90 overdue:true всё ещё блокирует. Button disabled сохранил все 4 исходных терма + repDeptDakMissing добавлен. Порядок гейтов dsRegister аддитивен. Др. валидаторы не тронуты.
-  - Minor (в финал T23): UI-чек-бокс deptChk поверх текстового consentOk (не влияет на pure fn); live input/change листенеры новых полей — оба аддитивны, гейты не ослаблены.
-
-── ПЛАН: Страница настройки правил доступности мер (collection.html) · 2026-07-21 ──
-база ветки для этого плана: 1fb66c8
-- Collection-Settings Task 1: RULES-слой + рероут чтения — complete (commit abe8fb5, 62/62 PASS, review чист: Spec ✅ / Quality Approved)
-  RULES over frozen RULES_DEFAULTS (deepClone/deepFreeze/phasesOf); 12 сайтов чтения переведены на RULES.*/phasesOf; CONTOUR_LEVEL остался константой. Out-of-brief фикс: phaseTimeline читал cont.name после удаления const cont → заменён на CONTOURS[p.contour].name (behavior-preserving).
-  Minor (в финал): phaseTimeline дважды смотрит CONTOURS[p.contour]; коммент @907 потерял выравнивание. Оба косметика.
-Task 16: complete (commits d819ea5..a66de98, review clean) — Р-20 ось запрета залогодателя (ПБК п.2.1), banFullyRegistered/releaseValid, markInOriginals/confirmedBy, mid-trigger «отметка не получена», reconAct-гейт снятия. 45/45.
-  Minor→T23: zalog.html:1832 banMissing trigger act-текст «Наложить запрет...» не обновлён под новую формулировку залогодателя (может закрыться T21 rewrite шапки).
-- Collection-Settings Task 2: персист/сброс правил — complete (commit 4fd5c43, 65/65 PASS, review чист: Spec ✅ / Quality Approved)
-  RULES_KEY='asubk-collection-rules-v1' (отд. от STORE_KEY); persistRules/restoreRules(merge по ключам DEFAULTS+try/catch+?reset)/resetRulesAll/resetRulesSection; restoreRules ПЕРЕД restoreState в bootstrap. Harness-фикс: mk() JSDOM +url:'http://localhost/' (иначе SecurityError opaque origin на localStorage) — прежние 1-62 не читают localStorage, значение не изменилось, изоляция сторэджа между mk() подтверждена.
-- Collection-Settings Task 3: экран #settings каркас — complete (commit f8e84e0, 70/70 PASS, review чист: Spec ✅ / Quality Approved)
-  Шестерёнка в topbar (.menu reuse), section#view-settings (tabbar/host/footer, показ через generic showView display:flex), settingsTab='v9', renderSettings/showSettingsTab, 4 стаб-рендера, регистрация в showView.titles+render-on-enter и restoreFromHash.views. CSS-подстановка --brand→--asubk-blue (#006AF5, как .dtab.active; в обоих местах). Minor: font-weight:600 хардкод (бриф-спека, не дефект).
-- Collection-Settings Task 4: вкладка В-9 «Кому» — complete (commit ff4d441, 74/74 PASS, review: Spec ✅ / Quality Approved с Minor; deviation ACCEPTABLE)
-  Грид 48 мер × 6 подразделений (чекбоксы subdivOf), таблица роль→подразделение, бейдж «никто не сможет»; toggleV9(материализация из subdivOf при 1-й правке)/setRoleSubdiv. DEVIATION (санкц.): бриф-рендер (section-header tr + role-table на .settings-grid) несовместим с тестом 71 (tbody tr===MEASURE_KINDS.length) → section-name как inline-label .v9-sec-label в 1-й ячейке, role-table на своём классе .role-grid. Грид=ровно 48 строк, тест 71 не вакуумный.
-  Minor→ФИНАЛ (реальный дефект): .v9-sec-label{ font:11px/1.2 var(--font-label) } — --font-label сам полный font-shorthand → невалидный CSS, стиль лейбла сбрасывается на inherited. ФИКС: font:var(--font-label) или longhands font-size/line-height/font-family. Группировка не теряется (цвет+своя строка), но не мелкий/muted.
-  Minor→ФИНАЛ (нит): .role-grid дублирует правила settings-grid; можно было combined-selector, не дефект.
-Task 17: complete (commits a66de98..6199aa9, review clean) — Р-19 хвост: override только вниз (overrideAllowed ПОЛ §2.1, роль canHeadOfUnit, above-calc escape hatch удалён), isOverAbove/beyondDiscount оставлены для legacy-показа, П-005 legacy:true+плашка+триггер, docRoute ПОЛ §11 (DOC_ROUTE_DAYS=30, docRouteIncomplete, блок в ctrPanels, Д-004 демонстратор, contract-триггер). 47/47.
-- Collection-Settings Task 5: вкладка Стадии — complete (commit f2790b0, 76/76 PASS, review чист: Spec ✅ / Quality Approved, ноль findings)
-  Селект мин.ступени 0–5 на каждый раздел SECTION_ORDER (RULES.sectionClevel, Number(level) — без string-порчи sequenceReason), сброс секции. CONTOUR_LEVEL не тронут. Тест 76 не вакуумный (Досудебный 1→4: before=null→after blocked на К1).
-- Collection-Settings Task 6: вкладка Гейты — complete (commit b947c46, 78/78 PASS, review чист: Spec ✅ / Quality Approved, ноль findings)
-  Один тумблер «гейт активен» на запись RULES.gates (флаг off: delete/true), справочная колонка требования; toggleGate; gateReason +«|| g.off»→null. Добавление гейта к виду без гейта НЕ реализовано (YAGNI, санкц.). Тест 78 real (151 без poruchenie: blocked→off→null).
-- Collection-Settings Task 7: вкладка Фазы — complete (commit 18c335e, 81/81 PASS, review чист: Spec ✅ / Quality Approved, ноль findings)
-  Блок .phase-contour на каждый контур (phasesOf — RULES-backed), ↑/↓ reorder (disabled на границах), movePhase(swap i↔i+dir, guard oob, мутирует ТОТ ЖЕ массив что читают phasesOf/sequenceReason — без slice-копии), сброс секции. Add/remove невозможен (только swap). Тест 81 real+изолирован (reset в начале/конце, флип sequenceReason null→«веха пройдена»).
-Task 18: complete (commits 6199aa9..5f076c9, review clean) — Р-23 riskFactorCandidates (чистая, ПОР п.12 п.п.2), панель факторов для комитета в реестре мониторинга (send+repeat-block store riskFactorsSent), триггер страховки act→«направить фактор». 49/49. No findings.
-- Collection-Settings Task 8: интеграция + браузерный смоук — complete (commit b243b2d, 81/81 PASS)
-  Фикс Minor из Task 4: .v9-sec-label валидный CSS. Браузерный смоук (localhost:8971, реальный reload): Судебный→4 персист в rules-key (отд. от state-key), переживает F5, блок судебных мер на К1/204, resetRulesAll→2 открывает. 5/5 пунктов плана.
-  ОСТАВШИЕСЯ Minor→финал-ревью: (T1) phaseTimeline дважды CONTOURS[p.contour]; коммент @907 выравнивание; (T3) font-weight:600 хардкод (брифом); (T4) .role-grid дублирует .settings-grid. Все косметика.
-=== ПЛАН collection-rules-settings ЗАВЕРШЁН: 8/8 задач, 57→81 проверок, коммиты abe8fb5..b243b2d, база 1fb66c8 ===
-Task 19: complete (commit 5f076c9..6955262, done INLINE by controller — trivial header-comment reframe) — Р-21 границы модуля: блок «ОТКРЫТО (Р-10)» удалён, реформулирован как «ГРАНИЦЫ МОДУЛЯ (Р-21)» (override закрыт Р-19 п.2, гарантия/поручительство закрыты Р-11/Р-21). 50/50.
-  PLAN-DEFECT (fixed): brief/plan R21-1 assertion hasNot('ОТКРЫТО (Р-10)') был ВАКУУМНЫМ — реальный маркер «ОТКРЫТО (Р-10 —» (тире, скобка далеко), строка с ')' никогда не совпадала. Добавлены зубастые assert hasNot('ОТКРЫТО')+has('ГРАНИЦЫ МОДУЛЯ (Р-21'). Плановая строка оставлена дословно рядом.
-Task 20: complete (commits 6955262..9a08f58, review clean after 1 fix) — §16 справочник: 21 параметр с пометкой источника (норматив—цитата / внутренний), норматив read-only под реквизит решения Правления, внутренний свободно; добавлены COVER_GUARANTEE/_FX, WEAR_LIMIT, DOC_ROUTE_DAYS, RELEASE_GROUNDS/APPROVALS/CHANNELS, ORG_REGISTRY. FIX 9a08f58: SURVEY_MATRIX → полностью read-only + «реализует surveyInterval» (Important от ревью). 56/56.
-  Minor→T23: blur-race в saveRefbook (клик Сохранить до blur реквизита Правления → ложный тост); jsdom не воспроизводит, edge, аддитивно.
-Task 21: complete (commits 9a08f58..98caec9, done INLINE by controller — citation-heavy header, авторская точность) — §19 шапка: п.3 (индекс обеспеченности + override вниз), п.5 (переменный порог + 4-й гейт §2.6), п.7 (ось запрета Р-20 ПБК п.2.1 + формула Р-23 ПОР п.12), блок «СООТВЕТСТВИЕ Р-11…Р-23» с цитатами, РОЛИ обновлены (canHeadOfUnit override). Head-1 добавлен. 57/57.
-  NOTE: словил и починил собственную регрессию R21-1 (строка Р-21 сначала содержала литерал «ОТКРЫТО (Р-10)» → hasNot падал; переформулировано). Amend.
-  T23-REVIEW-TARGET: блок СООТВЕТСТВИЯ несёт конкретные цитаты (П1 §2.3, П3 §3.5, П2 §2.3/§2.4, ПОЛ §6.4/§2.1/§11, ПБК п.2.1/п.2.2, ПОР п.10/п.12) — свериться с кодом на точность в финальном ревью.
-Task 22: complete (commits 98caec9..424466e, review clean, ZERO findings) — §17 демо-ветки Р-11…Р-23: новые К-99/К-100/К-102/К-103/К-104, П-015…П-023, Д-013…Д-016 (id таблица плана была устаревшей — параллельная сессия заняла Д-012/П-014/К-101 → переприсвоено, mapping в отчёте). К-99 индекс=1.00, К-95=0.55. R11-9 переписан (К-95 семантика flip), R11-11 развакуумлен (поручительство idxGuar=0). Header: 2 предложения про К-95 (минимальная коррекция под новые данные). Логика не тронута. 65/65 (+8).
-Task 23: complete (commits 424466e..76ac822) — Reg-47 регрессия Р-1…Р-9 добавлена (66/66). ФИНАЛЬНОЕ WHOLE-BRANCH РЕВЮ (opus): READY TO MERGE, 0 Critical/Important. Цитаты Р-11…Р-23 сверены с кодом (совпали), pure-функции чисты, демо когерентно, тесты с зубами, Р-1…Р-9 живы.
-  Fix-now из финала (commit 76ac822): 3 bare-§ в новых UI-строках → П1 §2.6 / Прил.2 §2.3 / ПОЛ §8 (Global Constraint); svGfhName/svGfhPost теперь пишутся в survey-record (T13 minor закрыт); R23-43 усилен ok(f) (убран вакуумный if).
-  Триаж minors: T11/T14/T15/T16(act-текст 2182)/T20/enum-статус/дубль-пересчёт — ACCEPTABLE для макета (обоснования в отчёте ревью). T13 — исправлен.
-== ВСЕ 24 ЗАДАЧИ T0-T23 ЗАВЕРШЕНЫ. Branch READY TO MERGE. ==
+################################################################################
+# CREDIT-МОДУЛЬ (mockups/loan-credit/credit.html) — ИТОГ SDD-ПРОГОНА
+################################################################################
+План:  docs/superpowers/plans/2026-07-23-credit-module-mockup.md (9 тасков)
+Канон: /home/azamat/Downloads/prompt-kredit-mockup.md (Р-1…Р-20, Г-1…Г-17, §4 derive, §8 цепочки, §9 smoke)
+Ветка: feat/borrower-rework (ОБЩАЯ на 4 сессии; credit-файлы не пересекаются с borrower/zalog/restructuring)
+База (merge-base): 56f3cfc → HEAD credit-фичера: eecb0a7
+Файлы: mockups/loan-credit/credit.html (~2600 стр, TO-BE, создан с нуля) + scripts/inspect/credit-check.mjs (node:vm smoke, 32/32)
+Проверка: node scripts/inspect/credit-check.mjs   (перештамповывает SMOKE-блок в шапке html)
+loan-credit.html (as-is инвентаризация) — НЕ ТРОНУТ.
+Коммиты credit: fca1c84(T1) 22b58bf c26d03e(T2) f496fd5 af82d6a(T3) 9174f0a(T4) 63c17eb 9bec744(T5) 78740a0(T6) 26a6418(T7) 6cc8220(T8) e04f9f1(T9) eecb0a7(финал-фикс)
+Журнал тасков: T1 скелет/seed/harness · T2 derive §4 · T3 gate Г-1…16+роли · T4 график+пауза · T5 мутации+append-only аудит · T6 реестр/фильтры/роль · T7 шапка+8 вкладок · T8 9 модалок+6 цепочек · T9 финализация #18 · финал-фикс #28+2 модалки+Р-13.
+Браузер-проверка (контроллер, http://localhost:8899 — file:// блокирован расширением): все 6 цепочек К-1…К-6 + Наблюдатель проиграны; §0.3 (блок→toast без модалки), gate-on-submit, mirror-замки, Р-7 (нет «Создать залоговый договор»), axis-2 флип, покрытие-светофор — подтверждены.
+Инварианты (финальное ревью): derive-чистота · audit-freeze(pushAudit) · mirror read-only · Р-7 · §0.3 · DOM-guard — все ✓.
+СТАТУС: готов к финишу ветки. ОТКРЫТО ДЛЯ ЮЗЕРА: стратегия ОБЩЕЙ ветки feat/borrower-rework (4 фичи на одной) — влить в main / выделить credit в свою ветку / оставить. Fast-follow Minor'ы (ship): дубль .sel CSS, header «Заёмщик», «Остаток долга»=сумма слоёв (подтвердить с PO), двойной derive, gate amount=0, sched-modal rerender, #18/#28 regex-допущение, К-4 «70 к.д.» текст, debtTransfer/disbClosed мёртвые ветки, zeroOutForTest экспорт.
+Task 1: complete (commit afc5c04..a4c81d7, 2/2 PASS, review Approved)
+  Ветка feat/borrower-rework делится 4 сессиями (borrower/credit/zalog/restructuring), файлы непересекающиеся. Моя база ревью = родитель моего коммита (afc5c04), НЕ branch-HEAD (устаревает от чужих коммитов). Brief/report снапшочу в *-borrower-*.md (credit-сессия использует те же имена).
+  Important (плечо T2): T1 удалил DATA, но route() ещё звал DATA.find (стр.745,748) → ReferenceError на реальной навигации, замаскирован пустым хэшем. Резолюция: план Task 2 усилен Step 4b (route DATA→SUBJECTS) + тест S7.
+  Minor (в финальное ревью): .b-ok бейдж держит border, тогда как gen-2 конвенция (restructuring/collection) для success-пилюль border убирает — визуальный проход.
