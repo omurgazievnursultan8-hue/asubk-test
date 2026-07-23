@@ -757,6 +757,22 @@ OVERLAYS.push(
   // Истёкший оверлей (ветка 5) — deadline в прошлом относительно TODAY → не подавляет
   { creditId:'C-B5-EXP', kind:'suppress181', from:'01.01.2026', deadline:'01.05.2026', sourceRef:'РСТ-402' },
 );
+CREDITS.push(
+  // Ветка 2 — Средний, совокупный долг >50 млн (О-1 и О-2)
+  { id:'C-B2-1', no:'КР-22010', inn:'02201199920021', amount:40000000, balance:38000000, currency:'KGS', overdueDays:40, debt:{principal:38000000,interest:1200000,penalty:0,fees:0,costs:0}, program:'Пром-2024', kind:'Инвестиционный' },
+  { id:'C-B2-2', no:'КР-22011', inn:'02201199920021', amount:18000000, balance:16000000, currency:'KGS', overdueDays:30, debt:{principal:16000000,interest:500000,penalty:0,fees:0,costs:0}, program:'Пром-2024', kind:'Оборотный' },
+  // Ветка 3 — Средний, совокупный долг <50 млн (только О-1)
+  { id:'C-B3-1', no:'КР-33010', inn:'03301199930031', amount:9000000, balance:7000000, currency:'KGS', overdueDays:45, debt:{principal:7000000,interest:210000,penalty:0,fees:0,costs:0}, program:'Логи-2024', kind:'Оборотный' },
+  // Ветка 4 — Средний с давним переводом → О-1 просрочено
+  { id:'C-B4-1', no:'КР-44010', inn:'04401199940041', amount:3000000, balance:2600000, currency:'KGS', overdueDays:70, debt:{principal:2600000,interest:90000,penalty:12000,fees:0,costs:0}, program:'Микро-2024', kind:'Оборотный' },
+);
+CATEGORY_LOG.push(
+  { inn:'02201199920021', level:'mid', from:'01.07.2026', reason:'Просрочка 40 дн.', source:'payments' },
+  { inn:'03301199930031', level:'mid', from:'02.07.2026', reason:'Просрочка 45 дн.', source:'payments' },
+  { inn:'04401199940041', level:'mid', from:'01.06.2026', reason:'Просрочка 70 дн.', source:'payments' },  // давно → О-1 просрочено
+  { inn:'01204199910016', level:'high', from:'02.03.2026', reason:'Нецелевое (КБК-118)', source:'committee' },
+);
+
 const PROCESSES  = [];   // ← collection (M:N credits); Task 4/10
 PROCESSES.push(
   // Ветка 6 (Чуй Энерго) — три подтверждённые процедуры, фазы дают 2.1/2.2/2.3, max=2.3
@@ -788,7 +804,7 @@ const DOCS       = [];   // ← досье п.97 (Р-8); Task 10
 const CHECKS_EXT = [];   // ← внешние снимки КИБ/скоринг (Р-8); Task 10
 const RELATED    = [];   // ← реестр лиц (Р-7); Task 10
 // WORKDAYS — праздники производственного календаря КР 2026 (ОВ-2). Будни − эти даты = рабочие дни.
-const WORKDAYS = ['01.01.2026','02.01.2026','07.01.2026','23.02.2026','08.03.2026','21.03.2026',
+const WORKDAYS = ['01.01.2026','02.01.2026','07.01.2026','23.02.2026','08.03.2026','09.03.2026','21.03.2026',
   '22.03.2026','23.03.2026','01.05.2026','05.05.2026','07.05.2026','09.05.2026','31.08.2026','07.11.2026'];
 
 /* ═══ SECTION 2 · ЧИСТЫЕ ФУНКЦИИ ═══ */
@@ -871,6 +887,53 @@ function coverageOf(inn){
   const totBal = ix.reduce((s,x)=>s+x.bal,0) || 1;
   const aggregate = ix.reduce((s,x)=> s + x.cov.index*x.bal, 0) / totBal;
   return { worst, aggregate, required: ix[0].cov.required };
+}
+
+/* Прибавляет n рабочих дней к дате dd.mm.yyyy: пропускает сб/вс и WORKDAYS-праздники. */
+function addWorkdays(dateStr, n){
+  let [d,m,y] = dateStr.split('.').map(Number);
+  const holidays = new Set(WORKDAYS);
+  let added = 0;
+  while (added < n){
+    // шаг на 1 календарный день
+    d++;
+    const dim = [31, (y%4===0&&(y%100!==0||y%400===0))?29:28, 31,30,31,30,31,31,30,31,30,31][m-1];
+    if (d > dim){ d = 1; m++; if (m>12){ m=1; y++; } }
+    const cur = `${String(d).padStart(2,'0')}.${String(m).padStart(2,'0')}.${y}`;
+    const dow = zeller(d,m,y);                 // 0=сб..6=пт по Целлеру; 0 сб,1 вс
+    if (dow!==0 && dow!==1 && !holidays.has(cur)) added++;
+  }
+  return `${String(d).padStart(2,'0')}.${String(m).padStart(2,'0')}.${y}`;
+}
+/* День недели по Целлеру без Date(): вернёт 0=сб,1=вс,2=пн,…6=пт. */
+function zeller(q, m, y){
+  if (m<3){ m+=12; y--; }
+  const h = (q + Math.floor(13*(m+1)/5) + y + Math.floor(y/4) - Math.floor(y/100) + Math.floor(y/400)) % 7;
+  return h; // 0=сб,1=вс,2=пн,3=вт,4=ср,5=чт,6=пт
+}
+function statusOf(dueDate, d){
+  if (!dateLE(dueDate, d)) return 'в срок';          // срок ещё не прошёл (due ≥ сегодня)
+  return dnum(dueDate) < dnum(d) ? 'просрочено' : 'в срок';
+}
+/* Р-4: обязательства О-1 (п.6.5, Средний/Высокий), О-2 (п.12.2, Средний + долг >50 млн), О-4 (п.13, просрочка). */
+function obligations(inn, d){
+  const out = [];
+  const cat = catOfBorrower(inn, d);
+  const trig = CATEGORY_LOG.filter(l => l.inn===inn && (l.level==='mid'||l.level==='high') && dateLE(l.from,d))
+    .sort((a,b)=> dnum(a.from)-dnum(b.from))[0];      // первый перевод в Средний/Высокий
+  if ((cat==='mid'||cat==='high') && trig){
+    out.push({ code:'О-1', basis:'п.6(5): запрос пакета фин. документов', dueDate:addWorkdays(trig.from,10), status:statusOf(addWorkdays(trig.from,10), d) });
+  }
+  if (cat==='mid' && totalDebt(inn) > 50000000 && trig){
+    out.push({ code:'О-2', basis:'п.12(2): анализ фин.-хоз. состояния (>50 млн)', dueDate:addWorkdays(trig.from,14), status:statusOf(addWorkdays(trig.from,14), d) });
+  }
+  if (overdueDebt(inn) > 0){
+    const [,mm,y] = d.split('.');
+    const due = `15.${mm}.${y}`;
+    out.push({ code:'О-4', basis:'п.13: вынос на комитет', dueDate:due, status:statusOf(due, d) });
+  }
+  // О-3 — задел (правопреемники при смерти, п.62); не реализуется в MVP.
+  return out;
 }
 
 /* ═══ SECTION 3 · РЕНДЕР ═══ */
