@@ -1,0 +1,2553 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кредиты · АСУБК</title>
+<!--
+  MOCKUP (single-file, interactive) — TO-BE модуля «Кредиты» (реестр кредитов →
+  карточка кредита, 8 вкладок). Образец для команды разработки, не прод-код.
+
+  ЭТО НЕ КЛОН ЖИВОГО СТЕНДА: loan-credit.html остаётся as-is инвентаризацией полей
+  старой системы и НЕ трогается. Этот файл — TO-BE, проектируется заново; пересечение
+  с loan-credit.html — меньше половины. Токены/паттерны сверены с collection.html и
+  restructuring.html.
+  Канон: /home/azamat/Downloads/prompt-kredit-mockup.md (решения Р-1…Р-20, гейты Г-1…Г-17).
+  Регуляторная база: ТЗ АСУБК-3 (модуль кредитной информации + модуль расчётов),
+  «Положение о работе с бюджетными кредитами», «Положение о работе с залогом» (П1 §2.1–2.6),
+  «Порядок мониторинга, взыскания и урегулирования задолженности».
+  Проверка: node scripts/inspect/credit-check.mjs
+
+  РЕАЛИЗОВАННЫЕ РЕШЕНИЯ
+   Р-1  Единица учёта — ТРАНШ; кредит — агрегат (Σ по траншам); одна сумма = транш №1.
+   Р-2  Условия двухуровневые: база кредита → наследование траншем; дифф «база → транш».
+   Р-3  Две оси (ЖЦ owned · освоение derived) + множественный производный оверлей проблемности.
+   Р-4  Изменение условий после регистрации — только доп. соглашением (versioned changeset).
+   Р-5  Платежи — зеркало модуля платежей + ручной ввод формой владельца («Ожидает ЦК»).
+   Р-6  Освоение — owned кредитом, на транше; реестр «Освоение» — сквозной вид, не владелец.
+   Р-7  Залог — зеркало: «Создать залоговый договор» нет, только «Привязать существующий».
+   Р-8  Реквизиты решения КМ об освобождении от залога — owned поле кредита (гейт §2.6).
+   Р-9  Кураторство — зеркало журнала назначений; не picker и не поле.
+   Р-10 Группа платёжеспособности и категория риска — read-only зеркала.
+   Р-11 Все производные (§4) считаются в рантайме, не хранятся.
+   Р-12 Сумма договора owned, зажата гейтом contractAmount ≤ approvedAmount (Г-1).
+   Р-13 Срок — один источник (условия транша); на кредите — производный агрегат (max).
+   Р-14 Перевод долга (смена заёмщика) — owned кредитом, только зарегистрированным соглашением.
+   Р-15 Целевое использование — owned; факт нецелевого — реквизиты решения Комитета.
+   Р-16 Взыскание, банкротство, реструктуризация — зеркала; из кредита не заводятся.
+   Р-17 Приостановление начисления — управляющее действие кредита/транша.
+   Р-18 Происхождение кредита — обязательный read-only блок (заявка→комиссия→программа→ПП).
+   Р-19 Реестр показывает кредит (кредитные колонки), а не заявку.
+   Р-20 Списание и закрытие — терминалы с обязательными реквизитами; без физ. удаления.
+
+  ДЕМО-ОГРАНИЧЕНИЯ
+   • «Сегодня» демо зафиксировано (TODAY = 23.07.2026) — просрочка/дедлайны считаются от него.
+   • Состояние в памяти (JS-объекты); localStorage/sessionStorage не используются.
+     «Сбросить демо-данные» возвращает исходное через seedDb().
+   • Расчёт графика/детального расчёта — детерминированное упрощение, не банковский движок.
+   • Зеркала (кураторство, залог, платежи, взыскание, реструктуризация, категория) —
+     read-only панели на демо-данных, навигация внутристраничная.
+
+  ОТКРЫТЫЕ ВОПРОСЫ (канон §10 — вынесены, не изобретаются молча)
+   1. Групповой (зонтичный) кредит: как просрочка члена группы влияет на кредит/категорию.
+      Макет: транш несёт субъекта, агрегация просрочки по max — помечено как допущение.
+   2. Поручительство П2: входит ли в покрытие. Макет: параллельный слой, в индекс НЕ входит.
+   3. Лимит повторов реструктуризации. Макет: счётчик растёт неограниченно.
+   4. Очередь погашения при судебном решении (сначала сумма по решению, затем договор).
+      Макет: показывается возможная множественность слоёв начисления (info-plate), без матрицы.
+   5. Источник производственного календаря для дат платежей в нерабочие дни.
+      Макет: простой календарь (сб/вс), без праздников.
+
+  SMOKE (node)
+ SMOKE (node) 2026-07-23 · 32/32 PASS
+   #0a ✓
+   #0b ✓
+   #19 ✓
+   #20 ✓
+   #21 ✓
+   #25 ✓
+   #1 ✓
+   #2 ✓
+   #3 ✓
+   #4 ✓
+   #6 ✓
+   #9 ✓
+   #12 ✓
+   #17 ✓
+   #23 ✓
+   #26 ✓
+   #8 ✓
+   #10 ✓
+   #11 ✓
+   #24 ✓
+   #5 ✓
+   #7 ✓
+   #8b ✓
+   #13 ✓
+   #14 ✓
+   #15 ✓
+   #16 ✓
+   #22 ✓
+   #27 ✓
+   #27b ✓
+   #18 ✓
+   #28 ✓
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-->
+<style>
+
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
+  border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
+.nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
+.nav-sub > .nav-toggle{ padding:8px 16px 8px 32px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font); }
+.nav-toggle:hover{ background:rgba(24,39,57,0.04); }
+.nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
+  transition:transform 120ms ease; flex:none; }
+.nav-group.open > .nav-toggle .chev, .nav-sub.open > .nav-toggle .chev{ transform:rotate(90deg); }
+.nav-toggle .lbl{ flex:1; }
+.nav-children{ display:none; }
+.nav-group.open > .nav-children, .nav-sub.open > .nav-children{ display:block; }
+.nav-item{ display:block; padding:7px 16px 7px 52px; text-decoration:none; color:rgba(27,43,65,0.69);
+  font:var(--weight-regular) var(--text-base)/1.625 var(--asubk-font); cursor:pointer; }
+.nav-item.headerless{ padding-left:40px; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
+.nav-item.stub{ color:var(--text-placeholder); font-style:italic; }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.topbar .role-wrap{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+.topbar .role-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.topbar .role-wrap select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 26px 0 10px;
+  appearance:none; cursor:pointer; }
+.topbar .role-wrap .rsel{ position:relative; display:flex; align-items:center; }
+.topbar .role-wrap .rsel .caret{ position:absolute; right:8px; pointer-events:none; color:var(--text-muted); display:flex; }
+
+.content{ flex:1; overflow:auto; display:flex; flex-direction:column; min-width:0; }
+.view{ display:none; flex-direction:column; min-height:0; }
+
+/* ---- buttons ---- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn svg{ flex:none; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-success{ background:var(--action-success); color:#fff; }
+.btn-success:hover:not(:disabled){ background:var(--asubk-green-hover); }
+.btn-sm{ height:32px; padding:0 10px; font-size:var(--text-sm); }
+.btn-tint{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none;
+  font-weight:var(--weight-medium); }
+.btn-tint:hover:not(:disabled){ background:rgba(25,59,103,0.10); color:var(--action-primary-hover); }
+.btn-tint:disabled{ opacity:1; color:var(--text-disabled); cursor:not-allowed; }
+.btn-tint.danger{ color:var(--action-danger); }
+.btn-tint.danger:hover:not(:disabled){ background:var(--status-error-bg); }
+
+.split{ position:relative; display:inline-flex; }
+.split > .btn{ border-radius:0; }
+.split > .btn:first-child{ border-top-left-radius:var(--radius-md); border-bottom-left-radius:var(--radius-md); }
+.split > .btn.caret{ padding:0 7px; border-top-right-radius:var(--radius-md); border-bottom-right-radius:var(--radius-md);
+  border-left:1px solid rgba(255,255,255,0.35); }
+.split-menu{ display:none; position:absolute; top:calc(100% + 4px); left:0; min-width:210px; z-index:30;
+  background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
+  box-shadow:0 10px 30px rgba(16,28,46,0.18); padding:4px; }
+.split.open .split-menu{ display:block; }
+.split-menu button{ display:block; width:100%; text-align:left; border:none; background:transparent; cursor:pointer;
+  padding:8px 10px; border-radius:var(--radius-sm); font:var(--font-label); color:var(--text-body); }
+.split-menu button:hover{ background:var(--surface-hover); }
+.gear-btn{ width:var(--control-h); height:var(--control-h); border:none;
+  background:var(--asubk-tint-fill); border-radius:var(--radius-md); color:var(--text-link); cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; }
+.gear-btn:hover{ background:rgba(25,59,103,0.10); }
+
+/* ---- list: filter head + toolbar + tiles ---- */
+.filter-head{ display:flex; align-items:center; gap:6px; padding:12px 20px 4px; cursor:pointer;
+  font:var(--weight-medium) var(--text-base)/1.25 var(--asubk-font); color:rgba(27,43,65,0.69); user-select:none; }
+.filter-head .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5); transition:transform 120ms ease; }
+.filter-head.open .chev{ transform:rotate(90deg); }
+.tb-actions{ display:flex; align-items:center; gap:10px; padding:8px 20px 12px; flex-wrap:wrap; }
+.add-cond{ display:inline-flex; align-items:center; gap:6px; background:none; border:none; cursor:pointer;
+  color:var(--text-link); font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); padding:0 4px; }
+.add-cond:hover{ text-decoration:underline; }
+.rowtools{ display:flex; align-items:center; gap:10px; padding:0 20px 8px; flex-wrap:wrap; }
+.rowtools .spacer{ flex:1; }
+.retro-toggle{ display:inline-flex; align-items:center; gap:6px; font:var(--font-label); color:var(--text-muted); cursor:pointer; }
+.pager{ display:flex; align-items:center; gap:6px; color:var(--text-muted);
+  font:var(--weight-regular) var(--text-base)/1 var(--asubk-font); }
+.pager button{ min-width:30px; height:30px; border:1px solid var(--border-default); background:var(--surface-card);
+  border-radius:var(--radius-sm); cursor:pointer; color:var(--text-body); }
+.pager button:disabled{ opacity:.4; cursor:not-allowed; }
+
+/* Плитки-фильтры над списком (паттерн P3-R32 из commission.html): сумма плиток = «Всего». */
+.tiles{ display:flex; gap:10px; padding:4px 20px 12px; flex-wrap:wrap; }
+.tile{ flex:1; min-width:150px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  padding:10px 14px; cursor:pointer; background:var(--surface-card); transition:border-color 120ms, background 120ms; }
+.tile:hover{ background:var(--surface-hover); }
+.tile.active{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); }
+.tile .tv{ font:var(--weight-bold) 22px/1.1 var(--asubk-font); color:var(--text-heading); }
+.tile .tl{ font:var(--font-label); color:var(--text-muted); margin-top:2px; }
+.tile.warn .tv{ color:var(--asubk-amber); }
+.tile.err  .tv{ color:var(--asubk-red); }
+.filter-body{ display:none; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px 16px; padding:6px 20px 14px; }
+.filter-head.open + .filter-body{ display:grid; }
+.filter-body .field{ min-width:0; }
+.range-pair{ display:flex; align-items:center; gap:8px; }
+.range-pair input{ width:100%; height:var(--control-h); border-radius:var(--radius-md); background:var(--surface-input);
+  color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium); border:1px solid transparent;
+  outline:none; padding:0 var(--space-2); transition:box-shadow 120ms ease, border-color 120ms ease; }
+.range-pair input:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.filter-actions{ grid-column:1 / -1; display:flex; justify-content:flex-end; gap:10px; align-items:center; }
+.filter-chips{ display:flex; flex-wrap:wrap; gap:6px; padding:0 20px; }
+.filter-chips:empty{ display:none; }
+.fchip{ display:inline-flex; align-items:center; gap:4px; background:var(--asubk-blue-tint); color:var(--asubk-blue);
+  border-radius:var(--radius-pill); padding:3px 4px 3px 10px; font:var(--font-label); }
+.fchip button{ border:none; background:none; cursor:pointer; color:inherit; font-size:15px; line-height:1; padding:0 4px; border-radius:var(--radius-pill); }
+.fchip button:hover{ background:rgba(255,255,255,0.5); }
+
+/* ---- grid (list) ---- */
+.grid-wrap{ padding:0 20px 20px; overflow:auto; }
+table.grid{ width:100%; border-collapse:collapse; font:var(--font-label);
+  border:1px solid var(--border-default); background:var(--surface-card); }
+table.grid thead th{ text-align:left; height:52px; padding:0 12px; background:var(--surface-card);
+  border-bottom:1px solid var(--asubk-grid-line);
+  font:var(--weight-medium) var(--text-sm)/1.375 var(--asubk-font); color:var(--text-body);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; user-select:none; vertical-align:middle; }
+table.grid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; }
+table.grid tbody td{ height:35px; padding:0 12px; border-bottom:1px solid var(--asubk-grid-line);
+  color:var(--text-body); vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+table.grid tbody tr{ cursor:pointer; }
+table.grid tbody tr:hover{ background:var(--surface-hover); }
+table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+.grid tbody tr.terminal td{ color:var(--text-muted); }
+.grid tbody tr.terminal td:first-child{ font-style:italic; }
+.grid td.overdue{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
+
+/* status pills */
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.low{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.mid{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.high{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.cat-low{ color:var(--asubk-green); } .cat-mid{ color:var(--asubk-amber); } .cat-high{ color:var(--asubk-red); }
+
+/* ---- detail ---- */
+.detail-tabbar-wrap{ position:relative; border-bottom:1px solid var(--border-default);
+  background:var(--surface-page); flex:none; }
+.detail-tabbar{ display:flex; overflow-x:auto; padding:6px 44px 0 20px; scrollbar-width:none; }
+.detail-tabbar::-webkit-scrollbar{ display:none; }
+.dtab{ flex:none; border:none; background:transparent; padding:11px 15px;
+  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
+.dtab:hover{ color:var(--text-body); }
+.dtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.tabbar-chevron{ position:absolute; right:8px; top:50%; transform:translateY(-50%); width:28px; height:28px;
+  background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
+  display:flex; align-items:center; justify-content:center; color:var(--text-muted); cursor:pointer; }
+.tabbar-chevron:hover{ background:var(--surface-hover); }
+.panel-wrap{ padding:18px 20px 8px; }
+.panel-card{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:20px 24px; }
+.detail-panel{ display:none; }
+.detail-panel.active{ display:block; }
+
+/* ---- process header (indicator panel) — ПЯТЬ плиток ---- */
+.phead{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:16px 20px; margin-bottom:18px; }
+.phead-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
+.phead-name{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.phead-name .nm{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
+.phead-name a{ font:var(--font-label); color:var(--text-link); text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
+.phead-name a:hover{ text-decoration:underline; }
+.phead-sub{ font:var(--font-label); color:var(--text-muted); margin-top:3px; }
+.phead-sub b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.phead-owner{ font:var(--font-label); color:var(--text-muted); white-space:nowrap; }
+.phead-banner{ display:flex; align-items:flex-start; gap:10px; border-radius:var(--radius-md);
+  padding:9px 14px; margin-bottom:12px; font:var(--font-label); }
+.phead-banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.phead-banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.phead-banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
+.phead-banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.phead-banner svg{ flex:none; margin-top:1px; }
+.ms-card{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:14px 16px; margin-top:12px; background:#fff; }
+.ms-card-h{ display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.ms-card-h .mt{ font-weight:600; }
+.ms-meta{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:6px 18px; margin-bottom:6px; font-size:13px; }
+.ms-meta b{ color:var(--text-muted); font-weight:500; }
+.ms-acts{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+.phead-banner .b-act{ margin-left:auto; }
+.phead-dims{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
+@media(max-width:900px){ .phead-dims{ grid-template-columns:repeat(3,1fr); } }
+@media(max-width:560px){ .phead-dims{ grid-template-columns:repeat(2,1fr); } }
+.dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:10px 14px; }
+.dim.clickable{ cursor:pointer; } .dim.clickable:hover{ background:var(--surface-hover); }
+.dim .dl{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:5px;
+  display:flex; align-items:center; gap:4px; justify-content:space-between; }
+.dim .dv{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); }
+.dim .src{ font:var(--weight-regular) 11px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
+.dim .cnt{ font-weight:var(--weight-bold); } .dim .cnt.over{ color:var(--asubk-red); }
+/* Раскрытие входов worst-of (паттерн borrower.html) */
+.cat-expand{ margin-top:10px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  padding:12px 16px; background:var(--surface-panel); font:var(--font-label); }
+.cat-expand .row{ padding:4px 0; border-bottom:1px solid var(--asubk-grid-line); }
+.cat-expand .row:last-child{ border-bottom:none; font-weight:var(--weight-semibold); }
+.cat-expand .ck{ color:var(--text-muted); }
+.win{ background:var(--status-error-bg); padding:0 4px; border-radius:3px; }
+
+/* two-column form */
+.f2{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; max-width:1500px; }
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field .flabel{ font:var(--font-label); color:var(--text-muted); }
+.field.col-span{ grid-column:1 / -1; }
+.control{ position:relative; display:flex; align-items:center; }
+.control input, .control select, .note-area{ width:100%; height:var(--control-h); border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
+  border:1px solid var(--border-strong); outline:none; padding:0 var(--space-2);
+  transition:box-shadow 120ms ease, border-color 120ms ease; }
+.control select{ cursor:pointer; appearance:none; padding-right:30px; }
+.control input:focus, .control select:focus, .note-area:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.control input[readonly], .ro input, .ro .note-area{ background:var(--surface-input); color:var(--text-muted); border:1px solid transparent; cursor:default; }
+.control input[readonly]:focus{ border-color:transparent; box-shadow:none; }
+.grey input, .grey select{ background:var(--surface-input); border-color:transparent; }
+.control .cal, .control .caret{ position:absolute; right:9px; pointer-events:none; color:var(--text-muted); display:flex; }
+.note-area{ height:auto; min-height:80px; padding:10px 12px; resize:vertical; line-height:1.5; }
+.lookup{ display:flex; align-items:center; height:var(--control-h); background:var(--surface-input);
+  border-radius:var(--radius-md); border:1px solid transparent; padding-left:var(--space-2); }
+.lookup .val{ flex:1; font:var(--font-body); font-weight:var(--weight-medium); color:var(--text-body);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lookup .val.ph{ color:var(--text-placeholder); }
+.lookup button{ display:inline-flex; align-items:center; justify-content:center; width:32px; height:var(--control-h);
+  border:none; background:transparent; color:var(--text-link); cursor:pointer; }
+.lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
+
+.section-h{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:0 0 6px; }
+.section-note{ font:var(--font-label); color:var(--text-muted); margin:0 0 14px; max-width:960px; }
+.gtoolbar{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
+.gtoolbar .spacer{ flex:1; }
+
+/* collection grid (внутри вкладок) */
+.cgrid-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; min-height:80px; }
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); white-space:nowrap; }
+table.cgrid thead th{ position:sticky; top:0; text-align:left; padding:10px 12px; background:var(--surface-card);
+  border-bottom:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
+  color:var(--text-heading); cursor:pointer; user-select:none; }
+table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--border-default); color:var(--text-body); vertical-align:top; }
+table.cgrid tbody tr:hover{ background:var(--surface-hover); }
+table.cgrid tbody tr.total td{ font-weight:var(--weight-bold); color:var(--text-heading);
+  background:var(--surface-hover); border-top:1px solid var(--border-strong); }
+table.cgrid tbody tr.giveback td{ color:var(--asubk-green); font-weight:var(--weight-medium); }
+/* Сторнированная мера — запись остаётся, зачёркнута с пометкой основания (И-3). */
+table.cgrid tbody tr.storno td{ color:var(--text-placeholder); text-decoration:line-through; }
+table.cgrid tbody tr.storno td.storno-reason{ text-decoration:none; color:var(--asubk-red); }
+.cgrid-empty{ display:flex; align-items:center; justify-content:center; min-height:120px;
+  color:var(--text-placeholder); font:var(--font-label); }
+.rowlink{ color:var(--text-link); cursor:pointer; }
+.rowlink:hover{ text-decoration:underline; }
+
+/* timeline (контур текущей фазы) */
+.timeline{ display:flex; flex-wrap:wrap; gap:0; margin:2px 0 20px; align-items:center; }
+.tl-step{ display:flex; align-items:center; gap:8px; padding:6px 0; }
+.tl-dot{ width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font:var(--weight-bold) 12px/1 var(--asubk-font); flex:none; }
+.tl-dot.done{ background:var(--asubk-green); color:#fff; }
+.tl-dot.cur{ background:var(--asubk-blue); color:#fff; }
+.tl-dot.todo{ background:var(--surface-input); color:var(--text-placeholder); }
+.tl-dot.cond{ background:var(--surface-input); color:var(--asubk-amber); border:1px dashed var(--asubk-amber); }
+.tl-lbl{ font:var(--font-label); color:var(--text-body); }
+.tl-lbl.todo{ color:var(--text-placeholder); }
+.tl-lbl.cond{ color:var(--asubk-amber); }
+.tl-arrow{ color:var(--text-placeholder); margin:0 12px; display:flex; }
+.tl-contour{ font:var(--font-label); color:var(--text-muted); margin-bottom:6px; }
+
+/* deadlines block */
+table.dl-grid{ width:100%; border-collapse:collapse; font:var(--font-label); }
+table.dl-grid th{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--border-default);
+  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
+table.dl-grid td{ padding:8px 10px; border-bottom:1px solid var(--asubk-grid-line); }
+table.dl-grid tr.overdue td{ color:var(--asubk-red); }
+table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
+
+/* history */
+.hist{ border-left:2px solid var(--border-strong); margin-left:6px; padding-left:0; }
+.hrow{ position:relative; padding:10px 0 10px 22px; border-bottom:1px solid var(--asubk-grid-line); }
+.hrow::before{ content:""; position:absolute; left:-5px; top:16px; width:8px; height:8px; border-radius:50%; background:var(--asubk-blue); }
+.hrow.storno::before{ background:var(--asubk-red); }
+.hrow .hwhen{ font:var(--weight-medium) 13px/1.3 var(--asubk-font); color:var(--text-muted); }
+.hrow .hwhat{ font:var(--font-label); color:var(--text-body); margin-top:2px; }
+.hrow .hwho{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:2px; }
+
+/* checklist (структурный чек-лист передачи, В-10) */
+.chk{ display:flex; flex-direction:column; gap:2px; }
+.chk-row{ display:grid; grid-template-columns:1fr auto auto; gap:12px; align-items:center;
+  padding:8px 10px; border-bottom:1px solid var(--asubk-grid-line); font:var(--font-label); }
+.chk-row .chk-form{ color:var(--text-muted); font-size:12px; white-space:nowrap; }
+.chk-flag{ font-size:12px; white-space:nowrap; }
+.chk-flag.ok{ color:var(--asubk-green); } .chk-flag.no{ color:var(--asubk-red); }
+
+/* Выборка кредитов (модалка согласования). Отдельный класс — НЕ внутри .control,
+   иначе глобальное .control input{width:100%;height:36px} растягивает чекбоксы. */
+.cpick{ display:flex; flex-direction:column; border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; }
+.cpick input[type=checkbox]{ width:16px; height:16px; flex:none; margin:0; accent-color:var(--asubk-blue); cursor:pointer; }
+.cpick-all{ display:flex; align-items:center; gap:8px; padding:8px 12px; font-size:12px; color:var(--text-muted);
+  background:var(--surface-input); border-bottom:1px solid var(--border-default); cursor:pointer; }
+.cpick-row{ display:flex; align-items:center; gap:10px; padding:9px 12px; font-size:13px; cursor:pointer; }
+.cpick-row + .cpick-row{ border-top:1px solid var(--asubk-grid-line); }
+.cpick-row:hover{ background:var(--asubk-blue-tint); }
+.cpick-main{ flex:1; min-width:0; line-height:1.35; }
+.cpick-num{ font-weight:600; } .cpick-sub{ color:var(--text-muted); }
+.cpick-claim{ color:var(--text-muted); white-space:nowrap; font-variant-numeric:tabular-nums; }
+
+/* footer */
+.footer{ position:sticky; bottom:0; background:var(--surface-page); border-top:1px solid var(--border-default);
+  padding:14px 20px; display:flex; align-items:center; gap:12px; }
+
+/* modals */
+.overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:none; align-items:center;
+  justify-content:center; z-index:60; padding:24px; }
+.overlay.open{ display:flex; }
+.modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(1040px,100%); max-height:88vh;
+  display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(16,28,46,0.4); }
+.modal.form{ width:min(760px,100%); }
+.modal.narrow{ width:min(560px,100%); }
+.modal-h{ padding:18px 24px 12px; display:flex; align-items:center; gap:10px; }
+.modal-h .mt{ font:var(--weight-bold) 20px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
+.modal-x{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); display:flex; padding:4px; }
+.modal-x:hover{ color:var(--text-body); }
+.modal-b{ padding:0 24px 8px; overflow:auto; flex:1; }
+.modal-f{ padding:14px 24px 20px; display:flex; gap:12px; justify-content:flex-end; }
+.mform{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; padding-top:8px; }
+.mform .field.col-span{ grid-column:1 / -1; }
+.mform .field.req .flabel::after{ content:" •"; color:var(--action-danger); }
+.mform .control input, .mform .control select, .mform .note-area{ background:var(--surface-input); border-color:transparent; }
+.warn-inline{ display:flex; gap:8px; align-items:flex-start; background:var(--status-warning-bg);
+  color:var(--asubk-amber); border-radius:var(--radius-md); padding:10px 12px; font:var(--font-label); margin-top:6px; }
+/* Гейт — жёсткая блокировка с причиной (§6.3, паттерн sendGateReason). */
+.gate-inline{ display:flex; gap:8px; align-items:flex-start; background:var(--status-error-bg);
+  color:var(--asubk-red); border-radius:var(--radius-md); padding:10px 12px; font:var(--font-label); margin-top:6px; }
+.gate-inline svg{ flex:none; margin-top:2px; }
+.cgrid tbody tr.mrow-undelivered{ background:var(--status-warning-bg); }
+.overlap-note{ display:flex; gap:8px; align-items:flex-start; background:var(--status-warning-bg);
+  color:var(--asubk-amber); border-radius:var(--radius-md); padding:10px 12px; margin:0 0 14px; font:var(--font-label); }
+.overlap-note svg{ flex:none; margin-top:2px; }
+.overlap-note .rowlink{ color:var(--text-link); font-weight:600; }
+
+/* toast */
+.toast-wrap{ position:fixed; right:20px; bottom:20px; display:flex; flex-direction:column; gap:10px; z-index:80; }
+.toast{ min-width:260px; max-width:460px; padding:12px 14px; border-radius:var(--radius-md);
+  background:var(--asubk-ink); color:#fff; font:var(--font-label); box-shadow:0 10px 30px rgba(16,28,46,0.3);
+  display:flex; gap:10px; align-items:flex-start; }
+.toast.ok{ background:var(--asubk-green); }
+.toast.warn{ background:var(--asubk-amber); }
+.toast.err{ background:var(--asubk-red); }
+
+/* settings screen tabs */
+.settings-tabbar{ display:flex; gap:4px; border-bottom:1px solid var(--border-strong); margin-bottom:16px; }
+.settings-tab{ padding:8px 16px; cursor:pointer; border:none; background:none; font:var(--font-label); color:var(--text-muted); border-bottom:2px solid transparent; }
+.settings-tab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.settings-grid,.role-grid{ border-collapse:collapse; width:100%; }
+.settings-grid th,.settings-grid td,.role-grid th,.role-grid td{ border:1px solid var(--border-strong); padding:6px 10px; text-align:center; font:var(--font-body); }
+.settings-grid th:first-child,.settings-grid td:first-child,.role-grid th:first-child,.role-grid td:first-child{ text-align:left; }
+.v9-sec-label{ font:var(--font-label); font-weight:var(--weight-semibold); color:var(--text-muted); }
+.warn-badge{ color:#b45309; font-size:12px; white-space:nowrap; }
+
+/* объединённая вкладка «Кредиты»: сворачиваемая карточка на кредит (details/summary) */
+.credit-card{ border:1px solid var(--border-strong); border-radius:var(--radius-md); margin-top:12px; background:#fff; overflow:hidden; }
+.credit-card[open]{ box-shadow:0 1px 4px rgba(16,28,46,0.06); }
+.credit-head{ list-style:none; cursor:pointer; padding:12px 14px; display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.credit-head::-webkit-details-marker{ display:none; }
+.credit-head:hover{ background:var(--surface-muted,#f6f8fb); }
+.credit-head .tw{ transition:transform .15s; color:var(--text-muted); font-size:12px; }
+.credit-card[open] .credit-head .tw{ transform:rotate(90deg); }
+.credit-head .cnum{ font-weight:var(--weight-semibold); color:var(--asubk-blue); }
+.credit-head .csub{ color:var(--text-muted); font:var(--font-label); }
+.credit-head .cright{ margin-left:auto; text-align:right; }
+.credit-head .cright .amt{ font-weight:var(--weight-semibold); }
+.credit-head .cright .aml{ display:block; color:var(--text-muted); font-size:11px; }
+.credit-body{ padding:0 14px 14px; border-top:1px solid var(--border-subtle,#eef1f6); }
+
+/* ============ КРЕДИТ-СПЕЦИФИЧНЫЕ УТИЛИТЫ (дополнение к базовым классам collection.html) ============ */
+/* Замок зеркала (Р-5…Р-10, Р-16): данные чужого модуля read-only, с подписью источника. */
+.lock{ display:inline-flex; align-items:center; gap:4px; font:var(--weight-medium) 11px/1.3 var(--asubk-font);
+  color:var(--text-muted); border:1px solid var(--border-default); border-radius:var(--radius-sm); padding:0 6px; }
+.lock svg{ flex:none; }
+.locked{ position:relative; }
+.mirror-src{ font:var(--weight-regular) 11px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
+/* Пояснение архитектурного решения под блоком (info-plate). */
+.info-plate{ display:flex; gap:8px; align-items:flex-start; background:var(--status-info-bg); color:var(--asubk-blue);
+  border-radius:var(--radius-md); padding:10px 12px; font:var(--font-label); margin-top:10px; }
+.info-plate svg{ flex:none; margin-top:2px; }
+/* Дифф «было → стало» (Р-2 отклонение транша · Р-4 доп. соглашение). */
+.diff{ display:inline-flex; align-items:center; gap:6px; font:var(--font-label); }
+.diff-old{ color:var(--text-muted); text-decoration:line-through; }
+.diff-new{ color:var(--asubk-green); font-weight:var(--weight-semibold); }
+.diff-changed td{ background:rgba(0,106,245,0.05); }
+/* Гейт — жёсткая блокировка с причиной (§6). */
+.warn{ display:flex; gap:8px; align-items:flex-start; background:var(--status-error-bg); color:var(--asubk-red);
+  border-radius:var(--radius-md); padding:10px 12px; font:var(--font-label); margin-top:6px; }
+.warn svg{ flex:none; margin-top:2px; }
+
+/* Р-19 реестр: подсветка строк по производным оверлеям (Р-3).
+   Просрочка → янтарь, взыскание → красный; выбор строки перекрывает тинт. */
+.grid tbody tr.ov-overdue{ background:var(--asubk-amber-tint); }
+.grid tbody tr.ov-collection{ background:var(--asubk-red-tint); }
+.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav" id="nav"></div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="menu" title="Меню">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </span>
+      <span class="crumb-title" id="crumbTitle">Кредиты</span>
+      <span class="crumb" id="crumb" style="color:var(--text-muted);font:var(--font-label)"></span>
+      <div class="role-wrap">
+        <label>Роль:</label>
+        <div class="rsel">
+          <select id="roleSel" onchange="if(window.CR&&CR.onRoleChange)CR.onRoleChange()">
+            <option>Кредитный специалист</option>
+            <option>Куратор</option>
+            <option>Бухгалтер</option>
+            <option>Начальник отдела</option>
+            <option>Наблюдатель</option>
+          </select>
+          <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+      <!-- ============ РЕЕСТР КРЕДИТОВ ============ -->
+      <section class="view" id="view-list" style="display:flex;">
+        <!-- наполняется в Task 2+ (реестр §5.1) -->
+      </section>
+      <!-- ============ КАРТОЧКА КРЕДИТА ============ -->
+      <section class="view" id="view-detail">
+        <!-- наполняется в Task 2+ (карточка §5.2–5.3, 8 вкладок) -->
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="modalHost" onclick="if(event.target===this&&window.CR&&CR.closeModal)CR.closeModal()"></div>
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* ============================================================
+   МОДУЛЬ «КРЕДИТЫ» — TO-BE, единый файл. Весь логический слой чистый и
+   экспортируется на window.CR (§0.2–0.6 канона). DOM-инициализация — только
+   за if (typeof document !== 'undefined'). Порядок разделов:
+     1) утилиты  2) seedDb  3) derive/gate/canRole/buildSchedule (Task 2+)
+     4) gate/canRole (Task 3+)   5) мутации (Task 4+)   6) экспорт window.CR
+     7) DOM render + wiring
+   ============================================================ */
+
+/* ---- 1. Утилиты (переиспользуются везде) ---- */
+const TODAY = '23.07.2026';                       // «сегодня» демо зафиксировано
+const nf2 = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = n => nf2.format(n || 0);
+const pd = s => { if (s instanceof Date) return s; const [d,mo,y] = String(s).split('.').map(Number); return new Date(y, mo-1, d); };  // идемпотентна: Date на входе возвращается как есть
+const fd = d => String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
+const addM = (d,k) => new Date(d.getFullYear(), d.getMonth()+k, Math.min(d.getDate(),28));
+const dd = (a,b) => Math.round((b-a)/86400000);
+function toast(msg, kind){
+  if (typeof document === 'undefined') return;    // smoke-песочница без DOM
+  const wrap = document.getElementById('toastWrap'); if (!wrap) return;
+  const t = document.createElement('div');
+  t.className = 'toast' + (kind ? ' ' + kind : '');
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => t.remove(), 4200);
+}
+
+/* ---- вспомогательные фабрики модели (возвращают СВЕЖИЕ объекты) ---- */
+function isObj(x){ return x && typeof x === 'object' && !Array.isArray(x); }
+function deepMerge(base, over){                    // массивы/скаляры заменяются целиком
+  for (const k in over){
+    if (isObj(base[k]) && isObj(over[k])) deepMerge(base[k], over[k]);
+    else base[k] = over[k];
+  }
+  return base;
+}
+function condDefaults(over){                        // базовый комплект условий (Р-2); плоский объект
+  return Object.assign({
+    rate:10, floating:false, floatType:null, margin:0, term:24, freq:'ежемесячно', method:'аннуитет',
+    graceMain:0, graceAccrual:0, graceInterest:0,
+    penaltyMain:0.1, penaltyInt:0.1, penaltyMaxPct:20, queue:'по договору', dayMethod:'факт/365',
+    reserveRate:0
+  }, over || {});
+}
+function emptyMirror(over){                          // все зеркала (Р-5…Р-10, Р-16)
+  return deepMerge({
+    curatorship:[], pledges:[], guarantees:[], bankGuarantee:null,
+    payments:[], collection:[], restructuring:{ count:0, active:null },
+    pledgeWaiver:null,                                // waiver залоговой комиссии (Task 5) — falsy по умолчанию,
+                                                        // включается ТОЛЬКО saveWaiver (не сеять truthy на К-5)
+    borrowerRisk:{ group:null, categorySource:null }
+  }, over || {});
+}
+function mkTranche(over){                            // TRANCHE (§3)
+  return deepMerge({
+    id:'', no:1, subject:{ inn:'', name:'' }, amount:0, plannedDate:'',
+    conditions: condDefaults(), disbursements:[], schedules:[], ledger:[]
+  }, over || {});
+}
+function mkCredit(over){                             // CREDIT (§3) — обязательный минимум полей
+  return deepMerge({
+    id:'', num:'', date:'',
+    reg:{ num:'', date:'', scan:'', comment:'' },
+    origin:{ applicationId:'', commissionId:'', programId:'', govDecisionId:'' },
+    borrower:{ inn:'', name:'', type:'ЮЛ' },
+    approvedAmount:0, contractAmount:0, currency:'KGS',
+    kind:'', line:'', purpose:'', fundingSource:'',
+    subject:[], accounts:{ repayAcct:'', repayAcctKind:'', payCode:'' },
+    kmDecision:null,
+    lifecycle:'Проект', closure:null,
+    baseConditions: condDefaults(),
+    agreements:[],
+    tranches:[],
+    docs:[],
+    targetUse:{ docs:[], checks:[], measures:[], committeeDecision:null },
+    debtTransfer:null,
+    accrualHold:[],
+    audit:[],
+    mirror: emptyMirror()
+  }, over || {});
+}
+
+/* ---- 2. seedDb() — 6 демо-цепочек К-1…К-6 + фон (§8). Свежие объекты на каждый вызов. ---- */
+function seedDb(){
+  const credits = [];
+
+  /* К-1 · «Бек Кабель», дог. № 56 — основной интерактивный сценарий. */
+  credits.push(mkCredit({
+    id:'K-1', num:'56', date:'12.05.2026',
+    reg:{ num:'56', date:'14.05.2026', scan:'dogovor-56.pdf', comment:'Зарегистрирован в реестре договоров.' },
+    origin:{ applicationId:'ЗАЯ-1042', commissionId:'КОМ-311', programId:'ПРГ-7', govDecisionId:'ПП-455' },
+    borrower:{ inn:'01912201610212', name:'ОсОО «Бек Кабель»', type:'ЮЛ' },
+    approvedAmount:150000, contractAmount:150000, currency:'KGS',
+    kind:'Инвестиционный', line:'Единовременный', purpose:'Приобретение оборудования', fundingSource:'Бюджетный кредит',
+    subject:[{ kind:'Оборудование', name:'Линия по производству кабеля', qty:1, cost:150000 }],
+    accounts:{ repayAcct:'1280000000000056', repayAcctKind:'Расчётный', payCode:'PC-56' },
+    lifecycle:'Действует',
+    baseConditions: condDefaults({ rate:10, term:24, method:'аннуитет' }),
+    tranches:[
+      mkTranche({ id:'K-1-T1', no:1, subject:{ inn:'01912201610212', name:'ОсОО «Бек Кабель»' },
+        amount:100000, plannedDate:'18.05.2026',
+        conditions: condDefaults({ rate:10, term:24, reserveRate:0 }),
+        disbursements:[{ date:'18.05.2026', amount:100000, order:'ПП-1201', purpose:'Оплата оборудования', doc:'akt-osvo-1.pdf' }] }),
+      mkTranche({ id:'K-1-T2', no:2, subject:{ inn:'01912201610212', name:'ОсОО «Бек Кабель»' },
+        amount:50000, plannedDate:'01.09.2026',
+        conditions: condDefaults({ rate:10, term:24, reserveRate:0 }),
+        disbursements:[] })
+    ],
+    docs:[
+      { kind:'Кредитный договор', name:'Договор № 56', state:'принят', date:'14.05.2026', file:'dogovor-56.pdf', note:'' },
+      { kind:'Решение комиссии', name:'Протокол КОМ-311', state:'принят', date:'08.05.2026', file:'kom-311.pdf', note:'' }
+    ],
+    mirror: emptyMirror({
+      curatorship:[{ unit:'Отдел кредитования', employee:'Асанов А. К.', role:'ведущий', from:'14.05.2026', to:null }],
+      pledges:[{ contractNum:'ЗД-88', date:'13.05.2026', pledgor:'ОсОО «Бек Кабель»',
+        items:[{ name:'Производственное оборудование', kind:'Движимое', appraised:240000, pledgeValue:198000, share:1 }],
+        liquid:true, ban:true, otherCredits:[] }],
+      // Один платёж уже подтверждён ЦК (зеркало модуля платежей) — используется тестом
+      // paymentEditable (Task 5, #16): подтверждённый ЦК платёж недоступен для правки из кредита.
+      payments:[{ num:1, date:'05.06.2026', amount:12300, tranche:1, reg:'ЦК',
+        match:'Подтверждён ЦК', frozen:true, layers:{ principal:8300, interest:4000 } }],
+      borrowerRisk:{ group:'A', categorySource:'ночной расчёт' }
+    })
+  }));
+
+  /* К-2 · Резерв за неполное освоение (reserveRate = 2 %). */
+  credits.push(mkCredit({
+    id:'K-2', num:'57', date:'20.04.2026',
+    reg:{ num:'57', date:'22.04.2026', scan:'dogovor-57.pdf', comment:'' },
+    origin:{ applicationId:'ЗАЯ-1044', commissionId:'КОМ-312', programId:'ПРГ-7', govDecisionId:'ПП-455' },
+    borrower:{ inn:'02107199800345', name:'ОсОО «Нарын-Агро»', type:'ЮЛ' },
+    approvedAmount:400000, contractAmount:400000, currency:'KGS',
+    kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
+    subject:[{ kind:'Товар', name:'Семенной материал', qty:1, cost:400000 }],
+    accounts:{ repayAcct:'1280000000000057', repayAcctKind:'Расчётный', payCode:'PC-57' },
+    lifecycle:'Действует',
+    baseConditions: condDefaults({ rate:8, term:24, reserveRate:2 }),
+    tranches:[
+      mkTranche({ id:'K-2-T1', no:1, subject:{ inn:'02107199800345', name:'ОсОО «Нарын-Агро»' },
+        amount:400000, plannedDate:'01.05.2026',
+        conditions: condDefaults({ rate:8, term:24, reserveRate:2 }),   // не освоен к плановой дате → блок резерва живой
+        disbursements:[] })
+    ],
+    mirror: emptyMirror({
+      curatorship:[{ unit:'Отдел кредитования', employee:'Ким Л. С.', role:'ведущий', from:'22.04.2026', to:null }],
+      // Состав обеспечения К-2: ликвидная недвижимость (≥80 % стоимости) + движимое
+      // НЕЛИКВИДНОЕ (спецоборудование, б/у). Доля ликвида 560000/660000 ≈ 84,8 % ≥ 80 %
+      // ⇒ порог покрытия 150 % по П1 §2.4 (переменный порог, тест #20).
+      pledges:[
+        { contractNum:'ЗД-90', date:'21.04.2026', pledgor:'ОсОО «Нарын-Агро»',
+          items:[{ name:'Складское помещение', kind:'Недвижимость', appraised:700000, pledgeValue:560000, share:1 }],
+          liquid:true, ban:true, otherCredits:[] },
+        { contractNum:'ЗД-91', date:'21.04.2026', pledgor:'ОсОО «Нарын-Агро»',
+          items:[{ name:'Технологическое оборудование (б/у)', kind:'Движимое', appraised:130000, pledgeValue:100000, share:1 }],
+          liquid:false, ban:true, otherCredits:[] }
+      ],
+      borrowerRisk:{ group:'A', categorySource:'ночной расчёт' }
+    })
+  }));
+
+  /* К-3 · Просрочка (95 дн.) + взыскание (контур К1, «Претензия»). */
+  credits.push(mkCredit({
+    id:'K-3', num:'48', date:'10.02.2026',
+    reg:{ num:'48', date:'12.02.2026', scan:'dogovor-48.pdf', comment:'' },
+    origin:{ applicationId:'ЗАЯ-1010', commissionId:'КОМ-301', programId:'ПРГ-5', govDecisionId:'ПП-450' },
+    borrower:{ inn:'03011200500777', name:'ОсОО «Тянь-Шань Строй»', type:'ЮЛ' },
+    approvedAmount:200000, contractAmount:200000, currency:'KGS',
+    kind:'Инвестиционный', line:'Единовременный', purpose:'Строительство цеха', fundingSource:'Бюджетный кредит',
+    accounts:{ repayAcct:'1280000000000048', repayAcctKind:'Расчётный', payCode:'PC-48' },
+    lifecycle:'Действует',
+    baseConditions: condDefaults({ rate:12, term:24 }),
+    tranches:[
+      mkTranche({ id:'K-3-T1', no:1, subject:{ inn:'03011200500777', name:'ОсОО «Тянь-Шань Строй»' },
+        amount:200000, plannedDate:'15.02.2026',
+        conditions: condDefaults({ rate:12, term:24 }),
+        disbursements:[{ date:'15.02.2026', amount:200000, order:'ПП-980', purpose:'СМР', doc:'akt-osvo-48.pdf' }],
+        schedules:[{ ver:1, active:true, generatedFrom:'15.02.2026', rows:[
+          { no:1, date:'19.04.2026', total:12300, principal:8300, interest:4000 },   // наступил, не погашен → 95 дн.
+          { no:2, date:'19.05.2026', total:12300, principal:8400, interest:3900 },
+          { no:3, date:'19.06.2026', total:12300, principal:8500, interest:3800 }
+        ]}],
+        ledger:[{ no:1, date:'19.04.2026', received:0, principalBal:118400, principalPaid:0, principalDue:8300,
+          principalOverdue:12300, days:95, interestAccrued:4000, interestPaid:0, interestDue:4000, interestOverdue:4000,
+          penaltyAccrued:1500, penaltyPaid:0, penaltyBal:1500, totalPaid:0 }]
+      })
+    ],
+    mirror: emptyMirror({
+      curatorship:[{ unit:'Отдел проблемных кредитов', employee:'Осмонов Б. Т.', role:'ведущий', from:'20.04.2026', to:null }],
+      pledges:[{ contractNum:'ЗД-71', date:'11.02.2026', pledgor:'ОсОО «Тянь-Шань Строй»',
+        items:[{ name:'Земельный участок', kind:'Недвижимость', appraised:300000, pledgeValue:250000, share:1 }],
+        liquid:true, ban:true, otherCredits:[] }],
+      collection:[{ processId:'ВЗ-2201', contour:'К1', phase:'Претензия', subject:'Просроченная задолженность',
+        claim:18300, since:'20.04.2026' }],
+      borrowerRisk:{ group:'B', categorySource:'ночной расчёт · 95 дн. просрочки' }
+    })
+  }));
+
+  /* К-4 · Реструктуризация (активная заявка, «Направлено в Минфин»). */
+  credits.push(mkCredit({
+    id:'K-4', num:'42', date:'05.11.2025',
+    reg:{ num:'42', date:'07.11.2025', scan:'dogovor-42.pdf', comment:'' },
+    origin:{ applicationId:'ЗАЯ-0980', commissionId:'КОМ-290', programId:'ПРГ-4', govDecisionId:'ПП-440' },
+    borrower:{ inn:'04512199600901', name:'ОсОО «Иссык-Куль Ресорт»', type:'ЮЛ' },
+    approvedAmount:600000, contractAmount:600000, currency:'KGS',
+    kind:'Инвестиционный', line:'Единовременный', purpose:'Реконструкция базы отдыха', fundingSource:'Бюджетный кредит',
+    accounts:{ repayAcct:'1280000000000042', repayAcctKind:'Расчётный', payCode:'PC-42' },
+    lifecycle:'Действует',
+    baseConditions: condDefaults({ rate:9, term:36 }),
+    // ДС, рождённое реструктуризацией (не из карточки кредита) — source='реструктуризация' (Р-4/Р-16);
+    // editConditions всё равно заблокирован Г-9 (lifecycle≠«Проект»), правки условий кредита нет ни при каком source.
+    agreements:[{ num:'ДС-РС-1004', date:'12.06.2026', source:'реструктуризация',
+      before:{ rate:9, term:36 }, after:{ rate:7, term:48 }, active:true }],
+    tranches:[
+      mkTranche({ id:'K-4-T1', no:1, subject:{ inn:'04512199600901', name:'ОсОО «Иссык-Куль Ресорт»' },
+        amount:600000, plannedDate:'10.11.2025',
+        conditions: condDefaults({ rate:9, term:36 }),
+        disbursements:[{ date:'10.11.2025', amount:600000, order:'ПП-812', purpose:'СМР', doc:'akt-osvo-42.pdf' }],
+        ledger:[{ no:1, date:'10.03.2026', received:0, principalBal:520000, principalPaid:0, principalDue:16000,
+          principalOverdue:32000, days:120, interestAccrued:9000, interestPaid:0, interestDue:9000, interestOverdue:9000,
+          penaltyAccrued:2200, penaltyPaid:0, penaltyBal:2200, totalPaid:0 }]
+      })
+    ],
+    mirror: emptyMirror({
+      curatorship:[{ unit:'Отдел проблемных кредитов', employee:'Джумалиева Г. К.', role:'ведущий', from:'01.06.2026', to:null }],
+      pledges:[{ contractNum:'ЗД-60', date:'06.11.2025', pledgor:'ОсОО «Иссык-Куль Ресорт»',
+        items:[{ name:'База отдыха', kind:'Недвижимость', appraised:900000, pledgeValue:760000, share:1 }],
+        liquid:true, ban:true, otherCredits:[] }],
+      restructuring:{ count:1, active:{ id:'РС-1004', stage:'Направлено в Минфин', deadline:'12.08.2026',
+        pause:{ days:70 }, overlay181:true } },
+      borrowerRisk:{ group:'B', categorySource:'ночной расчёт (без «отложенной» категории)' }
+    })
+  }));
+
+  /* К-5 · Недообеспеченный (84 % при пороге 120 %) + освобождение КМ (Р-8). */
+  credits.push(mkCredit({
+    id:'K-5', num:'59', date:'01.07.2026',
+    reg:{ num:'59', date:'03.07.2026', scan:'dogovor-59.pdf', comment:'' },
+    origin:{ applicationId:'ЗАЯ-1060', commissionId:'КОМ-320', programId:'ПРГ-8', govDecisionId:'ПП-460' },
+    borrower:{ inn:'05213200100456', name:'ОсОО «Ош-Текстиль»', type:'ЮЛ' },
+    approvedAmount:250000, contractAmount:200000, currency:'KGS',
+    kind:'Оборотный', line:'Единовременный', purpose:'Закуп сырья', fundingSource:'Бюджетный кредит',
+    accounts:{ repayAcct:'1280000000000059', repayAcctKind:'Расчётный', payCode:'PC-59' },
+    kmDecision:null,                                                  // пусто → освоение блокируется по Г-6
+    lifecycle:'Зарегистрирован',
+    baseConditions: condDefaults({ rate:11, term:18 }),
+    tranches:[
+      mkTranche({ id:'K-5-T1', no:1, subject:{ inn:'05213200100456', name:'ОсОО «Ош-Текстиль»' },
+        amount:200000, plannedDate:'10.07.2026',
+        conditions: condDefaults({ rate:11, term:18 }),
+        disbursements:[] })                                          // не освоен → триггер Г-6
+    ],
+    mirror: emptyMirror({
+      curatorship:[{ unit:'Отдел кредитования', employee:'Асанов А. К.', role:'ведущий', from:'03.07.2026', to:null }],
+      pledges:[{ contractNum:'ЗД-95', date:'02.07.2026', pledgor:'ОсОО «Ош-Текстиль»',
+        items:[{ name:'Автотранспорт', kind:'Движимое', appraised:200000, pledgeValue:168000, share:1 }],
+        liquid:true, ban:true, otherCredits:[] }],                   // pledgeValue 168000 / contract 200000 = 84 %
+      borrowerRisk:{ group:'A', categorySource:'ночной расчёт' }
+    })
+  }));
+
+  /* К-6 · Терминал «Погашен» (нулевые остатки, акт сверки). */
+  credits.push(mkCredit({
+    id:'K-6', num:'30', date:'15.01.2024',
+    reg:{ num:'30', date:'17.01.2024', scan:'dogovor-30.pdf', comment:'' },
+    origin:{ applicationId:'ЗАЯ-0700', commissionId:'КОМ-250', programId:'ПРГ-2', govDecisionId:'ПП-410' },
+    borrower:{ inn:'06114199500222', name:'ОсОО «Чуй-Агро»', type:'ЮЛ' },
+    approvedAmount:120000, contractAmount:120000, currency:'KGS',
+    kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
+    accounts:{ repayAcct:'1280000000000030', repayAcctKind:'Расчётный', payCode:'PC-30' },
+    lifecycle:'Закрыт',
+    closure:{ reason:'Погашен', date:'20.06.2026', doc:{ kind:'Акт сверки', num:'АС-30', date:'20.06.2026', scan:'akt-sverki-30.pdf' } },
+    baseConditions: condDefaults({ rate:8, term:24 }),
+    tranches:[
+      mkTranche({ id:'K-6-T1', no:1, subject:{ inn:'06114199500222', name:'ОсОО «Чуй-Агро»' },
+        amount:120000, plannedDate:'20.01.2024',
+        conditions: condDefaults({ rate:8, term:24 }),
+        disbursements:[{ date:'20.01.2024', amount:120000, order:'ПП-410', purpose:'Оборот', doc:'akt-osvo-30.pdf' }],
+        ledger:[{ no:24, date:'20.06.2026', received:5000, principalBal:0, principalPaid:120000, principalDue:0,
+          principalOverdue:0, days:0, interestAccrued:12000, interestPaid:12000, interestDue:0, interestOverdue:0,
+          penaltyAccrued:0, penaltyPaid:0, penaltyBal:0, totalPaid:132000 }]
+      })
+    ],
+    mirror: emptyMirror({
+      curatorship:[{ unit:'Отдел кредитования', employee:'Ким Л. С.', role:'ведущий', from:'17.01.2024', to:'20.06.2026' }],
+      borrowerRisk:{ group:'A', categorySource:'ночной расчёт' }
+    })
+  }));
+
+  /* К-6б · Терминал «Списан» (реквизиты решения об основании). */
+  credits.push(mkCredit({
+    id:'K-6b', num:'31', date:'18.03.2023',
+    reg:{ num:'31', date:'20.03.2023', scan:'dogovor-31.pdf', comment:'' },
+    origin:{ applicationId:'ЗАЯ-0650', commissionId:'КОМ-240', programId:'ПРГ-2', govDecisionId:'ПП-405' },
+    borrower:{ inn:'07215199300888', name:'ОсОО «Талас-Майс»', type:'ЮЛ' },
+    approvedAmount:90000, contractAmount:90000, currency:'KGS',
+    kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
+    accounts:{ repayAcct:'1280000000000031', repayAcctKind:'Расчётный', payCode:'PC-31' },
+    lifecycle:'Закрыт',
+    closure:{ reason:'Списан', date:'15.05.2026', doc:{ kind:'Решение Правления', num:'РП-77', date:'12.05.2026', scan:'reshenie-77.pdf' } },
+    baseConditions: condDefaults({ rate:10, term:24 }),
+    tranches:[
+      mkTranche({ id:'K-6b-T1', no:1, subject:{ inn:'07215199300888', name:'ОсОО «Талас-Майс»' },
+        amount:90000, plannedDate:'25.03.2023',
+        conditions: condDefaults({ rate:10, term:24 }),
+        disbursements:[{ date:'25.03.2023', amount:90000, order:'ПП-405', purpose:'Оборот', doc:'akt-osvo-31.pdf' }],
+        ledger:[{ no:18, date:'15.05.2026', received:0, principalBal:0, principalPaid:32000, principalDue:0,
+          principalOverdue:0, days:0, interestAccrued:15000, interestPaid:4000, interestDue:0, interestOverdue:0,
+          penaltyAccrued:6000, penaltyPaid:0, penaltyBal:0, totalPaid:36000 }]
+      })
+    ],
+    mirror: emptyMirror({
+      curatorship:[{ unit:'Отдел проблемных кредитов', employee:'Осмонов Б. Т.', role:'ведущий', from:'20.03.2023', to:'15.05.2026' }],
+      borrowerRisk:{ group:'D', categorySource:'ночной расчёт (списан)' }
+    })
+  }));
+
+  /* --- 8 фоновых кредитов для фильтров реестра (§5.1): программа/куратор/категория/просрочка/ЖЦ --- */
+  const bg = [
+    { name:'ОсОО «Баткен-Фрут»',   inn:'08110199200111', prog:'ПРГ-3', cur:'Асанов А. К.',      cat:'A', life:'Действует',      amount:180000, od:0 },
+    { name:'ОсОО «Джалал-Абад-Лес»',inn:'09318199100222', prog:'ПРГ-5', cur:'Ким Л. С.',        cat:'B', life:'Действует',      amount:320000, od:35 },
+    { name:'ОсОО «Кара-Балта-Металл»',inn:'10421198900333', prog:'ПРГ-7', cur:'Осмонов Б. Т.', cat:'C', life:'Действует',      amount:540000, od:210 },
+    { name:'ОсОО «Нарын-Текс»',     inn:'11524200000444', prog:'ПРГ-8', cur:'Джумалиева Г. К.',  cat:'A', life:'Зарегистрирован', amount:150000, od:0 },
+    { name:'ОсОО «Токмок-Пласт»',   inn:'12627200200555', prog:'ПРГ-3', cur:'Асанов А. К.',      cat:'A', life:'Проект',         amount:210000, od:0 },
+    { name:'ОсОО «Ат-Башы-Агро»',   inn:'13730199400666', prog:'ПРГ-4', cur:'Ким Л. С.',        cat:'B', life:'Действует',      amount:280000, od:12 },
+    { name:'ОсОО «Кант-Сахар»',     inn:'14833199700777', prog:'ПРГ-5', cur:'Осмонов Б. Т.',    cat:'C', life:'Действует',      amount:410000, od:95 },
+    { name:'ОсОО «Сокулук-Милк»',   inn:'15936199900888', prog:'ПРГ-7', cur:'Джумалиева Г. К.',  cat:'A', life:'Закрыт',         amount:130000, od:0 }
+  ];
+  bg.forEach((b, i) => {
+    const disbursed = b.life === 'Проект' ? [] :
+      [{ date:'10.01.2026', amount:b.amount, order:'ПП-'+(500+i), purpose:'Целевое использование', doc:'akt-'+(500+i)+'.pdf' }];
+    const ledger = b.od > 0 ? [{ no:1, date:'01.03.2026', received:0, principalBal:Math.round(b.amount*0.7), principalPaid:0,
+      principalDue:5000, principalOverdue:5000, days:b.od, interestAccrued:1200, interestPaid:0, interestDue:1200,
+      interestOverdue:1200, penaltyAccrued:300, penaltyPaid:0, penaltyBal:300, totalPaid:0 }] : [];
+    credits.push(mkCredit({
+      id:'K-B'+(i+1), num:'B'+(100+i), date:'05.01.2026',
+      reg:{ num:'B'+(100+i), date:'07.01.2026', scan:'dog-b'+(100+i)+'.pdf', comment:'' },
+      origin:{ applicationId:'ЗАЯ-B'+(100+i), commissionId:'КОМ-B'+(100+i), programId:b.prog, govDecisionId:'ПП-430' },
+      borrower:{ inn:b.inn, name:b.name, type:'ЮЛ' },
+      approvedAmount:b.amount, contractAmount:b.amount, currency:'KGS',
+      kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
+      accounts:{ repayAcct:'12800000000'+(10000+i), repayAcctKind:'Расчётный', payCode:'PC-B'+(100+i) },
+      lifecycle:b.life,
+      closure: b.life === 'Закрыт' ? { reason:'Погашен', date:'30.05.2026',
+        doc:{ kind:'Акт сверки', num:'АС-B'+(100+i), date:'30.05.2026', scan:'as-b'+(100+i)+'.pdf' } } : null,
+      baseConditions: condDefaults({ rate:9, term:24 }),
+      tranches:[
+        mkTranche({ id:'K-B'+(i+1)+'-T1', no:1, subject:{ inn:b.inn, name:b.name },
+          amount:b.amount, plannedDate:'12.01.2026',
+          conditions: condDefaults({ rate:9, term:24 }),
+          disbursements:disbursed, ledger })
+      ],
+      mirror: emptyMirror({
+        curatorship:[{ unit:'Отдел кредитования', employee:b.cur, role:'ведущий', from:'07.01.2026', to:b.life === 'Закрыт' ? '30.05.2026' : null }],
+        collection: b.od >= 90 ? [{ processId:'ВЗ-B'+(100+i), contour:'К1', phase:'Претензия',
+          subject:'Просроченная задолженность', claim:6200, since:'01.06.2026' }] : [],
+        borrowerRisk:{ group:b.cat, categorySource:'ночной расчёт' }
+      })
+    }));
+  });
+
+  /* --- Заявки: одобренная без кредита (Г-2 picker) + неодобренная --- */
+  const applications = [
+    { id:'ЗАЯ-1042', approved:true,  borrower:{ inn:'01912201610212', name:'ОсОО «Бек Кабель»' },   approvedAmount:150000, creditId:'K-1', active:true },  // уже породила кредит K-1 (Г-2: «уже есть кредит»)
+    { id:'ЗАЯ-1050', approved:true,  borrower:{ inn:'16240200300999', name:'ОсОО «Ак-Жол Агро»' },  approvedAmount:500000, creditId:null, active:true },  // одобрена, без кредита → Г-2 picker
+    { id:'ЗАЯ-1051', approved:false, borrower:{ inn:'17345200400123', name:'ОсОО «Мин-Куш Голд»' }, approvedAmount:0,      creditId:null, active:true }   // не одобрена → создание кредита блокируется (Г-2)
+  ];
+
+  /* --- Реестр залоговых договоров по ИНН заёмщика (Г-13 picker), включая иностранный ИНН --- */
+  const pledgesRegistry = [
+    { contractNum:'ЗД-88',  pledgorInn:'01912201610212', pledgor:'ОсОО «Бек Кабель»',       active:true,
+      items:[{ name:'Производственное оборудование', kind:'Движимое', appraised:240000, pledgeValue:198000, share:1 }] },
+    { contractNum:'ЗД-92',  pledgorInn:'01912201610212', pledgor:'ОсОО «Бек Кабель»',       active:true,
+      items:[{ name:'Автопогрузчик', kind:'Движимое', appraised:60000, pledgeValue:48000, share:1 }] },
+    { contractNum:'ЗД-90',  pledgorInn:'02107199800345', pledgor:'ОсОО «Нарын-Агро»',       active:true,
+      items:[{ name:'Складское помещение', kind:'Недвижимость', appraised:700000, pledgeValue:560000, share:1 }] },
+    { contractNum:'ЗД-99',  pledgorInn:'99001200500000', pledgor:'Kazakh Trade LLP (иностр.)', active:true, foreign:true,
+      items:[{ name:'Транспорт', kind:'Движимое', appraised:150000, pledgeValue:120000, share:1 }] }
+  ];
+
+  return { credits, applications, pledgesRegistry };
+}
+
+/* ============================================================
+   3. ЧИСТЫЙ ЛОГИЧЕСКИЙ СЛОЙ — derive / buildSchedule (Task 2).
+   Все функции чистые (не трогают document); ничего из §4 не хранится в модели —
+   derive пересчитывается при каждой перерисовке, кэш запрещён (Р-11).
+   gate / canRole / мутации добавляются в следующих задачах.
+   ============================================================ */
+
+/* округление до копеек (детерминированное упрощение, не банковский движок) */
+function round2(x){ return Math.round((x + Number.EPSILON) * 100) / 100; }
+/* Σ освоений транша (Р-6) */
+function disbursedSum(t){ return (t.disbursements || []).reduce((x,d) => x + (d.amount||0), 0); }
+/* последняя (самая свежая) строка детального расчёта транша */
+function latestLedger(t){
+  return (t.ledger || []).reduce((a,b) => (b.no >= ((a && a.no) ?? -Infinity) ? b : a), null);
+}
+/* активен ли интервал приостановки начисления на «сегодня» (Р-17) */
+function holdIsActive(h){
+  if (!h || !h.from) return false;
+  const today = pd(TODAY);
+  if (pd(h.from) > today) return false;
+  return !h.to || pd(h.to) >= today;
+}
+/* оверлей «подавление 181-го дня»: активная реструктуризация с флагом или интервал
+   приостановки с явным основанием 181 (учитывается на уровне кредита, до worst-of) */
+function has181Suppression(c){
+  const r = c.mirror && c.mirror.restructuring && c.mirror.restructuring.active;
+  if (r && r.overlay181) return true;
+  return (c.accrualHold || []).some(h => /181/.test(h.reason || ''));
+}
+
+/* ---- 3.1 buildSchedule(tranche, fromDate) — амортизация от фактической даты освоения ----
+   Аннуитет либо дифференцированный (conditions.method). Учитывает льготу по ОД
+   (graceMain — только проценты) и по процентам (graceInterest — без начисления %),
+   а также интервалы приостановки начисления (t.accrualHold — Task 4: holdAccrual пишет
+   интервал в credit.accrualHold и зеркалирует его на КАЖДЫЙ транш кредита, т.к.
+   buildSchedule принимает только транш, без ссылки на кредит; пеня при паузе не
+   затрагивается — within() участвует только в расчёте interest). Возврат:
+   {rows:[{no,date,total,principal,interest}]}. */
+function buildSchedule(tranche, fromDate){
+  const c = tranche.conditions || {};
+  const P = disbursedSum(tranche) || tranche.amount || 0;        // амортизируем освоенный ОД
+  const n = Math.max(1, c.term | 0);                             // число периодов = срок, мес.
+  const i = (c.rate || 0) / 100 / 12;                            // месячная ставка
+  const method = c.method || 'аннуитет';
+  const gMain = c.graceMain | 0;                                 // льгота по ОД (мес.)
+  const gInt  = c.graceInterest | 0;                            // льгота по процентам (мес.)
+  const holds = tranche.accrualHold || [];                      // зеркало credit.accrualHold (holdAccrual, Task 4)
+  const within = (dt) => holds.some(h => h && h.from &&
+    pd(h.from) <= dt && (!h.to || pd(h.to) >= dt));
+  const start = pd(fromDate);
+  const principalPeriods = Math.max(1, n - gMain);              // периодов гашения ОД после льготы
+  const annuity = (i > 0)
+    ? P * i / (1 - Math.pow(1 + i, -principalPeriods))
+    : P / principalPeriods;
+  const diffPrincipal = P / principalPeriods;
+  const rows = [];
+  let bal = P;
+  for (let k = 1; k <= n; k++){
+    const date = addM(start, k);
+    const noAccrual = within(date) || (k <= gInt) || i === 0;   // без начисления процентов
+    const interest = noAccrual ? 0 : round2(bal * i);
+    let principal;
+    if (k <= gMain) principal = 0;                              // льгота по ОД: только проценты
+    else if (method === 'дифференцированный') principal = round2(diffPrincipal);
+    else principal = round2(annuity - bal * i);                 // аннуитет: ОД = платёж − проценты
+    if (k === n) principal = round2(bal);                       // последний период гасит остаток
+    principal = Math.max(0, Math.min(principal, bal));
+    bal = round2(bal - principal);
+    rows.push({ no:k, date:fd(date), total:round2(principal + interest), principal, interest });
+  }
+  return { rows };
+}
+
+/* строки активной версии графика транша; если версии нет, но транш освоен —
+   строим на лету от первой даты освоения (для scheduleTotals/fullRepayDate) */
+function trancheScheduleRows(t){
+  const active = (t.schedules || []).find(s => s.active);
+  if (active && active.rows && active.rows.length) return active.rows;
+  const disb = (t.disbursements || []).slice().sort((a,b) => pd(a.date) - pd(b.date))[0];
+  return disb ? buildSchedule(t, disb.date).rows : [];
+}
+
+/* ---- 3.2 Помощники derive (все чистые) ---- */
+
+/* долг по трём слоям × 4 величины из детального расчёта траншей (§4) */
+function debtFromLedger(c){
+  const zero = () => ({ accrued:0, paid:0, overdue:0, bal:0 });
+  const d = { principal:zero(), interest:zero(), penalty:zero() };
+  for (const t of c.tranches){
+    const l = latestLedger(t); if (!l) continue;
+    d.principal.paid    += l.principalPaid    || 0;
+    d.principal.overdue += l.principalOverdue || 0;
+    d.principal.bal     += l.principalBal     || 0;
+    // TODO Task 5/later: эвристика (Task 2, Minor) — сеяный ledger не имеет отдельной
+    // колонки «начислено ОД», поэтому accrued приближается через paid+bal. Ручной платёж
+    // (addPayment, Task 5) сознательно НЕ трогает ledger — висит в mirror.payments до
+    // подтверждения ЦК (Р-5) — поэтому эта эвристика пока не расходится с реальностью.
+    d.principal.accrued += (l.principalPaid || 0) + (l.principalBal || 0);   // всего вошло в погашение
+    d.interest.accrued  += l.interestAccrued  || 0;
+    d.interest.paid     += l.interestPaid     || 0;
+    d.interest.overdue  += l.interestOverdue  || 0;
+    d.interest.bal      += Math.max(0, (l.interestAccrued || 0) - (l.interestPaid || 0));
+    d.penalty.accrued   += l.penaltyAccrued   || 0;
+    d.penalty.paid       += l.penaltyPaid     || 0;
+    d.penalty.bal        += l.penaltyBal      || 0;
+    // TODO Task 5/later: та же эвристика — нет отдельной колонки «пеня просрочена» в
+    // сеяном ledger; addPayment (Task 5) не пишет в ledger (см. TODO у principal.accrued выше).
+    d.penalty.overdue    += l.penaltyBal      || 0;   // неоплаченная пеня трактуется как просроченная
+  }
+  for (const k of ['principal','interest','penalty'])
+    for (const v of ['accrued','paid','overdue','bal']) d[k][v] = round2(d[k][v]);
+  return d;
+}
+
+/* дней просрочки транша: max days среди строк расчёта с непогашенной наступившей позицией */
+function overdueDaysOfTranche(t){
+  let d = 0;
+  for (const r of (t.ledger || [])){
+    const has = (r.principalOverdue || 0) > 0 || (r.interestOverdue || 0) > 0 || (r.penaltyBal || 0) > 0;
+    if (has) d = Math.max(d, r.days || 0);
+  }
+  return d;
+}
+
+/* покрытие: база — ЗАЛОГОВАЯ стоимость (не оценочная); порог переменный;
+   банковская гарантия входит в индекс, поручительство — нет (§4, П1 §2.3/§2.4). */
+function computeCoverage(c){
+  let liq = 0, illiq = 0, hasItems = false, hasIlliquid = false;
+  for (const p of (c.mirror && c.mirror.pledges || [])){
+    for (const it of (p.items || [])){
+      const v = (it.pledgeValue || 0) * (it.share == null ? 1 : it.share);   // залоговая × доля
+      hasItems = true;
+      if (p.liquid) liq += v; else { illiq += v; hasIlliquid = true; }
+    }
+  }
+  const bank = (c.mirror && c.mirror.bankGuarantee) ? (c.mirror.bankGuarantee.amount || 0) : 0;
+  const contract = c.contractAmount || 0;
+  const index = contract > 0 ? (liq + illiq + bank) / contract : 0;
+  const totalPledge = liq + illiq;
+  const liquidShare = totalPledge > 0 ? liq / totalPledge : 0;
+  let req, source;
+  if (!hasItems){ req = 120; source = 'Обеспечение отсутствует'; }
+  else if (!hasIlliquid){ req = 120; source = 'Ликвидное обеспечение ≥120 % (П1 §2.3)'; }
+  else if (liquidShare >= 0.8){ req = 150; source = 'Движимое неликвидное при доле ликвида ≥80 % ⇒ ≥150 % (П1 §2.4)'; }
+  else { req = 150; source = 'Смешанное/неликвидное обеспечение ⇒ ≥150 % (П1 §2.4)'; }
+  return { index: round2(index), req, source, ok: index * 100 >= req, liquidShare: round2(liquidShare) };
+}
+
+/* worst-of категории (по дням + по подтверждённым факторам заёмщика).
+   Подавление 181-го дня применяется на уровне кредита ДО worst-of. */
+const CAT_ORDER = ['низкий','средний','высокий'];
+function daysToCat(d){ return d >= 181 ? 'высокий' : d >= 1 ? 'средний' : 'низкий'; }
+function groupToCat(g){ return (g === 'C' || g === 'D') ? 'высокий' : g === 'B' ? 'средний' : 'низкий'; }
+function worstCat(a,b){ return CAT_ORDER[Math.max(CAT_ORDER.indexOf(a), CAT_ORDER.indexOf(b))]; }
+function riskWorstOf(c, overdueDays){
+  const eff = has181Suppression(c) ? Math.min(overdueDays, 180) : overdueDays;   // подавление 181-го дня
+  const grp = c.mirror && c.mirror.borrowerRisk ? c.mirror.borrowerRisk.group : null;
+  return worstCat(daysToCat(eff), groupToCat(grp));
+}
+
+/* массив производных оверлеев проблемности (Р-3): не третья ось, а набор меток */
+function buildOverlays(c, overdueDays){
+  const ov = [];
+  if (overdueDays > 0) ov.push({ kind:'overdue', tone:'warn', text:`Просрочка ${overdueDays} дн.` });
+  const r = c.mirror && c.mirror.restructuring && c.mirror.restructuring.active;
+  if (r) ov.push({ kind:'restructuring', tone:'info', text:`Реструктуризация (${r.stage})` });
+  for (const col of (c.mirror && c.mirror.collection || [])){
+    ov.push({ kind:'collection', tone:'danger', text:`Взыскание ${col.contour} · ${col.phase}` });
+    if (col.contour === 'К6' || /банкрот/i.test(col.phase || ''))
+      ov.push({ kind:'bankruptcy', tone:'danger', text:'Банкротство' });
+  }
+  if ((c.accrualHold || []).some(holdIsActive))
+    ov.push({ kind:'accrual-hold', tone:'info', text:'Начисление приостановлено' });
+  if (has181Suppression(c)) ov.push({ kind:'suppress181', tone:'info', text:'Подавление 181-го дня' });
+  return ov;
+}
+
+/* дата последнего платежа активной версии графика (max по траншам) */
+function maxFullRepayDate(c){
+  let best = null;
+  for (const t of c.tranches){
+    const rows = trancheScheduleRows(t); if (!rows.length) continue;
+    const dt = pd(rows[rows.length - 1].date);
+    if (!best || dt > best) best = dt;
+  }
+  return best ? fd(best) : null;
+}
+
+/* неустойка за неполное освоение: недоосвоенный остаток транша × reserveRate за
+   период от плановой даты. При reserveRate = 0 → {applies:false} (не 24 строки нулей). */
+function computeReserve(c){
+  const per = []; let totalBase = 0, totalAmount = 0, rate = 0;
+  for (const t of c.tranches){
+    const rr = (t.conditions && t.conditions.reserveRate) || 0;
+    if (rr <= 0) continue;
+    const base = (t.amount || 0) - disbursedSum(t);
+    if (base <= 0 || !t.plannedDate) continue;
+    const days = Math.max(0, dd(pd(t.plannedDate), pd(TODAY)));
+    if (days <= 0) continue;
+    const amount = round2(base * (rr / 100) * (days / 365));
+    rate = rr; totalBase += base; totalAmount += amount;
+    per.push({ trancheId:t.id, base, rate:rr, days, amount });
+  }
+  if (!per.length) return { applies:false };
+  return { applies:true, rate, totalBase, totalAmount:round2(totalAmount), perTranche:per };
+}
+
+/* итоги активной версии графика (консолидировано по траншам) */
+function computeScheduleTotals(c){
+  let count = 0, principalSum = 0, interestSum = 0, total = 0, regularPay = 0;
+  for (const t of c.tranches){
+    const rows = trancheScheduleRows(t); if (!rows.length) continue;
+    count += rows.length;
+    for (const r of rows){ principalSum += r.principal; interestSum += r.interest; total += r.total; }
+    regularPay += rows[0].total;                                // регулярный платёж — сумма первых по траншам
+  }
+  return { count, principalSum:round2(principalSum), interestSum:round2(interestSum),
+           regularPay:round2(regularPay), total:round2(total) };
+}
+
+/* активен ли транш (не soft-closed) — для агрегатов срока (Р-13) */
+function activeTranche(t){ return !t.closed; }
+
+/* ---- 3.3 derive(credit) — ВСЕ производные §4. Ничего не хранится в модели. ---- */
+function derive(c){
+  const disbursed   = c.tranches.reduce((a,t) => a + disbursedSum(t), 0);
+  const allocated   = c.tranches.reduce((a,t) => a + (t.amount || 0), 0);
+  const undisbursed = c.contractAmount - disbursed;
+  const allocatable = c.contractAmount - allocated;
+  const disbState =
+      (allocated === 0 && disbursed === 0) ? 'Не освоен'
+    : (c.closure && undisbursed > 0 && c.closure.disbClosed) ? 'Освоение закрыто'
+    : (disbursed === 0) ? 'Не освоен'
+    : (disbursed < c.contractAmount) ? 'Частично освоен'
+    : 'Полностью освоен';
+  const debt          = debtFromLedger(c);
+  const overdueDays   = Math.max(0, ...c.tranches.map(overdueDaysOfTranche));
+  const coverage      = computeCoverage(c);
+  const riskCategory  = riskWorstOf(c, overdueDays);
+  const overlays      = buildOverlays(c, overdueDays);
+  const fullRepayDate = maxFullRepayDate(c);
+  const termAgg       = Math.max(0, ...c.tranches.filter(activeTranche).map(t => (t.conditions && t.conditions.term) || 0));
+  const reserveAccrual = computeReserve(c);
+  const scheduleTotals = computeScheduleTotals(c);
+  return { disbursed, undisbursed, allocated, allocatable, disbState, debt,
+           overdueDays, riskCategory, coverage, overlays, fullRepayDate, termAgg,
+           reserveAccrual, scheduleTotals };
+}
+
+/* ---- 3.4 requiredDocsComplete(credit) — обязательный комплект документов (Г-7).
+   Документ считается закрывающим гейт, если его состояние окончательное и не
+   блокирующее: «принят» либо «не требуется» (§5.3: «принят / отклонён / не
+   требуется / просрочен»). Любой документ в состоянии «отклонён»/«просрочен»
+   или без явного состояния — комплект не собран. */
+function requiredDocsComplete(credit){
+  return (credit.docs || []).every(doc => doc.state === 'принят' || doc.state === 'не требуется');
+}
+
+/* ============================================================
+   4. gate(credit, action, ctx) — единая точка блокировок Г-1…Г-16 (Task 3).
+   Чистая функция: только чтение credit/ctx через derive(), никаких побочных
+   эффектов. Г-10 — внутри addAgreement (Task 5). Г-17 — структурный запрет
+   (нет кнопок «Удалить»), в gate() не участвует.
+   ============================================================ */
+function gate(credit, action, ctx = {}){
+  const r = []; const d = credit ? derive(credit) : null;
+  switch(action){
+    case 'saveContractAmount':
+      if (ctx.value > credit.approvedAmount) r.push('Сумма договора не может превышать одобренную ('+money(credit.approvedAmount)+')'); // Г-1
+      break;
+    case 'createCredit':
+      if (!ctx.application || ctx.application.approved!==true) r.push('Кредит создаётся только из одобренной заявки'); // Г-2
+      else if (ctx.application.creditId) r.push('У заявки уже есть кредит');
+      break;
+    case 'addTranche':
+      if (ctx.amount > d.allocatable) r.push('Σ сумм траншей не может превышать сумму договора (доступно '+money(d.allocatable)+')'); // Г-3
+      break;
+    case 'addDisbursement': {
+      const t = credit.tranches.find(x=>x.no===ctx.trancheNo);
+      if (!t) r.push('Транш не найден');                                // защита от неизвестного trancheNo (иначе gate проходит, а мутация падает на push в undefined)
+      const already = t ? disbursedSum(t) : 0;
+      if (t && ctx.amount + already > t.amount) r.push('Σ освоений транша не может превышать сумму транша'); // Г-4
+      if (!['Зарегистрирован','Действует'].includes(credit.lifecycle)) r.push('Освоение возможно только при ЖЦ «Зарегистрирован» или «Действует»'); // Г-5
+      if (!d.coverage.ok && !credit.kmDecision && !(credit.mirror && credit.mirror.pledgeWaiver)) r.push('Провал покрытия: нужны реквизиты решения КМ (Р-8) или waiver комиссии по залогу'); // Г-6
+      break;
+    }
+    case 'waiver':                                                       // второй разблок Г-6 — waiver залоговой комиссии (Task 5)
+      if (!ctx.reason || !String(ctx.reason).trim()) r.push('Waiver требует обоснования (протокол комиссии по залогу)');
+      break;
+    case 'addAgreement':                                                                    // Г-10
+      if (!ctx.num || !ctx.date) r.push('Доп. соглашение требует номер и дату (Г-10)');
+      break;
+    case 'register': {                                                                     // Г-7
+      if (!credit.num || !credit.date || !credit.reg.scan) r.push('Нужны номер, дата и скан договора');
+      if (!requiredDocsComplete(credit)) r.push('Не собран обязательный комплект документов');
+      if (!d.coverage.ok && !credit.kmDecision && !(credit.mirror && credit.mirror.pledgeWaiver)) r.push('Не пройден гейт покрытия (или исключение Г-6)');
+      break;
+    }
+    case 'buildSchedule':
+      if (!ctx.tranche || ctx.tranche.disbursements.length===0) r.push('График строится только от фактической даты освоения транша'); // Г-8
+      break;
+    case 'editConditions':
+      if (credit.lifecycle!=='Проект') r.push('Изменение условий — только доп. соглашением'); // Г-9
+      break;
+    case 'savePayment':                                                                    // Г-11
+      if (!(ctx.amount>0)) r.push('Сумма платежа должна быть > 0');
+      if (ctx.dateAfterToday) r.push('Дата платежа не может быть в будущем');
+      if (!ctx.trancheNo) r.push('Транш обязателен');
+      break;
+    case 'writeOff':
+      if (!ctx.doc || !ctx.doc.kind || !ctx.doc.num || !ctx.doc.date) r.push('Списание — только с реквизитами решения (вид · номер · дата)'); // Г-12
+      break;
+    case 'linkPledge':
+      if (!ctx.pledge || ctx.pledge.pledgorInn !== credit.borrower.inn) r.push('Привязка — только договоры того же ИНН заёмщика'); // Г-13
+      break;
+    case 'repay':                                                                          // Г-14
+      { const b = d.debt; const nonzero = ['principal','interest','penalty'].some(k=>b[k].bal>0.005);
+        if (nonzero) r.push('«Погашен» — только при нулевом остатке по всем слоям');
+        if ((credit.mirror.collection||[]).length) r.push('Есть активный процесс взыскания'); }
+      break;
+    case 'holdAccrual':
+      if (!ctx.reason || !ctx.doc || !ctx.from) r.push('Приостановление — только с основанием, документом и датой начала'); // Г-15
+      break;
+    case 'transferDebt':
+      if (!ctx.agreement || !ctx.agreement.registered) r.push('Заёмщик не меняется без зарегистрированного соглашения'); // Г-16
+      break;
+  }
+  return { ok: r.length===0, reasons: r };
+}
+
+/* ---- 4.1 canRole(role, action) — матрица прав по ролям (§7). ---- */
+const ROLE_ACTIONS = {
+  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','addTranche','addDisbursement','buildSchedule','addAgreement','editConditions','editDocs']),
+  'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge']),
+  'Бухгалтер': new Set(['savePayment']),
+  'Начальник отдела': new Set(['createCredit','saveContractAmount','register','addTranche','addDisbursement','buildSchedule','addAgreement','editConditions','editDocs','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay']),
+  'Наблюдатель': new Set(),
+};
+function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(action); }
+
+/* ============================================================
+   5. МУТАЦИИ — операции, меняющие состояние credit/tranche (Task 4+).
+   Каждая мутация: gate() → если заблокирован, возвращает {ok:false,reasons} и НЕ
+   трогает модель → если ok, применяет изменение → append-only запись в credit.audit
+   (никаких физических удалений/перезаписей — Р-4/Г-17). Функции чистые относительно
+   document (работают только с переданными объектами).
+   ============================================================ */
+
+/* версии графика транша (Р-4, Г-8): предыдущая активная версия ДЕМОТИРУЕТСЯ
+   (active:false) и остаётся в массиве как архив — не перезаписывается и не удаляется.
+   Возврат: при блоке — {ok:false,reasons:[...]} гейта; при успехе — новая версия
+   {ver,active,generatedFrom,rows}. */
+function generateSchedule(credit, trancheNo, params){
+  const t = credit.tranches.find(x => x.no === trancheNo);
+  const g = gate(credit, 'buildSchedule', { tranche: t });               // Г-8
+  if (!g.ok) return g;
+  const built = buildSchedule(t, params.from);
+  t.schedules = t.schedules || [];
+  const prevActive = t.schedules.find(s => s.active);
+  if (prevActive) prevActive.active = false;                             // архив, не удаление (Р-4)
+  const ver = t.schedules.reduce((m,s) => Math.max(m, s.ver || 0), 0) + 1;
+  const version = { ver, active:true, generatedFrom: params.from, rows: built.rows };
+  t.schedules.push(version);
+  pushAudit(credit, `Сформирован график погашения v${ver} по траншу №${trancheNo} от ${params.from}`,
+    prevActive || null, version);
+  return version;
+}
+
+/* приостановка начисления процентов (Р-17, Г-15). Интервал живёт на credit.accrualHold
+   (его читают derive/buildOverlays/риск-подавление 181-го дня — не трогать это поле) И
+   зеркалируется на accrualHold КАЖДОГО транша кредита, потому что buildSchedule(tranche,
+   fromDate) получает только транш, без ссылки на кредит. Пеня при паузе продолжает
+   начисляться (within() внутри buildSchedule обнуляет только interest). */
+function holdAccrual(credit, ctx){
+  const g = gate(credit, 'holdAccrual', ctx);                            // Г-15
+  if (!g.ok) return g;
+  const hold = { from: ctx.from, to: ctx.to || null, reason: ctx.reason, doc: ctx.doc, by: ctx.by || '' };
+  credit.accrualHold.push(hold);
+  for (const t of credit.tranches){ t.accrualHold = t.accrualHold || []; t.accrualHold.push(hold); }
+  pushAudit(credit, `Приостановлено начисление процентов ${ctx.from}–${ctx.to || '…'} (${ctx.reason})`,
+    null, hold);
+  return g;
+}
+
+/* Текущая роль пользователя — источник audit.who. Живёт как обычная переменная
+   области видимости <script>, а НЕ на window.CR/document, чтобы быть доступной
+   и в браузере, и в смоук-песочнице node:vm (там window — вложенный объект
+   sandbox, а не globalThis, поэтому даже window.CR.* небезопасно читать из
+   верхнеуровневого/чистого кода — см. переключение роли ниже, оно живёт
+   только в DOM-блоке и на bare-CR вне браузера не полагается). */
+let currentRole = 'Кредитный специалист';
+
+/* Единая точка записи в append-only журнал (§0.5, Г-17): запись ЗАМОРОЖЕНА —
+   Object.freeze — и никогда не редактируется/не удаляется. Нет CR.deleteAudit. */
+function pushAudit(credit, what, before, after){
+  const entry = Object.freeze({ when: TODAY, who: currentRole, what, before, after });
+  credit.audit.push(entry);
+  return entry;
+}
+
+/* saveContractAmount(credit, value) — Г-1: сумма договора ≤ одобренной (Р-12). */
+function saveContractAmount(credit, value){
+  const g = gate(credit, 'saveContractAmount', { value });               // Г-1
+  if (!g.ok) return g;
+  const before = credit.contractAmount;
+  credit.contractAmount = value;
+  pushAudit(credit, 'saveContractAmount', before, value);
+  return g;
+}
+
+/* addTranche(credit, {amount,plannedDate,subject}) — Г-3: Σ траншей ≤ суммы договора.
+   Условия транша наследуются от базовых условий кредита (Р-2, диффуются позже правкой). */
+function addTranche(credit, ctx){
+  const g = gate(credit, 'addTranche', { amount: ctx.amount });          // Г-3
+  if (!g.ok) return g;
+  const no = credit.tranches.reduce((m,t) => Math.max(m, t.no || 0), 0) + 1;
+  const t = mkTranche({
+    id: credit.id + '-T' + no, no,
+    subject: ctx.subject || { inn: credit.borrower.inn, name: credit.borrower.name },
+    amount: ctx.amount, plannedDate: ctx.plannedDate || '',
+    conditions: Object.assign({}, credit.baseConditions)
+  });
+  credit.tranches.push(t);
+  pushAudit(credit, 'addTranche', null, t);
+  return g;
+}
+
+/* addDisbursement(credit, {trancheNo,amount,order,purpose,doc}) — Г-4 (сумма транша) ·
+   Г-5 (ЖЦ) · Г-6 (покрытие/КМ/waiver), все три проверяет единый gate('addDisbursement'). */
+function addDisbursement(credit, ctx){
+  const g = gate(credit, 'addDisbursement', { trancheNo: ctx.trancheNo, amount: ctx.amount }); // Г-4/Г-5/Г-6
+  if (!g.ok) return g;
+  const t = credit.tranches.find(x => x.no === ctx.trancheNo);
+  const before = (t.disbursements || []).slice();
+  const rec = { date: ctx.date || TODAY, amount: ctx.amount, order: ctx.order || '', purpose: ctx.purpose || '', doc: ctx.doc || '' };
+  t.disbursements.push(rec);
+  pushAudit(credit, 'addDisbursement', before, rec);
+  return g;
+}
+
+/* setKmDecision(credit, {kind,num,date,scan}) — реквизиты решения КМ об освобождении
+   от залога (Р-8, П1 §2.6). Собственного блокирующего гейта нет: сама фиксация — это
+   разблокирующее событие для Г-6/Г-7 (gate('addDisbursement'|'register') читает
+   credit.kmDecision напрямую). */
+function setKmDecision(credit, ctx){
+  const g = gate(credit, 'setKmDecision', ctx);
+  if (!g.ok) return g;
+  const before = credit.kmDecision;
+  const after = { kind: ctx.kind, num: ctx.num, date: ctx.date, scan: ctx.scan };
+  credit.kmDecision = after;
+  pushAudit(credit, 'setKmDecision', before, after);
+  return g;
+}
+
+/* saveWaiver(credit, {reason}) — второй разблок Г-6/Г-7: waiver залоговой комиссии
+   (альтернатива решению КМ). Пустое обоснование не сохраняется (case 'waiver' в gate). */
+function saveWaiver(credit, ctx){
+  const g = gate(credit, 'waiver', ctx);
+  if (!g.ok) return g;
+  const before = credit.mirror.pledgeWaiver || null;
+  const after = { reason: ctx.reason, when: TODAY };
+  credit.mirror.pledgeWaiver = after;
+  pushAudit(credit, 'saveWaiver', before, after);
+  return g;
+}
+
+/* addPayment(credit, {amount,date,trancheNo}) — Г-11 (savePayment). Р-5: ручной ввод —
+   это ВЫЗОВ ФОРМЫ МОДУЛЯ-ВЛАДЕЛЬЦА, платёж повисает «Ожидает ЦК» и НЕ трогает ledger/
+   долг кредита — подтверждённые остатки двигает только ЦК своим потоком (вне макета).
+   Поэтому derive()/debtFromLedger читают только ledger, платёж на debt не влияет,
+   пока match не станет «Подтверждён ЦК» (см. TODO у debtFromLedger, §3.2). */
+function addPayment(credit, ctx){
+  const dateAfterToday = ctx.date ? pd(ctx.date) > pd(TODAY) : false;
+  const g = gate(credit, 'savePayment', { amount: ctx.amount, dateAfterToday, trancheNo: ctx.trancheNo }); // Г-11
+  if (!g.ok) return g;
+  const num = (credit.mirror.payments.length || 0) + 1;
+  const rec = { num, date: ctx.date, amount: ctx.amount, tranche: ctx.trancheNo,
+    reg:'Ручной ввод', match:'Ожидает ЦК', frozen:false, layers:{} };
+  credit.mirror.payments.push(rec);
+  pushAudit(credit, 'addPayment', null, rec);
+  return g;
+}
+
+/* paymentEditable(credit, payment) — чистый предикат (Р-5): платёж, подтверждённый ЦК,
+   недоступен для правки из кредита ни при какой роли (мираж ЦК всегда read-only). */
+function paymentEditable(credit, p){ return (p && p.match) !== 'Подтверждён ЦК'; }
+
+/* addAgreement(credit, {num,date,source,before,after}) — Г-10: версии условий только
+   доп. соглашением (Р-4). Предыдущая активная версия ДЕМОТИРУЕТСЯ (active:false) и
+   остаётся в массиве архивом — не перезаписывается/не удаляется. */
+function addAgreement(credit, ctx){
+  const g = gate(credit, 'addAgreement', ctx);                           // Г-10
+  if (!g.ok) return g;
+  const prevActive = credit.agreements.find(a => a.active);
+  if (prevActive) prevActive.active = false;                             // архив, не удаление (Р-4)
+  const version = { num: ctx.num, date: ctx.date, source: ctx.source || 'кредит',
+    before: ctx.before || {}, after: ctx.after || {}, active: true };
+  credit.agreements.push(version);
+  pushAudit(credit, 'addAgreement', prevActive || null, version);
+  return g;
+}
+
+/* closeCredit(credit, {reason,doc}) — терминалы «Погашен»(Г-14=repay)/«Списан»(Г-12=writeOff),
+   Р-20: обязательные реквизиты, без физ. удаления. */
+function closeCredit(credit, ctx){
+  const action = ctx.reason === 'Погашен' ? 'repay' : ctx.reason === 'Списан' ? 'writeOff' : null;
+  if (!action) return { ok:false, reasons:['Неизвестное основание закрытия — только «Погашен» либо «Списан»'] };
+  const g = gate(credit, action, { doc: ctx.doc });                      // Г-14 / Г-12
+  if (!g.ok) return g;
+  const before = credit.closure;
+  const after = { reason: ctx.reason, date: TODAY, doc: ctx.doc || null };
+  credit.closure = after;
+  credit.lifecycle = 'Закрыт';
+  pushAudit(credit, 'closeCredit', before, after);
+  return g;
+}
+
+/* linkPledge(credit, pledge) — Г-13: привязка ТОЛЬКО существующего залогового
+   договора того же ИНН заёмщика (Р-7 — «Создать залоговый договор» из кредита нет). */
+function linkPledge(credit, pledge){
+  const g = gate(credit, 'linkPledge', { pledge });                      // Г-13
+  if (!g.ok) return g;
+  const before = credit.mirror.pledges.length;
+  credit.mirror.pledges.push(pledge);
+  pushAudit(credit, 'linkPledge', before, pledge);
+  return g;
+}
+
+/* zeroOutForTest(credit) — ТЕСТ-ХЕЛПЕР (не бизнес-функция, не в export UI-путях):
+   обнуляет остатки detail-расчёта по всем траншам, чтобы можно было проверить
+   позитивную ветку Г-14 (closeCredit «Погашен») без банковского движка погашения. */
+function zeroOutForTest(credit){
+  for (const t of credit.tranches){
+    for (const l of (t.ledger || [])){
+      l.principalBal = 0; l.principalOverdue = 0; l.principalDue = 0;
+      l.interestOverdue = 0; l.interestPaid = l.interestAccrued || 0;
+      l.penaltyBal = 0;
+    }
+  }
+}
+
+/* ---- 6. Экспорт логического слоя (§0.2). db=null до DOM-инициализации. ---- */
+window.CR = {
+  seedDb,
+  db: null,
+  derive, buildSchedule, gate, canRole,
+  generateSchedule, holdAccrual,
+  saveContractAmount, addTranche, addDisbursement, setKmDecision, saveWaiver,
+  addPayment, paymentEditable, addAgreement, closeCredit, linkPledge,
+  zeroOutForTest,
+  // утилиты — пригодятся тестам и UI
+  money, pd, fd, addM, dd, toast, TODAY
+};
+
+/* ---- 7. DOM: рендер и обвязка (только в браузере) ---- */
+if (typeof document !== 'undefined') {
+  CR.db = seedDb();                                  // живой изменяемый экземпляр
+
+  /* дерево навигации сайдбара (активна «Система кредитования → Кредиты») */
+  const TREE = [
+    { label:'Система кредитования', open:true, subs:[
+      { label:'Заявки и комиссии', items:[{ label:'Заявки' }, { label:'Комиссии по заявкам' }] },
+      { label:'Программы и решения', items:[{ label:'Решение правительства' }, { label:'Кредитные программы' }] },
+      { label:'Заёмщики', items:[{ label:'Заёмщики' }] },
+      { label:'Кредиты и транши', items:[{ label:'Кредиты', active:true }, { label:'Освоение' }, { label:'Список траншей' }] }
+    ]},
+    { label:'Обеспечение', subs:[{ headerless:true, items:[{ label:'Реестр залогов' }, { label:'Поручительства' }] }] },
+    { label:'Проблемная задолженность', subs:[{ headerless:true, items:[{ label:'Реструктуризация' }, { label:'Взыскание' }] }] }
+  ];
+  function renderNav(){
+    const host = document.getElementById('nav'); if (!host) return;
+    host.innerHTML = TREE.map(g => {
+      const subs = (g.subs || []).map(s => {
+        const items = (s.items || []).map(it =>
+          `<a class="nav-item${it.active ? ' active' : ''}${s.headerless ? ' headerless' : ''}"
+             onclick="if(!${!!it.active})CR.toast('Раздел «'+this.textContent.trim()+'» — вне объёма макета')">${it.label}</a>`).join('');
+        if (s.headerless) return items;
+        return `<div class="nav-sub open"><button class="nav-toggle" onclick="this.parentElement.classList.toggle('open')">
+            <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+            <span class="lbl">${s.label}</span></button><div class="nav-children">${items}</div></div>`;
+      }).join('');
+      return `<div class="nav-group${g.open ? ' open' : ''}"><button class="nav-toggle" onclick="this.parentElement.classList.toggle('open')">
+          <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          <span class="lbl">${g.label}</span></button><div class="nav-children">${subs}</div></div>`;
+    }).join('');
+  }
+
+  /* смена роли (полная матрица прав §7). currentRole — источник audit.who и гейтинга
+     кнопок реестра (renderRole). Наблюдатель — read-only: createCredit/editConditions off. */
+  CR.state = { role: currentRole };
+  CR.onRoleChange = function(){
+    const sel = document.getElementById('roleSel');
+    CR.state.role = sel ? sel.value : CR.state.role;
+    currentRole = CR.state.role;                    // синхронизация с audit.who (мутации читают currentRole)
+    toast('Роль: ' + CR.state.role);
+    renderRole();                                   // пере-гейтинг доступных действий реестра
+  };
+  CR.closeModal = function(){ const h = document.getElementById('modalHost'); if (h){ h.classList.remove('open'); h.innerHTML=''; } };
+  /* Единый конструктор модалок (§8, canon modal-h/-b/-f). Одна оболочка на 9 форм —
+     не 9 руками собранных оверлеев. opts.cls: form (по умолч.) · narrow · (пусто = широкая). */
+  CR.openModal = function(titleHtml, bodyHtml, footerHtml, opts){
+    opts = opts || {};
+    const host = document.getElementById('modalHost'); if (!host) return;
+    host.innerHTML = `<div class="modal ${opts.cls==null?'form':opts.cls}">
+      <div class="modal-h"><span class="mt">${titleHtml}</span>
+        <button class="modal-x" onclick="CR.closeModal()" aria-label="Закрыть">✕</button></div>
+      <div class="modal-b"><div id="modalErr"></div>${bodyHtml}</div>
+      <div class="modal-f">${footerHtml||''}</div>
+    </div>`;
+    host.classList.add('open');
+  };
+  /* Гейт-провал внутри модалки: причины показываются в шапке тела формы (не молчаливый отказ, §0.3). */
+  CR.modalErr = function(reasons){
+    const box = document.getElementById('modalErr'); const list = [].concat(reasons||[]);
+    if (box) box.innerHTML = `<div class="gate-inline">${svgInfo()}<div>${list.map(esc).join('<br>')}</div></div>`;
+    toast(list.join(' · '), 'warn');
+  };
+
+  /* ============================================================
+     Р-19 РЕЕСТР КРЕДИТОВ — DOM render layer (Task 6).
+     Реестр показывает КРЕДИТ (кредитные колонки §5.1), не заявку. Все ячейки —
+     из derive() в рантайме (Р-11, кэш запрещён). Фильтры комбинируются по AND.
+     ============================================================ */
+  let selectedId = null;
+  const filters = { program:'', curator:'', category:'', lifecycle:'', disbState:'', problem:'', odMin:'', odMax:'' };
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+  function uniq(arr){ return [...new Set(arr)].filter(x=>x && x!=='—').sort((a,b)=>String(a).localeCompare(String(b),'ru')); }
+  function optList(vals){ return ['<option value="">— все —</option>'].concat(vals.map(v=>`<option>${esc(v)}</option>`)).join(''); }
+  /* активный куратор кредита (зеркало журнала кураторства Р-9): to==null, иначе последняя запись */
+  function curatorOf(c){
+    const cs = (c.mirror && c.mirror.curatorship) || [];
+    const act = cs.find(x=>!x.to) || cs[cs.length-1];
+    return act ? act.employee : '—';
+  }
+
+  /* ---- рендер полной оболочки реестра (тулбар + фильтры + сетка) ---- */
+  function renderList(){
+    const host = document.getElementById('view-list'); if (!host) return;
+    const programs = uniq(CR.db.credits.map(c=>c.origin.programId));
+    const curators = uniq(CR.db.credits.map(curatorOf));
+    host.innerHTML = `
+      <div class="tb-actions">
+        <button class="btn btn-primary btn-sm" id="btnCreate" onclick="CR.openCreatePicker()">Создать кредит</button>
+        <button class="btn btn-secondary btn-sm" id="btnView" onclick="if(CR._sel)CR.openDetail(CR._sel)">Просмотр</button>
+        <button class="btn btn-secondary btn-sm" id="btnEdit" onclick="if(CR._sel)CR.openDetail(CR._sel)">Изменить</button>
+        <span id="regCount" style="margin-left:12px;color:var(--text-muted);font:var(--font-label)"></span>
+        <button class="btn btn-tint btn-sm" style="margin-left:auto" onclick="CR.resetDemo()">Сбросить демо-данные</button>
+      </div>
+      <div class="filter-head open" onclick="this.classList.toggle('open')">
+        <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+        Фильтры реестра
+      </div>
+      <div class="filter-body">
+        <div class="field"><span class="flabel">Программа</span><div class="control"><select id="fProgram" onchange="CR.renderRows()">${optList(programs)}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Куратор</span><div class="control"><select id="fCurator" onchange="CR.renderRows()">${optList(curators)}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Категория риска</span><div class="control"><select id="fCategory" onchange="CR.renderRows()">${optList(['низкий','средний','высокий'])}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">ЖЦ договора</span><div class="control"><select id="fLifecycle" onchange="CR.renderRows()">${optList(['Проект','Зарегистрирован','Действует','Закрыт'])}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Состояние освоения</span><div class="control"><select id="fDisb" onchange="CR.renderRows()">${optList(['Не освоен','Частично освоен','Полностью освоен','Освоение закрыто'])}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Проблемность</span><div class="control"><select id="fProblem" onchange="CR.renderRows()"><option value="">— все —</option><option value="collection">Активное взыскание</option><option value="restructuring">Активная реструктуризация</option></select><span class="caret">▾</span></div></div>
+        <div class="field col-span"><span class="flabel">Просрочка, дн (диапазон)</span><div class="range-pair"><input id="fOdMin" type="number" min="0" placeholder="от" oninput="CR.renderRows()"><span>—</span><input id="fOdMax" type="number" min="0" placeholder="до" oninput="CR.renderRows()"></div></div>
+      </div>
+      <div class="grid-wrap">
+        <table class="grid"><thead><tr>
+          <th>№ договора</th><th>Дата</th><th>Заёмщик</th><th>Программа</th>
+          <th style="text-align:right">Сумма договора</th><th style="text-align:right">Освоено</th><th style="text-align:right">Остаток долга</th><th>Просрочка, дн</th>
+          <th>Категория</th><th>ЖЦ договора</th><th>Состояние освоения</th><th>Куратор</th>
+        </tr></thead><tbody id="regBody"></tbody></table>
+      </div>`;
+    renderRows();
+    renderRole();
+  }
+
+  /* считать значения фильтров из контролов в состояние filters */
+  function readFilters(){
+    const g = id => { const e = document.getElementById(id); return e ? e.value : ''; };
+    filters.program = g('fProgram'); filters.curator = g('fCurator'); filters.category = g('fCategory');
+    filters.lifecycle = g('fLifecycle'); filters.disbState = g('fDisb'); filters.problem = g('fProblem');
+    filters.odMin = g('fOdMin'); filters.odMax = g('fOdMax');
+  }
+  /* AND-комбинация фильтров; пустой фильтр = нет ограничения */
+  function passFilters(c, d){
+    const f = filters;
+    if (f.program   && c.origin.programId !== f.program)   return false;
+    if (f.curator   && curatorOf(c) !== f.curator)         return false;
+    if (f.category  && d.riskCategory !== f.category)       return false;
+    if (f.lifecycle && c.lifecycle !== f.lifecycle)         return false;
+    if (f.disbState && d.disbState !== f.disbState)         return false;
+    if (f.odMin !== '' && d.overdueDays < +f.odMin)         return false;
+    if (f.odMax !== '' && d.overdueDays > +f.odMax)         return false;
+    if (f.problem === 'collection'    && !d.overlays.some(o=>o.kind==='collection'))    return false;
+    if (f.problem === 'restructuring' && !d.overlays.some(o=>o.kind==='restructuring')) return false;
+    return true;
+  }
+  /* одна строка реестра — все ячейки из credit + derive() */
+  function rowHtml(c, d){
+    const hasColl = d.overlays.some(o=>o.kind==='collection');
+    const hasOd   = d.overlays.some(o=>o.kind==='overdue');
+    const tint = hasColl ? ' ov-collection' : hasOd ? ' ov-overdue' : '';   // взыскание перекрывает просрочку
+    const sel  = (c.id===selectedId) ? ' sel' : '';
+    const term = (c.lifecycle==='Закрыт') ? ' terminal' : '';
+    const catCls = d.riskCategory==='высокий' ? 'high' : d.riskCategory==='средний' ? 'mid' : 'low';
+    const debtBal = d.debt.principal.bal + d.debt.interest.bal + d.debt.penalty.bal;   // остаток долга = Σ балансов трёх слоёв
+    const odCell = d.overdueDays>0 ? `<td class="overdue">${d.overdueDays}</td>` : `<td>0</td>`;
+    return `<tr data-id="${esc(c.id)}" class="${(tint+sel+term).trim()}" onclick="CR.selectRow('${esc(c.id)}')" ondblclick="CR.openDetail('${esc(c.id)}')">
+      <td>${esc(c.num)}</td>
+      <td>${esc(c.date)}</td>
+      <td>${esc(c.borrower.name)}<br><span style="color:var(--text-muted);font-size:12px">ИНН ${esc(c.borrower.inn)}</span></td>
+      <td>${esc(c.origin.programId)}</td>
+      <td style="text-align:right">${money(c.contractAmount)}</td>
+      <td style="text-align:right">${money(d.disbursed)}</td>
+      <td style="text-align:right">${money(debtBal)}</td>
+      ${odCell}
+      <td><span class="pill ${catCls}">${esc(d.riskCategory)}</span></td>
+      <td>${esc(c.lifecycle)}</td>
+      <td>${esc(d.disbState)}</td>
+      <td>${esc(curatorOf(c))}</td>
+    </tr>`;
+  }
+  /* перерисовать только строки (фильтры/выбор меняются часто, оболочка — нет) */
+  function renderRows(){
+    readFilters();
+    const body = document.getElementById('regBody'); if (!body) return;
+    const rows = [];
+    for (const c of CR.db.credits){
+      const d = derive(c);
+      if (!passFilters(c, d)) continue;
+      rows.push(rowHtml(c, d));
+    }
+    body.innerHTML = rows.length ? rows.join('')
+      : `<tr><td colspan="12" style="text-align:center;color:var(--text-placeholder);padding:20px">Ничего не найдено по фильтрам</td></tr>`;
+    const cnt = document.getElementById('regCount');
+    if (cnt) cnt.textContent = rows.length + ' из ' + CR.db.credits.length;
+  }
+
+  /* одиночный клик — выбор строки (включает Просмотр/Изменить) */
+  function selectRow(id){
+    selectedId = id; CR._sel = id;
+    const body = document.getElementById('regBody');
+    if (body) [...body.children].forEach(tr => tr.classList && tr.classList.toggle('sel', tr.dataset.id===id));
+    renderRole();
+  }
+  /* двойной клик / Просмотр / Изменить — карточка кредита (§5.2 шапка + §5.3 8 вкладок, Task 7) */
+  function openDetail(id){
+    const c = CR.db.credits.find(x=>x.id===id); if (!c) return;
+    selectedId = id; CR._sel = id; detailId = id;
+    detailTab = 'Договор';
+    detailTrancheNo = (c.tranches[0] && c.tranches[0].no) || 1;
+    calcConsolidated = false;
+    document.getElementById('view-list').style.display = 'none';
+    const dv = document.getElementById('view-detail');
+    dv.style.display = 'flex';
+    dv.innerHTML = `
+      <div style="padding:16px 20px 0">
+        <button class="btn btn-secondary btn-sm" onclick="CR.backToList()">← Реестр</button>
+      </div>
+      <div id="cr-card-body"></div>`;
+    renderDetail(c);
+    const crumb = document.getElementById('crumb'); if (crumb) crumb.textContent = '/ Договор № ' + c.num;
+  }
+  function backToList(){
+    const dv = document.getElementById('view-detail'); if (dv){ dv.style.display='none'; dv.innerHTML=''; }
+    const lv = document.getElementById('view-list'); if (lv) lv.style.display='flex';
+    const crumb = document.getElementById('crumb'); if (crumb) crumb.textContent = '';
+  }
+  /* сброс демо-данных: свежий seedDb() + полная перерисовка (§демо-ограничения) */
+  function resetDemo(){
+    CR.db = seedDb(); selectedId = null; CR._sel = null;
+    backToList(); renderList();
+    toast('Демо-данные сброшены', 'ok');
+  }
+  /* гейтинг действий по роли: Наблюдатель — read-only (createCredit/editConditions off) */
+  function renderRole(){
+    const canCreate = canRole(currentRole, 'createCredit');
+    const canEdit   = canRole(currentRole, 'editConditions');
+    const bC = document.getElementById('btnCreate');
+    const bV = document.getElementById('btnView');
+    const bE = document.getElementById('btnEdit');
+    if (bC){ bC.disabled = !canCreate; bC.title = canCreate ? '' : 'Роль «'+currentRole+'» не имеет права создавать кредит'; }
+    if (bV){ bV.disabled = !selectedId; bV.title = selectedId ? '' : 'Выберите кредит в реестре'; }
+    if (bE){ const ok = !!selectedId && canEdit;
+      bE.disabled = !ok;
+      bE.title = !selectedId ? 'Выберите кредит в реестре'
+        : !canEdit ? 'Роль «'+currentRole+'» не имеет права изменять кредит' : ''; }
+  }
+
+  /* «Создать кредит» — picker одобренных заявок без кредита (Г-2) */
+  function openCreatePicker(){
+    if (!canRole(currentRole, 'createCredit')){ toast('Роль «'+currentRole+'» не может создавать кредит', 'warn'); return; }
+    const apps = CR.db.applications.filter(a => a.approved===true && !a.creditId);   // Г-2: только одобренные без кредита
+    const host = document.getElementById('modalHost'); if (!host) return;
+    host.innerHTML = `<div class="modal narrow">
+      <div class="modal-h"><span class="mt">Создать кредит из заявки</span>
+        <button class="modal-x" onclick="CR.closeModal()" aria-label="Закрыть">✕</button></div>
+      <div class="modal-b">
+        <p class="section-note">Показаны только одобренные заявки без привязанного кредита (гейт Г-2). Отклонённые и уже связанные не выводятся.</p>
+        ${apps.length ? `<div class="cpick">${apps.map(a=>`
+          <div class="cpick-row" onclick="CR.pickApplication('${esc(a.id)}')">
+            <div class="cpick-main"><span class="cpick-num">${esc(a.id)}</span>
+              <span class="cpick-sub"> · ${esc(a.borrower.name)} · ИНН ${esc(a.borrower.inn)}</span></div>
+            <div class="cpick-claim">${money(a.approvedAmount)}</div></div>`).join('')}</div>`
+          : `<div class="cgrid-empty">Нет одобренных заявок без кредита</div>`}
+      </div>
+      <div class="modal-f"><button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button></div>
+    </div>`;
+    host.classList.add('open');
+  }
+  function pickApplication(id){
+    const app = CR.db.applications.find(a => a.id===id);
+    const g = gate(null, 'createCredit', { application: app });   // подтверждаем Г-2 перед созданием
+    if (!g.ok){ toast(g.reasons.join('; '), 'err'); return; }
+    CR.closeModal();
+    toast('Заявка ' + id + ' выбрана — черновик кредита (форма создания — Task 7)', 'ok');
+  }
+
+  /* ============================================================
+     КАРТОЧКА КРЕДИТА — §5.2 шапка + §5.3 8 вкладок (Task 7).
+     Всё из derive()/gate()/canRole() в рантайме (Р-11 — кэш запрещён). Зеркала
+     (Р-5…Р-10, Р-16) — read-only с замком и подписью источника. Любая мутация
+     идёт через CR.* и завершается rerenderDetail() → derive() пересчитывается заново.
+     ============================================================ */
+  let detailId = null, detailTab = 'Договор', detailTrancheNo = 1;
+  let calcConsolidated = false;
+  const DTABS =['Договор','Условия','Транши и освоение','Расчёты','Платежи','Обеспечение','Проблемные','Досье'];
+
+  function currentCredit(){ return CR.db.credits.find(x => x.id === detailId); }
+  function jsAttr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+  function svgInfo(){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>'; }
+  function lockHtml(){ return '<span class="lock"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>зеркало</span>'; }
+  function catClsOf(cat){ return cat==='высокий'?'high':cat==='средний'?'mid':'low'; }
+  function pctDisb(c,d){ return c.contractAmount>0 ? Math.round(d.disbursed/c.contractAmount*100) : 0; }
+  function trancheState(t){ const s=disbursedSum(t), a=t.amount||0; return s===0?'Не освоен':s<a?'Частично освоен':'Полностью освоен'; }
+  function overlayPill(o){ const cls=o.tone==='warn'?'mid':o.tone==='danger'?'high':'info'; return `<span class="pill ${cls}">${esc(o.text)}</span>`; }
+
+  /* read-only поле (label + значение в grey-боксе); val вставляется как HTML (caller экранирует текст) */
+  function fld(label,val,o){ o=o||{};
+    const v=(val==null||val==='') ? '<span class="ph" style="color:var(--text-placeholder)">—</span>' : val;
+    return `<div class="field${o.span?' col-span':''}"><span class="flabel">${esc(label)}${o.lock?' '+lockHtml():''}</span>`
+      + `<div class="lookup"><span class="val">${v}</span></div>`
+      + (o.src?`<div class="mirror-src">Источник: ${esc(o.src)}</div>`:'') + `</div>`;
+  }
+  /* грид-коллекция внутри вкладки */
+  function cgrid(cols, rows, o){ o=o||{};
+    return `<div class="cgrid-wrap"><table class="cgrid"><thead><tr>${cols.map(c=>`<th${c.r?' style="text-align:right"':''}>${esc(c.h)}</th>`).join('')}</tr></thead>`
+      + `<tbody>${rows.length?rows.join(''):`<tr><td colspan="${cols.length}"><div class="cgrid-empty">${esc(o.empty||'Нет записей')}</div></td></tr>`}</tbody></table></div>`;
+  }
+  /* Терминал (Р-20): «Закрыт»/списан — карточка только для чтения под ЛЮБОЙ ролью (К-6).
+     UI-слой поверх gate(): логику gate() не трогаем (её проверяет smoke), но кнопки
+     мутаций на закрытом кредите гасим с пояснением (§0.3 — не молчаливый отказ). */
+  function isTerminal(c){ return !!(c && (c.lifecycle==='Закрыт' || c.closure)); }
+  function disabledBtn(label, reason, cls){ cls=cls||'btn btn-secondary btn-sm';
+    return `<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(reason)}" onclick="CR.toast('${jsAttr(reason)}','warn')">${esc(label)}</button>`;
+  }
+  function terminalReason(c){ return 'Кредит в терминальном состоянии («'+esc((c.closure&&c.closure.reason)||c.lifecycle)+'») — действия недоступны (Р-20)'; }
+
+  /* Кнопка действия с реальным гейтом (§6.3): !gate.ok||!role → визуально disabled + tooltip + toast-on-click. */
+  function actBtn(credit, action, ctx, label, onclick, cls){ cls=cls||'btn btn-secondary btn-sm';
+    if(isTerminal(credit)) return disabledBtn(label, terminalReason(credit), cls);
+    const r=canRole(currentRole,action);
+    const g=credit?gate(credit,action,ctx||{}):{ok:true,reasons:[]};
+    const reasons=[]; if(!r) reasons.push('Роль «'+currentRole+'» не имеет права на это действие'); if(!g.ok) g.reasons.forEach(x=>reasons.push(x));
+    if(r&&g.ok) return `<button class="${cls}" onclick="${onclick}">${esc(label)}</button>`;
+    return `<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(reasons.join('; '))}" onclick="CR.toast('${jsAttr(reasons.join(' · '))}','warn')">${esc(label)}</button>`;
+  }
+  /* Кнопка, чей реальный гейт зависит от полей формы (Task 8): гейтим по роли, содержимое — форма/стаб. */
+  function roleBtn(action,label,onclick,cls){ cls=cls||'btn btn-secondary btn-sm';
+    const _c=currentCredit();
+    if(isTerminal(_c)) return disabledBtn(label, terminalReason(_c), cls);
+    if(canRole(currentRole,action)) return `<button class="${cls}" onclick="${onclick}">${esc(label)}</button>`;
+    const msg='Роль «'+currentRole+'» не имеет права на это действие';
+    return `<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(msg)}" onclick="CR.toast('${jsAttr(msg)}','warn')">${esc(label)}</button>`;
+  }
+
+  /* ---- §5.2 ШАПКА (одна несворачиваемая сводка) ---- */
+  function headerHtml(c,d){
+    const debtBal = d.debt.principal.bal + d.debt.interest.bal + d.debt.penalty.bal;
+    const light = d.coverage.ok ? 'var(--asubk-green)' : 'var(--asubk-red)';
+    const catSrc = (c.mirror&&c.mirror.borrowerRisk&&c.mirror.borrowerRisk.categorySource) || 'ночной расчёт';
+    const overlays = d.overlays.map(overlayPill).join(' ');
+    return `<div class="phead">
+      <div class="phead-top">
+        <div>
+          <div class="phead-name">
+            <span class="nm">Кредит № ${esc(c.num)}</span>
+            <span class="pill info">${esc(c.lifecycle)}</span>
+            <span class="pill neutral">${esc(d.disbState)}</span>
+            ${overlays}
+          </div>
+          <div class="phead-sub">от <b>${esc(c.date)}</b> · Заёмщик <a onclick="CR.toast('Переход в карточку заёмщика — вне объёма макета')">${esc(c.borrower.name)}</a> · Программа <a onclick="CR.toast('Переход в программу — вне объёма макета')">${esc(c.origin.programId)}</a></div>
+        </div>
+        <div class="phead-owner">ID ${esc(c.id)}<br>ИНН ${esc(c.borrower.inn)}</div>
+      </div>
+      <div class="phead-dims">
+        <div class="dim"><div class="dl">Сумма договора</div><div class="dv">${money(c.contractAmount)}</div></div>
+        <div class="dim"><div class="dl">Освоено</div><div class="dv">${money(d.disbursed)} <span style="color:var(--text-muted);font-weight:400">(${pctDisb(c,d)}%)</span></div></div>
+        <div class="dim"><div class="dl">Остаток долга</div><div class="dv">${money(debtBal)}</div></div>
+        <div class="dim"><div class="dl">Просрочка</div><div class="dv"${d.overdueDays>0?' style="color:var(--asubk-red)"':''}>${d.overdueDays} дн.</div></div>
+        <div class="dim"><div class="dl">Категория риска ${lockHtml()}</div><div class="dv cat-${catClsOf(d.riskCategory)}">${esc(d.riskCategory)}</div><div class="src">${esc(catSrc)} (Р-10)</div></div>
+        <div class="dim"><div class="dl">Покрытие ${lockHtml()}</div><div class="dv"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${light};margin-right:6px"></span>${Math.round(d.coverage.index*100)}% <span style="color:var(--text-muted);font-weight:400">/ порог ${d.coverage.req}%</span></div><div class="src">${esc(d.coverage.source)}</div></div>
+        <div class="dim"><div class="dl">Куратор ${lockHtml()}</div><div class="dv" style="font-size:14px">${esc(curatorOf(c))}</div><div class="src">Кураторство · журнал назначений (Р-9)</div></div>
+      </div>
+    </div>`;
+  }
+  function tabbarHtml(){
+    return `<div class="detail-tabbar-wrap"><div class="detail-tabbar">${DTABS.map(t=>`<button class="dtab${t===detailTab?' active':''}" onclick="CR.openTab('${jsAttr(t)}')">${esc(t)}</button>`).join('')}</div></div>`;
+  }
+
+  /* ---- ВКЛАДКА 1: Договор ---- */
+  function tabDogovor(c,d){
+    const o=c.origin;
+    const link=(id,msg)=>id?`<a class="rowlink" onclick="CR.toast('${jsAttr(msg)}')">${esc(id)}</a>`:null;
+    const subjRows=(c.subject||[]).map(s=>`<tr><td>${esc(s.kind)}</td><td>${esc(s.name)}</td><td style="text-align:right">${esc(s.qty)}</td><td style="text-align:right">${money(s.cost)}</td></tr>`);
+    const curRows=(c.mirror.curatorship||[]).map(x=>`<tr><td>${esc(x.unit)}</td><td>${esc(x.employee)}</td><td>${esc(x.role)}</td><td>${esc(x.from)}</td><td>${esc(x.to||'—')}</td></tr>`);
+    const km=c.kmDecision, dt=c.debtTransfer;
+    return `
+      <div class="section-h">Реквизиты договора</div>
+      <div class="f2">
+        ${fld('№ договора', esc(c.num))}
+        ${fld('Дата договора', esc(c.date))}
+        ${fld('№ регистрации', esc(c.reg.num))}
+        ${fld('Дата регистрации', esc(c.reg.date))}
+        ${fld('Скан договора', c.reg.scan?esc(c.reg.scan):null)}
+        ${fld('Валюта', esc(c.currency))}
+        ${fld('Комментарий регистрации', c.reg.comment?esc(c.reg.comment):null, {span:true})}
+      </div>
+
+      <div class="section-h" style="margin-top:22px">Происхождение (Р-18)</div>
+      <p class="section-note">Обязательная неизменяемая цепочка: заявка → комиссия → программа → решение правительства. Все ссылки read-only.</p>
+      <div class="f2">
+        ${fld('Заявка', link(o.applicationId,'Переход в заявку — вне объёма макета'))}
+        ${fld('Комиссия', link(o.commissionId,'Переход в комиссию — вне объёма макета'))}
+        ${fld('Программа', link(o.programId,'Переход в программу — вне объёма макета'))}
+        ${fld('Решение правительства', link(o.govDecisionId,'Переход в ПП — вне объёма макета'))}
+      </div>
+
+      <div class="section-h" style="margin-top:22px">Суммы</div>
+      <div class="f2">
+        ${fld('Одобрено (заявка)', money(c.approvedAmount))}
+        ${fld('Сумма договора (Г-1: ≤ одобрено)', money(c.contractAmount))}
+      </div>
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('saveContractAmount','Изменить сумму договора','CR.openContractAmountModal()','btn btn-primary btn-sm')}</div>
+
+      <div class="section-h" style="margin-top:22px">Классификация</div>
+      <div class="f2">
+        ${fld('Вид кредита', esc(c.kind))}
+        ${fld('Кредитная линия', esc(c.line))}
+        ${fld('Цель', esc(c.purpose))}
+        ${fld('Источник финансирования', esc(c.fundingSource))}
+      </div>
+
+      <div class="section-h" style="margin-top:22px">Предмет кредита</div>
+      ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Кол-во',r:1},{h:'Стоимость',r:1}], subjRows, {empty:'Предмет не задан'})}
+
+      <div class="section-h" style="margin-top:22px">Счета и код оплаты</div>
+      <div class="f2">
+        ${fld('Счёт погашения', esc(c.accounts.repayAcct))}
+        ${fld('Вид счёта', esc(c.accounts.repayAcctKind))}
+        ${fld('Код оплаты', esc(c.accounts.payCode))}
+      </div>
+
+      <div class="section-h" style="margin-top:22px">Освобождение от залога — решение КМ (Р-8)</div>
+      ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Скан', esc(km.scan))}</div>`
+        :`<p class="section-note">Решение КМ не зафиксировано. Это owned-поле кредита (не зеркало): разблокирует освоение по Г-6 при провале покрытия.</p>`}
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>
+
+      <div class="section-h" style="margin-top:22px">Кураторство ${lockHtml()}</div>
+      ${cgrid([{h:'Подразделение'},{h:'Сотрудник'},{h:'Роль'},{h:'С'},{h:'По'}], curRows, {empty:'Назначений нет'})}
+      <div class="mirror-src">Источник: модуль сотрудников · журнал назначений кураторства (Р-9). Зеркало — только чтение.</div>
+
+      <details style="margin-top:22px">
+        <summary style="cursor:pointer;font:var(--weight-semibold) 15px/1.3 var(--asubk-font);color:var(--text-heading)">Перевод долга — смена заёмщика (Р-14)</summary>
+        <div style="padding-top:10px">
+          ${dt?`<div class="f2">${fld('Новый заёмщик', esc(dt.newBorrower&&dt.newBorrower.name))}${fld('Соглашение', esc(dt.agreement&&dt.agreement.num))}${fld('Дата', esc(dt.date))}</div>`
+            :`<p class="section-note">Перевода долга не было. Смена заёмщика — owned-действие кредита, только зарегистрированным соглашением (Г-16).</p>`}
+          <div class="gtoolbar" style="margin-top:12px">${roleBtn('transferDebt','Оформить перевод долга',"CR.stubAction('Перевод долга')")}</div>
+        </div>
+      </details>`;
+  }
+
+  /* ---- ВКЛАДКА 2: Условия ---- */
+  function tabUsloviya(c,d){
+    const b=c.baseConditions;
+    const locked = !gate(c,'editConditions',{}).ok;                 // Г-9: не «Проект» → правки только доп. соглашением
+    const g9='Изменение условий — только доп. соглашением (Г-9)';
+    const bf=(label,val)=>`<div class="field"><span class="flabel">${esc(label)}${locked?' '+lockHtml():''}</span><div class="lookup"${locked?` title="${jsAttr(g9)}"`:''}><span class="val">${val}</span></div></div>`;
+    const dev=(t,key)=>{ const bv=b[key], tv=t.conditions[key]; return String(bv)===String(tv)?esc(tv):`<span class="diff"><span class="diff-old">${esc(bv)}</span> → <span class="diff-new">${esc(tv)}</span></span>`; };
+    const trRows=c.tranches.map(t=>`<tr><td>№${t.no}</td><td>${dev(t,'rate')}</td><td>${dev(t,'term')}</td><td>${dev(t,'method')}</td><td>${dev(t,'freq')}</td><td>${dev(t,'reserveRate')}</td></tr>`);
+    const agRows=(c.agreements||[]).map(a=>{
+      const keys=[...new Set([...Object.keys(a.before||{}),...Object.keys(a.after||{})])];
+      const diff=keys.map(k=>`${esc(k)}: <span class="diff"><span class="diff-old">${esc((a.before||{})[k])}</span> → <span class="diff-new">${esc((a.after||{})[k])}</span></span>`).join(' · ');
+      return `<tr class="${a.active?'diff-changed':''}"><td>${esc(a.num)}</td><td>${esc(a.date)}</td><td>${esc(a.source)}</td><td>${diff}</td><td>${a.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td></tr>`;
+    });
+    return `
+      <div class="section-h">Базовый комплект условий (Р-2)</div>
+      ${locked?`<div class="info-plate">${svgInfo()}<div>Условия зафиксированы: ЖЦ «${esc(c.lifecycle)}». Прямое редактирование недоступно (Г-9) — только доп. соглашением.</div></div>`:''}
+      <div class="f2" style="margin-top:12px">
+        ${bf('Ставка, %', esc(b.rate))}
+        ${bf('Плавающая', b.floating?'да':'нет')}
+        ${bf('Срок, мес.', esc(b.term))}
+        ${bf('Периодичность', esc(b.freq))}
+        ${bf('Метод погашения', esc(b.method))}
+        ${bf('Метод дней', esc(b.dayMethod))}
+        ${bf('Очередь погашения', esc(b.queue))}
+        ${bf('Ставка резерва, %', esc(b.reserveRate))}
+        ${bf('Пеня по ОД, %/дн', esc(b.penaltyMain))}
+        ${bf('Пеня по %, %/дн', esc(b.penaltyInt))}
+        ${bf('Макс. пеня, %', esc(b.penaltyMaxPct))}
+      </div>
+      <div class="info-plate">${svgInfo()}<div>Срок на кредите — производный агрегат (Р-13): максимум срока по действующим траншам = <b>${esc(d.termAgg)} мес.</b>${d.fullRepayDate?` · плановая дата полного погашения <b>${esc(d.fullRepayDate)}</b>`:''}. Единственный источник срока — условия транша (не отдельное поле кредита).</div></div>
+
+      <div class="section-h" style="margin-top:22px">Льготные периоды</div>
+      <div class="f2">
+        ${bf('Льгота по ОД, мес.', esc(b.graceMain))}
+        ${bf('Льгота по %, мес.', esc(b.graceInterest))}
+        ${bf('Отсрочка начисления, мес.', esc(b.graceAccrual))}
+      </div>
+
+      <div class="section-h" style="margin-top:22px">Условия траншей — отклонение от базы</div>
+      ${cgrid([{h:'Транш'},{h:'Ставка'},{h:'Срок'},{h:'Метод'},{h:'Периодичность'},{h:'Резерв, %'}], trRows, {empty:'Траншей нет'})}
+
+      <div class="section-h" style="margin-top:22px">Доп. соглашения (Р-4)</div>
+      ${cgrid([{h:'Номер'},{h:'Дата'},{h:'Источник'},{h:'Изменение'},{h:'Статус'}], agRows, {empty:'Соглашений нет'})}
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('addAgreement','Оформить доп. соглашение','CR.openAgrModal()','btn btn-primary btn-sm')}</div>`;
+  }
+
+  /* ---- ВКЛАДКА 3: Транши и освоение ---- */
+  function tabTranshi(c,d){
+    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    const trRows=c.tranches.map(t=>{
+      const s=disbursedSum(t), rest=(t.amount||0)-s, on=sel&&t.no===sel.no;
+      return `<tr style="cursor:pointer${on?';background:var(--asubk-nav-active)':''}" onclick="CR.selectDetailTranche(${t.no})">
+        <td>№${t.no}</td><td>${esc(t.subject.name)}<br><span style="color:var(--text-muted);font-size:11px">ИНН ${esc(t.subject.inn)}</span></td>
+        <td style="text-align:right">${money(t.amount)}</td><td>${esc(t.plannedDate)}</td>
+        <td style="text-align:right">${money(s)}</td><td style="text-align:right">${money(rest)}</td>
+        <td>${esc(trancheState(t))}</td></tr>`;
+    });
+    const dbRows=((sel&&sel.disbursements)||[]).map(x=>`<tr><td>${esc(x.date)}</td><td style="text-align:right">${money(x.amount)}</td><td>${esc(x.order)}</td><td>${esc(x.purpose)}</td><td>${esc(x.doc)}</td></tr>`);
+    return `
+      <div class="section-h">Распределение суммы договора</div>
+      <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
+        <div class="dim"><div class="dl">Одобрено</div><div class="dv">${money(c.approvedAmount)}</div></div>
+        <div class="dim"><div class="dl">Сумма договора</div><div class="dv">${money(c.contractAmount)}</div></div>
+        <div class="dim"><div class="dl">Распределено по траншам</div><div class="dv">${money(d.allocated)}</div></div>
+        <div class="dim"><div class="dl">Доступно к распределению</div><div class="dv">${money(d.allocatable)}</div></div>
+      </div>
+      <div class="section-h" style="margin-top:22px">Транши (клик — выбор)</div>
+      ${cgrid([{h:'Транш'},{h:'Субъект'},{h:'Сумма',r:1},{h:'План. дата'},{h:'Освоено',r:1},{h:'Остаток',r:1},{h:'Состояние'}], trRows, {empty:'Траншей нет'})}
+      <div class="gtoolbar" style="margin-top:12px">
+        ${roleBtn('addTranche','Добавить транш','CR.openTrancheModal()')}
+        ${actBtn(c,'addDisbursement',{trancheNo:detailTrancheNo,amount:0},'Внести освоение','CR.openDisbModal()','btn btn-primary btn-sm')}
+        ${roleBtn('addDisbursement','Закрыть неосвоенный остаток',"CR.stubAction('Закрытие неосвоенного остатка')")}
+      </div>
+      <div class="section-h" style="margin-top:22px">Освоение транша №${sel?sel.no:'—'}</div>
+      ${cgrid([{h:'Дата'},{h:'Сумма',r:1},{h:'Плат. поручение'},{h:'Назначение'},{h:'Документ'}], dbRows, {empty:'Освоений нет'})}`;
+  }
+
+  /* ---- ВКЛАДКА 4: Расчёты ---- */
+  function tabRaschety(c,d){
+    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    const st=d.scheduleTotals;
+    const verRows=((sel&&sel.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver).map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td><td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`);
+    const src = calcConsolidated ? c.tranches.flatMap(t=>(t.ledger||[]).map(l=>({t,l}))) : ((sel&&sel.ledger)||[]).map(l=>({t:sel,l}));
+    const ledRows=src.map(({t,l})=>`<tr>
+      <td style="position:sticky;left:0;background:var(--surface-card)">№${l.no}</td>
+      <td style="position:sticky;left:52px;background:var(--surface-card)">${esc(l.date)}</td>
+      <td style="text-align:right">${money(l.received)}</td>
+      <td style="text-align:right">${money(l.principalBal)}</td><td style="text-align:right">${money(l.principalPaid)}</td><td style="text-align:right">${money(l.principalDue)}</td><td style="text-align:right;color:${l.principalOverdue>0?'var(--asubk-red)':'inherit'}">${money(l.principalOverdue)}</td>
+      <td style="text-align:right">${esc(l.days)}</td>
+      <td style="text-align:right">${money(l.interestAccrued)}</td><td style="text-align:right">${money(l.interestPaid)}</td><td style="text-align:right">${money(l.interestDue)}</td><td style="text-align:right;color:${l.interestOverdue>0?'var(--asubk-red)':'inherit'}">${money(l.interestOverdue)}</td>
+      <td style="text-align:right">${money(l.penaltyAccrued)}</td><td style="text-align:right">${money(l.penaltyPaid)}</td><td style="text-align:right;color:${l.penaltyBal>0?'var(--asubk-red)':'inherit'}">${money(l.penaltyBal)}</td>
+      <td style="text-align:right">${money(l.totalPaid)}</td></tr>`);
+    const led=`<div class="cgrid-wrap"><table class="cgrid"><thead>
+      <tr><th colspan="2" style="position:sticky;left:0;background:var(--surface-card)">Позиция</th><th>Получено</th><th colspan="5">Основной долг</th><th colspan="4">Проценты</th><th colspan="3">Штрафы / пеня</th></tr>
+      <tr><th style="position:sticky;left:0;background:var(--surface-card)">№</th><th style="position:sticky;left:52px;background:var(--surface-card)">Дата</th><th>Оплата</th><th>Остаток</th><th>Погашено</th><th>К оплате</th><th>Просрочено</th><th>Дней</th><th>Начислено</th><th>Оплачено</th><th>К оплате</th><th>Просрочено</th><th>Начислено</th><th>Оплачено</th><th>Остаток</th><th>Итого</th></tr>
+      </thead><tbody>${ledRows.length?ledRows.join(''):`<tr><td colspan="16"><div class="cgrid-empty">Детального расчёта нет — сформируйте график</div></td></tr>`}</tbody></table></div>`;
+    const res=d.reserveAccrual;
+    const resBlock=res.applies?`<div class="section-h" style="margin-top:22px">Резерв за неполное освоение</div>
+      <p class="section-note">Начисляется на недоосвоенный остаток от плановой даты (ставка ${res.rate}%). Всего: <b>${money(res.totalAmount)}</b> на базу ${money(res.totalBase)}.</p>
+      ${cgrid([{h:'Транш'},{h:'База',r:1},{h:'Ставка, %',r:1},{h:'Дней',r:1},{h:'Сумма',r:1}], res.perTranche.map(p=>`<tr><td>${esc(p.trancheId)}</td><td style="text-align:right">${money(p.base)}</td><td style="text-align:right">${esc(p.rate)}</td><td style="text-align:right">${esc(p.days)}</td><td style="text-align:right">${money(p.amount)}</td></tr>`))}`:'';
+    const holdRows=(c.accrualHold||[]).map(h=>`<tr><td>${esc(h.from)}</td><td>${esc(h.to||'…')}</td><td>${esc(h.reason)}</td><td>${esc(h.doc)}</td></tr>`);
+    return `
+      <div class="section-h">График погашения</div>
+      <div class="gtoolbar">
+        <div class="field" style="max-width:320px"><span class="flabel">Транш</span><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="retro-toggle" onclick="CR.setCalcMode(${!calcConsolidated})"><input type="checkbox" ${calcConsolidated?'checked':''} onclick="event.preventDefault()"> консолидировано по кредиту</div>
+        <span class="spacer"></span>
+        ${actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()','btn btn-primary btn-sm')}
+        ${roleBtn('holdAccrual','Приостановить начисление','CR.openHoldModal()')}
+      </div>
+      <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
+        <div class="dim"><div class="dl">Платежей в графике</div><div class="dv">${st.count}</div></div>
+        <div class="dim"><div class="dl">Регулярный платёж</div><div class="dv">${money(st.regularPay)}</div></div>
+        <div class="dim"><div class="dl">Σ основной долг</div><div class="dv">${money(st.principalSum)}</div></div>
+        <div class="dim"><div class="dl">Σ проценты</div><div class="dv">${money(st.interestSum)}</div></div>
+        <div class="dim"><div class="dl">Итого к погашению</div><div class="dv">${money(st.total)}</div></div>
+      </div>
+      <div class="section-h" style="margin-top:22px">Версии графика (транш №${sel?sel.no:'—'})</div>
+      ${cgrid([{h:'Версия'},{h:'Статус'},{h:'От даты'},{h:'Строк',r:1}], verRows, {empty:'Версий графика нет — сформируйте'})}
+      <div class="section-h" style="margin-top:22px">Детальный расчёт ${calcConsolidated?'(консолидировано)':'(транш №'+(sel?sel.no:'—')+')'}</div>
+      ${led}
+      ${resBlock}
+      <div class="section-h" style="margin-top:22px">Приостановление начисления (Р-17)</div>
+      ${cgrid([{h:'С'},{h:'По'},{h:'Основание'},{h:'Документ'}], holdRows, {empty:'Активных приостановок нет'})}`;
+  }
+
+  /* ---- ВКЛАДКА 5: Платежи (зеркало модуля платежей, Р-5) ---- */
+  function tabPlatezhi(c,d){
+    const pays=(c.mirror.payments||[]);
+    const payRows=pays.map(p=>{
+      const ed=CR.paymentEditable(c,p);
+      const layers=Object.keys(p.layers||{}).length?Object.entries(p.layers).map(([k,v])=>`${esc(k)}: ${money(v)}`).join(' · '):'—';
+      return `<tr>
+        <td>${esc(p.num)}</td><td>${esc(p.date)}</td><td style="text-align:right">${money(p.amount)}</td><td>№${esc(p.tranche)}</td>
+        <td>${esc(p.reg)}</td><td>${esc(p.match)}</td><td>${p.frozen?'заморожен':'—'}</td>
+        <td>${layers}</td><td>${ed?'<span class="pill info">правка возможна</span>':'<span class="pill neutral">read-only ЦК</span>'}</td></tr>`;
+    });
+    const b=d.debt;
+    const drow=(name,x)=>`<tr><td>${name}</td><td style="text-align:right">${money(x.accrued)}</td><td style="text-align:right">${money(x.paid)}</td><td style="text-align:right;color:${x.overdue>0?'var(--asubk-red)':'inherit'}">${money(x.overdue)}</td><td style="text-align:right">${money(x.bal)}</td></tr>`;
+    const courts=(c.mirror.collection||[]).filter(x=>/суд|решени/i.test((x.subject||'')+(x.phase||'')));
+    return `
+      <div class="section-h">Платежи ${lockHtml()}</div>
+      <p class="section-note">Зеркало модуля платежей. Три оси на платёж: регистрация · сопоставление · заморозка. Слои показаны, но не редактируются здесь.</p>
+      ${cgrid([{h:'№'},{h:'Дата'},{h:'Сумма',r:1},{h:'Транш'},{h:'Регистрация'},{h:'Сопоставление'},{h:'Заморозка'},{h:'Слои'},{h:'Правка'}], payRows, {empty:'Платежей нет'})}
+      <div class="mirror-src">Источник: модуль платежей (Р-5). Ручной ввод — вызов формы владельца, платёж повисает «Ожидает ЦК» и не двигает остатки до подтверждения ЦК.</div>
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('savePayment','Внести платёж вручную','CR.openPaymentModal()','btn btn-primary btn-sm')}</div>
+      ${courts.length?`<div class="info-plate">${svgInfo()}<div>Есть судебное решение: возможна множественность слоёв начисления (шов №5, §10.4) — сначала сумма по решению, затем договор. Матрица очередей — вне макета.</div></div>`:''}
+      <div class="section-h" style="margin-top:22px">Задолженность (из детального расчёта)</div>
+      <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Слой</th><th style="text-align:right">Начислено</th><th style="text-align:right">Оплачено</th><th style="text-align:right">Просрочено</th><th style="text-align:right">Остаток</th></tr></thead><tbody>
+        ${drow('Основной долг', b.principal)}${drow('Проценты', b.interest)}${drow('Пеня / штрафы', b.penalty)}
+      </tbody></table></div>`;
+  }
+
+  /* ---- ВКЛАДКА 6: Обеспечение (зеркало залогового модуля, Р-7) ---- */
+  function tabObespechenie(c,d){
+    const cov=d.coverage, light=cov.ok?'var(--asubk-green)':'var(--asubk-red)';
+    const pledgeRows=[];
+    for(const p of (c.mirror.pledges||[])) for(const it of (p.items||[])){
+      pledgeRows.push(`<tr>
+        <td>${esc(p.contractNum)}</td><td>${esc(it.name)}</td><td>${esc(it.kind)}</td>
+        <td style="text-align:right">${money(it.appraised)}</td><td style="text-align:right">${money(it.pledgeValue)}</td><td style="text-align:right">${Math.round((it.share==null?1:it.share)*100)}%</td>
+        <td>${p.liquid?'<span class="pill low">ликвид</span>':'<span class="pill mid">неликвид</span>'}</td>
+        <td>${p.ban?'<span class="pill info">запрет</span>':'—'}</td>
+        <td>${(p.otherCredits&&p.otherCredits.length)?esc(p.otherCredits.join(', ')):'—'}</td></tr>`);
+    }
+    const bg=c.mirror.bankGuarantee, guars=(c.mirror.guarantees||[]);
+    return `
+      <div class="section-h">Обеспечение ${lockHtml()}</div>
+      <p class="section-note">Зеркало залогового модуля. Залоговые договоры создаются только в модуле залога (Р-7) — здесь доступна привязка существующего.</p>
+      ${cgrid([{h:'Договор залога'},{h:'Предмет'},{h:'Вид'},{h:'Оценочная',r:1},{h:'Залоговая',r:1},{h:'Доля'},{h:'Ликвидность'},{h:'Запрет отчуждения'},{h:'Также обеспечивает'}], pledgeRows, {empty:'Обеспечение не привязано'})}
+      <div class="mirror-src">Источник: модуль залога (Р-7). Данные read-only.</div>
+      <div class="section-h" style="margin-top:22px">Покрытие</div>
+      <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
+        <div class="dim"><div class="dl">Индекс покрытия</div><div class="dv"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${light};margin-right:6px"></span>${Math.round(cov.index*100)}%</div></div>
+        <div class="dim"><div class="dl">Порог</div><div class="dv">${cov.req}%</div></div>
+        <div class="dim"><div class="dl">Доля ликвида</div><div class="dv">${Math.round(cov.liquidShare*100)}%</div></div>
+        <div class="dim"><div class="dl">Статус</div><div class="dv" style="color:${light}">${cov.ok?'достаточно':'недостаточно'}</div></div>
+      </div>
+      <div class="mirror-src">База покрытия: ${esc(cov.source)}. Банковская гарантия входит в индекс, поручительство — нет.</div>
+      ${bg?`<div class="section-h" style="margin-top:22px">Банковская гарантия (в индексе)</div><div class="f2">${fld('Банк',esc(bg.bank))}${fld('Сумма',money(bg.amount))}${fld('Действует до',esc(bg.till))}</div>`:''}
+      ${guars.length?`<div class="info-plate">${svgInfo()}<div>Поручительство (${guars.map(g=>esc(g.party)).join(', ')}) — параллельный слой обеспечения, в индекс покрытия НЕ входит (открытый вопрос §10.2).</div></div>`:''}
+      <div class="gtoolbar" style="margin-top:16px">
+        ${roleBtn('linkPledge','Привязать существующий','CR.openPledgePicker()','btn btn-primary btn-sm')}
+        <button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля залога — вне объёма макета')">Открыть в модуле залога</button>
+      </div>`;
+  }
+
+  /* ---- ВКЛАДКА 7: Проблемные ---- */
+  function tabProblemnye(c,d){
+    const grp=(c.mirror.borrowerRisk&&c.mirror.borrowerRisk.group)||null;
+    const byDays=d.overdueDays>=181?'высокий':d.overdueDays>=1?'средний':'низкий';
+    const byGroup=(grp==='C'||grp==='D')?'высокий':grp==='B'?'средний':'низкий';
+    const rs=c.mirror.restructuring||{count:0,active:null};
+    const collRows=(c.mirror.collection||[]).map(x=>`<tr><td>${esc(x.processId)}</td><td>${esc(x.contour)}</td><td>${esc(x.phase)}</td><td>${esc(x.subject)}</td><td style="text-align:right">${money(x.claim)}</td><td>${esc(x.since)}</td></tr>`);
+    const hasBankruptcy=d.overlays.some(o=>o.kind==='bankruptcy');
+    return `
+      <div class="section-h">Категория риска — worst-of</div>
+      <div class="cat-expand">
+        <div class="row"><span class="ck">По просрочке (${d.overdueDays} дн.):</span> <b class="cat-${catClsOf(byDays)}">${byDays}</b></div>
+        <div class="row"><span class="ck">По группе заёмщика (${esc(grp||'—')}):</span> <b class="cat-${catClsOf(byGroup)}">${byGroup}</b></div>
+        <div class="row"><span class="ck">Итоговая (худшая):</span> <b class="cat-${catClsOf(d.riskCategory)}">${d.riskCategory}</b></div>
+      </div>
+      ${d.overlays.some(o=>o.kind==='suppress181')?`<div class="info-plate">${svgInfo()}<div>Подавление 181-го дня активно: дни просрочки для категории ограничены 180 (активная реструктуризация / пауза начисления).</div></div>`:''}
+
+      <div class="section-h" style="margin-top:22px">Реструктуризация ${lockHtml()}</div>
+      ${rs.active?`<div class="f2">${fld('Стадия',esc(rs.active.stage))}${fld('Дедлайн',esc(rs.active.deadline))}${fld('Всего заявок',esc(rs.count))}</div>`
+        :`<p class="section-note">Активной реструктуризации нет. Всего заявок: ${rs.count}.</p>`}
+      <div class="mirror-src">Источник: модуль реструктуризации (Р-16). Read-only — из кредита не заводится.</div>
+
+      <div class="section-h" style="margin-top:22px">Взыскание ${lockHtml()}</div>
+      ${cgrid([{h:'Процесс'},{h:'Контур'},{h:'Фаза'},{h:'Предмет'},{h:'Требование',r:1},{h:'С даты'}], collRows, {empty:'Процессов взыскания нет'})}
+      <div class="mirror-src">Источник: модуль взыскания (Р-16). Контуры К0–К7. Read-only.</div>
+
+      <div class="section-h" style="margin-top:22px">Банкротство ${lockHtml()}</div>
+      <p class="section-note">${hasBankruptcy?'Признаки банкротства зафиксированы (зеркало модуля взыскания).':'Процедур банкротства нет.'}</p>
+      <div class="mirror-src">Источник: модуль взыскания (Р-16).</div>
+
+      <div class="gtoolbar" style="margin-top:16px">
+        ${actBtn(c,'repay',{},'Погасить (закрыть)','CR.openRepayModal()','btn btn-tint btn-sm')}
+        ${roleBtn('writeOff','Списать','CR.openWriteOffModal()','btn btn-tint danger btn-sm')}
+      </div>`;
+  }
+
+  /* ---- ВКЛАДКА 8: Досье ---- */
+  function docState(s){
+    const map={'принят':'low','не требуется':'neutral','на проверке':'info','загружен':'info','требуется':'mid','отклонён':'high','просрочен':'high'};
+    return `<span class="pill ${map[s]||'neutral'}">${esc(s||'—')}</span>`;
+  }
+  function tabDosye(c,d){
+    const docRows=(c.docs||[]).map(x=>`<tr><td>${esc(x.kind)}</td><td>${esc(x.name)}</td><td>${docState(x.state)}</td><td>${esc(x.date)}</td><td>${esc(x.file)}</td></tr>`);
+    const tu=c.targetUse||{};
+    const auditRows=(c.audit||[]).slice().reverse().map(a=>`<div class="hrow"><div class="hwhen">${esc(a.when)} · ${esc(a.who)}</div><div class="hwhat">${esc(a.what)}</div></div>`);
+    return `
+      <div class="section-h">Документы кредита</div>
+      <p class="section-note">Жизненный цикл документа: требуется → загружен → на проверке → принят / отклонён / не требуется / просрочен.</p>
+      ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Состояние'},{h:'Дата'},{h:'Файл'}], docRows, {empty:'Документов нет'})}
+
+      <div class="section-h" style="margin-top:22px">Целевое использование (Р-15)</div>
+      <div class="f2">
+        ${fld('Подтверждающих документов', esc((tu.docs||[]).length))}
+        ${fld('Проверок', esc((tu.checks||[]).length))}
+        ${fld('Мер реагирования', esc((tu.measures||[]).length))}
+        ${fld('Решение Комитета (нецелевое)', tu.committeeDecision?esc(tu.committeeDecision.num||'есть'):null)}
+      </div>
+
+      <div class="section-h" style="margin-top:22px">Журнал (append-only)</div>
+      <div class="gtoolbar"><div class="field" style="max-width:360px"><span class="flabel">Фильтр по типу</span><div class="control"><input placeholder="например: addDisbursement" oninput="CR.filterAudit(this.value)"></div></div></div>
+      <div class="hist" id="cr-audit">${auditRows.length?auditRows.join(''):'<div class="hrow"><div class="hwhat">Записей журнала нет</div></div>'}</div>`;
+  }
+
+  /* ---- диспетчер вкладок + рендер карточки ---- */
+  function renderTab(name, c){
+    switch(name){
+      case 'Договор': return tabDogovor(c, derive(c));
+      case 'Условия': return tabUsloviya(c, derive(c));
+      case 'Транши и освоение': return tabTranshi(c, derive(c));
+      case 'Расчёты': return tabRaschety(c, derive(c));
+      case 'Платежи': return tabPlatezhi(c, derive(c));
+      case 'Обеспечение': return tabObespechenie(c, derive(c));
+      case 'Проблемные': return tabProblemnye(c, derive(c));
+      case 'Досье': return tabDosye(c, derive(c));
+      default: return tabDogovor(c, derive(c));
+    }
+  }
+  function renderDetail(c){
+    const host=document.getElementById('cr-card-body'); if(!host) return;
+    const d=derive(c);                                              // СВЕЖИЙ расчёт на каждый рендер (Р-11)
+    host.innerHTML = `<div class="panel-wrap" style="padding-bottom:0">${headerHtml(c,d)}</div>`
+      + tabbarHtml()
+      + `<div class="panel-wrap"><div class="panel-card">${renderTab(detailTab,c)}</div></div>`;
+  }
+  function rerenderDetail(){ const c=currentCredit(); if(c) renderDetail(c); }
+  function openTab(name){ detailTab=name; rerenderDetail(); }
+
+  /* ---- обвязка действий карточки (onclick-строки живут в глобальной области → CR.*) ---- */
+  CR.renderDetail=renderDetail; CR.renderTab=renderTab; CR.openTab=openTab; CR.rerenderDetail=rerenderDetail;
+  CR.selectDetailTranche=function(no){ detailTrancheNo=no; rerenderDetail(); };
+  CR.setCalcMode=function(v){ calcConsolidated=!!v; rerenderDetail(); };
+  CR.stubAction=function(name){ toast('Действие «'+name+'» — открывается в модуле-владельце (вне интерактивного демо)'); };
+  CR.filterAudit=function(q){ q=(q||'').toLowerCase(); const host=document.getElementById('cr-audit'); if(!host) return;
+    [...host.querySelectorAll('.hrow')].forEach(el=>{ el.style.display = el.textContent.toLowerCase().includes(q)?'':'none'; }); };
+  /* ============================================================
+     МОДАЛКИ (Task 8) — единый openModal/closeModal, каждая: role+terminal guard → форма →
+     мутация CR.* (внутри её gate() ре-валидируется) → при провале modalErr (§0.3, не молча),
+     при успехе closeModal + toast + rerenderDetail (derive пересчитывается заново, Р-11).
+     modalGuard: Наблюдатель и терминальный кредит НЕ могут ОТКРЫТЬ ни одну модалку.
+     ============================================================ */
+  function modalGuard(action){
+    const c = currentCredit(); if (!c) return null;
+    if (isTerminal(c)){ toast(terminalReason(c), 'warn'); return null; }
+    if (action && !canRole(currentRole, action)){ toast('Роль «'+currentRole+'» не имеет права на это действие', 'warn'); return null; }
+    return c;
+  }
+
+  /* 1) tranche (addTranche, Г-3) */
+  CR.openTrancheModal=function(){ const c=modalGuard('addTranche'); if(!c) return; const d=derive(c);
+    const body=`<p class="section-note">Условия транша наследуются от базовых условий кредита (Р-2). Σ траншей ≤ суммы договора (Г-3). Доступно к распределению: <b>${money(d.allocatable)}</b>.</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Сумма транша</span><div class="control"><input id="trAmount" type="number" min="0" placeholder="0"></div></div>
+        <div class="field"><span class="flabel">Плановая дата освоения</span><div class="control"><input id="trDate" placeholder="дд.мм.гггг"></div></div>
+        <div class="field"><span class="flabel">Субъект — наименование</span><div class="control"><input id="trSubjName" value="${esc(c.borrower.name)}"></div></div>
+        <div class="field"><span class="flabel">Субъект — ИНН</span><div class="control"><input id="trSubjInn" value="${esc(c.borrower.inn)}"></div></div>
+      </div>`;
+    CR.openModal('Добавить транш (Г-3)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitTranche()">Добавить транш</button>`);
+  };
+  CR.submitTranche=function(){ const c=modalGuard('addTranche'); if(!c) return;
+    const amount=+document.getElementById('trAmount').value||0;
+    const plannedDate=document.getElementById('trDate').value;
+    const subject={ name:document.getElementById('trSubjName').value, inn:document.getElementById('trSubjInn').value };
+    const r=CR.addTranche(c,{amount,plannedDate,subject}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Транш добавлен: '+money(amount),'ok'); rerenderDetail(); };
+
+  /* 2) disbursement (addDisbursement, Г-4·Г-5·Г-6) — апгрейд инлайн-формы до модалки */
+  CR.openDisbModal=function(){ const c=modalGuard('addDisbursement'); if(!c) return;
+    const body=`<p class="section-note">Освоение — owned кредитом, на транше (Р-6). Гейты Г-4 (Σ ≤ сумма транша) · Г-5 (ЖЦ) · Г-6 (покрытие/КМ/waiver).</p>
+      <div class="mform">
+        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="disbTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===detailTrancheNo?' selected':''}>№${t.no} · сумма ${money(t.amount)} · освоено ${money(disbursedSum(t))}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field req"><span class="flabel">Сумма освоения</span><div class="control"><input id="disbAmount" type="number" min="0" placeholder="0"></div></div>
+        <div class="field"><span class="flabel">Дата освоения</span><div class="control"><input id="disbDate" value="${esc(CR.TODAY)}"></div></div>
+        <div class="field"><span class="flabel">Плат. поручение</span><div class="control"><input id="disbOrder" placeholder="ПП-..."></div></div>
+        <div class="field col-span"><span class="flabel">Назначение</span><div class="control"><input id="disbPurpose" placeholder="Оплата ..."></div></div>
+      </div>`;
+    CR.openModal('Внести освоение (Г-4 · Г-5 · Г-6)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitDisb()">Сохранить освоение</button>`);
+  };
+  CR.submitDisb=function(){ const c=modalGuard('addDisbursement'); if(!c) return;
+    const no=+document.getElementById('disbTranche').value;
+    const amount=+document.getElementById('disbAmount').value||0;
+    const date=document.getElementById('disbDate').value||CR.TODAY;
+    const order=document.getElementById('disbOrder').value, purpose=document.getElementById('disbPurpose').value;
+    const r=CR.addDisbursement(c,{trancheNo:no,amount,order,purpose,date}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); detailTrancheNo=no; toast('Освоение внесено: '+money(amount),'ok'); rerenderDetail(); };
+
+  /* 3) schedule-params (generateSchedule, Г-8) — апгрейд: параметры → предпросмотр (1·2·посл.) → новая версия */
+  CR.openSchedModal=function(previewFrom){ const c=modalGuard('buildSchedule'); if(!c) return;
+    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0]; const cnd=sel.conditions||{};
+    const from=(previewFrom!=null?previewFrom:((sel.disbursements[0]&&sel.disbursements[0].date)||''));
+    let preview;
+    if(from && sel.disbursements.length){ const rows=CR.buildSchedule(sel, from).rows;
+      const show=[rows[0], rows[1], rows[rows.length-1]].filter(Boolean);
+      preview=`<div class="section-h" style="margin-top:14px;font-size:15px">Предпросмотр (платёж 1 · 2 · последний)</div>
+        ${cgrid([{h:'№'},{h:'Дата'},{h:'Платёж',r:1},{h:'ОД',r:1},{h:'%',r:1}], show.map(r=>`<tr><td>№${r.no}</td><td>${esc(r.date)}</td><td style="text-align:right">${money(r.total)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td></tr>`))}`;
+    } else { preview=`<div class="warn-inline">${svgInfo()}<div>График строится только от фактической даты освоения транша (Г-8). У выбранного транша нет освоения либо не задана дата.</div></div>`; }
+    const body=`<div class="mform">
+        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="schedTranche" onchange="CR.selectDetailTranche(+this.value);CR.openSchedModal()">${c.tranches.map(t=>`<option value="${t.no}"${t.no===sel.no?' selected':''}>Транш №${t.no}${t.disbursements.length?'':' (не освоен)'}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field req"><span class="flabel">Дата освоения (старт графика)</span><div class="control"><input id="schedFrom" value="${esc(from)}" placeholder="дд.мм.гггг"></div></div>
+        <div class="field"><span class="flabel">Периодичность</span><div class="control"><input value="${esc(cnd.freq||'ежемесячно')}" readonly></div></div>
+        <div class="field"><span class="flabel">Метод погашения</span><div class="control"><input value="${esc(cnd.method||'аннуитет')}" readonly></div></div>
+        <div class="field"><span class="flabel">Льгота по ОД, мес.</span><div class="control"><input value="${esc(cnd.graceMain||0)}" readonly></div></div>
+        <div class="field"><span class="flabel">Льгота по %, мес.</span><div class="control"><input value="${esc(cnd.graceInterest||0)}" readonly></div></div>
+      </div>
+      <p class="section-note" style="margin-top:8px">Периодичность/метод/льготы наследуются из условий транша (правка — только доп. соглашением, Г-9). Предыдущая активная версия архивируется, не удаляется (Р-4).</p>
+      <div class="gtoolbar"><button class="btn btn-secondary btn-sm" onclick="CR.openSchedModal(document.getElementById('schedFrom').value)">Обновить предпросмотр</button></div>
+      ${preview}`;
+    CR.openModal('Сформировать график (Г-8)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitSched()">Сформировать (новая версия)</button>`);
+  };
+  CR.submitSched=function(){ const c=modalGuard('buildSchedule'); if(!c) return;
+    const no=+document.getElementById('schedTranche').value, from=document.getElementById('schedFrom').value;
+    const r=CR.generateSchedule(c,no,{from}); if(r&&r.ok===false){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); detailTrancheNo=no; toast('График сформирован: версия v'+(r.ver||'?'),'ok'); rerenderDetail(); };
+
+  /* 4) agreement/ДС (addAgreement, Г-10) — конструктор: поля → значения → diff-предпросмотр → реквизиты → активация */
+  CR.openAgrModal=function(){ const c=modalGuard('addAgreement'); if(!c) return; const b=c.baseConditions;
+    const body=`<p class="section-note">Изменение условий после регистрации — только доп. соглашением (Р-4). Активируется при наличии номера и даты (Г-10). Предыдущая версия архивируется.</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Номер ДС</span><div class="control"><input id="agrNum" placeholder="ДС-..."></div></div>
+        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="agrDate" placeholder="дд.мм.гггг"></div></div>
+        <div class="field col-span"><span class="flabel">Основание</span><div class="control"><input id="agrSource" value="кредит" placeholder="основание ДС"></div></div>
+        <div class="field"><span class="flabel">Ставка: было</span><div class="control"><input id="agrBeforeRate" type="number" value="${esc(b.rate)}" readonly></div></div>
+        <div class="field"><span class="flabel">Ставка: стало</span><div class="control"><input id="agrAfterRate" type="number" value="${esc(b.rate)}" oninput="CR.agrDiff()"></div></div>
+        <div class="field"><span class="flabel">Срок: было</span><div class="control"><input id="agrBeforeTerm" type="number" value="${esc(b.term)}" readonly></div></div>
+        <div class="field"><span class="flabel">Срок: стало</span><div class="control"><input id="agrAfterTerm" type="number" value="${esc(b.term)}" oninput="CR.agrDiff()"></div></div>
+      </div>
+      <div class="section-h" style="margin-top:14px;font-size:15px">Предпросмотр изменений (было → стало)</div>
+      <div id="agrDiff" class="cat-expand"></div>`;
+    CR.openModal('Конструктор доп. соглашения (Р-4 · Г-10)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitAgr()">Оформить и активировать</button>`);
+    CR.agrDiff();
+  };
+  CR.agrDiff=function(){ const box=document.getElementById('agrDiff'); if(!box) return;
+    const br=+document.getElementById('agrBeforeRate').value, ar=+document.getElementById('agrAfterRate').value;
+    const bt=+document.getElementById('agrBeforeTerm').value, at=+document.getElementById('agrAfterTerm').value;
+    const rows=[];
+    if(br!==ar) rows.push(`<div class="row"><span class="ck">Ставка, %</span> <span class="diff"><span class="diff-old">${esc(br)}</span> → <span class="diff-new">${esc(ar)}</span></span></div>`);
+    if(bt!==at) rows.push(`<div class="row"><span class="ck">Срок, мес.</span> <span class="diff"><span class="diff-old">${esc(bt)}</span> → <span class="diff-new">${esc(at)}</span></span></div>`);
+    box.innerHTML = rows.length?rows.join(''):`<div class="row" style="color:var(--text-placeholder)">Изменений не выбрано</div>`; };
+  CR.submitAgr=function(){ const c=modalGuard('addAgreement'); if(!c) return;
+    const num=document.getElementById('agrNum').value, date=document.getElementById('agrDate').value;
+    const source=document.getElementById('agrSource').value||'кредит';
+    const before={rate:+document.getElementById('agrBeforeRate').value, term:+document.getElementById('agrBeforeTerm').value};
+    const after={rate:+document.getElementById('agrAfterRate').value, term:+document.getElementById('agrAfterTerm').value};
+    const r=CR.addAgreement(c,{num,date,source,before,after}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Доп. соглашение '+num+' оформлено','ok'); rerenderDetail(); };
+
+  /* 5) manual-payment (addPayment, Г-11, Р-5) — «форма модуля платежей», статус «Ожидает ЦК» */
+  CR.openPaymentModal=function(){ const c=modalGuard('savePayment'); if(!c) return;
+    const body=`<div class="info-plate">${svgInfo()}<div>Форма модуля платежей (Р-5). Ручной ввод повисает «Ожидает ЦК» и НЕ двигает остатки/долг — подтверждённые остатки двигает только ЦК своим потоком.</div></div>
+      <div class="mform">
+        <div class="field"><span class="flabel">Кредит</span><div class="control"><input value="№ ${esc(c.num)} · ${esc(c.borrower.name)}" readonly></div></div>
+        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="payTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===detailTrancheNo?' selected':''}>№${t.no} · ${esc(t.subject.name)}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field req"><span class="flabel">Сумма платежа</span><div class="control"><input id="payAmount" type="number" min="0" placeholder="0"></div></div>
+        <div class="field req"><span class="flabel">Дата платежа</span><div class="control"><input id="payDate" value="${esc(CR.TODAY)}" placeholder="дд.мм.гггг"></div></div>
+      </div>`;
+    CR.openModal('Ручной ввод платежа — форма модуля платежей', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitPayment()">Отправить в модуль платежей</button>`);
+  };
+  CR.submitPayment=function(){ const c=modalGuard('savePayment'); if(!c) return;
+    const trancheNo=+document.getElementById('payTranche').value;
+    const amount=+document.getElementById('payAmount').value||0;
+    const date=document.getElementById('payDate').value;
+    const r=CR.addPayment(c,{amount,date,trancheNo}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Платёж отправлен — статус «Ожидает ЦК»','ok'); rerenderDetail(); };
+
+  /* 6) KM-decision (setKmDecision, Р-8) — разблокирует освоение с провалом покрытия (К-5) */
+  CR.openKmModal=function(){ const c=modalGuard('setKmDecision'); if(!c) return;
+    const body=`<p class="section-note">Реквизиты решения КМ об освобождении от залога (Р-8, П1 §2.6). Owned-поле кредита — разблокирует освоение при провале покрытия (Г-6).</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Вид решения</span><div class="control"><input id="kmKind" value="Решение КМ"></div></div>
+        <div class="field req"><span class="flabel">Номер</span><div class="control"><input id="kmNum" placeholder="КМ-..."></div></div>
+        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="kmDate" placeholder="дд.мм.гггг"></div></div>
+        <div class="field"><span class="flabel">Скан</span><div class="control"><input id="kmScan" placeholder="reshenie-km.pdf"></div></div>
+      </div>`;
+    CR.openModal('Решение КМ об освобождении от залога (Р-8)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitKm()">Сохранить решение</button>`);
+  };
+  CR.submitKm=function(){ const c=modalGuard('setKmDecision'); if(!c) return;
+    const kind=document.getElementById('kmKind').value, num=document.getElementById('kmNum').value;
+    const date=document.getElementById('kmDate').value, scan=document.getElementById('kmScan').value;
+    if(!num||!date){ CR.modalErr(['Номер и дата решения обязательны']); return; }
+    const r=CR.setKmDecision(c,{kind,num,date,scan}); if(r&&r.ok===false){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Решение КМ сохранено — освоение разблокировано','ok'); rerenderDetail(); };
+
+  /* 7) waiver (saveWaiver) — альтернатива КМ; роль «Начальник отдела», обоснование ОБЯЗАТЕЛЬНО (К-5) */
+  CR.openWaiverModal=function(){ const c=modalGuard('waiver'); if(!c) return;
+    const body=`<p class="section-note">Waiver залоговой комиссии (альтернатива решению КМ) — разблокирует освоение при провале покрытия (Г-6). Доступно роли «Начальник отдела». Обоснование обязательно.</p>
+      <div class="mform">
+        <div class="field req col-span"><span class="flabel">Обоснование (протокол комиссии по залогу)</span><textarea id="waiverReason" class="note-area" placeholder="Основание waiver..."></textarea></div>
+      </div>`;
+    CR.openModal('Waiver залоговой комиссии (Г-6)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitWaiver()">Сохранить waiver</button>`);
+  };
+  CR.submitWaiver=function(){ const c=modalGuard('waiver'); if(!c) return;
+    const reason=document.getElementById('waiverReason').value;
+    const r=CR.saveWaiver(c,{reason}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Waiver сохранён — освоение разблокировано','ok'); rerenderDetail(); };
+
+  /* 8) write-off (closeCredit «Списан», Г-12) — реквизиты решения обязательны */
+  CR.openWriteOffModal=function(){ const c=modalGuard('writeOff'); if(!c) return; const d=derive(c);
+    const bal=round2(d.debt.principal.bal+d.debt.interest.bal+d.debt.penalty.bal);
+    const body=`<p class="section-note">Списание — терминал с обязательными реквизитами решения (Р-20, Г-12). Без физического удаления.</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Вид решения</span><div class="control"><input id="woKind" value="Решение Правления"></div></div>
+        <div class="field req"><span class="flabel">Номер решения</span><div class="control"><input id="woNum" placeholder="РП-..."></div></div>
+        <div class="field req"><span class="flabel">Дата решения</span><div class="control"><input id="woDate" placeholder="дд.мм.гггг"></div></div>
+        <div class="field"><span class="flabel">Сумма списания</span><div class="control"><input id="woAmount" type="number" value="${esc(bal)}"></div></div>
+        <div class="field col-span"><span class="flabel">Скан</span><div class="control"><input id="woScan" placeholder="reshenie.pdf"></div></div>
+      </div>`;
+    CR.openModal('Списание кредита (Г-12)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-tint danger" onclick="CR.submitWriteOff()">Списать</button>`);
+  };
+  CR.submitWriteOff=function(){ const c=modalGuard('writeOff'); if(!c) return;
+    const doc={ kind:document.getElementById('woKind').value, num:document.getElementById('woNum').value,
+      date:document.getElementById('woDate').value, scan:document.getElementById('woScan').value,
+      amount:+document.getElementById('woAmount').value||0 };
+    const r=CR.closeCredit(c,{reason:'Списан',doc}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Кредит списан (решение '+doc.num+')','ok'); rerenderDetail(); };
+
+  /* закрытие «Погашен» (closeCredit, Г-14) — доступно только при нулевом остатке и без взыскания (К-3 — заблокировано) */
+  CR.openRepayModal=function(){ const c=modalGuard('repay'); if(!c) return;
+    const body=`<p class="section-note">Закрытие «Погашен» — терминал при нулевом остатке по всем слоям и отсутствии активного взыскания (Р-20, Г-14). Реквизиты акта сверки.</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Вид документа</span><div class="control"><input id="rpKind" value="Акт сверки"></div></div>
+        <div class="field req"><span class="flabel">Номер</span><div class="control"><input id="rpNum" placeholder="АС-..."></div></div>
+        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="rpDate" value="${esc(CR.TODAY)}"></div></div>
+        <div class="field"><span class="flabel">Скан</span><div class="control"><input id="rpScan" placeholder="akt-sverki.pdf"></div></div>
+      </div>`;
+    CR.openModal('Закрытие кредита «Погашен» (Г-14)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-success" onclick="CR.submitRepay()">Закрыть как «Погашен»</button>`);
+  };
+  CR.submitRepay=function(){ const c=modalGuard('repay'); if(!c) return;
+    const doc={ kind:document.getElementById('rpKind').value, num:document.getElementById('rpNum').value,
+      date:document.getElementById('rpDate').value, scan:document.getElementById('rpScan').value };
+    const r=CR.closeCredit(c,{reason:'Погашен',doc}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Кредит закрыт: погашен','ok'); rerenderDetail(); };
+
+  /* 9) link-pledge picker (linkPledge, Г-13) — только договоры того же ИНН + «Действует» */
+  CR.openPledgePicker=function(){ const c=modalGuard('linkPledge'); if(!c) return;
+    const linked=new Set((c.mirror.pledges||[]).map(p=>p.contractNum));
+    const avail=(CR.db.pledgesRegistry||[]).filter(p=>p.active && p.pledgorInn===c.borrower.inn && !linked.has(p.contractNum)); // Г-13
+    const body=`<p class="section-note">Показаны только действующие залоговые договоры того же ИНН заёмщика (${esc(c.borrower.inn)}), ещё не привязанные (Р-7, Г-13). Создать залоговый договор из кредита нельзя — только в модуле залога.</p>
+      ${avail.length?`<div class="cpick">${avail.map(p=>{ const v=(p.items||[]).reduce((a,it)=>a+(it.pledgeValue||0)*(it.share==null?1:it.share),0);
+        return `<div class="cpick-row" onclick="CR.pickPledge('${jsAttr(p.contractNum)}')">
+          <div class="cpick-main"><span class="cpick-num">${esc(p.contractNum)}</span>
+            <span class="cpick-sub"> · ${esc(p.pledgor)} · ${esc((p.items[0]||{}).name||'')}</span></div>
+          <div class="cpick-claim">залог ${money(v)}</div></div>`; }).join('')}</div>`
+        :`<div class="cgrid-empty">Нет доступных договоров того же ИНН для привязки</div>`}`;
+    CR.openModal('Привязать залоговый договор (Г-13)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Закрыть</button>`, {cls:'narrow'});
+  };
+  CR.pickPledge=function(num){ const c=modalGuard('linkPledge'); if(!c) return;
+    const reg=(CR.db.pledgesRegistry||[]).find(p=>p.contractNum===num); if(!reg){ CR.modalErr(['Договор не найден']); return; }
+    const pledge=Object.assign({ liquid:true, ban:false, date:CR.TODAY, otherCredits:[] }, reg);
+    const r=CR.linkPledge(c,pledge); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Залоговый договор '+num+' привязан','ok'); rerenderDetail(); };
+
+  /* 10) contract-amount (saveContractAmount, Г-1 · Р-12) — сумма договора owned кредитом, ≤ одобренной */
+  CR.openContractAmountModal=function(){ const c=modalGuard('saveContractAmount'); if(!c) return;
+    const body=`<p class="section-note">Сумма договора owned кредитом (Р-12), зажата гейтом: не может превышать одобренную по заявке (${money(c.approvedAmount)}) — Г-1.</p>
+      <div class="mform">
+        <div class="field"><span class="flabel">Одобрено (заявка)</span><div class="control"><input value="${esc(money(c.approvedAmount))}" readonly></div></div>
+        <div class="field req"><span class="flabel">Сумма договора</span><div class="control"><input id="caAmount" type="number" min="0" value="${esc(c.contractAmount)}"></div></div>
+      </div>`;
+    CR.openModal('Изменить сумму договора (Г-1 · Р-12)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitContractAmount()">Сохранить сумму</button>`);
+  };
+  CR.submitContractAmount=function(){ const c=modalGuard('saveContractAmount'); if(!c) return;
+    const value=+document.getElementById('caAmount').value||0;
+    const g=gate(c,'saveContractAmount',{value}); if(!g.ok){ CR.modalErr(g.reasons); return; }   // ре-валидация Г-1 перед мутацией
+    const r=CR.saveContractAmount(c,value); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Сумма договора обновлена: '+money(value),'ok'); rerenderDetail(); };
+
+  /* 11) hold-accrual (holdAccrual, Р-17 · Г-15) — приостановление начисления процентов, роль «Начальник отдела»/«Куратор» */
+  CR.openHoldModal=function(){ const c=modalGuard('holdAccrual'); if(!c) return;
+    const body=`<p class="section-note">Приостановление начисления процентов (Р-17) — управляющее действие кредита. Требует основание, документ и дату начала (Г-15). Пеня при паузе продолжает начисляться. Новый интервал добавляется к действующим приостановкам — записи не удаляются.</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">С (дата начала)</span><div class="control"><input id="haFrom" placeholder="дд.мм.гггг"></div></div>
+        <div class="field"><span class="flabel">По (дата окончания)</span><div class="control"><input id="haTo" placeholder="дд.мм.гггг"></div></div>
+        <div class="field req col-span"><span class="flabel">Основание</span><div class="control"><input id="haReason" placeholder="форс-мажор, ..."></div></div>
+        <div class="field req col-span"><span class="flabel">Документ</span><div class="control"><input id="haDoc" placeholder="приказ №..."></div></div>
+      </div>`;
+    CR.openModal('Приостановить начисление (Р-17 · Г-15)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitHold()">Приостановить</button>`);
+  };
+  CR.submitHold=function(){ const c=modalGuard('holdAccrual'); if(!c) return;
+    const from=document.getElementById('haFrom').value, to=document.getElementById('haTo').value;
+    const reason=document.getElementById('haReason').value, doc=document.getElementById('haDoc').value;
+    const ctx={ from, to:to||null, reason, doc, by:currentRole };
+    const g=gate(c,'holdAccrual',ctx); if(!g.ok){ CR.modalErr(g.reasons); return; }             // ре-валидация Г-15 перед мутацией
+    const r=CR.holdAccrual(c,ctx); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Начисление приостановлено: '+from+'–'+(to||'…'),'ok'); rerenderDetail(); };
+
+  /* экспорт DOM-обвязки на CR (onclick-строки разметки живут в глобальной области) */
+  CR._sel = null;
+  CR.renderList = renderList; CR.renderRows = renderRows; CR.renderRole = renderRole;
+  CR.selectRow = selectRow; CR.openDetail = openDetail; CR.backToList = backToList;
+  CR.resetDemo = resetDemo; CR.openCreatePicker = openCreatePicker; CR.pickApplication = pickApplication;
+
+  renderNav();
+  renderList();          // реестр §5.1 (Р-19); карточка (8 вкладок) — Task 7
+}
+
+</script>
+</body>
+</html>

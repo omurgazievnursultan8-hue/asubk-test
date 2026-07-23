@@ -52,7 +52,7 @@
    3. Лимит повторов реструктуризации (счётчик растёт неограниченно).
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-07-19 · 38/38 PASS
+   SMOKE 2026-07-19 · 41/41 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  rateBefore=false grew=true
@@ -86,9 +86,12 @@
       PASS  #31  base=true pay=true
       PASS  #32  equal=true
       PASS  #33  mode=2
+      PASS  #34  capI=true capS=true forg=true
+      PASS  #35  res=false ops=0
+      PASS  #36  cap=179000 inputs=true
       PASS  #37  total=3100000 cap=0
-      PASS  #38  n=1
-      PASS  #39  mat=2031-09-21 term=60
+      PASS  #38  n=4
+      PASS  #39  mat=2031-06-23 exp=2031-06-23 term=60
       PASS  #40  new=440963.56 old=329485.73
       PASS  #41  had=true reset=true
 -->
@@ -361,6 +364,7 @@ const PARAM_KEYS = [                                          // ключи па
   ['nonworking','Обработка нерабочих дней'],['repayMethod','Метод погашения']
 ];
 const PARAM_LABEL = Object.fromEntries(PARAM_KEYS);
+const OP_KEYS = new Set(['grace','capInterest','capPenalty','forgive']);      // операции — правятся в блоке «Операции (вход)», не в гриде параметров (Р-3 fix)
 const STAGES = ['Регистрация обращения','Анализ','Комитет','Направлено в Минфин','Решение Минфина','Оформление'];
 const ROLES  = ['Куратор ОД','Заключант СРМиК','Заключант ДПО','Секретарь комитета','Администратор','Наблюдатель'];
 
@@ -547,8 +551,9 @@ function calcRestructure(appId){
   stack.push({step:5, op:'Новая база графика', after:P2, basis:'тело '+fmt(P)+' + капитализировано '+fmt(cI+cS)});
 
   /* шаги 6/7 — параметры графика */
-  const newRate=Number(v.params.rate)||cr.terms.rate;
-  const newTerm=Number(v.params.term)||cr.terms.term;
+  const numOr=(x,def)=>{ const n=Number(x); return (x===''||x==null||Number.isNaN(n))?def:n; };
+  const newRate=numOr(v.params.rate, cr.terms.rate);
+  const newTerm=numOr(v.params.term, cr.terms.term);
   const method =v.params.repayMethod||cr.terms.repayMethod;
   const schedule=v.params.schedule||cr.terms.schedule;
 
@@ -576,12 +581,11 @@ function calcRestructure(appId){
   const sumPay=rows=>round2(rows.reduce((s,r)=>s+r.pay,0));
   const sumInt=rows=>round2(rows.reduce((s,r)=>s+r.interest,0));
   const p=periodMonths(schedule);
-  const gsum=graceBlocks.reduce((s,b)=>s+(b.months||0),0);
   const totals={
     old:{ base:snap.principal, totalInterest:sumInt(scheduleOld), totalToPay:sumPay(scheduleOld),
           maturity:addCalDays(v.cutoffDate, cr.remainingTermMonths*30), regularPay: scheduleOld[0]?scheduleOld[0].pay:0 },
     new:{ base:base.total, totalInterest: termOk&&rateOk?sumInt(scheduleNew):0, totalToPay: termOk&&rateOk?sumPay(scheduleNew):0,
-          maturity:addCalDays(v.cutoffDate, (newTerm+gsum)*30),
+          maturity:addCalDays(v.cutoffDate, newTerm*30),
           regularPay: (termOk&&rateOk&&scheduleNew.length)? scheduleNew[scheduleNew.length-1].pay:0 }
   };
 
@@ -695,6 +699,7 @@ function buildDemoApps(){
   a1.letterSent={fixed:true,date:'2026-03-30'};
   a1.minfin={fixed:true,decision:'одобрено',letterRef:'МФ-исх-1120 от 2026-05-28',date:'2026-05-28'};
   a1.version=versionFrom(creditById('CR-60540')); a1.version.params.term=60; a1.version.params.rate=7; a1.version.state='действует';
+  a1.version.inputs={ forgivePenalty:12000, capInterest:118000, capPenalty:61000, graceBlocks:[] };
   a1.waiver={granted:true,reason:'Комиссия по залогу: покрытие ниже 120% компенсируется поручительством учредителя (протокол №14).',by:'Комиссия по залогу',date:'2026-06-02'};
   a1.ds={no:'ДС-60540/2 от 2026-06-05',date:'2026-06-05'};
   a1.ops=[
@@ -779,6 +784,7 @@ function buildDemoApps(){
   A.push(a5);
 
   state.apps=A;
+  A.forEach(a=>{ if(a.version && a.creditIds.length){ try{ calcRestructure(a.id); }catch(e){} } }); // согласуем планы демо-цепочек
 }
 
 /* ================= РЕНДЕР: НАВИГАЦИЯ + ШАПКА ================= */
@@ -981,41 +987,145 @@ function pConcl(app){
   </div>`;
 }
 
-/* 4. Новые условия (Р-11) + diff */
+/* 4. Новые условия (Р-11) — конструктор реструктуризации: срез → операции → расчёт → 4 панели (§6) */
 function pTerms(app){
   const cr=creditById(app.creditIds[0]);
   if(!cr) return `<div class="detail-panel active"><div class="op-empty">Добавьте кредит в охват.</div></div>`;
   if(!app.version){ app.version=versionFrom(cr); }
-  const allow=allowedParams(app); const st=stageOf(app);
-  const editable = !st.closed && canX('editVersion');
-  const fields = PARAM_KEYS.map(([k,label])=>{
-    const isAllowed=allow.has(k); const val=app.version.params[k]!==undefined?app.version.params[k]:(cr.terms[k]??'');
-    const dis = !editable || !isAllowed;
-    return `<div class="field"><span class="flabel">${label} ${isAllowed?'':'<span class="ro-tag">(вид не разрешает)</span>'}</span>
+  const v=app.version, allow=allowedParams(app), st=stageOf(app);
+  const editable=!st.closed && canX('editVersion');
+  const snap=v.snapshot, floor=rateFloor(cr.terms.rate);
+
+  /* 6.0 панель среза + погашенное (Р-20, Р-26) */
+  const cutoff=`<div class="field" style="max-width:240px"><span class="flabel">Дата среза (расчёта)</span>
+    <input value="${esc(v.cutoffDate)}" ${editable?'':'disabled'} onchange="RS.setCutoff('${app.id}',this.value)"></div>`;
+  const paidTiles=`<div class="phead-dims" style="margin-bottom:14px">
+    <div class="dim"><div class="dl">Погашено ОД</div><div class="dv">${fmt(cr.paid.principalPaid)}</div><div class="src">до среза · <span class="rowlink" onclick="RS.go('list')">${cr.no}</span></div></div>
+    <div class="dim"><div class="dl">Погашено %</div><div class="dv">${fmt(cr.paid.interestPaid)}</div><div class="src">read-only (Р-26)</div></div>
+    <div class="dim"><div class="dl">Погашено пеня</div><div class="dv">${fmt(cr.paid.penaltyPaid)}</div><div class="src">read-only (Р-26)</div></div>
+    <div class="dim"><div class="dl">Остаток срока</div><div class="dv">${cr.remainingTermMonths} мес.</div><div class="src">старые условия</div></div></div>`;
+  const snapTiles=`<div class="phead-dims" style="margin-bottom:16px">
+    <div class="dim"><div class="dl">Тело (P)</div><div class="dv">${fmt(snap.principal)}</div></div>
+    <div class="dim"><div class="dl">Просроч. ОД (OP)</div><div class="dv">${fmt(snap.overduePrincipal)}</div></div>
+    <div class="dim"><div class="dl">Начисл. % (I)</div><div class="dv">${fmt(snap.accruedInterest)}</div></div>
+    <div class="dim"><div class="dl">Пеня (S)</div><div class="dv">${fmt(snap.penalty)}</div></div></div>`;
+
+  /* 6.1 параметры + плашки гейтов */
+  const fields=PARAM_KEYS.filter(([k])=>!OP_KEYS.has(k)).map(([k,label])=>{
+    const isAllowed=allow.has(k); const val=v.params[k]!==undefined?v.params[k]:(cr.terms[k]??'');
+    const dis=!editable||!isAllowed;
+    let hint=''; if(k==='rate') hint=`<span class="ro-tag">мин. ${floor}%</span>`;
+    return `<div class="field"><span class="flabel">${label} ${isAllowed?hint:'<span class="ro-tag">(вид не разрешает)</span>'}</span>
       <input value="${esc(val)}" ${dis?'disabled':''} onchange="RS.setParam('${app.id}','${k}',this.value)"></div>`;
   }).join('');
-  const diffRows = PARAM_KEYS.map(([k,label])=>{
-    const oldV=cr.terms[k]??'—', newV=app.version.params[k]!==undefined?app.version.params[k]:oldV;
-    const changed=String(oldV)!==String(newV);
-    return `<tr class="${changed?'diff-changed':''}"><td>${label}</td>
-      <td class="${changed?'diff-old':''}">${esc(oldV)}</td>
-      <td class="${changed?'diff-new':''}">${esc(newV)}</td></tr>`;
-  }).join('');
-  const graph = app.version.graph.length
-    ? `<div class="cgrid-wrap" style="max-width:520px"><table class="cgrid"><thead><tr><th>№</th><th>Дата</th><th class="numcell">Платёж</th></tr></thead><tbody>
-        ${app.version.graph.map(g=>`<tr><td>${g.n}</td><td>${g.date}</td><td class="numcell">${fmt2(g.pay)}</td></tr>`).join('')}
-       </tbody></table></div>`
-    : '<div class="op-empty">График не рассчитан. Нажмите «Рассчитать график».</div>';
-  const srcTag = app.version.source==='минфин' ? `<span class="pill info">условия Минфина</span>` : '';
+
+  /* 6.2 операции (вход конструктора) */
+  const graceAllowed=allow.has('grace');
+  const inp=v.inputs;
+  const graceRows=(inp.graceBlocks||[]).map((b,idx)=>`<div class="op-row">
+    <span class="op-t">${b.months} мес. · ${b.type==='moratorium'?'мораторий':'interest-only'}</span>
+    ${graceAllowed&&editable?`<button class="btn btn-tint btn-sm" onclick="RS.delGrace('${app.id}',${idx})">удалить</button>`:''}</div>`).join('')
+    || '<div class="op-empty">Льготные периоды не заданы.</div>';
+  const forgiveOk=allow.has('forgive'), capIOk=allow.has('capInterest'), capSOk=allow.has('capPenalty');
+  const opsEditor=`<div class="f2" style="max-width:640px">
+    <div class="field"><span class="flabel">Прощение санкций (0…${fmt(snap.penalty)}) ${forgiveOk?'':'<span class="ro-tag">(вид не разрешает)</span>'}</span>
+      <input value="${inp.forgivePenalty}" ${editable&&forgiveOk?'':'disabled'} onchange="RS.setInput('${app.id}','forgivePenalty',this.value)"></div>
+    <div class="field"><span class="flabel">Капитализация % (0…${fmt(snap.accruedInterest)}) ${capIOk?'':'<span class="ro-tag">(вид не разрешает)</span>'}</span>
+      <input value="${inp.capInterest}" ${editable&&capIOk?'':'disabled'} onchange="RS.setInput('${app.id}','capInterest',this.value)"></div>
+    <div class="field"><span class="flabel">Капитализация штрафов (0…${fmt(snap.penalty-inp.forgivePenalty)}) ${capSOk?'':'<span class="ro-tag">(вид не разрешает)</span>'}</span>
+      <input value="${inp.capPenalty}" ${editable&&capSOk?'':'disabled'} onchange="RS.setInput('${app.id}','capPenalty',this.value)"></div>
+    <div class="field"><span class="flabel">Режим просрочки (из вида)</span>
+      <input value="режим ${firstOverdueMode(app)} — ${firstOverdueMode(app)===1?'обнуление счётчика':'просрочка сохраняется'}" disabled></div>
+    </div>
+    <div class="section-h" style="margin-top:12px;font-size:15px">Льготные периоды ${graceAllowed?'':'<span class="ro-tag">(вид не разрешает grace)</span>'}</div>
+    <div class="ops-list">${graceRows}</div>
+    ${graceAllowed&&editable?`<button class="btn btn-secondary btn-sm" onclick="RS.addGrace('${app.id}')">+ Блок льготы</button>`:''}`;
+
+  /* 6.3 кнопка расчёта */
+  const calcBtn=`<div class="gtoolbar" style="margin-top:16px">
+    <button class="btn btn-primary btn-sm" ${editable?'':'disabled'} onclick="RS.calcGraph('${app.id}')">Рассчитать реструктуризацию</button></div>`;
+
+  /* 6.4 панели из plan */
+  const plan=v.plan;
+  const panels = plan ? termsPanels(app,cr,plan) : '<div class="op-empty">Результат появится после расчёта.</div>';
+
+  const srcTag = v.source==='минфин' ? `<span class="pill info">условия Минфина</span>` : '';
   return `<div class="detail-panel active">
-    <div class="section-h">Новые условия версии ${srcTag}</div>
-    <div class="section-note">Редактируемы только параметры, разрешённые видами заявки (Р-3). Остальные видимы, но read-only. Кредит-база: ${cr.no}. Состояние версии: <b>${app.version.state}</b>.</div>
+    <div class="section-h">Конструктор реструктуризации ${srcTag}</div>
+    <div class="section-note">Снимок долга на дату среза → фиксированный конвейер операций → «было / стало». Кредит-база: ${cr.no}. Состояние версии: <b>${v.state}</b>. Редактируемы только параметры, разрешённые видами (Р-3).</div>
+    ${cutoff}${paidTiles}${snapTiles}
+    <div class="section-h" style="margin-top:6px">Параметры версии</div>
     <div class="f2">${fields}</div>
-    <div class="gtoolbar" style="margin-top:14px"><button class="btn btn-secondary btn-sm" ${editable?'':'disabled'} onclick="RS.calcGraph('${app.id}')">Рассчитать график</button></div>
-    ${graph}
-    <div class="section-h" style="margin-top:18px">Diff — старая / новая версия</div>
-    <div class="cgrid-wrap" style="max-width:640px"><table class="cgrid"><thead><tr><th>Параметр</th><th>Старая</th><th>Новая</th></tr></thead><tbody>${diffRows}</tbody></table></div>
+    <div class="section-h" style="margin-top:18px">Операции (вход)</div>
+    ${opsEditor}
+    ${calcBtn}
+    ${panels}
   </div>`;
+}
+
+/* Панели «было/стало» (§6.4, Р-21/22/25/28): A параметры, B стек операций, C графики, D итоги + плитка режима просрочки. */
+function termsPanels(app,cr,plan){
+  const g=plan.gates;
+  /* A. параметры diff */
+  const paramRows=PARAM_KEYS.filter(([k])=>!OP_KEYS.has(k)).map(([k,label])=>{
+    const oldV=cr.terms[k]??'—', newV=app.version.params[k]!==undefined?app.version.params[k]:oldV;
+    const ch=String(oldV)!==String(newV);
+    return `<tr class="${ch?'diff-changed':''}"><td>${label}</td><td class="${ch?'diff-old':''}">${esc(oldV)}</td><td class="${ch?'diff-new':''}">${esc(newV)}</td></tr>`;
+  }).join('');
+  const matOld=plan.totals.old.maturity, matNew=plan.totals.new.maturity;
+  const panelA=`<div class="section-h" style="margin-top:20px">A. Параметры — было / стало</div>
+    <div class="cgrid-wrap" style="max-width:640px"><table class="cgrid"><thead><tr><th>Параметр</th><th>Было</th><th>Стало</th></tr></thead>
+    <tbody>${paramRows}<tr class="diff-changed"><td>Дата погашения</td><td class="diff-old">${matOld}</td><td class="diff-new">${matNew}</td></tr></tbody></table></div>`;
+
+  /* B. состав долга — стек */
+  const stackRows=plan.stack.map(s=>`<tr><td>${s.step}</td><td>${esc(s.op)}</td>
+    <td class="numcell">${s.before!==undefined?fmt(s.before):'—'}</td>
+    <td class="numcell">${s.delta!==undefined?(typeof s.delta==='number'?(s.delta>0?'+':'')+fmt(s.delta):esc(s.delta)):'—'}</td>
+    <td class="numcell">${s.after!==undefined?fmt(s.after):'—'}</td>
+    <td>${esc(s.basis||'')}</td></tr>`).join('');
+  const panelB=`<div class="section-h" style="margin-top:18px">B. Состав долга — стек операций (Р-21)</div>
+    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>#</th><th>Операция</th><th class="numcell">Было</th><th class="numcell">Δ</th><th class="numcell">Стало</th><th>Основание</th></tr></thead>
+    <tbody>${stackRows}<tr class="diff-changed"><td></td><td><b>Новая база</b></td><td class="numcell">—</td><td class="numcell">—</td>
+      <td class="numcell"><b>${fmt(plan.base.total)}</b></td><td>тело ${fmt(plan.base.body)} + капитализировано ${fmt(plan.base.capitalized)}</td></tr></tbody></table></div>`;
+
+  /* C. графики рядом (или блок при провале гейта) */
+  const schRows=rows=>rows.map(r=>`<tr><td>${r.n}</td><td>${r.date}</td><td class="numcell">${fmt2(r.pay)}</td>
+    <td class="numcell">${fmt2(r.principal)}</td><td class="numcell">${fmt2(r.interest)}</td><td class="numcell">${fmt2(r.balance)}</td>${r.phase?`<td><span class="pill neutral">${r.phase}</span></td>`:'<td></td>'}</tr>`).join('');
+  const schHead=`<thead><tr><th>№</th><th>Дата</th><th class="numcell">Платёж</th><th class="numcell">ОД</th><th class="numcell">Проценты</th><th class="numcell">Остаток</th><th></th></tr></thead>`;
+  let panelC;
+  if(g.termOk && g.rateOk){
+    panelC=`<div class="section-h" style="margin-top:18px">C. График — было / стало</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div style="flex:1;min-width:320px"><div class="section-note">Было (${plan.scheduleOld.length} стр.)</div>
+          <div class="cgrid-wrap"><table class="cgrid">${schHead}<tbody>${schRows(plan.scheduleOld)}</tbody></table></div></div>
+        <div style="flex:1;min-width:320px"><div class="section-note">Стало (${plan.scheduleNew.length} стр.)</div>
+          <div class="cgrid-wrap"><table class="cgrid">${schHead}<tbody>${schRows(plan.scheduleNew)}</tbody></table></div></div>
+      </div>`;
+  } else {
+    panelC=`<div class="section-h" style="margin-top:18px">C. График — было / стало</div>
+      <div class="flagline">Заблокировано: ${g.messages.map(esc).join('; ')}. Версия с невалидными параметрами не активируется (Р-25).</div>`;
+  }
+
+  /* D. итоги */
+  const o=plan.totals.old, n=plan.totals.new;
+  const dcell=(a,b)=>{ const d=round2(b-a); const cls=d>0?'diff-old':d<0?'diff-new':''; return `<td class="numcell ${cls}">${d>0?'+':''}${fmt2(d)}</td>`; };
+  const overpayOld=round2(o.totalToPay-app.version.snapshot.principal), overpayNew=round2(n.totalToPay-app.version.snapshot.principal);
+  const panelD = (g.termOk&&g.rateOk) ? `<div class="section-h" style="margin-top:18px">D. Итоги — было / стало</div>
+    <div class="cgrid-wrap" style="max-width:760px"><table class="cgrid"><thead><tr><th>Метрика</th><th class="numcell">Было</th><th class="numcell">Стало</th><th class="numcell">Δ</th></tr></thead><tbody>
+      <tr><td>База графика</td><td class="numcell">${fmt2(o.base)}</td><td class="numcell">${fmt2(n.base)}</td>${dcell(o.base,n.base)}</tr>
+      <tr><td>Всего процентов за срок</td><td class="numcell">${fmt2(o.totalInterest)}</td><td class="numcell">${fmt2(n.totalInterest)}</td>${dcell(o.totalInterest,n.totalInterest)}</tr>
+      <tr><td>Всего к возврату</td><td class="numcell">${fmt2(o.totalToPay)}</td><td class="numcell">${fmt2(n.totalToPay)}</td>${dcell(o.totalToPay,n.totalToPay)}</tr>
+      <tr><td>Регулярный платёж</td><td class="numcell">${fmt2(o.regularPay)}</td><td class="numcell">${fmt2(n.regularPay)}</td>${dcell(o.regularPay,n.regularPay)}</tr>
+      <tr><td>Переплата к телу</td><td class="numcell">${fmt2(overpayOld)}</td><td class="numcell">${fmt2(overpayNew)}</td>${dcell(overpayOld,overpayNew)}</tr>
+    </tbody></table></div>` : '';
+
+  /* режим просрочки — плитка (Р-28) */
+  const od=plan.overdue;
+  const odTile = od.mode===2
+    ? `<div class="warnline">Режим (2): просрочка сохранена — ОД ${fmt(od.bucket.overduePrincipal)}, ${od.bucket.days} дн., свой счётчик.</div>`
+    : `<div class="okline">Режим (1): счётчик просрочки обнулён (${cr.odDays} → 0), просрочка растворена в базе графика.</div>`;
+
+  return panelA+panelB+panelC+panelD+odTile;
 }
 
 /* 5. Комитет / Минфин (Р-6) */
@@ -1227,14 +1337,20 @@ function regDS(appId){
   closeModal(); toast('Доп. соглашение зарегистрировано — версия действует','ok'); render();
 }
 function applyEntryOps(app){
-  const kinds=app.kindIds.map(kindById);
+  const v=app.version, plan=v&&v.plan;
+  if(!plan){ toast('Сначала рассчитайте реструктуризацию','err'); return false; }
+  const inp=v.inputs;
+  if(inp.forgivePenalty>0){ const s=plan.base; const S=v.snapshot.penalty;
+    app.ops.push({type:'Прощение санкций',detail:'Списание пени '+fmt(inp.forgivePenalty)+' компенсирующей записью (не удаление)',before:S,after:round2(S-inp.forgivePenalty)}); }
+  if(inp.capInterest>0){ const P=v.snapshot.principal;
+    app.ops.push({type:'Капитализация процентов',detail:'Начисленные % '+fmt(inp.capInterest)+' → в тело долга',before:P,after:round2(P+inp.capInterest)}); }
+  if(inp.capPenalty>0){ const P1=round2(v.snapshot.principal+inp.capInterest);
+    app.ops.push({type:'Капитализация штрафов',detail:'Штрафы '+fmt(inp.capPenalty)+' → в тело долга',before:P1,after:round2(P1+inp.capPenalty)}); }
+  const mode=plan.overdue.mode;
+  app.ops.push({type:'Режим просрочки',detail: mode===1?'режим (1): в новый график + обнуление счётчика дней':'режим (2): просрочка сохраняется со своим счётчиком',mode});
   const cr=creditById(app.creditIds[0]);
-  if(kinds.some(k=>k&&k.params.includes('capInterest'))) app.ops.push({type:'Капитализация процентов',detail:'Начисленные % перенесены в тело долга',before:cr.balance,after:cr.balance});
-  if(kinds.some(k=>k&&k.params.includes('capPenalty'))) app.ops.push({type:'Капитализация штрафов',detail:'Штрафы перенесены в тело долга',before:cr.balance,after:cr.balance});
-  if(kinds.some(k=>k&&k.params.includes('forgive'))) app.ops.push({type:'Прощение санкций',detail:'Списание пени компенсирующей записью (не удаление)',before:cr.odSum,after:0});
-  const mode = kinds.find(k=>k)?.overdueMode||2;
-  app.ops.push({type:'Режим просрочки',detail:mode===1?'режим (1): в новый график + обнуление счётчика дней':'режим (2): просрочка сохраняется со своим счётчиком',mode});
   if(mode===1 && cr){ H(app,'Режим просрочки (1): счётчик дней просрочки обнулён ('+cr.odDays+' → 0).','Система'); cr.odDays=0; }
+  return true;
 }
 
 function openNewKind(){
@@ -1308,6 +1424,16 @@ function fixMinfin(appId){ if(!guard('fixMinfin')) return; const app=appById(app
 function setParam(appId,k,val){ const app=appById(appId); if(!canX('editVersion')){ toast('Условия правит Куратор ОД','err'); return; }
   if(!allowedParams(app).has(k)){ toast('Параметр не разрешён выбранными видами (Р-3)','err'); return; }
   const num=Number(val); app.version.params[k]=(val!==''&&!isNaN(num)&&/^[0-9.]+$/.test(val))?num:val; }
+function setInput(appId,key,val){ const app=appById(appId); if(!canX('editVersion')){ toast('Условия правит Куратор ОД','err'); return; }
+  const num=Number(val); app.version.inputs[key]=(!isNaN(num)&&val!=='')?num:0; app.version.plan=null; render(); }
+function setCutoff(appId,val){ const app=appById(appId); if(!canX('editVersion')){ toast('Условия правит Куратор ОД','err'); return; }
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(val)){ toast('Дата среза в формате ГГГГ-ММ-ДД','err'); return; }
+  const cr=creditById(app.creditIds[0]); app.version.cutoffDate=val; app.version.snapshot={...cr.snapshot}; app.version.plan=null;
+  toast('Дата среза изменена — снимок перезаморожен, план сброшен','ok'); render(); }
+function addGrace(appId){ const app=appById(appId); if(!canX('editVersion')){ toast('Условия правит Куратор ОД','err'); return; }
+  app.version.inputs.graceBlocks.push({months:3,type:'interest-only'}); app.version.plan=null; render(); }
+function delGrace(appId,idx){ const app=appById(appId); if(!canX('editVersion')){ toast('Условия правит Куратор ОД','err'); return; }
+  app.version.inputs.graceBlocks.splice(idx,1); app.version.plan=null; render(); }
 function calcGraph(appId){ if(!guard('calcGraph')) return; const app=appById(appId);
   const plan=calcRestructure(appId);
   if(!plan) return;                                  // валидация/тост уже внутри
@@ -1397,8 +1523,9 @@ const RS = {
   openWaiver, grantWaiver, openDS, regDS, openNewKind, addKind, showMirror,
   get state(){ return state; }, seed, stageOf, deadline, packetGate, conclGate, minfinGate, dsGate,
   coverGate, coverGateApp, allowedParams, requiredDocs, activeAppOnCredit, canAdvance, canX,
-  appById, creditById, kindById, applyEntryOps, versionFrom, amortize, periodMonths, round2, termCap, rateFloor,
+  appById, creditById, kindById, applyEntryOps, versionFrom, amortize, periodMonths, round2, termCap, rateFloor, addCalDays,
   calcRestructure, firstOverdueMode, TODAY, STAGES, ROLES,
+  setInput, setCutoff, addGrace, delGrace, termsPanels,
   __baseApp: baseApp
 };
 if(typeof window!=='undefined') window.RS=RS;

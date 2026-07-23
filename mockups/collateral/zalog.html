@@ -175,7 +175,7 @@
   невыполненными предпосылками §5.2 — муниципальное без ОМСУ (П-012 / Д-010) и имущество супругов
   без согласия супруга (П-013 / Д-011) (Р-5); истёкший полис техники → триггер (П-002, Р-7);
   кредит под банковскую гарантию без залоговых долей, гарантия в иной валюте (USD) — реальный
-  курсовой индекс ≈0,55 < 1, не mirror-хак, обеспеченность НЕ закрыта, триггер (К-95 / Д-008, Р-11).
+  курсовой индекс ≈0,55 < 1, не mirror-хак, обеспеченность НЕ закрыта, триггер (К-95, Р-11).
 
   ГРАНИЦЫ МОДУЛЯ (Р-21 — осознанные границы, не открытые вопросы):
     • НАПРАВЛЕНИЕ OVERRIDE — закрыто (Р-19 п.2). Залоговая стоимость может только
@@ -240,6 +240,17 @@ a{ color:inherit; }
 /* ---- sidebar ---- */
 .sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
   display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+/* Т-5: сайдбар сворачивается гамбургером — освобождает ширину под таблицы. */
+.app.nav-collapsed .sidebar{ display:none; }
+@media(max-width:1024px){ :root{ --sidebar-w:248px; } }
+@media(max-width:820px){
+  /* планшет: страница может расти по высоте (обследование с планшета), контент не режется 100vh */
+  .app{ height:auto; min-height:100dvh; }
+  .content{ overflow:visible; }
+  /* сайдбар выходит из потока в выдвижную панель — таблица под ним получает всю ширину */
+  .sidebar{ position:fixed; top:var(--header-h); left:0; bottom:0; z-index:40;
+    box-shadow:8px 0 24px rgba(0,0,0,.18); }
+}
 .brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
   color:var(--text-heading); letter-spacing:0.04em; }
 .nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
@@ -270,7 +281,12 @@ a{ color:inherit; }
   border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
 .topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
 .crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
-.topbar .role-wrap{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+.topbar .stand-wrap{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+.topbar .stand-wrap label{ font:var(--font-label); color:var(--text-muted); }
+.topbar .stand-wrap input[type=date]{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; }
+.topbar .stand-wrap.shifted input[type=date]{ border-color:var(--asubk-amber); color:var(--asubk-amber); font-weight:600; }
+.topbar .role-wrap{ margin-left:16px; display:flex; align-items:center; gap:8px; }
 .topbar .role-wrap label{ font:var(--font-label); color:var(--text-muted); }
 .topbar .role-wrap select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
   background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 26px 0 10px;
@@ -345,8 +361,17 @@ a{ color:inherit; }
 .jf-actions{ display:flex; align-items:center; gap:8px; padding:8px 20px 4px; }
 .rowtools{ display:flex; align-items:center; gap:10px; padding:0 20px 8px; }
 .rowtools .spacer{ flex:1; }
+/* Р-38: общая строка поиска над реестром */
+.quicksearch{ display:flex; align-items:center; gap:6px; height:32px; padding:0 10px; min-width:240px;
+  border:1px solid var(--border-default); border-radius:var(--radius-sm); background:var(--surface-card);
+  color:var(--text-muted); }
+.quicksearch:focus-within{ border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+.quicksearch input{ flex:1; border:0; outline:0; background:transparent; color:var(--text-body);
+  font:var(--font-label); }
 .pager{ display:flex; align-items:center; gap:6px; color:var(--text-muted);
   font:var(--weight-regular) var(--text-base)/1 var(--asubk-font); }
+.pager .pager-nav{ display:flex; align-items:center; gap:6px; margin-left:8px; }
+.pager .pager-pos{ font-size:var(--text-sm); white-space:nowrap; }
 .pager button{ min-width:30px; height:30px; border:1px solid var(--border-default); background:var(--surface-card);
   border-radius:var(--radius-sm); cursor:pointer; color:var(--text-body); }
 .pager button:disabled{ opacity:.4; cursor:not-allowed; }
@@ -358,8 +383,12 @@ table.grid{ width:100%; border-collapse:collapse; font:var(--font-label); table-
 table.grid thead th{ text-align:left; height:56px; padding:0 16px; background:var(--surface-card);
   border-bottom:1px solid var(--asubk-grid-line);
   font:var(--weight-medium) var(--text-sm)/1.375 var(--asubk-font); color:var(--text-body);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; user-select:none; vertical-align:middle; }
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:default; user-select:none; vertical-align:middle; }
 table.grid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; }
+table.grid thead th .sort.active{ color:var(--asubk-blue); font-weight:var(--weight-bold); }
+/* Р-41: колонка «Что делать» — кнопка-действие + рабочий слой (в работе / отложено) */
+.mon-actions{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; white-space:normal; }
+.mon-act{ color:var(--text-muted); }
 table.grid tbody td{ height:35px; padding:0 16px; border-bottom:1px solid var(--asubk-grid-line);
   color:var(--text-body); vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 table.grid tbody tr{ cursor:pointer; }
@@ -658,10 +687,15 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
 
   <div class="main">
     <header class="topbar">
-      <span class="menu" title="Меню">
+      <span class="menu" title="Свернуть/развернуть меню" onclick="toggleNav()">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </span>
       <span class="crumb-title" id="crumbTitle">Залоговое обеспечение</span>
+      <div class="stand-wrap" title="Дата стенда — точка отсчёта для просрочек контроля и ленты триггеров (Т-6)">
+        <label>Дата стенда:</label>
+        <input type="date" id="standDate" onchange="onStandDate()">
+        <button class="btn btn-secondary btn-sm" id="standReset" onclick="onStandReset()" title="Вернуть исходную дату стенда">Сброс</button>
+      </div>
       <div class="role-wrap">
         <label>Роль:</label>
         <div class="rsel">
@@ -691,8 +725,10 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
             <div class="jf-actions">
               <button class="btn btn-success btn-sm" onclick="renderList();toast('Список обновлён')">Обновить</button>
               <button class="btn btn-secondary btn-sm" onclick="resetFilter()">Сбросить</button>
-              <button class="add-cond" type="button" onclick="toast('Добавление произвольного условия — при интеграции с jmix-generic-filter')">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>условие поиска</button>
+              <!-- Т-3: кнопка-заглушка «условие поиска» убрана. Она открывала не конструктор,
+                   а тост про будущую интеграцию — обещание несуществующего в рабочем фильтре.
+                   Произвольные условия предоставляет jmix-generic-filter на этапе интеграции;
+                   фиксированный набор условий (jfPanel) закрывает демо-сценарии. -->
             </div>
           </div>
         </div>
@@ -703,7 +739,15 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
           </button>
         </div>
         <div class="rowtools">
+          <div class="quicksearch">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" id="quickSearch" placeholder="Поиск по строке…" oninput="onQuickSearch(this.value)" aria-label="Поиск по строке">
+          </div>
           <div class="spacer"></div>
+          <button class="btn btn-tint btn-sm" id="btnCsv" onclick="exportCsv()" title="Выгрузить текущий отфильтрованный реестр в CSV (Р-40)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            Экспорт CSV
+          </button>
           <div class="viewseg" id="viewSeg" role="group" aria-label="Вид списка">
             <button type="button" class="viewseg-btn active" id="segTable" onclick="setListView('table')" title="Таблица">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
@@ -714,7 +758,7 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
               Карточки
             </button>
           </div>
-          <div class="pager"><span id="pagerCount"></span></div>
+          <div class="pager"><span id="pagerCount"></span><span class="pager-nav" id="pagerNav"></span></div>
         </div>
         <div class="grid-wrap" id="gridWrap">
           <table class="grid" id="listGrid">
@@ -728,6 +772,13 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
           <div class="cgrid-wrap"><table class="cgrid">
             <thead><tr><th>Кредит</th><th>Заёмщик</th><th>Предмет</th><th>Факт</th><th>Ссылка ПОР</th><th></th></tr></thead>
             <tbody id="riskFactorsBody"></tbody>
+          </table></div>
+        </div>
+        <div class="panel-wrap" id="trigWorkPanel" style="display:none;">
+          <p class="section-h">Журнал закрытых триггеров <span class="pill neutral" id="trigClosedCount"></span></p>
+          <div class="cgrid-wrap"><table class="cgrid">
+            <thead><tr><th>Тип триггера</th><th>Объект</th><th>Принято в работу</th><th>Закрыт (факт устранён)</th></tr></thead>
+            <tbody id="trigClosedBody"></tbody>
           </table></div>
         </div>
       </section>
@@ -758,7 +809,7 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
   </div>
 </div>
 
-<div class="overlay" id="modalHost" onclick="if(event.target===this)closeModal()"></div>
+<div class="overlay" id="modalHost" onclick="if(event.target===this)tryClose()"></div>
 <div class="overlay" id="pickHost" style="z-index:70" onclick="if(event.target===this)pclose()"></div>
 <div class="toast-wrap" id="toastWrap"></div>
 <script>
@@ -811,7 +862,11 @@ function navClick(l){
    Сегодняшняя дата вынесена в константу: все «просрочки контроля» —
    ВЫЧИСЛЯЕМЫЙ оверлей от неё, а не хранимый флаг.
    ============================================================ */
-const TODAY = '11.07.2026';
+/* Т-6: «дата стенда» — не const, а переключаемая точка отсчёта. Демонстрирует заказчику,
+   как лента триггеров (просрочки контроля/переоценки/наложения запрета) живёт во времени:
+   сдвинул дату — увидел, что «загорается» через месяц. Все «просрочки» — оверлей от TODAY. */
+let TODAY = '11.07.2026';
+const STAND_DATE_SEED = TODAY;
 const d2n = s => { const [d,m,y] = String(s).split('.').map(Number); return new Date(y, m-1, d); };
 const n2d = dt => `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}`;
 const addMonths = (s,m) => { const dt = d2n(s); dt.setMonth(dt.getMonth()+m); return n2d(dt); };
@@ -947,6 +1002,11 @@ const CUR_YEAR = Number(TODAY.slice(6));
    администратор правит в справочнике) — до его истечения залог юридически оформлен,
    но фактически НЕ защищён от продажи залогодателем. */
 let BAN_DEADLINE_DAYS = 5;   // рабочих дней (правится в справочнике)
+/* Р-32: порог предупреждения о резком падении оценочной стоимости при переоценке.
+   ВНУТРЕННИЙ параметр (нормативно не задан) — падение оценочной более чем на столько
+   процентов относительно предыдущей несторнированной переоценки требует подтверждения в
+   диалоге и обязательного примечания. Правится в справочнике. */
+let REVAL_DROP_WARN = 30;    // % (правится в справочнике)
 /* Прибавляет N рабочих дней к дате (сб/вс пропускаются).
    TODO: производственный календарь праздников здесь не учитывается. */
 const addBusinessDays = (s, n) => { const dt = d2n(s); let left = n;
@@ -1004,9 +1064,9 @@ const CREDITS = [
   { id:'К-40', num:'Дог. №40 от 20.05.2026', inn:'20308197700219', amount:40000,  status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Высокий' },
   { id:'К-71', num:'Дог. №71 от 22.08.2023', inn:'01705199200338', amount:250000, status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий' },
   { id:'К-33', num:'Дог. №33 от 05.01.2024', inn:'22105198800047', amount:50000,  status:'Погашен',     overdue:false, otherSecurity:null, riskCategory:'Низкий' },
-  /* Р-10/Р-11 demo (доработано §17 п.1): кредит обеспечен банковской гарантией (иная форма).
-     Привязан к зарегистрированному договору Д-008 БЕЗ залоговых долей — покрытие целиком
-     из idxGuar. Гарантия в ИНОЙ валюте (USD), чем кредит (KGS) → курсовой порог 120%
+  /* Р-10/Р-11 demo (доработано §17 п.1): кредит обеспечен ТОЛЬКО банковской гарантией (иная
+     форма, В-1=А: гарантия живёт на кредите через otherSecurity, не залоговым договором) —
+     покрытие целиком из idxGuar. Гарантия в ИНОЙ валюте (USD), чем кредит (KGS) → курсовой порог 120%
      (guaranteeReq/COVER_GUARANTEE_FX, П1 §2.3): 132000 ÷ (200000×1.2) = 0,55 < 1 —
      реальный расчёт даёт НЕ обеспечен (не mirror-хак), поднимается триггер «Недостаточность
      обеспечения». */
@@ -1481,22 +1541,12 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
     порог 150% + доля ликвида < 80% → недостаточность обеспечения.)
    ============================================================ */
 (function seedRegulationDemo(){
-  // Р-10/Р-11 (§17 п.1): кредит под банковскую гарантию, привязан к зарегистрированному договору
-  // БЕЗ долей. Гарантия в валюте USD при кредите в KGS → курсовой порог 120% (COVER_GUARANTEE_FX,
-  // П1 §2.3) даёт индекс ≈0,55 — обеспеченность НЕ закрыта, реальный расчёт (не mirror-хак)
-  // поднимает триггер «Недостаточность обеспечения».
-  CONTRACTS.push({ id:'Д-008', no:'ЗД-2026/95-1', date:'01.06.2026', status:'Зарегистрирован', inn:'01705199200338',
-    notary:'Нотариус Осмоналиев Т.Б.', notaryNo:'НР-2026/0955', notaryDate:'01.06.2026', cert:'ЗС-2026/0955',
-    credits:['К-95'], allocs:[], undercovered:null, addenda:[],
-    docRoute:[
-      {step:'Формирование пакета документов', date:'28.05.2026', who:'Куратор отдела залогового обеспечения', req:'Опись ОП-2026/95'},
-      {step:'Юридическая экспертиза', date:'30.05.2026', who:'Юридический департамент', req:'Заключение ЮЗ-2026/95'},
-      {step:'Нотариальное удостоверение договора', date:'01.06.2026', who:'Нотариус Осмоналиев Т.Б.', req:'НР-2026/0955'},
-      {step:'Государственная регистрация обременения', date:'01.06.2026', who:'Единый реестр обременений (нотариальный)', req:'ЗС-2026/0955'},
-      {step:'Постановка предмета на учёт', date:'03.06.2026', who:'Куратор отдела залогового обеспечения', req:'Реестровая запись Д-008'},
-      {step:'Архивирование (передача в архив)', date:'05.06.2026', who:'Отдел делопроизводства', req:'Арх. № АРХ-2026/95'},
-    ],
-    history:[ {when:'01.06.2026 10:00', what:'Договор оформлен под кредит К-95, обеспеченный банковской гарантией (иная форма) в валюте USD. Залоговых долей нет; валюта гарантии ≠ валюте кредита → курсовой порог 120% (П1 §2.3) — индекс обеспеченности ≈0,55, обеспеченность НЕ закрыта', who:'Куратор отдела залогового обеспечения'} ] });
+  // Р-10/Р-11 (§17 п.1): кредит К-95 обеспечен ТОЛЬКО банковской гарантией (иная форма).
+  // Р-28 (В-1=А): залоговый договор без предметов не заводится — гарантия живёт на кредите
+  // (К-95.otherSecurity), залогового договора нет вовсе. Гарантия в валюте USD при кредите в
+  // KGS → курсовой порог 120% (COVER_GUARANTEE_FX, П1 §2.3) даёт индекс ≈0,55 — обеспеченность
+  // НЕ закрыта; triggers() сканирует такие кредиты со стороны кредита и поднимает триггер
+  // «Недостаточность обеспечения» без несуществующего договора.
 
   // Р-3: заёмщик-банкрот (Тянь-Строй) → обследование «по договору со спецадминистратором», авто-просрочка не поднимается.
   CREDITS.push({ id:'К-96', num:'Дог. №96 от 02.06.2026', inn:'01705199200338', amount:100000, status:'Действующий', overdue:false, otherSecurity:null });
@@ -1589,6 +1639,29 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
   CONTRACTS.push({ id:'Д-012', no:'', date:'', status:'Оформляется', inn:'20308197700219',
     notary:'', notaryNo:'', notaryDate:'', cert:'', credits:['К-101'], allocs:[{item:'П-014', credit:'К-101', share:140000}], undercovered:null, addenda:[],
     history:[{when:'07.06.2026 10:30', what:'Договор создан (черновик). Заёмщик под категорией П1 §2.6 — обеспеченность по решению КМ ещё не установлена', who:'Куратор отдела залогового обеспечения'}] });
+
+  /* Р-35 (ПОР): демо-договор В ОЧЕРЕДИ КОМИТЕТА — статус «На рассмотрении комиссии».
+     Провалено ТОЛЬКО покрытие (140 000 залоговой при требуемых 360 000 = 38,9%);
+     предпосылки §5.2 собраны (Физлицо → обязателен лишь encumbranceCert, он приложен),
+     стоп-лист и §2.6 неприменимы — то есть договор ЛЕГИТИМНО ждёт решения комитета,
+     а не отсеян документарным гейтом (ср. Д-005 из Р-36, где блокирует §5.2).
+     commissionSince = 25.06.2026 (16 дн. до TODAY 11.07.2026 > SLA 10) → триггер очереди
+     поднимается до высокой критичности. */
+  CREDITS.push({ id:'К-106', num:'Дог. №106 от 20.06.2026', inn:'01705199200338', amount:300000, currency:'KGS', status:'Действующий', overdue:false, riskCategory:'Низкий', otherSecurity:null });
+  const queueItem = normalizeItem({ id:'П-024', kind:'Недвижимое имущество', name:'Земельный участок, с. Беловодское', pledger:'01705199200338',
+    pledgerType:'Физлицо', ident:'Кадастровый № 4-11-03-0244', appraised:200000, apprDate:'20.06.2026', apprReport:'ОЦ-2026/106',
+    details:{ reType:'Земельный участок', cadastre:'4-11-03-0244', address:'Чуйская обл., с. Беловодское, ул. Садовая, 7', areaLand:'1200', commDate:'20.06.2026' },
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false, lastSurvey:'20.06.2026', lastReval:'20.06.2026',
+    prereqs:{ ownerConsent:{present:true, doc:'—'}, spouseConsent:{present:true, doc:'—'}, encumbranceCert:{present:true, doc:'Справка ГР-2026/106'} },
+    revals:[{date:'20.06.2026', appraised:200000, report:'ОЦ-2026/106', note:'первичная оценка'}], surveys:[],
+    history:[{when:'20.06.2026 10:00', what:'Предмет зарегистрирован (обеспечение под К-106)', who:'Куратор отдела залогового обеспечения'}] });
+  ITEMS.push(queueItem);
+  CONTRACTS.push({ id:'Д-008', no:'', date:'', status:'На рассмотрении комиссии', inn:'01705199200338',
+    notary:'', notaryNo:'', notaryDate:'', cert:'', credits:['К-106'], allocs:[{item:'П-024', credit:'К-106', share:140000}],
+    undercovered:null, addenda:[], commissionSince:'25.06.2026',
+    history:[
+      {when:'20.06.2026 11:00', what:'Договор создан (черновик)', who:'Куратор отдела залогового обеспечения'},
+      {when:'25.06.2026 09:30', what:'Регистрация заблокирована контрольным гейтом: К-106 — 38,9% при пороге 120,0%. Направлено в комитет по администрированию бюджетных кредитов.', who:'Куратор отдела залогового обеспечения'} ] });
 
   /* ============================================================
      §17 ДЕМО-ДАННЫЕ — Р-11…Р-23 (Task 22). Каждая запись покрывает один сценарий
@@ -1926,6 +1999,7 @@ const pledgeValue = it => it.lost ? 0 : (it.override ? it.override.value : calcP
 const isOverAbove = it => Boolean(it.override) && it.override.value > calcPledge(it); // override ВЫШЕ расчётной → флаг
 
 const ACTIVE = 'Зарегистрирован';
+const CANCELLED = 'Аннулирован';                                    // Р-31: аннулированный черновик
 const isActive  = c => c.status === ACTIVE;
 const isDraftish = c => c.status === 'Оформляется' || c.status === 'На рассмотрении комиссии';
 
@@ -2019,6 +2093,26 @@ function guaranteeReq(cr){
 function guaranteeExpired(g){
   return g && g.till ? d2n(g.till) < d2n(TODAY) : false;
 }
+/* ВАЛЮТА (Р-44, развилка В-2 = вариант А, подписан 2026-07-23). Оценочная и залоговая
+   стоимость предмета ВСЕГДА ведутся в валюте кредита, который предмет обеспечивает: индекс
+   sum/(cr.amount×req) считается в одной валюте, курсы не нужны. Инвариант — один предмет
+   обеспечивает кредиты ТОЛЬКО одной валюты; при попытке привязать предмет к кредиту иной
+   валюты, чем уже установленная по нему, — блокирующая валидация (saveAlloc). Отсутствие
+   currency на кредите трактуется как 'KGS' (как в guaranteeReq). Справочник курсов НЕ
+   заводится — мультивалютный пересчёт объявлен вне модуля (вариант Б отвергнут). */
+const creditCcy = cr => (cr && cr.currency) || 'KGS';
+const ccyLabel  = ccy => ccy === 'KGS' ? 'сом' : ccy;
+/* Валюта предмета — ПРОИЗВОДНАЯ от валют кредитов, которые он обеспечивает (действующие +
+   черновики). Пока предмет ни к чему не привязан, валюта не установлена (null) — первая
+   привязка её задаёт. Инвариант гарантирует единственность, но на всякий случай берём
+   первую из множества. */
+function itemCcy(it){
+  const ccys = new Set();
+  CONTRACTS.filter(c => isActive(c) || isDraftish(c)).forEach(c =>
+    c.allocs.filter(a => a.item === it.id).forEach(a => { const cr = credit(a.credit); if(cr) ccys.add(creditCcy(cr)); }));
+  return ccys.size ? [...ccys][0] : null;
+}
+const itemCcyLabel = it => ccyLabel(itemCcy(it) || 'KGS');
 /* Покрытие кредита = ИНДЕКС обеспеченности (Р-11, §9–10, Прил.1 §2.3–2.4):
      index = idxPledge (Σ эффективных отнесённых долей залога ÷ (сумма кредита × её порог))
            + idxGuar   (сумма действующей банковской гарантии ÷ (сумма кредита × её порог)).
@@ -2062,6 +2156,36 @@ function gateCheck(virtual){
   const rows = virtual.credits.map(id => ({ id, ...coverage(cs, id) }));
   return { rows, ok: rows.every(r=>r.ok) };
 }
+/* ГЕЙТ СОДЕРЖАНИЯ (Р-28, В-1=А): залоговый договор не регистрируется без предметов.
+   coverage(cs, creditId) считает обеспеченность КРЕДИТА по всем действующим договорам,
+   поэтому пустой договор наследует чужое покрытие и проходит гейт покрытия. Отдельный
+   гейт содержания требует ≥1 отнесения с долей > 0 в самом договоре. Кредит, обеспеченный
+   ТОЛЬКО банковской гарантией, залогового договора не имеет вовсе — гарантия живёт на
+   кредите (otherSecurity), не на договоре. */
+function contentGate(c){
+  const ok = Array.isArray(c.allocs) && c.allocs.some(a => a.share > 0);
+  return { ok, msg: ok ? '' : 'В договоре нет ни одного предмета с долей > 0 — регистрация невозможна (Р-28). Отнесите предмет залога либо аннулируйте договор.' };
+}
+/* ГЕЙТ ДАТЫ СОБЫТИЯ (Р-32): дата регистрируемого события (переоценка / обследование /
+   наложение запрета / согласие / извещение) не может быть в будущем относительно даты
+   стенда (TODAY) и не раньше предыдущего события того же рода (notBefore — дата последней
+   несторнированной записи или нотариальная дата договора-основания). Возвращает {ok, msg}. */
+function eventDateValid(date, opts){
+  const o = opts || {};
+  if(!isDate(date)) return { ok:false, msg:'Дата — в формате дд.мм.гггг' };
+  if(d2n(date) > d2n(TODAY)) return { ok:false, msg:`Дата события ${date} — в будущем (дата стенда ${TODAY}). События задним числом вперёд не регистрируются.` };
+  if(o.notBefore && isDate(o.notBefore) && d2n(date) < d2n(o.notBefore))
+    return { ok:false, msg:`Дата события ${date} раньше предыдущей записи (${o.notBefore})${o.notBeforeLabel?' — '+o.notBeforeLabel:''}. Порядок событий не может нарушаться.` };
+  return { ok:true, msg:'' };
+}
+/* СТОРНО (Р-33): записи журналов не удаляются физически — помечаются voided:{by,date,reason}.
+   Производные скаляры (it.appraised, it.lastReval, it.lastSurvey) не читают массивы, поэтому
+   при сторнировании их надо пересчитать по последней НЕсторнированной записи. Массивы
+   хронологичны (push в конец), поэтому «последняя живая» = последний элемент без voided. */
+const livesReval = it => (it.revals||[]).filter(r => !r.voided);
+const livesSurvey = it => (it.surveys||[]).filter(s => !s.voided);
+const lastRevalLive = it => { const a = livesReval(it); return a.length ? a[a.length-1].date : ''; };
+const lastSurveyLive = it => { const a = livesSurvey(it); return a.length ? a[a.length-1].date : ''; };
 /* ИНВАРИАНТ: Σ долей предмета ≤ залоговая стоимость. Проверяется до сохранения. */
 function invariantBreaches(virtual){
   const cs = [...CONTRACTS.filter(c => (isActive(c)||isDraftish(c)) && c.id !== virtual.id), virtual];
@@ -2071,6 +2195,21 @@ function invariantBreaches(virtual){
 }
 
 /* Залоговая ось статуса предмета — ПРОИЗВОДНАЯ от наличия долей (не поле). */
+/* Т-2: статус «реализуется» (it.realizing) выставляется НЕ здесь. Обращение взыскания и
+   реализацию предмета ведёт модуль ВЗЫСКАНИЯ (фаза 5 жизненного цикла) — это граничный
+   контракт между модулями, как resolveActor у сотрудников: залоговый модуль только ОТОБРАЖАЕТ
+   флаг (статус + цвет аватара AVA_LIEN), но не переключает его — у куратора залога нет
+   действия «передать в реализацию». Единая точка входа со стороны взыскания —
+   collectionSetRealizing(id, on): модуль взыскания зовёт её при старте/отмене реализации.
+   В seed ни один предмет не помечен realizing (демо-стенд не шумит фазой взыскания), поэтому
+   ветка достижима только через этот шов — тест W5 дергает контракт и проверяет статус/цвет. */
+function collectionSetRealizing(id, on){
+  const it = item(id); if(!it) return false;
+  it.realizing = !!on;
+  hist(it, on ? 'Передан в реализацию модулем взыскания (обращение взыскания)'
+              : 'Реализация отменена модулем взыскания');
+  return true;
+}
 function lienStatus(it){
   if(it.lost) return 'выбыл';
   if(it.realizing) return 'реализуется';
@@ -2255,23 +2394,40 @@ function techAgeCheck({securityRole, origin, age}){
    модуля — в ПОЛ/П1-П3 конкретный срок не задан, правится администратором в справочнике. */
 let DOC_ROUTE_DAYS = 30;
 
+/* Р-35 (ПОР): срок, после которого договор, ожидающий решения комитета по
+   администрированию бюджетных кредитов («На рассмотрении комиссии»), поднимает
+   критичность триггера очереди со средней на высокую. ВНУТРЕННИЙ параметр —
+   в положениях конкретный SLA не задан, правится администратором в справочнике. */
+let COMMITTEE_SLA = 10;
+
 /* ТРИГГЕРЫ. Собираются из состояния; не хранятся. Триггер «недостаточность
    обеспечения» уходит во взыскание отдельным треком по причине «обеспечение» —
    он НЕ трогает риск-категорию и НЕ трогает группу платёжеспособности. */
 function triggers(){
   const out = [], cs = CONTRACTS.filter(isActive);
   const seen = new Set();
-  cs.forEach(c => c.credits.forEach(id => {
+  /* Один код на кредит: недостаточность обеспечения + жизненный цикл банковской гарантии.
+     ctrId — договор-носитель (для кредитов без договора, обеспеченных только гарантией
+     (Р-28/В-1=А), равен null: гарантия живёт на кредите, залогового договора нет). */
+  const emitCredit = (id, ctrId) => {
     if(seen.has(id)) return; seen.add(id);
     const cov = coverage(cs, id);
     /* Кредит с банковской гарантией реально учтён в index (idxGuar, Р-11) — ложный триггер
        недостаточности не поднимается, если гарантия+залог фактически покрывают порог. */
     if(!cov.ok){
       const parts = [];
-      if(!cov.covOk) parts.push(`покрытие ${pct(cov.ratio)} < ${pct(cov.req)} (обеспечено ${fmt(cov.sum)} из ${fmt(cov.amount*cov.req)} требуемых)`);
+      /* Р-43: текст триггера разбирает ИНДЕКС на слагаемые (залог + гарантия) — раньше показывал
+         только ratio (залог) и молчал про гарантию, из-за чего противоречил карточке (К-95: индекс
+         ≈0,55 из гарантии, а триггер писал «покрытие 0,0%»). Слагаемые показываются всегда, даже
+         нулевые; порог гарантии в иной валюте (120%) помечается. */
+      if(cov.index < 1 - 1e-9){
+        const seg = [`залог ${pct(cov.idxPledge)}`];
+        if(cov.gReq != null) seg.push(`банковская гарантия ${pct(cov.idxGuar)} (порог гарантии ${pct(cov.gReq)}${cov.gReq > COVER_GUARANTEE + 1e-9 ? ' — иная валюта' : ''})`);
+        parts.push(`обеспеченность ${pct(cov.index)} < 100% (${seg.join(' + ')})`);
+      }
       if(cov.liqApplies && !cov.liqOk) parts.push(`доля ликвидного залога ${pct(cov.liqShare)} < ${pct(LIQUID_SHARE_MIN)} — движимый неликвидный залог (§2.4)`);
       out.push({ type:'Недостаточность обеспечения', crit:'high', obj:id,
-        objLbl:`${id} · ${credit(id).num}`, ctr:c.id, text: parts.join('; '),
+        objLbl:`${id} · ${credit(id).num}`, ctr:ctrId, text: parts.join('; '),
         act:'Открыть трек взыскания по обеспечению / догрузить или заменить предмет' });
     }
     /* Р-11: истечение банковской гарантии — самостоятельный триггер (§9–10), не зависит от
@@ -2280,17 +2436,25 @@ function triggers(){
     if(g && g.type === 'банковская гарантия'){
       if(guaranteeExpired(g)){
         out.push({ type:'Срок банковской гарантии истёк', crit:'high', obj:id,
-          objLbl:`${id} · ${credit(id).num}`, ctr:c.id,
+          objLbl:`${id} · ${credit(id).num}`, ctr:ctrId,
           text:`Банковская гарантия${g.docNo?' '+g.docNo:''} истекла ${g.till}`,
           act:'Обновить/продлить банковскую гарантию либо перекрыть залогом' });
       } else if(g.till && daysLeft(g.till) <= GUAR_WARN_DAYS){
         out.push({ type:'Гарантия истекает', crit:'mid', obj:id,
-          objLbl:`${id} · ${credit(id).num}`, ctr:c.id,
+          objLbl:`${id} · ${credit(id).num}`, ctr:ctrId,
           text:`Банковская гарантия${g.docNo?' '+g.docNo:''} истекает ${g.till} (через ${daysLeft(g.till)} дн.)`,
           act:'Инициировать продление гарантии заблаговременно' });
       }
     }
-  }));
+  };
+  cs.forEach(c => c.credits.forEach(id => emitCredit(id, c.id)));
+  /* Р-28 (В-1=А): кредиты, обеспеченные ТОЛЬКО банковской гарантией (залогового договора
+     нет — гарантия на кредите), не попали бы в мониторинг через обход договоров. Сканируем
+     их со стороны кредита, чтобы недообеспеченность/истечение гарантии оставались видны. */
+  CREDITS.forEach(cr => {
+    const g = cr.otherSecurity;
+    if(cr.status === 'Действующий' && g && g.type === 'банковская гарантия') emitCredit(cr.id, null);
+  });
   ITEMS.forEach(it => {
     /* Р-8: утрата/ухудшение — сначала регламентный шаг «извещение о восполнении» (§2.5),
        взыскание поднимается только по истечении срока восполнения либо при отказе. */
@@ -2364,11 +2528,18 @@ function triggers(){
       text:`Залоговая стоимость (${fmt(pledgeValue(it))}) установлена выше расчётной (${fmt(calcPledge(it))}) по нормам прежней системы — по действующему положению (ПОЛ §2.1) такой override недопустим`,
       act:'Провести переоценку по действующему положению' });
   });
-  CONTRACTS.filter(c=>c.status==='На рассмотрении комиссии').forEach(c => { const bad = gateCheck(c).rows.filter(r=>!r.ok);
+  /* Р-35 (ПОР): входящая очередь комитета по администрированию бюджетных кредитов —
+     договоры «На рассмотрении комиссии» ждут решения. Критичность средняя, после
+     COMMITTEE_SLA дней ожидания (от commissionSince) — высокая. Так комитет видит
+     свою очередь и просроченные заявки, не зная номера договора наизусть. */
+  CONTRACTS.filter(c=>c.status==='На рассмотрении комиссии').forEach(c => {
+    const bad = gateCheck(c).rows.filter(r=>!r.ok);
+    const waited = c.commissionSince ? Math.max(0, -daysLeft(c.commissionSince)) : null;
+    const overSla = waited != null && waited > COMMITTEE_SLA;
     out.push({
-    type:'Регистрация заблокирована', crit:'high', obj:c.id, objLbl:`${c.id} · ${clientName(c.inn)}`,
-    text:`Контрольный гейт покрытия не пройден (${bad.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — договор ждёт решения комитета по администрированию бюджетных кредитов`,
-    act:'Решение комиссии: вернуть на доработку либо допустить с обоснованием' }); });
+      type:'Ожидает решения комитета', crit: overSla ? 'high' : 'mid', obj:c.id, objLbl:`${c.id} · ${clientName(c.inn)}`,
+      text:`Недообеспечение (${bad.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — договор ждёт решения комитета${c.commissionSince ? ` с ${c.commissionSince}` : ''}${waited != null ? ` (${waited} дн.${overSla ? `, просрочен SLA ${COMMITTEE_SLA} дн.` : ''})` : ''}`,
+      act:'Решение комитета: вернуть на доработку либо допустить недообеспечение с обоснованием' }); });
   /* Р-19 (ПОЛ §11): маршрут кредитно-залоговых документов не дошёл до архива дольше
      DOC_ROUTE_DAYS дней после регистрации договора. */
   CONTRACTS.filter(c => docRouteIncomplete(c, DOC_ROUTE_DAYS)).forEach(c => out.push({
@@ -2390,15 +2561,67 @@ const canHeadOfUnit = () => role === 'Заведующий отделом зал
    допускает недопокрытие/понижение ликвидности с обоснованием. Раньше openDs пускал только
    куратора → ветка допуска комитетом была недостижима. */
 const canDs = () => canCurate() || canCommittee();
-function onRoleChange(){ role = document.getElementById('roleSel').value; toast('Роль: '+role);
-  renderList(); if(cur) openCard(cur.type, cur.id); }
+function onRoleChange(){
+  role = document.getElementById('roleSel').value; toast('Роль: '+role);
+  /* Р-35: комитет по администрированию бюджетных кредитов открывает свою входящую
+     очередь — реестр договоров с преднастроенным фильтром «Статус = На рассмотрении
+     комиссии». Счётчик очереди показывает pagerCount («N договоров (фильтр)»). */
+  if(canCommittee()){
+    reg = 'contracts';
+    activeFilter.contracts = { status:'На рассмотрении комиссии' };
+    filterPanelReg = null;   // форсируем перерисовку панели фильтра под новый reg
+    cur = null; showView('list'); renderList();
+    const n = CONTRACTS.filter(c=>c.status==='На рассмотрении комиссии').length;
+    if(n) toast(`Очередь комитета: ${n} договор(ов) ждут решения`,'warn');
+    return;
+  }
+  renderList(); if(cur) openCard(cur.type, cur.id);
+}
+/* Т-6: переключатель даты стенда. setStandDate — ядро (для тестов и init),
+   onStandDate/onStandReset — обработчики топбара. Смена даты пересчитывает весь
+   вычисляемый оверлей просрочек: обновляем реестр, открытую карточку и ленту триггеров. */
+function setStandDate(dmy){
+  if(!isDate(dmy)) return false;
+  TODAY = dmy;
+  const wrap = document.querySelector('.stand-wrap'), inp = document.getElementById('standDate');
+  if(inp) inp.value = d2iso(dmy);
+  if(wrap) wrap.classList.toggle('shifted', dmy !== STAND_DATE_SEED);
+  renderList(); if(cur) openCard(cur.type, cur.id, curTab);
+  return true;
+}
+function onStandDate(){
+  const dmy = iso2d(val('standDate'));
+  if(!setStandDate(dmy)) return toast('Некорректная дата стенда','warn');
+  toast(dmy === STAND_DATE_SEED ? 'Дата стенда: исходная' : 'Дата стенда сдвинута на '+dmy+' — лента и просрочки пересчитаны', 'ok');
+}
+function onStandReset(){ setStandDate(STAND_DATE_SEED); toast('Дата стенда возвращена: '+STAND_DATE_SEED,'ok'); }
 function denyEdit(){ toast('Роль «'+role+'» не имеет права на это действие','warn'); }
 function denyComm(){ toast('Действие доступно только роли «Комитет по администрированию бюджетных кредитов»','warn'); }
+
+/* Р-34: единое правило видимости действий. Реестровая «Создать» при отсутствии права
+   не рендерится (btnNew скрывается в renderList); карточное действие — рендерится disabled
+   с title, чтобы состав действий оставался виден роли-наблюдателю. `blocked` — вторая ось:
+   право есть, но гейт/статус не пускает (тогда свой blockedTitle). */
+function actionBtn(permOk, label, handler, opts){
+  opts = opts || {};
+  const cls = opts.cls || 'btn-tint btn-sm';
+  const blocked = Boolean(opts.blocked);
+  const disabled = !permOk || blocked;
+  const title = !permOk ? `Роль «${role}» не имеет права на это действие`
+              : (blocked ? (opts.blockedTitle || '') : '');
+  return `<button class="btn ${cls}"${disabled ? '' : ` onclick="${handler}"`}${disabled ? ' disabled' : ''}${title ? ` title="${esc(title)}"` : ''}>${label}</button>`;
+}
 
 /* ============================================================
    РЕЕСТРЫ (три списка: предметы / договоры / мониторинг)
    ============================================================ */
 let reg = 'items', selected = null, cur = null, sortKey = null, sortDir = 1;
+/* Р-39: размер страницы — внутренний параметр (в положениях не задан), правится в справочнике.
+   curPage сбрасывается на 1 при смене реестра/фильтра/сортировки. quickSearch — общая строка
+   поиска над реестром (Р-38): ищет по всем текстовым значениям строки, отдельно от структурных
+   фильтров, поэтому не входит в счётчик «активных условий». */
+let PAGE_SIZE = 50, curPage = 1;
+const quickSearch = { items:'', contracts:'', monitor:'', sureties:'' };
 
 /* ---- переключатель Таблица ↔ Карточки (клон паттерна loan-program).
    Вид хранится ОТДЕЛЬНО на каждый реестр (ключ zalog.listView). «monitor» — лента
@@ -2446,6 +2669,7 @@ const _chev = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strok
 const FILTERS = {
   items: [
     { key:'name',    label:'Наименование содержит', type:'text'   },
+    { key:'idx',     label:'Идентификатор / адрес содержит', type:'text' },   // Р-38: кадастр/адрес/гос.№/VIN
     { key:'kind',    label:'Вид залога =',          type:'select' },
     { key:'pledger', label:'Залогодатель содержит', type:'text'   },
     { key:'st',      label:'Статус =',              type:'select' },
@@ -2476,18 +2700,29 @@ function regRows(){
 }
 function filterRows(rows){
   const f = activeFilter[reg] || {};
-  return rows.filter(r => (FILTERS[reg]||[]).every(fld => {
-    const q = f[fld.key]; if(!q) return true;
-    const v = String(r.sort[fld.key] ?? '');
-    return fld.type==='select' ? v===q : v.toLowerCase().includes(q.toLowerCase());
-  }));
+  /* Р-38: общая строка поиска — по всем текстовым значениям строки (объединённый сорт-индекс).
+     Применяется до структурных фильтров, независимо от них. */
+  const q = (quickSearch[reg] || '').trim().toLowerCase();
+  return rows.filter(r => {
+    if(q){
+      const hay = Object.values(r.sort).map(v => String(v ?? '')).join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return (FILTERS[reg]||[]).every(fld => {
+      const fq = f[fld.key]; if(!fq) return true;
+      const v = String(r.sort[fld.key] ?? '');
+      return fld.type==='select' ? v===fq : v.toLowerCase().includes(fq.toLowerCase());
+    });
+  });
 }
+function onQuickSearch(v){ quickSearch[reg] = v; curPage = 1; renderList(); }
 function onFilter(key, val){
   const f = activeFilter[reg];
   if(val && val.trim()) f[key] = val.trim(); else delete f[key];
+  curPage = 1;
   renderList();
 }
-function resetFilter(){ activeFilter[reg] = {}; renderFilterPanel(); renderList(); }
+function resetFilter(){ activeFilter[reg] = {}; quickSearch[reg] = ''; curPage = 1; renderFilterPanel(); renderList(); }
 function renderFilterPanel(){
   filterPanelReg = reg;
   const cfg = FILTERS[reg] || [], f = activeFilter[reg] || {}, all = regRows();
@@ -2510,7 +2745,7 @@ function renderFilterPanel(){
 
 const HEADS = {
   items:      ['№','Вид залога','Наименование','Залогодатель','Залоговая','Статус','Контроль'],
-  contracts:  ['№','Договор','Заёмщик','Статус','Предметов','Кредитов','Мин. покрытие','Доп. согл.'],
+  contracts:  ['№','Договор','Заёмщик','Статус','Предметов','Кредитов','Обеспеченность (индекс)','Доп. согл.'],
   monitor:    ['Критичность','Тип','Объект','Описание','Что делать'],
   sureties:   ['№','Договор','Поручитель','Тип лица','Кредит','Статус ЖЦ','Допуск §9.1/9.2'],
 };
@@ -2522,10 +2757,33 @@ const WIDTHS = {
   monitor:    ['110px','180px','220px','',''],
   sureties:   ['80px','140px','','130px','90px','130px','230px'],
 };
+/* Р-39: ключ сортировки на КАЖДУЮ колонку (длина ровно = числу заголовков). `null` —
+   колонка вычисляемая/несортируемая (курсора и стрелки нет). Раньше сортировка брала
+   Object.keys(rows[0].sort)[i] — ключей меньше, чем колонок, и клик по «Контроль»/«Описание»/
+   «Что делать» молча не срабатывал (keys[i] === undefined). */
+const SORT_KEYS = {
+  items:      ['id','kind','name','pledger','pledge','st', null],           // «Контроль» — вычисляемый бейдж
+  contracts:  ['id','no','inn','status','items','credits','mc','add'],
+  monitor:    ['crit','type','obj', null, null],                            // «Описание»/«Что делать» — не сортируем
+  sureties:   ['id','no','name','ptype','credit','status','gate'],
+};
+/* Р-42: ведущая метрика обеспеченности ВЕЗДЕ — ИНДЕКС (coverage().index = залог + гарантия),
+   он же красит пилюлю и решает гейт. Раньше реестр показывал ratio (только залог): у Д-008
+   (К-95, обеспечение — банковская гарантия) реестр рисовал красное 0,0 %, тогда как индекс
+   ≈0,55 — пользователь читал «обеспечения нет». ratio остаётся расшифровкой «в т.ч. залогом»
+   в тултипе (coverIndexTip). */
 function minCoverage(c){
   const cs = ctx(isActive(c) ? null : c);
-  const list = c.credits.map(id => coverage(cs, id).ratio);
+  const list = c.credits.map(id => coverage(cs, id).index);
   return list.length ? Math.min(...list) : 0;
+}
+/* Р-42: тултип ведущей метрики — раскрывает индекс по каждому кредиту на слагаемые
+   (залог + гарантия) и «в т.ч. залогом» (ratio). */
+function coverIndexTip(c){
+  const cs = ctx(isActive(c) ? null : c);
+  return c.credits.map(id => { const r = coverage(cs, id);
+    return `${id}: индекс ${pct(r.index)} (залог ${pct(r.idxPledge)}${r.gReq!=null?` + гарантия ${pct(r.idxGuar)}`:''}); в т.ч. залогом ${pct(r.ratio)}`;
+  }).join(' · ');
 }
 /* Порог покрытия — функция состава (requiredCover), не константа (Д-2): пилюля
    «допуск <порога» на реестре/карточке не может показать одно число на все кредиты
@@ -2545,8 +2803,12 @@ function ctrlBadge(it){
 function rowsItems(){
   return ITEMS.map(it => {
     const st = lienStatus(it);
+    /* Р-38: сводный индекс поиска по предмету — идентификатор + все type-specific детали
+       (кадастр/адрес/гос.№/VIN/зав.№) + правоустанавливающий документ. Не колонка, только
+       для фильтра «Идентификатор/адрес» и общей строки поиска. */
+    const idx = [it.ident, it.legalDoc, ...Object.values(it.details||{})].filter(Boolean).join(' ');
     return { id: it.id, sort:{ id:it.id, kind:it.kind, name:it.name, pledger:clientName(it.pledger),
-        pledge:pledgeValue(it), st },
+        pledge:pledgeValue(it), st, idx },
       cells:[ it.id, it.kind, esc(it.name), esc(clientName(it.pledger)),
         `<span class="numcell">${fmt(pledgeValue(it))}${it.override ? (isOverAbove(it) ? ' <span class="pill high" title="решение комиссии выше расчётной">комиссия ↑</span>' : ' <span class="pill neutral" title="залоговая по решению комиссии">комиссия</span>') : ''}</span>`,
         `<span class="axis"><span class="pill ${lienCls(st)}">${st}</span>${banPill(it)}</span>`,
@@ -2554,9 +2816,12 @@ function rowsItems(){
   });
 }
 function rowsContracts(){
-  return CONTRACTS.map(c => {
+  /* Р-31: аннулированные черновики остаются в реестре, но по умолчанию скрыты — видны
+     только при явном фильтре «Статус = Аннулирован». */
+  const showCancelled = (activeFilter.contracts||{}).status === CANCELLED;
+  return CONTRACTS.filter(c => showCancelled || c.status !== CANCELLED).map(c => {
     const mc = minCoverage(c);
-    const stPill = c.status===ACTIVE ? 'low' : c.status==='Оформляется' ? 'neutral' : c.status==='Закрыт' ? 'neutral' : 'high';
+    const stPill = c.status===ACTIVE ? 'low' : c.status==='Оформляется' ? 'neutral' : c.status==='Закрыт' ? 'neutral' : c.status===CANCELLED ? 'neutral' : 'high';
     return { id:c.id, sort:{ id:c.id, no:c.no, inn:clientName(c.inn), status:c.status,
         items:new Set(c.allocs.map(a=>a.item)).size, credits:c.credits.length, mc, add:c.addenda.length },
       cells:[ c.id, c.no ? esc(c.no) : '<span style="color:var(--text-placeholder)">— не зарегистрирован —</span>',
@@ -2564,15 +2829,108 @@ function rowsContracts(){
         `<span class="pill ${stPill}">${c.status}</span>${c.undercovered ? ` <span class="pill high" title="${esc(reqTooltip(c))}">допуск &lt;порога</span>` : ''}${c.replacementRefusal ? ` <span class="pill high" title="${esc(c.replacementRefusal.reason)}">отказ в замене</span>` : ''}`,
         `<span class="numcell">${new Set(c.allocs.map(a=>a.item)).size}</span>`,
         `<span class="numcell">${c.credits.length}</span>`,
-        c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}">${pct(mc)}</span>`,
+        c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}" title="${esc(coverIndexTip(c))}">${pct(mc)}</span>`,
         `<span class="numcell">${c.addenda.length}</span>` ] };
   });
 }
+/* ============================================================
+   Р-41: МОНИТОРИНГ — РАБОЧАЯ ОЧЕРЕДЬ (не лента)
+   Триггер остаётся ВЫЧИСЛЯЕМЫМ (triggers()). Рабочий слой TRIG_WORK — надстройка над ним
+   (ответственный, «принято в работу», «отложено до»), а не подмена: закрыть триггер можно
+   только устранением ФАКТА. При исчезновении из triggers() запись, бывшая в работе, переезжает
+   в журнал закрытых (TRIG_CLOSED) — для отчётности по мониторингу.
+   ============================================================ */
+const trigId = t => t.type + '|' + t.obj;   // устойчивый ключ (тип+объект) → в data-id вместо obj
+const TRIG_WORK = {};      // trigId -> { taken:{who,date}, defer:{until,reason}|null, type, objLbl }
+const TRIG_CLOSED = [];    // { type, objLbl, taken, closedDate }
+let _deferId = null;
+function findTrig(id){ return triggers().find(x => trigId(x) === id) || null; }
+function reconcileTrigWork(){
+  const live = new Set(triggers().map(trigId));
+  Object.keys(TRIG_WORK).forEach(id => {
+    if(!live.has(id)){
+      const w = TRIG_WORK[id];
+      TRIG_CLOSED.push({ type:w.type, objLbl:w.objLbl, taken:w.taken, closedDate:TODAY });
+      delete TRIG_WORK[id];
+    }
+  });
+}
+/* «Что делать» → конкретное действие (кнопка ведёт в нужный диалог). null — прямого действия
+   нет: текст остаётся пояснением. */
+function trigAction(t){
+  const o = t.obj;
+  switch(t.type){
+    case 'Залог без запрета на отчуждение':
+    case 'Запрет наложен, отметка не получена':       return { label:'Открыть запрет', call:`openBan('${o}')` };
+    case 'Требуется снятие запрета':                   return { label:'Снять запрет',   call:`openBanRelease('${o}')` };
+    case 'Просрочен контроль: переоценка':
+    case 'Требуется переоценка после согласованного действия':
+    case 'Историческая запись прежней системы':        return { label:'Переоценка',     call:`openReval('${o}')` };
+    case 'Просрочен контроль: обследование':           return { label:'Обследование',   call:`openSurvey('${o}')` };
+    case 'Требуется извещение о восполнении предмета':
+    case 'Извещение о восполнении выдано — идёт срок':  return { label:'Извещение',      call:`openRestoreNotice('${o}')` };
+    case 'Ожидает решения комитета':                   return canCommittee() ? { label:'Решение комитета', call:`openCommission('${o}')` } : null;
+    default: return null;
+  }
+}
+function trigWorkCell(t){
+  const id = trigId(t), w = TRIG_WORK[id], act = trigAction(t);
+  const actBtn = act ? `<button class="btn btn-tint btn-sm" onclick="event.stopPropagation();${act.call}">${act.label}</button>`
+                     : `<span class="mon-act">${esc(t.act)}</span>`;
+  let work;
+  if(!w) work = `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();takeTrig('${id}')">В работу</button>`;
+  else if(w.defer) work = `<span class="pill neutral" title="${esc(w.defer.reason)}">отложено до ${esc(w.defer.until)}</span>`
+                        + ` <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();undeferTrig('${id}')">Вернуть</button>`;
+  else work = `<span class="pill low" title="ответственный: ${esc(w.taken.who)}">в работе с ${esc(w.taken.date)}</span>`
+            + ` <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openDeferTrig('${id}')">Отложить</button>`;
+  return `<div class="mon-actions">${actBtn}${work}</div>`;
+}
+function takeTrig(id){
+  const t = findTrig(id); if(!t) return;
+  TRIG_WORK[id] = { taken:{ who:role, date:TODAY }, defer:null, type:t.type, objLbl:t.objLbl };
+  toast('Триггер принят в работу','ok'); renderList();
+}
+function undeferTrig(id){ const w = TRIG_WORK[id]; if(w){ w.defer = null; renderList(); } }
+function openDeferTrig(id){
+  const t = findTrig(id); if(!t) return;
+  _deferId = id;
+  modal(`<div class="modal form">${mhead('Отложить триггер · '+esc(t.type))}
+    <div class="modal-b"><div class="mform">
+      ${fdate('dfUntil','Отложить до', TODAY, true)}
+      ${ftxt('dfReason','Причина отсрочки','')}
+    </div></div>${mfoot('Отложить','saveDeferTrig()')}</div>`);
+}
+function saveDeferTrig(){
+  const id = _deferId, until = iso2d(val('dfUntil')), reason = val('dfReason').trim();
+  if(!isDate(until)) return toast('Дата — в формате дд.мм.гггг','warn');
+  if(!reason) return toast('Укажите причину отсрочки','warn');
+  const t = findTrig(id);
+  const w = TRIG_WORK[id] || (TRIG_WORK[id] = { taken:{ who:role, date:TODAY }, type:t&&t.type, objLbl:t&&t.objLbl });
+  w.defer = { until, reason };
+  closeModal(); toast('Триггер отложен до '+until,'ok'); renderList();
+}
+function openMonitorObject(t){
+  if(item(t.obj)) openCard('item', t.obj);
+  else if(contract(t.obj)) openCard('contract', t.obj);
+  else if(credit(t.obj)) toast('Переход в карточку кредита '+credit(t.obj).num+' (модуль «Кредиты»)');
+}
+function renderTrigWorkPanel(){
+  const wrap = document.getElementById('trigWorkPanel');
+  if(!wrap) return;
+  if(reg !== 'monitor'){ wrap.style.display = 'none'; return; }
+  wrap.style.display = TRIG_CLOSED.length ? '' : 'none';
+  document.getElementById('trigClosedCount').textContent = TRIG_CLOSED.length;
+  document.getElementById('trigClosedBody').innerHTML = TRIG_CLOSED.map(c =>
+    `<tr><td>${esc(c.type)}</td><td>${esc(c.objLbl)}</td>`
+    + `<td>${c.taken ? esc(c.taken.date+' · '+c.taken.who) : '—'}</td><td>${esc(c.closedDate)}</td></tr>`
+  ).join('');
+}
 function rowsMonitor(){
-  return triggers().map((t,i) => ({ id:t.obj, kind:t.type, raw:t,
+  reconcileTrigWork();
+  return triggers().map(t => ({ id: trigId(t), obj:t.obj, kind:t.type, raw:t,
     sort:{ crit:t.crit==='high'?0:1, type:t.type, obj:t.objLbl },
     cells:[ `<span class="pill ${t.crit==='high'?'high':'mid'}">${t.crit==='high'?'высокая':'средняя'}</span>`,
-      esc(t.type), esc(t.objLbl), esc(t.text), esc(t.act) ] }));
+      esc(t.type), esc(t.objLbl), esc(t.text), trigWorkCell(t) ] }));
 }
 /* ---- реестр «Поручительство» (§14, Р-25). Строка = договор поручительства (ребро M:N).
    Индикатор гейта §9.1/9.2 — вычисляемый (guarantorGate), не хранимый. ---- */
@@ -2666,7 +3024,7 @@ function contractCard(c){
   const mc = minCoverage(c);
   const stPill = c.status===ACTIVE ? 'low' : c.status==='Оформляется' ? 'neutral' : c.status==='Закрыт' ? 'neutral' : 'high';
   const nItems = new Set(c.allocs.map(a=>a.item)).size;
-  const cov = c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}">${pct(mc)}</span>`;
+  const cov = c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}" title="${esc(coverIndexTip(c))}">${pct(mc)}</span>`;
   const badges = `<span class="pill ${stPill}">${c.status}</span>${c.undercovered ? ` <span class="pill high" title="${esc(reqTooltip(c))}">допуск &lt;порога</span>` : ''}${c.replacementRefusal ? ` <span class="pill high" title="${esc(c.replacementRefusal.reason)}">отказ в замене</span>` : ''}`;
   return `<div class="pcard ${c.id===selected?'sel':''}" onclick="selectRow('${c.id}')" ondblclick="openSelected()">
     <div class="pcard-head">
@@ -2681,7 +3039,7 @@ function contractCard(c){
     <div class="pcard-fields">
       ${cardField('Предметов', `<span class="numcell">${nItems}</span>`)}
       ${cardField('Кредитов', `<span class="numcell">${c.credits.length}</span>`)}
-      ${cardField('Мин. покрытие', cov)}
+      ${cardField('Обеспеченность', cov)}
       ${cardField('Доп. согл.', `<span class="numcell">${c.addenda.length}</span>`)}
     </div>
   </div>`;
@@ -2717,33 +3075,55 @@ function renderCards(rows){
   el.innerHTML = `<div class="cards-grid">${rows.map(card).join('')}</div>`;
 }
 function renderList(){
-  /* Предмет рождается только на карточке договора → в реестре «Предметы» кнопки создания нет
-     (read-only проекция). Авторитетная кнопка «Создать» живёт в реестрах договоров и
-     поручительств (единственный владелец); в карточке кредита — контекстные ярлыки-ссылки. */
-  document.getElementById('btnNewLbl').textContent = reg==='sureties' ? 'Новый договор поручительства' : 'Новый залоговый договор';
-  document.getElementById('btnNew').style.display = (reg==='contracts' || reg==='sureties') ? 'inline-flex' : 'none';
+  if(renderList._lastReg !== reg){ curPage = 1; renderList._lastReg = reg; }   // Р-39: смена реестра → 1-я страница
+  /* Р-37: у реестра «Предметы» авторитетная кнопка создания возвращена — имущество может быть
+     предложено на этапе заявки, когда договора ещё нет. Кнопка на карточке договора остаётся
+     контекстным ярлыком (openNewItem(cid) — предзаполняет договор и открывает привязку). */
+  document.getElementById('btnNewLbl').textContent = reg==='sureties' ? 'Новый договор поручительства'
+    : reg==='items' ? 'Новый предмет залога' : 'Новый залоговый договор';
+  /* Р-34: реестровая «Создать» — единственное действие, которое СКРЫВАЕТСЯ (а не рендерится
+     disabled): роль без права создания (Комитет, Наблюдатель) не должна видеть точку входа. */
+  document.getElementById('btnNew').style.display = ((reg==='contracts' || reg==='sureties' || reg==='items') && canCurate()) ? 'inline-flex' : 'none';
+  const qs = document.getElementById('quickSearch');
+  if(qs){ qs.value = quickSearch[reg] || ''; qs.style.display = reg==='monitor' ? 'none' : ''; }
 
   if(filterPanelReg !== reg) renderFilterPanel();
 
-  const heads = HEADS[reg], ws = WIDTHS[reg] || [];
-  document.getElementById('listHead').innerHTML = heads.map((h,i)=>`<th${ws[i]?` style="width:${ws[i]}"`:''} onclick="sortBy(${i})">${h}<span class="sort">↕</span></th>`).join('');
+  const heads = HEADS[reg], ws = WIDTHS[reg] || [], sks = SORT_KEYS[reg] || [];
+  /* Р-39: сортируемость и активный указатель задаются картой SORT_KEYS. Активная колонка —
+     ↑/↓ по направлению; прочие сортируемые — ↕; несортируемые (null) — без стрелки и курсора. */
+  document.getElementById('listHead').innerHTML = heads.map((h,i)=>{
+    const sortable = sks[i] != null;
+    const style = [ws[i]?`width:${ws[i]}`:'', sortable?'cursor:pointer':''].filter(Boolean).join(';');
+    const arrow = !sortable ? '' : `<span class="sort${sortKey===i?' active':''}">${sortKey===i ? (sortDir>0?'↑':'↓') : '↕'}</span>`;
+    return `<th${style?` style="${style}"`:''}${sortable?` onclick="sortBy(${i})"`:''}>${h}${arrow}</th>`;
+  }).join('');
   let rows = filterRows(regRows());
   if(sortKey !== null){
-    const keys = Object.keys(rows.length ? rows[0].sort : {});
-    const k = keys[sortKey];
+    const k = sks[sortKey];
     if(k) rows = [...rows].sort((a,b)=>{
       const x=a.sort[k], y=b.sort[k];
       return (typeof x === 'number' ? (x-y) : String(x).localeCompare(String(y),'ru')) * sortDir;
     });
   }
-  document.getElementById('listBody').innerHTML = rows.map(r=>`
+  /* Р-39: пагинация — renderList рисует только текущую страницу отфильтрованного+
+     отсортированного набора. */
+  const total = rows.length, pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if(curPage > pages) curPage = pages;
+  const pageRows = rows.slice((curPage-1)*PAGE_SIZE, curPage*PAGE_SIZE);
+  document.getElementById('listBody').innerHTML = pageRows.map(r=>`
     <tr data-id="${r.id}" onclick="selectRow('${r.id}')" ondblclick="openSelected()">
       ${r.cells.map(c=>`<td>${c}</td>`).join('')}
     </tr>`).join('') || `<tr><td colspan="${heads.length}"><div class="cgrid-empty">Записей нет</div></td></tr>`;
   const noun = reg==='items' ? 'предметов' : reg==='contracts' ? 'договоров'
              : reg==='sureties' ? 'договоров поручительства' : 'активных триггеров';
-  const active = Object.keys(activeFilter[reg]||{}).length;
-  document.getElementById('pagerCount').textContent = rows.length+' '+noun+(active ? ' (фильтр)' : '');
+  const active = Object.keys(activeFilter[reg]||{}).length + ((quickSearch[reg]||'').trim() ? 1 : 0);
+  document.getElementById('pagerCount').textContent = total+' '+noun+(active ? ' (фильтр)' : '');
+  document.getElementById('pagerNav').innerHTML = pages>1
+    ? `<button ${curPage<=1?'disabled':''} onclick="gotoPage(${curPage-1})" title="Предыдущая">‹</button>`
+      + `<span class="pager-pos">стр. ${curPage} из ${pages}</span>`
+      + `<button ${curPage>=pages?'disabled':''} onclick="gotoPage(${curPage+1})" title="Следующая">›</button>`
+    : '';
   document.getElementById('jfSummary').textContent = active ? `Фильтр · ${active} активно` : 'Фильтр';
   if(selected) document.querySelectorAll('#listBody tr').forEach(t=>t.classList.toggle('sel', t.dataset.id===selected));
 
@@ -2754,23 +3134,169 @@ function renderList(){
   document.getElementById('segCards').classList.toggle('active', view==='cards');
   document.getElementById('gridWrap').style.display  = view==='cards' ? 'none' : '';
   document.getElementById('cardsWrap').style.display = view==='cards' ? '' : 'none';
-  if(view==='cards') renderCards(rows);
+  if(view==='cards') renderCards(pageRows);
   renderRiskFactorsPanel();
+  renderTrigWorkPanel();
 }
-function sortBy(i){ if(sortKey===i) sortDir*=-1; else { sortKey=i; sortDir=1; } renderList(); }
+function sortBy(i){
+  if((SORT_KEYS[reg]||[])[i] == null) return;   // Р-39: несортируемая колонка — клик ничего не делает
+  if(sortKey===i) sortDir*=-1; else { sortKey=i; sortDir=1; }
+  curPage = 1; renderList();
+}
+function gotoPage(p){ curPage = p; renderList(); }
+
+/* ============================================================
+   Р-40: ЭКСПОРТ CSV + ПЕЧАТНЫЕ ФОРМЫ
+   Отдел вводит в систему ровно те документы, которые обязан выдавать наружу, — но ни
+   выгрузки, ни печати не было. CSV — текущий отфильтрованный+отсортированный реестр
+   (не только страница). Печатные формы генерируются ИЗ СОСТОЯНИЯ, не хранятся.
+   Строители (buildCsv/buildPrintForm) отделены от выдачи (exportCsv/printForm/downloadFile),
+   чтобы смоук-тесты проверяли содержимое без реального скачивания/окна печати.
+   ============================================================ */
+/* Отфильтрованный+отсортированный полный набор строк реестра (та же логика, что в renderList,
+   но без нарезки по страницам). */
+function sortedRows(r){
+  const prev = reg; reg = r;
+  let rows = filterRows(regRows());
+  reg = prev;
+  if(sortKey !== null){
+    const k = (SORT_KEYS[r] || [])[sortKey];
+    if(k) rows = [...rows].sort((a,b)=>{ const x=a.sort[k], y=b.sort[k];
+      return (typeof x === 'number' ? (x-y) : String(x).localeCompare(String(y),'ru')) * sortDir; });
+  }
+  return rows;
+}
+function buildCsv(r){
+  r = r || reg;
+  const heads = HEADS[r];
+  const strip = s => String(s).replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ')
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
+  const q = s => '"' + strip(s).replace(/"/g,'""') + '"';
+  const rows = sortedRows(r);
+  const lines = [ heads.map(q).join(';'), ...rows.map(row => row.cells.map(q).join(';')) ];
+  return '﻿' + lines.join('\r\n');   // BOM — Excel читает кириллицу в UTF-8
+}
+function downloadFile(name, content, mime){
+  try{
+    const blob = new Blob([content], { type: mime || 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 0);
+    return true;
+  }catch(e){ toast('Скачивание недоступно в этой среде','warn'); return false; }
+}
+function exportCsv(){
+  const rows = sortedRows(reg);
+  if(!downloadFile(`реестр-${reg}-${TODAY}.csv`, buildCsv(reg), 'text/csv;charset=utf-8')) return;
+  toast(`Экспортировано строк: ${rows.length}`,'ok');
+}
+/* Печатные формы (Р-40): опись предметов по договору, справка об обеспеченности кредита
+   (с разбором индекса), акт обследования (П2 §2.3/§2.4), извещение о восполнении (Прил.2 §2.5).
+   buildPrintForm(kind, id) возвращает готовый HTML-документ (тело); printForm открывает его в
+   отдельном окне и вызывает печать. Формы не хранятся — считаются из состояния на момент печати. */
+const PRINT_CSS = `body{font:13px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1A2027;margin:32px;}
+h1{font-size:18px;margin:0 0 4px} .sub{color:#5B6B7E;margin:0 0 18px}
+table{border-collapse:collapse;width:100%;margin:10px 0} th,td{border:1px solid #C3CCD6;padding:6px 8px;text-align:left;font-size:12px}
+th{background:#EEF3F9} .r{text-align:right} .foot{margin-top:26px;color:#5B6B7E} .sign{margin-top:40px;display:flex;gap:60px}
+.sign div{border-top:1px solid #1A2027;padding-top:4px;min-width:220px;font-size:12px}`;
+function printDoc(title, bodyHtml){
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${PRINT_CSS}</style></head><body>${bodyHtml}</body></html>`;
+}
+function buildPrintForm(kind, id){
+  if(kind === 'опись'){
+    const c = contract(id); if(!c) return '';
+    const its = [...new Set(c.allocs.map(a=>a.item))].map(item);
+    const rows = its.map((it,i)=>`<tr><td>${i+1}</td><td>${it.id}</td><td>${esc(it.name)}</td><td>${esc(it.kind)}</td>
+      <td>${esc(clientName(it.pledger))}</td><td class="r">${fmt(pledgeValue(it))} ${itemCcyLabel(it)}</td>
+      <td>${esc(it.legalDoc||'—')}</td></tr>`).join('');
+    return printDoc('Опись предметов залога · '+c.id, `
+      <h1>Опись предметов залога по договору ${c.no ? esc(c.no) : c.id}</h1>
+      <p class="sub">Договор ${c.id} · заёмщик ${esc(clientName(c.inn))} · дата печати ${TODAY}</p>
+      <table><thead><tr><th>№</th><th>Ид.</th><th>Наименование</th><th>Вид</th><th>Залогодатель</th><th class="r">Залоговая стоимость</th><th>Правоустан. документ</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="7">Предметы не отнесены</td></tr>'}</tbody></table>
+      <p class="foot">Предметов: ${its.length}. Сформировано из системы ${TODAY}.</p>
+      <div class="sign"><div>Куратор отдела залогового обеспечения</div><div>Залогодатель</div></div>`);
+  }
+  if(kind === 'справка'){
+    const c = contract(id); if(!c) return '';
+    const cs = ctx(isActive(c) ? null : c);
+    const rows = c.credits.map(cid=>{ const r = coverage(cs, cid), cr = credit(cid);
+      return `<tr><td>${cid}</td><td>${esc(cr.num)}</td><td class="r">${fmt(cr.amount)} ${ccyLabel(creditCcy(cr))}</td>
+        <td class="r">${pct(r.req)}</td><td class="r">${pct(r.idxPledge)}</td>
+        <td class="r">${r.gReq!=null?pct(r.idxGuar):'—'}</td><td class="r"><b>${pct(r.index)}</b></td>
+        <td>${r.ok?'обеспечен':'НЕ обеспечен'}</td></tr>`; }).join('');
+    return printDoc('Справка об обеспеченности · '+c.id, `
+      <h1>Справка об обеспеченности кредитов по договору ${c.no ? esc(c.no) : c.id}</h1>
+      <p class="sub">Договор ${c.id} · заёмщик ${esc(clientName(c.inn))} · дата печати ${TODAY}</p>
+      <table><thead><tr><th>Кредит</th><th>Договор</th><th class="r">Сумма</th><th class="r">Порог</th>
+        <th class="r">Индекс залога</th><th class="r">Индекс гарантии</th><th class="r">Индекс (итог)</th><th>Гейт</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      <p class="foot">Индекс обеспеченности = залог + банковская гарантия (Р-11/Р-42), считается в валюте кредита (Р-44).</p>
+      <div class="sign"><div>Куратор отдела залогового обеспечения</div><div>Начальник отдела</div></div>`);
+  }
+  if(kind === 'акт'){
+    const it = item(id); if(!it) return '';
+    const s = livesSurvey(it).slice(-1)[0];
+    return printDoc('Акт обследования · '+it.id, `
+      <h1>Акт обследования предмета залога</h1>
+      <p class="sub">Предмет ${it.id} · ${esc(it.name)} · дата печати ${TODAY}</p>
+      <table><tbody>
+        <tr><th>Предмет</th><td>${it.id} · ${esc(it.name)} (${esc(it.kind)})</td></tr>
+        <tr><th>Залогодатель</th><td>${esc(clientName(it.pledger))}</td></tr>
+        <tr><th>Дата обследования</th><td>${s ? s.date : '— (обследование не проводилось)'}</td></tr>
+        <tr><th>Результат</th><td>${s ? esc(s.result || s.note || 'без замечаний') : '—'}</td></tr>
+        <tr><th>Залоговая стоимость</th><td>${fmt(pledgeValue(it))} ${itemCcyLabel(it)}</td></tr>
+      </tbody></table>
+      <p class="foot">Основание — П2 §2.3/§2.4. Сформировано из системы ${TODAY}.</p>
+      <div class="sign"><div>Обследование провёл</div><div>Залогодатель</div></div>`);
+  }
+  if(kind === 'извещение'){
+    const it = item(id); if(!it) return '';
+    const rn = it.restoreNotice || {};
+    return printDoc('Извещение о восполнении · '+it.id, `
+      <h1>Извещение о восполнении предмета залога</h1>
+      <p class="sub">Предмет ${it.id} · ${esc(it.name)} · дата печати ${TODAY}</p>
+      <table><tbody>
+        <tr><th>Предмет</th><td>${it.id} · ${esc(it.name)}</td></tr>
+        <tr><th>Залогодатель</th><td>${esc(clientName(it.pledger))}</td></tr>
+        <tr><th>Основание</th><td>${it.lost ? 'утрата предмета' : 'ухудшение состояния'} (обследование)</td></tr>
+        <tr><th>Документ извещения</th><td>${esc(rn.doc || '—')} от ${rn.date || TODAY}</td></tr>
+        <tr><th>Срок восполнения до</th><td>${rn.deadline || '—'}</td></tr>
+      </tbody></table>
+      <p class="foot">Залогодателю предлагается восстановить/заменить предмет или досрочно исполнить обязательство (Прил.2 §2.5). Сформировано ${TODAY}.</p>
+      <div class="sign"><div>Куратор отдела залогового обеспечения</div><div>Вручено залогодателю</div></div>`);
+  }
+  return '';
+}
+function printForm(kind, id){
+  const html = buildPrintForm(kind, id);
+  if(!html) return toast('Форма недоступна для этого объекта','warn');
+  let w = null;
+  try{ w = window.open('', '_blank'); }catch(e){ w = null; }
+  if(!w) return toast('Печать недоступна в этой среде (всплывающее окно заблокировано)','warn');
+  w.document.write(html); w.document.close();
+  try{ w.focus(); w.print(); }catch(e){}
+}
+
 function selectRow(id){ selected = id; renderList(); }
 function openSelected(){
   if(!selected) return;
+  /* Р-41: в мониторинге selected — это trigId (тип+объект), а не id записи. Открываем карточку
+     объекта, к которому относится триггер. */
+  if(reg==='monitor'){ const t = findTrig(selected); if(t) openMonitorObject(t); return; }
   if(item(selected)) openCard('item', selected);
   else if(contract(selected)) openCard('contract', selected);
   else if(surety(selected)) openCard('surety', selected);
   else if(credit(selected)) toast('Переход в карточку кредита '+credit(selected).num+' (модуль «Кредиты»)');
 }
-/* Авторитетная кнопка «Создать»: договор залога (реестр договоров) либо договор
-   поручительства (реестр поручительств). Предмет рождается на карточке договора. */
+/* Авторитетная кнопка «Создать»: предмет залога (реестр предметов, Р-37), договор залога
+   (реестр договоров) либо договор поручительства (реестр поручительств). Кнопка на карточке
+   договора — контекстный ярлык, вызывает openNewItem(cid) с предзаполнением. */
 function onNew(){ if(!canCurate()) return denyEdit();
   if(reg==='contracts') openNewContract();
   else if(reg==='sureties') openNewSurety();
+  else if(reg==='items') openNewItem();   // Р-37: авторитетная точка рождения предмета (договора ещё нет)
 }
 
 /* ============================================================
@@ -2804,12 +3330,14 @@ const ro  = (l,v)=>`<div class="field"><span class="flabel">${l}</span><div clas
 function renderRestoreBlock(it){
   const rn = it.restoreNotice, reason = it.lost ? 'утрата' : 'ухудшение состояния';
   if(!rn || !rn.issued) return `<div class="warn-inline" style="margin:0 0 12px"><span>Обследование зафиксировало <b>${reason}</b>. Оформите извещение о восполнении и установите срок.</span></div>`;
+  if(rn.voided) return `<div class="warn-inline" style="margin:0 0 12px"><span style="text-decoration:line-through">Извещение ${esc(rn.doc||'')} от ${rn.date}</span> — <span class="pill high" title="${esc(rn.voided.reason)}">сторнировано · ${rn.voided.date}</span> ${esc(rn.voided.reason)}</span></div>`;
+  const vbtn = canHeadOfUnit() ? ` <button class="btn btn-tint btn-sm danger" onclick="openVoidRecord('${it.id}','restoreNotice',0)">Сторнировать извещение</button>` : '';
   if(rn.resolved === 'восполнено') return `<div class="okline" style="margin:0 0 12px"><span>Восполнено: ${esc(rn.doc||'')} — предмет восстановлен/заменён, взыскание не требуется.</span></div>`;
   if(rn.resolved === 'отказ' || isOverdue(rn.deadline)){
     const why = rn.resolved==='отказ' ? 'залогодатель отказался восполнить предмет' : `срок восполнения ${rn.deadline} истёк без восполнения`;
     return `<div class="flagline" style="margin:0 0 12px"><span>Извещение ${esc(rn.doc||'')} от ${rn.date}: ${why}. Замените предмет доп соглашением либо зафиксируйте отказ.</span></div>`;
   }
-  return `<div class="infoline" style="margin:0 0 12px"><span>Извещение ${esc(rn.doc||'')} от ${rn.date} вручено, срок восполнения до <b>${rn.deadline}</b> (${daysLeft(rn.deadline)} дн.). До истечения срока взыскание не поднимается.</span></div>`;
+  return `<div class="infoline" style="margin:0 0 12px"><span>Извещение ${esc(rn.doc||'')} от ${rn.date} вручено, срок восполнения до <b>${rn.deadline}</b> (${daysLeft(rn.deadline)} дн.). До истечения срока взыскание не поднимается.${vbtn}</span></div>`;
 }
 /* type-specific детали предмета для чтения (KIND_FIELDS §9.2 прежней системы) */
 function detailRows(it){
@@ -2875,7 +3403,9 @@ function itemPanels(it){
       <span>Запрет на отчуждение наложен залогодателем: ${esc(organOf(it))} · ${esc(it.ban.regNo)} от ${it.ban.date}. Отметка получена в оригиналах правоустанавливающих документов. Предмет не может быть продан без нашего ведома.</span></div>` : ''}
     ${it.ban && !banStale(it) && !banFullyRegistered(it.ban) ? `<div class="phead-banner warn"><span>Запрет ${esc(it.ban.regNo)} от ${it.ban.date} наложен залогодателем в «${esc(organOf(it))}», но отметка о запрете в оригиналах правоустанавливающих документов ещё не получена (ПБК п.2.1).</span></div>` : ''}
     ${it.lost ? `<div class="phead-banner danger"><span>Предмет утрачен по акту обследования — стоимость исключена из покрытия (залоговая = 0).</span></div>` : ''}
+    ${it.realizing ? `<div class="phead-banner info"><span>Предмет передан в реализацию (обращение взыскания). Статусом управляет модуль взыскания — из залогового модуля не переключается (Т-2, граничный контракт).</span></div>` : ''}
     ${it.needReval ? `<div class="phead-banner warn"><span>Обследование зафиксировало ухудшение состояния → требуется досрочная переоценка (вне планового цикла).</span></div>` : ''}
+    ${it.orphan && !itemHasAlloc(it.id) ? `<div class="phead-banner warn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Предмет создан на карточке договора, но привязка не была завершена — он ни в одном залоговом договоре (Т-1). Привяжите его к договору или аннулируйте.</span></div>` : ''}
     ${it.legacy ? `<div class="phead-banner warn"><span>Историческая запись прежней системы: залоговая стоимость выше расчётной по нормам прежней системы. Требуется переоценка по действующему положению (ПОЛ §2.1).</span></div>` : ''}
     <div class="phead-dims">
       ${kpi('Оценочная стоимость', fmt(it.appraised), `owned · отчёт ${esc(it.apprReport)} от ${it.apprDate}`)}
@@ -2884,7 +3414,9 @@ function itemPanels(it){
       ${kpi('Доступно', fmt(availableOf(it)), 'залоговая − отнесённое')}
     </div></div>`;
 
-  const p0 = `<div class="panel-wrap">${head}<div class="panel-card"><div class="f2">
+  const p0 = `<div class="panel-wrap">${head}<div class="panel-card">
+    <div class="gtoolbar" style="margin-bottom:14px">${actionBtn(canCurate(), 'Исправить реквизиты', `openEditItem('${it.id}')`)}</div>
+    <div class="f2">
       ${ro('Вид залога', it.kind)}
       ${ro('Наименование / описание', it.name)}
       ${ro('Залогодатель', clientName(it.pledger)+' · ИНН '+it.pledger)}
@@ -2904,7 +3436,7 @@ function itemPanels(it){
     </div></div>`;
 
   const filesSection = `<p class="section-h" style="margin-top:22px">Вложения</p>
-    <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openAttach('item','${it.id}')">Прикрепить файл</button></div>
+    <div class="gtoolbar">${actionBtn(canCurate(), 'Прикрепить файл', `openAttach('item','${it.id}')`)}</div>
     ${fileTable(it.files)}`;
 
   const zBadge = it.override
@@ -2931,29 +3463,37 @@ function itemPanels(it){
     </div>
     <p class="section-h">История переоценок</p>
     <div class="gtoolbar">
-      <button class="btn btn-tint btn-sm" onclick="openReval('${it.id}')">Провести переоценку</button>
-      <button class="btn btn-tint btn-sm" onclick="openOverride('${it.id}')">Изменить залоговую стоимость (решение комиссии)</button>
+      ${actionBtn(canCurate(), 'Провести переоценку', `openReval('${it.id}')`)}
+      ${actionBtn(canHeadOfUnit(), 'Изменить залоговую стоимость (решение комиссии)', `openOverride('${it.id}')`)}
     </div>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Дата</th><th>Отчёт оценщика</th><th class="numcell">Оценочная</th><th class="numcell">Залоговая (расч.)</th><th>Примечание</th></tr></thead>
-      <tbody>${[...it.revals].reverse().map(r=>`<tr><td>${r.date}</td><td>${esc(r.report)}</td>
-        <td class="numcell">${fmt(r.appraised)}</td><td class="numcell">${fmt(Math.round(r.appraised*coefOf(it.kind)*100)/100)}</td>
-        <td>${esc(r.note||'')}</td></tr>`).join('')}</tbody>
+      <thead><tr><th>Дата</th><th>Отчёт оценщика</th><th class="numcell">Оценочная</th><th class="numcell">Залоговая (расч.)</th><th>Примечание</th><th></th></tr></thead>
+      <tbody>${it.revals.map((r,i)=>({r,i})).reverse().map(({r,i})=>`<tr${r.voided?' class="voided-row"':''}>
+        <td${r.voided?' style="text-decoration:line-through">':'>'}${r.date}</td>
+        <td${r.voided?' style="text-decoration:line-through">':'>'}${esc(r.report)}</td>
+        <td class="numcell"${r.voided?' style="text-decoration:line-through">':'>'}${fmt(r.appraised)}</td>
+        <td class="numcell"${r.voided?' style="text-decoration:line-through">':'>'}${fmt(Math.round(r.appraised*coefOf(it.kind)*100)/100)}</td>
+        <td>${r.voided?`<span class="pill high" title="${esc(r.voided.reason)}">сторнирована · ${r.voided.date}</span> ${esc(r.voided.reason)}`:esc(r.note||'')}</td>
+        <td>${(!r.voided && canHeadOfUnit()) ? `<button class="btn btn-tint btn-sm danger" onclick="openVoidRecord('${it.id}','reval',${i})">Сторнировать</button>` : ''}</td></tr>`).join('')}</tbody>
     </table></div></div>`;
 
   const canPlace = banRequired(it) && !it.ban;          // есть основание, запрета ещё нет
   const canRelease = Boolean(it.ban) && allocatedLegal(it.id) === 0;  // доли обнулились
-  const consentsRows = (it.consents||[]).map(cn=>`<tr><td>${esc(cn.action)}</td><td>${cn.date}</td><td>${esc(cn.doc||'')}</td>
-    <td><span class="pill ${cn.decision==='положительное'?'low':'high'}">${cn.decision}</span></td>
+  const consentsRows = (it.consents||[]).map((cn,i)=>`<tr${cn.voided?' class="voided-row"':''}>
+    <td${cn.voided?' style="text-decoration:line-through">':'>'}${esc(cn.action)}</td>
+    <td${cn.voided?' style="text-decoration:line-through">':'>'}${cn.date}</td>
+    <td${cn.voided?' style="text-decoration:line-through">':'>'}${esc(cn.doc||'')}</td>
+    <td><span class="pill ${cn.voided?'neutral':cn.decision==='положительное'?'low':'high'}">${cn.decision}</span></td>
     <td>${cn.revalRequired?(cn.revalDone?'переоценка выполнена':'<span class="pill mid">требуется переоценка</span>'):'—'}</td>
-    <td>${esc(cn.note||'')}</td></tr>`).join('');
+    <td>${cn.voided?`<span class="pill high" title="${esc(cn.voided.reason)}">сторнировано · ${cn.voided.date}</span> ${esc(cn.voided.reason)}`:esc(cn.note||'')}</td>
+    <td>${(!cn.voided && canHeadOfUnit()) ? `<button class="btn btn-tint btn-sm danger" onclick="openVoidRecord('${it.id}','consent',${i})">Сторнировать</button>` : ''}</td></tr>`).join('');
   const p2 = `<div class="panel-wrap">
     <p class="section-h">Запрет на отчуждение</p>
     <div class="gtoolbar">
-      <button class="btn btn-tint btn-sm" onclick="openBan('${it.id}')" ${canPlace?'':'disabled'} title="${canPlace?'':'Зарегистрировать можно только по обременённому зарегистрированным договором предмету'}">Зарегистрировать наложение запрета залогодателем</button>
-      <button class="btn btn-tint btn-sm" onclick="openConsent('${it.id}')" ${it.ban?'':'disabled'} title="${it.ban?'':'Согласие выдаётся только по действующему запрету'}">Согласие на действия (без снятия)</button>
-      <button class="btn btn-tint btn-sm danger" onclick="openBanRelease('${it.id}')" ${canRelease?'':'disabled'} title="${canRelease?'':'Полное снятие нельзя, пока по предмету закреплены доли'}">Снять запрет (полное)</button>
-      <button class="btn btn-tint btn-sm" onclick="openPartialRelease('${it.id}')" ${it.ban?'':'disabled'} title="${it.ban?'частичное снятие запрета с части предмета':'Нет действующего запрета'}">Частичное снятие</button>
+      ${actionBtn(canCurate(), 'Зарегистрировать наложение запрета залогодателем', `openBan('${it.id}')`, { blocked:!canPlace, blockedTitle:'Зарегистрировать можно только по обременённому зарегистрированным договором предмету' })}
+      ${actionBtn(canCurate(), 'Согласие на действия (без снятия)', `openConsent('${it.id}')`, { blocked:!it.ban, blockedTitle:'Согласие выдаётся только по действующему запрету' })}
+      ${actionBtn(canCurate(), 'Снять запрет (полное)', `openBanRelease('${it.id}')`, { cls:'btn-tint btn-sm danger', blocked:!canRelease, blockedTitle:'Полное снятие нельзя, пока по предмету закреплены доли' })}
+      ${actionBtn(canCurate(), 'Частичное снятие', `openPartialRelease('${it.id}')`, { blocked:!it.ban, blockedTitle:'Нет действующего запрета' })}
     </div>
     ${it.ban ? `<div class="panel-card"><div class="f2">
         ${ro('Статус', banStatus(it))}
@@ -2968,7 +3508,7 @@ function itemPanels(it){
         : (banFullyRegistered(it.ban) ? `<div class="okline" style="margin:14px 0 0"><span>Предмет защищён от продажи.</span></div>`
           : `<div class="phead-banner warn" style="margin:14px 0 0"><span>Отметка о запрете в оригиналах правоустанавливающих документов ещё не получена (ПБК п.2.1).</span></div>`)}
       ${(it.consents&&it.consents.length) ? `<p class="section-h" style="font-size:16px;margin-top:18px">Согласия на действия (запрет сохраняется в силе)</p>
-        <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Действие</th><th>Дата</th><th>Документ</th><th>Решение</th><th>Переоценка</th><th>Примечание</th></tr></thead><tbody>${consentsRows}</tbody></table></div>` : ''}
+        <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Действие</th><th>Дата</th><th>Документ</th><th>Решение</th><th>Переоценка</th><th>Примечание</th><th></th></tr></thead><tbody>${consentsRows}</tbody></table></div>` : ''}
       </div>`
       : (banRequired(it) ? `<div class="flagline"><span>Запрет НЕ наложен, а договор(ы) ${banContracts(it).join(', ')} уже зарегистрированы. Залог не защищён от продажи. Срок наложения в «${esc(organOf(it))}»: до ${banDeadline(it)}${banOverdue(it) ? ` — ПРОСРОЧЕН на ${Math.abs(daysLeft(banDeadline(it)))} дн.` : ''}. Нажмите «Зарегистрировать наложение запрета залогодателем».</span></div>`
         : `<div class="okline"><span>Запрет не требуется: предмет не обременён ни одним зарегистрированным договором — оснований для наложения нет.</span></div>`)}
@@ -2982,14 +3522,17 @@ function itemPanels(it){
       ${kpi('Следующее обследование', ns || '—', ns ? (isOverdue(ns) ? 'ПРОСРОЧЕНО на '+Math.abs(daysLeft(ns))+' дн.' : 'через '+daysLeft(ns)+' дн.') : (bs&&bs.bankrupt?'банкрот — авто-просрочка не поднимается':'не планируется'))}
       ${kpi('Следующая переоценка', nextReval(it), (isOverdue(nextReval(it)) ? 'ПРОСРОЧЕНО на '+Math.abs(daysLeft(nextReval(it)))+' дн.' : 'через '+daysLeft(nextReval(it))+' дн.'))}
     </div>
-    <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openSurvey('${it.id}')">Зарегистрировать обследование</button>
-      ${(it.lost||it.needReval) ? `<button class="btn btn-tint btn-sm" onclick="openRestoreNotice('${it.id}')">${it.restoreNotice&&it.restoreNotice.issued?'Обновить извещение о восполнении':'Оформить извещение о восполнении'}</button>` : ''}</div>
+    <div class="gtoolbar">${actionBtn(canCurate(), 'Зарегистрировать обследование', `openSurvey('${it.id}')`)}
+      ${(it.lost||it.needReval) ? actionBtn(canCurate(), it.restoreNotice&&it.restoreNotice.issued?'Обновить извещение о восполнении':'Оформить извещение о восполнении', `openRestoreNotice('${it.id}')`) : ''}</div>
     ${(it.lost||it.needReval) ? renderRestoreBlock(it) : ''}
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Дата</th><th>Акт</th><th>Исход</th><th>Примечание</th></tr></thead>
-      <tbody>${[...it.surveys].reverse().map(s=>{const ef=surveyEffect(s.outcome);return `<tr><td>${s.date}</td><td>${esc(s.act)}${s.oneSided ? ` <span class="pill mid" title="Сторона уклонилась от подписания (П2 §2.4)">односторонний</span>` : ''}</td>
-        <td><span class="pill ${ef==='ok'?'low':ef==='lost'?'high':'mid'}">${esc(s.outcome)}</span></td>
-        <td>${esc(s.note||'')}</td></tr>`}).join('')}</tbody>
+      <thead><tr><th>Дата</th><th>Акт</th><th>Исход</th><th>Примечание</th><th></th></tr></thead>
+      <tbody>${it.surveys.map((s,i)=>({s,i})).reverse().map(({s,i})=>{const ef=surveyEffect(s.outcome);return `<tr${s.voided?' class="voided-row"':''}>
+        <td${s.voided?' style="text-decoration:line-through">':'>'}${s.date}</td>
+        <td${s.voided?' style="text-decoration:line-through">':'>'}${esc(s.act)}${s.oneSided ? ` <span class="pill mid" title="Сторона уклонилась от подписания (П2 §2.4)">односторонний</span>` : ''}</td>
+        <td><span class="pill ${s.voided?'neutral':ef==='ok'?'low':ef==='lost'?'high':'mid'}"${s.voided?' style="text-decoration:line-through"':''}>${esc(s.outcome)}</span></td>
+        <td>${s.voided?`<span class="pill high" title="${esc(s.voided.reason)}">сторнирован · ${s.voided.date}</span> ${esc(s.voided.reason)}`:esc(s.note||'')}</td>
+        <td>${(!s.voided && canHeadOfUnit()) ? `<button class="btn btn-tint btn-sm danger" onclick="openVoidRecord('${it.id}','survey',${i})">Сторнировать</button>` : ''}</td></tr>`}).join('')}</tbody>
     </table></div></div>`;
 
   const cs = CONTRACTS.filter(c => (isActive(c)||isDraftish(c)) && c.allocs.some(a=>a.item===it.id));
@@ -3060,8 +3603,12 @@ function itemFooter(it){
   // Действия предмета живут в тулбарах своих вкладок (переоценка → «Стоимость»,
   // запрет → «Запрет на отчуждение», обследование → «Обследования») — рядом со
   // своим статусом, гейтами и историей. Футер несёт только выход из карточки.
+  /* Р-40: печатные формы предмета — акт обследования (П2 §2.3/§2.4) и извещение о восполнении
+     (Прил.2 §2.5, только если извещение оформлено). Печать доступна любой роли. */
+  const prints = actionBtn(true, 'Печать акта обследования', `printForm('акт','${it.id}')`, { cls:'btn-tint btn-sm' })
+    + (it.restoreNotice ? actionBtn(true, 'Печать извещения о восполнении', `printForm('извещение','${it.id}')`, { cls:'btn-tint btn-sm' }) : '');
   return `<button class="btn btn-secondary" onclick="showView('list')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Закрыть</button>`;
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Закрыть</button>${prints}`;
 }
 
 /* Р-19 (ПОЛ §11.1–11.2): движение кредитно-залоговых документов — 6 шагов, каждый несёт
@@ -3144,17 +3691,18 @@ function ctrPanels(c){
     </div>
     ${c.status==='На рассмотрении комиссии' ? `<div class="phead-banner danger">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
-      <span>Контрольный гейт покрытия не пройден (${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — регистрация ЗАБЛОКИРОВАНА до решения комитета по администрированию бюджетных кредитов. Комиссия либо возвращает на доработку (догрузить/заменить предмет), либо допускает недообеспеченный кредит с обязательным обоснованием.</span></div>` : ''}
+      <span>Контрольный гейт покрытия не пройден (${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — обеспеченность ${pct(r.index)} < 100% (залог ${pct(r.idxPledge)}${r.gReq!=null?` + гарантия ${pct(r.idxGuar)}`:''})`).join('; ')}) — регистрация ЗАБЛОКИРОВАНА до решения комитета по администрированию бюджетных кредитов. Комиссия либо возвращает на доработку (догрузить/заменить предмет), либо допускает недообеспеченный кредит с обязательным обоснованием.</span></div>` : ''}
     ${c.undercovered ? `<div class="phead-banner warn">
       <span>Допущен комиссией с покрытием ниже порога ${pct(c.undercovered.req)} (${pct(c.undercovered.ratio)}). Обоснование: «${esc(c.undercovered.obosn)}» · ${esc(c.undercovered.by)} · ${c.undercovered.date}</span></div>` : ''}
     ${c.replacementRefusal ? `<div class="phead-banner warn">
       <span>Отказано в замене залога по кредиту(ам) ${c.replacementRefusal.credits.join(', ')} (Прил.3 §3.5). Причина: «${esc(c.replacementRefusal.reason)}» · ${esc(c.replacementRefusal.by)} · ${c.replacementRefusal.date}</span></div>` : ''}
     <div class="phead-dims">
       ${kpi('Статус', c.status, 'ЖЦ договора')}
-      ${kpi('Мин. покрытие', c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}">${pct(mc)}</span>`, `худший кредит договора · порог по составу (${pct(COVER_LIQUID)}/${pct(COVER_MOVABLE)})`)}
+      ${kpi('Обеспеченность (индекс)', c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}" title="${esc(coverIndexTip(c))}">${pct(mc)}</span>`, `худший кредит договора · индекс = залог + гарантия (Р-42) · порог по составу (${pct(COVER_LIQUID)}/${pct(COVER_MOVABLE)})`)}
     </div></div>`;
 
   const p0 = `<div class="panel-wrap">${head}<div class="panel-card">
+    <div class="gtoolbar" style="margin-bottom:14px">${actionBtn(canHeadOfUnit(), 'Исправить реквизиты договора', `openEditContract('${c.id}')`)}</div>
     <p class="section-h" style="font-size:16px;margin-top:0">Договор</p>
     <div class="f2">
       ${ro('Номер договора', c.no || '—')}
@@ -3261,7 +3809,7 @@ function ctrPanels(c){
     ${prereqBlock(c)}
     ${docRouteBlock(c)}
     <p class="section-h">Документы договора</p>
-    <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openAttach('contract','${c.id}')">Прикрепить файл</button></div>
+    <div class="gtoolbar">${actionBtn(canCurate(), 'Прикрепить файл', `openAttach('contract','${c.id}')`)}</div>
     ${fileTable(c.files)}</div>`;
 
   const p4 = `<div class="panel-wrap">
@@ -3270,13 +3818,24 @@ function ctrPanels(c){
   return [p0,p1,p2,p3,pDocs,p4];
 }
 function ctrFooter(c){
+  /* Р-40: печатные формы договора — опись предметов и справка об обеспеченности (разбор
+     индекса). Печать доступна любой роли (выдача наружу, не правка). */
+  const prints = actionBtn(true, 'Печать описи', `printForm('опись','${c.id}')`, { cls:'btn-tint btn-sm' })
+    + actionBtn(true, 'Справка об обеспеченности', `printForm('справка','${c.id}')`, { cls:'btn-tint btn-sm' });
   const back = `<button class="btn btn-secondary" onclick="showView('list')">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Закрыть</button><div style="flex:1"></div>`;
-  if(c.status==='Оформляется')
-    return back + `<button class="btn btn-primary" onclick="openRegister('${c.id}')">Зарегистрировать договор</button>`;
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Закрыть</button>${prints}<div style="flex:1"></div>`;
+  /* Р-31/Р-34: аннулирование ошибочного черновика — только на «черновых» статусах (isDraftish),
+     кнопка видна на этих статусах, но активна лишь роли-куратору. */
+  const cancelBtn = isDraftish(c)
+    ? actionBtn(canCurate(), 'Аннулировать черновик', `openCancelDraft('${c.id}')`, { cls:'btn-danger' }) : '';
+  if(c.status==='Оформляется'){
+    /* Р-29: договор, допущенный комитетом (undercovered) — куратор регистрирует полной формой. */
+    const admitted = c.undercovered ? `<span class="pill mid" title="Недообеспечение допущено комитетом по администрированию бюджетных кредитов">допущен комитетом</span>` : '';
+    return back + admitted + cancelBtn + actionBtn(canCurate(), 'Зарегистрировать договор', `openRegister('${c.id}')`, { cls:'btn-primary' });
+  }
   if(c.status==='На рассмотрении комиссии')
-    return back + `<button class="btn btn-tint" onclick="openRegister('${c.id}')">Повторить проверку гейта</button>
-      <button class="btn btn-primary" onclick="openCommission('${c.id}')">Решение комитета по администрированию бюджетных кредитов</button>`;
+    return back + cancelBtn + actionBtn(canCurate(), 'Повторить проверку гейта', `openRegister('${c.id}')`, { cls:'btn-tint' })
+      + actionBtn(canCommittee(), 'Решение комитета по администрированию бюджетных кредитов', `openCommission('${c.id}')`, { cls:'btn-primary' });
   return back;
 }
 
@@ -3498,13 +4057,50 @@ const host = () => document.getElementById('modalHost');
 const phost = () => document.getElementById('pickHost');
 function pmodal(html){ phost().innerHTML = html; phost().classList.add('open'); }
 function pclose(){ phost().classList.remove('open'); phost().innerHTML = ''; }
-function modal(html){ host().innerHTML = html; host().classList.add('open'); }
-function closeModal(){ host().classList.remove('open'); host().innerHTML = ''; }
-const mhead = t => `<div class="modal-h"><span class="mt">${t}</span><button class="modal-x" onclick="closeModal()">
+/* Т-1: предмет рождается на карточке договора (saveNewItem → openAlloc). Если привязку
+   закрыть по Esc/крестику/оверлею, предмет остаётся в реестре непривязанным и без следа.
+   _bornPending держит id только что рождённого предмета на время диалога привязки;
+   closeModal ловит незакрытую привязку и помечает предмет осиротевшим (баннер на карточке). */
+let _bornPending = null;
+const itemHasAlloc = id => CONTRACTS.some(c => (c.allocs||[]).some(a => a.item === id));
+/* Т-4: несохранённые изменения формы. markDirty ставит грязь на первый ввод; tryClose
+   при грязной форме требует повторного жеста (двухшаговое подтверждение без native confirm,
+   которое заблокировано в браузер-автоматизации и возвращает undefined в jsdom). */
+let _formDirty = false, _armDiscard = false;
+function markDirty(){ _formDirty = true; _armDiscard = false; }
+function tryClose(){
+  if(_formDirty && !_armDiscard){
+    _armDiscard = true;
+    toast('Есть несохранённые изменения формы. Нажмите «Отмена»/Esc ещё раз, чтобы закрыть без сохранения','warn');
+    return false;
+  }
+  closeModal(); return true;
+}
+function modal(html){
+  host().innerHTML = html; host().classList.add('open');
+  _formDirty = false; _armDiscard = false;
+  if(/\bmodal form\b/.test(html)) host().addEventListener('input', markDirty, { once:true });
+}
+function closeModal(){
+  host().classList.remove('open'); host().innerHTML = '';
+  host().removeEventListener('input', markDirty);
+  _formDirty = false; _armDiscard = false;
+  if(_bornPending){
+    const bp = _bornPending; _bornPending = null;
+    const it = item(bp);
+    if(it && !itemHasAlloc(bp)){
+      it.orphan = true;
+      hist(it, 'Предмет создан на карточке договора, но привязка не завершена — осиротел (Т-1)');
+      toast('Предмет '+bp+' создан, но не привязан к договору. Привяжите его в залоговом договоре или аннулируйте.','warn');
+      refresh();
+    }
+  }
+}
+const mhead = t => `<div class="modal-h"><span class="mt">${t}</span><button class="modal-x" onclick="tryClose()">
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;
 const mhead2 = t => `<div class="modal-h"><span class="mt">${t}</span><button class="modal-x" onclick="pclose()">
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;
-const mfoot = (okLbl, okFn, okCls) => `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+const mfoot = (okLbl, okFn, okCls) => `<div class="modal-f"><button class="btn btn-secondary" onclick="tryClose()">Отмена</button>
   <button class="btn ${okCls||'btn-primary'}" onclick="${okFn}">${okLbl}</button></div>`;
 const mfoot2 = (okLbl, okFn, okCls) => `<div class="modal-f"><button class="btn btn-secondary" onclick="pclose()">Отмена</button>
   <button class="btn ${okCls||'btn-primary'}" onclick="${okFn}">${okLbl}</button></div>`;
@@ -3521,7 +4117,16 @@ const nowStamp = () => TODAY + ' ' + new Date().toTimeString().slice(0,5);
 const hist = (o, what) => o.history.push({ when: nowStamp(), what, who: role });
 function refresh(){ renderList(); if(cur) openCard(cur.type, cur.id, curTab); }
 const clientOpts = () => CLIENTS.map(c=>({v:c.inn, t:c.name+' · ИНН '+c.inn}));
-const nextId = (arr, pfx) => pfx + String(arr.length+1).padStart(3,'0');
+/* Т-7: id по МАКСИМАЛЬНОМУ занятому суффиксу с этим префиксом, не по длине массива.
+   arr.length+1 давал коллизию при любом скрытии/фильтрации/пропуске номера в seed
+   (напр. аннулированный черновик остаётся в массиве, но новый предмет с тем же
+   pfx+length мог наложиться на seed-id с «дыркой» в нумерации). Скан всего массива. */
+const nextId = (arr, pfx) => {
+  const rx = new RegExp('^' + pfx.replace(/[.*+?^${}()|[\]\\-]/g,'\\$&') + '(\\d+)$');
+  let max = 0;
+  for(const o of arr){ const m = rx.exec(String((o&&o.id)||'')); if(m){ const n = +m[1]; if(n > max) max = n; } }
+  return pfx + String(max+1).padStart(3,'0');
+};
 
 /* ---------- НОВЫЙ ПРЕДМЕТ ЗАЛОГА ----------
    Точка рождения предмета — карточка залогового договора (targetCid). Предмет пишется
@@ -3658,7 +4263,10 @@ function saveNewItem(){
   if(it.committeeReq) toast(it.committeeReq.msg,'warn');
   const target = _newItemTarget; _newItemTarget = null;
   if(target && contract(target)){
-    /* рождён с карточки договора → сразу привязка к этому договору + кредиту (доля) */
+    /* рождён с карточки договора → сразу привязка к этому договору + кредиту (доля).
+       Т-1: пометим ожидание привязки — если диалог закроют без привязки, closeModal
+       пометит предмет осиротевшим. */
+    _bornPending = it.id;
     openAlloc(target, it.id);
   } else {
     reg='items'; selected = it.id; refresh();
@@ -3684,8 +4292,15 @@ function openReval(id){
 function saveReval(id){
   const it = item(id), v = num(val('rvVal')), date = iso2d(val('rvDate')), rep = val('rvRep').trim(), note = val('rvNote').trim();
   if(!(v > 0)) return toast('Оценочная стоимость должна быть положительным числом','warn');
-  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  /* Р-32: дата не в будущем и не раньше предыдущей несторнированной переоценки. */
+  const dv = eventDateValid(date, { notBefore: it.lastReval, notBeforeLabel:'предыдущая переоценка' });
+  if(!dv.ok) return toast(dv.msg,'warn');
   if(!rep) return toast('Укажите номер отчёта оценщика','warn');
+  /* Р-32: резкое падение оценочной относительно предыдущей несторнированной (it.appraised уже
+     откатывается к ней при сторнировании, Р-33) требует подтверждения — обязательного примечания. */
+  const prev = it.appraised;
+  if(prev > 0 && v < prev * (1 - REVAL_DROP_WARN/100) && !note)
+    return toast(`Оценочная падает на ${pct(1 - v/prev)} (порог предупреждения ${REVAL_DROP_WARN}%) — подтвердите снижение обязательным примечанием`,'warn');
   const acs0 = CONTRACTS.filter(isActive);
   const before = acs0.flatMap(c=>c.credits.map(cid=>({cid, ok:coverage(acs0, cid).ok})));
   const old = it.appraised;
@@ -3775,7 +4390,12 @@ function saveBan(id){
   if(!banRequired(it)) return toast('Оснований для запрета нет','warn');
   if(!organ) return toast('Укажите регистрирующий орган','warn');
   if(!regNo) return toast('Укажите рег. № запрета','warn');
-  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  /* Р-32: дата наложения не в будущем и не раньше нотариальной даты самого раннего
+     договора-основания (запрет не может предшествовать удостоверению обеспечения). */
+  const groundNotary = CONTRACTS.filter(c => isActive(c) && c.allocs.some(a=>a.item===it.id) && isDate(c.notaryDate))
+    .map(c=>c.notaryDate).sort((a,b)=>d2n(a)-d2n(b))[0];
+  const bdv = eventDateValid(date, { notBefore: groundNotary, notBeforeLabel:'нотариальная дата договора-основания' });
+  if(!bdv.ok) return toast(bdv.msg,'warn');
   const grounds = banContracts(it);
   const confirmedBy = markInOriginals ? role : '';
   it.ban = { organ, regNo, date, contracts: grounds, pendingRelease:false, markInOriginals, confirmedBy };
@@ -3816,7 +4436,9 @@ function saveRelease(id){
         channel = val('rbChannel'), chLbl = (RELEASE_CHANNELS.find(c=>c.v===channel)||{}).t || channel;
   if(allocatedLegal(it.id) > 0) return toast('По предмету снова закреплены доли — снятие невозможно','warn');
   if(!act) return toast('Укажите реквизит акта / № документа снятия','warn');
-  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  /* Р-32: дата снятия не в будущем и не раньше даты наложения запрета. */
+  const rdv = eventDateValid(date, { notBefore: (it.ban||{}).date, notBeforeLabel:'дата наложения запрета' });
+  if(!rdv.ok) return toast(rdv.msg,'warn');
   if(![...document.querySelectorAll('.rbAppr')].every(x=>x.checked))
     return toast('Пройдите всю цепочку согласования снятия (Прил.3 §3.2)','warn');
   /* Р-20/Р-9 (ПБК п.2.2): доп. гейт — снятие по «Полное погашение обязательства»
@@ -3850,7 +4472,7 @@ function savePartialRelease(id){
   const it = item(id), basis = val('prBasis'), part = val('prPart').trim(), act = val('prAct').trim(), date = iso2d(val('prDate'));
   if(!part) return toast('Опишите часть предмета','warn');
   if(!act) return toast('Укажите реквизит акта','warn');
-  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  { const ev = eventDateValid(date); if(!ev.ok) return toast(ev.msg,'warn'); }
   const overdueCr = [...new Set(CONTRACTS.filter(c=>isActive(c)&&c.allocs.some(a=>a.item===it.id)).flatMap(c=>c.credits))].filter(x=>(credit(x)||{}).overdue);
   if(overdueCr.length) return toast('Частичное снятие не допускается при просроченной задолженности','warn');
   (it.ban.partial ||= []).push({ part, basis, act, date });
@@ -3878,7 +4500,7 @@ function openConsent(id){
 function saveConsent(id){
   const it = item(id), action = val('cnAction'), date = iso2d(val('cnDate')), doc = val('cnDoc').trim(),
         decision = val('cnDecision'), revalReq = (document.getElementById('cnReval')||{}).checked, note = val('cnNote').trim();
-  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  { const ev = eventDateValid(date); if(!ev.ok) return toast(ev.msg,'warn'); }
   if(!doc) return toast('Укажите реквизит заявления/согласия','warn');
   const revalRequired = decision==='положительное' && revalReq;
   it.consents.push({ id:'СГ-'+(it.consents.length+1), action, date, doc, decision, note, revalRequired });
@@ -3907,7 +4529,7 @@ function saveRestoreNotice(id){
   const it = item(id), doc = val('rnDoc').trim(), date = iso2d(val('rnDate')), deadline = iso2d(val('rnDeadline')),
         sel = val('rnResolved'), resolved = sel==='(не завершено)' ? null : sel;
   if(!doc) return toast('Укажите реквизит извещения','warn');
-  if(!isDate(date)) return toast('Дата вручения — в формате дд.мм.гггг','warn');
+  { const ev = eventDateValid(date); if(!ev.ok) return toast(ev.msg,'warn'); }
   if(!isDate(deadline)) return toast('Срок восполнения — в формате дд.мм.гггг','warn');
   it.restoreNotice = { issued:true, doc, date, deadline, resolved };
   if(resolved==='восполнено'){
@@ -3982,7 +4604,7 @@ function svSigners(){
 function saveSurvey(id){
   const it = item(id), date = iso2d(val('svDate')), act = val('svAct').trim(), out = val('svOut'), note = val('svNote').trim();
   if(!act) return toast('Укажите номер акта','warn');
-  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  { const ev = eventDateValid(date, {notBefore: lastSurveyLive(it), notBeforeLabel:'предыдущее обследование'}); if(!ev.ok) return toast(ev.msg,'warn'); }
   const conclusion = val('svConclusion').trim();
   const photosEl = document.getElementById('svPhotos');
   const photos = (photosEl && photosEl.files) ? Array.from(photosEl.files).map(f=>f.name) : [];
@@ -4010,6 +4632,162 @@ function saveSurvey(id){
     toast('Утрата зафиксирована → оформите извещение о восполнении (§2.5); взыскание — только по истечении срока/отказу','warn');
   }
   closeModal(); refresh();
+}
+
+/* ---------- СТОРНИРОВАНИЕ ЖУРНАЛЬНОЙ ЗАПИСИ (Р-33) ----------
+   Записи журналов (переоценка / обследование / согласие / извещение) не удаляются
+   физически — помечаются voided:{by,date,reason}. Роль: заведующий отделом. Производные
+   скаляры (it.appraised/apprDate/apprReport/lastReval, it.lastSurvey) не читают массивы,
+   поэтому при сторно их надо пересчитать по ПОСЛЕДНЕЙ НЕсторнированной записи. У предмета
+   должна остаться базовая оценка и опорный акт обследования — сторнировать единственную
+   действующую переоценку/обследование нельзя. */
+function voidGenitive(kind){
+  return kind==='reval' ? 'переоценки' : kind==='survey' ? 'обследования'
+       : kind==='consent' ? 'согласия' : 'извещения о восполнении';
+}
+function voidRecordOf(it, kind, idx){
+  return kind==='restoreNotice' ? it.restoreNotice : ((it[kind+'s']||[])[idx]);
+}
+function voidBlockedReason(it, kind){
+  if(kind==='reval'   && livesReval(it).length  <= 1) return 'Нельзя сторнировать единственную действующую оценку — у предмета должна остаться базовая стоимость';
+  if(kind==='survey'  && livesSurvey(it).length <= 1) return 'Нельзя сторнировать единственный действующий акт — у предмета должна остаться опорная дата обследования';
+  return '';
+}
+function openVoidRecord(itemId, kind, idx){
+  if(!canHeadOfUnit()) return denyEdit();
+  const it = item(itemId), rec = voidRecordOf(it, kind, idx);
+  if(!rec || rec.voided) return toast('Запись не найдена или уже сторнирована','warn');
+  const blocked = voidBlockedReason(it, kind);
+  if(blocked) return toast(blocked,'warn');
+  const desc = kind==='reval'   ? `переоценка ${rec.date}, оценочная ${fmt(rec.appraised)} (${esc(rec.report)})`
+             : kind==='survey'  ? `акт ${esc(rec.act)} от ${rec.date}, исход «${esc(rec.outcome)}»`
+             : kind==='consent' ? `согласие «${esc(rec.action)}» от ${rec.date} (${esc(rec.doc||'')})`
+             :                    `извещение ${esc(rec.doc||'')} от ${rec.date}`;
+  modal(`<div class="modal form">${mhead('Сторнирование '+voidGenitive(kind)+' · '+it.id)}
+    <div class="modal-b"><div class="mform">
+      ${ro('Сторнируемая запись', desc)}
+      <div class="field req col-span"><span class="flabel">Причина сторнирования</span>
+        <textarea id="vdReason" class="note-area"></textarea></div>
+    </div>
+    <div class="warn-inline"><span>Запись не удаляется — помечается сторнированной. Производные (оценочная стоимость / опорные даты) пересчитаются по последней действующей записи.</span></div>
+    </div><div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-tint danger" onclick="saveVoidRecord('${itemId}','${kind}',${idx})">Сторнировать</button></div></div>`);
+}
+function saveVoidRecord(itemId, kind, idx){
+  if(!canHeadOfUnit()) return denyEdit();
+  const it = item(itemId), reason = val('vdReason').trim();
+  if(!reason) return toast('Укажите причину сторнирования','warn');
+  const rec = voidRecordOf(it, kind, idx);
+  if(!rec || rec.voided) return toast('Запись не найдена или уже сторнирована','warn');
+  const blocked = voidBlockedReason(it, kind);
+  if(blocked) return toast(blocked,'warn');
+  rec.voided = { by:role, date:TODAY, reason };
+  if(kind==='reval'){
+    const lives = livesReval(it), last = lives[lives.length-1];
+    it.appraised = last.appraised; it.apprDate = last.date; it.apprReport = last.report; it.lastReval = last.date;
+    hist(it, `Сторнирована переоценка ${rec.date} (${esc(rec.report)}): «${reason}». Оценочная откатилась к ${fmt(it.appraised)} от ${it.lastReval}. Залоговая (расч.) → ${fmt(calcPledge(it))}`);
+    toast('Переоценка сторнирована. Оценочная: '+fmt(it.appraised),'ok');
+  } else if(kind==='survey'){
+    it.lastSurvey = lastSurveyLive(it);
+    hist(it, `Сторнировано обследование ${esc(rec.act)} от ${rec.date}: «${reason}». Опорная дата обследования откатилась к ${it.lastSurvey||'—'}`);
+    toast('Обследование сторнировано','ok');
+  } else if(kind==='consent'){
+    hist(it, `Сторнировано согласие «${esc(rec.action)}» от ${rec.date}: «${reason}». Запрет на отчуждение оставался в силе — сторно согласия его не меняет`);
+    toast('Согласие сторнировано','ok');
+  } else {
+    hist(it, `Сторнировано извещение о восполнении ${esc(rec.doc||'')} от ${rec.date}: «${reason}»`);
+    toast('Извещение сторнировано','ok');
+  }
+  closeModal(); refresh();
+}
+
+/* ---------- ИСПРАВЛЕНИЕ РЕКВИЗИТОВ (Р-30) ----------
+   Правка нестоимостных реквизитов с обязательным основанием и следом «было → стало» в
+   истории. Стоимостные реквизиты (оценочная/залоговая) правятся только событиями
+   (переоценка / решение комиссии), не тут. Предмет — куратор; юр-реквизиты договора —
+   заведующий отделом. */
+function fieldDiffs(pairs){
+  return pairs.filter(p => String(p.before ?? '') !== String(p.after ?? ''))
+              .map(p => `${p.label}: «${p.before || '—'}» → «${p.after || '—'}»`);
+}
+function openEditItem(id){
+  if(!canCurate()) return denyEdit();
+  const it = item(id);
+  modal(`<div class="modal form">${mhead('Исправление реквизитов предмета · '+it.id)}
+    <div class="modal-b"><div class="mform">
+      ${fin('eiName','Наименование / описание', it.name, true, true)}
+      ${fin('eiIdent','Краткий идентификатор / кадастр / VIN', it.ident, true)}
+      ${fin('eiLegalDoc','Правоустанавливающий документ', it.legalDoc||'')}
+      ${fin('eiQty','Количество', it.qty==null?'':String(it.qty))}
+      ${fin('eiUnit','Ед. изм.', it.unit||'')}
+      ${fsel('eiPledgerType','Тип залогодателя (влияет на предпосылки §5.2)', PLEDGER_TYPES, it.pledgerType)}
+      <div class="field req col-span"><span class="flabel">Основание исправления</span>
+        <textarea id="eiReason" class="note-area"></textarea></div>
+    </div>
+    <div class="infoline"><span>Стоимостные реквизиты (оценочная, залоговая) правятся только событиями — переоценкой / решением комиссии — и здесь недоступны. Смена типа залогодателя меняет обязательный состав предпосылок §5.2.</span></div>
+    </div>${mfoot('Сохранить исправление','saveEditItem(\''+id+'\')')}</div>`);
+}
+function saveEditItem(id){
+  if(!canCurate()) return denyEdit();
+  const it = item(id), reason = val('eiReason').trim();
+  if(!reason) return toast('Укажите основание исправления','warn');
+  const name = val('eiName').trim(), ident = val('eiIdent').trim(), legalDoc = val('eiLegalDoc').trim(),
+        qtyRaw = val('eiQty').trim(), unit = val('eiUnit').trim(), pledgerType = val('eiPledgerType');
+  if(!name) return toast('Наименование не может быть пустым','warn');
+  if(!ident) return toast('Краткий идентификатор не может быть пустым','warn');
+  const qty = qtyRaw==='' ? null : num(qtyRaw);
+  if(qtyRaw!=='' && !(qty>0)) return toast('Количество — положительное число','warn');
+  const diffs = fieldDiffs([
+    {label:'наименование', before:it.name, after:name},
+    {label:'идентификатор', before:it.ident, after:ident},
+    {label:'правоуст. документ', before:it.legalDoc, after:legalDoc},
+    {label:'количество', before:it.qty, after:qty},
+    {label:'ед. изм.', before:it.unit, after:unit},
+    {label:'тип залогодателя', before:it.pledgerType, after:pledgerType},
+  ]);
+  if(!diffs.length) return toast('Изменений нет','warn');
+  it.name = name; it.ident = ident; it.legalDoc = legalDoc; it.qty = qty; it.unit = unit; it.pledgerType = pledgerType;
+  hist(it, `Исправление реквизитов предмета (основание: «${reason}»): ${diffs.join('; ')}`);
+  closeModal(); toast('Реквизиты предмета исправлены','ok'); refresh();
+}
+function openEditContract(id){
+  if(!canHeadOfUnit()) return denyEdit();
+  const c = contract(id);
+  modal(`<div class="modal form">${mhead('Исправление юр-реквизитов договора · '+c.id)}
+    <div class="modal-b"><div class="mform">
+      ${fin('ecNo','Номер договора', c.no||'', true)}
+      ${fdate('ecDate','Дата договора', c.date||'', true)}
+      ${fin('ecNotary','Нотариус', c.notary||'')}
+      ${fin('ecNotaryNo','№ нотариальной регистрации', c.notaryNo||'')}
+      ${fdate('ecNotaryDate','Дата нотариальной регистрации', c.notaryDate||'')}
+      ${fin('ecCert','Залоговое рег. свидетельство', c.cert||'')}
+      <div class="field req col-span"><span class="flabel">Основание исправления</span>
+        <textarea id="ecReason" class="note-area"></textarea></div>
+    </div>
+    <div class="infoline"><span>Правятся только юридические реквизиты договора. Состав предметов и доли — через отнесение/перезалог, не здесь.</span></div>
+    </div>${mfoot('Сохранить исправление','saveEditContract(\''+id+'\')')}</div>`);
+}
+function saveEditContract(id){
+  if(!canHeadOfUnit()) return denyEdit();
+  const c = contract(id), reason = val('ecReason').trim();
+  if(!reason) return toast('Укажите основание исправления','warn');
+  const no = val('ecNo').trim(), date = iso2d(val('ecDate')), notary = val('ecNotary').trim(),
+        notaryNo = val('ecNotaryNo').trim(), notaryDate = iso2d(val('ecNotaryDate')), cert = val('ecCert').trim();
+  if(!no) return toast('Номер договора не может быть пустым','warn');
+  if(!isDate(date)) return toast('Дата договора — в формате дд.мм.гггг','warn');
+  if(notaryDate && !isDate(notaryDate)) return toast('Дата нотариальной регистрации — в формате дд.мм.гггг','warn');
+  const diffs = fieldDiffs([
+    {label:'номер', before:c.no, after:no},
+    {label:'дата', before:c.date, after:date},
+    {label:'нотариус', before:c.notary, after:notary},
+    {label:'№ нотар. регистрации', before:c.notaryNo, after:notaryNo},
+    {label:'дата нотар. регистрации', before:c.notaryDate, after:notaryDate},
+    {label:'рег. свидетельство', before:c.cert, after:cert},
+  ]);
+  if(!diffs.length) return toast('Изменений нет','warn');
+  c.no = no; c.date = date; c.notary = notary; c.notaryNo = notaryNo; c.notaryDate = notaryDate; c.cert = cert;
+  hist(c, `Исправление юр-реквизитов договора (основание: «${reason}»): ${diffs.join('; ')}`);
+  closeModal(); toast('Реквизиты договора исправлены','ok'); refresh();
 }
 
 /* ---------- НОВЫЙ ЗАЛОГОВЫЙ ДОГОВОР (черновик) ---------- */
@@ -4118,10 +4896,16 @@ function openAlloc(cid, preItemId){
     const ctxWithDraft = ctx(draftWithItem);
     const { req } = requiredCover(crId, ctxWithDraft);
     const ls = liquidShare(crId, ctxWithDraft);
+    /* Р-44: подсказка о валюте — оценка предмета в валюте кредита; при несовпадении с уже
+       установленной по предмету валютой привязка будет заблокирована на сохранении. */
+    const tgtCcy = creditCcy(credit(crId)), curCcy = itemCcy(it);
+    const ccyWarn = curCcy && curCcy !== tgtCcy
+      ? `<br><b style="color:var(--asubk-danger,#B4232B)">Валюта: предмет обеспечивает кредиты в ${ccyLabel(curCcy)}, а ${crId} — в ${ccyLabel(tgtCcy)}. Привязка будет отклонена (Р-44, В-2).</b>`
+      : `<br>Валюта оценки: ${ccyLabel(tgtCcy)} (в валюте кредита ${crId}, Р-44).`;
     document.getElementById('alInfo').innerHTML = `<span>Залоговая ${fmt(pledgeValue(it))} · уже обременено действующими договорами ${fmt(leg)} · <b>доступно ${fmt(av)}</b>.
       ${leg > 0 ? 'Это <b>перезалог</b> на остаточную стоимость предмета.' : ''}
       ${it.ban ? `<br>По предмету уже действует запрет ${esc(it.ban.regNo)} — при регистрации будет дополнен основанием.` : ''}
-      <br>Порог по текущему составу: ${pct(req)} (${req===COVER_MOVABLE?'в покрытии есть движимый неликвидный предмет — П1 §2.4':'ликвидный состав — П1 §2.3'}). Доля ликвида: ${pct(ls)} при минимуме 80%.</span>`;
+      <br>Порог по текущему составу: ${pct(req)} (${req===COVER_MOVABLE?'в покрытии есть движимый неликвидный предмет — П1 §2.4':'ликвидный состав — П1 §2.3'}). Доля ликвида: ${pct(ls)} при минимуме 80%.${ccyWarn}</span>`;
     /* Д-3/Т3: дефолт доли = недостающее ДО ПОРОГА, а не полное требуемое покрытие. Т3 (Р-11):
        нетто считается по coverage-wide secPledge кредита — эффективные доли залога на этом
        кредите ВО ВСЕХ действующих договорах + в этом черновике (ctxWithDraft), а не только по
@@ -4138,11 +4922,18 @@ function openAlloc(cid, preItemId){
 function saveAlloc(cid){
   const c = contract(cid), it = item(val('alItem')), cr = val('alCredit'), share = num(val('alShare'));
   if(!(share > 0)) return toast('Доля должна быть положительным числом','warn');
+  /* Р-44 (В-2=А): валютный инвариант — оценка предмета ведётся в валюте кредита; предмет
+     не может обеспечивать кредиты разных валют. Проверяем ДО инварианта стоимости. */
+  const tgtCcy = creditCcy(credit(cr)), curCcy = itemCcy(it);
+  if(curCcy && curCcy !== tgtCcy)
+    return toast(`Валютный инвариант (Р-44): предмет ${it.id} уже обеспечивает кредиты в валюте ${ccyLabel(curCcy)}, а ${cr} — в ${ccyLabel(tgtCcy)}. Оценка предмета ведётся в валюте кредита; смешение валют по одному предмету запрещено (В-2). Заведите отдельный предмет с оценкой в ${ccyLabel(tgtCcy)}.`,'warn');
   const av = availableOf(it);
   if(share > av + 0.005)
     return toast('Доля '+fmt(share)+' превышает доступную залоговую стоимость '+fmt(av)+' — инвариант Σ долей ≤ залоговая нарушен','warn');
   c.allocs.push({ item: it.id, credit: cr, share });
   it.everPledged = true;
+  if(it.orphan) it.orphan = false;   // Т-1: привязка состоялась — предмет больше не осиротевший
+  _bornPending = null;               // Т-1: born-flow завершён привязкой
   hist(c, `Привязан предмет ${it.id} под ${cr}: доля ${fmt(share)} (доступно было ${fmt(av)})`);
   hist(it, `Отнесение к ${cr} по договору ${c.id}: доля ${fmt(share)}`);
   closeModal(); toast('Предмет привязан','ok'); refresh();
@@ -4172,18 +4963,50 @@ function openRegister(cid){
      Предмет мог быть принят до Р-18 (стоп-поля отсутствуют → stopFieldsOf возвращает undefined
      → не блокирует), либо его состояние могло измениться между приёмом и регистрацией. */
   const stopMiss = its.map(iid => ({ iid, v: stopListCheck(stopFieldsOf(item(iid))) })).filter(x => x.v.block);
-  const okAll = gate.ok && !prereqMiss.length && !kmMiss.length && !stopMiss.length;
+  /* Р-28 (В-1=А): гейт содержания — без предметов регистрация невозможна.
+     Р-29 (В-3=А): при допуске комитета (c.undercovered) гейт покрытия считается пройденным
+     по решению комитета — куратор довносит нотариальные реквизиты полной формой. */
+  const content = contentGate(c);
+  const gateOk = gate.ok || Boolean(c.undercovered);
+  /* Р-36: приоритет гейтов — стоп-лист §3.5 → предпосылки §5.2 → содержание (Р-28) →
+     решение КМ §2.6 → покрытие. Первые четыре — документарные/содержательные блокираторы:
+     они закрывают И регистрацию, И отправку в комитет (кнопка «Направить в комитет» не
+     рендерится). Комитет вправе допустить ТОЛЬКО недообеспечение (покрытие), ничего иного.
+     Плашки идут в том же порядке приоритета. */
+  const docBlocked = Boolean(stopMiss.length || prereqMiss.length || !content.ok || kmMiss.length);
+  const okAll = gateOk && content.ok && !prereqMiss.length && !kmMiss.length && !stopMiss.length;
+  /* Р-45: вклад договора в обеспеченность — тот же diff «до→после», что в доп соглашении
+     (renderDs). Индекс каждого кредита БЕЗ этого договора (ctx(null): черновик исключён) → С
+     ним (ctx(c)). Догрузка обеспечения к недообеспеченному кредиту иначе визуально неотличима
+     от отказа: пользователь видит «гейт покрытия НЕ пройден», не видя роста 60%→110%. */
+  const covWith = ctx(c), covWithout = ctx(null);
+  const diffRows = c.credits.map(id => {
+    const wo = coverage(covWithout, id), wi = coverage(covWith, id);
+    return { id, before: wo.index, after: wi.index, ok: wi.ok };
+  });
+  const contributes = diffRows.some(r => r.after > r.before + 1e-9);
   modal(`<div class="modal form">${mhead('Регистрация залогового договора · '+cid)}
     <div class="modal-b">
       <div class="cgrid-wrap" style="margin-bottom:14px"><table class="cgrid">
         <thead><tr><th>Кредит</th><th class="numcell">Сумма</th><th class="numcell">Порог</th><th class="numcell">Требуется</th><th class="numcell">Обеспечено</th><th>Покрытие</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-      ${gate.ok ? `<div class="okline"><span>Гейт покрытия пройден.</span></div>`
-        : `<div class="flagline"><span>Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)+' (порог '+pct(r.req)+')').join(', ')}. Регистрация блокируется; договор уходит на рассмотрение комитета по администрированию бюджетных кредитов.</span></div>`}
-      ${prereqMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Гейт предпосылок НЕ пройден: не приложены обязательные документы — ${prereqMiss.map(m=>`${m.iid}: ${esc(m.label)}`).join('; ')}. Приложите их на карточке предмета и повторите регистрацию.</span></div>`
-        : (gate.ok ? `<div class="okline" style="margin-top:10px"><span>Гейт предпосылок пройден: обязательные согласия и справки приложены.</span></div>` : '')}
-      ${kmMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Заёмщик относится к категории П1 §2.6 (${esc([...new Set(kmMiss.map(id=>credit(id).borrowerCategory))].join(', '))}). Обеспеченность устанавливается решением Кабинета Министров — укажите реквизиты решения.</span></div>` : ''}
-      ${stopMiss.length ? `<div class="flagline" style="margin-top:10px"><span>Гейт стоп-листа П1 §3.5 НЕ пройден: ${stopMiss.map(x=>`${x.iid}: ${esc(x.v.msg)}`).join('; ')}. Регистрация невозможна.</span></div>` : ''}
+      ${contributes ? `<p class="section-h" style="font-size:15px;margin:2px 0 6px">Вклад договора в обеспеченность (Р-45)</p>
+      <div class="cgrid-wrap" style="margin-bottom:12px"><table class="cgrid">
+        <thead><tr><th>Кредит</th><th>Обеспеченность до</th><th>Обеспеченность после</th><th>Вклад договора</th><th>Гейт</th></tr></thead>
+        <tbody>${diffRows.map(r=>`<tr><td>${r.id}</td><td>${pct(r.before)}</td>
+          <td class="${r.after>=r.before?'diff-up':'diff-dn'}">${pct(r.after)}</td>
+          <td class="${r.after>r.before+1e-9?'diff-up':''}">${r.after>r.before+1e-9?'+'+pct(r.after-r.before):'—'}</td>
+          <td><span class="pill ${r.ok?'low':'high'}">${r.ok?'≥100%':'<100%'}</span></td></tr>`).join('')}</tbody>
+      </table></div>
+      <div class="infoline" style="margin-bottom:12px"><span>Договор поднимает обеспеченность кредита(ов) — это «вклад договора». Даже если гейт покрытия ещё красный, догрузка засчитана (Р-45).</span></div>` : ''}
+      ${stopMiss.length ? `<div class="flagline"><span>① Гейт стоп-листа П1 §3.5 НЕ пройден: ${stopMiss.map(x=>`${x.iid}: ${esc(x.v.msg)}`).join('; ')}. Регистрация невозможна.</span></div>` : ''}
+      ${prereqMiss.length ? `<div class="flagline" style="margin-top:10px"><span>② Гейт предпосылок §5.2 НЕ пройден: не приложены обязательные документы — ${prereqMiss.map(m=>`${m.iid}: ${esc(m.label)}`).join('; ')}. Приложите их на карточке предмета и повторите регистрацию.</span></div>`
+        : (okAll ? `<div class="okline" style="margin-top:10px"><span>② Гейт предпосылок §5.2 пройден: обязательные согласия и справки приложены.</span></div>` : '')}
+      ${!content.ok ? `<div class="flagline" style="margin-top:10px"><span>③ ${esc(content.msg)}</span></div>` : ''}
+      ${kmMiss.length ? `<div class="flagline" style="margin-top:10px"><span>④ Гейт §2.6 НЕ пройден: заёмщик относится к категории П1 §2.6 (${esc([...new Set(kmMiss.map(id=>credit(id).borrowerCategory))].join(', '))}). Обеспеченность устанавливается решением Кабинета Министров — укажите реквизиты решения.</span></div>` : ''}
+      ${gate.ok ? `<div class="okline" style="margin-top:10px"><span>⑤ Гейт покрытия пройден.</span></div>`
+        : (c.undercovered ? `<div class="okline" style="margin-top:10px"><span>⑤ Покрытие ниже порога, но кредит ДОПУЩЕН комитетом по администрированию бюджетных кредитов (${pct(c.undercovered.ratio)} при пороге ${pct(c.undercovered.req)}). Основание: «${esc(c.undercovered.obosn)}» (${esc(c.undercovered.by)}, ${c.undercovered.date}). Куратор довносит нотариальные реквизиты и регистрирует договор.</span></div>`
+        : `<div class="flagline" style="margin-top:10px"><span>⑤ Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)+' (порог '+pct(r.req)+')').join(', ')}.${docBlocked ? ' Сначала устраните документарные гейты выше — в комитет уходит только недообеспечение.' : ' Регистрация блокируется; договор уходит на рассмотрение комитета по администрированию бюджетных кредитов.'}</span></div>`)}
       ${okAll ? `<div class="mform">
         ${fin('rgNo','Номер договора','',true)}
         ${fdate('rgDate','Дата договора', TODAY, true)}
@@ -4197,12 +5020,16 @@ function openRegister(cid){
       <div class="okline" style="margin-top:6px"><span>Если способ хранения — «у залогодержателя»: укажите место хранения; периодичность обследования не применяется, имущество у залогодержателя (ПОЛ §6.4 п.7).</span></div>` : ''}
     </div>
     ${okAll ? mfoot('Зарегистрировать','doRegister(\''+cid+'\')','btn-success')
-      : (!gate.ok ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-         <button class="btn btn-primary" onclick="toCommission('${cid}')">Направить в комитет по администрированию бюджетных кредитов</button></div>`
+      /* Р-36: документарные гейты (①②③④) блокируют и регистрацию, и комитет — кнопка
+         «Направить в комитет» не рендерится. §2.6 куратор чинит сам («Указать решение КМ»),
+         прочие — только «Закрыть». В комитет уходит ТОЛЬКО чистое недообеспечение (⑤). */
+      : (stopMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
         : (prereqMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
-          : (stopMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
-            : `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-               <button class="btn btn-primary" onclick="openKmDecision('${cid}')">Указать решение КМ</button></div>`)))}
+          : (!content.ok ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
+            : (kmMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                 <button class="btn btn-primary" onclick="openKmDecision('${cid}')">Указать решение КМ</button></div>`
+              : `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                 <button class="btn btn-primary" onclick="toCommission('${cid}')">Направить в комитет по администрированию бюджетных кредитов</button></div>`))))}
     </div>`);
 }
 /* Постобработка запрета при переводе договора в «Зарегистрирован».
@@ -4227,17 +5054,23 @@ function doRegister(cid){
   const c = contract(cid);
   const breach = invariantBreaches(c);
   if(breach.length) return toast('Инвариант нарушен по '+breach.map(b=>b.id).join(', ')+' — Σ долей превышает залоговую стоимость','warn');
-  const gate = gateCheck(c);
-  if(!gate.ok) return toast('Гейт покрытия не пройден','warn');
-  /* Р-5: гейт предпосылок оформления §5.2 — обязателен для регистрации. */
-  const pm = [...new Set(c.allocs.map(a=>a.item))].flatMap(iid=>prereqMissing(item(iid)).map(m=>({iid,...m})));
-  if(pm.length) return toast('Гейт предпосылок §5.2 не пройден: '+pm.map(m=>m.iid+' — '+m.label).join('; '),'warn');
-  /* Р-13 (П1 §2.6): гейт решения КМ — обязателен для регистрации. */
-  const km = c.credits.filter(id => kmGateBlocked(credit(id)));
-  if(km.length) return toast('Гейт П1 §2.6 не пройден: обеспеченность по решению КМ не установлена — '+km.join(', '),'warn');
-  /* Р-18 (П1 §3.5): гейт стоп-листа — та же повторная проверка, что и в openRegister. */
+  /* Р-36: проверки в фиксированном приоритете — стоп-лист §3.5 → предпосылки §5.2 →
+     содержание (Р-28) → решение КМ §2.6 → покрытие. Второй рубеж (denyEdit — первый). */
+  /* ① Р-18 (П1 §3.5): гейт стоп-листа — та же повторная проверка, что и в openRegister. */
   const sm = [...new Set(c.allocs.map(a=>a.item))].map(iid => ({ iid, v: stopListCheck(stopFieldsOf(item(iid))) })).filter(x => x.v.block);
   if(sm.length) return toast('Гейт стоп-листа П1 §3.5 не пройден: '+sm.map(x=>x.iid+' — '+x.v.msg).join('; '),'warn');
+  /* ② Р-5: гейт предпосылок оформления §5.2 — обязателен для регистрации. */
+  const pm = [...new Set(c.allocs.map(a=>a.item))].flatMap(iid=>prereqMissing(item(iid)).map(m=>({iid,...m})));
+  if(pm.length) return toast('Гейт предпосылок §5.2 не пройден: '+pm.map(m=>m.iid+' — '+m.label).join('; '),'warn');
+  /* ③ Р-28 (В-1=А): гейт содержания — без предметов регистрация невозможна. */
+  const cg = contentGate(c);
+  if(!cg.ok) return toast(cg.msg,'warn');
+  /* ④ Р-13 (П1 §2.6): гейт решения КМ — обязателен для регистрации. */
+  const km = c.credits.filter(id => kmGateBlocked(credit(id)));
+  if(km.length) return toast('Гейт П1 §2.6 не пройден: обеспеченность по решению КМ не установлена — '+km.join(', '),'warn');
+  /* ⑤ Р-29 (В-3=А): при допуске комитета (c.undercovered) гейт покрытия пройден по решению комитета. */
+  const gate = gateCheck(c);
+  if(!gate.ok && !c.undercovered) return toast('Гейт покрытия не пройден','warn');
   const no = val('rgNo').trim(), date = iso2d(val('rgDate')), notary = val('rgNotary').trim(),
         nno = val('rgNotaryNo').trim(), ndate = iso2d(val('rgNotaryDate')), cert = val('rgCert').trim(),
         custody = val('rgCustody'), custodyPlace = val('rgCustodyPlace').trim();
@@ -4256,7 +5089,17 @@ function doRegister(cid){
 }
 function toCommission(cid){
   const c = contract(cid), gate = gateCheck(c);
+  /* Р-36: в комитет уходит ТОЛЬКО недообеспечение. Документарные гейты (стоп-лист §3.5,
+     предпосылки §5.2, содержание Р-28, решение КМ §2.6) закрывают и этот маршрут —
+     второй рубеж на случай обхода UI. */
+  const its = [...new Set(c.allocs.map(a=>a.item))];
+  if(its.map(iid => stopListCheck(stopFieldsOf(item(iid)))).some(v=>v.block)) return toast('Стоп-лист П1 §3.5 не пройден — договор нельзя направить в комитет','warn');
+  if(its.some(iid => prereqMissing(item(iid)).length)) return toast('Предпосылки §5.2 не собраны — договор нельзя направить в комитет','warn');
+  if(!contentGate(c).ok) return toast('Договор без предметов нельзя направить в комитет','warn');
+  if(c.credits.some(id => kmGateBlocked(credit(id)))) return toast('Гейт §2.6 не пройден — сначала внесите решение КМ','warn');
+  if(gate.ok) return toast('Покрытие в норме — решение комитета не требуется','warn');
   c.status = 'На рассмотрении комиссии';
+  c.commissionSince = TODAY;   // Р-35: старт отсчёта SLA очереди комитета
   hist(c, `Регистрация заблокирована контрольным гейтом: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}. Направлено в комитет по администрированию бюджетных кредитов.`);
   closeModal(); toast('Договор направлен в комитет по администрированию бюджетных кредитов','warn'); refresh();
 }
@@ -4318,23 +5161,54 @@ function saveCommission(cid){
     closeModal(); toast('Возвращено на доработку','ok'); return refresh();
   }
   if(!ob) return toast('Допуск ниже порога требует обоснования','warn');
+  /* Р-28 (В-1=А): комитет не допускает ПУСТОЙ договор — допуск касается только
+     недообеспечения, а не отсутствия предметов. */
+  const cg = contentGate(c);
+  if(!cg.ok) return toast(cg.msg,'warn');
   /* Р-5: комиссия допускает недообеспечение, но предпосылки §5.2 (согласия/справки) — не в её власти. */
   const pm = [...new Set(c.allocs.map(a=>a.item))].flatMap(iid=>prereqMissing(item(iid)).map(m=>({iid,...m})));
   if(pm.length) return toast('Регистрация невозможна: гейт предпосылок §5.2 — '+pm.map(m=>m.iid+' — '+m.label).join('; '),'warn');
-  const no = 'ЗД-' + TODAY.slice(6) + '/' + c.id.slice(2) + '-1';
   /* Худший по покрытию кредит — тот же выбор, что и Math.min(...ratio) ниже, но с
      сохранением его req (Д-2): порог — функция состава, не константа 120%. */
   const worst = gate.rows.reduce((a,b)=> b.ratio<a.ratio?b:a);
-  Object.assign(c, { status:ACTIVE, no: c.no || no, date: c.date || TODAY,
-    notary: c.notary || 'Нотариус (реквизиты уточняются)', notaryNo: c.notaryNo || 'НР-' + TODAY.slice(6) + '/0000',
-    notaryDate: c.notaryDate || TODAY, cert: c.cert || 'ЗС-' + TODAY.slice(6) + '/0000',
-    undercovered: { ratio: worst.ratio, req: worst.req, obosn: ob, by: role, date: TODAY } });
-  c.allocs.forEach(a => { item(a.item).everPledged = true; });
-  hist(c, `Комитет по администрированию бюджетных кредитов: ДОПУЩЕН недообеспеченный кредит (${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}). Обоснование: «${ob}». Договор зарегистрирован.`);
-  const missing = afterRegister(c);
-  closeModal(); toast(`Комиссия допустила договор с покрытием ниже порога ${pct(worst.req)} — флаг зафиксирован`,'warn');
-  if(missing.length) toast(`Наложите запрет на отчуждение в «${organOf(missing[0])}» до ${banDeadline(missing[0])} — до этого залог не защищён от продажи`,'warn');
+  /* Р-29 (В-3=А): КОМИТЕТ РЕШАЕТ ТОЛЬКО ВОПРОС ДОПУСКА, НЕ РЕГИСТРИРУЕТ. Нотариальных
+     реквизитов у комитета нет — их приносит куратор. Ставим флаг допуска и возвращаем
+     статус «Оформляется»; регистрацию проводит куратор через openRegister полной формой
+     (реквизиты + способ хранения), гейт покрытия у него пройден по этому допуску. */
+  c.undercovered = { ratio: worst.ratio, req: worst.req, obosn: ob, by: role, date: TODAY };
+  c.status = 'Оформляется';
+  hist(c, `Комитет по администрированию бюджетных кредитов: ДОПУЩЕН недообеспеченный кредит (${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)).join(', ')}). Обоснование: «${ob}». Договор возвращён куратору на регистрацию (реквизиты и способ хранения довносит куратор).`);
+  closeModal(); toast(`Комитет допустил недообеспечение (порог ${pct(worst.req)}) — куратор регистрирует договор полной формой`,'ok');
   refresh();
+}
+
+/* ---------- Р-31: АННУЛИРОВАНИЕ ОШИБОЧНОГО ЧЕРНОВИКА ----------
+   Ошибочно созданный черновик нельзя было закрыть — он висел в реестре, а его доли
+   держали предметы в статусе «резервируется» (allocatedDraft) и урезали availableOf для
+   всех прочих договоров. Аннулирование доступно только на «черновых» статусах (isDraftish),
+   требует причины, снимает отнесения (освобождает доли) и оставляет запись в реестре и в
+   истории. Физического удаления нет — append-only. */
+function openCancelDraft(cid){
+  if(!canCurate()) return denyEdit();
+  const c = contract(cid);
+  if(!isDraftish(c)) return toast('Аннулировать можно только черновик (статус «Оформляется» / «На рассмотрении комиссии»)','warn');
+  modal(`<div class="modal form">${mhead('Аннулирование черновика договора · '+cid)}
+    <div class="modal-b">
+      <div class="warn-inline"><span>Отнесения предметов будут сняты (доли освобождаются), договор перейдёт в статус «Аннулирован» и останется в реестре с записью в истории. Действие необратимо.</span></div>
+      <div class="mform one">${ftxt('cdReason','Причина аннулирования (обязательно)','')}</div>
+    </div>${mfoot('Аннулировать черновик','saveCancelDraft(\''+cid+'\')','btn-danger')}</div>`);
+}
+function saveCancelDraft(cid){
+  if(!canCurate()) return denyEdit();
+  const c = contract(cid);
+  if(!isDraftish(c)) return toast('Аннулировать можно только черновик','warn');
+  const reason = val('cdReason').trim();
+  if(!reason) return toast('Укажите причину аннулирования','warn');
+  const freed = [...new Set(c.allocs.map(a=>a.item))];
+  c.allocs = [];
+  c.status = CANCELLED;
+  hist(c, `Черновик аннулирован. Причина: «${reason}». Сняты отнесения по предметам: ${freed.length ? freed.join(', ') : '—'} — доли освобождены.`);
+  closeModal(); toast('Черновик аннулирован — доли освобождены','ok'); refresh();
 }
 
 /* ---------- ДОП СОГЛАШЕНИЕ — CHANGESET (конверт версионирования) ---------- */
@@ -4745,6 +5619,8 @@ function refbookInner(){
         ${nfin('rb-cov-guar-fx','Банковская гарантия в иной валюте, %', String(Math.round(COVER_GUARANTEE_FX*100)), 'П1 §2.3')}
         ${ifin('rb-ban-days','Срок наложения запрета, рабочих дней', String(BAN_DEADLINE_DAYS), 'в ПОЛ/П1-П3 отсутствует')}
         ${ifin('rb-doc-route','Срок маршрута документов до архивного шага, дней', String(DOC_ROUTE_DAYS))}
+        ${ifin('rb-committee-sla','SLA очереди комитета, дней (после — критичность высокая)', String(COMMITTEE_SLA))}
+        ${ifin('rb-page-size','Размер страницы реестра, строк', String(PAGE_SIZE))}
       </div>
 
       <p class="section-h" style="font-size:16px;margin-top:16px">Коэффициент, ранг ликвидности, переоценка, орган (по виду)</p>
@@ -4834,9 +5710,12 @@ function saveRefbook(){
   const boardOk = Boolean(rbBoardReq && rbBoardReq.trim());
 
   // ВНУТРЕННИЕ параметры — всегда в DOM, всегда валидируются и сохраняются.
-  const bd = num(val('rb-ban-days')), docRoute = num(val('rb-doc-route'));
+  const bd = num(val('rb-ban-days')), docRoute = num(val('rb-doc-route')), commSla = num(val('rb-committee-sla')),
+        pageSz = num(val('rb-page-size'));
   if(!(bd > 0)) return toast('Срок наложения запрета — положительное число рабочих дней','warn');
   if(!(docRoute > 0)) return toast('Срок маршрута документов — положительное число дней','warn');
+  if(!(commSla > 0)) return toast('SLA очереди комитета — положительное число дней','warn');
+  if(!(pageSz > 0)) return toast('Размер страницы реестра — положительное число строк','warn');
   const revalDraft = {};
   for(const k of Object.keys(KINDS)){
     const r = num(val('rb-r-'+k)), o = val('rb-o-'+k).trim();
@@ -4882,6 +5761,8 @@ function saveRefbook(){
   });
   BAN_DEADLINE_DAYS = Math.round(bd);
   DOC_ROUTE_DAYS = Math.round(docRoute);
+  COMMITTEE_SLA = Math.round(commSla);
+  PAGE_SIZE = Math.round(pageSz); curPage = 1;
   COVER_LIQUID = cl; COVER_MOVABLE = cm; LIQUID_SHARE_MIN = ls;
   COVER_GUARANTEE = cg; COVER_GUARANTEE_FX = cgfx;
   TECH_AGE_LIMIT['СНГ'] = Math.round(ageS); TECH_AGE_LIMIT['Дальнее зарубежье'] = Math.round(ageF);
@@ -4903,6 +5784,9 @@ function showView(v){
   document.getElementById('view-'+v).style.display='flex';
   if(v==='list'){ cur=null; document.getElementById('crumbTitle').textContent='Залоговое обеспечение'; renderList(); }
 }
+/* Т-5: гамбургер сворачивает сайдбар (drawer на планшете, узкая полоса на десктопе),
+   освобождая ширину под таблицы — обследование с планшета становится возможным. */
+function toggleNav(){ document.querySelector('.app').classList.toggle('nav-collapsed'); }
 function scrollTabs(){ document.getElementById('detailTabbar').scrollBy({left:200, behavior:'smooth'}); }
 function closeSplit(){ document.getElementById('splitRefresh').classList.remove('open'); }
 function toast(msg, kind){
@@ -4910,19 +5794,37 @@ function toast(msg, kind){
   t.className = 'toast' + (kind ? ' '+kind : ''); t.innerHTML = `<span>${msg}</span>`;
   w.appendChild(t); setTimeout(()=>t.remove(), 4200);
 }
-document.addEventListener('keydown', e => { if(e.key==='Escape' && host().classList.contains('open')) closeModal(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape' && host().classList.contains('open')) tryClose(); });
 
 renderNav(); renderList();
+{ const _sd = document.getElementById('standDate'); if(_sd) _sd.value = d2iso(TODAY); }   // Т-6: init дата стенда
 
 /* Тест-шов: экспорт внутренних функций и состояния для jsdom-смоук-тестов (mockups/collateral/tests/).
    Символы верифицированы grep'ом на момент своей задачи; объект дополняется по мере появления
    новых функций/констант в последующих задачах (Р-11: guaranteeReq, guaranteeExpired). */
 if (typeof window !== 'undefined') window.__zt = {
   requiredCover, coverage, calcPledge, pledgeValue, coefOf, effShare, allocatedIn, kmGateBlocked,
+  contentGate, isDraftish, allocatedDraft, allocatedLegal, availableOf, TODAY, triggers,
+  saveCancelDraft, openCancelDraft, CANCELLED,
+  eventDateValid, REVAL_DROP_WARN,
+  livesReval, livesSurvey, lastRevalLive, lastSurveyLive, voidBlockedReason, openVoidRecord, saveVoidRecord,
+  openEditItem, saveEditItem, openEditContract, saveEditContract, fieldDiffs,
+  saveReval, saveSurvey, doRegister, saveCommission,
   guaranteeReq, guaranteeExpired,
   KINDS, KIND_FIELDS, COVER_LIQUID, COVER_MOVABLE, COVER_GUARANTEE, COVER_GUARANTEE_FX,
   SURVEY_MATRIX, CREDITS, ITEMS, CONTRACTS, credit, item, contract,
-  canCurate, canCommittee, canHeadOfDept, canHeadOfUnit,
+  canCurate, canCommittee, canHeadOfDept, canHeadOfUnit, canDs,
+  // Волна 2 (Р-34/Р-35/Р-36)
+  actionBtn, toCommission, onRoleChange, gateCheck, prereqMissing, COMMITTEE_SLA,
+  // Волна 3 (Р-37/Р-38/Р-39/Р-41)
+  onNew, openNewItem, rowsItems, rowsMonitor, rowsContracts, filterRows, regRows,
+  FILTERS, SORT_KEYS, HEADS, sortBy, renderList, onQuickSearch, gotoPage,
+  trigId, findTrig, TRIG_WORK, TRIG_CLOSED, reconcileTrigWork, trigAction, takeTrig,
+  openDeferTrig, saveDeferTrig, undeferTrig, openMonitorObject, selectRow, openSelected,
+  // Волна 4 (Р-42/Р-43/Р-45/Р-40/Р-44)
+  minCoverage, coverIndexTip, openRegister, openAlloc, saveAlloc,
+  creditCcy, ccyLabel, itemCcy, itemCcyLabel,
+  sortedRows, buildCsv, exportCsv, downloadFile, buildPrintForm, printForm,
   surveyInterval, effectiveInterval, RISK_TIGHTENING, SURVEY_MIN_MONTHS, RISK_TIGHTENING_APPROVAL,
   itemRiskCategory, borrowerSolvency, nextSurvey, addMonths,
   techAgeCheck,
@@ -4933,6 +5835,9 @@ if (typeof window !== 'undefined') window.__zt = {
   banFullyRegistered, releaseValid,
   overrideAllowed, docRouteIncomplete,
   riskFactorCandidates,
+  // Волна 5 (Т-1…Т-7)
+  nextId, setStandDate, STAND_DATE_SEED, collectionSetRealizing, itemHasAlloc,
+  tryClose, toggleNav, markDirty, lienStatus, AVA_LIEN,
   // §14 поручительство (Р-24…Р-27)
   GUARANTORS, SURETIES, guarantor, surety, suretiesOfCredit, suretiesOfGuarantor,
   activeSuretiesOfCredit, guarantorGate, guarantorIsPerson, ageAt,
