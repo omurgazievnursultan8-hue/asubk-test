@@ -1157,6 +1157,239 @@ const CREDIT_META = {
 };
 CREDITS.forEach(c => { const m = CREDIT_META[c.no]; if (m){ c.date = m.date; c.gov = m.gov; } });
 
+/* ═══ ДОЗАПОЛНЕНИЕ КАРТОЧКИ · реалистичные реквизиты по ВСЕМ заёмщикам ═══
+   Детально заведён только первый субъект (АгроТехСервис). Остальные ~45 заёмщиков открывались
+   с пустыми вкладками «Реквизиты и контакты», «Связанные лица», «Документы», внешними снимками в
+   «Проверках», кураторством и историей. Этот детерминированный сидер (seed = хеш ИНН) заполняет
+   недостающее — так, чтобы данные были правдоподобны и согласованы (контакты по региону, банки КР,
+   ФИО/ИНН кыргызского формата, документы по кредиту/взысканию). Каждый массив дозаполняется только
+   там, где по ИНН/кредиту ещё нет записей — уже заведённые ветки не трогаются.
+   Вызывается ниже (seedBorrowerDetails()) — после объявления PROC_GROUP/TERMINAL_GROUP,
+   на которые опирается groupOf(). */
+function seedBorrowerDetails(){
+  const DETAILED = new Set(['01204199910016','02201199920021','03301199930031','04401199940041',
+    '05501199950051','06601199960061','07701199970071','08801199980081','09901199990091','10001199900101']);
+
+  const SURNAMES=['Асанов','Осмонов','Токтогулов','Бекбоев','Джээнбеков','Ниязов','Абдыраимов','Касымов',
+    'Сыдыков','Мамбетов','Жумабеков','Садыков','Кадыров','Усенов','Турсунов','Абдиев','Эргешов','Максутов',
+    'Ашимов','Байсалов','Дуйшеев','Кулов','Салиев','Орозов','Бакиров','Исаков','Молдалиев','Сартбаев'];
+  const MALE=['Бакыт','Азамат','Нурлан','Эрлан','Талант','Кубаныч','Данияр','Марат','Руслан','Тимур',
+    'Улан','Каныбек','Эмир','Адилет','Мирлан','Бекзат','Азат','Тилек'];
+  const FEMALE=['Гульнара','Айнура','Жаныл','Динара','Асель','Чолпон','Бермет','Салтанат','Назгуль',
+    'Венера','Айгуль','Жамиля','Нургуль','Айжан','Гулмира'];
+  const PATR_M=['Кадырович','Сапарович','Асанович','Бакытович','Маратович','Эрмекович','Нурланович',
+    'Талантович','Усенович','Абдиевич','Орозович','Дуйшенович'];
+  const PATR_F=['Кадыровна','Сапаровна','Асановна','Бакытовна','Маратовна','Эрмековна','Нурлановна',
+    'Талантовна','Усеновна','Абдиевна','Орозовна','Дуйшеновна'];
+  const DEPTS=['Отраслевой департамент промышленности','Отраслевой департамент АПК',
+    'Региональное представительство (Юг)','Региональное представительство (Север)',
+    'Департамент кредитования','Сектор кредитования'];
+  const PROBLEM_DEPT='ДПО / отдел проблемных кредитов';
+
+  const BANKS=[
+    {bank:'ОАО «Оптима Банк»',bik:'109005'}, {bank:'ОАО «РСК Банк»',bik:'129001'},
+    {bank:'ОАО «Айыл Банк»',bik:'135001'},   {bank:'ОАО «Бакай Банк»',bik:'124002'},
+    {bank:'ЗАО «Демир Банк»',bik:'119008'},  {bank:'ОАО «Керемет Банк»',bik:'128003'},
+    {bank:'ЗАО «Банк КИКБ (KICB)»',bik:'128009'}, {bank:'ОАО «Халык Банк Кыргызстан»',bik:'125005'},
+    {bank:'ОАО «Коммерческий банк КЫРГЫЗСТАН»',bik:'103007'}, {bank:'ОАО «Дос-Кредобанк»',bik:'118004'},
+  ];
+  /* телефонные коды по району (город привязки) */
+  const AREA={ 'Ленинский (г. Бишкек)':'312','Первомайский (г. Бишкек)':'312','Сокулукский':'3134',
+    'Аламудунский':'3132','Чуйский':'3138','Жайылский':'3133','Ак-Суйский':'3922','Ак-Талинский':'3535',
+    'Таласский':'3422','Кара-Сууйский':'3230','Сузакский':'3722','Баткенский':'3622' };
+
+  const TR={а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',
+    о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'kh',ц:'ts',ч:'ch',ш:'sh',щ:'sch',ъ:'',ы:'y',ь:'',э:'e',
+    ю:'yu',я:'ya'};
+  const translit = str => str.toLowerCase().split('').map(c=> TR[c]!==undefined ? TR[c] : (/[a-z0-9]/.test(c)?c:'')).join('');
+  function h(str){ let x=2166136261>>>0; for(let i=0;i<str.length;i++){ x^=str.charCodeAt(i); x=Math.imul(x,16777619);} return x>>>0; }
+  /* seed приходит из h() и хешей сдвигов — берём беззнаково (>>> ), иначе seed>>N уходит в минус
+     и modulo даёт отрицательный индекс (arr[neg] === undefined). */
+  const pick=(arr,seed)=>arr[(seed>>>0)%arr.length];
+
+  function fio(seed, female){
+    seed=seed>>>0;
+    const s=pick(SURNAMES,seed)+(female?'а':'');
+    const first=female?pick(FEMALE,seed>>>3):pick(MALE,seed>>>3);
+    const patr=female?pick(PATR_F,seed>>>6):pick(PATR_M,seed>>>6);
+    return s+' '+first+' '+patr;
+  }
+  function pin(seed, female){   /* 14 знаков: пол(1) + ДД + ММ + ГГГГ + серия(5) */
+    seed=seed>>>0;
+    const g=female?2:1;
+    const dd=String(1+seed%28).padStart(2,'0');
+    const mm=String(1+(seed>>>5)%12).padStart(2,'0');
+    const yyyy=String(1962+(seed>>>9)%42);
+    const ser=String(seed%100000).padStart(5,'0');
+    return ''+g+dd+mm+yyyy+ser;
+  }
+  function domainOf(name){
+    const m=name.match(/«([^»]+)»/);
+    let base;
+    if(m) base=translit(m[1]);
+    else { const t=name.replace(/ИП|физ\.?|\(|\)|\./g,'').trim().split(/\s+/); base=translit(t[0]||name); }
+    base=base.replace(/[^a-z0-9]/g,'');
+    return base.length<3 ? 'company'+base : base;
+  }
+  const dig = str => (str||'').replace(/\D/g,'');
+  const NOTE_BY_GROUP={
+    '1.1':'обслуживается по графику, замечаний нет','1.2':'допускает отставание от графика — усиленный мониторинг',
+    '2.1':'переведён в досудебное урегулирование','2.2':'ведётся судебное взыскание',
+    '2.3':'исполнительное производство','3.1':'идёт процедура банкротства',
+    '3.2':'процедура банкротства завершена, долг списан','4':'долг признан безнадёжным',
+    '5':'долг полностью погашен, кредит закрыт' };
+
+  /* пул кредитных кураторов (зеркало модуля «Сотрудники») */
+  const CURATORS=[];
+  for(let k=0;k<20;k++){ const id='emp-'+(50+k); const sd=h(id);
+    EMP[id]={ fio:fio(sd, k%5===0), dept:pick(DEPTS,sd) }; CURATORS.push(id); }
+  const PROBLEM_CURATORS=[];
+  for(let k=0;k<6;k++){ const id='emp-'+(70+k); const sd=h(id);
+    EMP[id]={ fio:fio(sd, k%3===0), dept:PROBLEM_DEPT }; PROBLEM_CURATORS.push(id); }
+
+  let docSeq=100, unitSeq=6000;
+
+  SUBJECTS.forEach(s=>{
+    const inn=s.inn, seed=h(inn);
+    const isJur = s.personKind==='юр';
+    const isIP  = s.personKind==='ИП';
+    const cr = CREDITS.find(c=>c.inn===inn);            // у каждого заёмщика набора — один кредит
+    const cat = (typeof catOfBorrower==='function') ? catOfBorrower(inn,TODAY) : null;
+    const grp = (typeof groupOf==='function') ? groupOf(inn,TODAY) : '1.1';
+    const problem = cat==='high' || /^(2|3|4)/.test(grp);
+    const curId = problem ? pick(PROBLEM_CURATORS,seed) : pick(CURATORS,seed);
+
+    /* ── каналы связи ── */
+    if(!CHANNELS.some(c=>c.inn===inn)){
+      const area=AREA[s.district]||'312';
+      const sub = area.length>=4
+        ? String(10000+seed%90000).replace(/(\d{2})(\d{3})/,'$1-$2')
+        : String(100000+seed%900000).replace(/(\d{2})(\d{2})(\d{2})/,'$1-$2-$3');
+      CHANNELS.push({ inn, kind:'тел', value:`+996 ${area} ${sub}`, from:s.regDate||'—',
+        note: isJur?'приёмная':'—' });
+      if(isJur){
+        const mob=`+996 ${pick(['555','700','770','990','501'],seed>>2)} ${String(100000+(seed>>>3)%900000).replace(/(\d{3})(\d{3})/,'$1-$2')}`;
+        CHANNELS.push({ inn, kind:'тел', value:mob, from:s.regDate||'—', note:'бухгалтерия' });
+        CHANNELS.push({ inn, kind:'email', value:`info@${domainOf(s.name)}.kg`, from:s.regDate||'—', note:'—' });
+      } else {
+        const mob=`+996 ${pick(['555','700','770','990','501','999'],seed>>2)} ${String(100000+(seed>>>3)%900000).replace(/(\d{3})(\d{3})/,'$1-$2')}`;
+        CHANNELS.push({ inn, kind:'тел', value:mob, from:s.regDate||'—', note:'моб.' });
+        CHANNELS.push({ inn, kind:'email', value:`${domainOf(s.name)}@gmail.com`, from:s.regDate||'—', note:'—' });
+      }
+      CHANNELS.push({ inn, kind:'адрес корресп.', value:s.addrLegal||'—', from:s.regDate||'—', note:'—' });
+    }
+
+    /* ── банковские реквизиты ── */
+    if(!BANK_REQ.some(b=>b.inn===inn)){
+      const b1=pick(BANKS,seed);
+      const cur=(cr&&cr.currency)||'KGS';
+      const acc1=(b1.bik+String(seed)+String(seed>>3)).replace(/\D/g,'').slice(0,16).padEnd(16,'0');
+      BANK_REQ.push({ inn, bank:b1.bank, bik:b1.bik, account:acc1, currency:cur, main:true,
+        from:s.regDate||'—', note:'операционный' });
+      if(isJur && cr && cr.amount>=8000000){
+        const b2=pick(BANKS,seed>>4);
+        const acc2=(b2.bik+String(seed>>2)+String(seed)).replace(/\D/g,'').slice(0,16).padEnd(16,'0');
+        BANK_REQ.push({ inn, bank:b2.bank, bik:b2.bik, account:acc2, currency:cur, main:false,
+          from:s.regDate||'—', note:'спецсчёт по проекту' });
+      }
+    }
+
+    /* ── связанные лица ── */
+    if(!RELATED.some(r=>r.inn===inn)){
+      if(isJur){
+        const dirFemale=(seed&1)===1;
+        RELATED.push({ inn, personId:'P-'+(600+seed%400), pin:pin(seed,dirFemale),
+          fio:fio(seed,dirFemale), role:'Директор', share:null, from:s.regDate||'—' });
+        const foFemale=(seed&2)===2;
+        RELATED.push({ inn, personId:'P-'+(700+(seed>>>4)%400), pin:pin(seed>>4,foFemale),
+          fio:fio(seed>>4,foFemale), role:'Учредитель', share: (seed%3===0?1.0:0.6), from:s.regDate||'—' });
+      } else if(isIP){
+        RELATED.push({ inn, personId:'P-'+(800+seed%400), pin:pin(seed,(seed&1)===1),
+          fio:s.name.replace(/^ИП\s+/,''), role:'Индивидуальный предприниматель', share:1.0, from:s.regDate||'—' });
+      } else {  /* физлицо — поручитель (супруг/супруга) */
+        RELATED.push({ inn, personId:'P-'+(900+seed%400), pin:pin(seed,(seed&1)===0),
+          fio:fio(seed,(seed&1)===0), role:'Поручитель', share:null, from:s.regDate||'—' });
+      }
+    }
+
+    /* ── документы (досье п.97) ── учредительные есть всегда, договорные — при наличии кредита */
+    if(!DOCS.some(d=>d.inn===inn)){
+      const by=EMP[curId].fio;
+      const idBase='DOC-'+(++docSeq);
+      const founderType = isJur?'Учредительные документы' : isIP?'Свидетельство ИП / патент' : 'Копия паспорта';
+      const founderFile = isJur?'ustav-'+dig(inn).slice(-4)+'.pdf' : isIP?'patent-'+dig(inn).slice(-4)+'.pdf' : 'passport-'+dig(inn).slice(-4)+'.pdf';
+      DOCS.push({ id:idBase+'a', inn, scope:{kind:'заёмщик', ref:inn}, type:founderType,
+        date:s.regDate||(cr&&cr.date)||TODAY, ownerModule:'borrower', file:founderFile, by });
+      if(cr){
+        DOCS.push({ id:idBase+'b', inn, scope:{kind:'кредит', ref:cr.id}, type:'Кредитный договор',
+          date:cr.date, ownerModule:'credit', file:'kd-'+dig(cr.no)+'.pdf', by });
+        if(cr.kind==='Инвестиционный')
+          DOCS.push({ id:idBase+'c', inn, scope:{kind:'заявка', ref:'APP-'+dig(inn).slice(-4)}, type:'Бизнес-план',
+            date:cr.date, ownerModule:'application', file:'bp-'+domainOf(s.name)+'.pdf', by });
+        /* претензия — если по кредиту заёмщика есть процедура взыскания */
+        const myIds=new Set(CREDITS.filter(c=>c.inn===inn).map(c=>c.id));
+        const proc=PROCESSES.find(p=>p.credits.some(id=>myIds.has(id)));
+        if(proc)
+          DOCS.push({ id:idBase+'d', inn, scope:{kind:'взыскание', ref:proc.id}, type:'Претензионное письмо',
+            date:proc.opened||cr.date, ownerModule:'collection', file:'pretenziya-'+dig(inn).slice(-4)+'.pdf', by });
+      }
+    }
+
+    /* ── внешние снимки (КИБ / скоринг) ── */
+    if(cr && !CHECKS_EXT.some(c=>c.inn===inn)){
+      const rating = cat==='high'?'C' : cat==='mid'?'B' : 'A';
+      const ovTot = (typeof overdueDebt==='function') ? overdueDebt(inn) : 0;
+      const score = Math.max(320, 720 - Math.round((cr.overdueDays||0)*0.75) - (cat==='high'?60:cat==='mid'?25:0));
+      CHECKS_EXT.push({ inn, source:'КИБ Ишеним', takenAt:cr.date, appId:'APP-'+dig(inn).slice(-4),
+        payload:{ rating, overdueTotal:ovTot } });
+      CHECKS_EXT.push({ inn, source:'скоринг', takenAt:cr.date, appId:'APP-'+dig(inn).slice(-4),
+        payload:{ score } });
+    }
+
+    /* ── организационная структура (юрлицо, страница субъекта) ── */
+    if(isJur && !UNITS.some(u=>u.inn===inn)){
+      const city=(s.addrLegal||'').split(',')[0]||'—';
+      const secondUnit = /Агро|Пищев/.test(s.industry) ? 'Производственный цех'
+        : /Строит/.test(s.industry) ? 'Строительный участок'
+        : /Транспорт/.test(s.industry) ? 'Автопарк'
+        : /Энерг/.test(s.industry) ? 'Эксплуатационная служба'
+        : /Водн/.test(s.industry) ? 'Эксплуатационный участок'
+        : /Машиностроен/.test(s.industry) ? 'Механический цех'
+        : /Лёгкая/.test(s.industry) ? 'Швейный цех'
+        : 'Производственное подразделение';
+      UNITS.push({ inn, id:++unitSeq, name:'Руководство', note:city });
+      UNITS.push({ inn, id:++unitSeq, name:secondUnit, note:city });
+      UNITS.push({ inn, id:++unitSeq, name:'Отдел сбыта', note:'—' });
+    }
+
+    /* ── кураторство (кредитный куратор на кредит) ── */
+    if(cr && !ASSIGN.some(a=>a.objectId===cr.id && a.role==='кредитный куратор')){
+      ASSIGN.push({ objectKind:'кредит', objectId:cr.id, role:'кредитный куратор', empId:curId,
+        from:cr.date, source:'kuratorstvo' });
+    }
+
+    /* ── лента истории (кураторство) ── */
+    if(cr && !CURATOR_LOG.some(l=>l.inn===inn)){
+      CURATOR_LOG.push({ inn, date:cr.date, time:'10:00', title:'Назначен кредитный куратор',
+        body:`${EMP[curId].fio} (${EMP[curId].dept}) · при выдаче кредита ${cr.no}.` });
+      if(problem)
+        CURATOR_LOG.push({ inn, date:'01.03.2026', time:'14:20', title:'Кредит передан сектору проблемных активов',
+          body:`Основание: ${cat==='high'?'высокая категория риска':'просрочка платежей'} по кредиту ${cr.no}.` });
+    }
+
+    /* ── примечание и служебный аудит (только для набора; детально заведённые не трогаем) ── */
+    if(!DETAILED.has(inn)){
+      if(!s.note || s.note==='—') s.note = NOTE_BY_GROUP[grp] || 'обслуживается в обычном режиме';
+      s.audit={
+        by:    pick(['Сламкулов А.О.','Асанова Ж.К.','Токтосунов Э.Б.'], seed),
+        date:  pick(['12.03.2024','05.09.2024','21.11.2024','17.02.2025','03.06.2025'], seed>>2),
+        chgBy: pick(['Асанова Ж.К.','Сламкулов А.О.','Осмонова Г.Т.'], seed>>4),
+        chgDate: pick(['19.06.2026','14.05.2026','02.07.2026','30.04.2026','23.06.2026','08.07.2026'], seed>>6),
+      };
+    }
+  });
+}
+
 /* ═══ SECTION 2 · ЧИСТЫЕ ФУНКЦИИ ═══ */
 /* §4 functions land here in Tasks 3–9 */
 
@@ -1358,6 +1591,10 @@ function curatorMatrix(inn, d){
     .filter(a => !susp.has(a.empId))
     .map(a => ({ objectKind:a.objectKind, objectId:a.objectId, role:a.role, empId:a.empId, from:a.from, to:a.to }));
 }
+
+/* Дозаполнение реквизитов по всем заёмщикам — здесь, т.к. опирается на groupOf/catOfBorrower
+   и на PROC_GROUP/TERMINAL_GROUP, объявленные выше в этой секции. */
+seedBorrowerDetails();
 
 /* ═══ SECTION 3 · РЕНДЕР ═══ */
 /* Бейджи реестра: категория риска — цветная точка, подгруппа — код + подпись. */
