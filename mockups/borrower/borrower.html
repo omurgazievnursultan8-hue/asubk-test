@@ -84,6 +84,9 @@
   .topbar{display:flex;align-items:center;gap:16px;padding:12px 26px;border-bottom:1px solid var(--border-default);}
   .burger{font-size:22px;color:var(--text-muted);cursor:pointer;line-height:1;}
   .topbar .title{font-weight:700;font-size:16px;}
+  /* наименование в топ-хедере — ссылка на субъекта (организацию / физлицо), своей сущности со своим id */
+  .topbar .title a{color:inherit;text-decoration:none;cursor:pointer;}
+  .topbar .title a:hover{color:var(--text-link);text-decoration:underline;}
   .back-arrow{display:none;align-items:center;justify-content:center;width:32px;height:32px;margin:-4px 0;
     border-radius:var(--radius-md);color:var(--text-link);}
   .back-arrow svg{width:24px;height:24px;}
@@ -158,7 +161,12 @@
   .gen-col{display:flex;flex-direction:column;gap:14px;min-width:0;}
   .gen-col > .section{margin-bottom:0 !important;}
   .state-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px;}
-  @media (max-width:1100px){ .gen-grid{grid-template-columns:minmax(0,1fr);} }
+  /* «Основные сведения» + «Послабления по категории риска» бок о бок на вкладке «Общая информация» */
+  .gen-2col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start;margin-bottom:18px;}
+  .gen-2col > .section{margin-bottom:0 !important;}
+  /* «Общая информация»: слева — статика о заёмщике, справа — оперативный слой (деньги, сроки, события) */
+  .gen-2col.split{grid-template-columns:minmax(0,0.92fr) minmax(0,1.08fr);}
+  @media (max-width:1100px){ .gen-grid{grid-template-columns:minmax(0,1fr);} .gen-2col,.gen-2col.split{grid-template-columns:minmax(0,1fr);} }
   .tile{border:1px solid var(--border-default);border-radius:6px;padding:14px 16px;background:#fff;display:flex;flex-direction:column;gap:8px;}
   .tile-lbl{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);font-weight:600;
     display:flex;align-items:center;gap:6px;}
@@ -335,6 +343,9 @@
   .mon-stat b{font-size:16px;color:var(--text-body);margin-right:4px;}
   .mon-stat.ov{border-color:#f0dcc0;background:#fdf1e0;}
   .mon-stat.ov b{color:var(--status-error);}
+  /* лента стоп-факторов на вкладке «Общая информация» */
+  .flags-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
+  .flags-row .badge{font-size:12.5px;padding:4px 10px;white-space:normal;}
   .badge{font-size:12px;border-radius:3px;padding:1px 7px;font-weight:600;display:inline-block;white-space:nowrap;}
   .b-ov{background:#fdf1e0;color:var(--status-warning);border:1px solid #f0dcc0;}
   .b-proc{background:var(--status-info-bg);color:var(--text-link);}
@@ -365,6 +376,7 @@
   .f .fv{font-weight:600;}
   .f.span2{grid-column:1 / -1;}
   .gen-grid .fields{grid-template-columns:minmax(0,1fr);}
+  .gen-2col .fields{grid-template-columns:minmax(0,1fr);}
 
   /* дерево взыскания */
   .proc{border:1px solid var(--border-default);border-radius:6px;margin:0 16px 14px;overflow:hidden;}
@@ -1871,10 +1883,10 @@ const TABS = ['Общая информация','Кредиты','Монитор
 function catBasisHtml(inn){
   const rows = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY)).map(c=>{
     const r = catOfCredit(c.id, TODAY);
-    return `<tr><td>${esc(c.no)}</td><td>${r.days} дн.</td><td>${r.suppressed?'подавл. 181':'—'}</td>`
+    return `<tr><td>${esc(c.no)}</td><td>${r.days} дн.</td><td>${r.suppressed?'действует (181+ не учитывается)':'—'}</td>`
       + `<td>${r.factors.map(f=>esc(f.type+' ('+f.committeeRef+')')).join('; ')||'—'}</td><td>${esc(CAT_LABEL[r.level])}</td></tr>`;
   }).join('');
-  return `<table class="grid mini"><thead><tr><th>Кредит</th><th>Просрочка</th><th>Оверлей</th><th>Факторы комитета</th><th>Категория</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table class="grid mini"><thead><tr><th>Кредит</th><th>Просрочка</th><th>Послабление</th><th>Факторы комитета</th><th>Категория</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 /* Лестница с доминированием: шкала 1.1…5 не ординальна, поэтому показываем сам ход вывода,
    а не только итог. Порядок шагов повторяет groupOf(): Block1 (терминал) → Block2 (max фазы) → база. */
@@ -1917,31 +1929,118 @@ function groupStepsHtml(inn, d){
 
 /* ---------- 11 вкладок карточки — каждая строит HTML из §4-функций/массивов ---------- */
 
-/* 0. Общая информация — реквизиты (Д-6) + оверлеи + служебное.
-   Коды требований (Д-6, Ш-5) держим в комментариях, а не в подписях интерфейса. */
-function generalTab(inn, opts){
-  opts = opts || {};
-  const overlays = opts.overlays !== false;   /* карта заёмщика — да; страница субъекта — нет */
-  const docBy = !!opts.docBy;                 /* «кем выдано» показываем только на странице субъекта */
-  const s = SUBJECTS.find(x=>x.inn===inn);
+/* Реквизиты субъекта (Д-6, Ш-5) — общий источник для вкладки «Реквизиты и контакты»
+   и страницы субъекта. docBy — «кем выдано» показываем только на странице субъекта. */
+function requisiteRows(s, docBy){
   const doc = s.doc || {};
   const rows = [
     ['Тип лица', s.personKind],
     ['Организационно-правовая форма', s.legalForm || '—'],
     ['Форма собственности', s.ownershipForm || '—'],   /* Ш-5 */
-    ['Отрасль', s.industry || '—'],
     ['Документ', `${doc.kind||'—'} № ${doc.no||'—'} от ${doc.date||'—'}`],
   ];
   if (docBy) rows.push(['Кем выдан документ', doc.by || '—']);
-  rows.push(
-    ['Юридический адрес', s.addrLegal || '—'],
-    ['Фактический адрес', s.addrFact || '—'],
-    ['Дата регистрации', s.regDate || '—'],
-  );
-  const body = '<div class="fields">' + rows.map(([k,v])=>`<div class="f"><span class="fk">${esc(k)}</span><span class="fv">${esc(v)}</span></div>`).join('') + '</div>';
+  rows.push(['Дата регистрации', s.regDate || '—']);
+  return rows;
+}
+function fieldsHtml(rows){
+  return '<div class="fields">' + rows.map(([k,v])=>`<div class="f"><span class="fk">${esc(k)}</span><span class="fv">${esc(v)}</span></div>`).join('') + '</div>';
+}
 
-  /* Оверлеи опущены из шапки: случай редкий, а шапка висит над всеми 11 вкладками. */
-  const OV_LABEL = { suppress181:'Подавление категории «Высокий» по просрочке 181+ дн.' };
+/* Лента стоп-факторов над карточками: то, что обязано остановить кредитчика ещё до открытия вкладок.
+   Всё считается на TODAY из тех же массивов, что и вкладки-источники — здесь только сводка. */
+function flagsRow(inn){
+  const f = [];
+  const bl = BLACKLIST.find(x=>x.inn===inn);
+  if (bl) f.push(['b-ov', `Чёрный список: ${bl.basis} · с ${bl.from}`]);
+  const myIds = new Set(CREDITS.filter(c=>c.inn===inn).map(c=>c.id));
+  const court = PROCESSES.filter(p=>p.credits.some(id=>myIds.has(id)) && /Судеб|Исполнит/.test(p.procedure));
+  if (court.length) f.push(['b-ov', `Судебные производства: ${court.length}`]);
+  const susp = suspendedEmployees(inn, TODAY);
+  if (susp.length) f.push(['b-ov', `Конфликт интересов: отстранены ${susp.map(empName).join(', ')}`]);
+  const obsOv = obligations(inn, TODAY).filter(o=>o.status==='просрочено');
+  if (obsOv.length) f.push(['b-ov', `Просрочено обязательств: ${obsOv.map(o=>o.code).join(', ')}`]);
+  const q = committeeQueue(inn, TODAY);
+  if (q.length) f.push(['b-proc', `Ожидают комитета: ${q.length}`]);
+  if (isReadOnly(inn, TODAY)) f.push(['b-gray', `Только для чтения: ${subjectState(inn, TODAY).kind}`]);
+  const body = f.length
+    ? f.map(x=>`<span class="badge ${x[0]}">${esc(x[1])}</span>`).join('')
+    : '<span class="badge b-ok">Стоп-факторов нет</span>';
+  return `<div class="flags-row">${body}</div>`;
+}
+
+/* Сводка по кредитам — деньги одной карточкой; правка и детали — во вкладке «Кредиты» (И-5). */
+function creditsSummaryCard(inn){
+  const all = CREDITS.filter(c=>c.inn===inn);
+  const act = all.filter(c=>isActiveCredit(c, TODAY));
+  const ovCred = act.filter(c=>c.overdueDays>0);
+  /* просрочка = начисленные %+пеня по кредитам с просрочкой — та же формула, что в таблице кредитов */
+  const ovSum = ovCred.reduce((s,c)=>s + c.debt.interest + c.debt.penalty, 0);
+  const maxOv = act.reduce((m,c)=>Math.max(m, c.overdueDays||0), 0);
+  const rows = [
+    ['Действующих кредитов', `${act.length}` + (all.length!==act.length ? ` <span class="muted">(всего ${all.length})</span>` : '')],
+    ['Сумма выдано', fmt(act.reduce((s,c)=>s+c.amount,0)) + ' сом'],
+    ['Остаток основного долга', fmt(act.reduce((s,c)=>s+c.balance,0)) + ' сом'],
+    ['Задолженность всего', fmt(totalDebt(inn)) + ' сом'],
+    ['Просрочка', ovCred.length
+      ? `<span style="color:var(--status-error)">${fmt(ovSum)} сом</span> <span class="muted">по ${ovCred.length} ${ovCred.length===1?'кредиту':'кредитам'}</span>`
+      : '<span class="muted">нет</span>'],
+    ['Макс. просрочка', maxOv ? `${fmt(maxOv)} дн.` : '<span class="muted">0 дн.</span>'],
+  ];
+  const body = '<div class="fields">' + rows.map(([k,v])=>`<div class="f"><span class="fk">${esc(k)}</span><span class="fv">${v}</span></div>`).join('') + '</div>';
+  return sect('Сводка по кредитам', 'остатки на ' + TODAY + ' · снапшот',
+    '<a class="lnk" onclick="switchTab(1)">Открыть «Кредиты»</a>', body);
+}
+
+/* Требует внимания — единственное место карточки, где есть срок и действие (Р-4/Р-5). */
+function attentionCard(inn){
+  const obs = obligations(inn, TODAY);
+  const q = committeeQueue(inn, TODAY);
+  let body = '';
+  if (obs.length){
+    body += '<div class="fields">' + obs.map(o=>`<div class="f"><span class="fk">${esc(o.code)} · до ${esc(o.dueDate)}</span>`
+      + `<span class="fv" style="font-weight:400">${esc(o.basis)} `
+      + `<span class="badge ${o.status==='просрочено'?'b-ov':'b-ok'}">${esc(o.status)}</span></span></div>`).join('') + '</div>';
+  }
+  if (q.length){
+    const wait = Math.max(...q.map(e=>e.waitingDays));
+    body += `<div class="muted" style="font-size:13px;padding:10px 16px">В очереди на комитет: <b>${q.length}</b> событ. · максимальное ожидание ${wait} дн. `
+      + `Категорию они не двигают до решения комитета.</div>`;
+  }
+  if (!body) body = '<div class="muted" style="font-size:13px;line-height:1.5;padding:14px 16px">Открытых обязательств и событий на комитет нет.</div>';
+  return sect('Требует внимания', 'Р-4 · Р-5', '<a class="lnk" onclick="switchTab(2)">Открыть «Мониторинг»</a>', body);
+}
+
+/* Контакты — только действующие каналы; полный список и история — во вкладке «Реквизиты и контакты». */
+function contactsCard(inn){
+  const live = CHANNELS.filter(c=>c.inn===inn && !c.closedAt && c.kind!=='адрес корресп.');
+  const body = live.length
+    ? '<div class="fields">' + live.map(c=>`<div class="f"><span class="fk">${esc(c.kind)}${c.note && c.note!=='—' ? ' · '+esc(c.note) : ''}</span>`
+        + `<span class="fv">${esc(c.value)}</span></div>`).join('') + '</div>'
+    : '<div class="muted" style="font-size:13px;padding:14px 16px">Действующих каналов связи нет.</div>';
+  return sect('Контакты', 'действующие каналы', '<a class="lnk" onclick="switchTab(8)">Все реквизиты</a>', body);
+}
+
+/* Последние события — верхние 5 из того же таймлайна, что и вкладка «История». */
+function recentEventsCard(inn){
+  const items = historyItems(inn);
+  const hint = items.length > 5 ? `последние 5 из ${items.length}` : 'зеркало логов';
+  return sect('Последние события', hint, '<a class="lnk" onclick="switchTab(11)">Вся история</a>',
+    timelineHtml(items.slice(0,5)));
+}
+
+/* 0. Общая информация — «Основные сведения» + «Послабления по категории риска» в две колонки.
+   Реквизиты (Д-6) живут на странице субъекта; здесь остались отрасль, адреса, примечание, аудит.
+   На странице субъекта (overlays:false) реквизиты показываем здесь же. */
+function generalTab(inn, opts){
+  opts = opts || {};
+  const overlays = opts.overlays !== false;   /* карта заёмщика — да; страница субъекта — нет */
+  const docBy = !!opts.docBy;                 /* «кем выдано» показываем только на странице субъекта */
+  const s = SUBJECTS.find(x=>x.inn===inn);
+  const reqSect = overlays ? '' : sect('Реквизиты', '', '', fieldsHtml(requisiteRows(s, docBy)));
+
+  /* Послабления (в коде — OVERLAYS) опущены из шапки: случай редкий, а шапка висит над всеми 11 вкладками. */
+  const OV_LABEL = { suppress181:'Просрочка 181+ дн. не поднимает категорию до «Высокий»' };
   const ovl = CREDITS.filter(c=>c.inn===inn)
     .flatMap(c=>OVERLAYS.filter(o=>o.creditId===c.id).map(o=>({...o, credit:c})));
   const live = ovl.filter(o=>dateLE(o.from,TODAY) && dateLE(TODAY,o.deadline));
@@ -1953,19 +2052,32 @@ function generalTab(inn, opts){
           + `<div class="ov-m">кредит ${esc(o.credit.no)} · ${esc(o.from)}–${esc(o.deadline)} · основание ${esc(o.sourceRef||'—')}`
           + ` · <a class="lnk">открыть в restructuring</a></div></div>`;
       }).join('')
-      + `<div class="muted" style="font-size:12px;margin-top:6px">Действующих: ${live.length} из ${ovl.length}. Оверлей подавляет категорию по просрочке только на срок действия.</div>`
-    : `<div class="muted" style="font-size:13px;line-height:1.5">Активных оверлеев нет — категория риска считается напрямую (worst-of по кредитам), без подавлений.</div>`;
+      + `<div class="muted" style="font-size:12px;margin-top:6px">Действующих: ${live.length} из ${ovl.length}. Послабление действует только в свой срок и только на просрочку — факторы комитета оно не снимает.</div>`
+    : `<div class="muted" style="font-size:13px;line-height:1.5">Действующих послаблений нет — категория риска считается напрямую (worst-of по кредитам).</div>`;
 
   const a = s.audit || {};
+  /* отрасль и адреса остаются на «Общей информации» — в «Основных сведениях» */
   const svc = '<div class="fields">'
+    + `<div class="f"><span class="fk">Отрасль</span><span class="fv">${esc(s.industry || '—')}</span></div>`
+    + `<div class="f"><span class="fk">Юридический адрес</span><span class="fv">${esc(s.addrLegal || '—')}</span></div>`
+    + `<div class="f"><span class="fk">Фактический адрес</span><span class="fv">${esc(s.addrFact || '—')}</span></div>`
     + `<div class="f"><span class="fk">Примечание</span><span class="fv" style="font-weight:400">${esc(s.note || '—')}</span></div>`
     + `<div class="f"><span class="fk">Внесён</span><span class="fv" style="font-weight:400"><b>${esc(a.by||'—')}</b> · ${esc(a.date||'—')}</span></div>`
     + `<div class="f"><span class="fk">Изменён</span><span class="fv" style="font-weight:400"><b>${esc(a.chgBy||'—')}</b> · ${esc(a.chgDate||'—')}</span></div>`
     + '</div>';
+  const svcSect = sect('Основные сведения', '', '', svc);
 
-  return sect('Реквизиты', '', '', body)
-    + (overlays ? sect('Оверлеи', 'зеркало restructuring', '', ovBody) : '')
-    + sect('Служебное', '', '', svc);
+  /* карточка заёмщика — дашборд в две колонки: слева паспорт заёмщика (сведения → контакты → события),
+     справа оперативный слой сверху вниз по убыванию срочности — деньги → сроки → послабления.
+     Страница субъекта — только реквизиты + основные сведения (кредитного слоя там нет). */
+  if (!overlays) return reqSect + svcSect;
+  return flagsRow(inn)
+    + `<div class="gen-2col split">`
+      + `<div class="gen-col">${svcSect}${contactsCard(inn)}${recentEventsCard(inn)}</div>`
+      + `<div class="gen-col">${creditsSummaryCard(inn)}${attentionCard(inn)}`
+        + sect('Послабления по категории риска', 'зеркало restructuring', '', ovBody)
+        + `</div>`
+    + `</div>`;
 }
 
 /* 1. Кредиты — зеркало кредитного модуля (И-5): per-credit worst-of.
@@ -2291,6 +2403,7 @@ function relatedTab(inn){
 
 /* 7. Реквизиты и контакты — владеет модуль (не зеркало); MVP — текст без контролов. */
 function requisitesTab(inn){
+  /* карточки «Реквизиты» тут нет — эти поля живут на странице субъекта (#/s/<ИНН>), не дублируем */
   const chans = CHANNELS.filter(c=>c.inn===inn);
   const chRows = chans.map(c=>`<tr><td>${esc(c.kind)}</td><td>${esc(c.value)}</td>`
     + `<td>${c.note && c.note!=='—' ? esc(c.note) : '—'}</td><td>${esc(c.from)}</td>`
@@ -2371,8 +2484,9 @@ function checksTab(inn){
   return internal + extHtml;
 }
 
-/* 10. История — слияние CATEGORY_LOG/GROUP_LOG/SUBJECT_EVENTS/конфликтов, отсортировано по дате. */
-function historyTab(inn){
+/* 10. История — слияние CATEGORY_LOG/GROUP_LOG/SUBJECT_EVENTS/конфликтов, отсортировано по дате.
+   Сборка вынесена в historyItems/timelineHtml: те же события показывает «Общая информация» (последние 5). */
+function historyItems(inn){
   // it: {date, time, dot (класс точки/бейджа), kind (подпись), title, body}
   const items = [];
   CATEGORY_LOG.filter(l=>l.inn===inn).forEach(l=>items.push({date:l.from, time:l.time, dot:'risk', kind:'категория',
@@ -2387,13 +2501,19 @@ function historyTab(inn){
     title:l.title, body:l.body}));
   const key = it => (dnum(it.date)||0) * 10000 + (it.time ? +it.time.replace(':','') : 0);
   items.sort((a,b)=>key(b)-key(a));  // новые сверху; при равной дате — по времени
-  const body = items.length
+  return items;
+}
+function timelineHtml(items){
+  return items.length
     ? '<div class="tl">' + items.map(it=>`<div class="tl-item ${esc(it.dot)}">`
         + `<div class="tl-date">${esc(it.date)}${it.time?' · '+esc(it.time):''}</div>`
         + `<div class="tl-title">${esc(it.title)} <span class="tl-kind k-${esc(it.dot)}">${esc(it.kind)}</span></div>`
         + `<div class="tl-body">${esc(it.body)}</div></div>`).join('') + '</div>'
     : empty('Событий не найдено.');
-  return sect('История', 'зеркало логов — категория, группа, субъект, конфликты, кураторство', '', body);
+}
+function historyTab(inn){
+  return sect('История', 'зеркало логов — категория, группа, субъект, конфликты, кураторство', '',
+    timelineHtml(historyItems(inn)));
 }
 
 function tabBody(inn, i){
@@ -2443,12 +2563,8 @@ function renderCard(inn){
   const tabbar = `<div class="tabbar">` + TABS.map((t,i)=>`<div class="tab${i===0?' active':''}" data-tab="${i}" onclick="switchTab(${i})">${esc(t)}</div>`).join('') + `</div>`;
   const panels = TABS.map((t,i)=>`<div class="tabpanel${i===0?' active':''}" data-panel="${i}">${tabBody(inn, i)}</div>`).join('');
 
-  /* Шапка: имя крупно + ИНН ссылкой на субъект — субъект отдельная сущность со своим id. */
-  const idbar = `<div class="id-bar"><div class="id-main"><div class="id-name">${esc(s.name)}</div>`
-    + `<div class="id-sub"><span>ИНН <a class="lnk" href="#/s/${esc(inn)}" title="Открыть субъекта"><b>${esc(inn)}</b></a></span>`
-    + `<span>${esc(s.personKind)}</span></div></div></div>`;
-
-  return idbar + `<div class="phead-dims">${tiles}</div>${banner}${tabbar}${panels}`;
+  /* Шапки в теле карточки нет: наименование и ИНН — в топ-хедере (showDetail), чтобы не дублировать. */
+  return `<div class="phead-dims">${tiles}</div>${banner}${tabbar}${panels}`;
 }
 
 /* ---------- Субъект (#/s/<ИНН>) — собственная сущность (E2E findings), не зеркало заёмщика. ---------- */
@@ -2456,9 +2572,8 @@ function renderSubject(inn){
   const s = SUBJECTS.find(x=>x.inn===inn);
   const evs = SUBJECT_EVENTS.filter(e=>e.inn===inn).slice().sort((a,b)=>dnum(b.date)-dnum(a.date));
   const header = `<div class="crumb"><a class="lnk" href="#/b/${esc(inn)}">${esc(s.name)}</a> / Субъект</div>`
-    + `<div class="id-bar"><div class="id-main"><div class="id-name">${esc(s.name)}</div>`
-    + `<div class="id-sub"><span>ИНН <b>${esc(inn)}</b></span><span>${esc(s.personKind)}</span></div></div></div>`;
-  /* тело субъекта — реквизиты + служебное, БЕЗ оверлеев (кредитный слой, не атрибут субъекта); «кем выдано» показываем */
+    + `<div class="id-bar"><div class="id-main"><div class="id-name">${esc(s.name)}</div></div></div>`;
+  /* тело субъекта — реквизиты + основные сведения, БЕЗ послаблений (кредитный слой, не атрибут субъекта); «кем выдано» показываем */
   const body = generalTab(inn, { overlays:false, docBy:true });
   /* организационная структура — атрибут субъекта-юрлица */
   let unitSect = '';
@@ -2530,7 +2645,9 @@ function showDetail(inn, tabIndex){
   wireCreditsTab(inn);   /* таб «Кредиты» интерактивен — проводим после вставки в DOM */
   showOnly(vDetail);
   const s = SUBJECTS.find(x => x.inn === inn);
-  pageTitle.textContent = s ? s.name : 'Заёмщик';
+  /* наименование кликабельно — ведёт на страницу субъекта (организация / физлицо) */
+  const subjTitle = s && s.personKind === 'физ' ? 'Открыть физическое лицо' : 'Открыть организацию';
+  pageTitle.innerHTML = `<a href="#/s/${esc(inn)}" title="${subjTitle}">${esc(s ? s.name : 'Заёмщик')}</a>`;
   topbar.classList.add('on-detail');
   switchTab(tabIndex != null ? tabIndex : lastTab(), /*fromRoute*/true);
   scrollTop();
