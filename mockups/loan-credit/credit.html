@@ -450,6 +450,19 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
   font:var(--weight-medium) 11px/1.5 var(--asubk-font); vertical-align:middle; }
 .mk-r{ background:var(--status-info-bg); color:var(--asubk-blue); }
 
+/* --- live-стиль реестра (fkftest vaadin-grid): сортируемая шапка со стрелками --- */
+table.grid thead th{ height:var(--header-h); }                 /* 56px, как в live */
+table.grid thead th .th-in{ display:inline-flex; align-items:center; gap:6px; }
+table.grid thead th .arrows{ display:inline-flex; flex-direction:column; line-height:7px;
+  font-size:8px; color:var(--text-placeholder); }
+table.grid thead th .arrows span{ opacity:.32; }
+table.grid thead th.sorted{ color:var(--asubk-blue); }
+table.grid thead th.sorted .arrows span.on{ opacity:1; color:var(--asubk-blue); }
+table.grid tbody td{ height:44px; }                            /* воздух как в live (двустрочная ячейка сохранена) */
+/* поля «от/до» — тот же аутлайн-вид, что у остальных полей фильтра (как в live) */
+.range-pair input{ background:var(--surface-card); border:1px solid var(--border-strong); }
+.range-pair input:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+
 /* бейдж числа активных условий на свёрнутой шапке фильтра */
 .fbadge{ margin-left:8px; padding:1px 8px; border-radius:var(--radius-pill);
   background:var(--status-info-bg); color:var(--asubk-blue);
@@ -2085,6 +2098,9 @@ if (typeof document !== 'undefined') {
     const programs = uniq(CR.db.credits.map(c=>c.origin.programId));
     const curators = uniq(CR.db.credits.map(curatorOf));
     const payOpts = Object.keys(PAY_GROUPS).map(k=>`<option value="${k}">${k} · ${esc(PAY_GROUPS[k])}</option>`).join('');
+    /* сортируемая шапка грида (стиль live vaadin-grid): ярлык + стрелки ▲▼ */
+    const th = (k, l, r) => `<th data-k="${k}"${r?' style="text-align:right"':''} onclick="CR.sortList('${k}')">`
+      + `<span class="th-in">${l}<span class="arrows"><span class="up">▲</span><span class="dn">▼</span></span></span></th>`;
     host.innerHTML = `
       <div class="tb-actions">
         <button class="btn btn-primary btn-sm" id="btnCreate" onclick="CR.openCreatePicker()">Создать кредит</button>
@@ -2099,6 +2115,15 @@ if (typeof document !== 'undefined') {
         <span class="fbadge" id="fBadge" hidden></span>
       </div>
       <div class="filter-body">
+        <div class="filter-bar" style="justify-content:flex-start;gap:12px;padding-top:0;padding-bottom:2px">
+          <div class="split">
+            <button class="btn btn-success btn-sm" onclick="CR.renderRows()">Обновить</button>
+            <button class="btn btn-success btn-sm caret" title="Действия">▾</button>
+          </div>
+          <button class="gear-btn" title="Настройки фильтра">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
         <div class="field"><span class="flabel">Заёмщик</span><div class="control"><input id="fQ" type="search" placeholder="наименование или ИНН" oninput="CR.renderRows()"></div></div>
         <div class="field"><span class="flabel">Номер договора</span><div class="control"><input id="fNum" type="search" placeholder="напр. 56" oninput="CR.renderRows()"></div></div>
         <div class="field"><span class="flabel">Область</span><div class="control"><select id="fRegion" onchange="CR.onRegionChange()">${optList(regionsOf())}</select><span class="caret">▾</span></div></div>
@@ -2115,10 +2140,10 @@ if (typeof document !== 'undefined') {
       </div>
       <div class="grid-wrap">
         <table class="grid"><thead><tr>
-          <th>№ договора</th><th>Дата</th><th>Заёмщик</th><th>Программа</th>
-          <th style="text-align:right">Сумма договора</th><th>Валюта</th>
-          <th style="text-align:right">Остаток, KGS</th><th>Просрочка</th>
-          <th>Категория</th><th>Группа</th><th>ЖЦ договора</th><th>Куратор</th>
+          ${th('num','№ договора')}${th('date','Дата')}${th('borrower','Заёмщик')}${th('program','Программа')}
+          ${th('amount','Сумма договора',1)}${th('currency','Валюта')}
+          ${th('balance','Остаток, KGS',1)}${th('overdue','Просрочка')}
+          ${th('category','Категория')}${th('group','Группа')}${th('lifecycle','ЖЦ договора')}${th('curator','Куратор')}
         </tr></thead><tbody id="regBody"></tbody></table>
       </div>
       <div class="pager" id="regPager"></div>`;
@@ -2218,6 +2243,44 @@ if (typeof document !== 'undefined') {
       <td>${esc(curatorOf(c))}</td>
     </tr>`;
   }
+  /* сортировка реестра по клику на шапку (как в live vaadin-grid).
+     Аксессор на пару [c, d]; для даты ключ приводится к yyyymmdd. */
+  let listSort = { key:null, dir:1 };
+  const LIST_SORTERS = {
+    num:      ([c])=>c.num,
+    date:     ([c])=>String(c.date||'').split('.').reverse().join(''),
+    borrower: ([c])=>c.borrower.name,
+    program:  ([c])=>c.origin.programId,
+    amount:   ([c])=>c.contractAmount,
+    currency: ([c])=>c.currency,
+    balance:  ([,d])=>d.debtBalanceKgs,
+    overdue:  ([,d])=>d.overdueDays,
+    category: ([,d])=>({'низкий':0,'средний':1,'высокий':2}[d.riskCategory] ?? -1),
+    group:    ([,d])=>d.payGroup,
+    lifecycle:([c])=>c.lifecycle,
+    curator:  ([c])=>curatorOf(c),
+  };
+  function sortList(key){
+    if (!LIST_SORTERS[key]) return;
+    if (listSort.key === key) listSort.dir = -listSort.dir;
+    else { listSort.key = key; listSort.dir = 1; }
+    paging.page = 1;
+    renderRows();
+  }
+  /* отразить состояние сортировки на стрелках шапки */
+  function syncSortHeader(){
+    document.querySelectorAll('#view-list table.grid thead th').forEach(th=>{
+      const k = th.getAttribute('data-k');
+      const on = k === listSort.key;
+      th.classList.toggle('sorted', on);
+      const up = th.querySelector('.arrows .up'), dn = th.querySelector('.arrows .dn');
+      if (up && dn){
+        up.classList.toggle('on', on && listSort.dir === 1);
+        dn.classList.toggle('on', on && listSort.dir === -1);
+      }
+    });
+  }
+
   /* перерисовать только строки (фильтры/выбор меняются часто, оболочка — нет) */
   function renderRows(){
     readFilters();
@@ -2228,6 +2291,16 @@ if (typeof document !== 'undefined') {
       if (!passFilters(c, d)) continue;
       hits.push([c, d]);
     }
+    /* сортировка — до пагинации */
+    if (listSort.key){
+      const get = LIST_SORTERS[listSort.key];
+      hits.sort((A, B) => {
+        const x = get(A), y = get(B);
+        if (typeof x === 'number' && typeof y === 'number') return (x - y) * listSort.dir;
+        return String(x ?? '').localeCompare(String(y ?? ''), 'ru', { numeric:true }) * listSort.dir;
+      });
+    }
+    syncSortHeader();
     /* пагинация — после фильтрации; страница зажимается, если выборка усохла */
     const pages = Math.max(1, Math.ceil(hits.length / paging.size));
     if (paging.page > pages) paging.page = pages;
@@ -3235,7 +3308,7 @@ if (typeof document !== 'undefined') {
   /* экспорт DOM-обвязки на CR (onclick-строки разметки живут в глобальной области) */
   CR._sel = null;
   CR.renderList = renderList; CR.renderRows = renderRows; CR.renderRole = renderRole;
-  CR.onRegionChange = onRegionChange; CR.resetFilters = resetFilters;
+  CR.onRegionChange = onRegionChange; CR.resetFilters = resetFilters; CR.sortList = sortList;
   CR.gotoPage = gotoPage; CR.setPageSize = setPageSize;
   CR.selectRow = selectRow; CR.openDetail = openDetail; CR.backToList = backToList;
   CR.resetDemo = resetDemo; CR.openCreatePicker = openCreatePicker; CR.pickApplication = pickApplication;
