@@ -904,6 +904,8 @@ PLEDGE_IX.push(
   // Ветка 14 — залоги в 2 областях (используется в Task 9 для кураторства)
   { creditId:'C-B14-1', index:1.15, required:1.20, insured:true, itemsByRegion:[{region:'Ош', count:2},{region:'Джалал-Абад', count:1}] },
 );
+const PLEDGE_AGR = [];   // ← договоры залога (зеркало модуля залога); seedCollateral
+const PLEDGE_OBJ = [];   // ← предметы залога (иерархия договор → предмет); seedCollateral
 const ACTS       = [];   // ← акты сверок; Task 10
 const DOCS       = [];   // ← досье п.97 (Р-8); Task 10
 const CHECKS_EXT = [];   // ← внешние снимки КИБ/скоринг (Р-8); Task 10
@@ -1668,6 +1670,88 @@ function curatorMatrix(inn, d){
    и на PROC_GROUP/TERMINAL_GROUP, объявленные выше в этой секции. */
 seedBorrowerDetails();
 
+/* ═══ ЗАЛОГ · трёхуровневая модель legacy (заёмщик → договор залога → предмет) ═══
+   Договор ↔ кредиты M:N, две стоимости (оценочная/залоговая), цикл обследования,
+   арест/нотариус. Индекс обеспеченности заводится в PLEDGE_IX (worst-of драйвер),
+   чтобы «Мониторинг» и «Залог» показывали согласованную обеспеченность. */
+function seedCollateral(){
+  const REALTY = 'Недвижимое имущество';
+  /* вид залога по отрасли субъекта → предмет */
+  const KIND_BY_SECTOR = {
+    'Агропромышленный комплекс':  { kind:'Сельхозтехника',        name:'Зерноуборочный комбайн «Нива Эффект»', il:'Гос. номер',   ip:'01 KG ' },
+    'Энергетический комплекс':     { kind:'Оборудование',          name:'Трансформаторная подстанция КТП-630',  il:'Инв. номер',   ip:'ОБ-' },
+    'Строительный комплекс':       { kind:REALTY,                  name:'Производственная база',                il:'Кадастровый №',ip:'1-05-12-00' },
+    'Лёгкая промышленность':       { kind:'Оборудование',          name:'Швейная производственная линия',       il:'Инв. номер',   ip:'ОБ-' },
+    'Пищевая и перерабатывающая':  { kind:'Оборудование',          name:'Производственная линия розлива',       il:'Инв. номер',   ip:'ОБ-' },
+    'Машиностроение':              { kind:'Оборудование',          name:'Станочный парк (токарно-фрезерный)',    il:'Инв. номер',   ip:'ОБ-' },
+    'Транспорт и связь':           { kind:'Транспортное средство', name:'Грузовой автопарк',                    il:'VIN',          ip:'X89' },
+    'Водное хозяйство':            { kind:REALTY,                  name:'Насосная станция',                     il:'Кадастровый №',ip:'1-07-03-00' },
+    'Частное предпринимательство': { kind:'Товары в обороте',      name:'Товарные остатки на складе',           il:'Ведомость',    ip:'ТВО-2024/' },
+    'Предприятия прочих отраслей': { kind:REALTY,                  name:'Административное здание',               il:'Кадастровый №',ip:'1-02-08-00' },
+  };
+  const NOTARIES = ['Нотариус Асанова Н. К.','Нотариус Бекмуратов Т. А.','Нотариус Джумалиева Г. С.','Нотариус Ибраев М. Б.'];
+  const ORGAN = k => k===REALTY ? 'Госрегистр (недвижимое имущество)' : 'Реестр залогов движимого имущества';
+  const hcode = s => { let h=2166136261; for (let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; };
+  const shift = (str, n) => {
+    let [d,m,y] = str.split('.').map(Number);
+    const dim = (yy,mm) => [31,(yy%4===0&&(yy%100!==0||yy%400===0))?29:28,31,30,31,30,31,31,30,31,30,31][mm-1];
+    for (let k=0;k<n;k++){ d++; if (d>dim(y,m)){ d=1; m++; if (m>12){ m=1; y++; } } }
+    return String(d).padStart(2,'0')+'.'+String(m).padStart(2,'0')+'.'+y;
+  };
+  const survey = (from, n) => { const s = shift(from, n); return dnum(s) > dnum(TODAY) ? shift(TODAY, -14) : s; };
+  const idxOf = (grp, h) => {
+    const g = String(grp);
+    if (g==='4' || g[0]==='3') return +(0.55 + (h%20)/100).toFixed(2);   // недозалог → драйвер проблемной группы
+    if (g[0]==='2')            return +(1.00 + (h%18)/100).toFixed(2);
+    return                            +(1.25 + (h%25)/100).toFixed(2);
+  };
+
+  let agrSeq = 700, objSeq = 100;
+  CREDITS.forEach(cr => {
+    if (PLEDGE_AGR.some(a => a.credits.includes(cr.id))) return;
+    const s = SUBJECTS.find(x => x.inn === cr.inn); if (!s) return;
+    const t = KIND_BY_SECTOR[s.industry] || KIND_BY_SECTOR['Предприятия прочих отраслей'];
+    const h = hcode(cr.id);
+    const closed = cr.balance === 0 || !!cr.closedAt;
+    const grp = groupOf(cr.inn, TODAY);
+    const pix = PLEDGE_IX.find(p => p.creditId === cr.id);
+    const idx = closed ? 1.2 : (pix ? pix.index : idxOf(grp, h));
+    const base = closed ? cr.amount : cr.balance;
+    const cv = Math.round(base * idx);        // залоговая стоимость (обеспечение)
+    const appr = Math.round(cv / 0.7);        // оценочная стоимость (> залоговой)
+    const regDate = cr.date || s.regDate || '15.03.2024';
+
+    const agrId = 'ЗД-' + (++agrSeq);
+    const agrNo = 'ГН-' + String(cr.inn).slice(0,2) + '-2024-' + (2950000 + agrSeq);
+    PLEDGE_AGR.push({ id:agrId, no:agrNo, inn:cr.inn, credits:[cr.id],
+      notary: NOTARIES[h % NOTARIES.length], organ: ORGAN(t.kind),
+      arrestNo: 'ЗПО-2024/' + (400 + h % 600), arrestDate: regDate, regDate,
+      status: closed ? 'Снят' : 'Действующий', curator: ['Ниязов М. Б.','Абдыраимов К. Э.'][h % 2] });
+
+    const inspOf = () => closed ? 'снят с ареста' : (/^(3|4)/.test(String(grp)) ? 'подлежит обследованию' : 'обследовано');
+    const mkObj = (suf, kind, name, il, ip, cvi, appri) => PLEDGE_OBJ.push({
+      id:'П-' + (++objSeq) + suf, agreementId:agrId, inn:cr.inn, kind, name,
+      identLabel:il, ident: ip + (il==='VIN' ? String(100000 + h % 900000) : (100 + h % 900)),
+      pledger: s.name, appraised:appri, collateralValue:cvi, apprDate:regDate,
+      inspStatus: inspOf(), lastSurvey: closed ? '' : survey(regDate, 90 + h % 150),
+      released: closed, address: kind===REALTY ? s.addrLegal : '' });
+
+    if (base >= 8000000 && !closed) {          // крупный кредит → смешанное обеспечение (2 предмета)
+      mkObj('а', t.kind, t.name, t.il, t.ip, Math.round(cv*0.6), Math.round(appr*0.6));
+      const sec = t.kind===REALTY
+        ? { kind:'Оборудование', name:'Производственное оборудование', il:'Инв. номер', ip:'ОБ-' }
+        : { kind:REALTY, name:'Производственное помещение', il:'Кадастровый №', ip:'1-00-00-00' };
+      mkObj('б', sec.kind, sec.name, sec.il, sec.ip, Math.round(cv*0.4), Math.round(appr*0.4));
+    } else {
+      mkObj('', t.kind, t.name, t.il, t.ip, cv, appr);
+    }
+
+    if (!pix && !closed) PLEDGE_IX.push({ creditId:cr.id, index:idx, required:1.20,
+      insured: h % 4 !== 0, itemsByRegion:[{ region:s.district, count: base >= 8000000 ? 2 : 1 }] });
+  });
+}
+seedCollateral();
+
 /* ═══ SECTION 3 · РЕНДЕР ═══ */
 /* Бейджи реестра: категория риска — цветная точка, подгруппа — код + подпись. */
 const catCls = c => c === 'high' ? 'high' : c === 'mid' ? 'mid' : 'low';
@@ -1781,7 +1865,7 @@ function tile(title, valueHtml, basis, moreHtml, lockHtml){
     + (lockHtml || '')
     + `</div>`;
 }
-const TABS = ['Общая информация','Кредиты','Мониторинг','Взыскание','Акты сверок','Кураторство',
+const TABS = ['Общая информация','Кредиты','Мониторинг','Залог','Взыскание','Акты сверок','Кураторство',
   'Связанные лица','Реквизиты и контакты','Документы','Проверки','История'];
 
 function catBasisHtml(inn){
@@ -2082,6 +2166,64 @@ function collectionTab(inn){
   return sect('Взыскание', 'зеркало модуля взыскания · только чтение', '', cards);
 }
 
+/* 3b. Залог — зеркало модуля залога (И-5): договоры залога (M:N по кредитам) → предметы.
+   Свод обеспеченности (worst-of из coverageOf), блоки Действующие/Снятые (как в legacy),
+   поручительство как параллельное обеспечение. */
+function collateralTab(inn){
+  const agrs = PLEDGE_AGR.filter(a => a.inn === inn);
+  if (!agrs.length) return sect('Залог', 'зеркало модуля залога · только чтение', '',
+    empty('Договоров залога нет. Кредиты заёмщика необеспечены либо обеспечение снято.'));
+  const objs = PLEDGE_OBJ.filter(o => o.inn === inn);
+  const act = objs.filter(o => !o.released), rel = objs.filter(o => o.released);
+  const sumCV = a => a.reduce((s,o) => s + o.collateralValue, 0);
+  const sumAP = a => a.reduce((s,o) => s + o.appraised, 0);
+  const cov = coverageOf(inn);
+  const covPill = cov.worst == null
+    ? '<span class="badge b-gray">нет действующего залога</span>'
+    : '<span class="badge ' + (cov.worst < cov.required ? 'b-ov' : 'b-ok') + '">worst-of '
+      + cov.worst.toFixed(2) + ' · норма ' + cov.required.toFixed(2) + '</span>';
+  const summary = '<div class="mon-sum">'
+    + '<span class="mon-stat"><b>' + agrs.length + '</b> договоров залога</span>'
+    + '<span class="mon-stat"><b>' + act.length + '</b> предметов действует</span>'
+    + (rel.length ? '<span class="mon-stat"><b>' + rel.length + '</b> снято с ареста</span>' : '')
+    + '<span class="mon-stat">' + covPill + '</span></div>';
+  const valTable = table('<th>Блок</th><th>Кол-во</th><th>Оценочная стоимость</th><th>Залоговая стоимость</th>',
+    [ '<tr><td>Действующие</td><td>' + act.length + '</td><td>' + fmt(sumAP(act)) + ' KGS</td><td>' + fmt(sumCV(act)) + ' KGS</td></tr>',
+      rel.length ? '<tr><td>Снятые</td><td>' + rel.length + '</td><td>' + fmt(sumAP(rel)) + ' KGS</td><td>' + fmt(sumCV(rel)) + ' KGS</td></tr>' : ''
+    ].filter(Boolean));
+  const cards = agrs.map(a => {
+    const creds = a.credits.map(id => esc((CREDITS.find(c => c.id === id) || {}).no || id)).join(', ');
+    const st = a.status === 'Действующий'
+      ? '<span class="badge b-ok">действующий</span>' : '<span class="badge b-gray">снят</span>';
+    const items = PLEDGE_OBJ.filter(o => o.agreementId === a.id).map(o => {
+      const ib = o.released ? '<span class="badge b-gray">снят с ареста</span>'
+        : o.inspStatus === 'обследовано'
+          ? '<span class="badge b-ok">обследовано' + (o.lastSurvey ? ' · ' + esc(o.lastSurvey) : '') + '</span>'
+          : '<span class="badge b-ov">подлежит обследованию</span>';
+      return '<div class="phase"><div class="phase-h"><span class="lvl">предмет</span><b>' + esc(o.name) + '</b>'
+        + '<span class="muted">' + esc(o.kind) + ' · ' + esc(o.identLabel) + ' ' + esc(o.ident) + '</span>' + ib + '</div>'
+        + '<div class="ev">залогодатель · ' + esc(o.pledger) + (o.address ? ' · ' + esc(o.address) : '') + '</div>'
+        + '<div class="ev">оценочная ' + fmt(o.appraised) + ' KGS · залоговая ' + fmt(o.collateralValue)
+        + ' KGS · оценка от ' + esc(o.apprDate) + '</div></div>';
+    }).join('');
+    return '<details class="proc"' + (a.status === 'Действующий' ? ' open' : '') + '><summary class="proc-h">'
+      + '<span class="lvl">договор</span><span class="p-name">' + esc(a.no) + '</span>' + st
+      + '<span class="muted">нотариус ' + esc(a.notary) + ' · ' + esc(a.organ) + ' · арест ' + esc(a.arrestNo) + '</span>'
+      + '<span style="flex:1"></span><span class="muted">кредиты: ' + creds + '</span>'
+      + '<a class="lnk" onclick="event.stopPropagation()">открыть в модуле залога</a>'
+      + '</summary>' + items + '</details>';
+  }).join('');
+  const guar = RELATED.filter(r => r.inn === inn && /поручител/i.test(r.role || ''));
+  const guarHtml = guar.length ? sect('Поручительство', 'параллельное обеспечение', '',
+    table('<th>Поручитель</th><th>ПИН</th><th>С даты</th>',
+      guar.map(g => '<tr><td>' + esc(g.fio) + '</td><td>' + esc(g.pin || '—')
+        + '</td><td class="muted">' + esc(g.from || '—') + '</td></tr>'))) : '';
+  return summary
+    + sect('Сводка по обеспечению', 'залоговая и оценочная стоимость', '', valTable)
+    + sect('Договоры залога', 'договор → предметы · M:N по кредитам', '', cards)
+    + guarHtml;
+}
+
 /* 4. Акты сверок — ACTS заёмщика; уклонение >60 к.д. помечено кандидатом на комитет. */
 function actsTab(inn){
   const acts = ACTS.filter(a=>a.inn===inn);
@@ -2259,14 +2401,15 @@ function tabBody(inn, i){
     case 0: return generalTab(inn);
     case 1: return `<div data-mirror="1">${creditsTab(inn)}</div>`;
     case 2: return monitoringTab(inn);
-    case 3: return `<div data-mirror="1">${collectionTab(inn)}</div>`;
-    case 4: return actsTab(inn);
-    case 5: return curatorTab(inn);
-    case 6: return `<div data-mirror="1">${relatedTab(inn)}</div>`;
-    case 7: return requisitesTab(inn);
-    case 8: return `<div data-mirror="1">${docsTab(inn)}</div>`;
-    case 9: return checksTab(inn);
-    case 10: return historyTab(inn);
+    case 3: return `<div data-mirror="1">${collateralTab(inn)}</div>`;
+    case 4: return `<div data-mirror="1">${collectionTab(inn)}</div>`;
+    case 5: return actsTab(inn);
+    case 6: return curatorTab(inn);
+    case 7: return `<div data-mirror="1">${relatedTab(inn)}</div>`;
+    case 8: return requisitesTab(inn);
+    case 9: return `<div data-mirror="1">${docsTab(inn)}</div>`;
+    case 10: return checksTab(inn);
+    case 11: return historyTab(inn);
   }
   return '';
 }
