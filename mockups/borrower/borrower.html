@@ -1049,12 +1049,84 @@ const NEW_BORROWERS = [
     'Сокулукский':'Чуй', 'Аламудунский':'Чуй', 'Чуйский':'Чуй', 'Жайылский':'Чуй',
     'Ак-Суйский':'Иссык-Куль', 'Ак-Талинский':'Нарын', 'Таласский':'Талас',
     'Кара-Сууйский':'Ош', 'Сузакский':'Джалал-Абад', 'Баткенский':'Баткен' };
-  const PROC_OF = { '2.1':'Досудебное урегулирование', '2.2':'Судебное взыскание',
-    '2.3':'Исполнительное производство', '3.1':'Процедура банкротства' };
-  const PHASE_OF = { '2.1':'Уведомление должника', '2.2':'Иск подан',
-    '2.3':'Исполнительный лист', '3.1':'Наблюдение' };
   const HIGH = new Set(['2.2','2.3','3.1','4']);
   const MIDG = new Set(['2.1','1.2']);
+
+  /* Календарный сдвиг даты dd.mm.yyyy на n дней (n<0 — назад); без Date(), детерминированно. */
+  const shift = (s, n) => {
+    let [d,m,y] = s.split('.').map(Number);
+    const dim = (yy,mm) => [31,(yy%4===0&&(yy%100!==0||yy%400===0))?29:28,31,30,31,30,31,31,30,31,30,31][mm-1];
+    if (n>=0){ for (let k=0;k<n;k++){ d++; if (d>dim(y,m)){ d=1; m++; if (m>12){ m=1; y++; } } } }
+    else     { for (let k=0;k<-n;k++){ d--; if (d<1){ m--; if (m<1){ m=12; y--; } d=dim(y,m); } } }
+    return String(d).padStart(2,'0')+'.'+String(m).padStart(2,'0')+'.'+y;
+  };
+
+  /* Многофазный таймлайн процедуры взыскания по подгруппе (зеркало модуля взыскания).
+     Даты якорятся к TODAY − просрочка (для активных) либо к closedAt (для завершённых),
+     фазы разнесены фиксированными интервалами → внутренне согласованная хронология. */
+  function buildProc(grp, bal, overdue, closedAt, seed){
+    const j  = seed % 5;                                   // мелкий джиттер, чтоб даты не совпадали
+    const ph = (name,date,done,ev,sum) => ({ name, date, done:done||'', sum:(sum==null?bal:sum), ev });
+    if (grp==='2.1'){
+      const o = shift(TODAY, -(overdue+8+j));
+      return { procedure:'Досудебное урегулирование', opened:o, sum:bal, phases:[
+        ph('Уведомление должника', o, shift(o,8),
+           [o+' — направлено уведомление о задолженности', shift(o,8)+' — вручено под роспись, ответа нет']),
+        ph('Первичная претензия', shift(o,15), '',
+           [shift(o,15)+' — направлена первичная претензия', 'ожидание ответа в 30-дневный срок']),
+      ]};
+    }
+    if (grp==='2.2'){
+      const o = shift(TODAY, -(overdue+12+j));
+      return { procedure:'Судебное взыскание', opened:o, sum:bal, phases:[
+        ph('Уведомление должника', o, shift(o,8), [o+' — направлено уведомление о задолженности']),
+        ph('Претензия', shift(o,18), shift(o,48),
+           [shift(o,18)+' — претензионное письмо', shift(o,48)+' — срок ответа истёк, оплаты нет']),
+        ph('Иск подан', shift(o,60), '',
+           [shift(o,60)+' — исковое заявление подано в суд', 'ожидание назначения заседания']),
+      ]};
+    }
+    if (grp==='2.3'){
+      const o = shift(TODAY, -(overdue+18+j));
+      return { procedure:'Исполнительное производство', opened:o, sum:bal, phases:[
+        ph('Претензия', o, shift(o,30), [o+' — претензия направлена']),
+        ph('Решение суда', shift(o,70), shift(o,70), [shift(o,70)+' — решение суда в пользу ФКФ']),
+        ph('Исполнительный лист', shift(o,95), shift(o,95),
+           [shift(o,95)+' — выдан исполнительный лист', shift(o,100)+' — передан судебному исполнителю']),
+        ph('На исполнении', shift(o,115), '',
+           [shift(o,115)+' — возбуждено исполнительное производство', 'опись и оценка имущества должника']),
+      ]};
+    }
+    if (grp==='3.1'){
+      const o = shift(TODAY, -(overdue+15+j));
+      return { procedure:'Процедура банкротства', opened:o, sum:bal, phases:[
+        ph('Инициирование банкротства', o, shift(o,36),
+           [o+' — подано заявление о признании банкротом', shift(o,36)+' — заявление принято судом']),
+        ph('Наблюдение', shift(o,47), '',
+           [shift(o,47)+' — введена процедура наблюдения', 'формируется реестр требований кредиторов']),
+      ]};
+    }
+    if (grp==='3.2'){                                       // завершено: closedAt = финал, долг списан
+      const end = closedAt, p1 = shift(end,-165), p2 = shift(end,-90);
+      return { procedure:'Процедура банкротства', outcome:'Завершена процедура банкротства', opened:p1, sum:0, phases:[
+        ph('Инициирование банкротства', p1, shift(p1,40), [p1+' — подано заявление о признании банкротом'], bal||0),
+        ph('Признано банкротом', p2, p2, [p2+' — должник признан банкротом, открыто конкурсное производство'], 0),
+        ph('Завершена процедура банкротства', end, end, [end+' — процедура завершена, остаток долга списан'], 0),
+      ]};
+    }
+    if (grp==='4'){                                         // безнадёжная: исполнение исчерпано
+      const o = shift(TODAY, -(overdue+20+j));
+      return { procedure:'Исполнительное производство', opened:o, sum:bal, phases:[
+        ph('Претензия', o, shift(o,30), [o+' — претензия направлена']),
+        ph('Решение суда', shift(o,90), shift(o,90), [shift(o,90)+' — решение суда в пользу ФКФ']),
+        ph('Исполнительный лист', shift(o,120), shift(o,120), [shift(o,120)+' — выдан исполнительный лист']),
+        ph('На исполнении', shift(o,150), '',
+           [shift(o,150)+' — возбуждено исполнительное производство',
+            'составлен акт о невозможности взыскания — готовится признание долга безнадёжным']),
+      ]};
+    }
+    return null;
+  }
 
   NEW_BORROWERS.forEach((d, i) => {
     const inn = '20' + String(i+1).padStart(2,'0') + '011999' + String(1001+i);
@@ -1093,12 +1165,12 @@ const NEW_BORROWERS = [
       CATEGORY_LOG.push({ inn, level:catlvl, from: catlvl==='high' ? '01.02.2026' : '01.05.2026',
         reason:'Просрочка '+overdue+' дн.', source:'payments' });
 
-    if (PROC_OF[d.grp]) {
+    const pc = buildProc(d.grp, bal, overdue, d.closedAt, i);
+    if (pc) {
       const owner = ['emp-12','emp-13','emp-14'][i%3];
-      PROCESSES.push({ id:'PR-N'+i, credits:[cid], procedure:PROC_OF[d.grp], phase:PHASE_OF[d.grp],
-        confirmed:true, owner, region:REGION[d.district]||'КР', opened:'15.03.2026', sum:bal,
-        phases:[{ name:PHASE_OF[d.grp], date:'15.03.2026', sum:bal, done:'',
-          ev:['15.03.2026 — '+PHASE_OF[d.grp].toLowerCase()] }] });
+      PROCESSES.push({ id:'PR-N'+i, credits:[cid], procedure:pc.procedure,
+        phase:pc.phases[pc.phases.length-1].name, outcome:pc.outcome, confirmed:true,
+        owner, region:REGION[d.district]||'КР', opened:pc.opened, sum:pc.sum, phases:pc.phases });
     }
     if (d.grp==='3.2') GROUP_LOG.push({ inn, group:'3.2', from:d.closedAt, basis:'Завершение банкротства', confirmedBy:'Суд' });
     if (d.grp==='4')   GROUP_LOG.push({ inn, group:'4',   from:'01.03.2026', basis:'Признана безнадёжной', confirmedBy:'КРР' });
