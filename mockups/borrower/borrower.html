@@ -356,6 +356,25 @@
   .b-ok{background:var(--status-success-bg);color:var(--status-success);border:1px solid var(--border-default);}
   .b-gray{background:var(--surface-hover);color:var(--text-muted);border:1px solid var(--border-default);}
   .b-type{background:#f2ecff;color:#5b34c7;border:1px solid #ded0ff;}
+  .b-err{background:var(--status-error-bg);color:var(--status-error);border:1px solid #f2cfcf;}
+
+  /* полоса дефектов обеспечения (вкладка «Залог») */
+  .defect-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:9px 12px;
+    border:1px solid #f2cfcf;background:var(--status-error-bg);border-radius:var(--radius-md);font-size:13px;}
+  .defect-bar .dl{font-weight:700;color:var(--status-error);font-size:12px;letter-spacing:.03em;}
+  .defect-bar.ok{border-color:var(--border-default);background:var(--status-success-bg);}
+  .defect-bar.ok .dl{color:var(--status-success);}
+  /* строка кредита раскрывается в предметы залога */
+  table.grid tr.pl-row{cursor:pointer;}
+  table.grid tr.pl-row .car{display:inline-block;width:12px;color:var(--text-muted);transition:transform .12s;}
+  table.grid tr.pl-row.open .car{transform:rotate(90deg);}
+  table.grid tr.pl-sub > td{background:var(--surface-hover);padding:0 16px 12px 46px;}
+  .pl-agr{font-size:12.5px;color:var(--text-muted);padding:10px 0 8px;}
+  .pl-item{background:#fff;border:1px solid var(--border-default);border-radius:var(--radius-md);
+    padding:9px 12px;margin-bottom:8px;font-size:13px;}
+  .pl-item .pi-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
+  .pl-item .pi-h b{font-size:13.5px;}
+  .pl-item .pi-l{color:var(--text-muted);font-size:12.5px;}
 
   /* тулбар «на дату» */
   .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0;margin-bottom:14px;}
@@ -1557,16 +1576,18 @@ function overdueDebt(inn){
   return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY) && c.overdueDays>0)
     .reduce((s,c)=> s + c.debt.principal + c.debt.interest + c.debt.penalty + c.debt.fees + c.debt.costs, 0);
 }
-/* Зеркало zalog: worst = минимальный индекс по кредитам заёмщика; aggregate = средневзвешенный (по balance). */
+/* Зеркало zalog: worst = минимальный индекс по кредитам заёмщика; aggregate = средневзвешенный (по balance).
+   Индекс НОРМИРОВАН на порог кредита (creditCoverage: залоговая ÷ (остаток × порог)), поэтому
+   норма всегда 1.00 — пороги 120/150 %/решение КМ у кредитов разные и в одну цифру не сводятся. */
 function coverageOf(inn){
-  const ix = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY))
-    .map(c => ({ cov: PLEDGE_IX.find(p=>p.creditId===c.id), bal: c.balance }))
-    .filter(x => x.cov);
-  if (!ix.length) return { worst:null, aggregate:null, required:1.20 };
-  const worst = Math.min(...ix.map(x=>x.cov.index));
-  const totBal = ix.reduce((s,x)=>s+x.bal,0) || 1;
-  const aggregate = ix.reduce((s,x)=> s + x.cov.index*x.bal, 0) / totBal;
-  return { worst, aggregate, required: ix[0].cov.required };
+  const cs = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY))
+    .map(c => ({ cv: creditCoverage(c), bal: c.balance || c.amount || 0 }))
+    .filter(x => x.cv.index != null && x.cv.items.length);
+  if (!cs.length) return { worst:null, aggregate:null, required:1, breaches:0 };
+  const worst = Math.min(...cs.map(x => x.cv.index));
+  const totBal = cs.reduce((s,x) => s+x.bal, 0) || 1;
+  const aggregate = cs.reduce((s,x) => s + x.cv.index*x.bal, 0) / totBal;
+  return { worst, aggregate, required:1, breaches: cs.filter(x => !x.cv.ok).length };
 }
 
 /* Прибавляет n рабочих дней к дате dd.mm.yyyy: пропускает сб/вс и WORKDAYS-праздники. */
@@ -1694,6 +1715,50 @@ seedBorrowerDetails();
    Договор ↔ кредиты M:N, две стоимости (оценочная/залоговая), цикл обследования,
    арест/нотариус. Индекс обеспеченности заводится в PLEDGE_IX (worst-of драйвер),
    чтобы «Мониторинг» и «Залог» показывали согласованную обеспеченность. */
+/* Зеркало справочника видов залога модуля (KINDS в mockups/collateral/zalog.html):
+   карточке заёмщика нужны только движимость и ликвидность — из них выводятся порог
+   покрытия (П1 §2.3/§2.4) и периодичность обследования (Прил.2 §2.3). tech — физически
+   изнашиваемый актив: обязателен страховой полис (Р-7). */
+const PLEDGE_KIND = {
+  'Недвижимое имущество':  { movable:false, liquid:true  },
+  'Транспортное средство': { movable:true,  liquid:false, tech:true },
+  'Оборудование':          { movable:true,  liquid:false, tech:true },
+  'Сельхозтехника':        { movable:true,  liquid:false, tech:true },
+  'Товары в обороте':      { movable:true,  liquid:false },
+};
+const kindOf = k => PLEDGE_KIND[k] || { movable:true, liquid:false };
+/* Нормативы покрытия (П1 §2.3–2.4) — те же значения, что в модуле залога. */
+const COVER_LIQUID = 1.20;     // ликвидный залог — ≥ 120 %
+const COVER_MOVABLE = 1.50;    // движимый неликвидный — ≥ 150 %
+const LIQUID_SHARE_MIN = 0.80; // при пороге 150 % доля ликвида ≥ 80 % суммы кредита
+const BAN_DEADLINE_DAYS = 5;   // рабочих дней на наложение запрета после нотар. удостоверения
+/* Периодичность обследования: группа платёжеспособности × движимость (Прил.2 §2.3).
+   Подгруппы карточки (1.x/2.x/3.x/4) сводятся к трём классам платёжеспособности модуля. */
+const SURVEY_MATRIX = {
+  'Платёжеспособные':     { immovable:36, movable:24 },
+  'Неплатёжеспособные':   { immovable:24, movable:12 },
+  'Предприятия-банкроты': { immovable:null, movable:null },   // по договору со спецадминистратором
+};
+const solvencyOfGroup = g => String(g)[0] === '1' ? 'Платёжеспособные'
+  : String(g)[0] === '3' ? 'Предприятия-банкроты' : 'Неплатёжеспособные';
+/* Ужесточение периодичности по категории риска — слой поверх матрицы, только с согласования
+   зампреда (Р-22, ПОР п.10); ниже SURVEY_MIN_MONTHS интервал не опускается. */
+const RISK_TIGHTENING = { low:1, mid:0.5, high:0.25 };
+const SURVEY_MIN_MONTHS = 3;
+const RISK_TIGHTENING_APPROVAL = { approved:true, req:'СЗ зампреда №СЗ-2026/07 от 09.07.2026' };
+/* FNV-1a — детерминированный «рандом» сидов (тот же приём, что внутри seedCollateral). */
+const fnv = s => { const t = String(s); let h = 2166136261; for (let i=0;i<t.length;i++){ h ^= t.charCodeAt(i); h = Math.imul(h,16777619); } return h>>>0; };
+/* Прибавляет n месяцев к дд.мм.гггг; день подрезается по длине целевого месяца. */
+function addMonths(dateStr, n){
+  if (!dateStr || dateStr === '—') return null;
+  let [d,m,y] = dateStr.split('.').map(Number);
+  const total = y*12 + (m-1) + n;
+  y = Math.floor(total/12); m = total%12 + 1;
+  const dim = [31,(y%4===0&&(y%100!==0||y%400===0))?29:28,31,30,31,30,31,31,30,31,30,31][m-1];
+  if (d > dim) d = dim;
+  return String(d).padStart(2,'0') + '.' + String(m).padStart(2,'0') + '.' + y;
+}
+
 function seedCollateral(){
   const REALTY = 'Недвижимое имущество';
   /* вид залога по отрасли субъекта → предмет */
@@ -1771,6 +1836,155 @@ function seedCollateral(){
   });
 }
 seedCollateral();
+
+/* ═══ ЗАЛОГ · ДОСТРОЙКА ЗЕРКАЛА ═══
+   seedCollateral() строит плоскую пару «кредит → договор → предмет». Модуль залога знает
+   больше, и ровно это здесь достраивается:
+     1) M:N — часть договоров обеспечивает ДВА кредита заёмщика (перекрёстный залог),
+        а стоимость предмета разносится по кредитам долями (allocs) — как в модуле;
+     2) нотариальная дата договора и ОСЬ ЗАПРЕТА на отчуждение на каждом предмете
+        (наложен / без отметки в оригиналах / не наложен + дедлайн, Р-20, ПБК п.2.1);
+     3) страховой полис на технике (Р-7) — истёкший полис поднимает триггер;
+     4) решение КМ по обеспеченности отдельных кредитов (П1 §2.6) — свой порог покрытия.
+   Всё read-only: карточка заёмщика ничего из этого не редактирует. */
+function seedCollateralExtras(){
+  /* 1. Перекрёстный залог: у каждого третьего заёмщика с 2+ действующими кредитами
+        договор второго кредита сливается в первый — получается настоящий M:N. */
+  SUBJECTS.forEach(s => {
+    const act = CREDITS.filter(c => c.inn === s.inn && isActiveCredit(c, TODAY));
+    if (act.length < 2 || fnv(s.inn) % 3 !== 0) return;
+    const a1 = PLEDGE_AGR.find(a => a.credits.includes(act[0].id));
+    const a2 = PLEDGE_AGR.find(a => a.credits.includes(act[1].id));
+    if (!a1 || !a2 || a1 === a2 || a2.status !== 'Действующий') return;
+    PLEDGE_OBJ.filter(o => o.agreementId === a2.id).forEach(o => { o.agreementId = a1.id; });
+    a1.credits = [act[0].id, act[1].id];
+    PLEDGE_AGR.splice(PLEDGE_AGR.indexOf(a2), 1);
+  });
+  /* Доли: стоимость предмета разносится по кредитам договора пропорционально остатку —
+     кредит сохраняет свою обеспеченность и после слияния договоров. */
+  PLEDGE_AGR.forEach(a => {
+    const crs = a.credits.map(id => CREDITS.find(c => c.id === id)).filter(Boolean);
+    const w = crs.map(c => c.balance || c.amount || 1);
+    const tot = w.reduce((x,y) => x+y, 0) || 1;
+    a.notaryDate = a.regDate;                       // договор удостоверяется в день регистрации
+    PLEDGE_OBJ.filter(o => o.agreementId === a.id).forEach(o => {
+      o.allocs = crs.map((c,i) => ({ credit:c.id, share: +(w[i]/tot).toFixed(4) }));
+    });
+  });
+  /* 2–3. Запрет на отчуждение и страхование — на каждом предмете. */
+  PLEDGE_OBJ.forEach(o => {
+    const a = PLEDGE_AGR.find(x => x.id === o.agreementId);
+    if (!a) { o.allocs = o.allocs || []; return; }
+    const h = fnv(o.id);
+    if (o.released){ o.ban = null; }                // предмет снят — запрет уже снят вместе с ним
+    else if (h % 11 === 0){ o.ban = null; }         // ДЕФЕКТ: запрет не наложен вовсе
+    else if (h % 11 === 1){                          // ДЕФЕКТ: зарегистрирован, но нет отметки в оригиналах
+      o.ban = { regNo:a.arrestNo, date: addWorkdays(a.notaryDate, 2 + h % 3), markInOriginals:false };
+    } else {
+      o.ban = { regNo:a.arrestNo, date: addWorkdays(a.notaryDate, 1 + h % 4), markInOriginals:true };
+    }
+    /* полис обязателен только на технике (isTech модуля); каждый пятый — истёкший */
+    if (kindOf(o.kind).tech && !o.released){
+      const alive = h % 5 !== 0;
+      o.policyNo = 'INS-' + (700 + h % 300);
+      o.policyTill = alive ? addMonths(TODAY, 3 + h % 9) : addMonths(TODAY, -(1 + h % 5));
+    } else { o.policyNo = null; o.policyTill = null; }
+  });
+  /* 4. Решение КМ по обеспеченности (П1 §2.6) — свой процент покрытия вместо норматива. */
+  CREDITS.forEach(c => {
+    if (fnv(c.id) % 17 !== 0 || !isActiveCredit(c, TODAY)) return;
+    c.kmDecision = { no:'КМ-2025/' + (400 + fnv(c.id) % 90), date:'12.11.2025', coverPct:130 };
+  });
+}
+seedCollateralExtras();
+
+/* Предметы, отнесённые на кредит, с долей каждого (действующие; снятые в покрытие не идут). */
+function pledgeAllocsOf(creditId){
+  return PLEDGE_OBJ.filter(o => !o.released && (o.allocs || []).some(x => x.credit === creditId))
+    .map(o => ({ obj:o, share: o.allocs.find(x => x.credit === creditId).share }));
+}
+/* Порог покрытия кредита (зеркало requiredCover модуля): решение КМ важнее норматива;
+   иначе движимый неликвидный предмет в покрытии поднимает порог со 120 % до 150 %. */
+function requiredCoverOf(cr){
+  if (cr.kmDecision) return { req: cr.kmDecision.coverPct/100,
+    source: 'решение КМ ' + cr.kmDecision.no + ' от ' + cr.kmDecision.date + ' · П1 §2.6' };
+  const movableIlliquid = pledgeAllocsOf(cr.id)
+    .some(a => kindOf(a.obj.kind).movable && !kindOf(a.obj.kind).liquid);
+  return movableIlliquid
+    ? { req: COVER_MOVABLE, source: 'П1 §2.4 · движимый неликвидный залог' }
+    : { req: COVER_LIQUID,  source: 'П1 §2.3 · ликвидный залог' };
+}
+/* Обеспеченность кредита: индекс = залоговая стоимость ÷ (остаток × порог); обеспечен при
+   index ≥ 1 И (когда порог 150 %) доле ликвида ≥ 80 % — подпункт того же гейта, не отдельный
+   статус. База — ОСТАТОК (снапшот, E2E-09), у закрытого кредита — сумма договора. */
+function creditCoverage(cr){
+  const items = pledgeAllocsOf(cr.id);
+  const secured = items.reduce((s,a) => s + a.obj.collateralValue * a.share, 0);
+  const { req, source } = requiredCoverOf(cr);
+  const base = cr.balance || cr.amount || 0;
+  const index = base ? secured/(base*req) : null;
+  const liqApplies = req === COVER_MOVABLE;
+  const liq = items.reduce((s,a) => s + (kindOf(a.obj.kind).liquid ? a.obj.collateralValue * a.share : 0), 0);
+  const liqShare = liqApplies ? (base ? liq/base : 1) : null;
+  const liqOk = !liqApplies || liqShare >= LIQUID_SHARE_MIN - 1e-9;
+  return { items, secured, appraised: items.reduce((s,a) => s + a.obj.appraised * a.share, 0),
+           req, source, base, index, liqApplies, liqShare, liqOk,
+           ok: index != null && index >= 1 && liqOk };
+}
+/* Дедлайн наложения запрета: нотариальная дата договора + BAN_DEADLINE_DAYS рабочих дней. */
+function banDeadlineOf(o){
+  const a = PLEDGE_AGR.find(x => x.id === o.agreementId);
+  return a && a.notaryDate ? addWorkdays(a.notaryDate, BAN_DEADLINE_DAYS) : null;
+}
+/* Ось запрета независима от залоговой: «в залоге» + «запрет не наложен» — дефект оформления
+   (имущество не защищено от продажи залогодателем), а не норма. */
+function banStateOf(o){
+  if (o.released) return o.ban ? { code:'stale', label:'подлежит снятию' } : { code:'none', label:'не требуется' };
+  if (o.ban) return o.ban.markInOriginals
+    ? { code:'set', label:'запрет наложен' }
+    : { code:'partial', label:'без отметки в оригиналах' };
+  const dl = banDeadlineOf(o);
+  return (dl && dnum(dl) < dnum(TODAY))
+    ? { code:'overdue', label:'ЗАПРЕТ НЕ НАЛОЖЕН', deadline:dl }
+    : { code:'due', label:'запрет не наложен · до ' + (dl || '—'), deadline:dl };
+}
+/* Плановое обследование — вычисляемый оверлей, не статус: последнее + действующий интервал.
+   Группа платёжеспособности берётся от заёмщика, ужесточение — от его категории риска. */
+function surveyOf(o){
+  if (o.released) return null;
+  const solv = solvencyOfGroup(groupOf(o.inn, TODAY));
+  const base = (SURVEY_MATRIX[solv] || {})[kindOf(o.kind).movable ? 'movable' : 'immovable'];
+  if (base == null) return { solv, special:true };          // банкрот — по договору со спецадминистратором
+  const cat = catOfBorrower(o.inn, TODAY) || 'low';
+  const eff = RISK_TIGHTENING_APPROVAL.approved
+    ? Math.max(SURVEY_MIN_MONTHS, Math.round(base * (RISK_TIGHTENING[cat] ?? 1))) : base;
+  const next = o.lastSurvey ? addMonths(o.lastSurvey, eff) : null;
+  return { solv, cat, base, eff, next, overdue: next ? dnum(next) < dnum(TODAY) : false };
+}
+const policyExpired = o => Boolean(kindOf(o.kind).tech && !o.released
+  && (!o.policyTill || dnum(o.policyTill) < dnum(TODAY)));
+/* Дефекты обеспечения заёмщика — то, ради чего таб открывают. Собираются один раз и
+   показываются полосой сверху; каждый пункт — ссылка на строку ниже по смыслу. */
+function pledgeDefects(inn){
+  const out = [];
+  const act = CREDITS.filter(c => c.inn === inn && isActiveCredit(c, TODAY));
+  const objs = PLEDGE_OBJ.filter(o => o.inn === inn && !o.released);
+  const bare = act.filter(c => !pledgeAllocsOf(c.id).length).length;
+  const under = act.filter(c => { const cv = creditCoverage(c); return cv.index != null && cv.index < 1; }).length;
+  const liq = act.filter(c => { const cv = creditCoverage(c); return cv.liqApplies && !cv.liqOk; }).length;
+  const banOv = objs.filter(o => banStateOf(o).code === 'overdue').length;
+  const banPt = objs.filter(o => banStateOf(o).code === 'partial').length;
+  const surv = objs.filter(o => { const s = surveyOf(o); return s && s.overdue; }).length;
+  const pol = objs.filter(policyExpired).length;
+  if (bare)  out.push({ sev:'high', text: bare + ' кред. без обеспечения' });
+  if (under) out.push({ sev:'high', text: 'индекс < 1 — ' + under + ' кред.' });
+  if (banOv) out.push({ sev:'high', text: 'запрет просрочен — ' + banOv + ' предм.' });
+  if (liq)   out.push({ sev:'mid',  text: 'доля ликвида < 80 % — ' + liq + ' кред.' });
+  if (banPt) out.push({ sev:'mid',  text: 'нет отметки в оригиналах — ' + banPt + ' предм.' });
+  if (surv)  out.push({ sev:'mid',  text: 'обследование просрочено — ' + surv + ' предм.' });
+  if (pol)   out.push({ sev:'mid',  text: 'полис истёк — ' + pol + ' предм.' });
+  return out;
+}
 
 /* ═══ SECTION 3 · РЕНДЕР ═══ */
 /* Бейджи реестра: категория риска — цветная точка, подгруппа — код + подпись. */
@@ -2284,62 +2498,241 @@ function collectionTab(inn){
   return sect('Взыскание', 'зеркало модуля взыскания · только чтение', '', cards);
 }
 
-/* 3b. Залог — зеркало модуля залога (И-5): договоры залога (M:N по кредитам) → предметы.
-   Свод обеспеченности (worst-of из coverageOf), блоки Действующие/Снятые (как в legacy),
-   поручительство как параллельное обеспечение. */
+/* 3b. Залог — зеркало модуля залога (И-5). Два вида одной и той же выборки:
+     «по кредитам» — обеспеченность каждого кредита (индекс, порог, доля ликвида), строка
+       раскрывается в предметы: это ответ на вопрос куратора «хватает ли обеспечения»;
+     «по предметам» — плоский реестр предметов (вид, идентификатор, запрет, обследование):
+       рабочий вид залоговой службы и поиск по гос.номеру/кадастру.
+   Сверху — полоса дефектов обеспечения (индекс < 1, запрет не наложен, обследование
+   просрочено, полис истёк): ради неё таб и открывают. Всё только для чтения. */
+const PLEDGE_VIEW_KEY = 'asubk.borrower.pledgeView';
+function pledgeView(){
+  let v = null; try { v = localStorage.getItem(PLEDGE_VIEW_KEY); } catch(e){}
+  return v === 'objects' ? 'objects' : 'credits';
+}
+/* Пилюли предмета — единственный источник; используются в обоих видах. */
+function banBadge(o){
+  const st = banStateOf(o);
+  const cls = st.code === 'set' ? 'b-ok' : st.code === 'none' ? 'b-gray'
+    : st.code === 'overdue' ? 'b-err' : 'b-ov';
+  return '<span class="badge ' + cls + '">' + esc(st.label) + '</span>';
+}
+function surveyBadge(o){
+  const s = surveyOf(o);
+  if (!s) return '<span class="badge b-gray">не требуется</span>';
+  if (s.special) return '<span class="badge b-gray">по договору со спецадминистратором</span>';
+  if (!s.next) return '<span class="badge b-ov">обследование не проводилось</span>';
+  return '<span class="badge ' + (s.overdue ? 'b-err' : 'b-ok') + '">'
+    + (s.overdue ? 'обследование просрочено · с ' : 'обследование до ') + esc(s.next) + '</span>';
+}
+function policyBadge(o){
+  if (!kindOf(o.kind).tech || o.released) return '';
+  return policyExpired(o)
+    ? '<span class="badge b-err">полис истёк' + (o.policyTill ? ' · ' + esc(o.policyTill) : '') + '</span>'
+    : '<span class="badge b-ok">полис до ' + esc(o.policyTill) + '</span>';
+}
+
 function collateralTab(inn){
+  const creds = CREDITS.filter(c => c.inn === inn);
+  if (!creds.length) return sect('Залог', 'зеркало модуля залога · только чтение', '',
+    empty('У заёмщика нет кредитов — обеспечение не ведётся.'));
   const agrs = PLEDGE_AGR.filter(a => a.inn === inn);
-  if (!agrs.length) return sect('Залог', 'зеркало модуля залога · только чтение', '',
-    empty('Договоров залога нет. Кредиты заёмщика необеспечены либо обеспечение снято.'));
   const objs = PLEDGE_OBJ.filter(o => o.inn === inn);
   const act = objs.filter(o => !o.released), rel = objs.filter(o => o.released);
-  const sumCV = a => a.reduce((s,o) => s + o.collateralValue, 0);
-  const sumAP = a => a.reduce((s,o) => s + o.appraised, 0);
   const cov = coverageOf(inn);
+  const view = pledgeView();
+
+  const toolbar = '<div class="toolbar">'
+      + '<span class="fl muted">По состоянию на</span>'
+      /* залоговая стоимость считается от остатка — а он снапшот на дату (E2E-09) */
+      + '<input type="date" id="plAsOf" value="' + toISO(TODAY) + '" max="' + toISO(TODAY) + '" style="width:150px">'
+      + '<span class="sep"></span>'
+      + '<div class="viewseg" role="group" aria-label="Вид обеспечения">'
+        + '<button type="button" class="viewseg-btn' + (view === 'credits' ? ' active' : '') + '" id="plSegCr">по кредитам</button>'
+        + '<button type="button" class="viewseg-btn' + (view === 'objects' ? ' active' : '') + '" id="plSegOb">по предметам</button>'
+      + '</div>'
+      + '<span style="flex:1"></span>'
+      + '<div class="dd" id="plGenDd">'
+        + '<button class="btn btn-primary btn-sm" id="plGenBtn">Сформировать ▾</button>'
+        + '<div class="dd-menu">'
+          + '<button class="dd-i">Справка об обеспеченности</button>'
+          + '<button class="dd-i">Реестр предметов залога</button>'
+          + '<button class="dd-i">График обследований</button>'
+        + '</div>'
+      + '</div>'
+    + '</div>';
+
+  const def = pledgeDefects(inn);
+  const defBar = def.length
+    ? '<div class="defect-bar"><span class="dl">ДЕФЕКТЫ ОБЕСПЕЧЕНИЯ</span>'
+      + def.map(d => '<span class="badge ' + (d.sev === 'high' ? 'b-err' : 'b-ov') + '">' + esc(d.text) + '</span>').join('')
+      + '</div>'
+    : '<div class="defect-bar ok"><span class="dl">ДЕФЕКТОВ ОБЕСПЕЧЕНИЯ НЕТ</span>'
+      + '<span class="muted">покрытие в норме, запреты наложены, обследования в сроке</span></div>';
+
+  /* worst-of нормирован на порог каждого кредита, поэтому норма — единица, а не 1.20 */
   const covPill = cov.worst == null
     ? '<span class="badge b-gray">нет действующего залога</span>'
-    : '<span class="badge ' + (cov.worst < cov.required ? 'b-ov' : 'b-ok') + '">worst-of '
-      + cov.worst.toFixed(2) + ' · норма ' + cov.required.toFixed(2) + '</span>';
+    : '<span class="badge ' + (cov.worst < 1 ? 'b-err' : 'b-ok') + '">worst-of '
+      + cov.worst.toFixed(2) + ' · норма 1.00</span>';
   const summary = '<div class="mon-sum">'
     + '<span class="mon-stat"><b>' + agrs.length + '</b> договоров залога</span>'
     + '<span class="mon-stat"><b>' + act.length + '</b> предметов действует</span>'
-    + (rel.length ? '<span class="mon-stat"><b>' + rel.length + '</b> снято с ареста</span>' : '')
-    + '<span class="mon-stat">' + covPill + '</span></div>';
-  const valTable = table('<th>Блок</th><th>Кол-во</th><th>Оценочная стоимость</th><th>Залоговая стоимость</th>',
-    [ '<tr><td>Действующие</td><td>' + act.length + '</td><td>' + fmt(sumAP(act)) + ' KGS</td><td>' + fmt(sumCV(act)) + ' KGS</td></tr>',
-      rel.length ? '<tr><td>Снятые</td><td>' + rel.length + '</td><td>' + fmt(sumAP(rel)) + ' KGS</td><td>' + fmt(sumCV(rel)) + ' KGS</td></tr>' : ''
-    ].filter(Boolean));
-  const cards = agrs.map(a => {
-    const creds = a.credits.map(id => esc((CREDITS.find(c => c.id === id) || {}).no || id)).join(', ');
-    const st = a.status === 'Действующий'
-      ? '<span class="badge b-ok">действующий</span>' : '<span class="badge b-gray">снят</span>';
-    const items = PLEDGE_OBJ.filter(o => o.agreementId === a.id).map(o => {
-      const ib = o.released ? '<span class="badge b-gray">снят с ареста</span>'
-        : o.inspStatus === 'обследовано'
-          ? '<span class="badge b-ok">обследовано' + (o.lastSurvey ? ' · ' + esc(o.lastSurvey) : '') + '</span>'
-          : '<span class="badge b-ov">подлежит обследованию</span>';
-      return '<div class="phase"><div class="phase-h"><span class="lvl">предмет</span><b>' + esc(o.name) + '</b>'
-        + '<span class="muted">' + esc(o.kind) + ' · ' + esc(o.identLabel) + ' ' + esc(o.ident) + '</span>' + ib + '</div>'
-        + '<div class="ev">залогодатель · ' + esc(o.pledger) + (o.address ? ' · ' + esc(o.address) : '') + '</div>'
-        + '<div class="ev">оценочная ' + fmt(o.appraised) + ' KGS · залоговая ' + fmt(o.collateralValue)
-        + ' KGS · оценка от ' + esc(o.apprDate) + '</div></div>';
-    }).join('');
-    return '<details class="proc"' + (a.status === 'Действующий' ? ' open' : '') + '><summary class="proc-h">'
-      + '<span class="lvl">договор</span><span class="p-name">' + esc(a.no) + '</span>' + st
-      + '<span class="muted">нотариус ' + esc(a.notary) + ' · ' + esc(a.organ) + ' · арест ' + esc(a.arrestNo) + '</span>'
-      + '<span style="flex:1"></span><span class="muted">кредиты: ' + creds + '</span>'
-      + '<a class="lnk" onclick="event.stopPropagation()">открыть в модуле залога</a>'
-      + '</summary>' + items + '</details>';
-  }).join('');
+    + (rel.length ? '<span class="mon-stat"><b>' + rel.length + '</b> снято</span>' : '')
+    + '<span class="mon-stat"><b>' + fmt(act.reduce((s,o) => s + o.collateralValue, 0)) + '</b> KGS залоговая</span>'
+    + '<span class="mon-stat' + (cov.worst != null && cov.worst < 1 ? ' ov' : '') + '">' + covPill + '</span>'
+    + '</div>';
+
   const guar = RELATED.filter(r => r.inn === inn && /поручител/i.test(r.role || ''));
-  const guarHtml = guar.length ? sect('Поручительство', 'параллельное обеспечение', '',
+  /* поручительство ведётся вне залогового модуля и в индекс обеспеченности НЕ входит (Р-11) */
+  const guarHtml = guar.length ? sect('Поручительство', 'параллельное обеспечение · в индекс не входит', '',
     table('<th>Поручитель</th><th>ПИН</th><th>С даты</th>',
       guar.map(g => '<tr><td>' + esc(g.fio) + '</td><td>' + esc(g.pin || '—')
         + '</td><td class="muted">' + esc(g.from || '—') + '</td></tr>'))) : '';
-  return summary
-    + sect('Сводка по обеспечению', 'залоговая и оценочная стоимость', '', valTable)
-    + sect('Договоры залога', 'договор → предметы · M:N по кредитам', '', cards)
-    + guarHtml;
+
+  return toolbar + defBar + summary + sect('', '', '', '<div id="plWrap"></div>') + guarHtml;
+}
+
+/* Проводка таба «Залог»: переключатель вида, раскрытие строк, дропдаун. Вызывается из
+   showDetail после вставки карточки в DOM (как wireCreditsTab). */
+function wireCollateralTab(inn){
+  const wrap = document.getElementById('plWrap');
+  if (!wrap) return;
+  const creds = CREDITS.filter(c => c.inn === inn);
+  const objs  = PLEDGE_OBJ.filter(o => o.inn === inn);
+
+  /* ---- вид «по кредитам»: строка = кредит, раскрытие = предметы его договора ---- */
+  function creditsView(){
+    const rows = creds.map((c, i) => {
+      const cv = creditCoverage(c);
+      const active = isActiveCredit(c, TODAY);
+      const agrNos = [...new Set(cv.items.map(a => (PLEDGE_AGR.find(x => x.id === a.obj.agreementId) || {}).no).filter(Boolean))];
+      const idx = cv.index == null ? '<span class="muted">—</span>'
+        : '<span class="' + (cv.index < 1 ? 'win' : '') + '"><b>' + cv.index.toFixed(2) + '</b></span>';
+      const liq = cv.liqApplies
+        ? '<div class="muted" style="margin-top:3px">ликвид ' + Math.round(cv.liqShare*100) + ' % '
+          + (cv.liqOk ? '· норма 80 %' : '<span class="win">· ниже нормы 80 %</span>') + '</div>'
+        : '';
+      /* сводка по предметам кредита: количество + худшая пилюля дефекта */
+      const worst = cv.items.map(a => a.obj).find(o => banStateOf(o).code === 'overdue')
+        || cv.items.map(a => a.obj).find(o => { const s = surveyOf(o); return s && s.overdue; })
+        || cv.items.map(a => a.obj).find(policyExpired);
+      const itemsCell = !cv.items.length
+        ? (active ? '<span class="badge b-err">нет обеспечения</span>' : '<span class="muted">—</span>')
+        : cv.items.length + ' предм.' + (worst
+            ? '<div style="margin-top:3px">' + (banStateOf(worst).code === 'overdue' ? banBadge(worst)
+                : policyExpired(worst) ? policyBadge(worst) : surveyBadge(worst)) + '</div>' : '');
+      const main = '<tr class="pl-row" data-cr="' + esc(c.id) + '">'
+        + '<td class="rownum"><span class="car">▸</span></td>'
+        + '<td class="who">' + esc(c.no)
+          + '<div class="muted" style="font-weight:400;margin-top:3px">'
+          + (agrNos.length ? 'дог. залога ' + esc(agrNos.join(', ')) : 'договор залога отсутствует') + '</div></td>'
+        + '<td>' + fmt(cv.base) + ' <span class="muted">KGS</span>'
+          + (active ? '' : '<div class="muted" style="margin-top:3px">закрыт ' + esc(c.closedAt || '') + '</div>') + '</td>'
+        + '<td>' + Math.round(cv.req*100) + ' %<div class="muted" style="margin-top:3px">' + esc(cv.source) + '</div></td>'
+        /* доли дают дробные копейки — в карточке заёмщика показываем целые сомы */
+        + '<td>' + fmt(Math.round(cv.secured)) + ' <span class="muted">KGS</span>'
+          + '<div class="muted" style="margin-top:3px">оценочная ' + fmt(Math.round(cv.appraised)) + '</div></td>'
+        + '<td>' + idx + liq + '</td>'
+        + '<td>' + itemsCell + '</td></tr>';
+      const sub = '<tr class="pl-sub" data-sub="' + esc(c.id) + '" hidden><td colspan="7">'
+        + (cv.items.length ? cv.items.map(a => itemBlock(a.obj, a.share)).join('')
+           : '<div class="pl-agr">Предметов залога нет. ' + (active
+              ? 'Кредит не обеспечен — дефект, кандидат в очередь на комитет.' : 'Обеспечение снято при закрытии кредита.') + '</div>')
+        + '</td></tr>';
+      return main + sub;
+    });
+    const tot = creds.reduce((a,c) => { const cv = creditCoverage(c);
+      return { base:a.base + cv.base, sec:a.sec + cv.secured }; }, { base:0, sec:0 });
+    const foot = '<td class="rownum"></td>'
+      + '<td>Итого <span class="muted" style="font-weight:400">· ' + creds.length + ' кред.</span></td>'
+      + '<td>' + fmt(tot.base) + ' <span class="muted">KGS</span></td><td></td>'
+      + '<td><b>' + fmt(Math.round(tot.sec)) + '</b> <span class="muted">KGS</span></td><td></td><td></td>';
+    const head = '<th class="rownum"></th><th style="width:20%">Кредит</th><th style="width:13%">Остаток</th>'
+      + '<th style="width:17%">Порог покрытия</th><th style="width:17%">Залоговая стоимость</th>'
+      + '<th style="width:12%">Индекс</th><th style="width:13%">Предметы</th>';
+    return table(head, rows, foot);
+  }
+
+  /* карточка предмета внутри раскрытой строки кредита */
+  function itemBlock(o, share){
+    const a = PLEDGE_AGR.find(x => x.id === o.agreementId) || {};
+    return '<div class="pl-item">'
+      + '<div class="pi-h"><b>' + esc(o.name) + '</b>'
+        + '<span class="pi-l">' + esc(o.kind) + ' · ' + esc(o.identLabel) + ' ' + esc(o.ident) + '</span>'
+        + banBadge(o) + surveyBadge(o) + policyBadge(o) + '</div>'
+      + '<div class="pi-l">залогодатель · ' + esc(o.pledger) + (o.address ? ' · ' + esc(o.address) : '') + '</div>'
+      + '<div class="pi-l">оценочная ' + fmt(o.appraised) + ' KGS · залоговая ' + fmt(o.collateralValue)
+        + ' KGS · оценка от ' + esc(o.apprDate)
+        + (share < 0.999 ? ' · <b>доля на этот кредит ' + Math.round(share*100) + ' %</b> ('
+            + fmt(Math.round(o.collateralValue*share)) + ' KGS)' : '') + '</div>'
+      /* в сиде нотариус хранится с префиксом «Нотариус …» — в строке он лишний */
+      + '<div class="pi-l">договор ' + esc(a.no || '—') + ' · нотариус ' + esc(String(a.notary || '—').replace(/^Нотариус\s+/, ''))
+        + ' · ' + esc(a.organ || '—') + ' · запрет ' + esc((o.ban && o.ban.regNo) || '—')
+        + ' <a class="lnk">открыть в модуле залога</a></div>'
+      + '</div>';
+  }
+
+  /* ---- вид «по предметам»: плоский реестр (поиск по гос.номеру/кадастру) ---- */
+  function objectsView(){
+    const ordered = objs.filter(o => !o.released).concat(objs.filter(o => o.released));
+    const rows = ordered.map((o, i) => {
+      const a = PLEDGE_AGR.find(x => x.id === o.agreementId) || {};
+      const crs = (o.allocs || []).map(x => (CREDITS.find(c => c.id === x.credit) || {}).no || x.credit);
+      return '<tr' + (o.released ? ' class="muted"' : '') + '>'
+        + '<td class="rownum">' + (i+1) + '</td>'
+        + '<td class="who">' + esc(o.name)
+          + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(o.kind)
+          + (o.released ? ' · снят' : '') + '</div></td>'
+        + '<td>' + esc(o.identLabel) + ' ' + esc(o.ident) + '</td>'
+        + '<td>' + esc(o.pledger) + (o.address ? '<div class="muted" style="margin-top:3px">' + esc(o.address) + '</div>' : '') + '</td>'
+        + '<td>' + fmt(o.appraised) + ' <span class="muted">KGS</span></td>'
+        + '<td><b>' + fmt(o.collateralValue) + '</b> <span class="muted">KGS</span></td>'
+        + '<td>' + esc(a.no || '—') + '<div class="muted" style="margin-top:3px">' + esc(crs.join(', ') || '—') + '</div></td>'
+        + '<td>' + banBadge(o) + '</td>'
+        + '<td>' + surveyBadge(o) + (policyBadge(o) ? '<div style="margin-top:3px">' + policyBadge(o) + '</div>' : '') + '</td>'
+        + '</tr>';
+    });
+    const a = objs.filter(o => !o.released);
+    const foot = '<td class="rownum"></td>'
+      + '<td>Итого <span class="muted" style="font-weight:400">· ' + a.length + ' действ.</span></td><td></td><td></td>'
+      + '<td>' + fmt(a.reduce((s,o) => s + o.appraised, 0)) + ' <span class="muted">KGS</span></td>'
+      + '<td><b>' + fmt(a.reduce((s,o) => s + o.collateralValue, 0)) + '</b> <span class="muted">KGS</span></td>'
+      + '<td></td><td></td><td></td>';
+    const head = '<th class="rownum">#</th><th style="width:18%">Предмет</th><th style="width:12%">Идентификатор</th>'
+      + '<th style="width:14%">Залогодатель</th><th style="width:11%">Оценочная</th><th style="width:11%">Залоговая</th>'
+      + '<th style="width:12%">Договор / кредиты</th><th style="width:11%">Запрет</th><th style="width:11%">Обследование</th>';
+    return table(head, rows, foot);
+  }
+
+  function render(){
+    const view = pledgeView();
+    wrap.innerHTML = view === 'objects' ? objectsView() : creditsView();
+    wrap.querySelectorAll('tr.pl-row').forEach(tr => tr.addEventListener('click', () => {
+      const sub = wrap.querySelector('tr.pl-sub[data-sub="' + tr.dataset.cr + '"]');
+      if (!sub) return;
+      sub.hidden = !sub.hidden;
+      tr.classList.toggle('open', !sub.hidden);
+    }));
+  }
+  const seg = (v) => {
+    try { localStorage.setItem(PLEDGE_VIEW_KEY, v); } catch(e){}
+    const cr = document.getElementById('plSegCr'), ob = document.getElementById('plSegOb');
+    if (cr) cr.classList.toggle('active', v === 'credits');
+    if (ob) ob.classList.toggle('active', v === 'objects');
+    render();
+  };
+  const segCr = document.getElementById('plSegCr'), segOb = document.getElementById('plSegOb');
+  if (segCr) segCr.addEventListener('click', () => seg('credits'));
+  if (segOb) segOb.addEventListener('click', () => seg('objects'));
+  render();
+
+  /* дропдаун «Сформировать» — печатные формы модуля залога */
+  const dd = document.getElementById('plGenDd'), btn = document.getElementById('plGenBtn');
+  if (dd && btn){
+    btn.addEventListener('click', e => { e.stopPropagation(); dd.classList.toggle('open'); });
+    dd.querySelectorAll('.dd-i').forEach(i => i.addEventListener('click', () => dd.classList.remove('open')));
+  }
 }
 
 /* 4. Акты сверок — ACTS заёмщика; уклонение >60 к.д. помечено кандидатом на комитет. */
@@ -2650,7 +3043,8 @@ function showList(){
 function showDetail(inn, tabIndex){
   current = inn; currentSubj = null;
   document.getElementById('cardMount').innerHTML = renderCard(inn);
-  wireCreditsTab(inn);   /* таб «Кредиты» интерактивен — проводим после вставки в DOM */
+  wireCreditsTab(inn);      /* таб «Кредиты» интерактивен — проводим после вставки в DOM */
+  wireCollateralTab(inn);   /* таб «Залог» — переключатель вида и раскрытие строк */
   showOnly(vDetail);
   const s = SUBJECTS.find(x => x.inn === inn);
   /* наименование кликабельно — ведёт на страницу субъекта (организация / физлицо) */
