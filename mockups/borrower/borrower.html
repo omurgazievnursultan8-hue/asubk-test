@@ -211,6 +211,10 @@
   /* секция без заголовка — рамки карточки нет, шапка со своей границей остаётся */
   .section.bare{border:0;border-radius:0;overflow:visible;}
   .section.bare .section-head{background:transparent;padding-left:0;padding-right:0;}
+  /* пустая шапка (нет ни заголовка, ни хинта, ни кнопок) — не занимает место;
+     верхнюю границу таблицы тогда рисует само тело секции */
+  .section.bare .section-head:empty{display:none;}
+  .section.bare .section-head:empty + .section-body{border-top:1px solid var(--border-default);}
   /* рамки карточки нет — таблицу обводим сами: бока на теле секции, низ на последней строке */
   .section.bare .section-body{border-left:1px solid var(--border-default);border-right:1px solid var(--border-default);}
   .section.bare table.grid tbody tr:last-child td{border-bottom:1px solid var(--border-default);}
@@ -354,8 +358,7 @@
   .b-type{background:#f2ecff;color:#5b34c7;border:1px solid #ded0ff;}
 
   /* тулбар «на дату» */
-  .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--border-default);
-    border-radius:6px;padding:11px 14px;background:#fbfcfd;margin-bottom:14px;}
+  .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0;margin-bottom:14px;}
   .toolbar .sep{width:1px;height:24px;background:var(--border-default);margin:0 3px;}
   .toolbar .fl{font-size:13px;}
 
@@ -1882,8 +1885,8 @@ function tile(title, valueHtml, basis, moreHtml, lockHtml){
     + (lockHtml || '')
     + `</div>`;
 }
-const TABS = ['Общая информация','Кредиты','Мониторинг','Залог','Взыскание','Акты сверок','Кураторство',
-  'Связанные лица','Реквизиты и контакты','Документы','Проверки','История'];
+const TABS = ['Общая информация','Кредиты','Залог','Взыскание','Акты сверок','Кураторство',
+  'Связанные лица','Реквизиты и контакты','Мониторинг','Документы','Проверки','История'];
 
 function catBasisHtml(inn){
   const rows = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY)).map(c=>{
@@ -2013,7 +2016,7 @@ function attentionCard(inn){
       + `Категорию они не двигают до решения комитета.</div>`;
   }
   if (!body) body = '<div class="muted" style="font-size:13px;line-height:1.5;padding:14px 16px">Открытых обязательств и событий на комитет нет.</div>';
-  return sect('Требует внимания', 'Р-4 · Р-5', '<a class="lnk" onclick="switchTab(2)">Открыть «Мониторинг»</a>', body);
+  return sect('Требует внимания', 'Р-4 · Р-5', '<a class="lnk" onclick="switchTab(8)">Открыть «Мониторинг»</a>', body);
 }
 
 /* Контакты — только действующие каналы; полный список и история — во вкладке «Реквизиты и контакты». */
@@ -2023,7 +2026,7 @@ function contactsCard(inn){
     ? '<div class="fields">' + live.map(c=>`<div class="f"><span class="fk">${esc(c.kind)}${c.note && c.note!=='—' ? ' · '+esc(c.note) : ''}</span>`
         + `<span class="fv">${esc(c.value)}</span></div>`).join('') + '</div>'
     : '<div class="muted" style="font-size:13px;padding:14px 16px">Действующих каналов связи нет.</div>';
-  return sect('Контакты', 'действующие каналы', '<a class="lnk" onclick="switchTab(8)">Все реквизиты</a>', body);
+  return sect('Контакты', 'действующие каналы', '<a class="lnk" onclick="switchTab(7)">Все реквизиты</a>', body);
 }
 
 /* Последние события — верхние 5 из того же таймлайна, что и вкладка «История». */
@@ -2098,18 +2101,16 @@ function creditsTab(inn){
       + '<div class="dd" id="genDd">'
         + '<button class="btn btn-primary btn-sm" id="genBtn">Сформировать ▾</button>'
         + '<div class="dd-menu">'
-          + '<button class="dd-i">Расчёт на дату</button>'
+          + '<button class="dd-i">Расчёт</button>'
           + '<button class="dd-i">Акт сверки</button>'
-          + '<button class="dd-i">Претензия</button>'
           + '<button class="dd-i">Сведения о заёмщике</button>'
         + '</div>'
       + '</div>'
       + '<span class="sep"></span>'
-      + '<button class="btn btn-secondary btn-sm">+ Добавить кредит</button>'
+      + '<button class="btn btn-success btn-sm">+ Добавить кредит</button>'
     + '</div>';
-  /* заголовок секции пуст — вкладка уже «Кредиты»; в правый слот кладём отметку о пересчёте */
-  return toolbar + sect('', '', '<span class="hint">остатки на <b>' + TODAY + '</b> · последний пересчёт ' + TODAY + ' 03:15</span>',
-    '<div id="crWrap"></div>');
+  /* заголовок секции пуст — вкладка уже «Кредиты» */
+  return toolbar + sect('', '', '', '<div id="crWrap"></div>');
 }
 
 /* Проводка таба «Кредиты»: пагинация, чекбоксы, дропдаун. Вызывается из showDetail после innerHTML. */
@@ -2525,13 +2526,13 @@ function tabBody(inn, i){
   switch(i){
     case 0: return generalTab(inn);
     case 1: return `<div data-mirror="1">${creditsTab(inn)}</div>`;
-    case 2: return monitoringTab(inn);
-    case 3: return `<div data-mirror="1">${collateralTab(inn)}</div>`;
-    case 4: return `<div data-mirror="1">${collectionTab(inn)}</div>`;
-    case 5: return actsTab(inn);
-    case 6: return curatorTab(inn);
-    case 7: return `<div data-mirror="1">${relatedTab(inn)}</div>`;
-    case 8: return requisitesTab(inn);
+    case 2: return `<div data-mirror="1">${collateralTab(inn)}</div>`;
+    case 3: return `<div data-mirror="1">${collectionTab(inn)}</div>`;
+    case 4: return actsTab(inn);
+    case 5: return curatorTab(inn);
+    case 6: return `<div data-mirror="1">${relatedTab(inn)}</div>`;
+    case 7: return requisitesTab(inn);
+    case 8: return monitoringTab(inn);
     case 9: return `<div data-mirror="1">${docsTab(inn)}</div>`;
     case 10: return checksTab(inn);
     case 11: return historyTab(inn);
