@@ -8,10 +8,120 @@
   MOCKUP (single-file, interactive) — TO-BE модуля «Кредиты» (реестр кредитов →
   карточка кредита, 8 вкладок). Образец для команды разработки, не прод-код.
 
-  ЭТО НЕ КЛОН ЖИВОГО СТЕНДА: loan-credit.html остаётся as-is инвентаризацией полей
-  старой системы и НЕ трогается. Этот файл — TO-BE, проектируется заново; пересечение
-  с loan-credit.html — меньше половины. Токены/паттерны сверены с collection.html и
-  restructuring.html.
+  ЭТО НЕ КЛОН ЖИВОГО СТЕНДА: файл — TO-BE, спроектирован заново. Токены/паттерны
+  сверены с collection.html и restructuring.html.
+
+  СЛИЯНИЕ ДВУХ МАКЕТОВ (идёт пошагово; база — этот файл, донор — loan-credit.html).
+   Шаг 1 · РЕЕСТР — выполнен 2026-07-24:
+     удалено:  колонки «Освоено» и «Состояние освоения» (дублировали друг друга;
+               фильтр «Состояние освоения» сохранён);
+     перенесено из loan-credit.html: валюта договора + сумма в валюте · остаток и
+               просроченная сумма, приведённые к KGS по курсам FX · просрочка
+               «дни + сумма» · метки Т·N / Р·N у номера · группа платёжеспособности
+               1.1…5 · поиск по заёмщику/ИНН и номеру · каскад Область → Район ·
+               свёрнутый фильтр с бейджем числа условий · пагинация.
+   Шаг 2 · КАРТОЧКА, ШАПКА И ПЛИТКИ — выполнен 2026-07-24:
+     удалено:  «ID <запись>» справа (внутренний идентификатор) · плитка «Куратор»
+               (переехала строкой в подзаголовок) · плитка «Просрочка, дн.»
+               (дни — в пилюлю ЖЦ, сумма — в основание плитки остатка);
+     перенесено из loan-credit.html: формат плитки «значение + ОСНОВАНИЕ» ·
+               разбивка остатка осн./проц./штрафы · приведение к KGS по курсу с датой ·
+               дата расчёта остатка · разложенное основание категории риска ·
+               плитка «Группа платёжеспособности» с расшифровкой и ссылкой на процедуру ·
+               плитка «Оверлеи» с источником и дедлайном слоя · текст «освоение не
+               начато — задолженности нет» вместо нулей · дни просрочки в пилюле ЖЦ ·
+               расширенный подзаголовок (вид, линия, срок возврата, куратор) ·
+               меню «Печатные формы» (7 форм);
+     НЕ перенесено (решение пользователя): back-link «к списку», ссылка «Основной
+               кредит», общая кнопка «Изменить» (правки точечные, под гейтами Г-1…Г-17).
+     Отличие от донора: дата у остатка подписана «расчёт по леджеру», а не «снапшот
+               батч-калькулятора» — в новой модели остаток считается в момент рендера
+               (Р-11), чем и закрывается легаси-дефект E2E-09; подпись не должна врать.
+               Предельный лимит неустойки 10 % из донора НЕ перенесён — такого правила
+               в логическом слое нет, вводить его нужно отдельным решением.
+   Шаг 3 · ВКЛАДКА «ДОГОВОР» (донорская «Общая информация») — выполнен 2026-07-24:
+     Итог сверки: базовый «Договор» шире донора (Происхождение Р-18, Суммы Г-1 с модалкой,
+     решение КМ Р-8, Кураторство-зеркало Р-9, перевод долга Р-14). Из донора не перенесено
+     ничего — все его поля у базы уже есть и лучше (Сумма/Группа/Куратор — в шапке шага 2;
+     статичный «Аудит» донора уступает append-only журналу c.audit во вкладке «Досье»).
+     Убрано как дубль шапки: поля «Вид кредита» и «Кредитная линия» из блока «Классификация».
+     Пробелы донора (субкредит-связь parent, факт-дата закрытия, badge статуса заявки,
+     таймстамп синка лицевых счетов) осознанно НЕ переносились — minor / вне этой вкладки.
+   Шаг 4 · ВКЛАДКА «УСЛОВИЯ» (донорская «Версии условий») — выполнен 2026-07-24:
+     Итог сверки: базовый tabUsloviya шире донора (Льготные периоды Р-2, срок = агрегат Р-13
+     + дата погашения, дифф транша от базы Р-2, Доп.соглашения Р-4 before→after + модалка,
+     lock Г-9). Из донора перенесено ТОЛЬКО: поле «Плавающая» расширено до «вид + маржа»
+     (floatType/margin в модели уже были, показывались лишь как да/нет). Для демонстрации
+     кредит K из строки ~933 сделан floating (учётная ставка НБКР · маржа 3%).
+     НЕ перенесено: таблица «Версии условий» (дубль Доп.соглашений Р-4), «Период начисления»
+     отдельным полем (minor, base.method='аннуитет' уже покрывает).
+     «Макс. пеня, %» оставлена справочным полем — cap в расчёте пени НЕ применяется; ввод
+     реального правила-потолка = отдельное решение (кандидат Р-*), вне этой вкладки.
+   Шаг 5 · ВКЛАДКА «ТРАНШИ И ОСВОЕНИЕ» (донорские tranches + subloans) — выполнен 2026-07-24:
+     Итог сверки: база tabTranshi архитектурно корректнее (транш = единица распределения со
+     своим субъектом, план-датой и ВЛОЖЕННЫМИ освоениями; донор смешивает транш = освоение).
+     Плюс Г-3 (Σ траншей ≤ сумма договора, 4 плитки). Перенесено из донора: (1) итог-строка
+     «Итого освоено» под таблицей траншей (Σ сумма/освоено/остаток); (2) колонки «Курс» +
+     «≈KGS суммы» для траншей и «≈KGS» для освоений — рендерятся ТОЛЬКО для не-KGS кредитов.
+     Демо-транш в валюте НЕ добавлялся — валютные фон-кредиты (K-B2 USD, K-B4 EUR, K-B6 RUB)
+     уже несут транш с освоением, колонки на них и оживают.
+     Донорский subloans вне этой вкладки: parent/субкредит-связь отклонена на шаге 3;
+     реструктуризация-оверлей относится к вкладке «Проблемные» (позже).
+   Шаг 6 · ВКЛАДКА «РАСЧЁТЫ» (донорские calc + detcalc + schedule) — выполнен 2026-07-24:
+     Итог сверки: база tabRaschety шире донора (версионирование графика, детальный леджер
+     16 колонок с консолидацией по кредиту, резерв за неполное освоение, приостановка Р-17).
+     Перенесено из донора: (1) «Свод на TODAY» — 5 плиток состояния долга (Освоено/Погашено/
+     Остаток/в т.ч. штраф/Просрочено+дни) с ≈KGS-подстрокой для валютных; (2) «График —
+     позиции» — читаемая таблица позиций со статус-пилюлей (Оплачена/Просрочена/Наступила/
+     Предстоит), статус — чистая scheduleRowStatus(t,row): сверка с леджером того же № + дата
+     против TODAY. НЕ перенесено (решение пользователя): журнал батч-снапшотов «на дату»
+     (это легаси E2E-09 — остаток как ночной снапшот; новый дизайн realtime derive, свод
+     явно подписан «не батч-снапшот»); печатные кнопки Акт сверки/Претензия (дубль — печать
+     в split-меню шапки, шаг 2).
+   Шаг 7 · ВКЛАДКА «ПЛАТЕЖИ» (донорские payments + reserve + paycode) — выполнен 2026-07-24:
+     Итог сверки: база tabPlatezhi шире донора (зеркало модуля платежей Р-5: 3 оси на платёж
+     регистрация/сопоставление/заморозка, правка-пилюля ЦК read-only, блок «Задолженность»
+     3 слоя, плита судебного решения §10.4). Перенесено из донора: (1) колонки слоёв
+     Осн./Проц./Штраф вместо конкатенированной строки «Слои» + строка «Итого» (Σ сумма и по
+     слоям); (2) колонка «Вид платежа» — заведена как реальное поле модели p.method (дефолт
+     «денежными средствами»), не хардкод-литерал: seed K-1 + addPayment(ctx.method) его несут.
+     НЕ перенесено (решение пользователя): блок «Реквизиты/Код оплаты» (у базы один payCode,
+     per-назначение сплита нет — дубль вкладки «Договор»); ≈KGS к суммам (у валютных фон-
+     кредитов нет mirror.payments — невидимо в демо). Донорский reserve не переносился —
+     резерв за неполное освоение уже в «Расчётах» (шаг 6); security — вкладка «Обеспечение».
+   Шаг 8 · ВКЛАДКА «Обеспечение» (tabObespechenie) — база сильнее донора (строки по предметам,
+     индекс покрытия со светофором, банк-гарантия в индексе отдельно от поручительства §10.2,
+     договоры по Р-7 только в модуле залога). Из донора перенесено: (1) свод-плитка Σ (действ.
+     договоров · Σ оценочная · Σ залоговая — база давала % индекса, но не суммы); (2) обследования
+     предметов залога — read-only зеркало Р-7 (новое поле mirror.inspections, сид на K-1); (3)
+     колонка «Нотариус» (новое поле pledge.notary). НЕ слито в одну таблицу залог+поручительство
+     (сохранено разделение банк-гарантия/поручительство §10.2 — регресс отклонён); добавлены кнопки
+     «+ Договор залога/поручительства» как заглушки-тосты (заводятся в модуле залога Р-7).
+   Шаг 9 · ВКЛАДКА «Проблемные» (tabProblemnye) — база сильнее донора (категория риска worst-of
+     с выводом, плита подавления 181-го дня по оверлею derive, всё read-only зеркала Р-16). Из
+     донора перенесено: (1) взыскание — колонка «Последнее событие» (иерархия процедура→фаза→
+     событие остаётся в модуле, здесь последнее событие строкой — новое поле collection.lastEvent);
+     (2) кнопки «Открыть в модуле взыскания/реструктуризации» (заглушки-тосты); (3) реструктуризация
+     — «Сумма реструктуризации» (новое поле restructuring.active.amount) + строка «Влияние на
+     категорию». НЕ перенесено (решение): субкредиты/реструктуризация M:N-таблицей — у донора
+     реструктуризация = отдельная кредит-запись-ребёнок, у базы это mirror-событие, суб-структура
+     уже во вкладке «Транши» (перарх. модели — конфликт).
+   Шаг 10 · ВКЛАДКА «Досье» (tabDosye) — база сильнее (документы+целевое Р-15+append-only журнал;
+     донорский extra уже покрыт разбросанно: Перевод долга в «Условиях» Р-14, Списание в «Проблемных»
+     Р-20, Начисление/holds в «Расчётах», План в позициях графика, Товар=subject). Из донора
+     перенесено: (1) «Примечания» — типизированные редактируемые заметки (новое поле c.notes,
+     CR.filterNotes, отличны от append-only audit; сид 2 записи на K-1); (2) «Судебные решения» —
+     таблица в блок «Банкротство и судебные решения» вкладки «Проблемные» (новое поле mirror.court,
+     сид на K-3). НЕ перенесено: batch-журнал начислений (антипаттерн E2E-09, дубль realtime
+     «Расчётов»); пустые субтабы Товар/Перевод/Списание/План (уже покрыто базой).
+   СЛИЯНИЕ КАРТОЧКИ ЗАВЕРШЕНО (шаги 1–10). Все 8 вкладок Договор·Условия·Транши·Расчёты·Платежи·
+     Обеспечение·Проблемные·Досье слиты. loan-credit.html можно удалить/архивировать — решение пользователя.
+   ДЕМОНАБОР РАСШИРЕН 2026-07-24: +43 кредита K-C1…K-C43 (builder mkScen/scen в seedDb) → всего 59.
+     Покрывают все ветки для ручного теста: ЖЦ × 4 валюты × просрочка 0…275 дн × категория A–D ×
+     покрытие (ок/недо/смешанное 150 %/банк-гарантия/поручительство/нет) × взыскание К1/К3/К5/К6 ×
+     реструктуризация(+оверлей 181) × пауза начисления × резерв × KM-решение × плавающая ставка ×
+     мульти-транш; разнесены по 9 областям · ПРГ-1…8 · 6 кураторам. Проверено node ._scen*.mjs +
+     scripts/inspect/credit-check.mjs (32/32). K-1…K-6b и фон K-B* НЕ трогались (на них смоук).
   Канон: /home/azamat/Downloads/prompt-kredit-mockup.md (решения Р-1…Р-20, гейты Г-1…Г-17).
   Регуляторная база: ТЗ АСУБК-3 (модуль кредитной информации + модуль расчётов),
   «Положение о работе с бюджетными кредитами», «Положение о работе с залогом» (П1 §2.1–2.6),
@@ -28,7 +138,9 @@
    Р-7  Залог — зеркало: «Создать залоговый договор» нет, только «Привязать существующий».
    Р-8  Реквизиты решения КМ об освобождении от залога — owned поле кредита (гейт §2.6).
    Р-9  Кураторство — зеркало журнала назначений; не picker и не поле.
-   Р-10 Группа платёжеспособности и категория риска — read-only зеркала.
+   Р-10 Категория риска — read-only зеркало (worst-of дни × группа риска заёмщика).
+        Группа платёжеспособности 1.1…5 — производная от ЖЦ, просрочки и контура
+        взыскания (payGroupOf); не хранится и не редактируется.
    Р-11 Все производные (§4) считаются в рантайме, не хранятся.
    Р-12 Сумма договора owned, зажата гейтом contractAmount ≤ approvedAmount (Г-1).
    Р-13 Срок — один источник (условия транша); на кредите — производный агрегат (max).
@@ -59,7 +171,7 @@
       Макет: простой календарь (сб/вс), без праздников.
 
   SMOKE (node)
- SMOKE (node) 2026-07-23 · 32/32 PASS
+ SMOKE (node) 2026-07-24 · 32/32 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -92,6 +204,22 @@
    #27b ✓
    #18 ✓
    #28 ✓
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -296,7 +424,10 @@ a{ color:inherit; }
 
 /* ---- grid (list) ---- */
 .grid-wrap{ padding:0 20px 20px; overflow:auto; }
-table.grid{ width:100%; border-collapse:collapse; font:var(--font-label);
+/* 12 колонок: минимальная ширина подобрана так, чтобы при 1600+ последняя колонка
+   (Куратор) была видна целиком без скролла, а на узких экранах включался скролл
+   вместо молчаливой обрезки текста в ellipsis. */
+table.grid{ width:100%; min-width:1300px; border-collapse:collapse; font:var(--font-label);
   border:1px solid var(--border-default); background:var(--surface-card); }
 table.grid thead th{ text-align:left; height:52px; padding:0 12px; background:var(--surface-card);
   border-bottom:1px solid var(--asubk-grid-line);
@@ -311,6 +442,33 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .grid tbody tr.terminal td{ color:var(--text-muted); }
 .grid tbody tr.terminal td:first-child{ font-style:italic; }
 .grid td.overdue{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
+/* вторая строка в ячейке: ИНН/район, сумма просрочки, эквивалент в сомах */
+.grid td .sub{ display:inline-block; color:var(--text-muted); font-weight:var(--weight-regular); font-size:12px; line-height:1.3; }
+/* Т·N / Р·N — метки состава кредита у номера договора */
+.mk{ display:inline-block; margin-left:6px; padding:1px 6px; border-radius:var(--radius-sm);
+  background:var(--asubk-tint-fill); color:var(--text-muted);
+  font:var(--weight-medium) 11px/1.5 var(--asubk-font); vertical-align:middle; }
+.mk-r{ background:var(--status-info-bg); color:var(--asubk-blue); }
+
+/* бейдж числа активных условий на свёрнутой шапке фильтра */
+.fbadge{ margin-left:8px; padding:1px 8px; border-radius:var(--radius-pill);
+  background:var(--status-info-bg); color:var(--asubk-blue);
+  font:var(--weight-medium) 12px/1.6 var(--asubk-font); }
+.filter-bar{ grid-column:1 / -1; display:flex; align-items:center; gap:10px; padding-top:4px; }
+
+/* пейджер под гридом */
+.pager{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:0 20px 20px;
+  font:var(--font-label); color:var(--text-muted); }
+.pager .pages{ display:flex; align-items:center; gap:4px; }
+.pager .pg{ min-width:28px; height:28px; padding:0 6px; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-card);
+  color:var(--text-body); cursor:pointer; user-select:none; }
+.pager .pg:hover{ background:var(--surface-hover); }
+.pager .pg.active{ background:var(--action-primary); border-color:var(--action-primary); color:#fff; cursor:default; }
+.pager .pg.dis{ color:var(--text-disabled); cursor:default; background:var(--asubk-disabled-fill); }
+.pager .psize select{ height:28px; min-width:72px; margin-left:6px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); background:var(--surface-card); color:var(--text-body); font:var(--font-label); }
+.pager .pinfo{ margin-right:auto; }
 
 /* status pills */
 .pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
@@ -365,15 +523,23 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .ms-meta b{ color:var(--text-muted); font-weight:500; }
 .ms-acts{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
 .phead-banner .b-act{ margin-left:auto; }
-.phead-dims{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
-@media(max-width:900px){ .phead-dims{ grid-template-columns:repeat(3,1fr); } }
-@media(max-width:560px){ .phead-dims{ grid-template-columns:repeat(2,1fr); } }
+/* auto-fit, а не фиксированные 5 колонок: плиток стало 7, и на узком экране они должны
+   перетекать, а не сжиматься до нечитаемого основания под значением. */
+.phead-dims{ display:grid; grid-template-columns:repeat(auto-fit,minmax(232px,1fr)); gap:12px; align-items:stretch; }
+.phead-acts{ display:flex; align-items:flex-start; gap:8px; flex:none; }
 .dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:10px 14px; }
 .dim.clickable{ cursor:pointer; } .dim.clickable:hover{ background:var(--surface-hover); }
 .dim .dl{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:5px;
   display:flex; align-items:center; gap:4px; justify-content:space-between; }
 .dim .dv{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); }
-.dim .src{ font:var(--weight-regular) 11px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
+/* .src — не подпись-сноска, а ОСНОВАНИЕ значения: читается, поэтому цвет muted, а не
+   placeholder, и высота строки крупнее — в нём до трёх строк с числами. */
+.dim .src{ font:var(--weight-regular) 11.5px/1.45 var(--asubk-font); color:var(--text-muted); margin-top:5px; }
+.dim .src b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.dim .dl .lock{ vertical-align:middle; }
+/* «Оверлеи» шире прочих: в основании до трёх слоёв с источником и дедлайном. */
+.dim.wide{ grid-column:span 2; }
+@media(max-width:760px){ .dim.wide{ grid-column:span 1; } }
 .dim .cnt{ font-weight:var(--weight-bold); } .dim .cnt.over{ color:var(--asubk-red); }
 /* Раскрытие входов worst-of (паттерн borrower.html) */
 .cat-expand{ margin-top:10px; border:1px solid var(--border-default); border-radius:var(--radius-md);
@@ -646,7 +812,13 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
 /* ---- 1. Утилиты (переиспользуются везде) ---- */
 const TODAY = '23.07.2026';                       // «сегодня» демо зафиксировано
 const nf2 = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nf0 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
 const money = n => nf2.format(n || 0);
+const money0 = n => nf0.format(Math.round(n || 0));
+/* Курсы к сому на TODAY. Справочник, не модель кредита: кредит хранит свою валюту,
+   приведение к KGS — производная (реестр сравнивает и суммирует строки в одной валюте). */
+const FX = { KGS:1, USD:87.45, EUR:95.30, RUB:1.02 };
+const toKgs = (v, cur) => (v || 0) * (FX[cur] || 1);
 const pd = s => { if (s instanceof Date) return s; const [d,mo,y] = String(s).split('.').map(Number); return new Date(y, mo-1, d); };  // идемпотентна: Date на входе возвращается как есть
 const fd = d => String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
 const addM = (d,k) => new Date(d.getFullYear(), d.getMonth()+k, Math.min(d.getDate(),28));
@@ -681,6 +853,8 @@ function condDefaults(over){                        // базовый компл
 function emptyMirror(over){                          // все зеркала (Р-5…Р-10, Р-16)
   return deepMerge({
     curatorship:[], pledges:[], guarantees:[], bankGuarantee:null,
+    inspections:[],                                   // обследования предметов залога (зеркало Р-7, read-only, шаг 8)
+    court:[],                                          // судебные решения / банкротство (зеркало Р-16, read-only, шаг 10)
     payments:[], collection:[], restructuring:{ count:0, active:null },
     pledgeWaiver:null,                                // waiver залоговой комиссии (Task 5) — falsy по умолчанию,
                                                         // включается ТОЛЬКО saveWaiver (не сеять truthy на К-5)
@@ -698,7 +872,7 @@ function mkCredit(over){                             // CREDIT (§3) — обя�
     id:'', num:'', date:'',
     reg:{ num:'', date:'', scan:'', comment:'' },
     origin:{ applicationId:'', commissionId:'', programId:'', govDecisionId:'' },
-    borrower:{ inn:'', name:'', type:'ЮЛ' },
+    borrower:{ inn:'', name:'', type:'ЮЛ', region:'', district:'' },   // адрес — зеркало карточки заёмщика, нужен фильтру Область→Район
     approvedAmount:0, contractAmount:0, currency:'KGS',
     kind:'', line:'', purpose:'', fundingSource:'',
     subject:[], accounts:{ repayAcct:'', repayAcctKind:'', payCode:'' },
@@ -711,6 +885,7 @@ function mkCredit(over){                             // CREDIT (§3) — обя�
     targetUse:{ docs:[], checks:[], measures:[], committeeDecision:null },
     debtTransfer:null,
     accrualHold:[],
+    notes:[],                                          // человеческие примечания (перенос из донора, шаг 10) — редактируемые, в отличие от append-only audit
     audit:[],
     mirror: emptyMirror()
   }, over || {});
@@ -725,7 +900,7 @@ function seedDb(){
     id:'K-1', num:'56', date:'12.05.2026',
     reg:{ num:'56', date:'14.05.2026', scan:'dogovor-56.pdf', comment:'Зарегистрирован в реестре договоров.' },
     origin:{ applicationId:'ЗАЯ-1042', commissionId:'КОМ-311', programId:'ПРГ-7', govDecisionId:'ПП-455' },
-    borrower:{ inn:'01912201610212', name:'ОсОО «Бек Кабель»', type:'ЮЛ' },
+    borrower:{ inn:'01912201610212', name:'ОсОО «Бек Кабель»', type:'ЮЛ', region:'Чуйская', district:'Сокулукский' },
     approvedAmount:150000, contractAmount:150000, currency:'KGS',
     kind:'Инвестиционный', line:'Единовременный', purpose:'Приобретение оборудования', fundingSource:'Бюджетный кредит',
     subject:[{ kind:'Оборудование', name:'Линия по производству кабеля', qty:1, cost:150000 }],
@@ -746,15 +921,20 @@ function seedDb(){
       { kind:'Кредитный договор', name:'Договор № 56', state:'принят', date:'14.05.2026', file:'dogovor-56.pdf', note:'' },
       { kind:'Решение комиссии', name:'Протокол КОМ-311', state:'принят', date:'08.05.2026', file:'kom-311.pdf', note:'' }
     ],
+    notes:[
+      { type:'Примечание куратора', author:'Асанов А. К. · 20.06.2026', text:'Заёмщик подтвердил график освоения второго транша к 01.09.2026, документы на оборудование в комплекте.' },
+      { type:'Примечание (залог)', author:'Осмонова Г. Т. · 02.06.2026', text:'Обследование ЗД-88 проведено, предмет залога в наличии, отклонений нет.' }
+    ],
     mirror: emptyMirror({
       curatorship:[{ unit:'Отдел кредитования', employee:'Асанов А. К.', role:'ведущий', from:'14.05.2026', to:null }],
-      pledges:[{ contractNum:'ЗД-88', date:'13.05.2026', pledgor:'ОсОО «Бек Кабель»',
+      pledges:[{ contractNum:'ЗД-88', date:'13.05.2026', pledgor:'ОсОО «Бек Кабель»', notary:'Нотариус Осмонова Г. (Бишкек, №42)',
         items:[{ name:'Производственное оборудование', kind:'Движимое', appraised:240000, pledgeValue:198000, share:1 }],
         liquid:true, ban:true, otherCredits:[] }],
+      inspections:[{ date:'02.06.2026', obj:'ЗД-88 · Производственное оборудование', curator:'Асанов А. К.', res:'Соответствует, в наличии', ok:true, file:'akt-zd88-0206.pdf' }],
       // Один платёж уже подтверждён ЦК (зеркало модуля платежей) — используется тестом
       // paymentEditable (Task 5, #16): подтверждённый ЦК платёж недоступен для правки из кредита.
       payments:[{ num:1, date:'05.06.2026', amount:12300, tranche:1, reg:'ЦК',
-        match:'Подтверждён ЦК', frozen:true, layers:{ principal:8300, interest:4000 } }],
+        match:'Подтверждён ЦК', frozen:true, method:'денежными средствами', layers:{ principal:8300, interest:4000 } }],
       borrowerRisk:{ group:'A', categorySource:'ночной расчёт' }
     })
   }));
@@ -764,7 +944,7 @@ function seedDb(){
     id:'K-2', num:'57', date:'20.04.2026',
     reg:{ num:'57', date:'22.04.2026', scan:'dogovor-57.pdf', comment:'' },
     origin:{ applicationId:'ЗАЯ-1044', commissionId:'КОМ-312', programId:'ПРГ-7', govDecisionId:'ПП-455' },
-    borrower:{ inn:'02107199800345', name:'ОсОО «Нарын-Агро»', type:'ЮЛ' },
+    borrower:{ inn:'02107199800345', name:'ОсОО «Нарын-Агро»', type:'ЮЛ', region:'Нарынская', district:'Ак-Талинский' },
     approvedAmount:400000, contractAmount:400000, currency:'KGS',
     kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
     subject:[{ kind:'Товар', name:'Семенной материал', qty:1, cost:400000 }],
@@ -799,7 +979,7 @@ function seedDb(){
     id:'K-3', num:'48', date:'10.02.2026',
     reg:{ num:'48', date:'12.02.2026', scan:'dogovor-48.pdf', comment:'' },
     origin:{ applicationId:'ЗАЯ-1010', commissionId:'КОМ-301', programId:'ПРГ-5', govDecisionId:'ПП-450' },
-    borrower:{ inn:'03011200500777', name:'ОсОО «Тянь-Шань Строй»', type:'ЮЛ' },
+    borrower:{ inn:'03011200500777', name:'ОсОО «Тянь-Шань Строй»', type:'ЮЛ', region:'г. Бишкек', district:'Ленинский' },
     approvedAmount:200000, contractAmount:200000, currency:'KGS',
     kind:'Инвестиционный', line:'Единовременный', purpose:'Строительство цеха', fundingSource:'Бюджетный кредит',
     accounts:{ repayAcct:'1280000000000048', repayAcctKind:'Расчётный', payCode:'PC-48' },
@@ -826,7 +1006,8 @@ function seedDb(){
         items:[{ name:'Земельный участок', kind:'Недвижимость', appraised:300000, pledgeValue:250000, share:1 }],
         liquid:true, ban:true, otherCredits:[] }],
       collection:[{ processId:'ВЗ-2201', contour:'К1', phase:'Претензия', subject:'Просроченная задолженность',
-        claim:18300, since:'20.04.2026' }],
+        claim:18300, since:'20.04.2026', lastEvent:'12.05.2026 — направлена претензия должнику' }],
+      court:[{ date:'28.05.2026', kind:'Судебный приказ', org:'Первомайский районный суд', res:'Выдан', ok:true, file:'prikaz-vz2201.pdf' }],
       borrowerRisk:{ group:'B', categorySource:'ночной расчёт · 95 дн. просрочки' }
     })
   }));
@@ -836,12 +1017,12 @@ function seedDb(){
     id:'K-4', num:'42', date:'05.11.2025',
     reg:{ num:'42', date:'07.11.2025', scan:'dogovor-42.pdf', comment:'' },
     origin:{ applicationId:'ЗАЯ-0980', commissionId:'КОМ-290', programId:'ПРГ-4', govDecisionId:'ПП-440' },
-    borrower:{ inn:'04512199600901', name:'ОсОО «Иссык-Куль Ресорт»', type:'ЮЛ' },
+    borrower:{ inn:'04512199600901', name:'ОсОО «Иссык-Куль Ресорт»', type:'ЮЛ', region:'Иссык-Кульская', district:'Джети-Огузский' },
     approvedAmount:600000, contractAmount:600000, currency:'KGS',
     kind:'Инвестиционный', line:'Единовременный', purpose:'Реконструкция базы отдыха', fundingSource:'Бюджетный кредит',
     accounts:{ repayAcct:'1280000000000042', repayAcctKind:'Расчётный', payCode:'PC-42' },
     lifecycle:'Действует',
-    baseConditions: condDefaults({ rate:9, term:36 }),
+    baseConditions: condDefaults({ rate:9, term:36, floating:true, floatType:'учётная ставка НБКР', margin:3 }),
     // ДС, рождённое реструктуризацией (не из карточки кредита) — source='реструктуризация' (Р-4/Р-16);
     // editConditions всё равно заблокирован Г-9 (lifecycle≠«Проект»), правки условий кредита нет ни при каком source.
     agreements:[{ num:'ДС-РС-1004', date:'12.06.2026', source:'реструктуризация',
@@ -862,7 +1043,7 @@ function seedDb(){
         items:[{ name:'База отдыха', kind:'Недвижимость', appraised:900000, pledgeValue:760000, share:1 }],
         liquid:true, ban:true, otherCredits:[] }],
       restructuring:{ count:1, active:{ id:'РС-1004', stage:'Направлено в Минфин', deadline:'12.08.2026',
-        pause:{ days:70 }, overlay181:true } },
+        amount:820000, currency:'KGS', pause:{ days:70 }, overlay181:true } },
       borrowerRisk:{ group:'B', categorySource:'ночной расчёт (без «отложенной» категории)' }
     })
   }));
@@ -872,7 +1053,7 @@ function seedDb(){
     id:'K-5', num:'59', date:'01.07.2026',
     reg:{ num:'59', date:'03.07.2026', scan:'dogovor-59.pdf', comment:'' },
     origin:{ applicationId:'ЗАЯ-1060', commissionId:'КОМ-320', programId:'ПРГ-8', govDecisionId:'ПП-460' },
-    borrower:{ inn:'05213200100456', name:'ОсОО «Ош-Текстиль»', type:'ЮЛ' },
+    borrower:{ inn:'05213200100456', name:'ОсОО «Ош-Текстиль»', type:'ЮЛ', region:'Ошская', district:'Кара-Сууский' },
     approvedAmount:250000, contractAmount:200000, currency:'KGS',
     kind:'Оборотный', line:'Единовременный', purpose:'Закуп сырья', fundingSource:'Бюджетный кредит',
     accounts:{ repayAcct:'1280000000000059', repayAcctKind:'Расчётный', payCode:'PC-59' },
@@ -899,7 +1080,7 @@ function seedDb(){
     id:'K-6', num:'30', date:'15.01.2024',
     reg:{ num:'30', date:'17.01.2024', scan:'dogovor-30.pdf', comment:'' },
     origin:{ applicationId:'ЗАЯ-0700', commissionId:'КОМ-250', programId:'ПРГ-2', govDecisionId:'ПП-410' },
-    borrower:{ inn:'06114199500222', name:'ОсОО «Чуй-Агро»', type:'ЮЛ' },
+    borrower:{ inn:'06114199500222', name:'ОсОО «Чуй-Агро»', type:'ЮЛ', region:'Чуйская', district:'Аламудунский' },
     approvedAmount:120000, contractAmount:120000, currency:'KGS',
     kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
     accounts:{ repayAcct:'1280000000000030', repayAcctKind:'Расчётный', payCode:'PC-30' },
@@ -927,7 +1108,7 @@ function seedDb(){
     id:'K-6b', num:'31', date:'18.03.2023',
     reg:{ num:'31', date:'20.03.2023', scan:'dogovor-31.pdf', comment:'' },
     origin:{ applicationId:'ЗАЯ-0650', commissionId:'КОМ-240', programId:'ПРГ-2', govDecisionId:'ПП-405' },
-    borrower:{ inn:'07215199300888', name:'ОсОО «Талас-Майс»', type:'ЮЛ' },
+    borrower:{ inn:'07215199300888', name:'ОсОО «Талас-Майс»', type:'ЮЛ', region:'Таласская', district:'Бакай-Атинский' },
     approvedAmount:90000, contractAmount:90000, currency:'KGS',
     kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
     accounts:{ repayAcct:'1280000000000031', repayAcctKind:'Расчётный', payCode:'PC-31' },
@@ -951,15 +1132,17 @@ function seedDb(){
   }));
 
   /* --- 8 фоновых кредитов для фильтров реестра (§5.1): программа/куратор/категория/просрочка/ЖЦ --- */
+  /* ccy — валюта договора: сценарные К-1…К-6 намеренно в KGS (их леджеры сеяны в сомах),
+     мультивалютность демонстрируется на фоне, чтобы реестр показал приведение к KGS. */
   const bg = [
-    { name:'ОсОО «Баткен-Фрут»',   inn:'08110199200111', prog:'ПРГ-3', cur:'Асанов А. К.',      cat:'A', life:'Действует',      amount:180000, od:0 },
-    { name:'ОсОО «Джалал-Абад-Лес»',inn:'09318199100222', prog:'ПРГ-5', cur:'Ким Л. С.',        cat:'B', life:'Действует',      amount:320000, od:35 },
-    { name:'ОсОО «Кара-Балта-Металл»',inn:'10421198900333', prog:'ПРГ-7', cur:'Осмонов Б. Т.', cat:'C', life:'Действует',      amount:540000, od:210 },
-    { name:'ОсОО «Нарын-Текс»',     inn:'11524200000444', prog:'ПРГ-8', cur:'Джумалиева Г. К.',  cat:'A', life:'Зарегистрирован', amount:150000, od:0 },
-    { name:'ОсОО «Токмок-Пласт»',   inn:'12627200200555', prog:'ПРГ-3', cur:'Асанов А. К.',      cat:'A', life:'Проект',         amount:210000, od:0 },
-    { name:'ОсОО «Ат-Башы-Агро»',   inn:'13730199400666', prog:'ПРГ-4', cur:'Ким Л. С.',        cat:'B', life:'Действует',      amount:280000, od:12 },
-    { name:'ОсОО «Кант-Сахар»',     inn:'14833199700777', prog:'ПРГ-5', cur:'Осмонов Б. Т.',    cat:'C', life:'Действует',      amount:410000, od:95 },
-    { name:'ОсОО «Сокулук-Милк»',   inn:'15936199900888', prog:'ПРГ-7', cur:'Джумалиева Г. К.',  cat:'A', life:'Закрыт',         amount:130000, od:0 }
+    { name:'ОсОО «Баткен-Фрут»',   inn:'08110199200111', prog:'ПРГ-3', cur:'Асанов А. К.',      cat:'A', life:'Действует',      amount:180000, od:0,   ccy:'KGS', reg:'Баткенская',      dist:'Кадамжайский' },
+    { name:'ОсОО «Джалал-Абад-Лес»',inn:'09318199100222', prog:'ПРГ-5', cur:'Ким Л. С.',        cat:'B', life:'Действует',      amount:320000, od:35,  ccy:'USD', reg:'Джалал-Абадская', dist:'Сузакский' },
+    { name:'ОсОО «Кара-Балта-Металл»',inn:'10421198900333', prog:'ПРГ-7', cur:'Осмонов Б. Т.', cat:'C', life:'Действует',      amount:540000, od:210, ccy:'KGS', reg:'Чуйская',         dist:'Жайылский' },
+    { name:'ОсОО «Нарын-Текс»',     inn:'11524200000444', prog:'ПРГ-8', cur:'Джумалиева Г. К.',  cat:'A', life:'Зарегистрирован', amount:150000, od:0,   ccy:'EUR', reg:'Нарынская',       dist:'Нарынский' },
+    { name:'ОсОО «Токмок-Пласт»',   inn:'12627200200555', prog:'ПРГ-3', cur:'Асанов А. К.',      cat:'A', life:'Проект',         amount:210000, od:0,   ccy:'KGS', reg:'Чуйская',         dist:'Чуйский' },
+    { name:'ОсОО «Ат-Башы-Агро»',   inn:'13730199400666', prog:'ПРГ-4', cur:'Ким Л. С.',        cat:'B', life:'Действует',      amount:280000, od:12,  ccy:'RUB', reg:'Нарынская',       dist:'Ат-Башинский' },
+    { name:'ОсОО «Кант-Сахар»',     inn:'14833199700777', prog:'ПРГ-5', cur:'Осмонов Б. Т.',    cat:'C', life:'Действует',      amount:410000, od:95,  ccy:'KGS', reg:'Чуйская',         dist:'Ысык-Атинский' },
+    { name:'ОсОО «Сокулук-Милк»',   inn:'15936199900888', prog:'ПРГ-7', cur:'Джумалиева Г. К.',  cat:'A', life:'Закрыт',         amount:130000, od:0,   ccy:'KGS', reg:'Чуйская',         dist:'Сокулукский' }
   ];
   bg.forEach((b, i) => {
     const disbursed = b.life === 'Проект' ? [] :
@@ -971,8 +1154,8 @@ function seedDb(){
       id:'K-B'+(i+1), num:'B'+(100+i), date:'05.01.2026',
       reg:{ num:'B'+(100+i), date:'07.01.2026', scan:'dog-b'+(100+i)+'.pdf', comment:'' },
       origin:{ applicationId:'ЗАЯ-B'+(100+i), commissionId:'КОМ-B'+(100+i), programId:b.prog, govDecisionId:'ПП-430' },
-      borrower:{ inn:b.inn, name:b.name, type:'ЮЛ' },
-      approvedAmount:b.amount, contractAmount:b.amount, currency:'KGS',
+      borrower:{ inn:b.inn, name:b.name, type:'ЮЛ', region:b.reg, district:b.dist },
+      approvedAmount:b.amount, contractAmount:b.amount, currency:b.ccy,
       kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
       accounts:{ repayAcct:'12800000000'+(10000+i), repayAcctKind:'Расчётный', payCode:'PC-B'+(100+i) },
       lifecycle:b.life,
@@ -988,7 +1171,7 @@ function seedDb(){
       mirror: emptyMirror({
         curatorship:[{ unit:'Отдел кредитования', employee:b.cur, role:'ведущий', from:'07.01.2026', to:b.life === 'Закрыт' ? '30.05.2026' : null }],
         collection: b.od >= 90 ? [{ processId:'ВЗ-B'+(100+i), contour:'К1', phase:'Претензия',
-          subject:'Просроченная задолженность', claim:6200, since:'01.06.2026' }] : [],
+          subject:'Просроченная задолженность', claim:6200, since:'01.06.2026', lastEvent:'01.06.2026 — открыта процедура, направлена претензия' }] : [],
         borrowerRisk:{ group:b.cat, categorySource:'ночной расчёт' }
       })
     }));
@@ -1012,6 +1195,191 @@ function seedDb(){
     { contractNum:'ЗД-99',  pledgorInn:'99001200500000', pledgor:'Kazakh Trade LLP (иностр.)', active:true, foreign:true,
       items:[{ name:'Транспорт', kind:'Движимое', appraised:150000, pledgeValue:120000, share:1 }] }
   ];
+
+  /* ============================================================
+     РАСШИРЕННЫЙ ДЕМОНАБОР K-C1…K-C44 (44 кредита) — покрытие ВСЕХ веток логики для
+     ручного тестирования. Каждая строка `scen` — сценарий; builder mkScen(s,i) строит
+     валидную модель (леджер из od, залоги/поручительство/банк-гарантия из cov, взыскание
+     из coll, реструктуризация/пауза/резерв/KM/плавающая/мульти-транш из флагов). ID, ИНН
+     ('3…'), номера (C2xx) уникальны и не пересекаются с K-1…K-6b и фоном K-B*. Разнесено
+     по 9 областям · 8 программам (ПРГ-1…8) · 6 кураторам · 4 валютам — чтобы задействовать
+     каскад Область→Район и все фильтры реестра. Категория worst-of складывается из cat
+     (A/B/C/D → низкий/средний/высокий) и дней просрочки (od). */
+  const pl = (cn, name, inn, item, appr, pv, liquid) => ({ contractNum:cn, date:'10.02.2026', pledgor:name,
+    notary:'Нотариус (реестр залога)',
+    items:[{ name:item, kind:/Недвиж|помещ|склад|гостиниц|ЖК|земл/i.test(item)?'Недвижимость':'Движимое', appraised:appr, pledgeValue:pv, share:1 }],
+    liquid, ban:true, otherCredits:[] });
+
+  function mkScen(s, i){
+    const num  = 'C'+(200+i);
+    const inn  = '3'+String(1010200000000 + i*137).slice(0,13);          // 14 знаков, уникален
+    const ccy  = s.cur || 'KGS';
+    const amount   = s.a;
+    const contract = s.cl ? Math.round(amount*0.8) : amount;             // cl: сумма договора < одобренной
+    const life = s.life || 'Действует';
+    const rate = s.rate || 10, term = s.term || 24;
+    const dd0  = '15.02.2026';
+    const disbMode = life==='Проект' ? 'none' : (s.disb || 'full');      // Проект не осваивается (Г-5)
+    const disbAmt  = disbMode==='full' ? contract : disbMode==='partial' ? Math.round(contract*0.6) : 0;
+
+    /* леджер: закрытый → нули; просрочка → overdue-строка; действующий освоенный → платит по графику */
+    let ledger = [];
+    if (life==='Закрыт'){
+      ledger = [{ no:term, date:'20.06.2026', received:0, principalBal:0, principalPaid:contract, principalDue:0,
+        principalOverdue:0, days:0, interestAccrued:Math.round(contract*0.1), interestPaid:Math.round(contract*0.1),
+        interestDue:0, interestOverdue:0, penaltyAccrued:0, penaltyPaid:0, penaltyBal:0, totalPaid:Math.round(contract*1.1) }];
+    } else if (s.od>0 && disbAmt>0){
+      const pod=Math.round(amount*0.05), iod=Math.round(amount*0.012), pen=Math.round(amount*0.004);
+      ledger = [{ no:1, date:'01.03.2026', received:0, principalBal:Math.round(disbAmt*0.7), principalPaid:0,
+        principalDue:pod, principalOverdue:pod, days:s.od, interestAccrued:iod, interestPaid:0, interestDue:iod,
+        interestOverdue:iod, penaltyAccrued:pen, penaltyPaid:0, penaltyBal:pen, totalPaid:0 }];
+    } else if (disbAmt>0 && life==='Действует'){
+      ledger = [{ no:1, date:'01.03.2026', received:Math.round(amount*0.06), principalBal:Math.round(disbAmt*0.85),
+        principalPaid:Math.round(disbAmt*0.15), principalDue:0, principalOverdue:0, days:0,
+        interestAccrued:Math.round(amount*0.02), interestPaid:Math.round(amount*0.02), interestDue:0,
+        interestOverdue:0, penaltyAccrued:0, penaltyPaid:0, penaltyBal:0, totalPaid:Math.round(amount*0.08) }];
+    }
+
+    /* покрытие: залоги / банк-гарантия (в индексе) / поручительство (вне индекса) / нет */
+    const pledges=[], guarantees=[]; let bankGuarantee=null;
+    switch(s.cov){
+      case 'under':  pledges.push(pl('ЗД-'+num, s.n, inn, 'Автотранспорт', Math.round(contract*1.0), Math.round(contract*0.84), true)); break;      // 84 % < 120 %
+      case 'mixed':  pledges.push(pl('ЗД-'+num+'a', s.n, inn, 'Оборудование',       Math.round(contract*0.9), Math.round(contract*0.72), true));
+                     pledges.push(pl('ЗД-'+num+'b', s.n, inn, 'Спецтехника (б/у)',  Math.round(contract*0.7), Math.round(contract*0.55), false)); break;  // доля ликвида <80 % ⇒ 150 %
+      case 'liq150': pledges.push(pl('ЗД-'+num+'a', s.n, inn, 'Складское помещение',Math.round(contract*1.6), Math.round(contract*1.35), true));
+                     pledges.push(pl('ЗД-'+num+'b', s.n, inn, 'Оборудование (б/у)', Math.round(contract*0.35),Math.round(contract*0.28), false)); break; // ликвид ≥80 % ⇒ 150 %, покрыто
+      case 'bank':   bankGuarantee = { bank:'ОАО «Айыл Банк»', amount:Math.round(contract*1.3), till:'10.02.2027', num:'БГ-'+num, date:'10.02.2026' }; break;
+      case 'poruch': guarantees.push({ contractNum:'ПОР-'+num, party:'ОсОО «Гарант-'+num+'»', amount:Math.round(contract*1.5), date:'10.02.2026' }); break; // в индекс НЕ входит
+      case 'none':   break;
+      default:       pledges.push(pl('ЗД-'+num, s.n, inn, 'Недвижимость', Math.round(contract*1.7), Math.round(contract*1.4), true));                       // ок, ≥120 %
+    }
+
+    /* взыскание (contour/phase → группа платёжеспособности) + судебные решения */
+    const collection=[], court=[];
+    if (s.coll){
+      const M = { claim:['К1','Претензия','направлена претензия должнику'],
+                  court:['К3','Судебное взыскание','подан иск в суд'],
+                  ispolnit:['К5','Исполнительный лист','ИЛ передан судоисполнителю'],
+                  bankrot:['К6','Банкротство','возбуждено дело о банкротстве'] }[s.coll];
+      collection.push({ processId:'ВЗ-'+num, contour:M[0], phase:M[1], subject:'Просроченная задолженность',
+        claim:Math.round(amount*0.08), since:'01.05.2026', lastEvent:'01.05.2026 — '+M[2] });
+      if (s.coll==='court' || s.coll==='ispolnit')
+        court.push({ date:'20.05.2026', kind:'Судебный приказ', org:'Районный суд', res:'Выдан', ok:true, file:'prikaz-'+num+'.pdf' });
+      if (s.coll==='bankrot')
+        court.push({ date:'25.05.2026', kind:'Определение о банкротстве', org:'Межрайонный суд', res:'Возбуждено', ok:false, file:'bankrot-'+num+'.pdf' });
+    }
+
+    /* реструктуризация (оверлей 181 подавляет день) / пауза начисления (Р-17, hold===181 → тоже подавление) */
+    const restructuring = s.restr
+      ? { count:1, active:{ id:'РС-'+num, stage:s.restr.stage, deadline:'12.09.2026', amount:Math.round(amount*1.05),
+          currency:ccy, pause: s.restr.pause?{days:s.restr.pause}:undefined, overlay181:!!s.restr.o181 } }
+      : { count:0, active:null };
+    const accrualHold = s.hold
+      ? [{ from:'01.06.2026', to:'01.09.2026',
+          reason: s.hold===181 ? 'Подавление 181-го дня (реструктуризация)' : 'Форс-мажор (стихийное бедствие)',
+          doc:'prikaz-hold-'+num+'.pdf', by:s.c }]
+      : [];
+
+    const tconds = condDefaults({ rate, term, floating:!!s.float, floatType:s.float?'учётная ставка НБКР':null,
+      margin:s.float?3:0, reserveRate:s.reserve?2:0 });
+    const t1disb = s.tr2 ? (disbAmt>0?[{date:dd0,amount:Math.round(contract*0.6),order:'ПП-'+num,purpose:s.pu,doc:'akt-'+num+'.pdf'}]:[]) : disbmts();
+    function disbmts(){ return disbAmt>0 ? [{ date:dd0, amount:disbAmt, order:'ПП-'+num, purpose:s.pu, doc:'akt-'+num+'.pdf' }] : []; }
+    const tranches = [ mkTranche({ id:'K-C'+(i+1)+'-T1', no:1, subject:{ inn, name:s.n },
+      amount: s.tr2?Math.round(contract*0.6):contract, plannedDate:'12.02.2026', conditions:tconds,
+      disbursements:t1disb, ledger, accrualHold }) ];
+    if (s.tr2) tranches.push(mkTranche({ id:'K-C'+(i+1)+'-T2', no:2, subject:{ inn, name:s.n },
+      amount:Math.round(contract*0.4), plannedDate:'01.10.2026', conditions:tconds, disbursements:[], accrualHold }));
+
+    return mkCredit({
+      id:'K-C'+(i+1), num, date:'05.02.2026',
+      reg:{ num, date:'07.02.2026', scan:'dog-'+num+'.pdf', comment:'' },
+      origin:{ applicationId:'ЗАЯ-'+num, commissionId:'КОМ-'+num, programId:s.p, govDecisionId:'ПП-470' },
+      borrower:{ inn, name:s.n, type:'ЮЛ', region:s.r, district:s.d },
+      approvedAmount: s.cl?amount:contract, contractAmount:contract, currency:ccy,
+      kind:s.k, line: s.tr2?'Возобновляемая':'Единовременный', purpose:s.pu, fundingSource:'Бюджетный кредит',
+      accounts:{ repayAcct:'12800000000'+(20000+i), repayAcctKind:'Расчётный', payCode:'PC-'+num },
+      kmDecision: s.km ? { num:'КМ-'+num, date:'08.02.2026', reason:'Недостаточность обеспечения покрыта решением КМ (Р-8)' } : null,
+      lifecycle:life,
+      closure: life==='Закрыт'
+        ? { reason:s.closure||'Погашен', date:'20.06.2026',
+            doc: (s.closure==='Списан')
+              ? { kind:'Решение Правления', num:'РП-'+num, date:'18.06.2026', scan:'rp-'+num+'.pdf' }
+              : { kind:'Акт сверки',       num:'АС-'+num, date:'20.06.2026', scan:'as-'+num+'.pdf' } }
+        : null,
+      baseConditions: condDefaults({ rate, term, floating:!!s.float, floatType:s.float?'учётная ставка НБКР':null,
+        margin:s.float?3:0, reserveRate:s.reserve?2:0 }),
+      accrualHold,
+      tranches,
+      mirror: emptyMirror({
+        curatorship:[{ unit: s.coll?'Отдел проблемных кредитов':'Отдел кредитования', employee:s.c, role:'ведущий',
+          from:'07.02.2026', to: life==='Закрыт'?'20.06.2026':null }],
+        pledges, guarantees, bankGuarantee, collection, court, restructuring,
+        borrowerRisk:{ group:s.cat||'A',
+          categorySource: s.od>0 ? ('ночной расчёт · '+s.od+' дн. просрочки') : 'ночной расчёт' }
+      })
+    });
+  }
+
+  /* Таблица сценариев. Ключи: n имя · r/d область/район · p программа · c куратор · k вид ·
+     pu цель · cur валюта(KGS) · a сумма · life ЖЦ(Действует) · rate/term · disb full|partial|none ·
+     od дни просрочки · cat A|B|C|D · cov ok|under|mixed|liq150|bank|poruch|none · coll claim|court|
+     ispolnit|bankrot · restr{stage,o181,pause} · reserve · hold(true|181) · km · float · tr2 ·
+     closure Погашен|Списан · cl (договор<одобренной). */
+  const A='Асанов А. К.', K='Ким Л. С.', O='Осмонов Б. Т.', J='Джумалиева Г. К.', T='Турсунова А. Б.', M='Мамытов Э. С.';
+  const scen = [
+    /* — здоровые действующие, валюты/регионы/программы/покрытие — */
+    { n:'ОсОО «Кемин-Цемент»',       r:'Чуйская',          d:'Кеминский',       p:'ПРГ-1', c:A, k:'Инвестиционный', pu:'Модернизация цеха',        a:850000 },
+    { n:'ОсОО «Ош-Мрамор»',          r:'Ошская',           d:'Араванский',      p:'ПРГ-2', c:K, k:'Оборотный',      pu:'Закуп сырья',              a:320000, cur:'USD' },
+    { n:'ОсОО «Каракол-Турбаза»',    r:'Иссык-Кульская',   d:'Ак-Суйский',      p:'ПРГ-3', c:O, k:'Инвестиционный', pu:'Строительство гостиницы',  a:1200000, cov:'liq150' },
+    { n:'ОсОО «Талас-Фасоль»',       r:'Таласская',        d:'Манасский',       p:'ПРГ-4', c:J, k:'Оборотный',      pu:'Экспорт фасоли',           a:260000, cur:'RUB', disb:'partial' },
+    { n:'ОсОО «Баткен-Абрикос»',     r:'Баткенская',       d:'Баткенский',      p:'ПРГ-5', c:T, k:'Оборотный',      pu:'Переработка сухофруктов',  a:180000, cur:'EUR' },
+    { n:'ОсОО «Бишкек-Мебель»',      r:'г. Бишкек',        d:'Октябрьский',     p:'ПРГ-6', c:M, k:'Инвестиционный', pu:'Закуп оборудования',       a:540000, cov:'bank' },
+    { n:'ОсОО «Джалал-Абад-Хлопок»', r:'Джалал-Абадская',  d:'Ноокенский',      p:'ПРГ-7', c:A, k:'Оборотный',      pu:'Пополнение оборотных',     a:410000 },
+    { n:'ОсОО «Нарын-Шерсть»',       r:'Нарынская',        d:'Джумгальский',    p:'ПРГ-8', c:K, k:'Оборотный',      pu:'Заготовка шерсти',         a:150000, cov:'poruch', km:true },
+    /* — просрочка по нарастающей + взыскание всех контуров — */
+    { n:'ОсОО «Сокулук-Птица»',      r:'Чуйская',          d:'Сокулукский',     p:'ПРГ-1', c:O, k:'Оборотный',      pu:'Закуп кормов',             a:230000, od:12,  cat:'A' },
+    { n:'ОсОО «Узген-Рис»',          r:'Ошская',           d:'Узгенский',       p:'ПРГ-2', c:J, k:'Оборотный',      pu:'Закуп риса',               a:300000, cur:'USD', od:45, cat:'A', coll:'claim' },
+    { n:'ОсОО «Кара-Балта-Спирт»',   r:'Чуйская',          d:'Жайылский',       p:'ПРГ-3', c:T, k:'Инвестиционный', pu:'Линия розлива',            a:620000, od:95,  cat:'B', coll:'claim', cov:'mixed' },
+    { n:'ОсОО «Токтогул-Сервис»',    r:'Джалал-Абадская',  d:'Аксыйский',       p:'ПРГ-4', c:M, k:'Инвестиционный', pu:'Ремонт оборудования',      a:780000, od:140, cat:'C', coll:'court' },
+    { n:'ОсОО «Ат-Башы-Мясо»',       r:'Нарынская',        d:'Ат-Башинский',    p:'ПРГ-5', c:A, k:'Оборотный',      pu:'Мясозаготовка',            a:340000, cur:'RUB', od:200, cat:'C', coll:'ispolnit' },
+    { n:'ОсОО «Кадамжай-Сурьма»',    r:'Баткенская',       d:'Кадамжайский',    p:'ПРГ-6', c:K, k:'Инвестиционный', pu:'Модернизация комбината',   a:1500000, od:275, cat:'D', coll:'bankrot' },
+    { n:'ОсОО «Тон-Рыба»',           r:'Иссык-Кульская',   d:'Тонский',         p:'ПРГ-7', c:O, k:'Оборотный',      pu:'Рыбоводство',              a:190000, od:60,  cat:'B', coll:'claim' },
+    /* — реструктуризация / пауза начисления / подавление 181-го дня — */
+    { n:'ОсОО «Иссык-Ата-Санаторий»',r:'Чуйская',          d:'Ысык-Атинский',   p:'ПРГ-1', c:J, k:'Инвестиционный', pu:'Реконструкция корпуса',    a:900000, od:220, cat:'B', restr:{stage:'Направлено в Минфин', o181:true, pause:60} },
+    { n:'ОсОО «Ноокат-Табак»',       r:'Ошская',           d:'Ноокатский',      p:'ПРГ-2', c:T, k:'Оборотный',      pu:'Заготовка табака',         a:280000, restr:{stage:'На рассмотрении'} },
+    { n:'ОсОО «Панфилов-Овощи»',     r:'Чуйская',          d:'Панфиловский',    p:'ПРГ-3', c:M, k:'Оборотный',      pu:'Овощехранилище',           a:350000, od:30,  hold:true },
+    { n:'ОсОО «Ак-Талаа-Картофель»', r:'Нарынская',        d:'Ак-Талинский',    p:'ПРГ-4', c:A, k:'Оборотный',      pu:'Семенной картофель',       a:210000, od:210, cat:'B', hold:181, coll:'claim' },
+    { n:'ОсОО «Базар-Коргон-Мёд»',   r:'Джалал-Абадская',  d:'Базар-Коргонский',p:'ПРГ-5', c:K, k:'Оборотный',      pu:'Пасека',                   a:120000, restr:{stage:'Одобрено Минфином', pause:90}, od:40 },
+    /* — покрытие: недо/резерв/KM/смешанное/нет — */
+    { n:'ОсОО «Свердлов-Логистик»',  r:'г. Бишкек',        d:'Свердловский',    p:'ПРГ-6', c:O, k:'Инвестиционный', pu:'Складской комплекс',       a:700000, cov:'under', km:true },
+    { n:'ОсОО «Первомай-Фарм»',      r:'г. Бишкек',        d:'Первомайский',    p:'ПРГ-7', c:J, k:'Оборотный',      pu:'Фармсклад',                a:260000, cov:'under', life:'Зарегистрирован', disb:'none' },
+    { n:'ОсОО «Аламудун-Теплицы»',   r:'Чуйская',          d:'Аламудунский',    p:'ПРГ-8', c:T, k:'Инвестиционный', pu:'Тепличный комплекс',       a:480000, reserve:true, disb:'partial' },
+    { n:'ОсОО «Кара-Суу-Логистик»',  r:'Ошская',           d:'Кара-Сууский',    p:'ПРГ-1', c:M, k:'Оборотный',      pu:'Пополнение оборотных',     a:300000, reserve:true, life:'Зарегистрирован', disb:'none' },
+    { n:'ОсОО «Джети-Огуз-Мрамор»',  r:'Иссык-Кульская',   d:'Джети-Огузский',  p:'ПРГ-2', c:A, k:'Инвестиционный', pu:'Добыча мрамора',           a:950000, cov:'mixed' },
+    { n:'ОсОО «Лейлек-Гранат»',      r:'Баткенская',       d:'Лейлекский',      p:'ПРГ-3', c:K, k:'Оборотный',      pu:'Экспорт граната',          a:220000, cur:'USD', cov:'none', life:'Проект', disb:'none' },
+    /* — ЖЦ Проект / Зарегистрирован — */
+    { n:'ОсОО «Московский-Молоко»',  r:'Чуйская',          d:'Московский',      p:'ПРГ-4', c:O, k:'Оборотный',      pu:'Молокозавод',              a:330000, life:'Проект', disb:'none' },
+    { n:'ОсОО «Свердлов-IT»',        r:'г. Бишкек',        d:'Свердловский',    p:'ПРГ-5', c:J, k:'Инвестиционный', pu:'Центр обработки данных',   a:1800000, life:'Зарегистрирован', disb:'none' },
+    { n:'ОсОО «Аксы-Лес»',           r:'Джалал-Абадская',  d:'Аксыйский',       p:'ПРГ-6', c:T, k:'Инвестиционный', pu:'Лесопереработка',          a:560000, life:'Зарегистрирован' },
+    { n:'ОсОО «Кара-Буура-Зерно»',   r:'Таласская',        d:'Кара-Бууринский', p:'ПРГ-7', c:M, k:'Оборотный',      pu:'Закуп зерна',              a:240000, life:'Проект', disb:'none' },
+    { n:'ОсОО «Ноокен-Кирпич»',      r:'Джалал-Абадская',  d:'Ноокенский',      p:'ПРГ-8', c:A, k:'Инвестиционный', pu:'Кирпичный завод',          a:640000, life:'Зарегистрирован', cov:'under', km:true, disb:'none' },
+    /* — закрытые: погашен / списан — */
+    { n:'ОсОО «Чуй-Комбикорм»',      r:'Чуйская',          d:'Сокулукский',     p:'ПРГ-1', c:K, k:'Оборотный',      pu:'Комбикорм',                a:170000, life:'Закрыт', closure:'Погашен' },
+    { n:'ОсОО «Ош-Обувь»',           r:'Ошская',           d:'Араванский',      p:'ПРГ-2', c:O, k:'Оборотный',      pu:'Пошив обуви',              a:210000, cur:'USD', life:'Закрыт', closure:'Погашен' },
+    { n:'ОсОО «Талас-Табак»',        r:'Таласская',        d:'Бакай-Атинский',  p:'ПРГ-3', c:J, k:'Оборотный',      pu:'Заготовка табака',         a:130000, life:'Закрыт', closure:'Списан', cat:'D' },
+    { n:'ОсОО «Нарын-Уголь»',        r:'Нарынская',        d:'Нарынский',       p:'ПРГ-4', c:T, k:'Инвестиционный', pu:'Угледобыча',               a:890000, life:'Закрыт', closure:'Погашен' },
+    { n:'ОсОО «Иссык-Куль-Вино»',    r:'Иссык-Кульская',   d:'Иссык-Кульский',  p:'ПРГ-5', c:M, k:'Оборотный',      pu:'Виноделие',                a:260000, cur:'EUR', life:'Закрыт', closure:'Списан', cat:'D' },
+    { n:'ОсОО «Баткен-Рекультивация»',r:'Баткенская',      d:'Кадамжайский',    p:'ПРГ-6', c:A, k:'Инвестиционный', pu:'Рекультивация',            a:720000, life:'Закрыт', closure:'Погашен' },
+    /* — прочие ветки: плавающая ставка / мульти-транш / договор<одобренной / крайние суммы — */
+    { n:'ОсОО «Бишкек-Энерго»',      r:'г. Бишкек',        d:'Ленинский',       p:'ПРГ-7', c:K, k:'Инвестиционный', pu:'Энергоэффективность',      a:1400000, cur:'USD', float:true },
+    { n:'ОсОО «Сузак-Хлопок»',       r:'Джалал-Абадская',  d:'Сузакский',       p:'ПРГ-8', c:O, k:'Оборотный',      pu:'Закуп хлопка',             a:380000, float:true, od:20, cat:'A' },
+    { n:'ОсОО «Кемин-Агро»',         r:'Чуйская',          d:'Кеминский',       p:'ПРГ-1', c:J, k:'Оборотный',      pu:'Агротехника',              a:500000, tr2:true, disb:'partial' },
+    { n:'ОсОО «Узген-Строй»',        r:'Ошская',           d:'Узгенский',       p:'ПРГ-2', c:T, k:'Инвестиционный', pu:'Жилой комплекс',           a:2500000, tr2:true, cov:'liq150' },
+    { n:'ОсОО «Манас-Логистик»',     r:'Таласская',        d:'Манасский',       p:'ПРГ-3', c:M, k:'Оборотный',      pu:'Логистика',                a:80000, cl:true },
+    { n:'ОсОО «Ак-Суу-Пчеловод»',    r:'Иссык-Кульская',   d:'Ак-Суйский',      p:'ПРГ-4', c:A, k:'Микрокредит',    pu:'Пчеловодство',             a:95000, cl:true },
+    { n:'ОсОО «Джумгал-Сыр»',        r:'Нарынская',        d:'Джумгальский',    p:'ПРГ-5', c:K, k:'Оборотный',      pu:'Сыроварня',                a:175000, cur:'RUB', od:8, cat:'A', cov:'bank' },
+  ];
+  scen.forEach((s, i) => credits.push(mkScen(s, i)));
 
   return { credits, applications, pledgesRegistry };
 }
@@ -1098,6 +1466,18 @@ function trancheScheduleRows(t){
   return disb ? buildSchedule(t, disb.date).rows : [];
 }
 
+/* статус позиции графика на TODAY (перенос из донора, шаг 6). Чистая функция:
+   сверяет строку графика с леджером того же № и с датой. Реалтайм, без батч-снапшота.
+   Оплачена · Просрочена · Наступила (срок прошёл, данных о погашении нет) · Предстоит */
+function scheduleRowStatus(t, row){
+  const led = (t.ledger || []).find(l => l.no === row.no);
+  if (led){
+    if ((led.principalOverdue || 0) > 0 || (led.interestOverdue || 0) > 0 || (led.penaltyBal || 0) > 0) return 'Просрочена';
+    if ((led.principalPaid || 0) >= (row.principal || 0) && (led.principalBal || 0) === 0) return 'Оплачена';
+  }
+  return pd(row.date) > pd(TODAY) ? 'Предстоит' : (led ? 'Просрочена' : 'Наступила');
+}
+
 /* ---- 3.2 Помощники derive (все чистые) ---- */
 
 /* долг по трём слоям × 4 величины из детального расчёта траншей (§4) */
@@ -1170,10 +1550,39 @@ const CAT_ORDER = ['низкий','средний','высокий'];
 function daysToCat(d){ return d >= 181 ? 'высокий' : d >= 1 ? 'средний' : 'низкий'; }
 function groupToCat(g){ return (g === 'C' || g === 'D') ? 'высокий' : g === 'B' ? 'средний' : 'низкий'; }
 function worstCat(a,b){ return CAT_ORDER[Math.max(CAT_ORDER.indexOf(a), CAT_ORDER.indexOf(b))]; }
+/* Разложенное основание категории (перенос формата «значение + основание» из loan-credit):
+   шапка показывает не только «высокий», но и откуда он взялся — иначе куратор спорит
+   с цифрой, а объяснение приходится искать по вкладкам. Единственный источник worst-of. */
+function riskBasisOf(c, overdueDays){
+  const suppressed = has181Suppression(c);
+  const eff   = suppressed ? Math.min(overdueDays, 180) : overdueDays;          // подавление 181-го дня
+  const group = c.mirror && c.mirror.borrowerRisk ? c.mirror.borrowerRisk.group : null;
+  return { eff, suppressed, byDays: daysToCat(eff), group, byGroup: groupToCat(group) };
+}
 function riskWorstOf(c, overdueDays){
-  const eff = has181Suppression(c) ? Math.min(overdueDays, 180) : overdueDays;   // подавление 181-го дня
-  const grp = c.mirror && c.mirror.borrowerRisk ? c.mirror.borrowerRisk.group : null;
-  return worstCat(daysToCat(eff), groupToCat(grp));
+  const b = riskBasisOf(c, overdueDays);
+  return worstCat(b.byDays, b.byGroup);
+}
+
+/* Группа платёжеспособности 1.1…5 — производная (перенесена из легаси-реестра).
+   НЕ путать с mirror.borrowerRisk.group (A/B/C/D) — та про риск заёмщика и входит в
+   worst-of категории риска. Эта — про стадию работы с долгом, поэтому целиком
+   выводится из ЖЦ + просрочки + контура взыскания и нигде не хранится (Р-11).
+     1.1 погашение по графику · 1.2 просрочка, досудебная работа
+     2.1 работа с судом · 2.2 исполнительные листы · 2.3 инициирование банкротства
+     5   погашенные */
+const PAY_GROUPS = { '1.1':'Погашение по графику', '1.2':'Просрочка, досудебная работа',
+  '2.1':'Работа с судом', '2.2':'Исполнительные листы', '2.3':'Инициирование банкротства',
+  '5':'Погашен' };
+function payGroupOf(c, overdueDays){
+  if (c.lifecycle === 'Закрыт') return '5';
+  const cols = (c.mirror && c.mirror.collection) || [];
+  const hit = re => cols.some(x => re.test(x.phase || '') || re.test(x.contour || ''));
+  if (hit(/банкрот|К6/i))                 return '2.3';
+  if (hit(/исполнит|К5/i))                return '2.2';
+  if (hit(/суд|иск|К3|К4/i))              return '2.1';
+  if (overdueDays > 0 || cols.length)     return '1.2';
+  return '1.1';
 }
 
 /* массив производных оверлеев проблемности (Р-3): не третья ось, а набор меток */
@@ -1255,14 +1664,23 @@ function derive(c){
   const overdueDays   = Math.max(0, ...c.tranches.map(overdueDaysOfTranche));
   const coverage      = computeCoverage(c);
   const riskCategory  = riskWorstOf(c, overdueDays);
+  const riskBasis     = riskBasisOf(c, overdueDays);
   const overlays      = buildOverlays(c, overdueDays);
   const fullRepayDate = maxFullRepayDate(c);
   const termAgg       = Math.max(0, ...c.tranches.filter(activeTranche).map(t => (t.conditions && t.conditions.term) || 0));
   const reserveAccrual = computeReserve(c);
   const scheduleTotals = computeScheduleTotals(c);
+  /* остаток долга = Σ балансов трёх слоёв; просроченная сумма = Σ просроченного по слоям.
+     *Kgs — то же в сомах по курсу FX: реестр сравнивает строки в разных валютах. */
+  const debtBalance   = round2(debt.principal.bal + debt.interest.bal + debt.penalty.bal);
+  const overdueAmount = round2(debt.principal.overdue + debt.interest.overdue + debt.penalty.overdue);
+  const debtBalanceKgs   = round2(toKgs(debtBalance, c.currency));
+  const overdueAmountKgs = round2(toKgs(overdueAmount, c.currency));
+  const payGroup      = payGroupOf(c, overdueDays);
   return { disbursed, undisbursed, allocated, allocatable, disbState, debt,
-           overdueDays, riskCategory, coverage, overlays, fullRepayDate, termAgg,
-           reserveAccrual, scheduleTotals };
+           overdueDays, riskCategory, riskBasis, coverage, overlays, fullRepayDate, termAgg,
+           reserveAccrual, scheduleTotals,
+           debtBalance, overdueAmount, debtBalanceKgs, overdueAmountKgs, payGroup };
 }
 
 /* ---- 3.4 requiredDocsComplete(credit) — обязательный комплект документов (Г-7).
@@ -1493,7 +1911,7 @@ function addPayment(credit, ctx){
   if (!g.ok) return g;
   const num = (credit.mirror.payments.length || 0) + 1;
   const rec = { num, date: ctx.date, amount: ctx.amount, tranche: ctx.trancheNo,
-    reg:'Ручной ввод', match:'Ожидает ЦК', frozen:false, layers:{} };
+    reg:'Ручной ввод', match:'Ожидает ЦК', frozen:false, method: ctx.method || 'денежными средствами', layers:{} };
   credit.mirror.payments.push(rec);
   pushAudit(credit, 'addPayment', null, rec);
   return g;
@@ -1640,7 +2058,9 @@ if (typeof document !== 'undefined') {
      из derive() в рантайме (Р-11, кэш запрещён). Фильтры комбинируются по AND.
      ============================================================ */
   let selectedId = null;
-  const filters = { program:'', curator:'', category:'', lifecycle:'', disbState:'', problem:'', odMin:'', odMax:'' };
+  const filters = { q:'', num:'', region:'', district:'', program:'', curator:'', category:'',
+                    payGroup:'', lifecycle:'', disbState:'', problem:'', odMin:'', odMax:'' };
+  const paging = { page:1, size:10 };
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
   function uniq(arr){ return [...new Set(arr)].filter(x=>x && x!=='—').sort((a,b)=>String(a).localeCompare(String(b),'ru')); }
@@ -1652,11 +2072,19 @@ if (typeof document !== 'undefined') {
     return act ? act.employee : '—';
   }
 
+  /* справочник Область → Районы строится из данных, а не хардкодом:
+     список районов всегда согласован с тем, что реально есть в реестре. */
+  function regionsOf(){ return uniq(CR.db.credits.map(c=>c.borrower.region)); }
+  function districtsOf(region){
+    return uniq(CR.db.credits.filter(c=>!region || c.borrower.region===region).map(c=>c.borrower.district));
+  }
+
   /* ---- рендер полной оболочки реестра (тулбар + фильтры + сетка) ---- */
   function renderList(){
     const host = document.getElementById('view-list'); if (!host) return;
     const programs = uniq(CR.db.credits.map(c=>c.origin.programId));
     const curators = uniq(CR.db.credits.map(curatorOf));
+    const payOpts = Object.keys(PAY_GROUPS).map(k=>`<option value="${k}">${k} · ${esc(PAY_GROUPS[k])}</option>`).join('');
     host.innerHTML = `
       <div class="tb-actions">
         <button class="btn btn-primary btn-sm" id="btnCreate" onclick="CR.openCreatePicker()">Создать кредит</button>
@@ -1665,43 +2093,86 @@ if (typeof document !== 'undefined') {
         <span id="regCount" style="margin-left:12px;color:var(--text-muted);font:var(--font-label)"></span>
         <button class="btn btn-tint btn-sm" style="margin-left:auto" onclick="CR.resetDemo()">Сбросить демо-данные</button>
       </div>
-      <div class="filter-head open" onclick="this.classList.toggle('open')">
+      <div class="filter-head" onclick="this.classList.toggle('open')">
         <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
         Фильтры реестра
+        <span class="fbadge" id="fBadge" hidden></span>
       </div>
       <div class="filter-body">
+        <div class="field"><span class="flabel">Заёмщик</span><div class="control"><input id="fQ" type="search" placeholder="наименование или ИНН" oninput="CR.renderRows()"></div></div>
+        <div class="field"><span class="flabel">Номер договора</span><div class="control"><input id="fNum" type="search" placeholder="напр. 56" oninput="CR.renderRows()"></div></div>
+        <div class="field"><span class="flabel">Область</span><div class="control"><select id="fRegion" onchange="CR.onRegionChange()">${optList(regionsOf())}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Район</span><div class="control"><select id="fDistrict" onchange="CR.renderRows()">${optList(districtsOf(''))}</select><span class="caret">▾</span></div></div>
         <div class="field"><span class="flabel">Программа</span><div class="control"><select id="fProgram" onchange="CR.renderRows()">${optList(programs)}</select><span class="caret">▾</span></div></div>
         <div class="field"><span class="flabel">Куратор</span><div class="control"><select id="fCurator" onchange="CR.renderRows()">${optList(curators)}</select><span class="caret">▾</span></div></div>
         <div class="field"><span class="flabel">Категория риска</span><div class="control"><select id="fCategory" onchange="CR.renderRows()">${optList(['низкий','средний','высокий'])}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Группа платёжеспособности</span><div class="control"><select id="fPayGroup" onchange="CR.renderRows()"><option value="">— все —</option>${payOpts}</select><span class="caret">▾</span></div></div>
         <div class="field"><span class="flabel">ЖЦ договора</span><div class="control"><select id="fLifecycle" onchange="CR.renderRows()">${optList(['Проект','Зарегистрирован','Действует','Закрыт'])}</select><span class="caret">▾</span></div></div>
         <div class="field"><span class="flabel">Состояние освоения</span><div class="control"><select id="fDisb" onchange="CR.renderRows()">${optList(['Не освоен','Частично освоен','Полностью освоен','Освоение закрыто'])}</select><span class="caret">▾</span></div></div>
         <div class="field"><span class="flabel">Проблемность</span><div class="control"><select id="fProblem" onchange="CR.renderRows()"><option value="">— все —</option><option value="collection">Активное взыскание</option><option value="restructuring">Активная реструктуризация</option></select><span class="caret">▾</span></div></div>
         <div class="field col-span"><span class="flabel">Просрочка, дн (диапазон)</span><div class="range-pair"><input id="fOdMin" type="number" min="0" placeholder="от" oninput="CR.renderRows()"><span>—</span><input id="fOdMax" type="number" min="0" placeholder="до" oninput="CR.renderRows()"></div></div>
+        <div class="filter-bar"><button class="btn btn-secondary btn-sm" onclick="CR.resetFilters()">Сбросить фильтры</button></div>
       </div>
       <div class="grid-wrap">
         <table class="grid"><thead><tr>
           <th>№ договора</th><th>Дата</th><th>Заёмщик</th><th>Программа</th>
-          <th style="text-align:right">Сумма договора</th><th style="text-align:right">Освоено</th><th style="text-align:right">Остаток долга</th><th>Просрочка, дн</th>
-          <th>Категория</th><th>ЖЦ договора</th><th>Состояние освоения</th><th>Куратор</th>
+          <th style="text-align:right">Сумма договора</th><th>Валюта</th>
+          <th style="text-align:right">Остаток, KGS</th><th>Просрочка</th>
+          <th>Категория</th><th>Группа</th><th>ЖЦ договора</th><th>Куратор</th>
         </tr></thead><tbody id="regBody"></tbody></table>
-      </div>`;
+      </div>
+      <div class="pager" id="regPager"></div>`;
     renderRows();
     renderRole();
+  }
+
+  /* смена области — пересобрать список районов (каскад), сбросив несовместимый выбор */
+  function onRegionChange(){
+    const reg = document.getElementById('fRegion').value;
+    const dSel = document.getElementById('fDistrict');
+    const prev = dSel.value;
+    dSel.innerHTML = optList(districtsOf(reg));
+    dSel.value = [...dSel.options].some(o=>o.value===prev) ? prev : '';
+    renderRows();
+  }
+  function resetFilters(){
+    ['fQ','fNum','fRegion','fDistrict','fProgram','fCurator','fCategory','fPayGroup',
+     'fLifecycle','fDisb','fProblem','fOdMin','fOdMax'].forEach(id=>{
+      const e = document.getElementById(id); if (e) e.value = '';
+    });
+    const dSel = document.getElementById('fDistrict'); if (dSel) dSel.innerHTML = optList(districtsOf(''));
+    paging.page = 1;
+    renderRows();
   }
 
   /* считать значения фильтров из контролов в состояние filters */
   function readFilters(){
     const g = id => { const e = document.getElementById(id); return e ? e.value : ''; };
+    filters.q = g('fQ').trim().toLowerCase(); filters.num = g('fNum').trim().toLowerCase();
+    filters.region = g('fRegion'); filters.district = g('fDistrict');
     filters.program = g('fProgram'); filters.curator = g('fCurator'); filters.category = g('fCategory');
+    filters.payGroup = g('fPayGroup');
     filters.lifecycle = g('fLifecycle'); filters.disbState = g('fDisb'); filters.problem = g('fProblem');
     filters.odMin = g('fOdMin'); filters.odMax = g('fOdMax');
+  }
+  /* сколько условий реально сужают выборку — для бейджа на свёрнутой шапке фильтра */
+  function activeFilterCount(){
+    return Object.keys(filters).filter(k => filters[k] !== '' && filters[k] != null).length;
   }
   /* AND-комбинация фильтров; пустой фильтр = нет ограничения */
   function passFilters(c, d){
     const f = filters;
+    if (f.q){                                       // поиск идёт и по наименованию, и по ИНН
+      const hay = (c.borrower.name + ' ' + c.borrower.inn).toLowerCase();
+      if (!hay.includes(f.q)) return false;
+    }
+    if (f.num && !String(c.num).toLowerCase().includes(f.num)) return false;
+    if (f.region   && c.borrower.region !== f.region)     return false;
+    if (f.district && c.borrower.district !== f.district)  return false;
     if (f.program   && c.origin.programId !== f.program)   return false;
     if (f.curator   && curatorOf(c) !== f.curator)         return false;
     if (f.category  && d.riskCategory !== f.category)       return false;
+    if (f.payGroup  && d.payGroup !== f.payGroup)           return false;
     if (f.lifecycle && c.lifecycle !== f.lifecycle)         return false;
     if (f.disbState && d.disbState !== f.disbState)         return false;
     if (f.odMin !== '' && d.overdueDays < +f.odMin)         return false;
@@ -1718,20 +2189,32 @@ if (typeof document !== 'undefined') {
     const sel  = (c.id===selectedId) ? ' sel' : '';
     const term = (c.lifecycle==='Закрыт') ? ' terminal' : '';
     const catCls = d.riskCategory==='высокий' ? 'high' : d.riskCategory==='средний' ? 'mid' : 'low';
-    const debtBal = d.debt.principal.bal + d.debt.interest.bal + d.debt.penalty.bal;   // остаток долга = Σ балансов трёх слоёв
-    const odCell = d.overdueDays>0 ? `<td class="overdue">${d.overdueDays}</td>` : `<td>0</td>`;
+    /* Т·N / Р·N — сколько траншей и реструктуризаций «спрятано» в карточке.
+       Строк реестра они не порождают: реестр — про кредит, не про его части.
+       Т·N ставится только от двух траншей: один транш есть почти у всех, бейдж на
+       каждой строке — шум, а не информация. */
+    const nT = (c.tranches || []).length;
+    const nR = (c.mirror && c.mirror.restructuring && c.mirror.restructuring.count) || 0;
+    const marks = (nT > 1 ? `<span class="mk" title="траншей: ${nT}">Т·${nT}</span>` : '')
+                + (nR ? `<span class="mk mk-r" title="реструктуризаций: ${nR}">Р·${nR}</span>` : '');
+    /* просрочка: дни + просроченная сумма, приведённая к KGS (как и остаток) */
+    const odCell = d.overdueDays > 0
+      ? `<td class="overdue">${d.overdueDays} дн.<br><span class="sub">${money0(d.overdueAmountKgs)}</span></td>`
+      : `<td><span class="sub">0 дн.</span></td>`;
+    const amtSub = c.currency !== 'KGS'
+      ? `<br><span class="sub">≈ ${money0(toKgs(c.contractAmount, c.currency))} KGS</span>` : '';
     return `<tr data-id="${esc(c.id)}" class="${(tint+sel+term).trim()}" onclick="CR.selectRow('${esc(c.id)}')" ondblclick="CR.openDetail('${esc(c.id)}')">
-      <td>${esc(c.num)}</td>
+      <td style="white-space:nowrap">${esc(c.num)}${marks}</td>
       <td>${esc(c.date)}</td>
-      <td>${esc(c.borrower.name)}<br><span style="color:var(--text-muted);font-size:12px">ИНН ${esc(c.borrower.inn)}</span></td>
+      <td>${esc(c.borrower.name)}<br><span class="sub">ИНН ${esc(c.borrower.inn)} · ${esc(c.borrower.district)}</span></td>
       <td>${esc(c.origin.programId)}</td>
-      <td style="text-align:right">${money(c.contractAmount)}</td>
-      <td style="text-align:right">${money(d.disbursed)}</td>
-      <td style="text-align:right">${money(debtBal)}</td>
+      <td style="text-align:right">${money(c.contractAmount)}${amtSub}</td>
+      <td>${esc(c.currency)}</td>
+      <td style="text-align:right">${money(d.debtBalanceKgs)}</td>
       ${odCell}
       <td><span class="pill ${catCls}">${esc(d.riskCategory)}</span></td>
+      <td title="${esc(PAY_GROUPS[d.payGroup] || '')}">${esc(d.payGroup)}</td>
       <td>${esc(c.lifecycle)}</td>
-      <td>${esc(d.disbState)}</td>
       <td>${esc(curatorOf(c))}</td>
     </tr>`;
   }
@@ -1739,17 +2222,47 @@ if (typeof document !== 'undefined') {
   function renderRows(){
     readFilters();
     const body = document.getElementById('regBody'); if (!body) return;
-    const rows = [];
+    const hits = [];
     for (const c of CR.db.credits){
       const d = derive(c);
       if (!passFilters(c, d)) continue;
-      rows.push(rowHtml(c, d));
+      hits.push([c, d]);
     }
-    body.innerHTML = rows.length ? rows.join('')
+    /* пагинация — после фильтрации; страница зажимается, если выборка усохла */
+    const pages = Math.max(1, Math.ceil(hits.length / paging.size));
+    if (paging.page > pages) paging.page = pages;
+    const from = (paging.page - 1) * paging.size;
+    const page = hits.slice(from, from + paging.size);
+
+    body.innerHTML = page.length ? page.map(([c,d])=>rowHtml(c,d)).join('')
       : `<tr><td colspan="12" style="text-align:center;color:var(--text-placeholder);padding:20px">Ничего не найдено по фильтрам</td></tr>`;
     const cnt = document.getElementById('regCount');
-    if (cnt) cnt.textContent = rows.length + ' из ' + CR.db.credits.length;
+    if (cnt) cnt.textContent = hits.length + ' из ' + CR.db.credits.length;
+    const badge = document.getElementById('fBadge');
+    if (badge){ const n = activeFilterCount(); badge.textContent = n ? 'условий: ' + n : ''; badge.hidden = !n; }
+    renderPager(hits.length, pages, from, page.length);
   }
+  /* пейджер: «показано X–Y из Z», стрелки и размер страницы */
+  function renderPager(total, pages, from, shown){
+    const el = document.getElementById('regPager'); if (!el) return;
+    const p = paging.page;
+    const btn = (label, to, dis) => `<span class="pg${dis?' dis':''}"${dis?'':` onclick="CR.gotoPage(${to})"`}>${label}</span>`;
+    const nums = [];
+    for (let i = 1; i <= pages; i++)
+      nums.push(i === p ? `<span class="pg active">${i}</span>` : btn(i, i, false));
+    el.innerHTML = `
+      <span class="pinfo">${total ? `Показано ${from+1}–${from+shown} из ${total}` : 'Нет записей'}</span>
+      <span class="pages">
+        ${btn('«',1,p===1)}${btn('‹',p-1,p===1)}${nums.join('')}${btn('›',p+1,p===pages)}${btn('»',pages,p===pages)}
+      </span>
+      <span class="psize">На странице:
+        <select onchange="CR.setPageSize(this.value)">
+          ${[10,20,50,100].map(n=>`<option value="${n}"${n===paging.size?' selected':''}>${n}</option>`).join('')}
+        </select>
+      </span>`;
+  }
+  function gotoPage(n){ paging.page = Math.max(1, n); renderRows(); }
+  function setPageSize(n){ paging.size = +n; paging.page = 1; renderRows(); }
 
   /* одиночный клик — выбор строки (включает Просмотр/Изменить) */
   function selectRow(id){
@@ -1889,33 +2402,142 @@ if (typeof document !== 'undefined') {
     return `<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(msg)}" onclick="CR.toast('${jsAttr(msg)}','warn')">${esc(label)}</button>`;
   }
 
-  /* ---- §5.2 ШАПКА (одна несворачиваемая сводка) ---- */
+  /* ---- §5.2 ШАПКА (одна несворачиваемая сводка) ----
+     Формат плитки перенесён из loan-credit.html: «значение + ОСНОВАНИЕ» (третья строка).
+     Голая цифра в шапке порождает спор «почему столько / почему высокий», и ответ
+     приходится искать по вкладкам; основание отвечает на месте.
+     ID записи в шапке не показываем — реквизит заёмщика (ИНН) информативнее. */
+
+  /* Метка производной величины. Не lockHtml(): тот про ЗЕРКАЛО (данные чужого модуля),
+     а здесь значение считает сам модуль кредитов на лету (Р-11). */
+  function derivedHtml(){ return '<span class="lock" title="вычисляется на лету, не хранится">выводится</span>'; }
+  function asOfHtml(){ return `<span class="lock" title="расчёт по леджеру на дату">на ${TODAY}</span>`; }
+
+  /* Плитка шапки: заголовок · значение · основание. label/value/basis — уже HTML. */
+  function dimTile(label, value, basis){
+    return `<div class="dim"><div class="dl">${label}</div><div class="dv">${value}</div>`
+      + (basis ? `<div class="src">${basis}</div>` : '') + `</div>`;
+  }
+
+  /* Плитка «Остаток долга»: разбивка по трём слоям + приведение к сому + дата расчёта.
+     Дата подписана «расчёт по леджеру», а НЕ «снапшот батч-калькулятора», как в легаси:
+     в новой модели остаток выводится из леджера в момент рендера (Р-11) — легаси-дефект
+     E2E-09 (остаток отвязан от платежей) здесь и закрывается, подпись не должна врать. */
+  function tileDebt(c,d){
+    const cur = c.currency, fx = FX[cur] || 1;
+    const val = `${money(d.debtBalance)} <span style="font-size:13px;color:var(--text-muted);font-weight:400">${esc(cur)}</span>`;
+    if (d.disbursed === 0)
+      return dimTile(`Остаток долга ${asOfHtml()}`, val,
+        `освоение не начато — задолженности нет<br>сумма договора <b>${money(c.contractAmount)} ${esc(cur)}</b>`);
+    const parts = [];
+    if (cur !== 'KGS') parts.push(`≈ <b>${money0(d.debtBalanceKgs)} KGS</b> по курсу НБКР <b>${money(fx)}</b> на ${TODAY}`);
+    parts.push(`осн. <b>${money(d.debt.principal.bal)}</b> · проц. <b>${money(d.debt.interest.bal)}</b> · штрафы <b>${money(d.debt.penalty.bal)}</b>`);
+    if (d.overdueAmount > 0)
+      parts.push(`в т.ч. просрочено <b style="color:var(--asubk-red)">${money(d.overdueAmount)}</b> · ${d.overdueDays} дн.`);
+    return dimTile(`Остаток долга ${asOfHtml()}`, val, parts.join('<br>'));
+  }
+
+  /* Плитка «Оверлеи» (Р-3): не третья ось категории, а активные слои с их источником и
+     дедлайном — из плитки видно, что именно сейчас искажает картину и до какого числа. */
+  function tileOverlays(c,d){
+    const list = d.overlays.filter(o => o.kind !== 'overdue');   // просрочка ушла в пилюлю статуса
+    if (!list.length)
+      return dimTile('Оверлеи', '<span style="font-size:14px;color:var(--text-muted);font-weight:400">Нет активных слоёв</span>',
+        'категория считается напрямую по дням просрочки и группе заёмщика');
+    /* Значением плитки идёт САМЫЙ ТЯЖЁЛЫЙ слой словами, а не те же пилюли, что в строке
+       имени: пилюли уже названы выше, плитка нужна ради источника и дедлайна. */
+    const rank = { danger:2, warn:1, info:0 };
+    const top  = list.slice().sort((a,b) => (rank[b.tone]||0) - (rank[a.tone]||0))[0];
+    const r = c.mirror && c.mirror.restructuring && c.mirror.restructuring.active;
+    const lines = [];
+    if (d.riskBasis.suppressed && r)
+      lines.push(`подавление 181-го дня — источник <b>${esc(r.id)}</b> (${esc(r.stage)})`
+        + (r.deadline ? ` · дедлайн <b>${esc(r.deadline)}</b>` : '')
+        + (r.pause && r.pause.days ? ` · пауза ${r.pause.days} дн.` : '')
+        + `<br>по отказу или истечении — пересчёт по фактическим дням просрочки`);
+    else if (r)
+      lines.push(`реструктуризация <b>${esc(r.id)}</b> — ${esc(r.stage)}`
+        + (r.deadline ? ` · дедлайн <b>${esc(r.deadline)}</b>` : ''));
+    for (const col of (c.mirror && c.mirror.collection || []))
+      lines.push(`взыскание <b>${esc(col.processId)}</b> · ${esc(col.contour)} · ${esc(col.phase)}`);
+    if ((c.accrualHold || []).some(holdIsActive))
+      lines.push('начисление приостановлено — проценты за интервал не начисляются');
+    const val = `<span style="font-size:15px">${esc(top.text)}</span>`
+      + (list.length > 1 ? ` <span style="color:var(--text-muted);font-weight:400;font-size:13px">· ещё ${list.length-1}</span>` : '');
+    return `<div class="dim wide"><div class="dl">Оверлеи ${derivedHtml()}</div>`
+      + `<div class="dv">${val}</div><div class="src">${lines.join('<br>')}</div></div>`;
+  }
+
+  /* Печатные формы (перенос из loan-credit): в новом макете печати не было вовсе,
+     а это единственное место, откуда куратор забирает документ по конкретному кредиту. */
+  const PRINT_FORMS = [
+    ['Акт сверки', 'на дату расчёта'], ['Претензия', 'на дату расчёта'],
+    ['Реестр погашений', 'на дату расчёта'], ['Уведомление', 'должнику'],
+    ['График погашения', 'PDF / Excel'], ['Акт обследования залога', 'форма'],
+    ['Извещение об утрате залога', 'форма №5'],
+  ];
+  function printMenuHtml(){
+    return `<div class="split">
+      <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();this.parentElement.classList.toggle('open')">Печатные формы ▾</button>
+      <div class="split-menu" style="left:auto;right:0;min-width:265px">
+        ${PRINT_FORMS.map(([n,s]) => `<button onclick="CR.toast('${jsAttr(n)} — формирование вне объёма макета')">${esc(n)}<span style="float:right;color:var(--text-placeholder);font-size:11px;margin-left:12px">${esc(s)}</span></button>`).join('')}
+      </div>
+    </div>`;
+  }
+
   function headerHtml(c,d){
-    const debtBal = d.debt.principal.bal + d.debt.interest.bal + d.debt.penalty.bal;
-    const light = d.coverage.ok ? 'var(--asubk-green)' : 'var(--asubk-red)';
+    const light  = d.coverage.ok ? 'var(--asubk-green)' : 'var(--asubk-red)';
     const catSrc = (c.mirror&&c.mirror.borrowerRisk&&c.mirror.borrowerRisk.categorySource) || 'ночной расчёт';
-    const overlays = d.overlays.map(overlayPill).join(' ');
+    const rb     = d.riskBasis;
+
+    /* Дни просрочки — в пилюле ЖЦ (перенос из loan-credit): статус и его глубина —
+       одна мысль. Одноимённый оверлей из строки имени при этом убран, чтобы не дублировать. */
+    const lcPill = d.overdueDays > 0
+      ? `<span class="pill high">${esc(c.lifecycle)} · просрочка ${d.overdueDays} дн.</span>`
+      : `<span class="pill info">${esc(c.lifecycle)}</span>`;
+    const ovPills = d.overlays.filter(o => o.kind !== 'overdue').map(overlayPill).join(' ');
+
+    const catBasis = `дни просрочки ${rb.eff}${rb.suppressed ? ' <b>(подавление 181-го дня)</b>' : ''} → <b>${esc(rb.byDays)}</b>`
+      + `<br>группа заёмщика ${rb.group ? '<b>'+esc(rb.group)+'</b>' : '—'} → <b>${esc(rb.byGroup)}</b> · worst-of → <b>${esc(d.riskCategory)}</b>`
+      + `<br>${esc(catSrc)} (Р-10)`;
+
+    const col0 = (c.mirror && c.mirror.collection || [])[0];
+    const grpBasis = esc(PAY_GROUPS[d.payGroup] || '—')
+      + (col0 ? `<br>процедура <b>${esc(col0.processId)}</b> — вкладка «Проблемные»` : '');
+
     return `<div class="phead">
       <div class="phead-top">
         <div>
           <div class="phead-name">
             <span class="nm">Кредит № ${esc(c.num)}</span>
-            <span class="pill info">${esc(c.lifecycle)}</span>
+            ${lcPill}
             <span class="pill neutral">${esc(d.disbState)}</span>
-            ${overlays}
+            ${ovPills}
           </div>
-          <div class="phead-sub">от <b>${esc(c.date)}</b> · Заёмщик <a onclick="CR.toast('Переход в карточку заёмщика — вне объёма макета')">${esc(c.borrower.name)}</a> · Программа <a onclick="CR.toast('Переход в программу — вне объёма макета')">${esc(c.origin.programId)}</a></div>
+          <div class="phead-sub">от <b>${esc(c.date)}</b>
+            · Заёмщик <a onclick="CR.toast('Переход в карточку заёмщика — вне объёма макета')">${esc(c.borrower.name)}</a>
+            · ИНН <b>${esc(c.borrower.inn)}</b>
+            · Вид <b>${esc(c.kind)}</b>
+            · Кредитная линия <b>${esc(c.line)}</b>
+            · Программа <a onclick="CR.toast('Переход в программу — вне объёма макета')">${esc(c.origin.programId)}</a>
+            ${d.fullRepayDate ? `· Возврат до <b>${esc(d.fullRepayDate)}</b>` : ''}
+            · Куратор ${lockHtml()} <b>${esc(curatorOf(c))}</b></div>
         </div>
-        <div class="phead-owner">ID ${esc(c.id)}<br>ИНН ${esc(c.borrower.inn)}</div>
+        <div class="phead-acts">${printMenuHtml()}</div>
       </div>
       <div class="phead-dims">
-        <div class="dim"><div class="dl">Сумма договора</div><div class="dv">${money(c.contractAmount)}</div></div>
-        <div class="dim"><div class="dl">Освоено</div><div class="dv">${money(d.disbursed)} <span style="color:var(--text-muted);font-weight:400">(${pctDisb(c,d)}%)</span></div></div>
-        <div class="dim"><div class="dl">Остаток долга</div><div class="dv">${money(debtBal)}</div></div>
-        <div class="dim"><div class="dl">Просрочка</div><div class="dv"${d.overdueDays>0?' style="color:var(--asubk-red)"':''}>${d.overdueDays} дн.</div></div>
-        <div class="dim"><div class="dl">Категория риска ${lockHtml()}</div><div class="dv cat-${catClsOf(d.riskCategory)}">${esc(d.riskCategory)}</div><div class="src">${esc(catSrc)} (Р-10)</div></div>
-        <div class="dim"><div class="dl">Покрытие ${lockHtml()}</div><div class="dv"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${light};margin-right:6px"></span>${Math.round(d.coverage.index*100)}% <span style="color:var(--text-muted);font-weight:400">/ порог ${d.coverage.req}%</span></div><div class="src">${esc(d.coverage.source)}</div></div>
-        <div class="dim"><div class="dl">Куратор ${lockHtml()}</div><div class="dv" style="font-size:14px">${esc(curatorOf(c))}</div><div class="src">Кураторство · журнал назначений (Р-9)</div></div>
+        ${dimTile('Сумма договора', money(c.contractAmount) + ` <span style="font-size:13px;color:var(--text-muted);font-weight:400">${esc(c.currency)}</span>`,
+          `одобрено по заявке <b>${money(c.approvedAmount)}</b> (Г-1: договор ≤ одобрено)`
+          + (c.currency !== 'KGS' ? `<br>≈ <b>${money0(toKgs(c.contractAmount, c.currency))} KGS</b>` : ''))}
+        ${dimTile('Освоено', `${money(d.disbursed)} <span style="color:var(--text-muted);font-weight:400">(${pctDisb(c,d)}%)</span>`,
+          `не освоено <b>${money(d.undisbursed)}</b> · распределено по траншам <b>${money(d.allocated)}</b>`)}
+        ${tileDebt(c,d)}
+        ${dimTile(`Категория риска ${lockHtml()}`, `<span class="cat-${catClsOf(d.riskCategory)}">${esc(d.riskCategory)}</span>`, catBasis)}
+        ${dimTile(`Группа платёжеспособности ${derivedHtml()}`, esc(d.payGroup), grpBasis)}
+        ${dimTile(`Покрытие ${lockHtml()}`,
+          `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${light};margin-right:6px"></span>${Math.round(d.coverage.index*100)}% <span style="color:var(--text-muted);font-weight:400">/ порог ${d.coverage.req}%</span>`,
+          esc(d.coverage.source))}
+        ${tileOverlays(c,d)}
       </div>
     </div>`;
   }
@@ -1959,9 +2581,8 @@ if (typeof document !== 'undefined') {
       <div class="gtoolbar" style="margin-top:12px">${roleBtn('saveContractAmount','Изменить сумму договора','CR.openContractAmountModal()','btn btn-primary btn-sm')}</div>
 
       <div class="section-h" style="margin-top:22px">Классификация</div>
+      <p class="section-note">Вид кредита и кредитная линия вынесены в шапку карточки (шаг 2) — здесь не дублируются.</p>
       <div class="f2">
-        ${fld('Вид кредита', esc(c.kind))}
-        ${fld('Кредитная линия', esc(c.line))}
         ${fld('Цель', esc(c.purpose))}
         ${fld('Источник финансирования', esc(c.fundingSource))}
       </div>
@@ -2013,7 +2634,7 @@ if (typeof document !== 'undefined') {
       ${locked?`<div class="info-plate">${svgInfo()}<div>Условия зафиксированы: ЖЦ «${esc(c.lifecycle)}». Прямое редактирование недоступно (Г-9) — только доп. соглашением.</div></div>`:''}
       <div class="f2" style="margin-top:12px">
         ${bf('Ставка, %', esc(b.rate))}
-        ${bf('Плавающая', b.floating?'да':'нет')}
+        ${bf('Плавающая ставка', b.floating?`да · ${esc(b.floatType||'—')} · маржа ${esc(b.margin)}%`:'нет')}
         ${bf('Срок, мес.', esc(b.term))}
         ${bf('Периодичность', esc(b.freq))}
         ${bf('Метод погашения', esc(b.method))}
@@ -2044,15 +2665,25 @@ if (typeof document !== 'undefined') {
   /* ---- ВКЛАДКА 3: Транши и освоение ---- */
   function tabTranshi(c,d){
     const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    const cur=c.currency, isFx=cur!=='KGS', fx=FX[cur]||1;              // мультивалюта: курс/≈KGS только для не-KGS
     const trRows=c.tranches.map(t=>{
       const s=disbursedSum(t), rest=(t.amount||0)-s, on=sel&&t.no===sel.no;
+      const fxCells=isFx?`<td style="text-align:right">${money(fx)}</td><td style="text-align:right">${money0(toKgs(t.amount,cur))}</td>`:'';
       return `<tr style="cursor:pointer${on?';background:var(--asubk-nav-active)':''}" onclick="CR.selectDetailTranche(${t.no})">
         <td>№${t.no}</td><td>${esc(t.subject.name)}<br><span style="color:var(--text-muted);font-size:11px">ИНН ${esc(t.subject.inn)}</span></td>
-        <td style="text-align:right">${money(t.amount)}</td><td>${esc(t.plannedDate)}</td>
+        <td style="text-align:right">${money(t.amount)}${isFx?` <span style="color:var(--text-muted);font-size:11px">${esc(cur)}</span>`:''}</td><td>${esc(t.plannedDate)}</td>
         <td style="text-align:right">${money(s)}</td><td style="text-align:right">${money(rest)}</td>
-        <td>${esc(trancheState(t))}</td></tr>`;
+        ${fxCells}<td>${esc(trancheState(t))}</td></tr>`;
     });
-    const dbRows=((sel&&sel.disbursements)||[]).map(x=>`<tr><td>${esc(x.date)}</td><td style="text-align:right">${money(x.amount)}</td><td>${esc(x.order)}</td><td>${esc(x.purpose)}</td><td>${esc(x.doc)}</td></tr>`);
+    const trCols=[{h:'Транш'},{h:'Субъект'},{h:'Сумма',r:1},{h:'План. дата'},{h:'Освоено',r:1},{h:'Остаток',r:1}]
+      .concat(isFx?[{h:'Курс',r:1},{h:'≈KGS суммы',r:1}]:[]).concat([{h:'Состояние'}]);
+    const tot=c.tranches.reduce((a,t)=>{const s=disbursedSum(t);a.amt+=t.amount||0;a.dis+=s;a.rest+=(t.amount||0)-s;return a;},{amt:0,dis:0,rest:0});
+    const totRow=c.tranches.length?`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)">
+      <td colspan="2">Итого освоено</td><td style="text-align:right">${money(tot.amt)}</td><td></td>
+      <td style="text-align:right">${money(tot.dis)}</td><td style="text-align:right">${money(tot.rest)}</td>
+      ${isFx?`<td></td><td style="text-align:right">${money0(toKgs(tot.amt,cur))}</td>`:''}<td></td></tr>`:'';
+    const dbCols=[{h:'Дата'},{h:'Сумма',r:1}].concat(isFx?[{h:'≈KGS',r:1}]:[]).concat([{h:'Плат. поручение'},{h:'Назначение'},{h:'Документ'}]);
+    const dbRows=((sel&&sel.disbursements)||[]).map(x=>`<tr><td>${esc(x.date)}</td><td style="text-align:right">${money(x.amount)}</td>${isFx?`<td style="text-align:right">${money0(toKgs(x.amount,cur))}</td>`:''}<td>${esc(x.order)}</td><td>${esc(x.purpose)}</td><td>${esc(x.doc)}</td></tr>`);
     return `
       <div class="section-h">Распределение суммы договора</div>
       <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
@@ -2062,20 +2693,32 @@ if (typeof document !== 'undefined') {
         <div class="dim"><div class="dl">Доступно к распределению</div><div class="dv">${money(d.allocatable)}</div></div>
       </div>
       <div class="section-h" style="margin-top:22px">Транши (клик — выбор)</div>
-      ${cgrid([{h:'Транш'},{h:'Субъект'},{h:'Сумма',r:1},{h:'План. дата'},{h:'Освоено',r:1},{h:'Остаток',r:1},{h:'Состояние'}], trRows, {empty:'Траншей нет'})}
+      ${cgrid(trCols, trRows.concat(totRow?[totRow]:[]), {empty:'Траншей нет'})}
       <div class="gtoolbar" style="margin-top:12px">
         ${roleBtn('addTranche','Добавить транш','CR.openTrancheModal()')}
         ${actBtn(c,'addDisbursement',{trancheNo:detailTrancheNo,amount:0},'Внести освоение','CR.openDisbModal()','btn btn-primary btn-sm')}
         ${roleBtn('addDisbursement','Закрыть неосвоенный остаток',"CR.stubAction('Закрытие неосвоенного остатка')")}
       </div>
       <div class="section-h" style="margin-top:22px">Освоение транша №${sel?sel.no:'—'}</div>
-      ${cgrid([{h:'Дата'},{h:'Сумма',r:1},{h:'Плат. поручение'},{h:'Назначение'},{h:'Документ'}], dbRows, {empty:'Освоений нет'})}`;
+      ${cgrid(dbCols, dbRows, {empty:'Освоений нет'})}`;
   }
 
   /* ---- ВКЛАДКА 4: Расчёты ---- */
   function tabRaschety(c,d){
     const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
     const st=d.scheduleTotals;
+    const cur=c.currency, isFx=cur!=='KGS', fx=FX[cur]||1;
+    const repaid=d.debt.principal.paid+d.debt.interest.paid+d.debt.penalty.paid;
+    const svod=`
+      <div class="section-h">Свод на ${TODAY}</div>
+      <p class="section-note">Расчёт по леджеру в реальном времени (derive) — не ночной батч-снапшот.${isFx?` Валюта ${esc(cur)}, курс НБКР ${money(fx)}.`:''}</p>
+      <div class="phead-dims" style="grid-template-columns:repeat(5,1fr)">
+        <div class="dim"><div class="dl">Всего освоено</div><div class="dv">${money(d.disbursed)}</div>${isFx?`<div class="src">≈ ${money0(toKgs(d.disbursed,cur))} KGS</div>`:''}</div>
+        <div class="dim"><div class="dl">Всего погашено</div><div class="dv">${money(repaid)}</div>${isFx?`<div class="src">≈ ${money0(toKgs(repaid,cur))} KGS</div>`:''}</div>
+        <div class="dim"><div class="dl">Остаток долга</div><div class="dv">${money(d.debtBalance)}</div>${isFx?`<div class="src">≈ ${money0(d.debtBalanceKgs)} KGS</div>`:''}</div>
+        <div class="dim"><div class="dl">в т.ч. штрафы</div><div class="dv" style="color:${d.debt.penalty.bal>0?'var(--asubk-red)':'inherit'}">${money(d.debt.penalty.bal)}</div></div>
+        <div class="dim"><div class="dl">Всего просрочено</div><div class="dv" style="color:${d.overdueAmount>0?'var(--asubk-red)':'inherit'}">${money(d.overdueAmount)}</div><div class="src">${d.overdueDays} дн.${isFx&&d.overdueAmount>0?` · ≈ ${money0(d.overdueAmountKgs)} KGS`:''}</div></div>
+      </div>`;
     const verRows=((sel&&sel.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver).map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td><td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`);
     const src = calcConsolidated ? c.tranches.flatMap(t=>(t.ledger||[]).map(l=>({t,l}))) : ((sel&&sel.ledger)||[]).map(l=>({t:sel,l}));
     const ledRows=src.map(({t,l})=>`<tr>
@@ -2096,8 +2739,11 @@ if (typeof document !== 'undefined') {
       <p class="section-note">Начисляется на недоосвоенный остаток от плановой даты (ставка ${res.rate}%). Всего: <b>${money(res.totalAmount)}</b> на базу ${money(res.totalBase)}.</p>
       ${cgrid([{h:'Транш'},{h:'База',r:1},{h:'Ставка, %',r:1},{h:'Дней',r:1},{h:'Сумма',r:1}], res.perTranche.map(p=>`<tr><td>${esc(p.trancheId)}</td><td style="text-align:right">${money(p.base)}</td><td style="text-align:right">${esc(p.rate)}</td><td style="text-align:right">${esc(p.days)}</td><td style="text-align:right">${money(p.amount)}</td></tr>`))}`:'';
     const holdRows=(c.accrualHold||[]).map(h=>`<tr><td>${esc(h.from)}</td><td>${esc(h.to||'…')}</td><td>${esc(h.reason)}</td><td>${esc(h.doc)}</td></tr>`);
+    const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
+    const posRows=(sel?trancheScheduleRows(sel):[]).map(r=>{const s=scheduleRowStatus(sel,r);return `<tr><td>№${r.no}</td><td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td><td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
     return `
-      <div class="section-h">График погашения</div>
+      ${svod}
+      <div class="section-h" style="margin-top:22px">График погашения</div>
       <div class="gtoolbar">
         <div class="field" style="max-width:320px"><span class="flabel">Транш</span><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
         <div class="retro-toggle" onclick="CR.setCalcMode(${!calcConsolidated})"><input type="checkbox" ${calcConsolidated?'checked':''} onclick="event.preventDefault()"> консолидировано по кредиту</div>
@@ -2114,6 +2760,8 @@ if (typeof document !== 'undefined') {
       </div>
       <div class="section-h" style="margin-top:22px">Версии графика (транш №${sel?sel.no:'—'})</div>
       ${cgrid([{h:'Версия'},{h:'Статус'},{h:'От даты'},{h:'Строк',r:1}], verRows, {empty:'Версий графика нет — сформируйте'})}
+      <div class="section-h" style="margin-top:22px">График — позиции (транш №${sel?sel.no:'—'})</div>
+      ${cgrid([{h:'№'},{h:'Дата'},{h:'Осн. сумма',r:1},{h:'Проценты',r:1},{h:'Платёж',r:1},{h:'Статус'}], posRows, {empty:'Позиций нет — сформируйте график'})}
       <div class="section-h" style="margin-top:22px">Детальный расчёт ${calcConsolidated?'(консолидировано)':'(транш №'+(sel?sel.no:'—')+')'}</div>
       ${led}
       ${resBlock}
@@ -2124,21 +2772,29 @@ if (typeof document !== 'undefined') {
   /* ---- ВКЛАДКА 5: Платежи (зеркало модуля платежей, Р-5) ---- */
   function tabPlatezhi(c,d){
     const pays=(c.mirror.payments||[]);
+    const ptot={amount:0,principal:0,interest:0,penalty:0};
     const payRows=pays.map(p=>{
       const ed=CR.paymentEditable(c,p);
-      const layers=Object.keys(p.layers||{}).length?Object.entries(p.layers).map(([k,v])=>`${esc(k)}: ${money(v)}`).join(' · '):'—';
+      const L=p.layers||{}, pr=L.principal||0, it=L.interest||0, pe=L.penalty||0;
+      ptot.amount+=p.amount||0; ptot.principal+=pr; ptot.interest+=it; ptot.penalty+=pe;
       return `<tr>
-        <td>${esc(p.num)}</td><td>${esc(p.date)}</td><td style="text-align:right">${money(p.amount)}</td><td>№${esc(p.tranche)}</td>
+        <td>${esc(p.num)}</td><td>${esc(p.date)}</td><td>№${esc(p.tranche)}</td><td style="text-align:right">${money(p.amount)}</td>
+        <td style="text-align:right">${money(pr)}</td><td style="text-align:right">${money(it)}</td><td style="text-align:right">${money(pe)}</td>
+        <td>${esc(p.method||'денежными средствами')}</td>
         <td>${esc(p.reg)}</td><td>${esc(p.match)}</td><td>${p.frozen?'заморожен':'—'}</td>
-        <td>${layers}</td><td>${ed?'<span class="pill info">правка возможна</span>':'<span class="pill neutral">read-only ЦК</span>'}</td></tr>`;
+        <td>${ed?'<span class="pill info">правка возможна</span>':'<span class="pill neutral">read-only ЦК</span>'}</td></tr>`;
     });
+    const payTot=pays.length?`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)">
+      <td colspan="3">Итого</td><td style="text-align:right">${money(ptot.amount)}</td>
+      <td style="text-align:right">${money(ptot.principal)}</td><td style="text-align:right">${money(ptot.interest)}</td><td style="text-align:right">${money(ptot.penalty)}</td>
+      <td></td><td></td><td></td><td></td><td></td></tr>`:'';
     const b=d.debt;
     const drow=(name,x)=>`<tr><td>${name}</td><td style="text-align:right">${money(x.accrued)}</td><td style="text-align:right">${money(x.paid)}</td><td style="text-align:right;color:${x.overdue>0?'var(--asubk-red)':'inherit'}">${money(x.overdue)}</td><td style="text-align:right">${money(x.bal)}</td></tr>`;
     const courts=(c.mirror.collection||[]).filter(x=>/суд|решени/i.test((x.subject||'')+(x.phase||'')));
     return `
       <div class="section-h">Платежи ${lockHtml()}</div>
       <p class="section-note">Зеркало модуля платежей. Три оси на платёж: регистрация · сопоставление · заморозка. Слои показаны, но не редактируются здесь.</p>
-      ${cgrid([{h:'№'},{h:'Дата'},{h:'Сумма',r:1},{h:'Транш'},{h:'Регистрация'},{h:'Сопоставление'},{h:'Заморозка'},{h:'Слои'},{h:'Правка'}], payRows, {empty:'Платежей нет'})}
+      ${cgrid([{h:'№'},{h:'Дата'},{h:'Транш'},{h:'Сумма',r:1},{h:'Осн.',r:1},{h:'Проц.',r:1},{h:'Штраф',r:1},{h:'Вид'},{h:'Регистрация'},{h:'Сопоставление'},{h:'Заморозка'},{h:'Правка'}], payRows.concat(payTot?[payTot]:[]), {empty:'Платежей нет'})}
       <div class="mirror-src">Источник: модуль платежей (Р-5). Ручной ввод — вызов формы владельца, платёж повисает «Ожидает ЦК» и не двигает остатки до подтверждения ЦК.</div>
       <div class="gtoolbar" style="margin-top:12px">${roleBtn('savePayment','Внести платёж вручную','CR.openPaymentModal()','btn btn-primary btn-sm')}</div>
       ${courts.length?`<div class="info-plate">${svgInfo()}<div>Есть судебное решение: возможна множественность слоёв начисления (шов №5, §10.4) — сначала сумма по решению, затем договор. Матрица очередей — вне макета.</div></div>`:''}
@@ -2151,20 +2807,32 @@ if (typeof document !== 'undefined') {
   /* ---- ВКЛАДКА 6: Обеспечение (зеркало залогового модуля, Р-7) ---- */
   function tabObespechenie(c,d){
     const cov=d.coverage, light=cov.ok?'var(--asubk-green)':'var(--asubk-red)';
+    const pledgeList=(c.mirror.pledges||[]);
     const pledgeRows=[];
-    for(const p of (c.mirror.pledges||[])) for(const it of (p.items||[])){
+    let sumAppr=0, sumPledge=0;
+    for(const p of pledgeList) for(const it of (p.items||[])){
+      sumAppr+=it.appraised||0; sumPledge+=it.pledgeValue||0;
       pledgeRows.push(`<tr>
-        <td>${esc(p.contractNum)}</td><td>${esc(it.name)}</td><td>${esc(it.kind)}</td>
+        <td>${esc(p.contractNum)}</td><td>${esc(p.notary||'—')}</td><td>${esc(it.name)}</td><td>${esc(it.kind)}</td>
         <td style="text-align:right">${money(it.appraised)}</td><td style="text-align:right">${money(it.pledgeValue)}</td><td style="text-align:right">${Math.round((it.share==null?1:it.share)*100)}%</td>
         <td>${p.liquid?'<span class="pill low">ликвид</span>':'<span class="pill mid">неликвид</span>'}</td>
         <td>${p.ban?'<span class="pill info">запрет</span>':'—'}</td>
         <td>${(p.otherCredits&&p.otherCredits.length)?esc(p.otherCredits.join(', ')):'—'}</td></tr>`);
     }
     const bg=c.mirror.bankGuarantee, guars=(c.mirror.guarantees||[]);
+    const insp=(c.mirror.inspections||[]);
+    const inspRows=insp.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.obj)}</td><td>${esc(x.curator)}</td><td><span class="pill ${x.ok?'low':'high'}">${esc(x.res)}</span></td><td>${x.file?`<a class="lnk" onclick="CR.toast('Просмотр вложения — вне объёма макета');return false">${esc(x.file)}</a>`:'—'}</td></tr>`);
+    const svod = pledgeList.length ? `
+      <div class="phead-dims" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+        <div class="dim"><div class="dl">Действующих договоров</div><div class="dv">${pledgeList.length} ед.</div></div>
+        <div class="dim"><div class="dl">Σ оценочная</div><div class="dv">${money(sumAppr)}</div></div>
+        <div class="dim"><div class="dl">Σ залоговая</div><div class="dv">${money(sumPledge)}</div></div>
+      </div>` : '';
     return `
       <div class="section-h">Обеспечение ${lockHtml()}</div>
       <p class="section-note">Зеркало залогового модуля. Залоговые договоры создаются только в модуле залога (Р-7) — здесь доступна привязка существующего.</p>
-      ${cgrid([{h:'Договор залога'},{h:'Предмет'},{h:'Вид'},{h:'Оценочная',r:1},{h:'Залоговая',r:1},{h:'Доля'},{h:'Ликвидность'},{h:'Запрет отчуждения'},{h:'Также обеспечивает'}], pledgeRows, {empty:'Обеспечение не привязано'})}
+      ${svod}
+      ${cgrid([{h:'Договор залога'},{h:'Нотариус'},{h:'Предмет'},{h:'Вид'},{h:'Оценочная',r:1},{h:'Залоговая',r:1},{h:'Доля'},{h:'Ликвидность'},{h:'Запрет отчуждения'},{h:'Также обеспечивает'}], pledgeRows, {empty:'Обеспечение не привязано'})}
       <div class="mirror-src">Источник: модуль залога (Р-7). Данные read-only.</div>
       <div class="section-h" style="margin-top:22px">Покрытие</div>
       <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
@@ -2176,8 +2844,13 @@ if (typeof document !== 'undefined') {
       <div class="mirror-src">База покрытия: ${esc(cov.source)}. Банковская гарантия входит в индекс, поручительство — нет.</div>
       ${bg?`<div class="section-h" style="margin-top:22px">Банковская гарантия (в индексе)</div><div class="f2">${fld('Банк',esc(bg.bank))}${fld('Сумма',money(bg.amount))}${fld('Действует до',esc(bg.till))}</div>`:''}
       ${guars.length?`<div class="info-plate">${svgInfo()}<div>Поручительство (${guars.map(g=>esc(g.party)).join(', ')}) — параллельный слой обеспечения, в индекс покрытия НЕ входит (открытый вопрос §10.2).</div></div>`:''}
+      <div class="section-h" style="margin-top:22px">Обследования предметов залога ${lockHtml()}</div>
+      ${cgrid([{h:'Дата'},{h:'Договор / предмет'},{h:'Куратор'},{h:'Результат'},{h:'Вложение'}], inspRows, {empty:'Обследований не проводилось'})}
+      <div class="mirror-src">Источник: модуль залога (Р-7). Акты обследования read-only — заводятся в модуле залога.</div>
       <div class="gtoolbar" style="margin-top:16px">
         ${roleBtn('linkPledge','Привязать существующий','CR.openPledgePicker()','btn btn-primary btn-sm')}
+        <button class="btn btn-secondary btn-sm" onclick="CR.toast('Договор залога заводится в модуле залога (Р-7) — вне объёма макета')">+ Договор залога</button>
+        <button class="btn btn-secondary btn-sm" onclick="CR.toast('Договор поручительства заводится в модуле залога (Р-7) — вне объёма макета')">+ Договор поручительства</button>
         <button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля залога — вне объёма макета')">Открыть в модуле залога</button>
       </div>`;
   }
@@ -2188,8 +2861,9 @@ if (typeof document !== 'undefined') {
     const byDays=d.overdueDays>=181?'высокий':d.overdueDays>=1?'средний':'низкий';
     const byGroup=(grp==='C'||grp==='D')?'высокий':grp==='B'?'средний':'низкий';
     const rs=c.mirror.restructuring||{count:0,active:null};
-    const collRows=(c.mirror.collection||[]).map(x=>`<tr><td>${esc(x.processId)}</td><td>${esc(x.contour)}</td><td>${esc(x.phase)}</td><td>${esc(x.subject)}</td><td style="text-align:right">${money(x.claim)}</td><td>${esc(x.since)}</td></tr>`);
+    const collRows=(c.mirror.collection||[]).map(x=>`<tr><td>${esc(x.processId)}</td><td>${esc(x.contour)}</td><td>${esc(x.phase)}</td><td>${esc(x.subject)}</td><td style="text-align:right">${money(x.claim)}</td><td>${esc(x.since)}</td><td class="text-muted" style="font:var(--font-label)">${x.lastEvent?esc(x.lastEvent):'—'}</td></tr>`);
     const hasBankruptcy=d.overlays.some(o=>o.kind==='bankruptcy');
+    const courtRows=(c.mirror.court||[]).map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.kind)}</td><td>${esc(x.org)}</td><td><span class="pill ${x.ok?'low':'mid'}">${esc(x.res)}</span></td><td>${x.file?`<a class="lnk" onclick="CR.toast('Просмотр документа — вне объёма макета');return false">${esc(x.file)}</a>`:'—'}</td></tr>`);
     return `
       <div class="section-h">Категория риска — worst-of</div>
       <div class="cat-expand">
@@ -2200,17 +2874,21 @@ if (typeof document !== 'undefined') {
       ${d.overlays.some(o=>o.kind==='suppress181')?`<div class="info-plate">${svgInfo()}<div>Подавление 181-го дня активно: дни просрочки для категории ограничены 180 (активная реструктуризация / пауза начисления).</div></div>`:''}
 
       <div class="section-h" style="margin-top:22px">Реструктуризация ${lockHtml()}</div>
-      ${rs.active?`<div class="f2">${fld('Стадия',esc(rs.active.stage))}${fld('Дедлайн',esc(rs.active.deadline))}${fld('Всего заявок',esc(rs.count))}</div>`
+      ${rs.active?`<div class="f2">${fld('Стадия',esc(rs.active.stage))}${fld('Дедлайн',esc(rs.active.deadline))}${rs.active.amount?fld('Сумма реструктуризации',money(rs.active.amount)+(rs.active.currency&&rs.active.currency!=='KGS'?' '+esc(rs.active.currency):'')):''}${fld('Всего заявок',esc(rs.count))}</div>
+        <p class="section-note">Влияние на категорию: ${rs.active.overlay181?'<b>оверлей подавления 181-го дня</b> — до утверждения категория не растёт.':'оверлей снят — категория считается по факту.'}</p>`
         :`<p class="section-note">Активной реструктуризации нет. Всего заявок: ${rs.count}.</p>`}
       <div class="mirror-src">Источник: модуль реструктуризации (Р-16). Read-only — из кредита не заводится.</div>
+      <div class="gtoolbar" style="margin-top:10px"><button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля реструктуризации — вне объёма макета')">Открыть в модуле реструктуризации</button></div>
 
       <div class="section-h" style="margin-top:22px">Взыскание ${lockHtml()}</div>
-      ${cgrid([{h:'Процесс'},{h:'Контур'},{h:'Фаза'},{h:'Предмет'},{h:'Требование',r:1},{h:'С даты'}], collRows, {empty:'Процессов взыскания нет'})}
-      <div class="mirror-src">Источник: модуль взыскания (Р-16). Контуры К0–К7. Read-only.</div>
+      ${cgrid([{h:'Процесс'},{h:'Контур'},{h:'Фаза'},{h:'Предмет'},{h:'Требование',r:1},{h:'С даты'},{h:'Последнее событие'}], collRows, {empty:'Процессов взыскания нет'})}
+      <div class="mirror-src">Источник: модуль взыскания (Р-16). Контуры К0–К7. Иерархия процедура→фаза→событие — в модуле; здесь последнее событие строкой. Read-only.</div>
+      <div class="gtoolbar" style="margin-top:10px"><button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля взыскания — вне объёма макета')">Открыть в модуле взыскания</button></div>
 
-      <div class="section-h" style="margin-top:22px">Банкротство ${lockHtml()}</div>
+      <div class="section-h" style="margin-top:22px">Банкротство и судебные решения ${lockHtml()}</div>
       <p class="section-note">${hasBankruptcy?'Признаки банкротства зафиксированы (зеркало модуля взыскания).':'Процедур банкротства нет.'}</p>
-      <div class="mirror-src">Источник: модуль взыскания (Р-16).</div>
+      ${cgrid([{h:'Дата'},{h:'Вид'},{h:'Орган / суд'},{h:'Результат'},{h:'Документ'}], courtRows, {empty:'Судебных решений и процедур банкротства нет'})}
+      <div class="mirror-src">Источник: модуль взыскания (Р-16). Read-only.</div>
 
       <div class="gtoolbar" style="margin-top:16px">
         ${actBtn(c,'repay',{},'Погасить (закрыть)','CR.openRepayModal()','btn btn-tint btn-sm')}
@@ -2223,9 +2901,15 @@ if (typeof document !== 'undefined') {
     const map={'принят':'low','не требуется':'neutral','на проверке':'info','загружен':'info','требуется':'mid','отклонён':'high','просрочен':'high'};
     return `<span class="pill ${map[s]||'neutral'}">${esc(s||'—')}</span>`;
   }
+  function noteTypePill(t){
+    const map={'Обычное':'neutral','Примечание куратора':'info','Примечание (ОПП)':'mid','Примечание (залог)':'low','Примечание (ОИП)':'neutral'};
+    return `<span class="pill ${map[t]||'neutral'}">${esc(t||'Обычное')}</span>`;
+  }
   function tabDosye(c,d){
     const docRows=(c.docs||[]).map(x=>`<tr><td>${esc(x.kind)}</td><td>${esc(x.name)}</td><td>${docState(x.state)}</td><td>${esc(x.date)}</td><td>${esc(x.file)}</td></tr>`);
     const tu=c.targetUse||{};
+    const notes=(c.notes||[]);
+    const noteRows=notes.map(n=>`<div class="hrow"><div class="hwhen">${noteTypePill(n.type)} · ${esc(n.author)}</div><div class="hwhat">${esc(n.text)}</div></div>`);
     const auditRows=(c.audit||[]).slice().reverse().map(a=>`<div class="hrow"><div class="hwhen">${esc(a.when)} · ${esc(a.who)}</div><div class="hwhat">${esc(a.what)}</div></div>`);
     return `
       <div class="section-h">Документы кредита</div>
@@ -2239,6 +2923,14 @@ if (typeof document !== 'undefined') {
         ${fld('Мер реагирования', esc((tu.measures||[]).length))}
         ${fld('Решение Комитета (нецелевое)', tu.committeeDecision?esc(tu.committeeDecision.num||'есть'):null)}
       </div>
+
+      <div class="section-h" style="margin-top:22px">Примечания</div>
+      <p class="section-note">Человеческие заметки куратора и подразделений (редактируемые) — в отличие от системного append-only журнала ниже.</p>
+      <div class="gtoolbar">
+        <div class="field" style="max-width:240px"><span class="flabel">Тип</span><div class="control"><select onchange="CR.filterNotes(this.value)"><option value="">Все</option><option>Обычное</option><option>Примечание куратора</option><option>Примечание (ОПП)</option><option>Примечание (залог)</option><option>Примечание (ОИП)</option></select></div></div>
+        ${roleBtn('addNote','+ Примечание','CR.stubAction(\'Добавление примечания\')','btn btn-secondary btn-sm')}
+      </div>
+      <div class="hist" id="cr-notes">${noteRows.length?noteRows.join(''):'<div class="hrow"><div class="hwhat">Примечаний нет</div></div>'}</div>
 
       <div class="section-h" style="margin-top:22px">Журнал (append-only)</div>
       <div class="gtoolbar"><div class="field" style="max-width:360px"><span class="flabel">Фильтр по типу</span><div class="control"><input placeholder="например: addDisbursement" oninput="CR.filterAudit(this.value)"></div></div></div>
@@ -2276,6 +2968,8 @@ if (typeof document !== 'undefined') {
   CR.stubAction=function(name){ toast('Действие «'+name+'» — открывается в модуле-владельце (вне интерактивного демо)'); };
   CR.filterAudit=function(q){ q=(q||'').toLowerCase(); const host=document.getElementById('cr-audit'); if(!host) return;
     [...host.querySelectorAll('.hrow')].forEach(el=>{ el.style.display = el.textContent.toLowerCase().includes(q)?'':'none'; }); };
+  CR.filterNotes=function(t){ t=(t||'').toLowerCase(); const host=document.getElementById('cr-notes'); if(!host) return;
+    [...host.querySelectorAll('.hrow')].forEach(el=>{ el.style.display = (!t || el.textContent.toLowerCase().includes(t))?'':'none'; }); };
   /* ============================================================
      МОДАЛКИ (Task 8) — единый openModal/closeModal, каждая: role+terminal guard → форма →
      мутация CR.* (внутри её gate() ре-валидируется) → при провале modalErr (§0.3, не молча),
@@ -2541,8 +3235,16 @@ if (typeof document !== 'undefined') {
   /* экспорт DOM-обвязки на CR (onclick-строки разметки живут в глобальной области) */
   CR._sel = null;
   CR.renderList = renderList; CR.renderRows = renderRows; CR.renderRole = renderRole;
+  CR.onRegionChange = onRegionChange; CR.resetFilters = resetFilters;
+  CR.gotoPage = gotoPage; CR.setPageSize = setPageSize;
   CR.selectRow = selectRow; CR.openDetail = openDetail; CR.backToList = backToList;
   CR.resetDemo = resetDemo; CR.openCreatePicker = openCreatePicker; CR.pickApplication = pickApplication;
+
+  /* split-меню (печатные формы) закрывается кликом мимо — карточка перерисовывается
+     целиком, поэтому слушатель вешается один раз на документ, а не на кнопку. */
+  document.addEventListener('click', e => {
+    document.querySelectorAll('.split.open').forEach(s => { if (!s.contains(e.target)) s.classList.remove('open'); });
+  });
 
   renderNav();
   renderList();          // реестр §5.1 (Р-19); карточка (8 вкладок) — Task 7
