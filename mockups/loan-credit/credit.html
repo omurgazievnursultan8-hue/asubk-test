@@ -1024,6 +1024,9 @@ function basisGroups(credit){
                      effectiveFrom:r.effectiveFrom, trancheNo:t.no, note:r.note });
       if (!g.trancheNos.includes(t.no)) g.trancheNos.push(t.no);
       if (pd(r.effectiveFrom) < pd(g.effectiveFrom)) g.effectiveFrom = r.effectiveFrom;
+      // g.retro здесь — «факт задним числом» у ЭТОЙ группы журнала; не путать
+      // с BASIS_KINDS[kind].retro — «разрешено ли задним числом» у вида
+      // основания (Г-19). Разный смысл, случайное совпадение имени поля.
       if (r.effectiveFrom && r.createdAt && pd(r.effectiveFrom) < pd(r.createdAt)) g.retro = true;
     }
   }
@@ -1031,9 +1034,6 @@ function basisGroups(credit){
   out.forEach(g => { g.trancheNos.sort((a,b) => a-b);
     g.items.sort((a,b) => PARAM_KEYS.indexOf(a.param)-PARAM_KEYS.indexOf(b.param) || a.trancheNo-b.trancheNo); });
   return out.sort((a,b) => pd(b.effectiveFrom) - pd(a.effectiveFrom));
-  // Примечание: локальное поле g.retro выше — «факт задним числом» у группы
-  // журнала; не путать с BASIS_KINDS[kind].retro ниже — «разрешено ли задним
-  // числом» у вида основания. Разный смысл, случайное совпадение имени.
 }
 /* retroFlags — Д-5: записи, вступившие в силу раньше дня своего создания.
    Автопересчёта нет: флаги питают красную плашку «требуется перегенерация
@@ -1218,7 +1218,7 @@ function seedDb(){
     baseConditions: condDefaults({ rate:9, term:36, floating:true, floatType:'учётная ставка НБКР', margin:3 }),
     // ДС, рождённое реструктуризацией (не из карточки кредита) — source='реструктуризация' (Р-4/Р-16);
     // editConditions всё равно заблокирован Г-9 (lifecycle≠«Проект»), правки условий кредита нет ни при каком source.
-    agreements:[{ num:'ДС-РС-1004', date:'12.06.2026', source:'реструктуризация', scan:'ds-rs-1004.pdf' }],
+    agreements:[{ num:'ДС-РС-1004', date:'01.05.2026', source:'реструктуризация', scan:'ds-rs-1004.pdf' }],
     tranches:[
       mkTranche({ id:'K-4-T1', no:1, subject:{ inn:'04512199600901', name:'ОсОО «Иссык-Куль Ресорт»' },
         amount:600000, plannedDate:'10.11.2025',
@@ -1570,21 +1570,22 @@ function seedDb(){
 
   /* Демо: ДС-РС-1004 кредита К-4 — ставка 9→7 и срок 36→48 с 01.05.2026.
      Раньше лежало в agreements[].before/after; теперь — записи (Р-21).
-     createdAt=effectiveFrom (не 12.06.2026 — дата самого ДС): доп. соглашение
-     не должно быть ретроспективным (Г-19, agreement.retro=false), иначе #35
-     ложно ловит К-4 наравне с К-3. */
+     Триплет basis.date=effectiveFrom=createdAt='01.05.2026' согласован:
+     доп. соглашение не должно быть ретроспективным (Г-19, agreement.retro=
+     false), иначе #35 ложно ловит К-4 наравне с К-3, а журнал (Task 7+)
+     отрисовал бы «документ от 12.06.26 · вступает 01.05.26» без ретро-плашки. */
   const k4 = credits.find(c => c.id === 'K-4');
   if (k4) for (const t of k4.tranches){
     t.conditionRecords.push(mkConditionRecord({
       param:'rate', value:7, effectiveFrom:'01.05.2026',
       basis:{ kind:'agreement', ref:'ДС-РС-1004',
-              label:'Доп. соглашение ДС-РС-1004 (реструктуризация)', date:'12.06.2026' },
+              label:'Доп. соглашение ДС-РС-1004 (реструктуризация)', date:'01.05.2026' },
       note:'Реструктуризация: ставка снижена', createdAt:'01.05.2026'
     }));
     t.conditionRecords.push(mkConditionRecord({
       param:'term', value:48, effectiveFrom:'01.05.2026',
       basis:{ kind:'agreement', ref:'ДС-РС-1004',
-              label:'Доп. соглашение ДС-РС-1004 (реструктуризация)', date:'12.06.2026' },
+              label:'Доп. соглашение ДС-РС-1004 (реструктуризация)', date:'01.05.2026' },
       note:'Реструктуризация: срок продлён', createdAt:'01.05.2026'
     }));
   }
@@ -2017,6 +2018,8 @@ function gate(credit, action, ctx = {}){
         if (!PARAM_KEYS.includes(rec.param)) r.push('Неизвестный параметр условия: ' + rec.param);
         if (!rec.trancheNos || !rec.trancheNos.length)
           r.push('Не выбран ни один транш для условия «' + paramLabel(rec.param) + '»');
+        else for (const no of rec.trancheNos)
+          if (!credit.tranches.some(t => t.no === no)) r.push('Транш №' + no + ' не найден');
         if (!rec.effectiveFrom){ r.push('Дата вступления в силу обязательна («' + paramLabel(rec.param) + '»)'); continue; }
         if (credit.date && pd(rec.effectiveFrom) < pd(credit.date))
           r.push('Дата вступления не может быть раньше даты договора ' + credit.date + ' (Г-18)');      // Г-18
@@ -2254,8 +2257,7 @@ function addConditionRecords(credit, ctx){
   let added = 0;
   for (const rec of ctx.records){
     for (const no of rec.trancheNos){
-      const t = credit.tranches.find(x => x.no === no);
-      if (!t) continue;
+      const t = credit.tranches.find(x => x.no === no);          // гейт уже проверил, что номер резолвится
       const row = mkConditionRecord({ param:rec.param, value:rec.value,
         effectiveFrom:rec.effectiveFrom, basis, note:rec.note || '' });
       t.conditionRecords.push(row);

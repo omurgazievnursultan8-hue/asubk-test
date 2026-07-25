@@ -410,11 +410,20 @@ const pd = CR.pd;
   /* Г-10: суд без ссылки на документ */
   const g10 = CR.addConditionRecords(c, { basis:{ kind:'court', ref:'', label:'' },
     records:[{ param:'rate', value:5, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'x' }] });
+  /* несуществующий номер транша — гейт должен ловить, а не молча пропускать (added:0) */
+  const gBadTranche = CR.addConditionRecords(c, mk({ records:[{ param:'rate', value:5,
+    effectiveFrom:CR.TODAY, trancheNos:[999], note:'' }] }));
   /* Г-21: функции удаления записей в API нет */
   const noDelete = Object.keys(CR).every(k => !/^(remove|delete).*[Cc]ondition/.test(k));
-  ok(36, !g18.ok && !g19bad.ok && !g20bad.ok && g20ok.ok && !g10.ok && noDelete
-      && CR.conditionsAt(t, CR.TODAY).rate === 5,
-     `г18=${g18.ok} г19=${g19bad.ok} г20=${g20bad.ok}/${g20ok.ok} г10=${g10.ok} noDelete=${noDelete}`);
+  const reasonsOk = g18.reasons.some(s => /Г-18/.test(s))
+    && g19bad.reasons.some(s => /Г-19/.test(s))
+    && g20bad.reasons.some(s => /Г-20/.test(s))
+    && g10.reasons.some(s => /Г-10/.test(s))
+    && gBadTranche.reasons.some(s => /транш.*№?\s*999|999.*транш/i.test(s));
+  ok(36, !g18.ok && !g19bad.ok && !g20bad.ok && g20ok.ok && !g10.ok && !gBadTranche.ok
+      && noDelete && reasonsOk && CR.conditionsAt(t, CR.TODAY).rate === 5,
+     `г18=${g18.ok} г19=${g19bad.ok} г20=${g20bad.ok}/${g20ok.ok} г10=${g10.ok} badTranche=${gBadTranche.ok} ` +
+     `noDelete=${noDelete} reasonsOk=${reasonsOk} g18r=${JSON.stringify(g18.reasons)} badTr=${JSON.stringify(gBadTranche.reasons)}`);
 })();
 
 const pass = results.filter(r => r.pass).length;
