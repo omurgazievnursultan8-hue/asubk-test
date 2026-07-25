@@ -255,6 +255,34 @@ const pd = CR.pd;
      `code=${strippedHasCode} deleteBtn=${deleteBtn}`);
 })();
 
+/* 29. Р-21: первичные записи условий заведены на каждом транше, и срез на TODAY
+       совпадает с прежним хранимым t.conditions (регрессия переезда). */
+(() => { const db = CR.seedDb();
+  let bad = [], noRecs = [];
+  for (const c of db.credits) for (const t of c.tranches){
+    if (!(t.conditionRecords && t.conditionRecords.length)) { noRecs.push(t.id); continue; }
+    const at = CR.conditionsAt(t, CR.TODAY);
+    for (const k of CR.PARAM_KEYS) if (String(at[k]) !== String(t.conditions[k])) bad.push(t.id+'.'+k);
+  }
+  ok(29, noRecs.length===0 && bad.length===0,
+     `безЗаписей=${noRecs.slice(0,3)} расхождения=${bad.slice(0,5)}`);
+})();
+/* 30. Реестр параметров — ровно 10 ключей, без параметров расчётного движка. */
+(() => {
+  const expect = ['rate','reserveRate','penaltyMain','penaltyInt','term','freq','method',
+                  'graceMain','graceInterest','graceAccrual'];
+  const same = CR.PARAM_KEYS.length===expect.length && expect.every(k => CR.PARAM_KEYS.includes(k));
+  const noEngine = !CR.PARAM_KEYS.includes('dayMethod') && !CR.PARAM_KEYS.includes('queue')
+                && !CR.PARAM_KEYS.includes('penaltyMaxPct');
+  ok(30, same && noEngine, `keys=${CR.PARAM_KEYS.join(',')}`);
+})();
+/* 31. conditionsAt на дату до первой записи — пустой объект, без исключения. */
+(() => { const db = CR.seedDb(); const t = db.credits[0].tranches[0];
+  let threw = false, empty = false;
+  try { empty = Object.keys(CR.conditionsAt(t, '01.01.2000')).length === 0; } catch(e){ threw = true; }
+  ok(31, !threw && empty, `threw=${threw}`);
+})();
+
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
 results.forEach(r => console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`));

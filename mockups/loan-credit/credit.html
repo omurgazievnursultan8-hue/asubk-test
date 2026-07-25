@@ -237,7 +237,7 @@
       Макет: простой календарь (сб/вс), без праздников.
 
   SMOKE (node)
- SMOKE (node) 2026-07-25 · 32/32 PASS
+ SMOKE (node) 2026-07-25 · 35/35 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -270,6 +270,11 @@
    #27b ✓
    #18 ✓
    #28 ✓
+   #29 ✓
+   #30 ✓
+   #31 ✓
+
+
 
 
 
@@ -950,6 +955,79 @@ function condDefaults(over){                        // базовый компл
     reserveRate:0
   }, over || {});
 }
+/* ---- Р-21: реестр параметров-условий. Меняться основанием может только то,
+   что здесь перечислено. dayMethod/queue — параметры расчётного движка
+   («Расчёты», шаг 14), судом и ПП не меняются; penaltyMaxPct мёртв (шаг 4). ---- */
+const PARAMS = [
+  { key:'rate',          label:'Ставка, %',                 kind:'num' },
+  { key:'reserveRate',   label:'Ставка резерва, %',         kind:'num' },
+  { key:'penaltyMain',   label:'Пеня по ОД, %/дн',          kind:'num' },
+  { key:'penaltyInt',    label:'Пеня по %, %/дн',           kind:'num' },
+  { key:'term',          label:'Срок, мес.',                kind:'num' },
+  { key:'freq',          label:'Периодичность',             kind:'enum',
+    options:['ежемесячно','ежеквартально','раз в полгода','ежегодно'] },
+  { key:'method',        label:'Метод погашения',           kind:'enum',
+    options:['аннуитет','равными долями','в конце срока'] },
+  { key:'graceMain',     label:'Льгота по ОД, мес.',        kind:'num' },
+  { key:'graceInterest', label:'Льгота по %, мес.',         kind:'num' },
+  { key:'graceAccrual',  label:'Отсрочка начисления, мес.', kind:'num' }
+];
+const PARAM_KEYS = PARAMS.map(p => p.key);
+const paramLabel = k => (PARAMS.find(p => p.key === k) || {}).label || k;
+
+/* Типы основания. owned=false → документ живёт в другом модуле, кредит только
+   ссылается (Д-4, паттерн Р-7/Р-16). retro=true → допустима дата вступления
+   в прошлом (Г-19): внешний акт задним числом штатен, сделка сторон — нет. */
+const BASIS_KINDS = {
+  application:{ label:'Заявка / комиссия',           icon:'▪',  owned:true,  retro:false },
+  agreement:  { label:'Доп. соглашение',             icon:'ДС', owned:true,  retro:false },
+  court:      { label:'Решение суда',                icon:'⚖',  owned:false, retro:true  },
+  govAct:     { label:'Постановление правительства', icon:'ПП', owned:false, retro:true  }
+};
+
+let _crSeq = 0;
+/* CONDITION RECORD (Р-21) — запись «параметр × значение × дата вступления × основание».
+   Лежит на ТРАНШЕ (Д-3): поля scope нет, транш и есть область действия. */
+function mkConditionRecord(over){
+  return Object.assign({
+    id:'CR-' + (++_crSeq), param:'', value:null, effectiveFrom:'',
+    basis:{ kind:'application', ref:'', label:'', date:'' },
+    note:'', createdAt:TODAY, createdBy:currentRole
+  }, over || {});
+}
+/* Порядок применения записей: по дате вступления; при равной дате — позже
+   созданная; при равном createdAt — больший id (детерминизм сортировки). */
+function crOrder(a, b){
+  const d = pd(a.effectiveFrom) - pd(b.effectiveFrom);
+  if (d) return d;
+  const c = pd(a.createdAt) - pd(b.createdAt);
+  if (c) return c;
+  return String(a.id).localeCompare(String(b.id), undefined, { numeric:true });
+}
+/* conditionsAt(tranche, date) — действующий комплект транша на дату (Р-11, рантайм). */
+function conditionsAt(tranche, date){
+  const lim = pd(date || TODAY), out = {};
+  ((tranche && tranche.conditionRecords) || [])
+    .filter(r => r.effectiveFrom && pd(r.effectiveFrom) <= lim)
+    .sort(crOrder)
+    .forEach(r => { out[r.param] = r.value; });     // позже по порядку перекрывает раннее
+  return out;
+}
+/* Первичный комплект (basis.kind='application'): условия, пришедшие из заявки.
+   effectiveFrom = дата договора; ref = протокол комиссии из origin (Р-18). */
+function seedPrimaryRecords(credit){
+  for (const t of credit.tranches){
+    const src = t.conditions || credit.baseConditions || condDefaults();
+    t.conditionRecords = PARAM_KEYS.map(k => mkConditionRecord({
+      param:k, value:src[k], effectiveFrom:credit.date,
+      basis:{ kind:'application',
+              ref:credit.origin.commissionId || credit.origin.applicationId || '',
+              label:'Заявка ' + (credit.origin.applicationId || '—') + ' · комиссия ' +
+                    (credit.origin.commissionId || '—'), date:credit.date },
+      note:'Первичный комплект условий из заявки', createdAt:credit.date
+    }));
+  }
+}
 function emptyMirror(over){                          // все зеркала (Р-5…Р-10, Р-16)
   return deepMerge({
     curatorship:[], pledges:[], guarantees:[], bankGuarantee:null,
@@ -964,7 +1042,7 @@ function emptyMirror(over){                          // все зеркала (�
 function mkTranche(over){                            // TRANCHE (§3)
   return deepMerge({
     id:'', no:1, subject:{ inn:'', name:'' }, amount:0, plannedDate:'',
-    conditions: condDefaults(), disbursements:[], schedules:[], ledger:[]
+    conditions: condDefaults(), conditionRecords: [], disbursements:[], schedules:[], ledger:[]
   }, over || {});
 }
 function mkCredit(over){                             // CREDIT (§3) — обязательный минимум полей
@@ -1480,6 +1558,8 @@ function seedDb(){
     { n:'ОсОО «Джумгал-Сыр»',        r:'Нарынская',        d:'Джумгальский',    p:'ПРГ-5', c:K, k:'Оборотный',      pu:'Сыроварня',                a:175000, cur:'RUB', od:8, cat:'A', cov:'bank' },
   ];
   scen.forEach((s, i) => credits.push(mkScen(s, i)));
+
+  credits.forEach(seedPrimaryRecords);          // Р-21: первичные записи по всем кредитам
 
   return { credits, applications, pledgesRegistry };
 }
@@ -2109,6 +2189,7 @@ window.CR = {
   seedDb,
   db: null,
   derive, buildSchedule, gate, canRole,
+  conditionsAt, mkConditionRecord, PARAMS, PARAM_KEYS, paramLabel, BASIS_KINDS,
   generateSchedule, holdAccrual,
   saveContractAmount, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, closeCredit, linkPledge,
