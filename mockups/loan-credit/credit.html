@@ -276,71 +276,6 @@
    #32 ✓
    #33 ✓
    #34 ✓
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 -->
 <style>
 
@@ -3053,7 +2988,7 @@ if (typeof document !== 'undefined') {
 
         <div class="pcard wide">
           <div class="section-h">Доп. соглашения (Р-4)</div>
-          <p class="section-note">Единственный способ изменить условия после регистрации (Г-9). Предыдущая активная версия архивируется, не удаляется.</p>
+          <p class="section-note">Единственный способ изменить условия после регистрации (Г-9). Реестр документов — сами значения условий несут записи (Р-21), диф читается из журнала по основаниям.</p>
           ${cgrid([{h:'Номер'},{h:'Дата'},{h:'Источник'},{h:'Изменение'},{h:'Статус'}], agRows, {empty:'Соглашений нет'})}
           <div class="gtoolbar">${roleBtn('addAgreement','Оформить доп. соглашение','CR.openAgrModal()','btn btn-primary btn-sm')}</div>
         </div>
@@ -3490,38 +3425,28 @@ if (typeof document !== 'undefined') {
     const r=CR.generateSchedule(c,no,{from}); if(r&&r.ok===false){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); detailTrancheNo=no; toast('График сформирован: версия v'+(r.ver||'?'),'ok'); rerenderDetail(); };
 
-  /* 4) agreement/ДС (addAgreement, Г-10) — конструктор: поля → значения → diff-предпросмотр → реквизиты → активация */
-  CR.openAgrModal=function(){ const c=modalGuard('addAgreement'); if(!c) return; const b=c.baseConditions;
-    const body=`<p class="section-note">Изменение условий после регистрации — только доп. соглашением (Р-4). Активируется при наличии номера и даты (Г-10). Предыдущая версия архивируется.</p>
+  /* 4) agreement/ДС (addAgreement, Г-10) — форма регистрирует только ДОКУМЕНТ.
+     Значения условий документом больше не переносятся (Task 4): их несут записи,
+     которые пишет addConditionRecords (Task 6) — форма ввода значений и есть
+     конструктор из Task 10, здесь её сознательно нет, чтобы модалка не обещала
+     то, чего addAgreement больше не делает. */
+  CR.openAgrModal=function(){ const c=modalGuard('addAgreement'); if(!c) return;
+    const body=`<p class="section-note">Форма регистрирует документ доп. соглашения (Р-4, Г-10). Значения условий документом не переносятся — их несёт запись условий (Р-21), которая меняется через «Изменить условия» отдельным действием.</p>
       <div class="mform">
         <div class="field req"><span class="flabel">Номер ДС</span><div class="control"><input id="agrNum" placeholder="ДС-..."></div></div>
         <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="agrDate" placeholder="дд.мм.гггг"></div></div>
         <div class="field col-span"><span class="flabel">Основание</span><div class="control"><input id="agrSource" value="кредит" placeholder="основание ДС"></div></div>
-        <div class="field"><span class="flabel">Ставка: было</span><div class="control"><input id="agrBeforeRate" type="number" value="${esc(b.rate)}" readonly></div></div>
-        <div class="field"><span class="flabel">Ставка: стало</span><div class="control"><input id="agrAfterRate" type="number" value="${esc(b.rate)}" oninput="CR.agrDiff()"></div></div>
-        <div class="field"><span class="flabel">Срок: было</span><div class="control"><input id="agrBeforeTerm" type="number" value="${esc(b.term)}" readonly></div></div>
-        <div class="field"><span class="flabel">Срок: стало</span><div class="control"><input id="agrAfterTerm" type="number" value="${esc(b.term)}" oninput="CR.agrDiff()"></div></div>
-      </div>
-      <div class="section-h" style="margin-top:14px;font-size:15px">Предпросмотр изменений (было → стало)</div>
-      <div id="agrDiff" class="cat-expand"></div>`;
-    CR.openModal('Конструктор доп. соглашения (Р-4 · Г-10)', body,
-      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitAgr()">Оформить и активировать</button>`);
-    CR.agrDiff();
+        <div class="field col-span"><span class="flabel">Скан</span><div class="control"><input id="agrScan" placeholder="ds.pdf"></div></div>
+      </div>`;
+    CR.openModal('Регистрация доп. соглашения (Р-4 · Г-10)', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitAgr()">Зарегистрировать документ</button>`);
   };
-  CR.agrDiff=function(){ const box=document.getElementById('agrDiff'); if(!box) return;
-    const br=+document.getElementById('agrBeforeRate').value, ar=+document.getElementById('agrAfterRate').value;
-    const bt=+document.getElementById('agrBeforeTerm').value, at=+document.getElementById('agrAfterTerm').value;
-    const rows=[];
-    if(br!==ar) rows.push(`<div class="row"><span class="ck">Ставка, %</span> <span class="diff"><span class="diff-old">${esc(br)}</span> → <span class="diff-new">${esc(ar)}</span></span></div>`);
-    if(bt!==at) rows.push(`<div class="row"><span class="ck">Срок, мес.</span> <span class="diff"><span class="diff-old">${esc(bt)}</span> → <span class="diff-new">${esc(at)}</span></span></div>`);
-    box.innerHTML = rows.length?rows.join(''):`<div class="row" style="color:var(--text-placeholder)">Изменений не выбрано</div>`; };
   CR.submitAgr=function(){ const c=modalGuard('addAgreement'); if(!c) return;
     const num=document.getElementById('agrNum').value, date=document.getElementById('agrDate').value;
     const source=document.getElementById('agrSource').value||'кредит';
-    const before={rate:+document.getElementById('agrBeforeRate').value, term:+document.getElementById('agrBeforeTerm').value};
-    const after={rate:+document.getElementById('agrAfterRate').value, term:+document.getElementById('agrAfterTerm').value};
-    const r=CR.addAgreement(c,{num,date,source,before,after}); if(!r.ok){ CR.modalErr(r.reasons); return; }
-    CR.closeModal(); toast('Доп. соглашение '+num+' оформлено','ok'); rerenderDetail(); };
+    const scan=document.getElementById('agrScan').value||'';
+    const r=CR.addAgreement(c,{num,date,source,scan}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Документ '+num+' зарегистрирован','ok'); rerenderDetail(); };
 
   /* 5) manual-payment (addPayment, Г-11, Р-5) — «форма модуля платежей», статус «Ожидает ЦК» */
   CR.openPaymentModal=function(){ const c=modalGuard('savePayment'); if(!c) return;

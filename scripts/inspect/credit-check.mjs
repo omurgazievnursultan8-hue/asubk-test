@@ -342,7 +342,10 @@ const pd = CR.pd;
 
 /* 34. Д-2: журнал строится группировкой записей по основанию; ДС-РС-1004
        кредита К-4 стал записями (ставка 9→7, срок 36→48, с 01.05.2026),
-       а поля before/after у соглашений больше не хранятся. */
+       а поля before/after у соглашений больше не хранятся. Дополнительно —
+       группировка по multi-траншевому кредиту: одна запись basis на двух
+       траншах должна схлопнуться в ОДНУ группу с trancheNos обоих траншей
+       (а не потеряться/задвоиться), иначе журнал по многотраншевым кредитам врёт. */
 (() => { const db = CR.seedDb(); const c = db.credits.find(x => x.id === 'K-4');
   const groups = CR.basisGroups(c);
   const ds = groups.find(g => g.ref === 'ДС-РС-1004');
@@ -351,10 +354,21 @@ const pd = CR.pd;
   const term = ds && ds.items.find(i => i.param === 'term');
   const noBeforeAfter = (c.agreements || []).every(a => a.before === undefined && a.after === undefined);
   const desc = groups.length < 2 || CR.pd(groups[0].effectiveFrom) >= CR.pd(groups[1].effectiveFrom);
+  // multi-траншевый кредит с Task-3-демо расхождением (K-C40, 2 транша) — та же
+  // первичная запись из mkPrimaryRecords лежит на обоих траншах под одним basis.ref.
+  const multi = db.credits.find(x => /^K-C/.test(x.id) && x.tranches.length === 2);
+  const multiPrim = multi && CR.basisGroups(multi).find(g => g.kind === 'application');
+  const trancheNosOk = !!multiPrim && multiPrim.trancheNos.length === 2
+    && multiPrim.trancheNos[0] < multiPrim.trancheNos[1];
+  const bothTranchesInItems = !!multiPrim && CR.PARAM_KEYS.some(k => {
+    const nos = multiPrim.items.filter(i => i.param === k).map(i => i.trancheNo);
+    return multiPrim.trancheNos.every(no => nos.includes(no));
+  });
   ok(34, !!ds && !!prim && rate && String(rate.from)==='9' && String(rate.to)==='7'
       && term && String(term.from)==='36' && String(term.to)==='48'
-      && ds.effectiveFrom==='01.05.2026' && noBeforeAfter && desc,
-     `groups=${groups.map(g=>g.ref).join('|')} rate=${rate&&rate.from+'->'+rate.to}`);
+      && ds.effectiveFrom==='01.05.2026' && noBeforeAfter && desc
+      && trancheNosOk && bothTranchesInItems,
+     `groups=${groups.map(g=>g.ref).join('|')} rate=${rate&&rate.from+'->'+rate.to} multi=${multi&&multi.id} multiTrancheNos=${multiPrim&&multiPrim.trancheNos}`);
 })();
 
 const pass = results.filter(r => r.pass).length;
@@ -364,6 +378,9 @@ console.log(stamp);
 // впечатать stamp + список в блок «SMOKE (node ...)» шапки HTML
 const list = results.map(r => `   #${r.n} ${r.pass ? '✓' : '✗ ' + r.note}`).join('\n');
 const block = `SMOKE (node)\n ${stamp}\n${list}`;
-const out = src.replace(/SMOKE \(node\)[\s\S]*?(?=\n\s*-->)/, block + '\n');
+// \s* до lookahead съедает НАКОПИВШИЕСЯ пустые строки перед «-->» (иначе стамп
+// рос бы на одну пустую строку с каждым запуском — предыдущий вид оставлял их
+// нетронутыми, а сам всегда добавлял свой '\n').
+const out = src.replace(/SMOKE \(node\)[\s\S]*?\s*(?=-->)/, block + '\n');
 writeFileSync(HTML, out, 'utf8');
 if (pass !== results.length) process.exit(1);
