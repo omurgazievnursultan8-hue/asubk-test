@@ -137,6 +137,21 @@
      Решение КМ (Р-8) осознанно ОСТАВЛЕНО в «Договоре»: это owned-поле кредита, а не зеркало
                залогового модуля — вкладка «Договор» единственная, где живёт владение.
      Не делалось: фактическая дата закрытия и связь с родительским кредитом (отклонены).
+   Шаг 12 · РАЗГРУЗКА ПОДЗАГОЛОВКА ШАПКИ — выполнен 2026-07-25 (по выбору пользователя):
+     Из подзаголовка убраны «Вид», «Кредитная линия», «Возврат до» — осталось только
+               «кто и когда»: от <дата> · Заёмщик · Куратор. Разделено по природе данных:
+               вид + линия — справочная классификация, читается один раз при открытии карточки,
+               вернулась в «Договор» → «Классификация» (там же цель и источник финансирования);
+               плановая дата полного погашения — дата под мониторингом, ушла строкой в основание
+               плитки «Ближайший платёж» (та же мысль «когда платить», новых плиток не заведено;
+               в «Условиях» она по-прежнему есть в info-plate Р-13 как часть агрегата срока).
+   Шаг 13 · ВКЛАДКА «ДОГОВОР» — КАРТОЧНАЯ РАСКЛАДКА — выполнен 2026-07-25:
+     Сплошная лента «заголовок + поля» заменена на 5 карточек (.pcards/.pcard) в две колонки:
+               Реквизиты договора · Происхождение (Р-18) · Классификация · Решение КМ (Р-8) ·
+               Предмет кредита (таблица — карточка .wide на всю ширину, 4 колонки в половину
+               не влезают). Пояснения-section-note подняты под заголовок карточки, чтобы
+               читались до полей, а не после. Ниже 1100px — одна колонка.
+               Состав полей и гейты не менялись: чистая перекомпоновка.
    СЛИЯНИЕ КАРТОЧКИ ЗАВЕРШЕНО (шаги 1–10). Все 8 вкладок Договор·Условия·Транши·Расчёты·Платежи·
      Обеспечение·Проблемные·Досье слиты. loan-credit.html можно удалить/архивировать — решение пользователя.
    ДЕМОНАБОР РАСШИРЕН 2026-07-24: +43 кредита K-C1…K-C43 (builder mkScen/scen в seedDb) → всего 59.
@@ -227,6 +242,8 @@
    #27b ✓
    #18 ✓
    #28 ✓
+
+
 
 
 
@@ -617,6 +634,18 @@ table.grid tbody td{ height:44px; }                            /* воздух �
 .section-note{ font:var(--font-label); color:var(--text-muted); margin:0 0 14px; max-width:960px; }
 .gtoolbar{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
 .gtoolbar .spacer{ flex:1; }
+
+/* Карточки-панели внутри вкладки (шаг 13): каждая смысловая группа полей — своя карточка,
+   раскладка в две колонки. align-items:start — карточки не растягиваются под соседа по ряду. */
+.pcards{ display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; max-width:1500px; }
+.pcard{ border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-card); padding:16px 18px; }
+.pcard.wide{ grid-column:1 / -1; }
+.pcard > .section-h{ margin:0 0 4px; }
+.pcard > .section-note{ margin:0 0 12px; max-width:none; }
+.pcard .f2{ gap:14px 24px; max-width:none; }
+.pcard > .gtoolbar{ margin:12px 0 0; }
+@media (max-width:1100px){ .pcards{ grid-template-columns:1fr; } }
 
 /* collection grid (внутри вкладок) */
 .cgrid-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; min-height:80px; }
@@ -2409,11 +2438,7 @@ if (typeof document !== 'undefined') {
     document.getElementById('view-list').style.display = 'none';
     const dv = document.getElementById('view-detail');
     dv.style.display = 'flex';
-    dv.innerHTML = `
-      <div style="padding:16px 20px 0">
-        <button class="btn btn-secondary btn-sm" onclick="CR.backToList()">← Реестр</button>
-      </div>
-      <div id="cr-card-body"></div>`;
+    dv.innerHTML = `<div id="cr-card-body"></div>`;
     renderDetail(c);
     const crumb = document.getElementById('crumb'); if (crumb) crumb.textContent = '/ Договор № ' + c.num;
   }
@@ -2604,14 +2629,16 @@ if (typeof document !== 'undefined') {
     if (!np)
       return dimTile(`Ближайший платёж ${derivedHtml()}`,
         '<span style="font-size:14px;color:var(--text-muted);font-weight:400">Нет позиций</span>',
-        d.disbursed === 0 ? 'график строится от фактической даты освоения (Г-8)'
-                          : 'все позиции графика погашены');
+        (d.disbursed === 0 ? 'график строится от фактической даты освоения (Г-8)'
+                           : 'все позиции графика погашены')
+        + (d.fullRepayDate ? `<br>полное погашение до <b>${esc(d.fullRepayDate)}</b> (Р-13)` : ''));
     const late = np.status === 'Просрочена';
     const tone = { 'Просрочена':'high', 'Наступила':'mid', 'Предстоит':'neutral' }[np.status] || 'neutral';
     const val = `${money(np.total)}`
       + (late ? ' <span style="font-size:13px;font-weight:400;color:var(--asubk-red)">просрочен</span>' : '');
     return dimTile(`Ближайший платёж ${derivedHtml()}`, val,
       `срок <b>${esc(np.date)}</b> · транш <b>№${esc(np.tranche)}</b> · <span class="pill ${tone}">${esc(np.status)}</span>`
+      + (d.fullRepayDate ? `<br>полное погашение до <b>${esc(d.fullRepayDate)}</b> (Р-13)` : '')
       + `<br>позиция графика — вкладка «Расчёты»`);
   }
 
@@ -2659,9 +2686,6 @@ if (typeof document !== 'undefined') {
           </div>
           <div class="phead-sub">от <b>${esc(c.date)}</b>
             · Заёмщик <a onclick="CR.toast('Переход в карточку заёмщика — вне объёма макета')">${esc(c.borrower.name)}</a>
-            · Вид <b>${esc(c.kind)}</b>
-            · Кредитная линия <b>${esc(c.line)}</b>
-            ${d.fullRepayDate ? `· Возврат до <b>${esc(d.fullRepayDate)}</b>` : ''}
             · Куратор ${lockHtml()} <b>${esc(curatorOf(c))}</b></div>
         </div>
         <div class="phead-acts">
@@ -2698,40 +2722,58 @@ if (typeof document !== 'undefined') {
        модели нет; раньше статус читался только косвенно, по заполненности реквизитов. */
     const rst=d.regStatus;
     const regNum=`${c.reg.num?esc(c.reg.num):'—'} <span class="pill ${rst.tone}">${esc(rst.text)}</span>`;
+    /* Шаг 13: вкладка перестроена на карточки в две колонки — каждая смысловая группа
+       отделена рамкой, вместо сплошной ленты заголовков и полей. Порядок обхода:
+       слева паспорт договора и классификация, справа происхождение и решение КМ;
+       таблица предмета кредита — на всю ширину (4 колонки не помещаются в половину). */
     return `
-      <div class="section-h">Реквизиты договора</div>
-      <div class="f2">
-        ${fld('№ договора', esc(c.num))}
-        ${fld('Дата договора', esc(c.date))}
-        ${fld('№ регистрации', regNum)}
-        ${fld('Дата регистрации', c.reg.date?esc(c.reg.date):null)}
-        ${fld('Валюта', esc(c.currency))}
-      </div>
-      <p class="section-note">Скан договора и комментарий регистрации — во вкладке «Досье» (шаг 11: файлы и текстовые пометки живут в одном месте).</p>
+      <div class="pcards">
+        <div class="pcard">
+          <div class="section-h">Реквизиты договора</div>
+          <p class="section-note">Скан договора и комментарий регистрации — во вкладке «Досье» (шаг 11: файлы и текстовые пометки живут в одном месте).</p>
+          <div class="f2">
+            ${fld('№ договора', esc(c.num))}
+            ${fld('Дата договора', esc(c.date))}
+            ${fld('№ регистрации', regNum)}
+            ${fld('Дата регистрации', c.reg.date?esc(c.reg.date):null)}
+            ${fld('Валюта', esc(c.currency))}
+          </div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Происхождение (Р-18)</div>
-      <p class="section-note">Обязательная неизменяемая цепочка: заявка → комиссия → программа → решение правительства. Все ссылки read-only.</p>
-      <div class="f2">
-        ${fld('Заявка', link(o.applicationId,'Переход в заявку — вне объёма макета'))}
-        ${fld('Комиссия', link(o.commissionId,'Переход в комиссию — вне объёма макета'))}
-        ${fld('Программа', link(o.programId,'Переход в программу — вне объёма макета'))}
-        ${fld('Решение правительства', link(o.govDecisionId,'Переход в ПП — вне объёма макета'))}
-      </div>
+        <div class="pcard">
+          <div class="section-h">Происхождение (Р-18)</div>
+          <p class="section-note">Обязательная неизменяемая цепочка: заявка → комиссия → программа → решение правительства. Все ссылки read-only.</p>
+          <div class="f2">
+            ${fld('Заявка', link(o.applicationId,'Переход в заявку — вне объёма макета'))}
+            ${fld('Комиссия', link(o.commissionId,'Переход в комиссию — вне объёма макета'))}
+            ${fld('Программа', link(o.programId,'Переход в программу — вне объёма макета'))}
+            ${fld('Решение правительства', link(o.govDecisionId,'Переход в ПП — вне объёма макета'))}
+          </div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Классификация</div>
-      <p class="section-note">Вид кредита и кредитная линия вынесены в шапку карточки (шаг 2), суммы и правка суммы договора — тоже в шапке (шаг 11); здесь не дублируются.</p>
-      <div class="f2">
-        ${fld('Цель', esc(c.purpose))}
-        ${fld('Источник финансирования', esc(c.fundingSource))}
-      </div>
+        <div class="pcard">
+          <div class="section-h">Классификация</div>
+          <p class="section-note">Суммы и правка суммы договора — в шапке карточки (шаг 11); здесь не дублируются. Вид и линия возвращены сюда (шаг 12): это справочные атрибуты, их читают один раз при открытии карточки, а не мониторят.</p>
+          <div class="f2">
+            ${fld('Вид кредита', esc(c.kind))}
+            ${fld('Кредитная линия', esc(c.line))}
+            ${fld('Цель', esc(c.purpose))}
+            ${fld('Источник финансирования', esc(c.fundingSource))}
+          </div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Предмет кредита</div>
-      ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Кол-во',r:1},{h:'Стоимость',r:1}], subjRows, {empty:'Предмет не задан'})}
+        <div class="pcard">
+          <div class="section-h">Освобождение от залога — решение КМ (Р-8)</div>
+          ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Скан', esc(km.scan))}</div>`
+            :`<p class="section-note">Решение КМ не зафиксировано. Это owned-поле кредита (не зеркало): разблокирует освоение по Г-6 при провале покрытия.</p>`}
+          <div class="gtoolbar">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Освобождение от залога — решение КМ (Р-8)</div>
-      ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Скан', esc(km.scan))}</div>`
-        :`<p class="section-note">Решение КМ не зафиксировано. Это owned-поле кредита (не зеркало): разблокирует освоение по Г-6 при провале покрытия.</p>`}
-      <div class="gtoolbar" style="margin-top:12px">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>`;
+        <div class="pcard wide">
+          <div class="section-h">Предмет кредита</div>
+          ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Кол-во',r:1},{h:'Стоимость',r:1}], subjRows, {empty:'Предмет не задан'})}
+        </div>
+      </div>`;
   }
 
   /* ---- ВКЛАДКА 2: Условия ---- */
