@@ -314,9 +314,27 @@ const pd = CR.pd;
     const a = CR.creditConditionsAt(c, CR.TODAY);
     return CR.PARAM_KEYS.some(k => a[k] && a[k].divergent);
   });
-  const rows = divergent.length ? CR.divergenceRows(divergent[0], CR.TODAY) : [];
-  ok(33, single && divergent.length === 1 && rows.length >= 1 && rows.every(r => r.cells.length >= 2),
-     `divergent=${divergent.map(c=>c.id)} rows=${rows.map(r=>r.param)}`);
+  const dc = divergent[0];
+  const rows = dc ? CR.divergenceRows(dc, CR.TODAY) : [];
+  // rows должны перечислять ровно те PARAM_KEYS, что агрегат пометил divergent — не мусор.
+  const aggD = dc ? CR.creditConditionsAt(dc, CR.TODAY) : {};
+  const expectParams = CR.PARAM_KEYS.filter(k => aggD[k] && aggD[k].divergent);
+  const paramsMatch = rows.length === expectParams.length
+    && expectParams.every(p => rows.some(r => r.param === p));
+  // каждая строка должна покрывать ровно активные транши кредита, значениями conditionsAt.
+  const activeNos = dc ? dc.tranches.filter(CR.activeTranche).map(t => t.no).sort((a,b) => a-b) : [];
+  const cellsOk = dc && rows.every(r => {
+    const rowNos = r.cells.map(c => c.trancheNo).slice().sort((a,b) => a-b);
+    const nosMatch = JSON.stringify(rowNos) === JSON.stringify(activeNos);
+    const valuesMatch = r.cells.every(cell => {
+      const t = dc.tranches.find(t => t.no === cell.trancheNo);
+      return t && cell.value === CR.conditionsAt(t, CR.TODAY)[r.param];
+    });
+    return nosMatch && valuesMatch;
+  });
+  ok(33, single && divergent.length === 1 && rows.length >= 1 && rows.every(r => r.cells.length >= 2)
+      && paramsMatch && cellsOk,
+     `divergent=${divergent.map(c=>c.id)} rows=${rows.map(r=>r.param)} cells0=${JSON.stringify(rows[0] && rows[0].cells)}`);
 })();
 
 const pass = results.filter(r => r.pass).length;
