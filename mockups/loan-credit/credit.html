@@ -331,6 +331,8 @@
 
 
 
+
+
 -->
 <style>
 
@@ -1017,19 +1019,22 @@ function conditionsAt(tranche, date){
   return out;
 }
 /* Первичный комплект (basis.kind='application'): условия, пришедшие из заявки.
-   effectiveFrom = дата договора; ref = протокол комиссии из origin (Р-18). */
+   effectiveFrom = дата договора; ref = протокол комиссии из origin (Р-18). Общий хелпер —
+   используется и при сидировании (seedPrimaryRecords), и при добавлении транша в кредит,
+   уже прошедший регистрацию (addTranche, Р-21/Д-3: baseConditions — шаблон наследования). */
+function mkPrimaryRecords(credit){
+  const src = credit.baseConditions || condDefaults();
+  return PARAM_KEYS.map(k => mkConditionRecord({
+    param:k, value:src[k], effectiveFrom:credit.date,
+    basis:{ kind:'application',
+            ref:credit.origin.commissionId || credit.origin.applicationId || '',
+            label:'Заявка ' + (credit.origin.applicationId || '—') + ' · комиссия ' +
+                  (credit.origin.commissionId || '—'), date:credit.date },
+    note:'Первичный комплект условий из заявки', createdAt:credit.date
+  }));
+}
 function seedPrimaryRecords(credit){
-  for (const t of credit.tranches){
-    const src = credit.baseConditions || condDefaults();
-    t.conditionRecords = PARAM_KEYS.map(k => mkConditionRecord({
-      param:k, value:src[k], effectiveFrom:credit.date,
-      basis:{ kind:'application',
-              ref:credit.origin.commissionId || credit.origin.applicationId || '',
-              label:'Заявка ' + (credit.origin.applicationId || '—') + ' · комиссия ' +
-                    (credit.origin.commissionId || '—'), date:credit.date },
-      note:'Первичный комплект условий из заявки', createdAt:credit.date
-    }));
-  }
+  for (const t of credit.tranches) t.conditionRecords = mkPrimaryRecords(credit);
 }
 function emptyMirror(over){                          // все зеркала (Р-5…Р-10, Р-16)
   return deepMerge({
@@ -2047,7 +2052,8 @@ function saveContractAmount(credit, value){
 }
 
 /* addTranche(credit, {amount,plannedDate,subject}) — Г-3: Σ траншей ≤ суммы договора.
-   Условия транша наследуются от базовых условий кредита (Р-2, диффуются позже правкой). */
+   Условия транша наследуются от базовых условий кредита: baseConditions — шаблон
+   наследования, копируется в первичные записи транша (Р-21/Д-3, mkPrimaryRecords). */
 function addTranche(credit, ctx){
   const g = gate(credit, 'addTranche', { amount: ctx.amount });          // Г-3
   if (!g.ok) return g;
@@ -2055,9 +2061,9 @@ function addTranche(credit, ctx){
   const t = mkTranche({
     id: credit.id + '-T' + no, no,
     subject: ctx.subject || { inn: credit.borrower.inn, name: credit.borrower.name },
-    amount: ctx.amount, plannedDate: ctx.plannedDate || '',
-    conditions: Object.assign({}, credit.baseConditions)
+    amount: ctx.amount, plannedDate: ctx.plannedDate || ''
   });
+  t.conditionRecords = mkPrimaryRecords(credit);
   credit.tranches.push(t);
   pushAudit(credit, 'addTranche', null, t);
   return g;
@@ -2182,7 +2188,7 @@ window.CR = {
   seedDb,
   db: null,
   derive, buildSchedule, gate, canRole,
-  conditionsAt, mkConditionRecord, PARAMS, PARAM_KEYS, paramLabel, BASIS_KINDS,
+  conditionsAt, mkConditionRecord, mkPrimaryRecords, PARAMS, PARAM_KEYS, paramLabel, BASIS_KINDS,
   generateSchedule, holdAccrual,
   saveContractAmount, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, closeCredit, linkPledge,

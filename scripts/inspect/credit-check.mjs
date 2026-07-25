@@ -256,7 +256,9 @@ const pd = CR.pd;
 })();
 
 /* 29. Р-21/Д-3: t.conditions как хранимое поле удалено; conditionsAt даёт полный
-       комплект из 10 параметров на каждом транше. */
+       комплект из 10 параметров на каждом транше — и на сиде, и на транше, добавленном
+       через addTranche (регрессия дыры: addTranche раньше сам писал t.conditions,
+       минуя conditionRecords). */
 (() => { const db = CR.seedDb();
   let stored = [], incomplete = [];
   for (const c of db.credits) for (const t of c.tranches){
@@ -264,8 +266,15 @@ const pd = CR.pd;
     const at = CR.conditionsAt(t, CR.TODAY);
     if (CR.PARAM_KEYS.some(k => at[k] === undefined)) incomplete.push(t.id);
   }
-  ok(29, stored.length===0 && incomplete.length===0,
-     `хранимое=${stored.slice(0,3)} неполные=${incomplete.slice(0,3)}`);
+  const c1 = db.credits.find(x => x.id === 'K-1'); const d1 = CR.derive(c1);
+  const addRes = CR.addTranche(c1, { amount: d1.allocatable, plannedDate: '01.01.2027' });
+  const t1 = c1.tranches[c1.tranches.length - 1];
+  const newStored = t1.conditions !== undefined;
+  const newAt = CR.conditionsAt(t1, CR.TODAY);
+  const newIncomplete = CR.PARAM_KEYS.some(k => newAt[k] === undefined);
+  ok(29, stored.length===0 && incomplete.length===0
+      && addRes.ok && !newStored && !newIncomplete,
+     `хранимое=${stored.slice(0,3)} неполные=${incomplete.slice(0,3)} addTranche.ok=${addRes.ok} новый.conditions=${newStored} новый.неполные=${newIncomplete}`);
 })();
 /* 30. Реестр параметров — ровно 10 ключей, без параметров расчётного движка. */
 (() => {
