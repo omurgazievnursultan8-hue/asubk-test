@@ -4049,15 +4049,34 @@ function dossierBar(pct, met, req, exp){
   const chip = '<span style="font-size:22px;font-weight:700;color:'+color+'">'+pct+'%</span>';
   return sect('Укомплектованность досье', 'обязательный комплект п.97 · зеркало (правка — в модуле-источнике)', chip, body);
 }
+/* Счётчики укомплектованности досье — одна точка правды: используют и «Документы», и «Проверки» (комплектность п.97). */
+const DOC_KINDS = ['заёмщик','заявка','кредит','залог','взыскание'];
+function dossierStats(inn){
+  const byKind = {}; let req=0, met=0, exp=0;
+  DOC_KINDS.forEach(kind=>{
+    const refs = docRefs(inn, kind); if(!refs.length) return;
+    const reqList = kind==='заёмщик' ? reqForSubject(inn) : (REQ_DOCS[kind]||[]);
+    const k = { need:0, met:0, exp:0 };
+    refs.forEach(ref=>{
+      const refDocs = DOCS.filter(d=>d.inn===inn && d.scope.kind===kind && d.scope.ref===ref);
+      reqList.forEach(r=>{
+        const st = docStatus(r, refDocs.find(d=>d.type===r.t));
+        k.need++; if(st.code==='ok') k.met++; if(st.code==='expired') k.exp++;
+      });
+    });
+    byKind[kind] = k; req += k.need; met += k.met; exp += k.exp;
+  });
+  return { req, met, exp, byKind };
+}
 function docsTab(inn){
-  const kinds = ['заёмщик','заявка','кредит','залог','взыскание'];
-  let tReq=0, tMet=0, tExp=0;
+  const stats = dossierStats(inn);
   const sections = [];
-  kinds.forEach(kind=>{
+  let tReq = stats.req, tMet = stats.met, tExp = stats.exp;
+  DOC_KINDS.forEach(kind=>{
     const refs = docRefs(inn, kind);
     if(!refs.length) return;
     const reqList = kind==='заёмщик' ? reqForSubject(inn) : (REQ_DOCS[kind]||[]);
-    let met=0, need=0, exp=0;
+    const { need, met, exp } = stats.byKind[kind] || { need:0, met:0, exp:0 };
     const rows = [];
     refs.forEach(ref=>{
       const refDocs = DOCS.filter(d=>d.inn===inn && d.scope.kind===kind && d.scope.ref===ref);
@@ -4065,16 +4084,13 @@ function docsTab(inn){
       let first = true;
       reqList.forEach(req=>{
         const doc = refDocs.find(d=>d.type===req.t); if(doc) used.add(doc.id);
-        const st = docStatus(req, doc);
-        need++; if(st.code==='ok') met++; if(st.code==='expired') exp++;
-        rows.push(docRow(inn, kind, ref, req.t, doc, st, true, first)); first=false;
+        rows.push(docRow(inn, kind, ref, req.t, doc, docStatus(req, doc), true, first)); first=false;
       });
       /* доп. приложенные документы вне обязательного списка */
       refDocs.filter(d=>!used.has(d.id)).forEach(doc=>{
         rows.push(docRow(inn, kind, ref, doc.type, doc, { code:'extra', badge:'<span class="badge b-gray">доп.</span>' }, false, first)); first=false;
       });
     });
-    tReq+=need; tMet+=met; tExp+=exp;
     const chip = need ? '<span class="badge '+(met===need?'b-ok':'b-err')+'">'+met+' из '+need+'</span>' : '';
     const expChip = exp ? ' <span class="badge b-ov">⚠ '+exp+' истёк</span>' : '';
     sections.push(sect(DOC_SCOPE[kind], '', chip+expChip,
@@ -4095,39 +4111,150 @@ function fmtPayload(p){
   });
   return parts.length ? parts.join(' · ') : '—';
 }
+/* Русская плюрализация: plural(2,'производство','производства','производств') → «2 производства». */
+function plural(n, one, few, many){
+  const a = Math.abs(n) % 100, b = a % 10;
+  return n + ' ' + (a > 10 && a < 20 ? many : b === 1 ? one : b >= 2 && b <= 4 ? few : many);
+}
+/* Возраст снимка: бейдж свежести (до 6 мес. — ок, до 12 — устаревает, дальше — устарел). */
+function freshness(takenAt){
+  const days = calDays(takenAt, TODAY);
+  if (days < 0) return '<span class="badge b-gray">дата в будущем</span>';
+  const mo = Math.floor(days / 30), yr = Math.floor(days / 365);
+  const age = yr >= 1 ? plural(yr, 'год', 'года', 'лет') + ' назад'
+            : mo >= 1 ? plural(mo, 'месяц', 'месяца', 'месяцев') + ' назад'
+            : plural(days, 'день', 'дня', 'дней') + ' назад';
+  const cls = days <= 183 ? 'b-ok' : days <= 365 ? 'b-ov' : 'b-err';
+  const lbl = days <= 183 ? 'актуален' : days <= 365 ? 'устаревает' : 'устарел';
+  return `<span class="badge ${cls}">${lbl}</span> <span class="muted">${age}</span>`;
+}
+/* Итоговый светофор по проверкам — тот же приём, что «Укомплектованность досье» в «Документах». */
+function checksVerdictBar(stop, warn, pass){
+  const color = stop ? 'var(--status-error)' : (warn ? 'var(--status-warning)' : 'var(--status-success)');
+  const word  = stop ? 'Есть стоп-факторы' : (warn ? 'Требует внимания' : 'Проверки пройдены');
+  const note  = stop ? 'выдача нового кредита блокирована до снятия стоп-факторов'
+              : warn ? 'блокирующих факторов нет, но есть замечания'
+              : 'блокирующих факторов и замечаний нет';
+  const total = stop + warn + pass;
+  const seg = (n, c) => n ? `<div style="height:100%;width:${n/total*100}%;background:${c}"></div>` : '';
+  const body = '<div style="display:flex;margin:2px 0 6px;height:8px;background:var(--surface-hover);border-radius:4px;overflow:hidden">'
+    + seg(stop, 'var(--status-error)') + seg(warn, 'var(--status-warning)') + seg(pass, 'var(--status-success)') + '</div>'
+    + `<div class="muted">Стоп-факторов: <b style="color:var(--status-error)">${stop}</b> · `
+    + `предупреждений: <b style="color:var(--status-warning)">${warn}</b> · пройдено: <b>${pass}</b> — ${note}</div>`;
+  const chip = `<span style="font-size:18px;font-weight:700;color:${color}">${word}</span>`;
+  return sect('Итог проверок', 'сверка по ИНН на ' + TODAY, chip, body);
+}
 function checksTab(inn){
-  // внутренние живые проверки — сверка по ИНН на TODAY
-  const cat   = catOfBorrower(inn, TODAY);
-  const bl    = BLACKLIST.find(x=>x.inn===inn);
+  /* Внутренние живые проверки. Каждая — {sev, name, result, basis}: sev 'stop' блокирует выдачу,
+     'warn' — замечание, 'ok' — пройдено. Классификации (категория/группа) — НЕ проверки, они
+     уехали в справочный подвал: это выводимые значения, дублирующие плитки шапки. */
+  const link = (tab, txt) => `<a class="lnk" href="#/b/${inn}/${tab}">${txt}</a>`;
+  const C = [];
+
+  // 1. Состояние субъекта — смерть/ликвидация/перевод долга блокируют работу с заёмщиком
+  const st = subjectState(inn, TODAY);
+  const STOP_STATES = ['смерть','ликвидирован','долг переведён'];
+  C.push(st && STOP_STATES.includes(st.kind)
+    ? { sev:'stop', name:'Состояние субъекта', result:esc(st.kind),
+        basis:'основание: ' + esc(st.basis || '—') + (st.doc ? ' · ' + esc(st.doc) : '') + ' · ' + esc(st.date) }
+    : { sev:'ok', name:'Состояние субъекта', result:st ? esc(st.kind) : 'действует',
+        basis:'событий, ограничивающих работу, нет' });
+
+  // 2. Чёрный список
+  const bl = BLACKLIST.find(x=>x.inn===inn);
+  C.push(bl
+    ? { sev:'stop', name:'Чёрный список', result:'значится', basis: esc(bl.basis) + ' · с ' + esc(bl.from) }
+    : { sev:'ok', name:'Чёрный список', result:'не значится', basis:'реестр ЧС · сверка по ИНН' });
+
+  // 3. Кредитная история: >90 дн. просрочки — стоп-фактор, меньше — предупреждение
   const creds = CREDITS.filter(c=>c.inn===inn && !c.closedAt);
-  const maxOv = creds.reduce((m,c)=>Math.max(m, c.overdueDays||0), 0);
   const worst = creds.slice().sort((a,b)=>(b.overdueDays||0)-(a.overdueDays||0))[0];
-  /* «решения судов» = процессы на судебной и исполнительной стадии (stageOf, а не regex по названию) */
+  const maxOv = worst ? (worst.overdueDays||0) : 0;
+  C.push(maxOv > 0
+    ? { sev: maxOv > 90 ? 'stop' : 'warn', name:'Кредитная история',
+        result: maxOv > 90 ? 'просрочка свыше 90 дн.' : 'есть просрочки',
+        basis:'макс. просрочка ' + plural(maxOv,'день','дня','дней') + ' · ' + link(1, esc(worst.no||'кредит')) }
+    : { sev:'ok', name:'Кредитная история', result:'без просрочек', basis:'просрочек по действующим кредитам нет' });
+
+  /* 4. «Решения судов» = процессы на судебной и исполнительной стадии (stageOf, а не regex по названию).
+        Открытые — стоп-фактор, только закрытые — предупреждение (остаётся в истории). */
   const courtProcs = procsOf(inn).filter(p=>stageOf(p.phase)!=='Досудебный порядок');
+  const openProcs  = courtProcs.filter(p=>!isProcClosed(p));
+  C.push(courtProcs.length
+    ? { sev: openProcs.length ? 'stop' : 'warn', name:'Решения судов',
+        result: openProcs.length
+          ? plural(openProcs.length,'открытое производство','открытых производства','открытых производств')
+          : plural(courtProcs.length,'завершённое производство','завершённых производства','завершённых производств'),
+        basis: courtProcs.map(p=>link(3, esc(procNo(p))) + ' · ' + esc(displayPhase(p))).join(' · ') }
+    : { sev:'ok', name:'Решения судов', result:'нет', basis:'судебных производств нет' });
 
-  const ok  = t => `<span class="badge b-ok">${t}</span>`;
-  const ov  = t => `<span class="badge b-ov">${t}</span>`;
-  const gray= t => `<span class="badge b-gray">${t}</span>`;
-  const checks = [
-    ['Чёрный список', bl ? ov('значится') : ok('не значится'),
-      bl ? esc(bl.basis)+' · с '+esc(bl.from) : 'реестр ЧС · сверка по ИНН'],
-    ['Кредитная история', maxOv>0 ? ov('есть просрочки') : ok('без просрочек'),
-      maxOv>0 ? 'макс. просрочка '+fmt(maxOv)+' дн. ('+esc((worst&&worst.no)||'')+')' : 'просрочек по действующим кредитам нет'],
-    ['Решения судов', courtProcs.length ? ov(courtProcs.length+' производств') : ok('нет'),
-      courtProcs.length ? courtProcs.map(p=>esc(procNo(p)+' · '+displayPhase(p))).join(' · ') : 'судебных производств нет'],
-    ['Категория риска', gray(cat ? CAT_LABEL[cat] : 'не применяется'), 'по данным мониторинга'],
-    ['Группа платёжеспособности', gray(esc(groupOf(inn,TODAY))), 'классификатор заёмщика'],
-  ];
-  const rows = checks.map(k=>`<tr><td class="who">${k[0]}</td><td>${k[1]}</td><td class="muted">${k[2]}</td><td class="muted">${TODAY}</td></tr>`);
-  const internal = sect('Внутренние проверки', 'сверка по ИНН на '+TODAY,
+  // 5. Конфликт интересов — отстранённые сотрудники (И-4)
+  const susp = suspendedEmployees(inn, TODAY);
+  C.push(susp.length
+    ? { sev:'warn', name:'Конфликт интересов',
+        result: plural(susp.length,'сотрудник отстранён','сотрудника отстранены','сотрудников отстранены'),
+        basis: susp.map(empName).map(esc).join(', ') + ' · ' + link(5,'кураторство') }
+    : { sev:'ok', name:'Конфликт интересов', result:'не заявлен', basis:'отстранённых сотрудников нет' });
+
+  // 6. Акты сверок: разногласия/уклонение — предупреждение
+  const badActs = ACTS.filter(a=>a.inn===inn && (a.agreement==='dispute' || a.agreement==='evasion'));
+  C.push(badActs.length
+    ? { sev:'warn', name:'Акты сверок',
+        result: plural(badActs.length,'акт не подтверждён','акта не подтверждены','актов не подтверждены'),
+        basis: badActs.map(a=>link(4, esc(a.id||'акт')) + ' · ' + (a.agreement==='evasion'?'уклонение':'разногласия')).join(' · ') }
+    : { sev:'ok', name:'Акты сверок', result:'разногласий нет', basis:'неподтверждённых актов сверки нет' });
+
+  // 7. Комплектность досье п.97 — считается тем же dossierStats, что и таб «Документы»
+  const ds = dossierStats(inn);
+  const miss = ds.req - ds.met;
+  C.push(miss || ds.exp
+    ? { sev:'warn', name:'Комплектность досье',
+        result: miss ? plural(miss,'документ отсутствует','документа отсутствуют','документов отсутствуют') : plural(ds.exp,'документ истёк','документа истекли','документов истекли'),
+        basis:'приложено ' + ds.met + ' из ' + ds.req + (ds.exp ? ' · истёк срок: ' + ds.exp : '') + ' · ' + link(7,'досье п.97') }
+    : { sev:'ok', name:'Комплектность досье', result:'комплект полный',
+        basis:'приложено ' + ds.met + ' из ' + ds.req + ' · ' + link(7,'досье п.97') });
+
+  // 8. Аффилированность — справочная проверка, состав ведётся в реестре лиц (Р-7)
+  const rel = RELATED.filter(r=>r.inn===inn);
+  C.push({ sev: rel.length ? 'info' : 'ok', name:'Аффилированность',
+    result: rel.length ? plural(rel.length,'связанное лицо','связанных лица','связанных лиц') : 'связей не зарегистрировано',
+    basis: rel.length ? rel.slice(0,3).map(r=>esc(r.fio + ' · ' + r.role)).join(' · ')
+             + (rel.length>3 ? ' и ещё ' + (rel.length-3) : '') + ' · ' + link(6,'реквизиты и связи')
+           : 'реестр лиц (Р-7) · сверка по ИНН' });
+
+  const RANK = { stop:0, warn:1, info:2, ok:3 };
+  const BADGE = { stop:'b-err', warn:'b-ov', info:'b-gray', ok:'b-ok' };
+  const MARK  = { stop:'⛔', warn:'⚠', info:'i', ok:'✓' };
+  C.sort((a,b)=>RANK[a.sev]-RANK[b.sev]);   // тяжёлое сверху
+  const cnt = s => C.filter(c=>c.sev===s).length;
+
+  const rows = C.map(c=>`<tr><td class="who">${MARK[c.sev]} ${esc(c.name)}</td>`
+    + `<td><span class="badge ${BADGE[c.sev]}">${c.result}</span></td>`
+    + `<td class="muted">${c.basis}</td></tr>`);
+  const internal = sect('Внутренние проверки', 'сверка по ИНН на ' + TODAY + ' · все проверки выполнены одним прогоном',
     '<button class="btn btn-secondary btn-sm">Проверить заново</button>',
-    table('<th style="width:26%">Проверка</th><th style="width:22%">Результат</th><th style="width:36%">Основание</th><th style="width:16%">Дата проверки</th>', rows));
+    table('<th style="width:26%">Проверка</th><th style="width:24%">Результат</th><th>Основание</th>', rows));
 
-  const ext = CHECKS_EXT.filter(c=>c.inn===inn);
-  const erows = ext.map(c=>`<tr><td>${esc(c.source)}</td><td>${esc(c.takenAt)}</td><td>${esc(c.appId)}</td>`
-    + `<td>${fmtPayload(c.payload)}</td></tr>`);
-  const extHtml = `<div data-mirror="1">` + sect('Внешние снимки', 'КИБ / скоринг — на момент заявки', '', table('<th>Источник</th><th>Снято</th><th>Заявка</th><th>Данные</th>', erows)) + `</div>`;
-  return internal + extHtml;
+  /* Справочный подвал: категория и группа — не проверки, а выводимые классификации (дубль плиток шапки). */
+  const cat = catOfBorrower(inn, TODAY);
+  const clsHtml = sect('Справочно — классификации', 'выводятся автоматически, проверкой не являются', '',
+    '<div class="muted">Категория риска: <b>' + esc(cat ? CAT_LABEL[cat] : 'не применяется') + '</b> (по данным мониторинга)'
+    + ' · Группа платёжеспособности: <b>' + esc(groupOf(inn, TODAY)) + '</b> (классификатор заёмщика)</div>');
+
+  /* Внешние снимки — зеркало (И-5). Ключевое: снимок берётся НА МОМЕНТ ЗАЯВКИ и с годами протухает,
+     поэтому у каждой строки бейдж свежести, а заявка — ссылка. */
+  const ext = CHECKS_EXT.filter(c=>c.inn===inn).slice()
+    .sort((a,b)=>(dnum(b.takenAt)||0)-(dnum(a.takenAt)||0));
+  const stale = ext.filter(c=>calDays(c.takenAt, TODAY) > 365).length;
+  const erows = ext.map(c=>`<tr><td>${esc(c.source)}</td><td>${esc(c.takenAt)}</td>`
+    + `<td>${freshness(c.takenAt)}</td>`
+    + `<td><a class="lnk">${esc(c.appId)}</a></td><td>${fmtPayload(c.payload)}</td></tr>`);
+  const staleChip = stale ? `<span class="badge b-err">⚠ ${plural(stale,'снимок устарел','снимка устарели','снимков устарели')}</span> ` : '';
+  const extHtml = `<div data-mirror="1">` + sect('Внешние снимки', 'КИБ / скоринг — на момент заявки',
+    staleChip + '<button class="btn btn-secondary btn-sm">Запросить свежий снимок</button>',
+    table('<th style="width:18%">Источник</th><th style="width:12%">Снято</th><th style="width:22%">Актуальность</th><th style="width:14%">Заявка</th><th>Данные</th>', erows)) + `</div>`;
+
+  return checksVerdictBar(cnt('stop'), cnt('warn'), cnt('ok') + cnt('info')) + internal + clsHtml + extHtml;
 }
 
 /* 10. История — слияние CATEGORY_LOG/GROUP_LOG/SUBJECT_EVENTS/конфликтов, отсортировано по дате.
