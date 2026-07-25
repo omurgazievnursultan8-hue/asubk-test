@@ -596,6 +596,12 @@ table.cgrid tbody tr.total td{ font-weight:var(--weight-bold); color:var(--text-
 .modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(1040px,100%); max-height:88vh;
   display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(16,28,46,0.4); }
 .modal.form{ width:min(720px,100%); }
+/* Крупная форма (приём предмета залога): полей много и их набор зависит от вида —
+   на 720px в две колонки форма уходит в длинную прокрутку. Шире + три колонки. */
+.modal.form.wide{ width:min(1120px,100%); max-height:92vh; }
+.modal.form.wide .mform{ grid-template-columns:repeat(3,1fr); gap:16px 28px; }
+@media(max-width:1000px){ .modal.form.wide .mform{ grid-template-columns:1fr 1fr; } }
+@media(max-width:680px){ .modal.form.wide .mform{ grid-template-columns:1fr; } }
 .modal.narrow{ width:min(560px,100%); }
 .modal-h{ padding:18px 24px 12px; display:flex; align-items:center; gap:10px; }
 .modal-h .mt{ font:var(--weight-bold) 20px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
@@ -4495,7 +4501,7 @@ let _newItemTarget = null;
 function openNewItem(targetCid){
   if(!canCurate()) return denyEdit();
   _newItemTarget = targetCid || null;
-  modal(`<div class="modal form">${mhead('Новый предмет залога')}
+  modal(`<div class="modal form wide">${mhead('Новый предмет залога')}
     <div class="modal-b"><div class="mform">
       ${fsel('niKind','Вид залога', Object.keys(KINDS), 'Недвижимое имущество')}
       ${fin('niName','Наименование / описание','',true)}
