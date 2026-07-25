@@ -237,7 +237,7 @@
       Макет: простой календарь (сб/вс), без праздников.
 
   SMOKE (node)
- SMOKE (node) 2026-07-25 · 38/38 PASS
+ SMOKE (node) 2026-07-25 · 39/39 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -276,6 +276,7 @@
    #32 ✓
    #33 ✓
    #34 ✓
+   #35 ✓
 -->
 <style>
 
@@ -1029,6 +1030,21 @@ function basisGroups(credit){
   out.forEach(g => { g.trancheNos.sort((a,b) => a-b);
     g.items.sort((a,b) => PARAM_KEYS.indexOf(a.param)-PARAM_KEYS.indexOf(b.param) || a.trancheNo-b.trancheNo); });
   return out.sort((a,b) => pd(b.effectiveFrom) - pd(a.effectiveFrom));
+  // Примечание: локальное поле g.retro выше — «факт задним числом» у группы
+  // журнала; не путать с BASIS_KINDS[kind].retro ниже — «разрешено ли задним
+  // числом» у вида основания. Разный смысл, случайное совпадение имени.
+}
+/* retroFlags — Д-5: записи, вступившие в силу раньше дня своего создания.
+   Автопересчёта нет: флаги питают красную плашку «требуется перегенерация
+   графика» на вкладке «Условия» и бейдж на «Расчётах». */
+function retroFlags(credit){
+  const out = [];
+  for (const t of credit.tranches) for (const r of (t.conditionRecords || [])){
+    if (r.effectiveFrom && r.createdAt && pd(r.effectiveFrom) < pd(r.createdAt))
+      out.push({ record:r, trancheNo:t.no, param:r.param,
+                 effectiveFrom:r.effectiveFrom, basisLabel:r.basis.label || r.basis.ref });
+  }
+  return out;
 }
 function emptyMirror(over){                          // все зеркала (Р-5…Р-10, Р-16)
   return deepMerge({
@@ -1552,20 +1568,23 @@ function seedDb(){
   credits.forEach(seedPrimaryRecords);          // Р-21: первичные записи по всем кредитам
 
   /* Демо: ДС-РС-1004 кредита К-4 — ставка 9→7 и срок 36→48 с 01.05.2026.
-     Раньше лежало в agreements[].before/after; теперь — записи (Р-21). */
+     Раньше лежало в agreements[].before/after; теперь — записи (Р-21).
+     createdAt=effectiveFrom (не 12.06.2026 — дата самого ДС): доп. соглашение
+     не должно быть ретроспективным (Г-19, agreement.retro=false), иначе #35
+     ложно ловит К-4 наравне с К-3. */
   const k4 = credits.find(c => c.id === 'K-4');
   if (k4) for (const t of k4.tranches){
     t.conditionRecords.push(mkConditionRecord({
       param:'rate', value:7, effectiveFrom:'01.05.2026',
       basis:{ kind:'agreement', ref:'ДС-РС-1004',
               label:'Доп. соглашение ДС-РС-1004 (реструктуризация)', date:'12.06.2026' },
-      note:'Реструктуризация: ставка снижена', createdAt:'12.06.2026'
+      note:'Реструктуризация: ставка снижена', createdAt:'01.05.2026'
     }));
     t.conditionRecords.push(mkConditionRecord({
       param:'term', value:48, effectiveFrom:'01.05.2026',
       basis:{ kind:'agreement', ref:'ДС-РС-1004',
               label:'Доп. соглашение ДС-РС-1004 (реструктуризация)', date:'12.06.2026' },
-      note:'Реструктуризация: срок продлён', createdAt:'12.06.2026'
+      note:'Реструктуризация: срок продлён', createdAt:'01.05.2026'
     }));
   }
 
@@ -1582,6 +1601,33 @@ function seedDb(){
     }));
     multi.agreements.push({ num:'ДС-1007', date:'20.05.2026', source:'кредит', scan:'ds-1007.pdf' });
   }
+
+  /* Демо Д-4/Д-5: решение суда списало пеню по ОД с начала года — запись
+     ретроспективная (вступает 01.01.2026, создана 12.07.2026), ссылается
+     на существующее решение из mirror.court (кредит его не заводит). */
+  const k3 = credits.find(c => c.id === 'K-3');
+  if (k3){
+    const court = (k3.mirror.court || [])[0] || {};
+    for (const t of k3.tranches) t.conditionRecords.push(mkConditionRecord({
+      param:'penaltyMain', value:0, effectiveFrom:'01.01.2026',
+      basis:{ kind:'court', ref:court.num || 'АД-118',
+              label:'Решение суда № ' + (court.num || 'АД-118') + ' от ' + (court.date || '20.04.2026'),
+              date:court.date || '20.04.2026' },
+      note:'Пеня по основному долгу списана судом с начала года; график требует перегенерации',
+      createdAt:'12.07.2026'
+    }));
+  }
+  /* Демо Д-4: постановление правительства сняло ставку резерва.
+     Ссылка — на ПП из блока «Происхождение» (Р-18), новый документ не заводится. */
+  const k2 = credits.find(c => c.id === 'K-2');
+  if (k2) for (const t of k2.tranches) t.conditionRecords.push(mkConditionRecord({
+    param:'reserveRate', value:0, effectiveFrom:'01.06.2026',
+    basis:{ kind:'govAct', ref:k2.origin.govDecisionId || 'ПП-КР-214',
+            label:'Постановление правительства ' + (k2.origin.govDecisionId || 'ПП-КР-214'),
+            date:'03.03.2026' },
+    note:'Ставка резерва за неполное освоение снята постановлением',
+    createdAt:'01.06.2026'
+  }));
 
   return { credits, applications, pledgesRegistry };
 }
@@ -2211,7 +2257,7 @@ window.CR = {
   db: null,
   derive, buildSchedule, gate, canRole,
   conditionsAt, mkConditionRecord, mkPrimaryRecords, PARAMS, PARAM_KEYS, paramLabel, BASIS_KINDS,
-  creditConditionsAt, divergenceRows, basisGroups, activeTranche,
+  creditConditionsAt, divergenceRows, basisGroups, retroFlags, activeTranche,
   generateSchedule, holdAccrual,
   saveContractAmount, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, closeCredit, linkPledge,

@@ -371,6 +371,21 @@ const pd = CR.pd;
      `groups=${groups.map(g=>g.ref).join('|')} rate=${rate&&rate.from+'->'+rate.to} multi=${multi&&multi.id} multiTrancheNos=${multiPrim&&multiPrim.trancheNos}`);
 })();
 
+/* 35. Д-4/Д-5: суд и ПП — источники изменения условий по ссылке на существующий
+       документ; ретро-запись помечена флагом ровно на К-3. */
+(() => { const db = CR.seedDb();
+  const k3 = db.credits.find(c => c.id === 'K-3');
+  const k2 = db.credits.find(c => c.id === 'K-2');
+  const courtRec = k3.tranches.flatMap(t => t.conditionRecords).find(r => r.basis.kind === 'court');
+  const govRec   = k2.tranches.flatMap(t => t.conditionRecords).find(r => r.basis.kind === 'govAct');
+  const retroK3  = CR.retroFlags(k3);
+  const retroOthers = db.credits.filter(c => c.id !== 'K-3' && CR.retroFlags(c).length);
+  ok(35, courtRec && courtRec.param === 'penaltyMain' && Number(courtRec.value) === 0 && !!courtRec.basis.ref
+      && govRec && govRec.param === 'reserveRate' && !!govRec.basis.ref
+      && retroK3.length >= 1 && retroOthers.length === 0,
+     `court=${!!courtRec} gov=${!!govRec} retroK3=${retroK3.length} прочие=${retroOthers.map(c=>c.id)}`);
+})();
+
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
 results.forEach(r => console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`));
