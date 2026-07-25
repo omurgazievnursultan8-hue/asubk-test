@@ -2770,7 +2770,7 @@ function tile(title, valueHtml, basis, moreHtml, lockHtml){
     + `</div>`;
 }
 const TABS = ['Общая информация','Кредиты','Залог','Взыскание','Акты сверок','Кураторство',
-  'Связанные лица','Реквизиты и контакты','Мониторинг','Документы','Проверки','История'];
+  'Реквизиты и связи','Мониторинг','Документы','Проверки','История'];
 
 function catBasisHtml(inn){
   const rows = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY)).map(c=>{
@@ -2907,7 +2907,7 @@ function attentionCard(inn){
       + `Категорию они не двигают до решения комитета.</div>`;
   }
   if (!body) body = '<div class="muted" style="font-size:13px;line-height:1.5;padding:14px 16px">Открытых обязательств и событий на комитет нет.</div>';
-  return sect('Требует внимания', 'Р-4 · Р-5', '<a class="lnk" onclick="switchTab(8)">Открыть «Мониторинг»</a>', body);
+  return sect('Требует внимания', 'Р-4 · Р-5', '<a class="lnk" onclick="switchTab(7)">Открыть «Мониторинг»</a>', body);
 }
 
 /* Контакты — только действующие каналы; полный список и история — во вкладке «Реквизиты и контакты». */
@@ -2917,14 +2917,14 @@ function contactsCard(inn){
     ? '<div class="fields">' + live.map(c=>`<div class="f"><span class="fk">${esc(c.kind)}${c.note && c.note!=='—' ? ' · '+esc(c.note) : ''}</span>`
         + `<span class="fv">${esc(c.value)}</span></div>`).join('') + '</div>'
     : '<div class="muted" style="font-size:13px;padding:14px 16px">Действующих каналов связи нет.</div>';
-  return sect('Контакты', 'действующие каналы', '<a class="lnk" onclick="switchTab(7)">Все реквизиты</a>', body);
+  return sect('Контакты', 'действующие каналы', '<a class="lnk" onclick="switchTab(6)">Все реквизиты</a>', body);
 }
 
 /* Последние события — верхние 5 из того же таймлайна, что и вкладка «История». */
 function recentEventsCard(inn){
   const items = historyItems(inn);
   const hint = items.length > 5 ? `последние 5 из ${items.length}` : 'зеркало логов';
-  return sect('Последние события', hint, '<a class="lnk" onclick="switchTab(11)">Вся история</a>',
+  return sect('Последние события', hint, '<a class="lnk" onclick="switchTab(10)">Вся история</a>',
     timelineHtml(items.slice(0,5)));
 }
 
@@ -3968,7 +3968,7 @@ function curatorTab(inn){
     + sect('Конфликт интересов', 'Р-6 / п.93', '', cHtml);
 }
 
-/* 6. Связанные лица — зеркало реестра лиц (И-5, Р-7). */
+/* Таб 6 «Реквизиты и связи» · левая колонка — Связанные лица: зеркало реестра лиц (И-5, Р-7). */
 function relatedTab(inn){
   const list = RELATED.filter(r=>r.inn===inn);
   const rows = list.map(r=>`<tr><td>${esc(r.fio)}</td><td class="mono">${esc(r.pin||'—')}</td><td>${esc(r.role)}</td>`
@@ -3991,7 +3991,7 @@ function relatedTab(inn){
   return relSect + memSect;
 }
 
-/* 7. Реквизиты и контакты — владеет модуль (не зеркало); MVP — текст без контролов. */
+/* Таб 6 «Реквизиты и связи» · правая колонка — Каналы+банк: владеет модуль (не зеркало); MVP — текст без контролов. */
 function requisitesTab(inn){
   /* карточки «Реквизиты» тут нет — эти поля живут на странице субъекта (#/s/<ИНН>), не дублируем */
   const chans = CHANNELS.filter(c=>c.inn===inn);
@@ -4114,12 +4114,14 @@ function tabBody(inn, i){
     case 3: return `<div data-mirror="1">${collectionTab(inn)}</div>`;
     case 4: return actsTab(inn);
     case 5: return curatorTab(inn);
-    case 6: return `<div data-mirror="1">${relatedTab(inn)}</div>`;
-    case 7: return requisitesTab(inn);
-    case 8: return monitoringTab(inn);
-    case 9: return `<div data-mirror="1">${docsTab(inn)}</div>`;
-    case 10: return checksTab(inn);
-    case 11: return historyTab(inn);
+    /* Вариант C: «Связанные лица» + «Реквизиты и контакты» слиты в один таб «Реквизиты и связи».
+       2 колонки (.gen-2col, схлоп <1100px): слева лица (зеркало Р-7, data-mirror), справа каналы+банк (свои, Р-10).
+       data-mirror только на левой колонке — владелец у секций разный, бейджи источника в sect() сохранены. */
+    case 6: return `<div class="gen-2col"><div data-mirror="1">${relatedTab(inn)}</div><div>${requisitesTab(inn)}</div></div>`;
+    case 7: return monitoringTab(inn);
+    case 8: return `<div data-mirror="1">${docsTab(inn)}</div>`;
+    case 9: return checksTab(inn);
+    case 10: return historyTab(inn);
   }
   return '';
 }
