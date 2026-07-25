@@ -114,6 +114,29 @@
      таблица в блок «Банкротство и судебные решения» вкладки «Проблемные» (новое поле mirror.court,
      сид на K-3). НЕ перенесено: batch-журнал начислений (антипаттерн E2E-09, дубль realtime
      «Расчётов»); пустые субтабы Товар/Перевод/Списание/План (уже покрыто базой).
+   Шаг 11 · ЧИСТКА ШАПКИ И ВКЛАДКИ «ДОГОВОР» — выполнен 2026-07-25 (по выбору пользователя):
+     ШАПКА. Удалено: плитка «Освоено» (дубль 4 плиток вкладки «Транши»; освоено/не освоено
+               ушли основанием в плитку «Сумма договора») · плитка «Группа платёжеспособности»
+               (переехала во вкладку «Проблемные», к категории риска) · пилюли оверлеев из
+               строки имени (те же слои дублировала плитка «Оверлеи», причём с источником и
+               дедлайном — оставлено одно представление) · ИНН и «Программа» из подзаголовка
+               (ИНН — атрибут заёмщика, ссылка рядом; программа есть в блоке «Происхождение»).
+     ШАПКА. Добавлено: плитка «Ближайший платёж» (nextPaymentOf — чистая производная поверх
+               trancheScheduleRows + scheduleRowStatus, поля в модели нет): сумма + срок +
+               транш + статус. Раньше ответ лежал на три клика вглубь «Расчётов». Туда же
+               перенесена кнопка «Изменить сумму договора» — рядом со значением, которое правит.
+     ВКЛАДКА «ДОГОВОР». Удалён блок «Суммы» (дубль плитки шапки). Вынесено: «Счета и код
+               оплаты» → «Платежи» (payCode — ключ сопоставления, оперативный реквизит);
+               «Кураторство» → «Досье» (журнал назначений = история, не реквизит договора);
+               «Скан договора» + «Комментарий регистрации» → «Досье» (файлы в одном месте);
+               «Перевод долга Р-14» → «Условия» (Г-16: тот же versioned changeset, что и доп.
+               соглашения; заодно снято расхождение с описанием шага 10, где блок уже числился
+               в «Условиях»). Добавлен бейдж статуса регистрации у № регистрации — производный
+               regStatusOf (черновик / готов к регистрации / зарегистрирован / реквизиты неполны),
+               поля в модели нет; раньше статус читался только косвенно, по заполненности полей.
+     Решение КМ (Р-8) осознанно ОСТАВЛЕНО в «Договоре»: это owned-поле кредита, а не зеркало
+               залогового модуля — вкладка «Договор» единственная, где живёт владение.
+     Не делалось: фактическая дата закрытия и связь с родительским кредитом (отклонены).
    СЛИЯНИЕ КАРТОЧКИ ЗАВЕРШЕНО (шаги 1–10). Все 8 вкладок Договор·Условия·Транши·Расчёты·Платежи·
      Обеспечение·Проблемные·Досье слиты. loan-credit.html можно удалить/архивировать — решение пользователя.
    ДЕМОНАБОР РАСШИРЕН 2026-07-24: +43 кредита K-C1…K-C43 (builder mkScen/scen в seedDb) → всего 59.
@@ -171,7 +194,7 @@
       Макет: простой календарь (сб/вс), без праздников.
 
   SMOKE (node)
- SMOKE (node) 2026-07-24 · 32/32 PASS
+ SMOKE (node) 2026-07-25 · 32/32 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -204,6 +227,8 @@
    #27b ✓
    #18 ✓
    #28 ✓
+
+
 
 
 
@@ -1491,6 +1516,33 @@ function scheduleRowStatus(t, row){
   return pd(row.date) > pd(TODAY) ? 'Предстоит' : (led ? 'Просрочена' : 'Наступила');
 }
 
+/* ближайший НЕоплаченный платёж по всем траншам (шаг 11 — плитка шапки). Чистая
+   функция поверх trancheScheduleRows + scheduleRowStatus: та же реалтайм-логика, что
+   и в позициях графика, отдельного поля в модели не заводится. Просроченная позиция
+   тоже «ближайшая» — она первая по дате и требует действия раньше предстоящей. */
+function nextPaymentOf(c){
+  let best = null;
+  for (const t of c.tranches){
+    for (const r of trancheScheduleRows(t)){
+      if (scheduleRowStatus(t, r) === 'Оплачена') continue;
+      const ts = pd(r.date);
+      if (!best || ts < best.ts)
+        best = { ts, date:r.date, total:r.total, status:scheduleRowStatus(t, r), tranche:t.no };
+    }
+  }
+  return best;
+}
+
+/* статус регистрации договора (шаг 11) — производный, отдельного поля нет: комплект
+   реквизитов регистрации (№ + дата + скан) сверяется с гейтом Г-7 и ЖЦ. */
+function regStatusOf(c){
+  const r = c.reg || {};
+  const full = !!(r.num && r.date && r.scan);
+  if (c.lifecycle === 'Проект') return full ? { text:'готов к регистрации', tone:'info' }
+                                            : { text:'черновик', tone:'neutral' };
+  return full ? { text:'зарегистрирован', tone:'low' } : { text:'реквизиты неполны', tone:'high' };
+}
+
 /* ---- 3.2 Помощники derive (все чистые) ---- */
 
 /* долг по трём слоям × 4 величины из детального расчёта траншей (§4) */
@@ -1683,6 +1735,8 @@ function derive(c){
   const termAgg       = Math.max(0, ...c.tranches.filter(activeTranche).map(t => (t.conditions && t.conditions.term) || 0));
   const reserveAccrual = computeReserve(c);
   const scheduleTotals = computeScheduleTotals(c);
+  const nextPayment    = nextPaymentOf(c);
+  const regStatus      = regStatusOf(c);
   /* остаток долга = Σ балансов трёх слоёв; просроченная сумма = Σ просроченного по слоям.
      *Kgs — то же в сомах по курсу FX: реестр сравнивает строки в разных валютах. */
   const debtBalance   = round2(debt.principal.bal + debt.interest.bal + debt.penalty.bal);
@@ -1692,7 +1746,7 @@ function derive(c){
   const payGroup      = payGroupOf(c, overdueDays);
   return { disbursed, undisbursed, allocated, allocatable, disbState, debt,
            overdueDays, riskCategory, riskBasis, coverage, overlays, fullRepayDate, termAgg,
-           reserveAccrual, scheduleTotals,
+           reserveAccrual, scheduleTotals, nextPayment, regStatus,
            debtBalance, overdueAmount, debtBalanceKgs, overdueAmountKgs, payGroup };
 }
 
@@ -1997,6 +2051,7 @@ window.CR = {
   saveContractAmount, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, closeCredit, linkPledge,
   zeroOutForTest,
+  nextPaymentOf, regStatusOf, scheduleRowStatus, trancheScheduleRows,
   // утилиты — пригодятся тестам и UI
   money, pd, fd, addM, dd, toast, TODAY
 };
@@ -2434,7 +2489,6 @@ if (typeof document !== 'undefined') {
   function catClsOf(cat){ return cat==='высокий'?'high':cat==='средний'?'mid':'low'; }
   function pctDisb(c,d){ return c.contractAmount>0 ? Math.round(d.disbursed/c.contractAmount*100) : 0; }
   function trancheState(t){ const s=disbursedSum(t), a=t.amount||0; return s===0?'Не освоен':s<a?'Частично освоен':'Полностью освоен'; }
-  function overlayPill(o){ const cls=o.tone==='warn'?'mid':o.tone==='danger'?'high':'info'; return `<span class="pill ${cls}">${esc(o.text)}</span>`; }
 
   /* read-only поле (label + значение в grey-боксе); val вставляется как HTML (caller экранирует текст) */
   function fld(label,val,o){ o=o||{};
@@ -2541,6 +2595,26 @@ if (typeof document !== 'undefined') {
       + `<div class="dv">${val}</div><div class="src">${lines.join('<br>')}</div></div>`;
   }
 
+  /* Плитка «Ближайший платёж» (шаг 11): самый частый вопрос куратора — когда и сколько.
+     Раньше ответ лежал в «Расчёты → График — позиции», три клика вглубь. Значение —
+     сумма позиции, основание — дата, статус и транш. Просроченная позиция подсвечена:
+     она первая по дате и требует действия раньше предстоящей. */
+  function tileNextPay(c,d){
+    const np = d.nextPayment;
+    if (!np)
+      return dimTile(`Ближайший платёж ${derivedHtml()}`,
+        '<span style="font-size:14px;color:var(--text-muted);font-weight:400">Нет позиций</span>',
+        d.disbursed === 0 ? 'график строится от фактической даты освоения (Г-8)'
+                          : 'все позиции графика погашены');
+    const late = np.status === 'Просрочена';
+    const tone = { 'Просрочена':'high', 'Наступила':'mid', 'Предстоит':'neutral' }[np.status] || 'neutral';
+    const val = `${money(np.total)}`
+      + (late ? ' <span style="font-size:13px;font-weight:400;color:var(--asubk-red)">просрочен</span>' : '');
+    return dimTile(`Ближайший платёж ${derivedHtml()}`, val,
+      `срок <b>${esc(np.date)}</b> · транш <b>№${esc(np.tranche)}</b> · <span class="pill ${tone}">${esc(np.status)}</span>`
+      + `<br>позиция графика — вкладка «Расчёты»`);
+  }
+
   /* Печатные формы (перенос из loan-credit): в новом макете печати не было вовсе,
      а это единственное место, откуда куратор забирает документ по конкретному кредиту. */
   const PRINT_FORMS = [
@@ -2568,15 +2642,12 @@ if (typeof document !== 'undefined') {
     const lcPill = d.overdueDays > 0
       ? `<span class="pill high">${esc(c.lifecycle)} · просрочка ${d.overdueDays} дн.</span>`
       : `<span class="pill info">${esc(c.lifecycle)}</span>`;
-    const ovPills = d.overlays.filter(o => o.kind !== 'overdue').map(overlayPill).join(' ');
+    /* Шаг 11: пилюли оверлеев из строки имени УБРАНЫ — те же слои показывала плитка
+       «Оверлеи», причём с источником и дедлайном. Одно представление на сущность. */
 
     const catBasis = `дни просрочки ${rb.eff}${rb.suppressed ? ' <b>(подавление 181-го дня)</b>' : ''} → <b>${esc(rb.byDays)}</b>`
       + `<br>группа заёмщика ${rb.group ? '<b>'+esc(rb.group)+'</b>' : '—'} → <b>${esc(rb.byGroup)}</b> · worst-of → <b>${esc(d.riskCategory)}</b>`
       + `<br>${esc(catSrc)} (Р-10)`;
-
-    const col0 = (c.mirror && c.mirror.collection || [])[0];
-    const grpBasis = esc(PAY_GROUPS[d.payGroup] || '—')
-      + (col0 ? `<br>процедура <b>${esc(col0.processId)}</b> — вкладка «Проблемные»` : '');
 
     return `<div class="phead">
       <div class="phead-top">
@@ -2585,28 +2656,27 @@ if (typeof document !== 'undefined') {
             <span class="nm">Кредит № ${esc(c.num)}</span>
             ${lcPill}
             <span class="pill neutral">${esc(d.disbState)}</span>
-            ${ovPills}
           </div>
           <div class="phead-sub">от <b>${esc(c.date)}</b>
             · Заёмщик <a onclick="CR.toast('Переход в карточку заёмщика — вне объёма макета')">${esc(c.borrower.name)}</a>
-            · ИНН <b>${esc(c.borrower.inn)}</b>
             · Вид <b>${esc(c.kind)}</b>
             · Кредитная линия <b>${esc(c.line)}</b>
-            · Программа <a onclick="CR.toast('Переход в программу — вне объёма макета')">${esc(c.origin.programId)}</a>
             ${d.fullRepayDate ? `· Возврат до <b>${esc(d.fullRepayDate)}</b>` : ''}
             · Куратор ${lockHtml()} <b>${esc(curatorOf(c))}</b></div>
         </div>
-        <div class="phead-acts">${printMenuHtml()}</div>
+        <div class="phead-acts">
+          ${roleBtn('saveContractAmount','Изменить сумму договора','CR.openContractAmountModal()')}
+          ${printMenuHtml()}
+        </div>
       </div>
       <div class="phead-dims">
         ${dimTile('Сумма договора', money(c.contractAmount) + ` <span style="font-size:13px;color:var(--text-muted);font-weight:400">${esc(c.currency)}</span>`,
-          `одобрено по заявке <b>${money(c.approvedAmount)}</b> (Г-1: договор ≤ одобрено)`
+          `освоено <b>${money(d.disbursed)}</b> (${pctDisb(c,d)}%) · не освоено <b>${money(d.undisbursed)}</b>`
+          + `<br>одобрено по заявке <b>${money(c.approvedAmount)}</b> (Г-1: договор ≤ одобрено)`
           + (c.currency !== 'KGS' ? `<br>≈ <b>${money0(toKgs(c.contractAmount, c.currency))} KGS</b>` : ''))}
-        ${dimTile('Освоено', `${money(d.disbursed)} <span style="color:var(--text-muted);font-weight:400">(${pctDisb(c,d)}%)</span>`,
-          `не освоено <b>${money(d.undisbursed)}</b> · распределено по траншам <b>${money(d.allocated)}</b>`)}
         ${tileDebt(c,d)}
+        ${tileNextPay(c,d)}
         ${dimTile(`Категория риска ${lockHtml()}`, `<span class="cat-${catClsOf(d.riskCategory)}">${esc(d.riskCategory)}</span>`, catBasis)}
-        ${dimTile(`Группа платёжеспособности ${derivedHtml()}`, esc(d.payGroup), grpBasis)}
         ${dimTile(`Покрытие ${lockHtml()}`,
           `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${light};margin-right:6px"></span>${Math.round(d.coverage.index*100)}% <span style="color:var(--text-muted);font-weight:400">/ порог ${d.coverage.req}%</span>`,
           esc(d.coverage.source))}
@@ -2623,19 +2693,21 @@ if (typeof document !== 'undefined') {
     const o=c.origin;
     const link=(id,msg)=>id?`<a class="rowlink" onclick="CR.toast('${jsAttr(msg)}')">${esc(id)}</a>`:null;
     const subjRows=(c.subject||[]).map(s=>`<tr><td>${esc(s.kind)}</td><td>${esc(s.name)}</td><td style="text-align:right">${esc(s.qty)}</td><td style="text-align:right">${money(s.cost)}</td></tr>`);
-    const curRows=(c.mirror.curatorship||[]).map(x=>`<tr><td>${esc(x.unit)}</td><td>${esc(x.employee)}</td><td>${esc(x.role)}</td><td>${esc(x.from)}</td><td>${esc(x.to||'—')}</td></tr>`);
-    const km=c.kmDecision, dt=c.debtTransfer;
+    const km=c.kmDecision;
+    /* Шаг 11: бейдж статуса регистрации рядом с № — производный (regStatusOf), поля в
+       модели нет; раньше статус читался только косвенно, по заполненности реквизитов. */
+    const rst=d.regStatus;
+    const regNum=`${c.reg.num?esc(c.reg.num):'—'} <span class="pill ${rst.tone}">${esc(rst.text)}</span>`;
     return `
       <div class="section-h">Реквизиты договора</div>
       <div class="f2">
         ${fld('№ договора', esc(c.num))}
         ${fld('Дата договора', esc(c.date))}
-        ${fld('№ регистрации', esc(c.reg.num))}
-        ${fld('Дата регистрации', esc(c.reg.date))}
-        ${fld('Скан договора', c.reg.scan?esc(c.reg.scan):null)}
+        ${fld('№ регистрации', regNum)}
+        ${fld('Дата регистрации', c.reg.date?esc(c.reg.date):null)}
         ${fld('Валюта', esc(c.currency))}
-        ${fld('Комментарий регистрации', c.reg.comment?esc(c.reg.comment):null, {span:true})}
       </div>
+      <p class="section-note">Скан договора и комментарий регистрации — во вкладке «Досье» (шаг 11: файлы и текстовые пометки живут в одном месте).</p>
 
       <div class="section-h" style="margin-top:22px">Происхождение (Р-18)</div>
       <p class="section-note">Обязательная неизменяемая цепочка: заявка → комиссия → программа → решение правительства. Все ссылки read-only.</p>
@@ -2646,15 +2718,8 @@ if (typeof document !== 'undefined') {
         ${fld('Решение правительства', link(o.govDecisionId,'Переход в ПП — вне объёма макета'))}
       </div>
 
-      <div class="section-h" style="margin-top:22px">Суммы</div>
-      <div class="f2">
-        ${fld('Одобрено (заявка)', money(c.approvedAmount))}
-        ${fld('Сумма договора (Г-1: ≤ одобрено)', money(c.contractAmount))}
-      </div>
-      <div class="gtoolbar" style="margin-top:12px">${roleBtn('saveContractAmount','Изменить сумму договора','CR.openContractAmountModal()','btn btn-primary btn-sm')}</div>
-
       <div class="section-h" style="margin-top:22px">Классификация</div>
-      <p class="section-note">Вид кредита и кредитная линия вынесены в шапку карточки (шаг 2) — здесь не дублируются.</p>
+      <p class="section-note">Вид кредита и кредитная линия вынесены в шапку карточки (шаг 2), суммы и правка суммы договора — тоже в шапке (шаг 11); здесь не дублируются.</p>
       <div class="f2">
         ${fld('Цель', esc(c.purpose))}
         ${fld('Источник финансирования', esc(c.fundingSource))}
@@ -2663,35 +2728,15 @@ if (typeof document !== 'undefined') {
       <div class="section-h" style="margin-top:22px">Предмет кредита</div>
       ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Кол-во',r:1},{h:'Стоимость',r:1}], subjRows, {empty:'Предмет не задан'})}
 
-      <div class="section-h" style="margin-top:22px">Счета и код оплаты</div>
-      <div class="f2">
-        ${fld('Счёт погашения', esc(c.accounts.repayAcct))}
-        ${fld('Вид счёта', esc(c.accounts.repayAcctKind))}
-        ${fld('Код оплаты', esc(c.accounts.payCode))}
-      </div>
-
       <div class="section-h" style="margin-top:22px">Освобождение от залога — решение КМ (Р-8)</div>
       ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Скан', esc(km.scan))}</div>`
         :`<p class="section-note">Решение КМ не зафиксировано. Это owned-поле кредита (не зеркало): разблокирует освоение по Г-6 при провале покрытия.</p>`}
-      <div class="gtoolbar" style="margin-top:12px">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>
-
-      <div class="section-h" style="margin-top:22px">Кураторство ${lockHtml()}</div>
-      ${cgrid([{h:'Подразделение'},{h:'Сотрудник'},{h:'Роль'},{h:'С'},{h:'По'}], curRows, {empty:'Назначений нет'})}
-      <div class="mirror-src">Источник: модуль сотрудников · журнал назначений кураторства (Р-9). Зеркало — только чтение.</div>
-
-      <details style="margin-top:22px">
-        <summary style="cursor:pointer;font:var(--weight-semibold) 15px/1.3 var(--asubk-font);color:var(--text-heading)">Перевод долга — смена заёмщика (Р-14)</summary>
-        <div style="padding-top:10px">
-          ${dt?`<div class="f2">${fld('Новый заёмщик', esc(dt.newBorrower&&dt.newBorrower.name))}${fld('Соглашение', esc(dt.agreement&&dt.agreement.num))}${fld('Дата', esc(dt.date))}</div>`
-            :`<p class="section-note">Перевода долга не было. Смена заёмщика — owned-действие кредита, только зарегистрированным соглашением (Г-16).</p>`}
-          <div class="gtoolbar" style="margin-top:12px">${roleBtn('transferDebt','Оформить перевод долга',"CR.stubAction('Перевод долга')")}</div>
-        </div>
-      </details>`;
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>`;
   }
 
   /* ---- ВКЛАДКА 2: Условия ---- */
   function tabUsloviya(c,d){
-    const b=c.baseConditions;
+    const b=c.baseConditions, dt=c.debtTransfer;
     const locked = !gate(c,'editConditions',{}).ok;                 // Г-9: не «Проект» → правки только доп. соглашением
     const g9='Изменение условий — только доп. соглашением (Г-9)';
     const bf=(label,val)=>`<div class="field"><span class="flabel">${esc(label)}${locked?' '+lockHtml():''}</span><div class="lookup"${locked?` title="${jsAttr(g9)}"`:''}><span class="val">${val}</span></div></div>`;
@@ -2732,7 +2777,13 @@ if (typeof document !== 'undefined') {
 
       <div class="section-h" style="margin-top:22px">Доп. соглашения (Р-4)</div>
       ${cgrid([{h:'Номер'},{h:'Дата'},{h:'Источник'},{h:'Изменение'},{h:'Статус'}], agRows, {empty:'Соглашений нет'})}
-      <div class="gtoolbar" style="margin-top:12px">${roleBtn('addAgreement','Оформить доп. соглашение','CR.openAgrModal()','btn btn-primary btn-sm')}</div>`;
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('addAgreement','Оформить доп. соглашение','CR.openAgrModal()','btn btn-primary btn-sm')}</div>
+
+      <div class="section-h" style="margin-top:22px">Перевод долга — смена заёмщика (Р-14)</div>
+      <p class="section-note">Шаг 11: блок переехал сюда из вкладки «Договор» — перевод долга оформляется зарегистрированным соглашением (Г-16), то есть это тот же versioned changeset, что и доп. соглашения выше.</p>
+      ${dt?`<div class="f2">${fld('Новый заёмщик', esc(dt.newBorrower&&dt.newBorrower.name))}${fld('Соглашение', esc(dt.agreement&&dt.agreement.num))}${fld('Дата', esc(dt.date))}</div>`
+        :`<p class="section-note">Перевода долга не было. Смена заёмщика — owned-действие кредита, только зарегистрированным соглашением (Г-16).</p>`}
+      <div class="gtoolbar" style="margin-top:12px">${roleBtn('transferDebt','Оформить перевод долга',"CR.stubAction('Перевод долга')")}</div>`;
   }
 
   /* ---- ВКЛАДКА 3: Транши и освоение ---- */
@@ -2874,7 +2925,15 @@ if (typeof document !== 'undefined') {
       <div class="section-h" style="margin-top:22px">Задолженность (из детального расчёта)</div>
       <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Слой</th><th style="text-align:right">Начислено</th><th style="text-align:right">Оплачено</th><th style="text-align:right">Просрочено</th><th style="text-align:right">Остаток</th></tr></thead><tbody>
         ${drow('Основной долг', b.principal)}${drow('Проценты', b.interest)}${drow('Пеня / штрафы', b.penalty)}
-      </tbody></table></div>`;
+      </tbody></table></div>
+
+      <div class="section-h" style="margin-top:22px">Счета и код оплаты</div>
+      <p class="section-note">Шаг 11: блок переехал сюда из вкладки «Договор» — код оплаты это ключ сопоставления входящего платежа с кредитом, оперативный реквизит, а не паспортное поле договора.</p>
+      <div class="f2">
+        ${fld('Счёт погашения', esc(c.accounts.repayAcct))}
+        ${fld('Вид счёта', esc(c.accounts.repayAcctKind))}
+        ${fld('Код оплаты', esc(c.accounts.payCode))}
+      </div>`;
   }
 
   /* ---- ВКЛАДКА 6: Обеспечение (зеркало залогового модуля, Р-7) ---- */
@@ -2946,6 +3005,14 @@ if (typeof document !== 'undefined') {
       </div>
       ${d.overlays.some(o=>o.kind==='suppress181')?`<div class="info-plate">${svgInfo()}<div>Подавление 181-го дня активно: дни просрочки для категории ограничены 180 (активная реструктуризация / пауза начисления).</div></div>`:''}
 
+      <div class="section-h" style="margin-top:22px">Группа платёжеспособности ${derivedHtml()}</div>
+      <p class="section-note">Шаг 11: плитка переехала сюда из шапки — та же ось риска, что и категория выше, читается вместе с ней и с процедурой взыскания ниже.</p>
+      <div class="cat-expand">
+        <div class="row"><span class="ck">Группа:</span> <b>${esc(d.payGroup)}</b></div>
+        <div class="row"><span class="ck">Основание:</span> ${esc(PAY_GROUPS[d.payGroup]||'—')}</div>
+        ${(c.mirror.collection||[])[0]?`<div class="row"><span class="ck">Процедура взыскания:</span> <b>${esc((c.mirror.collection||[])[0].processId)}</b></div>`:''}
+      </div>
+
       <div class="section-h" style="margin-top:22px">Реструктуризация ${lockHtml()}</div>
       ${rs.active?`<div class="f2">${fld('Стадия',esc(rs.active.stage))}${fld('Дедлайн',esc(rs.active.deadline))}${rs.active.amount?fld('Сумма реструктуризации',money(rs.active.amount)+(rs.active.currency&&rs.active.currency!=='KGS'?' '+esc(rs.active.currency):'')):''}${fld('Всего заявок',esc(rs.count))}</div>
         <p class="section-note">Влияние на категорию: ${rs.active.overlay181?'<b>оверлей подавления 181-го дня</b> — до утверждения категория не растёт.':'оверлей снят — категория считается по факту.'}</p>`
@@ -2980,6 +3047,7 @@ if (typeof document !== 'undefined') {
   }
   function tabDosye(c,d){
     const docRows=(c.docs||[]).map(x=>`<tr><td>${esc(x.kind)}</td><td>${esc(x.name)}</td><td>${docState(x.state)}</td><td>${esc(x.date)}</td><td>${esc(x.file)}</td></tr>`);
+    const curRows=(c.mirror.curatorship||[]).map(x=>`<tr><td>${esc(x.unit)}</td><td>${esc(x.employee)}</td><td>${esc(x.role)}</td><td>${esc(x.from)}</td><td>${esc(x.to||'—')}</td></tr>`);
     const tu=c.targetUse||{};
     const notes=(c.notes||[]);
     const noteRows=notes.map(n=>`<div class="hrow"><div class="hwhen">${noteTypePill(n.type)} · ${esc(n.author)}</div><div class="hwhat">${esc(n.text)}</div></div>`);
@@ -2989,6 +3057,13 @@ if (typeof document !== 'undefined') {
       <p class="section-note">Жизненный цикл документа: требуется → загружен → на проверке → принят / отклонён / не требуется / просрочен.</p>
       ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Состояние'},{h:'Дата'},{h:'Файл'}], docRows, {empty:'Документов нет'})}
 
+      <div class="section-h" style="margin-top:22px">Регистрация договора — файл и пометка</div>
+      <p class="section-note">Шаг 11: скан и комментарий переехали сюда из вкладки «Договор» — там остались только реквизиты регистрации (№, дата, бейдж статуса).</p>
+      <div class="f2">
+        ${fld('Скан договора', c.reg.scan?`<a class="lnk" onclick="CR.toast('Просмотр вложения — вне объёма макета');return false">${esc(c.reg.scan)}</a>`:null)}
+        ${fld('Комментарий регистрации', c.reg.comment?esc(c.reg.comment):null, {span:true})}
+      </div>
+
       <div class="section-h" style="margin-top:22px">Целевое использование (Р-15)</div>
       <div class="f2">
         ${fld('Подтверждающих документов', esc((tu.docs||[]).length))}
@@ -2996,6 +3071,11 @@ if (typeof document !== 'undefined') {
         ${fld('Мер реагирования', esc((tu.measures||[]).length))}
         ${fld('Решение Комитета (нецелевое)', tu.committeeDecision?esc(tu.committeeDecision.num||'есть'):null)}
       </div>
+
+      <div class="section-h" style="margin-top:22px">Кураторство ${lockHtml()}</div>
+      <p class="section-note">Шаг 11: журнал назначений переехал сюда из вкладки «Договор» — это история, а не реквизит договора. Текущий куратор — строкой в шапке карточки.</p>
+      ${cgrid([{h:'Подразделение'},{h:'Сотрудник'},{h:'Роль'},{h:'С'},{h:'По'}], curRows, {empty:'Назначений нет'})}
+      <div class="mirror-src">Источник: модуль сотрудников · журнал назначений кураторства (Р-9). Зеркало — только чтение.</div>
 
       <div class="section-h" style="margin-top:22px">Примечания</div>
       <p class="section-note">Человеческие заметки куратора и подразделений (редактируемые) — в отличие от системного append-only журнала ниже.</p>
