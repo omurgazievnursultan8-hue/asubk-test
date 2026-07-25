@@ -4622,6 +4622,7 @@ function saveNewItem(){
     revals:[{date, appraised:v, report:rep, note:'первичная оценка'}],
     surveys:[], history:[] };
   normalizeItem(it);
+  syncItemDetailMirrors(it);   // leaseTill → верхний уровень (иначе leaseCoversCredit молчит)
   hist(it, `Предмет зарегистрирован в реестре. Оценочная ${fmt(v)} → залоговая (расч.) ${fmt(calcPledge(it))}`);
   if(it.committeeReq) hist(it, `П1 §3.4: ${it.committeeReq.reason}`);
   ITEMS.push(it); closeModal(); toast('Предмет '+it.id+' создан. Залоговая: '+fmt(calcPledge(it)),'ok');
@@ -5075,11 +5076,38 @@ function fieldDiffs(pairs){
   return pairs.filter(p => String(p.before ?? '') !== String(p.after ?? ''))
               .map(p => `${p.label}: «${p.before || '—'}» → «${p.after || '—'}»`);
 }
+/* Часть деталей продублирована на верхнем уровне предмета, потому что участвует в расчётах и
+   контролях, а не только в фактографии: leaseTill читает leaseCoversCredit(item, credit)
+   (ПОЛ §6.4 п.6). Правка details.leaseTill без этой синхронизации оставила бы контроль на
+   старой дате — поэтому зеркало обновляется единой точкой и при создании, и при исправлении. */
+function syncItemDetailMirrors(it){
+  if(it.kind === 'Право аренды') it.leaseTill = (it.details || {}).leaseTill || '';
+  return it;
+}
+/* Р-30: type-specific детали предмета (KIND_FIELDS §9.2) правятся тем же диалогом и по тем же
+   правилам, что и общие реквизиты — куратор, обязательное основание, след «было → стало».
+   Вид залога (it.kind) здесь НЕ меняется: он задаёт коэффициент залоговой стоимости и сам
+   состав KIND_FIELDS, т.е. смена вида = пересчёт стоимости, а стоимость по Р-30 правится
+   только событиями (переоценка / решение комиссии). Смена вида — это замена предмета. */
+function editItemDetailFields(it){
+  const defs = KIND_FIELDS[it.kind] || [], d = it.details || {};
+  if(!defs.length) return `<div class="infoline"><span>Для вида «${esc(it.kind)}» детальные поля схемой не заданы — править нечего.</span></div>`;
+  /* req подсвечиваем только у полей, которые УЖЕ заполнены: у исторических записей прежней
+     системы детали пусты (см. detailRows), и требовать их заполнение при правке чужого
+     реквизита — значит заблокировать любое исправление такой записи. Очистить непустое
+     обязательное поле нельзя — это проверяет saveEditItem. */
+  return `<div class="mform">${defs.map(f => f.sel
+    ? fsel('ed_'+f.k, f.l, f.sel, d[f.k] ?? f.sel[0])
+    : fin('ed_'+f.k, f.l, d[f.k] ?? '', !!f.req && !!String(d[f.k] ?? '').trim())).join('')}</div>`;
+}
 function openEditItem(id){
   if(!canCurate()) return denyEdit();
   const it = item(id);
-  modal(`<div class="modal form">${mhead('Исправление реквизитов предмета · '+it.id)}
+  const pk = PRIMARY_DETAIL[it.kind];
+  const pkDef = (KIND_FIELDS[it.kind] || []).find(f => f.k === pk);
+  modal(`<div class="modal form wide">${mhead('Исправление реквизитов предмета · '+it.id)}
     <div class="modal-b"><div class="mform">
+      ${ro('Вид залога (в этом диалоге не меняется)', it.kind)}
       ${fin('eiName','Наименование / описание', it.name, true, true)}
       ${fin('eiIdent','Краткий идентификатор / кадастр / VIN', it.ident, true)}
       ${fin('eiLegalDoc','Правоустанавливающий документ', it.legalDoc||'')}
@@ -5089,7 +5117,9 @@ function openEditItem(id){
       <div class="field req col-span"><span class="flabel">Основание исправления</span>
         <textarea id="eiReason" class="note-area"></textarea></div>
     </div>
-    <div class="infoline"><span>Стоимостные реквизиты (оценочная, залоговая) правятся только событиями — переоценкой / решением комиссии — и здесь недоступны. Смена типа залогодателя меняет обязательный состав предпосылок §5.2.</span></div>
+    <p class="section-h" style="font-size:15px;margin:16px 0 2px">Детали предмета (по виду «${esc(it.kind)}»)</p>
+    ${editItemDetailFields(it)}
+    <div class="infoline"><span>Стоимостные реквизиты (оценочная, залоговая) правятся только событиями — переоценкой / решением комиссии — и здесь недоступны. Вид залога не меняется: он задаёт коэффициент залоговой стоимости и набор детальных полей, поэтому смена вида оформляется заменой предмета, а не исправлением. Смена типа залогодателя меняет обязательный состав предпосылок §5.2.${pkDef ? ` Поле «${esc(pkDef.l)}» — источник краткого идентификатора: если идентификатор совпадает с его прежним значением, он обновится вместе с полем.` : ''}</span></div>
     </div>${mfoot('Сохранить исправление','saveEditItem(\''+id+'\')')}</div>`);
 }
 function saveEditItem(id){
@@ -5102,16 +5132,38 @@ function saveEditItem(id){
   if(!ident) return toast('Краткий идентификатор не может быть пустым','warn');
   const qty = qtyRaw==='' ? null : num(qtyRaw);
   if(qtyRaw!=='' && !(qty>0)) return toast('Количество — положительное число','warn');
+  /* детали предмета (KIND_FIELDS): собираем новое значение и диффы по каждому полю вида.
+     Обязательное поле нельзя ОЧИСТИТЬ, но и заполнять пустое (историческая запись) при
+     правке не заставляем — см. editItemDetailFields. */
+  const defs = KIND_FIELDS[it.kind] || [], d0 = it.details || {}, details = {}, dDiffs = [];
+  for(const f of defs){
+    const was = String(d0[f.k] ?? '').trim(), now = (val('ed_'+f.k) || '').trim();
+    if(f.req && was && !now) return toast('Обязательное поле «'+f.l+'» нельзя очистить','warn');
+    if(now) details[f.k] = now;
+    if(was !== now) dDiffs.push({ label:f.l.toLowerCase(), before:was, after:now });
+  }
+  /* краткий идентификатор производен от PRIMARY_DETAIL (saveNewItem). Если куратор не правил
+     ident вручную (он равен прежнему значению ключевого поля), тянем его за полем — иначе
+     карточка и список показывали бы старый кадастр/VIN. Явно введённый ident приоритетнее. */
+  const pk = PRIMARY_DETAIL[it.kind];
+  let identFinal = ident;
+  if(pk){
+    const pkWas = String(d0[pk] ?? '').trim(), pkNow = String(details[pk] ?? '').trim();
+    if(pkNow && pkWas !== pkNow && ident === it.ident && String(it.ident ?? '').trim() === pkWas) identFinal = pkNow;
+  }
   const diffs = fieldDiffs([
     {label:'наименование', before:it.name, after:name},
-    {label:'идентификатор', before:it.ident, after:ident},
+    {label:'идентификатор', before:it.ident, after:identFinal},
     {label:'правоуст. документ', before:it.legalDoc, after:legalDoc},
     {label:'количество', before:it.qty, after:qty},
     {label:'ед. изм.', before:it.unit, after:unit},
     {label:'тип залогодателя', before:it.pledgerType, after:pledgerType},
+    ...dDiffs,
   ]);
   if(!diffs.length) return toast('Изменений нет','warn');
-  it.name = name; it.ident = ident; it.legalDoc = legalDoc; it.qty = qty; it.unit = unit; it.pledgerType = pledgerType;
+  it.name = name; it.ident = identFinal; it.legalDoc = legalDoc; it.qty = qty; it.unit = unit; it.pledgerType = pledgerType;
+  it.details = details;
+  syncItemDetailMirrors(it);
   hist(it, `Исправление реквизитов предмета (основание: «${reason}»): ${diffs.join('; ')}`);
   closeModal(); toast('Реквизиты предмета исправлены','ok'); refresh();
 }
@@ -6174,6 +6226,7 @@ if (typeof window !== 'undefined') window.__zt = {
   eventDateValid, REVAL_DROP_WARN,
   livesReval, livesSurvey, lastRevalLive, lastSurveyLive, voidBlockedReason, openVoidRecord, saveVoidRecord,
   openEditItem, saveEditItem, openEditContract, saveEditContract, fieldDiffs,
+  editItemDetailFields, syncItemDetailMirrors, PRIMARY_DETAIL, detailRows,
   saveReval, saveSurvey, doRegister, saveCommission,
   guaranteeReq, guaranteeExpired,
   KINDS, KIND_FIELDS, COVER_LIQUID, COVER_MOVABLE, COVER_GUARANTEE, COVER_GUARANTEE_FX,

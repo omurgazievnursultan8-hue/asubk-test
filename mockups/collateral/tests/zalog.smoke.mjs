@@ -1407,4 +1407,144 @@ test('W5-7 (Т-5): гамбургер сворачивает сайдбар; а�
   has(css, '.app.nav-collapsed .sidebar', 'правило сворачивания присутствует');
 });
 
+// ============================================================
+// Р-30 (детали предмета): type-specific поля вида (KIND_FIELDS) правятся тем же диалогом
+// исправления реквизитов. До фикса details заполнялись только при создании и на карточке
+// были read-only — опечатку в кадастре/VIN исправить было нечем.
+// ============================================================
+
+test('W6-1 (Р-30): диалог правки содержит поля деталей вида с текущими значениями', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = zt.item('П-001');                       // Недвижимое имущество
+  win.openEditItem('П-001');
+  const doc = win.document;
+  ok(doc.getElementById('ed_cadastre'), 'поле кадастра присутствует в форме');
+  eq(doc.getElementById('ed_cadastre').value, it.details.cadastre, 'кадастр предзаполнен текущим значением');
+  eq(doc.getElementById('ed_address').value, it.details.address, 'адрес предзаполнен');
+  ok(doc.getElementById('ed_reType'), 'select-поле вида недвижимости присутствует');
+  eq(doc.getElementById('ed_reType').value, it.details.reType, 'select предзаполнен текущим значением');
+});
+
+test('W6-2 (Р-30): вид залога в диалоге не редактируется', () => {
+  const { win } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  win.openEditItem('П-001');
+  const host = win.document.getElementById('modalHost');
+  no(host.querySelector('#eiKind'), 'поля смены вида нет');
+  has(host.innerHTML, 'в этом диалоге не меняется', 'вид показан read-only с пояснением');
+});
+
+test('W6-3 (Р-30): правка детали пишет было→стало и обновляет it.details', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = zt.item('П-001'), wasArea = it.details.areaTotal;
+  win.openEditItem('П-001');
+  win.document.getElementById('ed_areaTotal').value = '1300';
+  win.document.getElementById('eiReason').value = 'уточнение по техпаспорту';
+  win.saveEditItem('П-001');
+  eq(it.details.areaTotal, '1300', 'деталь обновлена');
+  const last = it.history[it.history.length-1].what;
+  has(last, 'уточнение по техпаспорту', 'основание в записи');
+  has(last, wasArea, 'прежнее значение в записи');
+  has(last, '1300', 'новое значение в записи');
+});
+
+test('W6-4 (Р-30): правка ключевой детали тянет краткий идентификатор', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = zt.item('П-001');
+  it.ident = it.details.cadastre;                    // ident не правился вручную → зеркало ключевого поля
+  win.openEditItem('П-001');
+  win.document.getElementById('ed_cadastre').value = '1-04-12-9999';
+  win.document.getElementById('eiReason').value = 'исправление кадастрового кода по выписке';
+  win.saveEditItem('П-001');
+  eq(it.details.cadastre, '1-04-12-9999', 'кадастр обновлён');
+  eq(it.ident, '1-04-12-9999', 'краткий идентификатор подтянулся за ключевым полем');
+});
+
+test('W6-4b (Р-30): вручную заданный идентификатор не перезатирается', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = zt.item('П-001');
+  const keep = it.ident;                             // «Кадастровый № …» ≠ details.cadastre
+  win.openEditItem('П-001');
+  win.document.getElementById('ed_cadastre').value = '1-04-12-8888';
+  win.document.getElementById('eiReason').value = 'исправление кадастрового кода';
+  win.saveEditItem('П-001');
+  eq(it.ident, keep, 'собственный идентификатор сохранён');
+});
+
+test('W6-5 (Р-30): обязательную заполненную деталь нельзя очистить', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = zt.item('П-001'), was = it.details.cadastre;
+  win.openEditItem('П-001');
+  win.document.getElementById('ed_cadastre').value = '';
+  win.document.getElementById('eiReason').value = 'проверка блокировки';
+  win.saveEditItem('П-001');
+  eq(it.details.cadastre, was, 'кадастр не очищен');
+});
+
+test('W6-6 (Р-30): у исторической записи с пустыми деталями правка не блокируется', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = win.normalizeItem({ id:'П-E1', kind:'Недвижимое имущество', name:'Историческое здание',
+    pledger:'01912201610212', ident:'ЛЕГ-1', appraised:100000, apprDate:'01.01.2020', apprReport:'ОЦ-2020/1',
+    details:{}, override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false,
+    lastSurvey:'01.01.2020', lastReval:'01.01.2020', revals:[], surveys:[], history:[] });
+  zt.ITEMS.push(it);
+  win.openEditItem('П-E1');
+  win.document.getElementById('eiName').value = 'Историческое здание (испр.)';
+  win.document.getElementById('eiReason').value = 'уточнение наименования';
+  win.saveEditItem('П-E1');
+  eq(it.name, 'Историческое здание (испр.)', 'правка прошла, пустой req-кадастр её не заблокировал');
+});
+
+test('W6-7 (Р-30): правка details.leaseTill доходит до leaseCoversCredit', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = zt.item('П-017'), cr = zt.credit('К-104');
+  ok(it && it.kind === 'Право аренды', 'сид: П-017 — право аренды');
+  ok(cr && cr.creditTill, 'сид: К-104 несёт срок погашения');
+  ok(zt.leaseCoversCredit(it, cr).warn, 'исходно срок аренды короче срока кредита — предупреждение');
+  win.openEditItem('П-017');
+  win.document.getElementById('ed_leaseTill').value = '01.06.2028';   // позже creditTill 01.01.2028
+  win.document.getElementById('eiReason').value = 'продление договора аренды';
+  win.saveEditItem('П-017');
+  eq(it.details.leaseTill, '01.06.2028', 'деталь обновлена');
+  eq(it.leaseTill, '01.06.2028', 'зеркало верхнего уровня синхронизировано');
+  no(zt.leaseCoversCredit(it, cr).warn, 'контроль пересчитан — предупреждения нет');
+});
+
+test('W6-8 (Р-30): роль без права куратора детали не правит', () => {
+  const { win, zt } = load();
+  win.eval("role='Комитет по администрированию бюджетных кредитов'");
+  const it = zt.item('П-001'), was = it.details.areaTotal;
+  win.openEditItem('П-001');
+  no(win.document.getElementById('ed_areaTotal'), 'форма не открылась');
+  win.saveEditItem('П-001');
+  eq(it.details.areaTotal, was, 'детали не изменены');
+});
+
+test('W6-9 (Р-30): пустая правка деталей — «Изменений нет», история не растёт', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = zt.item('П-001'), len = it.history.length;
+  win.openEditItem('П-001');
+  win.document.getElementById('eiReason').value = 'основание есть, изменений нет';
+  win.saveEditItem('П-001');
+  eq(it.history.length, len, 'запись в историю не добавлена');
+});
+
+test('W6-10 (Р-30): состав полей деталей следует виду залога', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const veh = zt.ITEMS.find(x => x.kind === 'Транспортное средство');
+  ok(veh, 'сид: есть транспортное средство');
+  win.openEditItem(veh.id);
+  ok(win.document.getElementById('ed_vin'), 'для ТС присутствует VIN');
+  no(win.document.getElementById('ed_cadastre'), 'полей недвижимости нет');
+});
+
 report();
