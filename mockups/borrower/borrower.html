@@ -376,6 +376,28 @@
   .pl-item .pi-h b{font-size:13.5px;}
   .pl-item .pi-l{color:var(--text-muted);font-size:12.5px;}
 
+  /* вкладка «Акты сверок» — разворот строки: разбивка цифр + степпер жизненного цикла */
+  .act-detail{padding:10px 0 6px;font-size:13px;}
+  .act-detail table.grid.mini{max-width:720px;margin:6px 0 2px;}
+  .act-note{margin:9px 0 2px;font-size:12.5px;}
+  .act-note.warn{color:var(--status-error);font-weight:600;}
+  .act-actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;}
+  .act-step{display:flex;margin:14px 0 8px;max-width:640px;}
+  .act-step .st{flex:1;text-align:center;position:relative;color:var(--text-muted);font-size:11.5px;line-height:1.3;}
+  .act-step .st .dot{position:relative;z-index:1;display:block;width:14px;height:14px;border-radius:50%;
+    margin:0 auto 5px;background:#fff;border:2px solid var(--border-strong);}
+  .act-step .st::before{content:'';position:absolute;top:6px;right:50%;width:100%;height:2px;
+    background:var(--border-default);z-index:0;}
+  .act-step .st:first-child::before{display:none;}
+  .act-step .st.done{color:var(--text-default);}
+  .act-step .st.done .dot{background:var(--status-success);border-color:var(--status-success);}
+  .act-step .st.done::before{background:var(--status-success);}
+  .act-step .st.cur{color:var(--text-link);font-weight:600;}
+  .act-step .st.cur .dot{border-color:var(--action-primary);background:var(--action-primary);}
+  .act-step .st.fail{color:var(--status-error);font-weight:600;}
+  .act-step .st.fail .dot{background:var(--status-error);border-color:var(--status-error);}
+  .act-step .st .sd{font-weight:400;color:var(--text-muted);margin-top:2px;font-size:11px;}
+
   /* тулбар «на дату» */
   .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0;margin-bottom:14px;}
   .toolbar .sep{width:1px;height:24px;background:var(--border-default);margin:0 3px;}
@@ -1289,11 +1311,41 @@ const BLACKLIST  = [];   // ← реестр ЧС (сверка по ИНН); д
 BLACKLIST.push(
   { inn:'07701199970071', from:'15.05.2026', basis:'Завершение банкротства' },  // банкрот из ветки 3.2
 );
+/* Акт сверки — документ НА ЗАЁМЩИКА: один акт охватывает один или несколько кредитов
+   (scope: «все» — включая закрытые, либо «действующие»). Цифры берутся ТОЛЬКО из нашей системы (АС);
+   заёмщик подтверждает подписью, при несогласии не подписывает (разногласия/уклонение).
+   Жизненный цикл (stage = число пройденных шагов): 0 данные сформированы · 1 на подписании ·
+   2 подписан · 3 зарегистрирован · 4 скан загружен.
+   agreement на шаге подписи: null (ещё не дошёл/на подписании) · signed · dispute (разногласия) · evasion (уклонение).
+   credits[] — строки акта: по кредиту сверяем осн.долг / проценты / штрафы (pen) и просроченную
+   задолженность (overdue); все цифры из АС. Остаток всего по строке = осн + проценты + штрафы.
+   Итого акта = сумма по всем строкам. */
 ACTS.push(
-  { id:'ACT-1', inn:'01204199910016', creditId:'C-ATS-GAZ',   kind:'годовой', dueDate:'30.06.2026', status:'просрочен', sum:9400000 },
-  { id:'ACT-3', inn:'01204199910016', creditId:'C-ATS-NECEL', kind:'годовой', dueDate:'30.06.2026', status:'составлен', sum:5200000, compiledAt:'15.06.2026', by:'Осмонова Г. Т.' },
-  { id:'ACT-4', inn:'01204199910016', creditId:'C-ATS-OK',    kind:'квартальный', dueDate:'30.06.2026', status:'составлен', sum:1100000, compiledAt:'15.06.2026', by:'Осмонова Г. Т.' },
-  { id:'ACT-2', inn:'05501199950051', creditId:'C-B5-EXP',    kind:'годовой', dueDate:'20.04.2026', status:'уклонение', sum:6000000 },
+  // inn 012 — ОсОО: годовой акт по всем 3 кредитам, полностью подписан/зарегистрирован/скан
+  { id:'ACT-118', inn:'01204199910016', kind:'годовой', period:'2025 год', scope:'все', dueDate:'30.06.2026',
+    credits:[
+      { creditId:'C-ATS-GAZ',   osn:9000000, proc:320000, pen:80000, overdue:480000 },
+      { creditId:'C-ATS-NECEL', osn:5000000, proc:180000, pen:20000, overdue:0 },
+      { creditId:'C-ATS-OK',    osn:1000000, proc:80000,  pen:20000, overdue:0 } ],
+    stage:4, agreement:'signed', dataAt:'01.06.2026', by:'Осмонова Г. Т.',
+    signAt:'14.06.2026', regNo:'АС-2026-118', regAt:'16.06.2026', scan:'akt-sverki-118.pdf', scanAt:'16.06.2026' },
+  // квартальный акт по действующим кредитам — на подписании (срок ещё не вышел)
+  { id:'ACT-121', inn:'01204199910016', kind:'квартальный', period:'II кв. 2026', scope:'действующие', dueDate:'15.07.2026',
+    credits:[
+      { creditId:'C-ATS-GAZ',   osn:8800000, proc:150000, pen:0, overdue:300000 },
+      { creditId:'C-ATS-NECEL', osn:4900000, proc:90000,  pen:0, overdue:0 } ],
+    stage:1, agreement:null, dataAt:'01.07.2026', by:'Осмонова Г. Т.' },
+  // inn 055 — годовой акт по всем кредитам: уклонение от подписания (кандидат в комитет)
+  { id:'ACT-77', inn:'05501199950051', kind:'годовой', period:'2025 год', scope:'все', dueDate:'20.04.2026',
+    credits:[
+      { creditId:'C-B5-EXP',   osn:5700000, proc:250000, pen:50000, overdue:6000000 },
+      { creditId:'C-B5-CLEAN', osn:3050000, proc:130000, pen:20000, overdue:0 } ],
+    stage:1, agreement:'evasion', dataAt:'20.03.2026', by:'Асанов А. К.' },
+  // квартальный акт по одному действующему кредиту — разногласия (заёмщик не подписал)
+  { id:'ACT-93', inn:'05501199950051', kind:'квартальный', period:'I кв. 2026', scope:'действующие', dueDate:'15.06.2026',
+    credits:[ { creditId:'C-B5-CLEAN', osn:3050000, proc:130000, pen:20000, overdue:250000 } ],
+    stage:1, agreement:'dispute', dataAt:'20.05.2026', by:'Асанов А. К.',
+    disputeNote:'Заёмщик оспаривает начисленную пеню за март' },
 );
 DOCS.push(
   { id:'DOC-1', inn:'01204199910016', scope:{kind:'заёмщик', ref:'01204199910016'}, type:'Учредительные документы', date:'14.02.2011', ownerModule:'borrower',    file:'ustav.pdf',          by:'Асанов А. К.' },
@@ -3586,24 +3638,135 @@ function wireCollateralTab(inn){
   }
 }
 
-/* 4. Акты сверок — ACTS заёмщика; уклонение >60 к.д. помечено кандидатом на комитет. */
-function actsTab(inn){
-  const acts = ACTS.filter(a=>a.inn===inn);
-  const rows = acts.map(a=>{
-    const overdue = a.status==='просрочен' || a.status==='уклонение';
-    const days = overdue ? calDays(a.dueDate, TODAY) : 0;
-    const flag = (a.status==='уклонение' && days>60) ? ' — кандидат в очередь на комитет' : '';
-    const cr = (CREDITS.find(c=>c.id===a.creditId)||{}).no || a.creditId;
-    const sum = a.sum!=null ? fmt(a.sum)+' KGS' : '<span class="muted">—</span>';
-    const made = a.compiledAt
-      ? esc(a.compiledAt) + (a.by ? `<div class="muted" style="margin-top:3px">подтвердил: ${esc(a.by)}</div>` : '')
-      : '<span class="muted">—</span>';
-    return `<tr><td>${esc(cr)}</td><td>${esc(a.kind)}</td><td>${esc(a.dueDate)}</td>`
-      + `<td>${sum}</td><td>${made}</td>`
-      + `<td><span class="badge ${overdue?'b-ov':'b-ok'}">${esc(a.status)}</span>${esc(flag)}</td></tr>`;
+/* 4. Акты сверок — цифры из нашей системы, заёмщик подтверждает подписью. Строка раскрывается
+   в разбивку долга (остаток всего · осн.долг · проценты · штрафы · просроч. задолженность)
+   + степпер жизненного цикла (данные→подпись→регистрация→скан).
+   Разногласия/уклонение и просрочка подписи выносятся в блок «Требуют действия»;
+   уклонение >60 к.д. — кандидат в очередь на комитет (связь с событием источника «acts»). */
+const ACT_STEP_LABELS = ['Данные', 'Подпись', 'Регистрация', 'Скан'];
+const actSum = a => a.credits.reduce((s, c) => s + c.osn + c.proc + c.pen, 0);
+const actOverdue = a => a.credits.reduce((s, c) => s + (c.overdue || 0), 0);
+/* требует действия: не подписан в срок, разногласия или уклонение */
+function actNeedsAction(a){
+  if (a.agreement === 'dispute' || a.agreement === 'evasion') return true;
+  return a.stage < 2 && !a.agreement && calDays(a.dueDate, TODAY) > 0;   // просрочен
+}
+function actStatusBadge(a){
+  const days = calDays(a.dueDate, TODAY);
+  if (a.agreement === 'evasion'){
+    const flag = days > 60 ? ` <a class="lnk">→ очередь на комитет (${days} к.д.)</a>` : ` <span class="muted">${days} к.д.</span>`;
+    return `<span class="badge b-err">Уклонение</span>${flag}`;
+  }
+  if (a.agreement === 'dispute') return '<span class="badge b-err">Разногласия</span>';
+  if (a.stage < 2 && days > 0) return `<span class="badge b-ov">Просрочен</span> <span class="muted">${days} к.д.</span>`;
+  const L = ['Данные сформированы', 'На подписании', 'Подписан', 'Зарегистрирован', 'Завершён'];
+  const cls = a.stage >= 2 ? 'b-ok' : 'b-proc';
+  return `<span class="badge ${cls}">${esc(L[a.stage] || '—')}</span>`;
+}
+function actStepper(a){
+  const fail = a.agreement === 'evasion' ? 'уклонение' : a.agreement === 'dispute' ? 'разногласия' : null;
+  const dates = [a.dataAt, (a.agreement === 'signed' ? a.signAt : fail ? '—' : null), a.regAt, a.scanAt];
+  const cells = ACT_STEP_LABELS.map((lab, i) => {
+    const isFail = i === 1 && fail;
+    const cls = isFail ? 'fail' : i < a.stage ? 'done' : i === a.stage ? 'cur' : '';
+    let l = lab;
+    if (i === 1 && a.agreement === 'evasion') l = 'Уклонение';
+    if (i === 1 && a.agreement === 'dispute') l = 'Разногласия';
+    const d = dates[i] ? `<div class="sd">${esc(dates[i])}</div>` : '';
+    return `<div class="st ${cls}"><span class="dot"></span>${esc(l)}${d}</div>`;
+  }).join('');
+  return `<div class="act-step">${cells}</div>`;
+}
+function actDetail(a){
+  const money = n => fmt(n) + ' <span class="muted">KGS</span>';
+  // строки акта: кредит × сверяемые суммы — остаток всего · осн.долг · проценты · штрафы · просроч. задолженность (из АС)
+  const ov = n => n > 0 ? `<span class="win">${money(n)}</span>` : '<span class="muted">—</span>';
+  const rowsC = a.credits.map(cc => {
+    const cr = (CREDITS.find(c => c.id === cc.creditId) || {}).no || cc.creditId;
+    const it = cc.osn + cc.proc + cc.pen;
+    return `<tr><td>${esc(cr)}</td>`
+      + `<td style="text-align:right"><b>${money(it)}</b></td>`
+      + `<td style="text-align:right">${money(cc.osn)}</td>`
+      + `<td style="text-align:right">${money(cc.proc)}</td>`
+      + `<td style="text-align:right">${money(cc.pen)}</td>`
+      + `<td style="text-align:right">${ov(cc.overdue || 0)}</td></tr>`;
+  }).join('');
+  const tot = a.credits.reduce((s, c) => ({ osn:s.osn+c.osn, proc:s.proc+c.proc, pen:s.pen+c.pen, ov:s.ov+(c.overdue||0) }),
+    { osn:0, proc:0, pen:0, ov:0 });
+  const compTable = '<table class="grid mini"><thead><tr><th>Кредит</th>'
+    + '<th style="text-align:right">Остаток всего</th><th style="text-align:right">Основной долг</th>'
+    + '<th style="text-align:right">Проценты</th><th style="text-align:right">Штрафы</th>'
+    + '<th style="text-align:right">Просроч. задолженность</th></tr></thead>'
+    + `<tbody>${rowsC}</tbody>`
+    + `<tfoot><tr><td>Итого · ${a.credits.length} кред.</td>`
+    + `<td style="text-align:right"><b>${money(actSum(a))}</b></td>`
+    + `<td style="text-align:right">${money(tot.osn)}</td><td style="text-align:right">${money(tot.proc)}</td>`
+    + `<td style="text-align:right">${money(tot.pen)}</td><td style="text-align:right">${ov(tot.ov)}</td></tr></tfoot></table>`;
+  const src = `<div class="act-note">Данные сформированы из АС на <b>${esc(a.dataAt)}</b>${a.by ? ' · ' + esc(a.by) : ''}. `
+    + 'Сверка ведётся по данным нашей системы; заёмщик подтверждает суммы подписью.</div>';
+  let branch = '';
+  if (a.agreement === 'dispute')
+    branch = `<div class="act-note warn">✖ Разногласия — заёмщик не подписал.${a.disputeNote ? ' ' + esc(a.disputeNote) : ''}</div>`;
+  else if (a.agreement === 'evasion'){
+    const days = calDays(a.dueDate, TODAY);
+    branch = `<div class="act-note warn">⏰ Уклонение от подписания ${days} к.д.`
+      + (days > 60 ? ' — кандидат в очередь на комитет (событие источника «acts»).' : '.') + '</div>';
+  } else if (a.regNo)
+    branch = `<div class="act-note">Зарегистрирован: <b>${esc(a.regNo)}</b>${a.regAt ? ' от ' + esc(a.regAt) : ''}.</div>`;
+  const scan = a.scan
+    ? `<div class="act-note">Скан: <a class="lnk">📎 ${esc(a.scan)}</a></div>`
+    : '';
+  // контекстные действия по этапу (заглушки печатных форм / загрузки)
+  const btns = ['Открыть PDF'];
+  if (a.stage >= 3 && !a.scan) btns.push('Загрузить скан');
+  const actions = btns.length
+    ? `<div class="act-actions">${btns.map(b => `<button class="btn btn-secondary btn-sm">${esc(b)}</button>`).join('')}</div>`
+    : '';
+  return `<div class="act-detail">${src}${compTable}${actStepper(a)}${branch}${scan}${actions}</div>`;
+}
+function actsTable(list){
+  const rows = list.map(a => {
+    const scanCell = a.scan ? '<a class="lnk">📎</a>' : '<span class="muted">—</span>';
+    const scope = `${a.credits.length} кред. <span class="muted">· ${esc(a.scope || 'все')}</span>`;
+    const period = esc(a.period || '—') + (a.regNo ? `<div class="muted" style="margin-top:3px">${esc(a.regNo)}</div>` : '');
+    const main = `<tr class="pl-row" data-act="${esc(a.id)}">`
+      + '<td class="rownum"><span class="car">▸</span></td>'
+      + `<td class="who">${period}</td>`
+      + `<td>${esc(a.kind)}</td>`
+      + `<td>${scope}</td>`
+      + `<td>${fmt(actSum(a))} <span class="muted">KGS</span>`
+        + (actOverdue(a) > 0 ? `<div class="muted" style="margin-top:3px">просроч. <span class="win">${fmt(actOverdue(a))}</span></div>` : '') + '</td>'
+      + `<td>${actStatusBadge(a)}</td>`
+      + `<td>${scanCell}</td></tr>`;
+    const sub = `<tr class="pl-sub" data-sub="${esc(a.id)}" hidden><td colspan="7">${actDetail(a)}</td></tr>`;
+    return main + sub;
   });
-  return sect('Акты сверок', '', '',
-    table('<th>Кредит</th><th>Вид</th><th>Срок</th><th>Сумма</th><th>Составлен</th><th>Статус</th>', rows));
+  const head = '<th class="rownum"></th><th style="width:16%">Период</th><th style="width:12%">Вид</th>'
+    + '<th style="width:14%">Охват</th><th style="width:16%">Итого</th><th style="width:26%">Этап</th><th style="width:8%">Скан</th>';
+  return table(head, rows);
+}
+function actsTab(inn){
+  const acts = ACTS.filter(a => a.inn === inn);
+  const action = acts.filter(actNeedsAction);
+  const hist = acts.filter(a => !actNeedsAction(a));
+  const genBtn = '<button class="btn btn-secondary btn-sm">+ Сформировать акт</button>';
+  const actionSect = action.length
+    ? sect('Требуют действия', 'не подписаны в срок · разногласия · уклонение', '', actsTable(action))
+    : '';
+  const histSect = sect('История актов', 'цифры из нашей системы · заёмщик подтверждает подписью', genBtn,
+    hist.length ? actsTable(hist) : empty('Актов нет.'));
+  return `<div id="actsWrap">${actionSect}${histSect}</div>`;
+}
+/* Проводка таба «Акты сверок»: раскрытие строки в разбивку + степпер. Вызывается из showDetail. */
+function wireActsTab(inn){
+  const wrap = document.getElementById('actsWrap');
+  if (!wrap) return;
+  wrap.querySelectorAll('tr.pl-row').forEach(tr => tr.addEventListener('click', () => {
+    const sub = wrap.querySelector('tr.pl-sub[data-sub="' + tr.dataset.act + '"]');
+    if (!sub) return;
+    sub.hidden = !sub.hidden;
+    tr.classList.toggle('open', !sub.hidden);
+  }));
 }
 
 /* 5. Кураторство — curatorMatrix (объект×роль) + конфликт интересов (Р-6, 3 фазы, noticeOverdue). */
@@ -3897,6 +4060,7 @@ function showDetail(inn, tabIndex){
   wireCreditsTab(inn);      /* таб «Кредиты» интерактивен — проводим после вставки в DOM */
   wireCollateralTab(inn);   /* таб «Залог» — переключатель вида и раскрытие строк */
   wireCollectionTab(inn);   /* таб «Взыскание» — то же: вид, раскрытие процесса, дропдаун */
+  wireActsTab(inn);         /* таб «Акты сверок» — раскрытие строки в разбивку + степпер */
   showOnly(vDetail);
   const s = SUBJECTS.find(x => x.inn === inn);
   /* наименование кликабельно — ведёт на страницу субъекта (организация / физлицо) */
