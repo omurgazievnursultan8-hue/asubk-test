@@ -303,6 +303,22 @@ const pd = CR.pd;
      `termAgg=${d.termAgg} terms=${terms} rows=${rows.length}`);
 })();
 
+/* 33. Д-7: агрегат по кредиту — одно значение при согласии траншей,
+       divergent при расхождении; divergenceRows перечисляет только спорные
+       параметры. В демо ровно один кредит с расхождением. */
+(() => { const db = CR.seedDb();
+  const k1 = db.credits.find(c => c.id === 'K-1');
+  const agg1 = CR.creditConditionsAt(k1, CR.TODAY);
+  const single = agg1.rate && agg1.rate.divergent !== true;
+  const divergent = db.credits.filter(c => {
+    const a = CR.creditConditionsAt(c, CR.TODAY);
+    return CR.PARAM_KEYS.some(k => a[k] && a[k].divergent);
+  });
+  const rows = divergent.length ? CR.divergenceRows(divergent[0], CR.TODAY) : [];
+  ok(33, single && divergent.length === 1 && rows.length >= 1 && rows.every(r => r.cells.length >= 2),
+     `divergent=${divergent.map(c=>c.id)} rows=${rows.map(r=>r.param)}`);
+})();
+
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
 results.forEach(r => console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`));

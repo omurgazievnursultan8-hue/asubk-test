@@ -237,7 +237,7 @@
       Макет: простой календарь (сб/вс), без праздников.
 
   SMOKE (node)
- SMOKE (node) 2026-07-25 · 36/36 PASS
+ SMOKE (node) 2026-07-25 · 37/37 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -274,6 +274,10 @@
    #30 ✓
    #31 ✓
    #32 ✓
+   #33 ✓
+
+
+
 
 
 
@@ -1036,6 +1040,27 @@ function mkPrimaryRecords(credit){
 function seedPrimaryRecords(credit){
   for (const t of credit.tranches) t.conditionRecords = mkPrimaryRecords(credit);
 }
+/* creditConditionsAt — Д-7: на уровне кредита условия суть агрегат по активным
+   траншам. Согласны → {value}; разошлись → {divergent:true, values:[...]}.
+   Тот же приём, что Р-13 для срока: кредит ничем не владеет, только сводит. */
+function creditConditionsAt(credit, date){
+  const ts = credit.tranches.filter(activeTranche);
+  const out = {};
+  for (const k of PARAM_KEYS){
+    const vals = ts.map(t => ({ trancheNo:t.no, value:conditionsAt(t, date)[k] }));
+    const uniq = [...new Set(vals.map(v => String(v.value)))];
+    out[k] = uniq.length <= 1 ? { value: vals.length ? vals[0].value : undefined }
+                              : { divergent:true, values:vals };
+  }
+  return out;
+}
+/* divergenceRows — строки таблицы «Расхождения по траншам»: только параметры,
+   по которым транши разошлись на указанную дату. */
+function divergenceRows(credit, date){
+  const agg = creditConditionsAt(credit, date);
+  return PARAM_KEYS.filter(k => agg[k] && agg[k].divergent)
+                   .map(k => ({ param:k, cells:agg[k].values }));
+}
 function emptyMirror(over){                          // все зеркала (Р-5…Р-10, Р-16)
   return deepMerge({
     curatorship:[], pledges:[], guarantees:[], bankGuarantee:null,
@@ -1557,6 +1582,20 @@ function seedDb(){
   scen.forEach((s, i) => credits.push(mkScen(s, i)));
 
   credits.forEach(seedPrimaryRecords);          // Р-21: первичные записи по всем кредитам
+
+  /* Демо Д-7: расхождение условий по траншам. Берём первый двухтраншевый
+     сценарный кредит (K-C*, tr2:true) и меняем метод погашения только
+     на транше №2 отдельным ДС. */
+  const multi = credits.find(c => /^K-C/.test(c.id) && c.tranches.length === 2);
+  if (multi){
+    const t2 = multi.tranches[1];
+    t2.conditionRecords.push(mkConditionRecord({
+      param:'method', value:'равными долями', effectiveFrom:'01.06.2026',
+      basis:{ kind:'agreement', ref:'ДС-1007', label:'Доп. соглашение ДС-1007', date:'20.05.2026' },
+      note:'Метод погашения изменён только по траншу №2', createdAt:'20.05.2026'
+    }));
+    multi.agreements.push({ num:'ДС-1007', date:'20.05.2026', source:'кредит', scan:'ds-1007.pdf' });
+  }
 
   return { credits, applications, pledgesRegistry };
 }
@@ -2189,6 +2228,7 @@ window.CR = {
   db: null,
   derive, buildSchedule, gate, canRole,
   conditionsAt, mkConditionRecord, mkPrimaryRecords, PARAMS, PARAM_KEYS, paramLabel, BASIS_KINDS,
+  creditConditionsAt, divergenceRows,
   generateSchedule, holdAccrual,
   saveContractAmount, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, closeCredit, linkPledge,
