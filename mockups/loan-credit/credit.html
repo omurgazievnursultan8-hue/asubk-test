@@ -579,6 +579,8 @@ table.grid tbody td{ height:44px; }                            /* воздух �
    placeholder, и высота строки крупнее — в нём до трёх строк с числами. */
 .dim .src{ font:var(--weight-regular) 11.5px/1.45 var(--asubk-font); color:var(--text-muted); margin-top:5px; }
 .dim .src b{ color:var(--text-body); font-weight:var(--weight-medium); }
+/* .src вне .dim (карточки «Условий», Д-6/Д-7) — тот же смысл, компактнее под полем. */
+.src{ display:block; color:var(--text-muted); font-size:11px; margin-top:2px; }
 .dim .dl .lock{ vertical-align:middle; }
 /* «Оверлеи» шире прочих: в основании до трёх слоёв с источником и дедлайном. */
 .dim.wide{ grid-column:span 2; }
@@ -614,6 +616,13 @@ table.grid tbody td{ height:44px; }                            /* воздух �
 .lookup .val{ flex:1; font:var(--font-body); font-weight:var(--weight-medium); color:var(--text-body);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lookup .val.ph{ color:var(--text-placeholder); }
+/* .cond-lookup — вариант «лукапа» для карточек «Условия» (Д-6/Д-7): значение + основание
+   под ним могут занять больше одной строки (расхождение по траншам, длинные ссылки на
+   документ) — обычный .lookup рассчитан на одну строку фиксированной высоты и обрезает
+   контент по ширине; здесь высота растёт по контенту. */
+.cond-lookup{ height:auto; min-height:var(--control-h); flex-direction:column; align-items:flex-start;
+  padding:8px var(--space-2); gap:2px; }
+.cond-lookup .val{ white-space:normal; overflow:visible; text-overflow:clip; }
 .lookup button{ display:inline-flex; align-items:center; justify-content:center; width:32px; height:var(--control-h);
   border:none; background:transparent; color:var(--text-link); cursor:pointer; }
 .lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
@@ -2743,6 +2752,8 @@ if (typeof document !== 'undefined') {
      ============================================================ */
   let detailId = null, detailTab = 'Договор', detailTrancheNo = 1;
   let calcConsolidated = false;
+  let condScope = 'credit';         // 'credit' | номер транша — область просмотра условий (Д-7)
+  let condAsOf  = TODAY;            // дата среза условий (Д-6)
   const DTABS =['Договор','Условия','Транши и освоение','Расчёты','Платежи','Обеспечение','Проблемные','Досье'];
 
   function currentCredit(){ return CR.db.credits.find(x => x.id === detailId); }
@@ -3022,7 +3033,6 @@ if (typeof document !== 'undefined') {
     /* Шаг 14: пилюля у поля говорила «зеркало» — неверно, условия owned кредитом,
        а закрыты гейтом Г-9. Своя пилюля «доп. соглашение» с тем же title. */
     const lockG9='<span class="lock"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>доп. согл.</span>';
-    const bf=(label,val)=>`<div class="field"><span class="flabel">${esc(label)}${locked?' '+lockG9:''}</span><div class="lookup"${locked?` title="${jsAttr(g9)}"`:''}><span class="val">${val}</span></div></div>`;
     const dev=(t,key)=>{ const bv=b[key], tv=conditionsAt(t,TODAY)[key]; return String(bv)===String(tv)?esc(tv):`<span class="diff"><span class="diff-old">${esc(bv)}</span> → <span class="diff-new">${esc(tv)}</span></span>`; };
     const trRows=c.tranches.map(t=>`<tr><td>№${t.no}</td><td>${dev(t,'rate')}</td><td>${dev(t,'term')}</td><td>${dev(t,'method')}</td><td>${dev(t,'freq')}</td><td>${dev(t,'reserveRate')}</td></tr>`);
     /* Журнал ДС читает диф из basisGroups (Д-2): agreements[] — только реестр
@@ -3043,35 +3053,74 @@ if (typeof document !== 'undefined') {
        «Макс. пеня» удалена — cap в расчёте пени не применяется, поле врало (шаг 4).
        Дата полного погашения убрана из info-plate Р-13: она уже в основании плитки
        «Ближайший платёж» в шапке (шаг 12), в плите остался только агрегат срока. */
-    const rateVal = esc(b.rate) + (b.floating
-      ? ` <span style="color:var(--text-muted);font-weight:400">· плавающая: ${esc(b.floatType||'—')} + маржа ${esc(b.margin)}%</span>`
-      : '');
     const holdRows=(c.accrualHold||[]).map(h=>`<tr><td>${esc(h.from)}</td><td>${esc(h.to||'…')}</td><td>${esc(h.reason)}</td><td>${esc(h.doc)}</td></tr>`);
+    /* Значение параметра + подпись «основание · с даты» (Д-6) либо маркер
+       расхождения по траншам (Д-7). Основание берём из записи, которая
+       действует на дату среза. */
+    const recFor=(t,param)=>((t.conditionRecords||[])
+      .filter(r=>r.param===param && r.effectiveFrom && pd(r.effectiveFrom)<=pd(condAsOf))
+      .sort(crOrder).pop());
+    const srcLine=(t,param)=>{ const r=recFor(t,param);
+      if(!r) return '<span class="src">нет записи на дату среза</span>';
+      const ic=BASIS_KINDS[r.basis.kind]||{};
+      return `<span class="src">${esc(ic.icon||'')} ${esc(r.basis.ref||ic.label||'')} · с ${esc(r.effectiveFrom)}</span>`; };
+    const condCell=(param)=>{
+      if (condScope!=='credit'){
+        const t=c.tranches.find(x=>x.no===condScope)||c.tranches[0];
+        const v=conditionsAt(t,condAsOf)[param];
+        return `<div class="val">${esc(v===undefined?'—':v)}</div>${srcLine(t,param)}`;
+      }
+      const agg=creditConditionsAt(c,condAsOf)[param]||{};
+      if (agg.divergent){
+        const list=agg.values.map(v=>esc(v.value)).join(' / ');
+        return `<div class="val">${list} <span class="pill mid" style="cursor:pointer" onclick="CR.scrollToDivergence()"
+          title="Значения различаются по траншам — см. «Расхождения по траншам»">⚠ расх.</span></div>
+          <span class="src">${agg.values.map(v=>'№'+v.trancheNo+': '+esc(v.value)).join(' · ')}</span>`;
+      }
+      const t0=c.tranches.filter(activeTranche)[0]||c.tranches[0];
+      return `<div class="val">${esc(agg.value===undefined?'—':agg.value)}</div>${t0?srcLine(t0,param):''}`;
+    };
+    const cf=(param)=>`<div class="field"><span class="flabel">${esc(paramLabel(param))}${locked?' '+lockG9:''}</span>
+      <div class="lookup cond-lookup"${locked?` title="${jsAttr(g9)}"`:''}>${condCell(param)}</div></div>`;
     return `
       ${locked?`<div class="info-plate" style="margin-bottom:14px">${svgInfo()}<div>Условия зафиксированы: ЖЦ «${esc(c.lifecycle)}». Прямое редактирование недоступно (Г-9) — только доп. соглашением.</div></div>`:''}
+      <div class="gtoolbar" style="margin-bottom:14px">
+        <div class="field" style="max-width:280px"><span class="flabel">Область</span>
+          <div class="control"><select onchange="CR.setCondScope(this.value)">
+            <option value="credit"${condScope==='credit'?' selected':''}>по кредиту (агрегат)</option>
+            ${c.tranches.map(t=>`<option value="${t.no}"${condScope===t.no?' selected':''}>Транш №${t.no}</option>`).join('')}
+          </select><span class="caret">▾</span></div></div>
+        <div class="field" style="max-width:200px"><span class="flabel">Условия на дату</span>
+          <div class="control"><input value="${esc(condAsOf)}" placeholder="дд.мм.гггг"
+            onchange="CR.setCondAsOf(this.value)"></div></div>
+        ${condAsOf!==TODAY?`<button class="btn btn-secondary btn-sm" onclick="CR.setCondAsOf('${TODAY}')">⟲ сегодня</button>`:''}
+        <span class="spacer"></span>
+        ${roleBtn('addConditionRecords','Изменить условия','CR.openCondModal()','btn btn-primary btn-sm')}
+      </div>
       <div class="pcards">
         <div class="pcard">
           <div class="section-h">Ставки</div>
           <p class="section-note">Базовый комплект кредита (Р-2): транш наследует эти значения и может от них отклониться — дифф ниже.
             Потолок неустойки не задаётся: правила-cap в расчётном слое нет, ввод такого правила — отдельное решение (шаг 4).</p>
           <div class="f2">
-            ${bf('Ставка, %', rateVal)}
-            ${bf('Ставка резерва, %', esc(b.reserveRate))}
-            ${bf('Пеня по ОД, %/дн', esc(b.penaltyMain))}
-            ${bf('Пеня по %, %/дн', esc(b.penaltyInt))}
+            ${cf('rate')}
+            ${cf('reserveRate')}
+            ${cf('penaltyMain')}
+            ${cf('penaltyInt')}
           </div>
+          ${b.floating?`<p class="section-note" style="margin-bottom:0">Плавающая: ${esc(b.floatType||'—')} + маржа ${esc(b.margin)}% (шаблон кредита; каждое пересчитанное значение приходит записью с основанием).</p>`:''}
         </div>
 
         <div class="pcard">
           <div class="section-h">Погашение</div>
           <p class="section-note">Метод дней и очередь погашения — в «Расчётах» (шаг 14): это параметры движка, их читают вместе с цифрами детального расчёта.</p>
           <div class="f2">
-            ${bf('Срок-шаблон, мес.', esc(b.term))}
-            ${bf('Периодичность', esc(b.freq))}
-            ${bf('Метод погашения', esc(b.method))}
-            ${bf('Льгота по ОД, мес.', esc(b.graceMain))}
-            ${bf('Льгота по %, мес.', esc(b.graceInterest))}
-            ${bf('Отсрочка начисления, мес.', esc(b.graceAccrual))}
+            ${cf('term')}
+            ${cf('freq')}
+            ${cf('method')}
+            ${cf('graceMain')}
+            ${cf('graceInterest')}
+            ${cf('graceAccrual')}
           </div>
           <div class="info-plate" style="margin-top:12px">${svgInfo()}<div>Срок на кредите — производный агрегат (Р-13): максимум срока по действующим траншам = <b>${esc(d.termAgg)} мес.</b> Поле выше — только шаблон для наследования; единственный источник срока — условия транша.</div></div>
         </div>
@@ -3092,7 +3141,6 @@ if (typeof document !== 'undefined') {
           <div class="section-h">Доп. соглашения (Р-4)</div>
           <p class="section-note">Единственный способ изменить условия после регистрации (Г-9). Реестр документов — сами значения условий несут записи (Р-21), диф читается из журнала по основаниям.</p>
           ${cgrid([{h:'Номер'},{h:'Дата'},{h:'Источник'},{h:'Изменение'},{h:'Статус'}], agRows, {empty:'Соглашений нет'})}
-          <div class="gtoolbar">${roleBtn('addAgreement','Оформить доп. соглашение','CR.openAgrModal()','btn btn-primary btn-sm')}</div>
         </div>
 
         <div class="pcard wide">
@@ -3439,6 +3487,12 @@ if (typeof document !== 'undefined') {
   /* ---- обвязка действий карточки (onclick-строки живут в глобальной области → CR.*) ---- */
   CR.renderDetail=renderDetail; CR.renderTab=renderTab; CR.openTab=openTab; CR.rerenderDetail=rerenderDetail;
   CR.selectDetailTranche=function(no){ detailTrancheNo=no; rerenderDetail(); };
+  CR.setCondScope=function(v){ condScope = (v==='credit'?'credit':+v); rerenderDetail(); };
+  CR.setCondAsOf=function(v){ const s=String(v||'').trim();
+    condAsOf = /^\d{2}\.\d{2}\.\d{4}$/.test(s)?s:TODAY; rerenderDetail(); };
+  CR.scrollToDivergence=function(){ const el=document.getElementById('condDivergence');
+    if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); };
+  CR.openCondModal=function(){ toast('Конструктор условий — Task 10','warn'); };   // заглушка до Task 10
   CR.setCalcMode=function(v){ calcConsolidated=!!v; rerenderDetail(); };
   CR.stubAction=function(name){ toast('Действие «'+name+'» — открывается в модуле-владельце (вне интерактивного демо)'); };
   CR.filterAudit=function(q){ q=(q||'').toLowerCase(); const host=document.getElementById('cr-audit'); if(!host) return;
