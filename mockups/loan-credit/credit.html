@@ -237,7 +237,7 @@
       Макет: простой календарь (сб/вс), без праздников.
 
   SMOKE (node)
- SMOKE (node) 2026-07-25 · 40/40 PASS
+ SMOKE (node) 2026-07-25 · 41/41 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -278,6 +278,7 @@
    #34 ✓
    #35 ✓
    #36 ✓
+   #37 ✓
 -->
 <style>
 
@@ -2019,7 +2020,9 @@ function gate(credit, action, ctx = {}){
     case 'addAgreement':                                                                    // Г-10
       if (!ctx.num || !ctx.date) r.push('Доп. соглашение требует номер и дату (Г-10)');
       break;
-    case 'addConditionRecords': {                                          // Г-10 · Г-18 · Г-19 · Г-20
+    case 'addConditionRecords': {                                          // Г-10 · Г-18 · Г-19 · Г-20 · Г-22
+      if (!['Зарегистрирован','Действует'].includes(credit.lifecycle))
+        r.push('Условия меняются только при ЖЦ «Зарегистрирован» или «Действует» — при «Проект» они правятся напрямую (Г-9)'); // Г-22
       const bs = ctx.basis || {}, meta = BASIS_KINDS[bs.kind];
       if (!meta) r.push('Основание обязательно: доп. соглашение · решение суда · постановление правительства');
       if (bs.kind === 'agreement' && (!bs.num || !bs.date))
@@ -2260,7 +2263,7 @@ function addAgreement(credit, ctx){
    новая запись с прежним значением (Г-21). ДС при первом упоминании попадает
    в реестр документов credit.agreements. */
 function addConditionRecords(credit, ctx){
-  const g = gate(credit, 'addConditionRecords', ctx);            // Г-10 · Г-18 · Г-19 · Г-20
+  const g = gate(credit, 'addConditionRecords', ctx);            // Г-10 · Г-18 · Г-19 · Г-20 · Г-22
   if (!g.ok) return g;
   const bs = ctx.basis;
   const basis = { kind:bs.kind, ref:bs.ref || bs.num || '', date:bs.date || '',
@@ -2760,7 +2763,8 @@ if (typeof document !== 'undefined') {
   let condScope = 'credit';         // 'credit' | номер транша — область просмотра условий (Д-7)
   let condAsOf  = TODAY;            // дата среза условий (Д-6)
   let condBasisFilter = 'all';      // фильтр журнала по типу основания
-  let condOpenGroup   = null;       // ref развёрнутой группы журнала
+  let condOpenGroup   = null;       // ref+kind развёрнутой группы журнала
+  let condMatrixOpen = false, condTemplateOpen = false;
   const DTABS =['Договор','Условия','Транши и освоение','Расчёты','Платежи','Обеспечение','Проблемные','Досье'];
 
   function currentCredit(){ return CR.db.credits.find(x => x.id === detailId); }
@@ -3082,6 +3086,16 @@ if (typeof document !== 'undefined') {
       <div class="lookup cond-lookup"${locked?` title="${jsAttr(g9)}"`:''}>${condCell(param)}</div></div>`;
     return `
       ${locked?`<div class="info-plate" style="margin-bottom:14px">${svgInfo()}<div>Условия зафиксированы: ЖЦ «${esc(c.lifecycle)}». Прямое редактирование недоступно (Г-9) — только доп. соглашением.</div></div>`:''}
+      ${(()=>{ const rf=retroFlags(c); if(!rf.length) return '';
+        const first=rf[0];
+        return `<div class="warn-inline" style="margin-bottom:14px">${svgInfo()}<div>
+          Условия изменены задним числом: ${esc(paramLabel(first.param))} действует с
+          <b>${esc(first.effectiveFrom)}</b> (${esc(first.basisLabel)})${rf.length>1?` и ещё ${rf.length-1} записи`:''}.
+          Автоматического пересчёта нет (Д-5): график и начисления построены по прежним условиям —
+          требуется перегенерация.
+          <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm"
+            onclick="CR.goToCalc()">Перейти к перегенерации графика</button></div>
+        </div></div>`; })()}
       <div class="gtoolbar" style="margin-bottom:14px">
         <div class="field" style="max-width:280px"><span class="flabel">Область</span>
           <div class="control"><select onchange="CR.setCondScope(this.value)">
@@ -3165,12 +3179,13 @@ if (typeof document !== 'undefined') {
               const ic=BASIS_KINDS[g.kind]||{};
               const uniq=[...new Set(g.items.map(i=>i.param))];
               const changed=uniq.slice(0,3).map(paramLabel).join(' · ')+(uniq.length>3?' …':'');
-              trs.push(`<tr style="cursor:pointer" onclick="CR.toggleCondGroup('${jsAttr(g.ref)}')">
+              const gkey=g.ref+'@'+g.kind;
+              trs.push(`<tr style="cursor:pointer" onclick="CR.toggleCondGroup('${jsAttr(gkey)}')">
                 <td>${esc(ic.icon||'')} ${esc(g.ref)}</td><td>${esc(g.docDate||'—')}</td>
                 <td>${esc(g.effectiveFrom)}${g.retro?' <span class="pill high">задним числом</span>':''}</td>
                 <td>${esc(changed)}</td><td>${g.trancheNos.map(n=>'№'+n).join(', ')}</td>
-                <td>${condOpenGroup===g.ref?'▾':'▸'}</td></tr>`);
-              if (condOpenGroup===g.ref) trs.push(`<tr><td colspan="6" style="background:var(--surface-panel)">
+                <td>${condOpenGroup===gkey?'▾':'▸'}</td></tr>`);
+              if (condOpenGroup===gkey) trs.push(`<tr><td colspan="6" style="background:var(--surface-panel)">
                 ${cgrid([{h:'Параметр'},{h:'Было'},{h:'Стало'},{h:'Вступает'},{h:'Транш'},{h:'Примечание'}],
                   g.items.map(i=>`<tr><td>${esc(paramLabel(i.param))}</td>
                     <td><span class="diff-old">${esc(i.from===undefined?'—':i.from)}</span></td>
@@ -3191,6 +3206,34 @@ if (typeof document !== 'undefined') {
                 без записи условий документ не попадает в разбор выше (Р-21).</p>
               ${cgrid([{h:'Документ'},{h:'Дата'},{h:'Источник'},{h:'Скан'}], trs, {empty:'Таких документов нет'})}`;
           })()}
+        </div>
+
+        <div class="pcard wide">
+          <div class="section-h" style="cursor:pointer" onclick="CR.toggleCondMatrix()">
+            ${condMatrixOpen?'▾':'▸'} Сводная матрица условий (параметр × дата вступления)</div>
+          ${condMatrixOpen?(()=>{
+            const recs=c.tranches.flatMap(t=>(t.conditionRecords||[]).map(r=>({t,r})));
+            const dates=[...new Set(recs.map(x=>x.r.effectiveFrom))].sort((a,b)=>pd(a)-pd(b));
+            const cols=[{h:'Параметр'}].concat(dates.map(d=>({h:d})));
+            const trs=PARAMS.map(p=>{
+              const cells=dates.map(d=>{ const hit=recs.filter(x=>x.r.param===p.key && x.r.effectiveFrom===d);
+                if(!hit.length) return '<td style="color:var(--text-placeholder)">·</td>';
+                const vals=[...new Set(hit.map(x=>String(x.r.value)))].join(' / ');
+                return `<td>${esc(vals)}<br><span class="src">${esc(hit[0].r.basis.ref||'')}</span></td>`; }).join('');
+              return `<tr><td>${esc(p.label)}</td>${cells}</tr>`; });
+            return `<p class="section-note">Модель Р-21 в лоб: у каждого условия своя дата вступления
+              и своё основание. Пустая ячейка — в эту дату параметр не менялся.</p>
+              ${cgrid(cols, trs, {empty:'Записей нет'})}`;
+          })():''}
+        </div>
+
+        <div class="pcard wide">
+          <div class="section-h" style="cursor:pointer" onclick="CR.toggleCondTemplate()">
+            ${condTemplateOpen?'▾':'▸'} Шаблон наследования (что унаследует новый транш)</div>
+          ${condTemplateOpen?`<p class="section-note">Не действующие условия (Д-3): значения,
+            копируемые в записи при создании нового транша. Действующие — в карточках выше.
+            Правка шаблона возможна только в ЖЦ «Проект» (Г-9).</p>
+            <div class="f2">${PARAMS.map(p=>fld(p.label, esc(b[p.key]))).join('')}</div>`:''}
         </div>
 
         <div class="pcard wide">
@@ -3284,6 +3327,10 @@ if (typeof document !== 'undefined') {
     const posRows=(sel?trancheScheduleRows(sel):[]).map(r=>{const s=scheduleRowStatus(sel,r);return `<tr><td>№${r.no}</td><td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td><td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
     return `
       ${svod}
+      ${(()=>{ const rf=retroFlags(c); if(!rf.length) return '';
+        return `<div class="warn-inline" style="margin-top:14px">${svgInfo()}<div>
+          Условия изменены задним числом (с ${esc(rf[0].effectiveFrom)}, ${esc(rf[0].basisLabel)}).
+          Расчёт ниже построен по прежним условиям — сформируйте график заново (Д-5).</div></div>`; })()}
       <div class="section-h" style="margin-top:22px">График погашения</div>
       <div class="gtoolbar">
         <div class="field" style="max-width:320px"><span class="flabel">Транш</span><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
@@ -3540,6 +3587,9 @@ if (typeof document !== 'undefined') {
   CR.setCondScope=function(v){ condScope = (v==='credit'?'credit':+v); rerenderDetail(); };
   CR.setCondFilter=function(v){ condBasisFilter=v; rerenderDetail(); };
   CR.toggleCondGroup=function(ref){ condOpenGroup = (condOpenGroup===ref?null:ref); rerenderDetail(); };
+  CR.toggleCondMatrix=function(){ condMatrixOpen=!condMatrixOpen; rerenderDetail(); };
+  CR.toggleCondTemplate=function(){ condTemplateOpen=!condTemplateOpen; rerenderDetail(); };
+  CR.goToCalc=function(){ detailTab='Расчёты'; rerenderDetail(); };
   CR.setCondAsOf=function(v){ const s=String(v||'').trim();
     condAsOf = /^\d{2}\.\d{2}\.\d{4}$/.test(s)?s:TODAY; rerenderDetail(); };
   CR.scrollToDivergence=function(){ const el=document.getElementById('condDivergence');

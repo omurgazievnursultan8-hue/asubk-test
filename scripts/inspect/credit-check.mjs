@@ -426,6 +426,17 @@ const pd = CR.pd;
      `noDelete=${noDelete} reasonsOk=${reasonsOk} g18r=${JSON.stringify(g18.reasons)} badTr=${JSON.stringify(gBadTranche.reasons)}`);
 })();
 
+/* 37. Г-22: изменение условий при ЖЦ «Проект» → блок (в «Проекте» условия
+   правятся напрямую — editConditions, Г-9). К-1 (ЖЦ ≥ «Зарегистрирован» по
+   умолчанию) — переключаем на «Проект», чтобы проверить именно этот гейт. */
+(() => { const db = CR.seedDb(); const c = db.credits.find(x => x.id === 'K-1'); c.lifecycle = 'Проект';
+  const t = c.tranches[0];
+  const g = CR.addConditionRecords(c, { basis:{ kind:'agreement', num:'ДС-3001', date:CR.TODAY, ref:'ДС-3001', label:'ДС-3001' },
+    records:[{ param:'rate', value:5, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
+  ok(37, g.ok===false && g.reasons.some(x=>/ЖЦ «Зарегистрирован» или «Действует»/.test(x)),
+     `ok=${g.ok} reasons=${JSON.stringify(g.reasons)}`);
+})();
+
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
 results.forEach(r => console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`));
