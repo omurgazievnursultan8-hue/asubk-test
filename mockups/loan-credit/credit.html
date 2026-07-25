@@ -2754,6 +2754,8 @@ if (typeof document !== 'undefined') {
   let calcConsolidated = false;
   let condScope = 'credit';         // 'credit' | номер транша — область просмотра условий (Д-7)
   let condAsOf  = TODAY;            // дата среза условий (Д-6)
+  let condBasisFilter = 'all';      // фильтр журнала по типу основания
+  let condOpenGroup   = null;       // ref развёрнутой группы журнала
   const DTABS =['Договор','Условия','Транши и освоение','Расчёты','Платежи','Обеспечение','Проблемные','Досье'];
 
   function currentCredit(){ return CR.db.credits.find(x => x.id === detailId); }
@@ -3033,18 +3035,6 @@ if (typeof document !== 'undefined') {
     /* Шаг 14: пилюля у поля говорила «зеркало» — неверно, условия owned кредитом,
        а закрыты гейтом Г-9. Своя пилюля «доп. соглашение» с тем же title. */
     const lockG9='<span class="lock"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>доп. согл.</span>';
-    const dev=(t,key)=>{ const bv=b[key], tv=conditionsAt(t,TODAY)[key]; return String(bv)===String(tv)?esc(tv):`<span class="diff"><span class="diff-old">${esc(bv)}</span> → <span class="diff-new">${esc(tv)}</span></span>`; };
-    const trRows=c.tranches.map(t=>`<tr><td>№${t.no}</td><td>${dev(t,'rate')}</td><td>${dev(t,'term')}</td><td>${dev(t,'method')}</td><td>${dev(t,'freq')}</td><td>${dev(t,'reserveRate')}</td></tr>`);
-    /* Журнал ДС читает диф из basisGroups (Д-2): agreements[] — только реестр
-       документов, значения условий несут записи транша. Индекс ref→группа —
-       группировка та же, что строит журнал по основаниям (Task 8 его вынесет в UI). */
-    const groupByRef = new Map(basisGroups(c).map(g => [g.ref, g]));
-    const agRows=(c.agreements||[]).map(a=>{
-      const g = groupByRef.get(a.num);
-      const diff = g ? g.items.map(i=>`${esc(paramLabel(i.param))}: <span class="diff"><span class="diff-old">${esc(i.from)}</span> → <span class="diff-new">${esc(i.to)}</span></span>`).join(' · ') : '';
-      const status = g ? `с ${esc(g.effectiveFrom)}` : '—';
-      return `<tr><td>${esc(a.num)}</td><td>${esc(a.date)}</td><td>${esc(a.source)}</td><td>${diff}</td><td>${status}</td></tr>`;
-    });
     /* Шаг 14: сплошная лента из 14 полей заменена карточками .pcards, как в «Договоре»
        (шаг 13). Поля сгруппированы по смыслу: стоимость денег · погашение · санкции ·
        режим начисления. «Плавающая» схлопнута в «Ставку» (одно значение вместо да/нет
@@ -3132,15 +3122,57 @@ if (typeof document !== 'undefined') {
           <div class="gtoolbar">${roleBtn('holdAccrual','Приостановить начисление','CR.openHoldModal()')}</div>
         </div>
 
-        <div class="pcard wide">
-          <div class="section-h">Условия траншей — отклонение от базы</div>
-          ${cgrid([{h:'Транш'},{h:'Ставка'},{h:'Срок'},{h:'Метод'},{h:'Периодичность'},{h:'Резерв, %'}], trRows, {empty:'Траншей нет'})}
+        <div class="pcard wide" id="condDivergence">
+          <div class="section-h">Расхождения по траншам (на ${esc(condAsOf)})</div>
+          <p class="section-note">Условия принадлежат траншу (Д-3). Здесь только параметры,
+            по которым транши разошлись на дату среза; согласованные значения — в карточках выше.</p>
+          ${(()=>{ const rows=divergenceRows(c,condAsOf);
+            const cols=[{h:'Параметр'}].concat(c.tranches.map(t=>({h:'Транш №'+t.no})))
+                                       .concat([{h:'Основание расхождения'}]);
+            const trs=rows.map(r=>{
+              const cells=c.tranches.map(t=>{ const cell=r.cells.find(x=>x.trancheNo===t.no);
+                return `<td>${esc(cell?cell.value:'—')}</td>`; }).join('');
+              const refs=[...new Set(c.tranches.map(t=>{ const rec=(t.conditionRecords||[])
+                .filter(x=>x.param===r.param && x.effectiveFrom && pd(x.effectiveFrom)<=pd(condAsOf))
+                .sort(crOrder).pop();
+                return rec?(rec.basis.ref||''):''; }).filter(Boolean))];
+              return `<tr><td>${esc(paramLabel(r.param))}</td>${cells}<td>${esc(refs.join(' · '))}</td></tr>`; });
+            return cgrid(cols, trs, {empty:'Расхождений нет — условия всех траншей совпадают'});
+          })()}
         </div>
 
         <div class="pcard wide">
-          <div class="section-h">Доп. соглашения (Р-4)</div>
-          <p class="section-note">Единственный способ изменить условия после регистрации (Г-9). Реестр документов — сами значения условий несут записи (Р-21), диф читается из журнала по основаниям.</p>
-          ${cgrid([{h:'Номер'},{h:'Дата'},{h:'Источник'},{h:'Изменение'},{h:'Статус'}], agRows, {empty:'Соглашений нет'})}
+          <div class="section-h">Журнал изменений условий</div>
+          <p class="section-note">Каждая строка — документ-основание; «Изменено» и «было → стало» —
+            производные от записей условий (Р-21). Записи не удаляются: отмена — новая запись (Г-21).</p>
+          <div class="gtoolbar">
+            ${['all','agreement','court','govAct','application'].map(k=>{
+              const lbl = k==='all'?'все':BASIS_KINDS[k].label;
+              return `<span class="pill ${condBasisFilter===k?'low':'neutral'}" style="cursor:pointer"
+                onclick="CR.setCondFilter('${k}')">${esc(lbl)}</span>`; }).join(' ')}
+          </div>
+          ${(()=>{ const gs=basisGroups(c).filter(g=>condBasisFilter==='all'||g.kind===condBasisFilter);
+            const trs=[];
+            for (const g of gs){
+              const ic=BASIS_KINDS[g.kind]||{};
+              const uniq=[...new Set(g.items.map(i=>i.param))];
+              const changed=uniq.slice(0,3).map(paramLabel).join(' · ')+(uniq.length>3?' …':'');
+              trs.push(`<tr style="cursor:pointer" onclick="CR.toggleCondGroup('${jsAttr(g.ref)}')">
+                <td>${esc(ic.icon||'')} ${esc(g.ref)}</td><td>${esc(g.docDate||'—')}</td>
+                <td>${esc(g.effectiveFrom)}${g.retro?' <span class="pill high">задним числом</span>':''}</td>
+                <td>${esc(changed)}</td><td>${g.trancheNos.map(n=>'№'+n).join(', ')}</td>
+                <td>${condOpenGroup===g.ref?'▾':'▸'}</td></tr>`);
+              if (condOpenGroup===g.ref) trs.push(`<tr><td colspan="6" style="background:var(--surface-panel)">
+                ${cgrid([{h:'Параметр'},{h:'Было'},{h:'Стало'},{h:'Вступает'},{h:'Транш'},{h:'Примечание'}],
+                  g.items.map(i=>`<tr><td>${esc(paramLabel(i.param))}</td>
+                    <td><span class="diff-old">${esc(i.from===undefined?'—':i.from)}</span></td>
+                    <td><span class="diff-new">${esc(i.to)}</span></td>
+                    <td>${esc(i.effectiveFrom)}</td><td>№${i.trancheNo}</td><td>${esc(i.note||'')}</td></tr>`))}
+                </td></tr>`);
+            }
+            return cgrid([{h:'Документ'},{h:'Дата док.'},{h:'Вступает'},{h:'Изменено'},{h:'Транши'},{h:''}],
+                         trs, {empty:'Изменений условий не было'});
+          })()}
         </div>
 
         <div class="pcard wide">
@@ -3488,6 +3520,8 @@ if (typeof document !== 'undefined') {
   CR.renderDetail=renderDetail; CR.renderTab=renderTab; CR.openTab=openTab; CR.rerenderDetail=rerenderDetail;
   CR.selectDetailTranche=function(no){ detailTrancheNo=no; rerenderDetail(); };
   CR.setCondScope=function(v){ condScope = (v==='credit'?'credit':+v); rerenderDetail(); };
+  CR.setCondFilter=function(v){ condBasisFilter=v; rerenderDetail(); };
+  CR.toggleCondGroup=function(ref){ condOpenGroup = (condOpenGroup===ref?null:ref); rerenderDetail(); };
   CR.setCondAsOf=function(v){ const s=String(v||'').trim();
     condAsOf = /^\d{2}\.\d{2}\.\d{4}$/.test(s)?s:TODAY; rerenderDetail(); };
   CR.scrollToDivergence=function(){ const el=document.getElementById('condDivergence');
