@@ -455,6 +455,9 @@
   .role-pill{display:inline-block;font-size:12px;font-weight:600;border-radius:10px;padding:1px 9px;white-space:nowrap;}
   .role-cr{background:var(--status-info-bg);color:var(--text-link);}
   .role-zl{background:#fdf1e0;color:var(--status-warning);border:1px solid #f0dcc0;}
+  /* кураторство — группировка по объекту + дыры покрытия */
+  table.grid tbody tr.grp-row td{background:var(--surface-hover)!important;font-weight:600;font-size:13px;padding:8px 12px;}
+  table.grid tbody td.cov-gap{background:var(--status-error-bg)!important;color:var(--status-error);font-size:13px;font-weight:500;}
 
   /* таймлайн */
   .tl{position:relative;padding-left:26px;}
@@ -1293,6 +1296,18 @@ CONFLICTS.push(
     declaredAt:'01.06.2026', svbAt:'02.06.2026', boardNoticeAt:'03.06.2026',
     decision:{kind:'передача дела', date:'20.06.2026', doc:'РЕШ-77'}, closedAt:'20.06.2026' },
 );
+/* HANDOFF — очередь передач дела (зеркало модуля кураторства, §6): передача живёт заявкой,
+   пока не исполнена/отклонена. status: 'в очереди'|'исполнен'|'отклонён'. Task 9 (C2). */
+const HANDOFF = [];
+HANDOFF.push(
+  { inn:'06601199960061', objectId:'C-CHE-3', objectNo:'КР-66012', role:'кредитный куратор',
+    fromEmp:'emp-20', toEmp:'emp-30', when:'10.07.2026', status:'в очереди',
+    reason:'ручная передача — перегрузка куратора' },
+  // отклонённая передача по emp-07 (CF-01) → замены нет, покрытие остаётся дырой
+  { inn:'01204199910016', objectId:'C-ATS-GAZ', objectNo:'КР-60541', role:'кредитный куратор',
+    fromEmp:'emp-07', toEmp:'emp-12', when:'11.07.2026', status:'отклонён',
+    reason:'основание передачи не подтверждено (СВБ)' },
+);
 const PLEDGE_IX  = [];   // ← zalog (индекс обеспеченности); Task 5
 PLEDGE_IX.push(
   { creditId:'C-ATS-NECEL', index:1.35, required:1.20, insured:true, itemsByRegion:[{region:'Чуй', count:2}] },
@@ -1411,6 +1426,9 @@ ASSIGN.push(
   // Ветка 3 — назначение отстранённого emp-09 (снят иммунитетом) + валидный куратор
   { objectKind:'кредит', objectId:'C-B3-1', role:'кредитный куратор', empId:'emp-09', from:'01.03.2026', source:'kuratorstvo' },
   { objectKind:'кредит', objectId:'C-B3-1', role:'кредитный куратор', empId:'emp-30', from:'21.06.2026', source:'kuratorstvo' },
+  // Ветка 1 (CF-01) — единственный кредитный куратор кредита отстранён по конфликту, замены нет
+  // → дыра покрытия: кредит без активного куратора (демо B1/C3)
+  { objectKind:'кредит', objectId:'C-ATS-GAZ', role:'кредитный куратор', empId:'emp-07', from:'01.05.2026', source:'kuratorstvo' },
 );
 
 /* ═══ НАБОР ДЛЯ ТЕСТА · 36 заёмщиков ═══
@@ -1760,6 +1778,10 @@ const EMP = {
 };
 const empName = id => (EMP[id]||{}).fio || id;
 const empDept = id => (EMP[id]||{}).dept || '—';
+/* основание назначения по источнику (§5 модуля кураторства): политика — источник истины,
+   handoff — передача дела, override — ручное переопределение. */
+const assignBasis = src => src==='handoff' ? 'передача дела'
+  : src==='override' ? 'ручное назначение' : 'политика распределения';
 
 /* Реквизиты для карточки заёмщика: дата выдачи + решение правительства (основание кредита).
    Живут в кредитном модуле; здесь — зеркало по номеру договора. Просрочка (сумма) выводится
@@ -1990,11 +2012,13 @@ function seedBorrowerDetails(){
       UNITS.push({ inn, id:++unitSeq, name:'Отдел сбыта', note:'—' });
     }
 
-    /* ── кураторство (кредитный куратор на кредит) ── */
-    if(cr && !ASSIGN.some(a=>a.objectId===cr.id && a.role==='кредитный куратор')){
-      ASSIGN.push({ objectKind:'кредит', objectId:cr.id, role:'кредитный куратор', empId:curId,
-        from:cr.date, source:'kuratorstvo' });
-    }
+    /* ── кураторство: кредитный куратор на КАЖДЫЙ кредит заёмщика (залоговый — отдельным
+       проходом seedCollateralCurators() ниже, после того как заполнены договоры залога) ── */
+    CREDITS.filter(c=>c.inn===inn).forEach(c=>{
+      if(!ASSIGN.some(a=>a.objectId===c.id && a.role==='кредитный куратор'))
+        ASSIGN.push({ objectKind:'кредит', objectId:c.id, role:'кредитный куратор', empId:curId,
+          from:c.date||TODAY, source:'kuratorstvo' });
+    });
 
     /* ── лента истории (кураторство) ── */
     if(cr && !CURATOR_LOG.some(l=>l.inn===inn)){
@@ -2270,6 +2294,13 @@ function calDays(a, b){
   const p = s => { const [d,m,y]=s.split('.').map(Number); return Math.floor((Date.UTC(y,m-1,d))/86400000); };
   return p(b) - p(a);
 }
+/* Прибавляет n календарных дней к дд.мм.гггг (дедлайн уведомления п.93 = declaredAt + 3 к.д.). */
+function addCalDays(s, n){
+  const [d,m,y] = s.split('.').map(Number);
+  const dt = new Date(Date.UTC(y, m-1, d + n));
+  const z = x => String(x).padStart(2,'0');
+  return z(dt.getUTCDate()) + '.' + z(dt.getUTCMonth()+1) + '.' + dt.getUTCFullYear();
+}
 
 /* Конфликт интересов: 3 фазы (заявлен → уведомление → на рассмотрении → урегулирован); Р-6/п.93. */
 function conflictState(c, d){
@@ -2320,7 +2351,7 @@ function curatorMatrix(inn, d){
   }
   return [...latest.values()]
     .filter(a => !susp.has(a.empId))
-    .map(a => ({ objectKind:a.objectKind, objectId:a.objectId, role:a.role, empId:a.empId, from:a.from, to:a.to }));
+    .map(a => ({ objectKind:a.objectKind, objectId:a.objectId, role:a.role, empId:a.empId, from:a.from, to:a.to, source:a.source }));
 }
 
 /* Дозаполнение реквизитов по всем заёмщикам — здесь, т.к. опирается на groupOf/catOfBorrower
@@ -2452,6 +2483,29 @@ function seedCollateral(){
   });
 }
 seedCollateral();
+
+/* Залоговые кураторы — отдельным проходом ПОСЛЕ seedCollateral() (когда PLEDGE_AGR/PLEDGE_IX
+   заполнены): по одному на область залога действующего кредита (норма §2.2). Кредиты из SKIP_COL
+   намеренно оставлены без залогового куратора — демонстрация проверки полноты ролей (B2). */
+const SKIP_COL = new Set(['C-B4-1']);
+function seedCollateralCurators(){
+  const ZAL = ['emp-21','emp-22'];
+  CREDITS.forEach((c, ci) => {
+    if (SKIP_COL.has(c.id) || c.balance === 0 || c.closedAt) return;
+    const hasAgr = PLEDGE_AGR.some(a => a.credits.includes(c.id));
+    const ix = PLEDGE_IX.find(p => p.creditId === c.id);
+    if (!hasAgr && !ix) return;
+    const regions = ix && ix.itemsByRegion && ix.itemsByRegion.length
+      ? ix.itemsByRegion.map(r => r.region) : [null];
+    regions.forEach((rg, i) => {
+      const objId = rg ? c.id + '#' + rg : c.id;
+      if (!ASSIGN.some(a => a.objectId === objId && a.role === 'залоговый куратор'))
+        ASSIGN.push({ objectKind:'предмет', objectId:objId, role:'залоговый куратор',
+          empId: ZAL[(ci + i) % ZAL.length], from: c.date || TODAY, source:'kuratorstvo' });
+    });
+  });
+}
+seedCollateralCurators();
 
 /* ═══ ЗАЛОГ · ДОСТРОЙКА ЗЕРКАЛА ═══
    seedCollateral() строит плоскую пару «кредит → договор → предмет». Модуль залога знает
@@ -3794,26 +3848,124 @@ function wireActsTab(inn){
   }));
 }
 
-/* 5. Кураторство — curatorMatrix (объект×роль) + конфликт интересов (Р-6, 3 фазы, noticeOverdue). */
+/* 5. Кураторство — матрица объект×роль, сгруппированная по кредиту (с основанием назначения,
+   ссылками и проверкой полноты ролей), история назначений, очередь передач и конфликт интересов
+   (Р-6, 3 фазы, дедлайн п.93, замещающий). */
 function curatorTab(inn){
-  const matrix = curatorMatrix(inn, TODAY);
-  const roleBadge = r => r==='залоговый куратор'
+  const d = TODAY;
+  const matrix = curatorMatrix(inn, d);
+  const susp = new Set(suspendedEmployees(inn, d));
+  const credits = CREDITS.filter(c => c.inn === inn);
+
+  const roleBadge = r => r === 'залоговый куратор'
     ? `<span class="role-pill role-zl">${esc(r)}</span>`
     : `<span class="role-pill role-cr">${esc(r)}</span>`;
+  const empLink = id => `<a class="lnk" title="Открыть в модуле кураторства">${esc(empName(id))}</a>`;
   const period = m => 'с ' + esc(m.from) + (m.to ? ' по ' + esc(m.to) : '');
-  const mRows = matrix.map(m=>`<tr><td>${esc(m.objectKind)}</td><td>${esc(m.objectId)}</td>`
-    + `<td>${esc(empDept(m.empId))}</td><td>${roleBadge(m.role)}</td>`
-    + `<td>${esc(empName(m.empId))}</td><td class="muted">${period(m)}</td></tr>`);
-  const mHtml = table('<th>Объект</th><th>Идентификатор</th><th>Подразделение</th><th>Роль</th><th>Сотрудник</th><th>Период</th>', mRows);
-  const confs = CONFLICTS.filter(c=>c.inn===inn);
-  const cRows = confs.map(c=>{
-    const st = conflictState(c, TODAY);
-    return `<tr><td>${esc(empName(c.empId))}</td><td>${esc(c.trigger)}</td><td>${esc(st.phase)}</td>`
-      + `<td>${st.noticeOverdue ? '<span class="badge b-ov">просрочено</span>' : '—'}</td>`
-      + `<td>${st.suspendedTo ? 'снято '+esc(st.suspendedTo) : (st.suspendedFrom?'действует с '+esc(st.suspendedFrom):'—')}</td></tr>`;
+  const hasPledge = id => PLEDGE_AGR.some(a => a.credits.includes(id)) || PLEDGE_IX.some(p => p.creditId === id);
+  const parentOf = id => String(id).split('#')[0];
+
+  // последний носитель (object,role) — если он отстранён и замены нет, это дыра покрытия (B1)
+  const suspendedHolder = (objId, role) => {
+    const act = ASSIGN.filter(a => a.role === role && a.objectId === objId
+      && dateLE(a.from, d) && (!a.to || !dateLE(a.to, d)));
+    if (!act.length) return null;
+    const latest = act.reduce((p, c) => dnum(c.from) > dnum(p.from) ? c : p);
+    return susp.has(latest.empId) ? latest.empId : null;
+  };
+
+  const COLS = 5;
+  const gap = txt => `<tr><td colspan="${COLS}" class="cov-gap">⚠ ${txt}</td></tr>`;
+  const rowFor = (m, region) => `<tr>`
+    + `<td>${roleBadge(m.role)}${region ? ` <span class="muted">· ${esc(region)}</span>` : ''}</td>`
+    + `<td>${esc(empDept(m.empId))}</td><td>${empLink(m.empId)}</td>`
+    + `<td class="muted">${esc(assignBasis(m.source))}</td>`
+    + `<td class="muted">${period(m)}</td></tr>`;
+
+  const mRows = [];
+  credits.forEach(cr => {
+    const closed = cr.balance === 0 || !!cr.closedAt;
+    const mine = matrix.filter(m => parentOf(m.objectId) === cr.id);
+    const loanCur = mine.filter(m => m.role === 'кредитный куратор');
+    const colCur  = mine.filter(m => m.role === 'залоговый куратор');
+    mRows.push(`<tr class="grp-row"><td colspan="${COLS}">`
+      + `<a class="lnk" onclick="switchTab(1)">${esc(cr.no)}</a> · ${esc(cr.kind || 'кредит')}`
+      + (closed ? ' <span class="badge b-gray">погашен</span>' : '') + `</td></tr>`);
+    // кредитный куратор — либо строки, либо дыра покрытия (B1/B2)
+    if (loanCur.length) loanCur.forEach(m => mRows.push(rowFor(m)));
+    else if (!closed) {
+      const sh = suspendedHolder(cr.id, 'кредитный куратор');
+      mRows.push(gap(sh
+        ? `нет активного кредитного куратора — ${esc(empName(sh))} отстранён по конфликту, замена не назначена`
+        : 'кредитный куратор не назначен (Р-6 §2.1)'));
+    }
+    // залоговые кураторы предметов + проверка полноты (B2)
+    colCur.forEach(m => mRows.push(rowFor(m, m.objectId.includes('#') ? m.objectId.split('#')[1] : null)));
+    if (!closed && hasPledge(cr.id) && !colCur.length)
+      mRows.push(gap('по кредиту есть залог, но залоговый куратор не назначен (§2.2)'));
   });
-  const cHtml = table('<th>Сотрудник</th><th>Основание</th><th>Фаза</th><th>Уведомление Правления</th><th>Отстранение</th>', cRows);
-  return sect('Кураторство', 'объект × роль', '', mHtml) + sect('Конфликт интересов', 'Р-6 / п.93', '', cHtml);
+  const mHead = '<th style="width:26%">Роль</th><th>Подразделение</th><th>Сотрудник</th>'
+    + '<th style="width:18%">Основание</th><th style="width:18%">Период</th>';
+  const mBody = credits.length
+    ? table(mHead, mRows)
+    : empty('У заёмщика нет кредитов — назначения кураторов отсутствуют.');
+
+  // История кураторства по объекту (B3) — зеркало журнала назначений (замены, передачи дела)
+  const logs = CURATOR_LOG.filter(l => l.inn === inn).sort((a, b) => dnum(b.date) - dnum(a.date));
+  const hRows = logs.map(l => `<tr><td class="muted" style="white-space:nowrap">${esc(l.date)}</td>`
+    + `<td>${esc(l.title)}</td><td class="muted">${esc(l.body || '')}</td></tr>`);
+  const histSect = logs.length
+    ? sect('История кураторства', 'зеркало журнала назначений — замена куратора, передача дела', '',
+        table('<th style="width:14%">Дата</th><th style="width:34%">Событие</th><th>Детали</th>', hRows))
+    : '';
+
+  // Очередь передач дела (C2) — незакрытые заявки на передачу кураторов заёмщика
+  const hos = HANDOFF.filter(h => h.inn === inn);
+  const hoBadge = st => st === 'отклонён' ? '<span class="badge b-err">отклонён</span>'
+    : st === 'исполнен' ? '<span class="badge b-ok">исполнен</span>'
+    : '<span class="badge b-proc">в очереди</span>';
+  const hoRows = hos.map(h => `<tr><td><a class="lnk" onclick="switchTab(1)">${esc(h.objectNo)}</a></td>`
+    + `<td>${roleBadge(h.role)}</td><td>${empLink(h.fromEmp)}</td><td>${empLink(h.toEmp)}</td>`
+    + `<td class="muted">${esc(h.when)}</td><td>${hoBadge(h.status)}</td><td class="muted">${esc(h.reason)}</td></tr>`);
+  const hoSect = hos.length
+    ? sect('Очередь передач', '§6 — заявка на передачу дела живёт до исполнения/отклонения', '',
+        table('<th>Объект</th><th>Роль</th><th>От</th><th>Кому</th><th>Дата</th><th>Статус</th><th>Основание</th>', hoRows))
+    : '';
+
+  // Конфликт интересов — дедлайн уведомления п.93 (C1) + замещающий куратор (C3)
+  const confs = CONFLICTS.filter(c => c.inn === inn);
+  // объекты сотрудника у этого заёмщика и текущий носитель роли (для «замещающего»)
+  const coverageFor = empId => ASSIGN
+    .filter(a => a.empId === empId && dateLE(a.from, d)
+      && credits.some(c => c.id === parentOf(a.objectId)))
+    .map(a => ({ role: a.role, successor: (matrix.find(m => m.objectId === a.objectId && m.role === a.role) || {}).empId || null }));
+  const cRows = confs.map(c => {
+    const st = conflictState(c, d);
+    const deadline = addCalDays(c.declaredAt, 3);
+    const noticeCell = c.boardNoticeAt
+      ? `уведомлён ${esc(c.boardNoticeAt)}`
+      : st.noticeOverdue
+        ? `<span class="badge b-ov">просрочено</span> <span class="muted">срок истёк ${esc(deadline)} · +${calDays(deadline, d)} к.д.</span>`
+        : `<span class="muted">до ${esc(deadline)}</span>`;
+    const cov = coverageFor(c.empId);
+    let succCell = '<span class="muted">—</span>';
+    if (cov.length) {
+      const gaps = cov.some(x => !x.successor);
+      const succs = [...new Set(cov.map(x => x.successor).filter(Boolean))];
+      succCell = gaps ? '<span class="badge b-err">нет активного куратора</span>'
+        : succs.map(e => empLink(e)).join(', ');
+    }
+    const susCell = st.suspendedTo ? 'снято ' + esc(st.suspendedTo)
+      : (st.suspendedFrom ? 'действует с ' + esc(st.suspendedFrom) : '—');
+    return `<tr><td>${empLink(c.empId)}</td><td>${esc(c.trigger)}</td><td>${esc(st.phase)}</td>`
+      + `<td>${noticeCell}</td><td>${esc(susCell)}</td><td>${succCell}</td></tr>`;
+  });
+  const cHtml = table('<th>Сотрудник</th><th>Основание</th><th>Фаза</th>'
+    + '<th>Срок уведомления Правления (п.93)</th><th>Отстранение</th><th>Замещающий</th>', cRows);
+
+  return sect('Кураторство', 'объект × роль · группировка по кредиту', '', mBody)
+    + histSect + hoSect
+    + sect('Конфликт интересов', 'Р-6 / п.93', '', cHtml);
 }
 
 /* 6. Связанные лица — зеркало реестра лиц (И-5, Р-7). */
