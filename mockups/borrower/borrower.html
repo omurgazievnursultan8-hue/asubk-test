@@ -2360,8 +2360,8 @@ seedBorrowerDetails();
 
 /* ═══ ЗАЛОГ · трёхуровневая модель legacy (заёмщик → договор залога → предмет) ═══
    Договор ↔ кредиты M:N, две стоимости (оценочная/залоговая), цикл обследования,
-   арест/нотариус. Индекс обеспеченности заводится в PLEDGE_IX (worst-of драйвер),
-   чтобы «Мониторинг» и «Залог» показывали согласованную обеспеченность. */
+   арест/нотариус. Индекс обеспеченности заводится в PLEDGE_IX (worst-of драйвер)
+   для согласованной обеспеченности во вкладке «Залог». */
 /* Зеркало справочника видов залога модуля (KINDS в mockups/collateral/zalog.html):
    карточке заёмщика нужны только движимость и ликвидность — из них выводятся порог
    покрытия (П1 §2.3/§2.4) и периодичность обследования (Прил.2 §2.3). tech — физически
@@ -2770,7 +2770,7 @@ function tile(title, valueHtml, basis, moreHtml, lockHtml){
     + `</div>`;
 }
 const TABS = ['Общая информация','Кредиты','Залог','Взыскание','Акты сверок','Кураторство',
-  'Реквизиты и связи','Мониторинг','Документы','Проверки','История'];
+  'Реквизиты и связи','Документы','Проверки','История'];
 
 function catBasisHtml(inn){
   const rows = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY)).map(c=>{
@@ -2907,7 +2907,7 @@ function attentionCard(inn){
       + `Категорию они не двигают до решения комитета.</div>`;
   }
   if (!body) body = '<div class="muted" style="font-size:13px;line-height:1.5;padding:14px 16px">Открытых обязательств и событий на комитет нет.</div>';
-  return sect('Требует внимания', 'Р-4 · Р-5', '<a class="lnk" onclick="switchTab(7)">Открыть «Мониторинг»</a>', body);
+  return sect('Требует внимания', 'Р-4 · Р-5', '', body);
 }
 
 /* Контакты — только действующие каналы; полный список и история — во вкладке «Реквизиты и контакты». */
@@ -2924,7 +2924,7 @@ function contactsCard(inn){
 function recentEventsCard(inn){
   const items = historyItems(inn);
   const hint = items.length > 5 ? `последние 5 из ${items.length}` : 'зеркало логов';
-  return sect('Последние события', hint, '<a class="lnk" onclick="switchTab(10)">Вся история</a>',
+  return sect('Последние события', hint, '<a class="lnk" onclick="switchTab(9)">Вся история</a>',
     timelineHtml(items.slice(0,5)));
 }
 
@@ -3119,29 +3119,10 @@ function wireCreditsTab(inn){
   }
 }
 
-/* 2. Мониторинг — обязательства (Р-4) + очередь на комитет (Р-5, И-1). */
-function monitoringTab(inn){
-  const obs = obligations(inn, TODAY);
-  const q = committeeQueue(inn, TODAY);
-  /* свод-счётчик сверху: просроченные обязательства + размер очереди — видно сразу */
-  const ovCount = obs.filter(o => o.status === 'просрочено').length;
-  const summary = '<div class="mon-sum">'
-    + '<span class="mon-stat' + (ovCount ? ' ov' : '') + '"><b>' + ovCount + '</b> обязательств просрочено</span>'
-    + '<span class="mon-stat"><b>' + q.length + '</b> событий в очереди на комитет</span>'
-    + '</div>';
-  /* срок обязательства — с расшифровкой вывода по наведению (раб. дни от перевода) */
-  const obRows = obs.map(o=>`<tr><td>${esc(o.code)}</td><td>${esc(o.basis)}</td>`
-    + `<td><span class="due-cell" title="${esc(o.srcHint||'')}">${esc(o.dueDate)}</span></td>`
-    + `<td><span class="badge ${o.status==='просрочено'?'b-ov':'b-ok'}">${esc(o.status)}</span></td></tr>`);
-  const obHtml = table('<th>Код</th><th>Основание</th><th>Срок</th><th>Статус</th>', obRows);
-  /* действие на событии очереди — замкнуть цикл Р-5 → комитет */
-  const qRows = q.map(e=>`<tr><td>${esc(e.type)}</td><td>${esc(e.source)}</td><td>${esc(e.detectedAt)}</td>`
-    + `<td>${esc(CAT_LABEL[e.wouldGive]||e.wouldGive)}</td><td>${e.waitingDays} дн.</td>`
-    + `<td><button class="btn btn-secondary btn-sm">Вынести на комитет</button></td></tr>`);
-  const qHtml = table('<th>Событие</th><th>Источник</th><th>Обнаружено</th><th>Даст категорию</th><th>Ожидание</th><th></th>', qRows);
-  return summary + sect('Обязательства', 'Р-4', '', obHtml)
-    + sect('Очередь на комитет', 'Р-5 · категорию не двигает до решения (И-1)', '', qHtml);
-}
+/* Вкладка «Мониторинг» удалена (вариант C): обязательства (Р-4) остались в карточке
+   «Требует внимания» на «Общей» через attentionCard; очередь на комитет (Р-5) — предмет
+   модуля комитета/классификации, здесь не дублируется. obligations()/committeeQueue()
+   сохранены — их использует attentionCard. */
 
 /* 3. Взыскание — зеркало (И-5). Два вида одной выборки:
      «по процессам» — строка = процесс, раскрытие = рельс эскалации К0…К7 + сроки + журнал мер:
@@ -4118,10 +4099,9 @@ function tabBody(inn, i){
        2 колонки (.gen-2col, схлоп <1100px): слева лица (зеркало Р-7, data-mirror), справа каналы+банк (свои, Р-10).
        data-mirror только на левой колонке — владелец у секций разный, бейджи источника в sect() сохранены. */
     case 6: return `<div class="gen-2col"><div data-mirror="1">${relatedTab(inn)}</div><div>${requisitesTab(inn)}</div></div>`;
-    case 7: return monitoringTab(inn);
-    case 8: return `<div data-mirror="1">${docsTab(inn)}</div>`;
-    case 9: return checksTab(inn);
-    case 10: return historyTab(inn);
+    case 7: return `<div data-mirror="1">${docsTab(inn)}</div>`;
+    case 8: return checksTab(inn);
+    case 9: return historyTab(inn);
   }
   return '';
 }
