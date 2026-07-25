@@ -1023,7 +1023,7 @@ function basisGroups(credit){
     for (const r of (t.conditionRecords || [])){
       const key = (r.basis.ref || r.basis.label || r.basis.kind) + '@' + r.basis.kind;
       if (!map.has(key)) map.set(key, {
-        ref:r.basis.ref || '—', kind:r.basis.kind,
+        key, ref:r.basis.ref || '—', kind:r.basis.kind,
         label:r.basis.label || BASIS_KINDS[r.basis.kind].label,
         docDate:r.basis.date || '', effectiveFrom:r.effectiveFrom, retro:false,
         trancheNos:[], items:[]
@@ -2022,7 +2022,7 @@ function gate(credit, action, ctx = {}){
       break;
     case 'addConditionRecords': {                                          // Г-10 · Г-18 · Г-19 · Г-20 · Г-22
       if (!['Зарегистрирован','Действует'].includes(credit.lifecycle))
-        r.push('Условия меняются только при ЖЦ «Зарегистрирован» или «Действует» — при «Проект» они правятся напрямую (Г-9)'); // Г-22
+        r.push('Условия меняются только при ЖЦ «Зарегистрирован» или «Действует» — при «Проект» они правятся напрямую (Г-22)'); // Г-22
       const bs = ctx.basis || {}, meta = BASIS_KINDS[bs.kind];
       if (!meta) r.push('Основание обязательно: доп. соглашение · решение суда · постановление правительства');
       if (bs.kind === 'agreement' && (!bs.num || !bs.date))
@@ -2763,7 +2763,7 @@ if (typeof document !== 'undefined') {
   let condScope = 'credit';         // 'credit' | номер транша — область просмотра условий (Д-7)
   let condAsOf  = TODAY;            // дата среза условий (Д-6)
   let condBasisFilter = 'all';      // фильтр журнала по типу основания
-  let condOpenGroup   = null;       // ref+kind развёрнутой группы журнала
+  let condOpenGroup   = null;       // g.key развёрнутой группы журнала (basisGroups — единственный источник ключа)
   let condMatrixOpen = false, condTemplateOpen = false;
   const DTABS =['Договор','Условия','Транши и освоение','Расчёты','Платежи','Обеспечение','Проблемные','Досье'];
 
@@ -3107,7 +3107,14 @@ if (typeof document !== 'undefined') {
             onchange="CR.setCondAsOf(this.value)"></div></div>
         ${condAsOf!==TODAY?`<button class="btn btn-secondary btn-sm" onclick="CR.setCondAsOf('${TODAY}')">⟲ сегодня</button>`:''}
         <span class="spacer"></span>
-        ${roleBtn('addConditionRecords','Изменить условия','CR.openCondModal()','btn btn-primary btn-sm')}
+        ${(()=>{ const cls='btn btn-primary btn-sm', label='Изменить условия';
+          if(isTerminal(c)) return disabledBtn(label, terminalReason(c), cls);
+          if(!canRole(currentRole,'addConditionRecords'))
+            return disabledBtn(label, 'Роль «'+currentRole+'» не имеет права на это действие', cls);
+          if(!['Зарегистрирован','Действует'].includes(c.lifecycle))
+            return disabledBtn(label, 'Условия меняются только при ЖЦ «Зарегистрирован» или «Действует» — при «Проект» они правятся напрямую (Г-22)', cls);
+          return `<button class="${cls}" onclick="CR.openCondModal()">${esc(label)}</button>`;
+        })()}
       </div>
       <div class="pcards">
         <div class="pcard">
@@ -3179,13 +3186,12 @@ if (typeof document !== 'undefined') {
               const ic=BASIS_KINDS[g.kind]||{};
               const uniq=[...new Set(g.items.map(i=>i.param))];
               const changed=uniq.slice(0,3).map(paramLabel).join(' · ')+(uniq.length>3?' …':'');
-              const gkey=g.ref+'@'+g.kind;
-              trs.push(`<tr style="cursor:pointer" onclick="CR.toggleCondGroup('${jsAttr(gkey)}')">
+              trs.push(`<tr style="cursor:pointer" onclick="CR.toggleCondGroup('${jsAttr(g.key)}')">
                 <td>${esc(ic.icon||'')} ${esc(g.ref)}</td><td>${esc(g.docDate||'—')}</td>
                 <td>${esc(g.effectiveFrom)}${g.retro?' <span class="pill high">задним числом</span>':''}</td>
                 <td>${esc(changed)}</td><td>${g.trancheNos.map(n=>'№'+n).join(', ')}</td>
-                <td>${condOpenGroup===gkey?'▾':'▸'}</td></tr>`);
-              if (condOpenGroup===gkey) trs.push(`<tr><td colspan="6" style="background:var(--surface-panel)">
+                <td>${condOpenGroup===g.key?'▾':'▸'}</td></tr>`);
+              if (condOpenGroup===g.key) trs.push(`<tr><td colspan="6" style="background:var(--surface-panel)">
                 ${cgrid([{h:'Параметр'},{h:'Было'},{h:'Стало'},{h:'Вступает'},{h:'Транш'},{h:'Примечание'}],
                   g.items.map(i=>`<tr><td>${esc(paramLabel(i.param))}</td>
                     <td><span class="diff-old">${esc(i.from===undefined?'—':i.from)}</span></td>
@@ -3684,9 +3690,14 @@ if (typeof document !== 'undefined') {
 
   /* 4) конструктор условий (addConditionRecords, Р-21 · Г-10 · Г-18…Г-20):
      основание → дата вступления → транши → параметры → предпросмотр «было → станет». */
+  /* condEffDate() — дата вступления из формы, с защитой от непарсимой строки:
+     «было» и предзаполнение должны читаться на эту дату (не на CR.TODAY), но
+     не падать, пока пользователь дописывает дд.мм.гггг. */
+  function condEffDate(){
+    const el=document.getElementById('cbEff'); const s=el?el.value:'';
+    return /^\d{2}\.\d{2}\.\d{4}$/.test(s) ? s : CR.TODAY;
+  }
   CR.openCondModal=function(){ const c=modalGuard('addConditionRecords'); if(!c) return;
-    const courts=(c.mirror.court||[]);
-    const gov=c.origin.govDecisionId?[{num:c.origin.govDecisionId}]:[];
     const body=`<p class="section-note">Условия меняются только зарегистрированным основанием (Г-9).
         Решение суда и постановление правительства здесь не заводятся — выбираются из существующих (Д-4).
         Задним числом (Г-19) возможны только они, и с обязательным примечанием (Г-20).</p>
@@ -3703,11 +3714,8 @@ if (typeof document !== 'undefined') {
           <div class="field col-span"><span class="flabel">Скан</span><div class="control"><input id="cbScan" placeholder="файл.pdf"></div></div>
         </div></div>
         <div id="cbRefField" class="field req col-span" style="display:none"><span class="flabel">Документ-основание</span>
-          <div class="control"><select id="cbRef">
-            ${courts.map(x=>`<option value="${jsAttr(x.num)}">⚖ ${esc(x.num)}${x.date?' от '+esc(x.date):''}</option>`).join('')}
-            ${gov.map(x=>`<option value="${jsAttr(x.num)}">ПП ${esc(x.num)}</option>`).join('')}
-          </select><span class="caret">▾</span></div></div>
-        <div class="field req"><span class="flabel">Вступает в силу</span><div class="control"><input id="cbEff" value="${esc(CR.TODAY)}" placeholder="дд.мм.гггг" onchange="CR.condPreview()"></div></div>
+          <div class="control"><select id="cbRef"></select><span class="caret">▾</span></div></div>
+        <div class="field req"><span class="flabel">Вступает в силу</span><div class="control"><input id="cbEff" value="${esc(CR.TODAY)}" placeholder="дд.мм.гггг" onchange="CR.condRecalcDefaults();CR.condPreview()"></div></div>
         <div class="field col-span"><span class="flabel">Примечание (обязательно при дате в прошлом)</span><div class="control"><input id="cbNote" placeholder="что пересчитывается"></div></div>
         <div class="field col-span"><span class="flabel">Транши</span><div class="control">
           ${c.tranches.map(t=>`<label style="margin-right:14px"><input type="checkbox" class="cbTr" value="${t.no}" checked onchange="CR.condPreview()"> №${t.no}</label>`).join('')}
@@ -3731,19 +3739,51 @@ if (typeof document !== 'undefined') {
        <button class="btn btn-primary" onclick="CR.submitCond()">Оформить</button>`);
     CR.condBasisChanged();
   };
-  CR.condBasisChanged=function(){ const k=document.getElementById('cbKind').value;
+  /* «Документ-основание» (Д-4): список зависит от типа основания — суд и ПП
+     не смешиваются в одном select (иначе решение суда может сослаться на
+     постановление правительства и наоборот). Значение — то, что реально есть
+     в mirror.court (нет num, только date/kind/org/res/ok/file, credit.html:1213):
+     x.num || x.kind+' от '+x.date, тот же откат, что при сидировании К-3. */
+  function condRefOptions(c, kind){
+    if (kind==='court') return (c.mirror.court||[]).map(x=>{
+      const v=x.num||(x.kind+' от '+x.date); return { value:v, label:'⚖ '+v }; });
+    if (kind==='govAct') return c.origin.govDecisionId
+      ? [{ value:c.origin.govDecisionId, label:'ПП '+c.origin.govDecisionId }] : [];
+    return [];
+  }
+  CR.condBasisChanged=function(){ const c=currentCredit(); if(!c) return;
+    const k=document.getElementById('cbKind').value;
     document.getElementById('cbAgrFields').style.display = k==='agreement'?'':'none';
     document.getElementById('cbRefField').style.display  = k==='agreement'?'none':'';
-    CR.condPreview(); };
+    if (k!=='agreement'){
+      const sel=document.getElementById('cbRef');
+      const opts=condRefOptions(c,k);
+      const emptyMsg = k==='court' ? 'Нет решений суда — основание недоступно' : 'Нет постановления правительства — основание недоступно';
+      sel.innerHTML = opts.length
+        ? opts.map(o=>`<option value="${jsAttr(o.value)}">${esc(o.label)}</option>`).join('')
+        : `<option value="">${esc(emptyMsg)}</option>`;
+      sel.disabled = opts.length===0;
+    }
+    CR.condRecalcDefaults(); CR.condPreview(); };
+  /* Предзаполнение и «было» обязаны читаться на дату вступления (cbEff), не
+     на CR.TODAY — иначе для ретроспективной записи предпросмотр лжёт о том,
+     что действовало на дату, которую сам же документ меняет задним числом. */
+  CR.condRecalcDefaults=function(){ const c=currentCredit(); if(!c) return;
+    const eff=condEffDate(), t0=c.tranches[0]; if(!t0) return;
+    CR.PARAMS.forEach(p=>{
+      const el=document.getElementById('cbV_'+p.key); if(!el) return;
+      const cur=CR.conditionsAt(t0,eff)[p.key];
+      el.value = (cur===undefined?'':cur);
+    }); };
   CR.condPreview=function(){ const box=document.getElementById('cbPreview'); if(!box) return;
     const c=currentCredit(); if(!c) return;
-    const eff=document.getElementById('cbEff').value;
+    const eff=condEffDate();
     const nos=[...document.querySelectorAll('.cbTr:checked')].map(x=>+x.value);
     const keys=[...document.querySelectorAll('.cbP:checked')].map(x=>x.value);
     const rows=[];
     for (const k of keys) for (const no of nos){
       const t=c.tranches.find(x=>x.no===no); if(!t) continue;
-      const from=CR.conditionsAt(t,CR.TODAY)[k];
+      const from=CR.conditionsAt(t,eff)[k];
       const to=document.getElementById('cbV_'+k).value;
       rows.push(`<div class="row"><span class="ck">№${no} · ${esc(CR.paramLabel(k))}</span>
         <span class="diff"><span class="diff-old">${esc(from===undefined?'—':from)}</span> → <span class="diff-new">${esc(to)}</span></span>
