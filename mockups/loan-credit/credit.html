@@ -152,6 +152,34 @@
                не влезают). Пояснения-section-note подняты под заголовок карточки, чтобы
                читались до полей, а не после. Ниже 1100px — одна колонка.
                Состав полей и гейты не менялись: чистая перекомпоновка.
+   Шаг 14 · ВКЛАДКА «УСЛОВИЯ» — КАРТОЧНАЯ РАСКЛАДКА + ЧИСТКА — выполнен 2026-07-25:
+     РАСКЛАДКА. Сплошная лента из 6 блоков и 14 полей заменена на .pcards, как в «Договоре»
+               (шаг 13): Ставки · Погашение · Режим начисления (Р-17) — в две колонки;
+               Дифф траншей · Доп. соглашения (Р-4) · Перевод долга (Р-14) — карточки .wide.
+               Плита блокировки Г-9 поднята над сеткой карточек. Пени сведены в «Ставки»
+               (отдельная карточка «Санкции» из двух полей оставляла зияющую колонку).
+               Пилюля блокировки у поля: было «зеркало» (неверно — условия owned кредитом),
+               стало «доп. согл.» с тем же title-подсказкой Г-9.
+     ПЕРЕНЕСЕНО СЮДА: «Приостановление начисления» (Р-17) из «Расчётов» — приостановка
+               меняет режим исполнения условий, а не отображение цифр; в «Расчётах» блок
+               лежал в самом низу самой длинной вкладки, кнопка «Приостановить начисление»
+               висела в тулбаре графика, к которому не относится. Кнопка переехала вместе
+               с таблицей; CR.openHoldModal / гейт holdAccrual не менялись.
+     ВЫНЕСЕНО В «РАСЧЁТЫ»: «Метод дней» и «Очередь погашения» — параметры расчётного движка,
+               а не переговорные условия; поставлены над детальным расчётом, который они
+               объясняют, с подписью «правка только доп. соглашением (Г-9)».
+     УДАЛЕНО:  «Макс. пеня, %» — cap в расчёте пени НЕ применяется (см. шаг 4), поле врало;
+               вместо него подпись, что потолка нет и его ввод — отдельное решение (поле
+               b.penaltyMaxPct в модели оставлено) · плановая дата полного погашения из
+               info-plate Р-13 (дубль основания плитки «Ближайший платёж» в шапке, шаг 12) ·
+               отдельное поле «Плавающая ставка» — схлопнуто в «Ставку» одним значением
+               («12 · плавающая: учётная НБКР + маржа 3%»).
+     ПЕРЕИМЕНОВАНО: «Срок, мес.» → «Срок-шаблон, мес.» — снято противоречие с Р-13,
+               которое та же плита объявляла строкой ниже (срок кредита = агрегат по траншам).
+     НЕ ДЕЛАЛОСЬ (рассмотрено, отклонено): дифф траншей → «Транши» (дифф база→транш и есть
+               предмет Р-2, вкладка потеряет двухуровневость) · перевод долга → «Договор»
+               (перенесён сюда шагом 11 осознанно, новых аргументов нет) · пени и ставка
+               резерва → «Расчёты» (это условия договора под Г-9, место здесь).
    СЛИЯНИЕ КАРТОЧКИ ЗАВЕРШЕНО (шаги 1–10). Все 8 вкладок Договор·Условия·Транши·Расчёты·Платежи·
      Обеспечение·Проблемные·Досье слиты. loan-credit.html можно удалить/архивировать — решение пользователя.
    ДЕМОНАБОР РАСШИРЕН 2026-07-24: +43 кредита K-C1…K-C43 (builder mkScen/scen в seedDb) → всего 59.
@@ -242,6 +270,9 @@
    #27b ✓
    #18 ✓
    #28 ✓
+
+
+
 
 
 
@@ -2782,7 +2813,10 @@ if (typeof document !== 'undefined') {
     const b=c.baseConditions, dt=c.debtTransfer;
     const locked = !gate(c,'editConditions',{}).ok;                 // Г-9: не «Проект» → правки только доп. соглашением
     const g9='Изменение условий — только доп. соглашением (Г-9)';
-    const bf=(label,val)=>`<div class="field"><span class="flabel">${esc(label)}${locked?' '+lockHtml():''}</span><div class="lookup"${locked?` title="${jsAttr(g9)}"`:''}><span class="val">${val}</span></div></div>`;
+    /* Шаг 14: пилюля у поля говорила «зеркало» — неверно, условия owned кредитом,
+       а закрыты гейтом Г-9. Своя пилюля «доп. соглашение» с тем же title. */
+    const lockG9='<span class="lock"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>доп. согл.</span>';
+    const bf=(label,val)=>`<div class="field"><span class="flabel">${esc(label)}${locked?' '+lockG9:''}</span><div class="lookup"${locked?` title="${jsAttr(g9)}"`:''}><span class="val">${val}</span></div></div>`;
     const dev=(t,key)=>{ const bv=b[key], tv=t.conditions[key]; return String(bv)===String(tv)?esc(tv):`<span class="diff"><span class="diff-old">${esc(bv)}</span> → <span class="diff-new">${esc(tv)}</span></span>`; };
     const trRows=c.tranches.map(t=>`<tr><td>№${t.no}</td><td>${dev(t,'rate')}</td><td>${dev(t,'term')}</td><td>${dev(t,'method')}</td><td>${dev(t,'freq')}</td><td>${dev(t,'reserveRate')}</td></tr>`);
     const agRows=(c.agreements||[]).map(a=>{
@@ -2790,43 +2824,74 @@ if (typeof document !== 'undefined') {
       const diff=keys.map(k=>`${esc(k)}: <span class="diff"><span class="diff-old">${esc((a.before||{})[k])}</span> → <span class="diff-new">${esc((a.after||{})[k])}</span></span>`).join(' · ');
       return `<tr class="${a.active?'diff-changed':''}"><td>${esc(a.num)}</td><td>${esc(a.date)}</td><td>${esc(a.source)}</td><td>${diff}</td><td>${a.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td></tr>`;
     });
+    /* Шаг 14: сплошная лента из 14 полей заменена карточками .pcards, как в «Договоре»
+       (шаг 13). Поля сгруппированы по смыслу: стоимость денег · погашение · санкции ·
+       режим начисления. «Плавающая» схлопнута в «Ставку» (одно значение вместо да/нет
+       рядом с числом); «Метод дней» и «Очередь погашения» уехали в «Расчёты» — это
+       параметры движка, их читают вместе с цифрами, которые они объясняют;
+       «Макс. пеня» удалена — cap в расчёте пени не применяется, поле врало (шаг 4).
+       Дата полного погашения убрана из info-plate Р-13: она уже в основании плитки
+       «Ближайший платёж» в шапке (шаг 12), в плите остался только агрегат срока. */
+    const rateVal = esc(b.rate) + (b.floating
+      ? ` <span style="color:var(--text-muted);font-weight:400">· плавающая: ${esc(b.floatType||'—')} + маржа ${esc(b.margin)}%</span>`
+      : '');
+    const holdRows=(c.accrualHold||[]).map(h=>`<tr><td>${esc(h.from)}</td><td>${esc(h.to||'…')}</td><td>${esc(h.reason)}</td><td>${esc(h.doc)}</td></tr>`);
     return `
-      <div class="section-h">Базовый комплект условий (Р-2)</div>
-      ${locked?`<div class="info-plate">${svgInfo()}<div>Условия зафиксированы: ЖЦ «${esc(c.lifecycle)}». Прямое редактирование недоступно (Г-9) — только доп. соглашением.</div></div>`:''}
-      <div class="f2" style="margin-top:12px">
-        ${bf('Ставка, %', esc(b.rate))}
-        ${bf('Плавающая ставка', b.floating?`да · ${esc(b.floatType||'—')} · маржа ${esc(b.margin)}%`:'нет')}
-        ${bf('Срок, мес.', esc(b.term))}
-        ${bf('Периодичность', esc(b.freq))}
-        ${bf('Метод погашения', esc(b.method))}
-        ${bf('Метод дней', esc(b.dayMethod))}
-        ${bf('Очередь погашения', esc(b.queue))}
-        ${bf('Ставка резерва, %', esc(b.reserveRate))}
-        ${bf('Пеня по ОД, %/дн', esc(b.penaltyMain))}
-        ${bf('Пеня по %, %/дн', esc(b.penaltyInt))}
-        ${bf('Макс. пеня, %', esc(b.penaltyMaxPct))}
-      </div>
-      <div class="info-plate">${svgInfo()}<div>Срок на кредите — производный агрегат (Р-13): максимум срока по действующим траншам = <b>${esc(d.termAgg)} мес.</b>${d.fullRepayDate?` · плановая дата полного погашения <b>${esc(d.fullRepayDate)}</b>`:''}. Единственный источник срока — условия транша (не отдельное поле кредита).</div></div>
+      ${locked?`<div class="info-plate" style="margin-bottom:14px">${svgInfo()}<div>Условия зафиксированы: ЖЦ «${esc(c.lifecycle)}». Прямое редактирование недоступно (Г-9) — только доп. соглашением.</div></div>`:''}
+      <div class="pcards">
+        <div class="pcard">
+          <div class="section-h">Ставки</div>
+          <p class="section-note">Базовый комплект кредита (Р-2): транш наследует эти значения и может от них отклониться — дифф ниже.
+            Потолок неустойки не задаётся: правила-cap в расчётном слое нет, ввод такого правила — отдельное решение (шаг 4).</p>
+          <div class="f2">
+            ${bf('Ставка, %', rateVal)}
+            ${bf('Ставка резерва, %', esc(b.reserveRate))}
+            ${bf('Пеня по ОД, %/дн', esc(b.penaltyMain))}
+            ${bf('Пеня по %, %/дн', esc(b.penaltyInt))}
+          </div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Льготные периоды</div>
-      <div class="f2">
-        ${bf('Льгота по ОД, мес.', esc(b.graceMain))}
-        ${bf('Льгота по %, мес.', esc(b.graceInterest))}
-        ${bf('Отсрочка начисления, мес.', esc(b.graceAccrual))}
-      </div>
+        <div class="pcard">
+          <div class="section-h">Погашение</div>
+          <p class="section-note">Метод дней и очередь погашения — в «Расчётах» (шаг 14): это параметры движка, их читают вместе с цифрами детального расчёта.</p>
+          <div class="f2">
+            ${bf('Срок-шаблон, мес.', esc(b.term))}
+            ${bf('Периодичность', esc(b.freq))}
+            ${bf('Метод погашения', esc(b.method))}
+            ${bf('Льгота по ОД, мес.', esc(b.graceMain))}
+            ${bf('Льгота по %, мес.', esc(b.graceInterest))}
+            ${bf('Отсрочка начисления, мес.', esc(b.graceAccrual))}
+          </div>
+          <div class="info-plate" style="margin-top:12px">${svgInfo()}<div>Срок на кредите — производный агрегат (Р-13): максимум срока по действующим траншам = <b>${esc(d.termAgg)} мес.</b> Поле выше — только шаблон для наследования; единственный источник срока — условия транша.</div></div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Условия траншей — отклонение от базы</div>
-      ${cgrid([{h:'Транш'},{h:'Ставка'},{h:'Срок'},{h:'Метод'},{h:'Периодичность'},{h:'Резерв, %'}], trRows, {empty:'Траншей нет'})}
+        <div class="pcard">
+          <div class="section-h">Режим начисления (Р-17)</div>
+          <p class="section-note">Шаг 14: блок переехал сюда из «Расчётов» — приостановка меняет режим исполнения условий, а не отображение цифр. В «Расчётах» он лежал в самом низу самой длинной вкладки.</p>
+          ${cgrid([{h:'С'},{h:'По'},{h:'Основание'},{h:'Документ'}], holdRows, {empty:'Активных приостановок нет'})}
+          <div class="gtoolbar">${roleBtn('holdAccrual','Приостановить начисление','CR.openHoldModal()')}</div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Доп. соглашения (Р-4)</div>
-      ${cgrid([{h:'Номер'},{h:'Дата'},{h:'Источник'},{h:'Изменение'},{h:'Статус'}], agRows, {empty:'Соглашений нет'})}
-      <div class="gtoolbar" style="margin-top:12px">${roleBtn('addAgreement','Оформить доп. соглашение','CR.openAgrModal()','btn btn-primary btn-sm')}</div>
+        <div class="pcard wide">
+          <div class="section-h">Условия траншей — отклонение от базы</div>
+          ${cgrid([{h:'Транш'},{h:'Ставка'},{h:'Срок'},{h:'Метод'},{h:'Периодичность'},{h:'Резерв, %'}], trRows, {empty:'Траншей нет'})}
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Перевод долга — смена заёмщика (Р-14)</div>
-      <p class="section-note">Шаг 11: блок переехал сюда из вкладки «Договор» — перевод долга оформляется зарегистрированным соглашением (Г-16), то есть это тот же versioned changeset, что и доп. соглашения выше.</p>
-      ${dt?`<div class="f2">${fld('Новый заёмщик', esc(dt.newBorrower&&dt.newBorrower.name))}${fld('Соглашение', esc(dt.agreement&&dt.agreement.num))}${fld('Дата', esc(dt.date))}</div>`
-        :`<p class="section-note">Перевода долга не было. Смена заёмщика — owned-действие кредита, только зарегистрированным соглашением (Г-16).</p>`}
-      <div class="gtoolbar" style="margin-top:12px">${roleBtn('transferDebt','Оформить перевод долга',"CR.stubAction('Перевод долга')")}</div>`;
+        <div class="pcard wide">
+          <div class="section-h">Доп. соглашения (Р-4)</div>
+          <p class="section-note">Единственный способ изменить условия после регистрации (Г-9). Предыдущая активная версия архивируется, не удаляется.</p>
+          ${cgrid([{h:'Номер'},{h:'Дата'},{h:'Источник'},{h:'Изменение'},{h:'Статус'}], agRows, {empty:'Соглашений нет'})}
+          <div class="gtoolbar">${roleBtn('addAgreement','Оформить доп. соглашение','CR.openAgrModal()','btn btn-primary btn-sm')}</div>
+        </div>
+
+        <div class="pcard wide">
+          <div class="section-h">Перевод долга — смена заёмщика (Р-14)</div>
+          <p class="section-note">Шаг 11: блок переехал сюда из вкладки «Договор» — перевод долга оформляется зарегистрированным соглашением (Г-16), то есть это тот же versioned changeset, что и доп. соглашения выше.</p>
+          ${dt?`<div class="f2">${fld('Новый заёмщик', esc(dt.newBorrower&&dt.newBorrower.name))}${fld('Соглашение', esc(dt.agreement&&dt.agreement.num))}${fld('Дата', esc(dt.date))}</div>`
+            :`<p class="section-note" style="margin-bottom:0">Перевода долга не было. Смена заёмщика — owned-действие кредита, только зарегистрированным соглашением (Г-16).</p>`}
+          <div class="gtoolbar">${roleBtn('transferDebt','Оформить перевод долга',"CR.stubAction('Перевод долга')")}</div>
+        </div>
+      </div>`;
   }
 
   /* ---- ВКЛАДКА 3: Транши и освоение ---- */
@@ -2905,7 +2970,7 @@ if (typeof document !== 'undefined') {
     const resBlock=res.applies?`<div class="section-h" style="margin-top:22px">Резерв за неполное освоение</div>
       <p class="section-note">Начисляется на недоосвоенный остаток от плановой даты (ставка ${res.rate}%). Всего: <b>${money(res.totalAmount)}</b> на базу ${money(res.totalBase)}.</p>
       ${cgrid([{h:'Транш'},{h:'База',r:1},{h:'Ставка, %',r:1},{h:'Дней',r:1},{h:'Сумма',r:1}], res.perTranche.map(p=>`<tr><td>${esc(p.trancheId)}</td><td style="text-align:right">${money(p.base)}</td><td style="text-align:right">${esc(p.rate)}</td><td style="text-align:right">${esc(p.days)}</td><td style="text-align:right">${money(p.amount)}</td></tr>`))}`:'';
-    const holdRows=(c.accrualHold||[]).map(h=>`<tr><td>${esc(h.from)}</td><td>${esc(h.to||'…')}</td><td>${esc(h.reason)}</td><td>${esc(h.doc)}</td></tr>`);
+    const bc=c.baseConditions;                                   // шаг 14: метод дней + очередь погашения переехали сюда из «Условий»
     const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
     const posRows=(sel?trancheScheduleRows(sel):[]).map(r=>{const s=scheduleRowStatus(sel,r);return `<tr><td>№${r.no}</td><td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td><td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
     return `
@@ -2916,7 +2981,6 @@ if (typeof document !== 'undefined') {
         <div class="retro-toggle" onclick="CR.setCalcMode(${!calcConsolidated})"><input type="checkbox" ${calcConsolidated?'checked':''} onclick="event.preventDefault()"> консолидировано по кредиту</div>
         <span class="spacer"></span>
         ${actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()','btn btn-primary btn-sm')}
-        ${roleBtn('holdAccrual','Приостановить начисление','CR.openHoldModal()')}
       </div>
       <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
         <div class="dim"><div class="dl">Платежей в графике</div><div class="dv">${st.count}</div></div>
@@ -2930,10 +2994,14 @@ if (typeof document !== 'undefined') {
       <div class="section-h" style="margin-top:22px">График — позиции (транш №${sel?sel.no:'—'})</div>
       ${cgrid([{h:'№'},{h:'Дата'},{h:'Осн. сумма',r:1},{h:'Проценты',r:1},{h:'Платёж',r:1},{h:'Статус'}], posRows, {empty:'Позиций нет — сформируйте график'})}
       <div class="section-h" style="margin-top:22px">Детальный расчёт ${calcConsolidated?'(консолидировано)':'(транш №'+(sel?sel.no:'—')+')'}</div>
+      <p class="section-note">Параметры движка (шаг 14: перенесены из «Условий» — читаются вместе с цифрами, которые объясняют).
+        Это условия договора: правка — только доп. соглашением (Г-9).</p>
+      <div class="f2" style="max-width:760px;margin-bottom:12px">
+        ${fld('Метод дней', esc(bc.dayMethod))}
+        ${fld('Очередь погашения', esc(bc.queue))}
+      </div>
       ${led}
-      ${resBlock}
-      <div class="section-h" style="margin-top:22px">Приостановление начисления (Р-17)</div>
-      ${cgrid([{h:'С'},{h:'По'},{h:'Основание'},{h:'Документ'}], holdRows, {empty:'Активных приостановок нет'})}`;
+      ${resBlock}`;
   }
 
   /* ---- ВКЛАДКА 5: Платежи (зеркало модуля платежей, Р-5) ---- */
