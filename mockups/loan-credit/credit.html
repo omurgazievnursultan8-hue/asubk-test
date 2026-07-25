@@ -237,7 +237,7 @@
       Макет: простой календарь (сб/вс), без праздников.
 
   SMOKE (node)
- SMOKE (node) 2026-07-25 · 39/39 PASS
+ SMOKE (node) 2026-07-25 · 40/40 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -277,6 +277,7 @@
    #33 ✓
    #34 ✓
    #35 ✓
+   #36 ✓
 -->
 <style>
 
@@ -2004,6 +2005,30 @@ function gate(credit, action, ctx = {}){
     case 'addAgreement':                                                                    // Г-10
       if (!ctx.num || !ctx.date) r.push('Доп. соглашение требует номер и дату (Г-10)');
       break;
+    case 'addConditionRecords': {                                          // Г-10 · Г-18 · Г-19 · Г-20
+      const bs = ctx.basis || {}, meta = BASIS_KINDS[bs.kind];
+      if (!meta) r.push('Основание обязательно: доп. соглашение · решение суда · постановление правительства');
+      if (bs.kind === 'agreement' && (!bs.num || !bs.date))
+        r.push('Доп. соглашение требует номер и дату (Г-10)');
+      if (meta && !meta.owned && !bs.ref)
+        r.push('Решение суда и постановление правительства указываются ссылкой на существующий документ (Г-10)');
+      if (!ctx.records || !ctx.records.length) r.push('Не выбрано ни одного условия');
+      for (const rec of (ctx.records || [])){
+        if (!PARAM_KEYS.includes(rec.param)) r.push('Неизвестный параметр условия: ' + rec.param);
+        if (!rec.trancheNos || !rec.trancheNos.length)
+          r.push('Не выбран ни один транш для условия «' + paramLabel(rec.param) + '»');
+        if (!rec.effectiveFrom){ r.push('Дата вступления в силу обязательна («' + paramLabel(rec.param) + '»)'); continue; }
+        if (credit.date && pd(rec.effectiveFrom) < pd(credit.date))
+          r.push('Дата вступления не может быть раньше даты договора ' + credit.date + ' (Г-18)');      // Г-18
+        if (pd(rec.effectiveFrom) < pd(TODAY)){
+          if (!meta || !meta.retro)
+            r.push('Задним числом условия меняют только решение суда и постановление правительства (Г-19)'); // Г-19
+          if (!rec.note || !String(rec.note).trim())
+            r.push('Ретроспективное условие требует примечания: что пересчитывается (Г-20)');                // Г-20
+        }
+      }
+      break;
+    }
     case 'register': {                                                                     // Г-7
       if (!credit.num || !credit.date || !credit.reg.scan) r.push('Нужны номер, дата и скан договора');
       if (!requiredDocsComplete(credit)) r.push('Не собран обязательный комплект документов');
@@ -2014,7 +2039,8 @@ function gate(credit, action, ctx = {}){
       if (!ctx.tranche || ctx.tranche.disbursements.length===0) r.push('График строится только от фактической даты освоения транша'); // Г-8
       break;
     case 'editConditions':
-      if (credit.lifecycle!=='Проект') r.push('Изменение условий — только доп. соглашением'); // Г-9
+      if (credit.lifecycle!=='Проект')
+        r.push('Изменение условий — только зарегистрированным основанием: доп. соглашение · решение суда · постановление правительства'); // Г-9
       break;
     case 'savePayment':                                                                    // Г-11
       if (!(ctx.amount>0)) r.push('Сумма платежа должна быть > 0');
@@ -2044,10 +2070,10 @@ function gate(credit, action, ctx = {}){
 
 /* ---- 4.1 canRole(role, action) — матрица прав по ролям (§7). ---- */
 const ROLE_ACTIONS = {
-  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','addTranche','addDisbursement','buildSchedule','addAgreement','editConditions','editDocs']),
+  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','addTranche','addDisbursement','buildSchedule','addAgreement','addConditionRecords','editConditions','editDocs']),
   'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge']),
   'Бухгалтер': new Set(['savePayment']),
-  'Начальник отдела': new Set(['createCredit','saveContractAmount','register','addTranche','addDisbursement','buildSchedule','addAgreement','editConditions','editDocs','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay']),
+  'Начальник отдела': new Set(['createCredit','saveContractAmount','register','addTranche','addDisbursement','buildSchedule','addAgreement','addConditionRecords','editConditions','editDocs','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay']),
   'Наблюдатель': new Set(),
 };
 function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(action); }
@@ -2212,6 +2238,34 @@ function addAgreement(credit, ctx){
   return { ok:true, value:doc };
 }
 
+/* addConditionRecords(credit, ctx) — Р-21: единственный способ изменить условия
+   после регистрации. Одно действие = один документ-основание = N×M записей
+   (N траншей × M параметров). Записи не удаляются и не «архивируются»: отмена —
+   новая запись с прежним значением (Г-21). ДС при первом упоминании попадает
+   в реестр документов credit.agreements. */
+function addConditionRecords(credit, ctx){
+  const g = gate(credit, 'addConditionRecords', ctx);            // Г-10 · Г-18 · Г-19 · Г-20
+  if (!g.ok) return g;
+  const bs = ctx.basis;
+  const basis = { kind:bs.kind, ref:bs.ref || bs.num || '', date:bs.date || '',
+                  label:bs.label || (BASIS_KINDS[bs.kind].label + ' ' + (bs.ref || bs.num || '')) };
+  if (bs.kind === 'agreement' && !credit.agreements.some(a => a.num === bs.num))
+    credit.agreements.push({ num:bs.num, date:bs.date, source:bs.source || 'кредит', scan:bs.scan || '' });
+  let added = 0;
+  for (const rec of ctx.records){
+    for (const no of rec.trancheNos){
+      const t = credit.tranches.find(x => x.no === no);
+      if (!t) continue;
+      const row = mkConditionRecord({ param:rec.param, value:rec.value,
+        effectiveFrom:rec.effectiveFrom, basis, note:rec.note || '' });
+      t.conditionRecords.push(row);
+      pushAudit(credit, 'conditionRecord', null, row);
+      added++;
+    }
+  }
+  return { ok:true, value:{ added } };
+}
+
 /* closeCredit(credit, {reason,doc}) — терминалы «Погашен»(Г-14=repay)/«Списан»(Г-12=writeOff),
    Р-20: обязательные реквизиты, без физ. удаления. */
 function closeCredit(credit, ctx){
@@ -2260,7 +2314,7 @@ window.CR = {
   creditConditionsAt, divergenceRows, basisGroups, retroFlags, activeTranche,
   generateSchedule, holdAccrual,
   saveContractAmount, addTranche, addDisbursement, setKmDecision, saveWaiver,
-  addPayment, paymentEditable, addAgreement, closeCredit, linkPledge,
+  addPayment, paymentEditable, addAgreement, addConditionRecords, closeCredit, linkPledge,
   zeroOutForTest,
   nextPaymentOf, regStatusOf, scheduleRowStatus, trancheScheduleRows,
   // утилиты — пригодятся тестам и UI

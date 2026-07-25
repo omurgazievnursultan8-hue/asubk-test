@@ -386,6 +386,37 @@ const pd = CR.pd;
      `court=${!!courtRec} gov=${!!govRec} retroK3=${retroK3.length} прочие=${retroOthers.map(c=>c.id)}`);
 })();
 
+/* 36. Гейты Г-18…Г-21 вокруг записи условия. */
+(() => { const db = CR.seedDb(); const c = db.credits.find(x => x.id === 'K-1');
+  const t = c.tranches[0];
+  const mk = (over) => Object.assign({
+    basis:{ kind:'agreement', num:'ДС-2001', date:CR.TODAY, ref:'ДС-2001', label:'ДС-2001' },
+    records:[{ param:'rate', value:5, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }]
+  }, over || {});
+  /* Г-18: раньше даты договора */
+  const g18 = CR.addConditionRecords(c, mk({ records:[{ param:'rate', value:5,
+    effectiveFrom:'01.01.2000', trancheNos:[t.no], note:'x' }] }));
+  /* Г-19: ретро-ДС запрещено. Дата вступления — после даты договора К-1
+     (12.05.2026), но раньше TODAY (23.07.2026): ретро именно по Г-19,
+     не по Г-18 (иначе g20ok не смог бы пройти вовсе). */
+  const g19bad = CR.addConditionRecords(c, mk({ records:[{ param:'rate', value:5,
+    effectiveFrom:'01.06.2026', trancheNos:[t.no], note:'x' }] }));
+  /* Г-19: ретро-суд разрешено, но Г-20 требует примечания */
+  const courtBasis = { kind:'court', ref:'АД-999', label:'Решение суда АД-999', date:'01.02.2026' };
+  const g20bad = CR.addConditionRecords(c, { basis:courtBasis,
+    records:[{ param:'rate', value:5, effectiveFrom:'01.06.2026', trancheNos:[t.no], note:'' }] });
+  const g20ok  = CR.addConditionRecords(c, { basis:courtBasis,
+    records:[{ param:'rate', value:5, effectiveFrom:'01.06.2026', trancheNos:[t.no], note:'по решению суда' }] });
+  /* Г-10: суд без ссылки на документ */
+  const g10 = CR.addConditionRecords(c, { basis:{ kind:'court', ref:'', label:'' },
+    records:[{ param:'rate', value:5, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'x' }] });
+  /* Г-21: функции удаления записей в API нет */
+  const noDelete = Object.keys(CR).every(k => !/^(remove|delete).*[Cc]ondition/.test(k));
+  ok(36, !g18.ok && !g19bad.ok && !g20bad.ok && g20ok.ok && !g10.ok && noDelete
+      && CR.conditionsAt(t, CR.TODAY).rate === 5,
+     `г18=${g18.ok} г19=${g19bad.ok} г20=${g20bad.ok}/${g20ok.ok} г10=${g10.ok} noDelete=${noDelete}`);
+})();
+
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
 results.forEach(r => console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`));
