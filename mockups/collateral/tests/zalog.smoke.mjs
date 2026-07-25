@@ -1547,4 +1547,185 @@ test('W6-10 (Р-30): состав полей деталей следует ви�
   no(win.document.getElementById('ed_cadastre'), 'полей недвижимости нет');
 });
 
+/* ================= ВОЛНА 7 (Р-46…Р-58): досье, допуск, страхование, хранение,
+   предшествующие залоги, срок аренды, динамика оценки, категории истории ================= */
+
+test('W7-1 (Р-52): панелей столько же, сколько вкладок предмета — и ни одна не падает', () => {
+  const { win, zt } = load();
+  let bad = 0;
+  for(const it of zt.ITEMS){
+    let ps;
+    try { ps = win.itemPanels(it); } catch(e){ bad++; continue; }
+    if(ps.length !== zt.TABS_ITEM.length) bad++;
+  }
+  eq(bad, 0, 'все предметы рендерят 8 панелей без исключений');
+});
+
+test('W7-2 (Р-56): комплект документов зависит от вида залога', () => {
+  const { zt } = load();
+  const re = zt.ITEMS.find(x => x.kind === 'Недвижимое имущество');
+  const cp = zt.ITEMS.find(x => x.kind === 'Кредитный портфель');
+  has(zt.reqFilesOf(re).map(r => r.t).join('|'), 'Технический паспорт', 'недвижимость требует техпаспорт');
+  hasNot(zt.reqFilesOf(cp).map(r => r.t).join('|'), 'Технический паспорт', 'кредитный портфель — нет');
+  has(zt.reqFilesOf(cp).map(r => r.t).join('|'), 'Реестр уступаемых прав требования', 'свой обязательный документ');
+});
+
+test('W7-3 (Р-56): страховой полис не требуется у нестрахуемых видов', () => {
+  const { zt } = load();
+  const cp = zt.ITEMS.find(x => x.kind === 'Кредитный портфель');
+  no(zt.insuranceRequired(cp), 'кредитный портфель не страхуется');
+  hasNot(zt.reqFilesOf(cp).map(r => r.t).join('|'), 'Страховой полис', 'полиса нет в комплекте');
+});
+
+test('W7-4 (Р-56): срок документа считается от даты ДОКУМЕНТА, не от даты загрузки', () => {
+  const { zt } = load();
+  const req = { t:'Страховой полис', validMonths:12 };
+  eq(zt.fileStatusOf(req, { docDate:'01.01.2020', when: zt.TODAY }).code, 'expired', 'старый документ, свежий скан → истёк');
+  eq(zt.fileStatusOf(req, { docDate: zt.TODAY, when: zt.TODAY }).code, 'ok', 'свежий документ действует');
+  eq(zt.fileStatusOf(req, null).code, 'missing', 'документа нет');
+});
+
+test('W7-5 (Р-56): досье считает укомплектованность и перечисляет пробелы', () => {
+  const { win, zt } = load();
+  const d1 = win.itemDossier(zt.item('П-001'));
+  eq(d1.missing.length, 0, 'эталонный предмет укомплектован');
+  eq(d1.pct, 100, '100 %');
+  const d2 = win.itemDossier(zt.item('П-002'));
+  has(d2.missing.join('|'), 'Правоустанавливающий документ', 'пробел назван поимённо');
+  ok(d2.met < d2.req, 'комплект неполный');
+});
+
+test('W7-6 (Р-56): прикрепление файла закрывает пробел досье', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = zt.item('П-002');
+  const miss = win.itemDossier(it).missing[0];
+  win.openAttach('item', 'П-002');
+  eq(win.document.getElementById('atTag').value, miss, 'тип подставлен по первому пробелу');
+  win.document.getElementById('atName').value = 'ustav.pdf';
+  win.document.getElementById('atNo').value = 'ПД-2026/1';
+  win.saveAttach('item', 'П-002');
+  hasNot(win.itemDossier(it).missing.join('|'), miss, 'пробел закрыт');
+});
+
+test('W7-7 (Р-56): дата документа в будущем не принимается', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = zt.item('П-002'), was = it.files.length;
+  win.openAttach('item', 'П-002');
+  win.document.getElementById('atName').value = 'x.pdf';
+  win.document.getElementById('atDate').value = '2030-01-01';
+  win.saveAttach('item', 'П-002');
+  eq(it.files.length, was, 'файл не прикреплён');
+});
+
+test('W7-8 (Р-52): светофор допуска — стоп-факторы не теряются в дефект-строке', () => {
+  const { win, zt } = load();
+  for(const id of ['П-001','П-002','П-003','П-004']){
+    const it = zt.item(id), v = win.admissionVerdict(it);
+    eq(v.stop + v.warn + v.pass, v.checks.length, id + ': проверки разложены без потерь');
+    const defStop = win.itemDefects(it).filter(d => d.sev === 'stop').length;
+    ok(defStop >= v.stop, id + ': дефект-строка не теряет стоп-факторы допуска');
+  }
+});
+
+test('W7-9 (Р-46): страхование — ось всех страхуемых видов, не только техники', () => {
+  const { zt } = load();
+  const re = zt.ITEMS.find(x => x.kind === 'Недвижимое имущество');
+  ok(zt.insuranceRequired(re), 'недвижимость страхуется');
+  ok(zt.insuredMissing(zt.item('П-003')), 'П-003 демонстрирует отсутствие полиса');
+  has(zt.triggers().map(t => t.type).join('|'), 'Предмет залога не застрахован', 'поднят триггер');
+});
+
+test('W7-10 (Р-47): отчёт об оценке живёт 12 месяцев', () => {
+  const { zt } = load();
+  const it = zt.item('П-001');
+  eq(zt.apprValidTill(it), zt.addMonths(it.apprDate, zt.APPRAISAL_VALID_MONTHS), 'срок = дата отчёта + 12 мес.');
+  ok(zt.ITEMS.filter(zt.apprStale).length > 0, 'в сиде есть предмет с устаревшей оценкой');
+  has(zt.triggers().map(t => t.type).join('|'), 'Отчёт об оценке устарел', 'поднят триггер');
+});
+
+test('W7-11 (Р-48): переоценка требует оценщика и кладёт отчёт в досье', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = zt.item('П-001'), was = it.revals.length;
+  win.openReval('П-001');
+  win.document.getElementById('rvRep').value = 'ОЦ-2026/777';
+  win.document.getElementById('rvAppraiser').value = '';
+  win.document.getElementById('rvVal').value = String(it.appraised);
+  win.saveReval('П-001');
+  eq(it.revals.length, was, 'без оценщика переоценка не сохраняется');
+  win.document.getElementById('rvAppraiser').value = 'ОсОО «Эксперт-Оценка»';
+  win.document.getElementById('rvLicense').value = 'ЛО-0042';
+  win.saveReval('П-001');
+  eq(it.revals.length, was + 1, 'с оценщиком — сохранена');
+  eq(it.revals[it.revals.length-1].appraiser, 'ОсОО «Эксперт-Оценка»', 'оценщик в записи журнала');
+  eq(zt.fileOfType(it, 'Отчёт об оценке').docNo, 'ОЦ-2026/777', 'новый отчёт лёг в комплект документов');
+  no(zt.apprStale(it), 'оценка снова актуальна');
+});
+
+test('W7-12 (Р-49): предшествующий залог вносится, снимается и не трогает покрытие', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = zt.item('П-001'), pv = zt.pledgeValue(it);
+  win.openPriorLien('П-001');
+  win.document.getElementById('plHolder').value = 'ОАО «Сторонний банк»';
+  win.document.getElementById('plAmt').value = '100000';
+  win.savePriorLien('П-001');
+  eq(zt.priorLiensOf(it).length, 1, 'обременение зарегистрировано');
+  eq(zt.pledgeValue(it), pv, 'залоговая стоимость не изменилась — предупреждение, не множитель');
+  win.releasePriorLien('П-001', it.priorLiens.length - 1);
+  eq(zt.priorLiensOf(it).length, 0, 'снятие убирает из действующих');
+  eq(it.priorLiens.length, 1, 'запись сохранена в журнале, а не удалена');
+});
+
+test('W7-13 (Р-49): предшествующий залог из сида поднимает триггер', () => {
+  const { zt } = load();
+  eq(zt.priorLiensOf(zt.item('П-004')).length, 1, 'П-004 обременён в пользу третьего лица');
+  has(zt.triggers().map(t => t.type).join('|'), 'Предшествующий залог третьего лица', 'поднят триггер');
+});
+
+test('W7-14 (Р-50): контроль срока аренды больше не мёртвый — виден на предмете', () => {
+  const { win, zt } = load();
+  const w = zt.leaseWarnings(zt.item('П-017'));
+  eq(w.length, 1, 'ровно один обеспечиваемый кредит с коротким сроком аренды');
+  eq(w[0].creditId, 'К-104', 'кредит назван');
+  has(win.itemPanels(zt.item('П-017'))[5], 'ПОЛ §6.4 п.6', 'предупреждение попало на вкладку кредитов');
+});
+
+test('W7-15 (Р-51): способ хранения читается с зарегистрированных договоров', () => {
+  const { zt } = load();
+  const withCustody = zt.ITEMS.filter(x => zt.custodyOf(x));
+  ok(withCustody.length > 0, 'у обременённых предметов хранение определено');
+  const c = zt.custodyOf(withCustody[0]);
+  ok(c.rows.length > 0 && c.rows[0].custody, 'строка хранения несёт способ и договор');
+  no(zt.CONTRACTS.find(x => x.id === 'Д-004').custody, 'Д-004 намеренно без способа хранения — демонстрирует пробел');
+});
+
+test('W7-16 (Р-54): динамика оценки строится только по несторнированным переоценкам', () => {
+  const { win, zt } = load();
+  const it = zt.ITEMS.find(x => x.revals.length > 1) || zt.item('П-001');
+  eq(zt.revalSeries(it).length, it.revals.filter(r => !r.voided).length, 'сторно исключено из ряда');
+  has(win.itemPanels(it)[2], 'Динамика оценочной стоимости', 'блок на вкладке стоимости');
+});
+
+test('W7-17 (Р-58): история раскладывается по категориям, чипы отрисованы', () => {
+  const { win, zt } = load();
+  eq(zt.histCat('Переоценка: оценочная 100 → 120'), 'val', 'стоимость');
+  eq(zt.histCat('Наложен запрет на отчуждение'), 'ban', 'запрет');
+  eq(zt.histCat('Обследование А-1 от 01.01.2026: в норме'), 'srv', 'обследования');
+  eq(zt.histCat('Прикреплён файл «x.pdf»'), 'doc', 'документы');
+  has(win.itemPanels(zt.item('П-001'))[7], 'hchips', 'чипы категорий отрисованы');
+});
+
+test('W7-18 (Р-55): подстрока акта раскрывает заключение, подписи и фотофиксацию', () => {
+  const { win, zt } = load();
+  const it = zt.ITEMS.find(x => zt.livesSurvey(x).length > 0);
+  ok(it, 'сид: есть предмет с обследованиями');
+  const p = win.itemPanels(it)[4];
+  has(p, 'Заключение:', 'заключение выведено');
+  has(p, 'Фотофиксация:', 'фотофиксация выведена');
+  has(p, 'toggleSubRow', 'подстрока сворачивается');
+});
+
 report();

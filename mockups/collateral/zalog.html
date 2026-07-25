@@ -152,6 +152,34 @@
     Р-23 ФАКТОРЫ КРЕДИТНОГО РИСКА В КОМИТЕТ (ПОР п.12 п.п.2): модуль не меняет категорию —
          публикует кандидатов в факторы (riskFactorCandidates) в комитет; решение — за комитетом.
 
+  КАРТОЧКА ПРЕДМЕТА — ВОЛНА Р-46…Р-58 (8 вкладок вместо 7; «Документы» больше не значит «гейты»):
+    Р-46 СТРАХОВАНИЕ ШИРЕ ТЕХНИКИ (§3.4): ось INSURANCE_KINDS вместо isTech — недвижимость,
+         имущественный комплекс и ТМЦ уходили в залог без полиса и без сигнала.
+    Р-47 СРОК ГОДНОСТИ ОТЧЁТА ОБ ОЦЕНКЕ (APPRAISAL_VALID_MONTHS = 12): apprValidTill/apprStale;
+         устаревший отчёт выглядел действующим. Новая переоценка кладёт отчёт в комплект.
+    Р-48 ОЦЕНЩИК КАК РЕКВИЗИТ (не только номер отчёта): appraiser + apprLicense на карточке,
+         в форме переоценки (обязателен) и колонкой в журнале переоценок.
+    Р-49 ПРЕДШЕСТВУЮЩИЕ ЗАЛОГИ ТРЕТЬИХ ЛИЦ (priorLiens): очерёдность удовлетворения; в
+         арифметику покрытия НЕ входят — предупреждение оформителю, не множитель.
+    Р-50 СРОК АРЕНДЫ vs СРОК КРЕДИТА (ПОЛ §6.4 п.6): leaseCoversCredit существовал, но не
+         вызывался ниоткуда — контроль был мёртвым; поднят по каждому кредиту (leaseWarnings).
+    Р-51 СПОСОБ И МЕСТО ХРАНЕНИЯ (ПОЛ §6.4 п.7): хранится на договоре — карточка предмета
+         его не показывала; custodyOf читает с зарегистрированных договоров, расхождение видно.
+    Р-52 СВЕТОФОР ДОПУСКА (вкладка «Допуск»): admissionChecks/admissionVerdict — 13 проверок;
+         гейты §3.5/§5.2/§3.4/комплект/инвариант видны заранее, а не тостом в момент отказа.
+         Предпосылки §5.2 и техдопуск П1 §2.5 переехали сюда со вкладки «Документы».
+    Р-53 ДЕФЕКТ-СТРОКА вместо стопки баннеров: itemDefects + ОДИН развёрнутый topBanner;
+         каждый дефект — ссылка на вкладку, где он лечится.
+    Р-54 ДИНАМИКА ОЦЕНОЧНОЙ СТОИМОСТИ: спарклайн по несторнированным переоценкам (revalSeries).
+    Р-55 СОДЕРЖАНИЕ АКТА ОБСЛЕДОВАНИЯ (П2 §2.3/§2.4): подстрока с заключением, подписями,
+         присутствием стороны и фотофиксацией — раньше был виден только номер и исход.
+    Р-56 ДОСЬЕ ДОКУМЕНТОВ (вкладка «Документы»): обязательный комплект по виду залога
+         (FILE_REQ_*), срок годности от ДАТЫ ДОКУМЕНТА, «есть/нет/истёк», лишнее — в
+         дополнительные вложения. Зеркало карточки заёмщика REQ_DOCS['залог'] сошлось с источником.
+    Р-57 ВАЛЮТА И ХРАНЕНИЕ В ШАПКЕ: все KPI подписаны валютой предмета (Р-44), способ
+         хранения и страхование — реквизиты вкладки «Основное».
+    Р-58 ИСТОРИЯ С КАТЕГОРИЯМИ: чипы с счётчиками, разделители по годам, догрузка порциями.
+
   РОЛИ (ПОЛ §9.1): Куратор отдела залогового обеспечения / Заведующий отделом залогового
   обеспечения (правят, canCurate; заведующий отделом — canHeadOfUnit — гейтует override
   залоговой стоимости, только понижение, Р-19), Комитет по администрированию бюджетных
@@ -675,6 +703,64 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
 .mform.one{ grid-template-columns:1fr; }
 .chk{ display:flex; align-items:center; gap:8px; font:var(--font-label); color:var(--text-body); }
 .axis{ display:flex; gap:6px; flex-wrap:wrap; }
+
+/* ---- Р-47…Р-54: карточка предмета — допуск, документы, история ---- */
+/* Бейдж-счётчик на вкладке: состав работы виден до открытия вкладки. */
+.dtab .tb{ display:inline-block; margin-left:6px; padding:0 6px; border-radius:9px; background:var(--surface-input);
+  color:var(--text-muted); font:var(--weight-semibold) 11px/17px var(--asubk-font); vertical-align:1px; }
+.dtab .tb.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.dtab .tb.warn{ background:var(--status-warning-bg); color:#B26A00; }
+.dtab.active .tb{ background:var(--asubk-nav-active); color:var(--asubk-blue); }
+
+/* Дефект-строка вместо стопки баннеров (клон .defect-bar карточки заёмщика). */
+.defect-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:9px 12px; margin:0 0 12px;
+  border-radius:var(--radius-md); background:var(--status-error-bg); }
+.defect-bar.ok{ background:var(--status-success-bg); }
+.defect-bar .dl{ font:var(--weight-semibold) 11px/1.4 var(--asubk-font); letter-spacing:.04em;
+  text-transform:uppercase; color:var(--text-muted); margin-right:2px; }
+.defect-bar .muted{ font:var(--font-label); color:var(--text-muted); }
+
+/* Светофор допуска: одна строка на проверку, слева — цветная риска. */
+.chk-row{ display:flex; gap:12px; padding:11px 12px; border-bottom:1px solid var(--asubk-grid-line);
+  border-left:3px solid transparent; }
+.chk-row:last-child{ border-bottom:none; }
+.chk-row.stop{ border-left-color:var(--asubk-red); background:var(--status-error-bg); }
+.chk-row.warn{ border-left-color:#B26A00; background:var(--status-warning-bg); }
+.chk-row.ok{ border-left-color:var(--asubk-green); }
+.chk-row .cn{ width:34%; font:var(--font-label); color:var(--text-heading); font-weight:var(--weight-semibold); }
+.chk-row .cr{ flex:1; font:var(--font-label); color:var(--text-body); }
+.chk-row .cb{ font:var(--weight-regular) 12px/1.45 var(--asubk-font); color:var(--text-placeholder); margin-top:3px; }
+.chk-list{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; }
+
+/* Полоса укомплектованности (досье предмета / итог допуска). */
+.meter{ height:8px; border-radius:4px; background:var(--surface-hover); overflow:hidden; display:flex; margin:2px 0 6px; }
+.meter > div{ height:100%; }
+
+/* Спарклайн динамики оценочной стоимости. */
+.spark{ display:block; }
+.spark-wrap{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+
+/* Раскрываемая подстрока журнала (детали акта обследования). */
+.subrow > td{ background:var(--surface-hover); }
+.subrow .sub-in{ padding:6px 2px; font:var(--font-label); color:var(--text-body); }
+.subrow .sub-in b{ color:var(--text-heading); }
+.photo-chip{ display:inline-flex; align-items:center; gap:5px; padding:3px 9px; margin:3px 6px 0 0;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-card);
+  font:var(--weight-regular) 12px/1.5 var(--asubk-font); color:var(--text-body); }
+
+/* Лента истории с фильтрами и годами (клон паттерна карточки заёмщика). */
+.hchips{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; }
+.hchip{ border:1px solid var(--border-default); background:var(--surface-card); border-radius:999px;
+  padding:5px 12px; font:var(--font-label); color:var(--text-muted); cursor:pointer; }
+.hchip:hover{ background:var(--surface-hover); }
+.hchip.on{ background:var(--asubk-nav-active); border-color:var(--asubk-blue); color:var(--asubk-blue);
+  font-weight:var(--weight-semibold); }
+.hchip .hchip-n{ margin-left:5px; color:var(--text-placeholder); }
+.hyear{ font:var(--weight-semibold) 13px/1 var(--asubk-font); color:var(--text-muted); letter-spacing:.04em;
+  margin:16px 0 8px; padding-left:22px; }
+.hmore{ margin-top:12px; }
+.hrow .hlink{ color:var(--asubk-blue); cursor:pointer; }
+.hrow .hlink:hover{ text-decoration:underline; }
 </style>
 </head>
 <body>
@@ -999,6 +1085,44 @@ let LIQUID_SHARE_MIN = 0.8;  // при движимом неликвидном �
 let COVER_GUARANTEE    = 1.0;// П1 §2.3: банковская гарантия в валюте кредита — ≥ 100% (справочник §16, норматив)
 let COVER_GUARANTEE_FX = 1.2;// П1 §2.3: гарантия в валюте ≠ валюте кредита — ≥ 120% (справочник §16, норматив)
 const GUAR_WARN_DAYS = 60;     // Р-11: горизонт предупреждения об истечении гарантии, дней
+
+/* Р-46 СТРАХОВАНИЕ — не только техника. §3.4 требует страхования предмета залога;
+   прежняя реализация проверяла полис ТОЛЬКО у tech-видов (isTech), поэтому недвижимость,
+   имущественный комплекс и товары в обороте уходили в залог без полиса и без сигнала, хотя
+   модуль заёмщика уже показывал «Страховой полис» в обязательном комплекте досье по залогу.
+   Список видов — справочный параметр (правится администратором): страхуется физически
+   уничтожимый актив; право требования, ценные бумаги и право аренды не страхуются. */
+let INSURANCE_KINDS = ['Транспортное средство','Оборудование','Сельхозтехника',
+  'Недвижимое имущество','Имущественный комплекс','Незавершённое строительство','Товары в обороте'];
+
+/* Р-47 СРОК ГОДНОСТИ ОТЧЁТА ОБ ОЦЕНКЕ. ВНУТРЕННИЙ параметр (нормативно срок не задан):
+   после него оценочная стоимость считается неактуальной — тот же горизонт, что у
+   REQ_DOCS['залог'] карточки заёмщика (12 мес.), чтобы зеркало и источник не расходились. */
+let APPRAISAL_VALID_MONTHS = 12;
+
+/* Р-56 ОБЯЗАТЕЛЬНЫЙ КОМПЛЕКТ ДОКУМЕНТОВ ПРЕДМЕТА (досье п.97).
+   Раньше вложения были плоским списком «тег + имя файла»: состав комплекта нигде не
+   объявлялся, срок годности не проверялся, а карточка заёмщика при этом считала
+   «укомплектованность досье» по своему набору (REQ_DOCS['залог'] — договор залога, отчёт
+   об оценке 12 мес., страховой полис 12 мес.) — зеркало требовало то, чего источник не знал.
+   Здесь комплект объявлен в модуле-источнике: общий базис + добавка по виду залога.
+   validMonths — срок годности документа (отсутствует → бессрочный). */
+const FILE_REQ_COMMON = [
+  { t:'Правоустанавливающий документ' },
+  { t:'Отчёт об оценке', validMonths:12 },
+];
+const FILE_REQ_BY_KIND = {
+  'Недвижимое имущество':        [{ t:'Технический паспорт' }, { t:'Страховой полис', validMonths:12 }],
+  'Имущественный комплекс':      [{ t:'Технический паспорт' }, { t:'Страховой полис', validMonths:12 }],
+  'Незавершённое строительство': [{ t:'Разрешение на строительство' }, { t:'Страховой полис', validMonths:12 }],
+  'Транспортное средство':       [{ t:'Свидетельство о регистрации ТС' }, { t:'Страховой полис', validMonths:12 }],
+  'Оборудование':                [{ t:'Страховой полис', validMonths:12 }],
+  'Сельхозтехника':              [{ t:'Страховой полис', validMonths:12 }],
+  'Товары в обороте':            [{ t:'Ведомость товаров в обороте' }, { t:'Страховой полис', validMonths:12 }],
+  'Ценные бумаги':               [{ t:'Выписка из реестра владельцев ценных бумаг' }],
+  'Право аренды':                [{ t:'Договор аренды' }, { t:'Согласие арендодателя' }],
+  'Кредитный портфель':          [{ t:'Реестр уступаемых прав требования' }],
+};
 
 /* ТЕХНИКА (Прил.1 §2.5, Р-7): предельный срок эксплуатации по происхождению. Справочный параметр. */
 const TECH_AGE_LIMIT = { 'СНГ':15, 'Дальнее зарубежье':20 };
@@ -1398,11 +1522,33 @@ const KIND_MIGRATION = [
 const ITEM_DEMO = {
   'П-001': { pledgerType:'АО / хоз. общество',
     consents:[{ id:'СГ-1', action:'Передача в аренду', date:'10.06.2026', doc:'Согласие ГФХ №СГ-2026/07 от 10.06.2026',
-      decision:'положительное', note:'аренда части склада; запрет на отчуждение сохраняется в силе', revalRequired:false }] },
+      decision:'положительное', note:'аренда части склада; запрет на отчуждение сохраняется в силе', revalRequired:false }],
+    /* Р-47: полный комплект — досье закрыто на 100%, эталон «как должно быть». */
+    appraiser:'ОсОО «Эксперт-Оценка»', apprLicense:'ЛО-0142',
+    insured:{ present:true, policy:'ИМ-2026/077', till:'01.02.2027' },
+    files:[
+      { tag:'Правоустанавливающий документ', name:'gosregistr-vypiska-1-04-12-0031.pdf', docNo:'ГР-2018/4412', docDate:'14.03.2018', when:'10.04.2024', who:'Залоговый специалист', ref:'' },
+      { tag:'Отчёт об оценке', name:'oc-2026-03.pdf', docNo:'ОЦ-2026/03', docDate:'20.01.2026', when:'20.01.2026', who:'Залоговый специалист', ref:'reval:0' },
+      { tag:'Технический паспорт', name:'tehpasport-sklad.pdf', docNo:'ТП-1998/220', docDate:'12.10.1998', when:'10.04.2024', who:'Залоговый специалист', ref:'' },
+      { tag:'Страховой полис', name:'im-2026-077.pdf', docNo:'ИМ-2026/077', docDate:'01.02.2026', when:'01.02.2026', who:'Залоговый специалист', ref:'' },
+      { tag:'Акт обследования', name:'ao-2026-11.pdf', docNo:'АО-2026/11', docDate:'15.03.2026', when:'15.03.2026', who:'Залоговый специалист', ref:'survey:0' },
+    ] },
   'П-002': { pledgerType:'Прочее ЮЛ', year:2015, origin:'Дальнее зарубежье',
-    insured:{ present:true, policy:'ОСГ-2025/337', till:'01.05.2026' } },   // полис истёк → триггер (Р-7)
-  'П-003': { pledgerType:'АО / хоз. общество' },
-  'П-004': { pledgerType:'Физлицо' },
+    insured:{ present:true, policy:'ОСГ-2025/337', till:'01.05.2026' },   // полис истёк → триггер (Р-7)
+    appraiser:'ОсОО «Эксперт-Оценка»', apprLicense:'ЛО-0142',
+    files:[
+      { tag:'Отчёт об оценке', name:'oc-2026-88.pdf', docNo:'ОЦ-2026/88', docDate:'20.06.2026', when:'20.06.2026', who:'Залоговый специалист', ref:'reval:1' },
+      { tag:'Страховой полис', name:'osg-2025-337.pdf', docNo:'ОСГ-2025/337', docDate:'01.05.2025', when:'01.05.2025', who:'Залоговый специалист', ref:'' },
+    ] },   // правоустанавливающего документа нет → досье неполно (Р-56 demo)
+  'П-003': { pledgerType:'АО / хоз. общество',
+    insured:{ present:false, policy:'', till:'' } },   // Р-46 demo: товары в обороте не застрахованы — прежде не проверялось вовсе
+  'П-004': { pledgerType:'Физлицо',
+    appraiser:'ИП Асанов К.Д.', apprLicense:'ЛО-0311',
+    insured:{ present:true, policy:'ИМ-2025/018', till:'03.02.2026' },   // полис истёк (Р-46, недвижимость)
+    /* Р-49 demo: квартира уже обременена залогом стороннего банка — наше требование
+       удовлетворяется в порядке очерёдности после него. Раньше записать это было негде. */
+    priorLiens:[{ holder:'ОАО «Коммерческий банк»', docNo:'ДЗ-2023/551', date:'11.08.2023',
+      amount:120000, note:'ипотека, сведения из выписки Госрегистра от 20.01.2025', released:false }] },
   'П-005': { pledgerType:'Физлицо', year:2018, origin:'Дальнее зарубежье',
     insured:{ present:true, policy:'ОСГ-2026/112', till:'14.05.2027' } },
   'П-006': { pledgerType:'АО / хоз. общество', prereqAbsent:['ownerConsent'] },   // Р-5: решение органа не приложено → блок регистрации Д-005
@@ -1410,6 +1556,33 @@ const ITEM_DEMO = {
   'П-008': { pledgerType:'Прочее ЮЛ', year:2016, origin:'СНГ',
     insured:{ present:true, policy:'ОСГ-2024/018', till:'05.01.2027' } },
 };
+/* Р-46/Р-47: синтетические дефолты демо-стенда. Полис и комплект документов — норма при
+   приёме предмета в залог, поэтому сид, не несущий этих полей (записи, заведённые до
+   появления осей), достраивается до нормы. Реквизиты производны от даты отчёта об оценке,
+   чтобы «годен до» считался от осмысленной даты, а не от даты загрузки стенда. */
+function autoPolicy(it){
+  const from = it.apprDate || TODAY;
+  return { present:true, policy:'ИМ-'+String(it.id).replace(/\D+/g,'')+'/'+from.slice(6), till: addMonths(from, 18) };
+}
+function autoFiles(it){
+  const who = 'Залоговый специалист', short = String(it.id).replace(/\D+/g,'');
+  /* Полис не «дорисовывается», если предмет намеренно не застрахован (П-003): досье и ось
+     страхования обязаны говорить одно и то же. */
+  const kindReq = (FILE_REQ_COMMON.concat(FILE_REQ_BY_KIND[it.kind] || []))
+    .filter(r => r.t !== 'Страховой полис'
+              || (INSURANCE_KINDS.includes(it.kind) && it.insured && it.insured.present));
+  return kindReq.map((r, i) => {
+    const isAppr = r.t === 'Отчёт об оценке', isPol = r.t === 'Страховой полис';
+    const docDate = isAppr ? (it.apprDate || TODAY)
+                  : isPol  ? ((it.insured && it.insured.till) ? addMonths(it.insured.till, -12) : (it.apprDate || TODAY))
+                  : (it.apprDate || TODAY);
+    const docNo = isAppr ? (it.apprReport || 'ОЦ-'+short)
+                : isPol  ? ((it.insured && it.insured.policy) || 'ИМ-'+short)
+                : 'ДОК-'+short+'/'+(i+1);
+    return { tag:r.t, name:'scan-'+short+'-'+(i+1)+'.pdf', docNo, docDate, when:docDate, who,
+             ref: isAppr ? 'reval:last' : '' };
+  });
+}
 function normalizeItem(it){
   const d = ITEM_DEMO[it.id] || {};
   it.pledgerType   = it.pledgerType   || d.pledgerType || 'Прочее ЮЛ';
@@ -1419,12 +1592,27 @@ function normalizeItem(it){
   it.unit     = it.unit     || d.unit || 'ед.';            // ед.изм. (legacy quantityType)
   it.legalDoc = it.legalDoc || d.legalDoc || '';           // правоуст. документ (отдельно от отчёта оценщика)
   it.details  = it.details  || d.details || {};            // type-specific детали (KIND_FIELDS)
-  it.files    = it.files    || d.files || [];              // вложения/сканы
+  it.files    = it.files    || d.files || [];              // вложения/сканы (Р-47: тег = тип документа комплекта)
+  /* Р-49: предшествующие залоги третьих лиц — вводятся вручную, в арифметику не входят. */
+  it.priorLiens = it.priorLiens || d.priorLiens || [];
+  /* Р-48: оценщик как реквизит отчёта (кто оценивал + лицензия), а не только номер отчёта. */
+  it.appraiser   = it.appraiser   || d.appraiser   || '';
+  it.apprLicense = it.apprLicense || d.apprLicense || '';
   if(isTech(it)){
     it.year   = it.year   ?? d.year ?? null;
     it.origin = it.origin || d.origin || 'СНГ';
-    it.insured= it.insured|| d.insured || { present:false, policy:'', till:'' };
   }
+  /* Р-46: полис — у всех страхуемых видов, а не только у техники (INSURANCE_KINDS, §3.4).
+     Прямая проверка по списку, а не через insuranceRequired: normalizeItem выполняется на
+     верхнем уровне скрипта РАНЬШЕ, чем инициализируются const'ы вычисляемого слоя (TDZ).
+     ДЕФОЛТ — полис ЕСТЬ и действует: страхование обязательно при приёме, поэтому «нет полиса»
+     на стенде должно быть намеренным дефектом конкретной записи (П-003), а не фоном по всему
+     реестру — иначе новая ось страхования забивает мониторинг 19 одинаковыми триггерами. */
+  if(INSURANCE_KINDS.includes(it.kind))
+    it.insured = it.insured || d.insured || autoPolicy(it);
+  /* Р-47: тот же принцип для комплекта документов — по умолчанию комплект собран (синтетика
+     от даты отчёта об оценке), незакрытые позиции задаются явно в ITEM_DEMO (П-002). */
+  if(!it.files.length) it.files = autoFiles(it);
   /* Р-17: роль обеспечения (основной/дополнительный) — только для движимых видов, кроме
      «Товары в обороте» (та же граница, что и у формы приёма, см. niKindChange/saveNewItem). */
   if(isMovable(it) && it.kind !== 'Товары в обороте') it.securityRole = it.securityRole || 'основной';
@@ -1742,9 +1930,17 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
     revals:[{date:'10.07.2026', appraised:50000, report:'ОЦ-2026/101', note:'первичная оценка'}], surveys:[],
     history:[{when:'10.07.2026 10:00', what:'Предмет зарегистрирован — право аренды; срок аренды (01.03.2027) короче срока кредита-образца К-104 (01.01.2028) — leaseCoversCredit предупреждает, требуется решение комитета (ПОЛ §6.4 п.6)', who:'Куратор отдела залогового обеспечения'}] });
   ITEMS.push(leaseItem);
-  // Кредит-образец для демонстрации leaseCoversCredit(item, credit): creditTill позже leaseTill выше.
-  // Без договора/отнесений — только для парной демонстрации срока (не участвует в гейтах покрытия).
-  CREDITS.push({ id:'К-104', num:'Дог. №104 от 10.07.2026', inn:'20308197700219', amount:40000, status:'Действующий', overdue:false, otherSecurity:null, creditTill:'01.01.2028' });
+  // Р-50: кредит К-104 и договор Д-017 под него. Раньше кредит стоял БЕЗ договора и отнесений
+  // («только для парной демонстрации срока»), из-за чего leaseCoversCredit не вызывался ни
+  // из одного места UI — контроль существовал функцией, но не срабатывал никогда. Теперь
+  // предмет реально обеспечивает кредит, и предупреждение §6.4 п.6 поднимается штатно:
+  // в светофоре допуска предмета, в мониторинге и на карточке договора.
+  CREDITS.push({ id:'К-104', num:'Дог. №104 от 10.07.2026', inn:'20308197700219', amount:40000, status:'Действующий', overdue:false, otherSecurity:null, creditTill:'01.01.2028', riskCategory:'Низкий' });
+  CONTRACTS.push({ id:'Д-017', no:'ЗД-2026/104-1', date:'10.07.2026', status:'Зарегистрирован', inn:'20308197700219',
+    notary:'Нотариус Абдылдаева Г.К.', notaryNo:'НР-2026/1403', notaryDate:'10.07.2026', cert:'ЗС-2026/0903',
+    custody:'у залогодателя', custodyPlace:'',
+    credits:['К-104'], allocs:[{item:'П-017', credit:'К-104', share:20000}], undercovered:null, addenda:[],
+    history:[{when:'10.07.2026 11:30', what:'Договор зарегистрирован. Обеспечение — право аренды (П-017); срок аренды до 01.03.2027 короче срока кредита К-104 (01.01.2028) → предупреждение ПОЛ §6.4 п.6, требуется решение комитета', who:'Куратор отдела залогового обеспечения'}] });
 
   // §17 п.5б (Р-13): пара к К-101/Д-012 — заёмщик под той же категорией П1 §2.6, но с
   // ВНЕСЁННЫМ решением Кабинета Министров (kmDecision.coverPct=100) → kmGateBlocked снят,
@@ -2723,11 +2919,219 @@ function prereqMissing(it){
                     .map(k => ({ key:k, label:req[k].label }));
 }
 
-/* ---- ТЕХНИКА (Р-7, Прил.1 §2.5, §3.4). Возраст и страховка — производные проверки. */
+/* ---- Р-46 СТРАХОВАНИЕ ПРЕДМЕТА (§3.4) — ось шире техники (см. INSURANCE_KINDS).
+   Техника-специфичные обёртки ниже выражены через эти функции, чтобы правило страхования
+   жило в одном месте, а не в двух параллельных. ---- */
+const insuranceRequired = it => INSURANCE_KINDS.includes(it.kind);
+const insuredPresent    = it => Boolean(it.insured && it.insured.present);
+const insuredMissing    = it => insuranceRequired(it) && !insuredPresent(it);
+const policyExpired     = it => insuranceRequired(it) && insuredPresent(it)
+                                && Boolean(it.insured.till) && isOverdue(it.insured.till);
+
+/* ---- Р-47 АКТУАЛЬНОСТЬ ОЦЕНКИ. Отчёт об оценке годен APPRAISAL_VALID_MONTHS от даты
+   отчёта; просроченный отчёт означает, что залоговая стоимость в расчёте покрытия опирается
+   на устаревшую оценочную. Это не то же самое, что nextReval (плановый интервал переоценки
+   по виду залога): интервал — «когда переоценивать», годность — «можно ли ещё верить цифре». */
+const apprValidTill = it => it.apprDate ? addMonths(it.apprDate, APPRAISAL_VALID_MONTHS) : null;
+const apprStale     = it => { const t = apprValidTill(it); return Boolean(t) && isOverdue(t); };
+
+/* ---- Р-56 ДОСЬЕ ПРЕДМЕТА: обязательный комплект + фактические вложения.
+   reqFilesOf — состав комплекта для конкретного предмета (общий базис + вид залога).
+   fileOfType — ПОСЛЕДНИЙ по дате документ этого типа (перевыпуск полиса не должен
+   вычитаться из комплекта из-за старой записи, лежащей раньше в массиве). */
+function reqFilesOf(it){
+  return FILE_REQ_COMMON.concat(FILE_REQ_BY_KIND[it.kind] || [])
+    .filter(r => r.t !== 'Страховой полис' || insuranceRequired(it));
+}
+function fileOfType(it, type){
+  const fs = (it.files || []).filter(f => f.tag === type);
+  if(!fs.length) return null;
+  return fs.slice().sort((a,b) => (d2n(b.docDate || b.when) - d2n(a.docDate || a.when)))[0];
+}
+/* Статус документа комплекта: нет / истёк ДД.ММ.ГГГГ / есть. Срок считается от ДАТЫ
+   ДОКУМЕНТА (docDate), а не от даты прикрепления файла — иначе просроченный полис
+   «омолаживается» повторной загрузкой скана. */
+function fileStatusOf(req, doc){
+  if(!doc) return { code:'missing', label:'нет', cls:'high' };
+  if(req.validMonths){
+    const till = addMonths(doc.docDate || doc.when, req.validMonths);
+    if(till && isOverdue(till)) return { code:'expired', label:'истёк '+till, cls:'mid', till };
+    return { code:'ok', label:'есть', cls:'low', till };
+  }
+  return { code:'ok', label:'есть', cls:'low' };
+}
+/* Укомплектованность досье предмета — одна точка правды: её читают вкладка «Документы»,
+   бейдж вкладки, светофор допуска и триггер неполного комплекта. */
+function itemDossier(it){
+  const rows = reqFilesOf(it).map(req => {
+    const doc = fileOfType(it, req.t);
+    return { req, doc, st: fileStatusOf(req, doc) };
+  });
+  const extras = (it.files || []).filter(f => !reqFilesOf(it).some(r => r.t === f.tag));
+  const met = rows.filter(r => r.st.code === 'ok').length;
+  const exp = rows.filter(r => r.st.code === 'expired').length;
+  return { rows, extras, req: rows.length, met, exp,
+           pct: rows.length ? Math.round(met / rows.length * 100) : 100,
+           missing: rows.filter(r => r.st.code === 'missing').map(r => r.req.t) };
+}
+
+/* ---- Р-49 ПРЕДШЕСТВУЮЩИЕ ЗАЛОГИ ТРЕТЬИХ ЛИЦ. Приоритет по договорам считался только
+   среди НАШИХ договоров — обременение в пользу стороннего залогодержателя записать было
+   негде, хотя оно определяет реальную очерёдность удовлетворения. Данные вводятся вручную
+   (выписка регистрирующего органа / со слов залогодателя) и в арифметику покрытия НЕ входят:
+   это предупреждение оформителю, а не множитель. ---- */
+const priorLiensOf = it => (it.priorLiens || []).filter(l => !l.released);
+
+/* ---- Р-50 СРОК АРЕНДЫ vs СРОК КРЕДИТА (ПОЛ §6.4 п.6). leaseCoversCredit существовал, но
+   не вызывался ни из одного места UI — контроль был мёртвым. Здесь он поднимается по
+   КАЖДОМУ кредиту, который предмет обеспечивает действующим договором. ---- */
+function leaseWarnings(it){
+  if(it.kind !== 'Право аренды') return [];
+  const cids = [...new Set(CONTRACTS.filter(c => isActive(c) && c.allocs.some(a => a.item === it.id))
+                                    .flatMap(c => c.allocs.filter(a => a.item === it.id).map(a => a.credit)))];
+  return cids.map(cid => ({ creditId:cid, ...leaseCoversCredit(it, credit(cid)) })).filter(w => w.warn);
+}
+
+/* ---- Р-51 СПОСОБ И МЕСТО ХРАНЕНИЯ (ПОЛ §6.4 п.7). custody вводится при РЕГИСТРАЦИИ
+   ДОГОВОРА и хранится на договоре, поэтому карточка предмета его не показывала — оформитель
+   не видел, где вещь физически. Читаем с зарегистрированных договоров, обременяющих предмет;
+   расхождение между договорами (редкий, но возможный случай перезалога) не скрываем. ---- */
+function custodyOf(it){
+  const cs = CONTRACTS.filter(c => isActive(c) && c.custody && c.allocs.some(a => a.item === it.id));
+  if(!cs.length) return null;
+  const uniq = [...new Set(cs.map(c => c.custody))];
+  return { modes: uniq, conflict: uniq.length > 1,
+           rows: cs.map(c => ({ cid:c.id, no:c.no, custody:c.custody, place:c.custodyPlace || '' })) };
+}
+
+/* ---- Р-52 СВЕТОФОР ДОПУСКА. Раньше гейты приёма/регистрации всплывали ТОСТАМИ в момент
+   регистрации договора (doRegister) — на карточке предмета их не было видно вовсе, а
+   предпосылки §5.2 и техдопуск были спрятаны на вкладке, названной «Документы».
+   Здесь все проверки собраны в один читаемый список: sev 'stop' блокирует регистрацию
+   договора, 'warn' — замечание оформления, 'ok' — пройдено. Чистая функция. ---- */
+function admissionChecks(it){
+  const C = [];
+  const push = (sev, name, result, basis, tab) => C.push({ sev, name, result, basis, tab });
+
+  /* ① Стоп-лист §3.5 (Р-18) — та же функция, что гейтит приём и регистрацию. */
+  const sl = stopListCheck(stopFieldsOf(it));
+  push(sl.block ? 'stop' : 'ok', 'Стоп-лист П1 §3.5',
+    sl.block ? 'приём не допускается' : 'ограничений нет',
+    sl.block ? sl.msg : 'вид и состояние предмета под запреты §3.5 не подпадают', 0);
+
+  /* ② Предпосылки оформления §5.2 (Р-5) — состав зависит от типа залогодателя. */
+  const miss = prereqMissing(it);
+  push(miss.length ? 'stop' : 'ok', 'Предпосылки оформления §5.2',
+    miss.length ? 'не приложено: ' + miss.length : 'комплект закрыт',
+    miss.length ? miss.map(m => m.label).join('; ') : 'тип залогодателя «' + it.pledgerType + '» — все обязательные согласия приложены', 1);
+
+  /* ③ Комплект документов досье (Р-47). */
+  const d = itemDossier(it);
+  push(d.missing.length ? 'stop' : (d.exp ? 'warn' : 'ok'), 'Комплект документов',
+    d.met + ' из ' + d.req + (d.exp ? ' · ' + d.exp + ' истёк' : ''),
+    d.missing.length ? 'отсутствуют: ' + d.missing.join('; ')
+      : (d.exp ? 'документ с истёкшим сроком годности требует перевыпуска' : 'обязательный комплект по виду «' + it.kind + '» приложен полностью'), 6);
+
+  /* ④ Актуальность отчёта об оценке (Р-48). */
+  const till = apprValidTill(it);
+  push(apprStale(it) ? 'warn' : 'ok', 'Актуальность оценки',
+    apprStale(it) ? 'отчёт устарел ' + till : 'годен до ' + (till || '—'),
+    'отчёт ' + (it.apprReport || '—') + ' от ' + (it.apprDate || '—') + ' · срок годности ' + APPRAISAL_VALID_MONTHS + ' мес.'
+      + (it.appraiser ? ' · оценщик: ' + it.appraiser + (it.apprLicense ? ' (лиц. ' + it.apprLicense + ')' : '') : ' · оценщик не указан'), 2);
+
+  /* ⑤ Страхование (Р-46) — по всем видам из INSURANCE_KINDS, не только по технике. */
+  if(insuranceRequired(it)){
+    const ins = it.insured || {};
+    push(insuredMissing(it) ? 'stop' : policyExpired(it) ? 'warn' : 'ok', 'Страхование предмета',
+      insuredMissing(it) ? 'полиса нет' : policyExpired(it) ? 'полис истёк ' + ins.till : 'полис действует',
+      insuredMissing(it) ? 'вид «' + it.kind + '» подлежит страхованию (§3.4)'
+        : 'полис ' + (ins.policy || '—') + (ins.till ? ' · до ' + ins.till : ''), 1);
+  }
+
+  /* ⑥ Возраст техники (Р-17). */
+  const age = techAge(it);
+  if(age != null){
+    const chk = techAgeCheck({ securityRole: it.securityRole || 'основной', origin: it.origin, age });
+    push(chk.block ? 'stop' : chk.needCommittee ? 'warn' : 'ok', 'Срок эксплуатации техники',
+      age + ' лет при лимите ' + techAgeLimit(it), chk.msg || 'в пределах лимита для «' + it.origin + '»', 1);
+  }
+
+  /* ⑦ Срок аренды vs срок кредита (Р-50, ПОЛ §6.4 п.6) — оживший контроль. */
+  if(it.kind === 'Право аренды'){
+    const lw = leaseWarnings(it);
+    push(lw.length ? 'warn' : 'ok', 'Срок аренды покрывает срок кредита',
+      lw.length ? 'короче по ' + lw.map(w => w.creditId).join(', ') : 'покрывает',
+      lw.length ? lw[0].msg + ' · срок аренды до ' + (it.leaseTill || '—')
+        : 'срок аренды до ' + (it.leaseTill || '—'), 5);
+  }
+
+  /* ⑧ Способ хранения (Р-51, ПОЛ §6.4 п.7). */
+  const cu = custodyOf(it);
+  if(banRequired(it) || cu){
+    push(!cu ? 'warn' : cu.conflict ? 'warn' : 'ok', 'Способ хранения',
+      !cu ? 'не указан' : cu.modes.join(' / '),
+      !cu ? 'предмет обременён зарегистрированным договором, но способ хранения на договоре не заполнен (ПОЛ §6.4 п.7)'
+        : cu.rows.map(r => (r.no || r.cid) + ': ' + r.custody + (r.place ? ' · ' + r.place : '')).join(' · '), 0);
+  }
+
+  /* ⑨ Запрет на отчуждение. */
+  if(banMissing(it))
+    push('stop', 'Запрет на отчуждение', 'не наложен',
+      'договор(ы) ' + banContracts(it).join(', ') + ' зарегистрированы, запрет в «' + organOf(it) + '» отсутствует — предмет можно продать без нашего ведома', 3);
+  else if(it.ban && banStale(it))
+    push('warn', 'Запрет на отчуждение', 'подлежит снятию',
+      'доли обнулились, запрет ' + it.ban.regNo + ' продолжает действовать в «' + organOf(it) + '»', 3);
+  else if(it.ban && !banFullyRegistered(it.ban))
+    push('warn', 'Запрет на отчуждение', 'отметка не получена',
+      'запрет ' + it.ban.regNo + ' наложен, отметка в оригиналах правоустанавливающих документов не получена (ПБК п.2.1)', 3);
+  else if(it.ban)
+    push('ok', 'Запрет на отчуждение', 'наложен',
+      organOf(it) + ' · ' + it.ban.regNo + ' от ' + it.ban.date, 3);
+
+  /* ⑩ Плановый контроль: обследование и переоценка. */
+  const ns = nextSurvey(it);
+  push(ns && isOverdue(ns) ? 'warn' : 'ok', 'Обследование в сроке',
+    ns ? (isOverdue(ns) ? 'просрочено на ' + Math.abs(daysLeft(ns)) + ' дн.' : 'до ' + ns) : 'не планируется',
+    ns ? 'последнее — ' + (it.lastSurvey || '—') : 'предмет не обеспечивает ни одного кредита', 4);
+  const nr = nextReval(it);
+  push(isOverdue(nr) ? 'warn' : 'ok', 'Переоценка в сроке',
+    isOverdue(nr) ? 'просрочена на ' + Math.abs(daysLeft(nr)) + ' дн.' : 'до ' + nr,
+    'интервал по виду «' + it.kind + '» — ' + ((KINDS[it.kind] || {}).reval || '—') + ' мес.', 2);
+
+  /* ⑪ Предшествующие залоги третьих лиц (Р-49). */
+  const pl = priorLiensOf(it);
+  if(pl.length)
+    push('warn', 'Предшествующие залоги третьих лиц', pl.length + ' обременение(й)',
+      pl.map(l => l.holder + (l.docNo ? ' · ' + l.docNo : '') + (l.date ? ' от ' + l.date : '')).join(' · ')
+      + ' — наше требование удовлетворяется в порядке очерёдности после них', 5);
+
+  /* ⑫ Инвариант Σ долей ≤ залоговая. */
+  const pv = pledgeValue(it), tot = allocatedLegal(it.id) + allocatedDraft(it.id);
+  push(tot > pv + 0.005 ? 'stop' : 'ok', 'Инвариант долей',
+    'Σ ' + fmt(tot) + (tot > pv + 0.005 ? ' > ' : ' ≤ ') + fmt(pv),
+    tot > pv + 0.005 ? 'доли усечены пропорционально в расчёте покрытия — кредиты уходят в триггер недостаточности'
+      : 'доступно для перезалога: ' + fmt(availableOf(it)), 5);
+
+  /* ⑬ Утрата предмета — терминальный дефект обеспечения. */
+  if(it.lost) push('stop', 'Наличие предмета', 'утрачен',
+    'зафиксировано актом обследования — залоговая стоимость исключена из покрытия', 4);
+
+  return C;
+}
+function admissionVerdict(it){
+  const C = admissionChecks(it);
+  const stop = C.filter(c => c.sev === 'stop').length;
+  const warn = C.filter(c => c.sev === 'warn').length;
+  return { checks:C, stop, warn, pass: C.length - stop - warn,
+           word: stop ? 'Есть стоп-факторы' : warn ? 'Требует внимания' : 'Допуск подтверждён' };
+}
+
+/* ---- ТЕХНИКА (Р-7, Прил.1 §2.5, §3.4). Возраст и страховка — производные проверки.
+   Страхование выражено через общую ось Р-46 (INSURANCE_KINDS), техника — её подмножество. */
 const techAge       = it => (isTech(it) && it.year) ? CUR_YEAR - it.year : null;
 const techAgeLimit  = it => TECH_AGE_LIMIT[it.origin] ?? TECH_AGE_LIMIT['СНГ'];
-const techInsuredOk = it => !isTech(it) || Boolean(it.insured && it.insured.present);
-const techPolicyExpired = it => isTech(it) && it.insured && it.insured.present && it.insured.till && isOverdue(it.insured.till);
+const techInsuredOk = it => !isTech(it) || insuredPresent(it);
+const techPolicyExpired = it => isTech(it) && policyExpired(it);
 /* Р-23 (ПОР п.12 п.п.2): модуль залога НЕ трогает категорию кредитного риска — он лишь
    ПУБЛИКУЕТ кандидатов на факторы риска в комитет по администрированию бюджетных
    кредитов; решение о фактическом изменении категории — за комитетом (кредитный модуль).
@@ -2853,6 +3257,44 @@ function triggers(){
     if(techPolicyExpired(it) && banRequired(it)) out.push({ type:'Страхование техники истекло', crit:'mid',
       obj:it.id, objLbl:`${it.id} · ${it.name}`,
       text:`Полис ${it.insured.policy} истёк ${it.insured.till} — техника-обеспечение должна быть застрахована (§3.4)`, act:'Направить фактор среднего кредитного риска в комитет (ПОР п.12 п.п.2)' });
+    /* Р-46: страхование НЕтехнических страхуемых видов (недвижимость, имущественный комплекс,
+       незавершённое строительство, товары в обороте). Прежде эта ось молчала: полис проверялся
+       только у tech-видов, и незастрахованный склад/квартира уходили в обеспечение без сигнала. */
+    if(!isTech(it) && banRequired(it)){
+      if(insuredMissing(it)) out.push({ type:'Предмет залога не застрахован', crit:'mid',
+        obj:it.id, objLbl:`${it.id} · ${it.name}`,
+        text:`Вид «${it.kind}» подлежит страхованию (§3.4), полис не приложен`, act:'Истребовать страховой полис у залогодателя' });
+      else if(policyExpired(it)) out.push({ type:'Страхование предмета залога истекло', crit:'mid',
+        obj:it.id, objLbl:`${it.id} · ${it.name}`,
+        text:`Полис ${it.insured.policy} истёк ${it.insured.till} — предмет обеспечения должен быть застрахован (§3.4)`,
+        act:'Истребовать перевыпуск полиса у залогодателя' });
+    }
+    /* Р-48: отчёт об оценке старше APPRAISAL_VALID_MONTHS — залоговая стоимость в расчёте
+       покрытия опирается на неактуальную оценочную. Поднимается только по обременённым
+       предметам: свободный предмет никого не обеспечивает, и цифра ни на что не влияет. */
+    if(apprStale(it) && banRequired(it)) out.push({ type:'Отчёт об оценке устарел', crit:'mid',
+      obj:it.id, objLbl:`${it.id} · ${it.name}`,
+      text:`Отчёт ${it.apprReport||'—'} от ${it.apprDate||'—'} годен до ${apprValidTill(it)} — залоговая стоимость считается по устаревшей оценке`,
+      act:'Провести переоценку с новым отчётом оценщика' });
+    /* Р-47: неполный обязательный комплект документов предмета (досье п.97). */
+    const dsr = itemDossier(it);
+    if(dsr.missing.length && banRequired(it)) out.push({ type:'Неполный комплект документов предмета', crit:'mid',
+      obj:it.id, objLbl:`${it.id} · ${it.name}`,
+      text:`Приложено ${dsr.met} из ${dsr.req}; отсутствуют: ${dsr.missing.join('; ')}`,
+      act:'Догрузить недостающие документы во вкладке «Документы»' });
+    /* Р-50 (ПОЛ §6.4 п.6): срок аренды истекает раньше срока кредита. Контроль существовал
+       функцией (leaseCoversCredit), но не вызывался ниоткуда — обеспечение выбывало раньше
+       погашения молча. */
+    leaseWarnings(it).forEach(w => out.push({ type:'Срок аренды короче срока кредита', crit:'mid',
+      obj:it.id, objLbl:`${it.id} · ${it.name}`,
+      text:`${w.msg}: аренда до ${it.leaseTill}, кредит ${w.creditId} до ${(credit(w.creditId)||{}).creditTill||'—'}`,
+      act:'Решение комитета либо замена предмета доп соглашением' }));
+    /* Р-49: предшествующий залог третьего лица — наша очерёдность ниже, чем показывает
+       расчёт покрытия (в арифметику не входит осознанно). */
+    if(priorLiensOf(it).length && banRequired(it)) out.push({ type:'Предшествующий залог третьего лица', crit:'mid',
+      obj:it.id, objLbl:`${it.id} · ${it.name}`,
+      text:`Предмет обременён в пользу: ${priorLiensOf(it).map(l=>l.holder+(l.docNo?' ('+l.docNo+')':'')).join('; ')} — наше требование удовлетворяется после них`,
+      act:'Учесть очерёдность при оценке достаточности обеспечения' });
     /* ЗАЛОГ БЕЗ ЗАПРЕТА — дыра в обеспечении: залогодатель может продать предмет
        без нашего ведома. Это дефект оформления, а не формальность. */
     if(banMissing(it)) out.push({ type:'Залог без запрета на отчуждение', crit: banOverdue(it) ? 'high' : 'mid',
@@ -3667,14 +4109,32 @@ function onNew(){ if(!canCurate()) return denyEdit();
 /* ============================================================
    КАРТОЧКИ — вкладки и панели
    ============================================================ */
-const TABS_ITEM = ['Основное','Стоимость и переоценки','Запрет на отчуждение','Обследования','Обеспечиваемые кредиты','Документы','История'];
+/* Р-52/Р-53: вкладки предмета. «Допуск» выделен из прежней вкладки «Документы» (она несла
+   предпосылки §5.2 и техдопуск, то есть гейты, а не документы) — теперь имя вкладки совпадает
+   с её содержимым, а гейты собраны в один светофор. Порядок панелей = порядок вкладок. */
+const TABS_ITEM = ['Основное','Допуск','Стоимость и переоценки','Запрет на отчуждение','Обследования','Обеспечиваемые кредиты','Документы','История'];
 const TABS_CTR  = ['Общая информация','Предметы залога','Обеспеченность кредитов','Доп соглашения','Документы','История'];
 const TABS_SUR  = ['Основное','Допуск §9.1/9.2','История'];
 let curTab = 0;
 
+/* Р-53: бейджи-счётчики на вкладках — состав работы виден до открытия вкладки
+   (стоп-факторы, число актов, укомплектованность досье, длина истории). */
+function itemTabs(it){
+  const v = admissionVerdict(it), d = itemDossier(it);
+  const badge = (n, cls) => n ? `<span class="tb${cls?' '+cls:''}">${n}</span>` : '';
+  return TABS_ITEM.map((t,i) => {
+    if(i===1) return t + (v.stop ? badge(v.stop,'err') : v.warn ? badge(v.warn,'warn') : '');
+    if(i===4) return t + badge(livesSurvey(it).length);
+    if(i===5) return t + badge(CONTRACTS.filter(c => (isActive(c)||isDraftish(c)) && c.allocs.some(a=>a.item===it.id)).length);
+    if(i===6) return t + `<span class="tb${d.missing.length?' err':d.exp?' warn':''}">${d.met}/${d.req}</span>`;
+    if(i===7) return t + badge(it.history.length);
+    return t;
+  });
+}
+
 function openCard(type, id, tab){
   cur = { type, id }; curTab = tab ?? 0;
-  const tabs = type==='item' ? TABS_ITEM : type==='surety' ? TABS_SUR : TABS_CTR;
+  const tabs = type==='item' ? itemTabs(item(id)) : type==='surety' ? TABS_SUR : TABS_CTR;
   document.getElementById('detailTabbar').innerHTML =
     tabs.map((t,i)=>`<button class="dtab${i===curTab?' active':''}" onclick="openCard('${type}','${id}',${i})">${t}</button>`).join('');
   const panels = type==='item' ? itemPanels(item(id)) : type==='surety' ? surPanels(surety(id)) : ctrPanels(contract(id));
@@ -3712,32 +4172,206 @@ function detailRows(it){
     : `<div class="field col-span"><div class="infoline"><span>Детальные поля вида не заполнены — запись перенесена из прежней системы (краткий идентификатор «${esc(it.ident||'—')}»).</span></div></div>`;
 }
 /* ВЛОЖЕНИЯ (сканы): правоуст. документ, отчёт оценщика, акты обследования, согласия. */
-const FILE_TAGS = ['Правоустанавливающий документ','Отчёт оценщика','Акт обследования','Согласие / решение органа','Договор / доп. соглашение','Иное'];
+/* Р-56: типы вложений совпадают с типами обязательного комплекта (FILE_REQ_*) — иначе
+   приложенный «Отчёт оценщика» не закрывает требование «Отчёт об оценке», и досье
+   вечно показывает пробел при фактически приложенном документе. */
+const FILE_TAGS = [...new Set(FILE_REQ_COMMON.concat(...Object.values(FILE_REQ_BY_KIND)).map(r => r.t))]
+  .concat(['Акт обследования','Согласие / решение органа','Договор / доп. соглашение','Иное']);
 function fileTable(files){
   const fs = files || [];
   return `<div class="cgrid-wrap"><table class="cgrid">
-    <thead><tr><th>Тип документа</th><th>Файл</th><th>Дата</th><th>Кто прикрепил</th></tr></thead>
-    <tbody>${fs.length ? fs.map(f=>`<tr><td>${esc(f.tag)}</td><td>${esc(f.name)}</td><td>${f.when}</td><td>${esc(f.who)}</td></tr>`).join('')
-      : `<tr><td colspan="4"><div class="cgrid-empty">Файлы не прикреплены</div></td></tr>`}</tbody>
+    <thead><tr><th>Тип документа</th><th>Файл</th><th>№ документа</th><th>Дата документа</th><th>Прикреплён</th><th>Кто прикрепил</th></tr></thead>
+    <tbody>${fs.length ? fs.map(f=>`<tr><td>${esc(f.tag)}</td><td>${esc(f.name)}</td><td>${esc(f.docNo||'—')}</td><td>${f.docDate||'—'}</td><td>${f.when}</td><td>${esc(f.who)}</td></tr>`).join('')
+      : `<tr><td colspan="6"><div class="cgrid-empty">Файлы не прикреплены</div></td></tr>`}</tbody>
   </table></div>`;
 }
 function openAttach(scope, id){
   if(!canCurate()) return denyEdit();
+  const h = scope==='item' ? item(id) : contract(id);
+  /* Предзаполняем тип первым НЕДОСТАЮЩИМ документом комплекта — оформитель чаще всего
+     закрывает именно пробел, а не докладывает лишнее. */
+  const miss = (scope==='item' && h) ? itemDossier(h).missing[0] : null;
   modal(`<div class="modal form">${mhead('Прикрепить файл')}
     <div class="modal-b"><div class="mform">
-      ${fsel('atTag','Тип документа', FILE_TAGS, FILE_TAGS[0], true)}
+      ${fsel('atTag','Тип документа', FILE_TAGS, miss || FILE_TAGS[0], true)}
       ${fin('atName','Имя файла','', true, true)}
+      ${fin('atNo','№ документа','')}
+      ${/* Р-56: срок годности документа (оценка, полис) считается от ДАТЫ ДОКУМЕНТА, а не
+           от даты загрузки скана — иначе просроченный полис «омолаживается» перезаливкой. */''}
+      ${fdate('atDate','Дата документа', TODAY)}
     </div>
+    ${miss ? `<div class="warn-inline"><span>В комплекте не хватает: <b>${esc(miss)}</b> — тип подставлен автоматически.</span></div>` : ''}
     </div>${mfoot('Прикрепить','saveAttach(\''+scope+'\',\''+id+'\')')}</div>`);
 }
 function saveAttach(scope, id){
-  const tag = val('atTag'), name = val('atName').trim();
+  const tag = val('atTag'), name = val('atName').trim(), docNo = val('atNo').trim(), docDate = iso2d(val('atDate'));
   if(!name) return toast('Укажите имя файла','warn');
+  if(docDate && !isDate(docDate)) return toast('Дата документа — в формате дд.мм.гггг','warn');
+  if(docDate && d2n(docDate) > d2n(TODAY)) return toast('Дата документа не может быть в будущем','warn');
   const h = scope==='item' ? item(id) : contract(id);
   if(!h) return;
-  (h.files ||= []).push({ tag, name, when: TODAY, who: role });
-  hist(h, `Прикреплён файл «${name}» (${tag})`);
+  (h.files ||= []).push({ tag, name, docNo, docDate, when: TODAY, who: role });
+  hist(h, `Прикреплён файл «${name}» (${tag}${docNo?', № '+docNo:''}${docDate?' от '+docDate:''})`);
   closeModal(); toast('Файл прикреплён','ok'); refresh();
+}
+
+/* ---- Р-49: ввод и снятие предшествующего залога третьего лица. В арифметику покрытия
+   не входит — фиксирует очерёдность удовлетворения требований. ---- */
+function openPriorLien(id){
+  if(!canCurate()) return denyEdit();
+  modal(`<div class="modal form">${mhead('Предшествующий залог третьего лица · '+id)}
+    <div class="modal-b"><div class="mform">
+      ${fin('plHolder','Залогодержатель','', true, true)}
+      ${fin('plDoc','Договор залога (номер)','')}
+      ${fdate('plDate','Дата регистрации', TODAY)}
+      ${fin('plAmt','Сумма обеспеченного требования','')}
+      ${ftxt('plNote','Источник сведений','выписка регистрирующего органа')}
+    </div>
+    <div class="warn-inline"><span>Запись <b>не уменьшает</b> залоговую стоимость и не участвует в расчёте покрытия: наши требования удовлетворяются в следующей очереди — это предупреждение оформителю и повод пересмотреть достаточность обеспечения.</span></div>
+    </div>${mfoot('Внести','savePriorLien(\''+id+'\')')}</div>`);
+}
+function savePriorLien(id){
+  const it = item(id), holder = val('plHolder').trim(), docNo = val('plDoc').trim(),
+        date = iso2d(val('plDate')), amtRaw = val('plAmt').trim(), note = val('plNote').trim();
+  if(!holder) return toast('Укажите залогодержателя','warn');
+  if(date && !isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
+  const amount = amtRaw ? num(amtRaw) : null;
+  (it.priorLiens ||= []).push({ holder, docNo, date, amount, note, released:false });
+  hist(it, `Зарегистрирован предшествующий залог в пользу «${holder}»${docNo?' ('+docNo+')':''}${amount!=null?', требование '+fmt(amount):''} — наш залог следующей очереди`);
+  closeModal(); toast('Предшествующий залог внесён','ok'); refresh();
+}
+function releasePriorLien(id, i){
+  if(!canCurate()) return denyEdit();
+  const it = item(id), l = (it.priorLiens||[])[i];
+  if(!l || l.released) return;
+  l.released = true; l.releasedDate = TODAY;
+  hist(it, `Предшествующий залог в пользу «${l.holder}» снят — очерёдность наших требований повышается`);
+  toast('Снятие отмечено','ok'); refresh();
+}
+
+/* Р-53: ДЕФЕКТ-СТРОКА вместо стопки баннеров. Раньше шапка могла выдать до семи баннеров
+   подряд — KPI уезжали за экран, а приоритет дефектов терялся. Теперь: одна компактная строка
+   со всеми дефектами (каждый — ссылка на вкладку, где он лечится) + ОДИН развёрнутый баннер
+   самого тяжёлого дефекта, где нужен полный регламентный текст. Источник дефектов — тот же
+   admissionChecks, что и светофор допуска: два представления одних данных, не два списка. */
+function itemDefects(it){
+  const out = admissionChecks(it).filter(c => c.sev !== 'ok')
+    .map(c => ({ sev:c.sev, text:c.name + ': ' + c.result, tab:c.tab, basis:c.basis }));
+  if(it.orphan && !itemHasAlloc(it.id))
+    out.push({ sev:'stop', text:'Не привязан ни к одному договору (Т-1)', tab:5, basis:'предмет создан на карточке договора, привязка не завершена' });
+  if(it.needReval)
+    out.push({ sev:'warn', text:'Требуется досрочная переоценка', tab:2, basis:'обследование зафиксировало ухудшение состояния' });
+  if(it.legacy)
+    out.push({ sev:'warn', text:'Историческая запись прежней системы', tab:2, basis:'залоговая выше расчётной по нормам прежней системы — нужна переоценка по ПОЛ §2.1' });
+  if(it.realizing)
+    out.push({ sev:'warn', text:'Передан в реализацию (взыскание)', tab:5, basis:'статусом управляет модуль взыскания (Т-2)' });
+  return out;
+}
+function defectBar(it){
+  const d = itemDefects(it);
+  if(!d.length) return `<div class="defect-bar ok"><span class="dl">Дефектов нет</span>
+    <span class="muted">допуск подтверждён, запрет и плановый контроль в норме, комплект документов собран</span></div>`;
+  return `<div class="defect-bar"><span class="dl">Дефекты предмета</span>
+    ${d.map(x => `<span class="pill ${x.sev==='stop'?'high':'mid'}" style="cursor:pointer" title="${esc(x.basis||'')}"
+      onclick="openCard('item','${it.id}',${x.tab})">${esc(x.text)}</span>`).join('')}
+    <span class="muted">— клик по дефекту открывает вкладку, где он устраняется</span></div>`;
+}
+/* Развёрнутым остаётся ОДИН баннер — самый тяжёлый по приоритету; остальные дефекты видны
+   строкой выше и полностью раскрыты в светофоре допуска. */
+function topBanner(it){
+  const B = (cls, body, icon) => `<div class="phead-banner ${cls}">${icon||''}<span>${body}</span></div>`;
+  const warnIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>`;
+  if(it.lost) return B('danger','Предмет утрачен по акту обследования — стоимость исключена из покрытия (залоговая = 0).', warnIcon);
+  if(banMissing(it)) return B('danger',
+    `Залог не защищён от продажи: договор(ы) ${banContracts(it).join(', ')} зарегистрированы, но запрет на отчуждение в «${esc(organOf(it))}» не наложен. Залогодатель может продать предмет без нашего ведома. Срок наложения: до ${banDeadline(it)}${banOverdue(it) ? ` — ПРОСРОЧЕН на ${Math.abs(daysLeft(banDeadline(it)))} дн.` : ''}.`, warnIcon);
+  if(it.orphan && !itemHasAlloc(it.id)) return B('warn','Предмет создан на карточке договора, но привязка не была завершена — он ни в одном залоговом договоре (Т-1). Привяжите его к договору или аннулируйте.', warnIcon);
+  if(banStale(it)) return B('warn',
+    `Доли по предмету обнулились, а запрет ${esc(it.ban.regNo)} от ${it.ban.date} продолжает действовать в «${esc(organOf(it))}». Имущество клиента заблокировано без правового основания — требуется снятие запрета отдельным актом.`);
+  if(it.ban && !banFullyRegistered(it.ban)) return B('warn',
+    `Запрет ${esc(it.ban.regNo)} от ${it.ban.date} наложен залогодателем в «${esc(organOf(it))}», но отметка о запрете в оригиналах правоустанавливающих документов ещё не получена (ПБК п.2.1).`);
+  if(it.realizing) return B('info','Предмет передан в реализацию (обращение взыскания). Статусом управляет модуль взыскания — из залогового модуля не переключается (Т-2, граничный контракт).');
+  if(it.ban) return B('ok',
+    `Запрет на отчуждение наложен залогодателем: ${esc(organOf(it))} · ${esc(it.ban.regNo)} от ${it.ban.date}. Отметка получена в оригиналах правоустанавливающих документов. Предмет не может быть продан без нашего ведома.`,
+    `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>`);
+  return '';
+}
+
+/* Р-52: панель светофора допуска — то же, что дефект-строка, но с основанием каждой проверки
+   и пройденными пунктами (важно видеть, что именно проверено, а не только что сломано). */
+function admissionPanel(it, extra){
+  const v = admissionVerdict(it);
+  const color = v.stop ? 'var(--asubk-red)' : v.warn ? '#B26A00' : 'var(--asubk-green)';
+  const seg = (n, c) => n ? `<div style="width:${n/v.checks.length*100}%;background:${c}"></div>` : '';
+  const note = v.stop ? 'регистрация залогового договора с этим предметом будет заблокирована'
+             : v.warn ? 'блокирующих факторов нет, есть замечания оформления'
+             : 'блокирующих факторов и замечаний нет';
+  return `<div class="panel-wrap">
+    <p class="section-h">Допуск предмета в залог</p>
+    <div class="panel-card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+        <span style="font:var(--weight-bold) 18px/1 var(--asubk-font);color:${color}">${v.word}</span>
+        <span class="formula" style="margin:0">проверок: ${v.checks.length} · на ${TODAY}</span>
+      </div>
+      <div class="meter">${seg(v.stop,'var(--asubk-red)')}${seg(v.warn,'#B26A00')}${seg(v.pass,'var(--asubk-green)')}</div>
+      <div class="formula" style="margin:0">Стоп-факторов: <b style="color:var(--asubk-red)">${v.stop}</b> ·
+        замечаний: <b style="color:#B26A00">${v.warn}</b> · пройдено: <b>${v.pass}</b> — ${note}</div>
+    </div>
+    <div class="chk-list">${v.checks.map(c => `<div class="chk-row ${c.sev}">
+      <div class="cn">${esc(c.name)}</div>
+      <div class="cr">${esc(c.result)}<div class="cb">${esc(c.basis)}</div></div>
+      <div><button class="btn btn-tint btn-sm" onclick="openCard('item','${it.id}',${c.tab})">Перейти</button></div>
+    </div>`).join('')}</div>
+    <div class="infoline" style="margin-top:14px"><span>Проверки вычисляемые: они читают текущее состояние предмета, договоров и кредитов. Стоп-факторы — те же гейты, что срабатывают при регистрации залогового договора (стоп-лист §3.5, предпосылки §5.2, комплект документов, страхование, инвариант долей), но видны заранее, а не в момент отказа.</span></div>
+    ${extra || ''}
+  </div>`;
+}
+
+/* ---- Р-54 ДИНАМИКА ОЦЕНОЧНОЙ СТОИМОСТИ. Журнал переоценок показывал только строки:
+   подешевел предмет или подорожал — оформитель считал в уме. Спарклайн строится по
+   несторнированным переоценкам в хронологии; сторно исключается, иначе отменённая
+   запись искажает тренд. Меньше двух точек — линии нет, показываем только значение. ---- */
+function revalSeries(it){
+  return (it.revals || []).filter(r => !r.voided)
+    .map(r => ({ date:r.date, v:r.appraised })).sort((a,b) => d2n(a.date) - d2n(b.date));
+}
+function revalSpark(it){
+  const s = revalSeries(it), W = 260, H = 44;
+  if(s.length < 2) return `<div class="formula" style="margin:0">Одна оценка — динамики ещё нет.</div>`;
+  const vals = s.map(p => p.v), mn = Math.min(...vals), mx = Math.max(...vals), sp = (mx - mn) || 1;
+  const xy = i => [(i / (s.length - 1) * W), (H - (vals[i] - mn) / sp * H)];
+  const d = s.map((_,i) => (i ? 'L' : 'M') + xy(i).map(n => n.toFixed(1)).join(' ')).join(' ');
+  const first = vals[0], last = vals[vals.length-1];
+  const pct = first ? Math.round((last - first) / first * 1000) / 10 : 0;
+  const up = last >= first, col = up ? 'var(--asubk-green)' : 'var(--asubk-red)';
+  const dots = s.map((p,i) => { const [x,y] = xy(i);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="${col}"><title>${p.date} — ${fmt(p.v)}</title></circle>`; }).join('');
+  return `<div class="spark-wrap">
+    <svg class="spark" width="${W}" height="${H+8}" viewBox="0 -4 ${W} ${H+8}" preserveAspectRatio="none">
+      <path d="${d}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}</svg>
+    <div class="formula" style="margin:0">${s[0].date} → ${s[s.length-1].date} ·
+      ${fmt(first)} → ${fmt(last)} · <b style="color:${col}">${up?'+':''}${String(pct).replace('.',',')} %</b>
+      · оценок: ${s.length}</div></div>`;
+}
+
+/* ---- Р-58 КАТЕГОРИИ ИСТОРИИ. Лента предмета росла линейно и к сотне записей
+   переставала читаться. Категория выводится из текста записи (записи пишутся
+   свободной строкой через hist()), поэтому это фильтр представления, а не поле данных. ---- */
+const HIST_CATS = [
+  { k:'val', l:'Стоимость',    re:/переоцен|стоимост|оценочн|залогов|комисси/i },
+  { k:'ban', l:'Запрет',       re:/запрет|согласи|снят/i },
+  { k:'srv', l:'Обследования', re:/обследован|акт |восполнен|утрач|утрат/i },
+  { k:'doc', l:'Документы',    re:/файл|документ|прилож|открепл|предпосыл/i },
+  { k:'ctr', l:'Договоры',     re:/договор|дол[яию]|кредит|привяз/i },
+];
+const histCat = what => (HIST_CATS.find(c => c.re.test(what || '')) || { k:'oth' }).k;
+const HIST_LBL = { val:'Стоимость', ban:'Запрет', srv:'Обследования', doc:'Документы', ctr:'Договоры', oth:'Прочее' };
+let histFilter = 'all', histLimit = 20;
+function itemHistFilter(k){ histFilter = k; histLimit = 20; refresh(); }
+function itemHistMore(){ histLimit += 30; refresh(); }
+/* Раскрытие подстроки акта обследования — чисто визуальное, состояние в DOM, не в данных. */
+function toggleSubRow(key){
+  const el = document.getElementById(key);
+  if(el) el.style.display = el.style.display === 'none' ? '' : 'none';
 }
 
 function itemPanels(it){
@@ -3753,6 +4387,7 @@ function itemPanels(it){
     : '';
   const surveyLbl = ns ? (ns + (isOverdue(ns) ? ' — ПРОСРОЧЕНО' : '') + intervalNote)
     : (bs && bs.bankrupt ? 'по договору со спецадминистратором (банкрот)' : 'не планируется (предмет никого не обеспечивает)');
+  const ccy = itemCcyLabel(it), cust = custodyOf(it);
   const head = `<div class="phead">
     <div class="phead-top">
       <div class="phead-name"><span class="nm">${esc(it.name)}</span>
@@ -3761,22 +4396,13 @@ function itemPanels(it){
       </div>
       <span class="phead-owner"><span class="pill ${lienCls(st)}">${st}</span> ${banPill(it)}</span>
     </div>
-    ${banMissing(it) ? `<div class="phead-banner danger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
-      <span>Залог не защищён от продажи: договор(ы) ${banContracts(it).join(', ')} зарегистрированы, но запрет на отчуждение в «${esc(organOf(it))}» не наложен. Залогодатель может продать предмет без нашего ведома. Срок наложения: до ${banDeadline(it)}${banOverdue(it) ? ` — ПРОСРОЧЕН на ${Math.abs(daysLeft(banDeadline(it)))} дн.` : ''}.</span></div>` : ''}
-    ${banStale(it) ? `<div class="phead-banner warn"><span>Доли по предмету обнулились, а запрет ${esc(it.ban.regNo)} от ${it.ban.date} продолжает действовать в «${esc(organOf(it))}». Имущество клиента заблокировано без правового основания — требуется снятие запрета отдельным актом.</span></div>` : ''}
-    ${it.ban && !banStale(it) && banFullyRegistered(it.ban) ? `<div class="phead-banner ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
-      <span>Запрет на отчуждение наложен залогодателем: ${esc(organOf(it))} · ${esc(it.ban.regNo)} от ${it.ban.date}. Отметка получена в оригиналах правоустанавливающих документов. Предмет не может быть продан без нашего ведома.</span></div>` : ''}
-    ${it.ban && !banStale(it) && !banFullyRegistered(it.ban) ? `<div class="phead-banner warn"><span>Запрет ${esc(it.ban.regNo)} от ${it.ban.date} наложен залогодателем в «${esc(organOf(it))}», но отметка о запрете в оригиналах правоустанавливающих документов ещё не получена (ПБК п.2.1).</span></div>` : ''}
-    ${it.lost ? `<div class="phead-banner danger"><span>Предмет утрачен по акту обследования — стоимость исключена из покрытия (залоговая = 0).</span></div>` : ''}
-    ${it.realizing ? `<div class="phead-banner info"><span>Предмет передан в реализацию (обращение взыскания). Статусом управляет модуль взыскания — из залогового модуля не переключается (Т-2, граничный контракт).</span></div>` : ''}
-    ${it.needReval ? `<div class="phead-banner warn"><span>Обследование зафиксировало ухудшение состояния → требуется досрочная переоценка (вне планового цикла).</span></div>` : ''}
-    ${it.orphan && !itemHasAlloc(it.id) ? `<div class="phead-banner warn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Предмет создан на карточке договора, но привязка не была завершена — он ни в одном залоговом договоре (Т-1). Привяжите его к договору или аннулируйте.</span></div>` : ''}
-    ${it.legacy ? `<div class="phead-banner warn"><span>Историческая запись прежней системы: залоговая стоимость выше расчётной по нормам прежней системы. Требуется переоценка по действующему положению (ПОЛ §2.1).</span></div>` : ''}
+    ${defectBar(it)}
+    ${topBanner(it)}
     <div class="phead-dims">
-      ${kpi('Оценочная стоимость', fmt(it.appraised), `owned · отчёт ${esc(it.apprReport)} от ${it.apprDate}`)}
-      ${kpi('Залоговая стоимость', fmt(pv), it.override ? `решение комиссии${isOverAbove(it)?' ↑ выше расчётной':''} · расчётная ${fmt(cp)}` : `расчётная · ${fmt(it.appraised)} × ${coefOf(it.kind)}`)}
-      ${kpi('Отнесено', fmt(allocatedLegal(it.id)+allocatedDraft(it.id)), `доли по договорам (действ. ${fmt(allocatedLegal(it.id))} + черновики ${fmt(allocatedDraft(it.id))})`)}
-      ${kpi('Доступно', fmt(availableOf(it)), 'залоговая − отнесённое')}
+      ${kpi('Оценочная стоимость', fmt(it.appraised)+' '+ccy, `owned · отчёт ${esc(it.apprReport)} от ${it.apprDate}${apprStale(it)?' · УСТАРЕЛ':''}`)}
+      ${kpi('Залоговая стоимость', fmt(pv)+' '+ccy, it.override ? `решение комиссии${isOverAbove(it)?' ↑ выше расчётной':''} · расчётная ${fmt(cp)}` : `расчётная · ${fmt(it.appraised)} × ${coefOf(it.kind)}`)}
+      ${kpi('Отнесено', fmt(allocatedLegal(it.id)+allocatedDraft(it.id))+' '+ccy, `доли по договорам (действ. ${fmt(allocatedLegal(it.id))} + черновики ${fmt(allocatedDraft(it.id))})`)}
+      ${kpi('Доступно', fmt(availableOf(it))+' '+ccy, 'залоговая − отнесённое')}
     </div></div>`;
 
   const p0 = `<div class="panel-wrap">${head}<div class="panel-card">
@@ -3795,14 +4421,21 @@ function itemPanels(it){
       ${ro('Тип залогодателя', it.pledgerType)}
       ${ro('Следующее обследование', surveyLbl)}
       ${ro('Следующая переоценка', nextReval(it) + (isOverdue(nextReval(it)) ? ' — ПРОСРОЧЕНО' : ''))}
+      ${/* Р-51 (ПОЛ §6.4 п.7): хранение вводится на договоре — на карточке предмета его не было,
+           и оформитель не видел, где вещь физически находится. Показываем со ссылкой на договор. */''}
+      ${ro('Способ хранения (ПОЛ §6.4 п.7)', cust
+        ? cust.rows.map(r => `${r.custody}${r.place ? ' · ' + r.place : ''} (${r.no || r.cid})`).join(' · ') + (cust.conflict ? ' — расхождение между договорами' : '')
+        : (banRequired(it) ? 'не указан на договоре' : 'не применяется — предмет не обременён'))}
+      ${/* Р-46 (§3.4): страхование — ось для всех страхуемых видов, не только техники. */''}
+      ${insuranceRequired(it) ? ro('Страхование (§3.4)', insuredMissing(it) ? 'полис не приложен'
+        : `${it.insured.policy}${it.insured.till ? ' · до ' + it.insured.till : ''}${policyExpired(it) ? ' — ИСТЁК' : ''}`) : ''}
+      ${/* Р-48: оценщик как реквизит отчёта, а не только его номер. */''}
+      ${ro('Оценщик', (it.appraiser || 'не указан') + (it.apprLicense ? ' · лицензия ' + it.apprLicense : ''))}
+      ${ro('Валюта предмета (Р-44)', ccy + ' — производная от валют обеспечиваемых кредитов')}
     </div>
     <p class="section-h" style="font-size:16px;margin-top:18px">Детали предмета (по виду «${esc(it.kind)}»)</p>
     <div class="f2">${detailRows(it)}</div>
     </div></div>`;
-
-  const filesSection = `<p class="section-h" style="margin-top:22px">Вложения</p>
-    <div class="gtoolbar">${actionBtn(canCurate(), 'Прикрепить файл', `openAttach('item','${it.id}')`)}</div>
-    ${fileTable(it.files)}`;
 
   const zBadge = it.override
     ? (isOverAbove(it)
@@ -3812,8 +4445,12 @@ function itemPanels(it){
   const p1 = `<div class="panel-wrap">
     <p class="section-h">Стоимость</p>
     <div class="panel-card" style="margin-bottom:16px"><div class="f2">
-      ${ro('Оценочная (owned)', fmt(it.appraised))}
+      ${ro('Оценочная (owned)', fmt(it.appraised)+' '+ccy)}
       ${ro('Коэффициент вида «'+it.kind+'» (справочник)', String(coefOf(it.kind)).replace('.',','))}
+      ${/* Р-47: оценка живёт 12 мес. — до Р-47 срок нигде не считался, устаревший отчёт
+           выглядел как действующий. Дата действия выведена из даты отчёта. */''}
+      ${ro('Отчёт об оценке', `${esc(it.apprReport)} от ${it.apprDate} · действует до ${apprValidTill(it) || '—'}${apprStale(it)?' — УСТАРЕЛ':''}`)}
+      ${ro('Оценщик', (it.appraiser || 'не указан') + (it.apprLicense ? ' · лицензия ' + it.apprLicense : ''))}
       <div class="field col-span"><span class="flabel">Залоговая стоимость (в расчёте покрытия)</span>
         <div class="control ro" style="gap:8px">
           <input value="${esc(fmt(pv))}" readonly style="width:auto;flex:1">
@@ -3826,16 +4463,19 @@ function itemPanels(it){
       ${isOverAbove(it) ? `<br>«${esc(it.override.obosn)}»<br><span class="formula">${esc(it.override.by)} · ${it.override.date}</span>` : ''}</span></div>`
       : ''}
     </div>
+    <p class="section-h">Динамика оценочной стоимости</p>
+    <div class="panel-card" style="margin-bottom:16px">${revalSpark(it)}</div>
     <p class="section-h">История переоценок</p>
     <div class="gtoolbar">
       ${actionBtn(canCurate(), 'Провести переоценку', `openReval('${it.id}')`)}
       ${actionBtn(canHeadOfUnit(), 'Изменить залоговую стоимость (решение комиссии)', `openOverride('${it.id}')`)}
     </div>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Дата</th><th>Отчёт оценщика</th><th class="numcell">Оценочная</th><th class="numcell">Залоговая (расч.)</th><th>Примечание</th><th></th></tr></thead>
+      <thead><tr><th>Дата</th><th>Отчёт оценщика</th><th>Оценщик</th><th class="numcell">Оценочная</th><th class="numcell">Залоговая (расч.)</th><th>Примечание</th><th></th></tr></thead>
       <tbody>${it.revals.map((r,i)=>({r,i})).reverse().map(({r,i})=>`<tr${r.voided?' class="voided-row"':''}>
         <td${r.voided?' style="text-decoration:line-through">':'>'}${r.date}</td>
         <td${r.voided?' style="text-decoration:line-through">':'>'}${esc(r.report)}</td>
+        <td${r.voided?' style="text-decoration:line-through">':'>'}${esc(r.appraiser || '—')}${r.license?` <span class="formula" style="margin:0">лиц. ${esc(r.license)}</span>`:''}</td>
         <td class="numcell"${r.voided?' style="text-decoration:line-through">':'>'}${fmt(r.appraised)}</td>
         <td class="numcell"${r.voided?' style="text-decoration:line-through">':'>'}${fmt(Math.round(r.appraised*coefOf(it.kind)*100)/100)}</td>
         <td>${r.voided?`<span class="pill high" title="${esc(r.voided.reason)}">сторнирована · ${r.voided.date}</span> ${esc(r.voided.reason)}`:esc(r.note||'')}</td>
@@ -3891,13 +4531,31 @@ function itemPanels(it){
       ${(it.lost||it.needReval) ? actionBtn(canCurate(), it.restoreNotice&&it.restoreNotice.issued?'Обновить извещение о восполнении':'Оформить извещение о восполнении', `openRestoreNotice('${it.id}')`) : ''}</div>
     ${(it.lost||it.needReval) ? renderRestoreBlock(it) : ''}
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Дата</th><th>Акт</th><th>Исход</th><th>Примечание</th><th></th></tr></thead>
-      <tbody>${it.surveys.map((s,i)=>({s,i})).reverse().map(({s,i})=>{const ef=surveyEffect(s.outcome);return `<tr${s.voided?' class="voided-row"':''}>
+      <thead><tr><th style="width:28px"></th><th>Дата</th><th>Акт</th><th>Исход</th><th>Примечание</th><th></th></tr></thead>
+      <tbody>${it.surveys.map((s,i)=>({s,i})).reverse().map(({s,i})=>{const ef=surveyEffect(s.outcome);
+        /* Р-55 (П2 §2.3/§2.4): акт — это заключение + фотофиксация + подписи, а таблица
+           показывала только номер и исход. Содержимое акта раскрывается подстрокой, чтобы
+           не тащить оформителя в отдельную карточку ради одного абзаца. */
+        const sid = `srv-${it.id}-${i}`;
+        const sg = (s.signers||[]).map(x => typeof x === 'string' ? x : `${x.name||''}${x.post?' ('+x.post+')':''}`).filter(Boolean);
+        return `<tr${s.voided?' class="voided-row"':''}>
+        <td><button class="btn btn-tint btn-sm" title="Раскрыть содержание акта" onclick="toggleSubRow('${sid}')">▾</button></td>
         <td${s.voided?' style="text-decoration:line-through">':'>'}${s.date}</td>
         <td${s.voided?' style="text-decoration:line-through">':'>'}${esc(s.act)}${s.oneSided ? ` <span class="pill mid" title="Сторона уклонилась от подписания (П2 §2.4)">односторонний</span>` : ''}</td>
         <td><span class="pill ${s.voided?'neutral':ef==='ok'?'low':ef==='lost'?'high':'mid'}"${s.voided?' style="text-decoration:line-through"':''}>${esc(s.outcome)}</span></td>
         <td>${s.voided?`<span class="pill high" title="${esc(s.voided.reason)}">сторнирован · ${s.voided.date}</span> ${esc(s.voided.reason)}`:esc(s.note||'')}</td>
-        <td>${(!s.voided && canHeadOfUnit()) ? `<button class="btn btn-tint btn-sm danger" onclick="openVoidRecord('${it.id}','survey',${i})">Сторнировать</button>` : ''}</td></tr>`}).join('')}</tbody>
+        <td>${(!s.voided && canHeadOfUnit()) ? `<button class="btn btn-tint btn-sm danger" onclick="openVoidRecord('${it.id}','survey',${i})">Сторнировать</button>` : ''}</td></tr>
+        <tr class="subrow" id="${sid}" style="display:none"><td colspan="6"><div class="sub-in">
+          <div><b>Заключение:</b> ${esc(s.conclusion || '— не внесено (акты прежней системы переносились без текста заключения)')}</div>
+          <div style="margin-top:6px"><b>Подписи:</b> ${sg.length ? esc(sg.join(' · ')) : '—'}${
+            s.gfhName ? ' · представитель ГФХ: ' + esc(s.gfhName) + (s.gfhPost ? ', ' + esc(s.gfhPost) : '') : ''}</div>
+          <div style="margin-top:6px"><b>Присутствие залогодателя:</b> ${s.oneSided
+            ? 'акт односторонний — сторона уклонилась (П2 §2.4)'
+            : (s.presenceConfirmed ? 'подтверждено' : 'не отмечено')}</div>
+          <div style="margin-top:6px"><b>Фотофиксация:</b> ${(s.photos||[]).length
+            ? (s.photos.map(p=>`<span class="photo-chip">${esc(p)}</span>`).join(''))
+            : '<span class="pill mid">нет снимков</span>'}</div>
+        </div></td></tr>`}).join('')}</tbody>
     </table></div></div>`;
 
   const cs = CONTRACTS.filter(c => (isActive(c)||isDraftish(c)) && c.allocs.some(a=>a.item===it.id));
@@ -3920,11 +4578,89 @@ function itemPanels(it){
         <td class="numcell">${isActive(c) ? fmt(effShare(active, it.id, a.share)) : '—'}</td>
         <td>${isActive(c) ? (i+1)+' (по дате регистрации ' + c.date + ')' : '—'}</td></tr>`).join('')
         : `<tr><td colspan="6"><div class="cgrid-empty">Предмет не отнесён ни к одному кредиту — свободен целиком</div></td></tr>`}</tbody>
+    </table></div>
+    ${/* Р-50 (ПОЛ §6.4 п.6): срок аренды должен перекрывать срок кредита. Контроль
+         leaseCoversCredit существовал в коде, но не вызывался ниоткуда — теперь он
+         поднимается по каждому обеспечиваемому кредиту. */''}
+    ${leaseWarnings(it).map(w => `<div class="flagline" style="margin-top:14px"><span><b>Срок аренды короче срока кредита (ПОЛ §6.4 п.6).</b>
+      Кредит ${w.creditId} · ${esc(credit(w.creditId).num)}: аренда до ${it.leaseTill||'—'}, кредит до ${credit(w.creditId).creditTill||'—'}. ${esc(w.msg)}.
+      Требуется продление договора аренды либо замена обеспечения.</span></div>`).join('')}
+    ${/* Р-49: предшествующие залоги третьих лиц — вне нашей арифметики покрытия, но
+         определяют реальную очерёдность удовлетворения. Данные вводятся вручную. */''}
+    <p class="section-h" style="margin-top:22px">Предшествующие залоги третьих лиц (Р-49)</p>
+    <div class="gtoolbar">${actionBtn(canCurate(), 'Внести предшествующий залог', `openPriorLien('${it.id}')`)}</div>
+    ${priorLiensOf(it).length ? `<div class="flagline"><span>Предмет уже обременён в пользу стороннего залогодержателя: наши требования удовлетворяются <b>в порядке следующей очереди</b>. В расчёт покрытия эти суммы НЕ входят — это предупреждение оформителю.</span></div>` : ''}
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Залогодержатель</th><th>Документ</th><th>Дата</th><th class="numcell">Сумма требования</th><th>Очередь</th><th></th></tr></thead>
+      <tbody>${(it.priorLiens||[]).length ? (it.priorLiens||[]).map((l,i)=>`<tr${l.released?' class="voided-row"':''}>
+        <td${l.released?' style="text-decoration:line-through">':'>'}${esc(l.holder)}</td>
+        <td${l.released?' style="text-decoration:line-through">':'>'}${esc(l.docNo||'—')}</td>
+        <td${l.released?' style="text-decoration:line-through">':'>'}${l.date||'—'}</td>
+        <td class="numcell"${l.released?' style="text-decoration:line-through">':'>'}${l.amount!=null?fmt(l.amount):'—'}</td>
+        <td>${l.released ? '<span class="pill neutral">снят '+(l.releasedDate||'')+'</span>' : '<span class="pill high">предшествующая</span>'}</td>
+        <td>${(!l.released && canCurate()) ? `<button class="btn btn-tint btn-sm" onclick="releasePriorLien('${it.id}',${i})">Отметить снятие</button>` : ''}</td></tr>`).join('')
+        : `<tr><td colspan="6"><div class="cgrid-empty">Предшествующих залогов не зарегистрировано — наш залог первой очереди</div></td></tr>`}</tbody>
     </table></div></div>`;
 
-  const p5 = `<div class="panel-wrap">
+  /* ---- Р-56 ДОСЬЕ ДОКУМЕНТОВ. Раньше вкладка «Документы» показывала гейты, а сами файлы
+     лежали плоским списком внизу вкладки предпосылок — было видно, ЧТО приложено, и не
+     видно, ЧЕГО НЕ ХВАТАЕТ. Паттерн взят из карточки заёмщика (dossierBar + чек-лист):
+     обязательный комплект зависит от вида залога, срок годности считается от даты
+     документа, лишние файлы не теряются — уходят в «дополнительные». ---- */
+  const dos = itemDossier(it);
+  const dosCls = dos.missing.length ? 'high' : dos.exp ? 'mid' : 'low';
+  const dosCol = dos.missing.length ? 'var(--asubk-red)' : dos.exp ? '#B26A00' : 'var(--asubk-green)';
+  const pDocs = `<div class="panel-wrap">
+    <p class="section-h">Досье документов</p>
+    <div class="panel-card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+        <span style="font:var(--weight-bold) 18px/1 var(--asubk-font);color:${dosCol}">${dos.met} из ${dos.req}</span>
+        <span class="pill ${dosCls}">${dos.pct} %</span>
+        <span class="formula" style="margin:0">обязательный комплект для вида «${esc(it.kind)}» · на ${TODAY}</span>
+      </div>
+      <div class="meter"><div style="width:${dos.pct}%;background:${dosCol}"></div></div>
+      <div class="formula" style="margin:0">${dos.missing.length
+        ? 'Не приложены: <b>' + dos.missing.map(esc).join('; ') + '</b> — регистрация залогового договора будет заблокирована.'
+        : dos.exp ? 'Комплект собран, но есть документы с истёкшим сроком — обновите их.'
+        : 'Комплект собран полностью.'}</div>
+    </div>
+    <div class="gtoolbar">${actionBtn(canCurate(), 'Прикрепить файл', `openAttach('item','${it.id}')`)}</div>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Обязательный документ</th><th>Статус</th><th>№ документа</th><th>Дата документа</th><th>Файл</th><th>Кто прикрепил</th></tr></thead>
+      <tbody>${dos.rows.map(r=>`<tr>
+        <td>${esc(r.req.t)}${r.req.validMonths?` <span class="formula" style="margin:0">срок ${r.req.validMonths} мес.</span>`:''}</td>
+        <td><span class="pill ${r.st.cls}">${esc(r.st.label)}</span></td>
+        <td>${r.doc?esc(r.doc.docNo||'—'):'—'}</td>
+        <td>${r.doc?(r.doc.docDate||r.doc.when):'—'}</td>
+        <td>${r.doc?esc(r.doc.name):`<span class="formula" style="margin:0">не приложен</span>`}</td>
+        <td>${r.doc?esc(r.doc.who):'—'}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <p class="section-h" style="margin-top:22px">Дополнительные вложения</p>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <thead><tr><th>Тип документа</th><th>Файл</th><th>№ документа</th><th>Дата</th><th>Кто прикрепил</th></tr></thead>
+      <tbody>${dos.extras.length ? dos.extras.map(f=>`<tr>
+        <td>${esc(f.tag)}</td><td>${esc(f.name)}</td><td>${esc(f.docNo||'—')}</td><td>${f.docDate||f.when}</td><td>${esc(f.who)}</td></tr>`).join('')
+        : `<tr><td colspan="5"><div class="cgrid-empty">Вложений сверх обязательного комплекта нет</div></td></tr>`}</tbody>
+    </table></div></div>`;
+
+  /* ---- Р-58: лента с категориями, годами и порционной догрузкой (паттерн карточки заёмщика). ---- */
+  const hAll = [...it.history].map(h => ({ ...h, cat: histCat(h.what) })).reverse();
+  const hCnt = k => hAll.filter(h => h.cat === k).length;
+  const chips = [{ k:'all', l:'Все', n:hAll.length }]
+    .concat(Object.keys(HIST_LBL).map(k => ({ k, l:HIST_LBL[k], n:hCnt(k) })).filter(c => c.n));
+  const hFil = hAll.filter(h => histFilter === 'all' || h.cat === histFilter);
+  const hShow = hFil.slice(0, histLimit);
+  let lastYear = null;
+  const pHist = `<div class="panel-wrap">
     <p class="section-h">История предмета</p>
-    <div class="hist">${[...it.history].map(h=>`<div class="hrow"><div class="hwhen">${h.when}</div><div class="hwhat">${esc(h.what)}</div><div class="hwho">${esc(h.who)}</div></div>`).join('')}</div></div>`;
+    <div class="hchips">${chips.map(c=>`<button class="hchip${histFilter===c.k?' on':''}" onclick="itemHistFilter('${c.k}')">${esc(c.l)}<span class="hchip-n">${c.n}</span></button>`).join('')}</div>
+    <div class="hist">${hShow.map(h=>{
+      const y = (h.when||'').slice(6,10), hdr = y && y !== lastYear ? `<div class="hyear">${y}</div>` : '';
+      lastYear = y || lastYear;
+      return hdr + `<div class="hrow"><div class="hwhen">${h.when}</div><div class="hwhat">${esc(h.what)}</div><div class="hwho">${esc(h.who)}</div></div>`;
+    }).join('') || `<div class="cgrid-empty">В этой категории записей нет</div>`}</div>
+    ${hFil.length > hShow.length ? `<div class="hmore"><button class="btn btn-tint btn-sm" onclick="itemHistMore()">Показать ещё (осталось ${hFil.length - hShow.length})</button></div>` : ''}
+    </div>`;
 
   /* ---- Р-5 предпосылки оформления + Р-7 техническая допустимость ---- */
   const req = prereqReq(it), pr = it.prereqs || {};
@@ -3954,15 +4690,16 @@ function itemPanels(it){
       : techPolicyExpired(it) ? `<div class="flagline" style="margin-top:12px"><span>Страховой полис ${esc(it.insured.policy)} истёк ${it.insured.till} — триггер «страхование техники истекло».</span></div>`
       : `<div class="okline" style="margin-top:12px"><span>Техническая допустимость соблюдена.</span></div>`}
     </div>` : '';
-  const p6 = `<div class="panel-wrap">
-    <p class="section-h">Предпосылки оформления</p>
+  /* Р-52: предпосылки §5.2 и техдопуск П1 §2.5 — часть допуска, а не «документы».
+     Уезжают на вкладку «Допуск» под светофор; файлы уходят на вкладку «Документы». */
+  const p6 = `<div>
+    <p class="section-h" style="margin-top:22px">Предпосылки оформления</p>
     <div class="${miss.length?'flagline':'okline'}"><span>${miss.length ? ('Не приложены обязательные документы: '+miss.map(m=>esc(m.label)).join('; ')+'. Регистрация договора будет заблокирована.') : 'Все обязательные предпосылки закрыты.'}</span></div>
     <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Предпосылка</th><th>Что требуется</th><th>Статус</th><th>Документ</th>${canCurate()?'<th></th>':''}</tr></thead><tbody>${prereqRows}</tbody></table></div>
     ${techBlock}
-    ${filesSection}
     </div>`;
 
-  return [p0,p1,p2,p3,p4,p6,p5];
+  return [p0, admissionPanel(it, p6), p1, p2, p3, p4, pDocs, pHist];
 }
 function itemFooter(it){
   // Действия предмета живут в тулбарах своих вкладок (переоценка → «Стоимость»,
@@ -4647,6 +5384,10 @@ function openReval(id){
     <div class="modal-b"><div class="mform">
       ${fdate('rvDate','Дата переоценки', TODAY, true)}
       ${fin('rvRep','Отчёт оценщика (номер)','',true)}
+      ${/* Р-48: оценщик и его лицензия — реквизит отчёта. Без них нельзя проверить,
+           кем сделана оценка, а отчёт живёт 12 мес. и попадает в комплект документов. */''}
+      ${fin('rvAppraiser','Оценщик (Ф.И.О. / организация)', it.appraiser || '', true)}
+      ${fin('rvLicense','Лицензия оценщика', it.apprLicense || '')}
       ${fin('rvVal','Новая оценочная стоимость', String(it.appraised), true)}
       ${fin('rvOld','Текущая оценочная', fmt(it.appraised))}
       ${ftxt('rvNote','Примечание','')}
@@ -4662,6 +5403,8 @@ function saveReval(id){
   const dv = eventDateValid(date, { notBefore: it.lastReval, notBeforeLabel:'предыдущая переоценка' });
   if(!dv.ok) return toast(dv.msg,'warn');
   if(!rep) return toast('Укажите номер отчёта оценщика','warn');
+  const appraiser = val('rvAppraiser').trim(), license = val('rvLicense').trim();
+  if(!appraiser) return toast('Укажите оценщика — Ф.И.О. или организацию (Р-48)','warn');
   /* Р-32: резкое падение оценочной относительно предыдущей несторнированной (it.appraised уже
      откатывается к ней при сторнировании, Р-33) требует подтверждения — обязательного примечания. */
   const prev = it.appraised;
@@ -4671,7 +5414,12 @@ function saveReval(id){
   const before = acs0.flatMap(c=>c.credits.map(cid=>({cid, ok:coverage(acs0, cid).ok})));
   const old = it.appraised;
   it.appraised = v; it.apprDate = date; it.apprReport = rep; it.lastReval = date; it.needReval = false;
-  it.revals.push({date, appraised:v, report:rep, note: note || 'переоценка'});
+  it.appraiser = appraiser; it.apprLicense = license;
+  it.revals.push({date, appraised:v, report:rep, note: note || 'переоценка', appraiser, license});
+  /* Р-47: новый отчёт об оценке кладётся в комплект документов сразу — иначе досье
+     остаётся с устаревшим отчётом, хотя переоценка проведена. */
+  (it.files ||= []).push({ tag:'Отчёт об оценке', name:`Отчёт_${rep.replace(/[^\wА-Яа-я\-]+/g,'_')}.pdf`,
+    docNo:rep, docDate:date, when:TODAY, who:role });
   hist(it, `Переоценка: оценочная ${fmt(old)} → ${fmt(v)} (${rep}). Залоговая (расч.) → ${fmt(calcPledge(it))}${it.override?' · перекрыта действующим override '+fmt(it.override.value):''}`);
   closeModal();
   const acs1 = CONTRACTS.filter(isActive);
@@ -6213,6 +6961,17 @@ function toast(msg, kind){
 }
 document.addEventListener('keydown', e => { if(e.key==='Escape' && host().classList.contains('open')) tryClose(); });
 
+/* Р-51 (ПОЛ §6.4 п.7): способ хранения вводится при регистрации договора, но сид-договоры
+   заведены до появления этого поля — без дефолта карточка КАЖДОГО предмета показывала бы
+   «способ хранения не указан», и реальный пробел утонул бы в фоне. Дефолт — «у залогодателя»
+   (обычный режим, при котором действует плановое обследование). Д-004 намеренно оставлен без
+   хранения: это демонстрация самого пробела (там же предмет П-005 без запрета на отчуждение). */
+CONTRACTS.forEach(c => {
+  if(c.status === 'Зарегистрирован' && !c.custody && c.id !== 'Д-004'){
+    c.custody = 'у залогодателя'; c.custodyPlace = '';
+  }
+});
+
 renderNav(); renderList();
 { const _sd = document.getElementById('standDate'); if(_sd) _sd.value = d2iso(TODAY); }   // Т-6: init дата стенда
 
@@ -6260,6 +7019,15 @@ if (typeof window !== 'undefined') window.__zt = {
   GUARANTORS, SURETIES, guarantor, surety, suretiesOfCredit, suretiesOfGuarantor,
   activeSuretiesOfCredit, guarantorGate, guarantorIsPerson, ageAt,
   suretyReleaseAllowed, suretyLayerLine, SURETY_STATUSES,
+  // Волна 6 (Р-46…Р-58): досье документов, светофор допуска, страхование, хранение,
+  // предшествующие залоги, срок аренды, динамика оценки, категории истории.
+  INSURANCE_KINDS, APPRAISAL_VALID_MONTHS, FILE_REQ_COMMON, FILE_REQ_BY_KIND, FILE_TAGS,
+  insuranceRequired, insuredPresent, insuredMissing, policyExpired,
+  apprValidTill, apprStale, reqFilesOf, fileOfType, fileStatusOf, itemDossier,
+  priorLiensOf, leaseWarnings, custodyOf, openPriorLien, savePriorLien, releasePriorLien,
+  admissionChecks, admissionVerdict, admissionPanel, itemDefects, itemTabs, TABS_ITEM,
+  revalSeries, histCat, HIST_CATS, itemHistFilter, itemHistMore,
+  saveAttach, openAttach, autoFiles, autoPolicy,
 };
 </script>
 </body>
