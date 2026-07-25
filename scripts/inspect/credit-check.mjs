@@ -255,17 +255,17 @@ const pd = CR.pd;
      `code=${strippedHasCode} deleteBtn=${deleteBtn}`);
 })();
 
-/* 29. Р-21: первичные записи условий заведены на каждом транше, и срез на TODAY
-       совпадает с прежним хранимым t.conditions (регрессия переезда). */
+/* 29. Р-21/Д-3: t.conditions как хранимое поле удалено; conditionsAt даёт полный
+       комплект из 10 параметров на каждом транше. */
 (() => { const db = CR.seedDb();
-  let bad = [], noRecs = [];
+  let stored = [], incomplete = [];
   for (const c of db.credits) for (const t of c.tranches){
-    if (!(t.conditionRecords && t.conditionRecords.length)) { noRecs.push(t.id); continue; }
+    if (t.conditions !== undefined) stored.push(t.id);
     const at = CR.conditionsAt(t, CR.TODAY);
-    for (const k of CR.PARAM_KEYS) if (String(at[k]) !== String(t.conditions[k])) bad.push(t.id+'.'+k);
+    if (CR.PARAM_KEYS.some(k => at[k] === undefined)) incomplete.push(t.id);
   }
-  ok(29, noRecs.length===0 && bad.length===0,
-     `безЗаписей=${noRecs.slice(0,3)} расхождения=${bad.slice(0,5)}`);
+  ok(29, stored.length===0 && incomplete.length===0,
+     `хранимое=${stored.slice(0,3)} неполные=${incomplete.slice(0,3)}`);
 })();
 /* 30. Реестр параметров — ровно 10 ключей, без параметров расчётного движка. */
 (() => {
@@ -281,6 +281,17 @@ const pd = CR.pd;
   let threw = false, empty = false;
   try { empty = Object.keys(CR.conditionsAt(t, '01.01.2000')).length === 0; } catch(e){ threw = true; }
   ok(31, !threw && empty, `threw=${threw}`);
+})();
+/* 32. Переезд не сдвинул цифры: агрегат срока (Р-13) и длина графика считаются
+       из conditionsAt и совпадают с условиями транша. */
+(() => { const db = CR.seedDb(); const c = db.credits.find(x => x.id === 'K-1');
+  const terms = c.tranches.map(t => CR.conditionsAt(t, CR.TODAY).term);
+  const d = CR.derive(c);
+  const t1 = c.tranches[0];
+  const from = (t1.disbursements[0] || {}).date;
+  const rows = from ? CR.buildSchedule(t1, from).rows : [];
+  ok(32, d.termAgg === Math.max(...terms) && rows.length === CR.conditionsAt(t1, CR.TODAY).term,
+     `termAgg=${d.termAgg} terms=${terms} rows=${rows.length}`);
 })();
 
 const pass = results.filter(r => r.pass).length;

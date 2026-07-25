@@ -237,7 +237,7 @@
       Макет: простой календарь (сб/вс), без праздников.
 
   SMOKE (node)
- SMOKE (node) 2026-07-25 · 35/35 PASS
+ SMOKE (node) 2026-07-25 · 36/36 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -273,6 +273,9 @@
    #29 ✓
    #30 ✓
    #31 ✓
+   #32 ✓
+
+
 
 
 
@@ -1017,7 +1020,7 @@ function conditionsAt(tranche, date){
    effectiveFrom = дата договора; ref = протокол комиссии из origin (Р-18). */
 function seedPrimaryRecords(credit){
   for (const t of credit.tranches){
-    const src = t.conditions || credit.baseConditions || condDefaults();
+    const src = credit.baseConditions || condDefaults();
     t.conditionRecords = PARAM_KEYS.map(k => mkConditionRecord({
       param:k, value:src[k], effectiveFrom:credit.date,
       basis:{ kind:'application',
@@ -1042,7 +1045,7 @@ function emptyMirror(over){                          // все зеркала (�
 function mkTranche(over){                            // TRANCHE (§3)
   return deepMerge({
     id:'', no:1, subject:{ inn:'', name:'' }, amount:0, plannedDate:'',
-    conditions: condDefaults(), conditionRecords: [], disbursements:[], schedules:[], ledger:[]
+    conditionRecords: [], disbursements:[], schedules:[], ledger:[]
   }, over || {});
 }
 function mkCredit(over){                             // CREDIT (§3) — обязательный минимум полей
@@ -1088,11 +1091,9 @@ function seedDb(){
     tranches:[
       mkTranche({ id:'K-1-T1', no:1, subject:{ inn:'01912201610212', name:'ОсОО «Бек Кабель»' },
         amount:100000, plannedDate:'18.05.2026',
-        conditions: condDefaults({ rate:10, term:24, reserveRate:0 }),
         disbursements:[{ date:'18.05.2026', amount:100000, order:'ПП-1201', purpose:'Оплата оборудования', doc:'akt-osvo-1.pdf' }] }),
       mkTranche({ id:'K-1-T2', no:2, subject:{ inn:'01912201610212', name:'ОсОО «Бек Кабель»' },
         amount:50000, plannedDate:'01.09.2026',
-        conditions: condDefaults({ rate:10, term:24, reserveRate:0 }),
         disbursements:[] })
     ],
     docs:[
@@ -1131,8 +1132,7 @@ function seedDb(){
     baseConditions: condDefaults({ rate:8, term:24, reserveRate:2 }),
     tranches:[
       mkTranche({ id:'K-2-T1', no:1, subject:{ inn:'02107199800345', name:'ОсОО «Нарын-Агро»' },
-        amount:400000, plannedDate:'01.05.2026',
-        conditions: condDefaults({ rate:8, term:24, reserveRate:2 }),   // не освоен к плановой дате → блок резерва живой
+        amount:400000, plannedDate:'01.05.2026',                       // не освоен к плановой дате → блок резерва живой
         disbursements:[] })
     ],
     mirror: emptyMirror({
@@ -1166,7 +1166,6 @@ function seedDb(){
     tranches:[
       mkTranche({ id:'K-3-T1', no:1, subject:{ inn:'03011200500777', name:'ОсОО «Тянь-Шань Строй»' },
         amount:200000, plannedDate:'15.02.2026',
-        conditions: condDefaults({ rate:12, term:24 }),
         disbursements:[{ date:'15.02.2026', amount:200000, order:'ПП-980', purpose:'СМР', doc:'akt-osvo-48.pdf' }],
         schedules:[{ ver:1, active:true, generatedFrom:'15.02.2026', rows:[
           { no:1, date:'19.04.2026', total:12300, principal:8300, interest:4000 },   // наступил, не погашен → 95 дн.
@@ -1208,7 +1207,6 @@ function seedDb(){
     tranches:[
       mkTranche({ id:'K-4-T1', no:1, subject:{ inn:'04512199600901', name:'ОсОО «Иссык-Куль Ресорт»' },
         amount:600000, plannedDate:'10.11.2025',
-        conditions: condDefaults({ rate:9, term:36 }),
         disbursements:[{ date:'10.11.2025', amount:600000, order:'ПП-812', purpose:'СМР', doc:'akt-osvo-42.pdf' }],
         ledger:[{ no:1, date:'10.03.2026', received:0, principalBal:520000, principalPaid:0, principalDue:16000,
           principalOverdue:32000, days:120, interestAccrued:9000, interestPaid:0, interestDue:9000, interestOverdue:9000,
@@ -1241,7 +1239,6 @@ function seedDb(){
     tranches:[
       mkTranche({ id:'K-5-T1', no:1, subject:{ inn:'05213200100456', name:'ОсОО «Ош-Текстиль»' },
         amount:200000, plannedDate:'10.07.2026',
-        conditions: condDefaults({ rate:11, term:18 }),
         disbursements:[] })                                          // не освоен → триггер Г-6
     ],
     mirror: emptyMirror({
@@ -1268,7 +1265,6 @@ function seedDb(){
     tranches:[
       mkTranche({ id:'K-6-T1', no:1, subject:{ inn:'06114199500222', name:'ОсОО «Чуй-Агро»' },
         amount:120000, plannedDate:'20.01.2024',
-        conditions: condDefaults({ rate:8, term:24 }),
         disbursements:[{ date:'20.01.2024', amount:120000, order:'ПП-410', purpose:'Оборот', doc:'akt-osvo-30.pdf' }],
         ledger:[{ no:24, date:'20.06.2026', received:5000, principalBal:0, principalPaid:120000, principalDue:0,
           principalOverdue:0, days:0, interestAccrued:12000, interestPaid:12000, interestDue:0, interestOverdue:0,
@@ -1296,7 +1292,6 @@ function seedDb(){
     tranches:[
       mkTranche({ id:'K-6b-T1', no:1, subject:{ inn:'07215199300888', name:'ОсОО «Талас-Майс»' },
         amount:90000, plannedDate:'25.03.2023',
-        conditions: condDefaults({ rate:10, term:24 }),
         disbursements:[{ date:'25.03.2023', amount:90000, order:'ПП-405', purpose:'Оборот', doc:'akt-osvo-31.pdf' }],
         ledger:[{ no:18, date:'15.05.2026', received:0, principalBal:0, principalPaid:32000, principalDue:0,
           principalOverdue:0, days:0, interestAccrued:15000, interestPaid:4000, interestDue:0, interestOverdue:0,
@@ -1343,7 +1338,6 @@ function seedDb(){
       tranches:[
         mkTranche({ id:'K-B'+(i+1)+'-T1', no:1, subject:{ inn:b.inn, name:b.name },
           amount:b.amount, plannedDate:'12.01.2026',
-          conditions: condDefaults({ rate:9, term:24 }),
           disbursements:disbursed, ledger })
       ],
       mirror: emptyMirror({
@@ -1458,15 +1452,13 @@ function seedDb(){
           doc:'prikaz-hold-'+num+'.pdf', by:s.c }]
       : [];
 
-    const tconds = condDefaults({ rate, term, floating:!!s.float, floatType:s.float?'учётная ставка НБКР':null,
-      margin:s.float?3:0, reserveRate:s.reserve?2:0 });
     const t1disb = s.tr2 ? (disbAmt>0?[{date:dd0,amount:Math.round(contract*0.6),order:'ПП-'+num,purpose:s.pu,doc:'akt-'+num+'.pdf'}]:[]) : disbmts();
     function disbmts(){ return disbAmt>0 ? [{ date:dd0, amount:disbAmt, order:'ПП-'+num, purpose:s.pu, doc:'akt-'+num+'.pdf' }] : []; }
     const tranches = [ mkTranche({ id:'K-C'+(i+1)+'-T1', no:1, subject:{ inn, name:s.n },
-      amount: s.tr2?Math.round(contract*0.6):contract, plannedDate:'12.02.2026', conditions:tconds,
+      amount: s.tr2?Math.round(contract*0.6):contract, plannedDate:'12.02.2026',
       disbursements:t1disb, ledger, accrualHold }) ];
     if (s.tr2) tranches.push(mkTranche({ id:'K-C'+(i+1)+'-T2', no:2, subject:{ inn, name:s.n },
-      amount:Math.round(contract*0.4), plannedDate:'01.10.2026', conditions:tconds, disbursements:[], accrualHold }));
+      amount:Math.round(contract*0.4), plannedDate:'01.10.2026', disbursements:[], accrualHold }));
 
     return mkCredit({
       id:'K-C'+(i+1), num, date:'05.02.2026',
@@ -1595,7 +1587,7 @@ function has181Suppression(c){
 }
 
 /* ---- 3.1 buildSchedule(tranche, fromDate) — амортизация от фактической даты освоения ----
-   Аннуитет либо дифференцированный (conditions.method). Учитывает льготу по ОД
+   Аннуитет либо дифференцированный (conditionsAt(tranche,...).method). Учитывает льготу по ОД
    (graceMain — только проценты) и по процентам (graceInterest — без начисления %),
    а также интервалы приостановки начисления (t.accrualHold — Task 4: holdAccrual пишет
    интервал в credit.accrualHold и зеркалирует его на КАЖДЫЙ транш кредита, т.к.
@@ -1603,7 +1595,7 @@ function has181Suppression(c){
    затрагивается — within() участвует только в расчёте interest). Возврат:
    {rows:[{no,date,total,principal,interest}]}. */
 function buildSchedule(tranche, fromDate){
-  const c = tranche.conditions || {};
+  const c = conditionsAt(tranche, TODAY);        // Р-21: условия транша — производное от записей
   const P = disbursedSum(tranche) || tranche.amount || 0;        // амортизируем освоенный ОД
   const n = Math.max(1, c.term | 0);                             // число периодов = срок, мес.
   const i = (c.rate || 0) / 100 / 12;                            // месячная ставка
@@ -1825,7 +1817,7 @@ function maxFullRepayDate(c){
 function computeReserve(c){
   const per = []; let totalBase = 0, totalAmount = 0, rate = 0;
   for (const t of c.tranches){
-    const rr = (t.conditions && t.conditions.reserveRate) || 0;
+    const rr = conditionsAt(t, TODAY).reserveRate || 0;      // Р-21
     if (rr <= 0) continue;
     const base = (t.amount || 0) - disbursedSum(t);
     if (base <= 0 || !t.plannedDate) continue;
@@ -1874,7 +1866,8 @@ function derive(c){
   const riskBasis     = riskBasisOf(c, overdueDays);
   const overlays      = buildOverlays(c, overdueDays);
   const fullRepayDate = maxFullRepayDate(c);
-  const termAgg       = Math.max(0, ...c.tranches.filter(activeTranche).map(t => (t.conditions && t.conditions.term) || 0));
+  const termAgg       = Math.max(0, ...c.tranches.filter(activeTranche)
+                            .map(t => conditionsAt(t, TODAY).term || 0));   // Р-13 поверх Р-21
   const reserveAccrual = computeReserve(c);
   const scheduleTotals = computeScheduleTotals(c);
   const nextPayment    = nextPaymentOf(c);
@@ -2899,7 +2892,7 @@ if (typeof document !== 'undefined') {
        а закрыты гейтом Г-9. Своя пилюля «доп. соглашение» с тем же title. */
     const lockG9='<span class="lock"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>доп. согл.</span>';
     const bf=(label,val)=>`<div class="field"><span class="flabel">${esc(label)}${locked?' '+lockG9:''}</span><div class="lookup"${locked?` title="${jsAttr(g9)}"`:''}><span class="val">${val}</span></div></div>`;
-    const dev=(t,key)=>{ const bv=b[key], tv=t.conditions[key]; return String(bv)===String(tv)?esc(tv):`<span class="diff"><span class="diff-old">${esc(bv)}</span> → <span class="diff-new">${esc(tv)}</span></span>`; };
+    const dev=(t,key)=>{ const bv=b[key], tv=conditionsAt(t,TODAY)[key]; return String(bv)===String(tv)?esc(tv):`<span class="diff"><span class="diff-old">${esc(bv)}</span> → <span class="diff-new">${esc(tv)}</span></span>`; };
     const trRows=c.tranches.map(t=>`<tr><td>№${t.no}</td><td>${dev(t,'rate')}</td><td>${dev(t,'term')}</td><td>${dev(t,'method')}</td><td>${dev(t,'freq')}</td><td>${dev(t,'reserveRate')}</td></tr>`);
     const agRows=(c.agreements||[]).map(a=>{
       const keys=[...new Set([...Object.keys(a.before||{}),...Object.keys(a.after||{})])];
@@ -3371,7 +3364,7 @@ if (typeof document !== 'undefined') {
 
   /* 3) schedule-params (generateSchedule, Г-8) — апгрейд: параметры → предпросмотр (1·2·посл.) → новая версия */
   CR.openSchedModal=function(previewFrom){ const c=modalGuard('buildSchedule'); if(!c) return;
-    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0]; const cnd=sel.conditions||{};
+    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0]; const cnd=CR.conditionsAt(sel,CR.TODAY);
     const from=(previewFrom!=null?previewFrom:((sel.disbursements[0]&&sel.disbursements[0].date)||''));
     let preview;
     if(from && sel.disbursements.length){ const rows=CR.buildSchedule(sel, from).rows;
