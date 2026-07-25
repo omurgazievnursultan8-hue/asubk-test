@@ -3987,27 +3987,102 @@ function requisitesTab(inn){
   return sect('Каналы связи', 'Р-10', '', chHtml) + sect('Банковские реквизиты', 'Р-10 · append-only', '', bHtml);
 }
 
-/* 8. Документы — DOCS по scope (Р-8); зеркало (И-5). */
-const DOC_SCOPE = { 'заёмщик':'Субъект', 'заявка':'Заявка', 'кредит':'Кредит', 'залог':'Договор залога', 'взыскание':'Фаза взыскания' };
-function docScopeBadge(kind){
-  const label = DOC_SCOPE[kind] || kind;
-  const cls = kind==='заёмщик' ? 'b-gray' : 'b-proc';
-  return `<span class="badge ${cls}">${esc(label)}</span>`;
+/* 8. Документы — досье п.97 (Р-8): разделы по объекту (B) + чек-лист обязательного комплекта (C).
+   Зеркало (И-5): состав обязательного комплекта наследуется из ПРОГРАММЫ («обязательные кредитные
+   документы») и ВИДА ЗАЛОГА; правка/загрузка файла — в модуле-источнике. Здесь только сводка
+   укомплектованности: есть / нет / истёк + процент по досье. REQ_DOCS ниже — demo-набор. */
+const DOC_SCOPE     = { 'заёмщик':'Субъект', 'заявка':'Заявки', 'кредит':'Кредиты', 'залог':'Залог', 'взыскание':'Взыскание' };
+const SCOPE_MODULE  = { 'заёмщик':'borrower', 'заявка':'application', 'кредит':'credit', 'залог':'zalog', 'взыскание':'collection' };
+const MODULE_RU     = { borrower:'Заёмщик', application:'Заявки', credit:'Кредиты', zalog:'Залог', collection:'Взыскание' };
+/* validMonths — срок годности документа (иначе бессрочный). */
+const REQ_DOCS = {
+  'кредит':    [{t:'Кредитный договор'}, {t:'График погашения'}, {t:'Решение о выдаче'}],
+  'залог':     [{t:'Договор залога'}, {t:'Отчёт об оценке', validMonths:12}, {t:'Страховой полис', validMonths:12}],
+  'заявка':    [{t:'Заявление'}, {t:'Бизнес-план'}, {t:'Финансовая отчётность', validMonths:12}],
+  'взыскание': [{t:'Претензионное письмо'}],
+};
+function reqForSubject(inn){
+  const s = SUBJECTS.find(x=>x.inn===inn), k = s && s.personKind;
+  if(k==='ИП')  return [{t:'Свидетельство ИП / патент'}, {t:'Копия паспорта'}];
+  if(k==='физ') return [{t:'Копия паспорта'}, {t:'Справка о доходах', validMonths:6}];
+  return [{t:'Учредительные документы'}, {t:'Свидетельство о госрегистрации'}, {t:'Приказ/решение о назначении руководителя'}];
+}
+function docRefs(inn, kind){
+  if(kind==='заёмщик') return [inn];
+  if(kind==='кредит')  return CREDITS.filter(c=>c.inn===inn).map(c=>c.id);
+  /* заявка/залог/взыскание — объекты, по которым в досье уже есть хоть один документ */
+  return [...new Set(DOCS.filter(d=>d.inn===inn && d.scope.kind===kind).map(d=>d.scope.ref))];
+}
+function refLabel(inn, kind, ref){
+  if(kind==='кредит'){ const c=CREDITS.find(x=>x.id===ref); return c ? c.no+' · '+c.program : ref; }
+  return ref;
+}
+function docStatus(req, doc){
+  if(!doc) return { code:'missing', badge:'<span class="badge b-err">нет</span>' };
+  if(req.validMonths){
+    const exp = addMonths(doc.date, req.validMonths);
+    if(exp && dnum(exp) < dnum(TODAY))
+      return { code:'expired', badge:'<span class="badge b-ov">истёк '+esc(exp)+'</span>' };
+  }
+  return { code:'ok', badge:'<span class="badge b-ok">есть</span>' };
+}
+function docRow(inn, kind, ref, type, doc, st, required, showObj){
+  const objCell = kind==='заёмщик'
+    ? (showObj ? '<span class="muted">Субъект</span>' : '')
+    : (showObj ? '<span class="badge b-proc">'+esc(refLabel(inn,kind,ref))+'</span>' : '');
+  const typeCell = esc(type) + (required ? '' : ' <span class="muted">(доп.)</span>');
+  const fileCell = doc ? '<a class="lnk">'+esc(doc.file)+'</a>' : '<span class="muted">—</span>';
+  const mod = SCOPE_MODULE[kind];
+  const action = doc
+    ? '<a class="lnk">открыть в «'+esc(MODULE_RU[mod])+'»</a>'
+    : '<a class="lnk">приложить в «'+esc(MODULE_RU[mod])+'»</a>';
+  return '<tr><td>'+objCell+'</td><td>'+typeCell+'</td><td>'+st.badge+'</td><td>'+fileCell+'</td>'
+    + '<td>'+(doc?esc(doc.date):'<span class="muted">—</span>')+'</td>'
+    + '<td>'+(doc?esc(doc.by||'—'):'<span class="muted">—</span>')+'</td><td>'+action+'</td></tr>';
+}
+function dossierBar(pct, met, req, exp){
+  const color = pct===100 ? 'var(--status-success)' : (pct>=60 ? 'var(--status-warning)' : 'var(--status-error)');
+  const expTxt = exp ? ' · <b style="color:var(--status-error)">'+exp+' истёк</b>' : '';
+  const body = '<div style="margin:2px 0 6px;height:8px;background:var(--surface-hover);border-radius:4px;overflow:hidden">'
+    + '<div style="height:100%;width:'+pct+'%;background:'+color+'"></div></div>'
+    + '<div class="muted">'+met+' из '+req+' обязательных документов приложено'+expTxt+'</div>';
+  const chip = '<span style="font-size:22px;font-weight:700;color:'+color+'">'+pct+'%</span>';
+  return sect('Укомплектованность досье', 'обязательный комплект п.97 · зеркало (правка — в модуле-источнике)', chip, body);
 }
 function docsTab(inn){
-  const docs = DOCS.filter(d=>d.inn===inn);
-  const rows = docs.map(d=>`<tr data-sk="${esc(d.scope.kind)}"><td>${docScopeBadge(d.scope.kind)} <span class="muted">${esc(d.scope.ref)}</span></td>`
-    + `<td>${esc(d.type)}</td><td><a class="lnk">${esc(d.file)}</a></td><td>${esc(d.date)}</td><td>${esc(d.by||'—')}</td>`
-    + `<td><a class="lnk">открыть в ${esc(d.ownerModule)}</a></td></tr>`);
-  const kinds = [...new Set(docs.map(d=>d.scope.kind))];
-  const filter = kinds.length > 1
-    ? `<select onchange="this.closest('.section').querySelectorAll('tr[data-sk]').forEach(function(r){r.style.display=(this.value==='*'||r.dataset.sk===this.value)?'':'none'}.bind(this))">`
-      + `<option value="*">Относится к — все</option>`
-      + kinds.map(k=>`<option value="${esc(k)}">${esc(DOC_SCOPE[k]||k)}</option>`).join('')
-      + `</select>`
-    : '';
-  return sect('Документы', 'досье п.97 · зеркало (правка — в модуле-источнике)', filter,
-    table('<th>Относится к</th><th>Тип</th><th>Файл</th><th>Дата</th><th>Кто приложил</th><th></th>', rows));
+  const kinds = ['заёмщик','заявка','кредит','залог','взыскание'];
+  let tReq=0, tMet=0, tExp=0;
+  const sections = [];
+  kinds.forEach(kind=>{
+    const refs = docRefs(inn, kind);
+    if(!refs.length) return;
+    const reqList = kind==='заёмщик' ? reqForSubject(inn) : (REQ_DOCS[kind]||[]);
+    let met=0, need=0, exp=0;
+    const rows = [];
+    refs.forEach(ref=>{
+      const refDocs = DOCS.filter(d=>d.inn===inn && d.scope.kind===kind && d.scope.ref===ref);
+      const used = new Set();
+      let first = true;
+      reqList.forEach(req=>{
+        const doc = refDocs.find(d=>d.type===req.t); if(doc) used.add(doc.id);
+        const st = docStatus(req, doc);
+        need++; if(st.code==='ok') met++; if(st.code==='expired') exp++;
+        rows.push(docRow(inn, kind, ref, req.t, doc, st, true, first)); first=false;
+      });
+      /* доп. приложенные документы вне обязательного списка */
+      refDocs.filter(d=>!used.has(d.id)).forEach(doc=>{
+        rows.push(docRow(inn, kind, ref, doc.type, doc, { code:'extra', badge:'<span class="badge b-gray">доп.</span>' }, false, first)); first=false;
+      });
+    });
+    tReq+=need; tMet+=met; tExp+=exp;
+    const chip = need ? '<span class="badge '+(met===need?'b-ok':'b-err')+'">'+met+' из '+need+'</span>' : '';
+    const expChip = exp ? ' <span class="badge b-ov">⚠ '+exp+' истёк</span>' : '';
+    sections.push(sect(DOC_SCOPE[kind], '', chip+expChip,
+      table('<th style="width:22%">Объект</th><th>Обязательный документ</th><th style="width:12%">Статус</th><th>Файл</th><th style="width:11%">Дата</th><th style="width:15%">Кто приложил</th><th></th>', rows)));
+  });
+  if(!sections.length) return sect('Документы', 'досье п.97', '', empty('Документов нет.'));
+  const pct = tReq ? Math.round(tMet/tReq*100) : 100;
+  return dossierBar(pct, tMet, tReq, tExp) + sections.join('');
 }
 
 /* 9. Проверки — внутренние (сверка ЧС/суды/просрочка + категория/группа) + внешние снимки CHECKS_EXT (зеркало, И-5). */
