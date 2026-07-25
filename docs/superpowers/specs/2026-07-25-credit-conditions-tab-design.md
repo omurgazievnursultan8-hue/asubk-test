@@ -37,19 +37,24 @@
 | Д-6 | Раскладка: «действует сейчас» первым экраном, история ниже, срез на дату — контролом. Сводная матрица параметр × дата — свёрнутым блоком (объясняет модель дев-команде). |
 | Д-7 | При выборе «по кредиту» карточки показывают **агрегат с маркером расхождения** по траншам (Р-13-подобно), а не шаблон. |
 
-Новое решение канона: **Р-21 — условия суть записи на параметр (`param · scope=транш ·
-value · effectiveFrom · basis`); действующий комплект и любой исторический срез —
-производные (Р-11), не хранятся.**
+Новое решение канона: **Р-21 — условия суть записи на параметр, лежащие на транше
+(`param · value · effectiveFrom · basis`); действующий комплект и любой исторический
+срез — производные (Р-11), не хранятся.**
 
 ## 3. Модель данных
 
 ### 3.1 Новая сущность
 
+Записи хранятся **на транше** (`t.conditionRecords`), не на кредите. Причина:
+при Д-3 `scope` всегда равен `tranche.id` — поле избыточно; плюс `buildSchedule(tranche,
+fromDate)` не получает ссылку на кредит (тот же случай, из-за которого `accrualHold`
+зеркалится на каждый транш), а условия ему нужны. Кредит-уровневые виды (журнал,
+агрегат, ретро-флаги) собираются через `c.tranches.flatMap(t => t.conditionRecords)`.
+
 ```js
-c.conditionRecords = [{
+t.conditionRecords = [{
   id:'CR-1',
   param:'rate',                    // ключ из PARAMS
-  scope:'K-4-T1',                  // ВСЕГДА tranche.id (Д-3); записей уровня кредита нет
   value:7,
   effectiveFrom:'01.05.2026',      // дата вступления в силу — НЕ дата документа
   basis:{ kind:'court',            // 'application' | 'agreement' | 'court' | 'govAct'
@@ -89,7 +94,7 @@ graceMain · graceInterest · graceAccrual`
 ### 3.4 Производные (Р-11, рантайм)
 
 - `conditionsAt(tranche, date)` → комплект: по каждому параметру последняя запись
-  `scope===tranche.id` с `effectiveFrom <= date`; при равных `effectiveFrom` —
+  `t.conditionRecords` с `effectiveFrom <= date`; при равных `effectiveFrom` —
   позже созданная (`createdAt`, затем `id`).
 - `creditConditionsAt(credit, date)` → агрегат по активным траншам:
   `{value}` если все согласны, иначе `{divergent:true, values:[{trancheNo, value}]}` (Д-7).
@@ -183,7 +188,7 @@ graceMain · graceInterest · graceAccrual`
 ## 6. Демо-данные
 
 - Все 59 кредитов: `baseConditions` → первичные записи `basis.kind='application'`,
-  `effectiveFrom` = `c.date` (дата договора), `scope` по каждому активному траншу.
+  `effectiveFrom` = `c.date` (дата договора), записи по каждому активному траншу.
 - `K-4`: существующий `ДС-РС-1004` (`rate 9→7`, `term 36→48`) → 2 записи
   (2 параметра × 1 транш `K-4-T1`), `effectiveFrom='01.05.2026'`, `kind='agreement'`.
 - `K-3` (есть `mirror.court`): ретро-запись `penaltyMain → 0`, `effectiveFrom`
