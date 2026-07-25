@@ -428,13 +428,49 @@ const pd = CR.pd;
 
 /* 37. Г-22: изменение условий при ЖЦ «Проект» → блок (в «Проекте» условия
    правятся напрямую — editConditions, Г-9). К-1 (ЖЦ ≥ «Зарегистрирован» по
-   умолчанию) — переключаем на «Проект», чтобы проверить именно этот гейт. */
+   умолчанию) — переключаем на «Проект», чтобы проверить именно этот гейт.
+   Формулировка пинится целиком (белый список ЖЦ + отсылка к прямой правке),
+   а не одним инвариантным куском: иначе тест прошёл бы и на старом тексте. */
 (() => { const db = CR.seedDb(); const c = db.credits.find(x => x.id === 'K-1'); c.lifecycle = 'Проект';
   const t = c.tranches[0];
-  const g = CR.addConditionRecords(c, { basis:{ kind:'agreement', num:'ДС-3001', date:CR.TODAY, ref:'ДС-3001', label:'ДС-3001' },
+  const mk = () => CR.addConditionRecords(c, { basis:{ kind:'agreement', num:'ДС-3001', date:CR.TODAY, ref:'ДС-3001', label:'ДС-3001' },
     records:[{ param:'rate', value:5, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
-  ok(37, g.ok===false && g.reasons.some(x=>/ЖЦ «Зарегистрирован» или «Действует»/.test(x)),
-     `ok=${g.ok} reasons=${JSON.stringify(g.reasons)}`);
+  const g = mk();
+  const full = /Г-22/.test(g.reasons.join(' ')) && /ЖЦ «Зарегистрирован» или «Действует»/.test(g.reasons.join(' '))
+            && /в «Проекте» условия правятся напрямую/.test(g.reasons.join(' '));
+  ok(37, g.ok===false && full, `ok=${g.ok} reasons=${JSON.stringify(g.reasons)}`);
+})();
+/* 39. Г-22, второй перекрытый ЖЦ — «Закрыт»: белый список ЖЦ отсекает и терминал,
+   с той же формулировкой (в UI кнопку раньше перехватывает терминальная проверка). */
+(() => { const db = CR.seedDb(); const c = db.credits.find(x => x.id === 'K-1');
+  c.lifecycle = 'Закрыт'; c.closure = { reason:'Погашен', date:CR.TODAY, doc:null };
+  const t = c.tranches[0];
+  const g = CR.addConditionRecords(c, { basis:{ kind:'agreement', num:'ДС-3002', date:CR.TODAY, ref:'ДС-3002', label:'ДС-3002' },
+    records:[{ param:'rate', value:5, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
+  const noRecord = !(t.conditionRecords||[]).some(r => r.basis && r.basis.ref === 'ДС-3002');
+  ok(39, g.ok===false && /Г-22/.test(g.reasons.join(' '))
+      && /ЖЦ «Зарегистрирован» или «Действует»/.test(g.reasons.join(' ')) && noRecord,
+     `ok=${g.ok} noRecord=${noRecord} reasons=${JSON.stringify(g.reasons)}`);
+})();
+
+/* 38. Д-5, погашение предупреждения: ретро-запись зажигает retroPendingFlags,
+   перегенерация активного графика транша её гасит (generatedAt новее createdAt),
+   следующая ретро-запись зажигает снова. retroFlags при этом не гаснет никогда —
+   это факт истории, а не индикатор «нужно пересчитать». */
+(() => { const db = CR.seedDb(); const c = db.credits.find(x => x.id === 'K-3');
+  const before = CR.retroPendingFlags(c).length;                      // сид: запись суда от 12.07.2026
+  const t = c.tranches[0];
+  const r = CR.generateSchedule(c, t.no, { from: t.disbursements[0].date });
+  const act = (t.schedules||[]).find(s => s.active);
+  const after = CR.retroPendingFlags(c).length;
+  // новая ретро-запись после перегенерации → плашка обязана зажечься снова
+  CR.addConditionRecords(c, { basis:{ kind:'court', ref:'ЗАНОВО', label:'Решение суда · ЗАНОВО', date:'' },
+    records:[{ param:'penaltyInt', value:0, effectiveFrom:'01.06.2026', trancheNos:c.tranches.map(x=>x.no),
+               note:'повторное ретро — проверка возврата предупреждения' }] });
+  const again = CR.retroPendingFlags(c).length;
+  ok(38, before>0 && r.ok!==false && !!act && !!act.generatedAt && after===0 && again>0
+      && CR.retroFlags(c).length>0,
+     `before=${before} after=${after} again=${again} generatedAt=${act&&act.generatedAt}`);
 })();
 
 const pass = results.filter(r => r.pass).length;

@@ -218,6 +218,50 @@
      НЕ ДЕЛАЛОСЬ: автопересчёт графика/леджера и сторно (Д-5) · перевод dayMethod/queue
                в записи · перевод долга Р-14 в записи (меняет субъекта, не параметр) ·
                вкладка «Условия кредита» заявки (Д-1).
+   Шаг 16 · РАЗБОР ФИНАЛЬНОГО РЕВЬЮ ВЕТКИ (атрибуция) — выполнен 2026-07-26:
+     ССЫЛКА НА СУД. Хелпер courtRef(x) (= x.num || kind+' от '+date) + courtBasisLabel —
+               один и тот же вызов при сидировании К-3, в condRefOptions и в submitCond.
+               Было: сид подставлял несуществующий «АД-118», модалка — «Судебный приказ
+               от 28.05.2026», и одно решение давало ДВЕ группы журнала (ключ = ref+kind).
+     ДАТА ПРОТОКОЛА. mkPrimaryRecords берёт basis.date из документа «Решение комиссии»
+               в credit.docs, а не из credit.date: у КОМ-311 было 12.05.2026 в журнале
+               против 08.05.2026 в «Досье». Нет протокола в досье → дата пустая.
+     Д-5 · КАК ГАСНЕТ ПЛАШКА. generateSchedule штампует версию графика полем
+               generatedAt (= день построения, в отличие от generatedFrom — «от какой
+               даты строим»). Плашка «график построен по прежним условиям» и её близнец
+               на «Расчётах» питаются теперь retroPendingFlags(credit): ретро-запись
+               показывается, только пока её createdAt новее generatedAt АКТИВНОЙ версии
+               графика её транша. Перегенерация графика гасит предупреждение; новая
+               ретро-запись зажигает снова; транш без графика (или версия без
+               generatedAt — сид/архив) считается непересчитанным, плашка горит.
+               Даты без времени, поэтому одинаковый день разрешается счётчиком записей
+               (generatedSeq — снимок _crSeq): запись, созданная после перегенерации
+               того же дня, зажигает предупреждение снова.
+               Автопересчёта по-прежнему нет — гасится факт перестроения, а не расчёт.
+     Г-9 В ТЕКСТАХ. Четыре места всё ещё говорили дореформенное «только доп.
+               соглашением»: комментарий у locked, title g9, пилюля у поля («доп. согл.»
+               → «основание») и плита блокировки. Приведены к формулировке гейта
+               («зарегистрированным основанием: доп. соглашение · решение суда ·
+               постановление правительства»); заодно те же две подписи в «Расчётах».
+     ПОДПИСИ КАРТОЧЕК. «Ставки» и плита Р-13 обещали «базовый комплект»/«шаблон» там,
+               где карточки показывают ДЕЙСТВУЮЩЕЕ значение на дату среза; шаблон
+               живёт в свёрнутой карточке «Шаблон наследования» — так и написано.
+     ДАТА СРЕЗА. CR.setCondAsOf: маска дд.мм.гггг пропускала 99.99.9999 и МОЛЧА
+               откатывала срез на сегодня (против §0.3). Круговая проверка
+               fd(pd(s))===s + тост при отказе; прежний срез сохраняется.
+     addAgreement. UI-точки входа нет и не будет: addConditionRecords регистрирует ДС
+               инлайном (одно действие = один документ). Функция остаётся
+               спецификационной точкой «зарегистрировать ДС, не меняя условий»; её
+               продукт демонстрирует засеянный К-4/ДС-РС-1005 в хвосте журнала
+               «Документы без изменения условий» (раньше хвост был пуст на всех 59).
+     СМОУК. +#38 (Д-5: плашка гаснет после перегенерации и зажигается снова),
+               +#39 (Г-22 на «Закрыт» — полная формулировка, не только инвариант),
+               #37 дополнен разбором формулировки.
+     ОСТАВЛЕНО КАК ЕСТЬ (решение ревью): колонки таблицы расхождений строятся по всем
+               траншам, а значения — по активным (TODO у кода; closed сейчас ни у кого) ·
+               String(value) в creditConditionsAt (предупреждение в комментарии) ·
+               submitCond не проставляет date для суда/ПП · пустой origin-фолбэк ·
+               ключ pushAudit · матрица берёт основание из hit[0].
    СЛИЯНИЕ КАРТОЧКИ ЗАВЕРШЕНО (шаги 1–10). Все 8 вкладок Договор·Условия·Транши·Расчёты·Платежи·
      Обеспечение·Проблемные·Досье слиты. loan-credit.html можно удалить/архивировать — решение пользователя.
    ДЕМОНАБОР РАСШИРЕН 2026-07-24: +43 кредита K-C1…K-C43 (builder mkScen/scen в seedDb) → всего 59.
@@ -285,7 +329,7 @@
       Макет: только ссылка на документ-владелец.
 
   SMOKE (node)
- SMOKE (node) 2026-07-25 · 41/41 PASS
+ SMOKE (node) 2026-07-25 · 43/43 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -327,6 +371,8 @@
    #35 ✓
    #36 ✓
    #37 ✓
+   #39 ✓
+   #38 ✓
 -->
 <style>
 
@@ -993,6 +1039,16 @@ const BASIS_KINDS = {
   court:      { label:'Решение суда',                icon:'⚖',  owned:false, retro:true  },
   govAct:     { label:'Постановление правительства', icon:'ПП', owned:false, retro:true  }
 };
+/* courtRef / courtBasisLabel — ЕДИНСТВЕННЫЙ способ сослаться на решение из mirror.court.
+   У зеркала суда нет собственного номера (date/kind/org/res/ok/file — Р-16), поэтому
+   ссылка собирается из того, что там реально лежит. Тот же вызов обязан использоваться
+   и при сидировании, и в модалке (condRefOptions/submitCond): разные выражения дали бы
+   для ОДНОГО решения две несводимые группы журнала (ключ группы = basis.ref + kind). */
+function courtRef(x){
+  if (!x) return '';
+  return x.num || ((x.kind || 'Решение суда') + ' от ' + (x.date || '—'));
+}
+function courtBasisLabel(ref){ return 'Решение суда · ' + ref; }
 
 let _crSeq = 0;
 /* CONDITION RECORD (Р-21) — запись «параметр × значение × дата вступления × основание».
@@ -1028,12 +1084,17 @@ function conditionsAt(tranche, date){
    уже прошедший регистрацию (addTranche, Р-21/Д-3: baseConditions — шаблон наследования). */
 function mkPrimaryRecords(credit){
   const src = credit.baseConditions || condDefaults();
+  /* basis.date — дата САМОГО документа-основания (протокола комиссии) из credit.docs,
+     а не дата договора: подстановка credit.date давала одному документу две разные
+     даты на двух вкладках карточки («Досье» vs журнал условий). Нет протокола в
+     досье — оставляем пусто, журнал покажет «—», но не соврёт. */
+  const kom = (credit.docs || []).find(x => x.kind === 'Решение комиссии');
   return PARAM_KEYS.map(k => mkConditionRecord({
     param:k, value:src[k], effectiveFrom:credit.date,
     basis:{ kind:'application',
             ref:credit.origin.commissionId || credit.origin.applicationId || '',
             label:'Заявка ' + (credit.origin.applicationId || '—') + ' · комиссия ' +
-                  (credit.origin.commissionId || '—'), date:credit.date },
+                  (credit.origin.commissionId || '—'), date:(kom && kom.date) || '' },
     note:'Первичный комплект условий из заявки', createdAt:credit.date
   }));
 }
@@ -1043,6 +1104,9 @@ function seedPrimaryRecords(credit){
 /* creditConditionsAt — Д-7: на уровне кредита условия суть агрегат по активным
    траншам. Согласны → {value}; разошлись → {divergent:true, values:[...]}.
    Тот же приём, что Р-13 для срока: кредит ничем не владеет, только сводит. */
+/* ВНИМАНИЕ: согласие траншей сверяется по String(value) — для чисел и enum'ов демо
+   этого достаточно, но 7 и '7' здесь равны. При типизированных значениях сверку
+   придётся вести по типу, а не по строковому представлению. */
 function creditConditionsAt(credit, date){
   const ts = credit.tranches.filter(activeTranche);
   const out = {};
@@ -1104,6 +1168,26 @@ function retroFlags(credit){
                  effectiveFrom:r.effectiveFrom, basisLabel:r.basis.label || r.basis.ref });
   }
   return out;
+}
+/* retroPendingFlags — Д-5, ПОГАШЕНИЕ предупреждения: из retroFlags остаются только
+   записи, которых активный график транша ещё не видел, то есть createdAt записи
+   позже generatedAt активной версии. Перегенерация графика (generateSchedule
+   штампует generatedAt = TODAY) гасит плашку; новая ретро-запись зажигает её снова.
+   Версия без generatedAt (сид/архив) считается построенной ДО записи — плашка горит.
+   Транш без графика нечем перегенерировать — предупреждение остаётся.
+   Даты в макете без времени, поэтому В ОДИН ДЕНЬ порядок разрешается счётчиком записей
+   (_crSeq в id 'CR-n', снимок generatedSeq на версии графика): запись, созданная после
+   перегенерации того же дня, снова зажигает предупреждение. */
+function crSeqOf(r){ const n = +String((r && r.id) || '').split('-')[1]; return isFinite(n) ? n : 0; }
+function retroPendingFlags(credit){
+  return retroFlags(credit).filter(f => {
+    const t = credit.tranches.find(x => x.no === f.trancheNo);
+    const act = ((t && t.schedules) || []).find(s => s.active);
+    if (!act || !act.generatedAt) return true;
+    const d = pd(f.record.createdAt) - pd(act.generatedAt);
+    if (d) return d > 0;
+    return crSeqOf(f.record) > (act.generatedSeq || 0);
+  });
 }
 function emptyMirror(over){                          // все зеркала (Р-5…Р-10, Р-16)
   return deepMerge({
@@ -1276,7 +1360,13 @@ function seedDb(){
     baseConditions: condDefaults({ rate:9, term:36, floating:true, floatType:'учётная ставка НБКР', margin:3 }),
     // ДС, рождённое реструктуризацией (не из карточки кредита) — source='реструктуризация' (Р-4/Р-16);
     // editConditions всё равно заблокирован Г-9 (lifecycle≠«Проект»), правки условий кредита нет ни при каком source.
-    agreements:[{ num:'ДС-РС-1004', date:'01.05.2026', source:'реструктуризация', scan:'ds-rs-1004.pdf' }],
+    // ДС-РС-1005 — демо хвоста журнала «Документы без изменения условий»: соглашение
+    // зарегистрировано (Г-10), но ни одна запись условий на него не ссылается (Р-21):
+    // им оформлены реквизиты обслуживания по реструктуризации, значения условий придут
+    // отдельным основанием после решения Минфина. Такой ДС не может появиться из UI —
+    // addConditionRecords всегда пишет записи, — поэтому он сидируется.
+    agreements:[{ num:'ДС-РС-1004', date:'01.05.2026', source:'реструктуризация', scan:'ds-rs-1004.pdf' },
+                { num:'ДС-РС-1005', date:'20.06.2026', source:'реструктуризация', scan:'ds-rs-1005.pdf' }],
     tranches:[
       mkTranche({ id:'K-4-T1', no:1, subject:{ inn:'04512199600901', name:'ОсОО «Иссык-Куль Ресорт»' },
         amount:600000, plannedDate:'10.11.2025',
@@ -1672,11 +1762,10 @@ function seedDb(){
   const k3 = credits.find(c => c.id === 'K-3');
   if (k3){
     const court = (k3.mirror.court || [])[0] || {};
+    const courtR = courtRef(court);                 // тот же вызов, что в condRefOptions/submitCond
     for (const t of k3.tranches) t.conditionRecords.push(mkConditionRecord({
       param:'penaltyMain', value:0, effectiveFrom:'01.05.2026',
-      basis:{ kind:'court', ref:court.num || 'АД-118',
-              label:'Решение суда № ' + (court.num || 'АД-118') + ' от ' + (court.date || '20.04.2026'),
-              date:court.date || '20.04.2026' },
+      basis:{ kind:'court', ref:courtR, label:courtBasisLabel(courtR), date:court.date || '' },
       note:'Пеня по основному долгу списана судом с 01.05.2026; график требует перегенерации',
       createdAt:'12.07.2026'
     }));
@@ -2166,7 +2255,11 @@ function generateSchedule(credit, trancheNo, params){
   const prevActive = t.schedules.find(s => s.active);
   if (prevActive) prevActive.active = false;                             // архив, не удаление (Р-4)
   const ver = t.schedules.reduce((m,s) => Math.max(m, s.ver || 0), 0) + 1;
-  const version = { ver, active:true, generatedFrom: params.from, rows: built.rows };
+  /* generatedAt — КОГДА версия построена (в отличие от generatedFrom — «от какой даты
+     строим»). Нужен Д-5: плашка «график построен по прежним условиям» гаснет, когда
+     активная версия свежее ретро-записи (см. retroPendingFlags). */
+  const version = { ver, active:true, generatedFrom: params.from, generatedAt: TODAY,
+                    generatedSeq: _crSeq, rows: built.rows };
   t.schedules.push(version);
   pushAudit(credit, `Сформирован график погашения v${ver} по траншу №${trancheNo} от ${params.from}`,
     prevActive || null, version);
@@ -2295,7 +2388,12 @@ function paymentEditable(credit, p){ return (p && p.match) !== 'Подтверж
 
 /* addAgreement(credit, {num,date,source,scan}) — Г-10: регистрирует ДОКУМЕНТ-ДС.
    Значения условий документом больше не переносятся: их несут записи (Р-21),
-   которые пишет addConditionRecords. Историю версий заменяет журнал basisGroups. */
+   которые пишет addConditionRecords. Историю версий заменяет журнал basisGroups.
+   UI-точки входа у функции НЕТ и она сознательно не вызывается из addConditionRecords
+   (тот регистрирует ДС инлайном вместе с записями — одно действие = один документ).
+   Остаётся спецификационной точкой входа «зарегистрировать ДС, не меняя условий»
+   (её продукт — строка хвоста журнала «Документы без изменения условий», в демо
+   сидируется К-4/ДС-РС-1005) и покрыта смоуком #13. */
 function addAgreement(credit, ctx){
   const g = gate(credit, 'addAgreement', ctx);                          // Г-10
   if (!g.ok) return g;
@@ -2377,7 +2475,8 @@ window.CR = {
   db: null,
   derive, buildSchedule, gate, canRole,
   conditionsAt, mkConditionRecord, mkPrimaryRecords, PARAMS, PARAM_KEYS, paramLabel, BASIS_KINDS,
-  creditConditionsAt, divergenceRows, basisGroups, retroFlags, activeTranche,
+  creditConditionsAt, divergenceRows, basisGroups, retroFlags, retroPendingFlags, activeTranche,
+  courtRef, courtBasisLabel,
   generateSchedule, holdAccrual,
   saveContractAmount, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, addConditionRecords, closeCredit, linkPledge,
@@ -3087,11 +3186,12 @@ if (typeof document !== 'undefined') {
   /* ---- ВКЛАДКА 2: Условия ---- */
   function tabUsloviya(c,d){
     const b=c.baseConditions, dt=c.debtTransfer;
-    const locked = !gate(c,'editConditions',{}).ok;                 // Г-9: не «Проект» → правки только доп. соглашением
-    const g9='Изменение условий — только доп. соглашением (Г-9)';
+    const locked = !gate(c,'editConditions',{}).ok;                 // Г-9: не «Проект» → только зарегистрированным основанием
+    const g9='Изменение условий — только зарегистрированным основанием: доп. соглашение · решение суда · постановление правительства (Г-9)';
     /* Шаг 14: пилюля у поля говорила «зеркало» — неверно, условия owned кредитом,
-       а закрыты гейтом Г-9. Своя пилюля «доп. соглашение» с тем же title. */
-    const lockG9='<span class="lock"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>доп. согл.</span>';
+       а закрыты гейтом Г-9. Шаг 16: текст пилюли «доп. согл.» сузил Г-9 до одного из
+       трёх оснований — теперь «основание» с тем же title-раскрытием. */
+    const lockG9='<span class="lock"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>основание</span>';
     /* Шаг 14: сплошная лента из 14 полей заменена карточками .pcards, как в «Договоре»
        (шаг 13). Поля сгруппированы по смыслу: стоимость денег · погашение · санкции ·
        режим начисления. «Плавающая» схлопнута в «Ставку» (одно значение вместо да/нет
@@ -3133,14 +3233,15 @@ if (typeof document !== 'undefined') {
     const cf=(param)=>`<div class="field"><span class="flabel">${esc(paramLabel(param))}${locked?' '+lockG9:''}</span>
       <div class="lookup cond-lookup"${locked?` title="${jsAttr(g9)}"`:''}>${condCell(param)}</div></div>`;
     return `
-      ${locked?`<div class="info-plate" style="margin-bottom:14px">${svgInfo()}<div>Условия зафиксированы: ЖЦ «${esc(c.lifecycle)}». Прямое редактирование недоступно (Г-9) — только доп. соглашением.</div></div>`:''}
-      ${(()=>{ const rf=retroFlags(c); if(!rf.length) return '';
+      ${locked?`<div class="info-plate" style="margin-bottom:14px">${svgInfo()}<div>Условия зафиксированы: ЖЦ «${esc(c.lifecycle)}». Прямое редактирование недоступно (Г-9) — только зарегистрированным основанием: доп. соглашение · решение суда · постановление правительства.</div></div>`:''}
+      ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: гаснет после перегенерации графика
         const first=rf[0];
         return `<div class="warn-inline" style="margin-bottom:14px">${svgInfo()}<div>
           Условия изменены задним числом: ${esc(paramLabel(first.param))} действует с
           <b>${esc(first.effectiveFrom)}</b> (${esc(first.basisLabel)})${rf.length>1?` и ещё ${rf.length-1} записи`:''}.
           Автоматического пересчёта нет (Д-5): график и начисления построены по прежним условиям —
-          требуется перегенерация.
+          требуется перегенерация. Предупреждение снимется, когда активная версия графика
+          будет построена заново (позже этой записи).
           <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm"
             onclick="CR.goToCalc()">Перейти к перегенерации графика</button></div>
         </div></div>`; })()}
@@ -3167,7 +3268,8 @@ if (typeof document !== 'undefined') {
       <div class="pcards">
         <div class="pcard">
           <div class="section-h">Ставки</div>
-          <p class="section-note">Базовый комплект кредита (Р-2): транш наследует эти значения и может от них отклониться — дифф ниже.
+          <p class="section-note">Значения, ДЕЙСТВУЮЩИЕ на дату среза (${esc(condAsOf)}): по кредиту — агрегат по активным траншам (Д-7), по траншу — его записи (Р-21). Под каждым — документ-основание и дата вступления.
+            Шаблон, который наследует новый транш, — в свёрнутой карточке «Шаблон наследования» ниже.
             Потолок неустойки не задаётся: правила-cap в расчётном слое нет, ввод такого правила — отдельное решение (шаг 4).</p>
           <div class="f2">
             ${cf('rate')}
@@ -3189,7 +3291,7 @@ if (typeof document !== 'undefined') {
             ${cf('graceInterest')}
             ${cf('graceAccrual')}
           </div>
-          <div class="info-plate" style="margin-top:12px">${svgInfo()}<div>Срок на кредите — производный агрегат (Р-13): максимум срока по действующим траншам = <b>${esc(d.termAgg)} мес.</b> Поле выше — только шаблон для наследования; единственный источник срока — условия транша.</div></div>
+          <div class="info-plate" style="margin-top:12px">${svgInfo()}<div>Срок на кредите — производный агрегат (Р-13): максимум срока по действующим траншам = <b>${esc(d.termAgg)} мес.</b> Поле «Срок» выше — действующее значение на дату среза, сведённое по траншам; единственный источник срока — записи условий транша, а не кредит. Шаблон наследования — в отдельной карточке ниже.</div></div>
         </div>
 
         <div class="pcard">
@@ -3204,6 +3306,11 @@ if (typeof document !== 'undefined') {
           <p class="section-note">Условия принадлежат траншу (Д-3). Здесь только параметры,
             по которым транши разошлись на дату среза; согласованные значения — в карточках выше.</p>
           ${(()=>{ const rows=divergenceRows(c,condAsOf);
+            // TODO при появлении закрытых траншей: колонки строятся по ВСЕМ траншам
+            // (c.tranches), а значения приходят из divergenceRows/creditConditionsAt,
+            // которые считают только активные (activeTranche) — у закрытого транша
+            // колонка будет, а значения в ней не будет. Сейчас ни один транш демо
+            // не несёт closed, поэтому расхождение не проявляется.
             const cols=[{h:'Параметр'}].concat(c.tranches.map(t=>({h:'Транш №'+t.no})))
                                        .concat([{h:'Основание расхождения'}]);
             const trs=rows.map(r=>{
@@ -3381,7 +3488,7 @@ if (typeof document !== 'undefined') {
     const posRows=(sel?trancheScheduleRows(sel):[]).map(r=>{const s=scheduleRowStatus(sel,r);return `<tr><td>№${r.no}</td><td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td><td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
     return `
       ${svod}
-      ${(()=>{ const rf=retroFlags(c); if(!rf.length) return '';
+      ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: тот же признак, что на «Условиях»
         return `<div class="warn-inline" style="margin-top:14px">${svgInfo()}<div>
           Условия изменены задним числом (с ${esc(rf[0].effectiveFrom)}, ${esc(rf[0].basisLabel)}).
           Расчёт ниже построен по прежним условиям — сформируйте график заново (Д-5).</div></div>`; })()}
@@ -3405,7 +3512,7 @@ if (typeof document !== 'undefined') {
       ${cgrid([{h:'№'},{h:'Дата'},{h:'Осн. сумма',r:1},{h:'Проценты',r:1},{h:'Платёж',r:1},{h:'Статус'}], posRows, {empty:'Позиций нет — сформируйте график'})}
       <div class="section-h" style="margin-top:22px">Детальный расчёт ${calcConsolidated?'(консолидировано)':'(транш №'+(sel?sel.no:'—')+')'}</div>
       <p class="section-note">Параметры движка (шаг 14: перенесены из «Условий» — читаются вместе с цифрами, которые объясняют).
-        Это условия договора: правка — только доп. соглашением (Г-9).</p>
+        Это условия договора: правка — только зарегистрированным основанием (Г-9).</p>
       <div class="f2" style="max-width:760px;margin-bottom:12px">
         ${fld('Метод дней', esc(bc.dayMethod))}
         ${fld('Очередь погашения', esc(bc.queue))}
@@ -3644,8 +3751,12 @@ if (typeof document !== 'undefined') {
   CR.toggleCondMatrix=function(){ condMatrixOpen=!condMatrixOpen; rerenderDetail(); };
   CR.toggleCondTemplate=function(){ condTemplateOpen=!condTemplateOpen; rerenderDetail(); };
   CR.goToCalc=function(){ detailTab='Расчёты'; rerenderDetail(); };
+  /* §0.3 «не молча»: маска дд.мм.гггг пропускала 99.99.9999 и молча подменяла дату
+     срезом «сегодня». Круговая проверка fd(pd(s))===s ловит и маску, и несуществующий
+     день (31.02.2026 → 03.03.2026 ≠ ввод), отказ объявляется тостом. */
   CR.setCondAsOf=function(v){ const s=String(v||'').trim();
-    condAsOf = /^\d{2}\.\d{2}\.\d{4}$/.test(s)?s:TODAY; rerenderDetail(); };
+    if (s && fd(pd(s))!==s){ toast('Дата «'+s+'» не существует — срез оставлен на '+condAsOf,'warn'); rerenderDetail(); return; }
+    condAsOf = s || TODAY; rerenderDetail(); };
   CR.scrollToDivergence=function(){ const el=document.getElementById('condDivergence');
     if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); };
   CR.setCalcMode=function(v){ calcConsolidated=!!v; rerenderDetail(); };
@@ -3725,7 +3836,7 @@ if (typeof document !== 'undefined') {
         <div class="field"><span class="flabel">Льгота по ОД, мес.</span><div class="control"><input value="${esc(cnd.graceMain||0)}" readonly></div></div>
         <div class="field"><span class="flabel">Льгота по %, мес.</span><div class="control"><input value="${esc(cnd.graceInterest||0)}" readonly></div></div>
       </div>
-      <p class="section-note" style="margin-top:8px">Периодичность/метод/льготы наследуются из условий транша (правка — только доп. соглашением, Г-9). Предыдущая активная версия архивируется, не удаляется (Р-4).</p>
+      <p class="section-note" style="margin-top:8px">Периодичность/метод/льготы наследуются из условий транша (правка — только зарегистрированным основанием, Г-9). Предыдущая активная версия архивируется, не удаляется (Р-4).</p>
       <div class="gtoolbar"><button class="btn btn-secondary btn-sm" onclick="CR.openSchedModal(document.getElementById('schedFrom').value)">Обновить предпросмотр</button></div>
       ${preview}`;
     CR.openModal('Сформировать график (Г-8)', body,
@@ -3789,12 +3900,11 @@ if (typeof document !== 'undefined') {
   };
   /* «Документ-основание» (Д-4): список зависит от типа основания — суд и ПП
      не смешиваются в одном select (иначе решение суда может сослаться на
-     постановление правительства и наоборот). Значение — то, что реально есть
-     в mirror.court (нет num, только date/kind/org/res/ok/file, credit.html:1213):
-     x.num || x.kind+' от '+x.date, тот же откат, что при сидировании К-3. */
+     постановление правительства и наоборот). Значение — courtRef(x): один и тот же
+     хелпер и здесь, и при сидировании К-3, поэтому одно решение = одна группа журнала. */
   function condRefOptions(c, kind){
     if (kind==='court') return (c.mirror.court||[]).map(x=>{
-      const v=x.num||(x.kind+' от '+x.date); return { value:v, label:'⚖ '+v }; });
+      const v=courtRef(x); return { value:v, label:'⚖ '+v }; });
     if (kind==='govAct') return c.origin.govDecisionId
       ? [{ value:c.origin.govDecisionId, label:'ПП '+c.origin.govDecisionId }] : [];
     return [];
@@ -3852,7 +3962,7 @@ if (typeof document !== 'undefined') {
       const sel=document.getElementById('cbRef');
       const ref=sel&&sel.value?sel.value:'';
       basis={ kind, ref, date:'',
-              label:(kind==='court'?'Решение суда № ':'Постановление правительства ')+ref };
+              label:(kind==='court'?courtBasisLabel(ref):'Постановление правительства '+ref) };
     }
     const records=keys.map(k=>{ const p=CR.PARAMS.find(x=>x.key===k);
       const el=document.getElementById('cbV_'+k);
