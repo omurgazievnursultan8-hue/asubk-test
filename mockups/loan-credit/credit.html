@@ -237,7 +237,7 @@
       Макет: простой календарь (сб/вс), без праздников.
 
   SMOKE (node)
- SMOKE (node) 2026-07-25 · 37/37 PASS
+ SMOKE (node) 2026-07-25 · 38/38 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -275,6 +275,8 @@
    #31 ✓
    #32 ✓
    #33 ✓
+   #34 ✓
+
 
 
 
@@ -938,6 +940,7 @@ const toKgs = (v, cur) => (v || 0) * (FX[cur] || 1);
 const pd = s => { if (s instanceof Date) return s; const [d,mo,y] = String(s).split('.').map(Number); return new Date(y, mo-1, d); };  // идемпотентна: Date на входе возвращается как есть
 const fd = d => String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
 const addM = (d,k) => new Date(d.getFullYear(), d.getMonth()+k, Math.min(d.getDate(),28));
+const addD = (dt, n) => { const x = new Date(dt.getTime()); x.setDate(x.getDate() + n); return x; };
 const dd = (a,b) => Math.round((b-a)/86400000);
 function toast(msg, kind){
   if (typeof document === 'undefined') return;    // smoke-песочница без DOM
@@ -1062,6 +1065,35 @@ function divergenceRows(credit, date){
   const agg = creditConditionsAt(credit, date);
   return PARAM_KEYS.filter(k => agg[k] && agg[k].divergent)
                    .map(k => ({ param:k, cells:agg[k].values }));
+}
+/* basisGroups — журнал изменений условий (Д-2/Д-6): записи всех траншей,
+   сгруппированные по документу-основанию. «Что изменил документ» — производное:
+   from = значение параметра на день ДО вступления, to = значение записи.
+   Сортировка по дате вступления, новые сверху. */
+function basisGroups(credit){
+  const map = new Map();
+  for (const t of credit.tranches){
+    for (const r of (t.conditionRecords || [])){
+      const key = (r.basis.ref || r.basis.label || r.basis.kind) + '@' + r.basis.kind;
+      if (!map.has(key)) map.set(key, {
+        ref:r.basis.ref || '—', kind:r.basis.kind,
+        label:r.basis.label || BASIS_KINDS[r.basis.kind].label,
+        docDate:r.basis.date || '', effectiveFrom:r.effectiveFrom, retro:false,
+        trancheNos:[], items:[]
+      });
+      const g = map.get(key);
+      const dayBefore = fd(addD(pd(r.effectiveFrom), -1));
+      g.items.push({ param:r.param, from:conditionsAt(t, dayBefore)[r.param], to:r.value,
+                     effectiveFrom:r.effectiveFrom, trancheNo:t.no, note:r.note });
+      if (!g.trancheNos.includes(t.no)) g.trancheNos.push(t.no);
+      if (pd(r.effectiveFrom) < pd(g.effectiveFrom)) g.effectiveFrom = r.effectiveFrom;
+      if (r.effectiveFrom && r.createdAt && pd(r.effectiveFrom) < pd(r.createdAt)) g.retro = true;
+    }
+  }
+  const out = [...map.values()];
+  out.forEach(g => { g.trancheNos.sort((a,b) => a-b);
+    g.items.sort((a,b) => PARAM_KEYS.indexOf(a.param)-PARAM_KEYS.indexOf(b.param) || a.trancheNo-b.trancheNo); });
+  return out.sort((a,b) => pd(b.effectiveFrom) - pd(a.effectiveFrom));
 }
 function emptyMirror(over){                          // все зеркала (Р-5…Р-10, Р-16)
   return deepMerge({
@@ -1234,8 +1266,7 @@ function seedDb(){
     baseConditions: condDefaults({ rate:9, term:36, floating:true, floatType:'учётная ставка НБКР', margin:3 }),
     // ДС, рождённое реструктуризацией (не из карточки кредита) — source='реструктуризация' (Р-4/Р-16);
     // editConditions всё равно заблокирован Г-9 (lifecycle≠«Проект»), правки условий кредита нет ни при каком source.
-    agreements:[{ num:'ДС-РС-1004', date:'12.06.2026', source:'реструктуризация',
-      before:{ rate:9, term:36 }, after:{ rate:7, term:48 }, active:true }],
+    agreements:[{ num:'ДС-РС-1004', date:'12.06.2026', source:'реструктуризация', scan:'ds-rs-1004.pdf' }],
     tranches:[
       mkTranche({ id:'K-4-T1', no:1, subject:{ inn:'04512199600901', name:'ОсОО «Иссык-Куль Ресорт»' },
         amount:600000, plannedDate:'10.11.2025',
@@ -1584,6 +1615,24 @@ function seedDb(){
   scen.forEach((s, i) => credits.push(mkScen(s, i)));
 
   credits.forEach(seedPrimaryRecords);          // Р-21: первичные записи по всем кредитам
+
+  /* Демо: ДС-РС-1004 кредита К-4 — ставка 9→7 и срок 36→48 с 01.05.2026.
+     Раньше лежало в agreements[].before/after; теперь — записи (Р-21). */
+  const k4 = credits.find(c => c.id === 'K-4');
+  if (k4) for (const t of k4.tranches){
+    t.conditionRecords.push(mkConditionRecord({
+      param:'rate', value:7, effectiveFrom:'01.05.2026',
+      basis:{ kind:'agreement', ref:'ДС-РС-1004',
+              label:'Доп. соглашение ДС-РС-1004 (реструктуризация)', date:'12.06.2026' },
+      note:'Реструктуризация: ставка снижена', createdAt:'12.06.2026'
+    }));
+    t.conditionRecords.push(mkConditionRecord({
+      param:'term', value:48, effectiveFrom:'01.05.2026',
+      basis:{ kind:'agreement', ref:'ДС-РС-1004',
+              label:'Доп. соглашение ДС-РС-1004 (реструктуризация)', date:'12.06.2026' },
+      note:'Реструктуризация: срок продлён', createdAt:'12.06.2026'
+    }));
+  }
 
   /* Демо Д-7: расхождение условий по траншам. Берём первый двухтраншевый
      сценарный кредит (K-C*, tr2:true) и меняем метод погашения только
@@ -2170,19 +2219,16 @@ function addPayment(credit, ctx){
    недоступен для правки из кредита ни при какой роли (мираж ЦК всегда read-only). */
 function paymentEditable(credit, p){ return (p && p.match) !== 'Подтверждён ЦК'; }
 
-/* addAgreement(credit, {num,date,source,before,after}) — Г-10: версии условий только
-   доп. соглашением (Р-4). Предыдущая активная версия ДЕМОТИРУЕТСЯ (active:false) и
-   остаётся в массиве архивом — не перезаписывается/не удаляется. */
+/* addAgreement(credit, {num,date,source,scan}) — Г-10: регистрирует ДОКУМЕНТ-ДС.
+   Значения условий документом больше не переносятся: их несут записи (Р-21),
+   которые пишет addConditionRecords. Историю версий заменяет журнал basisGroups. */
 function addAgreement(credit, ctx){
-  const g = gate(credit, 'addAgreement', ctx);                           // Г-10
+  const g = gate(credit, 'addAgreement', ctx);                          // Г-10
   if (!g.ok) return g;
-  const prevActive = credit.agreements.find(a => a.active);
-  if (prevActive) prevActive.active = false;                             // архив, не удаление (Р-4)
-  const version = { num: ctx.num, date: ctx.date, source: ctx.source || 'кредит',
-    before: ctx.before || {}, after: ctx.after || {}, active: true };
-  credit.agreements.push(version);
-  pushAudit(credit, 'addAgreement', prevActive || null, version);
-  return g;
+  const doc = { num:ctx.num, date:ctx.date, source:ctx.source || 'кредит', scan:ctx.scan || '' };
+  credit.agreements.push(doc);
+  pushAudit(credit, 'addAgreement', null, doc);
+  return { ok:true, value:doc };
 }
 
 /* closeCredit(credit, {reason,doc}) — терминалы «Погашен»(Г-14=repay)/«Списан»(Г-12=writeOff),
@@ -2230,7 +2276,7 @@ window.CR = {
   db: null,
   derive, buildSchedule, gate, canRole,
   conditionsAt, mkConditionRecord, mkPrimaryRecords, PARAMS, PARAM_KEYS, paramLabel, BASIS_KINDS,
-  creditConditionsAt, divergenceRows, activeTranche,
+  creditConditionsAt, divergenceRows, basisGroups, activeTranche,
   generateSchedule, holdAccrual,
   saveContractAmount, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, closeCredit, linkPledge,
@@ -2942,10 +2988,15 @@ if (typeof document !== 'undefined') {
     const bf=(label,val)=>`<div class="field"><span class="flabel">${esc(label)}${locked?' '+lockG9:''}</span><div class="lookup"${locked?` title="${jsAttr(g9)}"`:''}><span class="val">${val}</span></div></div>`;
     const dev=(t,key)=>{ const bv=b[key], tv=conditionsAt(t,TODAY)[key]; return String(bv)===String(tv)?esc(tv):`<span class="diff"><span class="diff-old">${esc(bv)}</span> → <span class="diff-new">${esc(tv)}</span></span>`; };
     const trRows=c.tranches.map(t=>`<tr><td>№${t.no}</td><td>${dev(t,'rate')}</td><td>${dev(t,'term')}</td><td>${dev(t,'method')}</td><td>${dev(t,'freq')}</td><td>${dev(t,'reserveRate')}</td></tr>`);
+    /* Журнал ДС читает диф из basisGroups (Д-2): agreements[] — только реестр
+       документов, значения условий несут записи транша. Индекс ref→группа —
+       группировка та же, что строит журнал по основаниям (Task 8 его вынесет в UI). */
+    const groupByRef = new Map(basisGroups(c).map(g => [g.ref, g]));
     const agRows=(c.agreements||[]).map(a=>{
-      const keys=[...new Set([...Object.keys(a.before||{}),...Object.keys(a.after||{})])];
-      const diff=keys.map(k=>`${esc(k)}: <span class="diff"><span class="diff-old">${esc((a.before||{})[k])}</span> → <span class="diff-new">${esc((a.after||{})[k])}</span></span>`).join(' · ');
-      return `<tr class="${a.active?'diff-changed':''}"><td>${esc(a.num)}</td><td>${esc(a.date)}</td><td>${esc(a.source)}</td><td>${diff}</td><td>${a.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td></tr>`;
+      const g = groupByRef.get(a.num);
+      const diff = g ? g.items.map(i=>`${esc(paramLabel(i.param))}: <span class="diff"><span class="diff-old">${esc(i.from)}</span> → <span class="diff-new">${esc(i.to)}</span></span>`).join(' · ') : '';
+      const status = g ? `с ${esc(g.effectiveFrom)}` : '—';
+      return `<tr><td>${esc(a.num)}</td><td>${esc(a.date)}</td><td>${esc(a.source)}</td><td>${diff}</td><td>${status}</td></tr>`;
     });
     /* Шаг 14: сплошная лента из 14 полей заменена карточками .pcards, как в «Договоре»
        (шаг 13). Поля сгруппированы по смыслу: стоимость денег · погашение · санкции ·

@@ -160,12 +160,15 @@ const pd = CR.pd;
   const good= CR.saveWaiver(c,{reason:'комиссия по залогу, протокол №9'}).ok;
   ok('8b', bad===false && good===true && CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok===true);
 })();
-/* 13. Г-10: ДС без номера/даты → версия не активируется; с реквизитами → активируется, diff. */
+/* 13. Г-10: ДС без номера/даты не проходит гейт; с реквизитами регистрируется
+       документом в credit.agreements — без before/after/active (значения условий
+       несут только записи, addAgreement — только реестр документов, Task 4). */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1');
-  const bad = CR.addAgreement(c,{num:'',date:'',after:{rate:8}}).ok;
-  const r   = CR.addAgreement(c,{num:'ДС-1',date:'01.07.2026',before:{rate:10},after:{rate:8}});
-  const act = c.agreements.find(a=>a.active && a.num==='ДС-1');
-  ok(13, bad===false && r.ok===true && !!act && act.before.rate===10 && act.after.rate===8);
+  const bad = CR.addAgreement(c,{num:'',date:''}).ok;
+  const r   = CR.addAgreement(c,{num:'ДС-1',date:'01.07.2026',source:'кредит',scan:'ds-1.pdf'});
+  const doc = c.agreements.find(a=>a.num==='ДС-1');
+  ok(13, bad===false && r.ok===true && !!doc && doc.date==='01.07.2026' && doc.source==='кредит'
+      && doc.before===undefined && doc.after===undefined && doc.active===undefined);
 })();
 /* 14. ДС из реструктуризации помечено источником и не редактируется из кредита. */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-4');
@@ -335,6 +338,23 @@ const pd = CR.pd;
   ok(33, single && divergent.length === 1 && rows.length >= 1 && rows.every(r => r.cells.length >= 2)
       && paramsMatch && cellsOk,
      `divergent=${divergent.map(c=>c.id)} rows=${rows.map(r=>r.param)} cells0=${JSON.stringify(rows[0] && rows[0].cells)}`);
+})();
+
+/* 34. Д-2: журнал строится группировкой записей по основанию; ДС-РС-1004
+       кредита К-4 стал записями (ставка 9→7, срок 36→48, с 01.05.2026),
+       а поля before/after у соглашений больше не хранятся. */
+(() => { const db = CR.seedDb(); const c = db.credits.find(x => x.id === 'K-4');
+  const groups = CR.basisGroups(c);
+  const ds = groups.find(g => g.ref === 'ДС-РС-1004');
+  const prim = groups.find(g => g.kind === 'application');
+  const rate = ds && ds.items.find(i => i.param === 'rate');
+  const term = ds && ds.items.find(i => i.param === 'term');
+  const noBeforeAfter = (c.agreements || []).every(a => a.before === undefined && a.after === undefined);
+  const desc = groups.length < 2 || CR.pd(groups[0].effectiveFrom) >= CR.pd(groups[1].effectiveFrom);
+  ok(34, !!ds && !!prim && rate && String(rate.from)==='9' && String(rate.to)==='7'
+      && term && String(term.from)==='36' && String(term.to)==='48'
+      && ds.effectiveFrom==='01.05.2026' && noBeforeAfter && desc,
+     `groups=${groups.map(g=>g.ref).join('|')} rate=${rate&&rate.from+'->'+rate.to}`);
 })();
 
 const pass = results.filter(r => r.pass).length;
