@@ -1613,18 +1613,22 @@ function seedDb(){
     multi.agreements.push({ num:'ДС-1007', date:'20.05.2026', source:'кредит', scan:'ds-1007.pdf' });
   }
 
-  /* Демо Д-4/Д-5: решение суда списало пеню по ОД с начала года — запись
-     ретроспективная (вступает 01.01.2026, создана 12.07.2026), ссылается
-     на существующее решение из mirror.court (кредит его не заводит). */
+  /* Демо Д-4/Д-5: решение суда списало пеню по ОД с 01.05.2026 — запись
+     ретроспективная (вступает 01.05.2026, создана 12.07.2026), ссылается
+     на существующее решение из mirror.court (кредит его не заводит).
+     effectiveFrom обязан быть не раньше даты договора (10.02.2026, Г-18) —
+     01.05.2026 держит запись легальной и при этом позже первичной записи
+     условий, так что решение суда фактически перекрывает её (иначе оно
+     навсегда бы пряталось за более поздней первичной записью). */
   const k3 = credits.find(c => c.id === 'K-3');
   if (k3){
     const court = (k3.mirror.court || [])[0] || {};
     for (const t of k3.tranches) t.conditionRecords.push(mkConditionRecord({
-      param:'penaltyMain', value:0, effectiveFrom:'01.01.2026',
+      param:'penaltyMain', value:0, effectiveFrom:'01.05.2026',
       basis:{ kind:'court', ref:court.num || 'АД-118',
               label:'Решение суда № ' + (court.num || 'АД-118') + ' от ' + (court.date || '20.04.2026'),
               date:court.date || '20.04.2026' },
-      note:'Пеня по основному долгу списана судом с начала года; график требует перегенерации',
+      note:'Пеня по основному долгу списана судом с 01.05.2026; график требует перегенерации',
       createdAt:'12.07.2026'
     }));
   }
@@ -2682,6 +2686,7 @@ if (typeof document !== 'undefined') {
     detailTab = 'Договор';
     detailTrancheNo = (c.tranches[0] && c.tranches[0].no) || 1;
     calcConsolidated = false;
+    condScope = 'credit'; condAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null;
     document.getElementById('view-list').style.display = 'none';
     const dv = document.getElementById('view-detail');
     dv.style.display = 'flex';
@@ -3067,8 +3072,11 @@ if (typeof document !== 'undefined') {
           title="Значения различаются по траншам — см. «Расхождения по траншам»">⚠ расх.</span></div>
           <span class="src">${agg.values.map(v=>'№'+v.trancheNo+': '+esc(v.value)).join(' · ')}</span>`;
       }
-      const t0=c.tranches.filter(activeTranche)[0]||c.tranches[0];
-      return `<div class="val">${esc(agg.value===undefined?'—':agg.value)}</div>${t0?srcLine(t0,param):''}`;
+      const actives=c.tranches.filter(activeTranche);
+      const t0=actives[0]||c.tranches[0];
+      const refs=[...new Set(actives.map(t=>{ const r=recFor(t,param); return r?(r.basis.ref||''):''; }).filter(Boolean))];
+      const basisLine = refs.length>1 ? '<span class="src">несколько оснований</span>' : (t0?srcLine(t0,param):'');
+      return `<div class="val">${esc(agg.value===undefined?'—':agg.value)}</div>${basisLine}`;
     };
     const cf=(param)=>`<div class="field"><span class="flabel">${esc(paramLabel(param))}${locked?' '+lockG9:''}</span>
       <div class="lookup cond-lookup"${locked?` title="${jsAttr(g9)}"`:''}>${condCell(param)}</div></div>`;
@@ -3172,6 +3180,16 @@ if (typeof document !== 'undefined') {
             }
             return cgrid([{h:'Документ'},{h:'Дата док.'},{h:'Вступает'},{h:'Изменено'},{h:'Транши'},{h:''}],
                          trs, {empty:'Изменений условий не было'});
+          })()}
+          ${(()=>{ const usedRefs=new Set();
+            c.tranches.forEach(t=>(t.conditionRecords||[]).forEach(r=>{ if(r.basis&&r.basis.ref) usedRefs.add(r.basis.ref); }));
+            const orphan=(c.agreements||[]).filter(a=>!usedRefs.has(a.num));
+            const trs=orphan.map(a=>`<tr><td>ДС ${esc(a.num)}</td><td>${esc(a.date)}</td><td>${esc(a.source||'—')}</td>
+              <td>${a.scan?`<a class="lnk" onclick="CR.toast('Просмотр вложения — вне объёма макета');return false">${esc(a.scan)}</a>`:'—'}</td></tr>`);
+            return `<div class="section-h" style="margin-top:16px;font-size:13px">Документы без изменения условий</div>
+              <p class="section-note">Зарегистрированы (Г-10), но ни одна запись условий на них не ссылается —
+                без записи условий документ не попадает в разбор выше (Р-21).</p>
+              ${cgrid([{h:'Документ'},{h:'Дата'},{h:'Источник'},{h:'Скан'}], trs, {empty:'Таких документов нет'})}`;
           })()}
         </div>
 
