@@ -675,9 +675,9 @@ test('Ref-4: read-only классификаторы указывают реал�
   const { win } = load();
   win.renderRefbook();
   const html = win.document.getElementById('refbookPanel').innerHTML;
-  has(html, 'реализует stopListCheck');
-  has(html, 'гейт saveRelease/releaseValid');
-  has(html, 'цепочка saveRelease');
+  has(html, 'применяется при приёме предмета');
+  has(html, 'проверяется при снятии запрета');
+  has(html, 'чек-лист согласования снятия запрета');
 });
 test('Ref-5: новые параметры справочника (COVER_GUARANTEE/_FX, WEAR_LIMIT, DOC_ROUTE_DAYS, каналы снятия, реестр органов) отрендерены с пометками', () => {
   const { win } = load();
@@ -698,7 +698,7 @@ test('Ref-6: SURVEY_MATRIX read-only (как PROHIBITED_KINDS), с реализ�
   const smInputs = [...win.document.querySelectorAll('[id^="rb-sm-"]')];
   eq(smInputs.length, 0, 'SURVEY_MATRIX не должна рендериться editable input-полями (rb-sm-im-*/rb-sm-mv-*)');
   const html = win.document.getElementById('refbookPanel').innerHTML;
-  has(html, 'реализует surveyInterval');
+  has(html, 'задаёт периодичность обследования');
 });
 
 // §19 (Head-1): шапка переписана под реализованные решения — блок соответствия
@@ -836,7 +836,7 @@ test('P14-12: реестр поручительств и слой на вкла�
   win.navClick('Поручительство');
   has(win.document.getElementById('listBody').innerHTML, 'ДП-001');
   win.openCard('contract', 'Д-001', 2);   // Д-001 обеспечивает К-56 (есть ДП-001)
-  has(win.document.getElementById('detailPanels').innerHTML, 'Слой поручительства');
+  has(win.document.getElementById('detailPanels').innerHTML, 'Поручительство (вне индекса)');
 });
 
 /* ============================================================
