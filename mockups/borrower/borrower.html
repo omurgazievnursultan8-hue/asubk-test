@@ -465,14 +465,30 @@
   .tl-item{position:relative;padding:0 0 18px 0;}
   .tl-item::before{content:"";position:absolute;left:-22px;top:4px;width:11px;height:11px;border-radius:50%;
     background:#fff;border:2px solid var(--action-primary);}
-  .tl-item.kur::before{border-color:var(--status-success);}
-  .tl-item.risk::before{border-color:var(--status-error);} .tl-item.conf::before{border-color:var(--status-warning);}
+  /* цвет точки = тяжесть события, а не источник: ok/warn/risk/info (по умолчанию — info, синий) */
+  .tl-item.ok::before{border-color:var(--status-success);}
+  .tl-item.risk::before{border-color:var(--status-error);} .tl-item.warn::before{border-color:var(--status-warning);}
   .tl-date{font-size:12px;color:var(--text-muted);font-weight:600;}
   .tl-title{font-weight:600;font-size:14px;margin-top:1px;}
+  .tl-title .lnk{font-weight:600;}
   .tl-body{font-size:13px;color:var(--text-muted);margin-top:2px;line-height:1.45;}
-  .tl-kind{font-size:11px;text-transform:uppercase;letter-spacing:.03em;border-radius:3px;padding:1px 6px;font-weight:600;margin-left:8px;}
-  .k-grp{background:var(--status-info-bg);color:var(--text-link);} .k-kur{background:var(--status-success-bg);color:var(--status-success);}
-  .k-risk{background:#fdeaea;color:var(--status-error);} .k-conf{background:#fdf1e0;color:var(--status-warning);}
+  /* бейдж вида — нейтральный: тяжесть уже несёт точка, группу — чип фильтра */
+  .tl-kind{font-size:11px;text-transform:uppercase;letter-spacing:.03em;border-radius:3px;padding:1px 6px;
+    font-weight:600;margin-left:8px;background:var(--surface-hover);color:var(--text-muted);white-space:nowrap;}
+  /* разделитель-год: точка на оси не рисуется, только подпись */
+  .tl-year{position:relative;font-size:12px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;
+    margin:2px 0 12px;padding:2px 8px;background:var(--surface-hover);border-radius:3px;display:inline-block;}
+  .tl-more{padding-left:26px;}
+  .btn-more{font:inherit;font-size:13px;font-weight:600;color:var(--text-link);background:#fff;cursor:pointer;
+    border:1px solid var(--border-default);border-radius:4px;padding:6px 14px;}
+  .btn-more:hover{background:var(--surface-hover);}
+  /* чипы-фильтры ленты */
+  .hchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;}
+  .hchip{font:inherit;font-size:12px;font-weight:600;color:var(--text-muted);background:#fff;cursor:pointer;
+    border:1px solid var(--border-default);border-radius:14px;padding:4px 11px;white-space:nowrap;}
+  .hchip:hover{background:var(--surface-hover);}
+  .hchip.on{background:var(--status-info-bg);color:var(--text-link);border-color:var(--text-link);}
+  .hchip-n{opacity:.65;margin-left:3px;}
 </style>
 </head>
 <body>
@@ -4257,36 +4273,229 @@ function checksTab(inn){
   return checksVerdictBar(cnt('stop'), cnt('warn'), cnt('ok') + cnt('info')) + internal + clsHtml + extHtml;
 }
 
-/* 10. История — слияние CATEGORY_LOG/GROUP_LOG/SUBJECT_EVENTS/конфликтов, отсортировано по дате.
-   Сборка вынесена в historyItems/timelineHtml: те же события показывает «Общая информация» (последние 5). */
+/* 10. История — полное досье событий заёмщика: не два лога, а всё, что модель знает с датой.
+   Источники: категория/группа/факторы комитета · субъект · кредиты (выдача, закрытие, послабления) ·
+   залог · взыскание (процессы, меры) · акты сверок · документы · внешние проверки и ЧС · кураторство
+   (назначения, передачи, конфликты). Те же события показывает «Общая информация» (последние 5).
+
+   it: {date, time?, dot (цвет точки: risk|warn|ok|info), cat (группа фильтра), kind (подпись бейджа),
+        title, body, tab? (куда ведёт заголовок)} */
+const HIST_CATS = [
+  { k:'risk',   label:'Риск' },
+  { k:'subj',   label:'Субъект' },
+  { k:'credit', label:'Кредиты' },
+  { k:'pledge', label:'Обеспечение' },
+  { k:'coll',   label:'Взыскание' },
+  { k:'acts',   label:'Акты сверок' },
+  { k:'doc',    label:'Документы' },
+  { k:'check',  label:'Проверки' },
+  { k:'kur',    label:'Кураторство' },
+];
+/* Тай-брейк для событий одного дня: времени в логах почти нигде нет, а порядок здесь смысловой —
+   причина должна лежать ПОД следствием. Цепочка: кредит → факторы/категория → группа → взыскание.
+   Больший ранг = «позже» = выше в ленте. Выдумывать часы вместо этого нельзя — их нет в источнике. */
+const HIST_ORD = { credit:1, doc:2, pledge:3, check:4, acts:5, kur:6, risk:7, coll:8, subj:9 };
+
 function historyItems(inn){
-  // it: {date, time, dot (класс точки/бейджа), kind (подпись), title, body}
   const items = [];
-  CATEGORY_LOG.filter(l=>l.inn===inn).forEach(l=>items.push({date:l.from, time:l.time, dot:'risk', kind:'категория',
+  const add = o => { items.push(o); return o; };
+  const my  = CREDITS.filter(c=>c.inn===inn);
+  const myIds = new Set(my.map(c=>c.id));
+  const noOf = id => (CREDITS.find(c=>c.id===id)||{}).no || id;
+
+  /* ── риск: категория, группа, факторы комитета ── */
+  CATEGORY_LOG.filter(l=>l.inn===inn).forEach(l=>add({date:l.from, time:l.time, dot:'risk', cat:'risk',
+    kind:'категория', tab:0,
     title:`Категория риска → ${CAT_LABEL[l.level]}`, body:`${l.reason} · источник: ${l.source}`}));
-  GROUP_LOG.filter(l=>l.inn===inn).forEach(l=>items.push({date:l.from, time:l.time, dot:'grp', kind:'группа',
+  GROUP_LOG.filter(l=>l.inn===inn).forEach(l=>add({date:l.from, time:l.time, dot:'info', cat:'risk',
+    kind:'группа', tab:0,
     title:`Группа платёжеспособности → ${l.group}`, body:`${l.basis}${l.confirmedBy&&l.confirmedBy!=='—'?' · '+l.confirmedBy:''}`}));
-  SUBJECT_EVENTS.filter(e=>e.inn===inn).forEach(e=>items.push({date:e.date, time:e.time, dot:'grp', kind:'субъект',
+  FACTORS.filter(f=>myIds.has(f.creditId)).forEach(f=>add({date:f.from, dot:f.committeeRef?'risk':'warn', cat:'risk',
+    kind:'фактор', tab:1,
+    title:`Фактор риска по кредиту ${noOf(f.creditId)}: ${f.type}`,
+    body: f.committeeRef ? `решение комитета ${f.committeeRef} · уровень ${CAT_LABEL[f.level]} — категория пересчитана`
+                         : `без решения комитета · уровень ${CAT_LABEL[f.level]} — категорию не двигает (И-1)`}));
+
+  /* ── субъект ── */
+  SUBJECT_EVENTS.filter(e=>e.inn===inn).forEach(e=>add({date:e.date, time:e.time, dot:'warn', cat:'subj',
+    kind:'субъект', tab:0,
     title:`Субъект: ${e.kind}`, body:`${e.basis}${e.doc?' · '+e.doc:''}`}));
-  CONFLICTS.filter(c=>c.inn===inn).forEach(c=>items.push({date:c.declaredAt, time:c.time, dot:'conf', kind:'конфликт',
-    title:'Конфликт интересов заявлен', body:`${c.trigger} · ${empName(c.empId)}`}));
-  CURATOR_LOG.filter(l=>l.inn===inn).forEach(l=>items.push({date:l.date, time:l.time, dot:'kur', kind:'кураторство',
-    title:l.title, body:l.body}));
-  const key = it => (dnum(it.date)||0) * 10000 + (it.time ? +it.time.replace(':','') : 0);
-  items.sort((a,b)=>key(b)-key(a));  // новые сверху; при равной дате — по времени
-  return items;
+
+  /* ── кредиты: выдача, закрытие, послабления (оверлеи реструктуризации) ── */
+  my.forEach(c=>{
+    add({date:c.date, dot:'info', cat:'credit', kind:'кредит', tab:1,
+      title:`Выдан кредит ${c.no}`,
+      body:`${c.program} · ${c.kind} · ${fmt(c.amount)} ${c.currency}${c.gov?' · '+c.gov:''}`});
+    if(c.closedAt) add({date:c.closedAt, dot:'ok', cat:'credit', kind:'кредит', tab:1,
+      title:`Кредит ${c.no} закрыт`, body:'договор закрыт · остаток 0'});
+  });
+  OVERLAYS.filter(o=>myIds.has(o.creditId)).forEach(o=>add({date:o.from, dot:'warn', cat:'credit',
+    kind:'послабление', tab:1,
+    title:`Послабление по кредиту ${noOf(o.creditId)}`,
+    body:`181-й день просрочки не учитывается по ${o.deadline} · основание ${o.sourceRef}`}));
+
+  /* ── обеспечение: регистрация договора залога ── */
+  PLEDGE_AGR.filter(a=>a.credits.some(id=>myIds.has(id))).forEach(a=>add({date:a.regDate, dot:'info', cat:'pledge',
+    kind:'залог', tab:2,
+    title:`Зарегистрирован договор залога ${a.no}`,
+    body:`кредит ${a.credits.map(noOf).join(', ')} · ${a.organ} · запрет ${a.arrestNo} от ${a.arrestDate}`}));
+
+  /* ── взыскание: открытие процесса, подтверждение, меры, пауза, закрытие ── */
+  PROCESSES.filter(p=>p.credits.some(id=>myIds.has(id))).forEach(p=>{
+    const cr = p.credits.map(noOf).join(', ');
+    add({date:p.opened, dot:'risk', cat:'coll', kind:'взыскание', tab:3,
+      title:`Открыт процесс взыскания №${p.no} (${p.contour})`,
+      body:`кредит ${cr} · основание: ${p.basis||'—'} · открыл: ${p.openedBy||'—'}`});
+    if(p.confirm && p.confirm.at) add({date:p.confirm.at, dot:'info', cat:'coll', kind:'взыскание', tab:3,
+      title:`Процесс №${p.no} подтверждён подразделением`,
+      body:`п. 98 — подтверждение в течение 5 р.д. от открытия${p.owner?' · исполнитель: '+empName(p.owner):''}`});
+    (p.measures||[]).forEach(m=>add({date:m.date, dot:'info', cat:'coll', kind:'мера', tab:3,
+      title:`${m.kind} по процессу №${p.no}`,
+      body:`${m.section} · ${m.sum?fmt(m.sum)+' сом':'без суммы'}${m.doc?' · '+m.doc:''}${m.delivered?' · вручено '+m.delivered:''}`}));
+    if(p.pause && p.pause.active) add({date:p.pause.since, dot:'warn', cat:'coll', kind:'взыскание', tab:3,
+      title:`Процесс №${p.no} приостановлен`,
+      body:`обращение о реструктуризации${p.pause.ref?' · '+p.pause.ref:''} — фаза подменена на время рассмотрения`});
+    if(p.closed) add({date:p.closed, dot:'ok', cat:'coll', kind:'взыскание', tab:3,
+      title:`Процесс взыскания №${p.no} закрыт`, body:p.outcome||'процедура завершена'});
+  });
+
+  /* ── акты сверок: формирование → подписание/разногласия → регистрация → скан ── */
+  ACTS.filter(a=>a.inn===inn).forEach(a=>{
+    const head = `${a.kind} акт ${a.period} (${a.scope})`;
+    if(a.dataAt) add({date:a.dataAt, dot:'info', cat:'acts', kind:'акт', tab:4,
+      title:`Сформирован ${head}`, body:`кредитов в акте: ${a.credits.length} · срок ${a.dueDate}${a.by?' · '+a.by:''}`});
+    if(a.agreement==='signed' && a.signAt) add({date:a.signAt, dot:'ok', cat:'acts', kind:'акт', tab:4,
+      title:`Акт ${a.id} подписан заёмщиком`, body:head});
+    if(a.agreement==='dispute') add({date:a.signAt||a.dueDate, dot:'warn', cat:'acts', kind:'акт', tab:4,
+      title:`Разногласия по акту ${a.id}`, body:a.disputeNote||head});
+    if(a.agreement==='evasion') add({date:a.dueDate, dot:'risk', cat:'acts', kind:'акт', tab:4,
+      title:`Уклонение от подписания акта ${a.id}`, body:`${head} · срок вышел — кандидат на комитет`});
+    if(a.regAt) add({date:a.regAt, dot:'info', cat:'acts', kind:'акт', tab:4,
+      title:`Акт зарегистрирован ${a.regNo}`, body:head});
+    if(a.scanAt) add({date:a.scanAt, dot:'info', cat:'acts', kind:'акт', tab:4,
+      title:`Загружен скан акта ${a.regNo||a.id}`, body:a.scan||head});
+  });
+
+  /* ── документы досье ── */
+  DOCS.filter(d=>d.inn===inn).forEach(d=>add({date:d.date, dot:'info', cat:'doc', kind:'документ', tab:7,
+    title:`Документ: ${d.type}`,
+    body:`${d.scope.kind} ${d.scope.kind==='кредит'?noOf(d.scope.ref):d.scope.ref} · ${d.file}${d.by?' · '+d.by:''}`}));
+
+  /* ── проверки: внешние снимки и реестр ЧС ── */
+  CHECKS_EXT.filter(x=>x.inn===inn).forEach(x=>add({date:x.takenAt, dot:'info', cat:'check', kind:'снимок', tab:8,
+    title:`Снимок внешней проверки: ${x.source}`,
+    body:`заявка ${x.appId} · ${Object.entries(x.payload||{}).map(([k,v])=>k+': '+(typeof v==='number'?fmt(v):v)).join(' · ')}`}));
+  BLACKLIST.filter(b=>b.inn===inn).forEach(b=>add({date:b.from, dot:'risk', cat:'check', kind:'чёрный список', tab:8,
+    title:'Заёмщик внесён в реестр ЧС', body:b.basis}));
+
+  /* ── кураторство: назначения, передача дела, конфликт интересов ── */
+  CURATOR_LOG.filter(l=>l.inn===inn).forEach(l=>add({date:l.date, time:l.time, dot:'ok', cat:'kur',
+    kind:'кураторство', tab:5, title:l.title, body:l.body}));
+  HANDOFF.filter(h=>h.inn===inn).forEach(h=>add({date:h.when,
+    dot: h.status==='исполнен' ? 'ok' : h.status==='отклонён' ? 'warn' : 'info', cat:'kur',
+    kind:'передача', tab:5,
+    title:`Передача дела ${h.status}: ${h.objectNo}`,
+    body:`${h.role} · ${empName(h.fromEmp)} → ${empName(h.toEmp)} · ${h.reason}`}));
+  CONFLICTS.filter(c=>c.inn===inn).forEach(c=>{
+    add({date:c.declaredAt, time:c.time, dot:'warn', cat:'kur', kind:'конфликт', tab:5,
+      title:'Конфликт интересов заявлен', body:`${c.trigger} · ${empName(c.empId)}`});
+    if(c.closedAt) add({date:c.closedAt, dot:'ok', cat:'kur', kind:'конфликт', tab:5,
+      title:'Конфликт интересов урегулирован',
+      body:`${c.decision?c.decision.kind:'решение'} · ${empName(c.empId)}${c.decision&&c.decision.doc?' · '+c.decision.doc:''}`});
+  });
+
+  /* Сортировка: дата → время → ранг источника. События без даты (dnum === null) не «падают в хвост»
+     как 01.01.0000, а идут отдельным блоком наверху — иначе пропажу даты никто не заметит. */
+  const key = it => (dnum(it.date)||0) * 1000000 + (it.time ? +it.time.replace(':','') : 0) * 10
+                  + (HIST_ORD[it.cat] || 0);
+  const dated   = items.filter(it=>dnum(it.date) !== null).sort((a,b)=>key(b)-key(a));
+  const undated = items.filter(it=>dnum(it.date) === null);
+  return undated.concat(dated);
 }
-function timelineHtml(items){
-  return items.length
-    ? '<div class="tl">' + items.map(it=>`<div class="tl-item ${esc(it.dot)}">`
-        + `<div class="tl-date">${esc(it.date)}${it.time?' · '+esc(it.time):''}</div>`
-        + `<div class="tl-title">${esc(it.title)} <span class="tl-kind k-${esc(it.dot)}">${esc(it.kind)}</span></div>`
-        + `<div class="tl-body">${esc(it.body)}</div></div>`).join('') + '</div>'
-    : empty('Событий не найдено.');
+
+/* Лента. opts.years — разделители-годы (вкладка «История»); в карточке «Последние события» не нужны. */
+function timelineHtml(items, opts){
+  opts = opts || {};
+  if (!items.length) return empty('Событий не найдено.');
+  let year = null;
+  const html = items.map(it=>{
+    const y = dnum(it.date) ? String(it.date).slice(-4) : null;
+    let sep = '';
+    if (opts.years && y && y !== year){ year = y; sep = `<div class="tl-year">${esc(y)}</div>`; }
+    const title = it.tab != null
+      ? `<a class="lnk" onclick="switchTab(${it.tab})">${esc(it.title)}</a>`
+      : esc(it.title);
+    return sep + `<div class="tl-item ${esc(it.dot)}" data-cat="${esc(it.cat||'')}">`
+      + `<div class="tl-date">${it.date && it.date!=='—' ? esc(it.date) : 'дата не указана'}${it.time?' · '+esc(it.time):''}</div>`
+      + `<div class="tl-title">${title} <span class="tl-kind">${esc(it.kind)}</span></div>`
+      + `<div class="tl-body">${esc(it.body)}</div></div>`;
+  }).join('');
+  return `<div class="tl${opts.years?' tl-years':''}">${html}</div>`;
 }
+
+/* Чипы-фильтры: счётчик по каждой группе, «Все» первым. Фильтрация — histFilter (по data-cat). */
+function histChips(items){
+  const cnt = k => items.filter(it=>it.cat===k).length;
+  const chip = (k, label, n, on) =>
+    `<button type="button" class="hchip${on?' on':''}" data-k="${esc(k)}" onclick="histFilter('${esc(k)}')">`
+    + `${esc(label)} <span class="hchip-n">${n}</span></button>`;
+  return `<div class="hchips" id="histChips">`
+    + chip('all','Все',items.length,true)
+    + HIST_CATS.filter(c=>cnt(c.k)).map(c=>chip(c.k, c.label, cnt(c.k), false)).join('')
+    + `</div>`;
+}
+const HIST_PAGE = 30;   // сколько событий видно до нажатия «показать ещё»
 function historyTab(inn){
-  return sect('История', 'зеркало логов — категория, группа, субъект, конфликты, кураторство', '',
-    timelineHtml(historyItems(inn)));
+  const items = historyItems(inn);
+  const body = items.length
+    ? histChips(items) + timelineHtml(items, {years:true})
+      + `<div class="tl-more" id="histMore" style="display:none">`
+      + `<button type="button" class="btn-more" onclick="histMore()">Показать ещё</button></div>`
+    : empty('Событий не найдено.');
+  return sect('История', 'полное досье событий заёмщика — все модули, новые сверху', '',
+    `<div id="histRoot" data-cat="all" data-shown="${HIST_PAGE}">${body}</div>`);
+}
+/* Фильтр + пагинация ленты. Работает по уже отрисованному DOM: год-разделитель прячется,
+   если под ним не осталось ни одного видимого события. */
+function histFilter(k){
+  const root = document.getElementById('histRoot');
+  if (!root) return;
+  root.dataset.cat = k;
+  root.dataset.shown = HIST_PAGE;
+  root.querySelectorAll('#histChips .hchip').forEach(b=>b.classList.toggle('on', b.dataset.k===k));
+  histApply();
+}
+function histMore(){
+  const root = document.getElementById('histRoot');
+  if (!root) return;
+  root.dataset.shown = (+root.dataset.shown || HIST_PAGE) + HIST_PAGE;
+  histApply();
+}
+function histApply(){
+  const root = document.getElementById('histRoot');
+  if (!root) return;
+  const cat = root.dataset.cat || 'all';
+  const lim = +root.dataset.shown || HIST_PAGE;
+  let shown = 0, total = 0;
+  root.querySelectorAll('.tl-item').forEach(el=>{
+    const match = cat === 'all' || el.dataset.cat === cat;
+    if (match) total++;
+    const vis = match && shown < lim;
+    if (vis) shown++;
+    el.style.display = vis ? '' : 'none';
+  });
+  root.querySelectorAll('.tl-year').forEach(y=>{
+    let has = false;
+    for (let el = y.nextElementSibling; el && !el.classList.contains('tl-year'); el = el.nextElementSibling)
+      if (el.classList.contains('tl-item') && el.style.display !== 'none') { has = true; break; }
+    y.style.display = has ? '' : 'none';
+  });
+  const more = document.getElementById('histMore');
+  if (more){
+    more.style.display = total > shown ? '' : 'none';
+    const btn = more.querySelector('.btn-more');
+    if (btn) btn.textContent = `Показать ещё (${total - shown})`;
+  }
 }
 
 function tabBody(inn, i){
@@ -4422,6 +4631,7 @@ function showDetail(inn, tabIndex){
   wireCollateralTab(inn);   /* таб «Залог» — переключатель вида и раскрытие строк */
   wireCollectionTab(inn);   /* таб «Взыскание» — то же: вид, раскрытие процесса, дропдаун */
   wireActsTab(inn);         /* таб «Акты сверок» — раскрытие строки в разбивку + степпер */
+  histApply();              /* таб «История» — начальная отсечка ленты по HIST_PAGE */
   showOnly(vDetail);
   const s = SUBJECTS.find(x => x.inn === inn);
   /* наименование кликабельно — ведёт на страницу субъекта (организация / физлицо) */
