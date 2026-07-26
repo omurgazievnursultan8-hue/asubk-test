@@ -1202,13 +1202,17 @@ test('W4-1 (Р-42): ведущая метрика = ИНДЕКС (залог + �
   ok(cov.index > cov.ratio, 'индекс строго выше залогового ratio — реестр больше не покажет 0,0%');
 });
 
-test('W4-2 (Р-42): колонка договоров переименована в «Обеспеченность (индекс)» + тултип с разбором', () => {
+test('W4-2 (Р-42 + ДГ-6): колонка обеспеченности названа по смыслу, тултип разбирает гейт', () => {
   const { zt } = load();
-  eq(zt.HEADS.contracts[6], 'Обеспеченность (индекс)', 'заголовок колонки');
-  const c = zt.CONTRACTS.find(x => x.credits.length);
-  const tip = zt.coverIndexTip(c);
+  // ДГ-6: «Обеспеченность (индекс)» → «Обеспеченность к порогу». Слово «индекс» называло
+  // реализацию метрики, а не то, что число значит (100% = порог достигнут).
+  eq(zt.HEADS.contracts[6], 'Обеспеченность к порогу', 'заголовок колонки');
+  const c = zt.CONTRACTS.find(x => x.status === 'Зарегистрирован' && x.credits.length);
+  const tip = zt.coverGateTip(c);
   has(tip, 'индекс', 'тултип раскрывает индекс');
-  has(tip, 'в т.ч. залогом', 'тултип держит расшифровку ratio');
+  has(tip, 'порог', 'порог назван — он свойство кредита, а не константа');
+  has(tip, 'залоговая к сумме кредита', 'тултип держит расшифровку ratio');
+  has(tip, 'гейт', 'вердикт гейта назван словами, а не только цветом');
 });
 
 test('W4-3 (Р-43): текст триггера К-95 разбирает индекс на слагаемые (залог + гарантия, иная валюта)', () => {
@@ -1242,7 +1246,9 @@ test('W4-5 (Р-40): buildCsv — заголовок реестра + строк�
   const csv = zt.buildCsv('contracts');
   ok(csv.charCodeAt(0) === 0xFEFF, 'BOM в начале — Excel читает кириллицу');
   const lines = csv.split('\r\n');
-  has(lines[0], 'Обеспеченность (индекс)', 'шапка = переименованные HEADS');
+  // ДГ-14: у договоров появился ПРОФИЛЬ выгрузки — шапка больше не зеркало колонок экрана.
+  has(lines[0], 'Обеспеченность — худший индекс, %', 'шапка = профиль записи, не колонки экрана');
+  has(lines[0], 'Вердикт гейта', 'вердикт гейта — отдельное поле, а не цвет пилюли');
   const rows = zt.sortedRows('contracts');
   eq(lines.length, rows.length + 1, 'строк CSV = заголовок + все отфильтрованные записи');
 });
@@ -2040,12 +2046,15 @@ test('W8-14 (ПЗ-Д2/ПЗ-8): склонение числительных и «
 // ПЗ-8: размер страницы — предпочтение просмотра; справочник остаётся источником дефолта.
 test('W8-15 (ПЗ-8, ревизия Р-39): размер страницы правится в пейджере, края набора доступны', () => {
   const { win, zt } = load();
-  win.eval("reg='items'; activeFilter.items={}; quickSearch.items=''; curPage=1; PAGE_SIZE=50");
-  eq(win.eval('PAGE_SIZE_DEFAULT'), 50, 'справочник задаёт дефолт');
-  win.onPageSize('25');
-  eq(win.eval('PAGE_SIZE'), 25, 'пейджер меняет текущий размер');
-  eq(win.eval('PAGE_SIZE_DEFAULT'), 50, 'дефолт справочника при этом не трогается');
+  win.eval("reg='items'; activeFilter.items={}; quickSearch.items=''; curPage=1; PAGE_SIZE=25");
+  // ДГ-13: дефолт снижен 50 → 25. При 50 пейджер не рисовался ни в одном реестре стенда
+  // (39 договоров, 45 предметов → одна страница), и решение Р-39 было невидимо в артефакте.
+  eq(win.eval('PAGE_SIZE_DEFAULT'), 25, 'справочник задаёт дефолт');
+  win.onPageSize('100');
+  eq(win.eval('PAGE_SIZE'), 100, 'пейджер меняет текущий размер');
+  eq(win.eval('PAGE_SIZE_DEFAULT'), 25, 'дефолт справочника при этом не трогается');
   eq(win.eval('curPage'), 1, 'смена размера возвращает на первую страницу');
+  win.onPageSize('25');           // дефолтный размер даёт больше одной страницы (ДГ-13)
   const nav = win.document.getElementById('pagerNav').innerHTML;
   has(nav, 'gotoPage(1)', 'кнопка «в начало»');
   has(nav, 'В конец', 'кнопка «в конец»');
@@ -2226,6 +2235,279 @@ test('W8-26 (ПЗ-2): контролы стенда обозначены как 
   zt.setStandDate('01.01.2027');
   eq(zt.banStatus(it), 'просрочен', 'дата стенда по-прежнему двигает ось запрета');
   zt.setStandDate(zt.STAND_DATE_SEED);
+});
+
+/* ============================================================
+   ВОЛНА 9 (ДГ-1…ДГ-15, ДГ-Д1…ДГ-Д7): реестр залоговых договоров как справочник.
+   ============================================================ */
+
+// ДГ-1…ДГ-5: состав колонок пересобран. Снятое проверяем явно — иначе «улучшение»
+// незаметно откатится обратно первой же правкой HEADS.
+test('W9-1 (ДГ-1…ДГ-5): состав колонок договоров — 7 содержательных + шеврон', () => {
+  const { zt } = load();
+  const H = zt.HEADS.contracts;
+  eq(H.length, 8, 'семь колонок данных плюс колонка шеврона');
+  eq(H[7], '', 'последняя колонка — шеврон, без заголовка');
+  ['Договор','Дата','Стороны','Статус','Отметки','Предметов','Обеспеченность к порогу']
+    .forEach((h,i) => eq(H[i], h, `колонка ${i}`));
+  hasNot(H.join('|'), '№', 'колонка «№» снята — id ушёл подстрокой под номер договора');
+  hasNot(H.join('|'), 'Кредитов', 'константная колонка «Кредитов» снята');
+  hasNot(H.join('|'), 'Доп. согл.', 'константная колонка «Доп. согл.» снята');
+  hasNot(H.join('|'), 'Заёмщик', '«Заёмщик» заменён на «Стороны» — залогодатель живёт на предмете');
+  eq(zt.SORT_KEYS.contracts.length, H.length, 'ключей сортировки столько же, сколько колонок');
+  eq(zt.WIDTHS.contracts.length, H.length, 'ширин столько же, сколько колонок');
+  eq(zt.SORT_KEYS.contracts[7], null, 'колонка шеврона несортируема');
+});
+
+// ДГ-Д1: строковая дата сортируется посимвольно — «02.06.2026» встаёт перед «10.04.2024».
+test('W9-2 (ДГ-Д1): дата сортируется по нормализованному ключу, а не по строке', () => {
+  const { zt } = load();
+  eq(zt.SORT_KEYS.contracts[1], 'dateN', 'ключ колонки «Дата» — нормализованный');
+  ok(zt.dnum('10.04.2024') < zt.dnum('02.06.2026'), '2024 раньше 2026 (строка дала бы обратное)');
+  eq(zt.dnum(''), 0, 'пустая дата не ломает сравнение');
+  // У черновика даты подписания нет — порядок задаёт дата создания.
+  const d = zt.contract('Д-005');
+  eq(d.date, '', 'черновик не подписан');
+  eq(zt.ctrDate(d), d.createdAt, 'для черновика ключ даты берётся из createdAt');
+});
+
+// ДГ-12 + ДГ-Д5: порядок по умолчанию — свойство реестра; индекс колонки не переносится.
+test('W9-3 (ДГ-12/ДГ-Д5): дефолт — дата убыв.; sortKey не течёт между реестрами', () => {
+  const { win, zt } = load();
+  win.eval("reg='items'; sortKey=3; sortDir=1");     // «Залогодатель» в предметах
+  zt.setReg('contracts');
+  eq(win.eval('sortKey'), 1, 'в договорах активна колонка «Дата», а не унаследованная 3-я');
+  eq(win.eval('sortDir'), -1, 'по убыванию — свежие сверху');
+  zt.setReg('items');
+  eq(win.eval('sortKey'), null, 'у предметов дефолтного порядка нет — сортировка снята');
+  // sortBy не должен затираться дефолтом (renderList больше не трогает sortKey).
+  zt.setReg('contracts'); win.sortBy(3);
+  eq(win.eval('sortKey'), 3, 'явно выбранная колонка переживает перерисовку');
+});
+
+// ДГ-3: алфавит по строке статуса ставил терминальное состояние первым.
+test('W9-4 (ДГ-3): статус сортируется по рангу ЖЦ и красится пятью разными пилюлями', () => {
+  const { zt } = load();
+  eq(zt.SORT_KEYS.contracts[3], 'stRank', 'ключ колонки «Статус» — ранг, не строка');
+  const order = ['Оформляется','На рассмотрении комиссии','Зарегистрирован','Закрыт','Аннулирован'];
+  order.forEach((st,i) => eq(zt.CTR_RANK[st], i, `ранг «${st}»`));
+  const pills = order.map(st => zt.CTR_PILL[st]);
+  eq(new Set(pills).size, 5, 'пять состояний — пять разных классов пилюли');
+  no(pills[1] === 'high', '«На рассмотрении комиссии» больше не красный (это штатный шаг, Р-35)');
+});
+
+// ДГ-Д2 + ДГ-9: реестр не находил ни залогодателя-третье-лицо, ни номер кредита.
+test('W9-5 (ДГ-Д2/ДГ-9): поиск находит залогодателя и номер кредита', () => {
+  const { win, zt } = load();
+  const d3 = zt.contract('Д-003');
+  const third = zt.contractPledgers(d3);
+  eq(third.length, 1, 'у Д-003 залогодатель — третье лицо (предмет П-004)');
+  win.eval("reg='contracts'; activeFilter.contracts={}; quickSearch.contracts='Осмонов'");
+  let rows = win.filterRows(win.rowsContracts());
+  ok(rows.some(r => r.id === 'Д-003'), 'договор находится по фамилии залогодателя');
+  win.eval("quickSearch.contracts='К-77'");
+  rows = win.filterRows(win.rowsContracts());
+  ok(rows.some(r => r.id === 'Д-002'), 'договор находится по номеру обеспечиваемого кредита');
+  win.eval("quickSearch.contracts=''");
+});
+
+// ДГ-6: число показывало индекс, цвет — весь гейт; про долю ликвида не говорилось нигде.
+test('W9-6 (ДГ-6): цвет и тултип обеспеченности собраны из ВСЕХ подпроверок гейта', () => {
+  const { zt } = load();
+  // Д-030: индекс ровно 100%, но доля ликвида 0% (Прил.1 §2.4) → гейт провален.
+  const bad = zt.contract('Д-030');
+  const row = zt.worstRow(bad);
+  ok(row.index >= 1, 'индекс достигает порога');
+  no(row.liqOk, 'а доля ликвида — нет');
+  eq(zt.coverVerdict(bad), 'не пройден', 'вердикт учитывает обе подпроверки');
+  has(zt.coverGateTip(bad), 'доля ликвида', 'тултип называет провалившуюся подпроверку');
+  has(zt.coverageCell(bad), 'pill high', 'пилюля красная — как и была');
+  // Черновик: вердикта ещё нет, это прогноз.
+  const draft = zt.contract('Д-005');
+  has(zt.coverageCell(draft), 'pill neutral', 'черновик не обвиняется в нарушении порога');
+  has(zt.coverGateTip(draft), 'прогноз', 'тултип черновика объясняет, почему цвета нет');
+  // Несколько кредитов — показан худший, и это сказано.
+  has(zt.coverageCell(zt.contract('Д-041')), 'худший из 2', 'при нескольких кредитах названо, что число — худшее');
+});
+
+// ДГ-4: из «Статуса» вынуто всё, что не жизненный цикл.
+test('W9-7 (ДГ-4): отметки живут в своей колонке и отбираются фильтром', () => {
+  const { win, zt } = load();
+  hasNot(zt.contractStatusCell(zt.contract('Д-043')), 'допуск', 'в ячейке статуса — только статус');
+  eq(zt.contractMarks(zt.contract('Д-043')).map(m => m.code).join(), 'допуск <порога', 'отметка допуска');
+  eq(zt.contractMarks(zt.contract('Д-041')).map(m => m.code).join(), 'несколько кредитов', 'отметка о втором кредите');
+  eq(zt.contractMarks(zt.contract('Д-042')).map(m => m.code).join(), 'есть доп. соглашения', 'отметка о доп. соглашении');
+  win.eval("reg='contracts'; quickSearch.contracts=''; activeFilter.contracts={markCodes:'допуск <порога'}");
+  const rows = win.filterRows(win.rowsContracts());
+  ok(rows.length && rows.every(r => r.sort.markCodes.includes('допуск <порога')), 'фильтр отбирает по коду отметки');
+  win.eval("activeFilter.contracts={}");
+});
+
+// ДГ-Д4: опции строились из видимых строк — недостижимое состояние нельзя было выбрать.
+test('W9-8 (ДГ-Д4): опции перечислений берутся из домена, а не из видимых строк', () => {
+  const { win, zt } = load();
+  win.eval("reg='contracts'; activeFilter.contracts={}; quickSearch.contracts=''");
+  win.eval('showCancelledContracts=false');
+  const st = zt.filterOpts('contracts','status');
+  eq(st[0], 'Оформляется', 'порядок опций — жизненного цикла, не алфавита');
+  no(st.includes('Аннулирован'), 'при выключенном охвате опция не предлагается — она дала бы 0 строк');
+  win.eval('showCancelledContracts=true');
+  ok(zt.filterOpts('contracts','status').includes('Аннулирован'), 'с включённым охватом опция появляется');
+  win.eval('showCancelledContracts=false');
+  // Домен не сужается активным фильтром по другому полю.
+  win.eval("activeFilter.contracts={gate:'пройден'}");
+  eq(zt.filterOpts('contracts','status').length, 4, 'состав опций не зависит от других условий');
+  win.eval("activeFilter.contracts={}");
+  eq(zt.filterOpts('contracts','gate').length, 3, 'вердикты гейта перечислены доменом');
+});
+
+// ДГ-8: аннулированные были недостижимы; счётчик их молча не упоминал.
+test('W9-9 (ДГ-8): переключатель охвата показывает аннулированные и называет скрытое', () => {
+  const { win, zt } = load();
+  win.eval("reg='contracts'; activeFilter.contracts={}; quickSearch.contracts=''; showCancelledContracts=false");
+  win.renderList();
+  const nCancelled = zt.CONTRACTS.filter(c => c.status === 'Аннулирован').length;
+  ok(nCancelled > 0, 'на стенде есть аннулированный черновик (иначе переключатель нечем проверить)');
+  eq(zt.cancelledHidden(), nCancelled, 'скрытые посчитаны');
+  has(win.document.getElementById('pagerCount').textContent, 'скрыто аннулированных', 'пейджер называет скрытое');
+  no(win.rowsContracts().some(r => r.id === 'Д-044'), 'по умолчанию аннулированный не в наборе');
+  zt.onShowCancelled(true);
+  ok(win.rowsContracts().some(r => r.id === 'Д-044'), 'переключатель возвращает аннулированные');
+  eq(zt.cancelledHidden(), 0, 'скрытых больше нет');
+  hasNot(win.document.getElementById('pagerCount').textContent, 'скрыто аннулированных', 'и пейджер об этом молчит');
+  // Сброс условий не должен ронять охват — это не условие отбора (см. ПЗ-Д1).
+  win.resetFilter();
+  ok(zt.showCancelled(), 'кнопка «Сбросить» не трогает границу выборки');
+  zt.onShowCancelled(false);
+});
+
+// ДГ-7: кнопка перерисовывала тот же DOM и утверждала тостом, что список был устаревшим.
+test('W9-10 (ДГ-7): кнопка «Обновить» снята, поиск дебаунсится', () => {
+  const { win } = load();
+  const btns = [...win.document.querySelectorAll('.jf-actions button')].map(b => b.textContent.trim());
+  no(btns.includes('Обновить'), `кнопки «Обновить» нет (осталось: ${btns.join(', ')})`);
+  ok(btns.includes('Сбросить'), '«Сбросить» осталась');
+  hasNot(win.document.querySelector('.jf-actions').innerHTML.replace(/<!--[\s\S]*?-->/g,''),
+    'Список обновлён', 'тоста, обещавшего устаревание, тоже нет');
+  ok(typeof win.quickSearchNow === 'function', 'синхронный путь поиска доступен (для тестов и сброса)');
+});
+
+// ДГ-11: у договора нет образа — карточка дублировала логику строки и отставала от неё.
+test('W9-11 (ДГ-11): карточного вида у договоров нет', () => {
+  const { win, zt } = load();
+  eq(win.eval("typeof contractCard"), 'undefined', 'contractCard удалена');
+  eq(win.eval("typeof minCoverage"), 'undefined', 'дублирующая minCoverage удалена');
+  eq(win.eval("typeof coverIndexTip"), 'undefined', 'дублирующая coverIndexTip удалена');
+  no(win.eval("CARD_REGS.includes('contracts')"), 'реестр договоров не в списке карточных');
+  win.eval("reg='contracts'"); win.renderList();
+  eq(win.document.getElementById('viewSeg').style.display, 'none', 'тумблер вида скрыт');
+});
+
+// ДГ-14: экран показывал вердикт цветом, файл — только число. Д-030 и Д-001 были неразличимы.
+test('W9-12 (ДГ-14): CSV договоров различает пройденный и проваленный гейт', () => {
+  const { win, zt } = load();
+  win.eval("reg='contracts'; activeFilter.contracts={}; quickSearch.contracts=''");
+  const lines = zt.buildCsv('contracts').split('\r\n');
+  const head = lines[0];
+  has(head, 'Вердикт гейта', 'вердикт — отдельное поле');
+  has(head, 'Доля ликвида выполнена', 'вторая подпроверка гейта тоже поле');
+  has(head, 'Порог обеспечения', 'порог выгружается — без него индекс не расшифровать');
+  has(head, 'Залогодатели — третьи лица', 'стороны разведены по колонкам');
+  const idx = head.split(';').indexOf('"Вердикт гейта §2.3–2.4"');
+  ok(idx >= 0, 'колонка вердикта найдена');
+  const rowOf = id => lines.find(l => l.startsWith(`"${id}"`)).split(';')[idx];
+  eq(rowOf('Д-001'), '"пройден"', 'Д-001 — гейт пройден');
+  eq(rowOf('Д-030'), '"не пройден"', 'Д-030 — гейт провален (при том же числе 100,0%)');
+  // Проценты — числом, Excel должен их складывать.
+  eq(zt.csvPctRaw(1.2), '120,0', 'процент без знака «%» и с десятичной запятой');
+  eq(zt.csvPctRaw(null), '', 'нечего показывать — пусто, а не «0,0»');
+});
+
+// ДГ-15 (ADR-0006): журнал писал ratio, тогда как экран жил индексом.
+test('W9-13 (ДГ-15): журнал договора пишет обе метрики и порог', () => {
+  const { win, zt } = load();
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  // Свой черновик: сидовые упираются то в предпосылки §5.2, то в §2.6 — здесь проверяется
+  // ФОРМУЛИРОВКА записи журнала, а не маршрут гейтов (он покрыт W2-*).
+  zt.CREDITS.push({ id:'К-Ж1', num:'Дог. №Ж1 от 01.07.2026', inn:'22105198800047', amount:100000,
+    status:'Действующий', overdue:false, otherSecurity:null });
+  const it = win.normalizeItem({ id:'П-Ж1', kind:'Недвижимое имущество', name:'Здание для теста журнала',
+    pledger:'22105198800047', ident:'ЖУРНАЛ-1', appraised:200000, apprDate:'01.07.2026', apprReport:'ОЦ-Ж1',
+    override:null, ban:null, lost:false, realizing:false, needReval:false, everPledged:false,
+    lastSurvey:'01.07.2026', lastReval:'01.07.2026', revals:[], surveys:[], history:[] });
+  it.prereqs.encumbranceCert.present = true;
+  zt.ITEMS.push(it);
+  const d = { id:'Д-Ж1', no:'', date:'', createdAt:'01.07.2026', status:'Оформляется', inn:'22105198800047',
+    notary:'', notaryNo:'', notaryDate:'', cert:'', credits:['К-Ж1'],
+    allocs:[{ item:'П-Ж1', credit:'К-Ж1', share:120000 }], undercovered:null, addenda:[], history:[] };
+  zt.CONTRACTS.push(d);
+  ok(zt.gateCheck(d).ok, 'сценарий проходит гейт обеспечения');
+  const before = d.history.length;
+  win.openRegister(d.id);
+  win.document.getElementById('rgNo').value = 'ЗД-ТЕСТ/Ж1';
+  win.document.getElementById('rgNotary').value = 'Нотариус Тест';
+  win.document.getElementById('rgNotaryNo').value = 'НР-ТЕСТ/Ж1';
+  win.document.getElementById('rgCert').value = 'ЗС-ТЕСТ/Ж1';
+  win.document.getElementById('rgCustody').value = 'у залогодателя';
+  win.doRegister(d.id);
+  const last = d.history[d.history.length - 1].what;
+  ok(d.history.length > before, 'запись добавлена');
+  has(last, 'Обеспеченность', 'запись открывается термином глоссария');
+  hasNot(last, 'Покрытие', 'слово «покрытие» из журнала убрано (CONTEXT.md)');
+  has(last, 'при пороге', 'порог назван — он меняется решением Правления');
+  has(last, 'индекс', 'индекс назван — им живут экран и гейт');
+  // Сидовые записи приведены к тому же виду.
+  const seed = zt.contract('Д-001').history[0].what;
+  has(seed, 'Обеспеченность', 'сидовая запись тоже');
+  has(seed, 'индекс', 'и тоже с индексом');
+});
+
+// ДГ-Д3: ноль предметов — не «мало», а невозможность зарегистрировать (Р-28).
+test('W9-14 (ДГ-Д3): ноль предметов помечен как гейт содержания', () => {
+  const { zt } = load();
+  const empty = zt.CONTRACTS.find(c => !c.allocs.length);
+  ok(empty, 'на стенде есть договор без предметов');
+  has(zt.contractItemsCell(empty), 'Р-28', 'ноль объяснён гейтом содержания');
+  has(zt.contractItemsCell(empty), 'tagpill err', 'и выглядит иначе, чем обычное число');
+  const full = zt.contract('Д-001');
+  hasNot(zt.contractItemsCell(full), 'tagpill', 'ненулевое количество остаётся обычным числом');
+});
+
+// ДГ-7: диапазон дат — то, чего строка поиска дать не может.
+test('W9-15 (ДГ-7): фильтр по диапазону дат работает по нормализованному ключу', () => {
+  const { win } = load();
+  win.eval("reg='contracts'; quickSearch.contracts=''; showCancelledContracts=false");
+  win.eval("activeFilter.contracts={ dateFrom:'2026-01-01' }");
+  const from2026 = win.filterRows(win.rowsContracts());
+  ok(from2026.every(r => r.sort.dateN >= win.__zt.dnum('01.01.2026')), 'всё в наборе не раньше границы');
+  ok(from2026.some(r => r.id === 'Д-043'), 'договор 08.04.2026 попал');
+  no(from2026.some(r => r.id === 'Д-001'), 'договор 10.04.2024 отсеян');
+  win.eval("activeFilter.contracts={ dateTo:'2024-12-31' }");
+  const till2024 = win.filterRows(win.rowsContracts());
+  ok(till2024.some(r => r.id === 'Д-001'), 'верхняя граница отбирает старые');
+  no(till2024.some(r => r.id === 'Д-005'), 'черновик без даты подписания в диапазон не попадает');
+  win.eval("activeFilter.contracts={}");
+});
+
+// ДГ-Д7: два договора с одним id — второй недостижим через contract().
+test('W9-16 (ДГ-Д7): идентификаторы договоров уникальны', () => {
+  const { zt } = load();
+  const ids = zt.CONTRACTS.map(c => c.id);
+  const dup = [...new Set(ids.filter((v,i) => ids.indexOf(v) !== i))];
+  eq(dup.length, 0, `дубли идентификаторов: ${dup.join(', ')}`);
+  ids.forEach(id => eq(zt.contract(id).id, id, `contract('${id}') находит именно его`));
+});
+
+// ДГ-13: при размере 50 пейджер не рисовался ни в одном реестре стенда.
+test('W9-17 (ДГ-13): дефолтный размер страницы показывает пагинацию на стенде', () => {
+  const { win, zt } = load();
+  eq(win.eval('PAGE_SIZE_DEFAULT'), 25, 'дефолт — 25');
+  ['contracts','items'].forEach(r => {
+    win.eval(`reg='${r}'; activeFilter.${r}={}; quickSearch.${r}=''; PAGE_SIZE=PAGE_SIZE_DEFAULT; curPage=1`);
+    win.renderList();
+    has(win.document.getElementById('pagerNav').innerHTML, 'стр. 1 из',
+      `реестр «${r}»: пагинация видна в переданном артефакте`);
+  });
 });
 
 report();
