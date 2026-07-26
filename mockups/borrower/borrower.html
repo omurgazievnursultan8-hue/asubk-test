@@ -2612,7 +2612,7 @@ seedBorrowerDetails();
    стоимости предметов (creditCoverage), а сид задаёт саму стоимость (COVER_SEED). */
 /* Зеркало справочника видов залога модуля (KINDS в mockups/collateral/zalog.html):
    карточке заёмщика нужны только движимость и ликвидность — из них выводятся порог
-   покрытия (П1 §2.3/§2.4) и периодичность обследования (Прил.2 §2.3). tech — физически
+   покрытия (Прил.1 §2.3/§2.4) и периодичность обследования (Прил.2 §2.3). tech — физически
    изнашиваемый актив: обязателен страховой полис (Р-7). */
 const PLEDGE_KIND = {
   'Недвижимое имущество':  { movable:false, liquid:true  },
@@ -2622,7 +2622,7 @@ const PLEDGE_KIND = {
   'Товары в обороте':      { movable:true,  liquid:false },
 };
 const kindOf = k => PLEDGE_KIND[k] || { movable:true, liquid:false };
-/* Нормативы покрытия (П1 §2.3–2.4) — те же значения, что в модуле залога. */
+/* Нормативы покрытия (Прил.1 §2.3–2.4) — те же значения, что в модуле залога. */
 const COVER_LIQUID = 1.20;     // ликвидный залог — ≥ 120 %
 const COVER_MOVABLE = 1.50;    // движимый неликвидный — ≥ 150 %
 const LIQUID_SHARE_MIN = 0.80; // при пороге 150 % доля ликвида ≥ 80 % суммы кредита
@@ -2779,7 +2779,7 @@ seedCollateralCurators();
      2) нотариальная дата договора и ОСЬ ЗАПРЕТА на отчуждение на каждом предмете
         (наложен / без отметки в оригиналах / не наложен + дедлайн, Р-20, ПБК п.2.1);
      3) страховой полис на технике (Р-7) — истёкший полис поднимает триггер;
-     4) решение КМ по обеспеченности отдельных кредитов (П1 §2.6) — свой порог покрытия.
+     4) решение КМ по обеспеченности отдельных кредитов (Прил.1 §2.6) — свой порог покрытия.
    Всё read-only: карточка заёмщика ничего из этого не редактирует. */
 function seedCollateralExtras(){
   /* 1. Перекрёстный залог: у каждого третьего заёмщика с 2+ действующими кредитами
@@ -2824,7 +2824,7 @@ function seedCollateralExtras(){
       o.policyTill = alive ? addMonths(TODAY, 3 + h % 9) : addMonths(TODAY, -(1 + h % 5));
     } else { o.policyNo = null; o.policyTill = null; }
   });
-  /* 4. Решение КМ по обеспеченности (П1 §2.6) — свой процент покрытия вместо норматива. */
+  /* 4. Решение КМ по обеспеченности (Прил.1 §2.6) — свой процент покрытия вместо норматива. */
   CREDITS.forEach(c => {
     if (fnv(c.id) % 17 !== 0 || !isActiveCredit(c, TODAY)) return;
     c.kmDecision = { no:'КМ-2025/' + (400 + fnv(c.id) % 90), date:'12.11.2025', coverPct:130 };
@@ -2841,12 +2841,12 @@ function pledgeAllocsOf(creditId){
    иначе движимый неликвидный предмет в покрытии поднимает порог со 120 % до 150 %. */
 function requiredCoverOf(cr){
   if (cr.kmDecision) return { req: cr.kmDecision.coverPct/100,
-    source: 'решение КМ ' + cr.kmDecision.no + ' от ' + cr.kmDecision.date + ' · П1 §2.6' };
+    source: 'решение КМ ' + cr.kmDecision.no + ' от ' + cr.kmDecision.date + ' · Прил.1 §2.6' };
   const movableIlliquid = pledgeAllocsOf(cr.id)
     .some(a => kindOf(a.obj.kind).movable && !kindOf(a.obj.kind).liquid);
   return movableIlliquid
-    ? { req: COVER_MOVABLE, source: 'П1 §2.4 · движимый неликвидный залог' }
-    : { req: COVER_LIQUID,  source: 'П1 §2.3 · ликвидный залог' };
+    ? { req: COVER_MOVABLE, source: 'Прил.1 §2.4 · движимый неликвидный залог' }
+    : { req: COVER_LIQUID,  source: 'Прил.1 §2.3 · ликвидный залог' };
 }
 /* Обеспеченность кредита: индекс = залоговая стоимость ÷ (остаток × порог); обеспечен при
    index ≥ 1 И (когда порог 150 %) доле ликвида ≥ 80 % — подпункт того же гейта, не отдельный
