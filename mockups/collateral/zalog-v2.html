@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Обеспечение по бюджетным кредитам · АСУБК (v2)</title>
+<!--
+  ПРОТОТИП v2 (single-file). Модуль «Обеспечение по бюджетным кредитам».
+  Спека: ASUBK-zalog-model-v2.md. Прототип v1 (zalog.html) выведен из обращения —
+  его дефекты перечислены в §12 спеки и здесь не воспроизводятся.
+
+  ЧТО ЗДЕСЬ ПРИНЦИПИАЛЬНО ДРУГОЕ, ЧЕМ В v1
+
+  1. «Обеспечение» — надсущность (§2.1). Залог, гарантия и поручительство — подтипы
+     одной сущности AGREEMENTS с полем type. Предметы есть только у залога;
+     гарантия и поручительство несут сумму/лимит на самом договоре.
+
+  2. Вещь — три слоя (§2.2): ASSETS (физика) · TITLES (право) · ENCUMBRANCES (обременения).
+     Способ хранения — реквизит АКТИВА, не договора.
+
+  3. Реестр активов общий (§2.3). Актив живёт вне договора, договор его привязывает.
+
+  4. Два уровня связи с кредитом (§3.1): юридическое обременение (ENCUMBRANCES, меняется
+     только документом) и расчётное распределение (ALLOC, веса). Никогда не смешиваются.
+
+  5. Веса, не суммы (§3.2). Σ весов по активу ≤ 1. Вклад = вес × стоимость на дату.
+     Переоценка вниз роняет ВКЛАД, но не трогает веса. Обрезки типа effShare нет.
+
+  6. Две базы покрытия (§4.1): coverage(credit,'origination') против суммы кредита —
+     это гейт; coverage(credit,'current') против остатка долга — это мониторинг.
+     Одна формула на два вопроса — дефект v1 (Д-8).
+
+  7. Один индекс, коэффициент по подтипу (§4.2). Поручительство входит через
+     PARAMS.k.поручительство; значение 0 = «не считается покрытием». Это настройка.
+
+  8. Индекс не хранится (§4.3). SNAPSHOTS — архив, движок его не читает.
+
+  9. Четыре ортогональные оси состояния (§5.1), все выводятся: стадия договора ·
+     правовое состояние актива · физическое состояние · расчётная задействованность.
+
+ 10. Правила — данные (§6.1). RULES: условие · уровень · кто вправе допустить ·
+     пункт норматива. Ни одного порога в коде, ни одного текста правила в разметке.
+     Гейт — свёртка gate(). UI печатает формулировку из той же записи.
+
+ 11. Единый журнал допусков ADMISSIONS (§6.3) — один формат на весь контур.
+
+ 12. Версии параметров PARAMS_VERSIONS + снимок применённого на решении (§6.2).
+
+ 13. Внешние факты не хранятся (§9): остаток долга берётся через EXT.debtBalance(),
+     категория риска и группа платёжеспособности — read-only зеркала.
+
+  Нормативные константы — только в PARAMS/RULES, каждая со ссылкой на пункт (§1 спеки).
+  Оговорка Н-21: тексты ПОЛ №22 / ПОР / ПБК в репозитории отсутствуют, числа подлежат
+  разовой сверке с бумагой (О-1) до реализации.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:280px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+
+.app{ display:flex; height:100vh; }
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  border-right:1px solid var(--border-default); display:flex; flex-direction:column; }
+.brand{ padding:16px; font:var(--weight-semibold) 16px/1.25 var(--asubk-font); color:var(--text-heading); }
+.brand small{ display:block; font:var(--weight-regular) var(--text-xs)/1.4 var(--asubk-font); color:var(--text-muted); margin-top:4px; }
+.nav{ flex:1; overflow-y:auto; padding:4px 0 12px; }
+.nav-cap{ padding:12px 16px 4px; font:var(--weight-semibold) var(--text-xs)/1.2 var(--asubk-font);
+  letter-spacing:.06em; text-transform:uppercase; color:var(--text-muted); }
+.nav-item{ display:flex; justify-content:space-between; gap:8px; padding:7px 16px; cursor:pointer;
+  color:rgba(27,43,65,0.72); font:var(--weight-regular) var(--text-sm)/1.5 var(--asubk-font); }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); font-weight:var(--weight-medium); }
+.nav-item .cnt{ color:var(--text-muted); font-size:var(--text-xs); }
+.sidebar-foot{ padding:10px 16px; border-top:1px solid var(--border-default); }
+.sidebar-foot label{ display:block; font-size:var(--text-xs); color:var(--text-muted); margin-bottom:4px; }
+
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; }
+.topbar{ height:var(--header-h); flex:none; display:flex; align-items:center; gap:12px;
+  padding:0 20px; border-bottom:1px solid var(--border-default); }
+.topbar h1{ margin:0; font:var(--weight-semibold) var(--text-lg)/1.2 var(--asubk-font); color:var(--text-heading); }
+.topbar .sub{ color:var(--text-muted); font-size:var(--text-sm); }
+.spacer{ flex:1; }
+.content{ flex:1; overflow:auto; padding:20px; background:var(--surface-page); }
+
+.card{ background:var(--surface-card); border:1px solid var(--border-default);
+  border-radius:var(--radius-lg); padding:16px; margin-bottom:16px; }
+.card > h2{ margin:0 0 4px; font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-heading); }
+.card > .hint{ margin:0 0 12px; color:var(--text-muted); font-size:var(--text-sm); }
+.grid{ display:grid; gap:12px; }
+.g2{ grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
+.g3{ grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
+.g4{ grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); }
+
+.kpi{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:12px; background:var(--surface-panel); }
+.kpi .k{ font-size:var(--text-xs); color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+.kpi .v{ font:var(--weight-semibold) 22px/1.2 var(--asubk-font); color:var(--text-heading); margin-top:6px; }
+.kpi .n{ font-size:var(--text-xs); color:var(--text-muted); margin-top:4px; }
+
+table{ width:100%; border-collapse:collapse; font-size:var(--text-sm); }
+th{ text-align:left; font-weight:var(--weight-semibold); color:var(--text-muted); font-size:var(--text-xs);
+  text-transform:uppercase; letter-spacing:.04em; padding:8px 10px; border-bottom:1px solid var(--border-strong); white-space:nowrap; }
+td{ padding:8px 10px; border-bottom:1px solid var(--asubk-grid-line); vertical-align:top; }
+tr.clickable{ cursor:pointer; }
+tr.clickable:hover td{ background:var(--surface-hover); }
+td.num, th.num{ text-align:right; font-variant-numeric:tabular-nums; }
+.tbl-wrap{ overflow-x:auto; }
+
+.chip{ display:inline-block; padding:2px 8px; border-radius:var(--radius-pill); font-size:var(--text-xs);
+  font-weight:var(--weight-medium); white-space:nowrap; }
+.chip.ok{ background:var(--status-success-bg); color:var(--status-success); }
+.chip.warn{ background:var(--status-warning-bg); color:var(--status-warning); }
+.chip.err{ background:var(--status-error-bg); color:var(--status-error); }
+.chip.info{ background:var(--status-info-bg); color:var(--status-info); }
+.chip.mute{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+
+button{ font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); height:32px; padding:0 14px;
+  border-radius:var(--radius-md); border:1px solid var(--border-strong); background:var(--surface-card);
+  color:var(--text-body); cursor:pointer; }
+button:hover:not(:disabled){ background:var(--surface-hover); }
+button:disabled{ opacity:.5; cursor:not-allowed; }
+button.primary{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+button.primary:hover:not(:disabled){ background:var(--asubk-blue-hover); }
+button.danger{ background:var(--asubk-red); border-color:var(--asubk-red); color:#fff; }
+button.sm{ height:26px; padding:0 10px; font-size:var(--text-xs); }
+.btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+
+select,input,textarea{ font:var(--font-body); font-size:var(--text-sm); height:var(--control-h);
+  padding:0 10px; border:1px solid var(--border-strong); border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-body); width:100%; }
+textarea{ height:auto; padding:8px 10px; min-height:64px; }
+input:focus,select:focus,textarea:focus{ outline:none; box-shadow:var(--shadow-focus); border-color:var(--border-focus); }
+label.f{ display:block; margin-bottom:10px; }
+label.f > span{ display:block; font-size:var(--text-xs); color:var(--text-muted); margin-bottom:4px; }
+
+.gate{ border-left:3px solid var(--border-strong); padding:10px 12px; border-radius:var(--radius-md);
+  background:var(--surface-panel); margin-bottom:8px; }
+.gate.block{ border-left-color:var(--asubk-red); background:var(--status-error-bg); }
+.gate.warnl{ border-left-color:var(--asubk-amber); background:var(--status-warning-bg); }
+.gate.pass{ border-left-color:var(--asubk-green); background:var(--status-success-bg); }
+.gate .t{ font-weight:var(--weight-semibold); font-size:var(--text-sm); }
+.gate .m{ font-size:var(--text-sm); margin-top:2px; }
+.gate .src{ font-size:var(--text-xs); color:var(--text-muted); margin-top:4px; }
+
+.axes{ display:flex; gap:8px; flex-wrap:wrap; }
+.axis{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:8px 10px; min-width:180px; }
+.axis .k{ font-size:var(--text-xs); color:var(--text-muted); }
+.axis .v{ font-weight:var(--weight-semibold); font-size:var(--text-sm); margin-top:2px; }
+
+.tabs{ display:flex; gap:2px; border-bottom:1px solid var(--border-default); margin-bottom:14px; flex-wrap:wrap; }
+.tab{ padding:8px 14px; cursor:pointer; font-size:var(--text-sm); color:var(--text-muted);
+  border-bottom:2px solid transparent; }
+.tab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-medium); }
+
+.bar{ height:8px; border-radius:var(--radius-pill); background:var(--asubk-gray-200); overflow:hidden; margin-top:6px; }
+.bar > i{ display:block; height:100%; background:var(--asubk-green); }
+.bar > i.low{ background:var(--asubk-red); }
+.bar > i.mid{ background:var(--asubk-amber); }
+
+.route{ display:flex; gap:0; flex-wrap:wrap; }
+.route .step{ flex:1; min-width:130px; padding:8px 10px; border:1px solid var(--border-default);
+  border-right:none; font-size:var(--text-xs); }
+.route .step:last-child{ border-right:1px solid var(--border-default); }
+.route .step.done{ background:var(--status-success-bg); }
+.route .step .n{ font-weight:var(--weight-semibold); color:var(--text-heading); }
+.route .step .d{ color:var(--text-muted); margin-top:2px; }
+
+.modal-bg{ position:fixed; inset:0; background:rgba(15,25,40,.45); display:flex; align-items:center;
+  justify-content:center; z-index:100; padding:20px; }
+.modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(640px,100%);
+  max-height:88vh; overflow:auto; padding:20px; }
+.modal h3{ margin:0 0 12px; font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); }
+
+.toast{ position:fixed; right:20px; bottom:20px; z-index:200; display:flex; flex-direction:column; gap:8px; }
+.toast > div{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md);
+  font-size:var(--text-sm); max-width:420px; }
+.toast > div.err{ background:var(--asubk-red); }
+.toast > div.ok{ background:var(--asubk-green); }
+
+.muted{ color:var(--text-muted); }
+.small{ font-size:var(--text-xs); }
+.mono{ font-variant-numeric:tabular-nums; }
+.link{ color:var(--text-link); cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+.sep{ height:1px; background:var(--border-default); margin:14px 0; }
+dl.kv{ margin:0; display:grid; grid-template-columns:auto 1fr; gap:6px 14px; font-size:var(--text-sm); }
+dl.kv dt{ color:var(--text-muted); }
+dl.kv dd{ margin:0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="toast" id="toast"></div>
+<script>
+/* ==========================================================================
+   ЧАСТЬ 1. ПАРАМЕТРЫ И ПРАВИЛА — ДАННЫЕ, НЕ КОД (§6.1, §6.2 спеки)
+   ========================================================================== */
+/* Версии параметров (§6.2). Решение хранит id версии — изменение норматива
+   в будущем не переписывает историю уже принятых решений. */
+const PARAMS_VERSIONS = [
+  { id:'v2025-12', from:'2025-12-12', note:'ПОЛ №22 от 12.12.2025, ред. 1',
+    p:{
+      /* Н-1 — пороги. Порог не константа: выбирается по составу обеспечения. */
+      coverLiquid:1.20, coverMovableIlliquid:1.50, liquidShareMin:0.80,
+      /* Н-3 — банковская гарантия. */
+      guaranteeSameCcy:1.00, guaranteeOtherCcy:1.20,
+      /* Н-5 — возраст техники. */
+      techAgeCIS:15, techAgeFar:20,
+      /* Н-4 — предел физического износа. */
+      wearLimit:70,
+      /* §4.2 — коэффициенты вклада по подтипу обеспечения.
+         k.поручительство = 0 → поручительство не считается покрытием. Это НАСТРОЙКА. */
+      k:{ 'залог':1.0, 'гарантия':1.0, 'поручительство':0 },
+      /* Н-17 — возрастные границы поручителя. */
+      guarantorAgeMin:18, guarantorAgeMax:70,
+      /* Н-6 — матрица периодичности обследования, месяцев. */
+      survey:{ 'Платёжеспособная':{ 'Недвижимое':36, 'Движимое':24 },
+               'Неплатёжеспособная':{ 'Недвижимое':24, 'Движимое':12 },
+               'Банкрот':{ 'Недвижимое':null, 'Движимое':null } },
+      /* Н-7 — ужесточение по категории риска, только с согласованием зампреда. */
+      riskTighten:{ 'Стандартный':1, 'Средний':0.75, 'Высокий':0.5 },
+      /* Внутренний срок, в положении отсутствует — источник помечен как внутренний. */
+      banDeadlineDays:30, appraisalValidMonths:12,
+    } },
+];
+const PV = PARAMS_VERSIONS[PARAMS_VERSIONS.length-1];   // действующая версия
+const P  = PV.p;
+
+/* --- Справочник видов активов со схемой деталей (§2.4).
+   Схема задаёт СОСТАВ полей вида. Поисковые реквизиты (search) вынесены отдельно —
+   они типизированы и индексируются, по ним же ловятся дубли при миграции (§11). */
+const KINDS = [
+  { id:'realty',   name:'Недвижимость',          movable:false, liquid:true,  k:0.70,
+    search:['Кадастровый номер'], schema:[['area','Площадь, м²','num'],['floors','Этажность','num'],['built','Год постройки','num']],
+    insurance:true },
+  { id:'complex',  name:'Имущественный комплекс', movable:false, liquid:true,  k:0.65,
+    search:['Кадастровый номер'], schema:[['area','Площадь, м²','num'],['objects','Кол-во объектов','num']],
+    insurance:true },
+  { id:'vehicle',  name:'Транспортное средство',  movable:true,  liquid:true,  k:0.50,
+    search:['VIN','Госномер'], schema:[['year','Год выпуска','num'],['origin','Происхождение','enum:СНГ|Дальнее зарубежье'],['mileage','Пробег, км','num']],
+    tech:true, insurance:true },
+  { id:'equip',    name:'Оборудование',           movable:true,  liquid:false, k:0.50,
+    search:['Инвентарный номер'], schema:[['year','Год выпуска','num'],['origin','Происхождение','enum:СНГ|Дальнее зарубежье'],['wear','Физический износ, %','num']],
+    tech:true, insurance:true },
+  { id:'goods',    name:'Товары в обороте',       movable:true,  liquid:false, k:0.40,
+    search:[], schema:[['nomen','Номенклатура','str'],['store','Место хранения','str']], insurance:true },
+  { id:'livestock',name:'Скот / поголовье',       movable:true,  liquid:false, k:0.30,
+    search:[], schema:[['head','Голов','num']], prohibited:'Н-4', legacyOnly:true },
+  { id:'agroland', name:'Земли с/х назначения',   movable:false, liquid:false, k:0.30,
+    search:['Кадастровый номер'], schema:[['area','Площадь, га','num']], prohibited:'Н-4', hardBlock:true, legacyOnly:true },
+  { id:'other',    name:'Прочее (вид не определён)', movable:true, liquid:false, k:0.30,
+    search:[], schema:[], legacyOnly:true, undefinedKind:true },
+];
+const kindById = id => KINDS.find(k=>k.id===id) || KINDS[KINDS.length-1];
+
+/* --- Классификатор оснований снятия запрета (Н-10, 11 позиций). */
+const RELEASE_GROUNDS = [
+  { id:'r1',  name:'Полное погашение кредита', needsRecon:true },
+  { id:'r2',  name:'Замена предмета обеспечения' },
+  { id:'r3',  name:'Реализация предмета в порядке взыскания' },
+  { id:'r4',  name:'Признание договора недействительным' },
+  { id:'r5',  name:'Изъятие предмета для государственных нужд' },
+  { id:'r6',  name:'Гибель / утрата предмета' },
+  { id:'r7',  name:'Решение суда' },
+  { id:'r8',  name:'Решение Кабинета Министров' },
+  { id:'r9',  name:'Частичное снятие с части предмета', partial:true },
+  { id:'r10', name:'Ошибка регистрации (техническая)' },
+  { id:'r11', name:'Иное основание по решению комитета', needsCommittee:true },
+];
+/* Цепочка согласований Н-10 — 4 шага, каждый под своей ролью (§7.3). */
+const RELEASE_CHAIN = [
+  { id:'dep',   name:'Согласие отраслевого департамента', role:'dept' },
+  { id:'legal', name:'Правовая экспертиза',               role:'legal' },
+  { id:'vice',  name:'Подпись курирующего зампреда',      role:'vice' },
+  { id:'notif', name:'Извещение нотариуса и регистрирующих органов', role:'curator' },
+];
+/* Маршрут кредитно-залоговых документов, Н-14 — ровно 6 шагов. */
+const DOC_ROUTE = [
+  { id:'pack',  name:'Формирование пакета',        role:'curator' },
+  { id:'legal', name:'Правовая экспертиза',        role:'legal' },
+  { id:'not',   name:'Нотариальное удостоверение', role:'curator' },
+  { id:'reg',   name:'Госрегистрация обременения', role:'curator' },
+  { id:'acct',  name:'Постановка предмета на учёт',role:'curator' },
+  { id:'arch',  name:'Архивирование',              role:'curator' },
+];
+/* Роли, Н-13. */
+const ROLES = [
+  { id:'curator',  name:'Куратор отдела залогового обеспечения' },
+  { id:'head',     name:'Заведующий отделом залогового обеспечения' },
+  { id:'dak',      name:'Начальник Департамента администрирования кредитов' },
+  { id:'committee',name:'Комитет по администрированию бюджетных кредитов' },
+  { id:'observer', name:'Наблюдатель (только чтение)' },
+  { id:'legal',    name:'Правовая экспертиза' },
+  { id:'vice',     name:'Курирующий зампред' },
+  { id:'dept',     name:'Отраслевой департамент' },
+];
+
+/* ==========================================================================
+   ПРАВИЛА КАК ДАННЫЕ (§6.1)
+   condition — чистая функция контекста; level — 'block' | 'warn';
+   admit — роль, вправе допустить; null = без права допуска (Н-4);
+   src — пункт норматива; текст правила один и тот же в гейте и в интерфейсе.
+   ========================================================================== */
+const RULES = [
+  /* --- допуск актива к обеспечению --- */
+  { id:'A-01', scope:'asset', level:'block', admit:null, src:'Н-4 · Прил.1 §3.5',
+    title:'Земли с/х назначения не принимаются в обеспечение',
+    when:c => kindById(c.asset.kindId).id==='agroland' },
+  { id:'A-02', scope:'asset', level:'block', admit:null, src:'Н-4 · Прил.1 §3.5',
+    title:'Физический износ ≥ предела — предмет не принимается',
+    when:c => Number(c.asset.props.wear||0) >= P.wearLimit,
+    detail:c => `износ ${c.asset.props.wear}% при пределе ${P.wearLimit}%` },
+  { id:'A-03', scope:'asset', level:'block', admit:'committee', src:'Н-4 · Прил.1 §3.5',
+    title:'Вид имущества входит в стоп-лист',
+    when:c => !!kindById(c.asset.kindId).prohibited && !['agroland'].includes(c.asset.kindId),
+    detail:c => `вид «${kindById(c.asset.kindId).name}»` },
+  { id:'A-04', scope:'asset', level:'block', admit:'committee', src:'Н-5 · Прил.1 §2.5',
+    title:'Возраст техники превышает предел',
+    when:c => { const k=kindById(c.asset.kindId); if(!k.tech) return false;
+      const y=Number(c.asset.props.year||0); if(!y) return false;
+      const lim = c.asset.props.origin==='Дальнее зарубежье' ? P.techAgeFar : P.techAgeCIS;
+      return (TODAY.getFullYear()-y) > lim; },
+    detail:c => { const lim = c.asset.props.origin==='Дальнее зарубежье'?P.techAgeFar:P.techAgeCIS;
+      return `${TODAY.getFullYear()-Number(c.asset.props.year)} лет при пределе ${lim}`; } },
+  { id:'A-05', scope:'asset', level:'block', admit:'curator', src:'Н-5 · Прил.1 §3.3',
+    title:'Отсутствует действующий страховой полис',
+    when:c => kindById(c.asset.kindId).insurance && !(c.asset.insurance && c.asset.insurance.till >= ISO(TODAY)) },
+  { id:'A-06', scope:'asset', level:'block', admit:'curator', src:'Н-15 · Прил.1',
+    title:'Не указан способ хранения предмета',
+    when:c => !c.asset.custody },
+  { id:'A-07', scope:'asset', level:'warn', admit:'committee', src:'Н-15 · Прил.1',
+    title:'Срок права аренды не покрывает срок кредита',
+    when:c => !!c.asset.leaseTill && !!c.creditMaturity && c.asset.leaseTill < c.creditMaturity },
+  { id:'A-08', scope:'asset', level:'warn', admit:'curator', src:'§2.4 · миграция',
+    title:'Вид предмета не определён (унаследовано из прежней системы)',
+    when:c => !!kindById(c.asset.kindId).undefinedKind },
+  { id:'A-09', scope:'asset', level:'block', admit:'curator', src:'§5.2 · обременения',
+    title:'На предмете есть обременение третьих лиц',
+    when:c => encOf(c.asset.id).some(e => ['арест суда','налоговый арест','чужой залог'].includes(e.type) && active(e)),
+    detail:c => encOf(c.asset.id).filter(e=>['арест суда','налоговый арест','чужой залог'].includes(e.type)&&active(e))
+                 .map(e=>e.type).join(', ') },
+  { id:'A-10', scope:'asset', level:'warn', admit:'curator', src:'Н-12 · Прил.1',
+    title:'Отчёт об оценке устарел',
+    when:c => { const v=lastVal(c.asset.id); if(!v) return true;
+      return monthsBetween(v.date, ISO(TODAY)) > P.appraisalValidMonths; } },
+
+  /* --- покрытие --- */
+  { id:'C-01', scope:'credit', level:'block', admit:'committee', src:'Н-1 · Прил.1 §2.3–2.4',
+    title:'Индекс обеспеченности ниже требуемого порога',
+    when:c => { const cv=coverage(c.credit.id,'origination'); return cv.index < cv.req; },
+    detail:c => { const cv=coverage(c.credit.id,'origination');
+      return `${pct(cv.index)} при требуемых ${pct(cv.req)} — ${cv.source}`; } },
+  { id:'C-02', scope:'credit', level:'block', admit:'committee', src:'Н-1 · Прил.1 §2.4',
+    title:'Доля ликвидного обеспечения ниже минимума',
+    when:c => { const cv=coverage(c.credit.id,'origination');
+      return cv.liquidRuleApplies && cv.liquidShare < P.liquidShareMin; },
+    detail:c => { const cv=coverage(c.credit.id,'origination');
+      return `${pct(cv.liquidShare)} при минимуме ${pct(P.liquidShareMin)}`; } },
+  { id:'C-03', scope:'credit', level:'block', admit:null, src:'Н-2 · Прил.1 §2.6',
+    title:'Обеспеченность установлена решением Кабинета Министров — реквизиты не внесены',
+    when:c => c.credit.kmRequired && !c.credit.kmDecision },
+
+  /* --- регистрация договора --- */
+  { id:'D-01', scope:'agreement', level:'block', admit:'curator', src:'Н-14 · Прил.1',
+    title:'Маршрут кредитно-залоговых документов не завершён',
+    when:c => DOC_ROUTE.some(s => !(c.agr.route||{})[s.id]),
+    detail:c => 'не пройдено: ' + DOC_ROUTE.filter(s=>!(c.agr.route||{})[s.id]).map(s=>s.name).join(', ') },
+  { id:'D-02', scope:'agreement', level:'block', admit:null, src:'Н-17 · Прил.1',
+    title:'Возраст поручителя вне допустимых границ',
+    when:c => { if(c.agr.type!=='поручительство') return false;
+      const s=subj(c.agr.providerId); if(!s||!s.birth) return false;
+      const age = yearsBetween(s.birth, c.agr.date);
+      return age < P.guarantorAgeMin || age > P.guarantorAgeMax; },
+    detail:c => { const s=subj(c.agr.providerId);
+      return `${yearsBetween(s.birth,c.agr.date)} лет на дату договора (границы ${P.guarantorAgeMin}–${P.guarantorAgeMax})`; } },
+  { id:'D-03', scope:'agreement', level:'block', admit:'curator', src:'Н-17 · Прил.1',
+    title:'Нет нотариального согласия супруга поручителя',
+    when:c => c.agr.type==='поручительство' && !c.agr.spouseConsent },
+  { id:'D-04', scope:'agreement', level:'block', admit:'curator', src:'Н-17 · Прил.1',
+    title:'Договор поручительства не удостоверен нотариально',
+    when:c => c.agr.type==='поручительство' && !c.agr.notary },
+  { id:'D-05', scope:'agreement', level:'warn', admit:'curator', src:'§3.2 · инвариант весов',
+    title:'Сумма весов по предмету превышает единицу',
+    when:c => (c.agr.items||[]).some(id => weightSum(id) > 1.0000001),
+    detail:c => (c.agr.items||[]).filter(id=>weightSum(id)>1.0000001)
+                 .map(id=>`${assetById(id).name}: ${weightSum(id).toFixed(2)}`).join('; ') },
+
+  /* --- замена предмета --- */
+  { id:'R-01', scope:'replace', level:'block', admit:null, src:'Н-16 · Прил.1',
+    title:'Замена при просроченной задолженности запрещена',
+    when:c => EXT.overdue(c.credit.id) },
+  { id:'R-02', scope:'replace', level:'block', admit:'committee', src:'Н-16 · Прил.1',
+    title:'Нет согласия отраслевого департамента',
+    when:c => !c.form.deptConsent },
+  { id:'R-03', scope:'replace', level:'block', admit:'committee', src:'Н-16 · Прил.1',
+    title:'Нет заключения ДАК о ликвидности',
+    when:c => !c.form.dakOpinion },
+  { id:'R-04', scope:'replace', level:'block', admit:'committee', src:'Н-16 · Прил.1',
+    title:'Нарушена равноценность замены',
+    when:c => c.form.inValue < c.form.outValue,
+    detail:c => `вводится ${money(c.form.inValue)} против выводимых ${money(c.form.outValue)}` },
+  { id:'R-05', scope:'replace', level:'block', admit:'committee', src:'Н-16 · Прил.1',
+    title:'Снижается ранг ликвидности обеспечения',
+    when:c => c.form.inLiquid === false && c.form.outLiquid === true },
+
+  /* --- снятие запрета --- */
+  { id:'B-01', scope:'release', level:'block', admit:null, src:'Н-11 · ПБК п.2.2',
+    title:'Основание «полное погашение» требует реквизита акта сверки задолженности',
+    when:c => c.form.groundId==='r1' && !c.form.reconAct },
+  { id:'B-02', scope:'release', level:'block', admit:null, src:'Н-10 · Прил.1',
+    title:'Цепочка согласований не пройдена',
+    when:c => RELEASE_CHAIN.some(s => !(c.form.chain||{})[s.id]),
+    detail:c => 'нет: ' + RELEASE_CHAIN.filter(s=>!(c.form.chain||{})[s.id]).map(s=>s.name).join(', ') },
+  { id:'B-03', scope:'release', level:'block', admit:'committee', src:'§3.2 · распределение',
+    title:'По предмету есть действующее распределение на кредиты',
+    when:c => c.form.groundId!=='r9' && allocOf(c.asset.id).some(a => !closed(a)),
+    detail:c => allocOf(c.asset.id).filter(a=>!closed(a)).map(a=>creditById(a.creditId).no).join(', ') },
+
+  /* --- обследование --- */
+  { id:'S-01', scope:'survey', level:'block', admit:null, src:'Н-8 · Прил.2',
+    title:'Заключение по акту обязательно',
+    when:c => !c.form.conclusion },
+  { id:'S-02', scope:'survey', level:'block', admit:null, src:'Н-8 · Прил.2',
+    title:'Фотофиксация обязательна',
+    when:c => c.form.outcome!=='не состоялось' && !c.form.photos },
+  { id:'S-03', scope:'survey', level:'block', admit:null, src:'Н-8 · Прил.2',
+    title:'Односторонний акт допустим только при подтверждённом наличии предмета',
+    when:c => c.form.oneSided && !c.form.presenceConfirmed },
+  { id:'S-04', scope:'survey', level:'block', admit:null, src:'Н-8 · Прил.2',
+    title:'Нужны подписи ГФХ и залогодателя',
+    when:c => c.form.outcome!=='не состоялось' && !c.form.oneSided && !(c.form.signGfh && c.form.signPledgor) },
+];
+const rulesFor = scope => RULES.filter(r=>r.scope===scope);
+
+/* ==========================================================================
+   ЧАСТЬ 2. СОСТОЯНИЕ. Каждая таблица — одна сущность спеки.
+   Ничего производного здесь не хранится (§4.3, §5.1).
+   ========================================================================== */
+const TODAY = new Date('2026-07-26T00:00:00');
+/* Дата в локальных компонентах: toISOString() сдвигает дату на часовой пояс
+   и превращает 26-е в 25-е — для дат сроков и актов это недопустимо. */
+const ISO = d => { const x = (d instanceof Date ? d : new Date(d));
+  return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0'); };
+
+/* --- субъекты и роли (§2.5). Отдельного реестра поручителей нет. --- */
+const SUBJECTS = [
+  { id:'S1', kind:'ЮЛ', name:'ОсОО «Ак-Жол Агро»',        inn:'01503199710021' },
+  { id:'S2', kind:'ЮЛ', name:'ОсОО «Кыргыз Темир»',       inn:'02207200510043' },
+  { id:'S3', kind:'ФЛ', name:'Асанов Бакыт Кубанычбекович',inn:'22105198000123', birth:'1980-05-21' },
+  { id:'S4', kind:'ФЛ', name:'Осмонова Гульмира Токтогуловна', inn:'11803195400987', birth:'1954-03-18' },
+  { id:'S5', kind:'ЮЛ', name:'ОАО «Айыл Банк»',           inn:'00905199610011' },
+  { id:'S6', kind:'ЮЛ', name:'ГП «Кыргыз Жер»',           inn:'03101200210077' },
+  { id:'S7', kind:'ФЛ', name:'Иманалиев Нурбек Сагынович', inn:'12207199100456', birth:'1991-07-22' },
+];
+
+/* --- кредиты. Внешние факты помечены: модуль их НЕ владеет (§9, Н-18). --- */
+const CREDITS = [
+  { id:'K1', no:'К-2026/041', borrowerId:'S1', amount:12000000, ccy:'KGS', maturity:'2031-06-30',
+    kmRequired:false, kmDecision:null, _debt:10400000, _overdue:false, _risk:'Стандартный', _pay:'Платёжеспособная' },
+  { id:'K2', no:'К-2026/052', borrowerId:'S2', amount:8000000,  ccy:'KGS', maturity:'2029-12-31',
+    kmRequired:false, kmDecision:null, _debt:7600000,  _overdue:true,  _risk:'Средний', _pay:'Неплатёжеспособная' },
+  { id:'K3', no:'К-2026/063', borrowerId:'S6', amount:25000000, ccy:'KGS', maturity:'2033-03-31',
+    kmRequired:true,  kmDecision:null, _debt:25000000, _overdue:false, _risk:'Стандартный', _pay:'Платёжеспособная' },
+  { id:'K4', no:'К-2026/070', borrowerId:'S2', amount:5000000,  ccy:'KGS', maturity:'2028-09-30',
+    kmRequired:false, kmDecision:null, _debt:4200000,  _overdue:false, _risk:'Стандартный', _pay:'Неплатёжеспособная' },
+  { id:'K5', no:'К-2025/018', borrowerId:'S1', amount:3000000,  ccy:'KGS', maturity:'2027-05-31',
+    kmRequired:false, kmDecision:null, _debt:900000,   _overdue:false, _risk:'Стандартный', _pay:'Платёжеспособная' },
+];
+
+/* Контракты со смежными модулями (§9). Единственная точка чтения чужих фактов.
+   Остаток долга НЕ кэшируется — это прямое следствие legacy-дефекта E2E-09. */
+const EXT = {
+  debtBalance:(creditId,date)=>{ const c=creditById(creditId); return c? c._debt : 0; },
+  overdue:    creditId => !!(creditById(creditId)||{})._overdue,
+  riskCat:    creditId => (creditById(creditId)||{})._risk || 'Стандартный',
+  payGroup:   borrowerId => { const c=CREDITS.find(x=>x.borrowerId===borrowerId); return c? c._pay : 'Платёжеспособная'; },
+  realizing:  assetId => !!(assetById(assetId)||{})._realizing,
+};
+
+/* --- слой 1: актив (физика). Способ хранения живёт ЗДЕСЬ (§2.2). --- */
+const ASSETS = [
+  { id:'A1', kindId:'realty',  name:'Складской комплекс, г. Токмок, ул. Ленина 44',
+    qty:1, unit:'объект', ccy:'KGS', custody:'у залогодателя', location:'Чуйская обл., г. Токмок',
+    search:{'Кадастровый номер':'5-04-01-0012-0044'}, props:{area:2400,floors:2,built:2014},
+    insurance:{no:'ПС-2026/1180', till:'2027-03-31'}, phys:'в наличии' },
+  { id:'A2', kindId:'vehicle', name:'Грузовой тягач MAN TGS 33.480, 2019',
+    qty:2, unit:'ед.', ccy:'KGS', custody:'у залогодателя', location:'Чуйская обл., г. Токмок',
+    search:{'VIN':'WMA06XZZ7KM123456','Госномер':'01KG777AAA'}, props:{year:2019,origin:'Дальнее зарубежье',mileage:310000},
+    insurance:{no:'ПС-2026/0442', till:'2026-06-30'}, phys:'в наличии' },
+  { id:'A3', kindId:'equip',   name:'Линия розлива Krones, 2011',
+    qty:1, unit:'компл.', ccy:'KGS', custody:'у залогодателя', location:'г. Бишкек, промзона',
+    search:{'Инвентарный номер':'ОБ-2011-0043'}, props:{year:2011,origin:'Дальнее зарубежье',wear:45},
+    insurance:{no:'ПС-2025/9911', till:'2026-05-31'}, phys:'ухудшен' },
+  { id:'A4', kindId:'goods',   name:'ТМЦ: мука в/с, склад №2',
+    qty:180, unit:'т', ccy:'KGS', custody:'у залогодателя', location:'г. Кара-Балта, склад №2',
+    search:{}, props:{nomen:'Мука пшеничная в/с', store:'склад №2'},
+    insurance:null, phys:'в наличии' },
+  { id:'A5', kindId:'realty',  name:'Административное здание, г. Ош, ул. Курманжан Датка 12',
+    qty:1, unit:'объект', ccy:'KGS', custody:'у залогодержателя', location:'Ошская обл., г. Ош',
+    search:{'Кадастровый номер':'6-01-02-0044-0012'}, props:{area:860,floors:3,built:2008},
+    insurance:{no:'ПС-2026/0771', till:'2027-01-31'}, phys:'в наличии', leaseTill:'2029-06-30' },
+  { id:'A6', kindId:'livestock', name:'КРС, 120 голов (унаследовано)',
+    qty:120, unit:'гол.', ccy:'KGS', custody:'у залогодателя', location:'Нарынская обл.',
+    search:{}, props:{head:120}, insurance:null, phys:'в наличии', legacy:'goods_type=7 / details1..5' },
+  { id:'A7', kindId:'other',   name:'Прочее имущество (вид не определён, из прежней системы)',
+    qty:1, unit:'—', ccy:'KGS', custody:'', location:'не указано',
+    search:{}, props:{}, insurance:null, phys:'в наличии', legacy:'goods_type=99 / details1="иное"' },
+  { id:'A8', kindId:'equip',   name:'Пресс гидравлический ПГ-100, 2004',
+    qty:1, unit:'ед.', ccy:'KGS', custody:'у залогодателя', location:'г. Бишкек, промзона',
+    search:{'Инвентарный номер':'ОБ-2004-0011'}, props:{year:2004,origin:'СНГ',wear:74},
+    insurance:null, phys:'в наличии' },
+];
+
+/* --- слой 2: титул (право) --- */
+const TITLES = [
+  { id:'T1', assetId:'A1', holderId:'S1', right:'Собственность', doc:'Св-во №5-04-0012 от 14.03.2015', from:'2015-03-14' },
+  { id:'T2', assetId:'A2', holderId:'S1', right:'Собственность', doc:'ПТС 01 КК 447281',              from:'2019-08-02' },
+  { id:'T3', assetId:'A3', holderId:'S2', right:'Собственность', doc:'Договор поставки №44 от 03.2011',from:'2011-04-19' },
+  { id:'T4', assetId:'A4', holderId:'S2', right:'Собственность', doc:'Накладные партии №№118-124',    from:'2026-05-06' },
+  { id:'T5', assetId:'A5', holderId:'S3', right:'Собственность', doc:'Св-во №6-01-0044 от 22.09.2009',from:'2009-09-22' },
+  { id:'T6', assetId:'A6', holderId:'S6', right:'Собственность', doc:'—',                             from:'2018-01-01' },
+  { id:'T7', assetId:'A7', holderId:'S6', right:'Собственность', doc:'—',                             from:'2017-01-01' },
+  { id:'T8', assetId:'A8', holderId:'S2', right:'Собственность', doc:'Инв. карточка ОБ-2004-0011',    from:'2004-11-30' },
+];
+
+/* --- слой 3: журнал обременений. Единая сущность с типом (§5.2). --- */
+const ENCUMBRANCES = [
+  { id:'E1', assetId:'A1', type:'наш залог',   basis:'Договор залога ДЗ-2026/012', from:'2026-02-11', to:null,
+    org:'Госрегистр', doc:'рег. №2026-0211-441' },
+  { id:'E2', assetId:'A1', type:'наш запрет',  basis:'Запрет на отчуждение по ДЗ-2026/012', from:'2026-02-14', to:null,
+    org:'Госрегистр', doc:'отметка №2026-0214-118', markInOriginals:true },
+  { id:'E3', assetId:'A2', type:'наш залог',   basis:'Договор залога ДЗ-2026/012', from:'2026-02-11', to:null,
+    org:'ГРС (ТС)', doc:'рег. №ТС-2026-0044' },
+  { id:'E4', assetId:'A2', type:'наш запрет',  basis:'Запрет на отчуждение по ДЗ-2026/012', from:'2026-02-16', to:null,
+    org:'ГРС (ТС)', doc:null, markInOriginals:false },
+  { id:'E5', assetId:'A3', type:'наш залог',   basis:'Договор залога ДЗ-2026/031', from:'2026-04-02', to:null,
+    org:'Реестр движимого', doc:'рег. №ДВ-2026-0910' },
+  { id:'E6', assetId:'A3', type:'налоговый арест', basis:'Постановление ГНС №44-2026', from:'2026-06-30', to:null,
+    org:'ГНС по г. Бишкек', doc:'пост. №44-2026' },
+  { id:'E7', assetId:'A5', type:'чужой залог', basis:'Ипотека ОАО «Айыл Банк»', from:'2024-11-05', to:null,
+    org:'Госрегистр', doc:'рег. №2024-1105-882' },
+  { id:'E8', assetId:'A4', type:'наш залог',   basis:'Договор залога ДЗ-2026/031', from:'2026-04-02', to:null,
+    org:'Реестр движимого', doc:'рег. №ДВ-2026-0911' },
+];
+
+/* --- договоры обеспечения: одна сущность, три подтипа (§2.1). --- */
+const AGREEMENTS = [
+  { id:'G1', type:'залог', no:'ДЗ-2026/012', stage:'зарегистрирован', borrowerId:'S1', providerId:'S1',
+    date:'2026-02-11', ccy:'KGS', items:['A1','A2'], notary:'Нот. Абдыкадырова А.К., реестр №1-441',
+    route:{pack:'2026-02-02',legal:'2026-02-04',not:'2026-02-09',reg:'2026-02-11',acct:'2026-02-12',arch:'2026-02-20'} },
+  { id:'G2', type:'залог', no:'ДЗ-2026/031', stage:'зарегистрирован', borrowerId:'S2', providerId:'S2',
+    date:'2026-04-02', ccy:'KGS', items:['A3','A4'], notary:'Нот. Жумабаев Т.Т., реестр №2-118',
+    route:{pack:'2026-03-20',legal:'2026-03-25',not:'2026-03-31',reg:'2026-04-02',acct:'2026-04-03',arch:null} },
+  { id:'G3', type:'залог', no:'ДЗ-2026/055', stage:'проект', borrowerId:'S6', providerId:'S6',
+    date:'2026-07-10', ccy:'KGS', items:['A6','A7'], notary:null,
+    route:{pack:'2026-07-10',legal:null,not:null,reg:null,acct:null,arch:null} },
+  { id:'G4', type:'гарантия', no:'БГ-2026/004', stage:'зарегистрирован', borrowerId:'S2', providerId:'S5',
+    date:'2026-04-20', ccy:'USD', sum:52000, creditId:'K4', notary:null,
+    route:{pack:'2026-04-10',legal:'2026-04-12',not:'2026-04-17',reg:'2026-04-20',acct:'2026-04-21',arch:'2026-04-28'} },
+  { id:'G5', type:'поручительство', no:'ДП-2026/019', stage:'зарегистрирован', borrowerId:'S1', providerId:'S3',
+    date:'2026-03-05', ccy:'KGS', sum:2000000, creditId:'K5', notary:'Нот. Абдыкадырова А.К., реестр №1-502',
+    spouseConsent:'Согл. №1-503 от 05.03.2026',
+    route:{pack:'2026-02-25',legal:'2026-02-27',not:'2026-03-04',reg:'2026-03-05',acct:'2026-03-05',arch:'2026-03-12'} },
+  { id:'G6', type:'поручительство', no:'ДП-2026/027', stage:'проект', borrowerId:'S6', providerId:'S4',
+    date:'2026-07-20', ccy:'KGS', sum:4000000, creditId:'K3', notary:null, spouseConsent:null,
+    route:{pack:'2026-07-20',legal:null,not:null,reg:null,acct:null,arch:null} },
+];
+
+/* --- распределение: ВЕСА, не суммы (§3.2). Σ весов по активу ≤ 1. --- */
+const ALLOC = [
+  { id:'L1', agreementId:'G1', assetId:'A1', creditId:'K1', weight:0.70 },
+  { id:'L2', agreementId:'G1', assetId:'A1', creditId:'K5', weight:0.20 },
+  { id:'L3', agreementId:'G1', assetId:'A2', creditId:'K1', weight:1.00 },
+  { id:'L4', agreementId:'G2', assetId:'A3', creditId:'K2', weight:1.00 },
+  { id:'L5', agreementId:'G2', assetId:'A4', creditId:'K2', weight:1.00 },
+  { id:'L6', agreementId:'G3', assetId:'A6', creditId:'K3', weight:1.00 },
+  { id:'L7', agreementId:'G3', assetId:'A7', creditId:'K3', weight:1.00 },
+];
+
+/* --- журнал оценок (§2.2, Н-12). Залоговая = оценочная × k, вниз — только по решению. --- */
+const VALUATIONS = [
+  { id:'V1', assetId:'A1', date:'2026-01-20', appraisal:14500000, appraiser:'ОсОО «Баа Эксперт»', lic:'Л-0442', report:'ОО-2026/0118' },
+  { id:'V2', assetId:'A2', date:'2026-01-22', appraisal:6200000,  appraiser:'ОсОО «Баа Эксперт»', lic:'Л-0442', report:'ОО-2026/0119' },
+  { id:'V3', assetId:'A3', date:'2026-03-15', appraisal:9800000,  appraiser:'ИП Асылбеков',      lic:'Л-0771', report:'ОО-2026/0330' },
+  { id:'V4', assetId:'A3', date:'2026-07-01', appraisal:6100000,  appraiser:'ИП Асылбеков',      lic:'Л-0771', report:'ОО-2026/0602',
+    note:'переоценка после обследования: ухудшение состояния' },
+  { id:'V5', assetId:'A4', date:'2026-05-06', appraisal:3600000,  appraiser:'ИП Асылбеков',      lic:'Л-0771', report:'ОО-2026/0511' },
+  { id:'V6', assetId:'A5', date:'2026-06-10', appraisal:11200000, appraiser:'ОсОО «Баа Эксперт»', lic:'Л-0442', report:'ОО-2026/0640' },
+  { id:'V7', assetId:'A6', date:'2024-02-01', appraisal:4800000,  appraiser:'—', lic:'—', report:'—' },
+  { id:'V8', assetId:'A7', date:'2023-11-01', appraisal:1500000,  appraiser:'—', lic:'—', report:'—' },
+  { id:'V9', assetId:'A8', date:'2026-06-20', appraisal:900000,   appraiser:'ИП Асылбеков',      lic:'Л-0771', report:'ОО-2026/0655' },
+];
+
+/* --- обследования (§7.5). Исход «не состоялось» — полноценный результат. --- */
+const SURVEYS = [
+  { id:'U1', assetId:'A1', date:'2026-02-25', outcome:'проведено', conclusion:'Состояние удовлетворительное, отклонений нет.',
+    photos:true, oneSided:false, signGfh:'Токтосунов А.', signPledgor:'Асанов Б.' },
+  { id:'U2', assetId:'A3', date:'2026-06-25', outcome:'ухудшение', conclusion:'Износ узлов розлива, снижена производительность.',
+    photos:true, oneSided:false, signGfh:'Токтосунов А.', signPledgor:'Иманкулов К.',
+    notice:{ no:'ИЗВ-2026/044', date:'2026-06-27', till:'2026-08-27' } },
+  { id:'U3', assetId:'A4', date:'2026-07-14', outcome:'не состоялось', conclusion:'Доступ на склад не предоставлен.',
+    photos:false, oneSided:false, attempts:[{date:'2026-07-14',who:'Токтосунов А.',reason:'Ворота закрыты, представитель отсутствует'},
+                                            {date:'2026-07-21',who:'Токтосунов А.',reason:'Отказ в допуске без объяснения'}] },
+];
+
+/* --- журнал допусков, единый на весь контур (§6.3). --- */
+const ADMISSIONS = [
+  { id:'AD1', ruleId:'A-05', object:'A4', by:'curator', who:'Токтосунов А.',
+    date:'2026-05-08', basis:'Полис оформляется, срок оформления до 30.05.2026', pv:'v2025-12' },
+];
+
+/* --- события (§8.1) и сроки (§8.2) --- */
+const EVENTS = [];
+const DEADLINES = [
+  { id:'DL1', object:'A2', kind:'Наложение запрета: получение отметки в оригиналах', due:'2026-03-17',
+    source:{type:'внутренний', ref:'внутренний срок banDeadlineDays='+P.banDeadlineDays} },
+  { id:'DL2', object:'A3', kind:'Срок восполнения по извещению', due:'2026-08-27',
+    source:{type:'нормативный', ref:'Н-9 · Прил.1'} },
+];
+const SNAPSHOTS = [];   // архив, движок его не читает (§4.3)
+
+/* ==========================================================================
+   ЧАСТЬ 3. ДВИЖОК
+   ========================================================================== */
+const uid = (()=>{ let n=1000; return p=>p+(++n); })();
+const assetById  = id => ASSETS.find(a=>a.id===id);
+const creditById = id => CREDITS.find(c=>c.id===id);
+const subj       = id => SUBJECTS.find(s=>s.id===id);
+const agrById    = id => AGREEMENTS.find(a=>a.id===id);
+const encOf      = assetId => ENCUMBRANCES.filter(e=>e.assetId===assetId);
+const allocOf    = assetId => ALLOC.filter(a=>a.assetId===assetId);
+const allocOfCredit = creditId => ALLOC.filter(a=>a.creditId===creditId);
+const active     = e => !e.to || e.to >= ISO(TODAY);
+const closed     = a => { const c=creditById(a.creditId); return !c || c._closed; };
+const money = (v,ccy) => (v==null?'—':new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(Math.round(v)) + (ccy?' '+ccy:''));
+const pct   = v => (v==null?'—':(v*100).toFixed(1).replace('.',',')+'%');
+const monthsBetween = (a,b)=>{ const x=new Date(a),y=new Date(b); return (y.getFullYear()-x.getFullYear())*12 + (y.getMonth()-x.getMonth()); };
+const yearsBetween  = (a,b)=>{ const x=new Date(a),y=new Date(b); let n=y.getFullYear()-x.getFullYear();
+  if(y.getMonth()<x.getMonth() || (y.getMonth()===x.getMonth() && y.getDate()<x.getDate())) n--; return n; };
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* --- стоимость. Залоговая = оценочная × k вида. Только понижение (Н-12). --- */
+function lastVal(assetId, onDate){
+  const d = onDate || ISO(TODAY);
+  return VALUATIONS.filter(v=>v.assetId===assetId && v.date<=d).sort((a,b)=>a.date<b.date?1:-1)[0] || null;
+}
+function pledgeValue(assetId, onDate){
+  const v = lastVal(assetId,onDate); if(!v) return 0;
+  const k = kindById(assetById(assetId).kindId).k;
+  const calc = v.appraisal * k;
+  return v.override != null ? Math.min(v.override, calc) : calc;   // подъём выше расчётной невозможен
+}
+const weightSum = assetId => allocOf(assetId).filter(a=>!closed(a)).reduce((s,a)=>s+a.weight,0);
+
+/* --- вклад в покрытие. Вклад = вес × стоимость на дату (§3.2).
+       Переоценка вниз роняет ВКЛАД, веса не трогает — обрезки effShare нет. --- */
+function pledgeParts(creditId, onDate){
+  return allocOfCredit(creditId).map(a=>{
+    const asset = assetById(a.assetId);
+    const agr   = agrById(a.agreementId);
+    const val   = pledgeValue(a.assetId, onDate);
+    return { alloc:a, asset, agr, value:val, contrib: a.weight * val,
+             liquid: kindById(asset.kindId).liquid,
+             legalSum: a.legalSum != null ? a.legalSum : a.weight * (a.baseValue || val),
+             counted: agr && agr.stage==='зарегистрирован' && asset.phys!=='утрачен' && a.weight>0 };
+  });
+}
+function guaranteeParts(creditId){
+  return AGREEMENTS.filter(g=>g.type==='гарантия' && g.creditId===creditId).map(g=>{
+    const c = creditById(creditId);
+    const need = g.ccy===c.ccy ? P.guaranteeSameCcy : P.guaranteeOtherCcy;   // Н-3
+    const rate = g.ccy==='USD' ? 89.5 : 1;                                    // курс — реквизит, §10
+    const kgs  = g.sum * rate;
+    return { agr:g, need, rate, kgs, effective: kgs / need,
+             counted: g.stage==='зарегистрирован' };
+  });
+}
+function suretyParts(creditId){
+  return AGREEMENTS.filter(g=>g.type==='поручительство' && g.creditId===creditId).map(g=>({
+    agr:g, limit:g.sum, counted: g.stage==='зарегистрирован' }));
+}
+
+/* --- требуемый порог. Функция состава, перебивается решением КМ (Н-1, Н-2). --- */
+function requiredCover(creditId, onDate){
+  const c = creditById(creditId);
+  if(c.kmRequired && c.kmDecision) return { req:c.kmDecision.ratio, source:'решение Кабинета Министров '+c.kmDecision.no+' (Н-2)' };
+  const parts = pledgeParts(creditId,onDate).filter(p=>p.counted);
+  const anyMovableIlliquid = parts.some(p=>{ const k=kindById(p.asset.kindId); return k.movable && !k.liquid; });
+  if(anyMovableIlliquid) return { req:P.coverMovableIlliquid, source:'движимое неликвидное в составе — порог '+pct(P.coverMovableIlliquid)+' (Н-1 · Прил.1 §2.4)' };
+  return { req:P.coverLiquid, source:'ликвидное обеспечение — порог '+pct(P.coverLiquid)+' (Н-1 · Прил.1 §2.3)' };
+}
+
+/* --- ДВЕ БАЗЫ (§4.1). base:'origination' — гейт; base:'current' — мониторинг. --- */
+function coverage(creditId, base, onDate){
+  const c = creditById(creditId);
+  const date = onDate || ISO(TODAY);
+  const denom = base==='current' ? EXT.debtBalance(creditId,date) : c.amount;
+  const pp = pledgeParts(creditId,date).filter(p=>p.counted);
+  const gp = guaranteeParts(creditId).filter(p=>p.counted);
+  const sp = suretyParts(creditId).filter(p=>p.counted);
+
+  /* Один индекс, коэффициент по подтипу (§4.2). Слагаемые считаются одинаково:
+     каждое даёт вклад в числителе, знаменатель общий — см. denom выше. */
+  const numPledge = pp.reduce((s,p)=>s+p.contrib,0)   * P.k['залог'];
+  const numGuar   = gp.reduce((s,p)=>s+p.effective,0) * P.k['гарантия'];      // effective = сумма ÷ требуемый запас (Н-3)
+  const numSurety = sp.reduce((s,p)=>s+p.limit,0)     * P.k['поручительство']; // k=0 → не покрывает
+  const num = numPledge + numGuar + numSurety;
+
+  const { req, source } = requiredCover(creditId,date);
+  const liquidVal = pp.filter(p=>p.liquid).reduce((s,p)=>s+p.contrib,0);
+  const liquidRuleApplies = req === P.coverMovableIlliquid;
+
+  return {
+    base, denom, index: denom? num/denom : 0, num, req, source,
+    parts:{ pledge:pp, guarantee:gp, surety:sp },
+    numPledge, numGuar, numSurety,
+    liquidShare: denom? liquidVal/denom : 0, liquidRuleApplies,
+    ok: denom ? (num/denom) >= req && !(liquidRuleApplies && (liquidVal/denom) < P.liquidShareMin) : false,
+  };
+}
+
+/* --- ГЕЙТ — свёртка правил (§6.1). Один и тот же вызов питает и UI, и запись. --- */
+function admissionFor(ruleId, objectId){
+  return ADMISSIONS.filter(a=>a.ruleId===ruleId && a.object===objectId)
+                   .sort((a,b)=>a.date<b.date?1:-1)[0] || null;
+}
+function gate(scope, ctx, objectId){
+  const res = rulesFor(scope).map(r=>{
+    let fired=false, detail='';
+    try{ fired = !!r.when(ctx); if(fired && r.detail) detail = r.detail(ctx); }
+    catch(e){ fired=false; }
+    const adm = fired && r.admit ? admissionFor(r.id, objectId) : null;
+    return { rule:r, fired, detail, admission:adm,
+             blocking: fired && r.level==='block' && !adm };
+  });
+  const blocked = res.filter(x=>x.blocking);
+  return { results:res, blocked, verdict: blocked.length? 'нельзя'
+           : res.some(x=>x.fired && x.admission) ? 'допущено'
+           : res.some(x=>x.fired) ? 'с предупреждениями' : 'можно' };
+}
+
+/* --- ЧЕТЫРЕ ОРТОГОНАЛЬНЫЕ ОСИ (§5.1). Все выводятся, ни одна не редактируется. --- */
+function axesOf(assetId){
+  const a = assetById(assetId);
+  const enc = encOf(assetId).filter(active);
+  const ours = enc.filter(e=>e.type==='наш залог').length>0;
+  const ban  = enc.filter(e=>e.type==='наш запрет')[0];
+  const third= enc.filter(e=>['арест суда','налоговый арест','чужой залог'].includes(e.type));
+  let legal = 'свободен';
+  if(third.length) legal = 'обременён третьими: '+third.map(e=>e.type).join(', ');
+  else if(ours && ban) legal = ban.markInOriginals ? 'обременён нами, запрет с отметкой' : 'обременён нами, отметка не получена';
+  else if(ours) legal = 'обременён нами, запрета нет';
+  const w = weightSum(assetId);
+  const alloc = w<=0 ? 'не отнесён' : w>=0.999 ? 'отнесён полностью' : 'отнесён частично ('+pct(w)+')';
+  return {
+    'Стадия договоров': AGREEMENTS.filter(g=>(g.items||[]).includes(assetId)).map(g=>g.no+': '+g.stage).join('; ') || '—',
+    'Правовое состояние': legal,
+    'Физическое состояние': a.phys,
+    'Расчётная задействованность': alloc,
+  };
+}
+
+/* --- периодичность обследования (Н-6 + Н-7) --- */
+function surveyInterval(assetId){
+  const al = allocOf(assetId).filter(a=>!closed(a));
+  if(!al.length) return { months:null, note:'предмет не отнесён ни к одному кредиту' };
+  const borrowers = al.map(a=>creditById(a.creditId).borrowerId);
+  const groups = borrowers.map(EXT.payGroup);
+  const worst = groups.includes('Банкрот') ? 'Банкрот'
+              : groups.includes('Неплатёжеспособная') ? 'Неплатёжеспособная' : 'Платёжеспособная';
+  const movable = kindById(assetById(assetId).kindId).movable ? 'Движимое' : 'Недвижимое';
+  const base = P.survey[worst][movable];
+  if(base==null) return { months:null, note:'банкрот — по договору со спецадминистратором (Н-6)' };
+  const risks = al.map(a=>EXT.riskCat(a.creditId));
+  const worstRisk = risks.includes('Высокий')?'Высокий':risks.includes('Средний')?'Средний':'Стандартный';
+  const tight = P.riskTighten[worstRisk];
+  return { months:base, tightened: tight<1 ? Math.round(base*tight) : null, worstRisk, worst, movable,
+    note: tight<1 ? 'ужесточение до '+Math.round(base*tight)+' мес. применяется ТОЛЬКО при согласовании зампреда (Н-7)' : '' };
+}
+function surveyDue(assetId){
+  const iv = surveyInterval(assetId); if(!iv.months) return null;
+  const last = SURVEYS.filter(s=>s.assetId===assetId && s.outcome!=='не состоялось')
+                      .sort((a,b)=>a.date<b.date?1:-1)[0];
+  const from = last ? last.date : (AGREEMENTS.find(g=>(g.items||[]).includes(assetId))||{}).date;
+  if(!from) return null;
+  const d = new Date(from); d.setMonth(d.getMonth()+iv.months);
+  return { due:ISO(d), overdue: ISO(d) < ISO(TODAY), from, lastOutcome: last? last.outcome : 'не проводилось' };
+}
+
+/* --- дефекты: вычисляемый список, не хранимые флаги (§5.1) --- */
+function defects(){
+  const out = [];
+  ASSETS.forEach(a=>{
+    const enc = encOf(a.id).filter(active);
+    const ours = enc.some(e=>e.type==='наш залог');
+    const ban  = enc.find(e=>e.type==='наш запрет');
+    if(ours && !ban) out.push({ sev:'err', obj:a.id, t:'Залог без запрета на отчуждение', d:a.name, src:'Н-11 · ПБК п.2.1' });
+    if(ban && !ban.markInOriginals) out.push({ sev:'warn', obj:a.id, t:'Запрет наложен, отметка в оригиналах не получена', d:a.name, src:'Н-11 · ПБК п.2.1' });
+    if(weightSum(a.id) > 1.0000001) out.push({ sev:'err', obj:a.id, t:'Σ весов по предмету > 1', d:a.name+' — '+weightSum(a.id).toFixed(2), src:'§3.2' });
+    const sd = surveyDue(a.id);
+    if(sd && sd.overdue) out.push({ sev:'warn', obj:a.id, t:'Плановое обследование просрочено', d:a.name+' — с '+sd.due, src:'Н-6 · Прил.2 §2.3' });
+    if(kindById(a.kindId).undefinedKind) out.push({ sev:'warn', obj:a.id, t:'Вид предмета не определён (миграция)', d:a.name, src:'§11' });
+    if(kindById(a.kindId).prohibited) out.push({ sev:'err', obj:a.id, t:'Действующая запись по запрещённому виду', d:a.name, src:'Н-4' });
+  });
+  CREDITS.forEach(c=>{
+    const cv = coverage(c.id,'origination');
+    if(!cv.ok) out.push({ sev:'err', obj:c.id, t:'Покрытие при оформлении ниже порога', d:c.no+' — '+pct(cv.index)+' при '+pct(cv.req), src:'Н-1' });
+    if(c.kmRequired && !c.kmDecision) out.push({ sev:'err', obj:c.id, t:'Не внесены реквизиты решения Кабинета Министров', d:c.no, src:'Н-2 · Прил.1 §2.6' });
+  });
+  AGREEMENTS.forEach(g=>{
+    if(g.stage==='зарегистрирован' && DOC_ROUTE.some(s=>!(g.route||{})[s.id]))
+      out.push({ sev:'warn', obj:g.id, t:'Маршрут документов не завершён при зарегистрированном договоре', d:g.no, src:'Н-14' });
+  });
+  DEADLINES.forEach(d=>{ if(d.due < ISO(TODAY))
+    out.push({ sev:'warn', obj:d.object, t:'Просрочен срок: '+d.kind, d:'до '+d.due+' ('+d.source.type+')', src:d.source.ref }); });
+  return out;
+}
+
+/* --- события: типизированные, не проза (§8.1) --- */
+function logEvent(type, objects, payload){
+  EVENTS.unshift({ id:uid('EV'), type, date:ISO(TODAY), who:CURRENT_ROLE, objects, payload:payload||{} , pv:PV.id });
+}
+/* ==========================================================================
+   ЧАСТЬ 4. ИНТЕРФЕЙС. Ни одного порога и ни одной формулировки правила
+   в разметке — всё печатается из RULES/PARAMS (§6.1).
+   ========================================================================== */
+let CURRENT_ROLE = 'curator';
+let VIEW = { name:'overview', id:null, tab:null };
+let MODAL = null;
+
+const roleName = id => (ROLES.find(r=>r.id===id)||{}).name || id;
+const go = (name,id,tab)=>{ VIEW={name,id:id||null,tab:tab||null}; render(); };
+function toast(msg, cls){ const t=document.getElementById('toast');
+  const d=document.createElement('div'); d.className=cls||''; d.textContent=msg; t.appendChild(d);
+  setTimeout(()=>d.remove(), 4200); }
+
+const NAV = [
+  ['Работа', [
+    ['overview',   'Обзор и дефекты',        ()=>defects().length],
+    ['credits',    'Кредиты и обеспеченность',()=>CREDITS.length],
+    ['assets',     'Реестр предметов',        ()=>ASSETS.length],
+    ['agreements', 'Договоры обеспечения',    ()=>AGREEMENTS.length],
+  ]],
+  ['Контроль', [
+    ['admissions', 'Журнал допусков',  ()=>ADMISSIONS.length],
+    ['events',     'События и сроки',  ()=>EVENTS.length+DEADLINES.length],
+  ]],
+  ['Настройка', [
+    ['rules',   'Правила',           ()=>RULES.length],
+    ['params',  'Параметры и версии',()=>PARAMS_VERSIONS.length],
+    ['kinds',   'Виды предметов',    ()=>KINDS.length],
+    ['migration','Миграция',         ()=>ASSETS.filter(a=>a.legacy).length],
+  ]],
+];
+
+function render(){
+  const root = document.getElementById('root');
+  root.innerHTML = `
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">АСУБК · Обеспечение<small>прототип v2 · модель ASUBK-zalog-model-v2.md</small></div>
+      <nav class="nav">${NAV.map(([cap,items])=>`
+        <div class="nav-cap">${esc(cap)}</div>
+        ${items.map(([id,label,cnt])=>`
+          <div class="nav-item ${VIEW.name===id||VIEW.name===id.replace(/s$/,'')?'active':''}" data-go="${id}">
+            <span>${esc(label)}</span><span class="cnt">${cnt()}</span></div>`).join('')}
+      `).join('')}</nav>
+      <div class="sidebar-foot">
+        <label>Роль (Н-13)</label>
+        <select id="roleSel">${ROLES.map(r=>`<option value="${r.id}" ${r.id===CURRENT_ROLE?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
+      </div>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <h1>${esc(pageTitle())}</h1>
+        <span class="sub">${esc(pageSub())}</span>
+        <span class="spacer"></span>
+        <span class="sub">Дата расчёта: ${ISO(TODAY)} · параметры ${PV.id}</span>
+      </div>
+      <div class="content">${pageBody()}</div>
+    </main>
+  </div>
+  ${MODAL ? modalHtml() : ''}`;
+
+  root.querySelectorAll('[data-go]').forEach(el=>el.onclick=()=>go(el.dataset.go));
+  root.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>{
+    const [n,i,t]=el.dataset.open.split(':'); go(n,i,t); });
+  root.querySelectorAll('[data-act]').forEach(el=>el.onclick=()=>ACT[el.dataset.act](el.dataset.arg, el.dataset.arg2));
+  const rs = document.getElementById('roleSel'); if(rs) rs.onchange = e=>{ CURRENT_ROLE=e.target.value; render(); };
+  if(MODAL && MODAL.onMount) MODAL.onMount(root);
+}
+
+function pageTitle(){
+  switch(VIEW.name){
+    case 'overview': return 'Обзор';
+    case 'credits': return 'Кредиты и обеспеченность';
+    case 'credit':  return 'Кредит ' + creditById(VIEW.id).no;
+    case 'assets':  return 'Реестр предметов обеспечения';
+    case 'asset':   return assetById(VIEW.id).name;
+    case 'agreements': return 'Договоры обеспечения';
+    case 'agreement':  return agrById(VIEW.id).type[0].toUpperCase()+agrById(VIEW.id).type.slice(1)+' · '+agrById(VIEW.id).no;
+    case 'rules':   return 'Правила (данные, не код)';
+    case 'params':  return 'Параметры и версии';
+    case 'kinds':   return 'Виды предметов и схемы деталей';
+    case 'admissions': return 'Журнал допусков';
+    case 'events':  return 'События и сроки';
+    case 'migration': return 'Миграция из прежней системы';
+  }
+  return '';
+}
+function pageSub(){
+  const m = { overview:'вычисляемые дефекты, ничего не хранится',
+    credits:'две базы покрытия (§4.1)', credit:'§4 · §6',
+    assets:'общий реестр, актив живёт вне договора (§2.3)', asset:'три слоя вещи (§2.2)',
+    agreements:'надсущность с подтипами (§2.1)', agreement:'маршрут Н-14 · гейт регистрации',
+    rules:'§6.1 — условие · уровень · кто вправе допустить · пункт норматива',
+    params:'§6.2 — снимок применённого на каждом решении', kinds:'§2.4',
+    admissions:'§6.3 — единый формат на весь контур', events:'§8', migration:'§11' };
+  return m[VIEW.name]||'';
+}
+
+/* ---------- общие фрагменты ---------- */
+function gateBlock(g, objectId, scopeLabel){
+  const fired = g.results.filter(r=>r.fired);
+  if(!fired.length) return `<div class="gate pass"><div class="t">Препятствий нет</div>
+    <div class="src">проверено правил: ${g.results.length} · ${esc(scopeLabel||'')}</div></div>`;
+  return fired.map(r=>{
+    const cls = r.blocking ? 'block' : (r.admission ? 'pass' : (r.rule.level==='block'?'block':'warnl'));
+    const admitLbl = r.rule.admit ? roleName(r.rule.admit) : 'без права допуска';
+    const canAdmit = r.rule.admit && CURRENT_ROLE===r.rule.admit && !r.admission;
+    return `<div class="gate ${cls}">
+      <div class="t">${r.rule.id} · ${esc(r.rule.title)}</div>
+      ${r.detail?`<div class="m">${esc(r.detail)}</div>`:''}
+      <div class="src">${esc(r.rule.src)} · уровень: ${r.rule.level==='block'?'блок':'предупреждение'} · допускает: ${esc(admitLbl)}
+      ${r.admission?` · <b>допущено</b> ${esc(roleName(r.admission.by))}, ${r.admission.date}: ${esc(r.admission.basis)}`:''}</div>
+      ${canAdmit?`<div class="btn-row"><button class="sm" data-act="admit" data-arg="${r.rule.id}" data-arg2="${objectId}">Допустить с обоснованием</button></div>`:''}
+    </div>`;
+  }).join('');
+}
+const verdictChip = v => `<span class="chip ${v==='нельзя'?'err':v==='можно'?'ok':v==='допущено'?'info':'warn'}">${esc(v)}</span>`;
+
+function coverageCard(creditId){
+  const c = creditById(creditId);
+  const o = coverage(creditId,'origination');
+  const n = coverage(creditId,'current');
+  const barCls = v=>v.ok?'':'low';
+  const row = (cv,label,note)=>`
+    <div class="kpi">
+      <div class="k">${esc(label)}</div>
+      <div class="v">${pct(cv.index)}</div>
+      <div class="bar"><i class="${barCls(cv)}" style="width:${Math.min(100,cv.index/cv.req*100).toFixed(0)}%"></i></div>
+      <div class="n">знаменатель: ${money(cv.denom,c.ccy)} — ${esc(note)}<br>порог ${pct(cv.req)} · ${esc(cv.source)}</div>
+    </div>`;
+  return `<div class="grid g2">
+    ${row(o,'Покрытие при оформлении','сумма кредита; это гейт (§4.1)')}
+    ${row(n,'Текущая обеспеченность','остаток долга на дату, читается через контракт (§9)')}
+  </div>
+  <div class="sep"></div>
+  <div class="grid g3">
+    <div class="kpi"><div class="k">Вклад залога</div><div class="v">${money(o.numPledge,c.ccy)}</div>
+      <div class="n">коэффициент подтипа k=${P.k['залог']}</div></div>
+    <div class="kpi"><div class="k">Вклад гарантии</div><div class="v">${money(o.numGuar,c.ccy)}</div>
+      <div class="n">k=${P.k['гарантия']} · запас по валюте Н-3</div></div>
+    <div class="kpi"><div class="k">Вклад поручительства</div><div class="v">${money(o.numSurety,c.ccy)}</div>
+      <div class="n">k=${P.k['поручительство']}${P.k['поручительство']===0?' — настройкой отключено (§4.2)':''}</div></div>
+  </div>
+  ${o.liquidRuleApplies?`<div class="sep"></div>
+  <div class="kpi"><div class="k">Доля ликвидного обеспечения</div><div class="v">${pct(o.liquidShare)}</div>
+    <div class="n">минимум ${pct(P.liquidShareMin)} — применяется, потому что порог взят по составу (Н-1 · Прил.1 §2.4)</div></div>`:''}`;
+}
+
+/* ---------- страницы ---------- */
+function pageBody(){
+  switch(VIEW.name){
+    case 'overview':   return viewOverview();
+    case 'credits':    return viewCredits();
+    case 'credit':     return viewCredit();
+    case 'assets':     return viewAssets();
+    case 'asset':      return viewAsset();
+    case 'agreements': return viewAgreements();
+    case 'agreement':  return viewAgreement();
+    case 'rules':      return viewRules();
+    case 'params':     return viewParams();
+    case 'kinds':      return viewKinds();
+    case 'admissions': return viewAdmissions();
+    case 'events':     return viewEvents();
+    case 'migration':  return viewMigration();
+  }
+  return '';
+}
+
+function viewOverview(){
+  const d = defects();
+  const notCovered = CREDITS.filter(c=>!coverage(c.id,'origination').ok).length;
+  return `
+  <div class="grid g4">
+    <div class="kpi"><div class="k">Кредитов</div><div class="v">${CREDITS.length}</div><div class="n">из них не закрыт гейт: ${notCovered}</div></div>
+    <div class="kpi"><div class="k">Предметов в реестре</div><div class="v">${ASSETS.length}</div><div class="n">унаследовано: ${ASSETS.filter(a=>a.legacy).length}</div></div>
+    <div class="kpi"><div class="k">Договоров обеспечения</div><div class="v">${AGREEMENTS.length}</div>
+      <div class="n">${['залог','гарантия','поручительство'].map(t=>t+': '+AGREEMENTS.filter(g=>g.type===t).length).join(' · ')}</div></div>
+    <div class="kpi"><div class="k">Дефектов</div><div class="v">${d.length}</div><div class="n">вычисляется, не хранится (§5.1)</div></div>
+  </div>
+  <div class="card"><h2>Дефекты</h2>
+    <p class="hint">Список — производная от состояния. Ни одного хранимого флага «недообеспечен» (дефект Д-4 прототипа v1).</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Что</th><th>Объект</th><th>Основание</th><th></th></tr></thead><tbody>
+    ${d.map(x=>`<tr><td><span class="chip ${x.sev}">${x.sev==='err'?'блок':'внимание'}</span> ${esc(x.t)}</td>
+      <td>${esc(x.d)}</td><td class="small muted">${esc(x.src)}</td>
+      <td>${x.obj[0]==='A'?`<span class="link" data-open="asset:${x.obj}">открыть предмет</span>`
+        : x.obj[0]==='K'?`<span class="link" data-open="credit:${x.obj}">открыть кредит</span>`
+        : `<span class="link" data-open="agreement:${x.obj}">открыть договор</span>`}</td></tr>`).join('')}
+    </tbody></table></div>
+  </div>`;
+}
+
+function viewCredits(){
+  return `<div class="card"><h2>Кредиты</h2>
+  <p class="hint">Обе базы показаны рядом: гейт считается по сумме кредита, мониторинг — по остатку долга (§4.1). Остаток читается через контракт, не хранится (§9).</p>
+  <div class="tbl-wrap"><table><thead><tr>
+    <th>Кредит</th><th>Заёмщик</th><th class="num">Сумма</th><th class="num">Остаток</th>
+    <th class="num">При оформлении</th><th class="num">Текущая</th><th class="num">Порог</th><th>Гейт</th></tr></thead><tbody>
+  ${CREDITS.map(c=>{ const o=coverage(c.id,'origination'), n=coverage(c.id,'current');
+    const g=gate('credit',{credit:c},c.id);
+    return `<tr class="clickable" data-open="credit:${c.id}">
+      <td><b>${esc(c.no)}</b></td><td>${esc(subj(c.borrowerId).name)}</td>
+      <td class="num">${money(c.amount)}</td><td class="num">${money(EXT.debtBalance(c.id))}</td>
+      <td class="num">${pct(o.index)}</td><td class="num">${pct(n.index)}</td>
+      <td class="num">${pct(o.req)}</td><td>${verdictChip(g.verdict)}</td></tr>`; }).join('')}
+  </tbody></table></div></div>`;
+}
+
+function viewCredit(){
+  const c = creditById(VIEW.id);
+  const tab = VIEW.tab || 'cover';
+  const o = coverage(c.id,'origination');
+  const g = gate('credit',{credit:c},c.id);
+  const tabs = [['cover','Обеспеченность'],['parts','Состав обеспечения'],['gate','Гейт регистрации'],['ext','Внешние факты']];
+  let body='';
+  if(tab==='cover') body = coverageCard(c.id);
+  if(tab==='parts'){
+    body = `<div class="card"><h2>Залог — вклад по предметам</h2>
+    <p class="hint">Вклад = вес × залоговая стоимость на дату. Веса при переоценке вниз НЕ трогаются (§3.2).</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Предмет</th><th>Договор</th><th class="num">Вес</th>
+      <th class="num">Залоговая стоимость</th><th class="num">Вклад</th><th>Ликвидность</th><th>Учтён</th></tr></thead><tbody>
+    ${o.parts.pledge.length?o.parts.pledge.map(p=>`<tr class="clickable" data-open="asset:${p.asset.id}">
+      <td>${esc(p.asset.name)}</td><td>${esc(p.agr.no)}</td><td class="num">${p.alloc.weight.toFixed(2)}</td>
+      <td class="num">${money(p.value)}</td><td class="num"><b>${money(p.contrib)}</b></td>
+      <td>${p.liquid?'<span class="chip ok">ликвидное</span>':'<span class="chip warn">неликвидное</span>'}</td>
+      <td>${p.counted?'<span class="chip ok">да</span>':'<span class="chip mute">нет</span>'}</td></tr>`).join('')
+      :'<tr><td colspan="7" class="muted">залоговых предметов не отнесено</td></tr>'}
+    </tbody></table></div></div>
+    <div class="card"><h2>Гарантии и поручительства</h2>
+    <p class="hint">Подтипы той же надсущности (§2.1). Предметов не имеют — несут сумму и срок на договоре (§2.1).</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Договор</th><th>Тип</th><th>Сторона</th><th class="num">Сумма</th>
+      <th class="num">Требуемый запас</th><th class="num">Вклад</th><th>Основание</th></tr></thead><tbody>
+    ${o.parts.guarantee.map(p=>`<tr class="clickable" data-open="agreement:${p.agr.id}">
+      <td>${esc(p.agr.no)}</td><td>гарантия</td><td>${esc(subj(p.agr.providerId).name)}</td>
+      <td class="num">${money(p.agr.sum,p.agr.ccy)}</td><td class="num">${pct(p.need)}</td>
+      <td class="num"><b>${money(p.effective*P.k['гарантия'])}</b></td>
+      <td class="small muted">Н-3 · курс ${p.rate}</td></tr>`).join('')}
+    ${o.parts.surety.map(p=>`<tr class="clickable" data-open="agreement:${p.agr.id}">
+      <td>${esc(p.agr.no)}</td><td>поручительство</td><td>${esc(subj(p.agr.providerId).name)}</td>
+      <td class="num">${money(p.limit,p.agr.ccy)}</td><td class="num">—</td>
+      <td class="num"><b>${money(p.limit*P.k['поручительство'])}</b></td>
+      <td class="small muted">k=${P.k['поручительство']} (§4.2)</td></tr>`).join('')}
+    ${(!o.parts.guarantee.length && !o.parts.surety.length)?'<tr><td colspan="7" class="muted">нет</td></tr>':''}
+    </tbody></table></div></div>`;
+  }
+  if(tab==='gate'){
+    body = `<div class="card"><h2>Гейт регистрации ${verdictChip(g.verdict)}</h2>
+      <p class="hint">Свёртка правил области «credit». Формулировки печатаются из тех же записей, по которым сработал гейт (§6.1) — хардкода «120%» в интерфейсе нет.</p>
+      ${gateBlock(g,c.id,'область: кредит')}
+      ${c.kmRequired&&!c.kmDecision?`<div class="btn-row"><button class="primary" data-act="km" data-arg="${c.id}">Внести реквизиты решения Кабинета Министров</button></div>`:''}
+    </div>`;
+  }
+  if(tab==='ext'){
+    body = `<div class="card"><h2>Факты из смежных модулей</h2>
+      <p class="hint">Модуль их не хранит и не кэширует — читает через контракты §9. Прямое следствие legacy-дефекта E2E-09 (остаток долга был батч-снимком).</p>
+      <dl class="kv">
+        <dt>Остаток долга на ${ISO(TODAY)}</dt><dd>${money(EXT.debtBalance(c.id),c.ccy)} <span class="small muted">← кредитный модуль</span></dd>
+        <dt>Просроченная задолженность</dt><dd>${EXT.overdue(c.id)?'есть':'нет'} <span class="small muted">← кредитный модуль</span></dd>
+        <dt>Категория кредитного риска</dt><dd>${esc(EXT.riskCat(c.id))} <span class="small muted">read-only зеркало (Н-7, Н-18)</span></dd>
+        <dt>Группа платёжеспособности</dt><dd>${esc(EXT.payGroup(c.borrowerId))} <span class="small muted">← модуль заёмщика</span></dd>
+        <dt>Решение Кабинета Министров</dt><dd>${c.kmRequired?(c.kmDecision?esc(c.kmDecision.no)+' · порог '+pct(c.kmDecision.ratio):'<span class="chip err">требуется, не внесено</span>'):'не требуется'}</dd>
+      </dl></div>`;
+  }
+  return `<div class="tabs">${tabs.map(([id,l])=>`<div class="tab ${tab===id?'active':''}" data-open="credit:${c.id}:${id}">${l}</div>`).join('')}</div>${body}`;
+}
+
+function viewAssets(){
+  return `<div class="card"><h2>Реестр предметов</h2>
+  <p class="hint">Актив — сущность первого класса, живёт вне договора (§2.3). Договор его привязывает; в прежней системе предмет вне договора не существовал (Н-20).</p>
+  <div class="tbl-wrap"><table><thead><tr><th>Предмет</th><th>Вид</th><th class="num">Кол-во</th>
+    <th class="num">Оценочная</th><th class="num">Залоговая</th><th class="num">Σ весов</th><th>Правовое состояние</th><th>Физическое</th></tr></thead><tbody>
+  ${ASSETS.map(a=>{ const v=lastVal(a.id); const ax=axesOf(a.id);
+    return `<tr class="clickable" data-open="asset:${a.id}">
+      <td><b>${esc(a.name)}</b><div class="small muted">${Object.entries(a.search).map(([k,x])=>k+': '+x).join(' · ')||'—'}</div></td>
+      <td>${esc(kindById(a.kindId).name)}${kindById(a.kindId).prohibited?' <span class="chip err">стоп-лист</span>':''}</td>
+      <td class="num">${a.qty} ${esc(a.unit)}</td>
+      <td class="num">${money(v?v.appraisal:null)}</td><td class="num">${money(pledgeValue(a.id))}</td>
+      <td class="num">${weightSum(a.id).toFixed(2)}</td>
+      <td class="small">${esc(ax['Правовое состояние'])}</td>
+      <td>${a.phys==='в наличии'?'<span class="chip ok">в наличии</span>':a.phys==='утрачен'?'<span class="chip err">утрачен</span>':'<span class="chip warn">'+esc(a.phys)+'</span>'}</td></tr>`; }).join('')}
+  </tbody></table></div></div>`;
+}
+
+function viewAsset(){
+  const a = assetById(VIEW.id);
+  const k = kindById(a.kindId);
+  const tab = VIEW.tab || 'main';
+  const tabs = [['main','Основное'],['title','Титул'],['enc','Обременения'],['val','Оценки'],
+                ['alloc','Распределение'],['survey','Обследования'],['gate','Допуск']];
+  const cred = allocOf(a.id)[0] ? creditById(allocOf(a.id)[0].creditId) : null;
+  const ctx = { asset:a, creditMaturity: cred? cred.maturity : null };
+  const g = gate('asset',ctx,a.id);
+  let body='';
+
+  if(tab==='main'){
+    const ax = axesOf(a.id);
+    body = `<div class="card"><h2>Четыре ортогональные оси состояния</h2>
+      <p class="hint">Единого поля «статус» нет — каждая ось выводится из фактов и не редактируется вручную (§5.1).</p>
+      <div class="axes">${Object.entries(ax).map(([k2,v])=>`<div class="axis"><div class="k">${esc(k2)}</div><div class="v">${esc(v)}</div></div>`).join('')}</div>
+    </div>
+    <div class="card"><h2>Общая часть</h2>
+      <dl class="kv">
+        <dt>Вид</dt><dd>${esc(k.name)} · коэффициент ${k.k} · ${k.movable?'движимое':'недвижимое'} · ${k.liquid?'ликвидное':'неликвидное'}</dd>
+        <dt>Количество</dt><dd>${a.qty} ${esc(a.unit)}</dd>
+        <dt>Местонахождение</dt><dd>${esc(a.location)}</dd>
+        <dt>Способ хранения</dt><dd>${a.custody?esc(a.custody):'<span class="chip err">не указан</span>'} <span class="small muted">реквизит АКТИВА, не договора (§2.2)</span></dd>
+        <dt>Страхование</dt><dd>${a.insurance?esc(a.insurance.no)+' до '+a.insurance.till:'<span class="chip warn">нет полиса</span>'}</dd>
+        ${a.leaseTill?`<dt>Право аренды до</dt><dd>${a.leaseTill}</dd>`:''}
+        <dt>Валюта</dt><dd>${esc(a.ccy)} <span class="small muted">одна валюта по умолчанию (§10)</span></dd>
+      </dl>
+      <div class="sep"></div>
+      <h2>Детали по схеме вида</h2>
+      <p class="hint">Состав полей задаёт справочник видов (§2.4). Поисковые реквизиты вынесены отдельно и типизированы.</p>
+      <dl class="kv">
+        ${k.schema.length?k.schema.map(([f,l])=>`<dt>${esc(l)}</dt><dd>${esc(a.props[f]!=null?a.props[f]:'—')}</dd>`).join(''):'<dt>—</dt><dd>схема вида пуста</dd>'}
+      </dl>
+      <div class="sep"></div>
+      <h2>Поисковые реквизиты</h2>
+      <dl class="kv">${k.search.length?k.search.map(s=>`<dt>${esc(s)}</dt><dd class="mono">${esc(a.search[s]||'—')}</dd>`).join(''):'<dt>—</dt><dd>для вида не предусмотрены</dd>'}</dl>
+      ${a.legacy?`<div class="sep"></div><div class="gate warnl"><div class="t">Унаследованная запись</div>
+        <div class="m">Исходная форма: <span class="mono">${esc(a.legacy)}</span></div>
+        <div class="src">§11 · перенос с реконструкцией тождества вещи</div></div>`:''}
+    </div>`;
+  }
+  if(tab==='title'){
+    const t = TITLES.filter(x=>x.assetId===a.id);
+    body = `<div class="card"><h2>Титул — слой 2</h2>
+      <p class="hint">Право отделено от физики и от обременений (§2.2).</p>
+      <div class="tbl-wrap"><table><thead><tr><th>Правообладатель</th><th>Вид права</th><th>Документ</th><th>С даты</th></tr></thead><tbody>
+      ${t.map(x=>`<tr><td>${esc(subj(x.holderId).name)}</td><td>${esc(x.right)}</td><td>${esc(x.doc)}</td><td>${x.from}</td></tr>`).join('')}
+      </tbody></table></div></div>`;
+  }
+  if(tab==='enc'){
+    const e = encOf(a.id);
+    body = `<div class="card"><h2>Журнал обременений — слой 3</h2>
+      <p class="hint">Наш залог, наш запрет, арест суда, налоговый арест, чужой залог — записи ОДНОЙ сущности с типом (§5.2). Проверка «есть ли чужое обременение» — один запрос.</p>
+      <div class="tbl-wrap"><table><thead><tr><th>Тип</th><th>Основание</th><th>Орган</th><th>Реквизит</th><th>Период</th><th>Отметка в оригиналах</th><th></th></tr></thead><tbody>
+      ${e.map(x=>`<tr><td><span class="chip ${x.type.startsWith('наш')?'info':'err'}">${esc(x.type)}</span></td>
+        <td>${esc(x.basis)}</td><td>${esc(x.org)}</td><td class="mono small">${esc(x.doc||'—')}</td>
+        <td>${x.from} — ${x.to||'действует'}</td>
+        <td>${x.type==='наш запрет'?(x.markInOriginals?'<span class="chip ok">принята</span>':'<span class="chip warn">не получена</span>'):'—'}</td>
+        <td>${x.type==='наш запрет'&&active(x)?`<button class="sm" data-act="release" data-arg="${a.id}">Снять запрет</button>`:''}</td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="btn-row">${!encOf(a.id).some(x=>x.type==='наш запрет'&&active(x))?`<button data-act="ban" data-arg="${a.id}">Зарегистрировать наложение запрета</button>`:''}</div>
+      <p class="hint" style="margin-top:12px">Н-11: запрет накладывает залогодатель в регистрирующем органе, холдинг контролирует и принимает отметку в оригиналах правоустанавливающих документов.</p>
+    </div>`;
+  }
+  if(tab==='val'){
+    const vs = VALUATIONS.filter(v=>v.assetId===a.id).sort((x,y)=>x.date<y.date?1:-1);
+    body = `<div class="card"><h2>Журнал оценок</h2>
+      <p class="hint">Отдельный журнал, не редакция договора (§9 модели: редакции договора и журнал оценок — разные шкалы времени). Залоговая = оценочная × ${k.k}; подъём выше расчётной невозможен (Н-12).</p>
+      <div class="tbl-wrap"><table><thead><tr><th>Дата</th><th class="num">Оценочная</th><th class="num">Расчётная залоговая</th>
+        <th class="num">Применённая</th><th>Оценщик</th><th>Отчёт</th><th>Примечание</th></tr></thead><tbody>
+      ${vs.map(v=>`<tr><td>${v.date}</td><td class="num">${money(v.appraisal)}</td>
+        <td class="num">${money(v.appraisal*k.k)}</td>
+        <td class="num">${money(v.override!=null?Math.min(v.override,v.appraisal*k.k):v.appraisal*k.k)}</td>
+        <td>${esc(v.appraiser)}<div class="small muted">лиц. ${esc(v.lic)}</div></td>
+        <td class="small mono">${esc(v.report)}</td><td class="small muted">${esc(v.note||'')}</td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="btn-row"><button data-act="reval" data-arg="${a.id}">Внести переоценку</button></div>
+    </div>`;
+  }
+  if(tab==='alloc'){
+    const al = allocOf(a.id);
+    body = `<div class="card"><h2>Два уровня связи с кредитом</h2>
+      <p class="hint">Юридическое обременение меняется только документом; расчётное распределение — весами. Не смешиваются (§3.1).</p>
+      <div class="tbl-wrap"><table><thead><tr><th>Кредит</th><th>Договор</th><th class="num">Вес</th>
+        <th class="num">Вклад на ${ISO(TODAY)}</th><th class="num">Занято под текущий долг</th></tr></thead><tbody>
+      ${al.map(x=>{ const cr=creditById(x.creditId); const val=pledgeValue(a.id);
+        const busy = Math.min(x.weight*val, EXT.debtBalance(cr.id));
+        return `<tr><td><span class="link" data-open="credit:${cr.id}">${esc(cr.no)}</span></td>
+          <td>${esc(agrById(x.agreementId).no)}</td><td class="num">${x.weight.toFixed(2)}</td>
+          <td class="num">${money(x.weight*val)}</td><td class="num">${money(busy)}</td></tr>`; }).join('')}
+      <tr><td colspan="2"><b>Σ весов</b></td><td class="num"><b>${weightSum(a.id).toFixed(2)}</b>${weightSum(a.id)>1.0000001?' <span class="chip err">> 1</span>':''}</td>
+        <td class="num" colspan="2" class="small muted">инвариант Σ ≤ 1 (§3.2)</td></tr>
+      </tbody></table></div>
+      <p class="hint" style="margin-top:12px">Обременено по договору и занято под текущий долг печатаются рядом — юридический объём неизменен, занятость следует за остатком (§3.3).</p>
+      <div class="btn-row"><button data-act="replace" data-arg="${a.id}">Замена предмета</button></div>
+    </div>`;
+  }
+  if(tab==='survey'){
+    const ss = SURVEYS.filter(s=>s.assetId===a.id).sort((x,y)=>x.date<y.date?1:-1);
+    const iv = surveyInterval(a.id), due = surveyDue(a.id);
+    body = `<div class="card"><h2>Периодичность</h2>
+      <p class="hint">Матрица «группа платёжеспособности × движимость» (Н-6). Не по виду залога — это была ошибка прежней модели.</p>
+      <dl class="kv">
+        <dt>Группа платёжеспособности</dt><dd>${esc(iv.worst||'—')} (худшая по отнесённым кредитам)</dd>
+        <dt>Движимость</dt><dd>${esc(iv.movable||'—')}</dd>
+        <dt>Интервал</dt><dd>${iv.months?iv.months+' мес.':'—'} ${iv.tightened?`<span class="chip warn">возможно ужесточение до ${iv.tightened} мес.</span>`:''}</dd>
+        <dt>Плановая дата</dt><dd>${due? (due.due + (due.overdue?' — <span class="chip err">просрочено</span>':'')) : '—'}</dd>
+      </dl>
+      ${iv.note?`<div class="gate warnl"><div class="m">${esc(iv.note)}</div><div class="src">Н-6 / Н-7</div></div>`:''}
+    </div>
+    <div class="card"><h2>Акты обследования</h2>
+      <p class="hint">Исход «не состоялось» — полноценный результат наряду с «проведено», плюс журнал попыток доступа (§7.5).</p>
+      ${ss.map(s=>`<div class="gate ${s.outcome==='проведено'?'pass':s.outcome==='не состоялось'?'warnl':'block'}">
+        <div class="t">${s.date} · ${esc(s.outcome)}</div>
+        <div class="m">${esc(s.conclusion)}</div>
+        <div class="src">фотофиксация: ${s.photos?'есть':'нет'} · подписи: ${s.oneSided?'односторонний акт':(s.signGfh?esc(s.signGfh)+' / '+esc(s.signPledgor):'—')}</div>
+        ${s.notice?`<div class="src">извещение о восполнении ${esc(s.notice.no)} от ${s.notice.date}, срок до ${s.notice.till} (Н-9)</div>`:''}
+        ${s.attempts?`<div class="src">попытки доступа: ${s.attempts.map(t=>t.date+' — '+esc(t.reason)).join(' · ')}</div>`:''}
+      </div>`).join('') || '<p class="muted">актов нет</p>'}
+      <div class="btn-row"><button data-act="survey" data-arg="${a.id}">Составить акт обследования</button></div>
+    </div>`;
+  }
+  if(tab==='gate'){
+    body = `<div class="card"><h2>Допуск предмета ${verdictChip(g.verdict)}</h2>
+      <p class="hint">Свёртка правил области «asset». Правила с пометкой «без права допуска» не пропускаются ни при какой роли (Н-4).</p>
+      ${gateBlock(g,a.id,'область: предмет')}</div>`;
+  }
+  return `<div class="tabs">${tabs.map(([id,l])=>`<div class="tab ${tab===id?'active':''}" data-open="asset:${a.id}:${id}">${l}</div>`).join('')}</div>${body}`;
+}
+
+function viewAgreements(){
+  return `<div class="card"><h2>Договоры обеспечения</h2>
+  <p class="hint">Одна сущность, три подтипа (§2.1). Предметы есть только у залога; гарантия и поручительство несут сумму на договоре.</p>
+  <div class="tbl-wrap"><table><thead><tr><th>Договор</th><th>Тип</th><th>Стадия</th><th>Заёмщик</th>
+    <th>Предоставил</th><th class="num">Предметов / сумма</th><th>Маршрут</th></tr></thead><tbody>
+  ${AGREEMENTS.map(g=>{ const done=DOC_ROUTE.filter(s=>(g.route||{})[s.id]).length;
+    return `<tr class="clickable" data-open="agreement:${g.id}">
+      <td><b>${esc(g.no)}</b></td><td>${esc(g.type)}</td>
+      <td><span class="chip ${g.stage==='зарегистрирован'?'ok':'mute'}">${esc(g.stage)}</span></td>
+      <td>${esc(subj(g.borrowerId).name)}</td><td>${esc(subj(g.providerId).name)}</td>
+      <td class="num">${g.type==='залог'?(g.items||[]).length+' предм.':money(g.sum,g.ccy)}</td>
+      <td>${done}/6 ${done<6?'<span class="chip warn">не завершён</span>':'<span class="chip ok">пройден</span>'}</td></tr>`; }).join('')}
+  </tbody></table></div></div>`;
+}
+
+function viewAgreement(){
+  const g = agrById(VIEW.id);
+  const ctx = { agr:g };
+  const gt = gate('agreement',ctx,g.id);
+  return `
+  <div class="card"><h2>Маршрут кредитно-залоговых документов</h2>
+    <p class="hint">Ровно 6 шагов (Н-14), каждый с датой и исполнителем. Дополнительные соглашения идут этим же маршрутом (§7.2).</p>
+    <div class="route">${DOC_ROUTE.map((s,i)=>{ const d=(g.route||{})[s.id];
+      return `<div class="step ${d?'done':''}"><div class="n">${i+1}. ${esc(s.name)}</div>
+        <div class="d">${d?d:'не пройдено'} · ${esc(roleName(s.role))}</div></div>`; }).join('')}</div>
+  </div>
+  <div class="card"><h2>Реквизиты</h2>
+    <dl class="kv">
+      <dt>Тип обеспечения</dt><dd>${esc(g.type)} <span class="small muted">подтип надсущности (§2.1)</span></dd>
+      <dt>Стадия</dt><dd>${esc(g.stage)} <span class="small muted">один договор, стадия меняется — отдельной сущности «предложение на заявке» нет (§7.1)</span></dd>
+      <dt>Заёмщик</dt><dd>${esc(subj(g.borrowerId).name)}</dd>
+      <dt>Предоставил обеспечение</dt><dd>${esc(subj(g.providerId).name)} ${g.providerId!==g.borrowerId?'<span class="chip info">третье лицо</span>':''}
+        <div class="small muted">роль субъекта, не отдельный реестр (§2.5)</div></dd>
+      <dt>Дата</dt><dd>${g.date}</dd>
+      ${g.sum?`<dt>${g.type==='гарантия'?'Сумма гарантии':'Лимит ответственности'}</dt><dd>${money(g.sum,g.ccy)}</dd>`:''}
+      ${g.creditId?`<dt>Кредит</dt><dd><span class="link" data-open="credit:${g.creditId}">${esc(creditById(g.creditId).no)}</span></dd>`:''}
+      <dt>Нотариальное удостоверение</dt><dd>${g.notary?esc(g.notary):'<span class="chip warn">нет</span>'}</dd>
+      ${g.type==='поручительство'?`<dt>Согласие супруга</dt><dd>${g.spouseConsent?esc(g.spouseConsent):'<span class="chip err">нет</span>'}</dd>
+        <dt>Возраст поручителя на дату договора</dt><dd>${subj(g.providerId).birth?yearsBetween(subj(g.providerId).birth,g.date)+' лет (границы '+P.guarantorAgeMin+'–'+P.guarantorAgeMax+', Н-17)':'—'}</dd>`:''}
+    </dl>
+  </div>
+  ${g.type==='залог'?`<div class="card"><h2>Предметы</h2>
+    <p class="hint">Договор ПРИВЯЗЫВАЕТ активы из общего реестра, а не создаёт их (§2.3, §7.1).</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Предмет</th><th>Вид</th><th class="num">Залоговая стоимость</th><th class="num">Σ весов</th></tr></thead><tbody>
+    ${(g.items||[]).map(id=>{ const a=assetById(id); return `<tr class="clickable" data-open="asset:${id}">
+      <td>${esc(a.name)}</td><td>${esc(kindById(a.kindId).name)}</td>
+      <td class="num">${money(pledgeValue(id))}</td><td class="num">${weightSum(id).toFixed(2)}</td></tr>`; }).join('')}
+    </tbody></table></div></div>`:''}
+  <div class="card"><h2>Гейт регистрации ${verdictChip(gt.verdict)}</h2>
+    ${gateBlock(gt,g.id,'область: договор')}
+    ${g.stage!=='зарегистрирован'?`<div class="btn-row">
+      <button class="primary" data-act="register" data-arg="${g.id}" ${gt.blocked.length?'disabled':''}>Зарегистрировать договор</button>
+      ${gt.blocked.length?'<span class="small muted" style="align-self:center">кнопка выключена свёрткой — светофор и запись используют один вызов gate() (§6.1)</span>':''}
+    </div>`:''}
+  </div>`;
+}
+
+function viewRules(){
+  const scopes = [...new Set(RULES.map(r=>r.scope))];
+  return `<div class="card"><h2>Правила</h2>
+  <p class="hint">Каждое правило — запись: условие · уровень · кто вправе допустить · пункт норматива · период. Ни одного порога в коде, ни одной формулировки в разметке (§6.1). Правило «без права допуска» не пропускается ни при какой роли.</p>
+  ${scopes.map(s=>`<h3 style="font-size:14px;margin:16px 0 6px">Область: ${esc(s)}</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>ID</th><th>Формулировка</th><th>Уровень</th><th>Кто вправе допустить</th><th>Пункт норматива</th></tr></thead><tbody>
+    ${RULES.filter(r=>r.scope===s).map(r=>`<tr><td class="mono">${r.id}</td><td>${esc(r.title)}</td>
+      <td>${r.level==='block'?'<span class="chip err">блок</span>':'<span class="chip warn">предупреждение</span>'}</td>
+      <td>${r.admit?esc(roleName(r.admit)):'<span class="chip err">без права допуска</span>'}</td>
+      <td class="small muted">${esc(r.src)}</td></tr>`).join('')}
+    </tbody></table></div>`).join('')}
+  </div>`;
+}
+
+function viewParams(){
+  return `<div class="card"><h2>Версии параметров</h2>
+  <p class="hint">Каждое решение хранит id версии и снимок применённых значений (§6.2) — изменение норматива не переписывает историю.</p>
+  ${PARAMS_VERSIONS.map(v=>`<div class="gate ${v.id===PV.id?'pass':''}">
+    <div class="t">${esc(v.id)} ${v.id===PV.id?'<span class="chip ok">действует</span>':''}</div>
+    <div class="m">${esc(v.note)} · с ${v.from}</div></div>`).join('')}
+  <div class="sep"></div>
+  <h2>Действующие значения</h2>
+  <div class="tbl-wrap"><table><thead><tr><th>Параметр</th><th class="num">Значение</th><th>Норма</th></tr></thead><tbody>
+    <tr><td>Порог покрытия, ликвидное</td><td class="num">${pct(P.coverLiquid)}</td><td class="small muted">Н-1 · Прил.1 §2.3</td></tr>
+    <tr><td>Порог покрытия, движимое неликвидное</td><td class="num">${pct(P.coverMovableIlliquid)}</td><td class="small muted">Н-1 · Прил.1 §2.4</td></tr>
+    <tr><td>Минимальная доля ликвида</td><td class="num">${pct(P.liquidShareMin)}</td><td class="small muted">Н-1 · Прил.1 §2.4</td></tr>
+    <tr><td>Гарантия: запас в валюте кредита</td><td class="num">${pct(P.guaranteeSameCcy)}</td><td class="small muted">Н-3</td></tr>
+    <tr><td>Гарантия: запас в иной валюте</td><td class="num">${pct(P.guaranteeOtherCcy)}</td><td class="small muted">Н-3</td></tr>
+    <tr><td>Возраст техники: СНГ / дальнее зарубежье</td><td class="num">${P.techAgeCIS} / ${P.techAgeFar} лет</td><td class="small muted">Н-5</td></tr>
+    <tr><td>Предел физического износа</td><td class="num">${P.wearLimit}%</td><td class="small muted">Н-4 · без права допуска</td></tr>
+    <tr><td>Границы возраста поручителя</td><td class="num">${P.guarantorAgeMin}–${P.guarantorAgeMax}</td><td class="small muted">Н-17</td></tr>
+    ${Object.entries(P.k).map(([t,v])=>`<tr><td>Коэффициент вклада: ${esc(t)}</td><td class="num">${v}</td><td class="small muted">§4.2 — настройка, не норма</td></tr>`).join('')}
+    <tr><td>Срок получения отметки о запрете</td><td class="num">${P.banDeadlineDays} дн.</td><td class="small muted">внутренний срок, в положении отсутствует (§8.2)</td></tr>
+    <tr><td>Срок годности отчёта об оценке</td><td class="num">${P.appraisalValidMonths} мес.</td><td class="small muted">внутренний срок</td></tr>
+  </tbody></table></div>
+  <div class="gate warnl" style="margin-top:14px"><div class="t">Оговорка Н-21</div>
+    <div class="m">Текстов ПОЛ №22, приложений П1–П3/П7, ПОР и ПБК в репозитории нет. Значения зафиксированы цитатами §§ без первоисточника и подлежат разовой сверке с бумагой (О-1) до реализации.</div></div>
+  </div>`;
+}
+
+function viewKinds(){
+  return `<div class="card"><h2>Виды предметов и схемы деталей</h2>
+  <p class="hint">Справочник задаёт СОСТАВ полей вида (§2.4). Плоских колонок details1…5 (Н-20) больше нет.</p>
+  <div class="tbl-wrap"><table><thead><tr><th>Вид</th><th class="num">Коэффициент</th><th>Признаки</th>
+    <th>Поисковые реквизиты</th><th>Схема деталей</th><th>Ограничения</th></tr></thead><tbody>
+  ${KINDS.map(k=>`<tr><td><b>${esc(k.name)}</b></td><td class="num">${k.k}</td>
+    <td class="small">${k.movable?'движимое':'недвижимое'} · ${k.liquid?'ликвидное':'неликвидное'}${k.tech?' · техника':''}${k.insurance?' · страхование обязательно':''}</td>
+    <td class="small mono">${k.search.join(', ')||'—'}</td>
+    <td class="small">${k.schema.map(s=>s[1]).join(' · ')||'—'}</td>
+    <td>${k.prohibited?`<span class="chip err">стоп-лист ${k.prohibited}</span>${k.hardBlock?' <span class="chip err">без права допуска</span>':''}`:''}
+        ${k.legacyOnly?' <span class="chip warn">только миграция</span>':''}</td></tr>`).join('')}
+  </tbody></table></div></div>`;
+}
+
+function viewAdmissions(){
+  return `<div class="card"><h2>Журнал допусков</h2>
+  <p class="hint">Один журнал на весь контур, единый формат: кто · к какому правилу · на каком основании · дата · версия параметров (§6.3). Допуск комитета, допуск зампреда и понижение стоимости — записи одного вида.</p>
+  <div class="tbl-wrap"><table><thead><tr><th>Дата</th><th>Правило</th><th>Объект</th><th>Кто допустил</th><th>Обоснование</th><th>Версия параметров</th></tr></thead><tbody>
+  ${ADMISSIONS.length?ADMISSIONS.map(a=>{ const r=RULES.find(x=>x.id===a.ruleId)||{};
+    return `<tr><td>${a.date}</td><td class="mono">${esc(a.ruleId)}<div class="small muted">${esc(r.title||'')}</div></td>
+      <td>${esc((assetById(a.object)||creditById(a.object)||agrById(a.object)||{}).name || (creditById(a.object)||agrById(a.object)||{}).no || a.object)}</td>
+      <td>${esc(roleName(a.by))}<div class="small muted">${esc(a.who||'')}</div></td>
+      <td>${esc(a.basis)}</td><td class="mono small">${esc(a.pv)}</td></tr>`; }).join('')
+    :'<tr><td colspan="6" class="muted">записей нет</td></tr>'}
+  </tbody></table></div></div>`;
+}
+
+function viewEvents(){
+  return `<div class="card"><h2>Сроки</h2>
+  <p class="hint">Срок — самостоятельная сущность с таксономией источника: нормативный (со ссылкой на пункт) или внутренний (со ссылкой на решение). Отчёт «что просрочено» умеет их разделить (§8.2).</p>
+  <div class="tbl-wrap"><table><thead><tr><th>Объект</th><th>Вид срока</th><th>Дата</th><th>Источник</th><th>Состояние</th></tr></thead><tbody>
+  ${DEADLINES.map(d=>`<tr><td>${esc((assetById(d.object)||{}).name||d.object)}</td><td>${esc(d.kind)}</td><td>${d.due}</td>
+    <td><span class="chip ${d.source.type==='нормативный'?'info':'mute'}">${esc(d.source.type)}</span> <span class="small muted">${esc(d.source.ref)}</span></td>
+    <td>${d.due<ISO(TODAY)?'<span class="chip err">просрочен</span>':'<span class="chip ok">в сроке</span>'}</td></tr>`).join('')}
+  </tbody></table></div></div>
+  <div class="card"><h2>События</h2>
+  <p class="hint">Типизированные события, не проза: тип · дата · субъект · роль · ссылки на объекты · реквизит (§8.1).</p>
+  <div class="tbl-wrap"><table><thead><tr><th>Дата</th><th>Тип</th><th>Роль</th><th>Объекты</th><th>Реквизиты</th><th>Версия параметров</th></tr></thead><tbody>
+  ${EVENTS.length?EVENTS.map(e=>`<tr><td>${e.date}</td><td><span class="chip info">${esc(e.type)}</span></td>
+    <td>${esc(roleName(e.who))}</td><td class="small">${e.objects.join(', ')}</td>
+    <td class="small">${Object.entries(e.payload).map(([k,v])=>esc(k)+': '+esc(v)).join(' · ')}</td>
+    <td class="mono small">${esc(e.pv)}</td></tr>`).join('')
+    :'<tr><td colspan="6" class="muted">за сессию событий не было — выполните действие (регистрация, акт, снятие запрета)</td></tr>'}
+  </tbody></table></div></div>`;
+}
+
+function viewMigration(){
+  const leg = ASSETS.filter(a=>a.legacy);
+  return `<div class="card"><h2>Контур миграции</h2>
+  <p class="hint">Три шага, не смешивается с разработкой модели (§11): discovery → staging → правила-данные.</p>
+  <div class="gate warnl"><div class="t">Шаг 1. Discovery — объёмы не измерены</div>
+    <div class="m">Надёжно известно одно число: 730 договоров поручительства. «100 записей» в списках прежней системы — серверная отсечка выборки, а не объём. Верхняя рамка — 54 691 заёмщик.</div>
+    <div class="src">Н-19 · до измерения планировать миграцию нельзя</div></div>
+  <div class="gate"><div class="t">Шаг 2. Staging — реконструкция тождества вещей</div>
+    <div class="m">В прежней системе предмет не существует вне договора (<span class="mono">/debtor/{d}/collateralagreement/{a}/collateralitem/{i}</span>), а целевая модель требует общего реестра (§2.3). Тождество восстанавливается по поисковым реквизитам §2.4, конфликты разбираются вручную.</div>
+    <div class="src">Н-20</div></div>
+  <div class="gate"><div class="t">Шаг 3. Правила-данные — сопоставление видов</div>
+    <div class="m">11 плоских колонок goods_type/goods_id/details1…5 раскладываются по схемам видов.</div></div>
+  <div class="sep"></div>
+  <h2>Унаследованные записи в реестре</h2>
+  <div class="tbl-wrap"><table><thead><tr><th>Предмет</th><th>Целевой вид</th><th>Исходная форма</th><th>Особый случай</th></tr></thead><tbody>
+  ${leg.map(a=>{ const k=kindById(a.kindId); return `<tr class="clickable" data-open="asset:${a.id}">
+    <td>${esc(a.name)}</td><td>${esc(k.name)}</td><td class="mono small">${esc(a.legacy)}</td>
+    <td>${k.prohibited?'<span class="chip err">действующая запись по запрещённому виду — переносится с пометкой «унаследовано, запрещено к новому приёму»</span>'
+      :k.undefinedKind?'<span class="chip warn">вид не определён — блокирует новые операции до ручного разбора</span>':'—'}</td></tr>`; }).join('')}
+  </tbody></table></div></div>`;
+}
+
+/* ==========================================================================
+   ЧАСТЬ 5. ДЕЙСТВИЯ. Каждое пишет типизированное событие (§8.1) и, где нужно,
+   снимок применённых параметров (§6.2). Гейт вызывается ТЕМ ЖЕ gate(), что и UI.
+   ========================================================================== */
+function modalHtml(){
+  return `<div class="modal-bg" id="mbg"><div class="modal">
+    <h3>${esc(MODAL.title)}</h3>
+    ${MODAL.hint?`<p class="hint">${MODAL.hint}</p>`:''}
+    <form id="mform">${MODAL.body()}
+      <div class="btn-row"><button type="submit" class="primary">${esc(MODAL.ok||'Сохранить')}</button>
+        <button type="button" id="mcancel">Отмена</button></div>
+    </form></div></div>`;
+}
+function openModal(m){ MODAL=m; MODAL.onMount = root=>{
+    root.querySelector('#mcancel').onclick = ()=>{ MODAL=null; render(); };
+    root.querySelector('#mbg').onclick = e=>{ if(e.target.id==='mbg'){ MODAL=null; render(); } };
+    root.querySelector('#mform').onsubmit = e=>{ e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.target).entries());
+      e.target.querySelectorAll('input[type=checkbox]').forEach(cb=>f[cb.name]=cb.checked);
+      const err = MODAL.submit(f);
+      if(err){ toast(err,'err'); return; }
+      MODAL=null; render(); };
+  }; render(); }
+
+const fText  = (n,l,v)=>`<label class="f"><span>${esc(l)}</span><input name="${n}" value="${esc(v||'')}"></label>`;
+const fNum   = (n,l,v)=>`<label class="f"><span>${esc(l)}</span><input name="${n}" type="number" step="any" value="${v!=null?v:''}"></label>`;
+const fArea  = (n,l,v)=>`<label class="f"><span>${esc(l)}</span><textarea name="${n}">${esc(v||'')}</textarea></label>`;
+const fSel   = (n,l,opts,v)=>`<label class="f"><span>${esc(l)}</span><select name="${n}">${opts.map(o=>`<option value="${esc(o[0])}" ${o[0]===v?'selected':''}>${esc(o[1])}</option>`).join('')}</select></label>`;
+const fChk   = (n,l,v)=>`<label class="f" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="${n}" ${v?'checked':''} style="width:auto;height:auto"><span style="margin:0">${esc(l)}</span></label>`;
+
+const ACT = {
+  /* --- допуск: единый формат на весь контур (§6.3) --- */
+  admit(ruleId, objectId){
+    const r = RULES.find(x=>x.id===ruleId);
+    if(CURRENT_ROLE !== r.admit) return toast('Допуск вправе дать только: '+roleName(r.admit),'err');
+    openModal({ title:'Допуск по правилу '+r.id, ok:'Допустить',
+      hint:esc(r.title)+' · '+esc(r.src)+'<br>Обоснование обязательно (Н-13: допуски комитета — только с обоснованием).',
+      body:()=>fArea('basis','Обоснование')+fText('who','ФИО принявшего решение'),
+      submit:f=>{ if(!f.basis || f.basis.trim().length<10) return 'Обоснование обязательно и должно быть содержательным';
+        ADMISSIONS.unshift({ id:uid('AD'), ruleId, object:objectId, by:CURRENT_ROLE, who:f.who,
+          date:ISO(TODAY), basis:f.basis.trim(), pv:PV.id });
+        logEvent('допуск по правилу', [ruleId, objectId], { основание:f.basis.trim() });
+        toast('Допуск зафиксирован в журнале','ok'); } });
+  },
+
+  /* --- регистрация договора: гейт и кнопка используют один вызов (§6.1) --- */
+  register(agrId){
+    const g = agrById(agrId);
+    const gt = gate('agreement',{agr:g},g.id);
+    if(gt.blocked.length) return toast('Регистрация невозможна: '+gt.blocked.map(x=>x.rule.id).join(', '),'err');
+    if(g.type==='залог'){
+      /* залоговый договор регистрируется только если по кредитам состава закрыт гейт покрытия */
+      const credits = [...new Set(ALLOC.filter(a=>a.agreementId===g.id).map(a=>a.creditId))];
+      const bad = credits.filter(cid=>gate('credit',{credit:creditById(cid)},cid).blocked.length);
+      if(bad.length) return toast('Не закрыт гейт по кредитам: '+bad.map(c=>creditById(c).no).join(', '),'err');
+    }
+    g.stage = 'зарегистрирован';
+    SNAPSHOTS.push({ id:uid('SN'), at:ISO(TODAY), what:'регистрация договора', object:g.id, pv:PV.id,
+      params:JSON.parse(JSON.stringify(P)) });   // архив, движок его не читает (§4.3)
+    logEvent('регистрация договора обеспечения', [g.id], { тип:g.type, номер:g.no });
+    toast('Договор зарегистрирован; снимок применённых параметров сохранён','ok');
+  },
+
+  km(creditId){
+    const c = creditById(creditId);
+    openModal({ title:'Реквизиты решения Кабинета Министров', ok:'Внести',
+      hint:'Н-2 · Прил.1 §2.6 — решение перебивает нормативные пороги; порог берётся из его реквизитов.',
+      body:()=>fText('no','Номер и дата решения')+fNum('ratio','Установленный порог покрытия, доля (напр. 1,0)'),
+      submit:f=>{ if(!f.no) return 'Номер решения обязателен';
+        const r = parseFloat(String(f.ratio).replace(',','.'));
+        if(!(r>0)) return 'Порог должен быть положительным';
+        c.kmDecision = { no:f.no, ratio:r };
+        logEvent('внесены реквизиты решения КМ', [c.id], { решение:f.no, порог:pct(r) });
+        toast('Порог теперь берётся из решения, а не из Н-1','ok'); } });
+  },
+
+  /* --- наложение запрета: Н-11, отметка в оригиналах принимается отдельно --- */
+  ban(assetId){
+    openModal({ title:'Регистрация наложения запрета на отчуждение', ok:'Зарегистрировать',
+      hint:'Н-11 · ПБК п.2.1 — запрет накладывает залогодатель в регистрирующем органе; холдинг контролирует наложение и принимает отметку в оригиналах правоустанавливающих документов.',
+      body:()=>fText('org','Регистрирующий орган')+fText('doc','Реквизит регистрации')+
+              fText('basis','Основание (договор)')+fChk('mark','Отметка в оригиналах принята'),
+      submit:f=>{ if(!f.org||!f.basis) return 'Орган и основание обязательны';
+        ENCUMBRANCES.push({ id:uid('E'), assetId, type:'наш запрет', basis:f.basis, from:ISO(TODAY), to:null,
+          org:f.org, doc:f.doc||null, markInOriginals:!!f.mark });
+        if(!f.mark) DEADLINES.push({ id:uid('DL'), object:assetId,
+          kind:'Наложение запрета: получение отметки в оригиналах',
+          due:ISO(new Date(TODAY.getTime()+P.banDeadlineDays*864e5)),
+          source:{ type:'внутренний', ref:'внутренний срок banDeadlineDays='+P.banDeadlineDays } });
+        logEvent('наложение запрета зарегистрировано', [assetId], { орган:f.org, отметка:f.mark?'принята':'не получена' });
+        toast('Запись запрета добавлена в журнал обременений','ok'); } });
+  },
+
+  /* --- снятие запрета: основание из классификатора + цепочка 4 согласований (Н-10) --- */
+  release(assetId){
+    const a = assetById(assetId);
+    openModal({ title:'Снятие запрета на отчуждение', ok:'Снять запрет',
+      hint:'Н-10 — основание только из классификатора (11 позиций), обязательна цепочка из 4 согласований. Каждое согласование подписывается под своей ролью (§7.3).',
+      body:()=>fSel('groundId','Основание',RELEASE_GROUNDS.map(g=>[g.id,g.name]))+
+        fText('reconAct','Реквизит акта сверки задолженности (для основания «полное погашение»)')+
+        '<div class="small muted" style="margin:4px 0 8px">Цепочка согласований:</div>'+
+        RELEASE_CHAIN.map(s=>fChk('ch_'+s.id, s.name+' — '+roleName(s.role))).join(''),
+      submit:f=>{
+        const chain = {}; RELEASE_CHAIN.forEach(s=>chain[s.id]=!!f['ch_'+s.id]);
+        const ctx = { asset:a, form:{ groundId:f.groundId, reconAct:f.reconAct, chain } };
+        const gt = gate('release',ctx,assetId);
+        if(gt.blocked.length) return gt.blocked.map(x=>x.rule.title).join('; ');
+        const ground = RELEASE_GROUNDS.find(g=>g.id===f.groundId);
+        const ban = ENCUMBRANCES.find(e=>e.assetId===assetId && e.type==='наш запрет' && active(e));
+        if(!ban) return 'Действующего запрета нет';
+        if(ground.partial){
+          logEvent('частичное снятие запрета', [assetId], { основание:ground.name,
+            примечание:'запрет на остаток предмета сохранён (Н-10)' });
+          toast('Частичное снятие оформлено; запрет на остаток сохранён','ok'); return;
+        }
+        ban.to = ISO(TODAY);
+        logEvent('снятие запрета', [assetId], { основание:ground.name,
+          'акт сверки': f.reconAct||'—', согласования:'4/4' });
+        toast('Запрет снят, запись закрыта датой','ok'); } });
+  },
+
+  /* --- акт обследования: исход «не состоялось» равноправен (§7.5) --- */
+  survey(assetId){
+    openModal({ title:'Акт обследования', ok:'Составить акт',
+      hint:'Н-8 — заключение и фотофиксация обязательны; односторонний акт допустим только при подтверждённом присутствии/наличии.',
+      body:()=>fSel('outcome','Исход',[['проведено','проведено'],['ухудшение','ухудшение'],
+          ['утрата','утрата'],['не состоялось','не состоялось']])+
+        fArea('conclusion','Заключение')+
+        fChk('photos','Фотофиксация приложена')+
+        fChk('oneSided','Односторонний акт')+
+        fChk('presenceConfirmed','Присутствие/наличие подтверждено')+
+        fText('signGfh','Подпись ГФХ')+fText('signPledgor','Подпись залогодателя')+
+        fText('attemptReason','Причина недопуска (для исхода «не состоялось»)'),
+      submit:f=>{
+        const gt = gate('survey',{ asset:assetById(assetId), form:f }, assetId);
+        if(gt.blocked.length) return gt.blocked.map(x=>x.rule.title).join('; ');
+        const s = { id:uid('U'), assetId, date:ISO(TODAY), outcome:f.outcome, conclusion:f.conclusion,
+          photos:!!f.photos, oneSided:!!f.oneSided, signGfh:f.signGfh, signPledgor:f.signPledgor };
+        if(f.outcome==='не состоялось')
+          s.attempts = [{ date:ISO(TODAY), who:roleName(CURRENT_ROLE), reason:f.attemptReason||'причина не указана' }];
+        SURVEYS.push(s);
+        const a = assetById(assetId);
+        if(f.outcome==='ухудшение' || f.outcome==='утрата'){
+          a.phys = f.outcome==='утрата' ? 'утрачен' : 'ухудшен';
+          const till = new Date(TODAY); till.setMonth(till.getMonth()+2);
+          s.notice = { no:'ИЗВ-'+ISO(TODAY).slice(0,4)+'/'+uid('').slice(-3), date:ISO(TODAY), till:ISO(till) };
+          DEADLINES.push({ id:uid('DL'), object:assetId, kind:'Срок восполнения по извещению',
+            due:ISO(till), source:{ type:'нормативный', ref:'Н-9 · Прил.1' } });
+          logEvent('извещение о восполнении направлено', [assetId], { срок:ISO(till),
+            примечание:'взыскание — только по истечении срока или при отказе (Н-9)' });
+        }
+        logEvent('акт обследования', [assetId], { исход:f.outcome });
+        toast(f.outcome==='не состоялось'
+          ? 'Акт с исходом «не состоялось» сохранён; попытка доступа записана'
+          : 'Акт сохранён','ok'); } });
+  },
+
+  reval(assetId){
+    const a = assetById(assetId), k = kindById(a.kindId);
+    openModal({ title:'Переоценка', ok:'Внести',
+      hint:'Н-12 — залоговая = оценочная × '+k.k+'. Применённая может быть только НИЖЕ расчётной; подъём выше невозможен ни для какой роли. Веса распределения при этом не меняются (§3.2).',
+      body:()=>fNum('appraisal','Оценочная стоимость')+fText('appraiser','Оценщик')+fText('lic','Лицензия')+
+              fText('report','Номер отчёта')+fNum('override','Применённая залоговая (необязательно, только вниз)')+
+              fArea('note','Примечание'),
+      submit:f=>{ const ap=parseFloat(f.appraisal); if(!(ap>0)) return 'Оценочная стоимость обязательна';
+        if(!f.appraiser || !f.report) return 'Оценщик и номер отчёта обязательны (Н-12)';
+        const calc = ap*k.k; let ov = f.override? parseFloat(f.override) : null;
+        if(ov!=null && ov>calc) return 'Подъём выше расчётной невозможен: расчётная '+money(calc);
+        if(ov!=null && CURRENT_ROLE!=='head') return 'Понижение — полномочие заведующего отделом (Н-12)';
+        VALUATIONS.push({ id:uid('V'), assetId, date:ISO(TODAY), appraisal:ap, appraiser:f.appraiser,
+          lic:f.lic, report:f.report, override:ov, note:f.note });
+        logEvent('переоценка', [assetId], { оценочная:money(ap), 'расчётная залоговая':money(calc),
+          применённая:money(ov!=null?ov:calc) });
+        toast('Переоценка внесена; веса распределения не изменились','ok'); } });
+  },
+
+  /* --- замена: ОДНА транзакция, а не раздельные ввод и вывод (§7.7, дефект Д-1 v1) --- */
+  replace(assetId){
+    const a = assetById(assetId);
+    const al = allocOf(assetId).filter(x=>!closed(x));
+    if(!al.length) return toast('Предмет не отнесён ни к одному кредиту — замена не требуется','err');
+    const credit = creditById(al[0].creditId);
+    const cands = ASSETS.filter(x=>x.id!==assetId && weightSum(x.id)<1);
+    openModal({ title:'Замена предмета обеспечения', ok:'Провести замену',
+      hint:'Н-16 — при просроченной задолженности замена запрещена без права допуска. Ввод и вывод выполняются одной транзакцией: раздельные операции под разные кредиты одного договора позволяли обойти гейт (дефект Д-1 прототипа v1).',
+      body:()=>`<dl class="kv"><dt>Выводится</dt><dd>${esc(a.name)} — ${money(pledgeValue(assetId))}</dd>
+        <dt>Кредит</dt><dd>${esc(credit.no)} · просрочка: ${EXT.overdue(credit.id)?'есть':'нет'}</dd></dl><div class="sep"></div>`+
+        fSel('inAsset','Вводится взамен', cands.map(x=>[x.id, x.name+' — '+money(pledgeValue(x.id))]))+
+        fChk('deptConsent','Согласие отраслевого департамента получено')+
+        fChk('dakOpinion','Заключение ДАК о ликвидности получено'),
+      submit:f=>{
+        const inA = assetById(f.inAsset); if(!inA) return 'Выберите вводимый предмет';
+        const form = { deptConsent:!!f.deptConsent, dakOpinion:!!f.dakOpinion,
+          inValue:pledgeValue(inA.id), outValue:pledgeValue(assetId),
+          inLiquid:kindById(inA.kindId).liquid, outLiquid:kindById(a.kindId).liquid };
+        const gt = gate('replace',{ credit, form, asset:a },assetId);
+        if(gt.blocked.length) return gt.blocked.map(x=>x.rule.title+(x.detail?' ('+x.detail+')':'')).join('; ');
+        al.forEach(x=>{ x.assetId = inA.id;
+          const agr = agrById(x.agreementId);
+          agr.items = (agr.items||[]).filter(i=>i!==assetId); if(!agr.items.includes(inA.id)) agr.items.push(inA.id); });
+        logEvent('замена предмета обеспечения', [assetId, inA.id], { кредит:credit.no,
+          выведен:a.name, введён:inA.name, транзакция:'одна' });
+        toast('Замена проведена одной транзакцией','ok'); } });
+  },
+};
+
+/* ==========================================================================
+   Тестовый шов: движок доступен снаружи для автотестов (harness).
+   ========================================================================== */
+window.__zt = { PARAMS:P, RULES, coverage, requiredCover, gate, pledgeValue, weightSum,
+  axesOf, surveyInterval, surveyDue, defects, ASSETS, CREDITS, AGREEMENTS, ALLOC,
+  VALUATIONS, ENCUMBRANCES, ADMISSIONS, EVENTS, DEADLINES, ACT,
+  setRole:r=>{ CURRENT_ROLE=r; }, render };
+
+render();
+</script>
+</body>
+</html>
