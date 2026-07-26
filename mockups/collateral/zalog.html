@@ -1933,7 +1933,7 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
   // («только для парной демонстрации срока»), из-за чего leaseCoversCredit не вызывался ни
   // из одного места UI — контроль существовал функцией, но не срабатывал никогда. Теперь
   // предмет реально обеспечивает кредит, и предупреждение §6.4 п.6 поднимается штатно:
-  // в светофоре допуска предмета, в мониторинге и на карточке договора.
+  // в дефект-строке предмета, в мониторинге и на карточке договора.
   CREDITS.push({ id:'К-104', num:'Дог. №104 от 10.07.2026', inn:'20308197700219', amount:40000, status:'Действующий', overdue:false, otherSecurity:null, creditTill:'01.01.2028', riskCategory:'Низкий' });
   CONTRACTS.push({ id:'Д-017', no:'ЗД-2026/104-1', date:'10.07.2026', status:'Зарегистрирован', inn:'20308197700219',
     notary:'Нотариус Абдылдаева Г.К.', notaryNo:'НР-2026/1403', notaryDate:'10.07.2026', cert:'ЗС-2026/0903',
@@ -2960,7 +2960,7 @@ function fileStatusOf(req, doc){
   return { code:'ok', label:'есть', cls:'low' };
 }
 /* Укомплектованность досье предмета — одна точка правды: её читают вкладка «Документы»,
-   бейдж вкладки, светофор допуска и триггер неполного комплекта. */
+   бейдж вкладки, плашка допуска и триггер неполного комплекта. */
 function itemDossier(it){
   const rows = reqFilesOf(it).map(req => {
     const doc = fileOfType(it, req.t);
@@ -3020,23 +3020,25 @@ function admissionChecks(it){
 
   /* ② Предпосылки оформления §5.2 (Р-5) — состав зависит от типа залогодателя. */
   const miss = prereqMissing(it);
+  /* tab:null — предпосылки §5.2 сведены агрегатом на договоре (вкладка «Документы»),
+     в карточке предмета вкладки для них нет — дефект показываем без ссылки */
   push(miss.length ? 'stop' : 'ok', 'Предпосылки оформления §5.2',
     miss.length ? 'не приложено: ' + miss.length : 'комплект закрыт',
-    miss.length ? miss.map(m => m.label).join('; ') : 'тип залогодателя «' + it.pledgerType + '» — все обязательные согласия приложены', 1);
+    miss.length ? miss.map(m => m.label).join('; ') : 'тип залогодателя «' + it.pledgerType + '» — все обязательные согласия приложены', null);
 
   /* ③ Комплект документов досье (Р-47). */
   const d = itemDossier(it);
   push(d.missing.length ? 'stop' : (d.exp ? 'warn' : 'ok'), 'Комплект документов',
     d.met + ' из ' + d.req + (d.exp ? ' · ' + d.exp + ' истёк' : ''),
     d.missing.length ? 'отсутствуют: ' + d.missing.join('; ')
-      : (d.exp ? 'документ с истёкшим сроком годности требует перевыпуска' : 'обязательный комплект по виду «' + it.kind + '» приложен полностью'), 6);
+      : (d.exp ? 'документ с истёкшим сроком годности требует перевыпуска' : 'обязательный комплект по виду «' + it.kind + '» приложен полностью'), 5);
 
   /* ④ Актуальность отчёта об оценке (Р-48). */
   const till = apprValidTill(it);
   push(apprStale(it) ? 'warn' : 'ok', 'Актуальность оценки',
     apprStale(it) ? 'отчёт устарел ' + till : 'годен до ' + (till || '—'),
     'отчёт ' + (it.apprReport || '—') + ' от ' + (it.apprDate || '—') + ' · срок годности ' + APPRAISAL_VALID_MONTHS + ' мес.'
-      + (it.appraiser ? ' · оценщик: ' + it.appraiser + (it.apprLicense ? ' (лиц. ' + it.apprLicense + ')' : '') : ' · оценщик не указан'), 2);
+      + (it.appraiser ? ' · оценщик: ' + it.appraiser + (it.apprLicense ? ' (лиц. ' + it.apprLicense + ')' : '') : ' · оценщик не указан'), 1);
 
   /* ⑤ Страхование (Р-46) — по всем видам из INSURANCE_KINDS, не только по технике. */
   if(insuranceRequired(it)){
@@ -3044,7 +3046,7 @@ function admissionChecks(it){
     push(insuredMissing(it) ? 'stop' : policyExpired(it) ? 'warn' : 'ok', 'Страхование предмета',
       insuredMissing(it) ? 'полиса нет' : policyExpired(it) ? 'полис истёк ' + ins.till : 'полис действует',
       insuredMissing(it) ? 'вид «' + it.kind + '» подлежит страхованию (§3.4)'
-        : 'полис ' + (ins.policy || '—') + (ins.till ? ' · до ' + ins.till : ''), 1);
+        : 'полис ' + (ins.policy || '—') + (ins.till ? ' · до ' + ins.till : ''), 0);
   }
 
   /* ⑥ Возраст техники (Р-17). */
@@ -3052,7 +3054,7 @@ function admissionChecks(it){
   if(age != null){
     const chk = techAgeCheck({ securityRole: it.securityRole || 'основной', origin: it.origin, age });
     push(chk.block ? 'stop' : chk.needCommittee ? 'warn' : 'ok', 'Срок эксплуатации техники',
-      age + ' лет при лимите ' + techAgeLimit(it), chk.msg || 'в пределах лимита для «' + it.origin + '»', 1);
+      age + ' лет при лимите ' + techAgeLimit(it), chk.msg || 'в пределах лимита для «' + it.origin + '»', 0);
   }
 
   /* ⑦ Срок аренды vs срок кредита (Р-50, ПОЛ §6.4 п.6) — оживший контроль. */
@@ -3061,7 +3063,7 @@ function admissionChecks(it){
     push(lw.length ? 'warn' : 'ok', 'Срок аренды покрывает срок кредита',
       lw.length ? 'короче по ' + lw.map(w => w.creditId).join(', ') : 'покрывает',
       lw.length ? lw[0].msg + ' · срок аренды до ' + (it.leaseTill || '—')
-        : 'срок аренды до ' + (it.leaseTill || '—'), 5);
+        : 'срок аренды до ' + (it.leaseTill || '—'), 4);
   }
 
   /* ⑧ Способ хранения (Р-51, ПОЛ §6.4 п.7). */
@@ -3076,44 +3078,44 @@ function admissionChecks(it){
   /* ⑨ Запрет на отчуждение. */
   if(banMissing(it))
     push('stop', 'Запрет на отчуждение', 'не наложен',
-      'договор(ы) ' + banContracts(it).join(', ') + ' зарегистрированы, запрет в «' + organOf(it) + '» отсутствует — предмет можно продать без нашего ведома', 3);
+      'договор(ы) ' + banContracts(it).join(', ') + ' зарегистрированы, запрет в «' + organOf(it) + '» отсутствует — предмет можно продать без нашего ведома', 2);
   else if(it.ban && banStale(it))
     push('warn', 'Запрет на отчуждение', 'подлежит снятию',
-      'доли обнулились, запрет ' + it.ban.regNo + ' продолжает действовать в «' + organOf(it) + '»', 3);
+      'доли обнулились, запрет ' + it.ban.regNo + ' продолжает действовать в «' + organOf(it) + '»', 2);
   else if(it.ban && !banFullyRegistered(it.ban))
     push('warn', 'Запрет на отчуждение', 'отметка не получена',
-      'запрет ' + it.ban.regNo + ' наложен, отметка в оригиналах правоустанавливающих документов не получена (ПБК п.2.1)', 3);
+      'запрет ' + it.ban.regNo + ' наложен, отметка в оригиналах правоустанавливающих документов не получена (ПБК п.2.1)', 2);
   else if(it.ban)
     push('ok', 'Запрет на отчуждение', 'наложен',
-      organOf(it) + ' · ' + it.ban.regNo + ' от ' + it.ban.date, 3);
+      organOf(it) + ' · ' + it.ban.regNo + ' от ' + it.ban.date, 2);
 
   /* ⑩ Плановый контроль: обследование и переоценка. */
   const ns = nextSurvey(it);
   push(ns && isOverdue(ns) ? 'warn' : 'ok', 'Обследование в сроке',
     ns ? (isOverdue(ns) ? 'просрочено на ' + Math.abs(daysLeft(ns)) + ' дн.' : 'до ' + ns) : 'не планируется',
-    ns ? 'последнее — ' + (it.lastSurvey || '—') : 'предмет не обеспечивает ни одного кредита', 4);
+    ns ? 'последнее — ' + (it.lastSurvey || '—') : 'предмет не обеспечивает ни одного кредита', 3);
   const nr = nextReval(it);
   push(isOverdue(nr) ? 'warn' : 'ok', 'Переоценка в сроке',
     isOverdue(nr) ? 'просрочена на ' + Math.abs(daysLeft(nr)) + ' дн.' : 'до ' + nr,
-    'интервал по виду «' + it.kind + '» — ' + ((KINDS[it.kind] || {}).reval || '—') + ' мес.', 2);
+    'интервал по виду «' + it.kind + '» — ' + ((KINDS[it.kind] || {}).reval || '—') + ' мес.', 1);
 
   /* ⑪ Предшествующие залоги третьих лиц (Р-49). */
   const pl = priorLiensOf(it);
   if(pl.length)
     push('warn', 'Предшествующие залоги третьих лиц', pl.length + ' обременение(й)',
       pl.map(l => l.holder + (l.docNo ? ' · ' + l.docNo : '') + (l.date ? ' от ' + l.date : '')).join(' · ')
-      + ' — наше требование удовлетворяется в порядке очерёдности после них', 5);
+      + ' — наше требование удовлетворяется в порядке очерёдности после них', 4);
 
   /* ⑫ Инвариант Σ долей ≤ залоговая. */
   const pv = pledgeValue(it), tot = allocatedLegal(it.id) + allocatedDraft(it.id);
   push(tot > pv + 0.005 ? 'stop' : 'ok', 'Инвариант долей',
     'Σ ' + fmt(tot) + (tot > pv + 0.005 ? ' > ' : ' ≤ ') + fmt(pv),
     tot > pv + 0.005 ? 'доли усечены пропорционально в расчёте покрытия — кредиты уходят в триггер недостаточности'
-      : 'доступно для перезалога: ' + fmt(availableOf(it)), 5);
+      : 'доступно для перезалога: ' + fmt(availableOf(it)), 4);
 
   /* ⑬ Утрата предмета — терминальный дефект обеспечения. */
   if(it.lost) push('stop', 'Наличие предмета', 'утрачен',
-    'зафиксировано актом обследования — залоговая стоимость исключена из покрытия', 4);
+    'зафиксировано актом обследования — залоговая стоимость исключена из покрытия', 3);
 
   return C;
 }
@@ -3124,6 +3126,15 @@ function admissionVerdict(it){
   return { checks:C, stop, warn, pass: C.length - stop - warn,
            word: stop ? 'Есть стоп-факторы' : warn ? 'Требует внимания' : 'Допуск подтверждён' };
 }
+/* Вердикт одной плашкой — для таблицы предметов договора и для шапки карточки предмета.
+   Отдельной панели с разбором проверок нет; расшифровка счётчиков — в title плашки,
+   а конкретные нарушения — в дефект-строке предмета (itemDefects/defectBar). */
+const admissionPill = it => { const v = admissionVerdict(it);
+  return `<span class="pill ${v.stop?'high':v.warn?'mid':'low'}" title="стоп-факторов: ${v.stop} · замечаний: ${v.warn} · пройдено: ${v.pass}">${
+    v.stop ? 'стоп-факторы: '+v.stop : v.warn ? 'замечания: '+v.warn : 'допуск подтверждён'}</span>`; };
+/* Договор, в рамках которого решается допуск предмета: действующий приоритетнее черновика. */
+const admissionContract = it => CONTRACTS.filter(c => (isActive(c)||isDraftish(c)) && c.allocs.some(a=>a.item===it.id))
+  .sort((a,b)=>(isActive(b)?1:0)-(isActive(a)?1:0))[0] || null;
 
 /* ---- ТЕХНИКА (Р-7, Прил.1 §2.5, §3.4). Возраст и страховка — производные проверки.
    Страхование выражено через общую ось Р-46 (INSURANCE_KINDS), техника — её подмножество. */
@@ -4108,10 +4119,11 @@ function onNew(){ if(!canCurate()) return denyEdit();
 /* ============================================================
    КАРТОЧКИ — вкладки и панели
    ============================================================ */
-/* Р-52/Р-53: вкладки предмета. «Допуск» выделен из прежней вкладки «Документы» (она несла
-   предпосылки §5.2 и техдопуск, то есть гейты, а не документы) — теперь имя вкладки совпадает
-   с её содержимым, а гейты собраны в один светофор. Порядок панелей = порядок вкладок. */
-const TABS_ITEM = ['Основное','Допуск','Стоимость и переоценки','Запрет на отчуждение','Обследования','Обеспечиваемые кредиты','Документы','История'];
+/* Р-52/Р-53: вкладки предмета — только слои самой вещи. Порядок панелей = порядок вкладок.
+   Отдельной вкладки допуска нет ни на предмете, ни на договоре: вердикт показывается
+   чипом в шапке предмета и колонкой «Допуск» в таблице предметов договора. Сами проверки
+   (admissionChecks/admissionVerdict) остаются движком чипа, дефект-строки и триггеров. */
+const TABS_ITEM = ['Основное','Стоимость и переоценки','Запрет на отчуждение','Обследования','Обеспечиваемые кредиты','Документы','История'];
 const TABS_CTR  = ['Общая информация','Предметы залога','Обеспеченность кредитов','Доп соглашения','Документы','История'];
 const TABS_SUR  = ['Основное','Допуск §9.1/9.2','История'];
 let curTab = 0;
@@ -4119,14 +4131,13 @@ let curTab = 0;
 /* Р-53: бейджи-счётчики на вкладках — состав работы виден до открытия вкладки
    (стоп-факторы, число актов, укомплектованность досье, длина истории). */
 function itemTabs(it){
-  const v = admissionVerdict(it), d = itemDossier(it);
+  const d = itemDossier(it);
   const badge = (n, cls) => n ? `<span class="tb${cls?' '+cls:''}">${n}</span>` : '';
   return TABS_ITEM.map((t,i) => {
-    if(i===1) return t + (v.stop ? badge(v.stop,'err') : v.warn ? badge(v.warn,'warn') : '');
-    if(i===4) return t + badge(livesSurvey(it).length);
-    if(i===5) return t + badge(CONTRACTS.filter(c => (isActive(c)||isDraftish(c)) && c.allocs.some(a=>a.item===it.id)).length);
-    if(i===6) return t + `<span class="tb${d.missing.length?' err':d.exp?' warn':''}">${d.met}/${d.req}</span>`;
-    if(i===7) return t + badge(it.history.length);
+    if(i===3) return t + badge(livesSurvey(it).length);
+    if(i===4) return t + badge(CONTRACTS.filter(c => (isActive(c)||isDraftish(c)) && c.allocs.some(a=>a.item===it.id)).length);
+    if(i===5) return t + `<span class="tb${d.missing.length?' err':d.exp?' warn':''}">${d.met}/${d.req}</span>`;
+    if(i===6) return t + badge(it.history.length);
     return t;
   });
 }
@@ -4252,18 +4263,20 @@ function releasePriorLien(id, i){
    подряд — KPI уезжали за экран, а приоритет дефектов терялся. Теперь: одна компактная строка
    со всеми дефектами (каждый — ссылка на вкладку, где он лечится) + ОДИН развёрнутый баннер
    самого тяжёлого дефекта, где нужен полный регламентный текст. Источник дефектов — тот же
-   admissionChecks, что и светофор допуска: два представления одних данных, не два списка. */
+   admissionChecks, что и плашка допуска: два представления одних данных, не два списка.
+   tab === null — дефект лечится не в карточке предмета (предпосылки §5.2 живут агрегатом
+   на договоре), такой дефект показываем без клика, а не ведём в случайную вкладку. */
 function itemDefects(it){
   const out = admissionChecks(it).filter(c => c.sev !== 'ok')
     .map(c => ({ sev:c.sev, text:c.name + ': ' + c.result, tab:c.tab, basis:c.basis }));
   if(it.orphan && !itemHasAlloc(it.id))
-    out.push({ sev:'stop', text:'Не привязан ни к одному договору', tab:5, basis:'предмет создан на карточке договора, привязка не завершена' });
+    out.push({ sev:'stop', text:'Не привязан ни к одному договору', tab:4, basis:'предмет создан на карточке договора, привязка не завершена' });
   if(it.needReval)
-    out.push({ sev:'warn', text:'Требуется досрочная переоценка', tab:2, basis:'обследование зафиксировало ухудшение состояния' });
+    out.push({ sev:'warn', text:'Требуется досрочная переоценка', tab:1, basis:'обследование зафиксировало ухудшение состояния' });
   if(it.legacy)
-    out.push({ sev:'warn', text:'Историческая запись прежней системы', tab:2, basis:'залоговая выше расчётной по нормам прежней системы — нужна переоценка по ПОЛ §2.1' });
+    out.push({ sev:'warn', text:'Историческая запись прежней системы', tab:1, basis:'залоговая выше расчётной по нормам прежней системы — нужна переоценка по ПОЛ §2.1' });
   if(it.realizing)
-    out.push({ sev:'warn', text:'Передан в реализацию (взыскание)', tab:5, basis:'статусом управляет модуль взыскания' });
+    out.push({ sev:'warn', text:'Передан в реализацию (взыскание)', tab:4, basis:'статусом управляет модуль взыскания' });
   return out;
 }
 function defectBar(it){
@@ -4271,12 +4284,14 @@ function defectBar(it){
   if(!d.length) return `<div class="defect-bar ok"><span class="dl">Дефектов нет</span>
     <span class="muted">допуск подтверждён, запрет и плановый контроль в норме, комплект документов собран</span></div>`;
   return `<div class="defect-bar"><span class="dl">Дефекты предмета</span>
-    ${d.map(x => `<span class="pill ${x.sev==='stop'?'high':'mid'}" style="cursor:pointer" title="${esc(x.basis||'')}"
+    ${d.map(x => x.tab == null
+      ? `<span class="pill ${x.sev==='stop'?'high':'mid'}" title="${esc(x.basis||'')}">${esc(x.text)}</span>`
+      : `<span class="pill ${x.sev==='stop'?'high':'mid'}" style="cursor:pointer" title="${esc(x.basis||'')}"
       onclick="openCard('item','${it.id}',${x.tab})">${esc(x.text)}</span>`).join('')}
     <span class="muted">— клик по дефекту открывает вкладку, где он устраняется</span></div>`;
 }
 /* Развёрнутым остаётся ОДИН баннер — самый тяжёлый по приоритету; остальные дефекты видны
-   строкой выше и полностью раскрыты в светофоре допуска. */
+   строкой выше, с основанием в title. */
 function topBanner(it){
   const B = (cls, body, icon) => `<div class="phead-banner ${cls}">${icon||''}<span>${body}</span></div>`;
   const warnIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>`;
@@ -4293,35 +4308,6 @@ function topBanner(it){
     `Запрет на отчуждение наложен залогодателем: ${esc(organOf(it))} · ${esc(it.ban.regNo)} от ${it.ban.date}. Отметка получена в оригиналах правоустанавливающих документов. Предмет не может быть продан без нашего ведома.`,
     `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>`);
   return '';
-}
-
-/* Р-52: панель светофора допуска — то же, что дефект-строка, но с основанием каждой проверки
-   и пройденными пунктами (важно видеть, что именно проверено, а не только что сломано). */
-function admissionPanel(it, extra){
-  const v = admissionVerdict(it);
-  const color = v.stop ? 'var(--asubk-red)' : v.warn ? '#B26A00' : 'var(--asubk-green)';
-  const seg = (n, c) => n ? `<div style="width:${n/v.checks.length*100}%;background:${c}"></div>` : '';
-  const note = v.stop ? 'регистрация залогового договора с этим предметом будет заблокирована'
-             : v.warn ? 'блокирующих факторов нет, есть замечания оформления'
-             : 'блокирующих факторов и замечаний нет';
-  return `<div class="panel-wrap">
-    <p class="section-h">Допуск предмета в залог</p>
-    <div class="panel-card" style="margin-bottom:16px">
-      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
-        <span style="font:var(--weight-bold) 18px/1 var(--asubk-font);color:${color}">${v.word}</span>
-        <span class="formula" style="margin:0">проверок: ${v.checks.length} · на ${TODAY}</span>
-      </div>
-      <div class="meter">${seg(v.stop,'var(--asubk-red)')}${seg(v.warn,'#B26A00')}${seg(v.pass,'var(--asubk-green)')}</div>
-      <div class="formula" style="margin:0">Стоп-факторов: <b style="color:var(--asubk-red)">${v.stop}</b> ·
-        замечаний: <b style="color:#B26A00">${v.warn}</b> · пройдено: <b>${v.pass}</b> — ${note}</div>
-    </div>
-    <div class="chk-list">${v.checks.map(c => `<div class="chk-row ${c.sev}">
-      <div class="cn">${esc(c.name)}</div>
-      <div class="cr">${esc(c.result)}<div class="cb">${esc(c.basis)}</div></div>
-      <div><button class="btn btn-tint btn-sm" onclick="openCard('item','${it.id}',${c.tab})">Перейти</button></div>
-    </div>`).join('')}</div>
-    ${extra || ''}
-  </div>`;
 }
 
 /* ---- Р-54 ДИНАМИКА ОЦЕНОЧНОЙ СТОИМОСТИ. Журнал переоценок показывал только строки:
@@ -4392,7 +4378,10 @@ function itemPanels(it){
         <a onclick="toast('Переход в карточку клиента (модуль «Заёмщики»)')">${esc(clientName(it.pledger))} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></a>
         <div class="phead-sub" style="width:100%">${it.id} · ${esc(it.kind)} · ${esc(it.ident)}</div>
       </div>
-      <span class="phead-owner"><span class="pill ${lienCls(st)}">${st}</span> ${banPill(it)}</span>
+      <span class="phead-owner"><span class="pill ${lienCls(st)}">${st}</span> ${banPill(it)}
+        ${(()=>{ const ac = admissionContract(it);
+          return ac ? `<span class="rowlink" onclick="openCard('contract','${ac.id}',1)" title="Допуск решается на договоре ${esc(ac.no || 'черновик')}">${admissionPill(it)}</span>`
+                    : `<span title="Предмет не привязан к договору — вердикт по правилам самого предмета">${admissionPill(it)}</span>`; })()}</span>
     </div>
     ${defectBar(it)}
     ${topBanner(it)}
@@ -4433,7 +4422,7 @@ function itemPanels(it){
     </div>
     <p class="section-h" style="font-size:16px;margin-top:18px">Детали предмета (по виду «${esc(it.kind)}»)</p>
     <div class="f2">${detailRows(it)}</div>
-    </div></div>`;
+    </div>${techPanel(it)}</div>`;
 
   const zBadge = it.override
     ? (isOverAbove(it)
@@ -4660,18 +4649,14 @@ function itemPanels(it){
     ${hFil.length > hShow.length ? `<div class="hmore"><button class="btn btn-tint btn-sm" onclick="itemHistMore()">Показать ещё (осталось ${hFil.length - hShow.length})</button></div>` : ''}
     </div>`;
 
-  /* ---- Р-5 предпосылки оформления + Р-7 техническая допустимость ---- */
-  const req = prereqReq(it), pr = it.prereqs || {};
-  const prereqRows = PREREQ_KEYS.map(k=>{
-    const rq = req[k], present = (pr[k]||{}).present, need = rq.required;
-    const cls = !need ? 'neutral' : present ? 'low' : 'high';
-    const stt = !need ? 'не требуется' : present ? 'приложено' : 'обязателен, отсутствует';
-    const label = k==='ownerConsent' ? 'Согласие собственника' : k==='spouseConsent' ? 'Согласие супруга(и)' : 'Справка об отсутствии ограничений';
-    return `<tr><td>${label}</td><td>${esc(rq.label)}</td><td><span class="pill ${cls}">${stt}</span></td>
-      <td>${(pr[k]||{}).doc?esc(pr[k].doc):'—'}</td>
-      ${canCurate()?`<td>${need?`<button class="btn btn-tint btn-sm" onclick="togglePrereq('${it.id}','${k}')">${present?'Открепить':'Приложить документ'}</button>`:'—'}</td>`:''}</tr>`;
-  }).join('');
-  const miss = prereqMissing(it);
+  return [p0, p1, p2, p3, p4, pDocs, pHist];
+}
+
+/* ---- Р-7 техническая допустимость (П1 §2.5): возраст, происхождение, полис.
+   Это реквизиты самой вещи, поэтому живут на вкладке «Основное» карточки предмета
+   (вкладки допуска нет). Не-техника получает пустую строку — блок не рисуется. ---- */
+function techPanel(it){
+  if(!isTech(it)) return '';
   /* Р-17: возрастной флаг не всегда «приём не допускается» — жёсткий блок только для
      «дополнительный» залог сверх лимита; «основной» сверх лимита — допуск решением комитета. */
   const ageChk = techAge(it)!=null ? techAgeCheck({ securityRole: it.securityRole||'основной', origin: it.origin, age: techAge(it) }) : null;
@@ -4688,16 +4673,7 @@ function itemPanels(it){
       : techPolicyExpired(it) ? `<div class="flagline" style="margin-top:12px"><span>Страховой полис ${esc(it.insured.policy)} истёк ${it.insured.till} — триггер «страхование техники истекло».</span></div>`
       : `<div class="okline" style="margin-top:12px"><span>Техническая допустимость соблюдена.</span></div>`}
     </div>` : '';
-  /* Р-52: предпосылки §5.2 и техдопуск П1 §2.5 — часть допуска, а не «документы».
-     Уезжают на вкладку «Допуск» под светофор; файлы уходят на вкладку «Документы». */
-  const p6 = `<div>
-    <p class="section-h" style="margin-top:22px">Предпосылки оформления</p>
-    <div class="${miss.length?'flagline':'okline'}"><span>${miss.length ? ('Не приложены обязательные документы: '+miss.map(m=>esc(m.label)).join('; ')+'. Регистрация договора будет заблокирована.') : 'Все обязательные предпосылки закрыты.'}</span></div>
-    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Предпосылка</th><th>Что требуется</th><th>Статус</th><th>Документ</th>${canCurate()?'<th></th>':''}</tr></thead><tbody>${prereqRows}</tbody></table></div>
-    ${techBlock}
-    </div>`;
-
-  return [p0, admissionPanel(it, p6), p1, p2, p3, p4, pDocs, pHist];
+  return `<div>${techBlock}</div>`;
 }
 function itemFooter(it){
   // Действия предмета живут в тулбарах своих вкладок (переоценка → «Стоимость»,
@@ -4827,7 +4803,7 @@ function ctrPanels(c){
   const itemGroups = [];
   c.allocs.forEach((a,i)=>{ let g = itemGroups.find(x=>x.item===a.item); if(!g){ g = { item:a.item, rows:[] }; itemGroups.push(g); } g.rows.push({ a, i }); });
   const totalEff = c.allocs.reduce((s,a)=>s+effShare(cs, a.item, a.share),0);
-  const colCount = editable ? 8 : 7;
+  const colCount = editable ? 9 : 8;
   const p1 = `<div class="panel-wrap">
     ${editable ? `<div class="gtoolbar">
       <button class="btn btn-tint btn-sm" onclick="openNewItem('${c.id}')">
@@ -4835,7 +4811,7 @@ function ctrPanels(c){
       <button class="btn btn-tint btn-sm" onclick="openAlloc('${c.id}')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Привязать существующий</button></div>` : ''}
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Предмет</th><th>Вид</th><th>Залогодатель</th><th>Кредит</th><th class="numcell">Залоговая стоимость</th><th class="numcell">Обеспечивает</th><th>Запрет</th>${editable?'<th></th>':''}</tr></thead>
+      <thead><tr><th>Предмет</th><th>Вид</th><th>Залогодатель</th><th>Кредит</th><th class="numcell">Залоговая стоимость</th><th class="numcell">Обеспечивает</th><th>Запрет</th><th>Допуск</th>${editable?'<th></th>':''}</tr></thead>
       <tbody>${itemGroups.length ? itemGroups.map(g=>{ const it = item(g.item), rs = g.rows.length;
         return g.rows.map((r,ri)=>{ const a = r.a, eff = effShare(cs, it.id, a.share);
           const creditCell = `<td>${a.credit}</td>`;
@@ -4850,9 +4826,10 @@ function ctrPanels(c){
             <td rowspan="${rs}" class="numcell" style="vertical-align:top">${fmt(pledgeValue(it))}</td>
             ${shareCell}
             <td rowspan="${rs}" style="vertical-align:top"><span class="rowlink" onclick="openCard('item','${it.id}',2)">${banPill(it)}</span></td>
+            <td rowspan="${rs}" style="vertical-align:top"><span class="rowlink" onclick="openCard('item','${it.id}')">${admissionPill(it)}</span></td>
             ${actionCell}</tr>`;
         }).join('');
-      }).join('') + `<tr class="total"><td colspan="5">Итого — обеспечено по договору</td><td class="numcell">${fmt(totalEff)}</td><td${editable?' colspan="2"':''}></td></tr>`
+      }).join('') + `<tr class="total"><td colspan="5">Итого — обеспечено по договору</td><td class="numcell">${fmt(totalEff)}</td><td colspan="${editable?3:2}"></td></tr>`
         : `<tr><td colspan="${colCount}"><div class="cgrid-empty">Предметы не привязаны</div></td></tr>`}</tbody>
     </table></div></div>`;
 
@@ -7011,13 +6988,14 @@ if (typeof window !== 'undefined') window.__zt = {
   GUARANTORS, SURETIES, guarantor, surety, suretiesOfCredit, suretiesOfGuarantor,
   activeSuretiesOfCredit, guarantorGate, guarantorIsPerson, ageAt,
   suretyReleaseAllowed, suretyLayerLine, SURETY_STATUSES,
-  // Волна 6 (Р-46…Р-58): досье документов, светофор допуска, страхование, хранение,
+  // Волна 6 (Р-46…Р-58): досье документов, проверки допуска, страхование, хранение,
   // предшествующие залоги, срок аренды, динамика оценки, категории истории.
   INSURANCE_KINDS, APPRAISAL_VALID_MONTHS, FILE_REQ_COMMON, FILE_REQ_BY_KIND, FILE_TAGS,
   insuranceRequired, insuredPresent, insuredMissing, policyExpired,
   apprValidTill, apprStale, reqFilesOf, fileOfType, fileStatusOf, itemDossier,
   priorLiensOf, leaseWarnings, custodyOf, openPriorLien, savePriorLien, releasePriorLien,
-  admissionChecks, admissionVerdict, admissionPanel, itemDefects, itemTabs, TABS_ITEM,
+  admissionChecks, admissionVerdict, admissionPill, admissionContract,
+  techPanel, prereqBlock, itemDefects, itemTabs, TABS_ITEM, TABS_CTR,
   revalSeries, histCat, HIST_CATS, itemHistFilter, itemHistMore,
   saveAttach, openAttach, autoFiles, autoPolicy,
 };
