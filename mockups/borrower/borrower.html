@@ -8,11 +8,12 @@
      Язык: CONTEXT.md · Правило значений: docs/adr/0001-proizvodnye-ne-hranyatsya.md
      Спека: docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки) — обновляется после ревизии 26.07.2026
-     Проверка: node scripts/inspect/borrower-check.mjs  →  69/69 PASS (2026-07-26)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  76/76 PASS (2026-07-26)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
-                     органы просмотра — data-view-ctl; проверяется двусторонне, тесты 26a/26b).
+                     органы просмотра — data-view-ctl; проверяется двусторонне, тесты 26a/26b) ·
+                 И-6 деньги приходят снимком со своей датой (DEBT_ASOF) и дате среза не подчиняются.
 -->
 <style>
   :root{
@@ -882,33 +883,33 @@ const OVERLAYS   = [];   // ← restructuring (suppress181); Task 3
 
 CREDITS.push(
   // Ветка 1 — АгроТехСервис: 3 кредита, worst-of=Высокий за нецелевое при 0 просрочке, оверлей 181 на Газификации
-  { id:'C-ATS-NECEL', no:'КР-60540', inn:'01204199910016', amount:8000000, balance:5200000, currency:'KGS',
+  { id:'C-ATS-NECEL', no:'КР-60540', inn:'01204199910016', amount:8000000, currency:'KGS',
     debt:{principal:5200000,interest:130000,penalty:0,fees:0,costs:0}, program:'Агро-2025', kind:'Оборотный' },
-  { id:'C-ATS-GAZ', no:'КР-60541', inn:'01204199910016', amount:12000000, balance:9400000, currency:'KGS',
+  { id:'C-ATS-GAZ', no:'КР-60541', inn:'01204199910016', amount:12000000, currency:'KGS',
     overdueSince:daysAgo(212), debt:{principal:9400000,interest:410000,penalty:88000,fees:0,costs:0}, program:'Газификация', kind:'Инвестиционный' },
-  { id:'C-ATS-OK', no:'КР-60542', inn:'01204199910016', amount:3000000, balance:1100000, currency:'KGS',
+  { id:'C-ATS-OK', no:'КР-60542', inn:'01204199910016', amount:3000000, currency:'KGS',
     debt:{principal:1100000,interest:20000,penalty:0,fees:0,costs:0}, program:'Агро-2025', kind:'Оборотный' },
   // Ветка 5 — очередь непуста (обрабатывается в Task 7); чистый кредит для теста И-1 + истёкший оверлей
-  { id:'C-B5-CLEAN', no:'КР-70510', inn:'05501199950051', amount:4000000, balance:2500000, currency:'KGS',
+  { id:'C-B5-CLEAN', no:'КР-70510', inn:'05501199950051', amount:4000000, currency:'KGS',
     debt:{principal:2500000,interest:40000,penalty:0,fees:0,costs:0}, program:'Строй-2024', kind:'Оборотный' },
-  { id:'C-B5-EXP', no:'КР-70511', inn:'05501199950051', amount:6000000, balance:6000000, currency:'KGS',
+  { id:'C-B5-EXP', no:'КР-70511', inn:'05501199950051', amount:6000000, currency:'KGS',
     overdueSince:daysAgo(240), debt:{principal:6000000,interest:300000,penalty:120000,fees:0,costs:0}, program:'Строй-2024', kind:'Инвестиционный' },
   // Ветка 9 — долг переведён правопреемнику (SUBJECT_EVENTS, ПД-231): кредит закрыт датой перевода.
   // Без него субъект оставался пустым — ни кредитов, ни взыскания при примечании «банкротство».
-  { id:'C-B9-TRANS', no:'КР-99010', inn:'09901199990091', amount:7000000, balance:0, currency:'KGS',
+  { id:'C-B9-TRANS', no:'КР-99010', inn:'09901199990091', amount:7000000, currency:'KGS',
     debt:{principal:0,interest:0,penalty:0,fees:0,costs:0}, program:'Универ-2023',
     kind:'Инвестиционный', closedAt:'01.04.2026' },
   // Ветка 10 — погашен: единственный кредит закрыт (closedAt) → catOfBorrower === null
-  { id:'C-B10-DONE', no:'КР-40120', inn:'10001199900101', amount:2000000, balance:0, currency:'KGS',
+  { id:'C-B10-DONE', no:'КР-40120', inn:'10001199900101', amount:2000000, currency:'KGS',
     debt:{principal:0,interest:0,penalty:0,fees:0,costs:0}, program:'Металл-2023', kind:'Оборотный', closedAt:'10.06.2026' },
 );
 CREDITS.push(
   // Ветка 6 (Чуй Энерго) — три подтверждённые процедуры, фазы дают 2.1/2.2/2.3, max=2.3
-  { id:'C-CHE-1', no:'КР-66010', inn:'06601199960061', amount:5000000, balance:4000000, currency:'KGS', overdueSince:daysAgo(95), debt:{principal:4000000,interest:150000,penalty:30000,fees:0,costs:0}, program:'Энерго-2024', kind:'Оборотный' },
-  { id:'C-CHE-2', no:'КР-66011', inn:'06601199960061', amount:7000000, balance:6500000, currency:'KGS', overdueSince:daysAgo(150), debt:{principal:6500000,interest:280000,penalty:70000,fees:0,costs:0}, program:'Энерго-2024', kind:'Инвестиционный' },
-  { id:'C-CHE-3', no:'КР-66012', inn:'06601199960061', amount:9000000, balance:8800000, currency:'KGS', overdueSince:daysAgo(220), debt:{principal:8800000,interest:520000,penalty:190000,fees:0,costs:0}, program:'Энерго-2024', kind:'Инвестиционный' },
-  { id:'C-BF-1', no:'КР-88010', inn:'08801199980081', amount:3000000, balance:2900000, currency:'KGS', overdueSince:daysAgo(200), debt:{principal:2900000,interest:140000,penalty:60000,fees:0,costs:0}, program:'Агро-2025', kind:'Оборотный' },
-  { id:'C-M-1', no:'КР-77010', inn:'07701199970071', amount:1500000, balance:1200000, currency:'KGS', overdueSince:daysAgo(400), debt:{principal:1200000,interest:0,penalty:0,fees:0,costs:0}, program:'Микро-2022', kind:'Оборотный' },
+  { id:'C-CHE-1', no:'КР-66010', inn:'06601199960061', amount:5000000, currency:'KGS', overdueSince:daysAgo(95), debt:{principal:4000000,interest:150000,penalty:30000,fees:0,costs:0}, program:'Энерго-2024', kind:'Оборотный' },
+  { id:'C-CHE-2', no:'КР-66011', inn:'06601199960061', amount:7000000, currency:'KGS', overdueSince:daysAgo(150), debt:{principal:6500000,interest:280000,penalty:70000,fees:0,costs:0}, program:'Энерго-2024', kind:'Инвестиционный' },
+  { id:'C-CHE-3', no:'КР-66012', inn:'06601199960061', amount:9000000, currency:'KGS', overdueSince:daysAgo(220), debt:{principal:8800000,interest:520000,penalty:190000,fees:0,costs:0}, program:'Энерго-2024', kind:'Инвестиционный' },
+  { id:'C-BF-1', no:'КР-88010', inn:'08801199980081', amount:3000000, currency:'KGS', overdueSince:daysAgo(200), debt:{principal:2900000,interest:140000,penalty:60000,fees:0,costs:0}, program:'Агро-2025', kind:'Оборотный' },
+  { id:'C-M-1', no:'КР-77010', inn:'07701199970071', amount:1500000, currency:'KGS', overdueSince:daysAgo(400), debt:{principal:1200000,interest:0,penalty:0,fees:0,costs:0}, program:'Микро-2022', kind:'Оборотный' },
 );
 FACTORS.push(
   // Нецелевое использование по решению КБК — двигает категорию (committeeRef непустой)
@@ -929,12 +930,12 @@ OVERLAYS.push(
 );
 CREDITS.push(
   // Ветка 2 — Средний, совокупный долг >50 млн (О-1 и О-2)
-  { id:'C-B2-1', no:'КР-22010', inn:'02201199920021', amount:40000000, balance:38000000, currency:'KGS', overdueSince:daysAgo(40), debt:{principal:38000000,interest:1200000,penalty:0,fees:0,costs:0}, program:'Пром-2024', kind:'Инвестиционный' },
-  { id:'C-B2-2', no:'КР-22011', inn:'02201199920021', amount:18000000, balance:16000000, currency:'KGS', overdueSince:daysAgo(30), debt:{principal:16000000,interest:500000,penalty:0,fees:0,costs:0}, program:'Пром-2024', kind:'Оборотный' },
+  { id:'C-B2-1', no:'КР-22010', inn:'02201199920021', amount:40000000, currency:'KGS', overdueSince:daysAgo(40), debt:{principal:38000000,interest:1200000,penalty:0,fees:0,costs:0}, program:'Пром-2024', kind:'Инвестиционный' },
+  { id:'C-B2-2', no:'КР-22011', inn:'02201199920021', amount:18000000, currency:'KGS', overdueSince:daysAgo(30), debt:{principal:16000000,interest:500000,penalty:0,fees:0,costs:0}, program:'Пром-2024', kind:'Оборотный' },
   // Ветка 3 — Средний, совокупный долг <50 млн (только О-1)
-  { id:'C-B3-1', no:'КР-33010', inn:'03301199930031', amount:9000000, balance:7000000, currency:'KGS', overdueSince:daysAgo(45), debt:{principal:7000000,interest:210000,penalty:0,fees:0,costs:0}, program:'Логи-2024', kind:'Оборотный' },
+  { id:'C-B3-1', no:'КР-33010', inn:'03301199930031', amount:9000000, currency:'KGS', overdueSince:daysAgo(45), debt:{principal:7000000,interest:210000,penalty:0,fees:0,costs:0}, program:'Логи-2024', kind:'Оборотный' },
   // Ветка 4 — Средний с давним переводом → О-1 просрочено
-  { id:'C-B4-1', no:'КР-44010', inn:'04401199940041', amount:3000000, balance:2600000, currency:'KGS', overdueSince:daysAgo(70), debt:{principal:2600000,interest:90000,penalty:12000,fees:0,costs:0}, program:'Микро-2024', kind:'Оборотный' },
+  { id:'C-B4-1', no:'КР-44010', inn:'04401199940041', amount:3000000, currency:'KGS', overdueSince:daysAgo(70), debt:{principal:2600000,interest:90000,penalty:12000,fees:0,costs:0}, program:'Микро-2024', kind:'Оборотный' },
 );
 
 /* ── Справочники-зеркала модуля взыскания (единый источник — mockups/collection/collection.html).
@@ -1438,7 +1439,7 @@ FACTORS.push(
 
 CREDITS.push(
   // Ветка 14 — ИП Асанов: кредит с залогами в 2 областях (PLEDGE_IX уже посеян в Task 5)
-  { id:'C-B14-1', no:'КР-44011', inn:'04401199940041', amount:5000000, balance:4200000, currency:'KGS',
+  { id:'C-B14-1', no:'КР-44011', inn:'04401199940041', amount:5000000, currency:'KGS',
     debt:{principal:4200000,interest:80000,penalty:0,fees:0,costs:0}, program:'Микро-2024', kind:'Инвестиционный' },
 );
 ASSIGN.push(
@@ -1463,56 +1464,56 @@ ASSIGN.push(
    closed → кредит закрыт (catOfBorrower === null, «не применяется»). */
 const NEW_BORROWERS = [
   // ── Группа 1.1 · погашение по графику · Низкий (12) ──
-  { name:'ОсОО «Ала-Тоо Агро»',        kind:'ОсОО', sector:'Агропромышленный комплекс',   district:'Сокулукский',        addr:'с. Сокулук, ул. Ленина 14',       reg:'12.04.2016', amount:6000000,  balance:3800000,  grp:'1.1' },
-  { name:'ОАО «Кемин Энерго»',         kind:'ОАО',  sector:'Энергетический комплекс',      district:'Чуйский',            addr:'г. Токмок, ул. Гагарина 8',       reg:'03.06.2013', amount:15000000, balance:9200000,  grp:'1.1', ckind:'Инвестиционный' },
-  { name:'ОсОО «Бишкек Курулуш»',      kind:'ОсОО', sector:'Строительный комплекс',        district:'Ленинский (г. Бишкек)', addr:'г. Бишкек, ул. Байтик Баатыра 41', reg:'19.02.2018', amount:9000000,  balance:5600000,  grp:'1.1' },
-  { name:'ОсОО «Лидер Текс»',          kind:'ОсОО', sector:'Лёгкая промышленность',        district:'Первомайский (г. Бишкек)', addr:'г. Бишкек, ул. Панфилова 3',    reg:'21.09.2017', amount:4000000,  balance:2100000,  grp:'1.1' },
-  { name:'ОсОО «Шоро Продукт»',        kind:'ОсОО', sector:'Пищевая и перерабатывающая',   district:'Аламудунский',       addr:'с. Лебединовка, ул. Садовая 2',   reg:'07.05.2012', amount:11000000, balance:6700000,  grp:'1.1' },
-  { name:'ЗАО «Бишкек Машзавод»',      kind:'ЗАО',  sector:'Машиностроение',              district:'Ленинский (г. Бишкек)', addr:'г. Бишкек, пр. Чуй 219',        reg:'16.06.2010', amount:200000,   balance:120000,   grp:'1.1', cur:'USD', ckind:'Инвестиционный' },
-  { name:'ОсОО «Манас Карго»',         kind:'ОсОО', sector:'Транспорт и связь',           district:'Аламудунский',       addr:'с. Аламудун, ул. Манаса 55',      reg:'11.11.2019', amount:7000000,  balance:4300000,  grp:'1.1' },
-  { name:'ОсОО «Чуй Суу»',             kind:'ОсОО', sector:'Водное хозяйство',            district:'Сокулукский',        addr:'с. Сокулук, ул. Ирригаторов 6',   reg:'02.02.2015', amount:5000000,  balance:2800000,  grp:'1.1' },
-  { name:'ИП Сыдыков Р. М.',           kind:'ИП',   sector:'Частное предпринимательство',  district:'Кара-Сууйский',      addr:'г. Кара-Суу, ул. Ошская 12',      reg:'22.01.2020', amount:1200000,  balance:600000,   grp:'1.1' },
-  { name:'ОсОО «Тянь-Шань Трейд»',     kind:'ОсОО', sector:'Предприятия прочих отраслей',  district:'Первомайский (г. Бишкек)', addr:'г. Бишкек, ул. Токтогула 133',  reg:'30.03.2016', amount:8000000,  balance:5100000,  grp:'1.1' },
-  { name:'ОсОО «Токмок Мясо»',         kind:'ОсОО', sector:'Пищевая и перерабатывающая',   district:'Чуйский',            addr:'г. Токмок, ул. Джамбула 21',      reg:'14.07.2014', amount:6500000,  balance:4000000,  grp:'1.1' },
-  { name:'АО «Ак-Ордо Строй»',         kind:'АО',   sector:'Строительный комплекс',        district:'Жайылский',          addr:'г. Кара-Балта, ул. Кожомбердиева 10', reg:'09.09.2011', amount:13000000, balance:8400000, grp:'1.1', ckind:'Инвестиционный' },
+  { name:'ОсОО «Ала-Тоо Агро»',        kind:'ОсОО', sector:'Агропромышленный комплекс',   district:'Сокулукский',        addr:'с. Сокулук, ул. Ленина 14',       reg:'12.04.2016', amount:6000000,  principal:3800000,  grp:'1.1' },
+  { name:'ОАО «Кемин Энерго»',         kind:'ОАО',  sector:'Энергетический комплекс',      district:'Чуйский',            addr:'г. Токмок, ул. Гагарина 8',       reg:'03.06.2013', amount:15000000, principal:9200000,  grp:'1.1', ckind:'Инвестиционный' },
+  { name:'ОсОО «Бишкек Курулуш»',      kind:'ОсОО', sector:'Строительный комплекс',        district:'Ленинский (г. Бишкек)', addr:'г. Бишкек, ул. Байтик Баатыра 41', reg:'19.02.2018', amount:9000000,  principal:5600000,  grp:'1.1' },
+  { name:'ОсОО «Лидер Текс»',          kind:'ОсОО', sector:'Лёгкая промышленность',        district:'Первомайский (г. Бишкек)', addr:'г. Бишкек, ул. Панфилова 3',    reg:'21.09.2017', amount:4000000,  principal:2100000,  grp:'1.1' },
+  { name:'ОсОО «Шоро Продукт»',        kind:'ОсОО', sector:'Пищевая и перерабатывающая',   district:'Аламудунский',       addr:'с. Лебединовка, ул. Садовая 2',   reg:'07.05.2012', amount:11000000, principal:6700000,  grp:'1.1' },
+  { name:'ЗАО «Бишкек Машзавод»',      kind:'ЗАО',  sector:'Машиностроение',              district:'Ленинский (г. Бишкек)', addr:'г. Бишкек, пр. Чуй 219',        reg:'16.06.2010', amount:200000,   principal:120000,   grp:'1.1', cur:'USD', ckind:'Инвестиционный' },
+  { name:'ОсОО «Манас Карго»',         kind:'ОсОО', sector:'Транспорт и связь',           district:'Аламудунский',       addr:'с. Аламудун, ул. Манаса 55',      reg:'11.11.2019', amount:7000000,  principal:4300000,  grp:'1.1' },
+  { name:'ОсОО «Чуй Суу»',             kind:'ОсОО', sector:'Водное хозяйство',            district:'Сокулукский',        addr:'с. Сокулук, ул. Ирригаторов 6',   reg:'02.02.2015', amount:5000000,  principal:2800000,  grp:'1.1' },
+  { name:'ИП Сыдыков Р. М.',           kind:'ИП',   sector:'Частное предпринимательство',  district:'Кара-Сууйский',      addr:'г. Кара-Суу, ул. Ошская 12',      reg:'22.01.2020', amount:1200000,  principal:600000,   grp:'1.1' },
+  { name:'ОсОО «Тянь-Шань Трейд»',     kind:'ОсОО', sector:'Предприятия прочих отраслей',  district:'Первомайский (г. Бишкек)', addr:'г. Бишкек, ул. Токтогула 133',  reg:'30.03.2016', amount:8000000,  principal:5100000,  grp:'1.1' },
+  { name:'ОсОО «Токмок Мясо»',         kind:'ОсОО', sector:'Пищевая и перерабатывающая',   district:'Чуйский',            addr:'г. Токмок, ул. Джамбула 21',      reg:'14.07.2014', amount:6500000,  principal:4000000,  grp:'1.1' },
+  { name:'АО «Ак-Ордо Строй»',         kind:'АО',   sector:'Строительный комплекс',        district:'Жайылский',          addr:'г. Кара-Балта, ул. Кожомбердиева 10', reg:'09.09.2011', amount:13000000, principal:8400000, grp:'1.1', ckind:'Инвестиционный' },
   // ── Группа 1.2 · погашение с отставанием · Средний (4) ──
-  { name:'ОсОО «Сокулук Дан»',         kind:'ОсОО', sector:'Агропромышленный комплекс',   district:'Сокулукский',        addr:'с. Сокулук, ул. Полевая 9',       reg:'18.03.2015', amount:7000000,  balance:5500000,  overdue:30,  grp:'1.2' },
+  { name:'ОсОО «Сокулук Дан»',         kind:'ОсОО', sector:'Агропромышленный комплекс',   district:'Сокулукский',        addr:'с. Сокулук, ул. Полевая 9',       reg:'18.03.2015', amount:7000000,  principal:5500000,  overdue:30,  grp:'1.2' },
   // просрочка 8 дн — процесс уже открыт, но ещё в наблюдении (К0): единственный такой в наборе
-  { name:'ОсОО «Ош Транс»',            kind:'ОсОО', sector:'Транспорт и связь',           district:'Кара-Сууйский',      addr:'г. Кара-Суу, ул. Автовокзальная 4', reg:'25.10.2016', amount:4500000, balance:3600000, overdue:8,   grp:'1.2' },
-  { name:'ИП Ниязова Г. А.',           kind:'ИП',   sector:'Частное предпринимательство',  district:'Сузакский',          addr:'г. Джалал-Абад, ул. Ленина 77',   reg:'05.02.2019', amount:900000,   balance:720000,   overdue:40,  grp:'1.2' },
-  { name:'ОсОО «Текстиль Плюс»',       kind:'ОсОО', sector:'Лёгкая промышленность',        district:'Ленинский (г. Бишкек)', addr:'г. Бишкек, ул. Фучика 18',      reg:'12.12.2017', amount:5000000,  balance:4100000,  overdue:35,  grp:'1.2' },
+  { name:'ОсОО «Ош Транс»',            kind:'ОсОО', sector:'Транспорт и связь',           district:'Кара-Сууйский',      addr:'г. Кара-Суу, ул. Автовокзальная 4', reg:'25.10.2016', amount:4500000, principal:3600000, overdue:8,   grp:'1.2' },
+  { name:'ИП Ниязова Г. А.',           kind:'ИП',   sector:'Частное предпринимательство',  district:'Сузакский',          addr:'г. Джалал-Абад, ул. Ленина 77',   reg:'05.02.2019', amount:900000,   principal:720000,   overdue:40,  grp:'1.2' },
+  { name:'ОсОО «Текстиль Плюс»',       kind:'ОсОО', sector:'Лёгкая промышленность',        district:'Ленинский (г. Бишкек)', addr:'г. Бишкек, ул. Фучика 18',      reg:'12.12.2017', amount:5000000,  principal:4100000,  overdue:35,  grp:'1.2' },
   // ── Группа 2.1 · досудебное урегулирование · Средний (3) ──
-  { name:'ОсОО «Кант Сахар»',          kind:'ОсОО', sector:'Пищевая и перерабатывающая',   district:'Аламудунский',       addr:'г. Кант, ул. Сахарная 1',         reg:'08.04.2013', amount:20000000, balance:17000000, overdue:90,  grp:'2.1', ckind:'Инвестиционный' },
-  { name:'ОсОО «Ак-Илбирс Текстиль»',  kind:'ОсОО', sector:'Лёгкая промышленность',        district:'Первомайский (г. Бишкек)', addr:'г. Бишкек, ул. Игембердиева 7', reg:'19.06.2016', amount:6000000, balance:5000000, overdue:75, grp:'2.1' },
-  { name:'ОсОО «Нарын Водоканал»',     kind:'ОсОО', sector:'Водное хозяйство',            district:'Ак-Талинский',       addr:'с. Баетово, ул. Суу 3',           reg:'02.02.2014', amount:8000000,  balance:6900000,  overdue:110, grp:'2.1' },
+  { name:'ОсОО «Кант Сахар»',          kind:'ОсОО', sector:'Пищевая и перерабатывающая',   district:'Аламудунский',       addr:'г. Кант, ул. Сахарная 1',         reg:'08.04.2013', amount:20000000, principal:17000000, overdue:90,  grp:'2.1', ckind:'Инвестиционный' },
+  { name:'ОсОО «Ак-Илбирс Текстиль»',  kind:'ОсОО', sector:'Лёгкая промышленность',        district:'Первомайский (г. Бишкек)', addr:'г. Бишкек, ул. Игембердиева 7', reg:'19.06.2016', amount:6000000, principal:5000000, overdue:75, grp:'2.1' },
+  { name:'ОсОО «Нарын Водоканал»',     kind:'ОсОО', sector:'Водное хозяйство',            district:'Ак-Талинский',       addr:'с. Баетово, ул. Суу 3',           reg:'02.02.2014', amount:8000000,  principal:6900000,  overdue:110, grp:'2.1' },
   // ── Группа 2.2 · судебное взыскание · Высокий (3) ──
-  { name:'ОсОО «Ош Электро»',          kind:'ОсОО', sector:'Энергетический комплекс',      district:'Кара-Сууйский',      addr:'г. Кара-Суу, ул. Энергетиков 2',  reg:'11.11.2012', amount:300000,   balance:280000,   overdue:200, grp:'2.2', cur:'USD', ckind:'Инвестиционный' },
-  { name:'ОсОО «Ак-Талаа Агро»',       kind:'ОсОО', sector:'Агропромышленный комплекс',   district:'Ак-Талинский',       addr:'с. Баетово, ул. Дыйкан 15',       reg:'28.03.2015', amount:9000000,  balance:8600000,  overdue:220, grp:'2.2' },
-  { name:'ИП Асанов Б. Т.',            kind:'ИП',   sector:'Частное предпринимательство',  district:'Баткенский',         addr:'г. Баткен, ул. Раззакова 20',     reg:'22.01.2018', amount:2000000,  balance:1800000,  overdue:195, grp:'2.2' },
+  { name:'ОсОО «Ош Электро»',          kind:'ОсОО', sector:'Энергетический комплекс',      district:'Кара-Сууйский',      addr:'г. Кара-Суу, ул. Энергетиков 2',  reg:'11.11.2012', amount:300000,   principal:280000,   overdue:200, grp:'2.2', cur:'USD', ckind:'Инвестиционный' },
+  { name:'ОсОО «Ак-Талаа Агро»',       kind:'ОсОО', sector:'Агропромышленный комплекс',   district:'Ак-Талинский',       addr:'с. Баетово, ул. Дыйкан 15',       reg:'28.03.2015', amount:9000000,  principal:8600000,  overdue:220, grp:'2.2' },
+  { name:'ИП Асанов Б. Т.',            kind:'ИП',   sector:'Частное предпринимательство',  district:'Баткенский',         addr:'г. Баткен, ул. Раззакова 20',     reg:'22.01.2018', amount:2000000,  principal:1800000,  overdue:195, grp:'2.2' },
   // ── Группа 2.3 · исполнительное производство · Высокий (2) ──
-  { name:'ОсОО «Талас Мрамор»',        kind:'ОсОО', sector:'Строительный комплекс',        district:'Таласский',          addr:'г. Талас, ул. Бердике 4',         reg:'07.07.2013', amount:10000000, balance:9500000,  overdue:240, grp:'2.3', ckind:'Инвестиционный' },
-  { name:'ОсОО «Майлуу-Суу Прибор»',   kind:'ОсОО', sector:'Машиностроение',              district:'Сузакский',          addr:'г. Майлуу-Суу, ул. Заводская 1',  reg:'16.06.2011', amount:7000000,  balance:6800000,  overdue:260, grp:'2.3', ckind:'Инвестиционный' },
+  { name:'ОсОО «Талас Мрамор»',        kind:'ОсОО', sector:'Строительный комплекс',        district:'Таласский',          addr:'г. Талас, ул. Бердике 4',         reg:'07.07.2013', amount:10000000, principal:9500000,  overdue:240, grp:'2.3', ckind:'Инвестиционный' },
+  { name:'ОсОО «Майлуу-Суу Прибор»',   kind:'ОсОО', sector:'Машиностроение',              district:'Сузакский',          addr:'г. Майлуу-Суу, ул. Заводская 1',  reg:'16.06.2011', amount:7000000,  principal:6800000,  overdue:260, grp:'2.3', ckind:'Инвестиционный' },
   // ── Группа 3.1 · процедура банкротства идёт · Высокий (2) ──
-  { name:'ОсОО «Каракол Турбаза»',     kind:'ОсОО', sector:'Предприятия прочих отраслей',  district:'Ак-Суйский',         addr:'г. Каракол, ул. Гебзе 30',        reg:'02.02.2013', amount:12000000, balance:11800000, overdue:310, grp:'3.1', ckind:'Инвестиционный' },
-  { name:'ОАО «Баткен Текстиль»',      kind:'ОАО',  sector:'Лёгкая промышленность',        district:'Баткенский',         addr:'г. Баткен, ул. Ленина 5',         reg:'28.03.2012', amount:8000000,  balance:7900000,  overdue:330, grp:'3.1' },
+  { name:'ОсОО «Каракол Турбаза»',     kind:'ОсОО', sector:'Предприятия прочих отраслей',  district:'Ак-Суйский',         addr:'г. Каракол, ул. Гебзе 30',        reg:'02.02.2013', amount:12000000, principal:11800000, overdue:310, grp:'3.1', ckind:'Инвестиционный' },
+  { name:'ОАО «Баткен Текстиль»',      kind:'ОАО',  sector:'Лёгкая промышленность',        district:'Баткенский',         addr:'г. Баткен, ул. Ленина 5',         reg:'28.03.2012', amount:8000000,  principal:7900000,  overdue:330, grp:'3.1' },
   // ── Группа 3.2 · банкротство завершено · «не применяется» (2, кредит закрыт) ──
-  { name:'ОсОО «Нарын Строй»',         kind:'ОсОО', sector:'Строительный комплекс',        district:'Ак-Талинский',       addr:'г. Нарын, ул. Ленина 40',         reg:'19.09.2014', amount:6000000,  balance:0,        grp:'3.2', closedAt:'20.11.2025' },
-  { name:'ОсОО «Кара-Суу Логистик»',   kind:'ОсОО', sector:'Транспорт и связь',           district:'Кара-Сууйский',      addr:'г. Кара-Суу, ул. Складская 6',    reg:'25.10.2013', amount:5000000,  balance:0,        grp:'3.2', closedAt:'15.01.2026' },
+  { name:'ОсОО «Нарын Строй»',         kind:'ОсОО', sector:'Строительный комплекс',        district:'Ак-Талинский',       addr:'г. Нарын, ул. Ленина 40',         reg:'19.09.2014', amount:6000000,  principal:0,        grp:'3.2', closedAt:'20.11.2025' },
+  { name:'ОсОО «Кара-Суу Логистик»',   kind:'ОсОО', sector:'Транспорт и связь',           district:'Кара-Сууйский',      addr:'г. Кара-Суу, ул. Складская 6',    reg:'25.10.2013', amount:5000000,  principal:0,        grp:'3.2', closedAt:'15.01.2026' },
   // ── Группа 4 · безнадёжные долги · Высокий (2, кредит активен, крупная просрочка) ──
-  { name:'ОсОО «Джалал-Абад Ойл»',     kind:'ОсОО', sector:'Предприятия прочих отраслей',  district:'Сузакский',          addr:'г. Джалал-Абад, ул. Нефтяников 3', reg:'02.02.2011', amount:500000,  balance:480000,   overdue:420, grp:'4', cur:'USD', ckind:'Инвестиционный' },
+  { name:'ОсОО «Джалал-Абад Ойл»',     kind:'ОсОО', sector:'Предприятия прочих отраслей',  district:'Сузакский',          addr:'г. Джалал-Абад, ул. Нефтяников 3', reg:'02.02.2011', amount:500000,  principal:480000,   overdue:420, grp:'4', cur:'USD', ckind:'Инвестиционный' },
   // k7 — безнадёжность от статуса субъекта (безвестно отсутствующий, п. 80), контур К7
-  { name:'ИП Мамбетов К. У.',          kind:'ИП',   sector:'Частное предпринимательство',  district:'Сузакский',          addr:'г. Джалал-Абад, ул. Токтогула 61', reg:'22.01.2017', amount:1500000, balance:1400000, overdue:500, grp:'4', k7:true },
+  { name:'ИП Мамбетов К. У.',          kind:'ИП',   sector:'Частное предпринимательство',  district:'Сузакский',          addr:'г. Джалал-Абад, ул. Токтогула 61', reg:'22.01.2017', amount:1500000, principal:1400000, overdue:500, grp:'4', k7:true },
   // ── Группа 5 · погашенные долги · «не применяется» (3, кредит закрыт) ──
-  { name:'ОсОО «Чолпон Агро»',         kind:'ОсОО', sector:'Агропромышленный комплекс',   district:'Ак-Суйский',         addr:'г. Каракол, ул. Абдрахманова 40', reg:'07.05.2014', amount:6000000,  balance:0,        grp:'5', closedAt:'10.05.2026' },
+  { name:'ОсОО «Чолпон Агро»',         kind:'ОсОО', sector:'Агропромышленный комплекс',   district:'Ак-Суйский',         addr:'г. Каракол, ул. Абдрахманова 40', reg:'07.05.2014', amount:6000000,  principal:0,        grp:'5', closedAt:'10.05.2026' },
   // viaCollection — погашение пришло принудительным взысканием (закрытый процесс + акт сверки п. 88),
   // а не платежами по графику: оба пути в группу 5 должны быть в наборе
-  { name:'ОсОО «Токтогул Энерго»',     kind:'ОсОО', sector:'Энергетический комплекс',      district:'Таласский',          addr:'г. Талас, ул. ГЭС 1',             reg:'11.11.2013', amount:9000000,  balance:0,        grp:'5', closedAt:'01.06.2026', ckind:'Инвестиционный', viaCollection:true },
-  { name:'ИП Сатыбалдиева А. К.',      kind:'ИП',   sector:'Частное предпринимательство',  district:'Ленинский (г. Бишкек)', addr:'г. Бишкек, ул. Абдымомунова 90', reg:'22.01.2019', amount:800000,  balance:0,        grp:'5', closedAt:'20.06.2026' },
+  { name:'ОсОО «Токтогул Энерго»',     kind:'ОсОО', sector:'Энергетический комплекс',      district:'Таласский',          addr:'г. Талас, ул. ГЭС 1',             reg:'11.11.2013', amount:9000000,  principal:0,        grp:'5', closedAt:'01.06.2026', ckind:'Инвестиционный', viaCollection:true },
+  { name:'ИП Сатыбалдиева А. К.',      kind:'ИП',   sector:'Частное предпринимательство',  district:'Ленинский (г. Бишкек)', addr:'г. Бишкек, ул. Абдымомунова 90', reg:'22.01.2019', amount:800000,  principal:0,        grp:'5', closedAt:'20.06.2026' },
   // ── «не применяется» без терминального статуса (2, кредит закрыт, группа = 1.1) ──
-  { name:'ОсОО «Глобал Сервис»',       kind:'ОсОО', sector:'Предприятия прочих отраслей',  district:'Первомайский (г. Бишкек)', addr:'г. Бишкек, ул. Ахунбаева 119', reg:'30.03.2018', amount:4000000, balance:0,      grp:'closed', closedAt:'30.04.2026' },
-  { name:'Осмонов Данияр (физ.)',      kind:'физ',  sector:'Частное предпринимательство',  district:'Аламудунский',       addr:'с. Лебединовка, ул. Мира 12',     reg:'—',          amount:600000,   balance:0,        grp:'closed', closedAt:'12.03.2026', docKind:'Паспорт' },
+  { name:'ОсОО «Глобал Сервис»',       kind:'ОсОО', sector:'Предприятия прочих отраслей',  district:'Первомайский (г. Бишкек)', addr:'г. Бишкек, ул. Ахунбаева 119', reg:'30.03.2018', amount:4000000, principal:0,      grp:'closed', closedAt:'30.04.2026' },
+  { name:'Осмонов Данияр (физ.)',      kind:'физ',  sector:'Частное предпринимательство',  district:'Аламудунский',       addr:'с. Лебединовка, ул. Мира 12',     reg:'—',          amount:600000,   principal:0,        grp:'closed', closedAt:'12.03.2026', docKind:'Паспорт' },
   // ── ГП + Водное хозяйство · Низкий · 1.1 (1) ──
-  { name:'ГП «Кыргызводхоз-Юг»',       kind:'ГП',   sector:'Водное хозяйство',            district:'Кара-Сууйский',      addr:'г. Кара-Суу, ул. Ирригационная 1', reg:'02.02.2010', amount:18000000, balance:11000000, grp:'1.1', own:'Государственная', ckind:'Инвестиционный' },
+  { name:'ГП «Кыргызводхоз-Юг»',       kind:'ГП',   sector:'Водное хозяйство',            district:'Кара-Сууйский',      addr:'г. Кара-Суу, ул. Ирригационная 1', reg:'02.02.2010', amount:18000000, principal:11000000, grp:'1.1', own:'Государственная', ckind:'Инвестиционный' },
 ];
 
 /* Разворачиватель: строит SUBJECTS/CREDITS + при необходимости BORROWER_EVENTS/PROCESSES. */
@@ -1741,12 +1742,12 @@ const NEW_BORROWERS = [
     });
 
     const cid = 'C-N'+i, cno = 'КР-'+(90000+i);
-    const bal = closed ? 0 : d.balance;
+    const bal = closed ? 0 : d.principal;
     const cur = d.cur || 'KGS';
     const debt = closed ? {principal:0,interest:0,penalty:0,fees:0,costs:0}
       : { principal:bal, interest:Math.round(bal*0.03),
           penalty: overdue>60 ? Math.round(bal*0.02) : 0, fees:0, costs:0 };
-    const cr = { id:cid, no:cno, inn, amount:d.amount, balance:bal, currency:cur,
+    const cr = { id:cid, no:cno, inn, amount:d.amount, currency:cur,
       overdueSince: overdue ? daysAgo(overdue) : null, debt, program:PROG[d.sector]||'Кредит-2024',
       kind:d.ckind||'Оборотный', date:'15.03.2024', gov:'ПКР №'+(120+i)+' от 2024 г.' };
     if (closed) cr.closedAt = d.closedAt;
@@ -1783,6 +1784,47 @@ const NEW_BORROWERS = [
     { inn:at(26), kind:'ликвидирован',  date:'20.11.2025', basis:'Завершение банкротства',    doc:'ЛИК-27' },     // Нарын Строй
   );
 })();
+
+/* ═══ ДЕНЬГИ — СНИМОК КРЕДИТНОГО МОДУЛЯ ═══
+   Задолженность приходит зеркалом (ADR-0001) и делится на две части:
+     • срочная      — срок платежа ещё не наступил;
+     • просроченная — то, что по графику должно было быть уплачено и не уплачено.
+   Разложить одно в другое можно только по ГРАФИКУ ПЛАТЕЖЕЙ, а графика в этом модуле нет.
+   Поэтому раскладку делает splitSnapshot() — он играет роль модуля-владельца и работает
+   ровно один раз, при посеве. Весь остальной код `c.debt.current` / `c.debt.overdue`
+   только читает и никогда не пересчитывает.
+   Снимок подписан СВОЕЙ датой (DEBT_ASOF) и дате среза экрана не подчиняется: деньги
+   приезжают батчем и отстают от состояний — тот самый легаси-разрыв E2E-09, но видимый. */
+const DEBT_ASOF = '10.07.2026';
+const ART = ['principal','interest','penalty','fees','costs'];
+const sumArt = x => x ? ART.reduce((s,a) => s + (x[a]||0), 0) : 0;
+function splitSnapshot(){
+  CREDITS.forEach(c => {
+    const tot = c.debt || {};
+    const days = overdueDaysOn(c, DEBT_ASOF);
+    const cur = {}, ov = {};
+    if (!days){
+      ART.forEach(a => { cur[a] = tot[a]||0; ov[a] = 0; });
+    } else {
+      /* пропущено платежей ≈ дни/30, каждый несёт ~1/60 остатка основного долга;
+         проценты, пеня, комиссии и издержки при просрочке уже наступили сроком целиком */
+      const miss = Math.min(12, Math.ceil(days/30));
+      const ovP = Math.min(tot.principal||0, Math.round((tot.principal||0) * miss/60));
+      cur.principal = (tot.principal||0) - ovP;  ov.principal = ovP;
+      ['interest','penalty','fees','costs'].forEach(a => { ov[a] = tot[a]||0; cur[a] = 0; });
+    }
+    c.debt = { current:cur, overdue:ov, asOf:DEBT_ASOF };
+  });
+}
+splitSnapshot();
+
+/* Остаток основного долга по кредиту (срочная + просроченная часть) — база обеспеченности.
+   Отдельного поля `balance` больше нет: оно было копией debt.principal во всех 53 кредитах. */
+function principalOf(c){ return (c.debt.current.principal||0) + (c.debt.overdue.principal||0); }
+/* Вся задолженность по кредиту — пять статей обеих частей. */
+function creditTotal(c){ return sumArt(c.debt.current) + sumArt(c.debt.overdue); }
+/* Просроченная часть по кредиту — пять статей, а не «проценты + пеня». */
+function creditOverdue(c){ return sumArt(c.debt.overdue); }
 
 /* Справочник сотрудников (id → ФИО + подразделение). Живёт в модуле «Сотрудники»;
    здесь — зеркало для читаемого вывода в кураторстве и взыскании. */
@@ -2316,20 +2358,28 @@ function collectionDefects(inn){
   return out;
 }
 
+/* Вся задолженность заёмщика по действующим кредитам. */
 function totalDebt(inn){
-  return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY))
-    .reduce((s,c)=> s + c.debt.principal + c.debt.interest + c.debt.penalty + c.debt.fees + c.debt.costs, 0);
+  return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY)).reduce((s,c)=> s + creditTotal(c), 0);
 }
+/* Просроченная часть — только то, что должно было быть уплачено по графику. Раньше эта же
+   функция возвращала ПОЛНЫЙ остаток проблемных кредитов: три разных числа под одним словом
+   «просрочка» на одном экране, разброс в 20 раз. Полный остаток теперь atRisk(). */
 function overdueDebt(inn){
-  return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY) && overdueDaysOn(c,TODAY)>0)
-    .reduce((s,c)=> s + c.debt.principal + c.debt.interest + c.debt.penalty + c.debt.fees + c.debt.costs, 0);
+  return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY)).reduce((s,c)=> s + creditOverdue(c), 0);
 }
-/* Зеркало zalog: worst = минимальный индекс по кредитам заёмщика; aggregate = средневзвешенный (по balance).
+/* Под риском (охват) — полный остаток кредитов, по которым есть просрочка: величина,
+   которую Холдинг рискует потерять, а не сумма к уплате сегодня (CONTEXT: «Охват»). */
+function atRisk(inn){
+  return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY) && overdueDaysOn(c,TODAY)>0)
+    .reduce((s,c)=> s + creditTotal(c), 0);
+}
+/* Зеркало zalog: worst = минимальный индекс по кредитам заёмщика; aggregate = средневзвешенный (по остатку осн. долга).
    Индекс НОРМИРОВАН на порог кредита (creditCoverage: залоговая ÷ (остаток × порог)), поэтому
    норма всегда 1.00 — пороги 120/150 %/решение КМ у кредитов разные и в одну цифру не сводятся. */
 function coverageOf(inn){
   const cs = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY))
-    .map(c => ({ cv: creditCoverage(c), bal: c.balance || c.amount || 0 }))
+    .map(c => ({ cv: creditCoverage(c), bal: principalOf(c) || c.amount || 0 }))
     .filter(x => x.cv.index != null && x.cv.items.length);
   if (!cs.length) return { worst:null, aggregate:null, required:1, breaches:0 };
   const worst = Math.min(...cs.map(x => x.cv.index));
@@ -2382,8 +2432,8 @@ function obligations(inn, d){
   if (overdueDebt(inn) > 0){
     const [,mm,y] = d.split('.');
     const due = `15.${mm}.${y}`;
-    out.push({ code:'О-4', basis:'п.13: вынос на комитет', dueDate:due, status:statusOf(due, d),
-      srcHint:'15-е число текущего месяца (п.13) — при наличии просрочки' });
+    out.push({ code:'О-4', basis:'п.13: вынос просроченной задолженности на комитет', dueDate:due, status:statusOf(due, d),
+      srcHint:'15-е число текущего месяца (п.13) — при наличии просроченной части' });
   }
   // О-3 — задел (правопреемники при смерти, п.62); не реализуется в MVP.
   return out;
@@ -2551,11 +2601,11 @@ function seedCollateral(){
     const s = SUBJECTS.find(x => x.inn === cr.inn); if (!s) return;
     const t = KIND_BY_SECTOR[s.industry] || KIND_BY_SECTOR['Предприятия прочих отраслей'];
     const h = hcode(cr.id);
-    const closed = cr.balance === 0 || !!cr.closedAt;
+    const closed = principalOf(cr) === 0 || !!cr.closedAt;
     const grp = subgroupOf(cr.inn, TODAY);
     const pix = PLEDGE_IX.find(p => p.creditId === cr.id);
     const idx = closed ? 1.2 : (pix ? pix.index : idxOf(grp, h));
-    const base = closed ? cr.amount : cr.balance;
+    const base = closed ? cr.amount : principalOf(cr);
     const cv = Math.round(base * idx);        // залоговая стоимость (обеспечение)
     const appr = Math.round(cv / 0.7);        // оценочная стоимость (> залоговой)
     const regDate = cr.date || s.regDate || '15.03.2024';
@@ -2598,7 +2648,7 @@ const SKIP_COL = new Set(['C-B4-1']);
 function seedCollateralCurators(){
   const ZAL = ['emp-21','emp-22'];
   CREDITS.forEach((c, ci) => {
-    if (SKIP_COL.has(c.id) || c.balance === 0 || c.closedAt) return;
+    if (SKIP_COL.has(c.id) || principalOf(c) === 0 || c.closedAt) return;
     const hasAgr = PLEDGE_AGR.some(a => a.credits.includes(c.id));
     const ix = PLEDGE_IX.find(p => p.creditId === c.id);
     if (!hasAgr && !ix) return;
@@ -2641,7 +2691,7 @@ function seedCollateralExtras(){
      кредит сохраняет свою обеспеченность и после слияния договоров. */
   PLEDGE_AGR.forEach(a => {
     const crs = a.credits.map(id => CREDITS.find(c => c.id === id)).filter(Boolean);
-    const w = crs.map(c => c.balance || c.amount || 1);
+    const w = crs.map(c => principalOf(c) || c.amount || 1);
     const tot = w.reduce((x,y) => x+y, 0) || 1;
     a.notaryDate = a.regDate;                       // договор удостоверяется в день регистрации
     PLEDGE_OBJ.filter(o => o.agreementId === a.id).forEach(o => {
@@ -2698,7 +2748,7 @@ function creditCoverage(cr){
   const items = pledgeAllocsOf(cr.id);
   const secured = items.reduce((s,a) => s + a.obj.collateralValue * a.share, 0);
   const { req, source } = requiredCoverOf(cr);
-  const base = cr.balance || cr.amount || 0;
+  const base = principalOf(cr) || cr.amount || 0;
   const index = base ? secured/(base*req) : null;
   const liqApplies = req === COVER_MOVABLE;
   const liq = items.reduce((s,a) => s + (kindOf(a.obj.kind).liquid ? a.obj.collateralValue * a.share : 0), 0);
@@ -2981,21 +3031,25 @@ function creditsSummaryCard(inn){
   const all = CREDITS.filter(c=>c.inn===inn);
   const act = all.filter(c=>isActiveCredit(c, TODAY));
   const ovCred = act.filter(c=>overdueDaysOn(c,TODAY)>0);
-  /* просрочка = начисленные %+пеня по кредитам с просрочкой — та же формула, что в таблице кредитов */
-  const ovSum = ovCred.reduce((s,c)=>s + c.debt.interest + c.debt.penalty, 0);
   const maxOv = act.reduce((m,c)=>Math.max(m, overdueDaysOn(c,TODAY)), 0);
+  /* две разные величины, которые раньше обе назывались «просрочка»:
+     просроченная часть — сколько должны заплатить сейчас; под риском — сколько можем потерять */
   const rows = [
     ['Действующих кредитов', `${act.length}` + (all.length!==act.length ? ` <span class="muted">(всего ${all.length})</span>` : '')],
     ['Сумма выдано', fmt(act.reduce((s,c)=>s+c.amount,0)) + ' сом'],
-    ['Остаток основного долга', fmt(act.reduce((s,c)=>s+c.balance,0)) + ' сом'],
+    ['Остаток основного долга', fmt(act.reduce((s,c)=>s+principalOf(c),0)) + ' сом'],
     ['Задолженность всего', fmt(totalDebt(inn)) + ' сом'],
-    ['Просрочка', ovCred.length
-      ? `<span style="color:var(--status-error)">${fmt(ovSum)} сом</span> <span class="muted">по ${ovCred.length} ${ovCred.length===1?'кредиту':'кредитам'}</span>`
+    ['Просроченная часть', ovCred.length
+      ? `<span style="color:var(--status-error)">${fmt(overdueDebt(inn))} сом</span> <span class="muted">по ${ovCred.length} ${ovCred.length===1?'кредиту':'кредитам'}</span>`
+      : '<span class="muted">нет</span>'],
+    ['Под риском', ovCred.length
+      ? `${fmt(atRisk(inn))} сом <span class="muted">полный остаток проблемных кредитов</span>`
       : '<span class="muted">нет</span>'],
     ['Макс. просрочка', maxOv ? `${fmt(maxOv)} дн.` : '<span class="muted">0 дн.</span>'],
   ];
   const body = '<div class="fields">' + rows.map(([k,v])=>`<div class="f"><span class="fk">${esc(k)}</span><span class="fv">${v}</span></div>`).join('') + '</div>';
-  return sect('Сводка по кредитам', 'остатки на ' + TODAY + ' · снапшот',
+  /* деньги подписаны своей датой: дата среза экрана их не двигает (ADR-0001) */
+  return sect('Сводка по кредитам', 'снимок кредитного модуля на ' + DEBT_ASOF + ' · дате среза не подчиняется',
     '<a class="lnk" onclick="switchTab(1)">Открыть «Кредиты»</a>', body);
 }
 
@@ -3119,16 +3173,18 @@ function wireCreditsTab(inn){
   const credList = CREDITS.filter(c => c.inn === inn);
   let crSize = 10, crPage = 1;
 
-  /* просрочка (сумма) — начисленные %+пеня при просрочке; снапшот, не realtime (E2E-09) */
-  const ovSum = c => overdueDaysOn(c,TODAY) > 0 ? (c.debt.interest + c.debt.penalty) : 0;
+  /* просроченная часть кредита — пять статей снимка, а не «%+пеня» (ADR-0001) */
+  const ovSum = c => creditOverdue(c);
 
   const credRow = (c, no) => {
     const active = isActiveCredit(c, TODAY);
     const cat = active ? catOfCredit(c.id, TODAY).level : null;
     const ov = ovSum(c);
-    /* разбивка остатка по 5 статьям — по наведению (свёрнуто в одну колонку) */
-    const tip = 'Осн. долг ' + fmt(c.debt.principal) + ' · % ' + fmt(c.debt.interest)
-      + ' · Пеня ' + fmt(c.debt.penalty) + ' · Комиссии ' + fmt(c.debt.fees) + ' · Издержки ' + fmt(c.debt.costs);
+    /* разбивка остатка по 5 статьям в разрезе срочная/просроченная — по наведению */
+    const art = (lbl, x) => lbl + ': осн. долг ' + fmt(x.principal) + ' · % ' + fmt(x.interest)
+      + ' · пеня ' + fmt(x.penalty) + ' · комиссии ' + fmt(x.fees) + ' · издержки ' + fmt(x.costs);
+    const tip = art('Срочная', c.debt.current) + '\n' + art('Просроченная', c.debt.overdue)
+      + '\nСнимок на ' + c.debt.asOf;
     return '<tr>'
       + '<td class="chk"><input type="checkbox" class="cr-chk" data-view-ctl></td>'
       + '<td class="rownum">' + no + '</td>'
@@ -3137,7 +3193,7 @@ function wireCreditsTab(inn){
       + '<td class="muted">' + esc(c.kind) + '</td>'
       + '<td>' + esc(c.date || '—') + '</td>'
       + '<td>' + fmt(c.amount) + ' <span class="muted">KGS</span></td>'
-      + '<td><span class="bal-cell" title="' + esc(tip) + '"><b>' + fmt(c.balance) + '</b></span> <span class="muted">KGS</span></td>'
+      + '<td><span class="bal-cell" title="' + esc(tip) + '"><b>' + fmt(creditTotal(c)) + '</b></span> <span class="muted">KGS</span></td>'
       /* просрочка = дни + сумма; нулевую не подсвечиваем */
       + '<td>' + (ov
           ? '<span class="win">' + overdueDaysOn(c,TODAY) + ' дн.</span><div class="muted" style="margin-top:3px">' + fmt(ov) + ' KGS</div>'
@@ -3153,13 +3209,13 @@ function wireCreditsTab(inn){
   };
   /* итоги по всему списку кредитов */
   const foot = () => {
-    const t = credList.reduce((a, c) => ({ amount: a.amount + c.amount, balance: a.balance + c.balance, ov: a.ov + ovSum(c) }),
-                              { amount: 0, balance: 0, ov: 0 });
+    const t = credList.reduce((a, c) => ({ amount: a.amount + c.amount, debt: a.debt + creditTotal(c), ov: a.ov + ovSum(c) }),
+                              { amount: 0, debt: 0, ov: 0 });
     return '<td class="chk"></td><td class="rownum"></td>'
       + '<td>Итого <span class="muted" style="font-weight:400">· ' + credList.length + ' кред.</span></td>'
       + '<td></td><td></td>'
       + '<td>' + fmt(t.amount) + ' <span class="muted">KGS</span></td>'
-      + '<td><b>' + fmt(t.balance) + '</b> <span class="muted">KGS</span></td>'
+      + '<td><b>' + fmt(t.debt) + '</b> <span class="muted">KGS</span></td>'
       + '<td' + (t.ov ? ' class="win"' : '') + '>' + fmt(t.ov) + ' <span class="muted">KGS</span></td>'
       + '<td></td>';
   };
@@ -3187,8 +3243,8 @@ function wireCreditsTab(inn){
 
   const head = '<th class="chk"><input type="checkbox" id="crAll" data-view-ctl title="Выбрать все"></th><th class="rownum">#</th>'
     + '<th style="width:22%">Договор</th><th style="width:12%">Вид</th><th style="width:9%">Дата</th>'
-    + '<th style="width:13%">Сумма</th><th style="width:13%">Остаток</th>'
-    + '<th style="width:12%">Просрочка</th><th style="width:12%">Категория риска</th>';
+    + '<th style="width:13%">Сумма</th><th style="width:13%">Задолженность</th>'
+    + '<th style="width:12%">Просроченная часть</th><th style="width:12%">Категория риска</th>';
 
   function render(){
     wrap.innerHTML = table(head, rowsPage(), foot()) + pager();
@@ -3973,7 +4029,7 @@ function curatorTab(inn){
 
   const mRows = [];
   credits.forEach(cr => {
-    const closed = cr.balance === 0 || !!cr.closedAt;
+    const closed = principalOf(cr) === 0 || !!cr.closedAt;
     const mine = matrix.filter(m => parentOf(m.objectId) === cr.id);
     const loanCur = mine.filter(m => m.role === 'кредитный куратор');
     const colCur  = mine.filter(m => m.role === 'залоговый куратор');
