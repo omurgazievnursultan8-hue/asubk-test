@@ -19,6 +19,13 @@
                      «стоп» — модальность, а не степень (в шкалу high/mid/info не входит) ·
                  И-9 дата среза одна на карточку (asOf()); вкладка своей даты не заводит.
      Вкладки: порядок и имена — TAB_DEFS, адресация ключом tabIx('кредиты'), не индексом.
+     Экран списка: решения СП-1…СП-14 — mockups/borrower/ASUBK-status-razrabotki.md
+                 (реестр = рабочая очередь + поиск; один инпут поиска по ИЛИ; двухуровневый
+                 классификатор; фильтры куратор/просрочка/дефекты/«не применяется»; каскад
+                 область→район из данных; подгруппа знает «кредитов не было» и «нет
+                 действующих»; карточный вид снят; пагинация настоящая; ИНН в строке;
+                 куратор разведён с дырой; колонка «Задолженность»; дефекты — модальность
+                 отдельно от степени; полоса двух дат).
 -->
 <style>
   :root{
@@ -254,7 +261,9 @@
   .grid-wrap{border:1px solid var(--border-strong);border-radius:6px;overflow:auto;max-height:60vh;background:#fff;}
   .empty-rows{padding:34px 16px;text-align:center;color:var(--text-muted);font-size:14px;}
 
-  /* ---------- переключатель вида: Таблица / Карточки (как в мокапе кредитной программы) ---------- */
+  /* ---------- сегментный переключатель ----------
+     Из реестра он убран (СП-10), но живёт внутри карточки: «Взыскание» (по процессам /
+     по кредитам) и «Обеспечение» (по кредитам / по предметам). */
   .viewseg{display:inline-flex;border:1px solid var(--border-strong);border-radius:var(--radius-md);overflow:hidden;background:#fff;}
   .viewseg-btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:none;background:transparent;
     color:var(--text-muted);cursor:pointer;font-family:var(--asubk-font);font-size:13px;font-weight:600;line-height:1;white-space:nowrap;}
@@ -263,27 +272,32 @@
   .viewseg-btn:hover:not(.active){background:var(--surface-hover);color:var(--text-body);}
   .viewseg-btn.active{background:var(--action-success);color:#fff;}
 
-  /* ---------- вид: карточки ---------- */
-  .cards-wrap{max-height:60vh;overflow:auto;}
-  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;}
-  .bcard{border:1px solid var(--border-strong);border-radius:8px;background:#fff;padding:16px;cursor:pointer;
-    transition:box-shadow .12s ease,border-color .12s ease;}
-  .bcard:hover{box-shadow:0 2px 10px rgba(28,55,90,.10);border-color:var(--action-primary);}
-  .bcard-head{display:flex;align-items:flex-start;gap:12px;}
-  .bcard-ava{flex:0 0 auto;width:40px;height:40px;border-radius:var(--radius-md);display:flex;align-items:center;
-    justify-content:center;color:#fff;font-size:15px;font-weight:600;line-height:1;}
-  .bcard-title{flex:1;min-width:0;}
-  .bcard-name{font-size:15px;font-weight:600;color:#192434;line-height:1.3;}
-  .bcard-sub{margin-top:2px;font-size:13px;color:var(--text-muted);
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .bcard-chev{flex:0 0 auto;color:var(--text-muted);display:flex;}
-  .bcard-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;align-items:center;}
-  .bcard-fields{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
-  .bcard-field{display:flex;flex-direction:column;gap:2px;}
-  .bcard-flabel{font-size:12px;color:var(--text-muted);line-height:1.2;}
-  .bcard-fval{font-size:13px;font-weight:500;color:var(--text-body);line-height:1.35;}
-  .cards-empty{padding:34px 16px;text-align:center;color:var(--text-muted);font-size:14px;
-    border:1px solid var(--border-strong);border-radius:6px;background:#fff;}
+  /* ---------- поиск в тулбаре (СП-2) ---------- */
+  .jt-search{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;background:#fff;
+    border:1px solid var(--border-strong);border-radius:var(--radius-md);color:var(--text-muted);min-width:260px;}
+  .jt-search:focus-within{outline:2px solid var(--action-primary);outline-offset:-2px;}
+  .jt-search svg{flex:none;}
+  .jt-search input{flex:1;min-width:0;border:none;outline:none;background:transparent;
+    font-family:var(--asubk-font);font-size:13px;color:var(--text-body);}
+
+  /* ---------- бейдж числа активных условий (СП-4) ---------- */
+  .jf-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;
+    border-radius:9px;background:var(--action-primary);color:#fff;font-size:11px;font-weight:600;line-height:1;}
+
+  /* ---------- диапазон «от—до» (СП-4) ---------- */
+  .jf-range{display:flex;align-items:center;gap:6px;}
+  .jf-range input{min-width:0;}
+  .jf-dash{flex:none;color:var(--text-muted);font-size:13px;}
+
+  /* ---------- размер страницы (СП-11) ---------- */
+  .jpag select{height:30px;border:1px solid var(--border-strong);border-radius:var(--radius-md);background:#fff;
+    font-family:var(--asubk-font);font-size:13px;color:var(--text-body);padding:0 6px;}
+
+  /* ---------- полоса дат над таблицей (СП-14) ---------- */
+  .list-asof{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;
+    font-size:13px;color:var(--text-muted);}
+  .list-asof b{color:var(--text-body);font-weight:600;}
+  .list-asof .sep{color:var(--border-strong);}
   .who{font-weight:600;} .muted{color:var(--text-muted);font-size:13px;}
   .role{font-size:12px;border-radius:3px;padding:1px 7px;font-weight:600;display:inline-block;}
   .role-lead{background:var(--status-info-bg);color:var(--text-link);}
@@ -597,87 +611,54 @@
         <div class="jf collapsed" id="jf">
           <div class="jf-summary" id="jfToggle">
             <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-            <span>Фильтр : Фильтры *</span>
+            <span>Фильтр</span>
+            <!-- СП-4: свёрнутая панель обязана говорить, сколько условий висит -->
+            <span class="jf-badge" id="jfCount" hidden>0</span>
           </div>
 
           <div class="jf-body">
+            <!-- Все справочники панели строятся из данных в fillFilterDicts() — вписанных
+                 значений в разметке нет (сборочный инвариант файла). -->
             <div class="jf-panel">
               <div class="jf-row">
-                <span class="jf-label" title="Наименование содержит">Наименование содержит</span>
-                <span class="jf-ctl"><input type="text" id="f-name" placeholder=""></span>
+                <span class="jf-label" title="Отрасль">Отрасль</span>
+                <span class="jf-ctl"><select id="f-sector"></select></span>
+              </div>
+              <!-- СП-5: каскад. Район сам по себе не даёт собрать «весь Чуй» — область ведущая. -->
+              <div class="jf-row">
+                <span class="jf-label" title="Область">Область</span>
+                <span class="jf-ctl"><select id="f-region"></select></span>
               </div>
               <div class="jf-row">
-                <span class="jf-label" title="ИНН содержит">ИНН содержит</span>
-                <span class="jf-ctl"><input type="text" id="f-inn" placeholder=""></span>
+                <span class="jf-label" title="Район">Район</span>
+                <span class="jf-ctl"><select id="f-district"></select></span>
+              </div>
+              <!-- СП-3: один двухуровневый селект. Двумя полями выражалось противоречие
+                   «Группа = 1» + «Подгруппа = 2.1» → всегда пустой результат. -->
+              <div class="jf-row">
+                <span class="jf-label" title="Группа / подгруппа">Группа / подгруппа</span>
+                <span class="jf-ctl"><select id="f-grp"></select></span>
               </div>
               <div class="jf-row">
-                <span class="jf-label" title="Субъект.Отрасль =">Субъект.Отрасль =</span>
-                <span class="jf-ctl"><select id="f-sector">
-                  <option value=""></option>
-                  <option>Агропромышленный комплекс</option>
-                  <option>Энергетический комплекс</option>
-                  <option>Строительный комплекс</option>
-                  <option>Лёгкая промышленность</option>
-                  <option>Пищевая и перерабатывающая</option>
-                  <option>Машиностроение</option>
-                  <option>Транспорт и связь</option>
-                  <option>Водное хозяйство</option>
-                  <option>Частное предпринимательство</option>
-                  <option>Предприятия прочих отраслей</option>
-                </select></span>
+                <span class="jf-label" title="Категория риска">Категория риска</span>
+                <span class="jf-ctl"><select id="f-cat"></select></span>
+              </div>
+              <!-- СП-4: колонки, которые раньше умели только сортироваться -->
+              <div class="jf-row">
+                <span class="jf-label" title="Куратор">Куратор</span>
+                <span class="jf-ctl"><select id="f-curator"></select></span>
               </div>
               <div class="jf-row">
-                <span class="jf-label" title="Субъект.Район =">Субъект.Район =</span>
-                <span class="jf-ctl"><select id="f-district">
-                  <option value=""></option>
-                  <option>Ленинский (г. Бишкек)</option>
-                  <option>Первомайский (г. Бишкек)</option>
-                  <option>Сокулукский</option>
-                  <option>Аламудунский</option>
-                  <option>Чуйский</option>
-                  <option>Жайылский</option>
-                  <option>Ак-Суйский</option>
-                  <option>Ак-Талинский</option>
-                  <option>Таласский</option>
-                  <option>Кара-Сууйский</option>
-                  <option>Сузакский</option>
-                  <option>Баткенский</option>
-                </select></span>
+                <span class="jf-label" title="Дни просрочки">Дни просрочки</span>
+                <span class="jf-ctl jf-range">
+                  <input type="number" id="f-ovFrom" min="0" step="1" placeholder="от">
+                  <span class="jf-dash">—</span>
+                  <input type="number" id="f-ovTo" min="0" step="1" placeholder="до">
+                </span>
               </div>
               <div class="jf-row">
-                <span class="jf-label" title="Группа заёмщика =">Группа заёмщика =</span>
-                <span class="jf-ctl"><select id="f-group">
-                  <option value=""></option>
-                  <option value="1">1. Платежеспособные</option>
-                  <option value="2">2. Неплатежеспособные</option>
-                  <option value="3">3. Предприятия-банкроты</option>
-                  <option value="4">4. Безнадежные долги</option>
-                  <option value="5">5. Погашенные долги</option>
-                </select></span>
-              </div>
-              <div class="jf-row">
-                <span class="jf-label" title="Подгруппа заёмщика =">Подгруппа заёмщика =</span>
-                <span class="jf-ctl"><select id="f-sub">
-                  <option value=""></option>
-                  <option value="1.1">1.1. Производят погашение по графику</option>
-                  <option value="1.2">1.2. Производят погашение с отставанием от графиков</option>
-                  <option value="2.1">2.1. Работа с судебными органами</option>
-                  <option value="2.2">2.2. Работа по исполнительным листам</option>
-                  <option value="2.3">2.3. Работа по инициированию банкротства</option>
-                  <option value="3.1">3.1. Проводится процедура банкротства</option>
-                  <option value="3.2">3.2. Процедура банкротства завершена</option>
-                  <option value="4">4. Безнадежные долги</option>
-                  <option value="5">5. Погашенные долги</option>
-                </select></span>
-              </div>
-              <div class="jf-row">
-                <span class="jf-label" title="Категория риска =">Категория риска =</span>
-                <span class="jf-ctl"><select id="f-cat">
-                  <option value=""></option>
-                  <option>Низкий</option>
-                  <option>Средний</option>
-                  <option>Высокий</option>
-                </select></span>
+                <span class="jf-label" title="Дефекты">Дефекты</span>
+                <span class="jf-ctl"><select id="f-def"></select></span>
               </div>
             </div>
 
@@ -697,46 +678,51 @@
         </div>
 
         <div class="jt">
-          <button class="btn btn-primary btn-sm">+ Добавить заёмщика</button>
-          <button class="btn btn-secondary btn-sm" id="tbOpen" disabled>Открыть</button>
-          <button class="btn btn-secondary btn-sm">Экспорт</button>
+          <!-- СП-2: поиск — первоклассный, а не строка внутри свёрнутой панели. Одно поле,
+               условие ИЛИ: ИНН — цифры, наименование — буквы, режим угадывать не нужно. -->
+          <label class="jt-search" for="f-q">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" id="f-q" placeholder="Наименование или ИНН" autocomplete="off">
+          </label>
+          <button class="btn btn-primary btn-sm" id="tbAdd">+ Добавить заёмщика</button>
+          <button class="btn btn-secondary btn-sm" id="tbExport">Экспорт</button>
           <div class="tb-spacer"></div>
-          <!-- переключатель вида списка: таблица / карточки -->
-          <div class="viewseg" role="group" aria-label="Вид списка">
-            <button type="button" class="viewseg-btn active" id="segTable" title="Таблица">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
-              Таблица
-            </button>
-            <button type="button" class="viewseg-btn" id="segCards" title="Карточки">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-              Карточки
-            </button>
-          </div>
+          <!-- СП-11: пагинация настоящая. Размер страницы — по образцу #crSize в карточке. -->
           <div class="jpag">
-            <span class="nav dis">«</span><span class="nav dis">‹</span>
-            <span class="cnt" id="rowCount">8 строк</span>
-            <span class="nav">›</span><span class="nav">»</span>
+            <select id="pgSize" title="Строк на странице">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+            <span class="nav" id="pgFirst" title="Первая">«</span><span class="nav" id="pgPrev" title="Предыдущая">‹</span>
+            <span class="cnt" id="rowCount"></span>
+            <span class="nav" id="pgNext" title="Следующая">›</span><span class="nav" id="pgLast" title="Последняя">»</span>
           </div>
         </div>
+
+        <!-- СП-14: в реестре рядом стоят числа на две разные даты. Дни просрочки считаются
+             к дате среза, деньги приходят снимком со своей датой и ей не подчиняются (И-6).
+             Принцип файла: «это видно подписью, а не подразумевается». -->
+        <div class="list-asof" id="listAsOf"></div>
 
         <div class="grid-wrap" id="gridWrap">
           <table class="grid" id="listTable">
             <thead>
               <tr>
-                <th style="width:24%" data-sort="name">Наименование <span class="sort">↕</span></th>
-                <th style="width:20%" data-sort="sub">Подгруппа <span class="sort">↕</span></th>
-                <th style="width:12%" data-sort="cat">Категория риска <span class="sort">↕</span></th>
-                <th style="width:9%"  data-sort="ov">Просрочка <span class="sort">↕</span></th>
+                <th style="width:26%" data-sort="name">Наименование <span class="sort">↕</span></th>
+                <th style="width:12%" data-sort="sub">Подгруппа <span class="sort">↕</span></th>
+                <th style="width:11%" data-sort="cat">Категория риска <span class="sort">↕</span></th>
+                <th style="width:8%"  data-sort="ov">Просрочка <span class="sort">↕</span></th>
                 <th style="width:13%" data-sort="ovSum">Просроченная часть <span class="sort">↕</span></th>
-                <th style="width:9%"  data-sort="def">Дефекты <span class="sort">↕</span></th>
-                <th style="width:13%" data-sort="curator">Куратор <span class="sort">↕</span></th>
+                <th style="width:13%" data-sort="debt">Задолженность <span class="sort">↕</span></th>
+                <th style="width:8%"  data-sort="def">Дефекты <span class="sort">↕</span></th>
+                <th style="width:9%"  data-sort="curator">Куратор <span class="sort">↕</span></th>
               </tr>
             </thead>
             <tbody id="listBody"></tbody>
           </table>
           <div class="empty-rows" id="listEmpty" hidden>Записей не найдено — измените условия фильтра.</div>
         </div>
-        <div class="cards-wrap" id="cardsWrap" hidden></div>
 
       </div>
     </div>
@@ -776,7 +762,34 @@ const SUBGROUP_LABEL = {
   '3.2':'Процедура банкротства завершена',
   '4'  :'Безнадежные долги',
   '5'  :'Погашенные долги',
+  /* СП-7. Классификатор описывает работу с долгом; там, где долга нет, класса тоже нет.
+     Раньше subgroupOf() падал в базу и выдавал таким заёмщикам «1.1 Производят погашение
+     по графику» — утверждение о платёжной дисциплине, которой не было. Два случая
+     различимы: предрегистрация (кредитов не было) ≠ всё выплачено и закрыто. */
+  'none'  :'Кредитов не было',
+  'closed':'Нет действующих кредитов',
 };
+/* Короткие подписи для реестра (СП-12): полная строка «Производят погашение с отставанием
+   от графиков» — 47 знаков, и она дословно повторяется в десятках строк подряд. Полная
+   уходит в title ячейки, в колонке остаётся код + смысл. */
+const SUBGROUP_SHORT = {
+  '1.1':'По графику',
+  '1.2':'С отставанием',
+  '2.1':'Суд',
+  '2.2':'Исп. листы',
+  '2.3':'Иниц. банкротства',
+  '3.1':'Банкротство идёт',
+  '3.2':'Банкротство завершено',
+  '4'  :'Безнадёжные',
+  '5'  :'Погашенные',
+  'none'  :'Кредитов не было',
+  'closed':'Нет действующих',
+};
+/* Коды вне числовой лестницы 1…5: у них нет группы платёжеспособности (СП-7). */
+const NO_LADDER = new Set(['none','closed']);
+/* Тип лица: в данных код ('юр'/'ИП'/'физ'), в интерфейсе — подпись как в ТЗ (СП-12). */
+const PERSON_KIND_LABEL = { 'юр':'Юр. лицо', 'ИП':'ИП', 'физ':'Физ. лицо' };
+const personKindLabel = k => PERSON_KIND_LABEL[k] || k;
 
 /* ── ВЛАДЕЕТ модуль (правится здесь) ── */
 // SUBJECTS — субъект права; заёмщик — тонкая обёртка над ним (E2E findings).
@@ -841,6 +854,16 @@ const SUBJECTS = [
     addrLegal:'г. Кара-Балта, ул. Кожомбердиева 2', addrFact:'г. Кара-Балта, ул. Кожомбердиева 2', regDate:'16.06.2010',
     note:'принял долг по договору перевода (ПД-231); задолженность погашена полностью 10.06.2026',
     audit:{ by:'Сламкулов А.О.', date:'03.06.2025', time:'17:14', chgBy:'Асанова Ж.К.', chgDate:'15.07.2026', chgTime:'10:31' } },
+  /* Предрегистрация (СП-6): заёмщик заведён руками до заявки, кредитов у него НЕТ ни одного.
+     Ветка СП-7 «Кредитов не было» без такой записи в наборе недостижима — а прежняя база
+     выдавала ровно ей «1.1 Производят погашение по графику». Отличается от «Нет действующих»
+     (ОсОО «Ак-Суу Майнинг»): там кредиты были и закрыты. */
+  { inn:'11101199900111', name:'ОсОО «Нарын Агро Плюс»', personKind:'юр', legalForm:'ОсОО',
+    ownershipForm:'Частная', industry:'Агропромышленный комплекс', district:'Ак-Талинский',
+    doc:{kind:'Свид. о рег.',no:'0111011',date:'14.02.2026'},
+    addrLegal:'г. Нарын, ул. Ленина 12', addrFact:'г. Нарын, ул. Ленина 12', regDate:'14.02.2026',
+    note:'предрегистрация: заявка ещё не подана, кредитов нет',
+    audit:{ by:'Асанова Ж.К.', date:'20.07.2026', time:'11:02' } },
 ];
 
 // SUBJECT_EVENTS — append-only жизненный цикл субъекта (Р-9). kind: 'создан'|'реорганизация'|
@@ -1544,6 +1567,15 @@ const NEW_BORROWERS = [
   { name:'ГП «Кыргызводхоз-Юг»',       kind:'ГП',   sector:'Водное хозяйство',            district:'Кара-Сууйский',      addr:'г. Кара-Суу, ул. Ирригационная 1', reg:'02.02.2010', amount:18000000, principal:11000000, grp:'1.1', own:'Государственная', ckind:'Инвестиционный' },
 ];
 
+/* Административное деление: район → область. Единственный источник и для сида, и для каскада
+   фильтра (СП-5) — списки области и района в панели строятся ИЗ ЭТОЙ карты, а не вписаны
+   в разметку. Раньше карта была локальной в сид-функции, а фильтр держал 12 районов хардкодом
+   и области не знал вовсе. */
+const REGION_OF = { 'Ленинский (г. Бишкек)':'Бишкек', 'Первомайский (г. Бишкек)':'Бишкек',
+  'Сокулукский':'Чуй', 'Аламудунский':'Чуй', 'Чуйский':'Чуй', 'Жайылский':'Чуй',
+  'Ак-Суйский':'Иссык-Куль', 'Ак-Талинский':'Нарын', 'Таласский':'Талас',
+  'Кара-Сууйский':'Ош', 'Сузакский':'Джалал-Абад', 'Баткенский':'Баткен' };
+
 /* Разворачиватель: строит SUBJECTS/CREDITS + при необходимости BORROWER_EVENTS/PROCESSES. */
 (function seedNewBorrowers(){
   const PROG = { 'Агропромышленный комплекс':'Агро-2024', 'Энергетический комплекс':'Энерго-2024',
@@ -1551,10 +1583,7 @@ const NEW_BORROWERS = [
     'Пищевая и перерабатывающая':'Пищепром-2024', 'Машиностроение':'Маш-2024',
     'Транспорт и связь':'Транс-2024', 'Водное хозяйство':'Вода-2024',
     'Частное предпринимательство':'Микро-2024', 'Предприятия прочих отраслей':'Универ-2024' };
-  const REGION = { 'Ленинский (г. Бишкек)':'Бишкек', 'Первомайский (г. Бишкек)':'Бишкек',
-    'Сокулукский':'Чуй', 'Аламудунский':'Чуй', 'Чуйский':'Чуй', 'Жайылский':'Чуй',
-    'Ак-Суйский':'Иссык-Куль', 'Ак-Талинский':'Нарын', 'Таласский':'Талас',
-    'Кара-Сууйский':'Ош', 'Сузакский':'Джалал-Абад', 'Баткенский':'Баткен' };
+  const REGION = REGION_OF;
   const HIGH = new Set(['2.2','2.3','3.1','4']);
   const MIDG = new Set(['2.1','1.2']);
 
@@ -2266,6 +2295,12 @@ const EVENT_SUBGROUP = { 'завершено банкротство':'3.2', 'п�
    Block1 (терминал) → Block2 (max 2.x среди подтверждённых процедур) → база (1.2 / 1.1). */
 function subgroupOf(inn, d){
   const myCredits = new Set(CREDITS.filter(c=>c.inn===inn).map(c=>c.id));
+  /* СП-7. Ступень «нет долга — нет класса» стоит ПЕРЕД лестницей, но ПОСЛЕ неё пропускать
+     нельзя только терминальные состояния: заёмщик мог всё выплатить (5) или пройти
+     банкротство (3.2) — там кредиты тоже закрыты, а класс есть и приходит событием роли.
+     Поэтому «кредитов не было» решается сразу, а «нет действующих» — только если лестница
+     ничего не дала. */
+  if (myCredits.size === 0) return 'none';
   /* В лестницу входят только ЖИВЫЕ подтверждённые процессы: завершённый процесс работу не ведёт
      и держать заёмщика в рабочей подгруппе (2.x «работа с судом / ИЛ / банкротством») не может.
      Терминальные состояния (3.2 / 4 / 5) от закрытия не теряются — они приходят событием роли
@@ -2286,13 +2321,22 @@ function subgroupOf(inn, d){
      кредитам → 1.2 «погашение с отставанием», иначе 1.1 «по графику». Раньше это ставилось
      руками в журнал, и заёмщик с 40–70 дн. просрочки без записи числился «погашает по графику».
      Процедуры блока 1 («Первичный ввод» → 1.1) базу не переопределяют. */
-  const behind = CREDITS.some(c => c.inn===inn && isActiveCredit(c,d) && overdueDaysOn(c,d) > 0);
+  /* СП-7. Кредиты есть, действующих нет, терминального класса лестница не дала — значит это
+     не «погашает по графику», а «нет действующих кредитов». База 1.1/1.2 применима только
+     когда есть чему идти по графику. */
+  const act = CREDITS.filter(c => c.inn===inn && isActiveCredit(c,d));
+  if (act.length === 0) return 'closed';
+  const behind = act.some(c => overdueDaysOn(c,d) > 0);
   return behind ? '1.2' : '1.1';
 }
 
 /* ГРУППА ПЛАТЁЖЕСПОСОБНОСТИ (1…5) — состояние заёмщика; верхний уровень классификатора,
-   производный от подгруппы. Нужен для отчётности и фильтра «все неплатёжеспособные». */
-function groupOf(inn, d){ return subgroupOf(inn, d)[0]; }
+   производный от подгруппы. Нужен для отчётности и фильтра «все неплатёжеспособные».
+   Вне лестницы (СП-7) группы нет — возвращаем null, а не первую букву слова 'none'. */
+function groupOf(inn, d){
+  const sub = subgroupOf(inn, d);
+  return NO_LADDER.has(sub) ? null : sub[0];
+}
 
 /* ── §4-функции взыскания (зеркало collection.html) ─────────────────────────────
    Ничего не хранится полем: стадия, контурная позиция, деньги и дефекты считаются
@@ -2634,7 +2678,9 @@ const SURVEY_MATRIX = {
   'Неплатёжеспособные':   { immovable:24, movable:12 },
   'Предприятия-банкроты': { immovable:null, movable:null },   // по договору со спецадминистратором
 };
-const solvencyOfGroup = g => String(g)[0] === '1' ? 'Платёжеспособные'
+/* Коды вне лестницы (СП-7: 'none' / 'closed') долговой проблемы не означают — иначе заёмщик
+   без действующих кредитов попадал бы в «Неплатёжеспособные» по первой букве слова. */
+const solvencyOfGroup = g => NO_LADDER.has(g) || String(g)[0] === '1' ? 'Платёжеспособные'
   : String(g)[0] === '3' ? 'Предприятия-банкроты' : 'Неплатёжеспособные';
 /* Ужесточение периодичности по категории риска — слой поверх матрицы, только с согласования
    зампреда (Р-22, ПОР п.10); ниже SURVEY_MIN_MONTHS интервал не опускается. */
@@ -2940,12 +2986,22 @@ const catCls = c => c === 'high' ? 'high' : c === 'mid' ? 'mid' : 'low';
 const catCell = c => c
   ? '<span class="cat-cell cat-' + catCls(c) + '"><span class="dot d-' + catCls(c) + '"></span> ' + CAT_LABEL[c] + '</span>'
   : '<span class="muted">не применяется</span>';
-/* Дефекты одной ячейкой: стоп отдельно от степени (И-8) — сначала модальность, потом счёт. */
+/* Дефекты: модальность отдельно от степени (И-8) — «стоп» бейджем, степень РАЗБИВКОЙ, а не
+   цветом одного числа. Раньше «3» серое и «3» оранжевое отличались только оттенком и значили
+   разное (число — всего дефектов, цвет — есть ли высокие); сколько именно высоких, было не
+   видно, а степень не подписывалась текстом вовсе (СП-13). */
 const defCell = r => !r.def ? '<span class="badge b-ok">нет</span>'
   : (r.stop ? '<span class="badge b-err">стоп</span> ' : '')
-    + '<span class="badge ' + (r.high ? 'b-ov' : 'b-gray') + '">' + r.def + '</span>';
-const grpBadge = code =>
-  '<span class="grp-badge"><span class="grp-code">' + code + '</span> ' + esc(SUBGROUP_LABEL[code] || '—') + '</span>';
+    + (r.high ? '<span class="badge b-ov">' + r.high + 'в</span> ' : '')
+    + (r.mid  ? '<span class="badge b-gray">' + r.mid + 'с</span> ' : '')
+    + (!r.high && !r.mid ? '<span class="badge b-gray">' + r.def + '</span>' : '');
+/* Подгруппа в реестре — код + КОРОТКАЯ подпись, полная в title (СП-12). Коды вне лестницы
+   ('none'/'closed') кода как такового не имеют, поэтому у них печатается только подпись. */
+const grpBadge = code => NO_LADDER.has(code)
+  ? '<span class="grp-badge muted" title="' + esc(SUBGROUP_LABEL[code] || '') + '">'
+    + esc(SUBGROUP_SHORT[code] || '—') + '</span>'
+  : '<span class="grp-badge" title="' + esc(SUBGROUP_LABEL[code] || '') + '">'
+    + '<span class="grp-code">' + esc(code) + '</span> ' + esc(SUBGROUP_SHORT[code] || '—') + '</span>';
 
 /* Строка реестра: всё, кроме реквизитов субъекта, выводится движком.
    Реестр — РАБОЧИЙ СПИСОК, а не справочник: отрасль и район ушли в фильтры (искать по ним
@@ -2957,120 +3013,206 @@ function listRow(s){
   const def = defects(s.inn, d);
   const cur = curatorMatrix(s.inn, d).filter(m => m.role==='кредитный куратор');
   const live = cur.filter(m => !m.suspended);
-  /* дыра считается ПО КРЕДИТАМ, а не «есть ли хоть один куратор у заёмщика»: иначе
-     кредит без куратора прячется за фамилией куратора соседнего кредита */
   const gaps = curatorGaps(s.inn, d).filter(g => g.role==='кредитный куратор');
+  /* СП-12. Фамилия и дыра — разные факты, и раньше они делили одно поле: при любой дыре
+     фамилия подавлялась целиком, так что заёмщик с куратором на одном кредите и дырой на
+     другом выглядел как вовсе без куратора. Сортировка при этом мешала фамилии с текстом
+     «нет по 2 кред.». Теперь фамилия живёт своим полем и сортируется одна, дыра — счётчиком. */
+  const names = [...new Set(live.map(m => empName(m.empId)))];
   return {
     sub: subgroupOf(s.inn, d),
     cat: catOfBorrower(s.inn, d),
     ov:  act.reduce((m,c) => Math.max(m, overdueDaysOn(c, d)), 0),
     ovSum: overdueDebt(s.inn),
+    debt: totalDebt(s.inn),
     def: def.length,
     stop: def.some(x => x.stop),
     high: def.filter(x => x.sev==='high').length,
-    curator: gaps.length ? 'нет по ' + gaps.length + ' кред.'
-           : live.length ? empName(live[0].empId) : '—',
+    mid:  def.filter(x => x.sev==='mid').length,
+    curator: names.length === 1 ? names[0] : names.length ? names.length + ' кураторов' : '—',
+    curatorNames: names,
+    /* дыра считается ПО КРЕДИТАМ, а не «есть ли хоть один куратор у заёмщика»: иначе
+       кредит без куратора прячется за фамилией куратора соседнего кредита */
+    gaps: gaps.length,
     curatorGap: gaps.length > 0,
   };
 }
 
-/* ---------- реестр: фильтр и сортировка ---------- */
+/* ---------- реестр: фильтр и сортировка ----------
+   Поиск (СП-2) отделён от разрезов: одно поле `q` работает по ИЛИ (наименование ИЛИ ИНН),
+   остальные условия — по И. Раньше наименование и ИНН были двумя условиями по И, чего
+   никто не ищет, и оба лежали внутри свёрнутой панели.
+   Группа больше не отдельное поле (СП-3): она производна от подгруппы, и два независимых
+   селекта позволяли выразить «группа 1 + подгруппа 2.1» — комбинацию с гарантированно
+   пустым результатом. Один код в `grp` описывает и группу («1» = вся ветка), и подгруппу. */
 const FIELDS = [
-  { key:'name',     el:'f-name'     },
-  { key:'inn',      el:'f-inn'      },
+  { key:'q',        el:'f-q'        },
   { key:'sector',   el:'f-sector'   },
+  { key:'region',   el:'f-region'   },
   { key:'district', el:'f-district' },
-  { key:'group',    el:'f-group'    },
-  { key:'sub',      el:'f-sub'      },
-  { key:'cat',      el:'f-cat'      }
+  { key:'grp',      el:'f-grp'      },
+  { key:'cat',      el:'f-cat'      },
+  { key:'curator',  el:'f-curator'  },
+  { key:'ovFrom',   el:'f-ovFrom'   },
+  { key:'ovTo',     el:'f-ovTo'     },
+  { key:'def',      el:'f-def'      }
 ];
 let active = {};
 let sortKey = null, sortDir = 1;
-const gTop = code => String(code).split('.')[0];   /* '1.2' → '1' */
+
+/* Область берётся из тех же данных, что и район: карта REGION — единственный источник (СП-5). */
+const regionOfDistrict = d => REGION_OF[d] || '—';
+/* Значение фильтра «нет куратора» не может совпасть с id сотрудника — держим его отдельно. */
+const CURATOR_NONE = 'none';
+/* Категория «не применяется» — полноценное значение (И-3), а не отсутствие значения: у заёмщика
+   без действующих кредитов категории нет по правилу, и отбирать таких надо (СП-4). */
+const CAT_NA = 'na';
 
 function readFields(){
   const v = {};
   FIELDS.forEach(f => { const el = document.getElementById(f.el); if (!el) return;
-    const val = el.value.trim(); if (val) v[f.key] = val; });
+    const val = String(el.value).trim(); if (val) v[f.key] = val; });
   return v;
 }
+/* Число активных условий — для бейджа на свёрнутой панели (СП-4). Поиск в счёт не идёт:
+   он живёт в тулбаре и виден всегда. */
+const activeCount = () => Object.keys(active).filter(k => k !== 'q').length;
+
 function matches(s, r){
-  if (active.name && !s.name.toLowerCase().includes(active.name.toLowerCase())) return false;
-  if (active.inn && !s.inn.includes(active.inn)) return false;
+  /* поиск — ИЛИ по двум полям */
+  if (active.q){
+    const q = active.q.toLowerCase();
+    if (!s.name.toLowerCase().includes(q) && !s.inn.includes(active.q)) return false;
+  }
   if (active.sector && s.industry !== active.sector) return false;
+  if (active.region && regionOfDistrict(s.district) !== active.region) return false;
   if (active.district && s.district !== active.district) return false;
-  if (active.group && gTop(r.sub) !== active.group) return false;
-  if (active.sub && r.sub !== active.sub) return false;
-  if (active.cat && CAT_LABEL[r.cat] !== active.cat) return false;
+  /* один код на два уровня: '2' — вся группа, '2.1' — конкретная подгруппа */
+  if (active.grp){
+    const g = active.grp;
+    if (g.includes('.') || NO_LADDER.has(g)) { if (r.sub !== g) return false; }
+    else if (NO_LADDER.has(r.sub) || r.sub[0] !== g) return false;
+  }
+  if (active.cat){
+    if (active.cat === CAT_NA) { if (r.cat) return false; }
+    else if (CAT_LABEL[r.cat] !== active.cat) return false;
+  }
+  if (active.curator){
+    if (active.curator === CURATOR_NONE) { if (!r.curatorGap) return false; }
+    else if (!r.curatorNames.includes(active.curator)) return false;
+  }
+  if (active.ovFrom && r.ov < +active.ovFrom) return false;
+  if (active.ovTo   && r.ov > +active.ovTo)   return false;
+  if (active.def){
+    if (active.def === 'stop' && !r.stop) return false;
+    if (active.def === 'high' && !r.high) return false;
+    if (active.def === 'any'  && !r.def)  return false;
+    if (active.def === 'none' && r.def)   return false;
+  }
   return true;
 }
 function sortVal(x, k){
   if (k === 'name')     return x.s.name;
   if (k === 'sector')   return x.s.industry;
   if (k === 'district') return x.s.district;
-  if (k === 'sub')      return x.r.sub;
+  /* Коды вне лестницы ставим в конец: они не продолжают шкалу 1…5 (СП-7). */
+  if (k === 'sub')      return NO_LADDER.has(x.r.sub) ? '9' + x.r.sub : x.r.sub;
   if (k === 'cat')      return x.r.cat ? CAT_RANK[x.r.cat] : -1;
   if (k === 'ov')       return x.r.ov;
   if (k === 'ovSum')    return x.r.ovSum;
-  if (k === 'def')      return (x.r.stop ? 1000 : 0) + x.r.def;
-  if (k === 'curator')  return x.r.curator;
+  if (k === 'debt')     return x.r.debt;
+  /* СП-13: модальность НЕ складывается со степенью — сначала стоп/не-стоп, потом высокие.
+     Приём «+1000» кладёт стоп на ту самую числовую шкалу, из которой И-8 его выводит. */
+  if (k === 'def')      return [x.r.stop ? 1 : 0, x.r.high, x.r.def];
+  if (k === 'curator')  return x.r.curatorNames[0] || '￿';
   return '';
 }
-/* Отфильтрованный и отсортированный реестр — общий для таблицы и карточек. */
+/* Сравнение с поддержкой составного ключа (массив = лексикографически по элементам). */
+function cmpVal(a, b){
+  if (Array.isArray(a) && Array.isArray(b)){
+    for (let i = 0; i < Math.max(a.length, b.length); i++){
+      const c = cmpVal(a[i], b[i]); if (c) return c;
+    }
+    return 0;
+  }
+  return a > b ? 1 : a < b ? -1 : 0;
+}
+/* Отфильтрованный и отсортированный реестр. Счётчик строк тут больше не пишется:
+   его формат зависит от страницы (СП-11) и живёт в renderList. */
 function visibleSubjects(){
   let rows = SUBJECTS.map(s => ({ s, r: listRow(s) })).filter(x => matches(x.s, x.r));
-  if (sortKey) rows = rows.slice().sort((x,y) => {
-    const a = sortVal(x, sortKey), b = sortVal(y, sortKey);
-    return (a > b ? 1 : a < b ? -1 : 0) * sortDir;
-  });
-  const rc = document.getElementById('rowCount');
-  if (rc) rc.textContent = rows.length + ' строк';
+  if (sortKey) rows = rows.slice().sort((x,y) =>
+    cmpVal(sortVal(x, sortKey), sortVal(y, sortKey)) * sortDir);
   return rows;
+}
+
+/* ---------- пагинация (СП-11) ----------
+   Раньше стрелки были декорацией, а renderList рисовал все отфильтрованные строки. При
+   тысячах заёмщиков это полный пересчёт listRow() на каждую смену фильтра, а listRow дорогая:
+   на одного субъекта она фильтрует CREDITS, считает defects(), curatorMatrix() и прогоняет
+   лестницу subgroupOf() по PROCESSES и BORROWER_EVENTS. */
+let pgSize = 25, pgPage = 1;
+const pageCount = total => Math.max(1, Math.ceil(total / pgSize));
+function gotoPage(p){
+  pgPage = p;
+  renderList();
 }
 
 function renderList(){
   const rows = visibleSubjects();
-  document.querySelector('#listTable tbody').innerHTML = rows.map(({s, r}) =>
-    `<tr data-inn="${s.inn}" style="cursor:pointer" onclick="location.hash='#/b/${s.inn}'">
+  const pages = pageCount(rows.length);
+  if (pgPage > pages) pgPage = pages;
+  if (pgPage < 1) pgPage = 1;
+  const from = (pgPage - 1) * pgSize;
+  const slice = rows.slice(from, from + pgSize);
+
+  document.querySelector('#listTable tbody').innerHTML = slice.map(({s, r}) =>
+    /* Строка открывается кликом; tabindex + Enter — клавиатурный путь вместо кнопки
+       «Открыть», которая была навсегда disabled (СП-8). */
+    `<tr data-inn="${s.inn}" tabindex="0" style="cursor:pointer" onclick="location.hash='#/b/${s.inn}'">
       <td class="who" title="${esc(s.name)}">${esc(s.name)}
-        <div class="muted" style="font-weight:400;margin-top:3px">${esc(s.industry)} · ${esc(s.district)}</div></td>
+        <!-- СП-12: под именем ИНН, а не «отрасль · район». ИНН — якорь записи, и поиск
+             идёт по нему; отрасль и район остались условиями фильтра. -->
+        <div class="muted" style="font-weight:400;margin-top:3px">ИНН ${esc(s.inn)} · ${esc(personKindLabel(s.personKind))}</div></td>
       <td>${grpBadge(r.sub)}</td>
       <td>${catCell(r.cat)}</td>
       <td>${r.ov ? `<span class="win">${fmt(r.ov)} дн.</span>` : '<span class="muted">0</span>'}</td>
       <td>${r.ovSum ? fmt(r.ovSum) + ' <span class="muted">KGS</span>' : '<span class="muted">—</span>'}</td>
+      <td>${r.debt ? fmt(r.debt) + ' <span class="muted">KGS</span>' : '<span class="muted">—</span>'}</td>
       <td>${defCell(r)}</td>
-      <td class="${r.curatorGap ? 'win' : 'muted'}" title="${esc(r.curator)}">${esc(r.curator)}</td></tr>`).join('');
+      <td>${curatorCell(r)}</td></tr>`).join('');
   document.getElementById('listEmpty').hidden = rows.length > 0;
+  renderPager(rows.length, from, slice.length);
+  renderListAsOf();
 }
-function renderCards(){
-  const wrap = document.getElementById('cardsWrap');
-  const rows = visibleSubjects();
-  if (rows.length === 0){
-    wrap.innerHTML = `<div class="cards-empty">Записей не найдено — измените условия фильтра.</div>`;
-    return;
-  }
-  wrap.innerHTML = `<div class="cards-grid">` + rows.map(({s, r}) => {
-    return `<div class="bcard" data-inn="${esc(s.inn)}" onclick="location.hash='#/b/${s.inn}'">
-      <div class="bcard-head">
-        <div class="bcard-ava" style="background:var(--action-primary)">${esc((s.name||'?').slice(0,1))}</div>
-        <div class="bcard-title">
-          <div class="bcard-name">${esc(s.name)}</div>
-          <div class="bcard-sub">ИНН ${esc(s.inn)} · ${esc(s.personKind)}</div>
-        </div>
-        <div class="bcard-chev">›</div>
-      </div>
-      <div class="bcard-fields">
-        <div class="bcard-field"><span class="bcard-flabel">Просрочка</span><span class="bcard-fval">${r.ov ? fmt(r.ov) + ' дн.' : '0'}</span></div>
-        <div class="bcard-field"><span class="bcard-flabel">Просроченная часть</span><span class="bcard-fval">${r.ovSum ? fmt(r.ovSum) : '—'}</span></div>
-        <div class="bcard-field"><span class="bcard-flabel">Куратор</span><span class="bcard-fval">${esc(r.curator)}</span></div>
-      </div>
-      <div class="bcard-badges">
-        ${catCell(r.cat)}
-        ${grpBadge(r.sub)}
-        ${defCell(r)}
-      </div>
-    </div>`;
-  }).join('') + `</div>`;
+/* Куратор: фамилия и дыра — раздельно (СП-12). */
+function curatorCell(r){
+  const name = r.curatorNames.length
+    ? `<span title="${esc(r.curatorNames.join(', '))}">${esc(r.curator)}</span>`
+    : '<span class="muted">—</span>';
+  const gap = r.curatorGap
+    ? ` <span class="badge b-ov" title="кредитов без действующего куратора: ${r.gaps}">нет по ${r.gaps}</span>`
+    : '';
+  return name + gap;
+}
+/* Счётчик «1–25 из 348» вместо «N строк»: прежняя надпись не отвечала, всего это или
+   после фильтра (СП-11). */
+function renderPager(total, from, shown){
+  const rc = document.getElementById('rowCount');
+  if (rc) rc.textContent = total ? (from + 1) + '–' + (from + shown) + ' из ' + total : '0 из 0';
+  const pages = pageCount(total);
+  const set = (id, dis) => { const el = document.getElementById(id); if (el) el.classList.toggle('dis', dis); };
+  set('pgFirst', pgPage <= 1); set('pgPrev', pgPage <= 1);
+  set('pgNext', pgPage >= pages); set('pgLast', pgPage >= pages);
+}
+/* Полоса дат (СП-14): в реестре рядом стоят дни просрочки к дате среза и деньги из снимка
+   со своей датой (И-6). Карточка это подписывает, список — нет; принцип «видно подписью». */
+function renderListAsOf(){
+  const el = document.getElementById('listAsOf');
+  if (!el) return;
+  el.innerHTML = 'Состояние на <b>' + esc(asOf()) + '</b>'
+    + '<span class="sep">·</span>деньги — снимок кредитного модуля на <b>' + esc(DEBT_ASOF) + '</b>'
+    + ' (дате среза не подчиняются)';
 }
 function tile(title, valueHtml, basis, moreHtml, lockHtml){
   return `<div class="dim"><div class="dim-t">${esc(title)}</div><div class="dim-v">${valueHtml}</div>`
@@ -4663,8 +4805,11 @@ function checksTab(inn){
   /* Справочный подвал: категория и группа — не проверки, а выводимые классификации (дубль плиток шапки). */
   const cat = catOfBorrower(inn, asOf());
   const clsHtml = sect('Справочно — классификации', 'выводятся автоматически, проверкой не являются', '',
+    /* groupOf() вне лестницы возвращает null (СП-7): группы у такого заёмщика нет, и печатать
+       первую букву слова 'none' вместо номера группы нельзя. */
     '<div class="muted">Категория риска: <b>' + esc(cat ? CAT_LABEL[cat] : 'не применяется') + '</b> (по данным мониторинга)'
-    + ' · Подгруппа: <b>' + esc(subgroupOf(inn, asOf())) + '</b> · группа <b>' + esc(groupOf(inn, asOf()))
+    + ' · Подгруппа: <b>' + esc(SUBGROUP_LABEL[subgroupOf(inn, asOf())] || subgroupOf(inn, asOf())) + '</b>'
+    + ' · группа <b>' + esc(groupOf(inn, asOf()) || 'не применяется')
     + '</b> (классификатор заёмщика)</div>');
 
   /* Внешние снимки — зеркало (И-5). Ключевое: снимок берётся НА МОМЕНТ ЗАЯВКИ и с годами протухает,
@@ -4944,7 +5089,10 @@ function renderCard(inn){
     tile('Состояние субъекта', esc(st ? st.kind : 'действует'),
       st ? `основание: ${esc(st.basis||'—')}` : 'событий нет',
       st && st.successorInn ? `Преемник: <a class="lnk" href="#/b/${st.successorInn}">${st.successorInn}</a>` : ''),
-    tile('Подгруппа заёмщика', `<span class="grp-code">${esc(grp)}</span> ${esc(SUBGROUP_LABEL[grp]||'')}`,
+    /* Коды вне лестницы кода не имеют — печатаем только подпись, иначе в плитке появится «none» (СП-7). */
+    tile('Подгруппа заёмщика', NO_LADDER.has(grp)
+        ? `<span class="muted">${esc(SUBGROUP_LABEL[grp]||'')}</span>`
+        : `<span class="grp-code">${esc(grp)}</span> ${esc(SUBGROUP_LABEL[grp]||'')}`,
       'лестница с доминированием', groupStepsHtml(inn, asOf()), LOCK),
     tile('Категория риска',
       cat ? `<span class="cat-${catCls(cat)}"><span class="dot d-${catCls(cat)}"></span> ${esc(CAT_LABEL[cat])}</span>`
@@ -5083,7 +5231,7 @@ function scrollTop(){ document.documentElement.scrollTop = document.body.scrollT
 function showList(){
   current = null; currentSubj = null;
   VIEW_DATE = TODAY;              /* реестр всегда «сегодня»: срез — свойство открытой карточки */
-  if (listView === 'cards') renderCards(); else renderList();
+  renderList();
   showOnly(vList);
   pageTitle.textContent = 'Список заёмщиков';
   topbar.classList.remove('on-detail');
@@ -5166,21 +5314,97 @@ window.addEventListener('hashchange', route);
 /* ---------- переключатель панели фильтра (раскрыть/свернуть) ---------- */
 document.getElementById('jfToggle').addEventListener('click', () => document.getElementById('jf').classList.toggle('collapsed'));
 
+/* ---------- справочники панели строятся из данных (СП-5) ----------
+   Хардкод вариантов в разметке — дефект сборки: список районов расходился с данными, а области
+   не было вовсе, хотя карта REGION_OF её знает. */
+function opt(value, label){
+  const o = document.createElement('option');
+  o.value = value; o.textContent = label;
+  return o;
+}
+function setOptions(id, items, blank){
+  const el = document.getElementById(id);
+  if (!el) return;
+  const keep = el.value;
+  el.innerHTML = '';
+  el.appendChild(opt('', blank || ''));
+  items.forEach(it => el.appendChild(opt(it.v, it.l)));
+  if ([...el.options].some(o => o.value === keep)) el.value = keep;
+}
+/* Каскад: район сужается выбранной областью. Обе выборки — из данных субъектов. */
+function fillDistricts(){
+  const reg = (document.getElementById('f-region') || {}).value || '';
+  const ds = [...new Set(SUBJECTS.map(s => s.district).filter(Boolean))]
+    .filter(d => !reg || REGION_OF[d] === reg).sort();
+  setOptions('f-district', ds.map(d => ({ v:d, l:d })));
+}
+function fillFilterDicts(){
+  setOptions('f-sector', [...new Set(SUBJECTS.map(s => s.industry).filter(Boolean))].sort()
+    .map(x => ({ v:x, l:x })));
+  setOptions('f-region', [...new Set(SUBJECTS.map(s => REGION_OF[s.district]).filter(Boolean))].sort()
+    .map(x => ({ v:x, l:x })));
+  fillDistricts();
+  /* Один селект на два уровня классификатора (СП-3): строка группы, под ней её подгруппы.
+     Порядок и подписи берутся из SUBGROUP_LABEL — второй карты не заводим. */
+  const codes = Object.keys(SUBGROUP_LABEL).filter(c => !NO_LADDER.has(c));
+  const tops = [...new Set(codes.map(c => c[0]))].sort();
+  const grp = [];
+  tops.forEach(t => {
+    const subs = codes.filter(c => c[0] === t && c.includes('.'));
+    grp.push({ v:t, l: t + '. ' + (subs.length ? 'вся группа' : SUBGROUP_LABEL[t]) });
+    subs.forEach(c => grp.push({ v:c, l:'   ' + c + '. ' + SUBGROUP_LABEL[c] }));
+  });
+  /* СП-7: состояния вне лестницы тоже надо уметь отобрать — иначе предрегистрированные
+     заёмщики и закрывшие все кредиты не выбираются ничем. */
+  NO_LADDER.forEach(c => grp.push({ v:c, l:SUBGROUP_LABEL[c] }));
+  setOptions('f-grp', grp);
+  /* Категория: три значения шкалы + «не применяется» (И-3). Раньше четвёртого варианта не было,
+     и заёмщики без действующих кредитов не отбирались никаким значением фильтра (СП-4). */
+  setOptions('f-cat', Object.values(CAT_LABEL).map(x => ({ v:x, l:x }))
+    .concat([{ v:CAT_NA, l:'не применяется' }]));
+  /* Кураторы — из фактических назначений, а не из полного штата. */
+  const curs = [...new Set(SUBJECTS.flatMap(s => listRow(s).curatorNames))].sort();
+  setOptions('f-curator', curs.map(x => ({ v:x, l:x }))
+    .concat([{ v:CURATOR_NONE, l:'— без куратора (есть дыра)' }]));
+  setOptions('f-def', [
+    { v:'stop', l:'есть стоп' },
+    { v:'high', l:'есть высокие' },
+    { v:'any',  l:'есть любые' },
+    { v:'none', l:'нет' },
+  ]);
+}
+
 /* ---------- фильтр и сортировка реестра ---------- */
-function redrawList(){ if (listView === 'cards') renderCards(); else renderList(); }
-function applyFilter(){ active = readFields(); redrawList(); }
+function redrawList(){ renderList(); }
+function applyFilter(){
+  active = readFields();
+  pgPage = 1;                      /* новая выборка — с первой страницы, иначе покажется пусто */
+  const b = document.getElementById('jfCount');
+  if (b){ const n = activeCount(); b.textContent = n; b.hidden = n === 0; }
+  redrawList();
+}
 function resetFilter(){
   FIELDS.forEach(f => { const el = document.getElementById(f.el); if (el) el.value = ''; });
-  active = {};
-  redrawList();
+  fillDistricts();
+  applyFilter();
 }
 document.getElementById('fApply').addEventListener('click', applyFilter);
 document.getElementById('fReset').addEventListener('click', resetFilter);
-/* условия применяются сразу — «Обновить» ждать не нужно */
+/* условия применяются сразу — «Обновить» ждать не нужно.
+   Текстовый ввод идёт через задержку: listRow() дорогая, а поиск теперь живой (СП-11). */
+let filterTimer = null;
+function applyFilterDebounced(){
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(applyFilter, 200);
+}
 FIELDS.forEach(f => {
   const el = document.getElementById(f.el);
-  if (el) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', applyFilter);
+  if (!el) return;
+  if (el.tagName === 'SELECT') el.addEventListener('change', applyFilter);
+  else el.addEventListener('input', applyFilterDebounced);
 });
+/* Смена области перестраивает список районов и сбрасывает несовместимый выбор. */
+document.getElementById('f-region').addEventListener('change', () => { fillDistricts(); applyFilter(); });
 document.querySelectorAll('#listTable thead th[data-sort]').forEach(th => {
   th.addEventListener('click', () => {
     const k = th.dataset.sort;
@@ -5195,29 +5419,75 @@ document.querySelectorAll('#listTable thead th[data-sort]').forEach(th => {
   });
 });
 
-/* ---------- вид списка: таблица ↔ карточки (как в мокапе кредитной программы) ----------
-   Данные, фильтр и сортировка общие — меняется только представление.
-   Выбор сохраняется между сессиями (localStorage, ключ asubk.borrower.listView). */
-const LIST_VIEW_KEY = 'asubk.borrower.listView';
-let listView = (() => { try { return localStorage.getItem(LIST_VIEW_KEY) === 'cards' ? 'cards' : 'table'; } catch(e){ return 'table'; } })();
-function setListView(v){
-  listView = v === 'cards' ? 'cards' : 'table';
-  try { localStorage.setItem(LIST_VIEW_KEY, listView); } catch(e){}
-  document.getElementById('segTable').classList.toggle('active', listView === 'table');
-  document.getElementById('segCards').classList.toggle('active', listView === 'cards');
-  document.getElementById('gridWrap').hidden = listView === 'cards';
-  document.getElementById('cardsWrap').hidden = listView !== 'cards';
-  if (listView === 'cards') renderCards(); else renderList();
+/* ---------- клавиатура: Enter на строке открывает карточку (СП-8) ----------
+   Кнопка «Открыть» была навсегда disabled и обработчика не имела; открытие жило только на
+   клике мышью, то есть клавиатурного пути к карточке не существовало. */
+document.getElementById('listTable').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const tr = e.target.closest('tr[data-inn]');
+  if (!tr) return;
+  e.preventDefault();
+  location.hash = '#/b/' + tr.dataset.inn;
+});
+
+/* ---------- пагинация (СП-11) ---------- */
+document.getElementById('pgSize').addEventListener('change', e => {
+  pgSize = +e.target.value || 25;
+  pgPage = 1;
+  renderList();
+});
+document.getElementById('pgFirst').addEventListener('click', () => gotoPage(1));
+document.getElementById('pgPrev').addEventListener('click', () => gotoPage(pgPage - 1));
+document.getElementById('pgNext').addEventListener('click', () => gotoPage(pgPage + 1));
+document.getElementById('pgLast').addEventListener('click', () => gotoPage(pageCount(visibleSubjects().length)));
+
+/* ---------- экспорт (СП-9) ----------
+   Выгружается ровно то, что видно: текущие условия, сортировка и колонки. Шапка несёт оттиск —
+   без него файл невоспроизводим: строки реестра производны на дату среза, а деньги приходят
+   снимком со своей датой (И-6), и через неделю числа не сойдутся ни с чем.
+   В макете формируется TSV (Excel открывает его как таблицу): XLSX-сериализатор — задача
+   реализации, оттиск и состав колонок от формата не зависят. */
+function exportRows(){
+  const rows = visibleSubjects();
+  const cond = FIELDS.filter(f => active[f.key] !== undefined)
+    .map(f => {
+      const el = document.getElementById(f.el);
+      const lab = el && el.closest('.jf-row') ? el.closest('.jf-row').querySelector('.jf-label').textContent : f.key;
+      return (f.key === 'q' ? 'Поиск' : lab) + ': ' + active[f.key];
+    });
+  const head = [
+    'Реестр заёмщиков',
+    'Состояние на\t' + asOf(),
+    'Деньги — снимок кредитного модуля на\t' + DEBT_ASOF + '\t(дате среза не подчиняются)',
+    'Условия\t' + (cond.length ? cond.join(' · ') : 'без условий'),
+    'Строк\t' + rows.length,
+    'Выгрузил\tadmin\t' + TODAY,
+    '',
+  ];
+  const cols = ['Наименование','ИНН','Тип лица','Подгруппа','Категория риска',
+    'Просрочка, дн.','Просроченная часть','Задолженность','Дефекты','Куратор','Дыра по куратору'];
+  const body = rows.map(({s, r}) => [
+    s.name, s.inn, personKindLabel(s.personKind),
+    (NO_LADDER.has(r.sub) ? '' : r.sub + ' ') + (SUBGROUP_LABEL[r.sub] || ''),
+    r.cat ? CAT_LABEL[r.cat] : 'не применяется',
+    r.ov, r.ovSum, r.debt,
+    (r.stop ? 'стоп; ' : '') + r.def, r.curatorNames.join(', '), r.gaps || '',
+  ].join('\t'));
+  const tsv = head.concat([cols.join('\t')], body).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + tsv], { type:'text/tab-separated-values;charset=utf-8' }));
+  a.download = 'zaemshchiki-' + asOf().split('.').reverse().join('-') + '.xls';
+  document.body.appendChild(a); a.click(); a.remove();
 }
-document.getElementById('segTable').addEventListener('click', () => setListView('table'));
-document.getElementById('segCards').addEventListener('click', () => setListView('cards'));
+document.getElementById('tbExport').addEventListener('click', exportRows);
 
 /* клик вне выпадающей группы «Сформировать» — закрыть меню */
 document.addEventListener('click', e => {
   if (!e.target.closest('#genDd')) document.querySelectorAll('.dd.open').forEach(d => d.classList.remove('open'));
 });
 
-setListView(listView);   // рисует список в сохранённом виде (таблица/карточки)
+fillFilterDicts();   /* справочники панели — из данных (СП-5) */
+applyFilter();       /* первый рендер: условий нет, бейдж скрыт, страница первая */
 route();   /* восстановить вид из hash после перезагрузки */
 </script>
 </body>

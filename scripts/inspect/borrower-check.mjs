@@ -34,7 +34,11 @@ ok('S3. факт-массивы без производных полей (CREDIT
   g.ev("CREDITS.every(c=>!('level' in c) && !('category' in c) && !('daysEff' in c))"));
 ok('S4. факт-массивы без производных полей (SUBJECTS)',
   g.ev("SUBJECTS.every(s=>!('group' in s) && !('category' in s))"));
-ok('S5. реестр показывает все строки', g.$$('#listTable tbody tr').length === g.ev("SUBJECTS.length"));
+/* СП-11: реестр листается, поэтому строк на экране — не больше размера страницы, а счётчик
+   печатает «1–N из K». Раньше рисовались все строки, а стрелки были декорацией. */
+ok('S5. реестр листается: строк на странице ≤ pgSize, счётчик знает общее число',
+  g.$$('#listTable tbody tr').length === Math.min(g.ev("pgSize"), g.ev("SUBJECTS.length")) &&
+  new RegExp('^1–\\d+ из ' + g.ev("SUBJECTS.length") + '$').test(g.$('#rowCount').textContent));
 ok('S6. WORKDAYS — массив праздников (строки dd.mm.yyyy)',
   g.ev("Array.isArray(WORKDAYS) && WORKDAYS.every(d=>/^\\d{2}\\.\\d{2}\\.\\d{4}$/.test(d))"));
 ok('S7. route() навигация в карточку не бросает (DATA→SUBJECTS)',
@@ -103,8 +107,10 @@ ok('C1. журнала группы нет — терминалы приходя
 ok('C2. у каждого терминального события есть документ-основание',
   g.ev("BORROWER_EVENTS.length") > 0 &&
   g.ev("BORROWER_EVENTS.every(e=>e.doc && e.basis && /п\\.\\d+/.test(e.basis))"));
-ok('C3. группа — верхний уровень подгруппы (1…5)',
-  g.ev("SUBJECTS.every(s=>groupOf(s.inn,TODAY)===subgroupOf(s.inn,TODAY)[0])") &&
+/* СП-7: вне лестницы группы нет — groupOf() отдаёт null, а не первую букву слова 'none'. */
+ok('C3. группа — верхний уровень подгруппы (1…5), вне лестницы null',
+  g.ev(`SUBJECTS.every(s=>{ const sub=subgroupOf(s.inn,TODAY), grp=groupOf(s.inn,TODAY);
+        return NO_LADDER.has(sub) ? grp===null : grp===sub[0]; })`) &&
   g.ev("groupOf('06601199960061',TODAY)")==='2');
 ok('C4. база 1.2 выводится из просрочки, а не из записи мониторинга',
   g.ev("subgroupOf('02201199920021', TODAY)")==='1.2' &&
@@ -113,13 +119,27 @@ ok('C5. просрочка без подтверждённой процедур�
   g.ev(`SUBJECTS.map(s=>s.inn)
         .filter(i=>CREDITS.some(c=>c.inn===i && isActiveCredit(c,TODAY) && overdueDaysOn(c,TODAY)>0))
         .every(i=>subgroupOf(i,TODAY)!=='1.1')`));
+/* СП-3: один селект на два уровня — код без точки означает «вся группа». */
 ok('C7. фильтр реестра по ГРУППЕ отбирает все её подгруппы',
   (() => { const f = mk();
-    f.doc.getElementById('f-group').value = '2';
-    f.ev("active = readFields(); renderList();");
+    f.doc.getElementById('f-grp').value = '2';
+    f.ev("pgSize = 1000; applyFilter();");
     const shown = f.$$('#listTable tbody tr').length;
     const want = f.ev("SUBJECTS.filter(s=>groupOf(s.inn,TODAY)==='2').length");
     return shown === want && shown > 0; })());
+ok('C8. фильтр по ПОДГРУППЕ отбирает только её (два уровня в одном поле)',
+  (() => { const f = mk();
+    f.doc.getElementById('f-grp').value = '2.1';
+    f.ev("pgSize = 1000; applyFilter();");
+    const shown = f.$$('#listTable tbody tr').length;
+    const want = f.ev("SUBJECTS.filter(s=>subgroupOf(s.inn,TODAY)==='2.1').length");
+    return shown === want && shown > 0; })());
+/* СП-3: прежние два поля позволяли выразить «группа 1 + подгруппа 2.1» — всегда пустой
+   результат. Одно поле делает такую комбинацию невыразимой. */
+ok('C9. противоречивую комбинацию группа+подгруппа выразить нечем (одно поле)',
+  g.ev("typeof document.getElementById('f-group')") === 'object' &&
+  g.ev("document.getElementById('f-group') === null && document.getElementById('f-sub') === null") &&
+  g.ev("FIELDS.filter(f=>f.key==='grp').length") === 1);
 ok('C6. подгруппа историчная: до события банкротства заёмщик не в 3.2',
   g.ev("subgroupOf('07701199970071','01.05.2026')")!=='3.2' &&
   g.ev("subgroupOf('07701199970071',TODAY)")==='3.2');
@@ -333,10 +353,12 @@ ok('H4. деньги дате среза не подчиняются (И-6): с�
     f.ev("setAsOf('2026-01-01')");
     return f.ev("totalDebt('01204199910016')") === before
       && f.ev("CREDITS.every(c=>c.debt.asOf===DEBT_ASOF)"); })());
-ok('H5. реестр — рабочий список: просрочка, просроченная часть, дефекты, куратор',
+/* Колонок стало 8: «Задолженность» добавлена по СП-12 — без масштаба одинаковые дни просрочки
+   у 900 тыс и у 17 млн читались одинаково. Отрасль и район остались только условиями фильтра. */
+ok('H5. реестр — рабочий список: просрочка, просроченная часть, задолженность, дефекты, куратор',
   (() => { const f = mk();
     const th = f.$$('#listTable thead th').map(x => x.getAttribute('data-sort'));
-    return th.length === 7 && ['ov','ovSum','def','curator'].every(k => th.includes(k))
+    return th.length === 8 && ['ov','ovSum','debt','def','curator'].every(k => th.includes(k))
       && !th.includes('sector') && !th.includes('district'); })());
 ok('H6. строка реестра считается движком и видит дыру кураторства по КРЕДИТУ',
   g.ev("listRow(SUBJECTS.find(s=>s.inn==='01204199910016')).curatorGap") === true
@@ -383,17 +405,148 @@ const gg = mk();
 ok('N1. реестр содержит ≥10 заёмщиков и все ветки достижимы', gg.$$('#listTable tbody tr').length >= 10);
 ok('N2. фильтр подгруппы включает 3.2 (Ш-2)', /3\.2/.test(gg.$('#view-list').textContent) || gg.ev("Object.keys(GROUP_LABEL).includes('3.2')"));
 
-// ── Переключатель вида списка: таблица ↔ карточки (финальное ревью, дефект-находка) ──
-const cv = mk();
-cv.ev("setListView('cards')");
-ok('V1. переключение на карточки: #cardsWrap видим и содержит ≥10 карточек',
-  cv.$('#cardsWrap').hidden === false && cv.$$('#cardsWrap .bcard').length >= 10);
-cv.ev("setListView('table')");
-ok('V2. переключение обратно на таблицу: #gridWrap показан, #cardsWrap скрыт',
-  cv.$('#gridWrap').hidden === false && cv.$('#cardsWrap').hidden === true);
-cv.ev("setListView('cards')");
-ok('V3. карточка без input/select (И-5): только текст и переход по клику',
-  cv.$$('#cardsWrap .bcard input, #cardsWrap .bcard select').length === 0);
+/* ── Экран списка: решения СП-1…СП-14 (сессия-гриллинг 26.07.2026) ──────────────
+   Дом решений — mockups/borrower/ASUBK-status-razrabotki.md. Карточный вид (прежние V1–V3)
+   снят по СП-10: сортировка в нём была недоступна (заголовки скрыты), сетка карточек ломала
+   сравнение чисел между строками, и два рендерера уже разошлись по составу полей. */
+const L = mk();
+ok('СП-10. карточного вида и переключателя в реестре нет',
+  L.$('#cardsWrap') === null && L.$('#segCards') === null &&
+  L.ev("typeof renderCards") === 'undefined' && L.ev("typeof listView") === 'undefined');
+ok('СП-2. поиск — один инпут в тулбаре, вне свёрнутой панели фильтра',
+  L.$('#f-q') !== null && L.$('.jt #f-q') !== null &&
+  L.$('#f-name') === null && L.$('#f-inn') === null);
+ok('СП-2. поиск работает по ИЛИ: ИНН находит ту же запись, что и наименование',
+  (() => { const f = mk(); f.ev("pgSize = 1000;");
+    const inn = f.ev("SUBJECTS[0].inn"), name = f.ev("SUBJECTS[0].name");
+    f.doc.getElementById('f-q').value = inn; f.ev("applyFilter();");
+    const byInn = f.$$('#listTable tbody tr').length;
+    f.doc.getElementById('f-q').value = name; f.ev("applyFilter();");
+    const byName = f.$$('#listTable tbody tr').length;
+    return byInn === 1 && byName >= 1; })());
+ok('СП-4. бейдж числа активных условий появляется и считает без поиска',
+  (() => { const f = mk();
+    if (!f.$('#jfCount').hidden) return false;
+    f.doc.getElementById('f-q').value = '1'; f.ev("applyFilter();");
+    if (!f.$('#jfCount').hidden) return false;          // поиск в счёт не идёт
+    f.doc.getElementById('f-cat').value = 'Высокий'; f.ev("applyFilter();");
+    return f.$('#jfCount').hidden === false && f.$('#jfCount').textContent === '1'; })());
+ok('СП-4. категория «не применяется» отбирается фильтром',
+  (() => { const f = mk(); f.ev("pgSize = 1000;");
+    f.doc.getElementById('f-cat').value = f.ev("CAT_NA"); f.ev("applyFilter();");
+    const shown = f.$$('#listTable tbody tr').length;
+    const want = f.ev("SUBJECTS.filter(s=>!catOfBorrower(s.inn,TODAY)).length");
+    return shown === want && shown > 0; })());
+ok('СП-4. фильтр «без куратора» отбирает только записи с дырой',
+  (() => { const f = mk(); f.ev("pgSize = 1000;");
+    f.doc.getElementById('f-curator').value = f.ev("CURATOR_NONE"); f.ev("applyFilter();");
+    const shown = f.$$('#listTable tbody tr').length;
+    const want = f.ev("SUBJECTS.filter(s=>listRow(s).curatorGap).length");
+    return shown === want && shown > 0; })());
+ok('СП-4. диапазон дней просрочки «от—до» режет по границам включительно',
+  (() => { const f = mk(); f.ev("pgSize = 1000;");
+    f.doc.getElementById('f-ovFrom').value = '90';
+    f.doc.getElementById('f-ovTo').value = '220';
+    f.ev("applyFilter();");
+    const shown = f.$$('#listTable tbody tr').length;
+    const want = f.ev("SUBJECTS.filter(s=>{const o=listRow(s).ov; return o>=90 && o<=220;}).length");
+    return shown === want && shown > 0; })());
+ok('СП-4. фильтр дефектов «есть стоп» отбирает только блокирующие',
+  (() => { const f = mk(); f.ev("pgSize = 1000;");
+    f.doc.getElementById('f-def').value = 'stop'; f.ev("applyFilter();");
+    const shown = f.$$('#listTable tbody tr').length;
+    const want = f.ev("SUBJECTS.filter(s=>listRow(s).stop).length");
+    return shown === want; })());
+ok('СП-5. каскад: области и районы построены ИЗ ДАННЫХ, район сужается областью',
+  (() => { const f = mk();
+    const regs = f.$$('#f-region option').map(o => o.value).filter(Boolean);
+    const want = f.ev("[...new Set(SUBJECTS.map(s=>REGION_OF[s.district]).filter(Boolean))]");
+    if (regs.length !== want.length || !regs.every(r => want.includes(r))) return false;
+    f.doc.getElementById('f-region').value = 'Чуй';
+    f.ev("fillDistricts();");
+    const ds = f.$$('#f-district option').map(o => o.value).filter(Boolean);
+    return ds.length > 0 && ds.every(d => f.ev(`REGION_OF['${d}']`) === 'Чуй'); })());
+ok('СП-5. метки панели без Jmix-синтаксиса («Субъект.» и «=» убраны)',
+  L.$$('#jf .jf-label').every(el => !/Субъект\.|=\s*$/.test(el.textContent.trim())));
+/* СП-7: прежняя база выдавала заёмщику без кредитов «1.1 Производят погашение по графику». */
+/* Проверяется на РЕАЛЬНОЙ записи набора (предрегистрация, СП-6), а не на выдуманном ИНН:
+   иначе ветка проходит тест, но в макете её никто не увидит. */
+ok('СП-7. заёмщик без кредитов → «Кредитов не было», а не 1.1',
+  g.ev("CREDITS.some(c=>c.inn==='11101199900111')") === false &&
+  g.ev("subgroupOf('11101199900111', TODAY)") === 'none' &&
+  g.ev("SUBGROUP_LABEL['none']") === 'Кредитов не было' &&
+  g.ev("groupOf('11101199900111', TODAY)") === null &&
+  g.ev("catOfBorrower('11101199900111', TODAY)") === null);
+ok('СП-7. все кредиты закрыты без терминала → «Нет действующих», а не 1.1',
+  (() => {
+    const inns = g.ev(`SUBJECTS.map(s=>s.inn).filter(i=>
+      CREDITS.some(c=>c.inn===i) && !CREDITS.some(c=>c.inn===i && isActiveCredit(c,TODAY)))`);
+    if (!inns.length) return false;
+    const subs = inns.map(i => g.ev(`subgroupOf('${i}', TODAY)`));
+    return subs.some(s => s === 'closed') && subs.every(s => s !== '1.1');
+  })());
+ok('СП-7. оба состояния вне лестницы отбираются фильтром',
+  L.$$('#f-grp option').map(o => o.value).includes('none') &&
+  L.$$('#f-grp option').map(o => o.value).includes('closed'));
+ok('СП-8. кнопки «Открыть» нет, строка открывается с клавиатуры',
+  L.$('#tbOpen') === null &&
+  L.$$('#listTable tbody tr').every(tr => tr.getAttribute('tabindex') === '0'));
+ok('СП-11. пагинация рабочая: страница листается, счётчик пересчитывается',
+  (() => { const f = mk();
+    f.ev("pgSize = 10; pgPage = 1; renderList();");
+    const first = f.$$('#listTable tbody tr').map(tr => tr.dataset.inn);
+    const c1 = f.$('#rowCount').textContent;
+    f.ev("gotoPage(2);");
+    const second = f.$$('#listTable tbody tr').map(tr => tr.dataset.inn);
+    const c2 = f.$('#rowCount').textContent;
+    return first.length === 10 && second.length > 0 && c1 !== c2 &&
+      !second.some(i => first.includes(i)) && /^11–/.test(c2); })());
+ok('СП-11. на первой странице «назад» погашено, на последней — «вперёд»',
+  (() => { const f = mk();
+    f.ev("pgSize = 10; pgPage = 1; renderList();");
+    if (!f.$('#pgPrev').classList.contains('dis') || f.$('#pgNext').classList.contains('dis')) return false;
+    f.ev("gotoPage(pageCount(visibleSubjects().length));");
+    return f.$('#pgNext').classList.contains('dis') && !f.$('#pgPrev').classList.contains('dis'); })());
+ok('СП-12. под наименованием ИНН, а не «отрасль · район»',
+  (() => {
+    const tds = L.$$('#listTable tbody tr td.who');
+    if (!tds.length) return false;
+    return tds.every(td => /ИНН \d+/.test(td.textContent)) &&
+      tds.every(td => { const inn = td.closest('tr').dataset.inn;
+        const s = L.ev(`SUBJECTS.find(x=>x.inn==='${inn}')`);
+        return !td.textContent.includes(s.industry); }); })());
+ok('СП-12. колонка «Задолженность» есть и равна totalDebt',
+  L.$$('#listTable thead th').some(th => th.dataset.sort === 'debt') &&
+  L.ev("SUBJECTS.every(s=>listRow(s).debt === totalDebt(s.inn))"));
+ok('СП-12. куратор: фамилия не подавляется дырой, дыра — отдельным бейджем',
+  (() => {
+    const both = L.ev(`SUBJECTS.map(s=>listRow(s)).filter(r=>r.curatorGap && r.curatorNames.length)`);
+    if (!both.length) return false;                       // в наборе есть «и куратор, и дыра»
+    return both.every(r => r.curator !== '—' && !/нет по/.test(r.curator)); })());
+ok('СП-12. подгруппа в реестре — короткая подпись, полная в title',
+  (() => {
+    const cell = L.$('#listTable tbody tr .grp-badge');
+    if (!cell) return false;
+    const code = cell.querySelector('.grp-code');
+    const full = L.ev(`SUBGROUP_LABEL['${code ? code.textContent : ''}']`);
+    return cell.getAttribute('title') === full && cell.textContent.trim().length < full.length; })());
+/* СП-13: «стоп» — модальность, а не степень (И-8); приём «+1000» кладёт её на числовую шкалу. */
+ok('СП-13. сортировка дефектов — составной ключ, без «+1000»',
+  (() => {
+    const v = L.ev(`(function(){ const s=SUBJECTS.find(x=>listRow(x).stop);
+      return s ? sortVal({s, r:listRow(s)}, 'def') : null; })()`);
+    return Array.isArray(v) && v.length === 3 && v[0] === 1; })());
+ok('СП-13. ячейка дефектов подписывает степень текстом, не только цветом',
+  (() => {
+    const s = L.ev(`SUBJECTS.find(x=>listRow(x).high>0)`);
+    if (!s) return false;
+    const html = L.ev(`defCell(listRow(SUBJECTS.find(x=>x.inn==='${s.inn}')))`);
+    return /\d+в<\/span>/.test(html); })());
+ok('СП-14. полоса над таблицей печатает обе даты',
+  (() => { const t = L.$('#listAsOf').textContent;
+    return t.includes(L.ev("TODAY")) && t.includes(L.ev("DEBT_ASOF")); })());
+ok('СП-9. экспорт есть и оттиск собирается с условиями и обеими датами',
+  L.$('#tbExport') !== null && L.ev("typeof exportRows") === 'function');
 
 /* ── Словари взыскания: владелец — collection.html ──────────────────────────────
    CONTOURS / PHASE_STAGE / PROCEDURE_DICT скопированы в карточку заёмщика.
