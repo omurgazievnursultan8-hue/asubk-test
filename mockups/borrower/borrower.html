@@ -5,11 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Заёмщик — карточка (v2) — АСУБК</title>
 <!-- ASUBK · Управление информацией о заёмщике — исполнимый MVP
+     Язык: CONTEXT.md · Правило значений: docs/adr/0001-proizvodnye-ne-hranyatsya.md
      Спека: docs/superpowers/specs/2026-07-23-borrower-rework-design.md
-     Проверка: node scripts/inspect/borrower-check.mjs  →  50/50 PASS (2026-07-23)
-     Инварианты: И-1 категорию двигает только комитет · И-2 группу — только подтв. процедура ·
+            ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки) — обновляется после ревизии 26.07.2026
+     Проверка: node scripts/inspect/borrower-check.mjs  →  55/55 PASS (2026-07-26)
+     Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
-                 И-5 зеркала read-only.
+                 И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
+                     органы просмотра — data-view-ctl; проверяется двусторонне, тесты 26a/26b).
 -->
 <style>
   :root{
@@ -3002,7 +3005,7 @@ function creditsTab(inn){
     '<div class="toolbar">'
       + '<span class="fl muted">По состоянию на</span>'
       /* остаток — снапшот на дату (E2E-09); дата хранится дд.мм.гггг, input — ISO */
-      + '<input type="date" id="asOf" value="' + toISO(TODAY) + '" max="' + toISO(TODAY) + '" style="width:150px">'
+      + '<input type="date" id="asOf" data-view-ctl value="' + toISO(TODAY) + '" max="' + toISO(TODAY) + '" style="width:150px">'
       + '<span class="sep"></span>'
       /* расчёт и печатные формы — одной выпадающей группой */
       + '<div class="dd" id="genDd">'
@@ -3038,7 +3041,7 @@ function wireCreditsTab(inn){
     const tip = 'Осн. долг ' + fmt(c.debt.principal) + ' · % ' + fmt(c.debt.interest)
       + ' · Пеня ' + fmt(c.debt.penalty) + ' · Комиссии ' + fmt(c.debt.fees) + ' · Издержки ' + fmt(c.debt.costs);
     return '<tr>'
-      + '<td class="chk"><input type="checkbox" class="cr-chk"></td>'
+      + '<td class="chk"><input type="checkbox" class="cr-chk" data-view-ctl></td>'
       + '<td class="rownum">' + no + '</td>'
       /* решение правительства — второй строкой под номером договора (основание кредита) */
       + '<td class="who">' + esc(c.no) + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(c.gov || '—') + '</div></td>'
@@ -3087,13 +3090,13 @@ function wireCreditsTab(inn){
         + pg('›', crPage + 1, crPage === last ? 'dis' : '') + pg('»', last, crPage === last ? 'dis' : '')
       + '</div>'
       + '<span>Строк на странице '
-        + '<select id="crSize" style="width:auto;min-width:70px">'
+        + '<select id="crSize" data-view-ctl style="width:auto;min-width:70px">'
           + [10, 25, 50, 100].map(n => '<option' + (n === crSize ? ' selected' : '') + '>' + n + '</option>').join('')
         + '</select></span>'
     + '</div>';
   };
 
-  const head = '<th class="chk"><input type="checkbox" id="crAll" title="Выбрать все"></th><th class="rownum">#</th>'
+  const head = '<th class="chk"><input type="checkbox" id="crAll" data-view-ctl title="Выбрать все"></th><th class="rownum">#</th>'
     + '<th style="width:22%">Договор</th><th style="width:12%">Вид</th><th style="width:9%">Дата</th>'
     + '<th style="width:13%">Сумма</th><th style="width:13%">Остаток</th>'
     + '<th style="width:12%">Просрочка</th><th style="width:12%">Категория риска</th>';
@@ -3180,7 +3183,7 @@ function collectionTab(inn){
   const toolbar = '<div class="toolbar">'
       + '<span class="fl muted">По состоянию на</span>'
       /* суммы требования и погашения — снапшот на дату, как остаток по кредиту (E2E-09) */
-      + '<input type="date" id="cvAsOf" value="' + toISO(TODAY) + '" max="' + toISO(TODAY) + '" style="width:150px">'
+      + '<input type="date" id="cvAsOf" data-view-ctl value="' + toISO(TODAY) + '" max="' + toISO(TODAY) + '" style="width:150px">'
       + '<span class="sep"></span>'
       + '<div class="viewseg" role="group" aria-label="Вид взыскания">'
         + '<button type="button" class="viewseg-btn' + (view === 'procs' ? ' active' : '') + '" id="cvSegPr">по процессам</button>'
@@ -3501,7 +3504,7 @@ function collateralTab(inn){
   const toolbar = '<div class="toolbar">'
       + '<span class="fl muted">По состоянию на</span>'
       /* залоговая стоимость считается от остатка — а он снапшот на дату (E2E-09) */
-      + '<input type="date" id="plAsOf" value="' + toISO(TODAY) + '" max="' + toISO(TODAY) + '" style="width:150px">'
+      + '<input type="date" id="plAsOf" data-view-ctl value="' + toISO(TODAY) + '" max="' + toISO(TODAY) + '" style="width:150px">'
       + '<span class="sep"></span>'
       + '<div class="viewseg" role="group" aria-label="Вид обеспечения">'
         + '<button type="button" class="viewseg-btn' + (view === 'credits' ? ' active' : '') + '" id="plSegCr">по кредитам</button>'
