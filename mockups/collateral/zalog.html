@@ -203,6 +203,34 @@
          хранения и страхование — реквизиты вкладки «Основное».
     Р-58 ИСТОРИЯ С КАТЕГОРИЯМИ: чипы с счётчиками, разделители по годам, догрузка порциями.
 
+  РЕЕСТР ПРЕДМЕТОВ — ВОЛНА ПЗ-1…ПЗ-19 (задачи и разбор: `ASUBK-status-razrabotki.md`).
+  РАМКА: реестр «Предметы залога» — КАРТОТЕКА АКТИВА («что у нас за имущество, чьё оно,
+  сколько стоит, свободно ли и защищено ли запретом»), а НЕ рабочая очередь просрочек:
+  очередь живёт только в «Мониторинге», где есть рабочий слой TRIG_WORK (Р-41). Сигнал без
+  действия хуже, чем его отсутствие — отсюда снятие колонки «Контроль» (ПЗ-15).
+    ПЗ-14 ДВЕ ОСИ — ДВЕ КОЛОНКИ (§3.1). Ось лиена (lienStatus) и ось запрета (banStatus)
+         больше не делят одну ячейку. §3.1 не описывает две оси, а ЗАПРЕЩАЕТ их схлопывать:
+         весь смысл разделения в комбинации «в залоге» + «запрет не наложен» = ДЕФЕКТ
+         ОФОРМЛЕНИЯ. Разработчик обязан сохранить обе колонки, оба ключа сортировки
+         (st / banRank — ранг, а не алфавит) и оба поля фильтра (st / ban).
+    ПЗ-13 ВАЛЮТА В РЕЕСТРЕ (закрывает расхождение с Р-44): itemCcy производна, печатная
+         опись её выводила, реестр молчал — столбец провоцировал сложить сомы с долларами.
+         Σ в подвале считается ПО ВАЛЮТАМ, а не одним числом (ПЗ-19).
+    ПЗ-Д8 ПРОСРОЧКА ПЕРЕОЦЕНКИ ТОЛЬКО У ОБРЕМЕНЁННОГО (revalOverdue): та же охрана
+         banRequired, что у Р-47/Р-48/Р-49 и внутри nextSurvey. Плановая дата считается
+         всегда, ПРОСРОЧЕННОЙ объявляется только при живом обременении — иначе освобождённый
+         предмет висит в очереди мониторинга вечно, и закрыть его работой нельзя.
+    ПЗ-6  ВЫГРУЗКА — ПРОФИЛЬ РЕЕСТРА (CSV_PROFILES), а не зеркало экрана: 39 полей против
+         восьми колонок; оси разведены, деньги сырым форматом (Excel их складывает).
+    ПЗ-Д13 ШИРИНА: table-layout:fixed + width:100% НЕ дают прокрутку — колонки молча
+         ужимаются. min-width таблицы считается из WIDTHS (gridMinWidth), иначе гибкая
+         колонка схлопывается на штатном 1440.
+    Прочее волны: идентификатор вместо «№» с числовой сортировкой (ПЗ-9/ПЗ-Д3), пилюля
+         ликвидности и сводка следствий вида (ПЗ-10), ident второй строкой (ПЗ-11), пилюля
+         «третье лицо» (ПЗ-12), колонка «Обеспечивает» (ПЗ-19), паритет карточек и таблицы
+         на общих строителях ячеек (ПЗ-17), размер страницы в пейджере (ПЗ-8, ревизия Р-39),
+         два пустых состояния с действием (ПЗ-18), открытие карточки после приёма (ПЗ-4).
+
   РОЛИ (ПОЛ §9.1): Куратор отдела залогового обеспечения / Заведующий отделом залогового
   обеспечения (правят, canCurate; заведующий отделом — canHeadOfUnit — гейтует override
   залоговой стоимости, только понижение, Р-19), Комитет по администрированию бюджетных
@@ -444,6 +472,13 @@ a{ color:inherit; }
 
 /* ---- grid (list) ---- */
 .grid-wrap{ padding:0 20px 20px; overflow:auto; }
+/* ПЗ-Д13: `width:100%` + `table-layout:fixed` НЕ дают прокрутку при нехватке места —
+   браузер молча ужимает колонки, и первой схлопывается гибкая («Наименование»).
+   На 1440 (сайдбар 320 + padding 40 → 1080 полезных) фиксированные колонки реестра
+   предметов занимают 1047px, гибкой оставалось ~43px. min-width считается в renderList
+   из WIDTHS[reg] (Σ фикс. + GRID_FLEX_MIN на каждую гибкую) — тогда .grid-wrap реально
+   прокручивается, а колонки держат заданную ширину. Реестры с узким набором колонок
+   при этом не получают лишнего скролла: у каждого свой минимум. */
 table.grid{ width:100%; border-collapse:collapse; font:var(--font-label); table-layout:fixed;
   border:1px solid var(--border-default); background:var(--surface-card); }
 table.grid thead th{ text-align:left; height:56px; padding:0 16px; background:var(--surface-card);
@@ -741,6 +776,61 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
 .chk{ display:flex; align-items:center; gap:8px; font:var(--font-label); color:var(--text-body); }
 .axis{ display:flex; gap:6px; flex-wrap:wrap; }
 
+/* ---- ПЗ-9…ПЗ-19: реестр предметов как картотека актива ---- */
+/* ПЗ-11: вторая строка ячейки — производный идентификатор (кадастр/VIN/гос.№/инв.№).
+   Строка `white-space:nowrap` у td заменена на двухстрочную раскладку только здесь. */
+.cell2{ display:block; line-height:1.25; padding:4px 0; white-space:normal; }
+.cell2 .c2-main{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cell2 .c2-sub{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  font:var(--weight-regular) 12px/1.4 var(--asubk-font); color:var(--text-muted); }
+/* ПЗ-9: идентификатор записи — не порядковый номер строки. */
+.idcell{ font-variant-numeric:tabular-nums; }
+/* ПЗ-10/ПЗ-12/ПЗ-13: мелкая пилюля-признак рядом со значением ячейки. */
+.tagpill{ display:inline-block; margin-left:6px; padding:1px 7px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 11px/1.5 var(--asubk-font); white-space:nowrap; vertical-align:1px; }
+.tagpill.liq{ background:var(--status-success-bg); color:var(--asubk-green); }
+.tagpill.third{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.tagpill.stale{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.tagpill.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.ccy{ color:var(--text-muted); font-size:12px; margin-left:3px; }
+/* Пилюля-признак не должна уезжать под обрез вместе с длинным текстом: текст ужимается
+   многоточием, пилюля держит свою ширину. Без этого «ликвид» и «третье лицо» были не
+   видны ровно там, где колонка узкая, — то есть всегда. */
+.flexcell{ display:flex; align-items:center; gap:2px; min-width:0; }
+.flexcell .fc-main{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.flexcell .tagpill{ flex:none; margin-left:4px; }
+/* Числовая ячейка с признаками: значение строкой, признаки — второй строкой под ним.
+   Пилюли «оценка устарела» / «комиссия» шире, чем остаток колонки, — в одну строку
+   они вытеснили бы саму сумму. */
+.numcell2{ display:block; text-align:right; line-height:1.25; padding:4px 0; white-space:normal; }
+.numcell2 .n2-val{ display:block; font-variant-numeric:tabular-nums; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; }
+.numcell2 .n2-flags{ display:block; margin-top:2px; }
+.numcell2 .n2-flags .tagpill{ margin-left:0; margin-right:4px; }
+/* ПЗ-19: подвал таблицы — Σ залоговой стоимости по отфильтрованному набору. */
+table.grid tfoot td{ height:40px; padding:0 16px; border-top:1px solid var(--border-strong,var(--asubk-grid-line));
+  background:var(--asubk-tint-fill); font:var(--weight-semibold) var(--text-sm)/1.375 var(--asubk-font);
+  color:var(--text-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+table.grid tfoot .sum-ccy{ margin-left:14px; font-variant-numeric:tabular-nums; }
+/* ПЗ-8: размер страницы живёт в пейджере (ревизия Р-39 — справочник даёт дефолт). */
+.pager select{ height:30px; border:1px solid var(--border-default); background:var(--surface-card);
+  border-radius:var(--radius-sm); color:var(--text-body); font:var(--font-label); padding:0 4px; }
+.pager .pager-lbl{ font-size:var(--text-sm); color:var(--text-muted); }
+/* ПЗ-7: управление сортировкой в карточном виде (в таблице оно на заголовках). */
+.cards-sort{ display:none; align-items:center; gap:6px; padding:0 20px 10px; }
+.cards-sort.on{ display:flex; }
+.cards-sort select{ height:30px; border:1px solid var(--border-default); background:var(--surface-card);
+  border-radius:var(--radius-sm); color:var(--text-body); font:var(--font-label); padding:0 6px; }
+/* ПЗ-2: демо-скаффолд стенда — контролы, которых в проде не существует. */
+.demo-scaffold{ display:flex; align-items:center; gap:10px; margin-left:auto; padding:4px 10px 4px 12px;
+  border:1px dashed var(--border-default); border-radius:var(--radius-md); background:var(--asubk-tint-fill); }
+.demo-scaffold > .demo-tag{ font:var(--weight-semibold) 10px/1.6 var(--asubk-font); letter-spacing:.04em;
+  text-transform:uppercase; color:var(--text-placeholder); }
+.demo-scaffold .stand-wrap, .demo-scaffold .role-wrap{ margin-left:0; }
+/* ПЗ-18: пустое состояние с действием — два разных случая. */
+.grid-empty{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:34px 12px;
+  color:var(--text-muted); font:var(--font-label); text-align:center; }
+
 /* ---- Р-47…Р-54: карточка предмета — допуск, документы, история ---- */
 /* Бейдж-счётчик на вкладке: состав работы виден до открытия вкладки. */
 .dtab .tb{ display:inline-block; margin-left:6px; padding:0 6px; border-radius:9px; background:var(--surface-input);
@@ -820,22 +910,31 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </span>
       <span class="crumb-title" id="crumbTitle">Залоговое обеспечение</span>
-      <div class="stand-wrap" title="Дата стенда — точка отсчёта для просрочек контроля и ленты триггеров">
-        <label>Дата стенда:</label>
-        <input type="date" id="standDate" onchange="onStandDate()">
-        <button class="btn btn-secondary btn-sm" id="standReset" onclick="onStandReset()" title="Вернуть исходную дату стенда">Сброс</button>
-      </div>
-      <div class="role-wrap">
-        <label>Роль:</label>
-        <div class="rsel">
-          <select id="roleSel" onchange="onRoleChange()">
-            <option>Куратор отдела залогового обеспечения</option>
-            <option>Заведующий отделом залогового обеспечения</option>
-            <option>Начальник Департамента администрирования кредитов</option>
-            <option>Комитет по администрированию бюджетных кредитов</option>
-            <option>Наблюдатель</option>
-          </select>
-          <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      <!-- ПЗ-2: «Дата стенда» и «Роль» — ДЕМО-СКАФФОЛД, в проде их не существует:
+           дата берётся системная, роль — из аутентификации. Визуально неотличимые от
+           продуктовых, они читались как требование («переключатель даты в шапке»).
+           Обёрнуты в пунктирную группу с подписью. Не убраны: «Дата стенда» продолжает
+           двигать ось запрета (banDeadline = нотариальная + 5 раб. дней), а «Роль» —
+           гейты Р-34 (кому видна кнопка создания). -->
+      <div class="demo-scaffold" title="Контролы демонстрационного стенда. В рабочей системе дата берётся системная, роль — из аутентификации.">
+        <span class="demo-tag">Демо-стенд</span>
+        <div class="stand-wrap" title="Дата стенда — точка отсчёта для просрочек контроля и ленты триггеров">
+          <label>Дата стенда:</label>
+          <input type="date" id="standDate" onchange="onStandDate()">
+          <button class="btn btn-secondary btn-sm" id="standReset" onclick="onStandReset()" title="Вернуть исходную дату стенда">Сброс</button>
+        </div>
+        <div class="role-wrap">
+          <label>Роль:</label>
+          <div class="rsel">
+            <select id="roleSel" onchange="onRoleChange()">
+              <option>Куратор отдела залогового обеспечения</option>
+              <option>Заведующий отделом залогового обеспечения</option>
+              <option>Начальник Департамента администрирования кредитов</option>
+              <option>Комитет по администрированию бюджетных кредитов</option>
+              <option>Наблюдатель</option>
+            </select>
+            <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+          </div>
         </div>
       </div>
     </header>
@@ -870,7 +969,10 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
         <div class="rowtools">
           <div class="quicksearch">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            <input type="text" id="quickSearch" placeholder="Поиск по строке…" oninput="onQuickSearch(this.value)" aria-label="Поиск по строке">
+            <!-- ПЗ-5: плейсхолдер называет то, по чему поиск реально идёт. Р-38 завёл индекс по
+                 идентификаторам (кадастр/VIN/гос.№/зав.№), но в UI об этом не было сказано —
+                 никто не догадывался вставить сюда VIN. Подпись перестраивается по реестру. -->
+            <input type="text" id="quickSearch" placeholder="Поиск…" oninput="onQuickSearch(this.value)" aria-label="Поиск по реестру">
           </div>
           <div class="spacer"></div>
           <button class="btn btn-tint btn-sm" id="btnCsv" onclick="exportCsv()" title="Выгрузить текущий отфильтрованный реестр в CSV">
@@ -887,12 +989,29 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
               Карточки
             </button>
           </div>
-          <div class="pager"><span id="pagerCount"></span><span class="pager-nav" id="pagerNav"></span></div>
+          <!-- ПЗ-8: размер страницы — в пейджере (ревизия Р-39: справочник даёт дефолт,
+               но сам размер регламентом не задан и остаётся личным предпочтением просмотра). -->
+          <div class="pager">
+            <span id="pagerCount"></span>
+            <span class="pager-nav" id="pagerNav"></span>
+            <span class="pager-lbl">на странице:</span>
+            <select id="pagerSize" onchange="onPageSize(this.value)" title="Строк на странице" aria-label="Строк на странице">
+              <option>25</option><option>50</option><option>100</option><option>200</option>
+            </select>
+          </div>
+        </div>
+        <!-- ПЗ-7: в карточном виде gridWrap скрывается целиком вместе с заголовками, на которых
+             висит sortBy — порядок продолжал применяться, но сменить его было нечем. -->
+        <div class="cards-sort" id="cardsSort">
+          <span class="pager-lbl">Сортировка:</span>
+          <select id="cardsSortKey" onchange="onCardsSort(this.value)"></select>
+          <button class="btn btn-secondary btn-sm" id="cardsSortDir" onclick="toggleSortDir()" title="Направление сортировки">↑</button>
         </div>
         <div class="grid-wrap" id="gridWrap">
           <table class="grid" id="listGrid">
             <thead><tr id="listHead"></tr></thead>
             <tbody id="listBody"></tbody>
+            <tfoot id="listFoot"></tfoot>
           </table>
         </div>
         <div class="cards-wrap" id="cardsWrap" style="display:none;"></div>
@@ -1010,6 +1129,19 @@ const fmt  = n => Number(n||0).toLocaleString('ru-RU', {minimumFractionDigits:2,
 const num  = s => { const v = Number(String(s??'').replace(/\s/g,'').replace(',','.')); return isFinite(v) ? v : NaN; };
 const pct  = x => (x*100).toFixed(1).replace('.',',') + '%';
 const esc  = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* ПЗ-Д2: русское склонение числительных. Один хелпер на весь макет — раньше счётчики
+   склеивали `total + ' ' + noun` с жёстким родительным множественного («1 предметов»).
+   plural(n, 'предмет','предмета','предметов'). */
+function plural(n, one, few, many){
+  const a = Math.abs(n) % 100, b = a % 10;
+  if(a > 10 && a < 20) return many;
+  if(b > 1 && b < 5)   return few;
+  if(b === 1)          return one;
+  return many;
+}
+/* Сырое число для выгрузки: без разделителей групп, десятичная запятая (ПЗ-Д12).
+   Excel складывает такое поле; fmt() с неразрывным пробелом читается как текст. */
+const fmtRaw = n => Number(n||0).toFixed(2).replace('.',',');
 
 /* ============================================================
    СПРАВОЧНИК (регламентируемый администратором): по виду залога —
@@ -2887,7 +3019,9 @@ function banPill(it){
   if(s==='не наложен')       return `<span class="pill mid">запрет не наложен · до ${banDeadline(it)}</span>`;
   if(s==='просрочен')        return '<span class="pill high">ЗАПРЕТ НЕ НАЛОЖЕН</span>';
   if(s==='подлежит снятию')  return '<span class="pill mid">подлежит снятию</span>';
-  return '<span class="pill neutral">—</span>';
+  /* ПЗ-14: после выделения оси в собственную колонку прочерк читался как «данных нет».
+     Называем состояние: предмет не обременён, запрет накладывать не с чего. */
+  return '<span class="pill neutral">не требуется</span>';
 }
 
 /* ПЛАНОВЫЙ КОНТРОЛЬ — вычисляемый оверлей по датам, не статус.
@@ -2956,6 +3090,13 @@ function nextSurvey(it){
   return addMonths(it.lastSurvey, eff);
 }
 const nextReval = it => addMonths(it.lastReval, (KINDS[it.kind]||{reval:24}).reval);
+/* ПЗ-Д8: ПРОСРОЧКА переоценки существует только у обременённого предмета — та же охрана,
+   что у обследования (nextSurvey возвращает null, когда предмет никого не обеспечивает) и
+   у соседних триггеров Р-47/Р-48/Р-49. Плановая дата считается всегда и показывается всегда;
+   просроченной она объявляется, только когда предмет что-то обеспечивает — иначе освобождённый
+   три года назад предмет висел бы просроченным вечно, хотя его залоговая ни на что не влияет.
+   Единственный источник признака: триггер, карточка «Основное», карточка «Обследования». */
+const revalOverdue = it => banRequired(it) && isOverdue(nextReval(it));
 
 /* ---- ПРЕДПОСЫЛКИ ОФОРМЛЕНИЯ (Р-5, Прил.1 §5.2). required — производно от pledgerType. */
 function prereqReq(it){
@@ -3395,7 +3536,12 @@ function triggers(){
         text:`Плановая дата ${ns} (просрочка ${Math.abs(daysLeft(ns))} дн.). Интервал ${intervalTxt} — группа «${s.group}» × ${movableOf(it)?'движимое':'недвижимое'}`,
         act:'Провести обследование' });
     }
-    if(isOverdue(nextReval(it))) out.push({ type:'Просрочен контроль: переоценка', crit:'mid', obj:it.id,
+    /* ПЗ-Д8: переоценка поднимается ТОЛЬКО по обременённым предметам — та же охрана
+       banRequired, что у соседей выше (Р-47, Р-48, Р-49) и внутри nextSurvey. Без неё
+       предмет, освобождённый три года назад, оставался просрочен вечно: он никого не
+       обеспечивает, его залоговая ни на что не влияет, а лента мониторинга и рабочий
+       слой TRIG_WORK засорялись строками, которые нельзя закрыть работой. */
+    if(revalOverdue(it)) out.push({ type:'Просрочен контроль: переоценка', crit:'mid', obj:it.id,
       objLbl:`${it.id} · ${it.name}`, text:`Плановая дата ${nextReval(it)} (просрочка ${Math.abs(daysLeft(nextReval(it)))} дн. · интервал вне положения)`, act:'Провести переоценку' });
     /* Р-19 (ПОЛ §2.1): историческая запись прежней системы — залоговая была установлена выше
        расчётной по нормам ПРЕЖНЕЙ системы (см. П-005). По действующему положению такой override
@@ -3492,11 +3638,22 @@ function actionBtn(permOk, label, handler, opts){
    РЕЕСТРЫ (три списка: предметы / договоры / мониторинг)
    ============================================================ */
 let reg = 'items', selected = null, cur = null, sortKey = null, sortDir = 1;
-/* Р-39: размер страницы — внутренний параметр (в положениях не задан), правится в справочнике.
-   curPage сбрасывается на 1 при смене реестра/фильтра/сортировки. quickSearch — общая строка
-   поиска над реестром (Р-38): ищет по всем текстовым значениям строки, отдельно от структурных
-   фильтров, поэтому не входит в счётчик «активных условий». */
-let PAGE_SIZE = 50, curPage = 1;
+/* Р-39 + РЕВИЗИЯ ПЗ-8: размер страницы правится ПОЛЬЗОВАТЕЛЕМ в пейджере; справочник
+   «Регламентные параметры залога» остаётся источником ДЕФОЛТА (PAGE_SIZE_DEFAULT).
+   Обоснование ревизии: справочник хранит регламентируемое нормативом — коэффициенты,
+   пороги, срок наложения запрета; размер страницы норматив не задаёт (это признано в
+   самом Р-39, «в положениях не задан») и является личным предпочтением просмотра.
+   curPage сбрасывается на 1 при смене реестра/фильтра/сортировки/размера страницы.
+   ПЗ-Д1: quickSearch входит в счётчик «активных условий» наравне со структурными полями —
+   resetFilter чистит и его, значит считать их вместе. Прежний комментарий утверждал
+   обратное, а renderList всё равно прибавлял поиск и перетирал подпись последним. */
+let PAGE_SIZE_DEFAULT = 50;
+let PAGE_SIZE = PAGE_SIZE_DEFAULT, curPage = 1;
+const PAGE_SIZES = [25, 50, 100, 200];
+function onPageSize(v){
+  const n = Math.round(Number(v)); if(!isFinite(n) || n < 1) return;
+  PAGE_SIZE = n; curPage = 1; renderList();
+}
 const quickSearch = { items:'', contracts:'', monitor:'', sureties:'' };
 
 /* ---- переключатель Таблица ↔ Карточки (клон паттерна loan-program).
@@ -3526,6 +3683,14 @@ const KIND_ICONS = {
   'Оборудование':          '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 0 1 0-4h.1A1.6 1.6 0 0 0 2.6 7"/>',
   'Сельхозтехника':        '<path d="M4 17h3l2-6h5l3 4h2"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="17" r="3.5"/>',
   'Товары в обороте':      '<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/>',
+  /* ПЗ-Д10: остальные шесть видов падали в DOC_ICON — «Имущественный комплекс» (здания
+     и земля) выглядел на карточке листком бумаги. Аватар — главный опознавательный
+     элемент карточного вида, ключей должно быть ровно столько же, сколько в KINDS. */
+  'Кредитный портфель':          '<path d="M3 5h13a2 2 0 0 1 2 2v12H5a2 2 0 0 1-2-2z"/><path d="M18 8h3v9a2 2 0 0 1-2 2"/><path d="M7 9h7"/><path d="M7 13h5"/>',
+  'Имущественный комплекс':      '<path d="M2 21h20"/><path d="M4 21V9l6-4v16"/><path d="M14 21V11h6v10"/><path d="M7 12h1"/><path d="M7 16h1"/><path d="M17 15h1"/>',
+  'Незавершённое строительство': '<path d="M2 21h20"/><path d="M5 21V8l7-5 7 5v13"/><path d="M5 12h14"/><path d="M9 21v-5h6"/><path d="M3 8l18 5" stroke-dasharray="3 3"/>',
+  'Ценные бумаги':               '<path d="M4 4h16v13a3 3 0 0 1-3 3H4z"/><path d="M20 17h1a2 2 0 0 1-2 3"/><path d="M7 8h10"/><path d="M7 12h6"/><circle cx="16" cy="13" r="2"/>',
+  'Право аренды':                '<path d="M4 21h16"/><path d="M6 21V7l6-4 6 4v14"/><path d="M9 21v-6h6v6"/><path d="M15 9l4 4-4 4"/>',
 };
 const DOC_ICON = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/>';
 const kindIcon = kind => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${KIND_ICONS[kind]||DOC_ICON}</svg>`;
@@ -3543,12 +3708,18 @@ const _chev = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strok
    Панель перестраивается только при смене реестра — чтобы ввод в текстовом поле
    не терял фокус при live-фильтрации. */
 const FILTERS = {
+  /* ПЗ-3: у предмета ДВЕ независимые оси состояния (§3.1), и §3.1 прямо запрещает их
+     схлопывать. Фильтр знал одну — «Статус =» (ось лиена), а ось запрета не искалась
+     ни фильтром, ни быстрым поиском (banStatus не было в r.sort). Запрос «покажи все,
+     где запрет не наложен» — главный дефект оформления по спеке — с картотеки был
+     невыполним. Подпись первой оси уточнена, вторая заведена рядом. */
   items: [
     { key:'name',    label:'Наименование содержит', type:'text'   },
     { key:'idx',     label:'Идентификатор / адрес содержит', type:'text' },   // Р-38: кадастр/адрес/гос.№/VIN
     { key:'kind',    label:'Вид залога =',          type:'select' },
     { key:'pledger', label:'Залогодатель содержит', type:'text'   },
-    { key:'st',      label:'Статус =',              type:'select' },
+    { key:'st',      label:'Статус залога =',       type:'select' },
+    { key:'ban',     label:'Запрет =',              type:'select' },
   ],
   contracts: [
     { key:'no',     label:'Договор содержит', type:'text'   },
@@ -3574,14 +3745,24 @@ function regRows(){
   return reg==='items' ? rowsItems() : reg==='contracts' ? rowsContracts()
        : reg==='sureties' ? rowsSureties() : rowsMonitor();
 }
+/* ПЗ-5: денежные поля из поискового индекса исключены. Пользователь видит в колонке
+   `400 000,00` (с неразрывным пробелом из fmt), вводит `400 000` — и не находит: в
+   индексе лежит сырое `400000`. Поиск по сумме и по существу сомнителен — это диапазон,
+   а не подстрока (фильтр «от/до» отложен до появления валюты, ПЗ-13).
+   Заодно исключены СЛУЖЕБНЫЕ ключи сортировки (idn/banRank/secures): это голые числа,
+   по которым запрос «2» совпал бы с половиной реестра. Текстовые дубли этих полей
+   (id, ban) в индексе остаются — по «П-005» и по «не наложен» поиск работает. */
+const SEARCH_SKIP = { items:['pledge','idn','banRank','secures'], contracts:[], monitor:[], sureties:[] };
 function filterRows(rows){
   const f = activeFilter[reg] || {};
   /* Р-38: общая строка поиска — по всем текстовым значениям строки (объединённый сорт-индекс).
      Применяется до структурных фильтров, независимо от них. */
   const q = (quickSearch[reg] || '').trim().toLowerCase();
+  const skip = SEARCH_SKIP[reg] || [];
   return rows.filter(r => {
     if(q){
-      const hay = Object.values(r.sort).map(v => String(v ?? '')).join(' ').toLowerCase();
+      const hay = Object.entries(r.sort).filter(([k]) => !skip.includes(k))
+        .map(([,v]) => String(v ?? '')).join(' ').toLowerCase();
       if(!hay.includes(q)) return false;
     }
     return (FILTERS[reg]||[]).every(fld => {
@@ -3615,12 +3796,30 @@ function renderFilterPanel(){
     return `<div class="jf-row"><span class="jf-label" title="${esc(fld.label)}">${esc(fld.label)}</span>`
       + `<span class="jf-ctl">${ctl}</span></div>`;
   }).join('');
-  const n = Object.keys(f).length;
-  document.getElementById('jfSummary').textContent = n ? `Фильтр · ${n} активно` : 'Фильтр';
+  renderFilterSummary();
+}
+/* ПЗ-Д1: ОДНА точка счёта активных условий. Раньше renderFilterPanel считал только
+   структурные поля, renderList прибавлял быстрый поиск и перетирал подпись последним —
+   два разных ответа на один вопрос, побеждал тот, что нарисован позже. Поиск считаем:
+   resetFilter чистит его вместе с полями, значит для пользователя это одно «сбросить». */
+const activeConditions = () =>
+  Object.keys(activeFilter[reg] || {}).length + ((quickSearch[reg] || '').trim() ? 1 : 0);
+function renderFilterSummary(){
+  const n = activeConditions(), el = document.getElementById('jfSummary');
+  if(el) el.textContent = n ? `Фильтр · ${n} ${plural(n,'условие','условия','условий')}` : 'Фильтр';
 }
 
+/* ПЗ-9…ПЗ-19: набор колонок реестра предметов пересобран под рамку «картотека актива».
+   Было (7): № · Вид залога · Наименование · Залогодатель · Залоговая · Статус · Контроль.
+   Стало (8): Идентификатор · Вид залога · Наименование · Залогодатель · Залоговая
+   стоимость · Статус залога · Запрет на отчуждение · Обеспечивает.
+   Ключевое — «Статус» разъехался на ДВЕ колонки (ПЗ-14): §3.1 запрещает схлопывать оси,
+   потому что весь смысл разделения в одной комбинации — «в залоге» + «запрет не наложен»
+   есть ДЕФЕКТ ОФОРМЛЕНИЯ (залог юридически есть, имущество от продажи не защищено).
+   Ширину под вторую ось дало снятие «Контроля» (ПЗ-15). */
 const HEADS = {
-  items:      ['№','Вид залога','Наименование','Залогодатель','Залоговая','Статус','Контроль'],
+  items:      ['Идентификатор','Вид залога','Наименование','Залогодатель','Залоговая стоимость',
+               'Статус залога','Запрет на отчуждение','Обеспечивает'],
   contracts:  ['№','Договор','Заёмщик','Статус','Предметов','Кредитов','Обеспеченность (индекс)','Доп. согл.'],
   monitor:    ['Критичность','Тип','Объект','Описание','Что делать'],
   sureties:   ['№','Договор','Поручитель','Тип лица','Кредит','Статус ЖЦ','Допуск §9.1/9.2'],
@@ -3628,17 +3827,28 @@ const HEADS = {
 /* Ширины столбцов (table-layout:fixed). '' = гибкая колонка — забирает остаток
    ширины (обычно текстовое «Наименование»/«Заёмщик»/«Описание»). */
 const WIDTHS = {
-  items:      ['72px','200px','','220px','195px','180px','170px'],
+  items:      ['130px','160px','','170px','185px','150px','200px','90px'],
   contracts:  ['72px','150px','','150px','110px','100px','130px','100px'],
   monitor:    ['110px','180px','220px','',''],
   sureties:   ['80px','140px','','130px','90px','130px','230px'],
 };
+/* ПЗ-Д13: минимум под гибкую колонку. Ниже него таблица уходит в прокрутку .grid-wrap,
+   а не давит «Наименование» до нечитаемого огрызка. */
+const GRID_FLEX_MIN = 280;
+function gridMinWidth(r){
+  const ws = WIDTHS[r] || [];
+  return ws.reduce((s,w) => s + (w ? parseInt(w,10) || 0 : GRID_FLEX_MIN), 0);
+}
 /* Р-39: ключ сортировки на КАЖДУЮ колонку (длина ровно = числу заголовков). `null` —
    колонка вычисляемая/несортируемая (курсора и стрелки нет). Раньше сортировка брала
    Object.keys(rows[0].sort)[i] — ключей меньше, чем колонок, и клик по «Контроль»/«Описание»/
    «Что делать» молча не срабатывал (keys[i] === undefined). */
 const SORT_KEYS = {
-  items:      ['id','kind','name','pledger','pledge','st', null],           // «Контроль» — вычисляемый бейдж
+  /* ПЗ-9: сортировка идентификатора — по ЧИСЛОВОМУ суффиксу (idn), не по строке: строковый
+     порядок кладёт «П-1000» ПЕРЕД «П-999» (посимвольно 1 < 9). padStart(3,'0') в nextId
+     спасал только до П-999. ПЗ-14: ось запрета сортируется по РАНГУ (banRank) — сначала
+     просроченные, потом не наложенные: алфавит по banStatus дал бы бессмысленный порядок. */
+  items:      ['idn','kind','name','pledger','pledge','st','banRank','secures'],
   contracts:  ['id','no','inn','status','items','credits','mc','add'],
   monitor:    ['crit','type','obj', null, null],                            // «Описание»/«Что делать» — не сортируем
   sureties:   ['id','no','name','ptype','credit','status','gate'],
@@ -3668,27 +3878,146 @@ function reqTooltip(c){
   const cs = ctx(isActive(c) ? null : c);
   return c.credits.map(id => { const r = requiredCover(id, cs); return `${id} — ${pct(r.req)} (${r.source})`; }).join(', ');
 }
-function ctrlBadge(it){
-  const s = isOverdue(nextSurvey(it)), r = isOverdue(nextReval(it));
-  if(s && r) return '<span class="pill high">обслед. + переоц.</span>';
-  if(s) return '<span class="pill mid">обследование просрочено</span>';
-  if(r) return '<span class="pill mid">переоценка просрочена</span>';
-  if(it.needReval) return '<span class="pill mid">нужна переоценка</span>';
-  return '<span class="pill low">по графику</span>';
+/* ============================================================
+   ПЗ-9…ПЗ-19: ЯЧЕЙКИ РЕЕСТРА ПРЕДМЕТОВ.
+   Строители вынесены из rowsItems, чтобы карточный вид (itemCard) описывал предмет ТЕМ ЖЕ
+   набором признаков (ПЗ-17): один предмет в двух режимах одного списка не должен читаться
+   по-разному. Каждый признак имеет ровно один источник.
+   ============================================================ */
+/* ПЗ-9: числовой суффикс идентификатора — ключ сортировки (см. SORT_KEYS). */
+const idNum = id => { const m = /(\d+)\s*$/.exec(String(id||'')); return m ? +m[1] : 0; };
+/* ПЗ-14: ранг оси запрета — дефекты оформления первыми. */
+const BAN_RANK = { 'просрочен':0, 'не наложен':1, 'подлежит снятию':2, 'наложен':3, 'не требуется':4 };
+/* ПЗ-19: что предмет обеспечивает сейчас — договоры (зарегистрированные + черновики) и
+   кредиты в них. Реестр НИГДЕ не связывал актив с обязательством, хотя для строки «в залоге»
+   это первый вопрос после «чьё». Отсюда же берётся признак залога третьего лица (ПЗ-12). */
+function itemSecures(it){
+  return CONTRACTS.filter(c => (isActive(c) || isDraftish(c)) && c.allocs.some(a => a.item === it.id))
+    .map(c => ({ c, credits: [...new Set(c.allocs.filter(a => a.item === it.id).map(a => a.credit))] }));
+}
+/* ПЗ-12: имущественный залог третьего лица (§5) — залогодатель не является заёмщиком ни по
+   одному обеспечиваемому кредиту. Конструкция отдельная: комиссия проверяет правоспособность
+   собственника и чистоту актива, а от pledgerType производен обязательный состав предпосылок
+   (Р-5), который гейтует регистрацию договора.
+   ОГРАНИЧЕНИЕ: у свободного предмета обеспечиваемого кредита нет — сравнивать не с чем,
+   поэтому здесь null («неизвестно»), а не false. */
+function thirdPartyPledge(it){
+  const inns = new Set();
+  itemSecures(it).forEach(s => s.credits.forEach(id => { const cr = credit(id); if(cr) inns.add(cr.inn); }));
+  if(!inns.size) return null;
+  return { third: !inns.has(it.pledger), borrowers: [...inns].map(clientName) };
+}
+/* ПЗ-Д6: clientName молча возвращает сырой ИНН при неразрешённой ссылке на реестр клиентов —
+   в колонке появлялись 14 цифр, неотличимые от штатного поведения. Ячейка это называет. */
+const clientKnown = inn => CLIENTS.some(c => c.inn === inn);
+/* ПЗ-10: вид — самая нагруженная характеристика предмета: задаёт коэффициент, ЛИКВИДНОСТЬ
+   (через неё порог покрытия — 120 % против 150 % + доля ликвида ≥ 80 %, Р-1), движимость
+   (периодичность обследования), ранг ликвидности (гейт замены, Р-6), регистрирующий орган,
+   tech (гейты возраста и полиса, Р-7) и интервал переоценки. В списке не было видно НИ ОДНОГО
+   из семи следствий. Пилюля показывает главное, тултип — остальное. */
+function kindTip(it){
+  const K = KINDS[it.kind] || {};
+  return [ it.kind,
+    K.k != null ? `коэффициент ×${String(K.k).replace('.',',')}` : null,
+    K.liquid ? 'ликвидный (порог 120 %)' : 'неликвидный (порог 150 % + доля ликвида ≥ 80 %)',
+    K.movable ? 'движимое' : 'недвижимое',
+    K.organ ? `орган: ${K.organ}` : null,
+    K.reval ? `переоценка каждые ${K.reval} мес.` : null,
+  ].filter(Boolean).join(' · ');
+}
+function kindCell(it){
+  return `<span class="flexcell" title="${esc(kindTip(it))}"><span class="fc-main">${esc(it.kind)}</span>`
+    + (isLiquid(it) ? '<span class="tagpill liq">ликвид</span>' : '') + `</span>`;
+}
+/* ПЗ-11: в колонке было напечатанное от руки наименование, а не то, что опознаёт вещь.
+   Производный ident (кадастровый №, VIN, гос.№, инв.№) попадал только в поисковый индекс и в
+   печатную опись: найти предмет по кадастровому номеру было можно, а УВИДЕТЬ его в найденной
+   строке — нет. ПЗ-Д5: title на ячейку — при table-layout:fixed длинное значение обрежется,
+   и прочитать его больше негде (в карточке title был, в таблице забыт). */
+/* ПЗ-16: наименование — ССЫЛКА, одиночный клик открывает карточку. Двойной клик по строке
+   был единственным путём внутрь: в тулбаре нет «Открыть», контекстного меню в файле нет ни
+   одного, клавиатурного пути не было (он добавлен onRowKey). Открытие должно быть обнаружимым. */
+function nameCell(it){
+  const sub = it.ident ? esc(it.ident) : '';
+  return `<span class="cell2" title="${esc(it.name)}${it.ident ? ' · ' + esc(it.ident) : ''}">`
+    + `<span class="c2-main"><span class="rowlink" onclick="event.stopPropagation();openCard('item','${esc(it.id)}')">${esc(it.name) || '—'}</span></span>`
+    + (sub ? `<span class="c2-sub">${sub}</span>` : '') + `</span>`;
+}
+function pledgerCell(it){
+  const tp = thirdPartyPledge(it), unknown = !clientKnown(it.pledger);
+  const tip = [ clientName(it.pledger),
+    tp && tp.third ? `имущественный залог третьего лица — обеспечивает кредиты: ${tp.borrowers.join(', ')}` : null,
+    unknown ? 'ИНН не найден в реестре клиентов' : null ].filter(Boolean).join(' · ');
+  return `<span class="flexcell" title="${esc(tip)}"><span class="fc-main">${esc(clientName(it.pledger))}</span>`
+    + (unknown ? '<span class="tagpill err">ИНН не найден</span>' : '')
+    + (tp && tp.third ? '<span class="tagpill third">третье лицо</span>' : '') + `</span>`;
+}
+/* ПЗ-13: залоговая стоимость — производная (оценочная × коэффициент вида), но выглядела
+   введённой руками. Тултип раскрывает расчёт и отчёт оценщика.
+   ПЗ-Д7/Р-44: ВАЛЮТА. Р-44 (развилка В-2, вариант А, подписан 23.07.2026) сделал itemCcy
+   производной, печатная опись её выводит — а реестр молчал. Один модуль давал два ответа,
+   и столбец провоцировал сложить сомы с долларами.
+   Р-47: пилюля «оценка устарела» — столбец сумм, часть которых протухла, читается как
+   достоверный, пока об этом не сказано. */
+function pledgeTip(it){
+  const K = KINDS[it.kind] || {};
+  const parts = it.override
+    ? [`залоговая по решению комиссии: ${fmt(it.override.value)} ${itemCcyLabel(it)}`,
+       `расчётная: оценочная ${fmt(it.appraised)} × ${String(K.k ?? '').replace('.',',')} (${it.kind}) = ${fmt(calcPledge(it))}`]
+    : [`оценочная ${fmt(it.appraised)} × ${String(K.k ?? '').replace('.',',')} (${it.kind}) = ${fmt(pledgeValue(it))} ${itemCcyLabel(it)}`];
+  if(it.apprReport || it.apprDate) parts.push(`отчёт ${it.apprReport || '—'} от ${it.apprDate || '—'}, годен до ${apprValidTill(it) || '—'}`);
+  if(itemCcy(it) == null) parts.push('валюта не установлена — предмет ещё не привязан к кредиту, показан сом');
+  return parts.join('; ');
+}
+function pledgeCell(it){
+  const flags = (it.override
+    ? (isOverAbove(it) ? '<span class="tagpill err" title="решение комиссии выше расчётной">комиссия ↑</span>'
+                       : '<span class="tagpill" style="background:var(--asubk-tint-fill);color:var(--text-muted)" title="залоговая по решению комиссии">комиссия</span>')
+    : '')
+    + (apprStale(it) ? '<span class="tagpill stale" title="отчёт об оценке старше допустимого — залоговая считается по устаревшей оценочной (Р-47/Р-48)">оценка устарела</span>' : '');
+  return `<span class="numcell2" title="${esc(pledgeTip(it))}">`
+    + `<span class="n2-val">${fmt(pledgeValue(it))}<span class="ccy">${esc(itemCcyLabel(it))}</span></span>`
+    + (flags ? `<span class="n2-flags">${flags}</span>` : '') + `</span>`;
+}
+function securesCell(it){
+  const sec = itemSecures(it);
+  if(!sec.length) return '<span class="numcell" style="color:var(--text-placeholder)">—</span>';
+  const tip = sec.map(s => `${s.c.no || s.c.id} (${s.c.status}): `
+    + s.credits.map(id => (credit(id) || {}).num || id).join(', ')).join(' · ');
+  return `<span class="numcell" title="${esc(tip)}">${sec.length} дог.</span>`;
+}
+/* ПЗ-14 + ПЗ-Д5: ось запрета в своей колонке. banPill остаётся единственным источником
+   пилюли; ячейка добавляет тултип — при 200px пилюля с дедлайном («запрет не наложен ·
+   до дд.мм.гггг») обрезается, и прочитать срок было бы негде. */
+function banCell(it){
+  const s = banStatus(it);
+  const tip = [ `запрет на отчуждение: ${s}`,
+    banRequired(it) && !it.ban ? `срок наложения до ${banDeadline(it)}${banOverdue(it) ? ` — ПРОСРОЧЕН на ${Math.abs(daysLeft(banDeadline(it)))} дн.` : ''}` : null,
+    it.ban ? `${organOf(it)} · ${it.ban.regNo || '—'} от ${it.ban.date || '—'}` : null,
+    it.ban && !banFullyRegistered(it.ban) ? 'отметка в оригиналах правоустанавливающих документов не получена (ПБК п.2.1)' : null,
+    !banRequired(it) && !it.ban ? 'предмет не обременён — запрет не требуется' : null,
+  ].filter(Boolean).join(' · ');
+  return `<span title="${esc(tip)}">${banPill(it)}</span>`;
 }
 function rowsItems(){
   return ITEMS.map(it => {
-    const st = lienStatus(it);
+    const st = lienStatus(it), bs = banStatus(it);
     /* Р-38: сводный индекс поиска по предмету — идентификатор + все type-specific детали
        (кадастр/адрес/гос.№/VIN/зав.№) + правоустанавливающий документ. Не колонка, только
        для фильтра «Идентификатор/адрес» и общей строки поиска. */
     const idx = [it.ident, it.legalDoc, ...Object.values(it.details||{})].filter(Boolean).join(' ');
-    return { id: it.id, sort:{ id:it.id, kind:it.kind, name:it.name, pledger:clientName(it.pledger),
-        pledge:pledgeValue(it), st, idx },
-      cells:[ it.id, it.kind, esc(it.name), esc(clientName(it.pledger)),
-        `<span class="numcell">${fmt(pledgeValue(it))}${it.override ? (isOverAbove(it) ? ' <span class="pill high" title="решение комиссии выше расчётной">комиссия ↑</span>' : ' <span class="pill neutral" title="залоговая по решению комиссии">комиссия</span>') : ''}</span>`,
-        `<span class="axis"><span class="pill ${lienCls(st)}">${st}</span>${banPill(it)}</span>`,
-        ctrlBadge(it) ] };
+    return { id: it.id,
+      sort:{ id:it.id, idn:idNum(it.id), kind:it.kind, name:it.name, pledger:clientName(it.pledger),
+        pledge:pledgeValue(it), st, ban:bs, banRank:(BAN_RANK[bs] ?? 9),
+        secures:itemSecures(it).length, idx },
+      /* ПЗ-Д4: it.kind шёл в разметку БЕЗ esc(), тогда как соседние name и pledger
+         экранировались. Вид приходит из закрытого справочника, эксплуатации нет — но
+         расхождение вылезло бы при первом «своём» виде. Теперь экранируют все ячейки. */
+      cells:[ `<span class="idcell">${esc(it.id)}</span>`,
+        kindCell(it), nameCell(it), pledgerCell(it), pledgeCell(it),
+        `<span class="pill ${lienCls(st)}">${st}</span>`,   // ПЗ-14: ось лиена
+        banCell(it),                                        // ПЗ-14: ось запрета — своя колонка
+        securesCell(it) ] };
   });
 }
 function rowsContracts(){
@@ -3876,23 +4205,32 @@ function renderRiskFactorsPanel(){
 /* ---- карточки реестров (вид «Карточки»). Данные/фильтр/сортировка — те же,
    что в таблице: на вход идёт уже отфильтрованный+отсортированный список строк. ---- */
 const cardField = (l,v,span) => `<div class="pcard-field${span?' span2':''}"><span class="pcard-flabel">${l}</span><span class="pcard-fval">${v}</span></div>`;
+/* ПЗ-17: карточка описывает предмет ТЕМ ЖЕ набором признаков, что таблица — те же строители
+   ячеек (kindCell/pledgerCell/pledgeCell/banCell/securesCell). Прежде решения ПЗ-10…ПЗ-15
+   поменяли бы только таблицу, и один предмет в двух режимах ОДНОГО списка читался бы
+   по-разному, а снятый «Контроль» остался бы жить в карточках.
+   ПЗ-7: поля — Залогодатель · Идентификатор · Залоговая стоимость. Карточка это штатный
+   ответ на узкий экран (Т-5 отверг перекладку таблиц медиазапросами именно на этом
+   основании), а на узком экране первым спрашивают «что это за объект и где он»,
+   а не «сколько он стоит». */
 function itemCard(it){
   const st = lienStatus(it);
-  const badges = `<span class="pill ${lienCls(st)}">${st}</span>${banPill(it)}${ctrlBadge(it)}`;
-  const pledge = `${fmt(pledgeValue(it))}${it.override ? (isOverAbove(it) ? ' <span class="pill high" title="решение комиссии выше расчётной">комиссия ↑</span>' : ' <span class="pill neutral" title="залоговая по решению комиссии">комиссия</span>') : ''}`;
-  return `<div class="pcard ${it.id===selected?'sel':''}" onclick="selectRow('${it.id}')" ondblclick="openSelected()">
+  const badges = `<span class="pill ${lienCls(st)}">${st}</span>${banCell(it)}`;
+  return `<div class="pcard ${it.id===selected?'sel':''}" data-id="${it.id}" onclick="selectRow('${it.id}')" ondblclick="openSelected()">
     <div class="pcard-head">
       <div class="pcard-ava" style="background:${AVA_LIEN[st]||'#5B6B7E'}">${kindIcon(it.kind)}</div>
       <div class="pcard-title">
         <div class="pcard-name" title="${esc(it.name)}">${esc(it.name)||'—'}</div>
-        <div class="pcard-sub">${it.id} · ${esc(it.kind)}</div>
+        <div class="pcard-sub">${esc(it.id)} · ${kindCell(it)}</div>
       </div>
       <span class="pcard-chev">${_chev}</span>
     </div>
     <div class="pcard-badges">${badges}</div>
     <div class="pcard-fields">
-      ${cardField('Залогодатель', esc(clientName(it.pledger)), true)}
-      ${cardField('Залоговая стоимость', `<span class="numcell">${pledge}</span>`, true)}
+      ${cardField('Залогодатель', pledgerCell(it), true)}
+      ${cardField('Идентификатор', it.ident ? esc(it.ident) : '<span style="color:var(--text-placeholder)">—</span>', true)}
+      ${cardField('Залоговая стоимость', pledgeCell(it))}
+      ${cardField('Обеспечивает', securesCell(it))}
     </div>
   </div>`;
 }
@@ -3902,7 +4240,7 @@ function contractCard(c){
   const nItems = new Set(c.allocs.map(a=>a.item)).size;
   const cov = c.status==='Закрыт' ? '—' : `<span class="pill ${gateCheck(c).ok?'low':'high'}" title="${esc(coverIndexTip(c))}">${pct(mc)}</span>`;
   const badges = `<span class="pill ${stPill}">${c.status}</span>${c.undercovered ? ` <span class="pill high" title="${esc(reqTooltip(c))}">допуск &lt;порога</span>` : ''}${c.replacementRefusal ? ` <span class="pill high" title="${esc(c.replacementRefusal.reason)}">отказ в замене</span>` : ''}`;
-  return `<div class="pcard ${c.id===selected?'sel':''}" onclick="selectRow('${c.id}')" ondblclick="openSelected()">
+  return `<div class="pcard ${c.id===selected?'sel':''}" data-id="${c.id}" onclick="selectRow('${c.id}')" ondblclick="openSelected()">
     <div class="pcard-head">
       <div class="pcard-ava" style="background:${AVA_CTR[c.status]||'#5B6B7E'}">${docIcon()}</div>
       <div class="pcard-title">
@@ -3926,7 +4264,7 @@ function suretyCard(s){
   const g = guarantor(s.guarantor) || {}, gate = guarantorGate(s.id);
   const gateBadge = gate.ok ? '<span class="pill low">допущен</span>'
     : `<span class="pill high" title="${esc(gate.fails.map(f=>f.code+': '+f.text).join(' · '))}">${gate.fails.map(f=>f.code).join(', ')}: не пройден</span>`;
-  return `<div class="pcard ${s.id===selected?'sel':''}" onclick="selectRow('${s.id}')" ondblclick="openSelected()">
+  return `<div class="pcard ${s.id===selected?'sel':''}" data-id="${s.id}" onclick="selectRow('${s.id}')" ondblclick="openSelected()">
     <div class="pcard-head">
       <div class="pcard-ava" style="background:${AVA_SUR[s.status]||'#5B6B7E'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SUR_ICON}</svg></div>
       <div class="pcard-title">
@@ -3942,9 +4280,11 @@ function suretyCard(s){
     </div>
   </div>`;
 }
-function renderCards(rows){
+function renderCards(rows, active){
   const el = document.getElementById('cardsWrap');
-  if(!rows.length){ el.innerHTML = `<div class="cards-empty">Записей нет</div>`; return; }
+  /* ПЗ-18: то же различение двух пустых состояний, что в таблице — иначе карточный вид
+     остался бы с прежним безадресным «Записей нет». */
+  if(!rows.length){ el.innerHTML = `<div class="cards-empty">${emptyState(active || 0)}</div>`; return; }
   const card = reg==='items' ? (r=>itemCard(item(r.id)))
              : reg==='sureties' ? (r=>suretyCard(surety(r.id)))
              : (r=>contractCard(contract(r.id)));
@@ -3961,11 +4301,16 @@ function renderList(){
      disabled): роль без права создания (Комитет, Наблюдатель) не должна видеть точку входа. */
   document.getElementById('btnNew').style.display = ((reg==='contracts' || reg==='sureties' || reg==='items') && canCurate()) ? 'inline-flex' : 'none';
   const qs = document.getElementById('quickSearch');
-  if(qs){ qs.value = quickSearch[reg] || ''; qs.style.display = reg==='monitor' ? 'none' : ''; }
+  if(qs){ qs.value = quickSearch[reg] || ''; qs.style.display = reg==='monitor' ? 'none' : '';
+    qs.placeholder = SEARCH_HINT[reg] || 'Поиск…'; }
 
   if(filterPanelReg !== reg) renderFilterPanel();
 
   const heads = HEADS[reg], ws = WIDTHS[reg] || [], sks = SORT_KEYS[reg] || [];
+  /* ПЗ-Д13: минимум ширины таблицы — иначе width:100% + table-layout:fixed молча ужмут
+     колонки вместо прокрутки .grid-wrap, и первой схлопнется гибкая «Наименование». */
+  const grid = document.getElementById('listGrid');
+  if(grid) grid.style.minWidth = gridMinWidth(reg) + 'px';
   /* Р-39: сортируемость и активный указатель задаются картой SORT_KEYS. Активная колонка —
      ↑/↓ по направлению; прочие сортируемые — ↕; несортируемые (null) — без стрелки и курсора. */
   document.getElementById('listHead').innerHTML = heads.map((h,i)=>{
@@ -3987,20 +4332,34 @@ function renderList(){
   const total = rows.length, pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   if(curPage > pages) curPage = pages;
   const pageRows = rows.slice((curPage-1)*PAGE_SIZE, curPage*PAGE_SIZE);
+  const active = activeConditions();
   document.getElementById('listBody').innerHTML = pageRows.map(r=>`
-    <tr data-id="${r.id}" onclick="selectRow('${r.id}')" ondblclick="openSelected()">
+    <tr data-id="${r.id}" tabindex="0" onclick="selectRow('${r.id}')" ondblclick="openSelected()" onkeydown="onRowKey(event,'${r.id}')">
       ${r.cells.map(c=>`<td>${c}</td>`).join('')}
-    </tr>`).join('') || `<tr><td colspan="${heads.length}"><div class="cgrid-empty">Записей нет</div></td></tr>`;
-  const noun = reg==='items' ? 'предметов' : reg==='contracts' ? 'договоров'
-             : reg==='sureties' ? 'договоров поручительства' : 'активных триггеров';
-  const active = Object.keys(activeFilter[reg]||{}).length + ((quickSearch[reg]||'').trim() ? 1 : 0);
-  document.getElementById('pagerCount').textContent = total+' '+noun+(active ? ' (фильтр)' : '');
+    </tr>`).join('') || `<tr><td colspan="${heads.length}">${emptyState(active)}</td></tr>`;
+  /* ПЗ-19: подвал — Σ залоговой стоимости по ОТФИЛЬТРОВАННОМУ набору (не по странице),
+     с разбивкой по валютам. Главный вопрос к картотеке — «сколько у нас обеспечения», а
+     ответа на него в реестре не было; ширины подвал не стоит ничего. */
+  renderGridFoot(rows, heads.length);
+  /* ПЗ-Д2 + ПЗ-8: склонение и база счёта. Было «1 предметов» и «3 предметов (фильтр)» —
+     из скольких отобрано, не видно. Стало «3 из 812 предметов». */
+  const totalAll = active ? regRows().length : total;
+  const nounOf = { items:['предмет','предмета','предметов'],
+    contracts:['договор','договора','договоров'],
+    sureties:['договор поручительства','договора поручительства','договоров поручительства'],
+    monitor:['активный триггер','активных триггера','активных триггеров'] }[reg] || ['строка','строки','строк'];
+  document.getElementById('pagerCount').textContent =
+    (active ? `${total} из ${totalAll} ` : `${total} `) + plural(active ? totalAll : total, ...nounOf);
+  /* ПЗ-8: края набора — на 60 страницах перещёлкивать по одной не работа. */
   document.getElementById('pagerNav').innerHTML = pages>1
-    ? `<button ${curPage<=1?'disabled':''} onclick="gotoPage(${curPage-1})" title="Предыдущая">‹</button>`
+    ? `<button ${curPage<=1?'disabled':''} onclick="gotoPage(1)" title="В начало">«</button>`
+      + `<button ${curPage<=1?'disabled':''} onclick="gotoPage(${curPage-1})" title="Предыдущая">‹</button>`
       + `<span class="pager-pos">стр. ${curPage} из ${pages}</span>`
       + `<button ${curPage>=pages?'disabled':''} onclick="gotoPage(${curPage+1})" title="Следующая">›</button>`
+      + `<button ${curPage>=pages?'disabled':''} onclick="gotoPage(${pages})" title="В конец">»</button>`
     : '';
-  document.getElementById('jfSummary').textContent = active ? `Фильтр · ${active} активно` : 'Фильтр';
+  const psel = document.getElementById('pagerSize'); if(psel) psel.value = String(PAGE_SIZE);
+  renderFilterSummary();
   if(selected) document.querySelectorAll('#listBody tr').forEach(t=>t.classList.toggle('sel', t.dataset.id===selected));
 
   /* Вид Таблица ↔ Карточки: тумблер только для items/contracts, monitor — всегда таблица. */
@@ -4010,9 +4369,74 @@ function renderList(){
   document.getElementById('segCards').classList.toggle('active', view==='cards');
   document.getElementById('gridWrap').style.display  = view==='cards' ? 'none' : '';
   document.getElementById('cardsWrap').style.display = view==='cards' ? '' : 'none';
-  if(view==='cards') renderCards(pageRows);
+  renderCardsSort(view);                        // ПЗ-7
+  if(view==='cards') renderCards(pageRows, active);
   renderRiskFactorsPanel();
   renderTrigWorkPanel();
+}
+/* ПЗ-5: подпись поиска называет то, по чему он реально идёт. Р-38 завёл индекс по
+   идентификаторам, но в UI об этом не говорилось — никто не догадывался вставить сюда VIN. */
+const SEARCH_HINT = {
+  items:     'Наименование, кадастр, VIN, гос. №, залогодатель…',
+  contracts: 'Номер договора, заёмщик…',
+  sureties:  'Поручитель, договор, кредит…',
+  monitor:   'Поиск…',
+};
+/* ПЗ-18: пустых состояния ДВА, и выходы из них противоположные. Раньше «Записей нет»
+   показывалось и когда реестр пуст, и когда фильтр ничего не нашёл, — а панель фильтра
+   свёрнута, и пользователь, опечатавшийся в VIN, решал, что такого имущества в системе нет. */
+function emptyState(active){
+  if(active) return `<div class="grid-empty"><span>По заданным условиям ничего не найдено`
+    + ` (${active} ${plural(active,'условие','условия','условий')}).</span>`
+    + `<button class="btn btn-secondary btn-sm" onclick="resetFilter()">Сбросить условия</button></div>`;
+  const label = reg==='items' ? 'Предметов в реестре пока нет'
+    : reg==='contracts' ? 'Залоговых договоров пока нет'
+    : reg==='sureties' ? 'Договоров поручительства пока нет' : 'Активных триггеров нет';
+  /* Р-34: кнопка создания скрыта у роли без права создания — как и в тулбаре. */
+  const canNew = canCurate() && ['items','contracts','sureties'].includes(reg);
+  const newLbl = reg==='items' ? 'Новый предмет залога'
+    : reg==='sureties' ? 'Новый договор поручительства' : 'Новый залоговый договор';
+  return `<div class="grid-empty"><span>${label}.</span>`
+    + (canNew ? `<button class="btn btn-primary btn-sm" onclick="onNew()">${newLbl}</button>` : '') + `</div>`;
+}
+/* ПЗ-19: Σ по валютам. Валюта предмета производна (Р-44) и у разных предметов разная —
+   складывать их в одно число нельзя, поэтому итог разбит по валютам, а не «всего». */
+function renderGridFoot(rows, cols){
+  const el = document.getElementById('listFoot'); if(!el) return;
+  if(reg !== 'items' || !rows.length){ el.innerHTML = ''; return; }
+  const sums = {};
+  rows.forEach(r => { const it = item(r.id); if(!it) return;
+    const c = itemCcyLabel(it); sums[c] = (sums[c] || 0) + pledgeValue(it); });
+  const parts = Object.keys(sums).sort().map(c =>
+    `<span class="sum-ccy">${fmt(sums[c])} ${esc(c)}</span>`).join('');
+  el.innerHTML = `<tr><td colspan="${cols}">Σ залоговой стоимости по отбору`
+    + ` (${rows.length} ${plural(rows.length,'предмет','предмета','предметов')}):${parts}</td></tr>`;
+}
+/* ПЗ-7: в карточном виде gridWrap скрыт целиком вместе с заголовками, на которых висит
+   sortBy. Порядок продолжал применяться — тот, что был выбран в таблице, — но пользователь
+   его не видел и сменить не мог. Это хуже, чем если бы сортировки не было вовсе. */
+function renderCardsSort(view){
+  const wrap = document.getElementById('cardsSort'); if(!wrap) return;
+  const on = view === 'cards';
+  wrap.classList.toggle('on', on);
+  if(!on) return;
+  const heads = HEADS[reg] || [], sks = SORT_KEYS[reg] || [];
+  document.getElementById('cardsSortKey').innerHTML =
+    `<option value="">— без сортировки —</option>`
+    + heads.map((h,i) => sks[i] == null ? '' :
+        `<option value="${i}"${sortKey===i?' selected':''}>${esc(h)}</option>`).join('');
+  document.getElementById('cardsSortDir').textContent = sortDir > 0 ? '↑' : '↓';
+}
+function onCardsSort(v){
+  if(v === ''){ sortKey = null; } else { sortKey = Number(v); sortDir = 1; }
+  curPage = 1; renderList();
+}
+function toggleSortDir(){ if(sortKey === null) return; sortDir *= -1; curPage = 1; renderList(); }
+/* ПЗ-16: клавиатурный путь в карточку. Двойной клик был ЕДИНСТВЕННЫМ способом открыть
+   запись: в тулбаре нет «Открыть», контекстного меню в файле нет ни одного. */
+function onRowKey(e, id){
+  if(e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault(); selectRow(id); openSelected();
 }
 function sortBy(i){
   if((SORT_KEYS[reg]||[])[i] == null) return;   // Р-39: несортируемая колонка — клик ничего не делает
@@ -4042,14 +4466,78 @@ function sortedRows(r){
   }
   return rows;
 }
+/* ============================================================
+   ПЗ-6: ПРОФИЛЬ ВЫГРУЗКИ НА КАЖДЫЙ РЕЕСТР — не зеркало экрана.
+   Прежний buildCsv выгружал те же ячейки, что и таблица, срезая теги: семь колонок из
+   тридцати. Оценочная, коэффициент, дата оценки, оценщик и лицензия, кадастр/VIN,
+   количество и единица, правоустанавливающий документ, страхование, рег. № запрета — ничего
+   этого в файле не было. Для КАРТОТЕКИ выгрузка полного реестра — основной сценарий, а не
+   вспомогательный: экран показывает восемь колонок, работать в Excel надо со всеми полями.
+   ПЗ-Д12: две пилюли статуса склеивались в одну ячейку («в залоге запрет наложен») без
+   разделителя — в Excel не разложить; здесь оси разведены по своим полям. fmt() вставляет
+   неразрывный пробел, Excel читает такое как ТЕКСТ и не суммирует — деньги идут через
+   fmtRaw() (без разделителей групп, десятичная запятая).
+   Фильтр и сортировка применяются, выгружается весь отобранный набор, а не страница.
+   ============================================================ */
+const CSV_PROFILES = {
+  items: [
+    ['Идентификатор',                 it => it.id],
+    ['Вид залога',                    it => it.kind],
+    ['Ликвидность вида',              it => isLiquid(it) ? 'ликвидный' : 'неликвидный'],
+    ['Движимость',                    it => isMovable(it) ? 'движимое' : 'недвижимое'],
+    ['Наименование',                  it => it.name],
+    ['Идентификатор объекта',         it => it.ident],
+    ['Адрес / место нахождения',      it => (it.details||{}).address || (it.details||{}).storeAddr || ''],
+    ['Количество',                    it => it.qty],
+    ['Единица измерения',             it => it.unit],
+    ['Залогодатель',                  it => clientName(it.pledger)],
+    ['ИНН залогодателя',              it => it.pledger],
+    ['Тип залогодателя',              it => it.pledgerType],
+    ['Залог третьего лица',           it => { const t = thirdPartyPledge(it); return t ? (t.third ? 'да' : 'нет') : ''; }],
+    ['Оценочная стоимость',           it => fmtRaw(it.appraised)],
+    ['Коэффициент вида',              it => String(coefOf(it.kind)).replace('.',',')],
+    ['Залоговая стоимость',           it => fmtRaw(pledgeValue(it))],
+    ['Валюта',                        it => itemCcyLabel(it)],
+    ['Основание залоговой',           it => it.override ? 'решение комиссии' : 'расчёт по коэффициенту'],
+    ['Дата оценки',                   it => it.apprDate],
+    ['Отчёт об оценке',               it => it.apprReport],
+    ['Оценщик',                       it => it.appraiser],
+    ['Лицензия оценщика',             it => it.apprLicense],
+    ['Оценка действительна до',       it => apprValidTill(it)],
+    ['Статус залога',                 it => lienStatus(it)],
+    ['Запрет на отчуждение',          it => banStatus(it)],
+    ['Запрет — рег. №',               it => (it.ban||{}).regNo],
+    ['Запрет — дата',                 it => (it.ban||{}).date],
+    ['Запрет — срок наложения',       it => banRequired(it) && !it.ban ? banDeadline(it) : ''],
+    ['Регистрирующий орган',          it => organOf(it)],
+    ['Обеспечивает договоров',        it => itemSecures(it).length],
+    ['Договоры',                      it => itemSecures(it).map(s => s.c.no || s.c.id).join(', ')],
+    ['Кредиты',                       it => itemSecures(it).flatMap(s => s.credits.map(id => (credit(id)||{}).num || id)).join(', ')],
+    ['Правоустанавливающий документ', it => it.legalDoc],
+    ['Страховой полис',               it => (it.insured||{}).policy],
+    ['Полис действует до',            it => (it.insured||{}).till],
+    ['Последнее обследование',        it => it.lastSurvey],
+    ['Следующее обследование',        it => nextSurvey(it) || ''],
+    ['Последняя переоценка',          it => it.lastReval],
+    ['Следующая переоценка',          it => nextReval(it)],
+  ],
+};
+/* Сущность реестра по id строки — профиль работает с ЗАПИСЬЮ, а не с готовой разметкой. */
+const CSV_ENTITY = { items:item, contracts:contract, sureties:surety };
 function buildCsv(r){
   r = r || reg;
-  const heads = HEADS[r];
-  const strip = s => String(s).replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ')
+  const strip = s => String(s ?? '').replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ')
     .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
   const q = s => '"' + strip(s).replace(/"/g,'""') + '"';
   const rows = sortedRows(r);
-  const lines = [ heads.map(q).join(';'), ...rows.map(row => row.cells.map(q).join(';')) ];
+  const prof = CSV_PROFILES[r], ent = CSV_ENTITY[r];
+  const lines = (prof && ent)
+    ? [ prof.map(([h]) => q(h)).join(';'),
+        ...rows.map(row => { const o = ent(row.id);
+          return prof.map(([,v]) => q(o ? v(o) : '')).join(';'); }) ]
+    /* Реестры без профиля (мониторинг — вычисляемая лента, записи как таковой нет)
+       выгружаются зеркалом экрана, как раньше. */
+    : [ HEADS[r].map(q).join(';'), ...rows.map(row => row.cells.map(q).join(';')) ];
   return '﻿' + lines.join('\r\n');   // BOM — Excel читает кириллицу в UTF-8
 }
 function downloadFile(name, content, mime){
@@ -4155,7 +4643,15 @@ function printForm(kind, id){
   try{ w.focus(); w.print(); }catch(e){}
 }
 
-function selectRow(id){ selected = id; renderList(); }
+/* ПЗ-Д9: подсветка строки — переключение класса, а не перерисовка всего списка.
+   renderList() ради одной строки заново считал lienStatus/banStatus/pledgeValue/itemSecures
+   и тултипы покрытия на всю страницу; на 50, а после ПЗ-8 и на 200 строках это заметная
+   задержка на КАЖДЫЙ клик. Карточный вид подсвечивается тем же классом .sel. */
+function selectRow(id){
+  selected = id;
+  document.querySelectorAll('#listBody tr').forEach(t => t.classList.toggle('sel', t.dataset.id === id));
+  document.querySelectorAll('#cardsWrap .pcard').forEach(c => c.classList.toggle('sel', c.dataset.id === id));
+}
 function openSelected(){
   if(!selected) return;
   /* Р-41: в мониторинге selected — это trigId (тип+объект), а не id записи. Открываем карточку
@@ -4466,7 +4962,7 @@ function itemPanels(it){
         : (banRequired(it) ? `${banStatus(it)} · срок до ${banDeadline(it)}` : 'не требуется'))}
       ${ro('Тип залогодателя', it.pledgerType)}
       ${ro('Следующее обследование', surveyLbl)}
-      ${ro('Следующая переоценка', nextReval(it) + (isOverdue(nextReval(it)) ? ' — ПРОСРОЧЕНО' : ''))}
+      ${ro('Следующая переоценка', nextReval(it) + (revalOverdue(it) ? ' — ПРОСРОЧЕНО' : ''))}
       ${/* Р-51 (ПОЛ §6.4 п.7): хранение вводится на договоре — на карточке предмета его не было,
            и оформитель не видел, где вещь физически находится. Показываем со ссылкой на договор. */''}
       ${ro('Способ хранения (ПОЛ §6.4 п.7)', cust
@@ -4571,7 +5067,7 @@ function itemPanels(it){
       ${kpi('Группа платёжеспособности', bs ? bs.group : '—')}
       ${kpi('Интервал обследования', bs ? (bs.interval!=null ? bs.interval+' мес.' : 'по договору со спецадминистратором') : '—')}
       ${kpi('Следующее обследование', (ns || '—')+(ns && isOverdue(ns) ? ` <span class="pill high">просрочено на ${Math.abs(daysLeft(ns))} дн.</span>` : '')+(!ns && bs && bs.bankrupt ? ' <span class="pill neutral">банкрот</span>' : ''))}
-      ${kpi('Следующая переоценка', nextReval(it)+(isOverdue(nextReval(it)) ? ` <span class="pill high">просрочено на ${Math.abs(daysLeft(nextReval(it)))} дн.</span>` : ''))}
+      ${kpi('Следующая переоценка', nextReval(it)+(revalOverdue(it) ? ` <span class="pill high">просрочено на ${Math.abs(daysLeft(nextReval(it)))} дн.</span>` : ''))}
     </div>
     <div class="gtoolbar">${actionBtn(canCurate(), 'Зарегистрировать обследование', `openSurvey('${it.id}')`)}
       ${(it.lost||it.needReval) ? actionBtn(canCurate(), it.restoreNotice&&it.restoreNotice.issued?'Обновить извещение о восполнении':'Оформить извещение о восполнении', `openRestoreNotice('${it.id}')`) : ''}</div>
@@ -5262,9 +5758,13 @@ const nextId = (arr, pfx) => {
 };
 
 /* ---------- НОВЫЙ ПРЕДМЕТ ЗАЛОГА ----------
-   Точка рождения предмета — карточка залогового договора (targetCid). Предмет пишется
-   в реестр (single source), затем сразу цепляется привязка к этому договору + кредиту
-   (доля). Реестр «Предметы» — read-only проекция, из него предметы не рождаются. */
+   ПЗ-Д11: прежний комментарий здесь утверждал, что точка рождения предмета — карточка
+   залогового договора, а реестр «Предметы» — read-only проекция, из которой предметы не
+   рождаются. Это прямо противоречило Р-37 и коду ниже начиная с волны 3.
+   Как есть: предмет — САМОСТОЯТЕЛЬНАЯ запись картотеки и рождается в реестре (имущество
+   может быть предложено на этапе заявки, когда договора ещё нет). targetCid — контекстный
+   ярлык с карточки договора: предмет так же пишется в реестр (single source), но следом
+   сразу открывается привязка к этому договору и кредиту (доля). */
 let _newItemTarget = null;
 function openNewItem(targetCid){
   if(!canCurate()) return denyEdit();
@@ -5403,7 +5903,13 @@ function saveNewItem(){
     _bornPending = it.id;
     openAlloc(target, it.id);
   } else {
-    reg='items'; selected = it.id; refresh();
+    /* ПЗ-4: после создания из реестра открываем КАРТОЧКУ предмета, а не список. Форма приёма
+       не собирает обязательный комплект документов (FILE_REQ_COMMON + FILE_REQ_BY_KIND, Р-56) —
+       он живёт на вкладке «Документы» карточки. Возврат в список оставлял запись висеть с
+       триггером «Неполный комплект документов предмета», а пользователя — в реестре, откуда
+       следующий шаг не виден. Отвергнуто: сразу предлагать привязку к договору — это возврат
+       к «предмет рождается договором», что отверг Р-37. */
+    reg='items'; selected = it.id; renderList(); openCard('item', it.id);
   }
 }
 
@@ -6813,7 +7319,7 @@ function refbookInner(){
         ${ifin('rb-ban-days','Срок наложения запрета, рабочих дней', String(BAN_DEADLINE_DAYS), 'в ПОЛ/Прил.1-Прил.3 отсутствует')}
         ${ifin('rb-doc-route','Срок маршрута документов до архивного шага, дней', String(DOC_ROUTE_DAYS))}
         ${ifin('rb-committee-sla','SLA очереди комитета, дней (после — критичность высокая)', String(COMMITTEE_SLA))}
-        ${ifin('rb-page-size','Размер страницы реестра, строк', String(PAGE_SIZE))}
+        ${ifin('rb-page-size','Размер страницы реестра по умолчанию, строк', String(PAGE_SIZE_DEFAULT))}
       </div>
 
       <p class="section-h" style="font-size:16px;margin-top:16px">Коэффициент, ранг ликвидности, переоценка, орган (по виду)</p>
@@ -6955,7 +7461,9 @@ function saveRefbook(){
   BAN_DEADLINE_DAYS = Math.round(bd);
   DOC_ROUTE_DAYS = Math.round(docRoute);
   COMMITTEE_SLA = Math.round(commSla);
-  PAGE_SIZE = Math.round(pageSz); curPage = 1;
+  /* ПЗ-8: справочник задаёт ДЕФОЛТ; текущий размер подтягивается за ним (иначе правка
+     параметра не была бы видна на экране, ради которого её делали). */
+  PAGE_SIZE_DEFAULT = Math.round(pageSz); PAGE_SIZE = PAGE_SIZE_DEFAULT; curPage = 1;
   COVER_LIQUID = cl; COVER_MOVABLE = cm; LIQUID_SHARE_MIN = ls;
   COVER_GUARANTEE = cg; COVER_GUARANTEE_FX = cgfx;
   TECH_AGE_LIMIT['СНГ'] = Math.round(ageS); TECH_AGE_LIMIT['Дальнее зарубежье'] = Math.round(ageF);
@@ -7056,6 +7564,13 @@ if (typeof window !== 'undefined') window.__zt = {
   techPanel, prereqBlock, itemDefects, itemTabs, TABS_ITEM, TABS_CTR,
   revalSeries, histCat, HIST_CATS, itemHistFilter, itemHistMore,
   saveAttach, openAttach, autoFiles, autoPolicy,
+  // Волна 8 (ПЗ-1…ПЗ-19, ПЗ-Д1…ПЗ-Д13): реестр предметов как картотека актива.
+  plural, fmtRaw, idNum, BAN_RANK, banStatus, banPill, banCell, banRequired, banDeadline,
+  itemSecures, thirdPartyPledge, clientKnown, kindTip, kindCell, nameCell, pledgerCell,
+  pledgeTip, pledgeCell, securesCell, itemCard, revalOverdue, nextReval,
+  WIDTHS, GRID_FLEX_MIN, gridMinWidth, SEARCH_SKIP, SEARCH_HINT, CSV_PROFILES,
+  activeConditions, emptyState, renderGridFoot, renderCardsSort, onCardsSort, toggleSortDir,
+  onRowKey, onPageSize, PAGE_SIZES, isLiquid, isMovable, organOf, saveNewItem,
 };
 </script>
 </body>

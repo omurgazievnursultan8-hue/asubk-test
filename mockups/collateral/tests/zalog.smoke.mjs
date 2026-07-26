@@ -1120,16 +1120,19 @@ test('W3-5 (Р-39): SORT_KEYS длиной = числу колонок для к
   const { SORT_KEYS, HEADS } = win.__zt;
   ['items','contracts','monitor','sureties'].forEach(r =>
     eq(SORT_KEYS[r].length, HEADS[r].length, `${r}: ключей столько же, сколько заголовков`));
-  ok(SORT_KEYS.items[6] === null, 'колонка «Контроль» помечена несортируемой');
+  /* ПЗ-15: колонка «Контроль» снята с реестра предметов (сигнал без действия — рабочий слой
+     живёт в «Мониторинге», Р-41). Все восемь колонок картотеки теперь сортируемы. */
+  ok(SORT_KEYS.items.every(k => k !== null), 'в реестре предметов несортируемых колонок не осталось');
+  ok(!HEADS.items.includes('Контроль'), 'колонка «Контроль» снята с реестра предметов');
   ok(SORT_KEYS.monitor[3] === null && SORT_KEYS.monitor[4] === null, 'колонки «Описание»/«Что делать» несортируемы');
 });
 
 test('W3-6 (Р-39): клик по несортируемой колонке не меняет сортировку', () => {
   const { win } = load();
-  win.eval("reg='items'; sortKey=null; sortDir=1");
-  win.sortBy(6);                       // «Контроль» → null
+  win.eval("reg='monitor'; sortKey=null; sortDir=1");
+  win.sortBy(3);                       // «Описание» → null
   eq(win.eval('sortKey'), null, 'несортируемая колонка не активирует сортировку');
-  win.sortBy(0);                       // «№» → id
+  win.sortBy(0);                       // «Критичность» → crit
   eq(win.eval('sortKey'), 0, 'сортируемая колонка активируется');
 });
 
@@ -1829,6 +1832,400 @@ test('W7-22 (п.4 шапки): перевыделенные доли усече�
   near(effs[0] / shares[0], effs[1] / shares[1], 'коэффициент урезания одинаков для обеих долей');
   near(effs[0] / shares[0], pv / (shares[0] + shares[1]), 'коэффициент = залоговая ÷ Σ долей');
   ok(effs[0] < shares[0] && effs[1] < shares[1], 'урезаны обе доли, а не одна');
+});
+
+/* ============================================================
+   ВОЛНА 8 (ПЗ-1…ПЗ-19, ПЗ-Д1…ПЗ-Д13): реестр предметов = картотека актива.
+   Разбор экрана списка по компонентам, сессия-гриллинг 26.07.2026.
+   Задачи и обоснования — mockups/collateral/ASUBK-status-razrabotki.md.
+   ============================================================ */
+
+// ПЗ-14 (§3.1): две оси состояния — ДВЕ колонки. Схлопывать их запрещено, потому что весь
+// смысл разделения в комбинации «в залоге» + «запрет не наложен» = дефект оформления.
+test('W8-1 (ПЗ-14): оси лиена и запрета — раздельные колонки и раздельные ключи сортировки', () => {
+  const { win, zt } = load();
+  const { HEADS, SORT_KEYS, WIDTHS } = zt;
+  eq(HEADS.items.length, 8, 'восемь колонок в реестре предметов');
+  eq(HEADS.items[5], 'Статус залога', 'ось лиена — своя колонка');
+  eq(HEADS.items[6], 'Запрет на отчуждение', 'ось запрета — своя колонка');
+  eq(SORT_KEYS.items[5], 'st', 'ось лиена сортируется по st');
+  eq(SORT_KEYS.items[6], 'banRank', 'ось запрета сортируется по рангу, не по алфавиту');
+  eq(WIDTHS.items.length, HEADS.items.length, 'ширины заданы на каждую колонку');
+  const r = win.rowsItems().find(x => x.id === 'П-005');
+  hasNot(r.cells[5], 'запрет', 'в ячейке лиена нет пилюли запрета');
+  has(r.cells[6], 'ЗАПРЕТ НЕ НАЛОЖЕН', 'просроченный запрет виден в своей колонке');
+});
+
+// ПЗ-3: ось запрета фильтруется и ищется. «Покажи всё, где запрет не наложен» — главный
+// дефект оформления по спеке — с картотеки был невыполним: banStatus не было в r.sort.
+test('W8-2 (ПЗ-3): фильтр «Запрет =» отбирает по оси запрета', () => {
+  const { win, zt } = load();
+  const f = zt.FILTERS.items;
+  ok(f.some(x => x.key === 'ban'), 'поле «Запрет» заведено в фильтр');
+  eq((f.find(x => x.key === 'st') || {}).label, 'Статус залога =', 'подпись первой оси уточнена');
+  win.eval("reg='items'; activeFilter.items={ban:'просрочен'}; quickSearch.items=''");
+  const rows = win.filterRows(win.rowsItems());
+  ok(rows.length > 0, 'отбор по просроченному запрету непустой');
+  ok(rows.every(r => r.sort.ban === 'просрочен'), 'в отборе только просроченные запреты');
+  // обе оси одновременно — комбинация «в залоге» + «запрет не наложен» выразима
+  win.eval("activeFilter.items={st:'в залоге', ban:'не наложен'}");
+  const both = win.filterRows(win.rowsItems());
+  ok(both.every(r => r.sort.st === 'в залоге' && r.sort.ban === 'не наложен'),
+    'дефект оформления (залог без запрета) отбирается одним запросом');
+});
+
+// ПЗ-Д8: просрочка переоценки — только у обременённого предмета. Освобождённый три года
+// назад предмет висел просроченным вечно и засорял рабочую очередь мониторинга.
+test('W8-3 (ПЗ-Д8): переоценка не просрочена у предмета, который никого не обеспечивает', () => {
+  const { zt } = load();
+  const it = zt.item('П-008');                       // освобождён, lastReval 05.01.2024, интервал 12 мес.
+  eq(zt.lienStatus(it), 'освобождён', 'предпосылка: предмет освобождён');
+  no(zt.banRequired(it), 'предпосылка: предмет ничего не обеспечивает');
+  ok(zt.nextReval(it) === '05.01.2025', 'плановая дата переоценки считается и показывается');
+  no(zt.revalOverdue(it), 'но просроченной она не объявляется');
+  const objs = zt.triggers().filter(t => t.type === 'Просрочен контроль: переоценка').map(t => t.obj);
+  ok(!objs.includes('П-008') && !objs.includes('П-031'), 'освобождённые предметы не в очереди мониторинга');
+  ok(objs.length > 0 && objs.every(id => zt.banRequired(zt.item(id))),
+    'в очереди остались только обременённые предметы');
+});
+
+// ПЗ-9 / ПЗ-Д3: сортировка идентификатора по числовому суффиксу. Строковый порядок
+// кладёт «П-1000» ПЕРЕД «П-999» — посимвольно 1 < 9.
+test('W8-4 (ПЗ-9): идентификатор сортируется числом, а не строкой', () => {
+  const { win, zt } = load();
+  eq(zt.HEADS.items[0], 'Идентификатор', 'заголовок больше не читается как номер строки');
+  eq(zt.SORT_KEYS.items[0], 'idn', 'сортировка по числовому суффиксу');
+  eq(zt.idNum('П-1000'), 1000, 'суффикс разбирается числом');
+  ok(zt.idNum('П-1000') > zt.idNum('П-999'), 'П-1000 больше П-999 (строкой было наоборот)');
+  ok('П-1000'.localeCompare('П-999', 'ru') < 0, 'контроль: строковый порядок действительно ломался');
+  win.eval("reg='items'; activeFilter.items={}; quickSearch.items=''; sortKey=0; sortDir=1");
+  const rows = win.__zt.sortedRows('items');
+  const ids = rows.map(r => r.sort.idn);
+  ok(ids.every((v, i) => i === 0 || ids[i-1] <= v), 'набор отсортирован по возрастанию номера');
+});
+
+// ПЗ-13 / ПЗ-Д7 (Р-44): валюта в реестре. Печатная опись её выводила, реестр молчал —
+// один модуль давал два ответа, и столбец провоцировал сложить сомы с долларами.
+test('W8-5 (ПЗ-13): залоговая стоимость подписана валютой и раскрывает расчёт', () => {
+  const { zt } = load();
+  const it = zt.item('П-001'), cell = zt.pledgeCell(it);
+  has(cell, zt.itemCcyLabel(it), 'валюта выведена в ячейке');
+  has(cell, 'title=', 'расчёт раскрыт тултипом');
+  has(zt.pledgeTip(it), '×', 'тултип показывает оценочную × коэффициент');
+  has(zt.pledgeTip(it), it.apprReport, 'тултип называет отчёт оценщика');
+  has(zt.pledgeCell(zt.item('П-004')), 'оценка устарела', 'протухшая оценка помечена (Р-47)');
+  hasNot(zt.pledgeCell(zt.item('П-001')), 'оценка устарела', 'свежая оценка не помечена');
+});
+
+// ПЗ-10: вид залога в одиночку задаёт семь следствий, и ни одного не было видно.
+test('W8-6 (ПЗ-10): вид несёт пилюлю ликвидности и сводку следствий', () => {
+  const { zt } = load();
+  has(zt.kindCell(zt.item('П-001')), 'ликвид', 'ликвидный вид помечен пилюлей');
+  hasNot(zt.kindCell(zt.item('П-002')), '>ликвид<', 'неликвидный вид пилюли не получает');
+  const tip = zt.kindTip(zt.item('П-002'));
+  has(tip, 'коэффициент', 'тултип раскрывает коэффициент');
+  has(tip, 'порог', 'тултип раскрывает порог покрытия');
+  has(tip, 'орган', 'тултип называет регистрирующий орган');
+  has(tip, 'переоценка', 'тултип называет интервал переоценки');
+});
+
+// ПЗ-11 + ПЗ-Д5: производный ident попадал только в поисковый индекс — найти предмет по
+// кадастровому номеру было можно, а увидеть его в найденной строке нельзя.
+test('W8-7 (ПЗ-11): наименование несёт вторую строку с идентификатором, ссылку и title', () => {
+  const { zt } = load();
+  const it = zt.item('П-001'), cell = zt.nameCell(it);
+  has(cell, it.ident, 'идентификатор виден второй строкой');
+  has(cell, 'title=', 'ячейка имеет подсказку (при table-layout:fixed текст обрежется)');
+  has(cell, 'rowlink', 'наименование — ссылка (ПЗ-16: открытие обнаружимо)');
+  has(cell, "openCard('item'", 'ссылка ведёт в карточку предмета');
+});
+
+// ПЗ-12 (§5): имущественный залог третьего лица — отдельная конструкция с собственным
+// составом предпосылок (Р-5), гейтующим регистрацию договора. В колонке было только имя.
+test('W8-8 (ПЗ-12): залог третьего лица помечен, у свободного предмета признак не выдумывается', () => {
+  const { zt } = load();
+  const third = zt.thirdPartyPledge(zt.item('П-004'));
+  ok(third && third.third === true, 'П-004: залогодатель не заёмщик — третье лицо');
+  has(zt.pledgerCell(zt.item('П-004')), 'третье лицо', 'пилюля выведена');
+  ok(third.borrowers.length > 0, 'тултип называет, чей это кредит');
+  ok(zt.thirdPartyPledge(zt.item('П-002')) .third === false, 'П-002: залогодатель = заёмщик');
+  hasNot(zt.pledgerCell(zt.item('П-002')), 'третье лицо', 'своему залогодателю пилюля не ставится');
+  eq(zt.thirdPartyPledge(zt.item('П-007')), null, 'свободный предмет: сравнивать не с чем — null, не false');
+  hasNot(zt.pledgerCell(zt.item('П-007')), 'третье лицо', 'у свободного предмета признака нет');
+});
+
+// ПЗ-19: реестр нигде не связывал актив с обязательством, хотя для строки «в залоге»
+// это первый вопрос после «чьё».
+test('W8-9 (ПЗ-19): колонка «Обеспечивает» и Σ по валютам в подвале', () => {
+  const { win, zt } = load();
+  eq(zt.HEADS.items[7], 'Обеспечивает', 'колонка заведена');
+  const sec = zt.itemSecures(zt.item('П-001'));
+  eq(sec.length, 2, 'П-001 обеспечивает два договора (перезалог)');
+  has(zt.securesCell(zt.item('П-001')), '2 дог.', 'счётчик в ячейке');
+  has(zt.securesCell(zt.item('П-001')), 'title=', 'перечень договоров и кредитов — в тултипе');
+  has(zt.securesCell(zt.item('П-007')), '—', 'свободный предмет — прочерк, не ноль');
+  win.eval("reg='items'; activeFilter.items={}; quickSearch.items=''; curPage=1; sortKey=null");
+  win.renderList();
+  const foot = win.document.getElementById('listFoot').innerHTML;
+  has(foot, 'Σ залоговой стоимости', 'подвал показывает итог');
+  has(foot, 'сом', 'итог разбит по валютам');
+  // итог считается по ОТФИЛЬТРОВАННОМУ набору, не по странице
+  win.eval("PAGE_SIZE=2; curPage=1"); win.renderList();
+  eq(win.document.querySelectorAll('#listBody tr').length, 2, 'на странице две строки');
+  has(win.document.getElementById('listFoot').innerHTML,
+    `${win.rowsItems().length} предмет`, 'а Σ — по всему отбору');
+});
+
+// ПЗ-15: сигнал без действия хуже, чем его отсутствие — рабочий слой живёт в «Мониторинге» (Р-41).
+test('W8-10 (ПЗ-15): колонка «Контроль» снята вместе с её бейджем', () => {
+  const { win, zt } = load();
+  eq(win.eval('typeof ctrlBadge'), 'undefined', 'ctrlBadge удалён как символ');
+  ok(!zt.HEADS.items.includes('Контроль'), 'колонки «Контроль» нет в таблице');
+  hasNot(zt.itemCard(zt.item('П-028')), 'по графику', 'бейджа контроля нет и в карточке');
+});
+
+// ПЗ-17: один предмет в двух режимах ОДНОГО списка должен описываться одинаково.
+test('W8-11 (ПЗ-17): карточка и строка таблицы описывают предмет одним набором признаков', () => {
+  const { win, zt } = load();
+  const it = zt.item('П-004');
+  const row = win.rowsItems().find(r => r.id === it.id), card = zt.itemCard(it);
+  [['ликвид', 'пилюля ликвидности'], ['третье лицо', 'признак третьего лица'],
+   ['оценка устарела', 'признак протухшей оценки'], [zt.itemCcyLabel(it), 'валюта']]
+    .forEach(([needle, what]) => {
+      has(row.cells.join(' '), needle, `таблица: ${what}`);
+      has(card, needle, `карточка: ${what}`);
+    });
+  has(card, zt.lienStatus(it), 'карточка: ось лиена');
+  has(card, zt.banStatus(it) === 'наложен' ? 'запрет наложен' : zt.banStatus(it), 'карточка: ось запрета');
+  has(card, 'data-id=', 'карточка адресуема для подсветки без перерисовки (ПЗ-Д9)');
+});
+
+// ПЗ-Д10: аватар — главный опознавательный элемент карточного вида.
+test('W8-12 (ПЗ-Д10): иконка заведена на каждый вид залога', () => {
+  const { win, zt } = load();
+  const icons = win.eval('Object.keys(KIND_ICONS)');
+  Object.keys(zt.KINDS).forEach(k => ok(icons.includes(k), `иконка для вида «${k}»`));
+  eq(icons.length, Object.keys(zt.KINDS).length, 'лишних ключей в KIND_ICONS нет');
+});
+
+// ПЗ-5: поиск по сумме не работал так, как её видит пользователь (fmt даёт неразрывный пробел).
+test('W8-13 (ПЗ-5): сумма исключена из поискового индекса, подпись поля названа по существу', () => {
+  const { win, zt } = load();
+  ok(zt.SEARCH_SKIP.items.includes('pledge'), 'залоговая не входит в индекс');
+  win.eval("reg='items'; activeFilter.items={}; quickSearch.items='400000'");
+  eq(win.filterRows(win.rowsItems()).length, 0, 'по сырой сумме поиск больше не «почти работает»');
+  win.eval("quickSearch.items='WMA06'");
+  eq(win.filterRows(win.rowsItems()).length, 1, 'поиск по VIN работает (Р-38)');
+  win.eval("quickSearch.items='не наложен'");
+  ok(win.filterRows(win.rowsItems()).length > 0, 'ось запрета попала в индекс (ПЗ-3)');
+  has(zt.SEARCH_HINT.items, 'VIN', 'плейсхолдер называет идентификаторы');
+});
+
+// ПЗ-Д2 + ПЗ-8: счётчик склоняется и показывает базу отбора.
+test('W8-14 (ПЗ-Д2/ПЗ-8): склонение числительных и «N из M» в пейджере', () => {
+  const { win, zt } = load();
+  eq(zt.plural(1, 'предмет','предмета','предметов'), 'предмет', '1 предмет');
+  eq(zt.plural(3, 'предмет','предмета','предметов'), 'предмета', '3 предмета');
+  eq(zt.plural(21, 'предмет','предмета','предметов'), 'предмет', '21 предмет');
+  eq(zt.plural(11, 'предмет','предмета','предметов'), 'предметов', '11 предметов');
+  eq(zt.plural(0, 'предмет','предмета','предметов'), 'предметов', '0 предметов');
+  win.eval("reg='items'; activeFilter.items={}; quickSearch.items=''; curPage=1; PAGE_SIZE=50");
+  win.renderList();
+  const all = win.document.getElementById('pagerCount').textContent;
+  hasNot(all, 'из', 'без фильтра база не дублируется');
+  win.eval("activeFilter.items={ban:'просрочен'}"); win.renderList();
+  has(win.document.getElementById('pagerCount').textContent, ' из ', 'с фильтром видно, из скольких отобрано');
+});
+
+// ПЗ-8: размер страницы — предпочтение просмотра; справочник остаётся источником дефолта.
+test('W8-15 (ПЗ-8, ревизия Р-39): размер страницы правится в пейджере, края набора доступны', () => {
+  const { win, zt } = load();
+  win.eval("reg='items'; activeFilter.items={}; quickSearch.items=''; curPage=1; PAGE_SIZE=50");
+  eq(win.eval('PAGE_SIZE_DEFAULT'), 50, 'справочник задаёт дефолт');
+  win.onPageSize('25');
+  eq(win.eval('PAGE_SIZE'), 25, 'пейджер меняет текущий размер');
+  eq(win.eval('PAGE_SIZE_DEFAULT'), 50, 'дефолт справочника при этом не трогается');
+  eq(win.eval('curPage'), 1, 'смена размера возвращает на первую страницу');
+  const nav = win.document.getElementById('pagerNav').innerHTML;
+  has(nav, 'gotoPage(1)', 'кнопка «в начало»');
+  has(nav, 'В конец', 'кнопка «в конец»');
+  ok(zt.PAGE_SIZES.length === 4, 'набор размеров задан');
+});
+
+// ПЗ-18: выходы из двух пустых состояний противоположные, а панель фильтра свёрнута.
+test('W8-16 (ПЗ-18): пустое состояние различает «реестр пуст» и «фильтр не нашёл»', () => {
+  const { win, zt } = load();
+  win.eval("reg='items'; activeFilter.items={}; quickSearch.items=''");
+  const empty = zt.emptyState(0), notFound = zt.emptyState(2);
+  has(empty, 'Предметов в реестре пока нет', 'пустой реестр назван прямо');
+  has(empty, 'onNew()', 'из пустого реестра ведёт кнопка создания');
+  has(notFound, 'ничего не найдено', 'ненайденное названо прямо');
+  has(notFound, 'resetFilter()', 'из ненайденного ведёт сброс условий');
+  has(notFound, '2 условия', 'сказано, сколько условий стоит');
+  win.eval("activeFilter.items={name:'заведомо-несуществующее'}"); win.renderList();
+  has(win.document.getElementById('listBody').innerHTML, 'Сбросить условия', 'в таблице показан нужный случай');
+});
+
+// ПЗ-Д1: два разных ответа на один вопрос, побеждал нарисованный позже.
+test('W8-17 (ПЗ-Д1): активные условия считаются в одном месте', () => {
+  const { win, zt } = load();
+  win.eval("reg='items'; activeFilter.items={ban:'просрочен'}; quickSearch.items='склад'");
+  eq(zt.activeConditions(), 2, 'поиск считается наравне со структурным условием');
+  win.renderList();
+  const afterList = win.document.getElementById('jfSummary').textContent;
+  win.renderFilterPanel();
+  eq(win.document.getElementById('jfSummary').textContent, afterList,
+    'панель и список дают одну и ту же подпись');
+  has(afterList, '2 условия', 'подпись склоняется');
+});
+
+// ПЗ-Д9: renderList ради подсветки одной строки пересчитывал весь экран.
+test('W8-18 (ПЗ-Д9): выделение строки не перерисовывает список', () => {
+  const { win } = load();
+  win.eval("reg='items'; activeFilter.items={}; quickSearch.items=''; curPage=1; PAGE_SIZE=50");
+  win.renderList();
+  const before = win.document.getElementById('listBody').innerHTML;
+  let calls = 0;
+  const orig = win.rowsItems;
+  win.rowsItems = function(){ calls++; return orig.apply(this, arguments); };
+  win.selectRow('П-003');
+  eq(calls, 0, 'строки заново не строятся');
+  win.rowsItems = orig;
+  const strip = h => String(h).replace(/ class="sel"/g, '');
+  eq(strip(win.document.getElementById('listBody').innerHTML), strip(before),
+    'разметка не пересобрана — изменился только класс подсветки');
+  const sel = win.document.querySelector('#listBody tr.sel');
+  ok(sel && sel.dataset.id === 'П-003', 'подсветка переехала на выбранную строку');
+});
+
+// ПЗ-16: двойной клик был единственным путём в карточку.
+test('W8-19 (ПЗ-16): у строки есть клавиатурный путь и фокус', () => {
+  const { win } = load();
+  win.eval("reg='items'; activeFilter.items={}; quickSearch.items=''; curPage=1");
+  win.renderList();
+  const tr = win.document.querySelector('#listBody tr');
+  eq(tr.getAttribute('tabindex'), '0', 'строка фокусируема');
+  has(tr.getAttribute('onkeydown') || '', 'onRowKey', 'Enter обрабатывается');
+  eq(win.eval('typeof onRowKey'), 'function', 'обработчик существует');
+});
+
+// ПЗ-6 + ПЗ-Д12: выгрузка была зеркалом экрана — семь колонок из тридцати.
+test('W8-20 (ПЗ-6/ПЗ-Д12): выгрузка предметов широкая, оси разведены, числа складываются', () => {
+  const { win, zt } = load();
+  win.eval("reg='items'; activeFilter.items={}; quickSearch.items=''; sortKey=null");
+  const csv = zt.buildCsv('items'), lines = csv.split('\r\n'), head = lines[0];
+  ok(zt.CSV_PROFILES.items.length >= 20, 'профиль выгрузки шире экрана');
+  ['Оценочная стоимость','Коэффициент вида','Дата оценки','Оценщик','Лицензия оценщика',
+   'Идентификатор объекта','Количество','Правоустанавливающий документ','Страховой полис',
+   'Запрет — рег. №','Валюта','Договоры','Кредиты']
+    .forEach(h => has(head, h, `в шапке есть «${h}»`));
+  has(head, '"Статус залога";"Запрет на отчуждение"', 'оси разведены по своим полям (ПЗ-Д12)');
+  const row = lines.find(l => l.startsWith('"П-001"'));
+  has(row, '"400000,00"', 'деньги — сырым форматом, Excel их сложит');
+  hasNot(row, ' ', 'неразрывного пробела в файле нет');
+  hasNot(row, '<span', 'разметка в файл не попадает');
+  // фильтр по-прежнему применяется, выгружается весь набор, а не страница
+  win.eval("activeFilter.items={ban:'просрочен'}; PAGE_SIZE=1");
+  eq(zt.buildCsv('items').split('\r\n').length - 1, win.filterRows(win.rowsItems()).length,
+    'выгружается весь отобранный набор');
+});
+
+// ПЗ-Д13: width:100% + table-layout:fixed молча ужимают колонки вместо прокрутки.
+test('W8-21 (ПЗ-Д13): таблица держит минимум ширины, гибкая колонка не схлопывается', () => {
+  const { win, zt } = load();
+  const min = zt.gridMinWidth('items');
+  const fixed = zt.WIDTHS.items.filter(Boolean).reduce((s,w) => s + parseInt(w,10), 0);
+  eq(min, fixed + zt.GRID_FLEX_MIN, 'минимум = Σ фиксированных + запас на гибкую');
+  ok(min > 1080, 'минимум выше полезной ширины экрана 1440 — значит нужна прокрутка, а не сжатие');
+  win.eval("reg='items'; activeFilter.items={}; quickSearch.items=''");
+  win.renderList();
+  eq(win.document.getElementById('listGrid').style.minWidth, min + 'px', 'минимум проставлен на таблицу');
+  win.eval("reg='monitor'"); win.renderList();
+  ok(parseInt(win.document.getElementById('listGrid').style.minWidth,10) < min,
+    'у реестра с узким набором колонок свой минимум — лишнего скролла нет');
+});
+
+// ПЗ-Д4: вид подставлялся в разметку без esc(), тогда как соседние поля экранировались.
+test('W8-22 (ПЗ-Д4): все ячейки строки экранируются, включая вид залога', () => {
+  const { win, zt } = load();
+  const it = zt.item('П-007');
+  it.kind = 'Товары <script>alert(1)</script>';
+  zt.KINDS[it.kind] = { k:0.4, reval:6, organ:'Тест', liquid:false, movable:true, liquidityRank:1 };
+  const row = win.rowsItems().find(r => r.id === 'П-007');
+  hasNot(row.cells[1], '<script>', 'вид экранирован');
+  has(row.cells[1], '&lt;script&gt;', 'экранирован именно он, а не выброшен');
+});
+
+// ПЗ-Д6: clientName молча возвращал сырой ИНН — 14 цифр, неотличимые от штатного поведения.
+test('W8-23 (ПЗ-Д6): неразрешённая ссылка на клиента названа, а не подменена цифрами', () => {
+  const { zt } = load();
+  const it = zt.item('П-007');
+  ok(zt.clientKnown(it.pledger), 'предпосылка: обычный залогодатель разрешается');
+  hasNot(zt.pledgerCell(it), 'ИНН не найден', 'у разрешённого клиента метки нет');
+  it.pledger = '00000000000000';
+  has(zt.pledgerCell(it), 'ИНН не найден', 'неразрешённая ссылка помечена явно');
+});
+
+// ПЗ-4: форма приёма не собирает обязательный комплект документов (Р-56) — он на вкладке
+// «Документы» карточки. Возврат в список оставлял запись с триггером, а пользователя — в реестре.
+test('W8-24 (ПЗ-4): создание предмета из реестра открывает его карточку', () => {
+  const { win, zt } = load();
+  win.eval("reg='items'; openNewItem(null)");
+  const d = win.document, set = (id, v) => { d.getElementById(id).value = v; };
+  set('niName','Тестовый склад ПЗ-4'); set('niVal','150000'); set('niDate','2026-07-01');
+  set('niRep','ОЦ-ТЕСТ/01'); set('niLegalDoc','ГР-2026/999'); set('niQty','1');
+  set('nd_cadastre','9-99-99-9999'); set('nd_address','г. Бишкек, тест, 1');
+  d.getElementById('niCirculable').checked = true;    // Р-18: стоп-лист §3.5
+  const before = zt.ITEMS.length;
+  win.saveNewItem();
+  eq(zt.ITEMS.length, before + 1, 'предмет создан');
+  const it = zt.ITEMS[zt.ITEMS.length - 1];
+  eq(win.eval('cur && cur.type'), 'item', 'открыта карточка предмета, а не список');
+  eq(win.eval('cur && cur.id'), it.id, 'именно созданного');
+  eq(win.eval('reg'), 'items', 'реестр под карточкой — предметы');
+  /* Повод решения: сразу после приёма запись не закончена — она никого не обеспечивает и
+     запрета на ней нет, а продолжение работы (документы, привязка, наложение запрета) живёт
+     на вкладках карточки, которых из списка не видно.
+     Оговорка стенда: обязательный комплект документов (Р-56) здесь ВЫГЛЯДИТ полным — его
+     достраивают синтетические дефолты демо-стенда (autoFiles, Р-46/Р-47). В рабочей системе
+     этой достройки нет, и запись остаётся с триггером «Неполный комплект документов». */
+  eq(zt.itemSecures(it).length, 0, 'новая запись пока ничего не обеспечивает');
+  ok(!it.ban, 'запрета на ней нет');
+});
+
+// ПЗ-7: в карточном виде заголовки скрыты вместе с sortBy — порядок применялся, но
+// пользователь его не видел и сменить не мог.
+test('W8-25 (ПЗ-7): карточный вид получает своё управление сортировкой', () => {
+  const { win } = load();
+  win.eval("reg='items'; activeFilter.items={}; quickSearch.items=''; listView.items='cards'; sortKey=4; sortDir=1");
+  win.renderList();
+  const wrap = win.document.getElementById('cardsSort');
+  ok(wrap.classList.contains('on'), 'панель сортировки показана в карточном виде');
+  const opts = win.document.getElementById('cardsSortKey').innerHTML;
+  has(opts, 'Залоговая стоимость', 'сортируемые колонки перечислены');
+  has(opts, 'value="4" selected', 'текущий ключ выбран');
+  eq(win.document.getElementById('cardsSortDir').textContent, '↑', 'направление показано');
+  win.toggleSortDir();
+  eq(win.eval('sortDir'), -1, 'направление переключается');
+  win.onCardsSort('0');
+  eq(win.eval('sortKey'), 0, 'ключ сортировки меняется из карточного вида');
+  win.eval("listView.items='table'"); win.renderList();
+  no(win.document.getElementById('cardsSort').classList.contains('on'), 'в таблице панель скрыта');
+});
+
+// ПЗ-2: контролы стенда неотличимы от продуктовых — читатель ТЗ впишет «переключатель даты»
+// в требования. Убирать нельзя: «Дата стенда» двигает ось запрета.
+test('W8-26 (ПЗ-2): контролы стенда обозначены как демо-скаффолд и продолжают работать', () => {
+  const { win, zt } = load();
+  const box = win.document.querySelector('.demo-scaffold');
+  ok(box, 'группа демо-скаффолда есть');
+  ok(box.querySelector('#standDate') && box.querySelector('#roleSel'), 'оба контрола внутри неё');
+  has(box.querySelector('.demo-tag').textContent, 'Демо-стенд', 'группа подписана');
+  const it = zt.item('П-017');
+  eq(zt.banStatus(it), 'не наложен', 'до сдвига даты: срок наложения ещё не истёк');
+  zt.setStandDate('01.01.2027');
+  eq(zt.banStatus(it), 'просрочен', 'дата стенда по-прежнему двигает ось запрета');
+  zt.setStandDate(zt.STAND_DATE_SEED);
 });
 
 report();
