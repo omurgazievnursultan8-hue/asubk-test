@@ -6,9 +6,10 @@
 <title>Заёмщик — карточка (v2) — АСУБК</title>
 <!-- ASUBK · Управление информацией о заёмщике — исполнимый MVP
      Язык: CONTEXT.md · Правило значений: docs/adr/0001-proizvodnye-ne-hranyatsya.md
-     Спека: docs/superpowers/specs/2026-07-23-borrower-rework-design.md
-            ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки) — обновляется после ревизии 26.07.2026
-     Проверка: node scripts/inspect/borrower-check.mjs  →  105/105 PASS (2026-07-26)
+     Спека: mockups/borrower/ASUBK-zaemshik-logika.md — правила вывода, инварианты с причиной, швы (СП-21)
+            docs/superpowers/specs/2026-07-23-borrower-rework-design.md
+            ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки); её место заняла спека выше
+     Проверка: node scripts/inspect/borrower-check.mjs  →  151/151 PASS (2026-07-26)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
@@ -26,6 +27,12 @@
                  действующих»; карточный вид снят; пагинация настоящая; ИНН в строке;
                  куратор разведён с дырой; колонка «Задолженность»; дефекты — модальность
                  отдельно от степени; полоса двух дат).
+     Продолжение: решения СП-15…СП-21 — там же (конструктор условий Jmix убран; пустое
+                 состояние называет условия и сбрасывает их целиком, включая поиск; создание
+                 входит через ИНН и различает лицо и роль, поэтому дубль ИНН недостижим;
+                 поля формы в двух уровнях, орг-форма только у юр. лица; удаление — в
+                 карточке, только субъекта, только при нуле ссылок; три плашки рабочих
+                 списков без сохранения — «мои» не сделан, идентичности пользователя нет).
 -->
 <style>
   :root{
@@ -260,6 +267,56 @@
   #listTable tbody td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .grid-wrap{border:1px solid var(--border-strong);border-radius:6px;overflow:auto;max-height:60vh;background:#fff;}
   .empty-rows{padding:34px 16px;text-align:center;color:var(--text-muted);font-size:14px;}
+  /* СП-16: пустое состояние называет условия, из-за которых стало пусто. Панель фильтра
+     стартует свёрнутой, поэтому без этого причина нуля строк не видна вовсе. */
+  .empty-conds{margin:10px auto 0;max-width:640px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;}
+  .empty-cond{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:11px;font-size:12px;
+    background:var(--surface-hover);border:1px solid var(--border-default);color:var(--text-body);}
+  .empty-cond b{font-weight:600;}
+  .empty-act{margin-top:14px;}
+
+  /* ---------- СП-20: плашки-пресеты рабочих очередей ----------
+     Проставляют значения в те же поля панели фильтра, поэтому чипс и панель не могут
+     разойтись. Отдельного состояния и хранения нет: пресет — это набор значений, а не запись. */
+  .qchips{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 4px;}
+  .qchips-lbl{font-size:13px;color:var(--text-muted);}
+  .qchip{padding:5px 12px;border:1px solid var(--border-strong);border-radius:14px;background:#fff;
+    color:var(--text-link);font-family:var(--asubk-font);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .qchip:hover{background:var(--surface-hover);}
+  .qchip.on{background:var(--action-primary);border-color:var(--action-primary);color:#fff;}
+
+  /* ---------- модальное окно (СП-17/18 — создание, СП-19 — подтверждение удаления) ---------- */
+  .modal-back{position:fixed;inset:0;background:rgba(20,32,48,.45);display:flex;align-items:flex-start;
+    justify-content:center;padding:48px 16px;overflow:auto;z-index:50;}
+  .modal-back[hidden]{display:none;}
+  .modal{background:#fff;border-radius:10px;box-shadow:0 12px 40px rgba(20,32,48,.28);width:100%;max-width:620px;}
+  .modal-head{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border-default);}
+  .modal-head h3{margin:0;font-size:17px;font-weight:600;color:var(--text-body);flex:1;}
+  .modal-x{width:28px;height:28px;border:none;border-radius:var(--radius-md);background:var(--surface-hover);
+    color:var(--text-muted);cursor:pointer;font-size:17px;line-height:1;}
+  .modal-body{padding:18px 20px;}
+  .modal-foot{display:flex;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid var(--border-default);}
+  .modal-foot .sp{flex:1;}
+  .btn[disabled]{opacity:.45;cursor:not-allowed;}
+  .fform{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 18px;}
+  .fform .wide{grid-column:1/-1;}
+  .frow{display:flex;flex-direction:column;gap:4px;min-width:0;}
+  .frow label{font-size:13px;font-weight:500;color:var(--text-muted);}
+  .frow label .req{color:var(--status-error);}
+  .frow input,.frow select{height:34px;font-size:14px;}
+  .fhint{font-size:12px;color:var(--text-muted);margin-top:2px;}
+  .ferr{font-size:12px;color:var(--status-error);margin-top:2px;}
+  .fsect{grid-column:1/-1;margin-top:4px;padding-top:12px;border-top:1px solid var(--border-default);}
+  .fsect > summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--text-link);list-style:none;}
+  .fsect > summary::-webkit-details-marker{display:none;}
+  .fsect > summary::before{content:'▸ ';}
+  .fsect[open] > summary::before{content:'▾ ';}
+  .fsect .fform{margin-top:12px;}
+  .found-box{border:1px solid var(--border-default);border-radius:8px;padding:12px 14px;background:var(--surface-hover);}
+  .found-box .fb-name{font-size:15px;font-weight:600;color:var(--text-body);}
+  .found-box dl{margin:10px 0 0;display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:13px;}
+  .found-box dt{color:var(--text-muted);}
+  .found-box dd{margin:0;color:var(--text-body);}
 
   /* ---------- сегментный переключатель ----------
      Из реестра он убран (СП-10), но живёт внутри карточки: «Взыскание» (по процессам /
@@ -668,13 +725,20 @@
                 Обновить
               </button>
               <button class="btn btn-secondary" id="fReset">Сбросить</button>
-              <button class="btn-tertiary" id="fAddCond">+ Условие поиска</button>
-              <span style="flex:1"></span>
-              <button class="btn-icon" title="Настройки фильтра">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              </button>
+              <!-- СП-15: «+ Условие поиска» и шестерёнка «Настройки фильтра» убраны. Это был
+                   типовой конструктор условий Jmix (04-zaemshchik.md §4.1) — обработчиков он
+                   в макете не имел, а произвольная пара условий возвращает ровно тот дефект,
+                   который СП-3 погасил структурно: «Группа = 1» + «Подгруппа = 2.1» и всегда
+                   ноль строк. Механику отдаём платформе, знание остаётся в СП-4/СП-5/СП-20. -->
             </div>
           </div>
+        </div>
+
+        <!-- СП-20: рабочие очереди одним нажатием. Пресет «мои» не сделан намеренно:
+             идентичности пользователя в макете нет ([admin] — литерал в шапке), а среди
+             кураторов сида его нет, так что вычислить «мои» нечем. -->
+        <div class="qchips" id="qchips">
+          <span class="qchips-lbl">Рабочие списки:</span>
         </div>
 
         <div class="jt">
@@ -721,7 +785,10 @@
             </thead>
             <tbody id="listBody"></tbody>
           </table>
-          <div class="empty-rows" id="listEmpty" hidden>Записей не найдено — измените условия фильтра.</div>
+          <!-- СП-16: содержимое строит renderEmpty() — условия называются человеческими
+               метками и сбрасываются одним нажатием. «Измените условия фильтра» без списка
+               условий было тупиком: панель свёрнута, наружу торчит только число в бейдже. -->
+          <div class="empty-rows" id="listEmpty" hidden></div>
         </div>
 
       </div>
@@ -740,6 +807,19 @@
         <div id="subjectMount"></div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Одно модальное окно на две операции: создание (СП-17/18) и подтверждение удаления (СП-19).
+     Второго окна не заводим — оба случая это «заголовок + тело + кнопки». -->
+<div class="modal-back" id="mBack" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="modal-head">
+      <h3 id="mTitle"></h3>
+      <button class="modal-x" id="mClose" title="Закрыть">✕</button>
+    </div>
+    <div class="modal-body" id="mBody"></div>
+    <div class="modal-foot" id="mFoot"></div>
   </div>
 </div>
 
@@ -3181,9 +3261,47 @@ function renderList(){
       <td>${r.debt ? fmt(r.debt) + ' <span class="muted">KGS</span>' : '<span class="muted">—</span>'}</td>
       <td>${defCell(r)}</td>
       <td>${curatorCell(r)}</td></tr>`).join('');
-  document.getElementById('listEmpty').hidden = rows.length > 0;
+  const em = document.getElementById('listEmpty');
+  em.hidden = rows.length > 0;
+  if (!rows.length) em.innerHTML = renderEmpty();
   renderPager(rows.length, from, slice.length);
   renderListAsOf();
+  renderChips();
+}
+/* ---------- СП-16: пустое состояние называет условия ----------
+   Метки берутся из FIELD_LABEL, значения — из того же `active`, что кормит бейдж и выгрузку.
+   Ни одна подпись не вписана в разметку: список условий меняется вместе с фильтром. */
+const FIELD_LABEL = {
+  q:'Поиск', sector:'Отрасль', region:'Область', district:'Район',
+  grp:'Классификатор', cat:'Категория риска', curator:'Куратор',
+  ovFrom:'Просрочка от', ovTo:'Просрочка до', def:'Дефекты'
+};
+const DEF_LABEL = { stop:'есть стоп', high:'есть высокие', any:'есть любые', none:'нет' };
+/* Значение условия человеческим текстом. Коды (`na`, `none`, «2» как вся группа) наружу
+   не выходят — по тому же правилу, по которому СП-7 не печатает `none` в плитке карточки. */
+function condValLabel(k, v){
+  if (k === 'grp'){
+    if (NO_LADDER.has(v)) return SUBGROUP_LABEL[v];
+    return v.includes('.') ? v + '. ' + (SUBGROUP_LABEL[v] || '') : v + ' — вся группа';
+  }
+  if (k === 'cat')     return v === CAT_NA ? 'не применяется' : v;
+  if (k === 'curator') return v === CURATOR_NONE ? 'без куратора' : v;
+  if (k === 'def')     return DEF_LABEL[v] || v;
+  if (k === 'ovFrom' || k === 'ovTo') return v + ' дн.';
+  return v;
+}
+function activeConds(){
+  return FIELDS.filter(f => active[f.key])
+    .map(f => ({ k:f.key, label:FIELD_LABEL[f.key] || f.key, val:condValLabel(f.key, active[f.key]) }));
+}
+function renderEmpty(){
+  const cs = activeConds();
+  if (!cs.length) return 'Записей нет.';
+  return 'Записей не найдено.'
+    + '<div class="empty-conds">' + cs.map(c =>
+        '<span class="empty-cond">' + esc(c.label) + ': <b>' + esc(c.val) + '</b></span>').join('') + '</div>'
+    + '<div class="empty-act"><button class="btn btn-secondary btn-sm" onclick="resetFilter()">'
+    + 'Сбросить ' + (cs.length === 1 ? 'условие' : 'все условия') + '</button></div>';
 }
 /* Куратор: фамилия и дыра — раздельно (СП-12). */
 function curatorCell(r){
@@ -5115,6 +5233,17 @@ function renderCard(inn){
     + ` onchange="setAsOf(this.value)" style="width:150px">`
     + (asOf() !== TODAY ? `<span class="badge b-ov">срез ${esc(asOf())}, не сегодня</span>` : '')
     + `<span class="muted">· деньги — снимок на ${esc(DEBT_ASOF)}, дате среза не подчиняются</span>`
+    /* СП-19: удаление живёт здесь, а не в списке. В списке его ставить некуда — СП-8 убрал
+       чекбоксы, и самое необратимое действие делалось бы по строке, где реквизитов не видно.
+       Кнопка неактивна при любой связи, причина — в подписи, до нажатия. */
+    + (() => {
+        const bl = deleteBlockers(inn);
+        return `<span style="flex:1"></span>`
+          + `<button class="btn btn-secondary btn-sm" onclick="askDelete('${esc(inn)}')"`
+          + (bl.length ? ` disabled title="нельзя удалить: ${esc(bl.join('; '))}"`
+                       : ` title="связей нет — запись можно удалить"`)
+          + `>Удалить запись</button>`;
+      })()
     + `</div>`;
   return `${asOfBar}<div class="phead-dims">${tiles}</div>${banner}${tabbar}${panels}`;
 }
@@ -5193,6 +5322,8 @@ const fmt = n => n.toLocaleString('ru-RU');
 const stamp = (d, t) => (d && d !== '—') ? (t ? d + ' · ' + t : d) : '—';
 /* дд.мм.гггг → ISO (для <input type="date">) */
 const toISO = s => { const [d,m,y] = s.split('.'); return y + '-' + m + '-' + d; };
+/* Обратное преобразование: <input type="date"> отдаёт ISO, модель хранит ДД.ММ.ГГГГ. */
+const fromISO = s => { if (!s) return ''; const [y,m,d] = s.split('-'); return d + '.' + m + '.' + y; };
 function empty(txt){ return '<div class="empty-rows">' + txt + '</div>'; }
 function sect(title, hint, actions, body){
   /* без заголовка секция рисуется без рамки-карточки (класс bare) */
@@ -5374,6 +5505,44 @@ function fillFilterDicts(){
   ]);
 }
 
+/* ---------- СП-20: рабочие списки ----------
+   Пресет — набор значений полей фильтра, а не отдельная сущность: нажатие пишет в те же
+   `f-*`, что и панель, поэтому чипс и панель разойтись не могут (приём СП-3). Сохранения,
+   имён и прав нет намеренно — в макете их можно было бы держать только в localStorage,
+   то есть на браузер, а не на пользователя; такая механика соврала бы про реальную систему. */
+const PRESETS = [
+  { id:'def',  label:'С дефектами',    set:{ def:'any' } },
+  { id:'nocur',label:'Без куратора',   set:{ curator:CURATOR_NONE } },
+  { id:'ov90', label:'Просрочка 90+',  set:{ ovFrom:'90' } },
+];
+/* Пресет включён, если все его значения уже стоят в фильтре. Состояние выводится из полей,
+   а не хранится отдельным флагом — иначе подсветка и фильтр начнут расходиться. */
+const presetOn = p => Object.entries(p.set).every(([k, v]) => active[k] === v);
+function renderChips(){
+  const box = document.getElementById('qchips');
+  if (!box) return;
+  box.innerHTML = '<span class="qchips-lbl">Рабочие списки:</span>'
+    + PRESETS.map(p => '<button class="qchip' + (presetOn(p) ? ' on' : '') + '" data-preset="' + p.id + '">'
+        + esc(p.label) + '</button>').join('');
+}
+/* Повторное нажатие снимает пресет: он ставил значения — он же их и убирает. Прочие
+   условия не трогаются, пресет сужает текущую выборку, а не подменяет её. */
+function togglePreset(id){
+  const p = PRESETS.find(x => x.id === id);
+  if (!p) return;
+  const off = presetOn(p);
+  Object.entries(p.set).forEach(([k, v]) => {
+    const f = FIELDS.find(x => x.key === k);
+    const el = f && document.getElementById(f.el);
+    if (el) el.value = off ? '' : v;
+  });
+  applyFilter();
+}
+document.getElementById('qchips').addEventListener('click', e => {
+  const b = e.target.closest('[data-preset]');
+  if (b) togglePreset(b.dataset.preset);
+});
+
 /* ---------- фильтр и сортировка реестра ---------- */
 function redrawList(){ renderList(); }
 function applyFilter(){
@@ -5480,6 +5649,250 @@ function exportRows(){
   document.body.appendChild(a); a.click(); a.remove();
 }
 document.getElementById('tbExport').addEventListener('click', exportRows);
+
+/* ==================== модальное окно ====================
+   Одно на все операции. Тело и кнопки подаются вызывающим кодом — окно ничего не знает
+   ни о создании, ни об удалении. */
+function openModal(title, bodyHtml, footHtml){
+  document.getElementById('mTitle').textContent = title;
+  document.getElementById('mBody').innerHTML = bodyHtml;
+  document.getElementById('mFoot').innerHTML = footHtml;
+  document.getElementById('mBack').hidden = false;
+}
+function closeModal(){ document.getElementById('mBack').hidden = true; }
+document.getElementById('mClose').addEventListener('click', closeModal);
+document.getElementById('mBack').addEventListener('click', e => { if (e.target.id === 'mBack') closeModal(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('mBack').hidden) closeModal();
+});
+
+/* ==================== СП-17/18: создание ====================
+   Вход — ИНН, и только он. Дальше ветка: лицо в базе есть → показываем его реквизиты и
+   предлагаем перейти в карточку; лица нет → раскрываются поля создания субъекта.
+   Так дубль ИНН невозможен физически, а не отлавливается валидацией. Это важно: `inn` —
+   первичный ключ всех выводимых значений (`subgroupOf(inn,…)`, `totalDebt(inn)`, И-4),
+   и два субъекта с одним ИНН развалили бы их все.
+
+   Роль заёмщика при этом не создаётся и создана быть не может: по ADR-0001 она не хранится,
+   а выводится из наличия кредитов — субъект без кредитов и есть предрегистрация, СП-7 даёт
+   ему подгруппу «Кредитов не было». */
+const INN_LEN = 14;
+/* Проверяем длину и «только цифры». Контрольный разряд ИНН КР в репозитории не описан —
+   алгоритм в макете не выдумываем. */
+const innShape = v => /^\d{14}$/.test(v);
+
+function createBodyHtml(){
+  return '<div class="frow wide"><label for="cInn">ИНН <span class="req">*</span></label>'
+    + '<input type="text" id="cInn" inputmode="numeric" maxlength="' + INN_LEN + '" autocomplete="off"'
+    + ' placeholder="14 цифр">'
+    + '<div class="fhint">14 цифр и для юридических, и для физических лиц'
+    + ' (04-zaemshchik.md §3.1). Проверяется длина и состав, контрольный разряд — нет.</div>'
+    + '<div class="ferr" id="cInnErr"></div></div>'
+    + '<div id="cStage"></div>';
+}
+/* Найденное лицо: реквизиты только для чтения. Здесь ничего не редактируется — карточка
+   субъекта для этого и существует, а дублировать её поля в форме создания значило бы
+   завести второе место правки одних и тех же данных. */
+function foundHtml(s){
+  const roles = subjectRoles(s.inn);
+  return '<div class="found-box">'
+    + '<div class="fb-name">' + esc(s.name) + '</div>'
+    + '<dl>'
+    + '<dt>Тип лица</dt><dd>' + esc(personKindLabel(s.personKind)) + '</dd>'
+    + '<dt>Отрасль</dt><dd>' + esc(s.industry || '—') + '</dd>'
+    + '<dt>Район</dt><dd>' + esc(s.district || '—') + ' <span class="muted">('
+      + esc(regionOfDistrict(s.district)) + ')</span></dd>'
+    + '<dt>Роли</dt><dd>' + (roles.length
+        ? roles.map(r => esc(r.role)).join(' · ')
+        : '<span class="muted">ни одной — предрегистрация</span>') + '</dd>'
+    + '</dl></div>'
+    + '<div class="fhint" style="margin-top:10px">Лицо с этим ИНН уже зарегистрировано. Второй записи'
+    + ' не создаём: реквизиты у ролей общие (CONTEXT.md), роль заёмщика выводится из кредитов'
+    + ' и вручную не заводится.</div>';
+}
+/* Поля создания субъекта: обязательный блок + свёрнутый «остальное» (СП-18). Обязательны
+   ровно те, без которых запись выпадает из фильтров реестра (отрасль, район) или не
+   опознаётся (ИНН, наименование, тип, документ) — то есть по построению, а не по вкусу. */
+function createFieldsHtml(){
+  const sectors = [...new Set(SUBJECTS.map(s => s.industry).filter(Boolean))].sort();
+  const districts = [...new Set(SUBJECTS.map(s => s.district).filter(Boolean))].sort();
+  const sel = (id, label, items, req) =>
+    '<div class="frow"><label for="' + id + '">' + esc(label)
+      + (req ? ' <span class="req">*</span>' : '') + '</label><select id="' + id + '">'
+      + '<option value=""></option>'
+      + items.map(x => '<option value="' + esc(x) + '">' + esc(x) + '</option>').join('')
+      + '</select></div>';
+  const txt = (id, label, req, ph) =>
+    '<div class="frow"><label for="' + id + '">' + esc(label)
+      + (req ? ' <span class="req">*</span>' : '') + '</label>'
+      + '<input type="text" id="' + id + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '></div>';
+
+  return '<div class="fhint" style="margin:12px 0 10px">Лицо с таким ИНН не найдено — заводим субъекта.'
+    + ' Тип лица после создания не меняется (04-zaemshchik.md §1).</div>'
+    + '<div class="fform">'
+    + sel('cKind', 'Тип лица', ['Юр. лицо', 'ИП', 'Физ. лицо'], true)
+    + '<div class="frow" id="cLegalWrap" hidden><label for="cLegal">Организационная форма</label>'
+      + '<select id="cLegal"><option value=""></option>'
+      + ['ОсОО','ОАО','ЗАО','Учреждение','Кооператив'].map(x => '<option>' + x + '</option>').join('')
+      + '</select><div class="fhint">только для юридического лица</div></div>'
+    + '<div class="frow wide"><label for="cName">Наименование / ФИО <span class="req">*</span></label>'
+      + '<input type="text" id="cName" placeholder="ОсОО «…» или Фамилия Имя Отчество"></div>'
+    + sel('cSector', 'Отрасль', sectors, true)
+    + sel('cDistrict', 'Район', districts, true)
+    + txt('cDocKind', 'Вид документа', true, 'Свид. о рег. / Патент / Паспорт')
+    + txt('cDocNo', 'Номер документа', true)
+    + '<div class="frow"><label for="cDocDate">Дата документа <span class="req">*</span></label>'
+      + '<input type="date" id="cDocDate" max="' + toISO(TODAY) + '"></div>'
+    + '<div class="frow"><label for="cRegDate">Дата регистрации <span class="req">*</span></label>'
+      + '<input type="date" id="cRegDate" max="' + toISO(TODAY) + '"></div>'
+    + '<details class="fsect"><summary>Остальные реквизиты</summary><div class="fform">'
+      + sel('cOwn', 'Форма собственности', ['Частная','Государственная','Муниципальная'], false)
+      + '<div class="frow"></div>'
+      + '<div class="frow wide"><label for="cAddrL">Адрес юридический</label><input type="text" id="cAddrL"></div>'
+      + '<div class="frow wide"><label for="cAddrF">Адрес фактический</label><input type="text" id="cAddrF"></div>'
+      + '<div class="frow wide"><label for="cNote">Примечание</label><input type="text" id="cNote"></div>'
+    + '</div></details>'
+    + '</div>';
+}
+/* Реакция на ввод ИНН — единственный переключатель ветки. Пока ИНН не полон, тела нет:
+   форма не спрашивает ничего, чего ещё не может использовать. */
+function onInnInput(){
+  const el  = document.getElementById('cInn');
+  const err = document.getElementById('cInnErr');
+  const st  = document.getElementById('cStage');
+  el.value = el.value.replace(/\D/g, '').slice(0, INN_LEN);
+  const v = el.value;
+  err.textContent = '';
+  if (v.length < INN_LEN){
+    st.innerHTML = '';
+    if (v.length) err.textContent = 'ещё ' + (INN_LEN - v.length) + ' цифр';
+    setCreateBtn(null);
+    return;
+  }
+  const found = SUBJECTS.find(s => s.inn === v);
+  if (found){
+    st.innerHTML = foundHtml(found);
+    setCreateBtn('open', found.inn);
+  } else {
+    st.innerHTML = createFieldsHtml();
+    document.getElementById('cKind').addEventListener('change', e => {
+      /* Организационной формы у ИП и физлиц в модели нет — поле не показываем, а не гасим:
+         пустое значение в невидимом поле не породит запись с выдуманным реквизитом. */
+      document.getElementById('cLegalWrap').hidden = e.target.value !== 'Юр. лицо';
+      if (e.target.value !== 'Юр. лицо') document.getElementById('cLegal').value = '';
+      validateCreate();
+    });
+    st.querySelectorAll('input,select').forEach(x => {
+      x.addEventListener('input', validateCreate);
+      x.addEventListener('change', validateCreate);
+    });
+    setCreateBtn('create');
+    validateCreate();
+  }
+}
+const CREATE_REQ = ['cKind','cName','cSector','cDistrict','cDocKind','cDocNo','cDocDate','cRegDate'];
+function validateCreate(){
+  const btn = document.getElementById('mCreate');
+  if (!btn) return;
+  const ok = CREATE_REQ.every(id => { const el = document.getElementById(id); return el && el.value.trim(); });
+  btn.disabled = !ok;
+}
+/* Кнопка подвала зависит от ветки: найдено — «Открыть карточку», не найдено — «Создать». */
+function setCreateBtn(mode, inn){
+  const foot = document.getElementById('mFoot');
+  if (mode === 'open'){
+    foot.innerHTML = '<span class="sp"></span>'
+      + '<button class="btn btn-secondary" onclick="closeModal()">Закрыть</button>'
+      + '<button class="btn btn-primary" onclick="closeModal();location.hash=\'#/b/' + inn + '\'">'
+      + 'Открыть карточку</button>';
+  } else if (mode === 'create'){
+    foot.innerHTML = '<span class="sp"></span>'
+      + '<button class="btn btn-secondary" onclick="closeModal()">Отмена</button>'
+      + '<button class="btn btn-primary" id="mCreate" onclick="submitCreate()" disabled>Создать</button>';
+  } else {
+    foot.innerHTML = '<span class="sp"></span>'
+      + '<button class="btn btn-secondary" onclick="closeModal()">Отмена</button>'
+      + '<button class="btn btn-primary" disabled>Создать</button>';
+  }
+}
+const KIND_CODE = { 'Юр. лицо':'юр', 'ИП':'ИП', 'Физ. лицо':'физ' };
+function openCreate(){
+  openModal('Новый заёмщик', createBodyHtml(), '');
+  setCreateBtn(null);
+  const el = document.getElementById('cInn');
+  el.addEventListener('input', onInnInput);
+  el.focus();
+}
+function submitCreate(){
+  const val = id => (document.getElementById(id) || {}).value || '';
+  const inn = val('cInn');
+  if (!innShape(inn) || SUBJECTS.some(s => s.inn === inn)) return;
+  const kind = val('cKind');
+  const rec = {
+    inn, name: val('cName').trim(), personKind: KIND_CODE[kind] || 'юр',
+    ownershipForm: val('cOwn') || '—',
+    industry: val('cSector'), district: val('cDistrict'),
+    doc:{ kind: val('cDocKind').trim(), no: val('cDocNo').trim(), date: fromISO(val('cDocDate')) },
+    addrLegal: val('cAddrL').trim() || '—', addrFact: val('cAddrF').trim() || '—',
+    regDate: fromISO(val('cRegDate')),
+    note: val('cNote').trim() || 'предрегистрация: заявка ещё не подана, кредитов нет',
+    audit:{ by:'admin', date:TODAY, time:'12:00' },
+  };
+  if (kind === 'Юр. лицо' && val('cLegal')) rec.legalForm = val('cLegal');
+  SUBJECTS.push(rec);
+  closeModal();
+  /* Справочники строятся из данных (СП-5), значит новый район и отрасль должны в них попасть. */
+  fillFilterDicts();
+  applyFilter();
+  location.hash = '#/b/' + inn;
+}
+document.getElementById('tbAdd').addEventListener('click', openCreate);
+
+/* ==================== СП-19: удаление ====================
+   Удаляется субъект, а не роль: роль не хранится (ADR-0001), её удалять нечем. Разрешено
+   только при нуле ссылок — это ровно случай предрегистрации. Погашенный или безнадёжный
+   заёмщик из базы не уходит: у него событие заёмщика и подгруппа 4/5, а история нужна
+   категории (И-1) и группе. Причина запрета видна до нажатия, а не после отказа. */
+function deleteBlockers(inn){
+  const out = subjectRoles(inn).map(r => r.role.toLowerCase() + ' (' + r.scope + ')');
+  const evs = SUBJECT_EVENTS.filter(e => e.inn === inn);
+  if (evs.length) out.push('события субъекта: ' + evs.length);
+  return out;
+}
+function askDelete(inn){
+  const s = SUBJECTS.find(x => x.inn === inn);
+  if (!s) return;
+  const bl = deleteBlockers(inn);
+  if (bl.length){
+    openModal('Удалить нельзя',
+      '<div class="fhint" style="font-size:14px">На лице <b>' + esc(s.name) + '</b> (ИНН ' + esc(inn)
+      + ') есть связи, поэтому запись удалить нельзя:</div>'
+      + '<ul style="margin:10px 0 0;padding-left:20px;font-size:14px">'
+      + bl.map(b => '<li>' + esc(b) + '</li>').join('') + '</ul>'
+      + '<div class="fhint" style="margin-top:12px">Завершённый заёмщик закрывается событием'
+      + ' (полное погашение, признание безнадёжной, завершение банкротства) и остаётся в реестре —'
+      + ' на его истории стоят категория и группа.</div>',
+      '<span class="sp"></span><button class="btn btn-secondary" onclick="closeModal()">Понятно</button>');
+    return;
+  }
+  openModal('Удалить запись?',
+    '<div style="font-size:14px">Будет удалено лицо <b>' + esc(s.name) + '</b>, ИНН <b>' + esc(inn)
+    + '</b>.</div><div class="fhint" style="margin-top:8px">Связей нет: ни кредитов, ни обеспечения,'
+    + ' ни поручительств, ни событий. Действие необратимо, а в реестре такая запись выглядит'
+    + ' как любая другая — поэтому спрашиваем.</div>',
+    '<span class="sp"></span><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>'
+    + '<button class="btn btn-primary" onclick="doDelete(\'' + esc(inn) + '\')">Удалить</button>');
+}
+function doDelete(inn){
+  const i = SUBJECTS.findIndex(s => s.inn === inn);
+  if (i < 0) return;
+  if (deleteBlockers(inn).length) return;   /* повторная проверка: состояние могло измениться */
+  SUBJECTS.splice(i, 1);
+  closeModal();
+  fillFilterDicts();
+  location.hash = '#/';
+  applyFilter();
+}
 
 /* клик вне выпадающей группы «Сформировать» — закрыть меню */
 document.addEventListener('click', e => {

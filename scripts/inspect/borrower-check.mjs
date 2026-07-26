@@ -548,6 +548,230 @@ ok('СП-14. полоса над таблицей печатает обе дат
 ok('СП-9. экспорт есть и оттиск собирается с условиями и обеими датами',
   L.$('#tbExport') !== null && L.ev("typeof exportRows") === 'function');
 
+/* ── Экран списка: решения СП-15…СП-20 (продолжение гриллинга, ОВ-7…ОВ-12) ──────── */
+
+/* СП-15: типовой конструктор условий Jmix убран — оба контрола были без обработчиков,
+   а произвольная пара условий возвращает дефект, погашенный СП-3 структурно. */
+/* Сверяем по отрендеренному тексту и составу кнопок, а не по innerHTML: в разметке остался
+   комментарий с причиной удаления, и он законно содержит прежние подписи. */
+ok('СП-15. мёртвых контролов панели фильтра нет',
+  L.$('#fAddCond') === null &&
+  L.$$('.jf-actions .btn-icon').length === 0 &&
+  !/Условие поиска|Настройки фильтра/.test(L.$('.jf').textContent) &&
+  L.$$('.jf-actions button').every(b => /Обновить|Сбросить/.test(b.textContent)));
+
+/* СП-16: панель стартует свёрнутой, поэтому пустое состояние обязано само назвать условия. */
+/* Условия подбираются от данных, а не вписываются: подпись области в сиде — «Нарын», и
+   выдуманное «Нарынская» просто не попало бы ни в одну опцию, оставив селект пустым.
+   Прежняя редакция теста из-за этого проходила вхолостую — сверяем, что строк реально ноль. */
+ok('СП-16. пустое состояние называет активные условия человеческими метками',
+  (() => { const f = mk();
+    const reg = f.ev("[...document.getElementById('f-region').options].map(o=>o.value).filter(Boolean)[0]");
+    f.doc.getElementById('f-region').value = reg;
+    f.doc.getElementById('f-grp').value = 'none';        // «Кредитов не было» — есть ровно одна такая запись
+    f.doc.getElementById('f-def').value = 'stop';        // и дефектов у неё быть не может
+    f.ev("fillDistricts(); applyFilter();");
+    const em = f.$('#listEmpty');
+    const t = em.textContent;
+    return f.$$('#listTable tbody tr').length === 0 && !em.hidden
+      && t.includes('Область') && t.includes(reg)
+      && t.includes('Классификатор') && t.includes('Кредитов не было')
+      && t.includes('Дефекты') && t.includes('есть стоп')
+      && !/\bstop\b|\bnone\b/.test(t);                   // кодов наружу нет
+  })());
+ok('СП-16. пустое состояние даёт сброс, и сброс чистит в том числе поиск',
+  (() => { const f = mk();
+    f.doc.getElementById('f-q').value = 'заведомо-нет-такого';
+    f.doc.getElementById('f-cat').value = 'Высокий';
+    f.ev("applyFilter();");
+    const em = f.$('#listEmpty');
+    if (em.hidden || !em.querySelector('button')) return false;
+    f.ev("resetFilter();");
+    return f.doc.getElementById('f-q').value === ''
+      && f.doc.getElementById('f-cat').value === ''
+      && f.ev("Object.keys(active).length") === 0
+      && f.$('#listEmpty').hidden === true;
+  })());
+ok('СП-16. без условий пустое состояние не врёт про фильтр',
+  L.ev("Object.keys(active).length") === 0 && !/услови/i.test(L.ev("renderEmpty()")));
+
+/* СП-20: пресет — набор значений тех же полей, а не отдельное состояние. */
+ok('СП-20. три рабочих списка, «мои» нет (идентичности пользователя в макете нет)',
+  L.ev("PRESETS.length") === 3 &&
+  L.ev("PRESETS.map(p=>p.id).join(',')") === 'def,nocur,ov90' &&
+  !/Мои|мои/.test(L.$('#qchips').textContent) &&
+  L.$$('#qchips .qchip').length === 3);
+ok('СП-20. плашка пишет в поле фильтра и подсвечивается, повторное нажатие снимает',
+  (() => { const f = mk(); f.ev("pgSize = 1000; applyFilter();");
+    const all = f.$$('#listTable tbody tr').length;
+    f.ev("togglePreset('ov90');");
+    const on = f.$$('#qchips .qchip.on').length === 1
+      && f.doc.getElementById('f-ovFrom').value === '90'
+      && f.ev("active.ovFrom") === '90';
+    const cut = f.$$('#listTable tbody tr').length;
+    f.ev("togglePreset('ov90');");
+    const off = f.$$('#qchips .qchip.on').length === 0
+      && f.doc.getElementById('f-ovFrom').value === ''
+      && f.$$('#listTable tbody tr').length === all;
+    return on && off && cut < all;
+  })());
+ok('СП-20. подсветка выведена из полей: значение, введённое руками, включает плашку',
+  (() => { const f = mk();
+    f.doc.getElementById('f-def').value = 'any'; f.ev("applyFilter();");
+    return f.$$('#qchips .qchip.on').length === 1
+      && f.$('#qchips .qchip.on').textContent.includes('дефектами');
+  })());
+
+/* СП-17: ИНН — единственный вход, ветка выбирается по нему. Дубль ИНН невозможен формой. */
+ok('СП-17. «+ Добавить заёмщика» открывает форму, и она начинается с ИНН',
+  (() => { const f = mk();
+    if (!f.$('#mBack').hidden) return false;
+    f.ev("openCreate();");
+    return !f.$('#mBack').hidden && f.$('#cInn') !== null && f.$('#cStage').innerHTML === '';
+  })());
+ok('СП-17. существующий ИНН → реквизиты и переход в карточку, полей создания нет',
+  (() => { const f = mk(); f.ev("openCreate();");
+    const el = f.doc.getElementById('cInn');
+    el.value = f.ev("SUBJECTS[0].inn");
+    el.dispatchEvent(new f.w.Event('input'));
+    return f.$('.found-box') !== null && f.$('#cKind') === null
+      && f.$('#mFoot').textContent.includes('Открыть карточку')
+      && f.$('.found-box').textContent.includes(f.ev("SUBJECTS[0].name"));
+  })());
+ok('СП-17. неизвестный ИНН → поля создания субъекта',
+  (() => { const f = mk(); f.ev("openCreate();");
+    const el = f.doc.getElementById('cInn');
+    el.value = '99999999999999';
+    el.dispatchEvent(new f.w.Event('input'));
+    return f.$('#cKind') !== null && f.$('.found-box') === null && f.$('#mCreate') !== null;
+  })());
+ok('СП-17. неполный ИНН не показывает ни одну из ветвей',
+  (() => { const f = mk(); f.ev("openCreate();");
+    const el = f.doc.getElementById('cInn');
+    el.value = '112'; el.dispatchEvent(new f.w.Event('input'));
+    return f.$('#cStage').innerHTML === '' && f.$('#cInnErr').textContent.includes('11');
+  })());
+ok('СП-17. ИНН принимает только цифры и только 14',
+  L.ev("innShape('11101199900111')") === true &&
+  L.ev("innShape('1110119990011')") === false &&
+  L.ev("innShape('1110119990011a')") === false &&
+  (() => { const f = mk(); f.ev("openCreate();");
+    const el = f.doc.getElementById('cInn');
+    el.value = 'abc123-456'; el.dispatchEvent(new f.w.Event('input'));
+    return el.value === '123456'; })());
+
+/* СП-18: обязательны ровно те поля, без которых запись выпадает из фильтров реестра. */
+ok('СП-18. «Создать» заперта, пока обязательные поля пусты, и открывается их заполнением',
+  (() => { const f = mk(); f.ev("openCreate();");
+    const el = f.doc.getElementById('cInn');
+    el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
+    if (!f.$('#mCreate').disabled) return false;
+    f.ev("CREATE_REQ").forEach(id => {
+      const x = f.doc.getElementById(id);
+      x.value = x.tagName === 'SELECT' ? [...x.options].filter(o => o.value)[0].value
+              : (x.type === 'date' ? '2026-01-15' : 'тест');
+    });
+    f.ev("validateCreate();");
+    return f.$('#mCreate').disabled === false;
+  })());
+ok('СП-18. орг-форма показана только юр. лицу — у ИП и физлица её в модели нет',
+  (() => { const f = mk(); f.ev("openCreate();");
+    const el = f.doc.getElementById('cInn');
+    el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
+    if (!f.$('#cLegalWrap').hidden) return false;
+    const k = f.doc.getElementById('cKind');
+    k.value = 'Юр. лицо'; k.dispatchEvent(new f.w.Event('change'));
+    if (f.$('#cLegalWrap').hidden) return false;
+    k.value = 'ИП'; k.dispatchEvent(new f.w.Event('change'));
+    return f.$('#cLegalWrap').hidden === true && f.doc.getElementById('cLegal').value === '';
+  })());
+ok('СП-18. остальные реквизиты — во втором, свёрнутом уровне',
+  (() => { const f = mk(); f.ev("openCreate();");
+    const el = f.doc.getElementById('cInn');
+    el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
+    const d = f.$('.fsect');
+    return d !== null && d.hasAttribute('open') === false
+      && f.$('#cAddrL') !== null && f.$('#cAddrF') !== null && f.$('#cNote') !== null
+      && f.ev("CREATE_REQ.includes('cAddrL')") === false;
+  })());
+ok('СП-18. созданная запись попадает в реестр и находится фильтрами (иначе её нет)',
+  (() => { const f = mk(); f.ev("pgSize = 1000;");
+    const before = f.ev("SUBJECTS.length");
+    f.ev("openCreate();");
+    const el = f.doc.getElementById('cInn');
+    el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
+    const set = (id, v) => { f.doc.getElementById(id).value = v; };
+    set('cKind', 'Юр. лицо'); set('cName', 'ОсОО «Смоук Тест»');
+    set('cSector', f.ev("SUBJECTS[0].industry")); set('cDistrict', f.ev("SUBJECTS[0].district"));
+    set('cDocKind', 'Свид. о рег.'); set('cDocNo', '000'); set('cDocDate', '2026-01-15');
+    set('cRegDate', '2026-01-15');
+    f.ev("submitCreate();");
+    if (f.ev("SUBJECTS.length") !== before + 1) return false;
+    if (!f.$('#mBack').hidden) return false;
+    /* без кредитов — предрегистрация, СП-7 */
+    if (f.ev("subgroupOf('99999999999999', TODAY)") !== 'none') return false;
+    f.ev("location.hash='#/'; route();");
+    f.doc.getElementById('f-q').value = '99999999999999';
+    f.ev("applyFilter();");
+    return f.$$('#listTable tbody tr').length === 1;
+  })());
+ok('СП-18. дубль ИНН формой недостижим: submitCreate на существующем ИНН ничего не добавляет',
+  (() => { const f = mk();
+    const before = f.ev("SUBJECTS.length");
+    f.ev("openCreate();");
+    const el = f.doc.getElementById('cInn');
+    el.value = f.ev("SUBJECTS[0].inn"); el.dispatchEvent(new f.w.Event('input'));
+    f.ev("submitCreate();");
+    return f.ev("SUBJECTS.length") === before;
+  })());
+
+/* СП-19: удаляется субъект, не роль — роль не хранится (ADR-0001), удалять нечем. */
+ok('СП-19. удаление живёт в карточке, а не в списке (чекбоксов после СП-8 нет)',
+  (() => { const f = mk();
+    if (/Удалить/.test(f.$('.jt').textContent)) return false;
+    if (f.$$('#listTable input[type=checkbox]').length) return false;
+    f.ev("location.hash='#/b/01204199910016'; route();");
+    return /Удалить запись/.test(f.$('#cardMount').textContent);
+  })());
+ok('СП-19. с кредитами кнопка заперта и причина названа до нажатия',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016'; route();");
+    const b = [...f.$$('#cardMount button')].find(x => /Удалить запись/.test(x.textContent));
+    return b && b.disabled === true && /заёмщик/i.test(b.title)
+      && f.ev("deleteBlockers('01204199910016').length") > 0;
+  })());
+ok('СП-19. у предрегистрации связей нет — кнопка активна',
+  (() => { const f = mk();
+    if (f.ev("deleteBlockers('11101199900111').length") !== 0) return false;
+    f.ev("location.hash='#/b/11101199900111'; route();");
+    const b = [...f.$$('#cardMount button')].find(x => /Удалить запись/.test(x.textContent));
+    return b && b.disabled === false;
+  })());
+ok('СП-19. подтверждение называет ИНН и наименование',
+  (() => { const f = mk();
+    f.ev("askDelete('11101199900111');");
+    const t = f.$('#mBody').textContent;
+    return !f.$('#mBack').hidden && t.includes('11101199900111') && /Нарын Агро Плюс/.test(t)
+      && /Удалить/.test(f.$('#mFoot').textContent);
+  })());
+ok('СП-19. удаление проходит только для записи без связей',
+  (() => { const f = mk();
+    const before = f.ev("SUBJECTS.length");
+    f.ev("doDelete('01204199910016');");                     // с кредитами — отказ
+    if (f.ev("SUBJECTS.length") !== before) return false;
+    f.ev("doDelete('11101199900111');");                     // предрегистрация — можно
+    return f.ev("SUBJECTS.length") === before - 1
+      && f.ev("SUBJECTS.some(s=>s.inn==='11101199900111')") === false
+      && f.$('#mBack').hidden === true;
+  })());
+ok('СП-19. отказ объясняет, почему завершённый заёмщик не удаляется, а закрывается событием',
+  (() => { const f = mk();
+    f.ev("askDelete('01204199910016');");
+    const t = f.$('#mBody').textContent;
+    return f.$('#mTitle').textContent.includes('нельзя')
+      && /событием|погашение|безнадёжн/i.test(t);
+  })());
+
 /* ── Словари взыскания: владелец — collection.html ──────────────────────────────
    CONTOURS / PHASE_STAGE / PROCEDURE_DICT скопированы в карточку заёмщика.
    Копипаст синхронен на 26.07.2026 и синхронится руками — значит разъедется молча.
