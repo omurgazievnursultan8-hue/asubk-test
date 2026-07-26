@@ -176,6 +176,28 @@ ok('D10. в сводке разведены «просроченная част�
   /Просроченная часть/.test(g.ev("creditsSummaryCard('01204199910016')"))
   && /Под риском/.test(g.ev("creditsSummaryCard('01204199910016')")));
 
+/* ── Обеспеченность как производная (E1–E6, ревизия 26.07.2026 · ADR-0001) ──
+   До ревизии индекс лежал в PLEDGE_IX рядом с creditCoverage(). Разошлись ВСЕ 44 кредита,
+   и выводы были противоположны: хранимое 1.35 «обеспечен с запасом» против считаемого 0.77
+   «недообеспечен на четверть». Порог жил на второй шкале (1.20 против нормированной 1.00),
+   поле insured никто не читал, а области обещали предметов больше, чем есть в PLEDGE_OBJ. */
+ok('E1. PLEDGE_IX снесён — хранимого индекса нет', g.ev("typeof PLEDGE_IX") === 'undefined');
+ok('E2. на кредите нет хранимой обеспеченности',
+  g.ev("CREDITS.every(c=>!('index' in c) && !('coverage' in c) && !('insured' in c))"));
+ok('E3. у каждого предмета залога есть область; области кредита — производная от предметов',
+  g.ev("PLEDGE_OBJ.every(o=>!!o.region)")
+  && g.ev("CREDITS.every(c=>regionsOfCredit(c.id).every(r=>pledgeObjectsOf(c.id).some(o=>o.region===r)))"));
+ok('E4. ветка 14: две области — это два РЕАЛЬНЫХ предмета, а не обещание зеркала',
+  g.ev("pledgeObjectsOf('C-B14-1').length") === 2
+  && g.ev("JSON.stringify(regionsOfCredit('C-B14-1'))") === '["Ош","Джалал-Абад"]');
+ok('E5. индекс нормирован на порог кредита: норма всегда 1.00, порог показан отдельно',
+  g.ev("CREDITS.filter(c=>isActiveCredit(c,TODAY)).every(c=>{const cv=creditCoverage(c);"
+     + "return cv.index==null || Math.abs(cv.index - cv.secured/(cv.base*cv.req)) < 1e-9;})")
+  && /норма 1\.00/.test(g.ev("collateralTab('01204199910016')")));
+ok('E6. порог берётся из решения КМ, когда оно есть (П1 §2.6), иначе из ликвидности залога',
+  g.ev("CREDITS.filter(c=>c.kmDecision).every(c=>Math.abs(creditCoverage(c).req - c.kmDecision.coverPct/100) < 1e-9)")
+  && g.ev("CREDITS.filter(c=>isActiveCredit(c,TODAY) && !c.kmDecision).every(c=>[COVER_LIQUID,COVER_MOVABLE].includes(creditCoverage(c).req))"));
+
 // ── Очередь на комитет (18–20) ──
 ok('18. событие без committeeRef стоит в очереди (ветка 5, гвоздь Р-5)',
   g.ev("committeeQueue('05501199950051', TODAY).length") >= 1);

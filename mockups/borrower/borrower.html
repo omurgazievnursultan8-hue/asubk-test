@@ -8,7 +8,7 @@
      Язык: CONTEXT.md · Правило значений: docs/adr/0001-proizvodnye-ne-hranyatsya.md
      Спека: docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки) — обновляется после ревизии 26.07.2026
-     Проверка: node scripts/inspect/borrower-check.mjs  →  76/76 PASS (2026-07-26)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  82/82 PASS (2026-07-26)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
@@ -1332,14 +1332,18 @@ HANDOFF.push(
     fromEmp:'emp-07', toEmp:'emp-12', when:'11.07.2026', status:'отклонён',
     reason:'основание передачи не подтверждено (СВБ)' },
 );
-const PLEDGE_IX  = [];   // ← zalog (индекс обеспеченности); Task 5
-PLEDGE_IX.push(
-  { creditId:'C-ATS-NECEL', index:1.35, required:1.20, insured:true, itemsByRegion:[{region:'Чуй', count:2}] },
-  { creditId:'C-ATS-GAZ',   index:1.05, required:1.20, insured:false, itemsByRegion:[{region:'Чуй', count:1}] },
-  { creditId:'C-ATS-OK',    index:1.80, required:1.20, insured:true, itemsByRegion:[{region:'Бишкек', count:1}] },
-  // Ветка 14 — залоги в 2 областях (используется в Task 9 для кураторства)
-  { creditId:'C-B14-1', index:1.15, required:1.20, insured:true, itemsByRegion:[{region:'Ош', count:2},{region:'Джалал-Абад', count:1}] },
-);
+/* PLEDGE_IX (индекс обеспеченности, порог, страховка, области) снесён ревизией 26.07.2026:
+   индекс лежал рядом с creditCoverage() и расходился с ним во ВСЕХ 44 кредитах, причём
+   выводы были противоположны (хранимое «обеспечен с запасом» против считаемого
+   «недообеспечен на четверть»); порог хранился на второй шкале (1.20 против нормированной
+   1.00); поле insured никто не читал — страховка живёт полисом на предмете; области
+   обещали больше предметов, чем есть в PLEDGE_OBJ. Всё это теперь производные (ADR-0001).
+   Ниже — только СИД-ВХОД: он задаёт залоговую стоимость предметов, из которой индекс
+   и считается. Само число индекса нигде не хранится. */
+const COVER_SEED  = { 'C-ATS-NECEL':1.35, 'C-ATS-GAZ':1.05, 'C-ATS-OK':1.80, 'C-B14-1':1.15 };
+/* Ветка 14 — залог ИП Асанова физически лежит в двух областях: два предмета, две области,
+   два залоговых куратора (норма kuratorstvo §2.2). Раньше области были обещанием зеркала. */
+const REGION_SEED = { 'C-B14-1':['Ош','Джалал-Абад'] };
 const PLEDGE_AGR = [];   // ← договоры залога (зеркало модуля залога); seedCollateral
 const PLEDGE_OBJ = [];   // ← предметы залога (иерархия договор → предмет); seedCollateral
 const ACTS       = [];   // ← акты сверок; Task 10
@@ -1438,7 +1442,7 @@ FACTORS.push(
 );
 
 CREDITS.push(
-  // Ветка 14 — ИП Асанов: кредит с залогами в 2 областях (PLEDGE_IX уже посеян в Task 5)
+  // Ветка 14 — ИП Асанов: кредит с залогами в 2 областях (области — в REGION_SEED)
   { id:'C-B14-1', no:'КР-44011', inn:'04401199940041', amount:5000000, currency:'KGS',
     debt:{principal:4200000,interest:80000,penalty:0,fees:0,costs:0}, program:'Микро-2024', kind:'Инвестиционный' },
 );
@@ -2492,10 +2496,7 @@ function isReadOnly(inn, d){
 /* Матрица объект×роль на дату: последнее активное назначение на пару (object,role) побеждает;
    отстранённые по конфликту исключаются (Ш-3, иммунитет). */
 function curatorMatrix(inn, d){
-  const objIds = new Set([
-    ...CREDITS.filter(c=>c.inn===inn).map(c=>c.id),
-    ...PLEDGE_IX.filter(p => CREDITS.some(c=>c.inn===inn && c.id===p.creditId)).map(p=>p.creditId),
-  ]);
+  const objIds = new Set(CREDITS.filter(c=>c.inn===inn).map(c=>c.id));
   const susp = new Set(suspendedEmployees(inn, d));
   const active = ASSIGN.filter(a => dateLE(a.from, d) && (!a.to || !dateLE(a.to, d))
     && (objIds.has(a.objectId) || objIds.has(String(a.objectId).split('#')[0])));
@@ -2517,8 +2518,8 @@ seedBorrowerDetails();
 
 /* ═══ ЗАЛОГ · трёхуровневая модель legacy (заёмщик → договор залога → предмет) ═══
    Договор ↔ кредиты M:N, две стоимости (оценочная/залоговая), цикл обследования,
-   арест/нотариус. Индекс обеспеченности заводится в PLEDGE_IX (worst-of драйвер)
-   для согласованной обеспеченности во вкладке «Залог». */
+   арест/нотариус. Индекс обеспеченности нигде не хранится — он считается из залоговой
+   стоимости предметов (creditCoverage), а сид задаёт саму стоимость (COVER_SEED). */
 /* Зеркало справочника видов залога модуля (KINDS в mockups/collateral/zalog.html):
    карточке заёмщика нужны только движимость и ликвидность — из них выводятся порог
    покрытия (П1 §2.3/§2.4) и периодичность обследования (Прил.2 §2.3). tech — физически
@@ -2603,8 +2604,7 @@ function seedCollateral(){
     const h = hcode(cr.id);
     const closed = principalOf(cr) === 0 || !!cr.closedAt;
     const grp = subgroupOf(cr.inn, TODAY);
-    const pix = PLEDGE_IX.find(p => p.creditId === cr.id);
-    const idx = closed ? 1.2 : (pix ? pix.index : idxOf(grp, h));
+    const idx = closed ? 1.2 : (COVER_SEED[cr.id] || idxOf(grp, h));
     const base = closed ? cr.amount : principalOf(cr);
     const cv = Math.round(base * idx);        // залоговая стоимость (обеспечение)
     const appr = Math.round(cv / 0.7);        // оценочная стоимость (> залоговой)
@@ -2618,14 +2618,21 @@ function seedCollateral(){
       status: closed ? 'Снят' : 'Действующий', curator: ['Ниязов М. Б.','Абдыраимов К. Э.'][h % 2] });
 
     const inspOf = () => closed ? 'снят с ареста' : (/^(3|4)/.test(String(grp)) ? 'подлежит обследованию' : 'обследовано');
-    const mkObj = (suf, kind, name, il, ip, cvi, appri) => PLEDGE_OBJ.push({
+    /* область предмета — факт: именно она определяет, сколько нужно залоговых кураторов (§2.2) */
+    const mkObj = (suf, kind, name, il, ip, cvi, appri, region) => PLEDGE_OBJ.push({
       id:'П-' + (++objSeq) + suf, agreementId:agrId, inn:cr.inn, kind, name,
       identLabel:il, ident: ip + (il==='VIN' ? String(100000 + h % 900000) : (100 + h % 900)),
       pledger: s.name, appraised:appri, collateralValue:cvi, apprDate:regDate,
+      region: region || s.district,
       inspStatus: inspOf(), lastSurvey: closed ? '' : survey(regDate, 90 + h % 150),
       released: closed, address: kind===REALTY ? s.addrLegal : '' });
 
-    if (base >= 8000000 && !closed) {          // крупный кредит → смешанное обеспечение (2 предмета)
+    const regions = REGION_SEED[cr.id];
+    if (regions && !closed) {                  // залог разнесён по областям — предмет на область
+      const sh = 1/regions.length;
+      regions.forEach((rg, i) => mkObj(String.fromCharCode(1072+i), t.kind, t.name, t.il, t.ip,
+        Math.round(cv*sh), Math.round(appr*sh), rg));
+    } else if (base >= 8000000 && !closed) {   // крупный кредит → смешанное обеспечение (2 предмета)
       mkObj('а', t.kind, t.name, t.il, t.ip, Math.round(cv*0.6), Math.round(appr*0.6));
       const sec = t.kind===REALTY
         ? { kind:'Оборудование', name:'Производственное оборудование', il:'Инв. номер', ip:'ОБ-' }
@@ -2634,26 +2641,36 @@ function seedCollateral(){
     } else {
       mkObj('', t.kind, t.name, t.il, t.ip, cv, appr);
     }
-
-    if (!pix && !closed) PLEDGE_IX.push({ creditId:cr.id, index:idx, required:1.20,
-      insured: h % 4 !== 0, itemsByRegion:[{ region:s.district, count: base >= 8000000 ? 2 : 1 }] });
   });
 }
 seedCollateral();
 
-/* Залоговые кураторы — отдельным проходом ПОСЛЕ seedCollateral() (когда PLEDGE_AGR/PLEDGE_IX
-   заполнены): по одному на область залога действующего кредита (норма §2.2). Кредиты из SKIP_COL
+/* Предметы залога, отнесённые на кредит. До seedCollateralExtras() долей ещё нет — тогда
+   принадлежность читается через договор. Область берётся с предмета, а не из зеркала. */
+function pledgeObjectsOf(creditId){
+  return PLEDGE_OBJ.filter(o => o.allocs ? o.allocs.some(x => x.credit === creditId)
+    : (PLEDGE_AGR.find(a => a.id === o.agreementId) || {credits:[]}).credits.includes(creditId));
+}
+/* Области залога кредита — производная от предметов (раньше поле itemsByRegion зеркала). */
+function regionsOfCredit(creditId){
+  return [...new Set(pledgeObjectsOf(creditId).filter(o => !o.released).map(o => o.region).filter(Boolean))];
+}
+/* Есть ли у кредита обеспечение вообще (договор или хотя бы один предмет). */
+function hasPledgeOn(creditId){
+  return PLEDGE_AGR.some(a => a.credits.includes(creditId)) || pledgeObjectsOf(creditId).length > 0;
+}
+
+/* Залоговые кураторы — отдельным проходом ПОСЛЕ seedCollateral() (когда договоры и предметы
+   заведены): по одному на область залога действующего кредита (норма §2.2). Кредиты из SKIP_COL
    намеренно оставлены без залогового куратора — демонстрация проверки полноты ролей (B2). */
 const SKIP_COL = new Set(['C-B4-1']);
 function seedCollateralCurators(){
   const ZAL = ['emp-21','emp-22'];
   CREDITS.forEach((c, ci) => {
     if (SKIP_COL.has(c.id) || principalOf(c) === 0 || c.closedAt) return;
-    const hasAgr = PLEDGE_AGR.some(a => a.credits.includes(c.id));
-    const ix = PLEDGE_IX.find(p => p.creditId === c.id);
-    if (!hasAgr && !ix) return;
-    const regions = ix && ix.itemsByRegion && ix.itemsByRegion.length
-      ? ix.itemsByRegion.map(r => r.region) : [null];
+    if (!hasPledgeOn(c.id)) return;
+    const regions = regionsOfCredit(c.id);
+    if (!regions.length) regions.push(null);
     regions.forEach((rg, i) => {
       const objId = rg ? c.id + '#' + rg : c.id;
       if (!ASSIGN.some(a => a.objectId === objId && a.role === 'залоговый куратор'))
@@ -4007,7 +4024,7 @@ function curatorTab(inn){
     : `<span class="role-pill role-cr">${esc(r)}</span>`;
   const empLink = id => `<a class="lnk" title="Открыть в модуле кураторства">${esc(empName(id))}</a>`;
   const period = m => 'с ' + esc(m.from) + (m.to ? ' по ' + esc(m.to) : '');
-  const hasPledge = id => PLEDGE_AGR.some(a => a.credits.includes(id)) || PLEDGE_IX.some(p => p.creditId === id);
+  const hasPledge = hasPledgeOn;
   const parentOf = id => String(id).split('#')[0];
 
   // последний носитель (object,role) — если он отстранён и замены нет, это дыра покрытия (B1)
