@@ -8,12 +8,13 @@
      Язык: CONTEXT.md · Правило значений: docs/adr/0001-proizvodnye-ne-hranyatsya.md
      Спека: docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки) — обновляется после ревизии 26.07.2026
-     Проверка: node scripts/inspect/borrower-check.mjs  →  82/82 PASS (2026-07-26)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  90/90 PASS (2026-07-26)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
                      органы просмотра — data-view-ctl; проверяется двусторонне, тесты 26a/26b) ·
-                 И-6 деньги приходят снимком со своей датой (DEBT_ASOF) и дате среза не подчиняются.
+                 И-6 деньги приходят снимком со своей датой (DEBT_ASOF) и дате среза не подчиняются ·
+                 И-7 обязательство закрывается фактом из модуля-источника, не отметкой.
 -->
 <style>
   :root{
@@ -870,9 +871,21 @@ const BANK_REQ = [
 //   выводится, руками не проставляется (ADR-0001). Жизненный цикл САМОГО лица — в SUBJECT_EVENTS:
 //   субъект после полного погашения жив и может взять новый кредит.
 const BORROWER_EVENTS = [];
-// COMMITTEE_REFS — решения комитетов. kind: 'КБК'|'КРР'.
+/* COMMITTEE_REFS — решения комитетов (kind: 'КБК'|'КРР'). Помимо ссылки для факторов это
+   ещё и ФАКТ ЗАКРЫТИЯ обязательства О-4: вопрос вынесен и рассмотрен. topic — машинная
+   тема вопроса, subject — человеческий заголовок. */
 const COMMITTEE_REFS = [
-  { id:'КБК-2026-118', no:'118', date:'02.03.2026', kind:'КБК', subject:'Нецелевое использование, АгроТехСервис' },
+  { id:'КБК-2026-118', no:'118', date:'02.03.2026', kind:'КБК', inn:'01204199910016',
+    topic:'нецелевое использование', subject:'Нецелевое использование, АгроТехСервис' },
+  /* Ветка 1 — просроченная задолженность выносилась на комитет три месяца подряд,
+     а за июнь выноса нет: обязательство за июнь остаётся просроченным навсегда,
+     и его не «догоняет» вынос за июль — период у обязательства свой (F-ключ). */
+  { id:'КРР-2026-31', no:'31', date:'13.03.2026', kind:'КРР', inn:'01204199910016',
+    topic:'просроченная задолженность', subject:'Просроченная задолженность за март, АгроТехСервис' },
+  { id:'КРР-2026-38', no:'38', date:'14.04.2026', kind:'КРР', inn:'01204199910016',
+    topic:'просроченная задолженность', subject:'Просроченная задолженность за апрель, АгроТехСервис' },
+  { id:'КРР-2026-44', no:'44', date:'15.05.2026', kind:'КРР', inn:'01204199910016',
+    topic:'просроченная задолженность', subject:'Просроченная задолженность за май, АгроТехСервис' },
 ];
 
 /* ── ЗЕРКАЛА — read-only, правка = переход в модуль-источник (И-5) ── */
@@ -1399,6 +1412,9 @@ DOCS.push(
   { id:'DOC-4', inn:'01204199910016', scope:{kind:'залог',   ref:'ЗД-2024-119'},     type:'Отчёт об оценке',        date:'14.02.2024', ownerModule:'zalog',      file:'ocenka-119.pdf',     by:'Токтосунов Б. М.' },
   /* претензия по нецелевому — собственный процесс заёмщика (PR-102), не чужой */
   { id:'DOC-5', inn:'01204199910016', scope:{kind:'взыскание', ref:'PR-102'},        type:'Претензионное письмо',   date:'26.03.2026', ownerModule:'collection', file:'pretenziya-102.pdf', by:'Осмонова Г. Т.' },
+  /* Ветка 2 — пакет фин. документов пришёл: этим ЗАКРЫВАЕТСЯ О-1 (п.6(5)). Анализа ФХД нет,
+     поэтому О-2 остаётся открытым — два обязательства одной полосы расходятся по факту. */
+  { id:'DOC-20', inn:'02201199920021', scope:{kind:'заёмщик', ref:'02201199920021'},   type:'Пакет финансовых документов', date:'18.06.2026', ownerModule:'borrower', file:'fin-paket-2201.pdf', by:'Бекова А. С.' },
 );
 CHECKS_EXT.push(
   { inn:'01204199910016', source:'КИБ Ишеним', takenAt:'01.03.2026', appId:'APP-118', payload:{rating:'B', overdueTotal:9898000} },
@@ -2418,30 +2434,70 @@ function statusOf(dueDate, d){
   if (!dateLE(dueDate, d)) return 'в срок';          // срок ещё не прошёл (due ≥ сегодня)
   return dnum(dueDate) < dnum(d) ? 'просрочено' : 'в срок';
 }
-/* Р-4: обязательства О-1 (п.6.5, Средний/Высокий), О-2 (п.12.2, Средний + долг >50 млн), О-4 (п.13, просрочка). */
+/* ═══ ОБЯЗАТЕЛЬСТВА ПОРЯДКА (Р-4) ═══
+   Обязательство — не задача со статусом, а требование Порядка к паре «заёмщик × период».
+   Ключ — (ИНН, код, период): у разового период это дата начала текущей полосы повышенной
+   категории, у повторяющегося — месяц. Отметки «выполнено» нет и быть не может: закрывает
+   ФАКТ ИЗ МОДУЛЯ-ИСТОЧНИКА — документ в досье или решение комитета (ADR-0001, И-7).
+   Отсюда главное следствие периода: вынос за июль не закрывает пропущенный июнь. */
+const OBLIG_DOC = { 'О-1':'Пакет финансовых документов', 'О-2':'Анализ финансово-хозяйственного состояния' };
+const OBLIG_PERIODS_MAX = 6;        // глубина показа повторяющегося обязательства
+/* Факт закрытия О-1/О-2 — документ нужного типа в досье, датированный не раньше начала периода. */
+function obligDocClosing(inn, type, from){
+  return DOCS.filter(x => x.inn===inn && x.type===type && dateLE(from, x.date))
+    .sort((a,b) => dnum(a.date)-dnum(b.date))[0] || null;
+}
+/* Факт закрытия О-4 — решение комитета по просроченной задолженности В ЭТОМ ЖЕ месяце. */
+function obligCommitteeClosing(inn, mm, yyyy){
+  return COMMITTEE_REFS.find(r => r.inn===inn && r.topic==='просроченная задолженность'
+    && r.date.split('.')[1]===mm && r.date.split('.')[2]===yyyy) || null;
+}
+/* Месяцы, в которых у заёмщика была просроченная часть, — периоды повторяющегося О-4.
+   Считаются от самой ранней даты выхода на просрочку, а не от сегодняшнего снимка. */
+function overdueMonths(inn, d){
+  const starts = CREDITS.filter(c => c.inn===inn && isActiveCredit(c,d) && c.overdueSince && dateLE(c.overdueSince,d))
+    .map(c => c.overdueSince).sort((a,b) => dnum(a)-dnum(b));
+  if (!starts.length) return [];
+  const [, fm, fy] = starts[0].split('.').map(Number);
+  const [, dm, dy] = d.split('.').map(Number);
+  const out = [];
+  for (let t = fy*12 + (fm-1); t <= dy*12 + (dm-1); t++){
+    const mm = String(t%12 + 1).padStart(2,'0'), yyyy = Math.floor(t/12);
+    out.push({ key: mm + '.' + yyyy, mm, yyyy: String(yyyy) });
+  }
+  return out.slice(-OBLIG_PERIODS_MAX);
+}
 function obligations(inn, d){
   const out = [];
   const cat = catOfBorrower(inn, d);
   const trig = lastEscalation(inn, d);               // начало текущей полосы Среднего/Высокого
+  const mk = (code, basis, period, periodLabel, due, srcHint, fact) => {
+    const closing = fact && dateLE(fact.date, d) ? fact : null;
+    out.push({ code, basis, period, periodLabel, dueDate:due, closing,
+      status: closing ? 'исполнено' : statusOf(due, d), srcHint });
+  };
   if ((cat==='mid'||cat==='high') && trig){
-    const due = addWorkdays(trig.date,10);
-    out.push({ code:'О-1', basis:'п.6(5): запрос пакета фин. документов', dueDate:due, status:statusOf(due, d),
-      srcHint:`+10 раб. дн. от перевода в ${cat==='high'?'Высокий':'Средний'} (${trig.date})` });
+    mk('О-1', 'п.6(5): запрос пакета фин. документов', trig.date, 'полоса с ' + trig.date,
+      addWorkdays(trig.date,10),
+      `+10 раб. дн. от перевода в ${cat==='high'?'Высокий':'Средний'} (${trig.date})`,
+      obligDocClosing(inn, OBLIG_DOC['О-1'], trig.date));
   }
   if (cat==='mid' && totalDebt(inn) > 50000000 && trig){
-    const due = addWorkdays(trig.date,14);
-    out.push({ code:'О-2', basis:'п.12(2): анализ фин.-хоз. состояния (>50 млн)', dueDate:due, status:statusOf(due, d),
-      srcHint:`+14 раб. дн. от перевода в Средний (${trig.date}) · долг >50 млн` });
+    mk('О-2', 'п.12(2): анализ фин.-хоз. состояния (>50 млн)', trig.date, 'полоса с ' + trig.date,
+      addWorkdays(trig.date,14),
+      `+14 раб. дн. от перевода в Средний (${trig.date}) · долг >50 млн`,
+      obligDocClosing(inn, OBLIG_DOC['О-2'], trig.date));
   }
-  if (overdueDebt(inn) > 0){
-    const [,mm,y] = d.split('.');
-    const due = `15.${mm}.${y}`;
-    out.push({ code:'О-4', basis:'п.13: вынос просроченной задолженности на комитет', dueDate:due, status:statusOf(due, d),
-      srcHint:'15-е число текущего месяца (п.13) — при наличии просроченной части' });
-  }
+  overdueMonths(inn, d).forEach(p => {
+    mk('О-4', 'п.13: вынос просроченной задолженности на комитет', p.key, 'за ' + p.key,
+      `15.${p.mm}.${p.yyyy}`, '15-е число месяца (п.13) — при наличии просроченной части',
+      obligCommitteeClosing(inn, p.mm, p.yyyy));
+  });
   // О-3 — задел (правопреемники при смерти, п.62); не реализуется в MVP.
   return out;
 }
+/* Открытые обязательства — то, что действительно требует действия. */
+function openObligations(inn, d){ return obligations(inn, d).filter(o => o.status !== 'исполнено'); }
 
 /* Очередь на комитет = сырые события заёмщика без решения комитета и не снятые. Категорию НЕ двигает (И-1). */
 function committeeQueue(inn, d){
@@ -2944,7 +3000,7 @@ function tile(title, valueHtml, basis, moreHtml, lockHtml){
     + `</div>`;
 }
 const TABS = ['Общая информация','Кредиты','Залог','Взыскание','Акты сверок','Кураторство',
-  'Реквизиты и связи','Документы','Проверки','История'];
+  'Реквизиты и связи','Документы','Проверки','История','Обязательства'];
 
 function catBasisHtml(inn){
   const rows = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY)).map(c=>{
@@ -3070,13 +3126,14 @@ function creditsSummaryCard(inn){
     '<a class="lnk" onclick="switchTab(1)">Открыть «Кредиты»</a>', body);
 }
 
-/* Требует внимания — единственное место карточки, где есть срок и действие (Р-4/Р-5). */
+/* Требует внимания — единственное место карточки, где есть срок и действие (Р-4/Р-5).
+   Показываются только ОТКРЫТЫЕ обязательства; исполненные с их фактом закрытия — во вкладке. */
 function attentionCard(inn){
-  const obs = obligations(inn, TODAY);
+  const obs = openObligations(inn, TODAY);
   const q = committeeQueue(inn, TODAY);
   let body = '';
   if (obs.length){
-    body += '<div class="fields">' + obs.map(o=>`<div class="f"><span class="fk">${esc(o.code)} · до ${esc(o.dueDate)}</span>`
+    body += '<div class="fields">' + obs.map(o=>`<div class="f"><span class="fk">${esc(o.code)} · ${esc(o.periodLabel)} · до ${esc(o.dueDate)}</span>`
       + `<span class="fv" style="font-weight:400">${esc(o.basis)} `
       + `<span class="badge ${o.status==='просрочено'?'b-ov':'b-ok'}">${esc(o.status)}</span></span></div>`).join('') + '</div>';
   }
@@ -3086,7 +3143,38 @@ function attentionCard(inn){
       + `Категорию они не двигают до решения комитета.</div>`;
   }
   if (!body) body = '<div class="muted" style="font-size:13px;line-height:1.5;padding:14px 16px">Открытых обязательств и событий на комитет нет.</div>';
-  return sect('Требует внимания', 'Р-4 · Р-5', '', body);
+  return sect('Требует внимания', 'Р-4 · Р-5',
+    '<a class="lnk" onclick="switchTab(10)">Все обязательства</a>', body);
+}
+
+/* Вкладка «Обязательства» — полный список по периодам, с фактом закрытия у исполненных.
+   Ни одной кнопки «выполнено»: закрыть обязательство можно только документом или решением
+   в модуле-источнике (И-7). Отсюда и колонка «чем закрыто» вместо колонки «отметка». */
+function obligationsTab(inn){
+  const obs = obligations(inn, TODAY);
+  if (!obs.length) return sect('Обязательства', 'Порядок · производная от состояния', '',
+    empty('Открытых требований Порядка по этому заёмщику нет: категория не повышена и просроченной части нет.'));
+  const badge = o => o.status==='исполнено' ? '<span class="badge b-ok">исполнено</span>'
+    : o.status==='просрочено' ? '<span class="badge b-ov">просрочено</span>'
+    : '<span class="badge b-proc">в срок</span>';
+  const closedCell = o => o.closing
+    ? esc(o.closing.type || o.closing.subject || o.closing.id) + '<div class="muted" style="margin-top:3px">'
+      + esc((o.closing.file || o.closing.id) + ' · ' + o.closing.date) + ' <a class="lnk">открыть в модуле</a></div>'
+    : '<span class="muted">факта закрытия нет</span>';
+  const rows = obs.map(o => '<tr>'
+    + '<td class="who">' + esc(o.code) + '</td>'
+    + '<td>' + esc(o.periodLabel) + '</td>'
+    + '<td>' + esc(o.basis) + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(o.srcHint) + '</div></td>'
+    + '<td>' + esc(o.dueDate) + '</td>'
+    + '<td>' + badge(o) + '</td>'
+    + '<td>' + closedCell(o) + '</td></tr>');
+  const head = '<th style="width:8%">Код</th><th style="width:14%">Период</th><th style="width:34%">Основание</th>'
+    + '<th style="width:11%">Срок</th><th style="width:12%">Статус</th><th style="width:21%">Чем закрыто</th>';
+  const note = '<div class="muted" style="font-size:13px;line-height:1.5;padding:10px 16px">'
+    + 'Обязательство закрывает факт из модуля-источника — документ в досье или решение комитета. '
+    + 'Период у каждого требования свой: вынос за текущий месяц не закрывает пропущенный.</div>';
+  return sect('Обязательства', 'ключ — заёмщик × код × период · закрытие фактом', '',
+    note + table(head, rows));
 }
 
 /* Контакты — только действующие каналы; полный список и история — во вкладке «Реквизиты и контакты». */
@@ -4680,6 +4768,7 @@ function tabBody(inn, i){
     case 7: return `<div data-mirror="1">${docsTab(inn)}</div>`;
     case 8: return checksTab(inn);
     case 9: return historyTab(inn);
+    case 10: return obligationsTab(inn);
   }
   return '';
 }

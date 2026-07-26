@@ -176,6 +176,39 @@ ok('D10. в сводке разведены «просроченная част�
   /Просроченная часть/.test(g.ev("creditsSummaryCard('01204199910016')"))
   && /Под риском/.test(g.ev("creditsSummaryCard('01204199910016')")));
 
+/* ── Обязательство = (ИНН, код, период), закрытие фактом (F1–F8, ревизия 26.07.2026) ──
+   До ревизии обязательство было одной строкой «на сегодня» без периода: О-4 (вынос на
+   комитет, п.13) существовало в единственном экземпляре и молча переезжало на следующий
+   месяц, стирая пропущенный. Закрывать его было нечем — статус считался только от срока. */
+ok('F1. обязательства нигде не хранятся и не имеют отметки «выполнено» (И-7)',
+  g.ev("typeof OBLIGATIONS") === 'undefined'
+  && g.ev("obligations('01204199910016',TODAY).every(o=>!('done' in o) && !('completed' in o) && !('mark' in o))"));
+ok('F2. ключ (ИНН, код, период) уникален',
+  g.ev(`SUBJECTS.map(s=>s.inn).every(i=>{const k=obligations(i,TODAY).map(o=>o.code+'|'+o.period);
+        return k.length===new Set(k).size;})`));
+ok('F3. О-4 повторяющееся: у ветки 1 несколько месячных периодов',
+  g.ev("obligations('01204199910016',TODAY).filter(o=>o.code==='О-4').length") >= 3);
+ok('F4. вынос за поздний месяц НЕ закрывает пропущенный (май исполнен, июнь просрочен)',
+  g.ev("obligations('01204199910016',TODAY).find(o=>o.code==='О-4'&&o.period==='05.2026').status")==='исполнено'
+  && g.ev("obligations('01204199910016',TODAY).find(o=>o.code==='О-4'&&o.period==='06.2026').status")==='просрочено');
+ok('F5. факт закрытия приходит из модуля-источника: О-1 — документ досье, О-4 — решение комитета',
+  g.ev("DOCS.some(x=>x.id===obligations('02201199920021',TODAY).find(o=>o.code==='О-1').closing.id)")
+  && g.ev("COMMITTEE_REFS.some(r=>r.id===obligations('01204199910016',TODAY).find(o=>o.code==='О-4'&&o.period==='05.2026').closing.id)"));
+ok('F6. два обязательства одной полосы расходятся по факту (ветка 2: О-1 закрыто, О-2 нет)',
+  g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-1').status")==='исполнено'
+  && g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-2').status")==='просрочено'
+  && g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-1').period")
+   === g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-2').period"));
+ok('F7. «исполнено» бывает только с фактом закрытия, датированным не позже даты среза',
+  g.ev(`SUBJECTS.map(s=>s.inn).every(i=>obligations(i,TODAY)
+        .filter(o=>o.status==='исполнено').every(o=>o.closing && dateLE(o.closing.date, TODAY)))`));
+ok('F8. вкладка «Обязательства» без органов ввода — отметить исполнение вручную нечем',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016/10'"); f.ev("route()");
+    const tab = f.$('.tabpanel[data-panel="10"]');
+    return !!tab && /Чем закрыто/.test(tab.textContent)
+      && tab.querySelectorAll('input, select, [data-edits]').length === 0; })());
+
 /* ── Обеспеченность как производная (E1–E6, ревизия 26.07.2026 · ADR-0001) ──
    До ревизии индекс лежал в PLEDGE_IX рядом с creditCoverage(). Разошлись ВСЕ 44 кредита,
    и выводы были противоположны: хранимое 1.35 «обеспечен с запасом» против считаемого 0.77
@@ -239,7 +272,7 @@ const h = mk();
 h.ev("location.hash='#/b/01204199910016'"); h.ev("route()");
 ok('R1. три плитки в шапке карточки (состояние субъекта · подгруппа · категория)',
   h.$$('.phead-dims .dim').length === 3);
-ok('R2. десять вкладок', h.$$('.tabbar .tab').length === 10);
+ok('R2. одиннадцать вкладок (добавлена «Обязательства»)', h.$$('.tabbar .tab').length === 11);
 ok('R3. плитка категории показывает Высокий (из функции, не из разметки)',
   /Высокий/.test(h.$('.phead-dims').textContent));
 
