@@ -85,15 +85,44 @@ ok('B7. у каждого Среднего/Высокого выставлено
    иначе тест ломается при каждом переименовании процедур в PROCEDURE_DICT. */
 ok('8. лестница подгрупп: несколько процедур → побеждает старшая',
   g.ev("procsOf('06601199960061').filter(p=>p.confirmed&&!isProcClosed(p)).map(p=>procGroupOf(p)).filter(Boolean).sort().join('+')")==='2.1+2.2' &&
-  g.ev("groupOf('06601199960061', TODAY)")==='2.2');
+  g.ev("subgroupOf('06601199960061', TODAY)")==='2.2');
 ok('8b. подгруппа 2.3 достижима (в наборе есть процедура, дающая её)',
   g.ev("PROCESSES.some(p=>procGroupOf(p)==='2.3')"));
-ok('9. неподтверждённая процедура группу не двигает → 1.1 (И-2)',
-  g.ev("groupOf('08801199980081', TODAY)")==='1.1');
+ok('9. неподтверждённая процедура в блок 2 не пускает (И-2)',
+  g.ev("subgroupOf('08801199980081', TODAY)")[0]==='1');
 ok('10. терминал «банкротство завершено» → 3.2 (Ш-2)',
-  g.ev("groupOf('07701199970071', TODAY)")==='3.2');
+  g.ev("subgroupOf('07701199970071', TODAY)")==='3.2');
 ok('11. полное погашение → 5',
-  g.ev("groupOf('10001199900101', TODAY)")==='5');
+  g.ev("subgroupOf('10001199900101', TODAY)")==='5');
+
+/* ── Подгруппа и группа как производные (C1–C6, ревизия 26.07.2026) ──
+   GROUP_LOG хранил 2.3 там, где процедуры давали 2.2, и держал руками проставленную
+   базу 1.2: заёмщик с просрочкой, но без записи, числился «погашает по графику». */
+ok('C1. журнала группы нет — терминалы приходят событием с документом',
+  g.ev("typeof GROUP_LOG") === 'undefined' && g.ev("Array.isArray(BORROWER_EVENTS)"));
+ok('C2. у каждого терминального события есть документ-основание',
+  g.ev("BORROWER_EVENTS.length") > 0 &&
+  g.ev("BORROWER_EVENTS.every(e=>e.doc && e.basis && /п\\.\\d+/.test(e.basis))"));
+ok('C3. группа — верхний уровень подгруппы (1…5)',
+  g.ev("SUBJECTS.every(s=>groupOf(s.inn,TODAY)===subgroupOf(s.inn,TODAY)[0])") &&
+  g.ev("groupOf('06601199960061',TODAY)")==='2');
+ok('C4. база 1.2 выводится из просрочки, а не из записи мониторинга',
+  g.ev("subgroupOf('02201199920021', TODAY)")==='1.2' &&
+  g.ev("CREDITS.some(c=>c.inn==='02201199920021' && isActiveCredit(c,TODAY) && overdueDaysOn(c,TODAY)>0)"));
+ok('C5. просрочка без подтверждённой процедуры не даёт 1.1 (дефект прежней базы)',
+  g.ev(`SUBJECTS.map(s=>s.inn)
+        .filter(i=>CREDITS.some(c=>c.inn===i && isActiveCredit(c,TODAY) && overdueDaysOn(c,TODAY)>0))
+        .every(i=>subgroupOf(i,TODAY)!=='1.1')`));
+ok('C7. фильтр реестра по ГРУППЕ отбирает все её подгруппы',
+  (() => { const f = mk();
+    f.doc.getElementById('f-group').value = '2';
+    f.ev("active = readFields(); renderList();");
+    const shown = f.$$('#listTable tbody tr').length;
+    const want = f.ev("SUBJECTS.filter(s=>groupOf(s.inn,TODAY)==='2').length");
+    return shown === want && shown > 0; })());
+ok('C6. подгруппа историчная: до события банкротства заёмщик не в 3.2',
+  g.ev("subgroupOf('07701199970071','01.05.2026')")!=='3.2' &&
+  g.ev("subgroupOf('07701199970071',TODAY)")==='3.2');
 
 // ... сценарии 12–26 добавляются по мере готовности функций ...
 

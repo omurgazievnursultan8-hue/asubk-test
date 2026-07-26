@@ -8,7 +8,7 @@
      Язык: CONTEXT.md · Правило значений: docs/adr/0001-proizvodnye-ne-hranyatsya.md
      Спека: docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки) — обновляется после ревизии 26.07.2026
-     Проверка: node scripts/inspect/borrower-check.mjs  →  62/62 PASS (2026-07-26)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  69/69 PASS (2026-07-26)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
@@ -755,7 +755,7 @@ const CAT_RANK  = { low:0, mid:1, high:2 };
 /* Только для демо-данных: в них просрочку удобно задавать привычным «70 дн.», а фактом
    хранится дата выхода на просрочку (ADR-0001). addCalDays — объявление функции, поднимается. */
 const daysAgo = n => addCalDays(TODAY, -n);
-/* Подписи подгрупп заёмщика — коды возвращает groupOf(). */
+/* Подписи подгрупп заёмщика — коды возвращает subgroupOf(). */
 const SUBGROUP_LABEL = {
   '1.1':'Производят погашение по графику',
   '1.2':'Производят погашение с отставанием от графиков',
@@ -864,8 +864,11 @@ const BANK_REQ = [
 
 // Журнала категории здесь нет: категория и её история — производные (ADR-0001),
 //   считаются categoryEvents()/lastEscalation() из просрочки и решений комитета.
-// GROUP_LOG — append-only журнал группы платёжеспособности.
-const GROUP_LOG = [];      // заполняется в Task 4
+// BORROWER_EVENTS — терминальные события РОЛИ заёмщика, каждое с документом-основанием
+//   (акт сверки п.88 · заключение комиссии п.83/87 · определение суда п.72). Подгруппа из них
+//   выводится, руками не проставляется (ADR-0001). Жизненный цикл САМОГО лица — в SUBJECT_EVENTS:
+//   субъект после полного погашения жив и может взять новый кредит.
+const BORROWER_EVENTS = [];
 // COMMITTEE_REFS — решения комитетов. kind: 'КБК'|'КРР'.
 const COMMITTEE_REFS = [
   { id:'КБК-2026-118', no:'118', date:'02.03.2026', kind:'КБК', subject:'Нецелевое использование, АгроТехСервис' },
@@ -1253,7 +1256,7 @@ PROCESSES.push(
     ],
     deadlines:[] },
   // Ветка 10 (Кара-Балта Металл) — принятый по ПД-231 долг взыскан полностью: процесс закрыт актом
-  // сверки о полном погашении (п. 88 → группа 5). Терминал в лестницу приходит из GROUP_LOG.
+  // сверки о полном погашении (п. 88 → подгруппа 5). Терминал приходит событием заёмщика.
   { id:'PR-1001', no:1001, credits:['C-B10-DONE'], contour:'К4', phase:'На исполнении',
     procedure:'Акт сверки о полном погашении',
     cover:[{ credit:'C-B10-DONE', subject:'вся задолженность', claim:2240000 }],
@@ -1285,15 +1288,14 @@ function stampProcedure(p){
   return p;
 }
 PROCESSES.forEach(stampProcedure);
-GROUP_LOG.push(
-  /* Ветки 2/3/4 — просрочка есть, но досудебная: подгруппу 2.x процедура не даёт, базу ставит
-     мониторинг записью 1.2, иначе заёмщик с 40–70 дн просрочки числится «погашает по графику». */
-  { inn:'02201199920021', group:'1.2', from:'09.06.2026', basis:'Погашение с отставанием от графика', confirmedBy:'мониторинг' },
-  { inn:'03301199930031', group:'1.2', from:'04.06.2026', basis:'Погашение с отставанием от графика', confirmedBy:'мониторинг' },
-  { inn:'04401199940041', group:'1.2', from:'10.05.2026', basis:'Погашение с отставанием от графика', confirmedBy:'мониторинг' },
-  { inn:'06601199960061', group:'2.3', from:'01.06.2026', basis:'Исполнительное производство', confirmedBy:'КРР-2026-40' },
-  { inn:'07701199970071', group:'3.2', from:'15.05.2026', basis:'Завершение банкротства', confirmedBy:'Суд' },
-  { inn:'10001199900101', group:'5', from:'10.06.2026', basis:'Полное погашение', confirmedBy:'—' },
+/* Записей «1.2 — погашение с отставанием» здесь больше нет: подгруппа 1.2 выводится из самой
+   просрочки по действующим кредитам. Записи «2.3» тоже нет — она противоречила процедурам
+   заёмщика (журнал хранил 2.3, процедуры давали 2.2) и была снята ревизией 26.07.2026. */
+BORROWER_EVENTS.push(
+  { inn:'07701199970071', kind:'завершено банкротство', date:'15.05.2026',
+    basis:'Определение суда о завершении процедуры банкротства (п.72)', doc:'ОС-2026-77' },
+  { inn:'10001199900101', kind:'полное погашение', date:'10.06.2026',
+    basis:'Акт сверки о полном погашении (п.88)', doc:'АС-2026-118' },
 );
 const ASSIGN     = [];   // ← kuratorstvo; Task 9
 // CURATOR_LOG — события кураторства для ленты «История» (зеркало модуля кураторства; ASSIGN наполнится позже).
@@ -1513,7 +1515,7 @@ const NEW_BORROWERS = [
   { name:'ГП «Кыргызводхоз-Юг»',       kind:'ГП',   sector:'Водное хозяйство',            district:'Кара-Сууйский',      addr:'г. Кара-Суу, ул. Ирригационная 1', reg:'02.02.2010', amount:18000000, balance:11000000, grp:'1.1', own:'Государственная', ckind:'Инвестиционный' },
 ];
 
-/* Разворачиватель: строит SUBJECTS/CREDITS + при необходимости GROUP_LOG/PROCESSES. */
+/* Разворачиватель: строит SUBJECTS/CREDITS + при необходимости BORROWER_EVENTS/PROCESSES. */
 (function seedNewBorrowers(){
   const PROG = { 'Агропромышленный комплекс':'Агро-2024', 'Энергетический комплекс':'Энерго-2024',
     'Строительный комплекс':'Строй-2024', 'Лёгкая промышленность':'Лёгпром-2024',
@@ -1762,10 +1764,13 @@ const NEW_BORROWERS = [
         confirmed:true, confirm:{ at: addWorkdays(pc.opened, 1 + (i%4)) },
         owner, region:REGION[d.district]||'КР' }, pc)));
     }
-    if (d.grp==='3.2') GROUP_LOG.push({ inn, group:'3.2', from:d.closedAt, basis:'Завершение банкротства', confirmedBy:'Суд' });
-    if (d.grp==='4')   GROUP_LOG.push({ inn, group:'4',   from:'01.03.2026', basis:'Признана безнадёжной', confirmedBy:'КРР' });
-    if (d.grp==='5')   GROUP_LOG.push({ inn, group:'5',   from:d.closedAt, basis:'Полное погашение', confirmedBy:'—' });
-    if (d.grp==='1.2') GROUP_LOG.push({ inn, group:'1.2', from:'01.06.2026', basis:'Погашение с отставанием от графика', confirmedBy:'мониторинг' });
+    /* 1.2 не заводится событием — она выводится из просрочки по действующим кредитам. */
+    if (d.grp==='3.2') BORROWER_EVENTS.push({ inn, kind:'завершено банкротство', date:d.closedAt,
+      basis:'Определение суда о завершении процедуры банкротства (п.72)', doc:'ОС-2026-'+(200+i) });
+    if (d.grp==='4')   BORROWER_EVENTS.push({ inn, kind:'признана безнадёжной', date:'01.03.2026',
+      basis:'Заключение комиссии о безнадёжности (п.83, 87)', doc:'ЗК-2026-'+(300+i) });
+    if (d.grp==='5')   BORROWER_EVENTS.push({ inn, kind:'полное погашение', date:d.closedAt,
+      basis:'Акт сверки о полном погашении (п.88)', doc:'АС-2026-'+(400+i) });
   });
 
   // Точечные ситуации поверх набора (конфликт интересов, ЧС, жизненный цикл субъекта).
@@ -1832,7 +1837,7 @@ CREDITS.forEach(c => { const m = CREDIT_META[c.no]; if (m){ c.date = m.date; c.g
    ФИО/ИНН кыргызского формата, документы по кредиту/взысканию). Каждый массив дозаполняется только
    там, где по ИНН/кредиту ещё нет записей — уже заведённые ветки не трогаются.
    Вызывается ниже (seedBorrowerDetails()) — после объявления PROC_RANK/procGroupOf,
-   на которые опирается groupOf(). */
+   на которые опирается subgroupOf(). */
 function seedBorrowerDetails(){
   const DETAILED = new Set(['01204199910016','02201199920021','03301199930031','04401199940041',
     '05501199950051','06601199960061','07701199970071','08801199980081','09901199990091','10001199900101']);
@@ -1922,7 +1927,7 @@ function seedBorrowerDetails(){
     const isIP  = s.personKind==='ИП';
     const cr = CREDITS.find(c=>c.inn===inn);            // у каждого заёмщика набора — один кредит
     const cat = (typeof catOfBorrower==='function') ? catOfBorrower(inn,TODAY) : null;
-    const grp = (typeof groupOf==='function') ? groupOf(inn,TODAY) : '1.1';
+    const grp = (typeof subgroupOf==='function') ? subgroupOf(inn,TODAY) : '1.1';
     const problem = cat==='high' || /^(2|3|4)/.test(grp);
     const curId = problem ? pick(PROBLEM_CURATORS,seed) : pick(CURATORS,seed);
 
@@ -2184,30 +2189,40 @@ function lastEscalation(inn, d){
 const PROC_RANK  = { '2.1':0, '2.2':1, '2.3':2 };   // порядок эскалации внутри блока 2
 const isTerminalGroup = g => g === '5' || g === '4' || g[0] === '3';
 
-function groupOf(inn, d){
+/* Терминальное событие роли → подгруппа. Единственная карта; сама подгруппа руками не ставится. */
+const EVENT_SUBGROUP = { 'завершено банкротство':'3.2', 'признана безнадёжной':'4', 'полное погашение':'5' };
+
+/* ПОДГРУППА (1.1…5) — какая работа ведётся с заёмщиком. Лестница с доминированием:
+   Block1 (терминал) → Block2 (max 2.x среди подтверждённых процедур) → база (1.2 / 1.1). */
+function subgroupOf(inn, d){
   const myCredits = new Set(CREDITS.filter(c=>c.inn===inn).map(c=>c.id));
   /* В лестницу входят только ЖИВЫЕ подтверждённые процессы: завершённый процесс работу не ведёт
      и держать заёмщика в рабочей подгруппе (2.x «работа с судом / ИЛ / банкротством») не может.
-     Терминальные состояния (3.2 / 4 / 5) от закрытия не теряются — они приходят из журнала
-     группы (GROUP_LOG), который для каждого такого исхода заполняется отдельной записью. */
+     Терминальные состояния (3.2 / 4 / 5) от закрытия не теряются — они приходят событием роли
+     с документом-основанием (BORROWER_EVENTS). */
   const procs = PROCESSES.filter(p => p.confirmed && !isProcClosed(p) && p.credits.some(id => myCredits.has(id)));
   // Block1 — терминальный исход / признание (доминирует)
   let block1 = null;
   for (const p of procs){ const g = procGroupOf(p); if (g && isTerminalGroup(g)) block1 = block1 || g; }
-  // журнал группы тоже может нести терминал (полное погашение фиксируется в GROUP_LOG)
-  for (const l of GROUP_LOG){ if (l.inn===inn && dateLE(l.from,d) && isTerminalGroup(String(l.group))) block1 = block1 || l.group; }
+  for (const e of BORROWER_EVENTS){
+    if (e.inn===inn && dateLE(e.date,d) && EVENT_SUBGROUP[e.kind]) block1 = block1 || EVENT_SUBGROUP[e.kind];
+  }
   if (block1) return block1;
   // Block2 — max подгруппы 2.x среди подтверждённых процедур
   let best = null;
   for (const p of procs){ const g = procGroupOf(p); if (g && g[0]==='2' && (best===null || PROC_RANK[g]>PROC_RANK[best])) best = g; }
   if (best) return best;
-  // База — журнал группы (1.1 по графику / 1.2 с отставанием); дефолт 1.1, если журнал молчит.
-  // Процедуры блока 1 («Первичный ввод» → 1.1) базу не переопределяют: отставание по графику
-  // фиксирует мониторинг, а не куратор взыскания.
-  const j = GROUP_LOG.filter(l => l.inn===inn && dateLE(l.from,d) && String(l.group)[0]==='1')
-    .sort((a,b)=> dnum(b.from)-dnum(a.from))[0];
-  return j ? j.group : '1.1';
+  /* База — из самой просрочки, а не из записи мониторинга: есть просрочка по действующим
+     кредитам → 1.2 «погашение с отставанием», иначе 1.1 «по графику». Раньше это ставилось
+     руками в журнал, и заёмщик с 40–70 дн. просрочки без записи числился «погашает по графику».
+     Процедуры блока 1 («Первичный ввод» → 1.1) базу не переопределяют. */
+  const behind = CREDITS.some(c => c.inn===inn && isActiveCredit(c,d) && overdueDaysOn(c,d) > 0);
+  return behind ? '1.2' : '1.1';
 }
+
+/* ГРУППА ПЛАТЁЖЕСПОСОБНОСТИ (1…5) — состояние заёмщика; верхний уровень классификатора,
+   производный от подгруппы. Нужен для отчётности и фильтра «все неплатёжеспособные». */
+function groupOf(inn, d){ return subgroupOf(inn, d)[0]; }
 
 /* ── §4-функции взыскания (зеркало collection.html) ─────────────────────────────
    Ничего не хранится полем: стадия, контурная позиция, деньги и дефекты считаются
@@ -2537,7 +2552,7 @@ function seedCollateral(){
     const t = KIND_BY_SECTOR[s.industry] || KIND_BY_SECTOR['Предприятия прочих отраслей'];
     const h = hcode(cr.id);
     const closed = cr.balance === 0 || !!cr.closedAt;
-    const grp = groupOf(cr.inn, TODAY);
+    const grp = subgroupOf(cr.inn, TODAY);
     const pix = PLEDGE_IX.find(p => p.creditId === cr.id);
     const idx = closed ? 1.2 : (pix ? pix.index : idxOf(grp, h));
     const base = closed ? cr.amount : cr.balance;
@@ -2714,7 +2729,7 @@ function banStateOf(o){
    Группа платёжеспособности берётся от заёмщика, ужесточение — от его категории риска. */
 function surveyOf(o){
   if (o.released) return null;
-  const solv = solvencyOfGroup(groupOf(o.inn, TODAY));
+  const solv = solvencyOfGroup(subgroupOf(o.inn, TODAY));
   const base = (SURVEY_MATRIX[solv] || {})[kindOf(o.kind).movable ? 'movable' : 'immovable'];
   if (base == null) return { solv, special:true };          // банкрот — по договору со спецадминистратором
   const cat = catOfBorrower(o.inn, TODAY) || 'low';
@@ -2760,7 +2775,7 @@ const grpBadge = code =>
 /* Строка реестра: всё, кроме реквизитов субъекта, выводится движком. */
 function listRow(s){
   return {
-    sub: (typeof groupOf==='function') ? groupOf(s.inn, TODAY) : '—',
+    sub: (typeof subgroupOf==='function') ? subgroupOf(s.inn, TODAY) : '—',
     cat: (typeof catOfBorrower==='function') ? catOfBorrower(s.inn, TODAY) : null,
   };
 }
@@ -2873,7 +2888,7 @@ function catBasisHtml(inn){
   return `<table class="grid mini"><thead><tr><th>Кредит</th><th>Просрочка</th><th>Послабление</th><th>Факторы комитета</th><th>Категория</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 /* Лестница с доминированием: шкала 1.1…5 не ординальна, поэтому показываем сам ход вывода,
-   а не только итог. Порядок шагов повторяет groupOf(): Block1 (терминал) → Block2 (max фазы) → база. */
+   а не только итог. Порядок шагов повторяет subgroupOf(): Block1 (терминал) → Block2 (max фазы) → база. */
 function groupStepsHtml(inn, d){
   const myCredits = new Set(CREDITS.filter(c=>c.inn===inn).map(c=>c.id));
   const all = PROCESSES.filter(p=>p.credits.some(id=>myCredits.has(id)));
@@ -2893,9 +2908,10 @@ function groupStepsHtml(inn, d){
       block1 = g; block1why = `процедура «${p.procedure}» (п. ${(procMeta(p.procedure)||{}).point || '—'}) → ${g}`;
     }
   }
-  for (const l of GROUP_LOG){
-    if (l.inn===inn && dateLE(l.from,d) && isTerminalGroup(String(l.group)) && !block1){
-      block1 = l.group; block1why = `запись журнала группы от ${l.from} → ${l.group}`;
+  for (const e of BORROWER_EVENTS){
+    const g = EVENT_SUBGROUP[e.kind];
+    if (e.inn===inn && dateLE(e.date,d) && g && !block1){
+      block1 = g; block1why = `событие заёмщика «${e.kind}» от ${e.date} (${e.doc}) → ${g}`;
     }
   }
   steps.push(['2', block1
@@ -4331,7 +4347,8 @@ function checksTab(inn){
   const cat = catOfBorrower(inn, TODAY);
   const clsHtml = sect('Справочно — классификации', 'выводятся автоматически, проверкой не являются', '',
     '<div class="muted">Категория риска: <b>' + esc(cat ? CAT_LABEL[cat] : 'не применяется') + '</b> (по данным мониторинга)'
-    + ' · Группа платёжеспособности: <b>' + esc(groupOf(inn, TODAY)) + '</b> (классификатор заёмщика)</div>');
+    + ' · Подгруппа: <b>' + esc(subgroupOf(inn, TODAY)) + '</b> · группа <b>' + esc(groupOf(inn, TODAY))
+    + '</b> (классификатор заёмщика)</div>');
 
   /* Внешние снимки — зеркало (И-5). Ключевое: снимок берётся НА МОМЕНТ ЗАЯВКИ и с годами протухает,
      поэтому у каждой строки бейдж свежести, а заявка — ссылка. */
@@ -4383,9 +4400,10 @@ function historyItems(inn){
   categoryEvents(inn, TODAY).forEach(e=>add({date:e.date, dot:'risk', cat:'risk',
     kind:'категория', tab:0,
     title:`Категория риска → ${e.level ? CAT_LABEL[e.level] : 'не применяется'}`, body:e.reason}));
-  GROUP_LOG.filter(l=>l.inn===inn).forEach(l=>add({date:l.from, time:l.time, dot:'info', cat:'risk',
-    kind:'группа', tab:0,
-    title:`Группа платёжеспособности → ${l.group}`, body:`${l.basis}${l.confirmedBy&&l.confirmedBy!=='—'?' · '+l.confirmedBy:''}`}));
+  BORROWER_EVENTS.filter(e=>e.inn===inn).forEach(e=>add({date:e.date, dot:'info', cat:'risk',
+    kind:'событие заёмщика', tab:0,
+    title:`${e.kind[0].toUpperCase()}${e.kind.slice(1)} → подгруппа ${EVENT_SUBGROUP[e.kind]||'—'}`,
+    body:`${e.basis}${e.doc?' · '+e.doc:''}`}));
   FACTORS.filter(f=>myIds.has(f.creditId)).forEach(f=>add({date:f.from, dot:f.committeeRef?'risk':'warn', cat:'risk',
     kind:'фактор', tab:1,
     title:`Фактор риска по кредиту ${noOf(f.creditId)}: ${f.type}`,
@@ -4596,7 +4614,7 @@ function tabBody(inn, i){
 function renderCard(inn){
   const s = SUBJECTS.find(x=>x.inn===inn);
   const cat = catOfBorrower(inn, TODAY);
-  const grp = groupOf(inn, TODAY);
+  const grp = subgroupOf(inn, TODAY);
   const st  = subjectState(inn, TODAY);
   const ro  = isReadOnly(inn, TODAY);
 
