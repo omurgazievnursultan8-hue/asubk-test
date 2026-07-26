@@ -8,13 +8,15 @@
      Язык: CONTEXT.md · Правило значений: docs/adr/0001-proizvodnye-ne-hranyatsya.md
      Спека: docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки) — обновляется после ревизии 26.07.2026
-     Проверка: node scripts/inspect/borrower-check.mjs  →  90/90 PASS (2026-07-26)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  98/98 PASS (2026-07-26)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
                      органы просмотра — data-view-ctl; проверяется двусторонне, тесты 26a/26b) ·
                  И-6 деньги приходят снимком со своей датой (DEBT_ASOF) и дате среза не подчиняются ·
-                 И-7 обязательство закрывается фактом из модуля-источника, не отметкой.
+                 И-7 обязательство закрывается фактом из модуля-источника, не отметкой ·
+                 И-8 дефект один на всю карточку: подача разная, правило одно;
+                     «стоп» — модальность, а не степень (в шкалу high/mid/info не входит).
 -->
 <style>
   :root{
@@ -353,6 +355,7 @@
   .mon-stat.ov{border-color:#f0dcc0;background:#fdf1e0;}
   .mon-stat.ov b{color:var(--status-error);}
   /* лента стоп-факторов на вкладке «Общая информация» */
+  .grid tr.susp td{background:var(--asubk-amber-tint);}
   .flags-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
   .flags-row .badge{font-size:12.5px;padding:4px 10px;white-space:normal;}
   .badge{font-size:12px;border-radius:3px;padding:1px 7px;font-weight:600;display:inline-block;white-space:nowrap;}
@@ -2563,9 +2566,35 @@ function curatorMatrix(inn, d){
     const cur = latest.get(key);
     if (!cur || dnum(a.from) > dnum(cur.from)) latest.set(key, a);
   }
+  /* Отстранённый по конфликту из матрицы НЕ выкидывается: назначение сохраняется, объект
+     на это время остаётся без ДЕЙСТВУЮЩЕГО куратора (CONTEXT: «Приостановка назначения»).
+     Раньше строка молча исчезала — кредит КР-60541 (212 дн. просрочки, худшее покрытие)
+     пропадал из матрицы без единого следа. */
   return [...latest.values()]
-    .filter(a => !susp.has(a.empId))
-    .map(a => ({ objectKind:a.objectKind, objectId:a.objectId, role:a.role, empId:a.empId, from:a.from, to:a.to, source:a.source }));
+    .map(a => ({ objectKind:a.objectKind, objectId:a.objectId, role:a.role, empId:a.empId,
+                 from:a.from, to:a.to, source:a.source, suspended: susp.has(a.empId) }));
+}
+/* Объекты действующих кредитов без ДЕЙСТВУЮЩЕГО носителя роли. Отстранение и отсутствие
+   назначения — разные причины одной дыры, и обе должны быть видны (Р-6 §2.1, §2.2). */
+function curatorGaps(inn, d){
+  const m = curatorMatrix(inn, d);
+  const out = [];
+  CREDITS.filter(c => c.inn===inn && isActiveCredit(c,d) && principalOf(c) > 0).forEach(cr => {
+    const loan = m.filter(x => x.role==='кредитный куратор' && String(x.objectId).split('#')[0]===cr.id);
+    if (!loan.some(x => !x.suspended))
+      out.push({ objectId:cr.id, objectNo:cr.no, role:'кредитный куратор', holders:loan.map(x=>x.empId),
+        reason: loan.length ? 'носитель отстранён по конфликту, замена не назначена' : 'не назначен (Р-6 §2.1)' });
+    if (!hasPledgeOn(cr.id)) return;
+    const rgs = regionsOfCredit(cr.id);
+    (rgs.length ? rgs.map(r => cr.id + '#' + r) : [cr.id]).forEach(oid => {
+      const col = m.filter(x => x.role==='залоговый куратор' && x.objectId===oid);
+      if (!col.some(x => !x.suspended))
+        out.push({ objectId:oid, objectNo:cr.no, role:'залоговый куратор', holders:col.map(x=>x.empId),
+          region: oid.includes('#') ? oid.split('#')[1] : null,
+          reason: col.length ? 'носитель отстранён по конфликту, замена не назначена' : 'не назначен (§2.2)' });
+    });
+  });
+  return out;
 }
 
 /* Дозаполнение реквизитов по всем заёмщикам — здесь, т.к. опирается на groupOf/catOfBorrower
@@ -3078,26 +3107,27 @@ function fieldsHtml(rows){
 
 /* Лента стоп-факторов над карточками: то, что обязано остановить кредитчика ещё до открытия вкладок.
    Всё считается на TODAY из тех же массивов, что и вкладки-источники — здесь только сводка. */
+/* Шапка карточки — подача «сопровождение» ТОГО ЖЕ списка дефектов: сначала стоп-факторы
+   (работать нельзя), затем высокие, затем счётчик остального. Раньше здесь был отдельный
+   движок из шести бейджей со своими правилами. */
 function flagsRow(inn){
+  const all = defectsSorted(inn, TODAY);
+  const stops = all.filter(x => x.stop);
+  const highs = all.filter(x => !x.stop && x.sev === 'high');
+  const rest  = all.length - stops.length - highs.length;
   const f = [];
-  const bl = BLACKLIST.find(x=>x.inn===inn);
-  if (bl) f.push(['b-ov', `Чёрный список: ${bl.basis} · с ${bl.from}`]);
-  /* судебная работа определяется стадией (производной от фазы), а не разбором названия
-     процедуры: названия — подписи контуров, они меняются вслед за модулем */
-  const court = procsOf(inn).filter(p=>!isProcClosed(p) && stageOf(p.phase)!=='Досудебный порядок');
-  if (court.length) f.push(['b-ov', `Судебные производства: ${court.length}`]);
-  const susp = suspendedEmployees(inn, TODAY);
-  if (susp.length) f.push(['b-ov', `Конфликт интересов: отстранены ${susp.map(empName).join(', ')}`]);
-  const obsOv = obligations(inn, TODAY).filter(o=>o.status==='просрочено');
-  if (obsOv.length) f.push(['b-ov', `Просрочено обязательств: ${obsOv.map(o=>o.code).join(', ')}`]);
-  const q = committeeQueue(inn, TODAY);
-  if (q.length) f.push(['b-proc', `Ожидают комитета: ${q.length}`]);
+  stops.forEach(x => f.push(['b-err', `Стоп · ${x.name}: ${stripTags(x.result)}`]));
+  highs.slice(0,3).forEach(x => f.push(['b-ov', `${x.name}: ${stripTags(x.result)}`]));
+  if (highs.length > 3) f.push(['b-ov', `и ещё ${highs.length-3} важных`]);
+  if (rest) f.push(['b-proc', `Замечаний: ${rest}`]);
   if (isReadOnly(inn, TODAY)) f.push(['b-gray', `Только для чтения: ${subjectState(inn, TODAY).kind}`]);
   const body = f.length
     ? f.map(x=>`<span class="badge ${x[0]}">${esc(x[1])}</span>`).join('')
-    : '<span class="badge b-ok">Стоп-факторов нет</span>';
+    : '<span class="badge b-ok">Дефектов нет</span>';
   return `<div class="flags-row">${body}</div>`;
 }
+/* Результаты проверок собираются со ссылками внутри — в бейдж шапки идёт только текст. */
+function stripTags(html){ return String(html).replace(/<[^>]*>/g, ''); }
 
 /* Сводка по кредитам — деньги одной карточкой; правка и детали — во вкладке «Кредиты» (И-5). */
 function creditsSummaryCard(inn){
@@ -4104,7 +4134,6 @@ function wireActsTab(inn){
 function curatorTab(inn){
   const d = TODAY;
   const matrix = curatorMatrix(inn, d);
-  const susp = new Set(suspendedEmployees(inn, d));
   const credits = CREDITS.filter(c => c.inn === inn);
 
   const roleBadge = r => r === 'залоговый куратор'
@@ -4112,47 +4141,34 @@ function curatorTab(inn){
     : `<span class="role-pill role-cr">${esc(r)}</span>`;
   const empLink = id => `<a class="lnk" title="Открыть в модуле кураторства">${esc(empName(id))}</a>`;
   const period = m => 'с ' + esc(m.from) + (m.to ? ' по ' + esc(m.to) : '');
-  const hasPledge = hasPledgeOn;
   const parentOf = id => String(id).split('#')[0];
-
-  // последний носитель (object,role) — если он отстранён и замены нет, это дыра покрытия (B1)
-  const suspendedHolder = (objId, role) => {
-    const act = ASSIGN.filter(a => a.role === role && a.objectId === objId
-      && dateLE(a.from, d) && (!a.to || !dateLE(a.to, d)));
-    if (!act.length) return null;
-    const latest = act.reduce((p, c) => dnum(c.from) > dnum(p.from) ? c : p);
-    return susp.has(latest.empId) ? latest.empId : null;
-  };
 
   const COLS = 5;
   const gap = txt => `<tr><td colspan="${COLS}" class="cov-gap">⚠ ${txt}</td></tr>`;
-  const rowFor = (m, region) => `<tr>`
+  /* Отстранённый показывается СТРОКОЙ с пометкой: назначение не снято, просто приостановлено.
+     Прежняя матрица его молча выбрасывала, и объект выглядел как «куратора нет вовсе». */
+  const rowFor = (m, region) => `<tr${m.suspended ? ' class="susp"' : ''}>`
     + `<td>${roleBadge(m.role)}${region ? ` <span class="muted">· ${esc(region)}</span>` : ''}</td>`
-    + `<td>${esc(empDept(m.empId))}</td><td>${empLink(m.empId)}</td>`
+    + `<td>${esc(empDept(m.empId))}</td>`
+    + `<td>${empLink(m.empId)}${m.suspended ? ' <span class="badge b-ov">приостановлен · конфликт интересов</span>' : ''}</td>`
     + `<td class="muted">${esc(assignBasis(m.source))}</td>`
     + `<td class="muted">${period(m)}</td></tr>`;
 
+  const gaps = curatorGaps(inn, d);
   const mRows = [];
   credits.forEach(cr => {
     const closed = principalOf(cr) === 0 || !!cr.closedAt;
     const mine = matrix.filter(m => parentOf(m.objectId) === cr.id);
     const loanCur = mine.filter(m => m.role === 'кредитный куратор');
     const colCur  = mine.filter(m => m.role === 'залоговый куратор');
+    const gapsHere = gaps.filter(x => parentOf(x.objectId) === cr.id);
     mRows.push(`<tr class="grp-row"><td colspan="${COLS}">`
       + `<a class="lnk" onclick="switchTab(1)">${esc(cr.no)}</a> · ${esc(cr.kind || 'кредит')}`
       + (closed ? ' <span class="badge b-gray">погашен</span>' : '') + `</td></tr>`);
-    // кредитный куратор — либо строки, либо дыра покрытия (B1/B2)
-    if (loanCur.length) loanCur.forEach(m => mRows.push(rowFor(m)));
-    else if (!closed) {
-      const sh = suspendedHolder(cr.id, 'кредитный куратор');
-      mRows.push(gap(sh
-        ? `нет активного кредитного куратора — ${esc(empName(sh))} отстранён по конфликту, замена не назначена`
-        : 'кредитный куратор не назначен (Р-6 §2.1)'));
-    }
-    // залоговые кураторы предметов + проверка полноты (B2)
+    loanCur.forEach(m => mRows.push(rowFor(m)));
     colCur.forEach(m => mRows.push(rowFor(m, m.objectId.includes('#') ? m.objectId.split('#')[1] : null)));
-    if (!closed && hasPledge(cr.id) && !colCur.length)
-      mRows.push(gap('по кредиту есть залог, но залоговый куратор не назначен (§2.2)'));
+    /* дыра показывается и тогда, когда строка есть: носитель приостановлен → куратора нет */
+    gapsHere.forEach(x => mRows.push(gap(esc(x.role) + (x.region ? ' · ' + esc(x.region) : '') + ' — ' + esc(x.reason))));
   });
   const mHead = '<th style="width:26%">Роль</th><th>Подразделение</th><th>Сотрудник</th>'
     + '<th style="width:18%">Основание</th><th style="width:18%">Период</th>';
@@ -4413,96 +4429,171 @@ function checksVerdictBar(stop, warn, pass){
   const chip = `<span style="font-size:18px;font-weight:700;color:${color}">${word}</span>`;
   return sect('Итог проверок', 'сверка по ИНН на ' + TODAY, chip, body);
 }
-function checksTab(inn){
-  /* Внутренние живые проверки. Каждая — {sev, name, result, basis}: sev 'stop' блокирует выдачу,
-     'warn' — замечание, 'ok' — пройдено. Классификации (категория/группа) — НЕ проверки, они
-     уехали в справочный подвал: это выводимые значения, дублирующие плитки шапки. */
+/* ═══ ДЕФЕКТЫ — ОДИН ДВИЖОК ═══
+   Движков было два: шесть бейджей шапки и восемь проверок вкладки «Проверки» — по одним и
+   тем же фактам, но с разными правилами. Чёрный список в шапке был предупреждением, а в
+   проверках стоп-фактором; просрочка свыше 90 дн. в проверках останавливала выдачу, а в
+   шапке не показывалась вовсе; обязательства жили только в шапке, досье и акты — только
+   в проверках. Список теперь один, различается ПОДАЧА.
+   Запись: { code, area, tag, sev, stop, name, result, basis, tab }
+     tag  — на что влияет: 'допуск' (новая выдача) · 'сопровождение' (текущая работа) · 'оба';
+     sev  — степень: 'high' | 'mid' | 'info' | 'ok';
+     stop — МОДАЛЬНОСТЬ: работать нельзя. Не степень, в шкалу не входит (CONTEXT: «Стоп-фактор»). */
+function borrowerChecks(inn, d){
   const link = (tab, txt) => `<a class="lnk" href="#/b/${inn}/${tab}">${txt}</a>`;
   const C = [];
 
   // 1. Состояние субъекта — смерть/ликвидация/перевод долга блокируют работу с заёмщиком
-  const st = subjectState(inn, TODAY);
+  const st = subjectState(inn, d);
   const STOP_STATES = ['смерть','ликвидирован','долг переведён'];
   C.push(st && STOP_STATES.includes(st.kind)
-    ? { sev:'stop', name:'Состояние субъекта', result:esc(st.kind),
+    ? { code:'Д-СУБ', tag:'оба', sev:'high', stop:true, tab:0, name:'Состояние субъекта', result:esc(st.kind),
         basis:'основание: ' + esc(st.basis || '—') + (st.doc ? ' · ' + esc(st.doc) : '') + ' · ' + esc(st.date) }
-    : { sev:'ok', name:'Состояние субъекта', result:st ? esc(st.kind) : 'действует',
+    : { code:'Д-СУБ', tag:'оба', sev:'ok', stop:false, tab:0, name:'Состояние субъекта', result:st ? esc(st.kind) : 'действует',
         basis:'событий, ограничивающих работу, нет' });
 
-  // 2. Чёрный список
+  // 2. Чёрный список — стоп-фактор в обеих подачах (раньше в шапке был просто жёлтым)
   const bl = BLACKLIST.find(x=>x.inn===inn);
   C.push(bl
-    ? { sev:'stop', name:'Чёрный список', result:'значится', basis: esc(bl.basis) + ' · с ' + esc(bl.from) }
-    : { sev:'ok', name:'Чёрный список', result:'не значится', basis:'реестр ЧС · сверка по ИНН' });
+    ? { code:'Д-ЧС', tag:'оба', sev:'high', stop:true, tab:8, name:'Чёрный список', result:'значится',
+        basis: esc(bl.basis) + ' · с ' + esc(bl.from) }
+    : { code:'Д-ЧС', tag:'оба', sev:'ok', stop:false, tab:8, name:'Чёрный список', result:'не значится',
+        basis:'реестр ЧС · сверка по ИНН' });
 
-  // 3. Кредитная история: >90 дн. просрочки — стоп-фактор, меньше — предупреждение
+  // 3. Кредитная история: >90 дн. просрочки — стоп для новой выдачи, меньше — замечание
   const creds = CREDITS.filter(c=>c.inn===inn && !c.closedAt);
-  const worst = creds.slice().sort((a,b)=>overdueDaysOn(b,TODAY)-overdueDaysOn(a,TODAY))[0];
-  const maxOv = worst ? overdueDaysOn(worst, TODAY) : 0;
+  const worst = creds.slice().sort((a,b)=>overdueDaysOn(b,d)-overdueDaysOn(a,d))[0];
+  const maxOv = worst ? overdueDaysOn(worst, d) : 0;
   C.push(maxOv > 0
-    ? { sev: maxOv > 90 ? 'stop' : 'warn', name:'Кредитная история',
+    ? { code:'Д-ПРОСР', tag:'оба', sev: maxOv > 90 ? 'high' : 'mid', stop: maxOv > 90, tab:1, name:'Кредитная история',
         result: maxOv > 90 ? 'просрочка свыше 90 дн.' : 'есть просрочки',
         basis:'макс. просрочка ' + plural(maxOv,'день','дня','дней') + ' · ' + link(1, esc(worst.no||'кредит')) }
-    : { sev:'ok', name:'Кредитная история', result:'без просрочек', basis:'просрочек по действующим кредитам нет' });
+    : { code:'Д-ПРОСР', tag:'оба', sev:'ok', stop:false, tab:1, name:'Кредитная история', result:'без просрочек',
+        basis:'просрочек по действующим кредитам нет' });
 
   /* 4. «Решения судов» = процессы на судебной и исполнительной стадии (stageOf, а не regex по названию).
-        Открытые — стоп-фактор, только закрытые — предупреждение (остаётся в истории). */
+        Открытые — стоп для выдачи, только закрытые — замечание (остаётся в истории). */
   const courtProcs = procsOf(inn).filter(p=>stageOf(p.phase)!=='Досудебный порядок');
   const openProcs  = courtProcs.filter(p=>!isProcClosed(p));
   C.push(courtProcs.length
-    ? { sev: openProcs.length ? 'stop' : 'warn', name:'Решения судов',
+    ? { code:'Д-СУД', tag:'допуск', sev: openProcs.length ? 'high' : 'mid', stop: openProcs.length > 0, tab:3, name:'Решения судов',
         result: openProcs.length
           ? plural(openProcs.length,'открытое производство','открытых производства','открытых производств')
           : plural(courtProcs.length,'завершённое производство','завершённых производства','завершённых производств'),
         basis: courtProcs.map(p=>link(3, esc(procNo(p))) + ' · ' + esc(displayPhase(p))).join(' · ') }
-    : { sev:'ok', name:'Решения судов', result:'нет', basis:'судебных производств нет' });
+    : { code:'Д-СУД', tag:'допуск', sev:'ok', stop:false, tab:3, name:'Решения судов', result:'нет',
+        basis:'судебных производств нет' });
 
-  // 5. Конфликт интересов — отстранённые сотрудники (И-4)
-  const susp = suspendedEmployees(inn, TODAY);
+  // 5. Конфликт интересов — отстранённые сотрудники (И-4); мешает работе, не выдаче
+  const susp = suspendedEmployees(inn, d);
   C.push(susp.length
-    ? { sev:'warn', name:'Конфликт интересов',
+    ? { code:'Д-КОНФ', tag:'сопровождение', sev:'mid', stop:false, tab:5, name:'Конфликт интересов',
         result: plural(susp.length,'сотрудник отстранён','сотрудника отстранены','сотрудников отстранены'),
         basis: susp.map(empName).map(esc).join(', ') + ' · ' + link(5,'кураторство') }
-    : { sev:'ok', name:'Конфликт интересов', result:'не заявлен', basis:'отстранённых сотрудников нет' });
+    : { code:'Д-КОНФ', tag:'сопровождение', sev:'ok', stop:false, tab:5, name:'Конфликт интересов', result:'не заявлен',
+        basis:'отстранённых сотрудников нет' });
 
-  // 6. Акты сверок: разногласия/уклонение — предупреждение
+  // 6. Объект без действующего куратора — раньше этой проверки не было вообще
+  const gaps = curatorGaps(inn, d);
+  C.push(gaps.length
+    ? { code:'Д-КУР', tag:'сопровождение', sev:'high', stop:false, tab:5, name:'Кураторство',
+        result: plural(gaps.length,'объект без куратора','объекта без куратора','объектов без куратора'),
+        basis: gaps.slice(0,3).map(x=>esc(x.objectNo + (x.region ? ' · ' + x.region : '') + ' · ' + x.role + ': ' + x.reason)).join(' · ')
+               + (gaps.length>3 ? ' и ещё ' + (gaps.length-3) : '') + ' · ' + link(5,'кураторство') }
+    : { code:'Д-КУР', tag:'сопровождение', sev:'ok', stop:false, tab:5, name:'Кураторство', result:'роли покрыты',
+        basis:'у каждого объекта есть действующий куратор' });
+
+  // 7. Просроченные обязательства Порядка — были только в шапке
+  const obsOv = obligations(inn, d).filter(o=>o.status==='просрочено');
+  C.push(obsOv.length
+    ? { code:'Д-ОБЯЗ', tag:'сопровождение', sev:'high', stop:false, tab:10, name:'Обязательства Порядка',
+        result: plural(obsOv.length,'обязательство просрочено','обязательства просрочены','обязательств просрочено'),
+        basis: obsOv.map(o=>esc(o.code + ' ' + o.periodLabel)).join(' · ') + ' · ' + link(10,'обязательства') }
+    : { code:'Д-ОБЯЗ', tag:'сопровождение', sev:'ok', stop:false, tab:10, name:'Обязательства Порядка', result:'просроченных нет',
+        basis:'все требования Порядка в срок или исполнены' });
+
+  // 8. Очередь на комитет — событие ждёт решения и категорию не двигает (И-1)
+  const q = committeeQueue(inn, d);
+  C.push(q.length
+    ? { code:'Д-ОЧЕР', tag:'сопровождение', sev:'mid', stop:false, tab:9, name:'Очередь на комитет',
+        result: plural(q.length,'событие ждёт решения','события ждут решения','событий ждут решения'),
+        basis:'максимальное ожидание ' + plural(Math.max(...q.map(e=>e.waitingDays)),'день','дня','дней')
+              + ' · категорию не двигают до решения (И-1)' }
+    : { code:'Д-ОЧЕР', tag:'сопровождение', sev:'ok', stop:false, tab:9, name:'Очередь на комитет', result:'пусто',
+        basis:'нерассмотренных событий нет' });
+
+  // 9. Акты сверок: разногласия/уклонение
   const badActs = ACTS.filter(a=>a.inn===inn && (a.agreement==='dispute' || a.agreement==='evasion'));
   C.push(badActs.length
-    ? { sev:'warn', name:'Акты сверок',
+    ? { code:'Д-АКТ', tag:'допуск', sev:'mid', stop:false, tab:4, name:'Акты сверок',
         result: plural(badActs.length,'акт не подтверждён','акта не подтверждены','актов не подтверждены'),
         basis: badActs.map(a=>link(4, esc(a.id||'акт')) + ' · ' + (a.agreement==='evasion'?'уклонение':'разногласия')).join(' · ') }
-    : { sev:'ok', name:'Акты сверок', result:'разногласий нет', basis:'неподтверждённых актов сверки нет' });
+    : { code:'Д-АКТ', tag:'допуск', sev:'ok', stop:false, tab:4, name:'Акты сверок', result:'разногласий нет',
+        basis:'неподтверждённых актов сверки нет' });
 
-  // 7. Комплектность досье п.97 — считается тем же dossierStats, что и таб «Документы»
+  // 10. Комплектность досье п.97 — считается тем же dossierStats, что и таб «Документы»
   const ds = dossierStats(inn);
   const miss = ds.req - ds.met;
   C.push(miss || ds.exp
-    ? { sev:'warn', name:'Комплектность досье',
+    ? { code:'Д-ДОСЬЕ', tag:'допуск', sev:'mid', stop:false, tab:7, name:'Комплектность досье',
         result: miss ? plural(miss,'документ отсутствует','документа отсутствуют','документов отсутствуют') : plural(ds.exp,'документ истёк','документа истекли','документов истекли'),
         basis:'приложено ' + ds.met + ' из ' + ds.req + (ds.exp ? ' · истёк срок: ' + ds.exp : '') + ' · ' + link(7,'досье п.97') }
-    : { sev:'ok', name:'Комплектность досье', result:'комплект полный',
+    : { code:'Д-ДОСЬЕ', tag:'допуск', sev:'ok', stop:false, tab:7, name:'Комплектность досье', result:'комплект полный',
         basis:'приложено ' + ds.met + ' из ' + ds.req + ' · ' + link(7,'досье п.97') });
 
-  // 8. Аффилированность — справочная проверка, состав ведётся в реестре лиц (Р-7)
+  // 11. Аффилированность — справочная, состав ведётся в реестре лиц (Р-7)
   const rel = RELATED.filter(r=>r.inn===inn);
-  C.push({ sev: rel.length ? 'info' : 'ok', name:'Аффилированность',
+  C.push({ code:'Д-СВЯЗ', tag:'допуск', sev: rel.length ? 'info' : 'ok', stop:false, tab:6, name:'Аффилированность',
     result: rel.length ? plural(rel.length,'связанное лицо','связанных лица','связанных лиц') : 'связей не зарегистрировано',
     basis: rel.length ? rel.slice(0,3).map(r=>esc(r.fio + ' · ' + r.role)).join(' · ')
              + (rel.length>3 ? ' и ещё ' + (rel.length-3) : '') + ' · ' + link(6,'реквизиты и связи')
            : 'реестр лиц (Р-7) · сверка по ИНН' });
+  return C;
+}
 
-  const RANK = { stop:0, warn:1, info:2, ok:3 };
-  const BADGE = { stop:'b-err', warn:'b-ov', info:'b-gray', ok:'b-ok' };
-  const MARK  = { stop:'⛔', warn:'⚠', info:'i', ok:'✓' };
-  C.sort((a,b)=>RANK[a.sev]-RANK[b.sev]);   // тяжёлое сверху
-  const cnt = s => C.filter(c=>c.sev===s).length;
+/* Все дефекты заёмщика: базовые проверки (кроме пройденных) плюс дефекты залога и взыскания,
+   приведённые к той же записи. Один источник для шапки, вкладок и любого отчёта. */
+function defects(inn, d){
+  const wrap = (area, tab, code) => x => ({ code, area, tab, tag:'сопровождение',
+    sev: x.sev==='high' ? 'high' : 'mid', stop:false, name:area==='залог' ? 'Обеспечение' : 'Взыскание',
+    result:x.text, basis:'' });
+  return [
+    ...borrowerChecks(inn, d).filter(c => c.sev !== 'ok').map(c => Object.assign({ area:'заёмщик' }, c)),
+    ...pledgeDefects(inn).map(wrap('залог', 2, 'Д-ЗАЛ')),
+    ...collectionDefects(inn).map(wrap('взыскание', 3, 'Д-ВЗЫСК')),
+  ];
+}
+const DEF_RANK = { high:0, mid:1, info:2, ok:3 };
+/* Сортировка: стоп-факторы всегда первыми — модальность важнее степени. */
+function defectsSorted(inn, d){
+  return defects(inn, d).slice().sort((a,b) =>
+    (b.stop?1:0)-(a.stop?1:0) || DEF_RANK[a.sev]-DEF_RANK[b.sev]);
+}
 
-  const rows = C.map(c=>`<tr><td class="who">${MARK[c.sev]} ${esc(c.name)}</td>`
-    + `<td><span class="badge ${BADGE[c.sev]}">${c.result}</span></td>`
+function checksTab(inn){
+  /* Подача «допуск»: те же дефекты, но отвечающие на вопрос «можно ли выдавать».
+     Классификации (категория/группа) — НЕ проверки, они уехали в справочный подвал. */
+  const C = borrowerChecks(inn, TODAY);
+  /* Стоп — модальность, а не степень: он и красный бейдж, и первая строка, но в шкале
+     high/mid/info его нет. Тег «влияет на» показывается колонкой — одна и та же проверка
+     по-разному важна для новой выдачи и для текущей работы. */
+  const BADGE = { high:'b-err', mid:'b-ov', info:'b-gray', ok:'b-ok' };
+  const MARK  = { high:'⚠', mid:'⚠', info:'i', ok:'✓' };
+  C.sort((a,b)=>(b.stop?1:0)-(a.stop?1:0) || DEF_RANK[a.sev]-DEF_RANK[b.sev]);
+  const cnt = s => C.filter(c=>c.sev===s && c.sev!=='ok').length;
+  const stopCnt = C.filter(c=>c.stop).length;
+
+  const rows = C.map(c=>`<tr><td class="who">${c.stop ? '⛔' : MARK[c.sev]} ${esc(c.name)}`
+      + `<div class="muted" style="font-weight:400;margin-top:3px">${esc(c.code)}</div></td>`
+    + `<td><span class="badge ${c.stop ? 'b-err' : BADGE[c.sev]}">${c.result}</span>`
+      + (c.stop ? ' <span class="badge b-err">стоп</span>' : '') + `</td>`
+    + `<td class="muted">${esc(c.tag)}</td>`
     + `<td class="muted">${c.basis}</td></tr>`);
-  const internal = sect('Внутренние проверки', 'сверка по ИНН на ' + TODAY + ' · все проверки выполнены одним прогоном',
+  const internal = sect('Внутренние проверки', 'сверка по ИНН на ' + TODAY + ' · все проверки выполнены одним прогоном'
+      + ' · тот же список, что в шапке карточки',
     '<button class="btn btn-secondary btn-sm">Проверить заново</button>',
-    table('<th style="width:26%">Проверка</th><th style="width:24%">Результат</th><th>Основание</th>', rows));
+    table('<th style="width:22%">Проверка</th><th style="width:22%">Результат</th>'
+      + '<th style="width:13%">Влияет на</th><th>Основание</th>', rows));
 
   /* Справочный подвал: категория и группа — не проверки, а выводимые классификации (дубль плиток шапки). */
   const cat = catOfBorrower(inn, TODAY);
@@ -4524,7 +4615,7 @@ function checksTab(inn){
     staleChip + '<button class="btn btn-secondary btn-sm">Запросить свежий снимок</button>',
     table('<th style="width:18%">Источник</th><th style="width:12%">Снято</th><th style="width:22%">Актуальность</th><th style="width:14%">Заявка</th><th>Данные</th>', erows)) + `</div>`;
 
-  return checksVerdictBar(cnt('stop'), cnt('warn'), cnt('ok') + cnt('info')) + internal + clsHtml + extHtml;
+  return checksVerdictBar(stopCnt, cnt('high') + cnt('mid'), C.filter(c=>c.sev==='ok').length) + internal + clsHtml + extHtml;
 }
 
 /* 10. История — полное досье событий заёмщика: не два лога, а всё, что модель знает с датой.
