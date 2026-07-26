@@ -8,7 +8,7 @@
      Язык: CONTEXT.md · Правило значений: docs/adr/0001-proizvodnye-ne-hranyatsya.md
      Спека: docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки) — обновляется после ревизии 26.07.2026
-     Проверка: node scripts/inspect/borrower-check.mjs  →  98/98 PASS (2026-07-26)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  105/105 PASS (2026-07-26)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
@@ -16,7 +16,9 @@
                  И-6 деньги приходят снимком со своей датой (DEBT_ASOF) и дате среза не подчиняются ·
                  И-7 обязательство закрывается фактом из модуля-источника, не отметкой ·
                  И-8 дефект один на всю карточку: подача разная, правило одно;
-                     «стоп» — модальность, а не степень (в шкалу high/mid/info не входит).
+                     «стоп» — модальность, а не степень (в шкалу high/mid/info не входит) ·
+                 И-9 дата среза одна на карточку (asOf()); вкладка своей даты не заводит.
+     Вкладки: порядок и имена — TAB_DEFS, адресация ключом tabIx('кредиты'), не индексом.
 -->
 <style>
   :root{
@@ -356,6 +358,7 @@
   .mon-stat.ov b{color:var(--status-error);}
   /* лента стоп-факторов на вкладке «Общая информация» */
   .grid tr.susp td{background:var(--asubk-amber-tint);}
+  .asof-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;}
   .flags-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
   .flags-row .badge{font-size:12.5px;padding:4px 10px;white-space:normal;}
   .badge{font-size:12px;border-radius:3px;padding:1px 7px;font-weight:600;display:inline-block;white-space:nowrap;}
@@ -721,10 +724,12 @@
             <thead>
               <tr>
                 <th style="width:24%" data-sort="name">Наименование <span class="sort">↕</span></th>
-                <th style="width:21%" data-sort="sector">Отрасль <span class="sort">↕</span></th>
-                <th style="width:13%" data-sort="district">Район <span class="sort">↕</span></th>
-                <th style="width:28%" data-sort="sub">Подгруппа <span class="sort">↕</span></th>
-                <th style="width:14%" data-sort="cat">Категория риска <span class="sort">↕</span></th>
+                <th style="width:20%" data-sort="sub">Подгруппа <span class="sort">↕</span></th>
+                <th style="width:12%" data-sort="cat">Категория риска <span class="sort">↕</span></th>
+                <th style="width:9%"  data-sort="ov">Просрочка <span class="sort">↕</span></th>
+                <th style="width:13%" data-sort="ovSum">Просроченная часть <span class="sort">↕</span></th>
+                <th style="width:9%"  data-sort="def">Дефекты <span class="sort">↕</span></th>
+                <th style="width:13%" data-sort="curator">Куратор <span class="sort">↕</span></th>
               </tr>
             </thead>
             <tbody id="listBody"></tbody>
@@ -2916,19 +2921,56 @@ function pledgeDefects(inn){
 }
 
 /* ═══ SECTION 3 · РЕНДЕР ═══ */
+/* ЕДИНАЯ ДАТА СРЕЗА. Пикеров было три — в «Кредитах», «Взыскании» и «Залоге», — и ни один
+   из них ни к чему не был подключён: чистая декорация. Теперь дата одна на всю карточку,
+   лежит здесь, и весь рендер читает её через asOf(). Деньги ей НЕ подчиняются: они приходят
+   снимком со своей датой DEBT_ASOF (И-6) — это видно подписью, а не подразумевается. */
+let VIEW_DATE = TODAY;
+const asOf = () => VIEW_DATE;
+/* Дата среза не может уехать в будущее: выводить состояние вперёд не из чего. */
+function setAsOf(iso){
+  const [y,m,d] = String(iso).split('-');
+  if (!y || !m || !d) return;
+  const v = d + '.' + m + '.' + y;
+  VIEW_DATE = dnum(v) > dnum(TODAY) ? TODAY : v;
+  if (current) showDetail(current, lastTab());
+}
 /* Бейджи реестра: категория риска — цветная точка, подгруппа — код + подпись. */
 const catCls = c => c === 'high' ? 'high' : c === 'mid' ? 'mid' : 'low';
 const catCell = c => c
   ? '<span class="cat-cell cat-' + catCls(c) + '"><span class="dot d-' + catCls(c) + '"></span> ' + CAT_LABEL[c] + '</span>'
   : '<span class="muted">не применяется</span>';
+/* Дефекты одной ячейкой: стоп отдельно от степени (И-8) — сначала модальность, потом счёт. */
+const defCell = r => !r.def ? '<span class="badge b-ok">нет</span>'
+  : (r.stop ? '<span class="badge b-err">стоп</span> ' : '')
+    + '<span class="badge ' + (r.high ? 'b-ov' : 'b-gray') + '">' + r.def + '</span>';
 const grpBadge = code =>
   '<span class="grp-badge"><span class="grp-code">' + code + '</span> ' + esc(SUBGROUP_LABEL[code] || '—') + '</span>';
 
-/* Строка реестра: всё, кроме реквизитов субъекта, выводится движком. */
+/* Строка реестра: всё, кроме реквизитов субъекта, выводится движком.
+   Реестр — РАБОЧИЙ СПИСОК, а не справочник: отрасль и район ушли в фильтры (искать по ним
+   надо, смотреть на них в строке — нет), а в строку встали сигналы работы — сколько дней
+   просрочки, сколько должны сейчас, сколько дефектов и есть ли действующий куратор. */
 function listRow(s){
+  const d = asOf();
+  const act = CREDITS.filter(c => c.inn===s.inn && isActiveCredit(c, d));
+  const def = defects(s.inn, d);
+  const cur = curatorMatrix(s.inn, d).filter(m => m.role==='кредитный куратор');
+  const live = cur.filter(m => !m.suspended);
+  /* дыра считается ПО КРЕДИТАМ, а не «есть ли хоть один куратор у заёмщика»: иначе
+     кредит без куратора прячется за фамилией куратора соседнего кредита */
+  const gaps = curatorGaps(s.inn, d).filter(g => g.role==='кредитный куратор');
   return {
-    sub: (typeof subgroupOf==='function') ? subgroupOf(s.inn, TODAY) : '—',
-    cat: (typeof catOfBorrower==='function') ? catOfBorrower(s.inn, TODAY) : null,
+    sub: subgroupOf(s.inn, d),
+    cat: catOfBorrower(s.inn, d),
+    ov:  act.reduce((m,c) => Math.max(m, overdueDaysOn(c, d)), 0),
+    ovSum: overdueDebt(s.inn),
+    def: def.length,
+    stop: def.some(x => x.stop),
+    high: def.filter(x => x.sev==='high').length,
+    curator: gaps.length ? 'нет по ' + gaps.length + ' кред.'
+           : live.length ? empName(live[0].empId) : '—',
+    curatorGap: gaps.length > 0,
   };
 }
 
@@ -2968,6 +3010,10 @@ function sortVal(x, k){
   if (k === 'district') return x.s.district;
   if (k === 'sub')      return x.r.sub;
   if (k === 'cat')      return x.r.cat ? CAT_RANK[x.r.cat] : -1;
+  if (k === 'ov')       return x.r.ov;
+  if (k === 'ovSum')    return x.r.ovSum;
+  if (k === 'def')      return (x.r.stop ? 1000 : 0) + x.r.def;
+  if (k === 'curator')  return x.r.curator;
   return '';
 }
 /* Отфильтрованный и отсортированный реестр — общий для таблицы и карточек. */
@@ -2986,11 +3032,14 @@ function renderList(){
   const rows = visibleSubjects();
   document.querySelector('#listTable tbody').innerHTML = rows.map(({s, r}) =>
     `<tr data-inn="${s.inn}" style="cursor:pointer" onclick="location.hash='#/b/${s.inn}'">
-      <td class="who" title="${esc(s.name)}">${esc(s.name)}</td>
-      <td class="muted" title="${esc(s.industry)}">${esc(s.industry)}</td>
-      <td class="muted" title="${esc(s.district)}">${esc(s.district)}</td>
+      <td class="who" title="${esc(s.name)}">${esc(s.name)}
+        <div class="muted" style="font-weight:400;margin-top:3px">${esc(s.industry)} · ${esc(s.district)}</div></td>
       <td>${grpBadge(r.sub)}</td>
-      <td>${catCell(r.cat)}</td></tr>`).join('');
+      <td>${catCell(r.cat)}</td>
+      <td>${r.ov ? `<span class="win">${fmt(r.ov)} дн.</span>` : '<span class="muted">0</span>'}</td>
+      <td>${r.ovSum ? fmt(r.ovSum) + ' <span class="muted">KGS</span>' : '<span class="muted">—</span>'}</td>
+      <td>${defCell(r)}</td>
+      <td class="${r.curatorGap ? 'win' : 'muted'}" title="${esc(r.curator)}">${esc(r.curator)}</td></tr>`).join('');
   document.getElementById('listEmpty').hidden = rows.length > 0;
 }
 function renderCards(){
@@ -3011,12 +3060,14 @@ function renderCards(){
         <div class="bcard-chev">›</div>
       </div>
       <div class="bcard-fields">
-        <div class="bcard-field"><span class="bcard-flabel">Отрасль</span><span class="bcard-fval">${esc(s.industry)}</span></div>
-        <div class="bcard-field"><span class="bcard-flabel">Район</span><span class="bcard-fval">${esc(s.district)}</span></div>
+        <div class="bcard-field"><span class="bcard-flabel">Просрочка</span><span class="bcard-fval">${r.ov ? fmt(r.ov) + ' дн.' : '0'}</span></div>
+        <div class="bcard-field"><span class="bcard-flabel">Просроченная часть</span><span class="bcard-fval">${r.ovSum ? fmt(r.ovSum) : '—'}</span></div>
+        <div class="bcard-field"><span class="bcard-flabel">Куратор</span><span class="bcard-fval">${esc(r.curator)}</span></div>
       </div>
       <div class="bcard-badges">
         ${catCell(r.cat)}
         ${grpBadge(r.sub)}
+        ${defCell(r)}
       </div>
     </div>`;
   }).join('') + `</div>`;
@@ -3028,12 +3079,30 @@ function tile(title, valueHtml, basis, moreHtml, lockHtml){
     + (lockHtml || '')
     + `</div>`;
 }
-const TABS = ['Общая информация','Кредиты','Залог','Взыскание','Акты сверок','Кураторство',
-  'Реквизиты и связи','Документы','Проверки','История','Обязательства'];
+/* Вкладки идут слоями работы, а не в порядке появления в разработке: кто он → что должен →
+   что мы обязаны → что делаем → что проверено → чем подтверждено → что было. «Обязательства»
+   при этом переехали с последнего места (куда попали как новая вкладка) в слой надзора.
+   Порядок задаётся здесь один раз, а по коду вкладка адресуется ключом: tabIx('кредиты').
+   Индексов-констант в разметке больше нет — переставить вкладку теперь стоит одну строку. */
+const TAB_DEFS = [
+  { key:'общая',        name:'Общая информация' },
+  { key:'кредиты',      name:'Кредиты' },
+  { key:'залог',        name:'Залог' },
+  { key:'обязательства',name:'Обязательства' },
+  { key:'взыскание',    name:'Взыскание' },
+  { key:'кураторство',  name:'Кураторство' },
+  { key:'акты',         name:'Акты сверок' },
+  { key:'проверки',     name:'Проверки и дефекты' },
+  { key:'документы',    name:'Документы' },
+  { key:'связи',        name:'Реквизиты и связи' },
+  { key:'история',      name:'История' },
+];
+const TABS = TAB_DEFS.map(t => t.name);
+const tabIx = key => TAB_DEFS.findIndex(t => t.key === key);
 
 function catBasisHtml(inn){
-  const rows = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY)).map(c=>{
-    const r = catOfCredit(c.id, TODAY);
+  const rows = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,asOf())).map(c=>{
+    const r = catOfCredit(c.id, asOf());
     return `<tr><td>${esc(c.no)}</td><td>${r.days} дн.</td><td>${r.suppressed?'действует (181+ не учитывается)':'—'}</td>`
       + `<td>${r.factors.map(f=>esc(f.type+' ('+f.committeeRef+')')).join('; ')||'—'}</td><td>${esc(CAT_LABEL[r.level])}</td></tr>`;
   }).join('');
@@ -3106,12 +3175,12 @@ function fieldsHtml(rows){
 }
 
 /* Лента стоп-факторов над карточками: то, что обязано остановить кредитчика ещё до открытия вкладок.
-   Всё считается на TODAY из тех же массивов, что и вкладки-источники — здесь только сводка. */
+   Всё считается на asOf() из тех же массивов, что и вкладки-источники — здесь только сводка. */
 /* Шапка карточки — подача «сопровождение» ТОГО ЖЕ списка дефектов: сначала стоп-факторы
    (работать нельзя), затем высокие, затем счётчик остального. Раньше здесь был отдельный
    движок из шести бейджей со своими правилами. */
 function flagsRow(inn){
-  const all = defectsSorted(inn, TODAY);
+  const all = defectsSorted(inn, asOf());
   const stops = all.filter(x => x.stop);
   const highs = all.filter(x => !x.stop && x.sev === 'high');
   const rest  = all.length - stops.length - highs.length;
@@ -3120,7 +3189,7 @@ function flagsRow(inn){
   highs.slice(0,3).forEach(x => f.push(['b-ov', `${x.name}: ${stripTags(x.result)}`]));
   if (highs.length > 3) f.push(['b-ov', `и ещё ${highs.length-3} важных`]);
   if (rest) f.push(['b-proc', `Замечаний: ${rest}`]);
-  if (isReadOnly(inn, TODAY)) f.push(['b-gray', `Только для чтения: ${subjectState(inn, TODAY).kind}`]);
+  if (isReadOnly(inn, asOf())) f.push(['b-gray', `Только для чтения: ${subjectState(inn, asOf()).kind}`]);
   const body = f.length
     ? f.map(x=>`<span class="badge ${x[0]}">${esc(x[1])}</span>`).join('')
     : '<span class="badge b-ok">Дефектов нет</span>';
@@ -3132,9 +3201,9 @@ function stripTags(html){ return String(html).replace(/<[^>]*>/g, ''); }
 /* Сводка по кредитам — деньги одной карточкой; правка и детали — во вкладке «Кредиты» (И-5). */
 function creditsSummaryCard(inn){
   const all = CREDITS.filter(c=>c.inn===inn);
-  const act = all.filter(c=>isActiveCredit(c, TODAY));
-  const ovCred = act.filter(c=>overdueDaysOn(c,TODAY)>0);
-  const maxOv = act.reduce((m,c)=>Math.max(m, overdueDaysOn(c,TODAY)), 0);
+  const act = all.filter(c=>isActiveCredit(c, asOf()));
+  const ovCred = act.filter(c=>overdueDaysOn(c,asOf())>0);
+  const maxOv = act.reduce((m,c)=>Math.max(m, overdueDaysOn(c,asOf())), 0);
   /* две разные величины, которые раньше обе назывались «просрочка»:
      просроченная часть — сколько должны заплатить сейчас; под риском — сколько можем потерять */
   const rows = [
@@ -3153,14 +3222,14 @@ function creditsSummaryCard(inn){
   const body = '<div class="fields">' + rows.map(([k,v])=>`<div class="f"><span class="fk">${esc(k)}</span><span class="fv">${v}</span></div>`).join('') + '</div>';
   /* деньги подписаны своей датой: дата среза экрана их не двигает (ADR-0001) */
   return sect('Сводка по кредитам', 'снимок кредитного модуля на ' + DEBT_ASOF + ' · дате среза не подчиняется',
-    '<a class="lnk" onclick="switchTab(1)">Открыть «Кредиты»</a>', body);
+    '<a class="lnk" onclick="switchTab(tabIx(\'кредиты\'))">Открыть «Кредиты»</a>', body);
 }
 
 /* Требует внимания — единственное место карточки, где есть срок и действие (Р-4/Р-5).
    Показываются только ОТКРЫТЫЕ обязательства; исполненные с их фактом закрытия — во вкладке. */
 function attentionCard(inn){
-  const obs = openObligations(inn, TODAY);
-  const q = committeeQueue(inn, TODAY);
+  const obs = openObligations(inn, asOf());
+  const q = committeeQueue(inn, asOf());
   let body = '';
   if (obs.length){
     body += '<div class="fields">' + obs.map(o=>`<div class="f"><span class="fk">${esc(o.code)} · ${esc(o.periodLabel)} · до ${esc(o.dueDate)}</span>`
@@ -3174,14 +3243,14 @@ function attentionCard(inn){
   }
   if (!body) body = '<div class="muted" style="font-size:13px;line-height:1.5;padding:14px 16px">Открытых обязательств и событий на комитет нет.</div>';
   return sect('Требует внимания', 'Р-4 · Р-5',
-    '<a class="lnk" onclick="switchTab(10)">Все обязательства</a>', body);
+    '<a class="lnk" onclick="switchTab(tabIx(\'обязательства\'))">Все обязательства</a>', body);
 }
 
 /* Вкладка «Обязательства» — полный список по периодам, с фактом закрытия у исполненных.
    Ни одной кнопки «выполнено»: закрыть обязательство можно только документом или решением
    в модуле-источнике (И-7). Отсюда и колонка «чем закрыто» вместо колонки «отметка». */
 function obligationsTab(inn){
-  const obs = obligations(inn, TODAY);
+  const obs = obligations(inn, asOf());
   if (!obs.length) return sect('Обязательства', 'Порядок · производная от состояния', '',
     empty('Открытых требований Порядка по этому заёмщику нет: категория не повышена и просроченной части нет.'));
   const badge = o => o.status==='исполнено' ? '<span class="badge b-ok">исполнено</span>'
@@ -3214,14 +3283,14 @@ function contactsCard(inn){
     ? '<div class="fields">' + live.map(c=>`<div class="f"><span class="fk">${esc(c.kind)}${c.note && c.note!=='—' ? ' · '+esc(c.note) : ''}</span>`
         + `<span class="fv">${esc(c.value)}</span></div>`).join('') + '</div>'
     : '<div class="muted" style="font-size:13px;padding:14px 16px">Действующих каналов связи нет.</div>';
-  return sect('Контакты', 'действующие каналы', '<a class="lnk" onclick="switchTab(6)">Все реквизиты</a>', body);
+  return sect('Контакты', 'действующие каналы', '<a class="lnk" onclick="switchTab(tabIx(\'связи\'))">Все реквизиты</a>', body);
 }
 
 /* Последние события — верхние 5 из того же таймлайна, что и вкладка «История». */
 function recentEventsCard(inn){
   const items = historyItems(inn);
   const hint = items.length > 5 ? `последние 5 из ${items.length}` : 'зеркало логов';
-  return sect('Последние события', hint, '<a class="lnk" onclick="switchTab(9)">Вся история</a>',
+  return sect('Последние события', hint, '<a class="lnk" onclick="switchTab(tabIx(\'история\'))">Вся история</a>',
     timelineHtml(items.slice(0,5)));
 }
 
@@ -3239,10 +3308,10 @@ function generalTab(inn, opts){
   const OV_LABEL = { suppress181:'Просрочка 181+ дн. не поднимает категорию до «Высокий»' };
   const ovl = CREDITS.filter(c=>c.inn===inn)
     .flatMap(c=>OVERLAYS.filter(o=>o.creditId===c.id).map(o=>({...o, credit:c})));
-  const live = ovl.filter(o=>dateLE(o.from,TODAY) && dateLE(TODAY,o.deadline));
+  const live = ovl.filter(o=>dateLE(o.from,asOf()) && dateLE(asOf(),o.deadline));
   const ovBody = ovl.length
     ? ovl.map(o=>{
-        const on = dateLE(o.from,TODAY) && dateLE(TODAY,o.deadline);
+        const on = dateLE(o.from,asOf()) && dateLE(asOf(),o.deadline);
         return `<div class="ov-item"${on?'':' style="opacity:.6"'}><div class="ov-h">${esc(OV_LABEL[o.kind]||o.kind)}`
           + ` — ${on?'действует':'истёк'}</div>`
           + `<div class="ov-m">кредит ${esc(o.credit.no)} · ${esc(o.from)}–${esc(o.deadline)} · основание ${esc(o.sourceRef||'—')}`
@@ -3281,9 +3350,8 @@ function generalTab(inn, opts){
 function creditsTab(inn){
   const toolbar =
     '<div class="toolbar">'
-      + '<span class="fl muted">По состоянию на</span>'
-      /* остаток — снапшот на дату (E2E-09); дата хранится дд.мм.гггг, input — ISO */
-      + '<input type="date" id="asOf" data-view-ctl value="' + toISO(TODAY) + '" max="' + toISO(TODAY) + '" style="width:150px">'
+      /* дата среза одна на карточку и живёт в шапке — здесь её пикера больше нет */
+      + '<span class="fl muted">Деньги — снимок на ' + DEBT_ASOF + '</span>'
       + '<span class="sep"></span>'
       /* расчёт и печатные формы — одной выпадающей группой */
       + '<div class="dd" id="genDd">'
@@ -3312,8 +3380,8 @@ function wireCreditsTab(inn){
   const ovSum = c => creditOverdue(c);
 
   const credRow = (c, no) => {
-    const active = isActiveCredit(c, TODAY);
-    const cat = active ? catOfCredit(c.id, TODAY).level : null;
+    const active = isActiveCredit(c, asOf());
+    const cat = active ? catOfCredit(c.id, asOf()).level : null;
     const ov = ovSum(c);
     /* разбивка остатка по 5 статьям в разрезе срочная/просроченная — по наведению */
     const art = (lbl, x) => lbl + ': осн. долг ' + fmt(x.principal) + ' · % ' + fmt(x.interest)
@@ -3331,8 +3399,8 @@ function wireCreditsTab(inn){
       + '<td><span class="bal-cell" title="' + esc(tip) + '"><b>' + fmt(creditTotal(c)) + '</b></span> <span class="muted">KGS</span></td>'
       /* просрочка = дни + сумма; нулевую не подсвечиваем */
       + '<td>' + (ov
-          ? '<span class="win">' + overdueDaysOn(c,TODAY) + ' дн.</span><div class="muted" style="margin-top:3px">' + fmt(ov) + ' KGS</div>'
-          : overdueDaysOn(c,TODAY) + ' дн.<div class="muted" style="margin-top:3px">0 KGS</div>') + '</td>'
+          ? '<span class="win">' + overdueDaysOn(c,asOf()) + ' дн.</span><div class="muted" style="margin-top:3px">' + fmt(ov) + ' KGS</div>'
+          : overdueDaysOn(c,asOf()) + ' дн.<div class="muted" style="margin-top:3px">0 KGS</div>') + '</td>'
       + '<td>' + (active ? catCell(cat) : '<span class="muted">закрыт ' + esc(c.closedAt || '') + '</span>') + '</td>'
       + '</tr>';
   };
@@ -3461,9 +3529,7 @@ function collectionTab(inn){
   const view  = collView();
 
   const toolbar = '<div class="toolbar">'
-      + '<span class="fl muted">По состоянию на</span>'
-      /* суммы требования и погашения — снапшот на дату, как остаток по кредиту (E2E-09) */
-      + '<input type="date" id="cvAsOf" data-view-ctl value="' + toISO(TODAY) + '" max="' + toISO(TODAY) + '" style="width:150px">'
+      + '<span class="fl muted">Суммы требования — снимок на ' + DEBT_ASOF + '</span>'
       + '<span class="sep"></span>'
       + '<div class="viewseg" role="group" aria-label="Вид взыскания">'
         + '<button type="button" class="viewseg-btn' + (view === 'procs' ? ' active' : '') + '" id="cvSegPr">по процессам</button>'
@@ -3609,7 +3675,7 @@ function wireCollectionTab(inn){
         + '<span>взыскано <b>' + fmt(m.rec) + '</b> KGS</span>'
         + '<span>расходы <b>' + fmt(m.costs) + '</b> KGS</span>'
         + '<span>остаток требования <b>' + fmt(m.left) + '</b> KGS</span>'
-        + '<span class="muted">на ' + esc(TODAY) + ' · снапшот, не онлайн-сальдо</span>'
+        + '<span class="muted">на ' + esc(asOf()) + ' · снапшот, не онлайн-сальдо</span>'
       + '</div>'
       + '<div class="cv-money"><span>охват: ' + cover + '</span></div>'
       /* вторая ведущая ось: подгруппу заёмщика даёт процедура (Р-1), а не контур —
@@ -3677,21 +3743,21 @@ function wireCollectionTab(inn){
 
   /* ---- вид «по кредитам»: включает кредиты БЕЗ процесса — там и живёт расхождение ---- */
   function creditsView(){
-    const ordered = creds.filter(c=>isActiveCredit(c,TODAY)).concat(creds.filter(c=>!isActiveCredit(c,TODAY)));
+    const ordered = creds.filter(c=>isActiveCredit(c,asOf())).concat(creds.filter(c=>!isActiveCredit(c,asOf())));
     const rows = ordered.map((c,i) => {
       const ps = procs.filter(p=>p.credits.includes(c.id));
       const act = ps.find(p=>!isProcClosed(p)) || ps[0] || null;
-      const ov = overdueDaysOn(c, TODAY);
+      const ov = overdueDaysOn(c, asOf());
       const nd = act && !isProcClosed(act) ? nearestDeadline(act) : null;
       const cov = act && (act.cover||[]).find(x=>x.credit===c.id);
       const procCell = !act
-        ? (isActiveCredit(c,TODAY) && ov > 5
+        ? (isActiveCredit(c,asOf()) && ov > 5
             ? '<span class="badge b-err">процесса нет</span>'
               + '<div class="muted" style="margin-top:3px">открывается на 6-й день просрочки</div>'
             : '<span class="muted">—</span>')
         : esc(procNo(act)) + '<div class="muted" style="margin-top:3px">' + esc(act.contour)
           + (isProcClosed(act) ? ' · завершён ' + esc(act.closed||'') : '') + '</div>';
-      return '<tr' + (isActiveCredit(c,TODAY) ? '' : ' class="muted"') + '>'
+      return '<tr' + (isActiveCredit(c,asOf()) ? '' : ' class="muted"') + '>'
         + '<td class="rownum">' + (i+1) + '</td>'
         + '<td class="who">' + esc(c.no)
           + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(c.kind || '—') + '</div></td>'
@@ -3782,9 +3848,8 @@ function collateralTab(inn){
   const view = pledgeView();
 
   const toolbar = '<div class="toolbar">'
-      + '<span class="fl muted">По состоянию на</span>'
-      /* залоговая стоимость считается от остатка — а он снапшот на дату (E2E-09) */
-      + '<input type="date" id="plAsOf" data-view-ctl value="' + toISO(TODAY) + '" max="' + toISO(TODAY) + '" style="width:150px">'
+      /* индекс считается от остатка, а остаток — снимок; поэтому подпись, а не свой пикер */
+      + '<span class="fl muted">Обеспеченность от остатка на ' + DEBT_ASOF + '</span>'
       + '<span class="sep"></span>'
       + '<div class="viewseg" role="group" aria-label="Вид обеспечения">'
         + '<button type="button" class="viewseg-btn' + (view === 'credits' ? ' active' : '') + '" id="plSegCr">по кредитам</button>'
@@ -3844,7 +3909,7 @@ function wireCollateralTab(inn){
   function creditsView(){
     const rows = creds.map((c, i) => {
       const cv = creditCoverage(c);
-      const active = isActiveCredit(c, TODAY);
+      const active = isActiveCredit(c, asOf());
       const agrNos = [...new Set(cv.items.map(a => (PLEDGE_AGR.find(x => x.id === a.obj.agreementId) || {}).no).filter(Boolean))];
       const idx = cv.index == null ? '<span class="muted">—</span>'
         : '<span class="' + (cv.index < 1 ? 'win' : '') + '"><b>' + cv.index.toFixed(2) + '</b></span>';
@@ -3996,10 +4061,10 @@ function actTotals(a){
 /* требует действия: не подписан в срок, разногласия или уклонение */
 function actNeedsAction(a){
   if (a.agreement === 'dispute' || a.agreement === 'evasion') return true;
-  return a.stage < 2 && !a.agreement && calDays(a.dueDate, TODAY) > 0;   // просрочен
+  return a.stage < 2 && !a.agreement && calDays(a.dueDate, asOf()) > 0;   // просрочен
 }
 function actStatusBadge(a){
-  const days = calDays(a.dueDate, TODAY);
+  const days = calDays(a.dueDate, asOf());
   if (a.agreement === 'evasion'){
     const flag = days > 60 ? ` <a class="lnk">→ очередь на комитет (${days} к.д.)</a>` : ` <span class="muted">${days} к.д.</span>`;
     return `<span class="badge b-err">Уклонение</span>${flag}`;
@@ -4058,7 +4123,7 @@ function actDetail(a){
   if (a.agreement === 'dispute')
     branch = `<div class="act-note warn">✖ Разногласия — заёмщик не подписал.${a.disputeNote ? ' ' + esc(a.disputeNote) : ''}</div>`;
   else if (a.agreement === 'evasion'){
-    const days = calDays(a.dueDate, TODAY);
+    const days = calDays(a.dueDate, asOf());
     branch = `<div class="act-note warn">⏰ Уклонение от подписания ${days} к.д.`
       + (days > 60 ? ' — кандидат в очередь на комитет (событие источника «acts»).' : '.') + '</div>';
   } else if (a.regNo)
@@ -4132,7 +4197,7 @@ function wireActsTab(inn){
    ссылками и проверкой полноты ролей), история назначений, очередь передач и конфликт интересов
    (Р-6, 3 фазы, дедлайн п.93, замещающий). */
 function curatorTab(inn){
-  const d = TODAY;
+  const d = asOf();
   const matrix = curatorMatrix(inn, d);
   const credits = CREDITS.filter(c => c.inn === inn);
 
@@ -4163,7 +4228,7 @@ function curatorTab(inn){
     const colCur  = mine.filter(m => m.role === 'залоговый куратор');
     const gapsHere = gaps.filter(x => parentOf(x.objectId) === cr.id);
     mRows.push(`<tr class="grp-row"><td colspan="${COLS}">`
-      + `<a class="lnk" onclick="switchTab(1)">${esc(cr.no)}</a> · ${esc(cr.kind || 'кредит')}`
+      + `<a class="lnk" onclick="switchTab(tabIx('кредиты'))">${esc(cr.no)}</a> · ${esc(cr.kind || 'кредит')}`
       + (closed ? ' <span class="badge b-gray">погашен</span>' : '') + `</td></tr>`);
     loanCur.forEach(m => mRows.push(rowFor(m)));
     colCur.forEach(m => mRows.push(rowFor(m, m.objectId.includes('#') ? m.objectId.split('#')[1] : null)));
@@ -4190,7 +4255,7 @@ function curatorTab(inn){
   const hoBadge = st => st === 'отклонён' ? '<span class="badge b-err">отклонён</span>'
     : st === 'исполнен' ? '<span class="badge b-ok">исполнен</span>'
     : '<span class="badge b-proc">в очереди</span>';
-  const hoRows = hos.map(h => `<tr><td><a class="lnk" onclick="switchTab(1)">${esc(h.objectNo)}</a></td>`
+  const hoRows = hos.map(h => `<tr><td><a class="lnk" onclick="switchTab(tabIx('кредиты'))">${esc(h.objectNo)}</a></td>`
     + `<td>${roleBadge(h.role)}</td><td>${empLink(h.fromEmp)}</td><td>${empLink(h.toEmp)}</td>`
     + `<td class="muted">${esc(h.when)}</td><td>${hoBadge(h.status)}</td><td class="muted">${esc(h.reason)}</td></tr>`);
   const hoSect = hos.length
@@ -4306,7 +4371,7 @@ function docStatus(req, doc){
   if(!doc) return { code:'missing', badge:'<span class="badge b-err">нет</span>' };
   if(req.validMonths){
     const exp = addMonths(doc.date, req.validMonths);
-    if(exp && dnum(exp) < dnum(TODAY))
+    if(exp && dnum(exp) < dnum(asOf()))
       return { code:'expired', badge:'<span class="badge b-ov">истёк '+esc(exp)+'</span>' };
   }
   return { code:'ok', badge:'<span class="badge b-ok">есть</span>' };
@@ -4403,7 +4468,7 @@ function plural(n, one, few, many){
 }
 /* Возраст снимка: бейдж свежести (до 6 мес. — ок, до 12 — устаревает, дальше — устарел). */
 function freshness(takenAt){
-  const days = calDays(takenAt, TODAY);
+  const days = calDays(takenAt, asOf());
   if (days < 0) return '<span class="badge b-gray">дата в будущем</span>';
   const mo = Math.floor(days / 30), yr = Math.floor(days / 365);
   const age = yr >= 1 ? plural(yr, 'год', 'года', 'лет') + ' назад'
@@ -4427,7 +4492,7 @@ function checksVerdictBar(stop, warn, pass){
     + `<div class="muted">Стоп-факторов: <b style="color:var(--status-error)">${stop}</b> · `
     + `предупреждений: <b style="color:var(--status-warning)">${warn}</b> · пройдено: <b>${pass}</b> — ${note}</div>`;
   const chip = `<span style="font-size:18px;font-weight:700;color:${color}">${word}</span>`;
-  return sect('Итог проверок', 'сверка по ИНН на ' + TODAY, chip, body);
+  return sect('Итог проверок', 'сверка по ИНН на ' + asOf(), chip, body);
 }
 /* ═══ ДЕФЕКТЫ — ОДИН ДВИЖОК ═══
    Движков было два: шесть бейджей шапки и восемь проверок вкладки «Проверки» — по одним и
@@ -4447,17 +4512,17 @@ function borrowerChecks(inn, d){
   const st = subjectState(inn, d);
   const STOP_STATES = ['смерть','ликвидирован','долг переведён'];
   C.push(st && STOP_STATES.includes(st.kind)
-    ? { code:'Д-СУБ', tag:'оба', sev:'high', stop:true, tab:0, name:'Состояние субъекта', result:esc(st.kind),
+    ? { code:'Д-СУБ', tag:'оба', sev:'high', stop:true, tab:tabIx('общая'), name:'Состояние субъекта', result:esc(st.kind),
         basis:'основание: ' + esc(st.basis || '—') + (st.doc ? ' · ' + esc(st.doc) : '') + ' · ' + esc(st.date) }
-    : { code:'Д-СУБ', tag:'оба', sev:'ok', stop:false, tab:0, name:'Состояние субъекта', result:st ? esc(st.kind) : 'действует',
+    : { code:'Д-СУБ', tag:'оба', sev:'ok', stop:false, tab:tabIx('общая'), name:'Состояние субъекта', result:st ? esc(st.kind) : 'действует',
         basis:'событий, ограничивающих работу, нет' });
 
   // 2. Чёрный список — стоп-фактор в обеих подачах (раньше в шапке был просто жёлтым)
   const bl = BLACKLIST.find(x=>x.inn===inn);
   C.push(bl
-    ? { code:'Д-ЧС', tag:'оба', sev:'high', stop:true, tab:8, name:'Чёрный список', result:'значится',
+    ? { code:'Д-ЧС', tag:'оба', sev:'high', stop:true, tab:tabIx('проверки'), name:'Чёрный список', result:'значится',
         basis: esc(bl.basis) + ' · с ' + esc(bl.from) }
-    : { code:'Д-ЧС', tag:'оба', sev:'ok', stop:false, tab:8, name:'Чёрный список', result:'не значится',
+    : { code:'Д-ЧС', tag:'оба', sev:'ok', stop:false, tab:tabIx('проверки'), name:'Чёрный список', result:'не значится',
         basis:'реестр ЧС · сверка по ИНН' });
 
   // 3. Кредитная история: >90 дн. просрочки — стоп для новой выдачи, меньше — замечание
@@ -4465,10 +4530,10 @@ function borrowerChecks(inn, d){
   const worst = creds.slice().sort((a,b)=>overdueDaysOn(b,d)-overdueDaysOn(a,d))[0];
   const maxOv = worst ? overdueDaysOn(worst, d) : 0;
   C.push(maxOv > 0
-    ? { code:'Д-ПРОСР', tag:'оба', sev: maxOv > 90 ? 'high' : 'mid', stop: maxOv > 90, tab:1, name:'Кредитная история',
+    ? { code:'Д-ПРОСР', tag:'оба', sev: maxOv > 90 ? 'high' : 'mid', stop: maxOv > 90, tab:tabIx('кредиты'), name:'Кредитная история',
         result: maxOv > 90 ? 'просрочка свыше 90 дн.' : 'есть просрочки',
-        basis:'макс. просрочка ' + plural(maxOv,'день','дня','дней') + ' · ' + link(1, esc(worst.no||'кредит')) }
-    : { code:'Д-ПРОСР', tag:'оба', sev:'ok', stop:false, tab:1, name:'Кредитная история', result:'без просрочек',
+        basis:'макс. просрочка ' + plural(maxOv,'день','дня','дней') + ' · ' + link(tabIx('кредиты'), esc(worst.no||'кредит')) }
+    : { code:'Д-ПРОСР', tag:'оба', sev:'ok', stop:false, tab:tabIx('кредиты'), name:'Кредитная история', result:'без просрочек',
         basis:'просрочек по действующим кредитам нет' });
 
   /* 4. «Решения судов» = процессы на судебной и исполнительной стадии (stageOf, а не regex по названию).
@@ -4476,77 +4541,77 @@ function borrowerChecks(inn, d){
   const courtProcs = procsOf(inn).filter(p=>stageOf(p.phase)!=='Досудебный порядок');
   const openProcs  = courtProcs.filter(p=>!isProcClosed(p));
   C.push(courtProcs.length
-    ? { code:'Д-СУД', tag:'допуск', sev: openProcs.length ? 'high' : 'mid', stop: openProcs.length > 0, tab:3, name:'Решения судов',
+    ? { code:'Д-СУД', tag:'допуск', sev: openProcs.length ? 'high' : 'mid', stop: openProcs.length > 0, tab:tabIx('взыскание'), name:'Решения судов',
         result: openProcs.length
           ? plural(openProcs.length,'открытое производство','открытых производства','открытых производств')
           : plural(courtProcs.length,'завершённое производство','завершённых производства','завершённых производств'),
-        basis: courtProcs.map(p=>link(3, esc(procNo(p))) + ' · ' + esc(displayPhase(p))).join(' · ') }
-    : { code:'Д-СУД', tag:'допуск', sev:'ok', stop:false, tab:3, name:'Решения судов', result:'нет',
+        basis: courtProcs.map(p=>link(tabIx('взыскание'), esc(procNo(p))) + ' · ' + esc(displayPhase(p))).join(' · ') }
+    : { code:'Д-СУД', tag:'допуск', sev:'ok', stop:false, tab:tabIx('взыскание'), name:'Решения судов', result:'нет',
         basis:'судебных производств нет' });
 
   // 5. Конфликт интересов — отстранённые сотрудники (И-4); мешает работе, не выдаче
   const susp = suspendedEmployees(inn, d);
   C.push(susp.length
-    ? { code:'Д-КОНФ', tag:'сопровождение', sev:'mid', stop:false, tab:5, name:'Конфликт интересов',
+    ? { code:'Д-КОНФ', tag:'сопровождение', sev:'mid', stop:false, tab:tabIx('кураторство'), name:'Конфликт интересов',
         result: plural(susp.length,'сотрудник отстранён','сотрудника отстранены','сотрудников отстранены'),
-        basis: susp.map(empName).map(esc).join(', ') + ' · ' + link(5,'кураторство') }
-    : { code:'Д-КОНФ', tag:'сопровождение', sev:'ok', stop:false, tab:5, name:'Конфликт интересов', result:'не заявлен',
+        basis: susp.map(empName).map(esc).join(', ') + ' · ' + link(tabIx('кураторство'),'кураторство') }
+    : { code:'Д-КОНФ', tag:'сопровождение', sev:'ok', stop:false, tab:tabIx('кураторство'), name:'Конфликт интересов', result:'не заявлен',
         basis:'отстранённых сотрудников нет' });
 
   // 6. Объект без действующего куратора — раньше этой проверки не было вообще
   const gaps = curatorGaps(inn, d);
   C.push(gaps.length
-    ? { code:'Д-КУР', tag:'сопровождение', sev:'high', stop:false, tab:5, name:'Кураторство',
+    ? { code:'Д-КУР', tag:'сопровождение', sev:'high', stop:false, tab:tabIx('кураторство'), name:'Кураторство',
         result: plural(gaps.length,'объект без куратора','объекта без куратора','объектов без куратора'),
         basis: gaps.slice(0,3).map(x=>esc(x.objectNo + (x.region ? ' · ' + x.region : '') + ' · ' + x.role + ': ' + x.reason)).join(' · ')
-               + (gaps.length>3 ? ' и ещё ' + (gaps.length-3) : '') + ' · ' + link(5,'кураторство') }
-    : { code:'Д-КУР', tag:'сопровождение', sev:'ok', stop:false, tab:5, name:'Кураторство', result:'роли покрыты',
+               + (gaps.length>3 ? ' и ещё ' + (gaps.length-3) : '') + ' · ' + link(tabIx('кураторство'),'кураторство') }
+    : { code:'Д-КУР', tag:'сопровождение', sev:'ok', stop:false, tab:tabIx('кураторство'), name:'Кураторство', result:'роли покрыты',
         basis:'у каждого объекта есть действующий куратор' });
 
   // 7. Просроченные обязательства Порядка — были только в шапке
   const obsOv = obligations(inn, d).filter(o=>o.status==='просрочено');
   C.push(obsOv.length
-    ? { code:'Д-ОБЯЗ', tag:'сопровождение', sev:'high', stop:false, tab:10, name:'Обязательства Порядка',
+    ? { code:'Д-ОБЯЗ', tag:'сопровождение', sev:'high', stop:false, tab:tabIx('обязательства'), name:'Обязательства Порядка',
         result: plural(obsOv.length,'обязательство просрочено','обязательства просрочены','обязательств просрочено'),
-        basis: obsOv.map(o=>esc(o.code + ' ' + o.periodLabel)).join(' · ') + ' · ' + link(10,'обязательства') }
-    : { code:'Д-ОБЯЗ', tag:'сопровождение', sev:'ok', stop:false, tab:10, name:'Обязательства Порядка', result:'просроченных нет',
+        basis: obsOv.map(o=>esc(o.code + ' ' + o.periodLabel)).join(' · ') + ' · ' + link(tabIx('обязательства'),'обязательства') }
+    : { code:'Д-ОБЯЗ', tag:'сопровождение', sev:'ok', stop:false, tab:tabIx('обязательства'), name:'Обязательства Порядка', result:'просроченных нет',
         basis:'все требования Порядка в срок или исполнены' });
 
   // 8. Очередь на комитет — событие ждёт решения и категорию не двигает (И-1)
   const q = committeeQueue(inn, d);
   C.push(q.length
-    ? { code:'Д-ОЧЕР', tag:'сопровождение', sev:'mid', stop:false, tab:9, name:'Очередь на комитет',
+    ? { code:'Д-ОЧЕР', tag:'сопровождение', sev:'mid', stop:false, tab:tabIx('история'), name:'Очередь на комитет',
         result: plural(q.length,'событие ждёт решения','события ждут решения','событий ждут решения'),
         basis:'максимальное ожидание ' + plural(Math.max(...q.map(e=>e.waitingDays)),'день','дня','дней')
               + ' · категорию не двигают до решения (И-1)' }
-    : { code:'Д-ОЧЕР', tag:'сопровождение', sev:'ok', stop:false, tab:9, name:'Очередь на комитет', result:'пусто',
+    : { code:'Д-ОЧЕР', tag:'сопровождение', sev:'ok', stop:false, tab:tabIx('история'), name:'Очередь на комитет', result:'пусто',
         basis:'нерассмотренных событий нет' });
 
   // 9. Акты сверок: разногласия/уклонение
   const badActs = ACTS.filter(a=>a.inn===inn && (a.agreement==='dispute' || a.agreement==='evasion'));
   C.push(badActs.length
-    ? { code:'Д-АКТ', tag:'допуск', sev:'mid', stop:false, tab:4, name:'Акты сверок',
+    ? { code:'Д-АКТ', tag:'допуск', sev:'mid', stop:false, tab:tabIx('акты'), name:'Акты сверок',
         result: plural(badActs.length,'акт не подтверждён','акта не подтверждены','актов не подтверждены'),
-        basis: badActs.map(a=>link(4, esc(a.id||'акт')) + ' · ' + (a.agreement==='evasion'?'уклонение':'разногласия')).join(' · ') }
-    : { code:'Д-АКТ', tag:'допуск', sev:'ok', stop:false, tab:4, name:'Акты сверок', result:'разногласий нет',
+        basis: badActs.map(a=>link(tabIx('акты'), esc(a.id||'акт')) + ' · ' + (a.agreement==='evasion'?'уклонение':'разногласия')).join(' · ') }
+    : { code:'Д-АКТ', tag:'допуск', sev:'ok', stop:false, tab:tabIx('акты'), name:'Акты сверок', result:'разногласий нет',
         basis:'неподтверждённых актов сверки нет' });
 
   // 10. Комплектность досье п.97 — считается тем же dossierStats, что и таб «Документы»
   const ds = dossierStats(inn);
   const miss = ds.req - ds.met;
   C.push(miss || ds.exp
-    ? { code:'Д-ДОСЬЕ', tag:'допуск', sev:'mid', stop:false, tab:7, name:'Комплектность досье',
+    ? { code:'Д-ДОСЬЕ', tag:'допуск', sev:'mid', stop:false, tab:tabIx('документы'), name:'Комплектность досье',
         result: miss ? plural(miss,'документ отсутствует','документа отсутствуют','документов отсутствуют') : plural(ds.exp,'документ истёк','документа истекли','документов истекли'),
-        basis:'приложено ' + ds.met + ' из ' + ds.req + (ds.exp ? ' · истёк срок: ' + ds.exp : '') + ' · ' + link(7,'досье п.97') }
-    : { code:'Д-ДОСЬЕ', tag:'допуск', sev:'ok', stop:false, tab:7, name:'Комплектность досье', result:'комплект полный',
-        basis:'приложено ' + ds.met + ' из ' + ds.req + ' · ' + link(7,'досье п.97') });
+        basis:'приложено ' + ds.met + ' из ' + ds.req + (ds.exp ? ' · истёк срок: ' + ds.exp : '') + ' · ' + link(tabIx('документы'),'досье п.97') }
+    : { code:'Д-ДОСЬЕ', tag:'допуск', sev:'ok', stop:false, tab:tabIx('документы'), name:'Комплектность досье', result:'комплект полный',
+        basis:'приложено ' + ds.met + ' из ' + ds.req + ' · ' + link(tabIx('документы'),'досье п.97') });
 
   // 11. Аффилированность — справочная, состав ведётся в реестре лиц (Р-7)
   const rel = RELATED.filter(r=>r.inn===inn);
-  C.push({ code:'Д-СВЯЗ', tag:'допуск', sev: rel.length ? 'info' : 'ok', stop:false, tab:6, name:'Аффилированность',
+  C.push({ code:'Д-СВЯЗ', tag:'допуск', sev: rel.length ? 'info' : 'ok', stop:false, tab:tabIx('связи'), name:'Аффилированность',
     result: rel.length ? plural(rel.length,'связанное лицо','связанных лица','связанных лиц') : 'связей не зарегистрировано',
     basis: rel.length ? rel.slice(0,3).map(r=>esc(r.fio + ' · ' + r.role)).join(' · ')
-             + (rel.length>3 ? ' и ещё ' + (rel.length-3) : '') + ' · ' + link(6,'реквизиты и связи')
+             + (rel.length>3 ? ' и ещё ' + (rel.length-3) : '') + ' · ' + link(tabIx('связи'),'реквизиты и связи')
            : 'реестр лиц (Р-7) · сверка по ИНН' });
   return C;
 }
@@ -4573,7 +4638,7 @@ function defectsSorted(inn, d){
 function checksTab(inn){
   /* Подача «допуск»: те же дефекты, но отвечающие на вопрос «можно ли выдавать».
      Классификации (категория/группа) — НЕ проверки, они уехали в справочный подвал. */
-  const C = borrowerChecks(inn, TODAY);
+  const C = borrowerChecks(inn, asOf());
   /* Стоп — модальность, а не степень: он и красный бейдж, и первая строка, но в шкале
      high/mid/info его нет. Тег «влияет на» показывается колонкой — одна и та же проверка
      по-разному важна для новой выдачи и для текущей работы. */
@@ -4589,24 +4654,24 @@ function checksTab(inn){
       + (c.stop ? ' <span class="badge b-err">стоп</span>' : '') + `</td>`
     + `<td class="muted">${esc(c.tag)}</td>`
     + `<td class="muted">${c.basis}</td></tr>`);
-  const internal = sect('Внутренние проверки', 'сверка по ИНН на ' + TODAY + ' · все проверки выполнены одним прогоном'
+  const internal = sect('Внутренние проверки', 'сверка по ИНН на ' + asOf() + ' · все проверки выполнены одним прогоном'
       + ' · тот же список, что в шапке карточки',
     '<button class="btn btn-secondary btn-sm">Проверить заново</button>',
     table('<th style="width:22%">Проверка</th><th style="width:22%">Результат</th>'
       + '<th style="width:13%">Влияет на</th><th>Основание</th>', rows));
 
   /* Справочный подвал: категория и группа — не проверки, а выводимые классификации (дубль плиток шапки). */
-  const cat = catOfBorrower(inn, TODAY);
+  const cat = catOfBorrower(inn, asOf());
   const clsHtml = sect('Справочно — классификации', 'выводятся автоматически, проверкой не являются', '',
     '<div class="muted">Категория риска: <b>' + esc(cat ? CAT_LABEL[cat] : 'не применяется') + '</b> (по данным мониторинга)'
-    + ' · Подгруппа: <b>' + esc(subgroupOf(inn, TODAY)) + '</b> · группа <b>' + esc(groupOf(inn, TODAY))
+    + ' · Подгруппа: <b>' + esc(subgroupOf(inn, asOf())) + '</b> · группа <b>' + esc(groupOf(inn, asOf()))
     + '</b> (классификатор заёмщика)</div>');
 
   /* Внешние снимки — зеркало (И-5). Ключевое: снимок берётся НА МОМЕНТ ЗАЯВКИ и с годами протухает,
      поэтому у каждой строки бейдж свежести, а заявка — ссылка. */
   const ext = CHECKS_EXT.filter(c=>c.inn===inn).slice()
     .sort((a,b)=>(dnum(b.takenAt)||0)-(dnum(a.takenAt)||0));
-  const stale = ext.filter(c=>calDays(c.takenAt, TODAY) > 365).length;
+  const stale = ext.filter(c=>calDays(c.takenAt, asOf()) > 365).length;
   const erows = ext.map(c=>`<tr><td>${esc(c.source)}</td><td>${esc(c.takenAt)}</td>`
     + `<td>${freshness(c.takenAt)}</td>`
     + `<td><a class="lnk">${esc(c.appId)}</a></td><td>${fmtPayload(c.payload)}</td></tr>`);
@@ -4649,103 +4714,103 @@ function historyItems(inn){
   const noOf = id => (CREDITS.find(c=>c.id===id)||{}).no || id;
 
   /* ── риск: категория, группа, факторы комитета ── */
-  categoryEvents(inn, TODAY).forEach(e=>add({date:e.date, dot:'risk', cat:'risk',
-    kind:'категория', tab:0,
+  categoryEvents(inn, asOf()).forEach(e=>add({date:e.date, dot:'risk', cat:'risk',
+    kind:'категория', tab:tabIx('общая'),
     title:`Категория риска → ${e.level ? CAT_LABEL[e.level] : 'не применяется'}`, body:e.reason}));
   BORROWER_EVENTS.filter(e=>e.inn===inn).forEach(e=>add({date:e.date, dot:'info', cat:'risk',
-    kind:'событие заёмщика', tab:0,
+    kind:'событие заёмщика', tab:tabIx('общая'),
     title:`${e.kind[0].toUpperCase()}${e.kind.slice(1)} → подгруппа ${EVENT_SUBGROUP[e.kind]||'—'}`,
     body:`${e.basis}${e.doc?' · '+e.doc:''}`}));
   FACTORS.filter(f=>myIds.has(f.creditId)).forEach(f=>add({date:f.from, dot:f.committeeRef?'risk':'warn', cat:'risk',
-    kind:'фактор', tab:1,
+    kind:'фактор', tab:tabIx('кредиты'),
     title:`Фактор риска по кредиту ${noOf(f.creditId)}: ${f.type}`,
     body: f.committeeRef ? `решение комитета ${f.committeeRef} · уровень ${CAT_LABEL[f.level]} — категория пересчитана`
                          : `без решения комитета · уровень ${CAT_LABEL[f.level]} — категорию не двигает (И-1)`}));
 
   /* ── субъект ── */
   SUBJECT_EVENTS.filter(e=>e.inn===inn).forEach(e=>add({date:e.date, time:e.time, dot:'warn', cat:'subj',
-    kind:'субъект', tab:0,
+    kind:'субъект', tab:tabIx('общая'),
     title:`Субъект: ${e.kind}`, body:`${e.basis}${e.doc?' · '+e.doc:''}`}));
 
   /* ── кредиты: выдача, закрытие, послабления (оверлеи реструктуризации) ── */
   my.forEach(c=>{
-    add({date:c.date, dot:'info', cat:'credit', kind:'кредит', tab:1,
+    add({date:c.date, dot:'info', cat:'credit', kind:'кредит', tab:tabIx('кредиты'),
       title:`Выдан кредит ${c.no}`,
       body:`${c.program} · ${c.kind} · ${fmt(c.amount)} ${c.currency}${c.gov?' · '+c.gov:''}`});
-    if(c.closedAt) add({date:c.closedAt, dot:'ok', cat:'credit', kind:'кредит', tab:1,
+    if(c.closedAt) add({date:c.closedAt, dot:'ok', cat:'credit', kind:'кредит', tab:tabIx('кредиты'),
       title:`Кредит ${c.no} закрыт`, body:'договор закрыт · остаток 0'});
   });
   OVERLAYS.filter(o=>myIds.has(o.creditId)).forEach(o=>add({date:o.from, dot:'warn', cat:'credit',
-    kind:'послабление', tab:1,
+    kind:'послабление', tab:tabIx('кредиты'),
     title:`Послабление по кредиту ${noOf(o.creditId)}`,
     body:`181-й день просрочки не учитывается по ${o.deadline} · основание ${o.sourceRef}`}));
 
   /* ── обеспечение: регистрация договора залога ── */
   PLEDGE_AGR.filter(a=>a.credits.some(id=>myIds.has(id))).forEach(a=>add({date:a.regDate, dot:'info', cat:'pledge',
-    kind:'залог', tab:2,
+    kind:'залог', tab:tabIx('залог'),
     title:`Зарегистрирован договор залога ${a.no}`,
     body:`кредит ${a.credits.map(noOf).join(', ')} · ${a.organ} · запрет ${a.arrestNo} от ${a.arrestDate}`}));
 
   /* ── взыскание: открытие процесса, подтверждение, меры, пауза, закрытие ── */
   PROCESSES.filter(p=>p.credits.some(id=>myIds.has(id))).forEach(p=>{
     const cr = p.credits.map(noOf).join(', ');
-    add({date:p.opened, dot:'risk', cat:'coll', kind:'взыскание', tab:3,
+    add({date:p.opened, dot:'risk', cat:'coll', kind:'взыскание', tab:tabIx('взыскание'),
       title:`Открыт процесс взыскания №${p.no} (${p.contour})`,
       body:`кредит ${cr} · основание: ${p.basis||'—'} · открыл: ${p.openedBy||'—'}`});
-    if(p.confirm && p.confirm.at) add({date:p.confirm.at, dot:'info', cat:'coll', kind:'взыскание', tab:3,
+    if(p.confirm && p.confirm.at) add({date:p.confirm.at, dot:'info', cat:'coll', kind:'взыскание', tab:tabIx('взыскание'),
       title:`Процесс №${p.no} подтверждён подразделением`,
       body:`п. 98 — подтверждение в течение 5 р.д. от открытия${p.owner?' · исполнитель: '+empName(p.owner):''}`});
-    (p.measures||[]).forEach(m=>add({date:m.date, dot:'info', cat:'coll', kind:'мера', tab:3,
+    (p.measures||[]).forEach(m=>add({date:m.date, dot:'info', cat:'coll', kind:'мера', tab:tabIx('взыскание'),
       title:`${m.kind} по процессу №${p.no}`,
       body:`${m.section} · ${m.sum?fmt(m.sum)+' сом':'без суммы'}${m.doc?' · '+m.doc:''}${m.delivered?' · вручено '+m.delivered:''}`}));
-    if(p.pause && p.pause.active) add({date:p.pause.since, dot:'warn', cat:'coll', kind:'взыскание', tab:3,
+    if(p.pause && p.pause.active) add({date:p.pause.since, dot:'warn', cat:'coll', kind:'взыскание', tab:tabIx('взыскание'),
       title:`Процесс №${p.no} приостановлен`,
       body:`обращение о реструктуризации${p.pause.ref?' · '+p.pause.ref:''} — фаза подменена на время рассмотрения`});
-    if(p.closed) add({date:p.closed, dot:'ok', cat:'coll', kind:'взыскание', tab:3,
+    if(p.closed) add({date:p.closed, dot:'ok', cat:'coll', kind:'взыскание', tab:tabIx('взыскание'),
       title:`Процесс взыскания №${p.no} закрыт`, body:p.outcome||'процедура завершена'});
   });
 
   /* ── акты сверок: формирование → подписание/разногласия → регистрация → скан ── */
   ACTS.filter(a=>a.inn===inn).forEach(a=>{
     const head = `${a.kind} акт ${a.period} (${a.scope})`;
-    if(a.dataAt) add({date:a.dataAt, dot:'info', cat:'acts', kind:'акт', tab:4,
+    if(a.dataAt) add({date:a.dataAt, dot:'info', cat:'acts', kind:'акт', tab:tabIx('акты'),
       title:`Сформирован ${head}`, body:`кредитов в акте: ${a.credits.length} · срок ${a.dueDate}${a.by?' · '+a.by:''}`});
-    if(a.agreement==='signed' && a.signAt) add({date:a.signAt, dot:'ok', cat:'acts', kind:'акт', tab:4,
+    if(a.agreement==='signed' && a.signAt) add({date:a.signAt, dot:'ok', cat:'acts', kind:'акт', tab:tabIx('акты'),
       title:`Акт ${a.id} подписан заёмщиком`, body:head});
-    if(a.agreement==='dispute') add({date:a.signAt||a.dueDate, dot:'warn', cat:'acts', kind:'акт', tab:4,
+    if(a.agreement==='dispute') add({date:a.signAt||a.dueDate, dot:'warn', cat:'acts', kind:'акт', tab:tabIx('акты'),
       title:`Разногласия по акту ${a.id}`, body:a.disputeNote||head});
-    if(a.agreement==='evasion') add({date:a.dueDate, dot:'risk', cat:'acts', kind:'акт', tab:4,
+    if(a.agreement==='evasion') add({date:a.dueDate, dot:'risk', cat:'acts', kind:'акт', tab:tabIx('акты'),
       title:`Уклонение от подписания акта ${a.id}`, body:`${head} · срок вышел — кандидат на комитет`});
-    if(a.regAt) add({date:a.regAt, dot:'info', cat:'acts', kind:'акт', tab:4,
+    if(a.regAt) add({date:a.regAt, dot:'info', cat:'acts', kind:'акт', tab:tabIx('акты'),
       title:`Акт зарегистрирован ${a.regNo}`, body:head});
-    if(a.scanAt) add({date:a.scanAt, dot:'info', cat:'acts', kind:'акт', tab:4,
+    if(a.scanAt) add({date:a.scanAt, dot:'info', cat:'acts', kind:'акт', tab:tabIx('акты'),
       title:`Загружен скан акта ${a.regNo||a.id}`, body:a.scan||head});
   });
 
   /* ── документы досье ── */
-  DOCS.filter(d=>d.inn===inn).forEach(d=>add({date:d.date, dot:'info', cat:'doc', kind:'документ', tab:7,
+  DOCS.filter(d=>d.inn===inn).forEach(d=>add({date:d.date, dot:'info', cat:'doc', kind:'документ', tab:tabIx('документы'),
     title:`Документ: ${d.type}`,
     body:`${d.scope.kind} ${d.scope.kind==='кредит'?noOf(d.scope.ref):d.scope.ref} · ${d.file}${d.by?' · '+d.by:''}`}));
 
   /* ── проверки: внешние снимки и реестр ЧС ── */
-  CHECKS_EXT.filter(x=>x.inn===inn).forEach(x=>add({date:x.takenAt, dot:'info', cat:'check', kind:'снимок', tab:8,
+  CHECKS_EXT.filter(x=>x.inn===inn).forEach(x=>add({date:x.takenAt, dot:'info', cat:'check', kind:'снимок', tab:tabIx('проверки'),
     title:`Снимок внешней проверки: ${x.source}`,
     body:`заявка ${x.appId} · ${Object.entries(x.payload||{}).map(([k,v])=>k+': '+(typeof v==='number'?fmt(v):v)).join(' · ')}`}));
-  BLACKLIST.filter(b=>b.inn===inn).forEach(b=>add({date:b.from, dot:'risk', cat:'check', kind:'чёрный список', tab:8,
+  BLACKLIST.filter(b=>b.inn===inn).forEach(b=>add({date:b.from, dot:'risk', cat:'check', kind:'чёрный список', tab:tabIx('проверки'),
     title:'Заёмщик внесён в реестр ЧС', body:b.basis}));
 
   /* ── кураторство: назначения, передача дела, конфликт интересов ── */
   CURATOR_LOG.filter(l=>l.inn===inn).forEach(l=>add({date:l.date, time:l.time, dot:'ok', cat:'kur',
-    kind:'кураторство', tab:5, title:l.title, body:l.body}));
+    kind:'кураторство', tab:tabIx('кураторство'), title:l.title, body:l.body}));
   HANDOFF.filter(h=>h.inn===inn).forEach(h=>add({date:h.when,
     dot: h.status==='исполнен' ? 'ok' : h.status==='отклонён' ? 'warn' : 'info', cat:'kur',
-    kind:'передача', tab:5,
+    kind:'передача', tab:tabIx('кураторство'),
     title:`Передача дела ${h.status}: ${h.objectNo}`,
     body:`${h.role} · ${empName(h.fromEmp)} → ${empName(h.toEmp)} · ${h.reason}`}));
   CONFLICTS.filter(c=>c.inn===inn).forEach(c=>{
-    add({date:c.declaredAt, time:c.time, dot:'warn', cat:'kur', kind:'конфликт', tab:5,
+    add({date:c.declaredAt, time:c.time, dot:'warn', cat:'kur', kind:'конфликт', tab:tabIx('кураторство'),
       title:'Конфликт интересов заявлен', body:`${c.trigger} · ${empName(c.empId)}`});
-    if(c.closedAt) add({date:c.closedAt, dot:'ok', cat:'kur', kind:'конфликт', tab:5,
+    if(c.closedAt) add({date:c.closedAt, dot:'ok', cat:'kur', kind:'конфликт', tab:tabIx('кураторство'),
       title:'Конфликт интересов урегулирован',
       body:`${c.decision?c.decision.kind:'решение'} · ${empName(c.empId)}${c.decision&&c.decision.doc?' · '+c.decision.doc:''}`});
   });
@@ -4845,31 +4910,31 @@ function histApply(){
 }
 
 function tabBody(inn, i){
-  switch(i){
-    case 0: return generalTab(inn);
-    case 1: return `<div data-mirror="1">${creditsTab(inn)}</div>`;
-    case 2: return `<div data-mirror="1">${collateralTab(inn)}</div>`;
-    case 3: return `<div data-mirror="1">${collectionTab(inn)}</div>`;
-    case 4: return actsTab(inn);
-    case 5: return curatorTab(inn);
+  switch((TAB_DEFS[i]||{}).key){
+    case 'общая': return generalTab(inn);
+    case 'кредиты': return `<div data-mirror="1">${creditsTab(inn)}</div>`;
+    case 'залог': return `<div data-mirror="1">${collateralTab(inn)}</div>`;
+    case 'обязательства': return obligationsTab(inn);
+    case 'взыскание': return `<div data-mirror="1">${collectionTab(inn)}</div>`;
+    case 'акты': return actsTab(inn);
+    case 'кураторство': return curatorTab(inn);
     /* Вариант C: «Связанные лица» + «Реквизиты и контакты» слиты в один таб «Реквизиты и связи».
        2 колонки (.gen-2col, схлоп <1100px): слева лица (зеркало Р-7, data-mirror), справа каналы+банк (свои, Р-10).
        data-mirror только на левой колонке — владелец у секций разный, бейджи источника в sect() сохранены. */
-    case 6: return `<div class="gen-2col"><div data-mirror="1">${relatedTab(inn)}</div><div>${requisitesTab(inn)}</div></div>`;
-    case 7: return `<div data-mirror="1">${docsTab(inn)}</div>`;
-    case 8: return checksTab(inn);
-    case 9: return historyTab(inn);
-    case 10: return obligationsTab(inn);
+    case 'связи': return `<div class="gen-2col"><div data-mirror="1">${relatedTab(inn)}</div><div>${requisitesTab(inn)}</div></div>`;
+    case 'документы': return `<div data-mirror="1">${docsTab(inn)}</div>`;
+    case 'проверки': return checksTab(inn);
+    case 'история': return historyTab(inn);
   }
   return '';
 }
 
 function renderCard(inn){
   const s = SUBJECTS.find(x=>x.inn===inn);
-  const cat = catOfBorrower(inn, TODAY);
-  const grp = subgroupOf(inn, TODAY);
-  const st  = subjectState(inn, TODAY);
-  const ro  = isReadOnly(inn, TODAY);
+  const cat = catOfBorrower(inn, asOf());
+  const grp = subgroupOf(inn, asOf());
+  const st  = subjectState(inn, asOf());
+  const ro  = isReadOnly(inn, asOf());
 
   /* Метка read-only на выводимых полях: группу и категорию нельзя проставить руками
      (в легаси группу ставили вручную — отсюда расхождения журнала и факта). */
@@ -4880,7 +4945,7 @@ function renderCard(inn){
       st ? `основание: ${esc(st.basis||'—')}` : 'событий нет',
       st && st.successorInn ? `Преемник: <a class="lnk" href="#/b/${st.successorInn}">${st.successorInn}</a>` : ''),
     tile('Подгруппа заёмщика', `<span class="grp-code">${esc(grp)}</span> ${esc(SUBGROUP_LABEL[grp]||'')}`,
-      'лестница с доминированием', groupStepsHtml(inn, TODAY), LOCK),
+      'лестница с доминированием', groupStepsHtml(inn, asOf()), LOCK),
     tile('Категория риска',
       cat ? `<span class="cat-${catCls(cat)}"><span class="dot d-${catCls(cat)}"></span> ${esc(CAT_LABEL[cat])}</span>`
           : '<span class="muted">не применяется</span>',
@@ -4894,7 +4959,51 @@ function renderCard(inn){
   const panels = TABS.map((t,i)=>`<div class="tabpanel${i===0?' active':''}" data-panel="${i}">${tabBody(inn, i)}</div>`).join('');
 
   /* Шапки в теле карточки нет: наименование и ИНН — в топ-хедере (showDetail), чтобы не дублировать. */
-  return `<div class="phead-dims">${tiles}</div>${banner}${tabbar}${panels}`;
+  /* Один орган управления датой на всю карточку. Меняет только ВЫВОДИМЫЕ состояния;
+     денежные величины подписаны своей датой снимка и на него не реагируют (И-6). */
+  const asOfBar = `<div class="asof-bar">`
+    + `<span class="muted">Состояния на дату</span>`
+    + `<input type="date" id="cardAsOf" data-view-ctl value="${toISO(asOf())}" max="${toISO(TODAY)}"`
+    + ` onchange="setAsOf(this.value)" style="width:150px">`
+    + (asOf() !== TODAY ? `<span class="badge b-ov">срез ${esc(asOf())}, не сегодня</span>` : '')
+    + `<span class="muted">· деньги — снимок на ${esc(DEBT_ASOF)}, дате среза не подчиняются</span>`
+    + `</div>`;
+  return `${asOfBar}<div class="phead-dims">${tiles}</div>${banner}${tabbar}${panels}`;
+}
+
+/* Роли субъекта — то, ради чего субъект вообще отделён от заёмщика: одно лицо бывает
+   заёмщиком по своим кредитам, залогодателем по чужим и поручителем у третьего. Реквизиты
+   у ролей общие, состояние — своё. Роль здесь не хранится: она выводится из того, где лицо
+   фактически участвует (кредиты, предметы залога, реестр связанных лиц). */
+function subjectRoles(inn){
+  const s = SUBJECTS.find(x => x.inn === inn);
+  if (!s) return [];
+  const out = [];
+  const my = CREDITS.filter(c => c.inn === inn);
+  const act = my.filter(c => isActiveCredit(c, asOf()));
+  if (my.length) out.push({ role:'Заёмщик',
+    scope: act.length + ' действующих из ' + my.length,
+    since: my.map(c => c.date).filter(Boolean).sort((a,b)=>dnum(a)-dnum(b))[0] || '—',
+    link: `<a class="lnk" href="#/b/${esc(inn)}">карточка заёмщика</a>` });
+  /* залогодателем лицо бывает и по чужому кредиту — поэтому ищем по предметам, а не по ИНН */
+  const pl = PLEDGE_OBJ.filter(o => o.pledger === s.name && !o.released);
+  if (pl.length){
+    const owners = [...new Set(pl.map(o => o.inn))];
+    out.push({ role:'Залогодатель', scope: plural(pl.length,'предмет','предмета','предметов') + ' в залоге',
+      since: pl.map(o => o.apprDate).filter(Boolean).sort((a,b)=>dnum(a)-dnum(b))[0] || '—',
+      link: owners.map(i => `<a class="lnk" href="#/b/${esc(i)}/${tabIx('залог')}">${esc(i===inn ? 'свои кредиты' : i)}</a>`).join(' · ') });
+  }
+  const asGuar = RELATED.filter(r => r.fio === s.name && /поручител/i.test(r.role || ''));
+  if (asGuar.length) out.push({ role:'Поручитель',
+    scope: plural(asGuar.length,'обязательство','обязательства','обязательств'),
+    since: asGuar.map(r => r.from).filter(Boolean).sort((a,b)=>dnum(a)-dnum(b))[0] || '—',
+    link: asGuar.map(r => `<a class="lnk" href="#/b/${esc(r.inn)}">${esc(r.inn)}</a>`).join(' · ') });
+  const asRel = RELATED.filter(r => r.fio === s.name && !/поручител/i.test(r.role || ''));
+  if (asRel.length) out.push({ role:'Связанное лицо',
+    scope: [...new Set(asRel.map(r => r.role))].map(esc).join(', '),
+    since: asRel.map(r => r.from).filter(Boolean).sort((a,b)=>dnum(a)-dnum(b))[0] || '—',
+    link: [...new Set(asRel.map(r => r.inn))].map(i => `<a class="lnk" href="#/b/${esc(i)}">${esc(i)}</a>`).join(' · ') });
+  return out;
 }
 
 /* ---------- Субъект (#/s/<ИНН>) — собственная сущность (E2E findings), не зеркало заёмщика. ---------- */
@@ -4917,7 +5026,15 @@ function renderSubject(inn){
   const evRows = evs.map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(e.kind)}</td><td>${esc(e.basis||'—')}</td><td>${esc(e.doc||'—')}</td>`
     + `<td>${e.successorInn ? `<a class="lnk" href="#/b/${esc(e.successorInn)}">${esc(e.successorInn)}</a>` : '—'}</td></tr>`);
   const evHtml = sect('Жизненный цикл субъекта', 'Р-9 · append-only', '', table('<th>Дата</th><th>Событие</th><th>Основание</th><th>Документ</th><th>Преемник</th>', evRows));
-  return header + body + unitSect + evHtml;
+  /* Роли субъекта — первым блоком: с них начинается ответ на вопрос «кто это лицо для нас» */
+  const roles = subjectRoles(inn);
+  const rolesHtml = sect('Роли субъекта', 'выводятся из участия, вручную не задаются', '',
+    roles.length
+      ? table('<th style="width:20%">Роль</th><th style="width:28%">Объём</th><th style="width:14%">С даты</th><th>Где</th>',
+          roles.map(r => `<tr><td class="who">${esc(r.role)}</td><td>${esc(r.scope)}</td>`
+            + `<td class="muted">${esc(r.since)}</td><td>${r.link}</td></tr>`))
+      : empty('Лицо заведено, но ни в одной роли не участвует.'));
+  return header + rolesHtml + body + unitSect + evHtml;
 }
 
 /* ═══ SECTION 4 · ШЕЛЛ (роутер/реестр/память) ═══ */
@@ -4965,6 +5082,7 @@ function scrollTop(){ document.documentElement.scrollTop = document.body.scrollT
 
 function showList(){
   current = null; currentSubj = null;
+  VIEW_DATE = TODAY;              /* реестр всегда «сегодня»: срез — свойство открытой карточки */
   if (listView === 'cards') renderCards(); else renderList();
   showOnly(vList);
   pageTitle.textContent = 'Список заёмщиков';

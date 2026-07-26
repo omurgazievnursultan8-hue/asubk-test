@@ -204,8 +204,9 @@ ok('F7. «исполнено» бывает только с фактом зак�
         .filter(o=>o.status==='исполнено').every(o=>o.closing && dateLE(o.closing.date, TODAY)))`));
 ok('F8. вкладка «Обязательства» без органов ввода — отметить исполнение вручную нечем',
   (() => { const f = mk();
-    f.ev("location.hash='#/b/01204199910016/10'"); f.ev("route()");
-    const tab = f.$('.tabpanel[data-panel="10"]');
+    const ix = f.ev("tabIx('обязательства')");
+    f.ev(`location.hash='#/b/01204199910016/${ix}'`); f.ev("route()");
+    const tab = f.$(`.tabpanel[data-panel="${ix}"]`);
     return !!tab && /Чем закрыто/.test(tab.textContent)
       && tab.querySelectorAll('input, select, [data-edits]').length === 0; })());
 
@@ -289,8 +290,9 @@ ok('G5. объект без действующего куратора даёт �
   && g.ev("defects('01204199910016',TODAY).some(x=>x.code==='Д-КУР' && x.sev==='high')"));
 ok('G6. КР-60541 виден во вкладке «Кураторство» вместе с пометкой о приостановке',
   (() => { const f = mk();
-    f.ev("location.hash='#/b/01204199910016/5'"); f.ev("route()");
-    const t = f.$('.tabpanel[data-panel="5"]').textContent;
+    const ix = f.ev("tabIx('кураторство')");
+    f.ev(`location.hash='#/b/01204199910016/${ix}'`); f.ev("route()");
+    const t = f.$(`.tabpanel[data-panel="${ix}"]`).textContent;
     return /КР-60541/.test(t) && /приостановлен/.test(t) && /отстранён/.test(t); })());
 ok('G7. дефекты залога и взыскания живут в том же списке',
   g.ev("defects('01204199910016',TODAY).some(x=>x.area==='залог')")
@@ -300,12 +302,63 @@ ok('G8. стоп-фактор идёт первым независимо от с
   g.ev(`SUBJECTS.map(s=>s.inn).filter(i=>defects(i,TODAY).some(x=>x.stop))
         .every(i=>defectsSorted(i,TODAY)[0].stop === true)`));
 
+/* ── Экраны (H1–H7, ревизия 26.07.2026) ──
+   Пикеров «по состоянию на» было три — в «Кредитах», «Взыскании» и «Залоге», — и ни один
+   не был подключён ни к чему: чистая декорация. Реестр показывал отрасль и район (искать
+   по ним надо, смотреть — нет) и молчал о том, ради чего в него заходят: просрочка,
+   дефекты, куратор. Страница субъекта не отвечала на вопрос «кто это лицо для нас». */
+ok('H1. дата среза одна и она рабочая: срез в прошлое меняет выводимое состояние',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
+    const now = f.ev("catOfBorrower('01204199910016', asOf())");
+    f.ev("setAsOf('2026-01-01')");
+    const tile = f.$('.phead-dims .dim:nth-child(3) .dim-v');
+    return now === 'high' && f.ev("asOf()") === '01.01.2026'
+      && f.ev("catOfBorrower('01204199910016', asOf())") === 'mid'
+      && /Средний/.test(tile.textContent)          // плитка перерисована, а не осталась вчерашней
+      && /срез 01\.01\.2026/.test(f.$('.asof-bar').textContent); })());
+ok('H2. срез не уезжает в будущее',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
+    f.ev("setAsOf('2030-01-01')");
+    return f.ev("asOf()") === f.ev("TODAY"); })());
+ok('H3. декоративных пикеров даты больше нет — орган управления один',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
+    return !f.$('#asOf') && !f.$('#cvAsOf') && !f.$('#plAsOf') && !!f.$('#cardAsOf'); })());
+ok('H4. деньги дате среза не подчиняются (И-6): снимок остаётся на DEBT_ASOF',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
+    const before = f.ev("totalDebt('01204199910016')");
+    f.ev("setAsOf('2026-01-01')");
+    return f.ev("totalDebt('01204199910016')") === before
+      && f.ev("CREDITS.every(c=>c.debt.asOf===DEBT_ASOF)"); })());
+ok('H5. реестр — рабочий список: просрочка, просроченная часть, дефекты, куратор',
+  (() => { const f = mk();
+    const th = f.$$('#listTable thead th').map(x => x.getAttribute('data-sort'));
+    return th.length === 7 && ['ov','ovSum','def','curator'].every(k => th.includes(k))
+      && !th.includes('sector') && !th.includes('district'); })());
+ok('H6. строка реестра считается движком и видит дыру кураторства по КРЕДИТУ',
+  g.ev("listRow(SUBJECTS.find(s=>s.inn==='01204199910016')).curatorGap") === true
+  && g.ev("listRow(SUBJECTS.find(s=>s.inn==='01204199910016')).stop") === true
+  && g.ev("listRow(SUBJECTS.find(s=>s.inn==='01204199910016')).ov") > 200);
+ok('H7. страница субъекта показывает роли, и роль выводится, а не хранится',
+  g.ev("subjectRoles('01204199910016').map(r=>r.role).join('+')") === 'Заёмщик+Залогодатель'
+  && g.ev("SUBJECTS.every(s=>!('roles' in s))")
+  && (() => { const f = mk();
+    f.ev("location.hash='#/s/01204199910016'"); f.ev("route()");
+    const t = f.$('#subjectMount').textContent;
+    return /Роли субъекта/.test(t) && /Залогодатель/.test(t); })());
+
 // ── Рендер и зеркала (26 + DOM) ──
 const h = mk();
 h.ev("location.hash='#/b/01204199910016'"); h.ev("route()");
 ok('R1. три плитки в шапке карточки (состояние субъекта · подгруппа · категория)',
   h.$$('.phead-dims .dim').length === 3);
-ok('R2. одиннадцать вкладок (добавлена «Обязательства»)', h.$$('.tabbar .tab').length === 11);
+ok('R2. одиннадцать вкладок, порядок задан TAB_DEFS и адресуется ключом',
+  h.$$('.tabbar .tab').length === 11
+  && h.ev("TABS.length === TAB_DEFS.length && tabIx('обязательства') < tabIx('взыскание')")
+  && h.ev("tabIx('нет-такой')") === -1);
 ok('R3. плитка категории показывает Высокий (из функции, не из разметки)',
   /Высокий/.test(h.$('.phead-dims').textContent));
 
