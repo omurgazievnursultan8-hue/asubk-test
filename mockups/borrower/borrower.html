@@ -8,7 +8,7 @@
      Язык: CONTEXT.md · Правило значений: docs/adr/0001-proizvodnye-ne-hranyatsya.md
      Спека: docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки) — обновляется после ревизии 26.07.2026
-     Проверка: node scripts/inspect/borrower-check.mjs  →  55/55 PASS (2026-07-26)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  62/62 PASS (2026-07-26)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
@@ -752,6 +752,9 @@
 const TODAY = '13.07.2026';
 const CAT_LABEL = { low:'Низкий', mid:'Средний', high:'Высокий' };
 const CAT_RANK  = { low:0, mid:1, high:2 };
+/* Только для демо-данных: в них просрочку удобно задавать привычным «70 дн.», а фактом
+   хранится дата выхода на просрочку (ADR-0001). addCalDays — объявление функции, поднимается. */
+const daysAgo = n => addCalDays(TODAY, -n);
 /* Подписи подгрупп заёмщика — коды возвращает groupOf(). */
 const SUBGROUP_LABEL = {
   '1.1':'Производят погашение по графику',
@@ -859,8 +862,8 @@ const BANK_REQ = [
   { inn:'01204199910016', bank:'ОАО «Айыл Банк»', bik:'135001', account:'9876543210987654', currency:'KGS', main:false, from:'10.03.2018', note:'для субсидий' },
 ];
 
-// CATEGORY_LOG — append-only журнал категории. scope=inn (заёмщик) или creditId. Триггер обязательств О-1/О-2.
-const CATEGORY_LOG = [];   // заполняется по веткам в Tasks 3/6
+// Журнала категории здесь нет: категория и её история — производные (ADR-0001),
+//   считаются categoryEvents()/lastEscalation() из просрочки и решений комитета.
 // GROUP_LOG — append-only журнал группы платёжеспособности.
 const GROUP_LOG = [];      // заполняется в Task 4
 // COMMITTEE_REFS — решения комитетов. kind: 'КБК'|'КРР'.
@@ -877,38 +880,43 @@ const OVERLAYS   = [];   // ← restructuring (suppress181); Task 3
 CREDITS.push(
   // Ветка 1 — АгроТехСервис: 3 кредита, worst-of=Высокий за нецелевое при 0 просрочке, оверлей 181 на Газификации
   { id:'C-ATS-NECEL', no:'КР-60540', inn:'01204199910016', amount:8000000, balance:5200000, currency:'KGS',
-    overdueDays:0, debt:{principal:5200000,interest:130000,penalty:0,fees:0,costs:0}, program:'Агро-2025', kind:'Оборотный' },
+    debt:{principal:5200000,interest:130000,penalty:0,fees:0,costs:0}, program:'Агро-2025', kind:'Оборотный' },
   { id:'C-ATS-GAZ', no:'КР-60541', inn:'01204199910016', amount:12000000, balance:9400000, currency:'KGS',
-    overdueDays:212, debt:{principal:9400000,interest:410000,penalty:88000,fees:0,costs:0}, program:'Газификация', kind:'Инвестиционный' },
+    overdueSince:daysAgo(212), debt:{principal:9400000,interest:410000,penalty:88000,fees:0,costs:0}, program:'Газификация', kind:'Инвестиционный' },
   { id:'C-ATS-OK', no:'КР-60542', inn:'01204199910016', amount:3000000, balance:1100000, currency:'KGS',
-    overdueDays:0, debt:{principal:1100000,interest:20000,penalty:0,fees:0,costs:0}, program:'Агро-2025', kind:'Оборотный' },
+    debt:{principal:1100000,interest:20000,penalty:0,fees:0,costs:0}, program:'Агро-2025', kind:'Оборотный' },
   // Ветка 5 — очередь непуста (обрабатывается в Task 7); чистый кредит для теста И-1 + истёкший оверлей
   { id:'C-B5-CLEAN', no:'КР-70510', inn:'05501199950051', amount:4000000, balance:2500000, currency:'KGS',
-    overdueDays:0, debt:{principal:2500000,interest:40000,penalty:0,fees:0,costs:0}, program:'Строй-2024', kind:'Оборотный' },
+    debt:{principal:2500000,interest:40000,penalty:0,fees:0,costs:0}, program:'Строй-2024', kind:'Оборотный' },
   { id:'C-B5-EXP', no:'КР-70511', inn:'05501199950051', amount:6000000, balance:6000000, currency:'KGS',
-    overdueDays:240, debt:{principal:6000000,interest:300000,penalty:120000,fees:0,costs:0}, program:'Строй-2024', kind:'Инвестиционный' },
+    overdueSince:daysAgo(240), debt:{principal:6000000,interest:300000,penalty:120000,fees:0,costs:0}, program:'Строй-2024', kind:'Инвестиционный' },
   // Ветка 9 — долг переведён правопреемнику (SUBJECT_EVENTS, ПД-231): кредит закрыт датой перевода.
   // Без него субъект оставался пустым — ни кредитов, ни взыскания при примечании «банкротство».
   { id:'C-B9-TRANS', no:'КР-99010', inn:'09901199990091', amount:7000000, balance:0, currency:'KGS',
-    overdueDays:0, debt:{principal:0,interest:0,penalty:0,fees:0,costs:0}, program:'Универ-2023',
+    debt:{principal:0,interest:0,penalty:0,fees:0,costs:0}, program:'Универ-2023',
     kind:'Инвестиционный', closedAt:'01.04.2026' },
   // Ветка 10 — погашен: единственный кредит закрыт (closedAt) → catOfBorrower === null
   { id:'C-B10-DONE', no:'КР-40120', inn:'10001199900101', amount:2000000, balance:0, currency:'KGS',
-    overdueDays:0, debt:{principal:0,interest:0,penalty:0,fees:0,costs:0}, program:'Металл-2023', kind:'Оборотный', closedAt:'10.06.2026' },
+    debt:{principal:0,interest:0,penalty:0,fees:0,costs:0}, program:'Металл-2023', kind:'Оборотный', closedAt:'10.06.2026' },
 );
 CREDITS.push(
   // Ветка 6 (Чуй Энерго) — три подтверждённые процедуры, фазы дают 2.1/2.2/2.3, max=2.3
-  { id:'C-CHE-1', no:'КР-66010', inn:'06601199960061', amount:5000000, balance:4000000, currency:'KGS', overdueDays:95, debt:{principal:4000000,interest:150000,penalty:30000,fees:0,costs:0}, program:'Энерго-2024', kind:'Оборотный' },
-  { id:'C-CHE-2', no:'КР-66011', inn:'06601199960061', amount:7000000, balance:6500000, currency:'KGS', overdueDays:150, debt:{principal:6500000,interest:280000,penalty:70000,fees:0,costs:0}, program:'Энерго-2024', kind:'Инвестиционный' },
-  { id:'C-CHE-3', no:'КР-66012', inn:'06601199960061', amount:9000000, balance:8800000, currency:'KGS', overdueDays:220, debt:{principal:8800000,interest:520000,penalty:190000,fees:0,costs:0}, program:'Энерго-2024', kind:'Инвестиционный' },
-  { id:'C-BF-1', no:'КР-88010', inn:'08801199980081', amount:3000000, balance:2900000, currency:'KGS', overdueDays:200, debt:{principal:2900000,interest:140000,penalty:60000,fees:0,costs:0}, program:'Агро-2025', kind:'Оборотный' },
-  { id:'C-M-1', no:'КР-77010', inn:'07701199970071', amount:1500000, balance:1200000, currency:'KGS', overdueDays:400, debt:{principal:1200000,interest:0,penalty:0,fees:0,costs:0}, program:'Микро-2022', kind:'Оборотный' },
+  { id:'C-CHE-1', no:'КР-66010', inn:'06601199960061', amount:5000000, balance:4000000, currency:'KGS', overdueSince:daysAgo(95), debt:{principal:4000000,interest:150000,penalty:30000,fees:0,costs:0}, program:'Энерго-2024', kind:'Оборотный' },
+  { id:'C-CHE-2', no:'КР-66011', inn:'06601199960061', amount:7000000, balance:6500000, currency:'KGS', overdueSince:daysAgo(150), debt:{principal:6500000,interest:280000,penalty:70000,fees:0,costs:0}, program:'Энерго-2024', kind:'Инвестиционный' },
+  { id:'C-CHE-3', no:'КР-66012', inn:'06601199960061', amount:9000000, balance:8800000, currency:'KGS', overdueSince:daysAgo(220), debt:{principal:8800000,interest:520000,penalty:190000,fees:0,costs:0}, program:'Энерго-2024', kind:'Инвестиционный' },
+  { id:'C-BF-1', no:'КР-88010', inn:'08801199980081', amount:3000000, balance:2900000, currency:'KGS', overdueSince:daysAgo(200), debt:{principal:2900000,interest:140000,penalty:60000,fees:0,costs:0}, program:'Агро-2025', kind:'Оборотный' },
+  { id:'C-M-1', no:'КР-77010', inn:'07701199970071', amount:1500000, balance:1200000, currency:'KGS', overdueSince:daysAgo(400), debt:{principal:1200000,interest:0,penalty:0,fees:0,costs:0}, program:'Микро-2022', kind:'Оборотный' },
 );
 FACTORS.push(
   // Нецелевое использование по решению КБК — двигает категорию (committeeRef непустой)
   { creditId:'C-ATS-NECEL', level:'high', type:'Нецелевое использование', committeeRef:'КБК-2026-118', from:'02.03.2026' },
   // Фактор БЕЗ решения комитета — категорию НЕ двигает (И-1)
   { creditId:'C-B5-CLEAN', level:'high', type:'Сигнал мониторинга', committeeRef:'', from:'01.06.2026' },
+  /* Ветка 3 — ИСТЁКШИЙ фактор комитета: заёмщик был Высоким, вернулся в Низкий, позже
+     просел в Средний по просрочке. Две полосы повышенной категории вместо одной —
+     срок О-1 обязан считаться от последней, а не от первой (иначе вечное «просрочено»). */
+  { creditId:'C-B3-1', level:'high', type:'Нецелевое использование', committeeRef:'КБК-2026-104',
+    from:'01.02.2026', to:'01.04.2026' },
 );
 OVERLAYS.push(
   // Действующий оверлей 181 на Газификации (ветка 1)
@@ -918,18 +926,12 @@ OVERLAYS.push(
 );
 CREDITS.push(
   // Ветка 2 — Средний, совокупный долг >50 млн (О-1 и О-2)
-  { id:'C-B2-1', no:'КР-22010', inn:'02201199920021', amount:40000000, balance:38000000, currency:'KGS', overdueDays:40, debt:{principal:38000000,interest:1200000,penalty:0,fees:0,costs:0}, program:'Пром-2024', kind:'Инвестиционный' },
-  { id:'C-B2-2', no:'КР-22011', inn:'02201199920021', amount:18000000, balance:16000000, currency:'KGS', overdueDays:30, debt:{principal:16000000,interest:500000,penalty:0,fees:0,costs:0}, program:'Пром-2024', kind:'Оборотный' },
+  { id:'C-B2-1', no:'КР-22010', inn:'02201199920021', amount:40000000, balance:38000000, currency:'KGS', overdueSince:daysAgo(40), debt:{principal:38000000,interest:1200000,penalty:0,fees:0,costs:0}, program:'Пром-2024', kind:'Инвестиционный' },
+  { id:'C-B2-2', no:'КР-22011', inn:'02201199920021', amount:18000000, balance:16000000, currency:'KGS', overdueSince:daysAgo(30), debt:{principal:16000000,interest:500000,penalty:0,fees:0,costs:0}, program:'Пром-2024', kind:'Оборотный' },
   // Ветка 3 — Средний, совокупный долг <50 млн (только О-1)
-  { id:'C-B3-1', no:'КР-33010', inn:'03301199930031', amount:9000000, balance:7000000, currency:'KGS', overdueDays:45, debt:{principal:7000000,interest:210000,penalty:0,fees:0,costs:0}, program:'Логи-2024', kind:'Оборотный' },
+  { id:'C-B3-1', no:'КР-33010', inn:'03301199930031', amount:9000000, balance:7000000, currency:'KGS', overdueSince:daysAgo(45), debt:{principal:7000000,interest:210000,penalty:0,fees:0,costs:0}, program:'Логи-2024', kind:'Оборотный' },
   // Ветка 4 — Средний с давним переводом → О-1 просрочено
-  { id:'C-B4-1', no:'КР-44010', inn:'04401199940041', amount:3000000, balance:2600000, currency:'KGS', overdueDays:70, debt:{principal:2600000,interest:90000,penalty:12000,fees:0,costs:0}, program:'Микро-2024', kind:'Оборотный' },
-);
-CATEGORY_LOG.push(
-  { inn:'02201199920021', level:'mid', from:'01.07.2026', reason:'Просрочка 40 дн.', source:'payments' },
-  { inn:'03301199930031', level:'mid', from:'02.07.2026', reason:'Просрочка 45 дн.', source:'payments' },
-  { inn:'04401199940041', level:'mid', from:'01.06.2026', reason:'Просрочка 70 дн.', source:'payments' },  // давно → О-1 просрочено
-  { inn:'01204199910016', level:'high', from:'02.03.2026', time:'15:30', reason:'Нецелевое (КБК-118)', source:'committee' },
+  { id:'C-B4-1', no:'КР-44010', inn:'04401199940041', amount:3000000, balance:2600000, currency:'KGS', overdueSince:daysAgo(70), debt:{principal:2600000,interest:90000,penalty:12000,fees:0,costs:0}, program:'Микро-2024', kind:'Оборотный' },
 );
 
 /* ── Справочники-зеркала модуля взыскания (единый источник — mockups/collection/collection.html).
@@ -1435,7 +1437,7 @@ FACTORS.push(
 CREDITS.push(
   // Ветка 14 — ИП Асанов: кредит с залогами в 2 областях (PLEDGE_IX уже посеян в Task 5)
   { id:'C-B14-1', no:'КР-44011', inn:'04401199940041', amount:5000000, balance:4200000, currency:'KGS',
-    overdueDays:0, debt:{principal:4200000,interest:80000,penalty:0,fees:0,costs:0}, program:'Микро-2024', kind:'Инвестиционный' },
+    debt:{principal:4200000,interest:80000,penalty:0,fees:0,costs:0}, program:'Микро-2024', kind:'Инвестиционный' },
 );
 ASSIGN.push(
   // Ветка 14 — залоги в 2 областях: по залоговому куратору на область (норма kuratorstvo §2.2)
@@ -1511,7 +1513,7 @@ const NEW_BORROWERS = [
   { name:'ГП «Кыргызводхоз-Юг»',       kind:'ГП',   sector:'Водное хозяйство',            district:'Кара-Сууйский',      addr:'г. Кара-Суу, ул. Ирригационная 1', reg:'02.02.2010', amount:18000000, balance:11000000, grp:'1.1', own:'Государственная', ckind:'Инвестиционный' },
 ];
 
-/* Разворачиватель: строит SUBJECTS/CREDITS + при необходимости CATEGORY_LOG/GROUP_LOG/PROCESSES. */
+/* Разворачиватель: строит SUBJECTS/CREDITS + при необходимости GROUP_LOG/PROCESSES. */
 (function seedNewBorrowers(){
   const PROG = { 'Агропромышленный комплекс':'Агро-2024', 'Энергетический комплекс':'Энерго-2024',
     'Строительный комплекс':'Строй-2024', 'Лёгкая промышленность':'Лёгпром-2024',
@@ -1743,14 +1745,10 @@ const NEW_BORROWERS = [
       : { principal:bal, interest:Math.round(bal*0.03),
           penalty: overdue>60 ? Math.round(bal*0.02) : 0, fees:0, costs:0 };
     const cr = { id:cid, no:cno, inn, amount:d.amount, balance:bal, currency:cur,
-      overdueDays:overdue, debt, program:PROG[d.sector]||'Кредит-2024',
+      overdueSince: overdue ? daysAgo(overdue) : null, debt, program:PROG[d.sector]||'Кредит-2024',
       kind:d.ckind||'Оборотный', date:'15.03.2024', gov:'ПКР №'+(120+i)+' от 2024 г.' };
     if (closed) cr.closedAt = d.closedAt;
     CREDITS.push(cr);
-
-    if (catlvl && catlvl!=='low')
-      CATEGORY_LOG.push({ inn, level:catlvl, from: catlvl==='high' ? '01.02.2026' : '01.05.2026',
-        reason:'Просрочка '+overdue+' дн.', source:'payments' });
 
     const pc = buildProc(d.grp, bal, overdue, d.closedAt, i, d);
     if (pc) {
@@ -1804,7 +1802,7 @@ const assignBasis = src => src==='handoff' ? 'передача дела'
 
 /* Реквизиты для карточки заёмщика: дата выдачи + решение правительства (основание кредита).
    Живут в кредитном модуле; здесь — зеркало по номеру договора. Просрочка (сумма) выводится
-   движком в creditsTab (%+пеня при overdueDays>0) — снапшот, не realtime (E2E-09). */
+   движком в creditsTab (%+пеня при просрочке) — снапшот, не realtime (E2E-09). */
 const CREDIT_META = {
   'КР-60540':{date:'12.03.2024', gov:'ПКР №145 от 20.02.2024'},
   'КР-60541':{date:'02.10.2023', gov:'ПКР №388 от 15.09.2023'},
@@ -2008,7 +2006,7 @@ function seedBorrowerDetails(){
     if(cr && !CHECKS_EXT.some(c=>c.inn===inn)){
       const rating = cat==='high'?'C' : cat==='mid'?'B' : 'A';
       const ovTot = (typeof overdueDebt==='function') ? overdueDebt(inn) : 0;
-      const score = Math.max(320, 720 - Math.round((cr.overdueDays||0)*0.75) - (cat==='high'?60:cat==='mid'?25:0));
+      const score = Math.max(320, 720 - Math.round(overdueDaysOn(cr, TODAY)*0.75) - (cat==='high'?60:cat==='mid'?25:0));
       CHECKS_EXT.push({ inn, source:'КИБ Ишеним', takenAt:cr.date, appId:'APP-'+dig(inn).slice(-4),
         payload:{ rating, overdueTotal:ovTot } });
       CHECKS_EXT.push({ inn, source:'скоринг', takenAt:cr.date, appId:'APP-'+dig(inn).slice(-4),
@@ -2075,16 +2073,23 @@ function isActiveCredit(c,d){ return !c.closedAt || !dateLE(c.closedAt,d); }
 
 function catByDays(days){ return days<=5 ? 'low' : (days<=180 ? 'mid' : 'high'); }
 
+/* Дни просрочки на дату — производная от даты выхода на просрочку (ADR-0001).
+   Раньше дни лежали полем `overdueDays` и были снимком на сегодня: параметр `d`
+   у catOfCredit существовал, но ни на что не влиял — функция притворялась историчной. */
+function overdueDaysOn(c, d){
+  return c && c.overdueSince ? Math.max(0, calDays(c.overdueSince, d)) : 0;
+}
+
 /* 181-е подавляется, только если сырьё именно 'high' по >180 дней и есть действующий оверлей на дату. */
 function isSuppressed181(cr, d){
-  if (catByDays(cr.overdueDays) !== 'high') return false;
+  if (catByDays(overdueDaysOn(cr, d)) !== 'high') return false;
   return OVERLAYS.some(o => o.creditId===cr.id && o.kind==='suppress181'
     && dateLE(o.from,d) && dateLE(d,o.deadline));
 }
 
 function catOfCredit(id, d){
   const cr = CREDITS.find(c => c.id===id);
-  const days = cr.overdueDays;
+  const days = overdueDaysOn(cr, d);
   const raw = catByDays(days);
   const suppressed = isSuppressed181(cr, d);
   const daysEff = suppressed ? 'mid' : raw;                    // подавление ДО worst-of, на уровне кредита
@@ -2100,6 +2105,75 @@ function catOfBorrower(inn, d){
   if (!act.length) return null;
   return act.map(c => catOfCredit(c.id,d).level)
             .reduce((a,b)=> CAT_RANK[b]>CAT_RANK[a]?b:a, 'low');
+}
+
+/* ── История категории — производная, не журнал (ADR-0001) ─────────────────────
+   Раньше рядом с catOfBorrower() лежал массив CATEGORY_LOG, и они расходились
+   молча: у 4 заёмщиков категория была «Высокий», а записи в журнале не было —
+   обязательство О-1 по ним просто не выставлялось. Теперь история восстанавливается
+   из тех же фактов, из которых считается сама категория.
+
+   Даты-кандидаты — только те, в которые категория в принципе может измениться:
+   выход на просрочку и переходы её порогов (6-й и 181-й день), закрытие кредита,
+   начало и конец действия фактора комитета, начало и конец послабления. */
+function categoryChangeDates(inn){
+  const ds = new Set();
+  const cs = CREDITS.filter(c => c.inn===inn);
+  for (const c of cs){
+    if (c.overdueSince){
+      ds.add(c.overdueSince);
+      ds.add(addCalDays(c.overdueSince, 6));      // порог Низкий → Средний
+      ds.add(addCalDays(c.overdueSince, 181));    // порог Средний → Высокий
+    }
+    if (c.closedAt) ds.add(c.closedAt);
+    for (const f of FACTORS.filter(f => f.creditId===c.id && f.committeeRef)){
+      ds.add(f.from); if (f.to) ds.add(f.to);
+    }
+    for (const o of OVERLAYS.filter(o => o.creditId===c.id)){
+      ds.add(o.from); if (o.deadline) ds.add(addCalDays(o.deadline, 1));
+    }
+  }
+  return [...ds].filter(Boolean).sort((a,b) => dnum(a)-dnum(b));
+}
+/* Переходы категории заёмщика до даты d: [{date, level, from, reason}]. level===null — «не применяется». */
+function categoryEvents(inn, d){
+  const out = [];
+  let prev;                                        // undefined — состояния ещё не было
+  for (const date of categoryChangeDates(inn)){
+    if (!dateLE(date, d)) break;
+    const level = catOfBorrower(inn, date);
+    if (prev !== undefined && level === prev) continue;
+    out.push({ date, level, from: prev === undefined ? null : prev, reason: categoryReason(inn, date, level) });
+    prev = level;
+  }
+  return out;
+}
+/* Чем именно категория поднята на дату — берём кредит, задавший worst-of. */
+function categoryReason(inn, date, level){
+  if (level === null) return 'действующих кредитов нет';
+  const worst = CREDITS.filter(c => c.inn===inn && isActiveCredit(c,date))
+    .map(c => ({ c, r: catOfCredit(c.id, date) }))
+    .filter(x => x.r.level === level)[0];
+  if (!worst) return '—';
+  const f = worst.r.factors.find(f => f.level === level);
+  if (f) return `${f.type} (${f.committeeRef}) · ${worst.c.no}`;
+  return `просрочка ${worst.r.days} дн. · ${worst.c.no}`
+    + (worst.r.suppressed ? ' · действует послабление 181+' : '');
+}
+/* Начало текущей непрерывной полосы Среднего/Высокого — триггер обязательств О-1/О-2.
+   Раньше брался ПЕРВЫЙ перевод за всю историю: заёмщик, который просел в 2024-м,
+   вылечился и просел снова в 2026-м, получал срок от 2024 года и вечное «просрочено».
+   ОТКРЫТЫЙ ВОПРОС: считается ли переход Средний → Высокий внутри полосы новым
+   основанием по п.6(5). Сейчас — нет, полоса непрерывна. */
+function lastEscalation(inn, d){
+  const ev = categoryEvents(inn, d);
+  let start = null;
+  for (const e of ev){
+    const elevated = e.level === 'mid' || e.level === 'high';
+    if (elevated && start === null) start = e;
+    if (!elevated) start = null;
+  }
+  return start;
 }
 
 /* Подписи подгрупп — единственный источник SUBGROUP_LABEL (§1). Второй карты не заводить:
@@ -2216,13 +2290,13 @@ function collectionDefects(inn){
      расхождение с модулем, а не «обычный режим обслуживания». Отдельный случай: процесс
      закрыт терминально (долг списан), а кредит остался с просрочкой — сиротский остаток
      после закрытия (класс E2E-13/14), это другой дефект и другая адресация. */
-  my.filter(c=>isActiveCredit(c,TODAY) && (c.overdueDays||0) > 5).forEach(c=>{
+  my.filter(c=>isActiveCredit(c,TODAY) && overdueDaysOn(c,TODAY) > 5).forEach(c=>{
     if (live.some(p=>p.credits.includes(c.id))) return;
     const done = procsOf(inn).filter(p=>isProcClosed(p) && p.credits.includes(c.id))[0];
     out.push(done
       ? { sev:'mid', text:'процесс завершён («'+done.outcome+'», '+done.closed+'), а по '+c.no
-          +' осталась просрочка '+c.overdueDays+' дн. — расхождение с закрытием' }
-      : { sev:'high', text:'просрочка '+c.overdueDays+' дн. · '+c.no+' — процесса взыскания нет' });
+          +' осталась просрочка '+overdueDaysOn(c,TODAY)+' дн. — расхождение с закрытием' }
+      : { sev:'high', text:'просрочка '+overdueDaysOn(c,TODAY)+' дн. · '+c.no+' — процесса взыскания нет' });
   });
   return out;
 }
@@ -2232,7 +2306,7 @@ function totalDebt(inn){
     .reduce((s,c)=> s + c.debt.principal + c.debt.interest + c.debt.penalty + c.debt.fees + c.debt.costs, 0);
 }
 function overdueDebt(inn){
-  return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY) && c.overdueDays>0)
+  return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY) && overdueDaysOn(c,TODAY)>0)
     .reduce((s,c)=> s + c.debt.principal + c.debt.interest + c.debt.penalty + c.debt.fees + c.debt.costs, 0);
 }
 /* Зеркало zalog: worst = минимальный индекс по кредитам заёмщика; aggregate = средневзвешенный (по balance).
@@ -2279,17 +2353,16 @@ function statusOf(dueDate, d){
 function obligations(inn, d){
   const out = [];
   const cat = catOfBorrower(inn, d);
-  const trig = CATEGORY_LOG.filter(l => l.inn===inn && (l.level==='mid'||l.level==='high') && dateLE(l.from,d))
-    .sort((a,b)=> dnum(a.from)-dnum(b.from))[0];      // первый перевод в Средний/Высокий
+  const trig = lastEscalation(inn, d);               // начало текущей полосы Среднего/Высокого
   if ((cat==='mid'||cat==='high') && trig){
-    const due = addWorkdays(trig.from,10);
+    const due = addWorkdays(trig.date,10);
     out.push({ code:'О-1', basis:'п.6(5): запрос пакета фин. документов', dueDate:due, status:statusOf(due, d),
-      srcHint:`+10 раб. дн. от перевода в ${cat==='high'?'Высокий':'Средний'} (${trig.from})` });
+      srcHint:`+10 раб. дн. от перевода в ${cat==='high'?'Высокий':'Средний'} (${trig.date})` });
   }
   if (cat==='mid' && totalDebt(inn) > 50000000 && trig){
-    const due = addWorkdays(trig.from,14);
+    const due = addWorkdays(trig.date,14);
     out.push({ code:'О-2', basis:'п.12(2): анализ фин.-хоз. состояния (>50 млн)', dueDate:due, status:statusOf(due, d),
-      srcHint:`+14 раб. дн. от перевода в Средний (${trig.from}) · долг >50 млн` });
+      srcHint:`+14 раб. дн. от перевода в Средний (${trig.date}) · долг >50 млн` });
   }
   if (overdueDebt(inn) > 0){
     const [,mm,y] = d.split('.');
@@ -2891,10 +2964,10 @@ function flagsRow(inn){
 function creditsSummaryCard(inn){
   const all = CREDITS.filter(c=>c.inn===inn);
   const act = all.filter(c=>isActiveCredit(c, TODAY));
-  const ovCred = act.filter(c=>c.overdueDays>0);
+  const ovCred = act.filter(c=>overdueDaysOn(c,TODAY)>0);
   /* просрочка = начисленные %+пеня по кредитам с просрочкой — та же формула, что в таблице кредитов */
   const ovSum = ovCred.reduce((s,c)=>s + c.debt.interest + c.debt.penalty, 0);
-  const maxOv = act.reduce((m,c)=>Math.max(m, c.overdueDays||0), 0);
+  const maxOv = act.reduce((m,c)=>Math.max(m, overdueDaysOn(c,TODAY)), 0);
   const rows = [
     ['Действующих кредитов', `${act.length}` + (all.length!==act.length ? ` <span class="muted">(всего ${all.length})</span>` : '')],
     ['Сумма выдано', fmt(act.reduce((s,c)=>s+c.amount,0)) + ' сом'],
@@ -3030,8 +3103,8 @@ function wireCreditsTab(inn){
   const credList = CREDITS.filter(c => c.inn === inn);
   let crSize = 10, crPage = 1;
 
-  /* просрочка (сумма) — начисленные %+пеня при overdueDays>0; снапшот, не realtime (E2E-09) */
-  const ovSum = c => c.overdueDays > 0 ? (c.debt.interest + c.debt.penalty) : 0;
+  /* просрочка (сумма) — начисленные %+пеня при просрочке; снапшот, не realtime (E2E-09) */
+  const ovSum = c => overdueDaysOn(c,TODAY) > 0 ? (c.debt.interest + c.debt.penalty) : 0;
 
   const credRow = (c, no) => {
     const active = isActiveCredit(c, TODAY);
@@ -3051,8 +3124,8 @@ function wireCreditsTab(inn){
       + '<td><span class="bal-cell" title="' + esc(tip) + '"><b>' + fmt(c.balance) + '</b></span> <span class="muted">KGS</span></td>'
       /* просрочка = дни + сумма; нулевую не подсвечиваем */
       + '<td>' + (ov
-          ? '<span class="win">' + c.overdueDays + ' дн.</span><div class="muted" style="margin-top:3px">' + fmt(ov) + ' KGS</div>'
-          : c.overdueDays + ' дн.<div class="muted" style="margin-top:3px">0 KGS</div>') + '</td>'
+          ? '<span class="win">' + overdueDaysOn(c,TODAY) + ' дн.</span><div class="muted" style="margin-top:3px">' + fmt(ov) + ' KGS</div>'
+          : overdueDaysOn(c,TODAY) + ' дн.<div class="muted" style="margin-top:3px">0 KGS</div>') + '</td>'
       + '<td>' + (active ? catCell(cat) : '<span class="muted">закрыт ' + esc(c.closedAt || '') + '</span>') + '</td>'
       + '</tr>';
   };
@@ -3401,7 +3474,7 @@ function wireCollectionTab(inn){
     const rows = ordered.map((c,i) => {
       const ps = procs.filter(p=>p.credits.includes(c.id));
       const act = ps.find(p=>!isProcClosed(p)) || ps[0] || null;
-      const ov = c.overdueDays || 0;
+      const ov = overdueDaysOn(c, TODAY);
       const nd = act && !isProcClosed(act) ? nearestDeadline(act) : null;
       const cov = act && (act.cover||[]).find(x=>x.credit===c.id);
       const procCell = !act
@@ -4187,8 +4260,8 @@ function checksTab(inn){
 
   // 3. Кредитная история: >90 дн. просрочки — стоп-фактор, меньше — предупреждение
   const creds = CREDITS.filter(c=>c.inn===inn && !c.closedAt);
-  const worst = creds.slice().sort((a,b)=>(b.overdueDays||0)-(a.overdueDays||0))[0];
-  const maxOv = worst ? (worst.overdueDays||0) : 0;
+  const worst = creds.slice().sort((a,b)=>overdueDaysOn(b,TODAY)-overdueDaysOn(a,TODAY))[0];
+  const maxOv = worst ? overdueDaysOn(worst, TODAY) : 0;
   C.push(maxOv > 0
     ? { sev: maxOv > 90 ? 'stop' : 'warn', name:'Кредитная история',
         result: maxOv > 90 ? 'просрочка свыше 90 дн.' : 'есть просрочки',
@@ -4307,9 +4380,9 @@ function historyItems(inn){
   const noOf = id => (CREDITS.find(c=>c.id===id)||{}).no || id;
 
   /* ── риск: категория, группа, факторы комитета ── */
-  CATEGORY_LOG.filter(l=>l.inn===inn).forEach(l=>add({date:l.from, time:l.time, dot:'risk', cat:'risk',
+  categoryEvents(inn, TODAY).forEach(e=>add({date:e.date, dot:'risk', cat:'risk',
     kind:'категория', tab:0,
-    title:`Категория риска → ${CAT_LABEL[l.level]}`, body:`${l.reason} · источник: ${l.source}`}));
+    title:`Категория риска → ${e.level ? CAT_LABEL[e.level] : 'не применяется'}`, body:e.reason}));
   GROUP_LOG.filter(l=>l.inn===inn).forEach(l=>add({date:l.from, time:l.time, dot:'info', cat:'risk',
     kind:'группа', tab:0,
     title:`Группа платёжеспособности → ${l.group}`, body:`${l.basis}${l.confirmedBy&&l.confirmedBy!=='—'?' · '+l.confirmedBy:''}`}));
