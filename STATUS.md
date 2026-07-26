@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-07-12 (собран to-be мокап модуля «Учёт и сверка платежей» — `mockups/payments/payments.html`: 5 экранов по спеке `ASUBK-platezhi-logika.md`, 7 архитектурных швов, роли Куратор/Бухгалтер/Наблюдатель, 0 ошибок консоли) — _(update this date every time you edit)_
+> Last updated: 2026-07-26 (собран пакет передачи кредитного модуля разработчикам: ТЗ `requirements/tz/05-kredit.html` + задачи `P15-R1…P15-R23` в `TODO.md` + читаемый бэклог `docs/tasks/p15-kredit-tasks.html`; эталон — `mockups/loan-credit/credit.html`, смоук 43/43) — _(update this date every time you edit)_
 
 ## One-line summary
 АСУБК — a large, mature back-office system for a Kyrgyz state Financial-Credit
@@ -25,7 +25,8 @@ The app is live on the test env with ~150 screens across these domains
 ## In progress
 | Item | Owner | Started | Notes |
 |---|---|---|---|
-| Credit module end-to-end check (QA + docs) | admin | 2026-06-17 | Phases 1–7 docs+QA done (Phase 7 = servicing: payments, reserves, LoanLedger, 2026-06-20). Next: Phase 8 — Мониторинг залога. See TODO.md |
+| Credit module end-to-end check (QA + docs) | admin | 2026-06-17 | Phases 1–10 docs+QA done. See TODO.md |
+| Пакеты передачи по модулям (мокап + ТЗ + задачи) | admin | 2026-07-19 | Готовы: залог (P13), взыскание (P14), **кредит (P15, 2026-07-26)**. Следующий — по решению владельца |
 
 ## Blocked / waiting
 | Item | Blocked by | Since | Notes |
@@ -38,6 +39,23 @@ The app is live on the test env with ~150 screens across these domains
 
 ## Recent changes (changelog)
 _Newest first._
+- 2026-07-26 — **Кредитный модуль подготовлен к передаче разработчикам.** Собран пакет из трёх
+  артефактов: ТЗ целевой модели `requirements/tz/05-kredit.html` (19 разделов — решения Р-1…Р-21,
+  гейты Г-1…Г-22 с дословными текстами отказов, модель данных, матрица ролей 20×5, отдельный
+  раздел «Дыры, допущения и техдолг», 6 открытых вопросов); секция «Кредит (целевая модель)» в
+  `TODO.md` с задачами **P15-R1…P15-R23** в строгом порядке зависимостей (ядро R1–R9); читаемый
+  бэклог `docs/tasks/p15-kredit-tasks.html` (23 карточки «в чём боль → что сделать», 8 групп-шагов,
+  раскрывашки «Для разработчика»). Эталон — `mockups/loan-credit/credit.html` (смоук 43/43,
+  `scripts/inspect/credit-check.mjs`), макет не правился. Реестр гейтов восстановлен обратной
+  инженерией по коду (`docs/superpowers/specs/2026-07-26-kredit-gates.md`) — исходный канон утрачен.
+  Ревизия старых задач: из 13 задач фаз 5/6/7 семь поглощены P15-R\*, пять отпадают вместе с
+  экранами, остаётся одна — **P5-R1** (падение живого экрана на записях 20/22). Разделы ТЗ
+  `05-kredit.md`, `06-transhi-osvoenie.md`, `07-obsluzhivanie.md` помечены как архив обследования;
+  `requirements/tz/index.md` обновлён (05 → to-be, 06/07 → поглощены; добавлены отсутствовавшие
+  разделы 11/12/13). Закрывает легаси-дефекты **E2E-09** (остаток — расчёт по леджеру, не
+  батч-снапшот) и **E2E-13/14** (закрытие при нуле с порогом 0,005).
+- _(пробел в журнале: работы 2026-07-13…2026-07-25 — обследование легаси `requirements/legacy/`,
+  модули залога P13 и взыскания P14 — в changelog не занесены; см. git log)_
 - 2026-07-12 — Собран to-be мокап модуля **«Учёт и сверка платежей»** (`mockups/payments/payments.html`) по
   спеке `mockups/payments/ASUBK-platezhi-logika.md`. 5 экранов: Платежи (список + карточка), Реестр ЦК,
   Сопоставление (сверка), Невыясненные, Акты сверки. Демонстрирует 7 архитектурных швов: платёж vs запись
