@@ -1673,25 +1673,30 @@ test('W7-11 (Р-48): переоценка требует оценщика и к�
   no(zt.apprStale(it), 'оценка снова актуальна');
 });
 
-test('W7-12 (Р-49): предшествующий залог вносится, снимается и не трогает покрытие', () => {
+// W7-12/W7-13 переписаны волной КП: решение Р-49 ОТМЕНЕНО (КП-4, ADR 0008). Журнала
+// предшествующих залогов больше нет — обременение в пользу третьего лица стало стоп-фактором
+// приёма, потому что Холдинг принимает имущество только в первую очередь (§4.1).
+test('W7-12 (КП-4): журнала предшествующих залогов больше нет ни в одной точке', () => {
   const { win, zt } = load();
-  win.eval("role='Куратор отдела залогового обеспечения'");
-  const it = zt.item('П-001'), pv = zt.pledgeValue(it);
-  win.openPriorLien('П-001');
-  win.document.getElementById('plHolder').value = 'ОАО «Сторонний банк»';
-  win.document.getElementById('plAmt').value = '100000';
-  win.savePriorLien('П-001');
-  eq(zt.priorLiensOf(it).length, 1, 'обременение зарегистрировано');
-  eq(zt.pledgeValue(it), pv, 'залоговая стоимость не изменилась — предупреждение, не множитель');
-  win.releasePriorLien('П-001', it.priorLiens.length - 1);
-  eq(zt.priorLiensOf(it).length, 0, 'снятие убирает из действующих');
-  eq(it.priorLiens.length, 1, 'запись сохранена в журнале, а не удалена');
+  eq(win.eval('typeof openPriorLien'), 'undefined', 'форма ввода удалена');
+  eq(win.eval('typeof savePriorLien'), 'undefined', 'сохранение удалено');
+  eq(win.eval('typeof releasePriorLien'), 'undefined', 'снятие удалено');
+  eq(win.eval('typeof priorLiensOf'), 'undefined', 'чтение удалено');
+  no(zt.ITEMS.some(x => x.priorLiens), 'ни у одного предмета нет поля priorLiens');
+  hasNot(win.itemPanels(zt.item('П-004'))[4], 'Предшествующие залоги', 'таблица снята со вкладки кредитов');
+  hasNot(zt.triggers().map(t => t.type).join('|'), 'Предшествующий залог', 'триггер снят');
 });
 
-test('W7-13 (Р-49): предшествующий залог из сида поднимает триггер', () => {
+test('W7-13 (КП-4): обременение третьим лицом отклоняет приём и гейт регистрации', () => {
   const { zt } = load();
-  eq(zt.priorLiensOf(zt.item('П-004')).length, 1, 'П-004 обременён в пользу третьего лица');
-  has(zt.triggers().map(t => t.type).join('|'), 'Предшествующий залог третьего лица', 'поднят триггер');
+  const blocked = zt.stopListCheck({ thirdPartyLien: true });
+  ok(blocked.block, 'приём отклонён');
+  no(blocked.committeeCanOverride, 'комитет допустить не может — очерёдность не обосновывается');
+  has(blocked.msg, 'первую очередь', 'причина названа');
+  no(zt.stopListCheck({ thirdPartyLien: false }).block, 'необременённый предмет проходит');
+  // Записи, заведённые до волны КП, поля не несут — отсутствие сведений не равно нарушению.
+  no(zt.stopListCheck({}).block, 'undefined не блокирует (та же политика, что у landPurpose)');
+  no(zt.admissionChecks(zt.item('П-004')).some(c => /Предшествующ/.test(c.name)), 'проверка ⑪ убрана из допуска');
 });
 
 test('W7-14 (Р-50): контроль срока аренды больше не мёртвый — виден на предмете', () => {
@@ -1711,20 +1716,37 @@ test('W7-15 (Р-51): способ хранения читается с заре�
   no(zt.CONTRACTS.find(x => x.id === 'Д-004').custody, 'Д-004 намеренно без способа хранения — демонстрирует пробел');
 });
 
-test('W7-16 (Р-54): динамика оценки строится только по несторнированным переоценкам', () => {
+// W7-16 переписан волной КП: Р-54 (спарклайн по ОЦЕНОЧНОЙ) развёрнут в КП-12 — ряд строится
+// по ЗАЛОГОВОЙ, то есть по величине, которая реально входит в покрытие, а оценочная осталась
+// второй линией. Сторно по-прежнему исключается из ряда.
+test('W7-16 (КП-12): ряд стоимости строится по залоговой и исключает сторно', () => {
   const { win, zt } = load();
   const it = zt.ITEMS.find(x => x.revals.length > 1) || zt.item('П-001');
-  eq(zt.revalSeries(it).length, it.revals.filter(r => !r.voided).length, 'сторно исключено из ряда');
-  has(win.itemPanels(it)[1], 'Динамика оценочной стоимости', 'блок на вкладке стоимости');
+  const live = zt.valueEvents(it).filter(e => !e.voided).length;
+  eq(zt.valueSeries(it).length, live, 'сторно исключено из ряда');
+  ok(zt.valueSeries(it).every(p => p.pledge != null), 'каждая точка несёт залоговую');
+  has(win.itemPanels(it)[1], 'Динамика залоговой стоимости', 'блок на вкладке стоимости');
+  has(win.itemPanels(it)[1], 'События стоимости', 'переоценки и понижения в одной ленте');
 });
 
-test('W7-17 (Р-58): история раскладывается по категориям, чипы отрисованы', () => {
+// W7-17 переписан волной КП: Р-58 сохранён (чипы), но категория больше не угадывается
+// регуляркой по тексту (КП-13) — это поле записи, проставляемое в точке hist().
+test('W7-17 (КП-13): категория истории — поле записи, а не догадка по тексту', () => {
   const { win, zt } = load();
-  eq(zt.histCat('Переоценка: оценочная 100 → 120'), 'val', 'стоимость');
-  eq(zt.histCat('Наложен запрет на отчуждение'), 'ban', 'запрет');
-  eq(zt.histCat('Обследование А-1 от 01.01.2026: в норме'), 'srv', 'обследования');
-  eq(zt.histCat('Прикреплён файл «x.pdf»'), 'doc', 'документы');
+  eq(zt.histCat({ cat:'val' }), 'val', 'категория читается из поля');
+  eq(zt.histCat({ what:'Наложен запрет … Реестр залогов движимого имущества' }), 'oth',
+     'текст без поля больше не парсится — прежняя регулярка отправляла эту запись в «Стоимость»');
+  ok(zt.HIST_CATS.every(c => !c.re), 'регулярных выражений в HIST_CATS не осталось');
+  ok(zt.HIST_CATS.some(c => c.k === 'lc'), 'добавлена категория «Жизненный цикл»');
   has(win.itemPanels(zt.item('П-001'))[6], 'hchips', 'чипы категорий отрисованы');
+  // Записи, созданные кодом волны КП, размечены в точке записи: аннулирование → 'lc'.
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = zt.item('П-019');
+  no(zt.cancelBlockedReason(it), 'сид: П-019 свободен и аннулируем');
+  win.openCancelItem('П-019');
+  win.document.getElementById('caNote').value = 'заведён по ошибке при переносе';
+  win.saveCancelItem('П-019');
+  eq(it.history[it.history.length - 1].cat, 'lc', 'событие ЖЦ размечено категорией в точке записи');
 });
 
 test('W7-18 (Р-55): подстрока акта раскрывает заключение, подписи и фотофиксацию', () => {
@@ -1743,7 +1765,8 @@ const dom = (win, html) => { const box = win.document.createElement('div'); box.
 
 test('W7-19 (Р-52): чип допуска отрисован в шапке карточки предмета и различает вердикты', () => {
   const { win, zt } = load();
-  const chipOf = it => dom(win, win.itemPanels(it)[0])
+  // КП-2: шапка переехала из panels[0] в собственный слот — читаем её через itemHead.
+  const chipOf = it => dom(win, win.itemHead(it))
     .querySelector('.phead-owner .pill[title^="стоп-факторов:"]');
   const clean = zt.item('П-001'), dirty = zt.item('П-002');
   const vClean = win.admissionVerdict(clean), vDirty = win.admissionVerdict(dirty);
@@ -2508,6 +2531,367 @@ test('W9-17 (ДГ-13): дефолтный размер страницы пока
     has(win.document.getElementById('pagerNav').innerHTML, 'стр. 1 из',
       `реестр «${r}»: пагинация видна в переданном артефакте`);
   });
+});
+
+// ============================================================================
+// ВОЛНА КП (КП-1…КП-14, КП-Д1…КП-Д12) — карточка предмета как досье вещи.
+// Разбор и решения: mockups/collateral/ASUBK-status-razrabotki.md, секция «Волна КП».
+// ============================================================================
+
+const curator = win => win.eval("role='Куратор отдела залогового обеспечения'");
+const head = win => win.eval("role='Заведующий отделом залогового обеспечения'");
+// Форма приёма требует ВСЕ обязательные поля вида (KIND_FIELDS) — заполняем текстовые
+// оптом, селекты трогать не нужно: у них есть значение по умолчанию. Плюс отмечаем
+// подтверждения стоп-листа (Р-18) в #niExtra: снятая галка «в обороте» блокирует приём.
+const fillDetails = (win, prefix) => {
+  [...win.document.querySelectorAll('#niDetails [id^=nd_]')]
+    .forEach((el, i) => { if(el.tagName === 'INPUT' && !el.value) el.value = `${prefix}-${i}`; });
+  [...win.document.querySelectorAll('#niExtra input[type=checkbox]')].forEach(cb => { cb.checked = true; });
+};
+
+// КП-2: шапка вклеивалась в panels[0], поэтому чип допуска (Р-52) и дефект-строка (Р-53)
+// пропадали на шести вкладках из семи — кликнув по дефекту, оформитель терял список остальных.
+test('W10-1 (КП-2): шапка живёт в своём слоте и не дублируется в панелях', () => {
+  const { win, zt } = load();
+  const it = zt.item('П-004');
+  win.itemPanels(it).forEach((p, i) => hasNot(p, 'class="phead"', `панель ${i} не содержит шапку`));
+  win.ctrPanels(zt.CONTRACTS[0]).forEach((p, i) => hasNot(p, 'class="phead"', `панель договора ${i} без шапки`));
+  win.surPanels(zt.SURETIES[0]).forEach((p, i) => hasNot(p, 'class="phead"', `панель поручительства ${i} без шапки`));
+  has(win.itemHead(it), 'class="phead"', 'itemHead строит шапку');
+  has(win.ctrHead(zt.CONTRACTS[0]), 'class="phead"', 'ctrHead строит шапку');
+  has(win.surHead(zt.SURETIES[0]), 'class="phead"', 'surHead строит шапку');
+});
+
+test('W10-2 (КП-2): шапка отрисована в #detailHead на КАЖДОЙ вкладке предмета', () => {
+  const { win, zt } = load();
+  const slot = win.document.getElementById('detailHead');
+  ok(slot, 'слот #detailHead есть в разметке');
+  zt.TABS_ITEM.forEach((t, i) => {
+    win.openCard('item', 'П-004', i);
+    has(slot.innerHTML, 'defect-bar', `вкладка «${t}»: дефект-строка на месте`);
+    has(slot.innerHTML, 'phead-dims', `вкладка «${t}»: KPI на месте`);
+  });
+});
+
+// КП-3: шесть зеркальных строк «Основного». Один факт — одно место.
+test('W10-3 (КП-3): «Основное» — паспорт вещи, зеркал статусов нет', () => {
+  const { win, zt } = load();
+  const p0 = win.itemPanels(zt.item('П-004'))[0];
+  ['Статус (залоговая ось)', 'Следующее обследование', 'Следующая переоценка']
+    .forEach(l => hasNot(p0, l, `строка-зеркало «${l}» снята`));
+  hasNot(p0, 'Запрет на отчуждение', 'запрет читается в шапке и на своей вкладке');
+  eq((p0.match(/Оценщик/g) || []).length, 0, 'оценщик остался только на вкладке «Стоимость»');
+  ['Вид залога', 'Залогодатель', 'Правоустанавливающий документ', 'Способ хранения', 'Валюта оценки']
+    .forEach(l => has(p0, l, `реквизит вещи «${l}» на месте`));
+});
+
+test('W10-4 (КП-Д8): страхование не дублируется между паспортом и техблоком', () => {
+  const { win, zt } = load();
+  const tech = zt.ITEMS.find(x => zt.isTech(x) && zt.insuranceRequired(x));
+  ok(tech, 'сид: есть техника, подлежащая страхованию');
+  // Снята именно СТРОКА-РЕКВИЗИТ (.flabel), а не сигнал об истёкшем полисе ниже в техблоке.
+  const labels = [...dom(win, win.techPanel(tech)).querySelectorAll('.flabel')].map(e => e.textContent);
+  no(labels.includes('Страховой полис'), 'строка-реквизит полиса убрана из техблока');
+  has(win.itemPanels(tech)[0], 'Страхование (§3.4)', 'страхование осталось одной строкой паспорта');
+});
+
+// КП-10: у 42 предметов из 55 фактография неполна, и пустые графы вида просто исчезали.
+test('W10-5 (КП-10): незаполненные поля вида видны и посчитаны', () => {
+  const { win, zt } = load();
+  const it = zt.ITEMS.find(x => { const c = zt.detailFillCount(x); return c.total > c.filled && c.filled > 0; });
+  ok(it, 'сид: есть предмет с частично заполненными деталями');
+  const c = zt.detailFillCount(it);
+  const p0 = win.itemPanels(it)[0];
+  has(p0, `заполнено ${c.filled} из ${c.total}`, 'счётчик в заголовке блока');
+  has(p0, 'не заполнено', 'пустая графа показана, а не спрятана');
+  const rows = dom(win, zt.detailRows(it)).querySelectorAll('.field:not(.col-span)');
+  eq(rows.length, c.total, 'печатаются ВСЕ поля вида, а не только заполненные');
+  // Неполнота — фактография, не гейт: в дефекты и допуск не поднимается.
+  no(zt.itemDefects(it).some(d => /заполн/i.test(d.text)), 'в дефект-строку не попадает');
+});
+
+// КП-5: баннер обещал «аннулируйте», а действия не было (КП-Д9).
+test('W10-6 (КП-5): аннулирование доступно только для ошибки ввода', () => {
+  const { win, zt } = load();
+  curator(win);
+  const free = zt.ITEMS.find(x => !zt.cancelBlockedReason(x) && !x.cancelled);
+  ok(free, 'сид: есть аннулируемый предмет');
+  const pledged = zt.ITEMS.find(x => zt.allocatedLegal(x.id) > 0);
+  has(zt.cancelBlockedReason(pledged), 'доли', 'предмет с долями аннулировать нельзя');
+  const banned = zt.ITEMS.find(x => x.ban && !zt.allocatedLegal(x.id));
+  if(banned) has(zt.cancelBlockedReason(banned), 'запрет', 'предмет с живым запретом аннулировать нельзя');
+  win.openCancelItem(free.id);
+  win.document.getElementById('caNote').value = 'дубль записи П-000';
+  win.saveCancelItem(free.id);
+  ok(free.cancelled, 'пометка проставлена');
+  eq(zt.lienStatus(free), 'аннулирован', 'терминальное состояние оси');
+  ok(zt.ITEMS.includes(free), 'запись НЕ удалена физически');
+  has(win.itemHead(free), 'Предмет аннулирован', 'баннер в шапке');
+});
+
+// КП-6: lost ставился только актом обследования — сгоревший склад пришлось бы осматривать.
+test('W10-7 (КП-6): утрата фиксируется документом и обнуляет залоговую', () => {
+  const { win, zt } = load();
+  curator(win);
+  const it = zt.ITEMS.find(x => !x.lost && !x.cancelled && zt.pledgeValue(x) > 0);
+  const surveysBefore = it.surveys.length;
+  win.openMarkLost(it.id);
+  win.document.getElementById('mlDoc').value = 'СТР-2026/77';
+  win.document.getElementById('mlNote').value = 'склад уничтожен пожаром';
+  win.saveMarkLost(it.id);
+  ok(it.lost, 'предмет отмечен утраченным');
+  eq(zt.pledgeValue(it), 0, 'залоговая обнулена');
+  eq(it.surveys.length, surveysBefore, 'акт обследования НЕ подменяется — журнал осмотров не тронут');
+  eq(it.lostBy.doc, 'СТР-2026/77', 'реквизит документа сохранён');
+  has(win.itemHead(it), 'СТР-2026/77', 'баннер называет документ-основание');
+});
+
+// КП-7: pledger не правился нигде, хотя CONTEXT.md зовёт его реквизитом предмета.
+test('W10-8 (КП-7): смена залогодателя сохраняет доли и запрет', () => {
+  const { win, zt } = load();
+  curator(win);
+  const it = zt.item('П-001');
+  const wasAlloc = zt.allocatedLegal(it.id), wasBan = it.ban, wasPledger = it.pledger;
+  const other = zt.CLIENTS.find(c => c.inn !== wasPledger);
+  win.openChangePledger('П-001');
+  win.document.getElementById('cpNew').value = `${other.name} · ИНН ${other.inn}`;
+  win.document.getElementById('cpDoc').value = 'СВ-2026/431';
+  win.document.getElementById('cpNote').value = 'наследование по свидетельству';
+  win.saveChangePledger('П-001');
+  eq(it.pledger, other.inn, 'собственник сменился');
+  eq(zt.allocatedLegal(it.id), wasAlloc, 'доли сохранены — залог следует за вещью');
+  eq(it.ban, wasBan, 'запрет на отчуждение сохранён');
+  eq(it.legalDoc, 'СВ-2026/431', 'правоустанавливающий документ обновлён');
+  eq(it.history[it.history.length - 1].cat, 'lc', 'событие ЖЦ размечено');
+});
+
+// КП-8/КП-Д1: файл был неудаляем и неисправим; сторно переоценки оставляло отчёт в досье.
+test('W10-9 (КП-8): файл открепляется с основанием и уходит из комплекта', () => {
+  const { win, zt } = load();
+  curator(win);
+  const it = zt.item('П-001');
+  const doc = zt.fileOfType(it, 'Отчёт об оценке');
+  ok(doc, 'сид: отчёт приложен');
+  const before = zt.itemDossier(it).met;
+  win.openDetachFile('item', it.id, it.files.indexOf(doc));
+  win.document.getElementById('dfReason').value = 'скан другого объекта';
+  win.saveDetachFile('item', it.id, it.files.indexOf(doc));
+  ok(doc.detached, 'пометка проставлена');
+  ok(it.files.includes(doc), 'файл НЕ удалён физически');
+  eq(zt.itemDossier(it).met, before - 1, 'комплект уменьшился');
+  eq(zt.fileOfType(it, 'Отчёт об оценке'), null, 'откреплённый не закрывает требование');
+});
+
+test('W10-10 (КП-8): реквизиты файла исправляются, срок считается от новой даты', () => {
+  const { win, zt } = load();
+  curator(win);
+  const it = zt.item('П-001'), doc = zt.fileOfType(it, 'Отчёт об оценке'), i = it.files.indexOf(doc);
+  win.openEditFile('item', it.id, i);
+  win.document.getElementById('efNo').value = 'ОЦ-ИСПР-1';
+  win.document.getElementById('efReason').value = 'опечатка в номере';
+  win.saveEditFile('item', it.id, i);
+  eq(zt.fileOfType(it, 'Отчёт об оценке').docNo, 'ОЦ-ИСПР-1', 'номер исправлен');
+  const last = it.history[it.history.length - 1];
+  has(last.what, '→ «ОЦ-ИСПР-1»', 'след «было → стало» в истории');
+  eq(last.cat, 'doc', 'категория проставлена');
+});
+
+test('W10-11 (КП-Д1): сторно переоценки откатывает и авто-приложенный отчёт', () => {
+  const { win, zt } = load();
+  curator(win);
+  const it = zt.item('П-009'), wasReport = it.apprReport;
+  win.openReval(it.id);
+  win.document.getElementById('rvDate').value = '2026-07-01';
+  win.document.getElementById('rvRep').value = 'ОЦ-СТОРНО-1';
+  win.document.getElementById('rvAppraiser').value = 'ИП Тестов';
+  win.document.getElementById('rvVal').value = String(it.appraised);
+  win.saveReval(it.id);
+  eq(zt.fileOfType(it, 'Отчёт об оценке').docNo, 'ОЦ-СТОРНО-1', 'отчёт лёг в досье');
+  head(win);
+  const idx = it.revals.length - 1;
+  win.openVoidRecord(it.id, 'reval', idx);
+  win.document.getElementById('vdReason').value = 'ошибочная переоценка';
+  win.saveVoidRecord(it.id, 'reval', idx);
+  eq(it.apprReport, wasReport, 'отчёт карточки откатился');
+  eq(zt.fileOfType(it, 'Отчёт об оценке').docNo, wasReport,
+     'досье откатилось вместе с ним — комплект больше не закрыт документом отменённой переоценки');
+});
+
+// КП-9/КП-Д3: приоритет печатался как индекс строки и врал на составных договорах.
+test('W10-12 (КП-9): приоритет — свойство договора, черновики вне ранжирования', () => {
+  const { win, zt } = load();
+  // П-055: два кредита внутри ОДНОГО договора Д-041 — раньше получали приоритеты 1 и 2.
+  const p = win.itemPanels(zt.item('П-055'))[4];
+  has(p, 'Приоритет договора', 'колонка переименована');
+  has(p, 'тот же договор', 'вторая строка того же договора не получает своего ранга');
+  eq((p.match(/из \d+ \(регистрация/g) || []).length, 1, 'ранг напечатан один раз на договор');
+  // П-001 обременён двумя договорами разных дат — ранг идёт по дате регистрации.
+  const p1 = win.itemPanels(zt.item('П-001'))[4];
+  const ranks = [...p1.matchAll(/(\d+) из (\d+) \(регистрация ([\d.]+)\)/g)].map(m => ({ r:+m[1], d:m[3] }));
+  eq(ranks.length, 2, 'два действующих договора');
+  ok(zt.d2n(ranks[0].d) < zt.d2n(ranks[1].d), 'ранг 1 у более раннего договора');
+});
+
+// КП-11: понижение было одиночным слотом — аудита решений не существовало.
+test('W10-13 (КП-11): понижение — журнал со сторно, действующее = последнее живое', () => {
+  const { win, zt } = load();
+  head(win);
+  const it = zt.item('П-001'), calc = zt.calcPledge(it);
+  win.openOverride(it.id);
+  win.document.getElementById('ovVal').value = String(calc - 1000);
+  win.document.getElementById('ovDoc').value = 'ПР-2026/11';
+  win.document.getElementById('ovObosn').value = 'снижение по итогам осмотра';
+  win.saveOverride(it.id);
+  win.openOverride(it.id);
+  win.document.getElementById('ovVal').value = String(calc - 5000);
+  win.document.getElementById('ovDoc').value = 'ПР-2026/12';
+  win.document.getElementById('ovObosn').value = 'повторное снижение';
+  win.saveOverride(it.id);
+  eq(it.overrides.length, 2, 'прежнее решение НЕ перезаписано');
+  eq(zt.activeOverride(it).doc, 'ПР-2026/12', 'действует последнее');
+  eq(zt.pledgeValue(it), calc - 5000, 'залоговая по последнему решению');
+  win.openVoidRecord(it.id, 'override', 1);
+  win.document.getElementById('vdReason').value = 'приказ отозван';
+  win.saveVoidRecord(it.id, 'override', 1);
+  eq(zt.activeOverride(it).doc, 'ПР-2026/11', 'сторно вернуло предыдущее решение');
+  eq(zt.pledgeValue(it), calc - 1000, 'залоговая откатилась к нему');
+});
+
+test('W10-14 (КП-Д5): «комиссия» и «комитет» убраны из понижения залоговой', () => {
+  const { win, zt } = load();
+  head(win);
+  const it = zt.ITEMS.find(x => zt.activeOverride(x));
+  ok(it, 'сид: есть предмет с действующим понижением');
+  const p1 = win.itemPanels(it)[1];
+  hasNot(p1, 'решение комиссии', 'пилюля переименована');
+  hasNot(p1, 'комитета по администрированию', 'панель переименована');
+  has(p1, 'решение заведующего', 'роль названа верно');
+  has(p1, 'Понизить залоговую стоимость (решение заведующего)', 'кнопка переименована');
+  has(zt.pledgeTip(it), 'заведующего отделом', 'подсказка реестра переименована');
+  const csv = zt.CSV_PROFILES.items.find(([l]) => l === 'Основание залоговой');
+  eq(csv[1](it), 'решение заведующего отделом', 'выгрузка переименована');
+});
+
+// КП-12/КП-Д4: коэффициент брался из справочника — правка KINDS переписывала историю.
+test('W10-15 (КП-Д4): коэффициент фиксируется в записи и не меняется задним числом', () => {
+  const { win, zt } = load();
+  const it = zt.ITEMS.find(x => x.revals.length > 1) || zt.item('П-001');
+  ok(it.revals.every(r => r.coef != null), 'у каждой записи свой коэффициент');
+  const before = zt.valueEvents(it).filter(e => e.kind === 'reval').map(e => e.pledge);
+  win.eval(`KINDS['${it.kind}'].k = 0.11`);           // правка справочника
+  const after = zt.valueEvents(it).filter(e => e.kind === 'reval').map(e => e.pledge);
+  eq(JSON.stringify(after), JSON.stringify(before), 'исторические строки не переписались');
+});
+
+test('W10-16 (КП-12): переоценки и понижения — одна хронология', () => {
+  const { win, zt } = load();
+  head(win);
+  const it = zt.item('П-001');
+  win.openOverride(it.id);
+  win.document.getElementById('ovVal').value = String(zt.calcPledge(it) - 100);
+  win.document.getElementById('ovDoc').value = 'ПР-2026/20';
+  win.document.getElementById('ovObosn').value = 'тест';
+  win.saveOverride(it.id);
+  const ev = zt.valueEvents(it);
+  eq(ev.length, it.revals.length + it.overrides.length, 'обе серии в одной ленте');
+  ok(ev.some(e => e.kind === 'override') && ev.some(e => e.kind === 'reval'), 'оба вида событий');
+  const dates = ev.map(e => zt.d2n(e.date));
+  ok(dates.every((d, i) => i === 0 || dates[i-1] >= d), 'лента отсортирована — новые сверху');
+});
+
+// КП-Д2: фильтр истории протекал между карточками, и ни один чип не подсвечивался.
+test('W10-17 (КП-Д2): фильтр истории сбрасывается при переходе на другую карточку', () => {
+  const { win, zt } = load();
+  win.openCard('item', 'П-004', 6);
+  win.itemHistFilter('ban');
+  eq(win.eval('histFilter'), 'ban', 'фильтр выставлен');
+  win.openCard('item', 'П-019', 6);
+  eq(win.eval('histFilter'), 'all', 'на другой карточке фильтр сброшен');
+  const box = dom(win, win.itemPanels(zt.item('П-019'))[6]);
+  ok(box.querySelector('.hchip.on'), 'активный чип подсвечен');
+  eq(box.querySelectorAll('.hrow').length, zt.item('П-019').history.length, 'вся история видна');
+});
+
+test('W10-18 (КП-Д2): пустая категория объясняет себя и не гасит все чипы', () => {
+  const { win, zt } = load();
+  win.openCard('item', 'П-019', 6);
+  win.eval("histFilter='ban'");
+  const box = dom(win, win.itemPanels(zt.item('П-019'))[6]);
+  ok(box.querySelector('.hchip.on'), 'чип активного фильтра построен даже при нуле записей');
+  has(box.innerHTML, 'снимите фильтр', 'пустое состояние объясняет причину');
+});
+
+test('W10-19 (КП-Д11): раскрытая подстрока акта переживает перерисовку', () => {
+  const { win, zt } = load();
+  const it = zt.ITEMS.find(x => zt.livesSurvey(x).length > 0);
+  const sid = `srv-${it.id}-${it.surveys.indexOf(zt.livesSurvey(it)[0])}`;
+  win.openCard('item', it.id, 3);
+  win.toggleSubRow(sid);
+  ok(zt.openSubRows.has(sid), 'раскрытие запомнено вне DOM');
+  hasNot(win.itemPanels(it)[3].split(`id="${sid}"`)[1].slice(0, 40), 'display:none',
+    'после перерисовки подстрока остаётся раскрытой');
+});
+
+// КП-14: валюта выводилась из кредитов, при нескольких бралась первая из Set (КП-Д6).
+test('W10-20 (КП-14): валюта — реквизит вещи, расхождение с кредитом видно', () => {
+  const { win, zt } = load();
+  const it = zt.item('П-001');
+  eq(zt.itemCcy(it), it.ccy, 'валюта читается с предмета, а не с кредитов');
+  eq(zt.ccyMismatches(it).length, 0, 'сид: расхождений нет');
+  it.ccy = 'USD';                                     // предмет оценён в долларах
+  const mm = zt.ccyMismatches(it);
+  ok(mm.length > 0, 'расхождение с валютой кредита обнаружено');
+  ok(zt.admissionChecks(it).some(c => c.name === 'Валюта оценки' && c.sev === 'stop'),
+     'расхождение — стоп-фактор допуска, а не молчание');
+  has(zt.triggers().map(t => t.type).join('|'), 'Валюта оценки', 'поднят триггер');
+  has(win.itemPanels(it)[0], 'кредиты в', 'подпись на паспорте');
+});
+
+test('W10-21 (КП-14): валюта вводится при приёме и попадает в предмет', () => {
+  const { win, zt } = load();
+  curator(win);
+  win.eval("reg='items'");
+  win.openNewItem();
+  win.document.getElementById('niName').value = 'Тестовое здание КП';
+  win.document.getElementById('niLegalDoc').value = 'ГА-КП-1';
+  win.document.getElementById('niVal').value = '1000000';
+  win.document.getElementById('niCcy').value = 'USD';
+  win.document.getElementById('niRep').value = 'ОЦ-КП-1';
+  fillDetails(win, 'КП-1');
+  win.saveNewItem();
+  const it = zt.ITEMS[zt.ITEMS.length - 1];
+  eq(it.ccy, 'USD', 'валюта сохранена на предмете');
+  eq(zt.itemCcyLabel(it), 'USD', 'подпись KPI берёт её');
+  eq(it.revals[0].coef, zt.coefOf(it.kind), 'коэффициент зафиксирован в первичной оценке');
+});
+
+test('W10-22 (КП-4): приём отклоняется при обременении в пользу третьего лица', () => {
+  const { win, zt } = load();
+  curator(win);
+  const before = zt.ITEMS.length;
+  win.eval("reg='items'");
+  win.openNewItem();
+  win.document.getElementById('niName').value = 'Квартира под чужой ипотекой';
+  win.document.getElementById('niLegalDoc').value = 'ГА-КП-2';
+  win.document.getElementById('niVal').value = '500000';
+  win.document.getElementById('niRep').value = 'ОЦ-КП-2';
+  win.document.getElementById('niThirdParty').value = 'да';
+  fillDetails(win, 'КП-9');
+  win.saveNewItem();
+  eq(zt.ITEMS.length, before, 'предмет не создан');
+});
+
+// КП-Д10: ссылка предпосылок §5.2 вела на вкладку, где их нет ни одной.
+test('W10-23 (КП-Д10): ссылка из пакета §5.2 ведёт туда, где есть смысл', () => {
+  const { win, zt } = load();
+  const c = zt.CONTRACTS.find(x => x.allocs.length && zt.prereqBlock(x).includes('rowlink'));
+  ok(c, 'сид: есть договор с обязательными предпосылками');
+  const block = zt.prereqBlock(c);
+  hasNot(block, "openCard('item','П-001',5)", 'ссылка больше не ведёт на «Документы»');
+  has(block, ",0)", 'ведёт на «Основное» — там виден тип залогодателя');
+  // Ни одна вкладка предмета предпосылок не показывает — это и была причина битой ссылки.
+  const it = zt.item(c.allocs[0].item);
+  no(win.itemPanels(it).some(p => /предпосыл|§5\.2/i.test(p)), 'предпосылок на карточке предмета нет');
 });
 
 report();
