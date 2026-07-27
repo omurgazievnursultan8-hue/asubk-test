@@ -327,6 +327,8 @@
    Р-4  Изменение условий после регистрации — только зарегистрированным основанием
         (ДС · решение суда · постановление правительства), записью с датой вступления.
    Р-5  Платежи — зеркало модуля платежей + ручной ввод формой владельца («Ожидает ЦК»).
+        ПЕРЕПИСАНО волной 27.07.2026 (этап 4, шов платежей): «ждёт подтверждения» —
+        свойство КАНАЛА, а не статуса, см. Р-27.
    Р-6  Освоение — owned кредитом, на транше; реестр «Освоение» — сквозной вид, не владелец.
         Закрытие неосвоенного остатка — тоже owned действие (оживлено волной 27.07.2026).
    Р-7  Залог — зеркало: «Создать залоговый договор» нет, только «Привязать существующий».
@@ -383,6 +385,27 @@
         Строка = требование = процесс × кредит × обязанное лицо; по одному процессу их
         бывает несколько (заёмщик, поручитель, залогодатель). Фаза приходит свёрнутой из
         журнала мер и полем кредита не является.
+   Р-27 ЗАЧЁТ ПЛАТЕЖА ЧИТАЕТ ДВЕ ОСИ (27.07.2026, этап 4, КР-44…КР-46, ADR-0013).
+        У платежа три независимые оси — регистрация · сопоставление · заморозка, — и
+        вопрос «двигает ли он остаток» решается ДВУМЯ: подтверждённый и восстановленный
+        двигают, сторнированный не двигает и остаётся виден (сторно ≠ удаление),
+        ожидающий двигает ТОЛЬКО из шлюза — деньги уже ушли, и §4 спеки платежей
+        засчитывает их датой операции. Прежняя редакция читала одну ось и отбирала у
+        шлюза его главное свойство.
+        СПОРНАЯ ПЕНЯ: после сторно пеня периода вычисляется, но в требование не входит,
+        категорию не двигает и гейт «Погашен» не блокирует, пока не решит комиссия.
+        Период приходит зеркалом (событие — у платежей), сумму выводит кредит (пеню
+        считает он) — то же разделение, что у обеспеченности.
+        ПЕРЕПЛАТА не съедается срезом: излишек над начисленным показывается статьёй.
+        Обратная очередь (ОД → проценты → штрафы → возврат заёмщику) — правило платежей.
+   Р-28 СЛОЙ ДОЛГА ПОД РЕШЕНИЕМ СУДА (27.07.2026, этап 4, КР-47, ADR-0013).
+        Приостановка начисления по решению суда — свойство ЧАСТИ долга («на сумму
+        решения»), а не флаг на кредите: у одного кредита бывает несколько решений с
+        РАЗНЫМИ режимами одновременно, и это норма. Режим определяется ДАТОЙ решения и
+        прилипает к нему навсегда (таблица ACCRUAL_MODES с датами вступления: до
+        05.09.2025 — проценты идут, пеня стоит; с 05.09.2025 — стоят оба). Начисление
+        по слоям — у кредита (сырьё его), разнесение платежа по слоям — у платежей.
+        Решение без присуждённой суммы (определение о банкротстве) слоя не образует.
 
   ГЕЙТЫ, ДОБАВЛЕННЫЕ ВОЛНОЙ 27.07.2026 (к Г-1…Г-22 канона)
    Г-23 activate — «Зарегистрирован» → «Действует» только при наличии освоения.
@@ -410,6 +433,12 @@
    • Расчёт графика/детального расчёта — детерминированное упрощение, не банковский движок.
    • Зеркала (кураторство, залог, платежи, взыскание, реструктуризация, категория) —
      read-only панели на демо-данных, навигация внутристраничная.
+   • Д-8 (этап 4). Доля долга под решением суда берётся ПРОПОРЦИОНАЛЬНО телу: сумма
+     присуждённого к освоенному, не более единицы. Отдельных остатков по слоям кредит не
+     ведёт — сырья для этого у него нет: чтобы знать остаток слоя, нужно разнесение
+     платежей по слоям, а оно принадлежит модулю платежей (там же привязка к конкретному
+     исполнительному листу). Пропорция даёт верный ПОРЯДОК величины приостановленного
+     начисления и неверную копейку; настоящий учёт ведётся у владельца.
 
   ОТКРЫТЫЕ ВОПРОСЫ (канон §10 — вынесены, не изобретаются молча)
    1. Групповой (зонтичный) кредит: как просрочка члена группы влияет на кредит/категорию.
@@ -439,9 +468,20 @@
       имеет в виду долю в СОСТАВЕ обеспечения, правило меняется качественно, и меняется
       оно у владельца — кредит собирает вердикт по его формуле и правку переживёт без
       изменений. Текста Прил.1 §2.4 в репозитории нет, только пересказы. К заказчику.
+  10. Платёж со статусом «Расхождение» (реквизиты у нас и в реестре ЦК не совпали):
+      двигает ли он остаток и по КАКОЙ сумме — по нашей или по сумме ЦК. Макет
+      засчитывает по нашей: запись в реестре ЦК есть, значит деньги были, а §3 спеки
+      платежей велит расхождение КОРРЕКТИРОВАТЬ, а не отбрасывать. Обратное чтение
+      («не считаем, пока не сверено») задним числом проваливает заёмщика в просрочку
+      из-за канцелярской разницы — ровно того, чего избегает механика спорной пени.
+  11. Останавливает ли начисление ОПРЕДЕЛЕНИЕ О БАНКРОТСТВЕ. Слоя оно не образует —
+      присуждённой суммы в нём нет, — и макет продолжает начислять по договору.
+      У K-C14 это 79 147 сомов пени на кредите с возбуждённым делом. Режимы §6.1 спеки
+      платежей описывают решения о ВЗЫСКАНИИ; про банкротство норма молчит. К заказчику,
+      с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-07-27 · 66/66 PASS
+ SMOKE (node) 2026-07-27 · 75/75 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -505,6 +545,15 @@
    #57 ✓
    #57b ✓
    #57c ✓
+   #58 ✓
+   #58b ✓
+   #59 ✓
+   #59b ✓
+   #60 ✓
+   #60b ✓
+   #61 ✓
+   #62 ✓
+   #63 ✓
    #53 ✓
    #54 ✓
    #55 ✓
@@ -1400,6 +1449,17 @@ function retroPendingFlags(credit){
     return crSeqOf(f.record) > (act.generatedSeq || 0);
   });
 }
+/* ОСИ ПЛАТЕЖА — словари МОДУЛЯ-ВЛАДЕЛЬЦА (спека платежей, швы №1/№2). Три оси
+   независимы и в один `status` не схлопываются: платёж по шлюзу «Ожидает ЦК» уже
+   двигает долг, а платёж «Сторно» виден, но денег не несёт. Прежняя редакция знала
+   два значения оси сопоставления из пяти и писала в ось РЕГИСТРАЦИИ слово «ЦК» —
+   словарь чужой оси (КР-45, КР-50). */
+const PAY_REG   = ['Ручной ввод','Шлюз','Импорт ЦК'];
+const PAY_MATCH = ['Ожидает ЦК','Подтверждён ЦК','Сторно (таймаут)','Восстановлен','Расхождение'];
+/* Статус спорной пени: пеня периода сторно вычисляется, но в требование не входит,
+   пока не решит комиссия (спека платежей §4.4). */
+const PAY_DISPUTE = ['Ожидает решения комиссии','Снята автоматически','Решение комиссии'];
+
 function emptyMirror(over){                          // все зеркала (Р-5…Р-10, Р-16)
   return deepMerge({
     curatorship:[], pledges:[], guarantees:[], bankGuarantee:null,
@@ -1529,10 +1589,13 @@ function seedCoverageMirror(pledges, bankGuarantee, asOf, creditCurrency){
 }
 
 /* Имитатор модуля платежей: раскладывает погашенное по статьям (ADR-0010 — разнесение
-   принадлежит платежам, кредит его не выводит). */
+   принадлежит платежам, кредит его не выводит). Оси — словари ВЛАДЕЛЬЦА (PAY_REG/PAY_MATCH).
+   `date` — дата фактического поступления денег; `bindDate` — дата привязки к кредиту,
+   она бывает много позже (опознанное невыясненное поступление), и расчёт идёт от первой. */
 function seedPayment(num, date, tranche, layers, over){
   const amount = round2((layers.principal||0) + (layers.interest||0) + (layers.penalty||0) + (layers.fees||0));
-  return Object.assign({ num, date, tranche, amount, reg:'ЦК', match:'Подтверждён ЦК',
+  return Object.assign({ num, date, bindDate:null, tranche, amount, currency:null, rate:null,
+    reg:'Импорт ЦК', match:'Подтверждён ЦК', dispute:null,
     frozen:true, method:'денежными средствами', layers }, over || {});
 }
 
@@ -1628,14 +1691,33 @@ function seedDb(){
       pledges,
       coverage: seedCoverageMirror(pledges, null, '20.07.2026'),
       inspections:[{ date:'02.06.2026', obj:'ЗД-88 · Производственная линия', curator:'Асанов А. К.', res:'Соответствует, в наличии', ok:true, file:'akt-zd88-0206.pdf' }],
-      /* Два платежа с РАЗНЫМ статусом — вся суть Р-5 на одном экране:
-         №1 подтверждён ЦК и двигает остаток; №2 введён вручную, висит «Ожидает ЦК»
-         и не двигает ничего (paidPool берёт только подтверждённые, ADR-0010).
-         №1 закрывает первую позицию графика, вторая (18.07) уходит в просрочку. */
+      /* Четыре платежа с РАЗНЫМ поведением — вся суть Р-5 на одном экране, и различия
+         лежат НЕ на одной оси:
+           №1 импорт ЦК, подтверждён — двигает остаток;
+           №2 ручной ввод, «Ожидает ЦК» — не двигает: основанием ручному вводу служит
+              список ЦК, и до сверки денег могло не быть вовсе;
+           №3 ШЛЮЗ, тоже «Ожидает ЦК» — двигает уже сегодня: деньги ушли из кошелька
+              заёмщика, и §4 спеки платежей засчитывает их датой операции. Не подтвердит
+              ЦК — сторно с пересчётом задним числом;
+           №4 СТОРНО по таймауту — денег не несёт, но остаётся виден (сторно ≠ удаление:
+              заёмщик деньги отправил, они где-то есть). Просрочка, в которую он уронил
+              кредит задним числом, СПОРНА: пеня за период посчитана, но в требование не
+              входит и категорию не двигает, пока не решит комиссия (§4.4).
+         Прежняя редакция читала одну ось (`match`) и уравнивала №2 с №3, а №4 выразить
+         не могла вовсе (КР-44, КР-45, КР-46). */
       payments:[
         seedPayment(1, '20.06.2026', 1, { principal:3781.16, interest:833.33 }),
-        { num:2, date:'22.07.2026', amount:4614.49, tranche:1, reg:'Ручной ввод',
-          match:'Ожидает ЦК', frozen:false, method:'денежными средствами', layers:{} }
+        { num:2, date:'22.07.2026', bindDate:'22.07.2026', amount:4614.49, currency:'KGS', rate:null,
+          tranche:1, reg:'Ручной ввод', match:'Ожидает ЦК', frozen:false, dispute:null,
+          method:'денежными средствами', layers:{} },
+        { num:3, date:'21.07.2026', bindDate:null, amount:2500, currency:'KGS', rate:null,
+          tranche:1, reg:'Шлюз', match:'Ожидает ЦК', frozen:false, dispute:null,
+          method:'денежными средствами', layers:{ principal:2000, interest:500 } },
+        { num:4, date:'18.07.2026', bindDate:null, amount:4614.49, currency:'KGS', rate:null,
+          tranche:1, reg:'Шлюз', match:'Сторно (таймаут)', frozen:false,
+          dispute:{ from:'18.07.2026', to:null, status:'Ожидает решения комиссии',
+                    protocol:'', outcome:null },
+          method:'денежными средствами', layers:{ principal:3800, interest:814.49 } }
       ],
       paymentsAsOf:'22.07.2026',
       borrower:{ subgroup:'1.2', subgroupLabel:SUBGROUP_LABEL['1.2'], asOf:'22.07.2026' }
@@ -1749,7 +1831,12 @@ function seedDb(){
           lastMeasure:'02.06.2026 — подан иск об обращении взыскания', costs:0 })
       ],
       claimsAsOf:'20.07.2026', collectionCosts:2400,
-      court:[{ date:'28.05.2026', kind:'Судебный приказ', org:'Первомайский районный суд', res:'Выдан', ok:true, file:'prikaz-vz2201.pdf' }],
+      /* Решение суда несёт ПРИСУЖДЁННУЮ СУММУ и номер исполнительного листа: без них
+         кредит не может применить режим начисления «на сумму решения» и молча считает
+         по договору, будто решения нет (КР-47). Приказ от 28.05.2026 — режим с 05.09.2025:
+         проценты и пеня на присуждённое приостановлены. */
+      court:[{ date:'28.05.2026', kind:'Судебный приказ', org:'Первомайский районный суд', res:'Выдан',
+               ok:true, amount:18300, il:'ИЛ-2201/1', file:'prikaz-vz2201.pdf' }],
       borrower:{ subgroup:'2.1', subgroupLabel:SUBGROUP_LABEL['2.1'], asOf:'20.07.2026' }
     }); })()
   }));
@@ -1921,12 +2008,12 @@ function seedDb(){
      мультивалютность демонстрируется на фоне, чтобы реестр показал приведение к KGS. */
   const bg = [
     { name:'ОсОО «Баткен-Фрут»',   inn:'08110199200111', prog:'ПРГ-3', cur:'Асанов А. К.',      cat:'A', life:'Действует',      amount:180000, od:0,   ccy:'KGS', reg:'Баткенская',      dist:'Кадамжайский' },
-    { name:'ОсОО «Джалал-Абад-Лес»',inn:'09318199100222', prog:'ПРГ-5', cur:'Ким Л. С.',        cat:'B', life:'Действует',      amount:320000, od:35,  ccy:'USD', reg:'Джалал-Абадская', dist:'Сузакский' },
+    { name:'ОсОО «Джалал-Абад-Лес»',inn:'09318199100222', prog:'ПРГ-5', cur:'Ким Л. С.',        cat:'B', life:'Действует',      amount:320000, od:35,  ccy:'USD', reg:'Джалал-Абадская', dist:'Сузакский', pay:'fx' },
     { name:'ОсОО «Кара-Балта-Металл»',inn:'10421198900333', prog:'ПРГ-7', cur:'Осмонов Б. Т.', cat:'C', life:'Действует',      amount:540000, od:210, ccy:'KGS', reg:'Чуйская',         dist:'Жайылский' },
     { name:'ОсОО «Нарын-Текс»',     inn:'11524200000444', prog:'ПРГ-8', cur:'Джумалиева Г. К.',  cat:'A', life:'Зарегистрирован', amount:150000, od:0,   ccy:'EUR', reg:'Нарынская',       dist:'Нарынский' },
     { name:'ОсОО «Токмок-Пласт»',   inn:'12627200200555', prog:'ПРГ-3', cur:'Асанов А. К.',      cat:'A', life:'Проект',         amount:210000, od:0,   ccy:'KGS', reg:'Чуйская',         dist:'Чуйский' },
-    { name:'ОсОО «Ат-Башы-Агро»',   inn:'13730199400666', prog:'ПРГ-4', cur:'Ким Л. С.',        cat:'B', life:'Действует',      amount:280000, od:12,  ccy:'RUB', reg:'Нарынская',       dist:'Ат-Башинский' },
-    { name:'ОсОО «Кант-Сахар»',     inn:'14833199700777', prog:'ПРГ-5', cur:'Осмонов Б. Т.',    cat:'C', life:'Действует',      amount:410000, od:95,  ccy:'KGS', reg:'Чуйская',         dist:'Ысык-Атинский' },
+    { name:'ОсОО «Ат-Башы-Агро»',   inn:'13730199400666', prog:'ПРГ-4', cur:'Ким Л. С.',        cat:'B', life:'Действует',      amount:280000, od:12,  ccy:'RUB', reg:'Нарынская',       dist:'Ат-Башинский', pay:'storno' },
+    { name:'ОсОО «Кант-Сахар»',     inn:'14833199700777', prog:'ПРГ-5', cur:'Осмонов Б. Т.',    cat:'C', life:'Действует',      amount:410000, od:95,  ccy:'KGS', reg:'Чуйская',         dist:'Ысык-Атинский', pay:'restored' },
     { name:'ОсОО «Сокулук-Милк»',   inn:'15936199900888', prog:'ПРГ-7', cur:'Джумалиева Г. К.',  cat:'A', life:'Закрыт',         amount:130000, od:0,   ccy:'KGS', reg:'Чуйская',         dist:'Сокулукский' }
   ];
   bg.forEach((b, i) => {
@@ -1945,6 +2032,23 @@ function seedDb(){
     const bgClaimStage = b.od >= 90 ? 'Претензия направлена' : '';
     const bgSchedules = (b.life !== 'Проект' && b.od > 0)
       ? [ seedSchedule('12.01.2026', b.od, b.amount, 9, 24, 4) ] : [];
+    const bgPayments = (b.pay === 'fx')
+      ? [ { num:1, date:'12.06.2026', bindDate:'03.07.2026', amount:174000, currency:'KGS', rate:87,
+            tranche:1, reg:'Импорт ЦК', match:'Подтверждён ЦК', frozen:true, dispute:null,
+            method:'денежными средствами', layers:{ principal:1600, interest:400 } } ]
+      : (b.pay === 'storno')
+      ? [ { num:1, date:'11.07.2026', bindDate:null, amount:9000, currency:b.ccy, rate:null,
+            tranche:1, reg:'Шлюз', match:'Сторно (таймаут)', frozen:false,
+            dispute:{ from:'11.07.2026', to:null, status:'Ожидает решения комиссии',
+                      protocol:'', outcome:null },
+            method:'денежными средствами', layers:{ principal:7000, interest:2000 } } ]
+      : (b.pay === 'restored')
+      ? [ { num:1, date:'25.05.2026', bindDate:null, amount:20000, currency:b.ccy, rate:null,
+            tranche:1, reg:'Шлюз', match:'Восстановлен', frozen:false,
+            dispute:{ from:'25.05.2026', to:'08.06.2026', status:'Снята автоматически',
+                      protocol:'', outcome:'снята при восстановлении платежа' },
+            method:'денежными средствами', layers:{ principal:16000, interest:4000 } } ]
+      : [];
     credits.push(mkCredit({
       id:'K-B'+(i+1), num:'B'+(100+i), date:'05.01.2026',
       reg:{ num:'B'+(100+i), date:'07.01.2026', scan:'dog-b'+(100+i)+'.pdf', comment:'' },
@@ -1964,6 +2068,7 @@ function seedDb(){
         { kind:'Бизнес-план', name:'Бизнес-план проекта', state:'принят', date:'28.12.2025', file:'bp-b'+(100+i)+'.pdf', note:'' }
       ],
       _seedSettle: (b.life === 'Действует' && b.od === 0) ? TODAY : null,
+      _seedClose:  (b.life === 'Закрыт') ? { date:'30.05.2026', share:1 } : null,
       /* Фактор категории вместо прежней «группы риска» B/C/D (ADR-0012): у каждого
          обязательно решение комитета, иначе он не действует. */
       factors: (b.cat === 'B' || b.cat === 'C' || b.cat === 'D')
@@ -1979,8 +2084,17 @@ function seedDb(){
         curatorship:[{ unit:'Отдел кредитования', employee:b.cur, role:'ведущий', from:'07.01.2026', to:b.life === 'Закрыт' ? '30.05.2026' : null }],
         pledges:bgPledges,
         coverage: seedCoverageMirror(bgPledges, null, '18.07.2026'),
-        payments: b.life === 'Закрыт'
-          ? [ seedPayment(1, '30.05.2026', 1, { principal:b.amount, interest:Math.round(b.amount*0.1) }) ] : [],
+        /* СЦЕНАРИИ ОСИ СОПОСТАВЛЕНИЯ (спека платежей §§3–4). Двумя значениями «Ожидает /
+           Подтверждён» они невыразимы, а правило зачёта у каждого своё:
+             K-B2 — платёж в ИНОЙ валюте, чем кредит: сумма поступления в сомах, курс,
+                    разнесение сразу в валюте кредита (И-16). Плюс `bindDate`: деньги
+                    пришли 12.06, опознаны 03.07 — расчёт идёт от даты ПОСТУПЛЕНИЯ (§7.1);
+             K-B6 — СТОРНО по таймауту: денег не несёт, но виден (сторно ≠ удаление), и
+                    пеня периода спорна — до решения комиссии не входит в требование и
+                    не двигает категорию (§4.4);
+             K-B7 — ВОССТАНОВЛЕН поздним подтверждением ЦК: остаток двигает как обычный
+                    подтверждённый, спорная пеня снята автоматически (§4.3). */
+        payments: bgPayments,
         paymentsAsOf: b.life === 'Закрыт' ? '30.05.2026' : (b.life === 'Проект' ? null : '18.07.2026'),
         claims: b.od >= 90 ? [ seedClaim({ claimId:'ТРБ-B'+(100+i), processId:'ВЗ-B'+(100+i),
           obligor:{ inn:b.inn, name:b.name, role:'заёмщик' }, phase:'Досудебная', stage:'Претензия направлена',
@@ -2043,16 +2157,19 @@ function seedDb(){
     /* ГРАФИК И ПОГАШЕНИЯ вместо засеянного ledger (ADR-0010). Просрочка выводится из
        позиции графика, погашение — из подтверждённых платежей; ни одна величина долга
        больше не задаётся напрямую. */
-    let schedules = [], payments = [], paymentsAsOf = null;
+    let schedules = [], payments = [], paymentsAsOf = null, seedClose = null;
     if (life === 'Закрыт'){
       schedules = [ seedSchedule(dd0, 400, contract, rate, term, Math.min(term, 6)) ];
       const closureReason = s.closure || 'Погашен';
       /* «Погашен» гасится полностью; «Списан» — частично, поэтому у списанного остаётся
-         ненулевой остаток, и подгруппа честно говорит «безнадёжные долги» (КР-12). */
-      payments = closureReason === 'Списан'
-        ? [ seedPayment(1, '10.06.2026', 1, { principal:Math.round(contract*0.35), interest:Math.round(contract*0.03) }) ]
-        : [ seedPayment(1, '20.06.2026', 1, { principal:contract, interest:Math.round(contract*0.12) }) ];
-      paymentsAsOf = '20.06.2026';
+         ненулевой остаток, и подгруппа честно говорит «безнадёжные долги» (КР-12).
+         Сумма процентов НЕ выдумывается процентом от договора: 12 % от суммы договора
+         разносилось в статью, где начислено втрое меньше, и разницу молча съедал
+         `Math.min` в debtOf — до 66 935 сомов на кредит (КР-48). Платёж досчитывается
+         вторым проходом из ПОСТРОЕННОГО расчёта, как и у платящих по графику. */
+      seedClose = closureReason === 'Списан' ? { date:'10.06.2026', share:0.35 }
+                                             : { date:'20.06.2026', share:1 };
+      paymentsAsOf = seedClose.date;
     } else if (disbAmt > 0){
       /* с просрочкой — сеем версию графика, первая позиция которой отстоит на s.od дней;
          без просрочки — график не сеем вовсе (движок построит от даты освоения), а
@@ -2106,8 +2223,14 @@ function seedDb(){
           phase:'Досудебная', stage:'Требование направлено', amount:Math.round(amount*0.08),
           since:'05.05.2026', lastMeasure:'05.05.2026 — направлено требование поручителю', costs:0 }));
       claimsAsOf = '20.07.2026';
+      /* Присуждена ПРОСРОЧЕННАЯ часть, не весь долг: иски подают и на неё, и на всю сумму
+         (§6 спеки платежей). Отсюда доля тела под решением меньше единицы, и начисление
+         останавливается частично — ровно то, что не выражается флагом на кредите. */
       if (s.coll==='court' || s.coll==='ispolnit')
-        court.push({ date:'20.05.2026', kind:'Судебный приказ', org:'Районный суд', res:'Выдан', ok:true, file:'prikaz-'+num+'.pdf' });
+        court.push({ date:'20.05.2026', kind:'Судебный приказ', org:'Районный суд', res:'Выдан', ok:true,
+                     amount:Math.round(amount*0.08), il:'ИЛ-'+num, file:'prikaz-'+num+'.pdf' });
+      /* Определение о возбуждении дела о банкротстве СЛОЯ НЕ ОБРАЗУЕТ: присуждать нечего,
+         суммы в нём нет. Последствия банкротства принадлежат взысканию (КР-33). */
       if (s.coll==='bankrot')
         court.push({ date:'25.05.2026', kind:'Определение о банкротстве', org:'Межрайонный суд', res:'Возбуждено', ok:false, file:'bankrot-'+num+'.pdf' });
     }
@@ -2173,6 +2296,7 @@ function seedDb(){
       /* служебная пометка сидирования: «этот кредит платит по графику» — обработается
          вторым проходом (seedSettlePayments) и будет удалена из модели */
       _seedSettle: (life === 'Действует' && disbAmt > 0 && !(s.od > 0)) ? TODAY : null,
+      _seedClose: seedClose,                       // закрытый кредит: платёж из построенного расчёта
       /* обязательный комплект программы (Г-7). Один сценарий на десять получает
          документ в НЕзакрывающем состоянии — иначе состояния «на проверке»,
          «отклонён», «просрочен» не встречались бы в демо ни разу (КР-22). */
@@ -2274,11 +2398,31 @@ function seedDb(){
      честно покажет просрочку с первой же позиции. Считать это в mkScen нельзя: график
      строится от записей условий, а они появляются строкой выше. */
   for (const c of credits){
+    const close = c._seedClose; delete c._seedClose;
+    if (close){
+      /* ЗАКРЫТЫЙ КРЕДИТ: платёж гасит то, что ПОСЧИТАНО на дату закрытия, а не долю от
+         суммы договора. Иначе «Погашен» с ненулевым остатком либо, наоборот, переплата,
+         спрятанная срезом (КР-48). Доля < 1 — списание: остаток обязан остаться. */
+      const led = buildLedger(c, close.date);
+      const disb = c.tranches.reduce((a,t) => a + disbursedSum(t), 0);
+      const dbt = debtOf(led, disb);
+      /* Пеня в закрывающий платёж НЕ кладётся: она считается на НЕПОКРЫТЫЙ остаток, то
+         есть исчезает от самого этого платежа. Положить её — значит разнести деньги в
+         статью, которой после разнесения не существует, и получить переплату из воздуха.
+         Сборы так себя не ведут: это реестр начислений, от платежей независимый. */
+      const L = { principal: round2(disb * close.share),
+                  interest:  round2(dbt.interest.accrued * close.share),
+                  fees:      round2(dbt.fees.accrued     * close.share) };
+      if (L.principal + L.interest + L.fees > 0){
+        c.mirror.payments.push(seedPayment(1, close.date, (c.tranches[0]||{}).no || 1, L));
+        c.mirror.paymentsAsOf = close.date;
+      }
+    }
     if (!c._seedSettle){ delete c._seedSettle; continue; }
     const upTo = c._seedSettle; delete c._seedSettle;
     const led = buildLedger(c, upTo);
     let principal = 0, interest = 0;
-    for (const r of led.rows){ principal += r.principalDue; interest += r.interestDue; }
+    for (const r of led.rows){ principal += r.principalDue; interest += r.interestCharged; }
     if (principal + interest <= 0) continue;
     c.mirror.payments.push(seedPayment(1, upTo, (c.tranches[0]||{}).no || 1,
       { principal: round2(principal), interest: round2(interest) }));
@@ -2599,13 +2743,40 @@ function regStatusOf(c){
    при 24 позициях графика (КР-7…КР-9). Это легаси-дефект E2E-09, воспроизведённый
    в модуле-владельце.
 
-   paidPool — то, что модуль платежей ПОДТВЕРДИЛ на дату среза, в разрезе статей.
-   Неподтверждённый платёж остатки не двигает (Р-5): ручной ввод висит «Ожидает ЦК». */
+   paidPool — то, что модуль платежей засчитал на дату среза, в разрезе статей. */
+
+/* ЗАЧИТЫВАЕТСЯ ЛИ ПЛАТЁЖ В ПОГАШЕНИЕ — правило владельца, и оно читает ДВЕ оси, а не одну.
+   Прежняя редакция сверяла только сопоставление (`match === 'Подтверждён ЦК'`) и тем самым
+   отбирала у шлюза его главное свойство: «платёж по шлюзу действует сразу, датой операции —
+   уменьшает долг и останавливает начисление; не подтвердит ЦК — сторно с пересчётом»
+   (спека платежей §4). Ждать подтверждения обязан ручной ввод и импорт, а не шлюз: у шлюза
+   деньги УЖЕ ушли, и «окно ожидания зачисления» открыто именно для них (КР-44). */
+function paymentCounts(p){
+  if (!p) return false;
+  switch (p.match){
+    case 'Подтверждён ЦК': return true;
+    case 'Восстановлен':   return true;   // позднее подтверждение ЦК — обратный каскад, долг падает
+    case 'Сторно (таймаут)': return false; // сторно ≠ удаление: платёж виден, денег не несёт
+    case 'Расхождение':    return true;   // запись ЦК есть, расходятся реквизиты (ОВ-ПЛ-1)
+    case 'Ожидает ЦК':     return p.reg === 'Шлюз';
+    default: return false;
+  }
+}
+
+/* Валюта поступления — реквизит ПЛАТЕЖА, разнесение — всегда в валюте кредита: статьи
+   долга выражены в ней, и пересчёт делает владелец, когда раскладывает сумму. Отсюда
+   инвариант И-16: Σ layers = amount при совпадении валют и amount × rate при расхождении. */
+function paymentCurrency(p, c){ return (p && p.currency) || (c && c.currency) || 'KGS'; }
+function paymentAllocated(p){
+  const L = (p && p.layers) || {};
+  return round2((L.principal||0) + (L.interest||0) + (L.penalty||0) + (L.fees||0));
+}
+
 function paidPool(c, asOf){
   const lim = pd(asOf || TODAY);
   const pool = { principal:0, interest:0, penalty:0, fees:0 };
   for (const p of ((c.mirror && c.mirror.payments) || [])){
-    if (p.match !== 'Подтверждён ЦК') continue;
+    if (!paymentCounts(p)) continue;
     if (p.date && pd(p.date) > lim) continue;
     const L = p.layers || {};
     pool.principal += L.principal || 0; pool.interest += L.interest || 0;
@@ -2613,6 +2784,65 @@ function paidPool(c, asOf){
   }
   for (const k in pool) pool[k] = round2(pool[k]);
   return pool;
+}
+
+/* ---- СПОРНАЯ ПЕНЯ (спека платежей §4.4) ----
+   Сторно задним числом ретроспективно проваливает заёмщика в просрочку, но неподтверждение
+   могло быть сбоем шлюза, банка или ЦК. Пеня периода «дата операции → дата отмены»
+   ВЫЧИСЛЯЕТСЯ, но помечается спорной: не входит в требование, не двигает категорию риска,
+   не блокирует гейт «Погашен». Считать сразу дешевле, чем строить цепочку начислений
+   второй раз, если комиссия решит начислить.
+
+   Разделение труда то же, что у обеспеченности: ПЕРИОД и статус приходят зеркалом
+   (событие сторно — у платежей), СУММУ выводит кредит, потому что пеню считает он
+   (ADR-0010). Сумма в зеркале — снимок владельца для его экрана, кредит её не читает. */
+function disputeWindows(c){
+  const out = [];
+  for (const p of ((c.mirror && c.mirror.payments) || [])){
+    const d = p.dispute;
+    if (d && d.from && d.status === 'Ожидает решения комиссии') out.push({ from:d.from, to:d.to || null, pay:p.num });
+  }
+  return out;
+}
+/* дни отрезка [from,to], попавшие в окно спора */
+function daysInWindows(fromDt, toDt, wins){
+  let n = 0;
+  for (const w of wins){
+    const a = Math.max(fromDt, pd(w.from));
+    const b = Math.min(toDt, w.to ? pd(w.to) : toDt);
+    if (b > a) n += dd(a, b);
+  }
+  return n;
+}
+
+/* ---- СЛОЙ ДОЛГА ПО РЕШЕНИЮ СУДА (спека платежей §6) ----
+   Приостановка начисления по решению суда — свойство ЧАСТИ долга («на сумму решения»), а
+   не флаг на кредите: у одного кредита бывает несколько решений с РАЗНЫМИ режимами
+   одновременно, и это норма. Режим определяется ДАТОЙ решения и прилипает к нему навсегда —
+   поэтому таблица с датами вступления, а не константа в расчёте: появится новая норма,
+   добавится строка.
+
+   Граница с платежами по ADR-0010: НАЧИСЛЕНИЕ — у кредита (сырьё его), РАЗНЕСЕНИЕ платежа
+   по слоям — у платежей (там матрица очередей и привязка к исполнительному листу). */
+const ACCRUAL_MODES = [
+  { from:'05.09.2025', interest:false, penalty:false,
+    label:'проценты и пеня приостановлены на сумму решения (норма с 05.09.2025)' },
+  { from:null,          interest:true,  penalty:false,
+    label:'проценты идут, пеня приостановлена на сумму решения (норма до 05.09.2025)' }
+];
+function accrualModeOf(decisionDate){
+  for (const m of ACCRUAL_MODES) if (!m.from || pd(decisionDate) >= pd(m.from)) return m;
+  return ACCRUAL_MODES[ACCRUAL_MODES.length - 1];
+}
+/* Слои кредита на дату: решения суда из зеркала, несущие ПРИСУЖДЁННУЮ СУММУ. Решение без
+   суммы (определение о возбуждении дела о банкротстве) слоя не образует — присуждать там
+   нечего; последствия банкротства принадлежат взысканию (КР-33). */
+function courtLayersOf(c, asOf){
+  const lim = pd(asOf || TODAY);
+  return ((c.mirror && c.mirror.court) || [])
+    .filter(x => x && x.date && (x.amount || 0) > 0 && pd(x.date) <= lim)
+    .map(x => ({ date:x.date, kind:x.kind, il:x.il || null, amount:x.amount || 0, mode:accrualModeOf(x.date) }))
+    .sort((a,b) => pd(a.date) - pd(b.date));
 }
 
 /* buildLedger(credit, asOf) — позиции графика, НАСТУПИВШИЕ на дату среза, с разнесением
@@ -2637,27 +2867,63 @@ function buildLedger(c, asOf){
   }
   rows.sort((a,b) => pd(a.date) - pd(b.date) || a.trancheNo - b.trancheNo || a.no - b.no);
 
+  /* ДОЛЯ ДОЛГА ПОД РЕШЕНИЕМ СУДА. Слои несут присуждённые суммы; начисление на них
+     приостановлено по режиму СВОЕГО решения. Кредит не ведёт слои отдельными остатками —
+     сырья для этого у него нет (разнесение платежа по слоям принадлежит платежам), поэтому
+     доля берётся пропорционально телу: Σ присуждённого к освоенному, не более единицы.
+     Допущение Д-8: настоящий учёт ведётся по слоям в модуле-владельце. */
+  const layers = courtLayersOf(c, fd(lim));
+  const body = c.tranches.reduce((a,t) => a + disbursedSum(t), 0);
+  const frozenShareAt = (dt) => {
+    if (!layers.length || body <= 0) return { i:0, p:0 };
+    let awardedI = 0, awardedP = 0;
+    for (const L of layers){
+      if (pd(L.date) > dt) continue;
+      if (!L.mode.interest) awardedI += L.amount;
+      if (!L.mode.penalty)  awardedP += L.amount;
+    }
+    return { i:Math.min(1, awardedI / body), p:Math.min(1, awardedP / body) };
+  };
+  const firstLayer = layers.length ? pd(layers[0].date) : null;
+  const wins = disputeWindows(c);
+
   const pool = paidPool(c, fd(lim));                    // тот же горизонт, что и у начисления
   let pP = pool.principal, pI = pool.interest, pPen = pool.penalty;
   /* первый проход: гасим ОД и проценты по очереди наступления */
   for (const r of rows){
-    r.principalPaid = round2(Math.min(pP, r.principalDue));  pP  = round2(pP  - r.principalPaid);
-    r.interestPaid  = round2(Math.min(pI, r.interestDue));   pI  = round2(pI  - r.interestPaid);
-    r.principalBal  = round2(r.principalDue - r.principalPaid);
-    r.interestBal   = round2(r.interestDue  - r.interestPaid);
+    /* проценты: часть, приходящаяся на присуждённую долю, приостановлена решением суда */
+    const fs = frozenShareAt(pd(r.date));
+    r.interestFrozen  = round2((r.interestDue || 0) * fs.i);
+    r.interestCharged = round2((r.interestDue || 0) - r.interestFrozen);
+    r.principalPaid = round2(Math.min(pP, r.principalDue));    pP = round2(pP - r.principalPaid);
+    r.interestPaid  = round2(Math.min(pI, r.interestCharged)); pI = round2(pI - r.interestPaid);
+    r.principalBal  = round2(r.principalDue  - r.principalPaid);
+    r.interestBal   = round2(r.interestCharged - r.interestPaid);
     r.days          = Math.max(0, dd(pd(r.date), lim));
     const unpaid    = r.principalBal + r.interestBal;
     r.principalOverdue = unpaid > 0.005 ? r.principalBal : 0;
     r.interestOverdue  = unpaid > 0.005 ? r.interestBal  : 0;
     /* пеня — на непокрытый остаток за дни просрочки; при паузе начисления процентов
        пеня не затрагивается (Р-17), поэтому holds здесь не участвуют */
-    r.penaltyAccrued = round2(r.principalOverdue * (r.penaltyMain/100) * r.days
-                            + r.interestOverdue  * (r.penaltyInt /100) * r.days);
+    const perDay = r.principalOverdue * (r.penaltyMain/100) + r.interestOverdue * (r.penaltyInt/100);
+    r.penaltyAccrued = round2(perDay * r.days);
+    /* пеня на присуждённую долю приостановлена ОБОИМИ режимами — но только за дни ПОСЛЕ
+       решения: до него пеня начислялась по договору и решением не отменяется. Доля берётся
+       на дату среза, а дни — от ПЕРВОГО решения: при нескольких решениях с разными датами
+       это огрубление в пользу заёмщика и часть допущения Д-8 (точный учёт — по слоям, у
+       владельца разнесения). */
+    const daysAfterCourt = firstLayer ? Math.max(0, dd(Math.max(pd(r.date), firstLayer), lim)) : 0;
+    r.penaltyFrozen  = round2(perDay * daysAfterCourt * frozenShareAt(lim).p);
+    /* спорная пеня: дни отрезка просрочки, попавшие в окно сторно, ждущее комиссии */
+    r.penaltyDisputed = round2(perDay * daysInWindows(pd(r.date), lim, wins));
+    r.penaltyCharged  = round2(Math.max(0, r.penaltyAccrued - r.penaltyFrozen));
+    /* к взысканию — то, что можно требовать сегодня: без приостановленного и без спорного */
+    r.penaltyClaimable = round2(Math.max(0, r.penaltyCharged - r.penaltyDisputed));
   }
   /* второй проход: пеня гасится после основного долга и процентов */
   for (const r of rows){
-    r.penaltyPaid = round2(Math.min(pPen, r.penaltyAccrued)); pPen = round2(pPen - r.penaltyPaid);
-    r.penaltyBal  = round2(r.penaltyAccrued - r.penaltyPaid);
+    r.penaltyPaid = round2(Math.min(pPen, r.penaltyClaimable)); pPen = round2(pPen - r.penaltyPaid);
+    r.penaltyBal  = round2(r.penaltyClaimable - r.penaltyPaid);
     r.received    = round2(r.principalPaid + r.interestPaid + r.penaltyPaid);
     r.totalPaid   = r.received;
     r.overdueTotal = round2(r.principalOverdue + r.interestOverdue + r.penaltyBal);
@@ -2672,8 +2938,17 @@ function buildLedger(c, asOf){
   const index = new Map(rows.map(r => [r.key, r]));
   /* until — дата, ДО которой реально считали. У закрытого кредита она раньше даты среза,
      и это нужно подписывать: иначе «963 дня просрочки» у списанного кредита читается как
-     «просрочка растёт сегодня», хотя расчёт остановлен в день закрытия. */
-  return { rows, index, pool, feeRows, until: fd(lim), stopped: fd(lim) !== (asOf || TODAY) };
+     «просрочка растёт сегодня», хотя расчёт остановлен в день закрытия.
+
+     snapshot / provisional — дата снимка зеркала платежей и признак того, что начисление
+     ушло дальше неё. Начисленное кредит выводит на любую дату, погашенное знает только до
+     снимка; за хвост между ними пеня и дни просрочки посчитаны по платежам, которых
+     владелец ещё не прислал. Величина от этого не становится неверной, но перестаёт быть
+     окончательной, и это обязано быть подписано (КР-51). */
+  const snap = (c.mirror && c.mirror.paymentsAsOf) || null;
+  return { rows, index, pool, feeRows, layers, disputes:wins,
+           until: fd(lim), stopped: fd(lim) !== (asOf || TODAY),
+           snapshot: snap, provisional: !!(snap && pd(snap) < lim), provisionalFrom: snap };
 }
 
 /* debtOf — четыре статьи долга кредита (ADR-0004/ADR-0010), каждая в пяти величинах:
@@ -2690,13 +2965,18 @@ function buildLedger(c, asOf){
 function debtOf(led, disbursed){
   const zero = () => ({ accrued:0, paid:0, overdue:0, term:0, bal:0 });
   const d = { principal:zero(), interest:zero(), penalty:zero(), fees:zero() };
+  /* приостановленное решением суда и спорное — НАЧИСЛЕНО, но не требуется: в остаток,
+     просрочку и гейт «Погашен» не входят и показываются отдельно */
+  d.interest.frozen = 0; d.penalty.frozen = 0; d.penalty.disputed = 0;
   for (const r of led.rows){
     d.principal.accrued += r.principalDue;  d.principal.paid += r.principalPaid;
     d.principal.overdue += r.principalOverdue;
-    d.interest.accrued  += r.interestDue;   d.interest.paid  += r.interestPaid;
-    d.interest.overdue  += r.interestOverdue;
-    d.penalty.accrued   += r.penaltyAccrued; d.penalty.paid   += r.penaltyPaid;
+    d.interest.accrued  += r.interestCharged; d.interest.paid += r.interestPaid;
+    d.interest.overdue  += r.interestOverdue; d.interest.frozen += r.interestFrozen || 0;
+    d.penalty.accrued   += r.penaltyClaimable; d.penalty.paid  += r.penaltyPaid;
     d.penalty.overdue   += r.penaltyBal;
+    d.penalty.frozen    += r.penaltyFrozen   || 0;
+    d.penalty.disputed  += r.penaltyDisputed || 0;
   }
   for (const f of led.feeRows){
     d.fees.accrued += f.amount || 0; d.fees.paid += f._paid || 0;
@@ -2705,10 +2985,22 @@ function debtOf(led, disbursed){
   /* Погашено по статье — это ВЕСЬ подтверждённый пул, а не только разнесённое по
      наступившим позициям: платёж сверх графика гасит тело досрочно, и остаток обязан
      это увидеть. По позициям разнесение нужно для другого — определить, что просрочено. */
-  d.principal.paid = led.pool.principal;
-  d.interest.paid  = round2(Math.min(led.pool.interest, d.interest.accrued));   // переплата процентов не создаёт отрицательного остатка
+  d.principal.paid = round2(Math.min(led.pool.principal, disbursed || 0));
+  d.interest.paid  = round2(Math.min(led.pool.interest, d.interest.accrued));
   d.penalty.paid   = round2(Math.min(led.pool.penalty,  d.penalty.accrued));
   d.fees.paid      = round2(Math.min(led.pool.fees,     d.fees.accrued));
+  /* ПЕРЕПЛАТА. Срез `Math.min` не даёт отрицательного остатка — но раньше он же молча
+     съедал разницу: у шести кредитов зеркало разносило в проценты больше, чем кредит
+     начислил, и до 66 935 сомов исчезали между двумя строками (КР-48). Излишек — не
+     погрешность, а величина со своей судьбой: по §7.2 спеки платежей он идёт ОБРАТНОЙ
+     очередью (ОД → проценты → штрафы → возврат заёмщику), и правило это принадлежит
+     платежам. Кредит его не разносит — он обязан его ПОКАЗАТЬ, иначе расхождение с
+     владельцем выглядит как сойдясь. */
+  d.overpay = { principal: round2(Math.max(0, led.pool.principal - (disbursed || 0))),
+                interest:  round2(Math.max(0, led.pool.interest  - d.interest.accrued)),
+                penalty:   round2(Math.max(0, led.pool.penalty   - d.penalty.accrued)),
+                fees:      round2(Math.max(0, led.pool.fees      - d.fees.accrued)) };
+  d.overpay.total = round2(d.overpay.principal + d.overpay.interest + d.overpay.penalty + d.overpay.fees);
   /* тело кредита: освоено − погашено. Срочная часть — то, что ещё не наступило по графику. */
   d.principal.bal  = round2(Math.max(0, (disbursed || 0) - d.principal.paid));
   d.principal.term = round2(Math.max(0, d.principal.bal - d.principal.overdue));
@@ -2716,7 +3008,9 @@ function debtOf(led, disbursed){
     d[k].bal  = round2(Math.max(0, d[k].accrued - d[k].paid));   // проценты/пеня/сборы начисляются, а не выдаются
     d[k].term = round2(Math.max(0, d[k].bal - d[k].overdue));
   }
-  for (const k in d) for (const v of ['accrued','paid','overdue','term','bal']) d[k][v] = round2(d[k][v]);
+  for (const k of ['principal','interest','penalty','fees'])
+    for (const v of ['accrued','paid','overdue','term','bal','frozen','disputed'])
+      if (d[k][v] != null) d[k][v] = round2(d[k][v]);
   return d;
 }
 const DEBT_ARTICLES = [
@@ -2725,14 +3019,23 @@ const DEBT_ARTICLES = [
 ];
 
 /* дни просрочки и дата выхода на просрочку — производные от расчёта (ADR-0010):
-   день, с которого есть неисполненное обязательство по графику. Отдельного поля нет. */
+   день, с которого есть неисполненное обязательство по графику. Отдельного поля нет.
+
+   disputedDays — дни, попавшие в окно сторнированного платежа, ждущего комиссии. Сторно
+   задним числом проваливает заёмщика в просрочку, а причиной мог быть сбой шлюза или ЦК;
+   §4.4 спеки платежей поэтому запрещает спорному периоду двигать категорию риска. Дни
+   остаются видимыми (просрочка есть — деньги не дошли), но в вход категории не идут. */
 function overdueOf(led){
-  let since = null, days = 0;
+  let since = null, days = 0, disputedDays = 0;
+  const lim = pd(led.until);
   for (const r of led.rows){
     if (r.overdueTotal <= 0.005) continue;
-    if (!since || pd(r.date) < pd(since)){ since = r.date; days = r.days; }
+    if (!since || pd(r.date) < pd(since)){
+      since = r.date; days = r.days;
+      disputedDays = Math.min(days, daysInWindows(pd(r.date), lim, led.disputes || []));
+    }
   }
-  return { since, days };
+  return { since, days, disputedDays, effectiveDays: Math.max(0, days - disputedDays) };
 }
 
 /* ---- ОБЕСПЕЧЕННОСТЬ (ADR-0011) ----
@@ -2809,13 +3112,16 @@ function coverageOf(c, atRisk){
 const CAT_ORDER = ['низкий','средний','высокий'];
 function daysToCat(d){ return d >= 181 ? 'высокий' : d >= 1 ? 'средний' : 'низкий'; }
 function worstCat(a,b){ return CAT_ORDER[Math.max(CAT_ORDER.indexOf(a), CAT_ORDER.indexOf(b))]; }
-function riskBasisOf(c, overdueDays, asOf){
+function riskBasisOf(c, overdueDays, asOf, disputedDays){
   const rel = relief181(c, asOf);
-  const eff = rel ? Math.min(overdueDays, 180) : overdueDays;        // послабление снимает последствие
+  /* спорный период вычитается ДО послабления: это не послабление, а отсутствие вины —
+     дни есть, но вменять их заёмщику нельзя, пока не решит комиссия (§4.4) */
+  const net = Math.max(0, overdueDays - (disputedDays || 0));
+  const eff = rel ? Math.min(net, 180) : net;                        // послабление снимает последствие
   const factors = factorsActive(c, asOf);
   const byFactors = factors.reduce((a,f) => worstCat(a, f.level || 'низкий'), 'низкий');
   const byDays = daysToCat(eff);
-  return { eff, raw:overdueDays, relief:rel, byDays, factors, byFactors,
+  return { eff, raw:overdueDays, disputed:(disputedDays || 0), net, relief:rel, byDays, factors, byFactors,
            category: worstCat(byDays, byFactors) };
 }
 
@@ -2835,6 +3141,13 @@ function buildStateFlags(c, overdueDays, asOf){
   }
   if ((c.accrualHold || []).some(h => holdIsActive(h, asOf)))
     fl.push({ kind:'accrual-hold', tone:'info', text:'Начисление приостановлено' });
+  /* приостановка по решению суда — ДРУГОЙ признак: она свойство части долга, а не периода,
+     и режим у каждого решения свой (спека платежей §6.2) */
+  for (const L of courtLayersOf(c, asOf))
+    fl.push({ kind:'court-layer', tone:'info',
+              text:`Решение суда от ${L.date} на ${money(L.amount)} — ${L.mode.label}` });
+  if (disputeWindows(c).length)
+    fl.push({ kind:'dispute', tone:'warn', text:'Спорная пеня на решении комиссии' });
   return fl;
 }
 
@@ -2918,7 +3231,7 @@ function derive(c, asOf){
   const overdueAmount = round2(DEBT_ARTICLES.reduce((a,x) => a + debt[x.key].overdue, 0));
   const atRisk        = atRiskAmountOf(c, debt, disbursed);          // сумма под риском (ADR-0011)
   const coverage      = coverageOf(c, atRisk);
-  const riskBasis     = riskBasisOf(c, overdueDays, asOf);
+  const riskBasis     = riskBasisOf(c, overdueDays, asOf, overdue.disputedDays);
   const riskCategory  = riskBasis.category;                          // единственный источник (ADR-0012)
   const stateFlags    = buildStateFlags(c, overdueDays, asOf);
   const relief        = reliefActive(c, asOf);
@@ -2943,6 +3256,8 @@ function derive(c, asOf){
            atRisk, coverage, riskCategory, riskBasis, relief, stateFlags,
            fullRepayDate, termAgg, reserveAccrual, scheduleTotals, nextPayment, regStatus, docs,
            debtBalance, overdueAmount, debtBalanceKgs, overdueAmountKgs, collectionCosts,
+           overpay:debt.overpay, courtLayers:ledger.layers, disputes:ledger.disputes,
+           calcProvisional:ledger.provisional, paymentsAsOf:ledger.snapshot,
            subgroup, subgroupLabel:mb.subgroupLabel || null,
            group: subgroup ? String(subgroup)[0] : null };
 }
@@ -3411,25 +3726,31 @@ function saveWaiver(credit, ctx){
 
 /* addPayment(credit, {amount,date,trancheNo}) — Г-11 (savePayment). Р-5: ручной ввод —
    это ВЫЗОВ ФОРМЫ МОДУЛЯ-ВЛАДЕЛЬЦА: платёж повисает «Ожидает ЦК» и остатки не двигает.
-   Теперь это не декларация, а поведение расчёта: paidPool берёт только платежи со
-   статусом «Подтверждён ЦК» (ADR-0010), поэтому неподтверждённый платёж виден в
-   зеркале, но в детальный расчёт не входит. Разнесение по статьям приходит с
-   подтверждением — кредит его не выдумывает (матрица очередей у платежей, §10.4). */
+   Ждёт подтверждения именно РУЧНОЙ ВВОД: основанием ему служит список ЦК, и до сверки
+   денег могло не быть вовсе. Платёж по шлюзу ведёт себя наоборот — деньги уже ушли, и он
+   двигает долг сразу (paymentCounts). Разнесение по статьям приходит с подтверждением —
+   кредит его не выдумывает (матрица очередей у платежей). */
 function addPayment(credit, ctx){
   const dateAfterToday = ctx.date ? pd(ctx.date) > pd(TODAY) : false;
   const g = gate(credit, 'savePayment', { amount: ctx.amount, dateAfterToday, trancheNo: ctx.trancheNo }); // Г-11
   if (!g.ok) return g;
   const num = (credit.mirror.payments.length || 0) + 1;
-  const rec = { num, date: ctx.date, amount: ctx.amount, tranche: ctx.trancheNo,
+  const rec = { num, date: ctx.date, bindDate: TODAY, amount: ctx.amount, tranche: ctx.trancheNo,
+    currency: credit.currency || 'KGS', rate: null, dispute: null,
     reg:'Ручной ввод', match:'Ожидает ЦК', frozen:false, method: ctx.method || 'денежными средствами', layers:{} };
   credit.mirror.payments.push(rec);
   pushAudit(credit, 'addPayment', null, rec);
   return g;
 }
 
-/* paymentEditable(credit, payment) — чистый предикат (Р-5): платёж, подтверждённый ЦК,
-   недоступен для правки из кредита ни при какой роли (мираж ЦК всегда read-only). */
-function paymentEditable(credit, p){ return (p && p.match) !== 'Подтверждён ЦК'; }
+/* paymentEditable(credit, payment) — чистый предикат (Р-5): платёж, за которым стоит
+   подтверждение ЦК, из кредита не правится ни при какой роли. Восстановленный платёж —
+   тоже подтверждённый, просто позже; сторнированный правке не подлежит по другой причине
+   (его лечат не правкой, а новым платежом — §8.3 спеки платежей). */
+function paymentEditable(credit, p){
+  const m = p && p.match;
+  return !(m === 'Подтверждён ЦК' || m === 'Восстановлен' || m === 'Сторно (таймаут)');
+}
 
 /* addAgreement(credit, {num,date,source,scan}) — Г-10: регистрирует ДОКУМЕНТ-ДС.
    Значения условий документом больше не переносятся: их несут записи (Р-21),
@@ -3524,7 +3845,8 @@ function zeroOutForTest(credit){
                    penalty:d.debt.penalty.bal,     fees:d.debt.fees.bal };
   const amount = round2(layers.principal + layers.interest + layers.penalty + layers.fees);
   credit.mirror.payments.push({ num:(credit.mirror.payments.length || 0) + 1, date:TODAY,
-    amount, tranche:(credit.tranches[0] || {}).no || 1, reg:'ЦК', match:'Подтверждён ЦК',
+    bindDate:null, amount, currency:credit.currency || 'KGS', rate:null, dispute:null,
+    tranche:(credit.tranches[0] || {}).no || 1, reg:'Импорт ЦК', match:'Подтверждён ЦК',
     frozen:true, method:'денежными средствами', layers });
   credit.mirror.paymentsAsOf = TODAY;
 }
@@ -3545,10 +3867,12 @@ window.CR = {
   zeroOutForTest,
   nextPaymentOf, regStatusOf, scheduleRowStatus, trancheScheduleRows, ledgerKey,
   buildLedger, debtOf, overdueOf, coverageOf, atRiskAmountOf, riskBasisOf,
+  paidPool, paymentCounts, paymentCurrency, paymentAllocated,
+  disputeWindows, courtLayersOf, accrualModeOf,
   reliefActive, relief181, factorsActive, docsStatusOf, requiredDocsComplete,
   programDocs, freqMonths,
   DEBT_ARTICLES, DOC_STATES, DOC_STATES_CLOSING, CLOSURE_REASONS, PROGRAM_DOCS,
-  ROLE_ACTIONS, SUBGROUP_LABEL, ITEM_KINDS,
+  ROLE_ACTIONS, SUBGROUP_LABEL, ITEM_KINDS, PAY_REG, PAY_MATCH, PAY_DISPUTE, ACCRUAL_MODES,
   // утилиты — пригодятся тестам и UI
   money, pd, fd, addM, dd, toast, TODAY
 };
@@ -4081,7 +4405,16 @@ if (typeof document !== 'undefined') {
         + (d.overdueSince ? ` с <b>${esc(d.overdueSince)}</b>` : ''));
     if (d.collectionCosts > 0)
       parts.push(`расходы взыскания <b>${money(d.collectionCosts)}</b> ${lockHtml()} — статья взыскания, в остаток кредита не входит`);
-    parts.push(`погашено ${paySnap ? snapHtml(paySnap, 'платежи') : '<span class="lock">платежей нет</span>'}`);
+    /* приостановленное решением суда и спорное НАЧИСЛЕНЫ, но в остаток не входят: иначе
+       куратор требует то, чего требовать нельзя, и разница молча живёт между экранами */
+    if (d.debt.interest.frozen > 0 || d.debt.penalty.frozen > 0)
+      parts.push(`приостановлено решением суда <b>${money(round2(d.debt.interest.frozen + d.debt.penalty.frozen))}</b> — начислено, но не требуется`);
+    if (d.debt.penalty.disputed > 0)
+      parts.push(`спорная пеня <b style="color:var(--asubk-amber)">${money(d.debt.penalty.disputed)}</b> — до решения комиссии в требование не входит`);
+    if (d.overpay.total > 0)
+      parts.push(`переплата <b>${money(d.overpay.total)}</b> ${lockHtml()} — обратная очередь и возврат заёмщику принадлежат платежам`);
+    parts.push(`погашено ${paySnap ? snapHtml(paySnap, 'платежи') : '<span class="lock">платежей нет</span>'}`
+      + (d.calcProvisional ? ` · расчёт после <b>${esc(paySnap)}</b> предварительный` : ''));
     return dimTile(`Остаток долга ${asOfHtml(d)}`, val, parts.join('<br>'));
   }
 
@@ -4124,6 +4457,12 @@ if (typeof document !== 'undefined') {
       lines.push(`требование <b>${esc(cl.claimId)}</b> · ${esc(cl.obligor.role)} · ${esc(cl.stage)} ${lockHtml()}`);
     if ((c.accrualHold || []).some(h => holdIsActive(h, cardAsOf)))
       lines.push('начисление приостановлено — проценты за интервал не начисляются');
+    /* приостановка по решению суда — ДРУГОЙ признак: не период, а часть долга, и режим
+       у каждого решения свой (спека платежей §6.2) */
+    for (const L of d.courtLayers)
+      lines.push(`решение суда <b>${esc(L.date)}</b>${L.il?' · '+esc(L.il):''} на <b>${money(L.amount)}</b> ${lockHtml()} — ${esc(L.mode.label)}`);
+    if (d.debt.penalty.disputed > 0)
+      lines.push(`спорная пеня <b>${money(d.debt.penalty.disputed)}</b> за ${d.overdue.disputedDays} дн. — ждёт решения комиссии, категорию не двигает`);
     const val = `<span style="font-size:15px">${esc(top.text)}</span>`
       + (list.length > 1 ? ` <span style="color:var(--text-muted);font-weight:400;font-size:13px">· ещё ${list.length-1}</span>` : '');
     return `<div class="dim wide"><div class="dl">Признаки состояния ${derivedHtml()}</div>`
@@ -4610,6 +4949,9 @@ if (typeof document !== 'undefined') {
       <p class="section-note">Начисленное ВЫВОДИТСЯ из активной версии графика, условий на дату среза и интервалов
         приостановки; погашенное приходит зеркалом модуля платежей${(c.mirror.paymentsAsOf)?` (снимок ${esc(c.mirror.paymentsAsOf)})`:' (платежей нет)'} — ADR-0010.
         Хранимого расчёта нет: таблица ниже строится заново при каждом рендере.${isFx?` Валюта ${esc(cur)}, курс НБКР ${money(fx)}.`:''}</p>
+      ${d.calcProvisional?`<div class="warn-inline">${svgInfo()}<div>Расчёт за период <b>после ${esc(d.paymentsAsOf)}</b> — <b>предварительный</b>:
+        начисленное кредит выводит на любую дату, а погашенное знает только до снимка зеркала. Платежи этих дней ещё не приехали,
+        поэтому просрочка и пеня за хвост посчитаны по неполным данным и могут уменьшиться, когда снимок обновится.</div></div>`:''}
       <div class="phead-dims" style="grid-template-columns:repeat(5,1fr)">
         <div class="dim"><div class="dl">Всего освоено</div><div class="dv">${money(d.disbursed)}</div>${isFx?`<div class="src">≈ ${money0(toKgs(d.disbursed,cur))} KGS</div>`:''}</div>
         <div class="dim"><div class="dl">Всего погашено ${lockHtml()}</div><div class="dv">${money(repaid)}</div>${isFx?`<div class="src">≈ ${money0(toKgs(repaid,cur))} KGS</div>`:''}</div>
@@ -4632,6 +4974,9 @@ if (typeof document !== 'undefined') {
           <td style="text-align:right">${money(d.overdueAmount)}</td>
           <td style="text-align:right">${money(d.debtBalance)}</td></tr>
         ${d.collectionCosts>0?`<tr><td>Расходы по обращению взыскания ${lockHtml()}</td><td colspan="4" class="text-muted" style="font:var(--font-label)">статья взыскания (ADR-0004) — в остаток кредита и в гейт «Погашен» не входит</td><td style="text-align:right">${money(d.collectionCosts)}</td></tr>`:''}
+        ${(d.debt.interest.frozen>0||d.debt.penalty.frozen>0)?`<tr><td>Приостановлено решением суда</td><td colspan="4" class="text-muted" style="font:var(--font-label)">начислению по договору подлежало, но на присуждённую долю начисление остановлено (проценты ${money(d.debt.interest.frozen)} · пеня ${money(d.debt.penalty.frozen)}) — в остаток не входит</td><td style="text-align:right">${money(round2(d.debt.interest.frozen+d.debt.penalty.frozen))}</td></tr>`:''}
+        ${d.debt.penalty.disputed>0?`<tr><td>Спорная пеня</td><td colspan="4" class="text-muted" style="font:var(--font-label)">пеня за период сторнированного платежа: вычислена, но до решения комиссии в требование не входит и категорию не двигает</td><td style="text-align:right">${money(d.debt.penalty.disputed)}</td></tr>`:''}
+        ${d.overpay.total>0?`<tr><td>Переплата</td><td colspan="4" class="text-muted" style="font:var(--font-label)">разнесено больше, чем начислено${d.overpay.interest>0?' (проценты '+money(d.overpay.interest)+')':''} — по §7.2 идёт обратной очередью ОД → проценты → штрафы → возврат заёмщику; правило принадлежит модулю платежей</td><td style="text-align:right">${money(d.overpay.total)}</td></tr>`:''}
       </tbody></table></div>`;
     const verRows=((sel&&sel.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver).map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td><td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`);
     /* Детальный расчёт СТРОИТСЯ (ADR-0010): позиции графика, наступившие на дату среза,
@@ -4645,9 +4990,9 @@ if (typeof document !== 'undefined') {
       <td style="text-align:right">${money(l.received)}</td>
       <td style="text-align:right">${money(l.principalDue)}</td><td style="text-align:right">${money(l.principalPaid)}</td><td style="text-align:right;color:${l.principalOverdue>0?'var(--asubk-red)':'inherit'}">${money(l.principalOverdue)}</td>
       <td style="text-align:right">${esc(l.days)}</td>
-      <td style="text-align:right">${money(l.interestAccrued)}</td><td style="text-align:right">${money(l.interestPaid)}</td><td style="text-align:right;color:${l.interestOverdue>0?'var(--asubk-red)':'inherit'}">${money(l.interestOverdue)}</td>
+      <td style="text-align:right">${money(l.interestAccrued)}${l.interestFrozen>0?`<br><span class="text-muted" style="font:var(--font-label)" title="приостановлено решением суда на присуждённую долю">−${money(l.interestFrozen)} суд</span>`:''}</td><td style="text-align:right">${money(l.interestPaid)}</td><td style="text-align:right;color:${l.interestOverdue>0?'var(--asubk-red)':'inherit'}">${money(l.interestOverdue)}</td>
       <td style="text-align:right">${esc(l.penaltyMain)} / ${esc(l.penaltyInt)}</td>
-      <td style="text-align:right">${money(l.penaltyAccrued)}</td><td style="text-align:right">${money(l.penaltyPaid)}</td><td style="text-align:right;color:${l.penaltyBal>0?'var(--asubk-red)':'inherit'}">${money(l.penaltyBal)}</td>
+      <td style="text-align:right">${money(l.penaltyAccrued)}${(l.penaltyFrozen>0||l.penaltyDisputed>0)?`<br><span class="text-muted" style="font:var(--font-label)" title="начислено, но не требуется">${l.penaltyFrozen>0?'−'+money(l.penaltyFrozen)+' суд ':''}${l.penaltyDisputed>0?'−'+money(l.penaltyDisputed)+' спор':''}</span>`:''}</td><td style="text-align:right">${money(l.penaltyPaid)}</td><td style="text-align:right;color:${l.penaltyBal>0?'var(--asubk-red)':'inherit'}">${money(l.penaltyBal)}</td>
       <td style="text-align:right">${money(l.totalPaid)}</td>
       <td>${(()=>{const st=scheduleRowStatus({date:l.date},l,cardAsOf);
         const p={'Оплачена':'low','Просрочена':'high','Наступила':'mid'}[st]||'neutral';
@@ -4709,18 +5054,30 @@ if (typeof document !== 'undefined') {
     const payRows=pays.map(p=>{
       const ed=CR.paymentEditable(c,p);
       const L=p.layers||{}, pr=L.principal||0, it=L.interest||0, pe=L.penalty||0;
+      const counts=CR.paymentCounts(p);
+      const cur=CR.paymentCurrency(p,c), fx=cur!==(c.currency||'KGS');
       ptot.amount+=p.amount||0; ptot.principal+=pr; ptot.interest+=it; ptot.penalty+=pe;
+      const mTone={'Подтверждён ЦК':'low','Восстановлен':'low','Ожидает ЦК':'mid','Сторно (таймаут)':'high','Расхождение':'mid'}[p.match]||'neutral';
       return `<tr>
-        <td>${esc(p.num)}</td><td>${esc(p.date)}</td><td>№${esc(p.tranche)}</td><td style="text-align:right">${money(p.amount)}</td>
+        <td>${esc(p.num)}</td>
+        <td>${esc(p.date)}${p.bindDate&&p.bindDate!==p.date?`<br><span class="text-muted" style="font:var(--font-label)">привязан ${esc(p.bindDate)}</span>`:''}</td>
+        <td>№${esc(p.tranche)}</td>
+        <td style="text-align:right">${money(p.amount)}${fx?`<br><span class="text-muted" style="font:var(--font-label)">${esc(cur)} · курс ${esc(p.rate)}</span>`:''}</td>
         <td style="text-align:right">${money(pr)}</td><td style="text-align:right">${money(it)}</td><td style="text-align:right">${money(pe)}</td>
         <td>${esc(p.method||'денежными средствами')}</td>
-        <td>${esc(p.reg)}</td><td>${esc(p.match)}</td><td>${p.frozen?'заморожен':'—'}</td>
-        <td>${ed?'<span class="pill info">правка возможна</span>':'<span class="pill neutral">read-only ЦК</span>'}</td></tr>`;
+        <td>${esc(p.reg)}</td><td><span class="pill ${mTone}">${esc(p.match)}</span></td><td>${p.frozen?'заморожен':'—'}</td>
+        <td>${counts?'<span class="pill low">двигает остаток</span>':'<span class="pill neutral">не двигает</span>'}</td>
+        <td>${ed?'<span class="pill info">правка возможна</span>':'<span class="pill neutral">read-only ЦК</span>'}</td></tr>`
+        + (p.dispute?`<tr><td></td><td colspan="12" style="background:var(--surface-panel)">
+             <span class="pill ${p.dispute.status==='Ожидает решения комиссии'?'mid':'low'}">спорная пеня</span>
+             период ${esc(p.dispute.from)} — ${esc(p.dispute.to||'по сегодня')} · ${esc(p.dispute.status)}${p.dispute.outcome?' · '+esc(p.dispute.outcome):''}.
+             Сумму считает кредит (пеню начисляет он) — на дату среза <b>${money(d.debt.penalty.disputed)}</b>;
+             в требование не входит, категорию не двигает, гейт «Погашен» не блокирует.</td></tr>`:'');
     });
     const payTot=pays.length?`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)">
       <td colspan="3">Итого</td><td style="text-align:right">${money(ptot.amount)}</td>
       <td style="text-align:right">${money(ptot.principal)}</td><td style="text-align:right">${money(ptot.interest)}</td><td style="text-align:right">${money(ptot.penalty)}</td>
-      <td></td><td></td><td></td><td></td><td></td></tr>`:'';
+      <td></td><td></td><td></td><td></td><td></td><td></td></tr>`:'';
     const b=d.debt;
     const drow=(name,x)=>`<tr><td>${name}</td><td style="text-align:right">${money(x.accrued)}</td><td style="text-align:right">${money(x.paid)}</td><td style="text-align:right;color:${x.overdue>0?'var(--asubk-red)':'inherit'}">${money(x.overdue)}</td><td style="text-align:right">${money(x.bal)}</td></tr>`;
     /* §10.4 — множественность очередей при судебном решении. Признак берём из ЗЕРКАЛА
@@ -4732,11 +5089,16 @@ if (typeof document !== 'undefined') {
       <div class="section-h">Платежи ${lockHtml()}</div>
       <p class="section-note">Зеркало модуля платежей${c.mirror.paymentsAsOf?`, снимок <b>${esc(c.mirror.paymentsAsOf)}</b>`:''}. Три оси на платёж: регистрация · сопоставление · заморозка.
         Разнесение по статьям приходит вместе с подтверждением и здесь не правится: матрица очередей принадлежит платежам (ADR-0010).
-        В расчёт долга входят ТОЛЬКО платежи со статусом «Подтверждён ЦК».</p>
-      ${cgrid([{h:'№'},{h:'Дата'},{h:'Транш'},{h:'Сумма',r:1},{h:'Осн.',r:1},{h:'Проц.',r:1},{h:'Пеня',r:1},{h:'Вид'},{h:'Регистрация'},{h:'Сопоставление'},{h:'Заморозка'},{h:'Правка'}], payRows.concat(payTot?[payTot]:[]), {empty:'Платежей нет'})}
-      <div class="mirror-src">Источник: модуль платежей (Р-5). Ручной ввод — вызов формы владельца, платёж повисает «Ожидает ЦК» и не двигает остатки до подтверждения ЦК.</div>
+        <b>Двигает ли платёж остаток — читается по ДВУМ осям, а не по одной:</b> подтверждённый и восстановленный двигают;
+        сторнированный не двигает, но остаётся виден; ожидающий — только если пришёл через <b>шлюз</b> (деньги уже ушли, §4 спеки платежей).</p>
+      ${cgrid([{h:'№'},{h:'Дата'},{h:'Транш'},{h:'Сумма',r:1},{h:'Осн.',r:1},{h:'Проц.',r:1},{h:'Пеня',r:1},{h:'Вид'},{h:'Регистрация'},{h:'Сопоставление'},{h:'Заморозка'},{h:'В расчёте'},{h:'Правка'}], payRows.concat(payTot?[payTot]:[]), {empty:'Платежей нет'})}
+      <div class="mirror-src">Источник: модуль платежей (Р-5). Ручной ввод — вызов формы владельца: ему основанием служит список ЦК, поэтому до сверки он остатки не двигает. Разнесение приходит в валюте кредита; сумма и курс — реквизиты поступления.</div>
       <div class="gtoolbar" style="margin-top:12px">${roleBtn('savePayment','Внести платёж вручную','CR.openPaymentModal()','btn btn-primary btn-sm')}</div>
-      ${hasCourt?`<div class="info-plate">${svgInfo()}<div>По кредиту есть судебное решение (${esc((c.mirror.court[0]||{}).kind||'')} от ${esc((c.mirror.court[0]||{}).date||'')}): возможна множественность очередей погашения (§10.4) — сначала сумма по решению, затем договор. Матрица очередей живёт в модуле платежей; кредит принимает разнесение готовым.</div></div>`:''}
+      ${d.courtLayers.length?`<div class="info-plate">${svgInfo()}<div>По кредиту есть <b>слой долга под решением суда</b>:
+        ${d.courtLayers.map(L=>`${esc(L.kind)} от ${esc(L.date)}${L.il?' · '+esc(L.il):''} на <b>${money(L.amount)}</b> — ${esc(L.mode.label)}`).join('<br>')}<br>
+        Режим определяется ДАТОЙ решения и прилипает к нему навсегда: у одного кредита бывает несколько решений с разными режимами одновременно.
+        Начисление на присуждённую долю кредит останавливает сам (сырьё — его), а разнесение платежа по слоям принимает готовым: очередь и привязка к исполнительному листу живут в модуле платежей.</div></div>`
+      :hasCourt?`<div class="info-plate">${svgInfo()}<div>По кредиту есть судебное решение (${esc((c.mirror.court[0]||{}).kind||'')} от ${esc((c.mirror.court[0]||{}).date||'')}) <b>без присуждённой суммы</b> — слоя долга оно не образует, начисление идёт полностью по договору. Последствия банкротства принадлежат взысканию.</div></div>`:''}
       <div class="section-h" style="margin-top:22px">Задолженность по статьям (из детального расчёта на ${esc(cardAsOf)})</div>
       <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Статья</th><th style="text-align:right">Начислено</th><th style="text-align:right">Погашено</th><th style="text-align:right">Просрочено</th><th style="text-align:right">Остаток</th></tr></thead><tbody>
         ${DEBT_ARTICLES.map(a=>drow(a.label, b[a.key])).join('')}

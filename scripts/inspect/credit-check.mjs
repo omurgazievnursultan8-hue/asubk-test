@@ -539,7 +539,9 @@ const pd = CR.pd;
   const ORDER = ['низкий','средний','высокий'];
   const bad = db.credits.filter(c => { const d = CR.derive(c); const b = d.riskBasis;
     const worst = ORDER[Math.max(ORDER.indexOf(b.byDays), ORDER.indexOf(b.byFactors))];
-    const reliefApplied = b.relief ? b.eff <= 180 : b.eff === b.raw;
+    /* вход категории = дни просрочки МИНУС спорный период (§4.4 спеки платежей), затем
+       послабление. Спорные дни видны в просрочке, но заёмщику не вменяются. */
+    const reliefApplied = b.relief ? b.eff <= 180 : b.eff === b.raw - b.disputed;
     return d.riskCategory !== worst || !reliefApplied; });
   /* и предметно: K-C16 (220 дн.) с послаблением — «средний», без него был бы «высокий» */
   const k = db.credits.find(c => /Иссык-Ата-Санаторий/.test(c.borrower.name));
@@ -715,6 +717,131 @@ const pd = CR.pd;
   ok('57c', before.liqApplies===true && before.ok===false
       && after.liqApplies===false && after.liqOk===true && after.ok===true,
      `состав: liq=${before.liqApplies}/ok=${before.ok} → КМ80: liq=${after.liqApplies}/ok=${after.ok}`);
+})();
+
+/* ============================================================
+   ЭТАП 4 · ШОВ ПЛАТЕЖЕЙ (КР-44…КР-52). Тот же класс проверок, что дал КР-38/КР-39:
+   не «зеркало приехало и разложилось», а «поведение кредита совпало с правилом
+   владельца». Правило зачёта, спорная пеня, слои решения суда, переплата, валюта.
+   ============================================================ */
+
+/* 58. ЗАЧЁТ ЧИТАЕТ ДВЕ ОСИ (КР-44). Ожидающий подтверждения платёж двигает остаток,
+   если пришёл через ШЛЮЗ (деньги ушли, §4 спеки платежей), и не двигает, если введён
+   вручную (основание ручному вводу — список ЦК, до сверки денег могло не быть). */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const gw  = c.mirror.payments.find(p => p.reg==='Шлюз' && p.match==='Ожидает ЦК');
+  const man = c.mirror.payments.find(p => p.reg==='Ручной ввод' && p.match==='Ожидает ЦК');
+  const gwCounts = CR.paymentCounts(gw), manCounts = CR.paymentCounts(man);
+  const withGw = CR.derive(c).debt.principal.bal;
+  gw.reg = 'Ручной ввод';                                   // ТОТ ЖЕ статус, другой канал
+  const asManual = CR.derive(c).debt.principal.bal;
+  ok(58, gwCounts===true && manCounts===false
+      && Math.abs((asManual - withGw) - gw.layers.principal) < 0.01,
+     `шлюзом остаток=${withGw}, тем же статусом вручную=${asManual} (разница ${Math.round(asManual-withGw)} = ОД платежа ${gw.layers.principal})`);
+})();
+/* 58b. Восстановленный платёж (позднее подтверждение ЦК) двигает остаток, сторнированный
+   не двигает, но ОСТАЁТСЯ ВИДЕН: сторно ≠ удаление. */
+(() => { const db = CR.seedDb();
+  const restored = db.credits.find(c => (c.mirror.payments||[]).some(p => p.match==='Восстановлен'));
+  const storno   = db.credits.find(c => (c.mirror.payments||[]).some(p => p.match==='Сторно (таймаут)'));
+  const pR = restored.mirror.payments.find(p => p.match==='Восстановлен');
+  const pS = storno.mirror.payments.find(p => p.match==='Сторно (таймаут)');
+  const paidR  = CR.derive(restored).debt.principal.paid;
+  const before = CR.derive(storno).ledger.pool.principal;
+  const shown  = storno.mirror.payments.length;             // сторно ≠ удаление
+  pS.match = 'Подтверждён ЦК';                              // ЕСЛИ БЫ подтвердили
+  const after = CR.derive(storno).ledger.pool.principal;
+  ok('58b', CR.paymentCounts(pR)===true && CR.paymentCounts(pS)===true
+      && paidR === pR.layers.principal
+      && Math.abs((after - before) - pS.layers.principal) < 0.01
+      && shown === storno.mirror.payments.length,
+     `восстановлен: погашено ОД=${paidR} · сторно вне пула: ${before} → ${after} при подтверждении (+${pS.layers.principal}), из зеркала не исчез`);
+})();
+/* 59. СПОРНАЯ ПЕНЯ (КР-46). Пеня периода сторно ВЫЧИСЛЕНА, но в требование не входит и
+   категорию не двигает: снятие статуса «ждёт комиссии» возвращает и то и другое. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const d1 = CR.derive(c);
+  const p = c.mirror.payments.find(x => x.dispute);
+  p.dispute.status = 'Решение комиссии'; p.dispute.outcome = 'начислить';
+  const d2 = CR.derive(c);
+  ok(59, d1.debt.penalty.disputed > 0 && d1.debt.penalty.accrued === 0
+      && d1.overdue.disputedDays === d1.overdue.days && d1.riskBasis.eff === 0
+      && d2.debt.penalty.disputed === 0 && d2.debt.penalty.accrued > 0
+      && d2.riskBasis.eff === d2.overdue.days,
+     `спорно: пеня=${d1.debt.penalty.disputed} требуется=${d1.debt.penalty.accrued} дней=${d1.riskBasis.eff}` +
+     ` → решено: требуется=${d2.debt.penalty.accrued} дней=${d2.riskBasis.eff}`);
+})();
+/* 59b. Спорная пеня не входит в ТРЕБОВАНИЕ (§4.4), а значит и в вход гейта «Погашен»:
+   она посчитана в расчёте, но остаток статьи по ней нулевой, и Г-14 её не называет. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const d = CR.derive(c);
+  const rawPen = d.ledger.rows.reduce((a,r) => a + r.penaltyAccrued, 0);
+  const g = CR.gate(c, 'repay', {});
+  ok('59b', rawPen > 0 && d.debt.penalty.disputed > 0
+      && d.debt.penalty.bal === 0 && d.debt.penalty.overdue === 0
+      && !g.reasons.some(r => /Пеня/.test(r)),
+     `пеня посчитана=${Math.round(rawPen*100)/100}, спорна=${d.debt.penalty.disputed}, в требовании=${d.debt.penalty.bal}; Г-14 её не называет`);
+})();
+/* 60. СЛОЙ РЕШЕНИЯ СУДА (КР-47). Решение с присуждённой суммой останавливает начисление
+   НА СВОЮ ДОЛЮ; режим определяется датой решения и прилипает к нему. Решение без суммы
+   (определение о банкротстве) слоя не образует. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-3');
+  const d = CR.derive(c);
+  const L = d.courtLayers[0];
+  const bankrot = db.credits.find(x => (x.mirror.court||[]).some(y => /банкрот/i.test(y.kind)));
+  const db2 = CR.derive(bankrot);
+  ok(60, d.courtLayers.length===1 && L.amount===18300 && L.mode.interest===false && L.mode.penalty===false
+      && d.debt.interest.frozen > 0 && d.debt.penalty.frozen > 0
+      && db2.courtLayers.length===0 && db2.debt.interest.frozen===0,
+     `K-3: слой ${L.amount} → % приостановлено ${d.debt.interest.frozen}, пеня ${d.debt.penalty.frozen}` +
+     ` · банкротство: слоёв=${db2.courtLayers.length}`);
+})();
+/* 60b. Режим — ТАБЛИЦА с датами вступления, а не константа: решение до 05.09.2025
+   оставляет проценты идущими, с 05.09.2025 — останавливает оба начисления. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-3');
+  const late = CR.accrualModeOf('28.05.2026'), early = CR.accrualModeOf('01.03.2025');
+  c.mirror.court[0].date = '01.03.2025';                    // то же решение по старой норме
+  const d = CR.derive(c);
+  ok('60b', late.interest===false && late.penalty===false
+      && early.interest===true && early.penalty===false
+      && d.courtLayers[0].mode.interest===true && d.debt.interest.frozen===0 && d.debt.penalty.frozen>0,
+     `с 05.09.2025: %=${late.interest}/пеня=${late.penalty} · до: %=${early.interest}/пеня=${early.penalty}` +
+     ` · по старой норме приостановлено %=${d.debt.interest.frozen}`);
+})();
+/* 61. ПЕРЕПЛАТА не съедается срезом (КР-48): излишек над начисленным виден статьёй.
+   К-6 — единственный случай в наборе: разнесено 12 000 процентов при начисленных 10 254,61. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-6');
+  const d = CR.derive(c);
+  const over = db.credits.filter(x => CR.derive(x).overpay.total > 0.005).map(x => x.id);
+  ok(61, d.overpay.interest > 0 && d.debt.interest.bal === 0
+      && Math.abs(d.overpay.interest - (d.ledger.pool.interest - d.debt.interest.accrued)) < 0.01
+      && over.length === 1,
+     `К-6 переплата %=${d.overpay.interest} (пул ${d.ledger.pool.interest} − начислено ${d.debt.interest.accrued}) · всего кредитов с переплатой ${over.length}`);
+})();
+/* 62. ВАЛЮТА ПОСТУПЛЕНИЯ — реквизит платежа, разнесение всегда в валюте кредита (И-16):
+   Σ layers = amount при совпадении валют и amount / rate при расхождении. */
+(() => { const db = CR.seedDb();
+  const bad = [];
+  for (const c of db.credits) for (const p of (c.mirror.payments||[])){
+    const alloc = CR.paymentAllocated(p); if (!alloc) continue;
+    const cur = CR.paymentCurrency(p, c);
+    const expect = (cur === (c.currency||'KGS')) ? (p.amount||0) : (p.amount||0) / (p.rate||1);
+    if (Math.abs(alloc - expect) > 0.5) bad.push(c.id + '#' + p.num);
+  }
+  const fx = db.credits.find(c => (c.mirror.payments||[]).some(p => p.currency && p.currency !== c.currency));
+  const pfx = fx && fx.mirror.payments.find(p => p.currency && p.currency !== fx.currency);
+  ok(62, bad.length === 0 && !!pfx && pfx.rate > 0,
+     `нарушителей=${bad.length} · валютный случай: ${fx&&fx.id} ${pfx&&pfx.amount} ${pfx&&pfx.currency} @ ${pfx&&pfx.rate} → ${pfx&&CR.paymentAllocated(pfx)} ${fx&&fx.currency}`);
+})();
+/* 63. РАСЧЁТ ДАЛЬШЕ СНИМКА подписан как предварительный (КР-51): начисленное кредит
+   выводит на любую дату, погашенное знает только до снимка зеркала. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const d = CR.derive(c);
+  const noSnap = byId(db,'K-5');                            // зеркала платежей нет вовсе
+  const dn = CR.derive(noSnap);
+  ok(63, d.calcProvisional === true && d.paymentsAsOf === '22.07.2026'
+      && d.ledger.until === CR.TODAY && dn.calcProvisional === false,
+     `К-1: снимок ${d.paymentsAsOf}, расчёт до ${d.ledger.until} → предварительный=${d.calcProvisional}`);
 })();
 
 /* ============================================================
