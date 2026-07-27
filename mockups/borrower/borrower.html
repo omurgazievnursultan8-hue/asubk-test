@@ -9,7 +9,7 @@
      Спека: mockups/borrower/ASUBK-zaemshik-logika.md — правила вывода, инварианты с причиной, швы (СП-21)
             docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки); её место заняла спека выше
-     Проверка: node scripts/inspect/borrower-check.mjs  →  147/147 PASS (2026-07-27)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  165/165 PASS (2026-07-27)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
@@ -36,6 +36,14 @@
                  карточке, только субъекта, только при нуле ссылок).
                  СП-20 отменено 27.07.2026: плашки рабочих списков сняты — разрезы делаются
                  панелью фильтра.
+     Шапка карточки: решения КЗ-1…КЗ-7 (27.07.2026) — паспорт записи (наименование · ИНН ·
+                 тип лица · отрасль · ссылка на субъекта) в теле карточки, а не в топбаре;
+                 дата среза тихой строкой, в режиме среза — полосой, и она же в маршруте
+                 (?on=ГГГГ-ММ-ДД); плиток две (подгруппа + категория), состояние субъекта —
+                 только баннером; лента стоп-факторов поднята из вкладки 1 в шапку; плитка
+                 подгруппы двухуровневая (GROUP_LABEL); замок read-only живёт внутри «как
+                 выведено»; таббар в две строки со счётчиками нагрузки (TAB_DEFS.row,
+                 tabCount). Этим же закрыты дефекты макета Б-2 и Б-12.
 -->
 <style>
   :root{
@@ -376,20 +384,40 @@
     border-bottom:2px solid transparent;user-select:none;}
   .tab:hover{color:var(--text-body);}
   .tab.active{color:var(--text-link);border-bottom-color:var(--action-primary);}
+  /* КЗ-7: одиннадцать вкладок в одну строку не читаются, а flex-wrap рвал их по ширине окна —
+     то есть в произвольном месте. Строки заданы смыслом: 1 — живая работа (состояние ·
+     обеспечение и обязательства · работа), 2 — досье. Рамку-подчёркивание несёт нижняя строка,
+     иначе линий две. */
+  .tabbar.row-top{border-bottom:none;margin-bottom:0;}
+  /* Счётчик — нагрузка вкладки (сколько работы), а не число строк в её таблице. Ноль не
+     печатается: «Взыскание 0» отвечает на незаданный вопрос и занимает место соседей. */
+  .tab .cnt{margin-left:7px;font-size:12px;font-weight:700;color:var(--text-muted);vertical-align:1px;
+    background:var(--surface-hover);border:1px solid var(--border-default);border-radius:9px;padding:1px 6px;}
+  .tab.active .cnt{color:var(--text-link);border-color:#c9dcf7;background:var(--status-info-bg);}
   .tabpanel{display:none;} .tabpanel.active{display:block;}
 
   /* ---------- карточка заёмщика v2: шапка-плитки (Task 10) ---------- */
   .crumb{font-size:13px;color:var(--text-muted);margin-bottom:10px;}
-  .phead-dims{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px;}
+  /* КЗ-4: плиток две, не три. Третья показывала состояние субъекта — ровно то же, что говорит
+     баннер ниже, и теми же словами. */
+  .phead-dims{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:18px;}
   @media (max-width:1100px){ .phead-dims{grid-template-columns:minmax(0,1fr);} }
   .dim{border:1px solid var(--border-default);border-radius:6px;padding:14px 16px;background:#fff;
     display:flex;flex-direction:column;gap:6px;min-width:0;align-items:flex-start;}
   .dim>*{max-width:100%;}
   .dim-t{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);font-weight:600;}
   .dim-v{font-size:20px;font-weight:700;line-height:1.25;}
+  /* КЗ-5: вторая ступень плитки подгруппы — код и его подпись под названием группы.
+     Группа выводится из подгруппы, поэтому она заголовок значения, а не отдельная строка. */
+  .dim-sub{font-size:14px;color:var(--text-body);line-height:1.35;display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;}
   .src{font-size:13px;color:var(--text-muted);line-height:1.35;}
   .ro-banner{margin:0 0 16px;padding:11px 16px;background:#fff5f5;border:1px solid #f3d6d6;border-radius:6px;
     font-size:13px;color:#8a2020;}
+  /* КЗ-4: событие субъекта без запрета работы — тихая строка. Факт не теряется, но вес
+     соответствует последствию: красным помечается только то, что запрещает работать. */
+  .state-line{margin:0 0 16px;padding:9px 14px;background:var(--surface-hover);border:1px solid var(--border-default);
+    border-radius:6px;font-size:13px;color:var(--text-muted);}
+  .state-line b{color:var(--text-body);font-weight:600;}
   table.grid.mini thead th, table.grid.mini tbody td{padding:7px 10px;font-size:13px;}
 
   /* ---------- вид: список ---------- */
@@ -432,7 +460,13 @@
   .mon-stat.ov b{color:var(--status-error);}
   /* лента стоп-факторов на вкладке «Общая информация» */
   .grid tr.susp td{background:var(--asubk-amber-tint);}
+  /* КЗ-2: в норме дата среза — тихая строка над карточкой; в режиме среза — полоса во всю ширину.
+     Полоса на каждом открытии обесценивается, а когда весь экран показывает не сегодня, она
+     обязана быть заметна. Оговорка про деньги отсюда ушла — она стоит у самих денег. */
   .asof-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;}
+  .asof-bar.past{padding:11px 14px;background:#fdf1e0;border:1px solid #f0dcc0;border-radius:6px;
+    color:#7a4b00;margin-bottom:16px;}
+  .asof-bar.past b{color:#7a4b00;font-weight:700;}
   .flags-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
   .flags-row .badge{font-size:12.5px;padding:4px 10px;white-space:normal;}
   .badge{font-size:12px;border-radius:3px;padding:1px 7px;font-weight:600;display:inline-block;white-space:nowrap;}
@@ -840,6 +874,21 @@ const SUBGROUP_LABEL = {
   'none'  :'Кредитов не было',
   'closed':'Нет действующих кредитов',
 };
+/* Подписи ГРУПП 1…5 (КЗ-5). Группа не хранится и не выбирается — это первый разряд подгруппы,
+   поэтому карта тут одна: код группы → как называется весь этаж классификатора. Нужна затем,
+   что «2.2» без названия этажа не читается, а «Работа по исполнительным листам» без этажа не
+   говорит, что заёмщик уже в принудительном взыскании.
+   У групп 4 и 5 подгрупп нет — код группы и есть код подгруппы, поэтому подписи совпадают
+   с SUBGROUP_LABEL намеренно: дублирования нет, есть одна и та же ступень лестницы. */
+const GROUP_LABEL = {
+  '1':'Погашение долга',
+  '2':'Принудительное взыскание',
+  '3':'Банкротство',
+  '4':'Безнадежные долги',
+  '5':'Погашенные долги',
+};
+/* Группа подгруппы: первый разряд кода. Вне лестницы ('none' / 'closed') группы нет — см. СП-7. */
+const groupOfSub = sub => NO_LADDER.has(sub) ? null : String(sub)[0];
 /* Короткие подписи для реестра (СП-12): полная строка «Производят погашение с отставанием
    от графиков» — 47 знаков, и она дословно повторяется в десятках строк подряд. Полная
    уходит в title ячейки, в колонке остаётся код + смысл. */
@@ -2757,7 +2806,11 @@ const SURVEY_MATRIX = {
 };
 /* Коды вне лестницы (СП-7: 'none' / 'closed') долговой проблемы не означают — иначе заёмщик
    без действующих кредитов попадал бы в «Неплатёжеспособные» по первой букве слова. */
-const solvencyOfGroup = g => NO_LADDER.has(g) || String(g)[0] === '1' ? 'Платёжеспособные'
+/* КЗ-5: имя «solvencyOfGroup» описывало не то, что функция делает. Отдаёт она класс
+   ПЕРИОДИЧНОСТИ ОБСЛЕДОВАНИЯ залога (ключ SURVEY_MATRIX), а не платёжеспособность заёмщика:
+   платёжеспособность — вывод о лице, а здесь берётся строка расписания осмотров. Подписи
+   классов остались как в матрице — они принадлежат ей, а не заёмщику. */
+const surveyClassOf = g => NO_LADDER.has(g) || String(g)[0] === '1' ? 'Платёжеспособные'
   : String(g)[0] === '3' ? 'Предприятия-банкроты' : 'Неплатёжеспособные';
 /* Ужесточение периодичности по категории риска — слой поверх матрицы, только с согласования
    зампреда (Р-22, ПОР п.10); ниже SURVEY_MIN_MONTHS интервал не опускается. */
@@ -3006,10 +3059,10 @@ function banStateOf(o){
     : { code:'due', label:'запрет не наложен · до ' + (dl || '—'), deadline:dl };
 }
 /* Плановое обследование — вычисляемый оверлей, не статус: последнее + действующий интервал.
-   Группа платёжеспособности берётся от заёмщика, ужесточение — от его категории риска. */
+   Класс периодичности берётся от подгруппы заёмщика, ужесточение — от его категории риска. */
 function surveyOf(o){
   if (o.released) return null;
-  const solv = solvencyOfGroup(subgroupOf(o.inn, TODAY));
+  const solv = surveyClassOf(subgroupOf(o.inn, TODAY));
   const base = (SURVEY_MATRIX[solv] || {})[kindOf(o.kind).movable ? 'movable' : 'immovable'];
   if (base == null) return { solv, special:true };          // банкрот — по договору со спецадминистратором
   const cat = catOfBorrower(o.inn, TODAY) || 'low';
@@ -3056,7 +3109,10 @@ function setAsOf(iso){
   if (!y || !m || !d) return;
   const v = d + '.' + m + '.' + y;
   VIEW_DATE = dnum(v) > dnum(TODAY) ? TODAY : v;
-  if (current) showDetail(current, lastTab());
+  /* КЗ-3: срез — часть адреса, а не памяти вкладки. Рисуем сразу, адрес пишем следом: ждать
+     hashchange нельзя — он приходит отдельной задачей, и до неё экран показывал бы старую дату.
+     Повторный проход роутера по этому же адресу восстановит ровно это состояние. */
+  if (current){ showDetail(current, lastTab(), VIEW_DATE); writeHash(); }
 }
 /* Бейджи реестра: категория риска — цветная точка, подгруппа — код + подпись. */
 const catCls = c => c === 'high' ? 'high' : c === 'mid' ? 'mid' : 'low';
@@ -3318,11 +3374,17 @@ function renderPager(total, from, shown){
   set('pgFirst', pgPage <= 1); set('pgPrev', pgPage <= 1);
   set('pgNext', pgPage >= pages); set('pgLast', pgPage >= pages);
 }
-function tile(title, valueHtml, basis, moreHtml, lockHtml){
+/* Плитка шапки. КЗ-6: замок «read-only» переехал ВНУТРЬ раскрытия «как выведено». Замок отвечал
+   на вопрос «почему нельзя править», а у плитки спрашивают другое — «откуда это число»; ответ на
+   второй вопрос содержит ответ на первый, поэтому отдельной строки под замок больше нет.
+   subHtml — вторая ступень значения (КЗ-5: код подгруппы под названием группы). */
+function tile(title, valueHtml, subHtml, basis, moreHtml){
   return `<div class="dim"><div class="dim-t">${esc(title)}</div><div class="dim-v">${valueHtml}</div>`
+    + (subHtml ? `<div class="dim-sub">${subHtml}</div>` : '')
     + `<div class="src">${esc(basis)}</div>`
-    + (moreHtml ? `<details class="tile-more"><summary>как выведено</summary>${moreHtml}</details>` : '')
-    + (lockHtml || '')
+    + (moreHtml ? `<details class="tile-more"><summary>как выведено</summary>${moreHtml}`
+        + `<div class="ro-note" style="margin-top:9px">🔒 значение выводится · ручной ввод невозможен (в т.ч. админ)</div>`
+        + `</details>` : '')
     + `</div>`;
 }
 /* Вкладки идут слоями работы, а не в порядке появления в разработке: кто он → что должен →
@@ -3330,21 +3392,39 @@ function tile(title, valueHtml, basis, moreHtml, lockHtml){
    при этом переехали с последнего места (куда попали как новая вкладка) в слой надзора.
    Порядок задаётся здесь один раз, а по коду вкладка адресуется ключом: tabIx('кредиты').
    Индексов-констант в разметке больше нет — переставить вкладку теперь стоит одну строку. */
+/* row (КЗ-7) — номер строки таббара: 1 — живая работа (состояние · обеспечение и обязательства ·
+   работа), 2 — досье. Перенос задан смыслом, а не шириной окна: разрыв стоит там, где меняется
+   вопрос — «что с заёмщиком сейчас» → «чем это подтверждено». Порядок вкладок при этом прежний. */
 const TAB_DEFS = [
-  { key:'общая',        name:'Общая информация' },
-  { key:'кредиты',      name:'Кредиты' },
-  { key:'залог',        name:'Залог' },
-  { key:'обязательства',name:'Обязательства' },
-  { key:'взыскание',    name:'Взыскание' },
-  { key:'кураторство',  name:'Кураторство' },
-  { key:'акты',         name:'Акты сверок' },
-  { key:'проверки',     name:'Проверки и дефекты' },
-  { key:'документы',    name:'Документы' },
-  { key:'связи',        name:'Реквизиты и связи' },
-  { key:'история',      name:'История' },
+  { key:'общая',        name:'Общая информация',  row:1 },
+  { key:'кредиты',      name:'Кредиты',           row:1 },
+  { key:'залог',        name:'Залог',             row:1 },
+  { key:'обязательства',name:'Обязательства',     row:1 },
+  { key:'взыскание',    name:'Взыскание',         row:1 },
+  { key:'кураторство',  name:'Кураторство',       row:1 },
+  { key:'акты',         name:'Акты сверок',       row:1 },
+  { key:'проверки',     name:'Проверки и дефекты',row:2 },
+  { key:'документы',    name:'Документы',         row:2 },
+  { key:'связи',        name:'Реквизиты и связи', row:2 },
+  { key:'история',      name:'История',           row:2 },
 ];
 const TABS = TAB_DEFS.map(t => t.name);
 const tabIx = key => TAB_DEFS.findIndex(t => t.key === key);
+/* Счётчик вкладки (КЗ-7) — НАГРУЗКА, а не число строк в её таблице: сколько кредитов ведём,
+   сколько предметов держим, сколько обязательств открыто, сколько процессов идёт, сколько
+   дефектов висит. Поэтому счётчиков пять, а не одиннадцать: у «Истории», «Документов» и
+   «Реквизитов» число строк ни о какой работе не сообщает — оно растёт само по себе.
+   null = цифры нет; ноль тоже не печатается — «Взыскание 0» отвечает на незаданный вопрос. */
+function tabCount(inn, key){
+  switch (key){
+    case 'кредиты':       return CREDITS.filter(c => c.inn === inn && isActiveCredit(c, asOf())).length;
+    case 'залог':         return PLEDGE_OBJ.filter(o => o.inn === inn && !o.released).length;
+    case 'обязательства': return openObligations(inn, asOf()).length;
+    case 'взыскание':     return procsOf(inn).filter(p => !isProcClosed(p)).length;
+    case 'проверки':      return defectsSorted(inn, asOf()).length;
+  }
+  return null;
+}
 
 function catBasisHtml(inn){
   const rows = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,asOf())).map(c=>{
@@ -3435,7 +3515,9 @@ function flagsRow(inn){
   highs.slice(0,3).forEach(x => f.push(['b-ov', `${x.name}: ${stripTags(x.result)}`]));
   if (highs.length > 3) f.push(['b-ov', `и ещё ${highs.length-3} важных`]);
   if (rest) f.push(['b-proc', `Замечаний: ${rest}`]);
-  if (isReadOnly(inn, asOf())) f.push(['b-gray', `Только для чтения: ${subjectState(inn, asOf()).kind}`]);
+  /* КЗ-4: бейджа «Только для чтения» здесь больше нет. Лента переехала в шапку и встала прямо
+     под баннер, который говорит то же самое теми же словами — на одном экране фраза «ликвидирован»
+     повторялась трижды (баннер, стоп-фактор, бейдж). Стоп-фактор остаётся: это запись дефекта. */
   const body = f.length
     ? f.map(x=>`<span class="badge ${x[0]}">${esc(x[1])}</span>`).join('')
     : '<span class="badge b-ok">Дефектов нет</span>';
@@ -3582,8 +3664,9 @@ function generalTab(inn, opts){
      справа оперативный слой сверху вниз по убыванию срочности — деньги → сроки → послабления.
      Страница субъекта — только реквизиты + основные сведения (кредитного слоя там нет). */
   if (!overlays) return reqSect + svcSect;
-  return flagsRow(inn)
-    + `<div class="gen-2col split">`
+  /* КЗ-4: ленты стоп-факторов здесь больше нет — она поднята в шапку карточки (renderCard),
+     где видна со всех вкладок, а не только с этой. */
+  return `<div class="gen-2col split">`
       + `<div class="gen-col">${svcSect}${contactsCard(inn)}${recentEventsCard(inn)}</div>`
       + `<div class="gen-col">${creditsSummaryCard(inn)}${attentionCard(inn)}`
         + sect('Послабления по категории риска', 'зеркало restructuring', '', ovBody)
@@ -5182,56 +5265,103 @@ function renderCard(inn){
   const s = SUBJECTS.find(x=>x.inn===inn);
   const cat = catOfBorrower(inn, asOf());
   const grp = subgroupOf(inn, asOf());
+  const gcode = groupOfSub(grp);
   const st  = subjectState(inn, asOf());
   const ro  = isReadOnly(inn, asOf());
 
-  /* Метка read-only на выводимых полях: группу и категорию нельзя проставить руками
-     (в легаси группу ставили вручную — отсюда расхождения журнала и факта). */
-  const LOCK = '<div class="ro-note">🔒 read-only · ручной ввод невозможен (в т.ч. админ)</div>';
+  /* КЗ-1. Паспорт записи — в теле карточки, а не в топбаре: топбар это шасси приложения, он
+     одинаков на всех экранах модуля и отвечать «кто сейчас открыт» не обязан. Раньше туда
+     клалось одно наименование, а ИНН — первичный ключ ВСЕХ выводимых значений карточки — не
+     показывался нигде (Б-12): сверить, тот ли заёмщик открыт, было не с чем.
+     Состав строки — только то, чем запись опознают: ИНН, тип лица, отрасль. Адреса и реквизиты
+     сюда не идут — они атрибуты субъекта и живут на его странице. */
+  const idBar = `<div class="id-bar"><div class="id-main">`
+    + `<div class="id-name">${esc(s ? s.name : 'Заёмщик')}</div>`
+    + `<div class="id-sub">`
+      + `<span>ИНН <b>${esc(inn)}</b></span>`
+      + `<span>${esc(personKindLabel(s.personKind))}</span>`
+      + `<span>${esc(s.industry || '—')}</span>`
+      + `<span><a class="lnk" href="#/s/${esc(inn)}">`
+        + `${s.personKind === 'физ' ? 'Открыть физическое лицо' : 'Открыть организацию'} →</a></span>`
+    + `</div></div></div>`;
 
+  /* КЗ-4/КЗ-5/КЗ-6. Плиток две: подгруппа и категория. Третья («Состояние субъекта») повторяла
+     баннер ниже теми же словами — состояние показывается только баннером.
+     Плитка подгруппы двухуровневая: сверху группа, снизу код подгруппы с подписью. Группа
+     ВЫВОДИТСЯ из подгруппы (первый разряд кода), поэтому отдельной строкой её печатать нельзя —
+     это одно значение дважды; она становится заголовком того же значения. */
+  const grpSub = gcode
+    ? `<span class="grp-code">${esc(grp)}</span>`
+      + (grp === gcode ? `<span class="muted">подгрупп у этой группы нет</span>`
+                       : `<span>${esc(SUBGROUP_LABEL[grp]||'')}</span>`)
+    : '';
   const tiles = [
-    tile('Состояние субъекта', esc(st ? st.kind : 'действует'),
-      st ? `основание: ${esc(st.basis||'—')}` : 'событий нет',
-      st && st.successorInn ? `Преемник: <a class="lnk" href="#/b/${st.successorInn}">${st.successorInn}</a>` : ''),
-    /* Коды вне лестницы кода не имеют — печатаем только подпись, иначе в плитке появится «none» (СП-7). */
-    tile('Подгруппа заёмщика', NO_LADDER.has(grp)
-        ? `<span class="muted">${esc(SUBGROUP_LABEL[grp]||'')}</span>`
-        : `<span class="grp-code">${esc(grp)}</span> ${esc(SUBGROUP_LABEL[grp]||'')}`,
-      'лестница с доминированием', groupStepsHtml(inn, asOf()), LOCK),
+    /* Коды вне лестницы группы не имеют — печатаем только подпись, иначе в плитке появится «none» (СП-7). */
+    tile('Подгруппа заёмщика',
+      gcode ? esc(GROUP_LABEL[gcode] || '') : `<span class="muted">${esc(SUBGROUP_LABEL[grp]||'')}</span>`,
+      grpSub, 'лестница с доминированием', groupStepsHtml(inn, asOf())),
     tile('Категория риска',
       cat ? `<span class="cat-${catCls(cat)}"><span class="dot d-${catCls(cat)}"></span> ${esc(CAT_LABEL[cat])}</span>`
           : '<span class="muted">не применяется</span>',
-      cat ? 'worst-of по действующим кредитам' : 'нет действующих кредитов (И-3)', catBasisHtml(inn), LOCK),
+      '', cat ? 'worst-of по действующим кредитам' : 'нет действующих кредитов (И-3)', catBasisHtml(inn)),
   ].join('');
 
-  const banner = ro ? `<div class="ro-banner">Карточка только для чтения — ${esc(st.kind)}.`
-    + (st.successorInn ? ` Преемник: <a class="lnk" href="#/b/${st.successorInn}">${st.successorInn}</a>` : '') + `</div>` : '';
+  /* КЗ-4. Состояние субъекта — только баннером, и вес баннера равен последствию: запрет работы
+     красный, событие без запрета (реорганизация, смена наименования) — тихая строка. Иначе одно
+     и то же событие либо кричит без повода, либо теряется совсем. */
+  const banner = ro
+    ? `<div class="ro-banner">Карточка только для чтения — ${esc(st.kind)}.`
+      + (st.successorInn ? ` Преемник: <a class="lnk" href="#/b/${st.successorInn}">${st.successorInn}</a>` : '')
+      + `</div>`
+    : st
+      ? `<div class="state-line">Состояние субъекта: <b>${esc(st.kind)}</b>`
+        + (st.date ? ` от ${esc(st.date)}` : '') + ` · основание: ${esc(st.basis || '—')}`
+        + (st.successorInn ? ` · преемник: <a class="lnk" href="#/b/${esc(st.successorInn)}">${esc(st.successorInn)}</a>` : '')
+        + `</div>`
+      : '';
 
-  const tabbar = `<div class="tabbar">` + TABS.map((t,i)=>`<div class="tab${i===0?' active':''}" data-tab="${i}" onclick="switchTab(${i})">${esc(t)}</div>`).join('') + `</div>`;
+  /* КЗ-7. Две строки вкладок со счётчиками нагрузки; состав строк — в TAB_DEFS.row. */
+  const tabHtml = i => {
+    const d = TAB_DEFS[i], n = tabCount(inn, d.key);
+    return `<div class="tab${i===0?' active':''}" data-tab="${i}" onclick="switchTab(${i})">${esc(d.name)}`
+      + (n ? `<span class="cnt">${n}</span>` : '') + `</div>`;
+  };
+  const rowOf = r => TAB_DEFS.map((d,i)=>i).filter(i => TAB_DEFS[i].row === r).map(tabHtml).join('');
+  const tabbar = `<div class="tabbar row-top">${rowOf(1)}</div><div class="tabbar">${rowOf(2)}</div>`;
   const panels = TABS.map((t,i)=>`<div class="tabpanel${i===0?' active':''}" data-panel="${i}">${tabBody(inn, i)}</div>`).join('');
 
-  /* Шапки в теле карточки нет: наименование и ИНН — в топ-хедере (showDetail), чтобы не дублировать. */
-  /* Один орган управления датой на всю карточку. Меняет только ВЫВОДИМЫЕ состояния;
-     денежные величины подписаны своей датой снимка и на него не реагируют (И-6). */
-  const asOfBar = `<div class="asof-bar">`
-    + `<span class="muted">Состояния на дату</span>`
-    + `<input type="date" id="cardAsOf" data-view-ctl value="${toISO(asOf())}" max="${toISO(TODAY)}"`
-    + ` onchange="setAsOf(this.value)" style="width:150px">`
-    + (asOf() !== TODAY ? `<span class="badge b-ov">срез ${esc(asOf())}, не сегодня</span>` : '')
-    + `<span class="muted">· деньги — снимок на ${esc(DEBT_ASOF)}, дате среза не подчиняются</span>`
-    /* СП-19: удаление живёт здесь, а не в списке. В списке его ставить некуда — СП-8 убрал
-       чекбоксы, и самое необратимое действие делалось бы по строке, где реквизитов не видно.
-       Кнопка неактивна при любой связи, причина — в подписи, до нажатия. */
-    + (() => {
-        const bl = deleteBlockers(inn);
-        return `<span style="flex:1"></span>`
-          + `<button class="btn btn-secondary btn-sm" onclick="askDelete('${esc(inn)}')"`
-          + (bl.length ? ` disabled title="нельзя удалить: ${esc(bl.join('; '))}"`
-                       : ` title="связей нет — запись можно удалить"`)
-          + `>Удалить запись</button>`;
-      })()
+  /* КЗ-2. Один орган управления датой на всю карточку (И-9). В норме — тихая строка: полоса,
+     которая появляется при каждом открытии, обесценивается и перестаёт читаться. В режиме среза
+     та же строка становится полосой во всю ширину — весь экран под ней показывает не сегодня,
+     и это обязано быть заметно.
+     Оговорки «деньги — снимок на DEBT_ASOF» здесь больше нет: она стоит у самих денег (подпись
+     сводки по кредитам и тулбары вкладок). У переключателя даты она объясняла то, чего в этот
+     момент на экране не видно. */
+  const past = asOf() !== TODAY;
+  const dateInput = `<input type="date" id="cardAsOf" data-view-ctl value="${toISO(asOf())}" max="${toISO(TODAY)}"`
+    + ` onchange="setAsOf(this.value)" style="width:150px">`;
+  /* СП-19: удаление живёт здесь, а не в списке. В списке его ставить некуда — СП-8 убрал
+     чекбоксы, и самое необратимое действие делалось бы по строке, где реквизитов не видно.
+     Кнопка неактивна при любой связи, причина — в подписи, до нажатия. */
+  const delBtn = (() => {
+      const bl = deleteBlockers(inn);
+      return `<button class="btn btn-secondary btn-sm" onclick="askDelete('${esc(inn)}')"`
+        + (bl.length ? ` disabled title="нельзя удалить: ${esc(bl.join('; '))}"`
+                     : ` title="связей нет — запись можно удалить"`)
+        + `>Удалить запись</button>`;
+    })();
+  const asOfBar = `<div class="asof-bar${past ? ' past' : ''}">`
+    + (past
+        ? `<span>Срез <b>${esc(asOf())}</b> — карточка показывает состояния на эту дату, не на сегодня.</span>`
+          + dateInput
+          + `<button class="btn btn-secondary btn-sm" onclick="setAsOf('${toISO(TODAY)}')">Вернуться к сегодня</button>`
+        : `<span class="muted">Состояния на дату</span>` + dateInput)
+    + `<span style="flex:1"></span>` + delBtn
     + `</div>`;
-  return `${asOfBar}<div class="phead-dims">${tiles}</div>${banner}${tabbar}${panels}`;
+
+  /* КЗ-4: стоп-факторы поднялись из вкладки 1 в шапку. Внутри вкладки их не видно с десяти
+     вкладок из одиннадцати — при том что они запрещают работу со всей карточкой. */
+  return `${idBar}${asOfBar}<div class="phead-dims">${tiles}</div>${banner}${flagsRow(inn)}${tabbar}${panels}`;
 }
 
 /* Роли субъекта — то, ради чего субъект вообще отделён от заёмщика: одно лицо бывает
@@ -5354,8 +5484,13 @@ function showList(){
   topbar.classList.remove('on-detail');
   scrollTop();
 }
-function showDetail(inn, tabIndex){
+/* onDate — срез из маршрута (КЗ-3), ДД.ММ.ГГГГ. Не передан → сегодня.
+   Этим же закрыт Б-2: раньше showDetail не трогал VIEW_DATE, и переход карточка → карточка
+   (преемник после перевода долга, связанное лицо) уносил срез предыдущего заёмщика на
+   следующего — без подписи и без повода. */
+function showDetail(inn, tabIndex, onDate){
   current = inn; currentSubj = null;
+  VIEW_DATE = onDate && dnum(onDate) <= dnum(TODAY) ? onDate : TODAY;
   document.getElementById('cardMount').innerHTML = renderCard(inn);
   wireCreditsTab(inn);      /* таб «Кредиты» интерактивен — проводим после вставки в DOM */
   wireCollateralTab(inn);   /* таб «Залог» — переключатель вида и раскрытие строк */
@@ -5363,10 +5498,9 @@ function showDetail(inn, tabIndex){
   wireActsTab(inn);         /* таб «Акты сверок» — раскрытие строки в разбивку + степпер */
   histApply();              /* таб «История» — начальная отсечка ленты по HIST_PAGE */
   showOnly(vDetail);
-  const s = SUBJECTS.find(x => x.inn === inn);
-  /* наименование кликабельно — ведёт на страницу субъекта (организация / физлицо) */
-  const subjTitle = s && s.personKind === 'физ' ? 'Открыть физическое лицо' : 'Открыть организацию';
-  pageTitle.innerHTML = `<a href="#/s/${esc(inn)}" title="${subjTitle}">${esc(s ? s.name : 'Заёмщик')}</a>`;
+  /* КЗ-1: топбар — шасси приложения, он называет ЭКРАН. Кто именно открыт, отвечает id-bar
+     в теле карточки: там же ИНН, тип лица, отрасль и переход к субъекту. */
+  pageTitle.textContent = 'Карточка заёмщика';
   topbar.classList.add('on-detail');
   switchTab(tabIndex != null ? tabIndex : lastTab(), /*fromRoute*/true);
   scrollTop();
@@ -5408,10 +5542,16 @@ document.getElementById('backLink').addEventListener('click', e => {
 });
 
 /* ---------- роутинг по hash: вид переживает F5 ----------
-   #/b/<ИНН>[/<индекс вкладки>] — карточка, #/s/<ИНН> — субъект, пустой hash — список */
+   #/b/<ИНН>[/<индекс вкладки>][?on=ГГГГ-ММ-ДД] — карточка, #/s/<ИНН> — субъект, пустой hash — список.
+   КЗ-3: срез уехал в маршрут. Раньше он жил только в памяти вкладки — переслать ссылку на
+   «состояние на 01.03» было нечем, а F5 молча возвращал сегодня. И-9 («одна дата на карточку»)
+   этому не мешает: дата по-прежнему одна, у неё просто появился адрес.
+   Нет параметра → сегодня, поэтому обычная ссылка на карточку среза не наследует. */
 function writeHash(){
   if (currentSubj) { location.hash = '#/s/' + currentSubj; return; }
-  location.hash = current ? '#/b/' + current + '/' + activeTab() : '';
+  location.hash = current
+    ? '#/b/' + current + '/' + activeTab() + (VIEW_DATE !== TODAY ? '?on=' + toISO(VIEW_DATE) : '')
+    : '';
 }
 function activeTab(){
   const t = document.querySelector('.tabbar .tab.active');
@@ -5421,9 +5561,9 @@ function route(){
   const s = /^#\/s\/([0-9]+)$/.exec(location.hash);
   const sb = s && SUBJECTS.find(x => x.inn === s[1]);
   if (sb) { showSubject(sb.inn); return; }
-  const m = /^#\/b\/([0-9]+)(?:\/([0-9]+))?$/.exec(location.hash);
+  const m = /^#\/b\/([0-9]+)(?:\/([0-9]+))?(?:\?on=(\d{4}-\d{2}-\d{2}))?$/.exec(location.hash);
   const b = m && SUBJECTS.find(x => x.inn === m[1]);
-  if (b) showDetail(b.inn, m[2] !== undefined ? parseInt(m[2], 10) : null);
+  if (b) showDetail(b.inn, m[2] !== undefined ? parseInt(m[2], 10) : null, m[3] ? fromISO(m[3]) : null);
   else showList();
 }
 window.addEventListener('hashchange', route);

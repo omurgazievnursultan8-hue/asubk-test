@@ -332,11 +332,11 @@ ok('H1. дата среза одна и она рабочая: срез в пр�
     f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
     const now = f.ev("catOfBorrower('01204199910016', asOf())");
     f.ev("setAsOf('2026-01-01')");
-    const tile = f.$('.phead-dims .dim:nth-child(3) .dim-v');
+    const tile = f.$('.phead-dims .dim:nth-child(2) .dim-v');   // КЗ-4: плиток две, категория — вторая
     return now === 'high' && f.ev("asOf()") === '01.01.2026'
       && f.ev("catOfBorrower('01204199910016', asOf())") === 'mid'
       && /Средний/.test(tile.textContent)          // плитка перерисована, а не осталась вчерашней
-      && /срез 01\.01\.2026/.test(f.$('.asof-bar').textContent); })());
+      && /Срез 01\.01\.2026/.test(f.$('.asof-bar').textContent); })());
 ok('H2. срез не уезжает в будущее',
   (() => { const f = mk();
     f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
@@ -375,8 +375,8 @@ ok('H7. страница субъекта показывает роли, и ро
 // ── Рендер и зеркала (26 + DOM) ──
 const h = mk();
 h.ev("location.hash='#/b/01204199910016'"); h.ev("route()");
-ok('R1. три плитки в шапке карточки (состояние субъекта · подгруппа · категория)',
-  h.$$('.phead-dims .dim').length === 3);
+ok('R1. две плитки в шапке карточки (подгруппа · категория) — КЗ-4',
+  h.$$('.phead-dims .dim').length === 2);
 ok('R2. одиннадцать вкладок, порядок задан TAB_DEFS и адресуется ключом',
   h.$$('.tabbar .tab').length === 11
   && h.ev("TABS.length === TAB_DEFS.length && tabIx('обязательства') < tabIx('взыскание')")
@@ -742,6 +742,104 @@ ok('СП-19. отказ объясняет, почему завершённый 
     return f.$('#mTitle').textContent.includes('нельзя')
       && /событием|погашение|безнадёжн/i.test(t);
   })());
+
+/* ── Шапка карточки: решения КЗ-1…КЗ-7 (гриллинг 26.07.2026, реализация 27.07.2026) ──
+   Шапка стоит над одиннадцатью вкладками, поэтому её ошибки стоят одиннадцати экранов:
+   ИНН не показывался нигде (Б-12), стоп-факторы были спрятаны во вкладке 1, срез не
+   переживал ни ссылку, ни F5, а переход карточка → карточка уносил чужой срез (Б-2). */
+const kz = mk();
+kz.ev("location.hash='#/b/01204199910016'"); kz.ev("route()");
+
+ok('КЗ-1. id-bar в теле карточки: наименование, ИНН, тип лица, отрасль, ссылка на субъекта',
+  (() => {
+    const bar = kz.$('#cardMount .id-bar');
+    if (!bar) return false;
+    const t = bar.textContent, a = bar.querySelector('a[href="#/s/01204199910016"]');
+    return /АгроТехСервис/.test(t) && /ИНН\s*01204199910016/.test(t)
+      && /Юр\. лицо/.test(t) && /Агропромышленный комплекс/.test(t) && !!a;
+  })());
+ok('КЗ-1. топбар называет экран, а не запись (паспорт переехал в карточку)',
+  kz.$('#pageTitle').textContent.trim() === 'Карточка заёмщика');
+
+ok('КЗ-2. в норме дата среза — тихая строка: ни полосы, ни оговорки про деньги',
+  (() => { const b = kz.$('.asof-bar');
+    return !!b && !b.classList.contains('past') && !/снимок на/.test(b.textContent)
+      && !!kz.$('#cardAsOf'); })());
+ok('КЗ-2. в режиме среза — полоса во всю ширину с возвратом к сегодня',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()"); f.ev("setAsOf('2026-01-01')");
+    const b = f.$('.asof-bar');
+    return b.classList.contains('past') && /Срез 01\.01\.2026/.test(b.textContent)
+      && /Вернуться к сегодня/.test(b.textContent); })());
+ok('КЗ-2. оговорка про деньги стоит у денег, а не у переключателя даты',
+  /снимок кредитного модуля на 10\.07\.2026/.test(kz.$('.tabpanel[data-panel="0"]').textContent));
+
+ok('КЗ-3. срез уходит в маршрут: setAsOf пишет ?on= в адрес',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()"); f.ev("setAsOf('2026-01-01')");
+    return /^#\/b\/01204199910016\/\d+\?on=2026-01-01$/.test(f.ev("location.hash")); })());
+ok('КЗ-3. ссылка со срезом открывает карточку на этой дате, без параметра — сегодня',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016/1?on=2026-01-01'"); f.ev("route()");
+    const cut = f.ev("asOf()") === '01.01.2026' && f.ev("activeTab()") === '1';
+    f.ev("location.hash='#/b/01204199910016/1'"); f.ev("route()");
+    return cut && f.ev("asOf()") === f.ev("TODAY"); })());
+ok('КЗ-3/Б-2. переход карточка → карточка не уносит чужой срез',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()"); f.ev("setAsOf('2026-01-01')");
+    f.ev("location.hash='#/b/10001199900101'"); f.ev("route()");
+    return f.ev("asOf()") === f.ev("TODAY"); })());
+
+ok('КЗ-4. плитки состояния субъекта больше нет — состояние живёт баннером',
+  !/Состояние субъекта/.test(kz.$('.phead-dims').textContent));
+ok('КЗ-4. стоп-факторы подняты в шапку: лента вне вкладок, видна со всех одиннадцати',
+  (() => { const fr = kz.$$('.flags-row');
+    return fr.length === 1 && !fr[0].closest('.tabpanel'); })());
+ok('КЗ-4. запрет работы — красный баннер, событие без запрета — тихая строка',
+  (() => { const a = mk(), b = mk();
+    a.ev("location.hash='#/b/20270119991027'"); a.ev("route()");     // ликвидирован → read-only
+    b.ev("location.hash='#/b/20120119991012'"); b.ev("route()");     // реорганизация → запрета нет
+    return !!a.$('#cardMount .ro-banner') && !a.$('#cardMount .state-line')
+      && !b.$('#cardMount .ro-banner') && !!b.$('#cardMount .state-line')
+      && /реорганизация/.test(b.$('#cardMount .state-line').textContent); })());
+
+ok('КЗ-5. GROUP_LABEL заведён на пять кодов, группа выводится из подгруппы',
+  kz.ev("Object.keys(GROUP_LABEL).join('')") === '12345'
+  && kz.ev("groupOfSub('2.1')") === '2' && kz.ev("groupOfSub('none')") === null);
+ok('КЗ-5. плитка подгруппы двухуровневая: группа сверху, код с подписью снизу',
+  (() => { const d = kz.$('.phead-dims .dim:nth-child(1)');
+    return /Принудительное взыскание/.test(d.querySelector('.dim-v').textContent)
+      && /2\.1/.test(d.querySelector('.dim-sub').textContent)
+      && /Работа с судебными органами/.test(d.querySelector('.dim-sub').textContent); })());
+ok('КЗ-5. solvencyOfGroup переименована в surveyClassOf (класс обследования, не платёжеспособность)',
+  kz.ev("typeof solvencyOfGroup") === 'undefined' && kz.ev("typeof surveyClassOf") === 'function'
+  && kz.ev("!!surveyOf(PLEDGE_OBJ.find(o=>!o.released))"));
+
+ok('КЗ-6. замок read-only живёт внутри «как выведено», отдельной строкой его нет',
+  (() => { const notes = kz.$$('#cardMount .ro-note');
+    return notes.length === 2 && notes.every(x => !!x.closest('details.tile-more')); })());
+
+ok('КЗ-7. таббар в две строки, состав строк задан TAB_DEFS.row',
+  (() => { const bars = kz.$$('#cardMount .tabbar');
+    if (bars.length !== 2 || !bars[0].classList.contains('row-top')) return false;
+    const names = b => [...b.querySelectorAll('.tab')].map(x => x.childNodes[0].textContent.trim());
+    const want = r => kz.ev(`JSON.stringify(TAB_DEFS.filter(d=>d.row===${r}).map(d=>d.name))`);
+    return JSON.stringify(names(bars[0])) === want(1) && JSON.stringify(names(bars[1])) === want(2); })());
+ok('КЗ-7. счётчики — только у пяти вкладок нагрузки и только при ненулевом счёте',
+  (() => {
+    const keys = JSON.parse(kz.ev("JSON.stringify(TAB_DEFS.map(d=>d.key))"));
+    const cnt  = JSON.parse(kz.ev("JSON.stringify(TAB_DEFS.map(d=>tabCount('01204199910016', d.key)))"));
+    const counted = keys.filter((k,i) => cnt[i] !== null).join(' ');
+    const tabs = kz.$$('#cardMount .tabbar .tab');
+    const shown = tabs.map(t => { const c = t.querySelector('.cnt'); return c ? Number(c.textContent) : null; });
+    return counted === 'кредиты залог обязательства взыскание проверки'
+      && shown.every((v,i) => v === (cnt[i] ? cnt[i] : null)); })());
+ok('КЗ-7. нулевой счёт цифру не печатает',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/20010119991001'"); f.ev("route()");     // кредиты есть, взыскания нет
+    const ix = f.ev("tabIx('взыскание')");
+    return f.ev("tabCount('20010119991001','взыскание')") === 0
+      && !f.$(`#cardMount .tab[data-tab="${ix}"] .cnt`); })());
 
 /* ── Словари взыскания: владелец — collection.html ──────────────────────────────
    CONTOURS / PHASE_STAGE / PROCEDURE_DICT скопированы в карточку заёмщика.
