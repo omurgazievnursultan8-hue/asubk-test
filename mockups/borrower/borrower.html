@@ -784,9 +784,9 @@
           <!-- СП-11: пагинация настоящая. Размер страницы — по образцу #crSize в карточке. -->
           <div class="jpag">
             <select id="pgSize" title="Строк на странице">
-              <option value="25">25</option>
+              <option value="5">5</option>
+              <option value="20" selected>20</option>
               <option value="50">50</option>
-              <option value="100">100</option>
             </select>
             <span class="nav" id="pgFirst" title="Первая">«</span><span class="nav" id="pgPrev" title="Предыдущая">‹</span>
             <span class="cnt" id="rowCount"></span>
@@ -3284,7 +3284,7 @@ function visibleSubjects(){
    тысячах заёмщиков это полный пересчёт listRow() на каждую смену фильтра, а listRow дорогая:
    на одного субъекта она фильтрует CREDITS, считает defects(), curatorMatrix() и прогоняет
    лестницу subgroupOf() по PROCESSES и BORROWER_EVENTS. */
-let pgSize = 25, pgPage = 1;
+let pgSize = 20, pgPage = 1;   /* СП-25: набор размеров страницы — 5 / 20 / 50, по умолчанию 20 */
 const pageCount = total => Math.max(1, Math.ceil(total / pgSize));
 function gotoPage(p){
   pgPage = p;
@@ -3703,7 +3703,7 @@ function wireCreditsTab(inn){
   const wrap = document.getElementById('crWrap');
   if (!wrap) return;
   const credList = CREDITS.filter(c => c.inn === inn);
-  let crSize = 10, crPage = 1;
+  let crSize = 20, crPage = 1;   /* СП-25: тот же набор, что в реестре — 5 / 20 / 50 */
 
   /* просроченная часть кредита — пять статей снимка, а не «%+пеня» (ADR-0001) */
   const ovSum = c => creditOverdue(c);
@@ -3768,7 +3768,7 @@ function wireCreditsTab(inn){
       + '</div>'
       + '<span>Строк на странице '
         + '<select id="crSize" data-view-ctl style="width:auto;min-width:70px">'
-          + [10, 25, 50, 100].map(n => '<option' + (n === crSize ? ' selected' : '') + '>' + n + '</option>').join('')
+          + [5, 20, 50].map(n => '<option' + (n === crSize ? ' selected' : '') + '>' + n + '</option>').join('')
         + '</select></span>'
     + '</div>';
   };
@@ -5689,7 +5689,7 @@ document.getElementById('listTable').addEventListener('keydown', e => {
 
 /* ---------- пагинация (СП-11) ---------- */
 document.getElementById('pgSize').addEventListener('change', e => {
-  pgSize = +e.target.value || 25;
+  pgSize = +e.target.value || 20;
   pgPage = 1;
   renderList();
 });

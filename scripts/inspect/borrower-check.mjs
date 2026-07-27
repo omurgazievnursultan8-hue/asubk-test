@@ -508,6 +508,26 @@ ok('СП-11. на первой странице «назад» погашено,
     if (!f.$('#pgPrev').classList.contains('dis') || f.$('#pgNext').classList.contains('dis')) return false;
     f.ev("gotoPage(pageCount(visibleSubjects().length));");
     return f.$('#pgNext').classList.contains('dis') && !f.$('#pgPrev').classList.contains('dis'); })());
+/* СП-25 (27.07.2026): набор размеров страницы — 5 / 20 / 50, по умолчанию 20. Один набор
+   на оба пейджера модуля: реестр (#pgSize) и таблица кредитов в карточке (#crSize), где
+   раньше стояли 25/50/100 и 10/25/50/100 — две разные шкалы на одном экране. */
+ok('СП-25. реестр: размеры страницы 5 / 20 / 50, выбрано 20',
+  (() => { const f = mk();
+    const opts = f.$$('#pgSize option').map(o => o.value);
+    return opts.join(',') === '5,20,50' && f.$('#pgSize').value === '20' && f.ev("pgSize") === 20; })());
+ok('СП-25. смена размера в реестре сбрасывает на первую страницу и режет выборку',
+  (() => { const f = mk();
+    f.ev("pgSize = 20; pgPage = 3; renderList();");
+    const sel = f.$('#pgSize'); sel.value = '5';
+    sel.dispatchEvent(new f.w.Event('change'));
+    return f.ev("pgSize") === 5 && f.ev("pgPage") === 1 &&
+      f.$$('#listTable tbody tr').length === 5 && /^1–5 из /.test(f.$('#rowCount').textContent); })());
+ok('СП-25. карточка: тот же набор в пейджере кредитов, по умолчанию 20',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
+    const sel = f.$('#crSize');
+    if (!sel) return false;
+    return f.$$('#crSize option').map(o => o.textContent).join(',') === '5,20,50' && sel.value === '20'; })());
 ok('СП-12. под наименованием ИНН, а не «отрасль · район»',
   (() => {
     const tds = L.$$('#listTable tbody tr td.who');
