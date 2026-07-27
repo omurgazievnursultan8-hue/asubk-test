@@ -714,7 +714,7 @@ test('Head-1: шапка содержит блок соответствия Р-1
 // §18 п.47 (Reg-47): регрессия Р-1…Р-9 — базовые демо-объекты на месте и обеспеченность всех
 // договоров считается без исключений. ВНИМАНИЕ: сигнатура coverage(cs, creditId) — cs
 // первым (бриф-сниппет писал аргументы наоборот). Здесь исправлено.
-// Волна 10 (ADR-0009): index может быть null — это не «не посчиталось», а «неприменимо»
+// Волна ЗР (ADR-0011): index может быть null — это не «не посчиталось», а «неприменимо»
 // (сумма под риском 0 либо освобождение от порога решением КМ). Проверяем, что оба состояния
 // названы своим признаком, а не молча дают NaN.
 test('Reg-47: демо-ветки Р-1…Р-9 живы (объекты на месте), обеспеченность считается без ошибок', () => {
@@ -1221,7 +1221,7 @@ test('W4-2 (Р-42 + ДГ-6): колонка обеспеченности наз�
   const tip = zt.coverGateTip(c);
   has(tip, 'индекс', 'тултип раскрывает индекс');
   has(tip, 'порог', 'порог назван — он свойство кредита, а не константа');
-  // Волна 10 (ADR-0009): расшифровка ratio берёт базой сумму под риском, а не сумму договора.
+  // Волна ЗР (ADR-0011): расшифровка ratio берёт базой сумму под риском, а не сумму договора.
   has(tip, 'залоговая к сумме под риском', 'тултип держит расшифровку ratio');
   has(tip, 'гейт', 'вердикт гейта назван словами, а не только цветом');
 });
@@ -1684,25 +1684,30 @@ test('W7-11 (Р-48): переоценка требует оценщика и к�
   no(zt.apprStale(it), 'оценка снова актуальна');
 });
 
-test('W7-12 (Р-49): предшествующий залог вносится, снимается и не трогает покрытие', () => {
+// W7-12/W7-13 переписаны волной КП: решение Р-49 ОТМЕНЕНО (КП-4, ADR-0008). Журнала
+// предшествующих залогов больше нет — обременение в пользу третьего лица стало стоп-фактором
+// приёма, потому что Холдинг принимает имущество только в первую очередь (§4.1).
+test('W7-12 (КП-4): журнала предшествующих залогов больше нет ни в одной точке', () => {
   const { win, zt } = load();
-  win.eval("role='Куратор отдела залогового обеспечения'");
-  const it = zt.item('П-001'), pv = zt.pledgeValue(it);
-  win.openPriorLien('П-001');
-  win.document.getElementById('plHolder').value = 'ОАО «Сторонний банк»';
-  win.document.getElementById('plAmt').value = '100000';
-  win.savePriorLien('П-001');
-  eq(zt.priorLiensOf(it).length, 1, 'обременение зарегистрировано');
-  eq(zt.pledgeValue(it), pv, 'залоговая стоимость не изменилась — предупреждение, не множитель');
-  win.releasePriorLien('П-001', it.priorLiens.length - 1);
-  eq(zt.priorLiensOf(it).length, 0, 'снятие убирает из действующих');
-  eq(it.priorLiens.length, 1, 'запись сохранена в журнале, а не удалена');
+  eq(win.eval('typeof openPriorLien'), 'undefined', 'форма ввода удалена');
+  eq(win.eval('typeof savePriorLien'), 'undefined', 'сохранение удалено');
+  eq(win.eval('typeof releasePriorLien'), 'undefined', 'снятие удалено');
+  eq(win.eval('typeof priorLiensOf'), 'undefined', 'чтение удалено');
+  no(zt.ITEMS.some(x => x.priorLiens), 'ни у одного предмета нет поля priorLiens');
+  hasNot(win.itemPanels(zt.item('П-004'))[4], 'Предшествующие залоги', 'таблица снята со вкладки кредитов');
+  hasNot(zt.triggers().map(t => t.type).join('|'), 'Предшествующий залог', 'триггер снят');
 });
 
-test('W7-13 (Р-49): предшествующий залог из сида поднимает триггер', () => {
+test('W7-13 (КП-4): обременение третьим лицом отклоняет приём и гейт регистрации', () => {
   const { zt } = load();
-  eq(zt.priorLiensOf(zt.item('П-004')).length, 1, 'П-004 обременён в пользу третьего лица');
-  has(zt.triggers().map(t => t.type).join('|'), 'Предшествующий залог третьего лица', 'поднят триггер');
+  const blocked = zt.stopListCheck({ thirdPartyLien: true });
+  ok(blocked.block, 'приём отклонён');
+  no(blocked.committeeCanOverride, 'комитет допустить не может — очерёдность не обосновывается');
+  has(blocked.msg, 'первую очередь', 'причина названа');
+  no(zt.stopListCheck({ thirdPartyLien: false }).block, 'необременённый предмет проходит');
+  // Записи, заведённые до волны КП, поля не несут — отсутствие сведений не равно нарушению.
+  no(zt.stopListCheck({}).block, 'undefined не блокирует (та же политика, что у landPurpose)');
+  no(zt.admissionChecks(zt.item('П-004')).some(c => /Предшествующ/.test(c.name)), 'проверка ⑪ убрана из допуска');
 });
 
 test('W7-14 (Р-50): контроль срока аренды больше не мёртвый — виден на предмете', () => {
@@ -1722,20 +1727,37 @@ test('W7-15 (Р-51): способ хранения читается с заре�
   no(zt.CONTRACTS.find(x => x.id === 'Д-004').custody, 'Д-004 намеренно без способа хранения — демонстрирует пробел');
 });
 
-test('W7-16 (Р-54): динамика оценки строится только по несторнированным переоценкам', () => {
+// W7-16 переписан волной КП: Р-54 (спарклайн по ОЦЕНОЧНОЙ) развёрнут в КП-12 — ряд строится
+// по ЗАЛОГОВОЙ, то есть по величине, которая реально входит в покрытие, а оценочная осталась
+// второй линией. Сторно по-прежнему исключается из ряда.
+test('W7-16 (КП-12): ряд стоимости строится по залоговой и исключает сторно', () => {
   const { win, zt } = load();
   const it = zt.ITEMS.find(x => x.revals.length > 1) || zt.item('П-001');
-  eq(zt.revalSeries(it).length, it.revals.filter(r => !r.voided).length, 'сторно исключено из ряда');
-  has(win.itemPanels(it)[1], 'Динамика оценочной стоимости', 'блок на вкладке стоимости');
+  const live = zt.valueEvents(it).filter(e => !e.voided).length;
+  eq(zt.valueSeries(it).length, live, 'сторно исключено из ряда');
+  ok(zt.valueSeries(it).every(p => p.pledge != null), 'каждая точка несёт залоговую');
+  has(win.itemPanels(it)[1], 'Динамика залоговой стоимости', 'блок на вкладке стоимости');
+  has(win.itemPanels(it)[1], 'События стоимости', 'переоценки и понижения в одной ленте');
 });
 
-test('W7-17 (Р-58): история раскладывается по категориям, чипы отрисованы', () => {
+// W7-17 переписан волной КП: Р-58 сохранён (чипы), но категория больше не угадывается
+// регуляркой по тексту (КП-13) — это поле записи, проставляемое в точке hist().
+test('W7-17 (КП-13): категория истории — поле записи, а не догадка по тексту', () => {
   const { win, zt } = load();
-  eq(zt.histCat('Переоценка: оценочная 100 → 120'), 'val', 'стоимость');
-  eq(zt.histCat('Наложен запрет на отчуждение'), 'ban', 'запрет');
-  eq(zt.histCat('Обследование А-1 от 01.01.2026: в норме'), 'srv', 'обследования');
-  eq(zt.histCat('Прикреплён файл «x.pdf»'), 'doc', 'документы');
+  eq(zt.histCat({ cat:'val' }), 'val', 'категория читается из поля');
+  eq(zt.histCat({ what:'Наложен запрет … Реестр залогов движимого имущества' }), 'oth',
+     'текст без поля больше не парсится — прежняя регулярка отправляла эту запись в «Стоимость»');
+  ok(zt.HIST_CATS.every(c => !c.re), 'регулярных выражений в HIST_CATS не осталось');
+  ok(zt.HIST_CATS.some(c => c.k === 'lc'), 'добавлена категория «Жизненный цикл»');
   has(win.itemPanels(zt.item('П-001'))[6], 'hchips', 'чипы категорий отрисованы');
+  // Записи, созданные кодом волны КП, размечены в точке записи: аннулирование → 'lc'.
+  win.eval("role='Куратор отдела залогового обеспечения'");
+  const it = zt.item('П-019');
+  no(zt.cancelBlockedReason(it), 'сид: П-019 свободен и аннулируем');
+  win.openCancelItem('П-019');
+  win.document.getElementById('caNote').value = 'заведён по ошибке при переносе';
+  win.saveCancelItem('П-019');
+  eq(it.history[it.history.length - 1].cat, 'lc', 'событие ЖЦ размечено категорией в точке записи');
 });
 
 test('W7-18 (Р-55): подстрока акта раскрывает заключение, подписи и фотофиксацию', () => {
@@ -1754,7 +1776,8 @@ const dom = (win, html) => { const box = win.document.createElement('div'); box.
 
 test('W7-19 (Р-52): чип допуска отрисован в шапке карточки предмета и различает вердикты', () => {
   const { win, zt } = load();
-  const chipOf = it => dom(win, win.itemPanels(it)[0])
+  // КП-2: шапка переехала из panels[0] в собственный слот — читаем её через itemHead.
+  const chipOf = it => dom(win, win.itemHead(it))
     .querySelector('.phead-owner .pill[title^="стоп-факторов:"]');
   const clean = zt.item('П-001'), dirty = zt.item('П-002');
   const vClean = win.admissionVerdict(clean), vDirty = win.admissionVerdict(dirty);
@@ -2248,26 +2271,150 @@ test('W8-26 (ПЗ-2): контролы стенда обозначены как 
   zt.setStandDate(zt.STAND_DATE_SEED);
 });
 
+/* ------------------------------------------------------------
+   ПЗ-20…ПЗ-23: перенос длинных значений на две строки, подвид предмета и пересчёт ширин.
+   ------------------------------------------------------------ */
+
+// ПЗ-20: подвид жил только в карточке — реестр на всю недвижимость печатал одну строку.
+test('W8-27 (ПЗ-20): подвид выводится подстрокой у видов со справочным классификатором', () => {
+  const { win, zt } = load();
+  eq(zt.kindSub(zt.item('П-001')), 'Здание', 'вид недвижимости прочитан из details.reType');
+  eq(zt.kindSub(zt.item('П-004')), 'Квартира', 'у квартиры — свой подвид, не «Недвижимое имущество»');
+  eq(zt.kindSub(zt.item('П-002')), '', 'у вида без классификатора подвида нет');
+  // ключ читается из карты, а не хардкодом: у всех четырёх — реальное поле справочника
+  Object.entries(zt.KIND_SUB).forEach(([kind, key]) =>
+    ok((zt.KIND_FIELDS[kind] || []).some(f => f.k === key),
+      `${kind}: ключ ${key} есть в KIND_FIELDS`));
+  const row = win.rowsItems().find(r => r.id === 'П-001');
+  has(row.cells[1], 'Здание', 'подвид попал в ячейку вида');
+  has(row.cells[1], 'ликвид', 'пилюля ликвидности осталась (ПЗ-10 не откачен)');
+  has(zt.kindTip(zt.item('П-001')), 'Недвижимое имущество · Здание', 'тултип называет и вид, и подвид');
+});
+
+// ПЗ-20/ПЗ-21: значение переносится, а не режется многоточием в один ряд.
+test('W8-28 (ПЗ-20/ПЗ-21): вид и залогодатель — переносимые ячейки, признаки в подстроке', () => {
+  const { win, zt } = load();
+  const row = win.rowsItems().find(r => r.id === 'П-004');
+  [1, 3].forEach(i => {
+    has(row.cells[i], 'class="wrapcell"', `колонка ${i}: переносимая ячейка`);
+    hasNot(row.cells[i], 'class="flexcell"', `колонка ${i}: однострочная раскладка снята`);
+  });
+  has(row.cells[3], '<span class="wc-sub">', 'пилюли залогодателя ушли в подстроку');
+  has(row.cells[3], 'третье лицо', 'сам признак на месте (ПЗ-12 не откачен)');
+  const own = win.rowsItems().find(r => r.id === 'П-002');
+  hasNot(own.cells[3], 'wc-sub', 'без признаков подстрока не рисуется — высота ряда не растёт');
+});
+
+// ПЗ-23: срок наложения жил внутри пилюли (192px) и в 170px колонке всегда обрезался.
+test('W8-29 (ПЗ-23): срок и реквизит запрета — подстрока, пилюля короткая', () => {
+  const { win, zt } = load();
+  const notYet = zt.ITEMS.find(i => zt.banStatus(i) === 'не наложен');
+  ok(notYet, 'предпосылка: есть предмет с неналоженным запретом');
+  has(zt.banSub(notYet), 'до ' + zt.banDeadline(notYet), 'срок наложения — в подстроке');
+  hasNot(zt.banPill(notYet, true), zt.banDeadline(notYet), 'короткая форма пилюли срок не несёт');
+  has(zt.banPill(notYet), zt.banDeadline(notYet), 'полная форма (шапка карточки, таблица договора) не изменилась');
+  const overdue = zt.ITEMS.find(i => zt.banStatus(i) === 'просрочен');
+  has(zt.banSub(overdue), 'просрочен на', 'просрочка называется числом дней, а не только капсом');
+  const imposed = zt.ITEMS.find(i => zt.banStatus(i) === 'наложен');
+  has(zt.banSub(imposed), imposed.ban.regNo, 'у наложенного запрета в подстроке — его реквизит');
+  const row = win.rowsItems().find(r => r.id === overdue.id);
+  has(row.cells[6], 'ЗАПРЕТ НЕ НАЛОЖЕН', 'ПЗ-14: ось запрета по-прежнему кричит в своей колонке');
+});
+
+// ПЗ-22 + ПЗ-24: ширины пересчитаны по измерению; «Вид залога» — под однострочный вид.
+test('W8-30 (ПЗ-22/ПЗ-24): ширины пересчитаны, заголовок переносится', () => {
+  const { win, zt } = load();
+  const W = zt.WIDTHS.items;
+  eq(W.length, zt.HEADS.items.length, 'ширина задана на каждую колонку');
+  eq(W.filter(Boolean).reduce((s, w) => s + parseInt(w, 10), 0), 1105, 'Σ фиксированных — 1105px');
+  // подписи, под которые раньше резервировалась ширина целиком, теперь переносятся
+  eq(W[0], '140px', '«Идентификатор» — по слову подписи, а не по подписи со стрелкой (было 130)');
+  eq(W[7], '145px', '«Обеспечивает» больше не режется многоточием (было 90)');
+  eq(W[5], '145px', '«Статус залога» подрезан до самой широкой пилюли оси (было 150)');
+  // ПЗ-24: 195 = «Недвижимое имущество» (160px) + 32 паддинга + запас. Ниже — вид уезжает
+  // на второй ряд, и подвид становится третьим, чего волна не допускает.
+  ok(parseInt(W[1], 10) >= 192, '«Вид залога» вмещает самый частый вид в ОДНУ строку (≥192px)');
+  eq(zt.WIDTHS.monitor[0], '125px', '«Критичность» больше не режется (было 110)');
+  win.eval("reg='items'"); win.renderList();
+  const th = win.document.querySelector('#listHead th');
+  ok(/\s<span class="sort/.test(th.innerHTML), 'перед стрелкой сортировки есть точка переноса');
+});
+
+// ПЗ-24: ровно два ряда. Пилюля ликвидности не имеет права заводить третий.
+test('W8-31 (ПЗ-24): пилюля ликвидности встаёт туда, где не создаёт третьего ряда', () => {
+  const { zt } = load();
+  const withSub = zt.ITEMS.find(i => zt.kindSub(i) && zt.isLiquid(i));
+  const cell = zt.kindCell(withSub);
+  const main = cell.slice(cell.indexOf('wc-main'), cell.indexOf('wc-sub'));
+  hasNot(main, 'tagpill', 'при подвиде пилюля НЕ в строке вида');
+  has(cell.slice(cell.indexOf('wc-sub')), 'ликвид', 'она в подстроке рядом с подвидом');
+  // вид без подвида: подстроки нет вовсе, пилюля инлайном в названии вида
+  const noSub = zt.ITEMS.find(i => !zt.kindSub(i) && zt.isLiquid(i));
+  ok(noSub, 'предпосылка: на стенде есть ликвидный вид без подвида');
+  const cell2 = zt.kindCell(noSub);
+  hasNot(cell2, 'wc-sub', 'подстрока не заводится ради одной пилюли — это был бы третий ряд');
+  has(cell2, 'ликвид', 'признак при этом не потерян');
+  const dry = zt.ITEMS.find(i => !zt.kindSub(i) && !zt.isLiquid(i));
+  hasNot(zt.kindCell(dry), 'wc-sub', 'у вида без подвида и без пилюли ячейка однострочная');
+});
+
 /* ============================================================
    ВОЛНА 9 (ДГ-1…ДГ-15, ДГ-Д1…ДГ-Д7): реестр залоговых договоров как справочник.
    ============================================================ */
 
 // ДГ-1…ДГ-5: состав колонок пересобран. Снятое проверяем явно — иначе «улучшение»
 // незаметно откатится обратно первой же правкой HEADS.
-test('W9-1 (ДГ-1…ДГ-5): состав колонок договоров — 7 содержательных + шеврон', () => {
+test('W9-1 (ДГ-1…ДГ-5, ДГ-16…ДГ-18): состав колонок договоров — 7 содержательных + шеврон', () => {
   const { zt } = load();
   const H = zt.HEADS.contracts;
   eq(H.length, 8, 'семь колонок данных плюс колонка шеврона');
   eq(H[7], '', 'последняя колонка — шеврон, без заголовка');
-  ['Договор','Дата','Стороны','Статус','Отметки','Предметов','Обеспеченность к порогу']
+  ['Договор','Дата','Стороны','Кредит','Обеспечение','Статус','Обеспеченность к порогу']
     .forEach((h,i) => eq(H[i], h, `колонка ${i}`));
   hasNot(H.join('|'), '№', 'колонка «№» снята — id ушёл подстрокой под номер договора');
   hasNot(H.join('|'), 'Кредитов', 'константная колонка «Кредитов» снята');
   hasNot(H.join('|'), 'Доп. согл.', 'константная колонка «Доп. согл.» снята');
   hasNot(H.join('|'), 'Заёмщик', '«Заёмщик» заменён на «Стороны» — залогодатель живёт на предмете');
+  // ДГ-18: «Отметки» больше не колонка (150px под «—» на большинстве строк) — они третья
+  // строка ячейки «Договор». ДГ-16: «Предметов» поглощена «Обеспечением» подстрокой.
+  hasNot(H.join('|'), 'Отметки', 'колонка «Отметки» снята — полоса переехала в ячейку «Договор»');
+  hasNot(H.join('|'), 'Предметов', 'колонка «Предметов» снята — число ушло в подстроку «Обеспечения»');
   eq(zt.SORT_KEYS.contracts.length, H.length, 'ключей сортировки столько же, сколько колонок');
   eq(zt.WIDTHS.contracts.length, H.length, 'ширин столько же, сколько колонок');
   eq(zt.SORT_KEYS.contracts[7], null, 'колонка шеврона несортируема');
+  // Ширина — обещание волны: две плотные колонки вошли в место двух почти пустых.
+  const fix = zt.WIDTHS.contracts.filter(Boolean).reduce((s,w) => s + parseInt(w,10), 0);
+  eq(fix, 1005, 'Σ фиксированных ширин — 1005px (ДГ-20: пересчёт под содержимое)');
+});
+
+// ДГ-20: ширины ставились под НАБОР колонок, а не под их содержимое. Замер в Chrome
+// (Range.getClientRects + 32px паддинга) показал обрезку в четырёх колонках из семи:
+// «Дата» резала «создан 01.07.2026» на 22 строках из 43, «Кредит» — «Дог. №100 от
+// 10.07.2026» на 42 из 43, «Статус» — пилюлю «На рассмотрении комиссии» (nowrap, обрезалась
+// без многоточия), «Обеспеченность» — метку «худший из 2».
+test('W9-1б (ДГ-20): ширины реестра договоров покрывают самое длинное значение колонки', () => {
+  const { zt } = load();
+  const W = zt.WIDTHS.contracts;
+  const px = i => parseInt(W[i], 10);
+  // Потребность = самое широкое значение колонки + 32px паддинга ячейки (замер 2026-07-27,
+  // Chrome 1440, 43 договора стенда с показанными аннулированными).
+  const NEED = { 1:133, 3:168, 4:130, 5:203, 6:173 };
+  Object.entries(NEED).forEach(([i, need]) =>
+    ok(px(i) >= need, `колонка ${i} («${zt.HEADS.contracts[i]}») ${px(i)}px < потребности ${need}px`));
+  ok(px(1) > 110, '«Дата» шире прежних 110 — подстрока «создан дд.мм.гггг» больше не режется');
+  ok(px(3) > 145, '«Кредит» шире прежних 145 — номер кредитного договора виден целиком');
+  ok(px(5) > 155, '«Статус» шире прежних 155 — «На рассмотрении комиссии» помещается пилюлей');
+  eq(W[2], '', '«Стороны» остаются гибкой колонкой');
+});
+
+// ДГ-20: минимум гибкой колонки — per-реестр. 280 ставилось под «Наименование» предмета;
+// «Стороны» укладываются в 255, и разница уходит соседям, которые резались.
+test('W9-1в (ДГ-20): минимум гибкой колонки задаётся реестром, а не одной константой', () => {
+  const { zt } = load();
+  eq(zt.flexMin('contracts'), 270, '«Стороны» — 270px (было 280)');
+  eq(zt.flexMin('items'), zt.GRID_FLEX_MIN, 'реестр без записи в FLEX_MIN работает как прежде');
+  const fixC = zt.WIDTHS.contracts.filter(Boolean).reduce((s,w) => s + parseInt(w,10), 0);
+  eq(zt.gridMinWidth('contracts'), fixC + 270, 'минимум таблицы считает СВОЙ запас на гибкую');
 });
 
 // ДГ-Д1: строковая дата сортируется посимвольно — «02.06.2026» встаёт перед «10.04.2024».
@@ -2299,7 +2446,7 @@ test('W9-3 (ДГ-12/ДГ-Д5): дефолт — дата убыв.; sortKey не
 // ДГ-3: алфавит по строке статуса ставил терминальное состояние первым.
 test('W9-4 (ДГ-3): статус сортируется по рангу ЖЦ и красится пятью разными пилюлями', () => {
   const { zt } = load();
-  eq(zt.SORT_KEYS.contracts[3], 'stRank', 'ключ колонки «Статус» — ранг, не строка');
+  eq(zt.SORT_KEYS.contracts[5], 'stRank', 'ключ колонки «Статус» — ранг, не строка');
   const order = ['Оформляется','На рассмотрении комиссии','Зарегистрирован','Закрыт','Аннулирован'];
   order.forEach((st,i) => eq(zt.CTR_RANK[st], i, `ранг «${st}»`));
   const pills = order.map(st => zt.CTR_PILL[st]);
@@ -2474,14 +2621,15 @@ test('W9-13 (ДГ-15): журнал договора пишет обе метр�
 });
 
 // ДГ-Д3: ноль предметов — не «мало», а невозможность зарегистрировать (Р-28).
-test('W9-14 (ДГ-Д3): ноль предметов помечен как гейт содержания', () => {
+// ДГ-16: колонка «Предметов» снята, гейт содержания переехал в ячейку «Обеспечение».
+test('W9-14 (ДГ-Д3/ДГ-16): ноль предметов у ЖИВОГО договора помечен как гейт содержания', () => {
   const { zt } = load();
-  const empty = zt.CONTRACTS.find(c => !c.allocs.length);
-  ok(empty, 'на стенде есть договор без предметов');
-  has(zt.contractItemsCell(empty), 'Р-28', 'ноль объяснён гейтом содержания');
-  has(zt.contractItemsCell(empty), 'tagpill err', 'и выглядит иначе, чем обычное число');
+  // На стенде живого пустого договора нет (см. W11-11) — конструируем форму записи.
+  const empty = { id:'Д-000', status:'Оформляется', credits:[], allocs:[] };
+  has(zt.contractSecuredCell(empty), 'Р-28', 'ноль объяснён гейтом содержания');
+  has(zt.contractSecuredCell(empty), 'tagpill err', 'и выглядит иначе, чем обычная сумма');
   const full = zt.contract('Д-001');
-  hasNot(zt.contractItemsCell(full), 'tagpill', 'ненулевое количество остаётся обычным числом');
+  hasNot(zt.contractSecuredCell(full), 'tagpill', 'непустой договор показывает обычную сумму');
 });
 
 // ДГ-7: диапазон дат — то, чего строка поиска дать не может.
@@ -2521,14 +2669,545 @@ test('W9-17 (ДГ-13): дефолтный размер страницы пока
   });
 });
 
+// ============================================================================
+// ВОЛНА КП (КП-1…КП-14, КП-Д1…КП-Д12) — карточка предмета как досье вещи.
+// Разбор и решения: mockups/collateral/ASUBK-status-razrabotki.md, секция «Волна КП».
+// ============================================================================
+
+const curator = win => win.eval("role='Куратор отдела залогового обеспечения'");
+const head = win => win.eval("role='Заведующий отделом залогового обеспечения'");
+// Форма приёма требует ВСЕ обязательные поля вида (KIND_FIELDS) — заполняем текстовые
+// оптом, селекты трогать не нужно: у них есть значение по умолчанию. Плюс отмечаем
+// подтверждения стоп-листа (Р-18) в #niExtra: снятая галка «в обороте» блокирует приём.
+const fillDetails = (win, prefix) => {
+  [...win.document.querySelectorAll('#niDetails [id^=nd_]')]
+    .forEach((el, i) => { if(el.tagName === 'INPUT' && !el.value) el.value = `${prefix}-${i}`; });
+  [...win.document.querySelectorAll('#niExtra input[type=checkbox]')].forEach(cb => { cb.checked = true; });
+};
+
+// КП-2: шапка вклеивалась в panels[0], поэтому чип допуска (Р-52) и дефект-строка (Р-53)
+// пропадали на шести вкладках из семи — кликнув по дефекту, оформитель терял список остальных.
+test('W10-1 (КП-2): шапка живёт в своём слоте и не дублируется в панелях', () => {
+  const { win, zt } = load();
+  const it = zt.item('П-004');
+  win.itemPanels(it).forEach((p, i) => hasNot(p, 'class="phead"', `панель ${i} не содержит шапку`));
+  win.ctrPanels(zt.CONTRACTS[0]).forEach((p, i) => hasNot(p, 'class="phead"', `панель договора ${i} без шапки`));
+  win.surPanels(zt.SURETIES[0]).forEach((p, i) => hasNot(p, 'class="phead"', `панель поручительства ${i} без шапки`));
+  has(win.itemHead(it), 'class="phead"', 'itemHead строит шапку');
+  has(win.ctrHead(zt.CONTRACTS[0]), 'class="phead"', 'ctrHead строит шапку');
+  has(win.surHead(zt.SURETIES[0]), 'class="phead"', 'surHead строит шапку');
+});
+
+test('W10-2 (КП-2): шапка отрисована в #detailHead на КАЖДОЙ вкладке предмета', () => {
+  const { win, zt } = load();
+  const slot = win.document.getElementById('detailHead');
+  ok(slot, 'слот #detailHead есть в разметке');
+  zt.TABS_ITEM.forEach((t, i) => {
+    win.openCard('item', 'П-004', i);
+    has(slot.innerHTML, 'defect-bar', `вкладка «${t}»: дефект-строка на месте`);
+    has(slot.innerHTML, 'phead-dims', `вкладка «${t}»: KPI на месте`);
+  });
+});
+
+// КП-3: шесть зеркальных строк «Основного». Один факт — одно место.
+test('W10-3 (КП-3): «Основное» — паспорт вещи, зеркал статусов нет', () => {
+  const { win, zt } = load();
+  const p0 = win.itemPanels(zt.item('П-004'))[0];
+  ['Статус (залоговая ось)', 'Следующее обследование', 'Следующая переоценка']
+    .forEach(l => hasNot(p0, l, `строка-зеркало «${l}» снята`));
+  hasNot(p0, 'Запрет на отчуждение', 'запрет читается в шапке и на своей вкладке');
+  eq((p0.match(/Оценщик/g) || []).length, 0, 'оценщик остался только на вкладке «Стоимость»');
+  ['Вид залога', 'Залогодатель', 'Правоустанавливающий документ', 'Способ хранения', 'Валюта оценки']
+    .forEach(l => has(p0, l, `реквизит вещи «${l}» на месте`));
+});
+
+test('W10-4 (КП-Д8): страхование не дублируется между паспортом и техблоком', () => {
+  const { win, zt } = load();
+  const tech = zt.ITEMS.find(x => zt.isTech(x) && zt.insuranceRequired(x));
+  ok(tech, 'сид: есть техника, подлежащая страхованию');
+  // Снята именно СТРОКА-РЕКВИЗИТ (.flabel), а не сигнал об истёкшем полисе ниже в техблоке.
+  const labels = [...dom(win, win.techPanel(tech)).querySelectorAll('.flabel')].map(e => e.textContent);
+  no(labels.includes('Страховой полис'), 'строка-реквизит полиса убрана из техблока');
+  has(win.itemPanels(tech)[0], 'Страхование (§3.4)', 'страхование осталось одной строкой паспорта');
+});
+
+// КП-10: у 42 предметов из 55 фактография неполна, и пустые графы вида просто исчезали.
+test('W10-5 (КП-10): незаполненные поля вида видны и посчитаны', () => {
+  const { win, zt } = load();
+  const it = zt.ITEMS.find(x => { const c = zt.detailFillCount(x); return c.total > c.filled && c.filled > 0; });
+  ok(it, 'сид: есть предмет с частично заполненными деталями');
+  const c = zt.detailFillCount(it);
+  const p0 = win.itemPanels(it)[0];
+  has(p0, `заполнено ${c.filled} из ${c.total}`, 'счётчик в заголовке блока');
+  has(p0, 'не заполнено', 'пустая графа показана, а не спрятана');
+  const rows = dom(win, zt.detailRows(it)).querySelectorAll('.field:not(.col-span)');
+  eq(rows.length, c.total, 'печатаются ВСЕ поля вида, а не только заполненные');
+  // Неполнота — фактография, не гейт: в дефекты и допуск не поднимается.
+  no(zt.itemDefects(it).some(d => /заполн/i.test(d.text)), 'в дефект-строку не попадает');
+});
+
+// КП-5: баннер обещал «аннулируйте», а действия не было (КП-Д9).
+test('W10-6 (КП-5): аннулирование доступно только для ошибки ввода', () => {
+  const { win, zt } = load();
+  curator(win);
+  const free = zt.ITEMS.find(x => !zt.cancelBlockedReason(x) && !x.cancelled);
+  ok(free, 'сид: есть аннулируемый предмет');
+  const pledged = zt.ITEMS.find(x => zt.allocatedLegal(x.id) > 0);
+  has(zt.cancelBlockedReason(pledged), 'доли', 'предмет с долями аннулировать нельзя');
+  const banned = zt.ITEMS.find(x => x.ban && !zt.allocatedLegal(x.id));
+  if(banned) has(zt.cancelBlockedReason(banned), 'запрет', 'предмет с живым запретом аннулировать нельзя');
+  win.openCancelItem(free.id);
+  win.document.getElementById('caNote').value = 'дубль записи П-000';
+  win.saveCancelItem(free.id);
+  ok(free.cancelled, 'пометка проставлена');
+  eq(zt.lienStatus(free), 'аннулирован', 'терминальное состояние оси');
+  ok(zt.ITEMS.includes(free), 'запись НЕ удалена физически');
+  has(win.itemHead(free), 'Предмет аннулирован', 'баннер в шапке');
+});
+
+// КП-6: lost ставился только актом обследования — сгоревший склад пришлось бы осматривать.
+test('W10-7 (КП-6): утрата фиксируется документом и обнуляет залоговую', () => {
+  const { win, zt } = load();
+  curator(win);
+  const it = zt.ITEMS.find(x => !x.lost && !x.cancelled && zt.pledgeValue(x) > 0);
+  const surveysBefore = it.surveys.length;
+  win.openMarkLost(it.id);
+  win.document.getElementById('mlDoc').value = 'СТР-2026/77';
+  win.document.getElementById('mlNote').value = 'склад уничтожен пожаром';
+  win.saveMarkLost(it.id);
+  ok(it.lost, 'предмет отмечен утраченным');
+  eq(zt.pledgeValue(it), 0, 'залоговая обнулена');
+  eq(it.surveys.length, surveysBefore, 'акт обследования НЕ подменяется — журнал осмотров не тронут');
+  eq(it.lostBy.doc, 'СТР-2026/77', 'реквизит документа сохранён');
+  has(win.itemHead(it), 'СТР-2026/77', 'баннер называет документ-основание');
+});
+
+// КП-7: pledger не правился нигде, хотя CONTEXT.md зовёт его реквизитом предмета.
+test('W10-8 (КП-7): смена залогодателя сохраняет доли и запрет', () => {
+  const { win, zt } = load();
+  curator(win);
+  const it = zt.item('П-001');
+  const wasAlloc = zt.allocatedLegal(it.id), wasBan = it.ban, wasPledger = it.pledger;
+  const other = zt.CLIENTS.find(c => c.inn !== wasPledger);
+  win.openChangePledger('П-001');
+  win.document.getElementById('cpNew').value = `${other.name} · ИНН ${other.inn}`;
+  win.document.getElementById('cpDoc').value = 'СВ-2026/431';
+  win.document.getElementById('cpNote').value = 'наследование по свидетельству';
+  win.saveChangePledger('П-001');
+  eq(it.pledger, other.inn, 'собственник сменился');
+  eq(zt.allocatedLegal(it.id), wasAlloc, 'доли сохранены — залог следует за вещью');
+  eq(it.ban, wasBan, 'запрет на отчуждение сохранён');
+  eq(it.legalDoc, 'СВ-2026/431', 'правоустанавливающий документ обновлён');
+  eq(it.history[it.history.length - 1].cat, 'lc', 'событие ЖЦ размечено');
+});
+
+// КП-8/КП-Д1: файл был неудаляем и неисправим; сторно переоценки оставляло отчёт в досье.
+test('W10-9 (КП-8): файл открепляется с основанием и уходит из комплекта', () => {
+  const { win, zt } = load();
+  curator(win);
+  const it = zt.item('П-001');
+  const doc = zt.fileOfType(it, 'Отчёт об оценке');
+  ok(doc, 'сид: отчёт приложен');
+  const before = zt.itemDossier(it).met;
+  win.openDetachFile('item', it.id, it.files.indexOf(doc));
+  win.document.getElementById('dfReason').value = 'скан другого объекта';
+  win.saveDetachFile('item', it.id, it.files.indexOf(doc));
+  ok(doc.detached, 'пометка проставлена');
+  ok(it.files.includes(doc), 'файл НЕ удалён физически');
+  eq(zt.itemDossier(it).met, before - 1, 'комплект уменьшился');
+  eq(zt.fileOfType(it, 'Отчёт об оценке'), null, 'откреплённый не закрывает требование');
+});
+
+test('W10-10 (КП-8): реквизиты файла исправляются, срок считается от новой даты', () => {
+  const { win, zt } = load();
+  curator(win);
+  const it = zt.item('П-001'), doc = zt.fileOfType(it, 'Отчёт об оценке'), i = it.files.indexOf(doc);
+  win.openEditFile('item', it.id, i);
+  win.document.getElementById('efNo').value = 'ОЦ-ИСПР-1';
+  win.document.getElementById('efReason').value = 'опечатка в номере';
+  win.saveEditFile('item', it.id, i);
+  eq(zt.fileOfType(it, 'Отчёт об оценке').docNo, 'ОЦ-ИСПР-1', 'номер исправлен');
+  const last = it.history[it.history.length - 1];
+  has(last.what, '→ «ОЦ-ИСПР-1»', 'след «было → стало» в истории');
+  eq(last.cat, 'doc', 'категория проставлена');
+});
+
+test('W10-11 (КП-Д1): сторно переоценки откатывает и авто-приложенный отчёт', () => {
+  const { win, zt } = load();
+  curator(win);
+  const it = zt.item('П-009'), wasReport = it.apprReport;
+  win.openReval(it.id);
+  win.document.getElementById('rvDate').value = '2026-07-01';
+  win.document.getElementById('rvRep').value = 'ОЦ-СТОРНО-1';
+  win.document.getElementById('rvAppraiser').value = 'ИП Тестов';
+  win.document.getElementById('rvVal').value = String(it.appraised);
+  win.saveReval(it.id);
+  eq(zt.fileOfType(it, 'Отчёт об оценке').docNo, 'ОЦ-СТОРНО-1', 'отчёт лёг в досье');
+  head(win);
+  const idx = it.revals.length - 1;
+  win.openVoidRecord(it.id, 'reval', idx);
+  win.document.getElementById('vdReason').value = 'ошибочная переоценка';
+  win.saveVoidRecord(it.id, 'reval', idx);
+  eq(it.apprReport, wasReport, 'отчёт карточки откатился');
+  eq(zt.fileOfType(it, 'Отчёт об оценке').docNo, wasReport,
+     'досье откатилось вместе с ним — комплект больше не закрыт документом отменённой переоценки');
+});
+
+// КП-9/КП-Д3: приоритет печатался как индекс строки и врал на составных договорах.
+test('W10-12 (КП-9): приоритет — свойство договора, черновики вне ранжирования', () => {
+  const { win, zt } = load();
+  // П-055: два кредита внутри ОДНОГО договора Д-041 — раньше получали приоритеты 1 и 2.
+  const p = win.itemPanels(zt.item('П-055'))[4];
+  has(p, 'Приоритет договора', 'колонка переименована');
+  has(p, 'тот же договор', 'вторая строка того же договора не получает своего ранга');
+  eq((p.match(/из \d+ \(регистрация/g) || []).length, 1, 'ранг напечатан один раз на договор');
+  // П-001 обременён двумя договорами разных дат — ранг идёт по дате регистрации.
+  const p1 = win.itemPanels(zt.item('П-001'))[4];
+  const ranks = [...p1.matchAll(/(\d+) из (\d+) \(регистрация ([\d.]+)\)/g)].map(m => ({ r:+m[1], d:m[3] }));
+  eq(ranks.length, 2, 'два действующих договора');
+  ok(zt.d2n(ranks[0].d) < zt.d2n(ranks[1].d), 'ранг 1 у более раннего договора');
+});
+
+// КП-11: понижение было одиночным слотом — аудита решений не существовало.
+test('W10-13 (КП-11): понижение — журнал со сторно, действующее = последнее живое', () => {
+  const { win, zt } = load();
+  head(win);
+  const it = zt.item('П-001'), calc = zt.calcPledge(it);
+  win.openOverride(it.id);
+  win.document.getElementById('ovVal').value = String(calc - 1000);
+  win.document.getElementById('ovDoc').value = 'ПР-2026/11';
+  win.document.getElementById('ovObosn').value = 'снижение по итогам осмотра';
+  win.saveOverride(it.id);
+  win.openOverride(it.id);
+  win.document.getElementById('ovVal').value = String(calc - 5000);
+  win.document.getElementById('ovDoc').value = 'ПР-2026/12';
+  win.document.getElementById('ovObosn').value = 'повторное снижение';
+  win.saveOverride(it.id);
+  eq(it.overrides.length, 2, 'прежнее решение НЕ перезаписано');
+  eq(zt.activeOverride(it).doc, 'ПР-2026/12', 'действует последнее');
+  eq(zt.pledgeValue(it), calc - 5000, 'залоговая по последнему решению');
+  win.openVoidRecord(it.id, 'override', 1);
+  win.document.getElementById('vdReason').value = 'приказ отозван';
+  win.saveVoidRecord(it.id, 'override', 1);
+  eq(zt.activeOverride(it).doc, 'ПР-2026/11', 'сторно вернуло предыдущее решение');
+  eq(zt.pledgeValue(it), calc - 1000, 'залоговая откатилась к нему');
+});
+
+test('W10-14 (КП-Д5): «комиссия» и «комитет» убраны из понижения залоговой', () => {
+  const { win, zt } = load();
+  head(win);
+  const it = zt.ITEMS.find(x => zt.activeOverride(x));
+  ok(it, 'сид: есть предмет с действующим понижением');
+  const p1 = win.itemPanels(it)[1];
+  hasNot(p1, 'решение комиссии', 'пилюля переименована');
+  hasNot(p1, 'комитета по администрированию', 'панель переименована');
+  has(p1, 'решение заведующего', 'роль названа верно');
+  has(p1, 'Понизить залоговую стоимость (решение заведующего)', 'кнопка переименована');
+  has(zt.pledgeTip(it), 'заведующего отделом', 'подсказка реестра переименована');
+  const csv = zt.CSV_PROFILES.items.find(([l]) => l === 'Основание залоговой');
+  eq(csv[1](it), 'решение заведующего отделом', 'выгрузка переименована');
+});
+
+// КП-12/КП-Д4: коэффициент брался из справочника — правка KINDS переписывала историю.
+test('W10-15 (КП-Д4): коэффициент фиксируется в записи и не меняется задним числом', () => {
+  const { win, zt } = load();
+  const it = zt.ITEMS.find(x => x.revals.length > 1) || zt.item('П-001');
+  ok(it.revals.every(r => r.coef != null), 'у каждой записи свой коэффициент');
+  const before = zt.valueEvents(it).filter(e => e.kind === 'reval').map(e => e.pledge);
+  win.eval(`KINDS['${it.kind}'].k = 0.11`);           // правка справочника
+  const after = zt.valueEvents(it).filter(e => e.kind === 'reval').map(e => e.pledge);
+  eq(JSON.stringify(after), JSON.stringify(before), 'исторические строки не переписались');
+});
+
+test('W10-16 (КП-12): переоценки и понижения — одна хронология', () => {
+  const { win, zt } = load();
+  head(win);
+  const it = zt.item('П-001');
+  win.openOverride(it.id);
+  win.document.getElementById('ovVal').value = String(zt.calcPledge(it) - 100);
+  win.document.getElementById('ovDoc').value = 'ПР-2026/20';
+  win.document.getElementById('ovObosn').value = 'тест';
+  win.saveOverride(it.id);
+  const ev = zt.valueEvents(it);
+  eq(ev.length, it.revals.length + it.overrides.length, 'обе серии в одной ленте');
+  ok(ev.some(e => e.kind === 'override') && ev.some(e => e.kind === 'reval'), 'оба вида событий');
+  const dates = ev.map(e => zt.d2n(e.date));
+  ok(dates.every((d, i) => i === 0 || dates[i-1] >= d), 'лента отсортирована — новые сверху');
+});
+
+// КП-Д2: фильтр истории протекал между карточками, и ни один чип не подсвечивался.
+test('W10-17 (КП-Д2): фильтр истории сбрасывается при переходе на другую карточку', () => {
+  const { win, zt } = load();
+  win.openCard('item', 'П-004', 6);
+  win.itemHistFilter('ban');
+  eq(win.eval('histFilter'), 'ban', 'фильтр выставлен');
+  win.openCard('item', 'П-019', 6);
+  eq(win.eval('histFilter'), 'all', 'на другой карточке фильтр сброшен');
+  const box = dom(win, win.itemPanels(zt.item('П-019'))[6]);
+  ok(box.querySelector('.hchip.on'), 'активный чип подсвечен');
+  eq(box.querySelectorAll('.hrow').length, zt.item('П-019').history.length, 'вся история видна');
+});
+
+test('W10-18 (КП-Д2): пустая категория объясняет себя и не гасит все чипы', () => {
+  const { win, zt } = load();
+  win.openCard('item', 'П-019', 6);
+  win.eval("histFilter='ban'");
+  const box = dom(win, win.itemPanels(zt.item('П-019'))[6]);
+  ok(box.querySelector('.hchip.on'), 'чип активного фильтра построен даже при нуле записей');
+  has(box.innerHTML, 'снимите фильтр', 'пустое состояние объясняет причину');
+});
+
+test('W10-19 (КП-Д11): раскрытая подстрока акта переживает перерисовку', () => {
+  const { win, zt } = load();
+  const it = zt.ITEMS.find(x => zt.livesSurvey(x).length > 0);
+  const sid = `srv-${it.id}-${it.surveys.indexOf(zt.livesSurvey(it)[0])}`;
+  win.openCard('item', it.id, 3);
+  win.toggleSubRow(sid);
+  ok(zt.openSubRows.has(sid), 'раскрытие запомнено вне DOM');
+  hasNot(win.itemPanels(it)[3].split(`id="${sid}"`)[1].slice(0, 40), 'display:none',
+    'после перерисовки подстрока остаётся раскрытой');
+});
+
+// КП-14: валюта выводилась из кредитов, при нескольких бралась первая из Set (КП-Д6).
+test('W10-20 (КП-14): валюта — реквизит вещи, расхождение с кредитом видно', () => {
+  const { win, zt } = load();
+  const it = zt.item('П-001');
+  eq(zt.itemCcy(it), it.ccy, 'валюта читается с предмета, а не с кредитов');
+  eq(zt.ccyMismatches(it).length, 0, 'сид: расхождений нет');
+  it.ccy = 'USD';                                     // предмет оценён в долларах
+  const mm = zt.ccyMismatches(it);
+  ok(mm.length > 0, 'расхождение с валютой кредита обнаружено');
+  ok(zt.admissionChecks(it).some(c => c.name === 'Валюта оценки' && c.sev === 'stop'),
+     'расхождение — стоп-фактор допуска, а не молчание');
+  has(zt.triggers().map(t => t.type).join('|'), 'Валюта оценки', 'поднят триггер');
+  has(win.itemPanels(it)[0], 'кредиты в', 'подпись на паспорте');
+});
+
+test('W10-21 (КП-14): валюта вводится при приёме и попадает в предмет', () => {
+  const { win, zt } = load();
+  curator(win);
+  win.eval("reg='items'");
+  win.openNewItem();
+  win.document.getElementById('niName').value = 'Тестовое здание КП';
+  win.document.getElementById('niLegalDoc').value = 'ГА-КП-1';
+  win.document.getElementById('niVal').value = '1000000';
+  win.document.getElementById('niCcy').value = 'USD';
+  win.document.getElementById('niRep').value = 'ОЦ-КП-1';
+  fillDetails(win, 'КП-1');
+  win.saveNewItem();
+  const it = zt.ITEMS[zt.ITEMS.length - 1];
+  eq(it.ccy, 'USD', 'валюта сохранена на предмете');
+  eq(zt.itemCcyLabel(it), 'USD', 'подпись KPI берёт её');
+  eq(it.revals[0].coef, zt.coefOf(it.kind), 'коэффициент зафиксирован в первичной оценке');
+});
+
+test('W10-22 (КП-4): приём отклоняется при обременении в пользу третьего лица', () => {
+  const { win, zt } = load();
+  curator(win);
+  const before = zt.ITEMS.length;
+  win.eval("reg='items'");
+  win.openNewItem();
+  win.document.getElementById('niName').value = 'Квартира под чужой ипотекой';
+  win.document.getElementById('niLegalDoc').value = 'ГА-КП-2';
+  win.document.getElementById('niVal').value = '500000';
+  win.document.getElementById('niRep').value = 'ОЦ-КП-2';
+  win.document.getElementById('niThirdParty').value = 'да';
+  fillDetails(win, 'КП-9');
+  win.saveNewItem();
+  eq(zt.ITEMS.length, before, 'предмет не создан');
+});
+
+// КП-Д10: ссылка предпосылок §5.2 вела на вкладку, где их нет ни одной.
+test('W10-23 (КП-Д10): ссылка из пакета §5.2 ведёт туда, где есть смысл', () => {
+  const { win, zt } = load();
+  const c = zt.CONTRACTS.find(x => x.allocs.length && zt.prereqBlock(x).includes('rowlink'));
+  ok(c, 'сид: есть договор с обязательными предпосылками');
+  const block = zt.prereqBlock(c);
+  hasNot(block, "openCard('item','П-001',5)", 'ссылка больше не ведёт на «Документы»');
+  has(block, ",0)", 'ведёт на «Основное» — там виден тип залогодателя');
+  // Ни одна вкладка предмета предпосылок не показывает — это и была причина битой ссылки.
+  const it = zt.item(c.allocs[0].item);
+  no(win.itemPanels(it).some(p => /предпосыл|§5\.2/i.test(p)), 'предпосылок на карточке предмета нет');
+});
+
+/* ============================================================
+   ВОЛНА 11 (ДГ-16…ДГ-19): реестр залоговых договоров — деньги, кредит, состав отбора.
+   Реестр отвечал «какие есть договоры», но не отвечал ни «на какую сумму», ни «под какой
+   кредит», отдавая 250px двум колонкам, которые почти всегда молчали.
+   ============================================================ */
+
+// ДГ-16: Σ отнесённых долей — то, ради чего в реестр ЗАЛОГОВЫХ договоров и заходят.
+test('W11-1 (ДГ-16): «Обеспечение» — Σ долей по договору, разбитая по валютам', () => {
+  const { zt } = load();
+  const d2 = zt.contract('Д-002');           // П-001 на 40 000 + П-003 на 68 000
+  const sums = zt.contractSecuredSums(d2);
+  const total = Object.values(sums).reduce((s,v) => s+v, 0);
+  near(total, 108000, 'Σ = сумма долей, а не залоговая стоимость предметов целиком');
+  eq(Object.keys(sums).length, 1, 'валюта у предметов Д-002 одна');
+  // Σ долей ≤ залоговой стоимости предметов: доля — часть стоимости, а не вся она.
+  const pledgeTotal = [...new Set(d2.allocs.map(a => a.item))]
+    .reduce((s,id) => s + zt.pledgeValue(zt.item(id)), 0);
+  ok(total <= pledgeTotal + 0.005, 'обеспечение не превышает залоговую стоимость предметов');
+  const cell = zt.contractSecuredCell(d2);
+  has(cell, 'предмета', 'число предметов — подстрокой, отдельной колонки под него больше нет');
+  has(cell, 'П-001', 'тултип перечисляет предметы с их долями');
+});
+
+// ДГ-16: подвал у договоров считает по ОТФИЛЬТРОВАННОМУ набору, как у предметов (ПЗ-19).
+test('W11-2 (ДГ-16): подвал реестра договоров суммирует обеспечение по отбору', () => {
+  const { win, zt } = load();
+  win.eval("reg='contracts'; quickSearch.contracts=''; activeFilter.contracts={}; showCancelledContracts=false");
+  win.renderList();
+  const foot = win.document.getElementById('listFoot').innerHTML;
+  has(foot, 'Σ обеспечения по отбору', 'подпись называет именно обеспечение, а не залоговую стоимость');
+  has(foot, 'договор', 'база счёта — договоры');
+  // Ровно то же место у предметов говорит про залоговую стоимость: суммы разные по смыслу.
+  win.eval("reg='items'"); win.renderList();
+  has(win.document.getElementById('listFoot').innerHTML, 'Σ залоговой стоимости по отбору',
+    'у предметов подпись прежняя — две суммы не путаются');
+});
+
+// ДГ-17: «К-77» находился поиском (ДГ-9), но найденная строка про К-77 молчала.
+test('W11-3 (ДГ-17): колонка «Кредит» называет кредит, а не считает его', () => {
+  const { zt } = load();
+  eq(zt.SORT_KEYS.contracts[3], 'creditIds', 'сортировка — по тексту идентификаторов');
+  const single = zt.contract('Д-002');
+  const cell = zt.contractCreditCell(single);
+  has(cell, 'К-77', 'идентификатор кредита виден в самой ячейке');
+  has(cell, 'Дог. №77', 'человеческий номер — подстрокой');
+  const multi = zt.CONTRACTS.find(c => c.credits.length > 1);
+  if(multi){
+    const mc = zt.contractCreditCell(multi);
+    has(mc, `+${multi.credits.length-1}`, 'при нескольких кредитах главная строка сжимается');
+    has(mc, 'кредит', 'а подстрока называет их число');
+  }
+  // Договор без привязки — состояние черновика, а не ошибка отрисовки.
+  has(zt.contractCreditCell({ credits:[], allocs:[] }), 'не привязан', 'кредита может не быть');
+});
+
+// ДГ-18: «Отметки» стоили 150px, чтобы на большинстве строк сообщить «ничего особенного».
+test('W11-4 (ДГ-18): отметки — полоса в ячейке «Договор», пустых полос не бывает', () => {
+  const { zt } = load();
+  const plain = zt.CONTRACTS.find(c => !zt.contractMarks(c).length);
+  ok(plain, 'сид: есть договор без отметок');
+  eq(zt.marksStrip(plain), '', 'без отметок строки нет вовсе — высота строки не растёт');
+  hasNot(zt.contractNoCell(plain), 'c2-marks', 'и в ячейке «Договор» её тоже нет');
+  const marked = zt.CONTRACTS.find(c => c.undercovered);
+  ok(marked, 'сид: есть договор с допуском ниже порога');
+  has(zt.contractNoCell(marked), 'c2-marks', 'отметка видна прямо в ячейке «Договор»');
+  has(zt.contractNoCell(marked), 'допуск', 'и названа');
+  // ДГ-17: «несколько кредитов» полосой не рисуется — это работа колонки «Кредит».
+  const multi = zt.CONTRACTS.find(c => c.credits.length > 1);
+  if(multi) hasNot(zt.marksStrip(multi), 'кредитов', 'дубля с колонкой «Кредит» нет');
+});
+
+// ДГ-18: снятие колонки не должно ломать фильтр «Отметка =» — он бьёт по markCodes строки.
+test('W11-5 (ДГ-18): фильтр по отметке пережил снятие колонки', () => {
+  const { win, zt } = load();
+  win.eval("reg='contracts'; quickSearch.contracts=''; showCancelledContracts=false");
+  win.eval("activeFilter.contracts={ markCodes:'допуск <порога' }");
+  const rows = win.filterRows(win.rowsContracts());
+  ok(rows.length, 'отбор по отметке возвращает строки');
+  ok(rows.every(r => zt.contract(r.id).undercovered), 'и ровно те, у которых допуск есть');
+  // «несколько кредитов» отбирается, хотя полосой не рисуется — видно в колонке «Кредит».
+  win.eval("activeFilter.contracts={ markCodes:'несколько кредитов' }");
+  const multi = win.filterRows(win.rowsContracts());
+  ok(multi.every(r => zt.contract(r.id).credits.length > 1), 'отбор по неотрисовываемому коду работает');
+});
+
+// ДГ-16: сумма исключена из строки поиска — пользователь видит `348 000`, вводит `348 000`,
+// а в индексе лежит сырое `348000` (правило ПЗ-5).
+test('W11-6 (ДГ-16): сумма обеспечения не попадает в поисковый индекс', () => {
+  const { zt } = load();
+  ok(zt.SEARCH_SKIP.contracts.includes('secured'), 'ключ суммы исключён из индекса');
+  ok(zt.SEARCH_SKIP.contracts.includes('mc'), 'индекс обеспеченности — тоже (было раньше)');
+});
+
+// ДГ-19: плитки состава — навигация, а не отчёт: клик ставит условие фильтра.
+test('W11-7 (ДГ-19): полоса состава считает по отбору и отбирает кликом', () => {
+  const { win, zt } = load();
+  win.eval("reg='contracts'; quickSearch.contracts=''; activeFilter.contracts={}; showCancelledContracts=false");
+  win.renderList();
+  const bar = win.document.getElementById('regKpi');
+  ok(bar.className.includes('on'), 'полоса показана в реестре договоров');
+  eq(bar.querySelectorAll('.rk').length, zt.REG_KPI.length, 'плиток столько же, сколько условий');
+  const reg0 = zt.REG_KPI.findIndex(t => t.val === 'Зарегистрирован');
+  const expected = win.rowsContracts().filter(r => r.sort.status === 'Зарегистрирован').length;
+  has(bar.querySelectorAll('.rk')[reg0].textContent, String(expected), 'число совпадает с реестром');
+  zt.kpiPick(reg0);
+  eq(win.eval("activeFilter.contracts.status"), 'Зарегистрирован', 'клик поставил условие');
+  ok(win.filterRows(win.rowsContracts()).every(r => r.sort.status === 'Зарегистрирован'), 'и оно применилось');
+  zt.kpiPick(reg0);
+  eq(win.eval("activeFilter.contracts.status"), undefined, 'повторный клик снял условие');
+});
+
+// ДГ-19 / ДГ-Д4: числа плиток НЕ считаются по уже отобранному ими же набору — иначе после
+// первого клика остальные показали бы нули и вернуться к ним было бы нечем.
+test('W11-8 (ДГ-19/ДГ-Д4): плитки не обнуляют друг друга после клика', () => {
+  const { win, zt } = load();
+  win.eval("reg='contracts'; quickSearch.contracts=''; activeFilter.contracts={}; showCancelledContracts=false");
+  win.renderList();
+  const before = [...win.document.getElementById('regKpi').querySelectorAll('.rk-v')].map(e => e.textContent);
+  const i = zt.REG_KPI.findIndex(t => t.val === 'Зарегистрирован');
+  zt.kpiPick(i);
+  const after = [...win.document.getElementById('regKpi').querySelectorAll('.rk-v')].map(e => e.textContent);
+  eq(after.join('|'), before.join('|'), 'числа не изменились — база счёта игнорирует условия самих плиток');
+  ok(win.document.getElementById('regKpi').querySelectorAll('.rk.sel').length === 1, 'активная плитка помечена');
+  // Условия, которыми плитки НЕ управляют, на базу счёта влияют.
+  zt.kpiPick(i);
+  win.eval("activeFilter.contracts={ dateFrom:'2026-01-01' }");
+  win.renderList();
+  const narrowed = [...win.document.getElementById('regKpi').querySelectorAll('.rk-v')].map(e => Number(e.textContent));
+  const wide = before.map(Number);
+  ok(narrowed.every((n,k) => n <= wide[k]), 'фильтр по дате сузил все плитки');
+});
+
+// ДГ-19: полоса — свойство реестра договоров, в остальных её быть не должно.
+test('W11-9 (ДГ-19): полоса состава не протекает в другие реестры', () => {
+  const { win } = load();
+  win.eval("reg='items'"); win.renderList();
+  const bar = win.document.getElementById('regKpi');
+  no(bar.className.includes('on'), 'в реестре предметов полосы нет');
+  eq(bar.innerHTML, '', 'и разметка вычищена, а не спрятана');
+});
+
+// ДГ-Д8: гейт содержания срабатывал на стенде ТОЛЬКО ложно — все три пустых договора
+// терминальные, у них пустота это итог. Соседняя колонка обеспеченности границу знала.
+test('W11-11 (ДГ-Д8): у закрытого договора пустое обеспечение — прочерк, а не нарушение', () => {
+  const { zt } = load();
+  const terminal = zt.CONTRACTS.filter(c => !c.allocs.length);
+  ok(terminal.length, 'сид: есть договоры без предметов');
+  ok(terminal.every(c => c.status === 'Закрыт' || c.status === zt.CANCELLED),
+    'и все они терминальные — живого пустого договора на стенде нет');
+  terminal.forEach(c => {
+    const cell = zt.contractSecuredCell(c);
+    hasNot(cell, 'Р-28', `${c.id}: закрытый договор не обвиняется в невозможности регистрации`);
+    hasNot(cell, 'tagpill err', `${c.id}: и не красится красным`);
+    has(cell, 'высвобождено', `${c.id}: прочерк объяснён`);
+  });
+  // Та же граница, что у обеспеченности — две колонки про одно состояние не расходятся.
+  const closed = zt.CONTRACTS.find(c => c.status === 'Закрыт');
+  has(zt.coverageCell(closed), 'не оценивается', 'обеспеченность закрытого тоже не оценивается');
+});
+
+// ДГ-16: выгрузка получила сумму отдельным полем — проценты обеспеченности между договорами
+// не складываются, а сумма складывается.
+test('W11-10 (ДГ-16): CSV договоров содержит сумму обеспечения и её валюты', () => {
+  const { zt } = load();
+  const cols = zt.CSV_PROFILES.contracts.map(c => c[0]);
+  ok(cols.includes('Обеспечение по договору'), 'поле суммы заведено');
+  ok(cols.includes('Валюты обеспечения'), 'валюты — отдельным полем, а не приклеены к числу');
+  const row = zt.CSV_PROFILES.contracts.find(c => c[0] === 'Обеспечение по договору')[1];
+  eq(row(zt.contract('Д-002')), '108000,00', 'сумма — сырым числом с десятичной запятой (Excel сложит)');
+});
 // ============================================================
-// ВОЛНА 10 (ADR-0009): СУММА ПОД РИСКОМ — БАЗА ОБЕСПЕЧЕННОСТИ;
+// ВОЛНА ЗР (ADR-0011): СУММА ПОД РИСКОМ — БАЗА ОБЕСПЕЧЕННОСТИ;
 // kmDecision — owned-поле КРЕДИТА.
 // ============================================================
 
 // Знаменатель — сумма под риском, а не сумма договора. К-56 погашен на четверть
 // (atRisk 150 000 при сумме 200 000) → тот же залог даёт индекс 133,3 % вместо 100,0 %.
-test('W10-1 (ADR-0009): база индекса — сумма под риском, не сумма договора', () => {
+test('W10-1 (ADR-0011): база индекса — сумма под риском, не сумма договора', () => {
   const { zt } = load();
   const cs = zt.CONTRACTS.filter(c => c.status === 'Зарегистрирован');
   const r = zt.coverage(cs, 'К-56');
@@ -2540,7 +3219,7 @@ test('W10-1 (ADR-0009): база индекса — сумма под риско
 
 // Отсутствие зеркала — не ноль: до первой выдачи сумма под риском равна сумме договора,
 // иначе гейт регистрации (ради которого механизм и существует) делил бы на ноль.
-test('W10-2 (ADR-0009): без снимка база = сумма договора, а не ноль', () => {
+test('W10-2 (ADR-0011): без снимка база = сумма договора, а не ноль', () => {
   const { zt } = load();
   const cr = zt.credit('К-88');
   eq(cr.atRisk, undefined, 'сценарий: у К-88 зеркала нет');
@@ -2549,8 +3228,8 @@ test('W10-2 (ADR-0009): без снимка база = сумма договор
 });
 
 // Погашенный кредит: обеспечивать нечего → индекс НЕПРИМЕНИМ, гейт пройден.
-// До волны 10 закрытый Д-007 показывал «0,0 % · не обеспечен».
-test('W10-3 (ADR-0009): сумма под риском 0 → индекс неприменим, а не нулевой', () => {
+// До волны ЗР закрытый Д-007 показывал «0,0 % · не обеспечен».
+test('W10-3 (ADR-0011): сумма под риском 0 → индекс неприменим, а не нулевой', () => {
   const { zt } = load();
   const cs = zt.CONTRACTS.filter(c => c.status === 'Зарегистрирован');
   const r = zt.coverage(cs, 'К-33');
@@ -2562,7 +3241,7 @@ test('W10-3 (ADR-0009): сумма под риском 0 → индекс неп
 
 // Погашенный кредит не может быть «худшей строкой» договора — иначе один такой кредит
 // обнуляет обеспеченность всего договора и в реестре, и в выгрузке.
-test('W10-4 (ADR-0009): неприменимые строки исключены из выбора худшей', () => {
+test('W10-4 (ADR-0011): неприменимые строки исключены из выбора худшей', () => {
   const { zt } = load();
   const rows = zt.gateCheck(zt.contract('Д-007')).rows;
   eq(rows.length, 1, 'сценарий: в Д-007 один кредит и он погашен');
@@ -2572,7 +3251,7 @@ test('W10-4 (ADR-0009): неприменимые строки исключены
 
 // Доля ликвида — вторая подпроверка ТОГО ЖЕ гейта, значит и база у неё та же.
 // Разные базы у двух подпроверок одного гейта — рассинхрон по построению.
-test('W10-5 (ADR-0009): доля ликвида меряется от той же базы, что индекс', () => {
+test('W10-5 (ADR-0011): доля ликвида меряется от той же базы, что индекс', () => {
   const { zt } = load();
   const cs = zt.CONTRACTS.filter(c => c.status === 'Зарегистрирован');
   const cr = zt.credit('К-56');
@@ -2585,7 +3264,7 @@ test('W10-5 (ADR-0009): доля ликвида меряется от той ж�
 
 // Поле принадлежит кредиту, форма записи — кредитная {kind, num, date, scan, coverPct}.
 // Было `.no` → основание порога печаталось как «решение КМ undefined от 08.06.2026».
-test('W10-6 (ADR-0009): kmDecision читается в кредитной форме — номер попадает в основание', () => {
+test('W10-6 (ADR-0011): kmDecision читается в кредитной форме — номер попадает в основание', () => {
   const { zt } = load();
   const km = zt.credit('К-102').kmDecision;
   ok(km.num, 'номер лежит в num (кредитная форма), а не в no');
@@ -2597,7 +3276,7 @@ test('W10-6 (ADR-0009): kmDecision читается в кредитной фор
 
 // coverPct = 0 — законное значение (полное освобождение от порога), а не «нет решения».
 // Проверка на истинность подменяла бы ноль базовым порогом состава.
-test('W10-7 (ADR-0009): порог 0 % по решению КМ — освобождение, не подмена базовым порогом', () => {
+test('W10-7 (ADR-0011): порог 0 % по решению КМ — освобождение, не подмена базовым порогом', () => {
   const { zt } = load();
   const cr = zt.credit('К-101');
   cr.kmDecision = { kind:'Решение КМ', num:'ПКМ КР №999', date:'01.07.2026', scan:'km-999.pdf', coverPct:0 };
@@ -2612,7 +3291,7 @@ test('W10-7 (ADR-0009): порог 0 % по решению КМ — освобо
 
 // Форма ввода решения КМ из залога снята: акт Кабинета Министров залоговый куратор
 // не выпускает, а поле принадлежит кредиту.
-test('W10-8 (ADR-0009): решение КМ из залога не вводится — формы и кнопки нет', () => {
+test('W10-8 (ADR-0011): решение КМ из залога не вводится — формы и кнопки нет', () => {
   const { win, zt } = load();
   win.eval("role='Куратор отдела залогового обеспечения'");
   eq(typeof win.openKmDecision, 'undefined', 'форма ввода удалена');
@@ -2624,8 +3303,8 @@ test('W10-8 (ADR-0009): решение КМ из залога не вводит�
 });
 
 // Индекс дрейфует от платежей в соседнем модуле — сохранённое число без базы и даты
-// снимка не воспроизводимо. ДГ-15 требовал обе метрики и порог; ADR-0009 добавляет базу.
-test('W10-9 (ADR-0009): журнал несёт базу и дату снимка', () => {
+// снимка не воспроизводимо. ДГ-15 требовал обе метрики и порог; ADR-0011 добавляет базу.
+test('W10-9 (ADR-0011): журнал несёт базу и дату снимка', () => {
   const { zt } = load();
   const cs = zt.CONTRACTS.filter(c => c.status === 'Зарегистрирован');
   const line = zt.histCover({ id:'К-56', ...zt.coverage(cs, 'К-56') });
@@ -2638,7 +3317,7 @@ test('W10-9 (ADR-0009): журнал несёт базу и дату снимк�
 
 // У банковской гарантии СВОЙ порог: порог меряет возвратность обеспечения, а не
 // ликвидность. Гарантия на весь долг при залоговом пороге 150 % зачлась бы за 2/3.
-test('W10-10 (ADR-0009): гарантия сохраняет собственный порог, не залоговый', () => {
+test('W10-10 (ADR-0011): гарантия сохраняет собственный порог, не залоговый', () => {
   const { zt } = load();
   // К-99: гарантия в валюте кредита → её порог 100 %, тогда как залоговый порог состава 120 %.
   // Две независимые ручки: затащить гарантию под залоговый порог значило бы зачесть
@@ -2656,7 +3335,7 @@ test('W10-10 (ADR-0009): гарантия сохраняет собственн�
 
 // Выгрузка — профиль записи (ПЗ-6). База и дата снимка обязаны быть в ней: без них
 // два экспорта одного договора в разные дни дают разные числа без объяснения.
-test('W10-11 (ADR-0009): выгрузка договоров несёт базу и дату снимка', () => {
+test('W10-11 (ADR-0011): выгрузка договоров несёт базу и дату снимка', () => {
   const { zt } = load();
   const heads = zt.CSV_PROFILES.contracts.map(([h]) => h);
   ok(heads.includes('Сумма под риском — база индекса'), 'поле базы есть');
@@ -2669,7 +3348,7 @@ test('W10-11 (ADR-0009): выгрузка договоров несёт базу
 });
 
 // Связка «погашение → неприменимый индекс» проходима на стенде: doRepay обнуляет базу.
-test('W10-12 (ADR-0009): погашение обнуляет сумму под риском и снимает индекс', () => {
+test('W10-12 (ADR-0011): погашение обнуляет сумму под риском и снимает индекс', () => {
   const { win, zt } = load();
   win.eval("role='Куратор отдела залогового обеспечения'");
   const before = zt.coverage(zt.CONTRACTS.filter(c=>c.status==='Зарегистрирован'), 'К-88');
@@ -2698,7 +3377,7 @@ test('W10-13 (CONTEXT.md): слово «покрытие» не выходит �
 
 // Справка — документ на дату. База к дате привязана, поэтому без снимка она не
 // воспроизводима: тот же договор через месяц даст другие числа без объяснения.
-test('W10-14 (ADR-0009): справка об обеспеченности печатает базу и дату снимка', () => {
+test('W10-14 (ADR-0011): справка об обеспеченности печатает базу и дату снимка', () => {
   const { zt } = load();
   const html = zt.buildPrintForm('справка', 'Д-001');
   has(html, 'Сумма под риском', 'колонка названа базой');

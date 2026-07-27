@@ -8,9 +8,9 @@
 >
 > - Язык предметной области — [CONTEXT.md](../../CONTEXT.md)
 > - Правило значений — [ADR-0001](../../docs/adr/0001-proizvodnye-ne-hranyatsya.md)
-> - Долг — [ADR-0008](../../docs/adr/0008-dolg-kredita-nachisleno-vyvoditsya.md) ·
->   обеспеченность — [ADR-0009](../../docs/adr/0009-obespechennost-kredita-zerkalo-zaloga.md) ·
->   категория и подгруппа — [ADR-0010](../../docs/adr/0010-kategoriya-owned-kreditom-podgruppa-zerkalo.md)
+> - Долг — [ADR-0010](../../docs/adr/0010-dolg-kredita-nachisleno-vyvoditsya.md) ·
+>   обеспеченность — [ADR-0011](../../docs/adr/0011-obespechennost-kredita-zerkalo-zaloga.md) ·
+>   категория и подгруппа — [ADR-0012](../../docs/adr/0012-kategoriya-owned-kreditom-podgruppa-zerkalo.md)
 > - Решения волны, что сделано и что открыто — [ASUBK-status-razrabotki.md](ASUBK-status-razrabotki.md)
 > - Макет — [credit.html](credit.html), проверка — `node scripts/inspect/credit-check.mjs`
 >
