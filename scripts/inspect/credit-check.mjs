@@ -65,7 +65,7 @@ const pd = CR.pd;
      `состав=${base.req}/${base.ok} КМ80=${km.req}/${km.ok} КМ0=${free.req}/${free.ok}`);
 })();
 /* 21. Поручительство в индекс не входит (ADR-0009, §10.2 закрыт «нет»); банковская
-   гарантия входит как ликвид с дисконтом 0 %. Гарантия приходит в ЗЕРКАЛЕ, поэтому
+   гарантия входит — со СВОИМ порогом (см. 56). Гарантия приходит в ЗЕРКАЛЕ, поэтому
    и добавляется в него — кредит числитель не считает. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1');
   const base = CR.derive(c).coverage.index;
@@ -653,6 +653,68 @@ const pd = CR.pd;
   const d = CR.derive(c);
   ok(52, g.ok === true && d.collectionCosts === 15000 && d.debtBalance === 0,
      `Г-14=${g.ok} расходы=${d.collectionCosts} остаток=${d.debtBalance}`);
+})();
+
+/* 56. КР-38: У БАНКОВСКОЙ ГАРАНТИИ СВОЙ ПОРОГ (ADR-0009, Прил.1 §2.3) — 100 % в валюте
+   кредита, 120 % в иной. Индекс собирается как СУММА двух нормированных слагаемых, а не
+   как одна дробь с залоговым порогом в знаменателе. Одна и та же гарантия в сомах даёт
+   разный индекс у сомового и у валютного кредита. */
+(() => { const db = CR.seedDb();
+  const kgs = byId(db,'K-C6'),  a = CR.derive(kgs).coverage;    // кредит KGS, гарантия KGS → 100 %
+  const rub = byId(db,'K-C44'), b = CR.derive(rub).coverage;    // кредит RUB, гарантия KGS → 120 %
+  const exact = Math.abs(a.index - (kgs.mirror.coverage.bankGuarantee / (a.base * 1.0))) < 0.011;
+  ok(56, a.gReq===100 && b.gReq===120 && a.index > b.index && exact
+      && a.index === Math.round((a.idxPledge + a.idxGuar)*100)/100,
+     `KGS: порог=${a.gReq} индекс=${a.index} · RUB: порог=${b.gReq} индекс=${b.index}`);
+})();
+/* 56b. Решение КМ перекрывает ЗАЛОГОВЫЙ порог и не трогает ГАРАНТИЙНЫЙ: §2.6 говорит о
+   требовании к обеспечению кредита, норматив гарантии — о возвратности самой гарантии. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-C6');
+  const before = CR.derive(c).coverage;
+  CR.setKmDecision(c,{kind:'Решение КМ',num:'КМ-56',date:'01.07.2026',scan:'km.pdf',coverPct:200});
+  const after = CR.derive(c).coverage;
+  ok('56b', before.gReq===100 && after.gReq===100 && after.req===200
+      && Math.abs(after.idxGuar - before.idxGuar) < 1e-9,
+     `req=${before.req}→${after.req} gReq=${before.gReq}→${after.gReq} idxГ=${before.idxGuar}→${after.idxGuar}`);
+})();
+/* 56c. Истёкшая гарантия обеспечением не является и в индекс не входит. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-C6');
+  const live = CR.derive(c).coverage.index;
+  c.mirror.coverage.bankGuarantee = 0; c.mirror.coverage.guaranteeExpired = true;
+  const dead = CR.derive(c).coverage;
+  ok('56c', live > 0 && dead.index === 0 && dead.ok === false && dead.gReq === null,
+     `действует=${live} истекла=${dead.index}/${dead.ok}`);
+})();
+/* 57. КР-39: ДОЛЯ ЛИКВИДА — ВТОРАЯ ПОДПРОВЕРКА ТОГО ЖЕ ГЕЙТА (Прил.1 §2.4). При пороге
+   150 % ликвидная часть залога обязана покрывать ≥ 80 % суммы под риском. K-C28 —
+   единственный в наборе случай, где индекс выполнен, а состав не тот: гейт Г-6 блокирует
+   освоение по доле, а не по индексу. До волны кредит подпроверки не имел вовсе, хотя
+   модуль-владелец её считал — два модуля выносили разный вердикт по одному кредиту. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-C28');
+  const d = CR.derive(c), cov = d.coverage;
+  const g = CR.gate(c,'addDisbursement',{tranche:1, amount:1000, date:'23.07.2026'});
+  ok(57, cov.req===150 && cov.covOk===true && cov.index>=1 && cov.liqApplies===true
+      && cov.liqShare===0 && cov.liqOk===false && cov.ok===false && g.ok===false,
+     `индекс=${cov.index} доля=${cov.liqShare} liqOk=${cov.liqOk} гейт=${g.ok}`);
+})();
+/* 57b. База у обеих подпроверок одна — сумма под риском: доля ликвида растёт по мере
+   погашения ровно так же, как индекс. Две подпроверки от разных величин рассинхронизированы
+   по построению, поэтому проверяем именно совпадение базы. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const d = CR.derive(c), cov = d.coverage;
+  const expect = Math.round((c.mirror.coverage.liquidValue / cov.base) * 100) / 100;
+  ok('57b', cov.liqApplies===true && cov.liqShare===expect && cov.base===d.atRisk && cov.liqOk===true,
+     `доля=${cov.liqShare} ожидалось=${expect} база=${cov.base} atRisk=${d.atRisk}`);
+})();
+/* 57c. Порог по решению КМ подменяет состав целиком, поэтому подпроверка §2.4 вместе с
+   ним отключается: КМ назначил своё требование взамен состава. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-C28');
+  const before = CR.derive(c).coverage;
+  CR.setKmDecision(c,{kind:'Решение КМ',num:'КМ-28',date:'01.07.2026',scan:'km.pdf',coverPct:80});
+  const after = CR.derive(c).coverage;
+  ok('57c', before.liqApplies===true && before.ok===false
+      && after.liqApplies===false && after.liqOk===true && after.ok===true,
+     `состав: liq=${before.liqApplies}/ok=${before.ok} → КМ80: liq=${after.liqApplies}/ok=${after.ok}`);
 })();
 
 /* ============================================================

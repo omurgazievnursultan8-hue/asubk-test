@@ -366,6 +366,15 @@
         (остаток основного долга + ещё неосвоенная часть) — и порогом по решению КМ
         (kmDecision.coverPct; 0 % = полное освобождение). Индекс нормирован: 100 % =
         порог выполнен. Поручительство в индекс не входит — у него нет предмета.
+   Р-26 ДВА ПОРОГА И ДВЕ ПОДПРОВЕРКИ (27.07.2026, КР-38/КР-39, ADR-0009, Прил.1 §2.3–2.4).
+        Индекс — СУММА нормированных слагаемых: залоговая стоимость к своему порогу плюс
+        банковская гарантия к СВОЕМУ (100 % в валюте кредита, 120 % в иной — курсовой
+        запас). Гарантия не «ликвид с дисконтом 0 %»: дисконт снижает стоимость вещи,
+        порог задаёт, сколько стоимости нужно. Истёкшая гарантия в индекс не входит.
+        Вторая подпроверка гейта: при пороге 150 % ликвидная часть залога обязана
+        покрывать ≥ 80 % ТОЙ ЖЕ базы. Порог по решению КМ подменяет состав и отключает её
+        вместе с собой. Обе подпроверки собираются кредитом по формуле владельца —
+        расхождение формул неотличимо от расхождения данных.
    Р-24 ДАТА СРЕЗА (волна 27.07.2026, КВ-10). Одна на карточку целиком, живёт в шапке и
         управляет всеми выводимыми величинами. У отдельной вкладки своей даты не бывает.
         Величины, пришедшие зеркалом, ей НЕ подчиняются: у них своя дата снимка, и она
@@ -388,7 +397,8 @@
    Г-29 targetUse — мера реагирования по нецелевому использованию только со ссылкой на
         решение Комитета (то же правило, что у факторов категории).
    Уточнены: Г-6 (индекс нормирован; решение КМ задаёт ПОРОГ, а не отключает гейт;
-        единственное исключение — waiver залоговой комиссии) · Г-7 (обязательный комплект
+        единственное исключение — waiver залоговой комиссии; ДВЕ подпроверки — индекс и
+        доля ликвида, — и отказ называет ту, что сработала: Р-26) · Г-7 (обязательный комплект
         документов берётся с кредитной программы, пустое досье больше не проходит) ·
         Г-14 (четыре статьи; расходы взыскания исключены) · Г-16 (перевод долга требует
         нового заёмщика и отметки о регистрации соглашения).
@@ -423,9 +433,15 @@
       действующий комплект соседних траншей. Макет: шаблон.
    8. Скан основания для суда/ПП: нужна ли копия файла в «Досье» кредита.
       Макет: только ссылка на документ-владелец.
+   9. Доля ликвидного залога — «≥ 80 %» ОТ ЧЕГО (Прил.1 §2.4, тот же вопрос ОВ-ЗР-1 в
+      модуле залога). Макет и модуль-владелец меряют от суммы под риском, то есть от
+      ОБЯЗАТЕЛЬСТВА: тогда доля растёт по мере погашения, ровно как индекс. Если норма
+      имеет в виду долю в СОСТАВЕ обеспечения, правило меняется качественно, и меняется
+      оно у владельца — кредит собирает вердикт по его формуле и правку переживёт без
+      изменений. Текста Прил.1 §2.4 в репозитории нет, только пересказы. К заказчику.
 
   SMOKE (node)
- SMOKE (node) 2026-07-27 · 60/60 PASS
+ SMOKE (node) 2026-07-27 · 66/66 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -483,6 +499,12 @@
    #50 ✓
    #51 ✓
    #52 ✓
+   #56 ✓
+   #56b ✓
+   #56c ✓
+   #57 ✓
+   #57b ✓
+   #57c ✓
    #53 ✓
    #54 ✓
    #55 ✓
@@ -1471,8 +1493,12 @@ function mkCredit(over){                             // CREDIT (§3) — обя�
    и при подключении настоящих модулей выбрасываются целиком.                        */
 
 /* Имитатор модуля залога: считает то, что кредит обязан получать готовым (ADR-0009) —
-   залоговую стоимость по классам ликвидности ВИДА предмета и порог по составу. */
-function seedCoverageMirror(pledges, bankGuarantee, asOf){
+   залоговую стоимость по классам ликвидности ВИДА предмета, порог по составу и СВОЙ порог
+   банковской гарантии. Зеркало несёт СУММЫ И ПОРОГИ, но не отношения: делить на базу —
+   дело кредита, потому что база (сумма под риском) принадлежит кредиту и дрейфует от
+   платежей. Владелец правила может отдать только снимок базы, поэтому отношение,
+   посчитанное на его стороне, устаревает раньше, чем доедет (ЗР-1/ЗР-3 волны залога). */
+function seedCoverageMirror(pledges, bankGuarantee, asOf, creditCurrency){
   let liquidValue = 0, illiquidValue = 0, hasMovableIlliquid = false, any = false;
   for (const p of (pledges || [])) for (const it of (p.items || [])){
     const v = (it.pledgeValue || 0) * (it.share == null ? 1 : it.share);
@@ -1480,15 +1506,23 @@ function seedCoverageMirror(pledges, bankGuarantee, asOf){
     if (itemIsLiquid(it)) liquidValue += v;
     else { illiquidValue += v; if (itemIsMovable(it)) hasMovableIlliquid = true; }
   }
-  const bank = bankGuarantee ? (bankGuarantee.amount || 0) : 0;
-  if (!any && !bank) return null;                       // залог ничего не подтверждал — зеркала нет
+  /* Истёкшая гарантия обеспечением не является и в индекс не входит (правило залога). */
+  const expired = bankGuarantee && bankGuarantee.till ? pd(bankGuarantee.till) < pd(TODAY) : false;
+  const bank = (bankGuarantee && !expired) ? (bankGuarantee.amount || 0) : 0;
+  if (!any && !bankGuarantee) return null;              // залог ничего не подтверждал — зеркала нет
   const pledgeValue = round2(liquidValue + illiquidValue);
-  const total = pledgeValue + bank;
-  /* банковская гарантия учитывается как ликвидный состав с дисконтом 0 % (ADR-0009) */
-  const liquidShare = total > 0 ? round2((liquidValue + bank) / total) : 0;
   const reqBase = hasMovableIlliquid ? 150 : 120;
+  /* У ГАРАНТИИ СВОЙ ПОРОГ (ADR-0009, Прил.1 §2.3): 100 % в валюте кредита, 120 % в иной —
+     курсовой запас. Прежняя редакция считала её «ликвидным составом с дисконтом 0 %» и
+     тем самым подтягивала к ней залоговый порог: гарантия на весь долг при составе 150 %
+     зачлась бы за 2/3 (КР-38). Дисконт снижает стоимость вещи, порог задаёт, сколько
+     стоимости нужно; это разные величины, и у гарантии свой. */
+  const gCur = bankGuarantee ? (bankGuarantee.currency || creditCurrency || 'KGS') : null;
+  const guaranteeReq = bankGuarantee ? ((gCur === (creditCurrency || 'KGS')) ? 100 : 120) : null;
   return { pledgeValue, liquidValue:round2(liquidValue), illiquidValue:round2(illiquidValue),
-           bankGuarantee:bank, liquidShare, reqBase,
+           bankGuarantee:bank, guaranteeReq, guaranteeCurrency:gCur,
+           guaranteeExpired:!!expired, guaranteeTill: bankGuarantee ? (bankGuarantee.till || null) : null,
+           reqBase, liquidShareMin:80,
            source: hasMovableIlliquid ? 'Движимый неликвидный залог в составе ⇒ порог 150 % (Прил.1 §2.4)'
                                       : 'Ликвидный залог ⇒ порог 120 % (Прил.1 §2.3)',
            asOf: asOf || TODAY, module:'Залоговое обеспечение' };
@@ -1578,11 +1612,16 @@ function seedDb(){
     ],
     mirror: (() => {
       const pledges = [{ contractNum:'ЗД-88', date:'13.05.2026', pledgor:'ОсОО «Бек Кабель»', notary:'Нотариус Осмонова Г. (Бишкек, №42)',
-        /* Оборудование — движимый НЕЛИКВИД по виду (ADR-0009), поэтому порог 150 %:
-           залоговая 240 000 к сумме под риском ≈ 146 000 даёт индекс ≈ 1,09 — гейт Г-6
-           пройден. При прежней раскладке (ликвидность на договоре) тот же состав давал
-           порог 120 % и проходил «за счёт» неверного правила. */
-        items:[{ name:'Производственная линия', kind:'Оборудование', appraised:300000, pledgeValue:240000, share:1, ban:true }],
+        /* Оборудование — движимый НЕЛИКВИД по виду (ADR-0009), поэтому порог 150 %. При
+           прежней раскладке (ликвидность на договоре) тот же состав давал 120 % и
+           проходил «за счёт» неверного правила.
+           Порог 150 % тянет за собой вторую подпроверку §2.4: ликвидная часть залога
+           должна покрывать ≥ 80 % суммы под риском. Помещение (недвижимость, ликвид)
+           даёт 120 000 к базе ≈ 146 000 — доля 82 %, гейт проходит с тонким запасом
+           именно по составу, а не по индексу (индекс ≈ 1,64). До КР-39 второй
+           подпроверки в кредите не было вовсе, и один станок «обеспечивал» кредит. */
+        items:[{ name:'Производственная линия', kind:'Оборудование', appraised:300000, pledgeValue:240000, share:1, ban:true },
+               { name:'Производственное помещение', kind:'Недвижимое имущество', appraised:150000, pledgeValue:120000, share:1, ban:true }],
         otherCredits:[] }];
       return emptyMirror({
       curatorship:[{ unit:'Отдел кредитования', employee:'Асанов А. К.', role:'ведущий', from:'14.05.2026', to:null }],
@@ -2026,11 +2065,21 @@ function seedDb(){
     const pledges=[], guarantees=[]; let bankGuarantee=null;
     switch(s.cov){
       case 'under':  pledges.push(pl('ЗД-'+num, s.n, 'Автотранспорт', 'Транспортное средство', Math.round(contract*1.0), Math.round(contract*0.84))); break;      // движимый неликвид ⇒ порог 150 %
-      case 'mixed':  pledges.push(pl('ЗД-'+num+'a', s.n, 'Производственная линия', 'Оборудование',   Math.round(contract*1.1), Math.round(contract*0.90)));
-                     pledges.push(pl('ЗД-'+num+'b', s.n, 'Спецтехника (б/у)', 'Сельхозтехника',      Math.round(contract*0.9), Math.round(contract*0.72))); break;  // весь состав неликвидный ⇒ 150 %, покрыто
+      /* смешанный состав: недвижимость (ликвид) + сельхозтехника (движимый неликвид) ⇒
+         порог 150 %, обе подпроверки §2.4 выполнены — ликвид покрывает ≥ 80 % долга. */
+      case 'mixed':  pledges.push(pl('ЗД-'+num+'a', s.n, 'Производственный корпус', 'Недвижимое имущество', Math.round(contract*1.1), Math.round(contract*0.90)));
+                     pledges.push(pl('ЗД-'+num+'b', s.n, 'Спецтехника (б/у)', 'Сельхозтехника',      Math.round(contract*0.9), Math.round(contract*0.72))); break;
+      /* КР-39: индекс выполнен, а СОСТАВ не тот — весь залог движимый неликвид, доля
+         ликвида 0 % при минимуме 80 %. Единственный случай в наборе, где гейт Г-6
+         блокирует по второй подпроверке, а не по индексу. */
+      case 'illiq':  pledges.push(pl('ЗД-'+num+'a', s.n, 'Серверное оборудование', 'Оборудование',   Math.round(contract*1.3), Math.round(contract*1.10)));
+                     pledges.push(pl('ЗД-'+num+'b', s.n, 'Инженерные системы (б/у)', 'Оборудование', Math.round(contract*0.7), Math.round(contract*0.55))); break;
       case 'liq150': pledges.push(pl('ЗД-'+num+'a', s.n, 'Складское помещение','Недвижимое имущество',Math.round(contract*1.6), Math.round(contract*1.35)));
                      pledges.push(pl('ЗД-'+num+'b', s.n, 'Оборудование (б/у)', 'Оборудование',        Math.round(contract*0.35),Math.round(contract*0.28))); break; // ликвид + движимый неликвид ⇒ 150 %
-      case 'bank':   bankGuarantee = { bank:'ОАО «Айыл Банк»', amount:Math.round(contract*1.3), till:'10.02.2027', num:'БГ-'+num, date:'10.02.2026' }; break;
+      /* Гарантия всегда в сомах: у кредита в KGS порог гарантии 100 %, у кредита в иной
+         валюте — 120 % (курсовой запас, Прил.1 §2.3). Одна строка даёт обе ветки. */
+      case 'bank':   bankGuarantee = { bank:'ОАО «Айыл Банк»', amount:Math.round(contract*1.3), currency:'KGS',
+                                       till:'10.02.2027', num:'БГ-'+num, date:'10.02.2026' }; break;
       case 'poruch': guarantees.push({ contractNum:'ПОР-'+num, party:'ОсОО «Гарант-'+num+'»', amount:Math.round(contract*1.5), date:'10.02.2026' }); break; // в индекс НЕ входит (ADR-0009)
       case 'none':   break;
       default:       pledges.push(pl('ЗД-'+num, s.n, 'Административное здание', 'Недвижимое имущество', Math.round(contract*1.7), Math.round(contract*1.4)));       // ок, ≥120 %
@@ -2148,7 +2197,7 @@ function seedDb(){
         curatorship:[{ unit: s.coll?'Отдел проблемных кредитов':'Отдел кредитования', employee:s.c, role:'ведущий',
           from:'07.02.2026', to: life==='Закрыт'?'20.06.2026':null }],
         pledges, guarantees, bankGuarantee, court, restructuring,
-        coverage: seedCoverageMirror(pledges, bankGuarantee, '18.07.2026'),
+        coverage: seedCoverageMirror(pledges, bankGuarantee, '18.07.2026', ccy),
         payments, paymentsAsOf, claims, claimsAsOf, collectionCosts,
         borrower:(() => { const sg = seedSubgroup(life, s.closure, s.od || 0, (claims[0]||{}).stage);
           return { subgroup:sg, subgroupLabel:SUBGROUP_LABEL[sg], asOf:'20.07.2026' }; })()
@@ -2195,7 +2244,7 @@ function seedDb(){
     { n:'ОсОО «Лейлек-Гранат»',      r:'Баткенская',       d:'Лейлекский',      p:'ПРГ-3', c:K, k:'Оборотный',      pu:'Экспорт граната',          a:220000, cur:'USD', cov:'none', life:'Проект', disb:'none' },
     /* — ЖЦ Проект / Зарегистрирован — */
     { n:'ОсОО «Московский-Молоко»',  r:'Чуйская',          d:'Московский',      p:'ПРГ-4', c:O, k:'Оборотный',      pu:'Молокозавод',              a:330000, life:'Проект', disb:'none' },
-    { n:'ОсОО «Свердлов-IT»',        r:'г. Бишкек',        d:'Свердловский',    p:'ПРГ-5', c:J, k:'Инвестиционный', pu:'Центр обработки данных',   a:1800000, life:'Зарегистрирован', disb:'none' },
+    { n:'ОсОО «Свердлов-IT»',        r:'г. Бишкек',        d:'Свердловский',    p:'ПРГ-5', c:J, k:'Инвестиционный', pu:'Центр обработки данных',   a:1800000, life:'Зарегистрирован', disb:'none', cov:'illiq' },
     { n:'ОсОО «Аксы-Лес»',           r:'Джалал-Абадская',  d:'Аксыйский',       p:'ПРГ-6', c:T, k:'Инвестиционный', pu:'Лесопереработка',          a:560000, life:'Зарегистрирован' },
     { n:'ОсОО «Кара-Буура-Зерно»',   r:'Таласская',        d:'Кара-Бууринский', p:'ПРГ-7', c:M, k:'Оборотный',      pu:'Закуп зерна',              a:240000, life:'Проект', disb:'none' },
     { n:'ОсОО «Ноокен-Кирпич»',      r:'Джалал-Абадская',  d:'Ноокенский',      p:'ПРГ-8', c:A, k:'Инвестиционный', pu:'Кирпичный завод',          a:640000, life:'Зарегистрирован', cov:'under', km:true, disb:'none' },
@@ -2687,11 +2736,19 @@ function overdueOf(led){
 }
 
 /* ---- ОБЕСПЕЧЕННОСТЬ (ADR-0009) ----
-   Кредит её НЕ считает. Числитель (залоговая стоимость по классам ликвидности вида
-   предмета, банковская гарантия) и порог по составу обеспечения приходят зеркалом из
-   модуля залога — там живёт правило. Кредит владеет двумя вещами: базой (сумма под
-   риском — его собственная величина) и порогом по решению КМ (owned-поле kmDecision.
-   coverPct, Прил.1 §2.6). Индекс собирается из них по формуле ADR-0007: index = ratio/req.
+   Кредит правил обеспеченности НЕ ИМЕЕТ. Суммы (залоговая стоимость по классам
+   ликвидности вида предмета, ликвидная часть, банковская гарантия) и ПОРОГИ (по составу,
+   по гарантии, минимальная доля ликвида) приходят зеркалом из модуля залога — там живёт
+   правило. Кредит владеет базой (сумма под риском — его собственная величина) и порогом
+   по решению КМ (owned-поле kmDecision.coverPct, Прил.1 §2.6), и СОБИРАЕТ из них вердикт.
+
+   Почему сборка здесь, а не у владельца. База принадлежит кредиту и дрейфует от платежей
+   в третьем модуле; владелец правила может отдать только СНИМОК базы, и любое отношение,
+   посчитанное на его стороне, устаревает раньше, чем доедет. Поэтому зеркало несёт
+   величины и нормативы, а делит на живую базу кредит. Цена решения — формула сборки
+   обязана совпадать с формулой владельца буква в букву; расхождение здесь неотличимо от
+   расхождения данных (КР-38/КР-39: у гарантии был отобран её собственный порог, а вторая
+   подпроверка §2.4 не собиралась вовсе — залог блокировал, кредит выдавал).
 
    Прежний computeCoverage был второй реализацией чужого правила: раскладывал предметы
    по ликвидности ДОГОВОРА, не знал coverPct и имел ветку «доля ликвида ≥80 %», которая
@@ -2718,9 +2775,27 @@ function coverageOf(c, atRisk){
   const numerator = round2((m.pledgeValue || 0) + (m.bankGuarantee || 0));
   const req = km || m.reqBase || 120;
   const ratio = round2(numerator / atRisk);
-  const index = round2(ratio / (req / 100));                 // 1,00 = порог выполнен (ADR-0007)
+  /* ИНДЕКС — СУММА ДВУХ НОРМИРОВАННЫХ СЛАГАЕМЫХ, а не одна дробь: у залоговой стоимости
+     свой порог (по составу либо по решению КМ), у банковской гарантии — свой (Прил.1 §2.3).
+     Решение КМ перекрывает залоговый порог и НЕ трогает гарантийный: §2.6 говорит о
+     требовании к обеспечению кредита, а норматив гарантии — о возвратности самой гарантии. */
+  const idxPledge = (m.pledgeValue || 0) / (atRisk * (req / 100));
+  const gReq  = (m.bankGuarantee || 0) > 0 ? (m.guaranteeReq || 100) : null;
+  const idxGuar = gReq ? (m.bankGuarantee || 0) / (atRisk * (gReq / 100)) : 0;
+  const index = round2(idxPledge + idxGuar);                 // 1,00 = порог выполнен (ADR-0007)
+  /* ДОЛЯ ЛИКВИДА — вторая подпроверка того же гейта (Прил.1 §2.4): при пороге 150 %
+     ликвидная часть залога должна покрывать ≥ 80 % ОБЯЗАТЕЛЬСТВА. База та же, что у
+     индекса, — иначе две подпроверки одного гейта считаются от разных величин и
+     расходятся по построению. Порог по решению КМ подменяет состав, поэтому подпроверка
+     вместе с ним отключается: КМ назначил своё требование взамен §2.4. */
+  const liqMin = m.liquidShareMin == null ? 80 : m.liquidShareMin;
+  const liqApplies = req === 150 && m.liquidValue != null;
+  const liqShare = liqApplies ? round2((m.liquidValue || 0) / atRisk) : null;
+  const liqOk = liqApplies ? liqShare >= liqMin / 100 - 1e-9 : true;
   return { applicable:true, mirror:m, numerator, base:atRisk, ratio, req, index,
-           ok: index >= 1, liquidShare: m.liquidShare,
+           idxPledge:round2(idxPledge), idxGuar:round2(idxGuar), gReq,
+           ok: index >= 1 && liqOk, covOk: index >= 1,
+           liqApplies, liqShare, liqOk, liqMin,
            reqFromKm: !!km, asOf: m.asOf,
            source: km ? ('Порог ' + km + ' % по решению КМ ' + (c.kmDecision.num || '') + ' (Прил.1 §2.6)')
                       : (m.source || '') };
@@ -2920,11 +2995,16 @@ function gate(credit, action, ctx = {}){
       if (credit.closure && credit.closure.disbClosed) r.push('Неосвоенный остаток закрыт ' + credit.closure.disbClosed.date + ' — освоение невозможно (Р-6)');
       /* Г-6 — обеспеченность (ADR-0009): индекс нормирован на порог, 1,00 = порог выполнен.
          Решение КМ больше не «отключает гейт»: оно устанавливает СВОЙ порог (coverPct),
-         который уже учтён в coverage.req. Единственное исключение — waiver комиссии. */
+         который уже учтён в coverage.req. Единственное исключение — waiver комиссии.
+         У гейта ДВЕ подпроверки (Прил.1 §2.3–2.4) — индекс и доля ликвида, — и причину
+         отказа надо называть ту, что сработала: иначе куратор доливает залог там, где
+         нужно менять его состав. */
       if (!d.coverage.ok && !(credit.mirror && credit.mirror.pledgeWaiver))
-        r.push(d.coverage.mirror
-          ? ('Обеспеченность ниже порога: индекс ' + Math.round((d.coverage.index || 0) * 100) + ' % при пороге 100 % (' + d.coverage.req + ' % к сумме под риском ' + money(d.coverage.base) + '). Нужен порог по решению КМ (Р-8) или waiver комиссии по залогу')
-          : 'Обеспеченность не подтверждена модулем залога — нужен порог по решению КМ (Р-8) или waiver комиссии по залогу'); // Г-6
+        r.push(!d.coverage.mirror
+          ? 'Обеспеченность не подтверждена модулем залога — нужен порог по решению КМ (Р-8) или waiver комиссии по залогу'
+          : (d.coverage.covOk === false
+             ? ('Обеспеченность ниже порога: индекс ' + Math.round((d.coverage.index || 0) * 100) + ' % при пороге 100 % (' + d.coverage.req + ' % к сумме под риском ' + money(d.coverage.base) + '). Нужен порог по решению КМ (Р-8) или waiver комиссии по залогу')
+             : ('Доля ликвидного залога ' + Math.round((d.coverage.liqShare || 0) * 100) + ' % при минимуме ' + d.coverage.liqMin + ' % суммы под риском — в составе движимый неликвид (Прил.1 §2.4). Индекс при этом выполнен: нужен ликвидный предмет в составе, порог по решению КМ (Р-8) или waiver комиссии по залогу'))); // Г-6
       break;
     }
     case 'closeDisbursement':                                            // Р-6: закрытие неосвоенного остатка
@@ -4708,17 +4788,22 @@ if (typeof document !== 'undefined') {
       <div class="mirror-src">Источник: модуль залога (Р-7). Данные read-only.</div>
       <div class="section-h" style="margin-top:22px">Обеспеченность ${lockHtml()}</div>
       <p class="section-note">Индекс НОРМИРОВАН на порог: 100 % = порог выполнен, при любом пороге (ADR-0007).
-        Числитель и порог по составу обеспечения считает модуль залога — там живёт правило (ADR-0009);
-        кредит владеет базой (сумма под риском) и порогом по решению КМ.</p>
-      <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
+        Числитель и пороги считает модуль залога — там живёт правило (ADR-0009); кредит владеет
+        базой (сумма под риском) и порогом по решению КМ. У залоговой стоимости и у банковской
+        гарантии пороги РАЗНЫЕ, поэтому индекс — сумма двух нормированных слагаемых.</p>
+      <div class="phead-dims" style="grid-template-columns:repeat(${cov.liqApplies?5:4},1fr)">
         <div class="dim"><div class="dl">Индекс обеспеченности</div><div class="dv"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${light};margin-right:6px"></span>${cov.index==null?'—':Math.round(cov.index*100)+'%'}</div>
-          ${cov.ratio!=null?`<div class="src">отношение залоговой к базе ${Math.round(cov.ratio*100)}%</div>`:''}</div>
-        <div class="dim"><div class="dl">Порог</div><div class="dv">${cov.req==null?'—':cov.req+'%'}</div>${cov.reqFromKm?'<div class="src">по решению КМ (Прил.1 §2.6)</div>':''}</div>
+          ${cov.idxGuar?`<div class="src">залог ${Math.round(cov.idxPledge*100)}% + гарантия ${Math.round(cov.idxGuar*100)}%</div>`
+                       :(cov.ratio!=null?`<div class="src">отношение залоговой к базе ${Math.round(cov.ratio*100)}%</div>`:'')}</div>
+        <div class="dim"><div class="dl">Порог</div><div class="dv">${cov.req==null?'—':cov.req+'%'}</div>${cov.reqFromKm?'<div class="src">по решению КМ (Прил.1 §2.6)</div>':''}${cov.gReq?`<div class="src">гарантия — ${cov.gReq}%${cov.gReq>100?' (иная валюта)':''}</div>`:''}</div>
+        ${cov.liqApplies?`<div class="dim"><div class="dl">Доля ликвида</div><div class="dv" style="color:${cov.liqOk?'inherit':'var(--danger,#b3261e)'}">${Math.round(cov.liqShare*100)}%</div><div class="src">минимум ${cov.liqMin}% суммы под риском (Прил.1 §2.4)</div></div>`:''}
         <div class="dim"><div class="dl">Сумма под риском</div><div class="dv">${money(d.atRisk)}</div><div class="src">остаток ОД ${money(d.debt.principal.bal)} + не освоено ${money(Math.max(0,d.undisbursed))}</div></div>
-        <div class="dim"><div class="dl">Статус</div><div class="dv" style="color:${light}">${!cov.applicable?'неприменима':cov.ok?'достаточно':'недостаточно'}</div></div>
+        <div class="dim"><div class="dl">Статус</div><div class="dv" style="color:${light}">${!cov.applicable?'неприменима':cov.ok?'достаточно':(cov.covOk===false?'недостаточно':'состав не соответствует')}</div></div>
       </div>
-      <div class="mirror-src">${esc(cov.source)}${cov.mirror?` · залоговая ${money(cov.mirror.pledgeValue)} (ликвид ${money(cov.mirror.liquidValue)} · неликвид ${money(cov.mirror.illiquidValue)})${cov.mirror.bankGuarantee?` + банковская гарантия ${money(cov.mirror.bankGuarantee)}`:''} · снимок ${esc(cov.mirror.asOf)}`:''}</div>
-      ${bg?`<div class="section-h" style="margin-top:22px">Банковская гарантия (в индексе, как ликвид с дисконтом 0 %)</div><div class="f2">${fld('Банк',esc(bg.bank))}${fld('Сумма',money(bg.amount))}${fld('Действует до',esc(bg.till))}</div>`:''}
+      <div class="mirror-src">${esc(cov.source)}${cov.mirror?` · залоговая ${money(cov.mirror.pledgeValue)} (ликвид ${money(cov.mirror.liquidValue)} · неликвид ${money(cov.mirror.illiquidValue)})${cov.mirror.bankGuarantee?` + банковская гарантия ${money(cov.mirror.bankGuarantee)} при своём пороге ${cov.mirror.guaranteeReq}%`:''} · снимок ${esc(cov.mirror.asOf)}`:''}</div>
+      ${bg?`<div class="section-h" style="margin-top:22px">Банковская гарантия (в индексе, со своим порогом)</div>
+        <div class="f2">${fld('Банк',esc(bg.bank))}${fld('Сумма',money(bg.amount))}${fld('Валюта гарантии',esc(bg.currency||c.currency||'KGS'))}${fld('Действует до',esc(bg.till))}</div>
+        <div class="mirror-src">Порог гарантии ${cov.mirror&&cov.mirror.guaranteeReq?cov.mirror.guaranteeReq:100} % — ${(bg.currency||c.currency||'KGS')===(c.currency||'KGS')?'валюта гарантии совпадает с валютой кредита':'валюта гарантии отличается от валюты кредита, порог с курсовым запасом'} (Прил.1 §2.3).${cov.mirror&&cov.mirror.guaranteeExpired?' Срок гарантии истёк — в индекс не входит.':''}</div>`:''}
       ${guars.length?`<div class="info-plate">${svgInfo()}<div>Поручительство (${guars.map(g=>esc(g.party)).join(', ')}) — параллельный слой обеспечения. В индекс обеспеченности НЕ входит: у поручительства нет предмета, а значит и залоговой стоимости (ADR-0009, вопрос §10.2 закрыт). По ADR-0005 это обеспечительный договор, и при взыскании поручитель становится отдельным обязанным лицом — со своим требованием.</div></div>`:''}
       <div class="section-h" style="margin-top:22px">Обследования предметов залога ${lockHtml()}</div>
       ${cgrid([{h:'Дата'},{h:'Договор / предмет'},{h:'Куратор'},{h:'Результат'},{h:'Вложение'}], inspRows, {empty:'Обследований не проводилось'})}
