@@ -9,7 +9,7 @@
      Спека: mockups/borrower/ASUBK-zaemshik-logika.md — правила вывода, инварианты с причиной, швы (СП-21)
             docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки); её место заняла спека выше
-     Проверка: node scripts/inspect/borrower-check.mjs  →  151/151 PASS (2026-07-26)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  147/147 PASS (2026-07-27)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
@@ -26,13 +26,16 @@
                  область→район из данных; подгруппа знает «кредитов не было» и «нет
                  действующих»; карточный вид снят; пагинация настоящая; ИНН в строке;
                  куратор разведён с дырой; колонка «Задолженность»; дефекты — модальность
-                 отдельно от степени; полоса двух дат).
+                 отдельно от степени).
+                 СП-14 отменено 27.07.2026: полосу двух дат над таблицей сняли — реестр
+                 всегда «сегодня», подпись дат осталась в оттиске выгрузки (СП-9).
      Продолжение: решения СП-15…СП-21 — там же (конструктор условий Jmix убран; пустое
                  состояние называет условия и сбрасывает их целиком, включая поиск; создание
                  входит через ИНН и различает лицо и роль, поэтому дубль ИНН недостижим;
                  поля формы в двух уровнях, орг-форма только у юр. лица; удаление — в
-                 карточке, только субъекта, только при нуле ссылок; три плашки рабочих
-                 списков без сохранения — «мои» не сделан, идентичности пользователя нет).
+                 карточке, только субъекта, только при нуле ссылок).
+                 СП-20 отменено 27.07.2026: плашки рабочих списков сняты — разрезы делаются
+                 панелью фильтра.
 -->
 <style>
   :root{
@@ -260,11 +263,26 @@
   td.mono{font-variant-numeric:tabular-nums;}
 
   /* реестр: сортируемая шапка + строки-ссылки */
-  #listTable{table-layout:fixed;}
-  #listTable thead th{cursor:pointer;user-select:none;}
-  #listTable thead th .sort{color:#9aa6b4;margin-left:4px;font-size:11px;font-weight:400;}
+  /* min-width: восемь колонок имеют предел сжатия. Ниже него проценты начинают резать
+     не «хвост подписи», а ИНН, сумму и фамилию куратора — то есть сами данные. Дальше
+     сжимать нечего, поэтому узкий экран получает горизонтальный скролл (#gridWrap),
+     а не восемь колонок многоточий (СП-24). */
+  #listTable{table-layout:fixed;min-width:1270px;}
+  /* Заголовок переносится, данные — нет (СП-24). Обрезанный «Категория рис…» съедал ширину
+     колонки под подпись, которую всё равно не прочесть; данным при этом места не хватало.
+     Шапка двухстрочная — платим один раз высотой, а не каждой строкой реестра. */
+  #listTable thead th{cursor:pointer;user-select:none;white-space:normal;overflow:visible;
+    text-overflow:clip;vertical-align:bottom;padding-right:20px;}
+  /* Стрелка вынута из потока: в потоке она считалась ещё одним «словом» подписи и уезжала
+     на вторую строку одна («Просроченная часть» + пустая строка со стрелкой). */
+  #listTable thead th .sort{position:absolute;right:6px;bottom:11px;color:#9aa6b4;
+    font-size:11px;font-weight:400;}
   #listTable thead th.sorted .sort{color:var(--text-link);}
   #listTable tbody td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* Реестр — восемь колонок в одну ширину экрана; 12 px по краям каждой ячейки стоили
+     32 px строки, которых не хватало наименованию (СП-24). */
+  #listTable thead th{padding-left:10px;}
+  #listTable tbody td{padding-left:10px;padding-right:10px;}
   .grid-wrap{border:1px solid var(--border-strong);border-radius:6px;overflow:auto;max-height:60vh;background:#fff;}
   .empty-rows{padding:34px 16px;text-align:center;color:var(--text-muted);font-size:14px;}
   /* СП-16: пустое состояние называет условия, из-за которых стало пусто. Панель фильтра
@@ -274,16 +292,6 @@
     background:var(--surface-hover);border:1px solid var(--border-default);color:var(--text-body);}
   .empty-cond b{font-weight:600;}
   .empty-act{margin-top:14px;}
-
-  /* ---------- СП-20: плашки-пресеты рабочих очередей ----------
-     Проставляют значения в те же поля панели фильтра, поэтому чипс и панель не могут
-     разойтись. Отдельного состояния и хранения нет: пресет — это набор значений, а не запись. */
-  .qchips{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 4px;}
-  .qchips-lbl{font-size:13px;color:var(--text-muted);}
-  .qchip{padding:5px 12px;border:1px solid var(--border-strong);border-radius:14px;background:#fff;
-    color:var(--text-link);font-family:var(--asubk-font);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
-  .qchip:hover{background:var(--surface-hover);}
-  .qchip.on{background:var(--action-primary);border-color:var(--action-primary);color:#fff;}
 
   /* ---------- модальное окно (СП-17/18 — создание, СП-19 — подтверждение удаления) ---------- */
   .modal-back{position:fixed;inset:0;background:rgba(20,32,48,.45);display:flex;align-items:flex-start;
@@ -350,11 +358,6 @@
   .jpag select{height:30px;border:1px solid var(--border-strong);border-radius:var(--radius-md);background:#fff;
     font-family:var(--asubk-font);font-size:13px;color:var(--text-body);padding:0 6px;}
 
-  /* ---------- полоса дат над таблицей (СП-14) ---------- */
-  .list-asof{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;
-    font-size:13px;color:var(--text-muted);}
-  .list-asof b{color:var(--text-body);font-weight:600;}
-  .list-asof .sep{color:var(--border-strong);}
   .who{font-weight:600;} .muted{color:var(--text-muted);font-size:13px;}
   .role{font-size:12px;border-radius:3px;padding:1px 7px;font-weight:600;display:inline-block;}
   .role-lead{background:var(--status-info-bg);color:var(--text-link);}
@@ -729,16 +732,9 @@
                    типовой конструктор условий Jmix (04-zaemshchik.md §4.1) — обработчиков он
                    в макете не имел, а произвольная пара условий возвращает ровно тот дефект,
                    который СП-3 погасил структурно: «Группа = 1» + «Подгруппа = 2.1» и всегда
-                   ноль строк. Механику отдаём платформе, знание остаётся в СП-4/СП-5/СП-20. -->
+                   ноль строк. Механику отдаём платформе, знание остаётся в СП-4/СП-5. -->
             </div>
           </div>
-        </div>
-
-        <!-- СП-20: рабочие очереди одним нажатием. Пресет «мои» не сделан намеренно:
-             идентичности пользователя в макете нет ([admin] — литерал в шапке), а среди
-             кураторов сида его нет, так что вычислить «мои» нечем. -->
-        <div class="qchips" id="qchips">
-          <span class="qchips-lbl">Рабочие списки:</span>
         </div>
 
         <div class="jt">
@@ -764,23 +760,18 @@
           </div>
         </div>
 
-        <!-- СП-14: в реестре рядом стоят числа на две разные даты. Дни просрочки считаются
-             к дате среза, деньги приходят снимком со своей датой и ей не подчиняются (И-6).
-             Принцип файла: «это видно подписью, а не подразумевается». -->
-        <div class="list-asof" id="listAsOf"></div>
-
         <div class="grid-wrap" id="gridWrap">
           <table class="grid" id="listTable">
             <thead>
               <tr>
-                <th style="width:26%" data-sort="name">Наименование <span class="sort">↕</span></th>
-                <th style="width:12%" data-sort="sub">Подгруппа <span class="sort">↕</span></th>
-                <th style="width:11%" data-sort="cat">Категория риска <span class="sort">↕</span></th>
-                <th style="width:8%"  data-sort="ov">Просрочка <span class="sort">↕</span></th>
-                <th style="width:13%" data-sort="ovSum">Просроченная часть <span class="sort">↕</span></th>
-                <th style="width:13%" data-sort="debt">Задолженность <span class="sort">↕</span></th>
-                <th style="width:8%"  data-sort="def">Дефекты <span class="sort">↕</span></th>
-                <th style="width:9%"  data-sort="curator">Куратор <span class="sort">↕</span></th>
+                <th style="width:18%"   data-sort="name">Наименование <span class="sort">↕</span></th>
+                <th style="width:15.5%" data-sort="sub">Подгруппа <span class="sort">↕</span></th>
+                <th style="width:9.5%"  data-sort="cat">Категория риска <span class="sort">↕</span></th>
+                <th style="width:9%"    data-sort="ov">Просрочка <span class="sort">↕</span></th>
+                <th style="width:11%"   data-sort="ovSum">Просроченная часть <span class="sort">↕</span></th>
+                <th style="width:11.5%" data-sort="debt">Задолженность <span class="sort">↕</span></th>
+                <th style="width:10.5%" data-sort="def">Дефекты <span class="sort">↕</span></th>
+                <th style="width:15%"   data-sort="curator">Куратор <span class="sort">↕</span></th>
               </tr>
             </thead>
             <tbody id="listBody"></tbody>
@@ -2090,13 +2081,19 @@ function seedBorrowerDetails(){
     '3.2':'процедура банкротства завершена, долг списан','4':'долг признан безнадёжным',
     '5':'долг полностью погашен, кредит закрыт' };
 
-  /* пул кредитных кураторов (зеркало модуля «Сотрудники») */
+  /* пул кредитных кураторов (зеркало модуля «Сотрудники»).
+     ФИО сотрудника хранится здесь в том же виде, что и у записей, вписанных руками, —
+     «Фамилия И. О.». Полное имя-отчество принадлежит модулю «Сотрудники», а не реестру
+     заёмщиков; при генерации оно давало вторую форму того же поля, и одна колонка печатала
+     то «Касымова Д. А.», то «Садыкова Гулмира Нурлановна». */
+  const initials = full => { const p = full.split(' ');
+    return p.length < 2 ? full : p[0] + ' ' + p.slice(1).map(x => x[0] + '.').join(' '); };
   const CURATORS=[];
   for(let k=0;k<20;k++){ const id='emp-'+(50+k); const sd=h(id);
-    EMP[id]={ fio:fio(sd, k%5===0), dept:pick(DEPTS,sd) }; CURATORS.push(id); }
+    EMP[id]={ fio:initials(fio(sd, k%5===0)), dept:pick(DEPTS,sd) }; CURATORS.push(id); }
   const PROBLEM_CURATORS=[];
   for(let k=0;k<6;k++){ const id='emp-'+(70+k); const sd=h(id);
-    EMP[id]={ fio:fio(sd, k%3===0), dept:PROBLEM_DEPT }; PROBLEM_CURATORS.push(id); }
+    EMP[id]={ fio:initials(fio(sd, k%3===0)), dept:PROBLEM_DEPT }; PROBLEM_CURATORS.push(id); }
 
   let docSeq=100, unitSeq=6000;
 
@@ -3265,8 +3262,6 @@ function renderList(){
   em.hidden = rows.length > 0;
   if (!rows.length) em.innerHTML = renderEmpty();
   renderPager(rows.length, from, slice.length);
-  renderListAsOf();
-  renderChips();
 }
 /* ---------- СП-16: пустое состояние называет условия ----------
    Метки берутся из FIELD_LABEL, значения — из того же `active`, что кормит бейдж и выгрузку.
@@ -3322,15 +3317,6 @@ function renderPager(total, from, shown){
   const set = (id, dis) => { const el = document.getElementById(id); if (el) el.classList.toggle('dis', dis); };
   set('pgFirst', pgPage <= 1); set('pgPrev', pgPage <= 1);
   set('pgNext', pgPage >= pages); set('pgLast', pgPage >= pages);
-}
-/* Полоса дат (СП-14): в реестре рядом стоят дни просрочки к дате среза и деньги из снимка
-   со своей датой (И-6). Карточка это подписывает, список — нет; принцип «видно подписью». */
-function renderListAsOf(){
-  const el = document.getElementById('listAsOf');
-  if (!el) return;
-  el.innerHTML = 'Состояние на <b>' + esc(asOf()) + '</b>'
-    + '<span class="sep">·</span>деньги — снимок кредитного модуля на <b>' + esc(DEBT_ASOF) + '</b>'
-    + ' (дате среза не подчиняются)';
 }
 function tile(title, valueHtml, basis, moreHtml, lockHtml){
   return `<div class="dim"><div class="dim-t">${esc(title)}</div><div class="dim-v">${valueHtml}</div>`
@@ -5504,44 +5490,6 @@ function fillFilterDicts(){
     { v:'none', l:'нет' },
   ]);
 }
-
-/* ---------- СП-20: рабочие списки ----------
-   Пресет — набор значений полей фильтра, а не отдельная сущность: нажатие пишет в те же
-   `f-*`, что и панель, поэтому чипс и панель разойтись не могут (приём СП-3). Сохранения,
-   имён и прав нет намеренно — в макете их можно было бы держать только в localStorage,
-   то есть на браузер, а не на пользователя; такая механика соврала бы про реальную систему. */
-const PRESETS = [
-  { id:'def',  label:'С дефектами',    set:{ def:'any' } },
-  { id:'nocur',label:'Без куратора',   set:{ curator:CURATOR_NONE } },
-  { id:'ov90', label:'Просрочка 90+',  set:{ ovFrom:'90' } },
-];
-/* Пресет включён, если все его значения уже стоят в фильтре. Состояние выводится из полей,
-   а не хранится отдельным флагом — иначе подсветка и фильтр начнут расходиться. */
-const presetOn = p => Object.entries(p.set).every(([k, v]) => active[k] === v);
-function renderChips(){
-  const box = document.getElementById('qchips');
-  if (!box) return;
-  box.innerHTML = '<span class="qchips-lbl">Рабочие списки:</span>'
-    + PRESETS.map(p => '<button class="qchip' + (presetOn(p) ? ' on' : '') + '" data-preset="' + p.id + '">'
-        + esc(p.label) + '</button>').join('');
-}
-/* Повторное нажатие снимает пресет: он ставил значения — он же их и убирает. Прочие
-   условия не трогаются, пресет сужает текущую выборку, а не подменяет её. */
-function togglePreset(id){
-  const p = PRESETS.find(x => x.id === id);
-  if (!p) return;
-  const off = presetOn(p);
-  Object.entries(p.set).forEach(([k, v]) => {
-    const f = FIELDS.find(x => x.key === k);
-    const el = f && document.getElementById(f.el);
-    if (el) el.value = off ? '' : v;
-  });
-  applyFilter();
-}
-document.getElementById('qchips').addEventListener('click', e => {
-  const b = e.target.closest('[data-preset]');
-  if (b) togglePreset(b.dataset.preset);
-});
 
 /* ---------- фильтр и сортировка реестра ---------- */
 function redrawList(){ renderList(); }
