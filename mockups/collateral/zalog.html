@@ -35,13 +35,25 @@
                  (overrideAllowed, ПОЛ §2.1): подъём выше расчётной новыми записями
                  невозможен; записи выше расчётной остались лишь историческими
                  (legacy, флаг isOverAbove) — см. Р-19;
-     ИНДЕКС ОБЕСПЕЧЕННОСТИ (Р-11) — вычисляемый оверлей: coverage().index =
-                 idxPledge (Σ эфф. долей ÷ (сумма кредита × порог покрытия)) + idxGuar
-                 (сумма банковской гарантии ÷ (сумма кредита × guaranteeReq)); порог —
+     ИНДЕКС ОБЕСПЕЧЕННОСТИ (Р-11, база — по ADR-0009) — вычисляемый оверлей: coverage().index =
+                 idxPledge (Σ эфф. долей ÷ (СУММА ПОД РИСКОМ × порог обеспечения)) + idxGuar
+                 (сумма банковской гарантии ÷ (сумма под риском × guaranteeReq)); порог —
                  функция состава (requiredCover), не константа. Обеспечен при index ≥ 1;
                  поручительство ведётся собственным слоем ЭТОГО модуля (§14, реестр
                  поручителей + договоры поручительства), но в индекс НЕ входит — coverage()
                  данные поручительства не читает вовсе (регресс-инвариант Р-24).
+     СУММА ПОД РИСКОМ (ADR-0009, волна 10) — остаток основного долга + неосвоенная часть.
+                 Знаменатель ОБОИХ слагаемых. Величина принадлежит КРЕДИТУ и приходит
+                 зеркалом (`atRisk` + `atRiskAsOf`), залог её не выводит: до волны 10 в
+                 знаменателе стояла сумма договора, из-за чего обеспечение требовалось под
+                 историческую сумму, а не под непогашенное обязательство. Ноль (кредит
+                 погашен) = индекс НЕПРИМЕНИМ, а не нулевой. Следствие, которого у прежней
+                 базы не было: индекс дрейфует от платежей в соседнем модуле — поэтому
+                 дата снимка обязательна везде, где число сохраняется или обосновывает
+                 решение (журнал, справка, выгрузка).
+     У ГАРАНТИИ СВОЙ ПОРОГ, не залоговый: порог меряет возвратность обеспечения, а не его
+                 ликвидность. Требование к банку денежное (100 %, 120 % при иной валюте),
+                 залоговое имущество трудно реализуемо (120/150 %).
      Ни одно из значений не хранится «на всякий случай» — считается из состояния.
 
   4. УСЕЧЕНИЕ ДОЛИ ПРИ ПАДЕНИИ СТОИМОСТИ (правило, добавленное сверх спеки —
@@ -51,14 +63,17 @@
      усекаются ПРОПОРЦИОНАЛЬНО (effShare). Договор при этом не правится — падение
      покрытия поднимает триггер «недостаточность обеспечения» (см. п. 7).
 
-  5. ГЕЙТ ПОКРЫТИЯ — ПЕРЕМЕННЫЙ ПОРОГ, ОДИН КОД (gateCheck). Порог — не «120% на всё»,
+  5. ГЕЙТ ОБЕСПЕЧЕННОСТИ — ПЕРЕМЕННЫЙ ПОРОГ, ОДИН КОД (gateCheck). Порог — не «120% на всё»,
      а функция состава залога (requiredCover → {req, source}): ликвид ≥120% (Прил.1 §2.3),
      движимое неликвидное ≥150% при доле ликвида ≥80% (Прил.1 §2.4). Гейт стоит в ДВУХ местах:
-     • Регистрация залогового договора — контрольный гейт покрытия.
+     • Регистрация залогового договора — контрольный гейт обеспеченности.
      • Регистрация доп соглашения — тот же гейт по ЧИСТОМУ ЭФФЕКТУ пакета (net).
      ЧЕТВЁРТЫЙ ГЕЙТ §2.6 (Р-13, kmGateBlocked): если обеспеченность заёмщика установлена
      решением Кабинета Министров, регистрация блокируется, пока реквизиты решения (kmDecision)
-     не внесены на кредит — независимо от процента покрытия.
+     не внесены на кредит — независимо от достигнутой обеспеченности. С волны 10 (ADR-0009)
+     kmDecision — OWNED-ПОЛЕ КРЕДИТА формы {kind, num, date, scan, coverPct}: залог его
+     ЧИТАЕТ и не пишет, форма ввода из этого модуля снята. coverPct = 0 — законное значение,
+     полное освобождение от порога (индекс неприменим, гейт пройден по решению).
      Провал → договор уходит в статус «На рассмотрении комиссии»
      (не «зарегистрирован с ошибкой» и не «молча пропущен»). Комиссия либо возвращает
      на доработку, либо допускает недообеспеченный кредит с ОБЯЗАТЕЛЬНЫМ обоснованием.
@@ -144,7 +159,24 @@
          миграция видов прежней системы (KIND_MIGRATION) при импорте исторических договоров.
     Р-13 ПОРОГ НЕСЁТ ИСТОЧНИК + ГЕЙТ §2.6 (Прил.1 §2.3/§2.4/§2.6): requiredCover → {req, source};
          kmGateBlocked — блок регистрации, пока не внесены реквизиты решения Кабинета Министров
-         (kmDecision) для заёмщиков соответствующей категории.
+         (kmDecision) для заёмщиков соответствующей категории. Волна 10 (ADR-0009): решение
+         больше не ВВОДИТСЯ из залога — kmDecision принадлежит кредиту, форма снята.
+
+  ВОЛНА 10 (ADR-0009) — ЧТО ИЗМЕНИЛОСЬ ПРОТИВ ВСЕГО НАПИСАННОГО ВЫШЕ:
+    1. Знаменатель индекса и доли ликвида — СУММА ПОД РИСКОМ (atRiskOf), не сумма договора.
+       Величина зеркальная (`atRisk`/`atRiskAsOf` на кредите); отсутствие пары = «снимок не
+       приходил», база берётся равной сумме договора (кредит не освоен — они и совпадают).
+    2. Индекс НЕПРИМЕНИМ (coverage().index === null) в двух случаях: сумма под риском 0
+       (кредит погашен — na) и порог 0 % по решению КМ (released). Гейт в обоих пройден.
+       Такие строки исключены из выбора худшей (applicableRows) — иначе один погашенный
+       кредит обнулял бы обеспеченность всего договора.
+    3. kmDecision читается в кредитной форме {kind, num, date, scan, coverPct}. Было `.no`,
+       и основание порога печаталось как «решение КМ undefined».
+    4. Журнал, справка и выгрузка несут БАЗУ И ДАТУ СНИМКА: индекс теперь дрейфует от
+       платежей в соседнем модуле, и без них сохранённое число не воспроизводимо.
+    5. Слово «покрытие» вычищено из пользовательских строк (CONTEXT.md запрещает его как
+       термин; ADR-0007 объявил чистку сделанной, но она коснулась только histCover).
+       В комментариях слово осталось — правка косметическая, отложена.
     Р-14 ГЕЙТ ЗАМЕНЫ (Прил.3 §3.5): равноценность (Σ вводимых ≥ Σ выводимых) + согласие отраслевого
          департамента + заключение ДАК о ликвидности + ранг (replacementGate); «Отказать в замене».
     Р-15 АКТ ОБСЛЕДОВАНИЯ (Прил.2 §2.3/§2.4): заключение и фотофиксация обязательны; подписанты —
@@ -1388,8 +1420,15 @@ const clientName = inn => (CLIENTS.find(c=>c.inn===inn)||{}).name || inn;
      'Низкий' | 'Средний' | 'Высокий'; read-only здесь, только читается для ужесточения
      периодичности обследования сверх матрицы (effectiveInterval). Отсутствие поля
      трактуется как 'Низкий' (коэф. 1.0, без ужесточения). */
+/* КРЕДИТ — ЗЕРКАЛО соседнего модуля. Залог не владеет ни одним из этих полей и не считает
+   их сам. `atRisk`/`atRiskAsOf` (ADR-0009) — сумма под риском на дату снимка; отсутствие
+   пары означает «снимок не приходил», и база принимается равной сумме договора (atRiskOf).
+   Явно засеяны только те кредиты, на которых сумма под риском что-то демонстрирует. */
 const CREDITS = [
-  { id:'К-56', num:'Дог. №56 от 10.04.2024', inn:'01912201610212', amount:200000, status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий' },
+  /* ADR-0009 demo (положительный): четверть тела погашена → база 150 000 вместо 200 000,
+     индекс Д-001 растёт 100,0 % → 133,3 % при неизменном залоге. Гейт как был пройден,
+     так и остаётся: показываем движение базы, не переворачивая демо договора. */
+  { id:'К-56', num:'Дог. №56 от 10.04.2024', inn:'01912201610212', amount:200000, atRisk:150000, atRiskAsOf:'20.07.2026', status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий' },
   { id:'К-77', num:'Дог. №77 от 18.09.2025', inn:'01912201610212', amount:90000,  status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий' },
   { id:'К-88', num:'Дог. №88 от 03.02.2025', inn:'22105198800047', amount:150000, status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий' },
   /* Р-6 demo: по К-90 зеркалится просрочка → замена залога в доп соглашении Д-006 будет заблокирована.
@@ -1398,7 +1437,10 @@ const CREDITS = [
   /* Р-22 demo: риск «Высокий» (коэф 0.25) → интервал обследования П-005 ужесточается 24→6 мес. */
   { id:'К-40', num:'Дог. №40 от 20.05.2026', inn:'20308197700219', amount:40000,  status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Высокий' },
   { id:'К-71', num:'Дог. №71 от 22.08.2023', inn:'01705199200338', amount:250000, status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий' },
-  { id:'К-33', num:'Дог. №33 от 05.01.2024', inn:'22105198800047', amount:50000,  status:'Погашен',     overdue:false, otherSecurity:null, riskCategory:'Низкий' },
+  /* ADR-0009 demo (граница): кредит погашен → сумма под риском 0 → индекс НЕПРИМЕНИМ.
+     До волны 10 закрытый договор Д-007 показывал «0,0 % · не обеспечен» — обеспечивать
+     было уже нечего, а экран требовал обеспечения. */
+  { id:'К-33', num:'Дог. №33 от 05.01.2024', inn:'22105198800047', amount:50000,  atRisk:0, atRiskAsOf:'14.02.2025', status:'Погашен',     overdue:false, otherSecurity:null, riskCategory:'Низкий' },
   /* Р-10/Р-11 demo (доработано §17 п.1): кредит обеспечен ТОЛЬКО банковской гарантией (иная
      форма, В-1=А: гарантия живёт на кредите через otherSecurity, не залоговым договором) —
      покрытие целиком из idxGuar. Гарантия в ИНОЙ валюте (USD), чем кредит (KGS) → курсовой порог 120%
@@ -1411,6 +1453,33 @@ const CREDITS = [
 ];
 const credit = id => CREDITS.find(c=>c.id===id);
 const creditOther = id => (credit(id)||{}).otherSecurity || null;
+
+/* СУММА ПОД РИСКОМ (ADR-0009) — ЗНАМЕНАТЕЛЬ ОБЕСПЕЧЕННОСТИ.
+   Остаток основного долга плюс ещё не освоенная часть суммы договора. Величина принадлежит
+   КРЕДИТУ и приходит зеркалом (`atRisk` + дата снимка `atRiskAsOf`) — ровно как всё
+   остальное в CREDITS: залог её не выводит и своей копии не держит.
+   До ADR-0009 знаменателем стояла сумма договора (`cr.amount`), и это давало ложную
+   недообеспеченность на всём сроке: кредит на 5 млн с непогашенным миллионом требовал
+   обеспечения под все пять. Обеспечение подкрепляет непогашенное обязательство, а не
+   историческую сумму договора.
+   ОТСУТСТВИЕ ПОЛЯ — НЕ НОЛЬ, а «снимок не приходил / кредит ещё не освоен»: до первой выдачи
+   сумма под риском равна сумме договора, поэтому дефолт — cr.amount. Именно поэтому гейт
+   регистрации работает в тот момент, ради которого он и существует (см. ADR-0009,
+   «Почему сумма под риском, а не остаток основного долга»).
+   НОЛЬ означает полное погашение: обеспечивать нечего, индекс объявляется НЕПРИМЕНИМЫМ
+   (coverage().na), а не нулевым — иначе погашенный кредит красится «не обеспечен», что
+   и наблюдалось до волны 10 у К-33/К-127 (индекс 0,0 % на закрытых договорах).
+   Побочное следствие, которого у прежней базы не было: индекс ДРЕЙФУЕТ от чужих платежей,
+   без единого действия в залоге. Поэтому дата снимка обязательна везде, где число
+   сохраняется (журнал) или показывается как основание решения. */
+const atRiskOf     = cr => (cr && cr.atRisk != null) ? cr.atRisk : ((cr && cr.amount) || 0);
+const atRiskAsOfOf = cr => (cr && cr.atRiskAsOf) || null;
+/* Подпись базы для тултипов и журнала: «сумма под риском N (снимок ДД.ММ.ГГГГ)».
+   Без снимка честно говорим, что число принято равным сумме договора. */
+const baseLabel = cr => atRiskOf(cr) === 0 ? 'сумма под риском 0 — кредит погашен'
+  : `сумма под риском ${fmt(atRiskOf(cr))}` + (atRiskAsOfOf(cr)
+      ? ` (снимок ${atRiskAsOfOf(cr)})`
+      : ' (снимок не приходил — принята равной сумме договора, кредит не освоен)');
 
 /* ПРЕДМЕТ ЗАЛОГА — каноническая запись актива.
    owned: вид, наименование, залогодатель, идентификатор, ОЦЕНОЧНАЯ стоимость.
@@ -2154,7 +2223,10 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
   // ВНЕСЁННЫМ решением Кабинета Министров (kmDecision.coverPct=100) → kmGateBlocked снят,
   // requiredCover читает порог 100% из решения КМ, договор регистрируется штатно.
   CREDITS.push({ id:'К-102', num:'Дог. №102 от 10.07.2026', inn:'20308197700219', amount:100000, status:'Действующий', overdue:false, otherSecurity:null, riskCategory:'Низкий',
-    borrowerCategory:'Госпредприятие', kmDecision:{ no:'ПКМ КР №241', date:'08.06.2026', coverPct:100 } });
+    /* ADR-0009: форма записи — кредитная {kind, num, date, scan, coverPct}; поле принадлежит
+       кредиту, залог его только читает. Раньше здесь стояло `no`, и основание порога
+       печаталось как «решение КМ undefined». */
+    borrowerCategory:'Госпредприятие', kmDecision:{ kind:'Решение КМ', num:'ПКМ КР №241', date:'08.06.2026', scan:'km-241.pdf', coverPct:100 } });
   const kmItem2 = normalizeItem({ id:'П-018', kind:'Недвижимое имущество', name:'Складской комплекс, категория Прил.1 §2.6', pledger:'20308197700219',
     pledgerType:'Госпредприятие', ident:'Кадастровый № 1-03-08-0666', appraised:160000, apprDate:'10.07.2026', apprReport:'ОЦ-2026/102',
     details:{ reType:'Здание', cadastre:'1-03-08-0666', address:'г. Бишкек, ул. Чуй, 140', areaTotal:'480', areaBuilt:'450', areaLand:'700', builtYear:'2008', commDate:'01.04.2008' },
@@ -2368,7 +2440,8 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
   reg('Д-022','ЗД-2026/112-1','24.05.2026','22910198800744',['К-112'],[{item:'П-030', credit:'К-112', share:180000}],'ЗС-2026/1260','Договор зарегистрирован. Обеспеченность К-112: залогом 120,0% при пороге 120,0% → индекс 100,0%');
 
   // П-031 — запрет ПОДЛЕЖИТ СНЯТИЮ: кредит погашен, договор закрыт, доли обнулены, запрет в органе остался.
-  CREDITS.push({ id:'К-127', num:'Дог. №127 от 05.02.2024', inn:'15602199100266', amount:120000, status:'Погашен', overdue:false, otherSecurity:null, riskCategory:'Низкий' });
+  // ADR-0009: погашен → сумма под риском 0 → индекс неприменим (как К-33, договор Д-033 закрыт).
+  CREDITS.push({ id:'К-127', num:'Дог. №127 от 05.02.2024', inn:'15602199100266', amount:120000, atRisk:0, atRiskAsOf:'11.06.2026', status:'Погашен', overdue:false, otherSecurity:null, riskCategory:'Низкий' });
   push({ id:'П-031', kind:'Недвижимое имущество', name:'Квартира, г. Бишкек, ул. Байтик Баатыра, 60-18', pledger:'15602199100266',
     pledgerType:'Физлицо', ident:'Кадастровый № 1-10-07-0618', appraised:300000, apprDate:'05.02.2024', apprReport:'ОЦ-2024/60',
     details:{ reType:'Квартира', cadastre:'1-10-07-0618', address:'г. Бишкек, ул. Байтик Баатыра, 60, кв. 18', areaTotal:'82,0', areaLiving:'50,0', builtYear:'2015', commDate:'01.10.2015' },
@@ -2926,23 +2999,38 @@ function creditItems(cs, creditId){
   cs.forEach(c => c.allocs.filter(a=>a.credit===creditId).forEach(a=>ids.add(a.item)));
   return [...ids].map(item);
 }
+/* ADR-0009: `kmDecision` — OWNED-ПОЛЕ КРЕДИТА, залог его только читает. Форма записи —
+   кредитная: {kind, num, date, scan, coverPct}. До волны 10 залог читал `kmDecision.no`,
+   а кредит писал `num`: арифметика работала (coverPct совпадал), а в основании порога
+   стояло «решение КМ undefined от 08.06.2026». Два модуля разошлись в форме одного поля
+   ровно потому, что каждый завёл его сам.
+   coverPct === 0 — законное значение: решение КМ вправе освободить от порога целиком.
+   Проверяем на null, а не на истинность, иначе `coverPct || …` молча подменит ноль. */
 function requiredCover(creditId, cs){
   const cr = credit(creditId);
-  if (cr && cr.kmDecision) return { req: cr.kmDecision.coverPct/100,
-    source: 'решение КМ ' + cr.kmDecision.no + ' от ' + cr.kmDecision.date + ' (Прил.1 §2.6)' };
+  const km = (cr && cr.kmDecision && cr.kmDecision.coverPct != null) ? +cr.kmDecision.coverPct : null;
+  if (km != null) return { req: km/100, fromKm: true,
+    source: (km === 0 ? 'освобождение от порога по решению КМ ' : 'решение КМ ')
+      + (cr.kmDecision.num || '—') + ' от ' + (cr.kmDecision.date || '—') + ' (Прил.1 §2.6)' };
   const hasMovableIlliquid = creditItems(cs, creditId).some(it => isMovable(it) && !isLiquid(it));
   return hasMovableIlliquid
     ? { req: COVER_MOVABLE, source: 'Прил.1 §2.4 (движимый неликвидный залог)' }
     : { req: COVER_LIQUID,  source: 'Прил.1 §2.3 (ликвидный залог)' };
 }
-/* Доля ЛИКВИДНОГО залога в сумме кредита (Р-1 п.3). Применяется только когда порог = 150%
-   (в покрытии есть движимый неликвидный предмет): тогда доля ликвида должна быть ≥ 80%. */
+/* Доля ЛИКВИДНОГО залога (Р-1 п.3). Применяется только когда порог = 150% (в покрытии есть
+   движимый неликвидный предмет): тогда доля ликвида должна быть ≥ 80%.
+   ADR-0009: база — та же сумма под риском, что у индекса, а не сумма договора. Спека
+   (ASUBK-zalog-logika.md, Р-1) формулирует правило как «≥ 80 % суммы кредита», то есть
+   доля меряется от ОБЯЗАТЕЛЬСТВА, а не от состава залога; сменив базу обязательства, мы
+   обязаны сменить её и здесь — иначе две подпроверки одного гейта считаются от разных
+   величин. Как следствие, по мере погашения доля ликвида растёт и гейт §2.4 смягчается —
+   ровно то же поведение, что у самого индекса, и по той же причине. */
 const liquidShareApplies = (creditId, cs) => requiredCover(creditId, cs).req === COVER_MOVABLE;
 function liquidShare(creditId, cs){
-  const cr = credit(creditId);
+  const base = atRiskOf(credit(creditId));
   const liq = cs.reduce((s,c)=> s + c.allocs.filter(a=>a.credit===creditId)
                  .reduce((t,a)=> t + (isLiquid(item(a.item)) ? effShare(cs, a.item, a.share) : 0), 0), 0);
-  return cr.amount ? liq/cr.amount : 1;
+  return base ? liq/base : 1;
 }
 /* БАНКОВСКАЯ ГАРАНТИЯ (§9–10, Прил.1 §2.3, Р-11). Порог зависит от валюты гарантии
    относительно валюты кредита: та же валюта → 100%, иная → 120% (курсовой запас).
@@ -2980,32 +3068,54 @@ function itemCcy(it){
 }
 const itemCcyLabel = it => ccyLabel(itemCcy(it) || 'KGS');
 /* Покрытие кредита = ИНДЕКС обеспеченности (Р-11, §9–10, Прил.1 §2.3–2.4):
-     index = idxPledge (Σ эффективных отнесённых долей залога ÷ (сумма кредита × её порог))
-           + idxGuar   (сумма действующей банковской гарантии ÷ (сумма кредита × её порог)).
+     index = idxPledge (Σ эффективных отнесённых долей залога ÷ (сумма под риском × её порог))
+           + idxGuar   (сумма действующей банковской гарантии ÷ (сумма под риском × её порог)).
    Обеспечен, когда index ≥ 1 И (если применим) доля ликвида в залоговой части ≥ 80%
    (liqOk — подпункт того же гейта, не новый статус). Просроченная гарантия (till < TODAY)
    в idxGuar не участвует (guaranteeExpired). Поручительство в индекс НЕ входит — остаётся
-   справочным полем `other` на карточке. */
+   справочным полем `other` на карточке.
+   ADR-0009: база (знаменатель обоих слагаемых) — СУММА ПОД РИСКОМ (atRiskOf), не сумма
+   договора. `amount` в возврате оставлен: сумма договора продолжает показываться рядом как
+   справка, но ни одного расчёта на ней больше не стоит.
+   У ГАРАНТИИ СВОЙ ПОРОГ, и это не описка: порог отражает возвратность обеспечения, а не
+   его ликвидность. Залоговое имущество трудно реализуемо, поэтому его требуется 120/150 %;
+   требование к банку — денежное, поэтому 100 % (и 120 % при иной валюте — курсовой запас).
+   Затащить гарантию под залоговый порог значило бы зачесть гарантию на весь долг за 2/3
+   при пороге 150 % (см. ADR-0009, «Числитель»). Дисконт и порог — разные ручки: первый
+   снижает стоимость вещи, второй задаёт, сколько стоимости нужно.
+   БАЗА НОЛЬ = кредит погашен: обеспечивать нечего, индекс НЕ ОПРЕДЕЛЁН. Возвращаем null'ы
+   и na:true, гейт при этом пройден (ok:true) — иначе закрытый договор с погашенным кредитом
+   краснеет «не обеспечен» и поднимает триггер недостаточности (было у К-33/К-127). */
 function coverage(cs, creditId){
   const cr = credit(creditId);
   const other = creditOther(creditId);
   const sum = cs.reduce((s,c)=> s + c.allocs.filter(a=>a.credit===creditId)
                  .reduce((t,a)=> t + effShare(cs, a.item, a.share), 0), 0);
   const { req, source } = requiredCover(creditId, cs);
-  const ratio = cr.amount ? sum/cr.amount : 0;
-  const covOk = cr.amount ? ratio >= req : true;
+  const base = atRiskOf(cr), baseAsOf = atRiskAsOfOf(cr);
+  if (!(base > 0)) return { sum, amount: cr.amount, base, baseAsOf, na: true, released: false,
+    ratio: null, req, source, covOk: true, liqOk: true, liqApplies: false, liqShare: null, other,
+    secPledge: sum, idxPledge: null, idxGuar: null, gReq: null, index: null, ok: true };
+  /* Порог 0 % по решению КМ — полное освобождение от требования обеспеченности (Прил.1 §2.6).
+     Индекса не существует (делить на ноль нечем и незачем), гейт пройден по решению. */
+  if (req === 0) return { sum, amount: cr.amount, base, baseAsOf, na: false, released: true,
+    ratio: sum/base, req, source, covOk: true, liqOk: true, liqApplies: false, liqShare: null, other,
+    secPledge: sum, idxPledge: null, idxGuar: null, gReq: null, index: null, ok: true };
+  const ratio = sum/base;
+  const covOk = ratio >= req;
   const liqApplies = liquidShareApplies(creditId, cs);
   const liqShare = liqApplies ? liquidShare(creditId, cs) : null;
   const liqOk = liqApplies ? liqShare >= LIQUID_SHARE_MIN - 1e-9 : true;
   const secPledge = sum;
-  const idxPledge = cr.amount ? secPledge / (cr.amount * req) : 0;
+  const idxPledge = secPledge / (base * req);
   let idxGuar = 0, gReq = null;
   if (other && other.type === 'банковская гарантия' && !guaranteeExpired(other)) {
     gReq = guaranteeReq(cr);
-    idxGuar = cr.amount ? (other.amount || 0) / (cr.amount * gReq) : 0;
+    idxGuar = (other.amount || 0) / (base * gReq);
   }
   const index = idxPledge + idxGuar;
-  return { sum, amount: cr.amount, ratio, req, source, covOk, liqOk, liqApplies, liqShare, other,
+  return { sum, amount: cr.amount, base, baseAsOf, na: false, released: false,
+           ratio, req, source, covOk, liqOk, liqApplies, liqShare, other,
            secPledge, idxPledge, idxGuar, gReq, index,
            ok: (index >= 1) && liqOk };
 }
@@ -4077,7 +4187,18 @@ const SORT_KEYS = {
    сопоставить с гейтом. Пишем оба и порог между ними.
    Слово «покрытие» из формулировок убрано: CONTEXT.md запрещает его как термин
    («_Avoid_: покрытие, коэффициент залога») в пользу «обеспеченности». */
-const histCover = r => `${r.id} — залоговая ${pct(r.ratio)} от суммы кредита при пороге ${pct(r.req)} → индекс ${pct(r.index)}`
+/* ADR-0009 дополняет ДГ-15: к обеим метрикам и порогу добавляется БАЗА и ДАТА ЕЁ СНИМКА.
+   Знаменатель перестал быть константой договора: сумма под риском меняется каждым платежом
+   в соседнем модуле, поэтому запись «залоговая 120,0 % при пороге 120 %» через год не
+   расшифровывается — 120 % от какой величины? Три числа (база, отношение, порог) и дата
+   снимка — минимум, по которому событие воспроизводимо. */
+const histCover = r => r.released
+  ? `${r.id} — порог обеспечения не применяется: ${r.source}; залоговая ${pct(r.ratio)} от суммы под риском ${fmt(r.base)}`
+  : r.na
+  ? `${r.id} — индекс неприменим: сумма под риском 0 (кредит погашен${r.baseAsOf ? `, снимок ${r.baseAsOf}` : ''}), обеспечивать нечего`
+  : `${r.id} — залоговая ${pct(r.ratio)} от суммы под риском ${fmt(r.base)}`
+  + (r.baseAsOf ? ` (снимок ${r.baseAsOf})` : ' (снимок не приходил — принята равной сумме договора)')
+  + ` при пороге ${pct(r.req)} → индекс ${pct(r.index)}`
   + (r.gReq != null ? ` (в индексе учтена банковская гарантия ${pct(r.idxGuar)})` : '')
   + (r.liqApplies ? `, доля ликвида ${pct(r.liqShare)} при минимуме ${pct(LIQUID_SHARE_MIN)}` : '');
 const histCoverList = rows => rows.map(histCover).join('; ');
@@ -4345,21 +4466,40 @@ function contractItemsCell(c){
    ВЕРДИКТ ГЕЙТА — только у зарегистрированного договора. У черновика это ПРОГНОЗ: ничего ещё
    не нарушено, регистрации не было. Раньше Д-005 «Оформляется» красилось красным 81,7% —
    черновик обвинялся в нарушении порога, которого он ещё не обязан держать. */
+/* ADR-0009: строки без индекса не участвуют ни в выборе худшей строки, ни в цвете пилюли.
+   Индекса нет в двух случаях: сумма под риском 0 (кредит погашен — обеспечивать нечего) и
+   освобождение от порога решением КМ (coverPct = 0). Иначе один такой кредит обнулял бы
+   обеспеченность всего договора. */
+const applicableRows = rows => rows.filter(r => r.index != null);
+/* Почему индекса нет — два разных факта, и путать их нельзя: «нечего обеспечивать» и
+   «обеспечивать не требуется по решению» ведут к разным действиям куратора. */
+const covNaReason = (r, cr) => r.released
+  ? `освобождение от порога обеспечения (${r.source})`
+  : `${baseLabel(cr)}, обеспечивать нечего`;
 function coverGateTip(c){
   const rows = gateCheck(c).rows;
   if(!rows.length) return 'в договоре нет кредитов';
-  const head = isActive(c) ? '' : 'договор не зарегистрирован — прогноз, вердикт гейта выносится при регистрации. ';
+  /* Волна 10: преамбула была «не зарегистрирован → прогноз» на всём, что не действует, —
+     и доставалась ЗАКРЫТОМУ договору, у которого гейт давно вынесен, а не предстоит.
+     Три состояния, три разных текста: черновик — прогноз, терминальный — не оценивается. */
+  const head = isActive(c) ? ''
+    : isDraftish(c) ? 'договор не зарегистрирован — прогноз, вердикт гейта выносится при регистрации. '
+    : `договор ${c.status.toLowerCase()} — обеспеченность не оценивается, числа справочные. `;
   return head + rows.map(r => {
+    const cr = credit(r.id);
+    if(r.index == null) return `${r.id}: индекс неприменим — ${covNaReason(r, cr)}`;
     /* Три числа легко перепутать, поэтому каждое названо своим именем: индекс нормирован
        к порогу (100% = порог достигнут), слагаемые — тоже к порогу, а ratio — отношение
-       залоговой к СУММЕ КРЕДИТА (оно и есть «120%» из положения). */
+       залоговой к СУММЕ ПОД РИСКОМ (оно и есть «120%» из положения). */
     const bits = [`${r.id}: индекс ${pct(r.index)} — залоговая часть ${pct(r.idxPledge)}`
       + (r.gReq != null ? ` + гарантия ${pct(r.idxGuar)}` : '')
       + `, порог ${pct(r.req)} (${r.source})`];
-    if(r.index < 1) bits.push(`индекс < 100% — обеспеченность ниже порога, не хватает ${fmt(Math.max(0, r.amount*r.req - r.sum))}`);
+    if(r.index < 1) bits.push(`индекс < 100% — обеспеченность ниже порога, не хватает ${fmt(Math.max(0, r.base*r.req - r.sum))}`);
     if(r.liqApplies) bits.push(`доля ликвида ${pct(r.liqShare)} при минимуме ${pct(LIQUID_SHARE_MIN)}`
       + (r.liqOk ? '' : ' — НЕ ВЫПОЛНЕНА (Прил.1 §2.4)'));
-    bits.push(`залоговая к сумме кредита ${pct(r.ratio)}`);
+    /* ADR-0009: база названа явно вместе с датой снимка — индекс дрейфует от платежей
+       в соседнем модуле, и без даты прочитать сохранённое число нечем. */
+    bits.push(`залоговая к сумме под риском ${pct(r.ratio)} (${baseLabel(cr)})`);
     bits.push(r.ok ? 'гейт пройден' : 'гейт НЕ пройден');
     return bits.join('; ');
   }).join(' · ');
@@ -4368,6 +4508,8 @@ function coverGateTip(c){
 function coverVerdict(c){
   if(c.status==='Закрыт' || c.status===CANCELLED) return 'не оценивается';
   if(!c.credits.length) return 'не оценивается';
+  /* ADR-0009: все кредиты договора погашены → оценивать нечего, это не «пройден». */
+  if(!applicableRows(gateCheck(c).rows).length) return 'не оценивается';
   return gateCheck(c).ok ? 'пройден' : 'не пройден';
 }
 function coverageCell(c){
@@ -4375,12 +4517,15 @@ function coverageCell(c){
     return `<span style="color:var(--text-placeholder)" title="договор ${esc(c.status.toLowerCase())} — обеспеченность не оценивается">—</span>`;
   const rows = gateCheck(c).rows;
   if(!rows.length) return `<span class="pill neutral" title="в договоре нет кредитов">—</span>`;
-  const worst = rows.reduce((a,b) => b.index < a.index ? b : a);
+  const live = applicableRows(rows);
+  if(!live.length) return `<span class="pill neutral" title="${esc(coverGateTip(c))}">неприменимо</span>`;
+  const worst = live.reduce((a,b) => b.index < a.index ? b : a);
   /* Цвет = ВЕСЬ гейт (индекс ≥ 1 И доля ликвида), не только число. Черновик — серый. */
   const cls = !isActive(c) ? 'neutral' : (gateCheck(c).ok ? 'low' : 'high');
   return `<span class="flexcell" title="${esc(coverGateTip(c))}">`
     + `<span class="pill ${cls}">${pct(worst.index)}</span>`
-    + (rows.length > 1 ? `<span class="tagpill third">худший из ${rows.length}</span>` : '')
+    + (live.length > 1 ? `<span class="tagpill third">худший из ${live.length}</span>` : '')
+    + (live.length < rows.length ? `<span class="tagpill stale">погашенных ${rows.length - live.length}</span>` : '')
     + `</span>`;
 }
 /* ДГ-10: вторая точка входа в карточку — шеврон в конце строки. */
@@ -4396,7 +4541,7 @@ function onShowCancelled(on){ showCancelledContracts = !!on; curPage = 1; render
 const cancelledHidden = () => showCancelledContracts ? 0 : CONTRACTS.filter(c => c.status === CANCELLED).length;
 function rowsContracts(){
   return CONTRACTS.filter(c => showCancelledContracts || c.status !== CANCELLED).map(c => {
-    const rows = (c.status==='Закрыт' || c.status===CANCELLED || !c.credits.length) ? [] : gateCheck(c).rows;
+    const rows = (c.status==='Закрыт' || c.status===CANCELLED || !c.credits.length) ? [] : applicableRows(gateCheck(c).rows);
     const mc = rows.length ? Math.min(...rows.map(r => r.index)) : 0;
     const marks = contractMarks(c);
     const third = contractPledgers(c);
@@ -4948,6 +5093,12 @@ const CSV_PROFILES = {
     ['Предметы',                 c => [...new Set(c.allocs.map(a=>a.item))].join(', ')],
     ['Отметки',                  c => contractMarks(c).map(m => m.code).join('; ')],
     ['Вердикт гейта §2.3–2.4',   c => coverVerdict(c)],
+    /* ADR-0009: база индекса — зеркальная величина кредита, которая меняется без единого
+       действия в залоге. В выгрузке без неё и без даты снимка «худший индекс» нечем
+       воспроизвести: два экспорта одного договора в разные дни дадут разные числа. */
+    ['Сумма под риском — база индекса', c => { const w = worstRow(c); return w ? fmtRaw(w.base) : ''; }],
+    ['Сумма под риском — дата снимка',  c => { const w = worstRow(c); return w ? (w.baseAsOf || 'снимок не приходил') : ''; }],
+    ['Сумма договора (справочно)',      c => { const w = worstRow(c); return w ? fmtRaw(w.amount) : ''; }],
     ['Обеспеченность — худший индекс, %', c => csvPctRaw(worstCover(c, 'index'))],
     ['в т.ч. залогом, %',        c => csvPctRaw(worstCover(c, 'idxPledge'))],
     ['в т.ч. гарантией, %',      c => csvPctRaw(worstCover(c, 'idxGuar'))],
@@ -4972,7 +5123,9 @@ const CSV_PROFILES = {
    чтобы «худший индекс» и «порог» относились к ОДНОМУ И ТОМУ ЖЕ кредиту, а не к разным. */
 function worstRow(c){
   if(c.status==='Закрыт' || c.status===CANCELLED || !c.credits.length) return null;
-  const rows = gateCheck(c).rows;
+  /* ADR-0009: погашенный кредит (индекс неприменим) худшим быть не может — иначе он
+     утащил бы весь договор в «0,0 %», как это делали К-33/К-127 до волны 10. */
+  const rows = applicableRows(gateCheck(c).rows);
   return rows.length ? rows.reduce((a,b) => b.index < a.index ? b : a) : null;
 }
 const worstCover = (c, field) => { const w = worstRow(c); return w ? w[field] : null; };
@@ -5042,18 +5195,26 @@ function buildPrintForm(kind, id){
   if(kind === 'справка'){
     const c = contract(id); if(!c) return '';
     const cs = ctx(isActive(c) ? null : c);
+    /* ADR-0009: справка — документ на дату, а база к дате привязана (сумма под риском
+       меняется платежами в кредитном модуле). Поэтому в шапке строки стоит база и дата её
+       снимка, а не сумма договора: без них справка не воспроизводима. */
     const rows = c.credits.map(cid=>{ const r = coverage(cs, cid), cr = credit(cid);
-      return `<tr><td>${cid}</td><td>${esc(cr.num)}</td><td class="r">${fmt(cr.amount)} ${ccyLabel(creditCcy(cr))}</td>
+      const base = `${fmt(r.base)} ${ccyLabel(creditCcy(cr))}<br><span style="font-size:11px">снимок ${r.baseAsOf || '—'} · по договору ${fmt(r.amount)}</span>`;
+      if(r.index == null) return `<tr><td>${cid}</td><td>${esc(cr.num)}</td><td class="r">${base}</td>
+        <td class="r">${pct(r.req)}</td><td class="r" colspan="3">индекс неприменим — ${covNaReason(r, cr)}</td>
+        <td>не оценивается</td></tr>`;
+      return `<tr><td>${cid}</td><td>${esc(cr.num)}</td><td class="r">${base}</td>
         <td class="r">${pct(r.req)}</td><td class="r">${pct(r.idxPledge)}</td>
         <td class="r">${r.gReq!=null?pct(r.idxGuar):'—'}</td><td class="r"><b>${pct(r.index)}</b></td>
         <td>${r.ok?'обеспечен':'НЕ обеспечен'}</td></tr>`; }).join('');
     return printDoc('Справка об обеспеченности · '+c.id, `
       <h1>Справка об обеспеченности кредитов по договору ${c.no ? esc(c.no) : c.id}</h1>
       <p class="sub">Договор ${c.id} · заёмщик ${esc(clientName(c.inn))} · дата печати ${TODAY}</p>
-      <table><thead><tr><th>Кредит</th><th>Договор</th><th class="r">Сумма</th><th class="r">Порог</th>
+      <table><thead><tr><th>Кредит</th><th>Договор</th><th class="r">Сумма под риском</th><th class="r">Порог</th>
         <th class="r">Индекс залога</th><th class="r">Индекс гарантии</th><th class="r">Индекс (итог)</th><th>Гейт</th></tr></thead>
       <tbody>${rows}</tbody></table>
-      <p class="foot">Индекс обеспеченности = залог + банковская гарантия, считается в валюте кредита.</p>
+      <p class="foot">Индекс обеспеченности = залог + банковская гарантия, считается в валюте кредита от суммы под риском
+        (остаток основного долга + неосвоенная часть, ADR-0009). Величина зеркальная: приходит из кредитного модуля на дату снимка.</p>
       <div class="sign"><div>Куратор отдела залогового обеспечения</div><div>Начальник отдела</div></div>`);
   }
   if(kind === 'акт'){
@@ -5249,7 +5410,7 @@ function openPriorLien(id){
       ${fin('plAmt','Сумма обеспеченного требования','')}
       ${ftxt('plNote','Источник сведений','выписка регистрирующего органа')}
     </div>
-    <div class="warn-inline"><span>Запись <b>не уменьшает</b> залоговую стоимость и не участвует в расчёте покрытия.</span></div>
+    <div class="warn-inline"><span>Запись <b>не уменьшает</b> залоговую стоимость и не участвует в расчёте обеспеченности.</span></div>
     </div>${mfoot('Внести','savePriorLien(\''+id+'\')')}</div>`);
 }
 function savePriorLien(id){
@@ -5450,7 +5611,7 @@ function itemPanels(it){
            выглядел как действующий. Дата действия выведена из даты отчёта. */''}
       ${ro('Отчёт об оценке', `${esc(it.apprReport)} от ${it.apprDate} · действует до ${apprValidTill(it) || '—'}${apprStale(it)?' — УСТАРЕЛ':''}`)}
       ${ro('Оценщик', (it.appraiser || 'не указан') + (it.apprLicense ? ' · лицензия ' + it.apprLicense : ''))}
-      <div class="field col-span"><span class="flabel">Залоговая стоимость (в расчёте покрытия)</span>
+      <div class="field col-span"><span class="flabel">Залоговая стоимость (в расчёте обеспеченности)</span>
         <div class="control ro" style="gap:8px">
           <input value="${esc(fmt(pv))}" readonly style="width:auto;flex:1">
           ${zBadge}
@@ -5588,7 +5749,7 @@ function itemPanels(it){
          определяют реальную очерёдность удовлетворения. Данные вводятся вручную. */''}
     <p class="section-h" style="margin-top:22px">Предшествующие залоги третьих лиц</p>
     <div class="gtoolbar">${actionBtn(canCurate(), 'Внести предшествующий залог', `openPriorLien('${it.id}')`)}</div>
-    ${priorLiensOf(it).length ? `<div class="flagline"><span>Предмет уже обременён в пользу стороннего залогодержателя: наши требования удовлетворяются <b>в порядке следующей очереди</b>. В расчёт покрытия эти суммы НЕ входят — это предупреждение оформителю.</span></div>` : ''}
+    ${priorLiensOf(it).length ? `<div class="flagline"><span>Предмет уже обременён в пользу стороннего залогодержателя: наши требования удовлетворяются <b>в порядке следующей очереди</b>. В расчёт обеспеченности эти суммы НЕ входят — это предупреждение оформителю.</span></div>` : ''}
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Залогодержатель</th><th>Документ</th><th>Дата</th><th class="numcell">Сумма требования</th><th>Очередь</th><th></th></tr></thead>
       <tbody>${(it.priorLiens||[]).length ? (it.priorLiens||[]).map((l,i)=>`<tr${l.released?' class="voided-row"':''}>
@@ -5778,9 +5939,9 @@ function ctrPanels(c){
     </div>
     ${c.status==='На рассмотрении комиссии' ? `<div class="phead-banner danger">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
-      <span>Контрольный гейт покрытия не пройден (${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — обеспеченность ${pct(r.index)} < 100% (залог ${pct(r.idxPledge)}${r.gReq!=null?` + гарантия ${pct(r.idxGuar)}`:''})`).join('; ')}) — регистрация ЗАБЛОКИРОВАНА до решения комитета по администрированию бюджетных кредитов. Комиссия либо возвращает на доработку (догрузить/заменить предмет), либо допускает недообеспеченный кредит с обязательным обоснованием.</span></div>` : ''}
+      <span>Контрольный гейт обеспеченности не пройден (${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — обеспеченность ${pct(r.index)} < 100% (залог ${pct(r.idxPledge)}${r.gReq!=null?` + гарантия ${pct(r.idxGuar)}`:''})`).join('; ')}) — регистрация ЗАБЛОКИРОВАНА до решения комитета по администрированию бюджетных кредитов. Комиссия либо возвращает на доработку (догрузить/заменить предмет), либо допускает недообеспеченный кредит с обязательным обоснованием.</span></div>` : ''}
     ${c.undercovered ? `<div class="phead-banner warn">
-      <span>Допущен комиссией с покрытием ниже порога ${pct(c.undercovered.req)} (${pct(c.undercovered.ratio)}). Обоснование: «${esc(c.undercovered.obosn)}» · ${esc(c.undercovered.by)} · ${c.undercovered.date}</span></div>` : ''}
+      <span>Допущен комиссией с обеспеченностью ниже порога ${pct(c.undercovered.req)} (${pct(c.undercovered.ratio)}). Обоснование: «${esc(c.undercovered.obosn)}» · ${esc(c.undercovered.by)} · ${c.undercovered.date}</span></div>` : ''}
     ${c.replacementRefusal ? `<div class="phead-banner warn">
       <span>Отказано в замене залога по кредиту(ам) ${c.replacementRefusal.credits.join(', ')} (Прил.3 §3.5). Причина: «${esc(c.replacementRefusal.reason)}» · ${esc(c.replacementRefusal.by)} · ${c.replacementRefusal.date}</span></div>` : ''}
     <div class="phead-dims">
@@ -5848,32 +6009,38 @@ function ctrPanels(c){
         : `<tr><td colspan="${colCount}"><div class="cgrid-empty">Предметы не привязаны</div></td></tr>`}</tbody>
     </table></div></div>`;
 
-  const totAmt = c.credits.reduce((s,id)=>s+credit(id).amount,0);
+  /* ADR-0009: итог по договору складывает СУММЫ ПОД РИСКОМ, а не суммы договоров —
+     иначе строка «Итого» меряет одно, а строки над ней другое. */
+  const totBase = c.credits.reduce((s,id)=>s+atRiskOf(credit(id)),0);
   const totSec = c.credits.reduce((s,id)=>{ const r = gate.rows.find(x=>x.id===id); return s + r.sum; },0);
   const p2 = `<div class="panel-wrap">
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Кредит</th><th>Договор</th><th class="numcell">Сумма кредита</th><th class="numcell">Порог / требуется</th><th class="numcell">Обеспечено</th><th class="numcell">Дефицит / излишек</th><th>Покрытие</th><th>Индекс обеспеченности</th><th>Доля ликвида</th><th>Статус кредита</th>${canCurate()&&isActive(c)?'<th></th>':''}</tr></thead>
+      <thead><tr><th>Кредит</th><th>Договор</th><th class="numcell">Сумма под риском</th><th class="numcell">Порог / требуется</th><th class="numcell">Обеспечено</th><th class="numcell">Дефицит / излишек</th><th>Залоговая к базе</th><th>Индекс обеспеченности</th><th>Доля ликвида</th><th>Статус кредита</th>${canCurate()&&isActive(c)?'<th></th>':''}</tr></thead>
       <tbody>${c.credits.map(id=>{ const r = gate.rows.find(x=>x.id===id), cr = credit(id);
-        const need = cr.amount*r.req, deficit = need - r.sum;
-        const defCell = r.other ? '<span class="pill neutral">—</span>'
+        const need = r.base*r.req, deficit = need - r.sum;
+        const defCell = r.index == null ? '<span class="pill neutral">—</span>'
+          : r.other ? '<span class="pill neutral">—</span>'
           : (deficit > 0.005 ? `<span class="diff-dn" title="не хватает обеспечения — догрузить/заменить предмет">−${fmt(deficit)}</span>`
                              : `<span class="diff-up" title="обеспечение выше требуемого">+${fmt(-deficit)}</span>`);
         const otherNote = r.other ? (r.other.type==='банковская гарантия' ? 'учтена в индексе обеспеченности' : 'вне залогового гейта, справочно') : '';
+        /* Неприменимый индекс (кредит погашен) — серое «неприменимо» во всех трёх метриках,
+           а не ноль: ноль читается как «обеспечения нет», хотя его и не требуется. */
+        const naPill = `<span class="pill neutral" title="${esc(covNaReason(r, cr))}">неприменимо</span>`;
         return `<tr>
         <td>${id}${r.other?` <span class="pill info" title="${esc(r.other.type)} — ${otherNote}">иная форма</span>`:''}${suretyMarkPill(id)}</td><td>${esc(cr.num)}</td>
-        <td class="numcell">${fmt(cr.amount)}</td>
-        <td class="numcell">${r.other ? '<span class="pill neutral">—</span>' : `${pct(r.req)} · ${fmt(need)}`}</td>
+        <td class="numcell" title="${esc(baseLabel(cr))}">${fmt(r.base)}${r.base !== cr.amount ? `<div class="c2-sub">по договору ${fmt(cr.amount)}</div>` : ''}</td>
+        <td class="numcell">${r.index == null || r.other ? '<span class="pill neutral">—</span>' : `${pct(r.req)} · ${fmt(need)}`}</td>
         <td class="numcell">${fmt(r.sum)}</td>
         <td class="numcell">${defCell}</td>
-        <td><span class="pill ${r.ok?'low':(r.covOk?'mid':'high')}">${pct(r.ratio)}</span></td>
-        <td><span class="pill ${r.index>=1?'low':'high'}" title="залог ${pct(r.idxPledge)}${r.gReq?` + гарантия ${pct(r.idxGuar)} (порог ${pct(r.gReq)})`:''} = индекс ${pct(r.index)}">${pct(r.index)}</span></td>
+        <td>${r.na ? naPill : `<span class="pill ${r.ok?'low':(r.covOk?'mid':'high')}">${pct(r.ratio)}</span>`}</td>
+        <td>${r.index == null ? naPill : `<span class="pill ${r.index>=1?'low':'high'}" title="залог ${pct(r.idxPledge)}${r.gReq?` + гарантия ${pct(r.idxGuar)} (порог ${pct(r.gReq)})`:''} = индекс ${pct(r.index)}">${pct(r.index)}</span>`}</td>
         <td>${r.liqApplies ? `<span class="pill ${r.liqOk?'low':'high'}">${pct(r.liqShare)} / 80%</span>` : '<span class="pill neutral">—</span>'}</td>
         <td>${cr.status}${cr.overdue?' <span class="pill high">просрочка</span>':''}</td>
         ${canCurate()&&isActive(c) ? `<td>${cr.status==='Действующий' ? `<button class="btn btn-tint btn-sm" onclick="repay('${c.id}','${id}')">Отметить погашенным</button>` : '—'}</td>` : ''}</tr>`; }).join('')}
-        <tr class="total"><td colspan="2">Итого по договору</td><td class="numcell">${fmt(totAmt)}</td><td class="numcell"></td><td class="numcell">${fmt(totSec)}</td><td class="numcell"></td><td><span class="pill ${totSec>=totAmt?'low':'high'}">${pct(totAmt ? totSec/totAmt : 0)}</span></td><td></td><td></td><td></td>${canCurate()&&isActive(c)?'<td></td>':''}</tr></tbody>
+        <tr class="total"><td colspan="2">Итого по договору</td><td class="numcell">${fmt(totBase)}</td><td class="numcell"></td><td class="numcell">${fmt(totSec)}</td><td class="numcell"></td><td>${totBase ? `<span class="pill ${totSec>=totBase?'low':'high'}">${pct(totSec/totBase)}</span>` : '<span class="pill neutral">неприменимо</span>'}</td><td></td><td></td><td></td>${canCurate()&&isActive(c)?'<td></td>':''}</tr></tbody>
     </table></div>
-    ${gate.ok ? `<div class="okline" style="margin-top:14px"><span>Гейт покрытия пройден по всем кредитам договора.</span></div>`
-      : `<div class="flagline" style="margin-top:14px"><span>Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)} (порог ${pct(r.req)}${r.liqApplies&&!r.liqOk?`, доля ликвида ${pct(r.liqShare)}<80%`:''})`).join(', ')}. ${isActive(c)
+    ${gate.ok ? `<div class="okline" style="margin-top:14px"><span>Гейт обеспеченности пройден по всем кредитам договора.</span></div>`
+      : `<div class="flagline" style="margin-top:14px"><span>Гейт обеспеченности НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — ${pct(r.ratio)} (порог ${pct(r.req)}${r.liqApplies&&!r.liqOk?`, доля ликвида ${pct(r.liqShare)}<80%`:''})`).join(', ')}. ${isActive(c)
         ? 'Триггер «недостаточность обеспечения» во взыскание.'
         : 'Регистрация заблокирована до решения комиссии.'}</span></div>`}
     ${(()=>{ const lines = c.credits.map(id=>suretyLayerLine(id)).filter(Boolean);
@@ -5890,7 +6057,7 @@ function ctrPanels(c){
         <thead><tr><th>Операции пакета</th></tr></thead>
         <tbody>${d.ops.map(o=>`<tr><td>${esc(o)}</td></tr>`).join('')}</tbody></table></div>
       <div class="cgrid-wrap"><table class="cgrid">
-        <thead><tr><th>Кредит</th><th>Покрытие до</th><th>Покрытие после</th></tr></thead>
+        <thead><tr><th>Кредит</th><th>Обеспеченность до</th><th>Обеспеченность после</th></tr></thead>
         <tbody>${d.diff.map(x=>`<tr><td>${x.id}</td><td>${x.before}</td>
           <td class="${x.up?'diff-up':'diff-dn'}">${x.after}</td></tr>`).join('')}</tbody></table></div>
       ${d.obosn ? `<div class="flagline" style="margin-top:12px"><span>Допущено комиссией ниже порога ${pct(d.req)}. Обоснование: «${esc(d.obosn)}»</span></div>` : ''}
@@ -6389,7 +6556,7 @@ function openReval(id){
       ${fin('rvOld','Текущая оценочная', fmt(it.appraised))}
       ${ftxt('rvNote','Примечание','')}
     </div>
-    <div class="warn-inline"><span>Меняется только <b>оценочная</b> — залоговая пересчитается сама (× ${coefOf(it.kind)})${it.override ? '; действующее решение комиссии её перекрывает' : ''}. Падение покрытия ниже порога поднимет триггер «недостаточность обеспечения».</span></div>
+    <div class="warn-inline"><span>Меняется только <b>оценочная</b> — залоговая пересчитается сама (× ${coefOf(it.kind)})${it.override ? '; действующее решение комиссии её перекрывает' : ''}. Падение обеспеченности ниже порога поднимет триггер «недостаточность обеспечения».</span></div>
     </div>${mfoot('Сохранить переоценку','saveReval(\''+id+'\')')}</div>`);
   document.getElementById('rvOld').readOnly = true;
 }
@@ -6423,7 +6590,7 @@ function saveReval(id){
   const dropped = acs1.flatMap(c=>c.credits.map(cid=>({cid, ok:coverage(acs1, cid).ok})))
                       .filter(a => !a.ok && (before.find(b=>b.cid===a.cid)||{ok:true}).ok);
   toast('Переоценка сохранена. Залоговая: '+fmt(pledgeValue(it)),'ok');
-  if(dropped.length) toast('ТРИГГЕР «недостаточность обеспечения»: покрытие упало ниже порога по '+dropped.map(d=>d.cid).join(', ')+' → трек взыскания по обеспечению','warn');
+  if(dropped.length) toast('ТРИГГЕР «недостаточность обеспечения»: обеспеченность упала ниже порога по '+dropped.map(d=>d.cid).join(', ')+' → трек взыскания по обеспечению','warn');
   refresh();
 }
 
@@ -6460,7 +6627,7 @@ function saveOverride(id){
   if(!gate.ok) return toast(gate.msg,'warn');
   if(!ob) return toast('Обоснование обязательно','warn');
   const alloc = allocatedLegal(it.id) + allocatedDraft(it.id);
-  if(v < alloc) toast('Внимание: новая залоговая '+fmt(v)+' МЕНЬШЕ суммы закреплённых долей '+fmt(alloc)+' — доли будут усечены в расчёте покрытия','warn');
+  if(v < alloc) toast('Внимание: новая залоговая '+fmt(v)+' МЕНЬШЕ суммы закреплённых долей '+fmt(alloc)+' — доли будут усечены в расчёте обеспеченности','warn');
   const old = pledgeValue(it);
   it.override = { value:v, obosn: ob, by: role, date: TODAY, beyondDiscount:false };
   hist(it, `Залоговая стоимость понижена решением заведующего отделом залогового обеспечения: ${fmt(old)} → ${fmt(v)} (расчётная ${fmt(cp)}). Обоснование: «${ob}»`);
@@ -6973,7 +7140,7 @@ function ncCredits(){
   if(!inn){ document.getElementById('ncCredits').innerHTML = `<div class="op-empty">Сначала выберите заёмщика</div>`; return; }
   const list = CREDITS.filter(c=>c.inn===inn && c.status==='Действующий');
   document.getElementById('ncCredits').innerHTML = list.length ? list.map(c=>`<div class="op-row">
-      <label class="chk"><input type="checkbox" class="ncChk" value="${c.id}"> ${c.id} · ${esc(c.num)} · сумма ${fmt(c.amount)} · требуется: ${pct(COVER_LIQUID)} — ${fmt(c.amount*COVER_LIQUID)} (ликвидный) / ${pct(COVER_MOVABLE)} — ${fmt(c.amount*COVER_MOVABLE)} (движимый неликвидный)</label></div>`).join('')
+      <label class="chk"><input type="checkbox" class="ncChk" value="${c.id}"> ${c.id} · ${esc(c.num)} · ${esc(baseLabel(c))} · требуется: ${pct(COVER_LIQUID)} — ${fmt(atRiskOf(c)*COVER_LIQUID)} (ликвидный) / ${pct(COVER_MOVABLE)} — ${fmt(atRiskOf(c)*COVER_MOVABLE)} (движимый неликвидный)</label></div>`).join('')
       + `<div class="formula">Итоговый порог определяется составом обеспечения (Прил.1 §2.3–2.4).</div>`
     : `<div class="op-empty">У клиента нет действующих кредитов</div>`;
 }
@@ -7040,7 +7207,7 @@ function openAlloc(cid, preItemId){
   modal(`<div class="modal form">${mhead('Привязать предмет · '+cid)}
     <div class="modal-b"><div class="mform">
       ${fsel('alItem','Предмет из реестра', opts, preItemId||null, true)}
-      ${fsel('alCredit','Кредит договора', c.credits.map(id=>({v:id, t:id+' · '+credit(id).num+' · требуется '+fmt(credit(id).amount*requiredCover(id, ctx(c)).req)})))}
+      ${fsel('alCredit','Кредит договора', c.credits.map(id=>({v:id, t:id+' · '+credit(id).num+' · требуется '+fmt(atRiskOf(credit(id))*requiredCover(id, ctx(c)).req)+' (от суммы под риском '+fmt(atRiskOf(credit(id)))+')'})))}
       ${fin('alShare','Обеспечивает (часть залоговой стоимости)','',true)}
     </div>
     <div class="warn-inline" id="alInfo"></div>
@@ -7065,7 +7232,7 @@ function openAlloc(cid, preItemId){
     document.getElementById('alInfo').innerHTML = `<span>Залоговая ${fmt(pledgeValue(it))} · уже обременено действующими договорами ${fmt(leg)} · <b>доступно ${fmt(av)}</b>.
       ${leg > 0 ? 'Это <b>перезалог</b> на остаточную стоимость предмета.' : ''}
       ${it.ban ? `<br>По предмету уже действует запрет ${esc(it.ban.regNo)} — при регистрации будет дополнен основанием.` : ''}
-      <br>Порог по текущему составу: ${pct(req)} (${req===COVER_MOVABLE?'в покрытии есть движимый неликвидный предмет — Прил.1 §2.4':'ликвидный состав — Прил.1 §2.3'}). Доля ликвида: ${pct(ls)} при минимуме 80%.${ccyWarn}</span>`;
+      <br>Порог по текущему составу: ${pct(req)} (${req===COVER_MOVABLE?'в составе обеспечения есть движимый неликвидный предмет — Прил.1 §2.4':'ликвидный состав — Прил.1 §2.3'}). Доля ликвида: ${pct(ls)} при минимуме 80%.${ccyWarn}</span>`;
     /* Д-3/Т3: дефолт доли = недостающее ДО ПОРОГА, а не полное требуемое покрытие. Т3 (Р-11):
        нетто считается по coverage-wide secPledge кредита — эффективные доли залога на этом
        кредите ВО ВСЕХ действующих договорах + в этом черновике (ctxWithDraft), а не только по
@@ -7073,7 +7240,7 @@ function openAlloc(cid, preItemId){
        частично закрытого залогом по ДРУГОМУ договору. */
     const cr = credit(crId);
     const alreadyByCredit = coverage(ctxWithDraft, crId).secPledge;
-    document.getElementById('alShare').value = document.getElementById('alShare').value || String(Math.min(av, Math.max(0, cr.amount*req - alreadyByCredit)));
+    document.getElementById('alShare').value = document.getElementById('alShare').value || String(Math.min(av, Math.max(0, atRiskOf(cr)*req - alreadyByCredit)));
   };
   document.getElementById('alItem').addEventListener('change', ()=>{ document.getElementById('alShare').value=''; sync(); });
   document.getElementById('alCredit').addEventListener('change', ()=>{ document.getElementById('alShare').value=''; sync(); });
@@ -7110,9 +7277,19 @@ function dropAlloc(cid, idx){
 function openRegister(cid){
   if(!canCurate()) return denyEdit();
   const c = contract(cid), gate = gateCheck(c);
-  const rows = gate.rows.map(r=>`<tr><td>${r.id}</td><td class="numcell">${fmt(r.amount)}</td>
-    <td class="numcell">${pct(r.req)}</td><td class="numcell">${fmt(r.amount*r.req)}</td><td class="numcell">${fmt(r.sum)}</td>
-    <td><span class="pill ${r.ok?'low':'high'}">${pct(r.ratio)}${r.liqApplies?` · ликвид ${pct(r.liqShare)}/80%`:''}</span></td></tr>`).join('');
+  /* ADR-0009: «Требуется» считается от суммы под риском, поэтому и колонка называет её, а
+     сумма договора остаётся справкой второй строкой. При регистрации они, как правило,
+     совпадают (кредит ещё не освоен) — но совпадение должно быть видимым фактом, а не
+     подразумеваемым: именно на этом умолчании и держалась старая формула. */
+  const rows = gate.rows.map(r=>{
+    const cr = credit(r.id);
+    if(r.index == null) return `<tr><td>${r.id}</td><td class="numcell">${fmt(r.base)}<div class="c2-sub">по договору ${fmt(r.amount)}</div></td>
+      <td class="numcell">${pct(r.req)}</td><td class="numcell">—</td><td class="numcell">${fmt(r.sum)}</td>
+      <td><span class="pill neutral" title="${esc(covNaReason(r, cr))}">неприменимо</span></td></tr>`;
+    return `<tr><td>${r.id}</td><td class="numcell" title="${esc(baseLabel(cr))}">${fmt(r.base)}${r.base !== r.amount ? `<div class="c2-sub">по договору ${fmt(r.amount)}</div>` : ''}</td>
+    <td class="numcell">${pct(r.req)}</td><td class="numcell">${fmt(r.base*r.req)}</td><td class="numcell">${fmt(r.sum)}</td>
+    <td><span class="pill ${r.ok?'low':'high'}">${pct(r.ratio)}${r.liqApplies?` · ликвид ${pct(r.liqShare)}/80%`:''}</span></td></tr>`;
+  }).join('');
   /* Р-5: гейт предпосылок оформления — отдельный от гейта покрытия; для регистрации проходят оба. */
   const its = [...new Set(c.allocs.map(a=>a.item))];
   const prereqMiss = its.flatMap(iid => prereqMissing(item(iid)).map(m=>({iid, ...m})));
@@ -7148,7 +7325,7 @@ function openRegister(cid){
   modal(`<div class="modal form">${mhead('Регистрация залогового договора · '+cid)}
     <div class="modal-b">
       <div class="cgrid-wrap" style="margin-bottom:14px"><table class="cgrid">
-        <thead><tr><th>Кредит</th><th class="numcell">Сумма</th><th class="numcell">Порог</th><th class="numcell">Требуется</th><th class="numcell">Обеспечено</th><th>Покрытие</th></tr></thead>
+        <thead><tr><th>Кредит</th><th class="numcell">Сумма под риском</th><th class="numcell">Порог</th><th class="numcell">Требуется</th><th class="numcell">Обеспечено</th><th>Обеспеченность</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
       ${contributes ? `<p class="section-h" style="font-size:15px;margin:2px 0 6px">Вклад договора в обеспеченность</p>
       <div class="cgrid-wrap" style="margin-bottom:12px"><table class="cgrid">
@@ -7162,10 +7339,10 @@ function openRegister(cid){
       ${prereqMiss.length ? `<div class="flagline" style="margin-top:10px"><span>② Гейт предпосылок §5.2 НЕ пройден: не приложены обязательные документы — ${prereqMiss.map(m=>`${m.iid}: ${esc(m.label)}`).join('; ')}. Приложите их на карточке предмета и повторите регистрацию.</span></div>`
         : (okAll ? `<div class="okline" style="margin-top:10px"><span>② Гейт предпосылок §5.2 пройден: обязательные согласия и справки приложены.</span></div>` : '')}
       ${!content.ok ? `<div class="flagline" style="margin-top:10px"><span>③ ${esc(content.msg)}</span></div>` : ''}
-      ${kmMiss.length ? `<div class="flagline" style="margin-top:10px"><span>④ Гейт §2.6 НЕ пройден: заёмщик относится к категории Прил.1 §2.6 (${esc([...new Set(kmMiss.map(id=>credit(id).borrowerCategory))].join(', '))}). Обеспеченность устанавливается решением Кабинета Министров — укажите реквизиты решения.</span></div>` : ''}
-      ${gate.ok ? `<div class="okline" style="margin-top:10px"><span>⑤ Гейт покрытия пройден.</span></div>`
-        : (c.undercovered ? `<div class="okline" style="margin-top:10px"><span>⑤ Покрытие ниже порога, но кредит ДОПУЩЕН комитетом по администрированию бюджетных кредитов (${pct(c.undercovered.ratio)} при пороге ${pct(c.undercovered.req)}). Основание: «${esc(c.undercovered.obosn)}» (${esc(c.undercovered.by)}, ${c.undercovered.date}). Куратор довносит нотариальные реквизиты и регистрирует договор.</span></div>`
-        : `<div class="flagline" style="margin-top:10px"><span>⑤ Гейт покрытия НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)+' (порог '+pct(r.req)+')').join(', ')}.${docBlocked ? ' Сначала устраните документарные гейты выше — в комитет уходит только недообеспечение.' : ' Регистрация блокируется; договор уходит на рассмотрение комитета по администрированию бюджетных кредитов.'}</span></div>`)}
+      ${kmMiss.length ? `<div class="flagline" style="margin-top:10px"><span>④ Гейт §2.6 НЕ пройден: заёмщик относится к категории Прил.1 §2.6 (${esc([...new Set(kmMiss.map(id=>credit(id).borrowerCategory))].join(', '))}). Обеспеченность устанавливается решением Кабинета Министров. Реквизиты решения вносятся в карточке кредита (${esc(kmMiss.join(', '))}) — это поле кредита, залог его только читает (ADR-0009). До внесения регистрация невозможна: акт КМ не выпускается отделом залогового обеспечения.</span></div>` : ''}
+      ${gate.ok ? `<div class="okline" style="margin-top:10px"><span>⑤ Гейт обеспеченности пройден.</span></div>`
+        : (c.undercovered ? `<div class="okline" style="margin-top:10px"><span>⑤ Обеспеченность ниже порога, но кредит ДОПУЩЕН комитетом по администрированию бюджетных кредитов (${pct(c.undercovered.ratio)} при пороге ${pct(c.undercovered.req)}). Основание: «${esc(c.undercovered.obosn)}» (${esc(c.undercovered.by)}, ${c.undercovered.date}). Куратор довносит нотариальные реквизиты и регистрирует договор.</span></div>`
+        : `<div class="flagline" style="margin-top:10px"><span>⑤ Гейт обеспеченности НЕ пройден: ${gate.rows.filter(r=>!r.ok).map(r=>r.id+' — '+pct(r.ratio)+' (порог '+pct(r.req)+')').join(', ')}.${docBlocked ? ' Сначала устраните документарные гейты выше — в комитет уходит только недообеспечение.' : ' Регистрация блокируется; договор уходит на рассмотрение комитета по администрированию бюджетных кредитов.'}</span></div>`)}
       ${okAll ? `<div class="mform">
         ${fin('rgNo','Номер договора','',true)}
         ${fdate('rgDate','Дата договора', TODAY, true)}
@@ -7180,15 +7357,13 @@ function openRegister(cid){
     </div>
     ${okAll ? mfoot('Зарегистрировать','doRegister(\''+cid+'\')','btn-success')
       /* Р-36: документарные гейты (①②③④) блокируют и регистрацию, и комитет — кнопка
-         «Направить в комитет» не рендерится. §2.6 куратор чинит сам («Указать решение КМ»),
-         прочие — только «Закрыть». В комитет уходит ТОЛЬКО чистое недообеспечение (⑤). */
-      : (stopMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
-        : (prereqMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
-          : (!content.ok ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
-            : (kmMiss.length ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-                 <button class="btn btn-primary" onclick="openKmDecision('${cid}')">Указать решение КМ</button></div>`
+         «Направить в комитет» не рендерится. Ни один из четырёх не чинится из этого окна:
+         §2.6 снимается решением КМ в карточке кредита (ADR-0009 — кнопка «Указать решение
+         КМ» снята вместе с формой), прочие — на карточках предметов. В комитет уходит
+         ТОЛЬКО чистое недообеспечение (⑤). */
+      : (docBlocked ? `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div>`
               : `<div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-                 <button class="btn btn-primary" onclick="toCommission('${cid}')">Направить в комитет по администрированию бюджетных кредитов</button></div>`))))}
+                 <button class="btn btn-primary" onclick="toCommission('${cid}')">Направить в комитет по администрированию бюджетных кредитов</button></div>`)}
     </div>`);
 }
 /* Постобработка запрета при переводе договора в «Зарегистрирован».
@@ -7229,7 +7404,7 @@ function doRegister(cid){
   if(km.length) return toast('Гейт Прил.1 §2.6 не пройден: обеспеченность по решению КМ не установлена — '+km.join(', '),'warn');
   /* ⑤ Р-29 (В-3=А): при допуске комитета (c.undercovered) гейт покрытия пройден по решению комитета. */
   const gate = gateCheck(c);
-  if(!gate.ok && !c.undercovered) return toast('Гейт покрытия не пройден','warn');
+  if(!gate.ok && !c.undercovered) return toast('Гейт обеспеченности не пройден','warn');
   const no = val('rgNo').trim(), date = iso2d(val('rgDate')), notary = val('rgNotary').trim(),
         nno = val('rgNotaryNo').trim(), ndate = iso2d(val('rgNotaryDate')), cert = val('rgCert').trim(),
         custody = val('rgCustody'), custodyPlace = val('rgCustodyPlace').trim();
@@ -7242,7 +7417,7 @@ function doRegister(cid){
   c.allocs.forEach(a => { item(a.item).everPledged = true; });
   hist(c, `Договор зарегистрирован (${no}). Обеспеченность: ${histCoverList(gate.rows)}. С этого момента предметы юридически обременены.`);
   const missing = afterRegister(c);
-  closeModal(); toast(`Договор зарегистрирован. Гейт покрытия пройден: ${gate.rows.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)}`).join('; ')}`,'ok');
+  closeModal(); toast(`Договор зарегистрирован. Гейт обеспеченности пройден: ${gate.rows.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)}`).join('; ')}`,'ok');
   if(missing.length) toast(`Наложите запрет на отчуждение в «${organOf(missing[0])}» до ${banDeadline(missing[0])} — до этого залог не защищён от продажи`,'warn');
   refresh();
 }
@@ -7256,44 +7431,25 @@ function toCommission(cid){
   if(its.some(iid => prereqMissing(item(iid)).length)) return toast('Предпосылки §5.2 не собраны — договор нельзя направить в комитет','warn');
   if(!contentGate(c).ok) return toast('Договор без предметов нельзя направить в комитет','warn');
   if(c.credits.some(id => kmGateBlocked(credit(id)))) return toast('Гейт §2.6 не пройден — сначала внесите решение КМ','warn');
-  if(gate.ok) return toast('Покрытие в норме — решение комитета не требуется','warn');
+  if(gate.ok) return toast('Обеспеченность в норме — решение комитета не требуется','warn');
   c.status = 'На рассмотрении комиссии';
   c.commissionSince = TODAY;   // Р-35: старт отсчёта SLA очереди комитета
   hist(c, `Регистрация заблокирована контрольным гейтом. Обеспеченность: ${histCoverList(gate.rows.filter(r=>!r.ok))}. Направлено в комитет по администрированию бюджетных кредитов.`);
   closeModal(); toast('Договор направлен в комитет по администрированию бюджетных кредитов','warn'); refresh();
 }
 
-/* ---------- РЕШЕНИЕ КАБИНЕТА МИНИСТРОВ (Р-13, Прил.1 §2.6) — вводится на карточке ДОГОВОРА
-   (не в кредитном модуле): заёмщик под категорией §2.6 не имеет собственного расчёта
-   обеспеченности — её устанавливает решение КМ, applies ко ВСЕМ кредитам договора,
-   у которых заполнена borrowerCategory. requiredCover() уже читает kmDecision.coverPct —
-   после сохранения requiredCover/coverage у этих кредитов автоматически переходят на
-   % из решения (см. requiredCover выше). ---------- */
-function openKmDecision(cid){
-  if(!canCurate()) return denyEdit();
-  const c = contract(cid);
-  modal(`<div class="modal form">${mhead('Решение Кабинета Министров · '+cid)}
-    <div class="modal-b">
-      <div class="mform">
-        ${fin('kmNo','№ решения','',true)}
-        ${fdate('kmDate','Дата решения', TODAY, true)}
-        ${fin('kmPct','% обеспеченности','',true)}
-      </div>
-      <div class="warn-inline"><span>Реквизиты применяются ко всем кредитам договора, относящимся к категории Прил.1 §2.6 (${esc([...new Set(c.credits.filter(id=>(credit(id)||{}).borrowerCategory).map(id=>credit(id).borrowerCategory))].join(', '))}).</span></div>
-    </div>${mfoot('Сохранить решение','saveKmDecision(\''+cid+'\')')}</div>`);
-}
-function saveKmDecision(cid){
-  const c = contract(cid), no = val('kmNo').trim(), date = iso2d(val('kmDate')), coverPct = num(val('kmPct'));
-  if(!no) return toast('Укажите номер решения','warn');
-  if(!isDate(date)) return toast('Дата — в формате дд.мм.гггг','warn');
-  if(!(coverPct > 0)) return toast('% обеспеченности должен быть положительным числом','warn');
-  const decision = { no, date, coverPct };
-  const applied = [];
-  c.credits.forEach(id => { const cr = credit(id); if(cr && cr.borrowerCategory){ cr.kmDecision = decision; applied.push(id); } });
-  hist(c, `Решение Кабинета Министров ${no} от ${date} (Прил.1 §2.6): обеспеченность ${coverPct}% — применено к кредитам ${applied.join(', ')}`);
-  closeModal(); toast('Решение КМ сохранено — гейт §2.6 снят','ok');
-  openRegister(cid);
-}
+/* ---------- РЕШЕНИЕ КАБИНЕТА МИНИСТРОВ (Р-13, Прил.1 §2.6) — ФОРМА ВВОДА СНЯТА (ADR-0009).
+   Прежняя редакция вводила решение здесь, на карточке ДОГОВОРА, и прямо мотивировала это
+   тем, что «заёмщик под категорией §2.6 не имеет собственного расчёта обеспеченности».
+   Мотивировка говорила о том, к чему решение ПРИМЕНЯЕТСЯ, а не о том, кому оно
+   ПРИНАДЛЕЖИТ: kmDecision — owned-поле кредита (ADR-0009), и запись в него из залога есть
+   ровно та вторая точка владения, из-за которой два модуля разъехались в форме поля.
+   Хуже того, кнопка снимала блокирующий гейт руками того самого залогового куратора,
+   которого гейт и должен остановить: акт Кабинета Министров он не выпускает.
+   Обе ветки гейта остаются проходимыми на стенде без формы — К-101 (решения нет,
+   регистрация Д-012 заблокирована) и К-102 (решение внесено, Д-014 регистрируется штатно).
+   requiredCover() читает kmDecision.coverPct; экраны показывают реквизиты как основание
+   порога и только их. ---------- */
 
 /* ---------- РЕШЕНИЕ КОМИТЕТА ПО АДМИНИСТРИРОВАНИЮ БЮДЖЕТНЫХ КРЕДИТОВ (обоснование обязательно для допуска) ---------- */
 function openCommission(cid){
@@ -7302,7 +7458,7 @@ function openCommission(cid){
   const bad = gate.rows.filter(r=>!r.ok);
   modal(`<div class="modal form">${mhead('Решение комитета по администрированию бюджетных кредитов · '+cid)}
     <div class="modal-b">
-      <div class="flagline"><span>Недообеспечение: ${bad.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (не хватает ${fmt(Math.max(0, r.amount*r.req - r.sum))}${r.liqApplies&&!r.liqOk?`; доля ликвида ${pct(r.liqShare)}<80%`:''})`).join('; ')}</span></div>
+      <div class="flagline"><span>Недообеспечение: ${bad.map(r=>`${r.id} — ${pct(r.ratio)} от суммы под риском ${fmt(r.base)}${r.baseAsOf?` (снимок ${r.baseAsOf})`:''} при пороге ${pct(r.req)} (не хватает ${fmt(Math.max(0, r.base*r.req - r.sum))}${r.liqApplies&&!r.liqOk?`; доля ликвида ${pct(r.liqShare)}<80%`:''})`).join('; ')}</span></div>
       <div class="mform one">
         ${fsel('cmDec','Решение', [
           {v:'return', t:'Вернуть на доработку — догрузить / заменить предмет'},
@@ -7489,7 +7645,7 @@ function renderDs(){
   const inOpts    = ITEMS.filter(i=>!i.lost).map(i=>({v:i.id, t:`${i.id} · ${i.name} · доступно ${fmt(availableOf(i))}`}));
   const shareOpts = v.allocs.map((a,i)=>({v:i, t:`${a.item} / ${a.credit} · текущая доля ${fmt(a.share)}`}));
   const credOpts  = CREDITS.filter(cr=>cr.inn===c.inn && cr.status==='Действующий' && !v.credits.includes(cr.id))
-                           .map(cr=>({v:cr.id, t:`${cr.id} · ${cr.num} · сумма ${fmt(cr.amount)} · порог по составу (${pct(COVER_LIQUID)}/${pct(COVER_MOVABLE)})`}));
+                           .map(cr=>({v:cr.id, t:`${cr.id} · ${cr.num} · ${baseLabel(cr)} · порог по составу (${pct(COVER_LIQUID)}/${pct(COVER_MOVABLE)})`}));
 
   modal(`<div class="modal">${mhead('Доп соглашение к '+(c.no||c.id)+' — пакет изменений (changeset)')}
     <div class="modal-b">
@@ -7538,9 +7694,9 @@ function renderDs(){
 
       <p class="section-h" style="font-size:16px;margin-top:14px">Сравнение «до → после» — что в итоге изменилось</p>
       <div class="cgrid-wrap"><table class="cgrid">
-        <thead><tr><th>Кредит</th><th>Покрытие до</th><th>Покрытие после</th><th>Порог до</th><th>Порог после</th><th>Гейт</th></tr></thead>
+        <thead><tr><th>Кредит</th><th>Обеспеченность до</th><th>Обеспеченность после</th><th>Порог до</th><th>Порог после</th><th>Гейт</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-      ${reqRose ? `<div class="infoline" style="margin-top:10px"><span>Порог вырос: в обеспечение добавлен низколиквидный вид (товары в обороте / движимое) — состав перешёл в режим 150%. Рост покрытия может не компенсировать рост порога.</span></div>` : ''}
+      ${reqRose ? `<div class="infoline" style="margin-top:10px"><span>Порог вырос: в обеспечение добавлен низколиквидный вид (товары в обороте / движимое) — состав перешёл в режим 150%. Рост обеспеченности может не компенсировать рост порога.</span></div>` : ''}
 
       ${breach.length ? `<div class="flagline" style="margin-top:12px"><span>Инвариант нарушен: по ${breach.map(b=>`${b.id} (Σ долей ${fmt(b.alloc)} > залоговая ${fmt(b.pledge)})`).join('; ')}. Пакет не может быть зарегистрирован.</span></div>` : ''}
       ${repOverdue.length ? `<div class="flagline" style="margin-top:12px"><span>Замена невозможна: по кредиту ${repOverdue.map(r=>r.credit).join(', ')} есть просроченная задолженность. Погасите просрочку и повторите.</span></div>` : ''}
@@ -7645,9 +7801,9 @@ function dsRegister(){
   const worst = after.rows.reduce((a,b)=> b.ratio<a.ratio?b:a);
   let obosn = '';
   if(!after.ok || repDrop || repEquivShort){
-    if(!canCommittee()) return toast('Гейт не пройден (покрытие/ликвидность/равноценность): допуск возможен только комитетом по администрированию бюджетных кредитов','warn');
+    if(!canCommittee()) return toast('Гейт не пройден (обеспеченность/ликвидность/равноценность): допуск возможен только комитетом по администрированию бюджетных кредитов','warn');
     obosn = val('dsObosn').trim();
-    if(!obosn) return toast('Допуск (покрытие ниже порога / понижение ликвидности / равноценность) требует обоснования','warn');
+    if(!obosn) return toast('Допуск (обеспеченность ниже порога / понижение ликвидности / равноценность) требует обоснования','warn');
   }
   const no = 'ДС-' + String(c.addenda.length+1).padStart(2,'0') + '/' + TODAY.slice(6);
   const diff = after.rows.map(r => {
@@ -7697,12 +7853,17 @@ function repay(cid, creditId){
   modal(`<div class="modal form narrow">${mhead('Полное погашение кредита · '+creditId)}
     <div class="modal-b">
       <div class="warn-inline"><span>Частичное погашение долю не уменьшает — только доп соглашением.</span></div>
-      <p class="phead-sub">Кредит ${creditId} · ${esc(cr.num)} · сумма ${fmt(cr.amount)}. Если это последний действующий кредит договора — договор будет закрыт, предметы освобождены.</p>
+      <p class="phead-sub">Кредит ${creditId} · ${esc(cr.num)} · ${esc(baseLabel(cr))}. Сумма под риском обнулится, индекс обеспеченности станет неприменим (ADR-0009). Если это последний действующий кредит договора — договор будет закрыт, предметы освобождены.</p>
     </div>${mfoot('Отметить погашенным','doRepay(\''+cid+'\',\''+creditId+'\')','btn-success')}</div>`);
 }
 function doRepay(cid, creditId){
   const cr = credit(creditId);
   cr.status = 'Погашен';
+  /* ADR-0009: погашение обнуляет сумму под риском — обеспечивать больше нечего, индекс
+     объявляется неприменимым. В проде обе величины приходят зеркалом из кредитного модуля;
+     здесь мокап двигает их сам, чтобы связка «погашение → неприменимый индекс» была
+     проходима на стенде. */
+  cr.atRisk = 0; cr.atRiskAsOf = TODAY;
   const touched = new Set();
   CONTRACTS.forEach(c => {
     const gone = c.allocs.filter(a=>a.credit===creditId);
@@ -8037,6 +8198,8 @@ if (typeof window !== 'undefined') window.__zt = {
   contractMarks, marksCell, contractItemsCell, coverGateTip, coverVerdict, coverageCell,
   rowChevCell, onShowCancelled, cancelledHidden, quickSearchNow,
   DEFAULT_SORT, applyDefaultSort, setReg, worstRow, worstCover, csvPctRaw,
+  // Волна 10 (ADR-0009): сумма под риском как база обеспеченности, kmDecision как поле кредита.
+  atRiskOf, atRiskAsOfOf, baseLabel, applicableRows, covNaReason, histCover, doRepay,
   showCancelled: () => showCancelledContracts,
   PAGE_SIZE_DEFAULT: () => PAGE_SIZE_DEFAULT,
 };
