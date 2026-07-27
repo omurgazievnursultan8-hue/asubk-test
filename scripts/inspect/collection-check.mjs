@@ -386,22 +386,24 @@ ok('извещение ускоряет охват всех солидарных
 head('экраны');
 ok('база списка — требования, а не дела',
    g.ev(`(renderList(), baseSet().every(r => !!REQ_INDEX[r.id]))`));
-ok('строк-требований столько же, сколько видимых требований',
-   g.ev(`document.querySelectorAll('#listBody tr:not(.rowgrp)').length`) === g.ev('visibleReqs().length'));
+ok('строк-требований на странице столько же, сколько требований у её дел',
+   g.ev(`(renderList(), document.querySelectorAll('#listBody tr.rowopen').length)`)
+   === g.ev(`groupedDeals().slice((curPage-1)*PAGE_SIZE, curPage*PAGE_SIZE).reduce((a,d)=>a+d.reqs.length,0)`));
 ok('дело-папка выводится строкой-группой',   g.ev(`document.querySelectorAll('#listBody tr.rowgrp').length`) > 0);
-ok('колонок В-11 столько же, сколько в LIST_COLS',
+ok('колонок столько же, сколько в LIST_COLS',
    g.ev(`document.querySelectorAll('#listHead th').length`) === g.ev('LIST_COLS.length'));
-ok('у обрезаемых колонок есть title', g.$$('#listBody tr:not(.rowgrp)').every(tr => {
+ok('у обрезаемых колонок есть title', g.$$('#listBody tr.rowopen').every(tr => {
   const t = i => tr.children[i].getAttribute('title');
-  return t(1) && t(2) && t(3) && t(5) && t(6);
+  return t(0) && t(1) && t(2) && t(3) && t(5) && t(6);
 }));
 ok('закрытые требования приглушены классом terminal',
-   g.ev(`document.querySelectorAll('#listBody tr.terminal').length`) > 0);
+   g.ev(`(onPageSize(500), document.querySelectorAll('#listBody tr.terminal').length)`) > 0);
 ok('сумма плиток равна «Всего» (истинный partition, P3-R32)', g.ev(`(() => {
   const s = baseSet();
-  const sum = ['gate','window','procWait','overdue','closed'].reduce((a,k)=>a + s.filter(r=>listStatus(r)===k).length, 0);
+  const sum = ['gate','window','procWait','clear','closed'].reduce((a,k)=>a + s.filter(r=>listStatus(r)===k).length, 0);
   return s.length > 0 && s.length === sum;
 })()`));
+g.ev('onPageSize(25)');
 ok('фильтр по фазе работает от свёртки', g.ev(`(() => {
   filterState = { phase:'Иск' }; const rows = baseSet(); filterState = {};
   return rows.length > 0 && rows.every(r => phaseOf(r) === 'Иск');
@@ -624,6 +626,242 @@ ok('после восстановления соглашение снова св
   const r = REQ_INDEX['120/40/з'];
   return r.states.some(s => s.agreement && s.agreement.num === 'МС-12');
 })()`));
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ВОЛНА ТР — экран «Требования (реестр)».
+   Решения ТР-1…ТР-11, дефекты ТР-Д1…ТР-Д12.
+   Журнал волны: mockups/collection/ASUBK-status-razrabotki.md
+   ══════════════════════════════════════════════════════════════════════════ */
+const HTML_SRC = HTML;                       // для проверок «этого в исходнике больше нет»
+const L = mk(); L.ev('renderList()');        // свой DOM: тесты волны мутируют фильтры и страницы
+const tileLabels = () => L.$$('#listTiles .tile').map(t => t.querySelector('.tl').textContent);
+const rowsOnPage = () => L.$$('#listBody tr.rowopen');
+const chips      = () => L.$$('#filterChips .fchip').map(c => c.textContent.replace('×','').trim());
+
+head('ТР-1 · реестр — состояние портфеля, а не рабочая очередь');
+ok('рамка экрана названа вслух',            /Состояние портфеля взыскания/.test(L.$('.list-frame').textContent));
+ok('очередь по срокам отправлена в свой реестр', /Сроки на контроле/.test(L.$('.list-frame').textContent));
+ok('колонки «Ближайший срок» в реестре нет', L.ev(`LIST_COLS.every(c => c.k !== 'nearest')`));
+ok('nearestDeadline жив — он нужен карточке и реестру сроков', L.ev(`typeof nearestDeadline === 'function'`));
+
+head('ТР-2 · плитки считают помехи, остаток назван честно');
+ok('плиток шесть: всего + три помехи + остаток + закрытые', tileLabels().length === 6);
+ok('плитки «Просрочен срок» больше нет',    !tileLabels().some(t => /Просрочен срок/.test(t)));
+ok('остаточная корзина названа «В работе без помех»', L.ev(`TILE_LABELS.clear`) === 'В работе без помех');
+ok('помехи идут перед остатком',
+   tileLabels().indexOf('Заблокировано гейтом комитета') < tileLabels().indexOf('В работе без помех'));
+ok('остаток — именно остаток: у его требований нет ни гейта, ни окна, ни ожидания процедуры',
+   L.ev(`baseSet().filter(r=>listStatus(r)==='clear').every(r =>
+     !gateBlocked(r) && !(r._proc.window && r._proc.window.open) &&
+     !(r._proc.procedure && r._proc.procedure.confirm && r._proc.procedure.confirm.state==='ожидает'))`));
+ok('плитка сужает список до своего состояния',
+   L.ev(`(clickTile('gate'), onPageSize(500), [...document.querySelectorAll('#listBody tr.rowopen')].length === baseSet().filter(r=>listStatus(r)==='gate').length)`));
+ok('нажатая плитка попадает в ленту условий', chips().some(c => /^Плитка: Заблокировано/.test(c)));
+L.ev(`clickTile('gate'); onPageSize(25)`);
+
+head('ТР-3 · свойства дела ушли из строки требования');
+ok('в колонках нет заёмщика, региона, процедуры и куратора',
+   L.ev(`['borrower','region','procedure','curator'].every(k => LIST_COLS.every(c => c.k !== k))`));
+ok('заголовок дела несёт заёмщика, ИНН, регион, процедуру, группу и куратора', (() => {
+  const t = L.$('#listBody tr.rowgrp td').textContent;
+  return /ИНН/.test(t) && /куратор/.test(t) && /(группа|группа не выведена)/.test(t)
+    && /(процедура не определена|Работа|Взыскание|Реструктур|Банкрот|Судебн|Исполнит|Списан)/.test(t);
+})());
+
+head('ТР-4 · группировка по делу — устройство таблицы, не режим');
+ok('переключателя группировки в исходнике нет',      !/groupByBorrower/.test(HTML_SRC));
+ok('каждое дело выводится одним непрерывным блоком', L.ev(`(() => {
+  const ids = [...document.querySelectorAll('#listBody tr.rowopen')].map(tr => tr.dataset.id.split('/')[0]);
+  const seen = new Set(); let prev = null;
+  for(const id of ids){ if(id !== prev){ if(seen.has(id)) return false; seen.add(id); prev = id; } }
+  return ids.length > 0;
+})()`));
+ok('дело всплывает по лучшей строке: при сортировке по сумме ↓ первое дело содержит максимум', L.ev(`(() => {
+  sortKey='claim'; sortDir=-1; curPage=1; renderList();
+  const deals = groupedDeals(); if(!deals.length) return false;
+  const best = d => Math.max(...d.reqs.map(claimOf));
+  return best(deals[0]) === Math.max(...deals.map(best));
+})()`));
+ok('внутри дела строки идут в порядке той же сортировки', L.ev(`(() => {
+  const d = groupedDeals().find(d => d.reqs.length > 1); if(!d) return false;
+  return d.reqs.every((r,i) => i === 0 || claimOf(d.reqs[i-1]) >= claimOf(r));
+})()`));
+ok('сортировка устойчива: равные ключи упорядочены по ключу требования', L.ev(`(() => {
+  sortKey='cat'; sortDir=1; const rs = sortedReqs();
+  for(let i=1;i<rs.length;i++) if(CAT_RANK[catOfReq(rs[i-1])] === CAT_RANK[catOfReq(rs[i])]
+    && String(rs[i-1].id).localeCompare(String(rs[i].id),'ru') > 0) return false;
+  sortKey='claim'; sortDir=-1; renderList(); return true;
+})()`));
+
+head('ТР-5 · фильтр: поля из требований, мёртвое снято');
+const flabels = () => L.$$('#filterBody .flabel').map(x => x.textContent);
+ok('поля «Владелец (отдел)» больше нет',      !flabels().includes('Владелец (отдел)'));
+ok('появилось «Ведущее подразделение»',        flabels().includes('Ведущее подразделение'));
+ok('ТР-Д1: опции подразделения = значениям требований', L.ev(`(() => {
+  const opts = [...document.querySelectorAll('#f-subdiv option')].map(o=>o.value).filter(Boolean);
+  const vals = [...new Set(allReqs().map(r=>r.subdivision))];
+  return opts.length === vals.length && opts.every(o => vals.includes(o));
+})()`));
+ok('ТР-Д1: выбор подразделения возвращает НЕпустой список', L.ev(`(() => {
+  setF('subdiv','ОПК'); const n = visibleReqs().length;
+  const ok = n > 0 && visibleReqs().every(r => r.subdivision === 'ОПК');
+  resetFilters(); return ok;
+})()`));
+ok('«Предмет требования» переименован в «Охват»',
+   !flabels().includes('Предмет требования') && flabels().includes('Охват'));
+ok('опции охвата берутся из требований, а не из дел', L.ev(`(() => {
+  const opts = [...document.querySelectorAll('#f-scope option')].map(o=>o.value).filter(Boolean);
+  const vals = [...new Set(allReqs().map(r=>r.scope))];
+  return opts.length === vals.length && opts.every(o => vals.includes(o));
+})()`));
+ok('ТР-Д2: у ключа role появилось поле «Роль обязанного лица»', flabels().includes('Роль обязанного лица'));
+ok('ТР-Д2: фильтр по роли работает', L.ev(`(() => {
+  setF('role','поручитель'); const rs = visibleReqs();
+  const ok = rs.length > 0 && rs.every(r => r.role === 'поручитель');
+  resetFilters(); return ok;
+})()`));
+ok('ТР-Д10: сплит-кнопка «Обновить» снята',   L.$$('#filterBody .split').length === 0 && !/splitRefresh/.test(HTML_SRC));
+ok('ТР-Д10: шестерёнка «Настройка колонок» снята', L.$$('.gear-btn').length === 0 && !/Настройка видимости колонок/.test(HTML_SRC));
+ok('чипы подписаны по-русски, включая контур и фазу', L.ev(`(() => {
+  setDep('contour','К2'); const c = [...document.querySelectorAll('#filterChips .fchip')].map(x=>x.textContent);
+  resetFilters(); return c.some(x => /^Контур:/.test(x));
+})()`));
+
+head('ТР-6 · строка открывается кликом и Enter; пагинация и выгрузка настоящие');
+ok('кнопки «Открыть требование» нет',        !/btnOpen/.test(HTML_SRC) && !/Открыть требование<\/button>/.test(HTML_SRC));
+ok('строка помечена как открываемая и попадает в табуляцию',
+   rowsOnPage()[0].getAttribute('tabindex') === '0' && rowsOnPage()[0].classList.contains('rowopen'));
+{ const m = mk(); m.ev(`renderList(); document.querySelector('#listBody tr.rowopen').dispatchEvent(new Event('click',{bubbles:true}))`);
+  ok('клик по строке открывает требование', m.ev(`!!curReq && document.getElementById('view-detail').style.display !== 'none'`)); }
+{ const m = mk(); m.ev(`renderList();
+  const tr = document.querySelector('#listBody tr.rowopen');
+  const e = new window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}); tr.dispatchEvent(e);`);
+  ok('Enter на строке открывает требование', m.ev(`!!curReq && document.getElementById('view-detail').style.display !== 'none'`)); }
+ok('ТР-Д4: пейджер настоящий — четыре живые кнопки, позиция и размер страницы',
+   L.$$('#pagerNav button').length === 4 && !!L.$('#pagerNav .pager-pos') && !!L.$('#pagerSize'));
+ok('ТР-Д5: счётчик не говорит «процессов»',  !/процессов/.test(L.$('#pagerCount').textContent) && !/>процессов</.test(HTML_SRC));
+ok('счётчик формы «дела 1–25 из N»',         /^дела 1–\d+ из \d+ · требований на странице \d+ из \d+$/.test(L.ev(`(gotoPage(1), document.getElementById('pagerCount').textContent)`)));
+ok('на странице ровно PAGE_SIZE дел (пока дел хватает)',
+   L.$$('#listBody tr.rowgrp').length === L.ev('Math.min(PAGE_SIZE, groupedDeals().length)'));
+ok('вторая страница даёт другие дела', L.ev(`(() => {
+  gotoPage(1); const a = [...document.querySelectorAll('#listBody tr.rowopen')].map(t=>t.dataset.id).join();
+  gotoPage(2); const b = [...document.querySelectorAll('#listBody tr.rowopen')].map(t=>t.dataset.id).join();
+  gotoPage(1); return a !== b && b.length > 0;
+})()`));
+ok('размер страницы меняет число дел', L.ev(`(() => {
+  onPageSize(50); const n50 = document.querySelectorAll('#listBody tr.rowgrp').length;
+  onPageSize(25); const n25 = document.querySelectorAll('#listBody tr.rowgrp').length;
+  return n50 === Math.min(50, groupedDeals().length) && n25 === 25;
+})()`));
+ok('дело не рвётся между страницами: все его строки на одной', L.ev(`(() => {
+  const page = groupedDeals().slice(0, PAGE_SIZE);
+  return page.every(d => d.reqs.length === d.p.requirements.filter(r => visibleReqs().includes(r)).length);
+})()`));
+ok('кнопка выгрузки на месте',               !!L.$('#btnExport') && /Выгрузить/.test(L.$('#btnExport').textContent));
+
+head('ТР-6/ТР-11 · оттиск выгрузки');
+const tsv = L.ev('exportTsv().tsv');
+ok('оттиск называет реестр',                 /^Реестр требований \(взыскание задолженности\)/.test(tsv));
+ok('оттиск несёт дату среза',                /\nСостояние на\t21\.07\.2026/.test(tsv));
+ok('оттиск несёт дату снимка денег',         /\nДеньги — снимок модуля кредита на\t\d\d\.\d\d\.\d{4}/.test(tsv));
+ok('оттиск несёт условия отбора',            /\nУсловия\t/.test(tsv));
+ok('оттиск несёт сортировку и правило всплытия дела', /\nСортировка\t.*дела всплывают по лучшей строке/.test(tsv));
+ok('оттиск несёт число дел и требований',    /\nДел\t\d+\n/.test(tsv) && /\nТребований\t\d+\n/.test(tsv));
+ok('выгрузка отдаёт все страницы, а не текущую',
+   Number((tsv.match(/\nТребований\t(\d+)\n/) || [])[1]) === L.ev('sortedReqs().length'));
+ok('условия отбора попадают в оттиск дословно', (() => {
+  L.ev(`setF('subdiv','ОПК')`); const t = L.ev('exportTsv().tsv'); L.ev('resetFilters()');
+  return /\nУсловия\t.*Ведущее подразделение: ОПК/.test(t);
+})());
+
+head('ТР-7 · охват — только на требовании');
+ok('у дела поля scope больше нет',           g.ev(`PROCESSES.every(p => p.scope === undefined)`));
+ok('охват хранится на кредите',              g.ev(`PROCESSES.flatMap(p=>p.credits).every(c => typeof c.scope === 'string')`));
+ok('требование берёт охват с кредита',       g.ev(`allReqs().every(r => r.scope === r._credit.scope)`));
+ok('словарь охвата — три значения CONTEXT',  g.ev(`(() => {
+  const v = [...new Set(allReqs().map(r=>r.scope))].sort();
+  return v.length === 3 && v.join('|') === ['залог','полный остаток','просроченная сумма'].sort().join('|');
+})()`));
+ok('значения «смешанный» в данных нет',      !/смешанный/.test(HTML_SRC));
+ok('ТР-Д9: у вопроса на орган поле topic, не subject',
+   g.ev(`PROCESSES.flatMap(p=>p.committeeQuestions||[]).every(q => typeof q.topic === 'string' && q.subject === undefined)`));
+ok('CQ_SUBJECTS переехал на topic',          g.ev(`CQ_SUBJECTS.every(s => typeof s.topic === 'string')`));
+
+head('ТР-8 · составной ключ — не колонка');
+ok('колонки «№ требования» нет',             L.ev(`LIST_COLS.every(c => c.k !== 'id')`));
+ok('ключ требования — в подсказке строки',   /^Требование \d+\/\d+\/[зпг] — открыть$/.test(rowsOnPage()[0].getAttribute('title')));
+ok('ключ требования — в выгрузке',           tsv.split('\n').find(l => /^№ требования\t/.test(l)) !== undefined
+   && /\n\d+\/\d+\/[зпг]\t/.test(tsv));
+
+head('ТР-9 · заголовок дела в одну строку');
+ok('ТР-Д11: заголовок есть у КАЖДОГО дела на странице',
+   L.$$('#listBody tr.rowgrp').length === L.ev('Math.min(PAGE_SIZE, groupedDeals().length)'));
+ok('ТР-Д11: дело с единственным требованием тоже получает заголовок', L.ev(`(() => {
+  const d = groupedDeals().slice(0,PAGE_SIZE).find(d => d.reqs.length === 1);
+  if(!d) return false;
+  const rows = [...document.querySelectorAll('#listBody tr')];
+  const i = rows.findIndex(tr => tr.dataset.id === d.reqs[0].id);
+  return i > 0 && rows[i-1].classList.contains('rowgrp');
+})()`));
+ok('заголовок несёт размер дела справа',     /дело В-2026-\d{6} · требований \d+ · по делу /.test(L.$('#listBody tr.rowgrp').textContent));
+ok('сумма по делу считается один раз на кредит (солидарность не удваивает)', g.ev(`(() => {
+  const p = PROCESSES.find(x => x.requirements.some(r => solidaryWith(r).length));
+  return claimTotal(p.requirements) < p.requirements.reduce((a,r)=>a+claimOf(r),0);
+})()`));
+ok('строка требования — восемь колонок',     L.ev('LIST_COLS.length') === 8 && rowsOnPage()[0].children.length === 8);
+ok('ширин столько же, сколько колонок, и в сумме 100 %',
+   L.ev('LIST_WIDTHS.length') === 8 && L.ev(`LIST_WIDTHS.reduce((a,w)=>a+parseFloat(w),0)`) === 100);
+ok('деньги и дни просрочки выровнены вправо', L.$$('#listBody tr.rowopen td.num').length > 0
+   && [...rowsOnPage()[0].children].filter(td => td.classList.contains('num')).length === 2);
+
+head('ТР-10 · стадии');
+ok('в сайдбаре четыре стадийных пункта',     g.ev(`Object.keys(STAGE_RANK).length`) === 4);
+ok('«Отчуждение активов» больше не заглушка: нет ни stub-класса, ни тоста вместо фильтра',
+   L.$$('#nav .nav-item.stub').length === 0
+   && L.ev(`(navClick('Отчуждение активов'), stageFilter === 'Отчуждение активов')`));
+L.ev(`clearStage()`);
+ok('переход на стадию ставит чип в ленте условий', (() => {
+  L.ev(`navClick('Судебный порядок')`);
+  return chips().includes('Стадия: Судебный порядок');
+})());
+ok('подсветка сайдбара следует за стадией',
+   L.$$('#nav .nav-item.active').map(a => a.textContent).join() === 'Судебный порядок');
+ok('на стадии остаются только её требования',
+   L.ev(`visibleReqs().every(r => stageOfReq(r) === 'Судебный порядок') && visibleReqs().length > 0`));
+ok('чип стадии снимается и возвращает полный реестр', (() => {
+  const n = L.ev('visibleReqs().length'); L.ev('clearStage()');
+  return L.ev('visibleReqs().length') > n && L.ev('stageFilter') === null;
+})());
+ok('подсветка вернулась на «Требования (реестр)»',
+   L.$$('#nav .nav-item.active').map(a => a.textContent).join() === 'Требования (реестр)');
+
+head('ТР-11 · одна подпись денег, честная при расхождении');
+ok('пока снимок один — одна дата под таблицей',
+   /Деньги — снимок модуля кредита на \d\d\.\d\d\.\d{4}/.test(L.$('#listMoney').textContent)
+   && !/–/.test(L.$('#listMoney').textContent));
+ok('подпись отмечает, что деньги не подчиняются дате среза', /дате среза реестра не подчиняются/.test(L.$('#listMoney').textContent));
+ok('точная дата снимка — в подсказке суммы строки',
+   /снимок денег на \d\d\.\d\d\.\d{4}/.test(rowsOnPage()[0].querySelector('td.num').getAttribute('title')));
+{ const m = mk();
+  m.ev(`onPageSize(500); LEDGER[Object.keys(LEDGER)[0]].asOf = '20.07.2026'; renderList()`);
+  ok('разные даты — честный диапазон вместо одной даты',
+     /Деньги — снимки модуля кредита на 20\.07\.2026 – 25\.07\.2026/.test(m.$('#listMoney').textContent));
+  ok('при расхождении подпись отсылает к подсказке строки', /точная — в подсказке суммы/.test(m.$('#listMoney').textContent));
+  ok('строка с иной датой несёт свою дату в подсказке',
+     m.$$('#listBody tr.rowopen td.num').some(td => /снимок денег на 20\.07\.2026/.test(td.getAttribute('title') || '')));
+  ok('диапазон дат уходит в оттиск выгрузки',
+     /\nДеньги — снимок модуля кредита на\t20\.07\.2026 – 25\.07\.2026\t/.test(m.ev('exportTsv().tsv'))); }
+
+head('ТР-Д12 · пустое состояние называет условия');
+{ const m = mk();
+  m.ev(`navClick('Отчуждение активов')`);
+  ok('пустая выборка даёт строку пустого состояния', m.$$('#listBody tr.rowempty').length === 1);
+  ok('пустое состояние говорит, что ничего не найдено', /Ни одного требования не найдено/.test(m.$('.list-empty').textContent));
+  ok('пустое состояние перечисляет условия отбора', /Условия отбора: Стадия: Отчуждение активов/.test(m.$('.list-empty').textContent));
+  ok('пустое состояние даёт снять условия одним движением', !!m.$('.list-empty button'));
+  m.ev('resetAllConditions()');
+  ok('снятие условий возвращает требования',
+     m.$$('#listBody tr.rowopen').length > 0 && m.ev(`stageFilter === null && tileFilter === null && Object.keys(filterState).length === 0`)); }
 
 /* ══════════════════════════════════════════════════════════════════════════
    СПРАВОЧНИКИ — при переезде модели ничего не потеряно
