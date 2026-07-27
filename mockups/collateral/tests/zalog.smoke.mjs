@@ -2266,20 +2266,27 @@ test('W8-26 (ПЗ-2): контролы стенда обозначены как 
 
 // ДГ-1…ДГ-5: состав колонок пересобран. Снятое проверяем явно — иначе «улучшение»
 // незаметно откатится обратно первой же правкой HEADS.
-test('W9-1 (ДГ-1…ДГ-5): состав колонок договоров — 7 содержательных + шеврон', () => {
+test('W9-1 (ДГ-1…ДГ-5, ДГ-16…ДГ-18): состав колонок договоров — 7 содержательных + шеврон', () => {
   const { zt } = load();
   const H = zt.HEADS.contracts;
   eq(H.length, 8, 'семь колонок данных плюс колонка шеврона');
   eq(H[7], '', 'последняя колонка — шеврон, без заголовка');
-  ['Договор','Дата','Стороны','Статус','Отметки','Предметов','Обеспеченность к порогу']
+  ['Договор','Дата','Стороны','Кредит','Обеспечение','Статус','Обеспеченность к порогу']
     .forEach((h,i) => eq(H[i], h, `колонка ${i}`));
   hasNot(H.join('|'), '№', 'колонка «№» снята — id ушёл подстрокой под номер договора');
   hasNot(H.join('|'), 'Кредитов', 'константная колонка «Кредитов» снята');
   hasNot(H.join('|'), 'Доп. согл.', 'константная колонка «Доп. согл.» снята');
   hasNot(H.join('|'), 'Заёмщик', '«Заёмщик» заменён на «Стороны» — залогодатель живёт на предмете');
+  // ДГ-18: «Отметки» больше не колонка (150px под «—» на большинстве строк) — они третья
+  // строка ячейки «Договор». ДГ-16: «Предметов» поглощена «Обеспечением» подстрокой.
+  hasNot(H.join('|'), 'Отметки', 'колонка «Отметки» снята — полоса переехала в ячейку «Договор»');
+  hasNot(H.join('|'), 'Предметов', 'колонка «Предметов» снята — число ушло в подстроку «Обеспечения»');
   eq(zt.SORT_KEYS.contracts.length, H.length, 'ключей сортировки столько же, сколько колонок');
   eq(zt.WIDTHS.contracts.length, H.length, 'ширин столько же, сколько колонок');
   eq(zt.SORT_KEYS.contracts[7], null, 'колонка шеврона несортируема');
+  // Ширина — обещание волны: две плотные колонки вошли в место двух почти пустых.
+  const fix = zt.WIDTHS.contracts.filter(Boolean).reduce((s,w) => s + parseInt(w,10), 0);
+  eq(fix, 955, 'Σ фиксированных ширин — 955px (было 940; прокрутка не хуже прежней)');
 });
 
 // ДГ-Д1: строковая дата сортируется посимвольно — «02.06.2026» встаёт перед «10.04.2024».
@@ -2311,7 +2318,7 @@ test('W9-3 (ДГ-12/ДГ-Д5): дефолт — дата убыв.; sortKey не
 // ДГ-3: алфавит по строке статуса ставил терминальное состояние первым.
 test('W9-4 (ДГ-3): статус сортируется по рангу ЖЦ и красится пятью разными пилюлями', () => {
   const { zt } = load();
-  eq(zt.SORT_KEYS.contracts[3], 'stRank', 'ключ колонки «Статус» — ранг, не строка');
+  eq(zt.SORT_KEYS.contracts[5], 'stRank', 'ключ колонки «Статус» — ранг, не строка');
   const order = ['Оформляется','На рассмотрении комиссии','Зарегистрирован','Закрыт','Аннулирован'];
   order.forEach((st,i) => eq(zt.CTR_RANK[st], i, `ранг «${st}»`));
   const pills = order.map(st => zt.CTR_PILL[st]);
@@ -2486,14 +2493,15 @@ test('W9-13 (ДГ-15): журнал договора пишет обе метр�
 });
 
 // ДГ-Д3: ноль предметов — не «мало», а невозможность зарегистрировать (Р-28).
-test('W9-14 (ДГ-Д3): ноль предметов помечен как гейт содержания', () => {
+// ДГ-16: колонка «Предметов» снята, гейт содержания переехал в ячейку «Обеспечение».
+test('W9-14 (ДГ-Д3/ДГ-16): ноль предметов у ЖИВОГО договора помечен как гейт содержания', () => {
   const { zt } = load();
-  const empty = zt.CONTRACTS.find(c => !c.allocs.length);
-  ok(empty, 'на стенде есть договор без предметов');
-  has(zt.contractItemsCell(empty), 'Р-28', 'ноль объяснён гейтом содержания');
-  has(zt.contractItemsCell(empty), 'tagpill err', 'и выглядит иначе, чем обычное число');
+  // На стенде живого пустого договора нет (см. W11-11) — конструируем форму записи.
+  const empty = { id:'Д-000', status:'Оформляется', credits:[], allocs:[] };
+  has(zt.contractSecuredCell(empty), 'Р-28', 'ноль объяснён гейтом содержания');
+  has(zt.contractSecuredCell(empty), 'tagpill err', 'и выглядит иначе, чем обычная сумма');
   const full = zt.contract('Д-001');
-  hasNot(zt.contractItemsCell(full), 'tagpill', 'ненулевое количество остаётся обычным числом');
+  hasNot(zt.contractSecuredCell(full), 'tagpill', 'непустой договор показывает обычную сумму');
 });
 
 // ДГ-7: диапазон дат — то, чего строка поиска дать не может.
@@ -2892,6 +2900,177 @@ test('W10-23 (КП-Д10): ссылка из пакета §5.2 ведёт туд
   // Ни одна вкладка предмета предпосылок не показывает — это и была причина битой ссылки.
   const it = zt.item(c.allocs[0].item);
   no(win.itemPanels(it).some(p => /предпосыл|§5\.2/i.test(p)), 'предпосылок на карточке предмета нет');
+});
+
+/* ============================================================
+   ВОЛНА 11 (ДГ-16…ДГ-19): реестр залоговых договоров — деньги, кредит, состав отбора.
+   Реестр отвечал «какие есть договоры», но не отвечал ни «на какую сумму», ни «под какой
+   кредит», отдавая 250px двум колонкам, которые почти всегда молчали.
+   ============================================================ */
+
+// ДГ-16: Σ отнесённых долей — то, ради чего в реестр ЗАЛОГОВЫХ договоров и заходят.
+test('W11-1 (ДГ-16): «Обеспечение» — Σ долей по договору, разбитая по валютам', () => {
+  const { zt } = load();
+  const d2 = zt.contract('Д-002');           // П-001 на 40 000 + П-003 на 68 000
+  const sums = zt.contractSecuredSums(d2);
+  const total = Object.values(sums).reduce((s,v) => s+v, 0);
+  near(total, 108000, 'Σ = сумма долей, а не залоговая стоимость предметов целиком');
+  eq(Object.keys(sums).length, 1, 'валюта у предметов Д-002 одна');
+  // Σ долей ≤ залоговой стоимости предметов: доля — часть стоимости, а не вся она.
+  const pledgeTotal = [...new Set(d2.allocs.map(a => a.item))]
+    .reduce((s,id) => s + zt.pledgeValue(zt.item(id)), 0);
+  ok(total <= pledgeTotal + 0.005, 'обеспечение не превышает залоговую стоимость предметов');
+  const cell = zt.contractSecuredCell(d2);
+  has(cell, 'предмета', 'число предметов — подстрокой, отдельной колонки под него больше нет');
+  has(cell, 'П-001', 'тултип перечисляет предметы с их долями');
+});
+
+// ДГ-16: подвал у договоров считает по ОТФИЛЬТРОВАННОМУ набору, как у предметов (ПЗ-19).
+test('W11-2 (ДГ-16): подвал реестра договоров суммирует обеспечение по отбору', () => {
+  const { win, zt } = load();
+  win.eval("reg='contracts'; quickSearch.contracts=''; activeFilter.contracts={}; showCancelledContracts=false");
+  win.renderList();
+  const foot = win.document.getElementById('listFoot').innerHTML;
+  has(foot, 'Σ обеспечения по отбору', 'подпись называет именно обеспечение, а не залоговую стоимость');
+  has(foot, 'договор', 'база счёта — договоры');
+  // Ровно то же место у предметов говорит про залоговую стоимость: суммы разные по смыслу.
+  win.eval("reg='items'"); win.renderList();
+  has(win.document.getElementById('listFoot').innerHTML, 'Σ залоговой стоимости по отбору',
+    'у предметов подпись прежняя — две суммы не путаются');
+});
+
+// ДГ-17: «К-77» находился поиском (ДГ-9), но найденная строка про К-77 молчала.
+test('W11-3 (ДГ-17): колонка «Кредит» называет кредит, а не считает его', () => {
+  const { zt } = load();
+  eq(zt.SORT_KEYS.contracts[3], 'creditIds', 'сортировка — по тексту идентификаторов');
+  const single = zt.contract('Д-002');
+  const cell = zt.contractCreditCell(single);
+  has(cell, 'К-77', 'идентификатор кредита виден в самой ячейке');
+  has(cell, 'Дог. №77', 'человеческий номер — подстрокой');
+  const multi = zt.CONTRACTS.find(c => c.credits.length > 1);
+  if(multi){
+    const mc = zt.contractCreditCell(multi);
+    has(mc, `+${multi.credits.length-1}`, 'при нескольких кредитах главная строка сжимается');
+    has(mc, 'кредит', 'а подстрока называет их число');
+  }
+  // Договор без привязки — состояние черновика, а не ошибка отрисовки.
+  has(zt.contractCreditCell({ credits:[], allocs:[] }), 'не привязан', 'кредита может не быть');
+});
+
+// ДГ-18: «Отметки» стоили 150px, чтобы на большинстве строк сообщить «ничего особенного».
+test('W11-4 (ДГ-18): отметки — полоса в ячейке «Договор», пустых полос не бывает', () => {
+  const { zt } = load();
+  const plain = zt.CONTRACTS.find(c => !zt.contractMarks(c).length);
+  ok(plain, 'сид: есть договор без отметок');
+  eq(zt.marksStrip(plain), '', 'без отметок строки нет вовсе — высота строки не растёт');
+  hasNot(zt.contractNoCell(plain), 'c2-marks', 'и в ячейке «Договор» её тоже нет');
+  const marked = zt.CONTRACTS.find(c => c.undercovered);
+  ok(marked, 'сид: есть договор с допуском ниже порога');
+  has(zt.contractNoCell(marked), 'c2-marks', 'отметка видна прямо в ячейке «Договор»');
+  has(zt.contractNoCell(marked), 'допуск', 'и названа');
+  // ДГ-17: «несколько кредитов» полосой не рисуется — это работа колонки «Кредит».
+  const multi = zt.CONTRACTS.find(c => c.credits.length > 1);
+  if(multi) hasNot(zt.marksStrip(multi), 'кредитов', 'дубля с колонкой «Кредит» нет');
+});
+
+// ДГ-18: снятие колонки не должно ломать фильтр «Отметка =» — он бьёт по markCodes строки.
+test('W11-5 (ДГ-18): фильтр по отметке пережил снятие колонки', () => {
+  const { win, zt } = load();
+  win.eval("reg='contracts'; quickSearch.contracts=''; showCancelledContracts=false");
+  win.eval("activeFilter.contracts={ markCodes:'допуск <порога' }");
+  const rows = win.filterRows(win.rowsContracts());
+  ok(rows.length, 'отбор по отметке возвращает строки');
+  ok(rows.every(r => zt.contract(r.id).undercovered), 'и ровно те, у которых допуск есть');
+  // «несколько кредитов» отбирается, хотя полосой не рисуется — видно в колонке «Кредит».
+  win.eval("activeFilter.contracts={ markCodes:'несколько кредитов' }");
+  const multi = win.filterRows(win.rowsContracts());
+  ok(multi.every(r => zt.contract(r.id).credits.length > 1), 'отбор по неотрисовываемому коду работает');
+});
+
+// ДГ-16: сумма исключена из строки поиска — пользователь видит `348 000`, вводит `348 000`,
+// а в индексе лежит сырое `348000` (правило ПЗ-5).
+test('W11-6 (ДГ-16): сумма обеспечения не попадает в поисковый индекс', () => {
+  const { zt } = load();
+  ok(zt.SEARCH_SKIP.contracts.includes('secured'), 'ключ суммы исключён из индекса');
+  ok(zt.SEARCH_SKIP.contracts.includes('mc'), 'индекс обеспеченности — тоже (было раньше)');
+});
+
+// ДГ-19: плитки состава — навигация, а не отчёт: клик ставит условие фильтра.
+test('W11-7 (ДГ-19): полоса состава считает по отбору и отбирает кликом', () => {
+  const { win, zt } = load();
+  win.eval("reg='contracts'; quickSearch.contracts=''; activeFilter.contracts={}; showCancelledContracts=false");
+  win.renderList();
+  const bar = win.document.getElementById('regKpi');
+  ok(bar.className.includes('on'), 'полоса показана в реестре договоров');
+  eq(bar.querySelectorAll('.rk').length, zt.REG_KPI.length, 'плиток столько же, сколько условий');
+  const reg0 = zt.REG_KPI.findIndex(t => t.val === 'Зарегистрирован');
+  const expected = win.rowsContracts().filter(r => r.sort.status === 'Зарегистрирован').length;
+  has(bar.querySelectorAll('.rk')[reg0].textContent, String(expected), 'число совпадает с реестром');
+  zt.kpiPick(reg0);
+  eq(win.eval("activeFilter.contracts.status"), 'Зарегистрирован', 'клик поставил условие');
+  ok(win.filterRows(win.rowsContracts()).every(r => r.sort.status === 'Зарегистрирован'), 'и оно применилось');
+  zt.kpiPick(reg0);
+  eq(win.eval("activeFilter.contracts.status"), undefined, 'повторный клик снял условие');
+});
+
+// ДГ-19 / ДГ-Д4: числа плиток НЕ считаются по уже отобранному ими же набору — иначе после
+// первого клика остальные показали бы нули и вернуться к ним было бы нечем.
+test('W11-8 (ДГ-19/ДГ-Д4): плитки не обнуляют друг друга после клика', () => {
+  const { win, zt } = load();
+  win.eval("reg='contracts'; quickSearch.contracts=''; activeFilter.contracts={}; showCancelledContracts=false");
+  win.renderList();
+  const before = [...win.document.getElementById('regKpi').querySelectorAll('.rk-v')].map(e => e.textContent);
+  const i = zt.REG_KPI.findIndex(t => t.val === 'Зарегистрирован');
+  zt.kpiPick(i);
+  const after = [...win.document.getElementById('regKpi').querySelectorAll('.rk-v')].map(e => e.textContent);
+  eq(after.join('|'), before.join('|'), 'числа не изменились — база счёта игнорирует условия самих плиток');
+  ok(win.document.getElementById('regKpi').querySelectorAll('.rk.sel').length === 1, 'активная плитка помечена');
+  // Условия, которыми плитки НЕ управляют, на базу счёта влияют.
+  zt.kpiPick(i);
+  win.eval("activeFilter.contracts={ dateFrom:'2026-01-01' }");
+  win.renderList();
+  const narrowed = [...win.document.getElementById('regKpi').querySelectorAll('.rk-v')].map(e => Number(e.textContent));
+  const wide = before.map(Number);
+  ok(narrowed.every((n,k) => n <= wide[k]), 'фильтр по дате сузил все плитки');
+});
+
+// ДГ-19: полоса — свойство реестра договоров, в остальных её быть не должно.
+test('W11-9 (ДГ-19): полоса состава не протекает в другие реестры', () => {
+  const { win } = load();
+  win.eval("reg='items'"); win.renderList();
+  const bar = win.document.getElementById('regKpi');
+  no(bar.className.includes('on'), 'в реестре предметов полосы нет');
+  eq(bar.innerHTML, '', 'и разметка вычищена, а не спрятана');
+});
+
+// ДГ-Д8: гейт содержания срабатывал на стенде ТОЛЬКО ложно — все три пустых договора
+// терминальные, у них пустота это итог. Соседняя колонка обеспеченности границу знала.
+test('W11-11 (ДГ-Д8): у закрытого договора пустое обеспечение — прочерк, а не нарушение', () => {
+  const { zt } = load();
+  const terminal = zt.CONTRACTS.filter(c => !c.allocs.length);
+  ok(terminal.length, 'сид: есть договоры без предметов');
+  ok(terminal.every(c => c.status === 'Закрыт' || c.status === zt.CANCELLED),
+    'и все они терминальные — живого пустого договора на стенде нет');
+  terminal.forEach(c => {
+    const cell = zt.contractSecuredCell(c);
+    hasNot(cell, 'Р-28', `${c.id}: закрытый договор не обвиняется в невозможности регистрации`);
+    hasNot(cell, 'tagpill err', `${c.id}: и не красится красным`);
+    has(cell, 'высвобождено', `${c.id}: прочерк объяснён`);
+  });
+  // Та же граница, что у обеспеченности — две колонки про одно состояние не расходятся.
+  const closed = zt.CONTRACTS.find(c => c.status === 'Закрыт');
+  has(zt.coverageCell(closed), 'не оценивается', 'обеспеченность закрытого тоже не оценивается');
+});
+
+// ДГ-16: выгрузка получила сумму отдельным полем — проценты обеспеченности между договорами
+// не складываются, а сумма складывается.
+test('W11-10 (ДГ-16): CSV договоров содержит сумму обеспечения и её валюты', () => {
+  const { zt } = load();
+  const cols = zt.CSV_PROFILES.contracts.map(c => c[0]);
+  ok(cols.includes('Обеспечение по договору'), 'поле суммы заведено');
+  ok(cols.includes('Валюты обеспечения'), 'валюты — отдельным полем, а не приклеены к числу');
+  const row = zt.CSV_PROFILES.contracts.find(c => c[0] === 'Обеспечение по договору')[1];
+  eq(row(zt.contract('Д-002')), '108000,00', 'сумма — сырым числом с десятичной запятой (Excel сложит)');
 });
 
 report();

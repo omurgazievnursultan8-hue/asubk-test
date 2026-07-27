@@ -862,6 +862,10 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
 .cell2 .c2-main{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cell2 .c2-sub{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   font:var(--weight-regular) 12px/1.4 var(--asubk-font); color:var(--text-muted); }
+/* ДГ-18: полоса отметок — третья строка ячейки «Договор» вместо снятой колонки «Отметки».
+   Рисуется только у записей с отметками, поэтому высота остальных строк не растёт. */
+.cell2 .c2-marks{ display:flex; flex-wrap:wrap; gap:3px; margin-top:3px; }
+.cell2 .c2-marks .tagpill{ margin-left:0; }
 /* ПЗ-9: идентификатор записи — не порядковый номер строки. */
 .idcell{ font-variant-numeric:tabular-nums; }
 /* ПЗ-10/ПЗ-12/ПЗ-13: мелкая пилюля-признак рядом со значением ячейки. */
@@ -886,11 +890,28 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
   overflow:hidden; text-overflow:ellipsis; }
 .numcell2 .n2-flags{ display:block; margin-top:2px; }
 .numcell2 .n2-flags .tagpill{ margin-left:0; margin-right:4px; }
+/* ДГ-16: подстрока числовой ячейки — «N предметов» под суммой обеспечения по договору. */
+.numcell2 .n2-sub{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  font:var(--weight-regular) 12px/1.4 var(--asubk-font); color:var(--text-muted); }
 /* ПЗ-19: подвал таблицы — Σ залоговой стоимости по отфильтрованному набору. */
 table.grid tfoot td{ height:40px; padding:0 16px; border-top:1px solid var(--border-strong,var(--asubk-grid-line));
   background:var(--asubk-tint-fill); font:var(--weight-semibold) var(--text-sm)/1.375 var(--asubk-font);
   color:var(--text-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 table.grid tfoot .sum-ccy{ margin-left:14px; font-variant-numeric:tabular-nums; }
+/* ДГ-19: полоса состава отбора над таблицей договоров. Плитка узкая (не карточка сводки) —
+   она называет число и его смысл, а кликом ставит соответствующее условие фильтра. */
+.reg-kpi{ display:none; gap:10px; padding:0 20px 12px; flex-wrap:wrap; }
+.reg-kpi.on{ display:flex; }
+.reg-kpi .rk{ background:var(--surface-panel); border:1px solid transparent;
+  border-radius:var(--radius-md); padding:7px 13px; cursor:pointer; text-align:left;
+  display:flex; flex-direction:column; gap:3px; min-width:112px; }
+.reg-kpi .rk:hover{ border-color:var(--border-default); }
+.reg-kpi .rk.sel{ border-color:var(--asubk-blue); background:var(--asubk-tint-fill); }
+.reg-kpi .rk-v{ font:var(--weight-semibold) 17px/1.15 var(--asubk-font); color:var(--text-heading);
+  font-variant-numeric:tabular-nums; }
+.reg-kpi .rk-l{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); }
+.reg-kpi .rk.warn .rk-v{ color:var(--asubk-red); }
+.reg-kpi .rk.zero{ opacity:.55; }
 /* ПЗ-8: размер страницы живёт в пейджере (ревизия Р-39 — справочник даёт дефолт). */
 .pager select{ height:30px; border:1px solid var(--border-default); background:var(--surface-card);
   border-radius:var(--radius-sm); color:var(--text-body); font:var(--font-label); padding:0 4px; }
@@ -1091,6 +1112,13 @@ table.grid tfoot .sum-ccy{ margin-left:14px; font-variant-numeric:tabular-nums; 
             </select>
           </div>
         </div>
+        <!-- ДГ-19: полоса состава отбора. Реестр договоров отвечал на «какие есть договоры»
+             построчно, но не отвечал на «что у нас в целом»: сколько зарегистрировано, сколько
+             стоит в очереди комитета, у скольких провален гейт. Ответ добывался сортировкой по
+             статусу и подсчётом строк глазами. Полоса считает по ОТФИЛЬТРОВАННОМУ набору (та же
+             база, что у подвала и пейджера), денег не дублирует — Σ обеспечения живёт в подвале
+             (ДГ-16), здесь только состав. Пустых реестров и прочих реестров не касается. -->
+        <div class="reg-kpi" id="regKpi"></div>
         <!-- ПЗ-7: в карточном виде gridWrap скрывается целиком вместе с заголовками, на которых
              висит sortBy — порядок продолжал применяться, но сменить его было нечем. -->
         <div class="cards-sort" id="cardsSort">
@@ -4033,8 +4061,11 @@ const SEARCH_SKIP = { items:['pledge','idn','banRank','secures'],
      предметов/кредитов/отметок/доп. соглашений и сам индекс обеспеченности. Запрос «2»
      совпал бы с половиной реестра. Текстовые дубли (dateTxt, markCodes, status) остаются —
      по «18.09.2025» и по «отказ в замене» поиск работает. Вердикт гейта (`gate`) исключён:
-     значения «пройден»/«не пройден» — подстроки друг друга, поиск «пройден» вернул бы всё. */
-  contracts:['dateN','stRank','marks','mc','items','credits','add','gate'],
+     значения «пройден»/«не пройден» — подстроки друг друга, поиск «пройден» вернул бы всё.
+     ДГ-16: `secured` (сумма обеспечения) исключена по правилу ПЗ-5 — пользователь видит
+     `348 000` с неразрывным пробелом из fmt, вводит `348 000` и не находит: в индексе лежит
+     сырое `348000`. Поиск по сумме — это диапазон, а не подстрока. */
+  contracts:['dateN','stRank','marks','mc','items','credits','add','gate','secured'],
   monitor:[], sureties:[] };
 function filterRows(rows){
   const f = activeFilter[reg] || {};
@@ -4144,8 +4175,29 @@ const HEADS = {
      «Доп. согл.» (на всех 39 записях константы 1 и 0 — 200px под два неизменных числа, ДГ-5;
      нетривиальные значения переехали в «Отметки»).
      Заведено: «Дата» (без неё порядок задавался вставкой в массив, ДГ-Д1) и «Отметки»
-     (ДГ-4 — из «Статуса» вынуто всё, что не жизненный цикл). */
-  contracts:  ['Договор','Дата','Стороны','Статус','Отметки','Предметов','Обеспеченность к порогу',''],
+     (ДГ-4 — из «Статуса» вынуто всё, что не жизненный цикл).
+
+     ДГ-16…ДГ-18 (вторая пересборка, при том же числе колонок и той же ширине): реестр
+     залоговых договоров не отвечал на два вопроса, ради которых в него заходят.
+     ДГ-16 ДЕНЕГ НЕ БЫЛО ВОВСЕ. Реестр ЗАЛОГОВЫХ договоров не показывал, на какую сумму
+       обеспечение. Σ долей (`allocs[].share`) уже считается в coverage() как r.sum, в реестре
+       ПРЕДМЕТОВ есть и колонка стоимости, и итог в подвале (ПЗ-19), у договоров — ничего.
+       Заведена «Обеспечение»; число предметов ушло в её подстроку (колонка «Предметов»
+       занимала 100px под число 1–2).
+     ДГ-17 КРЕДИТ НЕ БЫЛ НАЗВАН. `c.credits` попадал в реестр только отметкой «кредитов N»
+       при N > 1, то есть на 2 записях из 39. Единственный кредит — на остальных 37 — не
+       показывался нигде, хотя в поисковый индекс входит (ДГ-9): по «К-77» строка НАХОДИЛАСЬ,
+       но, найденная, про К-77 молчала. Заведена «Кредит».
+     ДГ-18 «ОТМЕТКИ» КАК КОЛОНКА СНЯТЫ. 150px, на большинстве строк «—» (условий всего
+       четыре, три из них — редкие исключения). Это тот же дефект, за который ДГ-5 снял
+       «Кредитов» и «Доп. согл.», только мягче: не константа, а почти всегда пусто.
+       Отметки переехали компактной полосой в ячейку «Договор» — там идентификатор, а не
+       состояние, поэтому запрет ДГ-4 (не смешивать отметки со статусом) не нарушен.
+       `markCodes` остаётся в ключах сортировки строки, фильтр «Отметка =» работает как был.
+     Стало (7 + шеврон): Договор · Дата · Стороны · Кредит · Обеспечение · Статус ·
+     Обеспеченность к порогу. Порядок — от идентификации к сторонам, от предмета сделки
+     к её состоянию. */
+  contracts:  ['Договор','Дата','Стороны','Кредит','Обеспечение','Статус','Обеспеченность к порогу',''],
   monitor:    ['Критичность','Тип','Объект','Описание','Что делать'],
   sureties:   ['№','Договор','Поручитель','Тип лица','Кредит','Статус ЖЦ','Допуск §9.1/9.2'],
 };
@@ -4153,7 +4205,11 @@ const HEADS = {
    ширины (обычно текстовое «Наименование»/«Заёмщик»/«Описание»). */
 const WIDTHS = {
   items:      ['130px','160px','','170px','185px','150px','200px','90px'],
-  contracts:  ['160px','120px','','165px','175px','100px','180px','40px'],   // Σ фикс. 940 + 280 гибкая = 1220
+  /* ДГ-16…ДГ-18: две плотные колонки («Кредит», «Обеспечение») вошли РОВНО в ширину двух
+     снятых («Отметки» 150 + «Предметов» 100) плюс подрезка соседей: «Договор» 160→175 (под
+     полосу отметок), «Дата» 120→110, «Статус» 165→155, «Обеспеченность» 180→160.
+     Σ фикс. 955 против прежних 940 — прокрутка .grid-wrap не хуже, чем была. */
+  contracts:  ['175px','110px','','145px','170px','155px','160px','40px'],   // Σ фикс. 955 + 280 гибкая = 1235
   monitor:    ['110px','180px','220px','',''],
   sureties:   ['80px','140px','','130px','90px','130px','230px'],
 };
@@ -4176,8 +4232,13 @@ const SORT_KEYS = {
   items:      ['idn','kind','name','pledger','pledge','st','banRank','secures'],
   /* ДГ-Д1: дата сортируется по НОРМАЛИЗОВАННОМУ ключу (dateN, мс), не по строке: `дд.мм.гггг`
      посимвольно ставит «02.06.2026» перед «10.04.2024». ДГ-3: статус — по РАНГУ жизненного
-     цикла, не по алфавиту. «Отметки» сортируются по количеству — строки с пометками наверх. */
-  contracts:  ['no','dateN','parties','stRank','marks','items','mc',null],
+     цикла, не по алфавиту.
+     ДГ-16/ДГ-17: «Кредит» сортируется по ТЕКСТУ идентификаторов (creditIds), а не по их числу —
+     колонка называет кредит, а не считает его. «Обеспечение» — по СУММЕ (secured), не по числу
+     предметов: колонка про деньги, число предметов в ней подстрочно.
+     Ключ `marks` (число отметок) в объекте сортировки остаётся — по нему сортировать теперь
+     нечему (колонка снята, ДГ-18), но `markCodes` из того же объекта кормит фильтр «Отметка =». */
+  contracts:  ['no','dateN','parties','creditIds','secured','stRank','mc',null],
   monitor:    ['crit','type','obj', null, null],                            // «Описание»/«Что делать» — не сортируем
   sureties:   ['id','no','name','ptype','credit','status','gate'],
 };
@@ -4384,13 +4445,18 @@ const dnum = s => isDate(s) ? +d2n(s) : 0;
 /* ДГ-2: номер — ССЫЛКА (одиночный клик открывает карточку). Раньше единственным путём внутрь
    был двойной клик по строке. `id` ушёл подстрокой: как колонка «№» он дублировал соседний
    «Договор», но сам по себе нужен — на него ссылаются журналы, триггеры и печатные формы.
-   Черновик называется черновиком, а не прочерком: прочерк читался как «данных нет». */
+   Черновик называется черновиком, а не прочерком: прочерк читался как «данных нет».
+   ДГ-18: третьей строкой — полоса отметок (см. marksStrip). Своей колонки они не заслуживали
+   (150px под «—» на большинстве строк), но и молча пропасть не могли: «допуск <порога» и
+   «отказ в замене» — единственные следы решений комитета в реестре. Строка появляется только
+   у записей с отметками, поэтому высота остальных не растёт. */
 function contractNoCell(c){
   const tip = c.no ? `${c.no} · ${c.id}` : `${c.id} · номер и дата присваиваются при регистрации`;
   return `<span class="cell2" title="${esc(tip)}">`
     + `<span class="c2-main"><span class="rowlink" onclick="event.stopPropagation();openCard('contract','${c.id}')">`
     + (c.no ? esc(c.no) : 'черновик') + `</span></span>`
-    + `<span class="c2-sub">${esc(c.id)}</span></span>`;
+    + `<span class="c2-sub">${esc(c.id)}</span>`
+    + marksStrip(c) + `</span>`;
 }
 /* ДГ-Д1 (продолжение): колонки даты не было вовсе — реестр показывался в порядке вставки в
    массив (Д-001 10.04.2024, Д-002 18.09.2025, Д-003 03.02.2025), и этот порядок выглядел
@@ -4440,28 +4506,85 @@ function contractStatusCell(c){
 const MARK_CODES = ['допуск <порога','отказ в замене','несколько кредитов','есть доп. соглашения'];
 function contractMarks(c){
   const m = [];
-  if(c.undercovered) m.push({ code:'допуск <порога', label:'допуск <порога', cls:'err',
+  if(c.undercovered) m.push({ code:'допуск <порога', label:'допуск <порога', cls:'err', strip:true,
     tip:`комитет допустил обеспеченность ниже порога. Пороги по кредитам: ${reqTooltip(c)}` });
-  if(c.replacementRefusal) m.push({ code:'отказ в замене', label:'отказ в замене', cls:'err',
+  if(c.replacementRefusal) m.push({ code:'отказ в замене', label:'отказ в замене', cls:'err', strip:true,
     tip:`отказано в замене залога (Прил.3 §3.5): ${c.replacementRefusal.reason}` });
-  if(c.credits.length > 1) m.push({ code:'несколько кредитов', label:`кредитов ${c.credits.length}`, cls:'third',
+  /* ДГ-17: `strip:false` — отметку рисовать НЕ НАДО, её показывает колонка «Кредит»
+     («К-56 +1» с подстрокой «2 кредита»). Код остаётся в MARK_CODES и в sort.markCodes:
+     фильтр «Отметка = несколько кредитов» продолжает отбирать, а отобранное — видно. */
+  if(c.credits.length > 1) m.push({ code:'несколько кредитов', label:`кредитов ${c.credits.length}`, cls:'third', strip:false,
     tip:`договор обеспечивает несколько кредитов (${c.credits.join(', ')}); порог у каждого свой, в колонке обеспеченности — худший` });
-  if(c.addenda.length) m.push({ code:'есть доп. соглашения', label:`д/с ${c.addenda.length}`, cls:'stale',
+  if(c.addenda.length) m.push({ code:'есть доп. соглашения', label:`д/с ${c.addenda.length}`, cls:'stale', strip:true,
     tip:`доп. соглашения: ${c.addenda.map(a=>`${a.no||'—'} от ${a.date||'—'}`).join('; ')}` });
   return m;
 }
-function marksCell(c){
-  const m = contractMarks(c);
-  if(!m.length) return '<span style="color:var(--text-placeholder)">—</span>';
-  return m.map(x => `<span class="tagpill ${x.cls}" style="margin-left:0;margin-right:4px" title="${esc(x.tip)}">${esc(x.label)}</span>`).join('');
+/* ДГ-18: отметки — не колонка, а третья строка ячейки «Договор». Пустых отметок больше не
+   существует: где отметок нет, нет и строки (прежний прочерк занимал 150px, чтобы сообщить
+   «ничего особенного»). */
+function marksStrip(c){
+  const m = contractMarks(c).filter(x => x.strip);
+  if(!m.length) return '';
+  return `<span class="c2-marks">` + m.map(x =>
+    `<span class="tagpill ${x.cls}" title="${esc(x.tip)}">${esc(x.label)}</span>`).join('') + `</span>`;
 }
-/* ДГ-Д3: гейт содержания (Р-28) — договор без предметов не регистрируется. Ноль в этой
-   колонке не «мало», а НЕВОЗМОЖНОСТЬ зарегистрировать, и выглядеть он должен иначе. */
-function contractItemsCell(c){
-  const ids = [...new Set(c.allocs.map(a=>a.item))];
-  if(!ids.length) return `<span class="numcell"><span class="tagpill err" style="margin-left:0"`
-    + ` title="гейт содержания (Р-28): в договоре нет ни одного предмета с долей &gt; 0 — регистрация невозможна">0</span></span>`;
-  return `<span class="numcell" title="${esc(ids.map(id => `${id} · ${(item(id)||{}).name || ''}`).join(' · '))}">${ids.length}</span>`;
+/* ДГ-17: КРЕДИТ, обеспечиваемый договором. Идентификатор — главным (в разговоре и в журналах
+   договор привязывают к «К-77»), человеческий номер — подстрокой. При нескольких кредитах
+   главная строка сжимается до «К-56 +1», подстрока называет их число, тултип перечисляет всё
+   с суммами: в колонке обеспеченности показан ХУДШИЙ из них, и знать, из скольких, важно.
+   Кредитов может не быть вовсе — договор-черновик заводится до привязки. */
+function contractCreditCell(c){
+  const ids = c.credits || [];
+  if(!ids.length) return `<span class="cell2" title="кредит не привязан — обеспеченность не оценивается">`
+    + `<span class="c2-main" style="color:var(--text-placeholder)">не привязан</span></span>`;
+  const tip = ids.map(id => { const k = credit(id) || {};
+    return `${id}${k.num ? ' · ' + k.num : ''}${k.amount != null ? ' · сумма ' + fmt(k.amount) : ''}`; }).join(' · ');
+  const main = ids.length > 1 ? `${ids[0]} <span class="tagpill third">+${ids.length-1}</span>` : esc(ids[0]);
+  const sub  = ids.length > 1 ? `${ids.length} ${plural(ids.length,'кредит','кредита','кредитов')}`
+                              : ((credit(ids[0]) || {}).num || '');
+  return `<span class="cell2" title="${esc(tip)}">`
+    + `<span class="c2-main">${main}</span>`
+    + (sub ? `<span class="c2-sub">${esc(sub)}</span>` : '') + `</span>`;
+}
+/* ДГ-16: ОБЕСПЕЧЕНИЕ ПО ДОГОВОРУ — Σ отнесённых долей залоговой стоимости (`allocs[].share`),
+   то есть сколько имущества договор реально держит. Не путать с обеспеченностью (соседняя
+   колонка): та — ОТНОШЕНИЕ к порогу кредита, эта — АБСОЛЮТНАЯ сумма.
+   Валюта производна от предмета (Р-44), у разных предметов может быть разной — поэтому
+   суммируем ПО ВАЛЮТАМ, как в подвале реестра предметов (ПЗ-19), а не в одно число.
+   ДГ-Д3 (сохранено): гейт содержания (Р-28) — договор без предметов не регистрируется.
+   Ноль здесь не «мало», а НЕВОЗМОЖНОСТЬ регистрации, и выглядит он иначе — красной пилюлей.
+   ДГ-Д8 (новый дефект, найден при переносе): пустой список предметов у ЗАКРЫТОГО или
+   АННУЛИРОВАННОГО договора — норма, а не нарушение: при закрытии обеспечение высвобождается,
+   у аннулированного черновика его и не было. Прежняя `contractItemsCell` красила красным
+   ноль у всех троих терминальных договоров стенда (Д-007, Д-033, Д-044), обвиняя в
+   «невозможности регистрации» то, что уже отрегистрировано и закрыто. На стенде гейт
+   содержания срабатывал ТОЛЬКО ложно — ни одного живого случая. Соседняя колонка
+   обеспеченности эту границу знала всегда («договор закрыт — не оценивается»), эта не знала.
+   Терминальные — прочерк с объяснением, гейт остаётся только для живых. */
+function contractSecuredSums(c){
+  const sums = {};
+  (c.allocs || []).forEach(a => { if(!(a.share > 0)) return;
+    const ccy = itemCcyLabel(item(a.item)); sums[ccy] = (sums[ccy] || 0) + a.share; });
+  return sums;
+}
+function contractSecuredCell(c){
+  const ids = [...new Set((c.allocs || []).filter(a => a.share > 0).map(a => a.item))];
+  if(!ids.length){
+    /* ДГ-Д8: у терминального договора пустота — итог, а не дефект. */
+    if(c.status === 'Закрыт' || c.status === CANCELLED)
+      return `<span class="numcell2" title="договор ${esc(String(c.status).toLowerCase())} — обеспечение высвобождено">`
+        + `<span class="n2-val" style="color:var(--text-placeholder)">—</span></span>`;
+    return `<span class="numcell2"><span class="n2-val"><span class="tagpill err"`
+      + ` title="гейт содержания (Р-28): в договоре нет ни одного предмета с долей &gt; 0 — регистрация невозможна">нет предметов</span></span></span>`;
+  }
+  const sums = contractSecuredSums(c), ccys = Object.keys(sums).sort();
+  const tip = ids.map(id => { const it = item(id) || {};
+    const share = (c.allocs || []).filter(a => a.item === id).reduce((s,a) => s + a.share, 0);
+    return `${id} · ${it.name || ''} — ${fmt(share)} ${itemCcyLabel(it)}`; }).join(' · ');
+  const val = ccys.map(cc => `${fmt(sums[cc])}<span class="ccy">${esc(cc)}</span>`).join(' · ');
+  return `<span class="numcell2" title="${esc(tip)}">`
+    + `<span class="n2-val">${val}</span>`
+    + `<span class="n2-sub">${ids.length} ${plural(ids.length,'предмет','предмета','предметов')}</span></span>`;
 }
 /* ДГ-6 (главное расхождение реестра): ЧИСЛО и ЦВЕТ измеряли РАЗНОЕ. Число — индекс
    обеспеченности (Р-42), цвет — `gateCheck(c).ok`, то есть индекс ≥ 1 И доля ликвида ≥ 80%
@@ -4539,12 +4662,22 @@ function rowsContracts(){
         /* И идентификатор («К-77»), и человеческий номер («Дог. №77 от …») — в реестре
            договоров кредит называют и так, и так, а совпасть должно любое из двух. */
         creditNums:c.credits.map(id => `${id} ${(credit(id)||{}).num || ''}`).join(' '),
+        /* ДГ-17: ключ сортировки колонки «Кредит» — ТЕКСТ идентификаторов, а не их число.
+           Отдельно от creditNums: тот тащит ещё и «Дог. №56 от 10.04.2024», и сортировка по
+           нему упорядочила бы реестр по дате КРЕДИТНОГО договора внутри строки. */
+        creditIds:c.credits.join(' '),
         status:c.status, stRank:(CTR_RANK[c.status] ?? 9),
         markCodes:marks.map(m => m.code), marks:marks.length,
         items:new Set(c.allocs.map(a=>a.item)).size, credits:c.credits.length,
+        /* ДГ-16: сортировка «Обеспечения» — по СУММЕ. При нескольких валютах ключ один и тот
+           же порядок для разных валют не осмысляет (сложить их нельзя); в демо-данных валюта
+           у всех предметов одна (Р-44 сделал itemCcy производной с дефолтом KGS), поэтому
+           практический порядок корректен, а мультивалютный случай честнее сортировать не
+           этим ключом, а фильтром по валюте — когда он появится (ПЗ-13). */
+        secured:Object.values(contractSecuredSums(c)).reduce((s,v) => s+v, 0),
         mc, add:c.addenda.length, gate:coverVerdict(c) },
-      cells:[ contractNoCell(c), contractDateCell(c), partiesCell(c), contractStatusCell(c),
-        marksCell(c), contractItemsCell(c), coverageCell(c), rowChevCell('contract', c.id) ] };
+      cells:[ contractNoCell(c), contractDateCell(c), partiesCell(c), contractCreditCell(c),
+        contractSecuredCell(c), contractStatusCell(c), coverageCell(c), rowChevCell('contract', c.id) ] };
   });
 }
 /* ============================================================
@@ -4900,6 +5033,7 @@ function renderList(){
   document.getElementById('gridWrap').style.display  = view==='cards' ? 'none' : '';
   document.getElementById('cardsWrap').style.display = view==='cards' ? '' : 'none';
   renderCardsSort(view);                        // ПЗ-7
+  renderRegKpi();                               // ДГ-19
   if(view==='cards') renderCards(pageRows, active);
   renderRiskFactorsPanel();
   renderTrigWorkPanel();
@@ -4931,16 +5065,72 @@ function emptyState(active){
 }
 /* ПЗ-19: Σ по валютам. Валюта предмета производна (Р-44) и у разных предметов разная —
    складывать их в одно число нельзя, поэтому итог разбит по валютам, а не «всего». */
+/* ДГ-16: подвал заведён и у ДОГОВОРОВ. Реестр предметов отвечал «сколько у нас обеспечения»
+   с волны ПЗ-19, реестр договоров — нет, хотя вопрос к нему тот же и ответ отличается по
+   смыслу: у предметов это Σ ЗАЛОГОВОЙ СТОИМОСТИ (сколько имущество стоит), у договоров —
+   Σ ОТНЕСЁННЫХ ДОЛЕЙ (сколько из этой стоимости связано обязательствами). Второе ≤ первого,
+   и разница — свободный остаток; складывать их между собой нельзя, поэтому подписи разные. */
 function renderGridFoot(rows, cols){
   const el = document.getElementById('listFoot'); if(!el) return;
-  if(reg !== 'items' || !rows.length){ el.innerHTML = ''; return; }
+  if(!rows.length || (reg !== 'items' && reg !== 'contracts')){ el.innerHTML = ''; return; }
   const sums = {};
-  rows.forEach(r => { const it = item(r.id); if(!it) return;
-    const c = itemCcyLabel(it); sums[c] = (sums[c] || 0) + pledgeValue(it); });
+  if(reg === 'items'){
+    rows.forEach(r => { const it = item(r.id); if(!it) return;
+      const c = itemCcyLabel(it); sums[c] = (sums[c] || 0) + pledgeValue(it); });
+  } else {
+    rows.forEach(r => { const c = contract(r.id); if(!c) return;
+      const s = contractSecuredSums(c);
+      Object.keys(s).forEach(cc => { sums[cc] = (sums[cc] || 0) + s[cc]; }); });
+  }
   const parts = Object.keys(sums).sort().map(c =>
     `<span class="sum-ccy">${fmt(sums[c])} ${esc(c)}</span>`).join('');
-  el.innerHTML = `<tr><td colspan="${cols}">Σ залоговой стоимости по отбору`
-    + ` (${rows.length} ${plural(rows.length,'предмет','предмета','предметов')}):${parts}</td></tr>`;
+  const label = reg === 'items'
+    ? `Σ залоговой стоимости по отбору (${rows.length} ${plural(rows.length,'предмет','предмета','предметов')})`
+    : `Σ обеспечения по отбору (${rows.length} ${plural(rows.length,'договор','договора','договоров')})`;
+  el.innerHTML = `<tr><td colspan="${cols}">${label}:${parts}</td></tr>`;
+}
+/* ДГ-19: СОСТАВ ОТБОРА — плитки над реестром договоров. Каждая называет число и ставит
+   кликом соответствующее условие фильтра (повторный клик снимает).
+   Плитки — не отчёт, а навигация: «в комитете 3» без возможности эти три открыть было бы
+   сообщением, а не инструментом. */
+const REG_KPI = [
+  { key:'status', val:'Зарегистрирован',          label:'зарегистрировано', tip:'договоры, прошедшие государственную регистрацию обременения' },
+  { key:'status', val:'Оформляется',              label:'оформляется',      tip:'черновики: номер и дата ещё не присвоены' },
+  { key:'status', val:'На рассмотрении комиссии', label:'в комитете',       tip:'ожидают решения комитета по администрированию бюджетных кредитов (Р-35)' },
+  { key:'gate',   val:'не пройден',               label:'гейт не пройден',  warn:true,
+    tip:'контрольный гейт §2.3–2.4: индекс обеспеченности < 100% ИЛИ не выдержана доля ликвида (Прил.1 §2.4)' },
+  { key:'status', val:'Закрыт',                   label:'закрыто',          tip:'обязательства исполнены, обеспечение высвобождено' },
+];
+/* Условия, которыми управляют САМИ плитки. База счёта их не применяет — иначе после клика по
+   «зарегистрировано» остальные плитки показали бы нули, и вернуться к ним было бы нечем.
+   Тот же класс дефекта, что ДГ-Д4 (опции фильтра, построенные по видимым строкам): состояние
+   становится недостижимым из UI ровно тогда, когда в него уже вошли. */
+const KPI_KEYS = ['status','gate'];
+function kpiBase(){
+  const f = activeFilter.contracts, saved = {};
+  KPI_KEYS.forEach(k => { if(k in f){ saved[k] = f[k]; delete f[k]; } });
+  const rows = filterRows(rowsContracts());
+  Object.keys(saved).forEach(k => { f[k] = saved[k]; });
+  return rows;
+}
+function renderRegKpi(){
+  const el = document.getElementById('regKpi'); if(!el) return;
+  if(reg !== 'contracts'){ el.className = 'reg-kpi'; el.innerHTML = ''; return; }
+  const base = kpiBase(), f = activeFilter.contracts;
+  el.className = 'reg-kpi on';
+  el.innerHTML = REG_KPI.map((t,i) => {
+    const n = base.filter(r => r.sort[t.key] === t.val).length;
+    const sel = f[t.key] === t.val;
+    const cls = ['rk', sel ? 'sel' : '', (t.warn && n) ? 'warn' : '', n ? '' : 'zero'].filter(Boolean).join(' ');
+    return `<button type="button" class="${cls}" onclick="kpiPick(${i})"`
+      + ` title="${esc(t.tip)} · клик — ${sel ? 'снять условие' : 'отобрать'}">`
+      + `<span class="rk-v">${n}</span><span class="rk-l">${esc(t.label)}</span></button>`;
+  }).join('');
+}
+function kpiPick(i){
+  const t = REG_KPI[i], f = activeFilter.contracts;
+  if(f[t.key] === t.val) delete f[t.key]; else f[t.key] = t.val;
+  curPage = 1; renderFilterPanel(); renderList();
 }
 /* ПЗ-7: в карточном виде gridWrap скрыт целиком вместе с заголовками, на которых висит
    sortBy. Порядок продолжал применяться — тот, что был выбран в таблице, — но пользователь
@@ -5074,6 +5264,12 @@ const CSV_PROFILES = {
     ['Кредиты',                  c => c.credits.map(id => (credit(id)||{}).num || id).join(', ')],
     ['Предметов',                c => new Set(c.allocs.map(a=>a.item)).size],
     ['Предметы',                 c => [...new Set(c.allocs.map(a=>a.item))].join(', ')],
+    /* ДГ-16: сумма обеспечения по договору — Σ отнесённых долей. В файле она нужна ОТДЕЛЬНО
+       от процентов обеспеченности: те нормированы к порогу и между договорами не складываются,
+       а эта складывается и сортируется. Разбивка по валютам — отдельным полем: одна колонка
+       «сумма» при разных валютах провоцирует сложить сомы с долларами (Р-44/ПЗ-13). */
+    ['Обеспечение по договору',  c => fmtRaw(Object.values(contractSecuredSums(c)).reduce((s,v)=>s+v,0))],
+    ['Валюты обеспечения',       c => Object.keys(contractSecuredSums(c)).sort().join(', ')],
     ['Отметки',                  c => contractMarks(c).map(m => m.code).join('; ')],
     ['Вердикт гейта §2.3–2.4',   c => coverVerdict(c)],
     ['Обеспеченность — худший индекс, %', c => csvPctRaw(worstCover(c, 'index'))],
@@ -8571,9 +8767,14 @@ if (typeof window !== 'undefined') window.__zt = {
   // Волна 9 (ДГ-1…ДГ-14, ДГ-Д1…ДГ-Д5): реестр залоговых договоров как справочник.
   CTR_RANK, CTR_PILL, ctrDate, dnum, MARK_CODES, FILTER_OPTS, filterOpts,
   contractNoCell, contractDateCell, contractPledgers, partiesCell, contractStatusCell,
-  contractMarks, marksCell, contractItemsCell, coverGateTip, coverVerdict, coverageCell,
+  contractMarks, coverGateTip, coverVerdict, coverageCell,
   rowChevCell, onShowCancelled, cancelledHidden, quickSearchNow,
   DEFAULT_SORT, applyDefaultSort, setReg, worstRow, worstCover, csvPctRaw,
+  /* Волна 10 (ДГ-16…ДГ-19): деньги и кредит в реестре договоров.
+     `marksCell` и `contractItemsCell` СНЯТЫ — колонки «Отметки» и «Предметов» больше не
+     существуют; их заменили marksStrip (третья строка ячейки «Договор») и contractSecuredCell. */
+  marksStrip, contractCreditCell, contractSecuredCell, contractSecuredSums,
+  REG_KPI, KPI_KEYS, kpiBase, renderRegKpi, kpiPick,
   showCancelled: () => showCancelledContracts,
   PAGE_SIZE_DEFAULT: () => PAGE_SIZE_DEFAULT,
 };
