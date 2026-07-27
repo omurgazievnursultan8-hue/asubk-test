@@ -866,7 +866,7 @@ test('W1-2 (Р-29): допуск комитета — без реквизито�
   const it = win.normalizeItem({ id:'П-W2', kind:'Оборудование', name:'Станок W2',
     pledger:'22105198800047', pledgerType:'Физлицо', appraised:100000, ident:'Инв. W2' });
   zt.ITEMS.push(it);
-  zt.CONTRACTS.push({ id:'Д-W2', no:'', date:'', status:'На рассмотрении комиссии',
+  zt.CONTRACTS.push({ id:'Д-W2', no:'', date:'', status:'На рассмотрении комитета',
     inn:'22105198800047', credits:['К-W2'], allocs:[{item:'П-W2', credit:'К-W2', share:50000}],
     undercovered:null, history:[] });
   no(win.gateCheck(zt.contract('Д-W2')).ok, 'сценарий: покрытие ниже порога');
@@ -1005,15 +1005,15 @@ test('W2-4 (Р-34): у куратора карточные действия ак
   has(itemHtml, "onclick=\"openEditItem('П-001')", 'куратор видит активную правку реквизитов');
 });
 
-// Р-35: договор «На рассмотрении комиссии» виден комитету через очередь (§8).
+// Р-35: договор «На рассмотрении комитета» виден комитету через очередь (§8).
 // onRoleChange для комитета переключает реестр на договоры с преднастроенным фильтром.
-test('W2-5 (Р-35): комитет видит очередь «На рассмотрении комиссии»', () => {
+test('W2-5 (Р-35): комитет видит очередь «На рассмотрении комитета»', () => {
   const { win, zt } = load();
-  ok(zt.CONTRACTS.some(c => c.status === 'На рассмотрении комиссии'), 'в сиде есть договор в очереди комитета');
+  ok(zt.CONTRACTS.some(c => c.status === 'На рассмотрении комитета'), 'в сиде есть договор в очереди комитета');
   win.document.getElementById('roleSel').value = 'Комитет по администрированию бюджетных кредитов';
   win.onRoleChange();
   eq(win.eval('reg'), 'contracts', 'реестр переключён на договоры');
-  eq(win.eval('activeFilter.contracts && activeFilter.contracts.status'), 'На рассмотрении комиссии',
+  eq(win.eval('activeFilter.contracts && activeFilter.contracts.status'), 'На рассмотрении комитета',
     'фильтр преднастроен на статус очереди комитета');
 });
 
@@ -1057,7 +1057,7 @@ test('W2-9 (Р-36): чистое недообеспечение открывае
 });
 
 // Р-36: toCommission гейтит документарные предпосылки — вручную заблокированный договор
-// не переводится в «На рассмотрении комиссии».
+// не переводится в «На рассмотрении комитета».
 test('W2-10 (Р-36): toCommission не отправляет документарно заблокированный договор', () => {
   const { win, zt } = load();
   win.eval("role='Куратор отдела залогового обеспечения'");
@@ -2312,11 +2312,11 @@ test('W9-3 (ДГ-12/ДГ-Д5): дефолт — дата убыв.; sortKey не
 test('W9-4 (ДГ-3): статус сортируется по рангу ЖЦ и красится пятью разными пилюлями', () => {
   const { zt } = load();
   eq(zt.SORT_KEYS.contracts[3], 'stRank', 'ключ колонки «Статус» — ранг, не строка');
-  const order = ['Оформляется','На рассмотрении комиссии','Зарегистрирован','Закрыт','Аннулирован'];
+  const order = ['Оформляется','На рассмотрении комитета','Зарегистрирован','Закрыт','Аннулирован'];
   order.forEach((st,i) => eq(zt.CTR_RANK[st], i, `ранг «${st}»`));
   const pills = order.map(st => zt.CTR_PILL[st]);
   eq(new Set(pills).size, 5, 'пять состояний — пять разных классов пилюли');
-  no(pills[1] === 'high', '«На рассмотрении комиссии» больше не красный (это штатный шаг, Р-35)');
+  no(pills[1] === 'high', '«На рассмотрении комитета» больше не красный (это штатный шаг, Р-35)');
 });
 
 // ДГ-Д2 + ДГ-9: реестр не находил ни залогодателя-третье-лицо, ни номер кредита.
@@ -2892,6 +2892,337 @@ test('W10-23 (КП-Д10): ссылка из пакета §5.2 ведёт туд
   // Ни одна вкладка предмета предпосылок не показывает — это и была причина битой ссылки.
   const it = zt.item(c.allocs[0].item);
   no(win.itemPanels(it).some(p => /предпосыл|§5\.2/i.test(p)), 'предпосылок на карточке предмета нет');
+});
+
+
+/* ============================================================
+   ВОЛНА 11 — КД-1…КД-11 / КД-Д1…КД-Д7: КАРТОЧКА ЗАЛОГОВОГО ДОГОВОРА
+   как ДОСЬЕ ОБЕСПЕЧИТЕЛЬНОЙ СДЕЛКИ.
+   ============================================================ */
+const curat = win => win.eval("role='Куратор отдела залогового обеспечения'");
+const commi = win => win.eval("role='Комитет по администрированию бюджетных кредитов'");
+const headU = win => win.eval("role='Заведующий отделом залогового обеспечения'");
+// Карточка целиком (шапка + все шесть панелей + футер) — как её видит пользователь.
+const wholeCard = (win, zt, id) => {
+  const c = zt.contract(id);
+  return zt.ctrHead(c) + zt.ctrPanels(c).join('') + zt.ctrFooter(c);
+};
+
+test('W11-1 (КД-10): очередь названа именем органа, который в ней решает', () => {
+  const { win, zt } = load();
+  eq(zt.UNDER_REVIEW, 'На рассмотрении комитета', 'статус переименован');
+  eq(win.eval("typeof UNDER_REVIEW"), 'string', 'литерал стал константой верхнего уровня');
+  ok(zt.CONTRACTS.some(c => c.status === zt.UNDER_REVIEW), 'сид использует новое значение');
+  no(zt.CONTRACTS.some(c => c.status === 'На рассмотрении комиссии'), 'старого значения в сиде нет');
+  // Ключи ранга/пилюли строятся от той же константы — иначе договор выпал бы в 'neutral'.
+  eq(zt.CTR_RANK[zt.UNDER_REVIEW], 1, 'ранг ЖЦ знает статус');
+  eq(zt.CTR_PILL[zt.UNDER_REVIEW], 'info', 'пилюля не красная — очередь комитета штатный шаг (ДГ-3)');
+});
+
+test('W11-2 (КД-3): пять гейтов считает один движок и называет одними словами', () => {
+  const { win, zt } = load();
+  curat(win);
+  const c = zt.CONTRACTS.find(x => x.status === 'Оформляется' && zt.contractGates(x).fails.length);
+  ok(c, 'сид: есть черновик с проваленным гейтом');
+  const G = zt.contractGates(c), f = G.fails[0];
+  eq(G.rows.length, 5, 'ровно пять записей');
+  eq(G.rows.map(r=>r.code).join(''), '①②③④⑤', 'порядок = приоритет Р-36');
+  win.openRegister(c.id);
+  const modalTxt = win.document.querySelector('.modal').innerHTML;
+  has(modalTxt, f.result, 'модалка печатает result движка дословно');
+  has(zt.ctrDefectBar(c), f.result, 'дефект-строка шапки — тот же текст');
+  win.closeModal();
+  // Второй рубеж: тот же текст в тосте, а не своя формулировка.
+  win.doRegister(c.id);
+  has([...win.document.querySelectorAll('.toast')].map(t=>t.textContent).join('|'), f.result,
+      'рубеж doRegister печатает тот же result');
+});
+
+test('W11-3 (КД-3): документарные гейты закрывают и маршрут в комитет', () => {
+  const { win, zt } = load();
+  curat(win);
+  const c = zt.CONTRACTS.find(x => { const G = zt.contractGates(x); return x.status==='Оформляется' && G.docBlocked; });
+  ok(c, 'сид: есть черновик с документарным гейтом');
+  const st = c.status;
+  win.toCommission(c.id);
+  eq(c.status, st, 'в комитет уходит только чистое недообеспечение (Р-36)');
+});
+
+test('W11-4 (КД-4): шесть вкладок со счётчиками, первая — «Основное»', () => {
+  const { win, zt } = load();
+  const c = zt.contract('Д-001');
+  const tabs = zt.ctrTabs(c);
+  eq(tabs.length, 6, 'вкладок шесть');
+  has(tabs[0], 'Основное', '«Общая информация» → «Основное» (как у предмета и поручительства)');
+  hasNot(tabs.join(''), 'Общая информация', 'старого имени не осталось');
+  has(tabs[1], String([...new Set(c.allocs.map(a=>a.item))].length), 'бейдж предметов');
+  has(tabs[2], String(c.credits.length), 'бейдж кредитов');
+  has(tabs[5], String(c.history.length), 'бейдж длины истории');
+  // Ноль предметов — не «мало», а гейт содержания Р-28 (тот же приём, что ДГ-Д3 в реестре).
+  const empty = { ...c, allocs: [], addenda: [], credits: [], history: [], status:'Оформляется' };
+  has(zt.ctrTabs(empty)[1], 'tb err', 'пустой состав помечен ошибкой, а не просто нулём');
+});
+
+test('W11-5 (КД-5): слова «покрытие» в карточке договора больше нет', () => {
+  const { win, zt } = load();
+  curat(win);
+  // Проверяем ВСЕ договоры: колонка обеспеченности, заголовки доп соглашений, плашки.
+  zt.CONTRACTS.forEach(c => {
+    hasNot(wholeCard(win, zt, c.id), 'окрыти', `${c.id}: слова «покрытие» в карточке нет`);
+  });
+  // Имя самого гейта — тоже: «Гейт покрытия» было пятым и самым заметным местом.
+  hasNot(zt.CTR_GATE_DEFS.map(d=>d.name).join('|'), 'окрыти', 'гейт назван обеспеченностью');
+  // Долг волны ДГ («Покрытие до / Покрытие после» в доп соглашениях) закрыт.
+  const withDs = zt.CONTRACTS.find(c => c.addenda.length);
+  if(withDs) hasNot(zt.ctrPanels(withDs)[3], 'Покрытие до', 'заголовки доп соглашения переименованы');
+});
+
+test('W11-6 (КД-5): ratio не потерян — живёт в тултипе под своим именем', () => {
+  const { win, zt } = load();
+  const c = zt.contract('Д-001');
+  const p2 = zt.ctrPanels(c)[2];
+  has(p2, 'залоговая к сумме кредита', 'ratio назван своим именем, тем же, что в реестре (ДГ-6)');
+  has(p2, 'Обеспеченность к порогу', 'колонка-вердикт одна и названа как в реестре и шапке');
+});
+
+test('W11-7 (КД-6 / КД-Д4): «Итого» не складывает разные валюты в одно число', () => {
+  const { win, zt } = load();
+  curat(win);
+  const c = zt.contract('Д-001');
+  const it = zt.item(c.allocs[0].item);
+  const p1one = zt.ctrPanels(c)[1];
+  has(p1one, zt.itemCcyLabel(it), 'валюта проставлена у сумм');
+  // Смешиваем валюты искусственно: итог обязан разложиться, а не схлопнуться.
+  const second = zt.ITEMS.find(x => x.id !== it.id && !x.lost && !x.cancelled);
+  second.ccy = 'USD';
+  c.allocs.push({ item: second.id, credit: c.credits[0], share: 100 });
+  const p1two = zt.ctrPanels(c)[1];
+  has(p1two, 'USD', 'вторая валюта показана отдельной суммой');
+  has(p1two, 'по валютам оценки', 'итог помечен как разложенный');
+  has(p1two, 'Пересчёт по курсу объявлен вне модуля', 'расхождение объяснено (КП-14)');
+});
+
+test('W11-8 (КД-6 / КД-Д5): «Обеспечивает» не значит в двух реестрах разное', () => {
+  const { win, zt } = load();
+  const p1 = zt.ctrPanels(zt.contract('Д-001'))[1];
+  has(p1, 'Доля по кредиту', 'колонка названа тем, что в ней лежит');
+  hasNot(p1, '>Обеспечивает<', 'коллизия с колонкой «Обеспечивает» реестра предметов (ПЗ-19) снята');
+});
+
+test('W11-9 (КД-6): у зарегистрированного договора отсутствие правки объяснено', () => {
+  const { win, zt } = load();
+  curat(win);
+  const c = zt.CONTRACTS.find(x => zt.isActive(x) && x.allocs.length);
+  const p1 = zt.ctrPanels(c)[1];
+  hasNot(p1, 'openAlloc(', 'правки состава на зарегистрированном нет');
+  has(p1, 'доп соглашением (§7)', 'и сказано, чем состав меняется вместо этого');
+});
+
+test('W11-10 (КД-7): у ленты договора свои категории, фильтр и лимит', () => {
+  const { win, zt } = load();
+  const c = zt.contract('Д-001');
+  eq(zt.HIST_CATS_CTR.map(x=>x.k).join(','), 'lc,comp,km,req,ban', 'категории договора — про сделку');
+  ok(zt.HIST_CATS_ITEM.some(x=>x.k==='srv'), 'у предмета остались свои — обследования, стоимость');
+  no(zt.HIST_CATS_CTR.some(x=>x.k==='srv'), 'обследований в истории договора не бывает');
+  const p5 = zt.ctrPanels(c)[5];
+  has(p5, 'hchips', 'чипы категорий есть');
+  has(p5, 'histSetFilter', 'фильтр общий с карточкой предмета');
+  // Общий движок: та же функция строит обе ленты.
+  has(zt.itemPanels(zt.item('П-001'))[6], 'histSetFilter', 'лента предмета — тот же движок');
+});
+
+test('W11-11 (КД-Д6): исторические записи размечены, «Прочее» пусто', () => {
+  const { win, zt } = load();
+  const oth = [];
+  zt.ITEMS.forEach(o => o.history.forEach(h => { if(h.cat === 'oth') oth.push('ITEM '+o.id+': '+h.what); }));
+  zt.CONTRACTS.forEach(o => o.history.forEach(h => { if(h.cat === 'oth') oth.push('CTR '+o.id+': '+h.what); }));
+  eq(oth.length, 0, 'ни одна сидовая запись не падает в «Прочее»: '+oth.slice(0,3).join(' | '));
+  // Три записи, на которых КП-13 ловил подстроку «залогов»/«залоговая», разложены верно.
+  const ban = zt.item('П-001').history.find(h => /Наложен запрет/.test(h.what));
+  eq(ban.cat, 'ban', '«Наложен запрет … Реестр ЗАЛОГОВ» — не «Стоимость»');
+  const free = zt.ITEMS.flatMap(i=>i.history).find(h => /доли высвобождены/.test(h.what));
+  if(free) eq(free.cat, 'ctr', '«доли высвобождены» — не «Стоимость»');
+  const lost = zt.ITEMS.flatMap(i=>i.history).find(h => /утраченный/.test(h.what));
+  if(lost) eq(lost.cat, 'lc', '«утрачен … ЗАЛОГОВАЯ стоимость» — жизненный цикл, не «Стоимость»');
+});
+
+test('W11-12 (КД-8): футер несёт действия над договором целиком', () => {
+  const { win, zt } = load();
+  headU(win);
+  const act = zt.CONTRACTS.find(x => zt.isActive(x));
+  const f = zt.ctrFooter(act);
+  has(f, 'openDs(', 'доп соглашение — действие над договором, живёт в футере');
+  has(f, 'openEditContract(', 'правка реквизитов — тоже');
+  // Раньше у зарегистрированного договора футер был пуст, кроме «Закрыть» и печати.
+  ok(f.split('<button').length > 4, 'футер зарегистрированного договора не пуст');
+  const draft = zt.CONTRACTS.find(x => x.status === 'Оформляется');
+  has(zt.ctrFooter(draft), 'openRegister(', 'регистрация — там же');
+  has(zt.ctrFooter(draft), 'openCancelDraft(', 'аннулирование — там же');
+});
+
+test('W11-13 (КД-8): тулбар вкладки не несёт действий над договором целиком', () => {
+  const { win, zt } = load();
+  headU(win);
+  const act = zt.CONTRACTS.find(x => zt.isActive(x));
+  const panels = zt.ctrPanels(act);
+  panels.forEach((p,i) => {
+    hasNot(p, 'openEditContract(', `вкладка ${i}: правки реквизитов в тулбаре нет`);
+    hasNot(p, 'openRegister(',     `вкладка ${i}: регистрации в тулбаре нет`);
+    hasNot(p, 'openDs(',           `вкладка ${i}: доп соглашения в тулбаре нет`);
+  });
+  // Обратное правило: действия над содержимым вкладки остаются в ней.
+  has(panels[4], 'openAttach(', 'прикрепление файла — содержимое вкладки «Документы»');
+  const draft = zt.CONTRACTS.find(x => x.status === 'Оформляется' && zt.canCurate());
+  curat(win);
+  has(zt.ctrPanels(zt.CONTRACTS.find(x => x.status === 'Оформляется'))[1], 'openAlloc(',
+      'привязка предмета — содержимое вкладки «Предметы залога»');
+});
+
+test('W11-14 (КД-9): деградация состава обнуляет допуск комитета', () => {
+  const { win, zt } = load();
+  const c = zt.CONTRACTS.find(x => x.status === zt.UNDER_REVIEW && x.allocs.length);
+  ok(c, 'сид: есть договор в очереди комитета');
+  commi(win);
+  win.openCommission(c.id);
+  win.document.getElementById('cmDec').value = 'admit';
+  win.document.getElementById('cmObosn').value = 'социально значимый проект';
+  win.saveCommission(c.id);
+  ok(c.undercovered && c.undercovered.comp, 'вместе с числом записан отпечаток состава');
+  ok(zt.admissionState(c).valid, 'сразу после решения допуск действует');
+  ok(zt.contractGates(c).ok, 'и снимает гейт покрытия');
+  // Сценарий дыры: доля роняется до 1 сома. Гейт содержания доволен (есть доля > 0),
+  // а гейт покрытия раньше был снят вечным допуском → регистрация при ~0%.
+  curat(win);
+  c.allocs[0].share = 1;
+  const adm = zt.admissionState(c);
+  no(adm.valid, 'допуск недействителен');
+  has(adm.reason, 'обеспеченность упала', 'и сказано, почему');
+  no(zt.contractGates(c).ok, 'гейт покрытия снова закрыт');
+  const st = c.status;
+  win.doRegister(c.id);
+  eq(c.status, st, 'регистрация по недействительному допуску заблокирована');
+});
+
+test('W11-15 (КД-9): улучшение состава допуск НЕ отменяет', () => {
+  const { win, zt } = load();
+  const c = zt.CONTRACTS.find(x => x.status === zt.UNDER_REVIEW && x.allocs.length);
+  commi(win);
+  win.openCommission(c.id);
+  win.document.getElementById('cmDec').value = 'admit';
+  win.document.getElementById('cmObosn').value = 'обоснование';
+  win.saveCommission(c.id);
+  const before = zt.worstIndex(c);
+  // Догружаем обеспечение: комитет, допустивший 38,9%, тем более допускает больше.
+  // Поднимаем оценочную предмета (растёт залоговая) и вслед за ней долю.
+  const it = zt.item(c.allocs[0].item);
+  it.appraised = it.appraised * 3;
+  c.allocs[0].share = zt.pledgeValue(it);
+  ok(zt.worstIndex(c) > before, 'сценарий: обеспеченность выросла');
+  ok(zt.admissionState(c).valid, 'допуск остаётся в силе');
+  ok(zt.admissionState(c).changed, 'но факт изменения состава виден');
+  has(zt.ctrDefectBar(c), 'Состав изменён после решения комитета', 'и вынесен в дефект-строку');
+});
+
+test('W11-16 (КД-9): на рассмотрении комитета состав заморожен', () => {
+  const { win, zt } = load();
+  curat(win);
+  const c = zt.CONTRACTS.find(x => x.status === zt.UNDER_REVIEW && x.allocs.length);
+  no(zt.isComposable(c), 'состав не правится');
+  ok(zt.isDraftish(c), 'но это по-прежнему черновой статус — аннулирование и резерв долей работают');
+  const n = c.allocs.length;
+  win.dropAlloc(c.id, 0);
+  eq(c.allocs.length, n, 'отвязка отклонена вторым рубежом');
+  has(zt.ctrPanels(c)[1], 'состав заморожен', 'и заморозка объяснена, а не молчалива');
+  ok(zt.isComposable(zt.CONTRACTS.find(x => x.status === 'Оформляется')), 'на «Оформляется» правка есть');
+});
+
+test('W11-17 (КД-2): каскад погашения живёт в шве, кнопка — демо-скаффолд', () => {
+  const { win, zt } = load();
+  curat(win);
+  const c = zt.CONTRACTS.find(x => zt.isActive(x) && x.allocs.length
+    && x.credits.every(id => zt.credit(id).status === 'Действующий'));
+  ok(c, 'сид: есть действующий договор со всеми живыми кредитами');
+  const creditId = c.credits[0];
+  const res = zt.creditRepaid(creditId);      // вызов ШВА, минуя UI
+  eq(zt.credit(creditId).status, 'Погашен', 'статус кредита выставлен');
+  ok(res.released.length, 'доли высвобождены');
+  no(c.allocs.some(a => a.credit === creditId), 'отнесений по погашенному кредиту не осталось');
+  if(c.credits.length === 1) eq(c.status, 'Закрыт', 'последний кредит → договор закрыт');
+  // Кнопка на карточке существует только на стенде и названа скаффолдом.
+  const live = zt.CONTRACTS.find(x => zt.isActive(x) && x.credits.some(id => zt.credit(id).status === 'Действующий'));
+  const p2 = zt.ctrPanels(live)[2];
+  has(p2, 'btn-scaffold', 'кнопка помечена как скаффолд');
+  has(p2, 'creditRepaid', 'и названо, чем она будет в проде');
+});
+
+test('W11-18 (КД-2): решение КМ пишется в кредит через шов', () => {
+  const { win, zt } = load();
+  curat(win);
+  const c = zt.CONTRACTS.find(x => x.credits.some(id => zt.kmGateBlocked(zt.credit(id))));
+  ok(c, 'сид: есть договор под гейтом §2.6');
+  const applied = zt.creditSetKmDecision(c.credits, { no:'ПКМ-1', date:'01.07.2026', coverPct:90 });
+  ok(applied.length, 'решение применилось к кредитам категории §2.6');
+  no(c.credits.some(id => zt.kmGateBlocked(zt.credit(id))), 'гейт §2.6 снят');
+  // Модуль залога пишет в кредитный ровно через два шва: обработчик формы зовёт шов,
+  // а не присваивает поле кредита сам.
+  has(String(win.saveKmDecision), 'creditSetKmDecision', 'обработчик формы идёт через шов');
+  hasNot(String(win.saveKmDecision), 'kmDecision =', 'и сам поле кредита не трогает');
+  hasNot(String(win.doRepay), 'cr.status', 'то же у погашения: статус кредита ставит шов');
+  has(String(win.doRepay), 'creditRepaid', 'обработчик только зовёт его');
+});
+
+test('W11-19 (КД-11 / КД-Д2): пилюля статуса ровно одна и из общего источника', () => {
+  const { win, zt } = load();
+  const c = zt.CONTRACTS.find(x => x.status === zt.UNDER_REVIEW);
+  const head = zt.ctrHead(c);
+  eq((head.match(/На рассмотрении комитета/g) || []).length, 1, 'статус напечатан один раз');
+  has(head, zt.contractStatusCell(c), 'и взят из того же источника, что строка реестра (ДГ-4)');
+  hasNot(head, "pill high\">На рассмотрении комитета", 'очередь комитета не красится красным');
+});
+
+test('W11-20 (КД-11 / КД-Д3): в шапке нет «кредит(ов)»', () => {
+  const { win, zt } = load();
+  zt.CONTRACTS.forEach(c => {
+    hasNot(zt.ctrHead(c), '(ов)', `${c.id}: счётчики уехали в бейджи вкладок, скобочное склонение не нужно`);
+  });
+});
+
+test('W11-21 (КД-11): три KPI и дефект-строка вместо стопки баннеров', () => {
+  const { win, zt } = load();
+  // Д-004: гейт покрытия провален, запрет не наложен, маршрут документов не завершён —
+  // раньше это была стопка полноширинных баннеров, выдавливавшая KPI за экран.
+  const c = zt.contract('Д-004');
+  const head = zt.ctrHead(c);
+  eq((head.match(/phead-banner/g) || []).length, 1, 'развёрнут ровно один баннер — самый тяжёлый');
+  ok(zt.ctrDefects(c).length >= 2, 'остальные дефекты — чипами');
+  has(head, 'Обеспеченность к порогу', 'KPI 1');
+  has(head, 'Обязательный пакет §5.2', 'KPI 2');
+  has(head, 'Запрет на отчуждение', 'KPI 3');
+  // Каждый чип ведёт на вкладку, где дефект лечится.
+  zt.ctrDefects(c).forEach(d => ok(typeof d.tab === 'number', 'у дефекта есть адрес: '+d.text));
+});
+
+test('W11-22 (КД-Д1): пакет §5.2 не объявляет регистрацию заблокированной после регистрации', () => {
+  const { win, zt } = load();
+  const c = zt.CONTRACTS.find(x => zt.isActive(x) && x.allocs.length && zt.prereqStats(x).missing);
+  if(c){
+    const b = zt.prereqBlock(c);
+    hasNot(b, 'Регистрация договора заблокирована', 'зарегистрированному договору регистрацию не блокируют');
+    has(b, 'уже зарегистрирован', 'сказано, что это дыра в досье действующего залога');
+  }
+  const draft = zt.CONTRACTS.find(x => x.status === 'Оформляется' && zt.prereqStats(x).missing);
+  if(draft) has(zt.prereqBlock(draft), 'Регистрация договора заблокирована', 'у черновика формулировка прежняя');
+});
+
+test('W11-23 (КД-3): у терминального договора гейты не оцениваются', () => {
+  const { win, zt } = load();
+  const closed = zt.CONTRACTS.find(x => x.status === 'Закрыт');
+  ok(closed, 'сид: есть закрытый договор');
+  ok(zt.ctrGatesNA(closed), 'терминальное состояние распознано');
+  const G = zt.contractGates(closed);
+  eq(G.fails.length, 0, 'закрытый договор с пустым составом не обвиняется в гейте содержания');
+  has(zt.ctrDefectBar(closed), 'не оцениваются', 'и это сказано словами');
+  has(zt.prereqBlock(closed) || 'не оценивается', 'не оценивается', 'пакет §5.2 — тоже');
 });
 
 report();
