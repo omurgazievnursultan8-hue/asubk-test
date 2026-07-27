@@ -229,6 +229,33 @@
     ПЗ-Д13 ШИРИНА: table-layout:fixed + width:100% НЕ дают прокрутку — колонки молча
          ужимаются. min-width таблицы считается из WIDTHS (gridMinWidth), иначе гибкая
          колонка схлопывается на штатном 1440.
+    ПЗ-20…ПЗ-24 ТИПОГРАФИКА СТРОКИ (вторая правка реестра, состав колонок не менялся).
+         ПЗ-20 ВИД — ДВЕ СТРОКИ + ПОДВИД. «Незавершённое строительство» (203px) не помещалось
+         ни при какой разумной ширине столбца; вдобавок реестр на всю недвижимость — от
+         квартиры до земельного участка — печатал одну строку «Недвижимое имущество», хотя
+         классификатор (KIND_FIELDS: reType / portfolioType / secType / underKind) заполнен
+         и лежит в записи. Вид переносится на две строки, подвид идёт ПОДСТРОКОЙ вместе с
+         пилюлей ликвидности. Своей колонки подвид не стоит: он есть у 4 видов из 10.
+         ПЗ-21 ЗАЛОГОДАТЕЛЬ — ДВЕ СТРОКИ. «ОсОО «Иссык-Куль Ресорт»» (184px) плюс пилюля
+         «третье лицо» в один ряд не помещались никогда: было видно либо имя, либо признак.
+         ПЗ-22 ШИРИНЫ ПО ИЗМЕРЕНИЮ, А НЕ НА ГЛАЗ. Замер в Chrome на 1440 показал, что три
+         колонки резервировали место под ПОДПИСЬ, а не под данные («Идентификатор» 130 при
+         потребности 154, «Обеспечивает» 90 при 143), а четвёртая резала значение («Запрет
+         на отчуждение» 200 против пилюли 224). Заголовок теперь ПЕРЕНОСИТСЯ (56px = ровно
+         два ряда), перед стрелкой сортировки поставлена точка переноса — ширину задаёт
+         длинное слово. Итог: Σ фикс. 1080 против 1085, минимум таблицы стал меньше.
+         ПЗ-23 СРОК ЗАПРЕТА — ПОДСТРОКА. Пилюля «запрет не наложен · до 12.05.2026» (192px)
+         обрезалась всегда; срок, число дней просрочки и реквизит наложенного запрета ушли
+         подстрокой (banSub), пилюля в реестре короткая (banPill(it, true) — прочие точки
+         вывода читают полную форму).
+         ПЗ-24 РОВНО ДВА РЯДА В «ВИДЕ ЗАЛОГА» (ревизия ПЗ-20 и ширины ПЗ-22). Перенос сам по
+         себе давал ТРИ ряда на самом частом виде: «Недвижимое имущество» (160px) не влезало
+         в 123px полезных при ширине 155, уезжало на второй ряд, и подвид становился третьим.
+         Правило: вид — первая строка, подвид — вторая, третьего ряда не бывает. Колонка
+         155 → 195px (160 + 32 паддинга + запас); пилюля ликвидности встаёт в подстроку ТОЛЬКО
+         при наличии подвида, иначе инлайном в конец вида (иначе «Незавершённое строительство»
+         + отдельный ряд под пилюлю = снова три). Добор ширины — «Залогодатель» 160 → 150 и
+         «Залоговая стоимость» 165 → 160; Σ фикс. 1105 против исходных 1085.
     Прочее волны: идентификатор вместо «№» с числовой сортировкой (ПЗ-9/ПЗ-Д3), пилюля
          ликвидности и сводка следствий вида (ПЗ-10), ident второй строкой (ПЗ-11), пилюля
          «третье лицо» (ПЗ-12), колонка «Обеспечивает» (ПЗ-19), паритет карточек и таблицы
@@ -528,10 +555,15 @@ a{ color:inherit; }
    при этом не получают лишнего скролла: у каждого свой минимум. */
 table.grid{ width:100%; border-collapse:collapse; font:var(--font-label); table-layout:fixed;
   border:1px solid var(--border-default); background:var(--surface-card); }
+/* ПЗ-22: заголовок переносится на ДВЕ строки (56px высоты — ровно два ряда по 19px), а не
+   режется многоточием. Прежний nowrap делал ширину столбца заложницей длины подписи:
+   «Обеспечивает» требовало 143px под значение «2 дог.», а «Идентификатор» — 154px под «П-001».
+   С переносом ширину задаёт САМОЕ ДЛИННОЕ СЛОВО подписи, и освободившиеся пиксели уходят
+   туда, где есть что показывать (см. WIDTHS.items). */
 table.grid thead th{ text-align:left; height:56px; padding:0 16px; background:var(--surface-card);
   border-bottom:1px solid var(--asubk-grid-line);
   font:var(--weight-medium) var(--text-sm)/1.375 var(--asubk-font); color:var(--text-body);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:default; user-select:none; vertical-align:middle; }
+  white-space:normal; overflow:hidden; cursor:default; user-select:none; vertical-align:middle; }
 table.grid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; }
 table.grid thead th .sort.active{ color:var(--asubk-blue); font-weight:var(--weight-bold); }
 /* Р-41: колонка «Что делать» — кнопка-действие + рабочий слой (в работе / отложено) */
@@ -610,7 +642,10 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .pcard-sub{ margin-top:2px; font:var(--font-label); color:var(--text-muted);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pcard-chev{ flex:none; color:var(--text-placeholder); display:flex; }
-.pcard-badges{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+/* ПЗ-23: полоса бейджей выравнивается ПО ВЕРХУ — ячейка запрета стала двухстрочной
+   (пилюля + срок), и при stretch по умолчанию соседняя пилюля лиена растягивалась
+   на её высоту, превращаясь в пустой овал. */
+.pcard-badges{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; align-items:flex-start; }
 .pcard-fields{ margin-top:12px; display:grid; grid-template-columns:1fr 1fr; gap:8px 16px; }
 .pcard-field{ display:flex; flex-direction:column; gap:2px; min-width:0; }
 .pcard-field.span2{ grid-column:1 / -1; }
@@ -882,6 +917,26 @@ table.eb-grid tbody tr:last-child td{ border-bottom:none; }
 .flexcell{ display:flex; align-items:center; gap:2px; min-width:0; }
 .flexcell .fc-main{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .flexcell .tagpill{ flex:none; margin-left:4px; }
+/* ПЗ-20/ПЗ-21: ячейка с ПЕРЕНОСОМ на две строки. Прежняя .flexcell резала длинное значение
+   многоточием в один ряд, и в колонках «Вид залога» / «Залогодатель» это било по самому
+   частому содержимому: «Незавершённое строительство» (203px) и «ОсОО «Иссык-Куль Ресорт»»
+   (184px) не помещались НИ ПРИ КАКОЙ разумной ширине столбца — их приходилось читать
+   тултипом. Значение переносится на вторую строку, признаки (подвид, пилюли) уходят
+   отдельной подстрокой, поэтому ширину столбца задаёт слово, а не вся фраза.
+   Клип на двух строках (-webkit-line-clamp) обязателен: без него одна аномально длинная
+   запись растянула бы ряд на пол-экрана и сломала бы ритм таблицы. */
+.wrapcell{ display:block; white-space:normal; line-height:1.3; padding:5px 0; min-width:0; }
+.wrapcell .wc-main{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden; overflow-wrap:break-word; }
+.wrapcell .wc-sub{ display:flex; flex-wrap:wrap; align-items:center; gap:3px; margin-top:3px; }
+.wrapcell .wc-sub .wc-sub-t{ max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  font:var(--weight-regular) 12px/1.4 var(--asubk-font); color:var(--text-muted); }
+.wrapcell .wc-sub .tagpill{ margin-left:0; }
+/* ПЗ-17 (паритет карточек и таблицы): в карточке подпись — ОДНА строка, поэтому та же
+   ячейка там разворачивается в текст через разделитель, а не в блок. */
+.pcard-sub .wrapcell, .pcard-sub .wrapcell .wc-main, .pcard-sub .wrapcell .wc-sub,
+.pcard-sub .wrapcell .wc-sub-t{ display:inline; margin:0; padding:0; }
+.pcard-sub .wrapcell .wc-sub-t::before{ content:' · '; }
 /* Числовая ячейка с признаками: значение строкой, признаки — второй строкой под ним.
    Пилюли «оценка устарела» / «комиссия» шире, чем остаток колонки, — в одну строку
    они вытеснили бы саму сумму. */
@@ -3274,10 +3329,14 @@ function banStatus(it){
   return banOverdue(it) ? 'просрочен' : 'не наложен';
 }
 /* Единственный источник пилюли запрета в списках и карточках. */
-function banPill(it){
+/* ПЗ-23: `short` — пилюля БЕЗ срока наложения. В реестре срок вынесен подстрокой (banCell),
+   и пилюля «запрет не наложен · до 12.05.2026» (192px) там всегда обрезалась. Прочие точки
+   вывода (шапка карточки, таблица предметов договора) читают полную форму — параметр
+   опциональный, поведение по умолчанию не менялось. */
+function banPill(it, short){
   const s = banStatus(it);
   if(s==='наложен')          return '<span class="pill low">запрет наложен</span>';
-  if(s==='не наложен')       return `<span class="pill mid">запрет не наложен · до ${banDeadline(it)}</span>`;
+  if(s==='не наложен')       return `<span class="pill mid">запрет не наложен${short ? '' : ` · до ${banDeadline(it)}`}</span>`;
   if(s==='просрочен')        return '<span class="pill high">ЗАПРЕТ НЕ НАЛОЖЕН</span>';
   if(s==='подлежит снятию')  return '<span class="pill mid">подлежит снятию</span>';
   /* ПЗ-14: после выделения оси в собственную колонку прочерк читался как «данных нет».
@@ -4204,13 +4263,42 @@ const HEADS = {
 /* Ширины столбцов (table-layout:fixed). '' = гибкая колонка — забирает остаток
    ширины (обычно текстовое «Наименование»/«Заёмщик»/«Описание»). */
 const WIDTHS = {
-  items:      ['130px','160px','','170px','185px','150px','200px','90px'],
+  /* ПЗ-22 (пересчёт ширин по измерению, а не на глаз). Замерено в Chrome на штатных 1440
+     (canvas.measureText тем же шрифтом): подпись + 32px паддинга + 18px стрелки сортировки
+     против самого широкого значения колонки. Было три расхождения, и все — не в пользу данных:
+       • «Идентификатор» 130px при потребности подписи 154 — сама подпись резалась многоточием,
+         хотя значение («П-001», 40px) занимало треть колонки;
+       • «Обеспечивает» 90px при потребности 143 — то же самое, значение «2 дог.» = 45px;
+       • «Залоговая стоимость» 185px при потребности 189 — подпись не помещалась на 4px;
+       • «Запрет на отчуждение» 200px против пилюли со сроком 224px — резалось ЗНАЧЕНИЕ.
+     Перенос подписи (ПЗ-22) снял привязку к длине фразы: теперь ширину задаёт длинное слово
+     («Идентификатор» 104 + 32 = 136), а перенос значений (ПЗ-20/ПЗ-21) снял её с «Вида» и
+     «Залогодателя».
+     «Статус залога» 150 → 145: подрезан ровно до самой широкой пилюли оси («резервируется»,
+     113px + 32 паддинга) — на 130px она уже резалась многоточием.
+
+     ПЗ-24 (ревизия ширины «Вида»): 155 → 195px. Перенос сам по себе давал ТРИ ряда на
+     самом частом виде: «Недвижимое имущество» (160px) не помещалось в 123px полезных,
+     переносилось на два ряда, и подвид становился третьим. Правило волны — вид в ОДНУ
+     строку, подвид во ВТОРУЮ, больше двух рядов не бывает. 195px = 160 (самый широкий
+     вид, который обязан быть однострочным) + 32 паддинга + 3 запаса; «Имущественный
+     комплекс» (173) и «Незавершённое строительство» (203) переносятся на два ряда, но у
+     них нет подвида, а пилюля у них инлайновая (kindCell) — третьего ряда всё равно нет.
+     Добор — из соседей: «Залогодатель» 160 → 150 (переносится, ширину задаёт слово, а не
+     фраза) и «Залоговая стоимость» 165 → 160 (значение с валютой — 115px, подпись
+     переносится). Итог: 140 · 195 · гибкая · 150 · 160 · 145 · 170 · 145.
+     Σ фикс. 1105 против исходных 1085: +20px — цена однострочного «Недвижимого имущества»
+     на 30 записях стенда из 55. Минимум таблицы 1385 (был 1365) — прокрутка .grid-wrap
+     на 1440 включалась и прежде (ПЗ-Д13), поведение не меняется. */
+  items:      ['140px','195px','','150px','160px','145px','170px','145px'],
   /* ДГ-16…ДГ-18: две плотные колонки («Кредит», «Обеспечение») вошли РОВНО в ширину двух
      снятых («Отметки» 150 + «Предметов» 100) плюс подрезка соседей: «Договор» 160→175 (под
      полосу отметок), «Дата» 120→110, «Статус» 165→155, «Обеспеченность» 180→160.
      Σ фикс. 955 против прежних 940 — прокрутка .grid-wrap не хуже, чем была. */
   contracts:  ['175px','110px','','145px','170px','155px','160px','40px'],   // Σ фикс. 955 + 280 гибкая = 1235
-  monitor:    ['110px','180px','220px','',''],
+  /* ПЗ-22: «Критичность» 110 → 125 — единственное слово подписи (92px + 32 паддинга) не
+     помещалось, а с переносом заголовков многоточия, скрывавшего это, больше нет. */
+  monitor:    ['125px','180px','220px','',''],
   sureties:   ['80px','140px','','130px','90px','130px','230px'],
 };
 /* ПЗ-Д13: минимум под гибкую колонку. Ниже него таблица уходит в прокрутку .grid-wrap,
@@ -4312,9 +4400,20 @@ const clientKnown = inn => CLIENTS.some(c => c.inn === inn);
    (периодичность обследования), ранг ликвидности (гейт замены, Р-6), регистрирующий орган,
    tech (гейты возраста и полиса, Р-7) и интервал переоценки. В списке не было видно НИ ОДНОГО
    из семи следствий. Пилюля показывает главное, тултип — остальное. */
+/* ПЗ-20: ПОДВИД предмета. У четырёх видов справочник KIND_FIELDS уже содержит поле-
+   классификатор («Вид недвижимости», «Тип портфеля», «Вид ценной бумаги», «Вид арендованного
+   имущества»), но жило оно только внутри карточки: реестр на всю недвижимость — от квартиры
+   до земельного участка — печатал одну и ту же строку «Недвижимое имущество». Разница между
+   квартирой и незастроенным участком для залоговой службы больше, чем между двумя видами,
+   поэтому подвид выведен ПОДСТРОКОЙ под видом (своей колонки он не стоит: заполнен у четырёх
+   видов из десяти и в остальных строках дал бы прочерк).
+   Ключ читается из справочника, а не хардкодом: добавили виду select-поле — добавили сюда ключ. */
+const KIND_SUB = { 'Недвижимое имущество':'reType', 'Кредитный портфель':'portfolioType',
+                   'Ценные бумаги':'secType', 'Право аренды':'underKind' };
+const kindSub = it => (it.details || {})[KIND_SUB[it.kind]] || '';
 function kindTip(it){
-  const K = KINDS[it.kind] || {};
-  return [ it.kind,
+  const K = KINDS[it.kind] || {}, sub = kindSub(it);
+  return [ it.kind + (sub ? ` · ${sub}` : ''),
     K.k != null ? `коэффициент ×${String(K.k).replace('.',',')}` : null,
     K.liquid ? 'ликвидный (порог 120 %)' : 'неликвидный (порог 150 % + доля ликвида ≥ 80 %)',
     K.movable ? 'движимое' : 'недвижимое',
@@ -4322,9 +4421,19 @@ function kindTip(it){
     K.reval ? `переоценка каждые ${K.reval} мес.` : null,
   ].filter(Boolean).join(' · ');
 }
+/* ПЗ-20 (ревизия ПЗ-24): ячейка вида — РОВНО ДВА РЯДА, вид сверху, подвид снизу.
+   Пилюля ликвидности встаёт туда, где не создаёт третьего ряда:
+     • есть подвид → в подстроку рядом с ним (ряды: вид · подвид+пилюля);
+     • подвида нет → инлайном в конец названия вида (ряды: вид [+перенос] с пилюлей).
+   Первая редакция клала пилюлю в подстроку всегда, и у видов без подвида получалось три
+   ряда: «Незавершённое строительство» (203px, переносится) + отдельный ряд под пилюлю. */
 function kindCell(it){
-  return `<span class="flexcell" title="${esc(kindTip(it))}"><span class="fc-main">${esc(it.kind)}</span>`
-    + (isLiquid(it) ? '<span class="tagpill liq">ликвид</span>' : '') + `</span>`;
+  const sub = kindSub(it), liq = isLiquid(it);
+  const pill = liq ? '<span class="tagpill liq">ликвид</span>' : '';
+  return `<span class="wrapcell" title="${esc(kindTip(it))}">`
+    + `<span class="wc-main">${esc(it.kind)}${sub ? '' : pill}</span>`
+    + (sub ? `<span class="wc-sub"><span class="wc-sub-t">${esc(sub)}</span>${pill}</span>` : '')
+    + `</span>`;
 }
 /* ПЗ-11: в колонке было напечатанное от руки наименование, а не то, что опознаёт вещь.
    Производный ident (кадастровый №, VIN, гос.№, инв.№) попадал только в поисковый индекс и в
@@ -4345,9 +4454,13 @@ function pledgerCell(it){
   const tip = [ clientName(it.pledger),
     tp && tp.third ? `имущественный залог третьего лица — обеспечивает кредиты: ${tp.borrowers.join(', ')}` : null,
     unknown ? 'ИНН не найден в реестре клиентов' : null ].filter(Boolean).join(' · ');
-  return `<span class="flexcell" title="${esc(tip)}"><span class="fc-main">${esc(clientName(it.pledger))}</span>`
-    + (unknown ? '<span class="tagpill err">ИНН не найден</span>' : '')
-    + (tp && tp.third ? '<span class="tagpill third">третье лицо</span>' : '') + `</span>`;
+  /* ПЗ-21: имя переносится на две строки, пилюли — подстрокой. Наименования организаций
+     («ОсОО «Иссык-Куль Ресорт»») длиннее любой оправданной ширины столбца, а рядом с ними
+     стоит ещё и пилюля: в один ряд помещалось либо имя, либо признак. */
+  const pills = (unknown ? '<span class="tagpill err">ИНН не найден</span>' : '')
+    + (tp && tp.third ? '<span class="tagpill third">третье лицо</span>' : '');
+  return `<span class="wrapcell" title="${esc(tip)}"><span class="wc-main">${esc(clientName(it.pledger))}</span>`
+    + (pills ? `<span class="wc-sub">${pills}</span>` : '') + `</span>`;
 }
 /* ПЗ-13: залоговая стоимость — производная (оценочная × коэффициент вида), но выглядела
    введённой руками. Тултип раскрывает расчёт и отчёт оценщика.
@@ -4388,6 +4501,17 @@ function securesCell(it){
 /* ПЗ-14 + ПЗ-Д5: ось запрета в своей колонке. banPill остаётся единственным источником
    пилюли; ячейка добавляет тултип — при 200px пилюля с дедлайном («запрет не наложен ·
    до дд.мм.гггг») обрезается, и прочитать срок было бы негде. */
+/* ПЗ-23: подстрока ячейки — СРОК или РЕКВИЗИТ, в зависимости от состояния оси. Раньше эти
+   же сведения жили внутри пилюли (обрезалась) либо только в тултипе (в реестре его не
+   открывают построчно). Просрочка называется числом дней: «ЗАПРЕТ НЕ НАЛОЖЕН» без срока не
+   отличает вчерашнюю просрочку от полугодовой. */
+function banSub(it){
+  const s = banStatus(it);
+  if(s==='не наложен') return `до ${banDeadline(it)}`;
+  if(s==='просрочен')  return `просрочен на ${Math.abs(daysLeft(banDeadline(it)))} дн.`;
+  if(it.ban && it.ban.regNo) return `${it.ban.regNo} от ${it.ban.date || '—'}`;
+  return '';
+}
 function banCell(it){
   const s = banStatus(it);
   const tip = [ `запрет на отчуждение: ${s}`,
@@ -4396,7 +4520,9 @@ function banCell(it){
     it.ban && !banFullyRegistered(it.ban) ? 'отметка в оригиналах правоустанавливающих документов не получена (ПБК п.2.1)' : null,
     !banRequired(it) && !it.ban ? 'предмет не обременён — запрет не требуется' : null,
   ].filter(Boolean).join(' · ');
-  return `<span title="${esc(tip)}">${banPill(it)}</span>`;
+  const sub = banSub(it);
+  return `<span class="wrapcell" title="${esc(tip)}"><span class="wc-main">${banPill(it, true)}</span>`
+    + (sub ? `<span class="wc-sub"><span class="wc-sub-t">${esc(sub)}</span></span>` : '') + `</span>`;
 }
 function rowsItems(){
   return ITEMS.map(it => {
@@ -4976,7 +5102,10 @@ function renderList(){
     const sortable = sks[i] != null;
     const style = [ws[i]?`width:${ws[i]}`:'', sortable?'cursor:pointer':''].filter(Boolean).join(';');
     const arrow = !sortable ? '' : `<span class="sort${sortKey===i?' active':''}">${sortKey===i ? (sortDir>0?'↑':'↓') : '↕'}</span>`;
-    return `<th${style?` style="${style}"`:''}${sortable?` onclick="sortBy(${i})"`:''}>${h}${arrow}</th>`;
+    /* ПЗ-22: пробел перед стрелкой — ТОЧКА ПЕРЕНОСА. Без неё «Идентификатор↕» склеен в одно
+       непереносимое слово, и колонка обязана вмещать подпись ВМЕСТЕ со стрелкой (154px под
+       значение «П-001»). С пробелом стрелка при нехватке уходит на вторую строку. */
+    return `<th${style?` style="${style}"`:''}${sortable?` onclick="sortBy(${i})"`:''}>${h}${arrow?' '+arrow:''}</th>`;
   }).join('');
   let rows = filterRows(regRows());
   if(sortKey !== null){
@@ -8758,8 +8887,8 @@ if (typeof window !== 'undefined') window.__zt = {
   openDetachFile, saveDetachFile, openEditFile, saveEditFile, fileHost,
   saveAttach, openAttach, autoFiles, autoPolicy,
   // Волна 8 (ПЗ-1…ПЗ-19, ПЗ-Д1…ПЗ-Д13): реестр предметов как картотека актива.
-  plural, fmtRaw, idNum, BAN_RANK, banStatus, banPill, banCell, banRequired, banDeadline,
-  itemSecures, thirdPartyPledge, clientKnown, kindTip, kindCell, nameCell, pledgerCell,
+  plural, fmtRaw, idNum, BAN_RANK, banStatus, banPill, banCell, banSub, banRequired, banDeadline,
+  itemSecures, thirdPartyPledge, clientKnown, kindTip, kindCell, KIND_SUB, kindSub, nameCell, pledgerCell,
   pledgeTip, pledgeCell, securesCell, itemCard, revalOverdue, nextReval,
   WIDTHS, GRID_FLEX_MIN, gridMinWidth, SEARCH_SKIP, SEARCH_HINT, CSV_PROFILES,
   activeConditions, emptyState, renderGridFoot, renderCardsSort, onCardsSort, toggleSortDir,
