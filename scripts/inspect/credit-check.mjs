@@ -44,18 +44,34 @@ const pd = CR.pd;
   const after = CR.derive(c).coverage.index;
   ok(19, before === after, `${before} vs ${after}`);
 })();
-/* 20. Порог переменный: ликвид→120; движимое неликвидное при доле ликвида≥80→150; source сработавшего правила. */
+/* 20. Порог переменный и приходит ЗЕРКАЛОМ залога (ADR-0009): ликвидный состав → 120,
+   движимый неликвид в составе → 150. Кредит порог не выводит — только применяет. */
 (() => { const db = CR.seedDb();
-  const liq = byId(db,'K-1'); const dl = CR.derive(liq).coverage;
-  const ill = byId(db,'K-2'); const di = CR.derive(ill).coverage;   // К-2 сконфигурирован как движимое неликвидное
-  ok(20, dl.req===120 && di.req===150 && !!dl.source && !!di.source, `liq=${dl.req} ill=${di.req}`);
+  const liq = byId(db,'K-3'); const dl = CR.derive(liq).coverage;   // земельный участок — недвижимость, ликвид
+  const ill = byId(db,'K-2'); const di = CR.derive(ill).coverage;   // в составе оборудование — движимый неликвид
+  ok(20, dl.req===120 && di.req===150 && !!dl.source && !!di.source
+      && dl.mirror.reqBase===120 && di.mirror.reqBase===150, `liq=${dl.req} ill=${di.req}`);
 })();
-/* 21. Поручительство не влияет на индекс; банковская гарантия — влияет. */
+/* 20b. Порог по решению КМ ПЕРЕКРЫВАЕТ порог по составу (Прил.1 §2.6): coverPct — owned
+   поле кредита, поэтому индекс на нём и пересчитывается. coverPct=0 — полное освобождение. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-5');
+  const base = CR.derive(c).coverage;                                // 150 % по составу, индекс 0,56
+  CR.setKmDecision(c,{kind:'Решение КМ',num:'КМ-9',date:'01.07.2026',scan:'km.pdf',coverPct:80});
+  const km = CR.derive(c).coverage;
+  CR.setKmDecision(c,{kind:'Решение КМ',num:'КМ-9',date:'01.07.2026',scan:'km.pdf',coverPct:0});
+  const free = CR.derive(c).coverage;
+  ok('20b', base.req===150 && base.ok===false && km.req===80 && km.reqFromKm===true && km.ok===true
+      && free.req===0 && free.ok===true,
+     `состав=${base.req}/${base.ok} КМ80=${km.req}/${km.ok} КМ0=${free.req}/${free.ok}`);
+})();
+/* 21. Поручительство в индекс не входит (ADR-0009, §10.2 закрыт «нет»); банковская
+   гарантия входит как ликвид с дисконтом 0 %. Гарантия приходит в ЗЕРКАЛЕ, поэтому
+   и добавляется в него — кредит числитель не считает. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1');
   const base = CR.derive(c).coverage.index;
   c.mirror.guarantees.push({kind:'поручительство', party:'X', amount: c.contractAmount});
   const afterGuar = CR.derive(c).coverage.index;
-  c.mirror.bankGuarantee = { bank:'Банк', amount: c.contractAmount*0.5, till:'01.01.2027' };
+  c.mirror.coverage.bankGuarantee = c.contractAmount*0.5;
   const afterBank = CR.derive(c).coverage.index;
   ok(21, base===afterGuar && afterBank>afterGuar, `base=${base} guar=${afterGuar} bank=${afterBank}`);
 })();
@@ -121,8 +137,8 @@ const pd = CR.pd;
 /* 10. Р-8/Г-6: покрытие блокирует освоение (84%) до ввода реквизитов решения КМ;
    после setKmDecision гейт реально переключается false→true (не только исходный блок). */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-5');
-  const before = CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok; // покрытие 84%
-  CR.setKmDecision(c,{kind:'Решение КМ',num:'КМ-1',date:'01.06.2026',scan:'km.pdf'});
+  const before = CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok; // обеспеченность 56% при пороге 150%
+  CR.setKmDecision(c,{kind:'Решение КМ',num:'КМ-1',date:'01.06.2026',scan:'km.pdf',coverPct:80});
   const after = CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok;
   ok(10, before===false && after===true, `${before}→${after}`);
 })();
@@ -147,10 +163,10 @@ const pd = CR.pd;
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1');
   ok(5, CR.addDisbursement(c,{trancheNo:1, amount:1_000_000, order:'x'}).ok===false);
 })();
-/* 7. К-5: освоение заблокировано покрытием → ввод реквизитов КМ → освоение разрешено (Г-6,Р-8). */
+/* 7. К-5: освоение заблокировано обеспеченностью → решение КМ со своим порогом → разрешено (Г-6,Р-8). */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-5');
   const before = CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok;
-  CR.setKmDecision(c,{kind:'Решение КМ',num:'КМ-77',date:'01.06.2026',scan:'km.pdf'});
+  CR.setKmDecision(c,{kind:'Решение КМ',num:'КМ-77',date:'01.06.2026',scan:'km.pdf',coverPct:80});
   const after = CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok;
   ok(7, before===false && after===true, `${before}→${after}`);
 })();
@@ -190,7 +206,7 @@ const pd = CR.pd;
 /* 22. К-3: «Погашен» блок при остатке+взыскании (Г-14); после обнуления и закрытия — разрешён. */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-3');
   const before = CR.closeCredit(c,{reason:'Погашен'}).ok;
-  CR.zeroOutForTest(c); c.mirror.collection=[];                       // тест-хелпер: обнулить ledger + снять взыскание
+  c.mirror.claims=[]; CR.zeroOutForTest(c);                           // снять требования, затем погасить платежом через зеркало
   const after = CR.closeCredit(c,{reason:'Погашен'}).ok;
   ok(22, before===false && after===true, `${before}→${after}`);
 })();
@@ -375,7 +391,9 @@ const pd = CR.pd;
        документ; ретро-запись помечена флагом ровно на К-3. */
 (() => { const db = CR.seedDb();
   const k3 = db.credits.find(c => c.id === 'K-3');
-  const k2 = db.credits.find(c => c.id === 'K-2');
+  /* Запись «ПП снимает ставку резерва» переехала с К-2 на кредит, где снятие резерва
+     и есть сюжет: у К-2 она обнуляла ставку, ради которой К-2 заведён (КР-18). */
+  const k2 = db.credits.find(c => /Аламудун-Теплицы/.test(c.borrower.name));
   const courtRec = k3.tranches.flatMap(t => t.conditionRecords).find(r => r.basis.kind === 'court');
   const govRec   = k2.tranches.flatMap(t => t.conditionRecords).find(r => r.basis.kind === 'govAct');
   const retroK3  = CR.retroFlags(k3);
@@ -471,6 +489,229 @@ const pd = CR.pd;
   ok(38, before>0 && r.ok!==false && !!act && !!act.generatedAt && after===0 && again>0
       && CR.retroFlags(c).length>0,
      `before=${before} after=${after} again=${again} generatedAt=${act&&act.generatedAt}`);
+})();
+
+/* ============================================================
+   БЛОК 2 · СОГЛАСОВАННОСТЬ ДАННЫХ (волна 27.07.2026, КР-23).
+   Все 39 тестов выше проверяют ФУНКЦИИ. Дефекты, найденные ревизией, жили не в
+   функциях, а в данных и в слое рендера — и поэтому пережили 16 шагов слияния:
+   К-1 показывал остаток 0 при освоении 100 000, восемь фоновых кредитов были
+   засеяны в состоянии, которое их собственный гейт не пропустил бы, а вкладка
+   «Проблемные» противоречила шапке. Ниже — проверки ровно на это.
+   ============================================================ */
+
+/* 40. Освоение больше нуля при нулевом остатке — противоречие (КР-7). Долг выводится
+   из графика и зеркала платежей, поэтому освоенный и непогашенный кредит обязан
+   показывать остаток. Исключение — закрытые: там ноль есть результат погашения. */
+(() => { const db = CR.seedDb();
+  const bad = db.credits.filter(c => { const d = CR.derive(c);
+    return d.disbursed > 0 && d.debtBalance === 0 && c.lifecycle !== 'Закрыт'; });
+  ok(40, bad.length === 0, `нарушителей=${bad.length} ${bad.map(c=>c.id).join(',')}`);
+})();
+
+/* 41. График есть, детального расчёта нет — противоречие (КР-8/КР-9): позиции,
+   наступившие на дату среза, обязаны попасть в расчёт, иначе дни просрочки равны
+   нулю по построению. */
+(() => { const db = CR.seedDb();
+  const bad = db.credits.filter(c => { const d = CR.derive(c);
+    const rows = c.tranches.reduce((a,t) => a + CR.trancheScheduleRows(t).length, 0);
+    const due  = c.tranches.reduce((a,t) => a + CR.trancheScheduleRows(t)
+      .filter(r => CR.pd(r.date) <= CR.pd(CR.TODAY)).length, 0);
+    return rows > 0 && due > 0 && d.ledger.rows.length === 0; });
+  ok(41, bad.length === 0, `нарушителей=${bad.length} ${bad.map(c=>c.id).join(',')}`);
+})();
+
+/* 42. СИД ПРОХОДИТ СОБСТВЕННЫЕ ГЕЙТЫ (КР-19). Гейты проверяются только на новых
+   действиях, поэтому демо-данные могли годами хранить состояние, недостижимое
+   легальным путём: восемь фоновых кредитов «Действует» с освоением при нулевой
+   обеспеченности. Освоенный кредит обязан удовлетворять Г-6 — или нести waiver. */
+(() => { const db = CR.seedDb();
+  const bad = db.credits.filter(c => { const d = CR.derive(c);
+    return c.lifecycle !== 'Закрыт' && d.disbursed > 0 && !d.coverage.ok && !c.mirror.pledgeWaiver; });
+  ok(42, bad.length === 0,
+     `нарушителей=${bad.length} ${bad.map(c=>{const d=CR.derive(c);return c.id+':'+(d.coverage.index==null?'нет зеркала':Math.round(d.coverage.index*100)+'%');}).join(',')}`);
+})();
+
+/* 43. ЕДИНЫЙ ИСТОЧНИК КАТЕГОРИИ (КР-6). Категория в шапке и разбор на вкладке
+   «Проблемные» обязаны совпадать: worst-of собирается один раз. Проверяем сам
+   инвариант — итог равен худшему из двух своих входов, и послабление применено. */
+(() => { const db = CR.seedDb();
+  const ORDER = ['низкий','средний','высокий'];
+  const bad = db.credits.filter(c => { const d = CR.derive(c); const b = d.riskBasis;
+    const worst = ORDER[Math.max(ORDER.indexOf(b.byDays), ORDER.indexOf(b.byFactors))];
+    const reliefApplied = b.relief ? b.eff <= 180 : b.eff === b.raw;
+    return d.riskCategory !== worst || !reliefApplied; });
+  /* и предметно: K-C16 (220 дн.) с послаблением — «средний», без него был бы «высокий» */
+  const k = db.credits.find(c => /Иссык-Ата-Санаторий/.test(c.borrower.name));
+  const dk = CR.derive(k);
+  ok(43, bad.length === 0 && dk.riskBasis.raw >= 181 && dk.riskBasis.eff === 180 && dk.riskBasis.byDays === 'средний',
+     `нарушителей=${bad.length} · K-C16 факт=${dk.riskBasis.raw} эфф=${dk.riskBasis.eff} → ${dk.riskCategory}`);
+})();
+
+/* 44. Зеркало платежей двигает остаток, а неподтверждённый платёж — нет (Р-5 + ADR-0008).
+   Прежняя модель не умела ни того ни другого: платёж «Подтверждён ЦК» у К-1 не менял
+   ничего, потому что долг читался из засеянного ledger. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const before = CR.derive(c).debt.principal.bal;
+  c.mirror.payments.push({ num:99, date:CR.TODAY, amount:10000, tranche:1, reg:'Ручной ввод',
+    match:'Ожидает ЦК', frozen:false, layers:{ principal:10000 } });
+  const pending = CR.derive(c).debt.principal.bal;
+  c.mirror.payments[c.mirror.payments.length-1].match = 'Подтверждён ЦК';
+  const confirmed = CR.derive(c).debt.principal.bal;
+  ok(44, pending === before && confirmed === Math.round((before - 10000)*100)/100,
+     `было=${before} ожидает=${pending} подтверждён=${confirmed}`);
+})();
+
+/* 45. Периодичность работает (КР-13): «ежеквартально» даёт вчетверо меньше позиций,
+   чем «ежемесячно», при том же сроке. Прежний движок всегда строил помесячно. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
+  const monthly = CR.buildSchedule(t, t.disbursements[0].date).rows.length;
+  CR.addConditionRecords(c, { basis:{ kind:'agreement', num:'ДС-FREQ', date:CR.TODAY, ref:'ДС-FREQ', label:'ДС-FREQ' },
+    records:[{ param:'freq', value:'ежеквартально', effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
+  const quarterly = CR.buildSchedule(t, t.disbursements[0].date).rows.length;
+  ok(45, monthly === 24 && quarterly === 8, `мес=${monthly} кв=${quarterly}`);
+})();
+
+/* 46. День платежа НЕ зажимается к 28-му (КР-14): освоение 31.05 даёт 30.06 и 31.07,
+   а не три платежа 28-го числа. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
+  const rows = CR.buildSchedule(t, '31.05.2026').rows.slice(0,3).map(r => r.date);
+  ok(46, rows[0]==='30.06.2026' && rows[1]==='31.07.2026' && rows[2]==='31.08.2026', rows.join(' · '));
+})();
+
+/* 47. graceAccrual и graceInterest — РАЗНЫЕ механизмы (КР-13). Отсрочка начисления
+   обнуляет начисленное; льгота по процентам начисляет, но не включает в платёж. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
+  const set = (param, value) => CR.addConditionRecords(c, {
+    basis:{ kind:'agreement', num:'ДС-'+param, date:CR.TODAY, ref:'ДС-'+param, label:'ДС-'+param },
+    records:[{ param, value, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
+  set('graceAccrual', 3);
+  const accr = CR.buildSchedule(t, t.disbursements[0].date).rows[0];
+  set('graceAccrual', 0); set('graceInterest', 3);
+  const intr = CR.buildSchedule(t, t.disbursements[0].date).rows[0];
+  ok(47, accr.accrued === 0 && accr.interest === 0 && intr.accrued > 0 && intr.interest === 0,
+     `отсрочка: начисл=${accr.accrued} платёж=${accr.interest} · льгота: начисл=${intr.accrued} платёж=${intr.interest}`);
+})();
+
+/* 48. Обязательный комплект документов реально проверяется (КР-11). Пустой массив
+   документов больше НЕ проходит Г-7: `.every()` на пустом давал true, поэтому у 57
+   кредитов из 59 гейт не мог сработать в принципе. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const empty = Object.assign(Object.create(Object.getPrototypeOf(c)), c, { docs: [] });
+  const st = CR.docsStatusOf(empty);
+  const req = CR.programDocs(c).req;
+  const partial = CR.docsStatusOf(c);                       // финотчётность «на проверке» → не закрыт
+  ok(48, req.length > 0 && st.complete === false && st.missing.length === req.length
+      && partial.complete === false && partial.missing.includes('Финансовая отчётность'),
+     `обязательных=${req.length} пусто→${st.complete} К-1→${partial.complete} (${partial.missing.join(',')})`);
+})();
+
+/* 49. Послабление опознаётся ЗАПИСЬЮ со сроком, а не регуляркой по тексту (КР-15).
+   Приостановка начисления с основанием «Постановление 181-ФЗ» не должна включать
+   подавление 181-го дня; истёкшее послабление перестаёт действовать. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-3');
+  CR.holdAccrual(c, { from:'01.06.2026', to:null, reason:'Постановление 181-ФЗ о моратории',
+                      doc:'pp-181.pdf', by:'Куратор' });
+  const falsePositive = !!CR.relief181(c, CR.TODAY);
+  const k4 = byId(db,'K-4');
+  const active  = !!CR.relief181(k4, CR.TODAY);            // срок до 12.08.2026
+  const expired = !!CR.relief181(k4, '01.10.2026');        // после дедлайна
+  ok(49, falsePositive === false && active === true && expired === false,
+     `ложное=${falsePositive} действует=${active} истекло=${expired}`);
+})();
+
+/* 50. Переход ЖЦ существует и работает (КР-1): Проект → Зарегистрирован → Действует.
+   Гейт был написан, право стояло у двух ролей, а мутации и кнопки не существовало. */
+(() => { const db = CR.seedDb();
+  const proj = db.credits.find(c => c.lifecycle === 'Проект' && CR.gate(c,'register',{}).ok);
+  if (!proj) return ok(50, false, 'в демо нет «Проекта», проходящего Г-7');
+  const r1 = CR.registerCredit(proj, {});
+  const lc1 = proj.lifecycle;
+  const beforeAct = CR.gate(proj,'activate',{}).ok;                  // освоений нет → блок
+  CR.addDisbursement(proj, { trancheNo: proj.tranches[0].no, amount: 1000, order:'ПП-т' });
+  const r2 = CR.activateCredit(proj);
+  ok(50, r1.ok && lc1 === 'Зарегистрирован' && beforeAct === false && r2.ok && proj.lifecycle === 'Действует',
+     `${lc1} → ${proj.lifecycle} (до освоения activate=${beforeAct})`);
+})();
+
+/* 51. Подгруппа — зеркало заёмщика, а не вывод кредита (КР-12/КР-27). Списанный кредит
+   с ненулевым остатком не может быть подписан «Погашен»: прежний payGroupOf возвращал
+   '5 · Погашен' на любом «Закрыт». */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-6b'); const d = CR.derive(c);
+  const noPayGroup = typeof CR.derive(c).payGroup === 'undefined';
+  ok(51, d.debtBalance > 0 && d.subgroup === '4' && /безнадеж/i.test(d.subgroupLabel||'') && noPayGroup,
+     `остаток=${d.debtBalance} подгруппа=${d.subgroup} «${d.subgroupLabel}»`);
+})();
+
+/* 52. Пятая статья не влияет на Г-14 (ADR-0004/0008): расходы по обращению взыскания
+   принадлежат взысканию, и кредит не может зависеть от чужих расходов в вопросе,
+   погашен ли он. Четыре собственные статьи — влияют. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-3');
+  c.mirror.claims = []; CR.zeroOutForTest(c);
+  c.mirror.collectionCosts = 15000;                                   // чужие расходы висят
+  const g = CR.gate(c,'repay',{});
+  const d = CR.derive(c);
+  ok(52, g.ok === true && d.collectionCosts === 15000 && d.debtBalance === 0,
+     `Г-14=${g.ok} расходы=${d.collectionCosts} остаток=${d.debtBalance}`);
+})();
+
+/* ============================================================
+   БЛОК 3 · СЛОЙ РЕНДЕРА (КР-23). Смоук жил в песочнице без DOM и дёргал только
+   чистые функции — поэтому ВСЕ дефекты групп A и B (мёртвые кнопки, экран,
+   противоречащий сам себе, пустые гриды) пережили 16 шагов слияния. Здесь
+   поднимается минимальный DOM, и каждая вкладка каждого кредита реально строится.
+   ============================================================ */
+(() => {
+  const stub = () => ({ innerHTML:'', textContent:'', value:'', style:{}, checked:false, disabled:false,
+    classList:{ add(){}, remove(){}, toggle(){}, contains(){ return false; } },
+    querySelectorAll:()=>[], appendChild(){}, remove(){}, scrollIntoView(){}, addEventListener(){} });
+  const doc = { getElementById:()=>stub(), querySelectorAll:()=>[], querySelector:()=>stub(),
+    createElement:()=>stub(), addEventListener(){}, body:stub() };
+  const sb2 = { document: doc, console, setTimeout:()=>{}, clearTimeout:()=>{} };
+  vm.createContext(sb2);
+  /* в браузере `window.CR = {...}` создаёт и глобальный CR; в vm — нет, зеркалим */
+  sb2.window = new Proxy({}, { set(t,k,v){ t[k]=v; sb2[k]=v; return true; },
+                               get(t,k){ return t[k]; }, has(){ return true; } });
+  let CR2;
+  try { vm.runInContext(m[1], sb2, { filename:'credit.dom.js' }); CR2 = sb2.window.CR; }
+  catch(e){ return ok(53, false, 'скрипт с DOM не исполнился: ' + e.message); }
+
+  const TABS = ['Договор','Условия','Транши и освоение','Расчёты','Платежи','Обеспечение','Проблемные','Досье'];
+  const bad = [];
+  for (const c of CR2.db.credits) for (const t of TABS){
+    let html;
+    try { html = CR2.renderTab(t, c); }
+    catch(e){ bad.push(`${c.id}/${t}: ${e.message}`); continue; }
+    if (typeof html !== 'string' || html.length < 50) bad.push(`${c.id}/${t}: пусто`);
+    else if (/undefined|\[object Object\]|NaN/.test(html)) bad.push(`${c.id}/${t}: мусор в разметке`);
+  }
+  ok(53, bad.length === 0, `вкладок=${CR2.db.credits.length * TABS.length} проблем=${bad.length} ${bad.slice(0,3).join(' | ')}`);
+
+  /* 54. Каждая модалка открывается без исключения — включая оживлённые этой волной.
+     Мёртвая кнопка (действие, которого нет в матрице ролей) здесь и ловится. */
+  const MODALS = ['openTrancheModal','openDisbModal','openSchedModal','openCondModal','openPaymentModal',
+    'openKmModal','openWaiverModal','openWriteOffModal','openRepayModal','openPledgePicker',
+    'openContractAmountModal','openHoldModal','openRegisterModal','openActivateModal','openCloseDisbModal',
+    'openCloseTrancheModal','openTransferModal','openNoteModal','openTargetUseModal','openTerminateModal'];
+  const missing = MODALS.filter(f => typeof CR2[f] !== 'function');
+  const errs = [];
+  CR2.state = CR2.state || {};
+  doc.getElementById = (id) => id === 'roleSel' ? Object.assign(stub(), { value:'Начальник отдела' }) : stub();
+  CR2.onRoleChange();
+  for (const id of ['K-1','K-3','K-5','K-6']){ CR2.openDetail(id);
+    for (const f of MODALS){ if (missing.includes(f)) continue;
+      try { CR2[f](); } catch(e){ errs.push(`${id}/${f}: ${e.message}`); } } }
+  ok(54, missing.length === 0 && errs.length === 0,
+     `нет функции=${missing.join(',')||'—'} исключений=${errs.length} ${errs.slice(0,2).join(' | ')}`);
+
+  /* 55. Каждое действие, которое спрашивает кнопка, ЕСТЬ в матрице ролей. Кнопка
+     «+ Примечание» вызывала roleBtn('addNote'), а действия addNote в ROLE_ACTIONS не
+     было вовсе — она была мертва под всеми ролями, включая «Начальника отдела» (КР-2). */
+  const src = readFileSync(HTML, 'utf8');
+  const asked = [...src.matchAll(/(?:roleBtn|actBtn)\(\s*(?:c\s*,\s*)?'([a-zA-Z]+)'/g)].map(x => x[1]);
+  const known = new Set(Object.values(CR2.ROLE_ACTIONS || {}).flatMap(s => [...s]));
+  const orphans = [...new Set(asked)].filter(a => !known.has(a));
+  ok(55, orphans.length === 0, `действий у кнопок=${new Set(asked).size} без роли=${orphans.join(',')||'—'}`);
 })();
 
 const pass = results.filter(r => r.pass).length;
