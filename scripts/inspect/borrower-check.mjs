@@ -945,6 +945,74 @@ ok('Б-5. погашенные кредиты не растворяются в �
     const cells = [...tr[1].querySelectorAll('td')].map(td => td.textContent.trim());
     return /Погашен/.test(cells[2]) && money(cells[5]) === 7000000; })());
 
+/* ── Сквозные приёмы: КЗ-14, КЗ-16, КЗ-22, КЗ-31 ────────────────────────────────
+   Четыре решения, принятые один раз на все одиннадцать вкладок. Общее у них — язык
+   экрана: подпись блока, ссылка, полоса дефектов и хвост хронологии выглядят одинаково
+   везде, иначе одно и то же решение пришлось бы принимать одиннадцать раз и разойтись
+   в одиннадцати местах. Проверяем на карточке целиком: все панели рисуются сразу. */
+
+/* Карточка со всеми вкладками разом: панели рендерятся при showDetail, переключение
+   вкладки их не создаёт — поэтому один route() даёт весь экран. */
+const card = inn => { const f = mk(); f.ev(`location.hash='#/b/${inn}'`); f.ev("route()"); return f; };
+const HINTS = f => f.$$('.section-head .hint').map(h => h.textContent);
+
+const cAts = card('01204199910016');   // АгроТехСервис — взыскание, залог, кураторство, дефекты
+const cClean = card('10001199900101'); // кредит погашен — ни дефектов взыскания, ни дефектов обеспечения
+
+ok('КЗ-14. подписи блоков не показывают внутренний номер решения (Р-N)',
+  HINTS(cAts).concat(HINTS(cClean)).every(t => !/\bР-\d+/.test(t)));
+ok('КЗ-14. жаргон разработки наружу не выходит (append-only, латиница модулей)',
+  HINTS(cAts).concat(HINTS(cClean)).every(t => !/append-only/i.test(t) && !/[A-Za-z]{4,}/.test(t)));
+ok('КЗ-14. ссылка на пункт Порядка остаётся — это основание, видимое пользователю',
+  HINTS(cAts).some(t => /п\.\s*93/.test(t)) && HINTS(cAts).some(t => /п\.\s*97/.test(t)));
+
+/* КЗ-16 / Б-9: ссылка, которая молча ничего не делает, читается как сломанный экран. */
+const deadLinks = f => f.$$('a.lnk').filter(a => !a.getAttribute('href') && !a.getAttribute('onclick'));
+ok('КЗ-16. мёртвых ссылок нет: у каждой ссылки есть маршрут или обработчик',
+  deadLinks(cAts).length === 0 && deadLinks(cClean).length === 0);
+ok('КЗ-16. переходы в чужие модули помечены «↗ внешний модуль»',
+  (() => { const ext = cAts.$$('a.lnk.ext');
+    return ext.length >= 5 && ext.every(a => /↗/.test(a.textContent) && /внешн/i.test(a.getAttribute('title') || '')); })());
+ok('КЗ-16. нажатие на внешнюю ссылку даёт тост «маршрут не реализован»',
+  (() => { const f = card('01204199910016');
+    f.ev("notRouted('модуль залога')");
+    const t = f.$('#toast');
+    return !!t && /маршрут не реализован/i.test(t.textContent) && /модуль залога/.test(t.textContent); })());
+
+/* КЗ-22: один движок полос, зелёная — тихой строкой, красная — кликабельна. */
+ok('КЗ-22. полосы дефектов рисует один движок defectBar',
+  cAts.ev("typeof defectBar === 'function'"));
+ok('КЗ-22. «дефектов нет» — тихая строка, а не полноразмерная зелёная полоса',
+  cClean.$$('.defect-bar.ok').length === 0 && cClean.$$('.def-ok').length >= 2);
+ok('КЗ-22. дефект в полосе кликабелен и ведёт на вкладку «Проверки и дефекты»',
+  (() => { const b = cAts.$$('.defect-bar .badge');
+    return b.length > 0 && b.every(x => /switchTab/.test(x.getAttribute('onclick') || '')); })());
+
+/* КЗ-31: ленту ведёт одна вкладка, остальные в неё указывают. */
+ok('КЗ-31. хронология вкладки — не больше пяти записей',
+  (() => { const tls = cAts.$$('.tab-tl');
+    return tls.length >= 5 && tls.every(t => t.querySelectorAll('.tl-item').length <= 5); })());
+ok('КЗ-31. хвост ленты ведёт в «Историю» с преднастроенной категорией',
+  (() => { const a = cAts.$('.tab-tl[data-cat="kur"] a.lnk[href*="cat="]');
+    return !!a && a.getAttribute('href') === `#/b/01204199910016/${cAts.ev("tabIx('история')")}?cat=kur`; })());
+ok('КЗ-31. вкладка больше не ведёт собственную ленту («История кураторства» ушла)',
+  HINTS(cAts).every(t => !/журнала назначений/.test(t)));
+ok('КЗ-31. маршрут ?cat= открывает «Историю» с включённым фильтром категории',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016/" + f.ev("tabIx('история')") + "?cat=kur'"); f.ev("route()");
+    const root = f.$('#histRoot'), on = f.$('#histChips .hchip.on');
+    return !!root && root.dataset.cat === 'kur' && !!on && on.dataset.k === 'kur'; })());
+ok('КЗ-31. выбранная полоса ленты пересылается ссылкой: чип кладёт категорию в адрес',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016/" + f.ev("tabIx('история')") + "'"); f.ev("route()");
+    f.ev("switchTab(tabIx('история'))");
+    f.ev("histFilter('coll')");
+    return /\?cat=coll$/.test(f.w.location.hash); })());
+ok('КЗ-31. срез и категория в маршруте уживаются',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/01204199910016/" + f.ev("tabIx('история')") + "?on=2026-03-01&cat=coll'"); f.ev("route()");
+    return f.ev("VIEW_DATE") === '01.03.2026' && f.$('#histRoot').dataset.cat === 'coll'; })());
+
 /* ── Словари взыскания: владелец — collection.html ──────────────────────────────
    CONTOURS / PHASE_STAGE / PROCEDURE_DICT скопированы в карточку заёмщика.
    Копипаст синхронен на 26.07.2026 и синхронится руками — значит разъедется молча.

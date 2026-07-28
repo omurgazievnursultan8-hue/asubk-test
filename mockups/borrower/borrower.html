@@ -9,7 +9,7 @@
      Спека: mockups/borrower/ASUBK-zaemshik-logika.md — правила вывода, инварианты с причиной, швы (СП-21)
             docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки); её место заняла спека выше
-     Проверка: node scripts/inspect/borrower-check.mjs  →  175/175 PASS (2026-07-28)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  190/190 PASS (2026-07-28)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
@@ -21,7 +21,10 @@
                  И-7 обязательство закрывается фактом из модуля-источника, не отметкой ·
                  И-8 дефект один на всю карточку: подача разная, правило одно;
                      «стоп» — модальность, а не степень (в шкалу high/mid/info не входит) ·
-                 И-9 дата среза одна на карточку (asOf()); вкладка своей даты не заводит.
+                 И-9 дата среза одна на карточку (asOf()); вкладка своей даты не заводит ·
+                 И-10 ленту событий ведёт одна вкладка («История»), остальные показывают
+                     хвост своей категории на 5 записей и указывают в неё маршрутом ?cat=
+                     (tabTimeline, TAB_HIST_CAT, КЗ-31).
      Вкладки: порядок и имена — TAB_DEFS, адресация ключом tabIx('кредиты'), не индексом.
      Экран списка: решения СП-1…СП-14 — mockups/borrower/ASUBK-status-razrabotki.md
                  (реестр = рабочая очередь + поиск; один инпут поиска по ИЛИ; двухуровневый
@@ -47,6 +50,17 @@
                  подгруппы двухуровневая (GROUP_LABEL); замок read-only живёт внутри «как
                  выведено»; таббар в две строки со счётчиками нагрузки (TAB_DEFS.row,
                  tabCount). Этим же закрыты дефекты макета Б-2 и Б-12.
+     Сквозные приёмы: решения КЗ-14, КЗ-16, КЗ-22, КЗ-31 (28.07.2026) — приняты один раз и
+                 действуют на всех одиннадцати вкладках, поэтому у каждого один шов в коде:
+                 КЗ-14 — подпись блока говорит пунктом Порядка, а не внутренним номером
+                     решения (Р-N ушли в спеку) и без жаргона разработки;
+                 КЗ-16 — переход в чужой модуль строится extLink() и честно говорит
+                     notRouted(), что маршрута ещё нет; мёртвых ссылок не осталось (Б-9);
+                 КЗ-22 — полосу дефектов вкладки рисует defectBar(), «дефектов нет» свёрнуто
+                     в тихую строку, бейджи в шапке и в полосе ведут во вкладку «Проверки»;
+                 КЗ-31 — ленту ведёт одна вкладка «История», остальные показывают хвост
+                     tabTimeline() на пять записей и указывают в неё маршрутом ?cat=
+                     (TAB_HIST_CAT). Собственная лента вкладки «Кураторство» снята.
 -->
 <style>
   :root{
@@ -480,12 +494,25 @@
   .b-type{background:#f2ecff;color:#5b34c7;border:1px solid #ded0ff;}
   .b-err{background:var(--status-error-bg);color:var(--status-error);border:1px solid #f2cfcf;}
 
-  /* полоса дефектов обеспечения (вкладка «Залог») */
+  /* полоса дефектов вкладки: красная — полосой, «дефектов нет» — тихой строкой (КЗ-22).
+     Норма не новость и веса полосы не стоит: зелёная полоса раньше вытесняла содержание вкладки. */
   .defect-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:9px 12px;
     border:1px solid #f2cfcf;background:var(--status-error-bg);border-radius:var(--radius-md);font-size:13px;}
   .defect-bar .dl{font-weight:700;color:var(--status-error);font-size:12px;letter-spacing:.03em;}
-  .defect-bar.ok{border-color:var(--border-default);background:var(--status-success-bg);}
-  .defect-bar.ok .dl{color:var(--status-success);}
+  .defect-bar .badge{cursor:pointer;}
+  .def-ok{display:flex;align-items:baseline;gap:7px;margin-bottom:12px;padding:0 2px;
+    font-size:12.5px;color:var(--text-muted);}
+  .def-ok .dl{color:var(--status-success);font-weight:600;}
+  /* переход в чужой модуль (КЗ-16) и тост о ненаписанном маршруте */
+  .lnk.ext{white-space:nowrap;}
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);z-index:120;
+    padding:10px 16px;border-radius:var(--radius-md);background:#22303f;color:#fff;font-size:13px;
+    box-shadow:0 6px 22px rgba(0,0,0,.22);opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+  /* хвост хронологии на вкладке (КЗ-31): пять записей и указатель в «Историю» */
+  .tab-tl{margin-top:6px;}
+  .tab-tl .section-body{padding-top:4px;}
+  .tl-quiet{display:flex;align-items:baseline;gap:8px;margin:10px 2px 4px;font-size:12.5px;color:var(--text-muted);}
   /* строка кредита раскрывается в предметы залога */
   table.grid tr.pl-row{cursor:pointer;}
   table.grid tr.pl-row .car{display:inline-block;width:12px;color:var(--text-muted);transition:transform .12s;}
@@ -3535,8 +3562,10 @@ function flagsRow(inn){
   /* КЗ-4: бейджа «Только для чтения» здесь больше нет. Лента переехала в шапку и встала прямо
      под баннер, который говорит то же самое теми же словами — на одном экране фраза «ликвидирован»
      повторялась трижды (баннер, стоп-фактор, бейдж). Стоп-фактор остаётся: это запись дефекта. */
+  /* КЗ-22, первая подача: в шапке дефект показан компактно и по нажатию открывает вкладку,
+     где он разобран. Бейдж, который нельзя нажать, заставляет искать вкладку глазами. */
   const body = f.length
-    ? f.map(x=>`<span class="badge ${x[0]}">${esc(x[1])}</span>`).join('')
+    ? f.map(x=>`<span class="badge ${x[0]}" onclick="switchTab(tabIx('проверки'))">${esc(x[1])}</span>`).join('')
     : '<span class="badge b-ok">Дефектов нет</span>';
   return `<div class="flags-row">${body}</div>`;
 }
@@ -3591,7 +3620,7 @@ function attentionCard(inn){
       + `Категорию они не двигают до решения комитета.</div>`;
   }
   if (!body) body = '<div class="muted" style="font-size:13px;line-height:1.5;padding:14px 16px">Открытых обязательств и событий на комитет нет.</div>';
-  return sect('Требует внимания', 'Р-4 · Р-5',
+  return sect('Требует внимания', 'сроки, которые вышли или выйдут',
     '<a class="lnk" onclick="switchTab(tabIx(\'обязательства\'))">Все обязательства</a>', body);
 }
 
@@ -3607,7 +3636,7 @@ function obligationsTab(inn){
     : '<span class="badge b-proc">в срок</span>';
   const closedCell = o => o.closing
     ? esc(o.closing.type || o.closing.subject || o.closing.id) + '<div class="muted" style="margin-top:3px">'
-      + esc((o.closing.file || o.closing.id) + ' · ' + o.closing.date) + ' <a class="lnk">открыть в модуле</a></div>'
+      + esc((o.closing.file || o.closing.id) + ' · ' + o.closing.date) + ' ' + extLink('открыть', 'модуль-источник') + '</div>'
     : '<span class="muted">факта закрытия нет</span>';
   const rows = obs.map(o => '<tr>'
     + '<td class="who">' + esc(o.code) + '</td>'
@@ -3664,7 +3693,7 @@ function generalTab(inn, opts){
         return `<div class="ov-item"${on?'':' style="opacity:.6"'}><div class="ov-h">${esc(OV_LABEL[o.kind]||o.kind)}`
           + ` — ${on?'действует':'истёк'}</div>`
           + `<div class="ov-m">кредит ${esc(o.credit.no)} · ${esc(o.from)}–${esc(o.deadline)} · основание ${esc(o.sourceRef||'—')}`
-          + ` · <a class="lnk">открыть в restructuring</a></div></div>`;
+          + ` · ${extLink('открыть решение', 'модуль реструктуризации')}</div></div>`;
       }).join('')
       + `<div class="muted" style="font-size:12px;margin-top:6px">Действующих: ${live.length} из ${ovl.length}. Послабление действует только в свой срок и только на просрочку — факторы комитета оно не снимает.</div>`
     : `<div class="muted" style="font-size:13px;line-height:1.5">Действующих послаблений нет — категория риска считается напрямую (worst-of по кредитам).</div>`;
@@ -3690,7 +3719,7 @@ function generalTab(inn, opts){
   return `<div class="gen-2col split">`
       + `<div class="gen-col">${svcSect}${contactsCard(inn)}${recentEventsCard(inn)}</div>`
       + `<div class="gen-col">${creditsSummaryCard(inn)}${attentionCard(inn)}`
-        + sect('Послабления по категории риска', 'зеркало restructuring', '', ovBody)
+        + sect('Послабления по категории риска', 'зеркало модуля реструктуризации', '', ovBody)
         + `</div>`
     + `</div>`;
 }
@@ -3909,12 +3938,8 @@ function collectionTab(inn){
     + '</div>';
 
   const def = collectionDefects(inn);
-  const defBar = def.length
-    ? '<div class="defect-bar"><span class="dl">ДЕФЕКТЫ ВЗЫСКАНИЯ</span>'
-      + def.map(d => '<span class="badge ' + (d.sev === 'high' ? 'b-err' : 'b-ov') + '">' + esc(d.text) + '</span>').join('')
-      + '</div>'
-    : '<div class="defect-bar ok"><span class="dl">ДЕФЕКТОВ ВЗЫСКАНИЯ НЕТ</span>'
-      + '<span class="muted">сроки в норме, процедуры подтверждены, просрочка без процесса отсутствует</span></div>';
+  const defBar = defectBar('взыскания', def,
+    'сроки в норме, процедуры подтверждены, просрочка без процесса отсутствует');
 
   /* свод: стадия — максимальная по эскалации среди живых процессов (стадия производна от фазы) */
   const money = live.reduce((a,p)=>{ const m = procMoney(p);
@@ -4057,7 +4082,7 @@ function wireCollectionTab(inn){
         + '</span></div>'
       + '<div class="cv-money"><span>открыт ' + esc(p.opened) + ' · ' + esc(p.openedBy || '—')
         + ' · основание: ' + esc(p.basis || '—') + '</span>'
-        + '<a class="lnk">открыть в модуле взыскания</a></div>';
+        + extLink('открыть', 'модуль взыскания') + '</div>';
   }
 
   /* ---- вид «по процессам» ---- */
@@ -4229,12 +4254,8 @@ function collateralTab(inn){
     + '</div>';
 
   const def = pledgeDefects(inn);
-  const defBar = def.length
-    ? '<div class="defect-bar"><span class="dl">ДЕФЕКТЫ ОБЕСПЕЧЕНИЯ</span>'
-      + def.map(d => '<span class="badge ' + (d.sev === 'high' ? 'b-err' : 'b-ov') + '">' + esc(d.text) + '</span>').join('')
-      + '</div>'
-    : '<div class="defect-bar ok"><span class="dl">ДЕФЕКТОВ ОБЕСПЕЧЕНИЯ НЕТ</span>'
-      + '<span class="muted">покрытие в норме, запреты наложены, обследования в сроке</span></div>';
+  const defBar = defectBar('обеспечения', def,
+    'покрытие в норме, запреты наложены, обследования в сроке');
 
   /* worst-of нормирован на порог каждого кредита, поэтому норма — единица, а не 1.20 */
   const covPill = cov.worst == null
@@ -4335,7 +4356,7 @@ function wireCollateralTab(inn){
       /* в сиде нотариус хранится с префиксом «Нотариус …» — в строке он лишний */
       + '<div class="pi-l">договор ' + esc(a.no || '—') + ' · нотариус ' + esc(String(a.notary || '—').replace(/^Нотариус\s+/, ''))
         + ' · ' + esc(a.organ || '—') + ' · запрет ' + esc((o.ban && o.ban.regNo) || '—')
-        + ' <a class="lnk">открыть в модуле залога</a></div>'
+        + ' ' + extLink('открыть', 'модуль залога') + '</div>'
       + '</div>';
   }
 
@@ -4428,7 +4449,7 @@ function actNeedsAction(a){
 function actStatusBadge(a){
   const days = calDays(a.dueDate, asOf());
   if (a.agreement === 'evasion'){
-    const flag = days > 60 ? ` <a class="lnk">→ очередь на комитет (${days} к.д.)</a>` : ` <span class="muted">${days} к.д.</span>`;
+    const flag = days > 60 ? ` ${extLink('→ очередь на комитет (' + days + ' к.д.)', 'реестр заседаний комитета')}` : ` <span class="muted">${days} к.д.</span>`;
     return `<span class="badge b-err">Уклонение</span>${flag}`;
   }
   if (a.agreement === 'dispute') return '<span class="badge b-err">Разногласия</span>';
@@ -4491,7 +4512,7 @@ function actDetail(a){
   } else if (a.regNo)
     branch = `<div class="act-note">Зарегистрирован: <b>${esc(a.regNo)}</b>${a.regAt ? ' от ' + esc(a.regAt) : ''}.</div>`;
   const scan = a.scan
-    ? `<div class="act-note">Скан: <a class="lnk">📎 ${esc(a.scan)}</a></div>`
+    ? `<div class="act-note">Скан: ${extLink('📎 ' + esc(a.scan), 'хранилище сканов')}</div>`
     : '';
   // контекстные действия по этапу (заглушки печатных форм / загрузки)
   const btns = ['Открыть PDF'];
@@ -4503,7 +4524,7 @@ function actDetail(a){
 }
 function actsTable(list){
   const rows = list.map(a => {
-    const scanCell = a.scan ? '<a class="lnk">📎</a>' : '<span class="muted">—</span>';
+    const scanCell = a.scan ? extLink('📎', 'хранилище сканов') : '<span class="muted">—</span>';
     const totals = actTotals(a);
     const curs = Object.keys(totals);
     // многовалютный акт — один кредит в KGS остаётся числом; при разных валютах бейдж-подсказка
@@ -4566,7 +4587,7 @@ function curatorTab(inn){
   const roleBadge = r => r === 'залоговый куратор'
     ? `<span class="role-pill role-zl">${esc(r)}</span>`
     : `<span class="role-pill role-cr">${esc(r)}</span>`;
-  const empLink = id => `<a class="lnk" title="Открыть в модуле кураторства">${esc(empName(id))}</a>`;
+  const empLink = id => extLink(esc(empName(id)), 'модуль кураторства');
   const period = m => 'с ' + esc(m.from) + (m.to ? ' по ' + esc(m.to) : '');
   const parentOf = id => String(id).split('#')[0];
 
@@ -4603,14 +4624,9 @@ function curatorTab(inn){
     ? table(mHead, mRows)
     : empty('У заёмщика нет кредитов — назначения кураторов отсутствуют.');
 
-  // История кураторства по объекту (B3) — зеркало журнала назначений (замены, передачи дела)
-  const logs = CURATOR_LOG.filter(l => l.inn === inn).sort((a, b) => dnum(b.date) - dnum(a.date));
-  const hRows = logs.map(l => `<tr><td class="muted" style="white-space:nowrap">${esc(l.date)}</td>`
-    + `<td>${esc(l.title)}</td><td class="muted">${esc(l.body || '')}</td></tr>`);
-  const histSect = logs.length
-    ? sect('История кураторства', 'зеркало журнала назначений — замена куратора, передача дела', '',
-        table('<th style="width:14%">Дата</th><th style="width:34%">Событие</th><th>Детали</th>', hRows))
-    : '';
+  /* КЗ-31: собственной «Истории кураторства» здесь больше нет. Она строила таблицу из
+     CURATOR_LOG рядом с общей лентой, где те же записи уже лежат категорией kur; теперь
+     журнал назначений показывает хвост хронологии внизу вкладки — общий для всех вкладок. */
 
   // Очередь передач дела (C2) — незакрытые заявки на передачу кураторов заёмщика
   const hos = HANDOFF.filter(h => h.inn === inn);
@@ -4657,8 +4673,8 @@ function curatorTab(inn){
     + '<th>Срок уведомления Правления (п.93)</th><th>Отстранение</th><th>Замещающий</th>', cRows);
 
   return sect('Кураторство', 'объект × роль · группировка по кредиту', '', mBody)
-    + histSect + hoSect
-    + sect('Конфликт интересов', 'Р-6 / п.93', '', cHtml);
+    + hoSect
+    + sect('Конфликт интересов', 'п.93 — срок уведомления', '', cHtml);
 }
 
 /* Таб 6 «Реквизиты и связи» · левая колонка — Связанные лица: зеркало реестра лиц (И-5, Р-7). */
@@ -4666,12 +4682,12 @@ function relatedTab(inn){
   const list = RELATED.filter(r=>r.inn===inn);
   const rows = list.map(r=>`<tr><td>${esc(r.fio)}</td><td class="mono">${esc(r.pin||'—')}</td><td>${esc(r.role)}</td>`
     + `<td>${r.share!=null ? (r.share*100).toFixed(0)+'%' : '—'}</td><td>${esc(r.from)}</td>`
-    + `<td><a class="lnk">открыть в реестре лиц</a> · <a class="lnk">✎ править</a></td></tr>`);
+    + `<td>${extLink('открыть', 'реестр лиц')} · ${extLink('✎ править', 'реестр лиц')}</td></tr>`);
   const addBtn = '<button class="btn btn-secondary btn-sm">+ Добавить связь</button>';
   const relSect = list.length
-    ? sect('Связанные лица', 'запись ведётся в реестре лиц (Р-7); «править» открывает карточку лица', addBtn,
+    ? sect('Связанные лица', 'запись ведётся в реестре лиц; «править» открывает карточку лица', addBtn,
         table('<th>ФИО</th><th>ИНН</th><th>Роль</th><th>Доля</th><th>С</th><th></th>', rows))
-    : sect('Связанные лица', 'запись ведётся в реестре лиц (Р-7)', addBtn, empty('Связанных лиц не зарегистрировано.'));
+    : sect('Связанные лица', 'запись ведётся в реестре лиц', addBtn, empty('Связанных лиц не зарегистрировано.'));
   // Члены группы (ГЗПМ) — только для групп-заёмщиков (солидарная ответственность). Перенос из OLD.
   const mem = GROUP_MEMBERS.filter(m=>m.inn===inn);
   let memSect = '';
@@ -4696,7 +4712,7 @@ function requisitesTab(inn){
   const bRows = banks.map(b=>`<tr><td>${esc(b.bank)}</td><td class="mono">${esc(b.bik||'—')}</td><td class="mono">${esc(b.account)}</td><td>${esc(b.currency)}</td>`
     + `<td>${b.main?'основной':'—'}</td><td>${b.note && b.note!=='—' ? esc(b.note) : '—'}</td><td>${esc(b.from)}</td></tr>`);
   const bHtml = table('<th>Банк</th><th>БИК</th><th>Счёт</th><th>Валюта</th><th>Тип</th><th>Примечание</th><th>С</th>', bRows);
-  return sect('Каналы связи', 'Р-10', '', chHtml) + sect('Банковские реквизиты', 'Р-10 · append-only', '', bHtml);
+  return sect('Каналы связи', 'действующие и закрытые', '', chHtml) + sect('Банковские реквизиты', 'записи не удаляются — только добавляются', '', bHtml);
 }
 
 /* 8. Документы — досье п.97 (Р-8): разделы по объекту (B) + чек-лист обязательного комплекта (C).
@@ -4743,11 +4759,11 @@ function docRow(inn, kind, ref, type, doc, st, required, showObj){
     ? (showObj ? '<span class="muted">Субъект</span>' : '')
     : (showObj ? '<span class="badge b-proc">'+esc(refLabel(inn,kind,ref))+'</span>' : '');
   const typeCell = esc(type) + (required ? '' : ' <span class="muted">(доп.)</span>');
-  const fileCell = doc ? '<a class="lnk">'+esc(doc.file)+'</a>' : '<span class="muted">—</span>';
+  const fileCell = doc ? extLink(esc(doc.file), 'хранилище документов') : '<span class="muted">—</span>';
   const mod = SCOPE_MODULE[kind];
   const action = doc
-    ? '<a class="lnk">открыть в «'+esc(MODULE_RU[mod])+'»</a>'
-    : '<a class="lnk">приложить в «'+esc(MODULE_RU[mod])+'»</a>';
+    ? extLink('открыть', MODULE_RU[mod])
+    : extLink('приложить', MODULE_RU[mod]);
   return '<tr><td>'+objCell+'</td><td>'+typeCell+'</td><td>'+st.badge+'</td><td>'+fileCell+'</td>'
     + '<td>'+(doc?esc(doc.date):'<span class="muted">—</span>')+'</td>'
     + '<td>'+(doc?esc(doc.by||'—'):'<span class="muted">—</span>')+'</td><td>'+action+'</td></tr>';
@@ -5039,7 +5055,7 @@ function checksTab(inn){
   const stale = ext.filter(c=>calDays(c.takenAt, asOf()) > 365).length;
   const erows = ext.map(c=>`<tr><td>${esc(c.source)}</td><td>${esc(c.takenAt)}</td>`
     + `<td>${freshness(c.takenAt)}</td>`
-    + `<td><a class="lnk">${esc(c.appId)}</a></td><td>${fmtPayload(c.payload)}</td></tr>`);
+    + `<td>${extLink(esc(c.appId), 'модуль заявок')}</td><td>${fmtPayload(c.payload)}</td></tr>`);
   const staleChip = stale ? `<span class="badge b-err">⚠ ${plural(stale,'снимок устарел','снимка устарели','снимков устарели')}</span> ` : '';
   const extHtml = `<div data-mirror="1">` + sect('Внешние снимки', 'КИБ / скоринг — на момент заявки',
     staleChip + '<button class="btn btn-secondary btn-sm">Запросить свежий снимок</button>',
@@ -5233,13 +5249,16 @@ function historyTab(inn){
 }
 /* Фильтр + пагинация ленты. Работает по уже отрисованному DOM: год-разделитель прячется,
    если под ним не осталось ни одного видимого события. */
-function histFilter(k){
+/* fromRoute — фильтр пришёл из адреса, назад его писать не нужно (вкладка ещё не активна).
+   Нажатие на чип, наоборот, адрес обновляет: выбранная полоса ленты пересылается ссылкой (КЗ-31). */
+function histFilter(k, fromRoute){
   const root = document.getElementById('histRoot');
   if (!root) return;
   root.dataset.cat = k;
   root.dataset.shown = HIST_PAGE;
   root.querySelectorAll('#histChips .hchip').forEach(b=>b.classList.toggle('on', b.dataset.k===k));
   histApply();
+  if (!fromRoute) writeHash();
 }
 function histMore(){
   const root = document.getElementById('histRoot');
@@ -5274,7 +5293,37 @@ function histApply(){
   }
 }
 
+/* ═══ ХРОНОЛОГИЯ ВКЛАДКИ (КЗ-31) ═══
+   Ленту событий ведёт одна вкладка — «История»; остальные в неё указывают. Раньше каждая
+   вкладка вела свой обрывок: «История кураторства» строила таблицу из CURATOR_LOG рядом с
+   лентой, где те же записи уже лежали. Два свода одного и того же расходятся составом и
+   порядком, а чинить их надо в двух местах. Отсюда правило: на вкладке — пять последних
+   записей её категории и ссылка в общую ленту с уже выставленным фильтром.
+   Лента — журнал фактов, дате среза не подчиняется (КЗ-11, И-9 про состояния). */
+const TAB_HIST_CAT = {
+  'кредиты':'credit', 'залог':'pledge', 'взыскание':'coll', 'акты':'acts',
+  'кураторство':'kur', 'документы':'doc', 'проверки':'check',
+};
+const TAB_TL_N = 5;
+function tabTimeline(inn, cat){
+  const items = historyItems(inn).filter(it => it.cat === cat);
+  const hint = items.length > TAB_TL_N ? 'последние ' + TAB_TL_N + ' из ' + items.length : 'зеркало общей ленты';
+  const link = '<a class="lnk" href="#/b/' + esc(inn) + '/' + tabIx('история') + '?cat=' + esc(cat) + '">'
+    + 'Вся хронология →</a>';
+  /* Пустая хронология — тоже не новость: одиннадцать блоков «событий нет» весили бы столько же,
+     сколько содержание вкладок (та же причина, что у зелёной полосы в КЗ-22). Указатель в ленту
+     при этом остаётся — иначе вкладка молчит о том, что общая лента вообще есть. */
+  const body = items.length
+    ? sect('Хронология', hint, link, timelineHtml(items.slice(0, TAB_TL_N)))
+    : '<div class="tl-quiet"><span>Событий по вкладке в ленте нет.</span>' + link + '</div>';
+  return '<div class="tab-tl" data-cat="' + esc(cat) + '">' + body + '</div>';
+}
 function tabBody(inn, i){
+  const key = (TAB_DEFS[i] || {}).key;
+  const tl = TAB_HIST_CAT[key] ? tabTimeline(inn, TAB_HIST_CAT[key]) : '';
+  return tabMain(inn, i) + tl;
+}
+function tabMain(inn, i){
   switch((TAB_DEFS[i]||{}).key){
     case 'общая': return generalTab(inn);
     case 'кредиты': return `<div data-mirror="1">${creditsTab(inn)}</div>`;
@@ -5451,7 +5500,7 @@ function renderSubject(inn){
   }
   const evRows = evs.map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(e.kind)}</td><td>${esc(e.basis||'—')}</td><td>${esc(e.doc||'—')}</td>`
     + `<td>${e.successorInn ? `<a class="lnk" href="#/b/${esc(e.successorInn)}">${esc(e.successorInn)}</a>` : '—'}</td></tr>`);
-  const evHtml = sect('Жизненный цикл субъекта', 'Р-9 · append-only', '', table('<th>Дата</th><th>Событие</th><th>Основание</th><th>Документ</th><th>Преемник</th>', evRows));
+  const evHtml = sect('Жизненный цикл субъекта', 'записи не удаляются — только добавляются', '', table('<th>Дата</th><th>Событие</th><th>Основание</th><th>Документ</th><th>Преемник</th>', evRows));
   /* Роли субъекта — первым блоком: с них начинается ответ на вопрос «кто это лицо для нас» */
   const roles = subjectRoles(inn);
   const rolesHtml = sect('Роли субъекта', 'выводятся из участия, вручную не задаются', '',
@@ -5474,6 +5523,44 @@ const toISO = s => { const [d,m,y] = s.split('.'); return y + '-' + m + '-' + d;
 /* Обратное преобразование: <input type="date"> отдаёт ISO, модель хранит ДД.ММ.ГГГГ. */
 const fromISO = s => { if (!s) return ''; const [y,m,d] = s.split('-'); return d + '.' + m + '.' + y; };
 function empty(txt){ return '<div class="empty-rows">' + txt + '</div>'; }
+
+/* ═══ ПЕРЕХОД В ЧУЖОЙ МОДУЛЬ (КЗ-16) ═══
+   Карточка заёмщика — зеркало (И-5): правка почти всего живёт в модуле-источнике, поэтому
+   переходов наружу много. Раньше четырнадцать таких ссылок не имели ни href, ни обработчика
+   (Б-9) — нажатие молча не делало ничего, и экран читался как сломанный. Разница между
+   «маршрут ведёт наружу» и «маршрут ещё не написан» видна теперь до нажатия (стрелка ↗ и
+   подпись) и после (тост с именем модуля). Внутренние переходы по вкладкам сюда не относятся —
+   у них есть switchTab и они работают. */
+function extLink(text, where){
+  return '<a class="lnk ext" title="Внешний модуль — маршрут не реализован"'
+    + ' onclick="notRouted(\'' + esc(where) + '\')">' + text + ' ↗</a>';
+}
+let toastTimer = null;
+function notRouted(where){
+  let el = document.getElementById('toast');
+  if (!el){ el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+  el.textContent = 'Маршрут не реализован: ' + where;
+  el.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('on'), 3200);
+}
+
+/* ═══ ПОЛОСА ДЕФЕКТОВ ВКЛАДКИ (КЗ-22, вторая подача) ═══
+   Дефекты у карточки одни (спека §7), а подач три: в шапке — компактно и кликабельно
+   (flagsRow), на своей вкладке — развёрнуто, вот здесь, а в «Проверках» — списком с выводом.
+   Полосу рисовали дважды скопированным куском — во «Взыскании» и в «Залоге»; расходились бы
+   молча. И главное: «дефектов нет» — не новость и веса красной полосы не стоит, поэтому норма
+   свёрнута в тихую строку, а не выкрашена в зелёное во весь экран. */
+function defectBar(what, defs, okText){
+  if (!defs.length){
+    return '<div class="def-ok"><span class="dl">Дефектов ' + what.toLowerCase() + ' нет</span>'
+      + '<span>' + okText + '</span></div>';
+  }
+  return '<div class="defect-bar"><span class="dl">ДЕФЕКТЫ ' + what.toUpperCase() + '</span>'
+    + defs.map(d => '<span class="badge ' + (d.sev === 'high' ? 'b-err' : 'b-ov') + '"'
+        + ' onclick="switchTab(tabIx(\'проверки\'))">' + esc(d.text) + '</span>').join('')
+    + '</div>';
+}
 function sect(title, hint, actions, body){
   /* без заголовка секция рисуется без рамки-карточки (класс bare) */
   return '<div class="section' + (title ? '' : ' bare') + '" style="margin-bottom:18px"><div class="section-head">' + title +
@@ -5524,7 +5611,7 @@ function showList(){
    Этим же закрыт Б-2: раньше showDetail не трогал VIEW_DATE, и переход карточка → карточка
    (преемник после перевода долга, связанное лицо) уносил срез предыдущего заёмщика на
    следующего — без подписи и без повода. */
-function showDetail(inn, tabIndex, onDate){
+function showDetail(inn, tabIndex, onDate, histCat){
   current = inn; currentSubj = null;
   VIEW_DATE = onDate && dnum(onDate) <= dnum(TODAY) ? onDate : TODAY;
   document.getElementById('cardMount').innerHTML = renderCard(inn);
@@ -5532,7 +5619,9 @@ function showDetail(inn, tabIndex, onDate){
   wireCollateralTab(inn);   /* таб «Залог» — переключатель вида и раскрытие строк */
   wireCollectionTab(inn);   /* таб «Взыскание» — то же: вид, раскрытие процесса, дропдаун */
   wireActsTab(inn);         /* таб «Акты сверок» — раскрытие строки в разбивку + степпер */
-  histApply();              /* таб «История» — начальная отсечка ленты по HIST_PAGE */
+  /* КЗ-31: категория пришла маршрутом — лента открывается уже отфильтрованной, иначе ссылка
+     с вкладки высадила бы в общий поток и фильтр пришлось бы ставить руками. */
+  if (histCat) histFilter(histCat, /*fromRoute*/true); else histApply();
   showOnly(vDetail);
   /* КЗ-1: топбар — шасси приложения, он называет ЭКРАН. Кто именно открыт, отвечает id-bar
      в теле карточки: там же ИНН, тип лица, отрасль и переход к субъекту. */
@@ -5583,24 +5672,43 @@ document.getElementById('backLink').addEventListener('click', e => {
    «состояние на 01.03» было нечем, а F5 молча возвращал сегодня. И-9 («одна дата на карточку»)
    этому не мешает: дата по-прежнему одна, у неё просто появился адрес.
    Нет параметра → сегодня, поэтому обычная ссылка на карточку среза не наследует. */
+/* КЗ-31: у ленты появился второй параметр маршрута — cat. Вкладка указывает в «Историю»
+   не вообще, а в свою полосу событий, и ссылка на неё пересылается целиком. Параметров
+   теперь два и порядок их произволен, поэтому хвост разбирается как набор пар, а не
+   одним жёстким выражением: ?on=…&cat=… и ?cat=…&on=… — один и тот же адрес. */
 function writeHash(){
   if (currentSubj) { location.hash = '#/s/' + currentSubj; return; }
-  location.hash = current
-    ? '#/b/' + current + '/' + activeTab() + (VIEW_DATE !== TODAY ? '?on=' + toISO(VIEW_DATE) : '')
-    : '';
+  if (!current) { location.hash = ''; return; }
+  const root = document.getElementById('histRoot');
+  const onHist = activeTab() === String(tabIx('история'));
+  const q = [];
+  if (VIEW_DATE !== TODAY) q.push('on=' + toISO(VIEW_DATE));
+  if (onHist && root && root.dataset.cat && root.dataset.cat !== 'all') q.push('cat=' + root.dataset.cat);
+  location.hash = '#/b/' + current + '/' + activeTab() + (q.length ? '?' + q.join('&') : '');
 }
 function activeTab(){
   const t = document.querySelector('.tabbar .tab.active');
   return t ? t.dataset.tab : '0';
 }
+function hashParams(q){
+  const out = {};
+  (q || '').split('&').filter(Boolean).forEach(pair => {
+    const i = pair.indexOf('=');
+    if (i > 0) out[pair.slice(0, i)] = decodeURIComponent(pair.slice(i + 1));
+  });
+  return out;
+}
 function route(){
   const s = /^#\/s\/([0-9]+)$/.exec(location.hash);
   const sb = s && SUBJECTS.find(x => x.inn === s[1]);
   if (sb) { showSubject(sb.inn); return; }
-  const m = /^#\/b\/([0-9]+)(?:\/([0-9]+))?(?:\?on=(\d{4}-\d{2}-\d{2}))?$/.exec(location.hash);
+  const m = /^#\/b\/([0-9]+)(?:\/([0-9]+))?(?:\?(.*))?$/.exec(location.hash);
   const b = m && SUBJECTS.find(x => x.inn === m[1]);
-  if (b) showDetail(b.inn, m[2] !== undefined ? parseInt(m[2], 10) : null, m[3] ? fromISO(m[3]) : null);
-  else showList();
+  if (!b) { showList(); return; }
+  const p = hashParams(m[3]);
+  const on = /^\d{4}-\d{2}-\d{2}$/.test(p.on || '') ? fromISO(p.on) : null;
+  const cat = HIST_CATS.some(c => c.k === p.cat) ? p.cat : null;
+  showDetail(b.inn, m[2] !== undefined ? parseInt(m[2], 10) : null, on, cat);
 }
 window.addEventListener('hashchange', route);
 
