@@ -96,6 +96,16 @@
   стадии · распределение погашения (оба режима) · фильтры, плитки, страницы и выгрузка
   списка.
 
+  ВОЛНА НП (28.07.2026) — экран «Настройки правил» пересмотрен поэкранно: НП-1…НП-16
+  решений, НП-Д1…НП-Д21 дефектов. Устройство — ASUBK-vzyskanie-logika.md §14.4 и §23;
+  разбор каждого решения — ASUBK-status-razrabotki.md. Ключевое: у каждого правила видно,
+  ЧТО оно говорит, ОТКУДА взялось (своё правило вида / правило раздела), ЧЕМ отличается
+  от дефолта и КОГО задевает сейчас (радиус считается на лету, ADR-0001); правит экран
+  отдельная роль «Администратор правил», остальные семь видят его read-only; каждая правка
+  идёт в журнал и отменяется построчно; правила действуют ВПЕРЁД — уже зарегистрированные
+  меры они не отменяют. Справочники ролей и подразделений стали сквозными (ROLES, SUBDIVS),
+  персист правил слит по полям и получил версию схемы (RULES_SCHEMA).
+
   ВОЛНА КР (28.07.2026) — три кросс-процессных реестра (заседания, претензии, вопросы
   на коллегиальные органы) пересмотрены одной волной: КР-1…КР-16 решений, КР-Д1…КР-Д19
   дефектов. Устройство — ASUBK-vzyskanie-logika.md §14.3 и §22; разбор каждого решения —
@@ -579,6 +589,26 @@ table.cgrid td.dl-act, table.cgrid td.dl-borr{ white-space:normal; }
 .settings-grid th:first-child,.settings-grid td:first-child,.role-grid th:first-child,.role-grid td:first-child{ text-align:left; }
 .v9-sec-label{ font:var(--font-label); font-weight:var(--weight-semibold); color:var(--text-muted); }
 .warn-badge{ color:#b45309; font-size:12px; white-space:nowrap; }
+/* волна НП: изменено↔дефолт, источник правила, радиус, журнал правок, read-only */
+.settings-grid tr.sec-rule > td{ background:#f4f7fc; }
+.settings-grid tr.row-changed > td:first-child{ box-shadow:inset 3px 0 0 var(--asubk-blue,#1b4b8f); }
+.chg-badge{ display:inline-block; min-width:16px; padding:0 5px; border-radius:9px; background:var(--asubk-blue,#1b4b8f);
+  color:#fff; font-size:11px; line-height:16px; vertical-align:1px; }
+.src-pill{ display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px; white-space:nowrap; }
+.src-sec{ background:#eef2f7; color:#4a5568; }
+.src-own{ background:#e8f0fc; color:#1b4b8f; }
+.radius{ font-size:11px; color:var(--text-muted); white-space:nowrap; }
+.ro-banner{ display:flex; gap:8px; align-items:flex-start; padding:10px 12px; margin-bottom:14px; border-radius:var(--radius-md,6px);
+  background:#fff8e6; border:1px solid #f0d493; color:#7a5b12; font:var(--font-label); }
+.rule-log{ border:1px solid var(--border-strong); border-radius:var(--radius-md,6px); margin-bottom:14px; background:#fff; }
+.rule-log > button{ width:100%; display:flex; gap:8px; align-items:center; padding:8px 12px; border:none; background:none;
+  cursor:pointer; font:var(--font-label); color:var(--text-heading); text-align:left; }
+.rule-log .lg-body{ border-top:1px solid var(--border-strong); max-height:260px; overflow:auto; }
+.rule-log .lg-row{ display:flex; gap:10px; align-items:baseline; padding:6px 12px; font:var(--font-label); border-bottom:1px solid var(--border); }
+.rule-log .lg-row:last-child{ border-bottom:none; }
+.rule-log .lg-when{ color:var(--text-muted); white-space:nowrap; }
+.rule-log .lg-what{ flex:1; color:var(--text-heading); }
+.rule-log .lg-who{ color:var(--text-muted); white-space:nowrap; }
 
 /* объединённая вкладка «Кредиты»: сворачиваемая карточка на кредит (details/summary) */
 .credit-card{ border:1px solid var(--border-strong); border-radius:var(--radius-md); margin-top:12px; background:#fff; overflow:hidden; }
@@ -704,15 +734,11 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
       <div class="role-wrap">
         <label>Роль:</label>
         <div class="rsel">
-          <select id="roleSel" onchange="onRoleChange()">
-            <option>Куратор ОД / ДАК / РП</option>
-            <option>Департамент правового обеспечения (ДПО)</option>
-            <option>Отдел проблемных кредитов (ОПК)</option>
-            <option>Сектор по работе с активами (САК)</option>
-            <option>Отраслевой департамент (ОД)</option>
-            <option>Секретарь коллегиального органа</option>
-            <option>Наблюдатель</option>
-          </select>
+          <!-- НП-3: список ролей не пишется в разметке — он строится из справочника ROLES
+               (renderRoleSel). Было два независимых списка: семь <option> здесь и шесть
+               ключей в ROLE_SUBDIV; «Секретарь коллегиального органа» существовал только
+               в разметке и потому молча трактовался наблюдателем (НП-Д2). -->
+          <select id="roleSel" onchange="onRoleChange()"></select>
           <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
         </div>
       </div>
@@ -766,14 +792,17 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
       <!-- ============ SETTINGS VIEW ============ -->
       <section class="view" id="view-settings">
         <div class="grid-wrap" style="padding:16px;display:block;overflow:auto">
+          <!-- НП-1: у экрана правил такая же рамка, как у четырёх реестров: полоса роли,
+               журнал правок, вкладки, тулбар, чипы, счётчик «показано N из M». -->
+          <p class="section-note" id="settingsFrame" style="padding:0 0 6px"></p>
+          <div id="settingsBanner"></div>
+          <div id="settingsJournal"></div>
           <div class="settings-tabbar" id="settingsTabbar"></div>
+          <div class="gtoolbar" id="settingsToolbar"></div>
+          <div class="filter-chips" id="settingsChips" style="padding:0;margin-bottom:10px"></div>
           <div id="settingsHost"></div>
         </div>
-        <div class="footer">
-          <button class="btn btn-secondary" onclick="if(confirm('Сбросить ВСЕ правила к дефолту?')){resetRulesAll();renderSettings();renderList();toast('Все правила сброшены к дефолту','ok');}">Сбросить все правила</button>
-          <div style="flex:1"></div>
-          <button class="btn btn-secondary" onclick="showView('list')">Закрыть</button>
-        </div>
+        <div class="footer" id="settingsFoot"></div>
       </section>
 
       <!-- ============ DETAIL VIEW ============ -->
@@ -863,7 +892,10 @@ const TREE = [
       { label:"Досудебный порядок" }, { label:"Судебный порядок" },
       { label:"Исполнительное производство" }, { label:"Отчуждение активов" },
       { label:"Заседания (реестр)" }, { label:"Претензии (реестр)" },
-      { label:"Вопросы на коллегиальные органы (реестр)" }, { label:"Сроки на контроле (реестр)" } ]} ]},
+      { label:"Вопросы на коллегиальные органы (реестр)" }, { label:"Сроки на контроле (реестр)" },
+      /* НП-13: экран правил жил только под шестерёнкой в шапке — в дереве его не было,
+         и найти его можно было лишь случайно. Шестерёнка осталась как быстрый ход. */
+      { label:"Настройки правил" } ]} ]},
   { id:"d", label:"Справочники", subs:[ { id:"d-all", headerless:true, items:[ {label:"Справочники"} ]} ]},
   { id:"r", label:"Отчёты", subs:[ { id:"r-all", headerless:true, items:[ {label:"Отчёты"} ]} ]},
   { id:"adm", label:"Администрирование", subs:[ { id:"adm-all", headerless:true, items:[ {label:"Администрирование"} ]} ]},
@@ -896,6 +928,7 @@ function navClick(l){
   const reg = Object.keys(REGS).find(k => REGS[k].nav === l);
   if(reg){ goReg(()=>regRender(reg), reg); return; }
   if(l === 'Сроки на контроле (реестр)'){ goReg(renderDeadlinesRegistry, 'deadlines'); return; }
+  if(l === 'Настройки правил'){ navLabel = l; renderNav(); showView('settings'); return; }
   /* ТР-10: все ЧЕТЫРЕ стадии — обычные фильтры одного реестра, включая «Отчуждение активов».
      Раньше четвёртая была заглушкой с тостом «вынесено в отдельный модуль»: реализация
      активов действительно живёт в другом модуле, но СТАДИЯ требования — здешняя, и
@@ -908,6 +941,10 @@ function navClick(l){
 const procNo = id => `В-2026-${String(id).padStart(6, '0')}`;
 /* HTML-экранирование для title (конвенция escAttr из commission.html). */
 const escAttr = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* Русское склонение при числе: «1 требование · 2 требования · 5 требований».
+   Нужно радиусу правки (НП-7) — «держит 3 требование» читается как опечатка. */
+const plural = (n, one, few, many) => { const a=Math.abs(n)%100, b=a%10;
+  return (a>10&&a<20)||b>4||b===0 ? many : b===1 ? one : few; };
 
 /* ============================================================
    §3.1 МАШИНА ФАЗ — СЕМЬ КОНТУРОВ К0…К7.
@@ -1175,6 +1212,61 @@ function phaseSetter(r){ const ms = liveMilestones(r); return ms.length ? ms[ms.
 function phaseOf(r){ const m = phaseSetter(r); return m ? MILESTONE_PHASE[m.kind] : OPEN_PHASE; }
 function phaseSource(r){ const m = phaseSetter(r); return m ? `по документу-основанию: ${m.num}` : 'мер-вех нет — фаза открытия'; }
 
+/* ============================================================
+   НП-4 · СПРАВОЧНИК ПОДРАЗДЕЛЕНИЙ — один список на весь макет.
+   Было три: шесть колонок матрицы В-9, восемь кодов SUBDIV_CODES (разбор текста
+   ответственного) и подразумеваемые значения OWNER_SUBDIV. СРМК и СИТ в модуле
+   участвуют (СРМК подтверждает казначейскую задержку платежа, СИТ — ответственный
+   по шаблонам сроков пп. 71, 72, Р-11 и ведёт первичный ввод процедуры), но мер не
+   регистрируют — это признак записи, а не повод держать второй список.
+   ============================================================ */
+const SUBDIVS = [
+  { code:'ДАК',  name:'Департамент администрирования кредитов',  registers:true },
+  { code:'ОД',   name:'Отраслевой департамент',                  registers:true },
+  { code:'РП',   name:'Региональное представительство',          registers:true },
+  { code:'ДПО',  name:'Департамент правового обеспечения',       registers:true },
+  { code:'ОПК',  name:'Отдел проблемных кредитов',               registers:true },
+  { code:'САК',  name:'Сектор по работе с активами',             registers:true },
+  { code:'СРМК', name:'Служба расчётов и мониторинга кредитов',  registers:false,
+    why:'подтверждает задержку казначейства по платежу (Р-9)' },
+  { code:'СИТ',  name:'Сектор информационных технологий',        registers:false,
+    why:'ответственный по шаблонам сроков (пп. 71, 72, Р-11), ведёт первичный ввод процедуры' },
+];
+const SUBDIV_BY_CODE = Object.fromEntries(SUBDIVS.map(s => [s.code, s]));
+const SUBDIV_CODES   = SUBDIVS.map(s => s.code);
+/* Колонки матрицы В-9 — ровно те подразделения, что регистрируют меры. */
+const V9_SUBDIVS = SUBDIVS.filter(s => s.registers).map(s => s.code);
+/* ============================================================
+   НП-3 · СПРАВОЧНИК РОЛЕЙ — один список на весь макет (шапка, таблица правил,
+   фильтр «только моё подразделение»). Подразделений у роли может быть несколько
+   («Куратор ОД / ДАК / РП»), поэтому значение — МАССИВ кодов: пустой массив читается
+   как «мер не регистрирует» и не требует прочерка-значения.
+   «Администратор правил» — роль волны НП: экран правил редактирует только она (НП-2),
+   остальные семь видят его read-only. Подразделения у неё нет: она настраивает
+   полномочия, а не пользуется ими.
+   ============================================================ */
+const RULES_ADMIN_ROLE = 'Администратор правил';
+const ROLES = [
+  { role:'Куратор ОД / ДАК / РП',                   subdivs:['ОД','ДАК','РП'] },
+  { role:'Департамент правового обеспечения (ДПО)', subdivs:['ДПО'] },
+  { role:'Отдел проблемных кредитов (ОПК)',         subdivs:['ОПК'] },
+  { role:'Сектор по работе с активами (САК)',       subdivs:['САК'] },
+  { role:'Отраслевой департамент (ОД)',             subdivs:['ОД'] },
+  { role:'Секретарь коллегиального органа',         subdivs:[],
+    note:'вносит решения коллегиальных органов (§6.3); мер не регистрирует' },
+  { role:'Наблюдатель',                             subdivs:[], note:'только чтение' },
+  { role:RULES_ADMIN_ROLE,                          subdivs:[], rulesAdmin:true,
+    note:'настраивает правила доступности мер; сам мер не регистрирует' },
+];
+const ROLE_BY_NAME = Object.fromEntries(ROLES.map(r => [r.role, r]));
+function renderRoleSel(){
+  const sel = document.getElementById('roleSel'); if(!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = ROLES.map(r => `<option${r.role===cur?' selected':''}>${r.role}</option>`).join('');
+}
+/* Роль правит правила ⇔ признак в справочнике (не имя роли в условии). */
+const isRulesAdmin = () => !!(ROLE_BY_NAME[currentRole()] || {}).rulesAdmin;
+
 /* В-9 МАТРИЦА «вид меры × подразделение» — регистрация недоступна вне матрицы. */
 const MEASURE_SUBDIV = {
   'Извещение об обращении на залог': ['ДПО'],
@@ -1187,35 +1279,43 @@ const MEASURE_SUBDIV = {
   'Требование поручителю':           ['ДАК','ОД','РП'],
   'Инициирование банкротства':       ['САК'], 'Признание банкротом':['САК'], 'Завершение процедуры банкротства':['САК'],
 };
-const ROLE_SUBDIV = {
-  'Куратор ОД / ДАК / РП':'ОД', 'Департамент правового обеспечения (ДПО)':'ДПО',
-  'Отдел проблемных кредитов (ОПК)':'ОПК', 'Сектор по работе с активами (САК)':'САК',
-  'Отраслевой департамент (ОД)':'ОД', 'Наблюдатель':'—',
-};
-/* Ответственное подразделение ПО РАЗДЕЛУ — покрывает все 48 видов (В-9 без белых пятен).
-   Явная запись MEASURE_SUBDIV перекрывает этот дефолт по конкретному виду. */
+/* Роль → подразделения. Ключи — ВСЕ роли справочника (НП-3): роли, которой в карте нет,
+   раньше молча доставались права наблюдателя. Значение — массив, потому что «Куратор
+   ОД / ДАК / РП» — это три подразделения, а не строка с косыми чертами (НП-4). */
+const ROLE_SUBDIV = Object.fromEntries(ROLES.map(r => [r.role, r.subdivs.slice()]));
+/* Ответственное подразделение ПО РАЗДЕЛУ — покрывает все 51 вид меры (В-9 без белых пятен):
+   своего правила нет у 37 из них. Явная запись MEASURE_SUBDIV перекрывает этот дефолт по
+   конкретному виду; до волны НП этот этаж правила на экране настроек не показывался. */
 const SECTION_SUBDIV = {
   'Досудебный':['ДАК','ОД','РП'], 'Внесудебный залог':['ДПО'],
   'Судебный':['ОПК'], 'Правопреемство':['ОПК'], 'Исполнительное':['ОПК'],
   'Банкротство':['САК'], 'Безнадёжная':['САК'],
 };
 const subdivOf = kind => RULES.measureSubdiv[kind] || RULES.sectionSubdiv[sectionOf(kind)] || null;
+/* Правило вида: своё (явная запись) или унаследованное от раздела — НП-5 показывает
+   оба этажа, поэтому источник выводится одной функцией, а не угадывается в рендере. */
+const subdivSource = kind => RULES.measureSubdiv[kind] ? 'own' : 'section';
+/* Подразделения роли — из живого справочника правил (НП-3/НП-16): «мои» на реестрах
+   и матрица В-9 читают одно значение, разъехаться им негде. */
+const subdivsOfRole = role => (RULES.roleSubdiv[role] || []).slice();
 function subdivReason(kind){
   const allowed = subdivOf(kind);
   if(!allowed) return null;                                   // мера без ограничения полномочий
-  const role = document.getElementById('roleSel') ? document.getElementById('roleSel').value : '';
-  const my = RULES.roleSubdiv[role] || '—';
-  if(allowed.includes(my) || (my==='ОД' && (allowed.includes('ДАК')||allowed.includes('РП')))) return null;
-  return `Регистрация «${kind}» — полномочие подразделения ${allowed.join(' / ')} (В-9). Текущая роль (${my}) вне матрицы.`;
+  const my = subdivsOfRole(currentRole());
+  /* Пересечение множеств. Раньше у роли было ОДНО подразделение и приходилось
+     доклеивать частный случай «ОД видит ещё ДАК и РП» — теперь три подразделения
+     куратора лежат в справочнике, и правило одно на все роли. */
+  if(my.some(c => allowed.includes(c))) return null;
+  return `Регистрация «${kind}» — полномочие подразделения ${allowed.join(' / ')} (В-9). Текущая роль (${my.length?my.join(' / '):'без подразделения'}) вне матрицы.`;
 }
-/* Роль без подразделения (ROLE_SUBDIV → «—», напр. Наблюдатель) — read-only: мер не регистрирует,
-   кнопка регистрации ей не показывается (не только гейтится). Data-driven — переживёт новые роли. */
+/* Роль без подразделения (пустой массив: наблюдатель, секретарь органа, администратор
+   правил) — read-only: мер не регистрирует, кнопка регистрации ей не показывается
+   (не только гейтится). Data-driven — переживёт новые роли. */
 function availableKinds(r){
   return MEASURE_KINDS.filter(k => (!r || !sequenceReason(r,k)) && !subdivReason(k));
 }
 function canRegisterMeasures(){
-  const role = document.getElementById('roleSel') ? document.getElementById('roleSel').value : '';
-  if((RULES.roleSubdiv[role] || '—') === '—') return false;   // роль-наблюдатель: мер не регистрирует
+  if(!subdivsOfRole(currentRole()).length) return false;     // роль без подразделения: мер не регистрирует
   return availableKinds(curReq).length > 0;                  // нет доступных видов для роли+стадии — нет кнопки
 }
 
@@ -1355,6 +1455,9 @@ const RULES_DEFAULTS = deepFreeze({
   contourPhases: Object.fromEntries(Object.keys(CONTOURS).map(c=>[c, CONTOURS[c].phases.slice()])),
 });
 let RULES = deepClone(RULES_DEFAULTS);
+/* Журнал правок правил (НП-9) живёт рядом с правилами, но не входит в RULES_DEFAULTS:
+   сброс правил к дефолту не стирает историю — он в неё дописывается. */
+RULES.log = [];
 const phasesOf = c => (RULES.contourPhases[c] || (CONTOURS[c] ? CONTOURS[c].phases : []));
 function contourOfPhase(ph){ for(const c in CONTOURS){ if(phasesOf(c).includes(ph)) return c; } return null; }
 /* Контур и стадия — производные от свёрнутой фазы требования (М-2), хранимых полей нет. */
@@ -3106,7 +3209,7 @@ const PROCESSES = [
     credits:[ {id:'535', num:'Дог. №535 от 10.01.2024', scope:'полный остаток', overdueDays:340,
       } ],
     procedure:{ status:'Процедура банкротства', since:'01.06.2026', by:'САК', receiving:'САК', confirm:{ state:'подтверждена', at:'02.06.2026', deadlineRd:5 } },
-    measures:[ {sec:'Банкротство', kind:'Заявление о признании банкротом', dates:D('05.06.2026','05.06.2026','05.06.2026'), num:'БН-05', purpose:'инициирование банкротства', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'210 000,00', responsible:'Дүйшөнов А.'},
+    measures:[ {sec:'Банкротство', kind:'Инициирование банкротства', dates:D('05.06.2026','05.06.2026','05.06.2026'), num:'БН-05', purpose:'инициирование банкротства', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'210 000,00', responsible:'Дүйшөнов А.'},
       {sec:'Банкротство', kind:'Инициирование банкротства', dates:D('19.06.2026','19.06.2026','19.06.2026'), num:'БН-734', purpose:'установление фазы «Инициирование банкротства»', deliver:'документ приобщён', delivered:true, result:{group:'определение суда', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'210 000,00', responsible:'Дүйшөнов А.', seeded:true},
     ],
     history:[ {when:'05.06.2026 10:00', what:'Подано заявление о признании банкротом БН-05 → фаза «Инициирование банкротства»', who:'САК'} ] },
@@ -3116,7 +3219,7 @@ const PROCESSES = [
     credits:[ {id:'536', num:'Дог. №536 от 20.10.2023', scope:'полный остаток', overdueDays:580,
       debtNote:'При признании банкротом сроки погашения всех обязательств считаются наступившими (п. 71); СИТ приводит задолженность в 3 р.д.' } ],
     procedure:{ status:'Процедура банкротства', since:'01.05.2026', by:'САК', receiving:'САК', confirm:{ state:'подтверждена', at:'02.05.2026', deadlineRd:5 } },
-    measures:[ {sec:'Банкротство', kind:'Заявление о признании банкротом', dates:D('01.03.2026','01.03.2026','01.03.2026'), num:'БН-03', purpose:'признание банкротом', deliver:'подано в суд', delivered:true, result:{group:'решение суда', value:'признан банкротом'}, resultKind:'положительный', execStage:'на исполнении', sum:'165 000,00', responsible:'Дүйшөнов А.'},
+    measures:[ {sec:'Банкротство', kind:'Инициирование банкротства', dates:D('01.03.2026','01.03.2026','01.03.2026'), num:'БН-03', purpose:'признание банкротом', deliver:'подано в суд', delivered:true, result:{group:'решение суда', value:'признан банкротом'}, resultKind:'положительный', execStage:'на исполнении', sum:'165 000,00', responsible:'Дүйшөнов А.'},
       {sec:'Банкротство', kind:'Признание банкротом', dates:D('15.03.2026','15.03.2026','15.03.2026'), num:'БН-735', purpose:'установление фазы «Признано банкротом»', deliver:'документ приобщён', delivered:true, result:{group:'определение суда', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'165 000,00', responsible:'Дүйшөнов А.', seeded:true},
     ],
     history:[ {when:'10.05.2026 10:00', what:'Заёмщик признан банкротом (п. 71): сроки всех обязательств наступили, задолженность приведена СИТ', who:'САК'} ] },
@@ -3126,7 +3229,7 @@ const PROCESSES = [
     credits:[ {id:'537', num:'Дог. №537 от 10.05.2023', scope:'полный остаток', overdueDays:680,
       debtNote:'Процедура банкротства завершена, требования удовлетворены частично из конкурсной массы; непокрытый остаток признан безнадёжным.' } ],
     procedure:{ status:'Процедура банкротства', since:'01.04.2026', by:'САК', receiving:'САК', confirm:{ state:'подтверждена', at:'02.04.2026', deadlineRd:5 } },
-    measures:[ {sec:'Банкротство', kind:'Определение о завершении банкротства', dates:D('15.07.2026','15.07.2026','15.07.2026'), num:'БН-01', purpose:'завершение процедуры', deliver:'вынесено судом', delivered:true, result:{group:'определение суда', value:'процедура завершена'}, resultKind:'положительный', execStage:'на исполнении', sum:'0,00', responsible:'Дүйшөнов А.'},
+    measures:[ {sec:'Банкротство', kind:'Завершение процедуры банкротства', dates:D('15.07.2026','15.07.2026','15.07.2026'), num:'БН-01', purpose:'завершение процедуры', deliver:'вынесено судом', delivered:true, result:{group:'определение суда', value:'процедура завершена'}, resultKind:'положительный', execStage:'на исполнении', sum:'0,00', responsible:'Дүйшөнов А.'},
       {sec:'Банкротство', kind:'Завершение процедуры банкротства', dates:D('26.07.2026','26.07.2026','26.07.2026'), num:'БН-736', purpose:'установление фазы «Завершена процедура банкротства»', deliver:'документ приобщён', delivered:true, result:{group:'определение суда', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'0,00', responsible:'Дүйшөнов А.', seeded:true},
     ],
     history:[ {when:'15.07.2026 12:00', what:'Процедура банкротства завершена (терминальный исход), непокрытый остаток передан на признание безнадёжным', who:'САК'} ] },
@@ -3912,18 +4015,17 @@ const deadlinesOf = r => dlOf(r._proc).filter(d=>!(d.targets||[]).length || d.ta
    принимающего подразделения»), подразделения не даёт, и тогда берётся ведущее
    подразделение требования. У дело-уровневого срока требования нет — и вместо догадки
    стоит «не выведено»: дыра видимая, а не залатанная умолчанием. */
-const SUBDIV_CODES = ['ДАК','ОПК','ДПО','САК','СРМК','СИТ','РП','ОД'];
+/* Коды подразделений — из справочника SUBDIVS (НП-4); своего списка здесь больше нет. */
 function subdivInText(s){
   let best = null, at = Infinity;
   for(const c of SUBDIV_CODES){ const i = String(s||'').indexOf(c); if(i >= 0 && i < at){ at = i; best = c; } }
   return best;
 }
 /* Подразделения текущей роли — их может быть несколько («Куратор ОД / ДАК / РП»),
-   а у наблюдателя и секретаря органа нет ни одного (фильтр честно даст пусто). */
-function roleSubdivs(){
-  const s = currentRole();
-  return SUBDIV_CODES.filter(c => String(s||'').includes(c));
-}
+   а у наблюдателя, секретаря органа и администратора правил нет ни одного (фильтр
+   честно даст пусто). НП-16: значение берётся из живого справочника правил, а не из
+   разбора названия роли — правка на #settings сразу видна фильтру «мои» на реестрах. */
+function roleSubdivs(){ return subdivsOfRole(currentRole()); }
 /* kind: 'subdiv' — подразделение · 'external' — исполняет заёмщик · 'system' — АСУБК ·
    'none' — вывести не из чего. */
 function dlResponsible(p, d){
@@ -5044,19 +5146,78 @@ function restoreState(){
 }
 function resetDemo(){ try{ localStorage.removeItem(STORE_KEY); }catch(e){} location.href=location.pathname; }
 
-/* Персист ПРАВИЛ — отдельный ключ от процессов. При смене схемы правил поднять версию. */
+/* ============================================================
+   НП-14 · ПЕРСИСТ ПРАВИЛ — СЛИЯНИЕ ПО ПОЛЯМ + ВЕРСИЯ СХЕМЫ.
+   Было: раздел правил подменялся ЦЕЛИКОМ (`RULES[k]=data[k]`). Пока схема не менялась,
+   это работало; в первую же волну, добавившую поле (гейтам — предмет вопроса, КР-10),
+   сохранённые в браузере правила приезжали без него и тихо ломали гейты — жить
+   пришлось на запасном ходе gateTopic. Теперь: несовпадение версии — честный сброс с
+   объяснением, совпадение — слияние ЗАПИСЬ ЗА ЗАПИСЬЮ поверх дефолта, поэтому новое
+   поле дефолта не теряется, а незнакомый ключ (удалённый вид меры, чужой код
+   подразделения) в живые правила не попадает. Запасной ход gateTopic оставлен как
+   ремень безопасности: он дешевле, чем гарантия, что миграция нигде не промахнётся.
+   ============================================================ */
 const RULES_KEY='asubk-collection-rules-v1';
-function persistRules(){ try{ localStorage.setItem(RULES_KEY, JSON.stringify(RULES)); }catch(e){} }
+const RULES_SCHEMA=2;                                   // 2 — волна НП: roleSubdiv стал массивом, добавлен log
+function persistRules(){ try{ localStorage.setItem(RULES_KEY, JSON.stringify({ v:RULES_SCHEMA, rules:RULES })); }catch(e){} }
+/* Слияние одного раздела: ключи берём у дефолта (чужие отбрасываем), значения — у
+   сохранённого, если оно годное. valid(k, saved, def) → значение либо null. */
+function mergeSection(key, saved, valid, keysOf){
+  const def=RULES_DEFAULTS[key], out=deepClone(def);
+  if(!saved || typeof saved!=='object') return out;
+  const keys = keysOf ? keysOf(saved) : Object.keys(def);
+  keys.forEach(k=>{ const v=valid(k, saved[k], def[k]); if(v!=null) out[k]=v; });
+  return out;
+}
+const codesOnly = a => Array.isArray(a) ? a.filter(c=>SUBDIV_BY_CODE[c]) : null;
+function mergeRules(saved){
+  /* Ключи своих правил вида — НЕ только дефолтные: своё правило заводится кликом на
+     любом из 51 вида (НП-5), а дефолт называет лишь 14. Брать ключи у дефолта значило бы
+     терять при перезагрузке ровно то, что администратор настроил руками. Сверка со
+     справочником видов остаётся: удалённый вид меры в живые правила не попадёт. */
+  RULES.measureSubdiv = mergeSection('measureSubdiv', saved.measureSubdiv, (k,v)=>codesOnly(v),
+    sv => uniq(Object.keys(RULES_DEFAULTS.measureSubdiv).concat(Object.keys(sv).filter(k=>MEASURE_KINDS.includes(k)))));
+  RULES.sectionSubdiv = mergeSection('sectionSubdiv', saved.sectionSubdiv, (k,v)=>codesOnly(v));
+  RULES.roleSubdiv    = mergeSection('roleSubdiv',    saved.roleSubdiv,    (k,v)=>codesOnly(v));
+  RULES.sectionClevel = mergeSection('sectionClevel', saved.sectionClevel, (k,v)=>Number.isInteger(v)&&v>=0&&v<=5?v:null);
+  /* Гейт сливается ПОЛЕМ: из сохранённого берётся только выключатель, предмет/орган/
+     пункт всегда приходят из справочника — они не редактируются (НП-10). */
+  RULES.gates = mergeSection('gates', saved.gates, (k,v,def)=> (v&&typeof v==='object') ? { ...deepClone(def), off:!!v.off } : null);
+  /* Порядок фаз: сохранённый порядок уважается, но состав фаз — дефолтный. Незнакомая
+     фаза отбрасывается, недостающая дописывается в хвост: контур не может остаться
+     без фазы, которую добавила новая версия. */
+  RULES.contourPhases = mergeSection('contourPhases', saved.contourPhases, (k,v,def)=>{
+    if(!Array.isArray(v)) return null;
+    const keep=v.filter(ph=>def.includes(ph));
+    return keep.concat(def.filter(ph=>!keep.includes(ph)));
+  });
+  RULES.log = Array.isArray(saved.log) ? saved.log.filter(e=>e&&typeof e==='object') : [];
+}
 function restoreRules(){
   try{
     if(/[?&]reset\b/.test(location.search)){ localStorage.removeItem(RULES_KEY); return; }
     const raw=localStorage.getItem(RULES_KEY); if(!raw) return;
-    const data=JSON.parse(raw); if(!data || typeof data!=='object') return;
-    Object.keys(RULES_DEFAULTS).forEach(k=>{ if(data[k]!=null) RULES[k]=data[k]; });
+    const box=JSON.parse(raw); if(!box || typeof box!=='object') return;
+    if(box.v !== RULES_SCHEMA){                          // правила чужой версии — сброс, а не догадка
+      localStorage.removeItem(RULES_KEY);
+      setTimeout(()=>toast('Правила сохранены прошлой версией макета — сброшены к дефолту','warn'), 400);
+      return;
+    }
+    mergeRules(box.rules || {});
   }catch(e){}
 }
-function resetRulesAll(){ RULES=deepClone(RULES_DEFAULTS); persistRules(); }
-function resetRulesSection(key){ RULES[key]=deepClone(RULES_DEFAULTS[key]); persistRules(); }
+function resetRulesAll(){
+  const log=RULES.log||[];
+  RULES=deepClone(RULES_DEFAULTS); RULES.log=log;
+  logRule('Сброс ВСЕХ правил к дефолту', null);
+  persistRules();
+}
+function resetRulesSection(key, silent){
+  const prev=deepClone(RULES[key]);
+  RULES[key]=deepClone(RULES_DEFAULTS[key]);
+  if(!silent) logRule(`Сброс раздела правил «${RULES_SECTION_LABEL[key]||key}» к дефолту`, { k:key, key:null, prev, had:true });
+  persistRules();
+}
 /* ============================================================
    ИНТЕРАКТИВ: гейты, регистрация меры, сторно, В-8, окно, процедура.
    ============================================================ */
@@ -5885,6 +6046,9 @@ function showView(v){ document.querySelectorAll('.view').forEach(s=>s.style.disp
      КР-4/КР-5/КР-8: у трёх кросс-процессных реестров так же — сегмент состояния. */
   if(v==='deadlines') setHash('deadlines/'+dlHorizon);
   else if(REGS[v]) setHash(v+'/'+regState[v].seg);
+  /* НП-13: у настроек в хеше ещё и вкладка — ссылкой на «#settings/gates» можно
+     показать коллеге ровно тот гейт, о котором спор, а не корень экрана. */
+  else if(v==='settings') setHash('settings/'+settingsTab);
   else if(v!=='detail') setHash(v);
 }
 /* КД-11: крошка — ПУТЬ, а не второй заголовок. Раньше в неё писали три места, и в
@@ -5934,8 +6098,15 @@ function restoreFromHash(){
     navLabel = REGS[rk].nav; renderNav();
     regRender(rk); showView(rk); return;
   }
-  const views=['list','settings'];
-  showView(views.includes(h)?h:'list');
+  /* НП-13: «settings/gates» — вид и вкладка. Слаг, а не индекс: вкладки могут
+     переехать, а сохранённые ссылки должны остаться на своей панели. */
+  if(h==='settings' || h.startsWith('settings/')){
+    const seg=h.split('/')[1];
+    if(seg && SETTINGS_TABS.some(t=>t[0]===seg)) settingsTab=seg;
+    navLabel='Настройки правил'; renderNav();
+    showView('settings'); return;
+  }
+  showView('list');
 }
 window.addEventListener('hashchange',()=>{ if(curHash()!==lastHash) restoreFromHash(); });
 function scrollTabs(){ document.getElementById('detailTabbar').scrollBy({left:200,behavior:'smooth'}); }
@@ -6050,102 +6221,447 @@ function clearFilter(k){
 function resetFilters(){ filterState={}; curPage=1; renderFilterBar(); renderList(); renderChips(); }
 
 /* ============================================================
-   ЭКРАН НАСТРОЕК ПРАВИЛ (#settings). Четыре вкладки; каждая правит одну ось RULES,
-   зовёт persistRules() и перерисовку. Наблюдатель-роль сюда доступ имеет — это админ-экран.
+   ЭКРАН НАСТРОЕК ПРАВИЛ (#settings) — ВОЛНА НП.
+   Правило здесь — не галочка в вакууме: оно кому-то что-то разрешает или запрещает,
+   и у правки есть радиус. Поэтому у каждой строки экрана четыре вещи:
+     ЧТО правило говорит · ОТКУДА оно взялось (своё / по разделу) · ЧЕМ отличается от
+     дефолта · КОГО задевает сейчас (радиус считается на лету, ADR-0001).
+   Правит экран только роль «Администратор правил» (НП-2); остальные семь видят его
+   read-only. Каждая правка пишется в журнал (НП-9) и отменяется построчно.
+   Правила действуют ВПЕРЁД: уже зарегистрированные меры они не отменяют (НП-8).
    ============================================================ */
 let settingsTab='v9';
 const SETTINGS_TABS=[['v9','В-9 «Кому»'],['stage','Стадии'],['gates','Гейты'],['phases','Фазы']];
-function renderSettings(){
-  const bar=SETTINGS_TABS.map(([k,l])=>`<button class="settings-tab${k===settingsTab?' active':''}" onclick="showSettingsTab('${k}')">${l}</button>`).join('');
-  document.getElementById('settingsTabbar').innerHTML=bar;
-  const body={v9:renderSettingsV9,stage:renderSettingsStage,gates:renderSettingsGates,phases:renderSettingsPhases}[settingsTab]();
-  document.getElementById('settingsHost').innerHTML=body;
+const SETTINGS_TAB_SECTIONS={ v9:['measureSubdiv','sectionSubdiv','roleSubdiv'], stage:['sectionClevel'],
+  gates:['gates'], phases:['contourPhases'] };
+const RULES_SECTION_LABEL={ measureSubdiv:'В-9: правила видов', sectionSubdiv:'В-9: правила разделов',
+  roleSubdiv:'Роль → подразделение', sectionClevel:'Стадии', gates:'Гейты', contourPhases:'Порядок фаз' };
+const setState={ changedOnly:false };
+let ruleLogOpen=false, SET_BUILT=false;
+const jsq = s => String(s).replace(/'/g,"\\'");
+const setEl = id => document.getElementById(id);
+
+/* ---- ИЗМЕНЕНО ↔ ДЕФОЛТ (НП-6). Сравнение с замороженным RULES_DEFAULTS — хранимого
+   признака «правило правили» нет, как и везде в модуле. Три уровня: строка · вкладка ·
+   экран; на всех трёх работает откат. ---- */
+const sameRule=(a,b)=>JSON.stringify(a===undefined?null:a)===JSON.stringify(b===undefined?null:b);
+const isChanged=(section,key)=>!sameRule((RULES[section]||{})[key],(RULES_DEFAULTS[section]||{})[key]);
+function changedKeys(section){
+  const cur=RULES[section]||{}, def=RULES_DEFAULTS[section]||{};
+  return uniq(Object.keys(def).concat(Object.keys(cur))).filter(k=>!sameRule(cur[k],def[k]));
 }
-function showSettingsTab(tab){ settingsTab=tab; renderSettings(); }
-const V9_SUBDIVS=['ДАК','ОД','РП','ДПО','ОПК','САК'];
-function renderSettingsV9(){
-  const head=`<tr><th>Вид меры</th>${V9_SUBDIVS.map(s=>`<th>${s}</th>`).join('')}<th></th></tr>`;
-  let prevSec=null;
-  const rows=SECTION_ORDER.map(sec=>{
-    const kinds=MEASURE_KINDS.filter(k=>sectionOf(k)===sec);
-    return kinds.map(k=>{
-      const allowed=subdivOf(k)||[];
-      const cells=V9_SUBDIVS.map(s=>`<td><input type="checkbox" ${allowed.includes(s)?'checked':''} onchange="toggleV9('${k.replace(/'/g,"\\'")}','${s}')"></td>`).join('');
-      const warn=allowed.length===0?'<td class="warn-badge">⚠ никто не сможет зарегистрировать</td>':'<td></td>';
-      const secLabel=sec!==prevSec?`<div class="v9-sec-label">${sec}</div>`:'';
-      prevSec=sec;
-      return `<tr><td>${secLabel}${k}</td>${cells}${warn}</tr>`;
-    }).join('');
-  }).join('');
-  const roleRows=Object.keys(RULES.roleSubdiv).map(role=>{
-    const opts=['—',...V9_SUBDIVS].map(s=>`<option ${RULES.roleSubdiv[role]===s?'selected':''}>${s}</option>`).join('');
-    return `<tr><td>${role}</td><td><select onchange="setRoleSubdiv('${role.replace(/'/g,"\\'")}',this.value)">${opts}</select></td></tr>`;
-  }).join('');
-  return `<p class="section-note">Галочка = подразделение может регистрировать этот вид меры (матрица В-9). Пусто в строке — вид недоступен никому.</p>
-    <table class="settings-grid"><thead>${head}</thead><tbody>${rows}</tbody></table>
-    <p class="section-h" style="margin-top:20px">Роль → подразделение</p>
-    <table class="role-grid" style="max-width:520px"><thead><tr><th>Роль</th><th>Подразделение</th></tr></thead><tbody>${roleRows}</tbody></table>
-    <div style="margin-top:12px"><button class="btn btn-tint" onclick="resetRulesSection('measureSubdiv');resetRulesSection('sectionSubdiv');resetRulesSection('roleSubdiv');renderSettings();renderList();toast('В-9 сброшена к дефолту','ok')">Сбросить В-9 к дефолту</button></div>`;
+const changedInTab=tab=>SETTINGS_TAB_SECTIONS[tab].reduce((a,s)=>a+changedKeys(s).length,0);
+const changedAll=()=>SETTINGS_TABS.reduce((a,[k])=>a+changedInTab(k),0);
+
+/* ---- РАДИУС ПРАВКИ (НП-7): сколько живых требований и мер правило задевает.
+   Всё считается из тех же функций, которыми работают гейты, — счётчиков не храним. ---- */
+const measuresOfKind = kind => PROCESSES.reduce((a,p)=>a+(p.measures||[]).filter(m=>m.kind===kind&&!m.storno).length,0);
+const openAtLevel    = lvl  => allReqs().filter(r=>((CONTOUR_LEVEL[contourOf(r)] ?? 0)+1) >= lvl).length;
+const reqsInPhase    = ph   => allReqs().filter(r=>phaseOf(r)===ph).length;
+const reqsInContour  = c    => allReqs().filter(r=>contourOf(r)===c).length;
+const kindsOfSection = sec  => MEASURE_KINDS.filter(k=>sectionOf(k)===sec);
+const inheritedOf    = sec  => kindsOfSection(sec).filter(k=>!RULES.measureSubdiv[k]).length;
+/* Гейт считаем контрфактически: сколько требований он держал БЫ включённым. Иначе у
+   выключенного гейта радиус всегда ноль и решение «включать ли обратно» принимать не из чего. */
+function gateWouldHold(kind){
+  const g=RULES.gates[kind]; if(!g) return 0;
+  const was=g.off; delete g.off;
+  const n=allReqs().filter(r=>!!gateReason(r,kind)).length;
+  if(was) g.off=true;
+  return n;
 }
-function toggleV9(kind, subdiv){
-  const cur=(RULES.measureSubdiv[kind] || subdivOf(kind) || []).slice();
-  const i=cur.indexOf(subdiv);
-  if(i>=0) cur.splice(i,1); else cur.push(subdiv);
-  RULES.measureSubdiv[kind]=cur;
-  persistRules(); renderSettings(); renderList();
-}
-function setRoleSubdiv(role, subdiv){ RULES.roleSubdiv[role]=subdiv; persistRules(); renderSettings(); renderList(); }
-function renderSettingsStage(){
-  const rows=SECTION_ORDER.map(sec=>{
-    const cur=RULES.sectionClevel[sec] ?? 1;
-    const opts=[0,1,2,3,4,5].map(n=>`<option ${cur===n?'selected':''}>${n}</option>`).join('');
-    return `<tr><td>${sec}</td><td><select onchange="setSectionClevel('${sec.replace(/'/g,"\\'")}',this.value)">${opts}</select></td></tr>`;
-  }).join('');
-  return `<p class="section-note">Ступень эскалации, начиная с которой раздел доступен. Раздел открывается, когда контур процесса достиг этой ступени (0 — с самого начала, 5 — только на безнадёжной). Уровни контуров: К0=0, К1=1, К2/К3/К5=2, К4=3, К6=4, К7=5.</p>
-    <table class="settings-grid" style="max-width:520px"><thead><tr><th>Раздел</th><th>Мин. ступень</th></tr></thead><tbody>${rows}</tbody></table>
-    <div style="margin-top:12px"><button class="btn btn-tint" onclick="resetRulesSection('sectionClevel');renderSettings();renderList();toast('Стадии сброшены к дефолту','ok')">Сбросить стадии к дефолту</button></div>`;
-}
-function setSectionClevel(section, level){ RULES.sectionClevel[section]=Number(level); persistRules(); renderSettings(); renderList(); }
-function renderSettingsGates(){
-  const rows=Object.keys(RULES.gates).map(k=>{
-    const g=RULES.gates[k];
-    const req=g.poruchenie?'поручение Председателя Правления':(g.organ||'решение органа');
-    return `<tr><td>${k}</td>
-      <td><input type="checkbox" ${g.off?'':'checked'} onchange="toggleGate('${k.replace(/'/g,"\\'")}')"></td>
-      <td class="section-note" style="text-align:left">${req} · п. ${g.point||'—'}</td></tr>`;
-  }).join('');
-  return `<p class="section-note">Какие виды мер требуют предварительного решения перед регистрацией. Снятая галочка — гейт отключён (мера регистрируется без решения органа/поручения). Тип требования у каждого гейта фиксирован справочником.</p>
-    <table class="settings-grid"><thead><tr><th>Вид меры</th><th>Гейт активен</th><th>Что требуется</th></tr></thead><tbody>${rows}</tbody></table>
-    <div style="margin-top:12px"><button class="btn btn-tint" onclick="resetRulesSection('gates');renderSettings();renderList();toast('Гейты сброшены к дефолту','ok')">Сбросить гейты к дефолту</button></div>`;
-}
-function toggleGate(kind){
-  const g=RULES.gates[kind]; if(!g) return;
-  if(g.off) delete g.off; else g.off=true;
-  persistRules(); renderSettings(); renderList();
-}
-function renderSettingsPhases(){
-  const blocks=Object.keys(CONTOURS).map(c=>{
-    const phases=phasesOf(c);
-    const items=phases.map((ph,i)=>`<tr>
-      <td style="text-align:left">${i+1}. ${ph}</td>
-      <td><button class="btn btn-tint" ${i===0?'disabled':''} onclick="movePhase('${c}',${i},-1)" title="Вверх">↑</button>
-          <button class="btn btn-tint" ${i===phases.length-1?'disabled':''} onclick="movePhase('${c}',${i},1)" title="Вниз">↓</button></td></tr>`).join('');
-    return `<div class="phase-contour" style="margin-bottom:16px">
-      <p class="section-h">${c} · ${CONTOURS[c].name}</p>
-      <table class="settings-grid" style="max-width:520px"><tbody>${items}</tbody></table></div>`;
-  }).join('');
-  return `<p class="section-note">Порядок вех внутри контура задаёт последовательность-предусловие для вех-мер (§3.1): веха на позиции i требует предыдущей фазы φ(i−1). Добавление/удаление фаз недоступно — только переупорядочивание.</p>
-    ${blocks}
-    <div style="margin-top:12px"><button class="btn btn-tint" onclick="resetRulesSection('contourPhases');renderSettings();renderList();toast('Порядок фаз сброшен к дефолту','ok')">Сбросить порядок фаз к дефолту</button></div>`;
-}
-function movePhase(contour, i, dir){
-  const arr=RULES.contourPhases[contour]; if(!arr) return;
-  const j=i+dir; if(j<0 || j>=arr.length) return;
-  [arr[i],arr[j]]=[arr[j],arr[i]];
-  persistRules(); renderSettings(); renderList();
+/* Виды мер затравки вне справочника (НП-15): раздел им выводился прочерком-дефолтом
+   «Досудебный», и вместе с разделом они молча получали чужие права В-9. */
+function kindsOutsideDict(){
+  const known=new Set(MEASURE_KINDS), out={};
+  PROCESSES.forEach(p=>(p.measures||[]).forEach(m=>{ if(!known.has(m.kind)) out[m.kind]=(out[m.kind]||0)+1; }));
+  return out;
 }
 
-restoreRules(); restoreState(); renderNav(); renderFilterBar(); renderChips(); renderList(); restoreFromHash();
+/* ---- ЖУРНАЛ ПРАВОК (НП-9): кто · когда · что, и откат построчно ---- */
+function logRule(what, undo){
+  RULES.log=RULES.log||[];
+  RULES.log.unshift({ when:TODAY, who:currentRole(), what, undo:undo||null });
+}
+/* Единственная точка правки: пишет значение, кладёт обратный патч в журнал, персистит,
+   перерисовывает экран и реестр (правило меняет и то, что видно на реестрах). */
+function editRule(section, key, next, what){
+  const had=Object.prototype.hasOwnProperty.call(RULES[section], key);
+  const prev=had?deepClone(RULES[section][key]):null;
+  if(next===undefined) delete RULES[section][key]; else RULES[section][key]=next;
+  logRule(what, { k:section, key, prev, had });
+  persistRules(); renderSettings(); renderList();
+}
+function undoRuleEdit(i){
+  if(!rulesGuard()) return;
+  const e=(RULES.log||[])[i], u=e&&e.undo;
+  if(!u){ toast('Эту запись журнала отменить нельзя','warn'); return; }
+  if(u.key==null) RULES[u.k]=deepClone(u.prev);
+  else if(u.had)  RULES[u.k][u.key]=deepClone(u.prev);
+  else            delete RULES[u.k][u.key];
+  RULES.log.splice(i,1);
+  persistRules(); renderSettings(); renderList();
+  toast('Правка отменена: '+e.what,'ok');
+}
+function rulesGuard(){
+  if(isRulesAdmin()) return true;
+  toast(`Правила меняет роль «${RULES_ADMIN_ROLE}»: текущая роль видит экран только для чтения`,'warn');
+  return false;
+}
+const roAttr = () => isRulesAdmin() ? '' : ' disabled';
+function renderRuleLog(){
+  const log=RULES.log||[];
+  const rows=log.length ? log.map((e,i)=>`<div class="lg-row">
+      <span class="lg-when">${e.when}</span>
+      <span class="lg-what">${escAttr(e.what)}</span>
+      <span class="lg-who">${escAttr(e.who||'—')}</span>
+      ${e.undo?`<button class="btn btn-tint btn-sm"${roAttr()} onclick="undoRuleEdit(${i})">отменить эту правку</button>`:''}
+    </div>`).join('')
+    : `<div class="lg-row"><span class="lg-what">Правок не было — правила в дефолтном виде.</span></div>`;
+  return `<div class="rule-log">
+    <button onclick="ruleLogOpen=!ruleLogOpen;renderSettings()">${chev(13)}<b>Журнал правок правил</b>
+      <span class="section-note" style="margin:0">${log.length} ${plural(log.length,'запись','записи','записей')} · правило меняется только отсюда и только ролью «${RULES_ADMIN_ROLE}»</span></button>
+    ${ruleLogOpen?`<div class="lg-body">${rows}</div>`:''}</div>`;
+}
+function renderSettingsBanner(){
+  if(isRulesAdmin())
+    return `<div class="ro-banner" style="background:#eef5ff;border-color:#bcd3f0;color:#1b4b8f">${warnIcon()}
+      <span><b>Режим правки правил.</b> Правила действуют ВПЕРЁД: уже зарегистрированные меры они не отменяют и фазы не переписывают (НП-8).
+      Каждая правка попадает в журнал и отменяется построчно.</span></div>`;
+  return `<div class="ro-banner">${warnIcon()}
+    <span><b>Только чтение.</b> Правила доступности мер меняет роль «${RULES_ADMIN_ROLE}» — текущая роль (${escAttr(currentRole())}) видит экран, но не правит его.
+    Смотреть можно всё: экран объясняет, почему кнопка регистрации меры недоступна.</span></div>`;
+}
+
+/* ---- ТУЛБАР: строится один раз, чтобы фокус в поиске не терялся на каждой правке ---- */
+function settingsBuild(){
+  if(SET_BUILT) return;
+  setEl('settingsToolbar').innerHTML=`
+    <div class="control" style="min-width:250px"><input id="setQ" oninput="setRefresh()" placeholder="Поиск по названию правила"></div>
+    <span class="section-note" id="setSecLbl" style="margin:0">Раздел</span>
+    <div class="control" id="setSecWrap" style="min-width:190px"><select id="setSec" onchange="setRefresh()">
+      <option value="">— все —</option>${SECTION_ORDER.map(s=>`<option>${s}</option>`).join('')}</select></div>
+    <label class="retro-toggle"><input type="checkbox" id="setChanged" onchange="setState.changedOnly=this.checked;setRefresh()"> только изменённые</label>
+    <span class="spacer"></span>
+    <span class="section-note" id="setCount" style="margin:0"></span>`;
+  SET_BUILT=true;
+}
+const setQ   = () => ((setEl('setQ')||{}).value||'').trim().toLowerCase();
+const setSec = () => (setEl('setSec')||{}).value||'';
+/* Одна проверка на все вкладки: строка проходит, если совпала с поиском, разделом и
+   фильтром «только изменённые». sec=null — у строки раздела нет (фазы, роли). */
+function setPass(text, sec, changed){
+  const q=setQ();
+  if(q && !String(text).toLowerCase().includes(q)) return false;
+  if(setSec() && sec!==setSec()) return false;
+  if(setState.changedOnly && !changed) return false;
+  return true;
+}
+function setChips(){
+  const out=[];
+  const q=setQ(); if(q) out.push(`<span class="fchip">Поиск: ${escAttr(q)}<button title="убрать" onclick="setClear('setQ')">×</button></span>`);
+  if(setSec()) out.push(`<span class="fchip">Раздел: ${escAttr(setSec())}<button title="убрать" onclick="setClear('setSec')">×</button></span>`);
+  if(setState.changedOnly) out.push(`<span class="fchip">Только изменённые<button title="убрать" onclick="setClear('setChanged')">×</button></span>`);
+  setEl('settingsChips').innerHTML=out.join('');
+}
+function setClear(id){
+  const el=setEl(id); if(!el) return;
+  if(id==='setChanged'){ el.checked=false; setState.changedOnly=false; } else el.value='';
+  setRefresh();
+}
+/* Счётчик «показано N из M» пишет не сама таблица: её HTML строится строкой и в DOM
+   попадает позже. Рендер откладывает пару чисел сюда, тулбар печатает их следом —
+   синхронно, без setTimeout (иначе счётчик отставал бы на кадр от таблицы). */
+let SET_N=[0,0];
+function setCount(shown, total){ SET_N=[shown, total]; }
+function setPrintCount(){ setEl('setCount').innerHTML = `показано <b>${SET_N[0]}</b> из ${SET_N[1]}`; }
+/* Фильтр по разделу к фазам не применяется: контуры К0…К7 — не разделы справочника. */
+function setToolbarFor(tab){
+  const on = tab!=='phases';
+  ['setSecLbl','setSecWrap'].forEach(id=>{ const el=setEl(id); if(el) el.style.display=on?'':'none'; });
+  if(!on && setEl('setSec')) setEl('setSec').value='';
+}
+function setRefresh(){
+  setToolbarFor(settingsTab);
+  const body={v9:renderSettingsV9,stage:renderSettingsStage,gates:renderSettingsGates,phases:renderSettingsPhases}[settingsTab]();
+  setEl('settingsHost').innerHTML=body;
+  setPrintCount(); setChips();
+}
+function renderSettings(){
+  settingsBuild();
+  setEl('settingsTabbar').innerHTML=SETTINGS_TABS.map(([k,l])=>{
+    const n=changedInTab(k);
+    return `<button class="settings-tab${k===settingsTab?' active':''}" onclick="showSettingsTab('${k}')">${l}${n?` <span class="chg-badge" title="изменённых правил: ${n}">${n}</span>`:''}</button>`;
+  }).join('');
+  const total=changedAll();
+  setEl('settingsFrame').innerHTML=`Правила доступности мер на <b>${TODAY}</b>: кто какую меру регистрирует (В-9), с какой стадии открыт раздел, что требует решения органа и в каком порядке идут фазы. Радиус каждой правки считается по живым данным — ${allReqs().length} требований, ${PROCESSES.length} дел.`;
+  setEl('settingsBanner').innerHTML=renderSettingsBanner();
+  setEl('settingsJournal').innerHTML=renderRuleLog();
+  setEl('settingsFoot').innerHTML=`
+    <button class="btn btn-secondary"${total?'':' disabled'}${roAttr()} onclick="resetAllRules()">Сбросить все правила${total?` (${total})`:''}</button>
+    <span class="section-note" style="margin:0 0 0 12px">${total?`изменено правил: <b>${total}</b>`:'все правила в дефолтном виде'}</span>
+    <div style="flex:1"></div>
+    <button class="btn btn-secondary" onclick="showView('list')">Закрыть</button>`;
+  setRefresh();
+}
+function showSettingsTab(tab){ settingsTab=tab; setHash('settings/'+tab); renderSettings(); }
+/* Сброс всего и раздела — с подтверждением, в котором названо ЧИСЛО правил (НП-6):
+   «сбросить всё?» без числа не даёт понять, что именно потеряется. */
+function resetAllRules(){
+  if(!rulesGuard()) return;
+  const n=changedAll(); if(!n){ toast('Правила и так в дефолтном виде'); return; }
+  if(!confirm(`Сбросить ВСЕ правила к дефолту?\n\nИзменённых правил: ${n}. Журнал правок сохранится, сброс попадёт в него отдельной записью.`)) return;
+  resetRulesAll(); renderSettings(); renderList();
+  toast(`Все правила сброшены к дефолту (было изменено: ${n})`,'ok');
+}
+function resetTabRules(tab){
+  if(!rulesGuard()) return;
+  const n=changedInTab(tab); if(!n){ toast('На этой вкладке правила в дефолтном виде'); return; }
+  const label=(SETTINGS_TABS.find(t=>t[0]===tab)||[])[1]||tab;
+  if(!confirm(`Сбросить правила вкладки «${label}» к дефолту?\n\nИзменённых правил: ${n}.`)) return;
+  SETTINGS_TAB_SECTIONS[tab].forEach(s=>resetRulesSection(s, true));
+  logRule(`Сброс вкладки «${label}» к дефолту (правил: ${n})`, null);
+  persistRules(); renderSettings(); renderList();
+  toast(`Вкладка «${label}» сброшена к дефолту (правил: ${n})`,'ok');
+}
+const tabResetBtn = tab => `<div style="margin-top:12px"><button class="btn btn-tint"${changedInTab(tab)?'':' disabled'}${roAttr()} onclick="resetTabRules('${tab}')">Сбросить вкладку к дефолту${changedInTab(tab)?` (${changedInTab(tab)})`:''}</button></div>`;
+
+/* ============ ВКЛАДКА «В-9 «Кому»» — ДВА ЭТАЖА ПРАВИЛА (НП-5) ============
+   Правило раздела покрывает все виды раздела; своё правило вида его перекрывает.
+   Раньше был виден только нижний этаж: правило раздела (37 из 51 вида!) не
+   редактировалось и в таблице не показывалось, а клик по галочке молча превращал
+   унаследованный вид в свой — навсегда и без следа. Теперь оба этажа видимы и
+   правятся, отвязка называется вслух и откатывается построчной кнопкой. */
+function renderSettingsV9(){
+  const head=`<tr><th>Правило</th>${V9_SUBDIVS.map(s=>`<th title="${escAttr(SUBDIV_BY_CODE[s].name)}">${s}</th>`).join('')}<th>Источник</th><th>Радиус</th><th></th></tr>`;
+  let shown=0, total=0;
+  const rows=SECTION_ORDER.map(sec=>{
+    const secAllowed=RULES.sectionSubdiv[sec]||[];
+    const secChanged=isChanged('sectionSubdiv',sec);
+    const out=[];
+    total++;
+    if(setPass('правило раздела '+sec, sec, secChanged)){
+      shown++;
+      const cells=V9_SUBDIVS.map(s=>`<td><input type="checkbox" ${secAllowed.includes(s)?'checked':''}${roAttr()} onchange="toggleSectionV9('${jsq(sec)}','${s}')"></td>`).join('');
+      const inh=inheritedOf(sec);
+      out.push(`<tr class="sec-rule${secChanged?' row-changed':''}">
+        <td><b>Правило раздела «${sec}»</b></td>${cells}
+        <td><span class="src-pill src-sec">раздел</span></td>
+        <td class="radius">действует на ${inh} ${plural(inh,'вид','вида','видов')} без своего правила</td>
+        <td>${secChanged?`<button class="btn btn-tint btn-sm"${roAttr()} onclick="resetRuleKey('sectionSubdiv','${jsq(sec)}','правило раздела «${jsq(sec)}»')">вернуть дефолт</button>`:'<span class="radius">дефолт</span>'}</td></tr>`);
+    }
+    kindsOfSection(sec).forEach(k=>{
+      total++;
+      const own=subdivSource(k)==='own', changed=isChanged('measureSubdiv',k);
+      if(!setPass(k, sec, changed)) return;
+      shown++;
+      const allowed=subdivOf(k)||[];
+      const cells=V9_SUBDIVS.map(s=>`<td><input type="checkbox" ${allowed.includes(s)?'checked':''}${roAttr()} onchange="toggleV9('${jsq(k)}','${s}')"></td>`).join('');
+      const n=measuresOfKind(k);
+      const warn=allowed.length===0?`<div class="warn-badge">⚠ никто не сможет зарегистрировать</div>`:'';
+      /* НП-8: правило действует вперёд — уже зарегистрированные меры оно не отменяет.
+         Проверить соблюдение задним числом всё равно нельзя: подразделение в мере не
+         хранится (НП-Д20), в записи только ФИО ответственного. */
+      const rad=n?`уже зарегистрировано ${n} — правило их не отменяет`:'мер этого вида ещё нет';
+      out.push(`<tr class="${changed?'row-changed':''}">
+        <td>${k}${warn}</td>${cells}
+        <td><span class="src-pill ${own?'src-own':'src-sec'}" title="${own?'своё правило вида — перекрывает правило раздела':'наследуется от правила раздела «'+escAttr(sec)+'»'}">${own?'своё правило':'по разделу'}</span></td>
+        <td class="radius">${rad}</td>
+        <td>${own?`<button class="btn btn-tint btn-sm"${roAttr()} onclick="unlinkBack('${jsq(k)}')">вернуть к разделу</button>`:'<span class="radius">—</span>'}</td></tr>`);
+    });
+    return out.join('');
+  }).join('');
+  setCount(shown,total);
+  const roleRows=ROLES.map(r=>{
+    const my=RULES.roleSubdiv[r.role]||[];
+    const changed=isChanged('roleSubdiv',r.role);
+    const cells=V9_SUBDIVS.map(s=>`<td><input type="checkbox" ${my.includes(s)?'checked':''}${roAttr()} onchange="toggleRoleSubdiv('${jsq(r.role)}','${s}')"></td>`).join('');
+    return `<tr class="${changed?'row-changed':''}"><td>${r.role}${r.rulesAdmin?' <span class="src-pill src-own">правит правила</span>':''}</td>${cells}
+      <td class="radius">${my.length?my.join(' / '):'<b>мер не регистрирует</b>'}${r.note?` · ${r.note}`:''}</td></tr>`;
+  }).join('');
+  const outside=kindsOutsideDict();
+  const outsideBlk=Object.keys(outside).length?`<div class="ro-banner" style="margin-top:14px">${warnIcon()}
+    <span><b>В данных есть виды мер вне справочника:</b> ${Object.keys(outside).map(k=>`«${escAttr(k)}» (${outside[k]})`).join(', ')}.
+    Раздел таким видам выводится дефолтом «Досудебный», и вместе с разделом они получают чужие права В-9 — правило для них не настраивается.</span></div>`:'';
+  const nonReg=SUBDIVS.filter(s=>!s.registers).map(s=>`<tr><td>${s.code} · ${s.name}</td><td class="radius" style="text-align:left">${s.why}</td></tr>`).join('');
+  return `<p class="section-note">Галочка = подразделение может зарегистрировать этот вид меры (матрица В-9). Правило раздела — верхняя строка блока; вид без своего правила наследует его («по разделу»), клик по галочке в строке вида создаёт своё правило и отвязывает вид от раздела. Пустая строка — вид недоступен никому.</p>
+    <table class="settings-grid"><thead>${head}</thead><tbody>${rows||`<tr><td colspan="${V9_SUBDIVS.length+4}" class="radius">Под фильтр не попало ни одно правило.</td></tr>`}</tbody></table>
+    ${outsideBlk}
+    <p class="section-h" style="margin-top:20px">Роль → подразделения</p>
+    <p class="section-note">Один справочник ролей на весь модуль (НП-3): этот же список наполняет переключатель роли в шапке, и он же отвечает фильтру «только моё подразделение» на реестрах. Подразделений у роли может быть несколько; ни одного — роль мер не регистрирует.</p>
+    <table class="role-grid"><thead><tr><th>Роль</th>${V9_SUBDIVS.map(s=>`<th>${s}</th>`).join('')}<th>Итог</th></tr></thead><tbody>${roleRows}</tbody></table>
+    <p class="section-h" style="margin-top:20px">Участвуют, но мер не регистрируют</p>
+    <p class="section-note">Подразделения из того же справочника (НП-4) с признаком «мер не регистрирует» — колонок в матрице В-9 у них поэтому нет.</p>
+    <table class="role-grid" style="max-width:760px"><tbody>${nonReg}</tbody></table>
+    ${tabResetBtn('v9')}`;
+}
+/* Клик по галочке вида, у которого своего правила ещё нет, — ОТВЯЗКА от раздела.
+   Она названа вслух в тосте и в журнале и откатывается кнопкой «вернуть к разделу». */
+function toggleV9(kind, subdiv){
+  if(!rulesGuard()){ renderSettings(); return; }
+  const wasOwn=subdivSource(kind)==='own';
+  const cur=(subdivOf(kind)||[]).slice();
+  const i=cur.indexOf(subdiv);
+  if(i>=0) cur.splice(i,1); else cur.push(subdiv);
+  const next=V9_SUBDIVS.filter(c=>cur.includes(c));           // порядок колонок, без дублей
+  editRule('measureSubdiv', kind, next, `В-9: «${kind}» → ${next.length?next.join(' / '):'никто'}${wasOwn?'':' (вид отвязан от правила раздела)'}`);
+  if(!wasOwn) toast(`«${kind}» отвязан от правила раздела «${sectionOf(kind)}» — теперь у вида своё правило. Вернуть: кнопка «вернуть к разделу» в строке.`,'warn');
+  if(!next.length) toast(`«${kind}» больше не может зарегистрировать никто`,'warn');
+}
+function unlinkBack(kind){
+  if(!rulesGuard()) return;
+  editRule('measureSubdiv', kind, undefined, `В-9: «${kind}» возвращён к правилу раздела «${sectionOf(kind)}»`);
+  toast(`«${kind}» снова наследует правило раздела`,'ok');
+}
+function toggleSectionV9(sec, subdiv){
+  if(!rulesGuard()){ renderSettings(); return; }
+  const cur=(RULES.sectionSubdiv[sec]||[]).slice();
+  const i=cur.indexOf(subdiv);
+  if(i>=0) cur.splice(i,1); else cur.push(subdiv);
+  const next=V9_SUBDIVS.filter(c=>cur.includes(c));
+  const inh=inheritedOf(sec);
+  editRule('sectionSubdiv', sec, next, `В-9: правило раздела «${sec}» → ${next.length?next.join(' / '):'никто'} (задевает ${inh} ${plural(inh,'вид','вида','видов')})`);
+  if(!next.length) toast(`Правило раздела «${sec}» пусто: ${inh} ${plural(inh,'вид','вида','видов')} без своего правила не сможет зарегистрировать никто`,'warn');
+}
+function toggleRoleSubdiv(role, subdiv){
+  if(!rulesGuard()){ renderSettings(); return; }
+  const cur=(RULES.roleSubdiv[role]||[]).slice();
+  const i=cur.indexOf(subdiv);
+  if(i>=0) cur.splice(i,1); else cur.push(subdiv);
+  const next=V9_SUBDIVS.filter(c=>cur.includes(c));
+  editRule('roleSubdiv', role, next, `Роль «${role}» → ${next.length?next.join(' / '):'мер не регистрирует'}`);
+}
+function resetRuleKey(section, key, label){
+  if(!rulesGuard()) return;
+  const def=(RULES_DEFAULTS[section]||{})[key];
+  editRule(section, key, def===undefined?undefined:deepClone(def), `Возврат к дефолту: ${label}`);
+}
+
+/* ============ ВКЛАДКА «Стадии» ============
+   Ступень называется ИМЕНЕМ контура, а не числом 0…5: «раздел открыт с досудебной
+   стадии» читается, «1» — нет. Радиус — сколько требований раздел видят сейчас и
+   сколько увидят после правки; закрытие раздела для всех подтверждается отдельно. */
+const CLEVEL_STEPS=[[0,'с самого начала (К0)'],[1,'с досудебной (К1)'],[2,'с принудительной (К2/К3/К5)'],
+  [3,'с исполнительной (К4)'],[4,'с банкротной (К6)'],[5,'с безнадёжной (К7)']];
+const clevelLabel = n => (CLEVEL_STEPS.find(s=>s[0]===n)||[n,String(n)])[1];
+function renderSettingsStage(){
+  let shown=0;
+  const rows=SECTION_ORDER.map(sec=>{
+    const cur=RULES.sectionClevel[sec] ?? 1, changed=isChanged('sectionClevel',sec);
+    if(!setPass(sec, sec, changed)) return '';
+    shown++;
+    const opts=CLEVEL_STEPS.map(([n,l])=>`<option value="${n}" ${cur===n?'selected':''}>${l}</option>`).join('');
+    const n=openAtLevel(cur), kinds=kindsOfSection(sec).length;
+    return `<tr class="${changed?'row-changed':''}">
+      <td>${sec}<div class="radius">${kinds} ${plural(kinds,'вид','вида','видов')} меры</div></td>
+      <td><select${roAttr()} onchange="setSectionClevel('${jsq(sec)}',this.value)">${opts}</select></td>
+      <td class="radius">${n?`доступен ${n} ${plural(n,'требованию','требованиям','требованиям')} из ${allReqs().length}`:'<b>не доступен никому</b>'}</td>
+      <td>${changed?`<button class="btn btn-tint btn-sm"${roAttr()} onclick="resetRuleKey('sectionClevel','${jsq(sec)}','стадия раздела «${jsq(sec)}»')">вернуть дефолт</button>`:'<span class="radius">дефолт</span>'}</td></tr>`;
+  }).join('');
+  setCount(shown,SECTION_ORDER.length);
+  return `<p class="section-note">Ступень эскалации, начиная с которой раздел доступен: раздел открывается, когда контур требования её достиг (разрешён вход на текущую ступень или следующую). Ступень названа контуром, а не номером. Правило действует на регистрацию новых мер — уже зарегистрированные оно не отменяет.</p>
+    <table class="settings-grid" style="max-width:900px"><thead><tr><th>Раздел</th><th>Доступен</th><th>Радиус</th><th></th></tr></thead>
+    <tbody>${rows||`<tr><td colspan="4" class="radius">Под фильтр не попал ни один раздел.</td></tr>`}</tbody></table>
+    ${tabResetBtn('stage')}`;
+}
+function setSectionClevel(section, level){
+  if(!rulesGuard()){ renderSettings(); return; }
+  const next=Number(level), was=RULES.sectionClevel[section] ?? 1;
+  if(next===was) return;
+  const before=openAtLevel(was), after=openAtLevel(next);
+  /* Подтверждение спрашиваем на СУЖЕНИЕ доступа, а не только на полный ноль: ступеней
+     шесть, и «ноль» ими недостижим (самая высокая, К7, оставляет 10 требований) —
+     проверка на ноль осталась бы мёртвой веткой. Сужение же видно всегда и называется
+     числом: «раздел уйдёт у 39 требований» — это и есть то, что теряется. */
+  if(after<before && !confirm(`Раздел «${section}» станет доступен ${after} требованиям вместо ${before}: он уйдёт у ${before-after} ${plural(before-after,'требования','требований','требований')}.${after?'':'\n\nПосле правки раздел не будет доступен НИ ОДНОМУ требованию.'}\n\nПродолжить?`)){ renderSettings(); return; }
+  editRule('sectionClevel', section, next, `Стадия: «${section}» — ${clevelLabel(was)} → ${clevelLabel(next)} (доступен ${before} → ${after})`);
+  toast(`«${section}»: ${clevelLabel(next)}. Доступен требованиям: ${before} → ${after}`, after?'ok':'warn');
+}
+
+/* ============ ВКЛАДКА «Гейты» ============
+   Пять колонок: вид · включён · ПРЕДМЕТ вопроса · орган · пункт. Предмет показан,
+   потому что именно по нему гейт ищет решение органа (КР-10) — раньше в таблице
+   стоял орган, и совпадение шло не по тому, что видно. Правится только выключатель;
+   предмет, орган и пункт — справочник §6.3, руками их здесь не переписывают. */
+function renderSettingsGates(){
+  let shown=0;
+  const keys=Object.keys(RULES.gates);
+  const rows=keys.map(k=>{
+    const g=RULES.gates[k], changed=isChanged('gates',k);
+    const sec=sectionOf(k);
+    if(!setPass(k+' '+(g.topic||'')+' '+(g.organ||''), sec, changed)) return '';
+    shown++;
+    const hold=gateWouldHold(k);
+    const req=g.poruchenie?'поручение Председателя Правления':(g.organ||'решение органа');
+    return `<tr class="${changed?'row-changed':''}">
+      <td>${k}<div class="radius">${sec}</div></td>
+      <td><input type="checkbox" ${g.off?'':'checked'}${roAttr()} onchange="toggleGate('${jsq(k)}')"></td>
+      <td style="text-align:left">${g.poruchenie?`<span class="radius">поручение по делу — предмета вопроса нет</span>`:escAttr(gateTopic(k)||'—')}</td>
+      <td style="text-align:left">${escAttr(req)}</td>
+      <td>п. ${g.point||'не указан'}</td>
+      <td class="radius">${g.off?`отключён · удержал бы ${hold}`:`держит ${hold} ${plural(hold,'требование','требования','требований')}`}</td>
+      <td>${changed?`<button class="btn btn-tint btn-sm"${roAttr()} onclick="resetRuleKey('gates','${jsq(k)}','гейт «${jsq(k)}»')">вернуть дефолт</button>`:'<span class="radius">дефолт</span>'}</td></tr>`;
+  }).join('');
+  setCount(shown,keys.length);
+  return `<p class="section-note">Какие виды мер требуют предварительного решения до регистрации. Снятая галочка — гейт отключён, мера регистрируется без решения органа или поручения. Гейт ищет решение по ПРЕДМЕТУ вопроса и по договору требования (КР-10), поэтому предмет показан в таблице; предмет, орган и пункт Порядка — закрытый справочник §6.3 и здесь не правятся.</p>
+    <table class="settings-grid"><thead><tr><th>Вид меры</th><th>Гейт включён</th><th>Предмет вопроса</th><th>Кто решает</th><th>Пункт</th><th>Радиус</th><th></th></tr></thead>
+    <tbody>${rows||`<tr><td colspan="7" class="radius">Под фильтр не попал ни один гейт.</td></tr>`}</tbody></table>
+    ${tabResetBtn('gates')}`;
+}
+function toggleGate(kind){
+  if(!rulesGuard()){ renderSettings(); return; }
+  const g=RULES.gates[kind]; if(!g) return;
+  const hold=gateWouldHold(kind);
+  if(!g.off && hold && !confirm(`Отключить гейт «${kind}»?\n\nСейчас он держит ${hold} ${plural(hold,'требование','требования','требований')}: после отключения меру можно будет зарегистрировать без решения органа.\nУже вынесенные вопросы и принятые решения не изменятся.`)){ renderSettings(); return; }
+  const next={ ...deepClone(RULES_DEFAULTS.gates[kind]||g) };
+  if(g.off) delete next.off; else next.off=true;
+  editRule('gates', kind, next, `Гейт «${kind}» ${next.off?'отключён':'включён'}${next.off?` (снят с ${hold} ${plural(hold,'требования','требований','требований')})`:''}`);
+  toast(`Гейт «${kind}» ${next.off?'отключён':'включён'}`, next.off?'warn':'ok');
+}
+
+/* ============ ВКЛАДКА «Фазы» ============
+   Порядок фаз — предусловие для будущих вех. Перестановка остаётся разрешённой:
+   журнал прошлого она не трогает (фаза — свёртка журнала, ADR-0003), но требования,
+   стоящие в этих фазах сейчас, посчитаны и показаны — вслепую переставлять нечего. */
+function renderSettingsPhases(){
+  let shown=0, total=0;
+  const blocks=Object.keys(CONTOURS).map(c=>{
+    const phases=phasesOf(c), changed=isChanged('contourPhases',c), inC=reqsInContour(c);
+    const items=phases.map((ph,i)=>{
+      total++;
+      if(!setPass(ph+' '+c+' '+CONTOURS[c].name, null, changed)) return '';
+      shown++;
+      const n=reqsInPhase(ph);
+      return `<tr class="${changed?'row-changed':''}">
+        <td style="text-align:left">${i+1}. ${ph}</td>
+        <td class="radius">${n?`в этой фазе ${n} ${plural(n,'требование','требования','требований')}`:'требований нет'}</td>
+        <td><button class="btn btn-tint btn-sm" ${i===0?'disabled':roAttr()} onclick="movePhase('${c}',${i},-1)" title="Вверх">↑</button>
+            <button class="btn btn-tint btn-sm" ${i===phases.length-1?'disabled':roAttr()} onclick="movePhase('${c}',${i},1)" title="Вниз">↓</button></td></tr>`;
+    }).join('');
+    if(!items) return '';
+    return `<div class="phase-contour" style="margin-bottom:16px">
+      <p class="section-h">${c} · ${CONTOURS[c].name}
+        <span class="radius" style="font-weight:400"> · требований в контуре: ${inC}${changed?' · порядок изменён':''}</span>
+        ${changed?`<button class="btn btn-tint btn-sm" style="margin-left:8px"${roAttr()} onclick="resetRuleKey('contourPhases','${c}','порядок фаз контура ${c}')">вернуть дефолт</button>`:''}</p>
+      <table class="settings-grid" style="max-width:760px"><tbody>${items}</tbody></table></div>`;
+  }).join('');
+  setCount(shown,total);
+  return `<p class="section-note">Порядок вех внутри контура задаёт последовательность-предусловие для будущих мер-вех (§3.1): веха на позиции i требует предыдущей фазы φ(i−1). Состав фаз закрыт — только перестановка. Перестановка действует вперёд: фаза требования — свёртка его журнала мер (ADR-0003), поэтому уже зарегистрированные вехи она не переписывает и требования по фазам не перекладывает.</p>
+    ${blocks||`<p class="radius">Под фильтр не попала ни одна фаза.</p>`}
+    ${tabResetBtn('phases')}`;
+}
+function movePhase(contour, i, dir){
+  if(!rulesGuard()){ renderSettings(); return; }
+  const arr=(RULES.contourPhases[contour]||[]).slice();
+  const j=i+dir; if(j<0 || j>=arr.length) return;
+  const inC=reqsInContour(contour), a=arr[i], b=arr[j];
+  const nA=reqsInPhase(a), nB=reqsInPhase(b);
+  if((inC||nA||nB) && !confirm(`Поменять местами фазы «${a}» и «${b}» контура ${contour}?\n\nВ контуре сейчас ${inC} ${plural(inC,'требование','требования','требований')} (в этих двух фазах — ${nA+nB}). Порядок задаёт предусловие для БУДУЩИХ вех; фазы уже зарегистрированных мер не изменятся.`)){ renderSettings(); return; }
+  [arr[i],arr[j]]=[arr[j],arr[i]];
+  editRule('contourPhases', contour, arr, `Порядок фаз ${contour}: «${a}» ↔ «${b}» (в контуре ${inC} ${plural(inC,'требование','требования','требований')})`);
+}
+
+renderRoleSel(); restoreRules(); restoreState(); renderNav(); renderFilterBar(); renderChips(); renderList(); restoreFromHash();
 </script>
 </body>
 </html>

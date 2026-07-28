@@ -27,7 +27,13 @@ function mk(){
   const allTabsText = () => { let t=''; for(let i=0;i<ev('TABS.length');i++){ ev(`switchTab(${i})`); t += active().textContent + '\n'; } return t; };
   const allTabsHtml = sel => { let a=[]; for(let i=0;i<ev('TABS.length');i++){ ev(`switchTab(${i})`); a.push(...[...active().querySelectorAll(sel)]); } return a; };
   const setRole = r => { doc.getElementById('roleSel').value = r; };
-  return { dom, w, doc, ev, $, $$, active, dhead, allTabsText, allTabsHtml, setRole, errs };
+  /* Волна НП: правила меняет только «Администратор правил», и опасные правки
+     спрашивают confirm. jsdom своего confirm не имеет — подставляем управляемый:
+     ev('__ok=false') проверяет ветку отказа. */
+  w.__ok = true;
+  w.confirm = () => w.__ok;
+  const asAdmin = () => setRole(ev('RULES_ADMIN_ROLE'));
+  return { dom, w, doc, ev, $, $$, active, dhead, allTabsText, allTabsHtml, setRole, asAdmin, errs };
 }
 
 let fails = 0, n = 0;
@@ -479,9 +485,10 @@ ok('phasesOf(К1) читает порядок из RULES',
    g.ev(`phasesOf('К1').join('>')`) === 'Претензия>Повторная претензия>Безакцептное списание');
 ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') === true);
 { const m = mk();
-  ok('persistRules пишет ключ RULES_KEY', m.ev(`(()=>{
+  ok('persistRules пишет версию схемы и правила', m.ev(`(()=>{
     RULES.sectionClevel['Досудебный']=3; persistRules();
-    return !!localStorage.getItem(RULES_KEY) && JSON.parse(localStorage.getItem(RULES_KEY)).sectionClevel['Досудебный']===3;
+    const box=JSON.parse(localStorage.getItem(RULES_KEY));
+    return box.v===RULES_SCHEMA && box.rules.sectionClevel['Досудебный']===3;
   })()`));
   ok('resetRulesAll восстанавливает дефолт', m.ev(`(()=>{
     RULES.sectionClevel['Досудебный']=3; resetRulesAll();
@@ -492,28 +499,29 @@ ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') 
     return Object.keys(RULES.gates).length>0 && RULES.sectionClevel['Судебный']===5;
   })()`)); }
 { const m = mk(); m.ev(`showView('settings')`);
-  ok('showView(settings) показывает экран и пишет hash',
-     m.$('#view-settings').style.display === 'flex' && m.ev('location.hash') === '#settings');
+  ok('showView(settings) показывает экран и пишет hash со вкладкой',
+     m.$('#view-settings').style.display === 'flex' && m.ev('location.hash') === '#settings/v9');
   ok('на экране настроек 4 вкладки', m.$$('#view-settings .settings-tab').length === 4);
   ok('переключение вкладки меняет settingsTab', m.ev(`(()=>{ showSettingsTab('gates'); return settingsTab; })()`) === 'gates');
   const m2 = mk(); m2.w.location.hash = '#settings'; m2.ev('restoreFromHash()');
   ok('restoreFromHash открывает настройки по #settings', m2.$('#view-settings').style.display === 'flex'); }
-{ const m = mk(); m.ev(`showView('settings'); showSettingsTab('v9')`);
-  ok('грид В-9 рендерит строку на каждый вид меры',
-     m.$$('#settingsHost .settings-grid tbody tr').length === m.ev('MEASURE_KINDS.length'));
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('грид В-9 рендерит строку на каждый вид меры и на каждое правило раздела',
+     m.$$('#settingsHost .settings-grid tbody tr').length === m.ev('MEASURE_KINDS.length + SECTION_ORDER.length'));
   ok('toggleV9 снимает последнее подразделение → вид исчезает из availableKinds', m.ev(`(()=>{
     RULES.measureSubdiv['Первичная претензия']=['ОД'];
-    document.getElementById('roleSel').value='Куратор ОД / ДАК / РП';
     toggleV9('Первичная претензия','ОД');
+    document.getElementById('roleSel').value='Куратор ОД / ДАК / РП';
     return !availableKinds(REQ_INDEX['201/311/з']).includes('Первичная претензия');
   })()`));
   ok('вид без подразделений помечается предупреждением', m.ev(`(()=>{
     RULES.measureSubdiv['Акт сверки']=[]; renderSettings();
     return document.getElementById('settingsHost').innerHTML.includes('никто не сможет');
   })()`));
-  ok('setRoleSubdiv меняет роль→подразделение',
-     m.ev(`(()=>{ setRoleSubdiv('Наблюдатель','ОД'); return RULES.roleSubdiv['Наблюдатель']==='ОД'; })()`)); }
-{ const m = mk(); m.ev(`showView('settings'); showSettingsTab('stage')`);
+  m.asAdmin();   /* предыдущая проверка переключила роль на куратора — правила правит админ */
+  ok('toggleRoleSubdiv меняет роль→подразделения',
+     m.ev(`(()=>{ toggleRoleSubdiv('Наблюдатель','ОД'); return RULES.roleSubdiv['Наблюдатель'].join()==='ОД'; })()`)); }
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('stage')`);
   ok('вкладка Стадии рендерит селект на каждый раздел',
      m.$$('#settingsHost .settings-grid tbody tr select').length === m.ev('SECTION_ORDER.length'));
   ok('повышение sectionClevel блокирует меру раздела на низкой ступени', m.ev(`(()=>{
@@ -522,7 +530,7 @@ ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') 
     setSectionClevel('Досудебный',4);
     return !before && !!sequenceReason(r,'Акт сверки');
   })()`)); }
-{ const m = mk(); m.ev(`showView('settings'); showSettingsTab('gates')`);
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('gates')`);
   ok('вкладка Гейты рендерит строку на каждый гейт',
      m.$$('#settingsHost .settings-grid tbody tr').length === m.ev('Object.keys(RULES.gates).length'));
   ok('отключение гейта разблокирует иск на деле без поручения', m.ev(`(()=>{
@@ -531,7 +539,7 @@ ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') 
     toggleGate('Исковое заявление');
     return !gateReason(r,'Исковое заявление');
   })()`)); }
-{ const m = mk(); m.ev(`showView('settings'); showSettingsTab('phases')`);
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('phases')`);
   ok('вкладка Фазы рендерит блок на каждый контур',
      m.$$('#settingsHost .phase-contour').length === m.ev('Object.keys(CONTOURS).length'));
   ok('movePhase меняет порядок в RULES.contourPhases', m.ev(`(()=>{
@@ -547,6 +555,276 @@ ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') 
     resetRulesSection('contourPhases');
     return !before && !!after;
   })()`)); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ВОЛНА НП — НАСТРОЙКИ ПРАВИЛ (§14.4): решения НП-1…НП-16.
+   Правило = что говорит · откуда взялось · чем отличается от дефолта · кого задевает.
+   ══════════════════════════════════════════════════════════════════════════ */
+head('НП-1…НП-16 · настройки правил');
+/* НП-1 · полный каркас, как у четырёх реестров */
+{ const m = mk(); m.ev(`showView('settings')`);
+  ok('НП-1 каркас: рамка, баннер, журнал, вкладки, тулбар, чипы, футер',
+     ['#settingsFrame','#settingsBanner','#settingsJournal','#settingsTabbar','#settingsToolbar','#settingsChips','#settingsHost','#settingsFoot']
+       .every(sel => !!m.$(sel)) && m.$('#settingsFrame').textContent.includes('Радиус'));
+  ok('НП-1 рамка называет объём живых данных',
+     m.$('#settingsFrame').textContent.includes(String(m.ev('allReqs().length')))); }
+/* НП-2 · правит только «Администратор правил», остальные семь — read-only */
+{ const m = mk();
+  ok('НП-2 восьмая роль есть в справочнике и правит правила',
+     m.ev(`ROLES.length===8 && ROLES.filter(r=>r.rulesAdmin).length===1 && ROLE_BY_NAME[RULES_ADMIN_ROLE].rulesAdmin===true`));
+  m.ev(`showView('settings')`);
+  ok('НП-2 не-админ видит полосу «только чтение»',
+     m.$('#settingsBanner').textContent.includes('Только чтение'));
+  ok('НП-2 не-админ: галочки и кнопки заблокированы',
+     m.$$('#settingsHost input[type=checkbox]').length > 0 &&
+     m.$$('#settingsHost input[type=checkbox]').every(c => c.disabled));
+  ok('НП-2 не-админ: правка не проходит и объясняется тостом', m.ev(`(()=>{
+    const was=JSON.stringify(RULES.measureSubdiv);
+    toggleV9('Акт сверки','ОД');
+    return JSON.stringify(RULES.measureSubdiv)===was &&
+           document.getElementById('toastWrap').textContent.includes(RULES_ADMIN_ROLE);
+  })()`));
+  m.asAdmin(); m.ev('renderSettings()');
+  ok('НП-2 админ видит полосу режима правки и живые галочки',
+     m.$('#settingsBanner').textContent.includes('Режим правки') &&
+     m.$$('#settingsHost input[type=checkbox]').every(c => !c.disabled)); }
+/* НП-3 · один справочник ролей: шапка, таблица ролей, фильтр «моё подразделение» */
+{ const m = mk();
+  ok('НП-3 переключатель роли построен из справочника ROLES',
+     [...m.$('#roleSel').options].map(o=>o.value).join('|') === m.ev(`ROLES.map(r=>r.role).join('|')`));
+  m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('НП-3 таблица ролей рендерит строку на каждую роль',
+     m.$$('#settingsHost .role-grid tbody tr').length === m.ev('ROLES.length + SUBDIVS.filter(s=>!s.registers).length'));
+  ok('НП-3 роль без подразделений подписана «мер не регистрирует»',
+     m.$('#settingsHost .role-grid').textContent.includes('мер не регистрирует'));
+  ok('НП-3 фильтр «моё подразделение» читает тот же справочник', m.ev(`(()=>{
+    toggleRoleSubdiv(RULES_ADMIN_ROLE,'ДПО');
+    return roleSubdivs().join()==='ДПО';
+  })()`)); }
+/* НП-4 · один справочник подразделений; 6 колонок в матрице, 2 без регистрации */
+{ const m = mk(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('НП-4 справочник подразделений — 8 записей, регистрируют меры 6',
+     m.ev('SUBDIVS.length')===8 && m.ev('V9_SUBDIVS.length')===6);
+  ok('НП-4 колонок в матрице В-9 ровно столько, сколько регистрирующих подразделений',
+     m.$$('#settingsHost .settings-grid thead th').length === 6 + 4);
+  ok('НП-4 СРМК и СИТ показаны отдельным блоком с объяснением роли',
+     m.$('#settingsHost').textContent.includes('участвуют, но мер не регистрируют'.toUpperCase()) ||
+     m.$('#settingsHost').textContent.includes('Участвуют, но мер не регистрируют'));
+  ok('НП-4 у каждого нерегистрирующего подразделения названа его роль',
+     m.ev(`SUBDIVS.filter(s=>!s.registers).every(s=>!!s.why)`)); }
+/* НП-5 · два этажа правила: раздел ↔ вид, отвязка названа вслух и откатывается */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('НП-5 правило раздела редактируется и задевает наследников', m.ev(`(()=>{
+    const before=subdivOf('Акт сверки').join();
+    toggleSectionV9('Досудебный','ДПО');
+    return subdivSource('Акт сверки')==='section' && subdivOf('Акт сверки').join()!==before;
+  })()`));
+  ok('НП-5 клик по унаследованному виду отвязывает его от раздела и говорит об этом', m.ev(`(()=>{
+    const was=subdivSource('Акт сверки');
+    toggleV9('Акт сверки','ОПК');
+    return was==='section' && subdivSource('Акт сверки')==='own' &&
+           document.getElementById('toastWrap').textContent.includes('отвязан от правила раздела');
+  })()`));
+  ok('НП-5 «вернуть к разделу» снимает своё правило вида', m.ev(`(()=>{
+    unlinkBack('Акт сверки');
+    return subdivSource('Акт сверки')==='section' && !RULES.measureSubdiv['Акт сверки'];
+  })()`));
+  ok('НП-5 источник правила показан в каждой строке',
+     m.$('#settingsHost').innerHTML.includes('src-sec') && m.$('#settingsHost').innerHTML.includes('по разделу')); }
+/* НП-6 · изменено ↔ дефолт на трёх уровнях, откат на всех трёх */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('НП-6 на чистых правилах изменённых нет', m.ev('changedAll()')===0);
+  ok('НП-6 правка помечает строку, вкладку и экран', m.ev(`(()=>{
+    toggleV9('Акт сверки','ОПК');
+    return isChanged('measureSubdiv','Акт сверки') && changedInTab('v9')===1 && changedAll()===1 &&
+           document.getElementById('settingsHost').innerHTML.includes('row-changed') &&
+           document.getElementById('settingsTabbar').innerHTML.includes('chg-badge');
+  })()`));
+  ok('НП-6 чип «только изменённые» оставляет одну строку', m.ev(`(()=>{
+    setState.changedOnly=true; setRefresh();
+    const rows=document.querySelectorAll('#settingsHost .settings-grid tbody tr').length;
+    setState.changedOnly=false; setRefresh();
+    return rows===1;
+  })()`));
+  ok('НП-6 построчный откат возвращает дефолт', m.ev(`(()=>{
+    resetRuleKey('measureSubdiv','Акт сверки','тест');
+    return changedAll()===0;
+  })()`));
+  ok('НП-6 откат вкладки и экрана считает правила', m.ev(`(()=>{
+    toggleV9('Акт сверки','ОПК'); setSectionClevel('Судебный',3);
+    const two=changedAll()===2;
+    resetTabRules('v9');
+    const one=changedAll()===1 && changedInTab('v9')===0;
+    resetAllRules();
+    return two && one && changedAll()===0;
+  })()`)); }
+/* НП-7 · радиус правки: кого правило задевает сейчас */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('stage')`);
+  ok('НП-7 радиус стадии считается на лету и совпадает с проверкой доступа', m.ev(`(()=>{
+    const L=RULES.sectionClevel['Исполнительное производство'] ?? 1;
+    return openAtLevel(L)===allReqs().filter(r=>!sequenceReason(r,'Заявление о выдаче исполнительного листа')||
+      !/стадии/.test(sequenceReason(r,'Заявление о выдаче исполнительного листа')||'')).length ||
+      openAtLevel(L)>0;
+  })()`));
+  ok('НП-7 радиус стадии показан в таблице',
+     m.$('#settingsHost').textContent.includes('доступен'));
+  m.ev(`showSettingsTab('gates')`);
+  ok('НП-7 радиус гейта = число требований, которые он держит', m.ev(`(()=>{
+    const k='Исковое заявление';
+    return gateWouldHold(k)===allReqs().filter(r=>!!gateReason(r,k)).length && gateWouldHold(k)>0;
+  })()`));
+  ok('НП-7 у выключенного гейта радиус остаётся контрфактическим', m.ev(`(()=>{
+    const k='Исковое заявление', before=gateWouldHold(k);
+    toggleGate(k);
+    return RULES.gates[k].off===true && gateWouldHold(k)===before &&
+           allReqs().filter(r=>!!gateReason(r,k)).length===0;
+  })()`)); }
+/* НП-8 · правило действует вперёд */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('НП-8 запрет вида не отменяет уже зарегистрированные меры', m.ev(`(()=>{
+    const k='Первичная претензия', was=measuresOfKind(k);
+    RULES.measureSubdiv[k]=[]; renderSettings();
+    return was>0 && measuresOfKind(k)===was;
+  })()`));
+  ok('НП-8 строка вида называет число уже зарегистрированных мер',
+     m.$('#settingsHost').textContent.includes('правило их не отменяет'));
+  ok('НП-8 полоса режима правки объясняет действие вперёд',
+     m.$('#settingsBanner').textContent.includes('ВПЕРЁД')); }
+/* НП-9 · журнал правок */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings')`);
+  ok('НП-9 на чистых правилах журнал пуст и говорит об этом', m.ev(`(()=>{
+    ruleLogOpen=true; renderSettings();
+    return RULES.log.length===0 &&
+      document.getElementById('settingsJournal').textContent.includes('Правок не было');
+  })()`));
+  ok('НП-9 правка попадает в журнал с датой, ролью и текстом', m.ev(`(()=>{
+    toggleGate('Исковое заявление');
+    const e=RULES.log[0];
+    return RULES.log.length===1 && e.when===TODAY && e.who===RULES_ADMIN_ROLE && /Гейт/.test(e.what);
+  })()`));
+  ok('НП-9 журнал персистится вместе с правилами', m.ev(`(()=>{
+    const box=JSON.parse(localStorage.getItem(RULES_KEY));
+    return box.rules.log.length===1;
+  })()`));
+  ok('НП-9 «отменить эту правку» возвращает правило и убирает запись', m.ev(`(()=>{
+    undoRuleEdit(0);
+    return !RULES.gates['Исковое заявление'].off && RULES.log.length===0;
+  })()`));
+  ok('НП-9 сброс всего сохраняет журнал и добавляет свою запись', m.ev(`(()=>{
+    toggleGate('Исковое заявление'); resetAllRules();
+    return RULES.log.length===2 && /Сброс ВСЕХ правил/.test(RULES.log[0].what) && changedAll()===0;
+  })()`)); }
+/* НП-10 · гейты: предмет вопроса виден, выключение предупреждает */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('gates')`);
+  ok('НП-10 в таблице гейтов пять колонок + радиус + откат',
+     m.$$('#settingsHost .settings-grid thead th').length === 7);
+  ok('НП-10 показан ПРЕДМЕТ вопроса, по которому гейт ищет решение', m.ev(`(()=>{
+    const t=gateTopic('Безакцептное списание');
+    return !!t && document.getElementById('settingsHost').textContent.includes(t);
+  })()`));
+  ok('НП-10 предмет, орган и пункт не редактируются',
+     m.$$('#settingsHost .settings-grid tbody input').every(i => i.type === 'checkbox'));
+  ok('НП-10 отказ в подтверждении оставляет гейт включённым', m.ev(`(()=>{
+    __ok=false; toggleGate('Безакцептное списание'); __ok=true;
+    return !RULES.gates['Безакцептное списание'].off && changedAll()===0;
+  })()`)); }
+/* НП-11 · стадии: ступень названа контуром, закрытие для всех предупреждает */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('stage')`);
+  ok('НП-11 ступень подписана именем контура, а не числом',
+     m.$('#settingsHost').textContent.includes('с безнадёжной (К7)') &&
+     m.$('#settingsHost').textContent.includes('с самого начала (К0)'));
+  ok('НП-11 радиус называет «до → после» в журнале правок', m.ev(`(()=>{
+    setSectionClevel('Судебный',3);
+    return /доступен \\d+ → \\d+/.test(RULES.log[0].what);
+  })()`));
+  ok('НП-11 сужение доступа спрашивает подтверждение и без него не проходит', m.ev(`(()=>{
+    __ok=false; const was=RULES.sectionClevel['Досудебный'];
+    setSectionClevel('Досудебный',4); __ok=true;
+    return openAtLevel(4)<openAtLevel(was) && RULES.sectionClevel['Досудебный']===was;
+  })()`));
+  ok('НП-11 расширение доступа проходит без вопроса', m.ev(`(()=>{
+    __ok=false; setSectionClevel('Безнадёжная',0); __ok=true;
+    return RULES.sectionClevel['Безнадёжная']===0 && openAtLevel(0)===allReqs().length;
+  })()`)); }
+/* НП-12 · фазы: счётчик требований и предупреждение при перестановке */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('phases')`);
+  ok('НП-12 у каждой фазы показано, сколько требований в ней стоит сейчас',
+     m.$('#settingsHost').textContent.includes('в этой фазе') &&
+     m.$('#settingsHost').textContent.includes('требований в контуре'));
+  ok('НП-12 отказ в подтверждении оставляет порядок прежним', m.ev(`(()=>{
+    __ok=false; movePhase('К1',0,1); __ok=true;
+    return phasesOf('К1')[0]==='Претензия' && changedAll()===0;
+  })()`));
+  ok('НП-12 перестановка не перекладывает требования по фазам', m.ev(`(()=>{
+    const before=allReqs().map(phaseOf).join('|');
+    movePhase('К1',0,1);
+    return phasesOf('К1')[0]==='Повторная претензия' && allReqs().map(phaseOf).join('|')===before;
+  })()`)); }
+/* НП-13 · тулбар как на реестрах и дип-линк вкладки */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('НП-13 тулбар: поиск, раздел, «только изменённые», счётчик',
+     ['#setQ','#setSec','#setChanged','#setCount'].every(sel => !!m.$(sel)));
+  ok('НП-13 счётчик «показано N из M» считает строки таблицы',
+     m.$('#setCount').textContent.includes('показано') &&
+     m.$('#setCount').textContent.includes(String(m.ev('MEASURE_KINDS.length + SECTION_ORDER.length'))));
+  ok('НП-13 поиск сужает таблицу и рисует чип', m.ev(`(()=>{
+    document.getElementById('setQ').value='банкрот'; setRefresh();
+    const rows=document.querySelectorAll('#settingsHost .settings-grid tbody tr').length;
+    const chip=document.getElementById('settingsChips').textContent.includes('банкрот');
+    setClear('setQ');
+    return rows>0 && rows<MEASURE_KINDS.length && chip;
+  })()`));
+  ok('НП-13 фильтр по разделу оставляет только его правила', m.ev(`(()=>{
+    document.getElementById('setSec').value='Судебный'; setRefresh();
+    const n=document.querySelectorAll('#settingsHost .settings-grid tbody tr').length;
+    setClear('setSec');
+    return n === kindsOfSection('Судебный').length + 1;
+  })()`));
+  ok('НП-13 фильтр по разделу прячется на вкладке фаз', m.ev(`(()=>{
+    showSettingsTab('phases');
+    return document.getElementById('setSecWrap').style.display==='none';
+  })()`));
+  const m2 = mk(); m2.w.location.hash = '#settings/gates'; m2.ev('restoreFromHash()');
+  ok('НП-13 дип-линк открывает нужную вкладку',
+     m2.ev('settingsTab')==='gates' && m2.$('#view-settings').style.display==='flex');
+  ok('НП-13 экран есть в левой навигации',
+     m2.$('#nav').textContent.includes('Настройки правил')); }
+/* НП-14 · персист: слияние по полям + версия схемы */
+{ const m = mk();
+  ok('НП-14 правила чужой версии сбрасываются, а не домысливаются', m.ev(`(()=>{
+    localStorage.setItem(RULES_KEY, JSON.stringify({ v:1, rules:{ sectionClevel:{'Досудебный':4} } }));
+    RULES=deepClone(RULES_DEFAULTS); RULES.log=[];
+    restoreRules();
+    return RULES.sectionClevel['Досудебный']===RULES_DEFAULTS.sectionClevel['Досудебный'] &&
+           localStorage.getItem(RULES_KEY)===null;
+  })()`));
+  ok('НП-14 незнакомый ключ и чужой код подразделения в живые правила не попадают', m.ev(`(()=>{
+    localStorage.setItem(RULES_KEY, JSON.stringify({ v:RULES_SCHEMA, rules:{
+      measureSubdiv:{ 'Мера, которой нет':['ОД'], 'Акт сверки':['ОД','ЧУЖОЕ'] },
+      contourPhases:{ 'К1':['Повторная претензия','Фаза, которой нет'] } } }));
+    RULES=deepClone(RULES_DEFAULTS); RULES.log=[];
+    restoreRules();
+    return !RULES.measureSubdiv['Мера, которой нет'] &&
+           (RULES.measureSubdiv['Акт сверки']||[]).join()==='ОД' &&
+           RULES.contourPhases['К1'].join('>')==='Повторная претензия>Претензия>Безакцептное списание';
+  })()`));
+  ok('НП-14 предмет и орган гейта всегда приходят из справочника', m.ev(`(()=>{
+    localStorage.setItem(RULES_KEY, JSON.stringify({ v:RULES_SCHEMA, rules:{
+      gates:{ 'Исковое заявление':{ off:true, topic:'подделка', organ:'подделка' } } } }));
+    RULES=deepClone(RULES_DEFAULTS); RULES.log=[];
+    restoreRules();
+    const g=RULES.gates['Исковое заявление'];
+    return g.off===true && g.topic===RULES_DEFAULTS.gates['Исковое заявление'].topic &&
+           g.organ===RULES_DEFAULTS.gates['Исковое заявление'].organ;
+  })()`));
+  ok('НП-14 роль→подразделения хранится массивом',
+     m.ev(`Object.values(RULES_DEFAULTS.roleSubdiv).every(v=>Array.isArray(v))`)); }
+/* НП-15 · затравка приведена к справочнику видов мер */
+ok('НП-15 все виды мер затравки есть в справочнике MEASURE_KINDS',
+   g.ev(`(()=>{ const k=new Set(MEASURE_KINDS);
+     return PROCESSES.every(p=>(p.measures||[]).every(m=>k.has(m.kind))); })()`));
+ok('НП-15 предупреждающая строка о видах вне справочника есть, но молчит на чистых данных',
+   g.ev('Object.keys(kindsOutsideDict()).length')===0);
 
 /* ══════════════════════════════════════════════════════════════════════════
    МИРОВОЕ И ДОБРОВОЛЬНОЕ — решения МС-1…МС-7 (стадия берётся у требования)
@@ -1199,8 +1477,11 @@ ok('список подразделений строится из выведен
    S.ev(`(()=>{ const opts=[...document.getElementById('dlSubdiv').options].map(o=>o.value).filter(Boolean);
      return opts.length>1 && opts.every(v=>{ document.getElementById('dlSubdiv').value=v;
        const n=dlAll().filter(dlPass).length; document.getElementById('dlSubdiv').value=''; return n>0; }); })()`));
+/* НП-3: подразделения роли — не третий список в коде, а справочник ROLES; фильтр
+   «только моё подразделение» и переключатель в шапке читают одну и ту же запись. */
 ok('«только моё подразделение» читает ролевой селектор',
-   S.ev(`roleSubdivs().join('/')`) === 'ДАК/РП/ОД');
+   S.ev(`roleSubdivs().join('/')`) === S.ev(`(ROLE_BY_NAME[currentRole()]||{subdivs:[]}).subdivs.join('/')`)
+   && S.ev('roleSubdivs().length') === 3);
 ok('фильтр по подразделению сужает выборку', (()=>{
   S.doc.getElementById('dlSubdiv').value = 'ОПК'; S.ev(`dlRefresh()`);
   const n = sRows().length, chips = S.$$('#dlChips .fchip').length;
