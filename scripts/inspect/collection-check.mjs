@@ -69,6 +69,35 @@ ok('солидарный сосед заёмщика — поручитель',
    g.ev(`solidaryWith(${R('142/56/з')}).map(r=>r.id).join(',')`) === '142/56/п');
 ok('дело 402 — три требования по трём договорам',
    g.ev(`new Set(${P('402')}.requirements.map(r=>r.credit)).size`) === 3);
+
+/* ── МТ · дело 412: три требования одного заёмщика идут по трём контурам ──
+   Ради этого сценария ADR-0002 и отверг модель «одно дело — одна фаза». */
+ok('дело 412 — три требования по трём договорам',
+   g.ev(`new Set(${P('412')}.requirements.map(r=>r.credit)).size`) === 3
+   && g.ev(`${P('412')}.requirements.every(r=>r.role==='заёмщик')`));
+ok('три требования дела 412 идут по трём разным контурам',
+   g.ev(`${P('412')}.requirements.map(contourOf).join(',')`) === 'К4,К3,К1');
+ok('фазы дела 412 — исполнительное, иск, претензия',
+   g.ev(`${P('412')}.requirements.map(phaseOf).join(' | ')`) === 'На исполнении | Иск | Претензия');
+ok('§6.2 · ведущее подразделение у каждого требования своё',
+   g.ev(`${P('412')}.requirements.map(r=>r.subdivision).join(',')`) === 'САК,ДПО,ОД'
+   && g.ev(`new Set(allReqs().map(r=>r.subdivision)).size > 1`));
+ok('подразделение с кредита, владелец дела — умолчание',
+   g.ev(`/subdivision: c\\.subdiv \\|\\| subdivOfOwner/.test(mkReq.toString())`)
+   && g.ev(`${P('402')}.requirements.every(r=>r.subdivision === subdivOfOwner(${P('402')}.owner))`));
+ok('каждая мера дела 412 целит ровно в одно требование',
+   g.ev(`${P('412')}.measures.every(m => m.targets.length === 1)`)
+   && g.ev(`new Set(${P('412')}.measures.flatMap(m=>m.targets)).size`) === 3);
+ok('охваты трёх требований различны, сумма считается из охвата',
+   g.ev(`${P('412')}.requirements.map(r=>r.scope).join(',')`) === 'полный остаток,залог,просроченная сумма'
+   && g.ev(`claimOf(${R('412/562/з')}) < claimOf(${R('412/561/з')})`));
+ok('категория дела — worst-of по кредитам, не поле дела',
+   g.ev(`${P('412')}.requirements.map(r=>catOfReq(r)).join(',')`) === 'high,high,mid'
+   && g.ev(`catOfProcess(${P('412')})`) === 'high');
+ok('КР-10 · решение по договору 561 не открывает извещение по 562',
+   g.ev(`gateReason(${R('412/561/з')}, 'Извещение об обращении на залог') === null`)
+   && /Решение есть, но по другому кредиту \(Дог\. №561 /.test(
+        g.ev(`String(gateReason(${R('412/562/з')}, 'Извещение об обращении на залог'))`)));
 ok('дело — только папка: своей фазы / охвата / суммы у него нет',
    g.ev(`PROCESSES.every(p => !('phase' in p) && !('contour' in p) && !('claim' in p) && !('debt' in p))`));
 ok('в данных дела нет полей cat / catDays / stage',
@@ -919,7 +948,7 @@ ok('снимок не роняется круговыми ссылками и в
   restoreState();
   const r = REQ_INDEX['142/56/з'];
   return !!r && r.scope === 'полный остаток' && r.costs.some(c => c.amount === 2500)
-      && r._proc.id === '142' && allReqs().length === 136;
+      && r._proc.id === '142' && allReqs().length === 139;
 })()`));
 ok('после восстановления соглашение снова связано с состоянием', mk().ev(`(() => {
   openDetail('120/40/з'); persistState(); restoreState();
@@ -1603,8 +1632,8 @@ const sCols  = () => S.$$('#dlHead th').map(t => t.textContent.replace(/[↑↓�
 head('СК-1/СК-6 · очередь с горизонтом, а не список просроченного');
 ok('умолчание — горизонт 7 дней',            S.ev(`dlHorizon`) === '7' && /Горизонт: 7 дней/.test(sFrame()));
 ok('предстоящие сроки показаны, а не только просроченные',
-   sRows().length === 35 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 17);
-ok('горизонт «всё» даёт все 47 сроков',      (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 47; })());
+   sRows().length === 36 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 17);
+ok('горизонт «всё» даёт все 49 сроков',      (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 49; })());
 ok('просроченное проходит любой горизонт',   (()=>{ S.ev(`dlSetHorizon('7')`);
    return S.ev(`dlAll().filter(x=>x.n<0).every(dlPass)`); })());
 ok('сегмент показывает выбранный горизонт',  S.$('#dlSeg button.on').dataset.h === '7');
@@ -1641,7 +1670,7 @@ head('СК-5 · порядок по возрастанию остатка, со�
 ok('умолчание — по остатку вверх',           S.ev(`dlSort.k === 'left' && dlSort.dir === 1`));
 ok('отрисованные строки идут по возрастанию остатка', (()=>{
   const a = sRows().map(r => Number(r.querySelectorAll('td')[1].textContent.trim().replace('−','-').split(' ')[0]));
-  return a.length === 35 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -34 && a[a.length-1] === 7; })());
+  return a.length === 36 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -34 && a[a.length-1] === 7; })());
 ok('клик по колонке меняет ключ и направление', (()=>{
   S.ev(`dlSortBy('due')`); const up = S.ev(`dlSort.k==='due' && dlSort.dir===1`);
   S.ev(`dlSortBy('due')`); const down = S.ev(`dlSort.dir===-1`);
@@ -1650,7 +1679,7 @@ ok('клик по колонке меняет ключ и направление
 head('СК-7/СК-12 · рамка со счётчиками, пустое состояние с причиной');
 ok('плиток на экране сроков нет',            S.$('#view-deadlines .tile') === null);
 ok('рамка считает очередь и называет дату отсчёта',
-   /показано 35 из 47 · просрочено 17 · истекает сегодня 5 · отсчёт от 21\.07\.2026/.test(sFrame()));
+   /показано 36 из 49 · просрочено 17 · истекает сегодня 5 · отсчёт от 21\.07\.2026/.test(sFrame()));
 ok('пустое состояние называет условия и даёт их снять', (()=>{
   S.doc.getElementById('dlQ').value = 'такого-заёмщика-нет'; S.ev(`dlRefresh()`);
   const e = S.$('#deadlinesBody .list-empty');
@@ -1717,7 +1746,7 @@ ok('шаблон находится у всех сроков Порядка (б�
    их вывели из самого заседания, поэтому у хранимых сроков шаблон теперь есть у всех. */
 ok('«вне Порядка» помечено, а не выброшено',
    S.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>!d.tpl).length === 0`)
-   && S.ev(`PROCESSES.flatMap(p=>dlOf(p)).filter(d=>!d.tpl).length === 4`)
+   && S.ev(`PROCESSES.flatMap(p=>dlOf(p)).filter(d=>!d.tpl).length === 5`)
    && sRows().some(r=>/вне Порядка/.test(r.textContent)));
 ok('«п. —» больше не рисуется (СК-Д13)',     !sRows().some(r=>/п\. —/.test(r.textContent)));
 ok('Р-8 подписан без «п.» — это решение проекта, не пункт Порядка',
@@ -1788,13 +1817,13 @@ head('КР-2 · заседание — одна сущность, срок вы�
 ok('хранимых сроков «Следующее судебное заседание» в затравке нет',
    H.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>/судебное заседание/i.test(d.action)).length === 0`));
 ok('срок выводится из заседания и держит ссылку на него',
-   H.ev(`PROCESSES.flatMap(p=>hearingDeadlines(p)).length === 4`)
+   H.ev(`PROCESSES.flatMap(p=>hearingDeadlines(p)).length === 5`)
    && H.ev(`PROCESSES.flatMap(p=>hearingDeadlines(p)).every(d=>!!d._hearing)`));
 ok('в очередь выводится только не наступившее заседание',
    H.ev(`PROCESSES.flatMap(p=>hearingDeadlines(p)).every(d=>daysLeft(d) >= 0)`)
-   && H.ev(`PROCESSES.flatMap(p=>p.hearings||[]).length === 10`));
+   && H.ev(`PROCESSES.flatMap(p=>p.hearings||[]).length === 12`));
 ok('очередь сроков видит заседание строкой',
-   H.ev(`dlAll().filter(x=>x.d._hearing).length === 4`));
+   H.ev(`dlAll().filter(x=>x.d._hearing).length === 5`));
 ok('снимок состояния производный срок не хранит',
    H.ev(`(()=>{ persistState(); return !/Следующее судебное заседание/.test(localStorage.getItem(STORE_KEY)||''); })()`));
 
@@ -1804,19 +1833,19 @@ ok('восемь колонок в заданном порядке',
 ok('колонки «Статус» с планированием больше нет', !rCols(H,'hearings').includes('Статус'));
 ok('умолчание — предстоящие, прошедшее без исхода показано всегда',
    H.ev(`regState.hearings.seg`) === 'upcoming'
-   && rRows(H,'hearings').length === 7
+   && rRows(H,'hearings').length === 8
    && rRows(H,'hearings').filter(r=>/исход не внесён/.test(r.textContent)).length === 3);
 ok('сегмент «Прошедшие» даёт только прошедшие', (()=>{
    H.ev(`regSetSeg('hearings','past')`); const n = rRows(H,'hearings').length;
    const all = (H.ev(`regSetSeg('hearings','all')`), rRows(H,'hearings').length);
-   H.ev(`regSetSeg('hearings','upcoming')`); return n === 6 && all === 10; })());
+   H.ev(`regSetSeg('hearings','upcoming')`); return n === 7 && all === 12; })());
 ok('мера-основание — подписью, а не колонкой',
    /мера ИСК-/.test(rRows(H,'hearings')[0].textContent)
    && /Мера-основание: ИСК-77 · участники:/.test(rRows(H,'hearings')[0].getAttribute('title')));
 ok('представитель ФКФ выведен из участников, а не введён руками',
    H.ev(`REGS.hearings.all().every(x=>!!x.rep)`) && !/rep:'/.test(HTML));
 ok('рамка называет очередь, дыру и ближайшее заседание',
-   /предстоит <b>4<\/b> · прошло без внесённого исхода <b>3<\/b> · ближайшее <b>24\.07\.2026 09:30<\/b>/.test(H.$('#hearingsFrame').innerHTML));
+   /предстоит <b>5<\/b> · прошло без внесённого исхода <b>3<\/b> · ближайшее <b>24\.07\.2026 09:30<\/b>/.test(H.$('#hearingsFrame').innerHTML));
 
 head('КР-5/КР-6/КР-7 · претензии: ось вручение, сумма документа неизменна');
 ok('семь колонок, ось — вручение',
@@ -1832,19 +1861,19 @@ ok('сегмент «Не вручены» отбирает их же', (()=>{
 ok('три даты Р-7 и результат — в подсказке строки',
    /Событие .+ · поступление .+ · регистрация .+ · результат: /.test(rRows(C,'claims')[0].getAttribute('title')));
 ok('сумма документа не пересчитана, расхождение подписано «сейчас …»',
-   rRows(C,'claims').filter(r=>/сейчас /.test(r.textContent)).length === 5
+   rRows(C,'claims').filter(r=>/сейчас /.test(r.textContent)).length === 9
    && C.ev(`REGS.claims.all().every(x=>x.doc === parseSum(x.m.sum))`));
 ok('дельта суммы нигде не хранится (ADR-0001)',
    C.ev(`PROCESSES.flatMap(p=>p.measures||[]).every(m=>m.sumNow===undefined && m.delta===undefined)`));
 ok('рамка считает вручение, сторно и расхождение',
-   /без подтверждения вручения <b>2<\/b> \(п\. 20\.2\) · сторнировано <b>1<\/b> · сумма документа разошлась с требованием у <b>5<\/b>/
+   /без подтверждения вручения <b>2<\/b> \(п\. 20\.2\) · сторнировано <b>1<\/b> · сумма документа разошлась с требованием у <b>9<\/b>/
      .test(C.$('#claimsFrame').innerHTML));
 
 head('КР-8/КР-9/КР-11 · вопросы: состояние выводится в одном месте');
 ok('семь колонок, состояние первым',
    rCols(Q,'committee').join('|') === 'Состояние|Предмет|Орган|Заёмщик|Договоры|Инициатор|Заседание');
 ok('умолчание — ждут решения',               Q.ev(`regState.committee.seg`) === 'pending'
-   && rRows(Q,'committee').length === 4 && Q.ev(`REGS.committee.all().length`) === 28);
+   && rRows(Q,'committee').length === 4 && Q.ev(`REGS.committee.all().length`) === 29);
 ok('состояний ровно четыре',                 Q.ev(`Object.keys(CQ_STATE).join('/')`) === 'pending/scheduled/positive/negative');
 ok('заглушки в поле решения решением больше не считаются',
    Q.ev(`CQ_NON_DECISION.size === 4`)
@@ -1982,7 +2011,7 @@ ok('вкладка «Гейты» настроек по-прежнему чит�
    g.ev(`Object.keys(RULES.gates).length === 4`)
    && g.ev(`Object.keys(RULES.gates).every(k=>!!RULES.gates[k].organ && !!RULES.gates[k].point && !!RULES.gates[k].topic)`));
 ok('реестр требований и карточка волной не тронуты',
-   g.ev(`TABS.length === 10`) && g.ev(`allReqs().length === 136`));
+   g.ev(`TABS.length === 10`) && g.ev(`allReqs().length === 139`));
 
 /* ══════════════════════════════════════════════════════════════════════════
    СПРАВОЧНИКИ — при переезде модели ничего не потеряно
