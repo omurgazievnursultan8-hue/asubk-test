@@ -1623,6 +1623,398 @@ ok('Один движок. у Талас Стройсервиса полоса �
       && acTalas.$$('#actsWrap .defect-bar .badge').length === codes.length
       && /2 акта не подтверждены/.test(acText(acTalas)); })());
 
+/* ── Вкладка 8 «Проверки и дефекты»: КЗ-37 · Б-17 ──────────────────────────────
+   Вкладка — третья подача одного движка (КЗ-22), а не свой набор проверок. Отсюда всё:
+   список обязан совпадать с тем, что считает шапка и печатает счётчик вкладки (Б-17),
+   кнопки пересчёта быть не может (производная считается при отображении, ADR-0001),
+   а классификации на вкладке проверок — справочная строка, не третья сущность. */
+const chTab   = inn => { const f = card(inn); f.ev("switchTab(tabIx('проверки'))"); return f; };
+const chPanel = f => f.$('.tabpanel[data-panel="' + f.ev("tabIx('проверки')") + '"]');
+const chText  = f => chPanel(f).textContent.replace(/\s+/g, ' ');
+const chAts   = chTab('01204199910016');   // дефекты залога и взыскания есть
+const chClean = chTab('10001199900101');   // погашенный кредит — чужих дефектов нет
+
+ok('Б-17. список вкладки — проекция общего движка: дефекты залога и взыскания в нём есть',
+  (() => { const foreign = chAts.ev("JSON.stringify(defects('01204199910016',asOf()).filter(x=>x.area!=='заёмщик').map(x=>x.code))");
+    const codes = [...new Set(JSON.parse(foreign))].sort();
+    const t = chText(chAts);
+    return codes.join(',') === 'Д-ВЗЫСК,Д-ЗАЛ' && codes.every(c => t.includes(c)); })());
+
+ok('Б-17. число дефектов в таблице равно счётчику вкладки — над таблицей не висит чужая цифра',
+  /* считаем по DOM: строка-дефект помечена ⛔ (стоп) или ⚠ (степень). Пройденная (✓) и
+     справочная (i) — не дефекты: с Б-21 справочная запись выпала и из defects(), и из
+     счётчика вкладки, поэтому предикат называет разряды прямо, а не «всё, кроме галочки». */
+  (() => {
+    const rows = [...chPanel(chAts).querySelectorAll('table.grid')[0].querySelectorAll('tbody tr')];
+    const bad = rows.filter(r => /^[⛔⚠]/.test(r.querySelector('td.who').textContent.trim())).length;
+    return bad > 0 && bad === chAts.ev("tabCount('01204199910016','проверки')"); })());
+
+ok('Б-17. разряды итога не пересекаются и в сумме дают длину списка',
+  (() => { const m = /Стоп-факторов: (\d+) · предупреждений: (\d+) ·(?: справочно: (\d+) ·)? пройдено: (\d+) — .*? всего проверок (\d+)/.exec(chText(chAts));
+    if (!m) return false;
+    const [stop, warn, info, pass, total] = [m[1], m[2], m[3] || '0', m[4], m[5]].map(Number);
+    const len = chAts.ev("borrowerChecks('01204199910016',asOf()).length"
+      + " + defects('01204199910016',asOf()).filter(x=>x.area!=='заёмщик').length");
+    return stop + warn + info + pass === total && total === len; })());
+
+ok('Б-17. стоп-фактор считается один раз: он в «стоп», а не ещё и в «предупреждениях»',
+  (() => { const m = /Стоп-факторов: (\d+) · предупреждений: (\d+)/.exec(chText(chAts));
+    const stop = chAts.ev("borrowerChecks('01204199910016',asOf()).concat(defects('01204199910016',asOf())"
+      + ".filter(x=>x.area!=='заёмщик')).filter(c=>c.stop).length");
+    const warn = chAts.ev("borrowerChecks('01204199910016',asOf()).concat(defects('01204199910016',asOf())"
+      + ".filter(x=>x.area!=='заёмщик')).filter(c=>!c.stop && (c.sev==='high'||c.sev==='mid')).length");
+    return !!m && Number(m[1]) === stop && Number(m[2]) === warn && stop > 0; })());
+
+ok('Б-17. чужой дефект ведёт на свою вкладку, а не пересказывает разбор третьим текстом',
+  (() => { const links = [...chPanel(chAts).querySelectorAll('a.lnk')]
+      .filter(a => /разобрано на вкладке/.test(a.textContent));
+    const tabs = links.map(a => a.getAttribute('href').split('/').pop());
+    return links.length >= 2
+      && tabs.includes(String(chAts.ev("tabIx('обеспечение')")))
+      && tabs.includes(String(chAts.ev("tabIx('взыскание')"))); })());
+
+ok('КЗ-37. кнопки «Проверить заново» нет: пересчитывать нечего (ADR-0001)',
+  !/Проверить заново/.test(chText(chAts))
+  && [...chPanel(chAts).querySelectorAll('button')].every(b => !/[Пп]ровери|[Пп]ересчит/.test(b.textContent)));
+
+ok('КЗ-37. классификации — справочная строка, а не секция с рамкой',
+  (() => { const t = chText(chAts);
+    return !/Справочно — классификации/.test(t)
+      && /Справочно · категория риска/.test(t)
+      && /проверкой не являются/.test(t)
+      && [...chPanel(chAts).querySelectorAll('.section .section-head')]
+           .every(h => !/классификац/i.test(h.textContent)); })());
+
+ok('КЗ-16. кнопка «запросить свежий снимок» отвечает маршрутом, а не молчанием',
+  (() => { const b = [...chPanel(chAts).querySelectorAll('button')]
+      .find(x => /свежий снимок/.test(x.textContent));
+    return !!b && /notRouted\('модуль заявок'\)/.test(b.getAttribute('onclick') || ''); })());
+
+ok('Б-17. карточка без чужих дефектов даёт список ровно из своих проверок',
+  (() => { const t = chText(chClean);
+    return chClean.ev("defects('10001199900101',asOf()).filter(x=>x.area!=='заёмщик').length") === 0
+      && !/разобрано на вкладке/.test(t)
+      && chClean.ev("borrowerChecks('10001199900101',asOf()).length")
+         === chPanel(chClean).querySelectorAll('table.grid')[0].querySelectorAll('tbody tr').length; })());
+
+/* ── Вкладка 9 «Документы»: КЗ-38 · Б-7 · Б-18 ─────────────────────────────────
+   Знаменатель досье идёт от того, что ТРЕБУЕТСЯ (объекты в реестрах), а не от того, что уже
+   лежит в папке: иначе объект без документов выпадает и из перечня, и из знаменателя, и ноль
+   документов читается как полный комплект. Заявки непроверяемы — реестра заявок здесь нет. */
+const dcTab   = inn => { const f = card(inn); f.ev("switchTab(tabIx('документы'))"); return f; };
+const dcPanel = f => f.$('.tabpanel[data-panel="' + f.ev("tabIx('документы')") + '"]');
+const dcText  = f => dcPanel(f).textContent.replace(/\s+/g, ' ');
+/* секция по заголовку: возвращает {head, rows} */
+const dcSect  = (f, title) => { const s = [...dcPanel(f).querySelectorAll('.section')]
+    .find(x => (x.querySelector('.section-head') || {}).textContent
+      && x.querySelector('.section-head').textContent.trim().startsWith(title));
+  return s ? { head: s.querySelector('.section-head').textContent.replace(/\s+/g,' '),
+               rows: [...s.querySelectorAll('tbody tr')] } : null; };
+const dcAts   = dcTab('01204199910016');   // 2 действующих залога, документ вне реестра, документ заявки
+const dcClosed= dcTab('10001199900101');   // залог снят с ареста
+const dcExp   = dcTab('06601199960061');   // полис на технике истёк
+const dcNoTech= dcTab('04401199940041');   // залог без техники — полис не требуется
+
+ok('Б-7. перечень объектов залога идёт из реестра, а не из приложенных документов',
+  (() => { const s = dcSect(dcAts, 'Залог'); if (!s) return false;
+    const nos = dcAts.ev("JSON.stringify(PLEDGE_AGR.filter(a=>a.inn==='01204199910016').map(a=>a.no))");
+    const txt = s.rows.map(r => r.textContent).join(' ');
+    const docd = dcAts.ev("DOCS.filter(d=>d.inn==='01204199910016'&&d.scope.kind==='залог'&&PLEDGE_AGR.some(a=>a.id===d.scope.ref)).length");
+    return JSON.parse(nos).length === 2 && JSON.parse(nos).every(n => txt.includes(n)) && docd === 0; })());
+
+ok('Б-7. залог без единого документа всё равно даёт свои требования в знаменателе',
+  (() => { const s = dcSect(dcAts, 'Залог');
+    const st = dcAts.ev("JSON.stringify(dossierStats('01204199910016').byKind['залог'])");
+    const k = JSON.parse(st);
+    return !!s && k.need === 6 && k.met === 2 && /2 из 6/.test(s.head); })());
+
+ok('Б-7. процент досье считается от реестров: цифра полосы и основание Д-ДОСЬЕ — одна и та же',
+  (() => { const t = dcText(dcAts);
+    const st = JSON.parse(dcAts.ev("JSON.stringify(dossierStats('01204199910016'))"));
+    const basis = dcAts.ev("borrowerChecks('01204199910016',asOf()).find(c=>c.code==='Д-ДОСЬЕ').basis");
+    return t.includes(st.met + ' из ' + st.req + ' обязательных документов приложено')
+      && basis.includes('приложено ' + st.met + ' из ' + st.req)
+      && t.includes(Math.round(st.met / st.req * 100) + '%'); })());
+
+ok('КЗ-38. заявки показаны, но не посчитаны: раздела нет ни в DOC_KINDS, ни в знаменателе',
+  (() => { const s = dcSect(dcAts, 'Заявки'); if (!s) return false;
+    const inKinds = dcAts.ev("DOC_KINDS.indexOf('заявка')");
+    const app = dcAts.ev("appDocs('01204199910016').length");
+    const before = dcAts.ev("dossierStats('01204199910016').req");
+    return inKinds === -1 && app === 1 && s.rows.length === 1 && /не считается/.test(s.head)
+      && before === dcAts.ev("DOC_KINDS.reduce((n,k)=>n+docRefs('01204199910016',k).reduce((m,r)=>m+reqForRef('01204199910016',k,r).length,0),0)"); })());
+
+ok('КЗ-16. раздел заявок отвечает маршрутом в свой модуль, а не молчанием',
+  (() => { const s = dcSect(dcAts, 'Заявки');
+    const b = s && [...dcPanel(dcAts).querySelectorAll('button')].find(x => /Открыть заявки/.test(x.textContent));
+    return !!b && /notRouted\('модуль заявок'\)/.test(b.getAttribute('onclick') || ''); })());
+
+ok('КЗ-38. по снятому залогу срочные документы не требуются — «истёк» не висит вечно',
+  (() => { const s = dcSect(dcClosed, 'Залог'); if (!s) return false;
+    const req = JSON.parse(dcClosed.ev("JSON.stringify(reqForRef('10001199900101','залог',docRefs('10001199900101','залог')[0]).map(r=>r.t))"));
+    return req.join(',') === 'Договор залога' && s.rows.length === 1
+      && /снят/.test(s.rows[0].textContent) && !/истёк/.test(s.rows[0].textContent); })());
+
+ok('Б-18. полис читается из источника: срок со вкладки «Обеспечение», а не «нет» в досье',
+  (() => { const s = dcSect(dcAts, 'Залог'); if (!s) return false;
+    const row = s.rows.find(r => /Страховой полис/.test(r.textContent));
+    const till = dcAts.ev("(policyStatus(docRefs('01204199910016','залог')[0]).obj||{}).policyTill");
+    return !!row && !!till && row.textContent.includes(till) && !/\bнет\b/.test(row.textContent); })());
+
+ok('Б-18. истёкший полис досье и вкладка «Обеспечение» называют одинаково',
+  (() => { const s = dcSect(dcExp, 'Залог'); if (!s) return false;
+    const bad = s.rows.filter(r => /Страховой полис/.test(r.textContent) && /истёк/.test(r.textContent));
+    return bad.length === dcExp.ev("dossierStats('06601199960061').exp")
+      && bad.length === dcExp.ev("docRefs('06601199960061','залог').filter(r=>policyStatus(r).code==='expired').length"); })());
+
+ok('Б-18. где техники нет — полис не требуется: строки-требования тоже нет',
+  (() => { const s = dcSect(dcNoTech, 'Залог'); if (!s) return false;
+    return dcNoTech.ev("docRefs('04401199940041','залог').every(r=>!pledgeTech(r).length)")
+      && s.rows.every(r => !/Страховой полис/.test(r.textContent)); })());
+
+ok('Б-18. документ вне реестра виден строкой с меткой, а не исчезает молча',
+  (() => { const s = dcSect(dcAts, 'Залог'); if (!s) return false;
+    const orph = JSON.parse(dcAts.ev("JSON.stringify(orphanDocs('01204199910016').map(d=>d.scope.ref))"));
+    const marked = s.rows.filter(r => /нет в реестре договоров залога/.test(r.textContent));
+    return orph.length === 1 && marked.length === 1 && marked[0].textContent.includes(orph[0])
+      && /1 вне реестра/.test(s.head); })());
+
+ok('Б-18 / один движок. тот же факт считает Д-ДОСЬЕ-РЕЕСТР, полоса вкладки — его проекция',
+  (() => { const d = JSON.parse(dcAts.ev("JSON.stringify(defects('01204199910016',asOf())"
+      + ".filter(x=>x.tab===tabIx('документы')).map(x=>x.code))"));
+    const badges = [...dcPanel(dcAts).querySelectorAll('.defect-bar .badge')];
+    return d.includes('Д-ДОСЬЕ-РЕЕСТР') && badges.length === d.length
+      && badges.some(b => /вне реестра объектов/.test(b.textContent)); })());
+
+/* ── Вкладка 10 «Реквизиты и связи»: КЗ-39 · КЗ-40 · Б-19 · Б-20 · Б-21 ────────
+   Вкладка выводит два чужих множества: лица ведёт реестр лиц, реквизиты принадлежат
+   СУБЪЕКТУ. Значит здесь не должно остаться ни одной точки ввода, каждый маршрут наружу
+   обязан вести в живое место, а идентификатор лица — называться своим именем (ПИН). */
+const lkTab   = inn => { const f = card(inn); f.ev("switchTab(tabIx('связи'))"); return f; };
+const lkPanel = f => f.$('.tabpanel[data-panel="' + f.ev("tabIx('связи')") + '"]');
+const lkText  = f => lkPanel(f).textContent.replace(/\s+/g, ' ');
+const lkSect  = (f, title) => { const s = [...lkPanel(f).querySelectorAll('.section')]
+    .find(x => (x.querySelector('.section-head') || {}).textContent
+      && x.querySelector('.section-head').textContent.trim().startsWith(title));
+  return s ? { head: s.querySelector('.section-head').textContent.replace(/\s+/g,' '),
+               rows: [...s.querySelectorAll('tbody tr')], el: s } : null; };
+const lkAts   = lkTab('01204199910016');   // 3 связанных лица (одно — субъект), группа ГЗПМ-7
+const lkGrp2  = lkTab('11101199900111');   // второй член той же группы
+const lkNoCh  = lkTab('20190119991019');   // все каналы закрыты — уведомить нечем
+const lkFiz   = lkTab('07701199970071');   // физлицо: ни связей, ни группы
+
+ok('КЗ-39. идентификатор связанного лица назван ПИНом, а колонки «ИНН» над ПИНом нет',
+  (() => { const s = lkSect(lkAts, 'Связанные лица'); if (!s) return false;
+    const th = [...s.el.querySelectorAll('thead th')].map(x => x.textContent.trim());
+    const pins = lkAts.ev("JSON.stringify(RELATED.filter(r=>r.inn==='01204199910016').map(r=>r.pin))");
+    return th.includes('ПИН') && !th.includes('ИНН')
+      && JSON.parse(pins).every(p => s.rows.some(r => r.textContent.includes(p))); })());
+
+ok('КЗ-39. связанное лицо, заведённое субъектом, ведёт на страницу лица; прочие — в реестр',
+  (() => { const s = lkSect(lkAts, 'Связанные лица'); if (!s) return false;
+    const withSubj = s.rows.filter(r => r.querySelector('td.who a'));
+    const cnt = lkAts.ev("RELATED.filter(r=>r.inn==='01204199910016' && r.subjInn).length");
+    return withSubj.length === cnt && cnt > 0
+      && withSubj[0].querySelector('td.who a').getAttribute('href') === '#/s/07701199970071'; })());
+
+ok('Б-19. роль «Связанное лицо» выводится по ИНН субъекта, а не сопоставлением ФИО',
+  (() => { const roles = JSON.parse(lkAts.ev("JSON.stringify(subjectRoles('07701199970071').map(r=>r.role))"));
+    /* переименование лица роль не рвёт: имя не участвует в счёте */
+    const after = JSON.parse(lkAts.ev("(()=>{const s=SUBJECTS.find(x=>x.inn==='07701199970071');"
+      + "const old=s.name; s.name='ПЕРЕИМЕНОВАН';"
+      + "const r=JSON.stringify(subjectRoles('07701199970071').map(x=>x.role)); s.name=old; return r;})()"));
+    return roles.includes('Связанное лицо') && after.includes('Связанное лицо'); })());
+
+ok('КЗ-39. ГЗПМ показана только тем, кто в группе состоит, и состоит из лиц с ИНН',
+  (() => { const s = lkSect(lkAts, 'Группа совместного риска'); if (!s) return false;
+    const members = JSON.parse(lkAts.ev("JSON.stringify(GROUPS.find(g=>g.id==='ГЗПМ-7').members)"));
+    const hasBlock = members.every(m => s.rows.some(r => r.textContent.includes(m)));
+    return hasBlock && s.rows.length === members.length
+      && !lkSect(lkFiz, 'Группа совместного риска')            // не в группе — блока нет вовсе
+      && !!lkSect(lkGrp2, 'Группа совместного риска'); })());   // второй член видит ту же группу
+
+ok('КЗ-39. член группы, кроме самого заёмщика, ведёт на свою карточку',
+  (() => { const s = lkSect(lkAts, 'Группа совместного риска'); if (!s) return false;
+    const self = s.rows.find(r => r.textContent.includes('этот заёмщик'));
+    const other = s.rows.find(r => !r.textContent.includes('этот заёмщик'));
+    return !!self && !self.querySelector('a')
+      && !!other && other.querySelector('a').getAttribute('href') === '#/b/11101199900111'; })());
+
+ok('КЗ-40. на вкладке не осталось ни одной точки ввода: ни формы, ни молчащей кнопки',
+  (() => { const p = lkPanel(lkAts);
+    const inputs = [...p.querySelectorAll('input,select,textarea')];
+    const mute = [...p.querySelectorAll('button')].filter(b => !b.getAttribute('onclick'));
+    return inputs.length === 0 && mute.length === 0; })());
+
+ok('КЗ-40. правка реквизитов ведёт на страницу субъекта, и эта страница их показывает',
+  (() => { const s = lkSect(lkAts, 'Каналы связи'); if (!s) return false;
+    const a = s.el.querySelector('.section-head a');
+    if (!a || a.getAttribute('href') !== '#/s/01204199910016') return false;
+    lkAts.ev("location.hash='#/s/01204199910016'"); lkAts.ev('route()');
+    const t = lkAts.$('#view-subject').textContent.replace(/\s+/g, ' ');
+    return /Каналы связи/.test(t) && /Банковские реквизиты/.test(t)
+      && t.includes(lkAts.ev("BANK_REQ.find(b=>b.inn==='01204199910016').account")); })());
+
+ok('Б-20. канал показан теми же признаками, что на витрине: основной и дата сверки',
+  (() => { const s = lkSect(lkAts, 'Каналы связи'); if (!s) return false;
+    const main = lkAts.ev("liveChannels('01204199910016')[0].value");
+    const chk  = lkAts.ev("liveChannels('01204199910016')[0].checkedAt");
+    const first = s.rows[0].textContent;
+    return first.includes(main) && first.includes('основной') && first.includes(chk)
+      && /не сверялся/.test(s.el.textContent); })());   // канал без сверки честно подписан
+
+ok('Д-КОНТ. заёмщик без действующих каналов поднимает дефект, и полоса вкладки его показывает',
+  (() => { const d = JSON.parse(lkNoCh.ev("JSON.stringify(defects('20190119991019',asOf())"
+      + ".filter(x=>x.tab===tabIx('связи')).map(x=>x.code))"));
+    const badges = [...lkPanel(lkNoCh).querySelectorAll('.defect-bar .badge')];
+    return lkNoCh.ev("liveChannels('20190119991019').length") === 0
+      && d.length === 1 && d[0] === 'Д-КОНТ' && badges.length === 1
+      && /действующих каналов нет/.test(badges[0].textContent); })());
+
+ok('Б-21. справочная запись (sev info) не идёт в дефекты и не печатается «замечанием»',
+  (() => { const inDef = lkAts.ev("defects('01204199910016',asOf()).some(x=>x.code==='Д-СВЯЗ')");
+    const inChecks = lkAts.ev("borrowerChecks('01204199910016',asOf()).some(c=>c.code==='Д-СВЯЗ' && c.sev==='info')");
+    const noInfo = lkAts.ev("defects('01204199910016',asOf()).every(x=>x.sev==='high'||x.sev==='mid')");
+    /* у заёмщика со связями, но без дефектов вкладки, полоса говорит «дефектов нет» */
+    return !inDef && inChecks && noInfo
+      && /Дефектов реквизитов и связей нет/.test(lkText(lkAts)); })());
+
+/* ── Вкладка 11 «История»: КЗ-41 · Б-22 · Б-23 ─────────────────────────────────
+   Ленту ведёт одна вкладка (И-10), поэтому вопрос к ней двойной: ВЕСЬ ли модельный факт
+   с датой в неё попал и можно ли в ней найти нужное. Отсюда три группы проверок: состав
+   (реквизиты и связи), органы просмотра (поиск, период, переход к году) и итог — лента
+   обязана считать ровно то множество, которое показывает (И-12). */
+const hsTab   = inn => { const f = card(inn); f.ev("switchTab(tabIx('история'))"); return f; };
+const hsPanel = f => f.$('.tabpanel[data-panel="' + f.ev("tabIx('история')") + '"]');
+const hsText  = f => hsPanel(f).textContent.replace(/\s+/g, ' ');
+const hsItems = f => [...hsPanel(f).querySelectorAll('#histRoot .tl-item')];
+const hsVis   = f => hsItems(f).filter(el => el.style.display !== 'none');
+const hsSum   = f => (f.$('#histSum') || {}).textContent || '';
+const hsSet   = (f, id, v) => { f.$('#' + id).value = v; f.ev('histSearch()'); };
+const hsAts   = hsTab('01204199910016');   // 52 события, 7 лет, req-полоса из 13 фактов
+const hsFiz   = hsTab('07701199970071');   // физлицо без regDate: 6 фактов без даты
+const hsQue   = hsTab('05501199950051');   // очередь на комитет — единственный носитель Д-ОЧЕР
+
+ok('КЗ-41. датированные факты CHANNELS/BANK_REQ/RELATED/GROUPS вошли в ленту полосой «req»',
+  (() => { const want = hsAts.ev(`(()=>{const inn='01204199910016';
+      return CHANNELS.filter(c=>c.inn===inn).reduce((n,c)=>n+1+(c.checkedAt?1:0)+(c.closedAt?1:0),0)
+        + BANK_REQ.filter(b=>b.inn===inn).length + RELATED.filter(r=>r.inn===inn).length
+        + groupsOf(inn).length;})()`);
+    const got = hsAts.ev("historyItems('01204199910016').filter(i=>i.cat==='req').length");
+    return want === got && got === 13; })());
+
+ok('КЗ-41. у канала три РАЗНЫЕ даты — заведён, сверен, закрыт, а не одна строка на канал',
+  (() => { const req = JSON.parse(hsAts.ev("JSON.stringify(historyItems('01204199910016')"
+      + ".filter(i=>i.cat==='req').map(i=>i.title+'|'+i.date))"));
+    const ch = t => req.filter(x => x.startsWith(t)).length;
+    return ch('Заведён канал связи') === 4 && ch('Канал сверен') === 2 && ch('Канал закрыт') === 1
+      && req.includes('Канал закрыт: тел|01.01.2020')            // дата закрытия, не заведения
+      && req.includes('Заведён канал связи: тел|14.02.2011'); })());
+
+ok('КЗ-31. «Реквизиты и связи» получили хвост своей полосы и указатель в ленту с ?cat=req',
+  (() => { const f = hsAts; f.ev("switchTab(tabIx('связи'))");
+    const tl = f.$('.tabpanel[data-panel="' + f.ev("tabIx('связи')") + '"] .tab-tl');
+    f.ev("switchTab(tabIx('история'))");
+    if (!tl || tl.dataset.cat !== 'req') return false;
+    const a = tl.querySelector('a.lnk[href]');
+    return tl.querySelectorAll('.tl-item').length === 5      // пять последних, как у прочих вкладок
+      && a && /\?cat=req$/.test(a.getAttribute('href')); })());
+
+ok('КЗ-41. поиск сужает ленту, итог называет и показанное, и полное число',
+  (() => { hsSet(hsAts, 'histQ', 'канал');
+    const vis = hsVis(hsAts).length, all = hsItems(hsAts).length;
+    const s = hsSum(hsAts);
+    const okRes = vis === 7 && all === 52
+      && s.includes('Показано 7 из 7') && s.includes('всего в ленте 52') && s.includes('поиск «канал»');
+    hsAts.ev('histReset()');
+    return okRes && hsVis(hsAts).length === 30 && /Событий в ленте: 52/.test(hsSum(hsAts)); })());
+
+ok('КЗ-41. поиск без совпадений: лента пуста и говорит об этом, а не молчит',
+  (() => { hsSet(hsAts, 'histQ', 'такого события нет');
+    const none = hsAts.$('#histNone');
+    const res = hsVis(hsAts).length === 0 && none.style.display !== 'none'
+      && /Сбросить фильтры/.test(none.textContent);
+    hsAts.ev('histReset()');
+    return res && hsVis(hsAts).length === 30; })());
+
+ok('КЗ-41. период отбирает окно дат, годы вне окна выключены',
+  (() => { hsSet(hsAts, 'histFrom', '2011-01-01'); hsSet(hsAts, 'histTo', '2011-12-31');
+    const vis = hsVis(hsAts);
+    const years = [...hsPanel(hsAts).querySelectorAll('.hyear')];
+    const on = years.filter(b => !b.disabled).map(b => b.dataset.y);
+    const res = vis.length === 10 && vis.every(el => el.dataset.year === '2011')
+      && on.length === 1 && on[0] === '2011'
+      && hsSum(hsAts).includes('период 01.01.2011 — 31.12.2011');
+    hsAts.ev('histReset()');
+    return res; })());
+
+ok('КЗ-41. начало периода позже конца — лента говорит об этом, а не притворяется пустой',
+  (() => { hsSet(hsAts, 'histFrom', '2026-01-01'); hsSet(hsAts, 'histTo', '2011-12-31');
+    const res = hsVis(hsAts).length === 0 && /начало периода позже конца/.test(hsSum(hsAts));
+    hsAts.ev('histReset()');
+    return res; })());
+
+ok('И-12. факт без даты не исчезает из-под периода молча — итог считает именно его',
+  (() => { const undated = hsFiz.ev("historyItems('07701199970071').filter(i=>dnum(i.date)===null).length");
+    hsSet(hsFiz, 'histFrom', '2020-01-01');
+    const s = hsSum(hsFiz);
+    const res = undated === 6 && s.includes('6 событий без даты не попадают в период')
+      && hsVis(hsFiz).every(el => el.dataset.date);
+    hsFiz.ev('histReset()');
+    /* без периода те же строки снова видны и стоят в начале ленты */
+    return res && hsVis(hsFiz).filter(el => !el.dataset.date).length === undated
+      && !hsItems(hsFiz)[0].dataset.date; })());
+
+ok('КЗ-41. переход к году доматывает ленту до него, а не фильтрует по нему',
+  (() => { const want = hsAts.ev("historyItems('01204199910016')"
+      + ".filter(i=>dnum(i.date) && String(i.date).slice(-4)==='2011').length");
+    const before = hsVis(hsAts).filter(el => el.dataset.year === '2011').length;
+    hsAts.ev("histJump('2011')");
+    const after = hsVis(hsAts).filter(el => el.dataset.year === '2011').length;
+    /* фильтром это не было: события других лет остались на экране */
+    const others = hsVis(hsAts).filter(el => el.dataset.year !== '2011').length;
+    const res = want === 10 && before === 0 && after === want && others > 0;
+    hsAts.ev('histReset()');
+    return res; })());
+
+ok('И-5. органы просмотра ленты помечены data-view-ctl, редакторов на вкладке нет',
+  (() => { const ctl = [...hsPanel(hsAts).querySelectorAll('input, select, textarea')];
+    const btns = [...hsPanel(hsAts).querySelectorAll('button')];
+    return ctl.length === 3 && ctl.every(e => e.hasAttribute('data-view-ctl'))
+      && btns.every(b => b.getAttribute('onclick') || b.type === 'submit' ? !!b.getAttribute('onclick') : false)
+      && !/Добавить|Сохранить|Изменить/.test(hsText(hsAts)); })());
+
+ok('КЗ-31. адрес несёт категорию ленты, но не черновик просмотра (поиск и период)',
+  (() => { hsAts.ev("histFilter('req')");
+    const withCat = hsAts.w.location.hash;
+    /* сначала набран черновик, потом нажат чип: адрес переписывается ИМЕННО ЗДЕСЬ,
+       и если бы поиск с периодом в него попадали, они попали бы этим нажатием */
+    hsSet(hsAts, 'histQ', 'канал'); hsSet(hsAts, 'histFrom', '2011-01-01');
+    hsAts.ev("histFilter('req')");
+    const after = hsAts.w.location.hash;
+    hsAts.ev('histReset()');
+    return /\?cat=req$/.test(withCat) && after === withCat
+      && !/cat=/.test(hsAts.w.location.hash); })());
+
+ok('Б-22. полоса дефектов есть на КАЖДОЙ вкладке, которой дефект адресован (Д-ОЧЕР — «Истории»)',
+  (() => { const bad = JSON.parse(hsQue.ev(`(()=>{const inn='01204199910016', out=[];
+      TAB_DEFS.forEach((t,i)=>{
+        const addressed = borrowerChecks(inn,asOf()).some(c=>c.tab===i);
+        const bar = /defect-bar|def-ok/.test(tabMain(inn,i));
+        /* «Общая» несёт шапку с флагами (первая подача), «Проверки» — сам перечень (третья) */
+        const exempt = t.key==='общая' || t.key==='проверки';
+        if (addressed && !bar && !exempt) out.push(t.key);
+        if (bar && exempt) out.push('лишняя полоса: '+t.key);
+      });
+      return JSON.stringify(out);})()`));
+    const badges = [...hsPanel(hsQue).querySelectorAll('.defect-bar .badge')];
+    return bad.length === 0 && badges.length === 1
+      && /Очередь на комитет · 2 события ждут решения/.test(badges[0].textContent); })());
+
+ok('Б-23. число дефектов Д-ОБЯЗ читается фразой, а не «3 у обязательств вышел срок»',
+  hsAts.ev("/^вышел срок у 3 обязательств$/.test("
+    + "borrowerChecks('01204199910016',asOf()).find(c=>c.code==='Д-ОБЯЗ').result)"));
+
 /* ── Словари взыскания: владелец — collection.html ──────────────────────────────
    CONTOURS / PHASE_STAGE / PROCEDURE_DICT скопированы в карточку заёмщика.
    Копипаст синхронен на 26.07.2026 и синхронится руками — значит разъедется молча.
