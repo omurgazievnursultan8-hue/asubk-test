@@ -1130,8 +1130,10 @@ ok('КЗ-19. пять статей долга — раскрытием стро�
     const sub = kAts.$('#crWrap tr.pl-sub[data-sub="C-ATS-GAZ"]');
     if (!sub) return false;
     const t = sub.textContent;
+    /* названия статей — по CONTEXT («Статья долга»): сборы и расходы по обращению взыскания,
+       а не самодельные «Комиссии»/«Издержки» (КЗ-35 — один словарь ART_RU на файл) */
     return !/осн\. долг|Основной долг/i.test(tips)
-      && ['Основной долг','Проценты','Пеня','Комиссии','Издержки','Срочная','Просроченная']
+      && ['Основной долг','Проценты','Пеня','Сборы','Расходы по обращению взыскания','Срочная','Просроченная']
            .every(w => t.includes(w)); })());
 ok('КЗ-19. строка раскрывается кликом, переход в кредитный модуль — отдельной ссылкой',
   (() => { const f = credTab('01204199910016');
@@ -1531,6 +1533,95 @@ ok('КЗ-34 / G4. замещающим не может быть тот, кто �
       .find(t => /Замещающий/.test(t.querySelector('thead').textContent));
     const cells = [...tbl.querySelectorAll('tbody tr td')];
     return /нет активного куратора/.test(cells[cells.length-1].textContent); })());
+
+/* ── Вкладка 7 «Акты сверок»: КЗ-35 · КЗ-36 (вторая половина) · Б-8 · Б-13 · Б-16 ──
+   Акт сверки — документ на заёмщика, и сверяет он ту же задолженность, что показывает
+   карточка. Значит состав статей у акта и у кредита обязан быть ОДИН: раньше акт вёл три
+   статьи своими словами («Штрафы» вместо пени), карточка — пять, и первый же ненулевой сбор
+   развёл бы их молча (Б-8). Проверяем не текст шапки, а происхождение состава: словарь ART_RU
+   один на файл и совпадает с глоссарием CONTEXT. Отдельно — что пятая статья (расходы по
+   обращению взыскания) в долг по кредиту не входит: ею владеет взыскание (CONTEXT).
+   КЗ-36: перечень кредитов акта называется составом акта, слово «охват» остаётся за
+   предметом требования. Б-13: пороги вынесены в константы и честно названы внутренними.
+   Б-16 (найден при этой правке): строка акта, ссылающаяся на кредит вне реестра, считается
+   движком дефектов и помечается в таблице — оба следствия идут от одного счёта. */
+const acTab   = inn => { const f = card(inn); f.ev("switchTab(tabIx('акты'))"); return f; };
+const acPanel = f => f.$('.tabpanel[data-panel="' + f.ev("tabIx('акты')") + '"]');
+const acText  = f => acPanel(f).textContent.replace(/\s+/g,' ');
+const acSub   = (f, id) => f.$('#actsWrap tr.pl-sub[data-sub="' + id + '"]').textContent.replace(/\s+/g,' ');
+const acAts   = acTab('01204199910016');   // АгроТехСервис: подписанный акт + акт на подписании
+const acTalas = acTab('05501199950051');   // Талас Стройсервис: уклонение + разногласия
+
+ok('КЗ-35. состав статей акта берётся из общего словаря, а не переписан своими словами',
+  (() => { const head = [...acAts.$$('#actsWrap table.mini thead th')].map(t => t.textContent.trim());
+    const arts = acAts.ev("JSON.stringify(ART.map(k=>ART_TH[k]))");
+    return acAts.ev("Object.keys(ART_RU).join(',')") === acAts.ev("ART.join(',')")
+      && JSON.parse(arts).every(ru => head.includes(ru))
+      && head.indexOf('Основной долг') < head.indexOf('Проценты')
+      && head.indexOf('Проценты') < head.indexOf('Пеня'); })());
+
+ok('КЗ-35. словарь статей совпадает с глоссарием CONTEXT («Статья долга»)',
+  (() => { const ctx = readFileSync(resolve('CONTEXT.md'), 'utf8');
+    const m = ctx.match(/\*\*Статья долга\*\*:\s*\n([\s\S]*?)\n_Avoid_/);
+    if (!m) return false;
+    const line = m[1].replace(/\s+/g,' ');
+    return acAts.ev("Object.values(ART_RU)").every(ru => line.includes(ru.toLowerCase())); })());
+
+ok('КЗ-35. слова «Штрафы» в карточке не осталось — статья называется пеней',
+  !/Штраф/.test(acText(acAts) + acText(acTalas)) && !/'Штрафы'|>Штрафы</.test(HTML));
+
+ok('КЗ-35 / Б-8. ненулевой сбор попадает в итог акта — на трёх статьях он терялся',
+  (() => { const t = acAts.ev("JSON.stringify(actTotals(ACTS.find(a=>a.id==='ACT-118')).KGS)");
+    const k = JSON.parse(t);
+    return k.fees === 45000 && k.total === 15745000
+      && k.total === k.principal + k.interest + k.penalty + k.fees   // четыре кредитные статьи
+      && acSub(acAts, 'ACT-118').includes('15 745 000'); })());
+
+ok('КЗ-35. пятая статья не входит в долг по кредиту — ею владеет взыскание',
+  (() => { const t = JSON.parse(acTalas.ev("JSON.stringify(actTotals(ACTS.find(a=>a.id==='ACT-77')).KGS)"));
+    const sub = acSub(acTalas, 'ACT-77');
+    return t.costs === 62000 && t.total === 9200000 && t.all === t.total + t.costs
+      && /Расходы по взысканию/.test(sub)
+      && /в вопрос «погашен ли кредит» они не входят/.test(sub); })());
+
+ok('КЗ-35. подпись о расходах появляется только там, где расходы есть',
+  !/в вопрос «погашен ли кредит»/.test(acSub(acAts, 'ACT-118')));
+
+ok('КЗ-36. перечень кредитов акта назван составом акта, а не охватом',
+  (() => { const head = [...acAts.$$('#actsWrap > .section table th')].map(t => t.textContent.trim());
+    return head.includes('Состав акта') && !/хват/.test(acText(acAts))
+      && !/scope:/.test(HTML.match(/^ACTS\.push\(([\s\S]*?)^\);/m)[1]); })());
+
+ok('КЗ-36. слово «охват» осталось за предметом требования (вкладка «Взыскание»)',
+  (() => { const f = card('05501199950051');
+    f.ev("switchTab(tabIx('взыскание'))");
+    return /Охват/.test(f.$('.tabpanel[data-panel="' + f.ev("tabIx('взыскание')") + '"]').textContent); })());
+
+ok('Б-13. порог уклонения вынесен в константу и назван внутренним, а не выдан за норму',
+  (() => { const sub = acSub(acTalas, 'ACT-77');
+    return acAts.ev("ACT_EVASION_DAYS") === 60
+      && /свыше 60 к\.д\. \(внутренний порог, нормой не установлен\)/.test(sub)
+      && /84 к\.д\./.test(sub); })());
+
+ok('Б-13. пороги свежести снимка тоже стали константами — числа не живут в выражениях',
+  acAts.ev("SNAPSHOT_FRESH_DAYS") === 183 && acAts.ev("SNAPSHOT_STALE_DAYS") === 365
+    && !/days <= 183|days <= 365|takenAt, asOf\(\)\) > 365/.test(HTML));
+
+ok('Б-16. строка акта без своего кредита помечена в таблице',
+  (() => { const sub = acSub(acAts, 'ACT-121');
+    return /C-ATS-USD/.test(sub) && /нет в реестре кредитов/.test(sub); })());
+
+ok('Б-16 / один движок. тот же факт считает defects(), полоса вкладки — его проекция',
+  (() => { const d = acAts.ev("JSON.stringify(defects('01204199910016',TODAY).filter(x=>x.tab===tabIx('акты')).map(x=>x.code))");
+    const badges = acAts.$$('#actsWrap .defect-bar .badge').length;
+    return JSON.parse(d).join(',') === 'Д-АКТ-РЕЕСТР' && badges === 1
+      && /1 строка акта вне реестра кредитов/.test(acText(acAts)); })());
+
+ok('Один движок. у Талас Стройсервиса полоса вкладки повторяет счёт движка (Д-АКТ)',
+  (() => { const codes = JSON.parse(acTalas.ev("JSON.stringify(defects('05501199950051',TODAY).filter(x=>x.tab===tabIx('акты')).map(x=>x.code))"));
+    return codes.join(',') === 'Д-АКТ'
+      && acTalas.$$('#actsWrap .defect-bar .badge').length === codes.length
+      && /2 акта не подтверждены/.test(acText(acTalas)); })());
 
 /* ── Словари взыскания: владелец — collection.html ──────────────────────────────
    CONTOURS / PHASE_STAGE / PROCEDURE_DICT скопированы в карточку заёмщика.
