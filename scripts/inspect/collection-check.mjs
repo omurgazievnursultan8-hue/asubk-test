@@ -461,8 +461,8 @@ ok('возврат по хешу открывает то же требовани
   return curReq.id === '142/56/п';
 })()`));
 ok('реестр претензий ведёт на требование-адресат', mk().ev(`(() => {
-  renderClaimsRegistry();
-  return /openDetail\\('\\d+\\/[^\\/']+\\/[зпг]'\\)/.test(document.getElementById('claimsBody').innerHTML);
+  regRender('claims');
+  return /openDetail\\('\\d+\\/[^\\/']+\\/[зпг]'/.test(document.getElementById('claimsBody').innerHTML);
 })()`));
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -629,7 +629,7 @@ ok('снимок не роняется круговыми ссылками и в
   restoreState();
   const r = REQ_INDEX['142/56/з'];
   return !!r && r.scope === 'полный остаток' && r.costs.some(c => c.amount === 2500)
-      && r._proc.id === '142' && allReqs().length === 135;
+      && r._proc.id === '142' && allReqs().length === 136;
 })()`));
 ok('после восстановления соглашение снова связано с состоянием', mk().ev(`(() => {
   openDetail('120/40/з'); persistState(); restoreState();
@@ -1126,8 +1126,8 @@ const sCols  = () => S.$$('#dlHead th').map(t => t.textContent.replace(/[↑↓�
 head('СК-1/СК-6 · очередь с горизонтом, а не список просроченного');
 ok('умолчание — горизонт 7 дней',            S.ev(`dlHorizon`) === '7' && /Горизонт: 7 дней/.test(sFrame()));
 ok('предстоящие сроки показаны, а не только просроченные',
-   sRows().length === 34 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 17);
-ok('горизонт «всё» даёт все 45 сроков',      (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 45; })());
+   sRows().length === 35 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 17);
+ok('горизонт «всё» даёт все 47 сроков',      (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 47; })());
 ok('просроченное проходит любой горизонт',   (()=>{ S.ev(`dlSetHorizon('7')`);
    return S.ev(`dlAll().filter(x=>x.n<0).every(dlPass)`); })());
 ok('сегмент показывает выбранный горизонт',  S.$('#dlSeg button.on').dataset.h === '7');
@@ -1164,7 +1164,7 @@ head('СК-5 · порядок по возрастанию остатка, со�
 ok('умолчание — по остатку вверх',           S.ev(`dlSort.k === 'left' && dlSort.dir === 1`));
 ok('отрисованные строки идут по возрастанию остатка', (()=>{
   const a = sRows().map(r => Number(r.querySelectorAll('td')[1].textContent.trim().replace('−','-').split(' ')[0]));
-  return a.length === 34 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -34 && a[a.length-1] === 7; })());
+  return a.length === 35 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -34 && a[a.length-1] === 7; })());
 ok('клик по колонке меняет ключ и направление', (()=>{
   S.ev(`dlSortBy('due')`); const up = S.ev(`dlSort.k==='due' && dlSort.dir===1`);
   S.ev(`dlSortBy('due')`); const down = S.ev(`dlSort.dir===-1`);
@@ -1173,7 +1173,7 @@ ok('клик по колонке меняет ключ и направление
 head('СК-7/СК-12 · рамка со счётчиками, пустое состояние с причиной');
 ok('плиток на экране сроков нет',            S.$('#view-deadlines .tile') === null);
 ok('рамка считает очередь и называет дату отсчёта',
-   /показано 34 из 45 · просрочено 17 · истекает сегодня 5 · отсчёт от 21\.07\.2026/.test(sFrame()));
+   /показано 35 из 47 · просрочено 17 · истекает сегодня 5 · отсчёт от 21\.07\.2026/.test(sFrame()));
 ok('пустое состояние называет условия и даёт их снять', (()=>{
   S.doc.getElementById('dlQ').value = 'такого-заёмщика-нет'; S.ev(`dlRefresh()`);
   const e = S.$('#deadlinesBody .list-empty');
@@ -1233,8 +1233,11 @@ ok('пять недостающих шаблонов добавлены (40–44
 ok('строковой связи со справочником больше нет', !/templTerm/.test(HTML.replace(/templTerm искала[\s\S]*?dlPoint\./,'')));
 ok('шаблон находится у всех сроков Порядка (было «—» у 15 из 45)',
    S.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>d.tpl).every(d=>!!dlTerm(d) && !!dlPoint(d))`));
+/* КР-15: два хранимых срока «вне Порядка» были ручными копиями даты заседания —
+   их вывели из самого заседания, поэтому у хранимых сроков шаблон теперь есть у всех. */
 ok('«вне Порядка» помечено, а не выброшено',
-   S.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>!d.tpl).length === 2`)
+   S.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>!d.tpl).length === 0`)
+   && S.ev(`PROCESSES.flatMap(p=>dlOf(p)).filter(d=>!d.tpl).length === 4`)
    && sRows().some(r=>/вне Порядка/.test(r.textContent)));
 ok('«п. —» больше не рисуется (СК-Д13)',     !sRows().some(r=>/п\. —/.test(r.textContent)));
 ok('Р-8 подписан без «п.» — это решение проекта, не пункт Порядка',
@@ -1267,6 +1270,239 @@ head('СК-14 · блок сроков в карточке — та же ари�
   ok('в карточке тот же производный остаток',    /−19 · просрочен/.test(tr.textContent));
   ok('подсказка карточки называет шаблон номером', /шаблон №27/.test(tr.getAttribute('title')));
   ok('горизонта и фильтров в карточке нет',      !m.$('.dl-grid').closest('.panel-wrap').querySelector('#dlSeg')); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ВОЛНА КР — три кросс-процессных реестра на одном каркасе
+   ══════════════════════════════════════════════════════════════════════════ */
+const H = mk(); H.ev(`navClick('Заседания (реестр)')`);
+const C = mk(); C.ev(`navClick('Претензии (реестр)')`);
+const Q = mk(); Q.ev(`navClick('Вопросы на коллегиальные органы (реестр)')`);
+const rRows  = (m,k) => m.$$('#'+k+'Body tr').filter(r => !r.classList.contains('rowempty'));
+const rCols  = (m,k) => m.$$('#'+k+'Head th').map(t => t.textContent.replace(/[↑↓↕]/g,'').trim());
+const rFrame = (m,k) => m.$('#'+k+'Frame').textContent;
+const REG3   = [['hearings',H],['claims',C],['committee',Q]];
+
+head('КР-1 · три реестра собраны одним каркасом');
+ok('каркас описывает все три экрана',
+   H.ev(`Object.keys(REGS).sort().join('/')`) === 'claims/committee/hearings');
+ok('трёх самописных render-функций больше нет',
+   !/function render(Hearings|Claims|Committee)Registry/.test(HTML));
+ok('разметку пишет один builder — в вёрстке только пустые хосты',
+   /<div id="hearingsHost"><\/div>/.test(HTML) && /<div id="claimsHost"><\/div>/.test(HTML)
+   && /<div id="committeeHost"><\/div>/.test(HTML) && /function regBuild\(key\)/.test(HTML));
+ok('у каждого экрана сегменты, «моё», подразделение, поиск, чипы и рамка',
+   REG3.every(([k,m]) => ['Seg','Mine','Subdiv','Q','Chips','Frame','Head','Body'].every(s => !!m.$('#'+k+s))));
+ok('шапка сортируемая на всех трёх',
+   REG3.every(([k,m]) => m.$$('#'+k+'Head th').every(t => /regSortBy/.test(t.getAttribute('onclick')||''))));
+ok('состояние экрана живёт в хеше (СК-6 перенесён на все три)', (()=>{
+   const h = []; for(const [k,m] of REG3){ m.ev(`regSetSeg('${k}','all')`); h.push(m.w.location.hash); }
+   H.ev(`regSetSeg('hearings','upcoming')`); C.ev(`regSetSeg('claims','all')`); Q.ev(`regSetSeg('committee','pending')`);
+   return h.join(' ') === '#hearings/all #claims/all #committee/all'; })());
+ok('хеш восстанавливает вид и сегмент', (()=>{
+   const m = mk(); m.w.location.hash = '#committee/decided'; m.ev(`restoreFromHash()`);
+   return m.ev(`regState.committee.seg`) === 'decided'
+       && m.doc.getElementById('view-committee').style.display === 'flex'
+       && m.doc.querySelector('.nav-item.active').textContent === 'Вопросы на коллегиальные органы (реестр)'; })());
+
+head('КР-2 · заседание — одна сущность, срок выводится из него');
+ok('хранимых сроков «Следующее судебное заседание» в затравке нет',
+   H.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>/судебное заседание/i.test(d.action)).length === 0`));
+ok('срок выводится из заседания и держит ссылку на него',
+   H.ev(`PROCESSES.flatMap(p=>hearingDeadlines(p)).length === 4`)
+   && H.ev(`PROCESSES.flatMap(p=>hearingDeadlines(p)).every(d=>!!d._hearing)`));
+ok('в очередь выводится только не наступившее заседание',
+   H.ev(`PROCESSES.flatMap(p=>hearingDeadlines(p)).every(d=>daysLeft(d) >= 0)`)
+   && H.ev(`PROCESSES.flatMap(p=>p.hearings||[]).length === 10`));
+ok('очередь сроков видит заседание строкой',
+   H.ev(`dlAll().filter(x=>x.d._hearing).length === 4`));
+ok('снимок состояния производный срок не хранит',
+   H.ev(`(()=>{ persistState(); return !/Следующее судебное заседание/.test(localStorage.getItem(STORE_KEY)||''); })()`));
+
+head('КР-3/КР-4 · заседания: исход вместо статуса, сегменты');
+ok('восемь колонок в заданном порядке',
+   rCols(H,'hearings').join('|') === 'Дата и время|Осталось, к.д.|Вид|Заёмщик|Требование|Место|Представитель ФКФ|Исход');
+ok('колонки «Статус» с планированием больше нет', !rCols(H,'hearings').includes('Статус'));
+ok('умолчание — предстоящие, прошедшее без исхода показано всегда',
+   H.ev(`regState.hearings.seg`) === 'upcoming'
+   && rRows(H,'hearings').length === 7
+   && rRows(H,'hearings').filter(r=>/исход не внесён/.test(r.textContent)).length === 3);
+ok('сегмент «Прошедшие» даёт только прошедшие', (()=>{
+   H.ev(`regSetSeg('hearings','past')`); const n = rRows(H,'hearings').length;
+   const all = (H.ev(`regSetSeg('hearings','all')`), rRows(H,'hearings').length);
+   H.ev(`regSetSeg('hearings','upcoming')`); return n === 6 && all === 10; })());
+ok('мера-основание — подписью, а не колонкой',
+   /мера ИСК-/.test(rRows(H,'hearings')[0].textContent)
+   && /Мера-основание: ИСК-77 · участники:/.test(rRows(H,'hearings')[0].getAttribute('title')));
+ok('представитель ФКФ выведен из участников, а не введён руками',
+   H.ev(`REGS.hearings.all().every(x=>!!x.rep)`) && !/rep:'/.test(HTML));
+ok('рамка называет очередь, дыру и ближайшее заседание',
+   /предстоит <b>4<\/b> · прошло без внесённого исхода <b>3<\/b> · ближайшее <b>24\.07\.2026 09:30<\/b>/.test(H.$('#hearingsFrame').innerHTML));
+
+head('КР-5/КР-6/КР-7 · претензии: ось вручение, сумма документа неизменна');
+ok('семь колонок, ось — вручение',
+   rCols(C,'claims').join('|') === 'Вид|Номер|Отправлена|Вручение|Заёмщик|Требование|Сумма');
+ok('мёртвой колонки «Статус» нет',           !rCols(C,'claims').includes('Статус'));
+ok('невручённое подсвечено независимо от сегмента',
+   rRows(C,'claims').filter(r=>r.classList.contains('mrow-undelivered')).length === 2
+   && rRows(C,'claims').some(r=>/не подтверждено \(п\. 20\.2\)/.test(r.textContent)));
+ok('сегмент «Не вручены» отбирает их же', (()=>{
+   C.ev(`regSetSeg('claims','undelivered')`); const n = rRows(C,'claims').length;
+   C.ev(`regSetSeg('claims','storno')`);      const s = rRows(C,'claims').length;
+   C.ev(`regSetSeg('claims','all')`);         return n === 2 && s === 1; })());
+ok('три даты Р-7 и результат — в подсказке строки',
+   /Событие .+ · поступление .+ · регистрация .+ · результат: /.test(rRows(C,'claims')[0].getAttribute('title')));
+ok('сумма документа не пересчитана, расхождение подписано «сейчас …»',
+   rRows(C,'claims').filter(r=>/сейчас /.test(r.textContent)).length === 5
+   && C.ev(`REGS.claims.all().every(x=>x.doc === parseSum(x.m.sum))`));
+ok('дельта суммы нигде не хранится (ADR-0001)',
+   C.ev(`PROCESSES.flatMap(p=>p.measures||[]).every(m=>m.sumNow===undefined && m.delta===undefined)`));
+ok('рамка считает вручение, сторно и расхождение',
+   /без подтверждения вручения <b>2<\/b> \(п\. 20\.2\) · сторнировано <b>1<\/b> · сумма документа разошлась с требованием у <b>5<\/b>/
+     .test(C.$('#claimsFrame').innerHTML));
+
+head('КР-8/КР-9/КР-11 · вопросы: состояние выводится в одном месте');
+ok('семь колонок, состояние первым',
+   rCols(Q,'committee').join('|') === 'Состояние|Предмет|Орган|Заёмщик|Договоры|Инициатор|Заседание');
+ok('умолчание — ждут решения',               Q.ev(`regState.committee.seg`) === 'pending'
+   && rRows(Q,'committee').length === 4 && Q.ev(`REGS.committee.all().length`) === 28);
+ok('состояний ровно четыре',                 Q.ev(`Object.keys(CQ_STATE).join('/')`) === 'pending/scheduled/positive/negative');
+ok('заглушки в поле решения решением больше не считаются',
+   Q.ev(`CQ_NON_DECISION.size === 4`)
+   && Q.ev(`PROCESSES.flatMap(p=>p.committeeQuestions).filter(q=>!q.decided && q.decision).length === 0`));
+ok('состояние читают реестр, карточка и гейт из одного хелпера',
+   (HTML.match(/questionState\(/g)||[]).length >= 4);
+ok('вопрос без даты заседания назван «не назначено», а не прочерком',
+   rRows(Q,'committee').filter(r=>/не назначено/.test(r.textContent)).length === 2);
+ok('гейтовый вопрос называет, какое действие держит',
+   rRows(Q,'committee').filter(r=>/блокирует: /.test(r.textContent)).length === 4);
+ok('протокол и решение — подписями, отдельных колонок нет',
+   !rCols(Q,'committee').includes('Протокол') && !rCols(Q,'committee').includes('Решение')
+   && Q.ev(`regSetSeg('committee','decided')`) === undefined
+   && rRows(Q,'committee').some(r=>/протокол /.test(r.textContent)));
+ok('рамка считает очередь, безадресные и заблокированные действия', (()=>{
+   Q.ev(`regSetSeg('committee','pending')`);
+   return /ждут решения <b>4<\/b> · из них без даты заседания <b>2<\/b> · отказов <b>0<\/b> · держат заблокированным действие <b>4<\/b>/
+     .test(Q.$('#committeeFrame').innerHTML); })());
+ok('прочерк вместо номера протокола убран из затравки',
+   Q.ev(`PROCESSES.flatMap(p=>p.committeeQuestions).filter(q=>q.protocolNo === '—').length === 0`));
+
+head('КР-10 · гейт сверяется по предмету и по договору');
+ok('предмет вопроса приведён к одному написанию',
+   Q.ev(`[...new Set(PROCESSES.flatMap(p=>p.committeeQuestions.map(q=>q.topic)))].length === 5`));
+ok('credits хранит id договора, а не его номер',
+   Q.ev(`PROCESSES.every(p=>p.committeeQuestions.every(q=>(q.credits||[]).every(v=>p.credits.some(c=>c.id===v))))`));
+ok('сверки «любой вопрос к тому же органу» больше нет', !/q\.organ === g\.organ/.test(HTML));
+ok('решение по чужому договору гейт не открывает', mk().ev(`(()=>{
+  const p = PROCESSES.find(x => x.credits.length > 1 && new Set(x.requirements.map(r=>r.credit)).size > 1);
+  const a = p.requirements[0], b = p.requirements.find(r=>r.credit !== a.credit);
+  p.committeeQuestions.push({ organ:ORGANS[2], initiator:'ДАК', topic:'Начало внесудебного обращения взыскания на залог',
+    credits:[a.credit], decided:true, decision:'разрешено', positive:true, meetingDate:'01.07.2026',
+    protocolNo:'КЗ-99', protocolDate:'01.07.2026' });
+  return gateReason(a,'Извещение об обращении на залог') === null
+      && /Решение есть, но по другому кредиту/.test(gateReason(b,'Извещение об обращении на залог'));
+})()`));
+ok('отказ назван отказом и приводит протокол',
+   /Орган отказал \(протокол КО-44 от 14\.07\.2026\)/
+     .test(Q.ev(`gateReason(PROCESSES.find(p=>p.id==='364').requirements[0],'Безакцептное списание')`)));
+ok('невынесенный и назначенный вопрос дают разные причины',
+   /Вопрос не вынесен\./.test(Q.ev(`gateReason(PROCESSES.find(p=>p.id==='201').requirements[0],'Безакцептное списание')`))
+   && /назначен на заседание 02\.07\.2026, решение не внесено/
+     .test(Q.ev(`gateReason(PROCESSES.find(p=>p.id==='314').requirements[0],'Безакцептное списание')`)));
+ok('правила, сохранённые до волны, гейт не ломают (запасной ход на GATES)', mk().ev(`(()=>{
+  /* restoreRules подменяет раздел целиком: старый снимок приедет без topic. */
+  Object.keys(RULES.gates).forEach(k => { delete RULES.gates[k].topic; });
+  const p = PROCESSES.find(x=>x.id==='314');
+  return gateTopic('Безакцептное списание') === 'Запуск безакцептного списания'
+      && /назначен на заседание/.test(gateReason(p.requirements[0],'Безакцептное списание'));
+})()`));
+ok('поручение Председателя остаётся уровнем дела, а не вопросом',
+   /требует поручения Председателя Правления \(п\. 21\)/
+     .test(Q.ev(`gateReason(PROCESSES.find(p=>!p.poruchenie).requirements[0],'Исковое заявление')`)));
+
+head('КР-12 · клик ведёт туда, где запись живёт');
+ok('заседание открывает «Суд» требования',
+   /openDetail\('142\/56\/з', TAB_BY_SLUG\('sud'\)\)/.test(rRows(H,'hearings')[0].getAttribute('onclick')));
+ok('претензия открывает «Журнал мер» адресата',
+   /openDetail\('\d+\/[^\/']+\/[зпг]', TAB_BY_SLUG\('mery'\)\)/.test(rRows(C,'claims')[0].getAttribute('onclick')));
+ok('вопрос открывает «Согласования» дела',
+   /TAB_BY_SLUG\('soglasovaniya'\)/.test(rRows(Q,'committee')[0].getAttribute('onclick')));
+ok('срок-проекция заседания ведёт на «Суд», а не на «Обзор»',
+   H.ev(`dlTarget(dlAll().find(x=>x.d._hearing)).join('/')`).endsWith('/sud'));
+ok('строка открывается и с клавиатуры на всех трёх',
+   REG3.every(([k,m]) => rRows(m,k).every(r => r.getAttribute('tabindex') === '0' && /Enter/.test(r.getAttribute('onkeydown')))));
+
+head('КР-13 · каркас СК целиком: условия, подразделение, пустое состояние');
+ok('условия отбора идут лентой чипов и снимаются по одному', (()=>{
+   /* Лента показывает ТОЛЬКО действующие условия: у claims умолчание — сегмент «Все»,
+      условий нет, лента пуста. Появляется вместе с первым условием. */
+   const empty = REG3.every(([k,m]) =>
+     m.$('#'+k+'Chips').children.length === (m.ev(`!!regSeg('${k}').cond`) ? 1 : 0));
+   return empty && REG3.every(([k,m]) => {
+     m.doc.getElementById(k+'Q').value = 'Бек'; m.ev(`regRefresh('${k}')`);
+     const c = m.$('#'+k+'Chips');
+     const on = /Поиск: Бек/.test(c.textContent) && !!c.querySelector('.fchip button[onclick]');
+     m.doc.getElementById(k+'Q').value = ''; m.ev(`regRefresh('${k}')`); return on; }); })());
+ok('подразделение заседаний и претензий берётся от требования',
+   H.ev(`REGS.hearings.subdiv(REGS.hearings.all().find(x=>x.reqs.length)) === REGS.hearings.all().find(x=>x.reqs.length).reqs[0].subdivision`)
+   && C.ev(`REGS.claims.subdiv(REGS.claims.all().find(x=>x.reqs.length)) === REGS.claims.all().find(x=>x.reqs.length).reqs[0].subdivision`));
+ok('подразделение вопроса — его инициатор, орган подразделением не считается',
+   Q.ev(`REGS.committee.all().every(x=>{ const s = REGS.committee.subdiv(x);
+     return s === null || SUBDIV_CODES.includes(s); })`));
+ok('список подразделений строится из выведенных значений (ТР-5)',
+   Q.ev(`[...document.getElementById('committeeSubdiv').options].slice(1)
+          .every(o => o.value === 'не выведено' || REGS.committee.all().some(x=>REGS.committee.subdiv(x) === o.value))`)
+   && Q.ev(`[...document.getElementById('committeeSubdiv').options].some(o=>o.value === 'не выведено')`));
+ok('пустое состояние называет условия и даёт их снять', (()=>{
+   const m = mk(); m.ev(`navClick('Претензии (реестр)')`);
+   m.doc.getElementById('claimsQ').value = 'такого-заёмщика-нет'; m.ev(`regRefresh('claims')`);
+   const e = m.$('#claimsBody .list-empty');
+   return !!e && /Условия отбора/.test(e.textContent) && !!e.querySelector('button'); })());
+ok('без условий пустое состояние называет причину, а не «записей нет»',
+   /Условий отбора нет — ни по одному делу заседание не назначено/.test(HTML)
+   && /Условий отбора нет — претензий и требований обязанным лицам/.test(HTML)
+   && /Условий отбора нет — вопросов на коллегиальные органы/.test(HTML));
+ok('сброс возвращает широкий сегмент', (()=>{
+   const m = mk(); m.ev(`navClick('Вопросы на коллегиальные органы (реестр)')`);
+   m.doc.getElementById('committeeQ').value = 'нет'; m.ev(`regResetAll('committee')`);
+   return m.ev(`regState.committee.seg`) === 'all' && m.doc.getElementById('committeeQ').value === ''; })());
+
+head('КР-14 · затравка покрывает новые состояния');
+ok('есть прошедшее заседание без внесённого исхода',
+   H.ev(`REGS.hearings.all().filter(x=>x.n != null && x.n < 0 && !x.done).length === 3`));
+ok('есть сторнированная претензия-дубль',
+   C.ev(`REGS.claims.all().filter(x=>!!x.m.storno).length === 1`)
+   && C.ev(`PROCESSES.flatMap(p=>p.measures||[]).some(m=>/дубль ПР-140/.test((m.storno||{}).reason||''))`));
+ok('есть требование гаранту и сам гарант обязанным лицом',
+   C.ev(`PROCESSES.find(p=>p.id==='309').obligors.filter(o=>o.role==='гарант').length === 1`)
+   && C.ev(`REGS.claims.all().some(x=>x.m.kind === 'Требование гаранту')`));
+ok('есть отказ органа — гейт остаётся закрытым',
+   Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'negative').length === 1`));
+ok('есть вопрос без даты заседания и вопрос назначенный',
+   Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'pending').length === 2`)
+   && Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'scheduled').length === 2`));
+
+head('КР-15 · карточка и реестр читают одно и то же');
+{ const m = mk(); m.ev(`openDetail('142/56/з', TAB_BY_SLUG('sud'))`);
+  const a = m.active();
+  ok('в карточке колонка заседания — «Исход», а не «Статус»',
+     /<th>Исход<\/th>/.test(a.innerHTML) && !/<th>Статус<\/th>/.test(a.innerHTML));
+  ok('прошедшее без исхода помечено и в карточке',  /исход не внесён/.test(a.textContent)); }
+{ const m = mk(); m.ev(`openDetail('314/414/з', TAB_BY_SLUG('soglasovaniya'))`);
+  const a = m.active();
+  ok('карточка печатает то же состояние вопроса, что и реестр',
+     /назначен на заседание/.test(a.textContent)
+     && a.textContent.includes(m.ev(`questionState(PROCESSES.find(p=>p.id==='314').committeeQuestions[0]).t`)));
+  ok('гейт в карточке называет предмет вопроса, который его открывает',
+     /открывает вопрос «/.test(a.innerHTML));
+  ok('договоры вопроса печатаются номером, а не id',
+     !/>\s*414\s*</.test(a.innerHTML) && /Дог\. №/.test(a.textContent)); }
+
+head('КР-16 · границы волны');
+ok('вкладка «Гейты» настроек по-прежнему читается',
+   g.ev(`Object.keys(RULES.gates).length === 4`)
+   && g.ev(`Object.keys(RULES.gates).every(k=>!!RULES.gates[k].organ && !!RULES.gates[k].point && !!RULES.gates[k].topic)`));
+ok('реестр требований и карточка волной не тронуты',
+   g.ev(`TABS.length === 10`) && g.ev(`allReqs().length === 136`));
 
 /* ══════════════════════════════════════════════════════════════════════════
    СПРАВОЧНИКИ — при переезде модели ничего не потеряно

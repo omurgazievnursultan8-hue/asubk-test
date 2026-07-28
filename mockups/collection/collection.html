@@ -96,6 +96,23 @@
   стадии · распределение погашения (оба режима) · фильтры, плитки, страницы и выгрузка
   списка.
 
+  ВОЛНА КР (28.07.2026) — три кросс-процессных реестра (заседания, претензии, вопросы
+  на коллегиальные органы) пересмотрены одной волной: КР-1…КР-16 решений, КР-Д1…КР-Д19
+  дефектов. Устройство — ASUBK-vzyskanie-logika.md §14.3 и §22; разбор каждого решения —
+  ASUBK-status-razrabotki.md. Ключевое: три экрана собраны ОДНИМ каркасом (defReg —
+  декларация экрана, regBuild/regRefresh — единственный рендер), поэтому разойтись не
+  могут; заседание — одна сущность, срок «Следующее судебное заседание» ВЫВОДИТСЯ из него;
+  ось претензий — вручение (п. 20.2), сумма документа неизменна, расхождение считается на
+  лету; состояние вопроса выводится в одном месте, а гейт сверяется по предмету И по
+  договору (раньше — по одному лишь органу).
+
+  ВОЛНА СК (28.07.2026) — реестр «Сроки на контроле» пересмотрен поэкранно: СК-1…СК-15
+  решений, СК-Д1…СК-Д16 дефектов. Устройство — ASUBK-vzyskanie-logika.md §10, §14.3 и §21;
+  разбор каждого решения — ASUBK-status-razrabotki.md. Ключевое: реестр — рабочая очередь
+  с горизонтом 7/30/всё, а не список просроченного; остаток и признак просрочки
+  производные (хранимые leftDays/overdue сняты); ответственный выведен по §10; клик ведёт
+  туда, где срок живёт; регистрация меры снимает срок с контроля фактом.
+
   ВОЛНА КД (28.07.2026) — карточка дела пересмотрена поэкранно: КД-1…КД-15 решений,
   КД-Д1…КД-Д16 дефектов. Устройство — ASUBK-vzyskanie-logika.md §14.2 и §20; разбор
   каждого решения — ASUBK-status-razrabotki.md. Ключевое: карточка — рабочее место по
@@ -781,36 +798,18 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
         </div>
       </section>
 
-      <!-- ============ РЕЕСТРЫ (кросс-процессные) ============ -->
+      <!-- ============ РЕЕСТРЫ (кросс-процессные) ============
+           КР-1: три экрана — один каркас (сегмент · фильтры · чипы · рамка · сортируемая
+           таблица · пустое состояние). Каркас строится из описания реестра одним
+           билдером regBuild — разъехаться трём копиям разметки больше негде. -->
       <section class="view" id="view-hearings">
-        <div class="grid-wrap" style="padding-top:16px">
-          <div class="gtoolbar">
-            <span class="section-note">С даты <input type="date"></span>
-            <span class="section-note">по дату <input type="date"></span>
-            <button class="btn btn-tint btn-sm" onclick="toast('Фильтр применён (демо)')">Применить</button>
-          </div>
-          <div class="cgrid-wrap"><table class="cgrid">
-            <thead><tr><th>Заёмщик</th><th>Процесс</th><th>Мера</th><th>Вид события</th><th>Место</th><th>Дата / время</th><th>Статус</th></tr></thead>
-            <tbody id="hearingsBody"></tbody>
-          </table></div>
-        </div>
+        <div class="grid-wrap" style="padding-top:16px"><div id="hearingsHost"></div></div>
       </section>
       <section class="view" id="view-claims">
-        <div class="grid-wrap" style="padding-top:16px">
-          <div class="cgrid-wrap"><table class="cgrid">
-            <thead><tr><th>Статус</th><th>Номер</th><th>Дата рег.</th><th>Заёмщик</th><th>Адресат (обязанное лицо)</th><th>Дело</th><th style="text-align:right">Сумма</th></tr></thead>
-            <tbody id="claimsBody"></tbody>
-          </table></div>
-        </div>
+        <div class="grid-wrap" style="padding-top:16px"><div id="claimsHost"></div></div>
       </section>
       <section class="view" id="view-committee">
-        <div class="grid-wrap" style="padding-top:16px">
-          <p class="section-note" style="padding:0 0 4px">Общесистемный реестр вопросов на коллегиальные органы (Р-6): один слой для всех модулей, не внутри взыскания.</p>
-          <div class="cgrid-wrap"><table class="cgrid">
-            <thead><tr><th>Орган</th><th>Инициатор</th><th>Предмет</th><th>Процесс</th><th>Заседание</th><th>Решение</th><th>Протокол</th></tr></thead>
-            <tbody id="committeeBody"></tbody>
-          </table></div>
-        </div>
+        <div class="grid-wrap" style="padding-top:16px"><div id="committeeHost"></div></div>
       </section>
       <!-- СК-1: экран отвечает «что делать в ближайшие N дней», а не «где мы уже опоздали».
            Просроченное — первая полоса очереди, а не весь экран (было: фильтр d.overdue,
@@ -892,9 +891,10 @@ function navClick(l){
   const goList = () => { curPage = 1; tileFilter = null; navLabel = l; renderNav(); renderFilterBar(); renderList(); renderChips(); showView('list'); };
   const goReg  = (render, view) => { navLabel = l; renderNav(); render(); showView(view); };
   if(l === 'Требования (реестр)'){ stageFilter = null; goList(); return; }
-  if(l === 'Заседания (реестр)'){ goReg(renderHearingsRegistry, 'hearings'); return; }
-  if(l === 'Претензии (реестр)'){ goReg(renderClaimsRegistry, 'claims'); return; }
-  if(l === 'Вопросы на коллегиальные органы (реестр)'){ goReg(renderCommitteeRegistry, 'committee'); return; }
+  /* КР-1: три кросс-процессных реестра ходят через общий каркас — пункт меню
+     находит своё описание сам, отдельной ветки на каждый экран больше нет. */
+  const reg = Object.keys(REGS).find(k => REGS[k].nav === l);
+  if(reg){ goReg(()=>regRender(reg), reg); return; }
   if(l === 'Сроки на контроле (реестр)'){ goReg(renderDeadlinesRegistry, 'deadlines'); return; }
   /* ТР-10: все ЧЕТЫРЕ стадии — обычные фильтры одного реестра, включая «Отчуждение активов».
      Раньше четвёртая была заглушкой с тостом «вынесено в отдельный модуль»: реализация
@@ -1236,39 +1236,93 @@ const ORGANS = [
   'Постоянно действующая комиссия по вопросам признания задолженности безнадёжной к взысканию',
   'Председатель Правления',
 ];
+/* topic — ПРЕДМЕТ вопроса, которым гейт открывается. Ключ карты — вид меры, label —
+   действие для таблицы гейтов; предмет вынесен отдельным полем, потому что совпадение
+   идёт по нему (КР-10), а не по органу и не по виду документа. */
 const GATES = {
-  'Безакцептное списание':          { organ:ORGANS[0], point:'17.5', label:'Запуск безакцептного списания' },
-  'Извещение об обращении на залог': { organ:ORGANS[2], point:'44',   label:'Начало внесудебного обращения взыскания на залог' },
-  'Заключение комиссии о безнадёжности': { organ:ORGANS[3], point:'83', label:'Признание задолженности безнадёжной' },
-  'Исковое заявление':              { organ:ORGANS[4], point:'21',   label:'Подача искового заявления', poruchenie:true },
+  'Безакцептное списание':          { organ:ORGANS[0], point:'17.5', label:'Запуск безакцептного списания',
+                                      topic:'Запуск безакцептного списания' },
+  'Извещение об обращении на залог': { organ:ORGANS[2], point:'44',   label:'Начало внесудебного обращения взыскания на залог',
+                                      topic:'Начало внесудебного обращения взыскания на залог' },
+  'Заключение комиссии о безнадёжности': { organ:ORGANS[3], point:'83', label:'Признание задолженности безнадёжной',
+                                      topic:'Признание задолженности безнадёжной' },
+  'Исковое заявление':              { organ:ORGANS[4], point:'21',   label:'Подача искового заявления',
+                                      topic:'Поручение об инициировании судебного взыскания', poruchenie:true },
 };
 /* Справочник предметов вопроса (закрытый). Гейтовые предметы несут орган §6.3:
    выбор предмета автоподставляет орган, чтобы связка предмет↔орган не разъезжалась.
-   Прочие — согласования без гейта. FREE → свободный текст. */
+   Прочие — согласования без гейта. FREE → свободный текст.
+   КР-Д: предмет гейтового вопроса писался в затравке четырьмя формулировками сразу
+   («Заключение о признании задолженности безнадёжной», «Признание… (ликвидация юр.
+   лица)», …). Разнобой ничего не ломал ровно потому, что гейт совпадал по ОРГАНУ и
+   предмет не читал вовсе. Теперь предмет — ключ совпадения, и справочник строится из
+   самих гейтов: разъехаться этим двум спискам больше негде. */
 const CQ_FREE = 'Другое (иной вопрос)';
 const CQ_SUBJECTS = [
-  ...Object.keys(GATES).map(k => ({ topic:k, organ:GATES[k].organ, gate:true })),
-  { topic:'Поручение об инициировании судебного взыскания', organ:ORGANS[4] },
+  ...Object.keys(GATES).map(k => ({ topic:GATES[k].topic, organ:GATES[k].organ, gate:true,
+                                    action:GATES[k].label, point:GATES[k].point })),
   { topic:'Списание задолженности',                          organ:ORGANS[3] },
   { topic:CQ_FREE, organ:'', free:true },
 ];
+const CQ_BY_TOPIC = Object.fromEntries(CQ_SUBJECTS.map(s => [s.topic, s]));
+/* Затравка писала СОСТОЯНИЕ в поле решения; решением эти строки не являются (КР-9). */
+const CQ_NON_DECISION = new Set(['', '—', 'вынесен, не рассмотрен', 'на рассмотрении']);
+const CQ_ALIAS = {
+  'Заключение о признании задолженности безнадёжной':          'Признание задолженности безнадёжной',
+  'Признание задолженности безнадёжной (ликвидация юр. лица)':  'Признание задолженности безнадёжной',
+  'Списание безнадёжной задолженности':                        'Списание задолженности',
+};
+/* ---- КР-9: СОСТОЯНИЕ ВОПРОСА ВЫВОДИТСЯ В ОДНОМ МЕСТЕ ----
+   Было три чтения одних и тех же полей: реестр печатал «не рассмотрено», карточка на
+   ТЕХ ЖЕ данных — красное «отклонено» (пять нерешённых вопросов выглядели отказами,
+   КР-Д), а гейт смотрел только на q.positive и не отличал «отказано» от «ещё не решено».
+   Решение внесено ⇔ q.decided; текст решения — подпись, а не признак. */
+const CQ_STATE = {
+  pending:   { k:'pending',   t:'ждёт назначения',        pill:'mid',  hint:'вопрос вынесен, дата заседания не назначена' },
+  scheduled: { k:'scheduled', t:'назначен на заседание',  pill:'info', hint:'дата заседания есть, решение не внесено' },
+  positive:  { k:'positive',  t:'решение положительное',  pill:'low',  hint:'решение получено — гейт открыт' },
+  negative:  { k:'negative',  t:'отказано',               pill:'high', hint:'орган отказал — действие не разблокировано' },
+};
+const questionState = q => !q.decided ? (q.meetingDate ? CQ_STATE.scheduled : CQ_STATE.pending)
+                                      : (q.positive ? CQ_STATE.positive : CQ_STATE.negative);
+const creditLabel  = (p, id) => { const c = (p.credits||[]).find(c => c.id === id); return c ? c.num : (id || '—'); };
+const creditLabels = (p, ids) => (ids||[]).map(id => creditLabel(p, id)).join(', ') || '—';
 /* Решение органа вносит только секретарь (гейт кнопки), и не по своему же вопросу
    (запрет самоодобрения: инициатор ≠ решающий). */
 const SECRETARY_ROLE = 'Секретарь коллегиального органа';
 const currentRole = () => document.getElementById('roleSel') ? document.getElementById('roleSel').value : '';
-/* null → разрешено; строка → причина блокировки (§6.3, паттерн sendGateReason). */
-/* Гейты органа читаются на уровне ДЕЛА (согласования — свойство дела, §11),
-   но применяются к действию по конкретному ТРЕБОВАНИЮ. */
+/* null → разрешено; строка → причина блокировки (§6.3, паттерн sendGateReason).
+   Согласование — свойство ДЕЛА (§11), но действие принадлежит ТРЕБОВАНИЮ, поэтому
+   вопрос обязан совпасть с ним по двум осям (КР-10):
+     предмет вопроса = предмет гейта  И  кредит вопроса = кредит требования.
+   Было совпадение по одному лишь ОРГАНУ: любой положительно решённый вопрос на тот же
+   орган — по другому кредиту и на другую тему — снимал блокировку (КР-Д). Причина
+   блокировки теперь называет ровно то, чего не хватает, включая случай «решение есть,
+   но по другому кредиту» — иначе он читался бы как «вопрос не вынесен».
+   Предмет читается с запасным ходом на GATES: restoreRules подменяет раздел правил
+   целиком, и правила, сохранённые ДО этой волны, приедут без topic — без запасного
+   хода все гейты, кроме иска, закрылись бы навсегда. */
+const gateTopic = kind => (RULES.gates[kind] || {}).topic || (GATES[kind] || {}).topic || null;
 function gateReason(r, kind){
   const p = r._proc || r;
   const g = RULES.gates[kind];
   if(!g || g.off) return null;   // гейт отключён на #settings
+  /* Поручение Председателя Правления выдаётся ПО ДЕЛУ (инициирование судебного
+     взыскания как таковое), поэтому оно и остаётся фактом дела, а не кредита. */
   if(g.poruchenie) return p.poruchenie ? null
     : `Регистрация «${kind}» требует поручения Председателя Правления (п. ${g.point}). Поручение не выдано.`;
-  const qs = (p.committeeQuestions || []).filter(q => q.organ === g.organ);
-  if(qs.some(q => q.positive)) return null;
-  const raised = qs.length > 0;
-  return `${g.label} требует решения органа «${g.organ}» (п. ${g.point}). Вопрос ${raised ? 'вынесен, но не рассмотрен' : 'не вынесен'}.`;
+  const credit  = r._credit ? r.credit : null;             // дело-уровневый вызов кредита не знает
+  const onTopic = (p.committeeQuestions || []).filter(q => q.topic === gateTopic(kind));
+  const mine    = credit == null ? onTopic
+    : onTopic.filter(q => !(q.credits||[]).length || q.credits.includes(credit));
+  if(mine.some(q => questionState(q).k === 'positive')) return null;
+  const head  = `${g.label} требует решения органа «${g.organ}» (п. ${g.point}).`;
+  const other = onTopic.find(q => questionState(q).k === 'positive');
+  if(other) return `${head} Решение есть, но по другому кредиту (${creditLabels(p, other.credits)}) — на «${creditLabel(p, credit)}» оно не распространяется.`;
+  if(!mine.length) return `${head} Вопрос не вынесен.`;
+  const q = mine[0], st = questionState(q);
+  if(st.k === 'negative') return `${head} Орган отказал${q.protocolNo ? ` (протокол ${q.protocolNo} от ${q.protocolDate})` : ''}.`;
+  return `${head} Вопрос ${st.k === 'scheduled' ? `назначен на заседание ${q.meetingDate}, решение не внесено` : 'вынесен, дата заседания не назначена'}.`;
 }
 
 /* ГЕЙТ ПОСЛЕДОВАТЕЛЬНОСТИ (§3.1 + дизайн-док §5): веха-мера не регистрируется в обход
@@ -1829,15 +1883,20 @@ const PROCESSES = [
       {sec:'Досудебный', kind:'Повторная претензия', dates:D('01.12.2025','01.12.2025','01.12.2025'), num:'ПР-140', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'42 600,00', responsible:'Тукинова А.С.', docs:[{name:'Почтовое уведомление ПР-140.pdf', kind:'подтверждение вручения'}]},
       // требование поручителю двигает ТОЛЬКО его требование — треки исполнения раздельные (§2.2)
       {sec:'Досудебный', kind:'Требование поручителю', dates:D('01.12.2025','01.12.2025','01.12.2025'), num:'ТП-56', purpose:'солидарное исполнение обязательства', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'42 600,00', responsible:'Тукинова А.С.'},
+      // КР-14: повторная претензия была зарегистрирована дважды; дубль сторнирован.
+      // Сторно не удаляет строку (И-3) — в реестре она зачёркнута и своим сегментом.
+      {sec:'Досудебный', kind:'Повторная претензия', dates:D('02.12.2025','02.12.2025','02.12.2025'), num:'ПР-141', purpose:'погашение + предупреждение', deliver:'СЭД (квитанция)', delivered:false, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'42 600,00', responsible:'Тукинова А.С.', storno:{reason:'дубль ПР-140 — зарегистрирована повторно по ошибке', by:'Тукинова А.С.', at:'03.12.2025'}},
       // один иск подан к обоим ответчикам — веха двигает ОБА требования (п. 32, М-5)
       {sec:'Судебный', kind:'Исковое заявление', dates:D('20.05.2026','20.05.2026','20.05.2026'), num:'ИСК-77', purpose:'взыскание просроченной суммы солидарно', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'48 900,00', responsible:'Тукинова А.С.', targets:'все', docs:[{name:'Исковое заявление ИСК-77.pdf', kind:'процессуальный документ'}]},
     ],
     courtActs:[
       {measureNum:'ИСК-77', instance:'Первомайский районный суд', issued:'02.06.2026', effective:'', subject:'на рассмотрении', awarded:'', by:'судья Абдыкеримов', num:'—', arrived:true, dates:D('02.06.2026','14.06.2026','16.06.2026')},
     ],
+    // КР-2/КР-3: у заседания ИСХОД, а не «статус». Поле status несло одно значение
+    // («на рассмотрении») на все шесть заседаний затравки и не отвечало ни на что.
     hearings:[
-      {measureNum:'ИСК-77', kind:'Извещение о назначении судебного процесса', place:'Первомайский районный суд г. Бишкек', when:'02.06.2026 10:30', participants:['Тукинова А.С. (представитель ФКФ)'], status:'на рассмотрении', substatus:'назначено к предварительному слушанию'},
-      {measureNum:'ИСК-77', kind:'Судебный процесс', place:'Первомайский районный суд г. Бишкек', when:'18.06.2026 14:00', participants:['Тукинова А.С.','Ответчик не явился'], status:'на рассмотрении', substatus:'отложено — неявка ответчика'},
+      {measureNum:'ИСК-77', kind:'Извещение о назначении судебного процесса', place:'Первомайский районный суд г. Бишкек', when:'02.06.2026 10:30', participants:['Тукинова А.С. (представитель ФКФ)'], outcome:''},
+      {measureNum:'ИСК-77', kind:'Судебный процесс', place:'Первомайский районный суд г. Бишкек', when:'18.06.2026 14:00', participants:['Тукинова А.С. (представитель ФКФ)','Ответчик не явился'], outcome:'отложено — неявка ответчика'},
     ],
     colls:[
       {item:'Склад, ул. Промышленная 4', kind:'Недвижимость', pledge:'150 000,00', order:'внесудебный', real:'подготовка к торгам', ban:'', startPrice:{value:'150 000,00', report:'Отчёт об оценке №ОЦ-88 от 14.05.2026'}},
@@ -1908,6 +1967,10 @@ const PROCESSES = [
       {sec:'Исполнительное', kind:'Постановление на исполнении', dates:D('04.05.2026','04.05.2026','04.05.2026'), num:'ИП-702', purpose:'установление фазы «На исполнении»', deliver:'документ приобщён', delivered:true, result:{group:'определение суда', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'310 000,00', responsible:'Сагындыков М.', seeded:true},
     ],
     colls:[ {item:'Производственная база, с. Лебединовка', kind:'Имущественный комплекс', pledge:'295 000,00', order:'судебный', real:'торги не состоялись (2 раза) → принято на баланс', ban:'предприятие как имущественный комплекс', startPrice:{value:'320 000,00', report:'Отчёт об оценке №ОЦ-40 от 10.02.2026'}} ],
+    // КР-14: заседание бывает не только «Судебный процесс» по иску. Жалоба на действия
+    // судебного исполнителя — исполнительное производство, ведёт САК, а не ОПК: в реестре
+    // это единственная строка, у которой ведущее подразделение другое.
+    hearings:[ {measureNum:'ИЛ-288', kind:'Заседание по жалобе на действия судебного исполнителя', place:'Аламудунский районный суд', when:'30.07.2026 11:00', participants:['Сагындыков М. (представитель ФКФ)','Судебный исполнитель ПССИ'], outcome:''} ],
     history:[
       {when:'06.05.2026 10:15', what:'Смена процедуры «Передан в сектор по работе с активами» подтверждена (пакет дополнен АТ-11)', who:'САК'},
       {when:'28.04.2026 09:50', what:'Смена процедуры ОТКЛОНЕНА: не предоставлен «Акт несостоявшихся торгов»', who:'САК'},
@@ -2103,11 +2166,20 @@ const PROCESSES = [
 
   { id:'309', borrower:'ОсОО «Эне-Сай Логистик»', inn:'01607201800993', region:'г. Бишкек / Ленинский',
     owner:'Куратор ДАК', curator:'Токтосунова Б.', opened:'12.06.2026', openedBy:'куратор', basis:'первичная претензия',
+    // КР-14: третья роль обязанного лица — ГАРАНТ. Без неё «Требование гаранту» жило
+    // в справочнике видов, но ни разу не встречалось в данных, и колонка «Вид» реестра
+    // претензий проверялась на трёх видах из пяти.
+    obligors:[ { id:'г-309', name:'ОАО «Гарантийный фонд»', inn:'01502201900774', kind:'юрлицо', role:'гарант',
+                 credits:['409'], basis:'договор гарантии ДГ-409/1 от 08.01.2025' } ],
     credits:[ {id:'409', num:'Дог. №409 от 08.01.2025', scope:'просроченная сумма', overdueDays:44, bezakceptRight:false,
       } ],
     procedure:{ status:'Передан в отраслевые отделы', since:'10.06.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'12.06.2026', deadlineRd:5 } },
-    measures:[ {sec:'Досудебный', kind:'Первичная претензия', dates:D('12.06.2026','12.06.2026','12.06.2026'), num:'ПР-451', purpose:'погашение', deliver:'почта (вручено)', delivered:true, result:{group:'частичное погашение', value:'частично на сумму'}, resultKind:'положительный', execStage:'на исполнении', sum:'120 000,00', responsible:'Токтосунова Б.'} ],
-    history:[ {when:'12.06.2026 14:30', what:'Мера «Первичная претензия» ПР-451 → фаза «Претензия», частичное погашение', who:'Куратор ДАК'} ] },
+    measures:[
+      {sec:'Досудебный', kind:'Первичная претензия', dates:D('12.06.2026','12.06.2026','12.06.2026'), num:'ПР-451', purpose:'погашение', deliver:'почта (вручено)', delivered:true, result:{group:'частичное погашение', value:'частично на сумму'}, resultKind:'положительный', execStage:'на исполнении', sum:'120 000,00', responsible:'Токтосунова Б.'},
+      {sec:'Досудебный', kind:'Требование гаранту', dates:D('20.06.2026','20.06.2026','20.06.2026'), num:'ТГ-409', purpose:'исполнение по договору гарантии', deliver:'СЭД (отправлено)', delivered:false, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'120 000,00', responsible:'Токтосунова Б.'} ],
+    history:[
+      {when:'20.06.2026 10:00', what:'Мера «Требование гаранту» ТГ-409 → требование к гаранту. Вручение не подтверждено (п. 20.2)', who:'Куратор ДАК'},
+      {when:'12.06.2026 14:30', what:'Мера «Первичная претензия» ПР-451 → фаза «Претензия», частичное погашение', who:'Куратор ДАК'} ] },
 
   { id:'310', borrower:'ИП Сооронбаева Ж.', inn:'22607199300881', region:'Нарынская обл. / Ат-Башинский',
     owner:'Куратор ОД', curator:'Жээнбеков Н.', opened:'25.06.2026', openedBy:'куратор', basis:'первичная претензия',
@@ -2287,7 +2359,11 @@ const PROCESSES = [
     procedure:{ status:'Работа с судебными органами', since:'20.05.2026', by:'ДПО', receiving:'ОПК', confirm:{ state:'подтверждена', at:'21.05.2026', deadlineRd:5 } },
     committeeQuestions:[ { organ:ORGANS[4], initiator:'ОПК', topic:'Поручение об инициировании судебного взыскания', credits:['Дог. №425'], meetingDate:'15.05.2026', decision:'поручение выдано', positive:true, protocolNo:'ПП-80', protocolDate:'15.05.2026' } ],
     measures:[ {sec:'Судебный', kind:'Исковое заявление', dates:D('22.05.2026','22.05.2026','22.05.2026'), num:'ИСК-79', purpose:'взыскание просроченной суммы', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'88 000,00', responsible:'Тукинова А.С.'} ],
-    hearings:[ {measureNum:'ИСК-79', kind:'Судебный процесс', place:'Ошский городской суд', when:'20.06.2026 11:00', participants:['Тукинова А.С.'], status:'на рассмотрении', substatus:'назначено к слушанию'} ],
+    // КР-14: проведённое заседание с внесённым исходом и назначенное продолжение —
+    // ровно та пара, ради которой в реестре есть сегмент и колонка исхода.
+    hearings:[
+      {measureNum:'ИСК-79', kind:'Судебный процесс', place:'Ошский городской суд', when:'20.06.2026 11:00', participants:['Тукинова А.С. (представитель ФКФ)','Ответчик явился'], outcome:'рассмотрение по существу проведено, объявлен перерыв'},
+      {measureNum:'ИСК-79', kind:'Судебный процесс', place:'Ошский городской суд', when:'24.07.2026 09:30', participants:['Тукинова А.С. (представитель ФКФ)'], outcome:''} ],
     history:[ {when:'22.05.2026 10:00', what:'Мера «Исковое заявление» ИСК-79 → фаза «Иск»', who:'ОПК'} ] },
 
   { id:'326', borrower:'ОсОО «Каинды-Кант»', inn:'02902201900156', region:'Чуйская обл. / Ысык-Атинский',
@@ -2719,10 +2795,15 @@ const PROCESSES = [
     credits:[ {id:'509', num:'Дог. №509 от 10.03.2024', scope:'просроченная сумма', overdueDays:88, bezakceptRight:true,
       } ],
     procedure:{ status:'Передан в отраслевые отделы', since:'10.06.2026', by:'ОД', receiving:'ДАК', confirm:{ state:'подтверждена', at:'11.06.2026', deadlineRd:5 } },
-    committeeQuestions:[ { organ:ORGANS[0], initiator:'ДАК', topic:'Запуск безакцептного списания', credits:['Дог. №509'], meetingDate:'', decision:'на рассмотрении', positive:false, protocolNo:'', protocolDate:'' } ],
+    // КР-14: ОТКАЗ органа. Раньше четвёртого состояния в данных не было вовсе — «не
+    // рассмотрено» и «отказано» выглядели одинаково, и по экрану нельзя было отличить
+    // вопрос, который ещё идёт, от вопроса, который уже проигран (КР-9).
+    committeeQuestions:[ { organ:ORGANS[0], initiator:'ДАК', topic:'Запуск безакцептного списания', credits:['Дог. №509'], meetingDate:'14.07.2026', decided:true, decision:'отказано', positive:false, protocolNo:'КО-44', protocolDate:'14.07.2026' } ],
     measures:[ {sec:'Досудебный', kind:'Повторная претензия', dates:D('20.06.2026','20.06.2026','20.06.2026'), num:'ПР-512', purpose:'погашение + предупреждение', deliver:'почта (вручено)', delivered:true, result:{group:'отказ от погашения', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'62 000,00', responsible:'Мурзаканова А.'} ],
     deadlines:[ { tpl:11, due:'18.07.2026', base:'дата повторной претензии' } ],
-    history:[ {when:'20.06.2026 11:00', what:'Безакцепт доступен (флаг договора), но гейт Комитета не пройден — списание заблокировано', who:'Куратор ДАК'} ] },
+    history:[
+      {when:'14.07.2026 16:00', what:'Комитет отказал в запуске безакцептного списания (протокол КО-44) — списание остаётся заблокированным', who:'Секретарь коллегиального органа'},
+      {when:'20.06.2026 11:00', what:'Безакцепт доступен (флаг договора), но гейт Комитета не пройден — списание заблокировано', who:'Куратор ДАК'} ] },
 
   { id:'365', borrower:'ОсОО «Чүй-Металл»', inn:'02902201900701', region:'Чуйская обл. / Панфиловский',
     owner:'Куратор ДАК', curator:'Бекешов Т.', opened:'01.05.2026', openedBy:'куратор', basis:'первичная претензия',
@@ -2819,10 +2900,13 @@ const PROCESSES = [
     committeeQuestions:[ { organ:ORGANS[4], initiator:'ОПК', topic:'Поручение об инициировании судебного взыскания', credits:['Дог. №518'], meetingDate:'05.05.2026', decision:'поручение выдано', positive:true, protocolNo:'ПП-90', protocolDate:'05.05.2026' } ],
     measures:[ {sec:'Судебный', kind:'Исковое заявление', dates:D('15.05.2026','15.05.2026','15.05.2026'), num:'ИСК-90', purpose:'взыскание просроченной суммы', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'95 000,00', responsible:'Тукинова А.С.'} ],
     courtActs:[ {measureNum:'ИСК-90', instance:'Первомайский районный суд', issued:'05.06.2026', effective:'', subject:'на рассмотрении', awarded:'', by:'судья Сыдыкова', num:'—', arrived:true, dates:D('05.06.2026','16.06.2026','18.06.2026')} ],
+    // КР-2: отложенное заседание назначено заново — это ЗАПИСЬ ЗАСЕДАНИЯ, а не хранимый
+    // срок. Было: строка «Следующее судебное заседание» в deadlines, о которой реестр
+    // заседаний не знал; теперь очередь сроков получает её проекцией (hearingDeadlines).
     hearings:[
-      {measureNum:'ИСК-90', kind:'Извещение о назначении судебного процесса', place:'Первомайский районный суд г. Бишкек', when:'05.06.2026 09:30', participants:['Тукинова А.С. (представитель ФКФ)'], status:'на рассмотрении', substatus:'назначено к предварительному слушанию'},
-      {measureNum:'ИСК-90', kind:'Судебный процесс', place:'Первомайский районный суд г. Бишкек', when:'20.06.2026 11:00', participants:['Тукинова А.С.','Ответчик не явился'], status:'на рассмотрении', substatus:'отложено — неявка ответчика'} ],
-    deadlines:[ { action:'Следующее судебное заседание', due:'25.07.2026', base:'определение суда об отложении' } ],
+      {measureNum:'ИСК-90', kind:'Извещение о назначении судебного процесса', place:'Первомайский районный суд г. Бишкек', when:'05.06.2026 09:30', participants:['Тукинова А.С. (представитель ФКФ)'], outcome:''},
+      {measureNum:'ИСК-90', kind:'Судебный процесс', place:'Первомайский районный суд г. Бишкек', when:'20.06.2026 11:00', participants:['Тукинова А.С. (представитель ФКФ)','Ответчик не явился'], outcome:'отложено — неявка ответчика'},
+      {measureNum:'ИСК-90', kind:'Судебный процесс', place:'Первомайский районный суд г. Бишкек', when:'25.07.2026 10:00', participants:['Тукинова А.С. (представитель ФКФ)'], outcome:''} ],
     history:[ {when:'15.05.2026 10:00', what:'Мера «Исковое заявление» ИСК-90 → фаза «Иск»', who:'ОПК'} ] },
 
   { id:'374', borrower:'ОсОО «Узген-Текстиль»', inn:'02902201900801', region:'Ошская обл. / Узгенский',
@@ -3241,8 +3325,9 @@ const PROCESSES = [
     measures:[
       {sec:'Судебный', kind:'Исковое заявление', dates:D('05.05.2026','05.05.2026','05.05.2026'), num:'ИСК-99', purpose:'взыскание по двум договорам', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'420 000,00', responsible:'Тукинова А.С.'} ],
     courtActs:[ {measureNum:'ИСК-99', instance:'Джети-Огузский районный суд', issued:'10.06.2026', effective:'', subject:'на рассмотрении', awarded:'', by:'судья Асанов', num:'—', arrived:true, dates:D('10.06.2026','22.06.2026','24.06.2026')} ],
-    hearings:[ {measureNum:'ИСК-99', kind:'Судебный процесс', place:'Джети-Огузский районный суд', when:'25.06.2026 10:00', participants:['Тукинова А.С.','Ответчик явился'], status:'на рассмотрении', substatus:'рассмотрение по существу'} ],
-    deadlines:[ { action:'Следующее судебное заседание', due:'28.07.2026', base:'определение суда' } ],
+    hearings:[
+      {measureNum:'ИСК-99', kind:'Судебный процесс', place:'Джети-Огузский районный суд', when:'25.06.2026 10:00', participants:['Тукинова А.С. (представитель ФКФ)','Ответчик явился'], outcome:''},
+      {measureNum:'ИСК-99', kind:'Судебный процесс', place:'Джети-Огузский районный суд', when:'28.07.2026 14:00', participants:['Тукинова А.С. (представитель ФКФ)'], outcome:''} ],
     history:[ {when:'05.05.2026 10:00', what:'Полный набор судебной подшивки: иск + акт + заседание по двум охватам', who:'ОПК'} ] },
 ];
 
@@ -3351,6 +3436,24 @@ function normalize(p){
     if(DEAL_LEVEL_DEADLINE.test(dlAction(d))){ d.targets = []; continue; }
     const role = d.on || (/обеспечител|поручител/i.test(dlAction(d)) ? 'поручитель' : 'заёмщик');
     d.targets = idsOf(role).length ? idsOf(role) : idsOf('заёмщик');
+  }
+
+  /* ---- КР-9/КР-10: вопрос на орган приводится к явным полям ----
+     (а) «вынесен, не рассмотрен» и «на рассмотрении» лежали в поле РЕШЕНИЯ — это
+         состояния, а не решения; отсюда и расхождение реестра с карточкой (КР-Д).
+     (б) кредит назывался подписью («Дог. №56»), а форма писала полное имя договора —
+         сравнить их с r.credit ('56') было нечем, и гейт совпадал по одному органу.
+     (в) предмет гейтового вопроса писался четырьмя формулировками (CQ_ALIAS).
+     (г) protocolNo:'—' — не номер, а прочерк; из-за него протокол рендерился «— от ». */
+  for(const q of p.committeeQuestions){
+    q.topic = CQ_ALIAS[q.topic] || q.topic;
+    if(q.decided == null) q.decided = !CQ_NON_DECISION.has(String(q.decision||'').trim());
+    if(!q.decided) q.decision = '';
+    if(q.protocolNo === '—') q.protocolNo = '';
+    q.credits = (q.credits||[]).map(v => {
+      const c = p.credits.find(c => c.id === v || c.num === v || c.num.startsWith(v + ' '));
+      return c ? c.id : v;
+    });
   }
 
   /* М-11: состояния разделены по природе. Пауза и соглашения — состояния ОБЯЗАТЕЛЬСТВА,
@@ -3775,7 +3878,32 @@ function boundToReq(r, measureNum){
 const courtActsOf = r => (r._proc.courtActs||[]).filter(a=>boundToReq(r,a.measureNum)!==false);
 const hearingsOf  = r => (r._proc.hearings ||[]).filter(h=>boundToReq(r,h.measureNum)!==false);
 const collsOf     = r => (r._proc.colls    ||[]).filter(c=>c.credit==null || c.credit===r.credit);
-const deadlinesOf = r => (r._proc.deadlines||[]).filter(d=>!(d.targets||[]).length || d.targets.includes(r.id));
+
+/* ---- КР-2: ЗАСЕДАНИЕ — ОДНА СУЩНОСТЬ ----
+   Было две. Прошедшие заседания лежали в p.hearings, а будущие — строкой «Следующее
+   судебное заседание» в p.deadlines, и списки друг о друге не знали: реестр заседаний
+   показывал шесть прошедших и НИ ОДНОГО предстоящего, хотя две даты были назначены
+   (КР-Д1). Теперь заседание одно, а срок — его ПРОЕКЦИЯ: пока дата не наступила,
+   заседание само выводится в очередь сроков (ADR-0001 — производные не хранятся).
+   Обратного хранения нет: внесли исход — заседание ушло из очереди без второй правки. */
+const hDay     = h => String(h.when||'').split(' ')[0];
+const hLeft    = h => daysLeft({ due:hDay(h) });
+const hTargets = (p, h) => { const m = measureByNum(p, h.measureNum); return ((m && m.targets)||[]).map(id=>REQ_INDEX[id]).filter(Boolean); };
+/* Исход вносится ПОСЛЕ заседания. Прошедшее заседание без исхода — видимая дыра (КР-3),
+   а не «статус: на рассмотрении», одинаковый у всех строк до единой (КР-Д). */
+const hDone = h => !!String(h.outcome||'').trim();
+/* Представитель ФКФ — из участников: остальные строки участников это другая сторона. */
+const hRep  = h => ((h.participants||[]).find(x=>/представител/i.test(x))
+                 || (h.participants||[]).find(x=>!/ответчик|истец|третье лицо|суд/i.test(x)) || '')
+                   .replace(/\s*\(представитель ФКФ\)\s*/i, '').trim() || null;
+function hearingDeadlines(p){
+  return (p.hearings||[]).filter(h => (hLeft(h) ?? -1) >= 0).map(h => ({
+    action:'Следующее судебное заседание', due:hDay(h),
+    base:`дата назначена судом (${String(h.kind||'заседание').toLowerCase()})`,
+    targets:hTargets(p, h).map(r=>r.id), _hearing:h }));
+}
+const dlOf = p => (p.deadlines||[]).concat(hearingDeadlines(p));
+const deadlinesOf = r => dlOf(r._proc).filter(d=>!(d.targets||[]).length || d.targets.includes(r.id));
 
 /* ---- СК-8: ОТВЕТСТВЕННЫЙ ПО СРОКУ = куратор дела × подразделение шаблона (§10) ----
    Правило было записано в спецификации и не выведено нигде на экране (СК-Д5): очередь
@@ -4253,9 +4381,17 @@ function panelSud(){
     <td>${a.subject}</td><td style="text-align:right">${a.awarded||'—'}</td><td>${a.by}</td><td>${a.num}</td>
     <td>${a.arrived?'<span class="pill low">поступил через вх. корреспонденцию</span>':'<span class="pill high">не поступил — регистрация фазы «Решение суда» заблокирована</span>'}</td></tr>`).join('')
     || `<tr><td colspan="8"><div class="cgrid-empty">${noCourt}</div></td></tr>`;
-  const hear=hearingsOf(r).map(h=>`<tr>
+  /* КР-15: карточка показывает ИСХОД, а не «статус», который нёс одно значение на все
+     строки до единой. Заседание, дата которого ещё не наступила, помечено «предстоит» и
+     той же записью стоит в очереди сроков (КР-2) — второй записи под него нет. */
+  const hear=hearingsOf(r).map(h=>{
+    const n=hLeft(h);
+    const out=hDone(h)?escAttr(h.outcome)
+      :n!=null&&n<0?'<span class="pill high">исход не внесён</span>'
+      :`<span class="pill info">предстоит${n!=null?` · через ${n} к.д.`:''}</span>`;
+    return `<tr>
     <td>${h.measureNum}${boundToReq(r,h.measureNum)===null?' '+dealLevelPill:''}</td><td>${h.kind}</td><td>${h.place}</td><td>${h.when}</td>
-    <td>${(h.participants||[]).join('<br>')}</td><td>${h.status}${h.substatus?` <span class="pill mid">${h.substatus}</span>`:''}</td></tr>`).join('')
+    <td>${(h.participants||[]).join('<br>')||'<span class="dl-muted">не указаны</span>'}</td><td>${out}</td></tr>`;}).join('')
     || `<tr><td colspan="6"><div class="cgrid-empty">Заседаний по требованию нет — иск по нему в суд не подавался либо дата ещё не назначена. Сводно по всем делам — реестр <span class="rowlink" onclick="navClick('Заседания (реестр)')">«Заседания»</span>.</div></td></tr>`;
   return `<div class="panel-wrap">
     <p class="section-h">Судебные акты по требованию ${r.id}</p>
@@ -4265,7 +4401,7 @@ function panelSud(){
       <tbody>${acts}</tbody></table></div>
     <p class="section-h" style="margin-top:20px">Судебные заседания</p>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Мера-основание</th><th>Вид события</th><th>Место</th><th>Дата / время</th><th>Участники</th><th>Статус</th></tr></thead>
+      <thead><tr><th>Мера-основание</th><th>Вид события</th><th>Место</th><th>Дата / время</th><th>Участники</th><th>Исход</th></tr></thead>
       <tbody>${hear}</tbody></table></div></div>`;
 }
 
@@ -4298,28 +4434,32 @@ function panelProcedure(){
 /* ---- panel: Комитеты (вопросы на коллегиальные органы + гейты §6.3) ---- */
 function panelKomitety(){
   const p=curProc;
+  /* КР-15: карточка читает то же состояние, что реестр и гейт (questionState, КР-9).
+     Было своё чтение — «decided = !!q.decision», а затравка писала в поле решения
+     состояние («на рассмотрении»), и пять нерешённых вопросов карточка показывала
+     красным «отклонено», пока реестр на тех же данных писал «не рассмотрено». */
   const qs=(p.committeeQuestions||[]).map((q,qi)=>{
-    const decided=!!q.decision;
-    const dcell = !decided ? '— <span class="pill mid">не рассмотрено</span>'
-      : `${q.decision} ${q.positive?'<span class="pill low">положительное</span>':'<span class="pill high">отклонено</span>'}`;
+    const st=questionState(q);
+    const dcell=`<span class="pill ${st.pill}">${st.t}</span>${q.decision?` ${escAttr(q.decision)}`:''}`;
     let act;
-    if(decided) act='—';
+    if(q.decided) act='—';
     else if(currentRole()!==SECRETARY_ROLE) act='<span class="pill mid">ожидает секретаря органа</span>';
     else if(q.initiator===SECRETARY_ROLE) act='<span class="pill high">внесён секретарём — решает другой</span>';
     else act=`<button class="btn btn-tint btn-sm" onclick="openDecisionModal(${qi})">Внести решение</button>`;
-    return `<tr>
-    <td>${q.organ}</td><td>${q.initiator}</td><td>${q.topic}</td><td>${(q.credits||[]).join(', ')}</td>
-    <td>${q.meetingDate||'—'}</td><td>${dcell}</td>
-    <td>${q.protocolNo?`${q.protocolNo} от ${q.protocolDate}`:'—'}</td><td>${act}</td></tr>`;}).join('')
+    return `<tr title="${escAttr(st.hint)}">
+    <td>${q.organ}</td><td>${q.initiator}</td><td>${q.topic}</td><td>${escAttr(creditLabels(p,q.credits))}</td>
+    <td>${q.meetingDate||'<span class="pill mid">не назначено</span>'}</td><td>${dcell}</td>
+    <td>${q.protocolNo?`${q.protocolNo} от ${q.protocolDate||'—'}`:'—'}</td><td>${act}</td></tr>`;}).join('')
     || `<tr><td colspan="8"><div class="cgrid-empty">Вопросов на коллегиальные органы по делу не выносилось — необратимые действия, требующие гейта (иск, безакцепт, внесудебное обращение на залог), пока не инициировались. Сводно по всем делам — реестр <span class="rowlink" onclick="navClick('Вопросы на коллегиальные органы (реестр)')">«Вопросы на коллегиальные органы»</span>.</div></td></tr>`;
   const gateRows=Object.keys(RULES.gates).map(k=>{
-    const r=gateReason(p,k);
-    return `<tr><td>${RULES.gates[k].label}</td><td>${RULES.gates[k].poruchenie?'Председатель Правления':RULES.gates[k].organ}</td><td>п. ${RULES.gates[k].point}</td>
+    const g=RULES.gates[k], r=gateReason(p,k), gt=gateTopic(k);
+    return `<tr><td>${g.label}<span class="dl-sub">открывает вопрос «${escAttr(gt)}»</span></td>
+      <td>${g.poruchenie?'Председатель Правления':g.organ}</td><td>п. ${g.point}</td>
       <td>${r?`<span class="pill high">заблокировано</span>`:`<span class="pill low">разблокировано</span>`}</td><td>${r||'решение получено'}</td></tr>`;
   }).join('');
   return `<div class="panel-wrap">
     <p class="section-h">Вопросы на коллегиальные органы</p>
-    <p class="section-note">Пять органов (Р-6, закрытый справочник), не «решение комитета». Реестр вопросов — общесистемный слой.</p>
+    <p class="section-note">Пять органов (Р-6, закрытый справочник), не «решение комитета». Реестр вопросов — общесистемный слой; сводно по всем делам — <span class="rowlink" onclick="navClick('Вопросы на коллегиальные органы (реестр)')">«Вопросы на коллегиальные органы»</span>. Гейт открывает вопрос, совпавший по ПРЕДМЕТУ и по ДОГОВОРУ (КР-10): решение по соседнему кредиту действие по этому не разблокирует.</p>
     <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openCommitteeQuestionModal()">Вынести вопрос</button></div>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Орган</th><th>Инициатор</th><th>Предмет</th><th>Кредиты</th><th>Заседание</th><th>Решение</th><th>Протокол</th><th></th></tr></thead>
@@ -4345,8 +4485,11 @@ function committeeCreditRows(){
     // §2.2: сумма по кредиту считается один раз — солидарные требования её не задваивают.
     const reqs = curProc.requirements.filter(r=>r.credit===c.id);
     const n = reqs.length>1 ? `<span class="cpick-sub"> · ${reqs.length} требования</span>` : '';
+    /* КР-10: пишем ИДЕНТИФИКАТОР кредита, а не подпись. Форма писала полное имя договора
+       («Дог. №311 от 02.03.2025»), затравка — короткую подпись («Дог. №56»), а требование
+       знает свой кредит как '311' — сравнить их было нечем, и поле оставалось украшением. */
     return `<label class="cpick-row">
-      <input type="checkbox" class="ccCredit" value="${escAttr(c.num)}" onchange="syncCreditAll()" checked>
+      <input type="checkbox" class="ccCredit" value="${escAttr(c.id)}" onchange="syncCreditAll()" checked>
       <span class="cpick-main"><span class="cpick-num">${escAttr(c.num)}</span>${c.scope?`<span class="cpick-sub"> · ${escAttr(c.scope)}</span>`:''}${n}</span>
       <span class="cpick-claim">требование ${fmtKGS(claimTotal(reqs))}</span>${od}</label>`;
   }).join('');
@@ -4398,7 +4541,8 @@ function saveCommitteeQuestion(){
   if((curProc.credits||[]).length && !credits.length){ toast('Отметьте хотя бы один кредит','warn'); return; }
   if(subjSel===CQ_FREE && !val('cqSubjectFree')){ toast('Сформулируйте предмет вопроса','warn'); return; }
   curProc.committeeQuestions=curProc.committeeQuestions||[];
-  curProc.committeeQuestions.unshift({organ,initiator,topic,credits,meetingDate:'',decision:'',positive:false,protocolNo:'',protocolDate:''});
+  // КР-9: вопрос рождается НЕ решённым — состояние выводится, в поле решения его не пишем.
+  curProc.committeeQuestions.unshift({organ,initiator,topic,credits,meetingDate:'',decided:false,decision:'',positive:false,protocolNo:'',protocolDate:''});
   curProc.history=curProc.history||[];
   curProc.history.unshift({when:TODAY+' 12:00',what:`Вопрос вынесен на «${organ}»: ${topic}`,who:initiator});
   closeModal(); renderPanels(); toast('Вопрос вынесен на коллегиальный орган (демо)','ok');
@@ -4427,7 +4571,7 @@ function saveDecision(idx){
   if(q.initiator===SECRETARY_ROLE){ toast('Самоодобрение запрещено: инициатор не может решать свой вопрос','warn'); return; }
   const val=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
   const decision=val('dcDecision'), positive=(decision==='выдано'||decision==='разрешено');
-  q.decision=decision; q.positive=positive;
+  q.decision=decision; q.positive=positive; q.decided=true;   // КР-9: решение внесено — флаг явный
   q.meetingDate=val('dcMeeting')||q.meetingDate||TODAY;
   q.protocolNo=val('dcProtNo'); q.protocolDate=val('dcProtDate')||q.meetingDate;
   // Связка с гейтом-поручением: положительное решение Председателя Правления → флаг
@@ -5231,33 +5375,344 @@ function agSave(){
 }
 
 /* ============================================================
-   КРОСС-ПРОЦЕССНЫЕ РЕЕСТРЫ
+   КРОСС-ПРОЦЕССНЫЕ РЕЕСТРЫ — ВОЛНА КР
+   Было три экрана-выгрузки: заседания — семь колонок, фильтр по датам кнопкой
+   «применён (демо)» и ни одного предстоящего заседания; претензии — без тулбара вовсе,
+   с колонкой «Статус», где 48 строк из 48 несли одно значение; вопросы — без состояния,
+   с решением и «не рассмотрено» в одной ячейке. Ни один не отвечал на вопрос, ради
+   которого его открывают.
+   Стало: один каркас (сегмент состояния в хеше · фильтр по подразделению и поиск ·
+   чипы условий · рамка со счётчиками · сортируемые колонки · пустое состояние,
+   называющее причину) и три РАМКИ, названные вслух (КР-1):
+     заседания — «куда и когда идти»       (ось: дата;      умолчание — предстоящие)
+     претензии — «что отправлено и дошло»  (ось: вручение;  умолчание — все)
+     вопросы   — «что стоит и у кого»      (ось: ожидание;  умолчание — ждут решения)
    ============================================================ */
-function renderHearingsRegistry(){
-  const rows=PROCESSES.flatMap(p=>(p.hearings||[]).map(h=>`<tr class="rowlink" onclick="openDetail('${p.id}')">
-    <td>${p.borrower}</td><td>${procNo(p.id)}</td><td>${h.measureNum}</td><td>${h.kind}</td><td>${h.place}</td><td>${h.when}</td>
-    <td>${h.status}${h.substatus?` <span class="pill mid">${h.substatus}</span>`:''}</td></tr>`)).join('');
-  document.getElementById('hearingsBody').innerHTML=rows||`<tr><td colspan="7"><div class="cgrid-empty">Заседаний нет</div></td></tr>`;
+const REGS = {}, regState = {}, REG_BUILT = {};
+function defReg(def){ REGS[def.key] = def; regState[def.key] = { seg:def.segs[0].k, sort:{ ...def.sort } }; }
+const regEl  = (key, id) => document.getElementById(key + id);
+const regSeg = key => REGS[key].segs.find(s=>s.k===regState[key].seg) || REGS[key].segs[0];
+/* Каркас строится из описания — одна разметка на три экрана (КР-13). */
+function regBuild(key){
+  if(REG_BUILT[key]) return;
+  const def = REGS[key];
+  document.getElementById(key+'Host').innerHTML = `
+    <div class="gtoolbar">
+      <span class="section-note" style="margin:0">${def.segLabel}</span>
+      <span class="segbtn" id="${key}Seg">${def.segs.map(s=>`<button data-s="${s.k}" onclick="regSetSeg('${key}','${s.k}')">${s.t}</button>`).join('')}</span>
+      <label class="retro-toggle"><input type="checkbox" id="${key}Mine" onchange="regRefresh('${key}')"> только моё подразделение</label>
+      <span class="section-note" style="margin:0">${def.subdivLabel}</span>
+      <div class="control" style="min-width:180px"><select id="${key}Subdiv" onchange="regRefresh('${key}')"></select></div>
+      <span class="spacer"></span>
+      <div class="control" style="min-width:240px"><input id="${key}Q" oninput="regRefresh('${key}')" placeholder="${def.search}"></div>
+    </div>
+    <div class="filter-chips" id="${key}Chips" style="padding:0;margin-bottom:10px"></div>
+    <p class="section-note" id="${key}Frame" style="padding:0 0 4px"></p>
+    <div class="cgrid-wrap"><table class="cgrid">
+      <colgroup id="${key}Cols"></colgroup>
+      <thead><tr id="${key}Head"></tr></thead>
+      <tbody id="${key}Body"></tbody>
+    </table></div>
+    <p class="section-note" style="margin-top:10px">${def.note}</p>`;
+  REG_BUILT[key] = true;
 }
-const CLAIM_KINDS=new Set(['Первичная претензия','Повторная претензия','Требование поручителю','Требование гаранту','Требование отраслевому госоргану']);
-/* Реестр претензий — по требованиям: у претензии есть адресат, и это обязанное лицо,
-   а не «процесс». Клик открывает требование-цель, а не папку дела. */
-function renderClaimsRegistry(){
-  const rows=PROCESSES.flatMap(p=>(p.measures||[]).filter(m=>CLAIM_KINDS.has(m.kind)).map(m=>{
-    const tg=(m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean);
-    const to=tg.length?tg.map(x=>`${personOf(x).name} (${x.role})`).join('; '):'—';
-    return `<tr class="rowlink" onclick="openDetail('${tg[0]?tg[0].id:p.id}')">
-    <td>${m.storno?'<span class="pill neutral">сторно</span>':'<span class="pill low">зарегистрирована</span>'}</td><td>${m.num||'—'}</td><td>${m.dates?m.dates.registered:'—'}</td>
-    <td>${p.borrower}</td><td>${escAttr(to)}</td><td>${procNo(p.id)}</td><td style="text-align:right">${m.sum}</td></tr>`;
-  })).join('');
-  document.getElementById('claimsBody').innerHTML=rows||`<tr><td colspan="7"><div class="cgrid-empty">Претензий нет</div></td></tr>`;
+/* Активные условия — одним списком для чипов и пустого состояния (паттерн ТР-Д12). */
+function regConditions(key){
+  const def = REGS[key], out = [], seg = regSeg(key);
+  if(seg.cond) out.push({ label:seg.cond, clear:`regSetSeg('${key}','${def.wide}')` });
+  if((regEl(key,'Mine')||{}).checked){
+    const my = roleSubdivs();
+    out.push({ label:'Только моё подразделение: ' + (my.length ? my.join(' / ') : 'у текущей роли подразделения нет'),
+               clear:`regClear('${key}','Mine')` });
+  }
+  const sub = (regEl(key,'Subdiv')||{}).value;
+  if(sub) out.push({ label:def.subdivLabel + ': ' + sub, clear:`regClear('${key}','Subdiv')` });
+  const q = ((regEl(key,'Q')||{}).value||'').trim();
+  if(q) out.push({ label:'Поиск: ' + q, clear:`regClear('${key}','Q')` });
+  return out;
 }
-function renderCommitteeRegistry(){
-  const rows=PROCESSES.flatMap(p=>(p.committeeQuestions||[]).map(q=>`<tr class="rowlink" onclick="openDetail('${p.id}')">
-    <td>${q.organ}</td><td>${q.initiator}</td><td>${q.topic}</td><td>${procNo(p.id)}</td><td>${q.meetingDate||'—'}</td>
-    <td>${q.decision||'—'} ${q.positive?'<span class="pill low">положительное</span>':'<span class="pill mid">не рассмотрено</span>'}</td><td>${q.protocolNo?`${q.protocolNo} от ${q.protocolDate}`:'—'}</td></tr>`)).join('');
-  document.getElementById('committeeBody').innerHTML=rows||`<tr><td colspan="7"><div class="cgrid-empty">Вопросов нет</div></td></tr>`;
+function regPass(key, x){
+  const def = REGS[key];
+  if(!regSeg(key).pass(x)) return false;
+  const xs = def.subdiv(x), sub = (regEl(key,'Subdiv')||{}).value;
+  if(sub && (sub === 'не выведено' ? !!xs : xs !== sub)) return false;
+  if((regEl(key,'Mine')||{}).checked && !roleSubdivs().includes(xs)) return false;
+  const q = ((regEl(key,'Q')||{}).value||'').trim().toLowerCase();
+  if(q && !def.text(x).some(v=>String(v||'').toLowerCase().includes(q))) return false;
+  return true;
 }
+function regSetSeg(key, s){ regState[key].seg = s; setHash(key + '/' + s); regRefresh(key); }
+function regSortBy(key, k){ const st = regState[key]; if(st.sort.k === k) st.sort.dir *= -1; else st.sort = { k, dir:1 }; regRefresh(key); }
+function regClear(key, what){
+  const el = regEl(key, what); if(!el) return;
+  if(what === 'Mine') el.checked = false; else el.value = '';
+  regRefresh(key);
+}
+function regResetAll(key){ regClear(key,'Mine'); regClear(key,'Subdiv'); regClear(key,'Q'); regSetSeg(key, REGS[key].wide); }
+/* Полная отрисовка. Список подразделений собирается из ТЕХ ЖЕ выведенных значений, по
+   которым идёт сравнение в regPass (урок ТР-5: иначе выбор из списка даёт пустой экран). */
+function regRender(key){
+  regBuild(key);
+  const def = REGS[key], sel = regEl(key,'Subdiv');
+  if(sel && !sel.options.length){
+    const all = def.all();
+    const subs = uniq(all.map(def.subdiv).filter(Boolean));
+    if(all.some(x=>!def.subdiv(x))) subs.push('не выведено');
+    sel.innerHTML = `<option value="">— все —</option>` + subs.map(s=>`<option>${s}</option>`).join('');
+  }
+  regRefresh(key);
+}
+function regRefresh(key){
+  if(!regEl(key,'Body')) return;
+  const def = REGS[key], st = regState[key];
+  document.querySelectorAll(`#${key}Seg button`).forEach(b=>b.classList.toggle('on', b.dataset.s === st.seg));
+  regEl(key,'Cols').innerHTML = def.cols.map(c=>`<col style="width:${c.w}">`).join('');
+  regEl(key,'Head').innerHTML = def.cols.map(c=>
+    `<th class="sortable${c.num?' num':''}${st.sort.k===c.k?' sorted':''}" onclick="regSortBy('${key}','${c.k}')">${c.t}<span class="sort">${st.sort.k===c.k?(st.sort.dir>0?'↑':'↓'):'↕'}</span></th>`).join('');
+  const all  = def.all();
+  const rows = all.filter(x=>regPass(key,x)).sort((a,b)=>{
+    const va = def.sortVal[st.sort.k](a), vb = def.sortVal[st.sort.k](b);
+    const c = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb),'ru');
+    return c * st.sort.dir;
+  });
+  const cond = regConditions(key);
+  regEl(key,'Chips').innerHTML = cond.map(c=>`<span class="fchip">${escAttr(c.label)}<button title="убрать" onclick="${c.clear}">×</button></span>`).join('');
+  regEl(key,'Frame').innerHTML = def.frame(rows, all);
+  regEl(key,'Body').innerHTML = rows.length ? rows.map(x=>def.row(x)).join('')
+    : `<tr class="rowempty"><td colspan="${def.cols.length}"><div class="list-empty">
+        <div class="le-title">${def.emptyTitle}</div>
+        <div class="le-cond">${cond.length ? 'Условия отбора: ' + escAttr(cond.map(c=>c.label).join(' · ')) : def.emptyNone}</div>
+        ${cond.length ? `<button class="btn btn-secondary" onclick="regResetAll('${key}')">Снять все условия</button>` : ''}
+      </div></td></tr>`;
+}
+/* Строка-ссылка: клик и Enter (паттерн ТР-6/СК-10). Ведёт туда, где запись ЖИВЁТ. */
+function regOpen(id, slug, cls){
+  const open = `openDetail('${escAttr(id)}', TAB_BY_SLUG('${slug}'))`;
+  return `class="rowopen${cls?' '+cls:''}" tabindex="0" onclick="${open}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${open};}"`;
+}
+const borrCell = p => `<td class="dl-borr" title="${escAttr(p.borrower+' · ИНН '+(p.inn||'—'))}">${p.borrower}<span class="dl-sub">дело ${procNo(p.id)}</span></td>`;
+/* Ячейка требования: один — договор и роль; несколько — то, ЧЕМ они различаются (один
+   договор и разные роли = солидарность, разные договоры = номера). Паттерн СК. */
+function reqCell(reqs, sub){
+  const tail = sub ? ' · ' + escAttr(sub) : '';
+  if(!reqs.length) return `${dealLevelPill}${sub?`<span class="dl-sub">${escAttr(sub)}</span>`:''}`;
+  if(reqs.length === 1) return `${reqs[0]._credit.num}<span class="dl-sub">${reqs[0].role}${tail}</span>`;
+  const one = new Set(reqs.map(r=>r.credit)).size === 1;
+  return `${reqs.length} требования<span class="dl-sub">${escAttr((one ? reqs.map(r=>r.role) : reqs.map(r=>r._credit.num)).join(' · '))}${tail}</span>`;
+}
+
+/* ---- РЕЕСТР ЗАСЕДАНИЙ: «куда и когда идти» (КР-3, КР-4) ----
+   Ось экрана — дата. Умолчание «Предстоящие»; прошедшее заседание БЕЗ внесённого исхода
+   показывается всегда — оно такой же незакрытый хвост, как просроченный срок в очереди
+   СК, и прятать его за сегментом значило бы прятать работу. */
+function hAll(){
+  return PROCESSES.flatMap(p => (p.hearings||[]).map(h => ({
+    p, h, reqs:hTargets(p,h), n:hLeft(h), done:hDone(h), rep:hRep(h) })));
+}
+defReg({
+  key:'hearings', nav:'Заседания (реестр)',
+  segLabel:'Показывать', subdivLabel:'Ведущее подразделение', wide:'all',
+  search:'заёмщик, ИНН, № дела, суд',
+  segs:[
+    { k:'upcoming', t:'Предстоящие', pass:x => x.n == null || x.n >= 0 || !x.done,
+      cond:'Показаны предстоящие заседания (прошедшие без внесённого исхода — всегда)' },
+    { k:'past',     t:'Прошедшие',   pass:x => x.n != null && x.n < 0, cond:'Показаны прошедшие заседания' },
+    { k:'all',      t:'Все',         pass:()=>true },
+  ],
+  sort:{ k:'when', dir:1 },
+  cols:[
+    { k:'when',  t:'Дата и время',    w:'132px' },
+    { k:'left',  t:'Осталось, к.д.',  w:'128px', num:true },
+    { k:'kind',  t:'Вид',             w:'auto' },
+    { k:'borr',  t:'Заёмщик',         w:'190px' },
+    { k:'req',   t:'Требование',      w:'176px' },
+    { k:'place', t:'Место',           w:'auto' },
+    { k:'rep',   t:'Представитель ФКФ', w:'146px' },
+    { k:'out',   t:'Исход',           w:'212px' },
+  ],
+  all:hAll,
+  subdiv:x => x.reqs.length ? x.reqs[0].subdivision : null,
+  text:x => [x.p.borrower, x.p.inn, procNo(x.p.id), x.h.place, x.h.measureNum],
+  sortVal:{
+    when: x => dkey(hDay(x.h)) + ' ' + (x.h.when||''),
+    left: x => x.n == null ? 1e9 : x.n,
+    kind: x => x.h.kind, borr: x => x.p.borrower,
+    req:  x => x.reqs.length ? x.reqs[0]._credit.num + ' ' + x.reqs[0].role : 'я',
+    place:x => x.h.place, rep: x => x.rep || 'я',
+    out:  x => x.done ? x.h.outcome : 'я',
+  },
+  frame(rows, all){
+    const up   = rows.filter(x=>x.n != null && x.n >= 0).length;
+    const hole = rows.filter(x=>x.n != null && x.n < 0 && !x.done).length;
+    const next = rows.filter(x=>x.n != null && x.n >= 0).sort((a,b)=>a.n-b.n)[0];
+    return `Показано <b>${rows.length}</b> из ${all.length} · предстоит <b>${up}</b> · прошло без внесённого исхода <b>${hole}</b>`
+      + ` · ближайшее <b>${next ? next.h.when : '—'}</b> · отсчёт от ${TODAY}`;
+  },
+  row(x){
+    const out = x.done ? escAttr(x.h.outcome)
+      : x.n != null && x.n < 0 ? `<span class="pill high">исход не внесён</span>`
+      : `<span class="dl-muted">предстоит</span>`;
+    const id = x.reqs.length ? x.reqs[0].id : x.p.id;
+    return `<tr ${regOpen(id, 'sud')} title="${escAttr(`Мера-основание: ${x.h.measureNum || '—'} · участники: ${(x.h.participants||[]).join(', ') || 'не указаны'}`)}">
+      <td>${x.h.when}</td>
+      <td class="num">${x.n == null ? '<span class="dl-muted">—</span>'
+        : x.n < 0 ? `<span class="${x.done?'dl-muted':'dl-over'}">−${-x.n} · прошло</span>`
+        : x.n === 0 ? '<span class="dl-today">0 · сегодня</span>' : `<span class="dl-soon">${x.n}</span>`}</td>
+      <td class="dl-act">${x.h.kind}</td>
+      ${borrCell(x.p)}
+      <td>${reqCell(x.reqs, 'мера ' + (x.h.measureNum || '—'))}</td>
+      <td class="dl-act">${x.h.place}</td>
+      <td>${x.rep ? x.rep : '<span class="dl-muted">не назначен</span>'}</td>
+      <td class="dl-act">${out}</td></tr>`;
+  },
+  emptyTitle:'Ни одного заседания не найдено',
+  emptyNone:'Условий отбора нет — ни по одному делу заседание не назначено и не проведено.',
+  note:'Заседание — одна запись (КР-2): пока дата не наступила, оно само выводится в очередь сроков строкой «Следующее судебное заседание»; отдельного хранимого срока нет. Остаток считается от даты отсчёта, единица — календарные дни. Строка ведёт на вкладку «Суд» того требования, к которому заседание привязано мерой-основанием.',
+});
+
+/* ---- РЕЕСТР ПРЕТЕНЗИЙ: «что отправлено и дошло ли» (КР-5, КР-6, КР-7) ----
+   Ось экрана — ВРУЧЕНИЕ (п. 20.2): без подтверждения мера не исполнена и доказательством
+   не годится. Колонка «Статус» снята — она несла одно значение на 48 строк из 48 (КР-Д). */
+const CLAIM_KINDS = new Set(['Первичная претензия','Повторная претензия','Требование поручителю','Требование гаранту','Требование отраслевому госоргану']);
+function cAll(){
+  return PROCESSES.flatMap(p => (p.measures||[]).filter(m=>CLAIM_KINDS.has(m.kind)).map(m => {
+    const reqs = (m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean);
+    /* КР-7: сумма документа НЕ пересчитывается — в претензии стоит та, что отправлена.
+       Расхождение с текущим требованием показывается подписью «сейчас …», а не
+       подменой цифры и не хранимой дельтой (ADR-0001). */
+    return { p, m, reqs, doc:parseSum(m.sum), now:reqs.length ? claimTotal(reqs) : null };
+  }));
+}
+defReg({
+  key:'claims', nav:'Претензии (реестр)',
+  segLabel:'Показывать', subdivLabel:'Ведущее подразделение', wide:'all',
+  search:'заёмщик, ИНН, № дела, номер документа',
+  segs:[
+    { k:'all',   t:'Все', pass:()=>true },
+    { k:'undelivered', t:'Не вручены', pass:x => !x.m.storno && !x.m.delivered,
+      cond:'Показаны документы без подтверждения вручения (п. 20.2)' },
+    { k:'storno', t:'Сторнированные', pass:x => !!x.m.storno, cond:'Показаны сторнированные документы' },
+  ],
+  sort:{ k:'sent', dir:-1 },
+  cols:[
+    { k:'kind', t:'Вид',        w:'auto' },
+    { k:'num',  t:'Номер',      w:'104px' },
+    { k:'sent', t:'Отправлена', w:'112px' },
+    { k:'deliv',t:'Вручение',   w:'250px' },
+    { k:'borr', t:'Заёмщик',    w:'190px' },
+    { k:'req',  t:'Требование', w:'236px' },
+    { k:'sum',  t:'Сумма',      w:'150px', num:true },
+  ],
+  all:cAll,
+  subdiv:x => x.reqs.length ? x.reqs[0].subdivision : null,
+  text:x => [x.p.borrower, x.p.inn, procNo(x.p.id), x.m.num],
+  sortVal:{
+    kind:x => x.m.kind, num:x => x.m.num || 'я',
+    sent:x => dkey(x.m.dates ? x.m.dates.registered : ''),
+    deliv:x => x.m.delivered ? '1 ' + (x.m.deliver||'') : '0',
+    borr:x => x.p.borrower,
+    req: x => x.reqs.length ? x.reqs[0]._credit.num + ' ' + x.reqs[0].role : 'я',
+    sum: x => x.doc || 0,
+  },
+  frame(rows, all){
+    const bad = rows.filter(x=>!x.m.storno && !x.m.delivered).length;
+    const st  = rows.filter(x=>!!x.m.storno).length;
+    const gap = rows.filter(x=>x.now != null && Math.abs(x.now - x.doc) >= 0.005).length;
+    return `Показано <b>${rows.length}</b> из ${all.length} · без подтверждения вручения <b>${bad}</b> (п. 20.2)`
+      + ` · сторнировано <b>${st}</b> · сумма документа разошлась с требованием у <b>${gap}</b>`;
+  },
+  row(x){
+    const m = x.m, bad = !m.storno && !m.delivered;
+    const d = m.dates || {};
+    const res = m.result ? (m.result.value || m.result.group || '—') : '—';
+    /* Р-7: три даты и результат — в подсказке. В колонки они не выносятся: экран
+       отвечает «дошло ли», а не «как двигался документ» (это журнал мер требования). */
+    const tip = `Событие ${d.event||'—'} · поступление ${d.received||'—'} · регистрация ${d.registered||'—'}`
+      + ` · результат: ${res} · ${m.resultKind||'—'} · ${m.execStage||'—'}`;
+    const gap = x.now != null && Math.abs(x.now - x.doc) >= 0.005;
+    const who = x.reqs.length ? uniq(x.reqs.map(r=>personOf(r).name)).join('; ') : '';
+    const id  = x.reqs.length ? x.reqs[0].id : x.p.id;
+    return `<tr ${regOpen(id, 'mery', m.storno?'storno':bad?'mrow-undelivered':'')} title="${escAttr(tip)}">
+      <td class="dl-act">${m.kind}${m.storno?` <span class="pill neutral">сторно</span>`:''}</td>
+      <td>${m.num||'—'}</td>
+      <td>${d.registered||'—'}</td>
+      <td class="dl-act">${m.delivered ? `вручено<span class="dl-sub">${escAttr(m.deliver||'')}</span>`
+        : `<span class="pill high">не подтверждено (п. 20.2)</span><span class="dl-sub">${escAttr(m.deliver||'способ не указан')}</span>`}</td>
+      ${borrCell(x.p)}
+      <td>${reqCell(x.reqs, who ? 'адресат: ' + who : null)}</td>
+      <td class="num">${m.sum}${gap?`<span class="dl-sub">сейчас ${fmtKGS(x.now)}</span>`:''}</td></tr>`;
+  },
+  emptyTitle:'Ни одного документа не найдено',
+  emptyNone:'Условий отбора нет — претензий и требований обязанным лицам ни по одному делу не регистрировалось.',
+  note:'Претензии и требования обязанным лицам — доказательства: без подтверждения вручения мера не исполнена (п. 20.2), и такие строки подсвечены независимо от сегмента. Сумма документа неизменна (КР-7) — она отправлена в этой цифре; расхождение с текущим требованием показано подписью «сейчас …» и нигде не хранится. Строка ведёт в журнал мер того требования, которому документ адресован.',
+});
+
+/* ---- РЕЕСТР ВОПРОСОВ НА ОРГАНЫ: «что стоит и у кого» (КР-8, КР-11) ----
+   Ось экрана — ожидание решения. Умолчание «Ждут решения»: решённые вопросы — архив,
+   а очередь и есть то, ради чего реестр открывают. Состояние выводится questionState —
+   тем же, что читает гейт и карточка (КР-9). */
+function qAll(){
+  return PROCESSES.flatMap(p => (p.committeeQuestions||[]).map(q => {
+    const st = questionState(q);
+    const gate = Object.keys(RULES.gates).find(k => gateTopic(k) === q.topic) || null;
+    const reqs = (p.requirements||[]).filter(r => (q.credits||[]).includes(r.credit));
+    return { p, q, st, gate, reqs };
+  }));
+}
+defReg({
+  key:'committee', nav:'Вопросы на коллегиальные органы (реестр)',
+  segLabel:'Показывать', subdivLabel:'Инициатор', wide:'all',
+  search:'заёмщик, ИНН, № дела, предмет, протокол',
+  segs:[
+    { k:'pending', t:'Ждут решения', pass:x => !x.q.decided, cond:'Показаны вопросы, по которым решение не внесено' },
+    { k:'decided', t:'Решённые',     pass:x => !!x.q.decided, cond:'Показаны решённые вопросы' },
+    { k:'all',     t:'Все',          pass:()=>true },
+  ],
+  sort:{ k:'meeting', dir:1 },
+  cols:[
+    { k:'state',   t:'Состояние',  w:'186px' },
+    { k:'topic',   t:'Предмет',    w:'auto' },
+    { k:'organ',   t:'Орган',      w:'auto' },
+    { k:'borr',    t:'Заёмщик',    w:'190px' },
+    { k:'credits', t:'Договоры',   w:'190px' },
+    { k:'init',    t:'Инициатор',  w:'104px' },
+    { k:'meeting', t:'Заседание',  w:'150px' },
+  ],
+  all:qAll,
+  /* КР-13: подразделение вопроса — его ИНИЦИАТОР (у вопроса нет ведущего подразделения
+     требования: он выносится от дела). Инициатор-орган («ПДК») подразделением не является. */
+  subdiv:x => SUBDIV_CODES.includes(x.q.initiator) ? x.q.initiator : null,
+  text:x => [x.p.borrower, x.p.inn, procNo(x.p.id), x.q.topic, x.q.protocolNo],
+  sortVal:{
+    state:  x => ['pending','scheduled','negative','positive'].indexOf(x.st.k),
+    topic:  x => x.q.topic, organ: x => x.q.organ, borr: x => x.p.borrower,
+    credits:x => creditLabels(x.p, x.q.credits), init: x => x.q.initiator,
+    meeting:x => dkey(x.q.meetingDate) || 'я',
+  },
+  frame(rows, all){
+    const wait = rows.filter(x=>!x.q.decided).length;
+    const nod  = rows.filter(x=>!x.q.decided && !x.q.meetingDate).length;
+    const no   = rows.filter(x=>x.st.k==='negative').length;
+    const gate = rows.filter(x=>x.gate && !x.q.decided).length;
+    return `Показано <b>${rows.length}</b> из ${all.length} · ждут решения <b>${wait}</b> · из них без даты заседания <b>${nod}</b>`
+      + ` · отказов <b>${no}</b> · держат заблокированным действие <b>${gate}</b>`;
+  },
+  row(x){
+    const q = x.q, g = x.gate ? RULES.gates[x.gate] : null;
+    const id = x.reqs.length ? x.reqs[0].id : x.p.id;
+    return `<tr ${regOpen(id, 'soglasovaniya')} title="${escAttr(x.st.hint)}">
+      <td><span class="pill ${x.st.pill}">${x.st.t}</span>${q.decision?`<span class="dl-sub">${escAttr(q.decision)}</span>`:''}</td>
+      <td class="dl-act">${q.topic}${g?`<span class="dl-sub">блокирует: ${escAttr(g.label)}, п. ${g.point}</span>`:''}</td>
+      <td class="dl-act">${q.organ}</td>
+      ${borrCell(x.p)}
+      <td class="dl-act">${escAttr(creditLabels(x.p, q.credits))}</td>
+      <td>${q.initiator||'—'}</td>
+      <td>${q.meetingDate || '<span class="dl-muted">не назначено</span>'}${q.protocolNo?`<span class="dl-sub">протокол ${escAttr(q.protocolNo)} от ${q.protocolDate||'—'}</span>`:''}</td></tr>`;
+  },
+  emptyTitle:'Ни одного вопроса не найдено',
+  emptyNone:'Условий отбора нет — вопросов на коллегиальные органы ни по одному делу не выносилось.',
+  note:'Общесистемный слой (Р-6): один реестр для всех модулей, не внутри взыскания. Состояние выводится из одного места (КР-9) — его же читают карточка и гейт, поэтому «ждёт решения» в реестре и в карточке разойтись не могут. Гейтовый вопрос называет, какое действие он держит и по какому пункту; совпадение с гейтом идёт по предмету И по договору (КР-10). Строка ведёт на вкладку «Согласования» дела.',
+});
 /* ============================================================
    СРОКИ НА КОНТРОЛЕ — рабочая очередь (волна СК)
    Было: список только просроченного, семь колонок без ответственного и без требования,
@@ -5283,7 +5738,7 @@ const DL_COLS = [
 /* Плоский список сроков всех дел с выведенными полями — одна точка правды для
    таблицы, счётчиков рамки и пустого состояния. */
 function dlAll(){
-  return PROCESSES.flatMap(p => (p.deadlines||[]).map(d => {
+  return PROCESSES.flatMap(p => dlOf(p).map(d => {
     const reqs = (d.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean);
     const resp = dlResponsible(p, d);
     return { p, d, reqs, resp, n:daysLeft(d), act:dlAction(d) };
@@ -5373,6 +5828,8 @@ function dlRefresh(){
    требование). Требование → «Обзор»; подтверждение статуса процедуры → «Процедура»;
    конфликт интересов → «Особые состояния». */
 function dlTarget(x){
+  /* КР-12/КР-15: срок-проекция заседания ведёт туда, где заседание живёт — на «Суд». */
+  if(x.d && x.d._hearing && x.reqs.length) return [x.reqs[0].id, 'sud'];
   if(x.reqs.length) return [x.reqs[0].id, 'obzor'];
   return [x.p.id, /конфликт/i.test(x.act) ? 'sostoyaniya' : 'procedura'];
 }
@@ -5424,8 +5881,10 @@ function showView(v){ document.querySelectorAll('.view').forEach(s=>s.style.disp
   if(v==='settings') renderSettings();
   if(titles[v]) setCrumb([[titles[v]]]);
   /* detail пишет renderDetail (с id и вкладкой); остальные виды — по имени.
-     СК-6: у реестра сроков в хеше ещё и горизонт — при F5 очередь остаётся той же. */
+     СК-6: у реестра сроков в хеше ещё и горизонт — при F5 очередь остаётся той же.
+     КР-4/КР-5/КР-8: у трёх кросс-процессных реестров так же — сегмент состояния. */
   if(v==='deadlines') setHash('deadlines/'+dlHorizon);
+  else if(REGS[v]) setHash(v+'/'+regState[v].seg);
   else if(v!=='detail') setHash(v);
 }
 /* КД-11: крошка — ПУТЬ, а не второй заголовок. Раньше в неё писали три места, и в
@@ -5465,7 +5924,17 @@ function restoreFromHash(){
     navLabel='Сроки на контроле (реестр)'; renderNav();
     renderDeadlinesRegistry(); showView('deadlines'); return;
   }
-  const views=['list','hearings','claims','committee','settings'];
+  /* КР-4/КР-5/КР-8: «hearings/upcoming», «claims/undelivered», «committee/pending» —
+     вид и сегмент состояния. Ссылку на «прошедшие без исхода» или «вопросы, которые
+     держат действие заблокированным» можно передать коллеге, и он увидит ровно её. */
+  const rk = h.split('/')[0];
+  if(REGS[rk]){
+    const seg = h.split('/')[1];
+    if(seg && REGS[rk].segs.some(s=>s.k===seg)) regState[rk].seg = seg;
+    navLabel = REGS[rk].nav; renderNav();
+    regRender(rk); showView(rk); return;
+  }
+  const views=['list','settings'];
   showView(views.includes(h)?h:'list');
 }
 window.addEventListener('hashchange',()=>{ if(curHash()!==lastHash) restoreFromHash(); });
