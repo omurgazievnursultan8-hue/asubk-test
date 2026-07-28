@@ -1333,6 +1333,97 @@ ok('КЗ-27. следствие периода в подаче: за сосед�
       && !!july && /в срок/.test(july.s) && !/факт есть за/.test(july.p)
       && closed.some(t => /05\.2026/.test(t)) && !closed.some(t => /06\.2026/.test(t)); })());
 
+/* ── Вкладка 5 «Взыскание»: КЗ-28…КЗ-30 + хвост Б-10 ───────────────────────────
+   ADR-0002: единица работы — ТРЕБОВАНИЕ = дело × кредит × обязанное лицо. Строка
+   таблицы — требование, а не дело: иначе два договора с разной судьбой (по одному иск,
+   по другому претензия) сворачиваются в worst-of, а требование к поручителю рисуется
+   судебным рельсом заёмщика. Фаза выводится из журнала мер, целящих в требование
+   (М-2 · ADR-0003), пауза — состояние обязательства (М-11 · В-6), закрытие производно
+   и исход берётся из закрытого словаря (М-9 · §3.3). Итог — по показанному множеству,
+   валюты порознь, требование считается один раз на кредит (И-12 · §2.2 · Б-10). */
+const cvTab   = inn => { const f = card(inn); f.ev("switchTab(tabIx('взыскание'))"); return f; };
+const cvPanel = f => f.$('.tabpanel[data-panel="' + f.ev("tabIx('взыскание')") + '"]');
+const cvRows  = f => [...f.$$('#cvWrap tbody tr.pl-row')];
+const cvGrp   = f => [...f.$$('#cvWrap tbody tr.grp-row')].map(tr => tr.textContent.replace(/\s+/g,' ').trim());
+const vAts    = cvTab('01204199910016');   // 2 дела × (заёмщик + поручитель) = 4 требования
+
+ok('КЗ-28. строка — требование: два кредита с поручителями дают четыре строки, не два дела',
+  (() => { const rows = cvRows(vAts);
+    return rows.length === 4
+      && rows.filter(tr => /поручитель/.test(cellText(tr,1))).length === 2
+      && rows.filter(tr => /заёмщик/.test(cellText(tr,1))).length === 2; })());
+
+ok('КЗ-28. солидарные требования по одному кредиту стоят рядом и различаются фазой (ADR-0002)',
+  (() => { const reqs = vAts.ev("JSON.stringify(reqsOfBorrower('01204199910016')"
+      + ".map(r=>({c:r.creditId,role:r.role,ph:r.phase,claim:r.claim})))");
+    const rs = JSON.parse(reqs);
+    const byCredit = {}; rs.forEach(r => (byCredit[r.c] = byCredit[r.c] || []).push(r));
+    return Object.values(byCredit).every(g => g.length === 2
+        && g[0].claim === g[1].claim                       // §2.2: то же обязательство
+        && g.find(r => r.role === 'заёмщик').ph !== g.find(r => r.role === 'поручитель').ph); })());
+
+ok('КЗ-28. вид один: переключателя «по процессам / по кредитам» больше нет',
+  !vAts.$('#cvSegPr') && !vAts.$('#cvSegCr')
+  && /строка — требование/.test(cvPanel(vAts).querySelector('.toolbar').textContent));
+
+ok('КЗ-28. кредит без требований из таблицы не исчезает — расхождение видно только здесь',
+  (() => { const g = cvGrp(vAts);
+    return g.length === 3 && g.some(t => /КР-60542/.test(t) && /требований нет/.test(t))
+      && /требований взыскания нет|процесса нет/
+         .test(vAts.$('#cvWrap').textContent.replace(/\s+/g,' ')); })());
+
+ok('КЗ-29. фаза требования выводится из журнала мер, а не хранится на деле (М-2 · ADR-0003)',
+  (() => { const f = mk();
+    f.ev("PROCESSES.find(p=>p.id==='PR-102').measures.push("
+       + "{num:'М-102-3',date:'01.07.2026',kind:'Требование обеспечителю',section:'Досудебный',"
+       + "sets:'Претензия',targets:'поручитель',sum:5330000,doc:'ТРБ-102/1'})");
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
+    const rs = JSON.parse(f.ev("JSON.stringify(reqsOfBorrower('01204199910016')"
+      + ".filter(r=>r.creditId==='C-ATS-NECEL').map(r=>({role:r.role,ph:r.phase,k:r.contour})))"));
+    const gr = rs.find(r => r.role === 'поручитель'), bo = rs.find(r => r.role === 'заёмщик');
+    return gr.ph === 'Претензия' && gr.k === 'К1'          // мера сдвинула только своё требование
+      && bo.ph === 'Повторная претензия'; })());           // М-5: чужая веха заёмщика не двигает
+
+ok('КЗ-29. мера без адресата остаётся мерой заёмщика — обеспечитель не двигается молча (М-5)',
+  (() => { const rs = JSON.parse(vAts.ev("JSON.stringify(reqsOfBorrower('01204199910016')"
+      + ".map(r=>({role:r.role,ph:r.phase})))"));
+    return rs.filter(r => r.role === 'поручитель').every(r => r.ph === 'Досудебное урегулирование'); })());
+
+ok('КЗ-29. пауза — состояние требования: фаза подменяется, фактическая названа рядом (М-11 · В-6)',
+  (() => { const f = cvTab('06601199960061');            // PR-602: обращение о реструктуризации
+    const row = cvRows(f).find(tr => /PR-602/.test(tr.dataset.pr));
+    const t = cellText(row, 3);
+    return /Рассмотрение вопроса реструктуризации/.test(t) && /факт: Иск/.test(t)
+      && f.ev("(r=>displayPhaseOf(r) !== reqPhase(r))"
+            + "(reqsOfBorrower('06601199960061').find(x=>x.proc.id==='PR-602'))"); })());
+
+ok('КЗ-30. архив — свёрнутый список требований, закрытие производно от дела (М-9)',
+  (() => { const f = cvTab('09901199990091');
+    const d = f.$('#cvArch');
+    return !!d && d.tagName === 'DETAILS' && !d.hasAttribute('open')
+      && /закрыт\S* требован/.test(d.querySelector('summary').textContent)
+      && cvRows(f).length === 0; })());
+
+ok('КЗ-30. исход вне закрытого словаря помечен, а не выдан за штатный (§3.3)',
+  (() => { const f = cvTab('09901199990091');
+    const t = f.$('#cvArch').textContent.replace(/\s+/g,' ');
+    return /Долг переведён правопреемнику \(ПД-231\)/.test(t)
+      && /вне закрытого словаря исходов/.test(t)
+      && f.ev("TERMINAL_OUTCOMES.has('Полное погашение') && "
+            + "!TERMINAL_OUTCOMES.has('Долг переведён правопреемнику (ПД-231)')"); })());
+
+ok('Б-10. итог по валютам порознь, требование считается один раз на кредит (И-12 · §2.2)',
+  (() => { const f = mk();
+    f.ev("CREDITS.find(c=>c.id==='C-ATS-NECEL').currency='USD'");
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
+    const feet = [...f.$$('#cvWrap > table > tfoot > tr')]
+      .map(tr => tr.textContent.replace(/\s+/g,' ').trim());
+    const tot = JSON.parse(f.ev("JSON.stringify(reqTotals(reqsOfBorrower('01204199910016')"
+      + ".filter(r=>!isReqClosed(r))))"));
+    return feet.length === 2 && feet.some(t => /USD/.test(t)) && feet.some(t => /KGS/.test(t))
+      && tot.USD.claim === 5330000 && tot.USD.n === 1        // 2 требования, но кредит один
+      && tot.KGS.claim === 9898000 && tot.KGS.n === 1; })());
+
 /* ── Словари взыскания: владелец — collection.html ──────────────────────────────
    CONTOURS / PHASE_STAGE / PROCEDURE_DICT скопированы в карточку заёмщика.
    Копипаст синхронен на 26.07.2026 и синхронится руками — значит разъедется молча.

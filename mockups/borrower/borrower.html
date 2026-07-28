@@ -9,7 +9,7 @@
      Спека: mockups/borrower/ASUBK-zaemshik-logika.md — правила вывода, инварианты с причиной, швы (СП-21)
             docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки); её место заняла спека выше
-     Проверка: node scripts/inspect/borrower-check.mjs  →  230/230 PASS (2026-07-28)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  240/240 PASS (2026-07-28)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
@@ -135,6 +135,37 @@
                      «Где закрывается», у исполненных «Чем закрыто» с самим фактом.
                  Б-4 закрыт раньше, в модели: существование обязательства и его срок считаются
                      на ОДНУ дату (totalDebt(inn, d), не TODAY внутри).
+
+     Вкладка 5 «Взыскание»: решения КЗ-28…КЗ-30 (28.07.2026) — вкладка переведена на
+                 ADR-0002: единица работы не «дело», а ТРЕБОВАНИЕ = дело × кредит ×
+                 обязанное лицо (reqsOf/reqsOfBorrower). Прежняя строка-дело держала одну
+                 фазу и один охват на несколько договоров и несколько лиц, поэтому обычный
+                 случай (по одному договору иск, по другому претензия; к поручителю не
+                 направлено ничего) сворачивался в worst-of — те самые дефекты Д-1/Д-2
+                 у владельца.
+                 КЗ-28 — вид один: требования, сгруппированные по кредиту (groupedView).
+                     Переключатель «по процессам / по кредитам» снят: он существовал только
+                     потому, что строка-дело не умела показать покредитную фазу. Кредит без
+                     живых требований из таблицы не исчезает — расхождение «просрочка есть,
+                     процесса нет» видно только здесь;
+                 КЗ-29 — фаза принадлежит требованию и ВЫВОДИТСЯ из журнала мер, целящих в
+                     него (reqPhase, М-2 · ADR-0003): мера адресуется через targets (М-5),
+                     одна веха двигает несколько требований, мер-вех нет → «Досудебное
+                     урегулирование». Контур считается из фазы (contourOfPhase), рельс
+                     эскалации принадлежит требованию, а не делу. Пауза — состояние
+                     ОБЯЗАТЕЛЬСТВА (reqPause, поле on, М-11): на паузе отображаемая фаза
+                     подменяется на «Рассмотрение вопроса реструктуризации», фактическая
+                     названа рядом (В-6). Хранимое p.phase осталось фактом-затравкой; для
+                     внешних потребителей (проверки, история) фаза дела выводится
+                     procPhaseLabel() — самая продвинутая среди требований заёмщика;
+                 КЗ-30 — закрытие производно от дела (М-9), архив свёрнут в details и
+                     перечисляет требования; исход сверяется с закрытым словарём
+                     TERMINAL_OUTCOMES (§3.3) — «Долг переведён правопреемнику (ПД-231)»
+                     помечен как выходящий за словарь, а не выдан за штатный.
+                 Б-10 в этой вкладке закрыт до конца: итог считает reqTotals() — по валютам
+                 порознь (И-12), требование считается ОДИН раз на кредит, потому что
+                 солидарное требование к поручителю — то же обязательство (§2.2); взыскано
+                 и расходы ведутся на деле и подписаны «по делам».
 -->
 <style>
   :root{
@@ -311,6 +342,15 @@
   details.tile-more[open]>summary::before{content:'▾ ';}
   details.tile-more>summary:hover{text-decoration:underline;}
   details.tile-more[open]>summary{margin-bottom:7px;}
+  /* КЗ-30: свёрнутый раздел-архив — закрытая работа доступна, но места живой не занимает */
+  details.sect-fold{display:block;background:#fff;border:1px solid var(--border-default);
+    border-radius:var(--radius-md);margin-bottom:14px;}
+  details.sect-fold>summary{cursor:pointer;list-style:none;padding:11px 16px;
+    font:600 13px/1.3 var(--asubk-font);color:var(--text-body);}
+  details.sect-fold>summary::-webkit-details-marker{display:none;}
+  details.sect-fold>summary::before{content:'▸ ';color:var(--text-muted);}
+  details.sect-fold[open]>summary::before{content:'▾ ';}
+  details.sect-fold[open]>summary{border-bottom:1px solid var(--border-default);}
   .tile-detail{display:none;margin-top:2px;border-top:1px dashed var(--border-default);padding-top:9px;font-size:13px;line-height:1.5;}
   .tile-detail.open{display:block;}
   .tile-detail .step,.tile-more .step{display:flex;gap:8px;padding:2px 0;}
@@ -2651,12 +2691,8 @@ const daysBetween = (a,b) => dayNo(b) - dayNo(a);           // календар�
 const procNo = p => 'В-2026-' + String(p.no || 0).padStart(6, '0');
 const phasesOf = c => (CONTOURS[c] ? CONTOURS[c].phases : []);
 const stageOf  = ph => PHASE_STAGE[ph] || 'Досудебный порядок';
-/* В-6: пока рассматривается реструктуризация, модуль показывает подменённую фазу — карточка
-   обязана показывать ту же, иначе два экрана врозь. Вызывать ВЕЗДЕ, где видна фаза. */
-function displayPhase(p){
-  return (p.pause && p.pause.type==='restructuring' && p.pause.active!==false)
-    ? 'Рассмотрение вопроса реструктуризации' : p.phase;
-}
+/* Фазы процесса в подаче больше нет: она живёт на требовании (КЗ-28 · ADR-0002) —
+   см. reqPhase / displayPhaseOf ниже. */
 function procsOf(inn){
   const my = new Set(CREDITS.filter(c=>c.inn===inn).map(c=>c.id));
   return PROCESSES.filter(p=>p.credits.some(id=>my.has(id)));
@@ -2688,6 +2724,110 @@ function confirmState(p){
     return { code:'overdue', cls:'b-err', due, label:'не подтв. · срок вышел ' + (-left) + ' дн.' };
   return { code:'wait', cls:'b-gray', due, label:'не подтв.' + (due ? ' · до ' + due : '') };
 }
+/* ═══ КЗ-28 · ТРЕБОВАНИЕ — ЕДИНИЦА РАБОТЫ ВЗЫСКАНИЯ (ADR-0002 · М-1) ═══
+   Было: единица — процесс («дело») с одной фазой, одним охватом и вложенным списком кредитов.
+   Модель не выдерживает обычного случая: два договора, по одному подан иск, по другому только
+   претензия — одна фаза на дело этого не выражает, а сводка вырождается в worst-of, на котором
+   у владельца и возникли дефекты Д-1/Д-2. Стало: рабочая единица — ТРЕБОВАНИЕ = дело × кредит ×
+   обязанное лицо. Процесс остаётся папкой (кураторство, процедура Р-1, сроки, история); фаза,
+   охват, деньги и исход живут на требовании.
+   Зеркало ничего не хранит: требования разворачиваются из охвата процесса и действующих
+   договоров поручительства (ADR-0005) — тем же правилом, что normalize() у владельца. */
+const OPEN_PHASE = 'Досудебное урегулирование';
+const subjName = inn => (SUBJECTS.find(s => s.inn === inn) || {}).name || inn;
+function contourOfPhase(ph){
+  for (const c of CONTOUR_ORDER) if (phasesOf(c).includes(ph)) return c;
+  return 'К0';
+}
+/* М-5: мера хранится на деле и целит в требования. Явные `targets` сильнее; у унаследованных
+   записей цель выводится из вида — «Требование поручителю» двигает только его требование. */
+const measureRole = m => m.targets
+  || (/поручител|гарант|обеспечител/i.test(m.kind) ? 'поручитель' : 'заёмщик');
+const measuresOfReq = r => (r.proc.measures || [])
+  .filter(m => measureRole(m) === 'все' || measureRole(m) === r.role);
+/* М-2 · ADR-0003: фаза — свёртка журнала мер, ЦЕЛЯЩИХ В ЭТО требование, а не поле процесса.
+   Мер-вех нет — требование стоит на фазе открытия: у поручителя, которому ничего не
+   направляли, своя фаза, и это ровно тот факт, который старая модель прятала. */
+function reqPhase(r){
+  const ms = measuresOfReq(r).filter(m => m.sets).slice().sort((a,b)=>dayNo(a.date)-dayNo(b.date));
+  return ms.length ? ms[ms.length-1].sets : (r.role === 'заёмщик' ? r.proc.phase : OPEN_PHASE);
+}
+/* М-11: пауза — состояние ОБЯЗАТЕЛЬСТВА, а не дела. Рассмотрение реструктуризации заёмщика
+   не приостанавливает требование к поручителю; `on` говорит, на ком состояние висит. */
+function reqPause(r){
+  const ps = r.proc.pause;
+  if (!ps || ps.active === false) return null;
+  const on = ps.on || 'заёмщик';
+  return (on === 'все' || on === r.role) ? ps : null;
+}
+/* В-6: пока рассматривается реструктуризация, модуль показывает подменённую фазу — карточка
+   обязана показывать ту же. Вызывать ВЕЗДЕ, где видна фаза требования. */
+function displayPhaseOf(r){
+  const ps = reqPause(r);
+  return ps && ps.type === 'restructuring' ? 'Рассмотрение вопроса реструктуризации' : reqPhase(r);
+}
+/* Требования дела: охват × обязанные лица. Заёмщик отвечает всегда; поручитель — по
+   ДЕЙСТВУЮЩЕМУ договору на этот кредит (ADR-0005). Залогодатель-третье лицо отвечает вещью
+   и приходит с предметов залога, а не отсюда. */
+function reqsOf(p, d = asOf()){
+  const out = [];
+  const cov = p.cover || (p.credits||[]).map(id => ({ credit:id, subject:'—', claim:0 }));
+  cov.forEach(x => {
+    const c = CREDITS.find(y => y.id === x.credit) || { id:x.credit, no:x.credit };
+    const mk = (role, name, oInn, basis) => {
+      const r = { id:p.id + '/' + x.credit + '/' + role, proc:p, credit:c, creditId:x.credit,
+        subject:x.subject || '—', claim:x.claim || 0, currency:c.currency || 'KGS',
+        role, obligorName:name, obligorInn:oInn, basis };
+      r.phase = reqPhase(r);
+      r.contour = contourOfPhase(r.phase);
+      out.push(r);
+    };
+    mk('заёмщик', subjName(c.inn), c.inn, 'кредитный договор ' + (c.no || c.id));
+    guarantorsOfCredit(x.credit, d).forEach(gx => mk('поручитель', gx.guarantorFio,
+      gx.guarantorInn || null, 'договор поручительства ' + gx.no + ' от ' + gx.date));
+  });
+  return out;
+}
+const reqsOfBorrower = (inn, d = asOf()) => procsOf(inn).flatMap(p => reqsOf(p, d));
+/* §3.3 · М-9: исход — из ЗАКРЫТОГО словаря. Закрытие производно (нулевой остаток либо веха
+   с документом-основанием), поэтому произвольный текст исхода — расхождение с владельцем,
+   и в архиве он помечается, а не печатается молча. */
+const TERMINAL_OUTCOMES = new Set(['Полное погашение','Признана безнадёжной','Списана',
+  'Завершена процедура банкротства']);
+const isReqClosed  = r => isProcClosed(r.proc);
+const outcomeOfReq = r => r.proc.outcome || null;
+/* §2.2: требование к поручителю — то же обязательство солидарно. В строке сумма полная,
+   в итоге считается ОДИН раз на кредит, иначе агрегат задваивается. И-12 — валюты не
+   складываются (Б-10): итог собирается по каждой валюте отдельно. */
+function reqTotals(reqs){
+  const byCredit = {};
+  reqs.forEach(r => { const cur = byCredit[r.creditId];
+    if (!cur || (r.role === 'заёмщик' && cur.role !== 'заёмщик')) byCredit[r.creditId] = r; });
+  const out = {};
+  Object.values(byCredit).forEach(r => {
+    (out[r.currency] = out[r.currency] || { claim:0, rec:0, costs:0, n:0 });
+    out[r.currency].claim += r.claim; out[r.currency].n++;
+  });
+  /* взыскано и расходы живут на деле, а не на кредите — относим их к валюте первого
+     кредита охвата и подписываем, чтобы цифра не выдавалась за покредитную */
+  const seen = new Set();
+  Object.values(byCredit).forEach(r => {
+    if (seen.has(r.proc.id)) return; seen.add(r.proc.id);
+    const m = procMoney(r.proc);
+    (out[r.currency] = out[r.currency] || { claim:0, rec:0, costs:0, n:0 });
+    out[r.currency].rec += m.rec; out[r.currency].costs += m.costs;
+  });
+  return out;
+}
+/* Фаза дела для внешних потребителей (проверки, история): самая продвинутая среди требований
+   заёмщика. Сводка по делу остаётся производной и нигде не хранится. */
+function procPhaseLabel(p){
+  const rs = reqsOf(p).filter(r => r.role === 'заёмщик');
+  if (!rs.length) return p.phase;
+  const rank = r => CONTOUR_ORDER.indexOf(r.contour);
+  return displayPhaseOf(rs.slice().sort((a,b)=>rank(b)-rank(a))[0]);
+}
+
 /* Полоса дефектов взыскания — ради неё таб и открывают (паттерн вкладки «Залог»).
    Считается из тех же мер и сроков, что и таблица; отдельного хранилища нет. */
 function collectionDefects(inn){
@@ -2706,8 +2846,10 @@ function collectionDefects(inn){
       out.push({ sev:'mid', text:'процедура ждёт подтверждения · '+procNo(p)+' — в подгруппу не входит (И-2)' });
     const lm = lastMeasure(p);
     /* на паузе (рассмотрение реструктуризации, В-6) меры приостановлены — молчание процесса
-       законно, дефектом его считать нельзя */
-    const paused = p.pause && p.pause.active !== false;
+       законно, дефектом его считать нельзя. Пауза висит на требовании (М-11): дело молчит
+       законно, только пока приостановлены ВСЕ его требования — иначе поручитель стоит зря */
+    const rs = reqsOf(p);
+    const paused = rs.length > 0 && rs.every(r => reqPause(r));
     if (lm && !paused){
       const idle = daysBetween(lm.date, TODAY);
       if (idle > 60) out.push({ sev:'mid', text:'нет движения '+idle+' дн. (последняя мера '+lm.date+') · '+procNo(p) });
@@ -4316,18 +4458,17 @@ function wireCreditsTab(inn){
    модуля комитета/классификации, здесь не дублируется. obligations()/committeeQueue()
    сохранены — их использует attentionCard. */
 
-/* 3. Взыскание — зеркало (И-5). Два вида одной выборки:
-     «по процессам» — строка = процесс, раскрытие = рельс эскалации К0…К7 + сроки + журнал мер:
-       это ответ на вопрос куратора «где стоим и что горит»;
-     «по кредитам» — строка = кредит заёмщика, включая кредиты БЕЗ процесса: просрочка есть,
-       а процесса нет — это расхождение с модулем, и видно оно только в этом виде.
+/* 3. Взыскание — зеркало (И-5). ОДИН вид, строка = ТРЕБОВАНИЕ (КЗ-28/КЗ-29 · ADR-0002).
+   Было два вида-сегмента: «по процессам» и «по кредитам». Переключатель снят — он разделял
+   не разрезы одной выборки, а две разные модели одного и того же: покредитный вид существовал
+   ровно потому, что строка-процесс не умела показать покредитную фазу. Требование умеет,
+   поэтому вид один, а группировка — по кредиту: кредит остаётся вопросом куратора («что с
+   этим договором»), а ответом на него становится набор требований по нему. Кредит БЕЗ
+   требований из подачи не исчезает — просрочка без процесса это расхождение с модулем, и
+   видно оно только здесь.
    Сверху — полоса дефектов взыскания (просроченный срок, неподтверждённая процедура, нет
-   движения, просрочка без процесса). Терминальные процессы уходят в «Архив». Всё read-only. */
-const COLL_VIEW_KEY = 'asubk.borrower.collView';
-function collView(){
-  let v = null; try { v = localStorage.getItem(COLL_VIEW_KEY); } catch(e){}
-  return v === 'credits' ? 'credits' : 'procs';
-}
+   движения, просрочка без процесса). Закрытые требования уходят в свёрнутый архив (КЗ-30).
+   Всё только для чтения. */
 /* Пилюля срока — единственный источник; используется в обоих видах и в раскрытии. */
 function dlBadge(d){
   if (!d) return '<span class="muted">срок не установлен</span>';
@@ -4337,12 +4478,13 @@ function dlBadge(d){
   return '<span class="badge ' + cls + '" title="' + esc(d.action + ' · ' + d.base) + '">'
     + esc(d.due) + ' · ' + tail + '</span>';
 }
-function stagePhaseCell(p){
-  const ph = displayPhase(p);
-  const paused = ph !== p.phase;
-  return '<span class="badge b-gray">' + esc(stageOf(p.phase)) + '</span>'
+/* Ячейка фазы — у требования, не у дела: контур и стадия из неё выводятся (М-2). */
+function phaseCell(r){
+  const ph = displayPhaseOf(r);
+  const paused = ph !== r.phase;
+  return '<span class="badge b-gray">' + esc(r.contour) + ' · ' + esc(stageOf(r.phase)) + '</span>'
     + '<div style="margin-top:3px' + (paused ? ';color:var(--status-warning)' : '') + '">' + esc(ph)
-    + (paused ? ' <span class="muted">(факт: ' + esc(p.phase) + ')</span>' : '') + '</div>';
+    + (paused ? ' <span class="muted">(факт: ' + esc(r.phase) + ')</span>' : '') + '</div>';
 }
 
 function collectionTab(inn){
@@ -4350,16 +4492,13 @@ function collectionTab(inn){
   if (!creds.length) return sect('Взыскание', 'зеркало модуля взыскания · только чтение', '',
     empty('У заёмщика нет кредитов — взыскание не ведётся.'));
   const procs = procsOf(inn);
-  const live  = procs.filter(p => !isProcClosed(p));
-  const view  = collView();
+  const reqs  = reqsOfBorrower(inn);
+  const live  = reqs.filter(r => !isReqClosed(r));
 
   const toolbar = '<div class="toolbar">'
       + '<span class="fl muted">Суммы требования — снимок на ' + DEBT_ASOF + '</span>'
       + '<span class="sep"></span>'
-      + '<div class="viewseg" role="group" aria-label="Вид взыскания">'
-        + '<button type="button" class="viewseg-btn' + (view === 'procs' ? ' active' : '') + '" id="cvSegPr">по процессам</button>'
-        + '<button type="button" class="viewseg-btn' + (view === 'credits' ? ' active' : '') + '" id="cvSegCr">по кредитам</button>'
-      + '</div>'
+      + '<span class="fl muted">строка — требование: дело × кредит × обязанное лицо</span>'
       + '<span style="flex:1"></span>'
       + '<div class="dd" id="cvGenDd">'
         + '<button class="btn btn-primary btn-sm" id="cvGenBtn">Сформировать ▾</button>'
@@ -4375,68 +4514,97 @@ function collectionTab(inn){
   const defBar = defectBar('взыскания', def,
     'сроки в норме, процедуры подтверждены, просрочка без процесса отсутствует');
 
-  /* свод: стадия — максимальная по эскалации среди живых процессов (стадия производна от фазы) */
-  const money = live.reduce((a,p)=>{ const m = procMoney(p);
-    return { claim:a.claim+m.claim, rec:a.rec+m.rec }; }, { claim:0, rec:0 });
-  const maxP = live.slice().sort((a,b)=>
-    CONTOUR_ORDER.indexOf(b.contour) - CONTOUR_ORDER.indexOf(a.contour))[0];
-  const nearest = live.map(nearestDeadline).filter(Boolean)
+  /* КЗ-29: сводной «стадии» по заёмщику больше нет. Она была максимумом по эскалации, то есть
+     ровно тем worst-of, который ADR-0002 называет причиной Д-1/Д-2: одно число прятало, что
+     по одному договору идёт исполнительное производство, а по другому — первичная претензия.
+     Вместо него — РАСПРЕДЕЛЕНИЕ живых требований по фазам: сколько их и где они стоят. */
+  const byPhase = {};
+  live.forEach(r => { const ph = displayPhaseOf(r); byPhase[ph] = (byPhase[ph] || 0) + 1; });
+  const spread = Object.keys(byPhase)
+    .sort((a,b)=> CONTOUR_ORDER.indexOf(contourOfPhase(a)) - CONTOUR_ORDER.indexOf(contourOfPhase(b)))
+    .map(ph => '<span class="badge b-gray" title="' + esc(contourOfPhase(ph) + ' · ' + stageOf(ph)) + '">'
+      + esc(ph) + ' · ' + byPhase[ph] + '</span>').join(' ');
+  const tot = reqTotals(live);
+  /* Б-10: валюта — из кредита, и каждая идёт своей строкой; складывать их нельзя (И-12) */
+  const moneyStats = Object.keys(tot).map(cur => '<span class="mon-stat"><b>' + fmt(tot[cur].claim)
+    + '</b> ' + esc(cur) + ' требований <span class="muted">· взыскано ' + fmt(tot[cur].rec) + '</span></span>').join('');
+  const nearest = procs.filter(p=>!isProcClosed(p)).map(nearestDeadline).filter(Boolean)
     .sort((a,b)=>dayNo(a.due)-dayNo(b.due))[0];
-  const ovDl = live.reduce((n,p)=>n + (p.deadlines||[]).filter(d=>dlLeft(d) < 0).length, 0);
+  const ovDl = procs.filter(p=>!isProcClosed(p))
+    .reduce((n,p)=>n + (p.deadlines||[]).filter(d=>dlLeft(d) < 0).length, 0);
   const summary = '<div class="mon-sum">'
-    + '<span class="mon-stat"><b>' + live.length + '</b> процессов в работе</span>'
-    + (procs.length !== live.length
-        ? '<span class="mon-stat"><b>' + (procs.length - live.length) + '</b> завершено</span>' : '')
-    + '<span class="mon-stat">стадия · <b style="font-size:13px">'
-      + esc(maxP ? stageOf(maxP.phase) : '—') + '</b></span>'
-    + '<span class="mon-stat"><b>' + fmt(money.claim) + '</b> KGS требований</span>'
-    + '<span class="mon-stat"><b>' + fmt(money.rec) + '</b> KGS взыскано</span>'
+    + '<span class="mon-stat"><b>' + plural(live.length,'требование','требования','требований')
+      + '</b> в работе</span>'
+    + (reqs.length !== live.length
+        ? '<span class="mon-stat"><b>' + (reqs.length - live.length) + '</b> закрыто</span>' : '')
+    + '<span class="mon-stat"><b>' + procs.filter(p=>!isProcClosed(p)).length + '</b> дел</span>'
+    + (moneyStats || '<span class="mon-stat muted">требований нет</span>')
     + '<span class="mon-stat' + (ovDl ? ' ov' : '') + '">ближайший срок · '
       + (nearest ? dlBadge(nearest) : '<span class="muted">нет</span>') + '</span>'
-    + '</div>';
+    + '</div>'
+    + (spread ? '<div class="cv-money" id="cvSpread"><span>фазы требований: </span>' + spread + '</div>' : '');
 
-  /* архив терминальных — отдельным блоком: завершённый процесс не должен выглядеть как живая работа */
-  const closed = procs.filter(isProcClosed);
-  const arch = closed.length ? sect('Архив взыскания', closed.length + ' завершённых', '',
-    table('<th style="width:18%">Процесс</th><th style="width:20%">Исход</th><th style="width:12%">Закрыт</th>'
-        + '<th style="width:16%">Охват</th><th style="width:16%">Требование</th><th style="width:18%">Взыскано / расходы</th>',
-      closed.map(p => { const m = procMoney(p);
-        return '<tr class="muted"><td class="who">' + esc(procNo(p))
-          + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(p.contour) + ' · '
-          + esc((CONTOURS[p.contour]||{}).name || '') + '</div></td>'
-          + '<td>' + esc(p.outcome || '—') + '</td><td>' + esc(p.closed || '—') + '</td>'
-          + '<td>' + esc(p.credits.map(id=>(CREDITS.find(c=>c.id===id)||{}).no||id).join(', ')) + '</td>'
-          + '<td>' + fmt(m.claim) + ' KGS</td>'
-          + '<td>' + fmt(m.rec) + ' / ' + fmt(m.costs) + ' KGS</td></tr>'; }))) : '';
+  /* КЗ-30: архив — СВЁРНУТЫЙ блок закрытых ТРЕБОВАНИЙ. Закрытая работа не должна занимать
+     место живой, но и прятаться совсем не может: закрытие производно (М-9), и сверить исход
+     с закрытым словарём можно только увидев его. Колонка «Охват» здесь называлась охватом
+     ошибочно (КЗ-36): охват — предмет требования, а перечень договоров это «Кредит». */
+  const closed = reqs.filter(isReqClosed);
+  const archRows = closed.map(r => {
+    const o = outcomeOfReq(r);
+    const ok = o && TERMINAL_OUTCOMES.has(o);
+    return '<tr class="muted"><td class="who">' + esc(r.credit.no || r.creditId)
+      + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(procNo(r.proc)) + '</div></td>'
+      + '<td>' + esc(r.obligorName) + '<div class="muted" style="margin-top:3px">' + esc(r.role) + '</div></td>'
+      + '<td>' + esc(o || '—')
+        + (ok ? '' : '<div class="muted" style="margin-top:3px;color:var(--status-warning)">'
+            + 'вне закрытого словаря исходов (§3.3)</div>') + '</td>'
+      + '<td>' + esc(r.proc.closed || '—') + '</td>'
+      + '<td>' + esc(r.subject) + '</td>'
+      + '<td>' + actMoney(r.claim, r.currency) + '</td></tr>';
+  });
+  const arch = closed.length
+    ? '<details class="sect-fold" id="cvArch"><summary>Архив взыскания · '
+        + plural(closed.length,'закрытое требование','закрытых требования','закрытых требований')
+        + '</summary>'
+      + table('<th style="width:18%">Кредит</th><th style="width:20%">Обязанное лицо</th>'
+        + '<th style="width:22%">Исход</th><th style="width:12%">Закрыт</th>'
+        + '<th style="width:14%">Охват</th><th style="width:14%">Требование</th>', archRows)
+      + '</details>'
+    : '';
 
   return toolbar + defBar + summary + sect('', '', '', '<div id="cvWrap"></div>') + arch;
 }
 
-/* Проводка таба «Взыскание»: переключатель вида, раскрытие строк, дропдаун.
+/* Проводка таба «Взыскание»: раскрытие строк требований, дропдаун.
    Вызывается из showDetail после вставки карточки в DOM (как wireCollateralTab). */
 function wireCollectionTab(inn){
   const wrap = document.getElementById('cvWrap');
   if (!wrap) return;
   const creds = CREDITS.filter(c => c.inn === inn);
   const procs = procsOf(inn);
-  const live  = procs.filter(p => !isProcClosed(p));
+  const reqs  = reqsOfBorrower(inn);
+  const live  = reqs.filter(r => !isReqClosed(r));
 
-  /* ---- рельс эскалации (вариант C): контуры К0…К7 + фазы текущего контура ---- */
-  function railHtml(p){
-    /* контур пройден, если по его разделу зарегистрирована хотя бы одна мера; текущий — из процесса */
-    const secDone = new Set((p.measures||[]).map(m => m.section));
-    const done = c => c === p.contour ? false
+  /* ---- рельс эскалации (вариант C): контуры К0…К7 + фазы текущего контура ----
+     Рельс принадлежит ТРЕБОВАНИЮ: контур и фаза считаются по мерам, целящим в него.
+     Иначе требование к поручителю рисовалось бы судебным рельсом заёмщика. */
+  function railHtml(r){
+    const p = r.proc;
+    const ms = measuresOfReq(r);
+    /* контур пройден, если по его разделу зарегистрирована хотя бы одна мера требования */
+    const secDone = new Set(ms.map(m => m.section));
+    const done = c => c === r.contour ? false
       : (c === 'К0' ? true : secDone.has((CONTOURS[c]||{}).name));
     const chain = CONTOUR_ORDER.map((c,i) => {
-      const cls = c === p.contour ? 'cur' : done(c) ? 'done' : '';
+      const cls = c === r.contour ? 'cur' : done(c) ? 'done' : '';
       return (i ? '<span class="rl-x"></span>' : '')
         + '<span class="rl-k ' + cls + '" title="' + esc(c + ' · ' + (CONTOURS[c]||{}).name) + '">' + esc(c) + '</span>';
     }).join('');
     /* фаза установлена мерой — дату берём у меры с sets = имя фазы (правило «фаза из журнала») */
-    const ph = phasesOf(p.contour);
-    const cur = ph.indexOf(p.phase);
+    const ph = phasesOf(r.contour);
+    const cur = ph.indexOf(r.phase);
     const steps = ph.map((name,i) => {
-      const m = (p.measures||[]).find(x => x.sets === name);
+      const m = ms.find(x => x.sets === name);
       const cls = i === cur ? 'cur' : (m ? 'done' : '');
       return '<span class="rl-s ' + cls + '"><b>' + esc(name)
         + (name === CONDITIONAL_PHASE ? ' <span class="muted">(условный)</span>' : '') + '</b>'
@@ -4444,28 +4612,31 @@ function wireCollectionTab(inn){
     }).join('');
     /* В К5 и К7 фазы не лестница, а взаимоисключающие исходы (правопреемник установлен ИЛИ нет;
        ликвидация ИЛИ смерть ИЛИ приговор) — обещать «следующую» фазу списка там нельзя. */
-    const ALT = p.contour === 'К5' || p.contour === 'К7';
+    const ALT = r.contour === 'К5' || r.contour === 'К7';
     const next = !ALT && cur >= 0 && cur < ph.length - 1 ? ph[cur+1] : null;
     const nd = nearestDeadline(p);
     /* §3.4: безакцепт — условная ветка К1, она наступает только при праве безакцепта у кредита
        охвата; в зеркале право не хранится, поэтому шаг помечается условным, а не обещается */
-    const nextLine = '<div class="rl-next">Следующий шаг: <b>' + esc(next || 'выход из контура ' + p.contour)
+    const nextLine = '<div class="rl-next">Следующий шаг: <b>' + esc(next || 'выход из контура ' + r.contour)
       + '</b>' + (next === CONDITIONAL_PHASE ? ' <span class="muted">— условный шаг, только при праве безакцепта по договору</span>' : '')
       + ' · ' + (nd ? esc(nd.action) + ' — ' + dlBadge(nd) + ' <span class="muted">(п. ' + esc(nd.point) + ')</span>'
                         : 'срок не установлен') + '</div>';
-    return '<div class="rail"><div class="rl-h">Эскалация · контур <b>' + esc(p.contour) + ' · '
-      + esc((CONTOURS[p.contour]||{}).name || '') + '</b> · стадия «' + esc(stageOf(p.phase)) + '»</div>'
+    return '<div class="rail"><div class="rl-h">Эскалация требования · контур <b>' + esc(r.contour) + ' · '
+      + esc((CONTOURS[r.contour]||{}).name || '') + '</b> · стадия «' + esc(stageOf(r.phase)) + '»'
+      + '<span class="muted"> · ' + esc(r.role) + ' ' + esc(r.obligorName) + '</span></div>'
       + '<div class="rl-c">' + chain + '</div><div class="rl-p">' + steps + '</div>' + nextLine + '</div>';
   }
 
-  /* ---- раскрытие строки процесса: рельс + сроки + журнал мер + деньги + охват ---- */
-  function procDetail(p){
-    const m = procMoney(p);
-    const pause = p.pause && p.pause.active !== false
+  /* ---- раскрытие строки требования: рельс + сроки дела + журнал мер требования + деньги ---- */
+  function reqDetail(r){
+    const p = r.proc, m = procMoney(p), ps = reqPause(r);
+    const pause = ps
       ? '<div class="defect-bar" style="background:var(--status-warning-bg);border-color:#f0dcc0">'
         + '<span class="dl" style="color:var(--status-warning)">РЕСТРУКТУРИЗАЦИЯ</span>'
-        + '<span>обращение ' + esc(p.pause.ref) + ' от ' + esc(p.pause.since)
-        + ' на рассмотрении — меры приостановлены, отображаемая фаза подменена (В-6)</span></div>'
+        + '<span>обращение ' + esc(ps.ref || '—') + ' от ' + esc(ps.since || '—')
+        + ' на рассмотрении — меры по ЭТОМУ требованию приостановлены, отображаемая фаза подменена'
+        + ' (В-6); состояние висит на обязательстве, другие требования дела не приостановлены (М-11)'
+        + '</span></div>'
       : '';
     const dls = (p.deadlines||[]).length
       ? (p.deadlines||[]).slice().sort((a,b)=>dayNo(a.due)-dayNo(b.due)).map(d =>
@@ -4473,32 +4644,39 @@ function wireCollectionTab(inn){
           + '<span><b>' + esc(d.action) + '</b><div class="n">' + esc(d.base)
           + ' · п. ' + esc(d.point) + '</div></span></div>').join('')
       : '<div class="muted" style="font-size:12.5px">Активных сроков нет.</div>';
-    const ms = (p.measures||[]).slice().sort((a,b)=>dayNo(b.date)-dayNo(a.date)).map(x =>
+    const mine = measuresOfReq(r);
+    const ms = mine.slice().sort((a,b)=>dayNo(b.date)-dayNo(a.date)).map(x =>
       '<div class="ms-i"><span class="d">' + esc(x.date) + '</span>'
       + '<span><b>' + esc(x.kind) + '</b>'
       + (x.sets ? ' <span class="badge b-proc">фаза · ' + esc(x.sets) + '</span>' : '')
       + '<div class="n">' + esc(x.num) + ' · ' + esc(x.doc) + ' · раздел «' + esc(x.section) + '»'
       + (x.delivered ? ' · вручено ' + esc(x.delivered)
                      : (/претензи|требовани|извещени/i.test(x.kind) ? ' · <span style="color:var(--status-error)">вручение не подтверждено</span>' : ''))
-      + '</div></span></div>').join('') || '<div class="muted" style="font-size:12.5px">Мер не зарегистрировано.</div>';
-    const cover = (p.cover || p.credits.map(id=>({credit:id, subject:'—', claim:0}))).map(x => {
-      const c = CREDITS.find(y=>y.id===x.credit) || {};
-      return '<span class="badge b-gray">' + esc(c.no || x.credit) + ' · ' + esc(x.subject)
-        + (x.claim ? ' · ' + fmt(x.claim) + ' KGS' : '') + '</span>';
-    }).join(' ');
-    return pause + railHtml(p)
+      + '</div></span></div>').join('') || '<div class="muted" style="font-size:12.5px">'
+        + (r.role === 'заёмщик' ? 'Мер не зарегистрировано.'
+           : 'Мер по этому требованию не зарегистрировано — обеспечителю ничего не направлялось (п. 17.4).')
+        + '</div>';
+    /* Солидарные соседи — другие требования по тому же кредиту (§2.2): сумма у каждого полная,
+       но обязательство одно, и в итоге оно считается один раз. */
+    const solid = reqs.filter(x => x.creditId === r.creditId && x.role !== r.role)
+      .map(x => '<span class="badge b-gray">' + esc(x.role) + ' · ' + esc(x.obligorName)
+        + ' · фаза «' + esc(displayPhaseOf(x)) + '»</span>').join(' ');
+    return pause + railHtml(r)
       + '<div class="cv-2">'
-        + '<div class="cv-box"><h4>Сроки · Р-3</h4>' + dls + '</div>'
-        + '<div class="cv-box"><h4>Журнал мер · ' + (p.measures||[]).length + '</h4>' + ms + '</div>'
+        + '<div class="cv-box"><h4>Сроки дела · Р-3</h4>' + dls + '</div>'
+        + '<div class="cv-box"><h4>Журнал мер требования · ' + mine.length + '</h4>' + ms + '</div>'
       + '</div>'
       + '<div class="cv-money">'
-        + '<span>требование <b>' + fmt(m.claim) + '</b> KGS</span>'
-        + '<span>взыскано <b>' + fmt(m.rec) + '</b> KGS</span>'
-        + '<span>расходы <b>' + fmt(m.costs) + '</b> KGS</span>'
-        + '<span>остаток требования <b>' + fmt(m.left) + '</b> KGS</span>'
+        + '<span>требование <b>' + actMoney(r.claim, r.currency) + '</b></span>'
+        + '<span>охват: <b>' + esc(r.subject) + '</b></span>'
+        + '<span>основание: ' + esc(r.basis || '—') + '</span>'
         + '<span class="muted">на ' + esc(asOf()) + ' · снапшот, не онлайн-сальдо</span>'
       + '</div>'
-      + '<div class="cv-money"><span>охват: ' + cover + '</span></div>'
+      + '<div class="cv-money"><span>по делу: взыскано <b>' + actMoney(m.rec, r.currency)
+        + '</b> · расходы <b>' + actMoney(m.costs, r.currency) + '</b>'
+        + ' <span class="muted">— обе величины ведутся на деле, не на кредите</span></span></div>'
+      + (solid ? '<div class="cv-money"><span>солидарно по этому кредиту: ' + solid
+          + ' <span class="muted">— то же обязательство, в итоге считается один раз (§2.2)</span></span></div>' : '')
       /* вторая ведущая ось: подгруппу заёмщика даёт процедура (Р-1), а не контур —
          показываем связку прямо здесь, иначе подгруппа в шапке выглядит взятой с потолка */
       + '<div class="cv-money"><span>процедура · Р-1: <b>' + esc(p.procedure) + '</b> · п. '
@@ -4514,90 +4692,94 @@ function wireCollectionTab(inn){
         + (p.confirmed ? ''
             : ' · <span style="color:var(--status-error)">не подтверждена — в лестницу подгрупп не входит (п. 98)</span>')
         + '</span></div>'
-      + '<div class="cv-money"><span>открыт ' + esc(p.opened) + ' · ' + esc(p.openedBy || '—')
-        + ' · основание: ' + esc(p.basis || '—') + '</span>'
+      + '<div class="cv-money"><span>дело ' + esc(procNo(p)) + ' · открыто ' + esc(p.opened) + ' · '
+        + esc(p.openedBy || '—') + ' · основание: ' + esc(p.basis || '—') + '</span>'
         + extLink('открыть', 'модуль взыскания') + '</div>';
   }
 
-  /* ---- вид «по процессам» ---- */
-  function procsView(){
-    if (!live.length) return empty(procs.length
-      ? 'Процессов в работе нет — все завершены, см. «Архив взыскания».'
-      : 'Процессов взыскания нет.');
-    const rows = live.map(p => {
-      const m = procMoney(p), cs = confirmState(p), nd = nearestDeadline(p);
-      const main = '<tr class="pl-row" data-pr="' + esc(p.id) + '">'
-        + '<td class="rownum"><span class="car">▸</span></td>'
-        + '<td class="who">' + esc(procNo(p))
-          + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(p.contour) + ' · '
-          + esc((CONTOURS[p.contour]||{}).name || '') + '</div></td>'
-        + '<td>' + stagePhaseCell(p) + '</td>'
-        + '<td>' + esc(p.credits.map(id=>(CREDITS.find(c=>c.id===id)||{}).no||id).join(', '))
-          + '<div class="muted" style="margin-top:3px">' + esc((p.cover&&p.cover[0]&&p.cover[0].subject)||'—') + '</div></td>'
-        + '<td>' + fmt(m.claim) + ' <span class="muted">KGS</span>'
-          + '<div class="muted" style="margin-top:3px">взыскано ' + fmt(m.rec) + '</div></td>'
-        + '<td>' + (nd ? dlBadge(nd) + '<div class="muted" style="margin-top:3px">' + esc(nd.action) + '</div>'
-                       : '<span class="muted">не установлен</span>') + '</td>'
-        + '<td>' + esc(p.procedure)
-          + '<div class="muted" style="margin-top:3px">п. ' + esc((procMeta(p.procedure)||{}).point || '—')
-          + ' · <span class="badge ' + cs.cls + '">' + esc(cs.label) + '</span></div></td>'
-        + '<td>' + esc(p.owner ? empName(p.owner) : '—')
-          + '<div class="muted" style="margin-top:3px">' + esc(p.region || '—') + '</div></td></tr>';
-      const sub = '<tr class="pl-sub" data-sub="' + esc(p.id) + '" hidden><td colspan="8">'
-        + procDetail(p) + '</td></tr>';
-      return main + sub;
+  /* ---- единственный вид: требования, сгруппированные по кредиту ----
+     Группировка по кредиту, а не по делу: куратор смотрит «что с этим договором»,
+     а солидарные требования к заёмщику и поручителю по одному договору должны стоять
+     рядом (§2.2). Кредиты без живых требований остаются в таблице — расхождение
+     «просрочка есть, процесса нет» видно только здесь. */
+  function groupedView(){
+    const ordered = creds.filter(c=>isActiveCredit(c,asOf())).concat(creds.filter(c=>!isActiveCredit(c,asOf())));
+    const known = new Set(ordered.map(c=>c.id));
+    const extra = [];
+    live.forEach(r => { if (!known.has(r.creditId) && !extra.some(c=>c.id===r.creditId)) extra.push(r.credit); });
+    const list = ordered.concat(extra);
+    if (!list.length) return empty('Кредитов нет — требований взыскания тоже.');
+
+    const rows = [];
+    list.forEach(c => {
+      const mine = live.filter(r => r.creditId === c.id);
+      const ov = overdueDaysOn(c, asOf());
+      /* итог по кредиту — один раз на кредит: солидарное требование к поручителю
+         это то же обязательство, а не второе (§2.2) */
+      const own = mine.find(r => r.role === 'заёмщик') || mine[0] || null;
+      rows.push('<tr class="grp-row"><td colspan="8">' + esc(c.no)
+        + ' <span class="muted" style="font-weight:400">· ' + esc(c.kind || '—')
+        + (ov ? ' · просрочка ' + fmt(ov) + ' дн.' : ' · просрочки нет')
+        + ' · ' + (mine.length ? plural(mine.length,'требование','требования','требований')
+                               : 'требований нет')
+        + (own ? ' · ' + fmt(own.claim) + ' ' + esc(own.currency) : '')
+        + '</span></td></tr>');
+
+      if (!mine.length){
+        rows.push('<tr class="muted"><td class="rownum"></td><td colspan="7">'
+          + (isActiveCredit(c,asOf()) && ov > 5
+              ? '<span class="badge b-err">процесса нет</span>'
+                + '<span class="muted"> · открывается на 6-й день просрочки</span>'
+              : '<span class="muted">требований взыскания нет</span>')
+          + '</td></tr>');
+        return;
+      }
+
+      mine.forEach(r => {
+        const p = r.proc, cs = confirmState(p), nd = nearestDeadline(p), ps = reqPause(r);
+        rows.push('<tr class="pl-row" data-pr="' + esc(r.id) + '">'
+          + '<td class="rownum"><span class="car">▸</span></td>'
+          + '<td class="who">' + esc(r.obligorName)
+            + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(r.role)
+            + ' · ' + esc(r.basis) + '</div></td>'
+          + '<td>' + esc(r.subject) + '</td>'
+          + '<td>' + phaseCell(r) + '</td>'
+          + '<td>' + actMoney(r.claim, r.currency)
+            + (ps ? '<div class="muted" style="margin-top:3px;color:var(--status-warning)">пауза</div>' : '')
+            + '</td>'
+          + '<td>' + (nd ? dlBadge(nd) + '<div class="muted" style="margin-top:3px">' + esc(nd.action) + '</div>'
+                         : '<span class="muted">не установлен</span>') + '</td>'
+          + '<td>' + esc(p.procedure)
+            + '<div class="muted" style="margin-top:3px">п. ' + esc((procMeta(p.procedure)||{}).point || '—')
+            + ' · <span class="badge ' + cs.cls + '">' + esc(cs.label) + '</span></div></td>'
+          + '<td>' + esc(procNo(p))
+            + '<div class="muted" style="margin-top:3px">' + esc(p.owner ? empName(p.owner) : '—')
+            + '</div></td></tr>');
+        rows.push('<tr class="pl-sub" data-sub="' + esc(r.id) + '" hidden><td colspan="8">'
+          + reqDetail(r) + '</td></tr>');
+      });
     });
-    const tot = live.reduce((a,p)=>{ const m = procMoney(p);
-      return { claim:a.claim+m.claim, rec:a.rec+m.rec }; }, { claim:0, rec:0 });
-    const foot = '<td class="rownum"></td>'
-      + '<td>Итого <span class="muted" style="font-weight:400">· ' + live.length + ' проц.</span></td>'
+
+    /* Итого — по валютам (И-12: валюты не складываются), требование считается один раз
+       на кредит (§2.2); взыскано и расходы приходят с дела и подписаны как «по делам». */
+    const tot = reqTotals(live);
+    const curs = Object.keys(tot);
+    const foot = curs.length ? curs.map(cur => '<td class="rownum"></td>'
+      + '<td>Итого <span class="muted" style="font-weight:400">· ' + esc(cur) + ' · '
+        + plural(tot[cur].n,'кредит','кредита','кредитов') + '</span></td>'
       + '<td></td><td></td>'
-      + '<td><b>' + fmt(tot.claim) + '</b> <span class="muted">KGS</span>'
-        + '<div class="muted" style="margin-top:3px">взыскано ' + fmt(tot.rec) + '</div></td>'
-      + '<td></td><td></td><td></td>';
-    const head = '<th class="rownum"></th><th style="width:14%">Процесс</th><th style="width:17%">Стадия / фаза</th>'
-      + '<th style="width:13%">Охват</th><th style="width:14%">Требование</th>'
-      + '<th style="width:15%">Ближайший срок</th><th style="width:16%">Процедура · Р-1</th>'
-      + '<th style="width:11%">Куратор</th>';
+      + '<td><b>' + fmt(tot[cur].claim) + '</b> <span class="muted">' + esc(cur) + '</span>'
+        + '<div class="muted" style="margin-top:3px">по делам: взыскано ' + fmt(tot[cur].rec) + '</div></td>'
+      + '<td></td><td></td><td></td>') : null;
+    const head = '<th class="rownum"></th><th style="width:20%">Обязанное лицо</th>'
+      + '<th style="width:12%">Охват</th><th style="width:18%">Фаза требования</th>'
+      + '<th style="width:13%">Требование</th><th style="width:14%">Ближайший срок</th>'
+      + '<th style="width:12%">Процедура · Р-1</th><th style="width:11%">Дело · куратор</th>';
     return table(head, rows, foot);
   }
 
-  /* ---- вид «по кредитам»: включает кредиты БЕЗ процесса — там и живёт расхождение ---- */
-  function creditsView(){
-    const ordered = creds.filter(c=>isActiveCredit(c,asOf())).concat(creds.filter(c=>!isActiveCredit(c,asOf())));
-    const rows = ordered.map((c,i) => {
-      const ps = procs.filter(p=>p.credits.includes(c.id));
-      const act = ps.find(p=>!isProcClosed(p)) || ps[0] || null;
-      const ov = overdueDaysOn(c, asOf());
-      const nd = act && !isProcClosed(act) ? nearestDeadline(act) : null;
-      const cov = act && (act.cover||[]).find(x=>x.credit===c.id);
-      const procCell = !act
-        ? (isActiveCredit(c,asOf()) && ov > 5
-            ? '<span class="badge b-err">процесса нет</span>'
-              + '<div class="muted" style="margin-top:3px">открывается на 6-й день просрочки</div>'
-            : '<span class="muted">—</span>')
-        : esc(procNo(act)) + '<div class="muted" style="margin-top:3px">' + esc(act.contour)
-          + (isProcClosed(act) ? ' · завершён ' + esc(act.closed||'') : '') + '</div>';
-      return '<tr' + (isActiveCredit(c,asOf()) ? '' : ' class="muted"') + '>'
-        + '<td class="rownum">' + (i+1) + '</td>'
-        + '<td class="who">' + esc(c.no)
-          + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(c.kind || '—') + '</div></td>'
-        + '<td>' + (ov ? '<span class="win">' + fmt(ov) + ' дн.</span>' : '<span class="muted">нет</span>') + '</td>'
-        + '<td>' + procCell + '</td>'
-        + '<td>' + (act ? stagePhaseCell(act) : '<span class="muted">—</span>') + '</td>'
-        + '<td>' + (cov ? fmt(cov.claim) + ' <span class="muted">KGS</span>'
-            + '<div class="muted" style="margin-top:3px">' + esc(cov.subject) + '</div>'
-            : '<span class="muted">—</span>') + '</td>'
-        + '<td>' + (nd ? dlBadge(nd) : '<span class="muted">—</span>') + '</td></tr>';
-    });
-    const head = '<th class="rownum">#</th><th style="width:18%">Кредит</th><th style="width:11%">Просрочка</th>'
-      + '<th style="width:17%">Процесс</th><th style="width:19%">Стадия / фаза</th>'
-      + '<th style="width:17%">Требование</th><th style="width:18%">Ближайший срок</th>';
-    return table(head, rows);
-  }
-
   function render(){
-    wrap.innerHTML = collView() === 'credits' ? creditsView() : procsView();
+    wrap.innerHTML = groupedView();
     wrap.querySelectorAll('tr.pl-row').forEach(tr => tr.addEventListener('click', () => {
       const sub = wrap.querySelector('tr.pl-sub[data-sub="' + tr.dataset.pr + '"]');
       if (!sub) return;
@@ -4605,16 +4787,6 @@ function wireCollectionTab(inn){
       tr.classList.toggle('open', !sub.hidden);
     }));
   }
-  const seg = v => {
-    try { localStorage.setItem(COLL_VIEW_KEY, v); } catch(e){}
-    const pr = document.getElementById('cvSegPr'), cr = document.getElementById('cvSegCr');
-    if (pr) pr.classList.toggle('active', v === 'procs');
-    if (cr) cr.classList.toggle('active', v === 'credits');
-    render();
-  };
-  const segPr = document.getElementById('cvSegPr'), segCr = document.getElementById('cvSegCr');
-  if (segPr) segPr.addEventListener('click', () => seg('procs'));
-  if (segCr) segCr.addEventListener('click', () => seg('credits'));
   const dd = document.getElementById('cvGenDd'), btn = document.getElementById('cvGenBtn');
   if (dd && btn){
     btn.addEventListener('click', e => { e.stopPropagation(); dd.classList.toggle('open'); });
@@ -5496,14 +5668,14 @@ function borrowerChecks(inn, d){
 
   /* 4. «Решения судов» = процессы на судебной и исполнительной стадии (stageOf, а не regex по названию).
         Открытые — стоп для выдачи, только закрытые — замечание (остаётся в истории). */
-  const courtProcs = procsOf(inn).filter(p=>stageOf(p.phase)!=='Досудебный порядок');
+  const courtProcs = procsOf(inn).filter(p=>stageOf(procPhaseLabel(p))!=='Досудебный порядок');
   const openProcs  = courtProcs.filter(p=>!isProcClosed(p));
   C.push(courtProcs.length
     ? { code:'Д-СУД', tag:'допуск', sev: openProcs.length ? 'high' : 'mid', stop: openProcs.length > 0, tab:tabIx('взыскание'), name:'Решения судов',
         result: openProcs.length
           ? plural(openProcs.length,'открытое производство','открытых производства','открытых производств')
           : plural(courtProcs.length,'завершённое производство','завершённых производства','завершённых производств'),
-        basis: courtProcs.map(p=>link(tabIx('взыскание'), esc(procNo(p))) + ' · ' + esc(displayPhase(p))).join(' · ') }
+        basis: courtProcs.map(p=>link(tabIx('взыскание'), esc(procNo(p))) + ' · ' + esc(procPhaseLabel(p))).join(' · ') }
     : { code:'Д-СУД', tag:'допуск', sev:'ok', stop:false, tab:tabIx('взыскание'), name:'Решения судов', result:'нет',
         basis:'судебных производств нет' });
 
