@@ -403,8 +403,15 @@ ok('база списка — требования, а не дела',
    g.ev(`(renderList(), baseSet().every(r => !!REQ_INDEX[r.id]))`));
 ok('строк-требований на странице столько же, сколько требований у её дел',
    g.ev(`(renderList(), document.querySelectorAll('#listBody tr.rowopen').length)`)
-   === g.ev(`groupedDeals().slice((curPage-1)*PAGE_SIZE, curPage*PAGE_SIZE).reduce((a,d)=>a+d.reqs.length,0)`));
-ok('дело-папка выводится строкой-группой',   g.ev(`document.querySelectorAll('#listBody tr.rowgrp').length`) > 0);
+   === g.ev(`pagesOfDeals(groupedDeals(), PAGE_SIZE)[curPage-1].reduce((a,d)=>a+d.reqs.length,0)`));
+/* ПЛ-1: строка-группа осталась только у дела с ≥2 требованиями — ищем её по всем страницам. */
+ok('дело с несколькими требованиями выводится строкой-группой', g.ev(`(() => {
+  const pages = pagesOfDeals(groupedDeals(), PAGE_SIZE);
+  const i = pages.findIndex(pg => pg.some(d => d.reqs.length > 1));
+  if(i < 0) return false;
+  gotoPage(i+1); const n = document.querySelectorAll('#listBody tr.rowgrp').length; gotoPage(1);
+  return n > 0;
+})()`));
 ok('колонок столько же, сколько в LIST_COLS',
    g.ev(`document.querySelectorAll('#listHead th').length`) === g.ev('LIST_COLS.length'));
 ok('у обрезаемых колонок есть title', g.$$('#listBody tr.rowopen').every(tr => {
@@ -1028,22 +1035,40 @@ ok('строка помечена как открываемая и попада�
 ok('ТР-Д4: пейджер настоящий — четыре живые кнопки, позиция и размер страницы',
    L.$$('#pagerNav button').length === 4 && !!L.$('#pagerNav .pager-pos') && !!L.$('#pagerSize'));
 ok('ТР-Д5: счётчик не говорит «процессов»',  !/процессов/.test(L.$('#pagerCount').textContent) && !/>процессов</.test(HTML_SRC));
-ok('счётчик формы «дела 1–25 из N»',         /^дела 1–\d+ из \d+ · требований на странице \d+ из \d+$/.test(L.ev(`(gotoPage(1), document.getElementById('pagerCount').textContent)`)));
-ok('на странице ровно PAGE_SIZE дел (пока дел хватает)',
-   L.$$('#listBody tr.rowgrp').length === L.ev('Math.min(PAGE_SIZE, groupedDeals().length)'));
+/* ПЛ-4: счётчик одноголовый — считает строки, а не дела. */
+ok('ПЛ-4: счётчик формы «требования 1–25 из N»',
+   /^требования 1–\d+ из \d+$/.test(L.ev(`(gotoPage(1), document.getElementById('pagerCount').textContent)`)));
+ok('ПЛ-4: строк на странице не больше PAGE_SIZE', L.ev(`(() => {
+  const pages = pagesOfDeals(groupedDeals(), PAGE_SIZE);
+  return pages.every(pg => pg.reduce((a,d)=>a+d.reqs.length,0) <= PAGE_SIZE);
+})()`));
+ok('ПЛ-4: недобор страницы — только из-за перенесённого дела, и не больше чем на 2 строки', L.ev(`(() => {
+  const pages = pagesOfDeals(groupedDeals(), PAGE_SIZE);
+  return pages.slice(0,-1).every(pg => pg.reduce((a,d)=>a+d.reqs.length,0) >= PAGE_SIZE - 2);
+})()`));
+ok('ПЛ-4: страницы покрывают весь отбор ровно один раз', L.ev(`(() => {
+  const pages = pagesOfDeals(groupedDeals(), PAGE_SIZE);
+  const ids = pages.flat().flatMap(d => d.reqs.map(r => r.id));
+  return ids.length === visibleReqs().length && new Set(ids).size === ids.length;
+})()`));
 ok('вторая страница даёт другие дела', L.ev(`(() => {
   gotoPage(1); const a = [...document.querySelectorAll('#listBody tr.rowopen')].map(t=>t.dataset.id).join();
   gotoPage(2); const b = [...document.querySelectorAll('#listBody tr.rowopen')].map(t=>t.dataset.id).join();
   gotoPage(1); return a !== b && b.length > 0;
 })()`));
-ok('размер страницы меняет число дел', L.ev(`(() => {
-  onPageSize(50); const n50 = document.querySelectorAll('#listBody tr.rowgrp').length;
-  onPageSize(25); const n25 = document.querySelectorAll('#listBody tr.rowgrp').length;
-  return n50 === Math.min(50, groupedDeals().length) && n25 === 25;
+ok('ПЛ-4: размер страницы меняет число строк', L.ev(`(() => {
+  onPageSize(50); const n50 = document.querySelectorAll('#listBody tr.rowopen').length;
+  onPageSize(25); const n25 = document.querySelectorAll('#listBody tr.rowopen').length;
+  onPageSize(25); return n50 > n25 && n50 <= 50 && n25 <= 25;
 })()`));
 ok('дело не рвётся между страницами: все его строки на одной', L.ev(`(() => {
-  const page = groupedDeals().slice(0, PAGE_SIZE);
-  return page.every(d => d.reqs.length === d.p.requirements.filter(r => visibleReqs().includes(r)).length);
+  const pages = pagesOfDeals(groupedDeals(), PAGE_SIZE);
+  const seen = {};
+  for(const [i,pg] of pages.entries()) for(const d of pg){
+    if(seen[d.p.id] !== undefined && seen[d.p.id] !== i) return false;
+    seen[d.p.id] = i;
+  }
+  return Object.keys(seen).length === groupedDeals().length;
 })()`));
 ok('кнопка выгрузки на месте',               !!L.$('#btnExport') && /Выгрузить/.test(L.$('#btnExport').textContent));
 
@@ -1077,21 +1102,39 @@ ok('CQ_SUBJECTS переехал на topic',          g.ev(`CQ_SUBJECTS.every(s
 
 head('ТР-8 · составной ключ — не колонка');
 ok('колонки «№ требования» нет',             L.ev(`LIST_COLS.every(c => c.k !== 'id')`));
-ok('ключ требования — в подсказке строки',   /^Требование \d+\/\d+\/[зпг] — открыть$/.test(rowsOnPage()[0].getAttribute('title')));
+/* ПЛ-1 расширил подсказку: туда же уехали обстоятельства дела, снятые с заголовка. */
+ok('ключ требования — в подсказке строки',
+   /^Требование \d+\/\d+\/[зпг] · дело В-2026-\d{6} · .+ — открыть$/.test(rowsOnPage()[0].getAttribute('title')));
 ok('ключ требования — в выгрузке',           tsv.split('\n').find(l => /^№ требования\t/.test(l)) !== undefined
    && /\n\d+\/\d+\/[зпг]\t/.test(tsv));
 
-head('ТР-9 · заголовок дела в одну строку');
-ok('ТР-Д11: заголовок есть у КАЖДОГО дела на странице',
-   L.$$('#listBody tr.rowgrp').length === L.ev('Math.min(PAGE_SIZE, groupedDeals().length)'));
-ok('ТР-Д11: дело с единственным требованием тоже получает заголовок', L.ev(`(() => {
-  const d = groupedDeals().slice(0,PAGE_SIZE).find(d => d.reqs.length === 1);
-  if(!d) return false;
+head('ТР-9 / ПЛ-1 · заголовок дела в одну строку — там, где он группирует');
+ok('ПЛ-1: у дела с единственным требованием заголовка НЕТ', L.ev(`(() => {
   const rows = [...document.querySelectorAll('#listBody tr')];
-  const i = rows.findIndex(tr => tr.dataset.id === d.reqs[0].id);
-  return i > 0 && rows[i-1].classList.contains('rowgrp');
+  const single = pagesOfDeals(groupedDeals(), PAGE_SIZE)[0].find(d => d.reqs.length === 1);
+  if(!single) return false;
+  const i = rows.findIndex(tr => tr.dataset.id === single.reqs[0].id);
+  return i >= 0 && (i === 0 || !rows[i-1].classList.contains('rowgrp'));
 })()`));
-ok('заголовок несёт размер дела справа',     /дело В-2026-\d{6} · требований \d+ · по делу /.test(L.$('#listBody tr.rowgrp').textContent));
+ok('ПЛ-1: заголовков на странице ровно столько, сколько дел с ≥2 требованиями', L.ev(`(() => {
+  const pages = pagesOfDeals(groupedDeals(), PAGE_SIZE);
+  return pages.every((pg,i) => {
+    gotoPage(i+1);
+    return document.querySelectorAll('#listBody tr.rowgrp').length === pg.filter(d=>d.reqs.length>1).length;
+  }) && (gotoPage(1), true);
+})()`));
+ok('ПЛ-1 / ТР-Д11: заёмщик виден в самой строке, а не только в заголовке', L.ev(`(() => {
+  const rows = [...document.querySelectorAll('#listBody tr.rowopen')];
+  return rows.length > 0 && rows.every(tr => (tr.children[0].textContent||'').trim().length > 0);
+})()`));
+ok('ПЛ-1: среди однотребовательных дел нет иной роли, чем «заёмщик» (иначе имя в строке лгало бы)',
+   g.ev(`groupedDeals().filter(d=>d.reqs.length===1).every(d => d.reqs[0].role === 'заёмщик')`));
+ok('заголовок несёт размер дела справа', L.ev(`(() => {
+  const pages = pagesOfDeals(groupedDeals(), PAGE_SIZE);
+  const i = pages.findIndex(pg => pg.some(d => d.reqs.length > 1));
+  gotoPage(i+1); const t = document.querySelector('#listBody tr.rowgrp').textContent; gotoPage(1);
+  return /дело В-2026-\\d{6} · требований \\d+ · по делу /.test(t);
+})()`));
 ok('сумма по делу считается один раз на кредит (солидарность не удваивает)', g.ev(`(() => {
   const p = PROCESSES.find(x => x.requirements.some(r => solidaryWith(r).length));
   return claimTotal(p.requirements) < p.requirements.reduce((a,r)=>a+claimOf(r),0);
@@ -1150,6 +1193,126 @@ head('ТР-Д12 · пустое состояние называет услови
   m.ev('resetAllConditions()');
   ok('снятие условий возвращает требования',
      m.$$('#listBody tr.rowopen').length > 0 && m.ev(`stageFilter === null && tileFilter === null && Object.keys(filterState).length === 0`)); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ВОЛНА ПЛ (28.07.2026) — плотность реестра требований. Второй проход по экрану ТР.
+   Решения ПЛ-1…ПЛ-6, дефекты ПЛ-Д1…ПЛ-Д3.
+   Разбор: mockups/collection/ASUBK-status-razrabotki.md · устройство: §14.1 спецификации.
+   ══════════════════════════════════════════════════════════════════════════ */
+head('ПЛ-2 · процедура взыскания — условие отбора, а не колонка');
+ok('поле «Процедура взыскания» есть в панели фильтра', flabels().includes('Процедура взыскания'));
+ok('опции процедуры строятся из значений дел', L.ev(`(() => {
+  const opts = [...document.getElementById('f-procedure').options].map(o=>o.value).filter(Boolean);
+  const vals = new Set(PROCESSES.map(p=>p.procedure && p.procedure.status).filter(Boolean));
+  return opts.length === vals.size && opts.every(o => vals.has(o));
+})()`));
+ok('выбор процедуры возвращает НЕпустой отбор и только его дела', L.ev(`(() => {
+  const v = [...document.getElementById('f-procedure').options].map(o=>o.value).filter(Boolean)[0];
+  setF('procedure', v);
+  const rs = visibleReqs();
+  const okk = rs.length > 0 && rs.every(r => r._proc.procedure.status === v);
+  resetFilters(); return okk;
+})()`));
+ok('процедура попадает в ленту условий своим именем', (() => {
+  L.ev(`setF('procedure', [...document.getElementById('f-procedure').options].map(o=>o.value).filter(Boolean)[0])`);
+  const c = chips().some(x => /^Процедура взыскания: /.test(x)); L.ev('resetFilters()'); return c;
+})());
+ok('колонки процедуры в таблице нет',        L.ev(`LIST_COLS.every(c => c.k !== 'procedure')`));
+
+head('ПЛ-3 · фильтр свёрнут по умолчанию');
+ok('в разметке у .filter-head нет класса open', !/<div class="filter-head open"/.test(HTML_SRC));
+ok('тело фильтра при загрузке скрыто',       !L.$('.filter-head').classList.contains('open'));
+ok('шапка «Фильтр» на месте и кликабельна',  /Фильтр/.test(L.$('.filter-head').textContent)
+   && /onclick="this\.classList\.toggle\('open'\)"/.test(HTML_SRC));
+ok('панель открывается кликом', (() => {
+  const m = mk(); m.$('.filter-head').classList.add('open');
+  return m.$('.filter-head').classList.contains('open') && m.$$('#filterBody select').length > 0;
+})());
+ok('тулбар и пейджер — одна полоса .rowtools', L.$$('.rowtools').length === 1
+   && !!L.$('.rowtools #btnExport') && !!L.$('.rowtools .pager'));
+ok('селектор размера страницы подписан строками, а не делами',
+   /строк на странице/.test(L.$('.rowtools').textContent) && !/дел на странице/.test(HTML_SRC));
+
+head('ПЛ-5 · плитки несут деньги, сумма плиток сходится с «Всего»');
+ok('в плитке есть денежная строка',          L.$$('#listTiles .tile .tm').length === 6);
+ok('«Всего» в деньгах = claimTotal набора (солидарность не задвоена)',
+   L.ev(`Math.abs(tileMoney(baseSet()).total - claimTotal(baseSet())) < 0.005`));
+ok('сумма пяти плиток = «Всего»', L.ev(`(() => {
+  const t = tileMoney(baseSet());
+  const s = ['gate','window','procWait','clear','closed'].reduce((a,k)=>a+(t.by[k]||0),0);
+  return Math.abs(s - t.total) < 0.005;
+})()`));
+ok('деньги плитки не совпадают с наивной суммой строк там, где есть солидарность',
+   L.ev(`tileMoney(baseSet()).total < baseSet().reduce((a,r)=>a+claimOf(r),0)`));
+/* Главная проверка правила: разводим солидарную пару по РАЗНЫМ плиткам и смотрим,
+   что сумма плиток всё ещё сходится. На стенде такого расхождения нет (везение
+   данных), поэтому его надо создать руками — иначе правило не проверено. */
+ok('правило представителя держит сумму, даже когда солидарная пара разъехалась по плиткам', (() => {
+  const m = mk();
+  return m.ev(`(() => {
+    const pair = allReqs().filter(r => solidaryWith(r).length);
+    const other = pair.find(r => r.role !== 'заёмщик');
+    const orig = listStatus;
+    window.listStatus = r => (r === other ? 'gate' : orig(r));
+    const t = tileMoney(baseSet());
+    const s = ['gate','window','procWait','clear','closed'].reduce((a,k)=>a+(t.by[k]||0),0);
+    const split = ['gate','window','procWait','clear','closed'].filter(k => (t.by[k]||0) > 0).length;
+    window.listStatus = orig;
+    return split > 1 && Math.abs(s - t.total) < 0.005 && Math.abs(t.total - claimTotal(baseSet())) < 0.005;
+  })()`);
+})());
+ok('рамка экрана называет правило денег',    /Деньги в плитках — один раз\s+на кредит, по строке заёмщика/.test(L.$('.list-frame').textContent));
+
+head('ПЛ-6 · цвет метит редкое: в таблице его нет');
+ok('чипа роли «заёмщик» в строках нет', L.$$('#listBody tr.rowopen').every(tr =>
+   !/заёмщик/.test(tr.children[0].querySelector('.rolechip')?.textContent || '')));
+ok('у роли, отличной от «заёмщик», чип остаётся', L.ev(`(() => {
+  const r = allReqs().find(x => x.role !== 'заёмщик');
+  setF('role', r.role); renderList();
+  const has = [...document.querySelectorAll('#listBody tr.rowopen')]
+    .every(tr => !!tr.children[0].querySelector('.rolechip'));
+  resetFilters(); return has;
+})()`));
+ok('категория выводится текстом, а не пилюлей',
+   L.$$('#listBody tr.rowopen').every(tr => tr.children[4].querySelector('.pill') === null
+     && (tr.children[4].textContent || '').trim().length > 0));
+ok('красного класса .overdue в строках нет',  L.$$('#listBody td.overdue').length === 0);
+ok('мёртвое правило .grid td.overdue снято из CSS', !/\.grid td\.overdue\{/.test(HTML_SRC));
+ok('порог «> 180» из рендера ушёл',           !/overdueOf\(r\)>180/.test(HTML_SRC));
+ok('стрелка сортировки скрыта у несортированных колонок',
+   /thead th \.sort\{[^}]*opacity:0/.test(HTML_SRC)
+   && /thead th:hover \.sort, table\.grid thead th\.sorted \.sort\{ opacity:1/.test(HTML_SRC));
+ok('курсив и серый у закрытой строки остались',
+   /\.grid tbody tr\.terminal td\{ color:var\(--text-muted\)/.test(HTML_SRC));
+
+head('ПЛ-Д1…ПЛ-Д3 · раскладка таблицы');
+ok('ПЛ-Д1: раскладка фиксированная',          /table\.grid\{ width:100%; table-layout:fixed/.test(HTML_SRC));
+ok('ПЛ-Д2: шапка переносится по словам, как обещал ТР-9',
+   /thead th\{[^}]*white-space:normal/.test(HTML_SRC));
+ok('ПЛ-Д2: у шапки не осталось ellipsis, который с переносом ничего не значит',
+   !/thead th\{[^}]*text-overflow:ellipsis/.test(HTML_SRC));
+ok('ПЛ-Д2: стрелка сортировки вынесена в жёлоб и не занимает место в строке',
+   /thead th\{[^}]*position:relative/.test(HTML_SRC)
+   && /thead th\{[^}]*padding:0 16px 0 10px/.test(HTML_SRC)
+   && /thead th \.sort\{ position:absolute/.test(HTML_SRC));
+ok('ПЛ-Д3: ширины — доли, сумма ровно 100 %',
+   L.ev(`LIST_WIDTHS.length`) === 8
+   && L.ev(`LIST_WIDTHS.every(w => /^\\d+(\\.\\d+)?%$/.test(w))`)
+   && Math.abs(L.ev(`LIST_WIDTHS.reduce((a,w)=>a+parseFloat(w),0)`) - 100) < 0.001);
+/* Пиксельные потребности мерены в живом Chrome (canvas measureText, все 132 требования):
+   лицо 243 · договор 179 · охват 157 · фаза 244 · категория 92 · подразделение 126 ·
+   сумма 117 · дней 93 при бюджете 1240. jsdom ширины не считает, поэтому здесь —
+   доли, восстановленные из тех замеров. */
+ok('ПЛ-Д3: колонкам с длинным словом в шапке добавлено против ТР-9',
+   parseFloat(L.ev(`LIST_WIDTHS[4]`)) >= 7.5      // категория:      было 7
+   && parseFloat(L.ev(`LIST_WIDTHS[5]`)) >= 10.2  // подразделение:  было 8
+   && parseFloat(L.ev(`LIST_WIDTHS[6]`)) >= 9.4   // сумма:          было 9
+   && parseFloat(L.ev(`LIST_WIDTHS[7]`)) >= 7.5); // дней просрочки: было 6
+ok('ПЛ-Д3: фазе оставлено модальное значение, добавка снята с имени',
+   parseFloat(L.ev(`LIST_WIDTHS[3]`)) >= 19.7     // 244 px — ровно ячейка 119 строк из 132
+   && parseFloat(L.ev(`LIST_WIDTHS[0]`)) < 22);   // имя дублируется в шапке дела и в title
+ok('ячейки тела по-прежнему обрезаются с подсказкой, а не переносятся',
+   /tbody td\{[^}]*white-space:nowrap/.test(HTML_SRC) && /tbody td\{[^}]*text-overflow:ellipsis/.test(HTML_SRC));
 
 /* ══════════════════════════════════════════════════════════════════════════
    ВОЛНА КД (28.07.2026) — карточка дела. Решения КД-1…КД-15, дефекты КД-Д1…КД-Д16.
