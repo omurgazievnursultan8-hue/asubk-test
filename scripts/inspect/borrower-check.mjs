@@ -861,6 +861,90 @@ ok('КЗ-7. нулевой счёт цифру не печатает',
     return f.ev("tabCount('20010119991001','взыскание')") === 0
       && !f.$(`#cardMount .tab[data-tab="${ix}"] .cnt`); })());
 
+/* ── Дата среза в деньгах: дефекты Б-3, Б-4, Б-5 (КЗ-12) ───────────────────────
+   Одна семья ошибок. Деньги приходят снимком на DEBT_ASOF (И-6), а МНОЖЕСТВО кредитов,
+   по которому они складывались, выбиралось на другую дату: внутри totalDebt/overdueDebt/
+   atRisk/coverageOf — жёстко на TODAY (Б-3), в самой сводке — на дате среза, то есть в
+   одной карточке под одной подписью сходились три режима дат. Через totalDebt дата
+   TODAY протекала в СОСТОЯНИЕ: существование обязательства О-2 решалось по сегодняшнему
+   долгу, а срок того же обязательства — по дате среза (Б-4). А итог вкладки «Кредиты»
+   складывался по ВСЕМ кредитам, тогда как витрина — по действующим (Б-5).
+   Правило после правки одно: множество, по которому складываются деньги, выбирается на
+   дате денег (DEBT_ASOF). Дате среза подчиняются состояния, а не суммы. */
+
+// Б-3 · четыре функции выбирают множество по переданной дате, а не по TODAY.
+// В сиде все закрытые кредиты с нулевым долгом, поэтому свидетель заводится на месте.
+const seedClosed = (f, inn, closedAt, principal) => f.ev(
+  `CREDITS.push({ id:'C-TEST-${closedAt.replace(/\\./g,'')}', inn:'${inn}', no:'КР-TEST', kind:'тест',
+     date:'01.01.2024', amount:1000000, gov:'—', currency:'KGS', closedAt:'${closedAt}',
+     overdueSince:'01.01.2026',
+     debt:{ current:{principal:0,interest:0,penalty:0,fees:0,costs:0},
+            overdue:{principal:${principal},interest:0,penalty:0,fees:0,costs:0}, asOf:DEBT_ASOF } });`);
+
+ok('Б-3. totalDebt / overdueDebt / atRisk принимают дату и по ней выбирают множество',
+  (() => { const f = mk(); const inn = '01204199910016';
+    seedClosed(f, inn, '01.06.2026', 500000);
+    const live = f.ev(`[totalDebt('${inn}','01.05.2026'), overdueDebt('${inn}','01.05.2026'), atRisk('${inn}','01.05.2026')]`);
+    const gone = f.ev(`[totalDebt('${inn}','01.07.2026'), overdueDebt('${inn}','01.07.2026'), atRisk('${inn}','01.07.2026')]`);
+    return live.every((v, i) => v - gone[i] === 500000); })());
+
+ok('Б-3. дата по умолчанию — дата денег (DEBT_ASOF), а не TODAY',
+  (() => { const f = mk(); const inn = '01204199910016';
+    seedClosed(f, inn, '12.07.2026', 500000);        // закрыт ПОСЛЕ снимка, но ДО сегодня
+    return f.ev(`totalDebt('${inn}')`) === f.ev(`totalDebt('${inn}', DEBT_ASOF)`)
+        && f.ev(`totalDebt('${inn}')`) !== f.ev(`totalDebt('${inn}', TODAY)`); })());
+
+// Обеспеченность считается от остатка, а остаток — тот же снимок: множество кредитов
+// у coverageOf должно выбираться на той же дате. Проверяется через общее основание creditsOn.
+ok('Б-3. coverageOf выбирает множество на дате денег, а переданную дату пропускает насквозь',
+  (() => { const f = mk();
+    f.ev("window.__co = []; (function(){ const orig = creditsOn;"
+       + " window.creditsOn = function(inn, d){ window.__co.push(d); return orig(inn, d); }; })();");
+    f.ev("coverageOf('01204199910016')");
+    f.ev("coverageOf('01204199910016','01.05.2026')");
+    return JSON.parse(f.ev("JSON.stringify(window.__co)"))
+      .join('|') === f.ev("DEBT_ASOF") + '|01.05.2026'; })());
+
+ok('Б-3/КЗ-12. сводка по кредитам — один режим дат: срез её не двигает',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/09901199990091'"); f.ev("route()");   // кредит закрыт 01.04.2026
+    const now = f.ev("creditsSummaryCard('09901199990091')");
+    f.ev("setAsOf('2026-03-01')");                                  // срез, где тот же кредит ещё действует
+    return f.ev("creditsSummaryCard('09901199990091')") === now; })());
+
+// Б-4 · дата обязательства не подменяется сегодняшней при проверке порога 50 млн.
+ok('Б-4. obligations не подмешивает TODAY: порог О-2 считается на дате обязательства',
+  (() => { const f = mk();
+    f.ev("window.__td = []; (function(){ const orig = totalDebt;"
+       + " window.totalDebt = function(inn, d){ window.__td.push(d); return orig(inn, d); }; })();");
+    f.ev("obligations('02201199920021','01.07.2026')");             // Иссык-Куль Агро: Средний, долг 55,7 млн
+    const seen = JSON.parse(f.ev("JSON.stringify(window.__td)"));
+    return seen.length > 0 && seen.every(d => d === '01.07.2026'); })());
+
+// Б-5 · витрина и итог вкладки «Кредиты» складывают одно и то же множество.
+const money = t => { const m = String(t).match(/([\d\s ]+)/); return m ? Number(m[1].replace(/[\s ]/g,'')) : null; };
+ok('Б-5. итог вкладки «Кредиты» считает по действующим — как витрина, а не по всем',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/09901199990091'"); f.ev("route()");    // 1 кредит, погашен: витрина 0, вкладка была 7 000 000
+    const rows = [...f.$$('.tabpanel[data-panel="0"] .f')]
+      .reduce((a, d) => (a[d.querySelector('.fk').textContent.trim()] = d.querySelector('.fv').textContent.trim(), a), {});
+    f.ev("switchTab(tabIx('кредиты'))");
+    const foot = f.$('#crWrap tfoot');
+    if (!foot) return false;
+    const tr = [...foot.querySelectorAll('tr')];
+    const cells = [...tr[0].querySelectorAll('td')].map(td => td.textContent.trim());
+    return money(rows['Сумма выдано']) === money(cells[5])
+      && money(rows['Задолженность всего']) === money(cells[6])
+      && /действ/.test(cells[2]); })());
+ok('Б-5. погашенные кредиты не растворяются в сумме, а стоят отдельной строкой (КЗ-20)',
+  (() => { const f = mk();
+    f.ev("location.hash='#/b/09901199990091'"); f.ev("route()");
+    f.ev("switchTab(tabIx('кредиты'))");
+    const tr = [...f.$$('#crWrap tfoot tr')];
+    if (tr.length !== 2) return false;
+    const cells = [...tr[1].querySelectorAll('td')].map(td => td.textContent.trim());
+    return /Погашен/.test(cells[2]) && money(cells[5]) === 7000000; })());
+
 /* ── Словари взыскания: владелец — collection.html ──────────────────────────────
    CONTOURS / PHASE_STAGE / PROCEDURE_DICT скопированы в карточку заёмщика.
    Копипаст синхронен на 26.07.2026 и синхронится руками — значит разъедется молча.

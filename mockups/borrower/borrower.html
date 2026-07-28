@@ -9,12 +9,15 @@
      Спека: mockups/borrower/ASUBK-zaemshik-logika.md — правила вывода, инварианты с причиной, швы (СП-21)
             docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки); её место заняла спека выше
-     Проверка: node scripts/inspect/borrower-check.mjs  →  165/165 PASS (2026-07-27)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  175/175 PASS (2026-07-28)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
                      органы просмотра — data-view-ctl; проверяется двусторонне, тесты 26a/26b) ·
                  И-6 деньги приходят снимком со своей датой (DEBT_ASOF) и дате среза не подчиняются ·
+                 И-6а множество, по которому складываются деньги, выбирается на дате денег:
+                     creditsOn(inn, d) — общее основание totalDebt/overdueDebt/atRisk/coverageOf,
+                     дата у всех четырёх параметр по умолчанию DEBT_ASOF (Б-3/Б-4/Б-5, КЗ-12) ·
                  И-7 обязательство закрывается фактом из модуля-источника, не отметкой ·
                  И-8 дефект один на всю карточку: подача разная, правило одно;
                      «стоп» — модальность, а не степень (в шкалу high/mid/info не входит) ·
@@ -2556,27 +2559,38 @@ function collectionDefects(inn){
   return out;
 }
 
+/* ═══ ДЕНЬГИ ЗАЁМЩИКА — МНОЖЕСТВО ВЫБИРАЕТСЯ НА ДАТЕ ДЕНЕГ ═══
+   Б-3: раньше все четыре функции жёстко фильтровали кредиты на TODAY, тогда как сами
+   суммы приходят снимком на DEBT_ASOF. Множество и деньги по нему жили на разных датах —
+   уже сегодня разрыв в три дня, а на срезе в прошлое разрыв любой. Поэтому дата стала
+   параметром, а по умолчанию она равна дате денег: складывать снимок можно только по тому
+   множеству, которое существовало на дату снимка. Дате среза подчиняются состояния (И-9),
+   а не суммы (И-6) — экран, которому нужен срез, передаёт его явно. */
+
+/* Действующие кредиты заёмщика на дату — общее основание всех четырёх сумм. */
+function creditsOn(inn, d){ return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,d)); }
+
 /* Вся задолженность заёмщика по действующим кредитам. */
-function totalDebt(inn){
-  return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY)).reduce((s,c)=> s + creditTotal(c), 0);
+function totalDebt(inn, d = DEBT_ASOF){
+  return creditsOn(inn, d).reduce((s,c)=> s + creditTotal(c), 0);
 }
 /* Просроченная часть — только то, что должно было быть уплачено по графику. Раньше эта же
    функция возвращала ПОЛНЫЙ остаток проблемных кредитов: три разных числа под одним словом
    «просрочка» на одном экране, разброс в 20 раз. Полный остаток теперь atRisk(). */
-function overdueDebt(inn){
-  return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY)).reduce((s,c)=> s + creditOverdue(c), 0);
+function overdueDebt(inn, d = DEBT_ASOF){
+  return creditsOn(inn, d).reduce((s,c)=> s + creditOverdue(c), 0);
 }
 /* Под риском (охват) — полный остаток кредитов, по которым есть просрочка: величина,
    которую Холдинг рискует потерять, а не сумма к уплате сегодня (CONTEXT: «Охват»). */
-function atRisk(inn){
-  return CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY) && overdueDaysOn(c,TODAY)>0)
+function atRisk(inn, d = DEBT_ASOF){
+  return creditsOn(inn, d).filter(c=>overdueDaysOn(c,d)>0)
     .reduce((s,c)=> s + creditTotal(c), 0);
 }
 /* Зеркало zalog: worst = минимальный индекс по кредитам заёмщика; aggregate = средневзвешенный (по остатку осн. долга).
    Индекс НОРМИРОВАН на порог кредита (creditCoverage: залоговая ÷ (остаток × порог)), поэтому
    норма всегда 1.00 — пороги 120/150 %/решение КМ у кредитов разные и в одну цифру не сводятся. */
-function coverageOf(inn){
-  const cs = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,TODAY))
+function coverageOf(inn, d = DEBT_ASOF){
+  const cs = creditsOn(inn, d)
     .map(c => ({ cv: creditCoverage(c), bal: principalOf(c) || c.amount || 0 }))
     .filter(x => x.cv.index != null && x.cv.items.length);
   if (!cs.length) return { worst:null, aggregate:null, required:1, breaches:0 };
@@ -2660,7 +2674,10 @@ function obligations(inn, d){
       `+10 раб. дн. от перевода в ${cat==='high'?'Высокий':'Средний'} (${trig.date})`,
       obligDocClosing(inn, OBLIG_DOC['О-1'], trig.date));
   }
-  if (cat==='mid' && totalDebt(inn) > 50000000 && trig){
+  /* Б-4: порог 50 млн считается на дате обязательства. Раньше здесь стоял totalDebt(inn) с
+     жёстким TODAY внутри: существование обязательства решалось по сегодняшнему долгу, а срок
+     того же обязательства — по дате среза. Одно обязательство на две даты. */
+  if (cat==='mid' && totalDebt(inn, d) > 50000000 && trig){
     mk('О-2', 'п.12(2): анализ фин.-хоз. состояния (>50 млн)', trig.date, 'полоса с ' + trig.date,
       addWorkdays(trig.date,14),
       `+14 раб. дн. от перевода в Средний (${trig.date}) · долг >50 млн`,
@@ -3526,12 +3543,16 @@ function flagsRow(inn){
 /* Результаты проверок собираются со ссылками внутри — в бейдж шапки идёт только текст. */
 function stripTags(html){ return String(html).replace(/<[^>]*>/g, ''); }
 
-/* Сводка по кредитам — деньги одной карточкой; правка и детали — во вкладке «Кредиты» (И-5). */
+/* Сводка по кредитам — деньги одной карточкой; правка и детали — во вкладке «Кредиты» (И-5).
+   КЗ-12: карточка целиком живёт в ОДНОМ режиме дат — на снимке DEBT_ASOF. Раньше в семи
+   строках под одной подписью сходились три режима: счёт кредитов и дни просрочки считались
+   на дате среза, суммы — на TODAY внутри totalDebt, а подпись обещала DEBT_ASOF (Б-3).
+   Счёт кредитов здесь — знаменатель денег, а не состояние, поэтому он идёт с деньгами. */
 function creditsSummaryCard(inn){
   const all = CREDITS.filter(c=>c.inn===inn);
-  const act = all.filter(c=>isActiveCredit(c, asOf()));
-  const ovCred = act.filter(c=>overdueDaysOn(c,asOf())>0);
-  const maxOv = act.reduce((m,c)=>Math.max(m, overdueDaysOn(c,asOf())), 0);
+  const act = creditsOn(inn, DEBT_ASOF);
+  const ovCred = act.filter(c=>overdueDaysOn(c,DEBT_ASOF)>0);
+  const maxOv = act.reduce((m,c)=>Math.max(m, overdueDaysOn(c,DEBT_ASOF)), 0);
   /* две разные величины, которые раньше обе назывались «просрочка»:
      просроченная часть — сколько должны заплатить сейчас; под риском — сколько можем потерять */
   const rows = [
@@ -3739,17 +3760,29 @@ function wireCreditsTab(inn){
     const from = (crPage - 1) * crSize;
     return credList.slice(from, from + crSize).map((c, i) => credRow(c, from + i + 1));
   };
-  /* итоги по всему списку кредитов */
-  const foot = () => {
-    const t = credList.reduce((a, c) => ({ amount: a.amount + c.amount, debt: a.debt + creditTotal(c), ov: a.ov + ovSum(c) }),
-                              { amount: 0, debt: 0, ov: 0 });
+  /* Итоги. Б-5: раньше складывался весь credList, тогда как витрина считает по действующим —
+     одни и те же деньги под разными числами на двух экранах (ИНН 09901199990091: «Сумма выдано 0»
+     на витрине против «Итого 7 000 000» здесь). Множество берётся на дате денег (DEBT_ASOF), как
+     в totalDebt, а погашенные выносятся отдельной строкой и в сумму не растворяются (КЗ-20). */
+  const sum = list => list.reduce(
+    (a, c) => ({ amount: a.amount + c.amount, debt: a.debt + creditTotal(c), ov: a.ov + ovSum(c) }),
+    { amount: 0, debt: 0, ov: 0 });
+  const footRow = (label, list, strong) => {
+    const t = sum(list);
     return '<td class="chk"></td><td class="rownum"></td>'
-      + '<td>Итого <span class="muted" style="font-weight:400">· ' + credList.length + ' кред.</span></td>'
+      + '<td>' + label + ' <span class="muted" style="font-weight:400">· ' + list.length + ' кред.</span></td>'
       + '<td></td><td></td>'
       + '<td>' + fmt(t.amount) + ' <span class="muted">KGS</span></td>'
-      + '<td><b>' + fmt(t.debt) + '</b> <span class="muted">KGS</span></td>'
+      + '<td>' + (strong ? '<b>' + fmt(t.debt) + '</b>' : fmt(t.debt)) + ' <span class="muted">KGS</span></td>'
       + '<td' + (t.ov ? ' class="win"' : '') + '>' + fmt(t.ov) + ' <span class="muted">KGS</span></td>'
       + '<td></td>';
+  };
+  const foot = () => {
+    const act = credList.filter(c => isActiveCredit(c, DEBT_ASOF));
+    const done = credList.filter(c => !isActiveCredit(c, DEBT_ASOF));
+    const rows = [footRow('Итого <span class="muted" style="font-weight:400">действ.</span>', act, true)];
+    if (done.length) rows.push(footRow('Погашено', done, false));
+    return rows;
   };
   const pager = () => {
     const total = credList.length, last = Math.max(1, Math.ceil(total / crSize));
@@ -5448,10 +5481,13 @@ function sect(title, hint, actions, body){
     (actions ? '<span class="ha">' + actions + '</span>' : '') +
     '</div><div class="section-body">' + body + '</div></div>';
 }
+/* foot — либо содержимое одной строки итога, либо массив таких строк (итог + отдельная
+   строка погашенных, КЗ-20): складывать разные множества в одну сумму нельзя. */
 function table(head, rows, foot){
   if (!rows.length) return empty('Записей не найдено.');
+  const feet = foot ? (Array.isArray(foot) ? foot : [foot]).filter(Boolean) : [];
   return '<table class="grid"><thead><tr>' + head + '</tr></thead><tbody>' + rows.join('') + '</tbody>' +
-    (foot ? '<tfoot><tr>' + foot + '</tr></tfoot>' : '') + '</table>';
+    (feet.length ? '<tfoot>' + feet.map(r => '<tr>' + r + '</tr>').join('') + '</tfoot>' : '') + '</table>';
 }
 
 /* ---------- сайдбар ---------- */
