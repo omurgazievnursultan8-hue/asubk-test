@@ -96,6 +96,22 @@
   стадии · распределение погашения (оба режима) · фильтры, плитки, страницы и выгрузка
   списка.
 
+  ВОЛНА ПЛ (28.07.2026) — ПЛОТНОСТЬ реестра требований: ПЛ-1…ПЛ-6 решений, ПЛ-Д1…ПЛ-Д3
+  дефектов. Первая волна НЕ по новому экрану, а вторым проходом по уже пересмотренному
+  (§14.1): вопросы и колонки волна ТР выбрала верно, но экран отвечал ими слишком громко.
+  Устройство — ASUBK-vzyskanie-logika.md §14.1 и §24; разбор — ASUBK-status-razrabotki.md.
+  Замер до/после (Chrome 1600×1000): первая строка данных 707 → 339 px, строк в первом
+  экране 9 → 19, ширина таблицы 1657 → 1240 при обёртке 1280 (вылет 377 px — за краем
+  оказывалась «Сумма требования», по которой экран сортирован по умолчанию), заголовков
+  дел 122 → 9, красных ячеек 71 из 132 → 0. Ключевое: заголовок дела рисуется ТОЛЬКО там,
+  где группирует (≥ 2 требования), обстоятельства дела — в подсказке строки; страница
+  считается по ТРЕБОВАНИЯМ (дело всё равно не рвётся), счётчик одноголовый; плитки несут
+  деньги по правилу представителя (один раз на кредит, §2.2 / ADR-0002); фильтр свёрнут,
+  тулбар в одну полосу, процедура взыскания — условие отбора, а не колонка; цвет и пилюли
+  метят редкое. Раскладка таблицы стала fixed, ширины пересчитаны ЗАМЕРОМ В ПИКСЕЛЯХ —
+  прежний замер ТР-9 был в символах и не учитывал ни паддинг пилюли, ни жёлоб стрелки.
+  Переигрывает часть ТР-9, ТР-6 и ТР-Д11 — зачёркнуто на месте в статус-файле.
+
   ВОЛНА НП (28.07.2026) — экран «Настройки правил» пересмотрен поэкранно: НП-1…НП-16
   решений, НП-Д1…НП-Д21 дефектов. Устройство — ASUBK-vzyskanie-logika.md §14.4 и §23;
   разбор каждого решения — ASUBK-status-razrabotki.md. Ключевое: у каждого правила видно,
@@ -295,6 +311,10 @@ a{ color:inherit; }
 .tile.active{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); }
 .tile .tv{ font:var(--weight-bold) 22px/1.1 var(--asubk-font); color:var(--text-heading); }
 .tile .tl{ font:var(--font-label); color:var(--text-muted); margin-top:2px; }
+/* ПЛ-5: плитка несёт и деньги — экран объявлен состоянием портфеля, а суммы портфеля
+   на нём до волны не было ни одной. */
+.tile .tm{ font:var(--weight-medium) var(--text-label,12px)/1.3 var(--asubk-font);
+  color:var(--text-body); margin-top:4px; font-variant-numeric:tabular-nums; }
 .tile.warn .tv{ color:var(--asubk-amber); }
 .tile.err  .tv{ color:var(--asubk-red); }
 .filter-body{ display:none; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px 16px; padding:6px 20px 14px; }
@@ -315,21 +335,41 @@ a{ color:inherit; }
 
 /* ---- grid (list) ---- */
 .grid-wrap{ padding:0 20px 20px; overflow:auto; }
-table.grid{ width:100%; border-collapse:collapse; font:var(--font-label);
+/* ПЛ-Д1: раскладка ФИКСИРОВАННАЯ. Была авто — и проценты colgroup (замер ТР-9)
+   применялись не к контейнеру, а к разросшейся таблице: у «Фазы» самое длинное
+   значение 54 символа ≈ 404 px, а она обязана быть 25 % → таблица обязана быть
+   ≥ 1616 px при контейнере 1280. Отсюда вылет в 377 px, из-за которого «Сумма
+   требования» и «Дней просрочки» уезжали за экран — при сортировке по сумме
+   по умолчанию. text-overflow:ellipsis при этом не срабатывал никогда: таблица
+   просто росла. С fixed проценты значат ровно то, что ТР-9 замерял. */
+table.grid{ width:100%; table-layout:fixed; border-collapse:collapse; font:var(--font-label);
   border:1px solid var(--border-default); background:var(--surface-card); }
-table.grid thead th{ text-align:left; height:52px; padding:0 12px; background:var(--surface-card);
-  border-bottom:1px solid var(--asubk-grid-line);
+/* ПЛ-Д2: шапка ПЕРЕНОСИТСЯ по словам — так её и описывал ТР-9 («шапка переносится
+   по словам, поэтому её длина целиком ширину не диктует»), но в CSS стоял nowrap,
+   и «Ведущее подразделение» превращалось в «Ведущее подр…». */
+table.grid thead th{ position:relative; text-align:left; height:52px; padding:0 16px 0 10px;
+  background:var(--surface-card); border-bottom:1px solid var(--asubk-grid-line);
   font:var(--weight-medium) var(--text-sm)/1.375 var(--asubk-font); color:var(--text-body);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; user-select:none; vertical-align:middle; }
-table.grid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; }
-table.grid tbody td{ height:35px; padding:0 12px; border-bottom:1px solid var(--asubk-grid-line);
+  white-space:normal; overflow:hidden; cursor:pointer; user-select:none; vertical-align:middle; }
+/* ПЛ-6: стрелка сортировки — только у сортированной колонки; у остальных по наведению.
+   Восемь «↕» рисовались всегда и были фоном, а не подсказкой.
+   ПЛ-Д2: стрелка вынесена в правый жёлоб 16 px и абсолютна. Строчной она занимала
+   место даже при opacity:0 и переносилась вместе с последним словом — рвалось не
+   «подразделение», а «подразделение↕», и никакая ширина колонки этого не лечила. */
+table.grid thead th .sort{ position:absolute; right:4px; top:50%; transform:translateY(-50%);
+  color:var(--text-placeholder); font-size:11px; opacity:0; transition:opacity 120ms ease; }
+table.grid thead th:hover .sort, table.grid thead th.sorted .sort{ opacity:1; }
+table.grid tbody td{ height:35px; padding:0 10px; border-bottom:1px solid var(--asubk-grid-line);
   color:var(--text-body); vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 table.grid tbody tr{ cursor:pointer; }
 table.grid tbody tr:hover{ background:var(--surface-hover); }
 table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+/* ПЛ-6: курсив и серый у ЗАКРЫТОЙ строки оставлены — вот это редкое (1 из 29 на
+   странице). Красный у «Дней просрочки» снят вместе с классом .overdue: он красил
+   71 строку из 132 по порогу «> 180», зашитому прямо в рендер и не объявленному
+   ни в CONTEXT, ни в «Настройках правил». Цвет метит исключение, а не половину. */
 .grid tbody tr.terminal td{ color:var(--text-muted); }
 .grid tbody tr.terminal td:first-child{ font-style:italic; }
-.grid td.overdue{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
 
 /* status pills */
 .pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
@@ -750,7 +790,10 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
     <div class="content">
       <!-- ============ LIST VIEW ============ -->
       <section class="view" id="view-list" style="display:flex;">
-        <div class="filter-head open" onclick="this.classList.toggle('open')">
+        <!-- ПЛ-3: панель СВЁРНУТА по умолчанию. Открытая, она занимала 348 px из 1000
+             и в них сообщала ноль: 15 контролов, все в «— все —». Что именно сузило
+             выборку, несёт лента условий (ТР-10) — она же это и снимает. -->
+        <div class="filter-head" onclick="this.classList.toggle('open')">
           <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
           <span>Фильтр</span>
         </div>
@@ -760,7 +803,8 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
         <!-- ТР-1: рамка экрана названа вслух. Реестр отвечает на «что в портфеле и в каком
              оно юридическом состоянии»; «что делать сегодня» — вопрос другого реестра
              с другим атомом (обязательство с датой, а не требование). -->
-        <p class="list-frame">Состояние портфеля взыскания на <b>21.07.2026</b>. Рабочая очередь по срокам —
+        <p class="list-frame">Состояние портфеля взыскания на <b>21.07.2026</b>. Деньги в плитках — один раз
+          на кредит, по строке заёмщика (§2.2). Рабочая очередь по срокам —
           в реестре <a class="lnk" onclick="navClick('Сроки на контроле (реестр)')">«Сроки на контроле»</a>.</p>
         <div class="rowtools">
           <!-- ТР-6: строка открывается кликом и Enter — отдельная кнопка «Открыть требование» снята. -->
@@ -772,8 +816,8 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
           <div class="pager">
             <span id="pagerCount"></span>
             <span class="pager-nav" id="pagerNav"></span>
-            <span class="pager-lbl">дел на странице:</span>
-            <select id="pagerSize" onchange="onPageSize(this.value)" title="Дел на странице" aria-label="Дел на странице">
+            <span class="pager-lbl">строк на странице:</span>
+            <select id="pagerSize" onchange="onPageSize(this.value)" title="Строк на странице" aria-label="Строк на странице">
               <option>25</option><option>50</option><option>100</option><option>200</option>
             </select>
           </div>
@@ -1508,6 +1552,12 @@ const DEBT_LABELS  = { principal:'Основная сумма', interest:'Про
 const COSTS_LABEL  = DEBT_LABELS.costs;
 const fmtKGS   = n => Number(n).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 const parseSum = s => Number(String(s).replace(/\s/g, '').replace(',', '.'));
+/* Суммы складываются В КОПЕЙКАХ, целыми: плитки суммируют до 132 значений, и
+   дробное сложение рано или поздно даёт пол-копейки, которую toFixed(2) честно
+   округлит. Проверено: 19 586 900,01 в плитке — НЕ артефакт, это настоящая
+   копейка кредита 555 (требование 408/555/з, principal.accrued = 0,01) —
+   та самая «сиротская копейка» легаси, E2E-13/14. */
+const sumKGS = xs => xs.reduce((s, v) => s + Math.round(Number(v) * 100), 0) / 100;
 
 /* Долг требования: строки-статьи + собственные расходы + итоги.
    claimable — то, что востребовано ЭТИМ требованием: при охвате «просроченная сумма»
@@ -1536,7 +1586,7 @@ function claimTotal(reqs){
     const cur = byCredit[r.credit];
     if(!cur || (r.role === 'заёмщик' && cur.role !== 'заёмщик')) byCredit[r.credit] = r;
   }
-  return Object.values(byCredit).reduce((s,r)=> s + claimOf(r), 0);
+  return sumKGS(Object.values(byCredit).map(claimOf));
 }
 const claimSum = p => claimTotal(p.requirements || []);
 
@@ -3646,6 +3696,10 @@ function passFilters(r){
     if(!(String(p.borrower).toLowerCase().includes(q) || String(p.inn||'').includes(f.q)
       || String(personOf(r).name).toLowerCase().includes(q) || String(r._credit.num).toLowerCase().includes(q))) return false; }
   if(f.curator && p.curator!==f.curator)          return false;
+  /* ПЛ-2: процедура взыскания — свойство ДЕЛА, и как условие отбора она полезна
+     (6 значений, верхнее покрывает 33 дела из 122), а колонкой была бы повторяющимся
+     чипом — ровно тем, из-за чего заголовок дела и выглядел шумным. */
+  if(f.procedure && ((p.procedure && p.procedure.status) || '') !== f.procedure) return false;
   /* ТР-5 / ТР-Д1: поле сравнивается с тем же значением, из которого построен его список.
      Было: опции брались из p.owner («Куратор ОД»), а сравнивались с r.subdivision («ОД») —
      любой выбор давал пустой реестр. */
@@ -3698,8 +3752,25 @@ const LIST_COLS = [
    Правило: ширина ∝ max(самое длинное слово шапки, 95-й перцентиль содержимого) —
    шапка переносится по словам, поэтому её длина целиком ширину не диктует.
    Замер (символов): лицо 9/33 · договор 9/23 · охват 5/18 · фаза 4/40 · категория 9/7 ·
-   подразделение 13/3 · сумма 10/10 · дней 9/3. Обрезаемые ячейки несут title. */
-const LIST_WIDTHS = ['21%','15%','12%','25%','6%','8%','7%','6%'];
+   подразделение 13/3 · сумма 10/10 · дней 9/3. Обрезаемые ячейки несут title.
+
+   ПЛ-Д3: замер ТР-9 считал СИМВОЛЫ, а рисуются ПИКСЕЛИ — и у категории рисовалась
+   пилюля с паддингом и рамкой, а у суммы табличные цифры. Под fixed-раскладкой это
+   вылезло сразу: «Категория» 6 % = 74 px обрезала 29 строк из 29, «Сумма требования»
+   7 % = 87 px — 26 из 29.
+   Проценты посчитаны по ЗАМЕРУ В ПИКСЕЛЯХ (canvas measureText тем же шрифтом, все
+   132 требования, не одна страница). Потребность колонки = max(самое длинное СЛОВО
+   шапки + жёлоб стрелки 16 px; 95-й перцентиль содержимого) + паддинг — обе
+   половины правила ТР-9, а не одна: лицо 243 · договор 179 · охват 157 · фаза 244 ·
+   категория 92 · подразделение 126 · сумма 117 · дней 93 = 1251 при бюджете 1240
+   (ширина обёртки 1280 − 40). Бюджет сошёлся только после того, как паддинг ячеек
+   стал 10 px вместо 12: на восьми колонках это 32 px.
+   Дефицит 11 px отдан «Обязанному лицу»: имя целиком видно в шапке дела и в title
+   строки, а остальные колонки дублировать негде.
+   «Фаза» 19,7 % = 244 px не случайна: у 119 требований из 132 ячейка ровно 244 px
+   (модальное значение), обрезка задевает 13 длинных. Урезать её до 235 px значило бы
+   поставить многоточие большинству строк. */
+const LIST_WIDTHS = ['18.1%','14.5%','12.7%','19.7%','7.5%','10.4%','9.5%','7.6%'];
 
 function sortVal(r, k){
   const p = r._proc;
@@ -3713,9 +3784,37 @@ function sortVal(r, k){
     default: return r[k] ?? '';
   }
 }
+/* ПЛ-5: деньги плитки считаются ОДИН РАЗ НА КРЕДИТ (§2.2), а представителем кредита
+   служит та же строка, которую выбирает claimTotal, — с приоритетом роли «заёмщик».
+   В плитку представителя и падают деньги кредита целиком.
+
+   Правило нужно именно такое, а не «сложить суммы строк плитки»: гейт, окно и
+   ожидание процедуры — состояния ТРЕБОВАНИЯ, и два требования одного кредита
+   (заёмщик + поручитель) могут лечь в разные плитки. Тогда наивная сумма задваивает
+   деньги, и сумма плиток перестаёт сходиться с «Всего». На стенде оба солидарных
+   кредита (56 и 409) целиком в «без помех», то есть расхождения не видно, — но это
+   везение данных, а не свойство модели. С правилом представителя сумма плиток равна
+   «Всего» = claimTotal(набор) всегда. */
+function tileMoney(src){
+  const rep = {};
+  for(const r of src){
+    const cur = rep[r.credit];
+    if(!cur || (r.role === 'заёмщик' && cur.role !== 'заёмщик')) rep[r.credit] = r;
+  }
+  const by = {}; let total = 0;   // копейки, целыми — см. sumKGS
+  for(const r of Object.values(rep)){
+    const v = Math.round(claimOf(r) * 100);
+    by[listStatus(r)] = (by[listStatus(r)] || 0) + v;
+    total += v;
+  }
+  for(const k of Object.keys(by)) by[k] /= 100;
+  return { by, total: total / 100 };
+}
 function renderTiles(){
   const src = baseSet();   // плитки отражают полевой фильтр и стадию (кроме самого плиточного фильтра)
   const by = k => src.filter(r => listStatus(r) === k).length;
+  const money = tileMoney(src);
+  const m = k => fmtKGS(k === null ? money.total : (money.by[k] || 0));
   /* ТР-2: сперва помехи (по убыванию тяжести), затем честный остаток и закрытые. */
   const tiles = [
     { key:null,      lbl:'Всего требований',   n:src.length,     cls:'' },
@@ -3726,14 +3825,17 @@ function renderTiles(){
     { key:'closed',  lbl:TILE_LABELS.closed,   n:by('closed'),   cls:'' },
   ];
   document.getElementById('listTiles').innerHTML = tiles.map(t=>`
-    <div class="tile ${t.cls}${tileFilter===t.key && t.key!==null ? ' active':''}" onclick="clickTile(${t.key===null?'null':`'${t.key}'`})">
-      <div class="tv">${t.n}</div><div class="tl">${t.lbl}</div></div>`).join('');
+    <div class="tile ${t.cls}${tileFilter===t.key && t.key!==null ? ' active':''}" onclick="clickTile(${t.key===null?'null':`'${t.key}'`})"
+         title="${escAttr(t.lbl)} — ${t.n} требований на ${m(t.key)} сом (деньги один раз на кредит, §2.2)">
+      <div class="tv">${t.n}</div><div class="tl">${t.lbl}</div><div class="tm">${m(t.key)}</div></div>`).join('');
 }
 function clickTile(k){ tileFilter = (k===null) ? null : (tileFilter===k ? null : k); curPage = 1; renderTiles(); renderList(); renderChips(); }
 
 /* ---- ТР-4: группировка по делу — устройство таблицы, а не режим ----
-   Переключателя нет: требования одного дела ВСЕГДА идут подряд под своей
-   строкой-заголовком. Сортировка применяется к ТРЕБОВАНИЯМ; дело всплывает
+   Переключателя нет: требования одного дела ВСЕГДА идут подряд.
+   ПЛ-1 сузил область правила, но не отменил его: строку-заголовок получают только
+   дела с ≥2 требованиями (9 из 122), и подтягивать соседей нужно ровно у них — у
+   остальных 113 подтягивать нечего. Сортировка применяется к ТРЕБОВАНИЯМ; дело всплывает
    по своей лучшей строке — по позиции первого своего требования в отсортированном
    списке, — а внутри дела строки сохраняют тот же порядок. Правило записано здесь,
    потому что без него сортировка по сумме выглядит «сломанной»: наверху оказывается
@@ -3783,22 +3885,45 @@ function activeConditions(){
   return out;
 }
 
+/* ПЛ-4: страница считается по ТРЕБОВАНИЯМ — по тому, что видно строками. Правило
+   «дело не рвётся» (ТР-6) сохранено: дело с несколькими требованиями, не влезающее
+   в остаток страницы, уезжает на следующую целиком. Было — 25 ДЕЛ на странице:
+   счётчик считал не то, что на экране (122 дела против 132 строк), а высота страницы
+   плавала от 25 до 29 строк. Таких дел 9 из 122, так что перенос — редкий и мелкий. */
+function pagesOfDeals(deals, size){
+  const pages = []; let cur = [], n = 0;
+  for(const d of deals){
+    if(n && n + d.reqs.length > size){ pages.push(cur); cur = []; n = 0; }
+    cur.push(d); n += d.reqs.length;
+  }
+  if(cur.length) pages.push(cur);
+  return pages.length ? pages : [[]];
+}
+
 function renderList(){
   document.getElementById('listCols').innerHTML = LIST_WIDTHS.map(w=>`<col style="width:${w}">`).join('');
   document.getElementById('listHead').innerHTML = LIST_COLS.map(c=>
     `<th class="${c.num?'num':''}${sortKey===c.k?' sorted':''}" onclick="sortList('${c.k}')">${c.t}<span class="sort">${sortKey===c.k?(sortDir>0?'↑':'↓'):'↕'}</span></th>`).join('');
   renderTiles();
 
-  const deals = groupedDeals();
-  const pages = Math.max(1, Math.ceil(deals.length / PAGE_SIZE));
+  const deals     = groupedDeals();
+  const allPages  = pagesOfDeals(deals, PAGE_SIZE);
+  const pages     = allPages.length;
   if(curPage > pages) curPage = pages;
-  const pageDeals = deals.slice((curPage-1)*PAGE_SIZE, curPage*PAGE_SIZE);
+  const pageDeals = allPages[curPage-1] || [];
   const pageReqs  = pageDeals.flatMap(d => d.reqs);
   const allReqsN  = deals.reduce((a,d)=>a + d.reqs.length, 0);
+  const before    = allPages.slice(0, curPage-1).reduce((a,pg)=>a + pg.reduce((b,d)=>b + d.reqs.length, 0), 0);
 
-  /* ТР-9: заголовок дела в ОДНУ строку — слева лицо и обстоятельства дела,
-     справа его размер. Показывается ВСЕГДА, в том числе у дела с единственным
-     требованием (иначе 118 дел из 126 оставались без заёмщика на экране). */
+  /* ПЛ-1: заголовок дела показывается ТОЛЬКО у дела с ≥2 требованиями — таких 9 из 122.
+     ТР-9 показывал его всегда, и у 113 дел из 122 он дословно повторял строку под собой:
+     то же имя, та же сумма («по делу» = сумме единственного требования) и счётчик
+     «требований 1». Получалась таблица из двух чередующихся типов строк — 254 строки
+     на 132 факта, и глазу не за что зацепиться: повторяющейся единицы нет.
+     ТР-Д11 («строка без заёмщика») при этом не воскресает: имя заёмщика теперь стоит
+     в самой строке — в 130 требованиях из 132 обязанное лицо и есть заёмщик, а среди
+     113 однотребовательных дел иной роли нет ни одного. Остальные обстоятельства дела —
+     ИНН, регион, куратор, номер дела — ушли в подсказку строки и в выгрузку (ТР-8). */
   const dealHead = (p, n) => {
     const grp  = groupOf(p);
     const proc = p.procedure
@@ -3826,20 +3951,29 @@ function renderList(){
     const sol = solidaryWith(r).length;
     const money = `снимок денег на ${moneyDate(r)}`
       + (sol ? ` · солидарно с ${sol} треб. — в итоге по делу считается один раз` : '');
+    const p = r._proc;
     /* ТР-6: строка открывается кликом и Enter; отдельной кнопки «Открыть требование» нет.
-       ТР-8: составной ключ требования — в подсказке строки. */
+       ТР-8: составной ключ требования — в подсказке строки.
+       ПЛ-1: туда же уехали обстоятельства дела — у дела с одним требованием заголовка
+       больше нет, и подсказка остаётся единственным местом, где они видны без перехода
+       в карточку. Порядок тот же, что был в заголовке. */
+    const rowTitle = `Требование ${r.id} · дело ${procNo(p.id)} · ${p.borrower} · ИНН ${p.inn||'—'}`
+      + ` · ${p.region} · куратор ${p.curator} — открыть`;
+    /* ПЛ-6: роль показывается чипом только когда она НЕ «заёмщик» — иначе чип стоял
+       на 130 строках из 132 и не различал ничего. Категория — текстом, а не пилюлей:
+       128 требований из 132 «Высокий» или «Средний», цветом красилась вся колонка. */
     return `<tr data-id="${escAttr(r.id)}" class="rowopen${out?' terminal':''}" tabindex="0"
-        title="Требование ${escAttr(r.id)} — открыть"
+        title="${escAttr(rowTitle)}"
         onclick="openDetail('${escAttr(r.id)}')"
         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetail('${escAttr(r.id)}');}">
-      <td title="${escAttr(personOf(r).name+' · '+r.role)}">${personOf(r).name}<span class="rolechip">${r.role}</span></td>
+      <td title="${escAttr(personOf(r).name+' · '+r.role)}">${personOf(r).name}${r.role!=='заёмщик'?`<span class="rolechip">${r.role}</span>`:''}</td>
       <td title="${escAttr(r._credit.num)}">${r._credit.num}</td>
       <td title="${escAttr(r.scope)}">${r.scope}</td>
       <td title="${escAttr(out || displayPhase(r))}">${phaseCell}</td>
-      <td><span class="pill ${catCls(cat)}">${catLabel(cat)}</span></td>
+      <td title="${escAttr(catLabel(cat))}">${catLabel(cat)}</td>
       <td title="${escAttr(r.subdivision)}">${r.subdivision}</td>
       <td class="num" title="${escAttr(money)}">${fmtKGS(claimOf(r))}${sol?`<span class="solmark">сол.</span>`:''}</td>
-      <td class="num ${overdueOf(r)>180?'overdue':''}">${overdueOf(r)}</td></tr>`;
+      <td class="num">${overdueOf(r)}</td></tr>`;
   };
 
   /* ТР-Д12: пустое состояние называет условия, из-за которых ничего не нашлось,
@@ -3855,14 +3989,14 @@ function renderList(){
   };
 
   document.getElementById('listBody').innerHTML = pageDeals.length
-    ? pageDeals.map(d => dealHead(d.p, d.reqs.length) + d.reqs.map(cell).join('')).join('')
+    ? pageDeals.map(d => (d.reqs.length > 1 ? dealHead(d.p, d.reqs.length) : '') + d.reqs.map(cell).join('')).join('')
     : empty();
 
-  /* ТР-6: настоящий пейджер — «дела 1–25 из 126» + число требований на странице. */
-  const from = deals.length ? (curPage-1)*PAGE_SIZE + 1 : 0;
-  const to   = Math.min(curPage*PAGE_SIZE, deals.length);
+  /* ТР-6 + ПЛ-4: пейджер настоящий, счётчик одноголовый — считает ровно строки. */
+  const from = allReqsN ? before + 1 : 0;
+  const to   = before + pageReqs.length;
   document.getElementById('pagerCount').textContent =
-    `дела ${from}–${to} из ${deals.length} · требований на странице ${pageReqs.length} из ${allReqsN}`;
+    `требования ${from}–${to} из ${allReqsN}`;
   document.getElementById('pagerNav').innerHTML = deals.length ? `
     <button ${curPage<=1?'disabled':''} onclick="gotoPage(1)" title="В начало">«</button>
     <button ${curPage<=1?'disabled':''} onclick="gotoPage(${curPage-1})" title="Предыдущая">‹</button>
@@ -6124,7 +6258,7 @@ const CAT_OPTS  = [['norm','Норма'],['mid','Средний'],['high','Вы�
    не имели подписи и выпадали чипом «contour: К1». */
 const CHIP_LABEL = { q:'Поиск', curator:'Куратор', subdiv:'Ведущее подразделение', scope:'Охват',
   role:'Роль обязанного лица', oblast:'Область', raion:'Район', contour:'Контур', phase:'Фаза',
-  cat:'Категория риска', group:'Группа платёжеспособности',
+  cat:'Категория риска', group:'Группа платёжеспособности', procedure:'Процедура взыскания',
   odMin:'Дней просрочки ≥', odMax:'Дней просрочки ≤', sumMin:'Сумма ≥', sumMax:'Сумма ≤' };
 
 function fopts(list, sel){
@@ -6160,6 +6294,9 @@ function renderFilterBar(){
   const oblasti  = uniq(PROCESSES.map(p=>oblastOf(p.region)).filter(Boolean));
   const raiony   = f.oblast ? uniq(PROCESSES.filter(p=>oblastOf(p.region)===f.oblast).map(p=>raionOf(p.region)).filter(Boolean)) : [];
   const groups   = uniq(PROCESSES.map(p=>groupOf(p)).filter(Boolean));
+  /* ПЛ-2: процедура ушла из строки-заголовка (её больше нет у 113 дел из 122) —
+     и должна была где-то остаться условием отбора; поля по ней не было вообще. */
+  const procs    = uniq(PROCESSES.map(p=>p.procedure && p.procedure.status).filter(Boolean));
   const scopes   = uniq(reqs.map(r=>r.scope).filter(Boolean));
   const roles    = uniq(reqs.map(r=>r.role).filter(Boolean));
   const contours = Object.keys(CONTOURS).map(k=>[k, `${k} — ${CONTOURS[k].name}`]);
@@ -6176,6 +6313,7 @@ function renderFilterBar(){
     ${fsel('f-phase','Фаза', phases, f.phase, "setF('phase',this.value)", !f.contour)}
     ${fsel('f-cat','Категория риска', CAT_OPTS, f.cat, "setF('cat',this.value)")}
     ${fsel('f-group','Группа платёжеспособности', groups, f.group, "setF('group',this.value)")}
+    ${fsel('f-procedure','Процедура взыскания', procs, f.procedure, "setF('procedure',this.value)")}
     ${frange('Дней просрочки','odMin','odMax')}
     ${frange('Сумма требования','sumMin','sumMax')}
     <div class="filter-actions">
