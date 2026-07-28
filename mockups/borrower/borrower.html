@@ -9,7 +9,7 @@
      Спека: mockups/borrower/ASUBK-zaemshik-logika.md — правила вывода, инварианты с причиной, швы (СП-21)
             docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки); её место заняла спека выше
-     Проверка: node scripts/inspect/borrower-check.mjs  →  226/226 PASS (2026-07-28)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  230/230 PASS (2026-07-28)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
@@ -119,6 +119,22 @@
                  показанное множество по валюте, затем по состоянию, «Итого действ.» печатает
                  и нулевое (И-12); Б-10 в этой вкладке — деньги через actMoney(n, o.currency);
                  Б-1 — индекс вкладки в defects() берётся tabIx(), а не вписан числом.
+
+     Вкладка 4 «Обязательства»: решение КЗ-27 (28.07.2026) — подача по образцу «Актов
+                 сверок»: две секции, «Действующие» и «Исполненные». Один список смешивал
+                 через строку разную работу: у действующего требования спрашивают «где факт
+                 появится», у исполненного — «каким фактом закрыто».
+                 Строку заголовит ПУНКТ ПОРЯДКА (obligations().clause/req хранятся врозь, а не
+                     слитой строкой basis): обязательство существует нормой, и спорят о нём
+                     номером пункта. Внутренний О-N остался ключом модели (код × период) и в
+                     подаче не участвует; в дефект Д-ОБЯЗ тоже уходит clause;
+                 следствие периода печатается там, где оно живое: у пропущенного месяца видно
+                     «факт есть за 03.2026, 04.2026, 05.2026 — на этот период он не переносится».
+                     У срока, который ещё не настал, приписки нет: его период не пропущен.
+                 Кнопки «выполнено» по-прежнему нет нигде (И-7) — у действующих колонка
+                     «Где закрывается», у исполненных «Чем закрыто» с самим фактом.
+                 Б-4 закрыт раньше, в модели: существование обязательства и его срок считаются
+                     на ОДНУ дату (totalDebt(inn, d), не TODAY внутри).
 -->
 <style>
   :root{
@@ -2842,13 +2858,17 @@ function obligations(inn, d){
   /* closeIn — куда идти, чтобы срок закрыть (КЗ-13). Обязательство закрывает ФАКТ из
      модуля-источника, и у каждого кода этот модуль свой; общая ссылка «модуль-источник»
      заставляла угадывать, в какой именно. */
-  const mk = (code, basis, period, periodLabel, due, srcHint, fact, closeIn) => {
+  /* КЗ-27: пункт Порядка (clause) и требование (req) хранятся врозь. Слитой строкой
+     «п.6(5): запрос пакета…» нельзя было ни озаглавить строку пунктом, ни сослаться на него:
+     номер нормы — это то, чем обязательство существует, а О-N — наш внутренний ключ. */
+  const mk = (code, clause, req, period, periodLabel, due, srcHint, fact, closeIn) => {
     const closing = fact && dateLE(fact.date, d) ? fact : null;
-    out.push({ code, basis, period, periodLabel, dueDate:due, closing, closeIn,
+    out.push({ code, clause, req, basis: clause + ': ' + req, period, periodLabel,
+      dueDate:due, closing, closeIn,
       status: closing ? 'исполнено' : statusOf(due, d), srcHint });
   };
   if ((cat==='mid'||cat==='high') && trig){
-    mk('О-1', 'п.6(5): запрос пакета фин. документов', trig.date, 'полоса с ' + trig.date,
+    mk('О-1', 'п.6(5)', 'запрос пакета фин. документов', trig.date, 'полоса с ' + trig.date,
       addWorkdays(trig.date,10),
       `+10 раб. дн. от перевода в ${cat==='high'?'Высокий':'Средний'} (${trig.date})`,
       obligDocClosing(inn, OBLIG_DOC['О-1'], trig.date), 'досье документов');
@@ -2857,13 +2877,13 @@ function obligations(inn, d){
      жёстким TODAY внутри: существование обязательства решалось по сегодняшнему долгу, а срок
      того же обязательства — по дате среза. Одно обязательство на две даты. */
   if (cat==='mid' && totalDebt(inn, d) > 50000000 && trig){
-    mk('О-2', 'п.12(2): анализ фин.-хоз. состояния (>50 млн)', trig.date, 'полоса с ' + trig.date,
+    mk('О-2', 'п.12(2)', 'анализ фин.-хоз. состояния (>50 млн)', trig.date, 'полоса с ' + trig.date,
       addWorkdays(trig.date,14),
       `+14 раб. дн. от перевода в Средний (${trig.date}) · долг >50 млн`,
       obligDocClosing(inn, OBLIG_DOC['О-2'], trig.date), 'досье документов');
   }
   overdueMonths(inn, d).forEach(p => {
-    mk('О-4', 'п.13: вынос просроченной задолженности на комитет', p.key, 'за ' + p.key,
+    mk('О-4', 'п.13', 'вынос просроченной задолженности на комитет', p.key, 'за ' + p.key,
       `15.${p.mm}.${p.yyyy}`, '15-е число месяца (п.13) — при наличии просроченной части',
       obligCommitteeClosing(inn, p.mm, p.yyyy), 'реестр заседаний комитета');
   });
@@ -3868,35 +3888,70 @@ function curatorCard(inn){
     '<a class="lnk" onclick="switchTab(tabIx(\'кураторство\'))">Открыть «Кураторство»</a>', body);
 }
 
-/* Вкладка «Обязательства» — полный список по периодам, с фактом закрытия у исполненных.
-   Ни одной кнопки «выполнено»: закрыть обязательство можно только документом или решением
-   в модуле-источнике (И-7). Отсюда и колонка «чем закрыто» вместо колонки «отметка». */
+/* Вкладка «Обязательства» (КЗ-27) — подача по образцу «Актов сверок»: две секции, действующие
+   и исполненные. Один список на всё был неверен ровно в том, ради чего вкладку открывают:
+   действующее требование и закрытый факт — разная работа, а сортировка по коду перемешивала их
+   через строку. Ни одной кнопки «выполнено»: закрыть обязательство может только документ или
+   решение в модуле-источнике (И-7). Отсюда «чем закрыто» у исполненных и «где закрывается»
+   у действующих — вместо колонки «отметка».
+   Строку заголовит ПУНКТ ПОРЯДКА, а не внутренний О-N: обязательство существует нормой, и
+   спор о нём ведут номером пункта. О-N остался ключом модели (код × период) и в подаче не нужен.
+   Следствие периода печатается там, где оно живое: у месячного требования с пропуском видно,
+   что за соседние месяцы факт есть, а на этот он не переносится. */
 function obligationsTab(inn){
   const obs = obligations(inn, asOf());
   if (!obs.length) return sect('Обязательства', 'Порядок · производная от состояния', '',
     empty('Открытых требований Порядка по этому заёмщику нет: категория не повышена и просроченной части нет.'));
-  const badge = o => o.status==='исполнено' ? '<span class="badge b-ok">исполнено</span>'
-    : o.status==='срок вышел' ? '<span class="badge b-ov">срок вышел</span>'
+  const open = obs.filter(o => o.status !== 'исполнено');
+  const done = obs.filter(o => o.status === 'исполнено');
+  const overdue = open.filter(o => o.status === 'срок вышел');
+  const badge = o => o.status==='срок вышел' ? '<span class="badge b-ov">срок вышел</span>'
     : '<span class="badge b-proc">в срок</span>';
-  const closedCell = o => o.closing
-    ? esc(o.closing.type || o.closing.subject || o.closing.id) + '<div class="muted" style="margin-top:3px">'
-      + esc((o.closing.file || o.closing.id) + ' · ' + o.closing.date) + ' '
-      + extLink('открыть', o.closeIn || 'модуль-источник') + '</div>'
-    : '<span class="muted">факта закрытия нет · ' + extLink('где закрывается', o.closeIn || 'модуль-источник') + '</span>';
-  const rows = obs.map(o => '<tr>'
-    + '<td class="who">' + esc(o.code) + '</td>'
-    + '<td>' + esc(o.periodLabel) + '</td>'
-    + '<td>' + esc(o.basis) + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(o.srcHint) + '</div></td>'
-    + '<td>' + esc(o.dueDate) + '</td>'
+  const clauseCell = o => '<span class="who">' + extLink(esc(o.clause), 'Порядок · ' + o.clause) + '</span>'
+    + '<div style="margin-top:3px">' + esc(o.req) + '</div>';
+  const dueCell = o => esc(o.dueDate)
+    + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(o.srcHint) + '</div>';
+  /* Факт за соседний период — не факт за этот. Печатается только у пропущенного срока:
+     у закрытой строки свой факт и есть, а у ещё не наступившей приписка была бы упреждающей —
+     её период не пропущен, он просто не настал. */
+  const otherPeriods = o => o.status !== 'срок вышел' ? []
+    : obs.filter(x => x.code===o.code && x.closing && x.period!==o.period)
+      .map(x => x.periodLabel.replace(/^за /,''));
+  const periodCell = o => {
+    const others = otherPeriods(o);
+    return esc(o.periodLabel) + (others.length
+      ? '<div class="muted" style="font-weight:400;margin-top:3px">факт есть за ' + esc(others.join(', '))
+        + ' — на этот период он не переносится</div>' : '');
+  };
+  const openRows = open.map(o => '<tr>'
+    + '<td>' + clauseCell(o) + '</td>'
+    + '<td>' + periodCell(o) + '</td>'
+    + '<td>' + dueCell(o) + '</td>'
     + '<td>' + badge(o) + '</td>'
-    + '<td>' + closedCell(o) + '</td></tr>');
-  const head = '<th style="width:8%">Код</th><th style="width:14%">Период</th><th style="width:34%">Основание</th>'
-    + '<th style="width:11%">Срок</th><th style="width:12%">Статус</th><th style="width:21%">Чем закрыто</th>';
-  const note = '<div class="muted" style="font-size:13px;line-height:1.5;padding:10px 16px">'
-    + 'Обязательство закрывает факт из модуля-источника — документ в досье или решение комитета. '
-    + 'Период у каждого требования свой: вынос за текущий месяц не закрывает пропущенный.</div>';
-  return sect('Обязательства', 'ключ — заёмщик × код × период · закрытие фактом', '',
-    note + table(head, rows));
+    + '<td><span class="muted">факта закрытия нет · </span>'
+      + extLink('где закрывается', o.closeIn || 'модуль-источник') + '</td></tr>');
+  const doneRows = done.map(o => '<tr>'
+    + '<td>' + clauseCell(o) + '</td>'
+    + '<td>' + esc(o.periodLabel) + '</td>'
+    + '<td>' + dueCell(o) + '</td>'
+    + '<td><span class="badge b-ok">исполнено</span></td>'
+    + '<td>' + esc(o.closing.type || o.closing.subject || o.closing.id)
+      + '<div class="muted" style="margin-top:3px">'
+      + esc((o.closing.file || o.closing.id) + ' · ' + o.closing.date) + ' '
+      + extLink('открыть', o.closeIn || 'модуль-источник') + '</div></td></tr>');
+  const head = last => '<th style="width:26%">Пункт Порядка</th><th style="width:20%">Период</th>'
+    + '<th style="width:20%">Срок</th><th style="width:12%">Статус</th><th style="width:22%">' + last + '</th>';
+  const openSect = sect('Действующие',
+    open.length
+      ? (overdue.length ? 'срок вышел: ' + plural(overdue.length,'требование','требования','требований')
+                        : 'сроки соблюдены') + ' · закрывает факт из модуля-источника'
+      : 'закрывает факт из модуля-источника',
+    '', open.length ? table(head('Где закрывается'), openRows)
+                    : empty('Действующих требований Порядка нет: всё, что выставлялось, закрыто фактом.'));
+  const doneSect = sect('Исполненные', 'закрыты документом в досье или решением комитета', '',
+    done.length ? table(head('Чем закрыто'), doneRows)
+                : empty('Исполненных требований нет.'));
+  return '<div id="oblWrap">' + openSect + doneSect + '</div>';
 }
 
 /* Действующие каналы связи заёмщика — одно основание для карточки и для дефекта Д-КОНТ.
@@ -5476,7 +5531,7 @@ function borrowerChecks(inn, d){
   C.push(obsOv.length
     ? { code:'Д-ОБЯЗ', tag:'сопровождение', sev:'high', stop:false, tab:tabIx('обязательства'), name:'Обязательства Порядка',
         result: plural(obsOv.length,'у обязательства вышел срок','у обязательств вышел срок','у обязательств вышел срок'),
-        basis: obsOv.map(o=>esc(o.code + ' ' + o.periodLabel)).join(' · ') + ' · ' + link(tabIx('обязательства'),'обязательства') }
+        basis: obsOv.map(o=>esc(o.clause + ' ' + o.periodLabel)).join(' · ') + ' · ' + link(tabIx('обязательства'),'обязательства') }
     : { code:'Д-ОБЯЗ', tag:'сопровождение', sev:'ok', stop:false, tab:tabIx('обязательства'), name:'Обязательства Порядка', result:'сроки соблюдены',
         basis:'все требования Порядка в срок или исполнены' });
 

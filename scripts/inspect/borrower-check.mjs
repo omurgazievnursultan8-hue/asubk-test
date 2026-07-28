@@ -1293,6 +1293,46 @@ ok('Б-10. валюта обеспечения берётся из данных;
     return plRows(f).some(tr => /USD/.test(tr.textContent))
       && feet.some(l => /USD/.test(l)) && feet.some(l => /KGS/.test(l)); })());
 
+/* ── Вкладка 4 «Обязательства» (КЗ-27) ─────────────────────────────────────────
+   Ветка 1 (АгроТехСервис) — единственная, где обязательство повторяется по месяцам
+   и в середине полосы пропуск: вынос на комитет есть за 03–05.2026, за 06/07 нет.
+   На ней и проверяется главное следствие периода. */
+const oblTab = inn => { const f = card(inn); f.ev("switchTab(tabIx('обязательства'))"); return f; };
+const oblSects = f => [...f.$$('#oblWrap > .section')];
+const oblRows  = (f, i) => [...oblSects(f)[i].querySelectorAll('tbody tr')];
+const cellText = (tr, i) => tr.children[i].textContent.replace(/\s+/g,' ').trim();
+
+ok('КЗ-27. подача по образцу «Актов сверок»: две секции — действующие и исполненные',
+  (() => { const f = oblTab('01204199910016');
+    const heads = oblSects(f).map(s => s.querySelector('.section-head').textContent);
+    return heads.length === 2 && /Действующие/.test(heads[0]) && /Исполненные/.test(heads[1])
+      && oblRows(f,0).length > 0 && oblRows(f,1).length > 0; })());
+
+ok('КЗ-27. строку заголовит пункт Порядка; внутренний О-N в подаче не участвует',
+  (() => { const f = oblTab('01204199910016');
+    const wrap = f.$('#oblWrap');
+    const first = oblRows(f,0).map(tr => cellText(tr,0));
+    return first.every(t => /^п\.\d/.test(t)) && !/О-\d/.test(wrap.innerHTML); })());
+
+ok('КЗ-27 / И-7. у действующего — «где закрывается», у исполненного — сам факт из модуля-источника',
+  (() => { const f = oblTab('01204199910016');
+    const open = oblRows(f,0).map(tr => cellText(tr,4));
+    const done = oblRows(f,1).map(tr => cellText(tr,4));
+    return open.every(t => /где закрывается ↗/.test(t) && /факта закрытия нет/.test(t))
+      && done.some(t => /КРР-2026-\d+/.test(t) && /открыть ↗/.test(t))
+      && !/выполнено|отметк/i.test(f.$('#oblWrap').textContent); })());
+
+ok('КЗ-27. следствие периода в подаче: за соседний месяц факт есть, на пропущенный не переносится',
+  (() => { const f = oblTab('01204199910016');
+    const open = oblRows(f,0).map(tr => ({ p: cellText(tr,1), s: cellText(tr,3) }));
+    const june = open.find(r => /06\.2026/.test(r.p));
+    const july = open.find(r => /07\.2026/.test(r.p));      // срок ещё не настал — период не пропущен
+    const closed = oblRows(f,1).map(tr => cellText(tr,1));
+    return !!june && /факт есть за/.test(june.p) && /05\.2026/.test(june.p)
+      && /на этот период он не переносится/.test(june.p)
+      && !!july && /в срок/.test(july.s) && !/факт есть за/.test(july.p)
+      && closed.some(t => /05\.2026/.test(t)) && !closed.some(t => /06\.2026/.test(t)); })());
+
 /* ── Словари взыскания: владелец — collection.html ──────────────────────────────
    CONTOURS / PHASE_STAGE / PROCEDURE_DICT скопированы в карточку заёмщика.
    Копипаст синхронен на 26.07.2026 и синхронится руками — значит разъедется молча.
