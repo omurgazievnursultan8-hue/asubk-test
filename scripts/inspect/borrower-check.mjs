@@ -1424,6 +1424,114 @@ ok('Б-10. итог по валютам порознь, требование с�
       && tot.USD.claim === 5330000 && tot.USD.n === 1        // 2 требования, но кредит один
       && tot.KGS.claim === 9898000 && tot.KGS.n === 1; })());
 
+/* ── Вкладка 6 «Кураторство»: КЗ-32…КЗ-34 ──────────────────────────────────────
+   Вкладка отвечала на вопрос «кто ведёт», но молчала о времени: дыра покрытия не
+   называла своего начала, приостановка — своей даты, заявка на передачу — давности.
+   Работа без давности не приоритизируется: «не назначен» второй день и «не назначен»
+   пятый месяц выглядели одной строкой. Плюс два слова чужого словаря: статусы передачи
+   в зеркале звались по-своему («в очереди»/«исполнен» против 'ожидает'/'подтверждён'
+   у владельца), а «Фаза» в конфликте интересов значила не то, что фаза во взыскании
+   (ADR-0002). Отстранение действует на весь ИНН (И-4), и замещающим не может быть
+   тот, кто сам отстранён. */
+const kuTab   = inn => { const f = card(inn); f.ev("switchTab(tabIx('кураторство'))"); return f; };
+const kuPanel = f => f.$('.tabpanel[data-panel="' + f.ev("tabIx('кураторство')") + '"]');
+const kuText  = f => f.$('#kuWrap').textContent.replace(/\s+/g,' ');
+const kuAts    = kuTab('01204199910016');   // дыра по КР-60541 + зависшая передача по КР-60540
+
+ok('КЗ-32. дыра покрытия называет начало и давность, а не только причину',
+  (() => { const gs = JSON.parse(kuAts.ev("JSON.stringify(curatorGaps('01204199910016',TODAY)"
+      + ".map(g=>({no:g.objectNo,since:g.since,days:g.days})))"));
+    return gs.length === 1 && gs[0].no === 'КР-60541'
+      && gs[0].since === '10.07.2026' && gs[0].days === 3     // с даты заявления о конфликте
+      && /3 дн\. с 10\.07\.2026/.test(kuText(kuAts)); })());
+
+ok('КЗ-32. начало дыры берётся из факта, который её открыл, а не из даты просмотра',
+  (() => { const f = mk();
+    // 1) назначение закрыто — дыра открыта с даты закрытия
+    f.ev("ASSIGN.find(a=>a.objectId==='C-ATS-OK' && a.role==='кредитный куратор').to='01.06.2026'");
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
+    const closed = JSON.parse(f.ev("JSON.stringify(curatorGaps('01204199910016',TODAY)"
+      + ".find(g=>g.objectNo==='КР-60542'))"));
+    // 2) назначения не было вовсе — дыра открыта с выдачи кредита (роль обязана быть с первого дня)
+    const f2 = mk();
+    f2.ev("ASSIGN.splice(ASSIGN.findIndex(a=>a.objectId==='C-ATS-OK' && a.role==='кредитный куратор'),1)");
+    const never = JSON.parse(f2.ev("JSON.stringify(curatorGaps('01204199910016',TODAY)"
+      + ".find(g=>g.objectNo==='КР-60542'))"));
+    return closed.since === '01.06.2026' && closed.days === 42
+      && never.since === f2.ev("CREDITS.find(c=>c.id==='C-ATS-OK').date"); })());
+
+ok('КЗ-32. приостановка датирована: «приостановлен с …» вместо безымянной пометки',
+  /приостановлен с 10\.07\.2026 · конфликт интересов/.test(kuText(kuAts))
+  && kuAts.ev("suspendedSince('emp-07','01204199910016',TODAY)") === '10.07.2026');
+
+ok('КЗ-32. фильтр по кредиту сужает множество покрытия и подписывает, что показан не весь',
+  (() => { const f = kuTab('01204199910016');
+    const sel = f.$('#kuCred');
+    sel.value = 'C-ATS-GAZ'; sel.dispatchEvent(new f.w.Event('change'));
+    const one = f.$('#kuWrap').textContent.replace(/\s+/g,' ');
+    sel.value = 'all'; sel.dispatchEvent(new f.w.Event('change'));
+    const all = f.$('#kuWrap').textContent.replace(/\s+/g,' ');
+    return /показан один кредит из 3/.test(one) && /КР-60541/.test(one) && !/КР-60540/.test(one)
+      && /КР-60540/.test(all) && /КР-60542/.test(all)
+      && sel.hasAttribute('data-view-ctl'); })());       // орган просмотра, не правки (И-5)
+
+ok('КЗ-33. в очереди стоят только живые заявки; закрытые ушли в свёрнутый журнал',
+  (() => { const t = kuText(kuAts);
+    const live = [...kuAts.$$('#kuWrap table')][1];        // вторая таблица — очередь передач
+    const arch = kuAts.$('#kuHoArch');
+    return /КР-60540/.test(live.textContent) && !/КР-60541/.test(live.textContent)
+      && !!arch && /Журнал закрытых передач · 1 заявка/.test(arch.textContent)
+      && /отклонён/.test(arch.textContent) && /приём не подтверждён/.test(t); })());
+
+ok('КЗ-33. давность заявки считается и сравнивается с порогом владельца (10 к.д., §8)',
+  (() => { const fresh = kuTab('06601199960061');        // заявка от 10.07.2026 — 3 дн.
+    return /висит 54 дн\./.test(kuText(kuAts))
+      && kuAts.ev("staleHandoffs('01204199910016',TODAY).length") === 1
+      && !/висит/.test(kuText(fresh))
+      && fresh.ev("liveHandoffs('06601199960061').length") === 1
+      && fresh.ev("staleHandoffs('06601199960061',TODAY).length") === 0; })());
+
+ok('КЗ-33. зависшая заявка поднимает дефект, и полоса вкладки — проекция общего движка',
+  (() => { const codes = JSON.parse(kuAts.ev("JSON.stringify(defects('01204199910016',TODAY)"
+      + ".filter(x=>x.tab===tabIx('кураторство')).map(x=>x.code))"));
+    const bar = kuPanel(kuAts).querySelector('.defect-bar');
+    return codes.includes('Д-ПЕР') && codes.includes('Д-КУР') && codes.includes('Д-КОНФ')
+      && bar && bar.querySelectorAll('.badge').length === codes.length
+      && /Очередь передач · 1 заявка не принята свыше 10 к\.д\./.test(bar.textContent); })());
+
+ok('КЗ-33. словарь статусов передачи — владельца (kuratorstvo.html), а не свой',
+  (() => { const OWN = readFileSync(resolve('mockups/kuratorstvo/kuratorstvo.html'), 'utf8');
+    const mine = JSON.parse(kuAts.ev("JSON.stringify([...new Set(HANDOFF.map(h=>h.status))])"));
+    /* «в очереди» в карточке ещё живёт — но в другом смысле (очередь событий на комитет),
+       поэтому сверяется не файл целиком, а сам блок передач: статус в нём только из словаря. */
+    const block = HTML.match(/const HANDOFF = \[\];[\s\S]*?^\);$/m)[0];
+    return mine.every(s => ['ожидает','подтверждён','отклонён'].includes(s))
+      && ['ожидает','подтверждён','отклонён'].every(s => OWN.includes("'" + s + "'"))
+      && (block.match(/status:'[^']+'/g) || []).every(x => /'ожидает'|'подтверждён'|'отклонён'/.test(x))
+      && !/'в очереди'|'исполнен'/.test(HTML); })());
+
+ok('КЗ-34. колонка «Фаза» в конфликте интересов названа «Ходом рассмотрения»',
+  (() => { const head = [...kuPanel(kuAts).querySelectorAll('table')]
+      .map(t => t.querySelector('thead').textContent.replace(/\s+/g,' '))
+      .find(h => /Замещающий/.test(h));
+    return /Ход рассмотрения/.test(head) && !/Фаза/.test(head); })());
+
+ok('КЗ-34. живой конфликт отделён от урегулированного тем же предикатом, что И-4',
+  (() => { const done = kuTab('03301199930031');         // CF-13 урегулирован передачей дела
+    const arch = done.$('#kuConfArch');
+    return !kuAts.$('#kuConfArch')                        // у 012 архива нет — конфликт живой
+      && /Родственная связь/.test(kuPanel(kuAts).textContent)
+      && !!arch && /урегулированное заявление/.test(arch.textContent)
+      && /снято 20\.06\.2026/.test(arch.textContent)
+      && /Действующих заявлений о конфликте интересов нет/.test(kuPanel(done).textContent)
+      && done.ev("suspendedEmployees('03301199930031',TODAY).length") === 0; })());
+
+ok('КЗ-34 / G4. замещающим не может быть тот, кто сам отстранён',
+  (() => { const tbl = [...kuPanel(kuAts).querySelectorAll('table')]
+      .find(t => /Замещающий/.test(t.querySelector('thead').textContent));
+    const cells = [...tbl.querySelectorAll('tbody tr td')];
+    return /нет активного куратора/.test(cells[cells.length-1].textContent); })());
+
 /* ── Словари взыскания: владелец — collection.html ──────────────────────────────
    CONTOURS / PHASE_STAGE / PROCEDURE_DICT скопированы в карточку заёмщика.
    Копипаст синхронен на 26.07.2026 и синхронится руками — значит разъедется молча.

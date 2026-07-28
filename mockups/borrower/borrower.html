@@ -9,7 +9,7 @@
      Спека: mockups/borrower/ASUBK-zaemshik-logika.md — правила вывода, инварианты с причиной, швы (СП-21)
             docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки); её место заняла спека выше
-     Проверка: node scripts/inspect/borrower-check.mjs  →  240/240 PASS (2026-07-28)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  251/251 PASS (2026-07-28)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
@@ -166,6 +166,38 @@
                  порознь (И-12), требование считается ОДИН раз на кредит, потому что
                  солидарное требование к поручителю — то же обязательство (§2.2); взыскано
                  и расходы ведутся на деле и подписаны «по делам».
+
+     Вкладка 6 «Кураторство»: решения КЗ-32…КЗ-34 (28.07.2026) — вкладка отвечала «кто
+                 ведёт», но молчала о ВРЕМЕНИ: у дыры покрытия не было начала, у приостановки
+                 — даты, у заявки на передачу — давности. Работа без давности не
+                 приоритизируется: «не назначен» второй день и «не назначен» пятый месяц
+                 стояли одной строкой. Вкладка помечена зеркалом (data-mirror): ASSIGN,
+                 CONFLICTS и HANDOFF ведёт модуль кураторства, точек ввода здесь нет (И-5).
+                 КЗ-32 — у дыры есть начало и давность (curatorGaps → since/days, gapSince).
+                     Начало берётся из факта, который дыру ОТКРЫЛ: приостановка — дата
+                     заявления о конфликте (suspendedSince), «не назначен» — дата закрытия
+                     последнего назначения, а если его не было — дата выдачи кредита: роль
+                     обязана быть с первого дня (Р-6 §2.1). Приостановка в матрице датирована.
+                     Фильтр по кредиту (#kuCred, data-view-ctl) сужает множество, на котором
+                     считается покрытие, и подписывает, что показан не весь набор;
+                 КЗ-33 — очередь передач показывает только ЖИВЫЕ заявки (status 'ожидает')
+                     с давностью; закрытые ушли в свёрнутый журнал. Словарь статусов взят у
+                     владельца (kuratorstvo.html §8): 'ожидает' | 'подтверждён' | 'отклонён' —
+                     в зеркале те же состояния звались «в очереди»/«исполнен», то есть шов
+                     расходился молча. Порог «зависла» — 10 к.д., тоже владельца. Заявка сама
+                     не закроется (ни автоприёма, ни автоэскалации, §8), а ответственность до
+                     подтверждения на СДАЮЩЕМ (§8.1) — поэтому зависшая заявка поднимает
+                     дефект Д-ПЕР в общем движке (staleHandoffs), а полоса вкладки только
+                     ПРОЕЦИРУЕТ движок (defects по адресу вкладки), а не считает второй раз;
+                 КЗ-34 — колонка «Фаза» конфликта названа «Ходом рассмотрения»: фаза в этой
+                     системе — шаг взыскания (ADR-0002), второе значение читалось как ошибка.
+                     Живые заявления отделены от урегулированных тем же предикатом, что и И-4
+                     (liveConflicts): архив свёрнут в details, отстранение печатает давность.
+                 Попутно: замещающим больше не может быть сам отстранённый. С тех пор как
+                 приостановленное назначение из матрицы не выкидывается (ревизия 26.07.2026,
+                 G4), «замещающим» отстранённого оказывался он сам, и колонка отвечала, что
+                 объект прикрыт; теперь берётся действующий носитель роли (!suspended) — тот
+                 же предикат, что у дыры покрытия.
 -->
 <style>
   :root{
@@ -1661,13 +1693,21 @@ CONFLICTS.push(
     declaredAt:'01.06.2026', svbAt:'02.06.2026', boardNoticeAt:'03.06.2026',
     decision:{kind:'передача дела', date:'20.06.2026', doc:'РЕШ-77'}, closedAt:'20.06.2026' },
 );
-/* HANDOFF — очередь передач дела (зеркало модуля кураторства, §6): передача живёт заявкой,
-   пока не исполнена/отклонена. status: 'в очереди'|'исполнен'|'отклонён'. Task 9 (C2). */
+/* HANDOFF — очередь передач дела (зеркало модуля кураторства, §8): передача живёт заявкой,
+   пока приём не подтверждён либо заявка не отклонена. Task 9 (C2).
+   status: 'ожидает'|'подтверждён'|'отклонён' — словарь ВЛАДЕЛЬЦА (kuratorstvo.html, hoAction).
+   КЗ-33: в зеркале те же три состояния звались «в очереди»/«исполнен» — свои имена чужого
+   словаря расходятся молча и делают сверку с модулем-источником невозможной. */
 const HANDOFF = [];
 HANDOFF.push(
   { inn:'06601199960061', objectId:'C-CHE-3', objectNo:'КР-66012', role:'кредитный куратор',
-    fromEmp:'emp-20', toEmp:'emp-30', when:'10.07.2026', status:'в очереди',
+    fromEmp:'emp-20', toEmp:'emp-30', when:'10.07.2026', status:'ожидает',
     reason:'ручная передача — перегрузка куратора' },
+  // зависшая заявка (КЗ-33): приём не подтверждён 54 к.д. — ответственность всё это время
+  // на сдающем (§8.1), система сама её не примет и не переназначит
+  { inn:'01204199910016', objectId:'C-ATS-NECEL', objectNo:'КР-60540', role:'кредитный куратор',
+    fromEmp:'emp-07', toEmp:'emp-30', when:'20.05.2026', status:'ожидает',
+    reason:'пересчёт политики распределения (§7.2)' },
   // отклонённая передача по emp-07 (CF-01) → замены нет, покрытие остаётся дырой
   { inn:'01204199910016', objectId:'C-ATS-GAZ', objectNo:'КР-60541', role:'кредитный куратор',
     fromEmp:'emp-07', toEmp:'emp-12', when:'11.07.2026', status:'отклонён',
@@ -3076,11 +3116,36 @@ function conflictState(c, d){
   const suspendedTo = (c.decision && c.decision.kind==='передача дела') ? c.decision.date : (c.closedAt || null);
   return { phase, noticeOverdue, suspendedFrom, suspendedTo, outcome: c.decision ? c.decision.kind : null };
 }
-/* Все сотрудники, отстранённые от ИНН на дату: конфликт активен, если suspendedTo пуст или ещё не наступил (И-4). */
-function suspendedEmployees(inn, d){
+/* Действующие заявления о конфликте по ИНН: отстранение живо, пока suspendedTo пуст или
+   ещё не наступил. Отстранение действует на ВЕСЬ ИНН, а не на объект (И-4): конфликт у
+   сотрудника — с лицом, отстранение по одному кредиту оставило бы лазейку через остальные. */
+function liveConflicts(inn, d){
   return CONFLICTS.filter(c => c.inn===inn && dateLE(c.declaredAt, d))
-    .filter(c => { const st = conflictState(c, d).suspendedTo; return !st || !dateLE(st, d); })
-    .map(c => c.empId);
+    .filter(c => { const st = conflictState(c, d).suspendedTo; return !st || !dateLE(st, d); });
+}
+/* Все сотрудники, отстранённые от ИНН на дату (И-4). */
+function suspendedEmployees(inn, d){
+  return liveConflicts(inn, d).map(c => c.empId);
+}
+/* С какой даты сотрудник отстранён от ИНН — дата последнего действующего заявления (КЗ-32).
+   Матрица показывала факт приостановки без даты: «приостановлен» вчера и «приостановлен»
+   два месяца назад выглядели одинаково, хотя это разная срочность замены. */
+function suspendedSince(empId, inn, d){
+  return liveConflicts(inn, d).filter(c => c.empId===empId)
+    .map(c => c.declaredAt).sort((a,b)=>dnum(b)-dnum(a))[0] || null;
+}
+/* Начало дыры покрытия (КЗ-32). Берётся из факта, который дыру ОТКРЫЛ, а не из даты просмотра:
+   приостановка — дата заявления о конфликте; «не назначен» — дата закрытия последнего
+   назначения на (объект, роль); если назначения не было никогда — дата выдачи кредита:
+   роль обязана быть с первого дня (Р-6 §2.1), значит дыра открыта с него же. */
+function gapSince(objectId, role, holders, inn, d, cr){
+  if (holders && holders.length){
+    const decl = holders.map(e => suspendedSince(e, inn, d)).filter(Boolean).sort((a,b)=>dnum(b)-dnum(a))[0];
+    if (decl) return decl;
+  }
+  const ended = ASSIGN.filter(a => a.objectId===objectId && a.role===role && a.to && dateLE(a.to, d))
+    .map(a => a.to).sort((a,b)=>dnum(b)-dnum(a))[0];
+  return ended || (cr && cr.date) || null;
 }
 
 /* Последнее событие жизненного цикла субъекта на дату (Р-9). */
@@ -3121,23 +3186,38 @@ function curatorMatrix(inn, d){
 function curatorGaps(inn, d){
   const m = curatorMatrix(inn, d);
   const out = [];
+  /* КЗ-32: у каждой дыры есть начало и давность. Без них дыры не приоритизируются —
+     «не назначен» второй день и «не назначен» пятый месяц в таблице выглядели одинаково. */
+  const withAge = g => {
+    const since = gapSince(g.objectId, g.role, g.holders, inn, d, g.credit);
+    return Object.assign(g, { since, days: since ? calDays(since, d) : null });
+  };
   CREDITS.filter(c => c.inn===inn && isActiveCredit(c,d) && principalOf(c) > 0).forEach(cr => {
     const loan = m.filter(x => x.role==='кредитный куратор' && String(x.objectId).split('#')[0]===cr.id);
     if (!loan.some(x => !x.suspended))
-      out.push({ objectId:cr.id, objectNo:cr.no, role:'кредитный куратор', holders:loan.map(x=>x.empId),
-        reason: loan.length ? 'носитель отстранён по конфликту, замена не назначена' : 'не назначен (Р-6 §2.1)' });
+      out.push(withAge({ objectId:cr.id, objectNo:cr.no, credit:cr, role:'кредитный куратор', holders:loan.map(x=>x.empId),
+        reason: loan.length ? 'носитель отстранён по конфликту, замена не назначена' : 'не назначен (Р-6 §2.1)' }));
     if (!hasPledgeOn(cr.id)) return;
     const rgs = regionsOfCredit(cr.id);
     (rgs.length ? rgs.map(r => cr.id + '#' + r) : [cr.id]).forEach(oid => {
       const col = m.filter(x => x.role==='залоговый куратор' && x.objectId===oid);
       if (!col.some(x => !x.suspended))
-        out.push({ objectId:oid, objectNo:cr.no, role:'залоговый куратор', holders:col.map(x=>x.empId),
+        out.push(withAge({ objectId:oid, objectNo:cr.no, credit:cr, role:'залоговый куратор', holders:col.map(x=>x.empId),
           region: oid.includes('#') ? oid.split('#')[1] : null,
-          reason: col.length ? 'носитель отстранён по конфликту, замена не назначена' : 'не назначен (§2.2)' });
+          reason: col.length ? 'носитель отстранён по конфликту, замена не назначена' : 'не назначен (§2.2)' }));
     });
   });
   return out;
 }
+/* ═══ ОЧЕРЕДЬ ПЕРЕДАЧ (КЗ-33) ═══
+   Порог «зависла» и словарь статусов взяты у владельца (mockups/kuratorstvo/kuratorstvo.html,
+   §8): заявка живёт состоянием «ожидает» до подтверждения приёма, счётчик дней подсвечивается
+   после 10 к.д. Автоприёма, автоэскалации и автопереназначения нет — заявка просто висит, и
+   ответственность всё это время остаётся на СДАЮЩЕМ (§8.1). Значит зависшая заявка — дефект
+   сопровождения, а не строка в списке: её никто не закроет сам. */
+const HANDOFF_STALE_DAYS = 10;
+function liveHandoffs(inn){ return HANDOFF.filter(h => h.inn===inn && h.status==='ожидает'); }
+function staleHandoffs(inn, d){ return liveHandoffs(inn).filter(h => calDays(h.when, d) > HANDOFF_STALE_DAYS); }
 
 /* Дозаполнение реквизитов по всем заёмщикам — здесь, т.к. опирается на groupOf/catOfBorrower
    и на procGroupOf/PROC_RANK, объявленные выше в этой секции. */
@@ -5328,79 +5408,54 @@ function wireActsTab(inn){
   }));
 }
 
-/* 5. Кураторство — матрица объект×роль, сгруппированная по кредиту (с основанием назначения,
-   ссылками и проверкой полноты ролей), история назначений, очередь передач и конфликт интересов
-   (Р-6, 3 фазы, дедлайн п.93, замещающий). */
+/* 5. Кураторство — матрица объект×роль, очередь передач дела и конфликт интересов (Р-6).
+   КЗ-32/33/34 (28.07.2026): у дыры покрытия появились начало и давность, у приостановки —
+   дата, у матрицы — фильтр по кредиту; очередь передач показывает только ЖИВЫЕ заявки, а
+   закрытые ушли в свёрнутый журнал; колонка «Фаза» конфликта названа «Ходом рассмотрения» —
+   фаза в этой системе шаг ВЗЫСКАНИЯ (ADR-0002), и второе значение того же слова читалось
+   как ошибка. Матрица и очередь рисуются в #kuWrap проводкой: их пересобирает фильтр. */
 function curatorTab(inn){
   const d = asOf();
-  const matrix = curatorMatrix(inn, d);
   const credits = CREDITS.filter(c => c.inn === inn);
-
-  const roleBadge = r => r === 'залоговый куратор'
-    ? `<span class="role-pill role-zl">${esc(r)}</span>`
-    : `<span class="role-pill role-cr">${esc(r)}</span>`;
   const empLink = id => extLink(esc(empName(id)), 'модуль кураторства');
-  const period = m => 'с ' + esc(m.from) + (m.to ? ' по ' + esc(m.to) : '');
-  const parentOf = id => String(id).split('#')[0];
 
-  const COLS = 5;
-  const gap = txt => `<tr><td colspan="${COLS}" class="cov-gap">⚠ ${txt}</td></tr>`;
-  /* Отстранённый показывается СТРОКОЙ с пометкой: назначение не снято, просто приостановлено.
-     Прежняя матрица его молча выбрасывала, и объект выглядел как «куратора нет вовсе». */
-  const rowFor = (m, region) => `<tr${m.suspended ? ' class="susp"' : ''}>`
-    + `<td>${roleBadge(m.role)}${region ? ` <span class="muted">· ${esc(region)}</span>` : ''}</td>`
-    + `<td>${esc(empDept(m.empId))}</td>`
-    + `<td>${empLink(m.empId)}${m.suspended ? ' <span class="badge b-ov">приостановлен · конфликт интересов</span>' : ''}</td>`
-    + `<td class="muted">${esc(assignBasis(m.source))}</td>`
-    + `<td class="muted">${period(m)}</td></tr>`;
+  const toolbar = '<div class="toolbar">'
+      + '<span class="fl muted">Назначения, передачи и конфликты ведёт модуль кураторства — здесь только чтение (И-5)</span>'
+      + '<span class="sep"></span>'
+      + '<label class="fl muted" for="kuCred">Кредит</label>'
+      + '<select id="kuCred" data-view-ctl style="width:auto;min-width:150px">'
+        + '<option value="all">все кредиты</option>'
+        + credits.map(c => '<option value="' + esc(c.id) + '">' + esc(c.no) + '</option>').join('')
+      + '</select>'
+      + '<span class="sep"></span>'
+      + '<span class="fl muted">покрытие и давность — на ' + esc(d) + '</span>'
+    + '</div>';
 
-  const gaps = curatorGaps(inn, d);
-  const mRows = [];
-  credits.forEach(cr => {
-    const closed = principalOf(cr) === 0 || !!cr.closedAt;
-    const mine = matrix.filter(m => parentOf(m.objectId) === cr.id);
-    const loanCur = mine.filter(m => m.role === 'кредитный куратор');
-    const colCur  = mine.filter(m => m.role === 'залоговый куратор');
-    const gapsHere = gaps.filter(x => parentOf(x.objectId) === cr.id);
-    mRows.push(`<tr class="grp-row"><td colspan="${COLS}">`
-      + `<a class="lnk" onclick="switchTab(tabIx('кредиты'))">${esc(cr.no)}</a> · ${esc(cr.kind || 'кредит')}`
-      + (closed ? ' <span class="badge b-gray">погашен</span>' : '') + `</td></tr>`);
-    loanCur.forEach(m => mRows.push(rowFor(m)));
-    colCur.forEach(m => mRows.push(rowFor(m, m.objectId.includes('#') ? m.objectId.split('#')[1] : null)));
-    /* дыра показывается и тогда, когда строка есть: носитель приостановлен → куратора нет */
-    gapsHere.forEach(x => mRows.push(gap(esc(x.role) + (x.region ? ' · ' + esc(x.region) : '') + ' — ' + esc(x.reason))));
-  });
-  const mHead = '<th style="width:26%">Роль</th><th>Подразделение</th><th>Сотрудник</th>'
-    + '<th style="width:18%">Основание</th><th style="width:18%">Период</th>';
-  const mBody = credits.length
-    ? table(mHead, mRows)
-    : empty('У заёмщика нет кредитов — назначения кураторов отсутствуют.');
+  /* Полоса дефектов — ПРОЕКЦИЯ общего движка, а не второй счёт (ревизия 26.07.2026, G1–G3):
+     сюда попадают ровно те дефекты, чей адрес — эта вкладка (Д-КУР, Д-КОНФ, Д-ПЕР). */
+  const def = defects(inn, d).filter(x => x.tab === tabIx('кураторство'))
+    .map(x => ({ text: x.name + ' · ' + x.result, sev: x.sev }));
+  const defBar = defectBar('кураторства', def,
+    'роли покрыты, отстранённых нет, зависших передач нет');
 
-  /* КЗ-31: собственной «Истории кураторства» здесь больше нет. Она строила таблицу из
-     CURATOR_LOG рядом с общей лентой, где те же записи уже лежат категорией kur; теперь
-     журнал назначений показывает хвост хронологии внизу вкладки — общий для всех вкладок. */
-
-  // Очередь передач дела (C2) — незакрытые заявки на передачу кураторов заёмщика
-  const hos = HANDOFF.filter(h => h.inn === inn);
-  const hoBadge = st => st === 'отклонён' ? '<span class="badge b-err">отклонён</span>'
-    : st === 'исполнен' ? '<span class="badge b-ok">исполнен</span>'
-    : '<span class="badge b-proc">в очереди</span>';
-  const hoRows = hos.map(h => `<tr><td><a class="lnk" onclick="switchTab(tabIx('кредиты'))">${esc(h.objectNo)}</a></td>`
-    + `<td>${roleBadge(h.role)}</td><td>${empLink(h.fromEmp)}</td><td>${empLink(h.toEmp)}</td>`
-    + `<td class="muted">${esc(h.when)}</td><td>${hoBadge(h.status)}</td><td class="muted">${esc(h.reason)}</td></tr>`);
-  const hoSect = hos.length
-    ? sect('Очередь передач', '§6 — заявка на передачу дела живёт до исполнения/отклонения', '',
-        table('<th>Объект</th><th>Роль</th><th>От</th><th>Кому</th><th>Дата</th><th>Статус</th><th>Основание</th>', hoRows))
-    : '';
-
-  // Конфликт интересов — дедлайн уведомления п.93 (C1) + замещающий куратор (C3)
+  /* КЗ-34: живое и архив — разные вопросы. У действующего конфликта спрашивают «кто ведёт
+     объекты вместо отстранённого и успели ли уведомить Правление», у урегулированного —
+     «чем кончилось». Раньше они стояли вперемешку одной таблицей, и снятое отстранение
+     читалось как действующее. Живой конфликт — тот же предикат, что у И-4 (liveConflicts). */
   const confs = CONFLICTS.filter(c => c.inn === inn);
-  // объекты сотрудника у этого заёмщика и текущий носитель роли (для «замещающего»)
+  const liveIds = new Set(liveConflicts(inn, d).map(c => c.id));
+  const parentOf = id => String(id).split('#')[0];
+  const matrix = curatorMatrix(inn, d);
+  /* Замещающий — ДЕЙСТВУЮЩИЙ носитель роли, а не любая строка матрицы. С тех пор как
+     приостановленное назначение из матрицы не выкидывается (G4), «замещающим» отстранённого
+     оказывался он сам: конфликт был заявлен, отстранение действовало, а колонка отвечала,
+     что объект прикрыт. Тот же предикат, что у дыры покрытия (curatorGaps): !suspended. */
   const coverageFor = empId => ASSIGN
     .filter(a => a.empId === empId && dateLE(a.from, d)
       && credits.some(c => c.id === parentOf(a.objectId)))
-    .map(a => ({ role: a.role, successor: (matrix.find(m => m.objectId === a.objectId && m.role === a.role) || {}).empId || null }));
-  const cRows = confs.map(c => {
+    .map(a => ({ role: a.role, successor: (matrix.find(m => m.objectId === a.objectId
+      && m.role === a.role && !m.suspended) || {}).empId || null }));
+  const cRow = c => {
     const st = conflictState(c, d);
     const deadline = addCalDays(c.declaredAt, 3);
     const noticeCell = c.boardNoticeAt
@@ -5411,22 +5466,147 @@ function curatorTab(inn){
     const cov = coverageFor(c.empId);
     let succCell = '<span class="muted">—</span>';
     if (cov.length) {
-      const gaps = cov.some(x => !x.successor);
+      const holes = cov.some(x => !x.successor);
       const succs = [...new Set(cov.map(x => x.successor).filter(Boolean))];
-      succCell = gaps ? '<span class="badge b-err">нет активного куратора</span>'
+      succCell = holes ? '<span class="badge b-err">нет активного куратора</span>'
         : succs.map(e => empLink(e)).join(', ');
     }
     const susCell = st.suspendedTo ? 'снято ' + esc(st.suspendedTo)
-      : (st.suspendedFrom ? 'действует с ' + esc(st.suspendedFrom) : '—');
+      : 'действует с ' + esc(st.suspendedFrom) + ' <span class="muted">· ' + fmt(calDays(st.suspendedFrom, d)) + ' дн.</span>';
     return `<tr><td>${empLink(c.empId)}</td><td>${esc(c.trigger)}</td><td>${esc(st.phase)}</td>`
-      + `<td>${noticeCell}</td><td>${esc(susCell)}</td><td>${succCell}</td></tr>`;
-  });
-  const cHtml = table('<th>Сотрудник</th><th>Основание</th><th>Фаза</th>'
-    + '<th>Срок уведомления Правления (п.93)</th><th>Отстранение</th><th>Замещающий</th>', cRows);
+      + `<td>${noticeCell}</td><td>${susCell}</td><td>${succCell}</td></tr>`;
+  };
+  const cHead = '<th>Сотрудник</th><th>Основание</th><th>Ход рассмотрения</th>'
+    + '<th>Срок уведомления Правления (п.93)</th><th>Отстранение</th><th>Замещающий</th>';
+  const cLive = confs.filter(c => liveIds.has(c.id));
+  const cDone = confs.filter(c => !liveIds.has(c.id));
+  const cSect = sect('Конфликт интересов', 'п.93 — срок уведомления · отстранение действует на весь ИНН (И-4)', '',
+    cLive.length ? table(cHead, cLive.map(cRow))
+      : empty('Действующих заявлений о конфликте интересов нет.'));
+  const cArch = cDone.length
+    ? '<details class="sect-fold" id="kuConfArch"><summary>Архив конфликтов · '
+        + plural(cDone.length,'урегулированное заявление','урегулированных заявления','урегулированных заявлений')
+        + '</summary>' + table(cHead, cDone.map(cRow)) + '</details>'
+    : '';
 
-  return sect('Кураторство', 'объект × роль · группировка по кредиту', '', mBody)
-    + hoSect
-    + sect('Конфликт интересов', 'п.93 — срок уведомления', '', cHtml);
+  return toolbar + defBar + '<div id="kuWrap"></div>' + cSect + cArch;
+}
+
+/* Матрица покрытия и очередь передач на выбранном кредите (КЗ-32/КЗ-33).
+   Фильтр — орган просмотра, а не правки: он сужает МНОЖЕСТВО объектов, на котором считается
+   покрытие, и ничего не скрывает молча (пустой результат подписан). */
+function curatorCoverageHtml(inn, d, credId){
+  const all = CREDITS.filter(c => c.inn === inn);
+  const credits = credId && credId !== 'all' ? all.filter(c => c.id === credId) : all;
+  const matrix = curatorMatrix(inn, d);
+  const gaps = curatorGaps(inn, d);
+  const parentOf = id => String(id).split('#')[0];
+  const roleBadge = r => r === 'залоговый куратор'
+    ? `<span class="role-pill role-zl">${esc(r)}</span>`
+    : `<span class="role-pill role-cr">${esc(r)}</span>`;
+  const empLink = id => extLink(esc(empName(id)), 'модуль кураторства');
+  const period = m => 'с ' + esc(m.from) + (m.to ? ' по ' + esc(m.to) : '');
+
+  const COLS = 5;
+  /* КЗ-32: дыра называет своё начало и давность. Дыра без давности не приоритизируется —
+     «не назначен» второй день и «не назначен» пятый месяц выглядели одной строкой. */
+  const gapRow = g => `<tr><td colspan="${COLS}" class="cov-gap">⚠ ${esc(g.role)}`
+    + (g.region ? ` · ${esc(g.region)}` : '') + ` — ${esc(g.reason)}`
+    + (g.since ? ` · <b>${fmt(g.days)} дн.</b> <span class="muted">с ${esc(g.since)}</span>`
+               : ' <span class="muted">· начало дыры неизвестно: назначения не было, дата выдачи кредита не заведена</span>')
+    + '</td></tr>';
+  /* Отстранённый показывается СТРОКОЙ с пометкой: назначение не снято, просто приостановлено.
+     Прежняя матрица его молча выбрасывала, и объект выглядел как «куратора нет вовсе».
+     КЗ-32: у приостановки названа дата — до неё пометка не отличала вчерашнюю от месячной. */
+  const rowFor = (m, region) => {
+    const since = m.suspended ? suspendedSince(m.empId, inn, d) : null;
+    return `<tr${m.suspended ? ' class="susp"' : ''}>`
+      + `<td>${roleBadge(m.role)}${region ? ` <span class="muted">· ${esc(region)}</span>` : ''}</td>`
+      + `<td>${esc(empDept(m.empId))}</td>`
+      + `<td>${empLink(m.empId)}${m.suspended
+          ? ' <span class="badge b-ov">приостановлен' + (since ? ' с ' + esc(since) : '')
+            + ' · конфликт интересов</span>' : ''}</td>`
+      + `<td class="muted">${esc(assignBasis(m.source))}</td>`
+      + `<td class="muted">${period(m)}</td></tr>`;
+  };
+
+  const mRows = [];
+  credits.forEach(cr => {
+    const closed = principalOf(cr) === 0 || !!cr.closedAt;
+    const mine = matrix.filter(m => parentOf(m.objectId) === cr.id);
+    const loanCur = mine.filter(m => m.role === 'кредитный куратор');
+    const colCur  = mine.filter(m => m.role === 'залоговый куратор');
+    const gapsHere = gaps.filter(x => parentOf(x.objectId) === cr.id);
+    mRows.push(`<tr class="grp-row"><td colspan="${COLS}">`
+      + `<a class="lnk" onclick="switchTab(tabIx('кредиты'))">${esc(cr.no)}</a> · ${esc(cr.kind || 'кредит')}`
+      + (closed ? ' <span class="badge b-gray">погашен</span>' : '')
+      + (gapsHere.length ? ` <span class="badge b-err">${plural(gapsHere.length,'дыра покрытия','дыры покрытия','дыр покрытия')}</span>` : '')
+      + `</td></tr>`);
+    loanCur.forEach(m => mRows.push(rowFor(m)));
+    colCur.forEach(m => mRows.push(rowFor(m, m.objectId.includes('#') ? m.objectId.split('#')[1] : null)));
+    /* дыра показывается и тогда, когда строка есть: носитель приостановлен → куратора нет */
+    gapsHere.forEach(g => mRows.push(gapRow(g)));
+  });
+  const mHead = '<th style="width:26%">Роль</th><th>Подразделение</th><th>Сотрудник</th>'
+    + '<th style="width:18%">Основание</th><th style="width:18%">Период</th>';
+  const mBody = !all.length
+    ? empty('У заёмщика нет кредитов — назначения кураторов отсутствуют.')
+    : credits.length ? table(mHead, mRows)
+    : empty('По выбранному кредиту записей нет.');
+  const hint = 'объект × роль · группировка по кредиту'
+    + (credits.length !== all.length ? ' · показан один кредит из ' + all.length : '');
+
+  /* КЗ-33: в очереди стоят только ЖИВЫЕ заявки — те, по которым приём не подтверждён.
+     Исполненные и отклонённые оттуда уходят в журнал: они уже ничего не ждут, а в общем
+     списке создавали видимость работы. Давность обязательна: пока приём не подтверждён,
+     ответственность на СДАЮЩЕМ (§8.1), и заявка сама собой не закроется — ни автоприёма,
+     ни автоэскалации у владельца нет. */
+  const hos = HANDOFF.filter(h => h.inn === inn
+    && (credId === 'all' || !credId || parentOf(h.objectId) === credId));
+  const live = hos.filter(h => h.status === 'ожидает');
+  const done = hos.filter(h => h.status !== 'ожидает');
+  const hoBadge = st => st === 'отклонён' ? '<span class="badge b-err">отклонён</span>'
+    : '<span class="badge b-ok">подтверждён</span>';
+  const liveRow = h => {
+    const age = calDays(h.when, d);
+    const stale = age > HANDOFF_STALE_DAYS;
+    return `<tr${stale ? ' class="susp"' : ''}>`
+      + `<td><a class="lnk" onclick="switchTab(tabIx('кредиты'))">${esc(h.objectNo)}</a></td>`
+      + `<td>${roleBadge(h.role)}</td><td>${empLink(h.fromEmp)}</td><td>${empLink(h.toEmp)}</td>`
+      + `<td class="muted">${esc(h.when)}</td>`
+      + `<td>${stale ? '<span class="badge b-ov">висит ' + fmt(age) + ' дн.</span>'
+                     : '<span class="muted">' + fmt(age) + ' дн.</span>'}`
+        + `<div class="muted" style="margin-top:3px">приём не подтверждён</div></td>`
+      + `<td class="muted">${esc(h.reason)}</td></tr>`;
+  };
+  const doneRow = h => `<tr class="muted"><td>${esc(h.objectNo)}</td><td>${esc(h.role)}</td>`
+    + `<td>${esc(empName(h.fromEmp))}</td><td>${esc(empName(h.toEmp))}</td>`
+    + `<td>${esc(h.when)}</td><td>${hoBadge(h.status)}</td><td>${esc(h.reason)}</td></tr>`;
+  const hoHead = '<th style="width:14%">Объект</th><th style="width:18%">Роль</th><th>От</th><th>Кому</th>'
+    + '<th style="width:11%">Заявлена</th><th style="width:15%">Ожидает</th><th style="width:20%">Основание</th>';
+  const hoSect = hos.length
+    ? sect('Очередь передач', '§8 — ответственность на сдающем, пока приём не подтверждён; автоприёма и автоэскалации нет', '',
+        live.length ? table(hoHead, live.map(liveRow))
+          : empty('Непринятых передач нет — все заявки закрыты.'))
+      + (done.length
+          ? '<details class="sect-fold" id="kuHoArch"><summary>Журнал закрытых передач · '
+              + plural(done.length,'заявка','заявки','заявок') + '</summary>'
+            + table(hoHead, done.map(doneRow)) + '</details>'
+          : '')
+    : '';
+
+  return sect('Кураторство', hint, '', mBody) + hoSect;
+}
+
+/* Проводка таба «Кураторство»: фильтр по кредиту пересобирает матрицу и очередь передач.
+   Вызывается из showDetail после вставки карточки в DOM (как wireCollectionTab). */
+function wireCuratorTab(inn){
+  const wrap = document.getElementById('kuWrap');
+  if (!wrap) return;
+  const sel = document.getElementById('kuCred');
+  const render = () => { wrap.innerHTML = curatorCoverageHtml(inn, asOf(), sel ? sel.value : 'all'); };
+  if (sel) sel.addEventListener('change', render);
+  render();
 }
 
 /* Таб 6 «Реквизиты и связи» · левая колонка — Связанные лица: зеркало реестра лиц (И-5, Р-7). */
@@ -5698,6 +5878,20 @@ function borrowerChecks(inn, d){
     : { code:'Д-КУР', tag:'сопровождение', sev:'ok', stop:false, tab:tabIx('кураторство'), name:'Кураторство', result:'роли покрыты',
         basis:'у каждого объекта есть действующий куратор' });
 
+  /* 6a. Зависшая передача дела (КЗ-33). Заявка сама не закроется: у владельца нет ни
+     автоприёма, ни автоэскалации (§8), а ответственность до подтверждения остаётся на
+     сдающем (§8.1) — то есть висящая заявка это дефект сопровождения, а не строка списка. */
+  const hoStale = staleHandoffs(inn, d);
+  C.push(hoStale.length
+    ? { code:'Д-ПЕР', tag:'сопровождение', sev:'mid', stop:false, tab:tabIx('кураторство'), name:'Очередь передач',
+        result: plural(hoStale.length,'заявка не принята','заявки не приняты','заявок не приняты')
+          + ' свыше ' + HANDOFF_STALE_DAYS + ' к.д.',
+        basis: hoStale.map(h => esc(h.objectNo + ' · ' + empName(h.fromEmp) + ' → ' + empName(h.toEmp)
+          + ' · ' + calDays(h.when, d) + ' дн.')).join(' · ') + ' · ' + link(tabIx('кураторство'),'кураторство') }
+    : { code:'Д-ПЕР', tag:'сопровождение', sev:'ok', stop:false, tab:tabIx('кураторство'), name:'Очередь передач',
+        result: liveHandoffs(inn).length ? 'заявки в пределах срока' : 'непринятых передач нет',
+        basis:'приём подтверждается в модуле кураторства (§8.1)' });
+
   // 7. Просроченные обязательства Порядка — были только в шапке
   const obsOv = obligations(inn, d).filter(o=>o.status==='срок вышел');
   C.push(obsOv.length
@@ -5964,9 +6158,9 @@ function historyItems(inn){
   CURATOR_LOG.filter(l=>l.inn===inn).forEach(l=>add({date:l.date, time:l.time, dot:'ok', cat:'kur',
     kind:'кураторство', tab:tabIx('кураторство'), title:l.title, body:l.body}));
   HANDOFF.filter(h=>h.inn===inn).forEach(h=>add({date:h.when,
-    dot: h.status==='исполнен' ? 'ok' : h.status==='отклонён' ? 'warn' : 'info', cat:'kur',
+    dot: h.status==='подтверждён' ? 'ok' : h.status==='отклонён' ? 'warn' : 'info', cat:'kur',
     kind:'передача', tab:tabIx('кураторство'),
-    title:`Передача дела ${h.status}: ${h.objectNo}`,
+    title:`Передача дела ${h.status==='ожидает' ? 'заявлена' : h.status==='подтверждён' ? 'подтверждена' : 'отклонена'}: ${h.objectNo}`,
     body:`${h.role} · ${empName(h.fromEmp)} → ${empName(h.toEmp)} · ${h.reason}`}));
   CONFLICTS.filter(c=>c.inn===inn).forEach(c=>{
     add({date:c.declaredAt, time:c.time, dot:'warn', cat:'kur', kind:'конфликт', tab:tabIx('кураторство'),
@@ -6125,7 +6319,10 @@ function tabMain(inn, i){
     case 'обязательства': return obligationsTab(inn);
     case 'взыскание': return `<div data-mirror="1">${collectionTab(inn)}</div>`;
     case 'акты': return actsTab(inn);
-    case 'кураторство': return curatorTab(inn);
+    /* кураторство — тоже зеркало (ASSIGN/CONFLICTS/HANDOFF ведёт модуль кураторства), и
+       разметка это теперь называет: фильтр по кредиту внутри помечен как орган ПРОСМОТРА
+       (data-view-ctl), а редакторов здесь нет ни одного (И-5). */
+    case 'кураторство': return `<div data-mirror="1">${curatorTab(inn)}</div>`;
     /* Вариант C: «Связанные лица» + «Реквизиты и контакты» слиты в один таб «Реквизиты и связи».
        2 колонки (.gen-2col, схлоп <1100px): слева лица (зеркало Р-7, data-mirror), справа каналы+банк (свои, Р-10).
        data-mirror только на левой колонке — владелец у секций разный, бейджи источника в sect() сохранены. */
@@ -6417,6 +6614,7 @@ function showDetail(inn, tabIndex, onDate, histCat){
   wireCreditsTab(inn);      /* таб «Кредиты» интерактивен — проводим после вставки в DOM */
   wireCollateralTab(inn);   /* таб «Залог» — переключатель вида и раскрытие строк */
   wireCollectionTab(inn);   /* таб «Взыскание» — то же: вид, раскрытие процесса, дропдаун */
+  wireCuratorTab(inn);      /* таб «Кураторство» — фильтр по кредиту пересобирает покрытие */
   wireActsTab(inn);         /* таб «Акты сверок» — раскрытие строки в разбивку + степпер */
   /* КЗ-31: категория пришла маршрутом — лента открывается уже отфильтрованной, иначе ссылка
      с вкладки высадила бы в общий поток и фильтр пришлось бы ставить руками. */
