@@ -346,8 +346,8 @@ ok('кнопок назначения / переназначения / прод�
    СРОКИ — Р-3: вычисление от базы шаблона, сущности «задание» нет
    ══════════════════════════════════════════════════════════════════════════ */
 head('Р-3 · сроки порядка');
-ok('шаблонов сроков 39, у каждого база и пункт',
-   g.ev('DEADLINE_TEMPLATES.length') === 39 && g.ev(`DEADLINE_TEMPLATES.every(t => t.base && t.point)`));
+ok('шаблонов сроков 44, у каждого база, срок и пункт',
+   g.ev('DEADLINE_TEMPLATES.length') === 44 && g.ev(`DEADLINE_TEMPLATES.every(t => t.base && t.term && t.point)`));
 ok('остаток срока считается от базы шаблона, не от даты ввода (142 апелляция)',
    g.ev(`${P('142')}.deadlines[0].base`).includes('вынесения'));
 
@@ -652,7 +652,7 @@ head('ТР-1 · реестр — состояние портфеля, а не р
 ok('рамка экрана названа вслух',            /Состояние портфеля взыскания/.test(L.$('.list-frame').textContent));
 ok('очередь по срокам отправлена в свой реестр', /Сроки на контроле/.test(L.$('.list-frame').textContent));
 ok('колонки «Ближайший срок» в реестре нет', L.ev(`LIST_COLS.every(c => c.k !== 'nearest')`));
-ok('nearestDeadline жив — он нужен карточке и реестру сроков', L.ev(`typeof nearestDeadline === 'function'`));
+ok('nearestDeadline снята — после ТР-3 её никто не звал (СК-Д14)', L.ev(`typeof nearestDeadline === 'undefined'`));
 
 head('ТР-2 · плитки считают помехи, остаток назван честно');
 ok('плиток шесть: всего + три помехи + остаток + закрытые', tileLabels().length === 6);
@@ -968,12 +968,12 @@ head('КД-6 · срок принадлежит требованию');
 ok('у срока есть цели', D.ev(`PROCESSES.every(p=>p.deadlines.every(d=>Array.isArray(d.targets)))`));
 ok('дело-уровневые сроки (п. 98, конфликт) целей не получили',
    D.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>!d.targets.length)
-         .every(d=>/статуса? процедуры|процедуры принимающей|конфликт/i.test(d.action))`));
+         .every(d=>/статуса? процедуры|конфликт/i.test(dlAction(d)))`));
 ok('срок апелляции по общему иску виден обоим требованиям',
-   D.ev(`deadlinesOf(REQ_INDEX['142/56/з']).some(d=>d.action==='Апелляционная жалоба')
-      && deadlinesOf(REQ_INDEX['142/56/п']).some(d=>d.action==='Апелляционная жалоба')`));
+   D.ev(`deadlinesOf(REQ_INDEX['142/56/з']).some(d=>dlAction(d)==='Апелляционная жалоба')
+      && deadlinesOf(REQ_INDEX['142/56/п']).some(d=>dlAction(d)==='Апелляционная жалоба')`));
 ok('пауза заёмщика в сроки поручителя не течёт',
-   D.ev(`deadlinesOf(REQ_INDEX['142/56/п']).every(d=>!/Приостановка мер/.test(d.action))`));
+   D.ev(`deadlinesOf(REQ_INDEX['142/56/п']).every(d=>!/Приостановка мер/.test(dlAction(d)))`));
 ok('блок сроков стоит на «Обзоре» и назван уровнем', (() => {
   const m = mk(); m.ev(`openDetail('142/56/з')`); m.ev(`switchTab(${TAB.obzor})`);
   return /Сроки на контроле по требованию/.test(m.active().textContent); })());
@@ -1116,12 +1116,165 @@ ok('panelOhvat переименована в panelDebt', !/function panelOhvat/.
 ok('panelObschaya переименована в panelDeal', !/function panelObschaya/.test(HTML) && /function panelDeal/.test(HTML));
 
 /* ══════════════════════════════════════════════════════════════════════════
+   ВОЛНА СК — «Сроки на контроле» как рабочая очередь
+   ══════════════════════════════════════════════════════════════════════════ */
+const S = mk(); S.ev(`navClick('Сроки на контроле (реестр)')`);
+const sRows  = () => S.$$('#deadlinesBody tr').filter(r => !r.classList.contains('rowempty'));
+const sFrame = () => S.$('#dlFrame').textContent;
+const sCols  = () => S.$$('#dlHead th').map(t => t.textContent.replace(/[↑↓↕]/g,'').trim());
+
+head('СК-1/СК-6 · очередь с горизонтом, а не список просроченного');
+ok('умолчание — горизонт 7 дней',            S.ev(`dlHorizon`) === '7' && /Горизонт: 7 дней/.test(sFrame()));
+ok('предстоящие сроки показаны, а не только просроченные',
+   sRows().length === 34 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 17);
+ok('горизонт «всё» даёт все 45 сроков',      (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 45; })());
+ok('просроченное проходит любой горизонт',   (()=>{ S.ev(`dlSetHorizon('7')`);
+   return S.ev(`dlAll().filter(x=>x.n<0).every(dlPass)`); })());
+ok('сегмент показывает выбранный горизонт',  S.$('#dlSeg button.on').dataset.h === '7');
+ok('горизонт живёт в хеше — переживёт F5',   (()=>{ S.ev(`dlSetHorizon('30')`);
+   const h = S.w.location.hash; S.ev(`dlSetHorizon('7')`); return h === '#deadlines/30'; })());
+ok('хеш восстанавливает вид и горизонт', (()=>{
+  const m = mk(); m.w.location.hash = '#deadlines/30'; m.ev(`restoreFromHash()`);
+  return m.ev(`dlHorizon`) === '30' && m.doc.getElementById('view-deadlines').style.display === 'flex'
+      && m.doc.querySelector('.nav-item.active').textContent === 'Сроки на контроле (реестр)'; })());
+
+head('СК-2 · остаток производный, а не хранимый');
+ok('хранимых leftDays / overdue в затравке нет',
+   S.ev(`PROCESSES.flatMap(p=>p.deadlines).every(d=>d.leftDays===undefined && d.overdue===undefined)`));
+ok('остаток считается из даты срока и даты отсчёта',
+   S.ev(`daysLeft({due:'28.07.2026'}) === 7 && daysLeft({due:'17.06.2026'}) === -34 && daysLeft({due:TODAY}) === 0`));
+ok('два спрятанных хранимым полем просроченных теперь видны (СК-Д2)', (()=>{
+  const by = no => sRows().find(r=>new RegExp('В-2026-000'+no).test(r.textContent));
+  return /−6 · просрочен/.test((by('205')||{textContent:''}).textContent)
+      && /−19 · просрочен/.test((by('142')||{textContent:''}).textContent); })());
+ok('глубина просрочки честная: дело 206 — −34, а не −1',
+   /−34 · просрочен/.test(sRows().find(r=>/В-2026-000206/.test(r.textContent)).textContent));
+
+head('СК-3/СК-4 · семь колонок, дата вместо длительности');
+ok('колонки в заданном порядке',
+   sCols().join('|') === 'Срок|Осталось, к.д.|Обязательство|Заёмщик|Требование|Ответственный|Пункт');
+ok('единица счёта названа в шапке колонки',  /Осталось, к\.д\./.test(sCols()[1]));
+ok('колонка «Срок» — дата, а не «10 р.д.»',
+   sRows().every(r => /^\d{2}\.\d{2}\.\d{4}$/.test(r.querySelector('td').textContent.trim())));
+ok('шаблонный срок и база отсчёта — в подсказке строки',
+   /Отсчёт: .+ · срок по Порядку: .+ · шаблон №\d+/.test(sRows()[0].getAttribute('title')));
+ok('заёмщик подписан номером дела',          /дело В-2026-\d{6}/.test(sRows()[0].textContent));
+
+head('СК-5 · порядок по возрастанию остатка, сортировка по колонке');
+ok('умолчание — по остатку вверх',           S.ev(`dlSort.k === 'left' && dlSort.dir === 1`));
+ok('отрисованные строки идут по возрастанию остатка', (()=>{
+  const a = sRows().map(r => Number(r.querySelectorAll('td')[1].textContent.trim().replace('−','-').split(' ')[0]));
+  return a.length === 34 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -34 && a[a.length-1] === 7; })());
+ok('клик по колонке меняет ключ и направление', (()=>{
+  S.ev(`dlSortBy('due')`); const up = S.ev(`dlSort.k==='due' && dlSort.dir===1`);
+  S.ev(`dlSortBy('due')`); const down = S.ev(`dlSort.dir===-1`);
+  S.ev(`dlSort={k:'left',dir:1}; dlRefresh()`); return up && down; })());
+
+head('СК-7/СК-12 · рамка со счётчиками, пустое состояние с причиной');
+ok('плиток на экране сроков нет',            S.$('#view-deadlines .tile') === null);
+ok('рамка считает очередь и называет дату отсчёта',
+   /показано 34 из 45 · просрочено 17 · истекает сегодня 5 · отсчёт от 21\.07\.2026/.test(sFrame()));
+ok('пустое состояние называет условия и даёт их снять', (()=>{
+  S.doc.getElementById('dlQ').value = 'такого-заёмщика-нет'; S.ev(`dlRefresh()`);
+  const e = S.$('#deadlinesBody .list-empty');
+  const good = e && /Условия отбора/.test(e.textContent) && !!e.querySelector('button');
+  S.ev(`dlResetAll(); dlSetHorizon('7')`); return good; })());
+
+head('СК-8 · ответственный выведен: куратор дела × подразделение шаблона');
+ok('у каждого срока есть выведенный ответственный',
+   S.ev(`dlAll().every(x=>['subdiv','external','system','none'].includes(x.resp.kind))`));
+ok('подразделение берётся из шаблона, а не из дела',
+   S.ev(`dlResponsible(PROCESSES.find(p=>p.id==='313'), PROCESSES.find(p=>p.id==='313').deadlines[0]).subdiv === 'ДАК'`));
+ok('«не выведено» ровно у восьми дело-уровневых сроков',
+   S.ev(`dlAll().filter(x=>x.resp.kind==='none').length === 8`)
+   && S.ev(`dlAll().filter(x=>x.resp.kind==='none').every(x=>!x.reqs.length)`));
+ok('срок исполнения претензии числится за заёмщиком, а не за сотрудником',
+   S.ev(`dlAll().filter(x=>x.resp.kind==='external').every(x=>x.d.tpl===6)`));
+ok('у ответственного есть подсказка с правилом вывода',
+   /куратор дела .+ × подразделение шаблона|подразделение выводить не из чего/
+     .test(sRows()[0].querySelectorAll('td')[5].getAttribute('title')));
+
+head('СК-9 · условия отбора и лента чипов');
+ok('список подразделений строится из выведенных значений (урок ТР-5)',
+   S.ev(`(()=>{ const opts=[...document.getElementById('dlSubdiv').options].map(o=>o.value).filter(Boolean);
+     return opts.length>1 && opts.every(v=>{ document.getElementById('dlSubdiv').value=v;
+       const n=dlAll().filter(dlPass).length; document.getElementById('dlSubdiv').value=''; return n>0; }); })()`));
+ok('«только моё подразделение» читает ролевой селектор',
+   S.ev(`roleSubdivs().join('/')`) === 'ДАК/РП/ОД');
+ok('фильтр по подразделению сужает выборку', (()=>{
+  S.doc.getElementById('dlSubdiv').value = 'ОПК'; S.ev(`dlRefresh()`);
+  const n = sRows().length, chips = S.$$('#dlChips .fchip').length;
+  S.ev(`dlClear('subdiv')`); return n > 0 && n < 34 && chips === 2; })());
+ok('поиск идёт по заёмщику, ИНН и номеру дела',
+   S.ev(`(()=>{ const q=document.getElementById('dlQ');
+     const hit=v=>{ q.value=v; const n=dlAll().filter(dlPass).length; q.value=''; return n; };
+     return hit('Темир-Транс')>0 && hit('В-2026-000206')>0 && hit(PROCESSES.find(p=>p.id==='206').inn)>0; })()`));
+ok('активные условия видны чипами', (()=>{
+  S.doc.getElementById('dlQ').value = 'Темир'; S.ev(`dlRefresh()`);
+  const c = S.$$('#dlChips .fchip').map(x=>x.textContent).join('|');
+  S.ev(`dlClear('q')`); return /Поиск: Темир/.test(c) && /Горизонт: 7 дней/.test(c); })());
+
+head('СК-10 · клик ведёт туда, где срок живёт');
+ok('срок требования открывает требование на «Обзоре»',
+   /openDetail\('206\/62\/з', TAB_BY_SLUG\('obzor'\)\)/.test(
+     sRows().find(r=>/В-2026-000206/.test(r.textContent)).getAttribute('onclick')));
+ok('срок подтверждения процедуры ведёт на «Процедуру»',
+   S.ev(`dlTarget({p:{id:'210'}, reqs:[], act:'Подтверждение или отклонение статуса процедуры'}).join('/')`) === '210/procedura');
+ok('срок по конфликту интересов ведёт в «Особые состояния»',
+   S.ev(`dlTarget({p:{id:'205'}, reqs:[], act:'Уведомление о конфликте интересов'}).join('/')`) === '205/sostoyaniya');
+ok('строка открывается и с клавиатуры',      sRows().every(r => r.getAttribute('tabindex') === '0' && /Enter/.test(r.getAttribute('onkeydown'))));
+
+head('СК-11 · срок ссылается на шаблон номером');
+ok('у каждого срока либо шаблон, либо метка «вне Порядка»',
+   S.ev(`PROCESSES.flatMap(p=>p.deadlines).every(d=>d.tpl ? !!TPL_BY_N[d.tpl] : !!d.action)`));
+ok('пять недостающих шаблонов добавлены (40–44)',
+   S.ev(`[40,41,42,43,44].every(n=>!!TPL_BY_N[n])`)
+   && S.ev(`[40,41,42,43,44].map(n=>TPL_BY_N[n].point).join('/')`) === 'Р-8/17.6/44/37/92');
+ok('строковой связи со справочником больше нет', !/templTerm/.test(HTML.replace(/templTerm искала[\s\S]*?dlPoint\./,'')));
+ok('шаблон находится у всех сроков Порядка (было «—» у 15 из 45)',
+   S.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>d.tpl).every(d=>!!dlTerm(d) && !!dlPoint(d))`));
+ok('«вне Порядка» помечено, а не выброшено',
+   S.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>!d.tpl).length === 2`)
+   && sRows().some(r=>/вне Порядка/.test(r.textContent)));
+ok('«п. —» больше не рисуется (СК-Д13)',     !sRows().some(r=>/п\. —/.test(r.textContent)));
+ok('Р-8 подписан без «п.» — это решение проекта, не пункт Порядка',
+   S.ev(`dlPointLabel({tpl:40}) === 'Р-8' && dlPointLabel({tpl:5}) === 'п. 17.2'`));
+
+head('СК-13 · срок снимается фактом, а не отметкой');
+ok('кнопки «выполнено» у срока нет',         !/выполнено/i.test(S.$('#view-deadlines').innerHTML));
+ok('карта закрытия ссылается на существующие виды мер',
+   S.ev(`Object.values(DEADLINE_CLOSERS).flat().every(k=>MEASURE_KINDS.includes(k))`)
+   && S.ev(`Object.keys(DEADLINE_CLOSERS).every(n=>!!TPL_BY_N[n])`));
+ok('регистрация меры снимает срок с контроля', (()=>{
+  const m = mk();
+  const before = m.ev(`PROCESSES.find(p=>p.id==='202').deadlines.length`);
+  const closed = m.ev(`closeDeadlinesBy(PROCESSES.find(p=>p.id==='202'),'Первичная претензия',
+                       PROCESSES.find(p=>p.id==='202').requirements.map(r=>r.id)).length`);
+  const after = m.ev(`PROCESSES.find(p=>p.id==='202').deadlines.length`);
+  return before === 1 && closed === 1 && after === 0; })());
+ok('чужая мера чужой срок не трогает',
+   S.ev(`closeDeadlinesBy({deadlines:[{tpl:5,targets:['x']}]}, 'Акт сверки', ['x']).length === 0`));
+ok('saveMeasure зовёт снятие срока и пишет это в историю',
+   /closeDeadlinesBy\(p, kind, targets\.map/.test(HTML) && /снят с контроля/.test(HTML));
+
+head('СК-14 · блок сроков в карточке — та же арифметика');
+{ const m = mk(); m.ev(`openDetail('142/56/з', TAB_BY_SLUG('obzor'))`);
+  const th = [...m.$('.dl-grid').querySelectorAll('th')].map(t=>t.textContent.trim());
+  const tr = m.$('.dl-grid tbody tr');
+  ok('колонки карточки: обязательство · срок · остаток · база · пункт',
+     th.join('|') === 'Обязательство|Срок|Осталось, к.д.|База отсчёта|Пункт');
+  ok('в карточке дата срока, а не длительность', /^\d{2}\.\d{2}\.\d{4}$/.test(tr.querySelectorAll('td')[1].textContent.trim()));
+  ok('в карточке тот же производный остаток',    /−19 · просрочен/.test(tr.textContent));
+  ok('подсказка карточки называет шаблон номером', /шаблон №27/.test(tr.getAttribute('title')));
+  ok('горизонта и фильтров в карточке нет',      !m.$('.dl-grid').closest('.panel-wrap').querySelector('#dlSeg')); }
+
+/* ══════════════════════════════════════════════════════════════════════════
    СПРАВОЧНИКИ — при переезде модели ничего не потеряно
    ══════════════════════════════════════════════════════════════════════════ */
 head('справочники');
 ok('видов мер 51',              g.ev('MEASURE_KINDS.length') === 51);
 ok('видов-вех 16',              g.ev('MILESTONE_KINDS.size') === 16);
-ok('шаблонов сроков 39',        g.ev('DEADLINE_TEMPLATES.length') === 39);
+ok('шаблонов сроков 44',        g.ev('DEADLINE_TEMPLATES.length') === 44);
 ok('контуров К0…К7 — восемь',   g.ev('Object.keys(CONTOURS).length') === 8);
 ok('разделов мер семь',         g.ev('SECTION_ORDER.length') === 7);
 ok('редактор правил на месте',  g.ev(`typeof RULES === 'object' && typeof resetRulesAll === 'function'`));
