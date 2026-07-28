@@ -404,13 +404,18 @@ ok('база списка — требования, а не дела',
 ok('строк-требований на странице столько же, сколько требований у её дел',
    g.ev(`(renderList(), document.querySelectorAll('#listBody tr.rowopen').length)`)
    === g.ev(`pagesOfDeals(groupedDeals(), PAGE_SIZE)[curPage-1].reduce((a,d)=>a+d.reqs.length,0)`));
-/* ПЛ-1: строка-группа осталась только у дела с ≥2 требованиями — ищем её по всем страницам. */
-ok('дело с несколькими требованиями выводится строкой-группой', g.ev(`(() => {
+/* ПЛ-7: дело с несколькими требованиями держится соседством строк и акцентом, а не
+   служебной строкой, — проверяем на той странице, где такое дело есть. */
+ok('дело с несколькими требованиями помечено акцентом на всех своих строках', g.ev(`(() => {
   const pages = pagesOfDeals(groupedDeals(), PAGE_SIZE);
   const i = pages.findIndex(pg => pg.some(d => d.reqs.length > 1));
   if(i < 0) return false;
-  gotoPage(i+1); const n = document.querySelectorAll('#listBody tr.rowgrp').length; gotoPage(1);
-  return n > 0;
+  gotoPage(i+1);
+  const okAll = pages[i].every(d => d.reqs.every(r => {
+    const tr = document.querySelector('#listBody tr[data-id="' + r.id + '"]');
+    return !!tr && tr.classList.contains('indeal') === (d.reqs.length > 1);
+  }));
+  gotoPage(1); return okAll;
 })()`));
 ok('колонок столько же, сколько в LIST_COLS',
    g.ev(`document.querySelectorAll('#listHead th').length`) === g.ev('LIST_COLS.length'));
@@ -957,11 +962,14 @@ L.ev(`clickTile('gate'); onPageSize(25)`);
 head('ТР-3 · свойства дела ушли из строки требования');
 ok('в колонках нет заёмщика, региона, процедуры и куратора',
    L.ev(`['borrower','region','procedure','curator'].every(k => LIST_COLS.every(c => c.k !== k))`));
-ok('заголовок дела несёт заёмщика, ИНН, регион, процедуру, группу и куратора', (() => {
-  const t = L.$('#listBody tr.rowgrp td').textContent;
-  return /ИНН/.test(t) && /куратор/.test(t) && /(группа|группа не выведена)/.test(t)
-    && /(процедура не определена|Работа|Взыскание|Реструктур|Банкрот|Судебн|Исполнит|Списан)/.test(t);
+/* ПЛ-7: заголовка дела нет — обстоятельства дела несёт подсказка строки, а процедура
+   стала условием отбора (ПЛ-2). Пилюли процедуры и группы в списке быть не должно. */
+ok('обстоятельства дела несёт подсказка строки: дело, заёмщик, ИНН, регион, куратор', (() => {
+  const t = L.$$('#listBody tr.rowopen')[0].getAttribute('title');
+  return /дело В-2026-\d{6}/.test(t) && /ИНН/.test(t) && /куратор/.test(t);
 })());
+ok('ПЛ-7: пилюль процедуры и группы в списке нет',
+   L.$$('#listBody .pill').every(el => !/^группа |Работа с судебными|Взыскание задолженности/.test(el.textContent.trim())));
 
 head('ТР-4 · группировка по делу — устройство таблицы, не режим');
 ok('переключателя группировки в исходнике нет',      !/groupByBorrower/.test(HTML_SRC));
@@ -1108,20 +1116,41 @@ ok('ключ требования — в подсказке строки',
 ok('ключ требования — в выгрузке',           tsv.split('\n').find(l => /^№ требования\t/.test(l)) !== undefined
    && /\n\d+\/\d+\/[зпг]\t/.test(tsv));
 
-head('ТР-9 / ПЛ-1 · заголовок дела в одну строку — там, где он группирует');
-ok('ПЛ-1: у дела с единственным требованием заголовка НЕТ', L.ev(`(() => {
-  const rows = [...document.querySelectorAll('#listBody tr')];
-  const single = pagesOfDeals(groupedDeals(), PAGE_SIZE)[0].find(d => d.reqs.length === 1);
-  if(!single) return false;
-  const i = rows.findIndex(tr => tr.dataset.id === single.reqs[0].id);
-  return i >= 0 && (i === 0 || !rows[i-1].classList.contains('rowgrp'));
-})()`));
-ok('ПЛ-1: заголовков на странице ровно столько, сколько дел с ≥2 требованиями', L.ev(`(() => {
+head('ТР-9 / ПЛ-1 / ПЛ-7 · заголовка дела в списке нет вовсе');
+ok('ПЛ-7: в tbody только строки-требования — ни одной служебной строки ни на одной странице', L.ev(`(() => {
   const pages = pagesOfDeals(groupedDeals(), PAGE_SIZE);
   return pages.every((pg,i) => {
     gotoPage(i+1);
-    return document.querySelectorAll('#listBody tr.rowgrp').length === pg.filter(d=>d.reqs.length>1).length;
+    const rows = document.querySelectorAll('#listBody tr');
+    return document.querySelectorAll('#listBody tr.rowgrp').length === 0
+      && rows.length === pg.reduce((a,d)=>a+d.reqs.length, 0);
   }) && (gotoPage(1), true);
+})()`));
+ok('ПЛ-7: в исходнике не осталось ни строки-группы, ни её сборщика',
+   !/rowgrp/.test(HTML_SRC) && !/dealHead\(/.test(HTML_SRC));
+ok('ПЛ-7: акцент стоит ровно на строках дел с ≥2 требованиями — на всех страницах', L.ev(`(() => {
+  const pages = pagesOfDeals(groupedDeals(), PAGE_SIZE);
+  return pages.every((pg,i) => {
+    gotoPage(i+1);
+    return pg.every(d => d.reqs.every(r => {
+      const tr = document.querySelector('#listBody tr[data-id="' + r.id + '"]');
+      return !!tr && tr.classList.contains('indeal') === (d.reqs.length > 1);
+    }));
+  }) && (gotoPage(1), true);
+})()`));
+ok('ПЛ-7: акцент не ест ширину — псевдоэлемент внутри первой ячейки',
+   /tr\.indeal td:first-child::before\{[^}]*position:absolute/.test(HTML_SRC.replace(/\s*\n\s*/g, '')));
+ok('ПЛ-7: подсказка строки называет позицию требования в деле — и только там, где их несколько', L.ev(`(() => {
+  const pages = pagesOfDeals(groupedDeals(), PAGE_SIZE);
+  const i = pages.findIndex(pg => pg.some(d => d.reqs.length > 1));
+  if(i < 0) return false;
+  gotoPage(i+1);
+  const ttl = r => (document.querySelector('#listBody tr[data-id="' + r.id + '"]') || {}).title || '';
+  const multi  = pages[i].find(d => d.reqs.length > 1);
+  const single = pages[i].find(d => d.reqs.length === 1);
+  const okMulti  = multi.reqs.every((r,k) => ttl(r).includes('(требование ' + (k+1) + ' из ' + multi.reqs.length + ')'));
+  const okSingle = !single || ttl(single.reqs[0]).indexOf('(требование') < 0;
+  gotoPage(1); return okMulti && okSingle;
 })()`));
 ok('ПЛ-1 / ТР-Д11: заёмщик виден в самой строке, а не только в заголовке', L.ev(`(() => {
   const rows = [...document.querySelectorAll('#listBody tr.rowopen')];
@@ -1129,11 +1158,18 @@ ok('ПЛ-1 / ТР-Д11: заёмщик виден в самой строке, а
 })()`));
 ok('ПЛ-1: среди однотребовательных дел нет иной роли, чем «заёмщик» (иначе имя в строке лгало бы)',
    g.ev(`groupedDeals().filter(d=>d.reqs.length===1).every(d => d.reqs[0].role === 'заёмщик')`));
-ok('заголовок несёт размер дела справа', L.ev(`(() => {
+/* ПЛ-7: «по делу X» ушло вместе с заголовком. Складывать видимые строки дела можно везде,
+   КРОМЕ требований на одном кредите (§2.2) — и ровно они помечены маркером «сол.». */
+ok('ПЛ-7: маркер «сол.» стоит там и только там, где строки нельзя складывать', L.ev(`(() => {
   const pages = pagesOfDeals(groupedDeals(), PAGE_SIZE);
-  const i = pages.findIndex(pg => pg.some(d => d.reqs.length > 1));
-  gotoPage(i+1); const t = document.querySelector('#listBody tr.rowgrp').textContent; gotoPage(1);
-  return /дело В-2026-\\d{6} · требований \\d+ · по делу /.test(t);
+  const i = pages.findIndex(pg => pg.some(d => d.reqs.some(r => solidaryWith(r).length)));
+  if(i < 0) return false;
+  gotoPage(i+1);
+  const okAll = pages[i].every(d => d.reqs.every(r => {
+    const tr = document.querySelector('#listBody tr[data-id="' + r.id + '"]');
+    return !!tr && !!tr.querySelector('.solmark') === (solidaryWith(r).length > 0);
+  }));
+  gotoPage(1); return okAll;
 })()`));
 ok('сумма по делу считается один раз на кредит (солидарность не удваивает)', g.ev(`(() => {
   const p = PROCESSES.find(x => x.requirements.some(r => solidaryWith(r).length));
