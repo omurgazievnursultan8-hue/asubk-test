@@ -156,16 +156,24 @@ ok('14. Высокий → О-1 есть, О-2 нет (порог О-2 толь�
   /О-1/.test(codes('01204199910016')) && !/О-2/.test(codes('01204199910016')));
 ok('15. addWorkdays пропускает выходные и праздники',
   g.ev("addWorkdays('06.03.2026', 3)")==='12.03.2026');   // 06.03 пт → пн 09, 08.03 празд(вс), 10,11,12 → +3 раб. = 12.03
-ok('16. просроченное О-1 → статус «просрочено» (ветка 4)',
-  g.ev("obligations('04401199940041', TODAY).find(o=>o.code==='О-1').status")==='просрочено');
+ok('16. просроченное О-1 → статус «срок вышел» (ветка 4)',
+  g.ev("obligations('04401199940041', TODAY).find(o=>o.code==='О-1').status")==='срок вышел');
 ok('17. О-4 при наличии просроченной задолженности (ветка 1)',
   /О-4/.test(codes('01204199910016')));
 
 // ── Долг и обеспеченность (D1–D3) ──
 ok('D1. totalDebt = сумма 5 статей по действующим (ветка 1)',
   g.ev("totalDebt('01204199910016')") === 5200000+130000 + 9400000+410000+88000 + 1100000+20000);
-ok('D3. coverageOf — зеркало индекса, worst ≤ aggregate (ветка 1)',
-  g.ev("coverageOf('01204199910016').worst") <= g.ev("coverageOf('01204199910016').aggregate"));
+/* КЗ-23: средневзвешенный индекс удалён — усреднять нормированные на РАЗНЫЕ пороги величины
+   нечем и незачем. Осталось два выводимых ответа: где хуже всего (с именем кредита) и
+   сколько порогов нарушено из скольких оценённых. */
+ok('D3. coverageOf — зеркало индекса: worst принадлежит конкретному кредиту (ветка 1)',
+  (() => { const cv = g.ev("coverageOf('01204199910016')");
+    const idx = g.ev(`creditCoverage(CREDITS.find(c=>c.id==='${cv.worstId}')).index`);
+    return !!cv.worstId && Math.abs(idx - cv.worst) < 1e-9
+      && g.ev("CREDITS.filter(c=>c.inn==='01204199910016' && isActiveCredit(c, DEBT_ASOF))"
+            + ".map(c=>creditCoverage(c).index).filter(x=>x!=null)")
+           .every(x => x >= cv.worst - 1e-9); })());
 
 /* ── Деньги: две части снимка (D2, D4–D9, ревизия 26.07.2026 · ADR-0001) ──
    До ревизии слово «просрочка» на одном экране означало три разных числа: полный
@@ -210,13 +218,13 @@ ok('F3. О-4 повторяющееся: у ветки 1 несколько ме
   g.ev("obligations('01204199910016',TODAY).filter(o=>o.code==='О-4').length") >= 3);
 ok('F4. вынос за поздний месяц НЕ закрывает пропущенный (май исполнен, июнь просрочен)',
   g.ev("obligations('01204199910016',TODAY).find(o=>o.code==='О-4'&&o.period==='05.2026').status")==='исполнено'
-  && g.ev("obligations('01204199910016',TODAY).find(o=>o.code==='О-4'&&o.period==='06.2026').status")==='просрочено');
+  && g.ev("obligations('01204199910016',TODAY).find(o=>o.code==='О-4'&&o.period==='06.2026').status")==='срок вышел');
 ok('F5. факт закрытия приходит из модуля-источника: О-1 — документ досье, О-4 — решение комитета',
   g.ev("DOCS.some(x=>x.id===obligations('02201199920021',TODAY).find(o=>o.code==='О-1').closing.id)")
   && g.ev("COMMITTEE_REFS.some(r=>r.id===obligations('01204199910016',TODAY).find(o=>o.code==='О-4'&&o.period==='05.2026').closing.id)"));
 ok('F6. два обязательства одной полосы расходятся по факту (ветка 2: О-1 закрыто, О-2 нет)',
   g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-1').status")==='исполнено'
-  && g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-2').status")==='просрочено'
+  && g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-2').status")==='срок вышел'
   && g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-1').period")
    === g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-2').period"));
 ok('F7. «исполнено» бывает только с фактом закрытия, датированным не позже даты среза',
@@ -315,7 +323,7 @@ ok('G6. КР-60541 виден во вкладке «Кураторство» в�
     const t = f.$(`.tabpanel[data-panel="${ix}"]`).textContent;
     return /КР-60541/.test(t) && /приостановлен/.test(t) && /отстранён/.test(t); })());
 ok('G7. дефекты залога и взыскания живут в том же списке',
-  g.ev("defects('01204199910016',TODAY).some(x=>x.area==='залог')")
+  g.ev("defects('01204199910016',TODAY).some(x=>x.area==='обеспечение')")
   && g.ev("defects('01204199910016',TODAY).some(x=>x.area==='взыскание')")
   && g.ev("defects('01204199910016',TODAY).some(x=>x.area==='заёмщик')"));
 ok('G8. стоп-фактор идёт первым независимо от степени (модальность важнее шкалы)',
@@ -852,7 +860,7 @@ ok('КЗ-7. счётчики — только у пяти вкладок наг�
     const counted = keys.filter((k,i) => cnt[i] !== null).join(' ');
     const tabs = kz.$$('#cardMount .tabbar .tab');
     const shown = tabs.map(t => { const c = t.querySelector('.cnt'); return c ? Number(c.textContent) : null; });
-    return counted === 'кредиты залог обязательства взыскание проверки'
+    return counted === 'кредиты обеспечение обязательства взыскание проверки'
       && shown.every((v,i) => v === (cnt[i] ? cnt[i] : null)); })());
 ok('КЗ-7. нулевой счёт цифру не печатает',
   (() => { const f = mk();
@@ -923,27 +931,27 @@ ok('Б-4. obligations не подмешивает TODAY: порог О-2 счи�
 
 // Б-5 · витрина и итог вкладки «Кредиты» складывают одно и то же множество.
 const money = t => { const m = String(t).match(/([\d\s ]+)/); return m ? Number(m[1].replace(/[\s ]/g,'')) : null; };
+/* Ячейки итога адресуются по data-col, а не по номеру: состав колонок вкладки меняется
+   решениями (Б-11 снял чекбоксы), а смысл столбца — нет. */
+const footCell = (tr, col) => { const td = tr.querySelector('[data-col="' + col + '"]'); return td ? td.textContent.trim() : null; };
 ok('Б-5. итог вкладки «Кредиты» считает по действующим — как витрина, а не по всем',
   (() => { const f = mk();
     f.ev("location.hash='#/b/09901199990091'"); f.ev("route()");    // 1 кредит, погашен: витрина 0, вкладка была 7 000 000
     const rows = [...f.$$('.tabpanel[data-panel="0"] .f')]
       .reduce((a, d) => (a[d.querySelector('.fk').textContent.trim()] = d.querySelector('.fv').textContent.trim(), a), {});
     f.ev("switchTab(tabIx('кредиты'))");
-    const foot = f.$('#crWrap tfoot');
-    if (!foot) return false;
-    const tr = [...foot.querySelectorAll('tr')];
-    const cells = [...tr[0].querySelectorAll('td')].map(td => td.textContent.trim());
-    return money(rows['Сумма выдано']) === money(cells[5])
-      && money(rows['Задолженность всего']) === money(cells[6])
-      && /действ/.test(cells[2]); })());
+    const tr = [...f.$$('#crWrap > table > tfoot > tr')];
+    if (!tr.length) return false;
+    return money(rows['Сумма выдано']) === money(footCell(tr[0], 'amount'))
+      && money(rows['Задолженность всего']) === money(footCell(tr[0], 'debt'))
+      && /действ/.test(footCell(tr[0], 'label')); })());
 ok('Б-5. погашенные кредиты не растворяются в сумме, а стоят отдельной строкой (КЗ-20)',
   (() => { const f = mk();
     f.ev("location.hash='#/b/09901199990091'"); f.ev("route()");
     f.ev("switchTab(tabIx('кредиты'))");
-    const tr = [...f.$$('#crWrap tfoot tr')];
+    const tr = [...f.$$('#crWrap > table > tfoot > tr')];
     if (tr.length !== 2) return false;
-    const cells = [...tr[1].querySelectorAll('td')].map(td => td.textContent.trim());
-    return /Погашен/.test(cells[2]) && money(cells[5]) === 7000000; })());
+    return /Погашен/.test(footCell(tr[1], 'label')) && money(footCell(tr[1], 'amount')) === 7000000; })());
 
 /* ── Сквозные приёмы: КЗ-14, КЗ-16, КЗ-22, КЗ-31 ────────────────────────────────
    Четыре решения, принятые один раз на все одиннадцать вкладок. Общее у них — язык
@@ -1012,6 +1020,278 @@ ok('КЗ-31. срез и категория в маршруте уживаютс
   (() => { const f = mk();
     f.ev("location.hash='#/b/01204199910016/" + f.ev("tabIx('история')") + "?on=2026-03-01&cat=coll'"); f.ev("route()");
     return f.ev("VIEW_DATE") === '01.03.2026' && f.$('#histRoot').dataset.cat === 'coll'; })());
+
+/* ── Вкладка 1 «витрина»: КЗ-8, КЗ-9, КЗ-10, КЗ-11, КЗ-13, КЗ-15, КЗ-17 ─────────
+   Вкладка отвечает на один вопрос — «что с заёмщиком сейчас». Отсюда всё остальное:
+   шесть сводок постоянного состава (КЗ-8), реквизиты уходят к субъекту (КЗ-9),
+   слоты не тратятся на факты без даты (КЗ-11) и на норму (КЗ-15). Проверяем на двух
+   карточках: рабочей (АгроТехСервис) и погашенной, где почти всё пусто. */
+const panel0 = f => f.$('.tabpanel[data-panel="0"]');
+const cards0 = f => [...panel0(f).querySelectorAll('.section')];
+
+ok('КЗ-8. витрина — шесть сводок постоянного состава, пустая карточка тоже даёт шесть',
+  cards0(cAts).length === 6 && cards0(cClean).length === 6);
+ok('КЗ-8. у каждой сводки один адрес продолжения — своя вкладка',
+  (() => { const keys = [...panel0(cAts).querySelectorAll('.section-head a.lnk')]
+      .map(a => (/tabIx\('([^']+)'\)/.exec(a.getAttribute('onclick') || '') || [])[1])
+      .filter(Boolean).sort();
+    return String(keys) === String(['история','кредиты','кураторство','обеспечение','обязательства','связи']); })());
+
+ok('КЗ-9. реквизитов на витрине нет: адреса и аудит записи сюда не относятся',
+  !/Юридический адрес|Фактический адрес|Основные сведения|Изменён/.test(panel0(cAts).innerHTML));
+ok('КЗ-9. адреса остались у субъекта — это его паспортные атрибуты',
+  (() => { const f = mk(); f.ev("location.hash='#/s/01204199910016'"); f.ev("route()");
+    const h = f.$('#subjectMount').innerHTML;
+    return /Юридический адрес/.test(h) && /Фактический адрес/.test(h); })());
+ok('КЗ-9. аудит записи стал фактом ленты, а не полем витрины',
+  cAts.ev("historyItems('01204199910016').some(it=>it.kind==='запись' && /заведена/.test(it.title))")
+  && cAts.ev("historyItems('01204199910016').some(it=>it.kind==='запись' && /изменена/.test(it.title))"));
+
+/* КЗ-10: канал связи без даты сверки нельзя набрать с уверенностью, а отсутствие связи —
+   расхождение с Порядком, то есть дефект, а не пустой блок. */
+ok('КЗ-10. контакты: адрес корреспонденции вернулся, основной помечен, дата сверки видна',
+  (() => { const t = panel0(cAts).textContent;
+    return /адрес корресп/i.test(t) && /основной/.test(t) && /сверено \d{2}\.\d{2}\.\d{4}/.test(t); })());
+ok('КЗ-10. заёмщик без действующего канала связи поднимает дефект Д-КОНТ',
+  (() => { const f = mk();
+    const before = f.ev("borrowerChecks('01204199910016',TODAY).find(x=>x.code==='Д-КОНТ')");
+    f.ev("CHANNELS.filter(c=>c.inn==='01204199910016').forEach(c=>c.closedAt='01.01.2020')");
+    const after = f.ev("borrowerChecks('01204199910016',TODAY).find(x=>x.code==='Д-КОНТ')");
+    return !!before && before.sev === 'ok' && !!after && after.sev === 'mid' && after.stop === false; })());
+
+/* КЗ-11: лента — набор фактов, а не состояние; дате среза подчиняются состояния (И-9). */
+ok('КЗ-11. факт без даты не занимает слот витрины, но и не исчезает',
+  (() => { const r = cAts.ev("recentSlots([{date:'—'},{date:'01.07.2026'},{date:'02.07.2026'}], 2)");
+    return r.shown.length === 2 && r.shown.every(x => x.date !== '—') && r.undated === 1; })());
+ok('КЗ-11. лента дате среза не подчиняется: на срезе состав тот же',
+  (() => { const base = cAts.ev("historyItems('01204199910016').length");
+    const f = mk(); f.ev("location.hash='#/b/01204199910016?on=2026-03-01'"); f.ev("route()");
+    return f.ev("VIEW_DATE") === '01.03.2026'
+      && f.ev("historyItems('01204199910016').length") === base && base > 0; })());
+
+/* КЗ-13: у витрины три слота на сроки — значит показываем ближайшие, а не первые попавшиеся. */
+ok('КЗ-13. «Требует внимания» — топ-3 по сроку, ближайший первым, остальные счётом',
+  (() => { const rows = [...panel0(cAts).querySelectorAll('.att-item')];
+    const open = cAts.ev("openObligations('01204199910016', TODAY).length");
+    const num = s => +s.split('.').reverse().join('');
+    const dates = rows.map(r => (/до (\d{2}\.\d{2}\.\d{4})/.exec(r.textContent) || [])[1]).filter(Boolean);
+    return open > 3 && rows.length === 3 && dates.length === 3
+      && dates.every((d, i) => !i || num(dates[i-1]) <= num(d))
+      && /ещё 1/.test(panel0(cAts).textContent); })());
+ok('КЗ-13. очередь на комитет ушла с витрины — у коллегиального органа свой адрес',
+  (() => { const f = card('05501199950051');
+    return f.ev("committeeQueue('05501199950051', TODAY).length") > 0
+      && !/очеред/i.test(panel0(f).textContent); })());
+ok('КЗ-13. у срока «вышел», а не «просрочен»: просрочка на экране остаётся у долга',
+  cAts.ev("statusOf('01.01.2026', TODAY)") === 'срок вышел'
+  && !/просроч/i.test([...panel0(cAts).querySelectorAll('.att-item')].map(x => x.textContent).join(' ')));
+
+ok('КЗ-15. послабление — не сводка витрины, а основание категории',
+  (() => { const noBlock = !/Послабления по категории/.test(panel0(cAts).innerHTML);
+    const basis = [...cAts.$$('.phead-dims .dim .src')].map(x => x.textContent).join(' | ');
+    return noBlock && /послаблени/i.test(basis); })());
+
+/* КЗ-17: coverageOf считала breaches и наружу их не отдавала — витрина молчала об обеспечении. */
+ok('КЗ-17. обеспеченность на витрине: худший индекс и «нарушений N из M»',
+  (() => { const cv = cAts.ev("coverageOf('01204199910016')"), t = panel0(cAts).textContent;
+    return cv.rated > 0 && cv.breaches > 0 && new RegExp(cv.breaches + ' из ' + cv.rated).test(t); })());
+ok('КЗ-17. кураторство на витрине: дыра показана числом, а не молчанием',
+  (() => { const gaps = cAts.ev("curatorGaps('01204199910016', TODAY).length"), t = panel0(cAts).textContent;
+    return gaps > 0 && /без куратора/.test(t) && t.includes(String(gaps)); })());
+
+/* ── Вкладка 2 «Кредиты»: КЗ-18, КЗ-19, КЗ-20 + дефекты Б-10, Б-11 ─────────────
+   Вкладка — зеркало кредитного модуля (И-5): ни одной точки ввода, все действия ведут
+   маршрутом наружу (КЗ-18). Внутри — рабочий список: пять статей долга раскрытием, а не
+   подсказкой, фильтр по состоянию, сортировка, валюта из данных (КЗ-19, Б-10). Итог
+   считается по тому же множеству, которое показано (КЗ-20), и складывает валюты порознь. */
+const credTab = inn => { const f = card(inn); f.ev("switchTab(tabIx('кредиты'))"); return f; };
+const crRows = f => [...f.$$('#crWrap tbody tr.pl-row')];
+const crPanel = f => f.$('.tabpanel[data-panel="' + f.ev("tabIx('кредиты')") + '"]');
+const setState = (f, v) => { const s = f.$('#crState'); s.value = v; s.dispatchEvent(new f.w.Event('change')); };
+const kAts = credTab('01204199910016');   // 3 кредита, просрочка на одном (КР-60541, 212 дн.)
+
+ok('КЗ-18. «добавить кредит» не притворяется формой здесь — ведёт маршрутом в модуль заявок',
+  (() => { const b = [...crPanel(kAts).querySelectorAll('.toolbar button')]
+      .find(x => /кредит/i.test(x.textContent) && !/сформировать/i.test(x.textContent));
+    return !!b && /заявк/i.test(b.textContent + (b.getAttribute('onclick') || ''))
+      && /notRouted/.test(b.getAttribute('onclick') || ''); })());
+ok('КЗ-18. пункты «Сформировать» названы по смыслу и ни один не молчит',
+  (() => { const items = [...crPanel(kAts).querySelectorAll('.dd-i')];
+    return items.length >= 3
+      && items.every(i => /notRouted/.test(i.getAttribute('onclick') || ''))
+      && items.some(i => /Расчёт задолженности/.test(i.textContent))
+      && !items.some(i => i.textContent.trim() === 'Расчёт'); })());
+
+ok('Б-11. чекбоксов строк нет: выделение ни к чему не подключено и стиралось пагинацией',
+  kAts.$$('#crWrap input[type="checkbox"]').length === 0);
+
+ok('КЗ-19. пять статей долга — раскрытием строки, а не подсказкой в title',
+  (() => { const tips = [...kAts.$$('#crWrap [title]')].map(x => x.getAttribute('title')).join(' ');
+    const sub = kAts.$('#crWrap tr.pl-sub[data-sub="C-ATS-GAZ"]');
+    if (!sub) return false;
+    const t = sub.textContent;
+    return !/осн\. долг|Основной долг/i.test(tips)
+      && ['Основной долг','Проценты','Пеня','Комиссии','Издержки','Срочная','Просроченная']
+           .every(w => t.includes(w)); })());
+ok('КЗ-19. строка раскрывается кликом, переход в кредитный модуль — отдельной ссылкой',
+  (() => { const f = credTab('01204199910016');
+    const tr = f.$('#crWrap tr.pl-row[data-cr="C-ATS-GAZ"]');
+    const sub = f.$('#crWrap tr.pl-sub[data-sub="C-ATS-GAZ"]');
+    if (!tr || !sub || !sub.hidden) return false;
+    tr.dispatchEvent(new f.w.Event('click', { bubbles:true }));
+    const opened = !sub.hidden;
+    const link = tr.querySelector('a.lnk.ext');
+    return opened && !!link && /кредитн/i.test(link.getAttribute('onclick') || ''); })());
+
+ok('КЗ-19. фильтр по состоянию: «с просрочкой» оставляет только кредиты с просроченной частью',
+  (() => { const f = credTab('01204199910016');
+    const all = crRows(f).length;
+    const ovN = f.ev("CREDITS.filter(c=>c.inn==='01204199910016' && creditOverdue(c)>0).length");
+    setState(f, 'ov');
+    const shown = crRows(f);
+    return all === 3 && ovN === 1 && shown.length === ovN
+      && shown[0].dataset.cr === 'C-ATS-GAZ'; })());
+ok('КЗ-19. заголовок сортирует: «Задолженность» по возрастанию, повторный клик — обратно',
+  (() => { const f = credTab('01204199910016');
+    const col = () => crRows(f).map(tr => money(tr.querySelector('[data-col="debt"]').textContent));
+    const th = f.$('#crWrap thead th[data-sort="debt"]');
+    if (!th) return false;
+    th.dispatchEvent(new f.w.Event('click', { bubbles:true }));
+    const asc = col();
+    th.dispatchEvent(new f.w.Event('click', { bubbles:true }));
+    const desc = col();
+    return asc.length === 3 && asc.every((v,i) => !i || asc[i-1] <= v)
+      && String(desc) === String(asc.slice().reverse()); })());
+
+ok('КЗ-20. итог следует фильтру: показано одно множество, сложено то же самое',
+  (() => { const f = credTab('01204199910016');
+    setState(f, 'ov');
+    const tr = [...f.$$('#crWrap > table > tfoot > tr')];
+    const want = f.ev("CREDITS.filter(c=>c.inn==='01204199910016' && creditOverdue(c)>0)"
+                    + ".reduce((a,c)=>a+creditTotal(c),0)");
+    return tr.length === 1 && money(footCell(tr[0], 'debt')) === want
+      && /1 кред/.test(footCell(tr[0], 'label')); })());
+
+ok('Б-10. валюта берётся из данных, а не вписана в разметку; валюты не складываются',
+  (() => { const f = mk();
+    f.ev("CREDITS.find(c=>c.id==='C-ATS-NECEL').currency='USD'");
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()"); f.ev("switchTab(tabIx('кредиты'))");
+    const row = f.$('#crWrap tr.pl-row[data-cr="C-ATS-NECEL"] [data-col="amount"]');
+    const feet = [...f.$$('#crWrap > table > tfoot > tr')].map(tr => ({ l: footCell(tr,'label'), a: money(footCell(tr,'amount')) }));
+    const usd = feet.find(x => /USD/.test(x.l)), kgs = feet.find(x => /KGS/.test(x.l));
+    return !!row && /USD/.test(row.textContent)
+      && !!usd && !!kgs && usd.a === 8000000 && kgs.a === 15000000; })());
+
+/* ── Вкладка 3 «Обеспечение»: КЗ-21, КЗ-23…КЗ-26 + дефекты Б-6, Б-10, Б-14 ─────
+   Вкладка перестаёт быть «Залогом»: обеспечение — родовое понятие, и держит два раздела
+   (КЗ-21). Поручительство перестаёт быть значением поля role в реестре лиц и становится
+   обеспечительным договором с номером, кредитом, объёмом и основанием прекращения
+   (КЗ-26, ADR-0005). Сводка называет кредит худшего индекса (КЗ-23), обеспеченность
+   показывается цепочкой вывода (КЗ-24), вид «по предметам» становится рабочим —
+   поиск, сортировка, ИНН залогодателя (КЗ-25, Б-14). Итог обоих видов считает ровно
+   показанное множество (Б-6, И-12), валюта берётся из данных (Б-10). */
+const plTab   = inn => { const f = card(inn); f.ev("switchTab(tabIx('обеспечение'))"); return f; };
+const plPanel = f => f.$('.tabpanel[data-panel="' + f.ev("tabIx('обеспечение')") + '"]');
+const plView  = (f, v) => f.$(v === 'objects' ? '#plSegOb' : '#plSegCr')
+  .dispatchEvent(new f.w.Event('click', { bubbles:true }));
+const plRows  = f => [...f.$$('#plWrap tbody tr')].filter(tr => !tr.classList.contains('pl-sub'));
+const pAts = plTab('01204199910016');
+
+ok('КЗ-21. вкладка называется «Обеспечение» и держит два раздела — залог и поручительство',
+  (() => { const heads = [...plPanel(pAts).querySelectorAll('.section-head')].map(x => x.textContent.trim());
+    return pAts.ev("TAB_DEFS[tabIx('обеспечение')].name") === 'Обеспечение'
+      && heads.some(h => /^Залог/.test(h)) && heads.some(h => /^Поручительство/.test(h)); })());
+
+ok('КЗ-26. поручительство — обеспечительный договор: номер, дата, кредит, объём, прекращение',
+  g.ev("GUARANTEES.length > 0 && GUARANTEES.every(x => x.no && x.date && x.creditId && x.inn"
+     + " && ('scope' in x) && ('endedAt' in x) && ('endBasis' in x))")
+  && g.ev("GUARANTEES.some(x => x.endedAt && x.endBasis)"));
+ok('КЗ-26. реестр связанных лиц поручительство больше не несёт',
+  g.ev("RELATED.every(r => !/поручител/i.test(r.role || ''))"));
+ok('КЗ-26. роль «Поручитель» выводится из действующего договора, прекращение её снимает',
+  (() => { const f = mk();
+    const inn = f.ev("(GUARANTEES.find(x => x.guarantorInn && !x.endedAt) || {}).guarantorInn");
+    if (!inn) return false;
+    const before = f.ev(`subjectRoles('${inn}').map(r => r.role).join('+')`);
+    f.ev(`GUARANTEES.filter(x => x.guarantorInn === '${inn}')`
+       + ".forEach(x => { x.endedAt = '01.01.2025'; x.endBasis = 'истечение срока'; })");
+    const after = f.ev(`subjectRoles('${inn}').map(r => r.role).join('+')`);
+    return /Поручитель/.test(before) && !/Поручитель/.test(after); })());
+ok('КЗ-26. поручительство в залоговый индекс не входит — оно рядом, а не в цифре',
+  (() => { const f = plTab('01204199910016');
+    const cv = f.ev("coverageOf('01204199910016')");
+    f.ev("GUARANTEES.length = 0");
+    const cv2 = f.ev("coverageOf('01204199910016')");
+    return cv.worst === cv2.worst && /не вход/i.test(plPanel(f).textContent); })());
+
+ok('КЗ-23. сводка называет кредит худшего индекса и нарушения N из M; средневзвешенный удалён',
+  (() => { const cv = pAts.ev("coverageOf('01204199910016')");
+    const t = plPanel(pAts).textContent;
+    return !('aggregate' in cv) && !!cv.worstNo && t.includes(cv.worstNo)
+      && new RegExp('наруш\\S+ порога\\s*' + cv.breaches + ' из ' + cv.rated).test(t)
+      && !/Средневзвешенн/i.test(pAts.$('#cardMount').textContent); })());
+
+ok('КЗ-24. обеспеченность — цепочка вывода залоговая ÷ (остаток × порог), а не голый индекс',
+  (() => { const f = plTab('01204199910016');
+    const cell = f.$('#plWrap tr.pl-row[data-cr="C-ATS-GAZ"] [data-col="cover"]');
+    if (!cell) return false;
+    const cv = f.ev("creditCoverage(CREDITS.find(c => c.id === 'C-ATS-GAZ'))");
+    const F = n => f.ev('fmt(' + Math.round(n) + ')');
+    const t = cell.textContent;
+    return t.includes(F(cv.secured)) && t.includes(F(cv.base))
+      && t.includes(Math.round(cv.req*100) + ' %') && t.includes(cv.index.toFixed(2))
+      && /÷/.test(t) && /×/.test(t)
+      && !f.$('#plWrap thead th[data-col="req"]'); })());
+
+ok('КЗ-25. вид «по предметам»: поиск сужает выборку по идентификатору',
+  (() => { const f = plTab('01204199910016'); plView(f, 'objects');
+    const all = plRows(f).length;
+    const id = String(plRows(f)[0].querySelector('[data-col="ident"]').textContent).trim().split(/\s+/).pop();
+    const s = f.$('#plSearch'); if (!s) return false;
+    s.value = id; s.dispatchEvent(new f.w.Event('input', { bubbles:true }));
+    const shown = plRows(f);
+    return all > 1 && shown.length >= 1 && shown.length < all
+      && shown.every(tr => tr.textContent.includes(id)); })());
+ok('КЗ-25. вид «по предметам»: заголовок сортирует, повторный клик — обратно',
+  (() => { const f = plTab('01204199910016'); plView(f, 'objects');
+    const col = () => plRows(f).map(tr => money(tr.querySelector('[data-col="cv"]').textContent));
+    const th = f.$('#plWrap thead th[data-sort="cv"]');
+    if (!th) return false;
+    th.dispatchEvent(new f.w.Event('click', { bubbles:true }));
+    const asc = col();
+    th.dispatchEvent(new f.w.Event('click', { bubbles:true }));
+    const desc = col();
+    return asc.length > 1 && asc.every((v,i) => !i || asc[i-1] <= v)
+      && String(desc) === String(asc.slice().reverse()); })());
+ok('КЗ-25 / Б-14. залогодатель — ИНН, а не строка-имя: переименование лица связь не рвёт',
+  (() => { const f = mk();
+    if (!f.ev("PLEDGE_OBJ.every(o => !('pledger' in o) && !!o.pledgerInn)")) return false;
+    f.ev("SUBJECTS.find(s => s.inn === '01204199910016').name = 'ОАО «Переименовано»'");
+    const roles = f.ev("subjectRoles('01204199910016').map(r => r.role).join('+')");
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()"); f.ev("switchTab(tabIx('обеспечение'))");
+    f.$('#plSegOb').dispatchEvent(new f.w.Event('click', { bubbles:true }));
+    const cell = f.$('#plWrap tbody tr [data-col="pledger"]');
+    return /Залогодатель/.test(roles) && !!cell && /01204199910016/.test(cell.textContent); })());
+
+ok('Б-6. итог не зависит от вида: оба считают показанное множество (И-12)',
+  (() => { const f = plTab('10001199900101');    // кредит погашен, предметы сняты
+    const feet = v => { plView(f, v);
+      return [...f.$$('#plWrap table > tfoot > tr')]
+        .map(tr => ({ l: footCell(tr, 'label'), s: money(footCell(tr, 'sec')) })); };
+    const cr = feet('credits'), ob = feet('objects');
+    const aCr = cr.find(x => /действ/.test(x.l)), aOb = ob.find(x => /действ/.test(x.l));
+    return !!aCr && !!aOb && aCr.s === 0 && aOb.s === 0
+      && cr.some(x => /Погашено|Снято/.test(x.l)) && ob.some(x => /Снято/.test(x.l)); })());
+
+ok('Б-10. валюта обеспечения берётся из данных; валюты не складываются',
+  (() => { const f = mk();
+    f.ev("PLEDGE_OBJ.filter(o => o.inn === '01204199910016' && !o.released).slice(0,1)"
+       + ".forEach(o => { o.currency = 'USD'; })");
+    f.ev("location.hash='#/b/01204199910016'"); f.ev("route()"); f.ev("switchTab(tabIx('обеспечение'))");
+    f.$('#plSegOb').dispatchEvent(new f.w.Event('click', { bubbles:true }));
+    const feet = [...f.$$('#plWrap table > tfoot > tr')].map(tr => footCell(tr, 'label'));
+    return plRows(f).some(tr => /USD/.test(tr.textContent))
+      && feet.some(l => /USD/.test(l)) && feet.some(l => /KGS/.test(l)); })());
 
 /* ── Словари взыскания: владелец — collection.html ──────────────────────────────
    CONTOURS / PHASE_STAGE / PROCEDURE_DICT скопированы в карточку заёмщика.

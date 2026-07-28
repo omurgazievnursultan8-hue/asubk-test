@@ -9,7 +9,7 @@
      Спека: mockups/borrower/ASUBK-zaemshik-logika.md — правила вывода, инварианты с причиной, швы (СП-21)
             docs/superpowers/specs/2026-07-23-borrower-rework-design.md
             ⚠️ отстала от кода (описывает 11 вкладок и 4 плитки); её место заняла спека выше
-     Проверка: node scripts/inspect/borrower-check.mjs  →  190/190 PASS (2026-07-28)
+     Проверка: node scripts/inspect/borrower-check.mjs  →  226/226 PASS (2026-07-28)
      Инварианты: И-1 категорию двигает только комитет · И-2 подгруппу — только подтв. процедура ·
                  И-3 без кредитов категория «не применяется» · И-4 отстранение по всему ИНН ·
                  И-5 зеркальный факт отсюда не меняется (редакторы помечены data-edits,
@@ -24,7 +24,11 @@
                  И-9 дата среза одна на карточку (asOf()); вкладка своей даты не заводит ·
                  И-10 ленту событий ведёт одна вкладка («История»), остальные показывают
                      хвост своей категории на 5 записей и указывают в неё маршрутом ?cat=
-                     (tabTimeline, TAB_HIST_CAT, КЗ-31).
+                     (tabTimeline, TAB_HIST_CAT, КЗ-31); слоты считает recentSlots — факт
+                     без даты слот не занимает, но печатается числом (КЗ-11) ·
+                 И-11 состав витрины (вкладка 1) постоянный: шесть сводок, у каждой ровно
+                     один адрес продолжения — своя вкладка; пустой заёмщик даёт те же шесть
+                     с явным «нет» (КЗ-8).
      Вкладки: порядок и имена — TAB_DEFS, адресация ключом tabIx('кредиты'), не индексом.
      Экран списка: решения СП-1…СП-14 — mockups/borrower/ASUBK-status-razrabotki.md
                  (реестр = рабочая очередь + поиск; один инпут поиска по ИЛИ; двухуровневый
@@ -61,6 +65,60 @@
                  КЗ-31 — ленту ведёт одна вкладка «История», остальные показывают хвост
                      tabTimeline() на пять записей и указывают в неё маршрутом ?cat=
                      (TAB_HIST_CAT). Собственная лента вкладки «Кураторство» снята.
+     Вкладка 1 «витрина»: решения КЗ-8…КЗ-11, КЗ-13, КЗ-15, КЗ-17 (28.07.2026) — вкладка
+                 отвечает на один вопрос «что с заёмщиком сейчас» и состоит из ШЕСТИ сводок
+                 постоянного состава: кредиты · обеспеченность · контакты | сроки ·
+                 кураторство · последние события. У каждой ровно один адрес продолжения —
+                 своя вкладка. Что ушло: «Основные сведения» (отрасль → id-bar, адреса →
+                 страница субъекта (subjectFieldsSect), примечание → условная плашка
+                 noteStrip(), аудит записи → факты ленты) и «Послабления» (норма — не
+                 новость; отметка стала строкой основания плитки категории, catBasisLine).
+                 Новые швы: liveChannels() — один источник каналов для карточки и дефекта
+                 Д-КОНТ; recentSlots() — общий счёт слотов витрины и хвостов вкладок,
+                 факт без даты в пятёрку не идёт, но считается; obligations().closeIn —
+                 модуль, где срок закрывается; coverageOf().rated — знаменатель нарушений;
+                 statusOf() → «срок вышел» (слово «просрочка» на карточке занято долгом).
+                 Лента строится на TODAY: дате среза подчиняются состояния (И-9), а не факты.
+     Вкладка 2 «Кредиты»: решения КЗ-18, КЗ-19, КЗ-20 (28.07.2026) — вкладка стала рабочим
+                 списком, оставшись зеркалом (И-5): ни одной точки ввода.
+                 КЗ-18 — действия ведут маршрутом наружу: кредит заводится заявкой
+                     (notRouted('модуль заявок')), печатные формы печатает владелец данных
+                     (CR_FORMS); раньше кнопка обещала форму, а три пункта меню молчали;
+                 КЗ-19 — пять статей долга развёрнуты в раскрытие строки (credSub), а не
+                     спрятаны в title: подсказку нельзя ни прочесть с клавиатуры, ни
+                     скопировать; фильтр по состоянию (CR_STATES/crMatch), сортировка по
+                     любому столбцу (crSortVal, приём реестра), переход к кредиту — отдельной
+                     ссылкой в номере договора;
+                 КЗ-20 — итог считается по показанному множеству, а валюты не складываются:
+                     у каждой своя строка (Б-10, приём actMoney/actTotals из «Актов»).
+                 Попутно снят Б-11 — колонка чекбоксов: выделение ни к чему не подключалось
+                 и стиралось пагинацией (в реестре тот же контрол снят решением СП-8).
+                 Множество для фильтра и итога берётся на дате денег DEBT_ASOF (И-6а):
+                 показанное и сложенное обязаны совпадать.
+     Вкладка 3 «Обеспечение»: решения КЗ-21, КЗ-23…КЗ-26 (28.07.2026) — вкладка «Залог»
+                 переименована и держит ДВА раздела, потому что залог и поручительство —
+                 один паттерн «обеспечительный договор» (легаси-находка 3).
+                 КЗ-26 — поручительство стало моделью: GUARANTEES (номер, дата,
+                     обеспечиваемый кредит, поручитель ИНН|ПИН, объём, прекращение с
+                     основанием) вместо значения role в RELATED (ADR-0005). Роль
+                     «Поручитель» ВЫВОДИТСЯ из действующего договора (isActiveGuarantee,
+                     subjectRoles); прекращённый снимает роль, но факт остаётся в истории.
+                     В залоговый индекс поручительство не входит — залоговой стоимости у
+                     него нет; раздел guaranteeSection() стоит рядом с залогом, не внутри;
+                 КЗ-23 — сводка называет кредит худшего индекса (coverageOf → worstId/worstNo)
+                     и печатает «нарушений порога N из M»; aggregate удалён — среднее по
+                     индексам, приведённым к РАЗНЫМ порогам, не имеет ни владельца, ни решения;
+                 КЗ-24 — обеспеченность показана цепочкой вывода залоговая ÷ (остаток × порог)
+                     с источником нормы: 1.00 и 150 % — две разные шкалы. Колонка «Порог»
+                     слита с обеспеченностью, она повторяла один из множителей;
+                 КЗ-25 — вид «по предметам» стал рабочим списком: поиск (obQ) и сортировка
+                     (obSort/obDir) приёмом реестра; перерисовывается только таблица
+                     (renderObjTable), поэтому фокус в поиске не теряется.
+                 Попутно закрыты: Б-14 — залогодатель хранится ИНН (pledgerInn), имя выводит
+                 pledgerName(); Б-6 — оба вида кормит один генератор итога footRows(): режет
+                 показанное множество по валюте, затем по состоянию, «Итого действ.» печатает
+                 и нулевое (И-12); Б-10 в этой вкладке — деньги через actMoney(n, o.currency);
+                 Б-1 — индекс вкладки в defects() берётся tabIx(), а не вписан числом.
 -->
 <style>
   :root{
@@ -251,9 +309,32 @@
   .ro-note{font-size:11px;color:var(--text-muted);border:1px dashed var(--border-strong);border-radius:3px;
     padding:1px 6px;display:inline-flex;align-items:center;gap:4px;}
 
-  .ov-item{border:1px solid #f0dcc0;background:#fdf6ec;border-radius:5px;padding:8px 10px;font-size:13px;line-height:1.4;}
-  .ov-item .ov-h{font-weight:600;color:var(--status-warning);display:flex;align-items:center;gap:6px;}
-  .ov-item .ov-m{color:var(--text-muted);margin-top:2px;}
+  /* Примечание к записи (КЗ-9) — условная плашка над витриной: поле, которое у 95 % заёмщиков
+     пусто, не заслуживает постоянной строки, а у остальных должно попасться на глаза первым. */
+  .note-strip{border:1px solid #f0dcc0;background:#fdf6ec;border-left:3px solid var(--status-warning);
+    border-radius:5px;padding:9px 12px;font-size:13px;line-height:1.45;margin-bottom:14px;}
+  .note-strip b{color:var(--status-warning);}
+
+  /* Строка «Требует внимания» (КЗ-13): срок — главное, поэтому он идёт крупно и первым,
+     а код обязательства уходит в приписку. Таблицей это не рисуется — строк всего три. */
+  .att-item{padding:10px 16px;border-bottom:1px solid var(--border-default);}
+  .att-item:last-child{border-bottom:0;}
+  .att-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-weight:600;font-size:14px;}
+  .att-h .att-code{font-weight:400;font-size:12px;color:var(--text-muted);}
+  .att-m{margin-top:3px;font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .att-more,.att-quiet{padding:10px 16px;font-size:13px;color:var(--text-muted);line-height:1.5;}
+  .att-more{border-top:1px solid var(--border-default);}
+
+  /* Канал связи (КЗ-10): значение — то, что набирают, поэтому оно крупнее вида канала,
+     а дата сверки стоит рядом с ним: номер без даты сверки сообщает только «когда-то был верен». */
+  .ch-item{padding:9px 16px;border-bottom:1px solid var(--border-default);}
+  .ch-item:last-child{border-bottom:0;}
+  .ch-k{font-size:12px;color:var(--text-muted);display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;}
+  .ch-main{background:var(--action-primary);color:#fff;border-radius:3px;font-size:10.5px;
+    font-weight:700;padding:1px 5px;text-transform:uppercase;letter-spacing:.3px;}
+  .ch-v{font-size:14px;font-weight:600;margin-top:2px;word-break:break-word;}
+  .ch-m{font-size:12px;color:var(--text-muted);margin-top:1px;}
+  .ch-stale{color:var(--status-warning);}
 
   /* ---------- панель / секции ---------- */
   .section{border:1px solid var(--border-default);border-radius:6px;margin-bottom:20px;overflow:hidden;}
@@ -303,6 +384,11 @@
   #listTable thead th .sort{position:absolute;right:6px;bottom:11px;color:#9aa6b4;
     font-size:11px;font-weight:400;}
   #listTable thead th.sorted .sort{color:var(--text-link);}
+  /* Тот же приём вне реестра: сортируемый заголовок таблицы вкладки (КЗ-19, «Кредиты»). */
+  table.grid thead th[data-sort]{cursor:pointer;user-select:none;position:relative;padding-right:18px;}
+  table.grid thead th[data-sort] .sort{position:absolute;right:6px;bottom:9px;color:#9aa6b4;
+    font-size:11px;font-weight:400;}
+  table.grid thead th[data-sort].sorted .sort{color:var(--text-link);}
   #listTable tbody td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   /* Реестр — восемь колонок в одну ширину экрана; 12 px по краям каждой ячейки стоили
      32 px строки, которых не хватало наименованию (СП-24). */
@@ -466,8 +552,8 @@
   .wo-in{font-size:12px;color:var(--text-muted);display:flex;gap:6px;align-items:center;}
   .wo-in .win{color:var(--status-error);font-weight:700;}
   .win{color:var(--status-error);font-weight:700;}
-  /* остаток свёрнут в одну колонку; разбивка по 5 статьям — по наведению (title) */
-  .bal-cell,.due-cell{border-bottom:1px dotted var(--border-strong);cursor:help;}
+  /* .bal-cell / .due-cell (разбивка долга по наведению) сняты вместе с подсказкой: КЗ-19
+     развернул пять статей в раскрытие строки, а курсор-«help» больше нигде не нужен. */
   /* свод-счётчик мониторинга: две плитки-статистики над секциями */
   .mon-sum{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
   .mon-stat{border:1px solid var(--border-default);border-radius:var(--radius-md);background:var(--surface-hover);
@@ -1033,9 +1119,14 @@ UNITS.push(
 );
 
 // CHANNELS — каналы связи (Р-10). kind: 'тел'|'email'|'адрес корресп.'; closedAt — если закрыт.
+/* КЗ-10: у канала два признака сверх значения — main (по этому каналу связываемся первым)
+   и checkedAt (когда канал последний раз подтверждали). Без второго номер в карточке
+   означает только «когда-то был верен»: from — это дата ЗАВЕДЕНИЯ записи, а не свежести.
+   Канала без checkedAt карточка не прячет — она честно пишет «не сверялся». */
 const CHANNELS = [
-  { inn:'01204199910016', kind:'тел', value:'+996 312 66-01-24', from:'14.02.2011', note:'приёмная' },
-  { inn:'01204199910016', kind:'email', value:'info@agrotech.kg', from:'14.02.2011', note:'—' },
+  { inn:'01204199910016', kind:'тел', value:'+996 312 66-01-24', from:'14.02.2011', main:true, checkedAt:'12.05.2026', note:'приёмная' },
+  { inn:'01204199910016', kind:'email', value:'info@agrotech.kg', from:'14.02.2011', checkedAt:'12.05.2026', note:'—' },
+  { inn:'01204199910016', kind:'адрес корресп.', value:'г. Бишкек, ул. Ибраимова, 115, оф. 402', from:'14.02.2011', note:'—' },
   { inn:'01204199910016', kind:'тел', value:'+996 312 66-00-00', from:'14.02.2011', closedAt:'01.01.2020', note:'старый номер' },
 ];
 
@@ -1543,7 +1634,15 @@ const PLEDGE_OBJ = [];   // ← предметы залога (иерархия 
 const ACTS       = [];   // ← акты сверок; Task 10
 const DOCS       = [];   // ← досье п.97 (Р-8); Task 10
 const CHECKS_EXT = [];   // ← внешние снимки КИБ/скоринг (Р-8); Task 10
-const RELATED    = [];   // ← реестр лиц (Р-7); Task 10
+const RELATED    = [];   // ← реестр лиц (Р-7); Task 10 — учредители/аффилированность, БЕЗ поручительства (ADR-0005)
+/* Поручительство — обеспечительный ДОГОВОР, а не значение поля role в реестре лиц (ADR-0005).
+   У роли нет обеспечиваемого кредита, номера, объёма и основания прекращения — а без второй
+   координаты «кредит» не строится ни требование взыскания (процесс × кредит × обязанное лицо,
+   ADR-0002), ни прекращение: удаление строки стирает факт вместо того, чтобы его закрыть.
+   Общий родовой тип с залоговым договором: предмет ответственности разный (вещь против всего
+   имущества), жизненный цикл один. Роль «Поручитель» отсюда ВЫВОДИТСЯ (subjectRoles).
+   guarantorInn — когда поручитель заведён субъектом; иначе лицо опознаётся ПИНом. */
+const GUARANTEES = [];   // ← поручительские договоры (обеспечительные, ADR-0005)
 const BLACKLIST  = [];   // ← реестр ЧС (сверка по ИНН); демо-источник для «Внутренних проверок»
 BLACKLIST.push(
   { inn:'07701199970071', from:'15.05.2026', basis:'Завершение банкротства' },  // банкрот из ветки 3.2
@@ -1604,6 +1703,21 @@ CHECKS_EXT.push(
 RELATED.push(
   { inn:'01204199910016', personId:'P-501', pin:'12405197800512', fio:'Осмонов Бакыт Кадырович', role:'Директор', share:null, from:'14.02.2011' },
   { inn:'01204199910016', personId:'P-502', pin:'20811198100634', fio:'Осмонова Гульнара', role:'Учредитель', share:0.6, from:'14.02.2011' },
+);
+/* Ветка 1 — три поручительских договора АгроТехСервиса: директор отвечает по двум кредитам
+   (один договор частичный), третий прекращён исполнением и остаётся в истории. Поручитель
+   по КР-60541 — заведённый субъект (Мамбетов Кубаныч, 07701199970071): на его карточке
+   субъекта из этого договора выводится роль «Поручитель» по ЧУЖОМУ долгу. */
+GUARANTEES.push(
+  { id:'ПД-1', no:'ПД-2024/118-1', date:'14.02.2024', inn:'01204199910016', creditId:'C-ATS-NECEL',
+    guarantorInn:null, guarantorPin:'12405197800512', guarantorFio:'Осмонов Бакыт Кадырович',
+    scope:1, endedAt:null, endBasis:null },
+  { id:'ПД-2', no:'ПД-2024/118-2', date:'20.03.2024', inn:'01204199910016', creditId:'C-ATS-GAZ',
+    guarantorInn:'07701199970071', guarantorPin:'21503197600411', guarantorFio:'Мамбетов Кубаныч',
+    scope:0.5, endedAt:null, endBasis:null },
+  { id:'ПД-3', no:'ПД-2023/091', date:'11.09.2023', inn:'01204199910016', creditId:'C-ATS-OK',
+    guarantorInn:null, guarantorPin:'20811198100634', guarantorFio:'Осмонова Гульнара',
+    scope:1, endedAt:'30.04.2026', endBasis:'исполнение обязательства заёмщиком' },
 );
 // GROUP_MEMBERS — члены группы (ГЗПМ), солидарная ответственность; показывается в табе «Связанные лица» для групп-заёмщиков.
 // В текущем наборе субъектов групп-заёмщиков нет (все ОАО/ОсОО/ИП) — данные заведены как демонстрация блока (перенос из OLD).
@@ -2192,8 +2306,9 @@ function seedBorrowerDetails(){
       const sub = area.length>=4
         ? String(10000+seed%90000).replace(/(\d{2})(\d{3})/,'$1-$2')
         : String(100000+seed%900000).replace(/(\d{2})(\d{2})(\d{2})/,'$1-$2-$3');
+      /* основной канал ровно один: с него начинают, когда заёмщика надо найти (КЗ-10) */
       CHANNELS.push({ inn, kind:'тел', value:`+996 ${area} ${sub}`, from:s.regDate||'—',
-        note: isJur?'приёмная':'—' });
+        main:true, note: isJur?'приёмная':'—' });
       if(isJur){
         const mob=`+996 ${pick(['555','700','770','990','501'],seed>>2)} ${String(100000+(seed>>>3)%900000).replace(/(\d{3})(\d{3})/,'$1-$2')}`;
         CHANNELS.push({ inn, kind:'тел', value:mob, from:s.regDate||'—', note:'бухгалтерия' });
@@ -2233,10 +2348,21 @@ function seedBorrowerDetails(){
       } else if(isIP){
         RELATED.push({ inn, personId:'P-'+(800+seed%400), pin:pin(seed,(seed&1)===1),
           fio:s.name.replace(/^ИП\s+/,''), role:'Индивидуальный предприниматель', share:1.0, from:s.regDate||'—' });
-      } else {  /* физлицо — поручитель (супруг/супруга) */
-        RELATED.push({ inn, personId:'P-'+(900+seed%400), pin:pin(seed,(seed&1)===0),
-          fio:fio(seed,(seed&1)===0), role:'Поручитель', share:null, from:s.regDate||'—' });
       }
+      /* физлицу-заёмщику раньше дописывалась строка с role:'Поручитель' — теперь это договор
+         (ADR-0005), и заводится он ниже, по кредиту: у поручительства есть обеспечиваемый
+         кредит, без него запись ни к чему не привязана. Связанных лиц у физлица нет. */
+    }
+
+    /* ── поручительство физлица (супруг/супруга) — обеспечительный договор на каждый кредит ── */
+    if(!isJur && !isIP && !GUARANTEES.some(x=>x.inn===inn)){
+      const gFemale=(seed&1)===0;
+      CREDITS.filter(c=>c.inn===inn).forEach((c,i)=>{
+        GUARANTEES.push({ id:'ПД-'+inn.slice(0,4)+'-'+(i+1),
+          no:'ПД-'+String(c.date||'').slice(6)+'/'+(100+seed%800+i), date:c.date||s.regDate||'—',
+          inn, creditId:c.id, guarantorInn:null, guarantorPin:pin(seed,gFemale),
+          guarantorFio:fio(seed,gFemale), scope:1, endedAt:null, endBasis:null });
+      });
     }
 
     /* ── документы (досье п.97) ── учредительные есть всегда, договорные — при наличии кредита */
@@ -2613,18 +2739,38 @@ function atRisk(inn, d = DEBT_ASOF){
   return creditsOn(inn, d).filter(c=>overdueDaysOn(c,d)>0)
     .reduce((s,c)=> s + creditTotal(c), 0);
 }
-/* Зеркало zalog: worst = минимальный индекс по кредитам заёмщика; aggregate = средневзвешенный (по остатку осн. долга).
-   Индекс НОРМИРОВАН на порог кредита (creditCoverage: залоговая ÷ (остаток × порог)), поэтому
-   норма всегда 1.00 — пороги 120/150 %/решение КМ у кредитов разные и в одну цифру не сводятся. */
+/* Зеркало zalog: worst = минимальный индекс по кредитам заёмщика, с именем кредита, которому
+   он принадлежит (КЗ-23). Индекс НОРМИРОВАН на порог кредита (creditCoverage: залоговая ÷
+   (остаток × порог)), поэтому норма всегда 1.00 — пороги 120/150 %/решение КМ у кредитов
+   разные и в одну цифру не сводятся.
+   Средневзвешенный индекс (aggregate) УДАЛЁН (КЗ-23): наружу он невыводим. Он усреднял
+   нормированные величины по остатку — то есть складывал доли от РАЗНЫХ порогов и выдавал
+   число, у которого нет ни владельца, ни решения. Обеспеченность — свойство кредита; по
+   заёмщику осмысленны ровно два ответа: где хуже всего и сколько порогов нарушено. */
 function coverageOf(inn, d = DEBT_ASOF){
   const cs = creditsOn(inn, d)
-    .map(c => ({ cv: creditCoverage(c), bal: principalOf(c) || c.amount || 0 }))
+    .map(c => ({ c, cv: creditCoverage(c) }))
     .filter(x => x.cv.index != null && x.cv.items.length);
-  if (!cs.length) return { worst:null, aggregate:null, required:1, breaches:0 };
-  const worst = Math.min(...cs.map(x => x.cv.index));
-  const totBal = cs.reduce((s,x) => s+x.bal, 0) || 1;
-  const aggregate = cs.reduce((s,x) => s + x.cv.index*x.bal, 0) / totBal;
-  return { worst, aggregate, required:1, breaches: cs.filter(x => !x.cv.ok).length };
+  /* rated — знаменатель нарушений (КЗ-17): сколько кредитов вообще имеют индекс. Без него
+     breaches сообщает «нарушений 3» и молчит о том, три это из трёх или три из двадцати. */
+  if (!cs.length) return { worst:null, worstId:null, worstNo:null, required:1, breaches:0, rated:0 };
+  const w = cs.reduce((a,x) => x.cv.index < a.cv.index ? x : a);
+  return { worst: w.cv.index, worstId: w.c.id, worstNo: w.c.no, required:1,
+           breaches: cs.filter(x => !x.cv.ok).length, rated: cs.length };
+}
+
+/* Поручительство (ADR-0005). Действует, пока не прекращено: прекращение — дата и основание,
+   а не удаление записи. В залоговый индекс не входит и порог не закрывает — у поручительства
+   нет залоговой стоимости; оно показывается рядом, а не подмешивается в цифру. */
+function isActiveGuarantee(gx, d = asOf()){ return !gx.endedAt || dnum(gx.endedAt) > dnum(d); }
+function guaranteesOf(inn, d){
+  const list = GUARANTEES.filter(gx => gx.inn === inn);
+  return d === undefined ? list : list.filter(gx => isActiveGuarantee(gx, d));
+}
+/* Обязанные лица по кредиту (ADR-0002/ADR-0005): заёмщик + поручители действующих договоров.
+   Залогодатели-третьи лица отвечают вещью и приходят с предметов, а не отсюда. */
+function guarantorsOfCredit(creditId, d = asOf()){
+  return GUARANTEES.filter(gx => gx.creditId === creditId && isActiveGuarantee(gx, d));
 }
 
 /* Прибавляет n рабочих дней к дате dd.mm.yyyy: пропускает сб/вс и WORKDAYS-праздники. */
@@ -2649,9 +2795,12 @@ function zeller(q, m, y){
   const h = (q + Math.floor(13*(m+1)/5) + y + Math.floor(y/4) - Math.floor(y/100) + Math.floor(y/400)) % 7;
   return h; // 0=сб,1=вс,2=пн,3=вт,4=ср,5=чт,6=пт
 }
+/* КЗ-13: у срока обязательства состояние называется «срок вышел», а не «просрочено».
+   Слово «просрочка» на карточке уже занято долгом — просроченной частью, — и два разных
+   смысла под одним словом на одном экране читаются как одно. */
 function statusOf(dueDate, d){
   if (!dateLE(dueDate, d)) return 'в срок';          // срок ещё не прошёл (due ≥ сегодня)
-  return dnum(dueDate) < dnum(d) ? 'просрочено' : 'в срок';
+  return dnum(dueDate) < dnum(d) ? 'срок вышел' : 'в срок';
 }
 /* ═══ ОБЯЗАТЕЛЬСТВА ПОРЯДКА (Р-4) ═══
    Обязательство — не задача со статусом, а требование Порядка к паре «заёмщик × период».
@@ -2690,16 +2839,19 @@ function obligations(inn, d){
   const out = [];
   const cat = catOfBorrower(inn, d);
   const trig = lastEscalation(inn, d);               // начало текущей полосы Среднего/Высокого
-  const mk = (code, basis, period, periodLabel, due, srcHint, fact) => {
+  /* closeIn — куда идти, чтобы срок закрыть (КЗ-13). Обязательство закрывает ФАКТ из
+     модуля-источника, и у каждого кода этот модуль свой; общая ссылка «модуль-источник»
+     заставляла угадывать, в какой именно. */
+  const mk = (code, basis, period, periodLabel, due, srcHint, fact, closeIn) => {
     const closing = fact && dateLE(fact.date, d) ? fact : null;
-    out.push({ code, basis, period, periodLabel, dueDate:due, closing,
+    out.push({ code, basis, period, periodLabel, dueDate:due, closing, closeIn,
       status: closing ? 'исполнено' : statusOf(due, d), srcHint });
   };
   if ((cat==='mid'||cat==='high') && trig){
     mk('О-1', 'п.6(5): запрос пакета фин. документов', trig.date, 'полоса с ' + trig.date,
       addWorkdays(trig.date,10),
       `+10 раб. дн. от перевода в ${cat==='high'?'Высокий':'Средний'} (${trig.date})`,
-      obligDocClosing(inn, OBLIG_DOC['О-1'], trig.date));
+      obligDocClosing(inn, OBLIG_DOC['О-1'], trig.date), 'досье документов');
   }
   /* Б-4: порог 50 млн считается на дате обязательства. Раньше здесь стоял totalDebt(inn) с
      жёстким TODAY внутри: существование обязательства решалось по сегодняшнему долгу, а срок
@@ -2708,18 +2860,27 @@ function obligations(inn, d){
     mk('О-2', 'п.12(2): анализ фин.-хоз. состояния (>50 млн)', trig.date, 'полоса с ' + trig.date,
       addWorkdays(trig.date,14),
       `+14 раб. дн. от перевода в Средний (${trig.date}) · долг >50 млн`,
-      obligDocClosing(inn, OBLIG_DOC['О-2'], trig.date));
+      obligDocClosing(inn, OBLIG_DOC['О-2'], trig.date), 'досье документов');
   }
   overdueMonths(inn, d).forEach(p => {
     mk('О-4', 'п.13: вынос просроченной задолженности на комитет', p.key, 'за ' + p.key,
       `15.${p.mm}.${p.yyyy}`, '15-е число месяца (п.13) — при наличии просроченной части',
-      obligCommitteeClosing(inn, p.mm, p.yyyy));
+      obligCommitteeClosing(inn, p.mm, p.yyyy), 'реестр заседаний комитета');
   });
   // О-3 — задел (правопреемники при смерти, п.62); не реализуется в MVP.
   return out;
 }
 /* Открытые обязательства — то, что действительно требует действия. */
 function openObligations(inn, d){ return obligations(inn, d).filter(o => o.status !== 'исполнено'); }
+/* Короткое имя требования — для витрины (КЗ-13). Полная формулировка Порядка (basis) остаётся
+   во вкладке: в трёх строках сводки она занимает всю ширину и требует чтения, а сводку читают
+   взглядом. Заодно из витрины уходит слово «просроченной» из текста п.13 — на этом экране
+   «просрочка» уже занята долгом, и второй смысл рядом со сроком сливается с первым. */
+const OBLIG_SHORT = {
+  'О-1':'Пакет финансовых документов',
+  'О-2':'Анализ финансово-хозяйственного состояния',
+  'О-4':'Вынос задолженности на комитет',
+};
 
 /* Очередь на комитет = сырые события заёмщика без решения комитета и не снятые. Категорию НЕ двигает (И-1). */
 function committeeQueue(inn, d){
@@ -2929,10 +3090,15 @@ function seedCollateral(){
 
     const inspOf = () => closed ? 'снят с ареста' : (/^(3|4)/.test(String(grp)) ? 'подлежит обследованию' : 'обследовано');
     /* область предмета — факт: именно она определяет, сколько нужно залоговых кураторов (§2.2) */
+    /* залогодатель хранится ИНН, а не строкой-именем (Б-14): по имени связь рвалась молча
+       при первом же переименовании лица, а роль «Залогодатель» выводилась сопоставлением
+       строк. Имя показывается через pledgerName() — оно принадлежит субъекту.
+       Валюта — на предмете (Б-10): залоговая стоимость считается от остатка кредита. */
     const mkObj = (suf, kind, name, il, ip, cvi, appri, region) => PLEDGE_OBJ.push({
       id:'П-' + (++objSeq) + suf, agreementId:agrId, inn:cr.inn, kind, name,
       identLabel:il, ident: ip + (il==='VIN' ? String(100000 + h % 900000) : (100 + h % 900)),
-      pledger: s.name, appraised:appri, collateralValue:cvi, apprDate:regDate,
+      pledgerInn: cr.inn, currency: cr.currency || 'KGS',
+      appraised:appri, collateralValue:cvi, apprDate:regDate,
       region: region || s.district,
       inspStatus: inspOf(), lastSurvey: closed ? '' : survey(regDate, 90 + h % 150),
       released: closed, address: kind===REALTY ? s.addrLegal : '' });
@@ -2955,6 +3121,12 @@ function seedCollateral(){
 }
 seedCollateral();
 
+/* Имя залогодателя — производная от ИНН (Б-14): владеет им субъект, предмет хранит ссылку.
+   Незаведённое лицо показываем ИНН — молчать о залогодателе нельзя, а выдумывать имя нечем. */
+function pledgerName(o){
+  const s = SUBJECTS.find(x => x.inn === o.pledgerInn);
+  return s ? s.name : (o.pledgerInn || '—');
+}
 /* Предметы залога, отнесённые на кредит. До seedCollateralExtras() долей ещё нет — тогда
    принадлежность читается через договор. Область берётся с предмета, а не из зеркала. */
 function pledgeObjectsOf(creditId){
@@ -3442,7 +3614,7 @@ function tile(title, valueHtml, subHtml, basis, moreHtml){
 const TAB_DEFS = [
   { key:'общая',        name:'Общая информация',  row:1 },
   { key:'кредиты',      name:'Кредиты',           row:1 },
-  { key:'залог',        name:'Залог',             row:1 },
+  { key:'обеспечение',  name:'Обеспечение',       row:1 },
   { key:'обязательства',name:'Обязательства',     row:1 },
   { key:'взыскание',    name:'Взыскание',         row:1 },
   { key:'кураторство',  name:'Кураторство',       row:1 },
@@ -3462,7 +3634,7 @@ const tabIx = key => TAB_DEFS.findIndex(t => t.key === key);
 function tabCount(inn, key){
   switch (key){
     case 'кредиты':       return CREDITS.filter(c => c.inn === inn && isActiveCredit(c, asOf())).length;
-    case 'залог':         return PLEDGE_OBJ.filter(o => o.inn === inn && !o.released).length;
+    case 'обеспечение':   return PLEDGE_OBJ.filter(o => o.inn === inn && !o.released).length;
     case 'обязательства': return openObligations(inn, asOf()).length;
     case 'взыскание':     return procsOf(inn).filter(p => !isProcClosed(p)).length;
     case 'проверки':      return defectsSorted(inn, asOf()).length;
@@ -3470,6 +3642,20 @@ function tabCount(inn, key){
   return null;
 }
 
+/* Основание плитки категории (КЗ-15). Послабление — не сводка витрины: своей карточки оно
+   не заслуживает (случай редкий, а карточка постоянна), но и молчать о нём нельзя — оно меняет
+   ВЫВОД категории, а плитка показывает именно вывод. Поэтому отметка стоит строкой основания
+   там же, где итог, а разбор по кредитам — в «как выведено» (catBasisHtml, колонка «Послабление»).
+   Действующих послаблений нет — строки нет: норма не новость. */
+function catBasisLine(inn){
+  const base = 'worst-of по действующим кредитам';
+  const live = CREDITS.filter(c=>c.inn===inn)
+    .flatMap(c=>OVERLAYS.filter(o=>o.creditId===c.id).map(o=>({...o, credit:c})))
+    .filter(o=>dateLE(o.from, asOf()) && dateLE(asOf(), o.deadline));
+  if (!live.length) return base;
+  return base + ' · действует послабление 181+ дн.: '
+    + live.map(o => o.credit.no + ' (' + (o.sourceRef || '—') + ', до ' + o.deadline + ')').join('; ');
+}
 function catBasisHtml(inn){
   const rows = CREDITS.filter(c=>c.inn===inn && isActiveCredit(c,asOf())).map(c=>{
     const r = catOfCredit(c.id, asOf());
@@ -3604,24 +3790,82 @@ function creditsSummaryCard(inn){
 }
 
 /* Требует внимания — единственное место карточки, где есть срок и действие (Р-4/Р-5).
-   Показываются только ОТКРЫТЫЕ обязательства; исполненные с их фактом закрытия — во вкладке. */
+   Показываются только ОТКРЫТЫЕ обязательства; исполненные с их фактом закрытия — во вкладке.
+   КЗ-13. Три правила, каждое из-за своего сбоя:
+   · порядок — по сроку. Раньше строки шли в порядке ВЫВОДА (О-1, О-2, потом месяцы О-4):
+     сводка «сроки» открывалась не тем сроком, который горит.
+   · три слота и счётчик остального. Список рос помесячно — у заёмщика с годовой просрочкой
+     сводка занимала экран и переставала быть сводкой.
+   · ссылка ведёт в модуль, где срок закрывается (closeIn), а не «куда-нибудь наружу».
+   Очередь на комитет отсюда ушла: она не срок и не обязательство — это сырые события без
+   решения, категорию они не двигают (И-1), и место им в модуле комитета. */
+const ATT_TOP = 3;
 function attentionCard(inn){
-  const obs = openObligations(inn, asOf());
-  const q = committeeQueue(inn, asOf());
-  let body = '';
-  if (obs.length){
-    body += '<div class="fields">' + obs.map(o=>`<div class="f"><span class="fk">${esc(o.code)} · ${esc(o.periodLabel)} · до ${esc(o.dueDate)}</span>`
-      + `<span class="fv" style="font-weight:400">${esc(o.basis)} `
-      + `<span class="badge ${o.status==='просрочено'?'b-ov':'b-ok'}">${esc(o.status)}</span></span></div>`).join('') + '</div>';
-  }
-  if (q.length){
-    const wait = Math.max(...q.map(e=>e.waitingDays));
-    body += `<div class="muted" style="font-size:13px;padding:10px 16px">В очереди на комитет: <b>${q.length}</b> событ. · максимальное ожидание ${wait} дн. `
-      + `Категорию они не двигают до решения комитета.</div>`;
-  }
-  if (!body) body = '<div class="muted" style="font-size:13px;line-height:1.5;padding:14px 16px">Открытых обязательств и событий на комитет нет.</div>';
-  return sect('Требует внимания', 'сроки, которые вышли или выйдут',
+  const obs = openObligations(inn, asOf()).slice().sort((a,b)=>dnum(a.dueDate)-dnum(b.dueDate));
+  const top = obs.slice(0, ATT_TOP);
+  const badge = o => o.status==='срок вышел'
+    ? '<span class="badge b-ov">срок вышел</span>' : '<span class="badge b-proc">в срок</span>';
+  const row = o => '<div class="att-item">'
+    + `<div class="att-h">${esc(OBLIG_SHORT[o.code] || o.code)}`
+      + `<span class="att-code">${esc(o.code)} · ${esc(o.periodLabel)}</span></div>`
+    + `<div class="att-m"><b>до ${esc(o.dueDate)}</b> ${badge(o)} `
+      + extLink('где закрывается', o.closeIn || 'модуль-источник') + '</div>'
+    + '</div>';
+  let body = top.length ? top.map(row).join('')
+    : '<div class="att-quiet">Открытых требований Порядка нет.</div>';
+  if (obs.length > top.length)
+    body += `<div class="att-more">и ещё ${obs.length - top.length} `
+      + `${plural(obs.length - top.length,'срок','срока','сроков')} — <a class="lnk" onclick="switchTab(tabIx('обязательства'))">во вкладке</a></div>`;
+  const hint = obs.length ? 'ближайшие сроки · всего открыто ' + obs.length : 'сроки, которые вышли или выйдут';
+  return sect('Требует внимания', hint,
     '<a class="lnk" onclick="switchTab(tabIx(\'обязательства\'))">Все обязательства</a>', body);
+}
+
+/* Обеспеченность (КЗ-17) — четвёртый вопрос витрины: чем закрыт долг. Раньше coverageOf
+   считала breaches и наружу их не отдавала — обеспечение на «Общей» не показывалось вообще,
+   и нарушение порога всплывало только на вкладке «Залог», куда без повода не заходят.
+   Знаменатель обязателен: «нарушений 3» без «из скольких» не отличает частный случай от развала. */
+function coverageCard(inn){
+  const cv = coverageOf(inn);
+  const f2 = x => (Math.round(x*100)/100).toFixed(2);
+  /* КЗ-23: вместо средневзвешенного индекса — ИМЯ кредита, которому принадлежит худший.
+     Среднее по нормированным индексам ничьё: по нему нельзя ни принять решение, ни открыть
+     кредит. Худший индекс без кредита сообщает беду и молчит о том, где она. */
+  const body = cv.rated
+    ? '<div class="fields">' + [
+        ['Худший индекс', (cv.worst < cv.required
+            ? `<span style="color:var(--status-error)">${f2(cv.worst)}</span>`
+            : f2(cv.worst)) + ` <span class="muted">норма ${f2(cv.required)}</span>`],
+        ['Кредит худшего индекса', `<span class="mono">${esc(cv.worstNo || '—')}</span>`],
+        ['Нарушений порога', cv.breaches
+            ? `<span style="color:var(--status-error)">${cv.breaches} из ${cv.rated}</span>`
+            : `<span class="muted">нет · оценено ${cv.rated}</span>`],
+      ].map(([k,v])=>`<div class="f"><span class="fk">${esc(k)}</span><span class="fv">${v}</span></div>`).join('') + '</div>'
+    : '<div class="att-quiet">Кредитов с оценённым обеспечением нет — индекс не считается.</div>';
+  /* индекс нормирован на порог кредита, поэтому норма всегда 1.00 (пороги 120/150 %/решение КМ) */
+  return sect('Обеспеченность', 'снимок на ' + DEBT_ASOF + ' · индекс нормирован на порог кредита',
+    '<a class="lnk" onclick="switchTab(tabIx(\'обеспечение\'))">Открыть «Обеспечение»</a>', body);
+}
+
+/* Кураторство (КЗ-17) — пятый вопрос витрины: кто ведёт. Дыра в назначениях не видна ниоткуда,
+   кроме своей вкладки, а стоит она дорого: объект без действующего носителя роли не обходится
+   никем. Отстранение по конфликту считается отдельно от «не назначен» — причины разные (Р-6). */
+function curatorCard(inn){
+  const d = asOf();
+  const gaps = curatorGaps(inn, d);
+  const m = curatorMatrix(inn, d);
+  const susp = m.filter(x => x.suspended).length;
+  const body = '<div class="fields">' + [
+    ['Объектов без куратора', gaps.length
+        ? `<span style="color:var(--status-error)">${gaps.length}</span> <span class="muted">${esc(gaps.map(g=>g.objectNo).filter((v,i,a)=>a.indexOf(v)===i).join(', '))}</span>`
+        : '<span class="muted">нет</span>'],
+    ['Действующих назначений', String(m.length - susp)],
+    ['Отстранено по конфликту', susp
+        ? `${susp} <span class="muted">назначение сохранено, замены нет</span>`
+        : '<span class="muted">нет</span>'],
+  ].map(([k,v])=>`<div class="f"><span class="fk">${esc(k)}</span><span class="fv">${v}</span></div>`).join('') + '</div>';
+  return sect('Кураторство', 'носители ролей на ' + d,
+    '<a class="lnk" onclick="switchTab(tabIx(\'кураторство\'))">Открыть «Кураторство»</a>', body);
 }
 
 /* Вкладка «Обязательства» — полный список по периодам, с фактом закрытия у исполненных.
@@ -3632,12 +3876,13 @@ function obligationsTab(inn){
   if (!obs.length) return sect('Обязательства', 'Порядок · производная от состояния', '',
     empty('Открытых требований Порядка по этому заёмщику нет: категория не повышена и просроченной части нет.'));
   const badge = o => o.status==='исполнено' ? '<span class="badge b-ok">исполнено</span>'
-    : o.status==='просрочено' ? '<span class="badge b-ov">просрочено</span>'
+    : o.status==='срок вышел' ? '<span class="badge b-ov">срок вышел</span>'
     : '<span class="badge b-proc">в срок</span>';
   const closedCell = o => o.closing
     ? esc(o.closing.type || o.closing.subject || o.closing.id) + '<div class="muted" style="margin-top:3px">'
-      + esc((o.closing.file || o.closing.id) + ' · ' + o.closing.date) + ' ' + extLink('открыть', 'модуль-источник') + '</div>'
-    : '<span class="muted">факта закрытия нет</span>';
+      + esc((o.closing.file || o.closing.id) + ' · ' + o.closing.date) + ' '
+      + extLink('открыть', o.closeIn || 'модуль-источник') + '</div>'
+    : '<span class="muted">факта закрытия нет · ' + extLink('где закрывается', o.closeIn || 'модуль-источник') + '</span>';
   const rows = obs.map(o => '<tr>'
     + '<td class="who">' + esc(o.code) + '</td>'
     + '<td>' + esc(o.periodLabel) + '</td>'
@@ -3654,167 +3899,288 @@ function obligationsTab(inn){
     note + table(head, rows));
 }
 
-/* Контакты — только действующие каналы; полный список и история — во вкладке «Реквизиты и контакты». */
+/* Действующие каналы связи заёмщика — одно основание для карточки и для дефекта Д-КОНТ.
+   Порядок: сначала основной (с него начинают, когда заёмщика надо найти), дальше по типу —
+   телефон, почта, адрес корреспонденции. */
+const CH_ORD = { 'тел':0, 'email':1, 'адрес корресп.':2 };
+function liveChannels(inn){
+  return CHANNELS.filter(c => c.inn===inn && !c.closedAt)
+    .sort((a,b) => (b.main?1:0) - (a.main?1:0)
+                || ((CH_ORD[a.kind] ?? 9) - (CH_ORD[b.kind] ?? 9)));
+}
+/* Контакты (КЗ-10) — действующие каналы; закрытые и история правок — во вкладке «Реквизиты и связи».
+   Три правки против прежней подачи:
+   · адрес корреспонденции вернулся. Его отфильтровывали как «не канал», но претензия и акт
+     сверки (п.93) уходят именно туда — без него сводка каналов не отвечает «чем уведомить».
+   · основной помечен. Каналов бывает четыре, а звонить надо по одному, и по какому — раньше
+     нигде не хранилось.
+   · дата сверки видна. Номер без неё означает только «когда-то был верен»: from — это дата
+     ЗАВЕДЕНИЯ записи, а не её свежести, и подписывать её как контакт нельзя. */
 function contactsCard(inn){
-  const live = CHANNELS.filter(c=>c.inn===inn && !c.closedAt && c.kind!=='адрес корресп.');
+  const live = liveChannels(inn);
   const body = live.length
-    ? '<div class="fields">' + live.map(c=>`<div class="f"><span class="fk">${esc(c.kind)}${c.note && c.note!=='—' ? ' · '+esc(c.note) : ''}</span>`
-        + `<span class="fv">${esc(c.value)}</span></div>`).join('') + '</div>'
-    : '<div class="muted" style="font-size:13px;padding:14px 16px">Действующих каналов связи нет.</div>';
-  return sect('Контакты', 'действующие каналы', '<a class="lnk" onclick="switchTab(tabIx(\'связи\'))">Все реквизиты</a>', body);
+    ? live.map(c => '<div class="ch-item">'
+        + `<div class="ch-k">${esc(c.kind)}`
+          + (c.main ? '<span class="ch-main">основной</span>' : '')
+          + (c.note && c.note!=='—' ? `<span>${esc(c.note)}</span>` : '') + '</div>'
+        + `<div class="ch-v">${esc(c.value)}</div>`
+        + '<div class="ch-m">' + (c.checkedAt
+            ? `сверено ${esc(c.checkedAt)}`
+            : `<span class="ch-stale">не сверялся</span> · заведён ${esc(c.from || '—')}`) + '</div>'
+        + '</div>').join('')
+    : '<div class="att-quiet">Действующих каналов связи нет — уведомить заёмщика нечем.</div>';
+  return sect('Контакты', plural(live.length,'действующий канал','действующих канала','действующих каналов'),
+    '<a class="lnk" onclick="switchTab(tabIx(\'связи\'))">Все реквизиты</a>', body);
 }
 
-/* Последние события — верхние 5 из того же таймлайна, что и вкладка «История». */
+/* Последние события — верхние 5 из того же таймлайна, что и вкладка «История» (И-10).
+   Слоты считает recentSlots: факт без даты в пятёрку не идёт, но его число печатается — иначе
+   пропажа даты либо съедает витрину, либо исчезает бесследно (КЗ-11). */
 function recentEventsCard(inn){
   const items = historyItems(inn);
-  const hint = items.length > 5 ? `последние 5 из ${items.length}` : 'зеркало логов';
+  const r = recentSlots(items, 5);
+  const hint = items.length > r.shown.length ? `последние ${r.shown.length} из ${items.length}` : 'зеркало логов';
+  const tail = r.undated
+    ? `<div class="att-more">${r.undated} ${plural(r.undated,'запись','записи','записей')} без даты — `
+      + `<a class="lnk" onclick="switchTab(tabIx('история'))">в начале ленты</a></div>` : '';
   return sect('Последние события', hint, '<a class="lnk" onclick="switchTab(tabIx(\'история\'))">Вся история</a>',
-    timelineHtml(items.slice(0,5)));
+    timelineHtml(r.shown) + tail);
 }
 
-/* 0. Общая информация — «Основные сведения» + «Послабления по категории риска» в две колонки.
-   Реквизиты (Д-6) живут на странице субъекта; здесь остались отрасль, адреса, примечание, аудит.
-   На странице субъекта (overlays:false) реквизиты показываем здесь же. */
+/* Примечание к записи (КЗ-9) — условная плашка, а не строка полей: у подавляющего большинства
+   заёмщиков оно пусто, и постоянная строка «Примечание: —» занимает место, ничего не сообщая.
+   Когда оно есть — это чья-то приписка о заёмщике, и увидеть её надо до всех сводок. */
+function noteStrip(s){
+  const n = s && s.note;
+  if (!n || n === '—') return '';
+  return `<div class="note-strip"><b>Примечание</b> · ${esc(n)}</div>`;
+}
+/* Атрибуты субъекта (КЗ-9) — отрасль и адреса. Живут на СТРАНИЦЕ СУБЪЕКТА рядом с реквизитами:
+   это его паспортные данные, они не меняются от того, есть у него кредит или нет. На карточке
+   заёмщика их не было смысла держать — карточка отвечает «что с заёмщиком сейчас», а адрес
+   на этот вопрос не отвечает; отрасль же опознаёт запись и потому поднята в id-bar. */
+function subjectFieldsSect(s){
+  const rows = [
+    ['Отрасль', esc(s.industry || '—')],
+    ['Юридический адрес', esc(s.addrLegal || '—')],
+    ['Фактический адрес', esc(s.addrFact || '—')],
+    ['Примечание', `<span style="font-weight:400">${esc(s.note || '—')}</span>`],
+  ];
+  return sect('Сведения о субъекте', '', '',
+    '<div class="fields">' + rows.map(([k,v])=>`<div class="f"><span class="fk">${esc(k)}</span><span class="fv">${v}</span></div>`).join('') + '</div>');
+}
+
+/* 0. Общая информация — ВИТРИНА (КЗ-8). Вкладка отвечает на один вопрос: «что с заёмщиком
+   сейчас». Отсюда её состав — шесть сводок, по одной на слой работы, и у каждой ровно один
+   адрес продолжения — своя вкладка. Состав ПОСТОЯННЫЙ: пустой заёмщик даёт те же шесть карточек
+   с явным «нет», потому что исчезнувшая карточка неотличима от карточки, которую не показали.
+   Что ушло: «Основные сведения» (реквизиты записи — не состояние заёмщика, КЗ-9) и «Послабления»
+   (норма — не новость; отметка осталась строкой основания в плитке категории, КЗ-15).
+   Что пришло: обеспеченность и кураторство — два вопроса, на которые витрина раньше молчала (КЗ-17).
+   Слева — чем заёмщик обеспечен и как с ним связаться, справа — что горит и что происходит.
+   Страница субъекта (overlays:false) — не витрина: там реквизиты и атрибуты, кредитного слоя нет. */
 function generalTab(inn, opts){
   opts = opts || {};
   const overlays = opts.overlays !== false;   /* карта заёмщика — да; страница субъекта — нет */
   const docBy = !!opts.docBy;                 /* «кем выдано» показываем только на странице субъекта */
   const s = SUBJECTS.find(x=>x.inn===inn);
-  const reqSect = overlays ? '' : sect('Реквизиты', '', '', fieldsHtml(requisiteRows(s, docBy)));
-
-  /* Послабления (в коде — OVERLAYS) опущены из шапки: случай редкий, а шапка висит над всеми 11 вкладками. */
-  const OV_LABEL = { suppress181:'Просрочка 181+ дн. не поднимает категорию до «Высокий»' };
-  const ovl = CREDITS.filter(c=>c.inn===inn)
-    .flatMap(c=>OVERLAYS.filter(o=>o.creditId===c.id).map(o=>({...o, credit:c})));
-  const live = ovl.filter(o=>dateLE(o.from,asOf()) && dateLE(asOf(),o.deadline));
-  const ovBody = ovl.length
-    ? ovl.map(o=>{
-        const on = dateLE(o.from,asOf()) && dateLE(asOf(),o.deadline);
-        return `<div class="ov-item"${on?'':' style="opacity:.6"'}><div class="ov-h">${esc(OV_LABEL[o.kind]||o.kind)}`
-          + ` — ${on?'действует':'истёк'}</div>`
-          + `<div class="ov-m">кредит ${esc(o.credit.no)} · ${esc(o.from)}–${esc(o.deadline)} · основание ${esc(o.sourceRef||'—')}`
-          + ` · ${extLink('открыть решение', 'модуль реструктуризации')}</div></div>`;
-      }).join('')
-      + `<div class="muted" style="font-size:12px;margin-top:6px">Действующих: ${live.length} из ${ovl.length}. Послабление действует только в свой срок и только на просрочку — факторы комитета оно не снимает.</div>`
-    : `<div class="muted" style="font-size:13px;line-height:1.5">Действующих послаблений нет — категория риска считается напрямую (worst-of по кредитам).</div>`;
-
-  const a = s.audit || {};
-  /* отрасль и адреса остаются на «Общей информации» — в «Основных сведениях» */
-  const svc = '<div class="fields">'
-    + `<div class="f"><span class="fk">Отрасль</span><span class="fv">${esc(s.industry || '—')}</span></div>`
-    + `<div class="f"><span class="fk">Юридический адрес</span><span class="fv">${esc(s.addrLegal || '—')}</span></div>`
-    + `<div class="f"><span class="fk">Фактический адрес</span><span class="fv">${esc(s.addrFact || '—')}</span></div>`
-    + `<div class="f"><span class="fk">Примечание</span><span class="fv" style="font-weight:400">${esc(s.note || '—')}</span></div>`
-    + `<div class="f"><span class="fk">Внесён</span><span class="fv" style="font-weight:400"><b>${esc(a.by||'—')}</b> · ${esc(stamp(a.date, a.time))}</span></div>`
-    + `<div class="f"><span class="fk">Изменён</span><span class="fv" style="font-weight:400"><b>${esc(a.chgBy||'—')}</b> · ${esc(stamp(a.chgDate, a.chgTime))}</span></div>`
-    + '</div>';
-  const svcSect = sect('Основные сведения', '', '', svc);
-
-  /* карточка заёмщика — дашборд в две колонки: слева паспорт заёмщика (сведения → контакты → события),
-     справа оперативный слой сверху вниз по убыванию срочности — деньги → сроки → послабления.
-     Страница субъекта — только реквизиты + основные сведения (кредитного слоя там нет). */
-  if (!overlays) return reqSect + svcSect;
+  if (!overlays)
+    return sect('Реквизиты', '', '', fieldsHtml(requisiteRows(s, docBy))) + subjectFieldsSect(s);
   /* КЗ-4: ленты стоп-факторов здесь больше нет — она поднята в шапку карточки (renderCard),
      где видна со всех вкладок, а не только с этой. */
-  return `<div class="gen-2col split">`
-      + `<div class="gen-col">${svcSect}${contactsCard(inn)}${recentEventsCard(inn)}</div>`
-      + `<div class="gen-col">${creditsSummaryCard(inn)}${attentionCard(inn)}`
-        + sect('Послабления по категории риска', 'зеркало модуля реструктуризации', '', ovBody)
-        + `</div>`
+  return noteStrip(s)
+    + `<div class="gen-2col split">`
+      + `<div class="gen-col">${creditsSummaryCard(inn)}${coverageCard(inn)}${contactsCard(inn)}</div>`
+      + `<div class="gen-col">${attentionCard(inn)}${curatorCard(inn)}${recentEventsCard(inn)}</div>`
     + `</div>`;
 }
 
 /* 1. Кредиты — зеркало кредитного модуля (И-5): per-credit worst-of.
-   Оболочка (тулбар + пустой #crWrap); таблица наполняется wireCreditsTab после вставки в DOM. */
+   Оболочка (тулбар + пустой #crWrap); таблица наполняется wireCreditsTab после вставки в DOM.
+
+   КЗ-18: на вкладке нет ни одного действия, которое исполнялось бы здесь. Кредит рождается
+   из заявки, печатные формы печатает владелец данных — значит кнопка ведёт маршрутом наружу
+   и говорит об этом до нажатия (extLink/notRouted, КЗ-16). Раньше «+ Добавить кредит»
+   обещала форму, которой на зеркале быть не может, а три пункта «Сформировать» молча
+   закрывали меню. */
+const CR_FORMS = [
+  { label:'Расчёт задолженности',           where:'кредитный модуль · печатные формы' },
+  { label:'Акт сверки',                     where:'модуль актов сверок' },
+  { label:'Справка о ссудной задолженности', where:'кредитный модуль · печатные формы' },
+];
+/* Состояние кредита — три рабочих множества и «все» (КЗ-19). Множество берётся на дате
+   ДЕНЕГ (DEBT_ASOF), а не на срезе экрана: фильтр и итог обязаны делить одно множество
+   (КЗ-20), а итог складывает снимок (И-6). */
+const CR_STATES = [
+  { k:'all',  label:'Все' },
+  { k:'live', label:'Действующие' },
+  { k:'ov',   label:'С просрочкой' },
+  { k:'done', label:'Погашенные' },
+];
+const crMatch = (c, k) =>
+    k === 'live' ? isActiveCredit(c, DEBT_ASOF)
+  : k === 'ov'   ? isActiveCredit(c, DEBT_ASOF) && creditOverdue(c) > 0
+  : k === 'done' ? !isActiveCredit(c, DEBT_ASOF)
+  : true;
+/* Ключи сортировки. Просрочка — составной ключ (дни, затем сумма): при равных днях
+   сортировать по сумме осмысленно, обратное — нет. Закрытый кредит категории не имеет
+   (И-3) и уходит в конец шкалы. */
+const crSortVal = (c, k) =>
+    k === 'no'     ? c.no
+  : k === 'kind'   ? c.kind
+  : k === 'date'   ? (dnum(c.date) || 0)
+  : k === 'amount' ? c.amount
+  : k === 'debt'   ? creditTotal(c)
+  : k === 'ov'     ? [overdueDaysOn(c, asOf()), creditOverdue(c)]
+  : k === 'cat'    ? (isActiveCredit(c, asOf()) ? CAT_RANK[catOfCredit(c.id, asOf()).level] : -1)
+  : '';
+
 function creditsTab(inn){
   const toolbar =
     '<div class="toolbar">'
       /* дата среза одна на карточку и живёт в шапке — здесь её пикера больше нет */
       + '<span class="fl muted">Деньги — снимок на ' + DEBT_ASOF + '</span>'
       + '<span class="sep"></span>'
-      /* расчёт и печатные формы — одной выпадающей группой */
+      + '<label class="fl muted" for="crState">Состояние</label>'
+      + '<select id="crState" data-view-ctl style="width:auto;min-width:140px">'
+        + CR_STATES.map(s => '<option value="' + s.k + '">' + esc(s.label) + '</option>').join('')
+      + '</select>'
+      + '<span class="sep"></span>'
+      /* печатные формы — одной выпадающей группой; каждая печатается у владельца данных */
       + '<div class="dd" id="genDd">'
         + '<button class="btn btn-primary btn-sm" id="genBtn">Сформировать ▾</button>'
         + '<div class="dd-menu">'
-          + '<button class="dd-i">Расчёт</button>'
-          + '<button class="dd-i">Акт сверки</button>'
-          + '<button class="dd-i">Сведения о заёмщике</button>'
+          + CR_FORMS.map(f => '<button class="dd-i" onclick="notRouted(\'' + esc(f.where) + '\')">'
+              + esc(f.label) + ' ↗</button>').join('')
         + '</div>'
       + '</div>'
       + '<span class="sep"></span>'
-      + '<button class="btn btn-success btn-sm">+ Добавить кредит</button>'
+      + '<button class="btn btn-success btn-sm" onclick="notRouted(\'модуль заявок\')"'
+        + ' title="Кредит рождается из заявки — на карточке заёмщика его не заводят (И-5)">'
+        + '+ Кредит по заявке ↗</button>'
     + '</div>';
   /* заголовок секции пуст — вкладка уже «Кредиты» */
   return toolbar + sect('', '', '', '<div id="crWrap"></div>');
 }
 
-/* Проводка таба «Кредиты»: пагинация, чекбоксы, дропдаун. Вызывается из showDetail после innerHTML. */
+/* Проводка таба «Кредиты»: фильтр, сортировка, раскрытие, пагинация, дропдаун.
+   Вызывается из showDetail после innerHTML. */
 function wireCreditsTab(inn){
   const wrap = document.getElementById('crWrap');
   if (!wrap) return;
   const credList = CREDITS.filter(c => c.inn === inn);
   let crSize = 20, crPage = 1;   /* СП-25: тот же набор, что в реестре — 5 / 20 / 50 */
+  let crState = 'all';           /* КЗ-19: фильтр по состоянию */
+  let crSort = null, crDir = 1;  /* КЗ-19: сортировка по любому столбцу */
 
   /* просроченная часть кредита — пять статей снимка, а не «%+пеня» (ADR-0001) */
   const ovSum = c => creditOverdue(c);
+  /* Б-10: валюта — свойство кредита, а не константа разметки. Приём тот же, что в «Актах». */
+  const CUR = c => c.currency || 'KGS';
+
+  /* показанное множество — оно же множество итога (КЗ-20) */
+  const visible = () => {
+    const list = credList.filter(c => crMatch(c, crState));
+    return crSort
+      ? list.slice().sort((a, b) => cmpVal(crSortVal(a, crSort), crSortVal(b, crSort)) * crDir)
+      : list;
+  };
+
+  /* Раскрытие строки (КЗ-19): пять статей долга в разрезе срочная/просроченная. Раньше эта же
+     разбивка лежала в атрибуте title — то есть её нельзя было ни прочесть с клавиатуры, ни
+     скопировать, ни увидеть на планшете, а на экране оставалось одно число. */
+  const ART_RU = [['principal','Основной долг'], ['interest','Проценты'], ['penalty','Пеня'],
+                  ['fees','Комиссии'], ['costs','Издержки']];
+  const credSub = c => {
+    const cur = CUR(c);
+    const cel = v => v ? actMoney(v, cur) : '<span class="muted">—</span>';
+    const rows = ART_RU.map(([k, ru]) => '<tr><td class="who">' + ru + '</td>'
+      + '<td>' + cel(c.debt.current[k] || 0) + '</td>'
+      + '<td>' + cel(c.debt.overdue[k] || 0) + '</td>'
+      + '<td><b>' + fmt((c.debt.current[k] || 0) + (c.debt.overdue[k] || 0)) + '</b> '
+        + '<span class="muted">' + esc(cur) + '</span></td></tr>');
+    const foot = '<td>Итого</td><td>' + cel(sumArt(c.debt.current)) + '</td>'
+      + '<td>' + cel(sumArt(c.debt.overdue)) + '</td>'
+      + '<td><b>' + fmt(creditTotal(c)) + '</b> <span class="muted">' + esc(cur) + '</span></td>';
+    const head = '<th style="width:34%">Статья</th><th style="width:22%">Срочная</th>'
+      + '<th style="width:22%">Просроченная</th><th style="width:22%">Всего</th>';
+    return '<tr class="pl-sub" data-sub="' + esc(c.id) + '" hidden><td colspan="8">'
+      + '<div class="pl-item">'
+        + '<div class="pi-h"><b>Задолженность по статьям</b>'
+          + '<span class="pi-l">снимок кредитного модуля на ' + esc(c.debt.asOf)
+          + ' · программа ' + esc(c.program || '—') + '</span></div>'
+        + table(head, rows, foot)
+      + '</div></td></tr>';
+  };
 
   const credRow = (c, no) => {
     const active = isActiveCredit(c, asOf());
     const cat = active ? catOfCredit(c.id, asOf()).level : null;
     const ov = ovSum(c);
-    /* разбивка остатка по 5 статьям в разрезе срочная/просроченная — по наведению */
-    const art = (lbl, x) => lbl + ': осн. долг ' + fmt(x.principal) + ' · % ' + fmt(x.interest)
-      + ' · пеня ' + fmt(x.penalty) + ' · комиссии ' + fmt(x.fees) + ' · издержки ' + fmt(x.costs);
-    const tip = art('Срочная', c.debt.current) + '\n' + art('Просроченная', c.debt.overdue)
-      + '\nСнимок на ' + c.debt.asOf;
-    return '<tr>'
-      + '<td class="chk"><input type="checkbox" class="cr-chk" data-view-ctl></td>'
-      + '<td class="rownum">' + no + '</td>'
-      /* решение правительства — второй строкой под номером договора (основание кредита) */
-      + '<td class="who">' + esc(c.no) + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(c.gov || '—') + '</div></td>'
+    const cur = CUR(c);
+    return '<tr class="pl-row" data-cr="' + esc(c.id) + '">'
+      + '<td class="rownum"><span class="car">▸</span>' + no + '</td>'
+      /* решение правительства — второй строкой под номером договора (основание кредита);
+         сам кредит открывается в своём модуле (И-5) */
+      + '<td class="who">' + esc(c.no) + ' ' + extLink('открыть', 'кредитный модуль')
+        + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(c.gov || '—') + '</div></td>'
       + '<td class="muted">' + esc(c.kind) + '</td>'
       + '<td>' + esc(c.date || '—') + '</td>'
-      + '<td>' + fmt(c.amount) + ' <span class="muted">KGS</span></td>'
-      + '<td><span class="bal-cell" title="' + esc(tip) + '"><b>' + fmt(creditTotal(c)) + '</b></span> <span class="muted">KGS</span></td>'
+      + '<td data-col="amount">' + actMoney(c.amount, cur) + '</td>'
+      + '<td data-col="debt"><b>' + fmt(creditTotal(c)) + '</b> <span class="muted">' + esc(cur) + '</span></td>'
       /* просрочка = дни + сумма; нулевую не подсвечиваем */
-      + '<td>' + (ov
-          ? '<span class="win">' + overdueDaysOn(c,asOf()) + ' дн.</span><div class="muted" style="margin-top:3px">' + fmt(ov) + ' KGS</div>'
-          : overdueDaysOn(c,asOf()) + ' дн.<div class="muted" style="margin-top:3px">0 KGS</div>') + '</td>'
+      + '<td data-col="ov">' + (ov
+          ? '<span class="win">' + overdueDaysOn(c,asOf()) + ' дн.</span><div class="muted" style="margin-top:3px">' + actMoney(ov, cur) + '</div>'
+          : overdueDaysOn(c,asOf()) + ' дн.<div class="muted" style="margin-top:3px">' + actMoney(0, cur) + '</div>') + '</td>'
       + '<td>' + (active ? catCell(cat) : '<span class="muted">закрыт ' + esc(c.closedAt || '') + '</span>') + '</td>'
-      + '</tr>';
+      + '</tr>' + credSub(c);
   };
 
-  /* нумерация сквозная по всему списку, не по странице */
+  /* нумерация сквозная по показанной выборке, не по странице */
   const rowsPage = () => {
+    const list = visible();
     const from = (crPage - 1) * crSize;
-    return credList.slice(from, from + crSize).map((c, i) => credRow(c, from + i + 1));
+    return list.slice(from, from + crSize).map((c, i) => credRow(c, from + i + 1));
   };
   /* Итоги. Б-5: раньше складывался весь credList, тогда как витрина считает по действующим —
      одни и те же деньги под разными числами на двух экранах (ИНН 09901199990091: «Сумма выдано 0»
      на витрине против «Итого 7 000 000» здесь). Множество берётся на дате денег (DEBT_ASOF), как
-     в totalDebt, а погашенные выносятся отдельной строкой и в сумму не растворяются (КЗ-20). */
+     в totalDebt, а погашенные выносятся отдельной строкой и в сумму не растворяются (КЗ-20).
+     Б-10: валюты не складываются — у каждой своя строка итога, как в «Актах» (actTotals). */
   const sum = list => list.reduce(
     (a, c) => ({ amount: a.amount + c.amount, debt: a.debt + creditTotal(c), ov: a.ov + ovSum(c) }),
     { amount: 0, debt: 0, ov: 0 });
-  const footRow = (label, list, strong) => {
+  const footRow = (label, list, cur, strong) => {
     const t = sum(list);
-    return '<td class="chk"></td><td class="rownum"></td>'
-      + '<td>' + label + ' <span class="muted" style="font-weight:400">· ' + list.length + ' кред.</span></td>'
+    return '<td class="rownum"></td>'
+      + '<td data-col="label">' + label + ' <span class="muted" style="font-weight:400">· '
+        + list.length + ' кред. · ' + esc(cur) + '</span></td>'
       + '<td></td><td></td>'
-      + '<td>' + fmt(t.amount) + ' <span class="muted">KGS</span></td>'
-      + '<td>' + (strong ? '<b>' + fmt(t.debt) + '</b>' : fmt(t.debt)) + ' <span class="muted">KGS</span></td>'
-      + '<td' + (t.ov ? ' class="win"' : '') + '>' + fmt(t.ov) + ' <span class="muted">KGS</span></td>'
+      + '<td data-col="amount">' + actMoney(t.amount, cur) + '</td>'
+      + '<td data-col="debt">' + (strong ? '<b>' + fmt(t.debt) + '</b>' : fmt(t.debt))
+        + ' <span class="muted">' + esc(cur) + '</span></td>'
+      + '<td data-col="ov"' + (t.ov ? ' class="win"' : '') + '>' + actMoney(t.ov, cur) + '</td>'
       + '<td></td>';
   };
   const foot = () => {
-    const act = credList.filter(c => isActiveCredit(c, DEBT_ASOF));
-    const done = credList.filter(c => !isActiveCredit(c, DEBT_ASOF));
-    const rows = [footRow('Итого <span class="muted" style="font-weight:400">действ.</span>', act, true)];
-    if (done.length) rows.push(footRow('Погашено', done, false));
+    /* КЗ-20: итог следует фильтру. Строка «Итого действ.» остаётся и при нулевом множестве —
+       ноль действующих кредитов это факт, а исчезнувшая строка неотличима от непоказанной;
+       строка «Погашено» появляется только там, где погашенные в выборке есть. */
+    const list = visible();
+    const showAct = crState !== 'done';
+    const showDone = crState === 'all' || crState === 'done';
+    const rows = [];
+    [...new Set(list.map(CUR))].sort().forEach(cur => {
+      const inCur = list.filter(c => CUR(c) === cur);
+      const act  = inCur.filter(c =>  isActiveCredit(c, DEBT_ASOF));
+      const done = inCur.filter(c => !isActiveCredit(c, DEBT_ASOF));
+      if (showAct) rows.push(footRow('Итого <span class="muted" style="font-weight:400">действ.</span>', act, cur, true));
+      if (showDone && done.length) rows.push(footRow('Погашено', done, cur, false));
+    });
     return rows;
   };
   const pager = () => {
-    const total = credList.length, last = Math.max(1, Math.ceil(total / crSize));
+    const total = visible().length, last = Math.max(1, Math.ceil(total / crSize));
     const from = total ? (crPage - 1) * crSize + 1 : 0, to = Math.min(crPage * crSize, total);
     const pg = (label, page, opts) =>
       '<button class="pg' + (opts === 'dis' ? ' dis' : '') + (opts === 'act' ? ' active' : '') + '"'
@@ -3835,29 +4201,38 @@ function wireCreditsTab(inn){
     + '</div>';
   };
 
-  const head = '<th class="chk"><input type="checkbox" id="crAll" data-view-ctl title="Выбрать все"></th><th class="rownum">#</th>'
-    + '<th style="width:22%">Договор</th><th style="width:12%">Вид</th><th style="width:9%">Дата</th>'
-    + '<th style="width:13%">Сумма</th><th style="width:13%">Задолженность</th>'
-    + '<th style="width:12%">Просроченная часть</th><th style="width:12%">Категория риска</th>';
+  /* Б-11: колонки чекбоксов больше нет. Выделение строк ни к чему не подключалось, а
+     пагинация его стирала; на экране списка тот же контрол снят решением СП-8. */
+  const head = '<th class="rownum">#</th>'
+    + '<th style="width:24%" data-sort="no">Договор <span class="sort">↕</span></th>'
+    + '<th style="width:11%" data-sort="kind">Вид <span class="sort">↕</span></th>'
+    + '<th style="width:9%"  data-sort="date">Дата <span class="sort">↕</span></th>'
+    + '<th style="width:13%" data-sort="amount">Сумма <span class="sort">↕</span></th>'
+    + '<th style="width:14%" data-sort="debt">Задолженность <span class="sort">↕</span></th>'
+    + '<th style="width:13%" data-sort="ov">Просроченная часть <span class="sort">↕</span></th>'
+    + '<th style="width:12%" data-sort="cat">Категория риска <span class="sort">↕</span></th>';
 
   function render(){
     wrap.innerHTML = table(head, rowsPage(), foot()) + pager();
-    /* выбор строк: «выбрать все» + подсветка (в пределах страницы) */
-    const crAll = wrap.querySelector('#crAll');
-    const crChks = [...wrap.querySelectorAll('.cr-chk')];
-    const syncAll = () => {
-      const on = crChks.filter(x => x.checked).length;
-      if (!crAll) return;
-      crAll.checked = on === crChks.length && on > 0;
-      crAll.indeterminate = on > 0 && on < crChks.length;
-    };
-    if (crAll) crAll.addEventListener('change', () => {
-      crChks.forEach(x => { x.checked = crAll.checked; x.closest('tr').classList.toggle('sel', x.checked); });
-      crAll.indeterminate = false;
+    /* сортировка: тот же приём, что в реестре (повторный клик разворачивает порядок) */
+    wrap.querySelectorAll('thead th[data-sort]').forEach(th => {
+      if (th.dataset.sort === crSort){
+        th.classList.add('sorted');
+        const s = th.querySelector('.sort');
+        if (s) s.textContent = crDir === 1 ? '↑' : '↓';
+      }
+      th.addEventListener('click', () => {
+        crDir = (crSort === th.dataset.sort) ? -crDir : 1;
+        crSort = th.dataset.sort; crPage = 1; render();
+      });
     });
-    crChks.forEach(x => x.addEventListener('change', () => {
-      x.closest('tr').classList.toggle('sel', x.checked);
-      syncAll();
+    /* раскрытие строки — пять статей долга; ссылка внутри строки ведёт наружу, не раскрывает */
+    wrap.querySelectorAll('tr.pl-row').forEach(tr => tr.addEventListener('click', e => {
+      if (e.target.closest && e.target.closest('a')) return;
+      const sub = wrap.querySelector('tr.pl-sub[data-sub="' + tr.dataset.cr + '"]');
+      if (!sub) return;
+      sub.hidden = !sub.hidden;
+      tr.classList.toggle('open', !sub.hidden);
     }));
     wrap.querySelectorAll('.pg[data-pg]').forEach(btn => btn.addEventListener('click', () => {
       crPage = +btn.dataset.pg; render();
@@ -3866,6 +4241,10 @@ function wireCreditsTab(inn){
     if (crSizeEl) crSizeEl.addEventListener('change', e => { crSize = +e.target.value; crPage = 1; render(); });
   }
   render();
+
+  /* фильтр по состоянию живёт в тулбаре — вне #crWrap, поэтому вешается один раз */
+  const stateEl = document.getElementById('crState');
+  if (stateEl) stateEl.addEventListener('change', e => { crState = e.target.value; crPage = 1; render(); });
 
   /* дропдаун «Сформировать» */
   const genDd = document.getElementById('genDd');
@@ -4224,10 +4603,57 @@ function policyBadge(o){
     : '<span class="badge b-ok">полис до ' + esc(o.policyTill) + '</span>';
 }
 
+/* Печатные формы обеспечения печатает модуль-владелец, а не карточка (И-5, КЗ-16): пункт
+   называет форму и уводит маршрутом. Раньше три кнопки молчали при нажатии. */
+const PL_FORMS = [
+  { label:'Справка об обеспеченности', where:'модуль залога · печатные формы' },
+  { label:'Реестр предметов залога',   where:'модуль залога · печатные формы' },
+  { label:'График обследований',       where:'модуль залога · обследования' },
+];
+/* Объём ответственности поручителя: полностью либо в части. Доля хранится числом, потому что
+   «в части» без размера — это снова роль без договора (ADR-0005). */
+const guarScope = gx => gx.scope == null || gx.scope >= 0.999
+  ? 'полностью' : 'в части · ' + Math.round(gx.scope*100) + ' %';
+
+/* Раздел «Поручительство» (КЗ-21, КЗ-26). Договоры, а не строки реестра лиц: у каждого номер,
+   дата, обеспечиваемый кредит, объём и — у прекращённых — дата и основание прекращения.
+   Прекращённые не удаляются: поручительство закрывают, а не стирают. */
+function guaranteeSection(inn){
+  const list = guaranteesOf(inn).slice()
+    .sort((a,b) => (isActiveGuarantee(a, asOf()) ? 0 : 1) - (isActiveGuarantee(b, asOf()) ? 0 : 1)
+                || dnum(b.date) - dnum(a.date));
+  const noOf = id => (CREDITS.find(c => c.id === id) || {}).no || id;
+  const who = gx => gx.guarantorInn
+    ? '<a class="lnk" href="#/s/' + esc(gx.guarantorInn) + '">' + esc(gx.guarantorFio) + '</a>'
+      + '<div class="muted" style="margin-top:3px">ИНН ' + esc(gx.guarantorInn) + '</div>'
+    : esc(gx.guarantorFio) + '<div class="muted" style="margin-top:3px">ПИН ' + esc(gx.guarantorPin || '—') + '</div>';
+  const rows = list.map(gx => {
+    const live = isActiveGuarantee(gx, asOf());
+    return '<tr' + (live ? '' : ' class="muted"') + '>'
+      + '<td class="who">' + esc(gx.no) + '<div class="muted" style="font-weight:400;margin-top:3px">от '
+        + esc(gx.date) + '</div></td>'
+      + '<td>' + esc(noOf(gx.creditId)) + '</td>'
+      + '<td>' + who(gx) + '</td>'
+      + '<td>' + esc(guarScope(gx)) + '</td>'
+      + '<td>' + (live
+          ? '<span class="badge b-ok">действует</span>'
+          : '<span class="badge b-gray">прекращено ' + esc(gx.endedAt) + '</span>'
+            + '<div class="muted" style="margin-top:3px">' + esc(gx.endBasis || '—') + '</div>')
+      + '</td></tr>';
+  });
+  const head = '<th style="width:20%">Договор</th><th style="width:16%">Кредит</th>'
+    + '<th style="width:26%">Поручитель</th><th style="width:16%">Объём</th><th style="width:22%">Состояние</th>';
+  return sect('Поручительство',
+    'обеспечительные договоры · в залоговый индекс не входят (ADR-0005)',
+    extLink('вести в модуле залога', 'модуль залога · обеспечительные договоры'),
+    list.length ? table(head, rows)
+      : empty('Поручительских договоров нет — долг закрыт только имуществом.'));
+}
+
 function collateralTab(inn){
   const creds = CREDITS.filter(c => c.inn === inn);
   if (!creds.length) return sect('Залог', 'зеркало модуля залога · только чтение', '',
-    empty('У заёмщика нет кредитов — обеспечение не ведётся.'));
+    empty('У заёмщика нет кредитов — обеспечение не ведётся.')) + guaranteeSection(inn);
   const agrs = PLEDGE_AGR.filter(a => a.inn === inn);
   const objs = PLEDGE_OBJ.filter(o => o.inn === inn);
   const act = objs.filter(o => !o.released), rel = objs.filter(o => o.released);
@@ -4246,9 +4672,8 @@ function collateralTab(inn){
       + '<div class="dd" id="plGenDd">'
         + '<button class="btn btn-primary btn-sm" id="plGenBtn">Сформировать ▾</button>'
         + '<div class="dd-menu">'
-          + '<button class="dd-i">Справка об обеспеченности</button>'
-          + '<button class="dd-i">Реестр предметов залога</button>'
-          + '<button class="dd-i">График обследований</button>'
+          + PL_FORMS.map(f => '<button class="dd-i" onclick="notRouted(\'' + esc(f.where) + '\')">'
+              + esc(f.label) + ' ↗</button>').join('')
         + '</div>'
       + '</div>'
     + '</div>';
@@ -4257,27 +4682,32 @@ function collateralTab(inn){
   const defBar = defectBar('обеспечения', def,
     'покрытие в норме, запреты наложены, обследования в сроке');
 
-  /* worst-of нормирован на порог каждого кредита, поэтому норма — единица, а не 1.20 */
+  /* Сводка (КЗ-23): worst-of нормирован на порог каждого кредита, поэтому норма — единица,
+     а не 1.20. И он назван вместе с КРЕДИТОМ: «0.77» без имени сообщает беду и молчит о том,
+     где она, а нарушения без знаменателя не отличают частный случай от развала. */
   const covPill = cov.worst == null
     ? '<span class="badge b-gray">нет действующего залога</span>'
     : '<span class="badge ' + (cov.worst < 1 ? 'b-err' : 'b-ok') + '">worst-of '
-      + cov.worst.toFixed(2) + ' · норма 1.00</span>';
+      + cov.worst.toFixed(2) + ' · ' + esc(cov.worstNo) + ' · норма 1.00</span>';
+  const brPill = cov.rated
+    ? '<span class="mon-stat' + (cov.breaches ? ' ov' : '') + '">нарушений порога <b>'
+      + cov.breaches + '</b> из ' + cov.rated + '</span>'
+    : '';
+  const cvCur = [...new Set(act.map(o => o.currency || 'KGS'))].sort();
   const summary = '<div class="mon-sum">'
     + '<span class="mon-stat"><b>' + agrs.length + '</b> договоров залога</span>'
     + '<span class="mon-stat"><b>' + act.length + '</b> предметов действует</span>'
     + (rel.length ? '<span class="mon-stat"><b>' + rel.length + '</b> снято</span>' : '')
-    + '<span class="mon-stat"><b>' + fmt(act.reduce((s,o) => s + o.collateralValue, 0)) + '</b> KGS залоговая</span>'
+    + cvCur.map(cur => '<span class="mon-stat"><b>'
+        + fmt(act.filter(o => (o.currency || 'KGS') === cur).reduce((s,o) => s + o.collateralValue, 0))
+        + '</b> ' + esc(cur) + ' залоговая</span>').join('')
     + '<span class="mon-stat' + (cov.worst != null && cov.worst < 1 ? ' ov' : '') + '">' + covPill + '</span>'
+    + brPill
     + '</div>';
 
-  const guar = RELATED.filter(r => r.inn === inn && /поручител/i.test(r.role || ''));
-  /* поручительство ведётся вне залогового модуля и в индекс обеспеченности НЕ входит (Р-11) */
-  const guarHtml = guar.length ? sect('Поручительство', 'параллельное обеспечение · в индекс не входит', '',
-    table('<th>Поручитель</th><th>ПИН</th><th>С даты</th>',
-      guar.map(g => '<tr><td>' + esc(g.fio) + '</td><td>' + esc(g.pin || '—')
-        + '</td><td class="muted">' + esc(g.from || '—') + '</td></tr>'))) : '';
-
-  return toolbar + defBar + summary + sect('', '', '', '<div id="plWrap"></div>') + guarHtml;
+  return sect('Залог', 'зеркало модуля залога · только чтение', '',
+      toolbar + defBar + summary + '<div id="plWrap"></div>')
+    + guaranteeSection(inn);
 }
 
 /* Проводка таба «Залог»: переключатель вида, раскрытие строк, дропдаун. Вызывается из
@@ -4288,14 +4718,24 @@ function wireCollateralTab(inn){
   const creds = CREDITS.filter(c => c.inn === inn);
   const objs  = PLEDGE_OBJ.filter(o => o.inn === inn);
 
+  const CUR = x => x.currency || 'KGS';
+
   /* ---- вид «по кредитам»: строка = кредит, раскрытие = предметы его договора ---- */
   function creditsView(){
     const rows = creds.map((c, i) => {
       const cv = creditCoverage(c);
       const active = isActiveCredit(c, asOf());
+      const cur = CUR(c);
       const agrNos = [...new Set(cv.items.map(a => (PLEDGE_AGR.find(x => x.id === a.obj.agreementId) || {}).no).filter(Boolean))];
+      /* КЗ-24 — цепочка вывода вместо голого индекса. Раньше рядом стояли «1.02» и «120 %»:
+         две разные шкалы на одной строке читаются как одна, и «1.02 при пороге 120 %» выглядит
+         провалом, хотя индекс УЖЕ нормирован на порог. Показываем весь ход: залоговая ÷
+         (остаток × порог) = индекс — тогда видно, из чего он получился и что двигать. */
       const idx = cv.index == null ? '<span class="muted">—</span>'
-        : '<span class="' + (cv.index < 1 ? 'win' : '') + '"><b>' + cv.index.toFixed(2) + '</b></span>';
+        : '<span class="' + (cv.index < 1 ? 'win' : '') + '"><b>' + cv.index.toFixed(2) + '</b></span>'
+          + '<div class="muted" style="margin-top:3px">' + fmt(Math.round(cv.secured)) + ' ÷ ('
+          + fmt(Math.round(cv.base)) + ' × ' + Math.round(cv.req*100) + ' %)</div>'
+          + '<div class="muted" style="margin-top:2px">порог · ' + esc(cv.source) + '</div>';
       const liq = cv.liqApplies
         ? '<div class="muted" style="margin-top:3px">ликвид ' + Math.round(cv.liqShare*100) + ' % '
           + (cv.liqOk ? '· норма 80 %' : '<span class="win">· ниже нормы 80 %</span>') + '</div>'
@@ -4314,31 +4754,53 @@ function wireCollateralTab(inn){
         + '<td class="who">' + esc(c.no)
           + '<div class="muted" style="font-weight:400;margin-top:3px">'
           + (agrNos.length ? 'дог. залога ' + esc(agrNos.join(', ')) : 'договор залога отсутствует') + '</div></td>'
-        + '<td>' + fmt(cv.base) + ' <span class="muted">KGS</span>'
+        + '<td data-col="base">' + actMoney(cv.base, cur)
           + (active ? '' : '<div class="muted" style="margin-top:3px">закрыт ' + esc(c.closedAt || '') + '</div>') + '</td>'
-        + '<td>' + Math.round(cv.req*100) + ' %<div class="muted" style="margin-top:3px">' + esc(cv.source) + '</div></td>'
         /* доли дают дробные копейки — в карточке заёмщика показываем целые сомы */
-        + '<td>' + fmt(Math.round(cv.secured)) + ' <span class="muted">KGS</span>'
+        + '<td data-col="sec">' + actMoney(Math.round(cv.secured), cur)
           + '<div class="muted" style="margin-top:3px">оценочная ' + fmt(Math.round(cv.appraised)) + '</div></td>'
-        + '<td>' + idx + liq + '</td>'
+        + '<td data-col="cover">' + idx + liq + '</td>'
         + '<td>' + itemsCell + '</td></tr>';
-      const sub = '<tr class="pl-sub" data-sub="' + esc(c.id) + '" hidden><td colspan="7">'
+      const sub = '<tr class="pl-sub" data-sub="' + esc(c.id) + '" hidden><td colspan="6">'
         + (cv.items.length ? cv.items.map(a => itemBlock(a.obj, a.share)).join('')
            : '<div class="pl-agr">Предметов залога нет. ' + (active
               ? 'Кредит не обеспечен — дефект, кандидат в очередь на комитет.' : 'Обеспечение снято при закрытии кредита.') + '</div>')
         + '</td></tr>';
       return main + sub;
     });
-    const tot = creds.reduce((a,c) => { const cv = creditCoverage(c);
-      return { base:a.base + cv.base, sec:a.sec + cv.secured }; }, { base:0, sec:0 });
-    const foot = '<td class="rownum"></td>'
-      + '<td>Итого <span class="muted" style="font-weight:400">· ' + creds.length + ' кред.</span></td>'
-      + '<td>' + fmt(tot.base) + ' <span class="muted">KGS</span></td><td></td>'
-      + '<td><b>' + fmt(Math.round(tot.sec)) + '</b> <span class="muted">KGS</span></td><td></td><td></td>';
-    const head = '<th class="rownum"></th><th style="width:20%">Кредит</th><th style="width:13%">Остаток</th>'
-      + '<th style="width:17%">Порог покрытия</th><th style="width:17%">Залоговая стоимость</th>'
-      + '<th style="width:12%">Индекс</th><th style="width:13%">Предметы</th>';
+    /* Итог следует показанному множеству и не смешивает состояния (И-12, Б-6). Раньше подвал
+       складывал ВСЕ кредиты подряд, включая погашенные, а вид «по предметам» рядом считал по
+       действующим — одно и то же обеспечение давало два разных итога при переключении вида. */
+    const foot = footRows(creds, c => isActiveCredit(c, DEBT_ASOF), CUR,
+      list => list.reduce((a,c) => { const cv = creditCoverage(c);
+        return { base:a.base + cv.base, sec:a.sec + cv.secured }; }, { base:0, sec:0 }),
+      (label, t, cur, n, strong) => '<td class="rownum"></td>'
+        + '<td data-col="label">' + label + ' <span class="muted" style="font-weight:400">· '
+          + n + ' кред. · ' + esc(cur) + '</span></td>'
+        + '<td data-col="base">' + actMoney(Math.round(t.base), cur) + '</td>'
+        + '<td data-col="sec">' + (strong ? '<b>' + fmt(Math.round(t.sec)) + '</b>' : fmt(Math.round(t.sec)))
+          + ' <span class="muted">' + esc(cur) + '</span></td>'
+        + '<td></td><td></td>',
+      'Погашено');
+    const head = '<th class="rownum"></th><th style="width:20%">Кредит</th><th style="width:15%">Остаток</th>'
+      + '<th style="width:18%">Залоговая стоимость</th>'
+      + '<th style="width:27%">Обеспеченность</th><th style="width:15%">Предметы</th>';
     return table(head, rows, foot);
+  }
+
+  /* Общий подвал обоих видов (Б-6): одно правило на два вида — сначала показанное множество
+     делится по валюте (Б-10), внутри валюты — по состоянию. Строка «Итого действ.» печатается
+     всегда, даже нулевая: её отсутствие читалось бы как «данных нет», а не «ничего не действует». */
+  function footRows(list, isLive, curOf, agg, cell, doneLabel){
+    const out = [];
+    [...new Set(list.map(curOf))].sort().forEach(cur => {
+      const inCur = list.filter(x => curOf(x) === cur);
+      const live = inCur.filter(isLive), done = inCur.filter(x => !isLive(x));
+      out.push(cell('Итого <span class="muted" style="font-weight:400">действ.</span>',
+        agg(live), cur, live.length, true));
+      if (done.length) out.push(cell(doneLabel, agg(done), cur, done.length, false));
+    });
+    return out;
   }
 
   /* карточка предмета внутри раскрытой строки кредита */
@@ -4348,11 +4810,13 @@ function wireCollateralTab(inn){
       + '<div class="pi-h"><b>' + esc(o.name) + '</b>'
         + '<span class="pi-l">' + esc(o.kind) + ' · ' + esc(o.identLabel) + ' ' + esc(o.ident) + '</span>'
         + banBadge(o) + surveyBadge(o) + policyBadge(o) + '</div>'
-      + '<div class="pi-l">залогодатель · ' + esc(o.pledger) + (o.address ? ' · ' + esc(o.address) : '') + '</div>'
-      + '<div class="pi-l">оценочная ' + fmt(o.appraised) + ' KGS · залоговая ' + fmt(o.collateralValue)
-        + ' KGS · оценка от ' + esc(o.apprDate)
+      + '<div class="pi-l">залогодатель · <a class="lnk" href="#/s/' + esc(o.pledgerInn) + '">'
+        + esc(pledgerName(o)) + '</a> · ИНН ' + esc(o.pledgerInn)
+        + (o.address ? ' · ' + esc(o.address) : '') + '</div>'
+      + '<div class="pi-l">оценочная ' + actMoney(o.appraised, CUR(o)) + ' · залоговая '
+        + actMoney(o.collateralValue, CUR(o)) + ' · оценка от ' + esc(o.apprDate)
         + (share < 0.999 ? ' · <b>доля на этот кредит ' + Math.round(share*100) + ' %</b> ('
-            + fmt(Math.round(o.collateralValue*share)) + ' KGS)' : '') + '</div>'
+            + actMoney(Math.round(o.collateralValue*share), CUR(o)) + ')' : '') + '</div>'
       /* в сиде нотариус хранится с префиксом «Нотариус …» — в строке он лишний */
       + '<div class="pi-l">договор ' + esc(a.no || '—') + ' · нотариус ' + esc(String(a.notary || '—').replace(/^Нотариус\s+/, ''))
         + ' · ' + esc(a.organ || '—') + ' · запрет ' + esc((o.ban && o.ban.regNo) || '—')
@@ -4360,47 +4824,108 @@ function wireCollateralTab(inn){
       + '</div>';
   }
 
-  /* ---- вид «по предметам»: плоский реестр (поиск по гос.номеру/кадастру) ---- */
-  function objectsView(){
-    const ordered = objs.filter(o => !o.released).concat(objs.filter(o => o.released));
+  /* ---- вид «по предметам»: рабочий реестр залоговой службы (КЗ-25) ----
+     Вид существует ради двух вопросов — «где этот гос.номер/кадастр» и «что у нас самое
+     дорогое». Оба требуют поиска и сортировки: без них реестр листается глазами, а на
+     сорока предметах это уже не работа. Залогодатель показывается ИНН-ссылкой (Б-14):
+     имя принадлежит субъекту, связь держится идентификатором. */
+  let obQ = '', obSort = null, obDir = 1;
+  const obVal = (o, k) =>
+      k === 'name'    ? o.name
+    : k === 'ident'   ? o.identLabel + ' ' + o.ident
+    : k === 'pledger' ? pledgerName(o)
+    : k === 'appr'    ? o.appraised
+    : k === 'cv'      ? o.collateralValue
+    : '';
+  const obMatch = o => {
+    const q = obQ.trim().toLowerCase();
+    if (!q) return true;
+    return [o.name, o.kind, o.identLabel, o.ident, pledgerName(o), o.pledgerInn, o.address,
+            (PLEDGE_AGR.find(x => x.id === o.agreementId) || {}).no]
+      .filter(Boolean).some(v => String(v).toLowerCase().includes(q));
+  };
+  function objectsTable(){
+    const shown = objs.filter(obMatch);
+    /* без сортировки порядок прежний: действующие впереди снятых */
+    const ordered = obSort
+      ? shown.slice().sort((a,b) => cmpVal(obVal(a, obSort), obVal(b, obSort)) * obDir)
+      : shown.filter(o => !o.released).concat(shown.filter(o => o.released));
     const rows = ordered.map((o, i) => {
       const a = PLEDGE_AGR.find(x => x.id === o.agreementId) || {};
       const crs = (o.allocs || []).map(x => (CREDITS.find(c => c.id === x.credit) || {}).no || x.credit);
       return '<tr' + (o.released ? ' class="muted"' : '') + '>'
         + '<td class="rownum">' + (i+1) + '</td>'
-        + '<td class="who">' + esc(o.name)
+        + '<td class="who" data-col="name">' + esc(o.name)
           + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(o.kind)
           + (o.released ? ' · снят' : '') + '</div></td>'
-        + '<td>' + esc(o.identLabel) + ' ' + esc(o.ident) + '</td>'
-        + '<td>' + esc(o.pledger) + (o.address ? '<div class="muted" style="margin-top:3px">' + esc(o.address) + '</div>' : '') + '</td>'
-        + '<td>' + fmt(o.appraised) + ' <span class="muted">KGS</span></td>'
-        + '<td><b>' + fmt(o.collateralValue) + '</b> <span class="muted">KGS</span></td>'
+        + '<td data-col="ident">' + esc(o.identLabel) + ' ' + esc(o.ident) + '</td>'
+        + '<td data-col="pledger"><a class="lnk" href="#/s/' + esc(o.pledgerInn) + '">' + esc(pledgerName(o)) + '</a>'
+          + '<div class="muted" style="margin-top:3px">ИНН ' + esc(o.pledgerInn)
+          + (o.address ? ' · ' + esc(o.address) : '') + '</div></td>'
+        + '<td data-col="appr">' + actMoney(o.appraised, CUR(o)) + '</td>'
+        + '<td data-col="cv"><b>' + fmt(o.collateralValue) + '</b> <span class="muted">' + esc(CUR(o)) + '</span></td>'
         + '<td>' + esc(a.no || '—') + '<div class="muted" style="margin-top:3px">' + esc(crs.join(', ') || '—') + '</div></td>'
         + '<td>' + banBadge(o) + '</td>'
         + '<td>' + surveyBadge(o) + (policyBadge(o) ? '<div style="margin-top:3px">' + policyBadge(o) + '</div>' : '') + '</td>'
         + '</tr>';
     });
-    const a = objs.filter(o => !o.released);
-    const foot = '<td class="rownum"></td>'
-      + '<td>Итого <span class="muted" style="font-weight:400">· ' + a.length + ' действ.</span></td><td></td><td></td>'
-      + '<td>' + fmt(a.reduce((s,o) => s + o.appraised, 0)) + ' <span class="muted">KGS</span></td>'
-      + '<td><b>' + fmt(a.reduce((s,o) => s + o.collateralValue, 0)) + '</b> <span class="muted">KGS</span></td>'
-      + '<td></td><td></td><td></td>';
-    const head = '<th class="rownum">#</th><th style="width:18%">Предмет</th><th style="width:12%">Идентификатор</th>'
-      + '<th style="width:14%">Залогодатель</th><th style="width:11%">Оценочная</th><th style="width:11%">Залоговая</th>'
-      + '<th style="width:12%">Договор / кредиты</th><th style="width:11%">Запрет</th><th style="width:11%">Обследование</th>';
-    return table(head, rows, foot);
+    const foot = footRows(ordered, o => !o.released, CUR,
+      list => ({ appr: list.reduce((s,o) => s + o.appraised, 0),
+                 cv:   list.reduce((s,o) => s + o.collateralValue, 0) }),
+      (label, t, cur, n, strong) => '<td class="rownum"></td>'
+        + '<td data-col="label">' + label + ' <span class="muted" style="font-weight:400">· '
+          + plural(n,'предмет','предмета','предметов') + ' · ' + esc(cur) + '</span></td>'
+        + '<td></td><td></td>'
+        + '<td data-col="appr">' + actMoney(t.appr, cur) + '</td>'
+        + '<td data-col="sec">' + (strong ? '<b>' + fmt(t.cv) + '</b>' : fmt(t.cv))
+          + ' <span class="muted">' + esc(cur) + '</span></td>'
+        + '<td></td><td></td><td></td>',
+      'Снято');
+    const th = (k, w, label) => '<th data-sort="' + k + '" style="width:' + w + '"'
+      + (obSort === k ? ' class="sorted"' : '') + '>' + label
+      + '<span class="sort">' + (obSort === k ? (obDir === 1 ? '↑' : '↓') : '↕') + '</span></th>';
+    const head = '<th class="rownum">#</th>' + th('name','18%','Предмет') + th('ident','12%','Идентификатор')
+      + th('pledger','16%','Залогодатель') + th('appr','11%','Оценочная') + th('cv','11%','Залоговая')
+      + '<th style="width:11%">Договор / кредиты</th><th style="width:10%">Запрет</th><th style="width:11%">Обследование</th>';
+    return shown.length ? table(head, rows, foot)
+      : empty('По запросу «' + esc(obQ) + '» предметов не найдено.');
+  }
+  function objectsView(){
+    return '<div class="toolbar">'
+      + '<input id="plSearch" class="inp" type="search" data-view-ctl="1" style="max-width:320px"'
+        + ' placeholder="Поиск: предмет, гос.номер, кадастр, ИНН залогодателя" value="' + esc(obQ) + '">'
+      + '<span class="fl muted">поиск и сортировка — по показанному реестру</span>'
+      + '</div><div id="plObjTable">' + objectsTable() + '</div>';
+  }
+  /* перерисовка одной таблицы: поле поиска остаётся в DOM и не теряет фокус на каждой букве */
+  function renderObjTable(){
+    const box = document.getElementById('plObjTable');
+    if (!box) return;
+    box.innerHTML = objectsTable();
+    wireSort(box);
+  }
+  function wireSort(box){
+    box.querySelectorAll('thead th[data-sort]').forEach(th => th.addEventListener('click', () => {
+      obDir = (obSort === th.dataset.sort) ? -obDir : 1;
+      obSort = th.dataset.sort;
+      renderObjTable();
+    }));
   }
 
   function render(){
     const view = pledgeView();
     wrap.innerHTML = view === 'objects' ? objectsView() : creditsView();
-    wrap.querySelectorAll('tr.pl-row').forEach(tr => tr.addEventListener('click', () => {
+    wrap.querySelectorAll('tr.pl-row').forEach(tr => tr.addEventListener('click', e => {
+      if (e.target.closest && e.target.closest('a')) return;
       const sub = wrap.querySelector('tr.pl-sub[data-sub="' + tr.dataset.cr + '"]');
       if (!sub) return;
       sub.hidden = !sub.hidden;
       tr.classList.toggle('open', !sub.hidden);
     }));
+    const box = document.getElementById('plObjTable');
+    if (box) wireSort(box);
+    const q = document.getElementById('plSearch');
+    if (q) q.addEventListener('input', e => { obQ = e.target.value; renderObjTable(); });
   }
   const seg = (v) => {
     try { localStorage.setItem(PLEDGE_VIEW_KEY, v); } catch(e){}
@@ -4947,12 +5472,12 @@ function borrowerChecks(inn, d){
         basis:'у каждого объекта есть действующий куратор' });
 
   // 7. Просроченные обязательства Порядка — были только в шапке
-  const obsOv = obligations(inn, d).filter(o=>o.status==='просрочено');
+  const obsOv = obligations(inn, d).filter(o=>o.status==='срок вышел');
   C.push(obsOv.length
     ? { code:'Д-ОБЯЗ', tag:'сопровождение', sev:'high', stop:false, tab:tabIx('обязательства'), name:'Обязательства Порядка',
-        result: plural(obsOv.length,'обязательство просрочено','обязательства просрочены','обязательств просрочено'),
+        result: plural(obsOv.length,'у обязательства вышел срок','у обязательств вышел срок','у обязательств вышел срок'),
         basis: obsOv.map(o=>esc(o.code + ' ' + o.periodLabel)).join(' · ') + ' · ' + link(tabIx('обязательства'),'обязательства') }
-    : { code:'Д-ОБЯЗ', tag:'сопровождение', sev:'ok', stop:false, tab:tabIx('обязательства'), name:'Обязательства Порядка', result:'просроченных нет',
+    : { code:'Д-ОБЯЗ', tag:'сопровождение', sev:'ok', stop:false, tab:tabIx('обязательства'), name:'Обязательства Порядка', result:'сроки соблюдены',
         basis:'все требования Порядка в срок или исполнены' });
 
   // 8. Очередь на комитет — событие ждёт решения и категорию не двигает (И-1)
@@ -4991,6 +5516,18 @@ function borrowerChecks(inn, d){
     basis: rel.length ? rel.slice(0,3).map(r=>esc(r.fio + ' · ' + r.role)).join(' · ')
              + (rel.length>3 ? ' и ещё ' + (rel.length-3) : '') + ' · ' + link(tabIx('связи'),'реквизиты и связи')
            : 'реестр лиц (Р-7) · сверка по ИНН' });
+
+  /* 12. Каналы связи (КЗ-10). Заёмщик, до которого нечем дозвониться, — это расхождение
+        с Порядком: требование уведомить (п.93, претензия, акт сверки) выполнить нечем.
+        Раньше пустой набор давал на витрине пустой блок — то есть ничего не значил. */
+  const chLive = liveChannels(inn);
+  C.push(chLive.length
+    ? { code:'Д-КОНТ', tag:'сопровождение', sev:'ok', stop:false, tab:tabIx('связи'), name:'Каналы связи',
+        result: plural(chLive.length,'действующий канал','действующих канала','действующих каналов'),
+        basis: chLive.map(c=>esc(c.kind)).join(' · ') + ' · ' + link(tabIx('связи'),'реквизиты и связи') }
+    : { code:'Д-КОНТ', tag:'сопровождение', sev:'mid', stop:false, tab:tabIx('связи'), name:'Каналы связи',
+        result:'действующих каналов нет',
+        basis:'уведомить заёмщика нечем · ' + link(tabIx('связи'),'реквизиты и связи') });
   return C;
 }
 
@@ -4998,12 +5535,15 @@ function borrowerChecks(inn, d){
    приведённые к той же записи. Один источник для шапки, вкладок и любого отчёта. */
 function defects(inn, d){
   const wrap = (area, tab, code) => x => ({ code, area, tab, tag:'сопровождение',
-    sev: x.sev==='high' ? 'high' : 'mid', stop:false, name:area==='залог' ? 'Обеспечение' : 'Взыскание',
+    sev: x.sev==='high' ? 'high' : 'mid', stop:false, name:area==='обеспечение' ? 'Обеспечение' : 'Взыскание',
     result:x.text, basis:'' });
   return [
     ...borrowerChecks(inn, d).filter(c => c.sev !== 'ok').map(c => Object.assign({ area:'заёмщик' }, c)),
-    ...pledgeDefects(inn).map(wrap('залог', 2, 'Д-ЗАЛ')),
-    ...collectionDefects(inn).map(wrap('взыскание', 3, 'Д-ВЗЫСК')),
+    /* индекс вкладки берётся хелпером, а не вписывается числом (Б-1): «взыскание» было
+       зашито тройкой, а третья вкладка — «Обязательства», и ссылка «перейти к дефекту»
+       вела не туда. Рядом, в borrowerChecks, тот же адрес уже считался через tabIx. */
+    ...pledgeDefects(inn).map(wrap('обеспечение', tabIx('обеспечение'), 'Д-ЗАЛ')),
+    ...collectionDefects(inn).map(wrap('взыскание', tabIx('взыскание'), 'Д-ВЗЫСК')),
   ];
 }
 const DEF_RANK = { high:0, mid:1, info:2, ok:3 };
@@ -5095,7 +5635,11 @@ function historyItems(inn){
   const noOf = id => (CREDITS.find(c=>c.id===id)||{}).no || id;
 
   /* ── риск: категория, группа, факторы комитета ── */
-  categoryEvents(inn, asOf()).forEach(e=>add({date:e.date, dot:'risk', cat:'risk',
+  /* КЗ-11: лента строится на TODAY, а не на asOf(). Дате среза подчиняются СОСТОЯНИЯ (И-9);
+     лента — набор фактов, и «на 01.03.2026 этого события ещё не было» здесь не состояние,
+     а вычеркнутая строка журнала. Раньше срез укорачивал одну только полосу «риск» —
+     остальные восемь источников его игнорировали, и лента расходилась сама с собой. */
+  categoryEvents(inn, TODAY).forEach(e=>add({date:e.date, dot:'risk', cat:'risk',
     kind:'категория', tab:tabIx('общая'),
     title:`Категория риска → ${e.level ? CAT_LABEL[e.level] : 'не применяется'}`, body:e.reason}));
   BORROWER_EVENTS.filter(e=>e.inn===inn).forEach(e=>add({date:e.date, dot:'info', cat:'risk',
@@ -5108,7 +5652,16 @@ function historyItems(inn){
     body: f.committeeRef ? `решение комитета ${f.committeeRef} · уровень ${CAT_LABEL[f.level]} — категория пересчитана`
                          : `без решения комитета · уровень ${CAT_LABEL[f.level]} — категорию не двигает (И-1)`}));
 
-  /* ── субъект ── */
+  /* ── субъект: события жизненного цикла и аудит самой записи ── */
+  /* КЗ-9: «внесён / изменён» переехали сюда из «Основных сведений». Это два датированных
+     факта с автором — то же, из чего состоит лента; на витрине они стояли двумя строками
+     мелкого шрифта и на вопрос «что с заёмщиком сейчас» не отвечали ничем. */
+  const au = (SUBJECTS.find(x=>x.inn===inn)||{}).audit || {};
+  if (au.date) add({date:au.date, time:au.time, dot:'info', cat:'subj', kind:'запись',
+    title:'Карточка заёмщика заведена', body:`внёс ${au.by||'—'}`});
+  if (au.chgDate && (au.chgDate!==au.date || au.chgTime!==au.time))
+    add({date:au.chgDate, time:au.chgTime, dot:'info', cat:'subj', kind:'запись',
+      title:'Карточка заёмщика изменена', body:`изменил ${au.chgBy||'—'}`});
   SUBJECT_EVENTS.filter(e=>e.inn===inn).forEach(e=>add({date:e.date, time:e.time, dot:'warn', cat:'subj',
     kind:'субъект', tab:tabIx('общая'),
     title:`Субъект: ${e.kind}`, body:`${e.basis}${e.doc?' · '+e.doc:''}`}));
@@ -5128,7 +5681,7 @@ function historyItems(inn){
 
   /* ── обеспечение: регистрация договора залога ── */
   PLEDGE_AGR.filter(a=>a.credits.some(id=>myIds.has(id))).forEach(a=>add({date:a.regDate, dot:'info', cat:'pledge',
-    kind:'залог', tab:tabIx('залог'),
+    kind:'залог', tab:tabIx('обеспечение'),
     title:`Зарегистрирован договор залога ${a.no}`,
     body:`кредит ${a.credits.map(noOf).join(', ')} · ${a.organ} · запрет ${a.arrestNo} от ${a.arrestDate}`}));
 
@@ -5205,6 +5758,15 @@ function historyItems(inn){
   return undated.concat(dated);
 }
 
+/* Пятёрка последних (КЗ-11) — общий счёт слотов для витрины и для хвоста вкладки (КЗ-31).
+   Недатированные факты идут в ленте отдельным блоком наверху, чтобы пропажу даты было
+   видно, — но слоты они занимать не должны: у заёмщика с двумя такими записями «последние
+   события» показывали их вечно, а свежие до экрана не доходили. Считаем их числом:
+   пропажа остаётся видна, а пятёрка достаётся событиям. */
+function recentSlots(items, n){
+  return { shown: items.filter(it => dnum(it.date) !== null).slice(0, n),
+           undated: items.filter(it => dnum(it.date) === null).length };
+}
 /* Лента. opts.years — разделители-годы (вкладка «История»); в карточке «Последние события» не нужны. */
 function timelineHtml(items, opts){
   opts = opts || {};
@@ -5301,20 +5863,25 @@ function histApply(){
    записей её категории и ссылка в общую ленту с уже выставленным фильтром.
    Лента — журнал фактов, дате среза не подчиняется (КЗ-11, И-9 про состояния). */
 const TAB_HIST_CAT = {
-  'кредиты':'credit', 'залог':'pledge', 'взыскание':'coll', 'акты':'acts',
+  'кредиты':'credit', 'обеспечение':'pledge', 'взыскание':'coll', 'акты':'acts',
   'кураторство':'kur', 'документы':'doc', 'проверки':'check',
 };
 const TAB_TL_N = 5;
 function tabTimeline(inn, cat){
   const items = historyItems(inn).filter(it => it.cat === cat);
-  const hint = items.length > TAB_TL_N ? 'последние ' + TAB_TL_N + ' из ' + items.length : 'зеркало общей ленты';
+  const shownN = Math.min(TAB_TL_N, items.filter(it => dnum(it.date) !== null).length);
+  const hint = items.length > shownN ? 'последние ' + shownN + ' из ' + items.length : 'зеркало общей ленты';
   const link = '<a class="lnk" href="#/b/' + esc(inn) + '/' + tabIx('история') + '?cat=' + esc(cat) + '">'
     + 'Вся хронология →</a>';
   /* Пустая хронология — тоже не новость: одиннадцать блоков «событий нет» весили бы столько же,
      сколько содержание вкладок (та же причина, что у зелёной полосы в КЗ-22). Указатель в ленту
      при этом остаётся — иначе вкладка молчит о том, что общая лента вообще есть. */
+  /* тот же счёт слотов, что и у витрины (КЗ-11): факт без даты не съедает пятёрку */
+  const r = recentSlots(items, TAB_TL_N);
   const body = items.length
-    ? sect('Хронология', hint, link, timelineHtml(items.slice(0, TAB_TL_N)))
+    ? sect('Хронология', hint, link, timelineHtml(r.shown)
+        + (r.undated ? `<div class="att-more">${r.undated} `
+            + plural(r.undated,'запись','записи','записей') + ' без даты — в начале ленты</div>' : ''))
     : '<div class="tl-quiet"><span>Событий по вкладке в ленте нет.</span>' + link + '</div>';
   return '<div class="tab-tl" data-cat="' + esc(cat) + '">' + body + '</div>';
 }
@@ -5327,7 +5894,7 @@ function tabMain(inn, i){
   switch((TAB_DEFS[i]||{}).key){
     case 'общая': return generalTab(inn);
     case 'кредиты': return `<div data-mirror="1">${creditsTab(inn)}</div>`;
-    case 'залог': return `<div data-mirror="1">${collateralTab(inn)}</div>`;
+    case 'обеспечение': return `<div data-mirror="1">${collateralTab(inn)}</div>`;
     case 'обязательства': return obligationsTab(inn);
     case 'взыскание': return `<div data-mirror="1">${collectionTab(inn)}</div>`;
     case 'акты': return actsTab(inn);
@@ -5385,7 +5952,7 @@ function renderCard(inn){
     tile('Категория риска',
       cat ? `<span class="cat-${catCls(cat)}"><span class="dot d-${catCls(cat)}"></span> ${esc(CAT_LABEL[cat])}</span>`
           : '<span class="muted">не применяется</span>',
-      '', cat ? 'worst-of по действующим кредитам' : 'нет действующих кредитов (И-3)', catBasisHtml(inn)),
+      '', cat ? catBasisLine(inn) : 'нет действующих кредитов (И-3)', catBasisHtml(inn)),
   ].join('');
 
   /* КЗ-4. Состояние субъекта — только баннером, и вес баннера равен последствию: запрет работы
@@ -5460,20 +6027,25 @@ function subjectRoles(inn){
     scope: act.length + ' действующих из ' + my.length,
     since: my.map(c => c.date).filter(Boolean).sort((a,b)=>dnum(a)-dnum(b))[0] || '—',
     link: `<a class="lnk" href="#/b/${esc(inn)}">карточка заёмщика</a>` });
-  /* залогодателем лицо бывает и по чужому кредиту — поэтому ищем по предметам, а не по ИНН */
-  const pl = PLEDGE_OBJ.filter(o => o.pledger === s.name && !o.released);
+  /* залогодателем лицо бывает и по чужому кредиту — поэтому ищем по предметам, а не по кредитам.
+     Ищем по ИНН залогодателя (Б-14): имя субъекта — не идентификатор, и сопоставление строк
+     рвалось при первом переименовании. */
+  const pl = PLEDGE_OBJ.filter(o => o.pledgerInn === inn && !o.released);
   if (pl.length){
     const owners = [...new Set(pl.map(o => o.inn))];
     out.push({ role:'Залогодатель', scope: plural(pl.length,'предмет','предмета','предметов') + ' в залоге',
       since: pl.map(o => o.apprDate).filter(Boolean).sort((a,b)=>dnum(a)-dnum(b))[0] || '—',
-      link: owners.map(i => `<a class="lnk" href="#/b/${esc(i)}/${tabIx('залог')}">${esc(i===inn ? 'свои кредиты' : i)}</a>`).join(' · ') });
+      link: owners.map(i => `<a class="lnk" href="#/b/${esc(i)}/${tabIx('обеспечение')}">${esc(i===inn ? 'свои кредиты' : i)}</a>`).join(' · ') });
   }
-  const asGuar = RELATED.filter(r => r.fio === s.name && /поручител/i.test(r.role || ''));
+  /* поручительство — договор, а не поле role в реестре лиц (ADR-0005): роль выводится из
+     наличия ДЕЙСТВУЮЩЕГО договора, прекращённый её снимает, но факт остаётся в истории */
+  const asGuar = GUARANTEES.filter(x => x.guarantorInn === inn && isActiveGuarantee(x, asOf()));
   if (asGuar.length) out.push({ role:'Поручитель',
-    scope: plural(asGuar.length,'обязательство','обязательства','обязательств'),
-    since: asGuar.map(r => r.from).filter(Boolean).sort((a,b)=>dnum(a)-dnum(b))[0] || '—',
-    link: asGuar.map(r => `<a class="lnk" href="#/b/${esc(r.inn)}">${esc(r.inn)}</a>`).join(' · ') });
-  const asRel = RELATED.filter(r => r.fio === s.name && !/поручител/i.test(r.role || ''));
+    scope: plural(asGuar.length,'договор','договора','договоров') + ' поручительства',
+    since: asGuar.map(x => x.date).filter(Boolean).sort((a,b)=>dnum(a)-dnum(b))[0] || '—',
+    link: [...new Set(asGuar.map(x => x.inn))]
+      .map(i => `<a class="lnk" href="#/b/${esc(i)}/${tabIx('обеспечение')}">${esc(i)}</a>`).join(' · ') });
+  const asRel = RELATED.filter(r => r.fio === s.name);
   if (asRel.length) out.push({ role:'Связанное лицо',
     scope: [...new Set(asRel.map(r => r.role))].map(esc).join(', '),
     since: asRel.map(r => r.from).filter(Boolean).sort((a,b)=>dnum(a)-dnum(b))[0] || '—',
