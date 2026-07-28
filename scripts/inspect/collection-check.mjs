@@ -22,8 +22,18 @@ function mk(){
   const $  = s => doc.querySelector(s);
   const $$ = s => [...doc.querySelectorAll(s)];
   const active = () => doc.querySelector('#detailPanels .detail-panel.active');
+  /* КД-9: панель строится только активная — «вся карточка» это шапка + обход вкладок. */
+  const dhead  = () => doc.getElementById('detailHead');
+  const allTabsText = () => { let t=''; for(let i=0;i<ev('TABS.length');i++){ ev(`switchTab(${i})`); t += active().textContent + '\n'; } return t; };
+  const allTabsHtml = sel => { let a=[]; for(let i=0;i<ev('TABS.length');i++){ ev(`switchTab(${i})`); a.push(...[...active().querySelectorAll(sel)]); } return a; };
   const setRole = r => { doc.getElementById('roleSel').value = r; };
-  return { dom, w, doc, ev, $, $$, active, setRole, errs };
+  /* Волна НП: правила меняет только «Администратор правил», и опасные правки
+     спрашивают confirm. jsdom своего confirm не имеет — подставляем управляемый:
+     ev('__ok=false') проверяет ветку отказа. */
+  w.__ok = true;
+  w.confirm = () => w.__ok;
+  const asAdmin = () => setRole(ev('RULES_ADMIN_ROLE'));
+  return { dom, w, doc, ev, $, $$, active, dhead, allTabsText, allTabsHtml, setRole, asAdmin, errs };
 }
 
 let fails = 0, n = 0;
@@ -33,8 +43,9 @@ const head = t => console.log('\n── ' + t + ' ' + '─'.repeat(Math.max(0, 6
 const g = mk();                        // общий DOM для read-only проверок
 const R = id => `REQ_INDEX['${id}']`;
 const P = id => `PROCESSES.find(x=>x.id==='${id}')`;
-/* Вкладки карточки: 0…3 — дело, 4…9 — требование (Журнал мер = 6, Долг = 5). */
-const TAB = { deal:0, procedure:1, komitety:2, history:3, req:4, debt:5, mery:6, sud:7, special:8, zalog:9 };
+/* Вкладки карточки — реестр TABS (КД-9). Порядок: 0…3 дело, 4…9 требование (КД-4).
+   Индексы берутся из самого мокапа по слагу, а не переписываются здесь руками. */
+const TAB = Object.fromEntries(g.ev(`TABS.map(t=>t.slug)`).map((s,i)=>[s,i]));
 
 /* ══════════════════════════════════════════════════════════════════════════
    М-1 (ADR-0002) — ЕДИНИЦА РАБОТЫ: требование = дело × кредит × обязанное лицо
@@ -70,7 +81,9 @@ head('М-2 · фаза — свёртка журнала');
 ok('хранимого поля фазы нет ни на одном требовании',
    g.ev(`allReqs().every(r => !('phase' in r) && !('contour' in r))`));
 ok('в коде нет присваиваний фазы',              !/\b(p|r|curProc|curReq)\.(phase|contour)\s*=[^=]/.test(HTML));
-ok('в карточке нет селектора фазы',             (g.ev("openDetail('142/56/з')"), g.$$('#detailPanels select').length === 0));
+/* КД-9: панель строится только активная — обходим все вкладки, иначе проверка сузилась бы. */
+ok('в карточке нет селектора фазы', (() => { const m = mk(); m.ev("openDetail('142/56/з')");
+  return m.allTabsHtml('select').length === 0 && m.dhead().querySelectorAll('select').length === 0; })());
 ok('фаза меняется только вехой (MILESTONE_PHASE)',
    g.ev(`Object.keys(MILESTONE_PHASE).length>0 && MILESTONE_PHASE['Исковое заявление']==='Иск'`));
 ok('у каждого требования фаза определена',      g.ev(`allReqs().every(r => !!phaseOf(r))`));
@@ -125,11 +138,12 @@ ok('подавление 181-го применяется до worst-of (210)',
 ok('категория дела = worst-of по кредитам (210 → mid)', g.ev(`catOfProcess(${P('210')})`) === 'mid');
 ok('категория требования берётся у его кредита',
    g.ev(`catOfReq(${R('210/70/з')})`) === g.ev(`catLevelOfCredit(${P('210')}.credits[0])`));
+/* КД-2/КД-3: плитки и раскрытие worst-of живут в шапке ВИДА, не в панели. */
 { const m = mk(); m.ev(`openDetail('210/70/з')`); m.ev('catOpen=false; toggleCat()');
   ok('раскрытие показывает входы покредитно (2 кредита + worst-of)',
-     m.active().querySelectorAll('.cat-expand .row').length === 3);
+     m.dhead().querySelectorAll('.cat-expand .row').length === 3);
   ok('честная категория видна при подавлении («подавлен»)',
-     /подавлен/.test(m.active().querySelector('.cat-expand').textContent)); }
+     /подавлен/.test(m.dhead().querySelector('.cat-expand').textContent)); }
 ok('сортировка по категории идёт по тяжести (rank), не по алфавиту',
    g.ev(`sortVal(${R('209/56b/з')},'cat')`) === g.ev('CAT_RANK.high'));
 
@@ -172,7 +186,7 @@ ok('расход увеличивает сумму требования и не 
   saveCost();
   return claimOf(curReq) === before + 1000 && claimOf(REQ_INDEX['142/56/п']) === before;
 })()`));
-{ const m = mk(); m.ev(`openDetail('104/71/з')`); m.ev(`switchTab(${TAB.debt})`);
+{ const m = mk(); m.ev(`openDetail('104/71/з')`); m.ev(`switchTab(${TAB.dolg})`);
   ok('п. 49 · строка возврата залогодателю при реализации залога (104)',
      /Возврат залогодателю/.test(m.active().textContent));
   ok('п. 33 · непокрытый остаток назван пунктом (104)', /п\. 33/.test(m.active().textContent)); }
@@ -329,7 +343,8 @@ ok('закрытие окна отметкой открывает гейт', mk(
   return curProc.window.open === false && !measureGate(curReq, 'Первичная претензия');
 })()`));
 ok('кнопок назначения / переназначения / продления заданий нет',
-   (g.ev(`openDetail('201/311/з')`), !/Назначить исполнителя|Переназначить|Продлить срок/i.test(g.$('#detailPanels').textContent)));
+   (() => { const m = mk(); m.ev(`openDetail('201/311/з')`);
+     return !/Назначить исполнителя|Переназначить|Продлить срок/i.test(m.allTabsText()); })());
 { const m = mk(); m.ev(`openDetail('104/71/з')`); m.ev('openRejectProc()');
   ok('чек-лист структурный: отклонение перечисляет 7 позиций (п. 20.2)', m.$$('#modalHost .rejChk').length === 7); }
 
@@ -337,8 +352,8 @@ ok('кнопок назначения / переназначения / прод�
    СРОКИ — Р-3: вычисление от базы шаблона, сущности «задание» нет
    ══════════════════════════════════════════════════════════════════════════ */
 head('Р-3 · сроки порядка');
-ok('шаблонов сроков 39, у каждого база и пункт',
-   g.ev('DEADLINE_TEMPLATES.length') === 39 && g.ev(`DEADLINE_TEMPLATES.every(t => t.base && t.point)`));
+ok('шаблонов сроков 44, у каждого база, срок и пункт',
+   g.ev('DEADLINE_TEMPLATES.length') === 44 && g.ev(`DEADLINE_TEMPLATES.every(t => t.base && t.term && t.point)`));
 ok('остаток срока считается от базы шаблона, не от даты ввода (142 апелляция)',
    g.ev(`${P('142')}.deadlines[0].base`).includes('вынесения'));
 
@@ -417,12 +432,13 @@ ok('фильтр «Досудебный порядок» не возвращае
   stageFilter = null; return has;
 })()`) === false);
 ok('вкладки разделены: 4 дела + 6 требования',
-   g.ev('DEAL_TABS.length') === 4 && g.ev('REQ_TABS.length') === 6 && g.ev('TABS.length') === 10);
+   g.ev(`TABS.filter(t=>t.group==='дело').length`) === 4
+   && g.ev(`TABS.filter(t=>t.group==='требование').length`) === 6 && g.ev('TABS.length') === 10);
 { const m = mk(); m.ev(`openDetail('142/56/з')`);
-  ok('пять плиток в шапке карточки, все нередактируемые с подписью источника',
-     m.active().querySelectorAll('.phead-dims .dim').length === 5
-     && m.active().querySelectorAll('.phead-dims input, .phead-dims select').length === 0
-     && m.active().querySelectorAll('.phead-dims .dim .src').length === 5); }
+  ok('четыре плитки в шапке карточки, все нередактируемые с подписью источника',
+     m.dhead().querySelectorAll('.phead-dims .dim').length === 4
+     && m.dhead().querySelectorAll('.phead-dims input, .phead-dims select').length === 0
+     && m.dhead().querySelectorAll('.phead-dims .dim .src').length === 4); }
 ok('счётчик подтверждения процедуры работает (210 — осталось 3 р.д.)',
    /осталось 3 р\.д\./.test(g.ev(`procSourceLabel(${P('210')})`)));
 { const m = mk(); m.ev(`openDetail('210/70/з')`); m.ev('openProcChangeModal()');
@@ -436,7 +452,7 @@ ok('карточка по id дела берёт первое требовани
 })()`));
 ok('все десять панелей рендерятся без ошибок', (() => {
   const s = mk(); s.ev(`openDetail('142/56/з')`);
-  for(let i=0;i<10;i++) s.ev(`switchTab(${i})`);
+  for(let i=0;i<s.ev('TABS.length');i++) s.ev(`switchTab(${i})`);
   return s.errs.length === 0;
 })());
 ok('переключение требования не уводит с карточки', mk().ev(`(() => {
@@ -444,15 +460,15 @@ ok('переключение требования не уводит с карт�
   return curReq.id === '142/56/п' && document.getElementById('view-detail').style.display === 'flex';
 })()`));
 ok('хеш переживает кириллический id требования', mk().ev(`(() => {
-  openDetail('142/56/п'); return curHash() === 'detail/142/56/п';
+  openDetail('142/56/п'); return curHash() === 'detail/142/56/п/' + TABS[curTab].slug;
 })()`));
 ok('возврат по хешу открывает то же требование', mk().ev(`(() => {
   openDetail('142/56/п'); showView('list'); location.hash = 'detail/142/56/п'; restoreFromHash();
   return curReq.id === '142/56/п';
 })()`));
 ok('реестр претензий ведёт на требование-адресат', mk().ev(`(() => {
-  renderClaimsRegistry();
-  return /openDetail\\('\\d+\\/[^\\/']+\\/[зпг]'\\)/.test(document.getElementById('claimsBody').innerHTML);
+  regRender('claims');
+  return /openDetail\\('\\d+\\/[^\\/']+\\/[зпг]'/.test(document.getElementById('claimsBody').innerHTML);
 })()`));
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -469,9 +485,10 @@ ok('phasesOf(К1) читает порядок из RULES',
    g.ev(`phasesOf('К1').join('>')`) === 'Претензия>Повторная претензия>Безакцептное списание');
 ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') === true);
 { const m = mk();
-  ok('persistRules пишет ключ RULES_KEY', m.ev(`(()=>{
+  ok('persistRules пишет версию схемы и правила', m.ev(`(()=>{
     RULES.sectionClevel['Досудебный']=3; persistRules();
-    return !!localStorage.getItem(RULES_KEY) && JSON.parse(localStorage.getItem(RULES_KEY)).sectionClevel['Досудебный']===3;
+    const box=JSON.parse(localStorage.getItem(RULES_KEY));
+    return box.v===RULES_SCHEMA && box.rules.sectionClevel['Досудебный']===3;
   })()`));
   ok('resetRulesAll восстанавливает дефолт', m.ev(`(()=>{
     RULES.sectionClevel['Досудебный']=3; resetRulesAll();
@@ -482,28 +499,29 @@ ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') 
     return Object.keys(RULES.gates).length>0 && RULES.sectionClevel['Судебный']===5;
   })()`)); }
 { const m = mk(); m.ev(`showView('settings')`);
-  ok('showView(settings) показывает экран и пишет hash',
-     m.$('#view-settings').style.display === 'flex' && m.ev('location.hash') === '#settings');
+  ok('showView(settings) показывает экран и пишет hash со вкладкой',
+     m.$('#view-settings').style.display === 'flex' && m.ev('location.hash') === '#settings/v9');
   ok('на экране настроек 4 вкладки', m.$$('#view-settings .settings-tab').length === 4);
   ok('переключение вкладки меняет settingsTab', m.ev(`(()=>{ showSettingsTab('gates'); return settingsTab; })()`) === 'gates');
   const m2 = mk(); m2.w.location.hash = '#settings'; m2.ev('restoreFromHash()');
   ok('restoreFromHash открывает настройки по #settings', m2.$('#view-settings').style.display === 'flex'); }
-{ const m = mk(); m.ev(`showView('settings'); showSettingsTab('v9')`);
-  ok('грид В-9 рендерит строку на каждый вид меры',
-     m.$$('#settingsHost .settings-grid tbody tr').length === m.ev('MEASURE_KINDS.length'));
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('грид В-9 рендерит строку на каждый вид меры и на каждое правило раздела',
+     m.$$('#settingsHost .settings-grid tbody tr').length === m.ev('MEASURE_KINDS.length + SECTION_ORDER.length'));
   ok('toggleV9 снимает последнее подразделение → вид исчезает из availableKinds', m.ev(`(()=>{
     RULES.measureSubdiv['Первичная претензия']=['ОД'];
-    document.getElementById('roleSel').value='Куратор ОД / ДАК / РП';
     toggleV9('Первичная претензия','ОД');
+    document.getElementById('roleSel').value='Куратор ОД / ДАК / РП';
     return !availableKinds(REQ_INDEX['201/311/з']).includes('Первичная претензия');
   })()`));
   ok('вид без подразделений помечается предупреждением', m.ev(`(()=>{
     RULES.measureSubdiv['Акт сверки']=[]; renderSettings();
     return document.getElementById('settingsHost').innerHTML.includes('никто не сможет');
   })()`));
-  ok('setRoleSubdiv меняет роль→подразделение',
-     m.ev(`(()=>{ setRoleSubdiv('Наблюдатель','ОД'); return RULES.roleSubdiv['Наблюдатель']==='ОД'; })()`)); }
-{ const m = mk(); m.ev(`showView('settings'); showSettingsTab('stage')`);
+  m.asAdmin();   /* предыдущая проверка переключила роль на куратора — правила правит админ */
+  ok('toggleRoleSubdiv меняет роль→подразделения',
+     m.ev(`(()=>{ toggleRoleSubdiv('Наблюдатель','ОД'); return RULES.roleSubdiv['Наблюдатель'].join()==='ОД'; })()`)); }
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('stage')`);
   ok('вкладка Стадии рендерит селект на каждый раздел',
      m.$$('#settingsHost .settings-grid tbody tr select').length === m.ev('SECTION_ORDER.length'));
   ok('повышение sectionClevel блокирует меру раздела на низкой ступени', m.ev(`(()=>{
@@ -512,7 +530,7 @@ ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') 
     setSectionClevel('Досудебный',4);
     return !before && !!sequenceReason(r,'Акт сверки');
   })()`)); }
-{ const m = mk(); m.ev(`showView('settings'); showSettingsTab('gates')`);
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('gates')`);
   ok('вкладка Гейты рендерит строку на каждый гейт',
      m.$$('#settingsHost .settings-grid tbody tr').length === m.ev('Object.keys(RULES.gates).length'));
   ok('отключение гейта разблокирует иск на деле без поручения', m.ev(`(()=>{
@@ -521,7 +539,7 @@ ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') 
     toggleGate('Исковое заявление');
     return !gateReason(r,'Исковое заявление');
   })()`)); }
-{ const m = mk(); m.ev(`showView('settings'); showSettingsTab('phases')`);
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('phases')`);
   ok('вкладка Фазы рендерит блок на каждый контур',
      m.$$('#settingsHost .phase-contour').length === m.ev('Object.keys(CONTOURS).length'));
   ok('movePhase меняет порядок в RULES.contourPhases', m.ev(`(()=>{
@@ -537,6 +555,276 @@ ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') 
     resetRulesSection('contourPhases');
     return !before && !!after;
   })()`)); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ВОЛНА НП — НАСТРОЙКИ ПРАВИЛ (§14.4): решения НП-1…НП-16.
+   Правило = что говорит · откуда взялось · чем отличается от дефолта · кого задевает.
+   ══════════════════════════════════════════════════════════════════════════ */
+head('НП-1…НП-16 · настройки правил');
+/* НП-1 · полный каркас, как у четырёх реестров */
+{ const m = mk(); m.ev(`showView('settings')`);
+  ok('НП-1 каркас: рамка, баннер, журнал, вкладки, тулбар, чипы, футер',
+     ['#settingsFrame','#settingsBanner','#settingsJournal','#settingsTabbar','#settingsToolbar','#settingsChips','#settingsHost','#settingsFoot']
+       .every(sel => !!m.$(sel)) && m.$('#settingsFrame').textContent.includes('Радиус'));
+  ok('НП-1 рамка называет объём живых данных',
+     m.$('#settingsFrame').textContent.includes(String(m.ev('allReqs().length')))); }
+/* НП-2 · правит только «Администратор правил», остальные семь — read-only */
+{ const m = mk();
+  ok('НП-2 восьмая роль есть в справочнике и правит правила',
+     m.ev(`ROLES.length===8 && ROLES.filter(r=>r.rulesAdmin).length===1 && ROLE_BY_NAME[RULES_ADMIN_ROLE].rulesAdmin===true`));
+  m.ev(`showView('settings')`);
+  ok('НП-2 не-админ видит полосу «только чтение»',
+     m.$('#settingsBanner').textContent.includes('Только чтение'));
+  ok('НП-2 не-админ: галочки и кнопки заблокированы',
+     m.$$('#settingsHost input[type=checkbox]').length > 0 &&
+     m.$$('#settingsHost input[type=checkbox]').every(c => c.disabled));
+  ok('НП-2 не-админ: правка не проходит и объясняется тостом', m.ev(`(()=>{
+    const was=JSON.stringify(RULES.measureSubdiv);
+    toggleV9('Акт сверки','ОД');
+    return JSON.stringify(RULES.measureSubdiv)===was &&
+           document.getElementById('toastWrap').textContent.includes(RULES_ADMIN_ROLE);
+  })()`));
+  m.asAdmin(); m.ev('renderSettings()');
+  ok('НП-2 админ видит полосу режима правки и живые галочки',
+     m.$('#settingsBanner').textContent.includes('Режим правки') &&
+     m.$$('#settingsHost input[type=checkbox]').every(c => !c.disabled)); }
+/* НП-3 · один справочник ролей: шапка, таблица ролей, фильтр «моё подразделение» */
+{ const m = mk();
+  ok('НП-3 переключатель роли построен из справочника ROLES',
+     [...m.$('#roleSel').options].map(o=>o.value).join('|') === m.ev(`ROLES.map(r=>r.role).join('|')`));
+  m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('НП-3 таблица ролей рендерит строку на каждую роль',
+     m.$$('#settingsHost .role-grid tbody tr').length === m.ev('ROLES.length + SUBDIVS.filter(s=>!s.registers).length'));
+  ok('НП-3 роль без подразделений подписана «мер не регистрирует»',
+     m.$('#settingsHost .role-grid').textContent.includes('мер не регистрирует'));
+  ok('НП-3 фильтр «моё подразделение» читает тот же справочник', m.ev(`(()=>{
+    toggleRoleSubdiv(RULES_ADMIN_ROLE,'ДПО');
+    return roleSubdivs().join()==='ДПО';
+  })()`)); }
+/* НП-4 · один справочник подразделений; 6 колонок в матрице, 2 без регистрации */
+{ const m = mk(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('НП-4 справочник подразделений — 8 записей, регистрируют меры 6',
+     m.ev('SUBDIVS.length')===8 && m.ev('V9_SUBDIVS.length')===6);
+  ok('НП-4 колонок в матрице В-9 ровно столько, сколько регистрирующих подразделений',
+     m.$$('#settingsHost .settings-grid thead th').length === 6 + 4);
+  ok('НП-4 СРМК и СИТ показаны отдельным блоком с объяснением роли',
+     m.$('#settingsHost').textContent.includes('участвуют, но мер не регистрируют'.toUpperCase()) ||
+     m.$('#settingsHost').textContent.includes('Участвуют, но мер не регистрируют'));
+  ok('НП-4 у каждого нерегистрирующего подразделения названа его роль',
+     m.ev(`SUBDIVS.filter(s=>!s.registers).every(s=>!!s.why)`)); }
+/* НП-5 · два этажа правила: раздел ↔ вид, отвязка названа вслух и откатывается */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('НП-5 правило раздела редактируется и задевает наследников', m.ev(`(()=>{
+    const before=subdivOf('Акт сверки').join();
+    toggleSectionV9('Досудебный','ДПО');
+    return subdivSource('Акт сверки')==='section' && subdivOf('Акт сверки').join()!==before;
+  })()`));
+  ok('НП-5 клик по унаследованному виду отвязывает его от раздела и говорит об этом', m.ev(`(()=>{
+    const was=subdivSource('Акт сверки');
+    toggleV9('Акт сверки','ОПК');
+    return was==='section' && subdivSource('Акт сверки')==='own' &&
+           document.getElementById('toastWrap').textContent.includes('отвязан от правила раздела');
+  })()`));
+  ok('НП-5 «вернуть к разделу» снимает своё правило вида', m.ev(`(()=>{
+    unlinkBack('Акт сверки');
+    return subdivSource('Акт сверки')==='section' && !RULES.measureSubdiv['Акт сверки'];
+  })()`));
+  ok('НП-5 источник правила показан в каждой строке',
+     m.$('#settingsHost').innerHTML.includes('src-sec') && m.$('#settingsHost').innerHTML.includes('по разделу')); }
+/* НП-6 · изменено ↔ дефолт на трёх уровнях, откат на всех трёх */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('НП-6 на чистых правилах изменённых нет', m.ev('changedAll()')===0);
+  ok('НП-6 правка помечает строку, вкладку и экран', m.ev(`(()=>{
+    toggleV9('Акт сверки','ОПК');
+    return isChanged('measureSubdiv','Акт сверки') && changedInTab('v9')===1 && changedAll()===1 &&
+           document.getElementById('settingsHost').innerHTML.includes('row-changed') &&
+           document.getElementById('settingsTabbar').innerHTML.includes('chg-badge');
+  })()`));
+  ok('НП-6 чип «только изменённые» оставляет одну строку', m.ev(`(()=>{
+    setState.changedOnly=true; setRefresh();
+    const rows=document.querySelectorAll('#settingsHost .settings-grid tbody tr').length;
+    setState.changedOnly=false; setRefresh();
+    return rows===1;
+  })()`));
+  ok('НП-6 построчный откат возвращает дефолт', m.ev(`(()=>{
+    resetRuleKey('measureSubdiv','Акт сверки','тест');
+    return changedAll()===0;
+  })()`));
+  ok('НП-6 откат вкладки и экрана считает правила', m.ev(`(()=>{
+    toggleV9('Акт сверки','ОПК'); setSectionClevel('Судебный',3);
+    const two=changedAll()===2;
+    resetTabRules('v9');
+    const one=changedAll()===1 && changedInTab('v9')===0;
+    resetAllRules();
+    return two && one && changedAll()===0;
+  })()`)); }
+/* НП-7 · радиус правки: кого правило задевает сейчас */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('stage')`);
+  ok('НП-7 радиус стадии считается на лету и совпадает с проверкой доступа', m.ev(`(()=>{
+    const L=RULES.sectionClevel['Исполнительное производство'] ?? 1;
+    return openAtLevel(L)===allReqs().filter(r=>!sequenceReason(r,'Заявление о выдаче исполнительного листа')||
+      !/стадии/.test(sequenceReason(r,'Заявление о выдаче исполнительного листа')||'')).length ||
+      openAtLevel(L)>0;
+  })()`));
+  ok('НП-7 радиус стадии показан в таблице',
+     m.$('#settingsHost').textContent.includes('доступен'));
+  m.ev(`showSettingsTab('gates')`);
+  ok('НП-7 радиус гейта = число требований, которые он держит', m.ev(`(()=>{
+    const k='Исковое заявление';
+    return gateWouldHold(k)===allReqs().filter(r=>!!gateReason(r,k)).length && gateWouldHold(k)>0;
+  })()`));
+  ok('НП-7 у выключенного гейта радиус остаётся контрфактическим', m.ev(`(()=>{
+    const k='Исковое заявление', before=gateWouldHold(k);
+    toggleGate(k);
+    return RULES.gates[k].off===true && gateWouldHold(k)===before &&
+           allReqs().filter(r=>!!gateReason(r,k)).length===0;
+  })()`)); }
+/* НП-8 · правило действует вперёд */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('НП-8 запрет вида не отменяет уже зарегистрированные меры', m.ev(`(()=>{
+    const k='Первичная претензия', was=measuresOfKind(k);
+    RULES.measureSubdiv[k]=[]; renderSettings();
+    return was>0 && measuresOfKind(k)===was;
+  })()`));
+  ok('НП-8 строка вида называет число уже зарегистрированных мер',
+     m.$('#settingsHost').textContent.includes('правило их не отменяет'));
+  ok('НП-8 полоса режима правки объясняет действие вперёд',
+     m.$('#settingsBanner').textContent.includes('ВПЕРЁД')); }
+/* НП-9 · журнал правок */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings')`);
+  ok('НП-9 на чистых правилах журнал пуст и говорит об этом', m.ev(`(()=>{
+    ruleLogOpen=true; renderSettings();
+    return RULES.log.length===0 &&
+      document.getElementById('settingsJournal').textContent.includes('Правок не было');
+  })()`));
+  ok('НП-9 правка попадает в журнал с датой, ролью и текстом', m.ev(`(()=>{
+    toggleGate('Исковое заявление');
+    const e=RULES.log[0];
+    return RULES.log.length===1 && e.when===TODAY && e.who===RULES_ADMIN_ROLE && /Гейт/.test(e.what);
+  })()`));
+  ok('НП-9 журнал персистится вместе с правилами', m.ev(`(()=>{
+    const box=JSON.parse(localStorage.getItem(RULES_KEY));
+    return box.rules.log.length===1;
+  })()`));
+  ok('НП-9 «отменить эту правку» возвращает правило и убирает запись', m.ev(`(()=>{
+    undoRuleEdit(0);
+    return !RULES.gates['Исковое заявление'].off && RULES.log.length===0;
+  })()`));
+  ok('НП-9 сброс всего сохраняет журнал и добавляет свою запись', m.ev(`(()=>{
+    toggleGate('Исковое заявление'); resetAllRules();
+    return RULES.log.length===2 && /Сброс ВСЕХ правил/.test(RULES.log[0].what) && changedAll()===0;
+  })()`)); }
+/* НП-10 · гейты: предмет вопроса виден, выключение предупреждает */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('gates')`);
+  ok('НП-10 в таблице гейтов пять колонок + радиус + откат',
+     m.$$('#settingsHost .settings-grid thead th').length === 7);
+  ok('НП-10 показан ПРЕДМЕТ вопроса, по которому гейт ищет решение', m.ev(`(()=>{
+    const t=gateTopic('Безакцептное списание');
+    return !!t && document.getElementById('settingsHost').textContent.includes(t);
+  })()`));
+  ok('НП-10 предмет, орган и пункт не редактируются',
+     m.$$('#settingsHost .settings-grid tbody input').every(i => i.type === 'checkbox'));
+  ok('НП-10 отказ в подтверждении оставляет гейт включённым', m.ev(`(()=>{
+    __ok=false; toggleGate('Безакцептное списание'); __ok=true;
+    return !RULES.gates['Безакцептное списание'].off && changedAll()===0;
+  })()`)); }
+/* НП-11 · стадии: ступень названа контуром, закрытие для всех предупреждает */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('stage')`);
+  ok('НП-11 ступень подписана именем контура, а не числом',
+     m.$('#settingsHost').textContent.includes('с безнадёжной (К7)') &&
+     m.$('#settingsHost').textContent.includes('с самого начала (К0)'));
+  ok('НП-11 радиус называет «до → после» в журнале правок', m.ev(`(()=>{
+    setSectionClevel('Судебный',3);
+    return /доступен \\d+ → \\d+/.test(RULES.log[0].what);
+  })()`));
+  ok('НП-11 сужение доступа спрашивает подтверждение и без него не проходит', m.ev(`(()=>{
+    __ok=false; const was=RULES.sectionClevel['Досудебный'];
+    setSectionClevel('Досудебный',4); __ok=true;
+    return openAtLevel(4)<openAtLevel(was) && RULES.sectionClevel['Досудебный']===was;
+  })()`));
+  ok('НП-11 расширение доступа проходит без вопроса', m.ev(`(()=>{
+    __ok=false; setSectionClevel('Безнадёжная',0); __ok=true;
+    return RULES.sectionClevel['Безнадёжная']===0 && openAtLevel(0)===allReqs().length;
+  })()`)); }
+/* НП-12 · фазы: счётчик требований и предупреждение при перестановке */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('phases')`);
+  ok('НП-12 у каждой фазы показано, сколько требований в ней стоит сейчас',
+     m.$('#settingsHost').textContent.includes('в этой фазе') &&
+     m.$('#settingsHost').textContent.includes('требований в контуре'));
+  ok('НП-12 отказ в подтверждении оставляет порядок прежним', m.ev(`(()=>{
+    __ok=false; movePhase('К1',0,1); __ok=true;
+    return phasesOf('К1')[0]==='Претензия' && changedAll()===0;
+  })()`));
+  ok('НП-12 перестановка не перекладывает требования по фазам', m.ev(`(()=>{
+    const before=allReqs().map(phaseOf).join('|');
+    movePhase('К1',0,1);
+    return phasesOf('К1')[0]==='Повторная претензия' && allReqs().map(phaseOf).join('|')===before;
+  })()`)); }
+/* НП-13 · тулбар как на реестрах и дип-линк вкладки */
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
+  ok('НП-13 тулбар: поиск, раздел, «только изменённые», счётчик',
+     ['#setQ','#setSec','#setChanged','#setCount'].every(sel => !!m.$(sel)));
+  ok('НП-13 счётчик «показано N из M» считает строки таблицы',
+     m.$('#setCount').textContent.includes('показано') &&
+     m.$('#setCount').textContent.includes(String(m.ev('MEASURE_KINDS.length + SECTION_ORDER.length'))));
+  ok('НП-13 поиск сужает таблицу и рисует чип', m.ev(`(()=>{
+    document.getElementById('setQ').value='банкрот'; setRefresh();
+    const rows=document.querySelectorAll('#settingsHost .settings-grid tbody tr').length;
+    const chip=document.getElementById('settingsChips').textContent.includes('банкрот');
+    setClear('setQ');
+    return rows>0 && rows<MEASURE_KINDS.length && chip;
+  })()`));
+  ok('НП-13 фильтр по разделу оставляет только его правила', m.ev(`(()=>{
+    document.getElementById('setSec').value='Судебный'; setRefresh();
+    const n=document.querySelectorAll('#settingsHost .settings-grid tbody tr').length;
+    setClear('setSec');
+    return n === kindsOfSection('Судебный').length + 1;
+  })()`));
+  ok('НП-13 фильтр по разделу прячется на вкладке фаз', m.ev(`(()=>{
+    showSettingsTab('phases');
+    return document.getElementById('setSecWrap').style.display==='none';
+  })()`));
+  const m2 = mk(); m2.w.location.hash = '#settings/gates'; m2.ev('restoreFromHash()');
+  ok('НП-13 дип-линк открывает нужную вкладку',
+     m2.ev('settingsTab')==='gates' && m2.$('#view-settings').style.display==='flex');
+  ok('НП-13 экран есть в левой навигации',
+     m2.$('#nav').textContent.includes('Настройки правил')); }
+/* НП-14 · персист: слияние по полям + версия схемы */
+{ const m = mk();
+  ok('НП-14 правила чужой версии сбрасываются, а не домысливаются', m.ev(`(()=>{
+    localStorage.setItem(RULES_KEY, JSON.stringify({ v:1, rules:{ sectionClevel:{'Досудебный':4} } }));
+    RULES=deepClone(RULES_DEFAULTS); RULES.log=[];
+    restoreRules();
+    return RULES.sectionClevel['Досудебный']===RULES_DEFAULTS.sectionClevel['Досудебный'] &&
+           localStorage.getItem(RULES_KEY)===null;
+  })()`));
+  ok('НП-14 незнакомый ключ и чужой код подразделения в живые правила не попадают', m.ev(`(()=>{
+    localStorage.setItem(RULES_KEY, JSON.stringify({ v:RULES_SCHEMA, rules:{
+      measureSubdiv:{ 'Мера, которой нет':['ОД'], 'Акт сверки':['ОД','ЧУЖОЕ'] },
+      contourPhases:{ 'К1':['Повторная претензия','Фаза, которой нет'] } } }));
+    RULES=deepClone(RULES_DEFAULTS); RULES.log=[];
+    restoreRules();
+    return !RULES.measureSubdiv['Мера, которой нет'] &&
+           (RULES.measureSubdiv['Акт сверки']||[]).join()==='ОД' &&
+           RULES.contourPhases['К1'].join('>')==='Повторная претензия>Претензия>Безакцептное списание';
+  })()`));
+  ok('НП-14 предмет и орган гейта всегда приходят из справочника', m.ev(`(()=>{
+    localStorage.setItem(RULES_KEY, JSON.stringify({ v:RULES_SCHEMA, rules:{
+      gates:{ 'Исковое заявление':{ off:true, topic:'подделка', organ:'подделка' } } } }));
+    RULES=deepClone(RULES_DEFAULTS); RULES.log=[];
+    restoreRules();
+    const g=RULES.gates['Исковое заявление'];
+    return g.off===true && g.topic===RULES_DEFAULTS.gates['Исковое заявление'].topic &&
+           g.organ===RULES_DEFAULTS.gates['Исковое заявление'].organ;
+  })()`));
+  ok('НП-14 роль→подразделения хранится массивом',
+     m.ev(`Object.values(RULES_DEFAULTS.roleSubdiv).every(v=>Array.isArray(v))`)); }
+/* НП-15 · затравка приведена к справочнику видов мер */
+ok('НП-15 все виды мер затравки есть в справочнике MEASURE_KINDS',
+   g.ev(`(()=>{ const k=new Set(MEASURE_KINDS);
+     return PROCESSES.every(p=>(p.measures||[]).every(m=>k.has(m.kind))); })()`));
+ok('НП-15 предупреждающая строка о видах вне справочника есть, но молчит на чистых данных',
+   g.ev('Object.keys(kindsOutsideDict()).length')===0);
 
 /* ══════════════════════════════════════════════════════════════════════════
    МИРОВОЕ И ДОБРОВОЛЬНОЕ — решения МС-1…МС-7 (стадия берётся у требования)
@@ -619,7 +907,7 @@ ok('снимок не роняется круговыми ссылками и в
   restoreState();
   const r = REQ_INDEX['142/56/з'];
   return !!r && r.scope === 'полный остаток' && r.costs.some(c => c.amount === 2500)
-      && r._proc.id === '142' && allReqs().length === 135;
+      && r._proc.id === '142' && allReqs().length === 136;
 })()`));
 ok('после восстановления соглашение снова связано с состоянием', mk().ev(`(() => {
   openDetail('120/40/з'); persistState(); restoreState();
@@ -642,7 +930,7 @@ head('ТР-1 · реестр — состояние портфеля, а не р
 ok('рамка экрана названа вслух',            /Состояние портфеля взыскания/.test(L.$('.list-frame').textContent));
 ok('очередь по срокам отправлена в свой реестр', /Сроки на контроле/.test(L.$('.list-frame').textContent));
 ok('колонки «Ближайший срок» в реестре нет', L.ev(`LIST_COLS.every(c => c.k !== 'nearest')`));
-ok('nearestDeadline жив — он нужен карточке и реестру сроков', L.ev(`typeof nearestDeadline === 'function'`));
+ok('nearestDeadline снята — после ТР-3 её никто не звал (СК-Д14)', L.ev(`typeof nearestDeadline === 'undefined'`));
 
 head('ТР-2 · плитки считают помехи, остаток назван честно');
 ok('плиток шесть: всего + три помехи + остаток + закрытые', tileLabels().length === 6);
@@ -864,12 +1152,646 @@ head('ТР-Д12 · пустое состояние называет услови
      m.$$('#listBody tr.rowopen').length > 0 && m.ev(`stageFilter === null && tileFilter === null && Object.keys(filterState).length === 0`)); }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   ВОЛНА КД (28.07.2026) — карточка дела. Решения КД-1…КД-15, дефекты КД-Д1…КД-Д16.
+   Разбор: mockups/collection/ASUBK-status-razrabotki.md · устройство: §14.2 спецификации.
+   ══════════════════════════════════════════════════════════════════════════ */
+const D = mk();            // общий DOM волны: карточка на деле с двумя требованиями
+D.ev(`openDetail('142/56/з')`);
+const dims  = () => [...D.dhead().querySelectorAll('.phead-dims .dim .dl')].map(x=>x.textContent.trim().split(' ▸')[0]);
+const tabs  = () => [...D.doc.querySelectorAll('.dtab')].map(x=>x.textContent.trim());
+const slugs = () => D.ev('TABS.map(t=>t.slug)');
+
+head('КД-1 · рамка: рабочее место по требованию');
+ok('карточка всегда открыта на требовании', D.ev('!!curReq'));
+ok('умолчание — «Обзор», а не папка дела', D.ev(`TABS[DEFAULT_TAB].slug === 'obzor'`));
+ok('открытие из реестра ведёт на «Обзор»',
+   (D.ev(`openDetail('142/56/з')`), D.ev(`TABS[curTab].slug === 'obzor'`)));
+ok('открытие по id дела берёт первое требование и тот же разрез',
+   mk().ev(`(() => { openDetail('142'); return curReq.id === '142/56/з' && TABS[curTab].slug === 'obzor'; })()`));
+
+head('КД-2 · шапка — часть вида, а не панелей');
+ok('шапка живёт вне #detailPanels', !!D.dhead() && !D.dhead().closest('#detailPanels'));
+ok('шапка одна на все вкладки: заголовок, баннеры, чипы и плитки на каждой', (() => {
+  const m = mk(); m.ev(`openDetail('142/56/з')`);
+  for(let i=0;i<m.ev('TABS.length');i++){
+    m.ev(`switchTab(${i})`);
+    const h = m.dhead();
+    if(!h.querySelector('.dhead-id') || !h.querySelector('.reqchips')
+       || !h.querySelector('.phead-dims') || h.querySelectorAll('.phead-banner').length !== 1) return false;
+  }
+  return true;
+})());
+ok('баннер блокировки виден на «Журнале мер» — там, где блокировка и бьёт', (() => {
+  const m = mk(); m.ev(`openDetail('142/56/з')`); m.ev(`switchTab(${TAB.mery})`);
+  return /пауза|Окно ожидания|куратор отстранён|Лицо:/.test(m.dhead().textContent); })());
+ok('панель шапку больше не строит — дублей нет',
+   D.doc.querySelectorAll('#detailPanels .phead-dims').length === 0);
+
+head('КД-3 · четыре плитки, все уровня требования');
+ok('плитки: Охват · Фаза · Категория · Ведущее подразделение',
+   dims().join('|') === 'Охват|Фаза|Категория риска|Ведущее подразделение');
+ok('стадия — подпись фазы, а не своя плитка',
+   !dims().includes('Стадия')
+   && /стадия «/.test(D.dhead().querySelectorAll('.phead-dims .dim')[1].textContent));
+ok('процедура и группа ушли в заголовок дела',
+   !dims().some(d=>/Процедура|Группа/.test(d))
+   && /Работа с судебными органами/.test(D.doc.querySelector('.dhead-run').textContent)
+   && /группа/.test(D.doc.querySelector('.dhead-run').textContent));
+ok('счётчик п. 98 остался подписью, а не уехал в title', (() => {
+  const m = mk(); m.ev(`openDetail('210/70/з')`);
+  return /осталось 3 р\.д\. \(п\. 98\)/.test(m.doc.querySelector('.dhead-run').textContent); })());
+ok('раскрытие worst-of работает из шапки',
+   (D.ev('catOpen=false; toggleCat()'), D.dhead().querySelectorAll('.cat-expand .row').length > 0));
+
+head('КД-4 · имена и порядок вкладок');
+ok('группа «дело»: Общее · Процедура · Согласования · История',
+   slugs().slice(0,4).join(',') === 'obschee,procedura,soglasovaniya,istoriya');
+ok('группа «требование»: Обзор · Журнал мер · Долг · Суд · Особые состояния · Залог',
+   slugs().slice(4).join(',') === 'obzor,mery,dolg,sud,sostoyaniya,zalog');
+ok('«Долг» перед «Судом» — по частоте (долг у всех требований, суд у 5 дел)',
+   TAB.dolg < TAB.sud);
+ok('заикания «дело: Дело» больше нет', !slugs().includes('delo') && !tabs().some(t=>/^Дело/.test(t)));
+ok('«Ведение дела» переименована в «Процедуру» — панель показывает только её',
+   !tabs().some(t=>/Ведение дела/.test(t)));
+
+head('КД-5 · Суд и Залог — по требованию, а не по делу');
+ok('акт ссылается на меру-основание номером',
+   D.ev(`PROCESSES.filter(p=>p.courtActs.length).every(p=>p.courtActs.every(a=>!!a.measureNum))`));
+ok('привязка акта выводится через targets меры, не хранится',
+   D.ev(`(()=>{const p=PROCESSES.find(x=>x.id==='142'); const a=p.courtActs[0];
+     return !('targets' in a) && boundToReq(REQ_INDEX['142/56/з'], a.measureNum) === true;})()`));
+ok('иск к обоим ответчикам виден обоим требованиям (п. 32)',
+   D.ev(`courtActsOf(REQ_INDEX['142/56/з']).length === 1 && courtActsOf(REQ_INDEX['142/56/п']).length === 1`));
+ok('чужой судебный процесс в требование не протекает', D.ev(`(()=>{
+  const r=REQ_INDEX['142/56/п'];
+  const fake={measureNum:'ТП-56'};                       // мера только к поручителю
+  return boundToReq(REQ_INDEX['142/56/з'], fake.measureNum) === false;})()`));
+ok('предмет залога привязан к кредиту',
+   D.ev(`PROCESSES.every(p=>p.colls.every(c=>c.credit==null || p.credits.some(x=>x.id===c.credit)))`));
+ok('на стенде все 25 предметов привязаны',
+   D.ev(`PROCESSES.reduce((a,p)=>a+p.colls.filter(c=>c.credit==null).length,0)`) === 0);
+ok('залог виден всем требованиям по своему договору',
+   D.ev(`collsOf(REQ_INDEX['142/56/з']).length === collsOf(REQ_INDEX['142/56/п']).length`)
+   && D.ev(`collsOf(REQ_INDEX['142/56/з']).length`) === 2);
+ok('строка без привязки не прячется, а помечается «по делу»', (() => {
+  const pill = D.ev('String(dealLevelPill)');
+  return /по делу/.test(pill) && /Ссылки на меру нет/.test(pill); })());
+ok('фильтр пропускает непривязанное, а не выбрасывает', D.ev(`(() => {
+  const r = REQ_INDEX['142/56/з'];
+  return boundToReq(r, null) === null && boundToReq(r, 'НЕТ-ТАКОЙ') === null
+      && (r._proc.courtActs||[]).filter(a=>boundToReq(r,a.measureNum)!==false).length
+         >= (r._proc.courtActs||[]).filter(a=>boundToReq(r,a.measureNum)===true).length; })()`));
+
+head('КД-6 · срок принадлежит требованию');
+ok('у срока есть цели', D.ev(`PROCESSES.every(p=>p.deadlines.every(d=>Array.isArray(d.targets)))`));
+ok('дело-уровневые сроки (п. 98, конфликт) целей не получили',
+   D.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>!d.targets.length)
+         .every(d=>/статуса? процедуры|конфликт/i.test(dlAction(d)))`));
+ok('срок апелляции по общему иску виден обоим требованиям',
+   D.ev(`deadlinesOf(REQ_INDEX['142/56/з']).some(d=>dlAction(d)==='Апелляционная жалоба')
+      && deadlinesOf(REQ_INDEX['142/56/п']).some(d=>dlAction(d)==='Апелляционная жалоба')`));
+ok('пауза заёмщика в сроки поручителя не течёт',
+   D.ev(`deadlinesOf(REQ_INDEX['142/56/п']).every(d=>!/Приостановка мер/.test(dlAction(d)))`));
+ok('блок сроков стоит на «Обзоре» и назван уровнем', (() => {
+  const m = mk(); m.ev(`openDetail('142/56/з')`); m.ev(`switchTab(${TAB.obzor})`);
+  return /Сроки на контроле по требованию/.test(m.active().textContent); })());
+
+head('КД-7 · чипы требований');
+ok('дело с двумя требованиями даёт кнопки-переключатели',
+   D.dhead().querySelectorAll('button.reqchip').length === 2);
+ok('дело с одним требованием даёт подпись, а не кнопку', (() => {
+  const m = mk(); m.ev(`openDetail('201/311/з')`);
+  return m.dhead().querySelectorAll('.reqchip.solo').length === 1
+      && m.dhead().querySelectorAll('button.reqchip').length === 0; })());
+ok('чип рисуется всегда — и когда переключать нечего',
+   mk().ev(`(() => { openDetail('201/311/з');
+     return document.querySelectorAll('#detailHead .reqchip').length === 1; })()`));
+ok('на вкладке дела чипы приглушены (обещание §14.2)', (() => {
+  const m = mk(); m.ev(`openDetail('142/56/з')`); m.ev(`switchTab(${TAB.obschee})`);
+  const on = m.dhead().classList.contains('deal-tab');
+  m.ev(`switchTab(${TAB.mery})`);
+  return on && !m.dhead().classList.contains('deal-tab'); })());
+ok('переключение требования вкладку сохраняет', mk().ev(`(() => {
+  openDetail('142/56/з'); switchTab(${TAB.dolg}); pickReq('142/56/п');
+  return TABS[curTab].slug === 'dolg' && curReq.id === '142/56/п'; })()`));
+
+head('КД-8 · вкладка в URL слагом');
+ok('хеш содержит слаг вкладки', /detail\/142\/56\/з\/sud$/.test(
+   mk().ev(`(() => { openDetail('142/56/з'); switchTab(${TAB.sud}); return curHash(); })()`)));
+ok('F5 возвращает ту же вкладку и то же требование', mk().ev(`(() => {
+  openDetail('142/56/п'); switchTab(${TAB.zalog}); const h = curHash();
+  showView('list'); location.hash = h; restoreFromHash();
+  return curReq.id === '142/56/п' && TABS[curTab].slug === 'zalog'; })()`));
+ok('хеш без слага открывает умолчание', mk().ev(`(() => {
+  location.hash = 'detail/142/56/п'; restoreFromHash();
+  return curReq.id === '142/56/п' && TABS[curTab].slug === 'obzor'; })()`));
+ok('слаг, а не индекс: перестановка вкладок старых ссылок не ломает',
+   g.ev(`TABS.every(t=>/^[a-z]+$/.test(t.slug))`) && new Set(slugs()).size === 10);
+
+head('КД-9 · реестр вкладок и ленивый рендер');
+ok('вкладка описана объектом с слагом, группой и билдером',
+   D.ev(`TABS.every(t=>typeof t.slug==='string' && /^(дело|требование)$/.test(t.group) && typeof t.build==='function')`));
+ok('в DOM ровно одна панель — активная',
+   D.doc.querySelectorAll('#detailPanels .detail-panel').length === 1);
+ok('панель помечена слагом своей вкладки',
+   D.active().getAttribute('data-tab') === D.ev('TABS[curTab].slug'));
+ok('ручного массива билдеров больше нет', !/const builders\s*=/.test(HTML));
+ok('обход всех вкладок на всех делах не даёт ошибок консоли', (() => {
+  const s = mk();
+  for(const id of ['142/56/з','120/40/з','201/311/з','405/403/з','104/71/з']){
+    s.ev(`openDetail('${id}')`);
+    for(let i=0;i<s.ev('TABS.length');i++) s.ev(`switchTab(${i})`);
+  }
+  return s.errs.length === 0;
+})());
+
+head('КД-10 · действия контекстные, футер не действует');
+ok('в футере карточки только «Закрыть»',
+   [...D.doc.querySelectorAll('#view-detail .footer button')].length === 1);
+ok('утверждение «карточка read-only» из шапки-комментария снято',
+   !/Карточка read-only/.test(HTML));
+ok('действия живут в панелях', (() => {
+  const m = mk(); m.ev(`openDetail('142/56/з')`); m.ev(`switchTab(${TAB.mery})`);
+  return m.active().querySelectorAll('button').length > 1; })());
+
+head('КД-11 · крошка — путь, а не второй заголовок');
+ok('крошка показывает путь со звеном возврата',
+   /Взыскание/.test(D.$('#crumbTitle').textContent)
+   && !!D.$('#crumbTitle .crumb-link')
+   && /дело В-2026-000142/.test(D.$('#crumbTitle').textContent));
+ok('крошка не дублирует шапку (ни требования, ни фазы)',
+   !/142\/56\/з|Иск|Рассмотрение вопроса/.test(D.$('#crumbTitle').textContent));
+ok('точка записи крошки одна', (HTML.match(/getElementById\('crumbTitle'\)/g)||[]).length === 1);
+ok('возврат в реестр сохраняет страницу и фильтры', mk().ev(`(() => {
+  renderList(); onPageSize(50); gotoPage(2); const page = curPage, size = PAGE_SIZE;
+  openDetail('142/56/з'); showView('list');
+  return curPage === page && PAGE_SIZE === size
+      && document.querySelectorAll('#listBody tr.rowopen').length > 0; })()`));
+
+head('КД-12 · «Общее» не дублирует чипы');
+{ const m = mk(); m.ev(`openDetail('142/56/з')`); m.ev(`switchTab(${TAB.obschee})`);
+  const t = m.active().textContent;
+  ok('таблицы «Требования дела» на вкладке нет', !/Требования дела/.test(t));
+  ok('дублей счётчика и суммы по делу нет', !/Требований в деле|Сумма по делу/.test(t));
+  ok('«Обязанные лица» остались — их вопрос в чип не помещается', /Обязанные лица/.test(t));
+  ok('паспорт дела на месте', /Заёмщик \(якорь дела\)/.test(t) && /Основание открытия/.test(t)); }
+
+head('КД-13 · счётчики вкладок и пустые состояния с причиной');
+ok('счётчик стоит у вкладок-списков', D.doc.querySelectorAll('.dtab .dtab-n').length >= 6);
+ok('нулевой счётчик приглушён, но вкладка не спрятана', (() => {
+  const m = mk(); m.ev(`openDetail('201/311/з')`);
+  const zero = [...m.doc.querySelectorAll('.dtab .dtab-n.zero')];
+  return zero.length > 0 && m.doc.querySelectorAll('.dtab').length === 10; })());
+ok('счётчик «Особых состояний» равен показанному на вкладке',
+   D.ev(`stateCount(curReq) === stateRows(curReq).length + (curReq.states||[]).filter(s=>s.kind==='mirovoe').length`));
+ok('счётчик «Суда» считает акты и заседания требования',
+   D.ev(`TABS[${TAB.sud}].count(curProc,curReq) === courtActsOf(curReq).length + hearingsOf(curReq).length`));
+{ const m = mk(); m.ev(`openDetail('203/313/з')`);   // дело без сроков, состояний, суда и залога
+  const empt = {};
+  for(let i=0;i<m.ev('TABS.length');i++){ m.ev(`switchTab(${i})`);
+    const e = m.active().querySelector('.cgrid-empty'); if(e) empt[m.ev('TABS[curTab].slug')] = e.textContent; }
+  ok('пустой «Суд» называет причину и стадию', /до судебной стадии оно не доходило/.test(empt.sud||''));
+  ok('пустой «Залог» называет договор и обеспечение', /Залога по договору/.test(empt.zalog||''));
+  ok('пустые «Особые состояния» говорят, что порядок обычный', /Взыскание идёт обычным порядком/.test(empt.sostoyaniya||''));
+  ok('пустые сроки отсылают в реестр «Сроки на контроле»', /Сроки на контроле/.test(empt.obzor||''));
+  ok('ни одно пустое состояние не осталось голым фактом',
+     Object.values(empt).every(t => t.trim().length > 60)); }
+
+head('КД-14 · дата снимка денег подписана везде');
+ok('в шапке одна подпись снимка',
+   D.doc.querySelectorAll('.dhead-money').length === 1
+   && /снимок модуля кредита на 25\.07\.2026/.test(D.doc.querySelector('.dhead-money').textContent));
+ok('расхождение дат называется диапазоном, а не максимумом', mk().ev(`(() => {
+  const p = PROCESSES.find(x=>x.credits.length>1);
+  const old = LEDGER[p.credits[0].id].asOf; LEDGER[p.credits[0].id].asOf = '20.07.2026';
+  const s = moneyStamp(p); LEDGER[p.credits[0].id].asOf = old;
+  return /20\\.07\\.2026 – 25\\.07\\.2026/.test(s) && /разные даты/.test(s); })()`));
+ok('у суммы чипа есть подсказка с датой',
+   /Снимок модуля кредита на 25\.07\.2026/.test(D.dhead().querySelector('.rc-sub span').getAttribute('title')||''));
+ok('поле «Сумма требования» несёт дату снимка', (() => {
+  const m = mk(); m.ev(`openDetail('142/56/з')`); m.ev(`switchTab(${TAB.obzor})`);
+  return /снимок на 25\.07\.2026/.test(m.active().innerHTML); })());
+ok('таблица долга по-прежнему называет свою дату', (() => {
+  const m = mk(); m.ev(`openDetail('142/56/з')`); m.ev(`switchTab(${TAB.dolg})`);
+  return /снимок модуля кредита на <b>25\.07\.2026<\/b>/.test(m.active().innerHTML); })());
+
+head('КД-15 · заголовок дела в две строки');
+ok('строка тождества: заёмщик · ИНН · регион · № дела', (() => {
+  const t = D.doc.querySelector('.dhead-id').textContent;
+  return /Бек Кабель/.test(t) && /ИНН 01912201610212/.test(t)
+      && /Бишкек/.test(t) && /В-2026-000142/.test(t); })());
+ok('строка ведения: процедура · группа · куратор · требований · сумма', (() => {
+  const t = D.doc.querySelector('.dhead-run').textContent;
+  return /Работа с судебными органами/.test(t) && /группа 2\.1/.test(t)
+      && /куратор Тукинова/.test(t) && /требований 2/.test(t) && /по делу/.test(t); })());
+ok('ИНН — ссылка в карточку заёмщика', !!D.doc.querySelector('.dhead-id a'));
+ok('сумма по делу считается один раз на кредит (§2.2)',
+   D.ev(`claimTotal(PROCESSES.find(p=>p.id==='142').requirements)
+       < PROCESSES.find(p=>p.id==='142').requirements.reduce((a,r)=>a+claimOf(r),0)`));
+
+head('КД-Д16 · имена функций от модели v2');
+ok('panelOhvat переименована в panelDebt', !/function panelOhvat/.test(HTML) && /function panelDebt/.test(HTML));
+ok('panelObschaya переименована в panelDeal', !/function panelObschaya/.test(HTML) && /function panelDeal/.test(HTML));
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ВОЛНА СК — «Сроки на контроле» как рабочая очередь
+   ══════════════════════════════════════════════════════════════════════════ */
+const S = mk(); S.ev(`navClick('Сроки на контроле (реестр)')`);
+const sRows  = () => S.$$('#deadlinesBody tr').filter(r => !r.classList.contains('rowempty'));
+const sFrame = () => S.$('#dlFrame').textContent;
+const sCols  = () => S.$$('#dlHead th').map(t => t.textContent.replace(/[↑↓↕]/g,'').trim());
+
+head('СК-1/СК-6 · очередь с горизонтом, а не список просроченного');
+ok('умолчание — горизонт 7 дней',            S.ev(`dlHorizon`) === '7' && /Горизонт: 7 дней/.test(sFrame()));
+ok('предстоящие сроки показаны, а не только просроченные',
+   sRows().length === 35 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 17);
+ok('горизонт «всё» даёт все 47 сроков',      (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 47; })());
+ok('просроченное проходит любой горизонт',   (()=>{ S.ev(`dlSetHorizon('7')`);
+   return S.ev(`dlAll().filter(x=>x.n<0).every(dlPass)`); })());
+ok('сегмент показывает выбранный горизонт',  S.$('#dlSeg button.on').dataset.h === '7');
+ok('горизонт живёт в хеше — переживёт F5',   (()=>{ S.ev(`dlSetHorizon('30')`);
+   const h = S.w.location.hash; S.ev(`dlSetHorizon('7')`); return h === '#deadlines/30'; })());
+ok('хеш восстанавливает вид и горизонт', (()=>{
+  const m = mk(); m.w.location.hash = '#deadlines/30'; m.ev(`restoreFromHash()`);
+  return m.ev(`dlHorizon`) === '30' && m.doc.getElementById('view-deadlines').style.display === 'flex'
+      && m.doc.querySelector('.nav-item.active').textContent === 'Сроки на контроле (реестр)'; })());
+
+head('СК-2 · остаток производный, а не хранимый');
+ok('хранимых leftDays / overdue в затравке нет',
+   S.ev(`PROCESSES.flatMap(p=>p.deadlines).every(d=>d.leftDays===undefined && d.overdue===undefined)`));
+ok('остаток считается из даты срока и даты отсчёта',
+   S.ev(`daysLeft({due:'28.07.2026'}) === 7 && daysLeft({due:'17.06.2026'}) === -34 && daysLeft({due:TODAY}) === 0`));
+ok('два спрятанных хранимым полем просроченных теперь видны (СК-Д2)', (()=>{
+  const by = no => sRows().find(r=>new RegExp('В-2026-000'+no).test(r.textContent));
+  return /−6 · просрочен/.test((by('205')||{textContent:''}).textContent)
+      && /−19 · просрочен/.test((by('142')||{textContent:''}).textContent); })());
+ok('глубина просрочки честная: дело 206 — −34, а не −1',
+   /−34 · просрочен/.test(sRows().find(r=>/В-2026-000206/.test(r.textContent)).textContent));
+
+head('СК-3/СК-4 · семь колонок, дата вместо длительности');
+ok('колонки в заданном порядке',
+   sCols().join('|') === 'Срок|Осталось, к.д.|Обязательство|Заёмщик|Требование|Ответственный|Пункт');
+ok('единица счёта названа в шапке колонки',  /Осталось, к\.д\./.test(sCols()[1]));
+ok('колонка «Срок» — дата, а не «10 р.д.»',
+   sRows().every(r => /^\d{2}\.\d{2}\.\d{4}$/.test(r.querySelector('td').textContent.trim())));
+ok('шаблонный срок и база отсчёта — в подсказке строки',
+   /Отсчёт: .+ · срок по Порядку: .+ · шаблон №\d+/.test(sRows()[0].getAttribute('title')));
+ok('заёмщик подписан номером дела',          /дело В-2026-\d{6}/.test(sRows()[0].textContent));
+
+head('СК-5 · порядок по возрастанию остатка, сортировка по колонке');
+ok('умолчание — по остатку вверх',           S.ev(`dlSort.k === 'left' && dlSort.dir === 1`));
+ok('отрисованные строки идут по возрастанию остатка', (()=>{
+  const a = sRows().map(r => Number(r.querySelectorAll('td')[1].textContent.trim().replace('−','-').split(' ')[0]));
+  return a.length === 35 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -34 && a[a.length-1] === 7; })());
+ok('клик по колонке меняет ключ и направление', (()=>{
+  S.ev(`dlSortBy('due')`); const up = S.ev(`dlSort.k==='due' && dlSort.dir===1`);
+  S.ev(`dlSortBy('due')`); const down = S.ev(`dlSort.dir===-1`);
+  S.ev(`dlSort={k:'left',dir:1}; dlRefresh()`); return up && down; })());
+
+head('СК-7/СК-12 · рамка со счётчиками, пустое состояние с причиной');
+ok('плиток на экране сроков нет',            S.$('#view-deadlines .tile') === null);
+ok('рамка считает очередь и называет дату отсчёта',
+   /показано 35 из 47 · просрочено 17 · истекает сегодня 5 · отсчёт от 21\.07\.2026/.test(sFrame()));
+ok('пустое состояние называет условия и даёт их снять', (()=>{
+  S.doc.getElementById('dlQ').value = 'такого-заёмщика-нет'; S.ev(`dlRefresh()`);
+  const e = S.$('#deadlinesBody .list-empty');
+  const good = e && /Условия отбора/.test(e.textContent) && !!e.querySelector('button');
+  S.ev(`dlResetAll(); dlSetHorizon('7')`); return good; })());
+
+head('СК-8 · ответственный выведен: куратор дела × подразделение шаблона');
+ok('у каждого срока есть выведенный ответственный',
+   S.ev(`dlAll().every(x=>['subdiv','external','system','none'].includes(x.resp.kind))`));
+ok('подразделение берётся из шаблона, а не из дела',
+   S.ev(`dlResponsible(PROCESSES.find(p=>p.id==='313'), PROCESSES.find(p=>p.id==='313').deadlines[0]).subdiv === 'ДАК'`));
+ok('«не выведено» ровно у восьми дело-уровневых сроков',
+   S.ev(`dlAll().filter(x=>x.resp.kind==='none').length === 8`)
+   && S.ev(`dlAll().filter(x=>x.resp.kind==='none').every(x=>!x.reqs.length)`));
+ok('срок исполнения претензии числится за заёмщиком, а не за сотрудником',
+   S.ev(`dlAll().filter(x=>x.resp.kind==='external').every(x=>x.d.tpl===6)`));
+ok('у ответственного есть подсказка с правилом вывода',
+   /куратор дела .+ × подразделение шаблона|подразделение выводить не из чего/
+     .test(sRows()[0].querySelectorAll('td')[5].getAttribute('title')));
+
+head('СК-9 · условия отбора и лента чипов');
+ok('список подразделений строится из выведенных значений (урок ТР-5)',
+   S.ev(`(()=>{ const opts=[...document.getElementById('dlSubdiv').options].map(o=>o.value).filter(Boolean);
+     return opts.length>1 && opts.every(v=>{ document.getElementById('dlSubdiv').value=v;
+       const n=dlAll().filter(dlPass).length; document.getElementById('dlSubdiv').value=''; return n>0; }); })()`));
+/* НП-3: подразделения роли — не третий список в коде, а справочник ROLES; фильтр
+   «только моё подразделение» и переключатель в шапке читают одну и ту же запись. */
+ok('«только моё подразделение» читает ролевой селектор',
+   S.ev(`roleSubdivs().join('/')`) === S.ev(`(ROLE_BY_NAME[currentRole()]||{subdivs:[]}).subdivs.join('/')`)
+   && S.ev('roleSubdivs().length') === 3);
+ok('фильтр по подразделению сужает выборку', (()=>{
+  S.doc.getElementById('dlSubdiv').value = 'ОПК'; S.ev(`dlRefresh()`);
+  const n = sRows().length, chips = S.$$('#dlChips .fchip').length;
+  S.ev(`dlClear('subdiv')`); return n > 0 && n < 34 && chips === 2; })());
+ok('поиск идёт по заёмщику, ИНН и номеру дела',
+   S.ev(`(()=>{ const q=document.getElementById('dlQ');
+     const hit=v=>{ q.value=v; const n=dlAll().filter(dlPass).length; q.value=''; return n; };
+     return hit('Темир-Транс')>0 && hit('В-2026-000206')>0 && hit(PROCESSES.find(p=>p.id==='206').inn)>0; })()`));
+ok('активные условия видны чипами', (()=>{
+  S.doc.getElementById('dlQ').value = 'Темир'; S.ev(`dlRefresh()`);
+  const c = S.$$('#dlChips .fchip').map(x=>x.textContent).join('|');
+  S.ev(`dlClear('q')`); return /Поиск: Темир/.test(c) && /Горизонт: 7 дней/.test(c); })());
+
+head('СК-10 · клик ведёт туда, где срок живёт');
+ok('срок требования открывает требование на «Обзоре»',
+   /openDetail\('206\/62\/з', TAB_BY_SLUG\('obzor'\)\)/.test(
+     sRows().find(r=>/В-2026-000206/.test(r.textContent)).getAttribute('onclick')));
+ok('срок подтверждения процедуры ведёт на «Процедуру»',
+   S.ev(`dlTarget({p:{id:'210'}, reqs:[], act:'Подтверждение или отклонение статуса процедуры'}).join('/')`) === '210/procedura');
+ok('срок по конфликту интересов ведёт в «Особые состояния»',
+   S.ev(`dlTarget({p:{id:'205'}, reqs:[], act:'Уведомление о конфликте интересов'}).join('/')`) === '205/sostoyaniya');
+ok('строка открывается и с клавиатуры',      sRows().every(r => r.getAttribute('tabindex') === '0' && /Enter/.test(r.getAttribute('onkeydown'))));
+
+head('СК-11 · срок ссылается на шаблон номером');
+ok('у каждого срока либо шаблон, либо метка «вне Порядка»',
+   S.ev(`PROCESSES.flatMap(p=>p.deadlines).every(d=>d.tpl ? !!TPL_BY_N[d.tpl] : !!d.action)`));
+ok('пять недостающих шаблонов добавлены (40–44)',
+   S.ev(`[40,41,42,43,44].every(n=>!!TPL_BY_N[n])`)
+   && S.ev(`[40,41,42,43,44].map(n=>TPL_BY_N[n].point).join('/')`) === 'Р-8/17.6/44/37/92');
+ok('строковой связи со справочником больше нет', !/templTerm/.test(HTML.replace(/templTerm искала[\s\S]*?dlPoint\./,'')));
+ok('шаблон находится у всех сроков Порядка (было «—» у 15 из 45)',
+   S.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>d.tpl).every(d=>!!dlTerm(d) && !!dlPoint(d))`));
+/* КР-15: два хранимых срока «вне Порядка» были ручными копиями даты заседания —
+   их вывели из самого заседания, поэтому у хранимых сроков шаблон теперь есть у всех. */
+ok('«вне Порядка» помечено, а не выброшено',
+   S.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>!d.tpl).length === 0`)
+   && S.ev(`PROCESSES.flatMap(p=>dlOf(p)).filter(d=>!d.tpl).length === 4`)
+   && sRows().some(r=>/вне Порядка/.test(r.textContent)));
+ok('«п. —» больше не рисуется (СК-Д13)',     !sRows().some(r=>/п\. —/.test(r.textContent)));
+ok('Р-8 подписан без «п.» — это решение проекта, не пункт Порядка',
+   S.ev(`dlPointLabel({tpl:40}) === 'Р-8' && dlPointLabel({tpl:5}) === 'п. 17.2'`));
+
+head('СК-13 · срок снимается фактом, а не отметкой');
+ok('кнопки «выполнено» у срока нет',         !/выполнено/i.test(S.$('#view-deadlines').innerHTML));
+ok('карта закрытия ссылается на существующие виды мер',
+   S.ev(`Object.values(DEADLINE_CLOSERS).flat().every(k=>MEASURE_KINDS.includes(k))`)
+   && S.ev(`Object.keys(DEADLINE_CLOSERS).every(n=>!!TPL_BY_N[n])`));
+ok('регистрация меры снимает срок с контроля', (()=>{
+  const m = mk();
+  const before = m.ev(`PROCESSES.find(p=>p.id==='202').deadlines.length`);
+  const closed = m.ev(`closeDeadlinesBy(PROCESSES.find(p=>p.id==='202'),'Первичная претензия',
+                       PROCESSES.find(p=>p.id==='202').requirements.map(r=>r.id)).length`);
+  const after = m.ev(`PROCESSES.find(p=>p.id==='202').deadlines.length`);
+  return before === 1 && closed === 1 && after === 0; })());
+ok('чужая мера чужой срок не трогает',
+   S.ev(`closeDeadlinesBy({deadlines:[{tpl:5,targets:['x']}]}, 'Акт сверки', ['x']).length === 0`));
+ok('saveMeasure зовёт снятие срока и пишет это в историю',
+   /closeDeadlinesBy\(p, kind, targets\.map/.test(HTML) && /снят с контроля/.test(HTML));
+
+head('СК-14 · блок сроков в карточке — та же арифметика');
+{ const m = mk(); m.ev(`openDetail('142/56/з', TAB_BY_SLUG('obzor'))`);
+  const th = [...m.$('.dl-grid').querySelectorAll('th')].map(t=>t.textContent.trim());
+  const tr = m.$('.dl-grid tbody tr');
+  ok('колонки карточки: обязательство · срок · остаток · база · пункт',
+     th.join('|') === 'Обязательство|Срок|Осталось, к.д.|База отсчёта|Пункт');
+  ok('в карточке дата срока, а не длительность', /^\d{2}\.\d{2}\.\d{4}$/.test(tr.querySelectorAll('td')[1].textContent.trim()));
+  ok('в карточке тот же производный остаток',    /−19 · просрочен/.test(tr.textContent));
+  ok('подсказка карточки называет шаблон номером', /шаблон №27/.test(tr.getAttribute('title')));
+  ok('горизонта и фильтров в карточке нет',      !m.$('.dl-grid').closest('.panel-wrap').querySelector('#dlSeg')); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ВОЛНА КР — три кросс-процессных реестра на одном каркасе
+   ══════════════════════════════════════════════════════════════════════════ */
+const H = mk(); H.ev(`navClick('Заседания (реестр)')`);
+const C = mk(); C.ev(`navClick('Претензии (реестр)')`);
+const Q = mk(); Q.ev(`navClick('Вопросы на коллегиальные органы (реестр)')`);
+const rRows  = (m,k) => m.$$('#'+k+'Body tr').filter(r => !r.classList.contains('rowempty'));
+const rCols  = (m,k) => m.$$('#'+k+'Head th').map(t => t.textContent.replace(/[↑↓↕]/g,'').trim());
+const rFrame = (m,k) => m.$('#'+k+'Frame').textContent;
+const REG3   = [['hearings',H],['claims',C],['committee',Q]];
+
+head('КР-1 · три реестра собраны одним каркасом');
+ok('каркас описывает все три экрана',
+   H.ev(`Object.keys(REGS).sort().join('/')`) === 'claims/committee/hearings');
+ok('трёх самописных render-функций больше нет',
+   !/function render(Hearings|Claims|Committee)Registry/.test(HTML));
+ok('разметку пишет один builder — в вёрстке только пустые хосты',
+   /<div id="hearingsHost"><\/div>/.test(HTML) && /<div id="claimsHost"><\/div>/.test(HTML)
+   && /<div id="committeeHost"><\/div>/.test(HTML) && /function regBuild\(key\)/.test(HTML));
+ok('у каждого экрана сегменты, «моё», подразделение, поиск, чипы и рамка',
+   REG3.every(([k,m]) => ['Seg','Mine','Subdiv','Q','Chips','Frame','Head','Body'].every(s => !!m.$('#'+k+s))));
+ok('шапка сортируемая на всех трёх',
+   REG3.every(([k,m]) => m.$$('#'+k+'Head th').every(t => /regSortBy/.test(t.getAttribute('onclick')||''))));
+ok('состояние экрана живёт в хеше (СК-6 перенесён на все три)', (()=>{
+   const h = []; for(const [k,m] of REG3){ m.ev(`regSetSeg('${k}','all')`); h.push(m.w.location.hash); }
+   H.ev(`regSetSeg('hearings','upcoming')`); C.ev(`regSetSeg('claims','all')`); Q.ev(`regSetSeg('committee','pending')`);
+   return h.join(' ') === '#hearings/all #claims/all #committee/all'; })());
+ok('хеш восстанавливает вид и сегмент', (()=>{
+   const m = mk(); m.w.location.hash = '#committee/decided'; m.ev(`restoreFromHash()`);
+   return m.ev(`regState.committee.seg`) === 'decided'
+       && m.doc.getElementById('view-committee').style.display === 'flex'
+       && m.doc.querySelector('.nav-item.active').textContent === 'Вопросы на коллегиальные органы (реестр)'; })());
+
+head('КР-2 · заседание — одна сущность, срок выводится из него');
+ok('хранимых сроков «Следующее судебное заседание» в затравке нет',
+   H.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>/судебное заседание/i.test(d.action)).length === 0`));
+ok('срок выводится из заседания и держит ссылку на него',
+   H.ev(`PROCESSES.flatMap(p=>hearingDeadlines(p)).length === 4`)
+   && H.ev(`PROCESSES.flatMap(p=>hearingDeadlines(p)).every(d=>!!d._hearing)`));
+ok('в очередь выводится только не наступившее заседание',
+   H.ev(`PROCESSES.flatMap(p=>hearingDeadlines(p)).every(d=>daysLeft(d) >= 0)`)
+   && H.ev(`PROCESSES.flatMap(p=>p.hearings||[]).length === 10`));
+ok('очередь сроков видит заседание строкой',
+   H.ev(`dlAll().filter(x=>x.d._hearing).length === 4`));
+ok('снимок состояния производный срок не хранит',
+   H.ev(`(()=>{ persistState(); return !/Следующее судебное заседание/.test(localStorage.getItem(STORE_KEY)||''); })()`));
+
+head('КР-3/КР-4 · заседания: исход вместо статуса, сегменты');
+ok('восемь колонок в заданном порядке',
+   rCols(H,'hearings').join('|') === 'Дата и время|Осталось, к.д.|Вид|Заёмщик|Требование|Место|Представитель ФКФ|Исход');
+ok('колонки «Статус» с планированием больше нет', !rCols(H,'hearings').includes('Статус'));
+ok('умолчание — предстоящие, прошедшее без исхода показано всегда',
+   H.ev(`regState.hearings.seg`) === 'upcoming'
+   && rRows(H,'hearings').length === 7
+   && rRows(H,'hearings').filter(r=>/исход не внесён/.test(r.textContent)).length === 3);
+ok('сегмент «Прошедшие» даёт только прошедшие', (()=>{
+   H.ev(`regSetSeg('hearings','past')`); const n = rRows(H,'hearings').length;
+   const all = (H.ev(`regSetSeg('hearings','all')`), rRows(H,'hearings').length);
+   H.ev(`regSetSeg('hearings','upcoming')`); return n === 6 && all === 10; })());
+ok('мера-основание — подписью, а не колонкой',
+   /мера ИСК-/.test(rRows(H,'hearings')[0].textContent)
+   && /Мера-основание: ИСК-77 · участники:/.test(rRows(H,'hearings')[0].getAttribute('title')));
+ok('представитель ФКФ выведен из участников, а не введён руками',
+   H.ev(`REGS.hearings.all().every(x=>!!x.rep)`) && !/rep:'/.test(HTML));
+ok('рамка называет очередь, дыру и ближайшее заседание',
+   /предстоит <b>4<\/b> · прошло без внесённого исхода <b>3<\/b> · ближайшее <b>24\.07\.2026 09:30<\/b>/.test(H.$('#hearingsFrame').innerHTML));
+
+head('КР-5/КР-6/КР-7 · претензии: ось вручение, сумма документа неизменна');
+ok('семь колонок, ось — вручение',
+   rCols(C,'claims').join('|') === 'Вид|Номер|Отправлена|Вручение|Заёмщик|Требование|Сумма');
+ok('мёртвой колонки «Статус» нет',           !rCols(C,'claims').includes('Статус'));
+ok('невручённое подсвечено независимо от сегмента',
+   rRows(C,'claims').filter(r=>r.classList.contains('mrow-undelivered')).length === 2
+   && rRows(C,'claims').some(r=>/не подтверждено \(п\. 20\.2\)/.test(r.textContent)));
+ok('сегмент «Не вручены» отбирает их же', (()=>{
+   C.ev(`regSetSeg('claims','undelivered')`); const n = rRows(C,'claims').length;
+   C.ev(`regSetSeg('claims','storno')`);      const s = rRows(C,'claims').length;
+   C.ev(`regSetSeg('claims','all')`);         return n === 2 && s === 1; })());
+ok('три даты Р-7 и результат — в подсказке строки',
+   /Событие .+ · поступление .+ · регистрация .+ · результат: /.test(rRows(C,'claims')[0].getAttribute('title')));
+ok('сумма документа не пересчитана, расхождение подписано «сейчас …»',
+   rRows(C,'claims').filter(r=>/сейчас /.test(r.textContent)).length === 5
+   && C.ev(`REGS.claims.all().every(x=>x.doc === parseSum(x.m.sum))`));
+ok('дельта суммы нигде не хранится (ADR-0001)',
+   C.ev(`PROCESSES.flatMap(p=>p.measures||[]).every(m=>m.sumNow===undefined && m.delta===undefined)`));
+ok('рамка считает вручение, сторно и расхождение',
+   /без подтверждения вручения <b>2<\/b> \(п\. 20\.2\) · сторнировано <b>1<\/b> · сумма документа разошлась с требованием у <b>5<\/b>/
+     .test(C.$('#claimsFrame').innerHTML));
+
+head('КР-8/КР-9/КР-11 · вопросы: состояние выводится в одном месте');
+ok('семь колонок, состояние первым',
+   rCols(Q,'committee').join('|') === 'Состояние|Предмет|Орган|Заёмщик|Договоры|Инициатор|Заседание');
+ok('умолчание — ждут решения',               Q.ev(`regState.committee.seg`) === 'pending'
+   && rRows(Q,'committee').length === 4 && Q.ev(`REGS.committee.all().length`) === 28);
+ok('состояний ровно четыре',                 Q.ev(`Object.keys(CQ_STATE).join('/')`) === 'pending/scheduled/positive/negative');
+ok('заглушки в поле решения решением больше не считаются',
+   Q.ev(`CQ_NON_DECISION.size === 4`)
+   && Q.ev(`PROCESSES.flatMap(p=>p.committeeQuestions).filter(q=>!q.decided && q.decision).length === 0`));
+ok('состояние читают реестр, карточка и гейт из одного хелпера',
+   (HTML.match(/questionState\(/g)||[]).length >= 4);
+ok('вопрос без даты заседания назван «не назначено», а не прочерком',
+   rRows(Q,'committee').filter(r=>/не назначено/.test(r.textContent)).length === 2);
+ok('гейтовый вопрос называет, какое действие держит',
+   rRows(Q,'committee').filter(r=>/блокирует: /.test(r.textContent)).length === 4);
+ok('протокол и решение — подписями, отдельных колонок нет',
+   !rCols(Q,'committee').includes('Протокол') && !rCols(Q,'committee').includes('Решение')
+   && Q.ev(`regSetSeg('committee','decided')`) === undefined
+   && rRows(Q,'committee').some(r=>/протокол /.test(r.textContent)));
+ok('рамка считает очередь, безадресные и заблокированные действия', (()=>{
+   Q.ev(`regSetSeg('committee','pending')`);
+   return /ждут решения <b>4<\/b> · из них без даты заседания <b>2<\/b> · отказов <b>0<\/b> · держат заблокированным действие <b>4<\/b>/
+     .test(Q.$('#committeeFrame').innerHTML); })());
+ok('прочерк вместо номера протокола убран из затравки',
+   Q.ev(`PROCESSES.flatMap(p=>p.committeeQuestions).filter(q=>q.protocolNo === '—').length === 0`));
+
+head('КР-10 · гейт сверяется по предмету и по договору');
+ok('предмет вопроса приведён к одному написанию',
+   Q.ev(`[...new Set(PROCESSES.flatMap(p=>p.committeeQuestions.map(q=>q.topic)))].length === 5`));
+ok('credits хранит id договора, а не его номер',
+   Q.ev(`PROCESSES.every(p=>p.committeeQuestions.every(q=>(q.credits||[]).every(v=>p.credits.some(c=>c.id===v))))`));
+ok('сверки «любой вопрос к тому же органу» больше нет', !/q\.organ === g\.organ/.test(HTML));
+ok('решение по чужому договору гейт не открывает', mk().ev(`(()=>{
+  const p = PROCESSES.find(x => x.credits.length > 1 && new Set(x.requirements.map(r=>r.credit)).size > 1);
+  const a = p.requirements[0], b = p.requirements.find(r=>r.credit !== a.credit);
+  p.committeeQuestions.push({ organ:ORGANS[2], initiator:'ДАК', topic:'Начало внесудебного обращения взыскания на залог',
+    credits:[a.credit], decided:true, decision:'разрешено', positive:true, meetingDate:'01.07.2026',
+    protocolNo:'КЗ-99', protocolDate:'01.07.2026' });
+  return gateReason(a,'Извещение об обращении на залог') === null
+      && /Решение есть, но по другому кредиту/.test(gateReason(b,'Извещение об обращении на залог'));
+})()`));
+ok('отказ назван отказом и приводит протокол',
+   /Орган отказал \(протокол КО-44 от 14\.07\.2026\)/
+     .test(Q.ev(`gateReason(PROCESSES.find(p=>p.id==='364').requirements[0],'Безакцептное списание')`)));
+ok('невынесенный и назначенный вопрос дают разные причины',
+   /Вопрос не вынесен\./.test(Q.ev(`gateReason(PROCESSES.find(p=>p.id==='201').requirements[0],'Безакцептное списание')`))
+   && /назначен на заседание 02\.07\.2026, решение не внесено/
+     .test(Q.ev(`gateReason(PROCESSES.find(p=>p.id==='314').requirements[0],'Безакцептное списание')`)));
+ok('правила, сохранённые до волны, гейт не ломают (запасной ход на GATES)', mk().ev(`(()=>{
+  /* restoreRules подменяет раздел целиком: старый снимок приедет без topic. */
+  Object.keys(RULES.gates).forEach(k => { delete RULES.gates[k].topic; });
+  const p = PROCESSES.find(x=>x.id==='314');
+  return gateTopic('Безакцептное списание') === 'Запуск безакцептного списания'
+      && /назначен на заседание/.test(gateReason(p.requirements[0],'Безакцептное списание'));
+})()`));
+ok('поручение Председателя остаётся уровнем дела, а не вопросом',
+   /требует поручения Председателя Правления \(п\. 21\)/
+     .test(Q.ev(`gateReason(PROCESSES.find(p=>!p.poruchenie).requirements[0],'Исковое заявление')`)));
+
+head('КР-12 · клик ведёт туда, где запись живёт');
+ok('заседание открывает «Суд» требования',
+   /openDetail\('142\/56\/з', TAB_BY_SLUG\('sud'\)\)/.test(rRows(H,'hearings')[0].getAttribute('onclick')));
+ok('претензия открывает «Журнал мер» адресата',
+   /openDetail\('\d+\/[^\/']+\/[зпг]', TAB_BY_SLUG\('mery'\)\)/.test(rRows(C,'claims')[0].getAttribute('onclick')));
+ok('вопрос открывает «Согласования» дела',
+   /TAB_BY_SLUG\('soglasovaniya'\)/.test(rRows(Q,'committee')[0].getAttribute('onclick')));
+ok('срок-проекция заседания ведёт на «Суд», а не на «Обзор»',
+   H.ev(`dlTarget(dlAll().find(x=>x.d._hearing)).join('/')`).endsWith('/sud'));
+ok('строка открывается и с клавиатуры на всех трёх',
+   REG3.every(([k,m]) => rRows(m,k).every(r => r.getAttribute('tabindex') === '0' && /Enter/.test(r.getAttribute('onkeydown')))));
+
+head('КР-13 · каркас СК целиком: условия, подразделение, пустое состояние');
+ok('условия отбора идут лентой чипов и снимаются по одному', (()=>{
+   /* Лента показывает ТОЛЬКО действующие условия: у claims умолчание — сегмент «Все»,
+      условий нет, лента пуста. Появляется вместе с первым условием. */
+   const empty = REG3.every(([k,m]) =>
+     m.$('#'+k+'Chips').children.length === (m.ev(`!!regSeg('${k}').cond`) ? 1 : 0));
+   return empty && REG3.every(([k,m]) => {
+     m.doc.getElementById(k+'Q').value = 'Бек'; m.ev(`regRefresh('${k}')`);
+     const c = m.$('#'+k+'Chips');
+     const on = /Поиск: Бек/.test(c.textContent) && !!c.querySelector('.fchip button[onclick]');
+     m.doc.getElementById(k+'Q').value = ''; m.ev(`regRefresh('${k}')`); return on; }); })());
+ok('подразделение заседаний и претензий берётся от требования',
+   H.ev(`REGS.hearings.subdiv(REGS.hearings.all().find(x=>x.reqs.length)) === REGS.hearings.all().find(x=>x.reqs.length).reqs[0].subdivision`)
+   && C.ev(`REGS.claims.subdiv(REGS.claims.all().find(x=>x.reqs.length)) === REGS.claims.all().find(x=>x.reqs.length).reqs[0].subdivision`));
+ok('подразделение вопроса — его инициатор, орган подразделением не считается',
+   Q.ev(`REGS.committee.all().every(x=>{ const s = REGS.committee.subdiv(x);
+     return s === null || SUBDIV_CODES.includes(s); })`));
+ok('список подразделений строится из выведенных значений (ТР-5)',
+   Q.ev(`[...document.getElementById('committeeSubdiv').options].slice(1)
+          .every(o => o.value === 'не выведено' || REGS.committee.all().some(x=>REGS.committee.subdiv(x) === o.value))`)
+   && Q.ev(`[...document.getElementById('committeeSubdiv').options].some(o=>o.value === 'не выведено')`));
+ok('пустое состояние называет условия и даёт их снять', (()=>{
+   const m = mk(); m.ev(`navClick('Претензии (реестр)')`);
+   m.doc.getElementById('claimsQ').value = 'такого-заёмщика-нет'; m.ev(`regRefresh('claims')`);
+   const e = m.$('#claimsBody .list-empty');
+   return !!e && /Условия отбора/.test(e.textContent) && !!e.querySelector('button'); })());
+ok('без условий пустое состояние называет причину, а не «записей нет»',
+   /Условий отбора нет — ни по одному делу заседание не назначено/.test(HTML)
+   && /Условий отбора нет — претензий и требований обязанным лицам/.test(HTML)
+   && /Условий отбора нет — вопросов на коллегиальные органы/.test(HTML));
+ok('сброс возвращает широкий сегмент', (()=>{
+   const m = mk(); m.ev(`navClick('Вопросы на коллегиальные органы (реестр)')`);
+   m.doc.getElementById('committeeQ').value = 'нет'; m.ev(`regResetAll('committee')`);
+   return m.ev(`regState.committee.seg`) === 'all' && m.doc.getElementById('committeeQ').value === ''; })());
+
+head('КР-14 · затравка покрывает новые состояния');
+ok('есть прошедшее заседание без внесённого исхода',
+   H.ev(`REGS.hearings.all().filter(x=>x.n != null && x.n < 0 && !x.done).length === 3`));
+ok('есть сторнированная претензия-дубль',
+   C.ev(`REGS.claims.all().filter(x=>!!x.m.storno).length === 1`)
+   && C.ev(`PROCESSES.flatMap(p=>p.measures||[]).some(m=>/дубль ПР-140/.test((m.storno||{}).reason||''))`));
+ok('есть требование гаранту и сам гарант обязанным лицом',
+   C.ev(`PROCESSES.find(p=>p.id==='309').obligors.filter(o=>o.role==='гарант').length === 1`)
+   && C.ev(`REGS.claims.all().some(x=>x.m.kind === 'Требование гаранту')`));
+ok('есть отказ органа — гейт остаётся закрытым',
+   Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'negative').length === 1`));
+ok('есть вопрос без даты заседания и вопрос назначенный',
+   Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'pending').length === 2`)
+   && Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'scheduled').length === 2`));
+
+head('КР-15 · карточка и реестр читают одно и то же');
+{ const m = mk(); m.ev(`openDetail('142/56/з', TAB_BY_SLUG('sud'))`);
+  const a = m.active();
+  ok('в карточке колонка заседания — «Исход», а не «Статус»',
+     /<th>Исход<\/th>/.test(a.innerHTML) && !/<th>Статус<\/th>/.test(a.innerHTML));
+  ok('прошедшее без исхода помечено и в карточке',  /исход не внесён/.test(a.textContent)); }
+{ const m = mk(); m.ev(`openDetail('314/414/з', TAB_BY_SLUG('soglasovaniya'))`);
+  const a = m.active();
+  ok('карточка печатает то же состояние вопроса, что и реестр',
+     /назначен на заседание/.test(a.textContent)
+     && a.textContent.includes(m.ev(`questionState(PROCESSES.find(p=>p.id==='314').committeeQuestions[0]).t`)));
+  ok('гейт в карточке называет предмет вопроса, который его открывает',
+     /открывает вопрос «/.test(a.innerHTML));
+  ok('договоры вопроса печатаются номером, а не id',
+     !/>\s*414\s*</.test(a.innerHTML) && /Дог\. №/.test(a.textContent)); }
+
+head('КР-16 · границы волны');
+ok('вкладка «Гейты» настроек по-прежнему читается',
+   g.ev(`Object.keys(RULES.gates).length === 4`)
+   && g.ev(`Object.keys(RULES.gates).every(k=>!!RULES.gates[k].organ && !!RULES.gates[k].point && !!RULES.gates[k].topic)`));
+ok('реестр требований и карточка волной не тронуты',
+   g.ev(`TABS.length === 10`) && g.ev(`allReqs().length === 136`));
+
+/* ══════════════════════════════════════════════════════════════════════════
    СПРАВОЧНИКИ — при переезде модели ничего не потеряно
    ══════════════════════════════════════════════════════════════════════════ */
 head('справочники');
 ok('видов мер 51',              g.ev('MEASURE_KINDS.length') === 51);
 ok('видов-вех 16',              g.ev('MILESTONE_KINDS.size') === 16);
-ok('шаблонов сроков 39',        g.ev('DEADLINE_TEMPLATES.length') === 39);
+ok('шаблонов сроков 44',        g.ev('DEADLINE_TEMPLATES.length') === 44);
 ok('контуров К0…К7 — восемь',   g.ev('Object.keys(CONTOURS).length') === 8);
 ok('разделов мер семь',         g.ev('SECTION_ORDER.length') === 7);
 ok('редактор правил на месте',  g.ev(`typeof RULES === 'object' && typeof resetRulesAll === 'function'`));
