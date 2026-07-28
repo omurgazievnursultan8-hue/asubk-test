@@ -44,10 +44,12 @@
      Подавление 181-го — НА УРОВНЕ КРЕДИТА, до worst-of; категория показывается честно
      («по дням 214 → высокий, подавлен → средний»). Поля cat/catDays на процессе НЕТ.
 
-  7. ШАПКА КАРТОЧКИ — ПЯТЬ плиток-индикаторов: Стадия · Фаза · Процедура · Категория ·
-     Группа. Ни одна не редактируется; у каждой подпись источника. Плитка «Категория»
-     раскрывает входы worst-d покредитно (паттерн borrower.html). Карточка read-only →
-     в футере только «Закрыть».
+  7. ШАПКА КАРТОЧКИ (переписана волной КД) — ЧЕТЫРЕ плитки уровня ТРЕБОВАНИЯ: Охват ·
+     Фаза (стадия — подписью) · Категория · Ведущее подразделение. Процедура и группа —
+     свойства дела, они во второй строке заголовка дела. Ни одна плитка не редактируется;
+     у каждой подпись источника. «Категория» раскрывает входы worst-of покредитно
+     (паттерн borrower.html). Действия карточки КОНТЕКСТНЫЕ — каждое у своего списка;
+     футер не действует, в нём только «Закрыть» (КД-10).
 
   8. ОТКРЫТИЕ (Р-4) — авто на 6-й день просрочки, фаза «Досудебное урегулирование», ноль
      мер (нормальное состояние). ОКНО ОЖИДАНИЯ ЗАЧИСЛЕНИЯ (Р-8, ≤14 к.д., по умолч. 5):
@@ -87,6 +89,14 @@
   (В-8) · сторно с откатом фазы · раскрытие worst-of · гейт пересечения на судебной
   стадии · распределение погашения (оба режима) · фильтры, плитки, страницы и выгрузка
   списка.
+
+  ВОЛНА КД (28.07.2026) — карточка дела пересмотрена поэкранно: КД-1…КД-15 решений,
+  КД-Д1…КД-Д16 дефектов. Устройство — ASUBK-vzyskanie-logika.md §14.2 и §20; разбор
+  каждого решения — ASUBK-status-razrabotki.md. Ключевое: карточка — рабочее место по
+  ОДНОМУ требованию, дело вокруг него контекст; шапка общая для всех вкладок (раньше была
+  на двух из десяти, и баннеры блокировок не показывались там, где эти блокировки бьют);
+  вкладки «Суд», «Залог» и сроки фильтруются по требованию, а не по делу; вкладка живёт
+  в хеше слагом; строится только активная панель.
 
   ВОЛНА ТР (27.07.2026) — экран «Требования (реестр)» пересмотрен поэкранно:
   ТР-1…ТР-11 решений, ТР-Д1…ТР-Д12 дефектов. Итоговое устройство экрана —
@@ -179,7 +189,11 @@ a{ color:inherit; }
 .topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
   border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
 .topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
-.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); display:flex; align-items:baseline; gap:8px; }
+/* КД-11: крошка — путь; звено-ссылка возвращает в реестр, не перерисовывая его */
+.crumb-sep{ color:var(--border-strong); font-weight:400; }
+.crumb-link{ color:var(--text-link); cursor:pointer; }
+.crumb-link:hover{ text-decoration:underline; }
 .topbar .role-wrap{ margin-left:auto; display:flex; align-items:center; gap:8px; }
 .topbar .role-wrap label{ font:var(--font-label); color:var(--text-muted); }
 .topbar .role-wrap select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
@@ -297,6 +311,15 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 /* ---- detail ---- */
 .detail-tabbar-wrap{ position:relative; border-bottom:1px solid var(--border-default);
   background:var(--surface-page); flex:none; }
+/* КД-2: лента прилипает к верху прокрутки, шапка над ней уезжает */
+.detail-tabbar-wrap.sticky{ position:sticky; top:0; z-index:5; }
+#view-detail .content{ overflow:auto; }
+#detailHead{ flex:none; }
+/* КД-13: счётчик на вкладке — пустая вкладка видна до клика, но не прячется */
+.dtab-n{ margin-left:7px; padding:1px 6px; border-radius:9px; font-size:11px;
+  background:var(--surface-panel); color:var(--text-muted); font-weight:var(--weight-regular); }
+.dtab.active .dtab-n{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.dtab-n.zero{ opacity:.45; }
 .detail-tabbar{ display:flex; overflow-x:auto; padding:6px 44px 0 20px; scrollbar-width:none; }
 .detail-tabbar::-webkit-scrollbar{ display:none; }
 .dtab{ flex:none; border:none; background:transparent; padding:11px 15px;
@@ -313,16 +336,23 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .detail-panel{ display:none; }
 .detail-panel.active{ display:block; }
 
-/* ---- process header (indicator panel) — ПЯТЬ плиток ---- */
-.phead{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:16px 20px; margin-bottom:18px; }
-.phead-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
-.phead-name{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.phead-name .nm{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
-.phead-name a{ font:var(--font-label); color:var(--text-link); text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
-.phead-name a:hover{ text-decoration:underline; }
-.phead-sub{ font:var(--font-label); color:var(--text-muted); margin-top:3px; }
-.phead-sub b{ color:var(--text-body); font-weight:var(--weight-medium); }
-.phead-owner{ font:var(--font-label); color:var(--text-muted); white-space:nowrap; }
+/* ---- шапка карточки — ЧЕТЫРЕ плитки требования (КД-3) ---- */
+.phead{ padding:16px 20px 0; }
+/* КД-15: заголовок дела в две строки — тождество и ведение */
+.dhead{ margin-bottom:12px; }
+.dhead-id{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.dhead-id .nm{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
+.dhead-id a{ font:var(--font-label); color:var(--text-link); text-decoration:none; display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
+.dhead-id a:hover{ text-decoration:underline; }
+.dhead-run{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:6px; font:var(--font-label); }
+.dh-sep{ color:var(--border-strong); }
+.dh-meta{ color:var(--text-muted); }
+.dh-muted{ color:var(--text-placeholder); }
+.dh-src{ font-size:11px; color:var(--text-muted); }
+.dh-money b{ color:var(--text-body); font-weight:var(--weight-semibold); }
+/* КД-14: одна подпись даты снимка денег на всю карточку (правило ТР-11) */
+.dhead-money{ margin-top:5px; font-size:11px; color:var(--text-muted); }
+.dhead-money b{ color:var(--text-body); font-weight:var(--weight-medium); }
 .phead-banner{ display:flex; align-items:flex-start; gap:10px; border-radius:var(--radius-md);
   padding:9px 14px; margin-bottom:12px; font:var(--font-label); }
 .phead-banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
@@ -337,9 +367,10 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 .ms-meta b{ color:var(--text-muted); font-weight:500; }
 .ms-acts{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
 .phead-banner .b-act{ margin-left:auto; }
-.phead-dims{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
-@media(max-width:900px){ .phead-dims{ grid-template-columns:repeat(3,1fr); } }
-@media(max-width:560px){ .phead-dims{ grid-template-columns:repeat(2,1fr); } }
+.phead-dims{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+.phead-dims.one{ grid-template-columns:1fr; }
+@media(max-width:900px){ .phead-dims{ grid-template-columns:repeat(2,1fr); } }
+@media(max-width:560px){ .phead-dims{ grid-template-columns:1fr; } }
 .dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:10px 14px; }
 .dim.clickable{ cursor:pointer; } .dim.clickable:hover{ background:var(--surface-hover); }
 .dim .dl{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:5px;
@@ -564,11 +595,20 @@ tr.alien td{ opacity:.55; }
 tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(0,0,0,.25); }
 
 /* карточка: переключатель требований дела */
-.reqchips{ display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 4px; }
+.reqchips{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:10px 0 12px; }
 .reqchip{ display:flex; flex-direction:column; gap:1px; padding:6px 10px; border-radius:var(--radius-md,6px);
   border:1px solid var(--border-strong); background:#fff; cursor:pointer; text-align:left; min-width:150px; }
 .reqchip:hover{ background:var(--surface-muted,#f6f8fb); }
 .reqchip.active{ border-color:var(--asubk-blue,#1b4b8f); box-shadow:inset 0 0 0 1px var(--asubk-blue,#1b4b8f); }
+/* КД-7: требований у 118 дел из 126 ровно одно — одиночный чип не кнопка, а подпись */
+.reqchip.solo{ cursor:default; background:var(--surface-panel); }
+.reqchip.solo:hover{ background:var(--surface-panel); }
+.rc-hint, .rc-dimnote{ align-self:center; }
+.rc-dimnote{ display:none; }
+/* КД-7: на вкладках дела чипы приглушены — вкладка от выбора требования не зависит */
+#detailHead.deal-tab .reqchip{ opacity:.5; }
+#detailHead.deal-tab .rc-hint{ display:none; }
+#detailHead.deal-tab .rc-dimnote{ display:inline; }
 .reqchip.closed .rc-main{ color:var(--text-muted); }
 .reqchip.closed .rc-sub{ font-style:italic; }
 .reqchip .rc-id{ font-size:11px; color:var(--text-muted); }
@@ -588,7 +628,6 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
 .lvl-deal{ background:#f0eef8; color:#4b3f8f; }
 
 .hint-inline{ font-size:11px; color:var(--text-muted); line-height:1.45; }
-.phead-sub .hint-inline{ margin-left:10px; }
 .gtoolbar .hint-inline{ align-self:center; }
 
 /* цели меры в модале */
@@ -700,16 +739,20 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
       </section>
 
       <!-- ============ DETAIL VIEW ============ -->
+      <!-- КД-2: шапка — часть вида, одна на все вкладки. Уходит при прокрутке, лента
+           вкладок прилипает сверху: баннеры блокировок видны сразу при открытии. -->
       <section class="view" id="view-detail">
-        <div class="detail-tabbar-wrap">
-          <div class="detail-tabbar" id="detailTabbar"></div>
-          <button class="tabbar-chevron" onclick="scrollTabs()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-          </button>
-        </div>
-        <div class="content" style="overflow:visible;">
+        <div class="content">
+          <div id="detailHead"></div>
+          <div class="detail-tabbar-wrap sticky">
+            <div class="detail-tabbar" id="detailTabbar"></div>
+            <button class="tabbar-chevron" onclick="scrollTabs()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+          </div>
           <div id="detailPanels"></div>
         </div>
+        <!-- КД-10: футер не действует. Действия контекстные, каждое у своего списка. -->
         <div class="footer">
           <button class="btn btn-secondary" onclick="showView('list')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -1718,7 +1761,7 @@ const PROCESSES = [
       {sec:'Судебный', kind:'Исковое заявление', dates:D('20.05.2026','20.05.2026','20.05.2026'), num:'ИСК-77', purpose:'взыскание просроченной суммы солидарно', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'48 900,00', responsible:'Тукинова А.С.', targets:'все', docs:[{name:'Исковое заявление ИСК-77.pdf', kind:'процессуальный документ'}]},
     ],
     courtActs:[
-      {instance:'Первомайский районный суд', issued:'02.06.2026', effective:'', subject:'на рассмотрении', awarded:'', by:'судья Абдыкеримов', num:'—', arrived:true, dates:D('02.06.2026','14.06.2026','16.06.2026')},
+      {measureNum:'ИСК-77', instance:'Первомайский районный суд', issued:'02.06.2026', effective:'', subject:'на рассмотрении', awarded:'', by:'судья Абдыкеримов', num:'—', arrived:true, dates:D('02.06.2026','14.06.2026','16.06.2026')},
     ],
     hearings:[
       {measureNum:'ИСК-77', kind:'Извещение о назначении судебного процесса', place:'Первомайский районный суд г. Бишкек', when:'02.06.2026 10:30', participants:['Тукинова А.С. (представитель ФКФ)'], status:'на рассмотрении', substatus:'назначено к предварительному слушанию'},
@@ -1733,7 +1776,7 @@ const PROCESSES = [
     pause:{ type:'restructuring', point:'19', until:'18.09.2026', active:true, on:'заёмщик',
             note:'обращение заёмщика о реструктуризации, письмо в уполномоченный госорган направлено' },
     deadlines:[
-      { action:'Апелляционная жалоба', due:'02.07.2026', base:'дата вынесения решения (02.06.2026, акт получен 14.06)', leftDays:18, overdue:false, point:'30.2' },
+      { action:'Апелляционная жалоба', due:'02.07.2026', base:'дата вынесения решения (02.06.2026, акт получен 14.06)', leftDays:18, overdue:false, point:'30.2', on:'все' },
       { action:'Приостановка мер на период решения госоргана', due:'18.09.2026', base:'дата направления письма (реструктуризация)', leftDays:59, overdue:false, point:'19' } ],
     history:[
       {when:'10.07.2026 14:12', what:'Пауза «Рассмотрение реструктуризации» до 18.09.2026 (п. 19) на требовании к заёмщику; требование к поручителю не приостановлено', who:'Куратор ОД'},
@@ -2703,7 +2746,7 @@ const PROCESSES = [
     procedure:{ status:'Работа с судебными органами', since:'10.05.2026', by:'ДПО', receiving:'ОПК', confirm:{ state:'подтверждена', at:'11.05.2026', deadlineRd:5 } },
     committeeQuestions:[ { organ:ORGANS[4], initiator:'ОПК', topic:'Поручение об инициировании судебного взыскания', credits:['Дог. №518'], meetingDate:'05.05.2026', decision:'поручение выдано', positive:true, protocolNo:'ПП-90', protocolDate:'05.05.2026' } ],
     measures:[ {sec:'Судебный', kind:'Исковое заявление', dates:D('15.05.2026','15.05.2026','15.05.2026'), num:'ИСК-90', purpose:'взыскание просроченной суммы', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'95 000,00', responsible:'Тукинова А.С.'} ],
-    courtActs:[ {instance:'Первомайский районный суд', issued:'05.06.2026', effective:'', subject:'на рассмотрении', awarded:'', by:'судья Сыдыкова', num:'—', arrived:true, dates:D('05.06.2026','16.06.2026','18.06.2026')} ],
+    courtActs:[ {measureNum:'ИСК-90', instance:'Первомайский районный суд', issued:'05.06.2026', effective:'', subject:'на рассмотрении', awarded:'', by:'судья Сыдыкова', num:'—', arrived:true, dates:D('05.06.2026','16.06.2026','18.06.2026')} ],
     hearings:[
       {measureNum:'ИСК-90', kind:'Извещение о назначении судебного процесса', place:'Первомайский районный суд г. Бишкек', when:'05.06.2026 09:30', participants:['Тукинова А.С. (представитель ФКФ)'], status:'на рассмотрении', substatus:'назначено к предварительному слушанию'},
       {measureNum:'ИСК-90', kind:'Судебный процесс', place:'Первомайский районный суд г. Бишкек', when:'20.06.2026 11:00', participants:['Тукинова А.С.','Ответчик не явился'], status:'на рассмотрении', substatus:'отложено — неявка ответчика'} ],
@@ -2726,7 +2769,7 @@ const PROCESSES = [
     measures:[ {sec:'Судебный', kind:'Исковое заявление', dates:D('10.04.2026','10.04.2026','10.04.2026'), num:'ИСК-88', purpose:'взыскание просроченной суммы', deliver:'подано в суд', delivered:true, result:{group:'решение суда', value:'полностью на сумму'}, resultKind:'положительный', execStage:'на исполнении', sum:'110 000,00', responsible:'Тукинова А.С.'},
       {sec:'Судебный', kind:'Решение суда', dates:D('24.04.2026','24.04.2026','24.04.2026'), num:'СД-723', purpose:'установление фазы «Решение суда»', deliver:'документ приобщён', delivered:true, result:{group:'определение суда', value:'без изменения'}, resultKind:'без изменения', execStage:'на исполнении', sum:'110 000,00', responsible:'Тукинова А.С.', seeded:true},
     ],
-    courtActs:[ {instance:'Ысык-Атинский районный суд', issued:'10.06.2026', effective:'', subject:'иск удовлетворён полностью', awarded:'110 000,00', by:'судья Орозбеков', num:'РС-44', arrived:true, dates:D('10.06.2026','25.06.2026','27.06.2026')} ],
+    courtActs:[ {measureNum:'ИСК-88', instance:'Ысык-Атинский районный суд', issued:'10.06.2026', effective:'', subject:'иск удовлетворён полностью', awarded:'110 000,00', by:'судья Орозбеков', num:'РС-44', arrived:true, dates:D('10.06.2026','25.06.2026','27.06.2026')} ],
     deadlines:[ { action:'Апелляционная жалоба', due:'10.07.2026', base:'дата вынесения решения (акт получен 25.06)', leftDays:-11, overdue:true, point:'30.2' } ],
     history:[ {when:'10.06.2026 15:00', what:'Решение суда РС-44 (иск удовлетворён полностью), апелляционный срок съеден доставкой акта', who:'ОПК'} ] },
 
@@ -3072,7 +3115,7 @@ const PROCESSES = [
       } ],
     procedure:{ status:'Работа с судебными органами', since:'01.05.2026', by:'ДПО', receiving:'ОПК', confirm:{ state:'подтверждена', at:'02.05.2026', deadlineRd:5 } },
     measures:[ {sec:'Судебный', kind:'Решение суда', dates:D('22.06.2026','22.06.2026','22.06.2026'), num:'РС-48', purpose:'взыскание просроченной суммы', deliver:'вынесено судом', delivered:true, result:{group:'решение суда', value:'полностью на сумму'}, resultKind:'положительный', execStage:'на исполнении', sum:'88 000,00', responsible:'Тукинова А.С.'} ],
-    courtActs:[ {instance:'Ысык-Атинский районный суд', issued:'22.06.2026', effective:'', subject:'иск удовлетворён полностью', awarded:'88 000,00', by:'судья Орозбеков', num:'РС-48', arrived:true, dates:D('22.06.2026','06.07.2026','08.07.2026')} ],
+    courtActs:[ {measureNum:'РС-48', instance:'Ысык-Атинский районный суд', issued:'22.06.2026', effective:'', subject:'иск удовлетворён полностью', awarded:'88 000,00', by:'судья Орозбеков', num:'РС-48', arrived:true, dates:D('22.06.2026','06.07.2026','08.07.2026')} ],
     deadlines:[ { action:'Апелляционная жалоба', due:'21.07.2026', base:'дата вынесения решения (акт получен 06.07)', leftDays:0, overdue:false, point:'30.2' } ],
     history:[ {when:'22.06.2026 15:00', what:'Решение суда РС-48, апелляционный срок истекает сегодня', who:'ОПК'} ] },
 
@@ -3125,7 +3168,7 @@ const PROCESSES = [
     committeeQuestions:[ { organ:ORGANS[4], initiator:'ОПК', topic:'Поручение об инициировании судебного взыскания', credits:['Дог. №557','Дог. №558'], meetingDate:'25.04.2026', decision:'поручение выдано', positive:true, protocolNo:'ПП-99', protocolDate:'25.04.2026' } ],
     measures:[
       {sec:'Судебный', kind:'Исковое заявление', dates:D('05.05.2026','05.05.2026','05.05.2026'), num:'ИСК-99', purpose:'взыскание по двум договорам', deliver:'подано в суд', delivered:true, result:{group:'определение суда', value:'о назначении даты рассмотрения'}, resultKind:'без изменения', execStage:'на рассмотрении', sum:'420 000,00', responsible:'Тукинова А.С.'} ],
-    courtActs:[ {instance:'Джети-Огузский районный суд', issued:'10.06.2026', effective:'', subject:'на рассмотрении', awarded:'', by:'судья Асанов', num:'—', arrived:true, dates:D('10.06.2026','22.06.2026','24.06.2026')} ],
+    courtActs:[ {measureNum:'ИСК-99', instance:'Джети-Огузский районный суд', issued:'10.06.2026', effective:'', subject:'на рассмотрении', awarded:'', by:'судья Асанов', num:'—', arrived:true, dates:D('10.06.2026','22.06.2026','24.06.2026')} ],
     hearings:[ {measureNum:'ИСК-99', kind:'Судебный процесс', place:'Джети-Огузский районный суд', when:'25.06.2026 10:00', participants:['Тукинова А.С.','Ответчик явился'], status:'на рассмотрении', substatus:'рассмотрение по существу'} ],
     deadlines:[ { action:'Следующее судебное заседание', due:'28.07.2026', base:'определение суда', leftDays:7, overdue:false, point:'—' } ],
     history:[ {when:'05.05.2026 10:00', what:'Полный набор судебной подшивки: иск + акт + заседание по двум охватам', who:'ОПК'} ] },
@@ -3184,6 +3227,8 @@ function mkReq(p, c, personId, role, basis){
 }
 
 /* ---- normalize: заполняем умолчания, чтобы данные держать лаконичными ---- */
+/* КД-6: сроки, у которых требования нет по природе — они про ведение дела. */
+const DEAL_LEVEL_DEADLINE = /статуса? процедуры|процедуры принимающей|конфликт/i;
 function normalize(p){
   p.region ??= '—'; p.curator ??= '—'; p.openedBy ??= 'куратор'; p.basis ??= '—';
   p.owner ??= '—'; p.poruchenie ??= false;
@@ -3216,6 +3261,24 @@ function normalize(p){
     if(Array.isArray(m.targets) && m.targets.length) continue;
     const role = /поручител/i.test(m.kind) ? 'поручитель' : /гарант/i.test(m.kind) ? 'гарант' : 'заёмщик';
     m.targets = idsOf(role).length ? idsOf(role) : idsOf('заёмщик');
+  }
+
+  /* КД-5: предмет залога обеспечивает КРЕДИТНЫЙ ДОГОВОР, а требование = дело × кредит ×
+     лицо. Явной ссылки в данных не было — у дела с единственным кредитом она выводится
+     однозначно; при нескольких кредитах без ссылки предмет остаётся дело-уровневым и
+     помечается на экране «привязка не указана» (не прячется). */
+  for(const c of p.colls) c.credit ??= (p.credits.length===1 ? p.credits[0].id : null);
+
+  /* КД-6: срок принадлежит ТРЕБОВАНИЮ (§10: ответственный = куратор требования ×
+     подразделение шаблона). Часть сроков дело-уровневые по природе — подтверждение
+     статуса процедуры (п. 98) и конфликт интересов (гл. 16): требования у них нет.
+     Остальные выводятся из вида действия так же, как цели мер. */
+  for(const d of p.deadlines){
+    if(Array.isArray(d.targets) && d.targets.length) continue;
+    if(d.on === 'все' || d.targets === 'все'){ d.targets = p.requirements.map(r=>r.id); continue; }
+    if(DEAL_LEVEL_DEADLINE.test(d.action)){ d.targets = []; continue; }
+    const role = d.on || (/обеспечител|поручител/i.test(d.action) ? 'поручитель' : 'заёмщик');
+    d.targets = idsOf(role).length ? idsOf(role) : idsOf('заёмщик');
   }
 
   /* М-11: состояния разделены по природе. Пауза и соглашения — состояния ОБЯЗАТЕЛЬСТВА,
@@ -3586,37 +3649,106 @@ function exportList(){
 }
 
 /* ============================================================
-   DETAIL — вкладки + шапка (5 плиток) + баннеры особых состояний.
+   DETAIL — карточка. Волна КД (28.07.2026).
+   КД-1 РАМКА: карточка — рабочее место по ОДНОМУ требованию; дело вокруг него контекст.
+   Отсюда всё остальное: плитки только уровня требования (КД-3), шапка постоянная и общая
+   для всех вкладок (КД-2), вкладки «Суд»/«Залог»/сроки фильтруются по требованию
+   (КД-5, КД-6), умолчание — «Обзор», а не папка дела (КД-8).
    ============================================================ */
-/* М-15: ОДИН ряд вкладок в ДВУХ группах. Слева — то, что принадлежит ДЕЛУ (папке
-   заёмщика), справа — то, что принадлежит выбранному ТРЕБОВАНИЮ. Разделение видимое:
-   пользователь всегда знает, к какому уровню относится то, что он смотрит. */
-const DEAL_TABS = ['Дело','Ведение дела','Согласования','История'];
-const REQ_TABS  = ['Обзор требования','Долг','Журнал мер','Суд','Особые состояния','Залог / реализация'];
-const TABS = [...DEAL_TABS, ...REQ_TABS];
-let curProc=null, curReq=null, curTab=0, catOpen=false;
-/* id может быть идентификатором требования (142/56/з) или дела (142). */
-function openDetail(id){
+/* КД-9: реестр вкладок — ЕДИНСТВЕННЫЙ источник ленты, панели и слага в хеше.
+   Раньше массив builders в renderPanels обязан был руками совпадать с массивом имён;
+   несовпадение порядка молча показывало чужую панель.
+   М-15: один ряд, две группы — что принадлежит ДЕЛУ и что принадлежит ТРЕБОВАНИЮ.
+   Порядок внутри группы «требование» — по частоте (КД-4): долг есть у всех 135
+   требований, судебные акты — у 5 дел из 126.
+   count(p,r) → число на вкладке (КД-13); ноль приглушён, вкладка не прячется. */
+const TABS = [
+  { slug:'obschee',       label:'Общее',              group:'дело',       build:()=>panelDeal() },
+  { slug:'procedura',     label:'Процедура',          group:'дело',       build:()=>panelProcedure(),
+    count:p=>(p.procHistory||[]).length + (p.procedure?1:0) },
+  { slug:'soglasovaniya', label:'Согласования',       group:'дело',       build:()=>panelKomitety(),
+    count:p=>(p.committeeQuestions||[]).length },
+  { slug:'istoriya',      label:'История',            group:'дело',       build:()=>panelHistory(),
+    count:p=>(p.history||[]).length },
+  { slug:'obzor',         label:'Обзор',              group:'требование', build:()=>panelReq() },
+  { slug:'mery',          label:'Журнал мер',         group:'требование', build:()=>panelMery(),
+    count:(p,r)=>r?measuresOf(r).length:0 },
+  { slug:'dolg',          label:'Долг',               group:'требование', build:()=>panelDebt() },
+  { slug:'sud',           label:'Суд',                group:'требование', build:()=>panelSud(),
+    count:(p,r)=>r?(courtActsOf(r).length + hearingsOf(r).length):0 },
+  { slug:'sostoyaniya',   label:'Особые состояния',   group:'требование', build:()=>panelSpecial(),
+    count:(p,r)=>r?stateCount(r):0 },
+  { slug:'zalog',         label:'Залог / реализация', group:'требование', build:()=>panelZalog(),
+    count:(p,r)=>r?collsOf(r).length:0 },
+];
+const TAB_BY_SLUG = s => TABS.findIndex(t=>t.slug===s);
+const DEFAULT_TAB = TAB_BY_SLUG('obzor');   // КД-8: карточка открывается требованием, не папкой
+let curProc=null, curReq=null, curTab=DEFAULT_TAB, catOpen=false;
+
+/* КД-5/КД-6: что из данных дела принадлежит выбранному требованию.
+   Привязка ВЫВОДИТСЯ, а не хранится (ADR-0001): акт и заседание ссылаются на меру
+   номером, у меры есть targets. Записи без ссылки не прячутся — они помечаются
+   «по делу», иначе починка уровня стала бы тихой потерей строк. */
+const measureByNum = (p, num) => (p.measures||[]).find(m=>m.num===num) || null;
+/* КД-14: точная дата снимка денег — в подсказке КАЖДОЙ суммы (правило ТР-11). */
+const moneyAsOf = r => (LEDGER[r.credit] && LEDGER[r.credit].asOf) || '—';
+const moneyTitle = r => `Снимок модуля кредита на ${moneyAsOf(r)} — дате среза реестра и дате открытия дела не подчиняется (М-4)`;
+/* true — принадлежит требованию · false — чужое · null — привязки нет (дело-уровневое) */
+function boundToReq(r, measureNum){
+  if(!measureNum) return null;
+  const m = measureByNum(r._proc, measureNum);
+  if(!m) return null;
+  return (m.targets||[]).includes(r.id);
+}
+const courtActsOf = r => (r._proc.courtActs||[]).filter(a=>boundToReq(r,a.measureNum)!==false);
+const hearingsOf  = r => (r._proc.hearings ||[]).filter(h=>boundToReq(r,h.measureNum)!==false);
+const collsOf     = r => (r._proc.colls    ||[]).filter(c=>c.credit==null || c.credit===r.credit);
+const deadlinesOf = r => (r._proc.deadlines||[]).filter(d=>!(d.targets||[]).length || d.targets.includes(r.id));
+/* Счётчик вкладки «Особые состояния» = ровно то, что на ней показано: строки таблицы
+   (обязательство + лицо + ведение дела) плюс карточки мировых соглашений. */
+const stateCount  = r => stateRows(r).length + (r.states||[]).filter(s=>s.kind==='mirovoe').length;
+/* Пометка строки, привязка которой не выводится: показываем, но честно называем уровень. */
+const dealLevelPill = '<span class="pill mid" title="Ссылки на меру нет — строка относится ко всему делу">по делу</span>';
+
+/* id может быть идентификатором требования (142/56/з) или дела (142).
+   tab — индекс вкладки; null → умолчание (КД-8). */
+function openDetail(id, tab){
   const r = REQ_INDEX[id];
   if(r){ curProc = r._proc; curReq = r; }
   else { curProc = PROCESSES.find(p=>p.id===id) || PROCESSES[0]; curReq = curProc.requirements[0] || null; }
-  curTab=0; catOpen=false; renderTabs(); renderPanels(); showView('detail');
-  document.getElementById('crumbTitle').textContent =
-    `${procNo(curProc.id)} · ${curProc.borrower}${curReq?` · требование ${curReq.id} · ${displayPhase(curReq)}`:''}`;
-  setHash('detail/'+(curReq?curReq.id:curProc.id));   // сохранить вид в URL — переживёт F5
+  curTab = (tab==null || tab<0 || tab>=TABS.length) ? DEFAULT_TAB : tab;
+  catOpen=false; renderDetail(); showView('detail');
 }
-/* Переключение требования внутри дела — без ухода со страницы (М-14: глубина 2 клика). */
-function pickReq(id){ const r=REQ_INDEX[id]; if(!r) return; curReq=r; renderTabs(); renderPanels();
-  document.getElementById('crumbTitle').textContent = `${procNo(curProc.id)} · ${curProc.borrower} · требование ${r.id} · ${displayPhase(r)}`;
-  setHash('detail/'+r.id); }
+/* Переключение требования внутри дела — без ухода со страницы (М-14: глубина 2 клика).
+   Вкладка сохраняется: куратор ведёт соседнее требование в том же разрезе. */
+function pickReq(id){ const r=REQ_INDEX[id]; if(!r) return; curReq=r; renderDetail(); }
+/* Одна точка перерисовки карточки: шапка (КД-2) + лента + активная панель + крошка + хеш. */
+function renderDetail(){
+  renderPanels();
+  setCrumb([['Взыскание'], ['Требования (реестр)', "navClick('Требования (реестр)')"], ['дело '+procNo(curProc.id)]]);
+  setHash('detail/'+(curReq?curReq.id:curProc.id)+'/'+TABS[curTab].slug);   // КД-8: переживёт F5
+}
 function renderTabs(){
-  const btn = (t,i)=>`<button class="dtab${i===curTab?' active':''}" onclick="switchTab(${i})">${t}</button>`;
+  const p=curProc, r=curReq;
+  const btn = (t,i)=>{
+    const n = t.count ? t.count(p,r) : null;
+    const cnt = n===null ? '' : `<span class="dtab-n${n?'':' zero'}">${n}</span>`;
+    return `<button class="dtab${i===curTab?' active':''}" onclick="switchTab(${i})">${t.label}${cnt}</button>`;
+  };
+  const deal = TABS.map((t,i)=>[t,i]).filter(([t])=>t.group==='дело');
+  const req  = TABS.map((t,i)=>[t,i]).filter(([t])=>t.group==='требование');
   document.getElementById('detailTabbar').innerHTML =
-    `<span class="tabgroup-label">дело</span>${DEAL_TABS.map((t,i)=>btn(t,i)).join('')}` +
+    `<span class="tabgroup-label">дело</span>${deal.map(([t,i])=>btn(t,i)).join('')}` +
     `<span class="tabsep"></span><span class="tabgroup-label">требование</span>` +
-    REQ_TABS.map((t,i)=>btn(t,i+DEAL_TABS.length)).join('');
+    req.map(([t,i])=>btn(t,i)).join('');
 }
-function switchTab(i){ curTab=i; renderTabs(); document.querySelectorAll('.detail-panel').forEach((p,idx)=>p.classList.toggle('active',idx===i)); }
+function switchTab(i){ curTab=i; renderDetail(); }
+/* КД-7: на вкладках группы «дело» чипы требований приглушены — вкладка от выбора
+   требования не зависит, и молчать об этом нельзя (обещание §14.2 спецификации). */
+function syncHeadLevel(){
+  const h=document.getElementById('detailHead'); if(!h) return;
+  h.classList.toggle('deal-tab', TABS[curTab].group==='дело');
+}
 
 /* Баннеры особых состояний (типизированы В-4/В-5, гл. 16). Несколько могут показываться.
    Уровень каждого назван явно: дело · требование · лицо (М-11). */
@@ -3642,45 +3774,90 @@ function headerBanners(p, r){
   }
   return out;
 }
-/* Чипы требований дела — переключатель master-detail внутри одной страницы (М-14). */
+/* Чипы требований дела — переключатель master-detail внутри одной страницы (М-14).
+   КД-7: требований у 118 дел из 126 ровно одно. Одиночный чип не притворяется кнопкой —
+   он подпись «что открыто»; переключателем становится, только когда есть что переключать. */
 function reqChips(p){
   if(!p.requirements.length) return '';
-  return `<div class="reqchips">${p.requirements.map(r=>{
+  const many = p.requirements.length > 1;
+  const chip = r => {
     const out = outcomeOf(r);
-    return `<button class="reqchip${curReq&&r.id===curReq.id?' active':''}${out?' closed':''}" onclick="pickReq('${escAttr(r.id)}')">
-      <span class="rc-id">${r.id}</span>
+    const body = `<span class="rc-id">${r.id}</span>
       <span class="rc-main">${r._credit.num} · ${personOf(r).name}<span class="rolechip">${r.role}</span></span>
-      <span class="rc-sub">${out ? out : displayPhase(r)} · ${fmtKGS(claimOf(r))}</span></button>`;
-  }).join('')}</div>`;
+      <span class="rc-sub">${out ? out : displayPhase(r)} · <span title="${escAttr(moneyTitle(r))}">${fmtKGS(claimOf(r))}</span></span>`;
+    const cls = `reqchip${curReq&&r.id===curReq.id?' active':''}${out?' closed':''}`;
+    return many
+      ? `<button class="${cls}" onclick="pickReq('${escAttr(r.id)}')">${body}</button>`
+      : `<div class="${cls} solo">${body}</div>`;
+  };
+  return `<div class="reqchips">${p.requirements.map(chip).join('')}
+    ${many?`<span class="hint-inline rc-hint">требований в деле: ${p.requirements.length} — переключите, чтобы вести соседнее</span>`:''}
+    <span class="hint-inline rc-dimnote">вкладка относится к делу и от выбранного требования не зависит</span></div>`;
 }
-function phaseHeader(){
-  const p=curProc, r=curReq;
-  const cat=r?catOfReq(r):catOfProcess(p);
+/* КД-15: заголовок дела в две строки — тождество и ведение.
+   Счётчик 5 р.д. подтверждения процедуры (п. 98) остаётся ПОДПИСЬЮ, а не уезжает в title:
+   это единственное место, где виден этот дедлайн. */
+function dealHeadHtml(p){
   const grp=groupOf(p);
-  const out=r?outcomeOf(r):null;
-  const procDim = p.procedure
-    ? `<div class="dv">${p.procedure.status}</div><div class="src">${procSourceLabel(p)}</div>`
-    : `<div class="dv">—</div><div class="src">процедура не установлена</div>`;
-  return `<div class="phead">
-    <div class="phead-top">
-      <div class="phead-name">
-        <span class="nm">${p.borrower}</span>
-        <a onclick="toast('Переход в карточку заёмщика (демо)')">ИНН ${p.inn} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></a>
-        <div class="phead-sub" style="width:100%">дело ${procNo(p.id)} · ${p.region} · требований: <b>${p.requirements.length}</b> · по делу: <b>${fmtKGS(claimTotal(p.requirements))}</b><span class="hint-inline">сумма считается один раз на кредит — солидарные требования не задваиваются (§2.2)</span></div>
-      </div>
-      <span class="phead-owner">Куратор: ${p.curator}${r?`<br>Ведущее подразд.: ${r.subdivision}`:''}</span>
+  const proc = p.procedure
+    ? `<span class="pill neutral">${escAttr(p.procedure.status)}</span> <span class="dh-src">${procSourceLabel(p)}</span>`
+    : `<span class="dh-muted">процедура не установлена</span>`;
+  return `<div class="dhead">
+    <div class="dhead-id">
+      <span class="nm">${p.borrower}</span>
+      <a onclick="toast('Переход в карточку заёмщика (демо)')">ИНН ${p.inn} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></a>
+      <span class="dh-sep">·</span><span class="dh-meta">${escAttr(p.region)}</span>
+      <span class="dh-sep">·</span><span class="dh-meta">дело ${procNo(p.id)}</span>
     </div>
-    ${reqChips(p)}
-    ${headerBanners(p, r)}
-    <div class="phead-dims">
-      <div class="dim"><div class="dl">Стадия</div><div class="dv">${r?stageOfReq(r):'—'}</div><div class="src">производная от фазы требования</div></div>
-      <div class="dim"><div class="dl">Фаза</div><div class="dv">${out?`<span class="pill neutral">${out}</span>`:(r?displayPhase(r):'—')}</div><div class="src">${out?'терминальный исход — производный (М-9)':(r&&activeState(r,'restructuring')?'оверлей реструктуризации; под ним: '+phaseOf(r):(r?phaseSource(r):'—'))}</div></div>
-      <div class="dim"><div class="dl">Процедура <span class="lvl">дело</span></div>${procDim}</div>
-      <div class="dim clickable" onclick="toggleCat()"><div class="dl">Категория риска <span style="color:var(--text-link)">${catOpen?'▾':'▸'} входы</span></div><div class="dv"><span class="pill ${catCls(cat)}">${catLabel(cat)}</span></div><div class="src">по кредиту требования</div></div>
-      <div class="dim"><div class="dl">Группа платёжесп. <span class="lvl">дело</span></div><div class="dv">${grp || '<span style="color:var(--text-placeholder);font-size:13px">не выведена</span>'}</div><div class="src">${grp?('выведена из процедуры, п. '+(procMeta(p.procedure?p.procedure.status:'')?.point||'—')):'процедура не подтверждена'}</div></div>
+    <div class="dhead-run">
+      ${proc}
+      <span class="dh-sep">·</span>${grp?`<span class="pill neutral">группа ${escAttr(grp)}</span>`:`<span class="dh-muted">группа не выведена</span>`}
+      <span class="dh-sep">·</span><span class="dh-meta">куратор ${escAttr(p.curator)}</span>
+      <span class="dh-sep">·</span><span class="dh-meta">требований ${p.requirements.length}</span>
+      <span class="dh-sep">·</span><span class="dh-money" title="Сумма по делу считается один раз на кредит — солидарные требования не задваиваются (§2.2). ${escAttr(moneyStamp(p).replace(/<[^>]*>/g,''))}">по делу <b>${fmtKGS(claimTotal(p.requirements))}</b></span>
     </div>
-    ${catOpen ? catExpand(p) : ''}
+    <div class="dhead-money">${moneyStamp(p)}</div>
   </div>`;
+}
+/* КД-14: правило ТР-11 на карточке. Деньги — снимок модуля кредита со СВОЕЙ датой (М-4),
+   одна подпись на всю карточку; при расхождении дат честно называется диапазон. */
+function moneyStamp(p){
+  const dates = uniq((p.credits||[]).map(c=>(LEDGER[c.id]&&LEDGER[c.id].asOf)||'—')).sort((a,b)=>dkey(a).localeCompare(dkey(b)));
+  if(!dates.length) return '';
+  return dates.length===1
+    ? `Деньги — снимок модуля кредита на <b>${dates[0]}</b>; дате открытия дела и дате среза реестра не подчиняются (М-4).`
+    : `Деньги — снимки модуля кредита на <b>${dates[0]} – ${dates[dates.length-1]}</b>: у кредитов дела разные даты, точная — в подсказке суммы (М-4).`;
+}
+/* КД-3: ЧЕТЫРЕ плитки, все — уровня требования. Процедура и группа уехали в заголовок
+   дела (КД-15), стадия стала подписью фазы: она её производная (§3.3), отдельной плиткой
+   дублировала соседку. */
+function reqDims(){
+  const p=curProc, r=curReq;
+  if(!r) return `<div class="phead-dims one"><div class="dim"><div class="dl">Требование</div><div class="dv">—</div><div class="src">в деле нет требований</div></div></div>`;
+  const cat=catOfReq(r);
+  const out=outcomeOf(r);
+  const phaseSrc = out ? 'терминальный исход — производный (М-9)'
+    : (activeState(r,'restructuring') ? 'оверлей реструктуризации; под ним: '+phaseOf(r) : phaseSource(r));
+  return `<div class="phead-dims">
+    <div class="dim"><div class="dl">Охват</div><div class="dv">${escAttr(r.scope)}</div><div class="src">на кредите ${escAttr(r._credit.num)} (§2.4)</div></div>
+    <div class="dim"><div class="dl">Фаза</div><div class="dv">${out?`<span class="pill neutral">${out}</span>`:displayPhase(r)}</div><div class="src">стадия «${stageOfReq(r)}» · ${phaseSrc}</div></div>
+    <div class="dim clickable" onclick="toggleCat()"><div class="dl">Категория риска <span style="color:var(--text-link)">${catOpen?'▾':'▸'} входы</span></div><div class="dv"><span class="pill ${catCls(cat)}">${catLabel(cat)}</span></div><div class="src">worst-of по кредиту требования</div></div>
+    <div class="dim"><div class="dl">Ведущее подразделение</div><div class="dv">${escAttr(r.subdivision)}</div><div class="src">на требовании, не на деле (М-3)</div></div>
+  </div>${catOpen ? catExpand(p) : ''}`;
+}
+/* КД-2: шапка — часть ВИДА, а не панелей. До волны phaseHeader() звался изнутри двух
+   панелей из десяти: на восьми вкладках не было ни заёмщика, ни чипов (переключить
+   требование нельзя), ни баннеров — а баннеры сообщают про блокировки, которые бьют
+   ровно по действиям «Журнала мер». */
+function renderDetailHead(){
+  const p=curProc, r=curReq;
+  document.getElementById('detailHead').innerHTML = `<div class="phead">
+    ${dealHeadHtml(p)}
+    ${headerBanners(p, r)}
+    ${reqChips(p)}
+    ${reqDims()}
+  </div>`;
+  syncHeadLevel();
 }
 /* Подпись плитки процедуры: статус подтверждения + счётчик 5 р.д. (п. 98). */
 function procSourceLabel(p){
@@ -3690,7 +3867,7 @@ function procSourceLabel(p){
   const left = c.leftRd ?? c.deadlineRd;
   return `ожидает подтверждения, осталось ${left} р.д. (п. 98)${left<0?' — просрочено':''}`;
 }
-function toggleCat(){ catOpen=!catOpen; renderPanels(); }
+function toggleCat(){ catOpen=!catOpen; renderDetailHead(); }   // плитки живут в шапке вида (КД-2)
 /* Раскрытие входов worst-of покредитно (паттерн borrower.html: честная категория при подавлении). */
 function catExpand(p){
   const rows = (p.credits||[]).map(c=>{
@@ -3704,8 +3881,13 @@ function catExpand(p){
   }).join('');
   return `<div class="cat-expand">${rows}<div class="row"><span class="ck">worst-of процесса:</span> <b class="cat-${catCls(catOfProcess(p))==='high'?'high':catCls(catOfProcess(p))==='mid'?'mid':'low'}">${catLabel(catOfProcess(p))}</b></div></div>`;
 }
-/* ---- panel: Дело — папка заёмщика (§2.1) ---- */
-function panelObschaya(){
+/* ---- panel: Общее — папка заёмщика (§2.1) ----
+   КД-12: таблицы «Требования дела» здесь больше нет. Она перечисляла то же, что стоит
+   в чипах шапки (5 колонок из 7), а недостающие охват и ведущее подразделение стали
+   плитками (КД-3). Поля «Требований в деле» и «Сумма по делу» сняты — они в заголовке
+   дела. «Обязанные лица» остались: их вопрос (кто обязан, какие роли, состояние лица)
+   в чип не помещается. */
+function panelDeal(){
   const p=curProc;
   const out=outcomeOfProc(p);
   const obligors = Object.values(p.requirements.reduce((a,r)=>{ (a[r.obligor] ??= {per:personOf(r), reqs:[]}).reqs.push(r); return a; }, {}))
@@ -3713,31 +3895,17 @@ function panelObschaya(){
       <td>${uniq(x.reqs.map(r=>r.role)).join(', ')}</td>
       <td>${x.reqs.map(r=>`<span class="rowlink" onclick="pickReq('${escAttr(r.id)}')">${r.id}</span>`).join(', ')}</td>
       <td>${x.per.state?`<span class="pill high">${x.per.state.label||x.per.state.type} с ${x.per.state.since}</span>`:'—'}</td></tr>`).join('');
-  const reqRows = p.requirements.map(r=>{
-    const o=outcomeOf(r);
-    return `<tr><td><span class="rowlink" onclick="pickReq('${escAttr(r.id)}')">${r.id}</span></td>
-      <td>${r._credit.num}</td><td>${personOf(r).name}<span class="rolechip">${r.role}</span></td>
-      <td>${r.scope}</td><td>${o?`<span class="pill neutral">${o}</span>`:displayPhase(r)}</td>
-      <td>${r.subdivision}</td><td style="text-align:right">${fmtKGS(claimOf(r))}</td></tr>`;
-  }).join('');
-  return `<div class="panel-wrap">${phaseHeader()}
+  return `<div class="panel-wrap">
     <div class="panel-card"><div class="f2">
       ${ro('Заёмщик (якорь дела)', `${p.borrower} · ИНН ${p.inn}`)}
       ${ro('Дата открытия', p.opened)}
       ${ro('Кем открыто', p.openedBy==='система'?'система (авто, 6-й день просрочки)':'куратор')}
       ${ro('Основание открытия', p.basis)}
       ${ro('Куратор', p.curator)}
-      ${ro('Требований в деле', String(p.requirements.length))}
-      ${ro('Сумма по делу', fmtKGS(claimTotal(p.requirements)))}
       ${ro('Исход дела', out || '— (в работе)')}
     </div>
-    <p class="section-note" style="margin-top:16px">Дело — папка заёмщика (§2.1): кураторство, процедура, согласования, приостановка назначения, история. Фазы, охвата, категории и суммы у дела НЕТ — это свойства требований. Дело закрыто тогда и только тогда, когда закрыты все его требования (М-9), поэтому «сирота» в 0,01 сома здесь невозможна по построению.</p>
+    <p class="section-note" style="margin-top:16px">Дело — папка заёмщика (§2.1): кураторство, процедура, согласования, приостановка назначения, история. Фазы, охвата, категории и суммы у дела НЕТ — это свойства требований, они в шапке. Дело закрыто тогда и только тогда, когда закрыты все его требования (М-9), поэтому «сирота» в 0,01 сома здесь невозможна по построению.</p>
     </div>
-    <p class="section-h" style="margin-top:20px">Требования дела</p>
-    <p class="section-note">Строка = договор × обязанное лицо. Каждое требование идёт своим треком: своя фаза, своё ведущее подразделение, свои состояния. Сумма показана полной у каждого; в «Сумме по делу» солидарные требования учтены один раз (§2.2).</p>
-    <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Требование</th><th>Кредитный договор</th><th>Обязанное лицо</th><th>Охват</th><th>Фаза / исход</th><th>Ведущее подразд.</th><th style="text-align:right">Сумма</th></tr></thead>
-      <tbody>${reqRows}</tbody></table></div>
     <p class="section-h" style="margin-top:20px">Обязанные лица</p>
     <p class="section-note">Состояния лица (смерть, банкротство, правопреемство) задевают все требования к этому лицу сразу; состояния обязательства — только своё требование (М-11).</p>
     <div class="cgrid-wrap"><table class="cgrid">
@@ -3746,9 +3914,9 @@ function panelObschaya(){
 }
 const templTerm = action => { const t=DEADLINE_TEMPLATES.find(x=>x.action===action); return t?t.term:'—'; };
 
-/* ---- panel: Кредиты (охват + расчёт долга объединены; карточка на кредит) ----
-   Свёрнута = скоуп-строка (предмет · категория worst-of · обеспечение · остаток долга).
-   Развёрнута = 5 статей долга §9. Процессные блоки — пересечение сверху, реализация снизу. */
+/* ---- panel: Долг требования (проекция М-4) ----
+   Свёрнута = скоуп-строка (охват · категория worst-of · обеспечение · остаток долга).
+   Развёрнута = 5 статей долга §9. Реализация залога — блоком снизу. */
 function debtTableHtml(r){
   const d=debtOf(r);
   const rows=d.rows.map(b=>{
@@ -3766,8 +3934,9 @@ function debtTableHtml(r){
     <p class="section-note" style="margin-top:8px">Четыре статьи — снимок модуля кредита на <b>${d.asOf}</b>, взыскание их только читает (М-4). Пятая, расходы по обращению взыскания, — собственная статья требования. Столбец «Востребовано» считается из охвата «${r.scope}»${r.scope==='просроченная сумма'?': берётся просроченная часть каждой статьи':': берётся весь остаток'}.${d.frozen?` Начисление заморожено с ${d.frozen.since}: ${d.frozen.why}.`:''}</p>
     ${r._credit.debtNote?`<p class="section-note" style="margin-top:8px">${r._credit.debtNote}</p>`:''}`;
 }
-/* ---- panel: Долг требования (проекция М-4) ---- */
-function panelOhvat(){
+/* КД-Д16: функция звалась panelOhvat — по вкладке «Охват» модели v2. Вкладка давно
+   называется «Долг», охват стал плиткой шапки (КД-3). */
+function panelDebt(){
   const p=curProc, req=curReq;
   if(!req) return `<div class="panel-wrap"><p class="section-note">Требований в деле нет.</p></div>`;
   const cat=catOfCredit(req._credit);
@@ -3781,7 +3950,7 @@ function panelOhvat(){
         <span class="tw">▸</span>
         <span class="cnum rowlink" onclick="event.preventDefault();event.stopPropagation();toast('Переход в карточку кредита ${escAttr(req._credit.num)} (демо)')">${req._credit.num}</span>
         <span class="csub">охват: ${req.scope} · ${inputs} · обеспечение: ${req._credit.coll}${req._credit.bezakceptRight?' <span class="pill info">безакцепт по договору</span>':''}</span>
-        <span class="cright"><span class="amt">${fmtKGS(claimOf(req))}</span><span class="aml">сумма требования</span></span>
+        <span class="cright"><span class="amt" title="${escAttr(moneyTitle(req))}">${fmtKGS(claimOf(req))}</span><span class="aml">сумма требования</span></span>
       </summary>
       <div class="credit-body">${debtTableHtml(req)}</div>
     </details>`;
@@ -3815,11 +3984,14 @@ function panelReq(){
   const p=curProc, r=curReq;
   if(!r) return `<div class="panel-wrap"><p class="section-note">Требований в деле нет.</p></div>`;
   const per=personOf(r), out=outcomeOf(r), sol=solidaryWith(r);
-  const dl=(p.deadlines||[]).map(d=>`<tr class="${d.overdue?'overdue':''}">
-    <td>${d.action}</td><td>${templTerm(d.action)}</td><td>${d.base}</td>
+  /* КД-6: сроки требования, а не дела. Дело-уровневые (п. 98, конфликт интересов)
+     показываются здесь же с пометкой уровня — прятать их некуда, они тоже горят. */
+  const dlRows = deadlinesOf(r);
+  const dl = dlRows.map(d=>`<tr class="${d.overdue?'overdue':''}">
+    <td>${d.action}${(d.targets||[]).length?'':' '+dealLevelPill}</td><td>${templTerm(d.action)}</td><td>${d.base}</td>
     <td>${d.overdue?`просрочен на ${-d.leftDays} дн`:`осталось ${d.leftDays} дн`}</td><td>п. ${d.point}</td></tr>`).join('')
-    || `<tr><td colspan="5"><div class="cgrid-empty">Активных сроков нет</div></td></tr>`;
-  return `<div class="panel-wrap">${phaseHeader()}
+    || `<tr><td colspan="5"><div class="cgrid-empty">Активных сроков по требованию нет — ни одно обязательство Порядка сейчас не отсчитывается. Полная очередь по срокам — в реестре <span class="rowlink" onclick="navClick('Сроки на контроле (реестр)')">«Сроки на контроле»</span>.</div></td></tr>`;
+  return `<div class="panel-wrap">
     <div class="panel-card"><div class="f2">
       ${ro('Идентификатор требования', r.id)}
       ${ro('Кредитный договор', r._credit.num)}
@@ -3829,13 +4001,13 @@ function panelReq(){
       ${ro('Охват', r.scope)}
       ${ro('Ведущее подразделение', r.subdivision)}
       ${ro('Фаза', out || displayPhase(r))}
-      ${ro('Сумма требования', fmtKGS(claimOf(r)))}
+      ${ro('Сумма требования', `${fmtKGS(claimOf(r))} · снимок на ${moneyAsOf(r)}`)}
       ${ro('Терминальный исход', out || '— (требование в работе)')}
     </div>
     <p class="section-note" style="margin-top:16px">Требование — рабочая единица модуля (М-1, ADR-0002): охват, фаза, ведущее подразделение, сроки, состояния обязательства и исход принадлежат ему, а не папке дела. ${sol.length?`По этому договору обязаны ещё ${sol.length} лиц${sol.length>1?'а':'о'} — обязательство солидарное, треки исполнения раздельные.`:''} Исход не выставляется кнопкой: он производный (М-9) — нулевой остаток либо веха с документом-основанием.</p>
     </div>
-    <p class="section-h" style="margin-top:20px">Сроки на контроле</p>
-    <p class="section-note">Расчётные поля (Р-3, вариант 3Б): остаток срока считается от базы отсчёта шаблона (Р-7), не от даты ввода. Справочник шаблонов: <b>DEADLINE_TEMPLATES</b> (${DEADLINE_TEMPLATES.length} строк, §5.3).</p>
+    <p class="section-h" style="margin-top:20px">Сроки на контроле по требованию</p>
+    <p class="section-note">Срок принадлежит требованию: ответственный выводится как куратор требования × подразделение шаблона (§10). Расчётные поля (Р-3, вариант 3Б): остаток считается от базы отсчёта шаблона (Р-7), не от даты ввода. Справочник шаблонов: <b>DEADLINE_TEMPLATES</b> (${DEADLINE_TEMPLATES.length} строк, §5.3). Здесь контекст одного требования; рабочая очередь по срокам — реестр <span class="rowlink" onclick="navClick('Сроки на контроле (реестр)')">«Сроки на контроле»</span> (ТР-1).</p>
     <div class="cgrid-wrap"><table class="dl-grid">
       <thead><tr><th>Действие</th><th>Срок</th><th>База отсчёта</th><th>Остаток</th><th>Пункт</th></tr></thead>
       <tbody>${dl}</tbody></table></div></div>`;
@@ -3916,20 +4088,26 @@ function phaseTimeline(){
 }
 
 /* ---- panel: Суд (судебные акты В-1 + заседания) ---- */
+/* КД-5: вкладка стоит в группе «требование» — значит и данные требования.
+   Раньше рисовались все акты и заседания дела без фильтра: в деле с заёмщиком и
+   поручителем куратор видел чужой процесс как свой. Привязка выводится через меру
+   (номер акта/заседания → мера → targets), а не хранится (ADR-0001). */
 function panelSud(){
-  const p=curProc;
-  const acts=(p.courtActs||[]).map(a=>`<tr>
-    <td>${a.instance}</td><td>${a.issued||'—'}</td><td>${a.effective||'<span class="pill mid">не вступило</span>'}</td>
+  const p=curProc, r=curReq;
+  if(!r) return `<div class="panel-wrap"><div class="cgrid-empty">Требование не выбрано</div></div>`;
+  const noCourt = `Судебных актов по требованию нет — до судебной стадии оно не доходило. Стадия сейчас: «${stageOfReq(r)}», фаза «${displayPhase(r)}».`;
+  const acts=courtActsOf(r).map(a=>`<tr>
+    <td>${a.instance}${boundToReq(r,a.measureNum)===null?' '+dealLevelPill:''}</td><td>${a.issued||'—'}</td><td>${a.effective||'<span class="pill mid">не вступило</span>'}</td>
     <td>${a.subject}</td><td style="text-align:right">${a.awarded||'—'}</td><td>${a.by}</td><td>${a.num}</td>
     <td>${a.arrived?'<span class="pill low">поступил через вх. корреспонденцию</span>':'<span class="pill high">не поступил — регистрация фазы «Решение суда» заблокирована</span>'}</td></tr>`).join('')
-    || `<tr><td colspan="8"><div class="cgrid-empty">Судебных актов нет</div></td></tr>`;
-  const hear=(p.hearings||[]).map(h=>`<tr>
-    <td>${h.measureNum}</td><td>${h.kind}</td><td>${h.place}</td><td>${h.when}</td>
+    || `<tr><td colspan="8"><div class="cgrid-empty">${noCourt}</div></td></tr>`;
+  const hear=hearingsOf(r).map(h=>`<tr>
+    <td>${h.measureNum}${boundToReq(r,h.measureNum)===null?' '+dealLevelPill:''}</td><td>${h.kind}</td><td>${h.place}</td><td>${h.when}</td>
     <td>${(h.participants||[]).join('<br>')}</td><td>${h.status}${h.substatus?` <span class="pill mid">${h.substatus}</span>`:''}</td></tr>`).join('')
-    || `<tr><td colspan="6"><div class="cgrid-empty">Судебных заседаний по процессу нет</div></td></tr>`;
+    || `<tr><td colspan="6"><div class="cgrid-empty">Заседаний по требованию нет — иск по нему в суд не подавался либо дата ещё не назначена. Сводно по всем делам — реестр <span class="rowlink" onclick="navClick('Заседания (реестр)')">«Заседания»</span>.</div></td></tr>`;
   return `<div class="panel-wrap">
-    <p class="section-h">Судебные акты</p>
-    <p class="section-note">Самостоятельная сущность (В-1). Дата вынесения ≠ дата вступления в силу: апелляция считается от вынесения (30 дн, п. 30.2), истребование ИЛ — от вступления в силу (п. 27). Предусловие регистрации фазы «Решение суда» — поступление через сектор документационного обеспечения (пп. 26, 28).</p>
+    <p class="section-h">Судебные акты по требованию ${r.id}</p>
+    <p class="section-note">Самостоятельная сущность (В-1); принадлежность требованию выводится через меру-основание (иск подан к конкретным ответчикам, п. 32). Дата вынесения ≠ дата вступления в силу: апелляция считается от вынесения (30 дн, п. 30.2), истребование ИЛ — от вступления в силу (п. 27). Предусловие регистрации фазы «Решение суда» — поступление через сектор документационного обеспечения (пп. 26, 28).</p>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Инстанция</th><th>Дата вынесения</th><th>Вступление в силу</th><th>Предмет решения</th><th style="text-align:right">Присуждено</th><th>Кем вынесен</th><th>Номер</th><th>Поступление</th></tr></thead>
       <tbody>${acts}</tbody></table></div>
@@ -3961,7 +4139,7 @@ function panelProcedure(){
     <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openProcChangeModal()">Сменить статус процедуры</button></div>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Статус</th><th>Дата установки</th><th>Кто установил</th><th>Принимающее подразделение</th><th>Дата завершения</th><th>Подтверждение</th><th></th></tr></thead>
-      <tbody>${hist}${curRow}${(!hist&&!curRow)?`<tr><td colspan="7"><div class="cgrid-empty">Смен статуса ещё не было</div></td></tr>`:''}</tbody>
+      <tbody>${hist}${curRow}${(!hist&&!curRow)?`<tr><td colspan="7"><div class="cgrid-empty">Статус процедуры по делу ещё не устанавливался — группа платёжеспособности поэтому не выведена. Первая запись появится после кнопки «Сменить статус процедуры».</div></td></tr>`:''}</tbody>
     </table></div></div>`;
 }
 
@@ -3981,7 +4159,7 @@ function panelKomitety(){
     <td>${q.organ}</td><td>${q.initiator}</td><td>${q.topic}</td><td>${(q.credits||[]).join(', ')}</td>
     <td>${q.meetingDate||'—'}</td><td>${dcell}</td>
     <td>${q.protocolNo?`${q.protocolNo} от ${q.protocolDate}`:'—'}</td><td>${act}</td></tr>`;}).join('')
-    || `<tr><td colspan="8"><div class="cgrid-empty">Вопросов на коллегиальные органы нет</div></td></tr>`;
+    || `<tr><td colspan="8"><div class="cgrid-empty">Вопросов на коллегиальные органы по делу не выносилось — необратимые действия, требующие гейта (иск, безакцепт, внесудебное обращение на залог), пока не инициировались. Сводно по всем делам — реестр <span class="rowlink" onclick="navClick('Вопросы на коллегиальные органы (реестр)')">«Вопросы на коллегиальные органы»</span>.</div></td></tr>`;
   const gateRows=Object.keys(RULES.gates).map(k=>{
     const r=gateReason(p,k);
     return `<tr><td>${RULES.gates[k].label}</td><td>${RULES.gates[k].poruchenie?'Председатель Правления':RULES.gates[k].organ}</td><td>п. ${RULES.gates[k].point}</td>
@@ -4173,7 +4351,7 @@ function panelSpecial(){
     </div>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Уровень</th><th>Основание / пункт</th><th>Примечание</th><th>Срок</th></tr></thead>
-      <tbody>${rows.join('')||`<tr><td colspan="4"><div class="cgrid-empty">Особых состояний нет</div></td></tr>`}</tbody>
+      <tbody>${rows.join('')||`<tr><td colspan="4"><div class="cgrid-empty">Особых состояний нет: требование не на паузе, соглашений по нему не заключено, состояний лица и ограничений ведения дела не зафиксировано. Взыскание идёт обычным порядком.</div></td></tr>`}</tbody>
     </table></div>
     ${msCards(p, r)}
   </div>`;
@@ -4350,18 +4528,22 @@ function realStageCell(c){
   if(c.realNote) s+=`<br><span class="src">${c.realNote}</span>`;
   return s;
 }
+/* КД-5: предмет залога обеспечивает КРЕДИТ требования — фильтр по c.credit.
+   Раньше вкладка группы «требование» показывала весь залог дела. */
 function panelZalog(){
-  const p=curProc;
-  const rows=(p.colls||[]).length?p.colls.map((c,ci)=>`<tr>
-    <td>${c.item}</td><td>${c.kind}</td><td style="text-align:right">${c.pledge}</td>
+  const p=curProc, r=curReq;
+  if(!r) return `<div class="panel-wrap"><div class="cgrid-empty">Требование не выбрано</div></div>`;
+  const mine=collsOf(r);
+  const rows=mine.length?mine.map(c=>{ const ci=p.colls.indexOf(c); return `<tr>
+    <td>${c.item}${c.credit==null?' '+dealLevelPill:''}</td><td>${c.kind}</td><td style="text-align:right">${c.pledge}</td>
     <td>${c.ban?'<span class="pill high">только судебный</span>':c.order||'<span style="color:var(--text-placeholder)">не выбран</span>'}</td>
     <td>${realStageCell(c)}</td>
     <td>${c.startPrice?`${c.startPrice.value}<br><span class="src">${c.startPrice.report}</span>`:'<span style="color:var(--text-placeholder)">не задана</span>'}</td>
-    <td><button class="btn-tint btn-sm" onclick="openRealizationModal(${ci})">Управление</button></td></tr>`).join('')
-    :`<tr><td colspan="7"><div class="cgrid-empty">По этому процессу залог не обращается</div></td></tr>`;
+    <td><button class="btn-tint btn-sm" onclick="openRealizationModal(${ci})">Управление</button></td></tr>`;}).join('')
+    :`<tr><td colspan="7"><div class="cgrid-empty">Залога по договору ${escAttr(r._credit.num)} нет — ${r._credit.coll && r._credit.coll!=='—' ? `обеспечение этого требования: ${escAttr(r._credit.coll)}` : 'обеспечение по договору не указано'}. Обращение взыскания на залог по нему не ведётся.</div></td></tr>`;
   return `<div class="panel-wrap">
-    <p class="section-h">Залог / реализация</p>
-    <p class="section-note">Внесудебный порядок ЖЁСТКО запрещён (п. 42) для единственного жилья, имущества значительной культурной ценности и предприятия как имущественного комплекса. Начальная продажная цена (п. 48) — из отчёта независимого оценщика. ЖЦ реализации: порядок обращения → нач. цена → торги → реализовано либо принято на баланс (2 несостоявшихся торгов).</p>
+    <p class="section-h">Залог / реализация по договору ${r._credit.num}</p>
+    <p class="section-note">Предмет залога обеспечивает кредитный договор, поэтому виден на всех требованиях по этому договору — и к заёмщику, и к обеспечителям. Внесудебный порядок ЖЁСТКО запрещён (п. 42) для единственного жилья, имущества значительной культурной ценности и предприятия как имущественного комплекса. Начальная продажная цена (п. 48) — из отчёта независимого оценщика. ЖЦ реализации: порядок обращения → нач. цена → торги → реализовано либо принято на баланс (2 несостоявшихся торгов).</p>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Предмет залога</th><th>Вид</th><th style="text-align:right">Залоговая стоимость</th><th>Порядок обращения</th><th>Статус реализации</th><th>Начальная продажная цена (п. 48)</th><th>Действие</th></tr></thead>
       <tbody>${rows}</tbody></table></div></div>`;
@@ -4507,17 +4689,22 @@ function openRealizationModal(ci){
 /* ---- panel: История ---- */
 function panelHistory(){
   const p=curProc;
+  const rows=(p.history||[]).map(h=>`<div class="hrow${/сторн/i.test(h.what)?' storno':''}"><div class="hwhen">${h.when}</div><div class="hwhat">${h.what}</div><div class="hwho">${h.who}</div></div>`).join('');
   return `<div class="panel-wrap">
-    <p class="section-h">История процесса</p>
-    <p class="section-note">Аудит вех: смена фазы (с документом-основанием), смены процедуры, паузы, сторно. Только чтение, по убыванию времени.</p>
-    <div class="hist">${(p.history||[]).map(h=>`<div class="hrow${/сторн/i.test(h.what)?' storno':''}"><div class="hwhen">${h.when}</div><div class="hwhat">${h.what}</div><div class="hwho">${h.who}</div></div>`).join('')}</div></div>`;
+    <p class="section-h">История дела</p>
+    <p class="section-note">Аудит вех: смена фазы (с документом-основанием), смены процедуры, паузы, сторно. История ведётся на уровне дела и охватывает все его требования. Только чтение, по убыванию времени.</p>
+    <div class="hist">${rows || `<div class="cgrid-empty">Записей нет — с момента открытия дела ${p.opened} ни одной вехи, смены процедуры или паузы не регистрировалось.</div>`}</div></div>`;
 }
 
+/* КД-9: строится ТОЛЬКО активная панель. Раньше строились все десять на каждую мутацию
+   (регистрация меры, снятие паузы, расход), а шапка — дважды: она сидела внутри двух из
+   них. Панель берётся из реестра вкладок, руками совпадать нечему. */
 function renderPanels(){
-  /* порядок обязан совпадать с TABS = [...DEAL_TABS, ...REQ_TABS] */
-  const builders=[panelObschaya,panelProcedure,panelKomitety,panelHistory,
-                  panelReq,panelOhvat,panelMery,panelSud,panelSpecial,panelZalog];
-  document.getElementById('detailPanels').innerHTML=builders.map((b,i)=>`<div class="detail-panel${i===curTab?' active':''}">${b()}</div>`).join('');
+  if(!curProc) return;
+  const t=TABS[curTab];
+  renderDetailHead();   // мутация могла снять баннер, сменить фазу или сумму — шапка идёт следом
+  renderTabs();         // и счётчики вкладок вместе с ней (КД-13)
+  document.getElementById('detailPanels').innerHTML=`<div class="detail-panel active" data-tab="${t.slug}">${t.build()}</div>`;
   persistState();   // демо-персист: каждая мутация процесса зовёт renderPanels → сохраняем состояние
 }
 /* ДЕМО-ПЕРСИСТ (localStorage): внесённые в макете данные переживают F5.
@@ -4929,8 +5116,16 @@ function showView(v){ document.querySelectorAll('.view').forEach(s=>s.style.disp
   document.getElementById('view-'+v).style.display='flex';
   const titles={list:'Взыскание задолженности',hearings:'Реестр заседаний',claims:'Реестр претензий',committee:'Вопросы на коллегиальные органы',deadlines:'Сроки на контроле',settings:'Настройки правил доступности мер'};
   if(v==='settings') renderSettings();
-  if(titles[v]) document.getElementById('crumbTitle').textContent=titles[v];
-  if(v!=='detail') setHash(v);   // detail пишет openDetail (с id); остальные виды — по имени
+  if(titles[v]) setCrumb([[titles[v]]]);
+  if(v!=='detail') setHash(v);   // detail пишет renderDetail (с id и вкладкой); остальные виды — по имени
+}
+/* КД-11: крошка — ПУТЬ, а не второй заголовок. Раньше в неё писали три места, и в
+   карточке она дублировала шапку (дело, заёмщик, требование, фаза), не давая пути наверх.
+   parts = [[текст], [текст, onclick]] — вторая форма делает звено ссылкой. */
+function setCrumb(parts){
+  document.getElementById('crumbTitle').innerHTML = parts
+    .map(([t,act]) => act ? `<span class="crumb-link" onclick="${escAttr(act)}">${t}</span>` : `<span>${t}</span>`)
+    .join('<span class="crumb-sep">·</span>');
 }
 /* Персист вида в URL-хеше — при F5 страница остаётся на месте.
    lastHash отсекает hashchange, вызванные нашей же setHash (hashchange асинхронный,
@@ -4943,8 +5138,16 @@ function curHash(){ const raw=(location.hash||'').replace(/^#/,''); try{ return 
 function setHash(h){ lastHash=h; if(curHash()!==h) location.hash=h; }
 function restoreFromHash(){
   const h=curHash();
-  // id в хеше — требования (М-1) либо дела: openDetail понимает оба
-  if(h.startsWith('detail/')){ const id=h.slice(7); if(REQ_INDEX[id] || PROCESSES.some(p=>p.id===id)){ openDetail(id); return; } }
+  /* id в хеше — требования (М-1) либо дела: openDetail понимает оба.
+     КД-8: последний сегмент — СЛАГ вкладки, если он есть в реестре. Слаг, а не индекс:
+     волна КД переставила вкладки, и по индексу все сохранённые ссылки уехали бы на чужую
+     панель. id требования — три сегмента (дело/кредит/роль), со слагом их четыре. */
+  if(h.startsWith('detail/')){
+    const parts=h.slice(7).split('/');
+    const t=TAB_BY_SLUG(parts[parts.length-1]);
+    const id=(t>=0?parts.slice(0,-1):parts).join('/');
+    if(REQ_INDEX[id] || PROCESSES.some(p=>p.id===id)){ openDetail(id, t>=0?t:null); return; }
+  }
   const views=['list','hearings','claims','committee','deadlines','settings'];
   showView(views.includes(h)?h:'list');
 }
