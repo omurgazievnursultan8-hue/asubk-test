@@ -94,8 +94,25 @@ ok('8b. подгруппа 2.3 достижима (в наборе есть пр
   g.ev("PROCESSES.some(p=>procGroupOf(p)==='2.3')"));
 ok('9. неподтверждённая процедура в блок 2 не пускает (И-2)',
   g.ev("subgroupOf('08801199980081', TODAY)")[0]==='1');
+/* Носителя банкротства ищем в наборе, а не адресуем ИНН: у сидовых субъектов ИНН собирается
+   по индексу. Заодно проверяем, что носитель — лицо, которое банкротом быть МОЖЕТ (И-13). */
+const bankruptInn = g.ev("(SUBJECTS.find(s=>subgroupOf(s.inn,TODAY)==='3.2')||{}).inn");
 ok('10. терминал «банкротство завершено» → 3.2 (Ш-2)',
-  g.ev("subgroupOf('07701199970071', TODAY)")==='3.2');
+  !!bankruptInn && g.ev(`subgroupOf('${bankruptInn}', TODAY)`)==='3.2' &&
+  g.ev(`bankruptcyCapable((SUBJECTS.find(s=>s.inn==='${bankruptInn}')||{}).personKind)`));
+/* Б-24: до 28.07.2026 этот терминал стоял на физлице — по Закону КР о банкротстве оно должником
+   быть не может (ст.1 п.2, ст.2). Терминал умершего заёмщика — 4 «безнадёжные». */
+ok('10б. терминал физлица — 4 «безнадёжные долги», а не банкротство (И-13, Б-24)',
+  g.ev("subgroupOf('07701199970071', TODAY)")==='4' &&
+  g.ev("SUBJECTS.find(s=>s.inn==='07701199970071').personKind")==='физ');
+ok('10в. И-13: банкротная ступень, событие и контур К6 — только у юрлица и ИП',
+  g.ev(`SUBJECTS.filter(s=>!bankruptcyCapable(s.personKind))
+          .every(s=>!BANKRUPT_SUBS.has(subgroupOf(s.inn,TODAY)))`) &&
+  g.ev(`BORROWER_EVENTS.filter(e=>e.kind==='завершено банкротство')
+          .every(e=>bankruptcyCapable((SUBJECTS.find(s=>s.inn===e.inn)||{}).personKind))`) &&
+  g.ev(`PROCESSES.filter(p=>p.contour==='К6').every(p=>{
+          const inn = (CREDITS.find(c=>c.id===p.credits[0])||{}).inn;
+          return bankruptcyCapable((SUBJECTS.find(s=>s.inn===inn)||{}).personKind); })`));
 ok('11. полное погашение → 5',
   g.ev("subgroupOf('10001199900101', TODAY)")==='5');
 
@@ -140,9 +157,9 @@ ok('C9. противоречивую комбинацию группа+подг�
   g.ev("typeof document.getElementById('f-group')") === 'object' &&
   g.ev("document.getElementById('f-group') === null && document.getElementById('f-sub') === null") &&
   g.ev("FIELDS.filter(f=>f.key==='grp').length") === 1);
-ok('C6. подгруппа историчная: до события банкротства заёмщик не в 3.2',
-  g.ev("subgroupOf('07701199970071','01.05.2026')")!=='3.2' &&
-  g.ev("subgroupOf('07701199970071',TODAY)")==='3.2');
+ok('C6. подгруппа историчная: до заключения комиссии заёмщик не в 4',
+  g.ev("subgroupOf('07701199970071','01.05.2025')")!=='4' &&
+  g.ev("subgroupOf('07701199970071',TODAY)")==='4');
 
 // ... сценарии 12–26 добавляются по мере готовности функций ...
 
