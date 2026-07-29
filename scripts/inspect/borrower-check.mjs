@@ -2111,6 +2111,25 @@ for (const name of ['CONTOURS', 'PHASE_STAGE', 'PROCEDURE_DICT']){
   ok(`W. словарь ${name} совпадает с collection.html (владелец)`, !!mine && mine === theirs);
 }
 
+/* ── Имя лица: владелец — mockups/subject/subject.html (СБ-14, ADR-0014) ────────
+   Ключ и имя — единственное, что зеркало ещё держит (СБ-14.3а). Раз имя перестало
+   быть чистым именем, а стало пропечатывать тип лица прямо в строку («ИП …», «… (физ.)»),
+   два макета читаются как две разные модели одного и того же человека, ровно то,
+   ради чего схлопывалась страница субъекта. Сверяем по каждому ключу, который есть
+   в ОБОИХ наборах, — не два зашитых ключа, чтобы третий разошедшийся ключ красил тест
+   и без правки самого теста. */
+const SUBJ_OWNER = readFileSync(resolve('mockups/subject/subject.html'), 'utf8');
+const grabArray = (src, name) => {
+  const m = src.match(new RegExp('const ' + name + ' = \\[[\\s\\S]*?\\n\\];'));
+  return m ? new Function(m[0] + '\nreturn ' + name + ';')() : null;
+};
+const ownerSubjects = grabArray(SUBJ_OWNER, 'SUBJECTS') || [];
+const mirrorSubjects = grabArray(HTML, 'SUBJECTS') || [];
+const ownerNameByKey = new Map(ownerSubjects.filter(s => s.key).map(s => [s.key, s.name]));
+const sharedKeys = mirrorSubjects.filter(s => ownerNameByKey.has(s.inn));
+ok('W. словарь SUBJECTS.name совпадает с subject.html (владелец) по каждому общему ключу; пересечение непусто',
+  sharedKeys.length > 0 && sharedKeys.every(s => s.name === ownerNameByKey.get(s.inn)));
+
 // ── СБ-14: вид субъекта схлопнут, владелец — mockups/subject/subject.html ──
 ok('СБ-14.1 вида view-subject и renderSubject в макете заёмщика больше нет',
   !g.$('#view-subject') && g.ev("typeof renderSubject")==='undefined' && g.ev("typeof showSubject")==='undefined');
