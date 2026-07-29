@@ -38,5 +38,44 @@ ok('0.6 даты: dnum сравнивает, toISO/fromISO обратимы',
   g.ev("fromISO(toISO('14.05.2026'))") === '14.05.2026');
 ok('0.7 esc экранирует разметку', g.ev("esc('<b>&\"')") === '&lt;b&gt;&amp;&quot;');
 
+// ── Модель и производные (Task 2) ──
+ok('1.1 три источника представлены в наборе',
+  ['individuals','organizations','groups'].every(src => g.ev(`SUBJECTS.some(s=>s.source==='${src}')`)));
+ok('1.2 инвариант 1: ключи уникальны',
+  g.ev("(()=>{const k=SUBJECTS.map(s=>s.key).filter(Boolean);return new Set(k).size===k.length;})()"));
+ok('1.3 инвариант 2: у группы ключ ГР-NNN и ИНН пуст, у прочих — 14 цифр либо ключа нет вовсе',
+  g.ev("SUBJECTS.every(s => s.source==='groups' ? /^ГР-\\d{3}$/.test(s.key) && !s.inn : (s.key==='' || /^\\d{14}$/.test(s.key)))"));
+ok('1.4 инвариант 4: хранимого типа лица нет ни у одной записи',
+  g.ev("SUBJECTS.every(s=>!('personKind' in s) && !('isIP' in s) && !('roles' in s))"));
+ok('1.5 keyKind различает ИНН и внутренний ключ группы',
+  g.ev("keyKind('01204199910016')")==='ИНН' && g.ev("keyKind('ГР-001')")==='ГР');
+// ADR-0018: физлицо бывает ИП период, потом перестаёт — тип считается на дату.
+ok('1.6 personKindAt: в период регистрации ИП — «ИП», после прекращения — «физ»',
+  g.ev("personKindAt('04401199940041','01.06.2020')")==='ИП' &&
+  g.ev("personKindAt('04401199940041','01.06.2026')")==='физ');
+ok('1.7 personKindAt: организация и группа от даты не зависят',
+  g.ev("personKindAt('01204199910016','01.01.2011')")==='юр' &&
+  g.ev("personKindAt('01204199910016',TODAY)")==='юр' &&
+  g.ev("personKindAt('ГР-001',TODAY)")==='группа');
+ok('1.8 у физлица без регистрации ИП тип «физ» на любую дату',
+  g.ev("personKindAt('07701199970071','01.01.2015')")==='физ' &&
+  g.ev("personKindAt('07701199970071',TODAY)")==='физ');
+// ADR-0019: присоединённый ключ не исчезает — он разрешается в главного субъекта.
+ok('1.9 resolveKey разрешает псевдоним, keysOf возвращает ключ и его псевдонимы',
+  g.ev("resolveKey('S-DUP')")===g.ev("resolveKey(resolveKey('S-DUP'))") &&
+  g.ev("keysOf('07701199970071').length") >= 1);
+ok('1.10 инвариант 5: роли выводятся — функции создания/удаления роли нет',
+  g.ev("typeof addRole")==='undefined' && g.ev("typeof removeRole")==='undefined');
+ok('1.11 subjectRoles возвращает роль заёмщика при наличии кредитов',
+  g.ev("subjectRoles('01204199910016').some(r=>r.role==='Заёмщик')"));
+ok('1.12 subjectRoles: залогодатель по ЧУЖОМУ кредиту тоже роль',
+  g.ev("subjectRoles('07701199970071').some(r=>r.role==='Залогодатель')"));
+ok('1.13 зеркала не содержат собственных полей субъекта (ADR-0014)',
+  g.ev("CREDITS.every(c=>!('name' in c) && !('district' in c))"));
+ok('1.14 в наборе есть закрытая регистрация ИП, групповой заёмщик с составом и пара-дубль без ключа',
+  g.ev("IP_REG.some(r=>r.to)") &&
+  g.ev("LINKS.some(l=>l.kind==='член группы')") &&
+  g.ev("SUBJECTS.filter(s=>s.key==='').length") >= 2);
+
 console.log(`\n${n - fails} / ${n} PASS`);
 process.exit(fails ? 1 : 0);
