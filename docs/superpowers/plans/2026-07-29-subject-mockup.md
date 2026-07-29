@@ -1468,6 +1468,19 @@ ok('8.13 обратное слияние отвергается — уже пр�
            m.ev("listRows().length") === alive; })());
 /* СБ-10: дубль живёт там, где ключа нет. Пустить безключевую запись в главные значит
    увести лицо с настоящим ИНН под внутренний id. */
+/* 8.13 доказывает отказ, но не доказывает, ЧЕМ он вызван: у пары S-DUP/07701199970071
+   главная сторона ещё и безключевая, поэтому запрет срабатывает ключевой защитой, а
+   защита от повторного слияния остаётся непокрытой (снятие её одной 8.13 не роняет).
+   Две проверки ниже бьют по каждому плечу порознь, обходя ключевую защиту:
+   у 8.13б обе стороны без ключа, у 8.13в главная с ключом. */
+ok('8.13б присоединённая запись не может быть главной — плечо main.aliasOf',
+  m.ev("(()=>{try{doMerge('S-DUP','S-DUP2',{confirm:'S-DUP'});return false;}catch(e){return /Главная запись сама присоединена/.test(e.message);}})()") &&
+  m.ev("subject('S-DUP').aliasOf")==='07701199970071' &&
+  !m.ev("subject('S-DUP2').aliasOf"));
+ok('8.13в присоединённая запись не может быть присоединена повторно — плечо join.aliasOf',
+  m.ev("(()=>{try{doMerge('01204199910016','S-DUP',{confirm:'01204199910016'});return false;}catch(e){return /уже присоединена/.test(e.message);}})()") &&
+  m.ev("subject('S-DUP').aliasOf")==='07701199970071' &&
+  !m.ev("subject('01204199910016').aliasOf"));
 ok('8.14 безключевая запись главной стать не может',
   m.ev("(()=>{try{doMerge('S-DUP2','01204199910016',{confirm:'S-DUP2'});return false;}catch(e){return /с ключом/.test(e.message);}})()"));
 /* Инвариант 10 проверялся только запретами: canDelete, прибитый к false, проходил их все.
@@ -1584,7 +1597,7 @@ function deleteSubject(ref){
 - [ ] **Step 4: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `96 / 96 PASS`.
+Expected: `98 / 98 PASS`.
 
 - [ ] **Step 5: Коммит**
 
@@ -1789,7 +1802,7 @@ git commit -m "docs(qa): дефекты реестров лиц P4-06…P4-12 и
 
 После Task 12 проверить DoD спеки целиком:
 
-- [ ] `node scripts/inspect/subject-check.mjs` → 96+ PASS, 0 FAIL (DoD 1)
+- [ ] `node scripts/inspect/subject-check.mjs` → 98+ PASS, 0 FAIL (DoD 1)
 - [ ] `node scripts/inspect/borrower-check.mjs` → 0 FAIL (DoD 4)
 - [ ] Каждое СБ-1…СБ-14 имеет строку в `mockups/subject/ASUBK-status-razrabotki.md` со статусом (DoD 2)
 - [ ] `mockups/subject/ASUBK-subekt-logika.md` не пересказывает код — только «почему» (DoD 3)
