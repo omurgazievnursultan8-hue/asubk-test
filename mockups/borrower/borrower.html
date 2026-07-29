@@ -738,7 +738,6 @@
   .tabpanel{display:none;} .tabpanel.active{display:block;}
 
   /* ---------- карточка заёмщика v2: шапка-плитки (Task 10) ---------- */
-  .crumb{font-size:13px;color:var(--text-muted);margin-bottom:10px;}
   /* КЗ-4: плиток две, не три. Третья показывала состояние субъекта — ровно то же, что говорит
      баннер ниже, и теми же словами. */
   .phead-dims{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:18px;}
@@ -5917,7 +5916,7 @@ function relatedTab(inn){
    по-разному — витрина знала основной канал и дату сверки, вкладка 10 не знала (Б-20).
    Порядок строк — общий с витриной (liveChannels): сначала основной, закрытые в хвосте. */
 function requisitesTab(inn){
-  const act = () => subjectLink(inn, 'править у субъекта');
+  const act = subjectLink(inn, 'править у субъекта');   /* одна ссылка наружу на оба блока */
   const hint = 'реквизиты принадлежат лицу — правка у владельца, в макете субъекта (КЗ-40)';
   const chRow = c => '<tr' + (c.closedAt ? ' class="muted"' : '') + '>'
     + '<td>' + esc(c.kind) + (c.main ? ' <span class="badge b-ok">основной</span>' : '') + '</td>'
@@ -5934,8 +5933,8 @@ function requisitesTab(inn){
   const bRows = banks.map(b=>`<tr><td>${esc(b.bank)}</td><td class="mono">${esc(b.bik||'—')}</td><td class="mono">${esc(b.account)}</td><td>${esc(b.currency)}</td>`
     + `<td>${b.main?'основной':'—'}</td><td>${b.note && b.note!=='—' ? esc(b.note) : '—'}</td><td class="muted">${esc(b.from)}</td></tr>`);
   const bHtml = table('<th>Банк</th><th>БИК</th><th>Счёт</th><th>Валюта</th><th>Тип</th><th>Примечание</th><th>С</th>', bRows);
-  return sect('Каналы связи', hint + ' · действующие и закрытые', act('канал'), chHtml)
-       + sect('Банковские реквизиты', hint + ' · записи не удаляются, только добавляются', act('счёт'), bHtml);
+  return sect('Каналы связи', hint + ' · действующие и закрытые', act, chHtml)
+       + sect('Банковские реквизиты', hint + ' · записи не удаляются, только добавляются', act, bHtml);
 }
 
 /* Вкладка целиком: полоса дефектов (КЗ-22, вторая подача) + две колонки. Полосы здесь не было
@@ -6956,7 +6955,16 @@ function tabMain(inn, i){
 
 /* СБ-14: владелец страницы субъекта — mockups/subject/subject.html. Два макета,
    по-разному описывающих одно лицо, читаются как две модели, и неизвестно, какая главная.
-   Здесь остаётся зеркало (ADR-0014): ключ, тип лица, наименование — и выход наружу. */
+   Здесь остаётся зеркало (ADR-0014): наименование, ключ — и выход наружу.
+
+   C1 (ревью 29.07.2026): тип лица из зеркала УБРАН, и отметка среза вместе с ним.
+   Тип лица у владельца — не поле, а функция среза: personKindAt(ref,date) выводит его из
+   регистраций ИП (subject.html). Здесь же personKind — статическая строка, и IP_REG в этом
+   макете нет вовсе. На 04401199940041 зеркало печатало «ИП», владелец на ту же дату даёт
+   «Физ. лицо»: два макета расходились в открытую, ровно тот дефект, ради устранения которого
+   схлопывался вид. Отметка «на <дата>» делала расхождение хуже — утверждала снимок, которого
+   зеркало не делает: имя и ключ от asOf() не зависят ни при каком срезе.
+   Печатаем только то, чем запись опознают и что от даты не зависит. Тип лица — у владельца. */
 const subjectLink = (inn, text) =>
   '<a class="lnk" href="../subject/subject.html#/s/' + esc(inn) + '" target="_blank" rel="noopener">'
   + esc(text || inn) + ' ↗</a>';
@@ -6965,8 +6973,7 @@ function subjectMirrorRow(inn){
   if (!s) return '';
   return '<div class="id-bar"><div class="id-main">'
     + '<span class="who">' + esc(s.name) + '</span> · '
-    + '<span class="muted">' + esc(inn) + ' · ' + esc(personKindLabel(s.personKind))
-    + ' <span class="hint">на ' + esc(asOf()) + '</span></span> · '
+    + '<span class="muted">' + esc(inn) + '</span> · '
     + subjectLink(inn, 'Открыть субъекта') + '</div></div>';
 }
 
