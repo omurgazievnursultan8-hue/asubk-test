@@ -822,8 +822,15 @@ function showMerge(a, b){
 function route(){
   let m;
   if ((m = /^#\/merge\/([^/]+)\/([^/]+)$/.exec(location.hash))) {
-    const a = subject(decodeURIComponent(m[1])), b = subject(decodeURIComponent(m[2]));
+    const aKey = decodeURIComponent(m[1]), bKey = decodeURIComponent(m[2]);
+    const a = subject(aKey), b = subject(bKey);
     if (a && b) { showMerge(subjectRef(a), subjectRef(b)); return; }
+    /* M-1 (финальное ревью 29.07.2026): ветка «нашлись обе» не выполнялась, регексп #/s/ ниже
+       не совпадал, и управление доходило до showList() — ненайденный ключ проглатывался ровно
+       так же, как это чинил I2 для карточки. Сюда ведёт ссылка «сравнить» из разреза дублей:
+       по устаревшей паре (одну из записей слили или удалили) оператор молча оказывался в
+       реестре и винил ссылку, а не набор — Б-9 / КЗ-16. Называем ту сторону, которой нет. */
+    showMissing(a ? bKey : aKey); return;
   }
   if ((m = /^#\/s\/([^/?]+)(?:\?(.*))?$/.exec(location.hash))) {
     const key = decodeURIComponent(m[1]);

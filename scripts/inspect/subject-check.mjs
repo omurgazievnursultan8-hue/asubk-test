@@ -59,6 +59,30 @@ ok('0.5б известный ключ ведёт в карточку, а не в
     f.ev("location.hash='#/s/01204199910016'"); f.ev("route()");
     return f.$('#view-card').classList.contains('active')
       && !f.$('#view-missing').classList.contains('active'); })());
+/* M-1 (финальное ревью 29.07.2026): маршрут сравнения глотал ненайденный ключ ровно так же,
+   как это чинил I2 для карточки, — ветка «нашлись обе» не выполнялась, и управление доходило
+   до showList(). Сюда ведёт ссылка «сравнить» из разреза дублей: по устаревшей паре оператор
+   молча оказывался в реестре. Сторожим обе стороны, как и в 0.5, и отдельно требуем, чтобы
+   назван был именно отсутствующий ключ, а не первый попавшийся. */
+ok('0.5в ненайденный ключ в маршруте сравнения тоже назван, а не проглочен (M-1)',
+  (() => { const f = mk();
+    f.ev("location.hash='#/merge/07701199970071/00000000000000'"); f.ev("route()");
+    if (f.errs.length) return false;
+    if (f.$('#view-list').classList.contains('active')) return false;
+    if (!f.$('#view-missing').classList.contains('active')) return false;
+    const t = f.$('#missingMount').textContent.replace(/\s+/g, ' ');
+    if (!(/не найдена/i.test(t) && t.includes('00000000000000'))) return false;
+    /* и с другой стороны пары — чтобы «называем всегда первый ключ» не прошло за верное */
+    const f2 = mk();
+    f2.ev("location.hash='#/merge/00000000000000/07701199970071'"); f2.ev("route()");
+    const t2 = f2.$('#missingMount').textContent.replace(/\s+/g, ' ');
+    return f2.$('#view-missing').classList.contains('active')
+      && t2.includes('00000000000000') && !t2.includes('07701199970071'); })());
+ok('0.5г известная пара ведёт на экран сравнения, а не в «не найдено»',
+  (() => { const f = mk();
+    f.ev("location.hash='#/merge/07701199970071/S-DUP'"); f.ev("route()");
+    return f.$('#view-merge').classList.contains('active')
+      && !f.$('#view-missing').classList.contains('active'); })());
 ok('0.6 даты: dnum сравнивает, toISO/fromISO обратимы',
   g.ev("dnum('01.01.2026') < dnum('02.01.2026')") &&
   g.ev("fromISO(toISO('14.05.2026'))") === '14.05.2026');
