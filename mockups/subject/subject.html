@@ -757,7 +757,15 @@ function canDelete(ref){
 }
 function deleteSubject(ref){
   if (!canDelete(ref)) throw new Error('Удалить нельзя: на запись есть ссылки либо она присоединена слиянием');
-  SUBJECTS.splice(SUBJECTS.findIndex(s => subjectRef(s) === ref), 1);
+  /* I-3 (финальное ревью 29.07.2026). Удалять надо ТУ ЖЕ запись, которую опознал canDelete,
+     а он опознаёт по ключу ИЛИ по внутреннему id (subject). Поиск по subjectRef(s) === ref
+     для записи С ключом, переданной по id, не совпадал никогда: findIndex давал -1, и
+     splice(-1, 1) сносил ПОСЛЕДНЮЮ запись набора. Целевая запись выживала, посторонняя
+     гибла — и гибла в обход инварианта 10, потому что ссылки проверялись не у неё.
+     Индекс без проверки не сплайсим ни при каких условиях. */
+  const i = SUBJECTS.indexOf(subject(ref));
+  if (i < 0) throw new Error('Запись не найдена: ' + ref);
+  SUBJECTS.splice(i, 1);
 }
 
 function hashParams(q){
@@ -1041,13 +1049,25 @@ function lookupKey(key){
   const s = subject(String(key || '').trim());
   return s ? { found:true, ref:subjectRef(s), name:displayName(s) } : { found:false, key:String(key || '').trim() };
 }
+/* M-2 (финальное ревью 29.07.2026). Внутренний id выдавался как 'S-' + (SUBJECTS.length + 1):
+   после любого deleteSubject длина падала, и следующее создание выдавало id, уже занятый —
+   а subject(ref) вернул бы по нему ПЕРВУЮ из двух записей. Плюс формат расходился с засевом:
+   посев даёт S-001…S-006, создание давало S-9.
+   Счётчик, а не максимум по набору: максимум тоже не столкнулся бы с живой записью, но
+   освобождал бы номер удалённой, и один и тот же id со временем означал бы разные записи.
+   Идентификатор так себя вести не должен — он ссылка, и в тексте примечания или в чужой
+   выгрузке она пережила бы удаление. Номера выдаём монотонно и в формате засева.
+   S-DUP/S-DUP2 под /^S-(\d+)$/ не подходят и в засев счётчика не идут. */
+let SUBJ_SEQ = SUBJECTS.map(s => /^S-(\d+)$/.exec(s.id || ''))
+  .filter(Boolean).map(x => +x[1]).reduce((a, b) => Math.max(a, b), 0);
+function nextSubjectId(){ return 'S-' + String(++SUBJ_SEQ).padStart(3, '0'); }
 function createSubject({ key, source, name, district, region, industry }){
   const k = String(key || '').trim();
   if (!/^\d{14}$/.test(k)) throw new Error('Ключ субъекта — 14 цифр (ИНН/ПИН). Групповой заёмщик заводится кнопкой «+ Группа».');
   if (subject(k)) throw new Error('Такой ключ уже есть в реестре: ' + k);
   if (source !== 'individuals' && source !== 'organizations') throw new Error('Тип: физлицо или организация');
   /* Тип ИП в форме не предлагается (СБ-3а): ИП появляется регистрацией у заведённого физлица. */
-  const s = { id:'S-' + (SUBJECTS.length + 1), key:k, source, name:name || '',
+  const s = { id:nextSubjectId(), key:k, source, name:name || '',
     district:district || '—', region:region || '—', industry:industry || '—', note:'заведён вручную',
     imported:{ asOf:'—', src:'ГРС · Тундук', f:{} } };
   SUBJECTS.push(s);
@@ -1059,7 +1079,7 @@ function nextGroupKey(){
   return 'ГР-' + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, '0');
 }
 function createGroup({ name, district, region, industry }){
-  const s = { id:'S-' + (SUBJECTS.length + 1), key:nextGroupKey(), source:'groups', name:name || '',
+  const s = { id:nextSubjectId(), key:nextGroupKey(), source:'groups', name:name || '',
     district:district || '—', region:region || '—', industry:industry || '—', note:'заведён вручную' };
   SUBJECTS.push(s);
   return subjectRef(s);
