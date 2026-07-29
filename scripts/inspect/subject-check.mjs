@@ -197,23 +197,32 @@ ok('4.5 инвариант 3: поле в состоянии «реестр» re
   (() => { g.ev("location.hash='#/s/01204199910016'"); g.ev("route()");
     return !!g.$('[data-field="nameFull"][data-state="реестр"]') &&
            !g.$('[data-field="nameFull"] input') && !g.$('[data-field="nameFull"] .btn-fill'); })());
+/* Пишет в общий SUBJECTS (пусто→наше) — общий jsdom у Task 5–8, поэтому снимок до
+   вызова и восстановление после (тот же приём, что 4.11 применяет к S-DUP.aliasOf). */
 ok('4.6 пустое импортное поле заполняется руками, значение подписывается автором и датой',
   (() => { const has = !!g.$('[data-field="okpo"][data-state="пусто"] .btn-fill');
+    g.ev("window.__snap46 = JSON.parse(JSON.stringify(subject('01204199910016').imported.f.okpo))");
     g.ev("fillOwn('01204199910016','okpo','27458119')");
-    return has && g.ev("subject('01204199910016').imported.f.okpo.st")==='наше' &&
+    const pass = has && g.ev("subject('01204199910016').imported.f.okpo.st")==='наше' &&
            !!g.ev("subject('01204199910016').imported.f.okpo.by") &&
-           !!g.ev("subject('01204199910016').imported.f.okpo.at"); })());
+           !!g.ev("subject('01204199910016').imported.f.okpo.at");
+    g.ev("subject('01204199910016').imported.f.okpo = window.__snap46");
+    return pass; })());
 ok('4.7 наше значение видно как «введено нами» с подписью',
   (() => { g.ev("route()"); const el = g.$('[data-field="director"][data-state="наше"]');
     return !!el && /введено нами/i.test(el.textContent) && /Асанова/.test(el.textContent); })());
 ok('4.8 пришедшее позже значение реестра не затирает наше молча — показывается расхождение с выбором',
   (() => { const el = g.$('[data-field="director"]');
     return /расхожден/i.test(el.textContent) && el.querySelectorAll('[data-choice]').length === 2; })());
+/* Пишет в общий SUBJECTS (наше+расхождение→реестр) — тот же приём восстановления. */
 ok('4.9 выбор в пользу реестра переводит поле в состояние «реестр»',
-  (() => { g.ev("resolveConflict('01204199910016','director','реестр')");
-    return g.ev("subject('01204199910016').imported.f.director.st")==='реестр' &&
+  (() => { g.ev("window.__snap49 = JSON.parse(JSON.stringify(subject('01204199910016').imported.f.director))");
+    g.ev("resolveConflict('01204199910016','director','реестр')");
+    const pass = g.ev("subject('01204199910016').imported.f.director.st")==='реестр' &&
            g.ev("subject('01204199910016').imported.f.director.v")==='Асанов Талант Кубанычбекович' &&
-           g.ev("!subject('01204199910016').imported.f.director.pending"); })());
+           g.ev("!subject('01204199910016').imported.f.director.pending");
+    g.ev("subject('01204199910016').imported.f.director = window.__snap49");
+    return pass; })());
 ok('4.10 состав вкладок зависит от типа лица на дату',
   (() => { const org = g.ev("tabsFor('01204199910016',TODAY).map(t=>t.k).join(',')");
     const grp = g.ev("tabsFor('ГР-001',TODAY).map(t=>t.k).join(',')");
@@ -228,6 +237,15 @@ ok('4.11 карточка по псевдониму называет присо�
     const t = g.$('#cardMount').textContent;
     g.ev("delete subject('S-DUP').aliasOf");
     return /присоединён/i.test(t) && t.includes('07701199970071'); })());
+/* Заведённый руками субъект несёт imported.asOf:'—' (Task 4) — это «канал есть, снимка не
+   было». Показать его датой-прочерком значит соврать источником; ветка своя, значит и
+   проверка своя. Ключ берём созданный тут же — на длину SUBJECTS не опираемся (тесты
+   3.6/3.8 её уже сдвинули). */
+ok('4.12 у заведённого руками субъекта импортная строка говорит «данных из реестра нет» (СБ-5б)',
+  (() => { g.ev("createSubject({key:'22201199960061',source:'organizations',name:'ОсОО «Ручной ввод»'})");
+    g.ev("location.hash='#/s/22201199960061'"); g.ev("route()");
+    const t = g.$('#importBar').textContent;
+    return /данных из реестра нет/.test(t) && !/Снимок/.test(t) && !/—/.test(t.replace(/Обновить.*/,'')); })());
 
 console.log(`\n${n - fails} / ${n} PASS`);
 process.exit(fails ? 1 : 0);

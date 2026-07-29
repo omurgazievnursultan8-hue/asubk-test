@@ -1021,7 +1021,8 @@ function importBarHtml(s){
     ? '<span class="muted">данных из реестра нет</span>'
     : 'Снимок ' + esc(s.imported.src) + ' от ' + esc(s.imported.asOf);
   return '<div class="importbar" id="importBar">' + body
-    + ' <button class="btn btn-secondary btn-sm" id="btnRefreshImport" type="button">Обновить из реестра</button></div>';
+    + ' <button class="btn btn-secondary btn-sm" id="btnRefreshImport" type="button"'
+    + ' title="В макете запрос в реестр не выполняется">Обновить из реестра</button></div>';
 }
 
 const ownRow = (label, value) => '<div class="fld"><div class="fld-l">' + esc(label) + '</div><div class="fld-v">'
@@ -1116,7 +1117,11 @@ function openFillField(ref, name, label){
   };
 }
 /* Обвязка карточки: делегирование на .tab (переключение вкладки), .btn-fill (модалка
-   заполнения пустого импортного поля) и [data-choice] (разрешение расхождения). */
+   заполнения пустого импортного поля) и [data-choice] (разрешение расхождения).
+   #btnRefreshImport обработчика не получает: запрос в ГРС · Тундук в макете не
+   выполняется, а проставить asOf без единого изменившегося поля значило бы соврать
+   источником — ровно то, от чего уходит СБ-5б (см. комментарий над importBarHtml).
+   Кнопка остаётся в разметке (показывает, где действие живёт) с поясняющим title. */
 function wireCard(ref){
   const mount = document.getElementById('cardMount');
   mount.onclick = e => {
@@ -1130,12 +1135,6 @@ function wireCard(ref){
     }
     const choiceBtn = e.target.closest('[data-choice]');
     if (choiceBtn) { resolveConflict(ref, choiceBtn.dataset.fname, choiceBtn.dataset.choice); return; }
-    const refreshBtn = e.target.closest('#btnRefreshImport');
-    if (refreshBtn) {
-      const s = subject(resolveKey(ref));
-      if (s.imported) s.imported.asOf = TODAY;
-      renderCardInPlace(ref);
-    }
   };
 }
 /* Переключение вкладки пишет ?tab= в hash (карточка остаётся на той же дате среза) —
