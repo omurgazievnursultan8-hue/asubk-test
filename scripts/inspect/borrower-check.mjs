@@ -351,7 +351,9 @@ ok('G8. стоп-фактор идёт первым независимо от с
    Пикеров «по состоянию на» было три — в «Кредитах», «Взыскании» и «Залоге», — и ни один
    не был подключён ни к чему: чистая декорация. Реестр показывал отрасль и район (искать
    по ним надо, смотреть — нет) и молчал о том, ради чего в него заходят: просрочка,
-   дефекты, куратор. Страница субъекта не отвечала на вопрос «кто это лицо для нас». */
+   дефекты, куратор. СБ-14: страницы субъекта в этом макете больше нет — её держит
+   mockups/subject/subject.html, поэтому H7 проверяет только движок ролей, который здесь
+   остался живым (found-box формы создания и блокировки удаления). */
 ok('H1. дата среза одна и она рабочая: срез в прошлое меняет выводимое состояние',
   (() => { const f = mk();
     f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
@@ -389,13 +391,12 @@ ok('H6. строка реестра считается движком и вид�
   g.ev("listRow(SUBJECTS.find(s=>s.inn==='01204199910016')).curatorGap") === true
   && g.ev("listRow(SUBJECTS.find(s=>s.inn==='01204199910016')).stop") === true
   && g.ev("listRow(SUBJECTS.find(s=>s.inn==='01204199910016')).ov") > 200);
-ok('H7. страница субъекта показывает роли, и роль выводится, а не хранится',
+/* H7: экранную половину («страница субъекта показывает роли») удалили вместе с экраном —
+   владелец страницы теперь mockups/subject/subject.html. Движок ролей остался живым кодом:
+   его читают foundHtml (СП-16/17) и deleteBlockers (СП-19), поэтому проверка остаётся. */
+ok('H7. роль выводится из участия, а не хранится полем (ADR-0001)',
   g.ev("subjectRoles('01204199910016').map(r=>r.role).join('+')") === 'Заёмщик+Залогодатель'
-  && g.ev("SUBJECTS.every(s=>!('roles' in s))")
-  && (() => { const f = mk();
-    f.ev("location.hash='#/s/01204199910016'"); f.ev("route()");
-    const t = f.$('#subjectMount').textContent;
-    return /Роли субъекта/.test(t) && /Залогодатель/.test(t); })());
+  && g.ev("SUBJECTS.every(s=>!('roles' in s))"));
 
 // ── Рендер и зеркала (26 + DOM) ──
 const h = mk();
@@ -795,11 +796,17 @@ ok('СП-19. отказ объясняет, почему завершённый 
 const kz = mk();
 kz.ev("location.hash='#/b/01204199910016'"); kz.ev("route()");
 
+/* СБ-14: ссылка на субъекта уехала из id-sub в строку-зеркало под шапкой (там же отметка
+   среза). Ищем её именно в шапке (.id-bar), а не «где-нибудь в #cardMount»: тот же адрес
+   печатают ссылки залогодателя во вкладке «Обеспечение» — по карточке целиком проверка
+   проходила бы и при невызванном subjectMirrorRow. Сила утверждения прежняя: паспорт
+   записи + рабочий выход к владельцу данных, и оба обязаны быть в шапке. */
 ok('КЗ-1. id-bar в теле карточки: наименование, ИНН, тип лица, отрасль, ссылка на субъекта',
   (() => {
     const bar = kz.$('#cardMount .id-bar');
     if (!bar) return false;
-    const t = bar.textContent, a = bar.querySelector('a[href="#/s/01204199910016"]');
+    const t = bar.textContent;
+    const a = kz.$('#cardMount .id-bar a[href="../subject/subject.html#/s/01204199910016"]');
     return /АгроТехСервис/.test(t) && /ИНН\s*01204199910016/.test(t)
       && /Юр\. лицо/.test(t) && /Агропромышленный комплекс/.test(t) && !!a;
   })());
@@ -1056,10 +1063,10 @@ ok('КЗ-8. у каждой сводки один адрес продолжен�
 
 ok('КЗ-9. реквизитов на витрине нет: адреса и аудит записи сюда не относятся',
   !/Юридический адрес|Фактический адрес|Основные сведения|Изменён/.test(panel0(cAts).innerHTML));
-ok('КЗ-9. адреса остались у субъекта — это его паспортные атрибуты',
-  (() => { const f = mk(); f.ev("location.hash='#/s/01204199910016'"); f.ev("route()");
-    const h = f.$('#subjectMount').innerHTML;
-    return /Юридический адрес/.test(h) && /Фактический адрес/.test(h); })());
+/* СБ-14: проверка «адреса остались у субъекта» здесь удалена — экрана, который их показывал,
+   в этом макете больше нет, как и subjectFieldsSect. Адреса — атрибут лица, и отвечает за них
+   владелец: см. mockups/subject/subject.html и его смоук scripts/inspect/subject-check.mjs.
+   Утверждение выше («реквизитов на витрине нет») остаётся и держит границу с этой стороны. */
 ok('КЗ-9. аудит записи стал фактом ленты, а не полем витрины',
   cAts.ev("historyItems('01204199910016').some(it=>it.kind==='запись' && /заведена/.test(it.title))")
   && cAts.ev("historyItems('01204199910016').some(it=>it.kind==='запись' && /изменена/.test(it.title))"));
@@ -1832,7 +1839,8 @@ ok('КЗ-39. связанное лицо, заведённое субъекто�
     const withSubj = s.rows.filter(r => r.querySelector('td.who a'));
     const cnt = lkAts.ev("RELATED.filter(r=>r.inn==='01204199910016' && r.subjInn).length");
     return withSubj.length === cnt && cnt > 0
-      && withSubj[0].querySelector('td.who a').getAttribute('href') === '#/s/07701199970071'; })());
+      && withSubj[0].querySelector('td.who a').getAttribute('href')
+         === '../subject/subject.html#/s/07701199970071'; })());   // СБ-14: страница лица — в макете субъекта
 
 ok('Б-19. роль «Связанное лицо» выводится по ИНН субъекта, а не сопоставлением ФИО',
   (() => { const roles = JSON.parse(lkAts.ev("JSON.stringify(subjectRoles('07701199970071').map(r=>r.role))"));
@@ -1863,14 +1871,14 @@ ok('КЗ-40. на вкладке не осталось ни одной точк�
     const mute = [...p.querySelectorAll('button')].filter(b => !b.getAttribute('onclick'));
     return inputs.length === 0 && mute.length === 0; })());
 
-ok('КЗ-40. правка реквизитов ведёт на страницу субъекта, и эта страница их показывает',
+/* СБ-14: вторая половина этой проверки («и эта страница их показывает») удалена вместе с
+   экраном — показывает их теперь владелец, mockups/subject/subject.html. Здесь остаётся то,
+   за что отвечает карточка: правка не делается на месте, а уходит наружу по рабочему адресу. */
+ok('КЗ-40. правка реквизитов уходит наружу — к владельцу, в макет субъекта',
   (() => { const s = lkSect(lkAts, 'Каналы связи'); if (!s) return false;
     const a = s.el.querySelector('.section-head a');
-    if (!a || a.getAttribute('href') !== '#/s/01204199910016') return false;
-    lkAts.ev("location.hash='#/s/01204199910016'"); lkAts.ev('route()');
-    const t = lkAts.$('#view-subject').textContent.replace(/\s+/g, ' ');
-    return /Каналы связи/.test(t) && /Банковские реквизиты/.test(t)
-      && t.includes(lkAts.ev("BANK_REQ.find(b=>b.inn==='01204199910016').account")); })());
+    return !!a && a.getAttribute('href') === '../subject/subject.html#/s/01204199910016'
+      && a.getAttribute('target') === '_blank'; })());
 
 ok('Б-20. канал показан теми же признаками, что на витрине: основной и дата сверки',
   (() => { const s = lkSect(lkAts, 'Каналы связи'); if (!s) return false;
@@ -2050,6 +2058,44 @@ for (const name of ['CONTOURS', 'PHASE_STAGE', 'PROCEDURE_DICT']){
   const mine = grab(HTML, name), theirs = grab(OWNER, name);
   ok(`W. словарь ${name} совпадает с collection.html (владелец)`, !!mine && mine === theirs);
 }
+
+// ── СБ-14: вид субъекта схлопнут, владелец — mockups/subject/subject.html ──
+ok('СБ-14.1 вида view-subject и renderSubject в макете заёмщика больше нет',
+  !g.$('#view-subject') && g.ev("typeof renderSubject")==='undefined' && g.ev("typeof showSubject")==='undefined');
+ok('СБ-14.2 карточка заёмщика показывает строку-зеркало субъекта: ключ, тип лица, наименование',
+  (() => { g.ev("location.hash='#/b/01204199910016'"); g.ev("route()");
+    const t = g.$('#cardMount').textContent;
+    return t.includes('01204199910016') && t.includes('Юр. лицо') && /АгроТехСервис/.test(t); })());
+ok('СБ-14.3 из карточки есть внешняя ссылка «Открыть субъекта» именно на этот ключ',
+  !!g.$('#cardMount a[href="../subject/subject.html#/s/01204199910016"]'));
+/* СБ-14.2 и СБ-14.3 сами по себе строку-зеркало НЕ держат, и это проверено перебиванием
+   29.07.2026: наименование, ключ и тип лица печатает и id-bar карточки, а тот же внешний
+   адрес печатают ссылки залогодателя во вкладке «Обеспечение» — обе проверки оставались
+   зелёными при невызванном subjectMirrorRow. Поэтому зеркало пришпилено отдельно: своя
+   строка шапки, в ней ключ, МЕТКА типа лица (а не сырой personKind) и отметка среза —
+   ровно то, чего в id-bar нет. Ищем её по внешней ссылке внутри .id-bar: в панелях вкладок
+   таких строк нет. */
+ok('СБ-14.3а зеркало — отдельная строка шапки: ключ, метка типа лица, отметка среза',
+  (() => { const f = mk(); f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
+    const mirror = f.$$('#cardMount .id-bar')
+      .find(b => b.querySelector('a[href^="../subject/subject.html#/s/"]'));
+    if (!mirror) return false;
+    const t = mirror.textContent.replace(/\s+/g, ' ');
+    return /АгроТехСервис/.test(t)
+      && t.includes('01204199910016 · Юр. лицо на ' + f.ev("TODAY")); })());
+/* Проверка идёт переходом состояния, а не «какой-то вид активен»: карточка открыта
+   (view-detail), после #/s/… обязан остаться реестр. Маршрут, который ничего не делает,
+   оставит открытой карточку и тест покраснеет. Без этого тест проходил бы и при route(){}. */
+ok('СБ-14.4 маршрут #/s/ в макете заёмщика больше не заявлен — адрес роняет в реестр',
+  (() => { g.ev("location.hash='#/b/01204199910016'"); g.ev("route()");
+    if (!g.$('#view-detail').classList.contains('active')) return false;
+    g.ev("location.hash='#/s/01204199910016'"); g.ev("route()");
+    return g.$('#view-list').classList.contains('active') &&
+           !g.$('#view-detail').classList.contains('active'); })());
+ok('СБ-14.5 ГЗПМ (группа совместного риска, КЗ-39) не тронут — это не лицо (СБ-4)',
+  g.ev("Array.isArray(GROUPS) && GROUPS.length > 0"));
+ok('СБ-14.6 SUBJECTS остаётся зеркалом и данные не потеряны (ADR-0014)',
+  g.ev("SUBJECTS.length") >= 30);
 
 console.log(`\n${n - fails}/${n} PASS`);
 process.exit(fails ? 1 : 0);
