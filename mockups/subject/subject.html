@@ -178,6 +178,18 @@
   .empty{padding:24px 16px;margin-top:12px;text-align:center;color:var(--text-muted);
     border:1px dashed var(--border-strong);border-radius:var(--radius-md);}
   .empty .btn{margin-left:8px;}
+
+  /* ---------- форма создания субъекта (Task 4) ----------
+     .fform/.frow — по прецеденту mockups/borrower/borrower.html (та же сетка формы:
+     авто-подгоняемые колонки, метка сверху над полем). Своих цветов нет — токены те же,
+     что у остального шелла; ничего не хардкожено. */
+  .fform{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 18px;}
+  .fform .wide{grid-column:1/-1;}
+  .frow{display:flex;flex-direction:column;gap:4px;min-width:0;}
+  .frow label{font:var(--font-label);color:var(--text-muted);}
+  .frow input[type=text]{height:var(--control-h);padding:0 10px;border:1px solid var(--border-default);
+    border-radius:var(--radius-md);font:var(--font-body);color:var(--text-body);background:var(--surface-card);}
+  .frow .radios{display:flex;align-items:center;gap:18px;height:var(--control-h);font:var(--font-body);}
 </style>
 </head>
 <body>
@@ -621,14 +633,14 @@ function listRows(){
 }
 function applyFilters(){ pgNo = 1; renderList(); }
 
-/* Тулбар: поиск с дребезгом 250 мс (см. wireList) и кнопки создания — сама форма
-   создания вне рамок этой задачи (Task 3 — только реестр), поэтому кнопки без обвязки. */
+/* Тулбар: поиск с дребезгом 250 мс (см. wireList) и кнопки создания — обвязка в
+   wireList() вызывает openCreate()/openCreateGroup() (Task 4). */
 function toolbarHtml(){
   return '<div class="toolbar">'
     + '<input type="text" id="q" class="q-input" placeholder="Поиск по ключу или наименованию" value="' + esc(FILTER.q) + '">'
     + '<span class="sp"></span>'
-    + '<button class="btn btn-secondary btn-sm" id="addSubject" type="button">+ Субъект</button>'
-    + '<button class="btn btn-secondary btn-sm" id="addGroup" type="button">+ Группа</button>'
+    + '<button class="btn btn-secondary btn-sm" id="btnCreate" type="button">+ Субъект</button>'
+    + '<button class="btn btn-secondary btn-sm" id="btnCreateGroup" type="button">+ Группа</button>'
     + '</div>';
 }
 
@@ -741,6 +753,10 @@ function wireList(){
   if (clear) clear.onclick = resetFilters;
   if (clearEmpty) clearEmpty.onclick = resetFilters;
 
+  const btnCreate = byId('btnCreate'), btnCreateGroup = byId('btnCreateGroup');
+  if (btnCreate) btnCreate.onclick = () => openCreate();
+  if (btnCreateGroup) btnCreateGroup.onclick = () => openCreateGroup();
+
   const q = byId('q');
   if (q) q.oninput = () => {
     clearTimeout(qDebounce);
@@ -753,6 +769,148 @@ function wireList(){
   next.disabled = pgNo * pgSize >= total;
   prev.onclick = () => { if (pgNo > 1) { pgNo--; renderList(); } };
   next.onclick = () => { if (pgNo * pgSize < total) { pgNo++; renderList(); } };
+}
+
+/* ── модальное окно ── одна разметка на все операции (создание, слияние и т.п.);
+   тело и подвал подаёт вызывающий код, окно про них ничего не знает. Копия механики
+   borrower.html (openModal/closeModal) — сама разметка #mBack/#mTitle/#mBody/#mFoot
+   пришла оттуда же в Task 1. */
+function openModal(title, bodyHtml, footHtml){
+  document.getElementById('mTitle').textContent = title;
+  document.getElementById('mBody').innerHTML = bodyHtml;
+  document.getElementById('mFoot').innerHTML = footHtml || '';
+  document.getElementById('mBack').hidden = false;
+}
+function closeModal(){ document.getElementById('mBack').hidden = true; }
+document.getElementById('mClose').addEventListener('click', closeModal);
+document.getElementById('mBack').addEventListener('click', e => { if (e.target.id === 'mBack') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.getElementById('mBack').hidden) closeModal(); });
+
+/* ── СОЗДАНИЕ ──
+   Вход только через ключ (СБ-2 и поведение стенда: одно живое поле ИНН + «Заполнить поля»).
+   Дубль по ключу невозможен по построению — проверка стоит ДО формы, а не после ввода. */
+function lookupKey(key){
+  const s = subject(String(key || '').trim());
+  return s ? { found:true, ref:subjectRef(s), name:displayName(s) } : { found:false, key:String(key || '').trim() };
+}
+function createSubject({ key, source, name, district, region, industry }){
+  const k = String(key || '').trim();
+  if (!/^\d{14}$/.test(k)) throw new Error('Ключ субъекта — 14 цифр (ИНН/ПИН). Групповой заёмщик заводится кнопкой «+ Группа».');
+  if (subject(k)) throw new Error('Такой ключ уже есть в реестре: ' + k);
+  if (source !== 'individuals' && source !== 'organizations') throw new Error('Тип: физлицо или организация');
+  /* Тип ИП в форме не предлагается (СБ-3а): ИП появляется регистрацией у заведённого физлица. */
+  const s = { id:'S-' + (SUBJECTS.length + 1), key:k, source, name:name || '',
+    district:district || '—', region:region || '—', industry:industry || '—', note:'заведён вручную',
+    imported:{ asOf:'—', src:'ГРС · Тундук', f:{} } };
+  SUBJECTS.push(s);
+  return subjectRef(s);
+}
+/* Групповой заёмщик (СБ-4): ИНН не присваивается — ключ выдаёт система; импортного слоя нет (СБ-5а). */
+function nextGroupKey(){
+  const used = SUBJECTS.filter(s => s.source === 'groups').map(s => +String(s.key).slice(3));
+  return 'ГР-' + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, '0');
+}
+function createGroup({ name, district, region, industry }){
+  const s = { id:'S-' + (SUBJECTS.length + 1), key:nextGroupKey(), source:'groups', name:name || '',
+    district:district || '—', region:region || '—', industry:industry || '—', note:'заведён вручную' };
+  SUBJECTS.push(s);
+  return subjectRef(s);
+}
+
+/* Разметка формы создания субъекта — три состояния тела модалки: спросить ключ,
+   сообщить, что субъект уже есть, либо раскрыть поля создания. */
+function askKeyBodyHtml(prefill){
+  return '<div class="fform"><div class="frow wide"><label for="cKey">Ключ субъекта (ИНН/ПИН)</label>'
+    + '<input type="text" id="cKey" inputmode="numeric" maxlength="14" value="' + esc(prefill || '') + '" placeholder="14 цифр"></div></div>'
+    + '<div class="hint" style="margin-left:0">14 цифр. Групповой заёмщик заводится отдельной кнопкой «+ Группа» —'
+    + ' ключ ему присваивает система.</div>';
+}
+function foundBodyHtml(name){
+  return '<div class="fform"><div class="frow wide">Такой субъект уже есть: <b>' + esc(name) + '</b></div></div>';
+}
+function createFieldsBodyHtml(key){
+  return '<div class="hint" style="margin-left:0">Ключ <b>' + esc(key) + '</b> не найден в реестре — заводим субъекта.</div>'
+    + '<div class="fform">'
+    + '<div class="frow wide"><label>Тип лица</label><div class="radios">'
+    + '<label><input type="radio" name="cKind" value="individuals" checked> Физическое лицо</label>'
+    + '<label><input type="radio" name="cKind" value="organizations"> Организация</label>'
+    + '</div></div>'
+    + '<div class="frow wide"><label for="cName">Наименование / ФИО</label><input type="text" id="cName"></div>'
+    + '<div class="frow"><label for="cRegion">Область</label><input type="text" id="cRegion"></div>'
+    + '<div class="frow"><label for="cDistrict">Район</label><input type="text" id="cDistrict"></div>'
+    + '</div>'
+    + '<div class="hint" id="cErr" style="margin-left:0;color:var(--status-error)"></div>';
+}
+/* Ветка после проверки ключа: найден — предлагаем открыть карточку, а не форму;
+   не найден — раскрываем поля с уже проставленным ключом (инвариант 1/2). */
+function renderCreateBranch(key){
+  const r = lookupKey(key);
+  document.getElementById('mBody').innerHTML = r.found ? foundBodyHtml(r.name) : createFieldsBodyHtml(r.key);
+  setCreateFoot(r.found ? 'found' : 'create', r.found ? r.ref : r.key);
+}
+function setCreateFoot(mode, ctx){
+  const foot = document.getElementById('mFoot');
+  if (mode === 'ask'){
+    foot.innerHTML = '<span class="sp"></span>'
+      + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+      + '<button class="btn btn-primary" id="mCheck" type="button">Проверить</button>';
+    document.getElementById('mCancel').onclick = closeModal;
+    document.getElementById('mCheck').onclick = () => renderCreateBranch(document.getElementById('cKey').value);
+  } else if (mode === 'found'){
+    foot.innerHTML = '<span class="sp"></span>'
+      + '<button class="btn btn-secondary" id="mCancel" type="button">Закрыть</button>'
+      + '<button class="btn btn-primary" id="mOk" type="button">Открыть карточку</button>';
+    document.getElementById('mCancel').onclick = closeModal;
+    document.getElementById('mOk').onclick = () => { closeModal(); location.hash = '#/s/' + ctx; };
+  } else if (mode === 'create'){
+    foot.innerHTML = '<span class="sp"></span>'
+      + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+      + '<button class="btn btn-primary" id="mOk" type="button">Создать</button>';
+    document.getElementById('mCancel').onclick = closeModal;
+    document.getElementById('mOk').onclick = () => {
+      const source = document.querySelector('input[name="cKind"]:checked').value;
+      const name = document.getElementById('cName').value.trim();
+      const region = document.getElementById('cRegion').value.trim();
+      const district = document.getElementById('cDistrict').value.trim();
+      let ref;
+      try { ref = createSubject({ key:ctx, source, name, region, district }); }
+      catch (e){ const err = document.getElementById('cErr'); if (err) err.textContent = e.message; return; }
+      closeModal(); applyFilters(); location.hash = '#/s/' + ref;
+    };
+  }
+}
+/* openCreate(prefill) — модалка в два шага: без ключа спрашивает его («Проверить»);
+   с ключом (переход по ссылке или повторный вызов) сразу решает ветку. */
+function openCreate(prefill){
+  const key = String(prefill || '').trim();
+  if (!key){ openModal('Новый субъект', askKeyBodyHtml(''), ''); setCreateFoot('ask'); return; }
+  const r = lookupKey(key);
+  openModal('Новый субъект', r.found ? foundBodyHtml(r.name) : createFieldsBodyHtml(r.key), '');
+  setCreateFoot(r.found ? 'found' : 'create', r.found ? r.ref : r.key);
+}
+/* openCreateGroup() — форма без поля ключа (СБ-4): ключ выдаёт система при сохранении. */
+function askGroupBodyHtml(){
+  return '<div class="hint" style="margin-left:0">Ключ выдаст система при сохранении.</div>'
+    + '<div class="fform">'
+    + '<div class="frow wide"><label for="gName">Наименование группы</label><input type="text" id="gName"></div>'
+    + '<div class="frow"><label for="gRegion">Область</label><input type="text" id="gRegion"></div>'
+    + '<div class="frow"><label for="gDistrict">Район</label><input type="text" id="gDistrict"></div>'
+    + '</div>';
+}
+function openCreateGroup(){
+  openModal('Новый групповой заёмщик', askGroupBodyHtml(), '');
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Создать</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const name = document.getElementById('gName').value.trim();
+    const region = document.getElementById('gRegion').value.trim();
+    const district = document.getElementById('gDistrict').value.trim();
+    const ref = createGroup({ name, region, district });
+    closeModal(); applyFilters(); location.hash = '#/s/' + ref;
+  };
 }
 
 /* заглушки рендера — наполняются в Tasks 5/9 */

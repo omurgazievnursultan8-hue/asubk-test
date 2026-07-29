@@ -149,5 +149,33 @@ ok('2.13 панель связана с FILTER, район каскадом су
     return bound && districts.length === 1 && districts[0] === 'Ак-Талинский'
         && shown && g.ev("FILTER.region")==='' && g.ev("listRows().length") > 1; })());
 
+// ── Создание (Task 4) ──
+ok('3.1 существующий ключ до формы не пускает, а предлагает открыть карточку (инвариант 1)',
+  g.ev("lookupKey('01204199910016').found")===true &&
+  g.ev("lookupKey('01204199910016').ref")==='01204199910016');
+ok('3.2 неизвестный ключ ведёт в форму с предзаполненным ключом',
+  g.ev("lookupKey('12345678901234').found")===false);
+ok('3.3 форма создания предлагает ровно два типа — физлицо и организация (СБ-3а: ИП не заводится)',
+  (() => { g.ev("openCreate('12345678901234')");
+    const t = g.$('#mBody').textContent;
+    return /Физ/i.test(t) && /Организац/i.test(t) && !/(^|\W)ИП(\W|$)/.test(t); })());
+ok('3.4 createSubject отвергает дубль ключа',
+  g.ev("(()=>{try{createSubject({key:'01204199910016',source:'individuals',name:'Дубль'});return false;}catch(e){return true;}})()"));
+ok('3.5 createSubject отвергает ключ не из 14 цифр (инвариант 2)',
+  g.ev("(()=>{try{createSubject({key:'123',source:'individuals',name:'Кривой ключ'});return false;}catch(e){return true;}})()"));
+ok('3.6 «+ Группа» выдаёт ключ ГР-NNN сама и ИНН не спрашивает',
+  (() => { const before = g.ev("SUBJECTS.length");
+    g.ev("createGroup({name:'Группа «Тест»',district:'Ак-Талинский',region:'Нарынская'})");
+    return g.ev("SUBJECTS.length") === before + 1 &&
+           /^ГР-\d{3}$/.test(g.ev("SUBJECTS[SUBJECTS.length-1].key")) &&
+           g.ev("!('inn' in SUBJECTS[SUBJECTS.length-1])") &&
+           g.ev("SUBJECTS[SUBJECTS.length-1].source")==='groups'; })());
+ok('3.7 у созданной группы импортного слоя нет вовсе (СБ-5а)',
+  g.ev("!('imported' in SUBJECTS[SUBJECTS.length-1])"));
+ok('3.8 новый ключ группы не повторяет выданный ранее',
+  (() => { const k1 = g.ev("SUBJECTS[SUBJECTS.length-1].key");
+    g.ev("createGroup({name:'Группа «Тест-2»',district:'Ак-Талинский',region:'Нарынская'})");
+    return g.ev("SUBJECTS[SUBJECTS.length-1].key") !== k1; })());
+
 console.log(`\n${n - fails} / ${n} PASS`);
 process.exit(fails ? 1 : 0);
