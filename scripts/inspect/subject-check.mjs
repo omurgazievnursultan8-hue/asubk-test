@@ -76,6 +76,13 @@ ok('1.14 в наборе есть закрытая регистрация ИП, 
   g.ev("IP_REG.some(r=>r.to)") &&
   g.ev("LINKS.some(l=>l.kind==='член группы')") &&
   g.ev("SUBJECTS.filter(s=>s.key==='').length") >= 2);
+// СБ-13: стоп-фактор — зеркало события, своей точки ввода у него нет.
+ok('1.15 стоп-фактор выводится из события и несёт его дату и документ',
+  g.ev("stopFactors('07701199970071').length")===1 &&
+  g.ev("stopFactors('07701199970071')[0].text")==='Лицо умерло' &&
+  g.ev("stopFactors('07701199970071')[0].date")==='20.01.2025' &&
+  g.ev("stopFactors('07701199970071')[0].doc")==='СС-4471' &&
+  g.ev("stopFactors('01204199910016').length")===0);
 
 console.log(`\n${n - fails} / ${n} PASS`);
 process.exit(fails ? 1 : 0);
