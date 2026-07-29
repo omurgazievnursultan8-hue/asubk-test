@@ -467,7 +467,13 @@ function addEvent({ key, kind, date, basis, doc, successorKey }){
   if (!d) throw new Error('Неизвестное событие: ' + kind);
   if (!date || !basis || !doc) throw new Error('У события обязательны дата, основание и документ (СБ-9)');
   if (d.successor && !subject(successorKey)) throw new Error('Событие «' + kind + '» требует правопреемника');
-  SUBJECT_EVENTS.push({ key, kind, date, basis, doc, successorKey: d.successor ? successorKey : undefined });
+  /* M-3 (финальное ревью 29.07.2026): ключ кладём РАЗРЕШЁННЫЙ, как это делают все соседние
+     мутаторы (addDoc, addBankReq, addIpReg). Сырой ключ означал бы, что событие, заведённое
+     по присоединённому ключу, ложится на псевдоним: читается оно и оттуда (subjectEvents
+     alias-aware), но лежит под ключом, за которым лица как записи уже нет, — и любой
+     расчёт, псевдонимов не знающий, его теряет. Из интерфейса это было безопасно только
+     потому, что openAddEvent разрешает ключ сам; обязанность инварианта 8 — не у вызывающего. */
+  SUBJECT_EVENTS.push({ key:resolveKey(key), kind, date, basis, doc, successorKey: d.successor ? successorKey : undefined });
   /* Единственное исключение по форме (ADR-0018): утрата статуса ИП проставляет дату
      прекращения действующей регистрации. Тип лица при этом не переписывается — его
      по-прежнему считает personKindAt. */
