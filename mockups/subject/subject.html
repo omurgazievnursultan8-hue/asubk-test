@@ -548,6 +548,10 @@ const BANK_REQ = [
     from:'14.02.2011', to:null, main:true },
   { key:'04401199940041', bank:'ОАО «Айыл Банк»', bik:'135001', account:'9876543210987654',
     from:'22.01.2019', to:'31.12.2025', main:true },
+  /* Свой реквизит S-DUP (Task 9): половинчатая миграция принесла и его — без этой строки
+     «своё перенесено» (тест 8.5) осталось бы не доказано на реквизитах. */
+  { key:'S-DUP', bank:'ОАО «Демир Кыргыз Интернэшнл Банк»', bik:'124001', account:'1122334455667788',
+    from:'02.02.2026', to:null, main:false },
 ];
 
 /* DOCS — вложения субъекта: вид · относительно · дата · файл. */
@@ -581,6 +585,10 @@ const CREDITS = [
 ];
 const PLEDGE_OBJ = [
   { id:'П-101', name:'Здание цеха', pledgerKey:'07701199970071', creditId:'C-ATS-1', released:false },
+  /* Чужая ссылка на дубль (Task 9): без неё «чужое не переписано» (тест 8.3, инвариант 9)
+     доказывается на пустом месте — снимок зеркал не может измениться, если в них нет ни
+     одной строки со ссылкой на S-DUP. Сама эта ссылка при слиянии не трогается. */
+  { id:'П-102', name:'Автомобиль', pledgerKey:'S-DUP', creditId:'C-ATS-1', released:false },
 ];
 const SURETIES = [
   { id:'ДП-77', guarantorKey:'04401199940041', creditId:'C-ATS-2', date:'14.06.2025', active:true },
@@ -693,6 +701,16 @@ const OWN_ARRAYS = [
 function doMerge(mainRef, joinRef, choices){
   const main = subject(mainRef), join = subject(joinRef);
   if (!main || !join || main === join) throw new Error('Нужны две разные записи');
+  /* Слияние необратимо (ADR-0019), а значит обратное слияние — это разделение через порчу:
+     оба ключа получают aliasOf, resolveKey зацикливается, и живое лицо пропадает из реестра.
+     Уже присоединённая запись в слиянии не участвует ни одной из сторон. */
+  if (main.aliasOf) throw new Error('Главная запись сама присоединена слиянием к ' + main.aliasOf);
+  if (join.aliasOf) throw new Error('Эта запись уже присоединена слиянием к ' + join.aliasOf);
+  /* Общесистемный идентификатор — ключ (ADR-0019 ч.1). Дубли живут там, где ключа нет
+     (СБ-10), поэтому безключевая запись главной стать не может: иначе лицо с настоящим
+     ИНН уходит под внутренний id, и канонической становится запись «ключ не пришёл». */
+  if (!main.key && join.key)
+    throw new Error('Главной должна быть запись с ключом: ' + subjectRef(join));
   if (!choices || choices.confirm !== subjectRef(main))
     throw new Error('Подтвердите слияние вводом ключа главной записи: ' + subjectRef(main));
   /* выбранные значения по расхождениям — только в СВОЙ импортный слой главной записи */
@@ -704,7 +722,9 @@ function doMerge(mainRef, joinRef, choices){
   LINKS.forEach(l => { if (l.a === subjectRef(join)) l.a = subjectRef(main);
                        if (l.b === subjectRef(join)) l.b = subjectRef(main); });
   join.aliasOf = subjectRef(main);
-  join.mergedAt = TODAY;
+  /* Имя поля — aliasAt: ровно его читает шапка карточки (Task 5). mergedAt было бы вторым
+     именем той же даты и осталось бы мёртвым. */
+  join.aliasAt = TODAY;
   /* CREDITS/PLEDGE_OBJ/SURETIES/PROCS не трогаются намеренно — см. шапку блока. */
 }
 /* Удаление (инвариант 10): только при нуле ссылок; слитая запись не удаляется никогда. */
@@ -741,7 +761,13 @@ function showList(){ VIEW_DATE = TODAY; document.getElementById('topbar').classL
 function showCard(ref, onDate, tab){ VIEW_DATE = onDate && dnum(onDate) <= dnum(TODAY) ? onDate : TODAY;
   document.getElementById('topbar').classList.add('on-detail');
   document.getElementById('cardMount').innerHTML = renderCard(ref, tab); wireCard(ref); showOnly(vCard); scrollTop(); }
-function showMerge(a, b){ document.getElementById('mergeMount').innerHTML = renderMerge(a, b); wireMerge(); showOnly(vMerge); scrollTop(); }
+function showMerge(a, b){
+  /* Состояние экрана сбрасывается здесь, на входе на маршрут, а не в теле renderMerge —
+     тот может перевызываться (перерисовка после выбора) и не должен стирать уже
+     сделанные оператором выборы для той же самой пары. */
+  if (!MERGE_CTX || MERGE_CTX.aRef !== a || MERGE_CTX.bRef !== b) MERGE_CTX = { aRef:a, bRef:b, main:a, picks:{} };
+  document.getElementById('mergeMount').innerHTML = renderMerge(a, b); wireMerge(); showOnly(vMerge); scrollTop();
+}
 
 /* #/subjects — реестр · #/s/<ключ>[?on=ГГГГ-ММ-ДД&tab=<ключ вкладки>] — карточка ·
    #/merge/<a>/<b> — сравнение перед слиянием (СБ-11). */
@@ -1644,7 +1670,9 @@ function switchTab(key){
    doMerge(). Всё остальное (выбор главной записи, выбор значения по расхождению) —
    состояние ЭКРАНА (MERGE_CTX), не факт: оно живёт, пока открыт вид, и не сохраняется.
    Колонки таблицы закреплены за aRef/bRef и не переставляются местами при выборе
-   главной — иначе оператор терял бы из виду, какая запись какая. */
+   главной — иначе оператор терял бы из виду, какая запись какая. Создаётся MERGE_CTX
+   в showMerge() (вход на маршрут), а не в теле renderMerge: иначе повторный вызов
+   renderMerge стирал бы уже сделанные оператором выборы при каждой перерисовке. */
 let MERGE_CTX = null;   /* { aRef, bRef, main, picks } */
 
 function mergeWhatHtml(){
@@ -1657,10 +1685,13 @@ function mergeWhatHtml(){
     + 'не исчезает, роли по нему по-прежнему считаются наравне с главным (инварианты 8, 9).'
     + '</div>';
 }
+/* data-pick несёт САМ ВЫБОР ('a'/'b' — чья это ценность, по буквальной идентичности
+   записи в колонке), data-fname — имя поля; так экран узнаётся кликом ровно как
+   оператор его совершает (тест 8.16), а не косвенно через второй атрибут. */
 function mergeRowHtml(r){
   const chosen = MERGE_CTX.picks[r.name];
-  const btn = (val, label) => '<button class="btn btn-secondary btn-sm" type="button" data-pick'
-    + ' data-field="' + esc(r.name) + '" data-choice="' + val + '"' + (chosen === val ? ' disabled' : '') + '>' + label + '</button>';
+  const btn = (val, label) => '<button class="btn btn-secondary btn-sm" type="button"'
+    + ' data-pick="' + val + '" data-fname="' + esc(r.name) + '"' + (chosen === val ? ' disabled' : '') + '>' + label + '</button>';
   const pick = r.differs
     ? btn('a', 'взять A') + ' ' + btn('b', 'взять B') + (chosen ? '<div class="muted">выбрано ' + (chosen === 'a' ? 'A' : 'B') + '</div>' : '')
     : '<span class="muted">совпадает</span>';
@@ -1689,11 +1720,23 @@ function renderMergeScreen(){
     + '<input type="text" id="mergeConfirm" placeholder="' + esc(main) + '"></div></div>'
     + '<div class="hint" id="mergeErr" style="margin-left:0;color:var(--status-error)"></div>'
     + '<div style="margin-top:10px">'
-    + '<button class="btn btn-primary" id="btnDoMerge" type="button">Слить</button> '
+    + '<button class="btn btn-primary" id="btnMerge" type="button">Слить</button> '
     + '<a class="lnk" href="#/s/' + esc(main) + '">Отмена</a></div>';
 }
+/* Уже слитая пара экрана сравнения не открывает: живой экран с рабочей кнопкой «Слить»
+   там, где сливать нечего, довёл бы до защиты doMerge только ПОСЛЕ клика — здесь же
+   говорится прямо и сразу, куда запись делась. */
+function mergedNoticeHtml(mergedRef){
+  const s = subject(mergedRef), main = subject(s.aliasOf);
+  return '<h2>Сравнение перед слиянием</h2>'
+    + '<div class="notice">Записи уже слиты: ' + esc(subjectRef(s)) + ' присоединён к '
+    + '<a class="lnk" href="#/s/' + esc(subjectRef(main)) + '">' + esc(subjectRef(main)) + '</a>.</div>';
+}
 function renderMerge(aRef, bRef){
-  MERGE_CTX = { aRef, bRef, main:aRef, picks:{} };
+  const a = subject(aRef), b = subject(bRef);
+  if (!a || !b) return '';
+  if (a.aliasOf) return mergedNoticeHtml(aRef);
+  if (b.aliasOf) return mergedNoticeHtml(bRef);
   return renderMergeScreen();
 }
 function renderMergeInPlace(){ document.getElementById('mergeMount').innerHTML = renderMergeScreen(); }
@@ -1717,8 +1760,8 @@ function wireMerge(){
   const mount = document.getElementById('mergeMount');
   mount.onclick = e => {
     const pick = e.target.closest('[data-pick]');
-    if (pick) { MERGE_CTX.picks[pick.dataset.field] = pick.dataset.choice; renderMergeInPlace(); return; }
-    if (e.target.closest('#btnDoMerge')) { runMerge(); return; }
+    if (pick) { MERGE_CTX.picks[pick.dataset.fname] = pick.dataset.pick; renderMergeInPlace(); return; }
+    if (e.target.closest('#btnMerge')) { runMerge(); return; }
   };
   mount.onchange = e => {
     const radio = e.target.closest('input[name="mergeMain"]');

@@ -360,19 +360,31 @@ ok('8.1 экран сравнения открывается маршрутом 
            m.$$('#mergeTable [data-pick]').length > 0; })());
 ok('8.2 слияние требует подтверждения вводом ключа главной записи (СП-19)',
   m.ev("(()=>{try{doMerge('07701199970071','S-DUP',{confirm:'не тот ключ'});return false;}catch(e){return true;}})()"));
+/* Снимок зеркал доказывает невмешательство только если в них есть что переписывать:
+   первая строка требует, чтобы ссылка на дубль в чужом модуле действительно была
+   (П-102), иначе тест зелен и у слияния, которое чужое переписывает. */
 ok('8.3 после слияния присоединённый ключ становится псевдонимом и ведёт на главную (инвариант 8)',
-  (() => { const before = m.ev("JSON.stringify([CREDITS,PLEDGE_OBJ,SURETIES,PROCS])");
+  (() => { const foreign = m.ev("PLEDGE_OBJ.some(o=>o.pledgerKey==='S-DUP')");
+    const before = m.ev("JSON.stringify([CREDITS,PLEDGE_OBJ,SURETIES,PROCS])");
     m.ev("doMerge('07701199970071','S-DUP',{confirm:'07701199970071'})");
     const after = m.ev("JSON.stringify([CREDITS,PLEDGE_OBJ,SURETIES,PROCS])");
-    return m.ev("subject('S-DUP').aliasOf")==='07701199970071' &&
+    return foreign &&
+           m.ev("subject('S-DUP').aliasOf")==='07701199970071' &&
            m.ev("resolveKey('S-DUP')")==='07701199970071' &&
+           m.ev("PLEDGE_OBJ.some(o=>o.pledgerKey==='S-DUP')") &&   /* чужое осталось как было */
            before === after; })());   /* инвариант 9: чужое не переписано */
 ok('8.4 маршрут по присоединённой записи не пропадает — открывается главная с оговоркой',
   (() => { m.ev("location.hash='#/s/S-DUP'"); m.ev("route()");
     return m.$('#view-card').classList.contains('active') && /присоединён/i.test(m.$('#cardMount').textContent); })());
+/* Одного «на дубле не осталось» мало: пустой массив дал бы то же самое. Каждую строку
+   ищем на главном ключе поимённо — по документу, по связи и по реквизиту. */
 ok('8.5 своё перенесено: документы, связи, события, реквизиты — на главном ключе',
   m.ev("DOCS.every(d=>d.key!=='S-DUP')") && m.ev("LINKS.every(l=>l.a!=='S-DUP'&&l.b!=='S-DUP')") &&
-  m.ev("SUBJECT_EVENTS.every(e=>e.key!=='S-DUP')"));
+  m.ev("SUBJECT_EVENTS.every(e=>e.key!=='S-DUP')") && m.ev("BANK_REQ.every(b=>b.key!=='S-DUP')") &&
+  m.ev("DOCS.some(d=>d.key==='07701199970071'&&d.file==='legacy-63545.pdf')") &&
+  m.ev("LINKS.some(l=>l.id==='L-6'&&l.a==='07701199970071')") &&
+  m.ev("SUBJECT_EVENTS.some(e=>e.key==='07701199970071'&&e.doc==='СС-4471-L')") &&
+  m.ev("BANK_REQ.some(b=>b.key==='07701199970071'&&b.bik==='124001')"));
 ok('8.6 роли считаются по обоим ключам и не переносятся (они производные, СБ-6)',
   m.ev("subjectRoles('S-DUP').map(r=>r.role).join(',')") === m.ev("subjectRoles('07701199970071').map(r=>r.role).join(',')"));
 ok('8.7 слияние необратимо — функции разделения нет',
@@ -382,17 +394,55 @@ ok('8.8 инвариант 10: слитая запись не удаляется
   m.ev("(()=>{try{deleteSubject('S-DUP');return false;}catch(e){return true;}})()"));
 ok('8.9 инвариант 10: удаление возможно только при нуле ссылок',
   m.ev("canDelete('01204199910016')")===false);
+/* «Обе записи живы» истинно и тогда, когда события вообще не случилось: сначала требуем,
+   чтобы реорганизация легла в ленту, и лишь потом — что она никого не присоединила. */
 ok('8.10 СБ-12: реорганизация — событие, а не слияние; обе записи остаются живыми',
   (() => { const n0 = m.ev("SUBJECTS.filter(s=>!s.aliasOf).length");
     m.ev("addEvent({key:'01204199910016',kind:'реорганизация',date:'01.06.2026',basis:'Решение собрания',doc:'РС-90',successorKey:'02201199920021'})");
-    return m.ev("SUBJECTS.filter(s=>!s.aliasOf).length") === n0 &&
-           !m.ev("subject('01204199910016').aliasOf"); })());
+    return m.ev("subjectEvents('01204199910016').some(e=>e.kind==='реорганизация'&&e.doc==='РС-90')") &&
+           m.ev("SUBJECTS.filter(s=>!s.aliasOf).length") === n0 &&
+           !m.ev("subject('01204199910016').aliasOf") &&
+           !m.ev("subject('02201199920021').aliasOf"); })());
 ok('8.11 экран слияния называет отличие от реорганизации словами (СБ-12)',
   (() => { m.ev("location.hash='#/merge/01204199910016/02201199920021'"); m.ev("route()");
     return /реорганизац/i.test(m.$('#mergeMount').textContent); })());
 ok('8.12 разрез «похожие записи» в реестре даёт ссылку на сравнение',
   (() => { m.ev("location.hash=''"); m.ev("FILTER.similar=true"); m.ev("applyFilters()");
     return m.$$('#listTable a[href^="#/merge/"]').length > 0; })());
+/* Обратное слияние — разделение через порчу: без защиты оба ключа получают aliasOf,
+   resolveKey зацикливается на самом себе, и живое лицо уходит из реестра. */
+ok('8.13 обратное слияние отвергается — уже присоединённая запись в слиянии не участвует',
+  (() => { const alive = m.ev("listRows().length");
+    const thrown = m.ev("(()=>{try{doMerge('S-DUP','07701199970071',{confirm:'S-DUP'});return false;}catch(e){return true;}})()");
+    return thrown && m.ev("resolveKey('S-DUP')")==='07701199970071' &&
+           !m.ev("subject('07701199970071').aliasOf") &&
+           m.ev("keysOf('07701199970071').length")===2 &&
+           m.ev("listRows().length") === alive; })());
+/* СБ-10: дубль живёт там, где ключа нет. Пустить безключевую запись в главные значит
+   увести лицо с настоящим ИНН под внутренний id. */
+ok('8.14 безключевая запись главной стать не может',
+  m.ev("(()=>{try{doMerge('S-DUP2','01204199910016',{confirm:'S-DUP2'});return false;}catch(e){return /с ключом/.test(e.message);}})()"));
+/* Инвариант 10 проверялся только запретами: canDelete, прибитый к false, проходил их все.
+   S-DUP2 — единственная запись демо-набора без единой ссылки. */
+ok('8.15 инвариант 10: при нуле ссылок удаление действительно удаляет',
+  (() => { const before = m.ev("SUBJECTS.some(s=>s.id==='S-DUP2')");
+    const can = m.ev("canDelete('S-DUP2')")===true;
+    m.ev("deleteSubject('S-DUP2')");
+    return before && can && m.ev("SUBJECTS.every(s=>s.id!=='S-DUP2')"); })());
+/* Все проверки выше зовут doMerge напрямую — сам экран не проверен ничем. Здесь слияние
+   идёт тем же путём, что у оператора: выбор значения кнопкой, ключ в поле, клик «Слить». */
+ok('8.16 экран слияния сливает кликом и применяет выбранное значение поля',
+  (() => { const m2 = mk();
+    m2.ev("location.hash='#/merge/07701199970071/S-DUP'"); m2.ev("route()");
+    const pick = m2.$('#mergeTable [data-pick=\"b\"]');
+    if (!pick) return false;
+    const fname = pick.dataset.fname, want = m2.ev("fval(subject('S-DUP'),'" + fname + "')");
+    m2.ev("document.querySelector('#mergeTable [data-pick=\\'b\\']').click()");
+    m2.ev("(()=>{const i=document.getElementById('mergeConfirm');i.value='07701199970071';i.dispatchEvent(new Event('input',{bubbles:true}));})()");
+    m2.ev("document.getElementById('btnMerge').click()");
+    return m2.ev("subject('S-DUP').aliasOf")==='07701199970071' &&
+           m2.ev("subject('S-DUP').aliasAt")==='13.07.2026' &&
+           m2.ev("fval(subject('07701199970071'),'" + fname + "')") === want; })());
 
 console.log(`\n${n - fails} / ${n} PASS`);
 process.exit(fails ? 1 : 0);
