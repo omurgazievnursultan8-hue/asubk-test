@@ -141,6 +141,43 @@
 
   /* ---------- вид: список / карточка / слияние ---------- */
   .view{display:none;} .view.active{display:block;}
+
+  /* ---------- реестр: тулбар / панель фильтров / чипы ролей (Task 3) ----------
+     .chip нет нигде в шелле (сверено grep по borrower.html — его там нет вовсе, Task 1
+     это подтвердил и не стал изобретать). Форма — пилюль под тон панели «инфо», уже
+     заведённый в токенах (--status-info-bg/--asubk-blue), без единого нового цвета;
+     тот же приём, что в mockups/loan-application-commission/commission.html (.chip),
+     только без хардкода #0a3d80 — берём готовый --asubk-blue.
+     .hint — по прецеденту mockups/loan-program/loan-program.html (.hint), адаптирован
+     под инлайн-использование рядом с текстом заголовка колонки (margin-left вместо
+     margin-top, т.к. там подпись стоит под полем, а здесь — в одну строку с текстом).
+     .pager — по прецеденту mockups/collection/collection.html (.pager): сама разметка
+     реестра уже вешает классы .btn .btn-secondary .btn-sm на кнопки пейджера, поэтому
+     .pager отвечает только за раскладку и приглушённый счётчик. */
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .toolbar .q-input{flex:1;max-width:360px;height:var(--control-h);padding:0 12px;
+    border:1px solid var(--border-default);border-radius:var(--radius-md);
+    font:var(--font-body);color:var(--text-body);background:var(--surface-card);}
+  .toolbar .q-input:focus{outline:none;border-color:var(--border-focus);box-shadow:var(--shadow-focus);}
+  .toolbar .sp{flex:1;}
+  .filters{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;padding:12px 14px;
+    margin-bottom:12px;border:1px solid var(--border-default);border-radius:var(--radius-md);
+    background:var(--surface-panel);}
+  .filters .field{display:flex;flex-direction:column;gap:4px;min-width:160px;}
+  .filters .field label{font:var(--font-label);color:var(--text-muted);}
+  .filters select{height:var(--control-h);padding:0 8px;border:1px solid var(--border-default);
+    border-radius:var(--radius-md);background:var(--surface-card);color:var(--text-body);font:var(--font-body);}
+  .filters .chk{display:flex;align-items:center;gap:6px;height:var(--control-h);
+    font:var(--font-label);color:var(--text-body);cursor:pointer;}
+  .chip{display:inline-flex;align-items:center;height:22px;padding:0 9px;margin:0 4px 4px 0;
+    border-radius:var(--radius-pill);background:var(--status-info-bg);color:var(--asubk-blue);
+    font:var(--weight-medium) var(--text-xs)/1 var(--asubk-font);}
+  .hint{font:var(--weight-regular) 12px/1.3 var(--asubk-font);color:var(--text-muted);margin-left:6px;}
+  .pager{display:flex;align-items:center;gap:10px;margin-top:12px;color:var(--text-muted);font:var(--font-label);}
+  .pager button:disabled{opacity:.4;cursor:not-allowed;}
+  .empty{padding:24px 16px;margin-top:12px;text-align:center;color:var(--text-muted);
+    border:1px dashed var(--border-strong);border-radius:var(--radius-md);}
+  .empty .btn{margin-left:8px;}
 </style>
 </head>
 <body>
@@ -531,8 +568,182 @@ function route(){
 }
 window.addEventListener('hashchange', route);
 
-/* заглушки рендера — наполняются в Tasks 3/5/9 */
-function renderList(){ document.getElementById('listMount').innerHTML = ''; }
+/* ── РЕЕСТР ──
+   Панель фильтров, а не Jmix-конструктор «Добавить условие поиска»: на стенде своих
+   фильтров нет вовсе (дефект P4-10), и отобрать лица по типу или району нечем. */
+const pgSize = 20;
+let pgNo = 1;
+const FILTER = { q:'', kind:'', region:'', district:'', role:'', event:false, similar:false };
+
+/* Признак похожести (СБ-10): дата рождения системой не хранится (§1.1 спеки, дефект P4-12),
+   поэтому ищем по документу и по нормализованному имени в одном районе. */
+const normName = s => (s || '').toLowerCase().replace(/ё/g,'е').replace(/[^а-яa-z0-9]+/g,' ').trim();
+const docOf = s => ((s.imported && s.imported.f && s.imported.f.docNo && s.imported.f.docNo.v) || '');
+function similarPairs(){
+  /* Ищем ТОЛЬКО среди записей без ключа и псевдонимов — дубль по ключу невозможен (СБ-2).
+     Вторая сторона пары может быть любой: сравниваем такую запись со всем реестром. */
+  const pool = SUBJECTS.filter(s => s.key === '' || s.aliasOf);
+  const out = [], seen = new Set();
+  pool.forEach(a => SUBJECTS.forEach(b => {
+    if (a === b) return;
+    const pair = [subjectRef(a), subjectRef(b)].sort().join('|');
+    if (seen.has(pair)) return;
+    const byDoc  = docOf(a) && docOf(a) === docOf(b);
+    const byName = normName(a.name) && normName(a.name) === normName(b.name) && a.district === b.district;
+    if (!byDoc && !byName) return;
+    seen.add(pair);
+    out.push({ a:subjectRef(a), b:subjectRef(b),
+      why: byDoc ? 'совпал документ ' + docOf(a) : 'совпало имя в одном районе' });
+  }));
+  return out;
+}
+
+function listRows(){
+  const pairs = similarPairs();
+  return SUBJECTS.filter(s => {
+    if (s.aliasOf && !FILTER.similar) return false;    /* псевдоним живёт в разрезе дублей */
+    const ref = subjectRef(s);
+    if (FILTER.q){
+      const q = FILTER.q.toLowerCase();
+      if (!((s.key || '').toLowerCase().includes(q) || normName(s.name).includes(normName(q)))) return false;
+    }
+    if (FILTER.kind && personKindAt(ref, VIEW_DATE) !== FILTER.kind) return false;
+    if (FILTER.region && s.region !== FILTER.region) return false;
+    if (FILTER.district && s.district !== FILTER.district) return false;
+    if (FILTER.role && !subjectRoles(ref).some(r => r.role === FILTER.role)) return false;
+    if (FILTER.event && !subjectEvents(ref).length) return false;
+    /* Разрез дублей показывает СТОРОНУ-КАНДИДАТА, а не обе стороны пары: искать нечего
+       у записи, ключ которой есть — она уже опознана (СБ-10). */
+    if (FILTER.similar && !(s.key === '' || s.aliasOf)) return false;
+    if (FILTER.similar && !pairs.some(p => p.a === ref || p.b === ref)) return false;
+    return true;
+  });
+}
+function applyFilters(){ pgNo = 1; renderList(); }
+
+/* Тулбар: поиск с дребезгом 250 мс (см. wireList) и кнопки создания — сама форма
+   создания вне рамок этой задачи (Task 3 — только реестр), поэтому кнопки без обвязки. */
+function toolbarHtml(){
+  return '<div class="toolbar">'
+    + '<input type="text" id="q" class="q-input" placeholder="Поиск по ключу или наименованию" value="' + esc(FILTER.q) + '">'
+    + '<span class="sp"></span>'
+    + '<button class="btn btn-secondary btn-sm" id="addSubject" type="button">+ Субъект</button>'
+    + '<button class="btn btn-secondary btn-sm" id="addGroup" type="button">+ Группа</button>'
+    + '</div>';
+}
+
+/* Панель фильтров: четыре типа лица, область → каскад района (список районов сузится,
+   если выбрана область), четыре роли, два чекбокса-разреза. Список областей/районов
+   берём из данных, а не заводим справочником — их источник вне рамок этой задачи. */
+function filterPanelHtml(){
+  const regions = [...new Set(SUBJECTS.map(s => s.region).filter(Boolean))].sort();
+  const districts = [...new Set(SUBJECTS.filter(s => !FILTER.region || s.region === FILTER.region)
+    .map(s => s.district).filter(Boolean))].sort();
+  const ROLE_KINDS = ['Заёмщик', 'Залогодатель', 'Поручитель', 'Обязанное лицо'];
+  const opt = (v, cur, label) => '<option value="' + esc(v) + '"' + (cur === v ? ' selected' : '') + '>'
+    + esc(label == null ? v : label) + '</option>';
+  return '<div class="filters">'
+    + '<div class="field"><label for="f-kind">Тип лица</label><select id="f-kind"><option value="">Все</option>'
+      + Object.keys(PERSON_KIND_LABEL).map(k => opt(k, FILTER.kind, personKindLabel(k))).join('') + '</select></div>'
+    + '<div class="field"><label for="f-region">Область/город</label><select id="f-region"><option value="">Все</option>'
+      + regions.map(r => opt(r, FILTER.region)).join('') + '</select></div>'
+    + '<div class="field"><label for="f-district">Район</label><select id="f-district"><option value="">Все</option>'
+      + districts.map(d => opt(d, FILTER.district)).join('') + '</select></div>'
+    + '<div class="field"><label for="f-role">Роль</label><select id="f-role"><option value="">Все</option>'
+      + ROLE_KINDS.map(r => opt(r, FILTER.role)).join('') + '</select></div>'
+    + '<label class="chk"><input type="checkbox" id="f-event"' + (FILTER.event ? ' checked' : '') + '> Есть событие</label>'
+    + '<label class="chk"><input type="checkbox" id="f-similar"' + (FILTER.similar ? ' checked' : '') + '> Похожие записи</label>'
+    + '</div>';
+}
+
+/* Пустое состояние (СП-16): называет действующие условия словами и чистит их одной
+   кнопкой — единственное место, где реестр целиком сбрасывает FILTER в один клик. */
+function emptyStateHtml(){
+  const cond = [];
+  if (FILTER.q) cond.push('поиск «' + esc(FILTER.q) + '»');
+  if (FILTER.kind) cond.push('тип лица «' + esc(personKindLabel(FILTER.kind)) + '»');
+  if (FILTER.region) cond.push('область «' + esc(FILTER.region) + '»');
+  if (FILTER.district) cond.push('район «' + esc(FILTER.district) + '»');
+  if (FILTER.role) cond.push('роль «' + esc(FILTER.role) + '»');
+  if (FILTER.event) cond.push('есть событие');
+  if (FILTER.similar) cond.push('похожие записи');
+  return '<div class="empty" id="emptyState">Ничего не найдено'
+    + (cond.length ? ' по условиям: ' + cond.join(', ') + '.' : '.')
+    + ' <button class="btn btn-secondary btn-sm" id="clearFilters" type="button">Очистить условия</button></div>';
+}
+
+function renderList(){
+  const rows = listRows();
+  const from = (pgNo - 1) * pgSize, page = rows.slice(from, from + pgSize);
+  const pairs = similarPairs();
+  const tr = s => {
+    const ref = subjectRef(s), kind = personKindAt(ref, VIEW_DATE);
+    const roles = subjectRoles(ref).map(r => '<span class="chip">' + esc(r.role) + '</span>').join('');
+    const st = stopFactors(ref)[0];
+    const sim = pairs.find(p => p.a === ref || p.b === ref);
+    return '<tr><td><a class="lnk" href="#/s/' + esc(ref) + '">' + esc(displayName(s)) + '</a>'
+      + '<div class="muted">' + (s.key ? esc(keyKind(s.key)) + ' ' + esc(s.key) : 'ключ не пришёл · ' + esc(s.id)) + '</div></td>'
+      + '<td>' + esc(personKindLabel(kind)) + '</td>'
+      + '<td>' + esc(s.district) + '<div class="muted">' + esc(s.region) + '</div></td>'
+      + '<td>' + (roles || '<span class="muted">—</span>') + '</td>'
+      + '<td>' + (st ? esc(st.text) + ' ' + esc(st.date) : '<span class="muted">—</span>')
+      + (sim ? '<div class="muted">похожа на ' + esc(sim.b === ref ? sim.a : sim.b) + ' · ' + esc(sim.why)
+          + ' · <a class="lnk" href="#/merge/' + esc(sim.a) + '/' + esc(sim.b) + '">сравнить</a></div>' : '')
+      + '</td></tr>';
+  };
+  document.getElementById('listMount').innerHTML =
+    toolbarHtml() + filterPanelHtml()
+    + '<table class="grid" id="listTable"><thead id="listHead"><tr><th>Наименование / ФИО</th>'
+    + '<th>Тип лица <span class="hint">на ' + esc(VIEW_DATE) + '</span></th><th>Район</th><th>Роли</th><th>Событие</th></tr></thead>'
+    + '<tbody>' + page.map(tr).join('') + '</tbody></table>'
+    + (rows.length ? '' : emptyStateHtml())
+    + '<div class="pager"><span id="rowCount">' + (rows.length ? (from + 1) + '–' + (from + page.length) + ' из ' + rows.length : '0 из 0')
+    + '</span><button class="btn btn-secondary btn-sm" id="pgPrev">←</button>'
+    + '<button class="btn btn-secondary btn-sm" id="pgNext">→</button></div>';
+  wireList();
+}
+
+/* Обвязка реестра: поля фильтров пишут в FILTER и вызывают applyFilters() (что сбрасывает
+   страницу на первую), кнопки пейджера меняют только pgNo — сквозь applyFilters их пускать
+   нельзя, иначе перелистывание само себя откатывало бы на первую страницу. #q дребезжит
+   250 мс, чтобы не перерисовывать реестр на каждый символ. */
+let qDebounce = null;
+function wireList(){
+  const byId = id => document.getElementById(id);
+  const bindSelect = (id, key) => { const el = byId(id); if (el) el.onchange = () => { FILTER[key] = el.value; applyFilters(); }; };
+  const bindCheck  = (id, key) => { const el = byId(id); if (el) el.onchange = () => { FILTER[key] = el.checked; applyFilters(); }; };
+
+  bindSelect('f-kind', 'kind');
+  bindSelect('f-role', 'role');
+  bindCheck('f-event', 'event');
+  bindCheck('f-similar', 'similar');
+
+  const region = byId('f-region');
+  if (region) region.onchange = () => { FILTER.region = region.value; FILTER.district = ''; applyFilters(); };
+  const district = byId('f-district');
+  if (district) district.onchange = () => { FILTER.district = district.value; applyFilters(); };
+
+  const clear = byId('clearFilters');
+  if (clear) clear.onclick = () => {
+    Object.assign(FILTER, { q:'', kind:'', region:'', district:'', role:'', event:false, similar:false });
+    applyFilters();
+  };
+
+  const q = byId('q');
+  if (q) q.oninput = () => {
+    clearTimeout(qDebounce);
+    qDebounce = setTimeout(() => { FILTER.q = q.value; applyFilters(); }, 250);
+  };
+
+  const total = listRows().length;
+  const prev = byId('pgPrev'), next = byId('pgNext');
+  prev.disabled = pgNo <= 1;
+  next.disabled = pgNo * pgSize >= total;
+  prev.onclick = () => { if (pgNo > 1) { pgNo--; renderList(); } };
+  next.onclick = () => { if (pgNo * pgSize < total) { pgNo++; renderList(); } };
+}
+
+/* заглушки рендера — наполняются в Tasks 5/9 */
 function renderCard(ref, tab){ return ''; }
 function wireCard(ref){}
 function renderMerge(a, b){ return ''; }

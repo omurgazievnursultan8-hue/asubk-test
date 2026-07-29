@@ -84,5 +84,46 @@ ok('1.15 стоп-фактор выводится из события и нес�
   g.ev("stopFactors('07701199970071')[0].doc")==='СС-4471' &&
   g.ev("stopFactors('01204199910016').length")===0);
 
+// ── Реестр (Task 3) ──
+ok('2.1 реестр рисует таблицу и счётчик «1–N из K»',
+  (() => { g.ev("location.hash=''"); g.ev("route()");
+    return !!g.$('#listTable') && new RegExp('^1–\\d+ из ' + g.ev("listRows().length") + '$').test(g.$('#rowCount').textContent); })());
+ok('2.2 строк на странице не больше размера страницы (СП-11)',
+  g.$$('#listTable tbody tr').length <= g.ev("pgSize"));
+ok('2.3 колонка типа лица подписана датой среза (инвариант 4)',
+  g.$('#listTable').textContent.includes('на ' + g.ev("TODAY")) ||
+  g.$('#listHead').textContent.includes('на ' + g.ev("TODAY")));
+ok('2.4 у группового заёмщика в реестре виден ключ ГР-, а не ИНН',
+  g.$('#listTable').textContent.includes('ГР-001'));
+ok('2.5 фильтр по типу лица считает тип на дату, а не читает поле',
+  (() => { g.ev("FILTER.kind='ИП'"); g.ev("applyFilters()");
+    const rows = g.ev("listRows().map(s=>s.key)");
+    return rows.length === 0; })());   // на 13.07.2026 действующих ИП нет: регистрация закрыта 31.12.2025
+ok('2.6 фильтр по роли отбирает по выводимым ролям',
+  (() => { g.ev("FILTER.kind=''"); g.ev("FILTER.role='Поручитель'"); g.ev("applyFilters()");
+    return g.ev("listRows().every(s=>subjectRoles(subjectRef(s)).some(r=>r.role==='Поручитель'))") &&
+           g.ev("listRows().length") > 0; })());
+ok('2.7 фильтр «есть событие» отбирает по ленте событий',
+  (() => { g.ev("FILTER.role=''"); g.ev("FILTER.event=true"); g.ev("applyFilters()");
+    return g.ev("listRows().every(s=>subjectEvents(subjectRef(s)).length>0)") && g.ev("listRows().length") > 0; })());
+ok('2.8 разрез «похожие записи» показывает только записи без ключа либо псевдонимы (СБ-10)',
+  (() => { g.ev("FILTER.event=false"); g.ev("FILTER.similar=true"); g.ev("applyFilters()");
+    return g.ev("listRows().every(s=>s.key==='' || !!s.aliasOf)") && g.ev("listRows().length") >= 2; })());
+ok('2.9 признак дубля печатается в паре и не использует дату рождения (её в системе нет)',
+  (() => { const t = g.$('#listTable').textContent;
+    return /документ|ФИО|наименование/i.test(t) && !/дата рождения/i.test(t); })());
+ok('2.10 пустое состояние называет условия и чистит их одной кнопкой (СП-16)',
+  (() => { g.ev("FILTER.similar=false"); g.ev("FILTER.q='несуществующее-лицо-zzz'"); g.ev("applyFilters()");
+    const has = !!g.$('#emptyState') && !!g.$('#clearFilters');
+    g.ev("document.getElementById('clearFilters').click()");
+    return has && g.ev("FILTER.q")==='' && g.ev("listRows().length") === g.ev("SUBJECTS.filter(s=>!s.aliasOf).length"); })());
+ok('2.11 поиск идёт по ключу И по наименованию',
+  (() => { g.ev("FILTER.q='АгроТех'"); g.ev("applyFilters()");
+    const byName = g.ev("listRows().length")===1;
+    g.ev("FILTER.q='07701199970071'"); g.ev("applyFilters()");
+    const byKey = g.ev("listRows().some(s=>s.key==='07701199970071')");
+    g.ev("FILTER.q=''"); g.ev("applyFilters()");
+    return byName && byKey; })());
+
 console.log(`\n${n - fails} / ${n} PASS`);
 process.exit(fails ? 1 : 0);
