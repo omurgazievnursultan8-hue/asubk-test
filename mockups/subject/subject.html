@@ -190,6 +190,33 @@
   .frow input[type=text]{height:var(--control-h);padding:0 10px;border:1px solid var(--border-default);
     border-radius:var(--radius-md);font:var(--font-body);color:var(--text-body);background:var(--surface-card);}
   .frow .radios{display:flex;align-items:center;gap:18px;height:var(--control-h);font:var(--font-body);}
+
+  /* ---------- карточка субъекта: шапка / вкладки / импортный слой (Task 5) ----------
+     .tabbar/.tab/.tabpanel — тот же приём, что .view/.view.active (все панели в разметке,
+     видна только активная). Импорт-бар / стоп-строка / уведомление о псевдониме — тона
+     status-info-bg/status-error-bg/status-warning-bg, уже заведённые в токенах —
+     ни одного нового цвета не добавлено. */
+  .card-head{margin-bottom:4px;}
+  .card-head h2{margin:0 0 6px;font-size:20px;font-weight:700;color:var(--text-heading);}
+  .card-head .meta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;color:var(--text-muted);font-size:14px;}
+  .stopline{display:block;margin-top:8px;padding:6px 12px;border-radius:var(--radius-md);
+    background:var(--status-error-bg);color:var(--status-error);font-weight:600;font-size:13px;}
+  .importbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;margin:10px 0 4px;
+    border-radius:var(--radius-md);background:var(--status-info-bg);color:var(--text-body);font-size:13px;}
+  .notice{padding:10px 14px;margin-bottom:14px;border-radius:var(--radius-md);
+    background:var(--status-warning-bg);color:var(--asubk-ink-90);font-size:14px;}
+  .tabbar{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border-default);margin:14px 0 2px;}
+  .tab{padding:9px 14px;font:var(--font-label);font-weight:600;color:var(--text-muted);cursor:pointer;
+    border-bottom:2px solid transparent;}
+  .tab:hover{color:var(--text-body);}
+  .tab.active{color:var(--asubk-blue);border-bottom-color:var(--asubk-blue);}
+  .tabpanel{display:none;padding:14px 2px;}
+  .tabpanel.active{display:block;}
+  .fld{display:flex;gap:14px;padding:9px 2px;border-bottom:1px solid var(--asubk-grid-line);align-items:flex-start;}
+  .fld-l{flex:0 0 220px;color:var(--text-muted);font:var(--font-label);}
+  .fld-v{flex:1;min-width:0;}
+  .warn{margin-top:6px;padding:8px 10px;border-radius:var(--radius-md);background:var(--status-warning-bg);
+    color:var(--asubk-ink-90);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 </style>
 </head>
 <body>
@@ -558,8 +585,10 @@ const vCard = document.getElementById('view-card');
 const vMerge = document.getElementById('view-merge');
 function showOnly(v){ [vList, vCard, vMerge].forEach(x => x.classList.toggle('active', x === v)); }
 
-function showList(){ VIEW_DATE = TODAY; renderList(); showOnly(vList); scrollTop(); }
+function showList(){ VIEW_DATE = TODAY; document.getElementById('topbar').classList.remove('on-detail');
+  renderList(); showOnly(vList); scrollTop(); }
 function showCard(ref, onDate, tab){ VIEW_DATE = onDate && dnum(onDate) <= dnum(TODAY) ? onDate : TODAY;
+  document.getElementById('topbar').classList.add('on-detail');
   document.getElementById('cardMount').innerHTML = renderCard(ref, tab); wireCard(ref); showOnly(vCard); scrollTop(); }
 function showMerge(a, b){ document.getElementById('mergeMount').innerHTML = renderMerge(a, b); showOnly(vMerge); scrollTop(); }
 
@@ -913,9 +942,215 @@ function openCreateGroup(){
   };
 }
 
-/* заглушки рендера — наполняются в Tasks 5/9 */
-function renderCard(ref, tab){ return ''; }
-function wireCard(ref){}
+/* ── КАРТОЧКА ── */
+const TAB_DEFS = [
+  { k:'main',    t:'Основное' },
+  { k:'addr',    t:'Адреса' },
+  { k:'ipreg',   t:'Регистрация ИП' },   /* только физлицо (СБ-3а) */
+  { k:'bank',    t:'Банковские реквизиты' }, /* организация и физлицо в период ИП */
+  { k:'units',   t:'Организационная структура' }, /* только организация */
+  { k:'members', t:'Состав' },           /* только групповой заёмщик */
+  { k:'docs',    t:'Документы' },
+  { k:'links',   t:'Связи' },
+  { k:'events',  t:'События' },
+  { k:'roles',   t:'Роли' },
+];
+/* Состав вкладок — следствие типа лица НА ДАТУ (СБ-3): у бывшего ИП вкладка банковских
+   реквизитов на сегодняшнюю дату не показывается, а на дату действия регистрации — да. */
+function tabsFor(ref, date){
+  const kind = personKindAt(ref, date);
+  return TAB_DEFS.filter(t => {
+    if (t.k === 'ipreg')   return kind === 'физ' || kind === 'ИП';
+    if (t.k === 'bank')    return kind === 'юр' || kind === 'ИП';
+    if (t.k === 'units')   return kind === 'юр';
+    if (t.k === 'members') return kind === 'группа';
+    return true;
+  });
+}
+const activeTabKey = () => (document.querySelector('.tabbar .tab.active') || {dataset:{}}).dataset.tab || '';
+
+/* Трёхсостоянное импортное поле (СБ-5). Инвариант 3: 'реестр' не редактируется нигде;
+   руками заполняется только 'пусто'; наше значение всегда подписано автором и датой.
+   Расхождение (pending) показывается выбором, а не молчаливой перезаписью — иначе
+   дефект стенда P4-11 («форма не отличает „нет данных“ от „не пришло из реестра“»)
+   переезжает в новую систему. */
+const CURRENT_USER = 'Сламкулов А.О.';
+function fieldRow(ref, name, label){
+  const s = subject(resolveKey(ref)), f = (s.imported && s.imported.f && s.imported.f[name]) || { st:'пусто' };
+  const head = '<div class="fld" data-field="' + esc(name) + '" data-state="' + esc(f.st) + '"><div class="fld-l">' + esc(label) + '</div><div class="fld-v">';
+  if (f.st === 'реестр' && !f.pending)
+    return head + esc(f.v) + ' <span class="hint">из реестра</span></div></div>';
+  if (f.st === 'наше' && !f.pending)
+    return head + esc(f.v) + ' <span class="hint">введено нами · ' + esc(f.by) + ' · ' + esc(f.at)
+      + (f.doc ? ' · ' + esc(f.doc) : '') + '</span></div></div>';
+  if (f.pending)
+    return head + esc(f.v) + ' <span class="hint">введено нами · ' + esc(f.by) + ' · ' + esc(f.at) + '</span>'
+      + '<div class="warn">Расхождение с реестром от ' + esc(f.pending.at) + ': «' + esc(f.pending.v) + '»'
+      + ' <button class="btn btn-sm" data-choice="реестр" data-fname="' + esc(name) + '">взять из реестра</button>'
+      + ' <button class="btn btn-secondary btn-sm" data-choice="наше" data-fname="' + esc(name) + '">оставить наше</button></div></div></div>';
+  return head + '<span class="muted">не пришло из реестра</span> '
+    + '<button class="btn btn-secondary btn-sm btn-fill" data-fname="' + esc(name) + '">Заполнить</button></div></div>';
+}
+function fillOwn(ref, name, value){
+  const s = subject(resolveKey(ref));
+  const f = s.imported.f[name] || (s.imported.f[name] = { st:'пусто' });
+  if (f.st !== 'пусто') throw new Error('Заполнять руками можно только пустое поле (СБ-5, инвариант 3)');
+  Object.assign(f, { st:'наше', v:value, by:CURRENT_USER, at:TODAY });
+  renderCardInPlace(ref);
+}
+function resolveConflict(ref, name, choice){
+  const f = subject(resolveKey(ref)).imported.f[name];
+  if (!f || !f.pending) return;
+  if (choice === 'реестр') Object.assign(f, { st:'реестр', v:f.pending.v, by:undefined, at:undefined });
+  delete f.pending;
+  renderCardInPlace(ref);
+}
+function renderCardInPlace(ref){
+  document.getElementById('cardMount').innerHTML = renderCard(ref, activeTabKey());
+  wireCard(ref);
+}
+
+/* Строка импортного снимка шапки (СБ-5) — только у записи, у которой канал импорта
+   есть вовсе (s.imported существует; у группы его нет, СБ-5а). Ручное создание
+   субъекта (Task 4) заводит канал с asOf:'—' — это значит «канал есть, снимка не
+   было», а не «данные пришли из ГРС · Тундук на —»: показываем это прямо, а не
+   молчаливой датой-прочерком, иначе получаем ту же ложь, от которой уходили. */
+function importBarHtml(s){
+  if (!s.imported) return '';
+  const body = s.imported.asOf === '—'
+    ? '<span class="muted">данных из реестра нет</span>'
+    : 'Снимок ' + esc(s.imported.src) + ' от ' + esc(s.imported.asOf);
+  return '<div class="importbar" id="importBar">' + body
+    + ' <button class="btn btn-secondary btn-sm" id="btnRefreshImport" type="button">Обновить из реестра</button></div>';
+}
+
+const ownRow = (label, value) => '<div class="fld"><div class="fld-l">' + esc(label) + '</div><div class="fld-v">'
+  + esc(value == null || value === '' ? '—' : value) + '</div></div>';
+
+/* Вкладка «Основное»: у группы (СБ-5а) целиком свои поля — импортного канала нет вовсе,
+   поэтому fieldRow здесь не годится (fillOwn упал бы на s.imported.f). У организации и
+   физлица/ИП — импортные поля из фактов плюс «своё» без импортного статуса. */
+function mainPanelHtml(ref, kind){
+  const s = subject(resolveKey(ref));
+  if (kind === 'группа')
+    return ownRow('Наименование', s.name) + ownRow('Область', s.region)
+      + ownRow('Район', s.district) + ownRow('Примечание', s.note);
+  let rows = kind === 'юр'
+    ? fieldRow(ref, 'nameFull', 'Полное наименование') + fieldRow(ref, 'nameShort', 'Краткое наименование')
+      + fieldRow(ref, 'regNo', 'Рег. номер') + fieldRow(ref, 'regDate', 'Дата регистрации')
+      + fieldRow(ref, 'okpo', 'ОКПО') + fieldRow(ref, 'activity', 'Вид деятельности')
+      + fieldRow(ref, 'director', 'Руководитель')
+    : fieldRow(ref, 'fio', 'ФИО') + fieldRow(ref, 'docKind', 'Вид документа')
+      + fieldRow(ref, 'docNo', 'Номер документа') + fieldRow(ref, 'nationality', 'Национальность');
+  return rows + ownRow('Отрасль', s.industry) + ownRow('Район', s.district) + ownRow('Примечание', s.note);
+}
+/* Вкладка «Адреса»: та же логика — группа своих импортных полей не имеет. */
+function addrPanelHtml(ref, kind){
+  const s = subject(resolveKey(ref));
+  if (kind === 'группа') return ownRow('Область', s.region) + ownRow('Район', s.district);
+  return fieldRow(ref, 'addr', 'Адрес') + fieldRow(ref, 'soate', 'СОАТЕ')
+    + ownRow('Фактический адрес', '—') + ownRow('Адрес переписки', '—');
+}
+
+/* Шапка · импортная строка · полоса вкладок · панели. Карточку, открытую по псевдониму
+   (ADR-0019), показываем как карточку главного субъекта — но не молчком: строка выше
+   называет присоединение прямо (СБ-11), со ссылкой на главного. */
+function renderCard(ref, tab){
+  const raw = subject(ref);
+  if (!raw) return '';
+  const mainRef = resolveKey(ref);
+  const s = subject(mainRef);
+  const kind = personKindAt(mainRef, VIEW_DATE);
+  const roles = subjectRoles(mainRef);
+  const stops = stopFactors(mainRef);
+  const tabs = tabsFor(mainRef, VIEW_DATE);
+  const active = tabs.some(t => t.k === tab) ? tab : (tabs[0] ? tabs[0].k : '');
+
+  let html = '';
+  if (raw.aliasOf)
+    html += '<div class="notice" id="aliasNotice">Ключ ' + esc(subjectRef(raw)) + ' присоединён к '
+      + '<a class="lnk" href="#/s/' + esc(mainRef) + '">' + esc(mainRef) + '</a>'
+      + (raw.aliasAt ? ' ' + esc(raw.aliasAt) : '') + '.</div>';
+
+  html += '<div class="card-head"><h2>' + esc(displayName(s)) + '</h2>'
+    + '<div class="meta">'
+    + '<span>' + esc(keyKind(mainRef)) + ' ' + esc(mainRef) + '</span>'
+    + '<span>' + esc(personKindLabel(kind)) + ' <span class="hint">на ' + esc(VIEW_DATE) + '</span></span>'
+    + roles.map(r => '<span class="chip">' + esc(r.role) + '</span>').join('')
+    + '</div>'
+    + stops.map(st => '<div class="stopline">' + esc(st.text) + ' · ' + esc(st.date)
+        + (st.doc ? ' · ' + esc(st.doc) : '') + '</div>').join('')
+    + '</div>';
+
+  if (s.imported) html += importBarHtml(s);
+
+  html += '<div class="tabbar">' + tabs.map(t =>
+    '<div class="tab' + (t.k === active ? ' active' : '') + '" data-tab="' + esc(t.k) + '">' + esc(t.t) + '</div>'
+  ).join('') + '</div>';
+
+  html += tabs.map(t => {
+    const body = t.k === 'main' ? mainPanelHtml(mainRef, kind)
+      : t.k === 'addr' ? addrPanelHtml(mainRef, kind)
+      : '<div class="muted">— наполняется в следующей задаче</div>';
+    return '<div class="tabpanel' + (t.k === active ? ' active' : '') + '" data-panel="' + esc(t.k) + '">' + body + '</div>';
+  }).join('');
+
+  return html;
+}
+
+/* Модалка ввода значения пустого импортного поля — тело/подвал по образцу openCreate. */
+function openFillField(ref, name, label){
+  openModal('Заполнить: ' + label,
+    '<div class="fform"><div class="frow wide"><label for="fillVal">' + esc(label) + '</label>'
+    + '<input type="text" id="fillVal"></div></div>', '');
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Сохранить</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const v = document.getElementById('fillVal').value.trim();
+    if (!v) return;
+    fillOwn(ref, name, v);
+    closeModal();
+  };
+}
+/* Обвязка карточки: делегирование на .tab (переключение вкладки), .btn-fill (модалка
+   заполнения пустого импортного поля) и [data-choice] (разрешение расхождения). */
+function wireCard(ref){
+  const mount = document.getElementById('cardMount');
+  mount.onclick = e => {
+    const tabEl = e.target.closest('.tabbar .tab');
+    if (tabEl) { switchTab(tabEl.dataset.tab); return; }
+    const fillBtn = e.target.closest('.btn-fill');
+    if (fillBtn) {
+      const fld = fillBtn.closest('.fld');
+      openFillField(ref, fillBtn.dataset.fname, fld ? fld.querySelector('.fld-l').textContent : fillBtn.dataset.fname);
+      return;
+    }
+    const choiceBtn = e.target.closest('[data-choice]');
+    if (choiceBtn) { resolveConflict(ref, choiceBtn.dataset.fname, choiceBtn.dataset.choice); return; }
+    const refreshBtn = e.target.closest('#btnRefreshImport');
+    if (refreshBtn) {
+      const s = subject(resolveKey(ref));
+      if (s.imported) s.imported.asOf = TODAY;
+      renderCardInPlace(ref);
+    }
+  };
+}
+/* Переключение вкладки пишет ?tab= в hash (карточка остаётся на той же дате среза) —
+   перерисовку делает hashchange → route(), своей мутации DOM в обход маршрута нет. */
+function switchTab(key){
+  const m = /^#\/s\/([^/?]+)(?:\?(.*))?$/.exec(location.hash);
+  if (!m) return;
+  const p = hashParams(m[2]);
+  p.tab = key;
+  const qs = Object.keys(p).filter(k => p[k] !== '' && p[k] != null)
+    .map(k => k + '=' + encodeURIComponent(p[k])).join('&');
+  location.hash = '#/s/' + m[1] + (qs ? '?' + qs : '');
+}
+
+/* заглушка рендера — наполняется в Task 9 */
 function renderMerge(a, b){ return ''; }
 
 route();

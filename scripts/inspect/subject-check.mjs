@@ -177,5 +177,57 @@ ok('3.8 новый ключ группы не повторяет выданны�
     g.ev("createGroup({name:'Группа «Тест-2»',district:'Ак-Талинский',region:'Нарынская'})");
     return g.ev("SUBJECTS[SUBJECTS.length-1].key") !== k1; })());
 
+// ── Карточка: шапка и импортный слой (Task 5) ──
+ok('4.1 карточка открывается по ключу и печатает тип лица с датой среза (инвариант 4)',
+  (() => { g.ev("location.hash='#/s/01204199910016'"); g.ev("route()");
+    const t = g.$('#cardMount').textContent;
+    return g.$('#view-card').classList.contains('active') && t.includes('Юр. лицо') && t.includes(g.ev("TODAY")); })());
+ok('4.2 срез из маршрута меняет тип лица у бывшего ИП (ADR-0018)',
+  (() => { g.ev("location.hash='#/s/04401199940041?on=2020-06-01'"); g.ev("route()");
+    const was = g.$('#cardMount').textContent.includes('ИП');
+    g.ev("location.hash='#/s/04401199940041'"); g.ev("route()");
+    return was && g.$('#cardMount').textContent.includes('Физ. лицо'); })());
+ok('4.3 шапка показывает дату и источник импортного снимка',
+  (() => { g.ev("location.hash='#/s/01204199910016'"); g.ev("route()");
+    const t = g.$('#cardMount').textContent; return t.includes('12.05.2026') && t.includes('Тундук'); })());
+ok('4.4 у группового заёмщика импортной строки и кнопки «Обновить из реестра» нет (СБ-5а)',
+  (() => { g.ev("location.hash='#/s/ГР-001'"); g.ev("route()");
+    return !g.$('#importBar') && !g.$('#btnRefreshImport'); })());
+ok('4.5 инвариант 3: поле в состоянии «реестр» read-only, редактора у него нет',
+  (() => { g.ev("location.hash='#/s/01204199910016'"); g.ev("route()");
+    return !!g.$('[data-field="nameFull"][data-state="реестр"]') &&
+           !g.$('[data-field="nameFull"] input') && !g.$('[data-field="nameFull"] .btn-fill'); })());
+ok('4.6 пустое импортное поле заполняется руками, значение подписывается автором и датой',
+  (() => { const has = !!g.$('[data-field="okpo"][data-state="пусто"] .btn-fill');
+    g.ev("fillOwn('01204199910016','okpo','27458119')");
+    return has && g.ev("subject('01204199910016').imported.f.okpo.st")==='наше' &&
+           !!g.ev("subject('01204199910016').imported.f.okpo.by") &&
+           !!g.ev("subject('01204199910016').imported.f.okpo.at"); })());
+ok('4.7 наше значение видно как «введено нами» с подписью',
+  (() => { g.ev("route()"); const el = g.$('[data-field="director"][data-state="наше"]');
+    return !!el && /введено нами/i.test(el.textContent) && /Асанова/.test(el.textContent); })());
+ok('4.8 пришедшее позже значение реестра не затирает наше молча — показывается расхождение с выбором',
+  (() => { const el = g.$('[data-field="director"]');
+    return /расхожден/i.test(el.textContent) && el.querySelectorAll('[data-choice]').length === 2; })());
+ok('4.9 выбор в пользу реестра переводит поле в состояние «реестр»',
+  (() => { g.ev("resolveConflict('01204199910016','director','реестр')");
+    return g.ev("subject('01204199910016').imported.f.director.st")==='реестр' &&
+           g.ev("subject('01204199910016').imported.f.director.v")==='Асанов Талант Кубанычбекович' &&
+           g.ev("!subject('01204199910016').imported.f.director.pending"); })());
+ok('4.10 состав вкладок зависит от типа лица на дату',
+  (() => { const org = g.ev("tabsFor('01204199910016',TODAY).map(t=>t.k).join(',')");
+    const grp = g.ev("tabsFor('ГР-001',TODAY).map(t=>t.k).join(',')");
+    const ipNow = g.ev("tabsFor('04401199940041',TODAY).map(t=>t.k).join(',')");
+    const ipThen = g.ev("tabsFor('04401199940041','01.06.2020').map(t=>t.k).join(',')");
+    return org.includes('units') && !org.includes('ipreg') &&
+           grp.includes('members') && !grp.includes('units') &&
+           ipNow.includes('ipreg') && !ipNow.includes('bank') && ipThen.includes('bank'); })());
+ok('4.11 карточка по псевдониму называет присоединение прямо (СБ-11)',
+  (() => { g.ev("subject('S-DUP').aliasOf='07701199970071'");
+    g.ev("location.hash='#/s/S-DUP'"); g.ev("route()");
+    const t = g.$('#cardMount').textContent;
+    g.ev("delete subject('S-DUP').aliasOf");
+    return /присоединён/i.test(t) && t.includes('07701199970071'); })());
+
 console.log(`\n${n - fails} / ${n} PASS`);
 process.exit(fails ? 1 : 0);
