@@ -279,6 +279,13 @@ ok('1.14 в наборе есть закрытая регистрация ИП, 
   g.ev("IP_REG.some(r=>r.to)") &&
   g.ev("LINKS.some(l=>l.kind==='член группы')") &&
   g.ev("SUBJECTS.filter(s=>s.key==='').length") >= 2);
+// СБ-13: стоп-фактор — зеркало события, своей точки ввода у него нет.
+ok('1.15 стоп-фактор выводится из события и несёт его дату и документ',
+  g.ev("stopFactors('07701199970071').length")===1 &&
+  g.ev("stopFactors('07701199970071')[0].text")==='Лицо умерло' &&
+  g.ev("stopFactors('07701199970071')[0].date")==='20.01.2025' &&
+  g.ev("stopFactors('07701199970071')[0].doc")==='СС-4471' &&
+  g.ev("stopFactors('01204199910016').length")===0);
 ```
 
 - [ ] **Step 2: Прогнать — тесты падают**
@@ -344,6 +351,14 @@ const SUBJECTS = [
   { id:'S-005', key:'ГР-001', source:'groups', name:'Группа «Ак-Талаа» (совместное кредитование)',
     district:'Ак-Талинский', region:'Нарынская', industry:'Агропромышленный комплекс',
     note:'групповой кредит; транши несут члены группы' },
+  { id:'S-006', key:'13301199900131', source:'individuals', name:'Осмонова Айнура Сапарбековна',
+    district:'Ак-Талинский', region:'Нарынская', industry:'Агропромышленный комплекс',
+    note:'член группы «Ак-Талаа»',
+    imported:{ asOf:'14.05.2026', src:'ГРС · Тундук', f:{
+      fio:{st:'реестр', v:'Осмонова Айнура Сапарбековна'},
+      docKind:{st:'реестр', v:'Паспорт'}, docNo:{st:'реестр', v:'ID1330119'},
+      nationality:{st:'реестр', v:'Кыргыз'}, soate:{st:'пусто'},
+      addr:{st:'реестр', v:'с. Баетово, ул. Манаса 12'} } } },
   /* Пара-дубль (СБ-10): ключа нет ни у одной — одна пришла из legacy без реквизитов,
      вторая — наполовину прошедший импорт (дефект стенда P4-09). */
   { id:'S-DUP', key:'', source:'individuals', name:'Мамбетов Кубаныч',
@@ -375,6 +390,10 @@ const SUBJECT_EVENTS = [
     basis:'Заявление о прекращении деятельности', doc:'ЗП-118' },
   { key:'02201199920021', kind:'реорганизация', date:'12.03.2026',
     basis:'Решение общего собрания', doc:'РС-14', successorKey:'01204199910016' },
+  /* То же лицо в макете заёмщика (borrower.html) умерло 20.01.2025 — наборы двух макетов
+     говорят об одних лицах, поэтому событие живёт и здесь. Стоп-фактор из него выводится. */
+  { key:'07701199970071', kind:'смерть', date:'20.01.2025',
+    basis:'Свидетельство о смерти', doc:'СС-4471' },
 ];
 
 /* LINKS — связи лиц (СБ-7): одна запись, видимая с обоих концов, с периодом и основанием.
@@ -387,7 +406,7 @@ const LINKS = [
     from:'14.02.2011', to:null, doc:'Приказ №1 от 14.02.2011' },
   { id:'L-3', kind:'супруг', a:'07701199970071', b:'04401199940041',
     from:'03.09.2009', to:null, doc:'Свид. о браке БР-2211' },
-  { id:'L-4', kind:'член группы', a:'07701199970071', b:'ГР-001',
+  { id:'L-4', kind:'член группы', a:'13301199900131', b:'ГР-001',
     from:'11.02.2026', to:null, doc:'Протокол собрания группы №1' },
   { id:'L-5', kind:'член группы', a:'04401199940041', b:'ГР-001',
     from:'11.02.2026', to:null, doc:'Протокол собрания группы №1' },
@@ -521,7 +540,7 @@ function subjectRoles(ref){
 - [ ] **Step 6: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `21 / 21 PASS`.
+Expected: `22 / 22 PASS`.
 
 - [ ] **Step 7: Коммит**
 
@@ -691,7 +710,7 @@ function renderList(){
 - [ ] **Step 4: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `32 / 32 PASS`.
+Expected: `33 / 33 PASS`.
 
 - [ ] **Step 5: Коммит**
 
@@ -789,7 +808,7 @@ function createGroup({ name, district, region, industry }){
 - [ ] **Step 4: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `40 / 40 PASS`.
+Expected: `41 / 41 PASS`.
 
 - [ ] **Step 5: Коммит**
 
@@ -964,7 +983,7 @@ function renderCardInPlace(ref){
 - [ ] **Step 4: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `51 / 51 PASS`.
+Expected: `52 / 52 PASS`.
 
 - [ ] **Step 5: Коммит**
 
@@ -1007,7 +1026,7 @@ ok('5.5 ограничение по типу: супруг — физлицо↔
 ok('5.6 «Состав» группы — та же связь «член группы» с другого конца (СБ-7)',
   (() => { g.ev("location.hash='#/s/ГР-001?tab=members'"); g.ev("route()");
     const t = g.$('[data-panel="members"]').textContent;
-    return g.ev("membersOf('ГР-001').length")===2 && /Мамбетов/.test(t) && /Асанов/.test(t); })());
+    return g.ev("membersOf('ГР-001').length")===2 && /Осмонова/.test(t) && /Асанов/.test(t); })());
 ok('5.7 у связи обязательны период и документ-основание',
   g.ev("(()=>{try{addLink({kind:'аффилированность',a:'07701199970071',b:'01204199910016',from:'',doc:''});return false;}catch(e){return true;}})()"));
 ok('5.8 «связанное лицо» ролью не является (СБ-7)',
@@ -1069,7 +1088,7 @@ function membersOf(groupRef){
 - [ ] **Step 4: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `60 / 60 PASS`.
+Expected: `61 / 61 PASS`.
 
 - [ ] **Step 5: Коммит**
 
@@ -1179,7 +1198,7 @@ function addIpReg({ key, no, from, doc }){
 - [ ] **Step 4: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `69 / 69 PASS`.
+Expected: `70 / 70 PASS`.
 
 - [ ] **Step 5: Коммит**
 
@@ -1264,7 +1283,7 @@ function addBankReq({ key, bank, bik, account, from }){
 - [ ] **Step 4: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `76 / 76 PASS`.
+Expected: `77 / 77 PASS`.
 
 - [ ] **Step 5: Коммит**
 
@@ -1402,7 +1421,7 @@ function deleteSubject(ref){
 - [ ] **Step 4: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `88 / 88 PASS`.
+Expected: `89 / 89 PASS`.
 
 - [ ] **Step 5: Коммит**
 
@@ -1600,7 +1619,7 @@ git commit -m "docs(qa): дефекты реестров лиц P4-06…P4-12 и
 
 После Task 12 проверить DoD спеки целиком:
 
-- [ ] `node scripts/inspect/subject-check.mjs` → 88+ PASS, 0 FAIL (DoD 1)
+- [ ] `node scripts/inspect/subject-check.mjs` → 89+ PASS, 0 FAIL (DoD 1)
 - [ ] `node scripts/inspect/borrower-check.mjs` → 0 FAIL (DoD 4)
 - [ ] Каждое СБ-1…СБ-14 имеет строку в `mockups/subject/ASUBK-status-razrabotki.md` со статусом (DoD 2)
 - [ ] `mockups/subject/ASUBK-subekt-logika.md` не пересказывает код — только «почему» (DoD 3)
