@@ -7555,7 +7555,15 @@ function foundHtml(s){
 }
 /* Поля создания субъекта: обязательный блок + свёрнутый «остальное» (СП-18). Обязательны
    ровно те, без которых запись выпадает из фильтров реестра (отрасль, район) или не
-   опознаётся (ИНН, наименование, тип, документ) — то есть по построению, а не по вкусу. */
+   опознаётся (ИНН, наименование, тип) — то есть по построению, а не по вкусу.
+
+   I4 (ревью 29.07.2026): форма спрашивала ещё вид документа, его номер, дату документа и
+   дату регистрации — ВСЕ ЧЕТЫРЕ обязательными, — а также форму собственности,
+   организационную форму и два адреса. Единственным местом, где всё это показывалось, была
+   страница субъекта; после СБ-14 её здесь нет, и у полей не осталось ни одного читателя.
+   Требовать от оператора заполнить поле, которое макет затем не покажет нигде, — та же
+   болезнь, что молчащая кнопка (Б-9): работа сделана, следа нет. Спрашиваем только то,
+   что показываем. Реквизиты лица заводит владелец — mockups/subject/subject.html. */
 function createFieldsHtml(){
   const sectors = [...new Set(SUBJECTS.map(s => s.industry).filter(Boolean))].sort();
   const districts = [...new Set(SUBJECTS.map(s => s.district).filter(Boolean))].sort();
@@ -7574,25 +7582,14 @@ function createFieldsHtml(){
     + ' Тип лица после создания не меняется (04-zaemshchik.md §1).</div>'
     + '<div class="fform">'
     + sel('cKind', 'Тип лица', ['Юр. лицо', 'ИП', 'Физ. лицо'], true)
-    + '<div class="frow" id="cLegalWrap" hidden><label for="cLegal">Организационная форма</label>'
-      + '<select id="cLegal"><option value=""></option>'
-      + ['ОсОО','ОАО','ЗАО','Учреждение','Кооператив'].map(x => '<option>' + x + '</option>').join('')
-      + '</select><div class="fhint">только для юридического лица</div></div>'
     + '<div class="frow wide"><label for="cName">Наименование / ФИО <span class="req">*</span></label>'
       + '<input type="text" id="cName" placeholder="ОсОО «…» или Фамилия Имя Отчество"></div>'
     + sel('cSector', 'Отрасль', sectors, true)
     + sel('cDistrict', 'Район', districts, true)
-    + txt('cDocKind', 'Вид документа', true, 'Свид. о рег. / Патент / Паспорт')
-    + txt('cDocNo', 'Номер документа', true)
-    + '<div class="frow"><label for="cDocDate">Дата документа <span class="req">*</span></label>'
-      + '<input type="date" id="cDocDate" max="' + toISO(TODAY) + '"></div>'
-    + '<div class="frow"><label for="cRegDate">Дата регистрации <span class="req">*</span></label>'
-      + '<input type="date" id="cRegDate" max="' + toISO(TODAY) + '"></div>'
+    + '<div class="fhint wide" style="margin-top:2px">Реквизиты лица — документ, дата регистрации,'
+      + ' адреса, организационная форма — заводятся у владельца, в реестре субъектов:'
+      + ' здесь их показать негде, а спрашивать то, что не покажем, нельзя (I4).</div>'
     + '<details class="fsect"><summary>Остальные реквизиты</summary><div class="fform">'
-      + sel('cOwn', 'Форма собственности', ['Частная','Государственная','Муниципальная'], false)
-      + '<div class="frow"></div>'
-      + '<div class="frow wide"><label for="cAddrL">Адрес юридический</label><input type="text" id="cAddrL"></div>'
-      + '<div class="frow wide"><label for="cAddrF">Адрес фактический</label><input type="text" id="cAddrF"></div>'
       + '<div class="frow wide"><label for="cNote">Примечание</label><input type="text" id="cNote"></div>'
     + '</div></details>'
     + '</div>';
@@ -7618,13 +7615,6 @@ function onInnInput(){
     setCreateBtn('open', found.inn);
   } else {
     st.innerHTML = createFieldsHtml();
-    document.getElementById('cKind').addEventListener('change', e => {
-      /* Организационной формы у ИП и физлиц в модели нет — поле не показываем, а не гасим:
-         пустое значение в невидимом поле не породит запись с выдуманным реквизитом. */
-      document.getElementById('cLegalWrap').hidden = e.target.value !== 'Юр. лицо';
-      if (e.target.value !== 'Юр. лицо') document.getElementById('cLegal').value = '';
-      validateCreate();
-    });
     st.querySelectorAll('input,select').forEach(x => {
       x.addEventListener('input', validateCreate);
       x.addEventListener('change', validateCreate);
@@ -7633,7 +7623,7 @@ function onInnInput(){
     validateCreate();
   }
 }
-const CREATE_REQ = ['cKind','cName','cSector','cDistrict','cDocKind','cDocNo','cDocDate','cRegDate'];
+const CREATE_REQ = ['cKind','cName','cSector','cDistrict'];   /* I4: обязательно только то, у чего есть читатель */
 function validateCreate(){
   const btn = document.getElementById('mCreate');
   if (!btn) return;
@@ -7671,17 +7661,16 @@ function submitCreate(){
   const inn = val('cInn');
   if (!innShape(inn) || SUBJECTS.some(s => s.inn === inn)) return;
   const kind = val('cKind');
+  /* I4: в записи ровно то, что макет умеет показать. Поля без читателя (doc, regDate,
+     ownershipForm, legalForm, addrLegal, addrFact) не пишем вовсе — запись с реквизитом,
+     который негде увидеть, неотличима от записи без него, зато создаёт иллюзию, что
+     реквизит заведён. */
   const rec = {
     inn, name: val('cName').trim(), personKind: KIND_CODE[kind] || 'юр',
-    ownershipForm: val('cOwn') || '—',
     industry: val('cSector'), district: val('cDistrict'),
-    doc:{ kind: val('cDocKind').trim(), no: val('cDocNo').trim(), date: fromISO(val('cDocDate')) },
-    addrLegal: val('cAddrL').trim() || '—', addrFact: val('cAddrF').trim() || '—',
-    regDate: fromISO(val('cRegDate')),
     note: val('cNote').trim() || 'предрегистрация: заявка ещё не подана, кредитов нет',
     audit:{ by:'admin', date:TODAY, time:'12:00' },
   };
-  if (kind === 'Юр. лицо' && val('cLegal')) rec.legalForm = val('cLegal');
   SUBJECTS.push(rec);
   closeModal();
   /* Справочники строятся из данных (СП-5), значит новый район и отрасль должны в них попасть. */

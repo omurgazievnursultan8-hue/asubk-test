@@ -691,26 +691,68 @@ ok('СП-18. «Создать» заперта, пока обязательны�
     f.ev("validateCreate();");
     return f.$('#mCreate').disabled === false;
   })());
-ok('СП-18. орг-форма показана только юр. лицу — у ИП и физлица её в модели нет',
-  (() => { const f = mk(); f.ev("openCreate();");
-    const el = f.doc.getElementById('cInn');
-    el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
-    if (!f.$('#cLegalWrap').hidden) return false;
-    const k = f.doc.getElementById('cKind');
-    k.value = 'Юр. лицо'; k.dispatchEvent(new f.w.Event('change'));
-    if (f.$('#cLegalWrap').hidden) return false;
-    k.value = 'ИП'; k.dispatchEvent(new f.w.Event('change'));
-    return f.$('#cLegalWrap').hidden === true && f.doc.getElementById('cLegal').value === '';
-  })());
-ok('СП-18. остальные реквизиты — во втором, свёрнутом уровне',
+/* I4 (ревью 29.07.2026): проверка «орг-форма показана только юр. лицу» УДАЛЕНА — предмета
+   не осталось. Поля cLegal/cLegalWrap в форме больше нет: legalForm читала только удалённая
+   страница субъекта, после СБ-14 читателей у него ноль. Ослаблять было нечего — экрана,
+   на котором орг-форма появлялась бы, в этом макете не существует. Организационная форма —
+   реквизит лица, её заводит владелец (mockups/subject/subject.html). */
+ok('СП-18. необязательный реквизит — во втором, свёрнутом уровне',
   (() => { const f = mk(); f.ev("openCreate();");
     const el = f.doc.getElementById('cInn');
     el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
     const d = f.$('.fsect');
+    /* прежде здесь назывались cAddrL/cAddrF — оба убраны вместе с читателями (I4);
+       утверждение то же: необязательное лежит на втором уровне и в CREATE_REQ не входит */
     return d !== null && d.hasAttribute('open') === false
-      && f.$('#cAddrL') !== null && f.$('#cAddrF') !== null && f.$('#cNote') !== null
-      && f.ev("CREATE_REQ.includes('cAddrL')") === false;
+      && f.$('#cNote') !== null
+      && f.ev("CREATE_REQ.includes('cNote')") === false;
   })());
+/* I4: форма собирала вид документа, номер, дату документа и дату регистрации — все четыре
+   ОБЯЗАТЕЛЬНЫМИ, — плюс форму собственности, орг-форму и два адреса. После схлопывания вида
+   субъекта читателей у них не осталось ни одного: показывала их только удалённая страница
+   лица. Оператор обязан был заполнить поля, след от которых нигде не виден — та же болезнь,
+   что молчащая кнопка (Б-9).
+   Сверяем РАВЕНСТВОМ набора ключей, а не «включает»: при «включает» возврат doc{} или
+   regDate прошёл бы молча, а именно это и надо поймать. Обе стороны: осиротевшее не
+   вернулось И нужное не потерялось. */
+ok('СП-18/I4. форма не спрашивает того, чего не покажет; запись содержит ровно собранное',
+  (() => { const f = mk(); f.ev("openCreate();");
+    const el = f.doc.getElementById('cInn');
+    el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
+    const orphans = ['cDocKind','cDocNo','cDocDate','cRegDate','cOwn','cAddrL','cAddrF','cLegal','cLegalWrap'];
+    if (orphans.some(id => f.doc.getElementById(id))) return false;
+    if (f.ev("JSON.stringify(CREATE_REQ)") !== JSON.stringify(['cKind','cName','cSector','cDistrict'])) return false;
+    const set = (id, v) => { f.doc.getElementById(id).value = v; };
+    set('cKind','Юр. лицо'); set('cName','ОсОО «Смоук Тест»');
+    set('cSector', f.ev("SUBJECTS[0].industry")); set('cDistrict', f.ev("SUBJECTS[0].district"));
+    set('cNote','заметка смоука');
+    f.ev("validateCreate(); submitCreate();");
+    const keys = JSON.parse(f.ev(
+      "JSON.stringify(Object.keys(SUBJECTS.find(s=>s.inn==='99999999999999')).sort())"));
+    return String(keys) === String(['audit','district','industry','inn','name','note','personKind']);
+  })());
+/* Вторая половина того же утверждения: у каждого сохранённого поля есть ЧИТАТЕЛЬ, то есть
+   значение видно на экране. Равенство ключей выше запрещает лишнее; это — запрещает мёртвое. */
+ok('СП-18/I4. каждое сохранённое поле новой записи видно в карточке (читатель есть)',
+  (() => { const f = mk(); f.ev("openCreate();");
+    const el = f.doc.getElementById('cInn');
+    el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
+    const set = (id, v) => { f.doc.getElementById(id).value = v; };
+    const sector = f.ev("SUBJECTS[0].industry"), district = f.ev("SUBJECTS[0].district");
+    set('cKind','Физ. лицо'); set('cName','Смоуков Тест Тестович');
+    set('cSector', sector); set('cDistrict', district); set('cNote','заметка смоука');
+    f.ev("validateCreate(); submitCreate();");
+    f.ev("location.hash='#/b/99999999999999'"); f.ev("route()");
+    const t = f.$('#cardMount').textContent.replace(/\s+/g, ' ');
+    if (!(t.includes('Смоуков Тест Тестович') && t.includes('99999999999999')
+          && t.includes('Физ. лицо') && t.includes(sector) && t.includes('заметка смоука')
+          /* audit — читает лента (historyItems), КЗ-9: аудит записи стал фактом ленты */
+          && t.includes('Карточка заёмщика заведена'))) return false;
+    /* район читает переход в реестр (СП-5) и found-box формы: сверяем через found-box */
+    f.ev("openCreate();");
+    const el2 = f.doc.getElementById('cInn');
+    el2.value = '99999999999999'; el2.dispatchEvent(new f.w.Event('input'));
+    return f.$('.found-box').textContent.includes(district); })());
 ok('СП-18. созданная запись попадает в реестр и находится фильтрами (иначе её нет)',
   (() => { const f = mk(); f.ev("pgSize = 1000;");
     const before = f.ev("SUBJECTS.length");
@@ -720,8 +762,7 @@ ok('СП-18. созданная запись попадает в реестр и
     const set = (id, v) => { f.doc.getElementById(id).value = v; };
     set('cKind', 'Юр. лицо'); set('cName', 'ОсОО «Смоук Тест»');
     set('cSector', f.ev("SUBJECTS[0].industry")); set('cDistrict', f.ev("SUBJECTS[0].district"));
-    set('cDocKind', 'Свид. о рег.'); set('cDocNo', '000'); set('cDocDate', '2026-01-15');
-    set('cRegDate', '2026-01-15');
+    f.ev("validateCreate();");   /* I4: полей документа и даты регистрации форма больше не собирает */
     f.ev("submitCreate();");
     if (f.ev("SUBJECTS.length") !== before + 1) return false;
     if (!f.$('#mBack').hidden) return false;
