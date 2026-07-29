@@ -436,6 +436,11 @@ const SUBJECT_EVENTS = [
      говорят об одних лицах, поэтому событие живёт и здесь. Стоп-фактор из него выводится. */
   { key:'07701199970071', kind:'смерть', date:'20.01.2025',
     basis:'Свидетельство о смерти', doc:'СС-4471' },
+  /* Своё событие S-DUP (Task 9): половинчатая миграция принесла и это — тот же факт,
+     что уже стоит на 07701199970071, но своим документом. Слияние не дедуплицирует
+     содержимое, оно переносит запись целиком на главный ключ (СБ-11). */
+  { key:'S-DUP', kind:'смерть', date:'20.01.2025',
+    basis:'Свидетельство о смерти (выгрузка legacy)', doc:'СС-4471-L' },
 ];
 
 /* ── СОБЫТИЯ СУБЪЕКТА (СБ-9) ──
@@ -488,6 +493,10 @@ const LINKS = [
     from:'11.02.2026', to:null, doc:'Протокол собрания группы №1' },
   { id:'L-5', kind:'член группы', a:'04401199940041', b:'ГР-001',
     from:'11.02.2026', to:null, doc:'Протокол собрания группы №1' },
+  /* Своя связь S-DUP (Task 9): половинчатая миграция принесла и её — доказывает,
+     что слияние переносит связи на главный ключ, а не просто снимает пометку. */
+  { id:'L-6', kind:'аффилированность', a:'S-DUP', b:'01204199910016',
+    from:'02.02.2026', to:null, doc:'Выгрузка legacy' },
 ];
 
 /* ── СВЯЗИ ЛИЦ (СБ-7) ──
@@ -546,6 +555,9 @@ const DOCS = [
   { key:'01204199910016', kind:'Устав', about:'Организация', date:'14.02.2011', file:'ustav-2011.pdf' },
   { key:'04401199940041', kind:'Свид. о прекращении ИП', about:'Регистрация ИП', date:'31.12.2025', file:'zp-118.pdf' },
   { key:'ГР-001', kind:'Протокол собрания группы', about:'Состав', date:'11.02.2026', file:'protokol-1.pdf' },
+  /* Свой документ S-DUP (Task 9): половинчатая миграция принесла и его — без этой
+     записи «своё перенесено» (тест 8.5) было бы доказано на пустом месте. */
+  { key:'S-DUP', kind:'Выгрузка legacy', about:'Перенос person-63545', date:'02.02.2026', file:'legacy-63545.pdf' },
 ];
 
 /* Документ и банковский реквизит (раздел 4 спеки) — обычные записи, не роль и не
@@ -654,6 +666,62 @@ function subjectRoles(ref){
 const subjectRef = s => s.key || s.id;
 const subject = ref => SUBJECTS.find(s => s.key === ref || s.id === ref) || null;
 
+/* ── СЛИЯНИЕ (СБ-11, ADR-0019) ──
+   Переносится ТОЛЬКО СВОЁ: документы, связи, события, адреса, реквизиты, регистрации ИП.
+   Чужие ссылки (кредиты, залог, поручительство, дела) не переписываются — модуль субъектов
+   не пишет ни в один чужой модуль (инвариант 9, ADR-0014). Присоединённый ключ становится
+   псевдонимом: из маршрутов не исчезает и при чтении разрешается в главного (инвариант 8).
+   Роли не переносятся и не пересчитываются — они производные (СБ-6) и считаются по обоим ключам.
+   Слияние ≠ реорганизация (СБ-12): здесь ДВЕ записи об ОДНОМ лице, там ДВА живых лица. */
+const MERGE_FIELDS = [
+  ['fio','ФИО'], ['nameFull','Полное наименование'], ['nameShort','Краткое наименование'],
+  ['docKind','Вид документа'], ['docNo','Номер документа'], ['nationality','Национальность'],
+  ['regNo','Рег. номер'], ['regDate','Дата регистрации'], ['okpo','ОКПО'],
+  ['soate','СОАТЕ'], ['addr','Адрес'], ['director','Директор'], ['activity','Вид деятельности'],
+];
+const fval = (s, n) => ((s.imported && s.imported.f && s.imported.f[n] && s.imported.f[n].v) || '');
+function mergeDiff(aRef, bRef){
+  const a = subject(aRef), b = subject(bRef);
+  return MERGE_FIELDS.map(([n, label]) => ({ name:n, label, a:fval(a, n), b:fval(b, n) }))
+    .filter(r => r.a || r.b)
+    .map(r => ({ ...r, differs: r.a !== r.b }));
+}
+const OWN_ARRAYS = [
+  [() => DOCS, 'key'], [() => SUBJECT_EVENTS, 'key'], [() => BANK_REQ, 'key'],
+  [() => IP_REG, 'key'], [() => UNITS, 'key'],
+];
+function doMerge(mainRef, joinRef, choices){
+  const main = subject(mainRef), join = subject(joinRef);
+  if (!main || !join || main === join) throw new Error('Нужны две разные записи');
+  if (!choices || choices.confirm !== subjectRef(main))
+    throw new Error('Подтвердите слияние вводом ключа главной записи: ' + subjectRef(main));
+  /* выбранные значения по расхождениям — только в СВОЙ импортный слой главной записи */
+  mergeDiff(mainRef, joinRef).forEach(r => {
+    if (choices[r.name] === 'b' && main.imported)
+      main.imported.f[r.name] = Object.assign({}, join.imported.f[r.name]);
+  });
+  OWN_ARRAYS.forEach(([get, f]) => get().forEach(x => { if (x[f] === subjectRef(join)) x[f] = subjectRef(main); }));
+  LINKS.forEach(l => { if (l.a === subjectRef(join)) l.a = subjectRef(main);
+                       if (l.b === subjectRef(join)) l.b = subjectRef(main); });
+  join.aliasOf = subjectRef(main);
+  join.mergedAt = TODAY;
+  /* CREDITS/PLEDGE_OBJ/SURETIES/PROCS не трогаются намеренно — см. шапку блока. */
+}
+/* Удаление (инвариант 10): только при нуле ссылок; слитая запись не удаляется никогда. */
+function canDelete(ref){
+  const s = subject(ref);
+  if (!s || s.aliasOf) return false;
+  const ks = keysOf(ref);
+  const used = CREDITS.some(c => ks.includes(c.key)) || PLEDGE_OBJ.some(o => ks.includes(o.pledgerKey))
+    || SURETIES.some(x => ks.includes(x.guarantorKey)) || PROCS.some(p => ks.includes(p.debtorKey))
+    || LINKS.some(l => ks.includes(l.a) || ks.includes(l.b)) || SUBJECT_EVENTS.some(e => ks.includes(e.key));
+  return !used;
+}
+function deleteSubject(ref){
+  if (!canDelete(ref)) throw new Error('Удалить нельзя: на запись есть ссылки либо она присоединена слиянием');
+  SUBJECTS.splice(SUBJECTS.findIndex(s => subjectRef(s) === ref), 1);
+}
+
 function hashParams(q){
   const out = {};
   (q || '').split('&').filter(Boolean).forEach(pair => {
@@ -673,7 +741,7 @@ function showList(){ VIEW_DATE = TODAY; document.getElementById('topbar').classL
 function showCard(ref, onDate, tab){ VIEW_DATE = onDate && dnum(onDate) <= dnum(TODAY) ? onDate : TODAY;
   document.getElementById('topbar').classList.add('on-detail');
   document.getElementById('cardMount').innerHTML = renderCard(ref, tab); wireCard(ref); showOnly(vCard); scrollTop(); }
-function showMerge(a, b){ document.getElementById('mergeMount').innerHTML = renderMerge(a, b); showOnly(vMerge); scrollTop(); }
+function showMerge(a, b){ document.getElementById('mergeMount').innerHTML = renderMerge(a, b); wireMerge(); showOnly(vMerge); scrollTop(); }
 
 /* #/subjects — реестр · #/s/<ключ>[?on=ГГГГ-ММ-ДД&tab=<ключ вкладки>] — карточка ·
    #/merge/<a>/<b> — сравнение перед слиянием (СБ-11). */
@@ -1571,8 +1639,92 @@ function switchTab(key){
   location.hash = '#/s/' + m[1] + (qs ? '?' + qs : '');
 }
 
-/* заглушка рендера — наполняется в Task 9 */
-function renderMerge(a, b){ return ''; }
+/* ── ЭКРАН СЛИЯНИЯ (СБ-11, СБ-12) ──
+   Единственное действие с эффектом на этом экране — кнопка «Слить»: она одна вызывает
+   doMerge(). Всё остальное (выбор главной записи, выбор значения по расхождению) —
+   состояние ЭКРАНА (MERGE_CTX), не факт: оно живёт, пока открыт вид, и не сохраняется.
+   Колонки таблицы закреплены за aRef/bRef и не переставляются местами при выборе
+   главной — иначе оператор терял бы из виду, какая запись какая. */
+let MERGE_CTX = null;   /* { aRef, bRef, main, picks } */
+
+function mergeWhatHtml(){
+  return '<div class="hint" style="margin-left:0">'
+    + '<b>Переносится</b> (своё присоединяемой записи): документы, связи, события, '
+    + 'банковские реквизиты, регистрации ИП, оргструктура. '
+    + '<b>Остаётся как есть</b> (чужое, ADR-0014): ссылки в кредитах, предметах залога, '
+    + 'поручительствах и делах взыскания не переписываются — они регистрировались в своих '
+    + 'модулях и там же остаются. Присоединённый ключ становится псевдонимом: из маршрутов '
+    + 'не исчезает, роли по нему по-прежнему считаются наравне с главным (инварианты 8, 9).'
+    + '</div>';
+}
+function mergeRowHtml(r){
+  const chosen = MERGE_CTX.picks[r.name];
+  const btn = (val, label) => '<button class="btn btn-secondary btn-sm" type="button" data-pick'
+    + ' data-field="' + esc(r.name) + '" data-choice="' + val + '"' + (chosen === val ? ' disabled' : '') + '>' + label + '</button>';
+  const pick = r.differs
+    ? btn('a', 'взять A') + ' ' + btn('b', 'взять B') + (chosen ? '<div class="muted">выбрано ' + (chosen === 'a' ? 'A' : 'B') + '</div>' : '')
+    : '<span class="muted">совпадает</span>';
+  return '<tr><td>' + esc(r.label) + '</td><td>' + esc(r.a || '—') + '</td><td>' + esc(r.b || '—') + '</td><td>' + pick + '</td></tr>';
+}
+function renderMergeScreen(){
+  const { aRef, bRef, main } = MERGE_CTX;
+  const a = subject(aRef), b = subject(bRef);
+  const diff = mergeDiff(aRef, bRef);
+  const rows = diff.map(mergeRowHtml).join('');
+  const radio = (ref, s) => '<label><input type="radio" name="mergeMain" value="' + esc(ref) + '"'
+    + (main === ref ? ' checked' : '') + '> ' + esc(displayName(s)) + ' <span class="muted">' + esc(ref) + '</span></label>';
+  return '<h2>Сравнение перед слиянием</h2>'
+    + '<div class="notice">Слияние — учётное действие: две записи об одном лице. Если лиц '
+    + 'действительно два и между ними правопреемство — это <b>реорганизация</b>, событие на '
+    + 'вкладке «События» (СБ-12), а не слияние: обе записи в реорганизации остаются живыми, '
+    + 'здесь же присоединяемая запись станет псевдонимом главной.</div>'
+    + '<div class="fform"><div class="frow wide"><label>Главная запись</label>'
+    + '<div class="radios">' + radio(aRef, a) + radio(bRef, b) + '</div></div></div>'
+    + '<table class="grid" id="mergeTable"><thead><tr><th>Поле</th>'
+    + '<th>Запись A · ' + esc(aRef) + '</th><th>Запись B · ' + esc(bRef) + '</th><th>Выбор</th></tr></thead>'
+    + '<tbody>' + (rows || '<tr><td colspan="4" class="muted">Расхождений в заполненных полях нет</td></tr>') + '</tbody></table>'
+    + mergeWhatHtml()
+    + '<div class="fform"><div class="frow wide">'
+    + '<label for="mergeConfirm">Подтвердите слияние — введите ключ главной записи «' + esc(main) + '»</label>'
+    + '<input type="text" id="mergeConfirm" placeholder="' + esc(main) + '"></div></div>'
+    + '<div class="hint" id="mergeErr" style="margin-left:0;color:var(--status-error)"></div>'
+    + '<div style="margin-top:10px">'
+    + '<button class="btn btn-primary" id="btnDoMerge" type="button">Слить</button> '
+    + '<a class="lnk" href="#/s/' + esc(main) + '">Отмена</a></div>';
+}
+function renderMerge(aRef, bRef){
+  MERGE_CTX = { aRef, bRef, main:aRef, picks:{} };
+  return renderMergeScreen();
+}
+function renderMergeInPlace(){ document.getElementById('mergeMount').innerHTML = renderMergeScreen(); }
+/* Кнопка «Слить» переводит выбор по расхождениям (по идентичности A/B, закреплённой
+   таблицей) в choices doMerge (по «главный/присоединяемый»): переопределять нужно только
+   поле, для которого выбрано значение НЕ главной записи. */
+function runMerge(){
+  const { aRef, bRef, main, picks } = MERGE_CTX;
+  const join = main === aRef ? bRef : aRef;
+  const choices = {};
+  Object.keys(picks).forEach(name => {
+    const wantsMain = (picks[name] === 'a' && main === aRef) || (picks[name] === 'b' && main === bRef);
+    if (!wantsMain) choices[name] = 'b';
+  });
+  choices.confirm = (document.getElementById('mergeConfirm').value || '').trim();
+  try { doMerge(main, join, choices); }
+  catch (e) { document.getElementById('mergeErr').textContent = e.message; return; }
+  location.hash = '#/s/' + main;
+}
+function wireMerge(){
+  const mount = document.getElementById('mergeMount');
+  mount.onclick = e => {
+    const pick = e.target.closest('[data-pick]');
+    if (pick) { MERGE_CTX.picks[pick.dataset.field] = pick.dataset.choice; renderMergeInPlace(); return; }
+    if (e.target.closest('#btnDoMerge')) { runMerge(); return; }
+  };
+  mount.onchange = e => {
+    const radio = e.target.closest('input[name="mergeMain"]');
+    if (radio) { MERGE_CTX.main = radio.value; renderMergeInPlace(); }
+  };
+}
 
 route();
 </script>

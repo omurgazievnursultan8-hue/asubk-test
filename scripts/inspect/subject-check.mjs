@@ -351,5 +351,48 @@ ok('7.7 денег карточка не показывает (раздел 8 с
   (() => { const t = g.$('#cardMount').textContent;
     return /АгроТехСервис/.test(t) && !/задолженност|остаток долга|сом\b/i.test(t); })());
 
+// ── Слияние (Task 9) ──
+const m = mk();   // свежий DOM: слияние необратимо и мутирует набор
+ok('8.1 экран сравнения открывается маршрутом и показывает расхождения поле-в-поле',
+  (() => { m.ev("location.hash='#/merge/07701199970071/S-DUP'"); m.ev("route()");
+    return m.$('#view-merge').classList.contains('active') &&
+           m.ev("mergeDiff('07701199970071','S-DUP').length") > 0 &&
+           m.$$('#mergeTable [data-pick]').length > 0; })());
+ok('8.2 слияние требует подтверждения вводом ключа главной записи (СП-19)',
+  m.ev("(()=>{try{doMerge('07701199970071','S-DUP',{confirm:'не тот ключ'});return false;}catch(e){return true;}})()"));
+ok('8.3 после слияния присоединённый ключ становится псевдонимом и ведёт на главную (инвариант 8)',
+  (() => { const before = m.ev("JSON.stringify([CREDITS,PLEDGE_OBJ,SURETIES,PROCS])");
+    m.ev("doMerge('07701199970071','S-DUP',{confirm:'07701199970071'})");
+    const after = m.ev("JSON.stringify([CREDITS,PLEDGE_OBJ,SURETIES,PROCS])");
+    return m.ev("subject('S-DUP').aliasOf")==='07701199970071' &&
+           m.ev("resolveKey('S-DUP')")==='07701199970071' &&
+           before === after; })());   /* инвариант 9: чужое не переписано */
+ok('8.4 маршрут по присоединённой записи не пропадает — открывается главная с оговоркой',
+  (() => { m.ev("location.hash='#/s/S-DUP'"); m.ev("route()");
+    return m.$('#view-card').classList.contains('active') && /присоединён/i.test(m.$('#cardMount').textContent); })());
+ok('8.5 своё перенесено: документы, связи, события, реквизиты — на главном ключе',
+  m.ev("DOCS.every(d=>d.key!=='S-DUP')") && m.ev("LINKS.every(l=>l.a!=='S-DUP'&&l.b!=='S-DUP')") &&
+  m.ev("SUBJECT_EVENTS.every(e=>e.key!=='S-DUP')"));
+ok('8.6 роли считаются по обоим ключам и не переносятся (они производные, СБ-6)',
+  m.ev("subjectRoles('S-DUP').map(r=>r.role).join(',')") === m.ev("subjectRoles('07701199970071').map(r=>r.role).join(',')"));
+ok('8.7 слияние необратимо — функции разделения нет',
+  m.ev("typeof unmerge")==='undefined' && m.ev("typeof splitSubject")==='undefined');
+ok('8.8 инвариант 10: слитая запись не удаляется никогда',
+  m.ev("canDelete('S-DUP')")===false &&
+  m.ev("(()=>{try{deleteSubject('S-DUP');return false;}catch(e){return true;}})()"));
+ok('8.9 инвариант 10: удаление возможно только при нуле ссылок',
+  m.ev("canDelete('01204199910016')")===false);
+ok('8.10 СБ-12: реорганизация — событие, а не слияние; обе записи остаются живыми',
+  (() => { const n0 = m.ev("SUBJECTS.filter(s=>!s.aliasOf).length");
+    m.ev("addEvent({key:'01204199910016',kind:'реорганизация',date:'01.06.2026',basis:'Решение собрания',doc:'РС-90',successorKey:'02201199920021'})");
+    return m.ev("SUBJECTS.filter(s=>!s.aliasOf).length") === n0 &&
+           !m.ev("subject('01204199910016').aliasOf"); })());
+ok('8.11 экран слияния называет отличие от реорганизации словами (СБ-12)',
+  (() => { m.ev("location.hash='#/merge/01204199910016/02201199920021'"); m.ev("route()");
+    return /реорганизац/i.test(m.$('#mergeMount').textContent); })());
+ok('8.12 разрез «похожие записи» в реестре даёт ссылку на сравнение',
+  (() => { m.ev("location.hash=''"); m.ev("FILTER.similar=true"); m.ev("applyFilters()");
+    return m.$$('#listTable a[href^="#/merge/"]').length > 0; })());
+
 console.log(`\n${n - fails} / ${n} PASS`);
 process.exit(fails ? 1 : 0);
