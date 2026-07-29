@@ -7366,8 +7366,16 @@ function fillDistricts(){
     .filter(d => !reg || REGION_OF[d] === reg).sort();
   setOptions('f-district', ds.map(d => ({ v:d, l:d })));
 }
+/* Прочерк — способ написать «значения нет», а не значение. Списки выбора строятся из
+   того, что уже стоит в наборе, и `filter(Boolean)` пропускал прочерк как обычную строку:
+   до M-5 ни у одной записи industry не был прочерком, и дефект спал. После M-5 (зеркало
+   перестало сочинять отрасль там, где у владельца её нет) «—» встал последним пунктом
+   выпадающего списка «Отрасль» — и в фильтре реестра, и в форме создания, где отрасль
+   обязательна. Выбрать «отрасли нет» в обязательном поле нельзя предлагать, а фильтровать
+   по прочерку незачем: он не отрасль. */
+function realValue(v){ return !!v && v !== '—'; }
 function fillFilterDicts(){
-  setOptions('f-sector', [...new Set(SUBJECTS.map(s => s.industry).filter(Boolean))].sort()
+  setOptions('f-sector', [...new Set(SUBJECTS.map(s => s.industry).filter(realValue))].sort()
     .map(x => ({ v:x, l:x })));
   setOptions('f-region', [...new Set(SUBJECTS.map(s => REGION_OF[s.district]).filter(Boolean))].sort()
     .map(x => ({ v:x, l:x })));
@@ -7581,8 +7589,8 @@ function foundHtml(s){
    болезнь, что молчащая кнопка (Б-9): работа сделана, следа нет. Спрашиваем только то,
    что показываем. Реквизиты лица заводит владелец — mockups/subject/subject.html. */
 function createFieldsHtml(){
-  const sectors = [...new Set(SUBJECTS.map(s => s.industry).filter(Boolean))].sort();
-  const districts = [...new Set(SUBJECTS.map(s => s.district).filter(Boolean))].sort();
+  const sectors = [...new Set(SUBJECTS.map(s => s.industry).filter(realValue))].sort();
+  const districts = [...new Set(SUBJECTS.map(s => s.district).filter(realValue))].sort();
   const sel = (id, label, items, req) =>
     '<div class="frow"><label for="' + id + '">' + esc(label)
       + (req ? ' <span class="req">*</span>' : '') + '</label><select id="' + id + '">'

@@ -759,6 +759,27 @@ ok('СП-18/I4. каждое сохранённое поле новой запи
     el2.value = '99999999999999'; el2.dispatchEvent(new f.w.Event('input'));
     const fb = f.$('.found-box').textContent;
     return fb.includes(district) && fb.includes('Физ. лицо'); })());
+/* Прочерк в списках выбора (повторное ревью 29.07.2026, после M-5). Оба списка «Отрасль» —
+   фильтр реестра и форма создания — собираются из значений набора, и «—» проходил как
+   обычная строка. Пока прочерка не было ни у одной записи, дефект спал; M-5 привёл зеркало
+   к владельцу, у которого отрасли нет, и «—» встал пунктом обязательного поля. Проверяем
+   ОБА списка и обе стороны: прочерка нет И настоящие отрасли на месте — иначе фильтр,
+   вычистивший список целиком, прошёл бы зелёным. Район включён тем же утверждением: он
+   строится тем же способом и разъедется так же, как только у кого-то встанет прочерк. */
+ok('СП-18. списки «Отрасль» и «Район» не предлагают прочерк, но настоящие значения держат',
+  (() => { const f = mk();
+    const opts = id => [...f.doc.getElementById(id).options].map(o => o.value);
+    const filterSectors = opts('f-sector'), filterDistricts = opts('f-district');
+    f.ev("openCreate();");   /* поля создания появляются только на неизвестном ИНН */
+    const el = f.doc.getElementById('cInn');
+    el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
+    const formSectors = opts('cSector'), formDistricts = opts('cDistrict');
+    const lists = [filterSectors, filterDistricts, formSectors, formDistricts];
+    if (lists.some(l => l.includes('—'))) return false;
+    if (!lists.every(l => l.filter(Boolean).length >= 3)) return false;
+    /* прочерк в наборе действительно есть — иначе утверждение выше держалось бы пустотой */
+    return f.ev("SUBJECTS.some(s => s.industry === '—')") === true
+      && formSectors.includes(f.ev("SUBJECTS.find(s => s.industry !== '—').industry")); })());
 ok('СП-18. созданная запись попадает в реестр и находится фильтрами (иначе её нет)',
   (() => { const f = mk(); f.ev("pgSize = 1000;");
     const before = f.ev("SUBJECTS.length");
