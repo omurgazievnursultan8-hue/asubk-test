@@ -1,0 +1,1873 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Субъекты — реестр лиц — АСУБК</title>
+<!-- ASUBK · Субъекты — реестр лиц, к которым модули привязывают роли
+     Спека: docs/superpowers/specs/2026-07-29-subject-mockup-design.md
+            mockups/subject/ASUBK-subekt-logika.md — почему модель такая (СП-21)
+     Решения: СБ-1…СБ-14 — mockups/subject/ASUBK-status-razrabotki.md
+     ADR: 0001 производное не хранится · 0014 чужое зеркалим, не пишем ·
+          0018 тип лица — правоспособность на дату · 0019 ключ субъекта и псевдоним
+     Проверка: node scripts/inspect/subject-check.mjs
+     Инварианты 1–10 — раздел 6 спеки, каждый закрыт тестом смоука. -->
+<style>
+  /* Токены и шелл — 1:1 копия mockups/borrower/borrower.html (снято со стенда, проверено).
+     Ничего не переименовано; набор сужен до того, что использует шелл этого файла —
+     полный список см. в отчёте Task 1 (task-1-report.md). */
+  :root{
+    --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+    --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+    --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+    --asubk-ink:#192434;
+    --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+    --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+    --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+    --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+    --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+    --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+    --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+    --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+    --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+    --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+    --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+    --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+    --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+    --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+    --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+    --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+    --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+    --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+    --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+    --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+    --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+    --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+    --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+    --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+    --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+    --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+    --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+    --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+    --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+    --control-h:36px; --header-h:56px; --sidebar-w:300px;
+    --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:var(--asubk-font);color:var(--text-body);background:#fff;font-size:16px;line-height:1.4;}
+  .app{display:flex;min-height:100vh;}
+
+  /* sidebar — 1:1 со стендом (jmix-list-menu), копия borrower.html */
+  .sidebar{width:279px;flex:0 0 279px;min-width:220px;background:#fff;border-right:1px solid var(--border-default);
+    display:flex;flex-direction:column;max-height:100vh;}
+  .sidebar .brand{font-size:16px;font-weight:600;line-height:20px;color:#192434;padding:0 16px;margin:16px 0 12px;
+    display:flex;align-items:center;}
+  .nav{flex:1;overflow-y:auto;padding:0 8px;color:var(--text-muted);}
+  .nav-block{padding:8px 0;}
+  .nav-group{display:flex;align-items:center;gap:8px;height:36px;padding:8px;border-radius:var(--radius-md);
+    font-size:14px;font-weight:700;line-height:1.25;color:var(--text-muted);cursor:pointer;user-select:none;}
+  .nav-group:hover{background:var(--surface-hover);}
+  .nav-group .caret{flex:0 0 auto;width:16px;height:16px;color:var(--text-muted);transition:transform .12s;}
+  .nav-group.collapsed .caret{transform:rotate(-90deg);}
+  .nav-list{margin-inline-start:24px;}
+  .nav-list.hidden{display:none;}
+  .nav-item{display:flex;align-items:center;gap:8px;padding:8px;border-radius:var(--radius-md);
+    font-size:14px;font-weight:500;line-height:1.375;color:var(--text-muted);cursor:pointer;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .nav-item:hover{background:var(--surface-hover);}
+  .nav-item.active{color:var(--text-link);background:var(--status-info-bg);}
+  .sidebar .footer{border-top:1px solid var(--border-default);padding:12px 16px;display:flex;align-items:center;
+    justify-content:space-between;font-size:14px;color:var(--text-muted);}
+  .logout{width:36px;height:36px;border:1px solid transparent;border-radius:var(--radius-md);background:var(--status-info-bg);
+    display:flex;align-items:center;justify-content:center;color:var(--text-link);cursor:pointer;}
+  .logout:hover{background:rgba(51,139,255,.22);}
+
+  /* main */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .topbar{display:flex;align-items:center;gap:16px;padding:12px 26px;border-bottom:1px solid var(--border-default);}
+  .burger{font-size:22px;color:var(--text-muted);cursor:pointer;line-height:1;}
+  .topbar .title{font-weight:700;font-size:16px;}
+  .topbar .title a{color:inherit;text-decoration:none;cursor:pointer;}
+  .topbar .title a:hover{color:var(--text-link);text-decoration:underline;}
+  .back-arrow{display:none;align-items:center;justify-content:center;width:32px;height:32px;margin:-4px 0;
+    border-radius:var(--radius-md);color:var(--text-link);}
+  .back-arrow svg{width:24px;height:24px;}
+  .back-arrow:hover{background:var(--surface-hover);}
+  .topbar.on-detail .back-arrow{display:inline-flex;}
+  .content{padding:10px 26px 40px;flex:1;}
+
+  .btn{font-family:var(--asubk-font);font-size:15px;font-weight:600;border-radius:var(--radius-md);padding:8px 16px;
+    border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;}
+  .btn-secondary{background:var(--surface-hover);color:var(--text-muted);border-color:var(--border-strong);}
+  .btn-primary{background:var(--action-primary);color:#fff;}
+  .btn-success{background:var(--action-success);color:#fff;border-color:var(--action-success);}
+  .btn-sm{font-size:13px;padding:6px 11px;}
+
+  /* ---------- панель / секции ---------- */
+  .section{border:1px solid var(--border-default);border-radius:6px;margin-bottom:20px;overflow:hidden;}
+  .section-head{padding:12px 16px;font-weight:700;font-size:15px;border-bottom:1px solid var(--border-default);
+    display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fbfcfd;}
+  .section-body{padding:0;}
+
+  table.grid{width:100%;border-collapse:collapse;font-size:14px;}
+  table.grid thead th{position:sticky;top:0;z-index:1;text-align:left;font-weight:600;font-size:14px;line-height:1.3;
+    color:#192434;padding:11px 12px;border-bottom:1px solid var(--border-strong);background:var(--surface-panel);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  table.grid tbody td{padding:10px 12px;border-bottom:1px solid var(--border-default);vertical-align:middle;
+    color:var(--text-body);}
+  table.grid tbody tr:last-child td{border-bottom:0;}
+  table.grid tbody tr:nth-child(even) td{background:var(--surface-panel);}
+  td.mono{font-variant-numeric:tabular-nums;}
+  .grid-wrap{border:1px solid var(--border-strong);border-radius:6px;overflow:auto;max-height:60vh;background:#fff;}
+
+  /* ---------- модальное окно (одна на все операции — создание, подтверждение) ---------- */
+  .modal-back{position:fixed;inset:0;background:rgba(20,32,48,.45);display:flex;align-items:flex-start;
+    justify-content:center;padding:48px 16px;overflow:auto;z-index:50;}
+  .modal-back[hidden]{display:none;}
+  .modal{background:#fff;border-radius:10px;box-shadow:0 12px 40px rgba(20,32,48,.28);width:100%;max-width:620px;}
+  .modal-head{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border-default);}
+  .modal-head h3{margin:0;font-size:17px;font-weight:600;color:var(--text-body);flex:1;}
+  .modal-x{width:28px;height:28px;border:none;border-radius:var(--radius-md);background:var(--surface-hover);
+    color:var(--text-muted);cursor:pointer;font-size:17px;line-height:1;}
+  .modal-body{padding:18px 20px;}
+  .modal-foot{display:flex;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid var(--border-default);}
+  .modal-foot .sp{flex:1;}
+  .btn[disabled]{opacity:.45;cursor:not-allowed;}
+
+  .who{font-weight:600;} .muted{color:var(--text-muted);font-size:13px;}
+  a.lnk{color:var(--text-link);text-decoration:none;} a.lnk:hover{text-decoration:underline;}
+  .badge{font-size:12px;border-radius:3px;padding:1px 7px;font-weight:600;display:inline-block;white-space:nowrap;}
+
+  /* ---------- вид: список / карточка / слияние ---------- */
+  .view{display:none;} .view.active{display:block;}
+
+  /* ---------- реестр: тулбар / панель фильтров / чипы ролей (Task 3) ----------
+     .chip нет нигде в шелле (сверено grep по borrower.html — его там нет вовсе, Task 1
+     это подтвердил и не стал изобретать). Форма — пилюль под тон панели «инфо», уже
+     заведённый в токенах (--status-info-bg/--asubk-blue), без единого нового цвета;
+     тот же приём, что в mockups/loan-application-commission/commission.html (.chip),
+     только без хардкода #0a3d80 — берём готовый --asubk-blue.
+     .hint — по прецеденту mockups/loan-program/loan-program.html (.hint), адаптирован
+     под инлайн-использование рядом с текстом заголовка колонки (margin-left вместо
+     margin-top, т.к. там подпись стоит под полем, а здесь — в одну строку с текстом).
+     .pager — по прецеденту mockups/collection/collection.html (.pager): сама разметка
+     реестра уже вешает классы .btn .btn-secondary .btn-sm на кнопки пейджера, поэтому
+     .pager отвечает только за раскладку и приглушённый счётчик. */
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .toolbar .q-input{flex:1;max-width:360px;height:var(--control-h);padding:0 12px;
+    border:1px solid var(--border-default);border-radius:var(--radius-md);
+    font:var(--font-body);color:var(--text-body);background:var(--surface-card);}
+  .toolbar .q-input:focus{outline:none;border-color:var(--border-focus);box-shadow:var(--shadow-focus);}
+  .toolbar .sp{flex:1;}
+  .filters{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;padding:12px 14px;
+    margin-bottom:12px;border:1px solid var(--border-default);border-radius:var(--radius-md);
+    background:var(--surface-panel);}
+  .filters .field{display:flex;flex-direction:column;gap:4px;min-width:160px;}
+  .filters .field label{font:var(--font-label);color:var(--text-muted);}
+  .filters select{height:var(--control-h);padding:0 8px;border:1px solid var(--border-default);
+    border-radius:var(--radius-md);background:var(--surface-card);color:var(--text-body);font:var(--font-body);}
+  .filters .chk{display:flex;align-items:center;gap:6px;height:var(--control-h);
+    font:var(--font-label);color:var(--text-body);cursor:pointer;}
+  .chip{display:inline-flex;align-items:center;height:22px;padding:0 9px;margin:0 4px 4px 0;
+    border-radius:var(--radius-pill);background:var(--status-info-bg);color:var(--asubk-blue);
+    font:var(--weight-medium) var(--text-xs)/1 var(--asubk-font);}
+  .hint{font:var(--weight-regular) 12px/1.3 var(--asubk-font);color:var(--text-muted);margin-left:6px;}
+  .pager{display:flex;align-items:center;gap:10px;margin-top:12px;color:var(--text-muted);font:var(--font-label);}
+  .pager button:disabled{opacity:.4;cursor:not-allowed;}
+  .empty{padding:24px 16px;margin-top:12px;text-align:center;color:var(--text-muted);
+    border:1px dashed var(--border-strong);border-radius:var(--radius-md);}
+  .empty .btn{margin-left:8px;}
+
+  /* ---------- форма создания субъекта (Task 4) ----------
+     .fform/.frow — по прецеденту mockups/borrower/borrower.html (та же сетка формы:
+     авто-подгоняемые колонки, метка сверху над полем). Своих цветов нет — токены те же,
+     что у остального шелла; ничего не хардкожено. */
+  .fform{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 18px;}
+  .fform .wide{grid-column:1/-1;}
+  .frow{display:flex;flex-direction:column;gap:4px;min-width:0;}
+  .frow label{font:var(--font-label);color:var(--text-muted);}
+  .frow input[type=text]{height:var(--control-h);padding:0 10px;border:1px solid var(--border-default);
+    border-radius:var(--radius-md);font:var(--font-body);color:var(--text-body);background:var(--surface-card);}
+  .frow .radios{display:flex;align-items:center;gap:18px;height:var(--control-h);font:var(--font-body);}
+
+  /* ---------- карточка субъекта: шапка / вкладки / импортный слой (Task 5) ----------
+     .tabbar/.tab/.tabpanel — тот же приём, что .view/.view.active (все панели в разметке,
+     видна только активная). Импорт-бар / стоп-строка / уведомление о псевдониме — тона
+     status-info-bg/status-error-bg/status-warning-bg, уже заведённые в токенах —
+     ни одного нового цвета не добавлено. */
+  .card-head{margin-bottom:4px;}
+  .card-head h2{margin:0 0 6px;font-size:20px;font-weight:700;color:var(--text-heading);}
+  .card-head .meta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;color:var(--text-muted);font-size:14px;}
+  .stopline{display:block;margin-top:8px;padding:6px 12px;border-radius:var(--radius-md);
+    background:var(--status-error-bg);color:var(--status-error);font-weight:600;font-size:13px;}
+  .importbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;margin:10px 0 4px;
+    border-radius:var(--radius-md);background:var(--status-info-bg);color:var(--text-body);font-size:13px;}
+  .notice{padding:10px 14px;margin-bottom:14px;border-radius:var(--radius-md);
+    background:var(--status-warning-bg);color:var(--asubk-ink-90);font-size:14px;}
+  .tabbar{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border-default);margin:14px 0 2px;}
+  .tab{padding:9px 14px;font:var(--font-label);font-weight:600;color:var(--text-muted);cursor:pointer;
+    border-bottom:2px solid transparent;}
+  .tab:hover{color:var(--text-body);}
+  .tab.active{color:var(--asubk-blue);border-bottom-color:var(--asubk-blue);}
+  .tabpanel{display:none;padding:14px 2px;}
+  .tabpanel.active{display:block;}
+  .fld{display:flex;gap:14px;padding:9px 2px;border-bottom:1px solid var(--asubk-grid-line);align-items:flex-start;}
+  .fld-l{flex:0 0 220px;color:var(--text-muted);font:var(--font-label);}
+  .fld-v{flex:1;min-width:0;}
+  .warn{margin-top:6px;padding:8px 10px;border-radius:var(--radius-md);background:var(--status-warning-bg);
+    color:var(--asubk-ink-90);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar">
+    <div class="brand">АСУБК</div>
+    <nav class="nav">
+
+      <div class="nav-block">
+        <div class="nav-group collapsed" data-group="app">
+          <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          Приложение
+        </div>
+        <div class="nav-list hidden" data-list="app">
+          <div class="nav-item">Подразделения</div>
+          <div class="nav-item">Сотрудники подразделения</div>
+          <div class="nav-item">Освоение</div>
+          <div class="nav-item">Резерв</div>
+          <div class="nav-item">Платеж</div>
+          <div class="nav-item">Список Траншей</div>
+          <div class="nav-item">Решение суда</div>
+        </div>
+      </div>
+
+      <div class="nav-block">
+        <div class="nav-group" data-group="loan">
+          <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          Система кредитования
+        </div>
+        <div class="nav-list" data-list="loan">
+          <div class="nav-item">Решение правительства</div>
+          <div class="nav-item">Кредитные программы</div>
+          <div class="nav-item">Заявки</div>
+          <div class="nav-item">Комиссии по заявкам</div>
+          <!-- Субъекты — реестр лиц, к которым модули привязывают роли (заёмщик — одна из них) -->
+          <div class="nav-item active" onclick="location.hash='#/subjects'">Субъекты</div>
+          <div class="nav-item">Заемщики</div>
+          <div class="nav-item">Кредиты</div>
+
+          <div class="nav-block">
+            <div class="nav-group collapsed" data-group="col">
+              <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              Залог
+            </div>
+            <div class="nav-list hidden" data-list="col">
+              <div class="nav-item">Мониторинг залога</div>
+              <div class="nav-item">Список залоговых договоров</div>
+              <div class="nav-item">Список предметов залога</div>
+            </div>
+          </div>
+
+          <div class="nav-block">
+            <div class="nav-group collapsed" data-group="ref">
+              <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              Справочники
+            </div>
+            <div class="nav-list hidden" data-list="ref">
+              <div class="nav-item">Комиссии</div>
+              <div class="nav-item">Сотрудники</div>
+              <div class="nav-item">Должности</div>
+              <div class="nav-item">Отделы</div>
+              <div class="nav-item">Кредиторы</div>
+              <div class="nav-item">Процентные ставки</div>
+              <div class="nav-item">Группа заёмщика</div>
+              <div class="nav-item">Подгруппа заёмщика</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </nav>
+    <div class="footer">
+      <span>[admin]</span>
+      <div class="logout" title="Выход">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div class="main">
+    <div class="topbar" id="topbar">
+      <span class="burger">☰</span>
+      <a href="#" class="back-arrow" id="backLink" title="К реестру субъектов" aria-label="К реестру субъектов">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      </a>
+      <span class="title" id="pageTitle">Реестр субъектов</span>
+    </div>
+
+    <!-- ==================== ВИД: РЕЕСТР ==================== -->
+    <div class="view active" id="view-list"><div class="content"><div id="listMount"></div></div></div>
+    <!-- ==================== ВИД: КАРТОЧКА СУБЪЕКТА ==================== -->
+    <div class="view" id="view-card"><div class="content"><div id="cardMount"></div></div></div>
+    <!-- ==================== ВИД: СЛИЯНИЕ (СБ-11) ==================== -->
+    <div class="view" id="view-merge"><div class="content"><div id="mergeMount"></div></div></div>
+    <!-- ==================== ВИД: КЛЮЧ НЕ НАЙДЕН (I2) ==================== -->
+    <div class="view" id="view-missing"><div class="content"><div id="missingMount"></div></div></div>
+  </div>
+</div>
+
+<!-- Одно модальное окно на все операции (создание, подтверждение слияния и т.п.) —
+     разметка копируется из borrower.html: заголовок + тело + подвал с кнопками. -->
+<div class="modal-back" id="mBack" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="modal-head">
+      <h3 id="mTitle"></h3>
+      <button class="modal-x" id="mClose" title="Закрыть">✕</button>
+    </div>
+    <div class="modal-body" id="mBody"></div>
+    <div class="modal-foot" id="mFoot"></div>
+  </div>
+</div>
+
+<script>
+const TODAY = '13.07.2026';        /* «сегодня» демо; совпадает с borrower.html — зеркала оттуда */
+let VIEW_DATE = TODAY;             /* дата среза карточки (СБ-3, инвариант 4) */
+
+const dnum   = d => { const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(d || ''); return m ? +(m[3] + m[2] + m[1]) : 0; };
+const toISO  = d => { const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(d || ''); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
+const fromISO= s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? m[3] + '.' + m[2] + '.' + m[1] : ''; };
+const esc    = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const scrollTop = () => { document.documentElement.scrollTop = document.body.scrollTop = 0; };
+
+/* ── ФАКТЫ — владеет модуль субъектов ──
+   key — ключ субъекта (ADR-0019): ИНН/ПИН у лица, ГР-NNN у группы, '' у записи,
+         которой ключ не пришёл (наполовину прошедший импорт, legacy person-XXXXX).
+   source — источник хранения (СБ-1): individuals | organizations | groups.
+   Хранимого типа лица НЕТ (инвариант 4) — тип считает personKindAt на дату (ADR-0018).
+   imported — импортный слой (СБ-5): снимок с датой и источником, у каждого поля одно из
+   трёх состояний: 'реестр' (пришло, read-only) · 'наше' (не пришло, введено нами, подписано)
+   · 'пусто' (не пришло и не введено). pending — пришедшее позже значение реестра, которое
+   расходится с нашим: молча не затирает, показывает расхождение с выбором. */
+const SUBJECTS = [
+  { id:'S-001', key:'01204199910016', source:'organizations', name:'ОАО «АгроТехСервис»',
+    district:'Ленинский (г. Бишкек)', region:'г. Бишкек', industry:'Агропромышленный комплекс',
+    note:'реструктуризация 2025 г. — график пересмотрен',
+    imported:{ asOf:'12.05.2026', src:'ГРС · Тундук', f:{
+      nameFull:{st:'реестр', v:'Открытое акционерное общество «АгроТехСервис»'},
+      nameShort:{st:'реестр', v:'ОАО «АгроТехСервис»'},
+      regNo:{st:'реестр', v:'0012041'}, regDate:{st:'реестр', v:'14.02.2011'},
+      okpo:{st:'пусто'},
+      soate:{st:'реестр', v:'41703 000 000 000'},
+      addr:{st:'реестр', v:'г. Бишкек, ул. Ибраимова 24'},
+      director:{st:'наше', v:'Асанов Т.К.', by:'Асанова Ж.К.', at:'19.06.2026', doc:'Устав от 14.02.2011',
+                pending:{v:'Асанов Талант Кубанычбекович', at:'12.05.2026'}},
+      activity:{st:'пусто'} } } },
+  { id:'S-002', key:'02201199920021', source:'organizations', name:'ОсОО «Иссык-Куль Агро»',
+    district:'Ак-Суйский', region:'Иссык-Кульская', industry:'Пищевая и перерабатывающая', note:'—',
+    imported:{ asOf:'12.05.2026', src:'ГРС · Тундук', f:{
+      nameFull:{st:'реестр', v:'Общество с ограниченной ответственностью «Иссык-Куль Агро»'},
+      nameShort:{st:'реестр', v:'ОсОО «Иссык-Куль Агро»'},
+      regNo:{st:'реестр', v:'0022011'}, regDate:{st:'реестр', v:'03.05.2015'},
+      okpo:{st:'реестр', v:'27458119'}, soate:{st:'пусто'},
+      addr:{st:'реестр', v:'г. Каракол, ул. Токтогула 5'},
+      director:{st:'пусто'}, activity:{st:'реестр', v:'Переработка сельхозпродукции'} } } },
+  { id:'S-003', key:'04401199940041', source:'individuals', name:'Асанов Тимур Кубанычевич',
+    district:'Кара-Сууйский', region:'Ошская', industry:'Частное предпринимательство',
+    note:'снялся с регистрации ИП 31.12.2025',
+    imported:{ asOf:'14.05.2026', src:'ГРС · Тундук', f:{
+      fio:{st:'реестр', v:'Асанов Тимур Кубанычевич'},
+      docKind:{st:'реестр', v:'Паспорт'}, docNo:{st:'реестр', v:'ID0440119'},
+      nationality:{st:'реестр', v:'Кыргыз'},
+      soate:{st:'реестр', v:'41716 000 000 000'},
+      addr:{st:'реестр', v:'г. Ош, ул. Курманжан-Датка 8'} } } },
+  { id:'S-004', key:'07701199970071', source:'individuals', name:'Мамбетов Кубаныч',
+    district:'Сузакский', region:'Джалал-Абадская', industry:'—', note:'залогодатель по чужому кредиту',
+    imported:{ asOf:'14.05.2026', src:'ГРС · Тундук', f:{
+      fio:{st:'реестр', v:'Мамбетов Кубаныч'},
+      docKind:{st:'реестр', v:'Паспорт'}, docNo:{st:'реестр', v:'ID0770117'},
+      nationality:{st:'пусто'}, soate:{st:'пусто'},
+      addr:{st:'наше', v:'г. Джалал-Абад, ул. Токтогула 90', by:'Токтосунов Э.Б.', at:'11.03.2026',
+            doc:'Заявление от 11.03.2026'} } } },
+  /* Групповой заёмщик (СБ-4): лицо без ИНН, ключ выдан системой, импортного слоя нет вовсе (СБ-5а). */
+  { id:'S-005', key:'ГР-001', source:'groups', name:'Группа «Ак-Талаа» (совместное кредитование)',
+    district:'Ак-Талинский', region:'Нарынская', industry:'Агропромышленный комплекс',
+    note:'групповой кредит; транши несут члены группы' },
+  { id:'S-006', key:'13301199900131', source:'individuals', name:'Осмонова Айнура Сапарбековна',
+    district:'Ак-Талинский', region:'Нарынская', industry:'Агропромышленный комплекс',
+    note:'член группы «Ак-Талаа»',
+    imported:{ asOf:'14.05.2026', src:'ГРС · Тундук', f:{
+      fio:{st:'реестр', v:'Осмонова Айнура Сапарбековна'},
+      docKind:{st:'реестр', v:'Паспорт'}, docNo:{st:'реестр', v:'ID1330119'},
+      nationality:{st:'реестр', v:'Кыргыз'}, soate:{st:'пусто'},
+      addr:{st:'реестр', v:'с. Баетово, ул. Манаса 12'} } } },
+  /* Пара-дубль (СБ-10): ключа нет ни у одной — одна пришла из legacy без реквизитов,
+     вторая — наполовину прошедший импорт (дефект стенда P4-09). */
+  { id:'S-DUP', key:'', source:'individuals', name:'Мамбетов Кубаныч',
+    district:'Сузакский', region:'Джалал-Абадская', industry:'—', note:'перенос legacy person-63545',
+    imported:{ asOf:'—', src:'legacy', f:{
+      fio:{st:'наше', v:'Мамбетов Кубаныч', by:'миграция', at:'02.02.2026', doc:'Выгрузка legacy'},
+      docKind:{st:'наше', v:'Паспорт', by:'миграция', at:'02.02.2026', doc:'Выгрузка legacy'},
+      docNo:{st:'наше', v:'ID0770117', by:'миграция', at:'02.02.2026', doc:'Выгрузка legacy'},
+      /* M-4 (финальное ревью 29.07.2026): единственное поле, заполненное У ПРИСОЕДИНЯЕМОЙ
+         и пустое у главной. До него весь экран сравнения этой пары держался на одной строке
+         «Адрес», где заполнена была ровно наоборот главная, — то есть «взять B» нигде нельзя
+         было нажать со смыслом, и тест 8.16 сверял перенос пустоты с пустотой. */
+      nationality:{st:'наше', v:'Кыргыз', by:'миграция', at:'02.02.2026', doc:'Выгрузка legacy'},
+      soate:{st:'пусто'}, addr:{st:'пусто'} } } },
+  { id:'S-DUP2', key:'', source:'individuals', name:'',
+    district:'Сузакский', region:'Джалал-Абадская', industry:'—', note:'импорт прошёл наполовину',
+    imported:{ asOf:'—', src:'ГРС · Тундук', f:{
+      fio:{st:'пусто'}, docKind:{st:'реестр', v:'Паспорт'}, docNo:{st:'реестр', v:'ID0770117'},
+      nationality:{st:'пусто'}, soate:{st:'пусто'}, addr:{st:'пусто'} } } },
+];
+
+/* IP_REG — регистрации ИП (СБ-3а, ADR-0018): период с датой начала и датой прекращения.
+   Записей у одного лица может быть несколько: снялся, зарегистрировался снова. */
+const IP_REG = [
+  { key:'04401199940041', no:'ИП-0044011', from:'22.01.2019', to:'31.12.2025', doc:'Патент 0044011' },
+  /* Своя регистрация ИП S-DUP (Task 9): половинчатая миграция принесла и её — без этой
+     строки IP_REG в OWN_ARRAYS был бы мёртвым звеном (тест 8.5). Период закрыт датой
+     смерти (20.01.2025) намеренно: открытая регистрация меняла бы тип лица задним числом
+     после переноса на главный ключ. */
+  { key:'S-DUP', no:'ИП-0770117', from:'10.02.2021', to:'20.01.2025', doc:'Патент 0770117' },
+];
+
+/* SUBJECT_EVENTS — лента событий субъекта (СБ-9), append-only. Событие ничего не меняет
+   в кредите, обеспечении и взыскании; единственное, что оно порождает, — выводимый
+   стоп-фактор (СБ-13). Исключение по форме — «утрата статуса ИП»: она проставляет дату
+   прекращения регистрации, а не переписывает тип (ADR-0018). */
+const SUBJECT_EVENTS = [
+  { key:'04401199940041', kind:'утрата статуса ИП', date:'31.12.2025',
+    basis:'Заявление о прекращении деятельности', doc:'ЗП-118' },
+  { key:'02201199920021', kind:'реорганизация', date:'12.03.2026',
+    basis:'Решение общего собрания', doc:'РС-14', successorKey:'01204199910016' },
+  /* То же лицо в макете заёмщика (borrower.html) умерло 20.01.2025 — наборы двух макетов
+     говорят об одних лицах, поэтому событие живёт и здесь. Стоп-фактор из него выводится. */
+  { key:'07701199970071', kind:'смерть', date:'20.01.2025',
+    basis:'Свидетельство о смерти', doc:'СС-4471' },
+  /* Своё событие S-DUP (Task 9): половинчатая миграция принесла и это — тот же факт,
+     что уже стоит на 07701199970071, но своим документом. Слияние не дедуплицирует
+     содержимое, оно переносит запись целиком на главный ключ (СБ-11). */
+  { key:'S-DUP', kind:'смерть', date:'20.01.2025',
+    basis:'Свидетельство о смерти (выгрузка legacy)', doc:'СС-4471-L' },
+];
+
+/* ── СОБЫТИЯ СУБЪЕКТА (СБ-9) ──
+   Событие — ЗАПИСЬ, а не статус: оно не гасит кредит и не прекращает поручительство —
+   эти последствия принадлежат своим модулям (инвариант 7, ADR-0014). Единственное,
+   что оно порождает здесь, — выводимый стоп-фактор (СБ-13). Лента append-only. */
+const EVENT_KINDS = [
+  { k:'реорганизация',      successor:true  },
+  { k:'ликвидация',         successor:false },
+  { k:'смерть',             successor:false },
+  { k:'перевод долга',      successor:true  },
+  { k:'утрата статуса ИП',  successor:false },
+  { k:'роспуск группы',     successor:false },
+];
+function addEvent({ key, kind, date, basis, doc, successorKey }){
+  const d = EVENT_KINDS.find(x => x.k === kind);
+  if (!d) throw new Error('Неизвестное событие: ' + kind);
+  if (!date || !basis || !doc) throw new Error('У события обязательны дата, основание и документ (СБ-9)');
+  if (d.successor && !subject(successorKey)) throw new Error('Событие «' + kind + '» требует правопреемника');
+  /* M-3 (финальное ревью 29.07.2026): ключ кладём РАЗРЕШЁННЫЙ, как это делают все соседние
+     мутаторы (addDoc, addBankReq, addIpReg). Сырой ключ означал бы, что событие, заведённое
+     по присоединённому ключу, ложится на псевдоним: читается оно и оттуда (subjectEvents
+     alias-aware), но лежит под ключом, за которым лица как записи уже нет, — и любой
+     расчёт, псевдонимов не знающий, его теряет. Из интерфейса это было безопасно только
+     потому, что openAddEvent разрешает ключ сам; обязанность инварианта 8 — не у вызывающего. */
+  SUBJECT_EVENTS.push({ key:resolveKey(key), kind, date, basis, doc, successorKey: d.successor ? successorKey : undefined });
+  /* Единственное исключение по форме (ADR-0018): утрата статуса ИП проставляет дату
+     прекращения действующей регистрации. Тип лица при этом не переписывается — его
+     по-прежнему считает personKindAt. */
+  if (kind === 'утрата статуса ИП'){
+    const reg = ipRegAt(key, date);
+    if (reg) reg.to = date;
+  }
+}
+/* Регистрация ИП (СБ-3а): у лица их может быть несколько — снялся, зарегистрировался снова.
+   Пересекаться периоды не могут: два одновременных ИП у одного ПИНа не бывает. */
+function addIpReg({ key, no, from, doc }){
+  const s = subject(resolveKey(key));
+  if (!s || s.source !== 'individuals') throw new Error('Регистрация ИП бывает только у физического лица');
+  if (!no || !from || !doc) throw new Error('Обязательны рег. номер, дата начала и документ');
+  if (ipRegAt(key, from)) throw new Error('На эту дату уже действует регистрация ИП');
+  IP_REG.push({ key:resolveKey(key), no, from, to:null, doc });
+}
+
+/* LINKS — связи лиц (СБ-7): одна запись, видимая с обоих концов, с периодом и основанием.
+   kind: 'учредитель' | 'руководитель' | 'супруг' | 'член группы' | 'аффилированность'.
+   a — лицо, b — вторая сторона (организация/группа/второй супруг). */
+const LINKS = [
+  { id:'L-1', kind:'учредитель', a:'04401199940041', b:'01204199910016', share:60,
+    from:'14.02.2011', to:null, doc:'Устав от 14.02.2011' },
+  { id:'L-2', kind:'руководитель', a:'04401199940041', b:'01204199910016',
+    from:'14.02.2011', to:null, doc:'Приказ №1 от 14.02.2011' },
+  { id:'L-3', kind:'супруг', a:'07701199970071', b:'04401199940041',
+    from:'03.09.2009', to:null, doc:'Свид. о браке БР-2211' },
+  { id:'L-4', kind:'член группы', a:'13301199900131', b:'ГР-001',
+    from:'11.02.2026', to:null, doc:'Протокол собрания группы №1' },
+  { id:'L-5', kind:'член группы', a:'04401199940041', b:'ГР-001',
+    from:'11.02.2026', to:null, doc:'Протокол собрания группы №1' },
+  /* Своя связь S-DUP (Task 9): половинчатая миграция принесла и её — доказывает,
+     что слияние переносит связи на главный ключ, а не просто снимает пометку. */
+  { id:'L-6', kind:'аффилированность', a:'S-DUP', b:'01204199910016',
+    from:'02.02.2026', to:null, doc:'Выгрузка legacy' },
+];
+
+/* ── СВЯЗИ ЛИЦ (СБ-7) ──
+   Единственное, что заводится в модуле руками: источника снаружи у связей нет.
+   Связь двусторонняя — ОДНА запись, видимая с обоих концов (инвариант 6). */
+const LINK_KINDS = [
+  { k:'учредитель',      a:['физ','ИП','юр'], b:['юр'],     share:true },
+  { k:'руководитель',    a:['физ','ИП'],      b:['юр'],     share:false },
+  { k:'супруг',          a:['физ','ИП'],      b:['физ','ИП'], share:false },
+  { k:'член группы',     a:['физ','ИП'],      b:['группа'], share:false },
+  { k:'аффилированность',a:['физ','ИП','юр'], b:['физ','ИП','юр'], share:false },
+];
+function linkAllowed(kind, aRef, bRef){
+  const d = LINK_KINDS.find(x => x.k === kind);
+  if (!d) return false;
+  return d.a.includes(personKindAt(aRef, VIEW_DATE)) && d.b.includes(personKindAt(bRef, VIEW_DATE));
+}
+function linksOf(ref){
+  const ks = keysOf(ref);
+  return LINKS.filter(l => ks.includes(l.a) || ks.includes(l.b));
+}
+function addLink({ kind, a, b, from, to, share, doc }){
+  if (!linkAllowed(kind, a, b)) throw new Error('Связь «' + kind + '» между этими типами лиц невозможна');
+  if (!from || !doc) throw new Error('У связи обязательны период и документ-основание (СБ-7)');
+  if (LINKS.some(l => l.kind === kind && ((l.a === a && l.b === b) || (l.a === b && l.b === a))))
+    throw new Error('Такая связь уже есть — она одна на пару лиц и вид (инвариант 6)');
+  const l = { id:'L-' + (LINKS.length + 1), kind, a, b, from, to:to || null, share:share || undefined, doc };
+  LINKS.push(l);
+  return l.id;
+}
+/* Состав группы — та же связь «член группы», показанная с другого конца (СБ-7):
+   отдельного хранилища состава нет, иначе один факт жил бы в двух местах. */
+function membersOf(groupRef){
+  const ks = keysOf(groupRef);
+  return LINKS.filter(l => l.kind === 'член группы' && ks.includes(l.b))
+    .map(l => ({ link:l, s:subject(l.a) })).filter(x => x.s);
+}
+
+/* UNITS — организационная структура юрлица (стенд: наименование · примечание · орг. отдел · ФИО). */
+const UNITS = [
+  { key:'01204199910016', id:5550, name:'Руководство',          note:'г. Бишкек',         dept:'—',            fio:'Асанов Т.К.' },
+  { key:'01204199910016', id:5551, name:'Производственный цех', note:'с. Селекционное',   dept:'Производство', fio:'—' },
+];
+
+/* BANK_REQ — банковские реквизиты; вкладка доступна организации и физлицу в период
+   действующей регистрации ИП (раздел 4 спеки). */
+const BANK_REQ = [
+  { key:'01204199910016', bank:'ОАО «РСК Банк»', bik:'129001', account:'1234567890123456',
+    from:'14.02.2011', to:null, main:true },
+  { key:'04401199940041', bank:'ОАО «Айыл Банк»', bik:'135001', account:'9876543210987654',
+    from:'22.01.2019', to:'31.12.2025', main:true },
+  /* Свой реквизит S-DUP (Task 9): половинчатая миграция принесла и его — без этой строки
+     «своё перенесено» (тест 8.5) осталось бы не доказано на реквизитах. */
+  { key:'S-DUP', bank:'ОАО «Демир Кыргыз Интернэшнл Банк»', bik:'124001', account:'1122334455667788',
+    from:'02.02.2026', to:null, main:false },
+];
+
+/* DOCS — вложения субъекта: вид · относительно · дата · файл. */
+const DOCS = [
+  { key:'01204199910016', kind:'Устав', about:'Организация', date:'14.02.2011', file:'ustav-2011.pdf' },
+  { key:'04401199940041', kind:'Свид. о прекращении ИП', about:'Регистрация ИП', date:'31.12.2025', file:'zp-118.pdf' },
+  { key:'ГР-001', kind:'Протокол собрания группы', about:'Состав', date:'11.02.2026', file:'protokol-1.pdf' },
+  /* Свой документ S-DUP (Task 9): половинчатая миграция принесла и его — без этой
+     записи «своё перенесено» (тест 8.5) было бы доказано на пустом месте. */
+  { key:'S-DUP', kind:'Выгрузка legacy', about:'Перенос person-63545', date:'02.02.2026', file:'legacy-63545.pdf' },
+];
+
+/* Документ и банковский реквизит (раздел 4 спеки) — обычные записи, не роль и не
+   производное: у них, в отличие от вкладки «Роли», есть своя точка создания. */
+function addDoc({ key, kind, about, date, file }){
+  if (!kind || !date || !file) throw new Error('Обязательны вид документа, дата и файл');
+  DOCS.push({ key:resolveKey(key), kind, about:about || '—', date, file });
+}
+function addBankReq({ key, bank, bik, account, from }){
+  if (!bank || !bik || !account || !from) throw new Error('Обязательны банк, БИК, счёт и дата начала');
+  BANK_REQ.push({ key:resolveKey(key), bank, bik, account, from, to:null, main:false });
+}
+
+/* ── ЗЕРКАЛА — read-only (ADR-0014). Правка = переход в модуль-источник; макет субъекта
+   их не мутирует нигде, слияние в том числе (инвариант 9). ── */
+const CREDITS = [
+  { id:'C-ATS-1', no:'КР-60540', key:'01204199910016', date:'02.03.2024', active:true },
+  { id:'C-ATS-2', no:'КР-60541', key:'01204199910016', date:'14.06.2025', active:true },
+  { id:'C-GR-1',  no:'КР-60712', key:'ГР-001',         date:'11.02.2026', active:true },
+  { id:'C-IKA-1', no:'КР-60333', key:'02201199920021', date:'05.05.2023', active:false },
+];
+const PLEDGE_OBJ = [
+  { id:'П-101', name:'Здание цеха', pledgerKey:'07701199970071', creditId:'C-ATS-1', released:false },
+  /* Чужая ссылка на дубль (Task 9): без неё «чужое не переписано» (тест 8.3, инвариант 9)
+     доказывается на пустом месте — снимок зеркал не может измениться, если в них нет ни
+     одной строки со ссылкой на S-DUP. Сама эта ссылка при слиянии не трогается. */
+  { id:'П-102', name:'Автомобиль', pledgerKey:'S-DUP', creditId:'C-ATS-1', released:false },
+];
+const SURETIES = [
+  { id:'ДП-77', guarantorKey:'04401199940041', creditId:'C-ATS-2', date:'14.06.2025', active:true },
+  /* I-2 (финальное ревью 29.07.2026). Договор поручительства, зарегистрированный в модуле
+     обеспечения на ПРИСОЕДИНЯЕМУЮ запись, и только на неё: у 07701199970071 своего
+     поручительства нет ни одного. До этой строки наборы ролей S-DUP и 07701199970071
+     совпадали (у обоих ровно «Залогодатель», П-102 и П-101), и равенство в тестах 7.3/8.6
+     выполнялось ДАЖЕ у расчёта, псевдонимов не знающего вовсе, — половина инварианта 8
+     была недоказуема в принципе (перебивание P1 давало 100/100).
+     Ссылка чужая, слиянием она НЕ переписывается (инвариант 9, ADR-0014) и навсегда
+     остаётся на ключе S-DUP. Значит роль «Поручитель» у главной записи существует
+     ИСКЛЮЧИТЕЛЬНО через псевдоним — ровно та потеря, ради предотвращения которой
+     ADR-0019 вводит псевдоним вместо удаления. */
+  { id:'ДП-78', guarantorKey:'S-DUP', creditId:'C-ATS-1', date:'02.02.2026', active:true },
+];
+const PROCS = [
+  { id:'ПР-31', no:'ВЗ-2026-31', debtorKey:'02201199920021', date:'20.05.2026', active:true },
+];
+
+/* ── ПРОИЗВОДНЫЕ — не хранятся никогда (ADR-0001) ── */
+
+/* Разрешение псевдонима (СБ-11, ADR-0019): присоединённый при слиянии ключ из маршрутов
+   не исчезает и при чтении ведёт на главную запись. Глубина ограничена: цепочку
+   псевдонимов слияние не создаёт, а зациклиться на данных нельзя. */
+function resolveKey(ref){
+  let s = subject(ref);
+  for (let i = 0; s && s.aliasOf && i < 8; i++) s = subject(s.aliasOf);
+  return s ? subjectRef(s) : ref;
+}
+/* Все ключи, по которым считается лицо: свой и все присоединённые к нему. */
+function keysOf(ref){
+  const main = resolveKey(ref);
+  return [main, ...SUBJECTS.filter(s => s.aliasOf && resolveKey(subjectRef(s)) === main).map(subjectRef)];
+}
+const keyKind = key => /^ГР-\d{3}$/.test(key || '') ? 'ГР' : (/^\d{14}$/.test(key || '') ? 'ИНН' : '—');
+
+/* Регистрация ИП, действующая на дату (СБ-3а). to === null — открытая. */
+function ipRegAt(ref, date){
+  const ks = keysOf(ref), d = dnum(date || TODAY);
+  return IP_REG.find(r => ks.includes(r.key) && dnum(r.from) <= d && (!r.to || dnum(r.to) >= d)) || null;
+}
+/* Тип лица — правоспособность на дату (СБ-3, ADR-0018), а не хранимый признак.
+   Организация и групповой заёмщик от даты не зависят; у физлица тип даёт регистрация ИП. */
+function personKindAt(ref, date){
+  const s = subject(resolveKey(ref));
+  if (!s) return null;
+  if (s.source === 'groups') return 'группа';
+  if (s.source === 'organizations') return 'юр';
+  return ipRegAt(ref, date) ? 'ИП' : 'физ';
+}
+const PERSON_KIND_LABEL = { 'юр':'Юр. лицо', 'ИП':'ИП', 'физ':'Физ. лицо', 'группа':'Групповой заёмщик' };
+const personKindLabel = k => PERSON_KIND_LABEL[k] || k;
+
+const displayName = s => s.name || '(ФИО не пришло из реестра)';
+
+/* События субъекта по ключу и его псевдонимам, свежие сверху. */
+function subjectEvents(ref){
+  const ks = keysOf(ref);
+  return SUBJECT_EVENTS.filter(e => ks.includes(e.key)).slice().sort((a,b) => dnum(b.date) - dnum(a.date));
+}
+/* Стоп-фактор выводится из события и заводится только им (СБ-13): одно обстоятельство
+   не должно жить в системе дважды. «Утрата статуса ИП» стоп-фактором не является —
+   она меняет правоспособность, а не запрещает работу. */
+const STOP_KINDS = { 'ликвидация':'Лицо ликвидировано', 'смерть':'Лицо умерло',
+  'перевод долга':'Долг переведён правопреемнику', 'роспуск группы':'Группа распущена' };
+function stopFactors(ref){
+  return subjectEvents(ref).filter(e => STOP_KINDS[e.kind])
+    .map(e => ({ text:STOP_KINDS[e.kind], date:e.date, doc:e.doc, kind:e.kind, successorKey:e.successorKey }));
+}
+
+/* Роли субъекта (СБ-6) — выводятся из участия в кредитных отношениях, руками не задаются
+   и не удаляются (инвариант 5). Считаются по ключу и всем его псевдонимам (инвариант 8). */
+function subjectRoles(ref){
+  const ks = keysOf(ref), out = [];
+  const my = CREDITS.filter(c => ks.includes(c.key));
+  if (my.length) out.push({ role:'Заёмщик',
+    basis: my.filter(c => c.active).length + ' действующих из ' + my.length,
+    since: my.map(c => c.date).sort((a,b) => dnum(a) - dnum(b))[0],
+    link:'модуль кредитов' });
+  const pl = PLEDGE_OBJ.filter(o => ks.includes(o.pledgerKey) && !o.released);
+  if (pl.length) out.push({ role:'Залогодатель', basis: pl.length + ' предметов в залоге',
+    since:'—', link:'модуль залога' });
+  const su = SURETIES.filter(x => ks.includes(x.guarantorKey) && x.active);
+  if (su.length) out.push({ role:'Поручитель', basis: su.length + ' договоров поручительства',
+    since: su.map(x => x.date).sort((a,b) => dnum(a) - dnum(b))[0], link:'модуль обеспечения' });
+  const pr = PROCS.filter(p => ks.includes(p.debtorKey) && p.active);
+  if (pr.length) out.push({ role:'Обязанное лицо', basis: pr.length + ' дел взыскания',
+    since: pr.map(p => p.date).sort((a,b) => dnum(a) - dnum(b))[0], link:'модуль взыскания' });
+  return out;
+}
+
+/* Ссылка на запись: ключ, а у записи без ключа — внутренний id (СБ-10: дубли живут там,
+   где ключа нет вовсе — наполовину прошедший импорт и legacy person-XXXXX). */
+const subjectRef = s => s.key || s.id;
+const subject = ref => SUBJECTS.find(s => s.key === ref || s.id === ref) || null;
+
+/* ── СЛИЯНИЕ (СБ-11, ADR-0019) ──
+   Переносится ТОЛЬКО СВОЁ: документы, связи, события, адреса, реквизиты, регистрации ИП.
+   Чужие ссылки (кредиты, залог, поручительство, дела) не переписываются — модуль субъектов
+   не пишет ни в один чужой модуль (инвариант 9, ADR-0014). Присоединённый ключ становится
+   псевдонимом: из маршрутов не исчезает и при чтении разрешается в главного (инвариант 8).
+   Роли не переносятся и не пересчитываются — они производные (СБ-6) и считаются по обоим ключам.
+   Слияние ≠ реорганизация (СБ-12): здесь ДВЕ записи об ОДНОМ лице, там ДВА живых лица. */
+const MERGE_FIELDS = [
+  ['fio','ФИО'], ['nameFull','Полное наименование'], ['nameShort','Краткое наименование'],
+  ['docKind','Вид документа'], ['docNo','Номер документа'], ['nationality','Национальность'],
+  ['regNo','Рег. номер'], ['regDate','Дата регистрации'], ['okpo','ОКПО'],
+  ['soate','СОАТЕ'], ['addr','Адрес'], ['director','Директор'], ['activity','Вид деятельности'],
+];
+const fval = (s, n) => ((s.imported && s.imported.f && s.imported.f[n] && s.imported.f[n].v) || '');
+function mergeDiff(aRef, bRef){
+  const a = subject(aRef), b = subject(bRef);
+  return MERGE_FIELDS.map(([n, label]) => ({ name:n, label, a:fval(a, n), b:fval(b, n) }))
+    .filter(r => r.a || r.b)
+    .map(r => ({ ...r, differs: r.a !== r.b }));
+}
+const OWN_ARRAYS = [
+  [() => DOCS, 'key'], [() => SUBJECT_EVENTS, 'key'], [() => BANK_REQ, 'key'],
+  [() => IP_REG, 'key'], [() => UNITS, 'key'],
+];
+function doMerge(mainRef, joinRef, choices){
+  const main = subject(mainRef), join = subject(joinRef);
+  if (!main || !join || main === join) throw new Error('Нужны две разные записи');
+  /* Слияние необратимо (ADR-0019), а значит обратное слияние — это разделение через порчу:
+     оба ключа получают aliasOf, resolveKey зацикливается, и живое лицо пропадает из реестра.
+     Уже присоединённая запись в слиянии не участвует ни одной из сторон. */
+  if (main.aliasOf) throw new Error('Главная запись сама присоединена слиянием к ' + main.aliasOf);
+  if (join.aliasOf) throw new Error('Эта запись уже присоединена слиянием к ' + join.aliasOf);
+  /* Общесистемный идентификатор — ключ (ADR-0019 ч.1). Дубли живут там, где ключа нет
+     (СБ-10), поэтому безключевая запись главной стать не может: иначе лицо с настоящим
+     ИНН уходит под внутренний id, и канонической становится запись «ключ не пришёл». */
+  if (!main.key && join.key)
+    throw new Error('Главной должна быть запись с ключом: ' + subjectRef(join));
+  if (!choices || choices.confirm !== subjectRef(main))
+    throw new Error('Подтвердите слияние вводом ключа главной записи: ' + subjectRef(main));
+  /* выбранные значения по расхождениям — только в СВОЙ импортный слой главной записи.
+     M-4 (финальное ревью 29.07.2026): берём, только если у присоединяемой это поле реально
+     ЕСТЬ. mergeDiff оставляет строку, если заполнена ЛЮБАЯ сторона, поэтому выбор «взять B»
+     доходил сюда и при пустом B: Object.assign({}, undefined) даёт {}, поле главной записи
+     получало st === undefined, fieldRow рисовал «не пришло из реестра» с кнопкой «Заполнить»,
+     а fillOwn на ней бросал «заполнять руками можно только пустое поле» — поле становилось
+     незаполнимым навсегда. Из пустого брать нечего, и стирать заполненное выбор не должен. */
+  mergeDiff(mainRef, joinRef).forEach(r => {
+    const src = join.imported && join.imported.f && join.imported.f[r.name];
+    if (choices[r.name] === 'b' && main.imported && src && src.v)
+      main.imported.f[r.name] = Object.assign({}, src);
+  });
+  OWN_ARRAYS.forEach(([get, f]) => get().forEach(x => { if (x[f] === subjectRef(join)) x[f] = subjectRef(main); }));
+  LINKS.forEach(l => { if (l.a === subjectRef(join)) l.a = subjectRef(main);
+                       if (l.b === subjectRef(join)) l.b = subjectRef(main); });
+  join.aliasOf = subjectRef(main);
+  /* Имя поля — aliasAt: ровно его читает шапка карточки (Task 5). mergedAt было бы вторым
+     именем той же даты и осталось бы мёртвым. */
+  join.aliasAt = TODAY;
+  /* CREDITS/PLEDGE_OBJ/SURETIES/PROCS не трогаются намеренно — см. шапку блока. */
+}
+/* Удаление (инвариант 10): только при нуле ссылок; слитая запись не удаляется никогда. */
+function canDelete(ref){
+  const s = subject(ref);
+  if (!s || s.aliasOf) return false;
+  const ks = keysOf(ref);
+  const used = CREDITS.some(c => ks.includes(c.key)) || PLEDGE_OBJ.some(o => ks.includes(o.pledgerKey))
+    || SURETIES.some(x => ks.includes(x.guarantorKey)) || PROCS.some(p => ks.includes(p.debtorKey))
+    || LINKS.some(l => ks.includes(l.a) || ks.includes(l.b)) || SUBJECT_EVENTS.some(e => ks.includes(e.key));
+  return !used;
+}
+function deleteSubject(ref){
+  if (!canDelete(ref)) throw new Error('Удалить нельзя: на запись есть ссылки либо она присоединена слиянием');
+  /* I-3 (финальное ревью 29.07.2026). Удалять надо ТУ ЖЕ запись, которую опознал canDelete,
+     а он опознаёт по ключу ИЛИ по внутреннему id (subject). Поиск по subjectRef(s) === ref
+     для записи С ключом, переданной по id, не совпадал никогда: findIndex давал -1, и
+     splice(-1, 1) сносил ПОСЛЕДНЮЮ запись набора. Целевая запись выживала, посторонняя
+     гибла — и гибла в обход инварианта 10, потому что ссылки проверялись не у неё.
+     Индекс без проверки не сплайсим ни при каких условиях. */
+  const i = SUBJECTS.indexOf(subject(ref));
+  if (i < 0) throw new Error('Запись не найдена: ' + ref);
+  SUBJECTS.splice(i, 1);
+}
+
+function hashParams(q){
+  const out = {};
+  (q || '').split('&').filter(Boolean).forEach(pair => {
+    const i = pair.indexOf('=');
+    if (i > 0) out[pair.slice(0, i)] = decodeURIComponent(pair.slice(i + 1));
+  });
+  return out;
+}
+
+const vList = document.getElementById('view-list');
+const vCard = document.getElementById('view-card');
+const vMerge = document.getElementById('view-merge');
+const vMissing = document.getElementById('view-missing');
+function showOnly(v){ [vList, vCard, vMerge, vMissing].forEach(x => x.classList.toggle('active', x === v)); }
+
+function showList(){ VIEW_DATE = TODAY; document.getElementById('topbar').classList.remove('on-detail');
+  renderList(); showOnly(vList); scrollTop(); }
+function showCard(ref, onDate, tab){ VIEW_DATE = onDate && dnum(onDate) <= dnum(TODAY) ? onDate : TODAY;
+  document.getElementById('topbar').classList.add('on-detail');
+  document.getElementById('cardMount').innerHTML = renderCard(ref, tab); wireCard(ref); showOnly(vCard); scrollTop(); }
+/* I2 (ревью 29.07.2026). Адрес #/s/<ключ> с ключом, которого в наборе нет, раньше МОЛЧА
+   уводил в реестр. Сюда ведёт ссылка «Открыть субъекта ↗» из карточки заёмщика — а ключей
+   у заёмщика 47 против пяти здешних, то есть большинство переходов заканчивалось списком
+   без единого слова о том, что произошло. Это ровно класс Б-9 / КЗ-16: ссылка, которая
+   молча ничего не делает, читается как сломанный экран, и оператор винит ссылку, а не набор.
+   Отвечаем адресом: называем ключ, говорим, что записи с ним нет, и даём явный выход.
+   Тихий showList() как ответ на ненайденный ключ не возвращать. */
+function showMissing(key){
+  document.getElementById('topbar').classList.add('on-detail');
+  document.getElementById('missingMount').innerHTML =
+    '<div class="empty" id="missingState">Запись не найдена: <b class="mono">' + esc(key) + '</b>.'
+    + ' Ключ передан адресом, но субъекта с таким ключом в реестре нет —'
+    + ' запись могла быть слита с другой, удалена или заведена в другом наборе.'
+    + ' <button class="btn btn-secondary btn-sm" id="missingToList" type="button">К реестру субъектов</button></div>';
+  document.getElementById('missingToList')
+    .addEventListener('click', () => { location.hash = '#/subjects'; });
+  document.getElementById('pageTitle').textContent = 'Запись не найдена';
+  showOnly(vMissing);
+  scrollTop();
+}
+
+function showMerge(a, b){
+  /* Состояние экрана сбрасывается здесь, на входе на маршрут, а не в теле renderMerge —
+     тот может перевызываться (перерисовка после выбора) и не должен стирать уже
+     сделанные оператором выборы для той же самой пары. */
+  if (!MERGE_CTX || MERGE_CTX.aRef !== a || MERGE_CTX.bRef !== b) MERGE_CTX = { aRef:a, bRef:b, main:a, picks:{} };
+  document.getElementById('mergeMount').innerHTML = renderMerge(a, b); wireMerge(); showOnly(vMerge); scrollTop();
+}
+
+/* #/subjects — реестр · #/s/<ключ>[?on=ГГГГ-ММ-ДД&tab=<ключ вкладки>] — карточка ·
+   #/merge/<a>/<b> — сравнение перед слиянием (СБ-11). */
+function route(){
+  let m;
+  if ((m = /^#\/merge\/([^/]+)\/([^/]+)$/.exec(location.hash))) {
+    const aKey = decodeURIComponent(m[1]), bKey = decodeURIComponent(m[2]);
+    const a = subject(aKey), b = subject(bKey);
+    if (a && b) { showMerge(subjectRef(a), subjectRef(b)); return; }
+    /* M-1 (финальное ревью 29.07.2026): ветка «нашлись обе» не выполнялась, регексп #/s/ ниже
+       не совпадал, и управление доходило до showList() — ненайденный ключ проглатывался ровно
+       так же, как это чинил I2 для карточки. Сюда ведёт ссылка «сравнить» из разреза дублей:
+       по устаревшей паре (одну из записей слили или удалили) оператор молча оказывался в
+       реестре и винил ссылку, а не набор — Б-9 / КЗ-16. Называем ту сторону, которой нет. */
+    showMissing(a ? bKey : aKey); return;
+  }
+  if ((m = /^#\/s\/([^/?]+)(?:\?(.*))?$/.exec(location.hash))) {
+    const key = decodeURIComponent(m[1]);
+    const s = subject(key);
+    if (s) { const p = hashParams(m[2]);
+      showCard(subjectRef(s), /^\d{4}-\d{2}-\d{2}$/.test(p.on || '') ? fromISO(p.on) : null, p.tab); return; }
+    showMissing(key); return;   /* I2: ключ назван, а не проглочен */
+  }
+  showList();
+}
+window.addEventListener('hashchange', route);
+
+/* ── РЕЕСТР ──
+   Панель фильтров, а не Jmix-конструктор «Добавить условие поиска»: на стенде своих
+   фильтров нет вовсе (дефект P4-10), и отобрать лица по типу или району нечем. */
+let pgSize = 20;   /* let, а не const: смоук ужимает страницу, чтобы вторая вообще появилась */
+let pgNo = 1;
+const FILTER = { q:'', kind:'', region:'', district:'', role:'', event:false, similar:false };
+
+/* Признак похожести (СБ-10): дата рождения системой не хранится (§1.1 спеки, дефект P4-12),
+   поэтому ищем по документу и по нормализованному имени в одном районе. */
+const normName = s => (s || '').toLowerCase().replace(/ё/g,'е').replace(/[^а-яa-z0-9]+/g,' ').trim();
+const docOf = s => ((s.imported && s.imported.f && s.imported.f.docNo && s.imported.f.docNo.v) || '');
+function similarPairs(){
+  /* Ищем ТОЛЬКО среди записей без ключа и псевдонимов — дубль по ключу невозможен (СБ-2).
+     Вторая сторона пары может быть любой: сравниваем такую запись со всем реестром. */
+  const pool = SUBJECTS.filter(s => s.key === '' || s.aliasOf);
+  const out = [], seen = new Set();
+  pool.forEach(a => SUBJECTS.forEach(b => {
+    if (a === b) return;
+    const pair = [subjectRef(a), subjectRef(b)].sort().join('|');
+    if (seen.has(pair)) return;
+    const byDoc  = docOf(a) && docOf(a) === docOf(b);
+    const byName = normName(a.name) && normName(a.name) === normName(b.name) && a.district === b.district;
+    if (!byDoc && !byName) return;
+    seen.add(pair);
+    out.push({ a:subjectRef(a), b:subjectRef(b),
+      why: byDoc ? 'совпал документ ' + docOf(a) : 'совпало имя в одном районе' });
+  }));
+  return out;
+}
+
+function listRows(){
+  const pairs = similarPairs();
+  return SUBJECTS.filter(s => {
+    if (s.aliasOf && !FILTER.similar) return false;    /* псевдоним живёт в разрезе дублей */
+    const ref = subjectRef(s);
+    if (FILTER.q){
+      const q = FILTER.q.toLowerCase();
+      if (!((s.key || '').toLowerCase().includes(q) || normName(s.name).includes(normName(q)))) return false;
+    }
+    if (FILTER.kind && personKindAt(ref, VIEW_DATE) !== FILTER.kind) return false;
+    if (FILTER.region && s.region !== FILTER.region) return false;
+    if (FILTER.district && s.district !== FILTER.district) return false;
+    if (FILTER.role && !subjectRoles(ref).some(r => r.role === FILTER.role)) return false;
+    if (FILTER.event && !subjectEvents(ref).length) return false;
+    /* Разрез дублей показывает СТОРОНУ-КАНДИДАТА, а не обе стороны пары: искать нечего
+       у записи, ключ которой есть — она уже опознана (СБ-10). */
+    if (FILTER.similar && !(s.key === '' || s.aliasOf)) return false;
+    if (FILTER.similar && !pairs.some(p => p.a === ref || p.b === ref)) return false;
+    return true;
+  });
+}
+function applyFilters(){ pgNo = 1; renderList(); }
+
+/* Тулбар: поиск с дребезгом 250 мс (см. wireList) и кнопки создания — обвязка в
+   wireList() вызывает openCreate()/openCreateGroup() (Task 4). */
+function toolbarHtml(){
+  return '<div class="toolbar">'
+    + '<input type="text" id="q" class="q-input" placeholder="Поиск по ключу или наименованию" value="' + esc(FILTER.q) + '">'
+    + '<span class="sp"></span>'
+    + '<button class="btn btn-secondary btn-sm" id="btnCreate" type="button">+ Субъект</button>'
+    + '<button class="btn btn-secondary btn-sm" id="btnCreateGroup" type="button">+ Группа</button>'
+    + '</div>';
+}
+
+/* Панель фильтров: четыре типа лица, область → каскад района (список районов сузится,
+   если выбрана область), четыре роли, два чекбокса-разреза, кнопка #clearFilters —
+   видна ВСЕГДА (не только при пустом ответе, см. emptyStateHtml), иначе оператору с
+   непустой выдачей и несколькими условиями нечем сбросить их разом (СП-16). Список
+   областей/районов берём из данных, а не заводим справочником — их источник вне рамок
+   этой задачи. */
+function filterPanelHtml(){
+  const regions = [...new Set(SUBJECTS.map(s => s.region).filter(Boolean))].sort();
+  const districts = [...new Set(SUBJECTS.filter(s => !FILTER.region || s.region === FILTER.region)
+    .map(s => s.district).filter(Boolean))].sort();
+  const ROLE_KINDS = ['Заёмщик', 'Залогодатель', 'Поручитель', 'Обязанное лицо'];
+  const opt = (v, cur, label) => '<option value="' + esc(v) + '"' + (cur === v ? ' selected' : '') + '>'
+    + esc(label == null ? v : label) + '</option>';
+  return '<div class="filters">'
+    + '<div class="field"><label for="f-kind">Тип лица</label><select id="f-kind"><option value="">Все</option>'
+      + Object.keys(PERSON_KIND_LABEL).map(k => opt(k, FILTER.kind, personKindLabel(k))).join('') + '</select></div>'
+    + '<div class="field"><label for="f-region">Область/город</label><select id="f-region"><option value="">Все</option>'
+      + regions.map(r => opt(r, FILTER.region)).join('') + '</select></div>'
+    + '<div class="field"><label for="f-district">Район</label><select id="f-district"><option value="">Все</option>'
+      + districts.map(d => opt(d, FILTER.district)).join('') + '</select></div>'
+    + '<div class="field"><label for="f-role">Роль</label><select id="f-role"><option value="">Все</option>'
+      + ROLE_KINDS.map(r => opt(r, FILTER.role)).join('') + '</select></div>'
+    + '<label class="chk"><input type="checkbox" id="f-event"' + (FILTER.event ? ' checked' : '') + '> Есть событие</label>'
+    + '<label class="chk"><input type="checkbox" id="f-similar"' + (FILTER.similar ? ' checked' : '') + '> Похожие записи</label>'
+    + '<button class="btn btn-secondary btn-sm" id="clearFilters" type="button">Очистить условия</button>'
+    + '</div>';
+}
+
+/* Пустое состояние (СП-16): называет действующие условия словами и чистит их одной
+   кнопкой. Кнопка сброса нужна в двух местах (панель — видна всегда; пустой ответ —
+   под рукой у оператора, упершегося в ноль строк), а идентификатор в документе должен
+   быть один на каждое место: #clearFilters в панели, #clearFiltersEmpty здесь — тот же
+   обработчик у обеих (см. wireList). Убрать кнопку из панели значит заставить оператора
+   с непустой выдачей и пятью условиями снимать их по одному — то, ради чего СП-16 и
+   написан, было бы потеряно. */
+function emptyStateHtml(){
+  const cond = [];
+  if (FILTER.q) cond.push('поиск «' + esc(FILTER.q) + '»');
+  if (FILTER.kind) cond.push('тип лица «' + esc(personKindLabel(FILTER.kind)) + '»');
+  if (FILTER.region) cond.push('область «' + esc(FILTER.region) + '»');
+  if (FILTER.district) cond.push('район «' + esc(FILTER.district) + '»');
+  if (FILTER.role) cond.push('роль «' + esc(FILTER.role) + '»');
+  if (FILTER.event) cond.push('есть событие');
+  if (FILTER.similar) cond.push('похожие записи');
+  return '<div class="empty" id="emptyState">Ничего не найдено'
+    + (cond.length ? ' по условиям: ' + cond.join(', ') + '.' : '.')
+    + ' <button class="btn btn-secondary btn-sm" id="clearFiltersEmpty" type="button">Очистить условия</button></div>';
+}
+
+function renderList(){
+  const rows = listRows();
+  const from = (pgNo - 1) * pgSize, page = rows.slice(from, from + pgSize);
+  const pairs = similarPairs();
+  const tr = s => {
+    const ref = subjectRef(s), kind = personKindAt(ref, VIEW_DATE);
+    const roles = subjectRoles(ref).map(r => '<span class="chip">' + esc(r.role) + '</span>').join('');
+    const st = stopFactors(ref)[0];
+    const sim = pairs.find(p => p.a === ref || p.b === ref);
+    return '<tr><td><a class="lnk" href="#/s/' + esc(ref) + '">' + esc(displayName(s)) + '</a>'
+      + '<div class="muted">' + (s.key ? esc(keyKind(s.key)) + ' ' + esc(s.key) : 'ключ не пришёл · ' + esc(s.id)) + '</div></td>'
+      + '<td>' + esc(personKindLabel(kind)) + '</td>'
+      + '<td>' + esc(s.district) + '<div class="muted">' + esc(s.region) + '</div></td>'
+      + '<td>' + (roles || '<span class="muted">—</span>') + '</td>'
+      + '<td>' + (st ? esc(st.text) + ' ' + esc(st.date) : '<span class="muted">—</span>')
+      + (sim ? '<div class="muted">похожа на ' + esc(sim.b === ref ? sim.a : sim.b) + ' · ' + esc(sim.why)
+          + ' · <a class="lnk" href="#/merge/' + esc(sim.a) + '/' + esc(sim.b) + '">сравнить</a></div>' : '')
+      + '</td></tr>';
+  };
+  document.getElementById('listMount').innerHTML =
+    toolbarHtml() + filterPanelHtml()
+    + '<table class="grid" id="listTable"><thead id="listHead"><tr><th>Наименование / ФИО</th>'
+    + '<th>Тип лица <span class="hint">на ' + esc(VIEW_DATE) + '</span></th><th>Район</th><th>Роли</th><th>Событие</th></tr></thead>'
+    + '<tbody>' + page.map(tr).join('') + '</tbody></table>'
+    + (rows.length ? '' : emptyStateHtml())
+    + '<div class="pager"><span id="rowCount">' + (rows.length ? (from + 1) + '–' + (from + page.length) + ' из ' + rows.length : '0 из 0')
+    + '</span><button class="btn btn-secondary btn-sm" id="pgPrev">←</button>'
+    + '<button class="btn btn-secondary btn-sm" id="pgNext">→</button></div>';
+  wireList();
+}
+
+/* Обвязка реестра: поля фильтров пишут в FILTER и вызывают applyFilters() (что сбрасывает
+   страницу на первую), кнопки пейджера меняют только pgNo — сквозь applyFilters их пускать
+   нельзя, иначе перелистывание само себя откатывало бы на первую страницу. #q дребезжит
+   250 мс, чтобы не перерисовывать реестр на каждый символ. #clearFilters (панель) и
+   #clearFiltersEmpty (пустой ответ) — два узла, один обработчик сброса. */
+let qDebounce = null;
+function wireList(){
+  const byId = id => document.getElementById(id);
+  const bindSelect = (id, key) => { const el = byId(id); if (el) el.onchange = () => { FILTER[key] = el.value; applyFilters(); }; };
+  const bindCheck  = (id, key) => { const el = byId(id); if (el) el.onchange = () => { FILTER[key] = el.checked; applyFilters(); }; };
+
+  bindSelect('f-kind', 'kind');
+  bindSelect('f-role', 'role');
+  bindCheck('f-event', 'event');
+  bindCheck('f-similar', 'similar');
+
+  const region = byId('f-region');
+  if (region) region.onchange = () => { FILTER.region = region.value; FILTER.district = ''; applyFilters(); };
+  const district = byId('f-district');
+  if (district) district.onchange = () => { FILTER.district = district.value; applyFilters(); };
+
+  const resetFilters = () => {
+    Object.assign(FILTER, { q:'', kind:'', region:'', district:'', role:'', event:false, similar:false });
+    applyFilters();
+  };
+  const clear = byId('clearFilters'), clearEmpty = byId('clearFiltersEmpty');
+  if (clear) clear.onclick = resetFilters;
+  if (clearEmpty) clearEmpty.onclick = resetFilters;
+
+  const btnCreate = byId('btnCreate'), btnCreateGroup = byId('btnCreateGroup');
+  if (btnCreate) btnCreate.onclick = () => openCreate();
+  if (btnCreateGroup) btnCreateGroup.onclick = () => openCreateGroup();
+
+  const q = byId('q');
+  if (q) q.oninput = () => {
+    clearTimeout(qDebounce);
+    qDebounce = setTimeout(() => { FILTER.q = q.value; applyFilters(); }, 250);
+  };
+
+  const total = listRows().length;
+  const prev = byId('pgPrev'), next = byId('pgNext');
+  prev.disabled = pgNo <= 1;
+  next.disabled = pgNo * pgSize >= total;
+  prev.onclick = () => { if (pgNo > 1) { pgNo--; renderList(); } };
+  next.onclick = () => { if (pgNo * pgSize < total) { pgNo++; renderList(); } };
+}
+
+/* ── модальное окно ── одна разметка на все операции (создание, слияние и т.п.);
+   тело и подвал подаёт вызывающий код, окно про них ничего не знает. Копия механики
+   borrower.html (openModal/closeModal) — сама разметка #mBack/#mTitle/#mBody/#mFoot
+   пришла оттуда же в Task 1. */
+function openModal(title, bodyHtml, footHtml){
+  document.getElementById('mTitle').textContent = title;
+  document.getElementById('mBody').innerHTML = bodyHtml;
+  document.getElementById('mFoot').innerHTML = footHtml || '';
+  document.getElementById('mBack').hidden = false;
+}
+function closeModal(){ document.getElementById('mBack').hidden = true; }
+document.getElementById('mClose').addEventListener('click', closeModal);
+document.getElementById('mBack').addEventListener('click', e => { if (e.target.id === 'mBack') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.getElementById('mBack').hidden) closeModal(); });
+
+/* ── СОЗДАНИЕ ──
+   Вход только через ключ (СБ-2 и поведение стенда: одно живое поле ИНН + «Заполнить поля»).
+   Дубль по ключу невозможен по построению — проверка стоит ДО формы, а не после ввода. */
+function lookupKey(key){
+  const s = subject(String(key || '').trim());
+  return s ? { found:true, ref:subjectRef(s), name:displayName(s) } : { found:false, key:String(key || '').trim() };
+}
+/* M-2 (финальное ревью 29.07.2026). Внутренний id выдавался как 'S-' + (SUBJECTS.length + 1):
+   после любого deleteSubject длина падала, и следующее создание выдавало id, уже занятый —
+   а subject(ref) вернул бы по нему ПЕРВУЮ из двух записей. Плюс формат расходился с засевом:
+   посев даёт S-001…S-006, создание давало S-9.
+   Счётчик, а не максимум по набору: максимум тоже не столкнулся бы с живой записью, но
+   освобождал бы номер удалённой, и один и тот же id со временем означал бы разные записи.
+   Идентификатор так себя вести не должен — он ссылка, и в тексте примечания или в чужой
+   выгрузке она пережила бы удаление. Номера выдаём монотонно и в формате засева.
+   S-DUP/S-DUP2 под /^S-(\d+)$/ не подходят и в засев счётчика не идут. */
+let SUBJ_SEQ = SUBJECTS.map(s => /^S-(\d+)$/.exec(s.id || ''))
+  .filter(Boolean).map(x => +x[1]).reduce((a, b) => Math.max(a, b), 0);
+function nextSubjectId(){ return 'S-' + String(++SUBJ_SEQ).padStart(3, '0'); }
+function createSubject({ key, source, name, district, region, industry }){
+  const k = String(key || '').trim();
+  if (!/^\d{14}$/.test(k)) throw new Error('Ключ субъекта — 14 цифр (ИНН/ПИН). Групповой заёмщик заводится кнопкой «+ Группа».');
+  if (subject(k)) throw new Error('Такой ключ уже есть в реестре: ' + k);
+  if (source !== 'individuals' && source !== 'organizations') throw new Error('Тип: физлицо или организация');
+  /* Тип ИП в форме не предлагается (СБ-3а): ИП появляется регистрацией у заведённого физлица. */
+  const s = { id:nextSubjectId(), key:k, source, name:name || '',
+    district:district || '—', region:region || '—', industry:industry || '—', note:'заведён вручную',
+    imported:{ asOf:'—', src:'ГРС · Тундук', f:{} } };
+  SUBJECTS.push(s);
+  return subjectRef(s);
+}
+/* Групповой заёмщик (СБ-4): ИНН не присваивается — ключ выдаёт система; импортного слоя нет (СБ-5а). */
+function nextGroupKey(){
+  const used = SUBJECTS.filter(s => s.source === 'groups').map(s => +String(s.key).slice(3));
+  return 'ГР-' + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, '0');
+}
+function createGroup({ name, district, region, industry }){
+  const s = { id:nextSubjectId(), key:nextGroupKey(), source:'groups', name:name || '',
+    district:district || '—', region:region || '—', industry:industry || '—', note:'заведён вручную' };
+  SUBJECTS.push(s);
+  return subjectRef(s);
+}
+
+/* Разметка формы создания субъекта — три состояния тела модалки: спросить ключ,
+   сообщить, что субъект уже есть, либо раскрыть поля создания. */
+function askKeyBodyHtml(prefill){
+  return '<div class="fform"><div class="frow wide"><label for="cKey">Ключ субъекта (ИНН/ПИН)</label>'
+    + '<input type="text" id="cKey" inputmode="numeric" maxlength="14" value="' + esc(prefill || '') + '" placeholder="14 цифр"></div></div>'
+    + '<div class="hint" style="margin-left:0">14 цифр. Групповой заёмщик заводится отдельной кнопкой «+ Группа» —'
+    + ' ключ ему присваивает система.</div>';
+}
+function foundBodyHtml(name){
+  return '<div class="fform"><div class="frow wide">Такой субъект уже есть: <b>' + esc(name) + '</b></div></div>';
+}
+function createFieldsBodyHtml(key){
+  return '<div class="hint" style="margin-left:0">Ключ <b>' + esc(key) + '</b> не найден в реестре — заводим субъекта.</div>'
+    + '<div class="fform">'
+    + '<div class="frow wide"><label>Тип лица</label><div class="radios">'
+    + '<label><input type="radio" name="cKind" value="individuals" checked> Физическое лицо</label>'
+    + '<label><input type="radio" name="cKind" value="organizations"> Организация</label>'
+    + '</div></div>'
+    + '<div class="frow wide"><label for="cName">Наименование / ФИО</label><input type="text" id="cName"></div>'
+    + '<div class="frow"><label for="cRegion">Область</label><input type="text" id="cRegion"></div>'
+    + '<div class="frow"><label for="cDistrict">Район</label><input type="text" id="cDistrict"></div>'
+    + '</div>'
+    + '<div class="hint" id="cErr" style="margin-left:0;color:var(--status-error)"></div>';
+}
+/* Ветка после проверки ключа: найден — предлагаем открыть карточку, а не форму;
+   не найден — раскрываем поля с уже проставленным ключом (инвариант 1/2). */
+function renderCreateBranch(key){
+  const r = lookupKey(key);
+  document.getElementById('mBody').innerHTML = r.found ? foundBodyHtml(r.name) : createFieldsBodyHtml(r.key);
+  setCreateFoot(r.found ? 'found' : 'create', r.found ? r.ref : r.key);
+}
+function setCreateFoot(mode, ctx){
+  const foot = document.getElementById('mFoot');
+  if (mode === 'ask'){
+    foot.innerHTML = '<span class="sp"></span>'
+      + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+      + '<button class="btn btn-primary" id="mCheck" type="button">Проверить</button>';
+    document.getElementById('mCancel').onclick = closeModal;
+    document.getElementById('mCheck').onclick = () => renderCreateBranch(document.getElementById('cKey').value);
+  } else if (mode === 'found'){
+    foot.innerHTML = '<span class="sp"></span>'
+      + '<button class="btn btn-secondary" id="mCancel" type="button">Закрыть</button>'
+      + '<button class="btn btn-primary" id="mOk" type="button">Открыть карточку</button>';
+    document.getElementById('mCancel').onclick = closeModal;
+    document.getElementById('mOk').onclick = () => { closeModal(); location.hash = '#/s/' + ctx; };
+  } else if (mode === 'create'){
+    foot.innerHTML = '<span class="sp"></span>'
+      + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+      + '<button class="btn btn-primary" id="mOk" type="button">Создать</button>';
+    document.getElementById('mCancel').onclick = closeModal;
+    document.getElementById('mOk').onclick = () => {
+      const source = document.querySelector('input[name="cKind"]:checked').value;
+      const name = document.getElementById('cName').value.trim();
+      const region = document.getElementById('cRegion').value.trim();
+      const district = document.getElementById('cDistrict').value.trim();
+      let ref;
+      try { ref = createSubject({ key:ctx, source, name, region, district }); }
+      catch (e){ const err = document.getElementById('cErr'); if (err) err.textContent = e.message; return; }
+      closeModal(); applyFilters(); location.hash = '#/s/' + ref;
+    };
+  }
+}
+/* openCreate(prefill) — модалка в два шага: без ключа спрашивает его («Проверить»);
+   с ключом (переход по ссылке или повторный вызов) сразу решает ветку. */
+function openCreate(prefill){
+  const key = String(prefill || '').trim();
+  if (!key){ openModal('Новый субъект', askKeyBodyHtml(''), ''); setCreateFoot('ask'); return; }
+  const r = lookupKey(key);
+  openModal('Новый субъект', r.found ? foundBodyHtml(r.name) : createFieldsBodyHtml(r.key), '');
+  setCreateFoot(r.found ? 'found' : 'create', r.found ? r.ref : r.key);
+}
+/* openCreateGroup() — форма без поля ключа (СБ-4): ключ выдаёт система при сохранении. */
+function askGroupBodyHtml(){
+  return '<div class="hint" style="margin-left:0">Ключ выдаст система при сохранении.</div>'
+    + '<div class="fform">'
+    + '<div class="frow wide"><label for="gName">Наименование группы</label><input type="text" id="gName"></div>'
+    + '<div class="frow"><label for="gRegion">Область</label><input type="text" id="gRegion"></div>'
+    + '<div class="frow"><label for="gDistrict">Район</label><input type="text" id="gDistrict"></div>'
+    + '</div>';
+}
+function openCreateGroup(){
+  openModal('Новый групповой заёмщик', askGroupBodyHtml(), '');
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Создать</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const name = document.getElementById('gName').value.trim();
+    const region = document.getElementById('gRegion').value.trim();
+    const district = document.getElementById('gDistrict').value.trim();
+    const ref = createGroup({ name, region, district });
+    closeModal(); applyFilters(); location.hash = '#/s/' + ref;
+  };
+}
+
+/* ── КАРТОЧКА ── */
+const TAB_DEFS = [
+  { k:'main',    t:'Основное' },
+  { k:'addr',    t:'Адреса' },
+  { k:'ipreg',   t:'Регистрация ИП' },   /* только физлицо (СБ-3а) */
+  { k:'bank',    t:'Банковские реквизиты' }, /* организация и физлицо в период ИП */
+  { k:'units',   t:'Организационная структура' }, /* только организация */
+  { k:'members', t:'Состав' },           /* только групповой заёмщик */
+  { k:'docs',    t:'Документы' },
+  { k:'links',   t:'Связи' },
+  { k:'events',  t:'События' },
+  { k:'roles',   t:'Роли' },
+];
+/* Состав вкладок — следствие типа лица НА ДАТУ (СБ-3): у бывшего ИП вкладка банковских
+   реквизитов на сегодняшнюю дату не показывается, а на дату действия регистрации — да. */
+function tabsFor(ref, date){
+  const kind = personKindAt(ref, date);
+  return TAB_DEFS.filter(t => {
+    if (t.k === 'ipreg')   return kind === 'физ' || kind === 'ИП';
+    if (t.k === 'bank')    return kind === 'юр' || kind === 'ИП';
+    if (t.k === 'units')   return kind === 'юр';
+    if (t.k === 'members') return kind === 'группа';
+    return true;
+  });
+}
+const activeTabKey = () => (document.querySelector('.tabbar .tab.active') || {dataset:{}}).dataset.tab || '';
+
+/* Трёхсостоянное импортное поле (СБ-5). Инвариант 3: 'реестр' не редактируется нигде;
+   руками заполняется только 'пусто'; наше значение всегда подписано автором и датой.
+   Расхождение (pending) показывается выбором, а не молчаливой перезаписью — иначе
+   дефект стенда P4-11 («форма не отличает „нет данных“ от „не пришло из реестра“»)
+   переезжает в новую систему. */
+const CURRENT_USER = 'Сламкулов А.О.';
+function fieldRow(ref, name, label){
+  const s = subject(resolveKey(ref)), f = (s.imported && s.imported.f && s.imported.f[name]) || { st:'пусто' };
+  const head = '<div class="fld" data-field="' + esc(name) + '" data-state="' + esc(f.st) + '"><div class="fld-l">' + esc(label) + '</div><div class="fld-v">';
+  if (f.st === 'реестр' && !f.pending)
+    return head + esc(f.v) + ' <span class="hint">из реестра</span></div></div>';
+  if (f.st === 'наше' && !f.pending)
+    return head + esc(f.v) + ' <span class="hint">введено нами · ' + esc(f.by) + ' · ' + esc(f.at)
+      + (f.doc ? ' · ' + esc(f.doc) : '') + '</span></div></div>';
+  if (f.pending)
+    return head + esc(f.v) + ' <span class="hint">введено нами · ' + esc(f.by) + ' · ' + esc(f.at) + '</span>'
+      + '<div class="warn">Расхождение с реестром от ' + esc(f.pending.at) + ': «' + esc(f.pending.v) + '»'
+      + ' <button class="btn btn-sm" data-choice="реестр" data-fname="' + esc(name) + '">взять из реестра</button>'
+      + ' <button class="btn btn-secondary btn-sm" data-choice="наше" data-fname="' + esc(name) + '">оставить наше</button></div></div></div>';
+  return head + '<span class="muted">не пришло из реестра</span> '
+    + '<button class="btn btn-secondary btn-sm btn-fill" data-fname="' + esc(name) + '">Заполнить</button></div></div>';
+}
+function fillOwn(ref, name, value){
+  const s = subject(resolveKey(ref));
+  const f = s.imported.f[name] || (s.imported.f[name] = { st:'пусто' });
+  if (f.st !== 'пусто') throw new Error('Заполнять руками можно только пустое поле (СБ-5, инвариант 3)');
+  Object.assign(f, { st:'наше', v:value, by:CURRENT_USER, at:TODAY });
+  renderCardInPlace(ref);
+}
+function resolveConflict(ref, name, choice){
+  const f = subject(resolveKey(ref)).imported.f[name];
+  if (!f || !f.pending) return;
+  if (choice === 'реестр') Object.assign(f, { st:'реестр', v:f.pending.v, by:undefined, at:undefined });
+  delete f.pending;
+  renderCardInPlace(ref);
+}
+function renderCardInPlace(ref){
+  document.getElementById('cardMount').innerHTML = renderCard(ref, activeTabKey());
+  wireCard(ref);
+}
+
+/* Строка импортного снимка шапки (СБ-5) — только у записи, у которой канал импорта
+   есть вовсе (s.imported существует; у группы его нет, СБ-5а). Ручное создание
+   субъекта (Task 4) заводит канал с asOf:'—' — это значит «канал есть, снимка не
+   было», а не «данные пришли из ГРС · Тундук на —»: показываем это прямо, а не
+   молчаливой датой-прочерком, иначе получаем ту же ложь, от которой уходили. */
+function importBarHtml(s){
+  if (!s.imported) return '';
+  const body = s.imported.asOf === '—'
+    ? '<span class="muted">данных из реестра нет</span>'
+    : 'Снимок ' + esc(s.imported.src) + ' от ' + esc(s.imported.asOf);
+  return '<div class="importbar" id="importBar">' + body
+    + ' <button class="btn btn-secondary btn-sm" id="btnRefreshImport" type="button"'
+    + ' title="В макете запрос в реестр не выполняется">Обновить из реестра</button></div>';
+}
+
+const ownRow = (label, value) => '<div class="fld"><div class="fld-l">' + esc(label) + '</div><div class="fld-v">'
+  + esc(value == null || value === '' ? '—' : value) + '</div></div>';
+
+/* Вкладка «Основное»: у группы (СБ-5а) целиком свои поля — импортного канала нет вовсе,
+   поэтому fieldRow здесь не годится (fillOwn упал бы на s.imported.f). У организации и
+   физлица/ИП — импортные поля из фактов плюс «своё» без импортного статуса. */
+function mainPanelHtml(ref, kind){
+  const s = subject(resolveKey(ref));
+  if (kind === 'группа')
+    return ownRow('Наименование', s.name) + ownRow('Область', s.region)
+      + ownRow('Район', s.district) + ownRow('Примечание', s.note);
+  let rows = kind === 'юр'
+    ? fieldRow(ref, 'nameFull', 'Полное наименование') + fieldRow(ref, 'nameShort', 'Краткое наименование')
+      + fieldRow(ref, 'regNo', 'Рег. номер') + fieldRow(ref, 'regDate', 'Дата регистрации')
+      + fieldRow(ref, 'okpo', 'ОКПО') + fieldRow(ref, 'activity', 'Вид деятельности')
+      + fieldRow(ref, 'director', 'Руководитель')
+    : fieldRow(ref, 'fio', 'ФИО') + fieldRow(ref, 'docKind', 'Вид документа')
+      + fieldRow(ref, 'docNo', 'Номер документа') + fieldRow(ref, 'nationality', 'Национальность');
+  return rows + ownRow('Отрасль', s.industry) + ownRow('Район', s.district) + ownRow('Примечание', s.note);
+}
+/* Вкладка «Адреса»: та же логика — группа своих импортных полей не имеет. */
+function addrPanelHtml(ref, kind){
+  const s = subject(resolveKey(ref));
+  if (kind === 'группа') return ownRow('Область', s.region) + ownRow('Район', s.district);
+  return fieldRow(ref, 'addr', 'Адрес') + fieldRow(ref, 'soate', 'СОАТЕ')
+    + ownRow('Фактический адрес', '—') + ownRow('Адрес переписки', '—');
+}
+
+/* Вкладка «Связи» / «Состав» (СБ-7, инвариант 6): один и тот же ряд — вид, ссылка на
+   ПРОТИВОПОЛОЖНУЮ сторону, период, доля (только для share:true), документ. «Состав»
+   группы — та же таблица, отфильтрованная membersOf, без отдельного хранилища. */
+function linkPartnerRef(l, ref){
+  const ks = keysOf(ref);
+  return ks.includes(l.a) ? l.b : l.a;
+}
+function linkRowHtml(l, ref){
+  const pRef = linkPartnerRef(l, ref);
+  const p = subject(resolveKey(pRef));
+  const name = p ? displayName(p) : pRef;
+  return '<tr><td>' + esc(l.kind) + '</td>'
+    + '<td><a class="lnk" href="#/s/' + esc(pRef) + '">' + esc(name) + '</a>'
+    + '<div class="muted">' + esc(pRef) + '</div></td>'
+    + '<td>' + esc(l.from) + (l.to ? ' – ' + esc(l.to) : '') + '</td>'
+    + '<td>' + (l.share ? esc(l.share) + ' %' : '<span class="muted">—</span>') + '</td>'
+    + '<td>' + esc(l.doc) + '</td></tr>';
+}
+function linksTableHtml(rows, ref, emptyText){
+  return '<table class="grid"><thead><tr><th>Вид</th><th>Вторая сторона</th><th>Период</th>'
+    + '<th>Доля</th><th>Документ</th></tr></thead><tbody>'
+    + (rows.length ? rows.map(l => linkRowHtml(l, ref)).join('')
+       : '<tr><td colspan="5" class="muted">' + esc(emptyText) + '</td></tr>')
+    + '</tbody></table>';
+}
+function renderLinksTab(ref){
+  return '<div class="section-head" style="background:transparent;border:0;padding:0 0 10px">'
+    + '<span></span><button class="btn btn-secondary btn-sm" id="btnAddLink" type="button">+ Связь</button></div>'
+    + linksTableHtml(linksOf(ref), ref, 'Связей нет');
+}
+function renderMembersTab(ref){
+  return '<div class="section-head" style="background:transparent;border:0;padding:0 0 10px">'
+    + '<span class="who">Состав группы</span>'
+    + '<button class="btn btn-secondary btn-sm" id="btnAddMember" type="button">+ Член группы</button></div>'
+    + linksTableHtml(membersOf(ref).map(x => x.link), ref, 'Состав пуст');
+}
+/* Вкладка «Организационная структура» — только у организации (СБ-8, tabsFor). */
+function renderUnitsTab(ref){
+  const ks = keysOf(ref);
+  const rows = UNITS.filter(u => ks.includes(u.key));
+  return '<table class="grid"><thead><tr><th>Наименование</th><th>Примечание</th>'
+    + '<th>Орг. отдел</th><th>ФИО сотрудника</th></tr></thead><tbody>'
+    + (rows.length ? rows.map(u => '<tr><td>' + esc(u.name) + '</td><td>' + esc(u.note) + '</td>'
+        + '<td>' + esc(u.dept) + '</td><td>' + esc(u.fio) + '</td></tr>').join('')
+       : '<tr><td colspan="4" class="muted">Подразделений нет</td></tr>')
+    + '</tbody></table>';
+}
+
+/* Вкладка «События» (СБ-9): лента append-only — строки не удаляются, кнопки удаления нет.
+   Правопреемник (только у событий с successor:true, EVENT_KINDS) — ссылка на карточку. */
+function eventRowHtml(e){
+  const succ = e.successorKey
+    ? '<a class="lnk" href="#/s/' + esc(e.successorKey) + '">' + esc(e.successorKey) + '</a>'
+    : '<span class="muted">—</span>';
+  return '<tr><td class="mono">' + esc(e.date) + '</td><td>' + esc(e.kind) + '</td>'
+    + '<td>' + esc(e.basis) + '</td><td>' + esc(e.doc) + '</td><td>' + succ + '</td></tr>';
+}
+function renderEventsTab(ref){
+  const rows = subjectEvents(ref);
+  return '<div class="notice">Событие ничего не меняет в кредите, обеспечении и взыскании —'
+    + ' оно их не касается (СБ-9).</div>'
+    + '<div class="section-head" style="background:transparent;border:0;padding:0 0 10px">'
+    + '<span></span><button class="btn btn-secondary btn-sm" id="btnAddEvent" type="button">+ Событие</button></div>'
+    + '<table class="grid"><thead><tr><th>Дата</th><th>Событие</th><th>Основание</th>'
+    + '<th>Документ</th><th>Правопреемник</th></tr></thead><tbody>'
+    + (rows.length ? rows.map(eventRowHtml).join('')
+       : '<tr><td colspan="5" class="muted">Событий нет</td></tr>')
+    + '</tbody></table>';
+}
+
+/* Вкладка «Регистрация ИП» (СБ-3а, ADR-0018): у лица может быть несколько периодов —
+   таблица их все, а строка под таблицей называет тип лица, который считает personKindAt
+   на срез карточки (не хранимое поле). */
+function ipRegRowHtml(r){
+  const active = !r.to;
+  return '<tr><td>' + esc(r.no) + '</td><td>' + esc(r.from) + '</td>'
+    + '<td>' + (r.to ? esc(r.to) : '<span class="muted">—</span>') + '</td>'
+    + '<td>' + esc(r.doc) + '</td>'
+    + '<td>' + (active
+        ? '<span class="badge" style="background:var(--status-success-bg);color:var(--status-success)">действует</span>'
+        : '<span class="badge" style="background:var(--status-error-bg);color:var(--status-error)">прекращена</span>')
+    + '</td></tr>';
+}
+function renderIpRegTab(ref){
+  const ks = keysOf(ref);
+  const rows = IP_REG.filter(r => ks.includes(r.key)).slice().sort((a, b) => dnum(b.from) - dnum(a.from));
+  const kind = personKindAt(ref, VIEW_DATE);
+  return '<div class="section-head" style="background:transparent;border:0;padding:0 0 10px">'
+    + '<span></span><button class="btn btn-secondary btn-sm" id="btnAddIpReg" type="button">+ Регистрация</button></div>'
+    + '<table class="grid"><thead><tr><th>Рег. номер</th><th>С</th><th>По</th>'
+    + '<th>Документ</th><th>Статус</th></tr></thead><tbody>'
+    + (rows.length ? rows.map(ipRegRowHtml).join('')
+       : '<tr><td colspan="5" class="muted">Регистраций нет</td></tr>')
+    + '</tbody></table>'
+    + '<div class="hint" style="margin-left:0;margin-top:8px">Тип лица на ' + esc(VIEW_DATE) + ': <b>'
+    + esc(personKindLabel(kind)) + '</b> — правоспособность считается на дату (ADR-0018).</div>';
+}
+
+/* ── РОЛИ (СБ-6) ── выводятся из участия в кредитных отношениях, руками не задаются:
+   ни «+», ни удаления на вкладке нет вовсе (инвариант 5) — она таблица и ничего больше.
+   Считается по ключу и всем его псевдонимам (инвариант 8) — subjectRoles это уже
+   делает через keysOf, здесь это не передоказывается. */
+function renderRolesTab(ref){
+  const rows = subjectRoles(ref);
+  if (!rows.length) return '<div class="empty">Ролей нет: лицо не участвует ни в одних кредитных отношениях.</div>';
+  return '<table class="grid"><thead><tr><th>Роль</th><th>Основание</th><th>С даты</th><th>Где ведётся</th></tr></thead><tbody>'
+    + rows.map(r => '<tr><td class="who">' + esc(r.role) + '</td><td>' + esc(r.basis) + '</td>'
+        + '<td class="muted">' + esc(r.since) + '</td><td class="muted">' + esc(r.link) + '</td></tr>').join('')
+    + '</tbody></table><div class="hint">Роль не заводится и не снимается — она есть ровно там, где лицо участвует.</div>';
+}
+
+/* Вкладка «Документы» (раздел 4 спеки): вложения субъекта — вид · относительно · дата ·
+   файл (DOCS), по ключу и всем его псевдонимам. В отличие от ролей — обычная запись
+   со своей точкой создания (addDoc). */
+function docRowHtml(d){
+  return '<tr><td>' + esc(d.kind) + '</td><td>' + esc(d.about) + '</td>'
+    + '<td class="mono">' + esc(d.date) + '</td><td>' + esc(d.file) + '</td></tr>';
+}
+function renderDocsTab(ref){
+  const ks = keysOf(ref);
+  const rows = DOCS.filter(d => ks.includes(d.key)).slice().sort((a, b) => dnum(b.date) - dnum(a.date));
+  return '<div class="section-head" style="background:transparent;border:0;padding:0 0 10px">'
+    + '<span></span><button class="btn btn-secondary btn-sm" id="btnAddDoc" type="button">+ Документ</button></div>'
+    + '<table class="grid"><thead><tr><th>Вид документа</th><th>Относительно</th><th>Дата</th><th>Файл</th></tr></thead><tbody>'
+    + (rows.length ? rows.map(docRowHtml).join('')
+       : '<tr><td colspan="4" class="muted">Документов нет</td></tr>')
+    + '</tbody></table>';
+}
+
+/* Вкладка «Банковские реквизиты» (раздел 4 спеки, tabsFor): организация — всегда,
+   физлицо — только в период действующей регистрации ИП. Закрытый период не пропадает
+   молча — подписывается датой прекращения, история реквизитов остаётся видна. */
+function bankRowHtml(b){
+  return '<tr><td>' + esc(b.bank) + '</td><td class="mono">' + esc(b.bik) + '</td>'
+    + '<td class="mono">' + esc(b.account) + '</td>'
+    + '<td>' + esc(b.from) + (b.to ? ' — прекращены ' + esc(b.to) : '') + '</td>'
+    + '<td>' + (b.main ? '<span class="badge" style="background:var(--status-info-bg);color:var(--asubk-blue)">основной</span>'
+        : '<span class="muted">—</span>') + '</td></tr>';
+}
+function renderBankTab(ref){
+  const ks = keysOf(ref);
+  const rows = BANK_REQ.filter(b => ks.includes(b.key)).slice().sort((a, b) => dnum(b.from) - dnum(a.from));
+  return '<div class="section-head" style="background:transparent;border:0;padding:0 0 10px">'
+    + '<span></span><button class="btn btn-secondary btn-sm" id="btnAddBank" type="button">+ Реквизиты</button></div>'
+    + '<table class="grid"><thead><tr><th>Банк</th><th>БИК</th><th>Расчётный счёт</th>'
+    + '<th>Период</th><th>Основной</th></tr></thead><tbody>'
+    + (rows.length ? rows.map(bankRowHtml).join('')
+       : '<tr><td colspan="5" class="muted">Реквизитов нет</td></tr>')
+    + '</tbody></table>';
+}
+
+/* Модалка «+ Связь» / «+ Член группы» — вид связи выбирается селектом (для «Состав» вкладки
+   уже проставлен и скрыт — заведение члена группы вида не спрашивает), вторая сторона —
+   поиском по ключу (текстовое поле, как и создание субъекта, СБ-2), доля показывается
+   только для вида с share:true (LINK_KINDS). Направление a/b определяет сама связь: если
+   тип открытого субъекта на дату НЕ подходит под сторону a — открытый субъект встаёт в b
+   (ровно так в «Составе» физлицо всегда встаёт в a, а группа — в b). */
+function addLinkFormHtml(fixedKind){
+  const kindField = fixedKind
+    ? '<input type="hidden" id="lKind" value="' + esc(fixedKind) + '">'
+    : '<div class="frow wide"><label for="lKind">Вид связи</label><select id="lKind">'
+      + LINK_KINDS.map(d => '<option value="' + esc(d.k) + '">' + esc(d.k) + '</option>').join('') + '</select></div>';
+  return '<div class="fform">' + kindField
+    + '<div class="frow wide"><label for="lPartner">Вторая сторона (ключ)</label>'
+    + '<input type="text" id="lPartner" placeholder="ИНН/ПИН или ГР-NNN"></div>'
+    + '<div class="frow"><label for="lFrom">Дата с</label><input type="text" id="lFrom" placeholder="ДД.ММ.ГГГГ"></div>'
+    + '<div class="frow"><label for="lTo">Дата по</label><input type="text" id="lTo" placeholder="необязательно"></div>'
+    + '<div class="frow" id="lShareRow"><label for="lShare">Доля, %</label><input type="text" id="lShare"></div>'
+    + '<div class="frow wide"><label for="lDoc">Документ-основание</label><input type="text" id="lDoc"></div>'
+    + '</div><div class="hint" id="lErr" style="margin-left:0;color:var(--status-error)"></div>';
+}
+function currentLinkKindEl(){ return document.getElementById('lKind'); }
+function toggleShareRow(){
+  const d = LINK_KINDS.find(x => x.k === currentLinkKindEl().value);
+  const row = document.getElementById('lShareRow');
+  if (row) row.style.display = d && d.share ? '' : 'none';
+}
+function openAddLink(ref, fixedKind){
+  openModal(fixedKind === 'член группы' ? 'Новый член группы' : 'Новая связь', addLinkFormHtml(fixedKind), '');
+  toggleShareRow();
+  if (!fixedKind) currentLinkKindEl().onchange = toggleShareRow;
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Сохранить</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const kind = currentLinkKindEl().value;
+    const partner = document.getElementById('lPartner').value.trim();
+    const from = document.getElementById('lFrom').value.trim();
+    const to = document.getElementById('lTo').value.trim();
+    const shareVal = document.getElementById('lShare').value.trim();
+    const doc = document.getElementById('lDoc').value.trim();
+    let a = ref, b = partner;
+    if (!linkAllowed(kind, a, b) && linkAllowed(kind, b, a)) { a = partner; b = ref; }
+    try { addLink({ kind, a, b, from, to: to || null, share: shareVal ? +shareVal : undefined, doc }); }
+    catch (e) { document.getElementById('lErr').textContent = e.message; return; }
+    closeModal(); renderCardInPlace(resolveKey(ref));
+  };
+}
+
+/* Модалка «+ Событие» (СБ-9): вид из EVENT_KINDS, дата/основание/документ обязательны,
+   поле правопреемника показывается только при successor:true (та же схема переключения
+   строки, что и toggleShareRow у связи). */
+function addEventFormHtml(){
+  return '<div class="fform">'
+    + '<div class="frow wide"><label for="eKind">Вид события</label><select id="eKind">'
+      + EVENT_KINDS.map(d => '<option value="' + esc(d.k) + '">' + esc(d.k) + '</option>').join('') + '</select></div>'
+    + '<div class="frow"><label for="eDate">Дата</label><input type="text" id="eDate" placeholder="ДД.ММ.ГГГГ"></div>'
+    + '<div class="frow wide"><label for="eBasis">Основание</label><input type="text" id="eBasis"></div>'
+    + '<div class="frow wide"><label for="eDoc">Документ</label><input type="text" id="eDoc"></div>'
+    + '<div class="frow wide" id="eSuccessorRow"><label for="eSuccessor">Правопреемник (ключ)</label>'
+    + '<input type="text" id="eSuccessor" placeholder="ИНН/ПИН"></div>'
+    + '</div><div class="hint" id="eErr" style="margin-left:0;color:var(--status-error)"></div>';
+}
+function currentEventKindEl(){ return document.getElementById('eKind'); }
+function toggleSuccessorRow(){
+  const d = EVENT_KINDS.find(x => x.k === currentEventKindEl().value);
+  const row = document.getElementById('eSuccessorRow');
+  if (row) row.style.display = d && d.successor ? '' : 'none';
+}
+function openAddEvent(ref){
+  openModal('Новое событие', addEventFormHtml(), '');
+  toggleSuccessorRow();
+  currentEventKindEl().onchange = toggleSuccessorRow;
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Сохранить</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const kind = currentEventKindEl().value;
+    const date = document.getElementById('eDate').value.trim();
+    const basis = document.getElementById('eBasis').value.trim();
+    const doc = document.getElementById('eDoc').value.trim();
+    const successorKey = document.getElementById('eSuccessor').value.trim();
+    try { addEvent({ key: resolveKey(ref), kind, date, basis, doc, successorKey }); }
+    catch (e) { document.getElementById('eErr').textContent = e.message; return; }
+    closeModal(); renderCardInPlace(resolveKey(ref));
+  };
+}
+
+/* Модалка «+ Регистрация» (СБ-3а): рег. номер, дата начала, документ — все обязательны;
+   тип лица форма не спрашивает (ADR-0018) — его после сохранения снова посчитает personKindAt. */
+function addIpRegFormHtml(){
+  return '<div class="fform">'
+    + '<div class="frow wide"><label for="rNo">Рег. номер</label><input type="text" id="rNo"></div>'
+    + '<div class="frow"><label for="rFrom">Дата с</label><input type="text" id="rFrom" placeholder="ДД.ММ.ГГГГ"></div>'
+    + '<div class="frow wide"><label for="rDoc">Документ</label><input type="text" id="rDoc"></div>'
+    + '</div><div class="hint" id="rErr" style="margin-left:0;color:var(--status-error)"></div>';
+}
+function openAddIpReg(ref){
+  openModal('Новая регистрация ИП', addIpRegFormHtml(), '');
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Сохранить</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const no = document.getElementById('rNo').value.trim();
+    const from = document.getElementById('rFrom').value.trim();
+    const doc = document.getElementById('rDoc').value.trim();
+    try { addIpReg({ key: resolveKey(ref), no, from, doc }); }
+    catch (e) { document.getElementById('rErr').textContent = e.message; return; }
+    closeModal(); renderCardInPlace(resolveKey(ref));
+  };
+}
+
+/* Модалка «+ Документ» (раздел 4 спеки): вид, дата и файл обязательны (addDoc);
+   «относительно» необязательно — addDoc сама подставит прочерк. */
+function addDocFormHtml(){
+  return '<div class="fform">'
+    + '<div class="frow wide"><label for="dKind">Вид документа</label><input type="text" id="dKind"></div>'
+    + '<div class="frow wide"><label for="dAbout">Относительно</label><input type="text" id="dAbout"></div>'
+    + '<div class="frow"><label for="dDate">Дата</label><input type="text" id="dDate" placeholder="ДД.ММ.ГГГГ"></div>'
+    + '<div class="frow wide"><label for="dFile">Файл</label><input type="text" id="dFile" placeholder="имя файла"></div>'
+    + '</div><div class="hint" id="dErr" style="margin-left:0;color:var(--status-error)"></div>';
+}
+function openAddDoc(ref){
+  openModal('Новый документ', addDocFormHtml(), '');
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Сохранить</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const kind = document.getElementById('dKind').value.trim();
+    const about = document.getElementById('dAbout').value.trim();
+    const date = document.getElementById('dDate').value.trim();
+    const file = document.getElementById('dFile').value.trim();
+    try { addDoc({ key: resolveKey(ref), kind, about, date, file }); }
+    catch (e) { document.getElementById('dErr').textContent = e.message; return; }
+    closeModal(); renderCardInPlace(resolveKey(ref));
+  };
+}
+
+/* Модалка «+ Реквизиты» (раздел 4 спеки): банк, БИК, счёт и дата начала обязательны
+   (addBankReq); новый реквизит заводится не основным — «основной» этот макет не
+   переключает, за этим — в модуль-источник. */
+function addBankFormHtml(){
+  return '<div class="fform">'
+    + '<div class="frow wide"><label for="bBank">Банк</label><input type="text" id="bBank"></div>'
+    + '<div class="frow"><label for="bBik">БИК</label><input type="text" id="bBik"></div>'
+    + '<div class="frow wide"><label for="bAccount">Расчётный счёт</label><input type="text" id="bAccount"></div>'
+    + '<div class="frow"><label for="bFrom">Дата с</label><input type="text" id="bFrom" placeholder="ДД.ММ.ГГГГ"></div>'
+    + '</div><div class="hint" id="bErr" style="margin-left:0;color:var(--status-error)"></div>';
+}
+function openAddBankReq(ref){
+  openModal('Новые реквизиты', addBankFormHtml(), '');
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Сохранить</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const bank = document.getElementById('bBank').value.trim();
+    const bik = document.getElementById('bBik').value.trim();
+    const account = document.getElementById('bAccount').value.trim();
+    const from = document.getElementById('bFrom').value.trim();
+    try { addBankReq({ key: resolveKey(ref), bank, bik, account, from }); }
+    catch (e) { document.getElementById('bErr').textContent = e.message; return; }
+    closeModal(); renderCardInPlace(resolveKey(ref));
+  };
+}
+
+/* Шапка · импортная строка · полоса вкладок · панели. Карточку, открытую по псевдониму
+   (ADR-0019), показываем как карточку главного субъекта — но не молчком: строка выше
+   называет присоединение прямо (СБ-11), со ссылкой на главного. */
+function renderCard(ref, tab){
+  const raw = subject(ref);
+  if (!raw) return '';
+  const mainRef = resolveKey(ref);
+  const s = subject(mainRef);
+  const kind = personKindAt(mainRef, VIEW_DATE);
+  const roles = subjectRoles(mainRef);
+  const stops = stopFactors(mainRef);
+  const tabs = tabsFor(mainRef, VIEW_DATE);
+  const active = tabs.some(t => t.k === tab) ? tab : (tabs[0] ? tabs[0].k : '');
+
+  let html = '';
+  if (raw.aliasOf)
+    html += '<div class="notice" id="aliasNotice">Ключ ' + esc(subjectRef(raw)) + ' присоединён к '
+      + '<a class="lnk" href="#/s/' + esc(mainRef) + '">' + esc(mainRef) + '</a>'
+      + (raw.aliasAt ? ' ' + esc(raw.aliasAt) : '') + '.</div>';
+
+  html += '<div class="card-head"><h2>' + esc(displayName(s)) + '</h2>'
+    + '<div class="meta">'
+    + '<span>' + esc(keyKind(mainRef)) + ' ' + esc(mainRef) + '</span>'
+    + '<span>' + esc(personKindLabel(kind)) + ' <span class="hint">на ' + esc(VIEW_DATE) + '</span></span>'
+    + roles.map(r => '<span class="chip">' + esc(r.role) + '</span>').join('')
+    + '</div>'
+    + stops.map(st => '<div class="stopline">' + esc(st.text) + ' · ' + esc(st.date)
+        + (st.doc ? ' · ' + esc(st.doc) : '') + '</div>').join('')
+    + '</div>';
+
+  if (s.imported) html += importBarHtml(s);
+
+  html += '<div class="tabbar">' + tabs.map(t =>
+    '<div class="tab' + (t.k === active ? ' active' : '') + '" data-tab="' + esc(t.k) + '">' + esc(t.t) + '</div>'
+  ).join('') + '</div>';
+
+  html += tabs.map(t => {
+    const body = t.k === 'main' ? mainPanelHtml(mainRef, kind)
+      : t.k === 'addr' ? addrPanelHtml(mainRef, kind)
+      : t.k === 'links' ? renderLinksTab(mainRef)
+      : t.k === 'members' ? renderMembersTab(mainRef)
+      : t.k === 'units' ? renderUnitsTab(mainRef)
+      : t.k === 'events' ? renderEventsTab(mainRef)
+      : t.k === 'ipreg' ? renderIpRegTab(mainRef)
+      : t.k === 'roles' ? renderRolesTab(mainRef)
+      : t.k === 'docs' ? renderDocsTab(mainRef)
+      : t.k === 'bank' ? renderBankTab(mainRef)
+      : '';
+    return '<div class="tabpanel' + (t.k === active ? ' active' : '') + '" data-panel="' + esc(t.k) + '">' + body + '</div>';
+  }).join('');
+
+  return html;
+}
+
+/* Модалка ввода значения пустого импортного поля — тело/подвал по образцу openCreate. */
+function openFillField(ref, name, label){
+  openModal('Заполнить: ' + label,
+    '<div class="fform"><div class="frow wide"><label for="fillVal">' + esc(label) + '</label>'
+    + '<input type="text" id="fillVal"></div></div>', '');
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Сохранить</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const v = document.getElementById('fillVal').value.trim();
+    if (!v) return;
+    fillOwn(ref, name, v);
+    closeModal();
+  };
+}
+/* Обвязка карточки: делегирование на .tab (переключение вкладки), .btn-fill (модалка
+   заполнения пустого импортного поля) и [data-choice] (разрешение расхождения).
+   #btnRefreshImport обработчика не получает: запрос в ГРС · Тундук в макете не
+   выполняется, а проставить asOf без единого изменившегося поля значило бы соврать
+   источником — ровно то, от чего уходит СБ-5б (см. комментарий над importBarHtml).
+   Кнопка остаётся в разметке (показывает, где действие живёт) с поясняющим title. */
+function wireCard(ref){
+  const mount = document.getElementById('cardMount');
+  mount.onclick = e => {
+    const tabEl = e.target.closest('.tabbar .tab');
+    if (tabEl) { switchTab(tabEl.dataset.tab); return; }
+    const fillBtn = e.target.closest('.btn-fill');
+    if (fillBtn) {
+      const fld = fillBtn.closest('.fld');
+      openFillField(ref, fillBtn.dataset.fname, fld ? fld.querySelector('.fld-l').textContent : fillBtn.dataset.fname);
+      return;
+    }
+    const choiceBtn = e.target.closest('[data-choice]');
+    if (choiceBtn) { resolveConflict(ref, choiceBtn.dataset.fname, choiceBtn.dataset.choice); return; }
+    if (e.target.closest('#btnAddLink')) { openAddLink(ref); return; }
+    if (e.target.closest('#btnAddMember')) { openAddLink(ref, 'член группы'); return; }
+    if (e.target.closest('#btnAddEvent')) { openAddEvent(ref); return; }
+    if (e.target.closest('#btnAddIpReg')) { openAddIpReg(ref); return; }
+    if (e.target.closest('#btnAddDoc')) { openAddDoc(ref); return; }
+    if (e.target.closest('#btnAddBank')) { openAddBankReq(ref); return; }
+  };
+}
+/* Переключение вкладки пишет ?tab= в hash (карточка остаётся на той же дате среза) —
+   перерисовку делает hashchange → route(), своей мутации DOM в обход маршрута нет. */
+function switchTab(key){
+  const m = /^#\/s\/([^/?]+)(?:\?(.*))?$/.exec(location.hash);
+  if (!m) return;
+  const p = hashParams(m[2]);
+  p.tab = key;
+  const qs = Object.keys(p).filter(k => p[k] !== '' && p[k] != null)
+    .map(k => k + '=' + encodeURIComponent(p[k])).join('&');
+  location.hash = '#/s/' + m[1] + (qs ? '?' + qs : '');
+}
+
+/* ── ЭКРАН СЛИЯНИЯ (СБ-11, СБ-12) ──
+   Единственное действие с эффектом на этом экране — кнопка «Слить»: она одна вызывает
+   doMerge(). Всё остальное (выбор главной записи, выбор значения по расхождению) —
+   состояние ЭКРАНА (MERGE_CTX), не факт: оно живёт, пока открыт вид, и не сохраняется.
+   Колонки таблицы закреплены за aRef/bRef и не переставляются местами при выборе
+   главной — иначе оператор терял бы из виду, какая запись какая. Создаётся MERGE_CTX
+   в showMerge() (вход на маршрут), а не в теле renderMerge: иначе повторный вызов
+   renderMerge стирал бы уже сделанные оператором выборы при каждой перерисовке. */
+let MERGE_CTX = null;   /* { aRef, bRef, main, picks } */
+
+function mergeWhatHtml(){
+  return '<div class="hint" style="margin-left:0">'
+    + '<b>Переносится</b> (своё присоединяемой записи): документы, связи, события, '
+    + 'банковские реквизиты, регистрации ИП, оргструктура. '
+    + '<b>Остаётся как есть</b> (чужое, ADR-0014): ссылки в кредитах, предметах залога, '
+    + 'поручительствах и делах взыскания не переписываются — они регистрировались в своих '
+    + 'модулях и там же остаются. Присоединённый ключ становится псевдонимом: из маршрутов '
+    + 'не исчезает, роли по нему по-прежнему считаются наравне с главным (инварианты 8, 9).'
+    + '</div>';
+}
+/* data-pick несёт САМ ВЫБОР ('a'/'b' — чья это ценность, по буквальной идентичности
+   записи в колонке), data-fname — имя поля; так экран узнаётся кликом ровно как
+   оператор его совершает (тест 8.16), а не косвенно через второй атрибут. */
+function mergeRowHtml(r){
+  const chosen = MERGE_CTX.picks[r.name];
+  const btn = (val, label) => '<button class="btn btn-secondary btn-sm" type="button"'
+    + ' data-pick="' + val + '" data-fname="' + esc(r.name) + '"' + (chosen === val ? ' disabled' : '') + '>' + label + '</button>';
+  /* M-4: кнопка предлагается только той стороне, у которой значение ЕСТЬ. mergeDiff оставляет
+     строку, если заполнена ЛЮБАЯ сторона, поэтому «взять B» предлагалось и при пустом B —
+     кнопка, которая по замыслу не может сделать ничего осмысленного: взять из пустого нечего,
+     а стереть заполненное выбор не должен. Пустую сторону называем словами, иначе строка с
+     одной кнопкой читается как недорисованная. */
+  const btns = [r.a ? btn('a', 'взять A') : '', r.b ? btn('b', 'взять B') : ''].filter(Boolean).join(' ');
+  /* «значения нет», а не «поля нет»: строка приходит и тогда, когда поле у стороны есть,
+     но пусто (st:'пусто', как адрес у S-DUP). Отличить отсутствие поля от пустого значения
+     экран не может и утверждать первое не должен — ровно та же цена, что и у типа лица,
+     напечатанного без среза на дату (I-1), только мельче. */
+  const gap = r.a && r.b ? '' : '<div class="muted">' + (r.a ? 'в записи B значения нет' : 'в записи A значения нет') + '</div>';
+  const pick = r.differs
+    ? btns + gap + (chosen ? '<div class="muted">выбрано ' + (chosen === 'a' ? 'A' : 'B') + '</div>' : '')
+    : '<span class="muted">совпадает</span>';
+  return '<tr><td>' + esc(r.label) + '</td><td>' + esc(r.a || '—') + '</td><td>' + esc(r.b || '—') + '</td><td>' + pick + '</td></tr>';
+}
+function renderMergeScreen(){
+  const { aRef, bRef, main } = MERGE_CTX;
+  const a = subject(aRef), b = subject(bRef);
+  const diff = mergeDiff(aRef, bRef);
+  const rows = diff.map(mergeRowHtml).join('');
+  const radio = (ref, s) => '<label><input type="radio" name="mergeMain" value="' + esc(ref) + '"'
+    + (main === ref ? ' checked' : '') + '> ' + esc(displayName(s)) + ' <span class="muted">' + esc(ref) + '</span></label>';
+  return '<h2>Сравнение перед слиянием</h2>'
+    + '<div class="notice">Слияние — учётное действие: две записи об одном лице. Если лиц '
+    + 'действительно два и между ними правопреемство — это <b>реорганизация</b>, событие на '
+    + 'вкладке «События» (СБ-12), а не слияние: обе записи в реорганизации остаются живыми, '
+    + 'здесь же присоединяемая запись станет псевдонимом главной.</div>'
+    + '<div class="fform"><div class="frow wide"><label>Главная запись</label>'
+    + '<div class="radios">' + radio(aRef, a) + radio(bRef, b) + '</div></div></div>'
+    + '<table class="grid" id="mergeTable"><thead><tr><th>Поле</th>'
+    + '<th>Запись A · ' + esc(aRef) + '</th><th>Запись B · ' + esc(bRef) + '</th><th>Выбор</th></tr></thead>'
+    + '<tbody>' + (rows || '<tr><td colspan="4" class="muted">Расхождений в заполненных полях нет</td></tr>') + '</tbody></table>'
+    + mergeWhatHtml()
+    + '<div class="fform"><div class="frow wide">'
+    + '<label for="mergeConfirm">Подтвердите слияние — введите ключ главной записи «' + esc(main) + '»</label>'
+    + '<input type="text" id="mergeConfirm" placeholder="' + esc(main) + '"></div></div>'
+    + '<div class="hint" id="mergeErr" style="margin-left:0;color:var(--status-error)"></div>'
+    + '<div style="margin-top:10px">'
+    + '<button class="btn btn-primary" id="btnMerge" type="button">Слить</button> '
+    + '<a class="lnk" href="#/s/' + esc(main) + '">Отмена</a></div>';
+}
+/* Уже слитая пара экрана сравнения не открывает: живой экран с рабочей кнопкой «Слить»
+   там, где сливать нечего, довёл бы до защиты doMerge только ПОСЛЕ клика — здесь же
+   говорится прямо и сразу, куда запись делась. */
+function mergedNoticeHtml(mergedRef){
+  const s = subject(mergedRef), main = subject(s.aliasOf);
+  return '<h2>Сравнение перед слиянием</h2>'
+    + '<div class="notice">Записи уже слиты: ' + esc(subjectRef(s)) + ' присоединён к '
+    + '<a class="lnk" href="#/s/' + esc(subjectRef(main)) + '">' + esc(subjectRef(main)) + '</a>.</div>';
+}
+function renderMerge(aRef, bRef){
+  const a = subject(aRef), b = subject(bRef);
+  if (!a || !b) return '';
+  if (a.aliasOf) return mergedNoticeHtml(aRef);
+  if (b.aliasOf) return mergedNoticeHtml(bRef);
+  return renderMergeScreen();
+}
+function renderMergeInPlace(){ document.getElementById('mergeMount').innerHTML = renderMergeScreen(); }
+/* Кнопка «Слить» переводит выбор по расхождениям (по идентичности A/B, закреплённой
+   таблицей) в choices doMerge (по «главный/присоединяемый»): переопределять нужно только
+   поле, для которого выбрано значение НЕ главной записи. */
+function runMerge(){
+  const { aRef, bRef, main, picks } = MERGE_CTX;
+  const join = main === aRef ? bRef : aRef;
+  const choices = {};
+  Object.keys(picks).forEach(name => {
+    const wantsMain = (picks[name] === 'a' && main === aRef) || (picks[name] === 'b' && main === bRef);
+    if (!wantsMain) choices[name] = 'b';
+  });
+  choices.confirm = (document.getElementById('mergeConfirm').value || '').trim();
+  try { doMerge(main, join, choices); }
+  catch (e) { document.getElementById('mergeErr').textContent = e.message; return; }
+  location.hash = '#/s/' + main;
+}
+function wireMerge(){
+  const mount = document.getElementById('mergeMount');
+  mount.onclick = e => {
+    const pick = e.target.closest('[data-pick]');
+    if (pick) { MERGE_CTX.picks[pick.dataset.fname] = pick.dataset.pick; renderMergeInPlace(); return; }
+    if (e.target.closest('#btnMerge')) { runMerge(); return; }
+  };
+  mount.onchange = e => {
+    const radio = e.target.closest('input[name="mergeMain"]');
+    if (radio) { MERGE_CTX.main = radio.value; renderMergeInPlace(); }
+  };
+}
+
+route();
+</script>
+</body>
+</html>

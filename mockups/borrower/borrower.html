@@ -74,7 +74,7 @@
                  постоянного состава: кредиты · обеспеченность · контакты | сроки ·
                  кураторство · последние события. У каждой ровно один адрес продолжения —
                  своя вкладка. Что ушло: «Основные сведения» (отрасль → id-bar, адреса →
-                 страница субъекта (subjectFieldsSect), примечание → условная плашка
+                 макет субъекта (СБ-14), примечание → условная плашка
                  noteStrip(), аудит записи → факты ленты) и «Послабления» (норма — не
                  новость; отметка стала строкой основания плитки категории, catBasisLine).
                  Новые швы: liveChannels() — один источник каналов для карточки и дефекта
@@ -295,9 +295,9 @@
                      групп (GROUPS), блок виден только членам, у каждого показана его категория
                      риска: группа заводится ради общего риска, и вопрос к ней ровно один;
                  КЗ-40 — владение реквизитами у субъекта: каналы и счета показываются здесь и
-                     правятся на странице лица, куда ведёт рабочая внутренняя ссылка. Тот же
-                     блок рисует страница субъекта (requisitesTab с owner:true) — один код на
-                     два места, иначе два перечня одного факта разойдутся молча. Точек ввода
+                     правятся у владельца — в макете субъекта, куда ведёт внешняя ссылка
+                     (СБ-14: mockups/subject/subject.html; режима owner у requisitesTab
+                     здесь больше нет — рисовать «страницу лица» этому макету нечем). Точек ввода
                      на вкладке не осталось: «+ Добавить связь» и «+ Добавить члена» молчали
                      при нажатии, теперь это маршруты в реестр (КЗ-16), и зеркалом помечена
                      вся вкладка, а не левая колонка;
@@ -738,7 +738,6 @@
   .tabpanel{display:none;} .tabpanel.active{display:block;}
 
   /* ---------- карточка заёмщика v2: шапка-плитки (Task 10) ---------- */
-  .crumb{font-size:13px;color:var(--text-muted);margin-bottom:10px;}
   /* КЗ-4: плиток две, не три. Третья показывала состояние субъекта — ровно то же, что говорит
      баннер ниже, и теми же словами. */
   .phead-dims{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:18px;}
@@ -1197,12 +1196,8 @@
       </div>
     </div>
 
-    <!-- ==================== ВИД: СУБЪЕКТ (организация / физлицо) ==================== -->
-    <div class="view" id="view-subject">
-      <div class="content">
-        <div id="subjectMount"></div>
-      </div>
-    </div>
+    <!-- СБ-14: вида субъекта здесь нет. Владелец страницы лица — mockups/subject/subject.html;
+         в карточке остаётся строка-зеркало (ADR-0014) и ссылка наружу. -->
   </div>
 </div>
 
@@ -1303,7 +1298,7 @@ const SUBJECTS = [
     addrLegal:'г. Нарын, ул. Ленина 12', addrFact:'г. Нарын, ул. Ленина 12', regDate:'19.09.2017',
     note:'переведён в досудебное урегулирование',
     audit:{ by:'Токтосунов Э.Б.', date:'05.09.2024', time:'14:05', chgBy:'Асанова Ж.К.', chgDate:'02.07.2026', chgTime:'09:18' } },
-  { inn:'04401199940041', name:'ИП Асанов Т.К.', personKind:'ИП',
+  { inn:'04401199940041', name:'Асанов Тимур Кубанычевич', personKind:'ИП',
     ownershipForm:'Частная', industry:'Частное предпринимательство', district:'Кара-Сууйский',
     doc:{kind:'Патент',no:'0044011',date:'22.01.2019'},
     addrLegal:'г. Ош, ул. Курманжан-Датка 8', addrFact:'г. Ош, ул. Курманжан-Датка 8', regDate:'22.01.2019',
@@ -1321,8 +1316,13 @@ const SUBJECTS = [
     addrLegal:'г. Токмок, ул. Гагарина 41', addrFact:'г. Токмок, ул. Гагарина 41', regDate:'11.11.2014',
     note:'—',
     audit:{ by:'Асанова Ж.К.', date:'21.11.2024', time:'16:48', chgBy:'Асанова Ж.К.', chgDate:'21.11.2024', chgTime:'16:48' } },
-  { inn:'07701199970071', name:'Мамбетов Кубаныч (физ.)', personKind:'физ',
-    ownershipForm:'—', industry:'Частное предпринимательство', district:'Сузакский',
+  /* M-5 (финальное ревью 29.07.2026): отрасль приведена к владельцу (subject.html — «—»).
+     Здесь стояло «Частное предпринимательство» у лица с personKind:'физ', которое ни ИП, ни
+     организацией не было никогда: у владельца это залогодатель по чужому кредиту, отрасли
+     у него нет. Зеркало собственных значений не сочиняет (ADR-0014) — расхождение теперь
+     ловит тест-парность, расширенная с name на industry и district. */
+  { inn:'07701199970071', name:'Мамбетов Кубаныч', personKind:'физ',
+    ownershipForm:'—', industry:'—', district:'Сузакский',
     doc:{kind:'Паспорт',no:'ID0770117',date:'—'},
     addrLegal:'г. Джалал-Абад, ул. Токтогула 90', addrFact:'г. Джалал-Абад, ул. Токтогула 90', regDate:'—',
     note:'физлицо — поручительство супруги',
@@ -1752,7 +1752,7 @@ PROCESSES.push(
       { action:'Подготовка искового заявления', due:'31.07.2026',
         base:'10 р.д. от неисполнения требований претензии', point:'21' },
     ] },
-  // Ветка 4 (ИП Асанов Т.К.) — внесудебная реализация залога (К2): судебных мер нет, дело ведёт
+  // Ветка 4 (Асанов Тимур Кубанычевич) — внесудебная реализация залога (К2): судебных мер нет, дело ведёт
   // отраслевой отдел с залоговой службой, поэтому процедура «Передан в отраслевые отделы»
   // (подгруппу не меняет). Второй кредит ИП (КР-44011) не просрочен — процесса по нему нет.
   { id:'PR-401', no:401, credits:['C-B4-1'], contour:'К2', phase:'Извещение',
@@ -4192,24 +4192,6 @@ function groupStepsHtml(inn, d){
 
 /* ---------- 11 вкладок карточки — каждая строит HTML из §4-функций/массивов ---------- */
 
-/* Реквизиты субъекта (Д-6, Ш-5) — общий источник для вкладки «Реквизиты и контакты»
-   и страницы субъекта. docBy — «кем выдано» показываем только на странице субъекта. */
-function requisiteRows(s, docBy){
-  const doc = s.doc || {};
-  const rows = [
-    ['Тип лица', s.personKind],
-    ['Организационно-правовая форма', s.legalForm || '—'],
-    ['Форма собственности', s.ownershipForm || '—'],   /* Ш-5 */
-    ['Документ', `${doc.kind||'—'} № ${doc.no||'—'} от ${doc.date||'—'}`],
-  ];
-  if (docBy) rows.push(['Кем выдан документ', doc.by || '—']);
-  rows.push(['Дата регистрации', s.regDate || '—']);
-  return rows;
-}
-function fieldsHtml(rows){
-  return '<div class="fields">' + rows.map(([k,v])=>`<div class="f"><span class="fk">${esc(k)}</span><span class="fv">${esc(v)}</span></div>`).join('') + '</div>';
-}
-
 /* Лента стоп-факторов над карточками: то, что обязано остановить кредитчика ещё до открытия вкладок.
    Всё считается на asOf() из тех же массивов, что и вкладки-источники — здесь только сводка. */
 /* Шапка карточки — подача «сопровождение» ТОГО ЖЕ списка дефектов: сначала стоп-факторы
@@ -4472,21 +4454,6 @@ function noteStrip(s){
   if (!n || n === '—') return '';
   return `<div class="note-strip"><b>Примечание</b> · ${esc(n)}</div>`;
 }
-/* Атрибуты субъекта (КЗ-9) — отрасль и адреса. Живут на СТРАНИЦЕ СУБЪЕКТА рядом с реквизитами:
-   это его паспортные данные, они не меняются от того, есть у него кредит или нет. На карточке
-   заёмщика их не было смысла держать — карточка отвечает «что с заёмщиком сейчас», а адрес
-   на этот вопрос не отвечает; отрасль же опознаёт запись и потому поднята в id-bar. */
-function subjectFieldsSect(s){
-  const rows = [
-    ['Отрасль', esc(s.industry || '—')],
-    ['Юридический адрес', esc(s.addrLegal || '—')],
-    ['Фактический адрес', esc(s.addrFact || '—')],
-    ['Примечание', `<span style="font-weight:400">${esc(s.note || '—')}</span>`],
-  ];
-  return sect('Сведения о субъекте', '', '',
-    '<div class="fields">' + rows.map(([k,v])=>`<div class="f"><span class="fk">${esc(k)}</span><span class="fv">${v}</span></div>`).join('') + '</div>');
-}
-
 /* 0. Общая информация — ВИТРИНА (КЗ-8). Вкладка отвечает на один вопрос: «что с заёмщиком
    сейчас». Отсюда её состав — шесть сводок, по одной на слой работы, и у каждой ровно один
    адрес продолжения — своя вкладка. Состав ПОСТОЯННЫЙ: пустой заёмщик даёт те же шесть карточек
@@ -4495,14 +4462,10 @@ function subjectFieldsSect(s){
    (норма — не новость; отметка осталась строкой основания в плитке категории, КЗ-15).
    Что пришло: обеспеченность и кураторство — два вопроса, на которые витрина раньше молчала (КЗ-17).
    Слева — чем заёмщик обеспечен и как с ним связаться, справа — что горит и что происходит.
-   Страница субъекта (overlays:false) — не витрина: там реквизиты и атрибуты, кредитного слоя нет. */
-function generalTab(inn, opts){
-  opts = opts || {};
-  const overlays = opts.overlays !== false;   /* карта заёмщика — да; страница субъекта — нет */
-  const docBy = !!opts.docBy;                 /* «кем выдано» показываем только на странице субъекта */
+   СБ-14: ветки «страница субъекта» (overlays:false) здесь больше нет — реквизиты и паспортные
+   атрибуты лица рисует владелец, mockups/subject/subject.html. */
+function generalTab(inn){
   const s = SUBJECTS.find(x=>x.inn===inn);
-  if (!overlays)
-    return sect('Реквизиты', '', '', fieldsHtml(requisiteRows(s, docBy))) + subjectFieldsSect(s);
   /* КЗ-4: ленты стоп-факторов здесь больше нет — она поднята в шапку карточки (renderCard),
      где видна со всех вкладок, а не только с этой. */
   return noteStrip(s)
@@ -5171,7 +5134,7 @@ function guaranteeSection(inn){
                 || dnum(b.date) - dnum(a.date));
   const noOf = id => (CREDITS.find(c => c.id === id) || {}).no || id;
   const who = gx => gx.guarantorInn
-    ? '<a class="lnk" href="#/s/' + esc(gx.guarantorInn) + '">' + esc(gx.guarantorFio) + '</a>'
+    ? subjectLink(gx.guarantorInn, gx.guarantorFio)
       + '<div class="muted" style="margin-top:3px">ИНН ' + esc(gx.guarantorInn) + '</div>'
     : esc(gx.guarantorFio) + '<div class="muted" style="margin-top:3px">ПИН ' + esc(gx.guarantorPin || '—') + '</div>';
   const rows = list.map(gx => {
@@ -5357,8 +5320,8 @@ function wireCollateralTab(inn){
       + '<div class="pi-h"><b>' + esc(o.name) + '</b>'
         + '<span class="pi-l">' + esc(o.kind) + ' · ' + esc(o.identLabel) + ' ' + esc(o.ident) + '</span>'
         + banBadge(o) + surveyBadge(o) + policyBadge(o) + '</div>'
-      + '<div class="pi-l">залогодатель · <a class="lnk" href="#/s/' + esc(o.pledgerInn) + '">'
-        + esc(pledgerName(o)) + '</a> · ИНН ' + esc(o.pledgerInn)
+      + '<div class="pi-l">залогодатель · '
+        + subjectLink(o.pledgerInn, pledgerName(o)) + ' · ИНН ' + esc(o.pledgerInn)
         + (o.address ? ' · ' + esc(o.address) : '') + '</div>'
       + '<div class="pi-l">оценочная ' + actMoney(o.appraised, CUR(o)) + ' · залоговая '
         + actMoney(o.collateralValue, CUR(o)) + ' · оценка от ' + esc(o.apprDate)
@@ -5406,7 +5369,7 @@ function wireCollateralTab(inn){
           + '<div class="muted" style="font-weight:400;margin-top:3px">' + esc(o.kind)
           + (o.released ? ' · снят' : '') + '</div></td>'
         + '<td data-col="ident">' + esc(o.identLabel) + ' ' + esc(o.ident) + '</td>'
-        + '<td data-col="pledger"><a class="lnk" href="#/s/' + esc(o.pledgerInn) + '">' + esc(pledgerName(o)) + '</a>'
+        + '<td data-col="pledger">' + subjectLink(o.pledgerInn, pledgerName(o))
           + '<div class="muted" style="margin-top:3px">ИНН ' + esc(o.pledgerInn)
           + (o.address ? ' · ' + esc(o.address) : '') + '</div></td>'
         + '<td data-col="appr">' + actMoney(o.appraised, CUR(o)) + '</td>'
@@ -5903,7 +5866,7 @@ function wireCuratorTab(inn){
    два разных номера (у поручителей рядом — «ПИН», КЗ-26). */
 function personCells(p){
   const name = p.subjInn
-    ? '<a class="lnk" href="#/s/' + esc(p.subjInn) + '">' + esc(p.fio) + '</a>'
+    ? subjectLink(p.subjInn, p.fio)
     : esc(p.fio);
   return '<td class="who">' + name + '</td><td class="mono">' + esc(p.pin || '—') + '</td>';
 }
@@ -5950,20 +5913,16 @@ function relatedTab(inn){
 
 /* Правая колонка — каналы связи и счета. КЗ-40: владелец этих фактов — СУБЪЕКТ, а не роль
    «заёмщик»: у роли своих реквизитов нет. В карточке они только показываются, правка — на
-   странице лица; маршрут внутренний и рабочий, поэтому это обычная ссылка, а не «маршрут
-   не реализован». opts.owner=true рисует тот же блок на странице субъекта — один код на два
-   места, иначе два перечня одного факта разойдутся молча.
+   странице лица. СБ-14: страница лица — в другом макете (mockups/subject/subject.html), поэтому
+   ссылка ведёт наружу; режима owner здесь больше нет — рисовать блок «у владельца» этому макету
+   нечем и незачем.
    Признаки «основной» и «сверен» показываются здесь по той же причине, что и на витрине
    (КЗ-10): без них две вкладки одной карточки отвечали на «по какому каналу звонить»
    по-разному — витрина знала основной канал и дату сверки, вкладка 10 не знала (Б-20).
    Порядок строк — общий с витриной (liveChannels): сначала основной, закрытые в хвосте. */
-function requisitesTab(inn, opts){
-  const owner = !!(opts && opts.owner);
-  const act = who => owner
-    ? '<button class="btn btn-secondary btn-sm" onclick="notRouted(\'форма правки реквизитов субъекта (ОВ-15)\')">+ Добавить ' + who + '</button>'
-    : '<a class="lnk" href="#/s/' + esc(inn) + '">править у субъекта</a>';
-  const hint = owner ? 'ведутся здесь: реквизиты принадлежат лицу, а не роли «заёмщик»'
-                     : 'реквизиты принадлежат лицу — правка на странице субъекта (КЗ-40)';
+function requisitesTab(inn){
+  const act = subjectLink(inn, 'править у субъекта');   /* одна ссылка наружу на оба блока */
+  const hint = 'реквизиты принадлежат лицу — правка у владельца, в макете субъекта (КЗ-40)';
   const chRow = c => '<tr' + (c.closedAt ? ' class="muted"' : '') + '>'
     + '<td>' + esc(c.kind) + (c.main ? ' <span class="badge b-ok">основной</span>' : '') + '</td>'
     + '<td>' + esc(c.value) + '</td>'
@@ -5979,8 +5938,8 @@ function requisitesTab(inn, opts){
   const bRows = banks.map(b=>`<tr><td>${esc(b.bank)}</td><td class="mono">${esc(b.bik||'—')}</td><td class="mono">${esc(b.account)}</td><td>${esc(b.currency)}</td>`
     + `<td>${b.main?'основной':'—'}</td><td>${b.note && b.note!=='—' ? esc(b.note) : '—'}</td><td class="muted">${esc(b.from)}</td></tr>`);
   const bHtml = table('<th>Банк</th><th>БИК</th><th>Счёт</th><th>Валюта</th><th>Тип</th><th>Примечание</th><th>С</th>', bRows);
-  return sect('Каналы связи', hint + ' · действующие и закрытые', act('канал'), chHtml)
-       + sect('Банковские реквизиты', hint + ' · записи не удаляются, только добавляются', act('счёт'), bHtml);
+  return sect('Каналы связи', hint + ' · действующие и закрытые', act, chHtml)
+       + sect('Банковские реквизиты', hint + ' · записи не удаляются, только добавляются', act, bHtml);
 }
 
 /* Вкладка целиком: полоса дефектов (КЗ-22, вторая подача) + две колонки. Полосы здесь не было
@@ -6999,6 +6958,30 @@ function tabMain(inn, i){
   return '';
 }
 
+/* СБ-14: владелец страницы субъекта — mockups/subject/subject.html. Два макета,
+   по-разному описывающих одно лицо, читаются как две модели, и неизвестно, какая главная.
+   Здесь остаётся зеркало (ADR-0014): наименование, ключ — и выход наружу.
+
+   C1 (ревью 29.07.2026): тип лица из зеркала УБРАН, и отметка среза вместе с ним.
+   Тип лица у владельца — не поле, а функция среза: personKindAt(ref,date) выводит его из
+   регистраций ИП (subject.html). Здесь же personKind — статическая строка, и IP_REG в этом
+   макете нет вовсе. На 04401199940041 зеркало печатало «ИП», владелец на ту же дату даёт
+   «Физ. лицо»: два макета расходились в открытую, ровно тот дефект, ради устранения которого
+   схлопывался вид. Отметка «на <дата>» делала расхождение хуже — утверждала снимок, которого
+   зеркало не делает: имя и ключ от asOf() не зависят ни при каком срезе.
+   Печатаем только то, чем запись опознают и что от даты не зависит. Тип лица — у владельца. */
+const subjectLink = (inn, text) =>
+  '<a class="lnk" href="../subject/subject.html#/s/' + esc(inn) + '" target="_blank" rel="noopener">'
+  + esc(text || inn) + ' ↗</a>';
+function subjectMirrorRow(inn){
+  const s = SUBJECTS.find(x => x.inn === inn);
+  if (!s) return '';
+  return '<div class="id-bar"><div class="id-main">'
+    + '<span class="who">' + esc(s.name) + '</span> · '
+    + '<span class="muted">' + esc(inn) + '</span> · '
+    + subjectLink(inn, 'Открыть субъекта') + '</div></div>';
+}
+
 function renderCard(inn){
   const s = SUBJECTS.find(x=>x.inn===inn);
   const cat = catOfBorrower(inn, asOf());
@@ -7011,17 +6994,28 @@ function renderCard(inn){
      одинаков на всех экранах модуля и отвечать «кто сейчас открыт» не обязан. Раньше туда
      клалось одно наименование, а ИНН — первичный ключ ВСЕХ выводимых значений карточки — не
      показывался нигде (Б-12): сверить, тот ли заёмщик открыт, было не с чем.
-     Состав строки — только то, чем запись опознают: ИНН, тип лица, отрасль. Адреса и реквизиты
-     сюда не идут — они атрибуты субъекта и живут на его странице. */
+     Состав строки — только то, чем запись опознают: ИНН и отрасль. Адреса и реквизиты
+     сюда не идут — они атрибуты субъекта и живут у его владельца.
+     СБ-14: выход к субъекту — не здесь, а строкой-зеркалом (subjectMirrorRow) сразу под шапкой:
+     ссылка теперь уводит в другой макет, и она в карточке одна, а не две на один адрес.
+
+     I-1 (ревью 29.07.2026). Тип лица из шапки УБРАН — по той же причине, по которой C1
+     убрал его из строки-зеркала тремя строками ниже, и убрать его следовало сразу в обоих
+     местах. У владельца тип лица не поле, а функция среза: personKindAt(ref,date) выводит
+     его из регистраций ИП. Здесь personKind — хранимая строка, а IP_REG в этом макете нет
+     вовсе, считать тип на дату нечем (ADR-0018). Итог был виден на одном экране: шапка
+     печатала «ИП», а строка-зеркало под ней вела на владельца, который для того же
+     04401199940041 на ту же дату даёт «Физ. лицо на 13.07.2026». Оператор, кликнувший
+     «Открыть субъекта ↗» под словом «ИП», не мог знать, какой из двух ответов верен.
+     Прочие читатели personKind (колонка реестра, выгрузка, «Тип лица» в форме поиска лица)
+     оставлены осознанно: реестр без типа лица теряет для читателя слишком много, а полное
+     снятие хранимого поля — отдельная работа, заведена рекомендацией P4-R29. */
   const idBar = `<div class="id-bar"><div class="id-main">`
     + `<div class="id-name">${esc(s ? s.name : 'Заёмщик')}</div>`
     + `<div class="id-sub">`
       + `<span>ИНН <b>${esc(inn)}</b></span>`
-      + `<span>${esc(personKindLabel(s.personKind))}</span>`
       + `<span>${esc(s.industry || '—')}</span>`
-      + `<span><a class="lnk" href="#/s/${esc(inn)}">`
-        + `${s.personKind === 'физ' ? 'Открыть физическое лицо' : 'Открыть организацию'} →</a></span>`
-    + `</div></div></div>`;
+    + `</div></div></div>` + subjectMirrorRow(inn);
 
   /* КЗ-4/КЗ-5/КЗ-6. Плиток две: подгруппа и категория. Третья («Состояние субъекта») повторяла
      баннер ниже теми же словами — состояние показывается только баннером.
@@ -7147,41 +7141,6 @@ function subjectRoles(inn){
   return out;
 }
 
-/* ---------- Субъект (#/s/<ИНН>) — собственная сущность (E2E findings), не зеркало заёмщика. ---------- */
-function renderSubject(inn){
-  const s = SUBJECTS.find(x=>x.inn===inn);
-  const evs = SUBJECT_EVENTS.filter(e=>e.inn===inn).slice().sort((a,b)=>dnum(b.date)-dnum(a.date));
-  const header = `<div class="crumb"><a class="lnk" href="#/b/${esc(inn)}">${esc(s.name)}</a> / Субъект</div>`
-    + `<div class="id-bar"><div class="id-main"><div class="id-name">${esc(s.name)}</div></div></div>`;
-  /* тело субъекта — реквизиты + основные сведения, БЕЗ послаблений (кредитный слой, не атрибут субъекта); «кем выдано» показываем */
-  const body = generalTab(inn, { overlays:false, docBy:true });
-  /* организационная структура — атрибут субъекта-юрлица */
-  let unitSect = '';
-  if (s.personKind === 'юр'){
-    const units = UNITS.filter(u=>u.inn===inn);
-    const uRows = units.map(u=>`<tr><td class="muted">${esc(u.id)}</td><td class="who">${esc(u.name)}</td><td class="muted">${esc(u.note||'—')}</td></tr>`);
-    unitSect = sect('Организационная структура', 'подразделения субъекта',
-      '<button class="btn btn-secondary btn-sm">+ Добавить подразделение</button>',
-      table('<th style="width:12%">ID</th><th style="width:44%">Наименование</th><th>Примечание</th>', uRows));
-  }
-  const evRows = evs.map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(e.kind)}</td><td>${esc(e.basis||'—')}</td><td>${esc(e.doc||'—')}</td>`
-    + `<td>${e.successorInn ? `<a class="lnk" href="#/b/${esc(e.successorInn)}">${esc(e.successorInn)}</a>` : '—'}</td></tr>`);
-  const evHtml = sect('Жизненный цикл субъекта', 'записи не удаляются — только добавляются', '', table('<th>Дата</th><th>Событие</th><th>Основание</th><th>Документ</th><th>Преемник</th>', evRows));
-  /* Каналы и счета — здесь, у владельца (КЗ-40). Пока формы правки нет (ОВ-15), кнопка
-     честно отвечает «маршрут не реализован», а не молчит: карточка заёмщика ведёт сюда
-     ссылкой «править у субъекта», и приводить её в пустое место нельзя. */
-  const reqHtml = requisitesTab(inn, { owner:true });
-  /* Роли субъекта — первым блоком: с них начинается ответ на вопрос «кто это лицо для нас» */
-  const roles = subjectRoles(inn);
-  const rolesHtml = sect('Роли субъекта', 'выводятся из участия, вручную не задаются', '',
-    roles.length
-      ? table('<th style="width:20%">Роль</th><th style="width:28%">Объём</th><th style="width:14%">С даты</th><th>Где</th>',
-          roles.map(r => `<tr><td class="who">${esc(r.role)}</td><td>${esc(r.scope)}</td>`
-            + `<td class="muted">${esc(r.since)}</td><td>${r.link}</td></tr>`))
-      : empty('Лицо заведено, но ни в одной роли не участвует.'));
-  return header + rolesHtml + body + reqHtml + unitSect + evHtml;
-}
-
 /* ═══ SECTION 4 · ШЕЛЛ (роутер/реестр/память) ═══ */
 /* kept as-is from the stand-verified mockup */
 const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
@@ -7269,20 +7228,18 @@ document.querySelectorAll('.nav-group').forEach(g => {
 
 const vList = document.getElementById('view-list');
 const vDetail = document.getElementById('view-detail');
-const vSubject = document.getElementById('view-subject');
 const pageTitle = document.getElementById('pageTitle');
 const topbar = document.getElementById('topbar');
 let current = null;   /* открытый заёмщик, null = список */
-let currentSubj = null;   /* открытая страница субъекта, null = не открыта */
 
-function showOnly(v){ [vList, vDetail, vSubject].forEach(x => x.classList.toggle('active', x === v)); }
+function showOnly(v){ [vList, vDetail].forEach(x => x.classList.toggle('active', x === v)); }
 /* window.scrollTo() — jsdom-стаб, шлёт jsdomError в virtual console (не бросает исключение,
    try/catch не спасает); скроллим напрямую через свойство — тот же эффект, безопасно и в браузере, и в jsdom. */
 function scrollTop(){ document.documentElement.scrollTop = document.body.scrollTop = 0; }
 
 function showList(){
-  current = null; currentSubj = null;
-  VIEW_DATE = TODAY;              /* реестр всегда «сегодня»: срез — свойство открытой карточки */
+  current = null;
+  VIEW_DATE = TODAY;          /* реестр всегда «сегодня»: срез — свойство открытой карточки */
   renderList();
   showOnly(vList);
   pageTitle.textContent = 'Список заёмщиков';
@@ -7294,7 +7251,7 @@ function showList(){
    (преемник после перевода долга, связанное лицо) уносил срез предыдущего заёмщика на
    следующего — без подписи и без повода. */
 function showDetail(inn, tabIndex, onDate, histCat){
-  current = inn; currentSubj = null;
+  current = inn;
   VIEW_DATE = onDate && dnum(onDate) <= dnum(TODAY) ? onDate : TODAY;
   document.getElementById('cardMount').innerHTML = renderCard(inn);
   wireCreditsTab(inn);      /* таб «Кредиты» интерактивен — проводим после вставки в DOM */
@@ -7311,16 +7268,6 @@ function showDetail(inn, tabIndex, onDate, histCat){
   pageTitle.textContent = 'Карточка заёмщика';
   topbar.classList.add('on-detail');
   switchTab(tabIndex != null ? tabIndex : lastTab(), /*fromRoute*/true);
-  scrollTop();
-}
-/* страница субъекта — отдельный экран, не вкладка карточки (субъект — своя сущность, E2E findings) */
-function showSubject(inn){
-  current = inn; currentSubj = inn;
-  document.getElementById('subjectMount').innerHTML = renderSubject(inn);
-  showOnly(vSubject);
-  const s = SUBJECTS.find(x => x.inn === inn);
-  pageTitle.textContent = (s && s.personKind === 'физ') ? 'Физическое лицо' : 'Организация';
-  topbar.classList.add('on-detail');
   scrollTop();
 }
 /* последняя открытая вкладка (индекс 0..10) помнится между заёмщиками и перезагрузками */
@@ -7343,14 +7290,15 @@ function switchTab(i, fromRoute){
   rememberTab(i);
   if (!fromRoute) writeHash();
 }
-/* стрелка «назад»: со страницы субъекта — к заёмщику, из карточки — к списку */
+/* стрелка «назад»: экран в модуле один вложенный — карточка, поэтому назад всегда в реестр */
 document.getElementById('backLink').addEventListener('click', e => {
   e.preventDefault();
-  location.hash = currentSubj ? '#/b/' + currentSubj : '';
+  location.hash = '';
 });
 
 /* ---------- роутинг по hash: вид переживает F5 ----------
-   #/b/<ИНН>[/<индекс вкладки>][?on=ГГГГ-ММ-ДД] — карточка, #/s/<ИНН> — субъект, пустой hash — список.
+   #/b/<ИНН>[/<индекс вкладки>][?on=ГГГГ-ММ-ДД] — карточка, пустой hash — список. Маршрута #/s/
+   здесь больше нет (СБ-14): страницу лица держит mockups/subject/subject.html, туда ведёт ссылка.
    КЗ-3: срез уехал в маршрут. Раньше он жил только в памяти вкладки — переслать ссылку на
    «состояние на 01.03» было нечем, а F5 молча возвращал сегодня. И-9 («одна дата на карточку»)
    этому не мешает: дата по-прежнему одна, у неё просто появился адрес.
@@ -7360,7 +7308,6 @@ document.getElementById('backLink').addEventListener('click', e => {
    теперь два и порядок их произволен, поэтому хвост разбирается как набор пар, а не
    одним жёстким выражением: ?on=…&cat=… и ?cat=…&on=… — один и тот же адрес. */
 function writeHash(){
-  if (currentSubj) { location.hash = '#/s/' + currentSubj; return; }
   if (!current) { location.hash = ''; return; }
   const root = document.getElementById('histRoot');
   const onHist = activeTab() === String(tabIx('история'));
@@ -7382,9 +7329,6 @@ function hashParams(q){
   return out;
 }
 function route(){
-  const s = /^#\/s\/([0-9]+)$/.exec(location.hash);
-  const sb = s && SUBJECTS.find(x => x.inn === s[1]);
-  if (sb) { showSubject(sb.inn); return; }
   const m = /^#\/b\/([0-9]+)(?:\/([0-9]+))?(?:\?(.*))?$/.exec(location.hash);
   const b = m && SUBJECTS.find(x => x.inn === m[1]);
   if (!b) { showList(); return; }
@@ -7422,8 +7366,16 @@ function fillDistricts(){
     .filter(d => !reg || REGION_OF[d] === reg).sort();
   setOptions('f-district', ds.map(d => ({ v:d, l:d })));
 }
+/* Прочерк — способ написать «значения нет», а не значение. Списки выбора строятся из
+   того, что уже стоит в наборе, и `filter(Boolean)` пропускал прочерк как обычную строку:
+   до M-5 ни у одной записи industry не был прочерком, и дефект спал. После M-5 (зеркало
+   перестало сочинять отрасль там, где у владельца её нет) «—» встал последним пунктом
+   выпадающего списка «Отрасль» — и в фильтре реестра, и в форме создания, где отрасль
+   обязательна. Выбрать «отрасли нет» в обязательном поле нельзя предлагать, а фильтровать
+   по прочерку незачем: он не отрасль. */
+function realValue(v){ return !!v && v !== '—'; }
 function fillFilterDicts(){
-  setOptions('f-sector', [...new Set(SUBJECTS.map(s => s.industry).filter(Boolean))].sort()
+  setOptions('f-sector', [...new Set(SUBJECTS.map(s => s.industry).filter(realValue))].sort()
     .map(x => ({ v:x, l:x })));
   setOptions('f-region', [...new Set(SUBJECTS.map(s => REGION_OF[s.district]).filter(Boolean))].sort()
     .map(x => ({ v:x, l:x })));
@@ -7627,44 +7579,37 @@ function foundHtml(s){
 }
 /* Поля создания субъекта: обязательный блок + свёрнутый «остальное» (СП-18). Обязательны
    ровно те, без которых запись выпадает из фильтров реестра (отрасль, район) или не
-   опознаётся (ИНН, наименование, тип, документ) — то есть по построению, а не по вкусу. */
+   опознаётся (ИНН, наименование, тип) — то есть по построению, а не по вкусу.
+
+   I4 (ревью 29.07.2026): форма спрашивала ещё вид документа, его номер, дату документа и
+   дату регистрации — ВСЕ ЧЕТЫРЕ обязательными, — а также форму собственности,
+   организационную форму и два адреса. Единственным местом, где всё это показывалось, была
+   страница субъекта; после СБ-14 её здесь нет, и у полей не осталось ни одного читателя.
+   Требовать от оператора заполнить поле, которое макет затем не покажет нигде, — та же
+   болезнь, что молчащая кнопка (Б-9): работа сделана, следа нет. Спрашиваем только то,
+   что показываем. Реквизиты лица заводит владелец — mockups/subject/subject.html. */
 function createFieldsHtml(){
-  const sectors = [...new Set(SUBJECTS.map(s => s.industry).filter(Boolean))].sort();
-  const districts = [...new Set(SUBJECTS.map(s => s.district).filter(Boolean))].sort();
+  const sectors = [...new Set(SUBJECTS.map(s => s.industry).filter(realValue))].sort();
+  const districts = [...new Set(SUBJECTS.map(s => s.district).filter(realValue))].sort();
   const sel = (id, label, items, req) =>
     '<div class="frow"><label for="' + id + '">' + esc(label)
       + (req ? ' <span class="req">*</span>' : '') + '</label><select id="' + id + '">'
       + '<option value=""></option>'
       + items.map(x => '<option value="' + esc(x) + '">' + esc(x) + '</option>').join('')
       + '</select></div>';
-  const txt = (id, label, req, ph) =>
-    '<div class="frow"><label for="' + id + '">' + esc(label)
-      + (req ? ' <span class="req">*</span>' : '') + '</label>'
-      + '<input type="text" id="' + id + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '></div>';
 
   return '<div class="fhint" style="margin:12px 0 10px">Лицо с таким ИНН не найдено — заводим субъекта.'
     + ' Тип лица после создания не меняется (04-zaemshchik.md §1).</div>'
     + '<div class="fform">'
     + sel('cKind', 'Тип лица', ['Юр. лицо', 'ИП', 'Физ. лицо'], true)
-    + '<div class="frow" id="cLegalWrap" hidden><label for="cLegal">Организационная форма</label>'
-      + '<select id="cLegal"><option value=""></option>'
-      + ['ОсОО','ОАО','ЗАО','Учреждение','Кооператив'].map(x => '<option>' + x + '</option>').join('')
-      + '</select><div class="fhint">только для юридического лица</div></div>'
     + '<div class="frow wide"><label for="cName">Наименование / ФИО <span class="req">*</span></label>'
       + '<input type="text" id="cName" placeholder="ОсОО «…» или Фамилия Имя Отчество"></div>'
     + sel('cSector', 'Отрасль', sectors, true)
     + sel('cDistrict', 'Район', districts, true)
-    + txt('cDocKind', 'Вид документа', true, 'Свид. о рег. / Патент / Паспорт')
-    + txt('cDocNo', 'Номер документа', true)
-    + '<div class="frow"><label for="cDocDate">Дата документа <span class="req">*</span></label>'
-      + '<input type="date" id="cDocDate" max="' + toISO(TODAY) + '"></div>'
-    + '<div class="frow"><label for="cRegDate">Дата регистрации <span class="req">*</span></label>'
-      + '<input type="date" id="cRegDate" max="' + toISO(TODAY) + '"></div>'
+    + '<div class="fhint wide" style="margin-top:2px">Реквизиты лица — документ, дата регистрации,'
+      + ' адреса, организационная форма — заводятся у владельца, в реестре субъектов:'
+      + ' здесь их показать негде, а спрашивать то, что не покажем, нельзя (I4).</div>'
     + '<details class="fsect"><summary>Остальные реквизиты</summary><div class="fform">'
-      + sel('cOwn', 'Форма собственности', ['Частная','Государственная','Муниципальная'], false)
-      + '<div class="frow"></div>'
-      + '<div class="frow wide"><label for="cAddrL">Адрес юридический</label><input type="text" id="cAddrL"></div>'
-      + '<div class="frow wide"><label for="cAddrF">Адрес фактический</label><input type="text" id="cAddrF"></div>'
       + '<div class="frow wide"><label for="cNote">Примечание</label><input type="text" id="cNote"></div>'
     + '</div></details>'
     + '</div>';
@@ -7690,13 +7635,6 @@ function onInnInput(){
     setCreateBtn('open', found.inn);
   } else {
     st.innerHTML = createFieldsHtml();
-    document.getElementById('cKind').addEventListener('change', e => {
-      /* Организационной формы у ИП и физлиц в модели нет — поле не показываем, а не гасим:
-         пустое значение в невидимом поле не породит запись с выдуманным реквизитом. */
-      document.getElementById('cLegalWrap').hidden = e.target.value !== 'Юр. лицо';
-      if (e.target.value !== 'Юр. лицо') document.getElementById('cLegal').value = '';
-      validateCreate();
-    });
     st.querySelectorAll('input,select').forEach(x => {
       x.addEventListener('input', validateCreate);
       x.addEventListener('change', validateCreate);
@@ -7705,7 +7643,7 @@ function onInnInput(){
     validateCreate();
   }
 }
-const CREATE_REQ = ['cKind','cName','cSector','cDistrict','cDocKind','cDocNo','cDocDate','cRegDate'];
+const CREATE_REQ = ['cKind','cName','cSector','cDistrict'];   /* I4: обязательно только то, у чего есть читатель */
 function validateCreate(){
   const btn = document.getElementById('mCreate');
   if (!btn) return;
@@ -7743,17 +7681,16 @@ function submitCreate(){
   const inn = val('cInn');
   if (!innShape(inn) || SUBJECTS.some(s => s.inn === inn)) return;
   const kind = val('cKind');
+  /* I4: в записи ровно то, что макет умеет показать. Поля без читателя (doc, regDate,
+     ownershipForm, legalForm, addrLegal, addrFact) не пишем вовсе — запись с реквизитом,
+     который негде увидеть, неотличима от записи без него, зато создаёт иллюзию, что
+     реквизит заведён. */
   const rec = {
     inn, name: val('cName').trim(), personKind: KIND_CODE[kind] || 'юр',
-    ownershipForm: val('cOwn') || '—',
     industry: val('cSector'), district: val('cDistrict'),
-    doc:{ kind: val('cDocKind').trim(), no: val('cDocNo').trim(), date: fromISO(val('cDocDate')) },
-    addrLegal: val('cAddrL').trim() || '—', addrFact: val('cAddrF').trim() || '—',
-    regDate: fromISO(val('cRegDate')),
     note: val('cNote').trim() || 'предрегистрация: заявка ещё не подана, кредитов нет',
     audit:{ by:'admin', date:TODAY, time:'12:00' },
   };
-  if (kind === 'Юр. лицо' && val('cLegal')) rec.legalForm = val('cLegal');
   SUBJECTS.push(rec);
   closeModal();
   /* Справочники строятся из данных (СП-5), значит новый район и отрасль должны в них попасть. */

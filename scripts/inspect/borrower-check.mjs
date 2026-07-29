@@ -351,7 +351,9 @@ ok('G8. стоп-фактор идёт первым независимо от с
    Пикеров «по состоянию на» было три — в «Кредитах», «Взыскании» и «Залоге», — и ни один
    не был подключён ни к чему: чистая декорация. Реестр показывал отрасль и район (искать
    по ним надо, смотреть — нет) и молчал о том, ради чего в него заходят: просрочка,
-   дефекты, куратор. Страница субъекта не отвечала на вопрос «кто это лицо для нас». */
+   дефекты, куратор. СБ-14: страницы субъекта в этом макете больше нет — её держит
+   mockups/subject/subject.html, поэтому H7 проверяет только движок ролей, который здесь
+   остался живым (found-box формы создания и блокировки удаления). */
 ok('H1. дата среза одна и она рабочая: срез в прошлое меняет выводимое состояние',
   (() => { const f = mk();
     f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
@@ -389,13 +391,12 @@ ok('H6. строка реестра считается движком и вид�
   g.ev("listRow(SUBJECTS.find(s=>s.inn==='01204199910016')).curatorGap") === true
   && g.ev("listRow(SUBJECTS.find(s=>s.inn==='01204199910016')).stop") === true
   && g.ev("listRow(SUBJECTS.find(s=>s.inn==='01204199910016')).ov") > 200);
-ok('H7. страница субъекта показывает роли, и роль выводится, а не хранится',
+/* H7: экранную половину («страница субъекта показывает роли») удалили вместе с экраном —
+   владелец страницы теперь mockups/subject/subject.html. Движок ролей остался живым кодом:
+   его читают foundHtml (СП-16/17) и deleteBlockers (СП-19), поэтому проверка остаётся. */
+ok('H7. роль выводится из участия, а не хранится полем (ADR-0001)',
   g.ev("subjectRoles('01204199910016').map(r=>r.role).join('+')") === 'Заёмщик+Залогодатель'
-  && g.ev("SUBJECTS.every(s=>!('roles' in s))")
-  && (() => { const f = mk();
-    f.ev("location.hash='#/s/01204199910016'"); f.ev("route()");
-    const t = f.$('#subjectMount').textContent;
-    return /Роли субъекта/.test(t) && /Залогодатель/.test(t); })());
+  && g.ev("SUBJECTS.every(s=>!('roles' in s))"));
 
 // ── Рендер и зеркала (26 + DOM) ──
 const h = mk();
@@ -690,26 +691,95 @@ ok('СП-18. «Создать» заперта, пока обязательны�
     f.ev("validateCreate();");
     return f.$('#mCreate').disabled === false;
   })());
-ok('СП-18. орг-форма показана только юр. лицу — у ИП и физлица её в модели нет',
-  (() => { const f = mk(); f.ev("openCreate();");
-    const el = f.doc.getElementById('cInn');
-    el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
-    if (!f.$('#cLegalWrap').hidden) return false;
-    const k = f.doc.getElementById('cKind');
-    k.value = 'Юр. лицо'; k.dispatchEvent(new f.w.Event('change'));
-    if (f.$('#cLegalWrap').hidden) return false;
-    k.value = 'ИП'; k.dispatchEvent(new f.w.Event('change'));
-    return f.$('#cLegalWrap').hidden === true && f.doc.getElementById('cLegal').value === '';
-  })());
-ok('СП-18. остальные реквизиты — во втором, свёрнутом уровне',
+/* I4 (ревью 29.07.2026): проверка «орг-форма показана только юр. лицу» УДАЛЕНА — предмета
+   не осталось. Поля cLegal/cLegalWrap в форме больше нет: legalForm читала только удалённая
+   страница субъекта, после СБ-14 читателей у него ноль. Ослаблять было нечего — экрана,
+   на котором орг-форма появлялась бы, в этом макете не существует. Организационная форма —
+   реквизит лица, её заводит владелец (mockups/subject/subject.html). */
+ok('СП-18. необязательный реквизит — во втором, свёрнутом уровне',
   (() => { const f = mk(); f.ev("openCreate();");
     const el = f.doc.getElementById('cInn');
     el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
     const d = f.$('.fsect');
+    /* прежде здесь назывались cAddrL/cAddrF — оба убраны вместе с читателями (I4);
+       утверждение то же: необязательное лежит на втором уровне и в CREATE_REQ не входит */
     return d !== null && d.hasAttribute('open') === false
-      && f.$('#cAddrL') !== null && f.$('#cAddrF') !== null && f.$('#cNote') !== null
-      && f.ev("CREATE_REQ.includes('cAddrL')") === false;
+      && f.$('#cNote') !== null
+      && f.ev("CREATE_REQ.includes('cNote')") === false;
   })());
+/* I4: форма собирала вид документа, номер, дату документа и дату регистрации — все четыре
+   ОБЯЗАТЕЛЬНЫМИ, — плюс форму собственности, орг-форму и два адреса. После схлопывания вида
+   субъекта читателей у них не осталось ни одного: показывала их только удалённая страница
+   лица. Оператор обязан был заполнить поля, след от которых нигде не виден — та же болезнь,
+   что молчащая кнопка (Б-9).
+   Сверяем РАВЕНСТВОМ набора ключей, а не «включает»: при «включает» возврат doc{} или
+   regDate прошёл бы молча, а именно это и надо поймать. Обе стороны: осиротевшее не
+   вернулось И нужное не потерялось. */
+ok('СП-18/I4. форма не спрашивает того, чего не покажет; запись содержит ровно собранное',
+  (() => { const f = mk(); f.ev("openCreate();");
+    const el = f.doc.getElementById('cInn');
+    el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
+    const orphans = ['cDocKind','cDocNo','cDocDate','cRegDate','cOwn','cAddrL','cAddrF','cLegal','cLegalWrap'];
+    if (orphans.some(id => f.doc.getElementById(id))) return false;
+    if (f.ev("JSON.stringify(CREATE_REQ)") !== JSON.stringify(['cKind','cName','cSector','cDistrict'])) return false;
+    const set = (id, v) => { f.doc.getElementById(id).value = v; };
+    set('cKind','Юр. лицо'); set('cName','ОсОО «Смоук Тест»');
+    set('cSector', f.ev("SUBJECTS[0].industry")); set('cDistrict', f.ev("SUBJECTS[0].district"));
+    set('cNote','заметка смоука');
+    f.ev("validateCreate(); submitCreate();");
+    const keys = JSON.parse(f.ev(
+      "JSON.stringify(Object.keys(SUBJECTS.find(s=>s.inn==='99999999999999')).sort())"));
+    return String(keys) === String(['audit','district','industry','inn','name','note','personKind']);
+  })());
+/* Вторая половина того же утверждения: у каждого сохранённого поля есть ЧИТАТЕЛЬ, то есть
+   значение видно на экране. Равенство ключей выше запрещает лишнее; это — запрещает мёртвое. */
+ok('СП-18/I4. каждое сохранённое поле новой записи видно в карточке (читатель есть)',
+  (() => { const f = mk(); f.ev("openCreate();");
+    const el = f.doc.getElementById('cInn');
+    el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
+    const set = (id, v) => { f.doc.getElementById(id).value = v; };
+    const sector = f.ev("SUBJECTS[0].industry"), district = f.ev("SUBJECTS[0].district");
+    set('cKind','Физ. лицо'); set('cName','Смоуков Тест Тестович');
+    set('cSector', sector); set('cDistrict', district); set('cNote','заметка смоука');
+    f.ev("validateCreate(); submitCreate();");
+    f.ev("location.hash='#/b/99999999999999'"); f.ev("route()");
+    const t = f.$('#cardMount').textContent.replace(/\s+/g, ' ');
+    if (!(t.includes('Смоуков Тест Тестович') && t.includes('99999999999999')
+          && t.includes(sector) && t.includes('заметка смоука')
+          /* audit — читает лента (historyItems), КЗ-9: аудит записи стал фактом ленты */
+          && t.includes('Карточка заёмщика заведена'))) return false;
+    /* район читает переход в реестр (СП-5) и found-box формы: сверяем через found-box.
+       I-1 (ревью 29.07.2026): personKind переехал сюда же. Шапка карточки его больше не
+       печатает — тип лица величина владельца (subject.html, personKindAt на дату), а здесь
+       поле хранимое. Читатели у него остались: колонка реестра, выгрузка и вот этот
+       found-box. Утверждение «у каждого сохранённого поля есть читатель» тем самым не
+       ослаблено — оно проверяется у настоящего читателя, ровно как уже сделано для района. */
+    f.ev("openCreate();");
+    const el2 = f.doc.getElementById('cInn');
+    el2.value = '99999999999999'; el2.dispatchEvent(new f.w.Event('input'));
+    const fb = f.$('.found-box').textContent;
+    return fb.includes(district) && fb.includes('Физ. лицо'); })());
+/* Прочерк в списках выбора (повторное ревью 29.07.2026, после M-5). Оба списка «Отрасль» —
+   фильтр реестра и форма создания — собираются из значений набора, и «—» проходил как
+   обычная строка. Пока прочерка не было ни у одной записи, дефект спал; M-5 привёл зеркало
+   к владельцу, у которого отрасли нет, и «—» встал пунктом обязательного поля. Проверяем
+   ОБА списка и обе стороны: прочерка нет И настоящие отрасли на месте — иначе фильтр,
+   вычистивший список целиком, прошёл бы зелёным. Район включён тем же утверждением: он
+   строится тем же способом и разъедется так же, как только у кого-то встанет прочерк. */
+ok('СП-18. списки «Отрасль» и «Район» не предлагают прочерк, но настоящие значения держат',
+  (() => { const f = mk();
+    const opts = id => [...f.doc.getElementById(id).options].map(o => o.value);
+    const filterSectors = opts('f-sector'), filterDistricts = opts('f-district');
+    f.ev("openCreate();");   /* поля создания появляются только на неизвестном ИНН */
+    const el = f.doc.getElementById('cInn');
+    el.value = '99999999999999'; el.dispatchEvent(new f.w.Event('input'));
+    const formSectors = opts('cSector'), formDistricts = opts('cDistrict');
+    const lists = [filterSectors, filterDistricts, formSectors, formDistricts];
+    if (lists.some(l => l.includes('—'))) return false;
+    if (!lists.every(l => l.filter(Boolean).length >= 3)) return false;
+    /* прочерк в наборе действительно есть — иначе утверждение выше держалось бы пустотой */
+    return f.ev("SUBJECTS.some(s => s.industry === '—')") === true
+      && formSectors.includes(f.ev("SUBJECTS.find(s => s.industry !== '—').industry")); })());
 ok('СП-18. созданная запись попадает в реестр и находится фильтрами (иначе её нет)',
   (() => { const f = mk(); f.ev("pgSize = 1000;");
     const before = f.ev("SUBJECTS.length");
@@ -719,8 +789,7 @@ ok('СП-18. созданная запись попадает в реестр и
     const set = (id, v) => { f.doc.getElementById(id).value = v; };
     set('cKind', 'Юр. лицо'); set('cName', 'ОсОО «Смоук Тест»');
     set('cSector', f.ev("SUBJECTS[0].industry")); set('cDistrict', f.ev("SUBJECTS[0].district"));
-    set('cDocKind', 'Свид. о рег.'); set('cDocNo', '000'); set('cDocDate', '2026-01-15');
-    set('cRegDate', '2026-01-15');
+    f.ev("validateCreate();");   /* I4: полей документа и даты регистрации форма больше не собирает */
     f.ev("submitCreate();");
     if (f.ev("SUBJECTS.length") !== before + 1) return false;
     if (!f.$('#mBack').hidden) return false;
@@ -795,13 +864,31 @@ ok('СП-19. отказ объясняет, почему завершённый 
 const kz = mk();
 kz.ev("location.hash='#/b/01204199910016'"); kz.ev("route()");
 
-ok('КЗ-1. id-bar в теле карточки: наименование, ИНН, тип лица, отрасль, ссылка на субъекта',
+/* СБ-14: ссылка на субъекта уехала из id-sub в строку-зеркало под шапкой (там же отметка
+   среза). Ищем её именно в шапке (.id-bar), а не «где-нибудь в #cardMount»: тот же адрес
+   печатают ссылки залогодателя во вкладке «Обеспечение» — по карточке целиком проверка
+   проходила бы и при невызванном subjectMirrorRow. Сила утверждения прежняя: паспорт
+   записи + рабочий выход к владельцу данных, и оба обязаны быть в шапке. */
+/* I-1 (ревью 29.07.2026): прежняя редакция требовала от шапки печати ХРАНИМОГО типа лица —
+   и тем подпирала расхождение макетов. Тип лица у владельца — функция среза (personKindAt),
+   здесь хранимое поле; шапка его больше не утверждает (borrower.html renderCard→idBar).
+   Подпись под наименованием сверяем РАВЕНСТВОМ СОСТАВА, а не «включает»: на «включает»
+   возврат `<span>Юр. лицо</span>` прошёл бы незамеченным — от лишнего текста такая проверка
+   не краснеет. Ожидание строим из данных, а не из зашитых строк. */
+ok('КЗ-1. id-bar в теле карточки: наименование, ИНН, отрасль, ссылка на субъекта — и никакого типа лица',
   (() => {
     const bar = kz.$('#cardMount .id-bar');
     if (!bar) return false;
-    const t = bar.textContent, a = bar.querySelector('a[href="#/s/01204199910016"]');
-    return /АгроТехСервис/.test(t) && /ИНН\s*01204199910016/.test(t)
-      && /Юр\. лицо/.test(t) && /Агропромышленный комплекс/.test(t) && !!a;
+    const name = kz.ev("SUBJECTS.find(x=>x.inn==='01204199910016').name");
+    const ind  = kz.ev("SUBJECTS.find(x=>x.inn==='01204199910016').industry");
+    const subs = [...bar.querySelectorAll('.id-sub span')]
+      .map(x => x.textContent.replace(/\s+/g, ' ').trim());
+    const a = kz.$('#cardMount .id-bar a[href="../subject/subject.html#/s/01204199910016"]');
+    /* хранимое поле в наборе ещё есть — значит негативная половина не вакуумна:
+       было бы что напечатать, если бы шапка снова начала его печатать */
+    return kz.ev("SUBJECTS.find(x=>x.inn==='01204199910016').personKind") === 'юр'
+      && bar.querySelector('.id-name').textContent.trim() === name
+      && String(subs) === String(['ИНН 01204199910016', ind]) && !!a;
   })());
 ok('КЗ-1. топбар называет экран, а не запись (паспорт переехал в карточку)',
   kz.$('#pageTitle').textContent.trim() === 'Карточка заёмщика');
@@ -1056,10 +1143,21 @@ ok('КЗ-8. у каждой сводки один адрес продолжен�
 
 ok('КЗ-9. реквизитов на витрине нет: адреса и аудит записи сюда не относятся',
   !/Юридический адрес|Фактический адрес|Основные сведения|Изменён/.test(panel0(cAts).innerHTML));
-ok('КЗ-9. адреса остались у субъекта — это его паспортные атрибуты',
-  (() => { const f = mk(); f.ev("location.hash='#/s/01204199910016'"); f.ev("route()");
-    const h = f.$('#subjectMount').innerHTML;
-    return /Юридический адрес/.test(h) && /Фактический адрес/.test(h); })());
+/* СБ-14: проверка «адреса остались у субъекта» здесь удалена — экрана, который их показывал,
+   в этом макете больше нет, как и subjectFieldsSect.
+
+   I3 (ревью 29.07.2026): не обманываться насчёт того, куда покрытие переехало — оно НЕ
+   переехало, а исчезло. Сверено 29.07.2026: в mockups/subject/subject.html строки
+   «Юридический адрес» нет вовсе, «Фактический адрес» — единственное вхождение и то
+   захардкоженное как ownRow('Фактический адрес','—') (:1261); у владельца есть только
+   импортное поле «Адрес». В scripts/inspect/subject-check.mjs про почтовые адреса ноль
+   утверждений (единственное вхождение слова «адрес» — 7.2, где это «адрес продолжения»,
+   то есть ссылка). Итог: юридический и фактический адрес субъекта на сегодня не покрыты
+   ни одним смоуком. Восстанавливать удалённый тест нельзя — предмета в этом макете нет;
+   покрытие должен завести владелец, и до тех пор это дыра, а не «чужая ответственность».
+
+   Что в этом макете про адрес всё-таки проверяется: addrLegal никуда не делся и печатается
+   каналом «адрес корресп.» (borrower.html:2630) — это утверждает живой тест КЗ-10 ниже. */
 ok('КЗ-9. аудит записи стал фактом ленты, а не полем витрины',
   cAts.ev("historyItems('01204199910016').some(it=>it.kind==='запись' && /заведена/.test(it.title))")
   && cAts.ev("historyItems('01204199910016').some(it=>it.kind==='запись' && /изменена/.test(it.title))"));
@@ -1832,7 +1930,8 @@ ok('КЗ-39. связанное лицо, заведённое субъекто�
     const withSubj = s.rows.filter(r => r.querySelector('td.who a'));
     const cnt = lkAts.ev("RELATED.filter(r=>r.inn==='01204199910016' && r.subjInn).length");
     return withSubj.length === cnt && cnt > 0
-      && withSubj[0].querySelector('td.who a').getAttribute('href') === '#/s/07701199970071'; })());
+      && withSubj[0].querySelector('td.who a').getAttribute('href')
+         === '../subject/subject.html#/s/07701199970071'; })());   // СБ-14: страница лица — в макете субъекта
 
 ok('Б-19. роль «Связанное лицо» выводится по ИНН субъекта, а не сопоставлением ФИО',
   (() => { const roles = JSON.parse(lkAts.ev("JSON.stringify(subjectRoles('07701199970071').map(r=>r.role))"));
@@ -1863,14 +1962,14 @@ ok('КЗ-40. на вкладке не осталось ни одной точк�
     const mute = [...p.querySelectorAll('button')].filter(b => !b.getAttribute('onclick'));
     return inputs.length === 0 && mute.length === 0; })());
 
-ok('КЗ-40. правка реквизитов ведёт на страницу субъекта, и эта страница их показывает',
+/* СБ-14: вторая половина этой проверки («и эта страница их показывает») удалена вместе с
+   экраном — показывает их теперь владелец, mockups/subject/subject.html. Здесь остаётся то,
+   за что отвечает карточка: правка не делается на месте, а уходит наружу по рабочему адресу. */
+ok('КЗ-40. правка реквизитов уходит наружу — к владельцу, в макет субъекта',
   (() => { const s = lkSect(lkAts, 'Каналы связи'); if (!s) return false;
     const a = s.el.querySelector('.section-head a');
-    if (!a || a.getAttribute('href') !== '#/s/01204199910016') return false;
-    lkAts.ev("location.hash='#/s/01204199910016'"); lkAts.ev('route()');
-    const t = lkAts.$('#view-subject').textContent.replace(/\s+/g, ' ');
-    return /Каналы связи/.test(t) && /Банковские реквизиты/.test(t)
-      && t.includes(lkAts.ev("BANK_REQ.find(b=>b.inn==='01204199910016').account")); })());
+    return !!a && a.getAttribute('href') === '../subject/subject.html#/s/01204199910016'
+      && a.getAttribute('target') === '_blank'; })());
 
 ok('Б-20. канал показан теми же признаками, что на витрине: основной и дата сверки',
   (() => { const s = lkSect(lkAts, 'Каналы связи'); if (!s) return false;
@@ -2050,6 +2149,116 @@ for (const name of ['CONTOURS', 'PHASE_STAGE', 'PROCEDURE_DICT']){
   const mine = grab(HTML, name), theirs = grab(OWNER, name);
   ok(`W. словарь ${name} совпадает с collection.html (владелец)`, !!mine && mine === theirs);
 }
+
+/* ── Имя лица: владелец — mockups/subject/subject.html (СБ-14, ADR-0014) ────────
+   Ключ и имя — единственное, что зеркало ещё держит (СБ-14.3а). Раз имя перестало
+   быть чистым именем, а стало пропечатывать тип лица прямо в строку («ИП …», «… (физ.)»),
+   два макета читаются как две разные модели одного и того же человека, ровно то,
+   ради чего схлопывалась страница субъекта. Сверяем по каждому ключу, который есть
+   в ОБОИХ наборах, — не два зашитых ключа, чтобы третий разошедшийся ключ красил тест
+   и без правки самого теста. */
+const SUBJ_OWNER = readFileSync(resolve('mockups/subject/subject.html'), 'utf8');
+const grabArray = (src, name) => {
+  const m = src.match(new RegExp('const ' + name + ' = \\[[\\s\\S]*?\\n\\];'));
+  return m ? new Function(m[0] + '\nreturn ' + name + ';')() : null;
+};
+const ownerSubjects = grabArray(SUBJ_OWNER, 'SUBJECTS') || [];
+const mirrorSubjects = grabArray(HTML, 'SUBJECTS') || [];
+const ownerByKey = new Map(ownerSubjects.filter(s => s.key).map(s => [s.key, s]));
+const sharedKeys = mirrorSubjects.filter(s => ownerByKey.has(s.inn));
+/* M-5 (финальное ревью 29.07.2026): сверка стояла на одном `name` — и `industry` разошлась
+   молча. На 07701199970071 зеркало печатало «Частное предпринимательство» у лица, которое ни
+   ИП, ни организацией не было никогда, а владелец — «—», и оба это ПОКАЗЫВАЛИ: зеркало в
+   id-bar карточки и в found-box формы, владелец строкой «Отрасль» вкладки «Основное».
+   Сверяем все поля, которые печатают оба макета, а не одно: имя, отрасль, район. Список
+   назван явно — чтобы новое общее поле пришлось внести сюда осознанно, а не забыть молча. */
+const PARITY_FIELDS = ['name', 'industry', 'district'];
+const parityGaps = sharedKeys.flatMap(s => PARITY_FIELDS
+  .filter(f => s[f] !== ownerByKey.get(s.inn)[f])
+  .map(f => `${s.inn}.${f}: зеркало ${JSON.stringify(s[f])} ≠ владелец ${JSON.stringify(ownerByKey.get(s.inn)[f])}`));
+if (parityGaps.length) console.log('      расхождения с владельцем: ' + parityGaps.join(' · '));
+ok('W. словарь SUBJECTS совпадает с subject.html (владелец) по имени, отрасли и району на каждом общем ключе',
+  sharedKeys.length > 0 && parityGaps.length === 0
+  /* каждое сверяемое поле обязано быть непустым хоть где-то: иначе сверка «undefined ===
+     undefined» была бы зелёной и после того, как поле исчезло бы из обоих наборов */
+  && PARITY_FIELDS.every(f => sharedKeys.some(s => s[f])));
+
+// ── СБ-14: вид субъекта схлопнут, владелец — mockups/subject/subject.html ──
+ok('СБ-14.1 вида view-subject и renderSubject в макете заёмщика больше нет',
+  !g.$('#view-subject') && g.ev("typeof renderSubject")==='undefined' && g.ev("typeof showSubject")==='undefined');
+/* Имя проверки — про шапку карточки, а не про строку-зеркало: зеркало держит СБ-14.3а ниже.
+
+   I-1 (ревью 29.07.2026). Прежняя редакция ТРЕБОВАЛА печати «Юр. лицо» — то есть требовала
+   хранимого типа лица и закрепляла расхождение макетов как правильное поведение: перебивание
+   P14 (снять personKindLabel из id-bar) роняло именно её. Тип лица — величина владельца и
+   функция среза (personKindAt по регистрациям ИП); здесь его считать нечем, IP_REG в этом
+   макете нет. Утверждение переписано на то, что действительно обязано остаться: шапка
+   опознаёт запись ключом и наименованием и типа лица НЕ утверждает.
+   Берём 04401199940041 — лицо, на котором расхождение и наблюдалось: хранимое поле здесь
+   'ИП', владелец на 13.07.2026 даёт «Физ. лицо». Хранимое поле проверяем отдельной строкой:
+   пока оно в наборе есть и непусто, негативная половина не вакуумна — печатать было бы что. */
+ok('СБ-14.2 шапка карточки заёмщика опознаёт запись ключом и наименованием и типа лица не утверждает',
+  (() => { const f = mk(); f.ev("location.hash='#/b/04401199940041'"); f.ev("route()");
+    const bar = f.$('#cardMount .id-bar');
+    if (!bar) return false;
+    const t = bar.textContent.replace(/\s+/g, ' ').trim();
+    const name = f.ev("SUBJECTS.find(x=>x.inn==='04401199940041').name");
+    /* Негативную половину проверяем по СОСТАВУ подписи, а не поиском подстроки в тексте
+       шапки: соседние <span> склеиваются в textContent без разделителя («…041ИПЧастное…»),
+       и регулярка по границам слова такое не поймает — проверка осталась бы зелёной при
+       вернувшемся типе. Список подписей берём из PERSON_KIND_LABEL, чтобы он не разъехался. */
+    const subs = [...bar.querySelectorAll('.id-sub span')]
+      .map(x => x.textContent.replace(/\s+/g, ' ').trim());
+    const labels = JSON.parse(f.ev("JSON.stringify(Object.values(PERSON_KIND_LABEL))"));
+    return f.ev("SUBJECTS.find(x=>x.inn==='04401199940041').personKind") === 'ИП'
+      && t.includes('04401199940041') && t.includes(name)
+      && subs.length > 0 && subs.every(x => !labels.includes(x)); })());
+ok('СБ-14.3 из карточки есть внешняя ссылка «Открыть субъекта» именно на этот ключ',
+  !!g.$('#cardMount a[href="../subject/subject.html#/s/01204199910016"]'));
+/* СБ-14.2 и СБ-14.3 сами по себе строку-зеркало НЕ держат: наименование, ключ и тип лица
+   печатает и id-bar карточки, а тот же внешний адрес печатают ссылки залогодателя во
+   вкладке «Обеспечение» — обе оставались зелёными при невызванном subjectMirrorRow.
+   Зеркало пришпилено здесь: ищем его по внешней ссылке внутри .id-bar (в панелях вкладок
+   таких строк нет).
+
+   C1 (ревью 29.07.2026): состав зеркала урезан до наименования и ключа. Тип лица ушёл,
+   потому что у владельца это ФУНКЦИЯ СРЕЗА (personKindAt по регистрациям ИП), а здесь было
+   хранимое поле — на 04401199940041 зеркало печатало «ИП», владелец на ту же дату «Физ.
+   лицо». Отметка «на <дата>» ушла следом: имя и ключ от asOf() не зависят, штамп утверждал
+   снимок, которого нет. Проверка сторожит обе стороны — и что нужное печатается, и что
+   убранное не вернулось: без второй половины возврат прежней формулировки прошёл бы
+   незамеченным (тест на «включает» от лишнего текста не краснеет). */
+ok('СБ-14.3а зеркало — отдельная строка шапки: наименование и ключ, без типа лица и без штампа среза',
+  (() => { const f = mk(); f.ev("location.hash='#/b/01204199910016'"); f.ev("route()");
+    const mirror = f.$$('#cardMount .id-bar')
+      .find(b => b.querySelector('a[href^="../subject/subject.html#/s/"]'));
+    if (!mirror) return false;
+    /* Состав сверяем РАВЕНСТВОМ, а не «включает»: от лишнего текста проверка на включение
+       не краснеет, и возврат «· Юр. лицо на 13.07.2026» прошёл бы незамеченным. */
+    const name = f.ev("SUBJECTS.find(x=>x.inn==='01204199910016').name");
+    const expect = name + ' · 01204199910016 · Открыть субъекта ↗';
+    const t = mirror.textContent.replace(/\s+/g, ' ').trim();
+    if (t !== expect) return false;
+    /* и на сдвинутом срезе строка обязана быть той же: зеркало от asOf() не зависит,
+       поэтому штамп даты в нём — утверждение о снимке, которого оно не делает */
+    f.ev("setAsOf('2026-01-01')");
+    const t2 = f.$$('#cardMount .id-bar')
+      .find(b => b.querySelector('a[href^="../subject/subject.html#/s/"]'))
+      .textContent.replace(/\s+/g, ' ').trim();
+    return t2 === expect; })());
+/* Проверка идёт переходом состояния, а не «какой-то вид активен»: карточка открыта
+   (view-detail), после #/s/… обязан остаться реестр. Маршрут, который ничего не делает,
+   оставит открытой карточку и тест покраснеет. Без этого тест проходил бы и при route(){}. */
+ok('СБ-14.4 маршрут #/s/ в макете заёмщика больше не заявлен — адрес роняет в реестр',
+  (() => { g.ev("location.hash='#/b/01204199910016'"); g.ev("route()");
+    if (!g.$('#view-detail').classList.contains('active')) return false;
+    g.ev("location.hash='#/s/01204199910016'"); g.ev("route()");
+    return g.$('#view-list').classList.contains('active') &&
+           !g.$('#view-detail').classList.contains('active'); })());
+ok('СБ-14.5 ГЗПМ (группа совместного риска, КЗ-39) не тронут — это не лицо (СБ-4)',
+  g.ev("Array.isArray(GROUPS) && GROUPS.length > 0"));
+ok('СБ-14.6 SUBJECTS остаётся зеркалом и данные не потеряны (ADR-0014)',
+  g.ev("SUBJECTS.length") >= 30);
 
 console.log(`\n${n - fails}/${n} PASS`);
 process.exit(fails ? 1 : 0);

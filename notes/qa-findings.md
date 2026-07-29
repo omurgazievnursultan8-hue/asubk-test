@@ -802,7 +802,10 @@ _Источник: разбор as-is мокапа `mockups/loan-application-com
 ## Phase 4 — Borrower (Заёмщик)
 Overall: ✅ mature — tabbed detail page + a **«Результаты проверок»** risk/
 compliance dashboard (blacklist, credit history, active loans, overdue, scoring,
-debt limit). Route `/loan-applicants`. Two data-consistency bugs surfaced.
+debt limit). Route `/loan-applicants`. Behind it sit the person registries
+`/individuals` and `/organizations` (surveyed 2026-07-29,
+`scripts/inspect/subject-registries.mjs`) — import-by-ИНН editors with defects of
+their own. Twelve defects total across the three routes (P4-01…P4-12).
 
 - **P4-01** — `/loan-applicants` list — 🟡 minor — _no view (and no create) action_
   - **Issue:** Toolbar has only Изменить / Удалить — **no «Просмотр»** (inspect
@@ -835,6 +838,71 @@ debt limit). Route `/loan-applicants`. Two data-consistency bugs surfaced.
     unclear whether checks are **live integrations** or static, their refresh
     cadence, and which are **blocking** vs advisory for loan approval.
   - **Action:** confirm with domain owner. → P4-R5.
+
+- **P4-06** — `/organizations` editor (modal) — 🟠 major — _verified 2026-07-29,
+  `scripts/inspect/subject-registries.mjs`, `.auth/subject-organizations-list.png`_
+  - **Issue:** the organizations registry (and its editor) carries two columns/fields
+    both labeled «Краткое наименование» (short name); one of the two actually holds
+    the **full** name — the label was lost in the form layout, not a data problem.
+  - **Expected:** the four name fields (full / short / full-native-language /
+    short-native-language) each keep a distinct, correct label matching what they hold.
+
+- **P4-07** — `/individuals`, `/organizations` — 🟡 minor — _verified 2026-07-29,
+  `scripts/inspect/subject-registries.mjs`, `.auth/subject-individuals-detail.png`,
+  `.auth/subject-organizations-detail.png`_
+  - **Issue:** the «Адрес» field has no `label` attribute — the caption lives as
+    separate DOM text, not bound to the input.
+  - **Expected:** the field should be resolvable by its label for screen readers and
+    structural DOM dumps; bind a proper `label`/`aria-label`.
+
+- **P4-08** — `/individuals`, `/organizations` — 🟠 major — _verified 2026-07-29,
+  `scripts/inspect/subject-registries.mjs`, `.auth/subject-individuals-edit-button.png`,
+  `.auth/subject-individuals-EDIT-URL.png`, `.auth/subject-organizations-edit-button.png`,
+  `.auth/subject-organizations-EDIT-URL.png`_
+  - **Issue:** clicking «Изменить» opens the same modal as «Просмотр» — the URL carries
+    `?mode=readonly` regardless of which button was clicked. The button exists, but
+    there is nothing to edit.
+  - **Expected:** «Изменить» should open an editable form, or be relabeled/removed if
+    the entity is genuinely import-only. → P4-R28.
+
+- **P4-09** — `/individuals` list — 🟠 major — _verified 2026-07-29,
+  `scripts/inspect/subject-registries.mjs`, `.auth/subject-individuals-list.png`_
+  - **Issue:** the individuals registry has rows carrying an ИНН with an empty ФИО —
+    a partial import left a half-populated record in place, the same failure mode as
+    legacy `person-XXXXX` (P8).
+  - **Expected:** either the import should not commit a row until the record resolves
+    fully, or a visible "incomplete" state should flag it for follow-up instead of
+    surfacing as a nameless line.
+
+- **P4-10** — `/individuals`, `/organizations` — 🟠 major — _verified 2026-07-29,
+  `scripts/inspect/subject-registries.mjs`, `.auth/subject-individuals-list.png`,
+  `.auth/subject-organizations-list.png`_
+  - **Issue:** neither registry has its own filters — the only mechanism is the
+    generic Jmix «Добавить условие поиска» query builder; no district, no
+    person-type, nothing purpose-built.
+  - **Expected:** a filter panel for the common axes (person type, region/district,
+    etc.), with the Jmix builder kept as an advanced fallback, not the only option.
+    → P4-R26.
+
+- **P4-11** — `/organizations` editor (modal) — 🟡 minor — _verified 2026-07-29,
+  `scripts/inspect/subject-registries.mjs`, `.auth/subject-organizations-detail.png`_
+  - **Issue:** on the sampled organization, СОАТЕ, директор, вид деятельности, and
+    both registration dates are empty. The form has no way to tell whether that's
+    genuinely "no data" or "the registry import didn't return it".
+  - **Expected:** distinguish the two states in the UI (e.g., a visible "not returned
+    by registry" marker vs. a true empty/optional field). → P4-R28.
+
+- **P4-12** — `/individuals` — 🟡 minor — _verified 2026-07-29,
+  `scripts/inspect/subject-registries.mjs`, `.auth/subject-individuals-list.png`,
+  `.auth/subject-individuals-detail.png`_
+  - **Issue:** date of birth is present neither in the registry columns nor in the
+    card, so two different people sharing the same ФИО (and no resolvable key —
+    the population the «Похожие записи» dedup screen has to work with, СБ-10)
+    cannot be told apart. The half-imported rows from **P4-09** compound the same
+    identification problem from the other side — an ИНН with no ФИО at all, rather
+    than a name with no key.
+  - **Expected:** add date of birth to both the card and (as a column) the registry.
+    → P4-R27.
 
 ---
 
