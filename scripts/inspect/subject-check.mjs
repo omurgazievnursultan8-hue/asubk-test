@@ -27,12 +27,38 @@ const g = mk();
 // ── Каркас (Task 1) ──
 ok('0.1 страница загрузилась без ошибок jsdom', g.errs.length === 0);
 ok('0.2 TODAY зафиксирован на 13.07.2026', g.ev("TODAY") === '13.07.2026');
-ok('0.3 три вида в разметке', !!g.$('#view-list') && !!g.$('#view-card') && !!g.$('#view-merge'));
+ok('0.3 четыре вида в разметке', !!g.$('#view-list') && !!g.$('#view-card') && !!g.$('#view-merge')
+  && !!g.$('#view-missing'));
 ok('0.4 пустой hash → активен реестр',
   (() => { g.ev("location.hash=''"); g.ev("route()"); return g.$('#view-list').classList.contains('active'); })());
-ok('0.5 неизвестный ключ в маршруте не бросает и падает в реестр',
-  (() => { g.ev("location.hash='#/s/00000000000000'"); g.ev("route()");
-           return g.errs.length === 0 && g.$('#view-list').classList.contains('active'); })());
+/* I2 (ревью 29.07.2026): прежняя редакция 0.5 УТВЕРЖДАЛА тихое падение в реестр — и оно
+   же оказалось дефектом. Сюда ведёт «Открыть субъекта ↗» из карточки заёмщика, а ключей
+   там 47 против пяти здешних: сорок с лишним переходов заканчивались списком без единого
+   слова. Класс Б-9 / КЗ-16. Теперь ненайденный ключ обязан быть НАЗВАН.
+   Проверка сторожит обе стороны: и что сообщение с ключом показано, и что реестр при этом
+   НЕ активен — иначе возврат тихого showList() прошёл бы незамеченным. */
+ok('0.5 неизвестный ключ в маршруте не бросает и не проглатывается: ключ назван, реестр не активен',
+  (() => { const f = mk();
+    f.ev("location.hash='#/s/00000000000000'"); f.ev("route()");
+    if (f.errs.length) return false;
+    if (f.$('#view-list').classList.contains('active')) return false;
+    if (!f.$('#view-missing').classList.contains('active')) return false;
+    const t = f.$('#missingMount').textContent.replace(/\s+/g, ' ');
+    return /не найдена/i.test(t) && t.includes('00000000000000'); })());
+ok('0.5а из «не найдено» есть явный выход в реестр, и он работает',
+  (() => { const f = mk();
+    f.ev("location.hash='#/s/00000000000000'"); f.ev("route()");
+    const b = f.$('#missingToList');
+    if (!b) return false;
+    b.dispatchEvent(new f.w.Event('click'));
+    f.ev("route()");
+    return f.$('#view-list').classList.contains('active')
+      && !f.$('#view-missing').classList.contains('active'); })());
+ok('0.5б известный ключ ведёт в карточку, а не в «не найдено» (сообщение не подменяет рабочий маршрут)',
+  (() => { const f = mk();
+    f.ev("location.hash='#/s/01204199910016'"); f.ev("route()");
+    return f.$('#view-card').classList.contains('active')
+      && !f.$('#view-missing').classList.contains('active'); })());
 ok('0.6 даты: dnum сравнивает, toISO/fromISO обратимы',
   g.ev("dnum('01.01.2026') < dnum('02.01.2026')") &&
   g.ev("fromISO(toISO('14.05.2026'))") === '14.05.2026');

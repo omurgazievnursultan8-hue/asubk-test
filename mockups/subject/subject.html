@@ -314,6 +314,8 @@
     <div class="view" id="view-card"><div class="content"><div id="cardMount"></div></div></div>
     <!-- ==================== ВИД: СЛИЯНИЕ (СБ-11) ==================== -->
     <div class="view" id="view-merge"><div class="content"><div id="mergeMount"></div></div></div>
+    <!-- ==================== ВИД: КЛЮЧ НЕ НАЙДЕН (I2) ==================== -->
+    <div class="view" id="view-missing"><div class="content"><div id="missingMount"></div></div></div>
   </div>
 </div>
 
@@ -759,13 +761,35 @@ function hashParams(q){
 const vList = document.getElementById('view-list');
 const vCard = document.getElementById('view-card');
 const vMerge = document.getElementById('view-merge');
-function showOnly(v){ [vList, vCard, vMerge].forEach(x => x.classList.toggle('active', x === v)); }
+const vMissing = document.getElementById('view-missing');
+function showOnly(v){ [vList, vCard, vMerge, vMissing].forEach(x => x.classList.toggle('active', x === v)); }
 
 function showList(){ VIEW_DATE = TODAY; document.getElementById('topbar').classList.remove('on-detail');
   renderList(); showOnly(vList); scrollTop(); }
 function showCard(ref, onDate, tab){ VIEW_DATE = onDate && dnum(onDate) <= dnum(TODAY) ? onDate : TODAY;
   document.getElementById('topbar').classList.add('on-detail');
   document.getElementById('cardMount').innerHTML = renderCard(ref, tab); wireCard(ref); showOnly(vCard); scrollTop(); }
+/* I2 (ревью 29.07.2026). Адрес #/s/<ключ> с ключом, которого в наборе нет, раньше МОЛЧА
+   уводил в реестр. Сюда ведёт ссылка «Открыть субъекта ↗» из карточки заёмщика — а ключей
+   у заёмщика 47 против пяти здешних, то есть большинство переходов заканчивалось списком
+   без единого слова о том, что произошло. Это ровно класс Б-9 / КЗ-16: ссылка, которая
+   молча ничего не делает, читается как сломанный экран, и оператор винит ссылку, а не набор.
+   Отвечаем адресом: называем ключ, говорим, что записи с ним нет, и даём явный выход.
+   Тихий showList() как ответ на ненайденный ключ не возвращать. */
+function showMissing(key){
+  document.getElementById('topbar').classList.add('on-detail');
+  document.getElementById('missingMount').innerHTML =
+    '<div class="empty" id="missingState">Запись не найдена: <b class="mono">' + esc(key) + '</b>.'
+    + ' Ключ передан адресом, но субъекта с таким ключом в реестре нет —'
+    + ' запись могла быть слита с другой, удалена или заведена в другом наборе.'
+    + ' <button class="btn btn-secondary btn-sm" id="missingToList" type="button">К реестру субъектов</button></div>';
+  document.getElementById('missingToList')
+    .addEventListener('click', () => { location.hash = '#/subjects'; });
+  document.getElementById('pageTitle').textContent = 'Запись не найдена';
+  showOnly(vMissing);
+  scrollTop();
+}
+
 function showMerge(a, b){
   /* Состояние экрана сбрасывается здесь, на входе на маршрут, а не в теле renderMerge —
      тот может перевызываться (перерисовка после выбора) и не должен стирать уже
@@ -783,9 +807,11 @@ function route(){
     if (a && b) { showMerge(subjectRef(a), subjectRef(b)); return; }
   }
   if ((m = /^#\/s\/([^/?]+)(?:\?(.*))?$/.exec(location.hash))) {
-    const s = subject(decodeURIComponent(m[1]));
+    const key = decodeURIComponent(m[1]);
+    const s = subject(key);
     if (s) { const p = hashParams(m[2]);
       showCard(subjectRef(s), /^\d{4}-\d{2}-\d{2}$/.test(p.on || '') ? fromISO(p.on) : null, p.tab); return; }
+    showMissing(key); return;   /* I2: ключ назван, а не проглочен */
   }
   showList();
 }
