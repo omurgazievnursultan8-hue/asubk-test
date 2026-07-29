@@ -454,6 +454,42 @@ const LINKS = [
     from:'11.02.2026', to:null, doc:'Протокол собрания группы №1' },
 ];
 
+/* ── СВЯЗИ ЛИЦ (СБ-7) ──
+   Единственное, что заводится в модуле руками: источника снаружи у связей нет.
+   Связь двусторонняя — ОДНА запись, видимая с обоих концов (инвариант 6). */
+const LINK_KINDS = [
+  { k:'учредитель',      a:['физ','ИП','юр'], b:['юр'],     share:true },
+  { k:'руководитель',    a:['физ','ИП'],      b:['юр'],     share:false },
+  { k:'супруг',          a:['физ','ИП'],      b:['физ','ИП'], share:false },
+  { k:'член группы',     a:['физ','ИП'],      b:['группа'], share:false },
+  { k:'аффилированность',a:['физ','ИП','юр'], b:['физ','ИП','юр'], share:false },
+];
+function linkAllowed(kind, aRef, bRef){
+  const d = LINK_KINDS.find(x => x.k === kind);
+  if (!d) return false;
+  return d.a.includes(personKindAt(aRef, VIEW_DATE)) && d.b.includes(personKindAt(bRef, VIEW_DATE));
+}
+function linksOf(ref){
+  const ks = keysOf(ref);
+  return LINKS.filter(l => ks.includes(l.a) || ks.includes(l.b));
+}
+function addLink({ kind, a, b, from, to, share, doc }){
+  if (!linkAllowed(kind, a, b)) throw new Error('Связь «' + kind + '» между этими типами лиц невозможна');
+  if (!from || !doc) throw new Error('У связи обязательны период и документ-основание (СБ-7)');
+  if (LINKS.some(l => l.kind === kind && ((l.a === a && l.b === b) || (l.a === b && l.b === a))))
+    throw new Error('Такая связь уже есть — она одна на пару лиц и вид (инвариант 6)');
+  const l = { id:'L-' + (LINKS.length + 1), kind, a, b, from, to:to || null, share:share || undefined, doc };
+  LINKS.push(l);
+  return l.id;
+}
+/* Состав группы — та же связь «член группы», показанная с другого конца (СБ-7):
+   отдельного хранилища состава нет, иначе один факт жил бы в двух местах. */
+function membersOf(groupRef){
+  const ks = keysOf(groupRef);
+  return LINKS.filter(l => l.kind === 'член группы' && ks.includes(l.b))
+    .map(l => ({ link:l, s:subject(l.a) })).filter(x => x.s);
+}
+
 /* UNITS — организационная структура юрлица (стенд: наименование · примечание · орг. отдел · ФИО). */
 const UNITS = [
   { key:'01204199910016', id:5550, name:'Руководство',          note:'г. Бишкек',         dept:'—',            fio:'Асанов Т.К.' },
@@ -1053,6 +1089,104 @@ function addrPanelHtml(ref, kind){
     + ownRow('Фактический адрес', '—') + ownRow('Адрес переписки', '—');
 }
 
+/* Вкладка «Связи» / «Состав» (СБ-7, инвариант 6): один и тот же ряд — вид, ссылка на
+   ПРОТИВОПОЛОЖНУЮ сторону, период, доля (только для share:true), документ. «Состав»
+   группы — та же таблица, отфильтрованная membersOf, без отдельного хранилища. */
+function linkPartnerRef(l, ref){
+  const ks = keysOf(ref);
+  return ks.includes(l.a) ? l.b : l.a;
+}
+function linkRowHtml(l, ref){
+  const pRef = linkPartnerRef(l, ref);
+  const p = subject(resolveKey(pRef));
+  const name = p ? displayName(p) : pRef;
+  return '<tr><td>' + esc(l.kind) + '</td>'
+    + '<td><a class="lnk" href="#/s/' + esc(pRef) + '">' + esc(name) + '</a>'
+    + '<div class="muted">' + esc(pRef) + '</div></td>'
+    + '<td>' + esc(l.from) + (l.to ? ' – ' + esc(l.to) : '') + '</td>'
+    + '<td>' + (l.share ? esc(l.share) + ' %' : '<span class="muted">—</span>') + '</td>'
+    + '<td>' + esc(l.doc) + '</td></tr>';
+}
+function linksTableHtml(rows, ref, emptyText){
+  return '<table class="grid"><thead><tr><th>Вид</th><th>Вторая сторона</th><th>Период</th>'
+    + '<th>Доля</th><th>Документ</th></tr></thead><tbody>'
+    + (rows.length ? rows.map(l => linkRowHtml(l, ref)).join('')
+       : '<tr><td colspan="5" class="muted">' + esc(emptyText) + '</td></tr>')
+    + '</tbody></table>';
+}
+function renderLinksTab(ref){
+  return '<div class="section-head" style="background:transparent;border:0;padding:0 0 10px">'
+    + '<span></span><button class="btn btn-secondary btn-sm" id="btnAddLink" type="button">+ Связь</button></div>'
+    + linksTableHtml(linksOf(ref), ref, 'Связей нет');
+}
+function renderMembersTab(ref){
+  return '<div class="section-head" style="background:transparent;border:0;padding:0 0 10px">'
+    + '<span class="who">Состав группы</span>'
+    + '<button class="btn btn-secondary btn-sm" id="btnAddMember" type="button">+ Член группы</button></div>'
+    + linksTableHtml(membersOf(ref).map(x => x.link), ref, 'Состав пуст');
+}
+/* Вкладка «Организационная структура» — только у организации (СБ-8, tabsFor). */
+function renderUnitsTab(ref){
+  const ks = keysOf(ref);
+  const rows = UNITS.filter(u => ks.includes(u.key));
+  return '<table class="grid"><thead><tr><th>Наименование</th><th>Примечание</th>'
+    + '<th>Орг. отдел</th><th>ФИО сотрудника</th></tr></thead><tbody>'
+    + (rows.length ? rows.map(u => '<tr><td>' + esc(u.name) + '</td><td>' + esc(u.note) + '</td>'
+        + '<td>' + esc(u.dept) + '</td><td>' + esc(u.fio) + '</td></tr>').join('')
+       : '<tr><td colspan="4" class="muted">Подразделений нет</td></tr>')
+    + '</tbody></table>';
+}
+
+/* Модалка «+ Связь» / «+ Член группы» — вид связи выбирается селектом (для «Состав» вкладки
+   уже проставлен и скрыт — заведение члена группы вида не спрашивает), вторая сторона —
+   поиском по ключу (текстовое поле, как и создание субъекта, СБ-2), доля показывается
+   только для вида с share:true (LINK_KINDS). Направление a/b определяет сама связь: если
+   тип открытого субъекта на дату НЕ подходит под сторону a — открытый субъект встаёт в b
+   (ровно так в «Составе» физлицо всегда встаёт в a, а группа — в b). */
+function addLinkFormHtml(fixedKind){
+  const kindField = fixedKind
+    ? '<input type="hidden" id="lKind" value="' + esc(fixedKind) + '">'
+    : '<div class="frow wide"><label for="lKind">Вид связи</label><select id="lKind">'
+      + LINK_KINDS.map(d => '<option value="' + esc(d.k) + '">' + esc(d.k) + '</option>').join('') + '</select></div>';
+  return '<div class="fform">' + kindField
+    + '<div class="frow wide"><label for="lPartner">Вторая сторона (ключ)</label>'
+    + '<input type="text" id="lPartner" placeholder="ИНН/ПИН или ГР-NNN"></div>'
+    + '<div class="frow"><label for="lFrom">Дата с</label><input type="text" id="lFrom" placeholder="ДД.ММ.ГГГГ"></div>'
+    + '<div class="frow"><label for="lTo">Дата по</label><input type="text" id="lTo" placeholder="необязательно"></div>'
+    + '<div class="frow" id="lShareRow"><label for="lShare">Доля, %</label><input type="text" id="lShare"></div>'
+    + '<div class="frow wide"><label for="lDoc">Документ-основание</label><input type="text" id="lDoc"></div>'
+    + '</div><div class="hint" id="lErr" style="margin-left:0;color:var(--status-error)"></div>';
+}
+function currentLinkKindEl(){ return document.getElementById('lKind'); }
+function toggleShareRow(){
+  const d = LINK_KINDS.find(x => x.k === currentLinkKindEl().value);
+  const row = document.getElementById('lShareRow');
+  if (row) row.style.display = d && d.share ? '' : 'none';
+}
+function openAddLink(ref, fixedKind){
+  openModal(fixedKind === 'член группы' ? 'Новый член группы' : 'Новая связь', addLinkFormHtml(fixedKind), '');
+  toggleShareRow();
+  if (!fixedKind) currentLinkKindEl().onchange = toggleShareRow;
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Сохранить</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const kind = currentLinkKindEl().value;
+    const partner = document.getElementById('lPartner').value.trim();
+    const from = document.getElementById('lFrom').value.trim();
+    const to = document.getElementById('lTo').value.trim();
+    const shareVal = document.getElementById('lShare').value.trim();
+    const doc = document.getElementById('lDoc').value.trim();
+    let a = ref, b = partner;
+    if (!linkAllowed(kind, a, b) && linkAllowed(kind, b, a)) { a = partner; b = ref; }
+    try { addLink({ kind, a, b, from, to: to || null, share: shareVal ? +shareVal : undefined, doc }); }
+    catch (e) { document.getElementById('lErr').textContent = e.message; return; }
+    closeModal(); renderCardInPlace(resolveKey(ref));
+  };
+}
+
 /* Шапка · импортная строка · полоса вкладок · панели. Карточку, открытую по псевдониму
    (ADR-0019), показываем как карточку главного субъекта — но не молчком: строка выше
    называет присоединение прямо (СБ-11), со ссылкой на главного. */
@@ -1092,6 +1226,9 @@ function renderCard(ref, tab){
   html += tabs.map(t => {
     const body = t.k === 'main' ? mainPanelHtml(mainRef, kind)
       : t.k === 'addr' ? addrPanelHtml(mainRef, kind)
+      : t.k === 'links' ? renderLinksTab(mainRef)
+      : t.k === 'members' ? renderMembersTab(mainRef)
+      : t.k === 'units' ? renderUnitsTab(mainRef)
       : '<div class="muted">— наполняется в следующей задаче</div>';
     return '<div class="tabpanel' + (t.k === active ? ' active' : '') + '" data-panel="' + esc(t.k) + '">' + body + '</div>';
   }).join('');
@@ -1135,6 +1272,8 @@ function wireCard(ref){
     }
     const choiceBtn = e.target.closest('[data-choice]');
     if (choiceBtn) { resolveConflict(ref, choiceBtn.dataset.fname, choiceBtn.dataset.choice); return; }
+    if (e.target.closest('#btnAddLink')) { openAddLink(ref); return; }
+    if (e.target.closest('#btnAddMember')) { openAddLink(ref, 'член группы'); return; }
   };
 }
 /* Переключение вкладки пишет ?tab= в hash (карточка остаётся на той же дате среза) —
