@@ -320,5 +320,36 @@ ok('6.8 реорганизация требует правопреемника, 
 ok('6.9 лента событий не удаляется — функции удаления нет (СБ-9)',
   g.ev("typeof removeEvent")==='undefined' && g.ev("typeof deleteEvent")==='undefined');
 
+// ── Роли, документы, реквизиты (Task 8) ──
+ok('7.1 вкладка ролей — таблица без создания и удаления (инвариант 5)',
+  (() => { g.ev("location.hash='#/s/04401199940041?tab=roles'"); g.ev("route()");
+    const p = g.$('[data-panel="roles"]');
+    return /Поручитель/.test(p.textContent) && p.querySelectorAll('button').length === 0; })());
+ok('7.2 у каждой роли назван объём и адрес продолжения в модуль (СБ-6)',
+  (() => { const p = g.$('[data-panel="roles"]').textContent;
+    return /договор/.test(p) && /модул/i.test(p); })());
+ok('7.3 роли считаются по ключу и его псевдонимам (инвариант 8)',
+  (() => { g.ev("subject('S-DUP').aliasOf='07701199970071'");
+    const viaAlias = g.ev("subjectRoles('S-DUP').map(r=>r.role).join(',')");
+    const viaMain  = g.ev("subjectRoles('07701199970071').map(r=>r.role).join(',')");
+    g.ev("delete subject('S-DUP').aliasOf");
+    return viaAlias === viaMain && viaAlias.length > 0; })());
+ok('7.4 документы: вид · относительно · дата · файл',
+  (() => { g.ev("location.hash='#/s/01204199910016?tab=docs'"); g.ev("route()");
+    return /Устав/.test(g.$('[data-panel="docs"]').textContent); })());
+ok('7.5 банковские реквизиты доступны организации и не показываются группе',
+  g.ev("tabsFor('01204199910016',TODAY).some(t=>t.k==='bank')") &&
+  g.ev("tabsFor('ГР-001',TODAY).length") > 0 &&
+  g.ev("tabsFor('ГР-001',TODAY).every(t=>t.k!=='bank')"));
+ok('7.6 у реквизита виден период действия',
+  (() => { g.ev("location.hash='#/s/01204199910016?tab=bank'"); g.ev("route()");
+    return /14\.02\.2011/.test(g.$('[data-panel="bank"]').textContent); })());
+/* Негативная проверка на весь #cardMount проходит и на пустой карточке — сначала
+   доказываем, что карточка реально что-то отрисовала (имя субъекта из шапки), и
+   только потом проверяем отсутствие денежных полей (раздел 8 спеки не про эту вкладку). */
+ok('7.7 денег карточка не показывает (раздел 8 спеки — задолженность у заёмщика)',
+  (() => { const t = g.$('#cardMount').textContent;
+    return /АгроТехСервис/.test(t) && !/задолженност|остаток долга|сом\b/i.test(t); })());
+
 console.log(`\n${n - fails} / ${n} PASS`);
 process.exit(fails ? 1 : 0);

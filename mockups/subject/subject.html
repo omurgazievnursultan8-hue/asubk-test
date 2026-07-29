@@ -548,6 +548,17 @@ const DOCS = [
   { key:'ГР-001', kind:'Протокол собрания группы', about:'Состав', date:'11.02.2026', file:'protokol-1.pdf' },
 ];
 
+/* Документ и банковский реквизит (раздел 4 спеки) — обычные записи, не роль и не
+   производное: у них, в отличие от вкладки «Роли», есть своя точка создания. */
+function addDoc({ key, kind, about, date, file }){
+  if (!kind || !date || !file) throw new Error('Обязательны вид документа, дата и файл');
+  DOCS.push({ key:resolveKey(key), kind, about:about || '—', date, file });
+}
+function addBankReq({ key, bank, bik, account, from }){
+  if (!bank || !bik || !account || !from) throw new Error('Обязательны банк, БИК, счёт и дата начала');
+  BANK_REQ.push({ key:resolveKey(key), bank, bik, account, from, to:null, main:false });
+}
+
 /* ── ЗЕРКАЛА — read-only (ADR-0014). Правка = переход в модуль-источник; макет субъекта
    их не мутирует нигде, слияние в том числе (инвариант 9). ── */
 const CREDITS = [
@@ -1223,6 +1234,59 @@ function renderIpRegTab(ref){
     + esc(personKindLabel(kind)) + '</b> — правоспособность считается на дату (ADR-0018).</div>';
 }
 
+/* ── РОЛИ (СБ-6) ── выводятся из участия в кредитных отношениях, руками не задаются:
+   ни «+», ни удаления на вкладке нет вовсе (инвариант 5) — она таблица и ничего больше.
+   Считается по ключу и всем его псевдонимам (инвариант 8) — subjectRoles это уже
+   делает через keysOf, здесь это не передоказывается. */
+function renderRolesTab(ref){
+  const rows = subjectRoles(ref);
+  if (!rows.length) return '<div class="empty">Ролей нет: лицо не участвует ни в одних кредитных отношениях.</div>';
+  return '<table class="grid"><thead><tr><th>Роль</th><th>Основание</th><th>С даты</th><th>Где ведётся</th></tr></thead><tbody>'
+    + rows.map(r => '<tr><td class="who">' + esc(r.role) + '</td><td>' + esc(r.basis) + '</td>'
+        + '<td class="muted">' + esc(r.since) + '</td><td class="muted">' + esc(r.link) + '</td></tr>').join('')
+    + '</tbody></table><div class="hint">Роль не заводится и не снимается — она есть ровно там, где лицо участвует.</div>';
+}
+
+/* Вкладка «Документы» (раздел 4 спеки): вложения субъекта — вид · относительно · дата ·
+   файл (DOCS), по ключу и всем его псевдонимам. В отличие от ролей — обычная запись
+   со своей точкой создания (addDoc). */
+function docRowHtml(d){
+  return '<tr><td>' + esc(d.kind) + '</td><td>' + esc(d.about) + '</td>'
+    + '<td class="mono">' + esc(d.date) + '</td><td>' + esc(d.file) + '</td></tr>';
+}
+function renderDocsTab(ref){
+  const ks = keysOf(ref);
+  const rows = DOCS.filter(d => ks.includes(d.key)).slice().sort((a, b) => dnum(b.date) - dnum(a.date));
+  return '<div class="section-head" style="background:transparent;border:0;padding:0 0 10px">'
+    + '<span></span><button class="btn btn-secondary btn-sm" id="btnAddDoc" type="button">+ Документ</button></div>'
+    + '<table class="grid"><thead><tr><th>Вид документа</th><th>Относительно</th><th>Дата</th><th>Файл</th></tr></thead><tbody>'
+    + (rows.length ? rows.map(docRowHtml).join('')
+       : '<tr><td colspan="4" class="muted">Документов нет</td></tr>')
+    + '</tbody></table>';
+}
+
+/* Вкладка «Банковские реквизиты» (раздел 4 спеки, tabsFor): организация — всегда,
+   физлицо — только в период действующей регистрации ИП. Закрытый период не пропадает
+   молча — подписывается датой прекращения, история реквизитов остаётся видна. */
+function bankRowHtml(b){
+  return '<tr><td>' + esc(b.bank) + '</td><td class="mono">' + esc(b.bik) + '</td>'
+    + '<td class="mono">' + esc(b.account) + '</td>'
+    + '<td>' + esc(b.from) + (b.to ? ' — прекращены ' + esc(b.to) : '') + '</td>'
+    + '<td>' + (b.main ? '<span class="badge" style="background:var(--status-info-bg);color:var(--asubk-blue)">основной</span>'
+        : '<span class="muted">—</span>') + '</td></tr>';
+}
+function renderBankTab(ref){
+  const ks = keysOf(ref);
+  const rows = BANK_REQ.filter(b => ks.includes(b.key)).slice().sort((a, b) => dnum(b.from) - dnum(a.from));
+  return '<div class="section-head" style="background:transparent;border:0;padding:0 0 10px">'
+    + '<span></span><button class="btn btn-secondary btn-sm" id="btnAddBank" type="button">+ Реквизиты</button></div>'
+    + '<table class="grid"><thead><tr><th>Банк</th><th>БИК</th><th>Расчётный счёт</th>'
+    + '<th>Период</th><th>Основной</th></tr></thead><tbody>'
+    + (rows.length ? rows.map(bankRowHtml).join('')
+       : '<tr><td colspan="5" class="muted">Реквизитов нет</td></tr>')
+    + '</tbody></table>';
+}
+
 /* Модалка «+ Связь» / «+ Член группы» — вид связи выбирается селектом (для «Состав» вкладки
    уже проставлен и скрыт — заведение члена группы вида не спрашивает), вторая сторона —
    поиском по ключу (текстовое поле, как и создание субъекта, СБ-2), доля показывается
@@ -1340,6 +1404,63 @@ function openAddIpReg(ref){
   };
 }
 
+/* Модалка «+ Документ» (раздел 4 спеки): вид, дата и файл обязательны (addDoc);
+   «относительно» необязательно — addDoc сама подставит прочерк. */
+function addDocFormHtml(){
+  return '<div class="fform">'
+    + '<div class="frow wide"><label for="dKind">Вид документа</label><input type="text" id="dKind"></div>'
+    + '<div class="frow wide"><label for="dAbout">Относительно</label><input type="text" id="dAbout"></div>'
+    + '<div class="frow"><label for="dDate">Дата</label><input type="text" id="dDate" placeholder="ДД.ММ.ГГГГ"></div>'
+    + '<div class="frow wide"><label for="dFile">Файл</label><input type="text" id="dFile" placeholder="имя файла"></div>'
+    + '</div><div class="hint" id="dErr" style="margin-left:0;color:var(--status-error)"></div>';
+}
+function openAddDoc(ref){
+  openModal('Новый документ', addDocFormHtml(), '');
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Сохранить</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const kind = document.getElementById('dKind').value.trim();
+    const about = document.getElementById('dAbout').value.trim();
+    const date = document.getElementById('dDate').value.trim();
+    const file = document.getElementById('dFile').value.trim();
+    try { addDoc({ key: resolveKey(ref), kind, about, date, file }); }
+    catch (e) { document.getElementById('dErr').textContent = e.message; return; }
+    closeModal(); renderCardInPlace(resolveKey(ref));
+  };
+}
+
+/* Модалка «+ Реквизиты» (раздел 4 спеки): банк, БИК, счёт и дата начала обязательны
+   (addBankReq); новый реквизит заводится не основным — «основной» этот макет не
+   переключает, за этим — в модуль-источник. */
+function addBankFormHtml(){
+  return '<div class="fform">'
+    + '<div class="frow wide"><label for="bBank">Банк</label><input type="text" id="bBank"></div>'
+    + '<div class="frow"><label for="bBik">БИК</label><input type="text" id="bBik"></div>'
+    + '<div class="frow wide"><label for="bAccount">Расчётный счёт</label><input type="text" id="bAccount"></div>'
+    + '<div class="frow"><label for="bFrom">Дата с</label><input type="text" id="bFrom" placeholder="ДД.ММ.ГГГГ"></div>'
+    + '</div><div class="hint" id="bErr" style="margin-left:0;color:var(--status-error)"></div>';
+}
+function openAddBankReq(ref){
+  openModal('Новые реквизиты', addBankFormHtml(), '');
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Сохранить</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const bank = document.getElementById('bBank').value.trim();
+    const bik = document.getElementById('bBik').value.trim();
+    const account = document.getElementById('bAccount').value.trim();
+    const from = document.getElementById('bFrom').value.trim();
+    try { addBankReq({ key: resolveKey(ref), bank, bik, account, from }); }
+    catch (e) { document.getElementById('bErr').textContent = e.message; return; }
+    closeModal(); renderCardInPlace(resolveKey(ref));
+  };
+}
+
 /* Шапка · импортная строка · полоса вкладок · панели. Карточку, открытую по псевдониму
    (ADR-0019), показываем как карточку главного субъекта — но не молчком: строка выше
    называет присоединение прямо (СБ-11), со ссылкой на главного. */
@@ -1384,7 +1505,10 @@ function renderCard(ref, tab){
       : t.k === 'units' ? renderUnitsTab(mainRef)
       : t.k === 'events' ? renderEventsTab(mainRef)
       : t.k === 'ipreg' ? renderIpRegTab(mainRef)
-      : '<div class="muted">— наполняется в следующей задаче</div>';
+      : t.k === 'roles' ? renderRolesTab(mainRef)
+      : t.k === 'docs' ? renderDocsTab(mainRef)
+      : t.k === 'bank' ? renderBankTab(mainRef)
+      : '';
     return '<div class="tabpanel' + (t.k === active ? ' active' : '') + '" data-panel="' + esc(t.k) + '">' + body + '</div>';
   }).join('');
 
@@ -1431,6 +1555,8 @@ function wireCard(ref){
     if (e.target.closest('#btnAddMember')) { openAddLink(ref, 'член группы'); return; }
     if (e.target.closest('#btnAddEvent')) { openAddEvent(ref); return; }
     if (e.target.closest('#btnAddIpReg')) { openAddIpReg(ref); return; }
+    if (e.target.closest('#btnAddDoc')) { openAddDoc(ref); return; }
+    if (e.target.closest('#btnAddBank')) { openAddBankReq(ref); return; }
   };
 }
 /* Переключение вкладки пишет ?tab= в hash (карточка остаётся на той же дате среза) —
