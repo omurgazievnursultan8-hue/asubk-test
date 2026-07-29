@@ -1618,10 +1618,17 @@ ok('СБ-14.2 карточка заёмщика показывает строк�
   (() => { g.ev("location.hash='#/b/01204199910016'"); g.ev("route()");
     const t = g.$('#cardMount').textContent;
     return t.includes('01204199910016') && t.includes('Юр. лицо') && /АгроТехСервис/.test(t); })());
-ok('СБ-14.3 из карточки есть внешняя ссылка «Открыть субъекта» в макет субъекта',
-  !!g.$('a[href*="../subject/subject.html"]'));
-ok('СБ-14.4 маршрут #/s/ в макете заёмщика больше не заявлен',
-  g.ev("(()=>{location.hash='#/s/01204199910016';route();return document.getElementById('view-list').classList.contains('active')||document.getElementById('view-detail').classList.contains('active');})()"));
+ok('СБ-14.3 из карточки есть внешняя ссылка «Открыть субъекта» именно на этот ключ',
+  !!g.$('#cardMount a[href="../subject/subject.html#/s/01204199910016"]'));
+/* Проверка идёт переходом состояния, а не «какой-то вид активен»: карточка открыта
+   (view-detail), после #/s/… обязан остаться реестр. Маршрут, который ничего не делает,
+   оставит открытой карточку и тест покраснеет. Без этого тест проходил бы и при route(){}. */
+ok('СБ-14.4 маршрут #/s/ в макете заёмщика больше не заявлен — адрес роняет в реестр',
+  (() => { g.ev("location.hash='#/b/01204199910016'"); g.ev("route()");
+    if (!g.$('#view-detail').classList.contains('active')) return false;
+    g.ev("location.hash='#/s/01204199910016'"); g.ev("route()");
+    return g.$('#view-list').classList.contains('active') &&
+           !g.$('#view-detail').classList.contains('active'); })());
 ok('СБ-14.5 ГЗПМ (группа совместного риска, КЗ-39) не тронут — это не лицо (СБ-4)',
   g.ev("Array.isArray(GROUPS) && GROUPS.length > 0"));
 ok('СБ-14.6 SUBJECTS остаётся зеркалом и данные не потеряны (ADR-0014)',
