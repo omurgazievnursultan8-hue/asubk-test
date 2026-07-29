@@ -438,6 +438,42 @@ const SUBJECT_EVENTS = [
     basis:'Свидетельство о смерти', doc:'СС-4471' },
 ];
 
+/* ── СОБЫТИЯ СУБЪЕКТА (СБ-9) ──
+   Событие — ЗАПИСЬ, а не статус: оно не гасит кредит и не прекращает поручительство —
+   эти последствия принадлежат своим модулям (инвариант 7, ADR-0014). Единственное,
+   что оно порождает здесь, — выводимый стоп-фактор (СБ-13). Лента append-only. */
+const EVENT_KINDS = [
+  { k:'реорганизация',      successor:true  },
+  { k:'ликвидация',         successor:false },
+  { k:'смерть',             successor:false },
+  { k:'перевод долга',      successor:true  },
+  { k:'утрата статуса ИП',  successor:false },
+  { k:'роспуск группы',     successor:false },
+];
+function addEvent({ key, kind, date, basis, doc, successorKey }){
+  const d = EVENT_KINDS.find(x => x.k === kind);
+  if (!d) throw new Error('Неизвестное событие: ' + kind);
+  if (!date || !basis || !doc) throw new Error('У события обязательны дата, основание и документ (СБ-9)');
+  if (d.successor && !subject(successorKey)) throw new Error('Событие «' + kind + '» требует правопреемника');
+  SUBJECT_EVENTS.push({ key, kind, date, basis, doc, successorKey: d.successor ? successorKey : undefined });
+  /* Единственное исключение по форме (ADR-0018): утрата статуса ИП проставляет дату
+     прекращения действующей регистрации. Тип лица при этом не переписывается — его
+     по-прежнему считает personKindAt. */
+  if (kind === 'утрата статуса ИП'){
+    const reg = ipRegAt(key, date);
+    if (reg) reg.to = date;
+  }
+}
+/* Регистрация ИП (СБ-3а): у лица их может быть несколько — снялся, зарегистрировался снова.
+   Пересекаться периоды не могут: два одновременных ИП у одного ПИНа не бывает. */
+function addIpReg({ key, no, from, doc }){
+  const s = subject(resolveKey(key));
+  if (!s || s.source !== 'individuals') throw new Error('Регистрация ИП бывает только у физического лица');
+  if (!no || !from || !doc) throw new Error('Обязательны рег. номер, дата начала и документ');
+  if (ipRegAt(key, from)) throw new Error('На эту дату уже действует регистрация ИП');
+  IP_REG.push({ key:resolveKey(key), no, from, to:null, doc });
+}
+
 /* LINKS — связи лиц (СБ-7): одна запись, видимая с обоих концов, с периодом и основанием.
    kind: 'учредитель' | 'руководитель' | 'супруг' | 'член группы' | 'аффилированность'.
    a — лицо, b — вторая сторона (организация/группа/второй супруг). */
@@ -1137,6 +1173,56 @@ function renderUnitsTab(ref){
     + '</tbody></table>';
 }
 
+/* Вкладка «События» (СБ-9): лента append-only — строки не удаляются, кнопки удаления нет.
+   Правопреемник (только у событий с successor:true, EVENT_KINDS) — ссылка на карточку. */
+function eventRowHtml(e){
+  const succ = e.successorKey
+    ? '<a class="lnk" href="#/s/' + esc(e.successorKey) + '">' + esc(e.successorKey) + '</a>'
+    : '<span class="muted">—</span>';
+  return '<tr><td class="mono">' + esc(e.date) + '</td><td>' + esc(e.kind) + '</td>'
+    + '<td>' + esc(e.basis) + '</td><td>' + esc(e.doc) + '</td><td>' + succ + '</td></tr>';
+}
+function renderEventsTab(ref){
+  const rows = subjectEvents(ref);
+  return '<div class="notice">Событие ничего не меняет в кредите, обеспечении и взыскании —'
+    + ' оно их не касается (СБ-9).</div>'
+    + '<div class="section-head" style="background:transparent;border:0;padding:0 0 10px">'
+    + '<span></span><button class="btn btn-secondary btn-sm" id="btnAddEvent" type="button">+ Событие</button></div>'
+    + '<table class="grid"><thead><tr><th>Дата</th><th>Событие</th><th>Основание</th>'
+    + '<th>Документ</th><th>Правопреемник</th></tr></thead><tbody>'
+    + (rows.length ? rows.map(eventRowHtml).join('')
+       : '<tr><td colspan="5" class="muted">Событий нет</td></tr>')
+    + '</tbody></table>';
+}
+
+/* Вкладка «Регистрация ИП» (СБ-3а, ADR-0018): у лица может быть несколько периодов —
+   таблица их все, а строка под таблицей называет тип лица, который считает personKindAt
+   на срез карточки (не хранимое поле). */
+function ipRegRowHtml(r){
+  const active = !r.to;
+  return '<tr><td>' + esc(r.no) + '</td><td>' + esc(r.from) + '</td>'
+    + '<td>' + (r.to ? esc(r.to) : '<span class="muted">—</span>') + '</td>'
+    + '<td>' + esc(r.doc) + '</td>'
+    + '<td>' + (active
+        ? '<span class="badge" style="background:var(--status-success-bg);color:var(--status-success)">действует</span>'
+        : '<span class="badge" style="background:var(--status-error-bg);color:var(--status-error)">прекращена</span>')
+    + '</td></tr>';
+}
+function renderIpRegTab(ref){
+  const ks = keysOf(ref);
+  const rows = IP_REG.filter(r => ks.includes(r.key)).slice().sort((a, b) => dnum(b.from) - dnum(a.from));
+  const kind = personKindAt(ref, VIEW_DATE);
+  return '<div class="section-head" style="background:transparent;border:0;padding:0 0 10px">'
+    + '<span></span><button class="btn btn-secondary btn-sm" id="btnAddIpReg" type="button">+ Регистрация</button></div>'
+    + '<table class="grid"><thead><tr><th>Рег. номер</th><th>С</th><th>По</th>'
+    + '<th>Документ</th><th>Статус</th></tr></thead><tbody>'
+    + (rows.length ? rows.map(ipRegRowHtml).join('')
+       : '<tr><td colspan="5" class="muted">Регистраций нет</td></tr>')
+    + '</tbody></table>'
+    + '<div class="hint" style="margin-left:0;margin-top:8px">Тип лица на ' + esc(VIEW_DATE) + ': <b>'
+    + esc(personKindLabel(kind)) + '</b> — правоспособность считается на дату (ADR-0018).</div>';
+}
+
 /* Модалка «+ Связь» / «+ Член группы» — вид связи выбирается селектом (для «Состав» вкладки
    уже проставлен и скрыт — заведение члена группы вида не спрашивает), вторая сторона —
    поиском по ключу (текстовое поле, как и создание субъекта, СБ-2), доля показывается
@@ -1187,6 +1273,73 @@ function openAddLink(ref, fixedKind){
   };
 }
 
+/* Модалка «+ Событие» (СБ-9): вид из EVENT_KINDS, дата/основание/документ обязательны,
+   поле правопреемника показывается только при successor:true (та же схема переключения
+   строки, что и toggleShareRow у связи). */
+function addEventFormHtml(){
+  return '<div class="fform">'
+    + '<div class="frow wide"><label for="eKind">Вид события</label><select id="eKind">'
+      + EVENT_KINDS.map(d => '<option value="' + esc(d.k) + '">' + esc(d.k) + '</option>').join('') + '</select></div>'
+    + '<div class="frow"><label for="eDate">Дата</label><input type="text" id="eDate" placeholder="ДД.ММ.ГГГГ"></div>'
+    + '<div class="frow wide"><label for="eBasis">Основание</label><input type="text" id="eBasis"></div>'
+    + '<div class="frow wide"><label for="eDoc">Документ</label><input type="text" id="eDoc"></div>'
+    + '<div class="frow wide" id="eSuccessorRow"><label for="eSuccessor">Правопреемник (ключ)</label>'
+    + '<input type="text" id="eSuccessor" placeholder="ИНН/ПИН"></div>'
+    + '</div><div class="hint" id="eErr" style="margin-left:0;color:var(--status-error)"></div>';
+}
+function currentEventKindEl(){ return document.getElementById('eKind'); }
+function toggleSuccessorRow(){
+  const d = EVENT_KINDS.find(x => x.k === currentEventKindEl().value);
+  const row = document.getElementById('eSuccessorRow');
+  if (row) row.style.display = d && d.successor ? '' : 'none';
+}
+function openAddEvent(ref){
+  openModal('Новое событие', addEventFormHtml(), '');
+  toggleSuccessorRow();
+  currentEventKindEl().onchange = toggleSuccessorRow;
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Сохранить</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const kind = currentEventKindEl().value;
+    const date = document.getElementById('eDate').value.trim();
+    const basis = document.getElementById('eBasis').value.trim();
+    const doc = document.getElementById('eDoc').value.trim();
+    const successorKey = document.getElementById('eSuccessor').value.trim();
+    try { addEvent({ key: resolveKey(ref), kind, date, basis, doc, successorKey }); }
+    catch (e) { document.getElementById('eErr').textContent = e.message; return; }
+    closeModal(); renderCardInPlace(resolveKey(ref));
+  };
+}
+
+/* Модалка «+ Регистрация» (СБ-3а): рег. номер, дата начала, документ — все обязательны;
+   тип лица форма не спрашивает (ADR-0018) — его после сохранения снова посчитает personKindAt. */
+function addIpRegFormHtml(){
+  return '<div class="fform">'
+    + '<div class="frow wide"><label for="rNo">Рег. номер</label><input type="text" id="rNo"></div>'
+    + '<div class="frow"><label for="rFrom">Дата с</label><input type="text" id="rFrom" placeholder="ДД.ММ.ГГГГ"></div>'
+    + '<div class="frow wide"><label for="rDoc">Документ</label><input type="text" id="rDoc"></div>'
+    + '</div><div class="hint" id="rErr" style="margin-left:0;color:var(--status-error)"></div>';
+}
+function openAddIpReg(ref){
+  openModal('Новая регистрация ИП', addIpRegFormHtml(), '');
+  const foot = document.getElementById('mFoot');
+  foot.innerHTML = '<span class="sp"></span>'
+    + '<button class="btn btn-secondary" id="mCancel" type="button">Отмена</button>'
+    + '<button class="btn btn-primary" id="mOk" type="button">Сохранить</button>';
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mOk').onclick = () => {
+    const no = document.getElementById('rNo').value.trim();
+    const from = document.getElementById('rFrom').value.trim();
+    const doc = document.getElementById('rDoc').value.trim();
+    try { addIpReg({ key: resolveKey(ref), no, from, doc }); }
+    catch (e) { document.getElementById('rErr').textContent = e.message; return; }
+    closeModal(); renderCardInPlace(resolveKey(ref));
+  };
+}
+
 /* Шапка · импортная строка · полоса вкладок · панели. Карточку, открытую по псевдониму
    (ADR-0019), показываем как карточку главного субъекта — но не молчком: строка выше
    называет присоединение прямо (СБ-11), со ссылкой на главного. */
@@ -1229,6 +1382,8 @@ function renderCard(ref, tab){
       : t.k === 'links' ? renderLinksTab(mainRef)
       : t.k === 'members' ? renderMembersTab(mainRef)
       : t.k === 'units' ? renderUnitsTab(mainRef)
+      : t.k === 'events' ? renderEventsTab(mainRef)
+      : t.k === 'ipreg' ? renderIpRegTab(mainRef)
       : '<div class="muted">— наполняется в следующей задаче</div>';
     return '<div class="tabpanel' + (t.k === active ? ' active' : '') + '" data-panel="' + esc(t.k) + '">' + body + '</div>';
   }).join('');
@@ -1274,6 +1429,8 @@ function wireCard(ref){
     if (choiceBtn) { resolveConflict(ref, choiceBtn.dataset.fname, choiceBtn.dataset.choice); return; }
     if (e.target.closest('#btnAddLink')) { openAddLink(ref); return; }
     if (e.target.closest('#btnAddMember')) { openAddLink(ref, 'член группы'); return; }
+    if (e.target.closest('#btnAddEvent')) { openAddEvent(ref); return; }
+    if (e.target.closest('#btnAddIpReg')) { openAddIpReg(ref); return; }
   };
 }
 /* Переключение вкладки пишет ?tab= в hash (карточка остаётся на той же дате среза) —
