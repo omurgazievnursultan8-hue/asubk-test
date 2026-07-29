@@ -911,12 +911,27 @@ ok('4.11 карточка по псевдониму называет присо�
     const t = g.$('#cardMount').textContent;
     g.ev("delete subject('S-DUP').aliasOf");
     return /присоединён/i.test(t) && t.includes('07701199970071'); })());
+/* Заведённый руками субъект несёт imported.asOf:'—' (Task 4) — это «канал есть, снимка не
+   было». Показать его датой-прочерком значит соврать источником; ветка своя, значит и
+   проверка своя. Ключ берём созданный тут же — на длину SUBJECTS не опираемся (тесты
+   3.6/3.8 её уже сдвинули). */
+ok('4.12 у заведённого руками субъекта импортная строка говорит «данных из реестра нет» (СБ-5б)',
+  (() => { g.ev("createSubject({key:'22201199960061',source:'organizations',name:'ОсОО «Ручной ввод»'})");
+    g.ev("location.hash='#/s/22201199960061'"); g.ev("route()");
+    const t = g.$('#importBar').textContent;
+    return /данных из реестра нет/.test(t) && !/Снимок/.test(t) && !/—/.test(t.replace(/Обновить.*/,'')); })());
 ```
+
+**Тесты 4.6 и 4.9 обязаны вернуть фикстуру в исходное состояние.** Оба пишут в общий
+`SUBJECTS` (`okpo` пусто→наше, `director` наше+расхождение→реестр), а экземпляр jsdom у
+задач 5–8 один. Прецедент уже в 4.11 (`delete subject('S-DUP').aliasOf`): проверил —
+прибрал. Снимок делается через `JSON.parse(JSON.stringify(...))` до вызова и
+восстанавливается присваиванием в `imported.f` после проверки.
 
 - [ ] **Step 2: Прогнать — падает**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: FAIL на 4.1–4.11 (`renderCard` пустой).
+Expected: FAIL на 4.1–4.12 (`renderCard` пустой).
 
 - [ ] **Step 3: Реализовать шапку и вкладки**
 
@@ -1008,10 +1023,16 @@ function renderCardInPlace(ref){
 Вкладка **«Адреса»**: `fieldRow` по `addr` и `soate` (у группы — свои поля), затем свои строки «Фактический адрес» и «Адрес переписки».
 `wireCard(ref)` вешает делегированные обработчики на `.btn-fill` (открывает модалку ввода → `fillOwn`) и на `[data-choice]` (→ `resolveConflict`).
 
+**Кнопка «Обновить из реестра» обработчика не получает.** Запрос в ГРС · Тундук в макете
+не выполняется, а проставить один `asOf` без единого изменившегося поля — сказать «снимок
+взят» там, где не взято ничего: ровно та ложь источником, от которой уходит СБ-5б. Кнопка
+остаётся в разметке (макет показывает, где действие живёт) и несёт
+`title="В макете запрос в реестр не выполняется"`.
+
 - [ ] **Step 4: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `54 / 54 PASS`.
+Expected: `55 / 55 PASS`.
 
 - [ ] **Step 5: Коммит**
 
@@ -1116,7 +1137,7 @@ function membersOf(groupRef){
 - [ ] **Step 4: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `63 / 63 PASS`.
+Expected: `64 / 64 PASS`.
 
 - [ ] **Step 5: Коммит**
 
@@ -1226,7 +1247,7 @@ function addIpReg({ key, no, from, doc }){
 - [ ] **Step 4: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `72 / 72 PASS`.
+Expected: `73 / 73 PASS`.
 
 - [ ] **Step 5: Коммит**
 
@@ -1311,7 +1332,7 @@ function addBankReq({ key, bank, bik, account, from }){
 - [ ] **Step 4: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `79 / 79 PASS`.
+Expected: `80 / 80 PASS`.
 
 - [ ] **Step 5: Коммит**
 
@@ -1449,7 +1470,7 @@ function deleteSubject(ref){
 - [ ] **Step 4: Прогнать смоук**
 
 Run: `node scripts/inspect/subject-check.mjs`
-Expected: `91 / 91 PASS`.
+Expected: `92 / 92 PASS`.
 
 - [ ] **Step 5: Коммит**
 
@@ -1647,7 +1668,7 @@ git commit -m "docs(qa): дефекты реестров лиц P4-06…P4-12 и
 
 После Task 12 проверить DoD спеки целиком:
 
-- [ ] `node scripts/inspect/subject-check.mjs` → 91+ PASS, 0 FAIL (DoD 1)
+- [ ] `node scripts/inspect/subject-check.mjs` → 92+ PASS, 0 FAIL (DoD 1)
 - [ ] `node scripts/inspect/borrower-check.mjs` → 0 FAIL (DoD 4)
 - [ ] Каждое СБ-1…СБ-14 имеет строку в `mockups/subject/ASUBK-status-razrabotki.md` со статусом (DoD 2)
 - [ ] `mockups/subject/ASUBK-subekt-logika.md` не пересказывает код — только «почему» (DoD 3)
