@@ -411,7 +411,12 @@ const SUBJECTS = [
       fio:{st:'наше', v:'Мамбетов Кубаныч', by:'миграция', at:'02.02.2026', doc:'Выгрузка legacy'},
       docKind:{st:'наше', v:'Паспорт', by:'миграция', at:'02.02.2026', doc:'Выгрузка legacy'},
       docNo:{st:'наше', v:'ID0770117', by:'миграция', at:'02.02.2026', doc:'Выгрузка legacy'},
-      nationality:{st:'пусто'}, soate:{st:'пусто'}, addr:{st:'пусто'} } } },
+      /* M-4 (финальное ревью 29.07.2026): единственное поле, заполненное У ПРИСОЕДИНЯЕМОЙ
+         и пустое у главной. До него весь экран сравнения этой пары держался на одной строке
+         «Адрес», где заполнена была ровно наоборот главная, — то есть «взять B» нигде нельзя
+         было нажать со смыслом, и тест 8.16 сверял перенос пустоты с пустотой. */
+      nationality:{st:'наше', v:'Кыргыз', by:'миграция', at:'02.02.2026', doc:'Выгрузка legacy'},
+      soate:{st:'пусто'}, addr:{st:'пусто'} } } },
   { id:'S-DUP2', key:'', source:'individuals', name:'',
     district:'Сузакский', region:'Джалал-Абадская', industry:'—', note:'импорт прошёл наполовину',
     imported:{ asOf:'—', src:'ГРС · Тундук', f:{
@@ -737,10 +742,17 @@ function doMerge(mainRef, joinRef, choices){
     throw new Error('Главной должна быть запись с ключом: ' + subjectRef(join));
   if (!choices || choices.confirm !== subjectRef(main))
     throw new Error('Подтвердите слияние вводом ключа главной записи: ' + subjectRef(main));
-  /* выбранные значения по расхождениям — только в СВОЙ импортный слой главной записи */
+  /* выбранные значения по расхождениям — только в СВОЙ импортный слой главной записи.
+     M-4 (финальное ревью 29.07.2026): берём, только если у присоединяемой это поле реально
+     ЕСТЬ. mergeDiff оставляет строку, если заполнена ЛЮБАЯ сторона, поэтому выбор «взять B»
+     доходил сюда и при пустом B: Object.assign({}, undefined) даёт {}, поле главной записи
+     получало st === undefined, fieldRow рисовал «не пришло из реестра» с кнопкой «Заполнить»,
+     а fillOwn на ней бросал «заполнять руками можно только пустое поле» — поле становилось
+     незаполнимым навсегда. Из пустого брать нечего, и стирать заполненное выбор не должен. */
   mergeDiff(mainRef, joinRef).forEach(r => {
-    if (choices[r.name] === 'b' && main.imported)
-      main.imported.f[r.name] = Object.assign({}, join.imported.f[r.name]);
+    const src = join.imported && join.imported.f && join.imported.f[r.name];
+    if (choices[r.name] === 'b' && main.imported && src && src.v)
+      main.imported.f[r.name] = Object.assign({}, src);
   });
   OWN_ARRAYS.forEach(([get, f]) => get().forEach(x => { if (x[f] === subjectRef(join)) x[f] = subjectRef(main); }));
   LINKS.forEach(l => { if (l.a === subjectRef(join)) l.a = subjectRef(main);
@@ -1767,8 +1779,15 @@ function mergeRowHtml(r){
   const chosen = MERGE_CTX.picks[r.name];
   const btn = (val, label) => '<button class="btn btn-secondary btn-sm" type="button"'
     + ' data-pick="' + val + '" data-fname="' + esc(r.name) + '"' + (chosen === val ? ' disabled' : '') + '>' + label + '</button>';
+  /* M-4: кнопка предлагается только той стороне, у которой значение ЕСТЬ. mergeDiff оставляет
+     строку, если заполнена ЛЮБАЯ сторона, поэтому «взять B» предлагалось и при пустом B —
+     кнопка, которая по замыслу не может сделать ничего осмысленного: взять из пустого нечего,
+     а стереть заполненное выбор не должен. Пустую сторону называем словами, иначе строка с
+     одной кнопкой читается как недорисованная. */
+  const btns = [r.a ? btn('a', 'взять A') : '', r.b ? btn('b', 'взять B') : ''].filter(Boolean).join(' ');
+  const gap = r.a && r.b ? '' : '<div class="muted">' + (r.a ? 'в записи B этого поля нет' : 'в записи A этого поля нет') + '</div>';
   const pick = r.differs
-    ? btn('a', 'взять A') + ' ' + btn('b', 'взять B') + (chosen ? '<div class="muted">выбрано ' + (chosen === 'a' ? 'A' : 'B') + '</div>' : '')
+    ? btns + gap + (chosen ? '<div class="muted">выбрано ' + (chosen === 'a' ? 'A' : 'B') + '</div>' : '')
     : '<span class="muted">совпадает</span>';
   return '<tr><td>' + esc(r.label) + '</td><td>' + esc(r.a || '—') + '</td><td>' + esc(r.b || '—') + '</td><td>' + pick + '</td></tr>';
 }

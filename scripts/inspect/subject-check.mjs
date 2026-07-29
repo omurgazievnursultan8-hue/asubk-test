@@ -571,12 +571,38 @@ ok('8.16 экран слияния сливает кликом и применя
     const pick = m2.$('#mergeTable [data-pick=\"b\"]');
     if (!pick) return false;
     const fname = pick.dataset.fname, want = m2.ev("fval(subject('S-DUP'),'" + fname + "')");
+    /* M-4 (финальное ревью 29.07.2026): раньше единственной строкой выбора был «Адрес», где
+       заполнена главная, а присоединяемая пуста, — и последняя проверка сверяла '' с ''.
+       Перенос пустоты в пустоту доказывает не применение выбора, а его отсутствие. Требуем,
+       чтобы переносимое значение было непустым: иначе тест снова станет вакуумным молча. */
+    if (!want) return false;
     m2.ev("document.querySelector('#mergeTable [data-pick=\\'b\\']').click()");
     m2.ev("(()=>{const i=document.getElementById('mergeConfirm');i.value='07701199970071';i.dispatchEvent(new Event('input',{bubbles:true}));})()");
     m2.ev("document.getElementById('btnMerge').click()");
     return m2.ev("subject('S-DUP').aliasOf")==='07701199970071' &&
            m2.ev("subject('S-DUP').aliasAt")==='13.07.2026' &&
            m2.ev("fval(subject('07701199970071'),'" + fname + "')") === want; })());
+
+/* M-4 (финальное ревью 29.07.2026). mergeDiff оставляет строку, если заполнена ЛЮБАЯ сторона,
+   поэтому «взять B» предлагалось и там, где у присоединяемой записи поля нет вовсе, а doMerge
+   писал Object.assign({}, undefined) === {}. Поле главной записи получало st === undefined:
+   fieldRow рисовал «не пришло из реестра» с кнопкой «Заполнить», а fillOwn на ней бросал —
+   кнопка, которая всегда падает, и поле, незаполнимое навсегда.
+   Проверка бьёт по обоим концам правки: кнопки на пустой стороне нет И прямой вызов doMerge
+   с таким выбором заполненное поле не портит. */
+ok('8.18 «взять B» по полю, которого у присоединяемой записи нет, не предлагается и поля не портит (M-4)',
+  (() => { const f = mk();
+    f.ev("location.hash='#/merge/07701199970071/S-DUP'"); f.ev("route()");
+    /* фикстура сторожит смысл: строка «Адрес» обязана быть строкой расхождения, где
+       заполнена главная и пуста присоединяемая, — иначе проверять нечего */
+    const shown = f.ev("mergeDiff('07701199970071','S-DUP').some(r=>r.name==='addr'&&r.differs&&r.a&&!r.b)");
+    const noB   = !f.$('#mergeTable [data-pick="b"][data-fname="addr"]');
+    const hasA  = !!f.$('#mergeTable [data-pick="a"][data-fname="addr"]');
+    const before = f.ev("fval(subject('07701199970071'),'addr')");
+    f.ev("doMerge('07701199970071','S-DUP',{confirm:'07701199970071',addr:'b'})");
+    return shown && noB && hasA && before !== ''
+      && f.ev("fval(subject('07701199970071'),'addr')") === before
+      && f.ev("subject('07701199970071').imported.f.addr.st") === 'наше'; })());
 
 console.log(`\n${n - fails} / ${n} PASS`);
 process.exit(fails ? 1 : 0);
