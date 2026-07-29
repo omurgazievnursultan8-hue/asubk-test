@@ -802,7 +802,10 @@ _Источник: разбор as-is мокапа `mockups/loan-application-com
 ## Phase 4 — Borrower (Заёмщик)
 Overall: ✅ mature — tabbed detail page + a **«Результаты проверок»** risk/
 compliance dashboard (blacklist, credit history, active loans, overdue, scoring,
-debt limit). Route `/loan-applicants`. Two data-consistency bugs surfaced.
+debt limit). Route `/loan-applicants`. Behind it sit the person registries
+`/individuals` and `/organizations` (surveyed 2026-07-29,
+`scripts/inspect/subject-registries.mjs`) — import-by-ИНН editors with defects of
+their own. Twelve defects total across the three routes (P4-01…P4-12).
 
 - **P4-01** — `/loan-applicants` list — 🟡 minor — _no view (and no create) action_
   - **Issue:** Toolbar has only Изменить / Удалить — **no «Просмотр»** (inspect
@@ -893,8 +896,11 @@ debt limit). Route `/loan-applicants`. Two data-consistency bugs surfaced.
   `scripts/inspect/subject-registries.mjs`, `.auth/subject-individuals-list.png`,
   `.auth/subject-individuals-detail.png`_
   - **Issue:** date of birth is present neither in the registry columns nor in the
-    card — combined with rows that have no visible ИНН (P4-09), there is no way to
-    tell two same-named people apart.
+    card, so two different people sharing the same ФИО (and no resolvable key —
+    the population the «Похожие записи» dedup screen has to work with, СБ-10)
+    cannot be told apart. The half-imported rows from **P4-09** compound the same
+    identification problem from the other side — an ИНН with no ФИО at all, rather
+    than a name with no key.
   - **Expected:** add date of birth to both the card and (as a column) the registry.
     → P4-R27.
 
