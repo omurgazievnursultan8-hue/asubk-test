@@ -2143,10 +2143,24 @@ const grabArray = (src, name) => {
 };
 const ownerSubjects = grabArray(SUBJ_OWNER, 'SUBJECTS') || [];
 const mirrorSubjects = grabArray(HTML, 'SUBJECTS') || [];
-const ownerNameByKey = new Map(ownerSubjects.filter(s => s.key).map(s => [s.key, s.name]));
-const sharedKeys = mirrorSubjects.filter(s => ownerNameByKey.has(s.inn));
-ok('W. словарь SUBJECTS.name совпадает с subject.html (владелец) по каждому общему ключу; пересечение непусто',
-  sharedKeys.length > 0 && sharedKeys.every(s => s.name === ownerNameByKey.get(s.inn)));
+const ownerByKey = new Map(ownerSubjects.filter(s => s.key).map(s => [s.key, s]));
+const sharedKeys = mirrorSubjects.filter(s => ownerByKey.has(s.inn));
+/* M-5 (финальное ревью 29.07.2026): сверка стояла на одном `name` — и `industry` разошлась
+   молча. На 07701199970071 зеркало печатало «Частное предпринимательство» у лица, которое ни
+   ИП, ни организацией не было никогда, а владелец — «—», и оба это ПОКАЗЫВАЛИ: зеркало в
+   id-bar карточки и в found-box формы, владелец строкой «Отрасль» вкладки «Основное».
+   Сверяем все поля, которые печатают оба макета, а не одно: имя, отрасль, район. Список
+   назван явно — чтобы новое общее поле пришлось внести сюда осознанно, а не забыть молча. */
+const PARITY_FIELDS = ['name', 'industry', 'district'];
+const parityGaps = sharedKeys.flatMap(s => PARITY_FIELDS
+  .filter(f => s[f] !== ownerByKey.get(s.inn)[f])
+  .map(f => `${s.inn}.${f}: зеркало ${JSON.stringify(s[f])} ≠ владелец ${JSON.stringify(ownerByKey.get(s.inn)[f])}`));
+if (parityGaps.length) console.log('      расхождения с владельцем: ' + parityGaps.join(' · '));
+ok('W. словарь SUBJECTS совпадает с subject.html (владелец) по имени, отрасли и району на каждом общем ключе',
+  sharedKeys.length > 0 && parityGaps.length === 0
+  /* каждое сверяемое поле обязано быть непустым хоть где-то: иначе сверка «undefined ===
+     undefined» была бы зелёной и после того, как поле исчезло бы из обоих наборов */
+  && PARITY_FIELDS.every(f => sharedKeys.some(s => s[f])));
 
 // ── СБ-14: вид субъекта схлопнут, владелец — mockups/subject/subject.html ──
 ok('СБ-14.1 вида view-subject и renderSubject в макете заёмщика больше нет',
