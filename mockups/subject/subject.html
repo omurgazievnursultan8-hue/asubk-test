@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Субъекты — реестр лиц — АСУБК</title>
+<!-- ASUBK · Субъекты — реестр лиц, к которым модули привязывают роли
+     Спека: docs/superpowers/specs/2026-07-29-subject-mockup-design.md
+            mockups/subject/ASUBK-subekt-logika.md — почему модель такая (СП-21)
+     Решения: СБ-1…СБ-14 — mockups/subject/ASUBK-status-razrabotki.md
+     ADR: 0001 производное не хранится · 0014 чужое зеркалим, не пишем ·
+          0018 тип лица — правоспособность на дату · 0019 ключ субъекта и псевдоним
+     Проверка: node scripts/inspect/subject-check.mjs
+     Инварианты 1–10 — раздел 6 спеки, каждый закрыт тестом смоука. -->
+<style>
+  /* Токены и шелл — 1:1 копия mockups/borrower/borrower.html (снято со стенда, проверено).
+     Ничего не переименовано; набор сужен до того, что использует шелл этого файла —
+     полный список см. в отчёте Task 1 (task-1-report.md). */
+  :root{
+    --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+    --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+    --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+    --asubk-ink:#192434;
+    --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+    --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+    --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+    --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+    --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+    --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+    --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+    --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+    --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+    --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+    --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+    --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+    --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+    --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+    --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+    --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+    --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+    --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+    --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+    --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+    --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+    --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+    --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+    --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+    --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+    --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+    --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+    --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+    --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+    --control-h:36px; --header-h:56px; --sidebar-w:300px;
+    --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:var(--asubk-font);color:var(--text-body);background:#fff;font-size:16px;line-height:1.4;}
+  .app{display:flex;min-height:100vh;}
+
+  /* sidebar — 1:1 со стендом (jmix-list-menu), копия borrower.html */
+  .sidebar{width:279px;flex:0 0 279px;min-width:220px;background:#fff;border-right:1px solid var(--border-default);
+    display:flex;flex-direction:column;max-height:100vh;}
+  .sidebar .brand{font-size:16px;font-weight:600;line-height:20px;color:#192434;padding:0 16px;margin:16px 0 12px;
+    display:flex;align-items:center;}
+  .nav{flex:1;overflow-y:auto;padding:0 8px;color:var(--text-muted);}
+  .nav-block{padding:8px 0;}
+  .nav-group{display:flex;align-items:center;gap:8px;height:36px;padding:8px;border-radius:var(--radius-md);
+    font-size:14px;font-weight:700;line-height:1.25;color:var(--text-muted);cursor:pointer;user-select:none;}
+  .nav-group:hover{background:var(--surface-hover);}
+  .nav-group .caret{flex:0 0 auto;width:16px;height:16px;color:var(--text-muted);transition:transform .12s;}
+  .nav-group.collapsed .caret{transform:rotate(-90deg);}
+  .nav-list{margin-inline-start:24px;}
+  .nav-list.hidden{display:none;}
+  .nav-item{display:flex;align-items:center;gap:8px;padding:8px;border-radius:var(--radius-md);
+    font-size:14px;font-weight:500;line-height:1.375;color:var(--text-muted);cursor:pointer;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .nav-item:hover{background:var(--surface-hover);}
+  .nav-item.active{color:var(--text-link);background:var(--status-info-bg);}
+  .sidebar .footer{border-top:1px solid var(--border-default);padding:12px 16px;display:flex;align-items:center;
+    justify-content:space-between;font-size:14px;color:var(--text-muted);}
+  .logout{width:36px;height:36px;border:1px solid transparent;border-radius:var(--radius-md);background:var(--status-info-bg);
+    display:flex;align-items:center;justify-content:center;color:var(--text-link);cursor:pointer;}
+  .logout:hover{background:rgba(51,139,255,.22);}
+
+  /* main */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .topbar{display:flex;align-items:center;gap:16px;padding:12px 26px;border-bottom:1px solid var(--border-default);}
+  .burger{font-size:22px;color:var(--text-muted);cursor:pointer;line-height:1;}
+  .topbar .title{font-weight:700;font-size:16px;}
+  .topbar .title a{color:inherit;text-decoration:none;cursor:pointer;}
+  .topbar .title a:hover{color:var(--text-link);text-decoration:underline;}
+  .back-arrow{display:none;align-items:center;justify-content:center;width:32px;height:32px;margin:-4px 0;
+    border-radius:var(--radius-md);color:var(--text-link);}
+  .back-arrow svg{width:24px;height:24px;}
+  .back-arrow:hover{background:var(--surface-hover);}
+  .topbar.on-detail .back-arrow{display:inline-flex;}
+  .content{padding:10px 26px 40px;flex:1;}
+
+  .btn{font-family:var(--asubk-font);font-size:15px;font-weight:600;border-radius:var(--radius-md);padding:8px 16px;
+    border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;}
+  .btn-secondary{background:var(--surface-hover);color:var(--text-muted);border-color:var(--border-strong);}
+  .btn-primary{background:var(--action-primary);color:#fff;}
+  .btn-success{background:var(--action-success);color:#fff;border-color:var(--action-success);}
+  .btn-sm{font-size:13px;padding:6px 11px;}
+
+  /* ---------- панель / секции ---------- */
+  .section{border:1px solid var(--border-default);border-radius:6px;margin-bottom:20px;overflow:hidden;}
+  .section-head{padding:12px 16px;font-weight:700;font-size:15px;border-bottom:1px solid var(--border-default);
+    display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fbfcfd;}
+  .section-body{padding:0;}
+
+  table.grid{width:100%;border-collapse:collapse;font-size:14px;}
+  table.grid thead th{position:sticky;top:0;z-index:1;text-align:left;font-weight:600;font-size:14px;line-height:1.3;
+    color:#192434;padding:11px 12px;border-bottom:1px solid var(--border-strong);background:var(--surface-panel);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  table.grid tbody td{padding:10px 12px;border-bottom:1px solid var(--border-default);vertical-align:middle;
+    color:var(--text-body);}
+  table.grid tbody tr:last-child td{border-bottom:0;}
+  table.grid tbody tr:nth-child(even) td{background:var(--surface-panel);}
+  td.mono{font-variant-numeric:tabular-nums;}
+  .grid-wrap{border:1px solid var(--border-strong);border-radius:6px;overflow:auto;max-height:60vh;background:#fff;}
+
+  /* ---------- модальное окно (одна на все операции — создание, подтверждение) ---------- */
+  .modal-back{position:fixed;inset:0;background:rgba(20,32,48,.45);display:flex;align-items:flex-start;
+    justify-content:center;padding:48px 16px;overflow:auto;z-index:50;}
+  .modal-back[hidden]{display:none;}
+  .modal{background:#fff;border-radius:10px;box-shadow:0 12px 40px rgba(20,32,48,.28);width:100%;max-width:620px;}
+  .modal-head{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border-default);}
+  .modal-head h3{margin:0;font-size:17px;font-weight:600;color:var(--text-body);flex:1;}
+  .modal-x{width:28px;height:28px;border:none;border-radius:var(--radius-md);background:var(--surface-hover);
+    color:var(--text-muted);cursor:pointer;font-size:17px;line-height:1;}
+  .modal-body{padding:18px 20px;}
+  .modal-foot{display:flex;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid var(--border-default);}
+  .modal-foot .sp{flex:1;}
+  .btn[disabled]{opacity:.45;cursor:not-allowed;}
+
+  .who{font-weight:600;} .muted{color:var(--text-muted);font-size:13px;}
+  a.lnk{color:var(--text-link);text-decoration:none;} a.lnk:hover{text-decoration:underline;}
+  .badge{font-size:12px;border-radius:3px;padding:1px 7px;font-weight:600;display:inline-block;white-space:nowrap;}
+
+  /* ---------- вид: список / карточка / слияние ---------- */
+  .view{display:none;} .view.active{display:block;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar">
+    <div class="brand">АСУБК</div>
+    <nav class="nav">
+
+      <div class="nav-block">
+        <div class="nav-group collapsed" data-group="app">
+          <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          Приложение
+        </div>
+        <div class="nav-list hidden" data-list="app">
+          <div class="nav-item">Подразделения</div>
+          <div class="nav-item">Сотрудники подразделения</div>
+          <div class="nav-item">Освоение</div>
+          <div class="nav-item">Резерв</div>
+          <div class="nav-item">Платеж</div>
+          <div class="nav-item">Список Траншей</div>
+          <div class="nav-item">Решение суда</div>
+        </div>
+      </div>
+
+      <div class="nav-block">
+        <div class="nav-group" data-group="loan">
+          <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          Система кредитования
+        </div>
+        <div class="nav-list" data-list="loan">
+          <div class="nav-item">Решение правительства</div>
+          <div class="nav-item">Кредитные программы</div>
+          <div class="nav-item">Заявки</div>
+          <div class="nav-item">Комиссии по заявкам</div>
+          <!-- Субъекты — реестр лиц, к которым модули привязывают роли (заёмщик — одна из них) -->
+          <div class="nav-item active" onclick="location.hash='#/subjects'">Субъекты</div>
+          <div class="nav-item">Заемщики</div>
+          <div class="nav-item">Кредиты</div>
+
+          <div class="nav-block">
+            <div class="nav-group collapsed" data-group="col">
+              <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              Залог
+            </div>
+            <div class="nav-list hidden" data-list="col">
+              <div class="nav-item">Мониторинг залога</div>
+              <div class="nav-item">Список залоговых договоров</div>
+              <div class="nav-item">Список предметов залога</div>
+            </div>
+          </div>
+
+          <div class="nav-block">
+            <div class="nav-group collapsed" data-group="ref">
+              <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              Справочники
+            </div>
+            <div class="nav-list hidden" data-list="ref">
+              <div class="nav-item">Комиссии</div>
+              <div class="nav-item">Сотрудники</div>
+              <div class="nav-item">Должности</div>
+              <div class="nav-item">Отделы</div>
+              <div class="nav-item">Кредиторы</div>
+              <div class="nav-item">Процентные ставки</div>
+              <div class="nav-item">Группа заёмщика</div>
+              <div class="nav-item">Подгруппа заёмщика</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </nav>
+    <div class="footer">
+      <span>[admin]</span>
+      <div class="logout" title="Выход">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div class="main">
+    <div class="topbar" id="topbar">
+      <span class="burger">☰</span>
+      <a href="#" class="back-arrow" id="backLink" title="К реестру субъектов" aria-label="К реестру субъектов">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      </a>
+      <span class="title" id="pageTitle">Реестр субъектов</span>
+    </div>
+
+    <!-- ==================== ВИД: РЕЕСТР ==================== -->
+    <div class="view active" id="view-list"><div class="content"><div id="listMount"></div></div></div>
+    <!-- ==================== ВИД: КАРТОЧКА СУБЪЕКТА ==================== -->
+    <div class="view" id="view-card"><div class="content"><div id="cardMount"></div></div></div>
+    <!-- ==================== ВИД: СЛИЯНИЕ (СБ-11) ==================== -->
+    <div class="view" id="view-merge"><div class="content"><div id="mergeMount"></div></div></div>
+  </div>
+</div>
+
+<!-- Одно модальное окно на все операции (создание, подтверждение слияния и т.п.) —
+     разметка копируется из borrower.html: заголовок + тело + подвал с кнопками. -->
+<div class="modal-back" id="mBack" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="modal-head">
+      <h3 id="mTitle"></h3>
+      <button class="modal-x" id="mClose" title="Закрыть">✕</button>
+    </div>
+    <div class="modal-body" id="mBody"></div>
+    <div class="modal-foot" id="mFoot"></div>
+  </div>
+</div>
+
+<script>
+const TODAY = '13.07.2026';        /* «сегодня» демо; совпадает с borrower.html — зеркала оттуда */
+let VIEW_DATE = TODAY;             /* дата среза карточки (СБ-3, инвариант 4) */
+
+const dnum   = d => { const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(d || ''); return m ? +(m[3] + m[2] + m[1]) : 0; };
+const toISO  = d => { const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(d || ''); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
+const fromISO= s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? m[3] + '.' + m[2] + '.' + m[1] : ''; };
+const esc    = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const scrollTop = () => { document.documentElement.scrollTop = document.body.scrollTop = 0; };
+
+/* ── ФАКТЫ (наполняются в Task 2) ── */
+const SUBJECTS = [], IP_REG = [], SUBJECT_EVENTS = [], LINKS = [], UNITS = [], BANK_REQ = [], DOCS = [];
+
+/* Ссылка на запись: ключ, а у записи без ключа — внутренний id (СБ-10: дубли живут там,
+   где ключа нет вовсе — наполовину прошедший импорт и legacy person-XXXXX). */
+const subjectRef = s => s.key || s.id;
+const subject = ref => SUBJECTS.find(s => s.key === ref || s.id === ref) || null;
+
+function hashParams(q){
+  const out = {};
+  (q || '').split('&').filter(Boolean).forEach(pair => {
+    const i = pair.indexOf('=');
+    if (i > 0) out[pair.slice(0, i)] = decodeURIComponent(pair.slice(i + 1));
+  });
+  return out;
+}
+
+const vList = document.getElementById('view-list');
+const vCard = document.getElementById('view-card');
+const vMerge = document.getElementById('view-merge');
+function showOnly(v){ [vList, vCard, vMerge].forEach(x => x.classList.toggle('active', x === v)); }
+
+function showList(){ VIEW_DATE = TODAY; renderList(); showOnly(vList); scrollTop(); }
+function showCard(ref, onDate, tab){ VIEW_DATE = onDate && dnum(onDate) <= dnum(TODAY) ? onDate : TODAY;
+  document.getElementById('cardMount').innerHTML = renderCard(ref, tab); wireCard(ref); showOnly(vCard); scrollTop(); }
+function showMerge(a, b){ document.getElementById('mergeMount').innerHTML = renderMerge(a, b); showOnly(vMerge); scrollTop(); }
+
+/* #/subjects — реестр · #/s/<ключ>[?on=ГГГГ-ММ-ДД&tab=<ключ вкладки>] — карточка ·
+   #/merge/<a>/<b> — сравнение перед слиянием (СБ-11). */
+function route(){
+  let m;
+  if ((m = /^#\/merge\/([^/]+)\/([^/]+)$/.exec(location.hash))) {
+    const a = subject(decodeURIComponent(m[1])), b = subject(decodeURIComponent(m[2]));
+    if (a && b) { showMerge(subjectRef(a), subjectRef(b)); return; }
+  }
+  if ((m = /^#\/s\/([^/?]+)(?:\?(.*))?$/.exec(location.hash))) {
+    const s = subject(decodeURIComponent(m[1]));
+    if (s) { const p = hashParams(m[2]);
+      showCard(subjectRef(s), /^\d{4}-\d{2}-\d{2}$/.test(p.on || '') ? fromISO(p.on) : null, p.tab); return; }
+  }
+  showList();
+}
+window.addEventListener('hashchange', route);
+
+/* заглушки рендера — наполняются в Tasks 3/5/9 */
+function renderList(){ document.getElementById('listMount').innerHTML = ''; }
+function renderCard(ref, tab){ return ''; }
+function wireCard(ref){}
+function renderMerge(a, b){ return ''; }
+
+route();
+</script>
+</body>
+</html>
