@@ -295,10 +295,16 @@ ok('6.3 событие «утрата статуса ИП» закрывает �
   (() => { g.ev("addEvent({key:'04401199940041',kind:'утрата статуса ИП',date:'01.07.2026',basis:'Заявление',doc:'ЗП-119'})");
     return g.ev("IP_REG.find(r=>r.no==='ИП-0044012').to")==='01.07.2026' &&
            g.ev("personKindAt('04401199940041',TODAY)")==='физ'; })());
-ok('6.4 инвариант 7: событие не трогает кредиты, обеспечение и взыскание',
+/* Одного снимка зеркал мало: он совпал бы и у addEvent, не делающего вообще ничего.
+   Поэтому сначала требуем, чтобы событие легло в ленту, и только потом — чтобы чужое
+   осталось нетронутым. Иначе тест доказывает бездействие, а не невмешательство. */
+ok('6.4 инвариант 7: событие ложится в ленту и не трогает кредиты, обеспечение и взыскание',
   (() => { const snap = g.ev("JSON.stringify([CREDITS,PLEDGE_OBJ,SURETIES,PROCS])");
+    const n0 = g.ev("subjectEvents('02201199920021').length");
     g.ev("addEvent({key:'02201199920021',kind:'ликвидация',date:'01.07.2026',basis:'Решение суда',doc:'РС-88'})");
-    return g.ev("JSON.stringify([CREDITS,PLEDGE_OBJ,SURETIES,PROCS])") === snap; })());
+    return g.ev("subjectEvents('02201199920021').length") === n0 + 1 &&
+           g.ev("subjectEvents('02201199920021').some(e=>e.kind==='ликвидация'&&e.doc==='РС-88')") &&
+           g.ev("JSON.stringify([CREDITS,PLEDGE_OBJ,SURETIES,PROCS])") === snap; })());
 ok('6.5 СБ-13: стоп-фактор — зеркало события, отдельной точки ввода нет',
   g.ev("stopFactors('02201199920021').some(f=>/ликвидирован/i.test(f.text))") &&
   g.ev("typeof addStopFactor")==='undefined' && g.ev("typeof STOP_FACTORS")==='undefined');
