@@ -95,10 +95,15 @@ ok('2.3 колонка типа лица подписана датой срез�
   g.$('#listHead').textContent.includes('на ' + g.ev("TODAY")));
 ok('2.4 у группового заёмщика в реестре виден ключ ГР-, а не ИНН',
   g.$('#listTable').textContent.includes('ГР-001'));
+/* Один разрез доказать нечем: пустой ответ дало бы и чтение несуществующего поля.
+   Поэтому спрашиваем ту же выборку на дату, когда регистрация ИП действовала. */
 ok('2.5 фильтр по типу лица считает тип на дату, а не читает поле',
   (() => { g.ev("FILTER.kind='ИП'"); g.ev("applyFilters()");
-    const rows = g.ev("listRows().map(s=>s.key)");
-    return rows.length === 0; })());   // на 13.07.2026 действующих ИП нет: регистрация закрыта 31.12.2025
+    const now = g.ev("listRows().length");            // на 13.07.2026 действующих ИП нет: регистрация закрыта 31.12.2025
+    g.ev("VIEW_DATE='01.06.2020'"); g.ev("applyFilters()");
+    const then = g.ev("listRows().map(s=>s.key)");    // а в 2020-м Асанов был ИП — из хранимого поля этого не увидеть
+    g.ev("VIEW_DATE=TODAY"); g.ev("applyFilters()");
+    return now === 0 && then.length === 1 && then[0] === '04401199940041'; })());
 ok('2.6 фильтр по роли отбирает по выводимым ролям',
   (() => { g.ev("FILTER.kind=''"); g.ev("FILTER.role='Поручитель'"); g.ev("applyFilters()");
     return g.ev("listRows().every(s=>subjectRoles(subjectRef(s)).some(r=>r.role==='Поручитель'))") &&
@@ -109,9 +114,10 @@ ok('2.7 фильтр «есть событие» отбирает по лент�
 ok('2.8 разрез «похожие записи» показывает только записи без ключа либо псевдонимы (СБ-10)',
   (() => { g.ev("FILTER.event=false"); g.ev("FILTER.similar=true"); g.ev("applyFilters()");
     return g.ev("listRows().every(s=>s.key==='' || !!s.aliasOf)") && g.ev("listRows().length") >= 2; })());
-ok('2.9 признак дубля печатается в паре и не использует дату рождения (её в системе нет)',
+/* Проверяем сам признак, а не шапку таблицы: «Наименование / ФИО» стоит в <th> всегда. */
+ok('2.9 признак дубля называет причину похожести и не использует дату рождения (её в системе нет)',
   (() => { const t = g.$('#listTable').textContent;
-    return /документ|ФИО|наименование/i.test(t) && !/дата рождения/i.test(t); })());
+    return /совпал документ|совпало имя в одном районе/.test(t) && !/дата рождения/i.test(t); })());
 ok('2.10 пустое состояние называет условия и чистит их одной кнопкой (СП-16)',
   (() => { g.ev("FILTER.similar=false"); g.ev("FILTER.q='несуществующее-лицо-zzz'"); g.ev("applyFilters()");
     const has = !!g.$('#emptyState') && !!g.$('#clearFilters');
@@ -124,6 +130,24 @@ ok('2.11 поиск идёт по ключу И по наименованию',
     const byKey = g.ev("listRows().some(s=>s.key==='07701199970071')");
     g.ev("FILTER.q=''"); g.ev("applyFilters()");
     return byName && byKey; })());
+/* Пагинацию восемью записями при странице в 20 не проверить — временно ужимаем страницу. */
+ok('2.12 вторая страница достижима кнопкой и показывает другие строки (СП-11)',
+  (() => { g.ev("pgSize=3"); g.ev("applyFilters()");
+    const onPage = g.$$('#listTable tbody tr').length;
+    const first1 = g.$('#listTable tbody tr').textContent, cnt1 = g.$('#rowCount').textContent;
+    g.ev("document.getElementById('pgNext').click()");
+    const first2 = g.$('#listTable tbody tr').textContent, cnt2 = g.$('#rowCount').textContent;
+    g.ev("pgSize=20"); g.ev("applyFilters()");
+    return onPage === 3 && /^1–3 из /.test(cnt1) && /^4–/.test(cnt2) && first1 !== first2; })());
+/* Тесты 2.5–2.11 пишут в FILTER напрямую — проводка панели ими не проверяется вовсе. */
+ok('2.13 панель связана с FILTER, район каскадом сужается, «Очистить» доступна и при непустом списке',
+  (() => { g.ev("(()=>{const s=document.getElementById('f-region');s.value='Нарынская';s.dispatchEvent(new Event('change',{bubbles:true}));})()");
+    const bound = g.ev("FILTER.region")==='Нарынская';
+    const districts = g.ev("[...document.getElementById('f-district').options].map(o=>o.value).filter(Boolean)");
+    const shown = g.$$('#listTable tbody tr').length > 0 && !!g.$('#clearFilters');
+    g.ev("document.getElementById('clearFilters').click()");
+    return bound && districts.length === 1 && districts[0] === 'Ак-Талинский'
+        && shown && g.ev("FILTER.region")==='' && g.ev("listRows().length") > 1; })());
 
 console.log(`\n${n - fails} / ${n} PASS`);
 process.exit(fails ? 1 : 0);

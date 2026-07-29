@@ -571,7 +571,7 @@ window.addEventListener('hashchange', route);
 /* ── РЕЕСТР ──
    Панель фильтров, а не Jmix-конструктор «Добавить условие поиска»: на стенде своих
    фильтров нет вовсе (дефект P4-10), и отобрать лица по типу или району нечем. */
-const pgSize = 20;
+let pgSize = 20;   /* let, а не const: смоук ужимает страницу, чтобы вторая вообще появилась */
 let pgNo = 1;
 const FILTER = { q:'', kind:'', region:'', district:'', role:'', event:false, similar:false };
 
@@ -633,8 +633,11 @@ function toolbarHtml(){
 }
 
 /* Панель фильтров: четыре типа лица, область → каскад района (список районов сузится,
-   если выбрана область), четыре роли, два чекбокса-разреза. Список областей/районов
-   берём из данных, а не заводим справочником — их источник вне рамок этой задачи. */
+   если выбрана область), четыре роли, два чекбокса-разреза, кнопка #clearFilters —
+   видна ВСЕГДА (не только при пустом ответе, см. emptyStateHtml), иначе оператору с
+   непустой выдачей и несколькими условиями нечем сбросить их разом (СП-16). Список
+   областей/районов берём из данных, а не заводим справочником — их источник вне рамок
+   этой задачи. */
 function filterPanelHtml(){
   const regions = [...new Set(SUBJECTS.map(s => s.region).filter(Boolean))].sort();
   const districts = [...new Set(SUBJECTS.filter(s => !FILTER.region || s.region === FILTER.region)
@@ -653,11 +656,17 @@ function filterPanelHtml(){
       + ROLE_KINDS.map(r => opt(r, FILTER.role)).join('') + '</select></div>'
     + '<label class="chk"><input type="checkbox" id="f-event"' + (FILTER.event ? ' checked' : '') + '> Есть событие</label>'
     + '<label class="chk"><input type="checkbox" id="f-similar"' + (FILTER.similar ? ' checked' : '') + '> Похожие записи</label>'
+    + '<button class="btn btn-secondary btn-sm" id="clearFilters" type="button">Очистить условия</button>'
     + '</div>';
 }
 
 /* Пустое состояние (СП-16): называет действующие условия словами и чистит их одной
-   кнопкой — единственное место, где реестр целиком сбрасывает FILTER в один клик. */
+   кнопкой. Кнопка сброса нужна в двух местах (панель — видна всегда; пустой ответ —
+   под рукой у оператора, упершегося в ноль строк), а идентификатор в документе должен
+   быть один на каждое место: #clearFilters в панели, #clearFiltersEmpty здесь — тот же
+   обработчик у обеих (см. wireList). Убрать кнопку из панели значит заставить оператора
+   с непустой выдачей и пятью условиями снимать их по одному — то, ради чего СП-16 и
+   написан, было бы потеряно. */
 function emptyStateHtml(){
   const cond = [];
   if (FILTER.q) cond.push('поиск «' + esc(FILTER.q) + '»');
@@ -669,7 +678,7 @@ function emptyStateHtml(){
   if (FILTER.similar) cond.push('похожие записи');
   return '<div class="empty" id="emptyState">Ничего не найдено'
     + (cond.length ? ' по условиям: ' + cond.join(', ') + '.' : '.')
-    + ' <button class="btn btn-secondary btn-sm" id="clearFilters" type="button">Очистить условия</button></div>';
+    + ' <button class="btn btn-secondary btn-sm" id="clearFiltersEmpty" type="button">Очистить условия</button></div>';
 }
 
 function renderList(){
@@ -706,7 +715,8 @@ function renderList(){
 /* Обвязка реестра: поля фильтров пишут в FILTER и вызывают applyFilters() (что сбрасывает
    страницу на первую), кнопки пейджера меняют только pgNo — сквозь applyFilters их пускать
    нельзя, иначе перелистывание само себя откатывало бы на первую страницу. #q дребезжит
-   250 мс, чтобы не перерисовывать реестр на каждый символ. */
+   250 мс, чтобы не перерисовывать реестр на каждый символ. #clearFilters (панель) и
+   #clearFiltersEmpty (пустой ответ) — два узла, один обработчик сброса. */
 let qDebounce = null;
 function wireList(){
   const byId = id => document.getElementById(id);
@@ -723,11 +733,13 @@ function wireList(){
   const district = byId('f-district');
   if (district) district.onchange = () => { FILTER.district = district.value; applyFilters(); };
 
-  const clear = byId('clearFilters');
-  if (clear) clear.onclick = () => {
+  const resetFilters = () => {
     Object.assign(FILTER, { q:'', kind:'', region:'', district:'', role:'', event:false, similar:false });
     applyFilters();
   };
+  const clear = byId('clearFilters'), clearEmpty = byId('clearFiltersEmpty');
+  if (clear) clear.onclick = resetFilters;
+  if (clearEmpty) clearEmpty.onclick = resetFilters;
 
   const q = byId('q');
   if (q) q.oninput = () => {
