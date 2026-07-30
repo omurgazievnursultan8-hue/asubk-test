@@ -61,7 +61,9 @@ ok('пара (кредит × лицо) в деле уникальна',
    g.ev(`PROCESSES.every(p => new Set(p.requirements.map(r=>r.credit+'|'+r.obligor)).size === p.requirements.length)`));
 ok('по каждому кредиту дела есть требование к заёмщику',
    g.ev(`PROCESSES.every(p => p.credits.every(c => p.requirements.some(r => r.credit===c.id && r.role==='заёмщик')))`));
-ok('охват — свойство требования',            g.ev(`allReqs().every(r => typeof r.scope === 'string')`));
+ok('охват — свёртка требования, не хранимое поле (ADR-0025)',
+   g.ev(`allReqs().every(r => r.scope === undefined)`)
+   && g.ev(`allReqs().every(r => { const s=scopeOf(r); return typeof s.volume==='string' && typeof s.method==='string'; })`));
 ok('ведущее подразделение — на требовании',  g.ev(`allReqs().every(r => !!r.subdivision)`));
 ok('дело 142 — два требования по одному договору',
    g.ev(`${P('142')}.requirements.map(r=>r.role).join(',')`) === 'заёмщик,поручитель');
@@ -89,7 +91,8 @@ ok('каждая мера дела 412 целит ровно в одно тре�
    g.ev(`${P('412')}.measures.every(m => m.targets.length === 1)`)
    && g.ev(`new Set(${P('412')}.measures.flatMap(m=>m.targets)).size`) === 3);
 ok('охваты трёх требований различны, сумма считается из охвата',
-   g.ev(`${P('412')}.requirements.map(r=>r.scope).join(',')`) === 'полный остаток,залог,просроченная сумма'
+   g.ev(`${P('412')}.requirements.map(r=>scopeLabel(scopeOf(r))).join(',')`)
+     === 'полный остаток / деньгами,полный остаток / обращением на предмет залога,просроченная сумма / деньгами'
    && g.ev(`claimOf(${R('412/562/з')}) < claimOf(${R('412/561/з')})`));
 ok('категория дела — worst-of по кредитам, не поле дела',
    g.ev(`${P('412')}.requirements.map(r=>catOfReq(r)).join(',')`) === 'high,high,mid'
@@ -113,8 +116,8 @@ ok('в коде нет присваиваний фазы',              !/\b(p|r
 /* КД-9: панель строится только активная — обходим все вкладки, иначе проверка сузилась бы. */
 ok('в карточке нет селектора фазы', (() => { const m = mk(); m.ev("openDetail('142/56/з')");
   return m.allTabsHtml('select').length === 0 && m.dhead().querySelectorAll('select').length === 0; })());
-ok('фаза меняется только вехой (MILESTONE_PHASE)',
-   g.ev(`Object.keys(MILESTONE_PHASE).length>0 && MILESTONE_PHASE['Исковое заявление']==='Иск'`));
+ok('фаза меняется только вехой (kindPhase/measureSetsPhase, ADR-0033/0038 — свёрнуто из MILESTONE_PHASE)',
+   g.ev(`MEASURE_KINDS.some(k=>kindPhase(k.name)) && kindPhase('Определение о принятии искового заявления к производству')==='Иск'`));
 ok('у каждого требования фаза определена',      g.ev(`allReqs().every(r => !!phaseOf(r))`));
 ok('каждая фаза принадлежит контуру К0…К7',
    g.ev(`allReqs().every(r => phaseOf(r)===OPEN_PHASE || !!contourOfPhase(phaseOf(r)))`));
@@ -124,7 +127,7 @@ ok('без вех — фаза открытия',
    g.ev(`allReqs().filter(r => !liveMilestones(r).length).every(r => phaseOf(r)===OPEN_PHASE)`));
 ok('с вехами — фаза последней вехи',
    g.ev(`allReqs().filter(r => liveMilestones(r).length)
-          .every(r => phaseOf(r) === MILESTONE_PHASE[liveMilestones(r).slice(-1)[0].kind])`));
+          .every(r => phaseOf(r) === measureSetsPhase(liveMilestones(r).slice(-1)[0]))`));
 ok('у непустой фазы всегда есть мера-основание',
    g.ev(`allReqs().filter(r => phaseOf(r)!==OPEN_PHASE).every(r => !!phaseSetter(r))`));
 ok('stageOf даёт одну из четырёх стадий',
@@ -153,7 +156,7 @@ ok('Р-7 · веха с более поздней датой побеждает 
      && !/Безакцептное списание/.test(b.active().querySelector('.timeline').textContent)); }
 for(const ph of ['Ликвидация юр. лица','Приговор суда','Решение суда (умерший / отсутствующий / недееспособный)'])
   ok(`К7 · фаза «${ph}» — веха и встречается в данных`,
-     g.ev(`!!PHASE_MILESTONE[${JSON.stringify(ph)}] && allReqs().some(r=>phaseOf(r)===${JSON.stringify(ph)})`));
+     g.ev(`MEASURE_KINDS.some(k=>(k.outcomes||[]).some(o=>o.setsPhase===${JSON.stringify(ph)})) && allReqs().some(r=>phaseOf(r)===${JSON.stringify(ph)})`));
 
 /* ══════════════════════════════════════════════════════════════════════════
    Р-5 — КАТЕГОРИЯ РИСКА НА КРЕДИТЕ, worst-of вверх
@@ -193,12 +196,14 @@ ok('claim = востребованное по статьям + расходы',
 ok('охват «просроченная сумма» — востребовано меньше остатка',
    g.ev(`claimOf(${R('142/56/з')})`) === 48900 && g.ev(`debtOf(${R('142/56/з')}).totalLeft`) === 152300);
 ok('охват «полный остаток» — востребован весь остаток',
-   g.ev(`allReqs().filter(r=>r.scope==='полный остаток').every(r=>{const d=debtOf(r);return Math.abs(d.claim-d.totalLeft)<0.005;})`));
+   g.ev(`allReqs().filter(r=>scopeOf(r).volume==='полный остаток').every(r=>{const d=debtOf(r);return Math.abs(d.claim-d.totalLeft)<0.005;})`));
 ok('расходы — статья требования, у кредита их нет',
    g.ev(`allReqs().some(r=>(r.costs||[]).length) && PROCESSES.every(p=>p.credits.every(c=>!('costs' in c)))`));
-ok('смена охвата меняет проекцию, снимок не трогает', mk().ev(`(() => {
+ok('смена охвата (новая устанавливающая мера в журнале) меняет проекцию, снимок не трогает', mk().ev(`(() => {
   const r = REQ_INDEX['142/56/з'], before = claimOf(r), snap = JSON.stringify(LEDGER[r.credit]);
-  r.scope = 'полный остаток';
+  r._proc.measures.push({ sec:'Судебный', kind:'Исковое заявление', dates:D('29.07.2026','29.07.2026','29.07.2026'),
+    num:'ИСК-ТЕСТ', purpose:'тест смены охвата', scope:{volume:'полный остаток',method:'деньгами'},
+    sum:'0,00', responsible:'тест', targets:[r.id] });
   return before === 48900 && claimOf(r) === 152300 && JSON.stringify(LEDGER[r.credit]) === snap;
 })()`));
 ok('§2.2 · агрегат по делу считается один раз на кредит',
@@ -236,9 +241,12 @@ ok('иск ИСК-77 подан к обоим ответчикам → фаза 
    && g.ev(`phaseOf(${R('142/56/п')})`) === 'Иск');
 ok('требование поручителю двигает только его требование',
    g.ev(`${P('142')}.measures.find(m=>m.num==='ТП-56').targets.join(',')`) === '142/56/п');
-ok('три оси результата независимы (142 иск: result / resultKind / execStage)', g.ev(`(()=>{
-  const m = ${P('142')}.measures.find(x=>x.kind==='Исковое заявление');
-  return !!m.result.group && !!m.resultKind && !!m.execStage && m.resultKind!==m.execStage;
+ok('три оси результата упразднены (ADR-0028 п.1) — единый outcome, resultIsDocument-вид его не несёт (142 иск)',
+   g.ev(`(()=>{
+  const isk = ${P('142')}.measures.find(x=>x.kind==='Исковое заявление');
+  const tp  = ${P('142')}.measures.find(x=>x.num==='ТП-56');
+  return kindOf('Исковое заявление').resultIsDocument && isk.outcome === undefined
+      && !kindOf('Требование поручителю').resultIsDocument && typeof tp.outcome === 'string';
 })()`));
 { const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
   ok('мера на две цели считает сумму один раз на кредит (§2.2)', m.ev(`(() => {
@@ -356,9 +364,15 @@ ok('безакцепт заблокирован без решения комит
 { const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
   ok('иск заблокирован без поручения Председателя (204, роль ОПК)',
      /поручени/i.test(m.ev(`gateReason(${R('204/314/з')}, 'Исковое заявление')`))); }
-{ const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
-  ok('пройденная веха не регистрируется повторно (142 уже на фазе «Иск»)',
-     m.ev(`measureGate(${R('142/56/п')}, 'Исковое заявление').kind`) === 'sequence'); }
+/* Task 2/4 расщепили «Исковое заявление» на resultIsDocument (не веха) + внешние акты-
+   определения/решения (Иск/Решение суда двигает АКТ, не наше обращение) — внутри
+   контура К3 (Судебный) не осталось ни одной ВЕХИ вида «наш документ», по которой можно
+   воспроизвести старый сценарий «повторная регистрация уже пройденной вехи» (210/70/з
+   уже на фазе «Повторная претензия», контур К1 — единственный контур, целиком состоящий
+   из наших документов). */
+{ const m = mk(); m.setRole('Куратор ОД / ДАК / РП');
+  ok('пройденная веха не регистрируется повторно (210/70/з уже на фазе «Повторная претензия»)',
+     m.ev(`measureGate(${R('210/70/з')}, 'Первичная претензия').kind`) === 'sequence'); }
 { const m = mk(); m.setRole('Отраслевой департамент (ОД)');
   ok('В-9 · извещение недоступно отраслевому департаменту (полномочие ДПО)',
      /ДПО/.test(m.ev(`subdivReason('Извещение об обращении на залог')`))); }
@@ -381,8 +395,8 @@ ok('кнопок назначения / переназначения / прод�
    СРОКИ — Р-3: вычисление от базы шаблона, сущности «задание» нет
    ══════════════════════════════════════════════════════════════════════════ */
 head('Р-3 · сроки порядка');
-ok('шаблонов сроков 44, у каждого база, срок и пункт',
-   g.ev('DEADLINE_TEMPLATES.length') === 44 && g.ev(`DEADLINE_TEMPLATES.every(t => t.base && t.term && t.point)`));
+ok('шаблонов сроков 45, у каждого база, срок и пункт',
+   g.ev('DEADLINE_TEMPLATES.length') === 45 && g.ev(`DEADLINE_TEMPLATES.every(t => t.base && t.term && t.point)`));
 ok('остаток срока считается от базы шаблона, не от даты ввода (142 апелляция)',
    g.ev(`${P('142')}.deadlines[0].base`).includes('вынесения'));
 
@@ -401,11 +415,15 @@ ok('регистрация вехи двигает фазу свёрткой', m
 })()`) === 'Претензия');
 { const m = mk(); m.ev(`openDetail('142/56/з')`);
   const before = m.ev('curProc.measures.length');
-  const idx = m.ev(`curProc.measures.findIndex(x => x.kind==='Исковое заявление')`);
+  /* Task 2/4/Task 3: фазу «Иск» с ИСК-77 устанавливает больше не сам иск
+     (resultIsDocument, outcomes:null — не веха), а дочерний акт «Определение о
+     принятии искового заявления к производству» (basedOn:'ИСК-77', ADR-0027/0031/0038).
+     Сторно откатывает фазу — цель сторно поэтому дочерний акт, не сам иск. */
+  const idx = m.ev(`curProc.measures.findIndex(x => x.kind==='Определение о принятии искового заявления к производству')`);
   m.ev(`openStornoModal(${idx})`); m.$('#stReason').value = 'ошибочная регистрация'; m.ev(`doStorno(${idx})`);
   ok('И-3 · сторно не удаляет строку',
      m.ev('curProc.measures.length') === before && m.ev(`curProc.measures[${idx}].storno != null`));
-  ok('сторно иска откатывает фазу обоих ответчиков',
+  ok('сторно акта о принятии иска откатывает фазу обоих ответчиков',
      m.ev(`phaseOf(REQ_INDEX['142/56/з'])`) === 'Повторная претензия'
      && m.ev(`phaseOf(REQ_INDEX['142/56/п'])`) === 'Досудебное урегулирование');
   ok('в журнале дела нет ручного отката — фаза записана как свёртка',
@@ -417,10 +435,10 @@ ok('В-8 · пересчёт при извещении выполняется н
   openDetail('142/56/з'); recalcOnIzveschenie();
   return /пересчита/i.test(document.getElementById('modalHost').textContent);
 })()`));
-ok('извещение ускоряет охват всех солидарных требований', mk().ev(`(() => {
+ok('извещение ускоряет охват всех солидарных требований (мера, не поле — ADR-0025)', mk().ev(`(() => {
   openDetail('142/56/з'); applyIzveschenie();
-  return REQ_INDEX['142/56/з'].scope === 'полный остаток'
-      && REQ_INDEX['142/56/п'].scope === 'полный остаток'
+  return scopeOf(REQ_INDEX['142/56/з']).volume === 'полный остаток'
+      && scopeOf(REQ_INDEX['142/56/п']).volume === 'полный остаток'
       && claimOf(REQ_INDEX['142/56/з']) === 152300;
 })()`));
 
@@ -581,7 +599,7 @@ ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') 
     return !gateReason(r,'Исковое заявление');
   })()`)); }
 { const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('phases')`);
-  ok('вкладка Фазы рендерит блок на каждый контур',
+  ok('вкладка Предусловия рендерит блок на каждый контур',
      m.$$('#settingsHost .phase-contour').length === m.ev('Object.keys(CONTOURS).length'));
   ok('movePhase меняет порядок в RULES.contourPhases', m.ev(`(()=>{
     movePhase('К1',0,1);
@@ -862,7 +880,7 @@ head('НП-1…НП-16 · настройки правил');
      m.ev(`Object.values(RULES_DEFAULTS.roleSubdiv).every(v=>Array.isArray(v))`)); }
 /* НП-15 · затравка приведена к справочнику видов мер */
 ok('НП-15 все виды мер затравки есть в справочнике MEASURE_KINDS',
-   g.ev(`(()=>{ const k=new Set(MEASURE_KINDS);
+   g.ev(`(()=>{ const k=new Set(MEASURE_KIND_NAMES);
      return PROCESSES.every(p=>(p.measures||[]).every(m=>k.has(m.kind))); })()`));
 ok('НП-15 предупреждающая строка о видах вне справочника есть, но молчит на чистых данных',
    g.ev('Object.keys(kindsOutsideDict()).length')===0);
@@ -939,15 +957,15 @@ ok('регистрация мирового привязана к требова
    ПЕРСИСТ ДЕМО — снимок делится на дела и требования
    ══════════════════════════════════════════════════════════════════════════ */
 head('персист демо-состояния');
-ok('снимок не роняется круговыми ссылками и восстанавливает поля требования', mk().ev(`(() => {
+ok('снимок не роняется круговыми ссылками и восстанавливает поля требования; охват переживает круг как часть меры (ADR-0025), не отдельной записью', mk().ev(`(() => {
   openDetail('142/56/з');
   curReq.costs.push({ date:TODAY, kind:'Государственная пошлина', amount:2500, note:null });
-  curReq.scope = 'полный остаток';
+  const scopeBefore = scopeLabel(scopeOf(curReq));
   persistState();
   if(!localStorage.getItem(STORE_KEY)) return false;
   restoreState();
   const r = REQ_INDEX['142/56/з'];
-  return !!r && r.scope === 'полный остаток' && r.costs.some(c => c.amount === 2500)
+  return !!r && scopeLabel(scopeOf(r)) === scopeBefore && r.costs.some(c => c.amount === 2500)
       && r._proc.id === '142' && allReqs().length === 139;
 })()`));
 ok('после восстановления соглашение снова связано с состоянием', mk().ev(`(() => {
@@ -1043,7 +1061,7 @@ ok('«Предмет требования» переименован в «Охв
    !flabels().includes('Предмет требования') && flabels().includes('Охват'));
 ok('опции охвата берутся из требований, а не из дел', L.ev(`(() => {
   const opts = [...document.querySelectorAll('#f-scope option')].map(o=>o.value).filter(Boolean);
-  const vals = [...new Set(allReqs().map(r=>r.scope))];
+  const vals = [...new Set(allReqs().map(r=>scopeLabel(scopeOf(r))))];
   return opts.length === vals.length && opts.every(o => vals.includes(o));
 })()`));
 ok('ТР-Д2: у ключа role появилось поле «Роль обязанного лица»', flabels().includes('Роль обязанного лица'));
@@ -1124,15 +1142,26 @@ ok('условия отбора попадают в оттиск дословн�
   return /\nУсловия\t.*Ведущее подразделение: ОПК/.test(t);
 })());
 
-head('ТР-7 · охват — только на требовании');
+head('ТР-7/ПМ-Д7 · охват — свёртка с устанавливающей меры (ADR-0025/ADR-0028 п.3)');
 ok('у дела поля scope больше нет',           g.ev(`PROCESSES.every(p => p.scope === undefined)`));
-ok('охват хранится на кредите',              g.ev(`PROCESSES.flatMap(p=>p.credits).every(c => typeof c.scope === 'string')`));
-ok('требование берёт охват с кредита',       g.ev(`allReqs().every(r => r.scope === r._credit.scope)`));
-ok('словарь охвата — три значения CONTEXT',  g.ev(`(() => {
-  const v = [...new Set(allReqs().map(r=>r.scope))].sort();
-  return v.length === 3 && v.join('|') === ['залог','полный остаток','просроченная сумма'].sort().join('|');
+ok('у кредита поля scope больше нет — переехало на меру×цель', g.ev(`PROCESSES.flatMap(p=>p.credits).every(c => c.scope === undefined)`));
+ok('требование не хранит охват — читает его сверткой scopeOf', g.ev(`allReqs().every(r => r.scope === undefined)`));
+ok('словарь охвата — объём × способ (ADR-0025), не одна ось', g.ev(`(() => {
+  const vols = new Set(allReqs().map(r=>scopeOf(r).volume));
+  const meths = new Set(allReqs().map(r=>scopeOf(r).method));
+  const okVols = [...vols].every(v => ['просроченная сумма','полный остаток'].includes(v));
+  const okMeths = [...meths].every(m => ['деньгами','обращением на предмет залога'].includes(m));
+  return okVols && okMeths && vols.size === 2 && meths.size === 2;
 })()`));
-ok('значения «смешанный» в данных нет',      !/смешанный/.test(HTML_SRC));
+ok('значения «залог» и «смешанный» как значения объёма в данных больше нет (ADR-0037/ADR-0025)',
+   !/смешанный/.test(HTML_SRC) && !/volume:'залог'/.test(HTML_SRC));
+ok('scope на мере встречается только у устанавливающих видов (претензия/иск/ИЛ/извещение)', g.ev(`(() => {
+  const ESTABLISHING = new Set(['Первичная претензия','Повторная претензия','Требование поручителю',
+    'Требование гаранту','Исковое заявление','Исполнительный лист','Извещение об обращении на залог']);
+  return PROCESSES.flatMap(p=>p.measures||[]).filter(m=>m.scope).every(m => ESTABLISHING.has(m.kind));
+})()`));
+ok('нет требования без определённого охвата (умолчание открытия ловит пустые случаи)',
+   g.ev(`allReqs().every(r => { const s=scopeOf(r); return !!s && !!s.volume && !!s.method; })`));
 ok('ТР-Д9: у вопроса на орган поле topic, не subject',
    g.ev(`PROCESSES.flatMap(p=>p.committeeQuestions||[]).every(q => typeof q.topic === 'string' && q.subject === undefined)`));
 ok('CQ_SUBJECTS переехал на topic',          g.ev(`CQ_SUBJECTS.every(s => typeof s.topic === 'string')`));
@@ -1443,11 +1472,17 @@ ok('«Ведение дела» переименована в «Процедур
    !tabs().some(t=>/Ведение дела/.test(t)));
 
 head('КД-5 · Суд и Залог — по требованию, а не по делу');
-ok('акт ссылается на меру-основание номером',
-   D.ev(`PROCESSES.filter(p=>p.courtActs.length).every(p=>p.courtActs.every(a=>!!a.measureNum))`));
-ok('привязка акта выводится через targets меры, не хранится',
-   D.ev(`(()=>{const p=PROCESSES.find(x=>x.id==='142'); const a=p.courtActs[0];
-     return !('targets' in a) && boundToReq(REQ_INDEX['142/56/з'], a.measureNum) === true;})()`));
+/* courtActs[] демонтирован (Task 3, ADR-0027/0031) — акт инстанции ТЕПЕРЬ САМ МЕРА
+   расщеплённого судебного вида (COURT_ACT_KINDS), а не отдельная сущность на поле
+   процесса: у него есть собственные targets, а связь с породившим иском/жалобой —
+   basedOn (не отдельный measureNum-указатель). */
+ok('courtActs[] демонтирован — отдельного поля на процессе больше нет',
+   D.ev(`PROCESSES.every(p => !('courtActs' in p))`));
+ok('акт ссылается на меру-основание через basedOn (не measureNum на отдельной сущности)',
+   D.ev(`courtActsOf(REQ_INDEX['142/56/з']).every(m => !!m.basedOn && basedOnValid(m))`));
+ok('привязка акта выводится через targets самой меры',
+   D.ev(`(()=>{const m=courtActsOf(REQ_INDEX['142/56/з'])[0];
+     return Array.isArray(m.targets) && boundToReq(REQ_INDEX['142/56/з'], m.num) === true;})()`));
 ok('иск к обоим ответчикам виден обоим требованиям (п. 32)',
    D.ev(`courtActsOf(REQ_INDEX['142/56/з']).length === 1 && courtActsOf(REQ_INDEX['142/56/п']).length === 1`));
 ok('чужой судебный процесс в требование не протекает', D.ev(`(()=>{
@@ -1464,11 +1499,12 @@ ok('залог виден всем требованиям по своему до
 ok('строка без привязки не прячется, а помечается «по делу»', (() => {
   const pill = D.ev('String(dealLevelPill)');
   return /по делу/.test(pill) && /Ссылки на меру нет/.test(pill); })());
-ok('фильтр пропускает непривязанное, а не выбрасывает', D.ev(`(() => {
+ok('фильтр пропускает непривязанное, а не выбрасывает (заседания — measureNum-привязка, courtActs демонтирован)',
+   D.ev(`(() => {
   const r = REQ_INDEX['142/56/з'];
   return boundToReq(r, null) === null && boundToReq(r, 'НЕТ-ТАКОЙ') === null
-      && (r._proc.courtActs||[]).filter(a=>boundToReq(r,a.measureNum)!==false).length
-         >= (r._proc.courtActs||[]).filter(a=>boundToReq(r,a.measureNum)===true).length; })()`));
+      && (r._proc.hearings||[]).filter(h=>boundToReq(r,h.measureNum)!==false).length
+         >= (r._proc.hearings||[]).filter(h=>boundToReq(r,h.measureNum)===true).length; })()`));
 
 head('КД-6 · срок принадлежит требованию');
 ok('у срока есть цели', D.ev(`PROCESSES.every(p=>p.deadlines.every(d=>Array.isArray(d.targets)))`));
@@ -1629,11 +1665,15 @@ const sRows  = () => S.$$('#deadlinesBody tr').filter(r => !r.classList.contains
 const sFrame = () => S.$('#dlFrame').textContent;
 const sCols  = () => S.$$('#dlHead th').map(t => t.textContent.replace(/[↑↓↕]/g,'').trim());
 
+/* РМ-Д5 (Task 10): childGapDeadlines() добавила в dlOf() девять просроченных синтетических
+   записей — иски затравки без живого basedOn-ответа суда (было невидимо, теперь видно
+   как и задумано). Числа ниже (36→45, 17→26, 49→58, −34→−141) сдвинуты этой правкой, не
+   регрессия: пересчитаны с нуля после Task 10 (см. отчёт задачи). */
 head('СК-1/СК-6 · очередь с горизонтом, а не список просроченного');
 ok('умолчание — горизонт 7 дней',            S.ev(`dlHorizon`) === '7' && /Горизонт: 7 дней/.test(sFrame()));
 ok('предстоящие сроки показаны, а не только просроченные',
-   sRows().length === 36 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 17);
-ok('горизонт «всё» даёт все 49 сроков',      (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 49; })());
+   sRows().length === 45 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 26);
+ok('горизонт «всё» даёт все 58 сроков',      (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 58; })());
 ok('просроченное проходит любой горизонт',   (()=>{ S.ev(`dlSetHorizon('7')`);
    return S.ev(`dlAll().filter(x=>x.n<0).every(dlPass)`); })());
 ok('сегмент показывает выбранный горизонт',  S.$('#dlSeg button.on').dataset.h === '7');
@@ -1670,7 +1710,7 @@ head('СК-5 · порядок по возрастанию остатка, со�
 ok('умолчание — по остатку вверх',           S.ev(`dlSort.k === 'left' && dlSort.dir === 1`));
 ok('отрисованные строки идут по возрастанию остатка', (()=>{
   const a = sRows().map(r => Number(r.querySelectorAll('td')[1].textContent.trim().replace('−','-').split(' ')[0]));
-  return a.length === 36 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -34 && a[a.length-1] === 7; })());
+  return a.length === 45 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -141 && a[a.length-1] === 7; })());
 ok('клик по колонке меняет ключ и направление', (()=>{
   S.ev(`dlSortBy('due')`); const up = S.ev(`dlSort.k==='due' && dlSort.dir===1`);
   S.ev(`dlSortBy('due')`); const down = S.ev(`dlSort.dir===-1`);
@@ -1679,7 +1719,7 @@ ok('клик по колонке меняет ключ и направление
 head('СК-7/СК-12 · рамка со счётчиками, пустое состояние с причиной');
 ok('плиток на экране сроков нет',            S.$('#view-deadlines .tile') === null);
 ok('рамка считает очередь и называет дату отсчёта',
-   /показано 36 из 49 · просрочено 17 · истекает сегодня 5 · отсчёт от 21\.07\.2026/.test(sFrame()));
+   /показано 45 из 58 · просрочено 26 · истекает сегодня 5 · отсчёт от 21\.07\.2026/.test(sFrame()));
 ok('пустое состояние называет условия и даёт их снять', (()=>{
   S.doc.getElementById('dlQ').value = 'такого-заёмщика-нет'; S.ev(`dlRefresh()`);
   const e = S.$('#deadlinesBody .list-empty');
@@ -1755,7 +1795,7 @@ ok('Р-8 подписан без «п.» — это решение проект�
 head('СК-13 · срок снимается фактом, а не отметкой');
 ok('кнопки «выполнено» у срока нет',         !/выполнено/i.test(S.$('#view-deadlines').innerHTML));
 ok('карта закрытия ссылается на существующие виды мер',
-   S.ev(`Object.values(DEADLINE_CLOSERS).flat().every(k=>MEASURE_KINDS.includes(k))`)
+   S.ev(`Object.values(DEADLINE_CLOSERS).flat().every(k=>MEASURE_KIND_NAMES.includes(k))`)
    && S.ev(`Object.keys(DEADLINE_CLOSERS).every(n=>!!TPL_BY_N[n])`));
 ok('регистрация меры снимает срок с контроля', (()=>{
   const m = mk();
@@ -2013,13 +2053,276 @@ ok('вкладка «Гейты» настроек по-прежнему чит�
 ok('реестр требований и карточка волной не тронуты',
    g.ev(`TABS.length === 10`) && g.ev(`allReqs().length === 139`));
 
+/* ADR-0031: жалоба (АЖ-08) фазу не двигает — состояние иска остаётся неопределённым до
+   акта вышестоящей инстанции; фазу двигает именно акт (Task 4). Дело 330 — сценарий,
+   где обе меры зарегистрированы: «Апелляционная жалоба» (resultIsDocument, без outcome)
+   и дочернее «Постановление апелляционной инстанции» (basedOn на жалобу, с outcome). */
+head('ADR-0031 · апелляция не веха, акт вышестоящей инстанции — веха');
+ok('АЖ-08 не несёт setsPhase, дочернее постановление несёт',
+   g.ev(`measureSetsPhase(PROCESSES.find(p=>p.id==='330').measures.find(m=>m.kind==='Апелляционная жалоба'))`) === null
+   && !!g.ev(`measureSetsPhase(PROCESSES.find(p=>p.id==='330').measures.find(m=>m.kind==='Постановление апелляционной инстанции'))`));
+ok('«Постановление апелляционной инстанции» ссылается на «Апелляционная жалоба» через basisKinds',
+   g.ev(`kindOf('Постановление апелляционной инстанции').basisKinds.includes('Апелляционная жалоба')`));
+
+/* ADR-0029 п.2 (Task 5): `basedOn`, если есть, указывает на меру с непустым пересечением
+   `targets` — иначе ссылка адресует чужую меру, дефект регистрации. basedOnValid(m) —
+   код-инвариант (не только смоук): читается и здесь, и панелью «Суд» (collection.html,
+   panelSud) для видимой пометки дефекта в столбце «Основание». Затравка (31 новых
+   basedOn поверх 7 из Task 3/4, ~2196…3740) обязана сама проходить свою же проверку. */
+head('ADR-0029 · basedOn — ссылка на основание меры (ПМ-Д4, ПМ-Д6)');
+ok('basedOnValid() определена и вызываема из тестов',
+   g.ev(`typeof basedOnValid === 'function'`));
+ok('каждый basedOn в затравке указывает на меру ТОГО ЖЕ дела с непустым пересечением targets',
+   g.ev(`PROCESSES.every(p => (p.measures||[]).every(m => !m.basedOn || basedOnValid(m)))`));
+ok('basedOn на несуществующий в деле номер — дефект (не тихая правда)',
+   g.ev(`!basedOnValid({basedOn:'НЕТ-ТАКОГО-НОМЕРА', targets:['142/56/з'], _proc: PROCESSES.find(x=>x.id==='142')})`));
+ok('пустое пересечение targets меры и её основания — дефект',
+   g.ev(`!basedOnValid({basedOn:'ПР-118', targets:['205/315/з'], _proc: PROCESSES.find(x=>x.id==='142')})`));
+ok('ИЛ ссылается на решение суда / приказ / мировое соглашение (ПМ-Д6)',
+   g.ev(`kindOf('Исполнительный лист').basisKinds.join(',')`) === 'Решение суда,Судебный приказ,Мировое соглашение');
+ok('сторно построчно (ADR-0029 п.3): мера остаётся живой для не сторнированной цели',
+   g.ev(`(() => {
+     const p = PROCESSES.find(x=>x.id==='142');
+     const m = p.measures.find(x=>x.kind==='Исковое заявление' && x.num==='ИСК-77');
+     m.stornoTargets = { '142/56/п': {reason:'тест', by:'т', at:'21.07.2026'} };
+     const live = liveMeasuresOf(REQ_INDEX['142/56/з']).includes(m);
+     const notLiveForStornoed = !liveMeasuresOf(REQ_INDEX['142/56/п']).includes(m);
+     delete m.stornoTargets;
+     return live && notLiveForStornoed;
+   })()`));
+
+/* ADR-0032 (Task 7) — урегулирование и треки: свёртки журнала, не хранимые поля.
+   Пауза: `p.pause`/`active` сняты, «действует» вычисляет pauseOpenerOf/pauseClosed —
+   открыватель есть, срок не истёк, закрывателя (нарушение/снятие) нет. Судебный и
+   исполнительный треки — новая фича, тем же паттерном opener/closer, что DEADLINE_CLOSERS
+   (см. SUD_OPENERS/SUD_CLOSERS/ISP_OPENERS/ISP_CLOSERS), но на MEASURE_KINDS, а не на
+   отдельном справочнике. Дело 320 (req 320/420/з) — оба трека сразу: пауза
+   «рассмотрение реструктуризации» до 15.09.2026 (срок не истёк) и открытый судебный
+   трек (ИСК-77/ИСК-82 без решения/определения-закрывателя). Дело 331 (req 331/431/з) —
+   открытый исполнительный трек (ИЛ-310, постановления о возврате нет). */
+head('ADR-0032 · урегулирование и треки (ПМ-Д8)');
+ok('`pause` как хранимое поле дела снят полностью (замена — settlement, факты без active)',
+   g.ev(`PROCESSES.every(p => !('pause' in p))`));
+ok('открытый опенер без закрывателя — пауза видна активной (дело 320, req 320/420/з)',
+   g.ev(`!!pausedState(${R('320/420/з')}) && pausedState(${R('320/420/з')}).kind === 'restructuring'`));
+ok('открытый опенер без закрывателя — судебный трек виден активным (дело 320, req 320/420/з, ИСК-82)',
+   g.ev(`(() => { const t = sudTrackOf(${R('320/420/з')}); return !!t && t.num === 'ИСК-82'; })()`));
+ok('открытый опенер без закрывателя — исполнительный трек виден активным (дело 331, req 331/431/з, ИЛ-310)',
+   g.ev(`(() => { const t = ispTrackOf(${R('331/431/з')}); return !!t && t.num === 'ИЛ-310'; })()`));
+ok('закрыватель гасит судебный трек — дело 327 (ИСК-70 закрыт последующим «Решение суда» РС-33)',
+   g.ev(`!sudTrackOf(${R('327/427/з')})`));
+ok('решение №3 · TERMINAL_BY_MEASURE больше не содержит «Акт сверки о полном погашении»',
+   g.ev(`!('Акт сверки о полном погашении' in TERMINAL_BY_MEASURE)`));
+ok('акт сверки о полном погашении сам не терминирует — при живом остатке outcomeOf не меняется',
+   g.ev(`(() => {
+     const r = ${R('142/56/з')};
+     if(debtOf(r).totalLeft <= 0) return false;         // сценарий требует ненулевого остатка
+     const before = outcomeOf(r);
+     const fake = {sec:'Досудебный', kind:'Акт сверки о полном погашении', dates:D(TODAY,TODAY,TODAY),
+                   num:'ТЕСТ-АС', outcome:'подтверждено', targets:[r.id]};
+     r._proc.measures.push(fake);
+     const after = outcomeOf(r);
+     r._proc.measures.pop();
+     return before === null && after === before;
+   })()`));
+ok('залоговый трек — зеркало несёт обязательную дату снимка (ADR-0032 «Последствия»), у каждой записи она есть',
+   g.ev(`PROCESSES.every(p => (p.colls||[]).every(c => !!c.snapshotAt))`));
+ok('устарелость снимка залога вычисляется (collSnapshotStale), в затравке есть и свежие, и устаревшие',
+   g.ev(`PROCESSES.some(p=>(p.colls||[]).some(c=>collSnapshotStale(c))) && PROCESSES.some(p=>(p.colls||[]).some(c=>!collSnapshotStale(c)))`));
+
+/* ══════════════════════════════════════════════════════════════════════════
+   РМ-Д5 · «Сроки на контроле» — дыра по отсутствию дочерней меры
+   ══════════════════════════════════════════════════════════════════════════ */
+head('РМ-Д5 · дыра по отсутствию дочерней меры (resultIsDocument)');
+ok('иск без определения виден как дыра в очереди сроков (дело 325, ИСК-79 от 22.05.2026, детей нет)',
+   g.ev(`dlOf(${P('325')}).some(d => d.tpl===45 && d._childGapOf && d._childGapOf.num==='ИСК-79')`));
+ok('дыра просрочена относительно TODAY (10 к.д. от 22.05.2026 истекли задолго до 21.07.2026)',
+   g.ev(`(() => { const d = dlOf(${P('325')}).find(x=>x._childGapOf && x._childGapOf.num==='ИСК-79'); return !!d && isOverdue(d); })()`));
+ok('видна в общем реестре «Сроки на контроле» (dlAll), привязана к требованию 325/425/з',
+   g.ev(`dlAll().some(x => x.d._childGapOf && x.d._childGapOf.num==='ИСК-79' && x.reqs.some(r=>r.id==='325/425/з'))`));
+ok('видна на вкладке требования (deadlinesOf) — тот же расчёт, что в общем реестре',
+   g.ev(`deadlinesOf(${R('325/425/з')}).some(d => d._childGapOf && d._childGapOf.num==='ИСК-79')`));
+ok('появление живой дочерней меры с basedOn на иск закрывает дыру (мутирующий тест, push/pop)',
+   g.ev(`(() => {
+     const p = ${P('325')};
+     const parent = p.measures.find(m=>m.num==='ИСК-79');
+     const before = dlOf(p).some(d => d._childGapOf && d._childGapOf.num==='ИСК-79');
+     const fake = {sec:'Судебный', kind:'Определение о принятии искового заявления к производству',
+                   dates:D('01.06.2026','01.06.2026','01.06.2026'), num:'ТЕСТ-ОПР', outcome:'принято к производству',
+                   basedOn:'ИСК-79', targets:[...parent.targets]};
+     p.measures.push(fake);
+     const after = dlOf(p).some(d => d._childGapOf && d._childGapOf.num==='ИСК-79');
+     p.measures.pop();
+     return before === true && after === false;
+   })()`));
+ok('сторно на мере-родителе снимает дыру — respect storno (мутирующий тест, push/pop)',
+   g.ev(`(() => {
+     const p = ${P('325')};
+     const parent = p.measures.find(m=>m.num==='ИСК-79');
+     const fake = {sec:'Судебный', kind:'Исковое заявление', dates:D('01.05.2026','01.05.2026','01.05.2026'),
+                   num:'ТЕСТ-ИСК-СТОРНО', storno:{reason:'тест', by:'т', at:TODAY}, targets:[...parent.targets]};
+     p.measures.push(fake);
+     const has = dlOf(p).some(d => d._childGapOf && d._childGapOf.num==='ТЕСТ-ИСК-СТОРНО');
+     p.measures.pop();
+     return !has;
+   })()`));
+ok('иски с уже зарегистрированным живым ответом суда (basedOn) дыр не показывают — ИСК-77/70/90/99/560/561',
+   g.ev(`['ИСК-77','ИСК-70','ИСК-90','ИСК-99','ИСК-560','ИСК-561'].every(num =>
+     !PROCESSES.some(p => dlOf(p).some(d => d._childGapOf && d._childGapOf.num===num)))`));
+ok('карта дыр покрывает только «Исковое заявление» — другие resultIsDocument-виды (напр. «Апелляционная жалоба») дыр не генерируют',
+   g.ev(`PROCESSES.every(p => dlOf(p).every(d => !d._childGapOf || d._childGapOf.kind === 'Исковое заявление'))`));
+
+/* ADR-0036 (Task 9) — форма регистрации делится на тело/пометки, правка после регистрации.
+   Сценарий: регистрация через реальную openMeasureModal()/saveMeasure() (тот же путь, что
+   тесты М-2/И-3/И-1 выше) → тело есть, пометок нет вовсе → первичное заполнение пометки
+   (openAnnotationModal/saveAnnotation) без причины стамповает by/at → повторная правка уже
+   внесённого значения без причины блокируется (тело/пометка не меняются) → с причиной
+   проходит и хранит reason рядом со штампом. Один процесс/DOM на весь сценарий (curProc
+   мутируется по ходу, как и в существующих мутирующих тестах этого файла). */
+head('РМ-Д4 · ADR-0036 — форма регистрации: тело/пометки, правка после регистрации (Task 9)');
+{
+  const m = mk();   // роль по умолчанию «Куратор ОД / ДАК / РП» — в матрице В-9 претензии (subdivs ОД/ДАК/РП)
+  m.ev(`openDetail('201/311/з'); closeWindowMark();`);
+  m.ev(`openMeasureModal()`);
+  ok('форма регистрации не содержит инпутов доставки/исхода (сняты Task 9 — #mDeliver/#mResult)',
+     m.ev(`document.getElementById('mDeliver')`) === null && m.ev(`document.getElementById('mResult')`) === null);
+  m.doc.getElementById('mKind').value = 'Первичная претензия';
+  m.ev(`syncMeasureWarnings()`);
+  m.doc.getElementById('mNum').value = 'ТЕСТ-ПОМЕТКА-1';
+  m.ev(`saveMeasure()`);
+  const mi = m.ev(`curProc.measures.findIndex(x=>x.num==='ТЕСТ-ПОМЕТКА-1')`);
+  ok('регистрация даёт тело меры сразу (kind/num/dates/targets/sum)',
+     m.ev(`curProc.measures[${mi}].kind`) === 'Первичная претензия'
+     && m.ev(`curProc.measures[${mi}].num`) === 'ТЕСТ-ПОМЕТКА-1'
+     && m.ev(`!!curProc.measures[${mi}].dates && !!curProc.measures[${mi}].sum && curProc.measures[${mi}].targets.length>0`));
+  ok('пометки при регистрации отсутствуют вовсе — sent/served/outcome не заданы',
+     m.ev(`curProc.measures[${mi}].sent`) === undefined
+     && m.ev(`curProc.measures[${mi}].served`) === undefined
+     && m.ev(`curProc.measures[${mi}].outcome`) === undefined);
+
+  // Первичное заполнение пометки (доставка + исход) — без причины, стамповает by/at.
+  m.ev(`openAnnotationModal(${mi})`);
+  m.doc.getElementById('aChannel').value = 'СЭД';
+  m.doc.getElementById('aSentDate').value = '2026-07-21';
+  m.doc.getElementById('aOutcome').value = 'без ответа';
+  m.ev(`saveAnnotation(${mi})`);
+  ok('первичное заполнение пометки не требует причины и стамповает by/at (доставка и исход)',
+     m.ev(`curProc.measures[${mi}].sent.channel`) === 'СЭД' && m.ev(`curProc.measures[${mi}].sent.by`) === 'Куратор ОД / ДАК / РП'
+     && m.ev(`curProc.measures[${mi}].sent.at`) === '21.07.2026' && !m.ev(`curProc.measures[${mi}].sent.reason`)
+     && m.ev(`curProc.measures[${mi}].outcome`) === 'без ответа' && m.ev(`curProc.measures[${mi}].outcomeMeta.by`) === 'Куратор ОД / ДАК / РП'
+     && m.ev(`curProc.measures[${mi}].outcomeMeta.at`) === '21.07.2026' && !m.ev(`curProc.measures[${mi}].outcomeMeta.reason`));
+  ok('тело меры не тронуто заполнением пометки (kind/num/targets/sum те же, что при регистрации)',
+     m.ev(`curProc.measures[${mi}].kind`) === 'Первичная претензия' && m.ev(`curProc.measures[${mi}].num`) === 'ТЕСТ-ПОМЕТКА-1'
+     && m.ev(`!!curProc.measures[${mi}].dates && !!curProc.measures[${mi}].sum`));
+
+  // Правка уже внесённой пометки БЕЗ причины — блокируется, значения не меняются (И-1-подобный инвариант, но для пометки).
+  const sentBefore = m.ev(`JSON.stringify(curProc.measures[${mi}].sent)`);
+  const outcomeBefore = m.ev(`curProc.measures[${mi}].outcome`);
+  m.ev(`openAnnotationModal(${mi})`);
+  m.doc.getElementById('aChannel').value = 'Почта';
+  m.doc.getElementById('aOutcome').value = 'погашено';
+  m.ev(`saveAnnotation(${mi})`);
+  ok('правка уже внесённой пометки без причины блокируется — тело меры «заморожено», а сама пометка не подменяется молча',
+     m.ev(`JSON.stringify(curProc.measures[${mi}].sent)`) === sentBefore && m.ev(`curProc.measures[${mi}].outcome`) === outcomeBefore
+     && m.ev(`!!document.getElementById('modalHost').classList.contains('open')`));  // модалка не закрылась — saveAnnotation вышла по гейту, не по успеху
+
+  // Правка С причиной — проходит, новый штамп by/at, причина хранится рядом (не подменяет тело).
+  m.doc.getElementById('aReason').value = 'ошиблись в канале и исходе при первичном вводе';
+  m.ev(`saveAnnotation(${mi})`);
+  ok('правка пометки с причиной проходит и штампует НОВЫЕ by/at + reason (исправление, не тихая подмена)',
+     m.ev(`curProc.measures[${mi}].sent.channel`) === 'Почта' && m.ev(`curProc.measures[${mi}].sent.reason`) === 'ошиблись в канале и исходе при первичном вводе'
+     && m.ev(`curProc.measures[${mi}].outcome`) === 'погашено' && m.ev(`curProc.measures[${mi}].outcomeMeta.reason`) === 'ошиблись в канале и исходе при первичном вводе'
+     && m.ev(`curProc.measures[${mi}].outcomeMeta.prev`) === 'без ответа');
+  ok('и после правки пометки тело меры остаётся тем же (kind/num/targets/sum) — правка нигде их не задела',
+     m.ev(`curProc.measures[${mi}].kind`) === 'Первичная претензия' && m.ev(`curProc.measures[${mi}].num`) === 'ТЕСТ-ПОМЕТКА-1'
+     && m.ev(`!!curProc.measures[${mi}].dates && !!curProc.measures[${mi}].sum`));
+
+  // ADR-0036 п.4: действие доступно независимо от статуса требования — измерGate/isClosedReq не читаются.
+  ok('действие пометки не проверяет isClosedReq/measureGate требования (доступно и на закрытом)',
+     m.ev(`!/isClosedReq|measureGate/.test(openAnnotationModal.toString()) && !/isClosedReq|measureGate/.test(saveAnnotation.toString())`));
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ПМ-Д10 (Task 11) — СМОУК: ИНВАРИАНТЫ, НЕ ТОЛЬКО СЧЁТЧИКИ
+   Пять именованных инвариантов из плана волны (не пересчёт статики затравки —
+   поведение функций модели на живых и синтетических случаях).
+   ══════════════════════════════════════════════════════════════════════════ */
+head('ПМ-Д10 · Task 11 — инварианты (не счётчики)');
+
+/* 1) ADR-0029 п.2: пустое пересечение targets меры и её основания — дефект регистрации,
+   а не тихая правда. basedOnValid() ловит и синтетический разрыв, и держит инвариант
+   на всей реальной затравке (Task 5 проставила 38 basedOn-ссылок). */
+ok('инвариант · пустое пересечение targets меры и её basedOn-основания — дефект (basedOnValid)',
+   g.ev(`!basedOnValid({basedOn:'ПР-118', targets:['205/315/з'], _proc: PROCESSES.find(x=>x.id==='142')})`)
+   && g.ev(`PROCESSES.every(p => (p.measures||[]).every(m => !m.basedOn || basedOnValid(m)))`));
+
+/* 2) ADR-0032 п.1: открытый трек (опенер без закрывателя) виден активным и гасится
+   появлением закрывателя — мутирующий push/pop на реальном деле 320 (req 320/420/з,
+   судебный трек открыт ИСК-82, закрывателя в затравке нет). */
+ok('инвариант · открытый трек виден активным и закрывается при появлении закрывателя (push/pop, дело 320)',
+   g.ev(`(() => {
+     const r = ${R('320/420/з')}, p = r._proc;
+     const before = sudTrackOf(r);
+     const fake = {sec:'Судебный', kind:'Решение суда', dates:D('01.07.2026','01.07.2026','01.07.2026'),
+                   num:'ТЕСТ-ЗАКР-ТРЕК', outcome:'иск удовлетворён полностью', targets:[r.id]};
+     p.measures.push(fake);
+     const after = sudTrackOf(r);
+     p.measures.pop();
+     const restored = sudTrackOf(r);
+     return !!before && before.num==='ИСК-82' && after===null && !!restored && restored.num==='ИСК-82';
+   })()`));
+
+/* 3) ADR-0035 п.2 / ADR-0027 п.1: вид с resultIsDocument:true — результат приходит
+   ОТДЕЛЬНЫМ документом дочерней меры, поэтому такая мера сама исход не несёт вовсе.
+   Проверка по ВСЕМ мерам ВСЕХ процессов, не по одному образцу. */
+ok('инвариант · resultIsDocument-вид никогда не несёт outcome (по всем мерам всех дел)',
+   g.ev(`PROCESSES.every(p => (p.measures||[]).every(m => {
+     const kd = kindOf(m.kind); return !kd || !kd.resultIsDocument || m.outcome === undefined;
+   }))`));
+
+/* 4) ADR-0032 п.2: активная пауза трассируется к живому опенеру, у которого нет
+   закрывателя (pauseOpenerOf + pauseClosed) — реальный случай, дело 320. */
+ok('инвариант · активная пауза трассируется к живому опенеру без закрывателя (pauseOpenerOf/pauseClosed, дело 320)',
+   g.ev(`(() => {
+     const s = pauseOpenerOf(${R('320/420/з')});
+     return !!s && s.kind==='restructuring' && pauseClosed(s)===false;
+   })()`));
+
+/* 5) ADR-0027 п.3 «Последствия»: «у внешнего акта нет кнопки «сформировать документ»
+   и нет предусловий-гейтов» — факт внешнего акта уже случился, блокировать нечего.
+   Task 11 fix: measureGate() коротит на source==='внешний акт' ДО subdiv/sequence/gate
+   (mockups/collection/collection.html, measureGate) — до правки любой внешний акт
+   молча гейтился В-9 через фолбэк подразделения раздела (SECTION_SUBDIV). Показываем
+   и позитив (внешние акты не гейтятся), и контраст (наш документ на том же требовании
+   тем же гейтом блокируется — значит проверка не тривиально пуста). */
+ok('инвариант · мера source:"внешний акт" не показывает гейт-предусловие в форме регистрации (measureGate)',
+   g.ev(`MEASURE_KINDS.filter(k=>k.source==='внешний акт').every(k => measureGate(${R('201/311/з')}, k.name) === null)`)
+   && g.ev(`kindOf('Апелляционная жалоба').source==='наш документ' && !!measureGate(${R('201/311/з')}, 'Апелляционная жалоба')`));
+
 /* ══════════════════════════════════════════════════════════════════════════
    СПРАВОЧНИКИ — при переезде модели ничего не потеряно
    ══════════════════════════════════════════════════════════════════════════ */
 head('справочники');
-ok('видов мер 51',              g.ev('MEASURE_KINDS.length') === 51);
-ok('видов-вех 16',              g.ev('MILESTONE_KINDS.size') === 16);
-ok('шаблонов сроков 44',        g.ev('DEADLINE_TEMPLATES.length') === 44);
+/* Task 2: MEASURE_KINDS — массив строк (51) → массив объектов {name, source,
+   resultIsDocument, outcomes, needsDelivery, deliveryChannels, basisKinds} (ADR-0027…0029/
+   0033…0035). MILESTONE_PHASE/MILESTONE_KINDS/PHASE_MILESTONE свёрнуты в
+   outcomes[].setsPhase — отдельного справочника «видов-вех» больше нет, веха теперь
+   свойство ПАРЫ вид×исход (kindPhase(name) — производная, не хранимый список). */
+ok('MEASURE_KINDS — структурный справочник объектов (не плоский список строк)',
+   g.ev(`MEASURE_KINDS.every(k => typeof k==='object'
+     && typeof k.name==='string'
+     && (k.source==='наш документ' || k.source==='внешний акт')
+     && typeof k.resultIsDocument==='boolean'
+     && (k.outcomes===null || Array.isArray(k.outcomes))
+     && (!k.resultIsDocument || k.outcomes===null)
+     && typeof k.needsDelivery==='boolean'
+     && (k.deliveryChannels===null || Array.isArray(k.deliveryChannels))
+     && (k.basisKinds===null || Array.isArray(k.basisKinds)))`));
+ok('видов мер 56 (было 51 — Task 2/4 расщепили «Определение суда» на 5 + добавили «Постановление апелляционной инстанции»)',
+   g.ev('MEASURE_KINDS.length') === 56);
+ok('видов-вех 17 (свёртка kindPhase, MILESTONE_KINDS как отдельный справочник снят — ADR-0033/0038)',
+   g.ev(`MEASURE_KINDS.filter(k=>kindPhase(k.name)).length`) === 17);
+ok('шаблонов сроков 45',        g.ev('DEADLINE_TEMPLATES.length') === 45);
 ok('контуров К0…К7 — восемь',   g.ev('Object.keys(CONTOURS).length') === 8);
 ok('разделов мер семь',         g.ev('SECTION_ORDER.length') === 7);
 ok('редактор правил на месте',  g.ev(`typeof RULES === 'object' && typeof resetRulesAll === 'function'`));
