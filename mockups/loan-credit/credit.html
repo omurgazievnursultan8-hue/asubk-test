@@ -816,8 +816,7 @@ table.grid tbody td{ height:44px; }                            /* воздух �
   background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
   display:flex; align-items:center; justify-content:center; color:var(--text-muted); cursor:pointer; }
 .tabbar-chevron:hover{ background:var(--surface-hover); }
-.panel-wrap{ padding:18px 20px 8px; }
-.panel-card{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:20px 24px; }
+.panel-wrap{ padding:18px 24px 8px; }
 .detail-panel{ display:none; }
 .detail-panel.active{ display:block; }
 
@@ -861,6 +860,7 @@ table.grid tbody td{ height:44px; }                            /* воздух �
 /* .src вне .dim (карточки «Условий», Д-6/Д-7) — тот же смысл, компактнее под полем. */
 .src{ display:block; color:var(--text-muted); font-size:11px; margin-top:2px; }
 .dim .dl .lock{ vertical-align:middle; }
+.dim .dl .icon-btn{ padding:3px; margin-left:4px; vertical-align:middle; }
 /* «Оверлеи» шире прочих: в основании до трёх слоёв с источником и дедлайном. */
 .dim.wide{ grid-column:span 2; }
 @media(max-width:760px){ .dim.wide{ grid-column:span 1; } }
@@ -886,6 +886,9 @@ table.grid tbody td{ height:44px; }                            /* воздух �
 .control select{ cursor:pointer; appearance:none; padding-right:30px; }
 .control input:focus, .control select:focus, .note-area:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
 .control input[readonly], .ro input, .ro .note-area{ background:var(--surface-input); color:var(--text-muted); border:1px solid transparent; cursor:default; }
+.control input.asof-date{ height:32px; padding:0 8px; font-size:13px; font-weight:var(--weight-regular); background:var(--surface-page); }
+.control input.asof-date::-webkit-calendar-picker-indicator{ cursor:pointer; opacity:.5; padding:0; margin-left:4px; }
+.control input.asof-date::-webkit-calendar-picker-indicator:hover{ opacity:.9; }
 .control input[readonly]:focus{ border-color:transparent; box-shadow:none; }
 .grey input, .grey select{ background:var(--surface-input); border-color:transparent; }
 .control .cal, .control .caret{ position:absolute; right:9px; pointer-events:none; color:var(--text-muted); display:flex; }
@@ -1505,7 +1508,7 @@ function mkCredit(over){                             // CREDIT (§3) — обя�
   return deepMerge({
     id:'', num:'', date:'',
     reg:{ num:'', date:'', scan:'', comment:'' },
-    origin:{ applicationId:'', commissionId:'', programId:'', govDecisionId:'' },
+    origin:{ applicationId:'', applicationDate:'', commissionId:'', programId:'', govDecisionId:'' },
     borrower:{ inn:'', name:'', type:'ЮЛ', region:'', district:'' },   // адрес — зеркало карточки заёмщика, нужен фильтру Область→Район
     approvedAmount:0, contractAmount:0, currency:'KGS',
     kind:'', line:'', purpose:'', fundingSource:'',
@@ -1639,7 +1642,7 @@ function seedDb(){
   credits.push(mkCredit({
     id:'K-1', num:'56', date:'12.05.2026',
     reg:{ num:'56', date:'14.05.2026', scan:'dogovor-56.pdf', comment:'Зарегистрирован в реестре договоров.' },
-    origin:{ applicationId:'ЗАЯ-1042', commissionId:'КОМ-311', programId:'ПРГ-7', govDecisionId:'ПП-455' },
+    origin:{ applicationId:'ЗАЯ-1042', applicationDate:'02.05.2026', commissionId:'КОМ-311', programId:'ПРГ-7', govDecisionId:'ПП-455' },
     borrower:{ inn:'01912201610212', name:'ОсОО «Бек Кабель»', type:'ЮЛ', region:'Чуйская', district:'Сокулукский' },
     approvedAmount:150000, contractAmount:150000, currency:'KGS',
     kind:'Инвестиционный', line:'Единовременный', purpose:'Приобретение оборудования', fundingSource:'Бюджетный кредит',
@@ -1728,7 +1731,7 @@ function seedDb(){
   credits.push(mkCredit({
     id:'K-2', num:'57', date:'20.04.2026',
     reg:{ num:'57', date:'22.04.2026', scan:'dogovor-57.pdf', comment:'' },
-    origin:{ applicationId:'ЗАЯ-1044', commissionId:'КОМ-312', programId:'ПРГ-7', govDecisionId:'ПП-455' },
+    origin:{ applicationId:'ЗАЯ-1044', applicationDate:'10.04.2026', commissionId:'КОМ-312', programId:'ПРГ-7', govDecisionId:'ПП-455' },
     borrower:{ inn:'02107199800345', name:'ОсОО «Нарын-Агро»', type:'ЮЛ', region:'Нарынская', district:'Ак-Талинский' },
     approvedAmount:400000, contractAmount:400000, currency:'KGS',
     kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
@@ -1771,7 +1774,7 @@ function seedDb(){
   credits.push(mkCredit({
     id:'K-3', num:'48', date:'10.02.2026',
     reg:{ num:'48', date:'12.02.2026', scan:'dogovor-48.pdf', comment:'' },
-    origin:{ applicationId:'ЗАЯ-1010', commissionId:'КОМ-301', programId:'ПРГ-5', govDecisionId:'ПП-450' },
+    origin:{ applicationId:'ЗАЯ-1010', applicationDate:'29.01.2026', commissionId:'КОМ-301', programId:'ПРГ-5', govDecisionId:'ПП-450' },
     borrower:{ inn:'03011200500777', name:'ОсОО «Тянь-Шань Строй»', type:'ЮЛ', region:'г. Бишкек', district:'Ленинский' },
     approvedAmount:200000, contractAmount:200000, currency:'KGS',
     kind:'Инвестиционный', line:'Единовременный', purpose:'Строительство цеха', fundingSource:'Бюджетный кредит',
@@ -1845,7 +1848,7 @@ function seedDb(){
   credits.push(mkCredit({
     id:'K-4', num:'42', date:'05.11.2025',
     reg:{ num:'42', date:'07.11.2025', scan:'dogovor-42.pdf', comment:'' },
-    origin:{ applicationId:'ЗАЯ-0980', commissionId:'КОМ-290', programId:'ПРГ-4', govDecisionId:'ПП-440' },
+    origin:{ applicationId:'ЗАЯ-0980', applicationDate:'23.10.2025', commissionId:'КОМ-290', programId:'ПРГ-4', govDecisionId:'ПП-440' },
     borrower:{ inn:'04512199600901', name:'ОсОО «Иссык-Куль Ресорт»', type:'ЮЛ', region:'Иссык-Кульская', district:'Джети-Огузский' },
     approvedAmount:600000, contractAmount:600000, currency:'KGS',
     kind:'Инвестиционный', line:'Единовременный', purpose:'Реконструкция базы отдыха', fundingSource:'Бюджетный кредит',
@@ -1902,7 +1905,7 @@ function seedDb(){
   credits.push(mkCredit({
     id:'K-5', num:'59', date:'01.07.2026',
     reg:{ num:'59', date:'03.07.2026', scan:'dogovor-59.pdf', comment:'' },
-    origin:{ applicationId:'ЗАЯ-1060', commissionId:'КОМ-320', programId:'ПРГ-8', govDecisionId:'ПП-460' },
+    origin:{ applicationId:'ЗАЯ-1060', applicationDate:'19.06.2026', commissionId:'КОМ-320', programId:'ПРГ-8', govDecisionId:'ПП-460' },
     borrower:{ inn:'05213200100456', name:'ОсОО «Ош-Текстиль»', type:'ЮЛ', region:'Ошская', district:'Кара-Сууский' },
     approvedAmount:250000, contractAmount:200000, currency:'KGS',
     kind:'Оборотный', line:'Единовременный', purpose:'Закуп сырья', fundingSource:'Бюджетный кредит',
@@ -1939,7 +1942,7 @@ function seedDb(){
   credits.push(mkCredit({
     id:'K-6', num:'30', date:'15.01.2024',
     reg:{ num:'30', date:'17.01.2024', scan:'dogovor-30.pdf', comment:'' },
-    origin:{ applicationId:'ЗАЯ-0700', commissionId:'КОМ-250', programId:'ПРГ-2', govDecisionId:'ПП-410' },
+    origin:{ applicationId:'ЗАЯ-0700', applicationDate:'03.01.2024', commissionId:'КОМ-250', programId:'ПРГ-2', govDecisionId:'ПП-410' },
     borrower:{ inn:'06114199500222', name:'ОсОО «Чуй-Агро»', type:'ЮЛ', region:'Чуйская', district:'Аламудунский' },
     approvedAmount:120000, contractAmount:120000, currency:'KGS',
     kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
@@ -1972,7 +1975,7 @@ function seedDb(){
   credits.push(mkCredit({
     id:'K-6b', num:'31', date:'18.03.2023',
     reg:{ num:'31', date:'20.03.2023', scan:'dogovor-31.pdf', comment:'' },
-    origin:{ applicationId:'ЗАЯ-0650', commissionId:'КОМ-240', programId:'ПРГ-2', govDecisionId:'ПП-405' },
+    origin:{ applicationId:'ЗАЯ-0650', applicationDate:'06.03.2023', commissionId:'КОМ-240', programId:'ПРГ-2', govDecisionId:'ПП-405' },
     borrower:{ inn:'07215199300888', name:'ОсОО «Талас-Майс»', type:'ЮЛ', region:'Таласская', district:'Бакай-Атинский' },
     approvedAmount:90000, contractAmount:90000, currency:'KGS',
     kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
@@ -2052,7 +2055,7 @@ function seedDb(){
     credits.push(mkCredit({
       id:'K-B'+(i+1), num:'B'+(100+i), date:'05.01.2026',
       reg:{ num:'B'+(100+i), date:'07.01.2026', scan:'dog-b'+(100+i)+'.pdf', comment:'' },
-      origin:{ applicationId:'ЗАЯ-B'+(100+i), commissionId:'КОМ-B'+(100+i), programId:b.prog, govDecisionId:'ПП-430' },
+      origin:{ applicationId:'ЗАЯ-B'+(100+i), applicationDate:'20.12.2025', commissionId:'КОМ-B'+(100+i), programId:b.prog, govDecisionId:'ПП-430' },
       borrower:{ inn:b.inn, name:b.name, type:'ЮЛ', region:b.reg, district:b.dist },
       approvedAmount:b.amount, contractAmount:b.amount, currency:b.ccy,
       kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
@@ -2270,7 +2273,7 @@ function seedDb(){
     return mkCredit({
       id:'K-C'+(i+1), num, date:'05.02.2026',
       reg:{ num, date:'07.02.2026', scan:'dog-'+num+'.pdf', comment:'' },
-      origin:{ applicationId:'ЗАЯ-'+num, commissionId:'КОМ-'+num, programId:s.p, govDecisionId:'ПП-470' },
+      origin:{ applicationId:'ЗАЯ-'+num, applicationDate:'29.01.2026', commissionId:'КОМ-'+num, programId:s.p, govDecisionId:'ПП-470' },
       borrower:{ inn, name:s.n, type:'ЮЛ', region:s.r, district:s.d },
       approvedAmount: s.cl?amount:contract, contractAmount:contract, currency:ccy,
       kind:s.k, line: s.tr2?'Возобновляемая':'Единовременный', purpose:s.pu, fundingSource:'Бюджетный кредит',
@@ -3898,7 +3901,7 @@ if (typeof document !== 'undefined') {
       const subs = (g.subs || []).map(s => {
         const items = (s.items || []).map(it =>
           `<a class="nav-item${it.active ? ' active' : ''}${s.headerless ? ' headerless' : ''}"
-             onclick="if(!${!!it.active})CR.toast('Раздел «'+this.textContent.trim()+'» — вне объёма макета')">${it.label}</a>`).join('');
+             onclick="${it.active ? 'CR.backToList()' : `CR.toast('Раздел «'+this.textContent.trim()+'» — вне объёма макета')`}">${it.label}</a>`).join('');
         if (s.headerless) return items;
         return `<div class="nav-sub open"><button class="nav-toggle" onclick="this.parentElement.classList.toggle('open')">
             <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
@@ -3939,6 +3942,46 @@ if (typeof document !== 'undefined') {
     const box = document.getElementById('modalErr'); const list = [].concat(reasons||[]);
     if (box) box.innerHTML = `<div class="gate-inline">${svgInfo()}<div>${list.map(esc).join('<br>')}</div></div>`;
     toast(list.join(' · '), 'warn');
+  };
+  /* Пояснения к меткам плиток шапки (замена слов «выводится»/«зеркало» иконкой ⓘ). */
+  CR.openDerivedInfo = function(){
+    CR.openModal('Как считается значение',
+      '<p class="section-note">Величина вычисляется модулем кредитов на лету при каждом открытии карточки — не хранится и не кэшируется (Р-11).</p>',
+      '<button class="btn btn-secondary" onclick="CR.closeModal()">Понятно</button>', {cls:'narrow'});
+  };
+  CR.openDebtInfo = function(){
+    const c = currentCredit(); if (!c) return;
+    const d = derive(c, cardAsOf);
+    const dateNote = d.calcStopped
+      ? `<p class="section-note">Кредит закрыт — начисление остановлено. Остаток долга застыл на дату закрытия <b>${esc(d.calcUntil)}</b>, дата среза карточки на него не влияет.</p>`
+      : `<p class="section-note">Остаток долга и просрочка построены на дату среза карточки — <b>${esc(cardAsOf)}</b>. Сменить дату — «По состоянию на» в шапке.</p>`;
+    const rows = DEBT_ARTICLES.map(a => `<div class="row"><span class="ck">${esc(a.label)}</span> <b>${money(d.debt[a.key].bal)}</b></div>`).join('');
+    CR.openModal('Остаток долга — по статьям', dateNote + `<div class="cat-expand">${rows}</div>`,
+      '<button class="btn btn-secondary" onclick="CR.closeModal()">Понятно</button>', {cls:'narrow'});
+  };
+  CR.openCategoryInfo = function(){
+    const c = currentCredit(); if (!c) return;
+    const d = derive(c, cardAsOf);
+    const rb = d.riskBasis;
+    const rows = `<div class="row"><span class="ck">Дни просрочки ${rb.eff}${rb.relief ? ` (послабление: было ${rb.raw})` : ''}</span> <b class="cat-${catClsOf(rb.byDays)}">${esc(rb.byDays)}</b></div>`
+      + `<div class="row"><span class="ck">Факторы (${rb.factors.length})${rb.factors.length ? ': ' + rb.factors.map(f => esc(f.kind) + ' · ' + esc(f.committeeRef)).join(' · ') : ' — нет действующих'}</span> <b class="cat-${catClsOf(rb.byFactors)}">${esc(rb.byFactors)}</b></div>`
+      + `<div class="row"><span class="ck">Худшее из двух (ADR-0012)</span> <b class="cat-${catClsOf(d.riskCategory)}">${esc(d.riskCategory)}</b></div>`;
+    CR.openModal('Категория риска — основание', `<div class="cat-expand">${rows}</div>`,
+      '<button class="btn btn-secondary" onclick="CR.closeModal()">Понятно</button>', {cls:'narrow'});
+  };
+  CR.openCoverageInfo = function(){
+    const c = currentCredit(); if (!c) return;
+    const d = derive(c, cardAsOf);
+    const cov = d.coverage;
+    const lines = [esc(cov.source)];
+    if (cov.index != null)
+      lines.push(`Залоговая <b>${money(cov.numerator)}</b> к сумме под риском <b>${money(cov.base)}</b> = ${Math.round(cov.ratio*100)} % при пороге <b>${cov.req} %</b>`);
+    if (cov.applicable)
+      lines.push(`Сумма под риском = остаток ОД <b>${money(d.debt.principal.bal)}</b> + не освоено <b>${money(Math.max(0,d.undisbursed))}</b>`);
+    if (cov.mirror) lines.push(`Числитель — ${snapHtml(cov.mirror.asOf, 'модуль залога')}`);
+    const rows = lines.map(l => `<div class="row">${l}</div>`).join('');
+    CR.openModal('Обеспеченность — основание', `<div class="cat-expand">${rows}</div>`,
+      '<button class="btn btn-secondary" onclick="CR.closeModal()">Понятно</button>', {cls:'narrow'});
   };
 
   /* ============================================================
@@ -4224,10 +4267,10 @@ if (typeof document !== 'undefined') {
     renderRole();
   }
   /* двойной клик / Просмотр / Изменить — карточка кредита (§5.2 шапка + §5.3 8 вкладок, Task 7) */
-  function openDetail(id){
+  function openDetail(id, tab){
     const c = CR.db.credits.find(x=>x.id===id); if (!c) return;
     selectedId = id; CR._sel = id; detailId = id;
-    detailTab = 'Договор';
+    detailTab = tab && DTABS.includes(tab) ? tab : 'Договор';
     detailTrancheNo = (c.tranches[0] && c.tranches[0].no) || 1;
     calcConsolidated = false;
     condScope = 'credit'; cardAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null;
@@ -4237,11 +4280,32 @@ if (typeof document !== 'undefined') {
     dv.innerHTML = `<div id="cr-card-body"></div>`;
     renderDetail(c);
     const crumb = document.getElementById('crumb'); if (crumb) crumb.textContent = '/ Договор № ' + c.num;
+    syncHash();
   }
   function backToList(){
     const dv = document.getElementById('view-detail'); if (dv){ dv.style.display='none'; dv.innerHTML=''; }
     const lv = document.getElementById('view-list'); if (lv) lv.style.display='flex';
     const crumb = document.getElementById('crumb'); if (crumb) crumb.textContent = '';
+    detailId = null;
+    syncHash();
+  }
+  /* Роутинг по location.hash (#K-1/Условия) — переживает F5 без localStorage/sessionStorage
+     (демо-ограничение §0: состояние данных остаётся в памяти, здесь хранится только адрес
+     экрана). suppressHash нужен, чтобы popstate/чтение хэша при загрузке не переоткрывало
+     то же самое циклом. */
+  let suppressHash = false;
+  function syncHash(){
+    if (suppressHash) return;
+    const h = detailId ? '#' + encodeURIComponent(detailId) + '/' + encodeURIComponent(detailTab) : '';
+    if (('#'+location.hash.replace(/^#/,'')) !== ('#'+h.replace(/^#/,''))) history.replaceState(null,'',location.pathname+location.search+h);
+  }
+  function openFromHash(){
+    const h = location.hash.replace(/^#/,'');
+    if (!h) return;
+    const [id, tab] = h.split('/').map(decodeURIComponent);
+    suppressHash = true;
+    if (id && CR.db.credits.some(x=>x.id===id)) openDetail(id, tab); else backToList();
+    suppressHash = false;
   }
   /* сброс демо-данных: свежий seedDb() + полная перерисовка (§демо-ограничения) */
   function resetDemo(){
@@ -4315,7 +4379,12 @@ if (typeof document !== 'undefined') {
   function currentCredit(){ return CR.db.credits.find(x => x.id === detailId); }
   function jsAttr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
   function svgInfo(){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>'; }
+  function svgPencil(){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>'; }
+  function svgPrinter(){ return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>'; }
   function lockHtml(){ return '<span class="lock"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>зеркало</span>'; }
+  /* Иконка «i» вместо слов «выводится»/«зеркало» на плитках шапки — по клику открывает
+     модалку с пояснением, а не молча висит тултипом (§0.3: причины не молчат). */
+  function infoBtn(onclick, title){ return `<button class="icon-btn" style="padding:2px" title="${jsAttr(title||'Подробнее')}" onclick="event.stopPropagation();${onclick}">${svgInfo()}</button>`; }
   function catClsOf(cat){ return cat==='высокий'?'high':cat==='средний'?'mid':'low'; }
   function pctDisb(c,d){ return c.contractAmount>0 ? Math.round(d.disbursed/c.contractAmount*100) : 0; }
   function trancheState(t){ const s=disbursedSum(t), a=t.amount||0; return s===0?'Не освоен':s<a?'Частично освоен':'Полностью освоен'; }
@@ -4358,6 +4427,14 @@ if (typeof document !== 'undefined') {
     const msg='Роль «'+currentRole+'» не имеет права на это действие';
     return `<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(msg)}" onclick="CR.toast('${jsAttr(msg)}','warn')">${esc(label)}</button>`;
   }
+  /* Иконка-действие с тем же гейтом, что у roleBtn, но без подписи (карандаш/принтер и т.п.). */
+  function roleIconBtn(action,title,onclick,icon,cls){ cls=cls||'icon-btn';
+    const _c=currentCredit();
+    if(isTerminal(_c)) return `<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(terminalReason(_c))}" onclick="CR.toast('${jsAttr(terminalReason(_c))}','warn')">${icon}</button>`;
+    if(canRole(currentRole,action)) return `<button class="${cls}" title="${jsAttr(title)}" onclick="${onclick}">${icon}</button>`;
+    const msg='Роль «'+currentRole+'» не имеет права на это действие';
+    return `<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(msg)}" onclick="CR.toast('${jsAttr(msg)}','warn')">${icon}</button>`;
+  }
 
   /* ---- §5.2 ШАПКА (одна несворачиваемая сводка) ----
      Формат плитки перенесён из loan-credit.html: «значение + ОСНОВАНИЕ» (третья строка).
@@ -4370,8 +4447,8 @@ if (typeof document !== 'undefined') {
   function derivedHtml(){ return '<span class="lock" title="вычисляется на лету, не хранится">выводится</span>'; }
   function asOfHtml(d){
     if (d && d.calcStopped)
-      return `<span class="lock" title="кредит закрыт — начисление остановлено, величины застыли на дате закрытия">на ${esc(d.calcUntil)} · расчёт остановлен</span>`;
-    return `<span class="lock" title="расчёт строится на дату среза карточки">на ${cardAsOf}</span>`; }
+      return `<span class="lock" title="кредит закрыт — начисление остановлено, величины застыли на дате закрытия">на ${esc(d.calcUntil)} · расчёт остановлен</span> ${infoBtn("CR.openDebtInfo()",'По статьям и дата расчёта')}`;
+    return `<span class="lock" title="расчёт строится на дату среза карточки">на ${cardAsOf}</span> ${infoBtn("CR.openDebtInfo()",'По статьям и дата расчёта')}`; }
   /* Дата снимка ЗЕРКАЛА. Деньги и метрики, пришедшие из чужих модулей, не подчиняются
      дате среза карточки (КВ-10): у них своя дата, и она обязана быть подписана — иначе
      на одном экране соседствуют две реальности, и различить их нечем. */
@@ -4391,30 +4468,24 @@ if (typeof document !== 'undefined') {
      что это две разные величины. Пятая статья, расходы взыскания, показана отдельной
      строкой и в остаток кредита не входит: она принадлежит взысканию (ADR-0004). */
   function tileDebt(c,d){
-    const cur = c.currency, fx = FX[cur] || 1;
+    const cur = c.currency;
     const val = `${money(d.debtBalance)} <span style="font-size:13px;color:var(--text-muted);font-weight:400">${esc(cur)}</span>`;
-    const paySnap = (c.mirror && c.mirror.paymentsAsOf) || null;
     if (d.disbursed === 0)
       return dimTile(`Остаток долга ${asOfHtml(d)}`, val,
         `освоение не начато — задолженности нет<br>сумма договора <b>${money(c.contractAmount)} ${esc(cur)}</b>`);
     const parts = [];
-    if (cur !== 'KGS') parts.push(`≈ <b>${money0(d.debtBalanceKgs)} KGS</b> по курсу НБКР <b>${money(fx)}</b> на ${cardAsOf}`);
-    parts.push(DEBT_ARTICLES.map(a => `${a.label.toLowerCase()} <b>${money(d.debt[a.key].bal)}</b>`).join(' · '));
+    if (cur !== 'KGS') parts.push(`≈ <b>${money0(d.debtBalanceKgs)} KGS</b>`);
     if (d.overdueAmount > 0)
-      parts.push(`в т.ч. просрочено <b style="color:var(--asubk-red)">${money(d.overdueAmount)}</b> · ${d.overdueDays} дн.`
-        + (d.overdueSince ? ` с <b>${esc(d.overdueSince)}</b>` : ''));
-    if (d.collectionCosts > 0)
-      parts.push(`расходы взыскания <b>${money(d.collectionCosts)}</b> ${lockHtml()} — статья взыскания, в остаток кредита не входит`);
-    /* приостановленное решением суда и спорное НАЧИСЛЕНЫ, но в остаток не входят: иначе
-       куратор требует то, чего требовать нельзя, и разница молча живёт между экранами */
+      parts.push(`в т.ч. просрочено <b style="color:var(--asubk-red)">${money(d.overdueAmount)}</b>`
+        + `<br>${d.overdueDays} дн.` + (d.overdueSince ? ` с <b>${esc(d.overdueSince)}</b>` : ''));
+    /* приостановленное решением суда НАЧИСЛЕНО, но в остаток не входит: иначе куратор
+       требует то, чего требовать нельзя, и разница молча живёт между экранами. Расходы
+       взыскания, спорная пеня и «погашено» отсюда убраны (не удвоенная информация —
+       живут в «Признаках состояния», вкладке «Взыскание» и вкладке «Платежи»). */
     if (d.debt.interest.frozen > 0 || d.debt.penalty.frozen > 0)
       parts.push(`приостановлено решением суда <b>${money(round2(d.debt.interest.frozen + d.debt.penalty.frozen))}</b> — начислено, но не требуется`);
-    if (d.debt.penalty.disputed > 0)
-      parts.push(`спорная пеня <b style="color:var(--asubk-amber)">${money(d.debt.penalty.disputed)}</b> — до решения комиссии в требование не входит`);
     if (d.overpay.total > 0)
       parts.push(`переплата <b>${money(d.overpay.total)}</b> ${lockHtml()} — обратная очередь и возврат заёмщику принадлежат платежам`);
-    parts.push(`погашено ${paySnap ? snapHtml(paySnap, 'платежи') : '<span class="lock">платежей нет</span>'}`
-      + (d.calcProvisional ? ` · расчёт после <b>${esc(paySnap)}</b> предварительный` : ''));
     return dimTile(`Остаток долга ${asOfHtml(d)}`, val, parts.join('<br>'));
   }
 
@@ -4424,16 +4495,13 @@ if (typeof document !== 'undefined') {
      с просрочкой, взысканием и паузой начисления, которые ничего не снимают (КР-26). */
   function tileRelief(c,d){
     const list = d.relief;
-    if (!list.length)
-      return dimTile(`Послабления ${derivedHtml()}`,
-        '<span style="font-size:14px;color:var(--text-muted);font-weight:400">Нет действующих</span>',
-        'последствия просрочки применяются полностью');
+    if (!list.length) return '';
     const lines = list.map(r => {
       const label = r.kind === 'suppress181' ? 'подавление 181-го дня' : esc(r.kind);
       return `${label} — <b>${esc(r.basis || '')}</b><br>действует ${esc(r.from)} — <b>${esc(r.deadline || 'без срока')}</b>`
         + (r.kind === 'suppress181' ? `<br>дни просрочки для категории ограничены 180 (факт ${d.riskBasis.raw})` : '');
     });
-    return `<div class="dim"><div class="dl">Послабления ${derivedHtml()}</div>`
+    return `<div class="dim"><div class="dl">Послабления ${infoBtn('CR.openDerivedInfo()','Как считается')}</div>`
       + `<div class="dv"><span style="font-size:15px">${list.length === 1 ? 'Действует 1' : 'Действует ' + list.length}</span></div>`
       + `<div class="src">${lines.join('<br>')}</div></div>`;
   }
@@ -4442,10 +4510,7 @@ if (typeof document !== 'undefined') {
      просрочка, реструктуризация, взыскание, банкротство, пауза начисления. */
   function tileFlags(c,d){
     const list = d.stateFlags.filter(o => o.kind !== 'overdue');   // просрочка ушла в пилюлю статуса
-    if (!list.length)
-      return dimTile(`Признаки состояния ${derivedHtml()}`,
-        '<span style="font-size:14px;color:var(--text-muted);font-weight:400">Нет</span>',
-        'кредит обслуживается в обычном режиме');
+    if (!list.length) return '';
     const rank = { danger:2, warn:1, info:0 };
     const top  = list.slice().sort((a,b) => (rank[b.tone]||0) - (rank[a.tone]||0))[0];
     const r = c.mirror && c.mirror.restructuring && c.mirror.restructuring.active;
@@ -4465,7 +4530,7 @@ if (typeof document !== 'undefined') {
       lines.push(`спорная пеня <b>${money(d.debt.penalty.disputed)}</b> за ${d.overdue.disputedDays} дн. — ждёт решения комиссии, категорию не двигает`);
     const val = `<span style="font-size:15px">${esc(top.text)}</span>`
       + (list.length > 1 ? ` <span style="color:var(--text-muted);font-weight:400;font-size:13px">· ещё ${list.length-1}</span>` : '');
-    return `<div class="dim wide"><div class="dl">Признаки состояния ${derivedHtml()}</div>`
+    return `<div class="dim wide"><div class="dl">Признаки состояния ${infoBtn('CR.openDerivedInfo()','Как считается')}</div>`
       + `<div class="dv">${val}</div><div class="src">${lines.join('<br>')}</div></div>`;
   }
 
@@ -4476,19 +4541,19 @@ if (typeof document !== 'undefined') {
   function tileNextPay(c,d){
     const np = d.nextPayment;
     if (!np)
-      return dimTile(`Ближайший платёж ${derivedHtml()}`,
+      return dimTile(`Ближайший платёж ${infoBtn('CR.openDerivedInfo()','Как считается')}`,
         '<span style="font-size:14px;color:var(--text-muted);font-weight:400">Нет позиций</span>',
         (d.disbursed === 0 ? 'график строится от фактической даты освоения (Г-8)'
                            : 'все позиции графика погашены')
-        + (d.fullRepayDate ? `<br>полное погашение до <b>${esc(d.fullRepayDate)}</b> (Р-13)` : ''));
+        + (d.fullRepayDate ? `<br>срок возврата <b style="font-weight:var(--weight-bold)">${esc(d.fullRepayDate)}</b>` : ''));
     const late = np.status === 'Просрочена';
-    const tone = { 'Просрочена':'high', 'Наступила':'mid', 'Предстоит':'neutral' }[np.status] || 'neutral';
-    const val = `${money(np.total)}`
-      + (late ? ' <span style="font-size:13px;font-weight:400;color:var(--asubk-red)">просрочен</span>' : '');
-    return dimTile(`Ближайший платёж ${derivedHtml()}`, val,
-      `срок <b>${esc(np.date)}</b> · транш <b>№${esc(np.tranche)}</b> · <span class="pill ${tone}">${esc(np.status)}</span>`
-      + (d.fullRepayDate ? `<br>полное погашение до <b>${esc(d.fullRepayDate)}</b> (Р-13)` : '')
-      + `<br>позиция графика — вкладка «Расчёты»`);
+    const tone = { 'Наступила':'mid', 'Предстоит':'neutral' }[np.status] || 'neutral';
+    const cur = ` <span style="font-size:13px;color:var(--text-muted);font-weight:400">${esc(c.currency)}</span>`;
+    const val = (late ? `<span style="color:var(--asubk-red)">${money(np.total)}</span>` : money(np.total)) + cur;
+    return dimTile(`Ближайший платёж ${infoBtn('CR.openDerivedInfo()','Как считается')}`, val,
+      `дата платежа <b style="font-weight:var(--weight-bold)">${esc(np.date)}</b>`
+      + (late ? '' : ` · <span class="pill ${tone}">${esc(np.status)}</span>`)
+      + (d.fullRepayDate ? `<br>срок возврата <b style="font-weight:var(--weight-bold)">${esc(d.fullRepayDate)}</b>` : ''));
   }
 
   /* Печатные формы (перенос из loan-credit): в новом макете печати не было вовсе,
@@ -4501,7 +4566,7 @@ if (typeof document !== 'undefined') {
   ];
   function printMenuHtml(){
     return `<div class="split">
-      <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();this.parentElement.classList.toggle('open')">Печатные формы ▾</button>
+      <button class="icon-btn" title="Печатные формы" onclick="event.stopPropagation();this.parentElement.classList.toggle('open')">${svgPrinter()}</button>
       <div class="split-menu" style="left:auto;right:0;min-width:265px">
         ${PRINT_FORMS.map(([n,s]) => `<button onclick="CR.toast('${jsAttr(n)} — формирование вне объёма макета')">${esc(n)}<span style="float:right;color:var(--text-placeholder);font-size:11px;margin-left:12px">${esc(s)}</span></button>`).join('')}
       </div>
@@ -4515,7 +4580,7 @@ if (typeof document !== 'undefined') {
   function tileCoverage(c,d){
     const cov = d.coverage;
     if (!cov.applicable)
-      return dimTile(`Обеспеченность ${lockHtml()}`,
+      return dimTile(`Обеспеченность ${infoBtn('CR.openCoverageInfo()','Основание')}`,
         '<span style="font-size:14px;color:var(--text-muted);font-weight:400">неприменима</span>',
         esc(cov.source));
     const light = cov.ok ? 'var(--asubk-green)' : 'var(--asubk-red)';
@@ -4527,30 +4592,21 @@ if (typeof document !== 'undefined') {
       lines.push(`залоговая <b>${money(cov.numerator)}</b> к сумме под риском <b>${money(cov.base)}</b> = ${Math.round(cov.ratio*100)} % при пороге <b>${cov.req} %</b>`);
     lines.push(`сумма под риском = остаток ОД <b>${money(d.debt.principal.bal)}</b> + не освоено <b>${money(Math.max(0,d.undisbursed))}</b>`);
     if (cov.mirror) lines.push(`числитель — ${snapHtml(cov.mirror.asOf, 'модуль залога')}`);
-    return dimTile(`Обеспеченность ${lockHtml()}`, val, lines.join('<br>'));
+    return dimTile(`Обеспеченность ${infoBtn('CR.openCoverageInfo()','Основание')}`, val);
   }
 
   function headerHtml(c,d){
-    const rb = d.riskBasis;
-
     /* Дни просрочки — в пилюле ЖЦ (перенос из loan-credit): статус и его глубина —
        одна мысль. Одноимённый признак из строки имени при этом убран, чтобы не дублировать. */
     const lcPill = d.overdueDays > 0
       ? `<span class="pill high"${d.calcStopped?` title="${jsAttr('Начисление остановлено '+d.calcUntil)}"`:''}>${esc(c.lifecycle)} · просрочка ${d.overdueDays} дн.${d.calcStopped?' на '+esc(d.calcUntil):''}</span>`
       : `<span class="pill info">${esc(c.lifecycle)}</span>`;
 
-    /* Основание категории — из ЕДИНСТВЕННОГО источника (riskBasisOf, ADR-0012): те же
-       строки, что разбирает вкладка «Проблемные». Вторым входом идут ФАКТОРЫ с решением
-       комитета, а не выдуманная «группа риска A/B/C/D», которой нет ни в одном модуле. */
-    const catBasis = `дни просрочки ${rb.eff}${rb.relief ? ` <b>(послабление: было ${rb.raw})</b>` : ''} → <b>${esc(rb.byDays)}</b>`
-      + `<br>факторы (${rb.factors.length}) → <b>${esc(rb.byFactors)}</b>`
-      + (rb.factors.length ? ': ' + rb.factors.map(f => esc(f.kind) + ' · ' + esc(f.committeeRef)).join(' · ') : ' — нет действующих')
-      + `<br>худшее из двух → <b>${esc(d.riskCategory)}</b> · считает кредит (ADR-0012)`;
-
     /* ЕДИНАЯ дата среза карточки (КВ-10) — в шапке, рядом с действиями: она управляет
        всем, что ниже. Раньше жила на одной вкладке «Условия» и остальным не управляла. */
-    const asOfBox = `<div class="field" style="max-width:190px;margin:0"><span class="flabel">Данные на дату</span>
-        <div class="control"><input value="${esc(cardAsOf)}" placeholder="дд.мм.гггг" onchange="CR.setCardAsOf(this.value)"></div></div>`
+    const isoAsOf = cardAsOf.split('.').reverse().join('-');
+    const asOfBox = `<div style="display:flex;align-items:center;gap:6px"><span class="flabel">По состоянию на</span>
+        <div class="control" style="width:132px"><input type="date" class="asof-date" value="${esc(isoAsOf)}" onchange="CR.setCardAsOf(this.value.split('-').reverse().join('.'))"></div></div>`
       + (cardAsOf !== TODAY ? `<button class="btn btn-secondary btn-sm" onclick="CR.setCardAsOf('${TODAY}')">⟲ сегодня</button>` : '');
 
     /* Переход ЖЦ (Г-7/Г-22) — кнопка, которой не существовало: гейт был написан, право
@@ -4565,31 +4621,28 @@ if (typeof document !== 'undefined') {
       <div class="phead-top">
         <div>
           <div class="phead-name">
-            <span class="nm">Кредит № ${esc(c.num)}</span>
+            <span class="nm">Кредит № ${esc(c.num)} от ${esc(c.date)}</span>
             ${lcPill}
-            <span class="pill neutral">${esc(d.disbState)}</span>
-            ${d.subgroup ? `<span class="pill low" title="${jsAttr('Подгруппа заёмщика (зеркало): ' + (d.subgroupLabel||''))}">${esc(d.subgroup)} ${esc(d.subgroupLabel||'')}</span>` : ''}
+            <span style="font:var(--font-label);color:var(--text-muted)">Куратор: <a onclick="CR.toast('Переход в карточку куратора — вне объёма макета')">${esc(curatorOf(c))}</a></span>
           </div>
-          <div class="phead-sub">от <b>${esc(c.date)}</b>
-            · Заёмщик <a onclick="CR.toast('Переход в карточку заёмщика — вне объёма макета')">${esc(c.borrower.name)}</a>
-            · Куратор ${lockHtml()} <b>${esc(curatorOf(c))}</b></div>
+          <div class="phead-sub"><a onclick="CR.toast('Переход в карточку заёмщика — вне объёма макета')">${esc(c.borrower.name)}</a>
+            ${d.subgroup ? ` · <span class="pill low" title="${jsAttr('Подгруппа заёмщика: ' + (d.subgroupLabel||''))}">${esc(d.subgroup)} ${esc(d.subgroupLabel||'')}</span>` : ''}</div>
         </div>
         <div class="phead-acts">
           ${asOfBox}
           ${lcBtn}
-          ${roleBtn('saveContractAmount','Изменить сумму договора','CR.openContractAmountModal()')}
           ${printMenuHtml()}
         </div>
       </div>
       ${cardAsOf !== TODAY ? `<div class="info-plate" style="margin:0 0 12px">${svgInfo()}<div>Карточка показана на <b>${esc(cardAsOf)}</b>, а не на сегодня: все выводимые величины — долг, просрочка, категория, условия, расчёт — построены на эту дату. Величины, пришедшие зеркалом, подписаны собственной датой снимка.</div></div>` : ''}
       <div class="phead-dims">
-        ${dimTile('Сумма договора', money(c.contractAmount) + ` <span style="font-size:13px;color:var(--text-muted);font-weight:400">${esc(c.currency)}</span>`,
-          `освоено <b>${money(d.disbursed)}</b> (${pctDisb(c,d)}%) · не освоено <b>${money(d.undisbursed)}</b>`
-          + `<br>одобрено по заявке <b>${money(c.approvedAmount)}</b> (Г-1: договор ≤ одобрено)`
+        ${dimTile(`Сумма договора ${roleIconBtn('saveContractAmount','Изменить сумму договора','CR.openContractAmountModal()',svgPencil())}`,
+          money(c.contractAmount) + ` <span style="font-size:13px;color:var(--text-muted);font-weight:400">${esc(c.currency)}</span>`,
+          `освоено <b>${money(d.disbursed)}</b> (${pctDisb(c,d)}%)`
           + (c.currency !== 'KGS' ? `<br>≈ <b>${money0(toKgs(c.contractAmount, c.currency))} KGS</b>` : ''))}
         ${tileDebt(c,d)}
         ${tileNextPay(c,d)}
-        ${dimTile(`Категория риска ${derivedHtml()}`, `<span class="cat-${catClsOf(d.riskCategory)}">${esc(d.riskCategory)}</span>`, catBasis)}
+        ${dimTile(`Категория риска ${infoBtn('CR.openCategoryInfo()','Основание')}`, `<span class="cat-${catClsOf(d.riskCategory)}">${esc(d.riskCategory)}</span>`)}
         ${tileCoverage(c,d)}
         ${tileRelief(c,d)}
         ${tileFlags(c,d)}
@@ -4618,19 +4671,16 @@ if (typeof document !== 'undefined') {
       <div class="pcards">
         <div class="pcard">
           <div class="section-h">Реквизиты договора</div>
-          <p class="section-note">Скан договора и комментарий регистрации — во вкладке «Досье» (шаг 11: файлы и текстовые пометки живут в одном месте).</p>
           <div class="f2">
             ${fld('№ договора', esc(c.num))}
             ${fld('Дата договора', esc(c.date))}
             ${fld('№ регистрации', regNum)}
             ${fld('Дата регистрации', c.reg.date?esc(c.reg.date):null)}
-            ${fld('Валюта', esc(c.currency))}
           </div>
         </div>
 
         <div class="pcard">
           <div class="section-h">Классификация</div>
-          <p class="section-note">Суммы и правка суммы договора — в шапке карточки (шаг 11); здесь не дублируются. Вид и линия возвращены сюда (шаг 12): это справочные атрибуты, их читают один раз при открытии карточки, а не мониторят.</p>
           <div class="f2">
             ${fld('Вид кредита', esc(c.kind))}
             ${fld('Кредитная линия', esc(c.line))}
@@ -4640,20 +4690,22 @@ if (typeof document !== 'undefined') {
         </div>
 
         <div class="pcard">
-          <div class="section-h">Происхождение (Р-18)</div>
-          <p class="section-note">Обязательная неизменяемая цепочка: заявка → комиссия → программа → решение правительства. Все ссылки read-only.</p>
+          <div class="section-h">Основание выдачи кредита</div>
           <div class="f2">
-            ${fld('Заявка', link(o.applicationId,'Переход в заявку — вне объёма макета'))}
-            ${fld('Комиссия', link(o.commissionId,'Переход в комиссию — вне объёма макета'))}
-            ${fld('Программа', link(o.programId,'Переход в программу — вне объёма макета'))}
             ${fld('Решение правительства', link(o.govDecisionId,'Переход в ПП — вне объёма макета'))}
+            ${fld('Программа', link(o.programId,'Переход в программу — вне объёма макета'))}
+            ${(()=>{ const kom=(c.docs||[]).find(x=>x.kind==='Решение комиссии');
+              return kom
+                ? fld('Протокол комиссии', `<a class="rowlink" onclick="CR.toast('Просмотр вложения — вне объёма макета')">${esc(kom.name)}</a> · ${esc(kom.date)}`)
+                : fld('Протокол комиссии', link(o.commissionId,'Переход в комиссию — вне объёма макета'));
+            })()}
+            ${fld('Заявка', o.applicationId ? `${link(o.applicationId,'Переход в заявку — вне объёма макета')} · ${esc(o.applicationDate||'—')}` : null)}
           </div>
         </div>
 
         <div class="pcard">
-          <div class="section-h">Освобождение от залога — решение КМ (Р-8)</div>
-          ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Скан', esc(km.scan))}</div>`
-            :`<p class="section-note">Решение КМ не зафиксировано. Это owned-поле кредита (не зеркало): разблокирует освоение по Г-6 при провале покрытия.</p>`}
+          <div class="section-h">Освобождение от залога — решение КМ</div>
+          ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Скан', esc(km.scan))}</div>`:''}
           <div class="gtoolbar">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>
         </div>
 
@@ -5366,10 +5418,10 @@ if (typeof document !== 'undefined') {
     const d=derive(c, cardAsOf);                                    // СВЕЖИЙ расчёт на каждый рендер (Р-11)
     host.innerHTML = `<div class="panel-wrap" style="padding-bottom:0">${headerHtml(c,d)}</div>`
       + tabbarHtml()
-      + `<div class="panel-wrap"><div class="panel-card">${renderTab(detailTab,c)}</div></div>`;
+      + `<div class="panel-wrap">${renderTab(detailTab,c)}</div>`;
   }
   function rerenderDetail(){ const c=currentCredit(); if(c) renderDetail(c); }
-  function openTab(name){ detailTab=name; rerenderDetail(); }
+  function openTab(name){ detailTab=name; rerenderDetail(); syncHash(); }
 
   /* ---- обвязка действий карточки (onclick-строки живут в глобальной области → CR.*) ---- */
   CR.renderDetail=renderDetail; CR.renderTab=renderTab; CR.openTab=openTab; CR.rerenderDetail=rerenderDetail;
@@ -5951,6 +6003,8 @@ if (typeof document !== 'undefined') {
 
   renderNav();
   renderList();          // реестр §5.1 (Р-19); карточка (8 вкладок) — Task 7
+  openFromHash();        // восстановить экран (кредит+вкладка) после F5 — по location.hash
+  window.addEventListener('hashchange', openFromHash);
 }
 
 </script>
