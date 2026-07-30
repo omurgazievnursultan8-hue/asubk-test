@@ -4790,20 +4790,9 @@ function dealHeadHtml(p){
       ${proc}
       <span class="dh-sep">·</span>${grp?`<span class="pill neutral">группа ${escAttr(grp)}</span>`:`<span class="dh-muted">группа не выведена</span>`}
       <span class="dh-sep">·</span><span class="dh-meta">куратор ${escAttr(p.curator)}</span>
-      <span class="dh-sep">·</span><span class="dh-meta">требований ${p.requirements.length}</span>
-      <span class="dh-sep">·</span><span class="dh-money" title="Сумма по делу считается один раз на кредит — солидарные требования не задваиваются (§2.2). ${escAttr(moneyStamp(p).replace(/<[^>]*>/g,''))}">по делу <b>${fmtKGS(claimTotal(p.requirements))}</b></span>
+      <span class="dh-sep">·</span><span class="dh-money" title="Сумма по делу считается один раз на кредит — солидарные требования не задваиваются (§2.2).">по делу <b>${fmtKGS(claimTotal(p.requirements))}</b></span>
     </div>
-    <div class="dhead-money">${moneyStamp(p)}</div>
   </div>`;
-}
-/* КД-14: правило ТР-11 на карточке. Деньги — снимок модуля кредита со СВОЕЙ датой (М-4),
-   одна подпись на всю карточку; при расхождении дат честно называется диапазон. */
-function moneyStamp(p){
-  const dates = uniq((p.credits||[]).map(c=>(LEDGER[c.id]&&LEDGER[c.id].asOf)||'—')).sort((a,b)=>dkey(a).localeCompare(dkey(b)));
-  if(!dates.length) return '';
-  return dates.length===1
-    ? `Деньги — снимок модуля кредита на <b>${dates[0]}</b>; дате открытия дела и дате среза реестра не подчиняются (М-4).`
-    : `Деньги — снимки модуля кредита на <b>${dates[0]} – ${dates[dates.length-1]}</b>: у кредитов дела разные даты, точная — в подсказке суммы (М-4).`;
 }
 /* КД-3: ЧЕТЫРЕ плитки, все — уровня требования. Процедура и группа уехали в заголовок
    дела (КД-15), стадия стала подписью фазы: она её производная (§3.3), отдельной плиткой
