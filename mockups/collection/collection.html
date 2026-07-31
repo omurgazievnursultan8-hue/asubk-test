@@ -591,6 +591,7 @@ table.cgrid th.num, table.cgrid td.num{ text-align:right; }
 .dl-muted{ color:var(--text-placeholder); }
 .dl-sub{ display:block; font-size:11px; color:var(--text-muted); font-weight:var(--weight-regular); }
 table.cgrid td.dl-act, table.cgrid td.dl-borr{ white-space:normal; }
+table.cgrid td.org-cell{ white-space:normal; max-width:220px; }
 
 /* history */
 .hist{ border-left:2px solid var(--border-strong); margin-left:6px; padding-left:0; }
@@ -1167,6 +1168,8 @@ function catDivergeMark(r){
    принимающее подразделение.
    ============================================================ */
 const DEPARTMENTS = ['ОД','ДАК','ДПО','ОПК','САК','СИТ','УПО'];
+/* ФИО принимающей стороны для колонки «Состояние приёма» — куратор подразделения (§6.2). */
+const ACCEPTOR_BY_DEPT = { ОД:'Асанова Ж.Т.', ДАК:'Токтосунова Б.', ДПО:'Эрнисов Б.Т.', ОПК:'Тукинова А.С.', САК:'Сагындыков М.', СИТ:'Абдиев С.', УПО:'Маматов Э.' };
 /* владелец требования — принимающая сторона ПОСЛЕДНЕЙ ПРИНЯТОЙ передачи;
    до первой передачи остаётся подразделение, открывшее дело (r.subdivision
    умолчание из mkReq не трогаем, пока приёма не было). */
@@ -4818,7 +4821,7 @@ function pickReq(id){ const r=REQ_INDEX[id]; if(!r) return; curReq=r; renderDeta
 /* Одна точка перерисовки карточки: шапка (КД-2) + лента + активная панель + крошка + хеш. */
 function renderDetail(){
   renderPanels();
-  setCrumb([['Взыскание'], ['Требования (реестр)', "navClick('Требования (реестр)')"], ['дело '+procNo(curProc.id)]]);
+  setCrumb([['дело №'+procNo(curProc.id)]]);
   setHash('detail/'+(curReq?curReq.id:curProc.id)+'/'+TABS[curTab].slug);   // КД-8: переживёт F5
 }
 function renderTabs(){
@@ -4893,19 +4896,16 @@ function reqChips(p){
    в title — единственное место, где виден этот дедлайн при ровно одной ждущей передаче. */
 function dealHeadHtml(p){
   const grp=groupOf(p);
-  const proc = `<span class="pill neutral">${escAttr(dealOwnerLabel(p))}</span> <span class="dh-src">${dealOwnerSourceLabel(p)}</span>`;
   return `<div class="dhead">
     <div class="dhead-id">
       <span class="nm">${p.borrower}</span>
       <a onclick="toast('Переход в карточку заёмщика (демо)')">ИНН ${p.inn} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></a>
       <span class="dh-sep">·</span><span class="dh-meta">${escAttr(p.region)}</span>
-      <span class="dh-sep">·</span><span class="dh-meta">дело ${procNo(p.id)}</span>
     </div>
     <div class="dhead-run">
-      ${proc}
+      <span class="dh-money" title="Сумма по делу считается один раз на кредит — солидарные требования не задваиваются.">итого на сумму <b>${fmtKGS(claimTotal(p.requirements))} сом</b></span>
       <span class="dh-sep">·</span>${grp?`<span class="pill neutral">группа ${escAttr(grp)}</span>`:`<span class="dh-muted">группа не выведена</span>`}
       <span class="dh-sep">·</span><span class="dh-meta">куратор ${escAttr(p.curator)}</span>
-      <span class="dh-sep">·</span><span class="dh-money" title="Сумма по делу считается один раз на кредит — солидарные требования не задваиваются.">по делу <b>${fmtKGS(claimTotal(p.requirements))}</b></span>
     </div>
   </div>`;
 }
@@ -4986,14 +4986,14 @@ function panelDeal(){
   const passage = p.requirements.map(r=>{
     const rows=(r.handovers||[]).map((h,i)=>{
       const last = i===r.handovers.length-1;
-      const stateCell = h.state==='принято'?`<span class="pill low">принято</span>`
+      const stateCell = h.state==='принято'?`<span class="pill low">принято</span> · ${escAttr(h.acceptedBy||ACCEPTOR_BY_DEPT[h.to]||h.to)}`
         :h.state==='отказано'?`<span class="pill high">отказано</span>`
         :`<span class="pill mid">ждёт приёма${last?` · осталось ${(h.leftRd??h.deadlineRd??5)} р.д. (п. 98)`:''}</span>`;
       const acts = (last && h.state==='ждёт')
         ?`<button class="btn-tint btn-sm" onclick="confirmProc('${escAttr(r.id)}')">Подтвердить</button> <button class="btn-tint btn-sm danger" onclick="openRejectProc('${escAttr(r.id)}')">Отклонить</button>`:'—';
       return `<tr><td>${escAttr(h.to)}</td><td>${escAttr(h.from)}</td><td>${escAttr(h.when||'—')}</td><td>${stateCell}</td>
         <td>${h.reason?escAttr(h.reason):'—'}</td><td>${acts}</td></tr>`;
-    }).join('');
+    }).reverse().join('');
     const pending = handoverPending(r);
     return `<div style="margin-top:16px">
       <p style="margin:0 0 6px"><b>${escAttr(r._credit.num)}</b> · ${escAttr(personOf(r).name)}${r.role!=='заёмщик'?`<span class="rolechip">${r.role}</span>`:''}
@@ -5026,7 +5026,6 @@ function panelDeal(){
       </div>`}
     </div>
     <p class="section-h" style="margin-top:20px">Передача материалов</p>
-    <p class="hint-inline">Ведение переходит между подразделениями требование за требованием: отправитель комплектует пакет, принимающая сторона подтверждает или отклоняет его (п. 98). Подгруппа платёжеспособности выводится из стадии и состояния лица открытых требований, не из этого журнала.</p>
     ${passage}
   </div>`;
 }
@@ -5308,34 +5307,23 @@ function panelKomitety(){
      красным «отклонено», пока реестр на тех же данных писал «не рассмотрено». */
   const qs=(p.committeeQuestions||[]).map((q,qi)=>{
     const st=questionState(q);
-    const dcell=`<span class="pill ${st.pill}">${st.t}</span>${q.decision?` ${escAttr(q.decision)}`:''}`;
+    const dcell=`<span class="pill ${st.pill}">${st.t}</span>${q.decision?`<br>${escAttr(q.decision)}`:''}`;
     let act;
     if(q.decided) act='—';
     else if(currentRole()!==SECRETARY_ROLE) act='<span class="pill mid">ожидает секретаря органа</span>';
     else if(q.initiator===SECRETARY_ROLE) act='<span class="pill high">внесён секретарём — решает другой</span>';
     else act=`<button class="btn btn-tint btn-sm" onclick="openDecisionModal(${qi})">Внести решение</button>`;
-    return `<tr title="${escAttr(st.hint)}">
-    <td>${q.organ}</td><td>${q.initiator}</td><td>${q.topic}</td><td>${escAttr(creditLabels(p,q.credits))}</td>
+    const creditsCell=(q.credits||[]).map(id=>escAttr(creditLabel(p,id))).join('<br>')||'—';
+    return `<tr>
+    <td>${q.topic}</td><td class="org-cell">${q.organ}</td><td>${q.initiator}</td><td>${creditsCell}</td>
     <td>${q.meetingDate||'<span class="pill mid">не назначено</span>'}</td><td>${dcell}</td>
     <td>${q.protocolNo?`${q.protocolNo} от ${q.protocolDate||'—'}`:'—'}</td><td>${act}</td></tr>`;}).join('')
     || `<tr><td colspan="8"><div class="cgrid-empty">Вопросов на коллегиальные органы по делу не выносилось — необратимые действия, требующие гейта (иск, безакцепт, внесудебное обращение на залог), пока не инициировались. Сводно по всем делам — реестр <span class="rowlink" onclick="navClick('Вопросы на коллегиальные органы (реестр)')">«Вопросы на коллегиальные органы»</span>.</div></td></tr>`;
-  const gateRows=Object.keys(RULES.gates).map(k=>{
-    const g=RULES.gates[k], r=gateReason(p,k), gt=gateTopic(k);
-    return `<tr><td>${g.label}<span class="dl-sub">открывает вопрос «${escAttr(gt)}»</span></td>
-      <td>${g.poruchenie?'Председатель Правления':g.organ}</td><td>п. ${g.point}</td>
-      <td>${r?`<span class="pill high">заблокировано</span>`:`<span class="pill low">разблокировано</span>`}</td><td>${r||'решение получено'}</td></tr>`;
-  }).join('');
   return `<div class="panel-wrap">
-    <p class="section-h">Вопросы на коллегиальные органы</p>
-    <p class="section-note">Пять органов (закрытый справочник), не «решение комитета». Реестр вопросов — общесистемный слой; сводно по всем делам — <span class="rowlink" onclick="navClick('Вопросы на коллегиальные органы (реестр)')">«Вопросы на коллегиальные органы»</span>. Гейт открывает вопрос, совпавший по ПРЕДМЕТУ и по ДОГОВОРУ: решение по соседнему кредиту действие по этому не разблокирует.</p>
-    <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openCommitteeQuestionModal()">Вынести вопрос</button></div>
+    <div class="gtoolbar"><p class="section-h" style="margin:0">Вопросы на коллегиальные органы</p><span class="spacer"></span><button class="btn btn-tint btn-sm" onclick="openCommitteeQuestionModal()">Вынести вопрос</button></div>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Орган</th><th>Инициатор</th><th>Предмет</th><th>Кредиты</th><th>Заседание</th><th>Решение</th><th>Протокол</th><th></th></tr></thead>
-      <tbody>${qs}</tbody></table></div>
-    <p class="section-h" style="margin-top:20px">Гейты необратимых действий (§6.3)</p>
-    <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Действие</th><th>Орган</th><th>Пункт</th><th>Статус</th><th>Причина</th></tr></thead>
-      <tbody>${gateRows}</tbody></table></div></div>`;
+      <thead><tr><th>Предмет</th><th>Орган</th><th>Инициатор</th><th>Кредиты</th><th>Заседание</th><th>Решение</th><th>Протокол</th><th></th></tr></thead>
+      <tbody>${qs}</tbody></table></div></div>`;
 }
 
 /* ---- Вынесение вопроса на коллегиальный орган + внесение решения (гейты §6.3) ----
@@ -5858,7 +5846,6 @@ function panelHistory(){
   const rows=(p.history||[]).map(h=>`<div class="hrow${/сторн/i.test(h.what)?' storno':''}"><div class="hwhen">${h.when}</div><div class="hwhat">${h.what}</div><div class="hwho">${h.who}</div></div>`).join('');
   return `<div class="panel-wrap">
     <p class="section-h">История дела</p>
-    <p class="section-note">Аудит вех: смена фазы (с документом-основанием), смены процедуры, паузы, сторно. История ведётся на уровне дела и охватывает все его требования. Только чтение, по убыванию времени.</p>
     <div class="hist">${rows || `<div class="cgrid-empty">Записей нет — с момента открытия дела ${p.opened} ни одной вехи, смены процедуры или паузы не регистрировалось.</div>`}</div></div>`;
 }
 
@@ -6418,7 +6405,7 @@ function openDocsModal(procId,mIdx){
 /* ADR-0023: подтверждение / отклонение передачи (п. 98) — на ТРЕБОВАНИИ, не на деле. */
 function confirmProc(reqId){
   const r=REQ_INDEX[reqId]; const h=r.handovers[r.handovers.length-1];
-  h.state='принято'; h.confirmedAt=TODAY; applyHandoverOwner(r);
+  h.state='принято'; h.confirmedAt=TODAY; h.acceptedBy=ACCEPTOR_BY_DEPT[h.to]||h.to; applyHandoverOwner(r);
   r._proc.history.unshift({when:TODAY+' 09:00', what:`Передача требования ${r.id} в ${h.to} подтверждена → группа ${groupOf(r._proc)||'—'}`, who:'Куратор принимающего подразделения'});
   renderPanels(); toast('Передача подтверждена — требование в работе','ok');
 }
