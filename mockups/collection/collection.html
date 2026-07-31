@@ -724,6 +724,7 @@ tr.rowempty td{ padding:0; background:var(--surface-card); }
   background:#eef2f8; color:#41506a; border:1px solid #dbe3ee; white-space:nowrap; }
 .rolechip.own{ background:var(--asubk-blue,#1b4b8f); color:#fff; border-color:transparent; }
 .solmark{ margin-left:6px; font-size:11px; color:var(--text-muted); cursor:help; }
+.catmark{ margin-left:6px; font-size:11px; color:var(--text-muted); cursor:help; }
 tr.alien td{ opacity:.55; }
 tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(0,0,0,.25); }
 
@@ -958,8 +959,8 @@ const TREE = [
   { id:"debt", label:"Взыскание задолженности", open:true, subs:[
     { id:"debt-all", headerless:true, items:[
       { label:"Требования (реестр)", active:true },
-      { label:"Досудебный порядок" }, { label:"Судебный порядок" },
-      { label:"Исполнительное производство" }, { label:"Отчуждение активов" },
+      { label:"Наблюдение" }, { label:"Досудебный порядок" }, { label:"Судебный порядок" },
+      { label:"Исполнительное производство" },
       { label:"Заседания (реестр)" }, { label:"Претензии (реестр)" },
       { label:"Вопросы на коллегиальные органы (реестр)" }, { label:"Сроки на контроле (реестр)" },
       /* НП-13: экран правил жил только под шестерёнкой в шапке — в дереве его не было,
@@ -998,10 +999,10 @@ function navClick(l){
   if(reg){ goReg(()=>regRender(reg), reg); return; }
   if(l === 'Сроки на контроле (реестр)'){ goReg(renderDeadlinesRegistry, 'deadlines'); return; }
   if(l === 'Настройки правил'){ navLabel = l; renderNav(); showView('settings'); return; }
-  /* ТР-10: все ЧЕТЫРЕ стадии — обычные фильтры одного реестра, включая «Отчуждение активов».
-     Раньше четвёртая была заглушкой с тостом «вынесено в отдельный модуль»: реализация
-     активов действительно живёт в другом модуле, но СТАДИЯ требования — здешняя, и
-     пустой ответ на неё честнее тоста (его объясняет пустое состояние, ТР-Д12). */
+  /* ТР-10: все стадии — обычные фильтры одного реестра, пустой ответ честнее тоста
+     (пустое состояние объясняет условия, ТР-Д12). СТ-1/СТ-6 (ADR-0040): 4 канонных
+     значения (наблюдение · досудебный · судебный · исполнительное); «Отчуждение
+     активов» отсюда убрано — это чужой модуль, не стадия требования (§13). */
   if(l in STAGE_RANK){ stageFilter = l; goList(); return; }
   toast('Демо-макет: раздел в разработке');
 }
@@ -1032,9 +1033,11 @@ const CONTOURS = {
 };
 const CONDITIONAL_PHASE = 'Безакцептное списание';   // условный шаг К1 (§3.4)
 
-/* §3.5 СТАДИЯ — производная от фазы, 4 значения (закрывает Д-4/Д-8). */
+/* §3.5 СТАДИЯ — производная от фазы, 4 значения (закрывает Д-4/Д-8).
+   ADR-0037/ADR-0040 (волна СТ): «Досудебное урегулирование» — своя стадия «Наблюдение»,
+   раньше молча падала в «Досудебный порядок» через фолбэк ниже. */
 const PHASE_STAGE = {
-  'Досудебное урегулирование':'Досудебный порядок',
+  'Досудебное урегулирование':'Наблюдение',
   'Претензия':'Досудебный порядок', 'Повторная претензия':'Досудебный порядок',
   'Безакцептное списание':'Досудебный порядок',
   'Извещение':'Судебный порядок', 'Иск':'Судебный порядок', 'Решение суда':'Судебный порядок',
@@ -1052,9 +1055,14 @@ const PHASE_STAGE = {
 const stageOf = phase => PHASE_STAGE[phase] || 'Досудебный порядок';
 
 /* §3.6 ОТОБРАЖАЕМАЯ ФАЗА — при активном оверлее реструктуризации показывается
-   «Рассмотрение вопроса реструктуризации» (В-6). Вызывать ВЕЗДЕ, где видна фаза. */
+   «Рассмотрение вопроса реструктуризации» (В-6). При активном состоянии лица
+   (банкротство/правопреемство, §12, ADR-0040/СТ-5) фаза замораживается на последней
+   реальной роут-фазе — `setsPhase` у мер банкротства не снят (ломало бы отложенный
+   гейт эскалации, ADR-0040 «Отвергнуто»), поэтому фаза на бумаге ещё «уезжает» в К6,
+   а честной наружу её держит только эта подмена. Вызывать ВЕЗДЕ, где видна фаза. */
 function displayPhase(r){
   if(activeState(r, 'restructuring')) return 'Рассмотрение вопроса реструктуризации';
+  if(personStateOf(r)) return routePhaseOf(r);
   return phaseOf(r);
 }
 
@@ -1126,6 +1134,19 @@ const catOfReq     = r => catLevelOfCredit(r._credit);
 function catOfProcess(p){ let lv = 'norm'; for(const c of (p.credits || [])) lv = worstCat(lv, catLevelOfCredit(c)); return lv; }
 const catLabel = c => c === 'norm' ? 'Норма' : c === 'mid' ? 'Средний' : 'Высокий';
 const catCls   = c => c === 'norm' ? 'low'   : c === 'mid' ? 'mid'     : 'high';
+/* Находка 3: «Категория риска» = worst-of(catByDays, фактор комитета) с подавлением
+   181-го дня — не чистый дубликат «Дней просрочки». На большинстве строк совпадает
+   с бакетом по дням и мет ничего не добавляет; там, где расходится (level !== raw),
+   само число дней вводит в заблуждение — метка объясняет расхождение без открытия
+   карточки (вход — тот же catOfCredit, что несёт разворот «входы» в карточке, §14.2). */
+function catDivergeMark(r){
+  const c = catOfCredit(r._credit);
+  if(c.level === c.raw) return '';
+  const why = c.suppressed
+    ? `Подавление 181-го дня (п. 20.1): по дням было бы «${catLabel(c.raw)}», подтверждено «${catLabel(c.level)}»`
+    : `Фактор комитета: по дням было бы «${catLabel(c.raw)}», поднято до «${catLabel(c.level)}»`;
+  return ` <span class="catmark" title="${escAttr(why)}">✱</span>`;
+}
 
 /* ============================================================
    Р-1 ПРОЦЕДУРА ВЗЫСКАНИЯ — закрытый словарь статусов, группа выводится
@@ -1573,6 +1594,12 @@ const ispTrackOf = r => trackOpenerOf(r, ISP_OPENERS, ISP_CLOSERS);
 /* Бейджи «трек» — видимая поверхность там же, где уже видны фаза/пауза (список требований,
    плитка «Фаза» карточки). Держит и судебный, и исполнительный — оба могут быть открыты
    одновременно (лист выдан, а апелляция/кассация по решению ещё идёт). */
+/* СТ-4/ADR-0040: бейдж состояния лица — у «Обязанного лица» в строке списка, не у
+   фазы (§12 — состояние лица, а не место в маршруте). */
+function personStateBadge(r){
+  const st = personStateOf(r);
+  return st ? ` <span class="pill mid" title="Состояние лица «${escAttr(st)}» — не двигает фазу маршрута (§12, ADR-0037)">${escAttr(st)}</span>` : '';
+}
 function trackBadges(r){
   const sud = sudTrackOf(r), isp = ispTrackOf(r);
   let out = '';
@@ -1843,12 +1870,54 @@ let RULES = deepClone(RULES_DEFAULTS);
 RULES.log = [];
 const phasesOf = c => (RULES.contourPhases[c] || (CONTOURS[c] ? CONTOURS[c].phases : []));
 function contourOfPhase(ph){ for(const c in CONTOURS){ if(phasesOf(c).includes(ph)) return c; } return null; }
-/* Контур и стадия — производные от свёрнутой фазы требования (М-2), хранимых полей нет. */
+/* Контур — остаётся, гейт последовательности вех (sequenceReason ниже) на нём и стоит;
+   перевод гейта на стадию — отдельная волна (ADR-0040 «Отвергнуто»). */
 const contourOf = r => contourOfPhase(phaseOf(r)) || 'К0';
-const stageOfReq = r => stageOf(phaseOf(r));
+
+/* СТ-4/СТ-5 (ADR-0040) — состояние лица: банкротство/правопреемство читаются прямо из
+   журнала мер по ДЕЛУ (в границах одного дела — кросс-деловой связки субъекта нет),
+   а не с отдельного реквизита на мере. `setsPhase` у этих видов не снят (иначе гейт
+   последовательности сломан, см. contourOf выше) — поэтому фаза/стадия для показа
+   замораживаются на последней РЕАЛЬНОЙ роут-фазе через routePhaseOf, отдельно от
+   сырого phaseOf(r), которым по-прежнему живёт гейт. */
+const PERSON_STATE_OPEN = {
+  'Инициирование банкротства':                {label:'банкротство',    outcome:'принято к производству'},
+  'Признание банкротом':                      {label:'банкротство',    outcome:'признан банкротом'},
+  'Заявление об установлении правопреемника': {label:'правопреемство', outcome:null},
+};
+const PERSON_STATE_CLOSE = new Set(['Завершение процедуры банкротства', 'Решение суда (отсутствие правопреемника)']);
+function personStateOf(r){
+  const p = r._proc; if(!p) return null;
+  const ms = (p.measures || [])
+    .filter(m => isLiveFor(m, r.id) && (PERSON_STATE_OPEN[m.kind] || PERSON_STATE_CLOSE.has(m.kind)))
+    .map((m, i) => ({ m, i, t: (ruD(m.dates && (m.dates.event || m.dates.registered)) || 0) }))
+    .sort((a, b) => (a.t - b.t) || (a.i - b.i));
+  if(!ms.length) return null;
+  const last = ms[ms.length - 1].m;
+  if(PERSON_STATE_CLOSE.has(last.kind)) return null;
+  const cfg = PERSON_STATE_OPEN[last.kind];
+  if(cfg.outcome && last.outcome !== cfg.outcome) return null;
+  return cfg.label;
+}
+const ROUTE_PHASES = new Set([...phasesOf('К0'), ...phasesOf('К1'), ...phasesOf('К3'), ...phasesOf('К4')]);
+function routePhaseOf(r){
+  const ms = liveMilestones(r);
+  for(let i = ms.length - 1; i >= 0; i--){
+    const ph = measureSetsPhase(ms[i]);
+    if(ROUTE_PHASES.has(ph)) return ph;
+  }
+  return OPEN_PHASE;
+}
+/* Фаза для показа/фильтра/стадии — при активном состоянии лица замороженная роут-фаза,
+   иначе сырая (СТ-5). Гейт (sequenceReason) её не читает — он на сыром phaseOf. */
+const effectivePhaseOf = r => personStateOf(r) ? routePhaseOf(r) : phaseOf(r);
+/* Стадия требования — 4 канонных значения (§3.3, ADR-0037). */
+const stageOfReq = r => stageOf(effectivePhaseOf(r));
+/* Фазы фильтра «Фаза», доступные при выбранной стадии — только реальные роут-фазы:
+   К2/К5/К6/К7 фильтром этой волны не бьются (ADR-0040/СТ-3). */
+const phasesOfStage = st => [...ROUTE_PHASES].filter(ph => PHASE_STAGE[ph] === st);
 /* Стадия дела — самая продвинутая среди требований (для сайдбар-фильтра и реестров). */
-const STAGE_RANK = { 'Досудебный порядок':0, 'Судебный порядок':1, 'Исполнительное производство':2, 'Отчуждение активов':3 };
-const stageOfProc = p => (p.requirements||[]).reduce((s,r)=> STAGE_RANK[stageOfReq(r)] > STAGE_RANK[s] ? stageOfReq(r) : s, 'Досудебный порядок');
+const STAGE_RANK = { 'Наблюдение':0, 'Досудебный порядок':1, 'Судебный порядок':2, 'Исполнительное производство':3 };
 function sequenceReason(r, kind){
   const cur = phaseOf(r);
   const curC = contourOf(r);
@@ -4134,11 +4203,12 @@ function passFilters(r){
   /* ТР-5 / ТР-Д1: поле сравнивается с тем же значением, из которого построен его список.
      Было: опции брались из p.owner («Куратор ОД»), а сравнивались с r.subdivision («ОД») —
      любой выбор давал пустой реестр. */
+  if(f.mine    && !roleSubdivs().includes(r.subdivision)) return false;
   if(f.subdiv  && r.subdivision!==f.subdiv)       return false;
   if(f.oblast  && oblastOf(p.region)!==f.oblast)  return false;
   if(f.raion   && raionOf(p.region)!==f.raion)    return false;
-  if(f.contour && contourOf(r)!==f.contour)       return false;
-  if(f.phase   && phaseOf(r)!==f.phase)           return false;
+  if(f.stage   && stageOfReq(r)!==f.stage)         return false;
+  if(f.phase   && effectivePhaseOf(r)!==f.phase)  return false;
   if(f.cat     && catOfReq(r)!==f.cat)            return false;
   if(f.group   && (groupOf(p)||'')!==f.group)     return false;
   if(f.scope   && scopeLabel(scopeOf(r))!==f.scope) return false;
@@ -4393,11 +4463,11 @@ function renderList(){
         title="${escAttr(rowTitle)}"
         onclick="openDetail('${escAttr(r.id)}')"
         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetail('${escAttr(r.id)}');}">
-      <td title="${escAttr(personOf(r).name+' · '+r.role)}">${personOf(r).name}${r.role!=='заёмщик'?`<span class="rolechip">${r.role}</span>`:''}</td>
+      <td title="${escAttr(personOf(r).name+' · '+r.role)}">${personOf(r).name}${r.role!=='заёмщик'?`<span class="rolechip">${r.role}</span>`:''}${personStateBadge(r)}</td>
       <td title="${escAttr(r._credit.num)}">${r._credit.num}</td>
       <td title="${escAttr(scopeLabel(scopeOf(r)))}">${scopeLabel(scopeOf(r))}</td>
       <td title="${escAttr(out || displayPhase(r))}">${phaseCell}</td>
-      <td title="${escAttr(catLabel(cat))}">${catLabel(cat)}</td>
+      <td title="${escAttr(catLabel(cat))}">${catLabel(cat)}${catDivergeMark(r)}</td>
       <td title="${escAttr(r.subdivision)}">${r.subdivision}</td>
       <td class="num" title="${escAttr(money)}">${fmtKGS(claimOf(r))}${sol?`<span class="solmark">сол.</span>`:''}</td>
       <td class="num">${overdueOf(r)}</td></tr>`;
@@ -7002,7 +7072,7 @@ const CAT_OPTS  = [['norm','Норма'],['mid','Средний'],['high','Вы�
 /* ТР-5: подписи чипов совпадают с подписями полей. Раньше «Контур» и «Фаза» вообще
    не имели подписи и выпадали чипом «contour: К1». */
 const CHIP_LABEL = { q:'Поиск', curator:'Куратор', subdiv:'Ведущее подразделение', scope:'Охват',
-  role:'Роль обязанного лица', oblast:'Область', raion:'Район', contour:'Контур', phase:'Фаза',
+  role:'Роль обязанного лица', oblast:'Область', raion:'Район', stage:'Стадия', phase:'Фаза',
   cat:'Категория риска', group:'Группа платёжеспособности', procedure:'Процедура взыскания',
   odMin:'Дней просрочки ≥', odMax:'Дней просрочки ≤', sumMin:'Сумма ≥', sumMax:'Сумма ≤' };
 
@@ -7019,6 +7089,15 @@ function fsel(id,label,list,sel,on,dis){
 function ftext(id,label,val,on){
   return `<div class="field"><span class="flabel">${label}</span>
     <div class="control grey"><input id="${id}" value="${escAttr(val||'')}" oninput="${on}" placeholder="имя или ИНН"></div></div>`;
+}
+/* Быстрый тоггл — паритет с regPass/dlRefresh (находка 2): там же пара «Mine + Subdiv»,
+   тут «Ведущее подразделение» была только выпадающим списком — не выразить «любое моё»
+   у роли с несколькими подразделениями (roleSubdivs() — массив). */
+function fcheck(id,label,checked,on){
+  return `<div class="field"><span class="flabel">&nbsp;</span>
+    <div class="control" style="border:none;background:none;padding:6px 0 0">
+      <label class="retro-toggle"><input type="checkbox" id="${id}"${checked?' checked':''} onchange="${on}"> ${label}</label>
+    </div></div>`;
 }
 function frange(label,kMin,kMax){
   return `<div class="field"><span class="flabel">${label}</span>
@@ -7044,18 +7123,19 @@ function renderFilterBar(){
   const procs    = uniq(PROCESSES.map(p=>p.procedure && p.procedure.status).filter(Boolean));
   const scopes   = uniq(reqs.map(r=>scopeLabel(scopeOf(r))).filter(Boolean));
   const roles    = uniq(reqs.map(r=>r.role).filter(Boolean));
-  const contours = Object.keys(CONTOURS).map(k=>[k, `${k} — ${CONTOURS[k].name}`]);
-  const phases   = f.contour ? phasesOf(f.contour) : [];
+  const stages   = Object.keys(STAGE_RANK);
+  const phases   = f.stage ? phasesOfStage(f.stage) : [];
   document.getElementById('filterBody').innerHTML = `
     ${ftext('f-q','Заёмщик / ИНН', f.q, "setF('q',this.value)")}
     ${fsel('f-curator','Куратор', curators, f.curator, "setF('curator',this.value)")}
+    ${fcheck('f-mine','только моё подразделение', f.mine, "setMine(this.checked)")}
     ${fsel('f-subdiv','Ведущее подразделение', subdivs, f.subdiv, "setF('subdiv',this.value)")}
     ${fsel('f-scope','Охват', scopes, f.scope, "setF('scope',this.value)")}
     ${fsel('f-role','Роль обязанного лица', roles, f.role, "setF('role',this.value)")}
     ${fsel('f-oblast','Область', oblasti, f.oblast, "setDep('oblast',this.value)")}
     ${fsel('f-raion','Район', raiony, f.raion, "setF('raion',this.value)", !f.oblast)}
-    ${fsel('f-contour','Контур', contours, f.contour, "setDep('contour',this.value)")}
-    ${fsel('f-phase','Фаза', phases, f.phase, "setF('phase',this.value)", !f.contour)}
+    ${fsel('f-stage','Стадия', stages, f.stage, "setDep('stage',this.value)")}
+    ${fsel('f-phase','Фаза', phases, f.phase, "setF('phase',this.value)", !f.stage)}
     ${fsel('f-cat','Категория риска', CAT_OPTS, f.cat, "setF('cat',this.value)")}
     ${fsel('f-group','Группа платёжеспособности', groups, f.group, "setF('group',this.value)")}
     ${fsel('f-procedure','Процедура взыскания', procs, f.procedure, "setF('procedure',this.value)")}
@@ -7075,7 +7155,12 @@ function renderChips(){
   const chips = [];
   if(stageFilter) chips.push(`<span class="fchip">Стадия: ${escAttr(stageFilter)}<button title="убрать" onclick="clearStage()">×</button></span>`);
   if(tileFilter)  chips.push(`<span class="fchip">Плитка: ${escAttr(TILE_LABELS[tileFilter])}<button title="убрать" onclick="clickTile('${tileFilter}')">×</button></span>`);
+  if(filterState.mine){
+    const my = roleSubdivs();
+    chips.push(`<span class="fchip">Только моё подразделение: ${escAttr(my.length ? my.join(' / ') : 'у текущей роли подразделения нет')}<button title="убрать" onclick="clearFilter('mine')">×</button></span>`);
+  }
   for(const k of Object.keys(filterState)){
+    if(k === 'mine') continue;
     const raw = filterState[k];
     if(raw == null || raw === '') continue;
     const v = k==='cat' ? catLabel(raw) : raw;
@@ -7086,19 +7171,20 @@ function renderChips(){
 function clearStage(){ stageFilter = null; navLabel = 'Требования (реестр)'; curPage = 1; renderNav(); renderList(); renderChips(); }
 /* обычное поле: живое, без пересборки панели (текст сохраняет фокус) */
 function setF(k,v){ if(v!=='' && v!=null) filterState[k]=v; else delete filterState[k]; curPage=1; renderList(); renderChips(); }
+function setMine(v){ if(v) filterState.mine=true; else delete filterState.mine; curPage=1; renderList(); renderChips(); }
 /* числовой диапазон */
 function setNum(k,v){ v=String(v).trim(); if(v==='') delete filterState[k]; else filterState[k]=Number(v); curPage=1; renderList(); renderChips(); }
 /* зависимое поле: меняет набор дочернего → пересобираем панель */
 function setDep(k,v){
   if(v) filterState[k]=v; else delete filterState[k];
-  if(k==='contour') delete filterState.phase;
-  if(k==='oblast')  delete filterState.raion;
+  if(k==='stage')  delete filterState.phase;
+  if(k==='oblast') delete filterState.raion;
   curPage=1; renderFilterBar(); renderList(); renderChips();
 }
 function clearFilter(k){
   delete filterState[k];
-  if(k==='contour') delete filterState.phase;
-  if(k==='oblast')  delete filterState.raion;
+  if(k==='stage')  delete filterState.phase;
+  if(k==='oblast') delete filterState.raion;
   curPage=1; renderFilterBar(); renderList(); renderChips();
 }
 function resetFilters(){ filterState={}; curPage=1; renderFilterBar(); renderList(); renderChips(); }
