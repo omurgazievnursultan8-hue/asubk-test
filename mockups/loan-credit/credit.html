@@ -821,7 +821,7 @@ table.grid tbody td{ height:44px; }                            /* воздух �
 .detail-panel.active{ display:block; }
 
 /* ---- process header (indicator panel) — ПЯТЬ плиток ---- */
-.phead{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:16px 20px; margin-bottom:18px; }
+.phead{ padding:0; margin-bottom:18px; }
 .phead-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
 .phead-name{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .phead-name .nm{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
@@ -3995,6 +3995,12 @@ if (typeof document !== 'undefined') {
   const paging = { page:1, size:10 };
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+  /* Модель хранит даты как дд.мм.гггг (pd() их так парсит); <input type="date"> отдаёт
+     и принимает только ISO гггг-мм-дд. toISO/toDMY — мост на границе рендер/чтение формы.
+     Обе идемпотентны на «не своём» формате (проходят вход насквозь/пусто), чтобы не падать
+     на пустом/уже-конвертированном значении. */
+  function toISO(s){ if(!s || !/^\d{2}\.\d{2}\.\d{4}$/.test(s)) return ''; const [d,mo,y]=s.split('.'); return `${y}-${mo}-${d}`; }
+  function toDMY(s){ if(!s) return s; if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const [y,mo,d]=s.split('-'); return `${d}.${mo}.${y}`; }
   function uniq(arr){ return [...new Set(arr)].filter(x=>x && x!=='—').sort((a,b)=>String(a).localeCompare(String(b),'ru')); }
   function optList(vals){ return ['<option value="">— все —</option>'].concat(vals.map(v=>`<option>${esc(v)}</option>`)).join(''); }
   /* активный куратор кредита (зеркало журнала кураторства Р-9): to==null, иначе последняя запись */
@@ -4823,7 +4829,7 @@ if (typeof document !== 'undefined') {
         </div>
 
         <div class="pcard">
-          <div class="section-h">Режим начисления</div>
+          <div class="section-h">Приостановки начисления</div>
           ${cgrid([{h:'С'},{h:'По'},{h:'Основание'},{h:'Документ'}], holdRows, {empty:'Активных приостановок нет'})}
           <div class="gtoolbar">${roleBtn('holdAccrual','Приостановить начисление','CR.openHoldModal()')}</div>
         </div>
@@ -5461,7 +5467,7 @@ if (typeof document !== 'undefined') {
     const body=`<p class="section-note">Условия транша наследуются от базовых условий кредита. Σ траншей ≤ суммы договора. Доступно к распределению: <b>${money(d.allocatable)}</b>.</p>
       <div class="mform">
         <div class="field req"><span class="flabel">Сумма транша</span><div class="control"><input id="trAmount" type="number" min="0" placeholder="0"></div></div>
-        <div class="field"><span class="flabel">Плановая дата освоения</span><div class="control"><input id="trDate" placeholder="дд.мм.гггг"></div></div>
+        <div class="field"><span class="flabel">Плановая дата освоения</span><div class="control"><input id="trDate" type="date"></div></div>
         <div class="field"><span class="flabel">Субъект — наименование</span><div class="control"><input id="trSubjName" value="${esc(c.borrower.name)}"></div></div>
         <div class="field"><span class="flabel">Субъект — ИНН</span><div class="control"><input id="trSubjInn" value="${esc(c.borrower.inn)}"></div></div>
       </div>`;
@@ -5470,7 +5476,7 @@ if (typeof document !== 'undefined') {
   };
   CR.submitTranche=function(){ const c=modalGuard('addTranche'); if(!c) return;
     const amount=+document.getElementById('trAmount').value||0;
-    const plannedDate=document.getElementById('trDate').value;
+    const plannedDate=toDMY(document.getElementById('trDate').value);
     const subject={ name:document.getElementById('trSubjName').value, inn:document.getElementById('trSubjInn').value };
     const r=CR.addTranche(c,{amount,plannedDate,subject}); if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Транш добавлен: '+money(amount),'ok'); rerenderDetail(); };
@@ -5481,7 +5487,7 @@ if (typeof document !== 'undefined') {
       <div class="mform">
         <div class="field"><span class="flabel">Транш</span><div class="control"><select id="disbTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===detailTrancheNo?' selected':''}>№${t.no} · сумма ${money(t.amount)} · освоено ${money(disbursedSum(t))}</option>`).join('')}</select><span class="caret">▾</span></div></div>
         <div class="field req"><span class="flabel">Сумма освоения</span><div class="control"><input id="disbAmount" type="number" min="0" placeholder="0"></div></div>
-        <div class="field"><span class="flabel">Дата освоения</span><div class="control"><input id="disbDate" value="${esc(CR.TODAY)}"></div></div>
+        <div class="field"><span class="flabel">Дата освоения</span><div class="control"><input id="disbDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
         <div class="field"><span class="flabel">Плат. поручение</span><div class="control"><input id="disbOrder" placeholder="ПП-..."></div></div>
         <div class="field col-span"><span class="flabel">Назначение</span><div class="control"><input id="disbPurpose" placeholder="Оплата ..."></div></div>
       </div>`;
@@ -5491,7 +5497,7 @@ if (typeof document !== 'undefined') {
   CR.submitDisb=function(){ const c=modalGuard('addDisbursement'); if(!c) return;
     const no=+document.getElementById('disbTranche').value;
     const amount=+document.getElementById('disbAmount').value||0;
-    const date=document.getElementById('disbDate').value||CR.TODAY;
+    const date=toDMY(document.getElementById('disbDate').value)||CR.TODAY;
     const order=document.getElementById('disbOrder').value, purpose=document.getElementById('disbPurpose').value;
     const r=CR.addDisbursement(c,{trancheNo:no,amount,order,purpose,date}); if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); detailTrancheNo=no; toast('Освоение внесено: '+money(amount),'ok'); rerenderDetail(); };
@@ -5499,6 +5505,7 @@ if (typeof document !== 'undefined') {
   /* 3) schedule-params (generateSchedule, Г-8) — апгрейд: параметры → предпросмотр (1·2·посл.) → новая версия */
   CR.openSchedModal=function(previewFrom){ const c=modalGuard('buildSchedule'); if(!c) return;
     const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0]; const cnd=CR.conditionsAt(sel,CR.TODAY);
+    previewFrom=toDMY(previewFrom);
     const from=(previewFrom!=null?previewFrom:((sel.disbursements[0]&&sel.disbursements[0].date)||''));
     let preview;
     if(from && sel.disbursements.length){ const rows=CR.buildSchedule(sel, from).rows;
@@ -5508,7 +5515,7 @@ if (typeof document !== 'undefined') {
     } else { preview=`<div class="warn-inline">${svgInfo()}<div>График строится только от фактической даты освоения транша. У выбранного транша нет освоения либо не задана дата.</div></div>`; }
     const body=`<div class="mform">
         <div class="field"><span class="flabel">Транш</span><div class="control"><select id="schedTranche" onchange="CR.selectDetailTranche(+this.value);CR.openSchedModal()">${c.tranches.map(t=>`<option value="${t.no}"${t.no===sel.no?' selected':''}>Транш №${t.no}${t.disbursements.length?'':' (не освоен)'}</option>`).join('')}</select><span class="caret">▾</span></div></div>
-        <div class="field req"><span class="flabel">Дата освоения (старт графика)</span><div class="control"><input id="schedFrom" value="${esc(from)}" placeholder="дд.мм.гггг"></div></div>
+        <div class="field req"><span class="flabel">Дата освоения (старт графика)</span><div class="control"><input id="schedFrom" type="date" value="${esc(toISO(from))}"></div></div>
         <div class="field"><span class="flabel">Периодичность</span><div class="control"><input value="${esc(cnd.freq||'ежемесячно')}" readonly></div></div>
         <div class="field"><span class="flabel">Метод погашения</span><div class="control"><input value="${esc(cnd.method||'аннуитет')}" readonly></div></div>
         <div class="field"><span class="flabel">Льгота по ОД, мес.</span><div class="control"><input value="${esc(cnd.graceMain||0)}" readonly></div></div>
@@ -5521,7 +5528,7 @@ if (typeof document !== 'undefined') {
       `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitSched()">Сформировать (новая версия)</button>`);
   };
   CR.submitSched=function(){ const c=modalGuard('buildSchedule'); if(!c) return;
-    const no=+document.getElementById('schedTranche').value, from=document.getElementById('schedFrom').value;
+    const no=+document.getElementById('schedTranche').value, from=toDMY(document.getElementById('schedFrom').value);
     const r=CR.generateSchedule(c,no,{from}); if(r&&r.ok===false){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); detailTrancheNo=no; toast('График сформирован: версия v'+(r.ver||'?'),'ok'); rerenderDetail(); };
 
@@ -5531,7 +5538,7 @@ if (typeof document !== 'undefined') {
      «было» и предзаполнение должны читаться на эту дату (не на CR.TODAY), но
      не падать, пока пользователь дописывает дд.мм.гггг. */
   function condEffDate(){
-    const el=document.getElementById('cbEff'); const s=el?el.value:'';
+    const el=document.getElementById('cbEff'); const s=toDMY(el?el.value:'');
     return /^\d{2}\.\d{2}\.\d{4}$/.test(s) ? s : CR.TODAY;
   }
   CR.openCondModal=function(){ const c=modalGuard('addConditionRecords'); if(!c) return;
@@ -5547,12 +5554,12 @@ if (typeof document !== 'undefined') {
           </select><span class="caret">▾</span></div></div>
         <div id="cbAgrFields" class="col-span"><div class="mform">
           <div class="field req"><span class="flabel">Номер ДС</span><div class="control"><input id="cbNum" placeholder="ДС-..."></div></div>
-          <div class="field req"><span class="flabel">Дата ДС</span><div class="control"><input id="cbDate" value="${esc(CR.TODAY)}" placeholder="дд.мм.гггг"></div></div>
+          <div class="field req"><span class="flabel">Дата ДС</span><div class="control"><input id="cbDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
           <div class="field col-span"><span class="flabel">Скан</span><div class="control"><input id="cbScan" placeholder="файл.pdf"></div></div>
         </div></div>
         <div id="cbRefField" class="field req col-span" style="display:none"><span class="flabel">Документ-основание</span>
           <div class="control"><select id="cbRef"></select><span class="caret">▾</span></div></div>
-        <div class="field req"><span class="flabel">Вступает в силу</span><div class="control"><input id="cbEff" value="${esc(CR.TODAY)}" placeholder="дд.мм.гггг" onchange="CR.condRecalcDefaults();CR.condPreview()"></div></div>
+        <div class="field req"><span class="flabel">Вступает в силу</span><div class="control"><input id="cbEff" type="date" value="${esc(toISO(CR.TODAY))}" onchange="CR.condRecalcDefaults();CR.condPreview()"></div></div>
         <div class="field col-span"><span class="flabel">Примечание (обязательно при дате в прошлом)</span><div class="control"><input id="cbNote" placeholder="что пересчитывается"></div></div>
         <div class="field col-span"><span class="flabel">Транши</span><div class="control">
           ${c.tranches.map(t=>`<label style="margin-right:14px"><input type="checkbox" class="cbTr" value="${t.no}" checked onchange="CR.condPreview()"> №${t.no}</label>`).join('')}
@@ -5628,12 +5635,12 @@ if (typeof document !== 'undefined') {
     box.innerHTML = rows.length?rows.join(''):`<div class="row" style="color:var(--text-placeholder)">Условия не выбраны</div>`; };
   CR.submitCond=function(){ const c=modalGuard('addConditionRecords'); if(!c) return;
     const kind=document.getElementById('cbKind').value;
-    const eff=document.getElementById('cbEff').value, note=document.getElementById('cbNote').value;
+    const eff=toDMY(document.getElementById('cbEff').value), note=document.getElementById('cbNote').value;
     const nos=[...document.querySelectorAll('.cbTr:checked')].map(x=>+x.value);
     const keys=[...document.querySelectorAll('.cbP:checked')].map(x=>x.value);
     let basis;
     if (kind==='agreement'){
-      const num=document.getElementById('cbNum').value, date=document.getElementById('cbDate').value;
+      const num=document.getElementById('cbNum').value, date=toDMY(document.getElementById('cbDate').value);
       basis={ kind, num, date, scan:document.getElementById('cbScan').value,
               ref:num, label:'Доп. соглашение '+num };
     } else {
@@ -5657,7 +5664,7 @@ if (typeof document !== 'undefined') {
         <div class="field"><span class="flabel">Кредит</span><div class="control"><input value="№ ${esc(c.num)} · ${esc(c.borrower.name)}" readonly></div></div>
         <div class="field"><span class="flabel">Транш</span><div class="control"><select id="payTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===detailTrancheNo?' selected':''}>№${t.no} · ${esc(t.subject.name)}</option>`).join('')}</select><span class="caret">▾</span></div></div>
         <div class="field req"><span class="flabel">Сумма платежа</span><div class="control"><input id="payAmount" type="number" min="0" placeholder="0"></div></div>
-        <div class="field req"><span class="flabel">Дата платежа</span><div class="control"><input id="payDate" value="${esc(CR.TODAY)}" placeholder="дд.мм.гггг"></div></div>
+        <div class="field req"><span class="flabel">Дата платежа</span><div class="control"><input id="payDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
       </div>`;
     CR.openModal('Ручной ввод платежа — форма модуля платежей', body,
       `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitPayment()">Отправить в модуль платежей</button>`);
@@ -5665,7 +5672,7 @@ if (typeof document !== 'undefined') {
   CR.submitPayment=function(){ const c=modalGuard('savePayment'); if(!c) return;
     const trancheNo=+document.getElementById('payTranche').value;
     const amount=+document.getElementById('payAmount').value||0;
-    const date=document.getElementById('payDate').value;
+    const date=toDMY(document.getElementById('payDate').value);
     const r=CR.addPayment(c,{amount,date,trancheNo}); if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Платёж отправлен — статус «Ожидает ЦК»','ok'); rerenderDetail(); };
 
@@ -5676,7 +5683,7 @@ if (typeof document !== 'undefined') {
       <div class="mform">
         <div class="field req"><span class="flabel">Вид решения</span><div class="control"><input id="kmKind" value="Решение КМ"></div></div>
         <div class="field req"><span class="flabel">Номер</span><div class="control"><input id="kmNum" placeholder="КМ-..."></div></div>
-        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="kmDate" placeholder="дд.мм.гггг"></div></div>
+        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="kmDate" type="date"></div></div>
         <div class="field req"><span class="flabel">Порог обеспечения по решению, %</span><div class="control"><input id="kmPct" type="number" min="0" step="1" value="${esc((c.kmDecision&&c.kmDecision.coverPct!=null)?c.kmDecision.coverPct:80)}"></div></div>
         <div class="field col-span"><span class="flabel">Скан</span><div class="control"><input id="kmScan" placeholder="reshenie-km.pdf"></div></div>
       </div>`;
@@ -5685,7 +5692,7 @@ if (typeof document !== 'undefined') {
   };
   CR.submitKm=function(){ const c=modalGuard('setKmDecision'); if(!c) return;
     const kind=document.getElementById('kmKind').value, num=document.getElementById('kmNum').value;
-    const date=document.getElementById('kmDate').value, scan=document.getElementById('kmScan').value;
+    const date=toDMY(document.getElementById('kmDate').value), scan=document.getElementById('kmScan').value;
     const coverPct=document.getElementById('kmPct').value;
     if(!num||!date){ CR.modalErr(['Номер и дата решения обязательны']); return; }
     if(coverPct===''||+coverPct<0){ CR.modalErr(['Порог по решению обязателен (0 % — полное освобождение)']); return; }
@@ -5713,7 +5720,7 @@ if (typeof document !== 'undefined') {
       <div class="mform">
         <div class="field req"><span class="flabel">Вид решения</span><div class="control"><input id="woKind" value="Решение Правления"></div></div>
         <div class="field req"><span class="flabel">Номер решения</span><div class="control"><input id="woNum" placeholder="РП-..."></div></div>
-        <div class="field req"><span class="flabel">Дата решения</span><div class="control"><input id="woDate" placeholder="дд.мм.гггг"></div></div>
+        <div class="field req"><span class="flabel">Дата решения</span><div class="control"><input id="woDate" type="date"></div></div>
         <div class="field"><span class="flabel">Сумма списания</span><div class="control"><input id="woAmount" type="number" value="${esc(bal)}"></div></div>
         <div class="field col-span"><span class="flabel">Скан</span><div class="control"><input id="woScan" placeholder="reshenie.pdf"></div></div>
       </div>`;
@@ -5722,7 +5729,7 @@ if (typeof document !== 'undefined') {
   };
   CR.submitWriteOff=function(){ const c=modalGuard('writeOff'); if(!c) return;
     const doc={ kind:document.getElementById('woKind').value, num:document.getElementById('woNum').value,
-      date:document.getElementById('woDate').value, scan:document.getElementById('woScan').value,
+      date:toDMY(document.getElementById('woDate').value), scan:document.getElementById('woScan').value,
       amount:+document.getElementById('woAmount').value||0 };
     const r=CR.closeCredit(c,{reason:'Списан',doc}); if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Кредит списан (решение '+doc.num+')','ok'); rerenderDetail(); };
@@ -5733,7 +5740,7 @@ if (typeof document !== 'undefined') {
       <div class="mform">
         <div class="field req"><span class="flabel">Вид документа</span><div class="control"><input id="rpKind" value="Акт сверки"></div></div>
         <div class="field req"><span class="flabel">Номер</span><div class="control"><input id="rpNum" placeholder="АС-..."></div></div>
-        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="rpDate" value="${esc(CR.TODAY)}"></div></div>
+        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="rpDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
         <div class="field"><span class="flabel">Скан</span><div class="control"><input id="rpScan" placeholder="akt-sverki.pdf"></div></div>
       </div>`;
     CR.openModal('Закрытие кредита «Погашен»', body,
@@ -5741,7 +5748,7 @@ if (typeof document !== 'undefined') {
   };
   CR.submitRepay=function(){ const c=modalGuard('repay'); if(!c) return;
     const doc={ kind:document.getElementById('rpKind').value, num:document.getElementById('rpNum').value,
-      date:document.getElementById('rpDate').value, scan:document.getElementById('rpScan').value };
+      date:toDMY(document.getElementById('rpDate').value), scan:document.getElementById('rpScan').value };
     const r=CR.closeCredit(c,{reason:'Погашен',doc}); if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Кредит закрыт: погашен','ok'); rerenderDetail(); };
 
@@ -5785,8 +5792,8 @@ if (typeof document !== 'undefined') {
   CR.openHoldModal=function(){ const c=modalGuard('holdAccrual'); if(!c) return;
     const body=`<p class="section-note">Приостановление начисления процентов — управляющее действие кредита. Требует основание, документ и дату начала. Пеня при паузе продолжает начисляться. Новый интервал добавляется к действующим приостановкам — записи не удаляются.</p>
       <div class="mform">
-        <div class="field req"><span class="flabel">С (дата начала)</span><div class="control"><input id="haFrom" placeholder="дд.мм.гггг"></div></div>
-        <div class="field"><span class="flabel">По (дата окончания)</span><div class="control"><input id="haTo" placeholder="дд.мм.гггг"></div></div>
+        <div class="field req"><span class="flabel">С (дата начала)</span><div class="control"><input id="haFrom" type="date"></div></div>
+        <div class="field"><span class="flabel">По (дата окончания)</span><div class="control"><input id="haTo" type="date"></div></div>
         <div class="field req col-span"><span class="flabel">Основание</span><div class="control"><input id="haReason" placeholder="форс-мажор, ..."></div></div>
         <div class="field req col-span"><span class="flabel">Документ</span><div class="control"><input id="haDoc" placeholder="приказ №..."></div></div>
       </div>`;
@@ -5794,7 +5801,7 @@ if (typeof document !== 'undefined') {
       `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitHold()">Приостановить</button>`);
   };
   CR.submitHold=function(){ const c=modalGuard('holdAccrual'); if(!c) return;
-    const from=document.getElementById('haFrom').value, to=document.getElementById('haTo').value;
+    const from=toDMY(document.getElementById('haFrom').value), to=toDMY(document.getElementById('haTo').value);
     const reason=document.getElementById('haReason').value, doc=document.getElementById('haDoc').value;
     const ctx={ from, to:to||null, reason, doc, by:currentRole };
     const g=gate(c,'holdAccrual',ctx); if(!g.ok){ CR.modalErr(g.reasons); return; }             // ре-валидация Г-15 перед мутацией
@@ -5815,7 +5822,7 @@ if (typeof document !== 'undefined') {
             :`<div class="warn-inline">${svgInfo()}<div>${g.reasons.map(esc).join('<br>')}</div></div>`}
       <div class="mform">
         <div class="field req"><span class="flabel">№ регистрации</span><div class="control"><input id="rgNum" value="${esc(c.reg.num||c.num||'')}"></div></div>
-        <div class="field req"><span class="flabel">Дата регистрации</span><div class="control"><input id="rgDate" value="${esc(c.reg.date||CR.TODAY)}" placeholder="дд.мм.гггг"></div></div>
+        <div class="field req"><span class="flabel">Дата регистрации</span><div class="control"><input id="rgDate" type="date" value="${esc(toISO(c.reg.date||CR.TODAY))}"></div></div>
       </div>
       <div class="section-h" style="margin-top:14px;font-size:15px">Обязательный комплект — программа ${esc(c.origin.programId||'—')}</div>
       <div class="cat-expand">${d.docs.required.map(r=>`<div class="row"><span class="ck">${esc(r.kind)}</span>
@@ -5824,7 +5831,7 @@ if (typeof document !== 'undefined') {
       `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitRegister()">Зарегистрировать</button>`);
   };
   CR.submitRegister=function(){ const c=modalGuard('register'); if(!c) return;
-    const r=CR.registerCredit(c,{ regNum:document.getElementById('rgNum').value, regDate:document.getElementById('rgDate').value });
+    const r=CR.registerCredit(c,{ regNum:document.getElementById('rgNum').value, regDate:toDMY(document.getElementById('rgDate').value) });
     if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Договор зарегистрирован — ЖЦ «Зарегистрирован»','ok'); rerenderDetail(); };
 
@@ -5863,7 +5870,7 @@ if (typeof document !== 'undefined') {
     const body=`<p class="section-note">Транши не удаляются. Закрытый транш выпадает из агрегатов срока и условий, но остаётся в истории со своими освоениями и графиком. Последний активный транш закрыть нельзя.</p>
       <div class="mform">
         <div class="field"><span class="flabel">Транш</span><div class="control"><select id="ctNo">${c.tranches.filter(t=>!t.closed).map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>№${t.no} · сумма ${money(t.amount)} · освоено ${money(disbursedSum(t))}</option>`).join('')}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">Дата закрытия</span><div class="control"><input id="ctDate" value="${esc(CR.TODAY)}"></div></div>
+        <div class="field"><span class="flabel">Дата закрытия</span><div class="control"><input id="ctDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
         <div class="field req col-span"><span class="flabel">Основание</span><textarea id="ctReason" class="note-area" placeholder="заёмщик отказался от транша; ..."></textarea></div>
       </div>`;
     CR.openModal('Закрыть транш', body,
@@ -5871,7 +5878,7 @@ if (typeof document !== 'undefined') {
   };
   CR.submitCloseTranche=function(){ const c=modalGuard('closeTranche'); if(!c) return;
     const no=+document.getElementById('ctNo').value;
-    const r=CR.closeTranche(c,{ trancheNo:no, date:document.getElementById('ctDate').value, reason:document.getElementById('ctReason').value });
+    const r=CR.closeTranche(c,{ trancheNo:no, date:toDMY(document.getElementById('ctDate').value), reason:document.getElementById('ctReason').value });
     if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Транш №'+no+' закрыт','ok'); rerenderDetail(); };
 
@@ -5883,7 +5890,7 @@ if (typeof document !== 'undefined') {
         <div class="field req"><span class="flabel">Новый заёмщик — наименование</span><div class="control"><input id="tdName" placeholder="ОсОО «...»"></div></div>
         <div class="field req"><span class="flabel">Новый заёмщик — ИНН</span><div class="control"><input id="tdInn" placeholder="14 знаков"></div></div>
         <div class="field req"><span class="flabel">№ соглашения</span><div class="control"><input id="tdNum" placeholder="ДС-ПД-..."></div></div>
-        <div class="field req"><span class="flabel">Дата соглашения</span><div class="control"><input id="tdDate" value="${esc(CR.TODAY)}"></div></div>
+        <div class="field req"><span class="flabel">Дата соглашения</span><div class="control"><input id="tdDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
         <div class="field col-span"><span class="flabel">Скан</span><div class="control"><input id="tdScan" placeholder="ds-pd.pdf"></div></div>
         <div class="field col-span"><span class="flabel"><label><input type="checkbox" id="tdReg"> Соглашение зарегистрировано</label></span>
           <div class="control"><input value="без отметки о регистрации перевод не оформляется" readonly></div></div>
@@ -5893,7 +5900,7 @@ if (typeof document !== 'undefined') {
   };
   CR.submitTransfer=function(){ const c=modalGuard('transferDebt'); if(!c) return;
     const ctx={ newBorrower:{ name:document.getElementById('tdName').value, inn:document.getElementById('tdInn').value },
-      agreement:{ num:document.getElementById('tdNum').value, date:document.getElementById('tdDate').value,
+      agreement:{ num:document.getElementById('tdNum').value, date:toDMY(document.getElementById('tdDate').value),
                   scan:document.getElementById('tdScan').value, registered:document.getElementById('tdReg').checked } };
     const r=CR.transferDebt(c,ctx); if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Перевод долга оформлен: '+ctx.newBorrower.name,'ok'); rerenderDetail(); };
@@ -5907,7 +5914,7 @@ if (typeof document !== 'undefined') {
         <div class="field"><span class="flabel">Вид</span><div class="control"><input id="dcKind" value="${esc(kind||'')}" ${kind?'readonly':''}></div></div>
         <div class="field"><span class="flabel">Наименование</span><div class="control"><input id="dcName" value="${esc((cur&&cur.name)||kind||'')}"></div></div>
         <div class="field req"><span class="flabel">Состояние</span><div class="control"><select id="dcState">${DOC_STATES.map(s=>`<option${cur&&cur.state===s?' selected':''}>${esc(s)}</option>`).join('')}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">Дата</span><div class="control"><input id="dcDate" value="${esc((cur&&cur.date)||CR.TODAY)}"></div></div>
+        <div class="field"><span class="flabel">Дата</span><div class="control"><input id="dcDate" type="date" value="${esc(toISO((cur&&cur.date)||CR.TODAY))}"></div></div>
         <div class="field"><span class="flabel">Файл</span><div class="control"><input id="dcFile" value="${esc((cur&&cur.file)||'')}" placeholder="file.pdf"></div></div>
         <div class="field col-span"><span class="flabel">Примечание</span><div class="control"><input id="dcNote" value="${esc((cur&&cur.note)||'')}"></div></div>
       </div>`;
@@ -5916,7 +5923,7 @@ if (typeof document !== 'undefined') {
   };
   CR.submitDoc=function(){ const c=modalGuard('editDocs'); if(!c) return;
     const r=CR.saveDoc(c,{ kind:document.getElementById('dcKind').value, name:document.getElementById('dcName').value,
-      state:document.getElementById('dcState').value, date:document.getElementById('dcDate').value,
+      state:document.getElementById('dcState').value, date:toDMY(document.getElementById('dcDate').value),
       file:document.getElementById('dcFile').value, note:document.getElementById('dcNote').value });
     if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Документ сохранён','ok'); rerenderDetail(); };
@@ -5945,7 +5952,7 @@ if (typeof document !== 'undefined') {
         <div class="field req"><span class="flabel">Вид записи</span><div class="control"><select id="tuKind" onchange="document.getElementById('tuCommWrap').style.display=(this.value==='measure'?'':'none')">
           <option value="doc">Подтверждающий документ</option><option value="check">Проверка</option><option value="measure">Мера реагирования</option>
         </select><span class="caret">▾</span></div></div>
-        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="tuDate" value="${esc(CR.TODAY)}"></div></div>
+        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="tuDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
         <div class="field col-span"><span class="flabel">Содержание</span><div class="control"><input id="tuTitle" placeholder="счёт-фактура / выездная проверка / требование"></div></div>
         <div class="field"><span class="flabel">Результат</span><div class="control"><input id="tuResult" placeholder="принято / соответствует / направлено"></div></div>
         <div class="field"><span class="flabel">Файл</span><div class="control"><input id="tuFile" placeholder="file.pdf"></div></div>
@@ -5955,7 +5962,7 @@ if (typeof document !== 'undefined') {
       `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitTargetUse()">Сохранить</button>`);
   };
   CR.submitTargetUse=function(){ const c=modalGuard('targetUse'); if(!c) return;
-    const r=CR.addTargetUse(c,{ kind:document.getElementById('tuKind').value, date:document.getElementById('tuDate').value,
+    const r=CR.addTargetUse(c,{ kind:document.getElementById('tuKind').value, date:toDMY(document.getElementById('tuDate').value),
       title:document.getElementById('tuTitle').value, result:document.getElementById('tuResult').value,
       file:document.getElementById('tuFile').value, committeeRef:document.getElementById('tuComm').value });
     if(!r.ok){ CR.modalErr(r.reasons); return; }
@@ -5968,7 +5975,7 @@ if (typeof document !== 'undefined') {
       <div class="mform">
         <div class="field req"><span class="flabel">Вид документа</span><div class="control"><input id="tmKind" value="Соглашение о расторжении"></div></div>
         <div class="field req"><span class="flabel">Номер</span><div class="control"><input id="tmNum" placeholder="СР-..."></div></div>
-        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="tmDate" value="${esc(CR.TODAY)}"></div></div>
+        <div class="field req"><span class="flabel">Дата</span><div class="control"><input id="tmDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
         <div class="field"><span class="flabel">Скан</span><div class="control"><input id="tmScan" placeholder="sr.pdf"></div></div>
         <div class="field req col-span"><span class="flabel">Основание</span><textarea id="tmReason" class="note-area" placeholder="существенное нарушение условий; соглашение сторон; ..."></textarea></div>
       </div>`;
@@ -5977,7 +5984,7 @@ if (typeof document !== 'undefined') {
   };
   CR.submitTerminate=function(){ const c=modalGuard('terminate'); if(!c) return;
     const doc={ kind:document.getElementById('tmKind').value, num:document.getElementById('tmNum').value,
-      date:document.getElementById('tmDate').value, scan:document.getElementById('tmScan').value };
+      date:toDMY(document.getElementById('tmDate').value), scan:document.getElementById('tmScan').value };
     const r=CR.closeCredit(c,{ reason:'Расторгнут', doc, note:document.getElementById('tmReason').value });
     if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Договор расторгнут','ok'); rerenderDetail(); };
