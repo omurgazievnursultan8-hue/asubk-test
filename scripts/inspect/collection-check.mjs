@@ -130,11 +130,10 @@ ok('с вехами — фаза последней вехи',
           .every(r => phaseOf(r) === measureSetsPhase(liveMilestones(r).slice(-1)[0]))`));
 ok('у непустой фазы всегда есть мера-основание',
    g.ev(`allReqs().filter(r => phaseOf(r)!==OPEN_PHASE).every(r => !!phaseSetter(r))`));
-ok('stageOf даёт одну из четырёх стадий',
-   g.ev(`['Досудебный порядок','Судебный порядок','Исполнительное производство','Отчуждение активов'].includes(stageOf('На исполнении'))`)
-   && g.ev(`stageOf('Иск')`) === 'Судебный порядок');
-ok('стадия дела = worst-of по требованиям',
-   g.ev(`PROCESSES.every(p => stageOfProc(p) === p.requirements.reduce((s,r)=> STAGE_RANK[stageOfReq(r)]>STAGE_RANK[s]?stageOfReq(r):s,'Досудебный порядок'))`));
+ok('stageOf даёт одну из четырёх стадий (ADR-0037/ADR-0040: наблюдение вместо отчуждения активов)',
+   g.ev(`['Наблюдение','Досудебный порядок','Судебный порядок','Исполнительное производство'].includes(stageOf('На исполнении'))`)
+   && g.ev(`stageOf('Иск')`) === 'Судебный порядок'
+   && g.ev(`stageOf('Досудебное урегулирование')`) === 'Наблюдение');
 ok('142/56/з — Иск, контур К3, судебная стадия',
    g.ev(`phaseOf(${R('142/56/з')})`) === 'Иск' && g.ev(`contourOf(${R('142/56/з')})`) === 'К3'
    && g.ev(`stageOfReq(${R('142/56/з')})`) === 'Судебный порядок');
@@ -483,12 +482,12 @@ ok('фильтр по фазе работает от свёртки', g.ev(`(() 
   return rows.length > 0 && rows.every(r => phaseOf(r) === 'Иск');
 })()`));
 ok('фильтр стадии работает от свёртки', g.ev(`(() => {
-  stageFilter = 'Исполнительное производство'; const rows = baseSet(); stageFilter = null;
+  filterState = { stage:'Исполнительное производство' }; const rows = baseSet(); filterState = {};
   return rows.length > 0 && rows.every(r => stageOfReq(r) === 'Исполнительное производство');
 })()`));
 ok('фильтр «Досудебный порядок» не возвращает требование в фазе «Иск»', g.ev(`(() => {
-  stageFilter = 'Досудебный порядок'; const has = visibleReqs().some(r => r.id === '142/56/з');
-  stageFilter = null; return has;
+  filterState = { stage:'Досудебный порядок' }; const has = visibleReqs().some(r => r.id === '142/56/з');
+  filterState = {}; return has;
 })()`) === false);
 ok('вкладки разделены: 4 дела + 6 требования',
    g.ev(`TABS.filter(t=>t.group==='дело').length`) === 4
@@ -1072,9 +1071,42 @@ ok('ТР-Д2: фильтр по роли работает', L.ev(`(() => {
 })()`));
 ok('ТР-Д10: сплит-кнопка «Обновить» снята',   L.$$('#filterBody .split').length === 0 && !/splitRefresh/.test(HTML_SRC));
 ok('ТР-Д10: шестерёнка «Настройка колонок» снята', L.$$('.gear-btn').length === 0 && !/Настройка видимости колонок/.test(HTML_SRC));
-ok('чипы подписаны по-русски, включая контур и фазу', L.ev(`(() => {
-  setDep('contour','К2'); const c = [...document.querySelectorAll('#filterChips .fchip')].map(x=>x.textContent);
-  resetFilters(); return c.some(x => /^Контур:/.test(x));
+ok('чипы подписаны по-русски, включая стадию и фазу (СТ-3/ADR-0040: было «контур»)', L.ev(`(() => {
+  setDep('stage','Судебный порядок'); const c = [...document.querySelectorAll('#filterChips .fchip')].map(x=>x.textContent);
+  resetFilters(); return c.some(x => /^Стадия:/.test(x));
+})()`));
+ok('находка 2: тоггл «только моё подразделение» встал в панель фильтра', L.$$('#filterBody #f-mine').length === 1);
+ok('находка 2: тоггл фильтрует по roleSubdivs(), не по одному значению', L.ev(`(() => {
+  const my = roleSubdivs();
+  if(my.length < 2) throw new Error('затравка сменила дефолтную роль на одно-подразделенческую — тест устарел');
+  setMine(true); const rs = visibleReqs();
+  const ok = rs.length > 0 && rs.every(r => my.includes(r.subdivision))
+    && new Set(rs.map(r=>r.subdivision)).size > 1;
+  resetFilters(); return ok;
+})()`));
+ok('находка 2: тоггл и «Ведущее подразделение» — независимые условия (AND)', L.ev(`(() => {
+  setMine(true); setF('subdiv', roleSubdivs()[0]);
+  const rs = visibleReqs();
+  const ok = rs.every(r => r.subdivision === roleSubdivs()[0] && roleSubdivs().includes(r.subdivision));
+  resetFilters(); return ok;
+})()`));
+ok('находка 2: чип тоггла — «Только моё подразделение: …», не CHIP_LABEL', L.ev(`(() => {
+  setMine(true); const c = [...document.querySelectorAll('#filterChips .fchip')].map(x=>x.textContent);
+  resetFilters(); return c.some(x => /^Только моё подразделение:/.test(x));
+})()`));
+ok('находка 3: метка расхождения стоит только там, где level ≠ raw (не на всех строках)', L.ev(`(() => {
+  const rs = allReqs();
+  const withMark  = rs.filter(r => catOfCredit(r._credit).level !== catOfCredit(r._credit).raw);
+  const withoutMark = rs.filter(r => catOfCredit(r._credit).level === catOfCredit(r._credit).raw);
+  return withMark.length > 0 && withoutMark.length > 0
+    && withMark.every(r => catDivergeMark(r).includes('catmark'))
+    && withoutMark.every(r => catDivergeMark(r) === '');
+})()`));
+ok('находка 3: подсказка метки называет причину — подавление 181 или фактор комитета', L.ev(`(() => {
+  const r = allReqs().find(r => catOfCredit(r._credit).suppressed);
+  const r2 = allReqs().find(r => { const c = catOfCredit(r._credit); return c.level !== c.raw && !c.suppressed; });
+  return !!r && /Подавление 181-го дня/.test(catDivergeMark(r))
+      && !!r2 && /Фактор комитета/.test(catDivergeMark(r2));
 })()`));
 
 head('ТР-6 · строка открывается кликом и Enter; пагинация и выгрузка настоящие');
@@ -1239,26 +1271,24 @@ ok('ширин столько же, сколько колонок, и в сум�
 ok('деньги и дни просрочки выровнены вправо', L.$$('#listBody tr.rowopen td.num').length > 0
    && [...rowsOnPage()[0].children].filter(td => td.classList.contains('num')).length === 2);
 
-head('ТР-10 · стадии');
-ok('в сайдбаре четыре стадийных пункта',     g.ev(`Object.keys(STAGE_RANK).length`) === 4);
-ok('«Отчуждение активов» больше не заглушка: нет ни stub-класса, ни тоста вместо фильтра',
-   L.$$('#nav .nav-item.stub').length === 0
-   && L.ev(`(navClick('Отчуждение активов'), stageFilter === 'Отчуждение активов')`));
-L.ev(`clearStage()`);
-ok('переход на стадию ставит чип в ленте условий', (() => {
-  L.ev(`navClick('Судебный порядок')`);
+head('ТР-10/СТ-1/ADR-0041 · стадия — поле панели фильтров, не пункт сайдбара');
+ok('дропдаун «Стадия» знает четыре канонных значения', g.ev(`Object.keys(STAGE_RANK).length`) === 4);
+ok('в сайдбаре стадийных пунктов больше нет',
+   L.$$('#nav .nav-item').map(a => a.textContent).every(t => !(t in { 'Наблюдение':1,'Досудебный порядок':1,'Судебный порядок':1,'Исполнительное производство':1 })));
+ok('единственный вход в реестр требований — «Требования (реестр)»',
+   L.$$('#nav .nav-item').filter(a => a.textContent === 'Требования (реестр)').length === 1);
+ok('выбор стадии в панели ставит чип в ленте условий', (() => {
+  L.ev(`setDep('stage','Судебный порядок')`);
   return chips().includes('Стадия: Судебный порядок');
 })());
-ok('подсветка сайдбара следует за стадией',
-   L.$$('#nav .nav-item.active').map(a => a.textContent).join() === 'Судебный порядок');
+ok('подсветка сайдбара не следует за стадией — остаётся на «Требования (реестр)»',
+   L.$$('#nav .nav-item.active').map(a => a.textContent).join() === 'Требования (реестр)');
 ok('на стадии остаются только её требования',
    L.ev(`visibleReqs().every(r => stageOfReq(r) === 'Судебный порядок') && visibleReqs().length > 0`));
-ok('чип стадии снимается и возвращает полный реестр', (() => {
-  const n = L.ev('visibleReqs().length'); L.ev('clearStage()');
-  return L.ev('visibleReqs().length') > n && L.ev('stageFilter') === null;
+ok('чип стадии снимается через общий clearFilter и возвращает полный реестр', (() => {
+  const n = L.ev('visibleReqs().length'); L.ev(`clearFilter('stage')`);
+  return L.ev('visibleReqs().length') > n && L.ev(`filterState.stage`) === undefined;
 })());
-ok('подсветка вернулась на «Требования (реестр)»',
-   L.$$('#nav .nav-item.active').map(a => a.textContent).join() === 'Требования (реестр)');
 
 head('ТР-11 · одна подпись денег, честная при расхождении');
 ok('пока снимок один — одна дата под таблицей',
@@ -1279,14 +1309,17 @@ ok('точная дата снимка — в подсказке суммы ст
 
 head('ТР-Д12 · пустое состояние называет условия');
 { const m = mk();
-  m.ev(`navClick('Отчуждение активов')`);
+  /* ADR-0037/ADR-0040 (СТ-1) убрали «Отчуждение активов» из сайдбара — тот пустой
+     фильтр закрывал этот тест раньше. Теперь все 4 стадии живые, честную пустую
+     выборку даёт заведомо несуществующий поиск. */
+  m.ev(`setF('q','ЗАВЕДОМО-НЕСУЩЕСТВУЮЩИЙ-ЗАПРОС-XYZ')`);
   ok('пустая выборка даёт строку пустого состояния', m.$$('#listBody tr.rowempty').length === 1);
   ok('пустое состояние говорит, что ничего не найдено', /Ни одного требования не найдено/.test(m.$('.list-empty').textContent));
-  ok('пустое состояние перечисляет условия отбора', /Условия отбора: Стадия: Отчуждение активов/.test(m.$('.list-empty').textContent));
+  ok('пустое состояние перечисляет условия отбора', /Условия отбора: Поиск: ЗАВЕДОМО-НЕСУЩЕСТВУЮЩИЙ-ЗАПРОС-XYZ/.test(m.$('.list-empty').textContent));
   ok('пустое состояние даёт снять условия одним движением', !!m.$('.list-empty button'));
   m.ev('resetAllConditions()');
   ok('снятие условий возвращает требования',
-     m.$$('#listBody tr.rowopen').length > 0 && m.ev(`stageFilter === null && tileFilter === null && Object.keys(filterState).length === 0`)); }
+     m.$$('#listBody tr.rowopen').length > 0 && m.ev(`tileFilter === null && Object.keys(filterState).length === 0`)); }
 
 /* ══════════════════════════════════════════════════════════════════════════
    ВОЛНА ПЛ (28.07.2026) — плотность реестра требований. Второй проход по экрану ТР.
