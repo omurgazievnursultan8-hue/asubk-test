@@ -285,8 +285,11 @@ ok('закрытых требований 20, закрытых дел 20',
    g.ev(`allReqs().filter(isClosedReq).length`) === 20 && g.ev(`PROCESSES.filter(isClosed).length`) === 20);
 ok('Р-9 · ретро-закрытое дело скрыто из списка по умолчанию',
    g.ev(`baseSet().some(r => r.proc==='203')`) === false);
-ok('группа дела выводится из подтверждённой процедуры (208 → 5)', g.ev(`groupOf(${P('208')})`) === '5');
-ok('группа не выведена при неподтверждённой процедуре (210)',     g.ev(`groupOf(${P('210')})`) === null);
+/* ADR-0023 §5: группа больше не зависит от подтверждения передачи — источник теперь
+   терминальный исход / состояние лица / худшая стадия открытых требований. */
+ok('терминальный исход даёт группу «Погашенные» (208)', g.ev(`groupOf(${P('208')})`) === 'Погашенные');
+ok('группа выводится и при ждущей приёма передаче — по стадии открытых требований (210)',
+   g.ev(`groupOf(${P('210')})`) === 'Досудебный порядок');
 
 /* ══════════════════════════════════════════════════════════════════════════
    М-11 — СОСТОЯНИЯ ПО ПРИРОДЕ: обязательство · лицо · ведение дела
@@ -387,7 +390,7 @@ ok('закрытие окна отметкой открывает гейт', mk(
 ok('кнопок назначения / переназначения / продления заданий нет',
    (() => { const m = mk(); m.ev(`openDetail('201/311/з')`);
      return !/Назначить исполнителя|Переназначить|Продлить срок/i.test(m.allTabsText()); })());
-{ const m = mk(); m.ev(`openDetail('104/71/з')`); m.ev('openRejectProc()');
+{ const m = mk(); m.ev(`openDetail('104/71/з')`); m.ev(`openRejectProc('104/71/з')`);
   ok('чек-лист структурный: отклонение перечисляет 7 позиций (п. 20.2)', m.$$('#modalHost .rejChk').length === 7); }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -497,11 +500,13 @@ ok('вкладки разделены: 4 дела + 6 требования',
      m.dhead().querySelectorAll('.phead-dims .dim').length === 4
      && m.dhead().querySelectorAll('.phead-dims input, .phead-dims select').length === 0
      && m.dhead().querySelectorAll('.phead-dims .dim .src').length === 4); }
-ok('счётчик подтверждения процедуры работает (210 — осталось 3 р.д.)',
-   /осталось 3 р\.д\./.test(g.ev(`procSourceLabel(${P('210')})`)));
-{ const m = mk(); m.ev(`openDetail('210/70/з')`); m.ev('openProcChangeModal()');
-  ok('словарь статусов процедуры закрыт (селектор из PROCEDURE_DICT)',
-     m.ev('PROCEDURE_DICT.length') >= 8 && m.$$('#newStatus option').length === m.ev('PROCEDURE_DICT.length')); }
+ok('счётчик приёма передачи работает (210/70/з — осталось 3 р.д.)', g.ev(`(() => {
+  const r = REQ_INDEX['210/70/з']; const h = r.handovers[r.handovers.length-1];
+  return h.state==='ждёт' && h.leftRd === 3;
+})()`));
+{ const m = mk(); m.ev(`openDetail('210/70/з')`); m.ev(`openProcChangeModal('210/70/з')`);
+  ok('словарь принимающих подразделений закрыт (селектор из DEPARTMENTS)',
+     m.ev('DEPARTMENTS.length') >= 7 && m.$$('#newDept option').length === m.ev("DEPARTMENTS.length - 1")); }
 ok('карточка открывается по id требования', mk().ev(`(() => {
   openDetail('142/56/п'); return curReq.id === '142/56/п' && curProc.id === '142';
 })()`));
@@ -996,10 +1001,9 @@ ok('плитки «Просрочен срок» больше нет',    !tileL
 ok('остаточная корзина названа «В работе без помех»', L.ev(`TILE_LABELS.clear`) === 'В работе без помех');
 ok('помехи идут перед остатком',
    tileLabels().indexOf('Заблокировано гейтом комитета') < tileLabels().indexOf('В работе без помех'));
-ok('остаток — именно остаток: у его требований нет ни гейта, ни окна, ни ожидания процедуры',
+ok('остаток — именно остаток: у его требований нет ни гейта, ни окна, ни ожидания передачи',
    L.ev(`baseSet().filter(r=>listStatus(r)==='clear').every(r =>
-     !gateBlocked(r) && !(r._proc.window && r._proc.window.open) &&
-     !(r._proc.procedure && r._proc.procedure.confirm && r._proc.procedure.confirm.state==='ожидает'))`));
+     !gateBlocked(r) && !(r._proc.window && r._proc.window.open) && !handoverPending(r))`));
 ok('плитка сужает список до своего состояния',
    L.ev(`(clickTile('gate'), onPageSize(500), [...document.querySelectorAll('#listBody tr.rowopen')].length === baseSet().filter(r=>listStatus(r)==='gate').length)`));
 ok('нажатая плитка попадает в ленту условий', chips().some(c => /^Плитка: Заблокировано/.test(c)));
@@ -1326,24 +1330,10 @@ head('ТР-Д12 · пустое состояние называет услови
    Решения ПЛ-1…ПЛ-6, дефекты ПЛ-Д1…ПЛ-Д3.
    Разбор: mockups/collection/ASUBK-status-razrabotki.md · устройство: §14.1 спецификации.
    ══════════════════════════════════════════════════════════════════════════ */
-head('ПЛ-2 · процедура взыскания — условие отбора, а не колонка');
-ok('поле «Процедура взыскания» есть в панели фильтра', flabels().includes('Процедура взыскания'));
-ok('опции процедуры строятся из значений дел', L.ev(`(() => {
-  const opts = [...document.getElementById('f-procedure').options].map(o=>o.value).filter(Boolean);
-  const vals = new Set(PROCESSES.map(p=>p.procedure && p.procedure.status).filter(Boolean));
-  return opts.length === vals.size && opts.every(o => vals.has(o));
-})()`));
-ok('выбор процедуры возвращает НЕпустой отбор и только его дела', L.ev(`(() => {
-  const v = [...document.getElementById('f-procedure').options].map(o=>o.value).filter(Boolean)[0];
-  setF('procedure', v);
-  const rs = visibleReqs();
-  const okk = rs.length > 0 && rs.every(r => r._proc.procedure.status === v);
-  resetFilters(); return okk;
-})()`));
-ok('процедура попадает в ленту условий своим именем', (() => {
-  L.ev(`setF('procedure', [...document.getElementById('f-procedure').options].map(o=>o.value).filter(Boolean)[0])`);
-  const c = chips().some(x => /^Процедура взыскания: /.test(x)); L.ev('resetFilters()'); return c;
-})());
+head('ПЛ-2 · снято волной ПЕ (ADR-0023) — процедура взыскания не отдельный факет');
+/* Фильтр «Процедура взыскания» и его чип сняты: три оси, что он смешивал, уже бьются
+   своими полями (f.stage/f.subdiv/состояние лица) — см. ASUBK-status-razrabotki.md,
+   «Волна ПЕ». Колонки процедуры в таблице не было и раньше — это ещё живо. */
 ok('колонки процедуры в таблице нет',        L.ev(`LIST_COLS.every(c => c.k !== 'procedure')`));
 
 head('ПЛ-3 · фильтр свёрнут по умолчанию');
@@ -1483,13 +1473,18 @@ ok('плитки: Охват · Фаза · Категория · Ведущее
 ok('стадия — подпись фазы, а не своя плитка',
    !dims().includes('Стадия')
    && /стадия «/.test(D.dhead().querySelectorAll('.phead-dims .dim')[1].textContent));
-ok('процедура и группа ушли в заголовок дела',
+/* ADR-0023: «процедура» дела ушла — заголовок сводит ВЛАДЕНИЕ (подразделения открытых
+   требований) и группу; сам статус («Работа с судебными органами» и т.п.) больше нигде
+   не показывается как факт — только маршрут (стадия/фаза) требования. */
+ok('владение и группа — в заголовке дела, старой процедуры там больше нет',
    !dims().some(d=>/Процедура|Группа/.test(d))
-   && /Работа с судебными органами/.test(D.doc.querySelector('.dhead-run').textContent)
+   && D.ev('dealOwnerLabel(curProc)') === 'ОПК'
+   && D.doc.querySelector('.dhead-run').textContent.includes(D.ev('dealOwnerLabel(curProc)'))
    && /группа/.test(D.doc.querySelector('.dhead-run').textContent));
-ok('счётчик п. 98 остался подписью, а не уехал в title', (() => {
+ok('счётчик п. 98 приёма передачи виден в журнале передач вкладки «Дело» (210/70/з)', (() => {
   const m = mk(); m.ev(`openDetail('210/70/з')`);
-  return /осталось 3 р\.д\. \(п\. 98\)/.test(m.doc.querySelector('.dhead-run').textContent); })());
+  m.ev(`switchTab(TABS.findIndex(t=>t.slug==='obschee'))`);
+  return /осталось 3 р\.д\. \(п\. 98\)/.test(m.active().textContent); })());
 ok('раскрытие worst-of работает из шапки',
    (D.ev('catOpen=false; toggleCat()'), D.dhead().querySelectorAll('.cat-expand .row').length > 0));
 

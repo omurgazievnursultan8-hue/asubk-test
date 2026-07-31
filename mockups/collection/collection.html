@@ -19,11 +19,15 @@
   1. Единица работы — ПРОЦЕСС ВЗЫСКАНИЯ, привязан к ОДНОМУ заёмщику (ИНН — якорь).
      Кредит ↔ процесс — МНОГИЕ-КО-МНОГИМ, различаются предметом требования («Охват»).
 
-  2. ДВЕ ВЕДУЩИЕ ОСИ (Р-1), не сливать: ФАЗА взыскания (юр. факт, двигается ТОЛЬКО
-     регистрацией меры-вехи; селектора фаз нет) и ПРОЦЕДУРА взыскания (орг. состояние
-     дела; закрытый словарь статусов; смена = запись в журнал с ожиданием подтверждения
-     принимающей стороны, п. 98). ГРУППА платёжеспособности ВЫВОДИТСЯ из подтверждённого
-     статуса процедуры (Р-1), вручную не задаётся.
+  2. ДВЕ ВЕДУЩИЕ ОСИ, не сливать: ФАЗА взыскания (юр. факт, двигается ТОЛЬКО регистрацией
+     меры-вехи; селектора фаз нет) и ПЕРЕДАЧА требования между подразделениями (ADR-0023,
+     отменяет Р-1): «процедуры взыскания» как статуса ДЕЛА нет — это был закрытый словарь,
+     смешавший стадию (§3.5), передачу и состояние лица (§12). Передаётся ТРЕБОВАНИЕ
+     (r.handovers: кому · кем · когда · состояние приёма), не дело — один заёмщик может
+     держать требования в разных подразделениях одновременно (дело 412). Владелец —
+     принимающая сторона последней ПРИНЯТОЙ передачи; смена = запись с ожиданием
+     подтверждения принимающей стороной (п. 98). ГРУППА платёжеспособности выводится из
+     стадии/состояния лица открытых требований (ADR-0023 §5), а не из передачи.
 
   3. МАШИНА ФАЗ — СЕМЬ КОНТУРОВ К0…К7 (§3.1), а не одна цепочка. Таймлайн рисует контур
      текущей фазы. Безакцептное списание — УСЛОВНАЯ ветка К1 (§3.4): в таймлайне только
@@ -180,6 +184,19 @@
   ASUBK-status-razrabotki.md. Ключевое: реестр отвечает на «что в портфеле», а не
   «что делать сегодня»; строка требования — восемь колонок, свойства дела ушли на
   его строку-заголовок; охват хранится только на требовании.
+
+  ВОЛНА ПЕ (31.07.2026) — ADR-0023 реализован: «процедура взыскания» (p.procedure/
+  p.procHistory, дело-уровневая) снята, вместо неё — журнал передач на требовании
+  (r.handovers). Владелец = принимающая сторона последней принятой передачи; вкладка
+  «Дело» несёт таблицу передач ПО КАЖДОМУ требованию (дело 412 впервые показывает три
+  разных подразделения честно — раньше p.procedure врало одним статусом на троих, тот же
+  пример мотивировал сам ADR). Группа платёжеспособности переведена на §5 ADR-0023 (стадия/
+  состояние лица открытых требований, а не подтверждённый статус). Снято по пути как
+  избыточное: фильтр «Процедура взыскания» (ПЛ-2) — три оси, что он смешивал, уже бьются
+  своими полями (стадия/подразделение/состояние лица), отдельный факет не нужен.
+  Смок (`scripts/inspect/collection-check.mjs`) доведён следом: тест ПЛ-2 (фильтр
+  «Процедура взыскания») снят вместе с фильтром, тест «словарь статусов закрыт» переигран
+  на DEPARTMENTS/`#newDept`.
 
   ВНИМАНИЕ: остальная часть этой шапки написана под МОДЕЛЬ v2 (единица работы — процесс,
   решения Р-1…Р-11 / В-1…В-11 / И-1…И-4). Модель v3 (требование как единица работы,
@@ -488,6 +505,7 @@ table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
 
 /* two-column form */
 .f2{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; max-width:1500px; }
+.deal-cols{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; }
 .field{ display:flex; flex-direction:column; gap:6px; }
 .field .flabel{ font:var(--font-label); color:var(--text-muted); }
 .field.col-span{ grid-column:1 / -1; }
@@ -890,12 +908,6 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
           </div>
           <div id="detailPanels"></div>
         </div>
-        <!-- КД-10: футер не действует. Действия контекстные, каждое у своего списка. -->
-        <div class="footer">
-          <button class="btn btn-secondary" onclick="showView('list')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-            Закрыть</button>
-        </div>
       </section>
 
       <!-- ============ РЕЕСТРЫ (кросс-процессные) ============
@@ -1145,31 +1157,29 @@ function catDivergeMark(r){
 }
 
 /* ============================================================
-   Р-1 ПРОЦЕДУРА ВЗЫСКАНИЯ — закрытый словарь статусов, группа выводится
-   из ПОДТВЕРЖДЁННОГО статуса. Селектор произвольного текста недопустим.
+   ADR-0023 · ПЕРЕДАЧА С РУКОПОЖАТИЕМ П. 98 — «процедура взыскания» как
+   закрытый словарь статусов ДЕЛА отменена: словарь смешивал стадию
+   (Первичный ввод/Работа с судебными органами → §3.5, ADR-0037), передачу
+   между подразделениями (Передан в …) и состояние лица (банкротство → §12,
+   personStateOf). Ведение — журнал передач НА ТРЕБОВАНИИ (r.handovers),
+   передаётся требование, а не дело (дело 412 — три требования, три разных
+   подразделения одновременно). Единственное, что остаётся закрытым словарём —
+   принимающее подразделение.
    ============================================================ */
-const PROCEDURE_DICT = [
-  { status:'Первичный ввод',                                              point:'15',      group:'1.1' },
-  { status:'Передан в отраслевые отделы',                                 point:'36' },
-  { status:'Работа с судебными органами',                                 point:'21, 65',  group:'2.1' },
-  { status:'Передан в УПО',                                               point:'65',      group:'2.1' },
-  { status:'Соответствие ИЛ требованиям законодательства',                point:'29',      group:'2.2' },
-  { status:'Передан в сектор по работе с активами',                       point:'69',      group:'2.3' },
-  { status:'Процедура банкротства',                                       point:'70',      group:'3.1' },
-  { status:'Процедура банкротства завершена',                             point:'72',      group:'3.2' },
-  { status:'Заключение комиссии о безнадёжности',                         point:'83, 87',  group:'4' },
-  { status:'Безнадежные субъекты (ликвидация юр. лица)',                  point:'74' },
-  { status:'Безнадежные субъекты (умершие субъекты)',                     point:'79' },
-  { status:'Безнадежные субъекты (умершие / отсутствующие / недееспособные)', point:'80' },
-  { status:'Безнадежные субъекты (обвинительный приговор суда)',          point:'81' },
-  { status:'Акт сверки о полном погашении',                              point:'88',      group:'5' },
-];
-const procMeta  = status => PROCEDURE_DICT.find(x => x.status === status) || null;
-const procConfirmed = p => p.procedure && p.procedure.confirm && p.procedure.confirm.state === 'подтверждена';
-function procGroup(p){
-  if(!procConfirmed(p)) return null;
-  const m = procMeta(p.procedure.status);
-  return m ? (m.group || null) : null;
+const DEPARTMENTS = ['ОД','ДАК','ДПО','ОПК','САК','СИТ','УПО'];
+/* владелец требования — принимающая сторона ПОСЛЕДНЕЙ ПРИНЯТОЙ передачи;
+   до первой передачи остаётся подразделение, открывшее дело (r.subdivision
+   умолчание из mkReq не трогаем, пока приёма не было). */
+function applyHandoverOwner(r){
+  const accepted = (r.handovers||[]).filter(h=>h.state==='принято');
+  if(accepted.length) r.subdivision = accepted[accepted.length-1].to;
+}
+const handoverPending = r => { const hs=r.handovers||[]; const last=hs[hs.length-1]; return !!(last && last.state==='ждёт'); };
+/* надпись владения (АДР-0023 §2): «Передан в X · ждёт приёма» до приёма, «В работе X» после. */
+function reqOwnerLabel(r){
+  const hs=r.handovers||[]; const last=hs[hs.length-1];
+  if(last && last.state==='ждёт') return `Передан в ${last.to} · ждёт приёма`;
+  return `В работе ${r.subdivision}`;
 }
 
 /* ============================================================
@@ -2061,7 +2071,7 @@ const DEADLINE_TEMPLATES = [
   { n:31, action:'Внесение данных о прекращении права требования', term:'3 р.д.', base:'подтверждение статуса процедуры', resp:'СИТ', point:'72' },
   { n:32, action:'Подписание акта сверки со стороны ГФХ', term:'10 р.д.', base:'дата подписания заёмщиком', resp:'куратор ОД', point:'88' },
   { n:33, action:'Уведомление о конфликте интересов', term:'3 к.д.', base:'закрепление куратора / вынос на комитет', resp:'работник', point:'92' },
-  { n:34, action:'Подтверждение или отклонение статуса процедуры', term:'5 р.д.', base:'смена статуса процедуры', resp:'куратор принимающего подразделения', point:'98' },
+  { n:34, action:'Подтверждение или отклонение передачи требования', term:'5 р.д.', base:'передача требования', resp:'куратор принимающего подразделения', point:'98' },
   { n:35, action:'Сбор финансовых документов (средний риск)', term:'14 р.д.', base:'дата перевода в категорию', resp:'куратор ОД', point:'12.2' },
   { n:36, action:'Оценка платёжеспособности (средний / высокий риск)', term:'10 р.д.', base:'дата перевода в группу риска', resp:'куратор', point:'6.5' },
   { n:37, action:'Вынос просроченной задолженности на комитет', term:'до 15-го числа', base:'1-е число следующего месяца', resp:'ОД', point:'13' },
@@ -2664,7 +2674,7 @@ const PROCESSES = [
       {sec:'Досудебный', kind:'Первичная претензия', dates:D('10.01.2026','10.01.2026'), num:'ПР-360', purpose:'погашение', outcome:'отказ от погашения', sent:{date:'10.01.2026', channel:'СЭД'}, served:{date:'10.01.2026', doc:'квитанция СЭД'}, scope:{volume:'просроченная сумма',method:'деньгами'}, sum:'82 000,00', responsible:'Садыков Б.'},
       {sec:'Досудебный', kind:'Повторная претензия', dates:D('05.02.2026','05.02.2026'), num:'ПР-372', purpose:'погашение + предупреждение', outcome:'отказ от погашения', basedOn:'ПР-360', sent:{date:'05.02.2026', channel:'Почта'}, served:{date:'05.02.2026', doc:'почтовое уведомление о вручении'}, scope:{volume:'просроченная сумма',method:'деньгами'}, sum:'82 000,00', responsible:'Садыков Б.'},
     ],
-    deadlines:[ { tpl:34, due:'24.07.2026', base:'смена статуса процедуры (19.07.2026)' } ],
+    deadlines:[ { tpl:34, due:'24.07.2026', base:'передача требования (19.07.2026)' } ],
     history:[
       {when:'19.07.2026 11:00', what:'Смена процедуры «Работа с судебными органами» → ожидает подтверждения принимающей стороны (ОПК), счётчик 5 р.д. (п. 98)', who:'Куратор ОД'},
       {when:'05.02.2026 14:00', what:'Мера «Повторная претензия» ПР-372 → фаза «Повторная претензия»', who:'Куратор ОД'} ] },
@@ -3185,7 +3195,7 @@ const PROCESSES = [
       } ],
     procedure:{ status:'Работа с судебными органами', since:'20.07.2026', by:'ОД', receiving:'ОПК', confirm:{ state:'ожидает', at:null, deadlineRd:5, leftRd:4, until:'27.07.2026' } },
     measures:[ {sec:'Досудебный', kind:'Повторная претензия', dates:D('01.06.2026','01.06.2026'), num:'ПР-420', purpose:'погашение + предупреждение', outcome:'отказ от погашения', sent:{date:'01.06.2026', channel:'Почта'}, served:{date:'01.06.2026', doc:'почтовое уведомление о вручении'}, scope:{volume:'просроченная сумма',method:'деньгами'}, sum:'58 000,00', responsible:'Мурзаева Н.'} ],
-    deadlines:[ { tpl:34, due:'27.07.2026', base:'смена статуса процедуры (20.07.2026)' } ],
+    deadlines:[ { tpl:34, due:'27.07.2026', base:'передача требования (20.07.2026)' } ],
     history:[ {when:'20.07.2026 10:00', what:'Смена процедуры «Работа с судебными органами» → ожидает подтверждения ОПК, счётчик 5 р.д. (п. 98)', who:'Куратор ОД'} ] },
 
   { id:'347', borrower:'ОсОО «Панфилов-Строй»', inn:'02804202000444', region:'Чуйская обл. / Московский',
@@ -3196,7 +3206,7 @@ const PROCESSES = [
     measures:[ {sec:'Исполнительное', kind:'Исполнительный лист', dates:D('01.06.2026','01.06.2026'), received:{date:'01.06.2026'}, num:'ИЛ-318', purpose:'принудительное исполнение', outcome:'выдан', scope:{volume:'полный остаток',method:'обращением на предмет залога'}, sum:'190 000,00', responsible:'Танаев У.Ш.'},
       {sec:'Исполнительное', kind:'Постановление на исполнении', dates:D('15.06.2026','15.06.2026'), received:{date:'15.06.2026'}, num:'ИП-720', purpose:'установление фазы «На исполнении»', outcome:'принято к исполнению', basedOn:'ИЛ-318', sum:'190 000,00', responsible:'Танаев У.Ш.', seeded:true},
     ],
-    deadlines:[ { tpl:34, due:'28.07.2026', base:'смена статуса процедуры (21.07.2026)' } ],
+    deadlines:[ { tpl:34, due:'28.07.2026', base:'передача требования (21.07.2026)' } ],
     history:[ {when:'21.07.2026 09:00', what:'Передача в САК → ожидает подтверждения принимающей стороны (п. 98)', who:'ДПО'} ] },
 
   // ── SIT-V · ПРОЦЕДУРА ранее ОТКЛОНЕНА, затем подтверждена (procHistory) ──
@@ -3653,7 +3663,7 @@ const PROCESSES = [
     measures:[ {sec:'Досудебный', kind:'Повторная претензия', dates:D('01.06.2026','01.06.2026'), num:'ПР-520', purpose:'погашение + предупреждение', outcome:'отказ от погашения', sent:{date:'01.06.2026', channel:'Почта'}, served:{date:'01.06.2026', doc:'почтовое уведомление о вручении'}, scope:{volume:'просроченная сумма',method:'деньгами'}, sum:'70 000,00', responsible:'Эрнисов Б.Т.'},
       {sec:'Судебный', kind:'Определение о принятии искового заявления к производству', dates:D('15.06.2026','15.06.2026'), received:{date:'15.06.2026'}, num:'СД-732', purpose:'установление фазы «Иск»', outcome:'принято к производству', sum:'70 000,00', responsible:'Эрнисов Б.Т.', seeded:true},
     ],
-    deadlines:[ { tpl:34, due:'25.07.2026', base:'смена статуса процедуры (18.07.2026)' } ],
+    deadlines:[ { tpl:34, due:'25.07.2026', base:'передача требования (18.07.2026)' } ],
     history:[ {when:'18.07.2026 11:00', what:'Смена процедуры «Работа с судебными органами» → ожидает подтверждения ОПК, счётчик 5 р.д. (п. 98)', who:'Куратор ОД'} ] },
 
   // ── L-31..33 · К5 правопреемство ──
@@ -3934,7 +3944,11 @@ const PROCESSES = [
       {id:'560', num:'Дог. №560 от 12.01.2024', overdueDays:300, subdiv:'САК'},
       {id:'561', num:'Дог. №561 от 03.03.2024', overdueDays:200, subdiv:'ДПО'},
       {id:'562', num:'Дог. №562 от 20.05.2025', overdueDays:25, subdiv:'ОД'} ],
-    procedure:{ status:'Работа с судебными органами', since:'10.04.2026', by:'ОД', receiving:'ОПК', confirm:{ state:'подтверждена', at:'13.04.2026', deadlineRd:5 } },
+    /* ADR-0023 §1: здесь раньше стоял один p.procedure «Работа с судебными органами»
+       на всё дело — та самая ложь, из-за которой ADR принят (560 давно в исполнительном
+       у САК, 561 в суде у ДПО, 562 только ушла претензия у ОД). Подразделение уже верно
+       на кредите (subdiv); передача 560 (ОПК → САК) задана в migrateProcedureToHandover
+       по факту из history ниже, у 561/562 передач ещё не было. */
     /* КР-10: решение по договору А не открывает действие по договору Б. Внесудебное
        обращение на залог разрешено только по 561 — попытка зарегистрировать извещение
        по 562 назовёт причиной чужой договор, а не отсутствие вопроса. */
@@ -4021,15 +4035,47 @@ function mkReq(p, c, personId, role, basis){
     basis: basis || p.basis,
     costs: (typeof COSTS_SEED !== 'undefined' && COSTS_SEED[c.id]) ? COSTS_SEED[c.id].map(x=>({...x})) : [],
     states: [],                                  // состояния ОБЯЗАТЕЛЬСТВА (М-11)
+    handovers: [],                               // ADR-0023: журнал передач — на ТРЕБОВАНИИ
     _proc: p, _credit: c,
   };
   REQ_INDEX[r.id] = r;
   return r;
 }
 
+/* ADR-0023: миграция затравки «procedure/procHistory» (дело) → «handovers»
+   (требование). В унаследованных данных один статус стоял на дело — верно для
+   всех дел, кроме 412 (МТ-1: три требования дела, три реальных подразделения —
+   сам мотивирующий пример ADR-0023 §1; передачи там заданы поимённо ниже). */
+function migrateProcedureToHandover(p){
+  if(p.id === '412'){
+    const r560 = p.requirements.find(r => r.credit === '560' && r.role === 'заёмщик');
+    if(r560){ r560.handovers = [{ from:'ОПК', to:'САК', when:'06.04.2026', state:'принято' }]; applyHandoverOwner(r560); }
+    return;
+  }
+  if(!p.procedure && !(p.procHistory && p.procHistory.length)) return;
+  const entries = (p.procHistory||[]).map(h => ({
+    to:h.receiving, from:h.by, when:h.done||h.since,
+    state: h.confirm==='подтверждена'?'принято':h.confirm==='отклонена'?'отказано':'ждёт',
+    reason: (h.rejected&&h.rejected.length) ? h.rejected.join(', ') : undefined,
+  }));
+  if(p.procedure){
+    const c = p.procedure.confirm||{};
+    const state = c.state==='подтверждена'?'принято':c.state==='отклонена'?'отказано':'ждёт';
+    const when = c.state==='ожидает' ? p.procedure.since : (c.at || p.procedure.since);
+    const last = entries[entries.length-1];
+    const dup = last && last.to===p.procedure.receiving && last.when===when && last.state===state;
+    /* p.procedure несёт чек-лист, которого нет в procHistory — при дубле не теряем его,
+       довешиваем на уже существующую запись вместо повторной строки в журнале. */
+    if(dup){ if(p.procedure.checklist) last.checklist = p.procedure.checklist; }
+    else entries.push({ to:p.procedure.receiving, from:p.procedure.by, when, state,
+      leftRd:c.leftRd, deadlineRd:c.deadlineRd, checklist:p.procedure.checklist });
+  }
+  for(const r of p.requirements){ r.handovers = entries.map(e=>({...e})); applyHandoverOwner(r); }
+}
+
 /* ---- normalize: заполняем умолчания, чтобы данные держать лаконичными ---- */
 /* КД-6: сроки, у которых требования нет по природе — они про ведение дела. */
-const DEAL_LEVEL_DEADLINE = /статуса? процедуры|процедуры принимающей|конфликт/i;
+const DEAL_LEVEL_DEADLINE = /конфликт/i;
 function normalize(p){
   p.region ??= '—'; p.curator ??= '—'; p.openedBy ??= 'куратор'; p.basis ??= '—';
   p.owner ??= '—'; p.poruchenie ??= false;
@@ -4053,6 +4099,7 @@ function normalize(p){
     for(const o of p.obligors)
       if(!o.credits || o.credits.includes(c.id)) p.requirements.push(mkReq(p, c, o.id, o.role, o.basis));
   }
+  migrateProcedureToHandover(p);
 
   /* М-5: мера хранится НА ДЕЛЕ с targets:[reqId] — одна веха двигает несколько требований
      (один иск ко всем ответчикам, п. 32). Для унаследованных записей цель выводится из вида. */
@@ -4072,8 +4119,9 @@ function normalize(p){
   for(const c of p.colls) c.credit ??= (p.credits.length===1 ? p.credits[0].id : null);
 
   /* КД-6: срок принадлежит ТРЕБОВАНИЮ (§10: ответственный = куратор требования ×
-     подразделение шаблона). Часть сроков дело-уровневые по природе — подтверждение
-     статуса процедуры (п. 98) и конфликт интересов (гл. 16): требования у них нет.
+     подразделение шаблона). ADR-0023: приём передачи (п. 98, шаблон 34) переехал сюда же —
+     передаётся требование, счётчик 5 р.д. живёт на нём, не на деле. Дело-уровневый по
+     природе остался один — конфликт интересов (гл. 16): требования у него нет.
      Остальные выводятся из вида действия так же, как цели мер. */
   for(const d of p.deadlines){
     if(Array.isArray(d.targets) && d.targets.length) continue;
@@ -4126,13 +4174,21 @@ const activeState = (r, kind) => (r.states||[]).find(s => s.kind===kind && state
 /* Солидарные соседи — другие требования по тому же кредиту (§2.2). */
 const solidaryWith = r => (r._proc.requirements||[]).filter(x => x!==r && x.credit===r.credit);
 
-/* §3.3 Группа терминала (Р-1 не выводит её из статуса — берём из терминального исхода). */
-const TERMINAL_GROUP = { 'Полное погашение':'5', 'Признана безнадёжной':'4', 'Списана':'4', 'Завершена процедура банкротства':'3.2' };
-/* Итоговая группа плитки шапки: из подтверждённой процедуры (Р-1), иначе из терминала дела. */
+/* Подгруппа платёжеспособности (ADR-0023 §5) — старшинство:
+   терминальные исходы → безнадёжные/погашенные; иначе состояние лица
+   банкротство (на открытом требовании) → банкроты; иначе худшая СТАДИЯ
+   среди открытых требований (ADR-0037) → рабочая подгруппа; нет открытого
+   требования → погашение по графику. Процедура (старый Р-1) была не
+   источником, а единственным местом, где эти три оси лежали вместе. */
+const TERMINAL_GROUP = { 'Полное погашение':'Погашенные', 'Признана безнадёжной':'Безнадёжные', 'Списана':'Безнадёжные', 'Завершена процедура банкротства':'Безнадёжные' };
+const worstStage = (a,b) => STAGE_RANK[a] >= STAGE_RANK[b] ? a : b;
 function groupOf(p){
-  if(procGroup(p)) return procGroup(p);
   const o = outcomeOfProc(p);
-  return o ? (TERMINAL_GROUP[o] || null) : null;
+  if(o) return TERMINAL_GROUP[o] || null;
+  const open = (p.requirements||[]).filter(r=>!isClosedReq(r));
+  if(open.some(r=>personStateOf(r)==='банкротство')) return 'Банкроты';
+  if(!open.length) return 'Погашение по графику';
+  return open.map(stageOfReq).reduce(worstStage);
 }
 
 /* Field-хелперы (как в loan-credit). */
@@ -4175,10 +4231,10 @@ function listStatus(r){
   if(isClosedReq(r)) return 'closed';
   if(gateBlocked(r)) return 'gate';
   if(p.window && p.window.open) return 'window';
-  if(p.procedure && p.procedure.confirm && p.procedure.confirm.state === 'ожидает') return 'procWait';
+  if(handoverPending(r)) return 'procWait';
   return 'clear';
 }
-const TILE_LABELS = { gate:'Заблокировано гейтом комитета', window:'В окне ожидания зачисления', procWait:'Ожидает подтверждения процедуры', clear:'В работе без помех', closed:'Закрыто' };
+const TILE_LABELS = { gate:'Заблокировано гейтом комитета', window:'В окне ожидания зачисления', procWait:'Ожидает приёма передачи', clear:'В работе без помех', closed:'Закрыто' };
 
 const uniq      = a => [...new Set(a)].sort((x,y)=>String(x).localeCompare(String(y),'ru'));
 const oblastOf  = s => String(s||'').split(' / ')[0] || '';
@@ -4191,10 +4247,9 @@ function passFilters(r){
     if(!(String(p.borrower).toLowerCase().includes(q) || String(p.inn||'').includes(f.q)
       || String(personOf(r).name).toLowerCase().includes(q) || String(r._credit.num).toLowerCase().includes(q))) return false; }
   if(f.curator && p.curator!==f.curator)          return false;
-  /* ПЛ-2: процедура взыскания — свойство ДЕЛА, и как условие отбора она полезна
-     (6 значений, верхнее покрывает 33 дела из 122), а колонкой была бы повторяющимся
-     чипом — ровно тем, из-за чего заголовок дела и выглядел шумным. */
-  if(f.procedure && ((p.procedure && p.procedure.status) || '') !== f.procedure) return false;
+  /* ADR-0023: фильтр «процедура взыскания» снят — три оси, что он смешивал (ПЛ-2),
+     уже бьются собственными полями: маршрут → f.stage, подразделение → f.subdiv,
+     состояние лица → банкротство/правопреемство (столбец «Обязанное лицо», СТ-4). */
   /* ТР-5 / ТР-Д1: поле сравнивается с тем же значением, из которого построен его список.
      Было: опции брались из p.owner («Куратор ОД»), а сравнивались с r.subdivision («ОД») —
      любой выбор давал пустой реестр. */
@@ -4530,13 +4585,13 @@ function exportTsv(){
     'Выгрузил\tadmin\t' + TODAY,
     '',
   ];
-  const cols = ['№ требования','Дело','Заёмщик','ИНН','Область / район','Процедура','Группа платёжеспособности',
+  const cols = ['№ требования','Дело','Заёмщик','ИНН','Область / район','Передача','Группа платёжеспособности',
     'Куратор','Обязанное лицо','Роль','Кредитный договор','Охват','Фаза','Категория',
     'Ведущее подразделение','Сумма требования','Снимок денег на','Дней просрочки'];
   const body = rows.map(r => {
     const p = r._proc;
     return [ r.id, procNo(p.id), p.borrower, p.inn||'', p.region,
-      p.procedure ? p.procedure.status + (p.procedure.confirm.state!=='подтверждена' ? ' (' + p.procedure.confirm.state + ')' : '') : '',
+      reqOwnerLabel(r),
       groupOf(p) || '', p.curator, personOf(r).name, r.role, r._credit.num, scopeLabel(scopeOf(r)),
       outcomeOf(r) || displayPhase(r), catLabel(catOfReq(r)), r.subdivision,
       fmtKGS(claimOf(r)), moneyDate(r), overdueOf(r),
@@ -4568,9 +4623,7 @@ function exportList(){
    требований, судебные акты — у 5 дел из 126.
    count(p,r) → число на вкладке (КД-13); ноль приглушён, вкладка не прячется. */
 const TABS = [
-  { slug:'obschee',       label:'Общее',              group:'дело',       build:()=>panelDeal() },
-  { slug:'procedura',     label:'Процедура',          group:'дело',       build:()=>panelProcedure(),
-    count:p=>(p.procHistory||[]).length + (p.procedure?1:0) },
+  { slug:'obschee',       label:'Дело',               group:'дело',       build:()=>panelDeal() },
   { slug:'soglasovaniya', label:'Согласования',       group:'дело',       build:()=>panelKomitety(),
     count:p=>(p.committeeQuestions||[]).length },
   { slug:'istoriya',      label:'История',            group:'дело',       build:()=>panelHistory(),
@@ -4834,14 +4887,13 @@ function reqChips(p){
     ${many?`<span class="hint-inline rc-hint">требований в деле: ${p.requirements.length} — переключите, чтобы вести соседнее</span>`:''}
     <span class="hint-inline rc-dimnote">вкладка относится к делу и от выбранного требования не зависит</span></div>`;
 }
-/* КД-15: заголовок дела в две строки — тождество и ведение.
-   Счётчик 5 р.д. подтверждения процедуры (п. 98) остаётся ПОДПИСЬЮ, а не уезжает в title:
-   это единственное место, где виден этот дедлайн. */
+/* КД-15/ADR-0023: заголовок дела в две строки — тождество и ведение.
+   Владение — уже требование-уровня (может различаться, дело 412); шапка сводит его
+   ОДНОЙ строкой. Счётчик 5 р.д. приёма передачи (п. 98) остаётся ПОДПИСЬЮ, а не уезжает
+   в title — единственное место, где виден этот дедлайн при ровно одной ждущей передаче. */
 function dealHeadHtml(p){
   const grp=groupOf(p);
-  const proc = p.procedure
-    ? `<span class="pill neutral">${escAttr(p.procedure.status)}</span> <span class="dh-src">${procSourceLabel(p)}</span>`
-    : `<span class="dh-muted">процедура не установлена</span>`;
+  const proc = `<span class="pill neutral">${escAttr(dealOwnerLabel(p))}</span> <span class="dh-src">${dealOwnerSourceLabel(p)}</span>`;
   return `<div class="dhead">
     <div class="dhead-id">
       <span class="nm">${p.borrower}</span>
@@ -4888,13 +4940,20 @@ function renderDetailHead(){
   </div>`;
   syncHeadLevel();
 }
-/* Подпись плитки процедуры: статус подтверждения + счётчик 5 р.д. (п. 98). */
-function procSourceLabel(p){
-  const c=p.procedure.confirm;
-  if(c.state==='подтверждена') return `подтверждена ${c.at}`;
-  if(c.state==='отклонена')    return `отклонена · см. вкладку «Ведение дела»`;
-  const left = c.leftRd ?? c.deadlineRd;
-  return `ожидает подтверждения, осталось ${left} р.д. (п. 98)${left<0?' — просрочено':''}`;
+/* Владение дела (ADR-0023) — подразделения всех требований, сведённые в одну плитку. */
+function dealOwnerLabel(p){
+  const owners = uniq(p.requirements.map(r=>r.subdivision));
+  return owners.length ? owners.join(' / ') : '—';
+}
+/* Подпись плитки владения: при ровно одной ждущей передаче — счётчик 5 р.д. (п. 98,
+   единственное место, где он виден), иначе — общая сводка. */
+function dealOwnerSourceLabel(p){
+  const pending = p.requirements.filter(handoverPending);
+  if(!pending.length) return 'владение — по последней принятой передаче (см. «Дело»)';
+  if(pending.length > 1) return `${pending.length} требования ждут приёма передачи`;
+  const h = pending[0].handovers[pending[0].handovers.length-1];
+  const left = h.leftRd ?? h.deadlineRd;
+  return `${pending[0].id} → ${h.to}: ожидает приёма, осталось ${left} р.д. (п. 98)${left<0?' — просрочено':''}`;
 }
 function toggleCat(){ catOpen=!catOpen; renderDetailHead(); }   // плитки живут в шапке вида (КД-2)
 /* Раскрытие входов worst-of покредитно (паттерн borrower.html: честная категория при подавлении). */
@@ -4910,7 +4969,7 @@ function catExpand(p){
   }).join('');
   return `<div class="cat-expand">${rows}<div class="row"><span class="ck">worst-of процесса:</span> <b class="cat-${catCls(catOfProcess(p))==='high'?'high':catCls(catOfProcess(p))==='mid'?'mid':'low'}">${catLabel(catOfProcess(p))}</b></div></div>`;
 }
-/* ---- panel: Общее — папка заёмщика (§2.1) ----
+/* ---- panel: Дело — папка заёмщика (§2.1) ----
    КД-12: таблицы «Требования дела» здесь больше нет. Она перечисляла то же, что стоит
    в чипах шапки (5 колонок из 7), а недостающие охват и ведущее подразделение стали
    плитками (КД-3). Поля «Требований в деле» и «Сумма по делу» сняты — они в заголовке
@@ -4919,27 +4978,57 @@ function catExpand(p){
 function panelDeal(){
   const p=curProc;
   const out=outcomeOfProc(p);
-  const obligors = Object.values(p.requirements.reduce((a,r)=>{ (a[r.obligor] ??= {per:personOf(r), reqs:[]}).reqs.push(r); return a; }, {}))
-    .map(x=>`<tr><td>${x.per.name}</td><td>${x.per.inn}</td><td>${x.per.kind}</td>
+  const obligorGroups = Object.values(p.requirements.reduce((a,r)=>{ (a[r.obligor] ??= {per:personOf(r), reqs:[]}).reqs.push(r); return a; }, {}));
+  const onlySoleBorrower = obligorGroups.length===1 && obligorGroups[0].reqs.every(r=>r.role==='заёмщик');
+  const obligors = obligorGroups.map(x=>`<tr><td>${x.per.name} · ИНН ${x.per.inn}</td>
       <td>${uniq(x.reqs.map(r=>r.role)).join(', ')}</td>
-      <td>${x.reqs.map(r=>`<span class="rowlink" onclick="pickReq('${escAttr(r.id)}')">${r.id}</span>`).join(', ')}</td>
       <td>${x.per.state?`<span class="pill high">${x.per.state.label||x.per.state.type} с ${x.per.state.since}</span>`:'—'}</td></tr>`).join('');
+  const passage = p.requirements.map(r=>{
+    const rows=(r.handovers||[]).map((h,i)=>{
+      const last = i===r.handovers.length-1;
+      const stateCell = h.state==='принято'?`<span class="pill low">принято</span>`
+        :h.state==='отказано'?`<span class="pill high">отказано</span>`
+        :`<span class="pill mid">ждёт приёма${last?` · осталось ${(h.leftRd??h.deadlineRd??5)} р.д. (п. 98)`:''}</span>`;
+      const acts = (last && h.state==='ждёт')
+        ?`<button class="btn-tint btn-sm" onclick="confirmProc('${escAttr(r.id)}')">Подтвердить</button> <button class="btn-tint btn-sm danger" onclick="openRejectProc('${escAttr(r.id)}')">Отклонить</button>`:'—';
+      return `<tr><td>${escAttr(h.to)}</td><td>${escAttr(h.from)}</td><td>${escAttr(h.when||'—')}</td><td>${stateCell}</td>
+        <td>${h.reason?escAttr(h.reason):'—'}</td><td>${acts}</td></tr>`;
+    }).join('');
+    const pending = handoverPending(r);
+    return `<div style="margin-top:16px">
+      <p style="margin:0 0 6px"><b>${escAttr(r._credit.num)}</b> · ${escAttr(personOf(r).name)}${r.role!=='заёмщик'?`<span class="rolechip">${r.role}</span>`:''}
+        <span class="dh-sep">·</span> <span class="pill ${pending?'mid':'neutral'}">${escAttr(reqOwnerLabel(r))}</span>
+        ${!pending?`<button class="btn btn-tint btn-sm" onclick="openProcChangeModal('${escAttr(r.id)}')">Передать</button>`:''}</p>
+      <div class="cgrid-wrap"><table class="cgrid">
+        <thead><tr><th>Кому</th><th>Кем</th><th>Когда</th><th>Состояние приёма</th><th>Причина отказа</th><th></th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="6"><div class="cgrid-empty">Передач ещё не было — требование остаётся у подразделения, открывшего дело.</div></td></tr>`}</tbody>
+      </table></div>
+    </div>`;
+  }).join('');
   return `<div class="panel-wrap">
-    <div class="panel-card"><div class="f2">
-      ${ro('Заёмщик (якорь дела)', `${p.borrower} · ИНН ${p.inn}`)}
-      ${ro('Дата открытия', p.opened)}
-      ${ro('Кем открыто', p.openedBy==='система'?'система (авто, 6-й день просрочки)':'куратор')}
-      ${ro('Основание открытия', p.basis)}
-      ${ro('Куратор', p.curator)}
-      ${ro('Исход дела', out || '— (в работе)')}
+    <div class="deal-cols">
+      <div>
+        <p class="section-h" style="margin-top:0">Общие сведения</p>
+        <div class="f2">
+          ${ro('Заёмщик', `${p.borrower} · ИНН ${p.inn}`)}
+          ${ro('Исход дела', out || '— (в работе)')}
+          ${ro('Основание открытия', p.basis)}
+          ${ro('Куратор', p.curator)}
+          ${ro('Дата открытия', p.opened)}
+          ${ro('Кем открыто', p.openedBy==='система'?'система (авто, 6-й день просрочки)':'куратор')}
+        </div>
+      </div>
+      ${onlySoleBorrower ? '' : `<div>
+        <p class="section-h" style="margin-top:0">Участники дела</p>
+        <div class="cgrid-wrap"><table class="cgrid">
+          <thead><tr><th>Лицо</th><th>Роль</th><th>Состояние лица</th></tr></thead>
+          <tbody>${obligors}</tbody></table></div>
+      </div>`}
     </div>
-    <p class="section-note" style="margin-top:16px">Дело — папка заёмщика: кураторство, процедура, согласования, приостановка назначения, история. Фазы, охвата, категории и суммы у дела НЕТ — это свойства требований, они в шапке. Дело закрыто тогда и только тогда, когда закрыты все его требования, поэтому «сирота» в 0,01 сома здесь невозможна по построению.</p>
-    </div>
-    <p class="section-h" style="margin-top:20px">Обязанные лица</p>
-    <p class="section-note">Состояния лица (смерть, банкротство, правопреемство) задевают все требования к этому лицу сразу; состояния обязательства — только своё требование.</p>
-    <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Лицо</th><th>ИНН</th><th>Тип</th><th>Роль</th><th>Требования</th><th>Состояние лица</th></tr></thead>
-      <tbody>${obligors}</tbody></table></div></div>`;
+    <p class="section-h" style="margin-top:20px">Передача материалов</p>
+    <p class="hint-inline">Ведение переходит между подразделениями требование за требованием: отправитель комплектует пакет, принимающая сторона подтверждает или отклоняет его (п. 98). Подгруппа платёжеспособности выводится из стадии и состояния лица открытых требований, не из этого журнала.</p>
+    ${passage}
+  </div>`;
 }
 /* СК-11: templTerm искала шаблон РАВЕНСТВОМ СТРОК и на 15 сроках из 45 возвращала «—».
    Связь теперь номером (d.tpl), функция не нужна — её место заняли dlTerm / dlPoint. */
@@ -5208,32 +5297,6 @@ function panelSud(){
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Мера-основание</th><th>Вид события</th><th>Место</th><th>Дата / время</th><th>Участники</th><th>Исход</th></tr></thead>
       <tbody>${hear}</tbody></table></div></div>`;
-}
-
-/* ---- panel: Процедура (журнал смен статуса + подтверждение п. 98) ---- */
-function panelProcedure(){
-  const p=curProc;
-  const hist=(p.procHistory||[]).map(h=>`<tr>
-    <td>${h.status}</td><td>${h.since||'—'}</td><td>${h.by||'—'}</td><td>${h.receiving||'—'}</td><td>${h.done||'—'}</td>
-    <td>${h.confirm==='подтверждена'?'<span class="pill low">подтверждена</span>':h.confirm==='отклонена'?'<span class="pill high">отклонена</span>':'<span class="pill mid">ожидает</span>'}</td>
-    <td>${(h.rejected&&h.rejected.length)?'не предоставлено: '+h.rejected.join(', '):'—'}</td></tr>`).join('');
-  let curRow='';
-  if(p.procedure){
-    const c=p.procedure.confirm; const g=procMeta(p.procedure.status);
-    const confCell=c.state==='подтверждена'?`<span class="pill low">подтверждена ${c.at}</span>`
-      :c.state==='отклонена'?`<span class="pill high">отклонена</span>`
-      :`<span class="pill mid">ожидает · осталось ${(c.leftRd??c.deadlineRd)} р.д. (п. 98)</span>`;
-    const acts=c.state==='ожидает'?`<button class="btn-tint btn-sm" onclick="confirmProc()">Подтвердить</button> <button class="btn-tint btn-sm danger" onclick="openRejectProc()">Отклонить</button>`:'—';
-    curRow=`<tr><td><b>${p.procedure.status}</b></td><td>${p.procedure.since}</td><td>${p.procedure.by}</td><td>${p.procedure.receiving}</td><td>${p.procedure.done||'—'}</td><td>${confCell}</td><td>${acts}</td></tr>`;
-  }
-  return `<div class="panel-wrap">
-    <p class="section-h">Процедура взыскания (журнал смен статуса)</p>
-    <p class="section-note">Вторая ведущая ось. Словарь статусов закрытый (${PROCEDURE_DICT.length} статусов); произвольный текст недопустим. Смена статуса = запись с ожиданием подтверждения принимающей стороны (5 р.д.). Группа платёжеспособности выводится из подтверждённого статуса: сейчас <b>${groupOf(p)||'не выведена — процедура не подтверждена'}</b>.</p>
-    <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openProcChangeModal()">Сменить статус процедуры</button></div>
-    <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Статус</th><th>Дата установки</th><th>Кто установил</th><th>Принимающее подразделение</th><th>Дата завершения</th><th>Подтверждение</th><th></th></tr></thead>
-      <tbody>${hist}${curRow}${(!hist&&!curRow)?`<tr><td colspan="7"><div class="cgrid-empty">Статус процедуры по делу ещё не устанавливался — группа платёжеспособности поэтому не выведена. Первая запись появится после кнопки «Сменить статус процедуры».</div></td></tr>`:''}</tbody>
-    </table></div></div>`;
 }
 
 /* ---- panel: Комитеты (вопросы на коллегиальные органы + гейты §6.3) ---- */
@@ -5825,7 +5888,7 @@ function persistState(){
     const drop=new Set(['_proc','_credit','_src','requirements','borrowerId']);
     const procs=JSON.parse(JSON.stringify(PROCESSES, (k,v)=> drop.has(k) ? undefined : v));
     const reqs={};
-    for(const r of allReqs()) reqs[r.id]={ costs:r.costs||[],
+    for(const r of allReqs()) reqs[r.id]={ costs:r.costs||[], handovers:r.handovers||[],
       states:(r.states||[]).map(s=>{ const {agreement,_src,...rest}=s; return agreement?{...rest,agRef:agreement.num}:rest; }) };
     localStorage.setItem(STORE_KEY, JSON.stringify({procs, reqs}));
   }catch(e){}
@@ -5843,6 +5906,7 @@ function restoreState(){
     for(const [id,saved] of Object.entries(snap.reqs||{})){
       const r=REQ_INDEX[id]; if(!r) continue;
       r.costs=saved.costs||[];
+      if(saved.handovers){ r.handovers=saved.handovers; applyHandoverOwner(r); }
       r.states=(saved.states||[]).map(s=>{
         if(!s.agRef) return s;
         const {agRef,...rest}=s;
@@ -6351,47 +6415,50 @@ function openDocsModal(procId,mIdx){
     <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Закрыть</button></div></div>`;
   host.classList.add('open');
 }
-/* Р-1: подтверждение / отклонение процедуры (п. 98). */
-function confirmProc(){
-  curProc.procedure.confirm.state='подтверждена'; curProc.procedure.confirm.at=TODAY;
-  curProc.history.unshift({when:TODAY+' 09:00', what:`Статус процедуры «${curProc.procedure.status}» подтверждён → группа ${groupOf(curProc)||'—'}`, who:'Куратор принимающего подразделения'});
-  renderPanels(); toast('Статус процедуры подтверждён — группа выведена','ok');
+/* ADR-0023: подтверждение / отклонение передачи (п. 98) — на ТРЕБОВАНИИ, не на деле. */
+function confirmProc(reqId){
+  const r=REQ_INDEX[reqId]; const h=r.handovers[r.handovers.length-1];
+  h.state='принято'; h.confirmedAt=TODAY; applyHandoverOwner(r);
+  r._proc.history.unshift({when:TODAY+' 09:00', what:`Передача требования ${r.id} в ${h.to} подтверждена → группа ${groupOf(r._proc)||'—'}`, who:'Куратор принимающего подразделения'});
+  renderPanels(); toast('Передача подтверждена — требование в работе','ok');
 }
-function openRejectProc(){
-  const chk=(curProc.procedure.checklist||[]).length?curProc.procedure.checklist:[
+function openRejectProc(reqId){
+  const r=REQ_INDEX[reqId]; const h=r.handovers[r.handovers.length-1];
+  const chk=(h.checklist||[]).length?h.checklist:[
     {item:'Расчёт задолженности, подписанный отраслевым отделом'},{item:'Претензия и извещение с уведомлением о вручении'},{item:'Акт сверки, подписанный сторонами'}];
   const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal form">
-    <div class="modal-h"><span class="mt">Отклонить статус процедуры</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
+    <div class="modal-h"><span class="mt">Отклонить передачу — ${escAttr(r.id)}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
     <div class="modal-b"><p class="section-note">Отклонение указывает конкретные непредоставленные позиции чек-листа, не свободный текст.</p>
     <div class="chk">${chk.map((c,i)=>`<label class="chk-row"><span><input type="checkbox" class="rejChk" data-item="${escAttr(c.item)}"> ${c.item}</span><span></span><span></span></label>`).join('')}</div></div>
-    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="doRejectProc()">Отклонить</button></div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="doRejectProc('${escAttr(reqId)}')">Отклонить</button></div>
   </div>`; host.classList.add('open');
 }
-function doRejectProc(){
+function doRejectProc(reqId){
   const missing=[...document.querySelectorAll('.rejChk:checked')].map(x=>x.dataset.item);
   if(!missing.length){ toast('Укажите хотя бы одну непредоставленную позицию','err'); return; }
-  curProc.procedure.confirm.state='отклонена'; curProc.procedure.confirm.missing=missing;
-  curProc.procHistory.push({status:curProc.procedure.status, since:curProc.procedure.since, by:curProc.procedure.by, receiving:curProc.procedure.receiving, done:TODAY, confirm:'отклонена', rejected:missing});
-  curProc.history.unshift({when:TODAY+' 09:30', what:`Смена процедуры отклонена: не предоставлено — ${missing.join(', ')}`, who:'Куратор принимающего подразделения'});
-  closeModal(); renderPanels(); toast('Статус процедуры отклонён с перечнем позиций','warn');
+  const r=REQ_INDEX[reqId]; const h=r.handovers[r.handovers.length-1];
+  h.state='отказано'; h.reason=missing.join(', ');
+  r._proc.history.unshift({when:TODAY+' 09:30', what:`Передача требования ${r.id} в ${h.to} отклонена: не предоставлено — ${missing.join(', ')}`, who:'Куратор принимающего подразделения'});
+  closeModal(); renderPanels(); toast('Передача отклонена с перечнем позиций','warn');
 }
-function openProcChangeModal(){
+function openProcChangeModal(reqId){
+  const r=REQ_INDEX[reqId];
+  const opts = DEPARTMENTS.filter(d=>d!==r.subdivision);
   const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal form">
-    <div class="modal-h"><span class="mt">Сменить статус процедуры</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
-    <div class="modal-b"><p class="section-note">Словарь статусов закрытый. Смена = запись с ожиданием подтверждения (5 р.д.).</p>
-    <div class="mform">${sel('Новый статус',PROCEDURE_DICT[0].status,PROCEDURE_DICT.map(x=>x.status),'newStatus')}
-    ${sel('Принимающее подразделение','ОПК',['ОД','ДАК','ДПО','ОПК','САК','СИТ','УПО'])}</div></div>
-    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="doProcChange()">Сменить</button></div>
+    <div class="modal-h"><span class="mt">Передать требование — ${escAttr(r._credit.num)} · ${escAttr(personOf(r).name)}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
+    <div class="modal-b"><p class="section-note">Передача = запись в журнал с ожиданием подтверждения принимающей стороной (5 р.д., п. 98).</p>
+    <div class="mform">${sel('Кому передать',opts[0],opts,'newDept')}</div></div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="doProcChange('${escAttr(reqId)}')">Передать</button></div>
   </div>`; host.classList.add('open');
 }
-function doProcChange(){
-  const st=document.getElementById('newStatus').value;
-  if(curProc.procedure) curProc.procHistory.push({...curProc.procedure, confirm:curProc.procedure.confirm.state, done:curProc.procedure.confirm.at});
-  curProc.procedure={status:st, since:TODAY, by:'Текущая роль', receiving:'принимающее', confirm:{state:'ожидает', at:null, deadlineRd:5, leftRd:5}};
-  curProc.history.unshift({when:TODAY+' 11:00', what:`Смена процедуры → «${st}», ожидает подтверждения (5 р.д., п. 98)`, who:'Текущая роль'});
-  closeModal(); renderPanels(); toast('Статус процедуры сменён — ожидает подтверждения','ok');
+function doProcChange(reqId){
+  const r=REQ_INDEX[reqId];
+  const to=document.getElementById('newDept').value;
+  r.handovers.push({ from:r.subdivision, to, when:TODAY, state:'ждёт', deadlineRd:5, leftRd:5 });
+  r._proc.history.unshift({when:TODAY+' 11:00', what:`Требование ${r.id} передано в ${to}, ожидает подтверждения (5 р.д., п. 98)`, who:'Текущая роль'});
+  closeModal(); renderPanels(); toast('Требование передано — ожидает подтверждения','ok');
 }
 /* Регистрация соглашения (МС-1 срок·гейт · МС-2 аттестация · МС-4 авторство · МС-5 стадия). */
 function openAgreementModal(){
@@ -6928,13 +6995,15 @@ function dlRefresh(){
 }
 /* СК-10: клик ведёт туда, где срок ЖИВЁТ, а не в папку дела (было openDetail(p.id) —
    восемь дело-уровневых сроков открывали чужую вкладку, а сроки требования теряли
-   требование). Требование → «Обзор»; подтверждение статуса процедуры → «Процедура»;
-   конфликт интересов → «Особые состояния». */
+   требование). Требование → «Обзор»; ADR-0023: приём передачи (шаблон 34) теперь
+   ТОЖЕ у требования (§10), но действия «Подтвердить/Отклонить» живут в журнале
+   передач вкладки «Дело» — туда и ведём; конфликт интересов → «Особые состояния». */
 function dlTarget(x){
   /* КР-12/КР-15: срок-проекция заседания ведёт туда, где заседание живёт — на «Суд». */
   if(x.d && x.d._hearing && x.reqs.length) return [x.reqs[0].id, 'sud'];
+  if(/передачи требования/i.test(x.act) && x.reqs.length) return [x.reqs[0].id, 'obschee'];
   if(x.reqs.length) return [x.reqs[0].id, 'obzor'];
-  return [x.p.id, /конфликт/i.test(x.act) ? 'sostoyaniya' : 'procedura'];
+  return [x.p.id, /конфликт/i.test(x.act) ? 'sostoyaniya' : 'obschee'];
 }
 function dlRow(x){
   const [id, slug] = dlTarget(x);
@@ -7066,7 +7135,7 @@ const CAT_OPTS  = [['norm','Норма'],['mid','Средний'],['high','Вы�
    не имели подписи и выпадали чипом «contour: К1». */
 const CHIP_LABEL = { q:'Поиск', curator:'Куратор', subdiv:'Ведущее подразделение', scope:'Охват',
   role:'Роль обязанного лица', oblast:'Область', raion:'Район', stage:'Стадия', phase:'Фаза',
-  cat:'Категория риска', group:'Группа платёжеспособности', procedure:'Процедура взыскания',
+  cat:'Категория риска', group:'Группа платёжеспособности',
   odMin:'Дней просрочки ≥', odMax:'Дней просрочки ≤', sumMin:'Сумма ≥', sumMax:'Сумма ≤' };
 
 function fopts(list, sel){
@@ -7111,9 +7180,6 @@ function renderFilterBar(){
   const oblasti  = uniq(PROCESSES.map(p=>oblastOf(p.region)).filter(Boolean));
   const raiony   = f.oblast ? uniq(PROCESSES.filter(p=>oblastOf(p.region)===f.oblast).map(p=>raionOf(p.region)).filter(Boolean)) : [];
   const groups   = uniq(PROCESSES.map(p=>groupOf(p)).filter(Boolean));
-  /* ПЛ-2: процедура ушла из строки-заголовка (её больше нет у 113 дел из 122) —
-     и должна была где-то остаться условием отбора; поля по ней не было вообще. */
-  const procs    = uniq(PROCESSES.map(p=>p.procedure && p.procedure.status).filter(Boolean));
   const scopes   = uniq(reqs.map(r=>scopeLabel(scopeOf(r))).filter(Boolean));
   const roles    = uniq(reqs.map(r=>r.role).filter(Boolean));
   const stages   = Object.keys(STAGE_RANK);
@@ -7131,7 +7197,6 @@ function renderFilterBar(){
     ${fsel('f-phase','Фаза', phases, f.phase, "setF('phase',this.value)", !f.stage)}
     ${fsel('f-cat','Категория риска', CAT_OPTS, f.cat, "setF('cat',this.value)")}
     ${fsel('f-group','Группа платёжеспособности', groups, f.group, "setF('group',this.value)")}
-    ${fsel('f-procedure','Процедура взыскания', procs, f.procedure, "setF('procedure',this.value)")}
     ${frange('Дней просрочки','odMin','odMax')}
     ${frange('Сумма требования','sumMin','sumMax')}
     <div class="filter-actions">
