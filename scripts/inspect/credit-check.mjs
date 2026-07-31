@@ -295,13 +295,16 @@ const pd = CR.pd;
       && addRes.ok && !newStored && !newIncomplete,
      `хранимое=${stored.slice(0,3)} неполные=${incomplete.slice(0,3)} addTranche.ok=${addRes.ok} новый.conditions=${newStored} новый.неполные=${newIncomplete}`);
 })();
-/* 30. Реестр параметров — ровно 10 ключей, без параметров расчётного движка. */
+/* 30. Реестр параметров — ровно 16 ключей (шаг 18: +payDay/lastPaymentAnchor/payMonths/
+   graceIntDistFrom/graceIntDistTo; шаг 20: +dayMethod, вернулся из «Расчётов» —
+   решение пользователя). queue/penaltyMaxPct остаются вне реестра. */
 (() => {
-  const expect = ['rate','reserveRate','penaltyMain','penaltyInt','term','freq','method',
-                  'graceMain','graceInterest','graceAccrual'];
+  const expect = ['rate','reserveRate','penaltyMain','penaltyInt','term',
+                  'payDay','lastPaymentAnchor','freq','payMonths','method',
+                  'graceMain','graceInterest','graceIntDistFrom','graceIntDistTo','graceAccrual',
+                  'dayMethod'];
   const same = CR.PARAM_KEYS.length===expect.length && expect.every(k => CR.PARAM_KEYS.includes(k));
-  const noEngine = !CR.PARAM_KEYS.includes('dayMethod') && !CR.PARAM_KEYS.includes('queue')
-                && !CR.PARAM_KEYS.includes('penaltyMaxPct');
+  const noEngine = !CR.PARAM_KEYS.includes('queue') && !CR.PARAM_KEYS.includes('penaltyMaxPct');
   ok(30, same && noEngine, `keys=${CR.PARAM_KEYS.join(',')}`);
 })();
 /* 31. conditionsAt на дату до первой записи — пустой объект, без исключения. */
@@ -844,6 +847,62 @@ const pd = CR.pd;
      `К-1: снимок ${d.paymentsAsOf}, расчёт до ${d.ledger.until} → предварительный=${d.calcProvisional}`);
 })();
 
+/* 64. payDay (Шаг 18, Q1): день платежа берётся из условия, а не из даты освоения. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
+  CR.addConditionRecords(c, { basis:{ kind:'agreement', num:'ДС-PAYDAY', date:CR.TODAY, ref:'ДС-PAYDAY', label:'ДС-PAYDAY' },
+    records:[{ param:'payDay', value:15, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
+  const rows = CR.buildSchedule(t, t.disbursements[0].date).rows.slice(0,2).map(r => r.date);
+  ok(64, rows.every(d => d.startsWith('15.')), `payDay=15 → ${rows.join(' · ')}`);
+})();
+
+/* 65. lastPaymentAnchor (Шаг 18, Q2): «по дате 1-го платежа» считает от даты 1-го
+   платежа, а не от даты выдачи — формула программы (renderTab6, R19): «по 1-му
+   платежу» → EDATE(1-й,(n−1)×f), «по дате выдачи» → EDATE(выдача,n×f). Освоение
+   31.01.2026: 1-й платёж клэмпится в феврале на 28-е и оттуда СТЕКАЕТ (компаундится
+   от уже урезанного дня); «по дате выдачи» день каждый раз берётся заново от 31. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
+  const rows1 = CR.buildSchedule(t, '31.01.2026').rows.slice(0,2).map(r => r.date);
+  CR.addConditionRecords(c, { basis:{ kind:'agreement', num:'ДС-ANCHOR', date:CR.TODAY, ref:'ДС-ANCHOR', label:'ДС-ANCHOR' },
+    records:[{ param:'lastPaymentAnchor', value:'по дате 1-го платежа', effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
+  const rows2 = CR.buildSchedule(t, '31.01.2026').rows.slice(0,2).map(r => r.date);
+  ok(65, rows1[1] === '31.03.2026' && rows2[1] === '28.03.2026',
+     `по дате выдачи: ${rows1.join(' · ')} · по дате 1-го платежа: ${rows2.join(' · ')}`);
+})();
+
+/* 66. graceIntDistFrom/To (Шаг 18, Q5): вне окна отложенные % копятся, не гасятся;
+   внутри окна — распределяются. По умолчанию (0/0) поведение не меняется (проверено
+   существующим #47 — там окно не задавалось). */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
+  const set = (param, value) => CR.addConditionRecords(c, {
+    basis:{ kind:'agreement', num:'ДС-'+param, date:CR.TODAY, ref:'ДС-'+param, label:'ДС-'+param },
+    records:[{ param, value, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
+  set('graceInterest', 3); set('graceIntDistFrom', 10); set('graceIntDistTo', 12);
+  const rows = CR.buildSchedule(t, t.disbursements[0].date).rows;
+  const gap = rows[5], win = rows[9];                    // период 6 (вне окна) и период 10 (в окне)
+  ok(66, gap.interest === gap.accrued && win.interest > win.accrued,
+     `вне окна: начисл=${gap.accrued} платёж=${gap.interest} · в окне: начисл=${win.accrued} платёж=${win.interest}`);
+})();
+
+/* 67. Метод дней (Шаг 19/20, PARAMS.dayMethod): раньше хранился, но не читался —
+   % графика считались чисто помесячно (rate/12), без единого дня. Теперь числитель
+   'факт' берёт РЕАЛЬНЫЕ календарные дни периода (у соседних месяцев их разное число),
+   а '30' — финансовый месяц (фикс. 30 дней), календарь игнорирует. graceMain на весь
+   срок держит остаток (bal) постоянным по всем периодам кроме последнего — так
+   разница в начислении видна именно от числителя, а не от убывающего тела долга.
+   Шаг 20: dayMethod в PARAMS — меняется записью условия, как rate/term. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
+  const set = (param, value) => CR.addConditionRecords(c, {
+    basis:{ kind:'agreement', num:'ДС-'+param, date:CR.TODAY, ref:'ДС-'+param, label:'ДС-'+param },
+    records:[{ param, value, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
+  set('graceMain', 999);
+  const from = t.disbursements[0].date;
+  const rf = CR.buildSchedule(t, from).rows;                  // dayMethod дефолт факт/365 — числитель = дни
+  set('dayMethod', '30/365');
+  const rn = CR.buildSchedule(t, from).rows;                  // числитель = финансовый месяц (фикс. 30)
+  ok(67, rf[0].accrued !== rf[1].accrued && rn[0].accrued === rn[1].accrued,
+     `факт: п1=${rf[0].accrued} п2=${rf[1].accrued} (разные дни) · 30-числ: п1=${rn[0].accrued} п2=${rn[1].accrued} (равны)`);
+})();
+
 /* ============================================================
    БЛОК 3 · СЛОЙ РЕНДЕРА (КР-23). Смоук жил в песочнице без DOM и дёргал только
    чистые функции — поэтому ВСЕ дефекты групп A и B (мёртвые кнопки, экран,
@@ -856,10 +915,15 @@ const pd = CR.pd;
     querySelectorAll:()=>[], appendChild(){}, remove(){}, scrollIntoView(){}, addEventListener(){} });
   const doc = { getElementById:()=>stub(), querySelectorAll:()=>[], querySelector:()=>stub(),
     createElement:()=>stub(), addEventListener(){}, body:stub() };
-  const sb2 = { document: doc, console, setTimeout:()=>{}, clearTimeout:()=>{} };
+  /* Роутинг по location.hash (openFromHash, вызывается на верхнем уровне скрипта) —
+     песочница раньше не давала ни location, ни history, и vm.runInContext падал
+     ДО того, как sb2.window.CR успевал появиться: #53/#54/#55 не выполнялись вовсе. */
+  const sb2 = { document: doc, console, setTimeout:()=>{}, clearTimeout:()=>{},
+    location: { hash:'', pathname:'/', search:'' },
+    history: { replaceState(){} } };
   vm.createContext(sb2);
   /* в браузере `window.CR = {...}` создаёт и глобальный CR; в vm — нет, зеркалим */
-  sb2.window = new Proxy({}, { set(t,k,v){ t[k]=v; sb2[k]=v; return true; },
+  sb2.window = new Proxy({ addEventListener(){} }, { set(t,k,v){ t[k]=v; sb2[k]=v; return true; },
                                get(t,k){ return t[k]; }, has(){ return true; } });
   let CR2;
   try { vm.runInContext(m[1], sb2, { filename:'credit.dom.js' }); CR2 = sb2.window.CR; }

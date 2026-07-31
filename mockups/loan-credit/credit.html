@@ -262,6 +262,123 @@
                String(value) в creditConditionsAt (предупреждение в комментарии) ·
                submitCond не проставляет date для суда/ПП · пустой origin-фолбэк ·
                ключ pushAudit · матрица берёт основание из hit[0].
+   Шаг 17 · ВКЛАДКА «УСЛОВИЯ» — ПЕРЕСМОТР СОСТАВА (совместный разбор с пользователем,
+     card-by-card) — выполнен 2026-07-31:
+     ПЕРЕНЕСЕНО В «ДОГОВОР»: «Перевод долга — смена заёмщика». Шаг 11 когда-то перенёс
+       её сюда доводом «тот же versioned changeset, что и доп. соглашения» (Г-16); шаг 14
+       пересматривал вопрос и оставлял «новых аргументов нет». Аргумент нашёлся шагом 15:
+       Р-21 прямо говорит, что перевод долга в ЗАПИСИ не идёт — он меняет СУБЪЕКТА,
+       а не параметр, то есть по глоссарной пробе (CONTEXT.md: «Условие» — запись на
+       параметр) карточка никогда не была «Условием», её держала только техническая
+       смежность с Г-9. «Приостановки начисления» той же пробы не проходит (тоже не
+       параметр-условие), но прошла вторую — функциональную: без неё соседние карточки
+       читаются неверно (пауза меняет, что означают цифры рядом), поэтому осталась.
+     СКРЫТО ПРИ ОТСУТСТВИИ ДАННЫХ (не убрано — рендерится условно): «Расхождения по
+       траншам» — при ≤1 транше divergenceRows математически пуст (сравнивать не с чем),
+       карточка пустовала у подавляющего большинства демо-кредитов. «Документы без
+       изменения условий» (хвост «Журнала…») — пуст у 58 из 59, кроме К-4/ДС-РС-1005
+       (шаг 16), которая и остаётся витриной механизма.
+     НЕ ТРОНУТО (рассмотрено, решение — оставить): «Сводная матрица условий» — вопрос
+       снят сразу, полезна и не мусорит. «Правка шаблона условий в ЖЦ „Проект“» (Г-22)
+       найдена нерабочей (гейт открывается, писать в `baseConditions` некому) —
+       зафиксирована КР-54 в ASUBK-status-razrabotki.md, не чинится в рамках этого шага.
+     Модель (Р-21, PARAMS, версионные записи) не менялась — пересматривался только
+       состав и видимость карточек.
+
+   Шаг 18 · ВКЛАДКА «УСЛОВИЯ» — НОВЫЕ ПАРАМЕТРЫ ПО СВЕРКЕ С ПРОГРАММОЙ — выполнен
+     2026-07-31 (сверка с mockups/loan-program/loan-program.html, вкладки «Процентные
+     ставки» / «Штрафы» / «Льготный период» / «Платежи и расчеты»):
+     ДОБАВЛЕНО В PARAMS (Р-21, реестр 10 → 15 ключей): `payDay` (день платежа, 1–31,
+       короткий месяц = последний день) · `lastPaymentAnchor` (по дате выдачи ↔ по дате
+       1-го платежа) · `payMonths` (конкретные месяцы платежей — подполе `freq`,
+       показывается только при freq==='по конкретным месяцам') · `graceIntDistFrom`/
+       `graceIntDistTo` (окно распределения отсроченных % — подполя `graceInterest`,
+       показываются только при активной льготе по %).
+     ДВИЖОК (buildSchedule). `payDay`/`lastPaymentAnchor` — реальная развилка дат:
+       программа (renderTab6, R19) даёт точную формулу — «по дате выдачи» —
+       EDATE(выдача, n×период), «по дате 1-го платежа» — EDATE(1-й, (n−1)×период);
+       промежуточные даты всегда от 1-го платежа. `addM` получил третий параметр
+       fixedDay. По умолчанию (payDay=0, anchor='по дате выдачи') поведение всех 59
+       демо-кредитов не меняется — фолбэк на прежнюю арифметику от даты освоения.
+       `graceIntDistFrom/To` сужают окно распределения отсроченных % (по умолчанию 0/0 —
+       спред по всем периодам после льготы, как было; непопавшее в окно копится и
+       гасится последним платежом, как и раньше — правило не менялось, только границы).
+     ДВИЖОК — СОЗНАТЕЛЬНО НЕ ТРОНУТ: freq='по конкретным месяцам' версионируется как
+       условие, но график по нему считается прежней помесячной арифметикой
+       (freqMonths()||1) — сама программа при этом режиме принудительно переключает
+       метод погашения на «Индивидуальный» (R19: селект перекрыт), то есть и у донора
+       это не формула, а ручной ввод. Изобретать формулу для неравных промежутков между
+       месяцами значило бы придумывать то, чего нет даже у источника сверки.
+     ОБОБЩЕНО: «Плавающая» была намертво привязана к `rate` (шаг 4). Программа (tab3/
+       tab4) даёт плавающий вариант и резервной ставке, и обеим пеням, у каждого свой
+       справочник бенчмарков. `b.floating/floatType/margin` → `b.floatMeta = {param:
+       {benchmark,margin}}`; карточка «Ставки» рендерит по строке на каждый плавающий
+       параметр. Затронула 2 места в сиде (кредит K, mkScen) — мигрированы.
+     ВАЛИДАЦИЯ, НЕ УСЛОВИЕ: «Период между освоением и первым платежом» (min/max дней) —
+       не согласуемая величина с основанием, а лимит-коридор программы, поэтому НЕ в
+       PARAMS; проверяется в gate('addDisbursement') против нового зеркала-заглушки
+       `PROGRAM_DISB_WINDOW` (тот же паттерн, что PROGRAM_DOCS) по факт. промежутку до
+       расчётного 1-го платежа. Значения окна — плейсхолдер (широкий коридор 1–120 дн.,
+       как PROGRAM_DOCS_DEFAULT): точные цифры за владельцем программы, не выдуманы.
+     НЕ ТРОНУТО: перенос платежа с выходного (weekend) — программа предлагает его в той
+       же вкладке, но это прямо открытый вопрос §10.5 (источник производственного
+       календаря не выбран); добавление payDay его не закрывает и не должно молча
+       предрешать.
+
+   Шаг 19 · «МЕТОД ДНЕЙ» ВПЛЕТЁН В ДВИЖОК — выполнен 2026-07-31 (вопрос пользователя
+     «где метод расчёта количества дней?»): `baseConditions.dayMethod` («факт/365»)
+     существовал с шага 14 (переехал в «Расчёты»), но НИГДЕ не читался — % графика
+     считались чисто помесячно (`rate/100/12×mpp`), дней не было вовсе; единственное
+     реальное дневное начисление (`computeReserve`, неустойка за неполное освоение)
+     хардкодило /365 отдельно от dayMethod.
+     ФОРМАТ (сверка с loan-program.html §10.5, R19): «числитель/база» — числитель
+       `факт` (реальные календарные дни периода) | `30` (финансовый месяц, 30×mpp);
+       база `365` | `360` | `факт` (365/366 по году даты начисления). Разбор — новый
+       `dayBasis(dayMethod, atDate)`, нераспознанное схлопывается к факт/365 (=дефолт
+       на всех демо-кредитах — совместимость сохранена там, где она возможна).
+     ДВИЖОК (buildSchedule). `i` (номинальная ставка периода) остаётся структурной —
+       ею по-прежнему размечается величина взноса аннуитета/дифф. (платёж не «плывёт»
+       от длины месяца, как и раньше). А вот `accrued`/`interest` (то, что реально
+       начислено и показано в «Начислено %») теперь считаются по факт. дням периода
+       (от даты предыдущего платежа до текущей) и базе dayMethod — обычная практика
+       факт/365-аннуитета: тело взноса фиксировано формулой, начисление — по факту.
+       на этом шаге dayMethod ещё не был в PARAMS — прокидывался явным параметром
+       через buildSchedule/trancheScheduleRows до 6 мест вызова (Шаг 20 это убрал,
+       см. ниже: параметр вернулся в PARAMS, читается из conditionsAt сам).
+     computeReserve: захардкоженный /365 заменён на dayBasis(dayMethod).base —
+       тот же параметр, что и график, а не своя отдельная догадка.
+     НЕ ЗАДЕЛО СИД: `seedSchedule` (засеянные версии графика 59 демо-кредитов) —
+       отдельный упрощённый генератор, использовался только для сидирования и не
+       вызывает buildSchedule; хранимые `active.rows` как были, так и остались.
+       Новый расчёт дней касается только графиков, построенных ЗАНОВО действием
+       «Сформировать график» (Г-8) — прежние цифры на карточках не задним числом
+       переписаны. Смоук 79/79 (новый #67: факт/365 даёт разное начисление на
+       периодах разной длины, 30/365 — одинаковое, при постоянном остатке).
+
+   Шаг 20 · «МЕТОД ДНЕЙ» ВЕРНУЛСЯ В PARAMS — выполнен 2026-07-31 (пользователь:
+     «надо передвинуть в условия!» — не согласился с шагом 14, где dayMethod
+     объявлен параметром движка, а не переговорным условием; это ставка/база
+     начисления %, меняется тем же основанием, что и сама ставка).
+     PARAMS (Р-21, реестр 15 → 16 ключей): + `dayMethod`, kind:'enum', options —
+       полный перекрёстный список числитель×база из loan-program.html (dayCountNum
+       × dayCountBase, R19): факт/365 · факт/360 · факт/факт · 30/365 · 30/360 ·
+       30/факт. queue остаётся в «Расчётах» — не запрошено, решение шага 14 для
+       него не пересмотрено.
+     ДВИЖОК — УПРОЩЕНИЕ. Явная прокидка dayMethod (Шаг 19: третий параметр
+       buildSchedule/trancheScheduleRows до 6 мест вызова) убрана — dayMethod
+       теперь просто `c.dayMethod` внутри buildSchedule (c = conditionsAt(tranche)
+       — тот же объект, откуда уже читаются rate/term/freq). computeReserve читает
+       dayMethod из того же conditionsAt(t, asOf), что и reserveRate — один вызов,
+       не два.
+     ВКЛАДКА. «Условия» → карточка «Погашение»: новое поле cf('dayMethod') рядом
+       с `method` (общий рендер PARAM, ничего специального не понадобилось).
+       «Расчёты»: статичный fld(bc.dayMethod) заменён на conditionsAt(sel,
+       cardAsOf).dayMethod — то же поле, но теперь версионированное и с историей
+       через журнал изменений условий, а не застывшее значение baseConditions.
+     Смоук 79/79 (тест #30 — 16 ключей; #67 переписан на addConditionRecords
+       вместо прямого параметра buildSchedule, тем самым проверяя реальный путь
+       через PARAMS, а не служебный).
+
    СЛИЯНИЕ КАРТОЧКИ ЗАВЕРШЕНО (шаги 1–10). Все 8 вкладок Договор·Условия·Транши·Расчёты·Платежи·
      Обеспечение·Проблемные·Досье слиты. Донор loan-credit.html (as-is клон боевого стенда, 11 вкладок)
      удалён 2026-07-26 по решению владельца — история в git, последний коммит с файлом 149c312.
@@ -481,7 +598,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-07-27 · 75/75 PASS
+ SMOKE (node) 2026-07-31 · 79/79 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -554,6 +671,10 @@
    #61 ✓
    #62 ✓
    #63 ✓
+   #64 ✓
+   #65 ✓
+   #66 ✓
+   #67 ✓
    #53 ✓
    #54 ✓
    #55 ✓
@@ -608,6 +729,7 @@ a{ color:inherit; }
 /* ---- sidebar ---- */
 .sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
   display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.app.nav-collapsed .sidebar{ display:none; }
 .brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
   color:var(--text-heading); letter-spacing:0.04em; }
 .nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
@@ -1109,7 +1231,7 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
 
   <div class="main">
     <header class="topbar">
-      <span class="menu" title="Меню">
+      <span class="menu" title="Свернуть/развернуть меню" onclick="toggleNav()">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </span>
       <span class="crumb-title" id="crumbTitle">Кредиты</span>
@@ -1173,13 +1295,35 @@ const fd = d => String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).p
    даты и схлопывается к последнему дню месяца только там, где его физически нет
    (31.05 → 30.06 → 31.07): каждый шаг считается от старта, поэтому день не «стекает».
    Перенос платежа с нерабочего дня НЕ делается — нужен производственный календарь,
-   источник которого не выбран (открытый вопрос §10.5). */
-const addM = (d,k) => { const day = d.getDate();
+   источник которого не выбран (открытый вопрос §10.5).
+   fixedDay (Шаг 18, payDay): если условие «День платежа» задано, день берётся из
+   него, а не из исходной даты d — короткий месяц по-прежнему схлопывает к последнему
+   дню (то же правило программы: «1–31; короткий месяц = последний день»). */
+const addM = (d,k,fixedDay) => { const day = fixedDay || d.getDate();
   const x = new Date(d.getFullYear(), d.getMonth()+k, 1);
   const last = new Date(x.getFullYear(), x.getMonth()+1, 0).getDate();
   x.setDate(Math.min(day, last)); return x; };
 const addD = (dt, n) => { const x = new Date(dt.getTime()); x.setDate(x.getDate() + n); return x; };
 const dd = (a,b) => Math.round((b-a)/86400000);
+const isLeap = y => (y%4===0 && y%100!==0) || y%400===0;
+
+/* Шаг 19: «Метод дней» (baseConditions.dayMethod, «числитель/знаменатель» —
+   R19 loan-program.html, поле §10.5) — прежде хранился, но нигде не читался
+   (проценты в графике считались помесячно, без дней вообще). Формат: 'числ/база'.
+   Числитель: 'факт' — реальные календарные дни периода; '30' — финансовый месяц
+   (30×мес. в периоде). База: '365' | '360' | 'факт' — фактических дней в году
+   даты начисления (365/366). Разбор терпим к регистру и пробелам; нераспознанное
+   схлопывается к дефолту факт/365 (совпадает со значением на всех демо-кредитах). */
+function dayBasis(dayMethod, atDate){
+  const [numRaw, baseRaw] = String(dayMethod || 'факт/365').split('/');
+  const num = String(numRaw || '').trim().toLowerCase();
+  const base = String(baseRaw || '').trim().toLowerCase();
+  return {
+    numFin: num === '30',                                            // финансовый числитель (30×мес)
+    base: base === '360' ? 360 : (base === 'факт' || base === 'фактическая')
+      ? (isLeap((atDate || new Date()).getFullYear()) ? 366 : 365) : 365,
+  };
+}
 function toast(msg, kind){
   if (typeof document === 'undefined') return;    // smoke-песочница без DOM
   const wrap = document.getElementById('toastWrap'); if (!wrap) return;
@@ -1201,28 +1345,46 @@ function deepMerge(base, over){                    // массивы/скаля�
 }
 function condDefaults(over){                        // базовый комплект условий (Р-2); плоский объект
   return Object.assign({
-    rate:10, floating:false, floatType:null, margin:0, term:24, freq:'ежемесячно', method:'аннуитет',
-    graceMain:0, graceAccrual:0, graceInterest:0,
+    rate:10, floatMeta:{}, term:24, freq:'ежемесячно', method:'аннуитет',
+    payDay:0, lastPaymentAnchor:'по дате выдачи', payMonths:'',
+    graceMain:0, graceAccrual:0, graceInterest:0, graceIntDistFrom:0, graceIntDistTo:0,
     penaltyMain:0.1, penaltyInt:0.1, penaltyMaxPct:20, queue:'по договору', dayMethod:'факт/365',
     reserveRate:0
   }, over || {});
 }
 /* ---- Р-21: реестр параметров-условий. Меняться основанием может только то,
-   что здесь перечислено. dayMethod/queue — параметры расчётного движка
-   («Расчёты», шаг 14), судом и ПП не меняются; penaltyMaxPct мёртв (шаг 4). ---- */
+   что здесь перечислено. queue — параметр расчётного движка («Расчёты», шаг 14,
+   решение не пересмотрено), судом и ПП не меняется; penaltyMaxPct мёртв (шаг 4).
+   Шаг 18 (сверка с mockups/loan-program/loan-program.html «Платежи и расчёты» /
+   «Льготный период»): добавлены payDay · lastPaymentAnchor · payMonths ·
+   graceIntDistFrom/To — разбор в шапке файла.
+   Шаг 20: dayMethod вернулся сюда из «Расчётов» (шаг 14 счёл его параметром
+   движка, не переговорным условием; пользователь при ревизии дневного расчёта
+   счёл иначе — это ставка/база начисления %, редактируется тем же основанием,
+   что и сама ставка). ---- */
 const PARAMS = [
   { key:'rate',          label:'Ставка, %',                 kind:'num' },
   { key:'reserveRate',   label:'Ставка резерва, %',         kind:'num' },
   { key:'penaltyMain',   label:'Пеня по ОД, %/дн',          kind:'num' },
   { key:'penaltyInt',    label:'Пеня по %, %/дн',           kind:'num' },
   { key:'term',          label:'Срок, мес.',                kind:'num' },
+  { key:'payDay',        label:'День платежа, число месяца', kind:'num' },
+  { key:'lastPaymentAnchor', label:'Привязка последнего платежа', kind:'enum',
+    options:['по дате выдачи','по дате 1-го платежа'] },
   { key:'freq',          label:'Периодичность',             kind:'enum',
-    options:['ежемесячно','ежеквартально','раз в полгода','ежегодно'] },
+    options:['ежемесячно','ежеквартально','раз в полгода','ежегодно','по конкретным месяцам'] },
+  { key:'payMonths',     label:'Конкретные месяцы платежей', kind:'months' },
   { key:'method',        label:'Метод погашения',           kind:'enum',
     options:['аннуитет','равными долями','в конце срока'] },
   { key:'graceMain',     label:'Льгота по ОД, мес.',        kind:'num' },
   { key:'graceInterest', label:'Льгота по %, мес.',         kind:'num' },
-  { key:'graceAccrual',  label:'Отсрочка начисления, мес.', kind:'num' }
+  { key:'graceIntDistFrom', label:'Распредел. отсроч. % — период с №', kind:'num' },
+  { key:'graceIntDistTo',   label:'Распредел. отсроч. % — период по №', kind:'num' },
+  { key:'graceAccrual',  label:'Отсрочка начисления, мес.', kind:'num' },
+  { key:'dayMethod',     label:'Метод дней',                kind:'enum',
+    /* Шаг 20: числитель×база — полный перекрёстный список из loan-program.html
+       (dayCountNum × dayCountBase, R19), свёрнутый в одну строку 'числ/база'. */
+    options:['факт/365','факт/360','факт/факт','30/365','30/360','30/факт'] }
 ];
 const PARAM_KEYS = PARAMS.map(p => p.key);
 const paramLabel = k => (PARAMS.find(p => p.key === k) || {}).label || k;
@@ -1257,6 +1419,20 @@ const PROGRAM_DOCS = {
 const PROGRAM_DOCS_DEFAULT = { req:['Кредитный договор','Решение комиссии'], opt:[] };
 function programDocs(credit){
   return PROGRAM_DOCS[(credit && credit.origin && credit.origin.programId) || ''] || PROGRAM_DOCS_DEFAULT;
+}
+/* ---- Период между освоением и первым платежом (Шаг 18, Q3) — зеркало кредитной
+   программы (`minDays`/`maxDays` в renderTab6 loan-program.html), тем же паттерном,
+   что PROGRAM_DOCS. НЕ условие транша (не переговорная величина, а лимит-коридор) —
+   валидация в gate('addDisbursement'), а не запись в conditionRecords. Значения —
+   заглушка-плейсхолдер (широкий коридор, реальные цифры за владельцем программы),
+   как PROGRAM_DOCS_DEFAULT — лучше не блокировать демо, чем выдумать точную цифру. */
+const PROGRAM_DISB_WINDOW_DEFAULT = { min:1, max:120 };
+const PROGRAM_DISB_WINDOW = {
+  'ПРГ-1':{min:1,max:120}, 'ПРГ-2':{min:1,max:120}, 'ПРГ-3':{min:1,max:120}, 'ПРГ-4':{min:1,max:120},
+  'ПРГ-5':{min:1,max:120}, 'ПРГ-6':{min:1,max:120}, 'ПРГ-7':{min:1,max:120}, 'ПРГ-8':{min:1,max:120}
+};
+function programDisbWindow(credit){
+  return PROGRAM_DISB_WINDOW[(credit && credit.origin && credit.origin.programId) || ''] || PROGRAM_DISB_WINDOW_DEFAULT;
 }
 /* Состояния документа (§5.3). Закрывающие гейт — «принят» и «не требуется»;
    остальные оставляют комплект несобранным. */
@@ -1854,7 +2030,7 @@ function seedDb(){
     kind:'Инвестиционный', line:'Единовременный', purpose:'Реконструкция базы отдыха', fundingSource:'Бюджетный кредит',
     accounts:{ repayAcct:'1280000000000042', repayAcctKind:'Расчётный', payCode:'PC-42' },
     lifecycle:'Действует',
-    baseConditions: condDefaults({ rate:9, term:36, floating:true, floatType:'учётная ставка НБКР', margin:3 }),
+    baseConditions: condDefaults({ rate:9, term:36, floatMeta:{ rate:{ benchmark:'учётная ставка НБКР', margin:3 } } }),
     // ДС, рождённое реструктуризацией (не из карточки кредита) — source='реструктуризация' (Р-4/Р-16);
     // editConditions всё равно заблокирован Г-9 (lifecycle≠«Проект»), правки условий кредита нет ни при каком source.
     // ДС-РС-1005 — демо хвоста журнала «Документы без изменения условий»: соглашение
@@ -2293,8 +2469,9 @@ function seedDb(){
               ? { kind:'Решение Правления', num:'РП-'+num, date:'18.06.2026', scan:'rp-'+num+'.pdf' }
               : { kind:'Акт сверки',       num:'АС-'+num, date:'20.06.2026', scan:'as-'+num+'.pdf' } }
         : null,
-      baseConditions: condDefaults({ rate, term, floating:!!s.float, floatType:s.float?'учётная ставка НБКР':null,
-        margin:s.float?3:0, reserveRate:s.reserve?2:0 }),
+      baseConditions: condDefaults({ rate, term,
+        floatMeta: s.float ? { rate:{ benchmark:'учётная ставка НБКР', margin:3 } } : {},
+        reserveRate:s.reserve?2:0 }),
       accrualHold, relief, factors,
       /* служебная пометка сидирования: «этот кредит платит по графику» — обработается
          вторым проходом (seedSettlePayments) и будет удалена из модели */
@@ -2637,8 +2814,16 @@ function factorsActive(c, asOf){
    обнуляет начисление процентов за период; пеня при паузе не затрагивается. */
 const FREQ_MONTHS = { 'ежемесячно':1, 'ежеквартально':3, 'раз в полгода':6, 'ежегодно':12 };
 function freqMonths(f){ return FREQ_MONTHS[f] || 1; }
+/* freq==='по конкретным месяцам' (Шаг 18, Q6): payMonths хранится и версионируется
+   как условие, но график по нему НЕ строится — движок падает на freqMonths()||1
+   (помесячно). Это не пропуск: сама программа (renderTab6, R19) при этом режиме
+   принудительно переключает метод погашения на «Индивидуальный» — то есть график
+   для него не формула, а ручной ввод, и donor-модель не даёт, от чего вести расчёт
+   при неравных промежутках между месяцами. Решать наравне с производственным
+   календарём (открытый вопрос §10.5), не изобретая формулу молча. */
 function buildSchedule(tranche, fromDate){
   const c = conditionsAt(tranche, TODAY);        // Р-21: условия транша — производное от записей
+  const dayMethod = c.dayMethod;                 // Шаг 20: dayMethod теперь в PARAMS — уже в c
   const P = disbursedSum(tranche) || tranche.amount || 0;        // амортизируем освоенный ОД
   const mpp = freqMonths(c.freq);                                // месяцев в периоде платежа
   const termM = Math.max(1, c.term | 0);                         // срок, мес.
@@ -2648,10 +2833,24 @@ function buildSchedule(tranche, fromDate){
   const gMainP = Math.ceil(Math.max(0, c.graceMain | 0) / mpp);       // льгота по ОД, периодов
   const gAccrP = Math.ceil(Math.max(0, c.graceAccrual | 0) / mpp);    // отсрочка начисления, периодов
   const gIntP  = Math.ceil(Math.max(0, c.graceInterest | 0) / mpp);   // льгота по %, периодов
+  /* Шаг 18 (Q5): окно распределения отсроченных % — по умолчанию (0/0, как у всех
+     59 демо-кредитов до этого шага) поведение не меняется — распределяем по ВСЕМ
+     периодам после льготы, как раньше. Заданное окно [from,to] сужает распределение;
+     непопавшее в окно копится и — как и раньше — гасится последним платежом (ниже). */
+  const gIntDistFrom = (c.graceIntDistFrom | 0) > 0 ? (c.graceIntDistFrom | 0) : (gIntP + 1);
+  const gIntDistTo   = (c.graceIntDistTo   | 0) > 0 ? (c.graceIntDistTo   | 0) : n;
   const holds = tranche.accrualHold || [];
   const within = (dt) => holds.some(h => h && h.from &&
     pd(h.from) <= dt && (!h.to || pd(h.to) >= dt));
   const start = pd(fromDate);
+  /* Шаг 18 (Q1/Q2): день платежа (payDay) и привязка последнего платежа
+     (lastPaymentAnchor) — по умолчанию (payDay=0, anchor='по дате выдачи') поведение
+     совпадает с прежним: день — из даты освоения, даты — n периодов от неё же.
+     «По дате 1-го платежа» считает от даты 1-го платежа (firstPay), а не от даты
+     выдачи (Q2, разбор в шапке файла — из сверки с loan-program.html renderTab6). */
+  const payDay = (c.payDay | 0) >= 1 && (c.payDay | 0) <= 31 ? (c.payDay | 0) : null;
+  const anchorFirst = c.lastPaymentAnchor === 'по дате 1-го платежа';
+  const firstPay = addM(start, mpp, payDay);
   const principalPeriods = Math.max(1, n - gMainP);              // периодов гашения ОД после льготы
   const annuity = (i > 0)
     ? P * i / (1 - Math.pow(1 + i, -principalPeriods))
@@ -2659,18 +2858,30 @@ function buildSchedule(tranche, fromDate){
   const diffPrincipal = P / principalPeriods;
   const rows = [];
   let bal = P, deferred = 0, deferredPer = 0;                    // deferred — отложенные проценты (graceInterest)
+  let prevDate = start;
   for (let k = 1; k <= n; k++){
-    const date = addM(start, k * mpp);
+    const date = anchorFirst
+      ? (k === 1 ? firstPay : addM(firstPay, (k - 1) * mpp, payDay))
+      : addM(start, k * mpp, payDay);
     const noAccrual = within(date) || (k <= gAccrP) || i === 0;  // graceAccrual / пауза: не начисляем
-    const accrued = noAccrual ? 0 : round2(bal * i);
+    /* Шаг 19: реальные начисленные % считаются по дням (dayMethod), а не по номинальной
+       ставке периода `i`. `i` остаётся структурной — ею размечается величина взноса
+       (аннуитет/дифф.), как и раньше: платёж не «плавает» от длины месяца. Расхождение
+       между `i`-долей и реальным `accrued` — обычная практика факт/365-аннуитета:
+       тело взноса фиксировано формулой, начисленные % — по факту дней. */
+    const db = dayBasis(dayMethod, date);
+    const periodDays = db.numFin ? 30 * mpp : Math.max(0, dd(prevDate, date));
+    const accrued = noAccrual ? 0 : round2(bal * (c.rate || 0) / 100 * periodDays / db.base);
+    prevDate = date;
     let interest;
     if (k <= gIntP){ deferred = round2(deferred + accrued); interest = 0; }   // начислено, но не платится
-    else {
-      if (deferredPer === 0 && deferred > 0) deferredPer = round2(deferred / Math.max(1, n - gIntP));
+    else if (k >= gIntDistFrom && k <= gIntDistTo){
+      if (deferredPer === 0 && deferred > 0) deferredPer = round2(deferred / Math.max(1, gIntDistTo - gIntDistFrom + 1));
       const add = Math.min(deferredPer, deferred);
       deferred = round2(deferred - add);
       interest = round2(accrued + add);
     }
+    else interest = accrued;                                          // вне окна распределения: копится, не гасится этим платежом
     let principal;
     if (k <= gMainP) principal = 0;                                          // льгота по ОД: только проценты
     else if (method === 'в конце срока') principal = (k === n ? round2(bal) : 0);
@@ -3170,13 +3381,17 @@ function maxFullRepayDate(c){
 function computeReserve(c, asOf){
   const per = []; let totalBase = 0, totalAmount = 0, rate = 0;
   for (const t of c.tranches){
-    const rr = conditionsAt(t, asOf || TODAY).reserveRate || 0;      // Р-21
+    const cnd = conditionsAt(t, asOf || TODAY);                       // Р-21
+    const rr = cnd.reserveRate || 0;
     if (rr <= 0) continue;
     const base = (t.amount || 0) - disbursedSum(t);
     if (base <= 0 || !t.plannedDate) continue;
     const days = Math.max(0, dd(pd(t.plannedDate), pd(asOf || TODAY)));
     if (days <= 0) continue;
-    const amount = round2(base * (rr / 100) * (days / 365));
+    /* Шаг 19/20: делитель раньше был захардкожен на 365 — теперь читает dayMethod
+       того же комплекта условий (тот же параметр, что и график), а не своё
+       отдельное допущение. */
+    const amount = round2(base * (rr / 100) * (days / dayBasis(cnd.dayMethod, pd(asOf || TODAY)).base));
     rate = rr; totalBase += base; totalAmount += amount;
     per.push({ trancheId:t.id, base, rate:rr, days, amount });
   }
@@ -3327,6 +3542,18 @@ function gate(credit, action, ctx = {}){
           : (d.coverage.covOk === false
              ? ('Обеспеченность ниже порога: индекс ' + Math.round((d.coverage.index || 0) * 100) + ' % при пороге 100 % (' + d.coverage.req + ' % к сумме под риском ' + money(d.coverage.base) + '). Нужен порог по решению КМ (Р-8) или waiver комиссии по залогу')
              : ('Доля ликвидного залога ' + Math.round((d.coverage.liqShare || 0) * 100) + ' % при минимуме ' + d.coverage.liqMin + ' % суммы под риском — в составе движимый неликвид (Прил.1 §2.4). Индекс при этом выполнен: нужен ликвидный предмет в составе, порог по решению КМ (Р-8) или waiver комиссии по залогу'))); // Г-6
+      /* Шаг 18 (Q3): период между освоением и первым платежом — не условие транша
+         (не переговорная величина), а лимит-коридор из программы (programDisbWindow,
+         зеркало-заглушка). Первый платёж выводится из действующих условий на дату
+         освоения — тех же payDay/freq, что использует buildSchedule. */
+      if (t && ctx.date){
+        const win = programDisbWindow(credit);
+        const cnd = conditionsAt(t, ctx.date);
+        const payDayW = (cnd.payDay | 0) >= 1 && (cnd.payDay | 0) <= 31 ? (cnd.payDay | 0) : null;
+        const gap = dd(pd(ctx.date), addM(pd(ctx.date), freqMonths(cnd.freq), payDayW));
+        if (gap < win.min) r.push('Промежуток до первого платежа ' + gap + ' дн. меньше минимума ' + win.min + ' дн. по программе (период между освоением и первым платежом)');
+        if (gap > win.max) r.push('Промежуток до первого платежа ' + gap + ' дн. больше максимума ' + win.max + ' дн. по программе (период между освоением и первым платежом)');
+      }
       break;
     }
     case 'closeDisbursement':                                            // Р-6: закрытие неосвоенного остатка
@@ -3584,7 +3811,7 @@ function addTranche(credit, ctx){
 /* addDisbursement(credit, {trancheNo,amount,order,purpose,doc}) — Г-4 (сумма транша) ·
    Г-5 (ЖЦ) · Г-6 (покрытие/КМ/waiver), все три проверяет единый gate('addDisbursement'). */
 function addDisbursement(credit, ctx){
-  const g = gate(credit, 'addDisbursement', { trancheNo: ctx.trancheNo, amount: ctx.amount }); // Г-4/Г-5/Г-6
+  const g = gate(credit, 'addDisbursement', { trancheNo: ctx.trancheNo, amount: ctx.amount, date: ctx.date }); // Г-4/Г-5/Г-6
   if (!g.ok) return g;
   const t = credit.tranches.find(x => x.no === ctx.trancheNo);
   const before = (t.disbursements || []).slice();
@@ -4683,6 +4910,7 @@ if (typeof document !== 'undefined') {
     const link=(id,msg)=>id?`<a class="rowlink" onclick="CR.toast('${jsAttr(msg)}')">${esc(id)}</a>`:null;
     const subjRows=(c.subject||[]).map(s=>`<tr><td>${esc(s.kind)}</td><td>${esc(s.name)}</td><td style="text-align:right">${esc(s.qty)}</td><td style="text-align:right">${money(s.cost)}</td></tr>`);
     const km=c.kmDecision;
+    const dt=c.debtTransfer;                                    // Шаг 17: перевод долга вернулся сюда, см. ниже
     /* Шаг 11: бейдж статуса регистрации рядом с № — производный (regStatusOf), поля в
        модели нет; раньше статус читался только косвенно, по заполненности реквизитов. */
     const rst=d.regStatus;
@@ -4738,12 +4966,24 @@ if (typeof document !== 'undefined') {
           <div class="section-h">Предмет кредита</div>
           ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Кол-во',r:1},{h:'Стоимость',r:1}], subjRows, {empty:'Предмет не задан'})}
         </div>
+
+        <div class="pcard wide">
+          <div class="section-h">Перевод долга — смена заёмщика</div>
+          <!-- Шаг 17: вернулось из «Условий» (шаг 11 переносил сюда же, шаг 14 — обратно
+               в «Условия» «новых аргументов нет»; аргумент нашёлся шагом 15 — Р-21 прямо
+               говорит, что перевод долга в записи НЕ идёт, он меняет субъекта, а не
+               параметр, значит и в глоссарном смысле «Условием» не является). -->
+          ${dt?`<div class="f2">${fld('Прежний заёмщик', esc(dt.from&&dt.from.name))}${fld('Новый заёмщик', esc(dt.newBorrower&&dt.newBorrower.name))}
+                ${fld('Соглашение', esc(dt.agreement&&dt.agreement.num)+(dt.agreement&&dt.agreement.registered?' <span class="pill low">зарегистрировано</span>':''))}${fld('Дата перевода', esc(dt.date))}</div>`
+            :`<p class="section-note" style="margin-bottom:0">Перевода долга не было. Смена заёмщика оформляется только зарегистрированным соглашением.</p>`}
+          <div class="gtoolbar">${actBtn(c,'transferDebt',{},'Оформить перевод долга','CR.openTransferModal()')}</div>
+        </div>
       </div>`;
   }
 
   /* ---- ВКЛАДКА 2: Условия ---- */
   function tabUsloviya(c,d){
-    const b=c.baseConditions, dt=c.debtTransfer;
+    const b=c.baseConditions;
     const locked = !gate(c,'editConditions',{}).ok;                 // Г-9: не «Проект» → только зарегистрированным основанием
     const g9='Изменение условий — только зарегистрированным основанием: доп. соглашение · решение суда · постановление правительства (Г-9)';
     /* Шаг 14: пилюля у поля говорила «зеркало» — неверно, условия owned кредитом,
@@ -4798,7 +5038,20 @@ if (typeof document !== 'undefined') {
       const agg=creditConditionsAt(c,cardAsOf)[param]||{};
       return agg.divergent ? Math.max(...agg.values.map(v=>Number(v.value)||0)) : Number(agg.value)||0;
     };
+    /* Шаг 18: сырое (нечисловое) действующее значение — для enum-параметров типа
+       freq, где условная видимость (payMonths при «по конкретным месяцам»)
+       зависит от ТЕКСТА значения, а paramVal коэрцирует в число. */
+    const paramRaw=(param)=>{
+      if (condScope!=='credit'){
+        const t=c.tranches.find(x=>x.no===condScope)||c.tranches[0];
+        return conditionsAt(t,cardAsOf)[param];
+      }
+      const agg=creditConditionsAt(c,cardAsOf)[param]||{};
+      return agg.divergent ? (agg.values[0]&&agg.values[0].value) : agg.value;
+    };
     const hasGrace = ['graceMain','graceInterest','graceAccrual'].some(k=>paramVal(k)>0);
+    const hasGraceInt = paramVal('graceInterest')>0;
+    const showPayMonths = paramRaw('freq')==='по конкретным месяцам';
     return `
       ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: гаснет после перегенерации графика
         const first=rf[0];
@@ -4834,48 +5087,74 @@ if (typeof document !== 'undefined') {
             ${cf('penaltyMain')}
             ${cf('penaltyInt')}
           </div>
-          ${b.floating?`<p class="section-note" style="margin-bottom:0">Плавающая: ${esc(b.floatType||'—')} + маржа ${esc(b.margin)}% (шаблон кредита; каждое пересчитанное значение приходит записью с основанием).</p>`:''}
+          <!-- Шаг 18 (Q4): плавающая обобщена с rate-only на любой денежный параметр
+               (rate/reserveRate/penaltyMain/penaltyInt) — по одной строке на каждый,
+               у каждого свой бенчмарк (сверка с loan-program.html: у ставки, резерва
+               и обеих пеней разные справочники бенчмарков). Шаблон кредита, не запись
+               условия — сам факт плавающести не версионируется, версионируется цифра. -->
+          ${['rate','reserveRate','penaltyMain','penaltyInt'].filter(k=>b.floatMeta&&b.floatMeta[k]).map(k=>
+            `<p class="section-note" style="margin-bottom:0">${esc(paramLabel(k))} — плавающая: ${esc(b.floatMeta[k].benchmark||'—')} + маржа ${esc(b.floatMeta[k].margin)}% (шаблон кредита; каждое пересчитанное значение приходит записью с основанием).</p>`
+          ).join('')}
         </div>
 
         <div class="pcard">
           <div class="section-h">Погашение</div>
           <div class="f2">
             ${cf('term')}
-            ${cf('freq')}
             ${cf('method')}
-            ${hasGrace?`${cf('graceMain')}${cf('graceInterest')}${cf('graceAccrual')}`:''}
+            ${cf('freq')}
+            ${showPayMonths?cf('payMonths'):''}
+            ${cf('payDay')}
+            ${cf('dayMethod')}
+            ${cf('lastPaymentAnchor')}
+            ${hasGrace?`${cf('graceMain')}${cf('graceInterest')}${hasGraceInt?`${cf('graceIntDistFrom')}${cf('graceIntDistTo')}`:''}${cf('graceAccrual')}`:''}
           </div>
         </div>
 
         <div class="pcard">
           <div class="section-h">Приостановки начисления</div>
-          ${cgrid([{h:'С'},{h:'По'},{h:'Основание'},{h:'Документ'}], holdRows, {empty:'Активных приостановок нет'})}
+          <!-- Карточка с действием (holdAccrual — единственный вход в модалку) остаётся
+               видимой всегда, даже без единой записи (grill 2026-07-31): скрыть значило бы
+               спрятать и кнопку. Таблица — вся история интервалов, не только активные на
+               cardAsOf (holdIsActive тут не фильтр, а другой юзкейс — риск/оверлеи). -->
+          ${cgrid([{h:'С'},{h:'По'},{h:'Основание'},{h:'Документ'}], holdRows, {empty:'Приостановок не было'})}
           <div class="gtoolbar">${roleBtn('holdAccrual','Приостановить начисление','CR.openHoldModal()')}</div>
         </div>
 
-        <div class="pcard wide" id="condDivergence">
-          <div class="section-h">Расхождения по траншам (на ${esc(cardAsOf)})</div>
-          <p class="section-note">Условия принадлежат траншу. Здесь только параметры,
-            по которым транши разошлись на дату среза; согласованные значения — в карточках выше.</p>
-          ${(()=>{ const rows=divergenceRows(c,cardAsOf);
-            // TODO при появлении закрытых траншей: колонки строятся по ВСЕМ траншам
-            // (c.tranches), а значения приходят из divergenceRows/creditConditionsAt,
-            // которые считают только активные (activeTranche) — у закрытого транша
-            // колонка будет, а значения в ней не будет. Сейчас ни один транш демо
-            // не несёт closed, поэтому расхождение не проявляется.
-            const cols=[{h:'Параметр'}].concat(c.tranches.map(t=>({h:'Транш №'+t.no})))
-                                       .concat([{h:'Основание расхождения'}]);
-            const trs=rows.map(r=>{
-              const cells=c.tranches.map(t=>{ const cell=r.cells.find(x=>x.trancheNo===t.no);
-                return `<td>${esc(cell?cell.value:'—')}</td>`; }).join('');
-              const refs=[...new Set(c.tranches.map(t=>{ const rec=(t.conditionRecords||[])
-                .filter(x=>x.param===r.param && x.effectiveFrom && pd(x.effectiveFrom)<=pd(cardAsOf))
-                .sort(crOrder).pop();
-                return rec?(rec.basis.ref||''):''; }).filter(Boolean))];
-              return `<tr><td>${esc(paramLabel(r.param))}</td>${cells}<td>${esc(refs.join(' · '))}</td></tr>`; });
-            return cgrid(cols, trs, {empty:'Расхождений нет — условия всех траншей совпадают'});
-          })()}
-        </div>
+        <!-- Карточка без действия (чисто информационная) скрывается целиком, когда
+             нечего показать (grill 2026-07-31) — три условия разом: >1 транша
+             (структурно возможно), scope='credit' (агрегатный вид, не конкретный
+             транш — расхождение между траншами не relevant при просмотре одного) и
+             фактическое расхождение на cardAsOf (не только структурная возможность,
+             но и транзиентное «на этот момент разошлись»). Было раньше (шаг 17):
+             скрывали только по структуре, при 0 расхождений на дату держали
+             пустое состояние внутри — несогласовано с правилом карточки-без-действия. -->
+        ${(()=>{
+          if (condScope!=='credit' || c.tranches.length<=1) return '';
+          const rows=divergenceRows(c,cardAsOf);
+          if (!rows.length) return '';
+          // TODO при появлении закрытых траншей: колонки строятся по ВСЕМ траншам
+          // (c.tranches), а значения приходят из divergenceRows/creditConditionsAt,
+          // которые считают только активные (activeTranche) — у закрытого транша
+          // колонка будет, а значения в ней не будет. Сейчас ни один транш демо
+          // не несёт closed, поэтому расхождение не проявляется.
+          const cols=[{h:'Параметр'}].concat(c.tranches.map(t=>({h:'Транш №'+t.no})))
+                                     .concat([{h:'Основание расхождения'}]);
+          const trs=rows.map(r=>{
+            const cells=c.tranches.map(t=>{ const cell=r.cells.find(x=>x.trancheNo===t.no);
+              return `<td>${esc(cell?cell.value:'—')}</td>`; }).join('');
+            const refs=[...new Set(c.tranches.map(t=>{ const rec=(t.conditionRecords||[])
+              .filter(x=>x.param===r.param && x.effectiveFrom && pd(x.effectiveFrom)<=pd(cardAsOf))
+              .sort(crOrder).pop();
+              return rec?(rec.basis.ref||''):''; }).filter(Boolean))];
+            return `<tr><td>${esc(paramLabel(r.param))}</td>${cells}<td>${esc(refs.join(' · '))}</td></tr>`; });
+          return `<div class="pcard wide" id="condDivergence">
+            <div class="section-h">Расхождения по траншам (на ${esc(cardAsOf)})</div>
+            <p class="section-note">Условия принадлежат траншу. Здесь только параметры,
+              по которым транши разошлись на дату среза; согласованные значения — в карточках выше.</p>
+            ${cgrid(cols, trs)}
+          </div>`;
+        })()}
 
         <div class="pcard wide">
           <div class="section-h">Журнал изменений условий</div>
@@ -4912,6 +5191,7 @@ if (typeof document !== 'undefined') {
           ${(()=>{ const usedRefs=new Set();
             c.tranches.forEach(t=>(t.conditionRecords||[]).forEach(r=>{ if(r.basis&&r.basis.ref) usedRefs.add(r.basis.ref); }));
             const orphan=(c.agreements||[]).filter(a=>!usedRefs.has(a.num));
+            if(!orphan.length) return '';                     // Шаг 17: хвост пуст у большинства — не рендерим пустую подсекцию
             const trs=orphan.map(a=>`<tr><td>ДС ${esc(a.num)}</td><td>${esc(a.date)}</td><td>${esc(a.source||'—')}</td>
               <td>${a.scan?`<a class="lnk" onclick="CR.toast('Просмотр вложения — вне объёма макета');return false">${esc(a.scan)}</a>`:'—'}</td></tr>`);
             return `<div class="section-h" style="margin-top:16px;font-size:13px">Документы без изменения условий</div>
@@ -4947,14 +5227,6 @@ if (typeof document !== 'undefined') {
             копируемые в записи при создании нового транша. Действующие — в карточках выше.
             Правка шаблона возможна только в ЖЦ «Проект».</p>
             <div class="f2">${PARAMS.map(p=>fld(p.label, esc(b[p.key]))).join('')}</div>`:''}
-        </div>
-
-        <div class="pcard wide">
-          <div class="section-h">Перевод долга — смена заёмщика</div>
-          ${dt?`<div class="f2">${fld('Прежний заёмщик', esc(dt.from&&dt.from.name))}${fld('Новый заёмщик', esc(dt.newBorrower&&dt.newBorrower.name))}
-                ${fld('Соглашение', esc(dt.agreement&&dt.agreement.num)+(dt.agreement&&dt.agreement.registered?' <span class="pill low">зарегистрировано</span>':''))}${fld('Дата перевода', esc(dt.date))}</div>`
-            :`<p class="section-note" style="margin-bottom:0">Перевода долга не было. Смена заёмщика оформляется только зарегистрированным соглашением.</p>`}
-          <div class="gtoolbar">${actBtn(c,'transferDebt',{},'Оформить перевод долга','CR.openTransferModal()')}</div>
         </div>
       </div>`;
   }
@@ -5113,7 +5385,7 @@ if (typeof document !== 'undefined') {
       <p class="section-note">Параметры движка — те же, что и на вкладке «Условия», читаются вместе с цифрами, которые объясняют.
         Это условия договора: правка — только зарегистрированным основанием.</p>
       <div class="f2" style="max-width:760px;margin-bottom:12px">
-        ${fld('Метод дней', esc(bc.dayMethod))}
+        ${fld('Метод дней', esc(sel ? conditionsAt(sel, cardAsOf).dayMethod : bc.dayMethod))}
         ${fld('Очередь погашения', esc(bc.queue))}
       </div>
       ${led}
@@ -5590,6 +5862,14 @@ if (typeof document !== 'undefined') {
           const t0=c.tranches[0], cur=t0?CR.conditionsAt(t0,CR.TODAY)[p.key]:'';
           const input = p.kind==='enum'
             ? `<select id="cbV_${p.key}" onchange="CR.condPreview()">${p.options.map(o=>`<option${String(o)===String(cur)?' selected':''}>${esc(o)}</option>`).join('')}</select><span class="caret">▾</span>`
+            : p.kind==='months'
+            /* Шаг 18: hidden-инпут cbV_ хранит «1,4,7» — общий код (condRecalcDefaults/
+               condPreview/submitCond) уже читает el.value как готовое значение записи,
+               спецкод нужен только для чекбоксов ↔ hidden input. */
+            ? (()=>{ const cur0=String(cur||'').split(',').map(s=>s.trim()).filter(Boolean);
+                const boxes=Array.from({length:12},(_,i)=>i+1).map(m=>
+                  `<label style="margin-right:8px;font-weight:normal"><input type="checkbox" class="cbMonth_${p.key}" value="${m}" ${cur0.includes(String(m))?'checked':''} onchange="CR.condMonthsChanged('${p.key}')"> ${m}</label>`).join('');
+                return `<input type="hidden" id="cbV_${p.key}" value="${esc(cur0.join(','))}">${boxes}`; })()
             : `<input id="cbV_${p.key}" type="number" step="0.01" value="${esc(cur)}" oninput="CR.condPreview()">`;
           return `<div class="field"><span class="flabel"><label><input type="checkbox" class="cbP" value="${p.key}" onchange="CR.condPreview()"> ${esc(p.label)}</label></span>
             <div class="control">${input}</div></div>`;
@@ -5630,12 +5910,20 @@ if (typeof document !== 'undefined') {
   /* Предзаполнение и «было» обязаны читаться на дату вступления (cbEff), не
      на CR.TODAY — иначе для ретроспективной записи предпросмотр лжёт о том,
      что действовало на дату, которую сам же документ меняет задним числом. */
+  CR.condMonthsChanged=function(key){                    // Шаг 18: чекбоксы месяцев → hidden cbV_
+    const vals=[...document.querySelectorAll('.cbMonth_'+key+':checked')].map(x=>+x.value).sort((a,b)=>a-b);
+    document.getElementById('cbV_'+key).value = vals.join(',');
+    CR.condPreview(); };
   CR.condRecalcDefaults=function(){ const c=currentCredit(); if(!c) return;
     const eff=condEffDate(), t0=c.tranches[0]; if(!t0) return;
     CR.PARAMS.forEach(p=>{
       const el=document.getElementById('cbV_'+p.key); if(!el) return;
       const cur=CR.conditionsAt(t0,eff)[p.key];
       el.value = (cur===undefined?'':cur);
+      if (p.kind==='months'){                             // resync чекбоксов на пересчёт по дате
+        const vals=String(el.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+        document.querySelectorAll('.cbMonth_'+p.key).forEach(cb=>{ cb.checked=vals.includes(cb.value); });
+      }
     }); };
   CR.condPreview=function(){ const box=document.getElementById('cbPreview'); if(!box) return;
     const c=currentCredit(); if(!c) return;
@@ -6031,6 +6319,9 @@ if (typeof document !== 'undefined') {
   CR.gotoPage = gotoPage; CR.setPageSize = setPageSize;
   CR.selectRow = selectRow; CR.openDetail = openDetail; CR.backToList = backToList;
   CR.resetDemo = resetDemo; CR.openCreatePicker = openCreatePicker; CR.pickApplication = pickApplication;
+
+  /* гамбургер сворачивает сайдбар — освобождает ширину под таблицы (реестр/расчёты). */
+  window.toggleNav = function(){ document.querySelector('.app').classList.toggle('nav-collapsed'); };
 
   /* split-меню (печатные формы) закрывается кликом мимо — карточка перерисовывается
      целиком, поэтому слушатель вешается один раз на документ, а не на кнопку. */
