@@ -30,9 +30,10 @@
      если у кредита охвата bezakceptRight:true. Терминалы (§3.3): Полное погашение ·
      Признана безнадёжной · Списана · Завершена процедура банкротства.
 
-  4. СТАДИЯ — производная от фазы (stageOf), 4 значения (§3.5): Досудебный порядок ·
-     Судебный порядок · Исполнительное производство · Отчуждение активов. Фильтр стадии
-     в сайдбаре — по stageOf(phase), НЕ по наличию меры (закрывает Д-4).
+  4. СТАДИЯ — производная от фазы (stageOf), 4 канонных значения (§3.5, ADR-0037/0040):
+     Наблюдение · Досудебный порядок · Судебный порядок · Исполнительное производство.
+     Фильтр стадии — поле панели фильтров реестра требований (filterState.stage), НЕ
+     пункт сайдбара (ADR-0041) и НЕ по наличию меры (закрывает Д-4).
 
   5. ОТОБРАЖАЕМАЯ ФАЗА (§3.6, displayPhase): хранятся phase (приостановленная) + overlay;
      при активном оверлее реструктуризации показывается «Рассмотрение вопроса
@@ -935,7 +936,7 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
             <thead><tr id="dlHead"></tr></thead>
             <tbody id="deadlinesBody"></tbody>
           </table></div>
-          <p class="section-note" style="margin-top:10px">Остаток не хранится — считается из даты срока и даты отсчёта (СК-2). Единица счёта — календарные дни; шаблонный срок Порядка («10 р.д.») и база отсчёта — в подсказке строки (СК-3). Ответственный выводится: куратор дела × подразделение шаблона (§10) — там, где шаблон подразделения не называет, стоит «не выведено», а не догадка (СК-8).</p>
+          <p class="section-note" style="margin-top:10px">Остаток не хранится — считается из даты срока и даты отсчёта. Единица счёта — календарные дни; шаблонный срок Порядка («10 р.д.») и база отсчёта — в подсказке строки. Ответственный выводится: куратор дела × подразделение шаблона — там, где шаблон подразделения не называет, стоит «не выведено», а не догадка.</p>
         </div>
       </section>
     </div>
@@ -958,9 +959,9 @@ const TREE = [
   { id:"g", label:"Поручительства", subs:[ { id:"g-all", headerless:true, items:[ {label:"Анкеты поручительств"} ]} ]},
   { id:"debt", label:"Взыскание задолженности", open:true, subs:[
     { id:"debt-all", headerless:true, items:[
+      /* ADR-0041: стадия — поле панели фильтров реестра (filterState.stage),
+         не отдельные пункты сайдбара — дублировали один и тот же дропдаун. */
       { label:"Требования (реестр)", active:true },
-      { label:"Наблюдение" }, { label:"Досудебный порядок" }, { label:"Судебный порядок" },
-      { label:"Исполнительное производство" },
       { label:"Заседания (реестр)" }, { label:"Претензии (реестр)" },
       { label:"Вопросы на коллегиальные органы (реестр)" }, { label:"Сроки на контроле (реестр)" },
       /* НП-13: экран правил жил только под шестерёнкой в шапке — в дереве его не было,
@@ -992,18 +993,13 @@ let navLabel = 'Требования (реестр)';
 function navClick(l){
   const goList = () => { curPage = 1; tileFilter = null; navLabel = l; renderNav(); renderFilterBar(); renderList(); renderChips(); showView('list'); };
   const goReg  = (render, view) => { navLabel = l; renderNav(); render(); showView(view); };
-  if(l === 'Требования (реестр)'){ stageFilter = null; goList(); return; }
+  if(l === 'Требования (реестр)'){ goList(); return; }
   /* КР-1: три кросс-процессных реестра ходят через общий каркас — пункт меню
      находит своё описание сам, отдельной ветки на каждый экран больше нет. */
   const reg = Object.keys(REGS).find(k => REGS[k].nav === l);
   if(reg){ goReg(()=>regRender(reg), reg); return; }
   if(l === 'Сроки на контроле (реестр)'){ goReg(renderDeadlinesRegistry, 'deadlines'); return; }
   if(l === 'Настройки правил'){ navLabel = l; renderNav(); showView('settings'); return; }
-  /* ТР-10: все стадии — обычные фильтры одного реестра, пустой ответ честнее тоста
-     (пустое состояние объясняет условия, ТР-Д12). СТ-1/СТ-6 (ADR-0040): 4 канонных
-     значения (наблюдение · досудебный · судебный · исполнительное); «Отчуждение
-     активов» отсюда убрано — это чужой модуль, не стадия требования (§13). */
-  if(l in STAGE_RANK){ stageFilter = l; goList(); return; }
   toast('Демо-макет: раздел в разработке');
 }
 
@@ -1598,7 +1594,7 @@ const ispTrackOf = r => trackOpenerOf(r, ISP_OPENERS, ISP_CLOSERS);
    фазы (§12 — состояние лица, а не место в маршруте). */
 function personStateBadge(r){
   const st = personStateOf(r);
-  return st ? ` <span class="pill mid" title="Состояние лица «${escAttr(st)}» — не двигает фазу маршрута (§12, ADR-0037)">${escAttr(st)}</span>` : '';
+  return st ? ` <span class="pill mid" title="Состояние лица «${escAttr(st)}» — не двигает фазу маршрута">${escAttr(st)}</span>` : '';
 }
 function trackBadges(r){
   const sud = sudTrackOf(r), isp = ispTrackOf(r);
@@ -1916,7 +1912,7 @@ const stageOfReq = r => stageOf(effectivePhaseOf(r));
 /* Фазы фильтра «Фаза», доступные при выбранной стадии — только реальные роут-фазы:
    К2/К5/К6/К7 фильтром этой волны не бьются (ADR-0040/СТ-3). */
 const phasesOfStage = st => [...ROUTE_PHASES].filter(ph => PHASE_STAGE[ph] === st);
-/* Стадия дела — самая продвинутая среди требований (для сайдбар-фильтра и реестров). */
+/* Стадия дела — самая продвинутая среди требований (для фильтра «Стадия» и реестров). */
 const STAGE_RANK = { 'Наблюдение':0, 'Досудебный порядок':1, 'Судебный порядок':2, 'Исполнительное производство':3 };
 function sequenceReason(r, kind){
   const cur = phaseOf(r);
@@ -4158,7 +4154,6 @@ const dinp = (l,v,id)=>`<div class="field"><span class="flabel">${l}</span><div 
      · деньги подписаны датой снимка модуля кредита (ТР-11, М-4).
    ============================================================ */
 let sortKey='claim', sortDir=-1;   // ТР-4: портфель ведёт крупным требованием
-let stageFilter = null;   // фильтр стадии из сайдбара: значение stageOf()
 let tileFilter  = null;   // фильтр плитки: 'gate' | 'window' | 'procWait' | 'clear' | 'closed'
 let filterState = {};     // полевой фильтр списка (живой; Контур→Фаза и Область→Район зависимые)
 
@@ -4223,7 +4218,6 @@ function passFilters(r){
 function baseSet(){
   const retro = document.getElementById('retroToggle') && document.getElementById('retroToggle').checked;
   let src = allReqs().filter(r => retro ? true : !isRetroClosed(r._proc));   // Р-9: ретро-закрытые скрыты по умолчанию
-  if(stageFilter) src = src.filter(r => stageOfReq(r) === stageFilter);
   return src.filter(passFilters);
 }
 function visibleReqs(){
@@ -4327,7 +4321,7 @@ function renderTiles(){
   ];
   document.getElementById('listTiles').innerHTML = tiles.map(t=>`
     <div class="tile ${t.cls}${tileFilter===t.key && t.key!==null ? ' active':''}" onclick="clickTile(${t.key===null?'null':`'${t.key}'`})"
-         title="${escAttr(t.lbl)} — ${t.n} требований на ${m(t.key)} сом (деньги один раз на кредит, §2.2)">
+         title="${escAttr(t.lbl)} — ${t.n} требований на ${m(t.key)} сом (деньги один раз на кредит)">
       <div class="tv">${t.n}</div><div class="tl">${t.lbl}</div><div class="tm">${m(t.key)}</div></div>`).join('');
 }
 function clickTile(k){ tileFilter = (k===null) ? null : (tileFilter===k ? null : k); curPage = 1; renderTiles(); renderList(); renderChips(); }
@@ -4374,7 +4368,6 @@ function moneyNote(rows){
 /* ---- условия отбора: одним списком для чипов, пустого состояния и оттиска выгрузки ---- */
 function activeConditions(){
   const out = [];
-  if(stageFilter) out.push('Стадия: ' + stageFilter);
   if(tileFilter)  out.push('Плитка: ' + TILE_LABELS[tileFilter]);
   for(const k of Object.keys(filterState)){
     const v = filterState[k];
@@ -4511,7 +4504,7 @@ function onPageSize(v){ PAGE_SIZE = Number(v) || 25; curPage = 1; renderList(); 
 function sortList(k){ if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=1;} curPage = 1; renderList(); }
 /* Снять ВСЁ, что сужает выборку: поля, стадию, плитку (пустое состояние ТР-Д12). */
 function resetAllConditions(){
-  filterState = {}; stageFilter = null; tileFilter = null; curPage = 1;
+  filterState = {}; tileFilter = null; curPage = 1;
   navLabel = 'Требования (реестр)';
   const rt = document.getElementById('retroToggle'); if(rt) rt.checked = false;
   renderNav(); renderFilterBar(); renderList(); renderChips();
@@ -4860,7 +4853,7 @@ function dealHeadHtml(p){
       ${proc}
       <span class="dh-sep">·</span>${grp?`<span class="pill neutral">группа ${escAttr(grp)}</span>`:`<span class="dh-muted">группа не выведена</span>`}
       <span class="dh-sep">·</span><span class="dh-meta">куратор ${escAttr(p.curator)}</span>
-      <span class="dh-sep">·</span><span class="dh-money" title="Сумма по делу считается один раз на кредит — солидарные требования не задваиваются (§2.2).">по делу <b>${fmtKGS(claimTotal(p.requirements))}</b></span>
+      <span class="dh-sep">·</span><span class="dh-money" title="Сумма по делу считается один раз на кредит — солидарные требования не задваиваются.">по делу <b>${fmtKGS(claimTotal(p.requirements))}</b></span>
     </div>
   </div>`;
 }
@@ -4940,10 +4933,10 @@ function panelDeal(){
       ${ro('Куратор', p.curator)}
       ${ro('Исход дела', out || '— (в работе)')}
     </div>
-    <p class="section-note" style="margin-top:16px">Дело — папка заёмщика (§2.1): кураторство, процедура, согласования, приостановка назначения, история. Фазы, охвата, категории и суммы у дела НЕТ — это свойства требований, они в шапке. Дело закрыто тогда и только тогда, когда закрыты все его требования (М-9), поэтому «сирота» в 0,01 сома здесь невозможна по построению.</p>
+    <p class="section-note" style="margin-top:16px">Дело — папка заёмщика: кураторство, процедура, согласования, приостановка назначения, история. Фазы, охвата, категории и суммы у дела НЕТ — это свойства требований, они в шапке. Дело закрыто тогда и только тогда, когда закрыты все его требования, поэтому «сирота» в 0,01 сома здесь невозможна по построению.</p>
     </div>
     <p class="section-h" style="margin-top:20px">Обязанные лица</p>
-    <p class="section-note">Состояния лица (смерть, банкротство, правопреемство) задевают все требования к этому лицу сразу; состояния обязательства — только своё требование (М-11).</p>
+    <p class="section-note">Состояния лица (смерть, банкротство, правопреемство) задевают все требования к этому лицу сразу; состояния обязательства — только своё требование.</p>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Лицо</th><th>ИНН</th><th>Тип</th><th>Роль</th><th>Требования</th><th>Состояние лица</th></tr></thead>
       <tbody>${obligors}</tbody></table></div></div>`;
@@ -4985,7 +4978,7 @@ function debtTableHtml(r){
       <thead><tr><th>Статья долга</th><th style="text-align:right">Начислено</th><th style="text-align:right">Погашено</th><th style="text-align:right">Остаток</th><th style="text-align:right">Востребовано</th></tr></thead>
       <tbody>${rows}${costRows}<tr class="total"><td>Итого</td><td style="text-align:right">${fmtKGS(accTot)}</td><td style="text-align:right">${fmtKGS(paidTot)}</td><td style="text-align:right">${fmtKGS(d.totalLeft)}</td><td style="text-align:right">${fmtKGS(d.claim)}</td></tr></tbody>
     </table></div>
-    <p class="section-note" style="margin-top:8px">Четыре статьи — снимок модуля кредита на <b>${d.asOf}</b>, взыскание их только читает (М-4). Пятая, расходы по обращению взыскания, — собственная статья требования. Столбец «Востребовано» считается из охвата «${scopeLabel(scopeOf(r))}»${scopeOf(r).volume==='просроченная сумма'?': берётся просроченная часть каждой статьи':': берётся весь остаток'}.${d.frozen?` Начисление заморожено с ${d.frozen.since}: ${d.frozen.why}.`:''}</p>
+    <p class="section-note" style="margin-top:8px">Четыре статьи — снимок модуля кредита на <b>${d.asOf}</b>, взыскание их только читает. Пятая, расходы по обращению взыскания, — собственная статья требования. Столбец «Востребовано» считается из охвата «${scopeLabel(scopeOf(r))}»${scopeOf(r).volume==='просроченная сумма'?': берётся просроченная часть каждой статьи':': берётся весь остаток'}.${d.frozen?` Начисление заморожено с ${d.frozen.since}: ${d.frozen.why}.`:''}</p>
     ${r._credit.debtNote?`<p class="section-note" style="margin-top:8px">${r._credit.debtNote}</p>`:''}`;
 }
 /* КД-Д16: функция звалась panelOhvat — по вкладке «Охват» модели v2. Вкладка давно
@@ -5014,7 +5007,7 @@ function panelDebt(){
   if(p.realization){
     const dr=distributeRealization(p.realization.proceeds,req);
     realBlk=`<p class="section-h" style="margin-top:20px">Распределение выручки от реализации залога (п. 49)</p>
-    <p class="section-note">${p.realization.note}. Порядок п. 49: расходы по обращению взыскания → требования залогодержателя → остаток возвращается залогодателю (строка обязательна, даже при нуле).</p>
+    <p class="section-note">${p.realization.note}. Порядок: расходы по обращению взыскания → требования залогодержателя → остаток возвращается залогодателю (строка обязательна, даже при нуле).</p>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Направление</th><th style="text-align:right">Сумма</th></tr></thead>
       <tbody>
@@ -5027,7 +5020,7 @@ function panelDebt(){
   }
   return `<div class="panel-wrap">
     <p class="section-h">Долг требования ${req.id}</p>
-    <p class="section-note">Требование = договор × обязанное лицо. Долг не хранится во взыскании: четыре статьи читаются у модуля кредита снимком с его датой, пятая (расходы по обращению взыскания) — собственная (М-4, ADR-0004). Сумма требования считается из охвата и потому не может разойтись с источником — копии, которая устаревает, здесь нет.</p>
+    <p class="section-note">Требование = договор × обязанное лицо. Долг не хранится во взыскании: четыре статьи читаются у модуля кредита снимком с его датой, пятая (расходы по обращению взыскания) — собственная. Сумма требования считается из охвата и потому не может разойтись с источником — копии, которая устаревает, здесь нет.</p>
     ${note}
     ${cards}
     <div class="gtoolbar" style="margin-top:14px"><button class="btn btn-tint btn-sm" onclick="openCostModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Внести расход по обращению взыскания</button></div>
@@ -5062,10 +5055,10 @@ function panelReq(){
       ${ro('Сумма требования', `${fmtKGS(claimOf(r))} · снимок на ${moneyAsOf(r)}`)}
       ${ro('Терминальный исход', out || '— (требование в работе)')}
     </div>
-    <p class="section-note" style="margin-top:16px">Требование — рабочая единица модуля (М-1, ADR-0002): охват, фаза, ведущее подразделение, сроки, состояния обязательства и исход принадлежат ему, а не папке дела. ${sol.length?`По этому договору обязаны ещё ${sol.length} лиц${sol.length>1?'а':'о'} — обязательство солидарное, треки исполнения раздельные.`:''} Исход не выставляется кнопкой: он производный (М-9) — нулевой остаток либо веха с документом-основанием.</p>
+    <p class="section-note" style="margin-top:16px">Требование — рабочая единица модуля: охват, фаза, ведущее подразделение, сроки, состояния обязательства и исход принадлежат ему, а не папке дела. ${sol.length?`По этому договору обязаны ещё ${sol.length} лиц${sol.length>1?'а':'о'} — обязательство солидарное, треки исполнения раздельные.`:''} Исход не выставляется кнопкой: он производный — нулевой остаток либо веха с документом-основанием.</p>
     </div>
     <p class="section-h" style="margin-top:20px">Сроки на контроле по требованию</p>
-    <p class="section-note">Срок принадлежит требованию: ответственный выводится как куратор дела × подразделение шаблона (§10), он показан в реестре. Остаток не хранится — считается из даты срока и даты отсчёта (СК-2); единица счёта календарные дни, шаблонный срок Порядка и номер шаблона — в подсказке строки. Справочник: <b>DEADLINE_TEMPLATES</b> (${DEADLINE_TEMPLATES.length} строки, §5.3), ссылка номером (СК-11). Здесь контекст одного требования; рабочая очередь по срокам — реестр <span class="rowlink" onclick="navClick('Сроки на контроле (реестр)')">«Сроки на контроле»</span> (ТР-1).</p>
+    <p class="section-note">Срок принадлежит требованию: ответственный выводится как куратор дела × подразделение шаблона, он показан в реестре. Остаток не хранится — считается из даты срока и даты отсчёта; единица счёта календарные дни, шаблонный срок Порядка и номер шаблона — в подсказке строки. Справочник: <b>DEADLINE_TEMPLATES</b> (${DEADLINE_TEMPLATES.length} строки), ссылка номером. Здесь контекст одного требования; рабочая очередь по срокам — реестр <span class="rowlink" onclick="navClick('Сроки на контроле (реестр)')">«Сроки на контроле»</span>.</p>
     <div class="cgrid-wrap"><table class="dl-grid">
       <thead><tr><th>Обязательство</th><th>Срок</th><th style="text-align:right">Осталось, к.д.</th><th>База отсчёта</th><th>Пункт</th></tr></thead>
       <tbody>${dl}</tbody></table></div></div>`;
@@ -5095,7 +5088,7 @@ function targetsCell(m, r, mi){
     const chip=`<span class="rolechip${x===r?' own':''}"${chipStyle}${chipTitle}>${x.role}${x===r?'':` · ${escAttr(personOf(x).name)}`}</span>`;
     const action=(!multi||m.storno)?'':stAtT
       ?` <span class="pill neutral">цель сторно</span>`
-      :` <button class="btn-tint btn-sm danger" style="padding:0 5px" onclick="openStornoModal(${mi},'${x.id}')" title="Сторно строки-цели ${escAttr(x.id)} — снимает действие меры только по этой цели, остальные не затронуты (ADR-0029 п.3)">✕</button>`;
+      :` <button class="btn-tint btn-sm danger" style="padding:0 5px" onclick="openStornoModal(${mi},'${x.id}')" title="Сторно строки-цели ${escAttr(x.id)} — снимает действие меры только по этой цели, остальные не затронуты">✕</button>`;
     return chip+action;
   }).join(' ');
 }
@@ -5127,7 +5120,7 @@ function panelMery(){
     /* РМ-Д4/ADR-0036 п.4: действие не гейтится ни статусом требования, ни сторно меры —
        факт (вручили/вынесли исход) мог случиться и после сторно документа. */
     const annotatable = needsDelivery(m.kind) || (kd && kd.outcomes);
-    const annoBtn = annotatable ? `<button class="btn-tint btn-sm" onclick="openAnnotationModal(${mi})" title="Доставка/исход — доступно независимо от статуса требования (ADR-0036 п.4)">Пометка</button>` : '';
+    const annoBtn = annotatable ? `<button class="btn-tint btn-sm" onclick="openAnnotationModal(${mi})" title="Доставка/исход — доступно независимо от статуса требования">Пометка</button>` : '';
     const alien=meryScope==='all' && !(m.targets||[]).includes(r.id);
     return `<tr class="${m.storno?'storno':bad?'mrow-undelivered':alien?'alien':''}">
       <td>${m.sec}</td><td>${m.kind}${isMilestone(m.kind)?' <span class="pill info">веха</span>':''}</td>
@@ -5144,7 +5137,7 @@ function panelMery(){
   return `<div class="panel-wrap">
     ${phaseTimeline()}
     <p class="section-h">Журнал мер</p>
-    <p class="section-note">Мера хранится на деле, но действует на перечисленные <b>требования</b> (М-5): один иск ко всем ответчикам (п. 32) — это одна мера с несколькими целями, а не копии. В фазу требования сворачиваются только меры, где оно указано целью. Фаза двигается ТОЛЬКО регистрацией меры-вехи. Исход — один реквизит своего вида (ADR-0028 п.1): у видов, где результат приходит отдельным документом, поля исхода нет вовсе. Аннулирование заменено на сторно (И-3): запись остаётся зачёркнутой, веха откатывает фазу. Сумма отправленного документа иммутабельна (И-1) — расхождение помечается, не переписывается.</p>
+    <p class="section-note">Мера хранится на деле, но действует на перечисленные <b>требования</b>: один иск ко всем ответчикам — это одна мера с несколькими целями, а не копии. В фазу требования сворачиваются только меры, где оно указано целью. Фаза двигается ТОЛЬКО регистрацией меры-вехи. Исход — один реквизит своего вида: у видов, где результат приходит отдельным документом, поля исхода нет вовсе. Аннулирование заменено на сторно: запись остаётся зачёркнутой, веха откатывает фазу. Сумма отправленного документа иммутабельна — расхождение помечается, не переписывается.</p>
     <div class="gtoolbar">
       ${canRegisterMeasures()?`<button class="btn btn-tint btn-sm" onclick="openMeasureModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Зарегистрировать меру</button>`:''}
       <div class="segbtn">
@@ -5191,7 +5184,7 @@ function panelSud(){
   const acts=courtActsOf(r).map(m=>`<tr>
     <td>${m.kind}</td><td>${(m.dates&&m.dates.event)||'—'}</td><td>${(m.dates&&m.dates.registered)||'—'}</td>
     <td>${m.outcome||'—'}</td><td>${escAttr(m.purpose||'')}</td><td>${m.num||'—'}</td>
-    <td>${m.basedOn?escAttr(m.basedOn):'—'}${m.basedOn&&!basedOnValid(m)?` <span class="pill high" title="ADR-0029 п.2: пересечение targets меры и её основания пусто — дефект регистрации">basedOn вне целей</span>`:''}</td></tr>`).join('')
+    <td>${m.basedOn?escAttr(m.basedOn):'—'}${m.basedOn&&!basedOnValid(m)?` <span class="pill high" title="Пересечение целей меры и её основания пусто — дефект регистрации">basedOn вне целей</span>`:''}</td></tr>`).join('')
     || `<tr><td colspan="7"><div class="cgrid-empty">${noCourt}</div></td></tr>`;
   /* КР-15: карточка показывает ИСХОД, а не «статус», который нёс одно значение на все
      строки до единой. Заседание, дата которого ещё не наступила, помечено «предстоит» и
@@ -5207,7 +5200,7 @@ function panelSud(){
     || `<tr><td colspan="6"><div class="cgrid-empty">Заседаний по требованию нет — иск по нему в суд не подавался либо дата ещё не назначена. Сводно по всем делам — реестр <span class="rowlink" onclick="navClick('Заседания (реестр)')">«Заседания»</span>.</div></td></tr>`;
   return `<div class="panel-wrap">
     <p class="section-h">Судебные акты по требованию ${r.id}</p>
-    <p class="section-note">Судебный акт — мера расщеплённого судебного вида (ADR-0027/0031); принадлежность требованию — через её targets, основание — через поле basedOn на иск/жалобу (ADR-0029, полная свёртка цепочки — Task 5). Дата вынесения ≠ дата регистрации у нас: апелляция считается от вынесения (30 дн, п. 30.2), истребование ИЛ — от вступления в силу (п. 27).</p>
+    <p class="section-note">Судебный акт — мера расщеплённого судебного вида; принадлежность требованию — через её targets, основание — через поле basedOn на иск/жалобу. Дата вынесения ≠ дата регистрации у нас: апелляция считается от вынесения (30 дн), истребование ИЛ — от вступления в силу.</p>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Вид меры</th><th>Дата события</th><th>Дата регистрации</th><th>Исход</th><th>Назначение</th><th>Номер</th><th>Основание (basedOn)</th></tr></thead>
       <tbody>${acts}</tbody></table></div>
@@ -5235,7 +5228,7 @@ function panelProcedure(){
   }
   return `<div class="panel-wrap">
     <p class="section-h">Процедура взыскания (журнал смен статуса)</p>
-    <p class="section-note">Вторая ведущая ось (Р-1). Словарь статусов закрытый (${PROCEDURE_DICT.length} статусов); произвольный текст недопустим. Смена статуса = запись с ожиданием подтверждения принимающей стороны (5 р.д., п. 98). Группа платёжеспособности выводится из подтверждённого статуса: сейчас <b>${groupOf(p)||'не выведена — процедура не подтверждена'}</b>.</p>
+    <p class="section-note">Вторая ведущая ось. Словарь статусов закрытый (${PROCEDURE_DICT.length} статусов); произвольный текст недопустим. Смена статуса = запись с ожиданием подтверждения принимающей стороны (5 р.д.). Группа платёжеспособности выводится из подтверждённого статуса: сейчас <b>${groupOf(p)||'не выведена — процедура не подтверждена'}</b>.</p>
     <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openProcChangeModal()">Сменить статус процедуры</button></div>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Статус</th><th>Дата установки</th><th>Кто установил</th><th>Принимающее подразделение</th><th>Дата завершения</th><th>Подтверждение</th><th></th></tr></thead>
@@ -5271,7 +5264,7 @@ function panelKomitety(){
   }).join('');
   return `<div class="panel-wrap">
     <p class="section-h">Вопросы на коллегиальные органы</p>
-    <p class="section-note">Пять органов (Р-6, закрытый справочник), не «решение комитета». Реестр вопросов — общесистемный слой; сводно по всем делам — <span class="rowlink" onclick="navClick('Вопросы на коллегиальные органы (реестр)')">«Вопросы на коллегиальные органы»</span>. Гейт открывает вопрос, совпавший по ПРЕДМЕТУ и по ДОГОВОРУ (КР-10): решение по соседнему кредиту действие по этому не разблокирует.</p>
+    <p class="section-note">Пять органов (закрытый справочник), не «решение комитета». Реестр вопросов — общесистемный слой; сводно по всем делам — <span class="rowlink" onclick="navClick('Вопросы на коллегиальные органы (реестр)')">«Вопросы на коллегиальные органы»</span>. Гейт открывает вопрос, совпавший по ПРЕДМЕТУ и по ДОГОВОРУ: решение по соседнему кредиту действие по этому не разблокирует.</p>
     <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="openCommitteeQuestionModal()">Вынести вопрос</button></div>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Орган</th><th>Инициатор</th><th>Предмет</th><th>Кредиты</th><th>Заседание</th><th>Решение</th><th>Протокол</th><th></th></tr></thead>
@@ -5320,7 +5313,7 @@ function openCommitteeQuestionModal(){
   const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'';
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Вынести вопрос на коллегиальный орган</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
-    <div class="modal-b"><p class="section-note">Пять органов (Р-6, закрытый справочник). Вопрос выносится в статусе «не рассмотрено»; решение и протокол вносятся отдельно после заседания.</p>
+    <div class="modal-b"><p class="section-note">Пять органов (закрытый справочник). Вопрос выносится в статусе «не рассмотрено»; решение и протокол вносятся отдельно после заседания.</p>
     <div class="mform">
       <div class="field col-span"><span class="flabel">Предмет</span><div class="control grey"><select id="cqSubject" onchange="onCqSubjectChange()">${CQ_SUBJECTS.map(s=>`<option value="${escAttr(s.topic)}">${s.topic}${s.gate?' · открывает гейт §6.3':''}</option>`).join('')}</select>${caret()}</div></div>
       <div class="field col-span" id="cqFreeWrap" style="display:none"><span class="flabel">Предмет (текст)</span><div class="control grey"><input id="cqSubjectFree" placeholder="сформулируйте вопрос"></div></div>
@@ -5366,7 +5359,7 @@ function openDecisionModal(idx){
   const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Внести решение органа</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
-    <div class="modal-b"><p class="section-note"><b>${q.organ}</b> · ${q.topic}. Положительное решение (выдано/разрешено) открывает соответствующий гейт §6.3.</p>
+    <div class="modal-b"><p class="section-note"><b>${q.organ}</b> · ${q.topic}. Положительное решение (выдано/разрешено) открывает соответствующий гейт.</p>
     <div class="mform">
       ${sel('Решение','выдано',['выдано','разрешено','отказано','возвращено без рассмотрения'],'dcDecision')}
       ${dinp('Дата заседания','','dcMeeting')}
@@ -5449,7 +5442,7 @@ function panelSpecial(){
   const sol=solidaryWith(r);
   return `<div class="panel-wrap">
     <p class="section-h">Особые состояния</p>
-    <p class="section-note">Состояния разделены по природе (М-11): <b>обязательство</b> — пауза (п. 18 / п. 19) и соглашения, живут на требовании; <b>лицо</b> — состояние субъекта, задевает все требования к нему; <b>ведение дела</b> — конфликт интересов (гл. 16), окно ожидания. Пауза по заёмщику не приостанавливает работу с поручителем. Смерть заёмщика — контур К5, не оверлей. Мировое соглашение: срок производный из графика (МС-1); «не льготнее» — аттестация (МС-2); статусы проект/утверждено/отказано (МС-3); проект — ОПК, график — отраслевой отдел (МС-4); регистрация на судебной стадии (МС-5).</p>
+    <p class="section-note">Состояния разделены по природе: <b>обязательство</b> — пауза и соглашения, живут на требовании; <b>лицо</b> — состояние субъекта, задевает все требования к нему; <b>ведение дела</b> — конфликт интересов, окно ожидания. Пауза по заёмщику не приостанавливает работу с поручителем. Смерть заёмщика — контур К5, не оверлей. Мировое соглашение: срок производный из графика; «не льготнее» — аттестация; статусы проект/утверждено/отказано; проект — ОПК, график — отраслевой отдел; регистрация на судебной стадии.</p>
     <div class="gtoolbar">
       ${paused
         ? `<button class="btn btn-tint btn-sm" onclick="liftPause()">Снять паузу с требования</button>`
@@ -5515,7 +5508,7 @@ function msCards(p, r){
     } else if(a.status==='утверждено судом' && !a.breached){
       acts=`<button class="btn btn-tint btn-sm danger" onclick="msBreach('${escAttr(a.num)}')">Зафиксировать нарушение МС</button>`;
     }
-    const flag6=`<div class="section-note" style="margin-top:8px">⚑ Открытый вопрос (§13): утверждение МС судом = судебный акт ⇒ прекращение начисления неустойки на дату утверждения (п. 7.2)? — на согласовании (платежи).</div>`;
+    const flag6=`<div class="section-note" style="margin-top:8px">⚑ Открытый вопрос: утверждение МС судом = судебный акт ⇒ прекращение начисления неустойки на дату утверждения? — на согласовании (платежи).</div>`;
     return `<div class="ms-card">
       <div class="ms-card-h"><span class="mt">Мировое соглашение ${a.num}</span>${msStatusPill(a)}<span class="pill info">пп. 22–24</span></div>
       <div class="ms-meta">
@@ -5585,7 +5578,7 @@ function openPauseModal(){
   const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Постановка на паузу · требование ${r.id}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
-    <div class="modal-b"><p class="section-note">Пауза ставится на <b>требование</b> (${r.role} ${escAttr(personOf(r).name)}), а не на дело: другие обязанные лица по договору остаются в работе. Тип определяет поведение (В-4): гарантийное письмо (п. 18) — отсрочка ≤70 к.д.; реструктуризация (п. 19) — оверлей на фазу, подавление 181-го дня и категории. Счётчик дней не замораживается.</p><div class="mform">
+    <div class="modal-b"><p class="section-note">Пауза ставится на <b>требование</b> (${r.role} ${escAttr(personOf(r).name)}), а не на дело: другие обязанные лица по договору остаются в работе. Тип определяет поведение: гарантийное письмо — отсрочка ≤70 к.д.; реструктуризация — оверлей на фазу, подавление 181-го дня и категории. Счётчик дней не замораживается.</p><div class="mform">
       ${sel('Тип паузы',PAUSE_TYPES[0].label,PAUSE_TYPES.map(t=>t.label),'pauseType')}
       ${dinp('Действует с',ruToIso(TODAY),'pauseFrom')}
       ${dinp('Действует до','','pauseUntil')}
@@ -5648,12 +5641,12 @@ function panelZalog(){
     <td>${c.ban?'<span class="pill high">только судебный</span>':c.order||'<span style="color:var(--text-placeholder)">не выбран</span>'}</td>
     <td>${realStageCell(c)}</td>
     <td>${c.startPrice?`${c.startPrice.value}<br><span class="src">${c.startPrice.report}</span>`:'<span style="color:var(--text-placeholder)">не задана</span>'}</td>
-    <td>${c.snapshotAt?`${c.snapshotAt}${collSnapshotStale(c)?` <span class="pill high" title="Снимок старше ${COLL_SNAPSHOT_STALE_DAYS} к.д. — данные модуля обеспечения могли устареть (ADR-0032)">устарел</span>`:''}`:'<span class="pill high" title="Обязательный реквизит зеркала (ADR-0032) — без него закрытие требования нельзя доверять">даты нет</span>'}</td>
+    <td>${c.snapshotAt?`${c.snapshotAt}${collSnapshotStale(c)?` <span class="pill high" title="Снимок старше ${COLL_SNAPSHOT_STALE_DAYS} к.д. — данные модуля обеспечения могли устареть">устарел</span>`:''}`:'<span class="pill high" title="Обязательный реквизит зеркала — без него закрытие требования нельзя доверять">даты нет</span>'}</td>
     <td><button class="btn-tint btn-sm" onclick="openRealizationModal(${ci})">Управление</button></td></tr>`;}).join('')
     :`<tr><td colspan="8"><div class="cgrid-empty">Залога по договору ${escAttr(r._credit.num)} нет — ${r._credit.coll && r._credit.coll!=='—' ? `обеспечение этого требования: ${escAttr(r._credit.coll)}` : 'обеспечение по договору не указано'}. Обращение взыскания на залог по нему не ведётся.</div></td></tr>`;
   return `<div class="panel-wrap">
     <p class="section-h">Залог / реализация по договору ${r._credit.num}</p>
-    <p class="section-note">Предмет залога обеспечивает кредитный договор, поэтому виден на всех требованиях по этому договору — и к заёмщику, и к обеспечителям. Внесудебный порядок ЖЁСТКО запрещён (п. 42) для единственного жилья, имущества значительной культурной ценности и предприятия как имущественного комплекса. Начальная продажная цена (п. 48) — из отчёта независимого оценщика. ЖЦ реализации: порядок обращения → нач. цена → торги → реализовано либо принято на баланс (2 несостоявшихся торгов). Раздел — зеркало модуля обеспечения (ADR-0032 «Последствия»): колонка «Снимок» несёт обязательную дату, на которую эти сведения были верны в модуле-источнике; устаревший снимок — сигнал не доверять статусу при закрытии требования, а не тихая правда.</p>
+    <p class="section-note">Предмет залога обеспечивает кредитный договор, поэтому виден на всех требованиях по этому договору — и к заёмщику, и к обеспечителям. Внесудебный порядок ЖЁСТКО запрещён для единственного жилья, имущества значительной культурной ценности и предприятия как имущественного комплекса. Начальная продажная цена — из отчёта независимого оценщика. ЖЦ реализации: порядок обращения → нач. цена → торги → реализовано либо принято на баланс (2 несостоявшихся торгов). Раздел — зеркало модуля обеспечения: колонка «Снимок» несёт обязательную дату, на которую эти сведения были верны в модуле-источнике; устаревший снимок — сигнал не доверять статусу при закрытии требования, а не тихая правда.</p>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Предмет залога</th><th>Вид</th><th style="text-align:right">Залоговая стоимость</th><th>Порядок обращения</th><th>Статус реализации</th><th>Начальная продажная цена (п. 48)</th><th>Снимок (ADR-0032)</th><th>Действие</th></tr></thead>
       <tbody>${rows}</tbody></table></div></div>`;
@@ -5726,7 +5719,7 @@ function openCostModal(){
   const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Расход по обращению взыскания · требование ${r.id}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
-    <div class="modal-b"><p class="section-note">Расход — собственная статья взыскания (М-4): в модуль кредита он не уходит и на его снимок не влияет. Расход относится к требованию ${r.id} (${r.role} ${escAttr(personOf(r).name)}) и увеличивает востребованную сумму. При реализации залога расходы покрываются первыми (п. 49).</p><div class="mform">
+    <div class="modal-b"><p class="section-note">Расход — собственная статья взыскания: в модуль кредита он не уходит и на его снимок не влияет. Расход относится к требованию ${r.id} (${r.role} ${escAttr(personOf(r).name)}) и увеличивает востребованную сумму. При реализации залога расходы покрываются первыми.</p><div class="mform">
       ${sel('Вид расхода',COST_KINDS[0],COST_KINDS,'costKind')}
       ${dinp('Дата',ruToIso(TODAY),'costDate')}
       ${inp('Сумма, сом','','costAmount')}
@@ -5772,7 +5765,7 @@ function openRealizationModal(ci){
   </div><button class="btn btn-tint btn-sm" onclick="saveStartPrice(${ci})" style="margin-top:8px">Сохранить цену</button>`;
   let actions='';
   if(stage==='не начата') actions=`<button class="btn btn-primary btn-sm" onclick="advanceReal(${ci},'подготовка к торгам')">Начать подготовку к торгам</button>`;
-  else if(stage==='подготовка к торгам') actions=`<button class="btn btn-primary btn-sm" onclick="advanceReal(${ci},'торги назначены')">Назначить торги</button><p class="section-note" style="margin-top:6px">Требуется начальная продажная цена (п. 48).</p>`;
+  else if(stage==='подготовка к торгам') actions=`<button class="btn btn-primary btn-sm" onclick="advanceReal(${ci},'торги назначены')">Назначить торги</button><p class="section-note" style="margin-top:6px">Требуется начальная продажная цена.</p>`;
   else if(stage==='торги назначены'){
     const fails=c.torgiFails||0;
     actions=`<div class="mform"><div class="field col-span"><span class="flabel">Выручка от реализации</span><div class="control grey"><input id="realProceeds" placeholder="сумма при продаже"></div></div></div>
@@ -5786,7 +5779,7 @@ function openRealizationModal(ci){
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Обращение взыскания: ${c.item}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
     <div class="modal-b">
-      <p class="section-note">${c.kind} · залоговая стоимость ${c.pledge}. Порядок (п. 42/48/49): выбрать порядок обращения → задать начальную продажную цену → торги → реализация либо принятие на баланс.</p>
+      <p class="section-note">${c.kind} · залоговая стоимость ${c.pledge}. Порядок: выбрать порядок обращения → задать начальную продажную цену → торги → реализация либо принятие на баланс.</p>
       <p class="section-h" style="margin-top:4px">Порядок обращения</p>${orderBtns}
       <p class="section-h" style="margin-top:16px">Начальная продажная цена (п. 48)</p>${priceForm}
       <p class="section-h" style="margin-top:16px">Реализация · стадия: <span class="pill info">${stage}</span></p>${actions}
@@ -6018,7 +6011,7 @@ function openMeasureModal(){
     <div class="modal-h"><span class="mt">Регистрация меры · требование ${r.id}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
     <div class="modal-b">
     <p class="section-h" style="margin-top:0">Тело меры</p>
-    <p class="section-note">Вид · номер · дата · цели · сумма · охват · основание — правда на момент подписания (ADR-0036). После сохранения не редактируется: ошибку чинит только сторно (целиком или по одной цели) и новая запись.</p>
+    <p class="section-note">Вид · номер · дата · цели · сумма · охват · основание — правда на момент подписания. После сохранения не редактируется: ошибку чинит только сторно (целиком или по одной цели) и новая запись.</p>
     <div class="mform">
       <div class="field"><span class="flabel">Вид меры</span><div class="control grey"><select id="mKind" onchange="syncMeasureWarnings()">${measureKindOptions('Исковое заявление')}</select>${caret()}</div></div>
       <div class="field"><span class="flabel">Раздел</span><div class="control ro"><input id="mSection" value="${sectionOf('Исковое заявление')}" readonly title="Производное от вида меры — вручную не задаётся"></div></div>
@@ -6030,7 +6023,7 @@ function openMeasureModal(){
       <div class="field col-span" id="mBasedOnWrap"></div>
     </div>
     <p class="section-h">Пометки</p>
-    <p class="section-note">Пусты при регистрации — получение, доставка и исход дозаполняются позже, по мере наступления, действием «Внести/изменить пометку» в журнале мер (доступно и после закрытия требования, ADR-0036 п.4).</p>
+    <p class="section-note">Пусты при регистрации — получение, доставка и исход дозаполняются позже, по мере наступления, действием «Внести/изменить пометку» в журнале мер (доступно и после закрытия требования).</p>
     <div class="mform" id="mAnnoPreview"></div>
     <div class="warn-inline" id="mWarnPhase">${warnIcon()}<span>Это <b>мера-веха</b>: сохранение сдвинет фазу каждого отмеченного требования. Фаза двигается только так — селектора фазы нет.</span></div>
     <div class="warn-inline" id="mWarnDelivery">${warnIcon()}<span>Доставка — пометка: без внесённого позже подтверждения вручения мера не считается исполненной и не годится как доказательство (п. 20.2).</span></div>
@@ -6164,7 +6157,7 @@ function recalcOnIzveschenie(){
   const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal narrow">
     <div class="modal-h"><span class="mt">Регистрация извещения (п. 20.4)</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
-    <div class="modal-b"><p class="section-note">Регистрация извещения влечёт немедленное наступление сроков исполнения всех обязательств (п. 20.4). Охват требования по договору ${escAttr(r._credit.num)} → «полный остаток / обращением на предмет залога», сумма пересчитается с <b>${fmtKGS(from)}</b> на <b>${fmtKGS(to)}</b>.${targets.length>1?` Ускорение распространяется на все ${targets.length} требования по договору — обязательство одно, солидарность не делится.`:''}</p></div>
+    <div class="modal-b"><p class="section-note">Регистрация извещения влечёт немедленное наступление сроков исполнения всех обязательств. Охват требования по договору ${escAttr(r._credit.num)} → «полный остаток / обращением на предмет залога», сумма пересчитается с <b>${fmtKGS(from)}</b> на <b>${fmtKGS(to)}</b>.${targets.length>1?` Ускорение распространяется на все ${targets.length} требования по договору — обязательство одно, солидарность не делится.`:''}</p></div>
     <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="applyIzveschenie()">Зарегистрировать и пересчитать</button></div>
   </div>`; host.classList.add('open');
 }
@@ -6280,7 +6273,7 @@ function openAnnotationModal(mi){
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Пометка меры · ${escAttr(m.num||m.kind)}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
     <div class="modal-b">
-      <p class="section-note">Тело меры (вид · номер · дата · цели · сумма · охват · основание) не редактируется здесь — заморожено регистрацией (ADR-0036), чинится только сторно. Пометки правятся свободно: первичное заполнение — обычная жизнь записи; правка уже внесённого значения — исправление, требует причины. У каждой пометки хранится, кто и когда её поставил. Действие доступно независимо от того, закрыто ли требование (п.4).</p>
+      <p class="section-note">Тело меры (вид · номер · дата · цели · сумма · охват · основание) не редактируется здесь — заморожено регистрацией, чинится только сторно. Пометки правятся свободно: первичное заполнение — обычная жизнь записи; правка уже внесённого значения — исправление, требует причины. У каждой пометки хранится, кто и когда её поставил. Действие доступно независимо от того, закрыто ли требование.</p>
       ${receiptSection}
       ${deliverySection}
       ${outcomeSection}
@@ -6370,7 +6363,7 @@ function openRejectProc(){
   const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Отклонить статус процедуры</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
-    <div class="modal-b"><p class="section-note">Отклонение указывает конкретные непредоставленные позиции чек-листа (В-10), не свободный текст (п. 98).</p>
+    <div class="modal-b"><p class="section-note">Отклонение указывает конкретные непредоставленные позиции чек-листа, не свободный текст.</p>
     <div class="chk">${chk.map((c,i)=>`<label class="chk-row"><span><input type="checkbox" class="rejChk" data-item="${escAttr(c.item)}"> ${c.item}</span><span></span><span></span></label>`).join('')}</div></div>
     <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="doRejectProc()">Отклонить</button></div>
   </div>`; host.classList.add('open');
@@ -6387,7 +6380,7 @@ function openProcChangeModal(){
   const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Сменить статус процедуры</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
-    <div class="modal-b"><p class="section-note">Словарь статусов закрытый (Р-1). Смена = запись с ожиданием подтверждения (5 р.д., п. 98).</p>
+    <div class="modal-b"><p class="section-note">Словарь статусов закрытый. Смена = запись с ожиданием подтверждения (5 р.д.).</p>
     <div class="mform">${sel('Новый статус',PROCEDURE_DICT[0].status,PROCEDURE_DICT.map(x=>x.status),'newStatus')}
     ${sel('Принимающее подразделение','ОПК',['ОД','ДАК','ДПО','ОПК','САК','СИТ','УПО'])}</div></div>
     <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="doProcChange()">Сменить</button></div>
@@ -7148,12 +7141,10 @@ function renderFilterBar(){
       <button class="btn btn-secondary" onclick="resetFilters()">Сбросить</button>
     </div>`;
 }
-/* ТР-10: лента условий несёт ВСЁ, что сузило выборку, — включая стадию из сайдбара
-   и нажатую плитку. Иначе стадия молча правит реестр: пункт в сайдбаре подсвечен,
-   а на самом экране следа нет. */
+/* ТР-10: лента условий несёт ВСЁ, что сузило выборку, — включая нажатую плитку.
+   Стадия (ADR-0041) идёт по общему пути filterState, отдельного случая не нужно. */
 function renderChips(){
   const chips = [];
-  if(stageFilter) chips.push(`<span class="fchip">Стадия: ${escAttr(stageFilter)}<button title="убрать" onclick="clearStage()">×</button></span>`);
   if(tileFilter)  chips.push(`<span class="fchip">Плитка: ${escAttr(TILE_LABELS[tileFilter])}<button title="убрать" onclick="clickTile('${tileFilter}')">×</button></span>`);
   if(filterState.mine){
     const my = roleSubdivs();
@@ -7168,7 +7159,6 @@ function renderChips(){
   }
   document.getElementById('filterChips').innerHTML = chips.join('');
 }
-function clearStage(){ stageFilter = null; navLabel = 'Требования (реестр)'; curPage = 1; renderNav(); renderList(); renderChips(); }
 /* обычное поле: живое, без пересборки панели (текст сохраняет фокус) */
 function setF(k,v){ if(v!=='' && v!=null) filterState[k]=v; else delete filterState[k]; curPage=1; renderList(); renderChips(); }
 function setMine(v){ if(v) filterState.mine=true; else delete filterState.mine; curPage=1; renderList(); renderChips(); }
@@ -7453,14 +7443,14 @@ function renderSettingsV9(){
     <span><b>В данных есть виды мер вне справочника:</b> ${Object.keys(outside).map(k=>`«${escAttr(k)}» (${outside[k]})`).join(', ')}.
     Раздел таким видам выводится дефолтом «Досудебный», и вместе с разделом они получают чужие права В-9 — правило для них не настраивается.</span></div>`:'';
   const nonReg=SUBDIVS.filter(s=>!s.registers).map(s=>`<tr><td>${s.code} · ${s.name}</td><td class="radius" style="text-align:left">${s.why}</td></tr>`).join('');
-  return `<p class="section-note">Галочка = подразделение может зарегистрировать этот вид меры (матрица В-9). Правило раздела — верхняя строка блока; вид без своего правила наследует его («по разделу»), клик по галочке в строке вида создаёт своё правило и отвязывает вид от раздела. Пустая строка — вид недоступен никому.</p>
+  return `<p class="section-note">Галочка = подразделение может зарегистрировать этот вид меры. Правило раздела — верхняя строка блока; вид без своего правила наследует его («по разделу»), клик по галочке в строке вида создаёт своё правило и отвязывает вид от раздела. Пустая строка — вид недоступен никому.</p>
     <table class="settings-grid"><thead>${head}</thead><tbody>${rows||`<tr><td colspan="${V9_SUBDIVS.length+4}" class="radius">Под фильтр не попало ни одно правило.</td></tr>`}</tbody></table>
     ${outsideBlk}
     <p class="section-h" style="margin-top:20px">Роль → подразделения</p>
-    <p class="section-note">Один справочник ролей на весь модуль (НП-3): этот же список наполняет переключатель роли в шапке, и он же отвечает фильтру «только моё подразделение» на реестрах. Подразделений у роли может быть несколько; ни одного — роль мер не регистрирует.</p>
+    <p class="section-note">Один справочник ролей на весь модуль: этот же список наполняет переключатель роли в шапке, и он же отвечает фильтру «только моё подразделение» на реестрах. Подразделений у роли может быть несколько; ни одного — роль мер не регистрирует.</p>
     <table class="role-grid"><thead><tr><th>Роль</th>${V9_SUBDIVS.map(s=>`<th>${s}</th>`).join('')}<th>Итог</th></tr></thead><tbody>${roleRows}</tbody></table>
     <p class="section-h" style="margin-top:20px">Участвуют, но мер не регистрируют</p>
-    <p class="section-note">Подразделения из того же справочника (НП-4) с признаком «мер не регистрирует» — колонок в матрице В-9 у них поэтому нет.</p>
+    <p class="section-note">Подразделения из того же справочника с признаком «мер не регистрирует» — колонок в матрице у них поэтому нет.</p>
     <table class="role-grid" style="max-width:760px"><tbody>${nonReg}</tbody></table>
     ${tabResetBtn('v9')}`;
 }
@@ -7572,7 +7562,7 @@ function renderSettingsGates(){
       <td>${changed?`<button class="btn btn-tint btn-sm"${roAttr()} onclick="resetRuleKey('gates','${jsq(k)}','гейт «${jsq(k)}»')">вернуть дефолт</button>`:'<span class="radius">дефолт</span>'}</td></tr>`;
   }).join('');
   setCount(shown,keys.length);
-  return `<p class="section-note">Какие виды мер требуют предварительного решения до регистрации. Снятая галочка — гейт отключён, мера регистрируется без решения органа или поручения. Гейт ищет решение по ПРЕДМЕТУ вопроса и по договору требования (КР-10), поэтому предмет показан в таблице; предмет, орган и пункт Порядка — закрытый справочник §6.3 и здесь не правятся.</p>
+  return `<p class="section-note">Какие виды мер требуют предварительного решения до регистрации. Снятая галочка — гейт отключён, мера регистрируется без решения органа или поручения. Гейт ищет решение по ПРЕДМЕТУ вопроса и по договору требования, поэтому предмет показан в таблице; предмет, орган и пункт Порядка — закрытый справочник и здесь не правятся.</p>
     <table class="settings-grid"><thead><tr><th>Вид меры</th><th>Гейт включён</th><th>Предмет вопроса</th><th>Кто решает</th><th>Пункт</th><th>Радиус</th><th></th></tr></thead>
     <tbody>${rows||`<tr><td colspan="7" class="radius">Под фильтр не попал ни один гейт.</td></tr>`}</tbody></table>
     ${tabResetBtn('gates')}`;
@@ -7618,7 +7608,7 @@ function renderSettingsPhases(){
       <table class="settings-grid" style="max-width:760px"><tbody>${items}</tbody></table></div>`;
   }).join('');
   setCount(shown,total);
-  return `<p class="section-note">Порядок вех внутри контура задаёт последовательность-предусловие для будущих мер-вех (§3.1): веха на позиции i требует предыдущей фазы φ(i−1). Состав фаз закрыт — только перестановка. Перестановка действует вперёд: фаза требования — свёртка его журнала мер (ADR-0003), поэтому уже зарегистрированные вехи она не переписывает и требования по фазам не перекладывает. Соответствие «вид меры × исход → фаза» здесь не редактируется — оно в справочнике видов мер (MEASURE_KINDS[].outcomes[].setsPhase) и меняется релизом (ADR-0033).</p>
+  return `<p class="section-note">Порядок вех внутри контура задаёт последовательность-предусловие для будущих мер-вех: веха на позиции i требует предыдущей фазы φ(i−1). Состав фаз закрыт — только перестановка. Перестановка действует вперёд: фаза требования — свёртка его журнала мер, поэтому уже зарегистрированные вехи она не переписывает и требования по фазам не перекладывает. Соответствие «вид меры × исход → фаза» здесь не редактируется — оно в справочнике видов мер и меняется релизом.</p>
     ${blocks||`<p class="radius">Под фильтр не попала ни одна фаза.</p>`}
     ${tabResetBtn('phases')}`;
 }
