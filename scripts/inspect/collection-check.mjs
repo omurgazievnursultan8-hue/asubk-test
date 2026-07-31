@@ -482,12 +482,12 @@ ok('фильтр по фазе работает от свёртки', g.ev(`(() 
   return rows.length > 0 && rows.every(r => phaseOf(r) === 'Иск');
 })()`));
 ok('фильтр стадии работает от свёртки', g.ev(`(() => {
-  stageFilter = 'Исполнительное производство'; const rows = baseSet(); stageFilter = null;
+  filterState = { stage:'Исполнительное производство' }; const rows = baseSet(); filterState = {};
   return rows.length > 0 && rows.every(r => stageOfReq(r) === 'Исполнительное производство');
 })()`));
 ok('фильтр «Досудебный порядок» не возвращает требование в фазе «Иск»', g.ev(`(() => {
-  stageFilter = 'Досудебный порядок'; const has = visibleReqs().some(r => r.id === '142/56/з');
-  stageFilter = null; return has;
+  filterState = { stage:'Досудебный порядок' }; const has = visibleReqs().some(r => r.id === '142/56/з');
+  filterState = {}; return has;
 })()`) === false);
 ok('вкладки разделены: 4 дела + 6 требования',
    g.ev(`TABS.filter(t=>t.group==='дело').length`) === 4
@@ -1271,26 +1271,24 @@ ok('ширин столько же, сколько колонок, и в сум�
 ok('деньги и дни просрочки выровнены вправо', L.$$('#listBody tr.rowopen td.num').length > 0
    && [...rowsOnPage()[0].children].filter(td => td.classList.contains('num')).length === 2);
 
-head('ТР-10/СТ-1 · стадии (ADR-0037/ADR-0040: 4 канонных значения, «Отчуждение активов» снято)');
-ok('в сайдбаре четыре стадийных пункта',     g.ev(`Object.keys(STAGE_RANK).length`) === 4);
-ok('«Наблюдение» — обычный фильтр реестра, не заглушка',
-   L.$$('#nav .nav-item.stub').length === 0
-   && L.ev(`(navClick('Наблюдение'), stageFilter === 'Наблюдение')`));
-L.ev(`clearStage()`);
-ok('переход на стадию ставит чип в ленте условий', (() => {
-  L.ev(`navClick('Судебный порядок')`);
+head('ТР-10/СТ-1/ADR-0041 · стадия — поле панели фильтров, не пункт сайдбара');
+ok('дропдаун «Стадия» знает четыре канонных значения', g.ev(`Object.keys(STAGE_RANK).length`) === 4);
+ok('в сайдбаре стадийных пунктов больше нет',
+   L.$$('#nav .nav-item').map(a => a.textContent).every(t => !(t in { 'Наблюдение':1,'Досудебный порядок':1,'Судебный порядок':1,'Исполнительное производство':1 })));
+ok('единственный вход в реестр требований — «Требования (реестр)»',
+   L.$$('#nav .nav-item').filter(a => a.textContent === 'Требования (реестр)').length === 1);
+ok('выбор стадии в панели ставит чип в ленте условий', (() => {
+  L.ev(`setDep('stage','Судебный порядок')`);
   return chips().includes('Стадия: Судебный порядок');
 })());
-ok('подсветка сайдбара следует за стадией',
-   L.$$('#nav .nav-item.active').map(a => a.textContent).join() === 'Судебный порядок');
+ok('подсветка сайдбара не следует за стадией — остаётся на «Требования (реестр)»',
+   L.$$('#nav .nav-item.active').map(a => a.textContent).join() === 'Требования (реестр)');
 ok('на стадии остаются только её требования',
    L.ev(`visibleReqs().every(r => stageOfReq(r) === 'Судебный порядок') && visibleReqs().length > 0`));
-ok('чип стадии снимается и возвращает полный реестр', (() => {
-  const n = L.ev('visibleReqs().length'); L.ev('clearStage()');
-  return L.ev('visibleReqs().length') > n && L.ev('stageFilter') === null;
+ok('чип стадии снимается через общий clearFilter и возвращает полный реестр', (() => {
+  const n = L.ev('visibleReqs().length'); L.ev(`clearFilter('stage')`);
+  return L.ev('visibleReqs().length') > n && L.ev(`filterState.stage`) === undefined;
 })());
-ok('подсветка вернулась на «Требования (реестр)»',
-   L.$$('#nav .nav-item.active').map(a => a.textContent).join() === 'Требования (реестр)');
 
 head('ТР-11 · одна подпись денег, честная при расхождении');
 ok('пока снимок один — одна дата под таблицей',
@@ -1321,7 +1319,7 @@ head('ТР-Д12 · пустое состояние называет услови
   ok('пустое состояние даёт снять условия одним движением', !!m.$('.list-empty button'));
   m.ev('resetAllConditions()');
   ok('снятие условий возвращает требования',
-     m.$$('#listBody tr.rowopen').length > 0 && m.ev(`stageFilter === null && tileFilter === null && Object.keys(filterState).length === 0`)); }
+     m.$$('#listBody tr.rowopen').length > 0 && m.ev(`tileFilter === null && Object.keys(filterState).length === 0`)); }
 
 /* ══════════════════════════════════════════════════════════════════════════
    ВОЛНА ПЛ (28.07.2026) — плотность реестра требований. Второй проход по экрану ТР.
