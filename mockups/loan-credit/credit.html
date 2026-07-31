@@ -3296,6 +3296,10 @@ function gate(credit, action, ctx = {}){
     case 'saveContractAmount':
       if (ctx.value > credit.approvedAmount) r.push('Сумма договора не может превышать одобренную ('+money(credit.approvedAmount)+')'); // Г-1
       break;
+    case 'editContractRequisites':
+      if (!ctx.num || !String(ctx.num).trim()) r.push('№ договора обязателен');
+      if (!ctx.date) r.push('Дата договора обязательна');
+      break;
     case 'createCredit':
       if (!ctx.application || ctx.application.approved!==true) r.push('Кредит создаётся только из одобренной заявки'); // Г-2
       else if (ctx.application.creditId) r.push('У заявки уже есть кредит');
@@ -3461,7 +3465,7 @@ const ROLE_ACTIONS = {
   'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','addAgreement','addConditionRecords','editConditions','editDocs','addNote']),
   'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge','addNote']),
   'Бухгалтер': new Set(['savePayment','addNote']),
-  'Начальник отдела': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','addAgreement','addConditionRecords','editConditions','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate']),
+  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','addAgreement','addConditionRecords','editConditions','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate']),
   'Наблюдатель': new Set(),
 };
 function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(action); }
@@ -3543,6 +3547,19 @@ function saveContractAmount(credit, value){
   const before = credit.contractAmount;
   credit.contractAmount = value;
   pushAudit(credit, 'saveContractAmount', before, value);
+  return g;
+}
+
+/* editContractRequisites(credit, {num,date}) — правка № и даты договора; доступно
+   только роли «Начальник отдела» (ROLE_ACTIONS), т.к. это паспортные поля договора,
+   не оперативные. */
+function editContractRequisites(credit, ctx){
+  const g = gate(credit, 'editContractRequisites', ctx);
+  if (!g.ok) return g;
+  const before = { num: credit.num, date: credit.date };
+  credit.num = ctx.num;
+  credit.date = ctx.date;
+  pushAudit(credit, 'editContractRequisites', before, ctx);
   return g;
 }
 
@@ -3863,7 +3880,7 @@ window.CR = {
   creditConditionsAt, divergenceRows, basisGroups, retroFlags, retroPendingFlags, activeTranche,
   courtRef, courtBasisLabel,
   generateSchedule, holdAccrual,
-  saveContractAmount, addTranche, addDisbursement, setKmDecision, saveWaiver,
+  saveContractAmount, editContractRequisites, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, addConditionRecords, closeCredit, linkPledge,
   registerCredit, activateCredit, closeDisbursement, closeTranche, transferDebt,
   saveDoc, addNote, addTargetUse,
@@ -3922,6 +3939,7 @@ if (typeof document !== 'undefined') {
     currentRole = CR.state.role;                    // синхронизация с audit.who (мутации читают currentRole)
     toast('Роль: ' + CR.state.role);
     renderRole();                                   // пере-гейтинг доступных действий реестра
+    rerenderDetail();                                // пере-гейтинг кнопок открытой карточки кредита (roleBtn/roleIconBtn)
   };
   CR.closeModal = function(){ const h = document.getElementById('modalHost'); if (h){ h.classList.remove('open'); h.innerHTML=''; } };
   /* Единый конструктор модалок (§8, canon modal-h/-b/-f). Одна оболочка на 9 форм —
@@ -4676,7 +4694,8 @@ if (typeof document !== 'undefined') {
     return `
       <div class="pcards">
         <div class="pcard">
-          <div class="section-h">Реквизиты договора</div>
+          <div class="section-h" style="display:flex;align-items:center;justify-content:space-between">Реквизиты договора
+            ${roleIconBtn('editContractRequisites','Изменить № и дату договора','CR.openContractRequisitesModal()',svgPencil())}</div>
           <div class="f2">
             ${fld('№ договора', esc(c.num))}
             ${fld('Дата договора', esc(c.date))}
@@ -5787,6 +5806,22 @@ if (typeof document !== 'undefined') {
     const g=gate(c,'saveContractAmount',{value}); if(!g.ok){ CR.modalErr(g.reasons); return; }   // ре-валидация Г-1 перед мутацией
     const r=CR.saveContractAmount(c,value); if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Сумма договора обновлена: '+money(value),'ok'); rerenderDetail(); };
+
+  /* 10б) реквизиты договора (editContractRequisites) — № и дата договора, роль «Начальник отдела» */
+  CR.openContractRequisitesModal=function(){ const c=modalGuard('editContractRequisites'); if(!c) return;
+    const body=`<p class="section-note">№ и дата договора — паспортные поля, правка доступна только роли «Начальник отдела».</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">№ договора</span><div class="control"><input id="crNum" value="${esc(c.num)}"></div></div>
+        <div class="field req"><span class="flabel">Дата договора</span><div class="control"><input id="crDate" type="date" value="${esc(toISO(c.date))}"></div></div>
+      </div>`;
+    CR.openModal('Изменить реквизиты договора', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitContractRequisites()">Сохранить</button>`);
+  };
+  CR.submitContractRequisites=function(){ const c=modalGuard('editContractRequisites'); if(!c) return;
+    const num=document.getElementById('crNum').value, date=toDMY(document.getElementById('crDate').value);
+    const g=gate(c,'editContractRequisites',{num,date}); if(!g.ok){ CR.modalErr(g.reasons); return; }
+    const r=CR.editContractRequisites(c,{num,date}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Реквизиты договора обновлены','ok'); rerenderDetail(); };
 
   /* 11) hold-accrual (holdAccrual, Р-17 · Г-15) — приостановление начисления процентов, роль «Начальник отдела»/«Куратор» */
   CR.openHoldModal=function(){ const c=modalGuard('holdAccrual'); if(!c) return;
