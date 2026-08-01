@@ -167,22 +167,30 @@ const out = await p.evaluate(() => {
       sections:secs, group:groupOf(pr) });
 
     const W = `требование ${r.id} (дело ${pr.id}, ${pr.borrower})`;
-    // C1: мера продвинутого раздела при отсталой фазе. Порог — ТОТ ЖЕ буфер +1, что
-    // sequenceReason() (§3.1, часть (1) «стадия раздела») реально разрешает на входе:
-    // `secL(kind) > curL+1` блокирует регистрацию, значит `secL === curL+1` — легальный
-    // вход. Раньше здесь стоял свой порог `maxSec > curL` (без буфера) — независимая
-    // от гейта регистрации догадка, а не чтение его правила. Она била находкой ровно ту
-    // комбинацию, которую сам гейт разрешает: resultIsDocument-виды («Исковое заявление»,
-    // «Определение о возвращении/отказе…») не несут setsPhase (ADR-0035) и потому не
-    // двигают фазу, хотя раздел уже «Судебный» — дело законно стоит в К1 с судебной
-    // мерой в журнале (Task 6, K3-ИСК-ЖДЁМ / K3-ИСК-ВОЗВРАТ). Спрашиваем макет о его
-    // собственном правиле (те же SECTION_CLEVEL/CONTOUR_LEVEL и тот же буфер, что читает
-    // sequenceReason), а не переизобретаем порог: мера, которую гейт регистрации
-    // допустил бы на этой фазе, — не находка. Прыжок больше чем на одну ступень
-    // (например «Исполнительное» при контуре К1) буфер не покрывает — ловится по-прежнему.
-    const maxSec = secs.reduce((a,s)=> Math.max(a, SECTION_CLEVEL[s]||0), 0);
-    const curL = CONTOUR_LEVEL[contourOf(r)] ?? 0;
-    if(maxSec > curL + 1) add('C1-раздел>фаза', W, `фаза «${ph}» (контур ${contourOf(r)}, ступень ${curL}), но в журнале есть меры разделов [${secs.join(', ')}] — ступень ${maxSec} (за пределами буфера +1, который допускает sequenceReason())`);
+    // C1 (ревью раунд1, IMPORTANT 2): переписан — раунд «буфер +1» ПЕРЕИЗОБРЕТАЛ
+    // sequenceReason() (свой порог, свои константы SECTION_CLEVEL/CONTOUR_LEVEL —
+    // ЗАМОРОЖЕННЫЕ, тогда как сам гейт читает ЖИВЫЕ RULES.sectionClevel — правка на
+    // #settings развела бы их) и заодно потерял целый класс находок: B1 уже вызывает
+    // sequenceReason(r, kind) НА КАЖДОЙ мере с усечённым журналом (историческая реплика
+    // выше по файлу) — то есть позиционный/стадийный гейт уже проверен B1, дублировать
+    // его здесь незачем (делегируем, а не копируем). Но у B1 (как и у sequenceReason)
+    // есть слепая зона: resultIsDocument-виды раздела «Судебный»/«Исполнительное» БЕЗ
+    // setsPhase (kindPhase(kind)==null) — не veha, позиционный гейт для них не
+    // применяется вовсе, только буферный стадийный (curL+1) — и он пускает такую меру
+    // даже когда в деле вообще нет «Искового заявления» (K3-ИСК-ЖДЁМ легален ИМЕННО
+    // потому что «Исковое заявление» есть; «Частная жалоба» на пустом месте — нет, но
+    // старый буфер их не различал). Новый C1 ловит РОВНО эту дыру: не-veha мера раздела
+    // «Судебный»/«Исполнительное» (кроме самого «Искового заявления» — оно и есть корень,
+    // basisKinds:null, обоснования не требует) без «Искового заявления» где-либо в живом
+    // журнале ЭТОГО требования — прямой, непозиционный, не дублирующий B1 факт.
+    const COURT_ROOT_KIND = 'Исковое заявление';
+    for(const m of ms){
+      if(!['Судебный','Исполнительное'].includes(sectionOf(m.kind))) continue;
+      if(m.kind === COURT_ROOT_KIND) continue;
+      if(kindPhase(m.kind)) continue;   // veha — B1 уже проверяет её позиционно (sequenceReason)
+      if(!ms.some(x => x.kind === COURT_ROOT_KIND))
+        add('C1-без-основания', W, `мера «${m.kind}» ${m.num||''} раздела «${sectionOf(m.kind)}» — «${COURT_ROOT_KIND}» в живом журнале требования отсутствует, основания для судебной/исполнительной меры нет`);
+    }
     // C2: просрочка vs фаза
     const od = overdueOf(r);
     if(['Судебный порядок','Исполнительное производство'].includes(st) && od>0 && od<90)
@@ -193,28 +201,51 @@ const out = await p.evaluate(() => {
     if(r._closedChk) {}
     if(isClosedReq(r) && outcomeOf(r)==='Полное погашение' && d.totalLeft>0) add('C3-остаток', W, `исход «Полное погашение», но остаток ${fmtKGS(d.totalLeft)}`);
     if(!isClosedReq(r) && d.totalLeft<=0) add('C3-остаток', W, `нулевой остаток, но требование не закрыто`);
-    // C4: сумма меры-вехи vs притязание. Читаем scopeSetter(r), не phaseSetter(r) —
-    // claimTotal/claimOf сами считаются из scopeOf(r) (debtOf: `claimable: scopeOf(r).
-    // volume==='просроченная сумма' ? …`), а не из фазы; ФАЗА и ОХВАТ — две независимые
-    // свёртки одного журнала (ADR-0025/ADR-0028 п.3), и в общем случае устанавливающая
-    // мера у них одна и та же (претензия/извещение и веха, и охват разом) — но не у
-    // resultIsDocument-видов (ADR-0035): «Исковое заявление» охват ДВИГАЕТ (оно в
-    // SCOPE_SETTING) фазу — НЕТ (нет setsPhase). Со старым phaseSetter(r) находка C4
-    // ложно била ровно ту комбинацию, которую Task 6 сделала легальной (K3-ИСК-ЖДЁМ /
-    // K3-ИСК-ВОЗВРАТ / K3-МС-проект): фаза стоит на «Повторная претензия» (её веха несёт
-    // сумму по «просроченной сумме» на момент СВОЕЙ регистрации — исторически верно), а
-    // текущее притязание уже по «полному остатку» — иск подан и охват ускорился. Тот же
-    // класс правки, что и у C1 (выше): спрашиваем у макета его СОБСТВЕННУЮ свёртку денег
-    // (scopeSetter/scopeOf/claimOf), а не сверяем сумму с чужой (фазовой) свёрткой.
-    const pm = scopeSetter(r);
-    if(pm && pm.sum!=null){
-      const s = parseSum(pm.sum);
+    // C4 (ревью раунд1, IMPORTANT 3): переписан второй раз — «одна мера на требование»
+    // было тем же классом дыры под разными именами (сперва phaseSetter(r), потом
+    // scopeSetter(r) — оба читают ТОЛЬКО последнюю по времени меру, остальные семь
+    // видов раздела «Судебный», что несут sum на этой волне — определение, решение,
+    // постановление апелляц. инстанции, ЧЖ/АЖ, МС, СДИ — не проверялись НИЧЕМ; сумма
+    // «Решение суда» = 1,00 при реальном притязании в разы больше проходила бы 0 находок).
+    // LEDGER — ОДИН статичный снимок (ADR-0004, единственный `asOf`), поэтому «какой
+    // охват действовал НА ДАТУ этой меры» — чистая функция даты и журнала: не требует
+    // машины времени по LEDGER, только по СВЁРТКЕ ОХВАТА (та же сортировка, что
+    // liveScopeMeasures/scopeSetter уже дают — не переизобретаем её, только ограничиваем
+    // датой меры). Проверяем КАЖДУЮ меру requirement'а с sum, под ОХВАТОМ, что реально
+    // действовал в момент ЕЁ СОБСТВЕННОЙ регистрации — не под текущим (живым) охватом.
+    function scopeAtDate(rq, dateStr){
+      const bound = D(dateStr);
+      const at = liveScopeMeasures(rq).filter(x => { const t = D(evd(x)); return t!=null && bound!=null && t<=bound; });
+      return at.length ? at[at.length-1].scope : DEFAULT_SCOPE;
+    }
+    function debtUnderScope(rq, volume){
+      const L = (typeof LEDGER!=='undefined' && LEDGER[rq.credit]) || {};
+      let claim = 0;
+      for(const k of ['principal','interest','penalty','fees']){
+        const b = L[k]; if(!b) continue;
+        const left = (b.accrued||0) - (b.paid||0);
+        claim += volume==='просроченная сумма' ? Math.min(b.overdue||0, left) : left;
+      }
+      return claim + (rq.costs||[]).reduce((s,x)=>s+(x.amount||0),0);
+    }
+    function claimTotalUnderScope(reqs, volume){
+      const byCredit = {};
+      for(const rq of reqs){
+        const cur = byCredit[rq.credit];
+        if(!cur || (rq.role === 'заёмщик' && cur.role !== 'заёмщик')) byCredit[rq.credit] = rq;
+      }
+      return sumKGS(Object.values(byCredit).map(rq => debtUnderScope(rq, volume)));
+    }
+    for(const m of ms){
+      if(m.sum == null) continue;
+      const s = parseSum(m.sum);
+      const scopeHere = scopeAtDate(r, evd(m));
       // мера может целить в несколько требований (§2.2) — сравниваем с суммой по ЦЕЛЯМ, один раз на кредит
-      const tg = (pm.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean);
-      const claimAll = claimTotal(tg.length?tg:[r]);
+      const tg = (m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean);
+      const claimAll = claimTotalUnderScope(tg.length?tg:[r], scopeHere.volume);
       if(s>0 && Math.abs(s - claimAll) > Math.max(1, claimAll*0.02))
-        add('C4-сумма', W, `сумма вехи ${pm.num} = ${pm.sum}, а притязание по её целям (${tg.length||1}) = ${fmtKGS(claimAll)}`);
-      if(s===0 && claimAll>0) add('C4-сумма', W, `сумма вехи ${pm.num} = 0,00 при притязании ${fmtKGS(claimAll)}`);
+        add('C4-сумма', W, `сумма меры ${m.num||''} «${m.kind}» = ${m.sum} (${evd(m)}), а притязание под охватом «${scopeHere.volume}», действовавшим на эту дату, по её целям (${tg.length||1}) = ${fmtKGS(claimAll)}`);
+      if(s===0 && claimAll>0) add('C4-сумма', W, `сумма меры ${m.num||''} «${m.kind}» = 0,00 при притязании ${fmtKGS(claimAll)}`);
     }
     // C5: состояние лица
     if(personStateOf(r)==='банкротство' && !['Инициирование банкротства','Признано банкротом'].includes(ph))
