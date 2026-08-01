@@ -1035,7 +1035,7 @@ ok('каждое дело выводится одним непрерывным �
 ok('дело всплывает по лучшей строке: при сортировке по сумме ↓ первое дело содержит максимум', L.ev(`(() => {
   sortKey='claim'; sortDir=-1; curPage=1; renderList();
   const deals = groupedDeals(); if(!deals.length) return false;
-  const best = d => Math.max(...d.reqs.map(claimOf));
+  const best = d => Math.max(...d.reqs.map(r => claimOf(r)));
   return best(deals[0]) === Math.max(...deals.map(best));
 })()`));
 ok('внутри дела строки идут в порядке той же сортировки', L.ev(`(() => {
