@@ -2340,6 +2340,11 @@ const TPL_BY_N = Object.fromEntries(DEADLINE_TEMPLATES.map(t=>[t.n,t]));
    из 45, и два реально просроченных обязательства числились предстоящими (СК-Д2). */
 const dlTpl    = d => d.tpl ? TPL_BY_N[d.tpl] : null;
 const dlAction = d => (dlTpl(d) || {}).action || d.action || '—';
+/* КД-6: сроки, у которых требования нет по природе — они про ведение дела (конфликт
+   интересов, гл. 16). Task 9 fix round 2: поднято сюда, к остальным dl*-хелперам (было
+   объявлено рядом с normalize(), много ниже) — buildSeed читает это же правило, когда
+   проверяет цели объявленных сроков многокредитного дела, а там оно было бы TDZ. */
+const DEAL_LEVEL_DEADLINE = /конфликт/i;
 const dlTerm   = d => (dlTpl(d) || {}).term   || null;
 const dlPoint  = d => (dlTpl(d) || {}).point  || null;
 const dlBase   = d => d.base || (dlTpl(d) || {}).base || '—';
@@ -3725,6 +3730,13 @@ function buildCredit(c, cr, stop, age){
    бы их КО ВСЕМ, тихо задвоив ветку. Именованный throw вместо молчаливого
    размножения — та же дисциплина, что и у остальных конфликтующих пар деклараций.
    Объявляются НА КРЕДИТЕ (stop/age/overdue/costs/credits0) либо не объявляются вовсе. */
+/* Fix round 2 (ревью, nit 6): признаки гейтов — от GATES, а не от кейса, значит
+   считаются ОДИН РАЗ, а не на каждом деле внутри цикла. Развилка та же, что у
+   gateReason: g.poruchenie — гейт ДЕЛА (сверяется с p.poruchenie, вопросы по кредиту
+   не смотрит), остальные совпадают ПО КРЕДИТУ (КР-10). */
+const DEAL_LEVEL_GATE_TOPICS   = new Set(Object.values(GATES).filter(g =>  g.poruchenie).map(g => g.topic));
+const CREDIT_SCOPED_GATE_TOPICS= new Set(Object.values(GATES).filter(g => !g.poruchenie).map(g => g.topic));
+
 const MULTI_CREDIT_CASE_FIELDS = ['stop','age','overdue','costs','credits0','verdict',
   'bezakceptOutcome','guarantorClaim','storno','izvesh','iskRefused','appeal','agreement',
   'torgi','ilReturned','succession','bankrot','hopeless','hopelessFact','writeOff',
@@ -3767,26 +3779,17 @@ function buildSeed(seed){
       const bad = MULTI_CREDIT_CASE_FIELDS.filter(k => c[k] !== undefined);
       if(bad.length)
         throw new Error(`SEED: дело ${c.id} — многокредитное дело несёт дело-уровневые поля [${bad.join(', ')}], которые применились бы КО ВСЕМ кредитам сразу; объявите их на нужном кредите внутри credits:[…]`);
-      /* Fix round 1 (ревью, Important 2): extra сливается в дело ПОСЛЕ buildCredit —
-         мимо поимённого нацеливания (цикл targets внутри buildCredit его не видит) и
-         мимо его throw'а. Объявленная запись без явной цели досталась бы normalize(),
-         а тот раздаёт по РОЛИ — то есть ВСЕМ требованиям дела разом: ровно то
-         схлопывание контуров, против которого стоит МТ-1. Поэтому на многокредитном
-         деле цель обязана быть названа в самой декларации: мера — targets, срок —
-         targets либо srcMeasure (normalize скопирует цели с названной меры, а они на
-         таком деле всегда кредит-скоупные), вопрос органу — credits (без них
-         gateReason снимал бы гейт с ЛЮБОГО требования дела, КР-10). */
-      const ex = c.extra || {};
-      const hasTargets = x => Array.isArray(x.targets) && x.targets.length;
-      for(const m of (ex.measures || []))
-        if(!hasTargets(m))
-          throw new Error(`SEED: дело ${c.id} — extra.measures[«${m.kind||'?'}» ${m.num||''}] на многокредитном деле обязана нести явные targets: extra сливается после сборки кредитов, и normalize() адресовал бы меру ВСЕМ требованиям дела по роли (контуры схлопнулись бы в один)`);
-      for(const d of (ex.deadlines || []))
-        if(!hasTargets(d) && !d.srcMeasure)
-          throw new Error(`SEED: дело ${c.id} — extra.deadlines[тпл ${d.tpl}] на многокредитном деле обязан нести targets либо srcMeasure: иначе срок показался бы на КАЖДОМ требовании дела (фолбэк «пустые targets = все» в deadlinesOf)`);
-      for(const q of (ex.committeeQuestions || []))
-        if(!(Array.isArray(q.credits) && q.credits.length))
-          throw new Error(`SEED: дело ${c.id} — extra.committeeQuestions[«${q.topic||'?'}»] на многокредитном деле обязан называть credits: вопрос без кредитов открывает гейт ЛЮБОМУ требованию дела (gateReason, КР-10)`);
+      /* Fix round 2 (ревью, Minor 4): состояния ОБЯЗАТЕЛЬСТВА (пауза п.19/п.18,
+         мировое, СДИ) раздаются normalize() через stateTargets — ПО РОЛИ, то есть на
+         многокредитном деле прилипли бы ко всем договорам сразу: та же поломка, что
+         фикс-раунд 1 закрыл для мер/сроков/вопросов. В отличие от них у состояния нет
+         координаты кредита в модели вовсе (М-11 знает только вид и роль), поэтому
+         адресовать его точнее нечем — отказываем на входе, а пробел модели записан
+         в отчёт Task 9 для Task 12. Сегодня недостижимо (ни одно многокредитное дело
+         затравки их не объявляет) — закрываем, пока код в руках. */
+      for(const k of ['settlement','agreements'])
+        if(c.extra && c.extra[k] !== undefined)
+          throw new Error(`SEED: дело ${c.id} — extra.${k} на многокредитном деле: состояние обязательства раздаётся по РОЛИ (stateTargets) и прилипло бы ко ВСЕМ договорам дела, а координаты кредита у состояния в модели нет (М-11). Объявите такое состояние на однокредитном деле`);
     }
     /* Fix round 1 (ревью, Minor 3): stop/age читаются ТЕМ ЖЕ правилом, что overdue/
        costs/credits0 внутри buildCredit — «объявлено на кредите → побеждает, иначе
@@ -3806,8 +3809,8 @@ function buildSeed(seed){
        («Поручение Председателя Правления выдаётся ПО ДЕЛУ»). Каждый кредит, дошедший
        до такой меры, прислал свой вопрос — сливаем в первый: объединяем кредиты и
        берём САМОЕ РАННЕЕ заседание (поручение выдано до первого иска, а не до
-       последнего). У однокредитных дел вопрос ровно один — массив не меняется. */
-    const DEAL_LEVEL_GATE_TOPICS = new Set(Object.values(GATES).filter(g => g.poruchenie).map(g => g.topic));
+       последнего). У однокредитных дел вопрос ровно один — массив не меняется.
+       DEAL_LEVEL_GATE_TOPICS считается один раз, выше цикла (round 2, nit 6). */
     const committeeQuestions = [];
     for(const q of parts.flatMap(x => x.committeeQuestions)){
       const prev = DEAL_LEVEL_GATE_TOPICS.has(q.topic)
@@ -3826,6 +3829,44 @@ function buildSeed(seed){
     const opened = parts.map(x => x.opened).reduce((a, b) => dParse(a) <= dParse(b) ? a : b);
     if(dParse(opened) > dParse(TODAY))
       throw new Error(`SEED: дело ${c.id} — дата открытия ${opened} в будущем (сегодня ${TODAY}): ни по одному кредиту просрочки ещё нет, открывать дело не на чем`);
+
+    /* Fix round 1 (ревью, Important 2), уточнено в round 2 (Minor 2/3): extra
+       сливается в дело ПОСЛЕ buildCredit — мимо поимённого нацеливания (цикл targets
+       внутри buildCredit его не видит) и мимо его throw'а. Объявленная запись без
+       явной цели досталась бы normalize(), а тот раздаёт по РОЛИ — то есть ВСЕМ
+       требованиям дела разом: ровно то схлопывание контуров, против которого стоит
+       МТ-1. Требуем не «массив targets», а НАЗВАННУЮ цель — в любой из форм, что
+       normalize() понимает, иначе guard запрещал бы законные декларации:
+         · targets:[…] или targets:'все' (явное «на все требования дела»);
+         · у срока — ещё on:'все' и дело-уровневый по природе (DEAL_LEVEL_DEADLINE,
+           тпл 44 «конфликт интересов»: у него targets:[] и это верно);
+         · у срока — srcMeasure, но РАЗРЕШЁННЫЙ здесь же (round 2, Minor 3): normalize()
+           при неизвестном номере молча падает в тот же ролевой фолбэк, то есть
+           опечатка давала бы ровно ту утечку, ради которой guard и стоит;
+         · у вопроса органу — credits, и ТОЛЬКО для кредит-скоупных гейтовых предметов
+           (round 2, Minor 2): дело-уровневый гейт (поручение) сверяется с p.poruchenie,
+           а негейтовый предмет (списание, свободный) не открывает вообще ничего —
+           требовать от них перечень кредитов не за чем. */
+    if(c.credits){
+      const ex = c.extra || {};
+      const aimed = x => x.targets === 'все' || (Array.isArray(x.targets) && x.targets.length);
+      const knownNums = new Set([...measures.map(m => m.num), ...(ex.measures || []).map(m => m.num)].filter(Boolean));
+      for(const m of (ex.measures || []))
+        if(!aimed(m))
+          throw new Error(`SEED: дело ${c.id} — extra.measures[«${m.kind||'?'}» ${m.num||''}] на многокредитном деле обязана назвать цель (targets:[…] либо targets:'все'): extra сливается после сборки кредитов, и normalize() адресовал бы меру ВСЕМ требованиям дела по роли — контуры схлопнулись бы в один`);
+      for(const d of (ex.deadlines || [])){
+        if(aimed(d) || d.on === 'все' || DEAL_LEVEL_DEADLINE.test(dlAction(d))) continue;
+        if(d.srcMeasure){
+          if(!knownNums.has(d.srcMeasure))
+            throw new Error(`SEED: дело ${c.id} — extra.deadlines[тпл ${d.tpl}] ссылается на srcMeasure='${d.srcMeasure}', меры с таким номером в деле нет: normalize() при ненайденном номере молча уходит в ролевой фолбэк, и срок показался бы на КАЖДОМ требовании дела`);
+          continue;
+        }
+        throw new Error(`SEED: дело ${c.id} — extra.deadlines[тпл ${d.tpl}] на многокредитном деле обязан назвать цель (targets / on:'все' / srcMeasure) либо быть дело-уровневым по природе: иначе срок показался бы на КАЖДОМ требовании дела (фолбэк «пустые targets = все» в deadlinesOf)`);
+      }
+      for(const q of (ex.committeeQuestions || []))
+        if(CREDIT_SCOPED_GATE_TOPICS.has(q.topic) && !(Array.isArray(q.credits) && q.credits.length))
+          throw new Error(`SEED: дело ${c.id} — extra.committeeQuestions[«${q.topic}»] — гейтовый предмет, совпадающий ПО КРЕДИТУ (КР-10): без credits положительное решение открыло бы гейт ЛЮБОМУ требованию дела`);
+    }
 
     /* Task 6 · заседание — сущность (КР-2): срок «Следующее судебное заседание»
        выводится из него (hearingDeadlines), отдельным хранимым сроком не дублируется.
@@ -5036,9 +5077,10 @@ const SEED = [
         factors:[{ kind:'нецелевое использование кредитных средств',
                    committee:'Комитет по администрированию бюджетных кредитов',
                    decision:'установлено', level:'high' }] }],
-    extra:{ committeeQuestions:[{ organ:ORGANS[0], initiator:'ОД', topic:CQ_FREE,
+    extra:{ committeeQuestions:[{ organ:ORGANS[0], initiator:'ОД',
+              topic:'Установление факта нецелевого использования кредитных средств', free:true,
               credits:['398'], meetingDate:'08.07.2026',
-              decision:'установлено нецелевое использование кредитных средств по Дог. №398 — категория риска «Высокий» независимо от дней просрочки (п. 6.5)',
+              decision:'факт установлен — категория риска «Высокий» независимо от дней просрочки (п. 6.5)',
               positive:true, protocolNo:'ПРОТ-397/ФКТ', protocolDate:'08.07.2026' }],
             history:[{ when:'08.07.2026 11:00',
               what:'Комитет по администрированию бюджетных кредитов установил нецелевое использование средств по Дог. №398 (протокол ПРОТ-397/ФКТ) — категория риска поднята до «Высокий» независимо от дней просрочки (п. 6.5)',
@@ -5163,8 +5205,8 @@ function migrateProcedureToHandover(p){
 }
 
 /* ---- normalize: заполняем умолчания, чтобы данные держать лаконичными ---- */
-/* КД-6: сроки, у которых требования нет по природе — они про ведение дела. */
-const DEAL_LEVEL_DEADLINE = /конфликт/i;
+/* КД-6: DEAL_LEVEL_DEADLINE («сроки, у которых требования нет по природе») объявлена
+   выше, рядом с dlTpl/dlAction — её читает и buildSeed (Task 9 fix round 2). */
 function normalize(p){
   p.region ??= '—'; p.curator ??= '—'; p.openedBy ??= 'куратор'; p.basis ??= '—';
   p.owner ??= '—'; p.poruchenie ??= false;
@@ -6693,8 +6735,14 @@ function saveCommitteeQuestion(){
   if((curProc.credits||[]).length && !credits.length){ toast('Отметьте хотя бы один кредит','warn'); return; }
   if(subjSel===CQ_FREE && !val('cqSubjectFree')){ toast('Сформулируйте предмет вопроса','warn'); return; }
   curProc.committeeQuestions=curProc.committeeQuestions||[];
-  // КР-9: вопрос рождается НЕ решённым — состояние выводится, в поле решения его не пишем.
-  curProc.committeeQuestions.unshift({organ,initiator,topic,credits,meetingDate:'',decided:false,decision:'',positive:false,protocolNo:'',protocolDate:''});
+  /* КР-9: вопрос рождается НЕ решённым — состояние выводится, в поле решения его не пишем.
+     Task 9 fix round 2: форма пишет в topic СФОРМУЛИРОВАННЫЙ текст (CQ_FREE — только
+     маркер выбора в списке), и до этой правки в записи не оставалось НИЧЕГО, что
+     отличало бы «свободный предмет, так и задумано» от «предмет мимо справочника»
+     (опечатка, чужая формулировка гейтового предмета). Признак free:true ставится
+     ровно там, где он ещё известен — в момент сохранения; F1 аудита читает его же. */
+  curProc.committeeQuestions.unshift({organ,initiator,topic,credits,meetingDate:'',decided:false,decision:'',positive:false,protocolNo:'',protocolDate:'',
+    ...(subjSel===CQ_FREE ? {free:true} : {})});
   curProc.history=curProc.history||[];
   curProc.history.unshift({when:TODAY+' 12:00',what:`Вопрос вынесен на «${organ}»: ${topic}`,who:initiator});
   closeModal(); renderPanels(); toast('Вопрос вынесен на коллегиальный орган (демо)','ok');
