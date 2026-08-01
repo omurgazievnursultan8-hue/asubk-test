@@ -2471,8 +2471,8 @@ function buildSeed(seed){
       owner:c.owner, curator:c.curator, opened, openedBy:c.openedBy || 'система',
       basis:c.basis || 'просрочка 6 дней',
       poruchenie: measures.some(m => m.kind === 'Исковое заявление'),
-      credits:[{ id:c.credit.id, num:c.credit.num, overdueDays,
-                 subdiv:c.credit.subdiv, bezakceptRight:c.credit.bezakcept }],
+      credits:[Object.assign({ id:c.credit.id, num:c.credit.num, overdueDays,
+                 subdiv:c.credit.subdiv, bezakceptRight:c.credit.bezakcept }, c.credits0 || {})],
       measures, committeeQuestions,
       hearings:copyArr(c.hearings), colls:copyArr(c.colls),
       deadlines, history };
@@ -2607,6 +2607,39 @@ const SEED = [
              debt:{ principal:64000, interest:3200, penalty:800, paid:0 } },
     stop:null, overdue:9,
     extra:{ window:{ open:true, days:5, closedBy:null, gateDay:'11', claimDay:'20' } } },
+
+  // ── K0-ЗАКР · окно закрыто: истечение срока / досрочная отметка куратора ──
+  { sit:'K0-ЗАКР', id:'204', borrower:'ИП Мамытова А.', inn:'21903198500071',
+    region:'Чуйская обл. / Сокулукский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
+    credit:{ id:'204', num:'Дог. №204 от 18.01.2025', subdiv:'ОД',
+             debt:{ principal:86000, interest:3000, penalty:900, paid:0 } },
+    stop:null, overdue:13,
+    extra:{ window:{ open:false, days:5, until:'16.07.2026', closedBy:'истечение срока' } } },
+  { sit:'K0-ЗАКР', id:'205', borrower:'ОсОО «Кен-Сай»', inn:'01808202100263',
+    region:'Ошская обл. / Кара-Суйский', owner:'Куратор ОД', curator:'Жээнбеков Н.',
+    credit:{ id:'205', num:'Дог. №205 от 05.05.2024', subdiv:'ОД',
+             debt:{ principal:54000, interest:2100, penalty:600, paid:0 } },
+    stop:null, overdue:11,
+    extra:{ window:{ open:false, days:5, until:'18.07.2026', closedBy:'отметка куратора' },
+      history:[{ when:'17.07.2026 10:20', what:'Окно ожидания закрыто досрочно: «переговоры проведены, платёж не подтверждён» (п. 17.2)', who:'Куратор ОД' }] } },
+
+  // ── K0-РЕТРО · ретро-закрытие Р-9, подтверждённая задержка казначейства Р-11 ──
+  { sit:'K0-РЕТРО', id:'206', borrower:'ОсОО «Кут-Инвест»', inn:'01502201700882',
+    region:'Иссык-Кульская обл. / Джети-Огузский', owner:'Куратор ОД', curator:'Осмонов К.',
+    credit:{ id:'206', num:'Дог. №206 от 12.02.2025', subdiv:'ОД',
+             debt:{ principal:74000, interest:0, penalty:0, paid:74000 } },
+    stop:null, overdue:9,
+    extra:{ retro:true,
+      credits0:{ treasuryDelay:{ days:12, doc:'ПП-4471 от 08.07.2026', confirmedBy:'СРМК', date:'09.07.2026' } },
+      history:[{ when:'10.07.2026 09:15', what:'Платёж подтверждён задним числом (задержка казначейства 12 дн, ПП-4471) → процесс закрыт ретроспективно (Р-9), скрыт из рабочего списка', who:'СРМК' }] } },
+  { sit:'K0-РЕТРО', id:'207', borrower:'ОсОО «Ак-Жол Строй»', inn:'01704201900397',
+    region:'Нарынская обл. / Ак-Талинский', owner:'Куратор ОД', curator:'Дуйшеева Р.',
+    credit:{ id:'207', num:'Дог. №207 от 03.04.2025', subdiv:'ОД',
+             debt:{ principal:48000, interest:0, penalty:0, paid:48000 } },
+    stop:null, overdue:10,
+    extra:{ retro:true,
+      credits0:{ treasuryDelay:{ days:8, doc:'ПП-4502 от 12.07.2026', confirmedBy:'СРМК', date:'13.07.2026' } },
+      history:[{ when:'14.07.2026 09:00', what:'Платёж подтверждён задним числом (задержка казначейства 8 дн, ПП-4502) → процесс закрыт ретроспективно (Р-9), скрыт из рабочего списка', who:'СРМК' }] } },
 ];
 const PROCESSES = buildSeed(SEED);
 
