@@ -1394,13 +1394,15 @@ const MEASURE_KINDS = [
   /* Task 6 (K3-ДОБРОВОЛЬНОЕ): basisKinds было null — но ситуация сама сформулирована как
      «соглашение НА ОСНОВЕ судебного акта» (п. 37), а builder-ветка (buildSeed, agreement.
      type==='dobrovolnoe') адресует basedOn РОВНО на акт, которым закончилось дело у суда.
-     Список — тот же, что msHasCourtAct() уже читает regex'ом («решение суда|исполнительный
-     лист|мировое соглашение») для гейта регистрации (МС-5) — просто выражен явным
-     справочником, а не второй копией того же перечня. Без этой записи basedOn на первой
-     же добровольной мере ловит A7 («у вида basisKinds:null, но задан basedOn»). */
+     Ревью раунд1, MINOR 7: список сведён РОВНО к трём видам, что msHasCourtAct() читает
+     regex'ом («решение суда|исполнительный лист|мировое соглашение», гейт МС-5) — было
+     четыре, «Судебный приказ» лишний: под этот regex его текст не подходит («судебный
+     приказ» не содержит ни одной из трёх альтернатив), и справочник тем самым разрешал
+     basedOn на акт, на основании которого живой гейт регистрации мировое/добровольное
+     запретил бы саму меру. Три, а не одна копия перечня — расходиться им больше негде. */
   { name:'Соглашение о добровольном исполнении', source:'наш документ', resultIsDocument:false,
     outcomes:[{value:'заключено'}], needsDelivery:false, deliveryChannels:null,
-    basisKinds:['Решение суда','Судебный приказ','Мировое соглашение','Исполнительный лист'] },
+    basisKinds:['Решение суда','Мировое соглашение','Исполнительный лист'] },
   { name:'Исполнительный лист', source:'внешний акт', resultIsDocument:false,
     outcomes:[{value:'выдан',setsPhase:'Исполнительный лист'}],
     needsDelivery:false, deliveryChannels:null, basisKinds:['Решение суда','Судебный приказ','Мировое соглашение'] },
@@ -2685,15 +2687,34 @@ function buildSeed(seed){
       const outcomeOpr = c.iskRefused === 'возврат' ? 'возвращено' : 'отказано в принятии';
       measures.push({ sec:sectionOf(kindOpr), kind:kindOpr, dates:D(dt, dt), received:{ date:dt }, num:numOpr,
         purpose:'судьба искового заявления', basedOn:iskM.num,
-        outcome:outcomeOpr, sum:sumBy('полный остаток'), responsible:respOpr });
+        outcome:outcomeOpr, sum:sumBy(curScope), responsible:respOpr });
       history.push({ when:`${dt} 10:00`, what:`Мера «${kindOpr}» ${numOpr} зарегистрирована — исход «${outcomeOpr}»`, who:respOpr });
       const dt2 = ruAdd(dt, 8);
       const numChj = `ЧЖ-${c.credit.id}`;
       const respChj = respFor('Частная жалоба');
       measures.push({ sec:sectionOf('Частная жалоба'), kind:'Частная жалоба', dates:D(dt2, dt2),
         num:numChj, purpose:'обжалование определения', basedOn:numOpr,
-        sum:sumBy('полный остаток'), responsible:respChj });
+        sum:sumBy(curScope), responsible:respChj });
       history.push({ when:`${dt2} 10:00`, what:`Мера «Частная жалоба» ${numChj} зарегистрирована`, who:respChj });
+      /* Ревью раунд1, MINOR 7: тпл 26 («Частная жалоба», 10 дн от определения, п. 30.1)
+         — единственный кейс волны, где обе даты (создание обязательства и его исполнение)
+         уже известны на этапе сборки затравки: жалоба подана на 8-й день из 10 —
+         обязательство закрыто в тот же момент, что и создано. closeDeadlinesBy() сделала
+         бы то же самое при живой регистрации через форму — билдер не может вызвать её
+         саму (DEADLINE_CLOSERS — const, инициализируется позже buildSeed() по тексту
+         файла, TDZ), поэтому не кладём срок в открытую очередь (это дало бы вечный
+         «просрочен» — то же класс дыры, что чинит извлечение tpl 27 ниже), а фиксируем
+         обе половины пары «срок → закрывающая мера» в history — единственное место,
+         где в этой затравке уже проговариваются факты закрытия срока (тот же текстовый
+         паттерн, что даёт closeDeadlinesBy в интерактиве). */
+      const tpl26 = TPL_BY_N[26];
+      const days26 = tpl26 ? termToCalendarDays(tpl26.term) : null;
+      if(days26 != null){
+        const due26 = ruAdd(dt, days26);
+        history.push({ when:`${dt2} 10:05`,
+          what:`Срок «${tpl26.action}» (п. ${tpl26.point}, ${tpl26.base}, до ${due26}) снят с контроля: обязательство исполнено регистрацией меры «Частная жалоба» ${numChj}`,
+          who:respChj });
+      }
     }
 
     /* Task 6 (K3-АПЕЛЛЯЦИЯ). ADR-0031 п.3: жалоба (resultIsDocument) фазу не двигает —
@@ -2707,7 +2728,7 @@ function buildSeed(seed){
       const respAj = respFor('Апелляционная жалоба');
       measures.push({ sec:sectionOf('Апелляционная жалоба'), kind:'Апелляционная жалоба', dates:D(dt, dt),
         num:numAj, purpose:'обжалование решения суда', basedOn:rs.num,
-        sum:sumBy('полный остаток'), responsible:respAj });
+        sum:sumBy(curScope), responsible:respAj });
       history.push({ when:`${dt} 10:00`, what:`Мера «Апелляционная жалоба» ${numAj} зарегистрирована`, who:respAj });
       const dt2 = ruAdd(dt, 40);
       const numPa = `ПА-${c.credit.id}`;
@@ -2715,7 +2736,7 @@ function buildSeed(seed){
       measures.push({ sec:sectionOf('Постановление апелляционной инстанции'), kind:'Постановление апелляционной инстанции',
         dates:D(dt2, dt2), received:{ date:dt2 }, num:numPa,
         purpose:'акт апелляционной инстанции', basedOn:numAj,
-        outcome:c.appeal, sum:sumBy('полный остаток'), responsible:respPa });
+        outcome:c.appeal, sum:sumBy(curScope), responsible:respPa });
       history.push({ when:`${dt2} 10:00`, what:`Мера «Постановление апелляционной инстанции» ${numPa} зарегистрирована — исход «${c.appeal}»`, who:respPa });
     }
 
@@ -2728,11 +2749,20 @@ function buildSeed(seed){
     if(c.agreement){
       const a = c.agreement;
       if(a.type === 'mirovoe' && a.status === 'утверждено судом'){
+        /* Ревью раунд1, MINOR 6: mirovoe был единственной новой веткой без именованных
+           throw — опечатка/неполная декларация тихо давала бы A9 (нет approvedAt → нет
+           даты) вместо явной ошибки сборки. Тот же guard-стиль, что у iskRefused/appeal/
+           dobrovolnoe рядом: мировое утверждается на судебной стадии (п. 22) — без
+           «Искового заявления» в цепочке утверждать нечего. */
+        if(!measures.some(m => m.kind === 'Исковое заявление'))
+          throw new Error(`SEED: дело ${c.id} — agreement.type='mirovoe' status='утверждено судом' задан, а меры «Исковое заявление» в цепочке нет (мировое утверждается на судебной стадии, п. 22)`);
+        if(!a.approvedAt)
+          throw new Error(`SEED: дело ${c.id} — agreement.type='mirovoe' status='утверждено судом' задан без approvedAt — датировать меру не от чего`);
         const dt = a.approvedAt;
         const respMs = respFor('Мировое соглашение');
         measures.push({ sec:sectionOf('Мировое соглашение'), kind:'Мировое соглашение', dates:D(dt, dt),
           received:{ date:dt }, num:a.num, purpose:'утверждение мирового соглашения судом',
-          outcome:'утверждено судом', sum:sumBy('полный остаток'), responsible:respMs });
+          outcome:'утверждено судом', sum:sumBy(curScope), responsible:respMs });
         history.push({ when:`${dt} 10:00`, what:`Мера «Мировое соглашение» ${a.num} зарегистрирована — утверждено судом`, who:respMs });
       }
       if(a.type === 'dobrovolnoe'){
@@ -2744,7 +2774,7 @@ function buildSeed(seed){
         measures.push({ sec:sectionOf('Соглашение о добровольном исполнении'), kind:'Соглашение о добровольном исполнении',
           dates:D(dt, dt), num:a.num, purpose:'добровольное исполнение судебного акта',
           outcome:'заключено', basedOn:rsM.num,
-          sum:sumBy('полный остаток'), responsible:respSdi });
+          sum:sumBy(curScope), responsible:respSdi });
         history.push({ when:`${dt} 10:00`, what:`Мера «Соглашение о добровольном исполнении» ${a.num} зарегистрирована`, who:respSdi });
       }
     }
@@ -2781,7 +2811,15 @@ function buildSeed(seed){
       let dlN = DEADLINE_BY_KIND[s.kind];
       if(dlN && reachedSudebny) dlN = null;
       if(s.kind === 'Решение суда')
-        dlN = (verdictApplied === FAVORABLE_VERDICT) ? null : 27;   // FAVORABLE_VERDICT — см. п.4 ревью №3, не хардкод
+        /* FAVORABLE_VERDICT — см. п.4 ревью №3, не хардкод. Ревью раунд1, CRITICAL 1
+           (Task 6): || c.appeal добавлен — если дело САМО регистрирует «Апелляционную
+           жалобу» (ветка выше, вставлена ПОСЛЕ этого блока по тексту файла, но c.appeal
+           как факт декларации кейса известен уже здесь), обязательство «обжаловать»
+           уже исполнено ЭТОЙ же меры-жалобой в той же затравке — без отсечки тпл 27
+           встал бы в очередь и остался там навсегда просроченным (closeDeadlinesBy()
+           не может сработать по нему: builder не вызывает её, DEADLINE_CLOSERS — const,
+           инициализируется позже buildSeed() по тексту файла, TDZ). */
+        dlN = (verdictApplied === FAVORABLE_VERDICT || c.appeal) ? null : 27;
       const tpl = dlN ? TPL_BY_N[dlN] : null;
       if(tpl){
         const days = termToCalendarDays(tpl.term);
@@ -3396,18 +3434,24 @@ const SEED = [
     stop:'решение', age:26 },   // verdict не задан — умолчание SPINE «иск удовлетворён полностью»
 
   // ── K3-АПЕЛЛЯЦИЯ · решение обжаловано — оставлено в силе / отменено на новое рассмотрение (2) ──
+  // Ревью раунд1, CRITICAL 1: verdict ОБЯЗАН быть неблагоприятным — жалобу подаёт ФКФ
+  // (свой документ, resultIsDocument), обжаловать СВОЙ ЖЕ полный выигрыш нечего и
+  // некому. 340 — частичное удовлетворение оставлено в силе апелляцией (наш довод не
+  // принят); 341 — отказ в иске отменён апелляцией, дело возвращено на новое
+  // рассмотрение (наш довод принят, но требование ещё не удовлетворено — фаза
+  // откатывается на «Иск», см. Постановление апелляционной инстанции ниже).
   { sit:'K3-АПЕЛЛЯЦИЯ', id:'340', borrower:'ОсОО «Ак-Суу Агро»', inn:'01704201900815',
     region:'Иссык-Кульская область / Ак-Суйский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Абдиев Э.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credit:{ id:'340', num:'Дог. №340 от 19.05.2023', subdiv:'ОПК',
              debt:{ principal:312000, interest:15000, penalty:8100, paid:0, principalOverdue:250000 } },
-    stop:'решение', age:65, appeal:'оставлено в силе' },
+    stop:'решение', age:65, verdict:'иск удовлетворён частично', appeal:'оставлено в силе' },
   { sit:'K3-АПЕЛЛЯЦИЯ', id:'341', borrower:'ОсОО «Кадамжай-Мал»', inn:'01808201800816',
     region:'Баткенская область / Кадамжайский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Осмонов К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credit:{ id:'341', num:'Дог. №341 от 27.08.2023', subdiv:'ОПК',
              debt:{ principal:268000, interest:12900, penalty:6700, paid:0, principalOverdue:215000 } },
-    stop:'решение', age:70, appeal:'отменено, на новое рассмотрение' },
+    stop:'решение', age:70, verdict:'в иске отказано', appeal:'отменено, на новое рассмотрение' },
 
   // ── K3-ИЛ · исполнительный лист выдан (2) ──
   { sit:'K3-ИЛ', id:'342', borrower:'ОсОО «Нарын-Курулуш»', inn:'01704202000817',
@@ -3424,16 +3468,29 @@ const SEED = [
     stop:'ил', age:15 },
 
   // ── K3-МС · мировое соглашение — утверждено судом с графиком / проект под утверждением (2) ──
-  // 120 — заседание проведено (defendantAppeared:true), затем стороны пришли к мировому;
+  // 120 — заседание проведено (ответчик явился), затем стороны пришли к мировому;
   // approvedAt=10.07.2026 — после заседания (16.06.2026) и определения о принятии
   // (22.05.2026), до TODAY. extra.agreements несёт карточку для «Особые состояния»
   // (форма — как у msApprove(): status/approvedAt/notWorse/draftedBy/scheduleBy/schedule).
+  // Ревью раунд1, IMPORTANT 4: заседания заданы ВРУЧНУЮ (не автогенерацией по c.court/
+  // defendantAppeared) — единственный способ дать «Судебному процессу» 16.06 РЕАЛЬНЫЙ
+  // исход (авто-ветка либо оставляет '' при явке, либо жёстко «отложено — неявка»;
+  // здесь заседание прошло, ответчик явился, но дело не рассмотрено по существу —
+  // стороны заявили о мировом, разбирательство отложено под утверждение МС от 10.07).
+  // Без этого прошедшее заседание с '' навсегда садится в реестре как «дыра».
   { sit:'K3-МС', id:'120', borrower:'ИП Сыдыков А.', inn:'20308197700219',
     region:'Джалал-Абадская область / Сузакский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Эрнисов Б.Т.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credit:{ id:'120', num:'Дог. №120 от 11.09.2023', subdiv:'ОПК',
              debt:{ principal:240000, interest:11000, penalty:6000, paid:0, principalOverdue:190000 } },
-    stop:'определение', age:60, court:'Сузакский районный суд', defendantAppeared:true,
+    stop:'определение', age:60,
+    hearings:[
+      { measureNum:'ИСК-120', kind:'Извещение о назначении судебного процесса', place:'Сузакский районный суд',
+        when:'02.06.2026 10:30', participants:['Эрнисов Б.Т. (представитель ФКФ)'], outcome:'' },
+      { measureNum:'ИСК-120', kind:'Судебный процесс', place:'Сузакский районный суд',
+        when:'16.06.2026 14:00', participants:['Эрнисов Б.Т. (представитель ФКФ)', 'Ответчик явился'],
+        outcome:'судебное разбирательство отложено — стороны заявили о намерении заключить мировое соглашение' },
+    ],
     agreement:{ type:'mirovoe', num:'МС-120', status:'утверждено судом', approvedAt:'10.07.2026' },
     extra:{ agreements:[{ type:'mirovoe', num:'МС-120', status:'утверждено судом', expiredTerms:true,
       on:'заёмщик',
@@ -4351,6 +4408,14 @@ const hTargets = (p, h) => { const m = measureByNum(p, h.measureNum); return ((m
 /* Исход вносится ПОСЛЕ заседания. Прошедшее заседание без исхода — видимая дыра (КР-3),
    а не «статус: на рассмотрении», одинаковый у всех строк до единой (КР-Д). */
 const hDone = h => !!String(h.outcome||'').trim();
+/* Ревью раунд1, IMPORTANT 4: «Извещение о назначении…» — уведомление о дате, а не
+   судебное СОБЫТИЕ с исходом (Шаг 1 buildSeed заводит его с outcome:'' безусловно,
+   у самого понятия «исход извещения» смысла нет — в отличие от «Судебный процесс»).
+   Без этого различения прошедшее извещение навсегда садится в реестр и в метрику
+   «прошло без внесённого исхода» как незакрытая дыра, хотя дыры там нет и не может
+   быть — полю просто нечем заполняться по природе вида. */
+const HEARING_NO_OUTCOME_KINDS = new Set(['Извещение о назначении судебного процесса']);
+const hApplicable = h => !HEARING_NO_OUTCOME_KINDS.has(h.kind);
 /* Представитель ФКФ — из участников: остальные строки участников это другая сторона. */
 const hRep  = h => ((h.participants||[]).find(x=>/представител/i.test(x))
                  || (h.participants||[]).find(x=>!/ответчик|истец|третье лицо|суд/i.test(x)) || '')
@@ -4935,7 +5000,10 @@ function panelSud(){
      той же записью стоит в очереди сроков (КР-2) — второй записи под него нет. */
   const hear=hearingsOf(r).map(h=>{
     const n=hLeft(h);
+    // Ревью раунд1, IMPORTANT 4: тот же hApplicable, что реестр «Заседания» — «Извещение
+    // о назначении…» без исхода — не дыра (у него исхода не бывает по природе вида).
     const out=hDone(h)?escAttr(h.outcome)
+      :!hApplicable(h)?'<span class="dl-muted">без исхода — уведомление</span>'
       :n!=null&&n<0?'<span class="pill high">исход не внесён</span>'
       :`<span class="pill info">предстоит${n!=null?` · через ${n} к.д.`:''}</span>`;
     return `<tr>
@@ -6332,8 +6400,11 @@ defReg({
   segLabel:'Показывать', subdivLabel:'Ведущее подразделение', wide:'all',
   search:'заёмщик, ИНН, № дела, суд',
   segs:[
-    { k:'upcoming', t:'Предстоящие', pass:x => x.n == null || x.n >= 0 || !x.done,
-      cond:'Показаны предстоящие заседания (прошедшие без внесённого исхода — всегда)' },
+    // Ревью раунд1, IMPORTANT 4: !hApplicable(x.h) добавлен — прошедшее «Извещение о
+    // назначении…» без исхода (у него его и не бывает) больше не держится в
+    // «Предстоящих» вечным хвостом наравне с настоящей дырой (заседанием без исхода).
+    { k:'upcoming', t:'Предстоящие', pass:x => x.n == null || x.n >= 0 || (!x.done && hApplicable(x.h)),
+      cond:'Показаны предстоящие заседания (прошедшие без внесённого исхода — всегда, кроме извещений)' },
     { k:'past',     t:'Прошедшие',   pass:x => x.n != null && x.n < 0, cond:'Показаны прошедшие заседания' },
     { k:'all',      t:'Все',         pass:()=>true },
   ],
@@ -6361,13 +6432,16 @@ defReg({
   },
   frame(rows, all){
     const up   = rows.filter(x=>x.n != null && x.n >= 0).length;
-    const hole = rows.filter(x=>x.n != null && x.n < 0 && !x.done).length;
+    // Ревью раунд1, IMPORTANT 4: hApplicable(x.h) — извещения не считаются «дырой»,
+    // у них исхода не бывает по природе вида (см. HEARING_NO_OUTCOME_KINDS).
+    const hole = rows.filter(x=>x.n != null && x.n < 0 && !x.done && hApplicable(x.h)).length;
     const next = rows.filter(x=>x.n != null && x.n >= 0).sort((a,b)=>a.n-b.n)[0];
     return `Показано <b>${rows.length}</b> из ${all.length} · предстоит <b>${up}</b> · прошло без внесённого исхода <b>${hole}</b>`
       + ` · ближайшее <b>${next ? next.h.when : '—'}</b> · отсчёт от ${TODAY}`;
   },
   row(x){
     const out = x.done ? escAttr(x.h.outcome)
+      : !hApplicable(x.h) ? '<span class="dl-muted">без исхода — уведомление</span>'
       : x.n != null && x.n < 0 ? `<span class="pill high">исход не внесён</span>`
       : `<span class="dl-muted">предстоит</span>`;
     const id = x.reqs.length ? x.reqs[0].id : x.p.id;
