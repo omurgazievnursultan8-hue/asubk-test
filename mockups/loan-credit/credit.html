@@ -2999,11 +2999,17 @@ function trancheForecastRows(t, ledgerIndex, asOf){
   const i   = (cnd.rate || 0) / 100 / 12 * mpp;       // ставка за период, как в buildSchedule
   const n   = fut.length;
   const ann = n === 0 ? 0 : (i > 0 ? bal * i / (1 - Math.pow(1 + i, -n)) : bal / n);
+  const bal0 = bal;                                   // остаток ОД до перестройки
+  const diffP = n === 0 ? 0 : bal0 / n;               // 'равными долями'/'дифференцированный': ровное тело
   fut.forEach((r, k) => {
     const interest = round2(bal * i);
-    let principal = (cnd.method === 'в конце срока')
-      ? (k === n - 1 ? bal : 0)
-      : round2(ann - interest);
+    let principal;
+    if (cnd.method === 'в конце срока')
+      principal = (k === n - 1 ? bal : 0);
+    else if (cnd.method === 'равными долями' || cnd.method === 'дифференцированный')
+      principal = round2(diffP);                      // как в buildSchedule: тело не плавает от остатка
+    else
+      principal = round2(ann - interest);             // аннуитет
     if (k === n - 1) principal = bal;                 // последний платёж гасит остаток
     principal = Math.max(0, Math.min(principal, bal));
     bal = round2(bal - principal);
@@ -3014,13 +3020,17 @@ function trancheForecastRows(t, ledgerIndex, asOf){
   return out;
 }
 
-/* Прогноз кредита по месяцам — сумма прогноза ВСЕХ траншей, сгруппированная по месяцу
-   даты позиции. Этим предзаполняется форма заведения плана (ADR-0042 §2): стартовое
-   значение формы, не связь — после сохранения план от прогноза не зависит. */
+/* Прогноз кредита по месяцам — сумма прогноза всех траншей по БУДУЩИМ позициям (дата > среза),
+   сгруппированная по месяцу даты позиции. Прошлое сюда не входит намеренно: непокрытый остаток
+   прошлой позиции уже сидит в её собственной строке И целиком сваливается хвостом в ближайшую
+   будущую — сложив то и другое по месяцам, мы посчитали бы просрочку дважды. Карта отвечает на
+   один вопрос: «сколько ждём собрать в этом месяце». Этим предзаполняется форма заведения плана
+   (ADR-0042 §2): стартовое значение формы, не связь — после сохранения план от прогноза не зависит. */
 function forecastByMonth(c, ledgerIndex, asOf){
   const m = new Map();
   for (const t of (c.tranches || [])){
     for (const r of trancheForecastRows(t, ledgerIndex, asOf)){
+      if (r.past) continue;                           // прошлое — не прогноз, а просрочка (см. комментарий)
       const mk = monthKey(r.date);
       m.set(mk, round2((m.get(mk) || 0) + r.forecast));
     }
