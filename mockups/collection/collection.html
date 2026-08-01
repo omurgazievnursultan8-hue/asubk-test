@@ -2871,8 +2871,11 @@ function buildCredit(c, cr, stop, age){
        и есть «куратор этого подразделения по этому делу»; c.curator остаётся
        умолчанием для однокредитных дел, что своего подразделения в карте не называют
        (у 79 дел волны deptCurators никогда не содержит собственный credit.subdiv —
-       поведение не меняется, проверено снимком). C6 аудита такое не поймал бы: он
-       только собирает строки respCheck, не сверяя их. */
+       поведение не меняется, проверено снимком). Разрешение подписанта идёт ДВУМЯ
+       разными путями, и линейка (C6 аудита) с раунда 4 ключуется ровно ими: мера,
+       ЗАКОННАЯ для подразделения кредита, подписывается по cr.subdiv (кто угодно из
+       вида — один и тот же человек); мера ВНЕ его — по первому названному
+       подразделению из допустимых, и cr.subdiv на выбор уже не влияет. */
     const respFor = kind => {
       const subdiv = subdivOf(kind);
       const outOfSubdiv = subdiv && cr.subdiv && !subdiv.includes(cr.subdiv);
@@ -3058,6 +3061,16 @@ function buildCredit(c, cr, stop, age){
          спрашивает про залог СВОЕГО договора: у однокредитного дела привязки нет
          вовсе и подходят все предметы (поведение прежнее), у многокредитного —
          только предметы этого кредита. */
+      /* Fix round 4 (ревью, Minor 3): непривязанный предмет на МНОГОКРЕДИТНОМ деле —
+         ошибка, а не «принадлежит всем»: иначе оба guard'а ниже проходили бы по
+         ЧУЖОМУ залогу, и извещение регистрировалось бы по договору, у которого
+         обеспечения нет. Ровно то же самое (той же формулировкой) уже требует ветка
+         torgiAuto в collsOut — две ветки читают одни данные и обязаны договориться.
+         У однокредитного дела привязки нет ни у кого и подходят все предметы —
+         поведение прежнее. */
+      if(c.credits) for(const x of (c.colls || []))
+        if(x.credit == null)
+          throw new Error(`SEED: дело ${c.id} — предмет залога «${x.item}» не назвал credit, а дело многокредитное: чей это залог — неизвестно, а izvesh (кредит ${cr.id}) спрашивает про залог СВОЕГО договора (КД-5)`);
       const myColls = (c.colls || []).filter(x => x.credit == null || x.credit === cr.id);
       if(!myColls.length)
         throw new Error(`SEED: дело ${c.id} — izvesh:true задан для кредита ${cr.id}, а предметов залога этого кредита в c.colls нет — извещать не о чем (у извещения нет предмета залога)`);
@@ -3688,10 +3701,6 @@ function buildCredit(c, cr, stop, age){
         protocolNo:null, protocolDate:null });
     }
 
-    /* credits0 — оверлей ТОЛЬКО для дополнительных полей кредита (сейчас — treasuryDelay,
-       Р-11), не замена базовых. Без списка допустимых ключей будущий кейс мог бы тихо
-       затереть id/num/overdueDays/subdiv/bezakceptRight, которые кредит несёт по контракту
-       выше, — единственный merge-точка билдера без throw на конфликт (ревью раунда 1). */
     /* Task 6 · заседание — сущность (КР-2): срок «Следующее судебное заседание»
        выводится из него (hearingDeadlines), отдельным хранимым сроком не дублируется.
        Автогенерация — только если кейс явно назвал суд (court) И сам не задал
@@ -3721,6 +3730,10 @@ function buildCredit(c, cr, stop, age){
         outcome: opt('defendantAppeared') ? '' : 'отложено — неявка ответчика' });
     }
 
+    /* credits0 — оверлей ТОЛЬКО для дополнительных полей кредита (сейчас — treasuryDelay,
+       Р-11), не замена базовых. Без списка допустимых ключей будущий кейс мог бы тихо
+       затереть id/num/overdueDays/subdiv/bezakceptRight, которые кредит несёт по контракту
+       выше, — единственный merge-точка билдера без throw на конфликт (ревью раунда 1). */
     const CREDITS0_ALLOWED = ['treasuryDelay'];
     if(credits0){
       const bad = Object.keys(credits0).filter(k => !CREDITS0_ALLOWED.includes(k));
@@ -3950,7 +3963,13 @@ function buildSeed(seed){
         throw new Error(`SEED: дело ${c.id} — colls[].stage='${x.stage}' не входит в REAL_STAGES [${REAL_STAGES.join(' | ')}]`);
       if(decls.length > 1 && x.credit == null)
         throw new Error(`SEED: дело ${c.id} — предмет залога «${x.item}» с torgiAuto на многокредитном деле не назвал credit: чьи торги не состоялись — неизвестно (КД-5: предмет обеспечивает КРЕДИТНЫЙ ДОГОВОР)`);
-      const fails = x.credit != null ? (torgiFailsByCredit[x.credit] || 0) : parts[0].torgiFails;
+      /* Fix round 4 (ревью, Minor 2): `|| 0` тихо давал ноль, когда credit предмета
+         не называет ни одного договора дела, — строка «торги не состоялись (N раз)»
+         пропадала из описания залога без единого слова. Соседняя ветка (credit == null
+         на многокредитном) throw'ит; эта обязана вести себя так же. */
+      if(x.credit != null && !(x.credit in torgiFailsByCredit))
+        throw new Error(`SEED: дело ${c.id} — предмет залога «${x.item}» привязан к кредиту '${x.credit}', которого в деле нет [${Object.keys(torgiFailsByCredit).join(' | ')}] (КД-5: предмет обеспечивает КРЕДИТНЫЙ ДОГОВОР)`);
+      const fails = x.credit != null ? torgiFailsByCredit[x.credit] : parts[0].torgiFails;
       const bits = [];
       if(x.arrested) bits.push('арест наложен');
       if(fails) bits.push(`торги не состоялись (${fails} раз${fails===1?'':'а'})`);
@@ -6738,8 +6757,8 @@ function panelKomitety(){
     const creditsCell=(q.credits||[]).map(id=>escAttr(creditLabel(p,id))).join('<br>')||'—';
     return `<tr>
     <td>${escAttr(q.topic)}</td><td class="org-cell">${escAttr(q.organ)}</td><td>${escAttr(q.initiator)}</td><td>${creditsCell}</td>
-    <td>${q.meetingDate||'<span class="pill mid">не назначено</span>'}</td><td>${dcell}</td>
-    <td>${q.protocolNo?`${q.protocolNo} от ${q.protocolDate||'—'}`:'—'}</td><td>${act}</td></tr>`;}).join('')
+    <td>${q.meetingDate?escAttr(q.meetingDate):'<span class="pill mid">не назначено</span>'}</td><td>${dcell}</td>
+    <td>${q.protocolNo?`${escAttr(q.protocolNo)} от ${escAttr(q.protocolDate||'—')}`:'—'}</td><td>${act}</td></tr>`;}).join('')
     || `<tr><td colspan="8"><div class="cgrid-empty">Вопросов на коллегиальные органы по делу не выносилось — необратимые действия, требующие гейта (иск, безакцепт, внесудебное обращение на залог), пока не инициировались. Сводно по всем делам — реестр <span class="rowlink" onclick="navClick('Вопросы на коллегиальные органы (реестр)')">«Вопросы на коллегиальные органы»</span>.</div></td></tr>`;
   return `<div class="panel-wrap">
     <div class="gtoolbar"><p class="section-h" style="margin:0">Вопросы на коллегиальные органы</p><span class="spacer"></span><button class="btn btn-tint btn-sm" onclick="openCommitteeQuestionModal()">Вынести вопрос</button></div>
@@ -8317,8 +8336,8 @@ defReg({
       <td class="dl-act">${escAttr(q.organ)}</td>
       ${borrCell(x.p)}
       <td class="dl-act">${escAttr(creditLabels(x.p, q.credits))}</td>
-      <td>${q.initiator||'—'}</td>
-      <td>${q.meetingDate || '<span class="dl-muted">не назначено</span>'}${q.protocolNo?`<span class="dl-sub">протокол ${escAttr(q.protocolNo)} от ${q.protocolDate||'—'}</span>`:''}</td></tr>`;
+      <td>${escAttr(q.initiator||'—')}</td>
+      <td>${q.meetingDate ? escAttr(q.meetingDate) : '<span class="dl-muted">не назначено</span>'}${q.protocolNo?`<span class="dl-sub">протокол ${escAttr(q.protocolNo)} от ${escAttr(q.protocolDate||'—')}</span>`:''}</td></tr>`;
   },
   emptyTitle:'Ни одного вопроса не найдено',
   emptyNone:'Условий отбора нет — вопросов на коллегиальные органы ни по одному делу не выносилось.',
