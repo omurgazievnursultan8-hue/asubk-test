@@ -6,7 +6,7 @@
 <title>Кредиты · АСУБК</title>
 <!--
   MOCKUP (single-file, interactive) — TO-BE модуля «Кредиты» (реестр кредитов →
-  карточка кредита, 8 вкладок). Образец для команды разработки, не прод-код.
+  карточка кредита, 9 вкладок). Образец для команды разработки, не прод-код.
 
   ЭТО НЕ КЛОН ЖИВОГО СТЕНДА: файл — TO-BE, спроектирован заново. Токены/паттерны
   сверены с collection.html и restructuring.html.
@@ -549,7 +549,7 @@
    Г-28 addNote — пустое примечание не сохраняется.
    Г-29 targetUse — мера реагирования по нецелевому использованию только со ссылкой на
         решение Комитета (то же правило, что у факторов категории).
-   Г-30 setPlan — план ставится при ЖЦ «Зарегистрирован»/«Действует», сумма больше нуля
+   Г-30 (01.08.2026, ADR-0042) setPlan — план ставится при ЖЦ «Зарегистрирован»/«Действует», сумма больше нуля
         (отказ от цели — это снятие плана, а не ноль), месяц не раньше месяца договора.
         Отказ называет сработавшую причину.
    Уточнены: Г-6 (индекс нормирован; решение КМ задаёт ПОРОГ, а не отключает гейт;
@@ -618,7 +618,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-01 · 93/93 PASS
+ SMOKE (node) 2026-08-01 · 96/96 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -712,6 +712,9 @@
    #90 ✓
    #91 ✓
    #92 ✓
+   #93 ✓
+   #94 ✓
+   #95 ✓
 -->
 <style>
 
@@ -1101,6 +1104,9 @@ table.cgrid tbody tr.storno td.storno-reason{ text-decoration:none; color:var(--
 .rowlink{ color:var(--text-link); cursor:pointer; }
 .rowlink:hover{ text-decoration:underline; }
 .text-muted{ color:var(--text-muted); }
+/* у td внутри cgrid есть СОБСТВЕННОЕ объявление color, а прямое объявление всегда бьёт
+   наследование — поэтому класс на <tr> без этого правила ничего не красит */
+table.cgrid tbody tr.text-muted td{ color:var(--text-muted); }
 
 /* timeline (контур текущей фазы) */
 .timeline{ display:flex; flex-wrap:wrap; gap:0; margin:2px 0 20px; align-items:center; }
@@ -1293,7 +1299,7 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
       </section>
       <!-- ============ КАРТОЧКА КРЕДИТА ============ -->
       <section class="view" id="view-detail">
-        <!-- наполняется в Task 2+ (карточка §5.2–5.3, 8 вкладок) -->
+        <!-- наполняется в Task 2+ (карточка §5.2–5.3, 9 вкладок) -->
       </section>
     </div>
   </div>
@@ -3076,8 +3082,10 @@ function trancheForecastRows(t, ledgerIndex, asOf){
     principal = Math.max(0, Math.min(principal, bal));
     bal = round2(bal - principal);
     const f = round2(principal + interest + (k === 0 ? tail : 0));
+    /* principal/interest выносятся наружу, чтобы состав прогноза можно было проверить
+       на равенство (остаток ОД + проценты + хвост), а не на неравенство */
     out.push({ no:r.no, date:r.date, scheduled:round2(r.total || 0), forecast:f,
-               delta:round2(f - (r.total || 0)), past:false });
+               principal, interest, delta:round2(f - (r.total || 0)), past:false });
   });
   return out;
 }
@@ -3123,35 +3131,49 @@ function planExecOf(c, asOf, ledgerIndex, year){
     const mk = monthKey(p.date);
     factByMonth.set(mk, round2((factByMonth.get(mk) || 0) + paymentAllocated(p)));
   }
+  const curMk = monthKey(asOf);
   const rows = [];
   for (let m = 1; m <= 12; m++){
     const mk  = y + '-' + String(m).padStart(2, '0');
     const pr  = planRowOf(c, mk);
     const plan = pr && pr.amount != null ? pr.amount : null;
     const fact = round2(factByMonth.get(mk) || 0);
+    /* МЕСЯЦ ПОСЛЕ МЕСЯЦА СРЕЗА ещё не наступил: факт по нему нулевой не потому, что
+       ничего не собрали, а потому, что срок не подошёл. Процент по нему не считается —
+       иначе будущее давало бы «0 % исполнения» и тянуло вниз квартал, год и плитку
+       шапки. Та же подмена, от которой спека отдельно предостерегает для плитки. */
+    const future = mk > curMk;
     rows.push({ month:mk, label:monthLabel(mk),
       forecast: fc.has(mk) ? fc.get(mk) : null,
       plan, fact,
-      pct: plan > 0 ? Math.round(fact / plan * 100) : null,
+      pct: (plan > 0 && !future) ? Math.round(fact / plan * 100) : null,
       edits: pr ? pr.history.length : 0,
       dropped: plan == null,                       // в расчёт исполнения не входит
+      future,                                      // месяц ещё не наступил
       removed: !!(pr && pr.amount == null) });     // план СНЯТ (строка есть, цели нет)
   }
+  /* plan — вся цель периода (её показывает плитка «План за год»); planDone — только
+     наступившие месяцы, и именно по ним считается процент. Разводить их обязательно:
+     иначе «План за год» пришлось бы урезать до прошлого, а это уже не годовой план. */
   const agg = (list) => {
     const kept = list.filter(r => !r.dropped);
-    const plan = round2(kept.reduce((a, r) => a + r.plan, 0));
-    const fact = round2(kept.reduce((a, r) => a + r.fact, 0));
-    return { plan, fact, pct: plan > 0 ? Math.round(fact / plan * 100) : null, months:kept.length };
+    const done = kept.filter(r => !r.future);
+    const plan     = round2(kept.reduce((a, r) => a + r.plan, 0));
+    const planDone = round2(done.reduce((a, r) => a + r.plan, 0));
+    const fact     = round2(done.reduce((a, r) => a + r.fact, 0));
+    return { plan, planDone, planAhead: round2(plan - planDone), fact,
+      pct: planDone > 0 ? Math.round(fact / planDone * 100) : null,
+      months:kept.length, monthsDone:done.length };
   };
   const quarters = [1,2,3,4].map(q => {
     const a = agg(rows.slice((q - 1) * 3, q * 3));
-    return { q, plan:a.plan, fact:a.fact, pct:a.pct };
+    return { q, plan:a.plan, planDone:a.planDone, planAhead:a.planAhead, fact:a.fact, pct:a.pct };
   });
   const ya = agg(rows);
-  const curMk = monthKey(asOf);
   const cur   = rows.find(r => r.month === curMk);
   return { year:y, rows, quarters,
-    total:{ plan:ya.plan, fact:ya.fact, pct:ya.pct, monthsWithPlan:ya.months, monthsTotal:12 },
+    total:{ plan:ya.plan, planDone:ya.planDone, planAhead:ya.planAhead, fact:ya.fact, pct:ya.pct,
+      monthsWithPlan:ya.months, monthsDone:ya.monthsDone, monthsTotal:12 },
     current: (cur && !cur.dropped) ? { month:cur.month, plan:cur.plan, fact:cur.fact, pct:cur.pct } : null };
 }
 
@@ -4817,7 +4839,7 @@ if (typeof document !== 'undefined') {
     if (body) [...body.children].forEach(tr => tr.classList && tr.classList.toggle('sel', tr.dataset.id===id));
     renderRole();
   }
-  /* двойной клик / Просмотр / Изменить — карточка кредита (§5.2 шапка + §5.3 8 вкладок, Task 7) */
+  /* двойной клик / Просмотр / Изменить — карточка кредита (§5.2 шапка + §5.3 9 вкладок, Task 7) */
   function openDetail(id, tab){
     const c = CR.db.credits.find(x=>x.id===id); if (!c) return;
     selectedId = id; CR._sel = id; detailId = id;
@@ -4910,7 +4932,7 @@ if (typeof document !== 'undefined') {
   }
 
   /* ============================================================
-     КАРТОЧКА КРЕДИТА — §5.2 шапка + §5.3 8 вкладок (Task 7).
+     КАРТОЧКА КРЕДИТА — §5.2 шапка + §5.3 9 вкладок (Task 7; девятая — «План и исполнение», 01.08.2026).
      Всё из derive()/gate()/canRole() в рантайме (Р-11 — кэш запрещён). Зеркала
      (Р-5…Р-10, Р-16) — read-only с замком и подписью источника. Любая мутация
      идёт через CR.* и завершается rerenderDetail() → derive() пересчитывается заново.
@@ -5812,18 +5834,26 @@ if (typeof document !== 'undefined') {
         <td style="text-align:right">${r.plan==null?'—':`<b>${money(r.plan)}</b>`}</td>
         <td style="text-align:right">${money(r.fact)}</td>
         <td style="text-align:right">${pctPill(r.pct)}</td>
-        <td>${r.dropped?'<span style="font:var(--font-label)">в расчёт не входит</span>':(r.edits?`правок: ${r.edits}`:'—')}</td></tr>`;
+        <td>${r.dropped?'<span style="font:var(--font-label)">в расчёт не входит</span>'
+          :r.future?'<span style="font:var(--font-label)">месяц не наступил</span>'
+          :(r.edits?`правок: ${r.edits}`:'—')}</td></tr>`;
       if (!open || !prow) return main;
+      /* prev === null — это восстановление ПОСЛЕ снятия: писать «было 0,00» неверно,
+         нуля там не стояло, стояло отсутствие цели. */
       const hist = prow.history.length
-        ? prow.history.map(h=>`<div class="hrow"><b>${esc(h.at)}</b> · ${esc(h.by)} · было <b>${money(h.prev)}</b> → стало <b>${prow.amount==null?'снят':money(prow.amount)}</b>${h.note?' · '+esc(h.note):''}</div>`).join('')
+        ? prow.history.map(h=>`<div class="hrow"><b>${esc(h.at)}</b> · ${esc(h.by)} · было <b>${h.prev==null?'план снят':money(h.prev)}</b> → стало <b>${prow.amount==null?'снят':money(prow.amount)}</b>${h.note?' · '+esc(h.note):''}</div>`).join('')
         : '<div class="hrow text-muted">Правок не было</div>';
       return main + `<tr><td colspan="6" style="background:var(--surface-panel)">
         <div style="font:var(--font-label);color:var(--text-muted);margin-bottom:6px">Поставил: ${esc(prow.setBy)} · ${esc(prow.setAt)}${prow.seededFrom!=null?` · предзаполнено прогнозом: ${money(prow.seededFrom)}`:''}</div>
-        ${hist}</td></tr>`;
+        ${hist}
+        ${prow.amount!=null?`<div style="margin-top:8px">${actBtn(c,'setPlan',{rows:[{month:prow.month,amount:null}]},'Снять план',`CR.openDropPlanModal('${jsAttr(prow.month)}')`)}</div>`:''}</td></tr>`;
     });
-    const qRows = pe.quarters.map(q=>`<tr><td>${q.q} квартал</td><td style="text-align:right">${q.plan?money(q.plan):'—'}</td><td style="text-align:right">${money(q.fact)}</td><td style="text-align:right">${pctPill(q.pct)}</td></tr>`);
+    /* В колонке плана — цель периода целиком, в проценте — только наступившие месяцы;
+       чтобы это не читалось как ошибка, ненаступившая часть подписана отдельно. */
+    const ahead = (a) => a ? `<div style="font:var(--font-label);color:var(--text-muted)">впереди ${money(a)}</div>` : '';
+    const qRows = pe.quarters.map(q=>`<tr><td>${q.q} квартал</td><td style="text-align:right">${q.plan?money(q.plan):'—'}${ahead(q.planAhead)}</td><td style="text-align:right">${money(q.fact)}</td><td style="text-align:right">${pctPill(q.pct)}</td></tr>`);
     qRows.push(`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)"><td>За год</td>
-      <td style="text-align:right">${pe.total.plan?money(pe.total.plan):'—'}</td>
+      <td style="text-align:right">${pe.total.plan?money(pe.total.plan):'—'}${ahead(pe.total.planAhead)}</td>
       <td style="text-align:right">${money(pe.total.fact)}</td>
       <td style="text-align:right">${pctPill(pe.total.pct)}</td></tr>`);
     return `
@@ -5832,12 +5862,17 @@ if (typeof document !== 'undefined') {
         после сохранения она не зависит (ADR-0042). Это единственное исключение из правила «производные не хранятся».
         Исполнение — производная: факт месяца / план месяца, по всем четырём статьям долга кредита;
         расходы по обращению взыскания в факт не входят. <b>Месяц без плана в расчёт не входит</b> — ни сам,
-        ни в квартальной, ни в годовой сумме. Показатель для отображения: на категорию риска, гейты и подгруппу не влияет (И-18).</p>
+        ни в квартальной, ни в годовой сумме. <b>Ненаступивший месяц процента не имеет</b>: его нулевой факт означает
+        «срок не подошёл», а не «ничего не собрали», — поэтому в процент квартала и года он не входит, а его план
+        подписан отдельно («впереди»). Показатель для отображения: на категорию риска, гейты и подгруппу не влияет (И-18).</p>
       <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
-        <div class="dim"><div class="dl">План за ${pe.year}</div><div class="dv">${pe.total.plan?money(pe.total.plan):'—'}</div><div class="src">${esc(cur)}</div></div>
-        <div class="dim"><div class="dl">Факт за ${pe.year}</div><div class="dv">${money(pe.total.fact)}</div><div class="src">по месяцам с планом</div></div>
-        <div class="dim"><div class="dl">Исполнение</div><div class="dv">${pe.total.pct==null?'—':pe.total.pct+' %'}</div><div class="src">${pe.total.plan?'факт '+money(pe.total.fact)+' / план '+money(pe.total.plan):'план не поставлен'}</div></div>
-        <div class="dim"><div class="dl">Месяцев с планом</div><div class="dv">${pe.total.monthsWithPlan} из ${pe.total.monthsTotal}</div><div class="src">остальные в расчёт не входят</div></div>
+        ${dimTile(`План за ${pe.year}`, pe.total.plan?money(pe.total.plan):'—',
+          esc(cur) + (pe.total.planAhead?` · впереди ${money(pe.total.planAhead)}`:''))}
+        ${dimTile(`Факт за ${pe.year}`, money(pe.total.fact), 'по месяцам с планом')}
+        ${dimTile('Исполнение', pe.total.pct==null?'—':pe.total.pct+' %',
+          pe.total.planDone?`факт ${money(pe.total.fact)} / план ${money(pe.total.planDone)} · по наступившим месяцам`:'наступивших месяцев с планом нет')}
+        ${dimTile('Месяцев с планом', `${pe.total.monthsWithPlan} из ${pe.total.monthsTotal}`,
+          `наступило ${pe.total.monthsDone} · остальные в расчёт не входят`)}
       </div>
       <div class="gtoolbar" style="margin-top:14px">
         <div class="field" style="max-width:200px"><span class="flabel">Год</span><div class="control"><select onchange="CR.setPlanYear(+this.value)">${years.map(y=>`<option value="${y}"${y===pe.year?' selected':''}>${y}</option>`).join('')}</select><span class="caret">▾</span></div></div>
@@ -6721,16 +6756,22 @@ if (typeof document !== 'undefined') {
   CR.planFormHtml=function(c, d, from, to){
     const fc=forecastByMonth(c, d.ledger.index, cardAsOf);
     const mks=monthRange(from, to);
+    /* Галка ставится ТОЛЬКО там, где строка осмысленна. Прогноз — future-only и
+       группируется по датам позиций графика: месяца без позиции в нём просто нет, и
+       предзаполнить такую строку нечем. Ставить ей галку с нулём значило бы отправлять
+       форму, которую Г-30 отобьёт («план должен быть больше нуля»), — а один нулевой
+       месяц валит всю пачку. Замер до правки: 58 демо-кредитов из 59. */
     const rows=mks.map(mk=>{ const ex=planRowOf(c,mk);
       const seed = ex && ex.amount!=null ? ex.amount : (fc.has(mk)?fc.get(mk):0);
       return `<tr>
-        <td><label><input type="checkbox" class="plan-on" data-m="${jsAttr(mk)}" checked> ${esc(monthLabel(mk))}</label></td>
+        <td><label><input type="checkbox" class="plan-on" data-m="${jsAttr(mk)}"${seed>0?' checked':''}> ${esc(monthLabel(mk))}</label></td>
         <td style="text-align:right">${fc.has(mk)?money(fc.get(mk)):'—'}</td>
         <td style="text-align:right"><input type="number" min="0" step="0.01" class="plan-amt" data-m="${jsAttr(mk)}" data-seed="${fc.has(mk)?fc.get(mk):''}" value="${seed||''}" style="width:130px;text-align:right"></td>
         <td>${ex&&ex.amount!=null?`<span class="pill mid">будет правка</span> было ${money(ex.amount)}`:(ex?'<span class="pill neutral">план был снят</span>':'—')}</td></tr>`;});
     return `<p class="section-note">План — цель на месяц, которую ставим сами. Строки предзаполнены <b>прогнозом</b>:
         это стартовое значение формы, не связь — после сохранения план от прогноза не зависит (ADR-0042).
-        Снять галку — месяц не трогаем. Обнулить план месяца нельзя: чтобы отказаться от цели, снимите план на вкладке.</p>
+        Снять галку — месяц не трогаем; месяц без прогноза приходит без галки, ставить нечего.
+        Обнулить план месяца нельзя: чтобы отказаться от цели, снимите план кнопкой в раскрытой строке месяца.</p>
       <div class="mform" style="grid-template-columns:1fr 1fr">
         <div class="field"><span class="flabel">С месяца</span><div class="control"><input type="month" id="planFrom" value="${esc(from)}" onchange="CR.reloadPlanForm()"></div></div>
         <div class="field"><span class="flabel">По месяц</span><div class="control"><input type="month" id="planTo" value="${esc(to)}" onchange="CR.reloadPlanForm()"></div></div>
@@ -6744,10 +6785,33 @@ if (typeof document !== 'undefined') {
     const body=host.querySelector('.modal-b'); if(!body) return;      // тело модалки — .modal-b (см. CR.openModal)
     body.innerHTML=`<div id="modalErr"></div>`+CR.planFormHtml(c, derive(c, cardAsOf), from, to);
   };
+  /* СНЯТИЕ ПЛАНА — отдельное действие, а не «поставить ноль» (И-14): строка остаётся,
+     прежнее значение уходит в history, месяц выпадает из расчёта. Раньше и отказ гейта,
+     и подпись модалки отсылали к снятию, а сделать его руками было нельзя вовсе. */
+  CR.openDropPlanModal=function(mk){ const c=modalGuard('setPlan'); if(!c) return;
+    const prow=planRowOf(c,mk); if(!prow||prow.amount==null) return;
+    CR.openModal('Снять план',
+      `<p class="section-note">Снятие — не удаление: строка месяца останется, прежнее значение уйдёт в журнал правок,
+         а месяц перестанет входить в расчёт исполнения (квартал и год пересчитаются без него).</p>
+       <div class="mform">
+         <div class="field"><span class="flabel">Месяц</span><div class="control"><input value="${jsAttr(monthLabel(mk))}" disabled></div></div>
+         <div class="field"><span class="flabel">Текущий план</span><div class="control"><input value="${jsAttr(money(prow.amount))}" disabled></div></div>
+         <div class="field col-span"><span class="flabel">Причина снятия</span><div class="control"><input id="dropPlanNote" placeholder="например: заёмщик в реструктуризации"></div></div>
+       </div>`,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitDropPlan('${jsAttr(mk)}')">Снять план</button>`);
+  };
+  CR.submitDropPlan=function(mk){ const c=modalGuard('setPlan'); if(!c) return;
+    const note=(document.getElementById('dropPlanNote')||{}).value||'';
+    const r=CR.setPlan(c,{rows:[{month:mk, amount:null}], note}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('План на '+monthLabel(mk)+' снят','ok'); rerenderDetail(); };
   CR.submitPlan=function(){ const c=modalGuard('setPlan'); if(!c) return;
-    const rows=[...document.querySelectorAll('.plan-amt')].map(inp=>{
+    /* строки ищем в теле модалки, а не по всему документу: класс .plan-amt живёт только
+       здесь, но полагаться на это — та самая хрупкость, из-за которой нужна дедупликация */
+    const host=document.getElementById('modalHost');
+    const scope=(host&&host.querySelector('.modal-b'))||document;
+    const rows=[...scope.querySelectorAll('.plan-amt')].map(inp=>{
       const mk=inp.getAttribute('data-m');
-      const on=document.querySelector('.plan-on[data-m="'+mk+'"]');
+      const on=scope.querySelector('.plan-on[data-m="'+mk+'"]');
       if(!on||!on.checked) return null;
       const seed=inp.getAttribute('data-seed');
       return { month:mk, amount:+inp.value||0, seededFrom: seed===''?null:+seed };
@@ -6774,7 +6838,7 @@ if (typeof document !== 'undefined') {
   });
 
   renderNav();
-  renderList();          // реестр §5.1 (Р-19); карточка (8 вкладок) — Task 7
+  renderList();          // реестр §5.1 (Р-19); карточка (9 вкладок) — Task 7
   openFromHash();        // восстановить экран (кредит+вкладка) после F5 — по location.hash
   window.addEventListener('hashchange', openFromHash);
 }

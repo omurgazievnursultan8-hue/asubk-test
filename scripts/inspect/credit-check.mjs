@@ -929,7 +929,10 @@ const pd = CR.pd;
   try { vm.runInContext(m[1], sb2, { filename:'credit.dom.js' }); CR2 = sb2.window.CR; }
   catch(e){ return ok(53, false, 'скрипт с DOM не исполнился: ' + e.message); }
 
-  const TABS = ['Договор','Условия','Транши и освоение','Расчёты','Платежи','Обеспечение','Проблемные','Досье'];
+  /* список дублирует DTABS макета вручную и уже разошёлся с ним один раз: девятую
+     вкладку («План и исполнение») в волне 01.08.2026 сюда не добавили, и она не
+     попадала под проверку рендера вовсе */
+  const TABS = ['Договор','Условия','Транши и освоение','Расчёты','Платежи','План и исполнение','Обеспечение','Проблемные','Досье'];
   const bad = [];
   for (const c of CR2.db.credits) for (const t of TABS){
     let html;
@@ -1037,8 +1040,10 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   ok(83, fut.length > 0 && moved, `будущих=${fut.length} расхождений=${fut.filter(r=>Math.abs(r.delta)>0.005).length}`);
 })();
 
-/* 84. Прогноз будущих позиций складывается из остатка ОД, будущих процентов и
-   непокрытого хвоста прошлого — и ничего больше не выдумывает. */
+/* 84. Σ прогноза по будущим позициям = остаток ОД + будущие проценты + непокрытый хвост
+   прошлого, и ничего сверх того (§6 п.6 спеки). Сравнение на РАВЕНСТВО: неравенство
+   «>= остаток + хвост» было тавтологией — проценты неотрицательны, и оно выполнялось
+   всегда, кроме падения функции. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1');
   const d = CR.derive(c); const t = c.tranches[0];
   const fr = CR.trancheForecastRows(t, d.ledger.index, '23.07.2026');
@@ -1046,11 +1051,13 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   const past = fr.filter(r => r.past);
   const sumFut  = fut.reduce((a,r) => a + r.forecast, 0);
   const tail    = past.reduce((a,r) => a + r.forecast, 0);
+  const sumInt  = fut.reduce((a,r) => a + (r.interest || 0), 0);
   const led = [...d.ledger.index.values()].filter(e => e.trancheNo === t.no);
   const paidP = led.reduce((a,e) => a + e.principalPaid, 0);
   const balP  = Math.max(0, (t.disbursements||[]).reduce((a,x)=>a+(x.amount||0),0) - paidP);
-  ok(84, fut.length === 0 || sumFut >= balP + tail - 0.05,
-     `Σбудущего=${sumFut.toFixed(2)} остатокОД=${balP.toFixed(2)} хвост=${tail.toFixed(2)}`);
+  const want  = balP + sumInt + tail;
+  ok(84, fut.length === 0 || Math.abs(sumFut - want) < 0.05,
+     `Σбудущего=${sumFut.toFixed(2)} vs остатокОД ${balP.toFixed(2)} + %% ${sumInt.toFixed(2)} + хвост ${tail.toFixed(2)} = ${want.toFixed(2)}`);
 })();
 
 /* 85. Г-30: план не ставится на кредит в «Проекте» и на закрытый; отказ называет причину. */
@@ -1152,6 +1159,58 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
     for (const row of (c.plan || [])) if (cm && row.month < cm) bad.push(`${c.id} ${row.month}<${cm}`);
   }
   ok(92, bad.length === 0, `нарушений=${bad.length} ${bad.slice(0,3).join(' | ')}`);
+})();
+
+/* 93. Ненаступивший месяц не считается исполненным на ноль. Его нулевой факт означает
+   «срок не подошёл», а не «ничего не собрали»: процента у него нет, в знаменатель
+   квартала и года он не входит, но из ПЛАНА периода не исчезает — иначе «План за год»
+   перестал бы быть годовым планом. У K-1 на срезе 23.07.2026 будущие месяцы с планом —
+   октябрь и ноябрь (по 28 000), они и образуют planAhead. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const pe = CR.planExecOf(c, '23.07.2026', null, 2026);
+  const oct = pe.rows.find(r => r.month === '2026-10');
+  const jul = pe.rows.find(r => r.month === '2026-07');
+  const q4  = pe.quarters.find(q => q.q === 4);
+  ok(93, oct.future === true && oct.pct === null && oct.plan === 28000
+      && jul.future === false && jul.pct !== null
+      && q4.plan === 56000 && q4.planDone === 0 && q4.pct === null
+      && pe.total.plan === 140000 && pe.total.planDone === 84000 && pe.total.planAhead === 56000
+      && pe.total.pct === Math.round(pe.total.fact / 84000 * 100) && pe.total.monthsDone === 3,
+     `окт: future=${oct.future} pct=${oct.pct} · Q4 план=${q4.plan} наступило=${q4.planDone} pct=${q4.pct}`
+     + ` · год план=${pe.total.plan} наступило=${pe.total.planDone} впереди=${pe.total.planAhead} pct=${pe.total.pct}`);
+})();
+
+/* 94. Форма «Поставить план» в состоянии ПО УМОЛЧАНИЮ сохраняется на каждом кредите,
+   где кнопка вообще доступна. Прогноз future-only и группируется по датам позиций
+   графика, поэтому месяц без позиции предзаполнять нечем — такой строке галка не
+   ставится. Раньше галка стояла безусловно, и дефолт формы был невалиден на 58
+   кредитах из 59: один нулевой месяц отбивался Г-30 и валил всю пачку. */
+(() => { const db = CR.seedDb(); const bad = [];
+  for (const c of db.credits){
+    if (!(c.lifecycle === 'Зарегистрирован' || c.lifecycle === 'Действует') || c.closure) continue;
+    const idx = CR.buildLedger(c, '23.07.2026').index;
+    const fc  = CR.forecastByMonth(c, idx, '23.07.2026');
+    const from = CR.monthKey('23.07.2026');
+    const rows = CR.monthRange(from, CR.monthAdd(from, 5)).map(mk => {
+      const ex = CR.planRowOf(c, mk);
+      const seed = ex && ex.amount != null ? ex.amount : (fc.has(mk) ? fc.get(mk) : 0);
+      return seed > 0 ? { month:mk, amount:seed, seededFrom: fc.has(mk) ? fc.get(mk) : null } : null;
+    }).filter(Boolean);                                  // ровно те строки, что придут с галкой
+    if (!rows.length) continue;                          // ставить нечего — форма пуста, это не отказ
+    const g = CR.gate(c, 'setPlan', { rows });
+    if (!g.ok) bad.push(`${c.id}: ${g.reasons[0]}`);
+  }
+  ok(94, bad.length === 0, `кредитов с невалидным дефолтом=${bad.length} ${bad.slice(0,2).join(' | ')}`);
+})();
+
+/* 95. Снять план можно ИЗ ИНТЕРФЕЙСА, а не только из модели: кнопка есть в раскрытой
+   строке месяца с планом, и её обработчик доводит снятие до мутации. Раньше и отказ
+   гейта, и подпись модалки отсылали к снятию, которого в DOM-слое не существовало. */
+(() => { const src = readFileSync(HTML, 'utf8');
+  const hasBtn  = /'setPlan',\s*\{rows:\[\{month:prow\.month,\s*amount:null\}\]\},\s*'Снять план'/.test(src);
+  const hasOpen = /CR\.openDropPlanModal\s*=/.test(src) && /CR\.submitDropPlan\s*=/.test(src);
+  const wired   = /CR\.openDropPlanModal\('/.test(src) && /CR\.submitDropPlan\('/.test(src);
+  ok(95, hasBtn && hasOpen && wired, `кнопка=${hasBtn} обработчики=${hasOpen} связаны=${wired}`);
 })();
 
 const pass = results.filter(r => r.pass).length;
