@@ -1827,8 +1827,8 @@ const sCols  = () => S.$$('#dlHead th').map(t => t.textContent.replace(/[↑↓�
 head('СК-1/СК-6 · очередь с горизонтом, а не список просроченного');
 ok('умолчание — горизонт 7 дней',            S.ev(`dlHorizon`) === '7' && /Горизонт: 7 дней/.test(sFrame()));
 ok('предстоящие сроки показаны, а не только просроченные',
-   sRows().length === 45 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 26);
-ok('горизонт «всё» даёт все 58 сроков',      (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 58; })());
+   sRows().length === 37 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 18);
+ok('горизонт «всё» даёт все 50 сроков',      (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 50; })());
 ok('просроченное проходит любой горизонт',   (()=>{ S.ev(`dlSetHorizon('7')`);
    return S.ev(`dlAll().filter(x=>x.n<0).every(dlPass)`); })());
 ok('сегмент показывает выбранный горизонт',  S.$('#dlSeg button.on').dataset.h === '7');
@@ -1865,7 +1865,7 @@ head('СК-5 · порядок по возрастанию остатка, со�
 ok('умолчание — по остатку вверх',           S.ev(`dlSort.k === 'left' && dlSort.dir === 1`));
 ok('отрисованные строки идут по возрастанию остатка', (()=>{
   const a = sRows().map(r => Number(r.querySelectorAll('td')[1].textContent.trim().replace('−','-').split(' ')[0]));
-  return a.length === 45 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -141 && a[a.length-1] === 7; })());
+  return a.length === 37 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -77 && a[a.length-1] === 7; })());
 ok('клик по колонке меняет ключ и направление', (()=>{
   S.ev(`dlSortBy('due')`); const up = S.ev(`dlSort.k==='due' && dlSort.dir===1`);
   S.ev(`dlSortBy('due')`); const down = S.ev(`dlSort.dir===-1`);
@@ -1874,7 +1874,7 @@ ok('клик по колонке меняет ключ и направление
 head('СК-7/СК-12 · рамка со счётчиками, пустое состояние с причиной');
 ok('плиток на экране сроков нет',            S.$('#view-deadlines .tile') === null);
 ok('рамка считает очередь и называет дату отсчёта',
-   /показано 45 из 58 · просрочено 26 · истекает сегодня 5 · отсчёт от 21\.07\.2026/.test(sFrame()));
+   /показано 37 из 50 · просрочено 18 · истекает сегодня 5 · отсчёт от 21\.07\.2026/.test(sFrame()));
 ok('пустое состояние называет условия и даёт их снять', (()=>{
   S.doc.getElementById('dlQ').value = 'такого-заёмщика-нет'; S.ev(`dlRefresh()`);
   const e = S.$('#deadlinesBody .list-empty');
@@ -2068,7 +2068,7 @@ head('КР-8/КР-9/КР-11 · вопросы: состояние выводит
 ok('семь колонок, состояние первым',
    rCols(Q,'committee').join('|') === 'Состояние|Предмет|Орган|Заёмщик|Договоры|Инициатор|Заседание');
 ok('умолчание — ждут решения',               Q.ev(`regState.committee.seg`) === 'pending'
-   && rRows(Q,'committee').length === 4 && Q.ev(`REGS.committee.all().length`) === 29);
+   && rRows(Q,'committee').length === 4 && Q.ev(`REGS.committee.all().length`) === 32);
 ok('состояний ровно четыре',                 Q.ev(`Object.keys(CQ_STATE).join('/')`) === 'pending/scheduled/positive/negative');
 ok('заглушки в поле решения решением больше не считаются',
    Q.ev(`CQ_NON_DECISION.size === 4`)
@@ -2260,8 +2260,8 @@ ok('`pause` как хранимое поле дела снят полность�
    g.ev(`PROCESSES.every(p => !('pause' in p))`));
 ok('открытый опенер без закрывателя — пауза видна активной (дело 320, req 320/420/з)',
    g.ev(`!!pausedState(${R('320/420/з')}) && pausedState(${R('320/420/з')}).kind === 'restructuring'`));
-ok('открытый опенер без закрывателя — судебный трек виден активным (дело 320, req 320/420/з, ИСК-82)',
-   g.ev(`(() => { const t = sudTrackOf(${R('320/420/з')}); return !!t && t.num === 'ИСК-82'; })()`));
+ok('открытый опенер без закрывателя — судебный трек виден активным (дело 320, req 320/420/з, ОПР-705)',
+   g.ev(`(() => { const t = sudTrackOf(${R('320/420/з')}); return !!t && t.num === 'ОПР-705'; })()`));
 ok('открытый опенер без закрывателя — исполнительный трек виден активным (дело 331, req 331/431/з, ИЛ-310)',
    g.ev(`(() => { const t = ispTrackOf(${R('331/431/з')}); return !!t && t.num === 'ИЛ-310'; })()`));
 ok('закрыватель гасит судебный трек — дело 327 (ИСК-70 закрыт последующим «Решение суда» РС-33)',
@@ -2289,31 +2289,31 @@ ok('устарелость снимка залога вычисляется (col
    РМ-Д5 · «Сроки на контроле» — дыра по отсутствию дочерней меры
    ══════════════════════════════════════════════════════════════════════════ */
 head('РМ-Д5 · дыра по отсутствию дочерней меры (resultIsDocument)');
-ok('иск без определения виден как дыра в очереди сроков (дело 325, ИСК-79 от 22.05.2026, детей нет)',
-   g.ev(`dlOf(${P('325')}).some(d => d.tpl===45 && d._childGapOf && d._childGapOf.num==='ИСК-79')`));
-ok('дыра просрочена относительно TODAY (10 к.д. от 22.05.2026 истекли задолго до 21.07.2026)',
-   g.ev(`(() => { const d = dlOf(${P('325')}).find(x=>x._childGapOf && x._childGapOf.num==='ИСК-79'); return !!d && isOverdue(d); })()`));
-ok('видна в общем реестре «Сроки на контроле» (dlAll), привязана к требованию 325/425/з',
-   g.ev(`dlAll().some(x => x.d._childGapOf && x.d._childGapOf.num==='ИСК-79' && x.reqs.some(r=>r.id==='325/425/з'))`));
+ok('иск без определения виден как дыра в очереди сроков (дело 374, ИСК-92 от 25.04.2026, детей нет)',
+   g.ev(`dlOf(${P('374')}).some(d => d.tpl===45 && d._childGapOf && d._childGapOf.num==='ИСК-92')`));
+ok('дыра просрочена относительно TODAY (10 к.д. от 25.04.2026 истекли задолго до 21.07.2026)',
+   g.ev(`(() => { const d = dlOf(${P('374')}).find(x=>x._childGapOf && x._childGapOf.num==='ИСК-92'); return !!d && isOverdue(d); })()`));
+ok('видна в общем реестре «Сроки на контроле» (dlAll), привязана к требованию 374/519/з',
+   g.ev(`dlAll().some(x => x.d._childGapOf && x.d._childGapOf.num==='ИСК-92' && x.reqs.some(r=>r.id==='374/519/з'))`));
 ok('видна на вкладке требования (deadlinesOf) — тот же расчёт, что в общем реестре',
-   g.ev(`deadlinesOf(${R('325/425/з')}).some(d => d._childGapOf && d._childGapOf.num==='ИСК-79')`));
+   g.ev(`deadlinesOf(${R('374/519/з')}).some(d => d._childGapOf && d._childGapOf.num==='ИСК-92')`));
 ok('появление живой дочерней меры с basedOn на иск закрывает дыру (мутирующий тест, push/pop)',
    g.ev(`(() => {
-     const p = ${P('325')};
-     const parent = p.measures.find(m=>m.num==='ИСК-79');
-     const before = dlOf(p).some(d => d._childGapOf && d._childGapOf.num==='ИСК-79');
+     const p = ${P('374')};
+     const parent = p.measures.find(m=>m.num==='ИСК-92');
+     const before = dlOf(p).some(d => d._childGapOf && d._childGapOf.num==='ИСК-92');
      const fake = {sec:'Судебный', kind:'Определение о принятии искового заявления к производству',
                    dates:D('01.06.2026','01.06.2026','01.06.2026'), num:'ТЕСТ-ОПР', outcome:'принято к производству',
-                   basedOn:'ИСК-79', targets:[...parent.targets]};
+                   basedOn:'ИСК-92', targets:[...parent.targets]};
      p.measures.push(fake);
-     const after = dlOf(p).some(d => d._childGapOf && d._childGapOf.num==='ИСК-79');
+     const after = dlOf(p).some(d => d._childGapOf && d._childGapOf.num==='ИСК-92');
      p.measures.pop();
      return before === true && after === false;
    })()`));
 ok('сторно на мере-родителе снимает дыру — respect storno (мутирующий тест, push/pop)',
    g.ev(`(() => {
-     const p = ${P('325')};
-     const parent = p.measures.find(m=>m.num==='ИСК-79');
+     const p = ${P('374')};
+     const parent = p.measures.find(m=>m.num==='ИСК-92');
      const fake = {sec:'Судебный', kind:'Исковое заявление', dates:D('01.05.2026','01.05.2026','01.05.2026'),
                    num:'ТЕСТ-ИСК-СТОРНО', storno:{reason:'тест', by:'т', at:TODAY}, targets:[...parent.targets]};
      p.measures.push(fake);
@@ -2413,7 +2413,7 @@ ok('инвариант · пустое пересечение targets меры �
 
 /* 2) ADR-0032 п.1: открытый трек (опенер без закрывателя) виден активным и гасится
    появлением закрывателя — мутирующий push/pop на реальном деле 320 (req 320/420/з,
-   судебный трек открыт ИСК-82, закрывателя в затравке нет). */
+   судебный трек открыт определением ОПР-705 — волна ДС достроила цепочку, закрывателя в затравке нет). */
 ok('инвариант · открытый трек виден активным и закрывается при появлении закрывателя (push/pop, дело 320)',
    g.ev(`(() => {
      const r = ${R('320/420/з')}, p = r._proc;
@@ -2424,7 +2424,7 @@ ok('инвариант · открытый трек виден активным 
      const after = sudTrackOf(r);
      p.measures.pop();
      const restored = sudTrackOf(r);
-     return !!before && before.num==='ИСК-82' && after===null && !!restored && restored.num==='ИСК-82';
+     return !!before && before.num==='ОПР-705' && after===null && !!restored && restored.num==='ОПР-705';
    })()`));
 
 /* 3) ADR-0035 п.2 / ADR-0027 п.1: вид с resultIsDocument:true — результат приходит
