@@ -2232,32 +2232,84 @@ const SPINE = [
 ];
 const SPINE_KEYS = SPINE.map(s => s.key);
 
-/* Вид меры → шаблон срока, который она ПОРОЖДАЕТ (снимается следующей мерой). */
+/* Вид меры → шаблон срока, который она ПОРОЖДАЕТ (снимается следующей мерой).
+   Ревью №1 фикс-раунда (п.3): три из шести пар были неверны и убраны —
+   'Служебная записка в ДПО':41 — тпл 41 САМ ЕСТЬ «Служебная записка в ДПО…» (см.
+     DEADLINE_CLOSERS[41]) и его снимает регистрация ЭТОЙ меры — она не могла бы
+     тем же актом ПОРОЖДАТЬ обязательство, которое сама же исполняет;
+   'Исковое заявление':45 — тпл 45 уже проецируется childGapDeadlines()/
+     CHILD_DEADLINE_TPL при live-мере «Исковое заявление» без дочернего basedOn —
+     повторение тут завело бы вторую запись с другим due на ту же дыру;
+   'Определение о принятии…':26 — тпл 26 это «Частная жалоба» (обжалование
+     ВОЗВРАТА/ОТКАЗА), а у нашей ступени исход всегда 'принято к производству' —
+     обжаловать нечего.
+   Оставшимся трём соответствия проверены по DEADLINE_CLOSERS: тпл открывает
+   измерение хребта слева от closer'а. */
 const DEADLINE_BY_KIND = {
-  'Первичная претензия':6, 'Повторная претензия':8, 'Служебная записка в ДПО':41,
-  'Исковое заявление':45, 'Определение о принятии искового заявления к производству':26,
-  'Решение суда':27,
+  'Первичная претензия':6,   // 14 к.д. должнику — закрывается регистрацией «Повторной претензии»
+  'Повторная претензия':8,   // 14 к.д. должнику — закрывается служебной запиской (тпл 41, не хранимой тут)
+  'Решение суда':27,         // 30 дн на апелляцию — закрывается DEADLINE_CLOSERS[27]:'Апелляционная жалоба'
 };
+/* Срок Порядка называет единицу текстом («14 к.д.», «10 р.д.», «30 дн»); своего
+   производственного календаря в модуле нет (СК-3) — рабочие дни разворачиваются в
+   календарные по курсу 7/5, с округлением вверх (не сокращать срок должника/органа). */
+function termToCalendarDays(term){
+  const m = /^(\d+)\s*(к\.д\.|р\.д\.|дн)\b/.exec(String(term||'').trim());
+  if(!m) return null;
+  return m[2] === 'р.д.' ? Math.ceil(+m[1] * 7/5) : +m[1];
+}
 
-/* Деньги: LEDGER пишется из debt кейса, суммы вех читаются оттуда же по охвату. */
-const money = n => n.toLocaleString('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2}).replace(/ /g,' ');
+/* Коллекционные поля дела, которые extra ДОПОЛНЯЕТ конкатенацией, а не затирает
+   (ревью №1, п.6): было только у deadlines/history — дело с обеспечителями или
+   вторым кредитом (extra.credits/extra.measures/…) тихо теряло бы выведенное. */
+const EXTRA_ARRAY_KEYS = ['credits','measures','committeeQuestions','hearings','colls','deadlines','history'];
 
 function buildSeed(seed){
   const procs = [];
   for(const c of seed){
+    /* А11-номер (ревью №1, п.6): num строится из credit.id — id обязан быть
+       глобально уникален по всей затравке, иначе номера мер столкнутся. */
+    if(LEDGER[c.credit.id])
+      throw new Error(`SEED: кредит id='${c.credit.id}' (дело ${c.id}) уже объявлен другим делом — id кредита обязаны быть глобально уникальны, номера мер строятся из них`);
+
+    /* Цепочка: stop называет ПОСЛЕДНЮЮ пройденную ступень SPINE (её ключ), либо null —
+       дело ещё не подало первую претензию. Опечатка в stop раньше тихо давала пустую
+       цепочку вместо той, что имел в виду автор, — теперь это жёсткая ошибка (ревью №1, п.8). */
+    let steps;
+    if(c.stop == null){
+      steps = [];
+    } else {
+      const stopAt = SPINE_KEYS.indexOf(c.stop);
+      if(stopAt < 0)
+        throw new Error(`SEED: дело ${c.id} — stop='${c.stop}' не входит в SPINE_KEYS [${SPINE_KEYS.join(', ')}]`);
+      steps = SPINE.slice(0, stopAt+1);
+    }
+    /* overdue — только для дел БЕЗ цепочки (K0): открытие считается прямо от него.
+       С цепочкой открытие выводится из возраста последней вехи (age) — overdue стал
+       бы вторым, противоречащим источником и раньше тихо игнорировался (ревью №1, п.8). */
+    if(steps.length && c.overdue != null)
+      throw new Error(`SEED: дело ${c.id} — stop='${c.stop}' задаёт цепочку; overdue дублирует то, что выводится из возраста последней вехи (age) — уберите overdue`);
+
     const dbt = c.credit.debt;
+    /* Охват (ADR-0025) различает «просроченная сумма» / «полный остаток» ТОЛЬКО если
+       часть тела кредита ещё не просрочена (ревью №1, п.2) — без явного principalOverdue
+       обе суммы совпадали бы, и сама развилка по scope была бы нетестируемой. Обязателен
+       у любого дела с цепочкой; у K0 (steps=[]) сумму ещё не читает ни одна мера — можно
+       опустить, по умолчанию считается просроченным весь непогашенный остаток тела. */
+    if(steps.length && dbt.principalOverdue == null)
+      throw new Error(`SEED: дело ${c.id} — цепочка объявлена, а debt.principalOverdue не задан (нужен для различения охватов «просроченная сумма»/«полный остаток», ADR-0025)`);
+    const principalPaid    = dbt.paid || 0;
+    const principalOverdue = dbt.principalOverdue != null ? dbt.principalOverdue : (dbt.principal - principalPaid);
     LEDGER[c.credit.id] = { asOf:'25.07.2026',
-      principal:{ accrued:dbt.principal, paid:dbt.paid||0, overdue:dbt.principal-(dbt.paid||0) },
+      principal:{ accrued:dbt.principal, paid:principalPaid, overdue:principalOverdue },
       interest:{ accrued:dbt.interest||0, paid:0, overdue:dbt.interest||0 },
       penalty:{ accrued:dbt.penalty||0, paid:0, overdue:dbt.penalty||0 } };
-    const overdueSum = (dbt.principal-(dbt.paid||0)) + (dbt.interest||0) + (dbt.penalty||0);
-    const fullSum    = dbt.principal + (dbt.interest||0) + (dbt.penalty||0) - (dbt.paid||0);
-    const sumBy = scope => money(scope === 'полный остаток' ? fullSum : overdueSum);
+    const overdueSum = principalOverdue + (dbt.interest||0) + (dbt.penalty||0);
+    const fullSum    = dbt.principal + (dbt.interest||0) + (dbt.penalty||0) - principalPaid;
+    const sumBy = scope => fmtKGS(scope === 'полный остаток' ? fullSum : overdueSum);
 
     /* Даты назад: последняя веха стоит `age` дней назад от TODAY, остальные — по gap. */
-    const stopAt = SPINE_KEYS.indexOf(c.stop);
-    const steps  = stopAt < 0 ? [] : SPINE.slice(0, stopAt+1);
-    const dates  = [];
+    const dates = [];
     let d = ruSub(TODAY, c.age ?? 12);
     for(let i=steps.length-1; i>=0; i--){ dates[i] = d; d = ruSub(d, steps[i].gap); }
     const opened = steps.length ? ruSub(dates[0], SPINE[0].gap) : ruSub(TODAY, (c.overdue ?? 8) - 5);
@@ -2266,7 +2318,6 @@ function buildSeed(seed){
     const overdueDays  = Math.round((dParse(TODAY) - dParse(overdueStart)) / D_MS);
 
     const measures = [], deadlines = [], history = [];
-    let prevNum = null;
     /* Охват держится ПОСЛЕДНЕЙ устанавливающей мерой (ADR-0025): определение, решение и
        ИЛ своего охвата не задают, но сумма у них уже по «полному остатку» — иначе
        аудит увидит расхождение вехи с притязанием (код C4). */
@@ -2275,8 +2326,13 @@ function buildSeed(seed){
       const num = `${s.pre}-${c.credit.id}${s.suf||''}`;
       const kd  = kindOf(s.kind);
       if(s.scope) curScope = s.scope;
+      /* Ответственный — куратор ОД по умолчанию, но судебный/исполнительный раздел —
+         полномочие ОПК (MEASURE_SUBDIV/SECTION_SUBDIV, В-9); courtCurator даёт кейсу
+         назвать судебного исполнителя явно (ревью №1, минор). */
+      const subdiv = subdivOf(s.kind);
+      const responsible = (subdiv && subdiv.includes('ОПК')) ? (c.courtCurator || c.curator) : c.curator;
       const m = { sec:sectionOf(s.kind), kind:s.kind, dates:D(dates[i], dates[i]), num,
-                  purpose:s.purpose, responsible:c.curator, sum:sumBy(curScope) };
+                  purpose:s.purpose, responsible, sum:sumBy(curScope) };
       if(s.outcome) m.outcome = s.outcome;
       if(s.scope)   m.scope = { volume:s.scope, method:c.method || 'деньгами' };
       if(kd.source === 'внешний акт') m.received = { date:dates[i] };
@@ -2287,21 +2343,38 @@ function buildSeed(seed){
                                     : ch==='Нарочно' ? 'акт вручения нарочно'
                                     : 'почтовое уведомление о вручении' };
       }
-      if(kd.basisKinds && prevNum) m.basedOn = prevNum;
+      /* Основание — НЕ обязательно непосредственный предшественник в хребте (ревью №1,
+         п.1): «Решение суда» ссылается на «Исковое заявление», хотя между ними в SPINE
+         стоит «Определение…», у которого свой basisKinds. Ищем НАЗАД по уже выпущенным
+         мерам первую, чей вид входит в kd.basisKinds — то же правило, что basedOnValid
+         читает в живом реестре. */
+      if(kd.basisKinds){
+        for(let j = measures.length - 1; j >= 0; j--){
+          if(kd.basisKinds.includes(measures[j].kind)){ m.basedOn = measures[j].num; break; }
+        }
+      }
       measures.push(m);
-      prevNum = num;
-      history.push({ when:`${dates[i]} 10:00`, what:`Мера «${s.kind}» ${num} зарегистрирована`, who:c.curator });
+      history.push({ when:`${dates[i]} 10:00`, what:`Мера «${s.kind}» ${num} зарегистрирована`, who:responsible });
     });
 
-    /* Срок порождает ПОСЛЕДНЯЯ мера: предыдущие сняты своими продолжениями. */
+    /* Срок порождает ПОСЛЕДНЯЯ мера, и только если DEADLINE_BY_KIND реально называет
+       для неё шаблон (для иска/записки/определения — намеренно нет, см. комментарий
+       у DEADLINE_BY_KIND). Дереференс шаблона и разбор term — с guard, не с throw
+       (ревью №1, минор): опечатка тут не должна ронять всю затравку. */
     const last = steps[steps.length-1];
-    if(last && DEADLINE_BY_KIND[last.kind]){
-      const tpl = TPL_BY_N[DEADLINE_BY_KIND[last.kind]];
-      deadlines.push({ tpl:tpl.n, due:ruAdd(dates[dates.length-1], c.dueIn ?? 14),
-                       base:`${tpl.base} (${dates[dates.length-1]})` });
+    const dlN  = last && DEADLINE_BY_KIND[last.kind];
+    const tpl  = dlN ? TPL_BY_N[dlN] : null;
+    if(tpl){
+      const days = termToCalendarDays(tpl.term);
+      if(days != null)
+        deadlines.push({ tpl:tpl.n, due:ruAdd(dates[dates.length-1], days),
+                         base:`${tpl.base} (${dates[dates.length-1]})` });
     }
 
-    /* Гейт: мера гейтового вида в цепочке → вопрос органу, решённый ДО неё. */
+    /* Гейт: мера гейтового вида в цепочке → вопрос органу, решённый ДО неё. Номер
+       протокола — свой префикс с дискриминатором по пункту гейта (ревью №1, п.5):
+       «ПР-» уже занят номерами претензий, и без пункта два гейта одного дела делили
+       бы один и тот же протокол. */
     const committeeQuestions = [];
     for(const [kind, g] of Object.entries(GATES)){
       const m = measures.find(x => x.kind === kind);
@@ -2310,10 +2383,10 @@ function buildSeed(seed){
       committeeQuestions.push({ organ:g.organ, initiator:c.credit.subdiv || 'ОД', topic:g.topic,
         credits:[c.credit.num], meetingDate:at,
         decision: g.poruchenie ? 'поручение выдано' : 'разрешено', positive:true,
-        protocolNo:`ПР-${c.id}`, protocolDate:at });
+        protocolNo:`ПРОТ-${c.id}/${g.point}`, protocolDate:at });
     }
 
-    procs.push({ id:c.id, borrower:c.borrower, inn:c.inn, region:c.region,
+    const derived = { id:c.id, borrower:c.borrower, inn:c.inn, region:c.region,
       owner:c.owner, curator:c.curator, opened, openedBy:c.openedBy || 'система',
       basis:c.basis || 'просрочка 6 дней',
       poruchenie: measures.some(m => m.kind === 'Исковое заявление'),
@@ -2321,12 +2394,20 @@ function buildSeed(seed){
                  subdiv:c.credit.subdiv, bezakceptRight:c.credit.bezakcept }],
       measures, committeeQuestions,
       hearings:c.hearings || [], colls:c.colls || [],
-      ...(c.extra || {}),
-      /* extra ставится ПЕРЕД этими двумя: сроки и история кейса ДОПОЛНЯЮТ выведенные,
-         а не затирают их — иначе дело с конфликтом интересов теряло бы срок претензии. */
-      deadlines:[...deadlines, ...((c.extra && c.extra.deadlines) || [])],
-      history:[...history, ...((c.extra && c.extra.history) || [])]
-        .sort((a, b) => dParse(b.when.slice(0,10)) - dParse(a.when.slice(0,10))) });
+      deadlines, history };
+    /* extra ДОПОЛНЯЕТ выведенное: коллекционные поля — конкатенацией (EXTRA_ARRAY_KEYS,
+       ревью №1, п.6), всё остальное (window/procedure/settlement/…) — обычным
+       присваиванием, потому что билдер этих ключей вовсе не производит и затирать
+       там нечего. */
+    const extra = c.extra || {};
+    for(const k of Object.keys(extra))
+      derived[k] = EXTRA_ARRAY_KEYS.includes(k) ? [...(derived[k]||[]), ...(extra[k]||[])] : extra[k];
+    derived.history.sort((a, b) => dParse(b.when.slice(0,10)) - dParse(a.when.slice(0,10)));
+    /* Окно ожидания зачисления: until — ПРОИЗВОДНАЯ opened+days (ревью №1, п.10),
+       не вторая дата, которую можно набрать несогласованно с days. */
+    if(derived.window && derived.window.days != null && derived.window.until == null)
+      derived.window.until = ruAdd(opened, derived.window.days);
+    procs.push(derived);
   }
   return procs;
 }
@@ -2426,19 +2507,19 @@ const SEED = [
     credit:{ id:'201', num:'Дог. №201 от 02.03.2025', subdiv:'ОД',
              debt:{ principal:120000, interest:6000, penalty:2000, paid:0 } },
     stop:null, overdue:8,
-    extra:{ window:{ open:true, days:5, until:'24.07.2026', closedBy:null, gateDay:'11', claimDay:'20' } } },
+    extra:{ window:{ open:true, days:5, closedBy:null, gateDay:'11', claimDay:'20' } } },
   { sit:'K0-ОКНО', id:'202', borrower:'ОсОО «Кыял Ломбард»', inn:'01605202400225',
     region:'г. Ош / Ошская область', owner:'Куратор ОД', curator:'Молдалиев Т.К.',
     credit:{ id:'202', num:'Дог. №202 от 15.04.2025', subdiv:'ОД',
              debt:{ principal:85000, interest:4000, penalty:1200, paid:0 } },
     stop:null, overdue:7,
-    extra:{ window:{ open:true, days:5, until:'23.07.2026', closedBy:null, gateDay:'11', claimDay:'20' } } },
+    extra:{ window:{ open:true, days:5, closedBy:null, gateDay:'11', claimDay:'20' } } },
   { sit:'K0-ОКНО', id:'203', borrower:'Сыдыков Бакыт Асанович', inn:'21512199400512',
     region:'Чуйская область / Аламудунский', owner:'Куратор ОД', curator:'Тукинова А.С.',
     credit:{ id:'203', num:'Дог. №203 от 28.02.2025', subdiv:'ОД',
              debt:{ principal:64000, interest:3200, penalty:800, paid:0 } },
     stop:null, overdue:9,
-    extra:{ window:{ open:true, days:5, until:'22.07.2026', closedBy:null, gateDay:'11', claimDay:'20' } } },
+    extra:{ window:{ open:true, days:5, closedBy:null, gateDay:'11', claimDay:'20' } } },
 ];
 const PROCESSES = buildSeed(SEED);
 
