@@ -1290,7 +1290,12 @@ const MEASURE_KINDS = [
   { name:'Безакцептное списание', source:'наш документ', resultIsDocument:false,
     outcomes:[{value:'исполнено',setsPhase:'Безакцептное списание'},{value:'частично исполнено',setsPhase:'Безакцептное списание'},
               {value:'не исполнено',setsPhase:'Безакцептное списание'}],
-    needsDelivery:false, deliveryChannels:null, basisKinds:null },
+    /* Task 4 (контур К1): списание исполняется НА ОСНОВАНИИ платёжного требования в
+       банк — ссылка нужна для builder-ветки §3.4 (basedOn:`ПТ-…`). Без строки здесь
+       basisKinds:null у самого «Платёжное требование в банк» уже верно (оно ничего
+       не ссылает), а вот списание, оставшись без basisKinds, роняло бы A7 аудита на
+       каждом кейсе с исполненным/частично исполненным безакцептом. */
+    needsDelivery:false, deliveryChannels:null, basisKinds:['Платёжное требование в банк'] },
   { name:'Платёжное требование в банк', source:'наш документ', resultIsDocument:false,
     outcomes:[{value:'исполнено'},{value:'не исполнено'}],
     needsDelivery:false, deliveryChannels:null, basisKinds:null },
@@ -2310,11 +2315,21 @@ const copyArr = arr => (arr||[]).map(x => (x && typeof x==='object') ? {...x} : 
 
 function buildSeed(seed){
   const procs = [];
+  /* Task 4 (контур К1, ситуация K1-ОБЕСП): обеспечитель — третья координата
+     требования (М-1), а PERSONS[id] в normalize() пишется через ??= — молчаливое
+     «первый выигрывает». Без реестра здесь два дела могли бы тихо разделить одного
+     поручителя под разными именами/ИНН, и второе описание просто исчезло бы. */
+  const obligorIds = new Set();
   for(const c of seed){
     /* А11-номер (ревью №1, п.6): num строится из credit.id — id обязан быть
        глобально уникален по всей затравке, иначе номера мер столкнутся. */
     if(LEDGER[c.credit.id])
       throw new Error(`SEED: кредит id='${c.credit.id}' (дело ${c.id}) уже объявлен другим делом — id кредита обязаны быть глобально уникальны, номера мер строятся из них`);
+    for(const o of (c.obligors || [])){
+      if(obligorIds.has(o.id))
+        throw new Error(`SEED: дело ${c.id} — obligor id='${o.id}' уже объявлен другим делом — id обеспечителя обязан быть глобально уникален`);
+      obligorIds.add(o.id);
+    }
 
     /* Цепочка: stop называет ПОСЛЕДНЮЮ пройденную ступень SPINE (её ключ), либо null —
        дело ещё не подало первую претензию. Опечатка в stop раньше тихо давала пустую
@@ -2433,6 +2448,44 @@ function buildSeed(seed){
       history.push({ when:`${dates[i]} 10:00`, what:`Мера «${s.kind}» ${num} зарегистрирована`, who:responsible });
     });
 
+    /* Условная ступень К1 (§3.4): регистрируется только там, где право есть по договору
+       И гейт комитета пройден. Гейт ставится общим циклом ниже — по наличию меры.
+       Охват на списание НЕ ставится (ревью Task 4): «просроченная сумма» уже установлена
+       повторной претензией — списание действует в её пределах, а не переопределяет его
+       (ADR-0025 перечисляет ровно четыре устанавливающих вида, безакцепта среди них нет;
+       лишний scope здесь заводил бы A6-охват аудита на каждом кейсе с бeзакцептом). */
+    if(c.bezakceptOutcome){
+      const dt = ruAdd(dates[dates.length-1], 20);
+      measures.push({ sec:'Досудебный', kind:'Платёжное требование в банк', dates:D(dt, dt),
+        num:`ПТ-${c.credit.id}`, purpose:'списание со счетов в обслуживающих банках',
+        outcome: c.bezakceptOutcome === 'не исполнено' ? 'не исполнено' : 'исполнено',
+        sum:sumBy('просроченная сумма'), responsible:c.curator });
+      const dt2 = ruAdd(dt, 10);
+      measures.push({ sec:'Досудебный', kind:'Безакцептное списание', dates:D(dt2, dt2),
+        num:`БА-${c.credit.id}`, purpose:'безакцептное списание просроченной суммы',
+        outcome:c.bezakceptOutcome, basedOn:`ПТ-${c.credit.id}`,
+        sum:sumBy('просроченная сумма'), responsible:c.curator });
+    }
+    /* Требование обеспечителю — своя мера, целится в требование поручителя/гаранта
+       (normalize выведет цель по виду, §М-1: regex по kind в разборе targets). */
+    if(c.guarantorClaim){
+      const dt = dates[dates.length-1];
+      measures.push({ sec:'Досудебный', kind:c.guarantorClaim.kind, dates:D(dt, dt),
+        num:c.guarantorClaim.num, purpose:'солидарное исполнение обязательства',
+        outcome:'отказ от погашения', sent:{ date:dt, channel:'СЭД' },
+        served:{ date:dt, doc:'квитанция СЭД' },
+        scope:{ volume:'просроченная сумма', method:'деньгами' },
+        sum:sumBy('просроченная сумма'), responsible:c.curator });
+    }
+    /* Сторно — дубль последней меры: строка остаётся зачёркнутой и фазу не двигает (И-3). */
+    if(c.storno){
+      const src = measures[measures.length-1];
+      const dt = ruAdd(src.dates.event, 1);
+      measures.push({ ...src, dates:D(dt, dt), num:`${src.num}-дубль`, basedOn:src.num,
+        storno:{ reason:`дубль ${src.num} — зарегистрирована повторно по ошибке`,
+                 by:c.curator, at:ruAdd(dt, 1) } });
+    }
+
     /* Срок порождает ПОСЛЕДНЯЯ мера, и только если DEADLINE_BY_KIND реально называет
        для неё шаблон (для иска/записки/определения — намеренно нет, см. комментарий
        у DEADLINE_BY_KIND). 'Решение суда' — особый случай: тпл 27 (Апелляционная
@@ -2466,6 +2519,18 @@ function buildSeed(seed){
         decision: g.poruchenie ? 'поручение выдано' : 'разрешено', positive:true,
         protocolNo:`ПРОТ-${c.id}/${g.point}`, protocolDate:at });
     }
+    /* K1-БА-ГЕЙТ: право на безакцепт есть по договору, но комитет ещё не решил —
+       вопрос вынесен БЕЗ решения, а сама гейтовая мера в цепочке отсутствует (она
+       по определению не может быть зарегистрирована раньше положительного решения,
+       gateReason). Цикл выше её не найдёт (measures.find по kind), поэтому это
+       отдельная, не альтернативная ветка. */
+    if(c.gatePending){
+      const g = GATES[c.gatePending];
+      const at = ruSub(TODAY, 6);
+      committeeQuestions.push({ organ:g.organ, initiator:c.credit.subdiv || 'ОД', topic:g.topic,
+        credits:[c.credit.num], meetingDate:at, decision:'', positive:false,
+        protocolNo:null, protocolDate:null });
+    }
 
     /* credits0 — оверлей ТОЛЬКО для дополнительных полей кредита (сейчас — treasuryDelay,
        Р-11), не замена базовых. Без списка допустимых ключей будущий кейс мог бы тихо
@@ -2485,6 +2550,12 @@ function buildSeed(seed){
                  subdiv:c.credit.subdiv, bezakceptRight:c.credit.bezakcept }, c.credits0 || {})],
       measures, committeeQuestions,
       hearings:copyArr(c.hearings), colls:copyArr(c.colls),
+      /* Task 4: обеспечители — сквозное поле дела (normalize() уже читает p.obligors
+         и строит из него требования поручителя/гаранта, М-1 §6.2 выше). Билдер до сих
+         пор его никуда не копировал — единственный кредит/без обеспечителей был
+         достаточен для К0/К1-претензий, но K1-ОБЕСП объявляет obligors на кейсе, и
+         без этой строки декларация тихо терялась бы при сборке PROCESSES. */
+      obligors:copyArr(c.obligors),
       deadlines, history };
     /* extra ДОПОЛНЯЕТ выведенное: коллекционные поля — конкатенацией МЕЛКИХ КОПИЙ
        элементов (EXTRA_ARRAY_KEYS + copyArr, ревью №1 п.6 / ревью №3 минор п.5),
@@ -2665,6 +2736,159 @@ const SEED = [
     extra:{ retro:true,
       credits0:{ treasuryDelay:{ days:8, doc:'ПП-4502 от 17.07.2026', confirmedBy:'СРМК', date:'18.07.2026' } },
       history:[{ when:'19.07.2026 09:00', what:'Платёж подтверждён задним числом (задержка казначейства 8 дн, ПП-4502) → процесс закрыт ретроспективно (Р-9), скрыт из рабочего списка', who:'СРМК' }] } },
+
+  /* ============================================================
+     КОНТУР К1 — ДОСУДЕБНЫЙ ПОРЯДОК. Девять ситуаций, 22 дела (Task 4).
+     Все кейсы объявляют цепочку (stop) → debt.principalOverdue ОБЯЗАТЕЛЕН на каждом
+     (строго между 0 и principal-paid, ADR-0025) — везде ниже paid:0, поэтому
+     principalOverdue строго меньше principal.
+     ============================================================ */
+
+  // ── K1-ПРЕТ1 · первичная претензия, срок исполнения 14 к.д. идёт (age < 14) ──
+  { sit:'K1-ПРЕТ1', id:'301', borrower:'ОсОО «Береке-Агро»', inn:'02804202000441',
+    region:'Чуйская обл. / Сокулукский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
+    credit:{ id:'301', num:'Дог. №301 от 14.03.2025', subdiv:'ДАК',
+             debt:{ principal:64000, interest:2600, penalty:800, paid:0, principalOverdue:50000 } },
+    stop:'претензия', age:6, channel:'СЭД' },
+  { sit:'K1-ПРЕТ1', id:'302', borrower:'ОсОО «Тоо-Строй Инвест»', inn:'01912201812345',
+    region:'Чуйская обл. / Панфиловский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
+    credit:{ id:'302', num:'Дог. №302 от 22.05.2025', subdiv:'ДАК',
+             debt:{ principal:58000, interest:2400, penalty:700, paid:0, principalOverdue:45000 } },
+    stop:'претензия', age:4 },
+  { sit:'K1-ПРЕТ1', id:'303', borrower:'Молдогазиев Э. Т.', inn:'21808199200456',
+    region:'Иссык-Кульская область / Тонский', owner:'Куратор ДАК', curator:'Тукинова А.С.',
+    credit:{ id:'303', num:'Дог. №303 от 05.02.2025', subdiv:'ДАК',
+             debt:{ principal:39000, interest:1500, penalty:500, paid:0, principalOverdue:30000 } },
+    stop:'претензия', age:11, channel:'Нарочно' },
+
+  // ── K1-ПРЕТ2 · повторная претензия, срок истёк, записка в ДПО (stop:'записка') ──
+  { sit:'K1-ПРЕТ2', id:'304', borrower:'ОсОО «Ак-Кеме Трейд»', inn:'01912201610558',
+    region:'г. Ош / Ошский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
+    credit:{ id:'304', num:'Дог. №304 от 02.11.2024', subdiv:'ДАК',
+             debt:{ principal:112000, interest:5400, penalty:2600, paid:0, principalOverdue:90000 } },
+    stop:'записка', age:9 },
+  { sit:'K1-ПРЕТ2', id:'305', borrower:'ОсОО «Джалал-Абад Курулуш»', inn:'01502201900771',
+    region:'Джалал-Абадская область / Сузакский', owner:'Куратор ДАК', curator:'Бекболотов Р.',
+    credit:{ id:'305', num:'Дог. №305 от 19.08.2024', subdiv:'ДАК',
+             debt:{ principal:96000, interest:4300, penalty:2000, paid:0, principalOverdue:78000 } },
+    stop:'записка', age:15 },
+  { sit:'K1-ПРЕТ2', id:'306', borrower:'ИП Раимбекова С.', inn:'21703199800112',
+    region:'Таласская область / Таласский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
+    credit:{ id:'306', num:'Дог. №306 от 27.01.2025', subdiv:'ОД',
+             debt:{ principal:51000, interest:2100, penalty:900, paid:0, principalOverdue:40000 } },
+    stop:'записка', age:20 },
+
+  // ── K1-ОБЕСП · требование поручителю/гаранту (третья координата требования, М-1) ──
+  { sit:'K1-ОБЕСП', id:'307', borrower:'ОсОО «Бек Кабель»', inn:'01912201610212',
+    region:'г. Бишкек / Первомайский', owner:'Куратор ДАК', curator:'Тукинова А.С.',
+    credit:{ id:'307', num:'Дог. №307 от 10.04.2024', subdiv:'ДАК',
+             debt:{ principal:140000, interest:6000, penalty:6300, paid:0, principalOverdue:110000 } },
+    stop:'повторная', age:11,
+    obligors:[{ id:'п-307', name:'Асанов Т. М.', inn:'22505198700345', kind:'физлицо',
+                role:'поручитель', credits:['307'], basis:'договор поручительства ДП-307/1 от 10.04.2024' }],
+    guarantorClaim:{ kind:'Требование поручителю', num:'ТП-307' } },
+  { sit:'K1-ОБЕСП', id:'308', borrower:'ОсОО «Кара-Кол Агро»', inn:'01704202000933',
+    region:'Иссык-Кульская область / Каракольский', owner:'Куратор ДАК', curator:'Дуйшеева Р.',
+    credit:{ id:'308', num:'Дог. №308 от 15.05.2024', subdiv:'ДАК',
+             debt:{ principal:176000, interest:7200, penalty:5100, paid:0, principalOverdue:140000 } },
+    stop:'повторная', age:13,
+    obligors:[{ id:'г-308', name:'ОсОО «Гарант-Финанс»', inn:'01911201700884', kind:'юрлицо',
+                role:'гарант', credits:['308'], basis:'договор гарантии ДГ-308/1 от 15.05.2024' }],
+    guarantorClaim:{ kind:'Требование гаранту', num:'ТГ-308' } },
+  { sit:'K1-ОБЕСП', id:'309', borrower:'Садыков Н. К.', inn:'21504198600678',
+    region:'Чуйская обл. / Московский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
+    credit:{ id:'309', num:'Дог. №309 от 03.09.2024', subdiv:'ОД',
+             debt:{ principal:62000, interest:2700, penalty:1400, paid:0, principalOverdue:48000 } },
+    stop:'повторная', age:9,
+    obligors:[{ id:'п-309', name:'Садыкова А. К.', inn:'21804199300221', kind:'физлицо',
+                role:'поручитель', credits:['309'], basis:'договор поручительства ДП-309/1 от 03.09.2024' }],
+    guarantorClaim:{ kind:'Требование поручителю', num:'ТП-309' } },
+
+  // ── K1-БА-ГЕЙТ · право на безакцепт есть по договору, комитет ещё не решил ──
+  { sit:'K1-БА-ГЕЙТ', id:'310', borrower:'ОсОО «Манас-Ресурс»', inn:'01808202100264',
+    region:'г. Бишкек / Свердловский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
+    credit:{ id:'310', num:'Дог. №310 от 08.08.2024', subdiv:'ДАК', bezakcept:true,
+             debt:{ principal:98000, interest:4200, penalty:1900, paid:0, principalOverdue:78000 } },
+    stop:'повторная', age:8, gatePending:'Безакцептное списание' },
+  { sit:'K1-БА-ГЕЙТ', id:'311', borrower:'ОсОО «Токмок-Мебель»', inn:'01704201800556',
+    region:'Чуйская обл. / Токмокский', owner:'Куратор ДАК', curator:'Молдалиев Т.К.',
+    credit:{ id:'311', num:'Дог. №311 от 21.11.2024', subdiv:'ДАК', bezakcept:true,
+             debt:{ principal:71000, interest:3000, penalty:1300, paid:0, principalOverdue:56000 } },
+    stop:'повторная', age:14, gatePending:'Безакцептное списание' },
+
+  // ── K1-БА-ИСП · гейт пройден, платёжное требование в банк + списание, три исхода ──
+  { sit:'K1-БА-ИСП', id:'312', borrower:'ОсОО «Чуй-Дан»', inn:'02902201900155',
+    region:'Чуйская обл. / Аламудунский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
+    credit:{ id:'312', num:'Дог. №312 от 21.09.2024', subdiv:'ДАК', bezakcept:true,
+             debt:{ principal:76000, interest:3100, penalty:1200, paid:0, principalOverdue:60000 } },
+    stop:'повторная', age:34, bezakceptOutcome:'частично исполнено' },
+  { sit:'K1-БА-ИСП', id:'313', borrower:'ОсОО «Ноокат-Агро»', inn:'01502201600447',
+    region:'Ошская область / Ноокатский', owner:'Куратор ДАК', curator:'Бекболотов Р.',
+    credit:{ id:'313', num:'Дог. №313 от 02.06.2024', subdiv:'ДАК', bezakcept:true,
+             debt:{ principal:88000, interest:3600, penalty:1600, paid:0, principalOverdue:70000 } },
+    stop:'повторная', age:40, bezakceptOutcome:'исполнено' },
+  { sit:'K1-БА-ИСП', id:'314', borrower:'Абдрахманов У. Ж.', inn:'21309198500334',
+    region:'Баткенская область / Кызыл-Кийский', owner:'Куратор ДАК', curator:'Осмонов К.',
+    credit:{ id:'314', num:'Дог. №314 от 17.03.2025', subdiv:'ДАК', bezakcept:true,
+             debt:{ principal:46000, interest:1900, penalty:700, paid:0, principalOverdue:36000 } },
+    stop:'повторная', age:35, bezakceptOutcome:'не исполнено' },
+
+  // ── K1-БА-НЕТ · права на безакцепт по договору нет — credit.bezakcept не задан,
+  //    условная ветка §3.4 не срабатывает (ни ПТ, ни списания в цепочке) ──
+  { sit:'K1-БА-НЕТ', id:'315', borrower:'ОсОО «Кемин-Строй»', inn:'01808201900221',
+    region:'Чуйская обл. / Кеминский', owner:'Куратор ДАК', curator:'Жээнбеков Н.',
+    credit:{ id:'315', num:'Дог. №315 от 09.07.2024', subdiv:'ДАК',
+             debt:{ principal:54000, interest:2200, penalty:900, paid:0, principalOverdue:42000 } },
+    stop:'повторная', age:12 },
+  { sit:'K1-БА-НЕТ', id:'316', borrower:'ИП Турсунов Б.', inn:'21601199700889',
+    region:'Ошская область / Кара-Суйский', owner:'Куратор ДАК', curator:'Тукинова А.С.',
+    credit:{ id:'316', num:'Дог. №316 от 25.10.2024', subdiv:'ДАК',
+             debt:{ principal:33000, interest:1300, penalty:500, paid:0, principalOverdue:25000 } },
+    stop:'повторная', age:16 },
+
+  // ── K1-ПАУЗА-ГП · гарантийное письмо, п. 18 (отсрочка ≤70 к.д.) ──
+  { sit:'K1-ПАУЗА-ГП', id:'317', borrower:'ОсОО «Ынтымак-Курулуш»', inn:'01502201700340',
+    region:'г. Бишкек / Первомайский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
+    credit:{ id:'317', num:'Дог. №317 от 12.06.2024', subdiv:'ДАК',
+             debt:{ principal:54000, interest:2400, penalty:1100, paid:0, principalOverdue:42000 } },
+    stop:'повторная', age:15,
+    extra:{ settlement:{ type:'guarantee_letter', point:'18', until:'20.09.2026',
+      note:'заёмщик направил гарантийное письмо; отсрочка ≤70 к.д. При нарушении — возобновление безакцепта в 10 р.д.' } } },
+  { sit:'K1-ПАУЗА-ГП', id:'318', borrower:'ОсОО «Кант-Сахар»', inn:'01607201900447',
+    region:'Чуйская обл. / Кантский', owner:'Куратор ДАК', curator:'Осмоналиев Т.',
+    credit:{ id:'318', num:'Дог. №318 от 30.04.2024', subdiv:'ДАК',
+             debt:{ principal:87000, interest:3600, penalty:1900, paid:0, principalOverdue:68000 } },
+    stop:'повторная', age:18,
+    extra:{ settlement:{ type:'guarantee_letter', point:'18', until:'25.09.2026',
+      note:'заёмщик направил гарантийное письмо; отсрочка ≤70 к.д. При нарушении — возобновление безакцепта в 10 р.д.' } } },
+
+  // ── K1-ПАУЗА-РЕСТР · реструктуризация, п. 19 (письмо в уполномоченный госорган) ──
+  { sit:'K1-ПАУЗА-РЕСТР', id:'319', borrower:'ОсОО «Кара-Балта Кант»', inn:'01607201800623',
+    region:'Чуйская обл. / Московский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
+    credit:{ id:'319', num:'Дог. №319 от 04.04.2024', subdiv:'ОД',
+             debt:{ principal:230000, interest:11000, penalty:5400, paid:0, principalOverdue:180000 } },
+    stop:'повторная', age:20,
+    extra:{ settlement:{ type:'restructuring', point:'19', until:'18.09.2026', on:'заёмщик',
+      note:'обращение заёмщика о реструктуризации, письмо в уполномоченный госорган направлено' } } },
+  { sit:'K1-ПАУЗА-РЕСТР', id:'210', borrower:'ОсОО «Нарын-Мал»', inn:'01704202000112',
+    region:'Нарынская область / Нарынский', owner:'Куратор ОД', curator:'Дуйшеева Р.',
+    credit:{ id:'210', num:'Дог. №210 от 21.02.2024', subdiv:'ОД',
+             debt:{ principal:140000, interest:6000, penalty:2600, paid:0, principalOverdue:110000 } },
+    stop:'повторная', age:24,
+    extra:{ settlement:{ type:'restructuring', point:'19', until:'30.09.2026', on:'заёмщик',
+      note:'обращение заёмщика о реструктуризации, заключение готовится к вынесению на комитет' } } },
+
+  // ── K1-СТОРНО · дубль повторной претензии сторнирован (И-3: строка зачёркнута, фазу не двигает) ──
+  { sit:'K1-СТОРНО', id:'320', borrower:'ОсОО «Ош-Курулуш»', inn:'01502201700701',
+    region:'г. Ош / Ошский', owner:'Куратор ДАК', curator:'Бекболотов Р.',
+    credit:{ id:'320', num:'Дог. №320 от 19.05.2024', subdiv:'ДАК',
+             debt:{ principal:47000, interest:1900, penalty:700, paid:0, principalOverdue:36000 } },
+    stop:'повторная', age:10, storno:true },
+  { sit:'K1-СТОРНО', id:'321', borrower:'Жумабекова К. Т.', inn:'21902199400778',
+    region:'Чуйская обл. / Жайылский', owner:'Куратор ОД', curator:'Молдалиев Т.К.',
+    credit:{ id:'321', num:'Дог. №321 от 08.01.2025', subdiv:'ОД',
+             debt:{ principal:41000, interest:1700, penalty:600, paid:0, principalOverdue:32000 } },
+    stop:'повторная', age:13, storno:true },
 ];
 const PROCESSES = buildSeed(SEED);
 
