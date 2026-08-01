@@ -34,6 +34,36 @@ const out = await p.evaluate(() => {
     const reqIds = new Set(pr.requirements.map(r=>r.id));
     const byNum = {}; for(const m of pr.measures||[]) if(m.num) byNum[m.num] = m;
 
+    // A10 — ничто в деле (история, меры, сроки, заседания) не может быть датировано
+    // раньше открытия самого дела: opened — это МОМЕНТ ОТКРЫТИЯ, а не мягкая граница.
+    // Раньше это било мимо всех существующих кодов — A9 смотрит только на меры (даты
+    // мер), G1 сверяет ТЕКСТ истории с фазой, а не её ДАТУ с opened — история могла
+    // рассказывать связную историю, которая началась до того, как дело завели.
+    {
+      const openedD = D(pr.opened);
+      if(openedD){
+        for(const h of pr.history||[]){
+          const hd = D(String(h.when).split(' ')[0]);
+          if(hd && hd < openedD) add('A10-до-открытия', `${W} · история ${h.when}`, `дата раньше открытия дела (${pr.opened})`);
+        }
+        for(const m of pr.measures||[]){
+          const md = D(evd(m));
+          if(md && md < openedD) add('A10-до-открытия', `${W} · мера ${m.num||'(без №)'} «${m.kind}»`, `дата раньше открытия дела (${pr.opened})`);
+        }
+        for(const d of pr.deadlines||[]){
+          const bm = /\((\d{2}\.\d{2}\.\d{4})\)\s*$/.exec(d.base||'');
+          if(bm){
+            const bd = D(bm[1]);
+            if(bd && bd < openedD) add('A10-до-открытия', `${W} · срок tpl=${d.tpl}`, `основание датировано ${bm[1]} — раньше открытия дела (${pr.opened})`);
+          }
+        }
+        for(const h of pr.hearings||[]){
+          const hd = D(String(h.when).split(' ')[0]);
+          if(hd && hd < openedD) add('A10-до-открытия', `${W} · заседание ${h.when}`, `дата раньше открытия дела (${pr.opened})`);
+        }
+      }
+    }
+
     for(const m of pr.measures||[]){
       const w = `${W} · мера ${m.num||'(без №)'} «${m.kind}»`;
       const kd = kindOf(m.kind);
