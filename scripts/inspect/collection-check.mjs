@@ -1483,6 +1483,52 @@ ok('охват сортируется по строгости (полный ос
        && SCOPE_RANK({volume:'полный остаток',method:'деньгами'})
        > SCOPE_RANK({volume:'просроченная сумма',method:'деньгами'})`));
 
+head('отбор реестра — в адресе (паритет с СК-6 / КР / КД-8)');
+ok('чистый реестр остаётся коротким «#list»',
+   L.ev(`(() => { resetAllConditions(); return listHash(); })()`) === 'list');
+/* resetAllConditions снимает условия отбора, но не сортировку и не размер страницы —
+   они не условия. Поэтому исходное состояние задаётся явно. */
+const listDefaults = `resetAllConditions(); sortKey='claim'; sortDir=-1; onPageSize(25);`;
+ok('поля, сортировка и страница попадают в адрес', mk().ev(`(() => {
+  renderList(); ${listDefaults} setDep('stage','Судебный порядок'); sortList('overdueDays'); gotoPage(2);
+  return listHash(); })()`)
+   === 'list/stage=Судебный порядок;sort=overdueDays;p=2');
+ok('плитка и размер страницы — тоже в адресе', mk().ev(`(() => {
+  renderList(); ${listDefaults} clickTile('gate'); onPageSize(50);
+  return listHash(); })()`)
+   === 'list/tile=gate;n=50');
+ok('F5 возвращает тот же отбор — поля, плитку, сортировку и страницу', mk().ev(`(() => {
+  renderList(); ${listDefaults} setDep('stage','Судебный порядок');
+  sortList('overdueDays'); gotoPage(2);
+  const h = curHash(), n = document.querySelectorAll('#listBody tr.rowopen').length;
+  location.hash = 'list'; restoreFromHash();          // «перезагрузка» на чистый реестр
+  location.hash = h; restoreFromHash();
+  return filterState.stage === 'Судебный порядок'
+      && sortKey === 'overdueDays' && sortDir === 1 && curPage === 2
+      && document.querySelectorAll('#listBody tr.rowopen').length === n; })()`));
+ok('значение со слэшем (охват) переживает адрес', mk().ev(`(() => {
+  renderList(); setF('scope','полный остаток / деньгами'); const h = curHash();
+  location.hash = 'list'; restoreFromHash(); location.hash = h; restoreFromHash();
+  return filterState.scope === 'полный остаток / деньгами'; })()`));
+ok('мусор в адресе не становится условием отбора', mk().ev(`(() => {
+  renderList(); location.hash = 'list/нетТакогоПоля=1;tile=нетТакойПлитки;sort=нетТакойКолонки;n=7';
+  restoreFromHash();
+  return Object.keys(filterState).length === 0 && tileFilter === null
+      && sortKey === 'claim' && PAGE_SIZE === 25; })()`));
+ok('тоггл ретро-закрытых тоже в адресе', mk().ev(`(() => {
+  renderList(); const rt = document.getElementById('retroToggle');
+  rt.checked = true; renderList();
+  const h = curHash(); location.hash = 'list'; restoreFromHash();
+  location.hash = h; restoreFromHash();
+  return /retro=1/.test(h) && document.getElementById('retroToggle').checked; })()`));
+/* Дело — ось группировки этого реестра: оно в подсказке строки, в выгрузке и в поиске
+   «Сроков на контроле» (dlQ), а искаться по нему было нельзя. */
+ok('поиск находит требование по номеру дела', L.ev(`(() => {
+  resetAllConditions(); setF('q','В-2026-000142');
+  const rs = visibleReqs(); resetAllConditions();
+  return rs.length > 0 && rs.every(r => r._proc.id === '142'); })()`));
+ok('подпись поля поиска называет все три ключа', /Заёмщик, ИНН или № дела/.test(HTML_SRC));
+
 /* ══════════════════════════════════════════════════════════════════════════
    ВОЛНА КД (28.07.2026) — карточка дела. Решения КД-1…КД-15, дефекты КД-Д1…КД-Д16.
    Разбор: mockups/collection/ASUBK-status-razrabotki.md · устройство: §14.2 спецификации.

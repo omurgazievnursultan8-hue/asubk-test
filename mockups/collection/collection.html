@@ -4279,9 +4279,13 @@ const raionOf   = s => String(s||'').split(' / ')[1] || '';
 /* Полевой фильтр: ТРЕБОВАНИЕ проходит, только если удовлетворяет ВСЕМ заданным полям. */
 function passFilters(r){
   const f = filterState, p = r._proc;
+  /* Номер дела ищется наравне с заёмщиком: дело — ось группировки этого реестра, оно
+     стоит в подсказке строки и в выгрузке, и по нему же ищет реестр «Сроки на контроле»
+     (dlQ). Без него единственный экран, где дело собирает строки, по делу не искался. */
   if(f.q){ const q=f.q.toLowerCase();
     if(!(String(p.borrower).toLowerCase().includes(q) || String(p.inn||'').includes(f.q)
-      || String(personOf(r).name).toLowerCase().includes(q) || String(r._credit.num).toLowerCase().includes(q))) return false; }
+      || String(personOf(r).name).toLowerCase().includes(q) || String(r._credit.num).toLowerCase().includes(q)
+      || procNo(p.id).toLowerCase().includes(q))) return false; }
   if(f.curator && p.curator!==f.curator)          return false;
   /* ADR-0023: фильтр «процедура взыскания» снят — три оси, что он смешивал (ПЛ-2),
      уже бьются собственными полями: маршрут → f.stage, подразделение → f.subdiv,
@@ -4644,6 +4648,48 @@ function renderList(){
     <button ${curPage>=pages?'disabled':''} onclick="gotoPage(${pages})" title="В конец">»</button>` : '';
   const psel = document.getElementById('pagerSize'); if(psel) psel.value = String(PAGE_SIZE);
   document.getElementById('listMoney').innerHTML = pageReqs.length ? moneyNote(pageReqs) : '';
+  /* Отбор пишется в адрес при каждой перерисовке — как горизонт у «Сроков» (СК-6),
+     сегмент у трёх реестров (КР) и вкладка у карточки (КД-8). До первого
+     restoreFromHash адрес — ИСТОЧНИК, а не приёмник: стартовый renderList() иначе
+     затирал бы отбор из ссылки пустым «list» ещё до того, как его прочитают. */
+  if(hashReady && document.getElementById('view-list').style.display !== 'none') setHash(listHash());
+}
+/* СОСТОЯНИЕ РЕЕСТРА В АДРЕСЕ. Реестр требований был единственным экраном, чей отбор
+   нельзя ни передать ссылкой, ни пережить F5, — и при этом единственным с фильтром
+   в 13 полей: терять там больше всего. Формат «list/k=v;k=v»: значения могут содержать
+   «/» (охват «полный остаток / деньгами»), поэтому разделитель пар — «;», а сам хвост
+   отрезается по ПЕРВОМУ слэшу. Умолчания в адрес не пишутся — чистый реестр остаётся
+   коротким «#list». */
+const LIST_NUM_KEYS = ['odMin','odMax','sumMin','sumMax'];
+function listHash(){
+  const parts = [];
+  for(const k of Object.keys(filterState)) parts.push(k + '=' + filterState[k]);
+  if(tileFilter) parts.push('tile=' + tileFilter);
+  if(sortKey !== 'claim' || sortDir !== -1) parts.push('sort=' + (sortDir > 0 ? '' : '-') + sortKey);
+  if(curPage > 1)      parts.push('p=' + curPage);
+  if(PAGE_SIZE !== 25) parts.push('n=' + PAGE_SIZE);
+  const rt = document.getElementById('retroToggle');
+  if(rt && rt.checked) parts.push('retro=1');
+  return 'list' + (parts.length ? '/' + parts.join(';') : '');
+}
+function applyListHash(q){
+  filterState = {}; tileFilter = null; curPage = 1; PAGE_SIZE = 25;
+  sortKey = 'claim'; sortDir = -1;
+  const rt = document.getElementById('retroToggle'); if(rt) rt.checked = false;
+  for(const pair of String(q||'').split(';')){
+    if(!pair) continue;
+    const i = pair.indexOf('='); if(i < 0) continue;
+    const k = pair.slice(0, i), v = pair.slice(i + 1);
+    if(k === 'tile'){ if(TILE_LABELS[v]) tileFilter = v; continue; }
+    if(k === 'sort'){ const key = v.replace(/^-/, '');
+      if(LIST_COLS.some(c => c.k === key)){ sortKey = key; sortDir = v.startsWith('-') ? -1 : 1; } continue; }
+    if(k === 'p'){    curPage   = Math.max(1, Number(v) || 1); continue; }
+    if(k === 'n'){    PAGE_SIZE = [25,50,100,200].includes(Number(v)) ? Number(v) : 25; continue; }
+    if(k === 'retro'){ if(rt) rt.checked = v === '1'; continue; }
+    if(k === 'mine'){ filterState.mine = true; continue; }
+    if(LIST_NUM_KEYS.includes(k)){ if(v !== '' && !isNaN(Number(v))) filterState[k] = Number(v); continue; }
+    if(CHIP_LABEL[k] && v !== '') filterState[k] = v;      // прочее — только известные поля отбора
+  }
 }
 function gotoPage(n){ curPage = Math.max(1, n); renderList(); }
 function onPageSize(v){ PAGE_SIZE = Number(v) || 25; curPage = 1; renderList(); }
@@ -7135,6 +7181,9 @@ function showView(v){ document.querySelectorAll('.view').forEach(s=>s.style.disp
   /* НП-13: у настроек в хеше ещё и вкладка — ссылкой на «#settings/gates» можно
      показать коллеге ровно тот гейт, о котором спор, а не корень экрана. */
   else if(v==='settings') setHash('settings/'+settingsTab);
+  /* У списка в хеше отбор целиком (см. listHash) — вид пишет его же, чтобы возврат
+     из карточки не сбрасывал адрес до голого «#list». */
+  else if(v==='list') setHash(listHash());
   else if(v!=='detail') setHash(v);
 }
 /* КД-11: крошка — ПУТЬ, а не второй заголовок. Раньше в неё писали три места, и в
@@ -7149,12 +7198,14 @@ function setCrumb(parts){
    lastHash отсекает hashchange, вызванные нашей же setHash (hashchange асинхронный,
    синхронный флаг тут не сработал бы); реагируем только на навигацию назад/вперёд. */
 let lastHash='';
+let hashReady=false;   // адрес читается раньше, чем в него начинают писать (см. renderList)
 /* Хеш читаем ДЕКОДИРОВАННЫМ: id требования содержит кириллицу (142/56/з), браузер
    пишет её в адрес как %D0%B7 — сравнение сырых строк давало ложный hashchange,
    и карточка тут же схлопывалась обратно в список. */
 function curHash(){ const raw=(location.hash||'').replace(/^#/,''); try{ return decodeURIComponent(raw); }catch(e){ return raw; } }
 function setHash(h){ lastHash=h; if(curHash()!==h) location.hash=h; }
 function restoreFromHash(){
+  hashReady=true;
   const h=curHash();
   /* id в хеше — требования (М-1) либо дела: openDetail понимает оба.
      КД-8: последний сегмент — СЛАГ вкладки, если он есть в реестре. Слаг, а не индекс:
@@ -7192,6 +7243,14 @@ function restoreFromHash(){
     navLabel='Настройки правил'; renderNav();
     showView('settings'); return;
   }
+  /* «list/stage=Судебный порядок;tile=gate;p=2» — отбор реестра целиком. Ссылку на
+     «что заблокировано гейтом в судебной стадии» можно передать коллеге, и он увидит
+     ровно её, а не корень реестра. */
+  /* Голый «#list» — ЧИСТЫЙ реестр: применяем пустой отбор, а не оставляем прежний.
+     Иначе ссылка «#list» показывала бы чужую выборку, оставшуюся в памяти вкладки. */
+  applyListHash(h.startsWith('list/') ? h.slice(5) : '');
+  navLabel='Требования (реестр)'; renderNav();
+  renderFilterBar(); renderList(); renderChips();
   showView('list');
 }
 window.addEventListener('hashchange',()=>{ if(curHash()!==lastHash) restoreFromHash(); });
@@ -7235,7 +7294,7 @@ function fsel(id,label,list,sel,on,dis){
 }
 function ftext(id,label,val,on){
   return `<div class="field"><span class="flabel">${label}</span>
-    <div class="control grey"><input id="${id}" value="${escAttr(val||'')}" oninput="${on}" placeholder="имя или ИНН"></div></div>`;
+    <div class="control grey"><input id="${id}" value="${escAttr(val||'')}" oninput="${on}" placeholder="имя, ИНН, № договора или дела"></div></div>`;
 }
 /* Быстрый тоггл — паритет с regPass/dlRefresh (находка 2): там же пара «Mine + Subdiv»,
    тут «Ведущее подразделение» была только выпадающим списком — не выразить «любое моё»
@@ -7270,7 +7329,7 @@ function renderFilterBar(){
   const stages   = Object.keys(STAGE_RANK);
   const phases   = f.stage ? phasesOfStage(f.stage) : [];
   document.getElementById('filterBody').innerHTML = `
-    ${ftext('f-q','Заёмщик / ИНН', f.q, "setF('q',this.value)")}
+    ${ftext('f-q','Заёмщик, ИНН или № дела', f.q, "setF('q',this.value)")}
     ${fsel('f-stage','Стадия', stages, f.stage, "setDep('stage',this.value)")}
     ${fsel('f-phase','Фаза', phases, f.phase, "setF('phase',this.value)", !f.stage)}
     ${fsel('f-scope','Охват', scopes, f.scope, "setF('scope',this.value)")}
