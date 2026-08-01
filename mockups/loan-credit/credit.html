@@ -3038,6 +3038,61 @@ function forecastByMonth(c, ledgerIndex, asOf){
   return m;
 }
 
+/* ИСПОЛНЕНИЕ ПЛАНА (CONTEXT.md) = факт месяца / план месяца.
+   ФАКТ месяца — сумма разнесённого по платежам, которые ЗАСЧИТЫВАЮТСЯ (paymentCounts,
+   две оси Р-27) и чья ДАТА ФАКТИЧЕСКОГО ПОСТУПЛЕНИЯ попала в месяц. Входят все четыре
+   статьи долга кредита. Расходы по обращению взыскания не входят и войти не могут по
+   построению: они приходят отдельным зеркалом mirror.collectionCosts, а не платежами.
+   МЕСЯЦ БЕЗ ПЛАНА ВЫПАДАЕТ ЦЕЛИКОМ — из своей строки, из суммы квартала и из суммы года.
+   Факт такого месяца показывается справочно: он есть, но сравнивать его не с чем.
+   Платежи ПОСЛЕ даты среза не считаются: дата среза одна на карточку (И-13).
+   Величина только для показа: ни в гейт, ни в производную долга, ни в категорию риска,
+   ни в подгруппу заёмщика не входит (И-18). */
+function planExecOf(c, asOf, ledgerIndex, year){
+  asOf = asOf || TODAY;
+  const lim = pd(asOf);
+  const y   = year || pd(asOf).getFullYear();
+  const idx = ledgerIndex || buildLedger(c, asOf).index;
+  const fc  = forecastByMonth(c, idx, asOf);
+  const factByMonth = new Map();
+  for (const p of ((c.mirror && c.mirror.payments) || [])){
+    if (!p || !p.date || !paymentCounts(p)) continue;
+    if (pd(p.date) > lim) continue;
+    const mk = monthKey(p.date);
+    factByMonth.set(mk, round2((factByMonth.get(mk) || 0) + paymentAllocated(p)));
+  }
+  const rows = [];
+  for (let m = 1; m <= 12; m++){
+    const mk  = y + '-' + String(m).padStart(2, '0');
+    const pr  = planRowOf(c, mk);
+    const plan = pr && pr.amount != null ? pr.amount : null;
+    const fact = round2(factByMonth.get(mk) || 0);
+    rows.push({ month:mk, label:monthLabel(mk),
+      forecast: fc.has(mk) ? fc.get(mk) : null,
+      plan, fact,
+      pct: plan > 0 ? Math.round(fact / plan * 100) : null,
+      edits: pr ? pr.history.length : 0,
+      dropped: plan == null,                       // в расчёт исполнения не входит
+      removed: !!(pr && pr.amount == null) });     // план СНЯТ (строка есть, цели нет)
+  }
+  const agg = (list) => {
+    const kept = list.filter(r => !r.dropped);
+    const plan = round2(kept.reduce((a, r) => a + r.plan, 0));
+    const fact = round2(kept.reduce((a, r) => a + r.fact, 0));
+    return { plan, fact, pct: plan > 0 ? Math.round(fact / plan * 100) : null, months:kept.length };
+  };
+  const quarters = [1,2,3,4].map(q => {
+    const a = agg(rows.slice((q - 1) * 3, q * 3));
+    return { q, plan:a.plan, fact:a.fact, pct:a.pct };
+  });
+  const ya = agg(rows);
+  const curMk = monthKey(asOf);
+  const cur   = rows.find(r => r.month === curMk);
+  return { year:y, rows, quarters,
+    total:{ plan:ya.plan, fact:ya.fact, pct:ya.pct, monthsWithPlan:ya.months, monthsTotal:12 },
+    current: (cur && !cur.dropped) ? { month:cur.month, plan:cur.plan, fact:cur.fact, pct:cur.pct } : null };
+}
+
 /* ключ позиции детального расчёта: транш + номер платежа */
 function ledgerKey(trancheNo, no){ return 'T' + trancheNo + '#' + no; }
 
@@ -3590,6 +3645,7 @@ function derive(c, asOf){
   const reserveAccrual = computeReserve(c, asOf);
   const scheduleTotals = computeScheduleTotals(c);
   const nextPayment    = nextPaymentOf(c, ledger.index, asOf);
+  const planExec       = planExecOf(c, asOf, ledger.index);       // ADR-0042: показатель, не вход гейтов (И-18)
   const regStatus      = regStatusOf(c);
   const docs           = docsStatusOf(c);
   /* подгруппа — ЗЕРКАЛО карточки заёмщика (ADR-0012), не расчёт кредита; группа —
@@ -3603,7 +3659,7 @@ function derive(c, asOf){
            disbursed, undisbursed, allocated, allocatable, disbState,
            ledger, debt, overdue, overdueDays, overdueSince:overdue.since,
            atRisk, coverage, riskCategory, riskBasis, relief, stateFlags,
-           fullRepayDate, termAgg, reserveAccrual, scheduleTotals, nextPayment, regStatus, docs,
+           fullRepayDate, termAgg, reserveAccrual, scheduleTotals, nextPayment, regStatus, docs, planExec,
            debtBalance, overdueAmount, debtBalanceKgs, overdueAmountKgs, collectionCosts,
            overpay:debt.overpay, courtLayers:ledger.layers, disputes:ledger.disputes,
            calcProvisional:ledger.provisional, paymentsAsOf:ledger.snapshot,
@@ -4293,7 +4349,7 @@ window.CR = {
   saveDoc, addNote, addTargetUse, setPlan,
   zeroOutForTest,
   nextPaymentOf, regStatusOf, scheduleRowStatus, trancheScheduleRows, ledgerKey,
-  trancheForecastRows, forecastByMonth,
+  trancheForecastRows, forecastByMonth, planExecOf,
   monthKey, monthLabel, monthAdd, monthRange, planRowOf, planAmountOf,
   buildLedger, debtOf, overdueOf, coverageOf, atRiskAmountOf, riskBasisOf,
   paidPool, paymentCounts, paymentCurrency, paymentAllocated,
