@@ -25,8 +25,13 @@ const out = await p.evaluate(() => {
   const D = ru => ruD(ru);
   const evd = m => (m.dates && (m.dates.event || m.dates.registered)) || null;
 
+  // Task 7 fix-round1 (Important 2): 'Признание банкротом' дописан — тот же идиом
+  // scope+accelerated, что 'Извещение об обращении на залог' уже несёт (п. 20.4);
+  // без записи здесь новая мера падала бы в A6 («вид не устанавливает охват»),
+  // хотя п. 71 («все обязательства считаются наступившими») именно охват и меняет.
   const SCOPE_SETTING = new Set(['Первичная претензия','Повторная претензия','Требование поручителю','Требование гаранту',
-    'Требование отраслевому госоргану','Исковое заявление','Исполнительный лист','Извещение об обращении на залог']);
+    'Требование отраслевому госоргану','Исковое заявление','Исполнительный лист','Извещение об обращении на залог',
+    'Признание банкротом']);
 
   const numIndex = {};
   for(const pr of PROCESSES) for(const m of pr.measures||[]){
@@ -238,14 +243,24 @@ const out = await p.evaluate(() => {
       const at = liveScopeMeasures(rq).filter(x => { const t = D(evd(x)); return t!=null && bound!=null && t<=bound; });
       return at.length ? at[at.length-1].scope : DEFAULT_SCOPE;
     }
+    // Task 7 fix-round1 (ruling координатора п.1/п.4): claimTotal получает ТРЕТЬИМ
+    // аргументом дату САМОЙ МЕРЫ (evd(m)) — debtOf() теперь считает пятую статью
+    // (costs) и ускорение (accelerated, п. 71) date-aware, и без этого аргумента
+    // «на дату» деградировало бы обратно в «сейчас» (costs/ускорение будущих или
+    // ещё-не-наступивших событий молча утекали бы в притязание меры из прошлого —
+    // ровно тот системный разрыв, что дело 350 съедало на 88% старого 2%-допуска).
+    // Допуск ужесточён 0,02 → 0,0005 (0,05%, минимум 1 сом): чинить debtOf() было
+    // ради ТОЧНОГО совпадения — систематический сдвиг больше не должен иметь щели,
+    // под которую спрятаться; оставлен ненулевым только под round-off самого
+    // fmtKGS/sumKGS (округление до сантима на десятках слагаемых).
     for(const m of ms){
       if(m.sum == null) continue;
       const s = parseSum(m.sum);
       const scopeHere = scopeAtDate(r, evd(m));
       // мера может целить в несколько требований (§2.2) — сравниваем с суммой по ЦЕЛЯМ, один раз на кредит
       const tg = (m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean);
-      const claimAll = claimTotal(tg.length?tg:[r], scopeHere.volume);
-      if(s>0 && Math.abs(s - claimAll) > Math.max(1, claimAll*0.02))
+      const claimAll = claimTotal(tg.length?tg:[r], scopeHere.volume, evd(m));
+      if(s>0 && Math.abs(s - claimAll) > Math.max(1, claimAll*0.0005))
         add('C4-сумма', W, `сумма меры ${m.num||''} «${m.kind}» = ${m.sum} (${evd(m)}), а притязание под охватом «${scopeHere.volume}», действовавшим на эту дату, по её целям (${tg.length||1}) = ${fmtKGS(claimAll)}`);
       if(s===0 && claimAll>0) add('C4-сумма', W, `сумма меры ${m.num||''} «${m.kind}» = 0,00 при притязании ${fmtKGS(claimAll)}`);
     }
@@ -265,6 +280,21 @@ const out = await p.evaluate(() => {
     if(isClosedReq(r) && dls.length) add('C7-сроки', W, `требование закрыто (${outcomeOf(r)}), но на нём висит ${dls.length} срок(ов): ${dls.map(x=>x.tpl).join(', ')}`);
     // C8: передача в подвешенном состоянии на закрытом требовании
     if(isClosedReq(r) && handoverPending(r)) add('C7-сроки', W, 'требование закрыто, но передача ждёт приёма');
+    // C9 (Task 7 fix-round1, ruling координатора п.3 — «класс, который ревью
+    // не смогло увидеть»): та же дисциплина, что A10 уже применяет к истории/мерам/
+    // срокам/заседаниям дела, но её не было для пятой статьи (r.costs) — издержка,
+    // датированная раньше открытия дела или позже TODAY, была бы находкой A10-
+    // семьи в любом другом месте журнала; расходы её обходили молча (ровно так и
+    // была датирована старая COSTS_SEED-константа '25.07.2026' — на четыре дня
+    // позже TODAY, никем не пойманная).
+    for(const x of (r.costs||[])){
+      const xd = D(x.date);
+      if(!xd) continue;
+      if(pr.opened && xd < D(pr.opened))
+        add('C9-издержки', W, `издержка «${x.kind}» ${x.date} — раньше открытия дела (${pr.opened})`);
+      if(xd > D(TODAY))
+        add('C9-издержки', W, `издержка «${x.kind}» ${x.date} — в будущем (сегодня ${TODAY})`);
+    }
   }
 
   // D — заседания

@@ -1646,6 +1646,36 @@ function scopeOf(r){ const m = scopeSetter(r); return m ? m.scope : DEFAULT_SCOP
 function scopeSource(r){ const m = scopeSetter(r); return m ? `по документу-основанию: ${m.num}` : 'устанавливающих мер нет — умолчание открытия дела'; }
 const scopeLabel = s => `${s.volume} / ${s.method}`;
 
+/* Task 7 fix-round1 (п. 71 — банкротство ускоряет ВСЕ обязательства, ADR-0040):
+   ускорение — состояние ТРЕБОВАНИЯ во времени, а не мгновенная правка статичного
+   LEDGER-снимка (М-4/ADR-0004: LEDGER — ОДИН снимок «по состоянию на», без своей
+   истории; переписать LEDGER[credit].principal.overdue напрямую задним числом
+   означало бы задеть КАЖДУЮ более раннюю меру того же требования — претензию/
+   повторную под охватом «просроченная сумма», сумма которых уже заморожена в
+   m.sum на момент их регистрации, ДО ускорения). Вместо мутации — то же, чем уже
+   размечено «Извещение об обращении на залог» (accelerated:true, ревью Task5): вид
+   меры несёт признак, debtOf() читает его С УЧЁТОМ ДАТЫ, на которую спрашивают
+   («на сейчас» — без даты; «на дату конкретной меры» — с датой, тем же приёмом,
+   что и издержки, costs-фильтр ниже). Мера с accelerated, датированная ПОСЛЕ
+   запрашиваемой даты, эффекта не имеет — ранние меры (до банкротства) видят
+   исходный частичный просроченный остаток, каким он и был на их дату; поздние
+   (после «Признание банкротом») — видят его целиком. */
+function liveAcceleratedMeasures(r){
+  return liveMeasuresOf(r)
+    .filter(m => m.accelerated)
+    .map((m, i) => ({ m, i, t: (ruD(m.dates && (m.dates.event || m.dates.registered)) || 0) }))
+    .sort((a, b) => (a.t - b.t) || (a.i - b.i))
+    .map(x => x.m);
+}
+function acceleratedAsOf(r, asOf){
+  const ms = liveAcceleratedMeasures(r);
+  if(!ms.length) return false;
+  if(!asOf) return true;                         // «на сейчас» — любое прошлое ускорение считается
+  const asOfD = ruD(asOf);
+  if(!asOfD) return true;
+  return ms.some(m => { const t = ruD(m.dates && (m.dates.event || m.dates.registered)); return t && t <= asOfD; });
+}
+
 /* ============================================================
    ADR-0032 п.2 — УРЕГУЛИРОВАНИЕ (пауза) ЕСТЬ СВЁРТКА, хранимого «активна» больше нет.
    «Пауза активна, когда есть мера-открыватель, её срок не истёк и меры-закрывателя
@@ -2104,8 +2134,23 @@ const sumKGS = xs => xs.reduce((s, v) => s + Math.round(Number(v) * 100), 0) / 1
    (collection-data-audit.mjs, C4) для проверки суммы меры под охватом, что
    действовал на ДАТУ этой меры, а не под текущим. Раньше аудит копировал этот
    фолд бакетов ВТОРОЙ раз с литеральным списком ключей вместо LEDGER_BUCKETS —
-   тот же класс дыры, что чинил делегирующий C1: одна свёртка денег, не две. */
-function debtOf(r, scopeVolume){
+   тот же класс дыры, что чинил делегирующий C1: одна свёртка денег, не две.
+
+   Task 7 fix-round1, третий необязательный параметр `asOf` (дата dd.mm.yyyy):
+   «на какую дату считать притязание». Без него — «сейчас» (живая страница: L.asOf
+   снимка, всегда позже любой меры/издержки в данных, поэтому ведёт себя как
+   «все известные факты уже наступили»). С явной датой (аудит C4 — дата ПРОВЕРЯЕМОЙ
+   меры) — притязание видит только то, что УЖЕ наступило К ЭТОЙ ДАТЕ:
+     (а) пятая статья (costs) — раньше складывалась с притязанием БЕЗ всякой даты
+         И без учёта охвата; издержки по обращению взыскания появляются не раньше
+         исполнительного листа и не входят в «просроченную сумму» претензионной
+         стадии вовсе (взыскивать ИЗДЕРЖКИ ИСПОЛНЕНИЯ по документу, что предшествует
+         самому исполнению, — не бывает). Теперь считаются только когда И
+         `vol==='полный остаток'`, И собственная дата издержки не позже `asOf`.
+     (б) ускорение банкротством (п. 71, acceleratedAsOf выше) — та же дисциплина:
+         принцип принимается «полностью просроченным» только если ускоряющая мера
+         датирована не позже `asOf`. */
+function debtOf(r, scopeVolume, asOf){
   /* Ревью раунд3, IMPORTANT: точечный (point-free) вызов claimOf в чужом коде
      (`d.reqs.map(claimOf)`, collection-check.mjs) передаёт ВТОРЫМ аргументом ИНДЕКС
      элемента (Array.map(fn, index, array)) — index 0 молча проваливался в `||`
@@ -2119,30 +2164,38 @@ function debtOf(r, scopeVolume){
     throw new Error(`debtOf: scopeVolume='${scopeVolume}' не входит в [${SCOPE_VOLUMES.join(' | ')}] — похоже на утечку второго позиционного аргумента (например Array.map(claimOf) передаёт индекс, не значение; используйте Array.map(r => claimOf(r)))`);
   const vol = scopeVolume || scopeOf(r).volume;
   const L = (typeof LEDGER !== 'undefined' && LEDGER[r.credit]) || {};
+  const accelerated = acceleratedAsOf(r, asOf || null);
   const rows = LEDGER_BUCKETS.map(k => {
     const b = L[k]; if(!b) return null;
     const left = (b.accrued||0) - (b.paid||0);
+    const overdueEff = accelerated ? left : Math.min(b.overdue||0, left);
     return { key:k, label:DEBT_LABELS[k], accrued:b.accrued||0, paid:b.paid||0, left,
-             overdue: Math.min(b.overdue||0, left), note:b.note||null,
-             claimable: vol === 'просроченная сумма' ? Math.min(b.overdue||0, left) : left };
+             overdue: overdueEff, note:b.note||null,
+             claimable: vol === 'просроченная сумма' ? overdueEff : left };
   }).filter(Boolean);
-  const costs = (r.costs||[]).reduce((s,x)=> s + (x.amount||0), 0);
+  const asOfEff = asOf || L.asOf || null;
+  const asOfD = asOfEff ? ruD(asOfEff) : null;
+  const costItemsAll = r.costs || [];
+  const costItemsEff = vol === 'полный остаток'
+    ? costItemsAll.filter(x => { const xd = x.date ? ruD(x.date) : null; return !xd || !asOfD || xd <= asOfD; })
+    : [];
+  const costs = costItemsEff.reduce((s,x)=> s + (x.amount||0), 0);
   const totalLeft = rows.reduce((s,x)=> s + x.left, 0) + costs;
   const claim = rows.reduce((s,x)=> s + x.claimable, 0) + costs;
-  return { rows, costs, costItems:r.costs||[], totalLeft, claim, asOf:L.asOf || '—', frozen:L.frozen || null };
+  return { rows, costs, costItems:costItemsEff, totalLeft, claim, asOf:L.asOf || '—', frozen:L.frozen || null };
 }
-const claimOf = (r, scopeVolume) => debtOf(r, scopeVolume).claim;
+const claimOf = (r, scopeVolume, asOf) => debtOf(r, scopeVolume, asOf).claim;
 
 /* §2.2 АГРЕГАТ СЧИТАЕТСЯ ОДИН РАЗ НА КРЕДИТ. Требование к поручителю — то же
    обязательство солидарно: в строке списка сумма полная, в итоге не задваивается.
-   scopeVolume — см. debtOf выше, тот же необязательный проброс. */
-function claimTotal(reqs, scopeVolume){
+   scopeVolume/asOf — см. debtOf выше, те же необязательные проброс. */
+function claimTotal(reqs, scopeVolume, asOf){
   const byCredit = {};
   for(const r of reqs){
     const cur = byCredit[r.credit];
     if(!cur || (r.role === 'заёмщик' && cur.role !== 'заёмщик')) byCredit[r.credit] = r;
   }
-  return sumKGS(Object.values(byCredit).map(r => claimOf(r, scopeVolume)));
+  return sumKGS(Object.values(byCredit).map(r => claimOf(r, scopeVolume, asOf)));
 }
 const claimSum = p => claimTotal(p.requirements || []);
 
@@ -2502,13 +2555,6 @@ function buildSeed(seed){
       principal:{ accrued:dbt.principal, paid:principalPaid, overdue:principalOverdue },
       interest:{ accrued:dbt.interest||0, paid:0, overdue:dbt.interest||0 },
       penalty:{ accrued:dbt.penalty||0, paid:0, overdue:dbt.penalty||0 } };
-    /* Task 7 · М-4 пятая статья: расходы по обращению взыскания и реализации живут на
-       требовании (r.costs), не на LEDGER — появляются с исполнительного листа (SPINE 'ил')
-       и дальше, независимо от контура (К3-ИЛ и новые К4/К5/К6 — общее правило, не
-       К4/К6-специфика). c.costs переопределяет сумму по делу, иначе умолчание 8000. */
-    if(SPINE_KEYS.indexOf(c.stop) >= SPINE_KEYS.indexOf('ил'))
-      COSTS_SEED[c.credit.id] = [{ date:'25.07.2026',
-        kind:'Расходы по обращению взыскания и реализации', amount:c.costs ?? 8000 }];
     const overdueSum = principalOverdue + (dbt.interest||0) + (dbt.penalty||0);
     const fullSum    = dbt.principal + (dbt.interest||0) + (dbt.penalty||0) - principalPaid;
     const sumBy = scope => fmtKGS(scope === 'полный остаток' ? fullSum : overdueSum);
@@ -2563,6 +2609,29 @@ function buildSeed(seed){
         throw new Error(`SEED: дело ${c.id} — мера «${kind}» относится к подразделению [${subdiv.join(' | ')}], а подразделение дела credit.subdiv='${c.credit.subdiv}' — другое; c.deptCurators не называет подписанта ни для одного из [${subdiv.join(', ')}]`);
       return signer;
     };
+    /* Task 7 fix-round1 (Important 4): ТОТ ЖЕ backward-search приём, что цикл
+       steps.forEach ниже уже применяет для basedOn хребта («ищем НАЗАД по уже
+       выпущенным мерам первую, чей вид входит в kd.basisKinds») — извлечён в
+       функцию, чтобы новые ветки К4/К5/К6 не переизобретали его форвард-`find`
+       по одному хардкод-виду. Живое следствие бага, который эта функция чинит:
+       у «Акт несостоявшихся торгов» basisKinds — ДВА вида (['Постановление на
+       исполнении','Исполнительный лист']), а прежняя ветка требовала РОВНО
+       «Постановление на исполнении» — отказывала в основании, которое сам
+       справочник разрешает (цепочка, дошедшая только до 'ил', без 'постановление').
+       Возвращает НАЙДЕННУЮ меру (не только номер) — вызывающая сторона берёт
+       и .num для basedOn, и .dates.event как временной якорь одним движением. */
+    const basisFor = kind => {
+      const kd = kindOf(kind);
+      if(!kd || !kd.basisKinds) return null;
+      for(let j = measures.length - 1; j >= 0; j--)
+        if(kd.basisKinds.includes(measures[j].kind)) return measures[j];
+      return null;
+    };
+    /* Task 7 fix-round1 (Important 1): число реальных провалов торгов — ОДИН
+       источник для двух потребителей (мера «Акт несостоявшихся торгов» × N И
+       colls[].real, ниже у derived) — не переписывается прозой дважды (была
+       дыра: 352/353 несли «(2 раза)» в тексте залога при ОДНОЙ мере в журнале). */
+    let torgiFailsForColls = 0;
     steps.forEach((s, i) => {
       const num = `${s.pre}-${c.credit.id}${s.suf||''}`;
       const kd  = kindOf(s.kind);
@@ -2863,40 +2932,55 @@ function buildSeed(seed){
       }
     }
 
-    /* Task 7 (К4 — исполнительное производство). Арест предмета залога — не отдельная
-       мера (справочник её не знает), а факт на самом предмете (c.colls[].real несёт
-       текст «арест наложен», normColl() тем же regex-приёмом, что уже читает
-       баланс/реализацию у К2, ставит realNote). torgi/ilReturned продолжают цепочку,
-       дошедшую до 'постановление' (SPINE) — basedOn находится ПОИСКОМ по уже
-       выпущенным мерам (та же дисциплина, что и у iskRefused/appeal/agreement выше),
-       не литералом номера: опечатка в префиксе номера иначе тихо разошлась бы с A7. */
+    /* Task 7 (К4 — исполнительное производство), fix-round1 (Important 1 + Important 4).
+       Арест предмета залога — не отдельная мера (справочник её не знает), а факт на
+       самом предмете (colls[].arrested → «арест наложен» в собранном real, см. derived
+       ниже). torgi:'дважды' эмитит ДВЕ меры «Акт несостоявшихся торгов» (было — ОДНУ
+       независимо от значения: «дважды» физически не отличалось от «не состоялись» ни
+       числом мер, ни возможностью получить состояние «1 раз, торги назначены заново» —
+       spec-блокер, такое состояние было недостижимо НИКАКИМ значением поля). Основание —
+       basisFor (не форвард-find по одному хардкод-виду): basisKinds несёт ДВА вида
+       (['Постановление на исполнении','Исполнительный лист']), backward-поиск находит
+       любой из них — цепочка, дошедшая только до 'ил' (без 'постановление'), тоже
+       годится. torgiFailsForColls хранит число — единственный источник, colls[].real
+       ниже читает его, а не восстанавливает текстом второй раз. */
     if(c.torgi){
       if(!['не состоялись','дважды'].includes(c.torgi))
         throw new Error(`SEED: дело ${c.id} — torgi='${c.torgi}' не входит в ['не состоялись','дважды']`);
-      const ip = measures.find(m => m.kind === 'Постановление на исполнении');
-      if(!ip)
-        throw new Error(`SEED: дело ${c.id} — torgi='${c.torgi}' задан, а меры «Постановление на исполнении» в цепочке нет (нужен stop:'постановление')`);
-      const dt = ruAdd(ip.dates.event, 45);
-      const num = `АТ-${c.credit.id}`;
-      const resp = respFor('Акт несостоявшихся торгов');
-      measures.push({ sec:sectionOf('Акт несостоявшихся торгов'), kind:'Акт несостоявшихся торгов', dates:D(dt, dt),
-        received:{ date:dt }, num, purpose:'фиксация провала торгов',
-        outcome:'торги не состоялись', basedOn:ip.num,
-        sum:sumBy(curScope), responsible:resp });
-      history.push({ when:`${dt} 10:00`, what:`Мера «Акт несостоявшихся торгов» ${num} зарегистрирована — исход «торги не состоялись»`, who:resp });
+      const kind = 'Акт несостоявшихся торгов';
+      const basis = basisFor(kind);
+      if(!basis)
+        throw new Error(`SEED: дело ${c.id} — torgi='${c.torgi}' задан, а в цепочке нет меры-основания (нужен один из [${kindOf(kind).basisKinds.join(' | ')}])`);
+      const fails = c.torgi === 'дважды' ? 2 : 1;
+      torgiFailsForColls = fails;
+      const resp = respFor(kind);
+      let anchor = basis.dates.event;
+      for(let n = 1; n <= fails; n++){
+        const dt = ruAdd(anchor, 45);
+        anchor = dt;
+        const num = fails > 1 ? `АТ-${c.credit.id}/${n}` : `АТ-${c.credit.id}`;
+        measures.push({ sec:sectionOf(kind), kind, dates:D(dt, dt),
+          received:{ date:dt }, num, purpose:'фиксация провала торгов',
+          outcome:'торги не состоялись', basedOn:basis.num,
+          sum:sumBy(curScope), responsible:resp });
+        history.push({ when:`${dt} 10:00`, what:`Мера «${kind}» ${num} зарегистрирована — исход «торги не состоялись» (попытка ${n} из ${fails})`, who:resp });
+      }
     }
     if(c.ilReturned){
       const ip = measures.find(m => m.kind === 'Постановление на исполнении');
       if(!ip)
-        throw new Error(`SEED: дело ${c.id} — ilReturned=true задан, а меры «Постановление на исполнении» в цепочке нет (нужен stop:'постановление')`);
-      const ilM = measures.find(m => m.kind === 'Исполнительный лист');
+        throw new Error(`SEED: дело ${c.id} — ilReturned=true задан, а меры «Постановление на исполнении» в цепочке нет (нужен stop:'постановление' — возврат ИЛ предполагает уже открытое исполнительное производство)`);
+      const kindPv = 'Постановление о возврате ИЛ';
+      const basisPv = basisFor(kindPv);
+      if(!basisPv)
+        throw new Error(`SEED: дело ${c.id} — ilReturned=true задан, а в цепочке нет меры-основания (нужен один из [${kindOf(kindPv).basisKinds.join(' | ')}])`);
       const dt = ruAdd(ip.dates.event, 60);
       const num = `ПВ-${c.credit.id}`;
-      const resp = respFor('Постановление о возврате ИЛ');
-      measures.push({ sec:sectionOf('Постановление о возврате ИЛ'), kind:'Постановление о возврате ИЛ', dates:D(dt, dt),
+      const resp = respFor(kindPv);
+      measures.push({ sec:sectionOf(kindPv), kind:kindPv, dates:D(dt, dt),
         received:{ date:dt }, num, purpose:'возврат исполнительного листа взыскателю', outcome:'возвращён',
-        basedOn:ilM.num, sum:sumBy(curScope), responsible:resp });
-      history.push({ when:`${dt} 10:00`, what:`Мера «Постановление о возврате ИЛ» ${num} зарегистрирована — исход «возвращён»`, who:resp });
+        basedOn:basisPv.num, sum:sumBy(curScope), responsible:resp });
+      history.push({ when:`${dt} 10:00`, what:`Мера «${kindPv}» ${num} зарегистрирована — исход «возвращён»`, who:resp });
       const dt2 = ruAdd(dt, 10);
       const num2 = `ПС-${c.credit.id}`;
       const resp2 = respFor('Письмо в ПССИ');
@@ -2905,80 +2989,140 @@ function buildSeed(seed){
       history.push({ when:`${dt2} 10:00`, what:`Мера «Письмо в ПССИ» ${num2} зарегистрирована`, who:resp2 });
     }
 
-    /* Task 7 (К5 — правопреемство). Смерть заёмщика — состояние ЛИЦА (extra.personState,
-       форма поля как у PERSON_STATE_OPEN: {label, since} — читает её PERSONS[bId].state,
-       не personStateOf()), а не измеримая мера справочника; правопреемство — собственные
-       вехи ПОВЕРХ уже вынесенного решения суда. Цепочка останавливается на 'решение'
-       (stop:'решение') — исполнительное производство не открыть, пока правопреемник
-       не установлен (или суд не подтвердит его отсутствие). */
+    /* Task 7 (К5 — правопреемство), fix-round1 (Minor 5). Смерть заёмщика — состояние
+       ЛИЦА (extra.personState, форма поля как у PERSON_STATE_OPEN: {label, since} —
+       читает её PERSONS[bId].state, не personStateOf()), а не измеримая мера справочника;
+       правопреемство — собственные вехи ПОВЕРХ уже вынесенного решения суда. Именованный
+       guard требует РОВНО «Решение суда» в цепочке (не «хоть одна мера, неважно какая»
+       — старая проверка `!measures.length` пропустила бы succession без единого
+       судебного акта позади, если бы такой кейс когда-нибудь завёлся). */
     if(c.succession){
       if(!['заявление','нет правопреемника'].includes(c.succession))
         throw new Error(`SEED: дело ${c.id} — succession='${c.succession}' не входит в ['заявление','нет правопреемника']`);
-      const base = measures[measures.length-1];
-      if(!base)
-        throw new Error(`SEED: дело ${c.id} — succession='${c.succession}' задан без единой меры в цепочке`);
-      const dt = ruAdd(base.dates.event, 30);
+      const rsM = measures.find(m => m.kind === 'Решение суда');
+      if(!rsM)
+        throw new Error(`SEED: дело ${c.id} — succession='${c.succession}' задан, а меры «Решение суда» в цепочке нет (нужен stop:'решение' или дальше)`);
+      const dt = ruAdd(measures[measures.length-1].dates.event, 30);
+      const kindZp = 'Заявление об установлении правопреемника';
       const num = `ЗП-${c.credit.id}`;
-      const resp = respFor('Заявление об установлении правопреемника');
-      measures.push({ sec:sectionOf('Заявление об установлении правопреемника'), kind:'Заявление об установлении правопреемника',
+      const resp = respFor(kindZp);
+      measures.push({ sec:sectionOf(kindZp), kind:kindZp,
         dates:D(dt, dt), num, purpose:'установление правопреемника умершего заёмщика', outcome:'подано',
         sum:sumBy(curScope), responsible:resp });
-      history.push({ when:`${dt} 10:00`, what:`Мера «Заявление об установлении правопреемника» ${num} зарегистрирована — исход «подано»`, who:resp });
+      history.push({ when:`${dt} 10:00`, what:`Мера «${kindZp}» ${num} зарегистрирована — исход «подано»`, who:resp });
       if(c.succession === 'нет правопреемника'){
+        const kindRp = 'Решение суда (отсутствие правопреемника)';
+        const basisRp = basisFor(kindRp);
+        if(!basisRp)
+          throw new Error(`SEED: дело ${c.id} — succession='нет правопреемника' задан, а в цепочке нет меры-основания (нужен один из [${kindOf(kindRp).basisKinds.join(' | ')}])`);
         const dt2 = ruAdd(dt, 45);
         const num2 = `РП-${c.credit.id}`;
-        const resp2 = respFor('Решение суда (отсутствие правопреемника)');
-        measures.push({ sec:sectionOf('Решение суда (отсутствие правопреемника)'), kind:'Решение суда (отсутствие правопреемника)',
+        const resp2 = respFor(kindRp);
+        measures.push({ sec:sectionOf(kindRp), kind:kindRp,
           dates:D(dt2, dt2), received:{ date:dt2 }, num:num2,
           purpose:'установление отсутствия правопреемника', outcome:'отсутствие правопреемника',
-          basedOn:num, sum:sumBy(curScope), responsible:resp2 });
-        history.push({ when:`${dt2} 10:00`, what:`Мера «Решение суда (отсутствие правопреемника)» ${num2} зарегистрирована — исход «отсутствие правопреемника»`, who:resp2 });
+          basedOn:basisRp.num, sum:sumBy(curScope), responsible:resp2 });
+        history.push({ when:`${dt2} 10:00`, what:`Мера «${kindRp}» ${num2} зарегистрирована — исход «отсутствие правопреемника»`, who:resp2 });
       }
     }
 
-    /* Task 7 (К6 — банкротство). Три глубины поверх дела, дошедшего до 'постановление':
-       заявление → инициирование (принято к производству) → [признание банкротом, п. 71 —
-       все обязательства считаются наступившими] → [завершение процедуры]. basedOn — на
-       НАЙДЕННУЮ меру-предшественницу (не литерал номера), той же дисциплиной, что и
-       остальные условные ветки этого билдера. */
+    /* Task 7 (К6 — банкротство), fix-round1 (Important 2 + Minor 5). Три глубины
+       поверх дела, дошедшего до 'постановление' (именованный guard — банкротство
+       возбуждается ПОВЕРХ уже идущего исполнительного производства, СТ-4/СТ-5,
+       ADR-0040, не поверх «хоть какой-то меры»): заявление → инициирование (принято
+       к производству) → [признание банкротом] → [завершение процедуры]. basedOn — на
+       НАЙДЕННУЮ backward-поиском меру-предшественницу (basisFor), не литерал номера.
+
+       П. 71 — «все обязательства считаются наступившими» — раньше был ТОЛЬКО строкой
+       history, без единого эффекта на данные. Модель уже знает этот идиом: то же
+       accelerated:true + scope, что ставит ветка izvesh (Task 5, п. 20.4) — «Признание
+       банкротом» получает scope:{volume:'полный остаток',...} и accelerated:true.
+       Ускорение — состояние ТРЕБОВАНИЯ во времени (acceleratedAsOf выше, М-4): более
+       ранние меры (претензия/повторная, ДО банкротства) продолжают видеть исходный
+       частичный overdue, каким он был на их дату — ускорение не переписывает прошлое,
+       только то, что запрашивается на дату «Признание банкротом» или позже. */
     if(c.bankrot){
       if(!['инициировано','признан','завершено'].includes(c.bankrot))
         throw new Error(`SEED: дело ${c.id} — bankrot='${c.bankrot}' не входит в ['инициировано','признан','завершено']`);
-      const base = measures[measures.length-1];
-      if(!base)
-        throw new Error(`SEED: дело ${c.id} — bankrot='${c.bankrot}' задан без единой меры в цепочке`);
-      let dt = ruAdd(base.dates.event, 25);
+      const ipM = measures.find(m => m.kind === 'Постановление на исполнении');
+      if(!ipM)
+        throw new Error(`SEED: дело ${c.id} — bankrot='${c.bankrot}' задан, а меры «Постановление на исполнении» в цепочке нет (нужен stop:'постановление' — банкротство возбуждается поверх исполнительного производства)`);
+      let dt = ruAdd(measures[measures.length-1].dates.event, 25);
+      const kindZb = 'Заявление на банкротство';
       const numZb = `ЗБ-${c.credit.id}`;
-      const respZb = respFor('Заявление на банкротство');
-      measures.push({ sec:sectionOf('Заявление на банкротство'), kind:'Заявление на банкротство', dates:D(dt, dt),
+      const respZb = respFor(kindZb);
+      measures.push({ sec:sectionOf(kindZb), kind:kindZb, dates:D(dt, dt),
         num:numZb, purpose:'инициирование процедуры банкротства', sum:sumBy(curScope), responsible:respZb });
-      history.push({ when:`${dt} 10:00`, what:`Мера «Заявление на банкротство» ${numZb} зарегистрирована`, who:respZb });
+      history.push({ when:`${dt} 10:00`, what:`Мера «${kindZb}» ${numZb} зарегистрирована`, who:respZb });
       dt = ruAdd(dt, 30);
+      const kindIb = 'Инициирование банкротства';
+      const basisIb = basisFor(kindIb);
       const numIb = `ИБ-${c.credit.id}`;
-      const respIb = respFor('Инициирование банкротства');
-      measures.push({ sec:sectionOf('Инициирование банкротства'), kind:'Инициирование банкротства', dates:D(dt, dt),
+      const respIb = respFor(kindIb);
+      /* Гарантированно найдётся (numZb только что запушен в measures, его вид входит в
+         basisKinds «Инициирования») — throw здесь недостижим по построению, но
+         оставлен той же дисциплиной, что и остальные lookup'ы этой волны (finding
+         Important 3): молчаливый доступ к .num на null — не тот класс ошибки, который
+         эта затравка вообще допускает где-либо ещё. */
+      if(!basisIb)
+        throw new Error(`SEED: дело ${c.id} — основание для «${kindIb}» не найдено (внутренняя ошибка билдера — «${numZb}» только что зарегистрирован)`);
+      measures.push({ sec:sectionOf(kindIb), kind:kindIb, dates:D(dt, dt),
         received:{ date:dt }, num:numIb, purpose:'принятие заявления к производству',
-        outcome:'принято к производству', basedOn:numZb, sum:sumBy(curScope), responsible:respIb });
-      history.push({ when:`${dt} 10:00`, what:`Мера «Инициирование банкротства» ${numIb} зарегистрирована — исход «принято к производству»`, who:respIb });
-      let numPb = null;
+        outcome:'принято к производству', basedOn:basisIb.num, sum:sumBy(curScope), responsible:respIb });
+      history.push({ when:`${dt} 10:00`, what:`Мера «${kindIb}» ${numIb} зарегистрирована — исход «принято к производству»`, who:respIb });
       if(c.bankrot !== 'инициировано'){
         dt = ruAdd(dt, 60);
-        numPb = `ПБ-${c.credit.id}`;
-        const respPb = respFor('Признание банкротом');
-        measures.push({ sec:sectionOf('Признание банкротом'), kind:'Признание банкротом', dates:D(dt, dt),
+        const kindPb = 'Признание банкротом';
+        const basisPb = basisFor(kindPb);
+        if(!basisPb)
+          throw new Error(`SEED: дело ${c.id} — основание для «${kindPb}» не найдено (внутренняя ошибка билдера — «${numIb}» только что зарегистрирован)`);
+        const numPb = `ПБ-${c.credit.id}`;
+        const respPb = respFor(kindPb);
+        curScope = 'полный остаток';
+        measures.push({ sec:sectionOf(kindPb), kind:kindPb, dates:D(dt, dt),
           received:{ date:dt }, num:numPb, purpose:'признание должника банкротом',
-          outcome:'признан банкротом', basedOn:numIb, sum:sumBy(curScope), responsible:respPb });
-        history.push({ when:`${dt} 10:00`, what:`Мера «Признание банкротом» ${numPb} зарегистрирована — исход «признан банкротом» (п. 71 — все обязательства считаются наступившими)`, who:respPb });
+          outcome:'признан банкротом', basedOn:basisPb.num,
+          scope:{ volume:'полный остаток', method:'деньгами' }, accelerated:true,
+          sum:sumBy(curScope), responsible:respPb });
+        history.push({ when:`${dt} 10:00`, what:`Мера «${kindPb}» ${numPb} зарегистрирована — исход «признан банкротом» (п. 71 — все обязательства считаются наступившими, остаток ускорен до полного)`, who:respPb });
+        if(c.bankrot === 'завершено'){
+          dt = ruAdd(dt, 120);
+          const kindZpb = 'Завершение процедуры банкротства';
+          const basisZpb = basisFor(kindZpb);
+          if(!basisZpb)
+            throw new Error(`SEED: дело ${c.id} — основание для «${kindZpb}» не найдено (внутренняя ошибка билдера — «${numPb}» только что зарегистрирован)`);
+          const numZpb = `ЗПБ-${c.credit.id}`;
+          const respZpb = respFor(kindZpb);
+          measures.push({ sec:sectionOf(kindZpb), kind:kindZpb, dates:D(dt, dt),
+            received:{ date:dt }, num:numZpb, purpose:'завершение процедуры', outcome:'завершена',
+            basedOn:basisZpb.num, sum:sumBy(curScope), responsible:respZpb });
+          history.push({ when:`${dt} 10:00`, what:`Мера «${kindZpb}» ${numZpb} зарегистрирована — исход «завершена»`, who:respZpb });
+        }
       }
-      if(c.bankrot === 'завершено'){
-        dt = ruAdd(dt, 120);
-        const numZpb = `ЗПБ-${c.credit.id}`;
-        const respZpb = respFor('Завершение процедуры банкротства');
-        measures.push({ sec:sectionOf('Завершение процедуры банкротства'), kind:'Завершение процедуры банкротства', dates:D(dt, dt),
-          received:{ date:dt }, num:numZpb, purpose:'завершение процедуры', outcome:'завершена',
-          basedOn:numPb, sum:sumBy(curScope), responsible:respZpb });
-        history.push({ when:`${dt} 10:00`, what:`Мера «Завершение процедуры банкротства» ${numZpb} зарегистрирована — исход «завершена»`, who:respZpb });
-      }
+    }
+
+    /* Task 7 · М-4 пятая статья, fix-round1 (ruling координатора): расходы по
+       обращению взыскания живут на требовании (r.costs), не на LEDGER — появляются
+       с исполнительного листа и дальше, ОБЩЕЕ правило (К3-ИЛ и новые К4/К5/К6 —
+       не К4/К6-специфика). Дата — НЕ константа (была '25.07.2026', на четыре дня
+       ПОЗЖЕ TODAY — сама причина расхождения билдера с аудитором, что ревью нашло):
+       считается от ПОСЛЕДНЕЙ меры дела (после всех веток выше — торгов/возврата
+       ИЛ/банкротства, если они есть), не раньше «Исполнительного листа» (ipilM ниже
+       — участвует только в guard'е «есть ли вообще основание»), и не позже TODAY.
+       Смысл «не раньше последней меры»: costs — это то, что случилось СОБСТВЕННО ПОСЛЕ
+       каждого зарегистрированного документа дела, а не одновременно с одним из них —
+       иначе `m.sum` этого документа (заморожен на build-time, БЕЗ costs — sumBy их не
+       знает) разошёлся бы с «текущим» притязанием (claimTotal), которое их уже видит
+       на ту же дату (та самая находка ревью — «дело 350 съедает 88% допуска C4»). */
+    if(SPINE_KEYS.indexOf(c.stop) >= SPINE_KEYS.indexOf('ил')){
+      const ilM = measures.find(m => m.kind === 'Исполнительный лист');
+      if(!ilM)
+        throw new Error(`SEED: дело ${c.id} — цепочка доходит до исполнительного листа (stop='${c.stop}'), а меры «Исполнительный лист» в журнале нет — расходы датировать не от чего`);
+      const lastM = measures[measures.length - 1];
+      let costDate = ruAdd(lastM.dates.event, 3);
+      if(dParse(costDate) > dParse(TODAY)) costDate = TODAY;
+      COSTS_SEED[c.credit.id] = [{ date:costDate,
+        kind:'Расходы по обращению взыскания и реализации', amount:c.costs ?? 8000 }];
     }
 
     /* Срок порождает КАЖДАЯ ступень хребта, у которой DEADLINE_BY_KIND называет шаблон
@@ -3102,6 +3246,20 @@ function buildSeed(seed){
         participants:[`${c.curator} (представитель ФКФ)`, c.defendantAppeared ? 'Ответчик явился' : 'Ответчик не явился'],
         outcome: c.defendantAppeared ? '' : 'отложено — неявка ответчика' });
     }
+    /* Task 7 fix-round1 (Important 1): colls[].real собирается ЗДЕСЬ из структурных
+       полей (arrested/torgiAuto/stage), а не набирается прозой в SEED — число
+       провалов торгов идёт из torgiFailsForColls (тот же c.torgi, что уже породил N
+       мер «Акт несостоявшихся торгов» выше), не второй копией текстом. Предметы без
+       torgiAuto (унаследованные кейсы К2 и т.п.) проходят НЕТРОНУТЫМИ — normColl()
+       по-прежнему читает их .real как раньше. */
+    const collsOut = copyArr(c.colls).map(x => {
+      if(!x.torgiAuto) return x;
+      const bits = [];
+      if(x.arrested) bits.push('арест наложен');
+      if(torgiFailsForColls) bits.push(`торги не состоялись (${torgiFailsForColls} раз${torgiFailsForColls===1?'':'а'})`);
+      if(x.stage) bits.push(x.stage);
+      return { ...x, real: bits.join(', ') };
+    });
     const derived = { id:c.id, borrower:c.borrower, inn:c.inn, region:c.region,
       owner:c.owner, curator:c.curator, opened, openedBy:c.openedBy || 'система',
       basis:c.basis || 'просрочка 6 дней',
@@ -3109,7 +3267,7 @@ function buildSeed(seed){
       credits:[Object.assign({ id:c.credit.id, num:c.credit.num, overdueDays,
                  subdiv:c.credit.subdiv, bezakceptRight:c.credit.bezakcept }, c.credits0 || {})],
       measures, committeeQuestions,
-      hearings, colls:copyArr(c.colls),
+      hearings, colls:collsOut,
       /* Task 4: обеспечители — сквозное поле дела (normalize() уже читает p.obligors
          и строит из него требования поручителя/гаранта, М-1 §6.2 выше). Билдер до сих
          пор его никуда не копировал — единственный кредит/без обеспечителей был
@@ -3670,25 +3828,24 @@ const SEED = [
 
   // ── K3-ИЛ · исполнительный лист выдан (2) ──
   // Task 7: М-4 «пятая статья с исполнительного листа» — общее правило buildSeed
-  // (SPINE_KEYS.indexOf(c.stop) >= indexOf('ил')) теперь заполняет COSTS_SEED и на
-  // ЭТИХ двух делах тоже (они уже стояли на stop:'ил' до Task 7). c.costs переопределяет
-  // умолчание 8000: заём у обоих некрупный (fullSum 155 200 / 202 000), а costs
-  // складывается со «полным остатком» БЕЗ привязки к дате (М-4) — на весь журнал, включая
-  // уже зарегистрированный «Исполнительный лист» с суммой без costs; дефолт 8000 вынес бы
-  // C4-сумму за 2%-допуск на обоих. Меньшая, но реалистичная сумма издержек этих двух
-  // займов остаётся в допуске без изменения ни одной уже зарегистрированной меры.
+  // (SPINE_KEYS.indexOf(c.stop) >= indexOf('ил')) заполняет COSTS_SEED и на ЭТИХ
+  // двух делах тоже (они уже стояли на stop:'ил' до Task 7). Fix-round1: costs
+  // датируются ПОСЛЕ последней меры дела и учитываются debtOf() только под «полным
+  // остатком» — обычный дефолт 8000 подходит без переопределения (c.costs, что
+  // стоял здесь в первой волне Task 7, был подпоркой под старую сломанную сверку
+  // debtOf/claimTotal, снят вместе с её починкой).
   { sit:'K3-ИЛ', id:'342', borrower:'ОсОО «Нарын-Курулуш»', inn:'01704202000817',
     region:'Нарынская область / Нарынский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Дуйшеева Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credit:{ id:'342', num:'Дог. №342 от 12.02.2024', subdiv:'ОПК',
              debt:{ principal:145000, interest:6900, penalty:3300, paid:0, principalOverdue:115000 } },
-    stop:'ил', age:10, costs:1200 },
+    stop:'ил', age:10 },
   { sit:'K3-ИЛ', id:'343', borrower:'ИП Бекова Ж.С.', inn:'21902199500678',
     region:'Чуйская область / Жайылский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Молдалиев Т.К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credit:{ id:'343', num:'Дог. №343 от 03.10.2023', subdiv:'ОПК',
              debt:{ principal:189000, interest:8800, penalty:4200, paid:0, principalOverdue:150000 } },
-    stop:'ил', age:15, costs:1500 },
+    stop:'ил', age:15 },
 
   // ── K3-МС · мировое соглашение — утверждено судом с графиком / проект под утверждением (2) ──
   // 120 — заседание проведено (ответчик явился), затем стороны пришли к мировому;
@@ -3764,78 +3921,87 @@ const SEED = [
       note:'заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)' }] } },
 
   /* ============================================================
-     КОНТУР К4 — ИСПОЛНИТЕЛЬНОЕ ПРОИЗВОДСТВО (Task 7). Три ситуации, 6 дел.
+     КОНТУР К4 — ИСПОЛНИТЕЛЬНОЕ ПРОИЗВОДСТВО (Task 7, fix-round1). Три ситуации, 6 дел.
      Все стоят на stop:'постановление' (SPINE доходит до «Постановление на исполнении»)
-     и потому попадают под новое общее правило М-4 «пятая статья с исполнительного
-     листа»: COSTS_SEED[credit.id] заполняется билдером САМ (Шаг buildSeed, рядом с
-     LEDGER) — займы укрупнены (fullSum ≳ 500 000), чтобы дефолтные 8 000 расходов
-     не вышли за 2%-допуск C4 (claimAll = fullSum + costs, без привязки ко времени —
-     costs не имеют даты действия в модели, М-4). Арест предмета залога — не мера
-     (справочник её не знает), а текст на colls[].real (normColl(), regex /арест/) —
-     тем же приёмом, что К2 уже читает баланс/реализацию. */
+     и потому попадают под общее правило М-4 «пятая статья с исполнительного листа»:
+     COSTS_SEED[credit.id] заполняется билдером САМ, датой ПОСЛЕ последней меры дела
+     (не константой — см. комментарий у блока COSTS_SEED в buildSeed). Принципалы —
+     обычного для этой затравки размера (150–300 тыс.): fix-round1 починил саму
+     функцию сравнения (debtOf/claimTotal теперь учитывают дату и охват издержек),
+     искусственно крупные займы этой волны были подпоркой под старую сломанную
+     проверку, не самостоятельной величиной — снята вместе с починкой.
+
+     Арест предмета залога — не мера (справочник её не знает), а факт на самом
+     предмете: colls[].arrested/stage — СТРУКТУРНЫЕ поля, из которых derived.colls
+     в buildSeed сам собирает `real` (см. collsOut выше) — не свободный текст,
+     который приходилось бы синхронизировать вручную с числом мер «Акт
+     несостоявшихся торгов» (torgiAuto:true подключает это собирание; поле
+     `real` эти три дела не объявляют вовсе). */
 
   // ── K4-ИСПОЛН · постановление на исполнении принято, предмет залога арестован,
-  //    торги готовятся (без провала торгов и без возврата ИЛ) (2) ──
+  //    торги готовятся (без провала торгов и без возврата ИЛ) (1) ──
   { sit:'K4-ИСПОЛН', id:'350', borrower:'ОсОО «Кара-Балта Цемент»', inn:'01912202400831',
     region:'Чуйская область / Жайылский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credit:{ id:'350', num:'Дог. №350 от 14.02.2023', subdiv:'ОПК',
-             debt:{ principal:520000, interest:25000, penalty:12000, paid:0, principalOverdue:410000 } },
+             debt:{ principal:220000, interest:9800, penalty:4900, paid:0, principalOverdue:175000 } },
     stop:'постановление', age:20,
-    colls:[{ item:'Производственная линия, цех №2', kind:'Оборудование', pledge:'560 000,00',
-             order:'судебный', real:'арест наложен, подготовка к торгам', ban:'', startPrice:null, snapshotAt:'15.07.2026' }] },
-  { sit:'K4-ИСПОЛН', id:'351', borrower:'ОсОО «Ак-Тилек Логистика»', inn:'01607202400832',
+    colls:[{ item:'Производственная линия, цех №2', kind:'Оборудование', pledge:'240 000,00',
+             order:'судебный', arrested:true, torgiAuto:true, stage:'подготовка к торгам',
+             ban:'', startPrice:null, snapshotAt:'15.07.2026' }] },
+
+  // ── K4-ТОРГИ · торги провалены один раз (вторые назначены заново) / дважды —
+  //    предмет принят на баланс / реализован третьему лицу (3) ──
+  // 351 — spec-требование ревью (Important 1): «не состоялись 1 раз» — состояние,
+  // которого раньше НЕ СУЩЕСТВОВАЛО в затравке ни при каком значении torgi (оба
+  // допустимых значения эмитили ровно одну меру), и «не состоялись N раз» пилюля
+  // realStageCell была недостижима. torgi:'не состоялись' → один провал, вторые
+  // торги НАЗНАЧЕНЫ (stage остаётся 'торги назначены' — исход ещё не наступил).
+  { sit:'K4-ТОРГИ', id:'351', borrower:'ОсОО «Ак-Тилек Логистика»', inn:'01607202400832',
     region:'г. Бишкек / Октябрьский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Молдалиев Т.К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credit:{ id:'351', num:'Дог. №351 от 22.05.2023', subdiv:'ОПК',
-             debt:{ principal:610000, interest:27000, penalty:13500, paid:0, principalOverdue:480000 } },
-    stop:'постановление', age:25,
-    colls:[{ item:'Грузовой автопарк, 6 ед.', kind:'Автотранспорт', pledge:'640 000,00',
-             order:'судебный', real:'арест наложен, торги назначены',
-             startPrice:{ value:'640 000,00', report:'Отчёт об оценке №ОЦ-351 от 01.06.2026' },
+             debt:{ principal:240000, interest:10800, penalty:5400, paid:0, principalOverdue:190000 } },
+    stop:'постановление', age:55, torgi:'не состоялись',
+    colls:[{ item:'Грузовой автопарк, 6 ед.', kind:'Автотранспорт', pledge:'260 000,00',
+             order:'судебный', arrested:true, torgiAuto:true, stage:'торги назначены',
+             startPrice:{ value:'260 000,00', report:'Отчёт об оценке №ОЦ-351 от 01.06.2026' },
              ban:'', snapshotAt:'18.07.2026' }] },
-
-  // ── K4-ТОРГИ · торги не состоялись дважды — предмет принят на баланс / реализован
-  //    третьему лицу (2) ──
   { sit:'K4-ТОРГИ', id:'352', borrower:'ОсОО «Чуй-Пром Актив»', inn:'01704202400833',
     region:'Чуйская область / Московский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Дуйшеева Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credit:{ id:'352', num:'Дог. №352 от 09.01.2023', subdiv:'ОПК',
-             debt:{ principal:700000, interest:32000, penalty:15000, paid:0, principalOverdue:560000 } },
-    stop:'постановление', age:60, torgi:'дважды',
-    colls:[{ item:'Складской комплекс, п. Чалдовар', kind:'Недвижимость', pledge:'750 000,00',
-             order:'судебный', real:'арест наложен, торги не состоялись (2 раза), принято на баланс',
-             startPrice:{ value:'750 000,00', report:'Отчёт об оценке №ОЦ-352 от 10.04.2026' },
+             debt:{ principal:300000, interest:13500, penalty:6800, paid:0, principalOverdue:240000 } },
+    stop:'постановление', age:100, torgi:'дважды',
+    colls:[{ item:'Складской комплекс, п. Чалдовар', kind:'Недвижимость', pledge:'320 000,00',
+             order:'судебный', arrested:true, torgiAuto:true, stage:'принято на баланс',
+             startPrice:{ value:'320 000,00', report:'Отчёт об оценке №ОЦ-352 от 10.04.2026' },
              ban:'', snapshotAt:'12.07.2026' }] },
   { sit:'K4-ТОРГИ', id:'353', borrower:'ОсОО «Ноокат Дан»', inn:'01502202400834',
     region:'Ошская область / Ноокатский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Бекболотов Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credit:{ id:'353', num:'Дог. №353 от 17.11.2022', subdiv:'ОПК',
-             debt:{ principal:540000, interest:24000, penalty:11500, paid:0, principalOverdue:430000 } },
-    stop:'постановление', age:65, torgi:'дважды',
-    colls:[{ item:'Зерновой элеватор', kind:'Недвижимость', pledge:'560 000,00',
-             order:'судебный', real:'арест наложен, торги не состоялись (2 раза), реализовано',
-             startPrice:{ value:'560 000,00', report:'Отчёт об оценке №ОЦ-353 от 05.03.2026' },
+             debt:{ principal:260000, interest:11700, penalty:5900, paid:0, principalOverdue:205000 } },
+    stop:'постановление', age:110, torgi:'дважды',
+    colls:[{ item:'Зерновой элеватор', kind:'Недвижимость', pledge:'280 000,00',
+             order:'судебный', arrested:true, torgiAuto:true, stage:'реализовано',
+             startPrice:{ value:'280 000,00', report:'Отчёт об оценке №ОЦ-353 от 05.03.2026' },
              ban:'', snapshotAt:'09.07.2026' }] },
 
   // ── K4-ВОЗВРАТ · исполнительный лист возвращён взыскателю (имущество/доход не
   //    обнаружены), направлено письмо в ПССИ о ходе исполнительного производства (2) ──
-  // costs:6000 (не умолчание 8000, М-4): costs складывается с притязанием БЕЗ учёта
-  // охвата (debtOf добавляет их и на «просроченной сумме», не только на «полном
-  // остатке») — на этих двух займах overdueSum (претензии/записка, ранние вехи ДО
-  // иска) достаточно мал, что дефолт 8000 вышел бы за 2%-допуск C4 именно там.
   { sit:'K4-ВОЗВРАТ', id:'354', borrower:'ОсОО «Талас Курулуш Инвест»', inn:'01607202400835',
     region:'Таласская область / Таласский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Осмонов К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credit:{ id:'354', num:'Дог. №354 от 03.04.2023', subdiv:'ОПК',
-             debt:{ principal:480000, interest:21000, penalty:10000, paid:0, principalOverdue:380000 } },
-    stop:'постановление', age:85, ilReturned:true, costs:6000 },
+             debt:{ principal:205000, interest:9000, penalty:4500, paid:0, principalOverdue:165000 } },
+    stop:'постановление', age:85, ilReturned:true },
   { sit:'K4-ВОЗВРАТ', id:'355', borrower:'ИП Жумабеков Р.С.', inn:'21603198800836',
     region:'Ошская область / Кара-Суйский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Токтосунова Б.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credit:{ id:'355', num:'Дог. №355 от 19.09.2022', subdiv:'ОПК',
-             debt:{ principal:460000, interest:20000, penalty:9500, paid:0, principalOverdue:360000 } },
-    stop:'постановление', age:90, ilReturned:true, costs:6000 },
+             debt:{ principal:195000, interest:8500, penalty:4200, paid:0, principalOverdue:155000 } },
+    stop:'постановление', age:90, ilReturned:true },
 
   /* ============================================================
      КОНТУР К5 — ПРАВОПРЕЕМСТВО (Task 7). Две ситуации, 4 дела. Все стоят на
@@ -3889,7 +4055,17 @@ const SEED = [
      него. Банкротные меры — полномочие САК (MEASURE_SUBDIV/SECTION_SUBDIV['Банкротство']),
      дело ведёт ОПК (subdiv:'ОПК', как и К3/К4) — deptCurators несёт ОБА чужих
      подразделения ('ОД' записке, 'САК' банкротным мерам), тем же приёмом, что и 324
-     (K2-ИЗВЕЩ) выше. Займы укрупнены той же причиной, что и К4 (М-4, costs/2%-допуск). */
+     (K2-ИЗВЕЩ) выше. «Признание банкротом» несёт accelerated:true + scope:{volume:
+     'полный остаток',...} (fix-round1, Important 2 — п. 71 «все обязательства
+     считаются наступившими» раньше был только строкой history, без единого эффекта
+     на притязание) — debtOf()/claimOf() читают его через acceleratedAsOf(r, asOf):
+     ускорение действует НА ДАТУ ЗАПРОСА, поэтому притязание требований 362/363
+     «сейчас» (без даты — карточка, реестр) видит принципал целиком просроченным, а
+     аудит C4, проверяющий БОЛЕЕ РАННИЕ меры (претензию/повторную, до банкротства)
+     своей исторической датой — по-прежнему частичный overdue, каким он был тогда.
+     Принципалы — обычного для этой затравки размера (той же причиной, что у К4:
+     fix-round1 починил debtOf/claimTotal, крупные займы были подпоркой под старую
+     сломанную проверку). */
 
   // ── K6-ИНИЦ · заявление на банкротство принято к производству, признания банкротом
   //    ещё нет (2) ──
@@ -3897,13 +4073,13 @@ const SEED = [
     region:'Иссык-Кульская область / Иссык-Кульский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
     credit:{ id:'360', num:'Дог. №360 от 12.12.2022', subdiv:'ОПК',
-             debt:{ principal:560000, interest:26000, penalty:13000, paid:0, principalOverdue:450000 } },
+             debt:{ principal:240000, interest:11000, penalty:5600, paid:0, principalOverdue:195000 } },
     stop:'постановление', age:65, bankrot:'инициировано' },
   { sit:'K6-ИНИЦ', id:'361', borrower:'ОсОО «Кызыл-Кыя Курулуш»', inn:'01704202400842',
     region:'Баткенская область / Кызыл-Кийский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Молдалиев Т.К.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
     credit:{ id:'361', num:'Дог. №361 от 24.08.2022', subdiv:'ОПК',
-             debt:{ principal:610000, interest:28000, penalty:13500, paid:0, principalOverdue:490000 } },
+             debt:{ principal:265000, interest:12200, penalty:6100, paid:0, principalOverdue:212000 } },
     stop:'постановление', age:70, bankrot:'инициировано' },
 
   // ── K6-ПРИЗНАН · должник признан банкротом (п. 71 — все обязательства считаются
@@ -3912,13 +4088,13 @@ const SEED = [
     region:'Джалал-Абадская область / Сузакский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Бекболотов Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
     credit:{ id:'362', num:'Дог. №362 от 05.06.2022', subdiv:'ОПК',
-             debt:{ principal:720000, interest:33000, penalty:16000, paid:0, principalOverdue:580000 } },
+             debt:{ principal:310000, interest:14200, penalty:7100, paid:0, principalOverdue:248000 } },
     stop:'постановление', age:130, bankrot:'признан' },
   { sit:'K6-ПРИЗНАН', id:'363', borrower:'ОсОО «Баткен Мал Плюс»', inn:'01607202400844',
     region:'Баткенская область / Баткенский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Дуйшеева Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
     credit:{ id:'363', num:'Дог. №363 от 19.03.2022', subdiv:'ОПК',
-             debt:{ principal:650000, interest:30000, penalty:14500, paid:0, principalOverdue:520000 } },
+             debt:{ principal:280000, interest:12900, penalty:6500, paid:0, principalOverdue:224000 } },
     stop:'постановление', age:140, bankrot:'признан' },
 
   // ── K6-ЗАВЕРШЕНО · процедура банкротства завершена (1) ──
@@ -3926,7 +4102,7 @@ const SEED = [
     region:'Нарынская область / Ак-Талинский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Осмонов К.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
     credit:{ id:'364', num:'Дог. №364 от 07.10.2021', subdiv:'ОПК',
-             debt:{ principal:800000, interest:37000, penalty:18000, paid:0, principalOverdue:650000 } },
+             debt:{ principal:340000, interest:15600, penalty:7800, paid:0, principalOverdue:272000 } },
     stop:'постановление', age:250, bankrot:'завершено' },
 ];
 const PROCESSES = buildSeed(SEED);
