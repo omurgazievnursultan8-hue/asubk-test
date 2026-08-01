@@ -1391,8 +1391,16 @@ const MEASURE_KINDS = [
   { name:'Мировое соглашение', source:'внешний акт', resultIsDocument:false,
     outcomes:[{value:'утверждено судом',setsPhase:'Решение суда'}],
     needsDelivery:false, deliveryChannels:null, basisKinds:null },
+  /* Task 6 (K3-ДОБРОВОЛЬНОЕ): basisKinds было null — но ситуация сама сформулирована как
+     «соглашение НА ОСНОВЕ судебного акта» (п. 37), а builder-ветка (buildSeed, agreement.
+     type==='dobrovolnoe') адресует basedOn РОВНО на акт, которым закончилось дело у суда.
+     Список — тот же, что msHasCourtAct() уже читает regex'ом («решение суда|исполнительный
+     лист|мировое соглашение») для гейта регистрации (МС-5) — просто выражен явным
+     справочником, а не второй копией того же перечня. Без этой записи basedOn на первой
+     же добровольной мере ловит A7 («у вида basisKinds:null, но задан basedOn»). */
   { name:'Соглашение о добровольном исполнении', source:'наш документ', resultIsDocument:false,
-    outcomes:[{value:'заключено'}], needsDelivery:false, deliveryChannels:null, basisKinds:null },
+    outcomes:[{value:'заключено'}], needsDelivery:false, deliveryChannels:null,
+    basisKinds:['Решение суда','Судебный приказ','Мировое соглашение','Исполнительный лист'] },
   { name:'Исполнительный лист', source:'внешний акт', resultIsDocument:false,
     outcomes:[{value:'выдан',setsPhase:'Исполнительный лист'}],
     needsDelivery:false, deliveryChannels:null, basisKinds:['Решение суда','Судебный приказ','Мировое соглашение'] },
@@ -2338,7 +2346,13 @@ function termToCalendarDays(term){
 /* Коллекционные поля дела, которые extra ДОПОЛНЯЕТ конкатенацией, а не затирает
    (ревью №1, п.6): было только у deadlines/history — дело с обеспечителями или
    вторым кредитом (extra.credits/extra.measures/…) тихо теряло бы выведенное. */
-const EXTRA_ARRAY_KEYS = ['credits','measures','committeeQuestions','hearings','colls','deadlines','history'];
+/* Task 6 (K3-МС/K3-ДОБРОВОЛЬНОЕ): 'agreements' дописан — первые кейсы, объявляющие
+   extra.agreements (карточка МС/СДИ на вкладке «Особые состояния», форма как у
+   agSave()/msApprove()). Без записи здесь общий цикл слияния extra падает в ветку
+   «остальное — присваиванием»: массив копируется НЕ поэлементно (copyArr), а самой
+   ссылкой на литерал SEED — тот же класс дыры мутации, что и весь этот список чинит
+   для шести своих полей (комментарий выше). */
+const EXTRA_ARRAY_KEYS = ['credits','measures','committeeQuestions','hearings','colls','deadlines','history','agreements'];
 /* Мелкая копия каждого элемента (ревью №3, минор п.5): normalize()/normColl() мутируют
    объекты мер/залогов НА МЕСТЕ (m._proc, m.targets, coll.realStage, coll.torgiFails,
    coll.credit, credit.overdueDays/factors/coll — см. normalize() ниже по файлу). Без
@@ -2652,6 +2666,89 @@ function buildSeed(seed){
       history.push({ when:`${dt} 10:00`, what:`Мера «${kind}» ${num} зарегистрирована`, who:resp });
     }
 
+    /* Task 6 (К3 — судебная стадия). ADR-0035: у resultIsDocument-вида («Исковое
+       заявление») результат приходит ОТДЕЛЬНОЙ мерой. Возврат/отказ иска фазу «Иск»
+       НЕ ставит — ни «Определение о возвращении…», ни «Определение об отказе…» не несут
+       setsPhase (справочник) — требование остаётся на «Повторная претензия» (К1). Это
+       тот же класс легальной дыры, что и K3-ИСК-ЖДЁМ (см. C1 в аудите): иск подан/
+       возвращён, определения о ПРИНЯТИИ нет — фаза законно не продвинулась.
+       Кейс с iskRefused объявляет stop:'иск' — ступень 'определение' в хребет не входит. */
+    if(c.iskRefused){
+      const iskM = measures.find(m => m.kind === 'Исковое заявление');
+      if(!iskM)
+        throw new Error(`SEED: дело ${c.id} — iskRefused='${c.iskRefused}' задан, а меры «Исковое заявление» в цепочке нет (нужен stop:'иск' или дальше)`);
+      const dt = ruAdd(dates[dates.length-1], 12);
+      const kindOpr = c.iskRefused === 'возврат' ? 'Определение о возвращении искового заявления'
+                                                  : 'Определение об отказе в принятии искового заявления';
+      const numOpr = `ОПР-${c.credit.id}`;
+      const respOpr = respFor(kindOpr);
+      const outcomeOpr = c.iskRefused === 'возврат' ? 'возвращено' : 'отказано в принятии';
+      measures.push({ sec:sectionOf(kindOpr), kind:kindOpr, dates:D(dt, dt), received:{ date:dt }, num:numOpr,
+        purpose:'судьба искового заявления', basedOn:iskM.num,
+        outcome:outcomeOpr, sum:sumBy('полный остаток'), responsible:respOpr });
+      history.push({ when:`${dt} 10:00`, what:`Мера «${kindOpr}» ${numOpr} зарегистрирована — исход «${outcomeOpr}»`, who:respOpr });
+      const dt2 = ruAdd(dt, 8);
+      const numChj = `ЧЖ-${c.credit.id}`;
+      const respChj = respFor('Частная жалоба');
+      measures.push({ sec:sectionOf('Частная жалоба'), kind:'Частная жалоба', dates:D(dt2, dt2),
+        num:numChj, purpose:'обжалование определения', basedOn:numOpr,
+        sum:sumBy('полный остаток'), responsible:respChj });
+      history.push({ when:`${dt2} 10:00`, what:`Мера «Частная жалоба» ${numChj} зарегистрирована`, who:respChj });
+    }
+
+    /* Task 6 (K3-АПЕЛЛЯЦИЯ). ADR-0031 п.3: жалоба (resultIsDocument) фазу не двигает —
+       фазу двигает АКТ вышестоящей инстанции, отдельной мерой поверх жалобы (basedOn). */
+    if(c.appeal){
+      const rs = measures.find(m => m.kind === 'Решение суда');
+      if(!rs)
+        throw new Error(`SEED: дело ${c.id} — appeal='${c.appeal}' задан, а меры «Решение суда» в цепочке нет (нужен stop:'решение' или дальше)`);
+      const dt = ruAdd(rs.dates.event, 20);
+      const numAj = `АЖ-${c.credit.id}`;
+      const respAj = respFor('Апелляционная жалоба');
+      measures.push({ sec:sectionOf('Апелляционная жалоба'), kind:'Апелляционная жалоба', dates:D(dt, dt),
+        num:numAj, purpose:'обжалование решения суда', basedOn:rs.num,
+        sum:sumBy('полный остаток'), responsible:respAj });
+      history.push({ when:`${dt} 10:00`, what:`Мера «Апелляционная жалоба» ${numAj} зарегистрирована`, who:respAj });
+      const dt2 = ruAdd(dt, 40);
+      const numPa = `ПА-${c.credit.id}`;
+      const respPa = respFor('Постановление апелляционной инстанции');
+      measures.push({ sec:sectionOf('Постановление апелляционной инстанции'), kind:'Постановление апелляционной инстанции',
+        dates:D(dt2, dt2), received:{ date:dt2 }, num:numPa,
+        purpose:'акт апелляционной инстанции', basedOn:numAj,
+        outcome:c.appeal, sum:sumBy('полный остаток'), responsible:respPa });
+      history.push({ when:`${dt2} 10:00`, what:`Мера «Постановление апелляционной инстанции» ${numPa} зарегистрирована — исход «${c.appeal}»`, who:respPa });
+    }
+
+    /* Task 6 (K3-МС / K3-ДОБРОВОЛЬНОЕ). c.agreement управляет мерой в хребте:
+       мировое соглашение попадает в журнал ТОЛЬКО утверждённым судом (проект — без
+       меры, виден лишь карточкой extra.agreements, п. 22–24); добровольное исполнение —
+       наш документ поверх уже вынесенного судебного акта (п. 37), basedOn — на НЕГО.
+       extra.agreements (проброшено через derived.extra ниже) несёт полную карточку для
+       вкладки «Особые состояния» — форма полей как у agSave()/msApprove() демо-обвязки. */
+    if(c.agreement){
+      const a = c.agreement;
+      if(a.type === 'mirovoe' && a.status === 'утверждено судом'){
+        const dt = a.approvedAt;
+        const respMs = respFor('Мировое соглашение');
+        measures.push({ sec:sectionOf('Мировое соглашение'), kind:'Мировое соглашение', dates:D(dt, dt),
+          received:{ date:dt }, num:a.num, purpose:'утверждение мирового соглашения судом',
+          outcome:'утверждено судом', sum:sumBy('полный остаток'), responsible:respMs });
+        history.push({ when:`${dt} 10:00`, what:`Мера «Мировое соглашение» ${a.num} зарегистрирована — утверждено судом`, who:respMs });
+      }
+      if(a.type === 'dobrovolnoe'){
+        const rsM = measures.find(m => m.kind === 'Решение суда');
+        if(!rsM)
+          throw new Error(`SEED: дело ${c.id} — agreement.type='dobrovolnoe' задан, а меры «Решение суда» в цепочке нет (нужен stop:'решение' или дальше — basedOn ссылается на неё)`);
+        const dt = a.signedAt;
+        const respSdi = respFor('Соглашение о добровольном исполнении');
+        measures.push({ sec:sectionOf('Соглашение о добровольном исполнении'), kind:'Соглашение о добровольном исполнении',
+          dates:D(dt, dt), num:a.num, purpose:'добровольное исполнение судебного акта',
+          outcome:'заключено', basedOn:rsM.num,
+          sum:sumBy('полный остаток'), responsible:respSdi });
+        history.push({ when:`${dt} 10:00`, what:`Мера «Соглашение о добровольном исполнении» ${a.num} зарегистрирована`, who:respSdi });
+      }
+    }
+
     /* Срок порождает КАЖДАЯ ступень хребта, у которой DEADLINE_BY_KIND называет шаблон
        (для иска/записки/определения — намеренно нет, см. комментарий у DEADLINE_BY_KIND),
        а не только последняя (ревью Task4 раунд1 п.6): срок первичной претензии не
@@ -2739,6 +2836,24 @@ function buildSeed(seed){
       if(bad.length)
         throw new Error(`SEED: дело ${c.id} — credits0 несёт поля вне разрешённого набора [${CREDITS0_ALLOWED.join(', ')}]: ${bad.join(', ')}`);
     }
+    /* Task 6 · заседание — сущность (КР-2): срок «Следующее судебное заседание»
+       выводится из него (hearingDeadlines), отдельным хранимым сроком не дублируется.
+       Автогенерация — только если кейс явно назвал суд (c.court) И сам не задал
+       заседания вручную (copyArr(c.hearings) уже непуст) — не перетираем ручную
+       затравку общей формулой. */
+    const hearings = copyArr(c.hearings);
+    const iskForHearing = measures.find(m => m.kind === 'Исковое заявление');
+    if(iskForHearing && c.court && !hearings.length){
+      const h1 = ruAdd(iskForHearing.dates.event, 21);
+      hearings.push({ measureNum:iskForHearing.num, kind:'Извещение о назначении судебного процесса',
+        place:c.court, when:`${h1} 10:30`,
+        participants:[`${c.curator} (представитель ФКФ)`], outcome:'' });
+      const h2 = ruAdd(h1, 14);
+      hearings.push({ measureNum:iskForHearing.num, kind:'Судебный процесс', place:c.court,
+        when:`${h2} 14:00`,
+        participants:[`${c.curator} (представитель ФКФ)`, c.defendantAppeared ? 'Ответчик явился' : 'Ответчик не явился'],
+        outcome: c.defendantAppeared ? '' : 'отложено — неявка ответчика' });
+    }
     const derived = { id:c.id, borrower:c.borrower, inn:c.inn, region:c.region,
       owner:c.owner, curator:c.curator, opened, openedBy:c.openedBy || 'система',
       basis:c.basis || 'просрочка 6 дней',
@@ -2746,7 +2861,7 @@ function buildSeed(seed){
       credits:[Object.assign({ id:c.credit.id, num:c.credit.num, overdueDays,
                  subdiv:c.credit.subdiv, bezakceptRight:c.credit.bezakcept }, c.credits0 || {})],
       measures, committeeQuestions,
-      hearings:copyArr(c.hearings), colls:copyArr(c.colls),
+      hearings, colls:copyArr(c.colls),
       /* Task 4: обеспечители — сквозное поле дела (normalize() уже читает p.obligors
          и строит из него требования поручителя/гаранта, М-1 §6.2 выше). Билдер до сих
          пор его никуда не копировал — единственный кредит/без обеспечителей был
@@ -3192,6 +3307,181 @@ const SEED = [
       { item:'Автотранспорт технологический, 5 ед.', kind:'Автотранспорт', pledge:'85 000,00',
         order:'внесудебный', real:'не начата', ban:'', startPrice:null, snapshotAt:'15.07.2026' },
     ] },
+
+  /* ============================================================
+     КОНТУР К3 — СУДЕБНАЯ СТАДИЯ (Task 6). Восемь ситуаций, 18 дел.
+     Все кейсы объявляют цепочку (stop) с debt.principalOverdue (ADR-0025) и проходят
+     как минимум до 'иск' — значит, каждый несёт и 'записка' (Служебная записка в ДПО,
+     MEASURE_SUBDIV=['ОД']), поэтому deptCurators:{'ОД':…} объявлен на каждом. Судебные
+     меры (раздел «Судебный») сами — MEASURE_SUBDIV['Исковое заявление']=['ОПК'] и
+     фолбэк SECTION_SUBDIV['Судебный']=['ОПК'] у остальных — не требуют deptCurators
+     отдельно: credit.subdiv:'ОПК' у каждого кейса уже совпадает.
+     K3-ИСК-ЖДЁМ и K3-ИСК-ВОЗВРАТ — известная законная дыра (ADR-0035): «Исковое
+     заявление» resultIsDocument, само фазу не ставит, «Определение о возвращении/
+     отказе» тоже без setsPhase — требование стоит в К1 (фаза «Повторная претензия») с
+     судебной мерой в журнале. Аудит (collection-data-audit.mjs, C1) теперь читает то
+     же правило буфера +1, что sequenceReason() сам разрешает на входе — не находка. */
+
+  // ── K3-ИСК-ЖДЁМ · иск подан, определения о принятии ещё нет (2) ──
+  { sit:'K3-ИСК-ЖДЁМ', id:'330', borrower:'ОсОО «Узген-Текстиль»', inn:'02902201900801',
+    region:'Ошская область / Узгенский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'330', num:'Дог. №330 от 03.03.2024', subdiv:'ОПК',
+             debt:{ principal:186000, interest:9200, penalty:4100, paid:0, principalOverdue:150000 } },
+    stop:'иск', age:6 },
+  { sit:'K3-ИСК-ЖДЁМ', id:'331', borrower:'ОсОО «Ноокен-Мебель»', inn:'01808202100811',
+    region:'Джалал-Абадская область / Ноокенский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Бекболотов Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'331', num:'Дог. №331 от 18.11.2023', subdiv:'ОПК',
+             debt:{ principal:142000, interest:6800, penalty:3100, paid:0, principalOverdue:115000 } },
+    stop:'иск', age:9 },
+
+  // ── K3-ИСК · определение о принятии есть, заседания (назначено / отложено неявкой) (3) ──
+  // 332/334 — заседание уже состоялось (в прошлом) и отложено неявкой ответчика: исход
+  //   у второго заседания уже внесён. 333 — определение свежее (age:8), оба заседания
+  //   ещё впереди TODAY: демонстрирует «предстоящее» (реестр «Заседания», сегмент по
+  //   умолчанию) и срок-проекцию «Следующее судебное заседание» (КР-2, hearingDeadlines) —
+  //   без него контур К3 никогда не показал бы ни одного предстоящего заседания.
+  { sit:'K3-ИСК', id:'332', borrower:'ОсОО «Ош-Текстиль»', inn:'01912201610560',
+    region:'г. Ош / Ошский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'332', num:'Дог. №332 от 18.12.2023', subdiv:'ОПК',
+             debt:{ principal:264000, interest:12600, penalty:6300, paid:0, principalOverdue:210000 } },
+    stop:'определение', age:30, court:'Ошский городской суд', defendantAppeared:false },
+  { sit:'K3-ИСК', id:'333', borrower:'ОсОО «Кант-Курулуш»', inn:'01607201900812',
+    region:'Чуйская область / Кантский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Молдалиев Т.К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'333', num:'Дог. №333 от 09.02.2024', subdiv:'ОПК',
+             debt:{ principal:198000, interest:9400, penalty:4700, paid:0, principalOverdue:160000 } },
+    stop:'определение', age:8, court:'Кантский районный суд', defendantAppeared:true },
+  { sit:'K3-ИСК', id:'334', borrower:'ИП Жумашев Т.А.', inn:'21504198800345',
+    region:'Чуйская область / Московский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Осмоналиев Т.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'334', num:'Дог. №334 от 22.06.2023', subdiv:'ОПК',
+             debt:{ principal:156000, interest:7100, penalty:3400, paid:0, principalOverdue:125000 } },
+    stop:'определение', age:36, court:'Московский районный суд', defendantAppeared:false },
+
+  // ── K3-ИСК-ВОЗВРАТ · иск возвращён / отказано в принятии, частная жалоба (2) ──
+  { sit:'K3-ИСК-ВОЗВРАТ', id:'335', borrower:'ОсОО «Каракол-Строй»', inn:'01704202000813',
+    region:'Иссык-Кульская область / Каракольский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Дуйшеева Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'335', num:'Дог. №335 от 14.09.2023', subdiv:'ОПК',
+             debt:{ principal:121000, interest:5600, penalty:2600, paid:0, principalOverdue:95000 } },
+    stop:'иск', age:25, iskRefused:'возврат' },
+  { sit:'K3-ИСК-ВОЗВРАТ', id:'339', borrower:'ИП Садыкова Н.Б.', inn:'21601199300456',
+    region:'Ошская область / Араванский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Бекболотов Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'339', num:'Дог. №339 от 30.01.2024', subdiv:'ОПК',
+             debt:{ principal:168000, interest:7900, penalty:3800, paid:0, principalOverdue:135000 } },
+    stop:'иск', age:25, iskRefused:'отказ' },
+
+  // ── K3-РЕШЕНИЕ · три исхода первой инстанции — частично / отказано / полностью (3) ──
+  { sit:'K3-РЕШЕНИЕ', id:'336', borrower:'ОсОО «Лейлек-Строй»', inn:'01502201700341',
+    region:'Баткенская область / Лейлекский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'336', num:'Дог. №336 от 22.07.2023', subdiv:'ОПК',
+             debt:{ principal:198000, interest:9600, penalty:5200, paid:0, principalOverdue:160000 } },
+    stop:'решение', age:18, verdict:'иск удовлетворён частично' },
+  { sit:'K3-РЕШЕНИЕ', id:'337', borrower:'ОсОО «Талас-Агро»', inn:'01502201900814',
+    region:'Таласская область / Таласский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Осмонов К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'337', num:'Дог. №337 от 11.04.2024', subdiv:'ОПК',
+             debt:{ principal:224000, interest:10800, penalty:5600, paid:0, principalOverdue:180000 } },
+    stop:'решение', age:22, verdict:'в иске отказано' },
+  { sit:'K3-РЕШЕНИЕ', id:'338', borrower:'ИП Молдалиев А.К.', inn:'21203198600678',
+    region:'Чуйская область / Панфиловский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Токтосунова Б.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'338', num:'Дог. №338 от 05.03.2024', subdiv:'ОПК',
+             debt:{ principal:176000, interest:8200, penalty:4000, paid:0, principalOverdue:140000 } },
+    stop:'решение', age:26 },   // verdict не задан — умолчание SPINE «иск удовлетворён полностью»
+
+  // ── K3-АПЕЛЛЯЦИЯ · решение обжаловано — оставлено в силе / отменено на новое рассмотрение (2) ──
+  { sit:'K3-АПЕЛЛЯЦИЯ', id:'340', borrower:'ОсОО «Ак-Суу Агро»', inn:'01704201900815',
+    region:'Иссык-Кульская область / Ак-Суйский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Абдиев Э.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'340', num:'Дог. №340 от 19.05.2023', subdiv:'ОПК',
+             debt:{ principal:312000, interest:15000, penalty:8100, paid:0, principalOverdue:250000 } },
+    stop:'решение', age:65, appeal:'оставлено в силе' },
+  { sit:'K3-АПЕЛЛЯЦИЯ', id:'341', borrower:'ОсОО «Кадамжай-Мал»', inn:'01808201800816',
+    region:'Баткенская область / Кадамжайский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Осмонов К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'341', num:'Дог. №341 от 27.08.2023', subdiv:'ОПК',
+             debt:{ principal:268000, interest:12900, penalty:6700, paid:0, principalOverdue:215000 } },
+    stop:'решение', age:70, appeal:'отменено, на новое рассмотрение' },
+
+  // ── K3-ИЛ · исполнительный лист выдан (2) ──
+  { sit:'K3-ИЛ', id:'342', borrower:'ОсОО «Нарын-Курулуш»', inn:'01704202000817',
+    region:'Нарынская область / Нарынский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Дуйшеева Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'342', num:'Дог. №342 от 12.02.2024', subdiv:'ОПК',
+             debt:{ principal:145000, interest:6900, penalty:3300, paid:0, principalOverdue:115000 } },
+    stop:'ил', age:10 },
+  { sit:'K3-ИЛ', id:'343', borrower:'ИП Бекова Ж.С.', inn:'21902199500678',
+    region:'Чуйская область / Жайылский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Молдалиев Т.К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'343', num:'Дог. №343 от 03.10.2023', subdiv:'ОПК',
+             debt:{ principal:189000, interest:8800, penalty:4200, paid:0, principalOverdue:150000 } },
+    stop:'ил', age:15 },
+
+  // ── K3-МС · мировое соглашение — утверждено судом с графиком / проект под утверждением (2) ──
+  // 120 — заседание проведено (defendantAppeared:true), затем стороны пришли к мировому;
+  // approvedAt=10.07.2026 — после заседания (16.06.2026) и определения о принятии
+  // (22.05.2026), до TODAY. extra.agreements несёт карточку для «Особые состояния»
+  // (форма — как у msApprove(): status/approvedAt/notWorse/draftedBy/scheduleBy/schedule).
+  { sit:'K3-МС', id:'120', borrower:'ИП Сыдыков А.', inn:'20308197700219',
+    region:'Джалал-Абадская область / Сузакский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Эрнисов Б.Т.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'120', num:'Дог. №120 от 11.09.2023', subdiv:'ОПК',
+             debt:{ principal:240000, interest:11000, penalty:6000, paid:0, principalOverdue:190000 } },
+    stop:'определение', age:60, court:'Сузакский районный суд', defendantAppeared:true,
+    agreement:{ type:'mirovoe', num:'МС-120', status:'утверждено судом', approvedAt:'10.07.2026' },
+    extra:{ agreements:[{ type:'mirovoe', num:'МС-120', status:'утверждено судом', expiredTerms:true,
+      on:'заёмщик',
+      notWorse:{ attested:true, by:'ОПК',
+        basis:'Сопоставлено с условиями МС по аналогичным делам ОПК за 2026 год, протокол внутреннего согласования от 08.07.2026' },
+      draftedBy:'ОПК', scheduleBy:'ДАК', rate:0, breached:false,
+      schedule:[{ pay:'10.10.2026', principal:65000 }, { pay:'10.01.2027', principal:65000 },
+                { pay:'10.04.2027', principal:65000 }, { pay:'10.07.2027', principal:62000 }],
+      approvedAt:'10.07.2026', note:'утверждено судом · погашение по графику МС (пп. 22–24)' }] } },
+  // 344 — проект: график и «не льготнее» готовы (msScheduleReady/msNotWorseOk — true),
+  // но суд ещё не утвердил (status:'проект') — c.agreement не задан: мировая мера в
+  // хребет попадает ТОЛЬКО утверждённой (buildSeed, Шаг 4), у проекта её нет.
+  { sit:'K3-МС', id:'344', borrower:'ОсОО «Ысык-Ата Агро»', inn:'01607201800818',
+    region:'Чуйская область / Ысык-Атинский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Жээнбеков Н.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'344', num:'Дог. №344 от 16.04.2024', subdiv:'ОПК',
+             debt:{ principal:205000, interest:9800, penalty:4900, paid:0, principalOverdue:165000 } },
+    stop:'иск', age:20,
+    extra:{ agreements:[{ type:'mirovoe', num:'МС-344', status:'проект', expiredTerms:true,
+      on:'заёмщик',
+      notWorse:{ attested:true, by:'ОПК',
+        basis:'Сопоставлено с условиями МС по аналогичным делам ОПК, протокол внутреннего согласования от 15.07.2026' },
+      draftedBy:'ОПК', scheduleBy:'ДАК', rate:0, breached:false,
+      schedule:[{ pay:'21.10.2026', principal:55000 }, { pay:'21.01.2027', principal:55000 },
+                { pay:'21.04.2027', principal:55000 }, { pay:'21.07.2027', principal:54700 }],
+      note:'проект · график от отраслевого · подлежит утверждению судом (пп. 22–24)' }] } },
+
+  // ── K3-ДОБРОВОЛЬНОЕ · соглашение о добровольном исполнении поверх решения суда (2) ──
+  { sit:'K3-ДОБРОВОЛЬНОЕ', id:'142', borrower:'ОсОО «Токтогул-Строй»', inn:'01607202000820',
+    region:'Джалал-Абадская область / Токтогульский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Абдиев Э.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'142', num:'Дог. №142 от 25.01.2024', subdiv:'ОПК',
+             debt:{ principal:232000, interest:11200, penalty:5800, paid:0, principalOverdue:185000 } },
+    stop:'решение', age:40,
+    agreement:{ type:'dobrovolnoe', num:'СДИ-142', signedAt:'05.07.2026' },
+    extra:{ agreements:[{ type:'dobrovolnoe', num:'СДИ-142', status:'заключено', breached:false,
+      on:'заёмщик',
+      note:'заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)' }] } },
+  { sit:'K3-ДОБРОВОЛЬНОЕ', id:'345', borrower:'ОсОО «Кербен-Курулуш»', inn:'01502201900819',
+    region:'Джалал-Абадская область / Аксыйский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Токтосунова Б.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'345', num:'Дог. №345 от 08.06.2023', subdiv:'ОПК',
+             debt:{ principal:178000, interest:8300, penalty:4100, paid:0, principalOverdue:142000 } },
+    stop:'решение', age:45,
+    agreement:{ type:'dobrovolnoe', num:'СДИ-345', signedAt:'01.07.2026' },
+    extra:{ agreements:[{ type:'dobrovolnoe', num:'СДИ-345', status:'заключено', breached:false,
+      on:'заёмщик',
+      note:'заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)' }] } },
 ];
 const PROCESSES = buildSeed(SEED);
 
