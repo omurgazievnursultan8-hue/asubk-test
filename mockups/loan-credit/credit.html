@@ -4860,10 +4860,12 @@ if (typeof document !== 'undefined') {
      раздела своей даты не бывает» (КР-29). Теперь она живёт в шапке и управляет всеми
      выводимыми величинами: долгом, просрочкой, категорией, условиями, расчётом. */
   let cardAsOf  = TODAY;
+  let planYear = pd(TODAY).getFullYear();   // год на вкладке «План и исполнение»
+  let planOpenMonth = null;                 // 'YYYY-MM' развёрнутой строки (журнал правок)
   let condBasisFilter = 'all';      // фильтр журнала по типу основания
   let condOpenGroup   = null;       // g.key развёрнутой группы журнала (basisGroups — единственный источник ключа)
   let condMatrixOpen = false, condTemplateOpen = false;
-  const DTABS =['Договор','Условия','Транши и освоение','Расчёты','Платежи','Обеспечение','Проблемные','Досье'];
+  const DTABS =['Договор','Условия','Транши и освоение','Расчёты','Платежи','План и исполнение','Обеспечение','Проблемные','Досье'];
 
   function currentCredit(){ return CR.db.credits.find(x => x.id === detailId); }
   function jsAttr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
@@ -5696,7 +5698,64 @@ if (typeof document !== 'undefined') {
       </div>`;
   }
 
-  /* ---- ВКЛАДКА 6: Обеспечение (зеркало залогового модуля, Р-7) ---- */
+  /* ---- ВКЛАДКА 6: План и исполнение (ADR-0042) ----
+     План — единственная ВВОДИМАЯ величина среди трёх ориентиров, и это явное исключение
+     из ADR-0001, поэтому подписано прямо на вкладке. Исполнение и прогноз — производные. */
+  function tabPlan(c,d){
+    const pe  = (planYear === d.planExec.year) ? d.planExec : planExecOf(c, cardAsOf, d.ledger.index, planYear);
+    const cur = c.currency;
+    const years = (()=>{ const y0 = c.date ? pd(c.date).getFullYear() : planYear;
+      const y1 = Math.max(pd(cardAsOf).getFullYear(), y0) + 1; const out=[];
+      for (let y=y0; y<=y1; y++) out.push(y); return out; })();
+    const pctPill = (p) => p == null ? '<span class="text-muted">—</span>'
+      : `<span class="pill ${p >= 100 ? 'low' : p >= 80 ? 'mid' : 'high'}">${p} %</span>`;
+    const rows = pe.rows.map(r => {
+      const open = planOpenMonth === r.month;
+      const prow = planRowOf(c, r.month);
+      const main = `<tr${r.dropped?' class="text-muted"':''} style="cursor:${prow?'pointer':'default'}"${prow?` onclick="CR.togglePlanMonth('${jsAttr(r.month)}')"`:''}>
+        <td>${esc(r.label)}${r.removed?' <span class="pill neutral">план снят</span>':''}</td>
+        <td style="text-align:right">${r.forecast==null?'—':money(r.forecast)}</td>
+        <td style="text-align:right">${r.plan==null?'—':`<b>${money(r.plan)}</b>`}</td>
+        <td style="text-align:right">${money(r.fact)}</td>
+        <td style="text-align:right">${pctPill(r.pct)}</td>
+        <td>${r.dropped?'<span style="font:var(--font-label)">в расчёт не входит</span>':(r.edits?`правок: ${r.edits}`:'—')}</td></tr>`;
+      if (!open || !prow) return main;
+      const hist = prow.history.length
+        ? prow.history.map(h=>`<div class="hrow"><b>${esc(h.at)}</b> · ${esc(h.by)} · было <b>${money(h.prev)}</b> → стало <b>${prow.amount==null?'снят':money(prow.amount)}</b>${h.note?' · '+esc(h.note):''}</div>`).join('')
+        : '<div class="hrow text-muted">Правок не было</div>';
+      return main + `<tr><td colspan="6" style="background:var(--surface-panel)">
+        <div style="font:var(--font-label);color:var(--text-muted);margin-bottom:6px">Поставил: ${esc(prow.setBy)} · ${esc(prow.setAt)}${prow.seededFrom!=null?` · предзаполнено прогнозом: ${money(prow.seededFrom)}`:''}</div>
+        ${hist}</td></tr>`;
+    });
+    const qRows = pe.quarters.map(q=>`<tr><td>${q.q} квартал</td><td style="text-align:right">${q.plan?money(q.plan):'—'}</td><td style="text-align:right">${money(q.fact)}</td><td style="text-align:right">${pctPill(q.pct)}</td></tr>`);
+    qRows.push(`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)"><td>За год</td>
+      <td style="text-align:right">${pe.total.plan?money(pe.total.plan):'—'}</td>
+      <td style="text-align:right">${money(pe.total.fact)}</td>
+      <td style="text-align:right">${pctPill(pe.total.pct)}</td></tr>`);
+    return `
+      <div class="section-h">План и исполнение ${derivedHtml()}</div>
+      <p class="section-note">План — <b>вводимая</b> величина: цель на месяц, поставленная в момент N, и от прогноза
+        после сохранения она не зависит (ADR-0042). Это единственное исключение из правила «производные не хранятся».
+        Исполнение — производная: факт месяца / план месяца, по всем четырём статьям долга кредита;
+        расходы по обращению взыскания в факт не входят. <b>Месяц без плана в расчёт не входит</b> — ни сам,
+        ни в квартальной, ни в годовой сумме. Показатель для отображения: на категорию риска, гейты и подгруппу не влияет (И-18).</p>
+      <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
+        <div class="dim"><div class="dl">План за ${pe.year}</div><div class="dv">${pe.total.plan?money(pe.total.plan):'—'}</div><div class="src">${esc(cur)}</div></div>
+        <div class="dim"><div class="dl">Факт за ${pe.year}</div><div class="dv">${money(pe.total.fact)}</div><div class="src">по месяцам с планом</div></div>
+        <div class="dim"><div class="dl">Исполнение</div><div class="dv">${pe.total.pct==null?'—':pe.total.pct+' %'}</div><div class="src">${pe.total.plan?'факт '+money(pe.total.fact)+' / план '+money(pe.total.plan):'план не поставлен'}</div></div>
+        <div class="dim"><div class="dl">Месяцев с планом</div><div class="dv">${pe.total.monthsWithPlan} из ${pe.total.monthsTotal}</div><div class="src">остальные в расчёт не входят</div></div>
+      </div>
+      <div class="gtoolbar" style="margin-top:14px">
+        <div class="field" style="max-width:200px"><span class="flabel">Год</span><div class="control"><select onchange="CR.setPlanYear(+this.value)">${years.map(y=>`<option value="${y}"${y===pe.year?' selected':''}>${y}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <span class="spacer"></span>
+        ${actBtn(c,'setPlan',{rows:[{month:monthKey(cardAsOf),amount:1}]},'Поставить план','CR.openPlanModal()','btn btn-primary btn-sm')}
+      </div>
+      ${cgrid([{h:'Месяц'},{h:'Прогноз',r:1},{h:'План',r:1},{h:'Факт',r:1},{h:'Исполнение',r:1},{h:'Правки'}], rows)}
+      <div class="section-h" style="margin-top:22px">Итоги ${pe.year}</div>
+      ${cgrid([{h:'Период'},{h:'План',r:1},{h:'Факт',r:1},{h:'Исполнение',r:1}], qRows)}`;
+  }
+
+  /* ---- ВКЛАДКА 7: Обеспечение (зеркало залогового модуля, Р-7) ---- */
   function tabObespechenie(c,d){
     const cov=d.coverage, light=cov.ok?'var(--asubk-green)':'var(--asubk-red)';
     const pledgeList=(c.mirror.pledges||[]);
@@ -5937,6 +5996,7 @@ if (typeof document !== 'undefined') {
       case 'Транши и освоение': return tabTranshi(c, d);
       case 'Расчёты': return tabRaschety(c, d);
       case 'Платежи': return tabPlatezhi(c, d);
+      case 'План и исполнение': return tabPlan(c, d);
       case 'Обеспечение': return tabObespechenie(c, d);
       case 'Проблемные': return tabProblemnye(c, d);
       case 'Досье': return tabDosye(c, d);
@@ -5971,6 +6031,8 @@ if (typeof document !== 'undefined') {
   CR.scrollToDivergence=function(){ const el=document.getElementById('condDivergence');
     if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); };
   CR.setCalcMode=function(v){ calcConsolidated=!!v; rerenderDetail(); };
+  CR.setPlanYear=function(y){ planYear=+y||planYear; planOpenMonth=null; rerenderDetail(); };
+  CR.togglePlanMonth=function(mk){ planOpenMonth = (planOpenMonth===mk?null:mk); rerenderDetail(); };
   /* CR.stubAction удалён: канон §0.1 запрещает заглушки, а она обслуживала три кнопки
      owned-действий кредита — перевод долга, закрытие неосвоенного остатка, примечание —
      и в двух случаях тост ещё и врал про «модуль-владелец» (КР-2). Все три оживлены. */
