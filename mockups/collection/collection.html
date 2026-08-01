@@ -4346,7 +4346,11 @@ const LIST_COLS = [
   {k:'credit',      t:'Кредитный договор'},
   {k:'scope',       t:'Охват'},
   {k:'phase',       t:'Фаза'},
-  {k:'cat',         t:'Категория'},
+  /* ТР-5: шапка колонки, поле фильтра, чип и плитка карточки называют одно и то же
+     одинаково — «Категория риска». Шапка звалась «Категория», и на одном экране
+     соседствовали два имени одной величины. Ширины хватает: шапка переносится
+     по словам, самое длинное слово 9 символов. */
+  {k:'cat',         t:'Категория риска'},
   {k:'subdivision', t:'Ведущее подразделение'},
   {k:'claim',       t:'Сумма требования',  num:true},
   {k:'overdueDays', t:'Дней просрочки',    num:true},
@@ -4766,7 +4770,10 @@ function exportList(){
   const { tsv, rows } = exportTsv();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['﻿' + tsv], { type:'text/tab-separated-values;charset=utf-8' }));
-  a.download = 'trebovaniya-' + TODAY.split('.').reverse().join('-') + '.xls';
+  /* Расширение по СОДЕРЖИМОМУ: внутри TSV (XLSX-сериализатор — задача реализации,
+     см. комментарий у exportTsv). С «.xls» Excel открывал файл через предупреждение
+     «формат не соответствует расширению» — на пустом месте. */
+  a.download = 'trebovaniya-' + TODAY.split('.').reverse().join('-') + '.tsv';
   document.body.appendChild(a); a.click(); a.remove();
   toast('Выгружено требований: ' + rows, 'ok');
 }
