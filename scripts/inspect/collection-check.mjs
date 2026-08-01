@@ -18,7 +18,10 @@ function mk(){
      любом реальном обращении к localStorage (нужен тестам персиста). */
   const dom = new JSDOM(HTML, { runScripts:'dangerously', virtualConsole:vc, url:'http://localhost/' });
   const w = dom.window, doc = w.document;
-  const ev = s => w.eval(s);
+  /* Исключение внутри проверки не должно ронять ВЕСЬ прогон: одна устаревшая проверка
+     (снятая функция, снятый узел) обрывала хвост в сотни ассертов, и отчёт «N ok» врал
+     тем, что молчал о непройденном. Ошибка = провал этой проверки и строка с причиной. */
+  const ev = s => { try { return w.eval(s); } catch(e){ console.log('      ! eval: ' + e.message); return undefined; } };
   const $  = s => doc.querySelector(s);
   const $$ = s => [...doc.querySelectorAll(s)];
   const active = () => doc.querySelector('#detailPanels .detail-panel.active');
@@ -1378,7 +1381,7 @@ ok('правило представителя держит сумму, даже 
     return split > 1 && Math.abs(s - t.total) < 0.005 && Math.abs(t.total - claimTotal(baseSet())) < 0.005;
   })()`);
 })());
-ok('рамка экрана называет правило денег',    /Деньги в плитках — один раз\s+на кредит, по строке заёмщика/.test(L.$('.list-frame').textContent));
+ok('рамка экрана называет правило денег',    /один раз на кредит, по строке заёмщика/.test(L.$('.list-frame').textContent));
 
 head('ПЛ-6 · цвет метит редкое: в таблице его нет');
 ok('чипа роли «заёмщик» в строках нет', L.$$('#listBody tr.rowopen').every(tr =>

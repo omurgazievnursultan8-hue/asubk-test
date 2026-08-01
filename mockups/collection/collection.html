@@ -863,6 +863,13 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
         <div class="filter-body" id="filterBody"></div>
         <div class="filter-chips" id="filterChips"></div>
         <div class="tiles" id="listTiles"></div>
+        <!-- ТР-1: рамка экрана названа вслух. Реестр отвечает на «что в портфеле и в каком
+             оно юридическом состоянии»; «что делать сегодня» — вопрос другого реестра
+             с другим атомом (обязательство с датой, а не требование).
+             Одной строкой, как dlFrame у «Сроков»: дата среза (строки производны от неё),
+             сколько отобрано из скольких, правило денег §2.2 и адрес рабочей очереди.
+             Текст рисует renderList — дата берётся из TODAY, а не переписывается в разметке. -->
+        <p class="list-frame" id="listFrame"></p>
         <div class="rowtools">
           <!-- ТР-6: строка открывается кликом и Enter — отдельная кнопка «Открыть требование» снята. -->
           <button class="btn btn-tint" id="btnExport" onclick="exportList()">
@@ -4562,6 +4569,17 @@ function renderList(){
     ? pageDeals.map(d => d.reqs.map((r, i) => cell(r, i, d.reqs.length)).join('')).join('')
     : empty();
 
+  /* ТР-1: рамка. Дата среза больше нигде на экране не звучит — подпись под таблицей
+     несёт дату СНИМКА ДЕНЕГ, а это другая дата (М-4). «Показано N из M» — как у dlFrame:
+     M считается по той же базе, что и плитка «Всего», но без полей фильтра, иначе
+     сузившийся реестр выглядел бы целым портфелем. */
+  const retroOn  = !!(document.getElementById('retroToggle')||{}).checked;
+  const totalN   = allReqs().filter(r => retroOn ? true : !isRetroClosed(r._proc)).length;
+  document.getElementById('listFrame').innerHTML =
+    `Состояние портфеля взыскания на <b>${TODAY}</b> · показано <b>${allReqsN}</b> из ${totalN} · `
+    + `деньги — один раз на кредит, по строке заёмщика (§2.2) · очередь по срокам — `
+    + `<a class="lnk" onclick="navClick('Сроки на контроле (реестр)')">«Сроки на контроле»</a>.`;
+
   /* ТР-6 + ПЛ-4: пейджер настоящий, счётчик одноголовый — считает ровно строки. */
   const from = allReqsN ? before + 1 : 0;
   const to   = before + pageReqs.length;
@@ -7127,7 +7145,17 @@ function restoreFromHash(){
 }
 window.addEventListener('hashchange',()=>{ if(curHash()!==lastHash) restoreFromHash(); });
 function scrollTabs(){ document.getElementById('detailTabbar').scrollBy({left:200,behavior:'smooth'}); }
-function onRoleChange(){ toast('Роль: '+document.getElementById('roleSel').value); if(curProc && document.getElementById('view-detail').style.display!=='none') renderPanels(); }
+/* Роль меняет не только карточку: «только моё подразделение» отбирает по roleSubdivs()
+   текущей роли (находка 2), и после смены роли реестр обязан пересчитаться — иначе
+   галочка стоит, а строки принадлежат прежней роли. Пересобираем и панель фильтра:
+   в чипе «Только моё подразделение» подписаны сами подразделения. */
+function onRoleChange(){
+  toast('Роль: '+document.getElementById('roleSel').value);
+  if(curProc && document.getElementById('view-detail').style.display!=='none') renderPanels();
+  if(document.getElementById('view-list').style.display!=='none' && filterState.mine){
+    curPage=1; renderFilterBar(); renderList(); renderChips();
+  }
+}
 function toast(msg,kind){ const w=document.getElementById('toastWrap'); const t=document.createElement('div');
   t.className='toast'+(kind?(' '+kind):''); t.innerHTML=`<span>${msg}</span>`; w.appendChild(t); setTimeout(()=>t.remove(),2800); }
 function closeModal(){ const h=document.getElementById('modalHost'); h.classList.remove('open'); h.innerHTML=''; }
@@ -7197,8 +7225,11 @@ function renderFilterBar(){
     ${fsel('f-scope','Охват', scopes, f.scope, "setF('scope',this.value)")}
     ${fsel('f-oblast','Область', oblasti, f.oblast, "setDep('oblast',this.value)")}
     ${fsel('f-raion','Район', raiony, f.raion, "setF('raion',this.value)", !f.oblast)}
-    ${fsel('f-role','Роль обязанного лица', roles, f.role, "setF('role',this.value)")}
+    <!-- «Ведущее подразделение» и «только моё» стоят соседями в одном ряду: тоггл
+         сужает ту же ось, что и список слева от него (пара Mine+Subdiv, находка 2). -->
     ${fsel('f-subdiv','Ведущее подразделение', subdivs, f.subdiv, "setF('subdiv',this.value)")}
+    ${fcheck('f-mine','только моё подразделение', f.mine, "setMine(this.checked)")}
+    ${fsel('f-role','Роль обязанного лица', roles, f.role, "setF('role',this.value)")}
     ${fsel('f-group','Группа платёжеспособности', groups, f.group, "setF('group',this.value)")}
     ${fsel('f-cat','Категория риска', CAT_OPTS, f.cat, "setF('cat',this.value)")}
     ${fsel('f-curator','Куратор', curators, f.curator, "setF('curator',this.value)")}
