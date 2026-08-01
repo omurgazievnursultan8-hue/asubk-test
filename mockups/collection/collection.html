@@ -1282,7 +1282,15 @@ const MEASURE_KINDS = [
               {value:'без ответа',setsPhase:'Претензия'}],
     needsDelivery:true, deliveryChannels:DELIVERY_CHANNELS_CLAIM, basisKinds:null },
   { name:'Требование отраслевому госоргану', source:'наш документ', resultIsDocument:false,
-    outcomes:[{value:'погашено'},{value:'отказ от погашения'},{value:'без ответа'}],
+    /* Task 4 (K1-ОБЕСП): тот же дырявый пробел, что ЗС/ДС-М1 уже закрывал у двух
+       соседей выше — без setsPhase требование к госоргану навсегда остаётся в К0
+       (OPEN_PHASE), а зарегистрированная на нём Досудебная мера тут же ловит
+       C1-раздел>фаза аудита («раздел раздела опережает фазу»), хотя претензионный
+       порядок к госоргану пройден тем же документом, что и к заёмщику/поручителю/
+       гаранту. Первый кейс, реально сеющий этот вид (309), и вскрыл пробел — Task1
+       поправил только два из трёх видов реестра требований обеспечителям. */
+    outcomes:[{value:'погашено',setsPhase:'Претензия'},{value:'отказ от погашения',setsPhase:'Претензия'},
+              {value:'без ответа',setsPhase:'Претензия'}],
     needsDelivery:true, deliveryChannels:DELIVERY_CHANNELS_CLAIM, basisKinds:null },
   { name:'Акт сверки', source:'наш документ', resultIsDocument:false,
     outcomes:[{value:'согласовано'},{value:'расхождение выявлено'}],
@@ -2265,6 +2273,16 @@ const DEADLINE_BY_KIND = {
   'Первичная претензия':6,   // 14 к.д. должнику на погашение по первичной претензии
   'Повторная претензия':8,   // 14 к.д. должнику на погашение по повторной претензии
 };
+/* Вид меры-требования обеспечителю → роль обеспечителя, которого он адресует (п. 17.4).
+   ЕДИНСТВЕННЫЙ источник для двух мест (ревью Task4 п.1/2): buildSeed() читает его, чтобы
+   провалидировать декларацию кейса (guarantorClaim.kind распознан И c.obligors несёт эту
+   роль) ДО того, как мера попадёт в PROCESSES; normalize() читает его же, чтобы адресовать
+   меру требованию именно этой роли (не regex-догадкой по тексту kind, которая раньше молча
+   заворачивала непонятый вид на требование заёмщика). Объявлен ДО buildSeed — ссылка на
+   ROLE_CODE (заводится много ниже, в блоке М-1) тут была бы TDZ: buildSeed вызывается
+   раньше, чем ROLE_CODE инициализируется. */
+const GUARANTOR_CLAIM_ROLE = { 'Требование поручителю':'поручитель', 'Требование гаранту':'гарант',
+                               'Требование отраслевому госоргану':'госорган' };
 /* Оба — обязательства ЗАЁМЩИКА (DEADLINE_TEMPLATES resp:'заёмщик'). У DEADLINE_CLOSERS
    нет строк 6/8 вовсе (там только 5,7,9,10,14,16,22,24,26,27,28,32,41,43) — это не
    «закрывается следующей мерой», это истекает само по календарю; куратор действует по
@@ -2412,11 +2430,16 @@ function buildSeed(seed){
       const num = `${s.pre}-${c.credit.id}${s.suf||''}`;
       const kd  = kindOf(s.kind);
       if(s.scope) curScope = s.scope;
-      /* Ответственный — куратор ОД по умолчанию, но судебный/исполнительный раздел —
-         полномочие ОПК (MEASURE_SUBDIV/SECTION_SUBDIV, В-9); courtCurator даёт кейсу
-         назвать судебного исполнителя явно (ревью №1, минор). */
+      /* Ответственный — куратор дела по умолчанию, но вид меры может требовать ДРУГОГО
+         подразделения (В-9): судебный/исполнительный раздел — ОПК, служебная записка
+         в ДПО — всегда ОД, даже если дело ведёт ДАК (MEASURE_SUBDIV['Служебная записка
+         в ДПО']=['ОД'], шаблоны 21/41 «куратор ОД»). Раньше код спецкейсил только ОПК
+         (ревью №1, минор) — обобщено на любое расхождение subdivOf(kind) с подразделением
+         дела (ревью Task4 п.5); deptCurator даёт кейсу назвать куратора другого
+         подразделения явно, иначе используется curator дела как раньше. */
       const subdiv = subdivOf(s.kind);
-      const responsible = (subdiv && subdiv.includes('ОПК')) ? (c.courtCurator || c.curator) : c.curator;
+      const outOfSubdiv = subdiv && c.credit.subdiv && !subdiv.includes(c.credit.subdiv);
+      const responsible = outOfSubdiv ? (c.deptCurator || c.curator) : c.curator;
       const m = { sec:sectionOf(s.kind), kind:s.kind, dates:D(dates[i], dates[i]), num,
                   purpose:s.purpose, responsible, sum:sumBy(curScope) };
       if(s.outcome){
@@ -2453,57 +2476,113 @@ function buildSeed(seed){
        Охват на списание НЕ ставится (ревью Task 4): «просроченная сумма» уже установлена
        повторной претензией — списание действует в её пределах, а не переопределяет его
        (ADR-0025 перечисляет ровно четыре устанавливающих вида, безакцепта среди них нет;
-       лишний scope здесь заводил бы A6-охват аудита на каждом кейсе с бeзакцептом). */
+       лишний scope здесь заводил бы A6-охват аудита на каждом кейсе с бeзакцептом).
+       sec/sum — той же формулой, что и хребет (sectionOf/curScope), не хардкодом
+       (ревью Task4 п.10: sec:'Досудебный' ломал бы A2, если KIND_SECTION когда-нибудь
+       переедет; sumBy('просроченная сумма') был бы вторым источником вместо curScope). */
     if(c.bezakceptOutcome){
+      if(!steps.length)
+        throw new Error(`SEED: дело ${c.id} — bezakceptOutcome задан без цепочки (stop не задан) — датировать ПТ/списание не от чего`);
       const dt = ruAdd(dates[dates.length-1], 20);
-      measures.push({ sec:'Досудебный', kind:'Платёжное требование в банк', dates:D(dt, dt),
-        num:`ПТ-${c.credit.id}`, purpose:'списание со счетов в обслуживающих банках',
+      const numPt = `ПТ-${c.credit.id}`;
+      measures.push({ sec:sectionOf('Платёжное требование в банк'), kind:'Платёжное требование в банк', dates:D(dt, dt),
+        num:numPt, purpose:'списание со счетов в обслуживающих банках',
         outcome: c.bezakceptOutcome === 'не исполнено' ? 'не исполнено' : 'исполнено',
-        sum:sumBy('просроченная сумма'), responsible:c.curator });
-      const dt2 = ruAdd(dt, 10);
-      measures.push({ sec:'Досудебный', kind:'Безакцептное списание', dates:D(dt2, dt2),
-        num:`БА-${c.credit.id}`, purpose:'безакцептное списание просроченной суммы',
-        outcome:c.bezakceptOutcome, basedOn:`ПТ-${c.credit.id}`,
-        sum:sumBy('просроченная сумма'), responsible:c.curator });
+        sum:sumBy(curScope), responsible:c.curator });
+      history.push({ when:`${dt} 10:00`, what:`Мера «Платёжное требование в банк» ${numPt} направлена в обслуживающие банки`, who:c.curator });
+      /* Комитет решает РАНЬШЕ платёжного требования (п. 17.5, тпл 14: «10 р.д.» на
+         подготовку требований ПОСЛЕ решения). Общий цикл гейтов ниже сам выводит дату
+         заседания как «событие БА − 10 к.д.» — той же формулой для любого гейта, — так
+         что окно между ПТ и БА держим короче 10 к.д.: иначе решение подсчиталось бы
+         РОВНО в день платёжного требования (ревью Task4 п.7: 07.07.2026 = 07.07.2026 на
+         кейсе 312), а не раньше него. */
+      const dt2 = ruAdd(dt, 5);
+      const numBa = `БА-${c.credit.id}`;
+      measures.push({ sec:sectionOf('Безакцептное списание'), kind:'Безакцептное списание', dates:D(dt2, dt2),
+        num:numBa, purpose:'безакцептное списание просроченной суммы',
+        outcome:c.bezakceptOutcome, basedOn:numPt,
+        sum:sumBy(curScope), responsible:c.curator });
+      history.push({ when:`${dt2} 10:00`, what:`Мера «Безакцептное списание» ${numBa} зарегистрирована — исход «${c.bezakceptOutcome}»`, who:c.curator });
     }
-    /* Требование обеспечителю — своя мера, целится в требование поручителя/гаранта
-       (normalize выведет цель по виду, §М-1: regex по kind в разборе targets). */
+    /* Требование обеспечителю/госоргану — своя мера, ЯВНО целится в требование
+       обеспечителя ОБЪЯВЛЕННОЙ роли (ревью Task4 п.1/2): раньше цель выводилась
+       regex-догадкой в normalize() по тексту kind, и опечатка в kind — или guarantorClaim
+       без единого obligors — тихо утекали на требование заёмщика и проходили аудит
+       зелёным. Теперь то же самое throw-guard'ится ЗДЕСЬ (декларация неполна) и ЕЩЁ РАЗ
+       в normalize() (обеспечитель роли объявлен, но требования не построилось) — оба
+       места читают один и тот же словарь роль→вид, дублировать id обеспечителя незачем:
+       normalize() сама найдёт единственное требование этой роли по кредиту дела.
+       «Требование отраслевому госоргану» — тот же приём: у вида нет setsPhase
+       (справочник MEASURE_KINDS), поэтому фазу требования госоргана эта мера не
+       двигает — только охват/сумму, как остальные два. */
     if(c.guarantorClaim){
+      if(!steps.length)
+        throw new Error(`SEED: дело ${c.id} — guarantorClaim задан без цепочки (stop не задан) — датировать меру не от чего`);
+      const role = GUARANTOR_CLAIM_ROLE[c.guarantorClaim.kind];
+      if(!role)
+        throw new Error(`SEED: дело ${c.id} — guarantorClaim.kind='${c.guarantorClaim.kind}' не входит в [${Object.keys(GUARANTOR_CLAIM_ROLE).join(', ')}]`);
+      if(!(c.obligors || []).some(o => o.role === role))
+        throw new Error(`SEED: дело ${c.id} — guarantorClaim.kind='${c.guarantorClaim.kind}' требует обеспечителя role='${role}' в c.obligors — не объявлен`);
       const dt = dates[dates.length-1];
-      measures.push({ sec:'Досудебный', kind:c.guarantorClaim.kind, dates:D(dt, dt),
-        num:c.guarantorClaim.num, purpose:'солидарное исполнение обязательства',
-        outcome:'отказ от погашения', sent:{ date:dt, channel:'СЭД' },
-        served:{ date:dt, doc:'квитанция СЭД' },
-        scope:{ volume:'просроченная сумма', method:'деньгами' },
-        sum:sumBy('просроченная сумма'), responsible:c.curator });
+      const ch = c.channel || 'Почта';
+      const num = c.guarantorClaim.num;
+      measures.push({ sec:sectionOf(c.guarantorClaim.kind), kind:c.guarantorClaim.kind, dates:D(dt, dt),
+        num, purpose: role === 'госорган'
+          ? 'исполнение гарантийных обязательств отраслевого органа по программе кредитования'
+          : 'солидарное исполнение обязательства',
+        outcome:'отказ от погашения', sent:{ date:dt, channel:ch },
+        served:{ date:dt, doc: ch==='СЭД' ? 'квитанция СЭД' : ch==='Нарочно' ? 'акт вручения нарочно' : 'почтовое уведомление о вручении' },
+        scope:{ volume:'просроченная сумма', method:c.method || 'деньгами' },
+        sum:sumBy(curScope), responsible:c.curator });
+      history.push({ when:`${dt} 10:00`, what:`Мера «${c.guarantorClaim.kind}» ${num} зарегистрирована`, who:c.curator });
     }
-    /* Сторно — дубль последней меры: строка остаётся зачёркнутой и фазу не двигает (И-3). */
+    /* Сторно — дубль последней меры: строка остаётся зачёркнутой и фазу не двигает (И-3).
+       basedOn — ТОЛЬКО если сам вид допускает ссылку на себя (ревью Task4 п.11): дубль
+       «Первичной претензии» (basisKinds:null) со ссылкой на себя ронял бы A7 — не
+       предположение «повторная бывает последней», а проверка по факту. Вложенные объекты
+       (scope/sent/served) копируются, не разделяются с оригиналом (copyArr — тот же
+       мотив: {...src} даёт ОБЩИЕ ссылки на них, и правка одной строки задевала бы другую). */
     if(c.storno){
+      if(!measures.length)
+        throw new Error(`SEED: дело ${c.id} — storno:true задан без единой меры (stop не задан, guarantorClaim/bezakceptOutcome не заданы) — дублировать нечего`);
       const src = measures[measures.length-1];
       const dt = ruAdd(src.dates.event, 1);
-      measures.push({ ...src, dates:D(dt, dt), num:`${src.num}-дубль`, basedOn:src.num,
+      const srcKd = kindOf(src.kind);
+      const canBaseOnSelf = !!(srcKd && srcKd.basisKinds && srcKd.basisKinds.includes(src.kind));
+      const dup = { ...src, dates:D(dt, dt), num:`${src.num}-дубль`,
+        scope: src.scope ? {...src.scope} : src.scope,
+        sent:  src.sent  ? {...src.sent}  : src.sent,
+        served:src.served? {...src.served}: src.served,
         storno:{ reason:`дубль ${src.num} — зарегистрирована повторно по ошибке`,
-                 by:c.curator, at:ruAdd(dt, 1) } });
+                 by:c.curator, at:ruAdd(dt, 1) } };
+      if(canBaseOnSelf) dup.basedOn = src.num; else delete dup.basedOn;
+      measures.push(dup);
+      history.push({ when:`${dt} 10:00`, what:`Мера «${src.kind}» ${dup.num} зарегистрирована повторно по ошибке и сторнирована как дубль ${src.num}`, who:c.curator });
     }
 
-    /* Срок порождает ПОСЛЕДНЯЯ мера, и только если DEADLINE_BY_KIND реально называет
-       для неё шаблон (для иска/записки/определения — намеренно нет, см. комментарий
-       у DEADLINE_BY_KIND). 'Решение суда' — особый случай: тпл 27 (Апелляционная
-       жалоба) появляется, только если решение НЕ в пользу ФКФ целиком — на
-       удовлетворённом полностью иске обжаловать нечего (ревью №2). Дереференс
-       шаблона и разбор term — с guard, не с throw (ревью №1, минор): опечатка тут
-       не должна ронять всю затравку. */
-    const last = steps[steps.length-1];
-    let dlN = last && DEADLINE_BY_KIND[last.kind];
-    if(last && last.kind === 'Решение суда')
-      dlN = (verdictApplied === FAVORABLE_VERDICT) ? null : 27;   // FAVORABLE_VERDICT — см. п.4 ревью №3, не хардкод
-    const tpl = dlN ? TPL_BY_N[dlN] : null;
-    if(tpl){
-      const days = termToCalendarDays(tpl.term);
-      if(days != null)
-        deadlines.push({ tpl:tpl.n, due:ruAdd(dates[dates.length-1], days),
-                         base:`${tpl.base} (${dates[dates.length-1]})` });
-    }
+    /* Срок порождает КАЖДАЯ ступень хребта, у которой DEADLINE_BY_KIND называет шаблон
+       (для иска/записки/определения — намеренно нет, см. комментарий у DEADLINE_BY_KIND),
+       а не только последняя (ревью Task4 п.6): срок первичной претензии не перестаёт
+       существовать оттого, что дело уже подало повторную — он просто остаётся просроченным
+       («истёкший срок» и есть содержание ситуации K1-ПРЕТ2). 'Решение суда' — особый
+       случай независимо от позиции в цепочке: тпл 27 (Апелляционная жалоба) появляется,
+       только если решение НЕ в пользу ФКФ целиком — а verdict-проверка выше уже
+       гарантирует FAVORABLE_VERDICT на любой цепочке, что продолжается ПОСЛЕ 'решение'
+       (ИЛ/постановление не бывают после проигранного/частичного иска), так что решать по
+       verdictApplied можно одинаково, есть ли после 'решение' ещё ступени или нет.
+       Дереференс шаблона и разбор term — с guard, не с throw (ревью №1, минор): опечатка
+       тут не должна ронять всю затравку. */
+    steps.forEach((s, i) => {
+      let dlN = DEADLINE_BY_KIND[s.kind];
+      if(s.kind === 'Решение суда')
+        dlN = (verdictApplied === FAVORABLE_VERDICT) ? null : 27;   // FAVORABLE_VERDICT — см. п.4 ревью №3, не хардкод
+      const tpl = dlN ? TPL_BY_N[dlN] : null;
+      if(tpl){
+        const days = termToCalendarDays(tpl.term);
+        if(days != null)
+          deadlines.push({ tpl:tpl.n, due:ruAdd(dates[i], days), base:`${tpl.base} (${dates[i]})` });
+      }
+    });
 
     /* Гейт: мера гейтового вида в цепочке → вопрос органу, решённый ДО неё. Номер
        протокола — свой префикс с дискриминатором по пункту гейта (ревью №1, п.5):
@@ -2523,9 +2602,13 @@ function buildSeed(seed){
        вопрос вынесен БЕЗ решения, а сама гейтовая мера в цепочке отсутствует (она
        по определению не может быть зарегистрирована раньше положительного решения,
        gateReason). Цикл выше её не найдёт (measures.find по kind), поэтому это
-       отдельная, не альтернативная ветка. */
+       отдельная, не альтернативная ветка. GATES[c.gatePending] дереференсится с
+       проверкой ключа (ревью Task4 п.2): опечатка раньше давала анонимный TypeError
+       на g.organ вместо именованной ошибки сборки. */
     if(c.gatePending){
       const g = GATES[c.gatePending];
+      if(!g)
+        throw new Error(`SEED: дело ${c.id} — gatePending='${c.gatePending}' не входит в GATES [${Object.keys(GATES).join(', ')}]`);
       const at = ruSub(TODAY, 6);
       committeeQuestions.push({ organ:g.organ, initiator:c.credit.subdiv || 'ОД', topic:g.topic,
         credits:[c.credit.num], meetingDate:at, decision:'', positive:false,
@@ -2746,12 +2829,12 @@ const SEED = [
 
   // ── K1-ПРЕТ1 · первичная претензия, срок исполнения 14 к.д. идёт (age < 14) ──
   { sit:'K1-ПРЕТ1', id:'301', borrower:'ОсОО «Береке-Агро»', inn:'02804202000441',
-    region:'Чуйская обл. / Сокулукский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
+    region:'Чуйская область / Сокулукский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
     credit:{ id:'301', num:'Дог. №301 от 14.03.2025', subdiv:'ДАК',
              debt:{ principal:64000, interest:2600, penalty:800, paid:0, principalOverdue:50000 } },
     stop:'претензия', age:6, channel:'СЭД' },
   { sit:'K1-ПРЕТ1', id:'302', borrower:'ОсОО «Тоо-Строй Инвест»', inn:'01912201812345',
-    region:'Чуйская обл. / Панфиловский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
+    region:'Чуйская область / Панфиловский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
     credit:{ id:'302', num:'Дог. №302 от 22.05.2025', subdiv:'ДАК',
              debt:{ principal:58000, interest:2400, penalty:700, paid:0, principalOverdue:45000 } },
     stop:'претензия', age:4 },
@@ -2766,11 +2849,15 @@ const SEED = [
     region:'г. Ош / Ошский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
     credit:{ id:'304', num:'Дог. №304 от 02.11.2024', subdiv:'ДАК',
              debt:{ principal:112000, interest:5400, penalty:2600, paid:0, principalOverdue:90000 } },
+    // subdiv:'ДАК', но записку в ДПО обязан подготовить куратор ОД (MEASURE_SUBDIV, п.20.2/тпл 41) —
+    // deptCurator называет его явно (ревью Task4 п.5).
+    deptCurator:'Асанова Ж.Т.',
     stop:'записка', age:9 },
   { sit:'K1-ПРЕТ2', id:'305', borrower:'ОсОО «Джалал-Абад Курулуш»', inn:'01502201900771',
     region:'Джалал-Абадская область / Сузакский', owner:'Куратор ДАК', curator:'Бекболотов Р.',
     credit:{ id:'305', num:'Дог. №305 от 19.08.2024', subdiv:'ДАК',
              debt:{ principal:96000, interest:4300, penalty:2000, paid:0, principalOverdue:78000 } },
+    deptCurator:'Асанова Ж.Т.',
     stop:'записка', age:15 },
   { sit:'K1-ПРЕТ2', id:'306', borrower:'ИП Раимбекова С.', inn:'21703199800112',
     region:'Таласская область / Таласский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
@@ -2778,7 +2865,7 @@ const SEED = [
              debt:{ principal:51000, interest:2100, penalty:900, paid:0, principalOverdue:40000 } },
     stop:'записка', age:20 },
 
-  // ── K1-ОБЕСП · требование поручителю/гаранту (третья координата требования, М-1) ──
+  // ── K1-ОБЕСП · требование поручителю/гаранту/отраслевому госоргану (третья координата требования, М-1) ──
   { sit:'K1-ОБЕСП', id:'307', borrower:'ОсОО «Бек Кабель»', inn:'01912201610212',
     region:'г. Бишкек / Первомайский', owner:'Куратор ДАК', curator:'Тукинова А.С.',
     credit:{ id:'307', num:'Дог. №307 от 10.04.2024', subdiv:'ДАК',
@@ -2796,13 +2883,16 @@ const SEED = [
                 role:'гарант', credits:['308'], basis:'договор гарантии ДГ-308/1 от 15.05.2024' }],
     guarantorClaim:{ kind:'Требование гаранту', num:'ТГ-308' } },
   { sit:'K1-ОБЕСП', id:'309', borrower:'Садыков Н. К.', inn:'21504198600678',
-    region:'Чуйская обл. / Московский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
+    region:'Чуйская область / Московский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
     credit:{ id:'309', num:'Дог. №309 от 03.09.2024', subdiv:'ОД',
              debt:{ principal:62000, interest:2700, penalty:1400, paid:0, principalOverdue:48000 } },
     stop:'повторная', age:9,
-    obligors:[{ id:'п-309', name:'Садыкова А. К.', inn:'21804199300221', kind:'физлицо',
-                role:'поручитель', credits:['309'], basis:'договор поручительства ДП-309/1 от 03.09.2024' }],
-    guarantorClaim:{ kind:'Требование поручителю', num:'ТП-309' } },
+    // третий вид требования обеспечителю (реестр требований, §17.4) — отраслевой госорган,
+    // соучредитель программы кредитования; MEASURE_KINDS не даёт ему setsPhase — фазу
+    // требования госоргана эта мера не двигает (ревью Task4 п.1).
+    obligors:[{ id:'о-309', name:'Министерство сельского хозяйства КР', inn:'00108199680123', kind:'юрлицо',
+                role:'госорган', credits:['309'], basis:'соглашение о субсидировании программы кредитования №309-СХ от 03.09.2024' }],
+    guarantorClaim:{ kind:'Требование отраслевому госоргану', num:'ТГО-309' } },
 
   // ── K1-БА-ГЕЙТ · право на безакцепт есть по договору, комитет ещё не решил ──
   { sit:'K1-БА-ГЕЙТ', id:'310', borrower:'ОсОО «Манас-Ресурс»', inn:'01808202100264',
@@ -2811,32 +2901,36 @@ const SEED = [
              debt:{ principal:98000, interest:4200, penalty:1900, paid:0, principalOverdue:78000 } },
     stop:'повторная', age:8, gatePending:'Безакцептное списание' },
   { sit:'K1-БА-ГЕЙТ', id:'311', borrower:'ОсОО «Токмок-Мебель»', inn:'01704201800556',
-    region:'Чуйская обл. / Токмокский', owner:'Куратор ДАК', curator:'Молдалиев Т.К.',
+    region:'Чуйская область / Токмокский', owner:'Куратор ДАК', curator:'Молдалиев Т.К.',
     credit:{ id:'311', num:'Дог. №311 от 21.11.2024', subdiv:'ДАК', bezakcept:true,
              debt:{ principal:71000, interest:3000, penalty:1300, paid:0, principalOverdue:56000 } },
     stop:'повторная', age:14, gatePending:'Безакцептное списание' },
 
   // ── K1-БА-ИСП · гейт пройден, платёжное требование в банк + списание, три исхода ──
+  // Деньги различают исходы (ревью Task4 п.9): paid — то, что списание фактически
+  // взыскало; principalOverdue — остаток просрочки ПОСЛЕ него (снимок LEDGER — «сейчас»,
+  // а безакцепт уже состоялся). «Исполнено» < «частично» < «не исполнено» по остатку
+  // просрочки строго монотонно: 2 000 ≪ 30 000 ≪ 44 000.
   { sit:'K1-БА-ИСП', id:'312', borrower:'ОсОО «Чуй-Дан»', inn:'02902201900155',
-    region:'Чуйская обл. / Аламудунский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
+    region:'Чуйская область / Аламудунский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
     credit:{ id:'312', num:'Дог. №312 от 21.09.2024', subdiv:'ДАК', bezakcept:true,
-             debt:{ principal:76000, interest:3100, penalty:1200, paid:0, principalOverdue:60000 } },
+             debt:{ principal:76000, interest:3100, penalty:1200, paid:25000, principalOverdue:30000 } },
     stop:'повторная', age:34, bezakceptOutcome:'частично исполнено' },
   { sit:'K1-БА-ИСП', id:'313', borrower:'ОсОО «Ноокат-Агро»', inn:'01502201600447',
     region:'Ошская область / Ноокатский', owner:'Куратор ДАК', curator:'Бекболотов Р.',
     credit:{ id:'313', num:'Дог. №313 от 02.06.2024', subdiv:'ДАК', bezakcept:true,
-             debt:{ principal:88000, interest:3600, penalty:1600, paid:0, principalOverdue:70000 } },
+             debt:{ principal:88000, interest:3600, penalty:1600, paid:70000, principalOverdue:2000 } },
     stop:'повторная', age:40, bezakceptOutcome:'исполнено' },
   { sit:'K1-БА-ИСП', id:'314', borrower:'Абдрахманов У. Ж.', inn:'21309198500334',
     region:'Баткенская область / Кызыл-Кийский', owner:'Куратор ДАК', curator:'Осмонов К.',
     credit:{ id:'314', num:'Дог. №314 от 17.03.2025', subdiv:'ДАК', bezakcept:true,
-             debt:{ principal:46000, interest:1900, penalty:700, paid:0, principalOverdue:36000 } },
+             debt:{ principal:46000, interest:1900, penalty:700, paid:0, principalOverdue:44000 } },
     stop:'повторная', age:35, bezakceptOutcome:'не исполнено' },
 
   // ── K1-БА-НЕТ · права на безакцепт по договору нет — credit.bezakcept не задан,
   //    условная ветка §3.4 не срабатывает (ни ПТ, ни списания в цепочке) ──
   { sit:'K1-БА-НЕТ', id:'315', borrower:'ОсОО «Кемин-Строй»', inn:'01808201900221',
-    region:'Чуйская обл. / Кеминский', owner:'Куратор ДАК', curator:'Жээнбеков Н.',
+    region:'Чуйская область / Кеминский', owner:'Куратор ДАК', curator:'Жээнбеков Н.',
     credit:{ id:'315', num:'Дог. №315 от 09.07.2024', subdiv:'ДАК',
              debt:{ principal:54000, interest:2200, penalty:900, paid:0, principalOverdue:42000 } },
     stop:'повторная', age:12 },
@@ -2852,30 +2946,39 @@ const SEED = [
     credit:{ id:'317', num:'Дог. №317 от 12.06.2024', subdiv:'ДАК',
              debt:{ principal:54000, interest:2400, penalty:1100, paid:0, principalOverdue:42000 } },
     stop:'повторная', age:15,
-    extra:{ settlement:{ type:'guarantee_letter', point:'18', until:'20.09.2026',
+    // since→until = 69 к.д. — внутри потолка ≤70 к.д. п.18 (ревью Task4 п.8: без since
+    // потолок не от чего считать, а от TODAY получалось бы 61 — случайно похоже, но
+    // не одно и то же: since — дата письма, а не сегодняшний день).
+    extra:{ settlement:{ type:'guarantee_letter', point:'18', since:'13.07.2026', until:'20.09.2026',
       note:'заёмщик направил гарантийное письмо; отсрочка ≤70 к.д. При нарушении — возобновление безакцепта в 10 р.д.' } } },
   { sit:'K1-ПАУЗА-ГП', id:'318', borrower:'ОсОО «Кант-Сахар»', inn:'01607201900447',
-    region:'Чуйская обл. / Кантский', owner:'Куратор ДАК', curator:'Осмоналиев Т.',
+    region:'Чуйская область / Кантский', owner:'Куратор ДАК', curator:'Осмоналиев Т.',
     credit:{ id:'318', num:'Дог. №318 от 30.04.2024', subdiv:'ДАК',
              debt:{ principal:87000, interest:3600, penalty:1900, paid:0, principalOverdue:68000 } },
     stop:'повторная', age:18,
-    extra:{ settlement:{ type:'guarantee_letter', point:'18', until:'25.09.2026',
+    // since→until = 69 к.д.
+    extra:{ settlement:{ type:'guarantee_letter', point:'18', since:'18.07.2026', until:'25.09.2026',
       note:'заёмщик направил гарантийное письмо; отсрочка ≤70 к.д. При нарушении — возобновление безакцепта в 10 р.д.' } } },
 
   // ── K1-ПАУЗА-РЕСТР · реструктуризация, п. 19 (письмо в уполномоченный госорган) ──
   { sit:'K1-ПАУЗА-РЕСТР', id:'319', borrower:'ОсОО «Кара-Балта Кант»', inn:'01607201800623',
-    region:'Чуйская обл. / Московский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
+    region:'Чуйская область / Московский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
     credit:{ id:'319', num:'Дог. №319 от 04.04.2024', subdiv:'ОД',
              debt:{ principal:230000, interest:11000, penalty:5400, paid:0, principalOverdue:180000 } },
     stop:'повторная', age:20,
-    extra:{ settlement:{ type:'restructuring', point:'19', until:'18.09.2026', on:'заёмщик',
+    // since→until = 69 к.д. — потолок п.19 такой же ≤70 к.д. (тпл 19), хоть UI-гейт
+    // модалки его сегодня проверяет только для guarantee_letter.
+    extra:{ settlement:{ type:'restructuring', point:'19', since:'11.07.2026', until:'18.09.2026', on:'заёмщик',
       note:'обращение заёмщика о реструктуризации, письмо в уполномоченный госорган направлено' } } },
   { sit:'K1-ПАУЗА-РЕСТР', id:'210', borrower:'ОсОО «Нарын-Мал»', inn:'01704202000112',
     region:'Нарынская область / Нарынский', owner:'Куратор ОД', curator:'Дуйшеева Р.',
     credit:{ id:'210', num:'Дог. №210 от 21.02.2024', subdiv:'ОД',
              debt:{ principal:140000, interest:6000, penalty:2600, paid:0, principalOverdue:110000 } },
     stop:'повторная', age:24,
-    extra:{ settlement:{ type:'restructuring', point:'19', until:'30.09.2026', on:'заёмщик',
+    // Было until:'30.09.2026' без since — от TODAY считалось 71 к.д., за потолком п.19
+    // случайно (ревью Task4 п.8). since→until = 69 к.д. — тот же случай, что 317/318/319,
+    // без драмы нарушения: письмо ушло позже (заключение комитета ещё готовится).
+    extra:{ settlement:{ type:'restructuring', point:'19', since:'07.07.2026', until:'14.09.2026', on:'заёмщик',
       note:'обращение заёмщика о реструктуризации, заключение готовится к вынесению на комитет' } } },
 
   // ── K1-СТОРНО · дубль повторной претензии сторнирован (И-3: строка зачёркнута, фазу не двигает) ──
@@ -2885,7 +2988,7 @@ const SEED = [
              debt:{ principal:47000, interest:1900, penalty:700, paid:0, principalOverdue:36000 } },
     stop:'повторная', age:10, storno:true },
   { sit:'K1-СТОРНО', id:'321', borrower:'Жумабекова К. Т.', inn:'21902199400778',
-    region:'Чуйская обл. / Жайылский', owner:'Куратор ОД', curator:'Молдалиев Т.К.',
+    region:'Чуйская область / Жайылский', owner:'Куратор ОД', curator:'Молдалиев Т.К.',
     credit:{ id:'321', num:'Дог. №321 от 08.01.2025', subdiv:'ОД',
              debt:{ principal:41000, interest:1700, penalty:600, paid:0, principalOverdue:32000 } },
     stop:'повторная', age:13, storno:true },
@@ -2918,7 +3021,7 @@ function normColl(c){
    ============================================================ */
 const PERSONS = {};                       // id лица → {name, inn, kind, state}
 const REQ_INDEX = {};                     // id требования → требование
-const ROLE_CODE = { 'заёмщик':'з', 'поручитель':'п', 'гарант':'г' };
+const ROLE_CODE = { 'заёмщик':'з', 'поручитель':'п', 'гарант':'г', 'госорган':'о' };
 const isUL = name => /ОсОО|ОАО|ЗАО|ГП |КФХ|ОО «|АО /.test(String(name||''));
 
 /* Ведущее подразделение — свойство ТРЕБОВАНИЯ, не дела (§6.2): по одному заёмщику суд
@@ -3010,14 +3113,26 @@ function normalize(p){
   migrateProcedureToHandover(p);
 
   /* М-5: мера хранится НА ДЕЛЕ с targets:[reqId] — одна веха двигает несколько требований
-     (один иск ко всем ответчикам, п. 32). Для унаследованных записей цель выводится из вида. */
+     (один иск ко всем ответчикам, п. 32). Для унаследованных записей цель выводится из вида:
+     GUARANTOR_CLAIM_ROLE — точный словарь «вид → роль обеспечителя» (не regex-догадка по
+     подстроке — ревью Task4 п.1/2), общий с проверкой в buildSeed(). Требования этой роли
+     не найтись не может: buildSeed уже потребовал c.obligors с этой ролью на этапе сборки
+     кейса — если её тут всё равно нет, это баг данных где-то ещё (extra.measures, унаследованная
+     запись), и молчаливый откат на заёмщика был бы ровно той дырой, которую чинит этот раунд. */
   const idsOf = role => p.requirements.filter(r=>r.role===role).map(r=>r.id);
   for(const m of p.measures){
     m._proc = p;                                              // ADR-0029: basedOnValid ищет основание в СВОЁМ деле
     if(m.targets === 'все'){ m.targets = p.requirements.map(r=>r.id); continue; }
     if(Array.isArray(m.targets) && m.targets.length) continue;
-    const role = /поручител/i.test(m.kind) ? 'поручитель' : /гарант/i.test(m.kind) ? 'гарант' : 'заёмщик';
-    m.targets = idsOf(role).length ? idsOf(role) : idsOf('заёмщик');
+    const obligorRole = GUARANTOR_CLAIM_ROLE[m.kind];
+    if(obligorRole){
+      const ids = idsOf(obligorRole);
+      if(!ids.length)
+        throw new Error(`SEED: дело ${p.id} — мера «${m.kind}» ${m.num||''} адресована обеспечителю role='${obligorRole}', а такого требования в деле нет`);
+      m.targets = ids;
+      continue;
+    }
+    m.targets = idsOf('заёмщик');
   }
 
   /* КД-5: предмет залога обеспечивает КРЕДИТНЫЙ ДОГОВОР, а требование = дело × кредит ×
