@@ -5048,6 +5048,19 @@ if (typeof document !== 'undefined') {
       + (d.fullRepayDate ? `<br>срок возврата <b style="font-weight:var(--weight-bold)">${esc(d.fullRepayDate)}</b>` : ''));
   }
 
+  /* Плитка «Исполнение плана» (ADR-0042). Плана на месяц среза нет → так и написано.
+     НЕ ноль: ноль означал бы «ничего не собрали», а не «цели не ставили» — разные вещи,
+     и в шапке их путать дороже всего. */
+  function tilePlanExec(c,d){
+    const pe=d.planExec, cur=pe.current;
+    if(!cur) return dimTile(`Исполнение плана ${derivedHtml()}`, '<span style="color:var(--text-muted)">—</span>',
+      `план на ${esc(monthLabel(monthKey(cardAsOf)))} не поставлен`);
+    return dimTile(`Исполнение плана ${derivedHtml()}`,
+      `${cur.pct} %`,
+      `${esc(monthLabel(cur.month))}: факт <b>${money(cur.fact)}</b> / план <b>${money(cur.plan)}</b>`
+      + (pe.total.pct!=null?`<br>за ${pe.year} — <b>${pe.total.pct} %</b>`:''));
+  }
+
   /* Печатные формы (перенос из loan-credit): в новом макете печати не было вовсе,
      а это единственное место, откуда куратор забирает документ по конкретному кредиту. */
   const PRINT_FORMS = [
@@ -5134,6 +5147,7 @@ if (typeof document !== 'undefined') {
           + (c.currency !== 'KGS' ? `<br>≈ <b>${money0(toKgs(c.contractAmount, c.currency))} KGS</b>` : ''))}
         ${tileDebt(c,d)}
         ${tileNextPay(c,d)}
+        ${tilePlanExec(c,d)}
         ${dimTile(`Категория риска ${infoBtn('CR.openCategoryInfo()','Основание')}`, `<span class="cat-${catClsOf(d.riskCategory)}">${esc(d.riskCategory)}</span>`)}
         ${tileCoverage(c,d)}
         ${tileRelief(c,d)}
@@ -5622,6 +5636,23 @@ if (typeof document !== 'undefined') {
       ${cgrid([{h:'Версия'},{h:'Статус'},{h:'От даты'},{h:'Строк',r:1}], verRows, {empty:'Версий графика нет — сформируйте'})}
       <div class="section-h" style="margin-top:22px">График — позиции (транш №${sel?sel.no:'—'})</div>
       ${cgrid([{h:'№'},{h:'Дата'},{h:'Осн. сумма',r:1},{h:'Проценты в платеже',r:1},{h:'Начислено %',r:1},{h:'Платёж',r:1},{h:'Статус'}], posRows, {empty:'Позиций нет — сформируйте график'})}
+      <div class="section-h" style="margin-top:22px">Прогноз (транш №${sel?sel.no:'—'}) ${derivedHtml()}</div>
+      <p class="section-note">Прогноз — предположение о том, как график сложится <b>фактически</b>: даты те же,
+        суммы пересчитаны от остатка основного долга на дату среза и непокрытого хвоста прошлого.
+        Контракт он не подменяет, в начислении не участвует и в исполнение плана не входит — исполнение
+        сверяет факт с <b>планом</b> (ADR-0042). Весь непокрытый хвост прошлых позиций отнесён к ближайшей будущей.</p>
+      ${(()=>{ const fr = sel ? trancheForecastRows(sel, d.ledger.index, cardAsOf) : [];
+        const rws = fr.map(r=>{
+          const s = scheduleRowStatus({date:r.date}, d.ledger.index.get(ledgerKey(sel.no, r.no)), cardAsOf);
+          const dl = r.delta;
+          return `<tr${r.past?' class="text-muted"':''}><td>№${r.no}</td><td>${esc(r.date)}</td>
+            <td style="text-align:right">${money(r.scheduled)}</td>
+            <td style="text-align:right"><b>${money(r.forecast)}</b></td>
+            <td style="text-align:right;color:${Math.abs(dl)>0.005?(dl>0?'var(--asubk-red)':'var(--text-muted)'):'inherit'}">${Math.abs(dl)>0.005?(dl>0?'+':'')+money(dl):'—'}</td>
+            <td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
+        return cgrid([{h:'№'},{h:'Дата'},{h:'По графику',r:1},{h:'Прогноз',r:1},{h:'Δ',r:1},{h:'Статус'}], rws,
+          {empty:'Графика нет — прогнозировать нечего'});
+      })()}
       <div class="section-h" style="margin-top:22px">Детальный расчёт ${calcConsolidated?'(консолидировано)':'(транш №'+(sel?sel.no:'—')+')'}</div>
       <p class="section-note">Параметры движка — те же, что и на вкладке «Условия», читаются вместе с цифрами, которые объясняют.
         Это условия договора: правка — только зарегистрированным основанием.</p>
