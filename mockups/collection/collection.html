@@ -2231,6 +2231,14 @@ const SPINE = [
     outcome:'принято к исполнению', purpose:'возбуждение исполнительного производства', pre:'ИП' },
 ];
 const SPINE_KEYS = SPINE.map(s => s.key);
+/* Индекс ступени 'решение' — verdict-проверки ниже сравнивают stop с ней позиционно
+   (дошла ли цепочка ДО неё / продолжается ли ПОСЛЕ). */
+const VERDICT_AT = SPINE_KEYS.indexOf('решение');
+/* «Полностью удовлетворён» — ЕДИНСТВЕННЫЙ источник: исход, который несёт сама SPINE-
+   ступень 'решение' по умолчанию. НЕ хардкодить строку второй раз (ревью №3, минор
+   п.4) — иначе правка формулировки в SPINE молча разойдётся со сравнением ниже и
+   подарит апелляционный срок любому выигранному делу (или наоборот, снимет его). */
+const FAVORABLE_VERDICT = SPINE[VERDICT_AT].outcome;
 
 /* Вид меры → шаблон срока, который она ПОРОЖДАЕТ (снимается следующей мерой).
    Ревью №1 фикс-раунда (п.3): три из шести пар были неверны и убраны —
@@ -2272,11 +2280,33 @@ function termToCalendarDays(term){
   if(!m) return null;
   return m[2] === 'р.д.' ? Math.ceil(+m[1] * 7/5) : +m[1];
 }
+/* Проверка при ЗАГРУЗКЕ файла, не по вызову (ревью №3, минор п.3): 12 из 45 строк
+   DEADLINE_TEMPLATES несут НЕЧИСЛОВОЙ term («≤ 70 к.д.», «181-й к.д.», «3 мес», «до
+   1 июля», «одновременно», …) — termToCalendarDays на них молча вернёт null (тем же
+   путём, что уронил КРИТИЧНЫЙ баг ревью №2 на два раунда: guard без сигнала). Бьём
+   тревогу здесь для каждого шаблона, которым РЕАЛЬНО пользуется билдер — статичная
+   карта плюс 27 (жёстко вписан в условный код деадлайна «Решения суда» ниже, в саму
+   карту не входит) — а не для всех 45: остальные билдеру не нужны и годятся как есть. */
+(function assertDeadlineTemplatesParse(){
+  for(const n of [...new Set([...Object.values(DEADLINE_BY_KIND), 27])]){
+    const tpl = TPL_BY_N[n];
+    if(!tpl) throw new Error(`DEADLINE_BY_KIND: шаблона №${n} нет в DEADLINE_TEMPLATES`);
+    if(termToCalendarDays(tpl.term) == null)
+      throw new Error(`DEADLINE_BY_KIND: срок шаблона №${n} «${tpl.term}» не разбирается termToCalendarDays — билдер молча не создаст этот срок`);
+  }
+})();
 
 /* Коллекционные поля дела, которые extra ДОПОЛНЯЕТ конкатенацией, а не затирает
    (ревью №1, п.6): было только у deadlines/history — дело с обеспечителями или
    вторым кредитом (extra.credits/extra.measures/…) тихо теряло бы выведенное. */
 const EXTRA_ARRAY_KEYS = ['credits','measures','committeeQuestions','hearings','colls','deadlines','history'];
+/* Мелкая копия каждого элемента (ревью №3, минор п.5): normalize()/normColl() мутируют
+   объекты мер/залогов НА МЕСТЕ (m._proc, m.targets, coll.realStage, coll.torgiFails,
+   coll.credit, credit.overdueDays/factors/coll — см. normalize() ниже по файлу). Без
+   копии это были бы ТЕ ЖЕ объекты, что лежат в SEED (c.hearings/c.colls и любой
+   extra-массив) — единственный вызов buildSeed(SEED) уже мутировал бы декларацию
+   кейса, а не только производный PROCESSES. */
+const copyArr = arr => (arr||[]).map(x => (x && typeof x==='object') ? {...x} : x);
 
 function buildSeed(seed){
   const procs = [];
@@ -2288,28 +2318,37 @@ function buildSeed(seed){
 
     /* Цепочка: stop называет ПОСЛЕДНЮЮ пройденную ступень SPINE (её ключ), либо null —
        дело ещё не подало первую претензию. Опечатка в stop раньше тихо давала пустую
-       цепочку вместо той, что имел в виду автор, — теперь это жёсткая ошибка (ревью №1, п.8). */
-    let steps;
-    if(c.stop == null){
-      steps = [];
-    } else {
-      const stopAt = SPINE_KEYS.indexOf(c.stop);
-      if(stopAt < 0)
+       цепочку вместо той, что имел в виду автор, — теперь это жёсткая ошибка (ревью №1, п.8).
+       stopIndex хранится отдельно (не только steps.length) — verdict-проверки ниже
+       сравнивают его с VERDICT_AT позиционно (дошла цепочка ДО 'решение' / идёт ПОСЛЕ). */
+    let stopIndex = -1;
+    if(c.stop != null){
+      stopIndex = SPINE_KEYS.indexOf(c.stop);
+      if(stopIndex < 0)
         throw new Error(`SEED: дело ${c.id} — stop='${c.stop}' не входит в SPINE_KEYS [${SPINE_KEYS.join(', ')}]`);
-      steps = SPINE.slice(0, stopAt+1);
     }
+    const steps = stopIndex < 0 ? [] : SPINE.slice(0, stopIndex+1);
     /* overdue — только для дел БЕЗ цепочки (K0): открытие считается прямо от него.
        С цепочкой открытие выводится из возраста последней вехи (age) — overdue стал
        бы вторым, противоречащим источником и раньше тихо игнорировался (ревью №1, п.8). */
     if(steps.length && c.overdue != null)
       throw new Error(`SEED: дело ${c.id} — stop='${c.stop}' задаёт цепочку; overdue дублирует то, что выводится из возраста последней вехи (age) — уберите overdue`);
     /* verdict — исход СВОЕЙ ступени 'решение' (K3-РЕШЕНИЕ, Task 6 и далее): по умолчанию
-       иск удовлетворён полностью (SPINE), кейс может назвать любой другой исход вида
-       «Решение суда» — из справочника, а не хардкодом (несовпадение ловит A3 аудита сам). */
+       FAVORABLE_VERDICT (SPINE), кейс может назвать любой другой исход вида «Решение
+       суда» — из справочника, а не хардкодом (несовпадение ловит A3 аудита сам). Ревью
+       №3, важно: раньше verdict принимался и проверялся по справочнику, а дальше либо
+       ИГНОРИРОВАЛСЯ (цепочка не доходит до 'решение' — второй источник правды, тот же
+       класс бага, что overdue+stop выше), либо ПРОТИВОРЕЧИЛ дальнейшим вехам (verdict
+       'в иске отказано' на цепочке, которая всё равно доходит до 'ил'/'постановление' —
+       исполнительный лист/постановление не бывают после проигранного/частичного иска). */
     if(c.verdict != null){
       const vals = (kindOf('Решение суда').outcomes||[]).map(o=>o.value).filter(Boolean);
       if(!vals.includes(c.verdict))
         throw new Error(`SEED: дело ${c.id} — verdict='${c.verdict}' не входит в исходы вида «Решение суда» [${vals.join(' | ')}]`);
+      if(stopIndex < VERDICT_AT)
+        throw new Error(`SEED: дело ${c.id} — verdict='${c.verdict}' задан, а цепочка (stop='${c.stop}') не доходит до «Решение суда» — верните verdict только вместе со stop:'решение' или дальше`);
+      if(c.verdict !== FAVORABLE_VERDICT && stopIndex > VERDICT_AT)
+        throw new Error(`SEED: дело ${c.id} — verdict='${c.verdict}' (не «${FAVORABLE_VERDICT}»), а цепочка продолжается дальше «Решение суда» (stop='${c.stop}') — Исполнительный лист/Постановление не бывают после проигранного/частичного иска`);
     }
 
     const dbt = c.credit.debt;
@@ -2320,16 +2359,16 @@ function buildSeed(seed){
        опустить, по умолчанию считается просроченным весь непогашенный остаток тела. */
     const principalPaid = dbt.paid || 0;
     const principalLeft = dbt.principal - principalPaid;
-    if(steps.length){
-      if(dbt.principalOverdue == null)
-        throw new Error(`SEED: дело ${c.id} — цепочка объявлена, а debt.principalOverdue не задан (нужен для различения охватов «просроченная сумма»/«полный остаток», ADR-0025)`);
-      /* Ревью №2, минор: обязательность без диапазона не мешала выставить
-         principalOverdue == principalLeft (та же деградация, что чинил п.2 ревью №1)
-         или больше principalLeft (охваты переворачиваются — судебная сумма меньше
-         претензионной). Строго между: часть тела ещё не просрочена, и она ненулевая. */
-      if(!(dbt.principalOverdue > 0 && dbt.principalOverdue < principalLeft))
-        throw new Error(`SEED: дело ${c.id} — debt.principalOverdue=${dbt.principalOverdue} должен быть строго между 0 и principal-paid=${principalLeft} (иначе охваты «просроченная сумма»/«полный остаток» совпадут или перевернутся, ADR-0025)`);
-    }
+    if(steps.length && dbt.principalOverdue == null)
+      throw new Error(`SEED: дело ${c.id} — цепочка объявлена, а debt.principalOverdue не задан (нужен для различения охватов «просроченная сумма»/«полный остаток», ADR-0025)`);
+    /* Диапазон — ВСЕГДА, когда поле объявлено, а не только у дел с цепочкой (ревью
+       №3, минор п.2): у K0 (steps=[]) поле необязательно, но объявленное значение всё
+       равно течёт прямо в LEDGER…principal.overdue — 999999 или -5 там тихо портили бы
+       снимок долга ещё до того, как у дела вообще появится цепочка. Строго между:
+       principalOverdue == principalLeft — та же деградация, что чинил п.2 ревью №1
+       (охваты совпадают); больше principalLeft — охваты переворачиваются. */
+    if(dbt.principalOverdue != null && !(dbt.principalOverdue > 0 && dbt.principalOverdue < principalLeft))
+      throw new Error(`SEED: дело ${c.id} — debt.principalOverdue=${dbt.principalOverdue} должен быть строго между 0 и principal-paid=${principalLeft} (иначе охваты «просроченная сумма»/«полный остаток» совпадут или перевернутся, ADR-0025)`);
     const principalOverdue = dbt.principalOverdue != null ? dbt.principalOverdue : principalLeft;
     LEDGER[c.credit.id] = { asOf:'25.07.2026',
       principal:{ accrued:dbt.principal, paid:principalPaid, overdue:principalOverdue },
@@ -2404,7 +2443,7 @@ function buildSeed(seed){
     const last = steps[steps.length-1];
     let dlN = last && DEADLINE_BY_KIND[last.kind];
     if(last && last.kind === 'Решение суда')
-      dlN = (verdictApplied === 'иск удовлетворён полностью') ? null : 27;
+      dlN = (verdictApplied === FAVORABLE_VERDICT) ? null : 27;   // FAVORABLE_VERDICT — см. п.4 ревью №3, не хардкод
     const tpl = dlN ? TPL_BY_N[dlN] : null;
     if(tpl){
       const days = termToCalendarDays(tpl.term);
@@ -2435,16 +2474,19 @@ function buildSeed(seed){
       credits:[{ id:c.credit.id, num:c.credit.num, overdueDays,
                  subdiv:c.credit.subdiv, bezakceptRight:c.credit.bezakcept }],
       measures, committeeQuestions,
-      hearings:c.hearings || [], colls:c.colls || [],
+      hearings:copyArr(c.hearings), colls:copyArr(c.colls),
       deadlines, history };
-    /* extra ДОПОЛНЯЕТ выведенное: коллекционные поля — конкатенацией (EXTRA_ARRAY_KEYS,
-       ревью №1, п.6), всё остальное (window/procedure/settlement/…) — присваиванием
-       МЕЛКОЙ КОПИИ, а не самого объекта из SEED (ревью №2, минор): ниже derived.window
-       мутируется (until), и без копии эта мутация писала бы обратно в декларацию
-       кейса — второй вызов buildSeed(SEED) увидел бы уже испорченный литерал. */
+    /* extra ДОПОЛНЯЕТ выведенное: коллекционные поля — конкатенацией МЕЛКИХ КОПИЙ
+       элементов (EXTRA_ARRAY_KEYS + copyArr, ревью №1 п.6 / ревью №3 минор п.5),
+       всё остальное (window/procedure/settlement/…) — присваиванием мелкой копии
+       объекта. И то и другое — ЧТОБЫ НЕ МУТИРОВАТЬ SEED: normalize()/normColl() ниже
+       по файлу пишут в объекты мер/залогов на месте (m._proc, m.targets, coll.credit,
+       coll.realStage, …), а derived.window.until пишется прямо здесь (п.10) — без
+       копии оба пути возвращали бы правки в декларацию кейса, и уже единственный
+       вызов buildSeed(SEED) корраптил бы SEED, не только производный PROCESSES. */
     const extra = c.extra || {};
     for(const k of Object.keys(extra)){
-      if(EXTRA_ARRAY_KEYS.includes(k)) derived[k] = [...(derived[k]||[]), ...(extra[k]||[])];
+      if(EXTRA_ARRAY_KEYS.includes(k)) derived[k] = [...(derived[k]||[]), ...copyArr(extra[k])];
       else derived[k] = (extra[k] && typeof extra[k]==='object' && !Array.isArray(extra[k])) ? {...extra[k]} : extra[k];
     }
     derived.history.sort((a, b) => dParse(b.when.slice(0,10)) - dParse(a.when.slice(0,10)));
