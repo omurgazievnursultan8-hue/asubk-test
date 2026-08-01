@@ -4763,6 +4763,7 @@ if (typeof document !== 'undefined') {
     detailTrancheNo = (c.tranches[0] && c.tranches[0].no) || 1;
     calcConsolidated = false;
     condScope = 'credit'; cardAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null;
+    planYear = pd(TODAY).getFullYear(); planOpenMonth = null;   // состояние вкладки «План и исполнение» — своё на каждую карточку
     document.getElementById('view-list').style.display = 'none';
     const dv = document.getElementById('view-detail');
     dv.style.display = 'flex';
@@ -5820,7 +5821,7 @@ if (typeof document !== 'undefined') {
       </div>`;
   }
 
-  /* ---- ВКЛАДКА 7: Проблемные ---- */
+  /* ---- ВКЛАДКА 8: Проблемные ---- */
   function tabProblemnye(c,d){
     /* КР-6 · вкладка БОЛЬШЕ НЕ СЧИТАЕТ категорию сама. Прежде она пересчитывала worst-of
        своими двумя строками и не применяла послабление: у K-C16 (220 дн.) и K-C19 (210 дн.)
@@ -5906,7 +5907,7 @@ if (typeof document !== 'undefined') {
       </div>`;
   }
 
-  /* ---- ВКЛАДКА 8: Досье ---- */
+  /* ---- ВКЛАДКА 9: Досье ---- */
   function docState(s){
     const map={'принят':'low','не требуется':'neutral','на проверке':'info','загружен':'info','требуется':'mid','отклонён':'high','просрочен':'high'};
     return `<span class="pill ${map[s]||'neutral'}">${esc(s||'—')}</span>`;
