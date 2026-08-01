@@ -4347,11 +4347,21 @@ const LIST_COLS = [
    (.pline) решают то же место без лишней колонки. */
 const LIST_WIDTHS = ['18.1%','14.5%','12.7%','19.7%','7.5%','10.4%','9.5%','7.6%'];
 
+/* Охват сортируется по СТРОГОСТИ, а не по алфавиту (как категория по CAT_RANK):
+   объём «полный остаток» строже «просроченной суммы», способ «обращением на предмет
+   залога» строже «деньгами». Алфавит перемешал бы эти пары без смысла. */
+const SCOPE_RANK = s => (s.volume === 'полный остаток' ? 2 : 0)
+                      + (s.method === 'деньгами' ? 0 : 1);
+
 function sortVal(r, k){
   const p = r._proc;
   switch(k){
     case 'obligor': return personOf(r).name;
     case 'credit': return r._credit.num;
+    /* Охват — свёртка журнала мер (scopeOf), собственного поля у требования нет:
+       через default он возвращал '' у всех 135 строк, и колонка сортировалась
+       вникуда, рисуя стрелку как настоящая (тот же класс дефекта, что ТР-Д1). */
+    case 'scope': return SCOPE_RANK(scopeOf(r));
     case 'phase': return displayPhase(r);
     case 'cat': return CAT_RANK[catOfReq(r)];                        // по тяжести риска, не алфавиту
     case 'claim': return claimOf(r);
