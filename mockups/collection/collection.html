@@ -2681,16 +2681,42 @@ function buildSeed(seed){
        (dbt.payments, чтобы не читать LEDGER до его полной сборки) — одно
        определение «сколько оплачено к этой дате», не два независимых. Без
        payments (79 из 91 дела) paidAtBuild игнорирует atDate и возвращает
-       константу principalPaid — байт-в-байт прежнее поведение fullSum/overdueSum. */
+       константу principalPaid — байт-в-байт прежнее поведение fullSum/overdueSum.
+
+       Fix round 3 (ruling координатора, Minor 2): atDate==null на кейсе С
+       payments теперь ИМЕНОВАННЫЙ throw, не молчаливый откат на principalPaid —
+       комментарий «atDate обязателен» был текстом, не кодом. Причина не
+       стилистическая: debtOf() БЕЗ asOf откатывается на L.asOf (снимок «сейчас»)
+       и считает ВСЕ платежи; прежний paidAtBuild(null) возвращал плоский
+       principalPaid (обычно 0 у payments-кейсов) — тот же вопрос «сколько
+       оплачено», два разных ответа в зависимости от того, кто спрашивает.
+       Без payments (79 дел) atDate вообще не участвует в ответе — throw там не
+       нужен и не сработает. */
     const paidAtBuild = atDate => {
-      if(!dbt.payments || atDate == null) return principalPaid;
+      if(!dbt.payments) return principalPaid;
+      if(atDate == null)
+        throw new Error(`SEED: дело ${c.id} — sumBy/paidAtBuild вызван без atDate на кейсе с debt.payments — дата обязательна (иначе неоднозначно: раньше paidAtBuild(null) давал плоский principalPaid, а debtOf() без asOf считает ВСЕ платежи через L.asOf — два разных ответа на один вопрос)`);
       const bound = dParse(atDate);
       return dbt.payments.filter(x => dParse(x.date) <= bound).reduce((s,x)=> s + x.amount, 0);
     };
     const fullSumAt = atDate => dbt.principal + (dbt.interest||0) + (dbt.penalty||0) - paidAtBuild(atDate);
+    /* Fix round 3 (ruling координатора, Minor 3): overdueSumAt игнорировала
+       ускорение (`accelerated`) — debtOf() уже различает `accelerated ? left :
+       Math.min(overdue,left)` (Task 7 round 1, п.71), a build-time зеркало
+       всегда брало Math.min. Инвариант держался ТОЛЬКО тем, что ускоряющая
+       мера (Признание банкротом / Извещение об обращении на залог) ВСЕГДА
+       переключает curScope на 'полный остаток' В ТОЙ ЖЕ ветке — sumBy(scope=
+       'полный остаток',…) идёт через fullSumAt, не через эту функцию, поэтому
+       расхождение сейчас нигде не наблюдаемо. Третий раз за волну (после costs
+       в Task 7 round 2 и payments чуть выше) один и тот же класс дыры держится
+       датами затравки, а не кодом — закрыт тем же приёмом: measures.some(...)
+       читает УЖЕ ЗАПУШЕННЫЕ в этом же кейсе меры (тот же массив, что basisFor
+       читает backward-поиском) — не вторая копия acceleratedAsOf(). */
     const overdueSumAt = atDate => {
       const left = dbt.principal - paidAtBuild(atDate);
-      return Math.min(principalOverdue, left) + (dbt.interest||0) + (dbt.penalty||0);
+      const bound = atDate != null ? dParse(atDate) : null;
+      const acceleratedAt = measures.some(m => m.accelerated && (bound == null || dParse(m.dates.event) <= bound));
+      return (acceleratedAt ? left : Math.min(principalOverdue, left)) + (dbt.interest||0) + (dbt.penalty||0);
     };
 
     /* Task 7 fix-round2 (ruling координатора п.1): «пятая статья» (М-4) — не только
@@ -3364,14 +3390,37 @@ function buildSeed(seed){
        не вызывается билдером (TDZ — тот же класс, что уже решён у tpl26/27 выше по
        файлу): тот же приём — срок НЕ кладётся в открытую очередь (что дало бы вечный
        «просрочен» на закрытом требовании, C7), а ОБЕ половины пары «срок → платёж»
-       фиксируются в history — срок СУЩЕСТВОВАЛ и был исполнен фактом оплаты, а не
-       тихо не создавался. closingPayment — ПОСЛЕДНИЙ элемент debt.payments (не
-       гейтится `c.repaid`: платёж закрывает обязательство заёмщика по факту своего
-       существования, не по терминальному статусу дела) — при частичном будущем
-       кейсе с payments, но без repaid, тот же код сработал бы тем же способом,
-       без второй копии логики. */
+       фиксируются в history — срок СУЩЕСТВОВАЛ и был исполнен (или истёк) фактом
+       оплаты, а не тихо не создавался.
+
+       Task 8 fix round 3 (ruling координатора, Important): round 2 писало
+       «снят с контроля: обязательство исполнено платежом» БЕЗ сравнения даты
+       платежа с due — дело 208 утверждало, что и первичная (due 01.06.2026), и
+       повторная (due 25.06.2026) «исполнены» платежом от 11.07.2026, хотя
+       повторная претензия СУЩЕСТВУЕТ ИМЕННО ПОТОМУ, что первичная истекла
+       неисполненной (тпл 7 берёт базой «истечение срока по строке 6») — дело
+       утверждало оба состояния разом. `zeroingPayment` (не «последний платёж
+       какой бы он ни был» — round-3 Minor 1) — ПЕРВЫЙ платёж в хронологическом
+       порядке, на котором НАКОПИТЕЛЬНАЯ сумма достигает полного непогашенного
+       остатка (`principalLeft`) — платёж, который ДЕЙСТВИТЕЛЬНО зануляет
+       баланс, не любой денежный факт. Сравнение `zeroingPayment.date` с `due`
+       решает, что писать: НЕ ПОЗЖЕ due → «исполнено платежом» (как раньше);
+       ПОЗЖЕ due → «истёк — обязательство не исполнено в срок» ИМЕННО на дату
+       due (не на дату платежа — платёж датой закрывает ДЕЛО, а не отменяет
+       задним числом факт просрочки), с явной припиской для тпл 6, что отсюда
+       и родилась повторная претензия — тот же принцип видимости, что просил
+       round 1 для ситуаций контура. Guard round-3 Minor 1 (вторая половина):
+       `zeroingPayment.date` не может быть РАНЬШЕ даты самой претензии
+       (`dates[i]`) — иначе «снят с контроля» напечатался бы раньше «взят на
+       контроль»; такой платёж НЕ считается закрывающим для ЭТОЙ ступени (срок
+       просто уходит в открытую очередь, как будто платежа для неё нет). */
     const reachedSudebny = steps.some(s => sectionOf(s.kind) === 'Судебный');
-    const debtorPayments = dbt.payments || [];
+    const zeroingPayment = (() => {
+      const sorted = (dbt.payments || []).slice().sort((a,b) => dParse(a.date) - dParse(b.date));
+      let running = 0;
+      for(const pmt of sorted){ running += pmt.amount; if(running >= principalLeft) return pmt; }
+      return null;
+    })();
     steps.forEach((s, i) => {
       const num = `${s.pre}-${c.credit.id}${s.suf||''}`;
       let dlN = DEADLINE_BY_KIND[s.kind];
@@ -3391,13 +3440,22 @@ function buildSeed(seed){
         const days = termToCalendarDays(tpl.term);
         if(days != null){
           const due = ruAdd(dates[i], days);
-          const closingPayment = (tpl.resp === 'заёмщик' && debtorPayments.length)
-            ? debtorPayments[debtorPayments.length-1] : null;
+          /* round-3 Minor 4: who — respFor(s.kind) (ответственный ЗА ЭТУ претензию),
+             не c.curator хардкодом — тот же вид меры, что и сама претензия несёт. */
+          const respSrok = respFor(s.kind);
+          const closingPayment = (tpl.resp === 'заёмщик' && zeroingPayment
+            && dParse(zeroingPayment.date) >= dParse(dates[i])) ? zeroingPayment : null;
           if(closingPayment){
             history.push({ when:`${dates[i]} 10:05`,
-              what:`Срок «${tpl.action}» (п. ${tpl.point}, ${tpl.base} (${dates[i]}), до ${due}) взят на контроль`, who:c.curator });
-            history.push({ when:`${closingPayment.date} 10:05`,
-              what:`Срок «${tpl.action}» (п. ${tpl.point}, до ${due}) снят с контроля: обязательство исполнено платежом ${fmtKGS(closingPayment.amount)} от ${closingPayment.date}`, who:c.curator });
+              what:`Срок «${tpl.action}» (п. ${tpl.point}, ${tpl.base} (${dates[i]}), до ${due}) взят на контроль`, who:respSrok });
+            if(dParse(closingPayment.date) <= dParse(due)){
+              history.push({ when:`${closingPayment.date} 10:05`,
+                what:`Срок «${tpl.action}» (п. ${tpl.point}, до ${due}) снят с контроля: обязательство исполнено платежом ${fmtKGS(closingPayment.amount)} от ${closingPayment.date}`, who:respSrok });
+            } else {
+              const consequence = tpl.n === 6 ? ' — отсюда повторная претензия (тпл 7/8)' : '';
+              history.push({ when:`${due} 10:05`,
+                what:`Срок «${tpl.action}» (п. ${tpl.point}, до ${due}) истёк — обязательство не исполнено в срок${consequence}; задолженность погашена позже, платежом ${fmtKGS(closingPayment.amount)} от ${closingPayment.date} (закрывает дело, а не сам срок)`, who:respSrok });
+            }
           } else {
             deadlines.push({ tpl:tpl.n, due, base:`${tpl.base} (${dates[i]})`, srcMeasure:num });
           }
