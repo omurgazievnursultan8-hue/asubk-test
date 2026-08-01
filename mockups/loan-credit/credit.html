@@ -598,7 +598,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-07-31 · 79/79 PASS
+ SMOKE (node) 2026-08-01 · 79/79 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -1707,6 +1707,12 @@ function mkCredit(over){                             // CREDIT (§3) — обя�
        событием (выдача, обслуживание, резерв за неполное освоение), а не графиком,
        поэтому это реестр начислений, а не производная: {kind, date, amount, basis}. */
     fees:[],
+    /* plan — ПЛАН по месяцам (ADR-0042): единственная вводимая величина среди
+       ориентиров. Строка: {month:'YYYY-MM', amount, setBy, setAt, seededFrom, history[]}.
+       seededFrom — прогноз на МОМЕНТ заведения: снимок, а не связь; без него не отличить
+       «приняли прогноз как есть» от «поставили свою цифру». amount:null — план снят.
+       history — [{at, by, prev, note}], append-only. */
+    plan:[],
     /* factors — факторы категории риска (ADR-0012): второй вход worst-of вместо
        несуществовавшей «группы риска A–D». Каждый обязан нести committeeRef —
        без решения комитета фактор не действует (инвариант И-1 модуля заёмщика).
@@ -2814,6 +2820,50 @@ function factorsActive(c, asOf){
    обнуляет начисление процентов за период; пеня при паузе не затрагивается. */
 const FREQ_MONTHS = { 'ежемесячно':1, 'ежеквартально':3, 'раз в полгода':6, 'ежегодно':12 };
 function freqMonths(f){ return FREQ_MONTHS[f] || 1; }
+
+/* ============================================================
+   ПЛАН КРЕДИТА (ADR-0042) — единственная ВВОДИМАЯ величина среди трёх ориентиров.
+   График — контракт транша. Прогноз — текущее ожидание, выводится. План — что сами
+   себе поставили целью на месяц: хранится, потому что относится к ПРОШЛОМУ решению,
+   а не к текущему состоянию долга. Если бы план пересчитывался вслед за прогнозом,
+   % исполнения плавал бы от досрочного погашения по чужому траншу того же кредита,
+   хотя ни план, ни факт в этом месяце не менялись. Неподвижность и есть его смысл.
+   Три сущности друг на друга НЕ ссылаются (ADR-0042 §4).
+   Месяц везде — строка 'YYYY-MM': сравнивается лексикографически, без Date.
+   ============================================================ */
+const MONTHS_RU = ['январь','февраль','март','апрель','май','июнь',
+                   'июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+
+function monthKey(dateStr){                       // '14.08.2026' -> '2026-08'
+  const d = pd(dateStr);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function monthLabel(mk){                          // '2026-08' -> 'август 2026'
+  const [y, m] = String(mk || '').split('-');
+  return (MONTHS_RU[(+m) - 1] || '—') + ' ' + y;
+}
+function monthAdd(mk, k){
+  const [y, m] = String(mk).split('-').map(Number);
+  const t = (y * 12 + (m - 1)) + (k | 0);
+  return Math.floor(t / 12) + '-' + String((t % 12) + 1).padStart(2, '0');
+}
+function monthRange(fromMk, toMk){
+  const out = [];
+  if (!/^\d{4}-\d{2}$/.test(String(fromMk)) || !/^\d{4}-\d{2}$/.test(String(toMk))) return out;
+  for (let mk = fromMk; mk <= toMk; mk = monthAdd(mk, 1)){ out.push(mk); if (out.length > 240) break; }
+  return out;
+}
+
+/* Строка плана месяца. amount === null — план СНЯТ (И-14: снятие не удаление,
+   строка остаётся видимой, прежнее значение уходит в history). */
+function planRowOf(credit, mk){
+  return ((credit && credit.plan) || []).find(p => p.month === mk) || null;
+}
+function planAmountOf(credit, mk){
+  const r = planRowOf(credit, mk);
+  return r && r.amount != null ? r.amount : null;
+}
+
 /* freq==='по конкретным месяцам' (Шаг 18, Q6): payMonths хранится и версионируется
    как условие, но график по нему НЕ строится — движок падает на freqMonths()||1
    (помесячно). Это не пропуск: сама программа (renderTab6, R19) при этом режиме
@@ -4113,6 +4163,7 @@ window.CR = {
   saveDoc, addNote, addTargetUse,
   zeroOutForTest,
   nextPaymentOf, regStatusOf, scheduleRowStatus, trancheScheduleRows, ledgerKey,
+  monthKey, monthLabel, monthAdd, monthRange, planRowOf, planAmountOf,
   buildLedger, debtOf, overdueOf, coverageOf, atRiskAmountOf, riskBasisOf,
   paidPool, paymentCounts, paymentCurrency, paymentAllocated,
   disputeWindows, courtLayersOf, accrualModeOf,
