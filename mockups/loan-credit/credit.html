@@ -1669,6 +1669,40 @@ function retroPendingFlags(credit){
     return crSeqOf(f.record) > (act.generatedSeq || 0);
   });
 }
+let _subjItemSeq = 0;
+/* SUBJECT ITEM — строка предмета кредита {id,kind,name,qty,cost}. kind — свободный
+   текст (КР-55): в отличие от предмета залога вид предмета кредита не читает ни один
+   расчёт (coverage/индекс), справочник с дисконтом тут не нужен. */
+function mkSubjectItem(over){
+  return Object.assign({ id:'SI-' + (++_subjItemSeq), kind:'', name:'', qty:1, cost:0 }, over || {});
+}
+let _subjSeq = 0;
+/* SUBJECT RECORD (КР-55, Р-21-паттерн) — предмет кредита append-only ПОСЛЕ регистрации.
+   До регистрации предмет — обычный мутируемый массив credit.subject[] (editSubject,
+   Г-9-режим «Проект», без записей). После — только через записи: action 'add' кладёт
+   item под itemId, 'remove' снимает; старые записи не перезаписываются и не удаляются
+   (Г-21), действующий состав — производная (subjectAt). Основание — доп. соглашение,
+   в отличие от «Условий» без ветки «решение суда/постановление правительства»: смена
+   предмета кредита такими основаниями по канону не оформляется. */
+function mkSubjectRecord(over){
+  return Object.assign({
+    id:'SR-' + (++_subjSeq), action:'add', itemId:'', item:null,
+    effectiveFrom:'', basis:{ kind:'agreement', ref:'', label:'', date:'' },
+    note:'', createdAt:TODAY, createdBy:currentRole
+  }, over || {});
+}
+/* subjectAt(credit, date) — действующий предмет кредита на дату (КВ-10-паттерн среза):
+   база credit.subject + записи с effectiveFrom ≤ date в crOrder (та же сортировка,
+   что и conditionsAt — она не завязана на «условия», годится и здесь). */
+function subjectAt(credit, date){
+  const lim = pd(date || TODAY);
+  const out = new Map((credit.subject || []).map(it => [it.id, it]));
+  (credit.subjectRecords || [])
+    .filter(r => r.effectiveFrom && pd(r.effectiveFrom) <= lim)
+    .sort(crOrder)
+    .forEach(r => { if (r.action === 'remove') out.delete(r.itemId); else out.set(r.itemId, r.item); });
+  return [...out.values()];
+}
 /* ОСИ ПЛАТЕЖА — словари МОДУЛЯ-ВЛАДЕЛЬЦА (спека платежей, швы №1/№2). Три оси
    независимы и в один `status` не схлопываются: платёж по шлюзу «Ожидает ЦК» уже
    двигает долг, а платёж «Сторно» виден, но денег не несёт. Прежняя редакция знала
@@ -1729,7 +1763,7 @@ function mkCredit(over){                             // CREDIT (§3) — обя�
     borrower:{ inn:'', name:'', type:'ЮЛ', region:'', district:'' },   // адрес — зеркало карточки заёмщика, нужен фильтру Область→Район
     approvedAmount:0, contractAmount:0, currency:'KGS',
     kind:'', line:'', purpose:'', fundingSource:'',
-    subject:[], accounts:{ repayAcct:'', repayAcctKind:'', payCode:'' },
+    subject:[], subjectRecords:[], accounts:{ repayAcct:'', repayAcctKind:'', payCode:'' },
     /* kmDecision — решение Кабинета Министров: {kind,num,date,scan,coverPct}.
        coverPct — ПОРОГ обеспеченности, установленный решением (Прил.1 §2.6): решение
        освобождает не от обеспечения вообще, а от общего порога (ADR-0011). Поле читает
@@ -1869,7 +1903,7 @@ function seedDb(){
     borrower:{ inn:'01912201610212', name:'ОсОО «Бек Кабель»', type:'ЮЛ', region:'Чуйская', district:'Сокулукский' },
     approvedAmount:150000, contractAmount:150000, currency:'KGS',
     kind:'Инвестиционный', line:'Единовременный', purpose:'Приобретение оборудования', fundingSource:'Бюджетный кредит',
-    subject:[{ kind:'Оборудование', name:'Линия по производству кабеля', qty:1, cost:150000 }],
+    subject:[{ id:'SI-seed-1', kind:'Оборудование', name:'Линия по производству кабеля', qty:1, cost:150000 }],
     accounts:{ repayAcct:'1280000000000056', repayAcctKind:'Расчётный', payCode:'PC-56' },
     lifecycle:'Действует',
     baseConditions: condDefaults({ rate:10, term:24, method:'аннуитет' }),
@@ -1958,7 +1992,7 @@ function seedDb(){
     borrower:{ inn:'02107199800345', name:'ОсОО «Нарын-Агро»', type:'ЮЛ', region:'Нарынская', district:'Ак-Талинский' },
     approvedAmount:400000, contractAmount:400000, currency:'KGS',
     kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
-    subject:[{ kind:'Товар', name:'Семенной материал', qty:1, cost:400000 }],
+    subject:[{ id:'SI-seed-2', kind:'Товар', name:'Семенной материал', qty:1, cost:400000 }],
     accounts:{ repayAcct:'1280000000000057', repayAcctKind:'Расчётный', payCode:'PC-57' },
     lifecycle:'Действует',
     baseConditions: condDefaults({ rate:8, term:24, reserveRate:2 }),
@@ -3902,6 +3936,39 @@ function gate(credit, action, ctx = {}){
       if (credit.lifecycle!=='Проект')
         r.push('Изменение условий — только зарегистрированным основанием: доп. соглашение · решение суда · постановление правительства'); // Г-9
       break;
+    case 'editSubject':                                                 // КР-55: свободно только в ЖЦ «Проект» (Г-9-паттерн)
+      if (credit.lifecycle!=='Проект')
+        r.push('Предмет кредита правится напрямую только в ЖЦ «Проект»; после регистрации — только доп. соглашением');
+      if (ctx.mode==='add'){
+        if (!ctx.item || !String(ctx.item.kind||'').trim()) r.push('Вид предмета обязателен');
+        if (!ctx.item || !String(ctx.item.name||'').trim()) r.push('Наименование предмета обязательно');
+        if (!ctx.item || !(ctx.item.qty>0)) r.push('Количество должно быть больше нуля');
+        if (!ctx.item || !(ctx.item.cost>0)) r.push('Стоимость должна быть больше нуля');
+      } else if (ctx.mode==='remove'){
+        if (!ctx.itemId) r.push('Не указан предмет для удаления');
+      } else r.push('Неизвестный режим правки предмета: ' + ctx.mode);
+      break;
+    case 'addSubjectRecords': {                                         // КР-55: после регистрации — доп. соглашением (Р-21-паттерн)
+      if (!['Зарегистрирован','Действует'].includes(credit.lifecycle))
+        r.push('Предмет кредита после регистрации меняется только доп. соглашением; в «Проекте» — правится напрямую');
+      const bs = ctx.basis || {};
+      if (!bs.num || !bs.date) r.push('Доп. соглашение требует номер и дату (Г-10)');
+      if (!ctx.effectiveFrom) r.push('Дата вступления в силу обязательна');
+      else if (credit.date && pd(ctx.effectiveFrom) < pd(credit.date))
+        r.push('Дата вступления не может быть раньше даты договора ' + credit.date);
+      if (!ctx.records || !ctx.records.length) r.push('Не выбрано ни одного изменения предмета кредита');
+      for (const rec of (ctx.records || [])){
+        if (rec.mode==='add'){
+          if (!rec.item || !String(rec.item.kind||'').trim()) r.push('Вид предмета обязателен');
+          if (!rec.item || !String(rec.item.name||'').trim()) r.push('Наименование предмета обязательно');
+          if (!rec.item || !(rec.item.qty>0)) r.push('Количество должно быть больше нуля');
+          if (!rec.item || !(rec.item.cost>0)) r.push('Стоимость должна быть больше нуля');
+        } else if (rec.mode==='remove'){
+          if (!rec.itemId) r.push('Не указан предмет для удаления');
+        } else r.push('Неизвестный режим изменения предмета: ' + rec.mode);
+      }
+      break;
+    }
     case 'savePayment':                                                                    // Г-11
       if (!(ctx.amount>0)) r.push('Сумма платежа должна быть > 0');
       if (ctx.dateAfterToday) r.push('Дата платежа не может быть в будущем');
@@ -3978,10 +4045,10 @@ function gate(credit, action, ctx = {}){
 
 /* ---- 4.1 canRole(role, action) — матрица прав по ролям (§7). ---- */
 const ROLE_ACTIONS = {
-  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','addAgreement','addConditionRecords','editConditions','editDocs','addNote']),
+  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editDocs','addNote']),
   'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge','addNote','setPlan']),
   'Бухгалтер': new Set(['savePayment','addNote']),
-  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','addAgreement','addConditionRecords','editConditions','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan']),
+  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan']),
   'Наблюдатель': new Set(),
 };
 function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(action); }
@@ -4363,6 +4430,50 @@ function addConditionRecords(credit, ctx){
   return { ok:true, value:{ added } };
 }
 
+/* editSubject(credit, ctx) — КР-55: правка предмета кредита НАПРЯМУЮ, только пока
+   ЖЦ «Проект» (Г-9-режим, как editConditions). После регистрации эта дверь закрыта
+   гейтом — единственный путь дальше addSubjectRecords. */
+function editSubject(credit, ctx){
+  const g = gate(credit, 'editSubject', ctx);
+  if (!g.ok) return g;
+  if (ctx.mode==='add'){
+    const item = mkSubjectItem(ctx.item);
+    credit.subject.push(item);
+    pushAudit(credit, 'editSubject: add', null, item);
+    return { ok:true, value:item };
+  }
+  const before = credit.subject.slice();
+  credit.subject = credit.subject.filter(it => it.id !== ctx.itemId);
+  pushAudit(credit, 'editSubject: remove', before, credit.subject.slice());
+  return { ok:true, value:{ removed: ctx.itemId } };
+}
+
+/* addSubjectRecords(credit, ctx) — КР-55: единственный способ изменить предмет
+   кредита после регистрации. Одно действие = одно доп. соглашение = N записей
+   (add/remove по позициям). Записи не удаляются и не «архивируются» (Г-21-паттерн);
+   действующий состав — производная subjectAt. ДС при первом упоминании попадает
+   в реестр документов credit.agreements (как в addConditionRecords). */
+function addSubjectRecords(credit, ctx){
+  const g = gate(credit, 'addSubjectRecords', ctx);
+  if (!g.ok) return g;
+  const bs = ctx.basis;
+  const basis = { kind:'agreement', ref:bs.num, date:bs.date, label:'Доп. соглашение ' + bs.num };
+  if (!credit.agreements.some(a => a.num === bs.num))
+    credit.agreements.push({ num:bs.num, date:bs.date, source:'кредит', scan:bs.scan || '' });
+  let added = 0;
+  for (const rec of ctx.records){
+    const row = rec.mode==='add'
+      ? (()=>{ const item = mkSubjectItem(rec.item); return mkSubjectRecord({ action:'add',
+          itemId:item.id, item, effectiveFrom:ctx.effectiveFrom, basis, note:ctx.note || '' }); })()
+      : mkSubjectRecord({ action:'remove', itemId:rec.itemId, item:null,
+          effectiveFrom:ctx.effectiveFrom, basis, note:ctx.note || '' });
+    credit.subjectRecords.push(row);
+    pushAudit(credit, 'subjectRecord: ' + row.action, null, row);
+    added++;
+  }
+  return { ok:true, value:{ added } };
+}
+
 /* closeCredit(credit, {reason,doc}) — терминалы Р-20: обязательные реквизиты, без физ.
    удаления. ТРИ основания, как объявляет канон §3: «Погашен» (Г-14=repay) · «Списан»
    (Г-12=writeOff) · «Расторгнут» (terminate). Третьего в файле не было вовсе — ни в
@@ -4429,6 +4540,7 @@ window.CR = {
   generateSchedule, holdAccrual,
   saveContractAmount, editContractRequisites, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, addConditionRecords, closeCredit, linkPledge,
+  editSubject, addSubjectRecords, subjectAt, mkSubjectItem,
   registerCredit, activateCredit, closeDisbursement, closeTranche, transferDebt,
   saveDoc, addNote, addTargetUse, setPlan,
   zeroOutForTest,
@@ -5247,7 +5359,13 @@ if (typeof document !== 'undefined') {
   function tabDogovor(c,d){
     const o=c.origin;
     const link=(id,msg)=>id?`<a class="rowlink" onclick="CR.toast('${jsAttr(msg)}')">${esc(id)}</a>`:null;
-    const subjRows=(c.subject||[]).map(s=>`<tr><td>${esc(s.kind)}</td><td>${esc(s.name)}</td><td style="text-align:right">${esc(s.qty)}</td><td style="text-align:right">${money(s.cost)}</td></tr>`);
+    /* КР-55: subjectAt(c, cardAsOf) — база + записи ДС на срез (не сырой c.subject —
+       тот же приём среза, что и у «Условий», КВ-10). Правка напрямую только в «Проект»
+       (editSubject); после регистрации — только доп. соглашением (addSubjectRecords). */
+    const subjEditableDirect = c.lifecycle === 'Проект';
+    const subjRows=subjectAt(c,cardAsOf).map(s=>`<tr><td>${esc(s.kind)}</td><td>${esc(s.name)}</td><td style="text-align:right">${esc(s.qty)}</td><td style="text-align:right">${money(s.cost)}</td>`
+      + (subjEditableDirect?`<td style="text-align:right">${roleIconBtn('editSubject','Убрать предмет',`CR.removeSubjectItem('${jsAttr(s.id)}')`,'✕')}</td>`:'')
+      + `</tr>`);
     const km=c.kmDecision;
     const dt=c.debtTransfer;                                    // Шаг 17: перевод долга вернулся сюда, см. ниже
     /* Шаг 11: бейдж статуса регистрации рядом с № — производный (regStatusOf), поля в
@@ -5303,7 +5421,10 @@ if (typeof document !== 'undefined') {
 
         <div class="pcard wide">
           <div class="section-h">Предмет кредита</div>
-          ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Кол-во',r:1},{h:'Стоимость',r:1}], subjRows, {empty:'Предмет не задан'})}
+          ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Кол-во',r:1},{h:'Стоимость',r:1}].concat(subjEditableDirect?[{h:''}]:[]), subjRows, {empty:'Предмет не задан'})}
+          <div class="gtoolbar">${subjEditableDirect
+            ? roleBtn('editSubject','Добавить предмет','CR.openSubjectAddModal()')
+            : roleBtn('addSubjectRecords','Изменить предмет кредита (доп. соглашением)','CR.openSubjectAgrModal()')}</div>
         </div>
 
         <div class="pcard wide">
@@ -6523,6 +6644,65 @@ if (typeof document !== 'undefined') {
     const g=gate(c,'saveContractAmount',{value}); if(!g.ok){ CR.modalErr(g.reasons); return; }   // ре-валидация Г-1 перед мутацией
     const r=CR.saveContractAmount(c,value); if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Сумма договора обновлена: '+money(value),'ok'); rerenderDetail(); };
+
+  /* 10в) предмет кредита (editSubject/addSubjectRecords, КР-55) — до регистрации
+     свободный add/remove; после регистрации — только доп. соглашением, append-only
+     записи (Р-21-паттерн, как «Условия»). */
+  CR.removeSubjectItem=function(itemId){ const c=modalGuard('editSubject'); if(!c) return;
+    const r=CR.editSubject(c,{mode:'remove',itemId}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    toast('Предмет убран из состава','ok'); rerenderDetail(); };
+  CR.openSubjectAddModal=function(){ const c=modalGuard('editSubject'); if(!c) return;
+    const body=`<div class="mform">
+        <div class="field req"><span class="flabel">Вид</span><div class="control"><input id="siKind" placeholder="Оборудование"></div></div>
+        <div class="field req col-span"><span class="flabel">Наименование</span><div class="control"><input id="siName"></div></div>
+        <div class="field req"><span class="flabel">Количество</span><div class="control"><input id="siQty" type="number" min="0" step="1" value="1"></div></div>
+        <div class="field req"><span class="flabel">Стоимость</span><div class="control"><input id="siCost" type="number" min="0" value="0"></div></div>
+      </div>`;
+    CR.openModal('Добавить предмет кредита', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitSubjectAdd()">Добавить</button>`);
+  };
+  CR.submitSubjectAdd=function(){ const c=modalGuard('editSubject'); if(!c) return;
+    const item={ kind:document.getElementById('siKind').value, name:document.getElementById('siName').value,
+      qty:+document.getElementById('siQty').value||0, cost:+document.getElementById('siCost').value||0 };
+    const r=CR.editSubject(c,{mode:'add',item}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Предмет кредита добавлен','ok'); rerenderDetail(); };
+  /* Доп. соглашением: чекбоксы «убрать» по текущему составу + одна необязательная
+     новая позиция за раз (нужно больше — ещё одним ДС, тот же приём, что addAgreement). */
+  CR.openSubjectAgrModal=function(){ const c=modalGuard('addSubjectRecords'); if(!c) return;
+    const items=CR.subjectAt(c,CR.TODAY);
+    const body=`<p class="section-note">Предмет кредита после регистрации меняется только доп. соглашением (Г-9-паттерн).</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Номер ДС</span><div class="control"><input id="saNum" placeholder="ДС-..."></div></div>
+        <div class="field req"><span class="flabel">Дата ДС</span><div class="control"><input id="saDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
+        <div class="field col-span"><span class="flabel">Скан</span><div class="control"><input id="saScan" placeholder="файл.pdf"></div></div>
+        <div class="field req"><span class="flabel">Вступает в силу</span><div class="control"><input id="saEff" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
+        <div class="field col-span"><span class="flabel">Примечание</span><div class="control"><input id="saNote" placeholder="что меняет ДС"></div></div>
+        <div class="field col-span"><span class="flabel">Убрать из состава</span><div class="control">
+          ${items.length ? items.map(it=>`<label style="display:block;margin:2px 0"><input type="checkbox" class="saRm" value="${jsAttr(it.id)}"> ${esc(it.kind)} · ${esc(it.name)} (${esc(it.qty)} × ${money(it.cost)})</label>`).join('')
+            : '<span style="color:var(--text-placeholder)">Состав пуст</span>'}
+        </div></div>
+      </div>
+      <div class="section-h" style="margin-top:14px;font-size:15px">Добавить новую позицию (необязательно)</div>
+      <div class="mform">
+        <div class="field"><span class="flabel">Вид</span><div class="control"><input id="saKind" placeholder="Оборудование"></div></div>
+        <div class="field col-span"><span class="flabel">Наименование</span><div class="control"><input id="saName"></div></div>
+        <div class="field"><span class="flabel">Количество</span><div class="control"><input id="saQty" type="number" min="0" step="1"></div></div>
+        <div class="field"><span class="flabel">Стоимость</span><div class="control"><input id="saCost" type="number" min="0"></div></div>
+      </div>`;
+    CR.openModal('Изменить предмет кредита — доп. соглашение', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitSubjectAgr()">Оформить</button>`);
+  };
+  CR.submitSubjectAgr=function(){ const c=modalGuard('addSubjectRecords'); if(!c) return;
+    const num=document.getElementById('saNum').value, date=toDMY(document.getElementById('saDate').value);
+    const scan=document.getElementById('saScan').value;
+    const effectiveFrom=toDMY(document.getElementById('saEff').value), note=document.getElementById('saNote').value;
+    const records=[...document.querySelectorAll('.saRm:checked')].map(x=>({ mode:'remove', itemId:x.value }));
+    const kind=document.getElementById('saKind').value, name=document.getElementById('saName').value;
+    const qty=+document.getElementById('saQty').value||0, cost=+document.getElementById('saCost').value||0;
+    if (kind || name || qty || cost) records.push({ mode:'add', item:{kind,name,qty,cost} });
+    const r=CR.addSubjectRecords(c,{basis:{num,date,scan},effectiveFrom,note,records});
+    if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Записей по предмету кредита добавлено: '+r.value.added,'ok'); rerenderDetail(); };
 
   /* 10б) реквизиты договора (editContractRequisites) — № и дата договора, роль «Начальник отдела» */
   CR.openContractRequisitesModal=function(){ const c=modalGuard('editContractRequisites'); if(!c) return;
