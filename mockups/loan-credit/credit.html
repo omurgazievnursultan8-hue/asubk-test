@@ -618,7 +618,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-01 · 79/79 PASS
+ SMOKE (node) 2026-08-01 · 93/93 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -698,6 +698,20 @@
    #53 ✓
    #54 ✓
    #55 ✓
+   #80 ✓
+   #81 ✓
+   #82 ✓
+   #83 ✓
+   #84 ✓
+   #85 ✓
+   #86 ✓
+   #87 ✓
+   #88 ✓
+   #88b ✓
+   #89 ✓
+   #90 ✓
+   #91 ✓
+   #92 ✓
 -->
 <style>
 
@@ -3919,7 +3933,7 @@ function gate(credit, action, ctx = {}){
       if (!prows.length) r.push('Не выбрано ни одного месяца — ставить нечего');
       const cm = credit.date ? monthKey(credit.date) : null;
       for (const row of prows){
-        if (!/^\d{4}-\d{2}$/.test(String(row && row.month))){ r.push('Месяц задан неверно: «' + (row && row.month) + '»'); continue; }
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(row && row.month))){ r.push('Месяц задан неверно: «' + (row && row.month) + '»'); continue; }
         if (cm && row.month < cm)
           r.push('Месяц ' + monthLabel(row.month) + ' раньше месяца договора (' + monthLabel(cm) + ')');
         if (row.amount != null && !(row.amount > 0))

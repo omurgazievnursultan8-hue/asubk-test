@@ -945,7 +945,8 @@ const pd = CR.pd;
   const MODALS = ['openTrancheModal','openDisbModal','openSchedModal','openCondModal','openPaymentModal',
     'openKmModal','openWaiverModal','openWriteOffModal','openRepayModal','openPledgePicker',
     'openContractAmountModal','openHoldModal','openRegisterModal','openActivateModal','openCloseDisbModal',
-    'openCloseTrancheModal','openTransferModal','openNoteModal','openTargetUseModal','openTerminateModal'];
+    'openCloseTrancheModal','openTransferModal','openNoteModal','openTargetUseModal','openTerminateModal',
+    'openPlanModal'];
   const missing = MODALS.filter(f => typeof CR2[f] !== 'function');
   const errs = [];
   CR2.state = CR2.state || {};
@@ -965,6 +966,192 @@ const pd = CR.pd;
   const known = new Set(Object.values(CR2.ROLE_ACTIONS || {}).flatMap(s => [...s]));
   const orphans = [...new Set(asked)].filter(a => !known.has(a));
   ok(55, orphans.length === 0, `действий у кнопок=${new Set(asked).size} без роли=${orphans.join(',')||'—'}`);
+})();
+
+/* ---- ПЛАН · ПРОГНОЗ · ИСПОЛНЕНИЕ (ADR-0042) ---- */
+
+/* 80. И-18: план не двигает НИ ОДНУ производную долга. Ключевая проверка изоляции —
+   без неё план рано или поздно просочится в категорию риска. */
+(() => { const a = CR.seedDb(), b = CR.seedDb();
+  const c1 = byId(a,'K-1'), c2 = byId(b,'K-1');
+  c2.plan = [];                                                     // тот же кредит, но без плана
+  const d1 = CR.derive(c1), d2 = CR.derive(c2);
+  const same = d1.debtBalance === d2.debtBalance && d1.riskCategory === d2.riskCategory
+    && d1.overdueDays === d2.overdueDays && d1.coverage.index === d2.coverage.index
+    && d1.overdueAmount === d2.overdueAmount;
+  ok(80, same, `долг ${d1.debtBalance}/${d2.debtBalance} кат ${d1.riskCategory}/${d2.riskCategory}`);
+})();
+
+/* 81. Месяц без плана выпадает ЦЕЛИКОМ: из своей строки, из квартала, из года.
+   Сид правился ПОСЛЕ брифа задачи (Г-30 не пускал план раньше месяца договора K-1) —
+   «месяца без плана» у K-1 теперь 2026-09 (строки в c.plan нет вовсе), а не июнь
+   (июнь — обычная строка с правкой в history, план стоит). 2026-08 — другой случай:
+   план СНЯТ (строка есть, amount:null). Оба выпадают из расчёта (dropped=true), но
+   различаются флагом removed — он true только там, где строка была и осталась. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const pe = CR.planExecOf(c, '23.07.2026', null, 2026);
+  const sep = pe.rows.find(r => r.month === '2026-09');   // строки в c.plan нет вовсе
+  const aug = pe.rows.find(r => r.month === '2026-08');   // строка есть, план снят
+  const q3  = pe.quarters.find(q => q.q === 3);
+  const sumQ3Plans = ['2026-07','2026-08','2026-09']
+    .map(mk => CR.planAmountOf(c, mk) || 0).reduce((a,x) => a + x, 0);
+  ok(81, sep.dropped === true && sep.plan === null && sep.removed === false
+      && aug.removed === true && aug.dropped === true
+      && q3.plan === sumQ3Plans && pe.total.monthsWithPlan === 5,
+     `сен(нет строки)=${sep.dropped} авг(снят)=${aug.removed} Q3=${q3.plan} vs ${sumQ3Plans} мес=${pe.total.monthsWithPlan}`);
+})();
+
+/* Внести ЗАСЧИТЫВАЕМЫЙ платёж. CR.addPayment для этого не годится: он заводит платёж
+   ручного ввода со статусом «Ожидает ЦК» и пустым layers — такой по двум осям (Р-27)
+   остаток не двигает, то есть ни прогноза, ни факта исполнения не меняет. */
+const seedPay = (c, date, principal) => { c.mirror.payments.push({
+  num:(c.mirror.payments.length || 0) + 1, date, bindDate:date, amount:principal,
+  currency:c.currency || 'KGS', rate:null, tranche:c.tranches[0].no,
+  reg:'Импорт ЦК', match:'Подтверждён ЦК', frozen:false, dispute:null,
+  method:'денежными средствами',
+  layers:{ principal, interest:0, penalty:0, fees:0 } }); };
+
+/* 82. КЛЮЧЕВАЯ ПРОВЕРКА ADR-0042: сохранённый план НЕ движется, когда движется прогноз.
+   Месяц взят с РЕАЛЬНЫМ планом (2026-10, 28000) и реально будущий относительно среза —
+   иначе сравнение null===null (у 2026-09, где плана нет) ничего бы не доказывало.
+   Платёж от 20.07 меняет остаток ОД транша 1, а с ним — перестройку будущих позиций. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const mk = '2026-10';
+  const planBefore = CR.planAmountOf(c, mk);
+  const fcBefore = CR.forecastByMonth(c, CR.derive(c).ledger.index, '23.07.2026').get(mk);
+  seedPay(c, '20.07.2026', 40000);
+  const fcAfter = CR.forecastByMonth(c, CR.derive(c).ledger.index, '23.07.2026').get(mk);
+  const planAfter = CR.planAmountOf(c, mk);
+  ok(82, planBefore === planAfter && fcBefore !== fcAfter,
+     `план ${planBefore}→${planAfter} прогноз ${fcBefore}→${fcAfter}`);
+})();
+
+/* 83. Прогноз ≠ график там, где есть досрочное/частичное погашение: полная перестройка
+   от фактического остатка ОД, а не копия графика с другим заголовком. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  seedPay(c, '20.07.2026', 50000);
+  const t = c.tranches[0];
+  const fr = CR.trancheForecastRows(t, CR.derive(c).ledger.index, '23.07.2026');
+  const fut = fr.filter(r => !r.past);
+  const moved = fut.some(r => Math.abs(r.delta) > 0.005);
+  ok(83, fut.length > 0 && moved, `будущих=${fut.length} расхождений=${fut.filter(r=>Math.abs(r.delta)>0.005).length}`);
+})();
+
+/* 84. Прогноз будущих позиций складывается из остатка ОД, будущих процентов и
+   непокрытого хвоста прошлого — и ничего больше не выдумывает. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const d = CR.derive(c); const t = c.tranches[0];
+  const fr = CR.trancheForecastRows(t, d.ledger.index, '23.07.2026');
+  const fut = fr.filter(r => !r.past);
+  const past = fr.filter(r => r.past);
+  const sumFut  = fut.reduce((a,r) => a + r.forecast, 0);
+  const tail    = past.reduce((a,r) => a + r.forecast, 0);
+  const led = [...d.ledger.index.values()].filter(e => e.trancheNo === t.no);
+  const paidP = led.reduce((a,e) => a + e.principalPaid, 0);
+  const balP  = Math.max(0, (t.disbursements||[]).reduce((a,x)=>a+(x.amount||0),0) - paidP);
+  ok(84, fut.length === 0 || sumFut >= balP + tail - 0.05,
+     `Σбудущего=${sumFut.toFixed(2)} остатокОД=${balP.toFixed(2)} хвост=${tail.toFixed(2)}`);
+})();
+
+/* 85. Г-30: план не ставится на кредит в «Проекте» и на закрытый; отказ называет причину. */
+(() => { const db = CR.seedDb();
+  const proj = db.credits.find(c => c.lifecycle === 'Проект');
+  const closed = db.credits.find(c => c.lifecycle === 'Закрыт' || c.closure);
+  const g1 = proj ? CR.gate(proj, 'setPlan', { rows:[{ month:'2026-09', amount:1000 }] }) : { ok:false, reasons:['нет кредита в «Проекте»'] };
+  const g2 = closed ? CR.gate(closed, 'setPlan', { rows:[{ month:'2026-09', amount:1000 }] }) : { ok:false, reasons:['нет закрытого кредита'] };
+  const named = g1.reasons.some(r => /ЖЦ/.test(r));
+  ok(85, g1.ok === false && g2.ok === false && named, `проект=${g1.ok} закрытый=${g2.ok} причина="${g1.reasons[0]||''}"`);
+})();
+
+/* 86. Г-30: ноль и месяц раньше договора отбиваются, снятие (amount:null) проходит. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const zero = CR.gate(c, 'setPlan', { rows:[{ month:'2026-09', amount:0 }] });
+  const early = CR.gate(c, 'setPlan', { rows:[{ month:'2000-01', amount:1000 }] });
+  const drop  = CR.gate(c, 'setPlan', { rows:[{ month:'2026-09', amount:null }] });
+  ok(86, zero.ok === false && early.ok === false && drop.ok === true,
+     `ноль=${zero.ok} рано=${early.ok} снятие=${drop.ok}`);
+})();
+
+/* 87. Правка кладёт прежнее значение в history, а seededFrom НЕ двигается: он — снимок
+   прогноза на момент заведения, а не текущее его значение (ADR-0042 §2). Месяц с
+   СУЩЕСТВУЮЩЕЙ строкой — 2026-10 (план несут 05/06/07/10/11; 08 снят, 09 без строки). */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const mk = '2026-10';
+  const before = CR.planRowOf(c, mk);
+  const seed0 = before.seededFrom, amt0 = before.amount, hist0 = before.history.length;
+  const r = CR.setPlan(c, { rows:[{ month:mk, amount:99000, seededFrom:12345 }], note:'тест' });
+  const after = CR.planRowOf(c, mk);
+  const h = after.history[after.history.length - 1];
+  ok(87, r.ok && after.amount === 99000 && after.seededFrom === seed0
+      && after.history.length === hist0 + 1 && h.prev === amt0,
+     `сумма=${after.amount} seed=${after.seededFrom}/${seed0} правок=${after.history.length} prev=${h && h.prev}`);
+})();
+
+/* 88. Снятие плана — не удаление (И-14): строка остаётся, прежнее значение в history,
+   месяц выпадает из расчёта исполнения. Тот же 2026-10, что и в #87 — у него есть
+   строка, которую есть что снимать. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const mk = '2026-10'; const n0 = c.plan.length;
+  CR.setPlan(c, { rows:[{ month:mk, amount:null }], note:'снят' });
+  const row = CR.planRowOf(c, mk);
+  const pe = CR.planExecOf(c, '23.07.2026', null, 2026);
+  const sep = pe.rows.find(x => x.month === mk);
+  ok(88, c.plan.length === n0 && !!row && row.amount === null
+      && row.history[row.history.length - 1].prev != null && sep.dropped === true && sep.removed === true,
+     `строк=${c.plan.length}/${n0} amount=${row && row.amount} dropped=${sep.dropped}`);
+})();
+
+/* 88b. Исполнение считается на ВСЕХ демо-кредитах без исключений — включая кредиты без
+   плана, без графика и закрытые. Рендер вкладки опирается ровно на эту функцию. */
+(() => { const db = CR.seedDb(); const errs = [];
+  for (const c of db.credits){
+    try { const pe = CR.planExecOf(c, '23.07.2026');
+      if (!pe || pe.rows.length !== 12 || pe.quarters.length !== 4) errs.push(c.id + ': форма результата');
+    } catch(e){ errs.push(c.id + ': ' + e.message); }
+  }
+  ok('88b', errs.length === 0, `кредитов=${db.credits.length} ошибок=${errs.length} ${errs.slice(0,2).join(' | ')}`);
+})();
+
+/* 89. monthAdd/monthRange — служебная арифметика месяцев без Date. Отрицательный шаг
+   обязан корректно переносить год назад, а диапазон «конец раньше начала» — не крутить
+   цикл до предохранителя (240), а сразу вернуть пусто. */
+(() => { const back = CR.monthAdd('2026-01', -2);
+  const empty = CR.monthRange('2026-05', '2026-01');
+  ok(89, back === '2025-11' && Array.isArray(empty) && empty.length === 0,
+     `2026-01 −2мес=${back} range(май→янв)=[${empty.join(',')}]`);
+})();
+
+/* 90. Г-30 обязан отбивать месяц, у которого формат ФОРМАЛЬНО верен ('YYYY-MM'), но
+   значение бессмысленно — месяца 13 и 00 не существует. Проверка формы регуляркой
+   '\d{4}-\d{2}' такое пропускает молча; гейт должен проверять диапазон 01–12. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const g13 = CR.gate(c, 'setPlan', { rows:[{ month:'2026-13', amount:1000 }] });
+  const g00 = CR.gate(c, 'setPlan', { rows:[{ month:'2026-00', amount:1000 }] });
+  ok(90, g13.ok === false && g00.ok === false,
+     `13=${g13.ok} "${g13.reasons[0]||''}" · 00=${g00.ok} "${g00.reasons[0]||''}"`);
+})();
+
+/* 91. planExecOf не падает на кредите без единого транша (а значит и без единой позиции
+   прогноза) — форма результата (12 строк, 4 квартала) держится и на пустом входе:
+   именно этой функцией засеивается КАЖДАЯ строка модалки «Поставить план». */
+(() => { const db = CR.seedDb();
+  const c = JSON.parse(JSON.stringify(byId(db,'K-1')));
+  c.tranches = []; c.plan = [];
+  let pe, err = null;
+  try { pe = CR.planExecOf(c, '23.07.2026'); } catch(e){ err = e.message; }
+  ok(91, !err && pe && pe.rows.length === 12 && pe.quarters.length === 4 && pe.total.monthsWithPlan === 0,
+     err ? `исключение: ${err}` : `строк=${pe.rows.length} кварталов=${pe.quarters.length} мес=${pe.total.monthsWithPlan}`);
+})();
+
+/* 92. Механическая версия бага, который правка поймала руками: ни у одного демо-кредита
+   план не заведён на месяц РАНЬШЕ месяца его договора — Г-30 такую строку не пропустил
+   бы через мутацию, а в сиде она была бы заведена в обход неё («мёртвая» несогласованность). */
+(() => { const db = CR.seedDb(); const bad = [];
+  for (const c of db.credits){
+    const cm = c.date ? CR.monthKey(c.date) : null;
+    for (const row of (c.plan || [])) if (cm && row.month < cm) bad.push(`${c.id} ${row.month}<${cm}`);
+  }
+  ok(92, bad.length === 0, `нарушений=${bad.length} ${bad.slice(0,3).join(' | ')}`);
 })();
 
 const pass = results.filter(r => r.pass).length;
