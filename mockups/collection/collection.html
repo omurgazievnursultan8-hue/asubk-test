@@ -2615,8 +2615,6 @@ function buildSeed(seed){
       principal:{ accrued:dbt.principal, paid:principalPaid, overdue:principalOverdue },
       interest:{ accrued:dbt.interest||0, paid:0, overdue:dbt.interest||0 },
       penalty:{ accrued:dbt.penalty||0, paid:0, overdue:dbt.penalty||0 } };
-    const overdueSum = principalOverdue + (dbt.interest||0) + (dbt.penalty||0);
-    const fullSum    = dbt.principal + (dbt.interest||0) + (dbt.penalty||0) - principalPaid;
 
     /* Даты назад: последняя веха стоит `age` дней назад от TODAY, остальные — по gap. */
     const dates = [];
@@ -2642,6 +2640,17 @@ function buildSeed(seed){
     if(dbt.payments){
       if(!Array.isArray(dbt.payments) || !dbt.payments.length)
         throw new Error(`SEED: дело ${c.id} — debt.payments задан, но не является непустым массивом {date,amount}`);
+      /* Task 8 fix round 2 (ruling координатора, Minor «paid+payments»): два
+         источника остатка на одном деле — LEDGER.principal.paid (плоский,
+         читает principalLeft/фолбэк principalOverdue выше) и .payments (ДАТОЙ,
+         читает debtOf()/sumBy() ниже) — тихо разошлись бы, если оба заданы:
+         paidAt(atDate) читает ТОЛЬКО payments, полностью игнорируя dbt.paid, а
+         principalLeft/principalOverdue-диапазон уже посчитаны от него. Тот же
+         guard-стиль, что и остальные конфликтующие пары деклараций в этом
+         билдере (gatePending+izvesh, hopeless+hopelessFact и т.д.) — throw по
+         имени, не молчаливый выбор одного источника. */
+      if(principalPaid > 0)
+        throw new Error(`SEED: дело ${c.id} — debt.payments и debt.paid=${principalPaid} заданы одновременно — paidAt() читает только payments (фолд по дате), а principalLeft/principalOverdue уже посчитаны от плоского paid: два источника остатка разошлись бы. Занулите paid (или уберите поле) или уберите payments`);
       const openedD = dParse(opened), todayD = dParse(TODAY);
       let sum = 0;
       for(const pmt of dbt.payments){
@@ -2658,6 +2667,31 @@ function buildSeed(seed){
         throw new Error(`SEED: дело ${c.id} — debt.payments в сумме (${sum}) больше непогашенного остатка тела (principal-paid=${principalLeft})`);
       LEDGER[c.credit.id].principal.payments = dbt.payments.map(x => ({ ...x }));
     }
+
+    /* Task 8 fix round 2 (ruling координатора 1): sumBy — зеркало debtOf() ПОЛНОСТЬЮ,
+       не только по costs (та же дыра, что Task 7 round 2 закрыл для costs, здесь
+       не закрывалась вовсе: fullSum/overdueSum были КОНСТАНТАМИ от плоского
+       principalPaid — любая мера, датированная НА/ПОСЛЕ платежа, застыла бы с
+       той же суммой, что и мера ДО него, хотя claimTotal()/debtOf() уже увидели
+       бы ноль. Инвариант держался только тем, что 208/380 ставят каждую меру
+       хребта РАНЬШЕ платежа и пишут акту сверки '0,00' литералом руками — тот
+       же класс «не код, а даты затравки», что ревью раунда 2 у Task 7 запретило
+       оставлять). paidAtBuild(atDate) — тот же фолд, что debtOf() применяет к
+       LEDGER[...].principal.payments (см. правку там же), на build-time данных
+       (dbt.payments, чтобы не читать LEDGER до его полной сборки) — одно
+       определение «сколько оплачено к этой дате», не два независимых. Без
+       payments (79 из 91 дела) paidAtBuild игнорирует atDate и возвращает
+       константу principalPaid — байт-в-байт прежнее поведение fullSum/overdueSum. */
+    const paidAtBuild = atDate => {
+      if(!dbt.payments || atDate == null) return principalPaid;
+      const bound = dParse(atDate);
+      return dbt.payments.filter(x => dParse(x.date) <= bound).reduce((s,x)=> s + x.amount, 0);
+    };
+    const fullSumAt = atDate => dbt.principal + (dbt.interest||0) + (dbt.penalty||0) - paidAtBuild(atDate);
+    const overdueSumAt = atDate => {
+      const left = dbt.principal - paidAtBuild(atDate);
+      return Math.min(principalOverdue, left) + (dbt.interest||0) + (dbt.penalty||0);
+    };
 
     /* Task 7 fix-round2 (ruling координатора п.1): «пятая статья» (М-4) — не только
        на LEDGER/debtOf(), СИММЕТРИЧНО и на самом билдере, чтобы m.sum, замороженный
@@ -2693,13 +2727,25 @@ function buildSeed(seed){
        остаток» после 'ил') — необязателен только там, где costDate заведомо null
        (K0/K1/К2/К3-до-ИЛ) и передавать нечего. */
     const sumBy = (scope, atDate) => {
-      const base = scope === 'полный остаток' ? fullSum : overdueSum;
+      const base = scope === 'полный остаток' ? fullSumAt(atDate) : overdueSumAt(atDate);
       const withCosts = (scope === 'полный остаток' && costDate != null && atDate != null
         && dParse(atDate) >= dParse(costDate)) ? base + costAmount : base;
       return fmtKGS(withCosts);
     };
 
     const measures = [], deadlines = [], history = [];
+    /* Task 8 fix round 2 (ruling координатора, Minor «платёж без следа в журнале»):
+       debt.payments двигал LEDGER/долговую панель («Погашено 45 000») без единой
+       строки в history — пользователь видел ЦИФРУ без ДАТИРОВАННОГО ИСТОЧНИКА,
+       ровно та дыра, что this же файл не терпит нигде больше (у costs — своя
+       запись через COSTS_SEED+карточку; у каждой меры — history.push рядом с
+       measures.push). Один history.push на платёж, здесь же (после объявления
+       history, платежи уже провалидированы выше) — не в ветке c.repaid ниже:
+       платёж — факт КРЕДИТА (LEDGER), а не мера дела, и достоин своей строки
+       независимо от того, использует ли его дальше срок-заём (тпл 6/8) или
+       терминал «Полное погашение». */
+    for(const pmt of (dbt.payments || []))
+      history.push({ when:`${pmt.date} 10:00`, what:`Платёж ${fmtKGS(pmt.amount)} зачислен в счёт погашения основной суммы`, who:c.curator });
     /* Охват держится ПОСЛЕДНЕЙ устанавливающей мерой (ADR-0025): определение, решение и
        ИЛ своего охвата не задают, но сумма у них уже по «полному остатку» — иначе
        аудит увидит расхождение вехи с притязанием (код C4). */
@@ -3254,8 +3300,12 @@ function buildSeed(seed){
        c.repaidAge — «сколько дней назад подтверждено» (акт сверки), СТРОГО МЕНЬШЕ
        c.age (последней вехи цепочки — оплата случилась ПОСЛЕ неё, не в тот же
        день: без явного поля обе даты совпали бы — одна и та же формула
-       ruSub(TODAY,c.age) — что физически невозможно). sum — литерал '0,00' (не
-       sumBy): охват тут не устанавливался К7-веткой, а самого остатка уже нет.
+       ruSub(TODAY,c.age) — что физически невозможно). sum — Fix round 2 (ruling
+       координатора 1): sumBy(curScope, dt), НЕ литерал '0,00' — платёж уже
+       датирован ≤ dt (payments-фолд выше), значит sumBy сама вычисляет ноль ИЗ
+       того же фолда, что claimTotal()/debtOf() видят живьём, а не двумя
+       независимыми утверждениями «ноль» (билдер) и «ноль» (аудит), что
+       случайно совпадали только потому, что дата акта позже даты платежа.
        responsible — respFor(kind), не c.curator хардкодом. */
     if(c.repaid){
       const kindAs = 'Акт сверки о полном погашении';
@@ -3268,9 +3318,12 @@ function buildSeed(seed){
       const dt = ruSub(TODAY, c.repaidAge ?? c.age ?? 12);
       const num = `АС-${c.credit.id}`;
       const resp = respFor(kindAs);
+      const sumAtRepaid = sumBy(curScope, dt);
+      if(sumAtRepaid !== '0,00')
+        throw new Error(`SEED: дело ${c.id} — repaid:true задан, а sumBy(curScope, ${dt})='${sumAtRepaid}' — платёж(и) debt.payments не закрывают остаток к дате акта сверки (проверьте сумму/дату debt.payments)`);
       measures.push({ sec:sectionOf(kindAs), kind:kindAs, dates:D(dt, dt),
         num, purpose:'подтверждение полного погашения (п. 88)',
-        outcome:'подтверждено', sum:'0,00', responsible:resp });
+        outcome:'подтверждено', sum:sumAtRepaid, responsible:resp });
       history.push({ when:`${dt} 10:00`, what:`Мера «${kindAs}» ${num} зарегистрирована — исход «подтверждено»`, who:resp });
     }
 
@@ -3301,17 +3354,28 @@ function buildSeed(seed){
        без этого билдерский срок с пустым targets показывался бы на КАЖДОМ требовании
        дела, включая обеспечителя, через фолбэк «пустые targets = все» (deadlinesOf).
 
-       Task 8 fix round 1 (аудит C7, обнаружено на T-ПОГАШЕНИЕ): та же отсечка, что
-       reachedSudebny, нужна и для c.repaid — обязательство заёмщика погасить
-       ПРОСРОЧЕННУЮ сумму по тпл 6/8 теряет смысл не только когда контур сменился
-       на иск, но и когда долг УЖЕ погашен целиком (истёкший срок на закрытом
-       «Полным погашением» требовании — та же дыра C7, что и любой другой висящий
-       срок на закрытом деле). */
+       Task 8 fix round 2 (ruling координатора 2, отменяет round-1 суппрессию
+       `|| c.repaid`): та суппрессия ПРЯТАЛА дыру, а не закрывала её — 208/380
+       оставались единственными К1-делами волны, чьи претензия/повторная не несут
+       срока исполнения ВООБЩЕ, будто его никогда и не было. Срок tpl.resp==='заёмщик'
+       (6/8 — единственные два таких в DEADLINE_TEMPLATES, не хардкод номеров)
+       закрывается ДАТИРОВАННЫМ ПЛАТЕЖОМ, не мерой — у DEADLINE_CLOSERS сознательно
+       нет для них строки (комментарий у DEADLINE_BY_KIND). closeDeadlinesBy() сама
+       не вызывается билдером (TDZ — тот же класс, что уже решён у tpl26/27 выше по
+       файлу): тот же приём — срок НЕ кладётся в открытую очередь (что дало бы вечный
+       «просрочен» на закрытом требовании, C7), а ОБЕ половины пары «срок → платёж»
+       фиксируются в history — срок СУЩЕСТВОВАЛ и был исполнен фактом оплаты, а не
+       тихо не создавался. closingPayment — ПОСЛЕДНИЙ элемент debt.payments (не
+       гейтится `c.repaid`: платёж закрывает обязательство заёмщика по факту своего
+       существования, не по терминальному статусу дела) — при частичном будущем
+       кейсе с payments, но без repaid, тот же код сработал бы тем же способом,
+       без второй копии логики. */
     const reachedSudebny = steps.some(s => sectionOf(s.kind) === 'Судебный');
+    const debtorPayments = dbt.payments || [];
     steps.forEach((s, i) => {
       const num = `${s.pre}-${c.credit.id}${s.suf||''}`;
       let dlN = DEADLINE_BY_KIND[s.kind];
-      if(dlN && (reachedSudebny || c.repaid)) dlN = null;
+      if(dlN && reachedSudebny) dlN = null;
       if(s.kind === 'Решение суда')
         /* FAVORABLE_VERDICT — см. п.4 ревью №3, не хардкод. Ревью раунд1, CRITICAL 1
            (Task 6): || c.appeal добавлен — если дело САМО регистрирует «Апелляционную
@@ -3325,8 +3389,19 @@ function buildSeed(seed){
       const tpl = dlN ? TPL_BY_N[dlN] : null;
       if(tpl){
         const days = termToCalendarDays(tpl.term);
-        if(days != null)
-          deadlines.push({ tpl:tpl.n, due:ruAdd(dates[i], days), base:`${tpl.base} (${dates[i]})`, srcMeasure:num });
+        if(days != null){
+          const due = ruAdd(dates[i], days);
+          const closingPayment = (tpl.resp === 'заёмщик' && debtorPayments.length)
+            ? debtorPayments[debtorPayments.length-1] : null;
+          if(closingPayment){
+            history.push({ when:`${dates[i]} 10:05`,
+              what:`Срок «${tpl.action}» (п. ${tpl.point}, ${tpl.base} (${dates[i]}), до ${due}) взят на контроль`, who:c.curator });
+            history.push({ when:`${closingPayment.date} 10:05`,
+              what:`Срок «${tpl.action}» (п. ${tpl.point}, до ${due}) снят с контроля: обязательство исполнено платежом ${fmtKGS(closingPayment.amount)} от ${closingPayment.date}`, who:c.curator });
+          } else {
+            deadlines.push({ tpl:tpl.n, due, base:`${tpl.base} (${dates[i]})`, srcMeasure:num });
+          }
+        }
       }
     });
 
@@ -4470,17 +4545,24 @@ const SEED = [
   // ДАТОЙ, тот же idiom, что и r.costs) — принципал погашен полностью НА ДАТУ
   // платежа, не на всём протяжении дела. repaidAge < age — акт сверки/платёж
   // датирован ПОСЛЕ повторной претензии, не в тот же день (guard в buildSeed).
+  // Fix round 2 (ruling координатора, Minor «дата платежа»): payments[].date —
+  // ruSub(TODAY, repaidAge), не строковый литерал '11.07.2026' — тот совпадал
+  // со значением ruSub(TODAY,10) только случайно (обе стороны считались от
+  // TODAY отдельно, руками); теперь платёж и акт сверки — ОДНА и та же
+  // формула от ОДНОГО и того же repaidAge, сдвиг TODAY не может тихо
+  // рассинхронизировать их (buildSeed бы поймал расхождение throw'ом в
+  // ветке c.repaid — sumBy(curScope,dt) перестала бы давать '0,00').
   { sit:'T-ПОГАШЕНИЕ', id:'208', borrower:'ИП Нуркеева Г.', inn:'22607199300512',
     region:'Баткенская область / Кадамжайский', owner:'Куратор ОД', curator:'Асанова Ж.Т.',
     credit:{ id:'208', num:'Дог. №208 от 20.02.2025', subdiv:'ОД',
              debt:{ principal:45000, interest:0, penalty:0, principalOverdue:36000,
-                    payments:[{ date:'11.07.2026', amount:45000 }] } },
+                    payments:[{ date:ruSub(TODAY, 10), amount:45000 }] } },
     stop:'повторная', age:40, repaidAge:10, repaid:true },
   { sit:'T-ПОГАШЕНИЕ', id:'380', borrower:'Садыкова Айгуль Токтосуновна', inn:'21704199500218',
     region:'Чуйская область / Кеминский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
     credit:{ id:'380', num:'Дог. №380 от 03.06.2025', subdiv:'ОД',
              debt:{ principal:62000, interest:0, penalty:0, principalOverdue:49000,
-                    payments:[{ date:'06.07.2026', amount:62000 }] } },
+                    payments:[{ date:ruSub(TODAY, 15), amount:62000 }] } },
     stop:'повторная', age:45, repaidAge:15, repaid:true },
 ];
 const PROCESSES = buildSeed(SEED);
@@ -4762,8 +4844,17 @@ function gateBlocked(r){
      gateReason(r,'Заключение комиссии о безнадёжности') сам по себе вернул бы
      непустую причину «Вопрос не вынесен» на ЛЮБОМ требовании, где вопрос просто
      ещё ни разу не поднимался (79 из 82) — ложно блокируя весь портфель одной
-     плиткой, а не только K7-КОМИССИЯ. */
-  if((r._proc.committeeQuestions||[]).some(q => q.topic === gateTopic('Заключение комиссии о безнадёжности') && questionState(q).k !== 'positive')
+     плиткой, а не только K7-КОМИССИЯ.
+     Fix round 2 (ruling координатора, Minor «кредит-скоуп»): готовность ещё и
+     ПО КРЕДИТУ, тем же условием, что gateReason уже применяет к своему `mine`
+     (`!(q.credits||[]).length || q.credits.includes(r.credit)`) — без него
+     многокредитное дело с нерешённым вопросом ПО ОДНОМУ кредиту блокировало бы
+     ГЕЙТОМ требования всех остальных кредитов того же дела; у затравки этой
+     волны каждое К7-дело несёт ровно один кредит, поэтому симптом не проявлялся
+     бы ни на одном из 12 кейсов — не значит, что функция может расходиться со
+     своим же gateReason по составу проверки. */
+  if((r._proc.committeeQuestions||[]).some(q => q.topic === gateTopic('Заключение комиссии о безнадёжности')
+       && questionState(q).k !== 'positive' && (!(q.credits||[]).length || q.credits.includes(r.credit)))
      && gateReason(r,'Заключение комиссии о безнадёжности')) return true;
   return false;
 }
