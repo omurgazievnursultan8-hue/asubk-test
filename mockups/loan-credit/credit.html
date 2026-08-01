@@ -3805,6 +3805,24 @@ function gate(credit, action, ctx = {}){
       if (!ctx.kind || !String(ctx.kind).trim()) r.push('Вид документа обязателен');
       if (ctx.state && !DOC_STATES.includes(ctx.state)) r.push('Недопустимое состояние документа: ' + ctx.state);
       break;
+    /* Г-30 setPlan (ADR-0042). Отказ называет СРАБОТАВШУЮ причину, а не имя гейта:
+       иначе куратор правит не то, что мешает. Снятие плана (amount:null) — законная
+       операция и через проверку «сумма > 0» не гоняется. */
+    case 'setPlan': {
+      if (!['Зарегистрирован','Действует'].includes(credit.lifecycle))
+        r.push('План ставится только при ЖЦ «Зарегистрирован» или «Действует» — сейчас «' + credit.lifecycle + '»'); // Г-30
+      const prows = (ctx && ctx.rows) || [];
+      if (!prows.length) r.push('Не выбрано ни одного месяца — ставить нечего');
+      const cm = credit.date ? monthKey(credit.date) : null;
+      for (const row of prows){
+        if (!/^\d{4}-\d{2}$/.test(String(row && row.month))){ r.push('Месяц задан неверно: «' + (row && row.month) + '»'); continue; }
+        if (cm && row.month < cm)
+          r.push('Месяц ' + monthLabel(row.month) + ' раньше месяца договора (' + monthLabel(cm) + ')');
+        if (row.amount != null && !(row.amount > 0))
+          r.push('План на ' + monthLabel(row.month) + ' должен быть больше нуля; чтобы отказаться от цели — снимите план');
+      }
+      break;
+    }
     case 'addNote':
       if (!ctx.text || !String(ctx.text).trim()) r.push('Пустое примечание не сохраняется');
       break;
@@ -3821,9 +3839,9 @@ function gate(credit, action, ctx = {}){
 /* ---- 4.1 canRole(role, action) — матрица прав по ролям (§7). ---- */
 const ROLE_ACTIONS = {
   'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','addAgreement','addConditionRecords','editConditions','editDocs','addNote']),
-  'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge','addNote']),
+  'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge','addNote','setPlan']),
   'Бухгалтер': new Set(['savePayment','addNote']),
-  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','addAgreement','addConditionRecords','editConditions','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate']),
+  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','addAgreement','addConditionRecords','editConditions','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan']),
   'Наблюдатель': new Set(),
 };
 function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(action); }
@@ -4073,6 +4091,37 @@ function addTargetUse(credit, ctx){
   return g;
 }
 
+/* setPlan(credit, {rows, note}) — ЕДИНСТВЕННАЯ запись плана (ADR-0042 §1/§3).
+   rows: [{month:'YYYY-MM', amount:number|null, seededFrom:number|null}].
+   amount:null — СНЯТИЕ плана: строка остаётся, прежнее значение уходит в history (И-14).
+   Правка задним числом разрешена и тоже оставляет след — кто, когда, прежнее значение:
+   без следа правка стирала бы то, на что реально ориентировались в прошлом периоде,
+   ровно то, что план и должен показывать.
+   seededFrom пишется ТОЛЬКО при заведении строки и при правке не двигается: это снимок
+   прогноза на момент заведения, а не текущее значение прогноза. */
+function setPlan(credit, ctx){
+  const g = gate(credit, 'setPlan', ctx);                                  // Г-30
+  if (!g.ok) return g;
+  for (const row of ((ctx && ctx.rows) || [])){
+    const ex = planRowOf(credit, row.month);
+    if (!ex){
+      if (row.amount == null) continue;                                    // снимать нечего
+      credit.plan.push({ month:row.month, amount:row.amount,
+        setBy:currentRole, setAt:TODAY,
+        seededFrom:(row.seededFrom == null ? null : row.seededFrom), history:[] });
+      pushAudit(credit, 'setPlan', null, { month:row.month, amount:row.amount });
+      continue;
+    }
+    if (ex.amount === row.amount) continue;                                // ничего не изменилось — следа не плодим
+    const before = ex.amount;
+    ex.history.push({ at:TODAY, by:currentRole, prev:before, note:(ctx && ctx.note) || '' });
+    ex.amount = row.amount;
+    pushAudit(credit, 'setPlan', { month:ex.month, amount:before }, { month:ex.month, amount:row.amount });
+  }
+  credit.plan.sort((a, b) => a.month < b.month ? -1 : a.month > b.month ? 1 : 0);
+  return g;
+}
+
 /* setKmDecision(credit, {kind,num,date,scan}) — реквизиты решения КМ об освобождении
    от залога (Р-8, П1 §2.6). Собственного блокирующего гейта нет: сама фиксация — это
    разблокирующее событие для Г-6/Г-7 (gate('addDisbursement'|'register') читает
@@ -4241,7 +4290,7 @@ window.CR = {
   saveContractAmount, editContractRequisites, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, addConditionRecords, closeCredit, linkPledge,
   registerCredit, activateCredit, closeDisbursement, closeTranche, transferDebt,
-  saveDoc, addNote, addTargetUse,
+  saveDoc, addNote, addTargetUse, setPlan,
   zeroOutForTest,
   nextPaymentOf, regStatusOf, scheduleRowStatus, trancheScheduleRows, ledgerKey,
   trancheForecastRows, forecastByMonth,
