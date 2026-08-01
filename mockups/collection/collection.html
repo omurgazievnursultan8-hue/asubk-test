@@ -2633,8 +2633,21 @@ function buildCredit(c, cr, stop, age){
        снимок долга ещё до того, как у дела вообще появится цепочка. Строго между:
        principalOverdue == principalLeft — та же деградация, что чинил п.2 ревью №1
        (охваты совпадают); больше principalLeft — охваты переворачиваются. */
-    if(dbt.principalOverdue != null && !(dbt.principalOverdue > 0 && dbt.principalOverdue < principalLeft))
-      throw new Error(`SEED: дело ${c.id} — debt.principalOverdue=${dbt.principalOverdue} должен быть строго между 0 и principal-paid=${principalLeft} (иначе охваты «просроченная сумма»/«полный остаток» совпадут или перевернутся, ADR-0025)`);
+    /* Fix round 1 (ревью, Important 1): ровно НОЛЬ — единственное исключение из
+       «строго между», и оно же обязательно. Кредит без цепочки и с overdue:0 (дней
+       просрочки нет вовсе — РИСК-397, договор попал в дело только потому, что заёмщик
+       просрочил ДРУГОЙ договор, а категорию поднял фактор комитета) не может
+       отчитываться просроченным остатком: фолбэк ниже объявил бы просроченным ВЕСЬ
+       непогашенный остаток, и карточка показывала бы «просрочено 150 000» рядом с
+       «дней просрочки 0». Поэтому: 0 допустим ТОЛЬКО в этом случае — и в этом случае
+       ТРЕБУЕТСЯ (вместе с нулевыми процентами и пеней: их LEDGER-строки просрочены
+       по тому же фолбэку «accrued == overdue»). */
+    const noOverdueAtAll = !steps.length && overdue === 0;
+    const zeroOverdueOk = noOverdueAtAll && dbt.principalOverdue === 0;
+    if(dbt.principalOverdue != null && !zeroOverdueOk && !(dbt.principalOverdue > 0 && dbt.principalOverdue < principalLeft))
+      throw new Error(`SEED: дело ${c.id} — debt.principalOverdue=${dbt.principalOverdue} должен быть строго между 0 и principal-paid=${principalLeft} (иначе охваты «просроченная сумма»/«полный остаток» совпадут или перевернутся, ADR-0025); ровно 0 допустим только у кредита без цепочки и с overdue:0`);
+    if(noOverdueAtAll && !(dbt.principalOverdue === 0 && !(dbt.interest||0) && !(dbt.penalty||0)))
+      throw new Error(`SEED: дело ${c.id} — кредит ${cr.id} объявлен без цепочки и с overdue:0 (дней просрочки нет), но не объявляет debt.principalOverdue:0 при нулевых interest/penalty — фолбэк LEDGER объявил бы просроченным весь непогашенный остаток (${principalLeft}) при нуле дней просрочки`);
     const principalOverdue = dbt.principalOverdue != null ? dbt.principalOverdue : principalLeft;
     LEDGER[cr.id] = { asOf:'25.07.2026',
       principal:{ accrued:dbt.principal, paid:principalPaid, overdue:principalOverdue },
@@ -2828,10 +2841,20 @@ function buildCredit(c, cr, stop, age){
        подразделения — теперь дело не соберётся, если кто-то забыл назвать сигнатуру.
        Задел на Task 6 (судебный контур): там почти каждая мера — ОПК, а владелец дела
        часто ОД/ДАК — тот же приём, ключ 'ОПК' в deptCurators. */
+    /* Fix round 1 (ревью, Minor 1): «свой» подписант — тоже по ПОДРАЗДЕЛЕНИЮ КРЕДИТА,
+       а не куратор дела безусловно. На многокредитном деле умолчание c.curator врало
+       ровно там, где мера ЗАКОННА для подразделения кредита: претензия по договору
+       ОД-требования (412/562) подписывалась куратором ОПК — владельцем дела, —
+       тогда как out-of-subdiv-ветка рядом подписывала верно. deptCurators[cr.subdiv]
+       и есть «куратор этого подразделения по этому делу»; c.curator остаётся
+       умолчанием для однокредитных дел, что своего подразделения в карте не называют
+       (у 79 дел волны deptCurators никогда не содержит собственный credit.subdiv —
+       поведение не меняется, проверено снимком). C6 аудита такое не поймал бы: он
+       только собирает строки respCheck, не сверяя их. */
     const respFor = kind => {
       const subdiv = subdivOf(kind);
       const outOfSubdiv = subdiv && cr.subdiv && !subdiv.includes(cr.subdiv);
-      if(!outOfSubdiv) return c.curator;
+      if(!outOfSubdiv) return (c.deptCurators || {})[cr.subdiv] || c.curator;
       const signer = subdiv.map(s => (c.deptCurators || {})[s]).find(Boolean);
       if(!signer)
         throw new Error(`SEED: дело ${c.id} — мера «${kind}» относится к подразделению [${subdiv.join(' | ')}], а подразделение дела credit.subdiv='${cr.subdiv}' — другое; c.deptCurators не называет подписанта ни для одного из [${subdiv.join(', ')}]`);
@@ -3596,14 +3619,24 @@ function buildCredit(c, cr, stop, age){
       }
     }
 
+    /* Fix round 1 (ревью, Important 3): номер протокола строился из id ДЕЛА и пункта
+       гейта — на многокредитном деле два кредита, дошедшие до одной гейтовой меры,
+       чеканили ОДИН И ТОТ ЖЕ номер с разными датами заседания (412: два «ПРОТ-412/21»).
+       Развилка — по природе гейта, а не по вкусу: `g.poruchenie` уже означает
+       «выдаётся ПО ДЕЛУ» (gateReason читает по нему дело-уровневый p.poruchenie, а не
+       вопросы по кредиту) — такой вопрос ОДИН на дело и сливается в buildSeed ниже,
+       номер остаётся дело-уровневым. Кредит-скоупные гейты (безакцепт, извещение,
+       безнадёжность — КР-10 совпадает по кредиту) остаются по одному на кредит, и
+       кредит входит в НОМЕР. У однокредитных дел суффикса нет — номера прежние. */
     for(const [kind, g] of Object.entries(GATES)){
       const m = measures.find(x => x.kind === kind);
       if(!m) continue;
       const at = ruSub(m.dates.event, 10);
+      const protoSuf = (c.credits && !g.poruchenie) ? `/${cr.id}` : '';
       committeeQuestions.push({ organ:g.organ, initiator:cr.subdiv || 'ОД', topic:g.topic,
         credits:[cr.num], meetingDate:at,
         decision: g.poruchenie ? 'поручение выдано' : 'разрешено', positive:true,
-        protocolNo:`ПРОТ-${c.id}/${g.point}`, protocolDate:at });
+        protocolNo:`ПРОТ-${c.id}/${g.point}${protoSuf}`, protocolDate:at });
     }
     /* K1-БА-ГЕЙТ: право на безакцепт есть по договору, но комитет ещё не решил —
        вопрос вынесен БЕЗ решения, а сама гейтовая мера в цепочке отсутствует (она
@@ -3704,7 +3737,16 @@ function buildSeed(seed){
      «первый выигрывает». Без реестра здесь два дела могли бы тихо разделить одного
      поручителя под разными именами/ИНН, и второе описание просто исчезло бы. */
   const obligorIds = new Set();
+  /* Fix round 1 (ревью, Important 4): id ДЕЛА — та же дисциплина, что уже стоит на
+     id кредита и id обеспечителя. Дубль не ломался громко: PROCESSES.find(x=>x.id===…)
+     молча возвращает ПЕРВОЕ дело, и второе исчезает из каждого экрана, что ищет дело
+     по номеру (смоук, ссылки реестров, openProc). Две волны подряд (207 у Task 8,
+     205/210 здесь) перенумеровывались вручную вокруг коллизии, которую код проглотил бы. */
+  const procIds = new Set();
   for(const c of seed){
+    if(procIds.has(c.id))
+      throw new Error(`SEED: дело id='${c.id}' уже объявлено выше — id дела обязаны быть глобально уникальны (PROCESSES.find по id вернул бы первое, второе дело исчезло бы из экранов)`);
+    procIds.add(c.id);
     for(const o of (c.obligors || [])){
       if(obligorIds.has(o.id))
         throw new Error(`SEED: дело ${c.id} — obligor id='${o.id}' уже объявлен другим делом — id обеспечителя обязан быть глобально уникален`);
@@ -3725,14 +3767,57 @@ function buildSeed(seed){
       const bad = MULTI_CREDIT_CASE_FIELDS.filter(k => c[k] !== undefined);
       if(bad.length)
         throw new Error(`SEED: дело ${c.id} — многокредитное дело несёт дело-уровневые поля [${bad.join(', ')}], которые применились бы КО ВСЕМ кредитам сразу; объявите их на нужном кредите внутри credits:[…]`);
+      /* Fix round 1 (ревью, Important 2): extra сливается в дело ПОСЛЕ buildCredit —
+         мимо поимённого нацеливания (цикл targets внутри buildCredit его не видит) и
+         мимо его throw'а. Объявленная запись без явной цели досталась бы normalize(),
+         а тот раздаёт по РОЛИ — то есть ВСЕМ требованиям дела разом: ровно то
+         схлопывание контуров, против которого стоит МТ-1. Поэтому на многокредитном
+         деле цель обязана быть названа в самой декларации: мера — targets, срок —
+         targets либо srcMeasure (normalize скопирует цели с названной меры, а они на
+         таком деле всегда кредит-скоупные), вопрос органу — credits (без них
+         gateReason снимал бы гейт с ЛЮБОГО требования дела, КР-10). */
+      const ex = c.extra || {};
+      const hasTargets = x => Array.isArray(x.targets) && x.targets.length;
+      for(const m of (ex.measures || []))
+        if(!hasTargets(m))
+          throw new Error(`SEED: дело ${c.id} — extra.measures[«${m.kind||'?'}» ${m.num||''}] на многокредитном деле обязана нести явные targets: extra сливается после сборки кредитов, и normalize() адресовал бы меру ВСЕМ требованиям дела по роли (контуры схлопнулись бы в один)`);
+      for(const d of (ex.deadlines || []))
+        if(!hasTargets(d) && !d.srcMeasure)
+          throw new Error(`SEED: дело ${c.id} — extra.deadlines[тпл ${d.tpl}] на многокредитном деле обязан нести targets либо srcMeasure: иначе срок показался бы на КАЖДОМ требовании дела (фолбэк «пустые targets = все» в deadlinesOf)`);
+      for(const q of (ex.committeeQuestions || []))
+        if(!(Array.isArray(q.credits) && q.credits.length))
+          throw new Error(`SEED: дело ${c.id} — extra.committeeQuestions[«${q.topic||'?'}»] на многокредитном деле обязан называть credits: вопрос без кредитов открывает гейт ЛЮБОМУ требованию дела (gateReason, КР-10)`);
     }
-    const parts = decls.map(cr => buildCredit(c, cr, c.credits ? cr.stop : c.stop,
-                                                     c.credits ? cr.age  : c.age));
+    /* Fix round 1 (ревью, Minor 3): stop/age читаются ТЕМ ЖЕ правилом, что overdue/
+       costs/credits0 внутри buildCredit — «объявлено на кредите → побеждает, иначе
+       с кейса». До правки `credit:{stop:'иск'}` на однокредитном деле молча
+       игнорировался, а `credit:{overdue:5}` работал: два разных контракта у соседних
+       полей одной декларации. (На многокредитном деле дело-уровневые stop/age
+       запрещены списком MULTI_CREDIT_CASE_FIELDS, фолбэк там недостижим.) */
+    const parts = decls.map(cr => buildCredit(c, cr, cr.stop !== undefined ? cr.stop : c.stop,
+                                                     cr.age  !== undefined ? cr.age  : c.age));
     const measures           = parts.flatMap(x => x.measures);
     const deadlines          = parts.flatMap(x => x.deadlines);
     const history            = parts.flatMap(x => x.history);
-    const committeeQuestions = parts.flatMap(x => x.committeeQuestions);
     const torgiFailsForColls = Math.max(0, ...parts.map(x => x.torgiFails));
+    /* Fix round 1 (ревью, Important 3): дело-уровневый гейт — ОДИН вопрос на дело.
+       Признак берём не из нового поля, а из самой модели: gateReason при g.poruchenie
+       читает дело-уровневый p.poruchenie и вопросы по кредиту вовсе не смотрит
+       («Поручение Председателя Правления выдаётся ПО ДЕЛУ»). Каждый кредит, дошедший
+       до такой меры, прислал свой вопрос — сливаем в первый: объединяем кредиты и
+       берём САМОЕ РАННЕЕ заседание (поручение выдано до первого иска, а не до
+       последнего). У однокредитных дел вопрос ровно один — массив не меняется. */
+    const DEAL_LEVEL_GATE_TOPICS = new Set(Object.values(GATES).filter(g => g.poruchenie).map(g => g.topic));
+    const committeeQuestions = [];
+    for(const q of parts.flatMap(x => x.committeeQuestions)){
+      const prev = DEAL_LEVEL_GATE_TOPICS.has(q.topic)
+        ? committeeQuestions.find(x => x.topic === q.topic) : null;
+      if(!prev){ committeeQuestions.push(q); continue; }
+      prev.credits = [...new Set([...(prev.credits||[]), ...(q.credits||[])])];
+      if(dParse(q.meetingDate) < dParse(prev.meetingDate)){
+        prev.meetingDate = q.meetingDate; prev.protocolDate = q.protocolDate;
+      }
+    }
     /* Дело открыто, когда обнаружена ПЕРВАЯ просрочка по любому из его договоров —
        минимум по кредитам (A10 сравнивает с ним даты истории/мер/сроков/заседаний,
        поэтому «самая ранняя», а не «по первому объявленному»). Кредит без просрочки
@@ -3817,6 +3902,20 @@ function buildSeed(seed){
     for(const k of Object.keys(extra)){
       if(EXTRA_ARRAY_KEYS.includes(k)) derived[k] = [...(derived[k]||[]), ...copyArr(extra[k])];
       else derived[k] = (extra[k] && typeof extra[k]==='object' && !Array.isArray(extra[k])) ? {...extra[k]} : extra[k];
+    }
+    /* Fix round 1 (ревью, Important 3): номер протокола — идентификатор решения органа,
+       и два разных решения под одним номером неразличимы ни в карточке «Согласования»,
+       ни в реестре вопросов (колонка «Протокол» печатает его как есть). Проверяем ПОСЛЕ
+       слияния extra — объявленный вручную вопрос обязан подчиняться тому же правилу,
+       что и выведенные. */
+    {
+      const seenProto = new Set();
+      for(const q of derived.committeeQuestions){
+        if(!q.protocolNo) continue;
+        if(seenProto.has(q.protocolNo))
+          throw new Error(`SEED: дело ${c.id} — два вопроса на коллегиальный орган несут один номер протокола ${q.protocolNo} («${q.topic}»): номер обязан быть уникален в пределах дела`);
+        seenProto.add(q.protocolNo);
+      }
     }
     derived.history.sort((a, b) => dParse(b.when.slice(0,10)) - dParse(a.when.slice(0,10)));
     /* Окно ожидания зачисления: until — ПРОИЗВОДНАЯ opened+days (ревью №1, п.10),
@@ -4915,29 +5014,35 @@ const SEED = [
               what:'Все три требования дела переданы в ОПК одним решением — ожидают подтверждения принимающей стороны (п. 98, 5 р.д.)',
               who:'Мурзаева Н.' }] } },
 
-  /* ── РИСК · «высокий» по фактору комитета там, где дни дают «Норму» ──
-     Категория живёт на КРЕДИТЕ и считается worst-of(дни, фактор) — по договору 398
-     просрочка минимальная (5 дней, категория по дням «Норма»), но комитет установил
-     нецелевое использование средств, и категория поднята до «Высокого»; категория
-     дела — worst-of по двум договорам. Бриф просил «нуль дней просрочки»: буквальный
-     нуль дал бы дату открытия дела в будущем (opened = TODAY − (overdue−5)) и кредит,
-     у которого «просрочен весь остаток» при нулевой просрочке (LEDGER-фолбэк) —
-     5 дней это минимум, при котором дело вообще существует (Р-4), а расхождение
-     «по дням Норма → по фактору Высокий» видно ровно так же (метка ✱ в реестре). */
+  /* ── РИСК · «высокий» при НУЛЕ дней просрочки — фактор комитета поверх дней ──
+     Категория живёт на КРЕДИТЕ и считается worst-of(дни, фактор). По договору 398
+     просрочки НЕТ ВООБЩЕ (overdue:0 → catByDays(0)='норма'), но комитет установил
+     нецелевое использование средств — категория «Высокий»; в дело этот договор попал
+     только потому, что заёмщик просрочил ДРУГОЙ свой договор (397), от него же дело
+     и открыто (opened — минимум по кредитам). Кредит без единого дня просрочки обязан
+     объявить principalOverdue:0 при нулевых процентах/пене (guard в buildCredit):
+     иначе фолбэк LEDGER отчитался бы просроченными всеми 150 000 при нуле дней.
+     Решение комитета — не строка в факторе, а ВОПРОС на коллегиальный орган (предмет
+     вне закрытого справочника → CQ_FREE), с собственным номером протокола: у фактора
+     остаётся только вердикт. */
   { sit:'РИСК', id:'397', borrower:'ОсОО «Кыргыз-Дан»', inn:'02804202000199',
     region:'г. Бишкек / Свердловский', owner:'Куратор ОД', curator:'Асанова Ж.Т.',
     deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credits:[
       { id:'397', num:'Дог. №397 от 12.01.2025', subdiv:'ОД', stop:'повторная', age:12,
         debt:{ principal:64000, interest:2900, penalty:800, paid:0, principalOverdue:51000 } },
-      { id:'398', num:'Дог. №398 от 05.03.2026', subdiv:'ОД', stop:null, overdue:5,
-        debt:{ principal:150000, interest:0, penalty:0, paid:0 },
+      { id:'398', num:'Дог. №398 от 05.03.2026', subdiv:'ОД', stop:null, overdue:0,
+        debt:{ principal:150000, interest:0, penalty:0, paid:0, principalOverdue:0 },
         factors:[{ kind:'нецелевое использование кредитных средств',
                    committee:'Комитет по администрированию бюджетных кредитов',
-                   decision:'установлено, протокол №КБ-14 от 08.07.2026', level:'high' }] }],
-    extra:{ history:[{ when:'08.07.2026 11:00',
-      what:'Комитет по администрированию бюджетных кредитов установил нецелевое использование средств по Дог. №398 — категория риска поднята до «Высокий» независимо от дней просрочки (п. 6.5)',
-      who:'Куратор ОД' }] } },
+                   decision:'установлено', level:'high' }] }],
+    extra:{ committeeQuestions:[{ organ:ORGANS[0], initiator:'ОД', topic:CQ_FREE,
+              credits:['398'], meetingDate:'08.07.2026',
+              decision:'установлено нецелевое использование кредитных средств по Дог. №398 — категория риска «Высокий» независимо от дней просрочки (п. 6.5)',
+              positive:true, protocolNo:'ПРОТ-397/ФКТ', protocolDate:'08.07.2026' }],
+            history:[{ when:'08.07.2026 11:00',
+              what:'Комитет по администрированию бюджетных кредитов установил нецелевое использование средств по Дог. №398 (протокол ПРОТ-397/ФКТ) — категория риска поднята до «Высокий» независимо от дней просрочки (п. 6.5)',
+              who:'Куратор ОД' }] } },
 
   /* ── РИСК · подавление 181-го дня (п. 20.1) ──
      183 дня просрочки дали бы «Высокий» по дням, но обязательство на рассмотрении
