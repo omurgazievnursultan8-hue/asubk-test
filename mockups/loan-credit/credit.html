@@ -6613,6 +6613,56 @@ if (typeof document !== 'undefined') {
     if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Договор расторгнут','ok'); rerenderDetail(); };
 
+  /* 21) plan (setPlan, Г-30, ADR-0042) — заведение ПАЧКОЙ за период, каждая строка
+     предзаполнена прогнозом месяца. Предзаполнение — стартовое значение формы, не связь:
+     сохранённый план от прогноза не зависит. Месяцы, где план уже стоит, приходят со
+     СВОИМ значением и помечены «будет правка» с прежней суммой — правка задним числом
+     не должна выглядеть заведением с нуля. */
+  CR.openPlanModal=function(){ const c=modalGuard('setPlan'); if(!c) return;
+    const d=derive(c, cardAsOf);
+    const from=monthKey(cardAsOf), to=monthAdd(from, 5);
+    CR.openModal('Поставить план', CR.planFormHtml(c, d, from, to),
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitPlan()">Сохранить план</button>`);
+  };
+  /* тело формы вынесено: пересобирается при смене периода без переоткрытия модалки */
+  CR.planFormHtml=function(c, d, from, to){
+    const fc=forecastByMonth(c, d.ledger.index, cardAsOf);
+    const mks=monthRange(from, to);
+    const rows=mks.map(mk=>{ const ex=planRowOf(c,mk);
+      const seed = ex && ex.amount!=null ? ex.amount : (fc.has(mk)?fc.get(mk):0);
+      return `<tr>
+        <td><label><input type="checkbox" class="plan-on" data-m="${jsAttr(mk)}" checked> ${esc(monthLabel(mk))}</label></td>
+        <td style="text-align:right">${fc.has(mk)?money(fc.get(mk)):'—'}</td>
+        <td style="text-align:right"><input type="number" min="0" step="0.01" class="plan-amt" data-m="${jsAttr(mk)}" data-seed="${fc.has(mk)?fc.get(mk):''}" value="${seed||''}" style="width:130px;text-align:right"></td>
+        <td>${ex&&ex.amount!=null?`<span class="pill mid">будет правка</span> было ${money(ex.amount)}`:(ex?'<span class="pill neutral">план был снят</span>':'—')}</td></tr>`;});
+    return `<p class="section-note">План — цель на месяц, которую ставим сами. Строки предзаполнены <b>прогнозом</b>:
+        это стартовое значение формы, не связь — после сохранения план от прогноза не зависит (ADR-0042).
+        Снять галку — месяц не трогаем. Обнулить план месяца нельзя: чтобы отказаться от цели, снимите план на вкладке.</p>
+      <div class="mform" style="grid-template-columns:1fr 1fr">
+        <div class="field"><span class="flabel">С месяца</span><div class="control"><input type="month" id="planFrom" value="${esc(from)}" onchange="CR.reloadPlanForm()"></div></div>
+        <div class="field"><span class="flabel">По месяц</span><div class="control"><input type="month" id="planTo" value="${esc(to)}" onchange="CR.reloadPlanForm()"></div></div>
+      </div>
+      <div id="planFormRows">${cgrid([{h:'Месяц'},{h:'Прогноз',r:1},{h:'План',r:1},{h:'Состояние'}], rows, {empty:'Период пуст — «по месяц» раньше «с месяца»'})}</div>
+      <div class="field col-span"><span class="flabel">Примечание к правке</span><div class="control"><input id="planNote" placeholder="например: уточнено после ДС-2"></div></div>`;
+  };
+  CR.reloadPlanForm=function(){ const c=currentCredit(); if(!c) return;
+    const from=document.getElementById('planFrom').value, to=document.getElementById('planTo').value;
+    const host=document.getElementById('modalHost'); if(!host) return;
+    const body=host.querySelector('.modal-b'); if(!body) return;      // тело модалки — .modal-b (см. CR.openModal)
+    body.innerHTML=`<div id="modalErr"></div>`+CR.planFormHtml(c, derive(c, cardAsOf), from, to);
+  };
+  CR.submitPlan=function(){ const c=modalGuard('setPlan'); if(!c) return;
+    const rows=[...document.querySelectorAll('.plan-amt')].map(inp=>{
+      const mk=inp.getAttribute('data-m');
+      const on=document.querySelector('.plan-on[data-m="'+mk+'"]');
+      if(!on||!on.checked) return null;
+      const seed=inp.getAttribute('data-seed');
+      return { month:mk, amount:+inp.value||0, seededFrom: seed===''?null:+seed };
+    }).filter(Boolean);
+    const note=(document.getElementById('planNote')||{}).value||'';
+    const r=CR.setPlan(c,{rows,note}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('План сохранён: месяцев '+rows.length,'ok'); rerenderDetail(); };
+
   /* экспорт DOM-обвязки на CR (onclick-строки разметки живут в глобальной области) */
   CR._sel = null;
   CR.renderList = renderList; CR.renderRows = renderRows; CR.renderRole = renderRole;
