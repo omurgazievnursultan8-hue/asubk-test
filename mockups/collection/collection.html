@@ -370,6 +370,7 @@ a{ color:inherit; }
   outline:none; padding:0 var(--space-2); transition:box-shadow 120ms ease, border-color 120ms ease; }
 .range-pair input:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
 .filter-actions{ grid-column:1 / -1; display:flex; justify-content:flex-end; gap:10px; align-items:center; }
+.filter-row-bottom{ grid-column:1 / -1; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px 16px; }
 .filter-chips{ display:flex; flex-wrap:wrap; gap:6px; padding:0 20px; }
 .filter-chips:empty{ display:none; }
 .fchip{ display:inline-flex; align-items:center; gap:4px; background:var(--asubk-blue-tint); color:var(--asubk-blue);
@@ -405,6 +406,22 @@ table.grid thead th .sort{ position:absolute; right:4px; top:50%; transform:tran
 table.grid thead th:hover .sort, table.grid thead th.sorted .sort{ opacity:1; }
 table.grid tbody td{ height:35px; padding:0 10px; border-bottom:1px solid var(--asubk-grid-line);
   color:var(--text-body); vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* «Охват» — самое длинное значение колонки (замер ТР-9), в одну строку не влезает.
+   Вместо обрезки посреди слова — перенос на две строки с обрезкой после второй.
+   display:box/flex — на ВНУТРЕННЕМ span, не на самом td: td с display:flex/-webkit-box
+   ломает table-layout:fixed в Chromium (колонка схлопывается с соседней, весь хвост
+   строки съезжает на одну колонку влево) — сам td остаётся обычной table-cell. */
+table.grid tbody td.wrap2{ height:auto; padding-top:6px; padding-bottom:6px; white-space:normal;
+  overflow:hidden; text-overflow:clip; }
+table.grid tbody td.wrap2 .clamp2{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden; line-height:1.3; }
+/* «Фаза» несёт два смысловых слоя в одной ячейке — саму фазу и трек-пилюли
+   (trackBadges) — двумя явными строками, а не переносом по месту разрыва: каждая
+   строка обрезается своим многоточием независимо от длины соседней. */
+table.grid tbody td.twoline{ height:auto; padding-top:6px; padding-bottom:6px; white-space:normal;
+  overflow:visible; text-overflow:clip; }
+table.grid tbody td.twoline .pwrap{ display:flex; flex-direction:column; justify-content:center; gap:2px; }
+table.grid tbody td.twoline .pline{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 table.grid tbody tr{ cursor:pointer; }
 table.grid tbody tr:hover{ background:var(--surface-hover); }
 table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
@@ -816,7 +833,7 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
       <span class="menu" title="Меню">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </span>
-      <span class="crumb-title" id="crumbTitle">Взыскание задолженности</span>
+      <span class="crumb-title" id="crumbTitle">Требования (реестр)</span>
       <div class="role-wrap">
         <label>Роль:</label>
         <div class="rsel">
@@ -846,12 +863,6 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
         <div class="filter-body" id="filterBody"></div>
         <div class="filter-chips" id="filterChips"></div>
         <div class="tiles" id="listTiles"></div>
-        <!-- ТР-1: рамка экрана названа вслух. Реестр отвечает на «что в портфеле и в каком
-             оно юридическом состоянии»; «что делать сегодня» — вопрос другого реестра
-             с другим атомом (обязательство с датой, а не требование). -->
-        <p class="list-frame">Состояние портфеля взыскания на <b>21.07.2026</b>. Деньги в плитках — один раз
-          на кредит, по строке заёмщика (§2.2). Рабочая очередь по срокам —
-          в реестре <a class="lnk" onclick="navClick('Сроки на контроле (реестр)')">«Сроки на контроле»</a>.</p>
         <div class="rowtools">
           <!-- ТР-6: строка открывается кликом и Enter — отдельная кнопка «Открыть требование» снята. -->
           <button class="btn btn-tint" id="btnExport" onclick="exportList()">
@@ -4323,6 +4334,10 @@ const LIST_COLS = [
    «Фаза» 19,7 % = 244 px не случайна: у 119 требований из 132 ячейка ровно 244 px
    (модальное значение), обрезка задевает 13 длинных. Урезать её до 235 px значило бы
    поставить многоточие большинству строк. */
+/* «Фаза» несёт текст фазы и — второй строкой внутри той же ячейки — трек-пилюли
+   (trackBadges): раздельная колонка «Трек» пустовала почти везде (пилюля есть не у
+   каждого требования), а слитная строка рвалась не по смыслу. Явные две строки
+   (.pline) решают то же место без лишней колонки. */
 const LIST_WIDTHS = ['18.1%','14.5%','12.7%','19.7%','7.5%','10.4%','9.5%','7.6%'];
 
 function sortVal(r, k){
@@ -4487,9 +4502,13 @@ function renderList(){
   const cell = (r, pos, nInDeal) => {
     const cat = catOfReq(r), out = outcomeOf(r);
     const pause = (r.states||[]).find(s=>stateActive(s));
-    const phaseCell = out
+    const phaseLine1 = out
       ? `<span class="pill neutral">${out}</span>`
-      : `${displayPhase(r)}${pause?` <span class="pill mid">${pause.kind==='restructuring'?'реструктуризация':pause.kind==='guarantee_letter'?'гарантийное письмо':'пауза'}</span>`:''}${trackBadges(r)}`;
+      : `${displayPhase(r)}${pause?` <span class="pill mid">${pause.kind==='restructuring'?'реструктуризация':pause.kind==='guarantee_letter'?'гарантийное письмо':'пауза'}</span>`:''}`;
+    const trackLine = out ? '' : trackBadges(r).trim();
+    const phaseCell = trackLine
+      ? `<span class="pwrap"><span class="pline">${phaseLine1}</span><span class="pline">${trackLine}</span></span>`
+      : phaseLine1;
     const sol = solidaryWith(r).length;
     const money = `снимок денег на ${moneyDate(r)}`
       + (sol ? ` · солидарно с ${sol} треб. — в итоге по делу считается один раз` : '');
@@ -4516,8 +4535,8 @@ function renderList(){
         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetail('${escAttr(r.id)}');}">
       <td title="${escAttr(personOf(r).name+' · '+r.role)}">${personOf(r).name}${r.role!=='заёмщик'?`<span class="rolechip">${r.role}</span>`:''}${personStateBadge(r)}</td>
       <td title="${escAttr(r._credit.num)}">${r._credit.num}</td>
-      <td title="${escAttr(scopeLabel(scopeOf(r)))}">${scopeLabel(scopeOf(r))}</td>
-      <td title="${escAttr(out || displayPhase(r))}">${phaseCell}</td>
+      <td class="wrap2" title="${escAttr(scopeLabel(scopeOf(r)))}"><span class="clamp2">${scopeLabel(scopeOf(r))}</span></td>
+      <td class="twoline" title="${escAttr(out || displayPhase(r))}">${phaseCell}</td>
       <td title="${escAttr(catLabel(cat))}">${catLabel(cat)}${catDivergeMark(r)}</td>
       <td title="${escAttr(r.subdivision)}">${r.subdivision}</td>
       <td class="num" title="${escAttr(money)}">${fmtKGS(claimOf(r))}${sol?`<span class="solmark">сол.</span>`:''}</td>
@@ -7036,7 +7055,7 @@ const warnIcon = ()=>`<svg width="16" height="16" viewBox="0 0 24 24" fill="none
 const alertIcon = ()=>`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>`;
 function showView(v){ document.querySelectorAll('.view').forEach(s=>s.style.display='none');
   document.getElementById('view-'+v).style.display='flex';
-  const titles={list:'Взыскание задолженности',hearings:'Реестр заседаний',claims:'Реестр претензий',committee:'Вопросы на коллегиальные органы',deadlines:'Сроки на контроле',settings:'Настройки правил доступности мер'};
+  const titles={list:'Требования (реестр)',hearings:'Реестр заседаний',claims:'Реестр претензий',committee:'Вопросы на коллегиальные органы',deadlines:'Сроки на контроле',settings:'Настройки правил доступности мер'};
   if(v==='settings') renderSettings();
   if(titles[v]) setCrumb([[titles[v]]]);
   /* detail пишет renderDetail (с id и вкладкой); остальные виды — по имени.
@@ -7173,19 +7192,20 @@ function renderFilterBar(){
   const phases   = f.stage ? phasesOfStage(f.stage) : [];
   document.getElementById('filterBody').innerHTML = `
     ${ftext('f-q','Заёмщик / ИНН', f.q, "setF('q',this.value)")}
-    ${fsel('f-curator','Куратор', curators, f.curator, "setF('curator',this.value)")}
-    ${fcheck('f-mine','только моё подразделение', f.mine, "setMine(this.checked)")}
-    ${fsel('f-subdiv','Ведущее подразделение', subdivs, f.subdiv, "setF('subdiv',this.value)")}
-    ${fsel('f-scope','Охват', scopes, f.scope, "setF('scope',this.value)")}
-    ${fsel('f-role','Роль обязанного лица', roles, f.role, "setF('role',this.value)")}
-    ${fsel('f-oblast','Область', oblasti, f.oblast, "setDep('oblast',this.value)")}
-    ${fsel('f-raion','Район', raiony, f.raion, "setF('raion',this.value)", !f.oblast)}
     ${fsel('f-stage','Стадия', stages, f.stage, "setDep('stage',this.value)")}
     ${fsel('f-phase','Фаза', phases, f.phase, "setF('phase',this.value)", !f.stage)}
-    ${fsel('f-cat','Категория риска', CAT_OPTS, f.cat, "setF('cat',this.value)")}
+    ${fsel('f-scope','Охват', scopes, f.scope, "setF('scope',this.value)")}
+    ${fsel('f-oblast','Область', oblasti, f.oblast, "setDep('oblast',this.value)")}
+    ${fsel('f-raion','Район', raiony, f.raion, "setF('raion',this.value)", !f.oblast)}
+    ${fsel('f-role','Роль обязанного лица', roles, f.role, "setF('role',this.value)")}
+    ${fsel('f-subdiv','Ведущее подразделение', subdivs, f.subdiv, "setF('subdiv',this.value)")}
     ${fsel('f-group','Группа платёжеспособности', groups, f.group, "setF('group',this.value)")}
-    ${frange('Дней просрочки','odMin','odMax')}
-    ${frange('Сумма требования','sumMin','sumMax')}
+    ${fsel('f-cat','Категория риска', CAT_OPTS, f.cat, "setF('cat',this.value)")}
+    ${fsel('f-curator','Куратор', curators, f.curator, "setF('curator',this.value)")}
+    <div class="filter-row-bottom">
+      ${frange('Дней просрочки','odMin','odMax')}
+      ${frange('Сумма требования','sumMin','sumMax')}
+    </div>
     <div class="filter-actions">
       <!-- ТР-5: сплит-кнопка «Обновить» и шестерёнка «Настройка колонок» сняты.
            Фильтр живой — обновлять нечего; шестерёнка была тостом-заглушкой (ТР-Д10). -->
