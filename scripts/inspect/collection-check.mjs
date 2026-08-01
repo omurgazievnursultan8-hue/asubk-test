@@ -1344,7 +1344,36 @@ head('ПЛ-3 · фильтр свёрнут по умолчанию');
 ok('в разметке у .filter-head нет класса open', !/<div class="filter-head open"/.test(HTML_SRC));
 ok('тело фильтра при загрузке скрыто',       !L.$('.filter-head').classList.contains('open'));
 ok('шапка «Фильтр» на месте и кликабельна',  /Фильтр/.test(L.$('.filter-head').textContent)
-   && /onclick="this\.classList\.toggle\('open'\)"/.test(HTML_SRC));
+   && /onclick="toggleFilterPanel\(this\)"/.test(HTML_SRC));
+/* Панель свёрнута по умолчанию — её шапка единственный вход в фильтр, и без фокуса
+   он был недостижим с клавиатуры вовсе. То же у плиток и у шапок-сортировок: они
+   переключатели, а строка списка (ТР-6) с клавиатуры работала с самого начала. */
+ok('шапка фильтра доступна с клавиатуры и сообщает раскрытие', (() => {
+  const m = mk(), h = m.$('.filter-head');
+  const before = h.getAttribute('aria-expanded');
+  m.ev(`toggleFilterPanel(document.querySelector('.filter-head'))`);
+  return h.getAttribute('tabindex') === '0' && h.getAttribute('role') === 'button'
+      && before === 'false' && h.getAttribute('aria-expanded') === 'true'
+      && h.classList.contains('open'); })());
+ok('плитки доступны с клавиатуры и говорят о нажатом состоянии', (() => {
+  const m = mk(); m.ev(`renderList(); clickTile('gate')`);
+  const tiles = m.$$('#listTiles .tile');
+  const gate = tiles.find(t => t.getAttribute('aria-pressed') === 'true');
+  return tiles.every(t => t.getAttribute('tabindex') === '0' && t.getAttribute('role') === 'button')
+      && !!gate && /Заблокировано/.test(gate.textContent)
+      && tiles.filter(t => t.getAttribute('aria-pressed') === 'true').length === 1
+      && tiles[0].getAttribute('aria-pressed') === null;   // «Всего» отбор не задаёт
+})());
+ok('шапки колонок доступны с клавиатуры и несут aria-sort', (() => {
+  const m = mk(); m.ev('renderList()');
+  const th = m.$$('#listHead th');
+  const sorted = th.filter(t => t.getAttribute('aria-sort') !== 'none');
+  return th.length === 8 && th.every(t => t.getAttribute('tabindex') === '0')
+      && sorted.length === 1 && sorted[0].getAttribute('aria-sort') === 'descending'
+      && /Сумма требования/.test(sorted[0].textContent); })());
+ok('у фокуса есть видимая обводка — у шапки фильтра, плитки и шапки колонки',
+   /\.filter-head:focus-visible\{/.test(HTML_SRC) && /\.tile:focus-visible\{/.test(HTML_SRC)
+   && /thead th:focus-visible\{/.test(HTML_SRC));
 ok('панель открывается кликом', (() => {
   const m = mk(); m.$('.filter-head').classList.add('open');
   return m.$('.filter-head').classList.contains('open') && m.$$('#filterBody select').length > 0;

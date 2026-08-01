@@ -762,6 +762,14 @@ tr.rowopen{ cursor:pointer; }
 tr.rowopen:hover td{ background:var(--surface-hover); }
 tr.rowopen:focus{ outline:none; }
 tr.rowopen:focus-visible td{ box-shadow:inset 0 2px 0 var(--asubk-blue), inset 0 -2px 0 var(--asubk-blue); }
+/* Фокус виден там же, где он действует: шапка-сортировка, плитка и шапка фильтра —
+   такие же переключатели, как строка выше, и обводка у них одна и та же. */
+table.grid thead th:focus{ outline:none; }
+table.grid thead th:focus-visible{ box-shadow:inset 0 0 0 2px var(--asubk-blue); }
+.tile:focus{ outline:none; }
+.tile:focus-visible{ border-color:var(--asubk-blue); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.filter-head:focus{ outline:none; }
+.filter-head:focus-visible{ box-shadow:inset 0 0 0 2px var(--asubk-blue); }
 table.grid th.num, table.grid td.num{ text-align:right; }
 table.grid thead th.sorted{ color:var(--text-heading); }
 table.grid thead th.sorted .sort{ color:var(--asubk-blue); }
@@ -871,7 +879,12 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
         <!-- ПЛ-3: панель СВЁРНУТА по умолчанию. Открытая, она занимала 348 px из 1000
              и в них сообщала ноль: 15 контролов, все в «— все —». Что именно сузило
              выборку, несёт лента условий (ТР-10) — она же это и снимает. -->
-        <div class="filter-head" onclick="this.classList.toggle('open')">
+        <!-- Панель свёрнута по умолчанию (ПЛ-3) — значит её шапка единственный вход
+             в фильтр, и с клавиатуры он был недостижим вовсе: div с onclick без
+             фокуса. Раскрытие сообщается через aria-expanded. -->
+        <div class="filter-head" tabindex="0" role="button" aria-expanded="false" aria-controls="filterBody"
+             onclick="toggleFilterPanel(this)"
+             onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFilterPanel(this);}">
           <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
           <span>Фильтр</span>
         </div>
@@ -4445,10 +4458,18 @@ function renderTiles(){
     { key:'clear',   lbl:TILE_LABELS.clear,    n:by('clear'),    cls:'' },
     { key:'closed',  lbl:TILE_LABELS.closed,   n:by('closed'),   cls:'' },
   ];
-  document.getElementById('listTiles').innerHTML = tiles.map(t=>`
-    <div class="tile ${t.cls}${tileFilter===t.key && t.key!==null ? ' active':''}" onclick="clickTile(${t.key===null?'null':`'${t.key}'`})"
+  /* Плитка — переключатель отбора, а не картинка: доступна с клавиатуры и говорит
+     о своём состоянии (role/aria-pressed), как строка списка (ТР-6). «Всего» отбор
+     не задаёт — она снимает плиточный фильтр, потому у неё aria-pressed нет. */
+  document.getElementById('listTiles').innerHTML = tiles.map(t=>{
+    const arg = t.key===null ? 'null' : `'${t.key}'`;
+    const on  = tileFilter===t.key && t.key!==null;
+    return `<div class="tile ${t.cls}${on ? ' active':''}" onclick="clickTile(${arg})"
+         tabindex="0" role="button"${t.key===null?'':` aria-pressed="${on}"`}
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();clickTile(${arg});}"
          title="${escAttr(t.lbl)} — ${t.n} требований на ${m(t.key)} сом (деньги один раз на кредит)">
-      <div class="tv">${t.n}</div><div class="tl">${t.lbl}</div><div class="tm">${m(t.key)}</div></div>`).join('');
+      <div class="tv">${t.n}</div><div class="tl">${t.lbl}</div><div class="tm">${m(t.key)}</div></div>`;
+  }).join('');
 }
 function clickTile(k){ tileFilter = (k===null) ? null : (tileFilter===k ? null : k); curPage = 1; renderTiles(); renderList(); renderChips(); }
 
@@ -4522,8 +4543,13 @@ function pagesOfDeals(deals, size){
 
 function renderList(){
   document.getElementById('listCols').innerHTML = LIST_WIDTHS.map(w=>`<col style="width:${w}">`).join('');
+  /* Шапка сортирует — значит она кнопка: фокус, Enter/Пробел и aria-sort, по которому
+     экранный диктор называет и направление, и то, что колонка вообще сортируемая. */
   document.getElementById('listHead').innerHTML = LIST_COLS.map(c=>
-    `<th class="${c.num?'num':''}${sortKey===c.k?' sorted':''}" onclick="sortList('${c.k}')">${c.t}<span class="sort">${sortKey===c.k?(sortDir>0?'↑':'↓'):'↕'}</span></th>`).join('');
+    `<th class="${c.num?'num':''}${sortKey===c.k?' sorted':''}" onclick="sortList('${c.k}')"
+        tabindex="0" role="columnheader" aria-sort="${sortKey===c.k?(sortDir>0?'ascending':'descending'):'none'}"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();sortList('${c.k}');}"
+     >${c.t}<span class="sort">${sortKey===c.k?(sortDir>0?'↑':'↓'):'↕'}</span></th>`).join('');
   renderTiles();
 
   const deals     = groupedDeals();
@@ -7312,6 +7338,10 @@ function frange(label,kMin,kMax){
       <span>–</span>
       <input type="number" min="0" value="${filterState[kMax]??''}" oninput="setNum('${kMax}',this.value)" placeholder="до">
     </div></div>`;
+}
+function toggleFilterPanel(el){
+  const open = el.classList.toggle('open');
+  el.setAttribute('aria-expanded', String(open));
 }
 function renderFilterBar(){
   const f = filterState;
