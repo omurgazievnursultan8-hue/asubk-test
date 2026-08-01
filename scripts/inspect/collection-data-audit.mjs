@@ -242,3 +242,4 @@ const out = await p.evaluate(() => {
 await b.close();
 console.log('pageerrors:', errs);
 console.log(JSON.stringify(out, null, 1));
+console.log(`ИТОГО находок: ${out.findings.length} · дел: ${out.procCount} · требований: ${out.reqCount}`);
