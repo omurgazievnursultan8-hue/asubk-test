@@ -2539,23 +2539,43 @@ const BANKROTSTVO_SCOPE = { volume:'полный остаток', method:'ден
    для normColl() (осталась на своём месте, использует ту же константу). */
 const REAL_STAGES = ['не начата','подготовка к торгам','торги назначены','принято на баланс','реализовано'];
 
-function buildSeed(seed){
-  const procs = [];
-  /* Task 4 (контур К1, ситуация K1-ОБЕСП): обеспечитель — третья координата
-     требования (М-1), а PERSONS[id] в normalize() пишется через ??= — молчаливое
-     «первый выигрывает». Без реестра здесь два дела могли бы тихо разделить одного
-     поручителя под разными именами/ИНН, и второе описание просто исчезло бы. */
-  const obligorIds = new Set();
-  for(const c of seed){
+/* Task 9 (МТ-1) — СБОРКА ОДНОГО КРЕДИТА ДЕЛА. Тело было телом цикла buildSeed()
+   и осталось им построчно: дело с ЕДИНСТВЕННЫМ кредитом (`credit:{…}`) собирается
+   ровно теми же выражениями, что и до вынесения (регрессия проверена снимком
+   PROCESSES/LEDGER/COSTS_SEED до и после — побайтно совпал).
+
+   Зачем вынесено: дело может держать НЕСКОЛЬКО кредитов (`credits:[…]`, МТ-1 —
+   дело 412: три требования одного заёмщика в трёх контурах; РИСК — worst-of по
+   двум кредитам). Каждый кредит несёт СВОЮ цепочку (stop/age), СВОИ меры, СВОИ
+   сроки, СВОЙ гейт — и, что важнее, СВОИ замыкания: basisFor() ищет основание
+   backward-поиском по `measures`, а overdueSumAt() читает `m.accelerated` по тому
+   же массиву. Собирай билдер все кредиты дела в ОДИН массив мер — мера кредита Б
+   нашла бы основанием меру кредита А (A7 аудита: «пересечение целей пусто»), а
+   ускорение по А ускорило бы суммы по Б. Отдельный вызов на кредит = отдельные
+   measures/basisFor/sumBy, склейка — только на уровне дела.
+
+   Параметры stop/age приходят снаружи (у многокредитного дела они объявлены НА
+   КРЕДИТЕ, у однокредитного — на кейсе), остальные поля кейса читаются с `c`
+   как раньше; поля самого кредита — с `cr` (было `c.credit`). */
+function buildCredit(c, cr, stop, age){
     /* А11-номер (ревью №1, п.6): num строится из credit.id — id обязан быть
        глобально уникален по всей затравке, иначе номера мер столкнутся. */
-    if(LEDGER[c.credit.id])
-      throw new Error(`SEED: кредит id='${c.credit.id}' (дело ${c.id}) уже объявлен другим делом — id кредита обязаны быть глобально уникальны, номера мер строятся из них`);
-    for(const o of (c.obligors || [])){
-      if(obligorIds.has(o.id))
-        throw new Error(`SEED: дело ${c.id} — obligor id='${o.id}' уже объявлен другим делом — id обеспечителя обязан быть глобально уникален`);
-      obligorIds.add(o.id);
-    }
+    if(LEDGER[cr.id])
+      throw new Error(`SEED: кредит id='${cr.id}' (дело ${c.id}) уже объявлен другим делом — id кредита обязаны быть глобально уникальны, номера мер строятся из них`);
+    /* Task 9: «сколько дней просрочки» у дела БЕЗ цепочки — тоже свойство кредита,
+       а не дела (двухкредитное дело РИСК-397: по одному договору просрочка идёт,
+       по второму её нет вовсе, а категория «Высокий» стоит по фактору комитета). */
+    const overdue = cr.overdue !== undefined ? cr.overdue : c.overdue;
+    /* credits0 — оверлей дополнительных полей кредита (Р-11): на многокредитном деле
+       объявляется НА КРЕДИТЕ (case-level запрещён списком MULTI_CREDIT_CASE_FIELDS
+       ниже — иначе одна задержка казначейства растеклась бы на все договоры). */
+    const credits0 = cr.credits0 || c.credits0 || null;
+    /* Гейт без решения: объявляется кейсом (K1-БА-ГЕЙТ) ЛИБО ставится веткой
+       безнадёжности ниже (K7-КОМИССИЯ). Раньше ветка писала его ОБРАТНО в
+       декларацию (`c.gatePending = …`) — единственная мутация SEED, оставшаяся в
+       билдере; на многокредитном деле она бы ещё и протекла с кредита на кредит.
+       Локальная переменная — то же поведение без записи в декларацию. */
+    let gatePending = c.gatePending;
 
     /* Цепочка: stop называет ПОСЛЕДНЮЮ пройденную ступень SPINE (её ключ), либо null —
        дело ещё не подало первую претензию. Опечатка в stop раньше тихо давала пустую
@@ -2563,17 +2583,17 @@ function buildSeed(seed){
        stopIndex хранится отдельно (не только steps.length) — verdict-проверки ниже
        сравнивают его с VERDICT_AT позиционно (дошла цепочка ДО 'решение' / идёт ПОСЛЕ). */
     let stopIndex = -1;
-    if(c.stop != null){
-      stopIndex = SPINE_KEYS.indexOf(c.stop);
+    if(stop != null){
+      stopIndex = SPINE_KEYS.indexOf(stop);
       if(stopIndex < 0)
-        throw new Error(`SEED: дело ${c.id} — stop='${c.stop}' не входит в SPINE_KEYS [${SPINE_KEYS.join(', ')}]`);
+        throw new Error(`SEED: дело ${c.id} — stop='${stop}' не входит в SPINE_KEYS [${SPINE_KEYS.join(', ')}]`);
     }
     const steps = stopIndex < 0 ? [] : SPINE.slice(0, stopIndex+1);
     /* overdue — только для дел БЕЗ цепочки (K0): открытие считается прямо от него.
        С цепочкой открытие выводится из возраста последней вехи (age) — overdue стал
        бы вторым, противоречащим источником и раньше тихо игнорировался (ревью №1, п.8). */
-    if(steps.length && c.overdue != null)
-      throw new Error(`SEED: дело ${c.id} — stop='${c.stop}' задаёт цепочку; overdue дублирует то, что выводится из возраста последней вехи (age) — уберите overdue`);
+    if(steps.length && overdue != null)
+      throw new Error(`SEED: дело ${c.id} — stop='${stop}' задаёт цепочку; overdue дублирует то, что выводится из возраста последней вехи (age) — уберите overdue`);
     /* verdict — исход СВОЕЙ ступени 'решение' (K3-РЕШЕНИЕ, Task 6 и далее): по умолчанию
        FAVORABLE_VERDICT (SPINE), кейс может назвать любой другой исход вида «Решение
        суда» — из справочника, а не хардкодом (несовпадение ловит A3 аудита сам). Ревью
@@ -2587,12 +2607,12 @@ function buildSeed(seed){
       if(!vals.includes(c.verdict))
         throw new Error(`SEED: дело ${c.id} — verdict='${c.verdict}' не входит в исходы вида «Решение суда» [${vals.join(' | ')}]`);
       if(stopIndex < VERDICT_AT)
-        throw new Error(`SEED: дело ${c.id} — verdict='${c.verdict}' задан, а цепочка (stop='${c.stop}') не доходит до «Решение суда» — верните verdict только вместе со stop:'решение' или дальше`);
+        throw new Error(`SEED: дело ${c.id} — verdict='${c.verdict}' задан, а цепочка (stop='${stop}') не доходит до «Решение суда» — верните verdict только вместе со stop:'решение' или дальше`);
       if(c.verdict !== FAVORABLE_VERDICT && stopIndex > VERDICT_AT)
-        throw new Error(`SEED: дело ${c.id} — verdict='${c.verdict}' (не «${FAVORABLE_VERDICT}»), а цепочка продолжается дальше «Решение суда» (stop='${c.stop}') — Исполнительный лист/Постановление не бывают после проигранного/частичного иска`);
+        throw new Error(`SEED: дело ${c.id} — verdict='${c.verdict}' (не «${FAVORABLE_VERDICT}»), а цепочка продолжается дальше «Решение суда» (stop='${stop}') — Исполнительный лист/Постановление не бывают после проигранного/частичного иска`);
     }
 
-    const dbt = c.credit.debt;
+    const dbt = cr.debt;
     /* Охват (ADR-0025) различает «просроченная сумма» / «полный остаток» ТОЛЬКО если
        часть тела кредита ещё не просрочена (ревью №1, п.2) — без явного principalOverdue
        обе суммы совпадали бы, и сама развилка по scope была бы нетестируемой. Обязателен
@@ -2611,16 +2631,16 @@ function buildSeed(seed){
     if(dbt.principalOverdue != null && !(dbt.principalOverdue > 0 && dbt.principalOverdue < principalLeft))
       throw new Error(`SEED: дело ${c.id} — debt.principalOverdue=${dbt.principalOverdue} должен быть строго между 0 и principal-paid=${principalLeft} (иначе охваты «просроченная сумма»/«полный остаток» совпадут или перевернутся, ADR-0025)`);
     const principalOverdue = dbt.principalOverdue != null ? dbt.principalOverdue : principalLeft;
-    LEDGER[c.credit.id] = { asOf:'25.07.2026',
+    LEDGER[cr.id] = { asOf:'25.07.2026',
       principal:{ accrued:dbt.principal, paid:principalPaid, overdue:principalOverdue },
       interest:{ accrued:dbt.interest||0, paid:0, overdue:dbt.interest||0 },
       penalty:{ accrued:dbt.penalty||0, paid:0, overdue:dbt.penalty||0 } };
 
     /* Даты назад: последняя веха стоит `age` дней назад от TODAY, остальные — по gap. */
     const dates = [];
-    let d = ruSub(TODAY, c.age ?? 12);
+    let d = ruSub(TODAY, age ?? 12);
     for(let i=steps.length-1; i>=0; i--){ dates[i] = d; d = ruSub(d, steps[i].gap); }
-    const opened = steps.length ? ruSub(dates[0], SPINE[0].gap) : ruSub(TODAY, (c.overdue ?? 8) - 5);
+    const opened = steps.length ? ruSub(dates[0], SPINE[0].gap) : ruSub(TODAY, (overdue ?? 8) - 5);
     /* Дело открывается на 6-й день просрочки (Р-4) — просрочка отсчитывается отсюда. */
     const overdueStart = ruSub(opened, 5);
     const overdueDays  = Math.round((dParse(TODAY) - dParse(overdueStart)) / D_MS);
@@ -2665,7 +2685,7 @@ function buildSeed(seed){
       }
       if(sum > principalLeft)
         throw new Error(`SEED: дело ${c.id} — debt.payments в сумме (${sum}) больше непогашенного остатка тела (principal-paid=${principalLeft})`);
-      LEDGER[c.credit.id].principal.payments = dbt.payments.map(x => ({ ...x }));
+      LEDGER[cr.id].principal.payments = dbt.payments.map(x => ({ ...x }));
     }
 
     /* Task 8 fix round 2 (ruling координатора 1): sumBy — зеркало debtOf() ПОЛНОСТЬЮ,
@@ -2742,9 +2762,9 @@ function buildSeed(seed){
       costDate = ruAdd(dates[ilIdx], 5);
       if(dParse(costDate) > dParse(TODAY)) costDate = TODAY;
     }
-    const costAmount = c.costs ?? 8000;
+    const costAmount = (cr.costs ?? c.costs) ?? 8000;
     if(costDate != null)
-      COSTS_SEED[c.credit.id] = [{ date:costDate,
+      COSTS_SEED[cr.id] = [{ date:costDate,
         kind:'Расходы по обращению взыскания и реализации', amount:costAmount }];
     /* sumBy зеркалит debtOf(): «полный остаток» + издержка, ТОЛЬКО если её дата не
        позже даты САМОЙ этой меры (atDate) — ровно то же условие, что debtOf()
@@ -2805,11 +2825,11 @@ function buildSeed(seed){
        часто ОД/ДАК — тот же приём, ключ 'ОПК' в deptCurators. */
     const respFor = kind => {
       const subdiv = subdivOf(kind);
-      const outOfSubdiv = subdiv && c.credit.subdiv && !subdiv.includes(c.credit.subdiv);
+      const outOfSubdiv = subdiv && cr.subdiv && !subdiv.includes(cr.subdiv);
       if(!outOfSubdiv) return c.curator;
       const signer = subdiv.map(s => (c.deptCurators || {})[s]).find(Boolean);
       if(!signer)
-        throw new Error(`SEED: дело ${c.id} — мера «${kind}» относится к подразделению [${subdiv.join(' | ')}], а подразделение дела credit.subdiv='${c.credit.subdiv}' — другое; c.deptCurators не называет подписанта ни для одного из [${subdiv.join(', ')}]`);
+        throw new Error(`SEED: дело ${c.id} — мера «${kind}» относится к подразделению [${subdiv.join(' | ')}], а подразделение дела credit.subdiv='${cr.subdiv}' — другое; c.deptCurators не называет подписанта ни для одного из [${subdiv.join(', ')}]`);
       return signer;
     };
     /* Task 7 fix-round1 (Important 4): ТОТ ЖЕ backward-search приём, что цикл
@@ -2836,7 +2856,7 @@ function buildSeed(seed){
        дыра: 352/353 несли «(2 раза)» в тексте залога при ОДНОЙ мере в журнале). */
     let torgiFailsForColls = 0;
     steps.forEach((s, i) => {
-      const num = `${s.pre}-${c.credit.id}${s.suf||''}`;
+      const num = `${s.pre}-${cr.id}${s.suf||''}`;
       const kd  = kindOf(s.kind);
       if(s.scope) curScope = s.scope;
       const responsible = respFor(s.kind);
@@ -2880,7 +2900,7 @@ function buildSeed(seed){
       if(!steps.length)
         throw new Error(`SEED: дело ${c.id} — bezakceptOutcome задан без цепочки (stop не задан) — датировать ПТ/списание не от чего`);
       const dt = ruAdd(dates[dates.length-1], 20);
-      const numPt = `ПТ-${c.credit.id}`;
+      const numPt = `ПТ-${cr.id}`;
       measures.push({ sec:sectionOf('Платёжное требование в банк'), kind:'Платёжное требование в банк', dates:D(dt, dt),
         num:numPt, purpose:'списание со счетов в обслуживающих банках',
         outcome: c.bezakceptOutcome === 'не исполнено' ? 'не исполнено' : 'исполнено',
@@ -2893,7 +2913,7 @@ function buildSeed(seed){
          РОВНО в день платёжного требования (ревью Task4 п.7: 07.07.2026 = 07.07.2026 на
          кейсе 312), а не раньше него. */
       const dt2 = ruAdd(dt, 5);
-      const numBa = `БА-${c.credit.id}`;
+      const numBa = `БА-${cr.id}`;
       measures.push({ sec:sectionOf('Безакцептное списание'), kind:'Безакцептное списание', dates:D(dt2, dt2),
         num:numBa, purpose:'безакцептное списание просроченной суммы',
         outcome:c.bezakceptOutcome, basedOn:numPt,
@@ -2989,7 +3009,7 @@ function buildSeed(seed){
         throw new Error(`SEED: дело ${c.id} — izvesh:true задан, а ВСЕ предметы c.colls несут ban (п. 42) — внесудебное обращение запрещено на каждый, извещение о внесудебном обращении регистрировать не на что`);
       const kind = 'Извещение об обращении на залог';
       const dt = ruAdd(dates[dates.length-1], 20);
-      const num = `ИЗВ-${c.credit.id}`;
+      const num = `ИЗВ-${cr.id}`;
       const resp = respFor(kind);
       const ch = c.channel || 'Почта';
       measures.push({ sec:sectionOf(kind), kind, dates:D(dt, dt), num,
@@ -3015,7 +3035,7 @@ function buildSeed(seed){
       const dt = ruAdd(dates[dates.length-1], 12);
       const kindOpr = c.iskRefused === 'возврат' ? 'Определение о возвращении искового заявления'
                                                   : 'Определение об отказе в принятии искового заявления';
-      const numOpr = `ОПР-${c.credit.id}`;
+      const numOpr = `ОПР-${cr.id}`;
       const respOpr = respFor(kindOpr);
       const outcomeOpr = c.iskRefused === 'возврат' ? 'возвращено' : 'отказано в принятии';
       measures.push({ sec:sectionOf(kindOpr), kind:kindOpr, dates:D(dt, dt), received:{ date:dt }, num:numOpr,
@@ -3023,7 +3043,7 @@ function buildSeed(seed){
         outcome:outcomeOpr, sum:sumBy(curScope, dt), responsible:respOpr });
       history.push({ when:`${dt} 10:00`, what:`Мера «${kindOpr}» ${numOpr} зарегистрирована — исход «${outcomeOpr}»`, who:respOpr });
       const dt2 = ruAdd(dt, 8);
-      const numChj = `ЧЖ-${c.credit.id}`;
+      const numChj = `ЧЖ-${cr.id}`;
       const respChj = respFor('Частная жалоба');
       measures.push({ sec:sectionOf('Частная жалоба'), kind:'Частная жалоба', dates:D(dt2, dt2),
         num:numChj, purpose:'обжалование определения', basedOn:numOpr,
@@ -3078,14 +3098,14 @@ function buildSeed(seed){
       if(verdictApplied === FAVORABLE_VERDICT)
         throw new Error(`SEED: дело ${c.id} — appeal='${c.appeal}' задан, а исход «Решение суда» благоприятен ('${FAVORABLE_VERDICT}') — апелляцию подаёт ФКФ (Апелляционная жалоба — наш документ), обжаловать собственный полный выигрыш нечего; задайте verdict неблагоприятным ('иск удовлетворён частично' | 'в иске отказано')`);
       const dt = ruAdd(rs.dates.event, 20);
-      const numAj = `АЖ-${c.credit.id}`;
+      const numAj = `АЖ-${cr.id}`;
       const respAj = respFor('Апелляционная жалоба');
       measures.push({ sec:sectionOf('Апелляционная жалоба'), kind:'Апелляционная жалоба', dates:D(dt, dt),
         num:numAj, purpose:'обжалование решения суда', basedOn:rs.num,
         sum:sumBy(curScope, dt), responsible:respAj });
       history.push({ when:`${dt} 10:00`, what:`Мера «Апелляционная жалоба» ${numAj} зарегистрирована`, who:respAj });
       const dt2 = ruAdd(dt, 40);
-      const numPa = `ПА-${c.credit.id}`;
+      const numPa = `ПА-${cr.id}`;
       const respPa = respFor('Постановление апелляционной инстанции');
       measures.push({ sec:sectionOf('Постановление апелляционной инстанции'), kind:'Постановление апелляционной инстанции',
         dates:D(dt2, dt2), received:{ date:dt2 }, num:numPa,
@@ -3159,7 +3179,7 @@ function buildSeed(seed){
       for(let n = 1; n <= fails; n++){
         const dt = ruAdd(anchor, 45);
         anchor = dt;
-        const num = fails > 1 ? `АТ-${c.credit.id}/${n}` : `АТ-${c.credit.id}`;
+        const num = fails > 1 ? `АТ-${cr.id}/${n}` : `АТ-${cr.id}`;
         measures.push({ sec:sectionOf(kind), kind, dates:D(dt, dt),
           received:{ date:dt }, num, purpose:'фиксация провала торгов',
           outcome:'торги не состоялись', basedOn:basis.num,
@@ -3176,14 +3196,14 @@ function buildSeed(seed){
       if(!basisPv)
         throw new Error(`SEED: дело ${c.id} — ilReturned=true задан, а в цепочке нет меры-основания (нужен один из [${kindOf(kindPv).basisKinds.join(' | ')}])`);
       const dt = ruAdd(ip.dates.event, 60);
-      const num = `ПВ-${c.credit.id}`;
+      const num = `ПВ-${cr.id}`;
       const resp = respFor(kindPv);
       measures.push({ sec:sectionOf(kindPv), kind:kindPv, dates:D(dt, dt),
         received:{ date:dt }, num, purpose:'возврат исполнительного листа взыскателю', outcome:'возвращён',
         basedOn:basisPv.num, sum:sumBy(curScope, dt), responsible:resp });
       history.push({ when:`${dt} 10:00`, what:`Мера «${kindPv}» ${num} зарегистрирована — исход «возвращён»`, who:resp });
       const dt2 = ruAdd(dt, 10);
-      const num2 = `ПС-${c.credit.id}`;
+      const num2 = `ПС-${cr.id}`;
       const resp2 = respFor('Письмо в ПССИ');
       measures.push({ sec:sectionOf('Письмо в ПССИ'), kind:'Письмо в ПССИ', dates:D(dt2, dt2), num:num2,
         purpose:'запрос о ходе исполнительного производства', sum:sumBy(curScope, dt2), responsible:resp2 });
@@ -3205,7 +3225,7 @@ function buildSeed(seed){
         throw new Error(`SEED: дело ${c.id} — succession='${c.succession}' задан, а меры «Решение суда» в цепочке нет (нужен stop:'решение' или дальше)`);
       const dt = ruAdd(measures[measures.length-1].dates.event, 30);
       const kindZp = 'Заявление об установлении правопреемника';
-      const num = `ЗП-${c.credit.id}`;
+      const num = `ЗП-${cr.id}`;
       const resp = respFor(kindZp);
       measures.push({ sec:sectionOf(kindZp), kind:kindZp,
         dates:D(dt, dt), num, purpose:'установление правопреемника умершего заёмщика', outcome:'подано',
@@ -3217,7 +3237,7 @@ function buildSeed(seed){
         if(!basisRp)
           throw new Error(`SEED: дело ${c.id} — succession='нет правопреемника' задан, а в цепочке нет меры-основания (нужен один из [${kindOf(kindRp).basisKinds.join(' | ')}])`);
         const dt2 = ruAdd(dt, 45);
-        const num2 = `РП-${c.credit.id}`;
+        const num2 = `РП-${cr.id}`;
         const resp2 = respFor(kindRp);
         measures.push({ sec:sectionOf(kindRp), kind:kindRp,
           dates:D(dt2, dt2), received:{ date:dt2 }, num:num2,
@@ -3250,7 +3270,7 @@ function buildSeed(seed){
         throw new Error(`SEED: дело ${c.id} — bankrot='${c.bankrot}' задан, а меры «Постановление на исполнении» в цепочке нет (нужен stop:'постановление' — банкротство возбуждается поверх исполнительного производства)`);
       let dt = ruAdd(measures[measures.length-1].dates.event, 25);
       const kindZb = 'Заявление на банкротство';
-      const numZb = `ЗБ-${c.credit.id}`;
+      const numZb = `ЗБ-${cr.id}`;
       const respZb = respFor(kindZb);
       measures.push({ sec:sectionOf(kindZb), kind:kindZb, dates:D(dt, dt),
         num:numZb, purpose:'инициирование процедуры банкротства', sum:sumBy(curScope, dt), responsible:respZb });
@@ -3258,7 +3278,7 @@ function buildSeed(seed){
       dt = ruAdd(dt, 30);
       const kindIb = 'Инициирование банкротства';
       const basisIb = basisFor(kindIb);
-      const numIb = `ИБ-${c.credit.id}`;
+      const numIb = `ИБ-${cr.id}`;
       const respIb = respFor(kindIb);
       /* Гарантированно найдётся (numZb только что запушен в measures, его вид входит в
          basisKinds «Инициирования») — throw здесь недостижим по построению, но
@@ -3277,7 +3297,7 @@ function buildSeed(seed){
         const basisPb = basisFor(kindPb);
         if(!basisPb)
           throw new Error(`SEED: дело ${c.id} — основание для «${kindPb}» не найдено (внутренняя ошибка билдера — «${numIb}» только что зарегистрирован)`);
-        const numPb = `ПБ-${c.credit.id}`;
+        const numPb = `ПБ-${cr.id}`;
         const respPb = respFor(kindPb);
         curScope = 'полный остаток';
         measures.push({ sec:sectionOf(kindPb), kind:kindPb, dates:D(dt, dt),
@@ -3292,7 +3312,7 @@ function buildSeed(seed){
           const basisZpb = basisFor(kindZpb);
           if(!basisZpb)
             throw new Error(`SEED: дело ${c.id} — основание для «${kindZpb}» не найдено (внутренняя ошибка билдера — «${numPb}» только что зарегистрирован)`);
-          const numZpb = `ЗПБ-${c.credit.id}`;
+          const numZpb = `ЗПБ-${cr.id}`;
           const respZpb = respFor(kindZpb);
           measures.push({ sec:sectionOf(kindZpb), kind:kindZpb, dates:D(dt, dt),
             received:{ date:dt }, num:numZpb, purpose:'завершение процедуры', outcome:'завершена',
@@ -3307,7 +3327,7 @@ function buildSeed(seed){
        задолженности»-вопрос (ruling 6) в тот же массив, что и общий цикл гейтов,
        раньше было негде: массив там ещё не существовал. Порядок «сперва измеримые
        ветки хребта, затем гейты» не нарушен: измерения К7 по-прежнему уходят в
-       `measures` ДО цикла GATES (см. блок ниже), а `c.gatePending` — до строки,
+       `measures` ДО цикла GATES (см. блок ниже), а `gatePending` — до строки,
        что его читает. См. блок сразу после `const committeeQuestions = [];`. */
 
     /* Task 8 (терминал «Полное погашение», §3.3). Fix round 1 (ruling координатора,
@@ -3324,9 +3344,9 @@ function buildSeed(seed){
        измерение-за-измерением на СВОЕЙ дате; «сейчас» (или на любую дату ≥ дате
        платежа) — принципал погашен целиком, totalLeft=0, «Полное погашение».
        c.repaidAge — «сколько дней назад подтверждено» (акт сверки), СТРОГО МЕНЬШЕ
-       c.age (последней вехи цепочки — оплата случилась ПОСЛЕ неё, не в тот же
+       age (последней вехи цепочки — оплата случилась ПОСЛЕ неё, не в тот же
        день: без явного поля обе даты совпали бы — одна и та же формула
-       ruSub(TODAY,c.age) — что физически невозможно). sum — Fix round 2 (ruling
+       ruSub(TODAY,age) — что физически невозможно). sum — Fix round 2 (ruling
        координатора 1): sumBy(curScope, dt), НЕ литерал '0,00' — платёж уже
        датирован ≤ dt (payments-фолд выше), значит sumBy сама вычисляет ноль ИЗ
        того же фолда, что claimTotal()/debtOf() видят живьём, а не двумя
@@ -3337,12 +3357,12 @@ function buildSeed(seed){
       const kindAs = 'Акт сверки о полном погашении';
       if(steps.length){
         if(c.repaidAge == null)
-          throw new Error(`SEED: дело ${c.id} — repaid:true задан с цепочкой (stop='${c.stop}'), а c.repaidAge (сколько дней назад подтверждено погашение) не задан`);
-        if(!(c.repaidAge < c.age))
-          throw new Error(`SEED: дело ${c.id} — repaidAge=${c.repaidAge} должен быть строго меньше age=${c.age} (оплата — ПОСЛЕ последней меры цепочки, не раньше и не в тот же день)`);
+          throw new Error(`SEED: дело ${c.id} — repaid:true задан с цепочкой (stop='${stop}'), а c.repaidAge (сколько дней назад подтверждено погашение) не задан`);
+        if(!(c.repaidAge < age))
+          throw new Error(`SEED: дело ${c.id} — repaidAge=${c.repaidAge} должен быть строго меньше age=${age} (оплата — ПОСЛЕ последней меры цепочки, не раньше и не в тот же день)`);
       }
-      const dt = ruSub(TODAY, c.repaidAge ?? c.age ?? 12);
-      const num = `АС-${c.credit.id}`;
+      const dt = ruSub(TODAY, c.repaidAge ?? age ?? 12);
+      const num = `АС-${cr.id}`;
       const resp = respFor(kindAs);
       const sumAtRepaid = sumBy(curScope, dt);
       if(sumAtRepaid !== '0,00')
@@ -3422,7 +3442,7 @@ function buildSeed(seed){
       return null;
     })();
     steps.forEach((s, i) => {
-      const num = `${s.pre}-${c.credit.id}${s.suf||''}`;
+      const num = `${s.pre}-${cr.id}${s.suf||''}`;
       let dlN = DEADLINE_BY_KIND[s.kind];
       if(dlN && reachedSudebny) dlN = null;
       if(s.kind === 'Решение суда')
@@ -3487,11 +3507,11 @@ function buildSeed(seed){
        тот же массив, что и общий цикл гейтов ниже, а не второй копией. Порядок
        ВСЁ РАВНО ВАЖЕН: ветка обязана стоять ВЫШЕ цикла `for(const [kind,g] of
        Object.entries(GATES))` (иначе «Заключение комиссии», уже лежащее в
-       measures, не попадёт под авто-гейт того цикла) И выше блока `if(c.gatePending)`
-       ниже (иначе c.gatePending читался бы до появления значения).
+       measures, не попадёт под авто-гейт того цикла) И выше блока `if(gatePending)`
+       ниже (иначе gatePending читался бы до появления значения).
        Гейт ПДК (п. 83): заключение регистрируется только по решённому вопросу.
        c.hopeless==='на рассмотрении' → вопрос вынесен, заключения (и его
-       основания) нет вовсе (K7-КОМИССИЯ, §11) — ветка ставит c.gatePending, а не
+       основания) нет вовсе (K7-КОМИССИЯ, §11) — ветка ставит gatePending, а не
        измеримую меру. Fix round 1 MINOR (ruling 7): history-запись о самом факте
        вынесения вопроса — раньше журнал «на рассмотрении»-кейсов молчал о причине
        задержки (заканчивался на «Постановление на исполнении», как будто ничего
@@ -3512,7 +3532,7 @@ function buildSeed(seed){
           throw new Error(`SEED: дело ${c.id} — hopeless='на рассмотрении' и hopelessFact заданы одновременно — заключения (и его основания) в журнале нет, пока рассмотрение не завершено`);
         if(c.writeOff)
           throw new Error(`SEED: дело ${c.id} — hopeless='на рассмотрении' и writeOff заданы одновременно — списание следует ЗА заключением, которого при незавершённом рассмотрении нет`);
-        c.gatePending = 'Заключение комиссии о безнадёжности';
+        gatePending = 'Заключение комиссии о безнадёжности';
         const dtQ = ruSub(TODAY, 6);
         history.push({ when:`${dtQ} 10:00`, what:'Вопрос «Признание задолженности безнадёжной» вынесен на ПДК — решение не принято', who:c.curator });
       } else {
@@ -3526,7 +3546,7 @@ function buildSeed(seed){
           throw new Error(`SEED: дело ${c.id} — hopelessFact='${c.hopelessFact}' не входит в [${Object.keys(map).join(', ')}]`);
         const [groundKind, groundOutcome, groundPre] = rule;
         let dt = ruAdd(base, 20);
-        const groundNum = `${groundPre}-${c.credit.id}`;
+        const groundNum = `${groundPre}-${cr.id}`;
         const groundResp = respFor(groundKind);
         measures.push({ sec:sectionOf(groundKind), kind:groundKind, dates:D(dt, dt), received:{ date:dt },
           num:groundNum, purpose:'основание безнадёжности', outcome:groundOutcome,
@@ -3535,7 +3555,7 @@ function buildSeed(seed){
 
         dt = ruAdd(dt, 20);
         const kindZk = 'Заключение комиссии о безнадёжности';
-        const numZk = `КБ-${c.credit.id}`;
+        const numZk = `КБ-${cr.id}`;
         const respZk = respFor(kindZk);
         const basisZk = basisFor(kindZk);
         if(!basisZk)
@@ -3551,7 +3571,7 @@ function buildSeed(seed){
           dt = ruAdd(dt, 40);
           const kind = c.writeOff === 'кабмин' ? 'Акт Кабинета Министров о списании'
                                                : 'Решение уполномоченного госоргана о списании';
-          const num = `СП-${c.credit.id}`;
+          const num = `СП-${cr.id}`;
           const resp = respFor(kind);
           measures.push({ sec:sectionOf(kind), kind, dates:D(dt, dt), received:{ date:dt },
             num, purpose:'списание задолженности', outcome:'списана',
@@ -3564,8 +3584,8 @@ function buildSeed(seed){
              GATES) — до этого раунда ни разу не встречался в затравке, F1 аудита
              не проверял его вовсе ни на одном прогоне волны. */
           const atQ = ruSub(dt, 10);
-          committeeQuestions.push({ organ:ORGANS[4], initiator:c.credit.subdiv || 'ОД',
-            topic:'Списание задолженности', credits:[c.credit.num], meetingDate:atQ,
+          committeeQuestions.push({ organ:ORGANS[4], initiator:cr.subdiv || 'ОД',
+            topic:'Списание задолженности', credits:[cr.num], meetingDate:atQ,
             decision:'одобрено', positive:true, protocolNo:`ПРОТ-${c.id}/СП`, protocolDate:atQ });
         }
       }
@@ -3575,8 +3595,8 @@ function buildSeed(seed){
       const m = measures.find(x => x.kind === kind);
       if(!m) continue;
       const at = ruSub(m.dates.event, 10);
-      committeeQuestions.push({ organ:g.organ, initiator:c.credit.subdiv || 'ОД', topic:g.topic,
-        credits:[c.credit.num], meetingDate:at,
+      committeeQuestions.push({ organ:g.organ, initiator:cr.subdiv || 'ОД', topic:g.topic,
+        credits:[cr.num], meetingDate:at,
         decision: g.poruchenie ? 'поручение выдано' : 'разрешено', positive:true,
         protocolNo:`ПРОТ-${c.id}/${g.point}`, protocolDate:at });
     }
@@ -3584,21 +3604,21 @@ function buildSeed(seed){
        вопрос вынесен БЕЗ решения, а сама гейтовая мера в цепочке отсутствует (она
        по определению не может быть зарегистрирована раньше положительного решения,
        gateReason). Цикл выше её не найдёт (measures.find по kind), поэтому это
-       отдельная, не альтернативная ветка. GATES[c.gatePending] дереференсится с
+       отдельная, не альтернативная ветка. GATES[gatePending] дереференсится с
        проверкой ключа (ревью Task4 п.2): опечатка раньше давала анонимный TypeError
        на g.organ вместо именованной ошибки сборки. Ревью Task5 раунд1 п.8: gatePending
        и izvesh взаимно исключены — izvesh уже подразумевает положительное решение по
        ЭТОМУ ЖЕ вопросу (мера зарегистрирована), а gatePending заявляет, что решения ещё
        нет; вместе они дали бы один решённый и один нерешённый вопрос на один предмет. */
-    if(c.gatePending){
+    if(gatePending){
       if(c.izvesh)
-        throw new Error(`SEED: дело ${c.id} — gatePending='${c.gatePending}' и izvesh=true заданы одновременно — противоречие: izvesh уже подразумевает решённый вопрос по этому предмету, gatePending — что решения ещё нет`);
-      const g = GATES[c.gatePending];
+        throw new Error(`SEED: дело ${c.id} — gatePending='${gatePending}' и izvesh=true заданы одновременно — противоречие: izvesh уже подразумевает решённый вопрос по этому предмету, gatePending — что решения ещё нет`);
+      const g = GATES[gatePending];
       if(!g)
-        throw new Error(`SEED: дело ${c.id} — gatePending='${c.gatePending}' не входит в GATES [${Object.keys(GATES).join(', ')}]`);
+        throw new Error(`SEED: дело ${c.id} — gatePending='${gatePending}' не входит в GATES [${Object.keys(GATES).join(', ')}]`);
       const at = ruSub(TODAY, 6);
-      committeeQuestions.push({ organ:g.organ, initiator:c.credit.subdiv || 'ОД', topic:g.topic,
-        credits:[c.credit.num], meetingDate:at, decision:'', positive:false,
+      committeeQuestions.push({ organ:g.organ, initiator:cr.subdiv || 'ОД', topic:g.topic,
+        credits:[cr.num], meetingDate:at, decision:'', positive:false,
         protocolNo:null, protocolDate:null });
     }
 
@@ -3607,11 +3627,116 @@ function buildSeed(seed){
        затереть id/num/overdueDays/subdiv/bezakceptRight, которые кредит несёт по контракту
        выше, — единственный merge-точка билдера без throw на конфликт (ревью раунда 1). */
     const CREDITS0_ALLOWED = ['treasuryDelay'];
-    if(c.credits0){
-      const bad = Object.keys(c.credits0).filter(k => !CREDITS0_ALLOWED.includes(k));
+    if(credits0){
+      const bad = Object.keys(credits0).filter(k => !CREDITS0_ALLOWED.includes(k));
       if(bad.length)
         throw new Error(`SEED: дело ${c.id} — credits0 несёт поля вне разрешённого набора [${CREDITS0_ALLOWED.join(', ')}]: ${bad.join(', ')}`);
     }
+
+    /* Task 9 (Р-5): факторы категории риска и подавление 181-го дня — реквизиты
+       КРЕДИТА (catOfCredit читает c.factors/c.suppress181), не дела. Форма фактора
+       задана рендером «входов» карточки (catExpand): kind · committee · decision ·
+       level. Проверяем ЗДЕСЬ, а не полагаемся на рендер: level вне CAT_RANK молча
+       давал бы worstCat(...)===undefined → catLabel(undefined)==='Высокий', то есть
+       ОПЕЧАТКА выглядела бы как осмысленная высокая категория. */
+    if(cr.factors){
+      if(!Array.isArray(cr.factors) || !cr.factors.length)
+        throw new Error(`SEED: дело ${c.id} — credit.factors задан, но не является непустым массивом`);
+      for(const f of cr.factors){
+        if(!f.kind || !f.committee || !f.decision)
+          throw new Error(`SEED: дело ${c.id} — credit.factors несёт элемент без kind/committee/decision (карточка «входы» печатает все три)`);
+        if(!(f.level in CAT_RANK))
+          throw new Error(`SEED: дело ${c.id} — фактор «${f.kind}» несёт level='${f.level}' вне CAT_RANK [${Object.keys(CAT_RANK).join(' | ')}]`);
+      }
+    }
+    /* Подавление 181-го (п. 20.1) осмысленно РОВНО когда дни просрочки его подняли:
+       catOfCredit гасит флаг сам (raw==='high' && days>180), и объявленный впустую
+       флаг был бы «правилом, которое ничего не делает» — молча. */
+    if(cr.suppress181 && !(overdueDays > 180))
+      throw new Error(`SEED: дело ${c.id} — credit.suppress181 задан, а дней просрочки по кредиту ${overdueDays} (≤180) — подавлять нечего (catOfCredit применяет его только к «высокому именно из-за дней >180»)`);
+
+    const credit = Object.assign({ id:cr.id, num:cr.num, overdueDays,
+                     subdiv:cr.subdiv, bezakceptRight:cr.bezakcept },
+                     cr.factors ? { factors:cr.factors.map(f => ({...f})) } : {},
+                     cr.suppress181 ? { suppress181:true } : {},
+                     credits0 || {});
+
+    /* МТ-1: без явных targets normalize целит меру ПО РОЛИ — все меры прилипли бы ко
+       всем требованиям дела, свёртка дала бы им одну веху и контуры схлопнулись бы.
+       Ставим цель ПОИМЁННО и только на многокредитном деле: у однокредитного тот же
+       результат даёт фолбэк normalize() (idsOf('заёмщик') — ровно одно требование),
+       и трогать его значило бы менять данные 79 уже засеянных дел ради формы.
+       Мера обеспечителю (guarantorClaim) целит в ДРУГУЮ роль — потому она и запрещена
+       на многокредитном деле (MULTI_CREDIT_CASE_FIELDS): здесь бы её перенацелило. */
+    if(c.credits){
+      const target = `${c.id}/${cr.id}/з`;
+      for(const m of measures){
+        if(Array.isArray(m.targets) && m.targets.length)
+          throw new Error(`SEED: дело ${c.id} — мера «${m.kind}» ${m.num||''} уже несёт targets=[${m.targets.join(', ')}]; на многокредитном деле цель ставится поимённо по кредиту (${target}) — две разные цели у одной меры`);
+        m.targets = [target];
+      }
+    }
+
+    return { credit, opened, measures, deadlines, history, committeeQuestions,
+             torgiFails: torgiFailsForColls };
+}
+
+/* Поля кейса, которые НЕ ИМЕЮТ СМЫСЛА на дело-уровне, когда кредитов несколько:
+   каждое из них либо порождает меры (ветки билдера ниже по buildCredit), либо
+   задаёт цепочку — а тогда «какому из кредитов» отвечать нечем, и билдер применил
+   бы их КО ВСЕМ, тихо задвоив ветку. Именованный throw вместо молчаливого
+   размножения — та же дисциплина, что и у остальных конфликтующих пар деклараций.
+   Объявляются НА КРЕДИТЕ (stop/age/overdue/costs/credits0) либо не объявляются вовсе. */
+const MULTI_CREDIT_CASE_FIELDS = ['stop','age','overdue','costs','credits0','verdict',
+  'bezakceptOutcome','guarantorClaim','storno','izvesh','iskRefused','appeal','agreement',
+  'torgi','ilReturned','succession','bankrot','hopeless','hopelessFact','writeOff',
+  'repaid','repaidAge','gatePending','court','defendantAppeared'];
+
+function buildSeed(seed){
+  const procs = [];
+  /* Task 4 (контур К1, ситуация K1-ОБЕСП): обеспечитель — третья координата
+     требования (М-1), а PERSONS[id] в normalize() пишется через ??= — молчаливое
+     «первый выигрывает». Без реестра здесь два дела могли бы тихо разделить одного
+     поручителя под разными именами/ИНН, и второе описание просто исчезло бы. */
+  const obligorIds = new Set();
+  for(const c of seed){
+    for(const o of (c.obligors || [])){
+      if(obligorIds.has(o.id))
+        throw new Error(`SEED: дело ${c.id} — obligor id='${o.id}' уже объявлен другим делом — id обеспечителя обязан быть глобально уникален`);
+      obligorIds.add(o.id);
+    }
+
+    /* Task 9 (МТ-1): `credit:{…}` — один кредит (79 дел волны), `credits:[…]` —
+       несколько. Ровно одно из двух: объявленные разом, они дали бы дело, часть
+       кредитов которого собрана, а часть — молча пропущена. */
+    if(c.credit && c.credits)
+      throw new Error(`SEED: дело ${c.id} — объявлены и credit, и credits — выберите одно (credits:[…] для дела с несколькими договорами)`);
+    const decls = c.credits || (c.credit ? [c.credit] : null);
+    if(!decls || !decls.length)
+      throw new Error(`SEED: дело ${c.id} — нет ни credit, ни непустого credits: дело без кредита не даёт ни одного требования`);
+    if(c.credits){
+      if(decls.length < 2)
+        throw new Error(`SEED: дело ${c.id} — credits:[…] с одной записью: для единственного кредита есть credit:{…} (поля кейса stop/age/… читаются оттуда)`);
+      const bad = MULTI_CREDIT_CASE_FIELDS.filter(k => c[k] !== undefined);
+      if(bad.length)
+        throw new Error(`SEED: дело ${c.id} — многокредитное дело несёт дело-уровневые поля [${bad.join(', ')}], которые применились бы КО ВСЕМ кредитам сразу; объявите их на нужном кредите внутри credits:[…]`);
+    }
+    const parts = decls.map(cr => buildCredit(c, cr, c.credits ? cr.stop : c.stop,
+                                                     c.credits ? cr.age  : c.age));
+    const measures           = parts.flatMap(x => x.measures);
+    const deadlines          = parts.flatMap(x => x.deadlines);
+    const history            = parts.flatMap(x => x.history);
+    const committeeQuestions = parts.flatMap(x => x.committeeQuestions);
+    const torgiFailsForColls = Math.max(0, ...parts.map(x => x.torgiFails));
+    /* Дело открыто, когда обнаружена ПЕРВАЯ просрочка по любому из его договоров —
+       минимум по кредитам (A10 сравнивает с ним даты истории/мер/сроков/заседаний,
+       поэтому «самая ранняя», а не «по первому объявленному»). Кредит без просрочки
+       вовсе (overdue:0 — РИСК-397) даёт свою дату в будущем: она законно проигрывает
+       минимуму, но если БУДУЩЕЙ окажется дата всего дела — открывать его не с чего. */
+    const opened = parts.map(x => x.opened).reduce((a, b) => dParse(a) <= dParse(b) ? a : b);
+    if(dParse(opened) > dParse(TODAY))
+      throw new Error(`SEED: дело ${c.id} — дата открытия ${opened} в будущем (сегодня ${TODAY}): ни по одному кредиту просрочки ещё нет, открывать дело не на чем`);
+
     /* Task 6 · заседание — сущность (КР-2): срок «Следующее судебное заседание»
        выводится из него (hearingDeadlines), отдельным хранимым сроком не дублируется.
        Автогенерация — только если кейс явно назвал суд (c.court) И сам не задал
@@ -3665,8 +3790,7 @@ function buildSeed(seed){
       owner:c.owner, curator:c.curator, opened, openedBy:c.openedBy || 'система',
       basis:c.basis || 'просрочка 6 дней',
       poruchenie: measures.some(m => m.kind === 'Исковое заявление'),
-      credits:[Object.assign({ id:c.credit.id, num:c.credit.num, overdueDays,
-                 subdiv:c.credit.subdiv, bezakceptRight:c.credit.bezakcept }, c.credits0 || {})],
+      credits: parts.map(x => x.credit),
       measures, committeeQuestions,
       hearings, colls:collsOut,
       /* Task 4: обеспечители — сквозное поле дела (normalize() уже читает p.obligors
