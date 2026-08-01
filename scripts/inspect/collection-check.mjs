@@ -236,8 +236,22 @@ ok('подавление 181-го применяется до worst-of (391)',
    && g.ev(`catOfCredit(${P('391')}.credits[0]).daysEff`) === 'mid');
 ok('категория дела = worst-of по кредитам (397 → high при mid+high, 391 → mid)',
    g.ev(`catOfProcess(${P('397')})`) === 'high' && g.ev(`catOfProcess(${P('391')})`) === 'mid');
-ok('категория требования берётся у его кредита',
-   g.ev(`catOfReq(${R('397/398/з')})`) === g.ev(`catLevelOfCredit(${P('397')}.credits[1])`));
+/* catOfReq ОПРЕДЕЛЕНА как catLevelOfCredit(r._credit) — сверять её с собственным
+   определением бессмысленно (и `ev(x) === ev(y)` прошло бы даже на двух undefined).
+   Проверяем НАБЛЮДАЕМОЕ: у многокредитного дела 397 кредит 397 даёт mid, кредит 398 —
+   high, а worst-of самого дела — high. Значит карточка обязана показать двум его
+   требованиям РАЗНЫЕ категории, и требованию по кредиту 397 — «Средний», а не категорию
+   дела. Сравнение с литералами: undefined/null ни с одной стороны не пройдёт. */
+ok('категория требования берётся у его кредита, а не у дела', (() => {
+  const catOnCard = id => { const m = mk(); m.ev(`openDetail('${id}')`);
+    const dim = [...m.dhead().querySelectorAll('.phead-dims .dim')]
+      .map(x => x.textContent.replace(/\s+/g, ' '))
+      .find(t => /Категория риска/.test(t));
+    return (dim && (dim.match(/(Норма|Средний|Высокий)/) || [])[1]) || null; };
+  return catOnCard('397/397/з') === 'Средний'
+      && catOnCard('397/398/з') === 'Высокий'
+      && g.ev(`catOfProcess(${P('397')})`) === 'high';   // у дела high — значит «Средний» пришёл не от дела
+})());
 /* КД-2/КД-3: плитки и раскрытие worst-of живут в шапке ВИДА, не в панели. */
 { const m = mk(); m.ev(`openDetail('397/397/з')`); m.ev('catOpen=false; toggleCat()');
   ok('раскрытие показывает входы покредитно (2 кредита + worst-of)',
@@ -1872,8 +1886,22 @@ ok('дело-уровневые сроки (п. 98, конфликт) целей
    D.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>!d.targets.length)
          .every(d=>/статуса? процедуры|конфликт/i.test(dlAction(d)))`));
 ok('срок виден требованию из своих целей (336 — апелляция по его решению суда)',
-   D.ev(`deadlinesOf(REQ_INDEX['336/336/з']).some(d=>dlAction(d)==='Апелляционная жалоба')`)
-   && D.ev(`allReqs().every(r => deadlinesOf(r).every(d => !d.targets || !d.targets.length || d.targets.includes(r.id)))`));
+   D.ev(`deadlinesOf(REQ_INDEX['336/336/з']).some(d=>dlAction(d)==='Апелляционная жалоба')`));
+/* Сроков с двумя целями затравка ЗС не содержит вовсе (у всех живых targets.length 1 или 0),
+   поэтому правило «один срок по общему иску виден ОБОИМ адресатам» показывается синтетикой
+   в отдельном DOM. Берём трёхтребовательное дело 412 и целим срок в ДВА требования из трёх:
+   два обязаны его видеть, третье — нет. Отрицательный случай здесь и есть проверка: без
+   него утверждение вырождается в определение deadlinesOf (там ровно этот же фильтр). */
+ok('срок с двумя целями виден обоим адресатам и не течёт в третье требование дела', mk().ev(`(() => {
+  if(PROCESSES.flatMap(x=>dlOf(x)).some(d=>(d.targets||[]).length > 1)) return false;  // в затравке таких нет
+  const p = PROCESSES.find(x=>x.id==='412'), t = p.requirements.map(r=>r.id);
+  if(t.length !== 3) return false;
+  const d = { action:'ТЕСТ-СРОК-ОБЩИЙ', due:'01.09.2026', targets:[t[0], t[1]] };
+  p.deadlines.push(d);
+  return deadlinesOf(REQ_INDEX[t[0]]).includes(d)
+      && deadlinesOf(REQ_INDEX[t[1]]).includes(d)
+      && !deadlinesOf(REQ_INDEX[t[2]]).includes(d);
+})()`));
 /* Сроки заёмщика в требование поручителя не текут: у 307 обе претензии адресованы
    заёмщику, и очередь поручителя пуста — цели срока разделяют их так же, как меры. */
 ok('сроки заёмщика в сроки поручителя не текут',
@@ -2047,8 +2075,7 @@ const sCols  = () => S.$$('#dlHead th').map(t => t.textContent.replace(/[↑↓�
 head('СК-1/СК-6 · очередь с горизонтом, а не список просроченного');
 ok('умолчание — горизонт 7 дней',            S.ev(`dlHorizon`) === '7' && /Горизонт: 7 дней/.test(sFrame()));
 ok('предстоящие сроки показаны, а не только просроченные',
-   sRows().length === 70 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 54
-   && sRows().length > sRows().filter(r=>/просрочен/.test(r.textContent)).length);   // непросроченные в очереди есть
+   sRows().length === 70 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 54);
 ok('горизонт «всё» даёт все 76 сроков',      (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 76; })());
 ok('просроченное проходит любой горизонт',   (()=>{ S.ev(`dlSetHorizon('7')`);
    return S.ev(`dlAll().filter(x=>x.n<0).every(dlPass)`); })());
