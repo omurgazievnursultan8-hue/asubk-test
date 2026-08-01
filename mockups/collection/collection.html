@@ -2173,16 +2173,27 @@ function debtOf(r, scopeVolume, asOf){
              overdue: overdueEff, note:b.note||null,
              claimable: vol === 'просроченная сумма' ? overdueEff : left };
   }).filter(Boolean);
+  /* Task 7 fix-round2 (ruling координатора п.3): охват гейтит ПРИТЯЗАНИЕ (claim), не
+     ОСТАТОК (totalLeft) — costs, дата которых уже наступила (≤ asOf), остаток долга
+     несут БЕЗУСЛОВНО: это факт задолженности требования, а не факт того, что СЕЙЧАС
+     востребовано. Раньше costItems/costs гейтились ещё и охватом — два солидарных
+     требования по одному кредиту (заёмщик на «полный остаток», поручитель ещё на
+     «просроченная сумма») отчитывались бы РАЗНЫМ остатком по ОДНОМУ обязательству,
+     а «Полное погашение»/C3 читали заниженную цифру. Дата — единственный гейт на
+     totalLeft/costItems; охват («полный остаток» ⇒ claimable=amount, иначе 0) —
+     ТОЛЬКО на claim, тем же приёмом, что и у LEDGER-бакетов (claimable рядом с left).
+     Строка пятой статьи остаётся ВИДИМОЙ под claim-стадийным охватом («востребовано
+     0,00»), а не пропадает — costItems больше не пуст под «просроченная сумма». */
   const asOfEff = asOf || L.asOf || null;
   const asOfD = asOfEff ? ruD(asOfEff) : null;
-  const costItemsAll = r.costs || [];
-  const costItemsEff = vol === 'полный остаток'
-    ? costItemsAll.filter(x => { const xd = x.date ? ruD(x.date) : null; return !xd || !asOfD || xd <= asOfD; })
-    : [];
-  const costs = costItemsEff.reduce((s,x)=> s + (x.amount||0), 0);
+  const costItemsDated = (r.costs || [])
+    .filter(x => { const xd = x.date ? ruD(x.date) : null; return !xd || !asOfD || xd <= asOfD; });
+  const costs = costItemsDated.reduce((s,x)=> s + (x.amount||0), 0);
+  const costItems = costItemsDated.map(x => ({ ...x, claimable: vol === 'полный остаток' ? (x.amount||0) : 0 }));
+  const costsClaimable = vol === 'полный остаток' ? costs : 0;
   const totalLeft = rows.reduce((s,x)=> s + x.left, 0) + costs;
-  const claim = rows.reduce((s,x)=> s + x.claimable, 0) + costs;
-  return { rows, costs, costItems:costItemsEff, totalLeft, claim, asOf:L.asOf || '—', frozen:L.frozen || null };
+  const claim = rows.reduce((s,x)=> s + x.claimable, 0) + costsClaimable;
+  return { rows, costs, costItems, totalLeft, claim, asOf:L.asOf || '—', frozen:L.frozen || null };
 }
 const claimOf = (r, scopeVolume, asOf) => debtOf(r, scopeVolume, asOf).claim;
 
@@ -2478,6 +2489,21 @@ const copyArr = arr => (arr||[]).map(x => (x && typeof x==='object') ? {...x} : 
    регистрации извещения — раздельные копии литерала рано или поздно разойдутся
    текстом (уже разошлись бы, будь это не первая правка). */
 const IZVESHCHENIE_SCOPE = { volume:'полный остаток', method:'обращением на предмет залога' };
+/* Task 7 fix-round2 (ruling координатора п.6): та же дисциплина, что IZVESHCHENIE_SCOPE
+   выше — «Признание банкротом» (п. 71, ускорение) описывает ОДИН факт («долг ускорен
+   до полного остатка, взыскивается деньгами») в ДВУХ местах (билдер SEED ниже и
+   SCOPE_KIND_DEFAULT — форма живой регистрации, см. её объявление у М-1 ниже по файлу);
+   раньше билдер нёс литерал `{volume:'полный остаток', method:'деньгами'}` напрямую —
+   один источник вместо возможности разойтись. */
+const BANKROTSTVO_SCOPE = { volume:'полный остаток', method:'деньгами' };
+
+/* Реализация залога — типизированный ЖЦ (было свободной строкой real). torgiFails 0..2.
+   Task 7 fix-round2 (ruling координатора п.6): поднята сюда, ВЫШЕ объявления
+   (была ниже buildSeed(SEED) — TDZ, buildSeed() читает её при сборке кейсов К4-ТОРГИ,
+   а исполняется раньше, чем `const REAL_STAGES` инициализируется по тексту файла) —
+   единственный источник для validate-guard'а в derived.colls (см. collsOut ниже) И
+   для normColl() (осталась на своём месте, использует ту же константу). */
+const REAL_STAGES = ['не начата','подготовка к торгам','торги назначены','принято на баланс','реализовано'];
 
 function buildSeed(seed){
   const procs = [];
@@ -2557,7 +2583,6 @@ function buildSeed(seed){
       penalty:{ accrued:dbt.penalty||0, paid:0, overdue:dbt.penalty||0 } };
     const overdueSum = principalOverdue + (dbt.interest||0) + (dbt.penalty||0);
     const fullSum    = dbt.principal + (dbt.interest||0) + (dbt.penalty||0) - principalPaid;
-    const sumBy = scope => fmtKGS(scope === 'полный остаток' ? fullSum : overdueSum);
 
     /* Даты назад: последняя веха стоит `age` дней назад от TODAY, остальные — по gap. */
     const dates = [];
@@ -2567,6 +2592,46 @@ function buildSeed(seed){
     /* Дело открывается на 6-й день просрочки (Р-4) — просрочка отсчитывается отсюда. */
     const overdueStart = ruSub(opened, 5);
     const overdueDays  = Math.round((dParse(TODAY) - dParse(overdueStart)) / D_MS);
+
+    /* Task 7 fix-round2 (ruling координатора п.1): «пятая статья» (М-4) — не только
+       на LEDGER/debtOf(), СИММЕТРИЧНО и на самом билдере, чтобы m.sum, замороженный
+       на build-time, и claimTotal(), читающий его же ЖИВЫМ, СОВПАДАЛИ ПО КОНСТРУКЦИИ,
+       а не только при удачном стечении дат: раньше costDate вычислялся ОДИН РАЗ в
+       конце сборки кейса (от последней меры дела), и sumBy() костс не знала вовсе —
+       инвариант «costDate позже любой меры» держался НЕ КОДОМ, а конкретными `age`
+       затравки (TODAY-кап мог тихо надвинуть costDate НА дату уже эмитированной
+       меры — ревью раунда 2 поймало это как «не код, а инвариант дат»). Дата —
+       ОТ «Исполнительного листа» (dates[ilIdx], а не от последней меры) — «пятая
+       статья» появляется, когда возбуждено исполнение, а не когда дело чем-то ещё
+       закончилось; +5 к.д. (не константа) — издержки регистрируются СРАЗУ после
+       получения листа, не одновременно с ним, и не позже TODAY. costDate вычисляется
+       ЗДЕСЬ (после dates[], до steps.forEach) — доступен ЛЮБОЙ мере хребта/веток,
+       включая саму меру «Исполнительный лист» (для неё costDate позже её же даты —
+       cost не входит) и «Постановление на исполнении» (позже costDate — входит).
+       COSTS_SEED[credit.id] ставится ТОЙ ЖЕ датой/суммой — единственный источник
+       для debtOf()/claimTotal(), а не вторая копия. */
+    const ilIdx = SPINE_KEYS.indexOf('ил');
+    let costDate = null;
+    if(stopIndex >= ilIdx){
+      costDate = ruAdd(dates[ilIdx], 5);
+      if(dParse(costDate) > dParse(TODAY)) costDate = TODAY;
+    }
+    const costAmount = c.costs ?? 8000;
+    if(costDate != null)
+      COSTS_SEED[c.credit.id] = [{ date:costDate,
+        kind:'Расходы по обращению взыскания и реализации', amount:costAmount }];
+    /* sumBy зеркалит debtOf(): «полный остаток» + издержка, ТОЛЬКО если её дата не
+       позже даты САМОЙ этой меры (atDate) — ровно то же условие, что debtOf()
+       применяет к r.costs через acceleratedAsOf-родственный date-gate. atDate
+       обязателен на любом вызове, где к нему вообще может быть вопрос («полный
+       остаток» после 'ил') — необязателен только там, где costDate заведомо null
+       (K0/K1/К2/К3-до-ИЛ) и передавать нечего. */
+    const sumBy = (scope, atDate) => {
+      const base = scope === 'полный остаток' ? fullSum : overdueSum;
+      const withCosts = (scope === 'полный остаток' && costDate != null && atDate != null
+        && dParse(atDate) >= dParse(costDate)) ? base + costAmount : base;
+      return fmtKGS(withCosts);
+    };
 
     const measures = [], deadlines = [], history = [];
     /* Охват держится ПОСЛЕДНЕЙ устанавливающей мерой (ADR-0025): определение, решение и
@@ -2638,7 +2703,7 @@ function buildSeed(seed){
       if(s.scope) curScope = s.scope;
       const responsible = respFor(s.kind);
       const m = { sec:sectionOf(s.kind), kind:s.kind, dates:D(dates[i], dates[i]), num,
-                  purpose:s.purpose, responsible, sum:sumBy(curScope) };
+                  purpose:s.purpose, responsible, sum:sumBy(curScope, dates[i]) };
       if(s.outcome){
         /* 'Решение суда' — единственная ступень, чей исход кейс может переопределить
            (verdict, провалидирован выше); остальные вехи держат исход SPINE как есть. */
@@ -2654,14 +2719,12 @@ function buildSeed(seed){
       }
       /* Основание — НЕ обязательно непосредственный предшественник в хребте (ревью №1,
          п.1): «Решение суда» ссылается на «Исковое заявление», хотя между ними в SPINE
-         стоит «Определение…», у которого свой basisKinds. Ищем НАЗАД по уже выпущенным
-         мерам первую, чей вид входит в kd.basisKinds — то же правило, что basedOnValid
-         читает в живом реестре. */
-      if(kd.basisKinds){
-        for(let j = measures.length - 1; j >= 0; j--){
-          if(kd.basisKinds.includes(measures[j].kind)){ m.basedOn = measures[j].num; break; }
-        }
-      }
+         стоит «Определение…», у которого свой basisKinds. basisFor (Task 7 fix-round2,
+         ruling 5) — backward-поиск по уже выпущенным мерам, тот же приём, что и
+         basedOnValid читает в живом реестре; раньше этот цикл был СВОЕЙ копией того
+         же алгоритма, а не вызовом функции — один код, а не два синхронизируемых. */
+      const basis = basisFor(s.kind);
+      if(basis) m.basedOn = basis.num;
       measures.push(m);
       history.push({ when:`${dates[i]} 10:00`, what:`Мера «${s.kind}» ${num} зарегистрирована`, who:responsible });
     });
@@ -2683,7 +2746,7 @@ function buildSeed(seed){
       measures.push({ sec:sectionOf('Платёжное требование в банк'), kind:'Платёжное требование в банк', dates:D(dt, dt),
         num:numPt, purpose:'списание со счетов в обслуживающих банках',
         outcome: c.bezakceptOutcome === 'не исполнено' ? 'не исполнено' : 'исполнено',
-        sum:sumBy(curScope), responsible:respFor('Платёжное требование в банк') });
+        sum:sumBy(curScope, dt), responsible:respFor('Платёжное требование в банк') });
       history.push({ when:`${dt} 10:00`, what:`Мера «Платёжное требование в банк» ${numPt} направлена в обслуживающие банки`, who:respFor('Платёжное требование в банк') });
       /* Комитет решает РАНЬШЕ платёжного требования (п. 17.5, тпл 14: «10 р.д.» на
          подготовку требований ПОСЛЕ решения). Общий цикл гейтов ниже сам выводит дату
@@ -2696,7 +2759,7 @@ function buildSeed(seed){
       measures.push({ sec:sectionOf('Безакцептное списание'), kind:'Безакцептное списание', dates:D(dt2, dt2),
         num:numBa, purpose:'безакцептное списание просроченной суммы',
         outcome:c.bezakceptOutcome, basedOn:numPt,
-        sum:sumBy(curScope), responsible:respFor('Безакцептное списание') });
+        sum:sumBy(curScope, dt2), responsible:respFor('Безакцептное списание') });
       history.push({ when:`${dt2} 10:00`, what:`Мера «Безакцептное списание» ${numBa} зарегистрирована — исход «${c.bezakceptOutcome}»`, who:respFor('Безакцептное списание') });
     }
     /* Требование обеспечителю/госоргану — своя мера, ЯВНО целится в требование
@@ -2735,7 +2798,7 @@ function buildSeed(seed){
         // 'повторная' — на цепочке, что уже дошла до иска, curScope был бы 'полный
         // остаток', а scope здесь молча остался бы прежним объёмом → C4-сумма.
         scope:{ volume:curScope, method:c.method || 'деньгами' },
-        sum:sumBy(curScope), responsible:resp });
+        sum:sumBy(curScope, dt), responsible:resp });
       history.push({ when:`${dt} 10:00`, what:`Мера «${c.guarantorClaim.kind}» ${num} зарегистрирована`, who:resp });
     }
     /* Сторно — дубль последней меры: строка остаётся зачёркнутой и фазу не двигает (И-3).
@@ -2796,7 +2859,7 @@ function buildSeed(seed){
         outcome:'зарегистрировано', sent:{ date:dt, channel:ch },
         served:{ date:dt, doc:deliveryDocFor(ch) },
         scope:{ ...IZVESHCHENIE_SCOPE }, accelerated:true,
-        sum:sumBy('полный остаток'), responsible:resp });
+        sum:sumBy('полный остаток', dt), responsible:resp });
       history.push({ when:`${dt} 10:00`, what:`Мера «${kind}» ${num} зарегистрирована`, who:resp });
     }
 
@@ -2819,14 +2882,14 @@ function buildSeed(seed){
       const outcomeOpr = c.iskRefused === 'возврат' ? 'возвращено' : 'отказано в принятии';
       measures.push({ sec:sectionOf(kindOpr), kind:kindOpr, dates:D(dt, dt), received:{ date:dt }, num:numOpr,
         purpose:'судьба искового заявления', basedOn:iskM.num,
-        outcome:outcomeOpr, sum:sumBy(curScope), responsible:respOpr });
+        outcome:outcomeOpr, sum:sumBy(curScope, dt), responsible:respOpr });
       history.push({ when:`${dt} 10:00`, what:`Мера «${kindOpr}» ${numOpr} зарегистрирована — исход «${outcomeOpr}»`, who:respOpr });
       const dt2 = ruAdd(dt, 8);
       const numChj = `ЧЖ-${c.credit.id}`;
       const respChj = respFor('Частная жалоба');
       measures.push({ sec:sectionOf('Частная жалоба'), kind:'Частная жалоба', dates:D(dt2, dt2),
         num:numChj, purpose:'обжалование определения', basedOn:numOpr,
-        sum:sumBy(curScope), responsible:respChj });
+        sum:sumBy(curScope, dt2), responsible:respChj });
       history.push({ when:`${dt2} 10:00`, what:`Мера «Частная жалоба» ${numChj} зарегистрирована`, who:respChj });
       /* Ревью раунд1, MINOR 7: тпл 26 («Частная жалоба», 10 дн от определения, п. 30.1)
          — единственный кейс волны, где обе даты (создание обязательства и его исполнение)
@@ -2881,7 +2944,7 @@ function buildSeed(seed){
       const respAj = respFor('Апелляционная жалоба');
       measures.push({ sec:sectionOf('Апелляционная жалоба'), kind:'Апелляционная жалоба', dates:D(dt, dt),
         num:numAj, purpose:'обжалование решения суда', basedOn:rs.num,
-        sum:sumBy(curScope), responsible:respAj });
+        sum:sumBy(curScope, dt), responsible:respAj });
       history.push({ when:`${dt} 10:00`, what:`Мера «Апелляционная жалоба» ${numAj} зарегистрирована`, who:respAj });
       const dt2 = ruAdd(dt, 40);
       const numPa = `ПА-${c.credit.id}`;
@@ -2889,7 +2952,7 @@ function buildSeed(seed){
       measures.push({ sec:sectionOf('Постановление апелляционной инстанции'), kind:'Постановление апелляционной инстанции',
         dates:D(dt2, dt2), received:{ date:dt2 }, num:numPa,
         purpose:'акт апелляционной инстанции', basedOn:numAj,
-        outcome:c.appeal, sum:sumBy(curScope), responsible:respPa });
+        outcome:c.appeal, sum:sumBy(curScope, dt2), responsible:respPa });
       history.push({ when:`${dt2} 10:00`, what:`Мера «Постановление апелляционной инстанции» ${numPa} зарегистрирована — исход «${c.appeal}»`, who:respPa });
     }
 
@@ -2915,7 +2978,7 @@ function buildSeed(seed){
         const respMs = respFor('Мировое соглашение');
         measures.push({ sec:sectionOf('Мировое соглашение'), kind:'Мировое соглашение', dates:D(dt, dt),
           received:{ date:dt }, num:a.num, purpose:'утверждение мирового соглашения судом',
-          outcome:'утверждено судом', sum:sumBy(curScope), responsible:respMs });
+          outcome:'утверждено судом', sum:sumBy(curScope, dt), responsible:respMs });
         history.push({ when:`${dt} 10:00`, what:`Мера «Мировое соглашение» ${a.num} зарегистрирована — утверждено судом`, who:respMs });
       }
       if(a.type === 'dobrovolnoe'){
@@ -2927,7 +2990,7 @@ function buildSeed(seed){
         measures.push({ sec:sectionOf('Соглашение о добровольном исполнении'), kind:'Соглашение о добровольном исполнении',
           dates:D(dt, dt), num:a.num, purpose:'добровольное исполнение судебного акта',
           outcome:'заключено', basedOn:rsM.num,
-          sum:sumBy(curScope), responsible:respSdi });
+          sum:sumBy(curScope, dt), responsible:respSdi });
         history.push({ when:`${dt} 10:00`, what:`Мера «Соглашение о добровольном исполнении» ${a.num} зарегистрирована`, who:respSdi });
       }
     }
@@ -2962,7 +3025,7 @@ function buildSeed(seed){
         measures.push({ sec:sectionOf(kind), kind, dates:D(dt, dt),
           received:{ date:dt }, num, purpose:'фиксация провала торгов',
           outcome:'торги не состоялись', basedOn:basis.num,
-          sum:sumBy(curScope), responsible:resp });
+          sum:sumBy(curScope, dt), responsible:resp });
         history.push({ when:`${dt} 10:00`, what:`Мера «${kind}» ${num} зарегистрирована — исход «торги не состоялись» (попытка ${n} из ${fails})`, who:resp });
       }
     }
@@ -2979,13 +3042,13 @@ function buildSeed(seed){
       const resp = respFor(kindPv);
       measures.push({ sec:sectionOf(kindPv), kind:kindPv, dates:D(dt, dt),
         received:{ date:dt }, num, purpose:'возврат исполнительного листа взыскателю', outcome:'возвращён',
-        basedOn:basisPv.num, sum:sumBy(curScope), responsible:resp });
+        basedOn:basisPv.num, sum:sumBy(curScope, dt), responsible:resp });
       history.push({ when:`${dt} 10:00`, what:`Мера «${kindPv}» ${num} зарегистрирована — исход «возвращён»`, who:resp });
       const dt2 = ruAdd(dt, 10);
       const num2 = `ПС-${c.credit.id}`;
       const resp2 = respFor('Письмо в ПССИ');
       measures.push({ sec:sectionOf('Письмо в ПССИ'), kind:'Письмо в ПССИ', dates:D(dt2, dt2), num:num2,
-        purpose:'запрос о ходе исполнительного производства', sum:sumBy(curScope), responsible:resp2 });
+        purpose:'запрос о ходе исполнительного производства', sum:sumBy(curScope, dt2), responsible:resp2 });
       history.push({ when:`${dt2} 10:00`, what:`Мера «Письмо в ПССИ» ${num2} зарегистрирована`, who:resp2 });
     }
 
@@ -3008,7 +3071,7 @@ function buildSeed(seed){
       const resp = respFor(kindZp);
       measures.push({ sec:sectionOf(kindZp), kind:kindZp,
         dates:D(dt, dt), num, purpose:'установление правопреемника умершего заёмщика', outcome:'подано',
-        sum:sumBy(curScope), responsible:resp });
+        sum:sumBy(curScope, dt), responsible:resp });
       history.push({ when:`${dt} 10:00`, what:`Мера «${kindZp}» ${num} зарегистрирована — исход «подано»`, who:resp });
       if(c.succession === 'нет правопреемника'){
         const kindRp = 'Решение суда (отсутствие правопреемника)';
@@ -3021,7 +3084,7 @@ function buildSeed(seed){
         measures.push({ sec:sectionOf(kindRp), kind:kindRp,
           dates:D(dt2, dt2), received:{ date:dt2 }, num:num2,
           purpose:'установление отсутствия правопреемника', outcome:'отсутствие правопреемника',
-          basedOn:basisRp.num, sum:sumBy(curScope), responsible:resp2 });
+          basedOn:basisRp.num, sum:sumBy(curScope, dt2), responsible:resp2 });
         history.push({ when:`${dt2} 10:00`, what:`Мера «${kindRp}» ${num2} зарегистрирована — исход «отсутствие правопреемника»`, who:resp2 });
       }
     }
@@ -3052,7 +3115,7 @@ function buildSeed(seed){
       const numZb = `ЗБ-${c.credit.id}`;
       const respZb = respFor(kindZb);
       measures.push({ sec:sectionOf(kindZb), kind:kindZb, dates:D(dt, dt),
-        num:numZb, purpose:'инициирование процедуры банкротства', sum:sumBy(curScope), responsible:respZb });
+        num:numZb, purpose:'инициирование процедуры банкротства', sum:sumBy(curScope, dt), responsible:respZb });
       history.push({ when:`${dt} 10:00`, what:`Мера «${kindZb}» ${numZb} зарегистрирована`, who:respZb });
       dt = ruAdd(dt, 30);
       const kindIb = 'Инициирование банкротства';
@@ -3068,7 +3131,7 @@ function buildSeed(seed){
         throw new Error(`SEED: дело ${c.id} — основание для «${kindIb}» не найдено (внутренняя ошибка билдера — «${numZb}» только что зарегистрирован)`);
       measures.push({ sec:sectionOf(kindIb), kind:kindIb, dates:D(dt, dt),
         received:{ date:dt }, num:numIb, purpose:'принятие заявления к производству',
-        outcome:'принято к производству', basedOn:basisIb.num, sum:sumBy(curScope), responsible:respIb });
+        outcome:'принято к производству', basedOn:basisIb.num, sum:sumBy(curScope, dt), responsible:respIb });
       history.push({ when:`${dt} 10:00`, what:`Мера «${kindIb}» ${numIb} зарегистрирована — исход «принято к производству»`, who:respIb });
       if(c.bankrot !== 'инициировано'){
         dt = ruAdd(dt, 60);
@@ -3082,8 +3145,8 @@ function buildSeed(seed){
         measures.push({ sec:sectionOf(kindPb), kind:kindPb, dates:D(dt, dt),
           received:{ date:dt }, num:numPb, purpose:'признание должника банкротом',
           outcome:'признан банкротом', basedOn:basisPb.num,
-          scope:{ volume:'полный остаток', method:'деньгами' }, accelerated:true,
-          sum:sumBy(curScope), responsible:respPb });
+          scope:{ ...BANKROTSTVO_SCOPE }, accelerated:true,
+          sum:sumBy(curScope, dt), responsible:respPb });
         history.push({ when:`${dt} 10:00`, what:`Мера «${kindPb}» ${numPb} зарегистрирована — исход «признан банкротом» (п. 71 — все обязательства считаются наступившими, остаток ускорен до полного)`, who:respPb });
         if(c.bankrot === 'завершено'){
           dt = ruAdd(dt, 120);
@@ -3095,34 +3158,10 @@ function buildSeed(seed){
           const respZpb = respFor(kindZpb);
           measures.push({ sec:sectionOf(kindZpb), kind:kindZpb, dates:D(dt, dt),
             received:{ date:dt }, num:numZpb, purpose:'завершение процедуры', outcome:'завершена',
-            basedOn:basisZpb.num, sum:sumBy(curScope), responsible:respZpb });
+            basedOn:basisZpb.num, sum:sumBy(curScope, dt), responsible:respZpb });
           history.push({ when:`${dt} 10:00`, what:`Мера «${kindZpb}» ${numZpb} зарегистрирована — исход «завершена»`, who:respZpb });
         }
       }
-    }
-
-    /* Task 7 · М-4 пятая статья, fix-round1 (ruling координатора): расходы по
-       обращению взыскания живут на требовании (r.costs), не на LEDGER — появляются
-       с исполнительного листа и дальше, ОБЩЕЕ правило (К3-ИЛ и новые К4/К5/К6 —
-       не К4/К6-специфика). Дата — НЕ константа (была '25.07.2026', на четыре дня
-       ПОЗЖЕ TODAY — сама причина расхождения билдера с аудитором, что ревью нашло):
-       считается от ПОСЛЕДНЕЙ меры дела (после всех веток выше — торгов/возврата
-       ИЛ/банкротства, если они есть), не раньше «Исполнительного листа» (ipilM ниже
-       — участвует только в guard'е «есть ли вообще основание»), и не позже TODAY.
-       Смысл «не раньше последней меры»: costs — это то, что случилось СОБСТВЕННО ПОСЛЕ
-       каждого зарегистрированного документа дела, а не одновременно с одним из них —
-       иначе `m.sum` этого документа (заморожен на build-time, БЕЗ costs — sumBy их не
-       знает) разошёлся бы с «текущим» притязанием (claimTotal), которое их уже видит
-       на ту же дату (та самая находка ревью — «дело 350 съедает 88% допуска C4»). */
-    if(SPINE_KEYS.indexOf(c.stop) >= SPINE_KEYS.indexOf('ил')){
-      const ilM = measures.find(m => m.kind === 'Исполнительный лист');
-      if(!ilM)
-        throw new Error(`SEED: дело ${c.id} — цепочка доходит до исполнительного листа (stop='${c.stop}'), а меры «Исполнительный лист» в журнале нет — расходы датировать не от чего`);
-      const lastM = measures[measures.length - 1];
-      let costDate = ruAdd(lastM.dates.event, 3);
-      if(dParse(costDate) > dParse(TODAY)) costDate = TODAY;
-      COSTS_SEED[c.credit.id] = [{ date:costDate,
-        kind:'Расходы по обращению взыскания и реализации', amount:c.costs ?? 8000 }];
     }
 
     /* Срок порождает КАЖДАЯ ступень хребта, у которой DEADLINE_BY_KIND называет шаблон
@@ -3251,9 +3290,18 @@ function buildSeed(seed){
        провалов торгов идёт из torgiFailsForColls (тот же c.torgi, что уже породил N
        мер «Акт несостоявшихся торгов» выше), не второй копией текстом. Предметы без
        torgiAuto (унаследованные кейсы К2 и т.п.) проходят НЕТРОНУТЫМИ — normColl()
-       по-прежнему читает их .real как раньше. */
+       по-прежнему читает их .real как раньше.
+       Fix-round2 (ruling координатора п.6): `stage` — ИМЕНОВАННЫЙ throw против
+       REAL_STAGES, не свободный текст — собранная строка идёт ОБРАТНО в normColl(),
+       который читает её теми же regex'ами, что и прозу K2 (не рефакторится прочь —
+       координатор прямо просил оставить round-trip, только сделать опечатку громкой);
+       без guard'а опечатка в stage молча деградировала бы в normColl() до «не
+       начата» (regex не находит ни одного совпадения — фолбэк) — ни один аудит-код
+       этого не поймает, т.к. «не начата» валиден сам по себе. */
     const collsOut = copyArr(c.colls).map(x => {
       if(!x.torgiAuto) return x;
+      if(x.stage != null && !REAL_STAGES.includes(x.stage))
+        throw new Error(`SEED: дело ${c.id} — colls[].stage='${x.stage}' не входит в REAL_STAGES [${REAL_STAGES.join(' | ')}]`);
       const bits = [];
       if(x.arrested) bits.push('арест наложен');
       if(torgiFailsForColls) bits.push(`торги не состоялись (${torgiFailsForColls} раз${torgiFailsForColls===1?'':'а'})`);
@@ -4107,8 +4155,6 @@ const SEED = [
 ];
 const PROCESSES = buildSeed(SEED);
 
-/* Реализация залога — типизированный ЖЦ (было свободной строкой real). torgiFails 0..2. */
-const REAL_STAGES = ['не начата','подготовка к торгам','торги назначены','принято на баланс','реализовано'];
 function normColl(c){
   if(c.realStage) return;                       // уже нормализован
   const s=(c.real||'').toLowerCase();
@@ -5346,19 +5392,33 @@ function dlLeftCell(d){
    Развёрнута = 5 статей долга §9. Реализация залога — блоком снизу. */
 function debtTableHtml(r){
   const d=debtOf(r);
+  /* Task 7 fix-round2 (ruling координатора п.4): «Просрочено» — отдельная колонка
+     (было — только внутренний d.rows[].overdue без единого потребителя в рендере,
+     п. 71 не менял НИ ОДНОЙ отображаемой цифры). Теперь ускоренное требование
+     (accelerated, «Признание банкротом») видно ЗДЕСЬ: «Просрочено» по основной
+     сумме = «Остаток» целиком (было бы меньше «Остатка» у обычного, не ускоренного
+     дела на той же стадии) — разница читается из данных, не из прозы истории. */
   const rows=d.rows.map(b=>{
     const note=b.note?` <span class="pill mid">${b.note}</span>`:'';
     const claim=b.claimable!==b.left?`<span class="pill info">востребовано ${fmtKGS(b.claimable)}</span>`:'';
-    return `<tr><td>${b.label}${note} ${claim}</td><td style="text-align:right">${fmtKGS(b.accrued)}</td><td style="text-align:right">${fmtKGS(b.paid)}</td><td style="text-align:right">${fmtKGS(b.left)}</td><td style="text-align:right">${fmtKGS(b.claimable)}</td></tr>`;
+    return `<tr><td>${b.label}${note} ${claim}</td><td style="text-align:right">${fmtKGS(b.accrued)}</td><td style="text-align:right">${fmtKGS(b.paid)}</td><td style="text-align:right">${fmtKGS(b.left)}</td><td style="text-align:right">${fmtKGS(b.overdue)}</td><td style="text-align:right">${fmtKGS(b.claimable)}</td></tr>`;
   }).join('');
-  const costRows=(d.costItems||[]).map(x=>`<tr class="own"><td>${x.kind}${x.note?` <span class="pill mid">${x.note}</span>`:''} <span class="pill info">статья взыскания</span></td>
-    <td style="text-align:right">${fmtKGS(x.amount)}</td><td style="text-align:right">0,00</td><td style="text-align:right">${fmtKGS(x.amount)}</td><td style="text-align:right">${fmtKGS(x.amount)}</td></tr>`).join('');
+  /* Востребовано пятой статьи — d.costItems[].claimable (ruling п.3): охват-гейт
+     живёт на ЭТОМ поле, не на присутствии строки — строка остаётся видимой и под
+     claim-стадийным охватом (claimable=0), «Просрочено» = сама сумма издержки
+     (once инкурена — целиком просрочена, у costs нет частично-начисленной доли). */
+  const costRows=(d.costItems||[]).map(x=>{
+    const claimNote = x.claimable!==x.amount ? ` <span class="pill info">востребовано ${fmtKGS(x.claimable)}</span>` : '';
+    return `<tr class="own"><td>${x.kind}${x.note?` <span class="pill mid">${x.note}</span>`:''} <span class="pill info">статья взыскания</span>${claimNote}</td>
+    <td style="text-align:right">${fmtKGS(x.amount)}</td><td style="text-align:right">0,00</td><td style="text-align:right">${fmtKGS(x.amount)}</td><td style="text-align:right">${fmtKGS(x.amount)}</td><td style="text-align:right">${fmtKGS(x.claimable)}</td></tr>`;
+  }).join('');
   const accTot=d.rows.reduce((s,b)=>s+b.accrued,0)+d.costs, paidTot=d.rows.reduce((s,b)=>s+b.paid,0);
+  const overdueTot=d.rows.reduce((s,b)=>s+b.overdue,0)+d.costs;
   return `<div class="cgrid-wrap" style="margin-top:12px"><table class="cgrid">
-      <thead><tr><th>Статья долга</th><th style="text-align:right">Начислено</th><th style="text-align:right">Погашено</th><th style="text-align:right">Остаток</th><th style="text-align:right">Востребовано</th></tr></thead>
-      <tbody>${rows}${costRows}<tr class="total"><td>Итого</td><td style="text-align:right">${fmtKGS(accTot)}</td><td style="text-align:right">${fmtKGS(paidTot)}</td><td style="text-align:right">${fmtKGS(d.totalLeft)}</td><td style="text-align:right">${fmtKGS(d.claim)}</td></tr></tbody>
+      <thead><tr><th>Статья долга</th><th style="text-align:right">Начислено</th><th style="text-align:right">Погашено</th><th style="text-align:right">Остаток</th><th style="text-align:right">Просрочено</th><th style="text-align:right">Востребовано</th></tr></thead>
+      <tbody>${rows}${costRows}<tr class="total"><td>Итого</td><td style="text-align:right">${fmtKGS(accTot)}</td><td style="text-align:right">${fmtKGS(paidTot)}</td><td style="text-align:right">${fmtKGS(d.totalLeft)}</td><td style="text-align:right">${fmtKGS(overdueTot)}</td><td style="text-align:right">${fmtKGS(d.claim)}</td></tr></tbody>
     </table></div>
-    <p class="section-note" style="margin-top:8px">Четыре статьи — снимок модуля кредита на <b>${d.asOf}</b>, взыскание их только читает. Пятая, расходы по обращению взыскания, — собственная статья требования. Столбец «Востребовано» считается из охвата «${scopeLabel(scopeOf(r))}»${scopeOf(r).volume==='просроченная сумма'?': берётся просроченная часть каждой статьи':': берётся весь остаток'}.${d.frozen?` Начисление заморожено с ${d.frozen.since}: ${d.frozen.why}.`:''}</p>
+    <p class="section-note" style="margin-top:8px">Четыре статьи — снимок модуля кредита на <b>${d.asOf}</b>, взыскание их только читает. Пятая, расходы по обращению взыскания, — собственная статья требования. Столбец «Просрочено» — часть остатка, что уже наступила (банкротство/п. 71 ускоряет её до остатка целиком). Столбец «Востребовано» считается из охвата «${scopeLabel(scopeOf(r))}»${scopeOf(r).volume==='просроченная сумма'?': берётся просроченная часть каждой статьи':': берётся весь остаток'}.${d.frozen?` Начисление заморожено с ${d.frozen.since}: ${d.frozen.why}.`:''}</p>
     ${r._credit.debtNote?`<p class="section-note" style="margin-top:8px">${r._credit.debtNote}</p>`:''}`;
 }
 /* КД-Д16: функция звалась panelOhvat — по вкладке «Охват» модели v2. Вкладка давно
@@ -6331,8 +6391,16 @@ function measureTargetsHtml(r){
    существующим шагом recalcOnIzveschenie()/applyIzveschenie() ПОСЛЕ регистрации самой меры
    (В-8, п. 20.4); дублировать поле в теле формы значило бы держать два конкурирующих места
    записи одного и того же m.scope на одной и той же мере — вне контура Task 9 (не трогать
-   scope computation). Список полностью совпадает с шестью из семи «устанавливающих» видов
-   отчёта Task 6. */
+   scope computation). Список совпадает с семью из семи «устанавливающих» видов отчёта
+   Task 6 плюс «Признание банкротом» (Task 7 fix-round2, ruling координатора п.6 — решение
+   волны, Task 12 фиксирует наравне с остальными правками справочников этой волны):
+   аудит (SCOPE_SETTING, collection-data-audit.mjs) и seed-ветка bankrot уже считают
+   этот вид scope-устанавливающим (п. 71, ускорение) — без строки тут живая регистрация
+   того же вида ничего бы не показала для охвата и споткнулась о ту же A6-охват, что уже
+   однажды поймала «Требование отраслевому госоргану» (комментарий ниже). Регистрация
+   через форму scope ПОСТАВИТ (SCOPE_FORM_KINDS ниже наследует ключ автоматически), но
+   accelerated:true форма НЕ проставляет — тем же исключением, что и «Извещение…» выше,
+   это отдельный интерактивный шаг вне контура этой волны. */
 const SCOPE_KIND_DEFAULT = {
   'Первичная претензия':   { volume:'просроченная сумма', method:'деньгами' },
   'Повторная претензия':   { volume:'просроченная сумма', method:'деньгами' },
@@ -6345,6 +6413,7 @@ const SCOPE_KIND_DEFAULT = {
   'Требование отраслевому госоргану': { volume:'просроченная сумма', method:'деньгами' },
   'Исковое заявление':     { volume:'полный остаток', method:'деньгами' },
   'Исполнительный лист':   { volume:'полный остаток', method:'деньгами' },
+  'Признание банкротом':   { ...BANKROTSTVO_SCOPE },
 };
 const SCOPE_FORM_KINDS = new Set(Object.keys(SCOPE_KIND_DEFAULT));
 /* РМ-Д4/ADR-0036: форма регистрации делится на ДВА видимых блока.
