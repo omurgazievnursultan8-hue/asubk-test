@@ -2957,6 +2957,77 @@ function trancheScheduleRows(t){
   return disb ? buildSchedule(t, disb.date).rows : [];
 }
 
+/* ПРОГНОЗ транша (ADR-0042) — те же ДАТЫ, что у графика, пересчитанные СУММЫ.
+   Даты не двигаем: прогноз отвечает «сколько ждём на этих сроках», а не «когда».
+     • позиция в прошлом (дата ≤ среза) — непокрытый остаток позиции: сколько с неё
+       ещё не собрано. Оплаченная позиция даёт 0.
+     • весь непокрытый хвост прошлого сваливается в БЛИЖАЙШУЮ будущую позицию: собрать
+       его ожидаем ближайшим платежом, а не размазанным по всему хвосту графика.
+     • будущие — перестройка от ФАКТИЧЕСКОГО остатка ОД на дату среза и оставшегося
+       числа платежей, ставка — условия транша на дату среза (Р-21). Позиционная дельта
+       здесь не годится: досрочное погашение не уменьшало бы будущие суммы, и прогноз
+       выродился бы в третий способ спросить то же, что график.
+   Прогноз ничего не хранит и на график/начисление/гейты не влияет (И-18 — про план,
+   но прогноз тем более: он производная).
+   ledgerIndex — Map из buildLedger(c, asOf).index; может быть null (тогда прошлое
+   считается непогашенным целиком). */
+function trancheForecastRows(t, ledgerIndex, asOf){
+  const rows = trancheScheduleRows(t);
+  if (!rows.length) return [];
+  const lim  = pd(asOf || TODAY);
+  const cnd  = conditionsAt(t, asOf || TODAY);
+  const past = rows.filter(r => pd(r.date) <= lim);
+  const fut  = rows.filter(r => pd(r.date) >  lim);
+  const out  = [];
+  let tail = 0;                                       // непокрытый хвост прошлого
+  for (const r of past){
+    const e = ledgerIndex ? ledgerIndex.get(ledgerKey(t.no, r.no)) : null;
+    const uncovered = e
+      ? round2((e.principalOverdue || 0) + (e.interestOverdue || 0) + (e.penaltyBal || 0))
+      : round2(r.total || 0);
+    tail = round2(tail + uncovered);
+    out.push({ no:r.no, date:r.date, scheduled:round2(r.total || 0), forecast:uncovered,
+               delta:round2(uncovered - (r.total || 0)), past:true });
+  }
+  /* фактический остаток ОД транша: освоено минус погашенное по его позициям */
+  const paidP = ledgerIndex
+    ? round2([...ledgerIndex.values()].filter(e => e.trancheNo === t.no)
+        .reduce((a, e) => a + (e.principalPaid || 0), 0))
+    : 0;
+  let bal = round2(Math.max(0, (disbursedSum(t) || t.amount || 0) - paidP));
+  const mpp = freqMonths(cnd.freq);
+  const i   = (cnd.rate || 0) / 100 / 12 * mpp;       // ставка за период, как в buildSchedule
+  const n   = fut.length;
+  const ann = n === 0 ? 0 : (i > 0 ? bal * i / (1 - Math.pow(1 + i, -n)) : bal / n);
+  fut.forEach((r, k) => {
+    const interest = round2(bal * i);
+    let principal = (cnd.method === 'в конце срока')
+      ? (k === n - 1 ? bal : 0)
+      : round2(ann - interest);
+    if (k === n - 1) principal = bal;                 // последний платёж гасит остаток
+    principal = Math.max(0, Math.min(principal, bal));
+    bal = round2(bal - principal);
+    const f = round2(principal + interest + (k === 0 ? tail : 0));
+    out.push({ no:r.no, date:r.date, scheduled:round2(r.total || 0), forecast:f,
+               delta:round2(f - (r.total || 0)), past:false });
+  });
+  return out;
+}
+
+/* Прогноз кредита по месяцам — сумма прогноза ВСЕХ траншей, сгруппированная по месяцу
+   даты позиции. Этим предзаполняется форма заведения плана (ADR-0042 §2): стартовое
+   значение формы, не связь — после сохранения план от прогноза не зависит. */
+function forecastByMonth(c, ledgerIndex, asOf){
+  const m = new Map();
+  for (const t of (c.tranches || [])){
+    for (const r of trancheForecastRows(t, ledgerIndex, asOf)){
+      const mk = monthKey(r.date);
+      m.set(mk, round2((m.get(mk) || 0) + r.forecast));
+    }
+  }
+  return m;
+}
+
 /* ключ позиции детального расчёта: транш + номер платежа */
 function ledgerKey(trancheNo, no){ return 'T' + trancheNo + '#' + no; }
 
@@ -4163,6 +4234,7 @@ window.CR = {
   saveDoc, addNote, addTargetUse,
   zeroOutForTest,
   nextPaymentOf, regStatusOf, scheduleRowStatus, trancheScheduleRows, ledgerKey,
+  trancheForecastRows, forecastByMonth,
   monthKey, monthLabel, monthAdd, monthRange, planRowOf, planAmountOf,
   buildLedger, debtOf, overdueOf, coverageOf, atRiskAmountOf, riskBasisOf,
   paidPool, paymentCounts, paymentCurrency, paymentAllocated,
