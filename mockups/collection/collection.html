@@ -387,7 +387,13 @@ a{ color:inherit; }
    требования» и «Дней просрочки» уезжали за экран — при сортировке по сумме
    по умолчанию. text-overflow:ellipsis при этом не срабатывал никогда: таблица
    просто росла. С fixed проценты значат ровно то, что ТР-9 замерял. */
-table.grid{ width:100%; table-layout:fixed; border-collapse:collapse; font:var(--font-label);
+/* min-width = БЮДЖЕТ ЗАМЕРА ТР-9/ПЛ-Д3 (1240 px): доли colgroup посчитаны под него, и на
+   более узком контейнере они превращают замер в фикцию. Так и было: при окне 1440 таблица
+   становилась 1080 px, и «Кредитный договор» обрезался во ВСЕХ 135 строках — с хвостом
+   уходил год, два договора с одним номером разных лет читались одинаково. Ниже бюджета
+   колонки больше не жмутся: .grid-wrap прокручивается (overflow:auto) — прокрутка
+   честнее, чем ширина, под которую содержимое не мерили. */
+table.grid{ width:100%; min-width:1240px; table-layout:fixed; border-collapse:collapse; font:var(--font-label);
   border:1px solid var(--border-default); background:var(--surface-card); }
 /* ПЛ-Д2: шапка ПЕРЕНОСИТСЯ по словам — так её и описывал ТР-9 («шапка переносится
    по словам, поэтому её длина целиком ширину не диктует»), но в CSS стоял nowrap,
@@ -411,17 +417,26 @@ table.grid tbody td{ height:35px; padding:0 10px; border-bottom:1px solid var(--
    display:box/flex — на ВНУТРЕННЕМ span, не на самом td: td с display:flex/-webkit-box
    ломает table-layout:fixed в Chromium (колонка схлопывается с соседней, весь хвост
    строки съезжает на одну колонку влево) — сам td остаётся обычной table-cell. */
-table.grid tbody td.wrap2{ height:auto; padding-top:6px; padding-bottom:6px; white-space:normal;
+/* Высота ФИКСИРОВАНА (46 px = две строки 14/1.3 + паддинги), а не auto: при auto строки
+   получались шести разных высот (49/51/54/56/59/73) — сколько у ячейки вышло строк,
+   такая и строка, и повторяющейся единицы у таблицы не оставалось (цена волны ПЛ).
+   46 px держат ровную сетку и вмещают обе строки без обрезки. */
+table.grid tbody td.wrap2{ height:46px; padding-top:4px; padding-bottom:4px; white-space:normal;
   overflow:hidden; text-overflow:clip; }
 table.grid tbody td.wrap2 .clamp2{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
   overflow:hidden; line-height:1.3; }
 /* «Фаза» несёт два смысловых слоя в одной ячейке — саму фазу и трек-пилюли
    (trackBadges) — двумя явными строками, а не переносом по месту разрыва: каждая
    строка обрезается своим многоточием независимо от длины соседней. */
-table.grid tbody td.twoline{ height:auto; padding-top:6px; padding-bottom:6px; white-space:normal;
-  overflow:visible; text-overflow:clip; }
-table.grid tbody td.twoline .pwrap{ display:flex; flex-direction:column; justify-content:center; gap:2px; }
+table.grid tbody td.twoline{ height:46px; padding-top:4px; padding-bottom:4px; white-space:normal;
+  overflow:hidden; text-overflow:clip; }
+table.grid tbody td.twoline .pwrap{ display:flex; flex-direction:column; justify-content:center; gap:2px;
+  max-height:38px; overflow:hidden; }
 table.grid tbody td.twoline .pline{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Пилюля в СТРОКЕ СПИСКА компактнее, чем в карточке: полноразмерная (12/1.5 + 2 px)
+   давала 22 px, две таких строки растягивали ряд до 52–69 px и ломали сетку. В карточке
+   пилюля остаётся прежней — там она одна в поле, а не по две в каждой из 135 строк. */
+table.grid tbody .pill{ padding:1px 7px; font-size:11px; line-height:15px; }
 table.grid tbody tr{ cursor:pointer; }
 table.grid tbody tr:hover{ background:var(--surface-hover); }
 table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
@@ -4345,13 +4360,30 @@ const LIST_COLS = [
    (trackBadges): раздельная колонка «Трек» пустовала почти везде (пилюля есть не у
    каждого требования), а слитная строка рвалась не по смыслу. Явные две строки
    (.pline) решают то же место без лишней колонки. */
-const LIST_WIDTHS = ['18.1%','14.5%','12.7%','19.7%','7.5%','10.4%','9.5%','7.6%'];
+/* Пересчёт под бюджет 1240 после двух правок этого же экрана: короткая форма номера
+   (shortCreditNum) освободила у «Кредитного договора» 40 px, а «Категории» не хватало
+   на метку расхождения (catDivergeMark обрезалась у 10 требований). Освободившееся
+   ушло «Обязанному лицу» — единственной колонке, что осталась в дефиците против замера
+   ТР-9 (243 px потребности). «Охвату» добавлено под слово «просроченная сумма» (157 px с паддингом) — оно теперь
+   стоит отдельной строкой и обрезаться не должно; добавка взята у «Ведущего
+   подразделения», где значения в 3–4 буквы (ОПК · САК · ДПО · ОД), а ширину диктует
+   только шапка: самое длинное слово «подразделение» 97 px + жёлоб стрелки 16.
+   Итог в px при 1240: 247 · 150 · 162 · 244 · 108 · 119 ·
+   117 · 93 — короткая форма «№554 · 05.01.2024» занимает 141 px, и 140 не хватало
+   ровно на один пиксель: год снова уходил в многоточие. «Фаза» и «Ведущее подразделение» не тронуты — их доли обоснованы отдельно. */
+const LIST_WIDTHS = ['19.9%','12.1%','13.1%','19.7%','8.7%','9.6%','9.4%','7.5%'];
 
 /* Охват сортируется по СТРОГОСТИ, а не по алфавиту (как категория по CAT_RANK):
    объём «полный остаток» строже «просроченной суммы», способ «обращением на предмет
    залога» строже «деньгами». Алфавит перемешал бы эти пары без смысла. */
 const SCOPE_RANK = s => (s.volume === 'полный остаток' ? 2 : 0)
                       + (s.method === 'деньгами' ? 0 : 1);
+
+/* В КОЛОНКЕ «Кредитный договор» слово «Дог.» дословно повторяет её шапку, а «от» —
+   служебное: вместе 8 символов ≈ 40 px в каждой из 135 строк, из-за которых с хвоста
+   уходил ГОД (два договора с одним номером разных лет читались одинаково). Номер и дата
+   остаются оба; полная форма — в подсказке ячейки и в выгрузке. */
+const shortCreditNum = num => String(num).replace(/^Дог\.\s*/, '').replace(/\s+от\s+/, ' · ');
 
 function sortVal(r, k){
   const p = r._proc;
@@ -4518,14 +4550,23 @@ function renderList(){
      ТР-Д11 («строка без заёмщика») не воскресает: имя стоит в самой строке. */
   const cell = (r, pos, nInDeal) => {
     const cat = catOfReq(r), out = outcomeOf(r);
+    /* Охват — две его половины (ADR-0025) двумя явными строками, а не «объём / способ»
+       одной строкой с переносом по месту разрыва. Раньше clamp2 резал по третьей строке
+       и у 17 требований пропадал хвост СПОСОБА, а первая строка обрывалась на «/».
+       Теперь объём виден целиком всегда, обрезается только длинный способ
+       («обращением на предмет залога» — 196 px против 157 замера ТР-9), и он же
+       полностью в подсказке ячейки. */
+    const sc = scopeOf(r);
     const pause = (r.states||[]).find(s=>stateActive(s));
     const phaseLine1 = out
       ? `<span class="pill neutral">${out}</span>`
       : `${displayPhase(r)}${pause?` <span class="pill mid">${pause.kind==='restructuring'?'реструктуризация':pause.kind==='guarantee_letter'?'гарантийное письмо':'пауза'}</span>`:''}`;
     const trackLine = out ? '' : trackBadges(r).trim();
-    const phaseCell = trackLine
-      ? `<span class="pwrap"><span class="pline">${phaseLine1}</span><span class="pline">${trackLine}</span></span>`
-      : phaseLine1;
+    /* .pwrap ставится ВСЕГДА, даже когда трека нет: без обёртки фаза попадала прямо
+       в td.twoline (white-space:normal) и растекалась на три строки — ряд 66 px против
+       46 у соседей. Внутри .pline строка одна и обрезается своим многоточием. */
+    const phaseCell = `<span class="pwrap"><span class="pline">${phaseLine1}</span>`
+      + (trackLine ? `<span class="pline">${trackLine}</span>` : '') + `</span>`;
     const sol = solidaryWith(r).length;
     const money = `снимок денег на ${moneyDate(r)}`
       + (sol ? ` · солидарно с ${sol} треб. — в итоге по делу считается один раз` : '');
@@ -4551,8 +4592,8 @@ function renderList(){
         onclick="openDetail('${escAttr(r.id)}')"
         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetail('${escAttr(r.id)}');}">
       <td title="${escAttr(personOf(r).name+' · '+r.role)}">${personOf(r).name}${r.role!=='заёмщик'?`<span class="rolechip">${r.role}</span>`:''}${personStateBadge(r)}</td>
-      <td title="${escAttr(r._credit.num)}">${r._credit.num}</td>
-      <td class="wrap2" title="${escAttr(scopeLabel(scopeOf(r)))}"><span class="clamp2">${scopeLabel(scopeOf(r))}</span></td>
+      <td title="${escAttr(r._credit.num)}">${shortCreditNum(r._credit.num)}</td>
+      <td class="twoline" title="${escAttr(scopeLabel(sc))}"><span class="pwrap"><span class="pline">${sc.volume}</span><span class="pline">${sc.method}</span></span></td>
       <td class="twoline" title="${escAttr(out || displayPhase(r))}">${phaseCell}</td>
       <td title="${escAttr(catLabel(cat))}">${catLabel(cat)}${catDivergeMark(r)}</td>
       <td title="${escAttr(r.subdivision)}">${r.subdivision}</td>
