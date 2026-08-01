@@ -1260,6 +1260,16 @@ function reqOwnerLabel(r){
    ============================================================ */
 /* Претензия/требование/извещение — вручаются одним и тем же набором каналов. */
 const DELIVERY_CHANNELS_CLAIM = ['СЭД','Почта','Нарочно'];
+/* Task 6, ревью раунд2, MINOR: виды, что квалифицируются как «судебный акт,
+   заканчивающий дело» — ОДИН источник для ДВУХ мест, что раньше несли его копиями,
+   разошедшимися на одном виде («Судебный приказ») в разные стороны на двух раундах
+   ревью подряд: basisKinds «Соглашения о добровольном исполнении» (ниже) и
+   msHasCourtAct() (гейт МС-5, регистрация соглашения — далеко внизу по файлу,
+   читает эту же константу вместо своего regex). Судебный приказ — тот же по
+   существу акт, что решение суда (kindPhase → «Решение суда», basisKinds
+   «Исполнительного листа» уже его принимает) — расходиться этим двум местам
+   больше негде: у обоих один и тот же список. */
+const COURT_ACT_BASIS_KINDS = ['Решение суда', 'Судебный приказ', 'Мировое соглашение', 'Исполнительный лист'];
 const MEASURE_KINDS = [
   // ---- Досудебный ----
   { name:'Первичная претензия', source:'наш документ', resultIsDocument:false,
@@ -1394,15 +1404,16 @@ const MEASURE_KINDS = [
   /* Task 6 (K3-ДОБРОВОЛЬНОЕ): basisKinds было null — но ситуация сама сформулирована как
      «соглашение НА ОСНОВЕ судебного акта» (п. 37), а builder-ветка (buildSeed, agreement.
      type==='dobrovolnoe') адресует basedOn РОВНО на акт, которым закончилось дело у суда.
-     Ревью раунд1, MINOR 7: список сведён РОВНО к трём видам, что msHasCourtAct() читает
-     regex'ом («решение суда|исполнительный лист|мировое соглашение», гейт МС-5) — было
-     четыре, «Судебный приказ» лишний: под этот regex его текст не подходит («судебный
-     приказ» не содержит ни одной из трёх альтернатив), и справочник тем самым разрешал
-     basedOn на акт, на основании которого живой гейт регистрации мировое/добровольное
-     запретил бы саму меру. Три, а не одна копия перечня — расходиться им больше негде. */
+     Ревью раунд1 сузил список до трёх видов вручную (регех msHasCourtAct() «Судебный
+     приказ» не матчил) — раунд2: это чинило симптом хардкодом ВТОРОЙ копии, а не
+     причину (две независимые копии одного перечня). Теперь оба места читают ОДНУ
+     COURT_ACT_BASIS_KINDS (см. её объявление и комментарий выше) — «Судебный приказ»
+     вернулся, потому что модель (kindPhase) сама признаёт его судебным актом, что
+     ставит фазу «Решение суда» и годится основанием исполнительного листа; msHasCourtAct()
+     ниже по файлу теперь тоже читает эту константу, а не свой regex. */
   { name:'Соглашение о добровольном исполнении', source:'наш документ', resultIsDocument:false,
     outcomes:[{value:'заключено'}], needsDelivery:false, deliveryChannels:null,
-    basisKinds:['Решение суда','Мировое соглашение','Исполнительный лист'] },
+    basisKinds:COURT_ACT_BASIS_KINDS },
   { name:'Исполнительный лист', source:'внешний акт', resultIsDocument:false,
     outcomes:[{value:'выдан',setsPhase:'Исполнительный лист'}],
     needsDelivery:false, deliveryChannels:null, basisKinds:['Решение суда','Судебный приказ','Мировое соглашение'] },
@@ -2064,32 +2075,42 @@ const sumKGS = xs => xs.reduce((s, v) => s + Math.round(Number(v) * 100), 0) / 1
 
 /* Долг требования: строки-статьи + собственные расходы + итоги.
    claimable — то, что востребовано ЭТИМ требованием: при охвате «просроченная сумма»
-   только просроченная часть статьи, иначе весь остаток. */
-function debtOf(r){
+   только просроченная часть статьи, иначе весь остаток.
+   scopeVolume — необязательный явный охват (Task 6, ревью раунд2, MINOR): по
+   умолчанию — живой scopeOf(r).volume (все существующие вызовы без второго
+   аргумента ведут себя ТОЧНО как раньше). С явным значением функция отвечает на
+   вопрос «какое было бы притязание ПОД ЭТИМ охватом» — нужно аудиту
+   (collection-data-audit.mjs, C4) для проверки суммы меры под охватом, что
+   действовал на ДАТУ этой меры, а не под текущим. Раньше аудит копировал этот
+   фолд бакетов ВТОРОЙ раз с литеральным списком ключей вместо LEDGER_BUCKETS —
+   тот же класс дыры, что чинил делегирующий C1: одна свёртка денег, не две. */
+function debtOf(r, scopeVolume){
+  const vol = scopeVolume || scopeOf(r).volume;
   const L = (typeof LEDGER !== 'undefined' && LEDGER[r.credit]) || {};
   const rows = LEDGER_BUCKETS.map(k => {
     const b = L[k]; if(!b) return null;
     const left = (b.accrued||0) - (b.paid||0);
     return { key:k, label:DEBT_LABELS[k], accrued:b.accrued||0, paid:b.paid||0, left,
              overdue: Math.min(b.overdue||0, left), note:b.note||null,
-             claimable: scopeOf(r).volume === 'просроченная сумма' ? Math.min(b.overdue||0, left) : left };
+             claimable: vol === 'просроченная сумма' ? Math.min(b.overdue||0, left) : left };
   }).filter(Boolean);
   const costs = (r.costs||[]).reduce((s,x)=> s + (x.amount||0), 0);
   const totalLeft = rows.reduce((s,x)=> s + x.left, 0) + costs;
   const claim = rows.reduce((s,x)=> s + x.claimable, 0) + costs;
   return { rows, costs, costItems:r.costs||[], totalLeft, claim, asOf:L.asOf || '—', frozen:L.frozen || null };
 }
-const claimOf = r => debtOf(r).claim;
+const claimOf = (r, scopeVolume) => debtOf(r, scopeVolume).claim;
 
 /* §2.2 АГРЕГАТ СЧИТАЕТСЯ ОДИН РАЗ НА КРЕДИТ. Требование к поручителю — то же
-   обязательство солидарно: в строке списка сумма полная, в итоге не задваивается. */
-function claimTotal(reqs){
+   обязательство солидарно: в строке списка сумма полная, в итоге не задваивается.
+   scopeVolume — см. debtOf выше, тот же необязательный проброс. */
+function claimTotal(reqs, scopeVolume){
   const byCredit = {};
   for(const r of reqs){
     const cur = byCredit[r.credit];
     if(!cur || (r.role === 'заёмщик' && cur.role !== 'заёмщик')) byCredit[r.credit] = r;
   }
-  return sumKGS(Object.values(byCredit).map(claimOf));
+  return sumKGS(Object.values(byCredit).map(r => claimOf(r, scopeVolume)));
 }
 const claimSum = p => claimTotal(p.requirements || []);
 
@@ -2334,10 +2355,13 @@ function termToCalendarDays(term){
    1 июля», «одновременно», …) — termToCalendarDays на них молча вернёт null (тем же
    путём, что уронил КРИТИЧНЫЙ баг ревью №2 на два раунда: guard без сигнала). Бьём
    тревогу здесь для каждого шаблона, которым РЕАЛЬНО пользуется билдер — статичная
-   карта плюс 27 (жёстко вписан в условный код деадлайна «Решения суда» ниже, в саму
-   карту не входит) — а не для всех 45: остальные билдеру не нужны и годятся как есть. */
+   карта плюс 27 и 26 (Task 6, K3-АПЕЛЛЯЦИЯ/K3-ИСК-ВОЗВРАТ — жёстко вписаны в условный
+   код деадлайнов ниже, в саму карту не входят) — а не для всех 45: остальные билдеру
+   не нужны и годятся как есть. Ревью раунд2, MINOR: 26 добавлен — до этой правки
+   опечатка в его term молча уронила бы срок tpl 26 (и его закрытие в history) без
+   единого сигнала, тем же путём, что уже ловился для 27. */
 (function assertDeadlineTemplatesParse(){
-  for(const n of [...new Set([...Object.values(DEADLINE_BY_KIND), 27])]){
+  for(const n of [...new Set([...Object.values(DEADLINE_BY_KIND), 27, 26])]){
     const tpl = TPL_BY_N[n];
     if(!tpl) throw new Error(`DEADLINE_BY_KIND: шаблона №${n} нет в DEADLINE_TEMPLATES`);
     if(termToCalendarDays(tpl.term) == null)
@@ -2723,6 +2747,14 @@ function buildSeed(seed){
       const rs = measures.find(m => m.kind === 'Решение суда');
       if(!rs)
         throw new Error(`SEED: дело ${c.id} — appeal='${c.appeal}' задан, а меры «Решение суда» в цепочке нет (нужен stop:'решение' или дальше)`);
+      /* Ревью раунд2, CRITICAL: раунд1 закрыл это ТОЛЬКО в данных (340/341 получили
+         verdict) — сам билдер молча принимал stop:'решение'+appeal с благоприятным
+         (умолчальным) verdict, синтетически воспроизводя ровно тот дефект, что раунд1
+         просил исправить (апелляция ФКФ на собственный полный выигрыш). Апелляционную
+         жалобу подаёт ФКФ (resultIsDocument, наш документ) — обжаловать нечего и
+         некому, если решение уже полностью в нашу пользу. */
+      if(verdictApplied === FAVORABLE_VERDICT)
+        throw new Error(`SEED: дело ${c.id} — appeal='${c.appeal}' задан, а исход «Решение суда» благоприятен ('${FAVORABLE_VERDICT}') — апелляцию подаёт ФКФ (Апелляционная жалоба — наш документ), обжаловать собственный полный выигрыш нечего; задайте verdict неблагоприятным ('иск удовлетворён частично' | 'в иске отказано')`);
       const dt = ruAdd(rs.dates.event, 20);
       const numAj = `АЖ-${c.credit.id}`;
       const respAj = respFor('Апелляционная жалоба');
@@ -2986,7 +3018,12 @@ function msExpiredDefault(r){ return scopeOf(r).volume==='полный оста�
 /* МС-5: стадийная допустимость регистрации. */
 const MS_SUIT_PHASES = new Set(['Иск','Решение суда']);
 function msHasSuit(r){ return MS_SUIT_PHASES.has(phaseOf(r)) || liveMeasuresOf(r).some(m=>/иск/i.test(m.kind)); }
-function msHasCourtAct(r){ return liveMeasuresOf(r).some(m=>/решение суда|исполнительный лист|мировое соглашение/i.test(m.kind)); }
+/* Ревью раунд2: читает COURT_ACT_BASIS_KINDS (объявлена у MEASURE_KINDS, тот же
+   список, что basisKinds «Соглашения о добровольном исполнении») вместо своего
+   regex — было ДВЕ независимые копии одного перечня, разошедшиеся на «Судебный
+   приказ» в разные стороны на двух раундах ревью подряд. Один источник — расходиться
+   больше негде. */
+function msHasCourtAct(r){ return liveMeasuresOf(r).some(m=>COURT_ACT_BASIS_KINDS.includes(m.kind)); }
 function msStageEligible(r, type){
   if(type==='mirovoe')
     return msHasSuit(r) ? { ok:true, reason:'' }
@@ -4420,8 +4457,14 @@ const hApplicable = h => !HEARING_NO_OUTCOME_KINDS.has(h.kind);
 const hRep  = h => ((h.participants||[]).find(x=>/представител/i.test(x))
                  || (h.participants||[]).find(x=>!/ответчик|истец|третье лицо|суд/i.test(x)) || '')
                    .replace(/\s*\(представитель ФКФ\)\s*/i, '').trim() || null;
+/* Ревью раунд2: hApplicable(h) добавлен — «Извещение о назначении…» не САМО заседание,
+   а уведомление о его дате (см. HEARING_NO_OUTCOME_KINDS ниже); без фильтра дело с
+   обоими заседаниями впереди (K3-ИСК, 333) проецировало ДВЕ строки «Следующее судебное
+   заседание» — одну на дату извещения, другую на дату самого процесса — и ближайшая
+   по времени (обычно извещение) называлась «следующим заседанием», хотя идти в суд
+   в эту дату не нужно. Проецируем срок только от заседания, на которое реально идти. */
 function hearingDeadlines(p){
-  return (p.hearings||[]).filter(h => (hLeft(h) ?? -1) >= 0).map(h => ({
+  return (p.hearings||[]).filter(h => hApplicable(h) && (hLeft(h) ?? -1) >= 0).map(h => ({
     action:'Следующее судебное заседание', due:hDay(h),
     base:`дата назначена судом (${String(h.kind||'заседание').toLowerCase()})`,
     targets:hTargets(p, h).map(r=>r.id), _hearing:h }));
@@ -5000,11 +5043,12 @@ function panelSud(){
      той же записью стоит в очереди сроков (КР-2) — второй записи под него нет. */
   const hear=hearingsOf(r).map(h=>{
     const n=hLeft(h);
-    // Ревью раунд1, IMPORTANT 4: тот же hApplicable, что реестр «Заседания» — «Извещение
-    // о назначении…» без исхода — не дыра (у него исхода не бывает по природе вида).
+    // Ревью раунд1, IMPORTANT 4 (раунд2 фикс порядка): !hApplicable ДОЛЖНО стоять
+    // ПОСЛЕ проверки n<0 — иначе предстоящее (ещё не наступившее) извещение теряет
+    // отсчёт «предстоит · через N к.д.» и молча показывает «без исхода — уведомление»
+    // раньше времени: применимость исхода вообще не вопрос, пока дата не наступила.
     const out=hDone(h)?escAttr(h.outcome)
-      :!hApplicable(h)?'<span class="dl-muted">без исхода — уведомление</span>'
-      :n!=null&&n<0?'<span class="pill high">исход не внесён</span>'
+      :n!=null&&n<0?(hApplicable(h)?'<span class="pill high">исход не внесён</span>':'<span class="dl-muted">без исхода — уведомление</span>')
       :`<span class="pill info">предстоит${n!=null?` · через ${n} к.д.`:''}</span>`;
     return `<tr>
     <td>${h.measureNum}${boundToReq(r,h.measureNum)===null?' '+dealLevelPill:''}</td><td>${h.kind}</td><td>${h.place}</td><td>${h.when}</td>
@@ -6440,9 +6484,10 @@ defReg({
       + ` · ближайшее <b>${next ? next.h.when : '—'}</b> · отсчёт от ${TODAY}`;
   },
   row(x){
+    // Ревью раунд2: !hApplicable проверяется ПОСЛЕ n<0 (тот же порядок, что panelSud) —
+    // предстоящее извещение остаётся «предстоит», а не «без исхода» раньше времени.
     const out = x.done ? escAttr(x.h.outcome)
-      : !hApplicable(x.h) ? '<span class="dl-muted">без исхода — уведомление</span>'
-      : x.n != null && x.n < 0 ? `<span class="pill high">исход не внесён</span>`
+      : x.n != null && x.n < 0 ? (hApplicable(x.h) ? `<span class="pill high">исход не внесён</span>` : '<span class="dl-muted">без исхода — уведомление</span>')
       : `<span class="dl-muted">предстоит</span>`;
     const id = x.reqs.length ? x.reqs[0].id : x.p.id;
     return `<tr ${regOpen(id, 'sud')} title="${escAttr(`Мера-основание: ${x.h.measureNum || '—'} · участники: ${(x.h.participants||[]).join(', ') || 'не указаны'}`)}">
