@@ -64,3 +64,25 @@ editor are NOT caught by this hook — run the sync manually for those.
 - **"permission denied" / 403** — you didn't share the Sheet with the service
   account's `client_email` (step 6), or gave it less than Editor.
 - **Sheets API not enabled** — redo step 2 for the same project as the key.
+
+---
+
+# Task-file validator
+
+`check_tasks.py` enforces the contract in `docs/tasks/FORMAT.md` on the HTML task
+files handed to the dev team. No dependencies — stdlib only.
+
+```bash
+python3 scripts/check_tasks.py                        # every file with a JSON island
+python3 scripts/check_tasks.py docs/tasks/<file>.html
+python3 scripts/check_tasks.py --strict               # warnings fail too
+```
+
+Exit code 1 on any error — run it before packaging a handover. It checks: no forward
+dependencies, every `deps` resolves, word and acceptance budgets, "not in this task"
+filled, links live and inside the delivered package, anchors exist, no file paths or
+"ТЗ §5" as plain text, ids matching the `TODO.md` registry 1:1, no priority/status
+fields, open questions naming a default, contiguous stages.
+
+The eight files handed over before 02.08.2026 carry no JSON island; they are reported
+as frozen legacy and skipped.

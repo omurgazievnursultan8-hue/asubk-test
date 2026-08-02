@@ -67,6 +67,13 @@ Track state in `STATUS.md`; `README.md` maps which file holds what.
   🟠 major · 🟡 minor · 🔵 cosmetic. TODO priority chips: 🔴 Высокий / 🟡 Средний / 🟢 Низкий.
 - **`TODO.md` is written in Russian and is the single source of truth.** It is
   synced one-way to a shared Google Sheet (see below) — never hand-edit the Sheet.
+- **Exception since 02.08.2026 — dev task statements.** For task files written to
+  `docs/tasks/FORMAT.md` (new format, JSON island), the **HTML is the source of the
+  statement** — model, rules, acceptance, boundaries live only there; `TODO.md` keeps a
+  registry line per task (ID, title, priority, status). IDs must match 1:1, enforced by
+  `scripts/check_tasks.py`. The eight files handed over before that date are frozen
+  legacy and are not converted; a module reworked in substance is reissued whole under
+  the same filename.
 - Every claim about app behavior should be backed by an in-app verification; cite
   the inspection script and date (e.g. "проверено 2026-06-19, `scripts/inspect/...`").
 - When you edit `STATUS.md`, update its "Last updated" date line.
@@ -89,6 +96,10 @@ python3 scripts/sync_todos.py --dry-run   # preview rows, no network
 # Render a TZ (техзадание) section to a self-contained HTML page
 # (gov-blue design system, sticky sidebar nav auto-built from h2/h3).
 python3 scripts/build_tz_html.py requirements/tz/03-zayavka-komissiya.md [out.html]
+
+# Validate dev task files against docs/tasks/FORMAT.md before handing them over.
+python3 scripts/check_tasks.py                       # all files that carry a JSON island
+python3 scripts/check_tasks.py docs/tasks/<file>.html
 ```
 
 `build_tz_html.py` gotcha: the banner kick-line and the routes strip are **hardcoded to
