@@ -276,6 +276,11 @@ a{ color:inherit; }
 .sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
 .icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
   padding:7px; border-radius:4px; display:flex; }
+/* Бургер шапки сворачивает меню — как в mockups/loan-credit/credit.html и
+   mockups/collateral/zalog.html. До правки кнопка была декоративной: cursor:pointer
+   без обработчика. Реестры широкие (grid min-width 1240px), 320 px меню — заметная
+   доля экрана, и на 1366-м ноутбуке таблица не помещалась вовсе. */
+.app.nav-collapsed .sidebar{ display:none; }
 
 /* ---- main ---- */
 .main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
@@ -853,7 +858,12 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
 
   <div class="main">
     <header class="topbar">
-      <span class="menu" title="Меню">
+      <!-- Клавиатурный вход обязателен по той же причине, что у шапки фильтра (ПЛ-3):
+           span с onclick фокуса не получает, и свернуть меню было бы нечем. -->
+      <span class="menu" id="navBurger" title="Свернуть/развернуть меню" aria-label="Свернуть/развернуть меню"
+            tabindex="0" role="button" aria-expanded="true" aria-controls="nav"
+            onclick="toggleNav()"
+            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleNav();}">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </span>
       <span class="crumb-title" id="crumbTitle">Требования (реестр)</span>
@@ -1358,6 +1368,11 @@ const MEASURE_KINDS = [
   // ---- Судебный ----
   { name:'Исковое заявление', source:'наш документ', resultIsDocument:true,
     outcomes:null, needsDelivery:false, deliveryChannels:null, basisKinds:null },
+  /* МП5-17 (ASUBK-vzyskanie-logika.md §30): приказная ветвь, гейт п.21 наравне с иском —
+     то же инициирование судебного взыскания, параллельная ранняя ветка к тому же
+     результату (ИЛ), не ступень исковой цепочки. */
+  { name:'Заявление о выдаче судебного приказа', source:'наш документ', resultIsDocument:true,
+    outcomes:null, needsDelivery:false, deliveryChannels:null, basisKinds:null },
   { name:'Уточнение исковых требований', source:'наш документ', resultIsDocument:true,
     outcomes:null, needsDelivery:false, deliveryChannels:null, basisKinds:['Исковое заявление'] },
   { name:'Увеличение исковых требований', source:'наш документ', resultIsDocument:true,
@@ -1412,7 +1427,16 @@ const MEASURE_KINDS = [
     needsDelivery:false, deliveryChannels:null, basisKinds:['Исковое заявление','Исковое заявление на понуждение'] },
   { name:'Судебный приказ', source:'внешний акт', resultIsDocument:false,
     outcomes:[{value:'вынесен',setsPhase:'Решение суда'}],
-    needsDelivery:false, deliveryChannels:null, basisKinds:['Исковое заявление'] },
+    /* МП5-17: приказ выносится по заявлению о его выдаче, не по иску — было
+       basisKinds:['Исковое заявление'], что смешивало две разные ветки МП5-17. */
+    needsDelivery:false, deliveryChannels:null, basisKinds:['Заявление о выдаче судебного приказа'] },
+  /* МП5-17: внешний акт, отменяет приказ и рождает обязательство подать полноценный иск
+     (дело не закончено) — без setsPhase, откат фазы не построен (п.5 наряда, фаза-максимум,
+     МП5-12 ещё не сделан); ставить setsPhase сейчас значило бы либо соврать о поведении,
+     либо тихо не работать. */
+  { name:'Определение об отмене судебного приказа', source:'внешний акт', resultIsDocument:false,
+    outcomes:[{value:'отменено'}], needsDelivery:false, deliveryChannels:null,
+    basisKinds:['Судебный приказ'] },
   /* ПМ-Д5 / ADR-0028 п.3 / ADR-0035 п.4: «Определение суда» расщеплено по существу —
      только там, где есть системное следствие — плюс catch-all. Четыре исхода «Иска»
      из прежнего ADR-0027 п.1 стали отдельными видами-определениями. */
@@ -1524,6 +1548,11 @@ for(const kd of MEASURE_KINDS){
 const KIND_BY_NAME = Object.fromEntries(MEASURE_KINDS.map(k => [k.name, k]));
 const kindOf = name => KIND_BY_NAME[name] || null;
 const MEASURE_KIND_NAMES = MEASURE_KINDS.map(k => k.name);
+/* Слой долга (§8.5, МП-1/МП-4→МП5-1/МП5-2): рождается ТОЛЬКО этими тремя видами —
+   не любым исходом с setsPhase:'Решение суда' (у «Постановление апелляционной
+   инстанции» тот же setsPhase на двух исходах, но апелляция ревизует слой, не
+   рождает новый, — МП-2, вне этой карты, поэтому список ИМЁН, а не скан setsPhase). */
+const AWARD_KINDS = new Set(['Решение суда','Судебный приказ','Мировое соглашение']);
 /* РАЗДЕЛ — производная от вида меры (каждый вид принадлежит ровно одному разделу),
    вручную не задаётся — как «фаза из журнала». Ключи покрывают все MEASURE_KINDS;
    раздел согласован с контурами К0…К7 (Исполнительный лист → Судебный: устанавливает
@@ -1546,6 +1575,7 @@ const KIND_SECTION = {
   'Апелляционная жалоба':'Судебный','Постановление апелляционной инстанции':'Судебный',
   'Кассационная жалоба':'Судебный','Письмо в правоохранительные органы':'Судебный',
   'Иск стороны в отношении Фонда':'Судебный','Решение суда':'Судебный','Судебный приказ':'Судебный',
+  'Заявление о выдаче судебного приказа':'Судебный','Определение об отмене судебного приказа':'Судебный',
   'Определение о принятии искового заявления к производству':'Судебный',
   'Определение о возвращении искового заявления':'Судебный',
   'Определение об оставлении искового заявления без рассмотрения':'Судебный',
@@ -1640,6 +1670,28 @@ function liveMilestones(r){
 function phaseSetter(r){ const ms = liveMilestones(r); return ms.length ? ms[ms.length - 1] : null; }
 function phaseOf(r){ const m = phaseSetter(r); return m ? measureSetsPhase(m) : OPEN_PHASE; }
 function phaseSource(r){ const m = phaseSetter(r); return m ? `по документу-основанию: ${m.num}` : 'мер-вех нет — фаза открытия'; }
+/* Слой долга (§8.5) — не запись, а строка связи «мера-решение × кредит» (ADR-0049).
+   Рождается ТОЛЬКО AWARD_KINDS (МП-1/МП5-1); сумма — по представителю кредита
+   (rep[r.credit]-паттерн tileMoney, МП5-2): если представитель не среди целей
+   конкретной меры, эта мера слоя не даёт вовсе — фолбэка на другую цель нет
+   (наряд п.2, тикет «Точки интеграции», вопрос 1). «Последняя» мера — тем же
+   правилом, что liveMilestones выше: по дате СОБЫТИЯ (m.dates.event/registered),
+   не по дате внесения пометки — задержанный по вводу акт не должен обгонять более
+   раннюю по факту веху. */
+function layerOf(proc, creditId){
+  const reqs = (proc.requirements || []).filter(x => x.credit === creditId);
+  let rep = null;
+  for(const r of reqs){ if(!rep || (r.role === 'заёмщик' && rep.role !== 'заёмщик')) rep = r; }
+  if(!rep) return null;
+  const acts = (proc.measures || [])
+    .filter(m => AWARD_KINDS.has(m.kind) && isLiveFor(m, rep.id) && m.awards && m.awards[rep.id])
+    .map((m, i) => ({ m, i, t: (ruD(m.dates && (m.dates.event || m.dates.registered)) || 0) }))
+    .sort((a, b) => (a.t - b.t) || (a.i - b.i));
+  if(!acts.length) return null;
+  const last = acts[acts.length - 1].m;
+  const award = last.awards[rep.id];
+  return { sum: claimsEntryTotal(award), relation: award.relation, act: last, rep };
+}
 
 /* ============================================================
    ADR-0025 / ADR-0028 п.3 — ОХВАТ (объём × способ) ЕСТЬ СВЁРТКА ЖУРНАЛА МЕР,
@@ -1742,7 +1794,11 @@ function pauseOpenerOf(r){
    Исполнительный: открывает исполнительный лист, закрывает постановление о его
    возврате. Залоговый трек сюда не входит — он приходит зеркалом модуля обеспечения
    (см. ниже, «залоговый трек — зеркало»), а не журналом мер взыскания. */
-const SUD_OPENERS = ['Исковое заявление', 'Определение о принятии искового заявления к производству'];
+/* МП5-17: заявление о выдаче приказа — тот же инициатор трека, что иск; отмена приказа не
+   закрывает, а переоткрывает трек — иначе он молча читался бы закрытым после отмены, хотя
+   МП5-17 прямо говорит, что отмена рождает обязательство подать иск (дело не закончено). */
+const SUD_OPENERS = ['Исковое заявление', 'Определение о принятии искового заявления к производству',
+  'Заявление о выдаче судебного приказа', 'Определение об отмене судебного приказа'];
 const SUD_CLOSERS = [
   'Решение суда', 'Судебный приказ', 'Мировое соглашение',
   'Определение о возвращении искового заявления',
@@ -1952,6 +2008,11 @@ const GATES = {
                                       topic:'Признание задолженности безнадёжной' },
   'Исковое заявление':              { organ:ORGANS[4], point:'21',   label:'Подача искового заявления',
                                       topic:'Поручение об инициировании судебного взыскания', poruchenie:true },
+  /* МП5-17: приказная ветвь под тем же гейтом п.21, но своя тема — совпадение тем у двух
+     ключей GATES дало бы молчаливую перезапись в CQ_BY_TOPIC (Object.fromEntries) и
+     задвоенный <option> в дропдауне «Предмет». */
+  'Заявление о выдаче судебного приказа': { organ:ORGANS[4], point:'21', label:'Подача заявления о выдаче судебного приказа',
+                                      topic:'Поручение об инициировании приказного производства', poruchenie:true },
 };
 /* Справочник предметов вопроса (закрытый). Гейтовые предметы несут орган §6.3:
    выбор предмета автоподставляет орган, чтобы связка предмет↔орган не разъезжалась.
@@ -2266,6 +2327,34 @@ function claimTotal(reqs, scopeVolume, asOf){
   return sumKGS(Object.values(byCredit).map(r => claimOf(r, scopeVolume, asOf)));
 }
 const claimSum = p => claimTotal(p.requirements || []);
+
+/* Наряд п.3, МП5-18 (§4, ADR-0021/ADR-0046): пять статей требуемого/присуждённого —
+   основная сумма · проценты · просроченные проценты · пеня · расходы. Отдельный
+   набор от LEDGER_BUCKETS (не переименование): «просроченные проценты» — своя
+   строка (расщепление interest/interest.overdue), «Сборы» (fees) сворачивается в
+   «Расходы» — спека называет ровно пять строк, не шесть (тикет «Точки интеграции»,
+   вопрос 2). */
+const CLAIM_KEYS = ['principal','interest','overdueInterest','penalty','costs'];
+const CLAIM_LABELS = { principal:'Основная сумма', interest:'Проценты', overdueInterest:'Просроченные проценты', penalty:'Пеня / фин. санкции', costs:'Расходы' };
+/* Снимок требуемого по пяти статьям — алгебра из уже посчитанного debtOf(), не
+   повторяет охват/дата-гейт второй раз (тот же принцип, что берёг ревью C4 у
+   debtOf выше — одна свёртка денег, не две). overdueInterest — min(overdue,
+   claimable): под охватом «просроченная сумма» claimable уже РАВЕН overdueEff,
+   так что «проценты» (не-просроченная часть) корректно уходит в 0, не в минус. */
+function claimsSnapshot(r, scopeVolume, asOf){
+  const d = debtOf(r, scopeVolume, asOf);
+  const row = k => d.rows.find(x => x.key === k) || { claimable:0, overdue:0 };
+  const principal = row('principal').claimable;
+  const penalty = row('penalty').claimable;
+  const ir = row('interest');
+  const overdueInterest = Math.min(ir.overdue || 0, ir.claimable || 0);
+  const interest = (ir.claimable || 0) - overdueInterest;
+  const costs = d.claim - principal - penalty - (ir.claimable || 0);   // fees + costsClaimable, свёрнутые
+  return { principal, interest, overdueInterest, penalty, costs };
+}
+/* Сумма пяти строк, пусто ≠ ноль (тикет «Точки интеграции», вопрос 5): нетронутая
+   статья не участвует в сумме, а не считается нулевой суммой. */
+function claimsEntryTotal(entry){ return CLAIM_KEYS.reduce((s,k) => s + (entry && entry[k] !== undefined ? entry[k] : 0), 0); }
 
 /* п. 49: расходы → залогодержатель → возврат залогодателю. */
 function distributeRealization(proceeds, r){
@@ -6691,12 +6780,19 @@ function panelDebt(){
   const solNote = sol.length ? `<div class="overlap-note">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
     <span>Обязательство солидарное: по договору ${req._credit.num} есть ещё ${sol.length} требование — ${sol.map(x=>`<span class="rowlink" onclick="pickReq('${escAttr(x.id)}')">${x.id} (${personOf(x).name}, ${x.role})</span>`).join(', ')}. Сумма показывается полной у каждого, а в итоге по делу считается ОДИН РАЗ на кредит (§2.2).</span></div>` : '';
+  /* Слой (§8.5) — плитка рядом с «сумма требования», по кредиту (одна и та же на
+     всех солидарных строках, тем же принципом, что solNote выше). Пусто, пока нет
+     живой меры AWARD_KINDS с присуждением по представителю (layerOf). */
+  const layer = layerOf(p, req.credit);
+  const layerTitle = !layer ? '' : `${layer.act.kind} №${escAttr(layer.act.num||'')} от ${escAttr((layer.act.dates&&(layer.act.dates.event||layer.act.dates.registered))||'')}${layer.relation && layer.relation.type==='absorbs' ? ` · поглощает слой меры №${escAttr(layer.relation.of)}` : ''}`;
+  const layerBadge = !layer ? '' : `<span class="cright" title="${escAttr(layerTitle)}"><span class="amt">${fmtKGS(layer.sum)}</span><span class="aml">слой</span></span>`;
   const card = `<details class="credit-card" open>
       <summary class="credit-head">
         <span class="tw">▸</span>
         <span class="cnum rowlink" onclick="event.preventDefault();event.stopPropagation();toast('Переход в карточку кредита ${escAttr(req._credit.num)} (демо)')">${req._credit.num}</span>
         <span class="csub">охват: ${scopeLabel(scopeOf(req))} · ${inputs} · обеспечение: ${req._credit.coll}${req._credit.bezakceptRight?' <span class="pill info">безакцепт по договору</span>':''}</span>
         <span class="cright"><span class="amt" title="${escAttr(moneyTitle(req))}">${fmtKGS(claimOf(req))}</span><span class="aml">сумма требования</span></span>
+        ${layerBadge}
       </summary>
       <div class="credit-body">${debtTableHtml(req)}</div>
     </details>`;
@@ -6724,6 +6820,62 @@ function panelDebt(){
     ${cards}
     <div class="gtoolbar" style="margin-top:14px"><button class="btn btn-tint btn-sm" onclick="openCostModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Внести расход по обращению взыскания</button></div>
     ${realBlk}</div>`;
+}
+/* Сверка «требовали → присудили» (§4, часть самого МП5-18, наряд п.3) — не сравнение с
+   живым долгом (debtOf), а пара двух ЗАМОРОЖЕННЫХ снимков одной цепочки оснований:
+   m.claims КОРНЕВОЙ меры цепочки (первое обращение — нет basedOn на другую меру, что
+   уже несёт claims этой же цели) и m.awards ПОСЛЕДНЕЙ меры цепочки из AWARD_KINDS (тот
+   же принцип «последняя по дате события», что layerOf выше). Ветвится цепочка —
+   несколько живых корней на одну цель — своя пара на каждый (тикет «Точки интеграции»,
+   вопрос 3). Обход цепочки forward — по m.basedOn (номер документа, ADR-0029 п.1), не
+   по basisKinds справочника: basedOn называет ИМЕННО ту меру, на которую ссылается акт. */
+function claimChainsFor(r){
+  const all=(r._proc.measures||[]).filter(m => isLiveFor(m, r.id) && (m.targets||[]).includes(r.id));
+  const byNum={}; all.forEach(m => { if(m.num) byNum[m.num]=m; });
+  const hasClaim = m => m.claims && m.claims[r.id];
+  const roots = all.filter(m => hasClaim(m) && !(m.basedOn && byNum[m.basedOn] && hasClaim(byNum[m.basedOn])));
+  const childrenOf = m => all.filter(x => x.basedOn && byNum[x.basedOn]===m);
+  return roots.map(root => {
+    const seen=new Set([root]), queue=[root], acts=[];
+    while(queue.length){
+      const cur=queue.shift();
+      for(const ch of childrenOf(cur)){
+        if(seen.has(ch)) continue; seen.add(ch); queue.push(ch);
+        if(AWARD_KINDS.has(ch.kind) && ch.awards && ch.awards[r.id]) acts.push(ch);
+      }
+    }
+    acts.sort((a,b)=>(ruD(a.dates&&(a.dates.event||a.dates.registered))||0)-(ruD(b.dates&&(b.dates.event||b.dates.registered))||0));
+    return { root, award: acts.length ? acts[acts.length-1] : null };
+  });
+}
+/* Отдельная таблица (тикет «Точки интеграции», вопрос 4) — НЕ debtTableHtml: та
+   рисует живой долг (debtOf), сверка ниже — два замороженных снимка. */
+function claimsReconcileHtml(r){
+  const chains = claimChainsFor(r);
+  const head = `<p class="section-h" style="margin-top:20px">Сверка «требовали → присудили» (МП5-18)</p>`;
+  if(!chains.length) return `${head}<p class="section-note">По требованию нет ни одной меры с внесённой разбивкой требуемого по статьям — сверять пока нечего.</p>`;
+  const actLabel = m => `${m.kind}${m.num?` №${escAttr(m.num)}`:''}${m.dates?` от ${escAttr(m.dates.event||m.dates.registered||'')}`:''}`;
+  const blocks = chains.map(({root,award}) => {
+    const claims = root.claims[r.id];
+    const awards = award ? award.awards[r.id] : null;
+    const rows = CLAIM_KEYS.map(k=>{
+      const c = claims[k];
+      const aVal = awards && awards[k]!==undefined ? awards[k] : null;
+      const gapCell = aVal==null ? '<span style="color:var(--text-placeholder)">—</span>' : `${(aVal-c)>0?'+':''}${fmtKGS(aVal-c)}`;
+      return `<tr><td>${CLAIM_LABELS[k]}</td><td style="text-align:right">${fmtKGS(c)}</td><td style="text-align:right">${aVal!=null?fmtKGS(aVal):'<span style="color:var(--text-placeholder)">—</span>'}</td><td style="text-align:right">${gapCell}</td></tr>`;
+    }).join('');
+    const claimsTotal=claimsEntryTotal(claims), awardsTotal=awards?claimsEntryTotal(awards):null;
+    return `<details class="credit-card"><summary class="credit-head">
+        <span class="tw">▸</span><span class="cnum">${actLabel(root)} → ${award?actLabel(award):'решения нет'}</span>
+        <span class="cright"><span class="amt">${fmtKGS(claimsTotal)}${awardsTotal!=null?` / ${fmtKGS(awardsTotal)}`:''}</span><span class="aml">требовали / присудили</span></span>
+      </summary>
+      <div class="credit-body"><div class="cgrid-wrap"><table class="cgrid">
+        <thead><tr><th>Статья</th><th style="text-align:right">Требовали</th><th style="text-align:right">Присудили</th><th style="text-align:right">Расхождение</th></tr></thead>
+        <tbody>${rows}<tr class="total"><td>Итого</td><td style="text-align:right">${fmtKGS(claimsTotal)}</td><td style="text-align:right">${awardsTotal!=null?fmtKGS(awardsTotal):'—'}</td><td style="text-align:right">${awardsTotal!=null?fmtKGS(awardsTotal-claimsTotal):'—'}</td></tr></tbody>
+      </table></div></div>
+    </details>`;
+  }).join('');
+  return `${head}<p class="section-note">Построчно, по каждому живому обращению (корню цепочки оснований, ADR-0031): требуемое зарегистрированной мерой против присуждённого последним актом цепочки (решение / приказ / мировое). Пустая ячейка «Присудили» — статья не присуждалась (не значит ноль).</p>${blocks}`;
 }
 /* ---- panel: Обзор требования — паспорт рабочей единицы ---- */
 function panelReq(){
@@ -6756,6 +6908,7 @@ function panelReq(){
     </div>
     <p class="section-note" style="margin-top:16px">Требование — рабочая единица модуля: охват, фаза, ведущее подразделение, сроки, состояния обязательства и исход принадлежат ему, а не папке дела. ${sol.length?`По этому договору обязаны ещё ${sol.length} лиц${sol.length>1?'а':'о'} — обязательство солидарное, треки исполнения раздельные.`:''} Исход не выставляется кнопкой: он производный — нулевой остаток либо веха с документом-основанием.</p>
     </div>
+    ${claimsReconcileHtml(r)}
     <p class="section-h" style="margin-top:20px">Сроки на контроле по требованию</p>
     <p class="section-note">Срок принадлежит требованию: ответственный выводится как куратор дела × подразделение шаблона, он показан в реестре. Остаток не хранится — считается из даты срока и даты отсчёта; единица счёта календарные дни, шаблонный срок Порядка и номер шаблона — в подсказке строки. Справочник: <b>DEADLINE_TEMPLATES</b> (${DEADLINE_TEMPLATES.length} строки), ссылка номером. Здесь контекст одного требования; рабочая очередь по срокам — реестр <span class="rowlink" onclick="navClick('Сроки на контроле (реестр)')">«Сроки на контроле»</span>.</p>
     <div class="cgrid-wrap"><table class="dl-grid">
@@ -7683,6 +7836,9 @@ const SCOPE_KIND_DEFAULT = {
      ЖИВУЮ форму не показала бы поле охвата вовсе и тем же путём поймала бы A6-охват. */
   'Требование отраслевому госоргану': { volume:'просроченная сумма', method:'деньгами' },
   'Исковое заявление':     { volume:'полный остаток', method:'деньгами' },
+  /* МП5-17: тот же смысл — взыскание полного остатка судебным путём, мера сама
+     утверждает охват требования (в отличие от «Судебный приказ» — ответа суда). */
+  'Заявление о выдаче судебного приказа': { volume:'полный остаток', method:'деньгами' },
   'Исполнительный лист':   { volume:'полный остаток', method:'деньгами' },
   'Признание банкротом':   { ...BANKROTSTVO_SCOPE },
 };
@@ -7711,6 +7867,7 @@ function openMeasureModal(){
       <div class="field col-span"><span class="flabel">Назначение (цель)</span><div class="control"><input id="mPurpose" value=""></div></div>
       ${measureTargetsHtml(r)}
       <div class="field col-span" id="mScopeWrap"></div>
+      <div class="field col-span" id="mClaimsWrap"></div>
       <div class="field col-span" id="mBasedOnWrap"></div>
     </div>
     <p class="section-h">Пометки</p>
@@ -7742,6 +7899,24 @@ function renderMScope(kind){
     <div class="control grey" style="flex:1"><select id="mScopeMethod"><option${d.method==='деньгами'?' selected':''}>деньгами</option><option${d.method==='обращением на предмет залога'?' selected':''}>обращением на предмет залога</option></select>${caret()}</div>
   </div>`;
 }
+/* Требуемое по статьям (§4, МП5-18, наряд п.3) — по строке на цель (кандидат-цель,
+   как в measureTargetsHtml: сам r + солидарные), дефолт = снимок claimsSnapshot под
+   охватом ТЕЛА меры (тикет «Точки интеграции», вопрос 1: mScopeWrap один на меру —
+   свой отдельный охват на строку форма сегодня не даёт, все строки берут один и тот
+   же volume). Потолок — снимок: клэмпится на сохранении (saveMeasure), не здесь —
+   поле остаётся редактируемым числом, не readonly. */
+function renderMClaims(kind, r){
+  const wrap=document.getElementById('mClaimsWrap'); if(!wrap) return;
+  const cands=[r, ...solidaryWith(r)];
+  const vol = SCOPE_FORM_KINDS.has(kind) ? SCOPE_KIND_DEFAULT[kind].volume : null;
+  wrap.innerHTML=`<span class="flabel">Требуемое по статьям (§4, МП5-18)</span>
+    <div class="hint-inline">Дефолт — снимок долга на дату документа${vol?` под охватом «${vol}»`:''}; куратор обнуляет нетребуемое, накрутить сверх снимка нельзя.</div>
+    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Цель</th>${CLAIM_KEYS.map(k=>`<th style="text-align:right">${CLAIM_LABELS[k]}</th>`).join('')}</tr></thead>
+    <tbody>${cands.map(x=>{
+      const snap=claimsSnapshot(x, vol, null);
+      return `<tr><td>${x.role}${x===r?'':` · ${escAttr(personOf(x).name)}`}</td>${CLAIM_KEYS.map(k=>`<td style="text-align:right"><input type="text" style="width:90px;text-align:right" id="mClaim_${escAttr(x.id)}_${k}" value="${fmtKGS(snap[k])}"></td>`).join('')}</tr>`;
+    }).join('')}</tbody></table></div>`;
+}
 /* Основание (ADR-0029 п.1) — картинка кандидатов, у кого kind ∈ basisKinds выбранного
    вида, в этом же деле, ещё не сторнированных. Пересечение targets с выбранными целями
    формы проверяется на сохранении (basedOnValid-эквивалент) — здесь только список. */
@@ -7772,6 +7947,7 @@ function syncMeasureWarnings(){
   const kind=document.getElementById('mKind').value;
   const secEl=document.getElementById('mSection'); if(secEl) secEl.value=sectionOf(kind);   // раздел выводится из вида меры
   renderMScope(kind);
+  renderMClaims(kind, curReq);
   renderMBasedOn(kind);
   renderMAnnoPreview(kind);
   document.getElementById('mWarnPhase').style.display=isMilestone(kind)?'flex':'none';
@@ -7792,16 +7968,41 @@ function saveMeasure(){
   const val=id=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
   const reg=TODAY, ev=val('mDateEvent')||reg;   // регистрация — системный штамп, не поле формы (ADR-0039)
   const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'Текущая роль';
-  // И-1: сумма документа = требование на момент регистрации (иммутабельна). При нескольких
-  // целях сумма считается один раз на кредит (§2.2) — солидарность не задваивает иск.
-  const sum=fmtKGS(claimTotal(targets));
+  const scopeInfo = SCOPE_FORM_KINDS.has(kind)
+    ? { scope:{ volume:val('mScopeVolume')||SCOPE_KIND_DEFAULT[kind].volume, method:val('mScopeMethod')||SCOPE_KIND_DEFAULT[kind].method } }
+    : {};
+  /* И-1: требуемое по пяти статьям (§4, МП5-18) = требование на момент регистрации
+     (иммутабельно). Потолок — снимок claimsSnapshot под тем же охватом, что и тело
+     меры (тикет «Точки интеграции», вопрос 1): куратор может только уменьшить/
+     обнулить введённое значение, накрутить сверх снимка нельзя — clamp здесь, не
+     полагаемся на дисциплину ввода. `ev` — та же дата события, что идёт в dates
+     (mDateEvent — <input type="date">, отдаёт ISO; dates.event исторически хранит
+     то, что вернул val() как есть — здесь только своя нормализация для asOf debtOf,
+     существующее хранение dates.event не трогаем). */
+  const evRu = /^\d{4}-\d{2}-\d{2}$/.test(ev) ? ruDate(ev) : ev;
+  const vol = SCOPE_FORM_KINDS.has(kind) ? scopeInfo.scope.volume : null;
+  const claims={};
+  for(const x of targets){
+    const cap=claimsSnapshot(x, vol, evRu);
+    const entry={};
+    for(const k of CLAIM_KEYS){
+      const el=document.getElementById(`mClaim_${x.id}_${k}`);
+      const raw=el?msNum(el.value):cap[k];
+      entry[k]=Math.min(Math.max(0,raw), Math.max(0,cap[k]));
+    }
+    claims[x.id]=entry;
+  }
+  // §2.2: агрегат считается один раз на кредит — тот же дедуп-приём, что claimTotal.
+  const byCredit={};
+  for(const r of targets){
+    const cur=byCredit[r.credit];
+    if(!cur || (r.role==='заёмщик' && cur.role!=='заёмщик')) byCredit[r.credit]=r;
+  }
+  const sum=fmtKGS(sumKGS(Object.values(byCredit).map(r=>claimsEntryTotal(claims[r.id]))));
   p.measures=p.measures||[];
   /* РМ-Д4/ADR-0036: доставка и исход — ПОМЕТКИ, не тело. Начальный payload их не несёт
      вовсе (ни sent/served, ни outcome) — они дозаполняются позже openAnnotationModal/
      saveAnnotation, независимой от этой формы парой функций. */
-  const scopeInfo = SCOPE_FORM_KINDS.has(kind)
-    ? { scope:{ volume:val('mScopeVolume')||SCOPE_KIND_DEFAULT[kind].volume, method:val('mScopeMethod')||SCOPE_KIND_DEFAULT[kind].method } }
-    : {};
   let basedOnInfo = {};
   const basedOnSel = val('mBasedOn');
   if(basedOnSel){
@@ -7813,7 +8014,7 @@ function saveMeasure(){
   p.measures.unshift({
     sec:sectionOf(kind), kind, dates:D(ev,reg), num:val('mNum'),
     purpose:val('mPurpose'), ...scopeInfo, ...basedOnInfo,
-    docs:[], sum, responsible:role, targets:targets.map(r=>r.id),
+    docs:[], sum, claims, responsible:role, targets:targets.map(r=>r.id),
   });
   /* СК-13: обязательство закрывается ФАКТОМ. Раньше p.deadlines не менялся ничем —
      очередь не убывала, и зарегистрированная претензия оставалась «просроченным сроком»
@@ -7961,6 +8162,31 @@ function openAnnotationModal(mi){
       <div class="field col-span"><span class="flabel">Исход (${escAttr(m.kind)})</span><div class="control grey"><select id="aOutcome"><option value=""></option>${kd.outcomes.filter(o=>o.value!=='').map(o=>`<option value="${escAttr(o.value)}"${o.value===(m.outcome||'')?' selected':''}>${escAttr(o.value)}</option>`).join('')}</select>${caret()}</div></div>
       ${m.outcome?`<div class="field col-span"><div class="hint-inline">Уже внесено: «${escAttr(m.outcome)}»${m.outcomeMeta?` · поставил ${escAttr(m.outcomeMeta.by||'')} ${m.outcomeMeta.at||''}`:''}</div></div>`:''}
     </div>`;
+  /* Слой (§8.5, наряд п.2/п.3, МП-1/МП5-1/МП5-2/МП5-18): рождается только AWARD_KINDS,
+     по строке на цель меры — пять статей (§4) + (только когда у цели УЖЕ есть более
+     ранний живой слой) отношение к нему. Пусто ≠ ноль ПО СТРОКЕ (тикет «Точки
+     интеграции», вопрос 5, растянуто с одного поля на пять): нетронутая статья не
+     пишется в m.awards вовсе (суд мог присудить основную сумму и не присудить пеню),
+     «0» пишет статью с суммой 0 (акт был, по этой статье присудил ноль). */
+  const awardTargets = AWARD_KINDS.has(m.kind) ? (m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean) : [];
+  const awardSection = !awardTargets.length ? '' : `
+    <p class="section-h" style="font-size:15px;margin:10px 0 4px">Присуждено</p>
+    <p class="section-note">Пять статей (§4, МП5-18), по строке на цель. Пустое поле — статья не присуждалась (не значит ноль).</p>
+    <div class="mform">
+      ${awardTargets.map(x=>{
+        const cur = m.awards && m.awards[x.id];
+        const priorActs = (p.measures||[]).filter(pm => pm!==m && AWARD_KINDS.has(pm.kind) && isLiveFor(pm, x.id) && pm.awards && pm.awards[x.id]);
+        const relField = !priorActs.length ? '' : `
+          <div class="field col-span"><span class="flabel">Отношение к прежнему слою — ${escAttr(x.id)}</span><div class="control grey"><select id="aRelation_${escAttr(x.id)}">
+            <option value="new"${(!cur || !cur.relation || cur.relation.type==='new')?' selected':''}>новый слой</option>
+            ${priorActs.map(pm=>`<option value="${escAttr(pm.num)}"${cur && cur.relation && cur.relation.type==='absorbs' && cur.relation.of===pm.num?' selected':''}>поглощает слой меры №${escAttr(pm.num)} от ${escAttr((pm.dates&&(pm.dates.event||pm.dates.registered))||'')}</option>`).join('')}
+          </select>${caret()}</div></div>`;
+        return `<div class="field col-span"><span class="flabel">Присуждено — ${escAttr(x.id)} · ${escAttr(personOf(x).name)} (${escAttr(x.role)})</span></div>
+        <div class="tgtbox" style="display:flex;gap:8px;flex-wrap:wrap">${CLAIM_KEYS.map(k=>`<label style="display:flex;flex-direction:column;gap:2px;font-size:12px"><span>${CLAIM_LABELS[k]}</span><input style="width:110px" id="aAward_${escAttr(x.id)}_${k}" value="${cur&&cur[k]!==undefined?escAttr(String(cur[k])):''}" placeholder="—"></label>`).join('')}</div>
+        ${relField}
+        ${cur?`<div class="field col-span"><div class="hint-inline">Уже внесено: ${fmtKGS(claimsEntryTotal(cur))}${cur.relation&&cur.relation.type==='absorbs'?` · поглощает слой меры №${escAttr(cur.relation.of)}`:''} · поставил ${escAttr(cur.by||'')} ${cur.at||''}</div></div>`:''}`;
+      }).join('')}
+    </div>`;
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Пометка меры · ${escAttr(m.num||m.kind)}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
     <div class="modal-b">
@@ -7968,6 +8194,7 @@ function openAnnotationModal(mi){
       ${receiptSection}
       ${deliverySection}
       ${outcomeSection}
+      ${awardSection}
       <div class="mform" style="margin-top:10px"><div class="field col-span req"><span class="flabel">Причина правки (обязательна, если меняете уже внесённое значение)</span><div class="control"><input id="aReason" value=""></div></div></div>
     </div>
     <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="saveAnnotation(${mi})">Сохранить пометку</button></div>
@@ -8026,6 +8253,36 @@ function saveAnnotation(mi){
       m.outcome=outcome;
       m.outcomeMeta={ by:role, at:TODAY, ...(wasSet?{reason, prev}:{}) };
       changed=true; if(wasSet) correcting=true;
+    }
+  }
+  if(kd && AWARD_KINDS.has(m.kind)){
+    const targets=(m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean);
+    for(const x of targets){
+      const prevAward=m.awards && m.awards[x.id];
+      const relSel=document.getElementById(`aRelation_${x.id}`);
+      const relation = (relSel && relSel.value!=='new') ? {type:'absorbs', of:relSel.value} : {type:'new'};
+      /* Пять статей, пусто ≠ ноль ПО СТРОКЕ (тикет «Точки интеграции», вопрос 5):
+         нетронутая статья наследует то, что уже стояло (или остаётся не присуждённой,
+         если раньше не стояла вовсе) — правка одной статьи не стирает соседние.
+         Сторно правит цель целиком (m.stornoTargets), построчного сторно тут нет. */
+      const entry={}; let touched=false, lineDiffers=false;
+      for(const k of CLAIM_KEYS){
+        const raw=val(`aAward_${x.id}_${k}`);
+        if(raw===''){ if(prevAward && prevAward[k]!==undefined) entry[k]=prevAward[k]; continue; }
+        const num=Math.max(0, msNum(raw));
+        entry[k]=num; touched=true;
+        if(!prevAward || prevAward[k]!==num) lineDiffers=true;
+      }
+      if(!touched) continue;   // ни одной статьи не тронули — не трогаем запись цели
+      const relDiffers = !prevAward || (prevAward.relation||{}).type!==relation.type || (prevAward.relation||{}).of!==relation.of;
+      const differs = lineDiffers || relDiffers;
+      if(differs){
+        const wasSet=!!prevAward;
+        if(wasSet && !reason){ toast('Меняете уже внесённое присуждение — укажите причину правки','warn'); return; }
+        m.awards=m.awards||{};
+        m.awards[x.id]={ ...entry, relation, by:role, at:TODAY, ...(wasSet?{reason}:{}) };
+        changed=true; if(wasSet) correcting=true;
+      }
     }
   }
   if(!changed){ toast('Нет изменений для сохранения','warn'); return; }
@@ -8830,6 +9087,29 @@ function toggleFilterPanel(el){
   const open = el.classList.toggle('open');
   el.setAttribute('aria-expanded', String(open));
 }
+
+/* ── сворачивание бокового меню ───────────────────────────────────────────
+   Состояние держится классом на `.app` (как в credit.html/zalog.html) и переживает
+   F5: без персиста меню разворачивалось бы на каждом переходе по хэшу, которых в
+   реестре много — открыть дело, вернуться, открыть следующее. Ключ отдельный от
+   STORE_KEY: это настройка показа, а не данные, и «Сбросить демо» её не трогает. */
+const NAV_KEY = 'asubk.collection.navCollapsed';
+function applyNav(collapsed){
+  document.querySelector('.app').classList.toggle('nav-collapsed', collapsed);
+  const b = document.getElementById('navBurger');
+  if(b) b.setAttribute('aria-expanded', String(!collapsed));
+  try{ localStorage.setItem(NAV_KEY, collapsed ? '1' : '0'); }catch(e){}
+}
+function toggleNav(){
+  applyNav(!document.querySelector('.app').classList.contains('nav-collapsed'));
+}
+function restoreNav(){
+  let collapsed = false;
+  try{ collapsed = localStorage.getItem(NAV_KEY) === '1'; }catch(e){}
+  document.querySelector('.app').classList.toggle('nav-collapsed', collapsed);
+  const b = document.getElementById('navBurger');
+  if(b) b.setAttribute('aria-expanded', String(!collapsed));
+}
 function renderFilterBar(){
   const f = filterState;
   /* ТР-5: списки значений строятся из ТРЕБОВАНИЙ — из того же набора, по которому
@@ -9353,7 +9633,7 @@ function movePhase(contour, i, dir){
   editRule('contourPhases', contour, arr, `Порядок фаз ${contour}: «${a}» ↔ «${b}» (в контуре ${inC} ${plural(inC,'требование','требования','требований')})`);
 }
 
-renderRoleSel(); restoreRules(); restoreState(); renderNav(); renderFilterBar(); renderChips(); renderList(); restoreFromHash();
+renderRoleSel(); restoreRules(); restoreState(); restoreNav(); renderNav(); renderFilterBar(); renderChips(); renderList(); restoreFromHash();
 </script>
 </body>
 </html>
