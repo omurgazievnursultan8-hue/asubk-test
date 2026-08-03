@@ -2289,6 +2289,22 @@ const ESCALATION_LEVEL = {
      безопасна (проверено throwaway-смоуком, .scratch-карта collection-gejt-predusloviy). */
   'Признана безнадёжной': 4, 'Списана': 4,
 };
+/* ОСНОВАНИЕ ОТКРЫТИЯ (`ADR-0050`, наряд п.6а, разбор — .scratch/collection-osnovanie-
+   trebovaniya/issues/02) — реквизит ТРЕБОВАНИЯ (`r.basis`), закрытый словарь из пяти.
+   У дела своего поля нет — «Основание открытия» на карточке дела свёртка (`basisOf`,
+   ниже по файлу, рядом с `mkReq`): величина производная, не хранится (`ADR-0001`).
+   Пятое значение — обеспечительная роль (поручитель/гарант/госорган) открывается им
+   ВСЕГДА, независимо от просрочки заёмщика (сама роль отвечает по своему договору, не
+   по чужой просрочке) — `OSNOVANIE_ATTRACT_OBLIGOR` называет его отдельной константой,
+   читает и `mkReq` (обеспечительная ветка), и будущая карта 6б (правопреемство). */
+const OSNOVANIE_KINDS = [
+  'просрочка 6 дней',
+  'сведения о банкротстве обязанного лица',
+  'ликвидация · смерть · безвестное отсутствие',
+  'решение об ускорении п.20.4',
+  'привлечение обязанного лица по обеспечительному договору',
+];
+const OSNOVANIE_ATTRACT_OBLIGOR = OSNOVANIE_KINDS[4];
 /* ЗАПИСЬ ПРЕДУСЛОВИЯ ВИДА (`ADR-0026`, наряд п.5б-i, разбор — .scratch/collection-gejt-
    predusloviy/issues/02): требуемая фаза (`requiredPhase`, точный предшественник на
    маршруте) · порог эскалации (`minLevel`) · требуемый факт (`basis` — жива мера-
@@ -4503,7 +4519,11 @@ function buildSeed(seed){
     });
     const derived = { id:c.id, borrower:c.borrower, inn:c.inn, region:c.region,
       owner:c.owner, curator:c.curator, opened, openedBy:c.openedBy || 'система',
-      basis:c.basis || 'просрочка 6 дней',
+      /* ADR-0050: вход для основания ЗАЁМЩИКА-роли (`mkReq` ниже читает `p.openBasis` как
+         явный default) — не публичное поле «основания дела»: то теперь свёртка `basisOf(p)`
+         (наряд п.6а), а не хранимая строка. Именованный throw на значении вне словаря —
+         в `mkReq`, ближе к точке, где `r.basis` фактически рождается. */
+      openBasis:c.basis || OSNOVANIE_KINDS[0],
       poruchenie: measures.some(m => m.kind === 'Исковое заявление'),
       credits: parts.map(x => x.credit),
       measures, committeeQuestions,
@@ -4714,6 +4734,27 @@ const SEED = [
       credits0:{ treasuryDelay:{ days:8, doc:'ПП-4502 от 17.07.2026', confirmedBy:'СРМК', date:'18.07.2026' } },
       history:[{ when:'19.07.2026 09:00', what:'Платёж подтверждён задним числом (задержка казначейства 8 дн, ПП-4502) → процесс закрыт ретроспективно (Р-9), скрыт из рабочего списка', who:'СРМК' }] } },
 
+  // ── K0-ОСНОВАНИЕ · три дела, открытые НЕ 6-дневной просрочкой (`ADR-0050`, «Последствия»:
+  //    затравка обязана сеять хотя бы по одному делу на каждое из пяти оснований — четвёртое
+  //    и пятое из словаря уже покрыты K1-ИСК-путём/K1-ОБЕСП ниже, эти три — оставшиеся).
+  //    Минимальны нарочно (без цепочки мер, наряд п.6а): сама веха-первопричина здесь не
+  //    моделируется, важен только реквизит basis на заёмщик-требовании. ──
+  { sit:'K0-ОСНОВАНИЕ', id:'580', borrower:'ОсОО «Ала-Тоо Курулуш»', inn:'01203202400580',
+    region:'Чуйская область / Ысык-Атинский', owner:'Отдел проблемных кредитов (ОПК)', curator:'Тукинова А.С.',
+    credit:{ id:'580', num:'Дог. №580 от 09.02.2024', subdiv:'ОПК',
+             debt:{ principal:210000, interest:9000, penalty:0, paid:0 } },
+    stop:null, overdue:6, basis:OSNOVANIE_KINDS[1] },
+  { sit:'K0-ОСНОВАНИЕ', id:'581', borrower:'ОсОО «Кемин-Строй» (в стадии ликвидации)', inn:'01705202400581',
+    region:'Чуйская область / Кеминский', owner:'Отдел проблемных кредитов (ОПК)', curator:'Молдалиев Т.К.',
+    credit:{ id:'581', num:'Дог. №581 от 21.06.2023', subdiv:'ОПК',
+             debt:{ principal:158000, interest:6200, penalty:0, paid:0 } },
+    stop:null, overdue:7, basis:OSNOVANIE_KINDS[2] },
+  { sit:'K0-ОСНОВАНИЕ', id:'582', borrower:'ОсОО «Токмок Агро Плюс»', inn:'01406202400582',
+    region:'Чуйская область / Чуйский', owner:'Куратор ОД', curator:'Асанова Ж.Т.',
+    credit:{ id:'582', num:'Дог. №582 от 04.11.2023', subdiv:'ОД',
+             debt:{ principal:96000, interest:4100, penalty:0, paid:0 } },
+    stop:null, overdue:8, basis:OSNOVANIE_KINDS[3] },
+
   /* ============================================================
      КОНТУР К1 — ДОСУДЕБНЫЙ ПОРЯДОК. Девять ситуаций, 22 дела (Task 4).
      Все кейсы объявляют цепочку (stop) → debt.principalOverdue ОБЯЗАТЕЛЕН на каждом
@@ -4766,7 +4807,7 @@ const SEED = [
              debt:{ principal:140000, interest:6000, penalty:6300, paid:0, principalOverdue:110000 } },
     stop:'повторная', age:11,
     obligors:[{ id:'п-307', name:'Асанов Т. М.', inn:'22505198700345', kind:'физлицо',
-                role:'поручитель', credits:['307'], basis:'договор поручительства ДП-307/1 от 10.04.2024' }],
+                role:'поручитель', credits:['307'], contractRef:'договор поручительства ДП-307/1 от 10.04.2024' }],
     guarantorClaim:{ kind:'Требование поручителю', num:'ТП-307' } },
   { sit:'K1-ОБЕСП', id:'308', borrower:'ОсОО «Кара-Кол Агро»', inn:'01704202000933',
     region:'Иссык-Кульская область / Каракольский', owner:'Куратор ДАК', curator:'Дуйшеева Р.',
@@ -4774,7 +4815,7 @@ const SEED = [
              debt:{ principal:176000, interest:7200, penalty:5100, paid:0, principalOverdue:140000 } },
     stop:'повторная', age:13,
     obligors:[{ id:'г-308', name:'ОсОО «Гарант-Финанс»', inn:'01911201700884', kind:'юрлицо',
-                role:'гарант', credits:['308'], basis:'договор гарантии ДГ-308/1 от 15.05.2024' }],
+                role:'гарант', credits:['308'], contractRef:'договор гарантии ДГ-308/1 от 15.05.2024' }],
     guarantorClaim:{ kind:'Требование гаранту', num:'ТГ-308' } },
   { sit:'K1-ОБЕСП', id:'309', borrower:'Садыков Н. К.', inn:'21504198600678',
     region:'Чуйская область / Московский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
@@ -4786,7 +4827,7 @@ const SEED = [
     // (та же тройка, что у поручителя/гаранта) — эта мера ДВИГАЕТ фазу требования
     // госоргана до «Претензия», требование не остаётся в К0 (ревью Task4 раунд1 п.1).
     obligors:[{ id:'о-309', name:'Министерство сельского хозяйства КР', inn:'00108199680123', kind:'юрлицо',
-                role:'госорган', credits:['309'], basis:'соглашение о субсидировании программы кредитования №309-СХ от 03.09.2024' }],
+                role:'госорган', credits:['309'], contractRef:'соглашение о субсидировании программы кредитования №309-СХ от 03.09.2024' }],
     guarantorClaim:{ kind:'Требование отраслевому госоргану', num:'ТГО-309' } },
 
   // ── K1-БА-ГЕЙТ · право на безакцепт есть по договору, комитет ещё не решил ──
@@ -5769,14 +5810,23 @@ const OWNER_SUBDIV = {
 };
 const subdivOfOwner = o => OWNER_SUBDIV[o] || 'ОД';
 
-function mkReq(p, c, personId, role, basis){
+/* ADR-0050 (наряд п.6а): `basis` — реквизит ТРЕБОВАНИЯ, закрытый словарь `OSNOVANIE_KINDS`.
+   Именованный throw против свободного текста/опечатки — тот же приём, что уже несёт
+   `migrateProcedureToHandover` (HANDOVER_STATES/DEPARTMENTS). `contractRef` — реквизит
+   ТОЛЬКО обеспечительной роли (ссылка на договор поручительства/гарантии/соглашение),
+   независим от основания: основание ВСЕГДА `OSNOVANIE_ATTRACT_OBLIGOR` у обеспечителя
+   (сама роль отвечает по СВОЕМУ договору, не по просрочке заёмщика, `ADR-0050`), а
+   `contractRef` называет, по какому именно. */
+function mkReq(p, c, personId, role, basis, contractRef){
+  if(!OSNOVANIE_KINDS.includes(basis))
+    throw new Error(`SEED: требование ${p.id}/${c.id} (роль '${role}') — basis='${basis}' не входит в словарь оснований OSNOVANIE_KINDS [${OSNOVANIE_KINDS.join(' | ')}]`);
   const r = {
     id: `${p.id}/${c.id}/${ROLE_CODE[role] || 'з'}`,
     proc: p.id, credit: c.id, obligor: personId, role,
     // ADR-0025/ADR-0028 п.3: охвата на кредите больше нет — он живёт на устанавливающей
     // мере (scopeOf(r), свёртка рядом с phaseOf выше). Своего хранимого поля у требования нет.
     subdivision: c.subdiv || subdivOfOwner(p.owner),   // §6.2: на требовании; владелец дела — умолчание
-    basis: basis || p.basis,
+    basis, contractRef: contractRef || null,
     costs: (typeof COSTS_SEED !== 'undefined' && COSTS_SEED[c.id]) ? COSTS_SEED[c.id].map(x=>({...x})) : [],
     states: [],                                  // состояния ОБЯЗАТЕЛЬСТВА (М-11)
     handovers: [],                               // ADR-0023: журнал передач — на ТРЕБОВАНИИ
@@ -5785,6 +5835,11 @@ function mkReq(p, c, personId, role, basis){
   REQ_INDEX[r.id] = r;
   return r;
 }
+/* Основание открытия ДЕЛА (`ADR-0050`) — свёртка, не хранимое поле: основание его первого
+   требования. «Первое» — первая запись `p.requirements`, тем же порядком, что строит цикл
+   выше (первый кредит × заёмщик), дешёвый прокси при отсутствии явной хронологии открытия
+   на затравке (наряд п.6а, точки интеграции вопрос 3). */
+function basisOf(p){ return (p.requirements[0] || {}).basis; }
 
 /* ADR-0023 · ПЕРЕДАЧИ ТРЕБОВАНИЯ. Два входа, и оба — ДЕКЛАРАЦИЯ, не литерал в коде:
 
@@ -5853,7 +5908,7 @@ function migrateProcedureToHandover(p){
 /* КД-6: DEAL_LEVEL_DEADLINE («сроки, у которых требования нет по природе») объявлена
    выше, рядом с dlTpl/dlAction — её читает и buildSeed (Task 9 fix round 2). */
 function normalize(p){
-  p.region ??= '—'; p.curator ??= '—'; p.openedBy ??= 'куратор'; p.basis ??= '—';
+  p.region ??= '—'; p.curator ??= '—'; p.openedBy ??= 'куратор'; p.openBasis ??= OSNOVANIE_KINDS[0];
   p.owner ??= '—'; p.poruchenie ??= false;
   /* `handovers` в этот список НЕ входит намеренно (Task 9 fix round 3): это ДЕКЛАРАЦИЯ
      передач (дело-уровневый массив с привязкой к кредиту), которую читает
@@ -5876,9 +5931,12 @@ function normalize(p){
   /* требования: кредит × лицо */
   p.requirements = [];
   for(const c of p.credits){
-    p.requirements.push(mkReq(p, c, bId, 'заёмщик'));
+    p.requirements.push(mkReq(p, c, bId, 'заёмщик', p.openBasis));
+    /* ADR-0050: роль-обеспечитель открывается ВСЕГДА пятым основанием — она отвечает по
+       СВОЕМУ договору, не по просрочке заёмщика (o.basis больше не читается — переименован
+       в o.contractRef, наряд п.6а). */
     for(const o of p.obligors)
-      if(!o.credits || o.credits.includes(c.id)) p.requirements.push(mkReq(p, c, o.id, o.role, o.basis));
+      if(!o.credits || o.credits.includes(c.id)) p.requirements.push(mkReq(p, c, o.id, o.role, OSNOVANIE_ATTRACT_OBLIGOR, o.contractRef));
   }
   migrateProcedureToHandover(p);
 
@@ -6970,7 +7028,7 @@ function panelDeal(){
         <div class="f2">
           ${ro('Заёмщик', `${p.borrower} · ИНН ${p.inn}`)}
           ${ro('Исход дела', out || '— (в работе)')}
-          ${ro('Основание открытия', p.basis)}
+          ${ro('Основание открытия', basisOf(p))}
           ${ro('Куратор', p.curator)}
           ${ro('Дата открытия', p.opened)}
           ${ro('Кем открыто', p.openedBy==='система'?'система (авто, 6-й день просрочки)':'куратор')}
@@ -7171,7 +7229,7 @@ function panelReq(){
       ${ro('Кредитный договор', r._credit.num)}
       ${ro('Обязанное лицо', `${per.name} · ИНН ${per.inn} · ${per.kind}`)}
       ${ro('Роль в обязательстве', r.role)}
-      ${ro('Основание требования', r.basis)}
+      ${ro('Основание требования', r.contractRef ? `${r.basis} (${r.contractRef})` : r.basis)}
       ${ro('Охват', scopeLabel(scopeOf(r)))}
       ${ro('Ведущее подразделение', r.subdivision)}
       ${ro('Фаза', out || displayPhase(r))}
