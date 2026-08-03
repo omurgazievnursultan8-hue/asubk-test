@@ -1078,6 +1078,11 @@ table.grid tbody tr.sel td{ background:var(--asubk-nav-active); }
 
 /* two-column form */
 .f2{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; max-width:1500px; }
+/* .f4 — та же сетка на четыре колонки, для полей внутри .pcard.wide (03.08.2026):
+   в карточке на всю ширину две колонки растягивают каждое поле вдвое шире нужного,
+   и четыре коротких значения читаются как две далеко разнесённые пары. */
+.f4{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px 40px; align-items:start; }
+@media (max-width:1100px){ .f4{ grid-template-columns:1fr 1fr; } }
 .field{ display:flex; flex-direction:column; gap:6px; }
 .field .flabel{ font:var(--font-label); color:var(--text-muted); }
 .field.col-span{ grid-column:1 / -1; }
@@ -1130,7 +1135,7 @@ table.grid tbody tr.sel td{ background:var(--asubk-nav-active); }
 .pcard.wide{ grid-column:1 / -1; }
 .pcard > .section-h{ margin:0 0 4px; }
 .pcard > .section-note{ margin:0 0 12px; max-width:none; }
-.pcard .f2{ gap:14px 24px; max-width:none; }
+.pcard .f2, .pcard .f4{ gap:14px 24px; max-width:none; }
 .pcard > .gtoolbar{ margin:12px 0 0; }
 @media (max-width:1100px){ .pcards{ grid-template-columns:1fr; } }
 
@@ -5511,9 +5516,9 @@ if (typeof document !== 'undefined') {
           </div>
         </div>
 
-        <div class="pcard">
+        <div class="pcard wide">
           <div class="section-h">Основание выдачи кредита</div>
-          <div class="f2">
+          <div class="f4">
             ${fld('Решение правительства', link(o.govDecisionId,'Переход в ПП — вне объёма макета'))}
             ${fld('Программа', link(o.programId,'Переход в программу — вне объёма макета'))}
             ${(()=>{ const kom=(c.docs||[]).find(x=>x.kind==='Решение комиссии');
@@ -5525,23 +5530,6 @@ if (typeof document !== 'undefined') {
           </div>
         </div>
 
-        <div class="pcard">
-          <!-- Волна 03.08.2026 (КР-56): карточка называлась «Освобождение от залога — решение КМ» и показывала
-               одно из двух оснований. Waiver комиссии по залогу кнопку тут имел, а вывода не
-               имел НИГДЕ (КР-56): saveWaiver писал в модель, читал его только gate(), и после
-               сохранения экран не менялся ничем, кроме тоста. Оба основания теперь стоят
-               рядом — они одной природы, и порог решения КМ показан там же, где реквизиты
-               решения, которое его назначило. -->
-          <!-- Пояснения и подписи «данных нет» сняты по решению пользователя 03.08.2026:
-               пустая карточка с двумя кнопками сама себя объясняет — оба действия названы
-               на кнопках, а отсутствие полей и есть «оснований нет». -->
-          <div class="section-h">Освобождение от порога обеспечения</div>
-          ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Порог по решению', km.coverPct==null?null:(esc(km.coverPct)+' %'+(+km.coverPct===0?' — полное освобождение':'')))}${fld('Скан', esc(km.scan))}</div>`:''}
-          ${wv?`<div class="f2"${km?' style="margin-top:12px"':''}>${fld('Waiver комиссии по залогу',
-              'выдан '+esc(wv.when)+(d.coverage.ok?' <span class="pill neutral">не требуется — порог пройден</span>':' <span class="pill info">применён</span>'))}${fld('Обоснование', esc(wv.reason), {span:true, wrap:true})}</div>`:''}
-          <div class="gtoolbar">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>
-        </div>
-
         <div class="pcard wide">
           <div class="section-h">Предмет кредита</div>
           ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Кол-во',r:1},{h:'Стоимость',r:1}].concat(subjEditableDirect?[{h:''}]:[]), subjRows, {empty:'Предмет не задан'})}
@@ -5550,7 +5538,21 @@ if (typeof document !== 'undefined') {
             : roleBtn('addSubjectRecords','Изменить предмет кредита (доп. соглашением)','CR.openSubjectAgrModal()')}</div>
         </div>
 
-        <div class="pcard wide">
+        <!-- Раскладка 03.08.2026 (решение пользователя): «Основание выдачи» ушло на всю
+             ширину — четыре ссылки на внешние сущности читаются в строку, а не в столбик
+             по две. Два действия-исключения — «Освобождение от порога» и «Перевод долга» —
+             сведены в нижнюю строку парой: оба редки, оба меняют не реквизит, а режим
+             (порог обеспечения / субъект долга), и оба не нужны при обычном чтении
+             карточки. Верх вкладки остался паспортом договора. -->
+        <div class="pcard">
+          <div class="section-h">Освобождение от порога обеспечения</div>
+          ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Порог по решению', km.coverPct==null?null:(esc(km.coverPct)+' %'+(+km.coverPct===0?' — полное освобождение':'')))}${fld('Скан', esc(km.scan))}</div>`:''}
+          ${wv?`<div class="f2"${km?' style="margin-top:12px"':''}>${fld('Waiver комиссии по залогу',
+              'выдан '+esc(wv.when)+(d.coverage.ok?' <span class="pill neutral">не требуется — порог пройден</span>':' <span class="pill info">применён</span>'))}${fld('Обоснование', esc(wv.reason), {span:true, wrap:true})}</div>`:''}
+          <div class="gtoolbar">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>
+        </div>
+
+        <div class="pcard">
           <div class="section-h">Перевод долга — смена заёмщика</div>
           <!-- Шаг 17: вернулось из «Условий» (шаг 11 переносил сюда же, шаг 14 — обратно
                в «Условия» «новых аргументов нет»; аргумент нашёлся шагом 15 — Р-21 прямо
