@@ -450,6 +450,16 @@
         Закрытие неосвоенного остатка — тоже owned действие (оживлено волной 27.07.2026).
    Р-7  Залог — зеркало: «Создать залоговый договор» нет, только «Привязать существующий».
    Р-8  Реквизиты решения КМ об освобождении от залога — owned поле кредита (гейт §2.6).
+        РАСШИРЕНО 03.08.2026 (КР-56/КР-57): waiver залоговой комиссии — ВТОРОЕ основание
+        того же рода и тоже owned (`credit.pledgeWaiver`, прежде лежал в `mirror.*`,
+        то есть числился данными модуля залога — который его не отдаёт и не знает).
+        Оба решения принимает кредитор, оба правятся во вкладке «Договор», оба
+        разблокируют Г-6/Г-7. Читаются и во вкладке «Обеспечение» — read-only, со
+        ссылкой на владельца: величина действует там, где её последствие, а правится
+        там, где ею владеют. Разница между ними в природе действия: решение КМ назначает
+        СВОЙ порог взамен общего (coverPct, 0 % — полное освобождение), waiver порога не
+        меняет — он снимает блокировку при непройденном. Поэтому waiver НЕ красит статус
+        обеспеченности зелёным: обеспечения от него не прибавляется.
    Р-9  Кураторство — зеркало журнала назначений; не picker и не поле.
    Р-10 ПЕРЕПИСАНО волной 27.07.2026 (КВ-8/КВ-9, ADR-0012). Прежняя редакция объявляла
         зеркалом ночного пересчёта обе величины; ни одна зеркалом не является.
@@ -624,7 +634,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-01 · 96/96 PASS
+ SMOKE (node) 2026-08-03 · 97/97 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -721,6 +731,7 @@
    #93 ✓
    #94 ✓
    #95 ✓
+   #96 ✓
 -->
 <style>
 
@@ -1097,6 +1108,11 @@ table.grid tbody tr.sel td{ background:var(--asubk-nav-active); }
 .cond-lookup{ height:auto; min-height:var(--control-h); flex-direction:column; align-items:flex-start;
   padding:8px var(--space-2); gap:2px; }
 .cond-lookup .val{ white-space:normal; overflow:visible; text-overflow:clip; }
+/* .lookup-wrap — тот же приём для полей со СВОБОДНЫМ ТЕКСТОМ (обоснование waiver,
+   волна 03.08.2026, КР-56): базовый .lookup режет значение в одну строку многоточием, а обоснование
+   и есть содержание поля — обрезанное, оно не сообщает ничего. Высота по контенту. */
+.lookup-wrap{ height:auto; min-height:var(--control-h); align-items:flex-start; padding:8px var(--space-2); }
+.lookup-wrap .val{ white-space:normal; overflow:visible; text-overflow:clip; }
 .lookup button{ display:inline-flex; align-items:center; justify-content:center; width:32px; height:var(--control-h);
   border:none; background:transparent; color:var(--text-link); cursor:pointer; }
 .lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
@@ -1763,8 +1779,10 @@ function emptyMirror(over){                          // все зеркала (�
        (ADR-0004 — собственность взыскания). Зеркало; в Г-14 не входит. */
     collectionCosts:0,
     restructuring:{ count:0, active:null },
-    pledgeWaiver:null,                                // waiver залоговой комиссии (Task 5) — falsy по умолчанию,
-                                                        // включается ТОЛЬКО saveWaiver (не сеять truthy на К-5)
+    /* pledgeWaiver ПЕРЕЕХАЛ отсюда в mkCredit (волна 03.08.2026, КР-57): решение комиссии по залогу
+       принимает КРЕДИТОР по данному кредиту — оно не приходит из модуля залога и там
+       не хранится. В зеркале оно означало «read-only, источник — модуль залога», что
+       противоречило кнопке правки во вкладке «Договор». */
     /* coverage — обеспеченность целиком приходит из модуля залога (ADR-0011):
        индекс, порог и основание сработавшего правила считает владелец правила,
        кредит их показывает и подаёт в гейты. Ликвидность — свойство ВИДА предмета,
@@ -1801,6 +1819,13 @@ function mkCredit(over){                             // CREDIT (§3) — обя�
        модуль залога — до этой волны его в модели кредита не было, и регуляторный порог
        не работал ни в одном из двух модулей (КР-35). */
     kmDecision:null,
+    /* pledgeWaiver — ВТОРОЙ разблок Г-6/Г-7: {reason, when}. Owned-поле кредита рядом
+       с kmDecision (волна 03.08.2026, КР-57): это два основания одной природы — оба фиксирует кредитор,
+       оба разблокируют освоение мимо порога, оба правятся из вкладки «Договор».
+       Прежде лежало в mirror.pledgeWaiver, в пространстве имён модуля залога — при том
+       что модуль залога его не отдаёт и не знает. Falsy по умолчанию: включается
+       ТОЛЬКО saveWaiver (не сеять truthy на К-5 — на нём проверяется отказ Г-6). */
+    pledgeWaiver:null,
     lifecycle:'Проект', closure:null,
     baseConditions: condDefaults(),
     agreements:[],
@@ -2795,7 +2820,7 @@ function seedDb(){
      В демо не встречался ни разу, хотя гейт его читает: единственный путь мимо порога
      обеспеченности, не создающий регуляторного порога решением КМ. */
   const kWaiver = credits.find(c => /Первомай-Фарм/.test(c.borrower.name));
-  if (kWaiver) kWaiver.mirror.pledgeWaiver = { reason:'Протокол комиссии по залогу № 14 от 10.07.2026: '
+  if (kWaiver) kWaiver.pledgeWaiver = { reason:'Протокол комиссии по залогу № 14 от 10.07.2026: '
     + 'обеспечение принято с отступлением от порога на срок до переоценки предмета', when:'10.07.2026' };
 
   /* КР-22 · перевод долга (Р-14) — owned действие кредита, не встречавшееся в демо. */
@@ -3872,7 +3897,7 @@ function gate(credit, action, ctx = {}){
          У гейта ДВЕ подпроверки (Прил.1 §2.3–2.4) — индекс и доля ликвида, — и причину
          отказа надо называть ту, что сработала: иначе куратор доливает залог там, где
          нужно менять его состав. */
-      if (!d.coverage.ok && !(credit.mirror && credit.mirror.pledgeWaiver))
+      if (!d.coverage.ok && !credit.pledgeWaiver)
         r.push(!d.coverage.mirror
           ? 'Обеспеченность не подтверждена модулем залога — нужен порог по решению КМ (Р-8) или waiver комиссии по залогу'
           : (d.coverage.covOk === false
@@ -3952,7 +3977,7 @@ function gate(credit, action, ctx = {}){
         r.push('Не собран обязательный комплект документов' +
           (d.docs.missing.length ? ': ' + d.docs.missing.join(' · ') : '') +
           (d.docs.blocked.length ? ' · отклонены/просрочены: ' + d.docs.blocked.map(x => x.kind).join(' · ') : ''));
-      if (!d.coverage.ok && !(credit.mirror && credit.mirror.pledgeWaiver))
+      if (!d.coverage.ok && !credit.pledgeWaiver)
         r.push('Не пройден гейт обеспеченности (или исключение Г-6)');
       break;
     }
@@ -4382,9 +4407,9 @@ function setKmDecision(credit, ctx){
 function saveWaiver(credit, ctx){
   const g = gate(credit, 'waiver', ctx);
   if (!g.ok) return g;
-  const before = credit.mirror.pledgeWaiver || null;
+  const before = credit.pledgeWaiver || null;
   const after = { reason: ctx.reason, when: TODAY };
-  credit.mirror.pledgeWaiver = after;
+  credit.pledgeWaiver = after;
   pushAudit(credit, 'saveWaiver', before, after);
   return g;
 }
@@ -5168,7 +5193,7 @@ if (typeof document !== 'undefined') {
   function fld(label,val,o){ o=o||{};
     const v=(val==null||val==='') ? '<span class="ph" style="color:var(--text-placeholder)">—</span>' : val;
     return `<div class="field${o.span?' col-span':''}"><span class="flabel">${esc(label)}${o.lock?' '+lockHtml():''}</span>`
-      + `<div class="lookup"><span class="val">${v}</span></div>`
+      + `<div class="lookup${o.wrap?' lookup-wrap':''}"><span class="val">${v}</span></div>`   /* o.wrap — свободный текст, высота по контенту (волна 03.08.2026) */
       + (o.src?`<div class="mirror-src">Источник: ${esc(o.src)}</div>`:'') + `</div>`;
   }
   /* грид-коллекция внутри вкладки */
@@ -5453,7 +5478,7 @@ if (typeof document !== 'undefined') {
     const subjRows=subjectAt(c,cardAsOf).map(s=>`<tr><td>${esc(s.kind)}</td><td>${esc(s.name)}</td><td style="text-align:right">${esc(s.qty)}</td><td style="text-align:right">${money(s.cost)}</td>`
       + (subjEditableDirect?`<td style="text-align:right">${roleIconBtn('editSubject','Убрать предмет',`CR.removeSubjectItem('${jsAttr(s.id)}')`,'✕')}</td>`:'')
       + `</tr>`);
-    const km=c.kmDecision;
+    const km=c.kmDecision, wv=c.pledgeWaiver;       // волна 03.08.2026: waiver — owned-поле рядом с решением КМ
     const dt=c.debtTransfer;                                    // Шаг 17: перевод долга вернулся сюда, см. ниже
     /* Шаг 11: бейдж статуса регистрации рядом с № — производный (regStatusOf), поля в
        модели нет; раньше статус читался только косвенно, по заполненности реквизитов. */
@@ -5501,8 +5526,19 @@ if (typeof document !== 'undefined') {
         </div>
 
         <div class="pcard">
-          <div class="section-h">Освобождение от залога — решение КМ</div>
-          ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Скан', esc(km.scan))}</div>`:''}
+          <!-- Волна 03.08.2026 (КР-56): карточка называлась «Освобождение от залога — решение КМ» и показывала
+               одно из двух оснований. Waiver комиссии по залогу кнопку тут имел, а вывода не
+               имел НИГДЕ (КР-56): saveWaiver писал в модель, читал его только gate(), и после
+               сохранения экран не менялся ничем, кроме тоста. Оба основания теперь стоят
+               рядом — они одной природы, и порог решения КМ показан там же, где реквизиты
+               решения, которое его назначило. -->
+          <div class="section-h">Освобождение от порога обеспечения</div>
+          <p class="section-note">Два основания одной природы, оба — собственные поля кредита: решение КМ назначает <b>свой порог</b> взамен общего (0 % — полное освобождение), waiver комиссии по залогу пропускает освоение мимо непройденного порога. Как они сработали, видно во вкладке «Обеспечение».</p>
+          ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Порог по решению', km.coverPct==null?null:(esc(km.coverPct)+' %'+(+km.coverPct===0?' — полное освобождение':'')))}${fld('Скан', esc(km.scan))}</div>`
+            :`<p class="section-note" style="margin-bottom:0">Решения КМ нет — действует общий порог обеспечения.</p>`}
+          ${wv?`<div class="f2" style="margin-top:12px">${fld('Waiver комиссии по залогу',
+              'выдан '+esc(wv.when)+(d.coverage.ok?' <span class="pill neutral">не требуется — порог пройден</span>':' <span class="pill info">применён</span>'))}${fld('Обоснование', esc(wv.reason), {span:true, wrap:true})}</div>`
+            :`<p class="section-note" style="margin:10px 0 0">Waiver комиссии по залогу не выдан.</p>`}
           <div class="gtoolbar">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>
         </div>
 
@@ -6095,6 +6131,13 @@ if (typeof document !== 'undefined') {
   /* ---- ВКЛАДКА 7: Обеспечение (зеркало залогового модуля, Р-7) ---- */
   function tabObespechenie(c,d){
     const cov=d.coverage, light=cov.ok?'var(--asubk-green)':'var(--asubk-red)';
+    /* Волна 03.08.2026 (КР-56): оба основания освобождения от порога — owned-поля кредита, живут во вкладке
+       «Договор» (Р-8: владение только там). Но ЧИТАЮТ их здесь: порог в плитке подписан
+       «по решению КМ» без номера решения, а waiver до этой волны не выводился вообще
+       (КР-56) — экран показывал красный статус и молчал о том, почему освоение прошло.
+       Ниже — read-only выжимка со ссылкой на владельца; правка остаётся в «Договоре». */
+    const km=c.kmDecision, wv=c.pledgeWaiver;
+    const waiverActive = !!wv && !cov.ok;             // waiver значим ровно тогда, когда порог не пройден
     const pledgeList=(c.mirror.pledges||[]);
     const pledgeRows=[];
     let sumAppr=0, sumPledge=0;
@@ -6136,12 +6179,22 @@ if (typeof document !== 'undefined') {
         <div class="dim"><div class="dl">Индекс обеспеченности</div><div class="dv"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${light};margin-right:6px"></span>${cov.index==null?'—':Math.round(cov.index*100)+'%'}</div>
           ${cov.idxGuar?`<div class="src">залог ${Math.round(cov.idxPledge*100)}% + гарантия ${Math.round(cov.idxGuar*100)}%</div>`
                        :(cov.ratio!=null?`<div class="src">отношение залоговой к базе ${Math.round(cov.ratio*100)}%</div>`:'')}</div>
-        <div class="dim"><div class="dl">Порог</div><div class="dv">${cov.req==null?'—':cov.req+'%'}</div>${cov.reqFromKm?'<div class="src">по решению КМ</div>':''}${cov.gReq?`<div class="src">гарантия — ${cov.gReq}%${cov.gReq>100?' (иная валюта)':''}</div>`:''}</div>
+        <div class="dim"><div class="dl">Порог</div><div class="dv">${cov.req==null?'—':cov.req+'%'}</div>${cov.reqFromKm?`<div class="src">по решению КМ${km&&km.num?' '+esc(km.num):''}${km&&km.date?' от '+esc(km.date):''}</div>`:''}${cov.gReq?`<div class="src">гарантия — ${cov.gReq}%${cov.gReq>100?' (иная валюта)':''}</div>`:''}</div>
         ${cov.liqApplies?`<div class="dim"><div class="dl">Доля ликвида</div><div class="dv" style="color:${cov.liqOk?'inherit':'var(--danger,#b3261e)'}">${Math.round(cov.liqShare*100)}%</div><div class="src">минимум ${cov.liqMin}% суммы под риском</div></div>`:''}
         <div class="dim"><div class="dl">Сумма под риском</div><div class="dv">${money(d.atRisk)}</div><div class="src">остаток ОД ${money(d.debt.principal.bal)} + не освоено ${money(Math.max(0,d.undisbursed))}</div></div>
-        <div class="dim"><div class="dl">Статус</div><div class="dv" style="color:${light}">${!cov.applicable?'неприменима':cov.ok?'достаточно':(cov.covOk===false?'недостаточно':'состав не соответствует')}</div></div>
+        <div class="dim"><div class="dl">Статус</div><div class="dv" style="color:${light}">${!cov.applicable?'неприменима':cov.ok?'достаточно':(cov.covOk===false?'недостаточно':'состав не соответствует')}</div>${
+          /* Волна 03.08.2026: статус остаётся красным — обеспеченности действительно нет. Waiver
+             не делает её достаточной, он снимает БЛОКИРОВКУ Г-6/Г-7; подкрашивать плитку
+             зелёным значило бы врать о составе обеспечения. */
+          waiverActive?'<div class="src">гейт снят waiver’ом комиссии — освоение и регистрация возможны</div>':''}</div>
       </div>
       <div class="mirror-src">${esc(cov.source)}${cov.mirror?` · залоговая ${money(cov.mirror.pledgeValue)} (ликвид ${money(cov.mirror.liquidValue)} · неликвид ${money(cov.mirror.illiquidValue)})${cov.mirror.bankGuarantee?` + банковская гарантия ${money(cov.mirror.bankGuarantee)} при своём пороге ${cov.mirror.guaranteeReq}%`:''} · снимок ${esc(cov.mirror.asOf)}`:''}</div>
+      ${(km||wv)?`<div class="section-h" style="margin-top:22px">Основания освобождения от порога</div>
+        <p class="section-note">Собственные поля кредита (Р-8), а не данные модуля залога: и решение КМ, и waiver принимает кредитор. Здесь они только читаются — правка во вкладке «Договор».</p>
+        ${km?`<div class="f2">${fld('Решение КМ', esc(km.kind||'Решение КМ')+' '+esc(km.num||'')+(km.date?' от '+esc(km.date):''))}${fld('Порог по решению', km.coverPct==null?null:(esc(km.coverPct)+' %'+(+km.coverPct===0?' — полное освобождение от порога':'')))}${fld('Скан', km.scan?`<a class="lnk" onclick="CR.toast('Просмотр вложения — вне объёма макета');return false">${esc(km.scan)}</a>`:null)}</div>`:''}
+        ${wv?`<div class="f2"${km?' style="margin-top:10px"':''}>${fld('Waiver комиссии по залогу',
+            'выдан '+esc(wv.when)+(waiverActive?' <span class="pill info">применён</span>':' <span class="pill neutral">не требуется — порог пройден</span>'))}${fld('Обоснование', esc(wv.reason), {span:true, wrap:true})}</div>`:''}
+        <div class="gtoolbar" style="margin-top:6px"><button class="btn btn-secondary btn-sm" onclick="CR.openTab('Договор')">Изменить во вкладке «Договор»</button></div>`:''}
       ${bg?`<div class="section-h" style="margin-top:22px">Банковская гарантия (в индексе, со своим порогом)</div>
         <div class="f2">${fld('Банк',esc(bg.bank))}${fld('Сумма',money(bg.amount))}${fld('Валюта гарантии',esc(bg.currency||c.currency||'KGS'))}${fld('Действует до',esc(bg.till))}</div>
         <div class="mirror-src">Порог гарантии ${cov.mirror&&cov.mirror.guaranteeReq?cov.mirror.guaranteeReq:100} % — ${(bg.currency||c.currency||'KGS')===(c.currency||'KGS')?'валюта гарантии совпадает с валютой кредита':'валюта гарантии отличается от валюты кредита, порог с курсовым запасом'}.${cov.mirror&&cov.mirror.guaranteeExpired?' Срок гарантии истёк — в индекс не входит.':''}</div>`:''}

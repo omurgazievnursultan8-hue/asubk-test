@@ -530,7 +530,10 @@ const pd = CR.pd;
    обеспеченности. Освоенный кредит обязан удовлетворять Г-6 — или нести waiver. */
 (() => { const db = CR.seedDb();
   const bad = db.credits.filter(c => { const d = CR.derive(c);
-    return c.lifecycle !== 'Закрыт' && d.disbursed > 0 && !d.coverage.ok && !c.mirror.pledgeWaiver; });
+    /* волна 03.08.2026 (КР-57): waiver — owned-поле кредита, а не mirror.*. Читать его
+       из зеркала теперь значит «waiver нет никогда» — инвариант стал бы строже правила
+       и объявлял бы нарушителем законно разблокированный кредит. */
+    return c.lifecycle !== 'Закрыт' && d.disbursed > 0 && !d.coverage.ok && !c.pledgeWaiver; });
   ok(42, bad.length === 0,
      `нарушителей=${bad.length} ${bad.map(c=>{const d=CR.derive(c);return c.id+':'+(d.coverage.index==null?'нет зеркала':Math.round(d.coverage.index*100)+'%');}).join(',')}`);
 })();
@@ -1211,6 +1214,24 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   const hasOpen = /CR\.openDropPlanModal\s*=/.test(src) && /CR\.submitDropPlan\s*=/.test(src);
   const wired   = /CR\.openDropPlanModal\('/.test(src) && /CR\.submitDropPlan\('/.test(src);
   ok(95, hasBtn && hasOpen && wired, `кнопка=${hasBtn} обработчики=${hasOpen} связаны=${wired}`);
+})();
+
+/* 96. WAIVER ВИДЕН, А НЕ ТОЛЬКО ДЕЙСТВУЕТ (КР-56/КР-57, волна 03.08.2026). Второй
+   разблок Г-6/Г-7 писался в модель и читался ТОЛЬКО гейтом: ни одной точки вывода
+   на 59 кредитов — освоение проходило при красной обеспеченности без объяснения.
+   Проверяем обе половины дефекта: владение (поле на кредите, не в зеркале модуля
+   залога, который его не отдаёт) и вывод (обе вкладки печатают его из этого поля). */
+(() => { const src = readFileSync(HTML, 'utf8'); const db = CR.seedDb();
+  const c = byId(db,'K-5');
+  CR.saveWaiver(c, { reason:'комиссия по залогу, протокол №9' });
+  const owned  = !!c.pledgeWaiver && !(c.mirror && c.mirror.pledgeWaiver);   // переехал, а не скопирован
+  const seeded = db.credits.some(x => x.pledgeWaiver) && !db.credits.some(x => x.mirror && x.mirror.pledgeWaiver);
+  const gated  = !/mirror\s*&&\s*\w+\.mirror\.pledgeWaiver/.test(src);       // гейты не читают зеркало
+  /* оба места вывода: карточка «Договора» и раздел «Обеспечения» */
+  const shownDogovor = /const km=c\.kmDecision,\s*wv=c\.pledgeWaiver/.test(src) && /Освобождение от порога обеспечения/.test(src);
+  const shownObesp   = /Основания освобождения от порога/.test(src) && /гейт снят waiver/.test(src);
+  ok(96, owned && seeded && gated && shownDogovor && shownObesp,
+     `owned=${owned} сид=${seeded} гейты=${gated} «Договор»=${shownDogovor} «Обеспечение»=${shownObesp}`);
 })();
 
 const pass = results.filter(r => r.pass).length;
