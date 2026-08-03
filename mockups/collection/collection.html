@@ -2791,6 +2791,18 @@ const DEADLINE_TEMPLATES = [
     base:'постановление о возврате ИЛ', resp:'куратор ОД', point:'ADR-0051 §2', origin:'закон' },
   { n:47, action:'Предельный срок повторного предъявления ИЛ', term:'90 к.д. (по умолч., настройка)',
     base:'постановление о возврате ИЛ', resp:'куратор ОД', point:'ADR-0051 §2', origin:'закон' },
+  /* МП5-4 (`ADR-0051` §1, наряд п.7б) — КАТАЛОЖНАЯ строка (статус 25/40/46: в
+     DEADLINE_DERIVED не входит). Давность — не билдерский срок: перерыв/приостановление
+     зависят от журнала мер и состояний, который меняется уже ПОСЛЕ сборки затравки, а
+     DEADLINE_DERIVED материализует один раз при сборке. Проекция — davnostDeadlines()
+     ниже, тем же слотом, что hearingDeadlines/childGapDeadlines в dlOf(). term числом
+     ДНЕЙ, не лет (термToCalendarDays лет не разбирает, а эта строка обязана парситься —
+     считает её сама проекция, не только assertDeadlineTemplatesParse, который сюда не
+     заглядывает). 1095 ≈ 3 года — не подтверждено нормой нигде в репозитории, тот же
+     приём Q3/наряд п.7а: текстовый маркер, не выдуманная статья закона. */
+  { n:48, action:'Исковая давность', term:'1095 дн (по умолч., настройка)',
+    base:'дата возникновения права требования (перерыв/приостановление — по журналу мер и паузам)',
+    resp:'куратор ОД', point:'ADR-0051 §1', origin:'закон' },
 ];
 const TPL_BY_N = Object.fromEntries(DEADLINE_TEMPLATES.map(t=>[t.n,t]));
 
@@ -2813,13 +2825,15 @@ const dlBase   = d => d.base || (dlTpl(d) || {}).base || '—';
 const dlPointLabel = d => { const pt = dlPoint(d); return !pt ? null : /^\d/.test(pt) ? 'п. ' + pt : pt; };
 /* МП5-14 (наряд п.7а, `ADR-0051` «Последствия»): признак происхождения становится видимым
    тем же слотом, что уже занят пилюлей «вне Порядка» — одна функция вместо двух копий
-   тернарника на местах рендера (СК-8-стиль дисциплины). Только 46/47 несут origin — 45
-   существующих строк молчат (умолчание — норма Порядка, решение Q1 карты «возврат ИЛ»),
-   пилюля для них не рендерится вовсе. */
+   тернарника на местах рендера (СК-8-стиль дисциплины). Только 46/47/48 несут origin — 45
+   исходных строк молчат (умолчание — норма Порядка, решение Q1 карты «возврат ИЛ»),
+   пилюля для них не рендерится вовсе. title читает tpl.point самого шаблона, а не
+   фиксированную ссылку — 46/47 указывают на `ADR-0051` §2, а 48 (наряд п.7б, давность) —
+   на §1 того же ADR; общая функция не имеет права угадывать какой параграф. */
 const dlOriginPill = d => {
   const tpl = dlTpl(d);
   if(!tpl) return ' <span class="pill neutral" title="Не обязательство Порядка — дата назначена извне">вне Порядка</span>';
-  if(tpl.origin === 'закон') return ` <span class="pill neutral" title="Срок устанавливает закон, не Порядок (ADR-0051 §2)">по закону</span>`;
+  if(tpl.origin === 'закон') return ` <span class="pill neutral" title="Срок устанавливает закон, не Порядок (${tpl.point})">по закону</span>`;
   return '';
 };
 /* Календарные дни от даты отсчёта до срока. Единица названа в шапке колонки (СК-3):
@@ -6885,7 +6899,7 @@ function hearingDeadlines(p){
     base:`дата назначена судом (${String(h.kind||'заседание').toLowerCase()})`,
     targets:hTargets(p, h).map(r=>r.id), _hearing:h }));
 }
-const dlOf = p => (p.deadlines||[]).concat(hearingDeadlines(p)).concat(childGapDeadlines(p));
+const dlOf = p => (p.deadlines||[]).concat(hearingDeadlines(p)).concat(childGapDeadlines(p)).concat(davnostDeadlines(p));
 const deadlinesOf = r => dlOf(r._proc).filter(d=>!(d.targets||[]).length || d.targets.includes(r.id));
 
 /* ---- СК-8: ОТВЕТСТВЕННЫЙ ПО СРОКУ = куратор дела × подразделение шаблона (§10) ----
@@ -6960,6 +6974,49 @@ function childGapDeadlines(p){
     const due = addDaysRu(parentDate, cfg.days); if(!due) continue;
     out.push({ tpl:cfg.tpl, due, base:`дата подачи «${m.kind}» ${m.num||'без номера'}`,
       targets:(m.targets||[]).slice(), _childGapOf:m });
+  }
+  return out;
+}
+/* МП5-4 (`ADR-0051` §1, наряд п.7б) — «последний по факту выигрывает» (тот же принцип,
+   что phaseSetter/pauseOpenerOf) среди базы просрочки и всех источников перерыва/
+   приостановления давности (грилинг issues/01 карты «давность»): гарантийное письмо —
+   пауза (r.states), а не мера (у неё нет вида в MEASURE_KINDS, тем же путём, что
+   pauseOpenerOf выше) — своей фильтр, НЕ pauseOpenerOf(r) целиком: та отдаёт любую из
+   PAUSE_KINDS, а restructuring ADR-0051 §1 источником давности не называет. Три вида
+   меры — обычный liveMeasuresOf(r), target-fold (ADR-0029). Частичная оплата —
+   LEDGER[r.credit].principal.payments — КРЕДИТ ЦЕЛИКОМ (решение Q1/01: структура не
+   несёт targets, единственное честное чтение — оплата одним содолжником прерывает
+   давность по всем требованиям этого кредита). label называет источник для base-текста
+   записи очереди (тем же приёмом, что childGapDeadlines задаёт свой base). */
+const DAVNOST_INTERRUPT_KINDS = { 'Соглашение о добровольном исполнении':'соглашение о добровольном исполнении',
+  'Мировое соглашение':'утверждение мирового соглашения', 'Исковое заявление':'подача искового заявления' };
+function davnostBaseOf(r){
+  if(!r._credit) return null;
+  const cands = [{ date: ruSub(TODAY, r._credit.overdueDays), label:'начало просрочки' }];
+  for(const s of (r.states||[]))
+    if(s.kind === 'guarantee_letter' && s.since) cands.push({ date:s.since, label:'гарантийное письмо (признание долга)' });
+  for(const m of liveMeasuresOf(r)){
+    const label = DAVNOST_INTERRUPT_KINDS[m.kind];
+    if(label && m.dates && m.dates.event) cands.push({ date:m.dates.event, label });
+  }
+  const L = (typeof LEDGER !== 'undefined' && LEDGER[r.credit]) || {};
+  for(const pmt of ((L.principal && L.principal.payments) || []))
+    if(pmt.date) cands.push({ date:pmt.date, label:'частичная оплата по кредиту' });
+  return cands.reduce((best,c)=> (ruD(c.date)||0) > (ruD(best.date)||0) ? c : best);
+}
+/* Синтетическая проекция, тем же паттерном, что hearingDeadlines/childGapDeadlines выше:
+   не хранимое поле — свод по текущему состоянию на каждый рендер (перерыв может
+   появиться уже после сборки затравки). Закрытым требованиям (isClosedReq) давность не
+   нужна — право на иск либо реализовано, либо вопрос закрыт иначе. tpl:48 — каталожная
+   строка (не в DEADLINE_DERIVED), dlTpl/dlOriginPill/dlTitle подхватывают её как обычную
+   по номеру шаблона, отдельного рендер-кода не нужно. */
+function davnostDeadlines(p){
+  const out = [];
+  for(const r of (p.requirements||[])){
+    if(isClosedReq(r)) continue;
+    const b = davnostBaseOf(r); if(!b) continue;
+    const days = termToCalendarDays(TPL_BY_N[48].term); if(days == null) continue;
+    out.push({ tpl:48, due:ruAdd(b.date, days), base:`${b.label} (${b.date})`, targets:[r.id] });
   }
   return out;
 }
