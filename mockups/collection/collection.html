@@ -1714,7 +1714,7 @@ function measureSetsTerminal(m){
   const hit = kd.outcomes.find(o => o.value === (m.outcome || ''));
   return hit ? (hit.setsTerminal || null) : null;
 }
-/* «Последняя» — по дате события (Р-7: когда факт произошёл), а не по позиции в массиве:
+/* Сортировка — по дате события (Р-7: когда факт произошёл), а не по позиции в массиве:
    акт, поступивший с задержкой, не должен обгонять более раннюю по факту веху. */
 function liveMilestones(r){
   return measuresOf(r)
@@ -1723,7 +1723,40 @@ function liveMilestones(r){
     .sort((a, b) => (a.t - b.t) || (a.i - b.i))
     .map(x => x.m);
 }
-function phaseSetter(r){ const ms = liveMilestones(r); return ms.length ? ms[ms.length - 1] : null; }
+/* §3.1-§3.2 (наряд п.5а, МП5-12, уточнение ADR-0037): фаза — МАКСИМУМ по маршруту среди
+   живых вех, не последняя по времени. Один кредит даёт несколько судебных решений подряд
+   (§8.5, ADR-0046) — иск на новую просрочку при живом исполнительном по прежнему решению
+   не должен откатывать стадию назад. Три ветки, найдены и уточнены регрессионным смоуком
+   на реальной затравке (наивный скалярный максимум ломал req 341/356/357):
+   (1) вне-маршрутные фазы (К2/К5/К6/К7 — §3.3, они вообще не часть «phase» в целевой
+       модели) — если ПОСЛЕДНЯЯ по времени живая веха вне маршрута, она побеждает как
+       сегодня, без сравнения рангов: сравнивать К5 с К3 числом бессмысленно (req 356/357,
+       «Заявление об установлении правопреемника» вс «Решение суда» — общий CONTOUR_LEVEL,
+       но разные, несравнимые ветки).
+   (2) апелляционный откат (§3.3: «отменено, на новое рассмотрение» откатывает к «Иск») —
+       явное исключение по виду+исходу: если последняя веха — именно это, она побеждает,
+       даже если ранг ниже более ранней живой вехи (req 341: «Постановление апелляционной
+       инстанции» откатывает с «Решение суда» на «Иск»; без исключения максимум держал бы
+       «Решение суда», что неверно). Без трассировки цепочки basedOn — не отличить в общем
+       случае «откат той же ветки» от «новая независимая претензия» (обе выглядят как более
+       поздняя по времени веха с более низким рангом), но у отката есть узнаваемый вид+исход,
+       и только для него нужен именно откат — не общее правило.
+   (3) иначе — максимум по рангу среди МАРШРУТНЫХ живых вех (`phaseRank`, :2225 район, ниже
+       по файлу, ссылка вперёд — функция hoist-нута, обе стороны вызываются только во время
+       рендера, тем же приёмом, каким contourOf уже ссылается назад на phaseOf). `>=` — при
+       равенстве ранга выигрывает более поздняя по времени запись. Здесь и только здесь
+       формула расходится со старой («последняя по времени») — ровно сценарий §3.2. */
+const APPEAL_REVERSAL_KIND = 'Постановление апелляционной инстанции';
+const isAppealReversal = m => m.kind === APPEAL_REVERSAL_KIND && String(m.outcome || '').indexOf('отменено') === 0;
+function phaseSetter(r){
+  const ms = liveMilestones(r);
+  if(!ms.length) return null;
+  const last = ms[ms.length - 1];
+  if(!ROUTE_PHASES.has(measureSetsPhase(last))) return last;
+  if(isAppealReversal(last)) return last;
+  const routeMs = ms.filter(m => ROUTE_PHASES.has(measureSetsPhase(m)));
+  return routeMs.reduce((best, m) => phaseRank(measureSetsPhase(m)) >= phaseRank(measureSetsPhase(best)) ? m : best);
+}
 function phaseOf(r){ const m = phaseSetter(r); return m ? measureSetsPhase(m) : OPEN_PHASE; }
 function phaseSource(r){ const m = phaseSetter(r); return m ? `по документу-основанию: ${m.num}` : 'мер-вех нет — фаза открытия'; }
 /* Слой долга (§8.5) — не запись, а строка связи «мера-решение × кредит» (ADR-0049).
@@ -1901,6 +1934,30 @@ function trackBadges(r){
     out += ` <span class="pill mid" title="Открыт трек: ${escAttr(open)} — закрытие требования ждёт">${escAttr(cand)}, взыскание идёт</span>`;
   }
   return out;
+}
+/* §3.2 (наряд п.5а, МП5-12): фаза — максимум, живая веха позади максимума не двигает
+   её назад. Сиблинг trackBadges по месту/стилю, но другой вопрос функционально (трек —
+   про незакрытый трек взыскания, это — про живую веху позади текущего максимума).
+   НЕ «есть живая веха с фазой «Иск» позади максимума» — при обычном продвижении
+   (Иск→Решение суда→…) веха-основание «Иск» ВСЕГДА остаётся живой позади текущей фазы,
+   это не аномалия, а нормальная история; такой предикат спамил бы чипом на любом
+   продвинутом деле (найдено регрессионным смоуком на реальной затравке). Сигнал
+   именно повторного независимого искового — ДВЕ ИЛИ БОЛЕЕ живых вехи с фазой «Иск»
+   одновременно (§8.5, ADR-0046 — несколько судебных решений подряд на одном кредите);
+   апелляционный откат (`isAppealReversal`, phaseSetter выше) тоже ставит фазу «Иск», но
+   это не второе исковое — исключается явно, иначе req 341 (одна веха-основание + один
+   откат) ложно считался бы задвоением. «Исковое заявление» само фазу не ставит
+   (outcomes:null, resultIsDocument — обёртка над актом); фазу «Иск» ставит определение
+   о принятии к производству («Определение о принятии искового заявления к производству»,
+   исход «принято к производству») — по фазе, не по виду, чтобы не завязываться на имя
+   конкретного вида. Под текущим гейтом (sequenceReason, наряд п.5б) сценарий недостижим
+   через интерфейс — землится как есть (точки интеграции, вопрос 1), доказан
+   synthetic-мутацией в throwaway-смоуке. */
+function newClaimBadge(r){
+  const iskMs = liveMilestones(r).filter(m => measureSetsPhase(m) === 'Иск' && !isAppealReversal(m));
+  if(iskMs.length < 2 || phaseRank(phaseOf(r)) <= phaseRank('Иск')) return '';
+  const fresh = iskMs[iskMs.length - 1];
+  return ` <span class="pill mid" title="Мера «${escAttr(fresh.num||fresh.kind)}» от ${escAttr((fresh.dates&&fresh.dates.event)||'')} — живая, но дело уже прошло дальше по прежнему решению (§3.2)">новый иск</span>`;
 }
 
 /* ============================================================
@@ -2223,6 +2280,17 @@ function contourOfPhase(ph){ for(const c in CONTOURS){ if(phasesOf(c).includes(p
 /* Контур — остаётся, гейт последовательности вех (sequenceReason ниже) на нём и стоит;
    перевод гейта на стадию — отдельная волна (ADR-0040 «Отвергнуто»). */
 const contourOf = r => contourOfPhase(phaseOf(r)) || 'К0';
+/* Ранг фазы для максимума (наряд п.5а, МП5-12) — тот же ключ, что уже читает
+   sequenceReason ниже (уровень контура, затем позиция внутри phasesOf(контур)),
+   сведённый в скаляр для сравнения. Покрывает и маршрутные фазы (К0/К1/К3/К4),
+   и вне-маршрутные (К2/К5/К6/К7 — у части из них тоже есть setsPhase, напр.
+   «Списана»/«Признана безнадёжной») — иначе max в phaseSetter (выше по файлу)
+   не смог бы сравнить веху вне маршрута ни с чем. */
+function phaseRank(ph){
+  const c = contourOfPhase(ph);
+  if(!c) return -1;
+  return (CONTOUR_LEVEL[c] ?? 0) * 100 + phasesOf(c).indexOf(ph);
+}
 
 /* СТ-4/СТ-5 (ADR-0040) — состояние лица: банкротство/правопреемство читаются прямо из
    журнала мер по ДЕЛУ (в границах одного дела — кросс-деловой связки субъекта нет),
@@ -2251,7 +2319,12 @@ function personStateOf(r){
   if(cfg.outcome && last.outcome !== cfg.outcome) return null;
   return cfg.label;
 }
-const ROUTE_PHASES = new Set([...phasesOf('К0'), ...phasesOf('К1'), ...phasesOf('К3'), ...phasesOf('К4')]);
+/* ROUTE_ORDER — тот же литерал, что раньше собирал ROUTE_PHASES напрямую, теперь как
+   массив: наряд п.5а нужна позиция, не только принадлежность множеству. Один источник —
+   ROUTE_PHASES выводится из него, не дублируется отдельным литералом (наряд п.5б, снимая
+   CONTOURS, обязана перевести оба на новый источник — не работа этой карты). */
+const ROUTE_ORDER = [...phasesOf('К0'), ...phasesOf('К1'), ...phasesOf('К3'), ...phasesOf('К4')];
+const ROUTE_PHASES = new Set(ROUTE_ORDER);
 function routePhaseOf(r){
   const ms = liveMilestones(r);
   for(let i = ms.length - 1; i >= 0; i--){
@@ -6201,7 +6274,7 @@ function renderList(){
     const phaseLine1 = out
       ? `<span class="pill neutral">${out}</span>`
       : `${displayPhase(r)}${pause?` <span class="pill mid">${pause.kind==='restructuring'?'реструктуризация':pause.kind==='guarantee_letter'?'гарантийное письмо':'пауза'}</span>`:''}`;
-    const trackLine = out ? '' : trackBadges(r).trim();
+    const trackLine = out ? '' : (trackBadges(r) + newClaimBadge(r)).trim();
     /* .pwrap ставится ВСЕГДА, даже когда трека нет: без обёртки фаза попадала прямо
        в td.twoline (white-space:normal) и растекалась на три строки — ряд 66 px против
        46 у соседей. Внутри .pline строка одна и обрезается своим многоточием. */
@@ -6694,7 +6767,7 @@ function reqDims(){
     : (activeState(r,'restructuring') ? 'оверлей реструктуризации; под ним: '+phaseOf(r) : phaseSource(r));
   return `<div class="phead-dims">
     <div class="dim"><div class="dl">Охват</div><div class="dv">${escAttr(scopeLabel(scopeOf(r)))}</div><div class="src">${escAttr(scopeSource(r))} (§2.4)</div></div>
-    <div class="dim"><div class="dl">Фаза</div><div class="dv">${out?`<span class="pill neutral">${out}</span>`:displayPhase(r)}${trackBadges(r)}</div><div class="src">стадия «${stageOfReq(r)}» · ${phaseSrc}</div></div>
+    <div class="dim"><div class="dl">Фаза</div><div class="dv">${out?`<span class="pill neutral">${out}</span>`:displayPhase(r)}${trackBadges(r)}${newClaimBadge(r)}</div><div class="src">стадия «${stageOfReq(r)}» · ${phaseSrc}</div></div>
     <div class="dim clickable" onclick="toggleCat()"><div class="dl">Категория риска <span style="color:var(--text-link)">${catOpen?'▾':'▸'} входы</span></div><div class="dv"><span class="pill ${catCls(cat)}">${catLabel(cat)}</span></div><div class="src">worst-of по кредиту требования</div></div>
     <div class="dim"><div class="dl">Ведущее подразделение</div><div class="dv">${escAttr(r.subdivision)}</div><div class="src">на требовании, не на деле (М-3)</div></div>
   </div>${catOpen ? catExpand(p) : ''}`;
