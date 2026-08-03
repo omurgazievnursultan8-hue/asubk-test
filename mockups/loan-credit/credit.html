@@ -5532,13 +5532,13 @@ if (typeof document !== 'undefined') {
                сохранения экран не менялся ничем, кроме тоста. Оба основания теперь стоят
                рядом — они одной природы, и порог решения КМ показан там же, где реквизиты
                решения, которое его назначило. -->
+          <!-- Пояснения и подписи «данных нет» сняты по решению пользователя 03.08.2026:
+               пустая карточка с двумя кнопками сама себя объясняет — оба действия названы
+               на кнопках, а отсутствие полей и есть «оснований нет». -->
           <div class="section-h">Освобождение от порога обеспечения</div>
-          <p class="section-note">Два основания одной природы, оба — собственные поля кредита: решение КМ назначает <b>свой порог</b> взамен общего (0 % — полное освобождение), waiver комиссии по залогу пропускает освоение мимо непройденного порога. Как они сработали, видно во вкладке «Обеспечение».</p>
-          ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Порог по решению', km.coverPct==null?null:(esc(km.coverPct)+' %'+(+km.coverPct===0?' — полное освобождение':'')))}${fld('Скан', esc(km.scan))}</div>`
-            :`<p class="section-note" style="margin-bottom:0">Решения КМ нет — действует общий порог обеспечения.</p>`}
-          ${wv?`<div class="f2" style="margin-top:12px">${fld('Waiver комиссии по залогу',
-              'выдан '+esc(wv.when)+(d.coverage.ok?' <span class="pill neutral">не требуется — порог пройден</span>':' <span class="pill info">применён</span>'))}${fld('Обоснование', esc(wv.reason), {span:true, wrap:true})}</div>`
-            :`<p class="section-note" style="margin:10px 0 0">Waiver комиссии по залогу не выдан.</p>`}
+          ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Порог по решению', km.coverPct==null?null:(esc(km.coverPct)+' %'+(+km.coverPct===0?' — полное освобождение':'')))}${fld('Скан', esc(km.scan))}</div>`:''}
+          ${wv?`<div class="f2"${km?' style="margin-top:12px"':''}>${fld('Waiver комиссии по залогу',
+              'выдан '+esc(wv.when)+(d.coverage.ok?' <span class="pill neutral">не требуется — порог пройден</span>':' <span class="pill info">применён</span>'))}${fld('Обоснование', esc(wv.reason), {span:true, wrap:true})}</div>`:''}
           <div class="gtoolbar">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>
         </div>
 
