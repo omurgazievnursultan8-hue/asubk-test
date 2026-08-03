@@ -2396,6 +2396,12 @@ const PRECONDITIONS = {
   // напрямую, шаблон в DEADLINE_DERIVED не участвует)
   'Повторное предъявление ИЛ':                             { basis: true, windowTpl: 46 },
 };
+/* МП5-11 (`ADR-0051` §3, наряд п.7в): порог обязательства «требует нового иска» — пара
+   чисел (взносы/дни, «что раньше»), не запись `DEADLINE_TEMPLATES` (порог не приводится
+   к due=anchor+N дней — грилинг issues/01 карты «второй счётчик», Q5). Умолчание 3/90 —
+   текст самого ADR («умолчание — 3 просроченных взноса либо 90 дней»), не выдуманное
+   число: в отличие от величин 7а/7б, ADR прямо называет эти два числа умолчанием. */
+const SECOND_COUNTER_DEFAULTS = { installments: 3, days: 90 };
 /* ============================================================
    RULES — ЖИВОЙ СЛОЙ ПРАВИЛ доступности мер (редактируется на #settings).
    Сид = глубокие копии констант выше; RULES_DEFAULTS заморожен → источник сброса.
@@ -2409,6 +2415,7 @@ const RULES_DEFAULTS = deepFreeze({
   roleSubdiv:     deepClone(ROLE_SUBDIV),
   gates:          deepClone(GATES),
   preconditions:  deepClone(PRECONDITIONS),
+  secondCounter:  deepClone(SECOND_COUNTER_DEFAULTS),
 });
 let RULES = deepClone(RULES_DEFAULTS);
 /* Журнал правок правил (НП-9) живёт рядом с правилами, но не входит в RULES_DEFAULTS:
@@ -3304,6 +3311,29 @@ function buildCredit(c, cr, stop, age){
       if(sum > principalLeft)
         throw new Error(`SEED: дело ${c.id} — debt.payments в сумме (${sum}) больше непогашенного остатка тела (principal-paid=${principalLeft})`);
       LEDGER[cr.id].principal.payments = dbt.payments.map(x => ({ ...x }));
+    }
+
+    /* МП5-11 (`ADR-0051` §3, наряд п.7в): минимальный синтетический график — ТОЛЬКО
+       непогашенные взносы `{due, amount}`, opt-in (грилинг issues/01 карты «второй
+       счётчик», Q1/Q2). Не сверяется с overdueStart/overdueDays напрямую (два разных
+       источника одного факта — реальный модуль кредита сегодня отдаёт только агрегат,
+       ADR §«Последствия»): гарды здесь — только внутренняя честность СПИСКА (по
+       возрастанию, ничего в будущем, суммы положительны), не согласие с агрегатом. */
+    if(cr.overdueInstallments){
+      if(!Array.isArray(cr.overdueInstallments) || !cr.overdueInstallments.length)
+        throw new Error(`SEED: дело ${c.id} — credit.overdueInstallments задан, но не является непустым массивом {due,amount}`);
+      const todayD = dParse(TODAY);
+      let prevD = null;
+      for(const inst of cr.overdueInstallments){
+        if(!inst.due || !(inst.amount > 0))
+          throw new Error(`SEED: дело ${c.id} — credit.overdueInstallments несёт элемент без due или amount>0`);
+        const id_ = dParse(inst.due);
+        if(!id_ || id_ > todayD)
+          throw new Error(`SEED: дело ${c.id} — взнос ${inst.due} — в будущем или не разбирается (сегодня ${TODAY}); непогашенный взнос обязан быть уже наступившим`);
+        if(prevD && id_ <= prevD)
+          throw new Error(`SEED: дело ${c.id} — credit.overdueInstallments не по возрастанию дат (${inst.due} после ${cr.overdueInstallments[cr.overdueInstallments.indexOf(inst)-1].due})`);
+        prevD = id_;
+      }
     }
 
     /* Task 8 fix round 2 (ruling координатора 1): sumBy — зеркало debtOf() ПОЛНОСТЬЮ,
@@ -4403,6 +4433,7 @@ function buildCredit(c, cr, stop, age){
                      subdiv:cr.subdiv, bezakceptRight:cr.bezakcept },
                      cr.factors ? { factors:cr.factors.map(f => ({...f})) } : {},
                      cr.suppress181 ? { suppress181:true } : {},
+                     cr.overdueInstallments ? { overdueInstallments:cr.overdueInstallments.map(x => ({...x})) } : {},
                      credits0 || {});
 
     /* МТ-1: без явных targets normalize целит меру ПО РОЛИ — все меры прилипли бы ко
@@ -5880,6 +5911,31 @@ const SEED = [
         debt:{ principal:76000, interest:3400, penalty:1000, paid:0, principalOverdue:60000 } },
       { id:'399', num:'Дог. №399 от 15.11.2022', subdiv:'ОПК', stop:'постановление', age:30,
         debt:{ principal:210000, interest:9800, penalty:4600, paid:0, principalOverdue:168000 } }] },
+
+  /* ── МП5-11 · второй счётчик, наряд п.7в (`ADR-0051` §3) ──
+     Единственный кейс с синтетическим графиком взносов (opt-in, грилинг issues/01 карты
+     «второй счётчик» Q2) — заведён НОВЫМ делом, 94+ существующих не тронуты. `stop:'решение',
+     age:26` (тот же приём, что case 338) даёт живое «Решение суда» с датой 25.06.2026
+     (TODAY−26). Первый взнос графика (15.02.2026) НАМЕРЕННО совпадает с реальным
+     overdueStart этой цепочки (посчитан вручную от той же SPINE-математики, что и
+     buildCredit) — счётчик 1 (агрегат) и счётчик 2 (граф) не рассинхронизированы, хотя
+     карта не требует этого строго (см. комментарий у guard credit.overdueInstallments).
+     Пять взносов (15.02–15.06) — ДО решения, покрыты; три взноса (02.07/09.07/16.07) —
+     ПОСЛЕ решения, живой покрывающий документ их не видит: count=3 достигает порога МП5-11
+     ровно по числу взносов (умолчание 3), а не по дням (19 < 90) — оба плеча порога
+     «что раньше» демонстрируются раздельно только вместе со смоуком (там же и days-плечо
+     проверено синтетически). */
+  { sit:'K3-НЕПРЕДЪЯВЛЕНО', id:'701', borrower:'ОсОО «Токтогул-Агро»', inn:'01512202600701',
+    region:'Джалал-Абадская область / Токтогульский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'701', num:'Дог. №701 от 10.01.2024', subdiv:'ОПК',
+             debt:{ principal:400000, interest:18000, penalty:9000, paid:0, principalOverdue:120000 },
+             overdueInstallments:[
+               { due:'15.02.2026', amount:15000 }, { due:'15.03.2026', amount:15000 },
+               { due:'15.04.2026', amount:15000 }, { due:'15.05.2026', amount:15000 },
+               { due:'15.06.2026', amount:15000 }, { due:'02.07.2026', amount:15000 },
+               { due:'09.07.2026', amount:15000 }, { due:'16.07.2026', amount:15000 } ] },
+    stop:'решение', age:26 },
 ];
 const PROCESSES = buildSeed(SEED);
 
@@ -6605,7 +6661,7 @@ function renderList(){
     const phaseLine1 = out
       ? `<span class="pill neutral">${out}</span>`
       : `${displayPhase(r)}${pause?` <span class="pill mid">${pause.kind==='restructuring'?'реструктуризация':pause.kind==='guarantee_letter'?'гарантийное письмо':'пауза'}</span>`:''}`;
-    const trackLine = out ? '' : (trackBadges(r) + newClaimBadge(r)).trim();
+    const trackLine = out ? '' : (trackBadges(r) + newClaimBadge(r) + secondCounterBadge(r)).trim();
     /* .pwrap ставится ВСЕГДА, даже когда трека нет: без обёртки фаза попадала прямо
        в td.twoline (white-space:normal) и растекалась на три строки — ряд 66 px против
        46 у соседей. Внутри .pline строка одна и обрезается своим многоточием. */
@@ -7020,6 +7076,57 @@ function davnostDeadlines(p){
   }
   return out;
 }
+/* МП5-11 (`ADR-0051` §3, наряд п.7в) — второй счётчик: дни «непредъявленной» просрочки.
+   Покрывающий документ — живой слой (Решение суда / Судебный приказ / Мировое
+   соглашение, `AWARD_KINDS`) ИЛИ живое обращение в суд (Исковое заявление) без ответа —
+   грилинг issues/01 карты «второй счётчик» Q3/Q4: дата отсечения = `m.dates.event`
+   САМОГО документа (нового поля не заводим), несколько живых документов разом — MAX
+   среди них (тот же идиом «последний побеждает», что `phaseSetter`/`pauseOpenerOf`/
+   `layerOf`/`davnostBaseOf`, не честный union периодов — упрощение принято явно). Мёртвый
+   слой (сторно) отсеивается даром: `liveMeasuresOf` уже фильтрует по `isLiveFor`, второго
+   признака «жив ли слой» заводить не нужно. */
+const SECOND_COUNTER_COVER_KINDS = new Set([...AWARD_KINDS, 'Исковое заявление']);
+function representedCutoffOf(r){
+  const dates = liveMeasuresOf(r)
+    .filter(m => SECOND_COUNTER_COVER_KINDS.has(m.kind) && m.dates && m.dates.event)
+    .map(m => m.dates.event);
+  if(!dates.length) return null;
+  return dates.reduce((best,d)=> (ruD(d)||0) > (ruD(best)||0) ? d : best);
+}
+/* opt-in (Q2): `r._credit.overdueInstallments` есть только у кейсов этой карты — у
+   остальных 94+ счётчик 2 честно «не выведен» (null), а не молчаливый 0. Покрытие
+   считается по дате отсечения документа (взносы со сроком ДО неё — покрыты), не по
+   сумме (ADR: сравнение сумм неотличимо от непредъявленного взноса при частичном
+   удовлетворении). */
+function unrepresentedOverdueOf(r){
+  const inst = r._credit && r._credit.overdueInstallments;
+  if(!inst || !inst.length) return null;
+  const sorted = inst.slice().sort((a,b)=>(ruD(a.due)||0)-(ruD(b.due)||0));
+  const cutoff = representedCutoffOf(r);
+  const uncovered = cutoff ? sorted.filter(x => (ruD(x.due)||0) > (ruD(cutoff)||0)) : sorted;
+  if(!uncovered.length) return { days:0, base:null, count:0 };
+  const base = uncovered[0].due;
+  const days = Math.max(0, Math.round((ruD(TODAY) - ruD(base)) / D_MS));
+  return { days, base, count: uncovered.length };
+}
+/* Обязательство «требует нового иска» — RULES-редактируемый порог (взносы/дни, «что
+   раньше», грилинг Q5), не запись `DEADLINE_TEMPLATES`: порог не приводится к
+   due=anchor+N дней, читается на каждый рендер как обычное RULES.*-правило (тем же
+   приёмом, что `PRECONDITIONS[kind].minLevel`). */
+const secondCounterObligationDue = u => !!u && (u.days >= RULES.secondCounter.days || u.count >= RULES.secondCounter.installments);
+/* Видимость (грилинг Q6/Q7): «с 6-го дня» покрывается фактом существования дела
+   (П-4) — отдельного гейта нет. «Колонка реестра» из ADR §3 переосмыслена как пилюля в
+   УЖЕ существующей ячейке «Фаза» (тем же слотом, что `trackBadges`/`newClaimBadge`), а
+   не новая колонка: ширины таблицы разобраны до пикселя (ТР-9/ПЛ-Д3, LIST_WIDTHS суммой
+   ровно в бюджет) под 94+ строк, где новое поле пусто у всех — новая колонка почти
+   везде простаивала бы, а бюджет пришлось бы пересчитывать заново. Решение задокументено
+   как тонкий хвост (ASUBK-status-razrabotki.md), не молчаливое отступление от ADR. */
+function secondCounterBadge(r){
+  const u = unrepresentedOverdueOf(r);
+  if(!u || !u.days) return '';
+  const due = secondCounterObligationDue(u);
+  return ` <span class="pill ${due?'high':'mid'}" title="Непредъявленная просрочка (ADR-0051 §3): ${u.count} ${plural(u.count,'взнос','взноса','взносов')}, с ${u.base}${due?' — порог обязательства достигнут':''}">непредъявлено ${u.days} дн.</span>`;
+}
 /* Счётчик вкладки «Особые состояния» = ровно то, что на ней показано: строки таблицы
    (обязательство + лицо + ведение дела) плюс карточки мировых соглашений. */
 const stateCount  = r => stateRows(r).length + (r.states||[]).filter(s=>s.kind==='mirovoe').length;
@@ -7088,6 +7195,13 @@ function headerBanners(p, r){
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>
       <span><b>Требование:</b> пауза (${s.kind==='restructuring'?'рассмотрение реструктуризации, п. 19':'гарантийное письмо, п. 18'})${s.since?` с ${s.since}`:''} до ${s.until} · фаза не сбрасывается${s.kind==='restructuring'?' · отображается как «Рассмотрение вопроса реструктуризации» · подавление 181-го дня':''} · пени начисляются (М-7). Другие требования дела не приостановлены.</span></div>`;
   }
+  /* МП5-11 (`ADR-0051` §3, наряд п.7в): порог обязательства достигнут — отдельный
+     заметный баннер поверх лёгкой пилюли в «Фазе» (тот же дуэт «бейдж в строке + баннер
+     в шапке», что уже несёт пауза guarantee_letter/restructuring выше). */
+  const u2 = r ? unrepresentedOverdueOf(r) : null;
+  if(u2 && secondCounterObligationDue(u2)) out += `<div class="phead-banner danger">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+    <span><b>Требование:</b> непредъявленная просрочка ${u2.days} дн. (${u2.count} ${plural(u2.count,'взнос','взноса','взносов')}, с ${u2.base}) не покрыта ни живым слоем, ни живым обращением в суд — порог обязательства достигнут (ADR-0051 §3): новый иск на новую просрочку либо иск на весь остаток (поглощает прежний слой, ADR-0046 п.2); основание для второго пути — п. 20.4, само по себе продолжение просрочки им не является.</span></div>`;
   return out;
 }
 /* Чипы требований дела — переключатель master-detail внутри одной страницы (М-14).
@@ -7141,7 +7255,7 @@ function reqDims(){
     : (activeState(r,'restructuring') ? 'оверлей реструктуризации; под ним: '+phaseOf(r) : phaseSource(r));
   return `<div class="phead-dims">
     <div class="dim"><div class="dl">Охват</div><div class="dv">${escAttr(scopeLabel(scopeOf(r)))}</div><div class="src">${escAttr(scopeSource(r))} (§2.4)</div></div>
-    <div class="dim"><div class="dl">Фаза</div><div class="dv">${out?`<span class="pill neutral">${out}</span>`:displayPhase(r)}${trackBadges(r)}${newClaimBadge(r)}</div><div class="src">стадия «${stageOfReq(r)}» · ${phaseSrc}</div></div>
+    <div class="dim"><div class="dl">Фаза</div><div class="dv">${out?`<span class="pill neutral">${out}</span>`:displayPhase(r)}${trackBadges(r)}${newClaimBadge(r)}${secondCounterBadge(r)}</div><div class="src">стадия «${stageOfReq(r)}» · ${phaseSrc}</div></div>
     <div class="dim clickable" onclick="toggleCat()"><div class="dl">Категория риска <span style="color:var(--text-link)">${catOpen?'▾':'▸'} входы</span></div><div class="dv"><span class="pill ${catCls(cat)}">${catLabel(cat)}</span></div><div class="src">worst-of по кредиту требования</div></div>
     <div class="dim"><div class="dl">Ведущее подразделение</div><div class="dv">${escAttr(r.subdivision)}</div><div class="src">на требовании, не на деле (М-3)</div></div>
   </div>${catOpen ? catExpand(p) : ''}`;
@@ -9827,11 +9941,14 @@ let settingsTab='v9';
    ступени эскалации раздела больше нет, есть предусловие вида. «Предусловия» теперь
    ведёт на настоящую запись (RULES.preconditions), не на старую вкладку-перестановку
    фаз внутри контура (была подписана этим именем ошибочно, §14.4 ⚠️-врезка). */
-const SETTINGS_TABS=[['v9','В-9 «Кому»'],['gates','Гейты'],['preconditions','Предусловия']];
+/* МП5-11 (наряд п.7в): вкладка «Порог МП5-11» — RULES.secondCounter, тем же генерическим
+   механизмом (SETTINGS_TABS/SETTINGS_TAB_SECTIONS/RULES_SECTION_LABEL), что и остальные три. */
+const SETTINGS_TABS=[['v9','В-9 «Кому»'],['gates','Гейты'],['preconditions','Предусловия'],['secondCounter','Порог МП5-11']];
 const SETTINGS_TAB_SECTIONS={ v9:['measureSubdiv','sectionSubdiv','roleSubdiv'],
-  gates:['gates'], preconditions:['preconditions'] };
+  gates:['gates'], preconditions:['preconditions'], secondCounter:['secondCounter'] };
 const RULES_SECTION_LABEL={ measureSubdiv:'В-9: правила видов', sectionSubdiv:'В-9: правила разделов',
-  roleSubdiv:'Роль → подразделение', gates:'Гейты', preconditions:'Предусловия' };
+  roleSubdiv:'Роль → подразделение', gates:'Гейты', preconditions:'Предусловия',
+  secondCounter:'Порог «непредъявленной» просрочки' };
 const setState={ changedOnly:false };
 let ruleLogOpen=false, SET_BUILT=false;
 const jsq = s => String(s).replace(/'/g,"\\'");
@@ -9970,7 +10087,7 @@ let SET_N=[0,0];
 function setCount(shown, total){ SET_N=[shown, total]; }
 function setPrintCount(){ setEl('setCount').innerHTML = `показано <b>${SET_N[0]}</b> из ${SET_N[1]}`; }
 function setRefresh(){
-  const body={v9:renderSettingsV9,gates:renderSettingsGates,preconditions:renderSettingsPreconditions}[settingsTab]();
+  const body={v9:renderSettingsV9,gates:renderSettingsGates,preconditions:renderSettingsPreconditions,secondCounter:renderSettingsSecondCounter}[settingsTab]();
   setEl('settingsHost').innerHTML=body;
   setPrintCount(); setChips();
 }
@@ -10275,6 +10392,44 @@ function renderSettingsPreconditions(){
     <table class="settings-grid"><thead><tr><th>Вид меры</th><th>Требуется</th><th>Уже неактуальна на</th><th>Радиус</th><th></th></tr></thead>
     <tbody>${rows||`<tr><td colspan="5" class="radius">Под фильтр не попал ни один вид.</td></tr>`}</tbody></table>
     ${tabResetBtn('preconditions')}`;
+}
+
+/* ============ ВКЛАДКА «Порог МП5-11» (`ADR-0051` §3, наряд п.7в) ============
+   Не таблица по видам меры (правило одно, не по каждому виду) — два числа, тем же
+   генерическим механизмом RULES/editRule/resetRuleKey/tabResetBtn, что остальные
+   вкладки, но без per-kind построчного фильтра (setPass всё же вызывается — тулбар
+   общий на все вкладки, искать по названию правила должно работать одинаково). */
+const SECOND_COUNTER_LABELS = { installments:'Порог по числу непокрытых взносов', days:'Порог по числу дней непредъявленной просрочки' };
+function setSecondCounterInstallments(v){
+  if(!rulesGuard()){ renderSettings(); return; }
+  const n = Math.max(1, parseInt(v,10) || RULES_DEFAULTS.secondCounter.installments);
+  if(n === RULES.secondCounter.installments) return;
+  editRule('secondCounter', 'installments', n, `Порог МП5-11: взносы → ${n}`);
+}
+function setSecondCounterDays(v){
+  if(!rulesGuard()){ renderSettings(); return; }
+  const n = Math.max(1, parseInt(v,10) || RULES_DEFAULTS.secondCounter.days);
+  if(n === RULES.secondCounter.days) return;
+  editRule('secondCounter', 'days', n, `Порог МП5-11: дни → ${n}`);
+}
+function renderSettingsSecondCounter(){
+  let shown=0;
+  const rows=Object.keys(SECOND_COUNTER_LABELS).map(k=>{
+    const label=SECOND_COUNTER_LABELS[k], changed=isChanged('secondCounter',k);
+    if(!setPass(label, null, changed)) return '';
+    shown++;
+    const setter = k==='installments' ? 'setSecondCounterInstallments' : 'setSecondCounterDays';
+    return `<tr class="${changed?'row-changed':''}">
+      <td>${label}</td>
+      <td><input type="number" min="1" style="width:80px" value="${RULES.secondCounter[k]}"${roAttr()} onchange="${setter}(this.value)"></td>
+      <td>${changed?`<button class="btn btn-tint btn-sm"${roAttr()} onclick="resetRuleKey('secondCounter','${k}','${label}')">вернуть дефолт</button>`:'<span class="radius">дефолт</span>'}</td></tr>`;
+  }).join('');
+  const holds = allReqs().filter(r=>secondCounterObligationDue(unrepresentedOverdueOf(r))).length;
+  setCount(shown, Object.keys(SECOND_COUNTER_LABELS).length);
+  return `<p class="section-note">Обязательство «требует нового иска либо иного решения судьбы просрочки» (ADR-0051 §3) видно, когда непредъявленная просрочка достигает ЛЮБОГО из двух порогов — что раньше. Умолчание — 3 взноса либо 90 дней (текст самой нормы). Правило действует только там, где есть синтетический график взносов (opt-in, наряд п.7в) — держит сейчас ${holds} ${plural(holds,'требование','требования','требований')}.</p>
+    <table class="settings-grid"><thead><tr><th>Правило</th><th>Значение</th><th></th></tr></thead>
+    <tbody>${rows||`<tr><td colspan="3" class="radius">Под фильтр не попало ни одно правило.</td></tr>`}</tbody></table>
+    ${tabResetBtn('secondCounter')}`;
 }
 
 renderRoleSel(); restoreRules(); restoreState(); restoreNav(); renderNav(); renderFilterBar(); renderChips(); renderList(); restoreFromHash();
