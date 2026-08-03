@@ -6,7 +6,7 @@
 <title>Кредиты · АСУБК</title>
 <!--
   MOCKUP (single-file, interactive) — TO-BE модуля «Кредиты» (реестр кредитов →
-  карточка кредита, 9 вкладок). Образец для команды разработки, не прод-код.
+  карточка кредита, 11 вкладок). Образец для команды разработки, не прод-код.
 
   ЭТО НЕ КЛОН ЖИВОГО СТЕНДА: файл — TO-BE, спроектирован заново. Токены/паттерны
   сверены с collection.html и restructuring.html.
@@ -409,6 +409,58 @@
        472 вкладки и 80 открытий модалок в песочнице с минимальным DOM. Именно отсутствие
        второго блока позволило дефектам групп A и B пережить 16 шагов слияния.
 
+   ВОЛНА 03.08.2026 · РАЗДЕЛЕНИЕ «РАСЧЁТОВ» И ПЕРЕИМЕНОВАНИЕ ВКЛАДКИ ТРАНШЕЙ:
+     Причина. «Транши и освоение» — единственное двухуровневое имя там, где освоения
+       ВЛОЖЕНЫ в транш (Р-1/Р-6), а слово «Освоение» уже занято сквозным реестром-видом;
+       имя называло оба уровня иерархии сразу. Параллельно «Расчёты» несли два разных
+       предмета — ПЛАН возврата (график: версии, позиции, прогноз) и ФАКТ начисления
+       (свод, детальный расчёт, резерв).
+     СДЕЛАНО: вкладка «Транши и освоение» → «Транши». Из «Расчётов» выделена вкладка
+       «График» (tabGrafik) — плитки свода графика, версии, позиции, прогноз, кнопка
+       «Сформировать график», плашка Д-5. DTABS 9 → 10, «График» встал между
+       «Траншами» и «Расчётами».
+     ОСТАЛОСЬ В «РАСЧЁТАХ»: свод по статьям, детальный расчёт (леджер), резерв за
+       неполное освоение. Селектор транша и тумблер «консолидировано» переехали к
+       леджеру, которым и управляют (тумблер к графику отношения не имел вовсе).
+       Состояние общее — detailTrancheNo один на карточку, вкладки не расходятся.
+     Плашка Д-5 стоит теперь на обеих вкладках: на «Графике» — «сформируйте заново»,
+       в «Расчётах» — «расчёт построен по прежним условиям» + переход на «График».
+       CR.goToCalc → CR.goToSchedule (кнопка на «Условиях» ведёт к перегенерации).
+     Модель не менялась: график как принадлежал траншу (Р-1), так и принадлежит.
+
+   ВОЛНА 03.08.2026 (вторая) · ВКЛАДКА «ПРОГНОЗ» И СОКРАЩЕНИЕ ИМЕНИ «ПЛАНА»:
+     Причина. Разделение «Расчётов» довели до конца. На «Графике» остались лежать два
+       предмета сразу — КОНТРАКТ транша (версии, позиции: что обязаны вернуть, хранится,
+       меняется действием) и ОЖИДАНИЕ по нему (те же даты, пересчитанные суммы: что
+       соберём фактически, не хранится вовсе). Тот же довод, что и у Р-29: три ориентира
+       друг на друга не ссылаются, значит и на одной вкладке жить не должны.
+       Параллельно имя «План и исполнение» ставило исполнение вровень с планом, хотя
+       исполнение — производная плана (факт/план), а не второй предмет вкладки.
+     СДЕЛАНО: из tabGrafik выделен tabPrognoz — своя вкладка «Прогноз» между «Графиком»
+       и «Расчётами»: селектор транша, 4 плитки (ждём впереди · ближайший платёж ·
+       непокрытый хвост прошлого · отклонение от графика) и таблица позиций «по графику /
+       прогноз / Δ / статус». Вкладка «План и исполнение» → «План». DTABS 10 → 11.
+     ГРАНУЛЯРНОСТЬ РАЗВЕДЕНА: «Прогноз» — транш (Р-1, trancheForecastRows); помесячный
+       прогноз по кредиту (forecastByMonth) остался КОЛОНКОЙ во вкладке «План», где он
+       и нужен — как ориентир при постановке цели и предзаполнение формы (ADR-0042 §2).
+     Модель не менялась: прогноз как был производной без хранения, так и остался.
+
+   ВОЛНА 03.08.2026 (третья) · ПЛИТКИ «ГРАФИКА» — ПО ВЫБРАННОМУ ТРАНШУ И ПОД МЕТОД:
+     Причина. Плитки шапки вкладки брались из консолидированного d.scheduleTotals — по
+       ВСЕМ траншам, тогда как всё остальное на вкладке (версии, позиции) — по ВЫБРАННОМУ.
+       Второй перекос — «Регулярный платёж»: постоянная величина взноса есть только у
+       аннуитета. При «равными долями» платёж убывает, и медиана выдавала середину
+       лестницы за платёж; при «в конце срока» платёж вообще один, а медиана давала ≈0.
+       Плюс консолидация складывала медианы разных траншей — сумма, которой никто не платит.
+     СДЕЛАНО: trancheScheduleTotals(t, asOf) — итоги по одному траншу; подпись и значение
+       плитки платежа выводятся из метода погашения условий транша на дату (conditionsAt):
+       аннуитет → «Регулярный платёж» (медиана полных периодов), равными долями →
+       «Платёж: первый → последний» (диапазон), в конце срока → «Платёж в конце срока».
+       Консолидированный computeScheduleTotals остался в derive (контракт scheduleTotals,
+       ТЗ §05) — его потребляют шапка карточки и fullRepayDate.
+     Заодно убраны пояснение под заголовком «График погашения» и подпись «Транш» над
+       селектором: и то и другое дублировало то, что и так видно (решение пользователя).
+
   СПРОЕКТИРОВАНО, НО НЕ ОЖИВЛЕНО (осознанно, КВ-11 — оживлялось то, от чего зависят гейты)
    • Печатные формы (7 шт.) — формирование документов вне объёма макета.
    • Переходы в соседние модули (заёмщик, залог, платежи, взыскание, реструктуризация,
@@ -450,6 +502,16 @@
         Закрытие неосвоенного остатка — тоже owned действие (оживлено волной 27.07.2026).
    Р-7  Залог — зеркало: «Создать залоговый договор» нет, только «Привязать существующий».
    Р-8  Реквизиты решения КМ об освобождении от залога — owned поле кредита (гейт §2.6).
+        РАСШИРЕНО 03.08.2026 (КР-56/КР-57): waiver залоговой комиссии — ВТОРОЕ основание
+        того же рода и тоже owned (`credit.pledgeWaiver`, прежде лежал в `mirror.*`,
+        то есть числился данными модуля залога — который его не отдаёт и не знает).
+        Оба решения принимает кредитор, оба правятся во вкладке «Договор», оба
+        разблокируют Г-6/Г-7. Читаются и во вкладке «Обеспечение» — read-only, со
+        ссылкой на владельца: величина действует там, где её последствие, а правится
+        там, где ею владеют. Разница между ними в природе действия: решение КМ назначает
+        СВОЙ порог взамен общего (coverPct, 0 % — полное освобождение), waiver порога не
+        меняет — он снимает блокировку при непройденном. Поэтому waiver НЕ красит статус
+        обеспеченности зелёным: обеспечения от него не прибавляется.
    Р-9  Кураторство — зеркало журнала назначений; не picker и не поле.
    Р-10 ПЕРЕПИСАНО волной 27.07.2026 (КВ-8/КВ-9, ADR-0012). Прежняя редакция объявляла
         зеркалом ночного пересчёта обе величины; ни одна зеркалом не является.
@@ -469,7 +531,13 @@
    Р-16 Взыскание, банкротство, реструктуризация — зеркала; из кредита не заводятся.
    Р-17 Приостановление начисления — управляющее действие кредита/транша.
    Р-18 Происхождение кредита — обязательный read-only блок (заявка→комиссия→программа→ПП).
-   Р-19 Реестр показывает кредит (кредитные колонки), а не заявку.
+   Р-19 Реестр показывает кредит (кредитные колонки), а не заявку. Колонок восемь
+        (03.08.2026, было двенадцать): реквизит, привязанный к другому, живёт второй
+        строкой ячейки, а не отдельной колонкой — дата под номером, куратор под
+        программой, валюта в строке суммы, подгруппа под категорией. Измерение выборки
+        при этом не теряется: у каждой снятой сортировки есть фильтр — куратор, подгруппа
+        и новый диапазон дат договора; по валюте отдельно сортировать было нечего, а сумма
+        теперь сортируется по KGS-эквиваленту, иначе колонка сравнивала разные валюты.
    Р-20 Списание и закрытие — терминалы с обязательными реквизитами; без физ. удаления.
    Р-21 Условия — записи на параметр на транше (param · value · effectiveFrom · basis);
         действующий комплект и любой исторический срез — производные (Р-11).
@@ -526,7 +594,7 @@
    Р-29 ПЛАН · ПРОГНОЗ · ИСПОЛНЕНИЕ ПЛАНА (01.08.2026, ADR-0042, CONTEXT.md).
         Три ориентира на будущее, и они НЕ ссылаются друг на друга. График — контракт
         транша. Прогноз — те же даты, пересчитанные суммы: производная от остатка ОД
-        на дату среза и непокрытого хвоста прошлого, живёт на «Расчётах». План — цель
+        на дату среза и непокрытого хвоста прошлого, живёт на своей вкладке «Прогноз». План — цель
         на месяц по кредиту целиком: ЕДИНСТВЕННАЯ вводимая величина среди трёх и явное
         исключение из ADR-0001. Заводится не с нуля — предзаполняется прогнозом, но
         после сохранения от него не зависит: иначе % исполнения плавал бы от досрочного
@@ -618,7 +686,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-01 · 96/96 PASS
+ SMOKE (node) 2026-08-03 · 98/98 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -695,6 +763,7 @@
    #65 ✓
    #66 ✓
    #67 ✓
+   #53a ✓
    #53 ✓
    #54 ✓
    #55 ✓
@@ -715,6 +784,7 @@
    #93 ✓
    #94 ✓
    #95 ✓
+   #96 ✓
 -->
 <style>
 
@@ -726,7 +796,7 @@
   --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
   --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
   --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
-  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE; --asubk-gray-300:#D6DCE5;
   --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
   --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
   --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
@@ -846,12 +916,18 @@ a{ color:inherit; }
   display:inline-flex; align-items:center; justify-content:center; }
 .gear-btn:hover{ background:rgba(25,59,103,0.10); }
 
-/* ---- list: filter head + toolbar + tiles ---- */
-.filter-head{ display:flex; align-items:center; gap:6px; padding:12px 20px 4px; cursor:pointer;
-  font:var(--weight-medium) var(--text-base)/1.25 var(--asubk-font); color:rgba(27,43,65,0.69); user-select:none; }
-.filter-head .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5); transition:transform 120ms ease; }
-.filter-head.open .chev{ transform:rotate(90deg); }
-.tb-actions{ display:flex; align-items:center; gap:10px; padding:8px 20px 12px; flex-wrap:wrap; }
+/* ---- list: quick row + tiles ---- */
+/* Ярус 1 фильтра — единственная строка над реестром: поиск + ЖЦ + куратор слева,
+   «⚙ Фильтры» и «Создать кредит» прижаты вправо. Всегда видна: это то, чем пользуются
+   каждый вход в реестр, прятать за кликом нечего. Ширины — по содержимому контрола,
+   а не поровну (спека 03.08.2026); поиск фиксирован, свободное место уходит в разрыв
+   перед кнопками. */
+.tb-quick{ display:flex; align-items:flex-end; gap:10px; padding:8px 20px 10px; flex-wrap:wrap; }
+.tb-quick .field{ min-width:0; }
+.tb-quick .q-search{ width:340px; }
+.tb-quick .q-lifecycle{ width:168px; }
+.tb-quick .q-curator{ width:200px; }
+.tb-quick .q-more{ margin-left:auto; }
 .add-cond{ display:inline-flex; align-items:center; gap:6px; background:none; border:none; cursor:pointer;
   color:var(--text-link); font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); padding:0 4px; }
 .add-cond:hover{ text-decoration:underline; }
@@ -874,16 +950,20 @@ a{ color:inherit; }
 .tile .tl{ font:var(--font-label); color:var(--text-muted); margin-top:2px; }
 .tile.warn .tv{ color:var(--asubk-amber); }
 .tile.err  .tv{ color:var(--asubk-red); }
-.filter-body{ display:none; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px 16px; padding:6px 20px 14px; }
-.filter-head.open + .filter-body{ display:grid; }
+/* Ярус 2 — панель редких условий, свёрнута по умолчанию, раскрывается кнопкой «⚙ Фильтры».
+   Три равные колонки: строка «привязка» (область/район · программа · дата) над строкой
+   «риск» (просрочка · подгруппа · категория) и «проблемность» с кнопкой сброса. */
+.filter-body{ display:none; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px 16px; padding:6px 20px 14px; }
+.filter-body.open{ display:grid; }
 .filter-body .field{ min-width:0; }
 .range-pair{ display:flex; align-items:center; gap:8px; }
+.range-pair .control{ flex:1; min-width:0; }
 .range-pair input{ width:100%; height:var(--control-h); border-radius:var(--radius-md); background:var(--surface-input);
   color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium); border:1px solid transparent;
   outline:none; padding:0 var(--space-2); transition:box-shadow 120ms ease, border-color 120ms ease; }
 .range-pair input:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
-.filter-actions{ grid-column:1 / -1; display:flex; justify-content:flex-end; gap:10px; align-items:center; }
-.filter-chips{ display:flex; flex-wrap:wrap; gap:6px; padding:0 20px; }
+.filter-actions{ grid-column:2 / -1; display:flex; justify-content:flex-end; gap:10px; align-items:flex-end; }
+.filter-chips{ display:flex; flex-wrap:wrap; gap:6px; padding:0 20px 10px; }
 .filter-chips:empty{ display:none; }
 .fchip{ display:inline-flex; align-items:center; gap:4px; background:var(--asubk-blue-tint); color:var(--asubk-blue);
   border-radius:var(--radius-pill); padding:3px 4px 3px 10px; font:var(--font-label); }
@@ -891,51 +971,68 @@ a{ color:inherit; }
 .fchip button:hover{ background:rgba(255,255,255,0.5); }
 
 /* ---- grid (list) ---- */
+/* Визуальная система взята с живого грида заявок (vaadin-grid на fkftest, скрин
+   2026-08-03) — два реестра стоят рядом в одном конвейере и обязаны читаться как один
+   продукт. Отсюда: тёмная полужирная шапка 14px в предложном падеже (не капитель),
+   ↕ у КАЖДОЙ колонки всегда на виду, вертикальная линия между ВСЕМИ колонками,
+   фиксированные ширины колонок и обрезка длинного значения в «…».
+   Ширины заданы через <colgroup> и подобраны так, чтобы обрезка была страховкой,
+   а не нормой: «ОсОО "Кара-Балта-Металл"» помещается целиком. Полное значение
+   остаётся в title ячейки.
+   Своё, чего у живого грида нет: вторая строка ячейки (§Р-19, слияние 12 колонок в 8)
+   и правое выравнивание денег табличными цифрами — в реестре разряды обязаны стоять
+   в столбик, иначе суммы не сравнить глазом. */
 .grid-wrap{ padding:0 20px 20px; overflow:auto; }
-/* 12 колонок: минимальная ширина подобрана так, чтобы при 1600+ последняя колонка
-   (Куратор) была видна целиком без скролла, а на узких экранах включался скролл
-   вместо молчаливой обрезки текста в ellipsis. */
-table.grid{ width:100%; min-width:1300px; border-collapse:collapse; font:var(--font-label);
-  border:1px solid var(--border-default); background:var(--surface-card); }
-table.grid thead th{ text-align:left; height:52px; padding:0 12px; background:var(--surface-card);
-  border-bottom:1px solid var(--asubk-grid-line);
-  font:var(--weight-medium) var(--text-sm)/1.375 var(--asubk-font); color:var(--text-body);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; user-select:none; vertical-align:middle; }
-table.grid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; }
-table.grid tbody td{ height:35px; padding:0 12px; border-bottom:1px solid var(--asubk-grid-line);
-  color:var(--text-body); vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+table.grid{ width:100%; min-width:1194px; table-layout:fixed;
+  border-collapse:separate; border-spacing:0; font:var(--font-label); }
+table.grid thead th{ position:sticky; top:0; z-index:2; background:var(--asubk-gray-300);
+  text-align:left; padding:7px 12px; vertical-align:middle;
+  border-bottom:1px solid var(--border-strong);
+  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  cursor:pointer; user-select:none; }
+table.grid thead th .sort{ margin-left:4px; font-size:11px; color:var(--text-placeholder); }
+table.grid thead th.sorted{ color:var(--asubk-blue); }
+table.grid thead th.sorted .sort{ color:var(--asubk-blue); }
+table.grid tbody td{ padding:5px 12px; border-bottom:1px solid var(--border-default);
+  color:var(--text-body); vertical-align:top;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 table.grid tbody tr{ cursor:pointer; }
-table.grid tbody tr:hover{ background:var(--surface-hover); }
-table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+/* зебра — чётные строки очень светлой заливкой, чтобы взгляд не съезжал по строке */
+table.grid tbody tr:nth-child(even) td{ background:var(--asubk-gray-50); }
+/* ховер должен перебивать зебру — поэтому темнее и ниже по каскаду */
+table.grid tbody tr:hover td{ background:var(--asubk-gray-150); }
+table.grid tbody tr.sel td{ background:var(--asubk-nav-active); }
 .grid tbody tr.terminal td{ color:var(--text-muted); }
 .grid tbody tr.terminal td:first-child{ font-style:italic; }
-.grid td.overdue{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
-/* вторая строка в ячейке: ИНН/район, сумма просрочки, эквивалент в сомах */
-.grid td .sub{ display:inline-block; color:var(--text-muted); font-weight:var(--weight-regular); font-size:12px; line-height:1.3; }
+/* денежная ячейка */
+.grid td.num{ text-align:right; font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1; }
+.grid td.bal{ font-weight:var(--weight-medium); color:var(--text-heading); }
+.grid td.od .days{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
+.grid td.od .zero{ color:var(--text-placeholder); }
+/* главная строка ячейки-имени — как .cell-name у заявок */
+.grid td .cell-name{ font-weight:var(--weight-medium); color:var(--text-heading); }
+/* вторая строка в ячейке: дата, ИНН/район, куратор, эквивалент, подгруппа */
+.grid td .sub{ display:block; margin-top:1px; color:var(--text-muted);
+  font-weight:var(--weight-regular); font-size:12px; line-height:1.25;
+  font-variant-numeric:tabular-nums;
+  overflow:hidden; text-overflow:ellipsis; }
+/* тот же приглушённый вид, но в строку с основным значением, а не под ним */
+.grid td .sub.inline{ display:inline; margin-top:0; margin-left:6px; }
 /* Т·N / Р·N — метки состава кредита у номера договора */
 .mk{ display:inline-block; margin-left:6px; padding:1px 6px; border-radius:var(--radius-sm);
   background:var(--asubk-tint-fill); color:var(--text-muted);
   font:var(--weight-medium) 11px/1.5 var(--asubk-font); vertical-align:middle; }
 .mk-r{ background:var(--status-info-bg); color:var(--asubk-blue); }
 
-/* --- live-стиль реестра (fkftest vaadin-grid): сортируемая шапка со стрелками --- */
-table.grid thead th{ height:var(--header-h); }                 /* 56px, как в live */
-table.grid thead th .th-in{ display:inline-flex; align-items:center; gap:6px; }
-table.grid thead th .arrows{ display:inline-flex; flex-direction:column; line-height:7px;
-  font-size:8px; color:var(--text-placeholder); }
-table.grid thead th .arrows span{ opacity:.32; }
-table.grid thead th.sorted{ color:var(--asubk-blue); }
-table.grid thead th.sorted .arrows span.on{ opacity:1; color:var(--asubk-blue); }
-table.grid tbody td{ height:44px; }                            /* воздух как в live (двустрочная ячейка сохранена) */
 /* поля «от/до» — тот же аутлайн-вид, что у остальных полей фильтра (как в live) */
 .range-pair input{ background:var(--surface-card); border:1px solid var(--border-strong); }
 .range-pair input:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
 
-/* бейдж числа активных условий на свёрнутой шапке фильтра */
-.fbadge{ margin-left:8px; padding:1px 8px; border-radius:var(--radius-pill);
+/* бейдж числа активных условий на кнопке «⚙ Фильтры» (считает условия, не поля) */
+.fbadge{ margin-left:6px; padding:1px 7px; border-radius:var(--radius-pill);
   background:var(--status-info-bg); color:var(--asubk-blue);
   font:var(--weight-medium) 12px/1.6 var(--asubk-font); }
-.filter-bar{ grid-column:1 / -1; display:flex; align-items:center; gap:10px; padding-top:4px; }
 
 /* пейджер под гридом */
 .pager{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:0 20px 20px;
@@ -975,6 +1072,18 @@ table.grid tbody td{ height:44px; }                            /* воздух �
   background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
   display:flex; align-items:center; justify-content:center; color:var(--text-muted); cursor:pointer; }
 .tabbar-chevron:hover{ background:var(--surface-hover); }
+/* subtabs — вкладки ВНУТРИ карточки (журнал условий: разбор по траншам).
+   Мельче .dtab, живут в развороте строки, не в шапке детали. */
+.subtabs{ display:flex; gap:2px; flex-wrap:wrap; border-bottom:1px solid var(--border-default); margin:2px 0 10px; }
+.subtab{ flex:none; border:none; background:transparent; padding:7px 12px; cursor:pointer;
+  font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; }
+.subtab:hover{ color:var(--text-body); }
+.subtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.subtab .cnt{ color:var(--text-placeholder); font-weight:var(--weight-regular); margin-left:4px; }
+/* mx2 — две зоны сводной матрицы внутри одной карточки (левая/правая) */
+.mx2{ display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+@media (max-width:1180px){ .mx2{ grid-template-columns:1fr; } }
 .panel-wrap{ padding:18px 24px 8px; }
 .detail-panel{ display:none; }
 .detail-panel.active{ display:block; }
@@ -1034,6 +1143,11 @@ table.grid tbody td{ height:44px; }                            /* воздух �
 
 /* two-column form */
 .f2{ display:grid; grid-template-columns:1fr 1fr; gap:16px 40px; align-items:start; max-width:1500px; }
+/* .f4 — та же сетка на четыре колонки, для полей внутри .pcard.wide (03.08.2026):
+   в карточке на всю ширину две колонки растягивают каждое поле вдвое шире нужного,
+   и четыре коротких значения читаются как две далеко разнесённые пары. */
+.f4{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px 40px; align-items:start; }
+@media (max-width:1100px){ .f4{ grid-template-columns:1fr 1fr; } }
 .field{ display:flex; flex-direction:column; gap:6px; }
 .field .flabel{ font:var(--font-label); color:var(--text-muted); }
 .field.col-span{ grid-column:1 / -1; }
@@ -1064,6 +1178,11 @@ table.grid tbody td{ height:44px; }                            /* воздух �
 .cond-lookup{ height:auto; min-height:var(--control-h); flex-direction:column; align-items:flex-start;
   padding:8px var(--space-2); gap:2px; }
 .cond-lookup .val{ white-space:normal; overflow:visible; text-overflow:clip; }
+/* .lookup-wrap — тот же приём для полей со СВОБОДНЫМ ТЕКСТОМ (обоснование waiver,
+   волна 03.08.2026, КР-56): базовый .lookup режет значение в одну строку многоточием, а обоснование
+   и есть содержание поля — обрезанное, оно не сообщает ничего. Высота по контенту. */
+.lookup-wrap{ height:auto; min-height:var(--control-h); align-items:flex-start; padding:8px var(--space-2); }
+.lookup-wrap .val{ white-space:normal; overflow:visible; text-overflow:clip; }
 .lookup button{ display:inline-flex; align-items:center; justify-content:center; width:32px; height:var(--control-h);
   border:none; background:transparent; color:var(--text-link); cursor:pointer; }
 .lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
@@ -1079,9 +1198,13 @@ table.grid tbody td{ height:44px; }                            /* воздух �
 .pcard{ border:1px solid var(--border-default); border-radius:var(--radius-md);
   background:var(--surface-card); padding:16px 18px; }
 .pcard.wide{ grid-column:1 / -1; }
+/* Стопка карточек, занимающая одну колонку сетки (волна 03.08.2026): нужна, когда
+   в колонке должно стоять несколько карточек подряд, а не по одной в ряд —
+   иначе row-flow сетки разложил бы их по соседним колонкам. */
+.pcol{ display:grid; gap:16px; align-content:start; }
 .pcard > .section-h{ margin:0 0 4px; }
 .pcard > .section-note{ margin:0 0 12px; max-width:none; }
-.pcard .f2{ gap:14px 24px; max-width:none; }
+.pcard .f2, .pcard .f4{ gap:14px 24px; max-width:none; }
 .pcard > .gtoolbar{ margin:12px 0 0; }
 @media (max-width:1100px){ .pcards{ grid-template-columns:1fr; } }
 
@@ -1250,11 +1373,9 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
   border-radius:var(--radius-md); padding:10px 12px; font:var(--font-label); margin-top:6px; }
 .warn svg{ flex:none; margin-top:2px; }
 
-/* Р-19 реестр: подсветка строк по производным оверлеям (Р-3).
-   Просрочка → янтарь, взыскание → красный; выбор строки перекрывает тинт. */
-.grid tbody tr.ov-overdue{ background:var(--asubk-amber-tint); }
-.grid tbody tr.ov-collection{ background:var(--asubk-red-tint); }
-.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+/* Р-19 реестр: заливка строк по оверлеям убрана — состояние читается
+   из колонки «Просрочка» и пилюли категории, фон остаётся нейтральным.
+   Выделение и ховер строки живут в блоке ---- grid (list) ----. */
 </style>
 </head>
 <body>
@@ -1275,7 +1396,7 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
       <span class="menu" title="Свернуть/развернуть меню" onclick="toggleNav()">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </span>
-      <span class="crumb-title" id="crumbTitle">Кредиты</span>
+      <span class="crumb-title" id="crumbTitle">Список кредитов</span>
       <span class="crumb" id="crumb" style="color:var(--text-muted);font:var(--font-label)"></span>
       <div class="role-wrap">
         <label>Роль:</label>
@@ -1299,7 +1420,7 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
       </section>
       <!-- ============ КАРТОЧКА КРЕДИТА ============ -->
       <section class="view" id="view-detail">
-        <!-- наполняется в Task 2+ (карточка §5.2–5.3, 9 вкладок) -->
+        <!-- наполняется в Task 2+ (карточка §5.2–5.3, 11 вкладок) -->
       </section>
     </div>
   </div>
@@ -1428,6 +1549,12 @@ const PARAMS = [
     options:['факт/365','факт/360','факт/факт','30/365','30/360','30/факт'] }
 ];
 const PARAM_KEYS = PARAMS.map(p => p.key);
+/* Зоны сводной матрицы условий: те же смысловые группы, что у карточек условий
+   («Ставки» + «Льготные периоды» слева, «Погашение» справа). Ключи, не попавшие
+   в RATES, уходят в REPAY автоматически — новый параметр не потеряется. */
+const MATRIX_ZONE_RATES = ['rate','reserveRate','penaltyMain','penaltyInt',
+  'graceMain','graceInterest','graceIntDistFrom','graceIntDistTo','graceAccrual'];
+const MATRIX_ZONE_REPAY = PARAM_KEYS.filter(k => !MATRIX_ZONE_RATES.includes(k));
 const paramLabel = k => (PARAMS.find(p => p.key === k) || {}).label || k;
 
 /* Типы основания. owned=false → документ живёт в другом модуле, кредит только
@@ -1639,7 +1766,7 @@ function basisGroups(credit){
 }
 /* retroFlags — Д-5: записи, вступившие в силу раньше дня своего создания.
    Автопересчёта нет: флаги питают красную плашку «требуется перегенерация
-   графика» на вкладке «Условия» и бейдж на «Расчётах». */
+   графика» на вкладке «Условия» и близнецов на «Графике» и «Расчётах». */
 function retroFlags(credit){
   const out = [];
   for (const t of credit.tranches) for (const r of (t.conditionRecords || [])){
@@ -1732,8 +1859,10 @@ function emptyMirror(over){                          // все зеркала (�
        (ADR-0004 — собственность взыскания). Зеркало; в Г-14 не входит. */
     collectionCosts:0,
     restructuring:{ count:0, active:null },
-    pledgeWaiver:null,                                // waiver залоговой комиссии (Task 5) — falsy по умолчанию,
-                                                        // включается ТОЛЬКО saveWaiver (не сеять truthy на К-5)
+    /* pledgeWaiver ПЕРЕЕХАЛ отсюда в mkCredit (волна 03.08.2026, КР-57): решение комиссии по залогу
+       принимает КРЕДИТОР по данному кредиту — оно не приходит из модуля залога и там
+       не хранится. В зеркале оно означало «read-only, источник — модуль залога», что
+       противоречило кнопке правки во вкладке «Договор». */
     /* coverage — обеспеченность целиком приходит из модуля залога (ADR-0011):
        индекс, порог и основание сработавшего правила считает владелец правила,
        кредит их показывает и подаёт в гейты. Ликвидность — свойство ВИДА предмета,
@@ -1770,6 +1899,13 @@ function mkCredit(over){                             // CREDIT (§3) — обя�
        модуль залога — до этой волны его в модели кредита не было, и регуляторный порог
        не работал ни в одном из двух модулей (КР-35). */
     kmDecision:null,
+    /* pledgeWaiver — ВТОРОЙ разблок Г-6/Г-7: {reason, when}. Owned-поле кредита рядом
+       с kmDecision (волна 03.08.2026, КР-57): это два основания одной природы — оба фиксирует кредитор,
+       оба разблокируют освоение мимо порога, оба правятся из вкладки «Договор».
+       Прежде лежало в mirror.pledgeWaiver, в пространстве имён модуля залога — при том
+       что модуль залога его не отдаёт и не знает. Falsy по умолчанию: включается
+       ТОЛЬКО saveWaiver (не сеять truthy на К-5 — на нём проверяется отказ Г-6). */
+    pledgeWaiver:null,
     lifecycle:'Проект', closure:null,
     baseConditions: condDefaults(),
     agreements:[],
@@ -2764,7 +2900,7 @@ function seedDb(){
      В демо не встречался ни разу, хотя гейт его читает: единственный путь мимо порога
      обеспеченности, не создающий регуляторного порога решением КМ. */
   const kWaiver = credits.find(c => /Первомай-Фарм/.test(c.borrower.name));
-  if (kWaiver) kWaiver.mirror.pledgeWaiver = { reason:'Протокол комиссии по залогу № 14 от 10.07.2026: '
+  if (kWaiver) kWaiver.pledgeWaiver = { reason:'Протокол комиссии по залогу № 14 от 10.07.2026: '
     + 'обеспечение принято с отступлением от порога на срок до переоценки предмета', when:'10.07.2026' };
 
   /* КР-22 · перевод долга (Р-14) — owned действие кредита, не встречавшееся в демо. */
@@ -3726,6 +3862,33 @@ function computeScheduleTotals(c){
            regularPay:round2(regularPay), total:round2(total) };
 }
 
+/* итоги активной версии графика по ОДНОМУ траншу — для вкладки «График», где всё
+   остальное (версии, позиции) тоже по выбранному траншу; консолидированный
+   computeScheduleTotals остаётся в derive для шапки и прочих потребителей.
+   Подпись платежа зависит от метода погашения: «регулярный платёж» — величина
+   аннуитета, при равных долях платёж убывает (показываем диапазон), при погашении
+   в конце срока платёж вообще один. */
+function trancheScheduleTotals(t, asOf){
+  const rows = t ? trancheScheduleRows(t) : [];
+  const method = (t ? (conditionsAt(t, asOf || TODAY) || {}).method : '') || 'аннуитет';
+  let principalSum = 0, interestSum = 0, total = 0;
+  for (const r of rows){ principalSum += r.principal; interestSum += r.interest; total += r.total; }
+  const paying = rows.filter(r => (r.principal || 0) > 0);
+  let payLabel = 'Регулярный платёж', payValue = '—';
+  if (method === 'в конце срока'){
+    payLabel = 'Платёж в конце срока';
+    if (rows.length) payValue = money(rows[rows.length - 1].total);
+  } else if (method === 'равными долями' || method === 'дифференцированный'){
+    payLabel = 'Платёж: первый → последний';
+    if (paying.length) payValue = `${money(paying[0].total)} → ${money(paying[paying.length - 1].total)}`;
+  } else if (paying.length){
+    const sorted = paying.map(r => r.total).sort((a,b) => a - b);
+    payValue = money(sorted[Math.floor(sorted.length / 2)]);   // медиана — устойчива к хвостовому платежу
+  }
+  return { count:rows.length, principalSum:round2(principalSum), interestSum:round2(interestSum),
+           total:round2(total), method, payLabel, payValue };
+}
+
 /* активен ли транш (не soft-closed) — для агрегатов срока (Р-13) */
 function activeTranche(t){ return !t.closed; }
 
@@ -3841,7 +4004,7 @@ function gate(credit, action, ctx = {}){
          У гейта ДВЕ подпроверки (Прил.1 §2.3–2.4) — индекс и доля ликвида, — и причину
          отказа надо называть ту, что сработала: иначе куратор доливает залог там, где
          нужно менять его состав. */
-      if (!d.coverage.ok && !(credit.mirror && credit.mirror.pledgeWaiver))
+      if (!d.coverage.ok && !credit.pledgeWaiver)
         r.push(!d.coverage.mirror
           ? 'Обеспеченность не подтверждена модулем залога — нужен порог по решению КМ (Р-8) или waiver комиссии по залогу'
           : (d.coverage.covOk === false
@@ -3921,7 +4084,7 @@ function gate(credit, action, ctx = {}){
         r.push('Не собран обязательный комплект документов' +
           (d.docs.missing.length ? ': ' + d.docs.missing.join(' · ') : '') +
           (d.docs.blocked.length ? ' · отклонены/просрочены: ' + d.docs.blocked.map(x => x.kind).join(' · ') : ''));
-      if (!d.coverage.ok && !(credit.mirror && credit.mirror.pledgeWaiver))
+      if (!d.coverage.ok && !credit.pledgeWaiver)
         r.push('Не пройден гейт обеспеченности (или исключение Г-6)');
       break;
     }
@@ -4351,9 +4514,9 @@ function setKmDecision(credit, ctx){
 function saveWaiver(credit, ctx){
   const g = gate(credit, 'waiver', ctx);
   if (!g.ok) return g;
-  const before = credit.mirror.pledgeWaiver || null;
+  const before = credit.pledgeWaiver || null;
   const after = { reason: ctx.reason, when: TODAY };
-  credit.mirror.pledgeWaiver = after;
+  credit.pledgeWaiver = after;
   pushAudit(credit, 'saveWaiver', before, after);
   return g;
 }
@@ -4669,8 +4832,12 @@ if (typeof document !== 'undefined') {
      из derive() в рантайме (Р-11, кэш запрещён). Фильтры комбинируются по AND.
      ============================================================ */
   let selectedId = null;
-  const filters = { q:'', num:'', region:'', district:'', program:'', curator:'', category:'',
-                    subgroup:'', lifecycle:'', disbState:'', problem:'', odMin:'', odMax:'' };
+  const LIFECYCLES = ['Проект','Зарегистрирован','Действует','Закрыт'];
+  const PROBLEM_LABEL = { collection:'Активное взыскание', restructuring:'Активная реструктуризация' };
+  /* Реестр открывается без предвыбранного ЖЦ — видны все договоры, включая проектные
+     и закрытые. Молчаливый дефолт «Действует» прятал часть выдачи, поэтому снят. */
+  const filters = { q:'', dateFrom:'', dateTo:'', region:'', district:'', program:'', curator:'',
+                    category:'', subgroup:'', lifecycle:'', problem:'', odMin:'', odMax:'' };
   const paging = { page:1, size:10 };
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
@@ -4681,7 +4848,8 @@ if (typeof document !== 'undefined') {
   function toISO(s){ if(!s || !/^\d{2}\.\d{2}\.\d{4}$/.test(s)) return ''; const [d,mo,y]=s.split('.'); return `${y}-${mo}-${d}`; }
   function toDMY(s){ if(!s) return s; if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const [y,mo,d]=s.split('-'); return `${d}.${mo}.${y}`; }
   function uniq(arr){ return [...new Set(arr)].filter(x=>x && x!=='—').sort((a,b)=>String(a).localeCompare(String(b),'ru')); }
-  function optList(vals){ return ['<option value="">— все —</option>'].concat(vals.map(v=>`<option>${esc(v)}</option>`)).join(''); }
+  function optList(vals, sel){ return ['<option value="">— все —</option>']
+    .concat(vals.map(v=>`<option${v===sel?' selected':''}>${esc(v)}</option>`)).join(''); }
   /* активный куратор кредита (зеркало журнала кураторства Р-9): to==null, иначе последняя запись */
   function curatorOf(c){
     const cs = (c.mirror && c.mirror.curatorship) || [];
@@ -4705,52 +4873,61 @@ if (typeof document !== 'undefined') {
        «Группа платёжеспособности» и работал по шести значениям, которые кредит выводил
        сам; теперь значения приходят из карточки заёмщика, их одиннадцать. */
     const sgOpts = Object.keys(SUBGROUP_LABEL).map(k=>`<option value="${k}">${k} · ${esc(SUBGROUP_LABEL[k])}</option>`).join('');
-    /* сортируемая шапка грида (стиль live vaadin-grid): ярлык + стрелки ▲▼ */
-    const th = (k, l, r) => `<th data-k="${k}"${r?' style="text-align:right"':''} onclick="CR.sortList('${k}')">`
-      + `<span class="th-in">${l}<span class="arrows"><span class="up">▲</span><span class="dn">▼</span></span></span></th>`;
+    /* сортируемая шапка грида (как в реестре заявок): ярлык + глиф ↕, у активной ↑/↓ */
+    const th = (k, l, a) => `<th data-k="${k}"${a?` style="text-align:${a}"`:''} onclick="CR.sortList('${k}')">`
+      + `${l} <span class="sort">↕</span></th>`;
     host.innerHTML = `
-      <div class="tb-actions">
+      <!-- ЯРУС 1 — быстрая строка. Всегда видна: поиск по заёмщику — самое частое действие
+           в реестре, за кликом «развернуть фильтры» ему не место. Поиск, ЖЦ и куратор —
+           три условия, которые задают все пять ролей, остальное живёт в ярусе 2. -->
+      <div class="tb-quick">
+        <div class="field q-search"><span class="flabel">Поиск</span><div class="control"><input id="fQ" type="search" placeholder="Заёмщик, ИНН или № договора" oninput="CR.renderRows()"></div></div>
+        <div class="field q-lifecycle"><span class="flabel">ЖЦ договора</span><div class="control"><select id="fLifecycle" onchange="CR.renderRows()">${optList(LIFECYCLES, filters.lifecycle)}</select><span class="caret">▾</span></div></div>
+        <div class="field q-curator"><span class="flabel">Куратор</span><div class="control"><select id="fCurator" onchange="CR.renderRows()">${optList(curators)}</select><span class="caret">▾</span></div></div>
+        <button class="btn btn-secondary btn-sm q-more" id="btnFilters" onclick="CR.toggleFilters()">⚙ Фильтры<span class="fbadge" id="fBadge" hidden></span></button>
         <button class="btn btn-primary btn-sm" id="btnCreate" onclick="CR.openCreatePicker()">Создать кредит</button>
-        <button class="btn btn-secondary btn-sm" id="btnView" onclick="if(CR._sel)CR.openDetail(CR._sel)">Просмотр</button>
-        <button class="btn btn-secondary btn-sm" id="btnEdit" onclick="if(CR._sel)CR.openDetail(CR._sel)">Изменить</button>
-        <span id="regCount" style="margin-left:12px;color:var(--text-muted);font:var(--font-label)"></span>
-        <button class="btn btn-tint btn-sm" style="margin-left:auto" onclick="CR.resetDemo()">Сбросить демо-данные</button>
       </div>
-      <div class="filter-head" onclick="this.classList.toggle('open')">
-        <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
-        Фильтры реестра
-        <span class="fbadge" id="fBadge" hidden></span>
-      </div>
-      <div class="filter-body">
-        <div class="filter-bar" style="justify-content:flex-start;gap:12px;padding-top:0;padding-bottom:2px">
-          <div class="split">
-            <button class="btn btn-success btn-sm" onclick="CR.renderRows()">Обновить</button>
-            <button class="btn btn-success btn-sm caret" title="Действия">▾</button>
-          </div>
-          <button class="gear-btn" title="Настройки фильтра">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </button>
-        </div>
-        <div class="field"><span class="flabel">Заёмщик</span><div class="control"><input id="fQ" type="search" placeholder="наименование или ИНН" oninput="CR.renderRows()"></div></div>
-        <div class="field"><span class="flabel">Номер договора</span><div class="control"><input id="fNum" type="search" placeholder="напр. 56" oninput="CR.renderRows()"></div></div>
-        <div class="field"><span class="flabel">Область</span><div class="control"><select id="fRegion" onchange="CR.onRegionChange()">${optList(regionsOf())}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">Район</span><div class="control"><select id="fDistrict" onchange="CR.renderRows()">${optList(districtsOf(''))}</select><span class="caret">▾</span></div></div>
+      <!-- ЯРУС 2 — три равные колонки. Строка 1 «привязка» (где · по какой программе ·
+           когда), строка 2 «риск» (просрочка · подгруппа · категория), строка 3 —
+           проблемность и сброс. Фильтр «Состояние освоения» снят: освоение читается
+           в карточке, в реестре по нему не выбирают. -->
+      <div class="filter-body" id="filterBody">
+        <!-- Каскад Область→Район — одно измерение выборки, поэтому одно поле с двумя
+             селектами: в сетке из двух ячеек пара разъезжалась при переносе строки. -->
+        <div class="field"><span class="flabel">Область / Район</span><div class="range-pair">
+          <div class="control"><select id="fRegion" onchange="CR.onRegionChange()">${optList(regionsOf())}</select><span class="caret">▾</span></div>
+          <div class="control"><select id="fDistrict" onchange="CR.renderRows()">${optList(districtsOf(''))}</select><span class="caret">▾</span></div>
+        </div></div>
         <div class="field"><span class="flabel">Программа</span><div class="control"><select id="fProgram" onchange="CR.renderRows()">${optList(programs)}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">Куратор</span><div class="control"><select id="fCurator" onchange="CR.renderRows()">${optList(curators)}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">Категория риска</span><div class="control"><select id="fCategory" onchange="CR.renderRows()">${optList(['низкий','средний','высокий'])}</select><span class="caret">▾</span></div></div>
+        <!-- Дата ушла из колонки «Договор» во вторую строку ячейки и потеряла сортировку —
+             диапазон здесь возвращает её как измерение выборки (иначе «свежие кредиты» не найти). -->
+        <div class="field"><span class="flabel">Дата договора</span><div class="range-pair"><input id="fDateFrom" type="date" onchange="CR.renderRows()"><span>—</span><input id="fDateTo" type="date" onchange="CR.renderRows()"></div></div>
+        <div class="field"><span class="flabel">Просрочка, дн</span><div class="range-pair"><input id="fOdMin" type="number" min="0" placeholder="от" oninput="CR.renderRows()"><span>—</span><input id="fOdMax" type="number" min="0" placeholder="до" oninput="CR.renderRows()"></div></div>
         <div class="field"><span class="flabel">Подгруппа заёмщика</span><div class="control"><select id="fSubgroup" onchange="CR.renderRows()"><option value="">— все —</option>${sgOpts}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">ЖЦ договора</span><div class="control"><select id="fLifecycle" onchange="CR.renderRows()">${optList(['Проект','Зарегистрирован','Действует','Закрыт'])}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">Состояние освоения</span><div class="control"><select id="fDisb" onchange="CR.renderRows()">${optList(['Не освоен','Частично освоен','Полностью освоен','Освоение закрыто'])}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">Проблемность</span><div class="control"><select id="fProblem" onchange="CR.renderRows()"><option value="">— все —</option><option value="collection">Активное взыскание</option><option value="restructuring">Активная реструктуризация</option></select><span class="caret">▾</span></div></div>
-        <div class="field col-span"><span class="flabel">Просрочка, дн (диапазон)</span><div class="range-pair"><input id="fOdMin" type="number" min="0" placeholder="от" oninput="CR.renderRows()"><span>—</span><input id="fOdMax" type="number" min="0" placeholder="до" oninput="CR.renderRows()"></div></div>
-        <div class="filter-bar"><button class="btn btn-secondary btn-sm" onclick="CR.resetFilters()">Сбросить фильтры</button></div>
+        <div class="field"><span class="flabel">Категория риска</span><div class="control"><select id="fCategory" onchange="CR.renderRows()">${optList(['низкий','средний','высокий'])}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Проблемность</span><div class="control"><select id="fProblem" onchange="CR.renderRows()"><option value="">— все —</option>${Object.keys(PROBLEM_LABEL).map(k=>`<option value="${k}">${esc(PROBLEM_LABEL[k])}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="filter-actions"><button class="btn btn-secondary btn-sm" onclick="CR.resetFilters()">Сбросить фильтры</button></div>
       </div>
+      <!-- Чипы активных условий: что именно сужает выдачу — видно и при свёрнутой
+           панели, каждое условие снимается одним кликом по ×. -->
+      <div class="filter-chips" id="fChips"></div>
       <div class="grid-wrap">
-        <table class="grid"><thead><tr>
-          ${th('num','№ договора')}${th('date','Дата')}${th('borrower','Заёмщик')}${th('program','Программа')}
-          ${th('amount','Сумма договора',1)}${th('currency','Валюта')}
-          ${th('balance','Остаток, KGS',1)}${th('overdue','Просрочка')}
-          ${th('category','Категория')}${th('group','Подгруппа')}${th('lifecycle','ЖЦ договора')}${th('curator','Куратор')}
+        <!-- Восемь колонок вместо двенадцати. Слитые пары — «главная строка + .sub»,
+             тот же приём, каким Заёмщик уже носит ИНН и район:
+               Договор       = № (+Т·N/Р·N) над датой
+               Программа     = программа над куратором
+               Сумма/Остаток/Просрочка = число над валютой кредита, без приведения к сомам
+               Классификация = категория (owned) над подгруппой (зеркало, под замком)
+             Утраченные сортировки покрыты фильтрами: куратор — fCurator, подгруппа —
+             fSubgroup, дата — новый диапазон; по валюте сортировать было нечего. -->
+        <table class="grid"><colgroup>
+          <col style="width:112px"><col style="width:250px"><col style="width:130px">
+          <col style="width:152px"><col style="width:134px"><col style="width:128px">
+          <col style="width:152px"><col style="width:126px">
+        </colgroup><thead><tr>
+          ${th('num','Договор')}${th('borrower','Заёмщик')}${th('program','Программа')}
+          ${th('amount','Сумма договора','right')}${th('balance','Остаток','right')}${th('overdue','Просрочка','right')}
+          ${th('category','Классификация')}${th('lifecycle','ЖЦ договора')}
         </tr></thead><tbody id="regBody"></tbody></table>
       </div>
       <div class="pager" id="regPager"></div>`;
@@ -4767,38 +4944,87 @@ if (typeof document !== 'undefined') {
     dSel.value = [...dSel.options].some(o=>o.value===prev) ? prev : '';
     renderRows();
   }
+  /* раскрыть/свернуть ярус 2 */
+  function toggleFilters(){
+    const b = document.getElementById('filterBody'); if (b) b.classList.toggle('open');
+  }
   function resetFilters(){
-    ['fQ','fNum','fRegion','fDistrict','fProgram','fCurator','fCategory','fPayGroup',
-     'fLifecycle','fDisb','fProblem','fOdMin','fOdMax'].forEach(id=>{
-      const e = document.getElementById(id); if (e) e.value = '';
-    });
+    FILTER_IDS.forEach(id=>{ const e = document.getElementById(id); if (e) e.value = ''; });
     const dSel = document.getElementById('fDistrict'); if (dSel) dSel.innerHTML = optList(districtsOf(''));
     paging.page = 1;
     renderRows();
   }
 
+  /* УСЛОВИЯ фильтра — единая таблица для трёх потребителей: счётчика на бейдже, чипов и
+     сброса одного условия. Условие ≠ поле: пара «от—до» и каскад «область→район» — это
+     одно условие на двух контролах (иначе бейдж врёт: заполненный диапазон дат давал 2). */
+  const CONDS = [
+    { key:'q',         ids:['fQ'],                  label:'Поиск',          val:f=>f.q },
+    { key:'lifecycle', ids:['fLifecycle'],          label:'ЖЦ',             val:f=>f.lifecycle },
+    { key:'curator',   ids:['fCurator'],            label:'Куратор',        val:f=>f.curator },
+    { key:'overdue',   ids:['fOdMin','fOdMax'],     label:'Просрочка',
+      val:f=> (f.odMin==='' && f.odMax==='') ? '' : `${f.odMin||0}—${f.odMax||'∞'} дн.` },
+    { key:'problem',   ids:['fProblem'],            label:'Проблемность',   val:f=>PROBLEM_LABEL[f.problem] || '' },
+    { key:'category',  ids:['fCategory'],           label:'Категория риска',val:f=>f.category },
+    { key:'program',   ids:['fProgram'],            label:'Программа',      val:f=>f.program },
+    { key:'subgroup',  ids:['fSubgroup'],           label:'Подгруппа',      val:f=>f.subgroup },
+    { key:'place',     ids:['fRegion','fDistrict'], label:'Регион',
+      val:f=>[f.region, f.district].filter(Boolean).join(' · ') },
+    { key:'date',      ids:['fDateFrom','fDateTo'], label:'Дата договора',
+      val:f=> (!f.dateFrom && !f.dateTo) ? '' : `${toDMY(f.dateFrom) || '…'}—${toDMY(f.dateTo) || '…'}` },
+  ];
+  const FILTER_IDS = CONDS.flatMap(c=>c.ids);
+
   /* считать значения фильтров из контролов в состояние filters */
   function readFilters(){
     const g = id => { const e = document.getElementById(id); return e ? e.value : ''; };
-    filters.q = g('fQ').trim().toLowerCase(); filters.num = g('fNum').trim().toLowerCase();
+    filters.q = g('fQ').trim().toLowerCase();
+    filters.dateFrom = g('fDateFrom'); filters.dateTo = g('fDateTo');
     filters.region = g('fRegion'); filters.district = g('fDistrict');
     filters.program = g('fProgram'); filters.curator = g('fCurator'); filters.category = g('fCategory');
     filters.subgroup = g('fSubgroup');
-    filters.lifecycle = g('fLifecycle'); filters.disbState = g('fDisb'); filters.problem = g('fProblem');
+    filters.lifecycle = g('fLifecycle'); filters.problem = g('fProblem');
     filters.odMin = g('fOdMin'); filters.odMax = g('fOdMax');
   }
-  /* сколько условий реально сужают выборку — для бейджа на свёрнутой шапке фильтра */
-  function activeFilterCount(){
-    return Object.keys(filters).filter(k => filters[k] !== '' && filters[k] != null).length;
+  /* активные условия — [{cond, text}]; пустой текст = условие не задано */
+  function activeConds(){
+    return CONDS.map(c=>({ cond:c, text:c.val(filters) })).filter(x=>x.text);
+  }
+  /* сколько условий реально сужают выборку — для бейджа на кнопке «⚙ Фильтры» */
+  function activeFilterCount(){ return activeConds().length; }
+  /* чипы активных условий; × снимает условие целиком (обе границы диапазона, оба селекта каскада) */
+  function renderChips(){
+    const host = document.getElementById('fChips'); if (!host) return;
+    host.innerHTML = activeConds().map(({cond, text}) =>
+      `<span class="fchip">${esc(cond.label)}: ${esc(text)}`
+      + `<button title="Снять условие" onclick="CR.clearFilter('${cond.key}')">×</button></span>`).join('');
+  }
+  function clearFilter(key){
+    const cond = CONDS.find(c=>c.key===key); if (!cond) return;
+    cond.ids.forEach(id=>{ const e = document.getElementById(id); if (e) e.value = ''; });
+    if (key === 'place'){                          // каскад снят целиком — вернуть полный список районов
+      const dSel = document.getElementById('fDistrict'); if (dSel) dSel.innerHTML = optList(districtsOf(''));
+    }
+    paging.page = 1;
+    renderRows();
   }
   /* AND-комбинация фильтров; пустой фильтр = нет ограничения */
   function passFilters(c, d){
     const f = filters;
-    if (f.q){                                       // поиск идёт и по наименованию, и по ИНН
-      const hay = (c.borrower.name + ' ' + c.borrower.inn).toLowerCase();
+    /* Одно поле на три токена: наименование, ИНН, номер договора. Ложное совпадение
+       («56» найдёт и договор 56, и ИНН с 56 внутри) снимается сортировкой в renderRows —
+       точное совпадение по номеру поднимается в начало выдачи. */
+    if (f.q){
+      const hay = (c.borrower.name + ' ' + c.borrower.inn + ' ' + c.num).toLowerCase();
       if (!hay.includes(f.q)) return false;
     }
-    if (f.num && !String(c.num).toLowerCase().includes(f.num)) return false;
+    /* дата модели — дд.мм.гггг, контрол отдаёт ISO; сравниваем в ISO, где лексикографический
+       порядок совпадает с хронологическим. Незаполненная граница диапазон не сужает. */
+    if (f.dateFrom || f.dateTo){
+      const iso = toISO(c.date);
+      if (f.dateFrom && (!iso || iso < f.dateFrom)) return false;
+      if (f.dateTo   && (!iso || iso > f.dateTo))   return false;
+    }
     if (f.region   && c.borrower.region !== f.region)     return false;
     if (f.district && c.borrower.district !== f.district)  return false;
     if (f.program   && c.origin.programId !== f.program)   return false;
@@ -4806,7 +5032,6 @@ if (typeof document !== 'undefined') {
     if (f.category  && d.riskCategory !== f.category)       return false;
     if (f.subgroup  && d.subgroup !== f.subgroup)           return false;
     if (f.lifecycle && c.lifecycle !== f.lifecycle)         return false;
-    if (f.disbState && d.disbState !== f.disbState)         return false;
     if (f.odMin !== '' && d.overdueDays < +f.odMin)         return false;
     if (f.odMax !== '' && d.overdueDays > +f.odMax)         return false;
     if (f.problem === 'collection'    && !d.stateFlags.some(o=>o.kind==='collection'))    return false;
@@ -4815,9 +5040,6 @@ if (typeof document !== 'undefined') {
   }
   /* одна строка реестра — все ячейки из credit + derive() */
   function rowHtml(c, d){
-    const hasColl = d.stateFlags.some(o=>o.kind==='collection');
-    const hasOd   = d.stateFlags.some(o=>o.kind==='overdue');
-    const tint = hasColl ? ' ov-collection' : hasOd ? ' ov-overdue' : '';   // взыскание перекрывает просрочку
     const sel  = (c.id===selectedId) ? ' sel' : '';
     const term = (c.lifecycle==='Закрыт') ? ' terminal' : '';
     const catCls = d.riskCategory==='высокий' ? 'high' : d.riskCategory==='средний' ? 'mid' : 'low';
@@ -4829,25 +5051,25 @@ if (typeof document !== 'undefined') {
     const nR = (c.mirror && c.mirror.restructuring && c.mirror.restructuring.count) || 0;
     const marks = (nT > 1 ? `<span class="mk" title="траншей: ${nT}">Т·${nT}</span>` : '')
                 + (nR ? `<span class="mk mk-r" title="реструктуризаций: ${nR}">Р·${nR}</span>` : '');
-    /* просрочка: дни + просроченная сумма, приведённая к KGS (как и остаток) */
+    /* Просрочка той же формы, что и деньги рядом: сумма первой строкой (правое
+       выравнивание, табличные цифры), дни и валюта — второй. Дни остаются красными:
+       это сигнал тревоги, из второй строки он читается не хуже.
+       Нулевая просрочка — одна строка «0 дн.»: колонка нулей с валютой это шум. */
     const odCell = d.overdueDays > 0
-      ? `<td class="overdue"${d.calcStopped?` title="${jsAttr('Кредит закрыт '+d.calcUntil+' — начисление остановлено, величина застыла на этой дате')}"`:''}>${d.overdueDays} дн.${d.calcStopped?' <span class="sub">(на '+esc(d.calcUntil)+')</span>':''}<br><span class="sub">${money0(d.overdueAmountKgs)}</span></td>`
-      : `<td><span class="sub">0 дн.</span></td>`;
-    const amtSub = c.currency !== 'KGS'
-      ? `<br><span class="sub">≈ ${money0(toKgs(c.contractAmount, c.currency))} KGS</span>` : '';
-    return `<tr data-id="${esc(c.id)}" class="${(tint+sel+term).trim()}" onclick="CR.selectRow('${esc(c.id)}')" ondblclick="CR.openDetail('${esc(c.id)}')">
-      <td style="white-space:nowrap">${esc(c.num)}${marks}</td>
-      <td>${esc(c.date)}</td>
-      <td>${esc(c.borrower.name)}<br><span class="sub">ИНН ${esc(c.borrower.inn)} · ${esc(c.borrower.district)}</span></td>
-      <td>${esc(c.origin.programId)}</td>
-      <td style="text-align:right">${money(c.contractAmount)}${amtSub}</td>
-      <td>${esc(c.currency)}</td>
-      <td style="text-align:right">${money(d.debtBalanceKgs)}</td>
+      ? `<td class="od num"${d.calcStopped?` title="${jsAttr('Кредит закрыт '+d.calcUntil+' — начисление остановлено, величина застыла на этой дате')}"`:''}>${money0(d.overdueAmount)}<span class="sub"><span class="days">${d.overdueDays} дн.</span> · ${esc(c.currency)}</span></td>`
+      : `<td class="od num"><span class="zero">0 дн.</span></td>`;
+    /* Все три денежные колонки — в валюте кредита, без приведения к сомам: реестр
+       показывает то, что записано в договоре. Валюта — второй строкой ячейки. */
+    const ccy = c.currency;
+    return `<tr data-id="${esc(c.id)}" class="${(sel+term).trim()}" onclick="CR.selectRow('${esc(c.id)}')" ondblclick="CR.openDetail('${esc(c.id)}')">
+      <td>${esc(c.num)}${marks}<span class="sub">${esc(c.date)}</span></td>
+      <td title="${esc(c.borrower.name)}"><span class="cell-name">${esc(c.borrower.name)}</span><span class="sub">ИНН ${esc(c.borrower.inn)} · ${esc(c.borrower.district)}</span></td>
+      <td title="${esc(c.origin.programId)} · ${esc(curatorOf(c))}">${esc(c.origin.programId)}<span class="sub">${esc(curatorOf(c))}</span></td>
+      <td class="num">${money(c.contractAmount)}<span class="sub">${esc(ccy)}</span></td>
+      <td class="num bal">${money(d.debtBalance)}<span class="sub">${esc(ccy)}</span></td>
       ${odCell}
-      <td><span class="pill ${catCls}">${esc(d.riskCategory)}</span></td>
-      <td title="${esc(d.subgroupLabel || '')}">${esc(d.subgroup || '—')} ${lockHtml()}</td>
+      <td><span class="pill ${catCls}">${esc(d.riskCategory)}</span><span class="sub inline" title="${esc([d.subgroupLabel, 'зеркало карточки заёмщика'].filter(Boolean).join(' · '))}">${esc(d.subgroup || '—')}</span></td>
       <td>${esc(c.lifecycle)}</td>
-      <td>${esc(curatorOf(c))}</td>
     </tr>`;
   }
   /* сортировка реестра по клику на шапку (как в live vaadin-grid).
@@ -4855,17 +5077,17 @@ if (typeof document !== 'undefined') {
   let listSort = { key:null, dir:1 };
   const LIST_SORTERS = {
     num:      ([c])=>c.num,
-    date:     ([c])=>String(c.date||'').split('.').reverse().join(''),
     borrower: ([c])=>c.borrower.name,
     program:  ([c])=>c.origin.programId,
+    /* Сортируем по той же цифре, что видно в ячейке (валюта кредита), а не по
+       KGS-эквиваленту: иначе 320 000 USD встают выше 540 000 KGS и порядок читается
+       как поломка. Плата за это — колонка со смешанными валютами сортируется
+       арифметически, а не по стоимости; развязывается фильтром по валюте. */
     amount:   ([c])=>c.contractAmount,
-    currency: ([c])=>c.currency,
-    balance:  ([,d])=>d.debtBalanceKgs,
+    balance:  ([,d])=>d.debtBalance,
     overdue:  ([,d])=>d.overdueDays,
     category: ([,d])=>({'низкий':0,'средний':1,'высокий':2}[d.riskCategory] ?? -1),
-    group:    ([,d])=>d.subgroup || '',
     lifecycle:([c])=>c.lifecycle,
-    curator:  ([c])=>curatorOf(c),
   };
   function sortList(key){
     if (!LIST_SORTERS[key]) return;
@@ -4880,11 +5102,8 @@ if (typeof document !== 'undefined') {
       const k = th.getAttribute('data-k');
       const on = k === listSort.key;
       th.classList.toggle('sorted', on);
-      const up = th.querySelector('.arrows .up'), dn = th.querySelector('.arrows .dn');
-      if (up && dn){
-        up.classList.toggle('on', on && listSort.dir === 1);
-        dn.classList.toggle('on', on && listSort.dir === -1);
-      }
+      const sp = th.querySelector('.sort');
+      if (sp) sp.textContent = on ? (listSort.dir === 1 ? '↑' : '↓') : '↕';
     });
   }
 
@@ -4908,6 +5127,12 @@ if (typeof document !== 'undefined') {
       });
     }
     syncSortHeader();
+    /* Объединённый поиск: точное совпадение по номеру договора — первым. Sort стабилен,
+       поэтому порядок остальных строк (свой или заданный шапкой) не рушится. */
+    if (filters.q){
+      const exact = ([c]) => String(c.num).toLowerCase() === filters.q;
+      hits.sort((A, B) => (exact(B) ? 1 : 0) - (exact(A) ? 1 : 0));
+    }
     /* пагинация — после фильтрации; страница зажимается, если выборка усохла */
     const pages = Math.max(1, Math.ceil(hits.length / paging.size));
     if (paging.page > pages) paging.page = pages;
@@ -4915,11 +5140,10 @@ if (typeof document !== 'undefined') {
     const page = hits.slice(from, from + paging.size);
 
     body.innerHTML = page.length ? page.map(([c,d])=>rowHtml(c,d)).join('')
-      : `<tr><td colspan="12" style="text-align:center;color:var(--text-placeholder);padding:20px">Ничего не найдено по фильтрам</td></tr>`;
-    const cnt = document.getElementById('regCount');
-    if (cnt) cnt.textContent = hits.length + ' из ' + CR.db.credits.length;
+      : `<tr><td colspan="8" style="text-align:center;color:var(--text-placeholder);padding:20px">Ничего не найдено по фильтрам</td></tr>`;
     const badge = document.getElementById('fBadge');
-    if (badge){ const n = activeFilterCount(); badge.textContent = n ? 'условий: ' + n : ''; badge.hidden = !n; }
+    if (badge){ const n = activeFilterCount(); badge.textContent = n ? '·' + n : ''; badge.hidden = !n; }
+    renderChips();
     renderPager(hits.length, pages, from, page.length);
   }
   /* пейджер: «показано X–Y из Z», стрелки и размер страницы */
@@ -4951,15 +5175,15 @@ if (typeof document !== 'undefined') {
     if (body) [...body.children].forEach(tr => tr.classList && tr.classList.toggle('sel', tr.dataset.id===id));
     renderRole();
   }
-  /* двойной клик / Просмотр / Изменить — карточка кредита (§5.2 шапка + §5.3 9 вкладок, Task 7) */
+  /* двойной клик / Просмотр / Изменить — карточка кредита (§5.2 шапка + §5.3 11 вкладок, Task 7) */
   function openDetail(id, tab){
     const c = CR.db.credits.find(x=>x.id===id); if (!c) return;
     selectedId = id; CR._sel = id; detailId = id;
     detailTab = tab && DTABS.includes(tab) ? tab : 'Договор';
     detailTrancheNo = (c.tranches[0] && c.tranches[0].no) || 1;
     calcConsolidated = false;
-    condScope = 'credit'; cardAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null;
-    planYear = pd(TODAY).getFullYear(); planOpenMonth = null;   // состояние вкладки «План и исполнение» — своё на каждую карточку
+    condScope = 'credit'; cardAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null; condOpenTranche = null; condMatrixTranche = null;
+    planYear = pd(TODAY).getFullYear(); planOpenMonth = null;   // состояние вкладки «План» — своё на каждую карточку
     document.getElementById('view-list').style.display = 'none';
     const dv = document.getElementById('view-detail');
     dv.style.display = 'flex';
@@ -4993,25 +5217,20 @@ if (typeof document !== 'undefined') {
     if (id && CR.db.credits.some(x=>x.id===id)) openDetail(id, tab); else backToList();
     suppressHash = false;
   }
-  /* сброс демо-данных: свежий seedDb() + полная перерисовка (§демо-ограничения) */
+  /* сброс демо-данных: свежий seedDb() + полная перерисовка (§демо-ограничения).
+     Кнопки в реестре больше нет — вызов остался в CR для консоли демо-стенда. */
   function resetDemo(){
     CR.db = seedDb(); selectedId = null; CR._sel = null;
     backToList(); renderList();
     toast('Демо-данные сброшены', 'ok');
   }
-  /* гейтинг действий по роли: Наблюдатель — read-only (createCredit/editConditions off) */
+  /* гейтинг действий по роли: Наблюдатель — read-only (createCredit off). Кнопок
+     «Просмотр»/«Изменить» больше нет — карточка открывается двойным кликом по строке,
+     право на правку гейтится внутри карточки. */
   function renderRole(){
     const canCreate = canRole(currentRole, 'createCredit');
-    const canEdit   = canRole(currentRole, 'editConditions');
     const bC = document.getElementById('btnCreate');
-    const bV = document.getElementById('btnView');
-    const bE = document.getElementById('btnEdit');
     if (bC){ bC.disabled = !canCreate; bC.title = canCreate ? '' : 'Роль «'+currentRole+'» не имеет права создавать кредит'; }
-    if (bV){ bV.disabled = !selectedId; bV.title = selectedId ? '' : 'Выберите кредит в реестре'; }
-    if (bE){ const ok = !!selectedId && canEdit;
-      bE.disabled = !ok;
-      bE.title = !selectedId ? 'Выберите кредит в реестре'
-        : !canEdit ? 'Роль «'+currentRole+'» не имеет права изменять кредит' : ''; }
   }
 
   /* «Создать кредит» — picker одобренных заявок без кредита (Г-2) */
@@ -5044,7 +5263,7 @@ if (typeof document !== 'undefined') {
   }
 
   /* ============================================================
-     КАРТОЧКА КРЕДИТА — §5.2 шапка + §5.3 9 вкладок (Task 7; девятая — «План и исполнение», 01.08.2026).
+     КАРТОЧКА КРЕДИТА — §5.2 шапка + §5.3 11 вкладок (Task 7; «План» — 01.08.2026, «График» и «Прогноз» — 03.08.2026).
      Всё из derive()/gate()/canRole() в рантайме (Р-11 — кэш запрещён). Зеркала
      (Р-5…Р-10, Р-16) — read-only с замком и подписью источника. Любая мутация
      идёт через CR.* и завершается rerenderDetail() → derive() пересчитывается заново.
@@ -5057,12 +5276,20 @@ if (typeof document !== 'undefined') {
      раздела своей даты не бывает» (КР-29). Теперь она живёт в шапке и управляет всеми
      выводимыми величинами: долгом, просрочкой, категорией, условиями, расчётом. */
   let cardAsOf  = TODAY;
-  let planYear = pd(TODAY).getFullYear();   // год на вкладке «План и исполнение»
+  let planYear = pd(TODAY).getFullYear();   // год на вкладке «План»
   let planOpenMonth = null;                 // 'YYYY-MM' развёрнутой строки (журнал правок)
   let condBasisFilter = 'all';      // фильтр журнала по типу основания
   let condOpenGroup   = null;       // g.key развёрнутой группы журнала (basisGroups — единственный источник ключа)
+  let condOpenTranche = null;       // № транша активной вкладки внутри разворота; null/чужой → первый транш группы
+  let condMatrixTranche = null;     // № транша активной вкладки сводной матрицы (свой, независимо от журнала)
   let condMatrixOpen = false, condTemplateOpen = false;
-  const DTABS =['Договор','Условия','Транши и освоение','Расчёты','Платежи','План и исполнение','Обеспечение','Проблемные','Досье'];
+  /* Волна 03.08.2026: «Транши и освоение» → «Транши», из «Расчётов» выделена вкладка
+     «График» (план возврата). Три предмета — три вкладки: Транши (сколько выдали) ·
+     График (что должны вернуть) · Расчёты (что начислено и погашено).
+     Волна 03.08.2026 (вторая): из «Графика» выделен «Прогноз» — контракт транша и
+     ожидание по нему суть разные предметы (Р-29), а вкладка «План и исполнение»
+     сокращена до «План»: исполнение — производная плана, а не второй предмет. */
+  const DTABS =['Договор','Условия','Транши','График','Прогноз','Расчёты','Платежи','План','Обеспечение','Проблемные','Досье'];
 
   function currentCredit(){ return CR.db.credits.find(x => x.id === detailId); }
   function jsAttr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
@@ -5081,7 +5308,7 @@ if (typeof document !== 'undefined') {
   function fld(label,val,o){ o=o||{};
     const v=(val==null||val==='') ? '<span class="ph" style="color:var(--text-placeholder)">—</span>' : val;
     return `<div class="field${o.span?' col-span':''}"><span class="flabel">${esc(label)}${o.lock?' '+lockHtml():''}</span>`
-      + `<div class="lookup"><span class="val">${v}</span></div>`
+      + `<div class="lookup${o.wrap?' lookup-wrap':''}"><span class="val">${v}</span></div>`   /* o.wrap — свободный текст, высота по контенту (волна 03.08.2026) */
       + (o.src?`<div class="mirror-src">Источник: ${esc(o.src)}</div>`:'') + `</div>`;
   }
   /* грид-коллекция внутри вкладки */
@@ -5223,7 +5450,7 @@ if (typeof document !== 'undefined') {
   }
 
   /* Плитка «Ближайший платёж» (шаг 11): самый частый вопрос куратора — когда и сколько.
-     Раньше ответ лежал в «Расчёты → График — позиции», три клика вглубь. Значение —
+     Раньше ответ лежал в «График → позиции», три клика вглубь. Значение —
      сумма позиции, основание — дата, статус и транш. Просроченная позиция подсвечена:
      она первая по дате и требует действия раньше предстоящей. */
   function tileNextPay(c,d){
@@ -5366,7 +5593,7 @@ if (typeof document !== 'undefined') {
     const subjRows=subjectAt(c,cardAsOf).map(s=>`<tr><td>${esc(s.kind)}</td><td>${esc(s.name)}</td><td style="text-align:right">${esc(s.qty)}</td><td style="text-align:right">${money(s.cost)}</td>`
       + (subjEditableDirect?`<td style="text-align:right">${roleIconBtn('editSubject','Убрать предмет',`CR.removeSubjectItem('${jsAttr(s.id)}')`,'✕')}</td>`:'')
       + `</tr>`);
-    const km=c.kmDecision;
+    const km=c.kmDecision, wv=c.pledgeWaiver;       // волна 03.08.2026: waiver — owned-поле рядом с решением КМ
     const dt=c.debtTransfer;                                    // Шаг 17: перевод долга вернулся сюда, см. ниже
     /* Шаг 11: бейдж статуса регистрации рядом с № — производный (regStatusOf), поля в
        модели нет; раньше статус читался только косвенно, по заполненности реквизитов. */
@@ -5399,9 +5626,9 @@ if (typeof document !== 'undefined') {
           </div>
         </div>
 
-        <div class="pcard">
+        <div class="pcard wide">
           <div class="section-h">Основание выдачи кредита</div>
-          <div class="f2">
+          <div class="f4">
             ${fld('Решение правительства', link(o.govDecisionId,'Переход в ПП — вне объёма макета'))}
             ${fld('Программа', link(o.programId,'Переход в программу — вне объёма макета'))}
             ${(()=>{ const kom=(c.docs||[]).find(x=>x.kind==='Решение комиссии');
@@ -5413,12 +5640,6 @@ if (typeof document !== 'undefined') {
           </div>
         </div>
 
-        <div class="pcard">
-          <div class="section-h">Освобождение от залога — решение КМ</div>
-          ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Скан', esc(km.scan))}</div>`:''}
-          <div class="gtoolbar">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>
-        </div>
-
         <div class="pcard wide">
           <div class="section-h">Предмет кредита</div>
           ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Кол-во',r:1},{h:'Стоимость',r:1}].concat(subjEditableDirect?[{h:''}]:[]), subjRows, {empty:'Предмет не задан'})}
@@ -5427,21 +5648,55 @@ if (typeof document !== 'undefined') {
             : roleBtn('addSubjectRecords','Изменить предмет кредита (доп. соглашением)','CR.openSubjectAgrModal()')}</div>
         </div>
 
-        <div class="pcard wide">
+        <!-- Раскладка 03.08.2026 (решение пользователя): «Основание выдачи» ушло на всю
+             ширину — четыре ссылки на внешние сущности читаются в строку, а не в столбик
+             по две. Два действия-исключения — «Освобождение от порога» и «Перевод долга» —
+             сведены в нижнюю строку парой: оба редки, оба меняют не реквизит, а режим
+             (порог обеспечения / субъект долга), и оба не нужны при обычном чтении
+             карточки. Верх вкладки остался паспортом договора. -->
+        <div class="pcard">
+          <div class="section-h">Освобождение от порога обеспечения</div>
+          ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Порог по решению', km.coverPct==null?null:(esc(km.coverPct)+' %'+(+km.coverPct===0?' — полное освобождение':'')))}${fld('Скан', esc(km.scan))}</div>`:''}
+          ${wv?`<div class="f2"${km?' style="margin-top:12px"':''}>${fld('Waiver комиссии по залогу',
+              'выдан '+esc(wv.when)+(d.coverage.ok?' <span class="pill neutral">не требуется — порог пройден</span>':' <span class="pill info">применён</span>'))}${fld('Обоснование', esc(wv.reason), {span:true, wrap:true})}</div>`:''}
+          <div class="gtoolbar">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>
+        </div>
+
+        <div class="pcard">
           <div class="section-h">Перевод долга — смена заёмщика</div>
           <!-- Шаг 17: вернулось из «Условий» (шаг 11 переносил сюда же, шаг 14 — обратно
                в «Условия» «новых аргументов нет»; аргумент нашёлся шагом 15 — Р-21 прямо
                говорит, что перевод долга в записи НЕ идёт, он меняет субъекта, а не
                параметр, значит и в глоссарном смысле «Условием» не является). -->
           ${dt?`<div class="f2">${fld('Прежний заёмщик', esc(dt.from&&dt.from.name))}${fld('Новый заёмщик', esc(dt.newBorrower&&dt.newBorrower.name))}
-                ${fld('Соглашение', esc(dt.agreement&&dt.agreement.num)+(dt.agreement&&dt.agreement.registered?' <span class="pill low">зарегистрировано</span>':''))}${fld('Дата перевода', esc(dt.date))}</div>`
-            :`<p class="section-note" style="margin-bottom:0">Перевода долга не было. Смена заёмщика оформляется только зарегистрированным соглашением.</p>`}
+                ${fld('Соглашение', esc(dt.agreement&&dt.agreement.num)+(dt.agreement&&dt.agreement.registered?' <span class="pill low">зарегистрировано</span>':''))}${fld('Дата перевода', esc(dt.date))}</div>`:''}
           <div class="gtoolbar">${actBtn(c,'transferDebt',{},'Оформить перевод долга','CR.openTransferModal()')}</div>
         </div>
       </div>`;
   }
 
   /* ---- ВКЛАДКА 2: Условия ---- */
+  /* condGroupDetail — разворот строки журнала изменений условий.
+     Один транш в группе → одна таблица, как было (колонка «Транш» остаётся:
+     она отвечает на «чей это транш», а не служит разделителем).
+     Два и больше → вкладка на транш, в таблице колонка «Транш» лишняя.
+     Критерий — g.trancheNos (транши ЭТОЙ группы), а не число траншей кредита:
+     документ может править один транш из трёх, и тогда вкладки не нужны. */
+  function condGroupDetail(g){
+    const row = i => `<tr><td>${esc(paramLabel(i.param))}</td>
+      <td><span class="diff-old">${esc(i.from===undefined?'—':i.from)}</span></td>
+      <td><span class="diff-new">${esc(i.to)}</span></td>
+      <td>${esc(i.effectiveFrom)}</td>${g.trancheNos.length>1?'':`<td>№${i.trancheNo}</td>`}<td>${esc(i.note||'')}</td></tr>`;
+    const cols = [{h:'Параметр'},{h:'Было'},{h:'Стало'},{h:'Вступает'}]
+      .concat(g.trancheNos.length>1?[]:[{h:'Транш'}]).concat([{h:'Примечание'}]);
+    if (g.trancheNos.length <= 1) return cgrid(cols, g.items.map(row));
+    const sel = g.trancheNos.includes(condOpenTranche) ? condOpenTranche : g.trancheNos[0];
+    const bar = `<div class="subtabs">${g.trancheNos.map(n=>{
+      const cnt = g.items.filter(i=>i.trancheNo===n).length;
+      return `<button class="subtab${n===sel?' active':''}" onclick="CR.setCondTranche(${n})">Транш №${n}<span class="cnt">(${cnt})</span></button>`;
+    }).join('')}</div>`;
+    return bar + cgrid(cols, g.items.filter(i=>i.trancheNo===sel).map(row));
+  }
   function tabUsloviya(c,d){
     const b=c.baseConditions;
     const locked = !gate(c,'editConditions',{}).ok;                 // Г-9: не «Проект» → только зарегистрированным основанием
@@ -5522,7 +5777,7 @@ if (typeof document !== 'undefined') {
           требуется перегенерация. Предупреждение снимется, когда активная версия графика
           будет построена заново (позже этой записи).
           <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm"
-            onclick="CR.goToCalc()">Перейти к перегенерации графика</button></div>
+            onclick="CR.goToSchedule()">Перейти к перегенерации графика</button></div>
         </div></div>`; })()}
       <div class="gtoolbar" style="margin-bottom:14px">
         ${c.tranches.length>1?`<div class="control" style="max-width:280px"><select onchange="CR.setCondScope(this.value)">
@@ -5539,6 +5794,12 @@ if (typeof document !== 'undefined') {
         })()}
       </div>
       <div class="pcards">
+        <!-- Раскладка 03.08.2026: левая колонка — «Ставки» и «Приостановки начисления»
+             стопкой (.pcol), правая — «Погашение». Погашение длиннее ставок (до 11 полей
+             с грейсом), поэтому одиночная карточка справа уравновешивает две слева;
+             приостановки — про начисление, читаются следом за ставками, а не после
+             графика платежей. -->
+        <div class="pcol">
         <div class="pcard">
           <div class="section-h">Ставки</div>
           <div class="f2">
@@ -5558,6 +5819,19 @@ if (typeof document !== 'undefined') {
         </div>
 
         <div class="pcard">
+          <div class="section-h">Приостановки начисления</div>
+          <!-- Карточка с действием (holdAccrual — единственный вход в модалку) остаётся
+               видимой всегда, даже без единой записи (grill 2026-07-31): скрыть значило бы
+               спрятать и кнопку. Без записей карточка пустая — заголовок и кнопка, без
+               таблицы-заглушки (волна 03.08.2026, как «Перевод долга» в «Договоре»).
+               Таблица — вся история интервалов, не только активные на cardAsOf
+               (holdIsActive тут не фильтр, а другой юзкейс — риск/оверлеи). -->
+          ${holdRows.length?cgrid([{h:'С'},{h:'По'},{h:'Основание'},{h:'Документ'}], holdRows):''}
+          <div class="gtoolbar">${roleBtn('holdAccrual','Приостановить начисление','CR.openHoldModal()')}</div>
+        </div>
+        </div>
+
+        <div class="pcard">
           <div class="section-h">Погашение</div>
           <div class="f2">
             ${cf('term')}
@@ -5569,16 +5843,6 @@ if (typeof document !== 'undefined') {
             ${cf('lastPaymentAnchor')}
             ${hasGrace?`${cf('graceMain')}${cf('graceInterest')}${hasGraceInt?`${cf('graceIntDistFrom')}${cf('graceIntDistTo')}`:''}${cf('graceAccrual')}`:''}
           </div>
-        </div>
-
-        <div class="pcard">
-          <div class="section-h">Приостановки начисления</div>
-          <!-- Карточка с действием (holdAccrual — единственный вход в модалку) остаётся
-               видимой всегда, даже без единой записи (grill 2026-07-31): скрыть значило бы
-               спрятать и кнопку. Таблица — вся история интервалов, не только активные на
-               cardAsOf (holdIsActive тут не фильтр, а другой юзкейс — риск/оверлеи). -->
-          ${cgrid([{h:'С'},{h:'По'},{h:'Основание'},{h:'Документ'}], holdRows, {empty:'Приостановок не было'})}
-          <div class="gtoolbar">${roleBtn('holdAccrual','Приостановить начисление','CR.openHoldModal()')}</div>
         </div>
 
         <!-- Карточка без действия (чисто информационная) скрывается целиком, когда
@@ -5618,8 +5882,6 @@ if (typeof document !== 'undefined') {
 
         <div class="pcard wide">
           <div class="section-h">Журнал изменений условий</div>
-          <p class="section-note">Каждая строка — документ-основание; «Изменено» и «было → стало» —
-            производные от записей условий. Записи не удаляются: отмена — новая запись.</p>
           <div class="gtoolbar">
             ${['all','agreement','court','govAct','application'].map(k=>{
               const lbl = k==='all'?'все':BASIS_KINDS[k].label;
@@ -5638,11 +5900,7 @@ if (typeof document !== 'undefined') {
                 <td>${esc(changed)}</td><td>${g.trancheNos.map(n=>'№'+n).join(', ')}</td>
                 <td>${condOpenGroup===g.key?'▾':'▸'}</td></tr>`);
               if (condOpenGroup===g.key) trs.push(`<tr><td colspan="6" style="background:var(--surface-panel)">
-                ${cgrid([{h:'Параметр'},{h:'Было'},{h:'Стало'},{h:'Вступает'},{h:'Транш'},{h:'Примечание'}],
-                  g.items.map(i=>`<tr><td>${esc(paramLabel(i.param))}</td>
-                    <td><span class="diff-old">${esc(i.from===undefined?'—':i.from)}</span></td>
-                    <td><span class="diff-new">${esc(i.to)}</span></td>
-                    <td>${esc(i.effectiveFrom)}</td><td>№${i.trancheNo}</td><td>${esc(i.note||'')}</td></tr>`))}
+                ${condGroupDetail(g)}
                 </td></tr>`);
             }
             return cgrid([{h:'Документ'},{h:'Дата док.'},{h:'Вступает'},{h:'Изменено'},{h:'Транши'},{h:''}],
@@ -5665,18 +5923,38 @@ if (typeof document !== 'undefined') {
           <div class="section-h" style="cursor:pointer" onclick="CR.toggleCondMatrix()">
             ${condMatrixOpen?'▾':'▸'} Сводная матрица условий (параметр × дата вступления)</div>
           ${condMatrixOpen?(()=>{
-            const recs=c.tranches.flatMap(t=>(t.conditionRecords||[]).map(r=>({t,r})));
-            const dates=[...new Set(recs.map(x=>x.r.effectiveFrom))].sort((a,b)=>pd(a)-pd(b));
-            const cols=[{h:'Параметр'}].concat(dates.map(d=>({h:d})));
-            const trs=PARAMS.map(p=>{
-              const cells=dates.map(d=>{ const hit=recs.filter(x=>x.r.param===p.key && x.r.effectiveFrom===d);
-                if(!hit.length) return '<td style="color:var(--text-placeholder)">·</td>';
-                const vals=[...new Set(hit.map(x=>String(x.r.value)))].join(' / ');
-                return `<td>${esc(vals)}<br><span class="src">${esc(hit[0].r.basis.ref||'')}</span></td>`; }).join('');
-              return `<tr><td>${esc(p.label)}</td>${cells}</tr>`; });
+            /* Раскладка 03.08.2026: одна таблица на всю ширину распадалась на «параметр
+               и лес точек». Делим на две зоны — левая «Ставки и льготы», правая
+               «Погашение» (те же смысловые группы, что у карточек условий выше), у каждой
+               свой набор дат: колонка появляется, только если в эту дату менялся параметр
+               ЭТОЙ зоны. Транши разводим вкладками, как в журнале изменений: склейка
+               «7 / 9» в одной ячейке не говорила, чьё какое. */
+            const multi=c.tranches.length>1;
+            const selNo=multi?(c.tranches.some(t=>t.no===condMatrixTranche)?condMatrixTranche:c.tranches[0].no):null;
+            const src=multi?c.tranches.filter(t=>t.no===selNo):c.tranches;
+            const recs=src.flatMap(t=>(t.conditionRecords||[]).map(r=>({t,r})));
+            const zone=(title,keys)=>{
+              const zr=recs.filter(x=>keys.includes(x.r.param));
+              const dates=[...new Set(zr.map(x=>x.r.effectiveFrom))].sort((a,b)=>pd(a)-pd(b));
+              const cols=[{h:'Параметр'}].concat(dates.map(d=>({h:d})));
+              const trs=PARAMS.filter(p=>keys.includes(p.key)).map(p=>{
+                const cells=dates.map(d=>{ const hit=zr.filter(x=>x.r.param===p.key && x.r.effectiveFrom===d);
+                  if(!hit.length) return '<td style="color:var(--text-placeholder)">·</td>';
+                  const vals=[...new Set(hit.map(x=>String(x.r.value)))].join(' / ');
+                  return `<td>${esc(vals)}<br><span class="src">${esc(hit[0].r.basis.ref||'')}</span></td>`; }).join('');
+                return `<tr><td>${esc(p.label)}</td>${cells}</tr>`; });
+              return `<div><div class="section-h" style="font-size:13px;margin-bottom:6px">${esc(title)}</div>
+                ${dates.length?cgrid(cols, trs, {empty:'Записей нет'})
+                             :`<p class="section-note" style="margin:0">Ни один параметр этой зоны не менялся${multi?' по траншу №'+selNo:''}.</p>`}</div>`;
+            };
+            const bar=multi?`<div class="subtabs">${c.tranches.map(t=>{
+              const cnt=(t.conditionRecords||[]).length;
+              return `<button class="subtab${t.no===selNo?' active':''}" onclick="CR.setCondMatrixTranche(${t.no})">Транш №${t.no}<span class="cnt">(${cnt})</span></button>`;
+            }).join('')}</div>`:'';
             return `<p class="section-note">У каждого условия своя дата вступления
               и своё основание. Пустая ячейка — в эту дату параметр не менялся.</p>
-              ${cgrid(cols, trs, {empty:'Записей нет'})}`;
+              ${bar}
+              <div class="mx2">${zone('Ставки и льготы', MATRIX_ZONE_RATES)}${zone('Погашение', MATRIX_ZONE_REPAY)}</div>`;
           })():''}
         </div>
 
@@ -5691,7 +5969,7 @@ if (typeof document !== 'undefined') {
       </div>`;
   }
 
-  /* ---- ВКЛАДКА 3: Транши и освоение ---- */
+  /* ---- ВКЛАДКА 3: Транши ---- */
   function tabTranshi(c,d){
     const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
     const cur=c.currency, isFx=cur!=='KGS', fx=FX[cur]||1;              // мультивалюта: курс/≈KGS только для не-KGS
@@ -5742,10 +6020,101 @@ if (typeof document !== 'undefined') {
       ${cgrid(dbCols, dbRows, {empty:'Освоений нет'})}`;
   }
 
-  /* ---- ВКЛАДКА 4: Расчёты ---- */
+  /* ---- ВКЛАДКА 4: График (план возврата) ----
+     Выделена из «Расчётов» волной 03.08.2026. Предмет вкладки — КОНТРАКТ: чем кредит
+     обязан ответить на выданное. Версии и позиции принадлежат ТРАНШУ
+     (Р-1: buildSchedule строится на транше), поэтому селектор транша здесь свой,
+     но состояние общее с «Траншами» и «Расчётами» (detailTrancheNo). Факт начисления
+     и погашения остался в «Расчётах» — их предмет иной; прогноз по этому графику
+     уехал на свою вкладку «Прогноз» (вторая волна 03.08.2026). */
+  function tabGrafik(c,d){
+    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    const st=trancheScheduleTotals(sel, cardAsOf);   // плитки — по выбранному траншу, как версии и позиции ниже
+    const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
+    const verRows=((sel&&sel.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver).map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td><td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`);
+    /* Статус позиции — от построенного расчёта (d.ledger.index), а не от засеянных строк */
+    const posRows=(sel?trancheScheduleRows(sel):[]).map(r=>{
+      const s=scheduleRowStatus(r, d.ledger.index.get(ledgerKey(sel.no, r.no)), cardAsOf);
+      return `<tr><td>№${r.no}</td><td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td>${(r.accrued!=null&&Math.abs(r.accrued-r.interest)>0.005)?`<td style="text-align:right" title="начислено за период, но не включено в платёж (льгота по %)">${money(r.accrued)}</td>`:'<td style="text-align:right">—</td>'}<td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
+    return `
+      ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: тот же признак, что на «Условиях»
+        return `<div class="warn-inline">${svgInfo()}<div>
+          Условия изменены задним числом (с ${esc(rf[0].effectiveFrom)}, ${esc(rf[0].basisLabel)}).
+          Действующая версия графика построена по прежним условиям — сформируйте заново (Д-5).</div></div>`; })()}
+      <div class="section-h">График погашения</div>
+      <div class="gtoolbar">
+        <div class="field" style="max-width:320px"><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <span class="spacer"></span>
+        ${actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()','btn btn-primary btn-sm')}
+      </div>
+      <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
+        <div class="dim"><div class="dl">Платежей в графике</div><div class="dv">${st.count}</div></div>
+        <div class="dim" title="метод погашения — ${esc(st.method)}"><div class="dl">${esc(st.payLabel)}</div><div class="dv">${esc(st.payValue)}</div></div>
+        <div class="dim"><div class="dl">Σ основной долг</div><div class="dv">${money(st.principalSum)}</div></div>
+        <div class="dim"><div class="dl">Σ проценты</div><div class="dv">${money(st.interestSum)}</div></div>
+        <div class="dim"><div class="dl">Итого к погашению</div><div class="dv">${money(st.total)}</div></div>
+      </div>
+      <div class="section-h" style="margin-top:22px">Версии графика (транш №${sel?sel.no:'—'})</div>
+      ${cgrid([{h:'Версия'},{h:'Статус'},{h:'От даты'},{h:'Строк',r:1}], verRows, {empty:'Версий графика нет — сформируйте'})}
+      <div class="section-h" style="margin-top:22px">График — позиции (транш №${sel?sel.no:'—'})</div>
+      ${cgrid([{h:'№'},{h:'Дата'},{h:'Осн. сумма',r:1},{h:'Проценты в платеже',r:1},{h:'Начислено %',r:1},{h:'Платёж',r:1},{h:'Статус'}], posRows, {empty:'Позиций нет — сформируйте график'})}`;
+  }
+
+  /* ---- ВКЛАДКА 5: Прогноз (ADR-0042, Р-29) ----
+     Выделен из «Графика» волной 03.08.2026 (вторая). Причина та же, по которой сам
+     график был выделен из «Расчётов»: на одной вкладке лежали два разных предмета —
+     КОНТРАКТ транша (версии, позиции: что обязаны вернуть) и ОЖИДАНИЕ по нему (те же
+     даты, пересчитанные суммы: что соберём на самом деле). Первое хранится и меняется
+     действием, второе выводится при каждом рендере и не хранится вовсе.
+     Гранулярность — транш (Р-1), селектор общий с «Траншами»/«Графиком»/«Расчётами»
+     (detailTrancheNo). Помесячный прогноз по кредиту целиком — во вкладке «План»,
+     колонкой рядом с планом: там он служит ориентиром при постановке цели. */
+  function tabPrognoz(c,d){
+    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
+    const fr = sel ? trancheForecastRows(sel, d.ledger.index, cardAsOf) : [];
+    const fut = fr.filter(r=>!r.past), past = fr.filter(r=>r.past);
+    const futSum   = round2(fut.reduce((a,r)=>a+r.forecast,0));
+    const futSched = round2(fut.reduce((a,r)=>a+r.scheduled,0));
+    const tail     = round2(past.reduce((a,r)=>a+r.forecast,0));   // непокрытый хвост прошлого
+    const dl       = round2(futSum - futSched);
+    const nxt = fut[0];
+    const rws = fr.map(r=>{
+      const s = scheduleRowStatus({date:r.date}, d.ledger.index.get(ledgerKey(sel.no, r.no)), cardAsOf);
+      const rd = r.delta;
+      return `<tr${r.past?' class="text-muted"':''}><td>№${r.no}</td><td>${esc(r.date)}</td>
+        <td style="text-align:right">${money(r.scheduled)}</td>
+        <td style="text-align:right"><b>${money(r.forecast)}</b></td>
+        <td style="text-align:right;color:${Math.abs(rd)>0.005?(rd>0?'var(--asubk-red)':'var(--text-muted)'):'inherit'}">${Math.abs(rd)>0.005?(rd>0?'+':'')+money(rd):'—'}</td>
+        <td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
+    return `
+      <div class="section-h">Прогноз ${derivedHtml()}</div>
+      <p class="section-note">Прогноз — предположение о том, как график сложится <b>фактически</b>: даты те же,
+        суммы пересчитаны от остатка основного долга на дату среза и непокрытого хвоста прошлого.
+        Контракт он не подменяет (сам контракт — во вкладке «График»), в начислении не участвует
+        и в исполнение плана не входит — исполнение сверяет факт с <b>планом</b> (ADR-0042).
+        Весь непокрытый хвост прошлых позиций отнесён к ближайшей будущей. Ничего не хранится:
+        таблица строится заново при каждом рендере (Д-9 — порядок сумм, не банковская копейка).</p>
+      <div class="gtoolbar">
+        <div class="field" style="max-width:320px"><span class="flabel">Транш</span><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+      </div>
+      <div class="phead-dims" style="grid-template-columns:repeat(4,1fr);margin-top:6px">
+        <div class="dim"><div class="dl">Ждём впереди</div><div class="dv">${money(futSum)}</div><div class="src">${fut.length} позиц. после ${esc(cardAsOf)}</div></div>
+        ${/* не «Ближайший платёж»: так называется плитка шапки, а там — сумма ПО ГРАФИКУ
+              ближайшей ненаступившей позиции. Здесь — прогноз по ближайшей БУДУЩЕЙ, и в него
+              свален весь непокрытый хвост прошлого: цифры разные по построению. */''}
+        <div class="dim"><div class="dl">Ждём ближайшим платежом</div><div class="dv">${nxt?money(nxt.forecast):'—'}</div><div class="src">${nxt?esc(nxt.date)+' · позиция №'+nxt.no+(tail>0.005?' · включая хвост '+money(tail):''):'будущих позиций нет'}</div></div>
+        <div class="dim"><div class="dl">Непокрытый хвост прошлого</div><div class="dv" style="color:${tail>0.005?'var(--asubk-red)':'inherit'}">${money(tail)}</div><div class="src">отнесён к ближайшей будущей позиции</div></div>
+        <div class="dim"><div class="dl">Отклонение от графика</div><div class="dv" style="color:${Math.abs(dl)>0.005?(dl>0?'var(--asubk-red)':'var(--text-muted)'):'inherit'}">${Math.abs(dl)>0.005?(dl>0?'+':'')+money(dl):'—'}</div><div class="src">по будущим позициям</div></div>
+      </div>
+      <div class="section-h" style="margin-top:22px">Прогноз — позиции (транш №${sel?sel.no:'—'})</div>
+      ${cgrid([{h:'№'},{h:'Дата'},{h:'По графику',r:1},{h:'Прогноз',r:1},{h:'Δ',r:1},{h:'Статус'}], rws,
+        {empty:'Графика нет — прогнозировать нечего'})}`;
+  }
+
+  /* ---- ВКЛАДКА 6: Расчёты ---- */
   function tabRaschety(c,d){
     const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
-    const st=d.scheduleTotals;
     const cur=c.currency, isFx=cur!=='KGS', fx=FX[cur]||1;
     const repaid=DEBT_ARTICLES.reduce((a,x)=>a+d.debt[x.key].paid,0);
     const svod=`
@@ -5783,7 +6152,6 @@ if (typeof document !== 'undefined') {
         ${d.debt.penalty.disputed>0?`<tr><td>Спорная пеня</td><td colspan="4" class="text-muted" style="font:var(--font-label)">пеня за период сторнированного платежа: вычислена, но до решения комиссии в требование не входит и категорию не двигает</td><td style="text-align:right">${money(d.debt.penalty.disputed)}</td></tr>`:''}
         ${d.overpay.total>0?`<tr><td>Переплата</td><td colspan="4" class="text-muted" style="font:var(--font-label)">разнесено больше, чем начислено${d.overpay.interest>0?' (проценты '+money(d.overpay.interest)+')':''} — идёт обратной очередью ОД → проценты → штрафы → возврат заёмщику; правило принадлежит модулю платежей</td><td style="text-align:right">${money(d.overpay.total)}</td></tr>`:''}
       </tbody></table></div>`;
-    const verRows=((sel&&sel.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver).map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td><td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`);
     /* Детальный расчёт СТРОИТСЯ (ADR-0010): позиции графика, наступившие на дату среза,
        с разнесением подтверждённых погашений и начислением пени. Прежде грид читал
        засеянный ledger, в котором у всех кредитов была ровно одна строка (КР-8). */
@@ -5812,55 +6180,22 @@ if (typeof document !== 'undefined') {
       <p class="section-note">Начисляется на недоосвоенный остаток от плановой даты (ставка ${res.rate}%). Всего: <b>${money(res.totalAmount)}</b> на базу ${money(res.totalBase)}.</p>
       ${cgrid([{h:'Транш'},{h:'База',r:1},{h:'Ставка, %',r:1},{h:'Дней',r:1},{h:'Сумма',r:1}], res.perTranche.map(p=>`<tr><td>${esc(p.trancheId)}</td><td style="text-align:right">${money(p.base)}</td><td style="text-align:right">${esc(p.rate)}</td><td style="text-align:right">${esc(p.days)}</td><td style="text-align:right">${money(p.amount)}</td></tr>`))}`:'';
     const bc=c.baseConditions;                                   // шаг 14: метод дней + очередь погашения переехали сюда из «Условий»
-    const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
-    /* Статус позиции — от построенного расчёта (d.ledger.index), а не от засеянных строк */
-    const posRows=(sel?trancheScheduleRows(sel):[]).map(r=>{
-      const s=scheduleRowStatus(r, d.ledger.index.get(ledgerKey(sel.no, r.no)), cardAsOf);
-      return `<tr><td>№${r.no}</td><td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td>${(r.accrued!=null&&Math.abs(r.accrued-r.interest)>0.005)?`<td style="text-align:right" title="начислено за период, но не включено в платёж (льгота по %)">${money(r.accrued)}</td>`:'<td style="text-align:right">—</td>'}<td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
     return `
       ${svod}
       ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: тот же признак, что на «Условиях»
         return `<div class="warn-inline" style="margin-top:14px">${svgInfo()}<div>
           Условия изменены задним числом (с ${esc(rf[0].effectiveFrom)}, ${esc(rf[0].basisLabel)}).
-          Расчёт ниже построен по прежним условиям — сформируйте график заново (Д-5).</div></div>`; })()}
-      <div class="section-h" style="margin-top:22px">График погашения</div>
-      <div class="gtoolbar">
+          Расчёт ниже построен по прежним условиям — сформируйте график заново (Д-5).
+          <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm"
+            onclick="CR.goToSchedule()">Перейти к графику</button></div></div></div>`; })()}
+      <div class="section-h" style="margin-top:22px">Детальный расчёт ${calcConsolidated?'(консолидировано)':'(транш №'+(sel?sel.no:'—')+')'}</div>
+      <p class="section-note">Начисление разложено по позициям <b>плана</b> — сам план (версии, позиции)
+        живёт во вкладке «График», ожидание по нему — во вкладке «Прогноз». Параметры движка — те же, что и на вкладке «Условия», читаются вместе
+        с цифрами, которые объясняют. Это условия договора: правка — только зарегистрированным основанием.</p>
+      <div class="gtoolbar" style="margin-bottom:12px">
         <div class="field" style="max-width:320px"><span class="flabel">Транш</span><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
         <div class="retro-toggle" onclick="CR.setCalcMode(${!calcConsolidated})"><input type="checkbox" ${calcConsolidated?'checked':''} onclick="event.preventDefault()"> консолидировано по кредиту</div>
-        <span class="spacer"></span>
-        ${actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()','btn btn-primary btn-sm')}
       </div>
-      <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
-        <div class="dim"><div class="dl">Платежей в графике</div><div class="dv">${st.count}</div></div>
-        <div class="dim"><div class="dl">Регулярный платёж</div><div class="dv">${money(st.regularPay)}</div></div>
-        <div class="dim"><div class="dl">Σ основной долг</div><div class="dv">${money(st.principalSum)}</div></div>
-        <div class="dim"><div class="dl">Σ проценты</div><div class="dv">${money(st.interestSum)}</div></div>
-        <div class="dim"><div class="dl">Итого к погашению</div><div class="dv">${money(st.total)}</div></div>
-      </div>
-      <div class="section-h" style="margin-top:22px">Версии графика (транш №${sel?sel.no:'—'})</div>
-      ${cgrid([{h:'Версия'},{h:'Статус'},{h:'От даты'},{h:'Строк',r:1}], verRows, {empty:'Версий графика нет — сформируйте'})}
-      <div class="section-h" style="margin-top:22px">График — позиции (транш №${sel?sel.no:'—'})</div>
-      ${cgrid([{h:'№'},{h:'Дата'},{h:'Осн. сумма',r:1},{h:'Проценты в платеже',r:1},{h:'Начислено %',r:1},{h:'Платёж',r:1},{h:'Статус'}], posRows, {empty:'Позиций нет — сформируйте график'})}
-      <div class="section-h" style="margin-top:22px">Прогноз (транш №${sel?sel.no:'—'}) ${derivedHtml()}</div>
-      <p class="section-note">Прогноз — предположение о том, как график сложится <b>фактически</b>: даты те же,
-        суммы пересчитаны от остатка основного долга на дату среза и непокрытого хвоста прошлого.
-        Контракт он не подменяет, в начислении не участвует и в исполнение плана не входит — исполнение
-        сверяет факт с <b>планом</b> (ADR-0042). Весь непокрытый хвост прошлых позиций отнесён к ближайшей будущей.</p>
-      ${(()=>{ const fr = sel ? trancheForecastRows(sel, d.ledger.index, cardAsOf) : [];
-        const rws = fr.map(r=>{
-          const s = scheduleRowStatus({date:r.date}, d.ledger.index.get(ledgerKey(sel.no, r.no)), cardAsOf);
-          const dl = r.delta;
-          return `<tr${r.past?' class="text-muted"':''}><td>№${r.no}</td><td>${esc(r.date)}</td>
-            <td style="text-align:right">${money(r.scheduled)}</td>
-            <td style="text-align:right"><b>${money(r.forecast)}</b></td>
-            <td style="text-align:right;color:${Math.abs(dl)>0.005?(dl>0?'var(--asubk-red)':'var(--text-muted)'):'inherit'}">${Math.abs(dl)>0.005?(dl>0?'+':'')+money(dl):'—'}</td>
-            <td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
-        return cgrid([{h:'№'},{h:'Дата'},{h:'По графику',r:1},{h:'Прогноз',r:1},{h:'Δ',r:1},{h:'Статус'}], rws,
-          {empty:'Графика нет — прогнозировать нечего'});
-      })()}
-      <div class="section-h" style="margin-top:22px">Детальный расчёт ${calcConsolidated?'(консолидировано)':'(транш №'+(sel?sel.no:'—')+')'}</div>
-      <p class="section-note">Параметры движка — те же, что и на вкладке «Условия», читаются вместе с цифрами, которые объясняют.
-        Это условия договора: правка — только зарегистрированным основанием.</p>
       <div class="f2" style="max-width:760px;margin-bottom:12px">
         ${fld('Метод дней', esc(sel ? conditionsAt(sel, cardAsOf).dayMethod : bc.dayMethod))}
         ${fld('Очередь погашения', esc(bc.queue))}
@@ -5869,7 +6204,7 @@ if (typeof document !== 'undefined') {
       ${resBlock}`;
   }
 
-  /* ---- ВКЛАДКА 5: Платежи (зеркало модуля платежей, Р-5) ---- */
+  /* ---- ВКЛАДКА 7: Платежи (зеркало модуля платежей, Р-5) ---- */
   function tabPlatezhi(c,d){
     const pays=(c.mirror.payments||[]);
     const ptot={amount:0,principal:0,interest:0,penalty:0};
@@ -5935,9 +6270,13 @@ if (typeof document !== 'undefined') {
       </div>`;
   }
 
-  /* ---- ВКЛАДКА 6: План и исполнение (ADR-0042) ----
+  /* ---- ВКЛАДКА 8: План (ADR-0042) ----
      План — единственная ВВОДИМАЯ величина среди трёх ориентиров, и это явное исключение
-     из ADR-0001, поэтому подписано прямо на вкладке. Исполнение и прогноз — производные. */
+     из ADR-0001, поэтому подписано прямо на вкладке. Исполнение и прогноз — производные.
+     Имя вкладки сокращено до «План» волной 03.08.2026 (вторая): исполнение — не второй
+     предмет вкладки, а способ прочитать план, и двойное имя ставило его вровень с планом.
+     Прогноз здесь остаётся КОЛОНКОЙ — ориентиром при постановке цели (предзаполнение формы,
+     ADR-0042 §2); сам прогноз как предмет живёт на своей вкладке, гранулярностью транша. */
   function tabPlan(c,d){
     const pe  = (planYear === d.planExec.year) ? d.planExec : planExecOf(c, cardAsOf, d.ledger.index, planYear);
     const cur = c.currency;
@@ -5978,14 +6317,16 @@ if (typeof document !== 'undefined') {
       <td style="text-align:right">${money(pe.total.fact)}</td>
       <td style="text-align:right">${pctPill(pe.total.pct)}</td></tr>`);
     return `
-      <div class="section-h">План и исполнение ${derivedHtml()}</div>
+      <div class="section-h">План и его исполнение ${derivedHtml()}</div>
       <p class="section-note">План — <b>вводимая</b> величина: цель на месяц, поставленная в момент N, и от прогноза
         после сохранения она не зависит (ADR-0042). Это единственное исключение из правила «производные не хранятся».
         Исполнение — производная: факт месяца / план месяца, по всем четырём статьям долга кредита;
         расходы по обращению взыскания в факт не входят. <b>Месяц без плана в расчёт не входит</b> — ни сам,
         ни в квартальной, ни в годовой сумме. <b>Ненаступивший месяц процента не имеет</b>: его нулевой факт означает
         «срок не подошёл», а не «ничего не собрали», — поэтому в процент квартала и года он не входит, а его план
-        подписан отдельно («впереди»). Показатель для отображения: на категорию риска, гейты и подгруппу не влияет (И-18).</p>
+        подписан отдельно («впереди»). Показатель для отображения: на категорию риска, гейты и подгруппу не влияет (И-18).
+        Колонка «Прогноз» здесь — ориентир при постановке цели (им же предзаполняется форма): помесячная сумма
+        по кредиту целиком. Сам прогноз, с разбором по позициям транша, — во вкладке «Прогноз».</p>
       <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
         ${dimTile(`План за ${pe.year}`, pe.total.plan?money(pe.total.plan):'—',
           esc(cur) + (pe.total.planAhead?` · впереди ${money(pe.total.planAhead)}`:''))}
@@ -6005,9 +6346,16 @@ if (typeof document !== 'undefined') {
       ${cgrid([{h:'Период'},{h:'План',r:1},{h:'Факт',r:1},{h:'Исполнение',r:1}], qRows)}`;
   }
 
-  /* ---- ВКЛАДКА 7: Обеспечение (зеркало залогового модуля, Р-7) ---- */
+  /* ---- ВКЛАДКА 9: Обеспечение (зеркало залогового модуля, Р-7) ---- */
   function tabObespechenie(c,d){
     const cov=d.coverage, light=cov.ok?'var(--asubk-green)':'var(--asubk-red)';
+    /* Волна 03.08.2026 (КР-56): оба основания освобождения от порога — owned-поля кредита, живут во вкладке
+       «Договор» (Р-8: владение только там). Но ЧИТАЮТ их здесь: порог в плитке подписан
+       «по решению КМ» без номера решения, а waiver до этой волны не выводился вообще
+       (КР-56) — экран показывал красный статус и молчал о том, почему освоение прошло.
+       Ниже — read-only выжимка со ссылкой на владельца; правка остаётся в «Договоре». */
+    const km=c.kmDecision, wv=c.pledgeWaiver;
+    const waiverActive = !!wv && !cov.ok;             // waiver значим ровно тогда, когда порог не пройден
     const pledgeList=(c.mirror.pledges||[]);
     const pledgeRows=[];
     let sumAppr=0, sumPledge=0;
@@ -6049,12 +6397,22 @@ if (typeof document !== 'undefined') {
         <div class="dim"><div class="dl">Индекс обеспеченности</div><div class="dv"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${light};margin-right:6px"></span>${cov.index==null?'—':Math.round(cov.index*100)+'%'}</div>
           ${cov.idxGuar?`<div class="src">залог ${Math.round(cov.idxPledge*100)}% + гарантия ${Math.round(cov.idxGuar*100)}%</div>`
                        :(cov.ratio!=null?`<div class="src">отношение залоговой к базе ${Math.round(cov.ratio*100)}%</div>`:'')}</div>
-        <div class="dim"><div class="dl">Порог</div><div class="dv">${cov.req==null?'—':cov.req+'%'}</div>${cov.reqFromKm?'<div class="src">по решению КМ</div>':''}${cov.gReq?`<div class="src">гарантия — ${cov.gReq}%${cov.gReq>100?' (иная валюта)':''}</div>`:''}</div>
+        <div class="dim"><div class="dl">Порог</div><div class="dv">${cov.req==null?'—':cov.req+'%'}</div>${cov.reqFromKm?`<div class="src">по решению КМ${km&&km.num?' '+esc(km.num):''}${km&&km.date?' от '+esc(km.date):''}</div>`:''}${cov.gReq?`<div class="src">гарантия — ${cov.gReq}%${cov.gReq>100?' (иная валюта)':''}</div>`:''}</div>
         ${cov.liqApplies?`<div class="dim"><div class="dl">Доля ликвида</div><div class="dv" style="color:${cov.liqOk?'inherit':'var(--danger,#b3261e)'}">${Math.round(cov.liqShare*100)}%</div><div class="src">минимум ${cov.liqMin}% суммы под риском</div></div>`:''}
         <div class="dim"><div class="dl">Сумма под риском</div><div class="dv">${money(d.atRisk)}</div><div class="src">остаток ОД ${money(d.debt.principal.bal)} + не освоено ${money(Math.max(0,d.undisbursed))}</div></div>
-        <div class="dim"><div class="dl">Статус</div><div class="dv" style="color:${light}">${!cov.applicable?'неприменима':cov.ok?'достаточно':(cov.covOk===false?'недостаточно':'состав не соответствует')}</div></div>
+        <div class="dim"><div class="dl">Статус</div><div class="dv" style="color:${light}">${!cov.applicable?'неприменима':cov.ok?'достаточно':(cov.covOk===false?'недостаточно':'состав не соответствует')}</div>${
+          /* Волна 03.08.2026: статус остаётся красным — обеспеченности действительно нет. Waiver
+             не делает её достаточной, он снимает БЛОКИРОВКУ Г-6/Г-7; подкрашивать плитку
+             зелёным значило бы врать о составе обеспечения. */
+          waiverActive?'<div class="src">гейт снят waiver’ом комиссии — освоение и регистрация возможны</div>':''}</div>
       </div>
       <div class="mirror-src">${esc(cov.source)}${cov.mirror?` · залоговая ${money(cov.mirror.pledgeValue)} (ликвид ${money(cov.mirror.liquidValue)} · неликвид ${money(cov.mirror.illiquidValue)})${cov.mirror.bankGuarantee?` + банковская гарантия ${money(cov.mirror.bankGuarantee)} при своём пороге ${cov.mirror.guaranteeReq}%`:''} · снимок ${esc(cov.mirror.asOf)}`:''}</div>
+      ${(km||wv)?`<div class="section-h" style="margin-top:22px">Основания освобождения от порога</div>
+        <p class="section-note">Собственные поля кредита (Р-8), а не данные модуля залога: и решение КМ, и waiver принимает кредитор. Здесь они только читаются — правка во вкладке «Договор».</p>
+        ${km?`<div class="f2">${fld('Решение КМ', esc(km.kind||'Решение КМ')+' '+esc(km.num||'')+(km.date?' от '+esc(km.date):''))}${fld('Порог по решению', km.coverPct==null?null:(esc(km.coverPct)+' %'+(+km.coverPct===0?' — полное освобождение от порога':'')))}${fld('Скан', km.scan?`<a class="lnk" onclick="CR.toast('Просмотр вложения — вне объёма макета');return false">${esc(km.scan)}</a>`:null)}</div>`:''}
+        ${wv?`<div class="f2"${km?' style="margin-top:10px"':''}>${fld('Waiver комиссии по залогу',
+            'выдан '+esc(wv.when)+(waiverActive?' <span class="pill info">применён</span>':' <span class="pill neutral">не требуется — порог пройден</span>'))}${fld('Обоснование', esc(wv.reason), {span:true, wrap:true})}</div>`:''}
+        <div class="gtoolbar" style="margin-top:6px"><button class="btn btn-secondary btn-sm" onclick="CR.openTab('Договор')">Изменить во вкладке «Договор»</button></div>`:''}
       ${bg?`<div class="section-h" style="margin-top:22px">Банковская гарантия (в индексе, со своим порогом)</div>
         <div class="f2">${fld('Банк',esc(bg.bank))}${fld('Сумма',money(bg.amount))}${fld('Валюта гарантии',esc(bg.currency||c.currency||'KGS'))}${fld('Действует до',esc(bg.till))}</div>
         <div class="mirror-src">Порог гарантии ${cov.mirror&&cov.mirror.guaranteeReq?cov.mirror.guaranteeReq:100} % — ${(bg.currency||c.currency||'KGS')===(c.currency||'KGS')?'валюта гарантии совпадает с валютой кредита':'валюта гарантии отличается от валюты кредита, порог с курсовым запасом'}.${cov.mirror&&cov.mirror.guaranteeExpired?' Срок гарантии истёк — в индекс не входит.':''}</div>`:''}
@@ -6070,7 +6428,7 @@ if (typeof document !== 'undefined') {
       </div>`;
   }
 
-  /* ---- ВКЛАДКА 8: Проблемные ---- */
+  /* ---- ВКЛАДКА 10: Проблемные ---- */
   function tabProblemnye(c,d){
     /* КР-6 · вкладка БОЛЬШЕ НЕ СЧИТАЕТ категорию сама. Прежде она пересчитывала worst-of
        своими двумя строками и не применяла послабление: у K-C16 (220 дн.) и K-C19 (210 дн.)
@@ -6156,7 +6514,7 @@ if (typeof document !== 'undefined') {
       </div>`;
   }
 
-  /* ---- ВКЛАДКА 9: Досье ---- */
+  /* ---- ВКЛАДКА 11: Досье ---- */
   function docState(s){
     const map={'принят':'low','не требуется':'neutral','на проверке':'info','загружен':'info','требуется':'mid','отклонён':'high','просрочен':'high'};
     return `<span class="pill ${map[s]||'neutral'}">${esc(s||'—')}</span>`;
@@ -6243,10 +6601,12 @@ if (typeof document !== 'undefined') {
     switch(name){
       case 'Договор': return tabDogovor(c, d);
       case 'Условия': return tabUsloviya(c, d);
-      case 'Транши и освоение': return tabTranshi(c, d);
+      case 'Транши': return tabTranshi(c, d);
+      case 'График': return tabGrafik(c, d);
+      case 'Прогноз': return tabPrognoz(c, d);
       case 'Расчёты': return tabRaschety(c, d);
       case 'Платежи': return tabPlatezhi(c, d);
-      case 'План и исполнение': return tabPlan(c, d);
+      case 'План': return tabPlan(c, d);
       case 'Обеспечение': return tabObespechenie(c, d);
       case 'Проблемные': return tabProblemnye(c, d);
       case 'Досье': return tabDosye(c, d);
@@ -6268,10 +6628,12 @@ if (typeof document !== 'undefined') {
   CR.selectDetailTranche=function(no){ detailTrancheNo=no; rerenderDetail(); };
   CR.setCondScope=function(v){ condScope = (v==='credit'?'credit':+v); rerenderDetail(); };
   CR.setCondFilter=function(v){ condBasisFilter=v; rerenderDetail(); };
-  CR.toggleCondGroup=function(ref){ condOpenGroup = (condOpenGroup===ref?null:ref); rerenderDetail(); };
+  CR.toggleCondGroup=function(ref){ condOpenGroup = (condOpenGroup===ref?null:ref); condOpenTranche = null; rerenderDetail(); };
+  CR.setCondTranche=function(n){ condOpenTranche = +n; rerenderDetail(); };
   CR.toggleCondMatrix=function(){ condMatrixOpen=!condMatrixOpen; rerenderDetail(); };
+  CR.setCondMatrixTranche=function(n){ condMatrixTranche=+n; rerenderDetail(); };
   CR.toggleCondTemplate=function(){ condTemplateOpen=!condTemplateOpen; rerenderDetail(); };
-  CR.goToCalc=function(){ detailTab='Расчёты'; rerenderDetail(); };
+  CR.goToSchedule=function(){ detailTab='График'; rerenderDetail(); };   // Д-5: перегенерация живёт на «Графике» (волна 03.08.2026)
   /* §0.3 «не молча»: маска дд.мм.гггг пропускала 99.99.9999 и молча подменяла дату
      срезом «сегодня». Круговая проверка fd(pd(s))===s ловит и маску, и несуществующий
      день (31.02.2026 → 03.03.2026 ≠ ввод), отказ объявляется тостом. */
@@ -7004,6 +7366,7 @@ if (typeof document !== 'undefined') {
   CR._sel = null;
   CR.renderList = renderList; CR.renderRows = renderRows; CR.renderRole = renderRole;
   CR.onRegionChange = onRegionChange; CR.resetFilters = resetFilters; CR.sortList = sortList;
+  CR.toggleFilters = toggleFilters; CR.clearFilter = clearFilter;
   CR.gotoPage = gotoPage; CR.setPageSize = setPageSize;
   CR.selectRow = selectRow; CR.openDetail = openDetail; CR.backToList = backToList;
   CR.resetDemo = resetDemo; CR.openCreatePicker = openCreatePicker; CR.pickApplication = pickApplication;
@@ -7018,7 +7381,7 @@ if (typeof document !== 'undefined') {
   });
 
   renderNav();
-  renderList();          // реестр §5.1 (Р-19); карточка (9 вкладок) — Task 7
+  renderList();          // реестр §5.1 (Р-19); карточка (11 вкладок) — Task 7
   openFromHash();        // восстановить экран (кредит+вкладка) после F5 — по location.hash
   window.addEventListener('hashchange', openFromHash);
 }

@@ -530,7 +530,10 @@ const pd = CR.pd;
    обеспеченности. Освоенный кредит обязан удовлетворять Г-6 — или нести waiver. */
 (() => { const db = CR.seedDb();
   const bad = db.credits.filter(c => { const d = CR.derive(c);
-    return c.lifecycle !== 'Закрыт' && d.disbursed > 0 && !d.coverage.ok && !c.mirror.pledgeWaiver; });
+    /* волна 03.08.2026 (КР-57): waiver — owned-поле кредита, а не mirror.*. Читать его
+       из зеркала теперь значит «waiver нет никогда» — инвариант стал бы строже правила
+       и объявлял бы нарушителем законно разблокированный кредит. */
+    return c.lifecycle !== 'Закрыт' && d.disbursed > 0 && !d.coverage.ok && !c.pledgeWaiver; });
   ok(42, bad.length === 0,
      `нарушителей=${bad.length} ${bad.map(c=>{const d=CR.derive(c);return c.id+':'+(d.coverage.index==null?'нет зеркала':Math.round(d.coverage.index*100)+'%');}).join(',')}`);
 })();
@@ -931,8 +934,13 @@ const pd = CR.pd;
 
   /* список дублирует DTABS макета вручную и уже разошёлся с ним один раз: девятую
      вкладку («План и исполнение») в волне 01.08.2026 сюда не добавили, и она не
-     попадала под проверку рендера вовсе */
-  const TABS = ['Договор','Условия','Транши и освоение','Расчёты','Платежи','План и исполнение','Обеспечение','Проблемные','Досье'];
+     попадала под проверку рендера вовсе. Поэтому ниже — не только рендер, но и сверка
+     состава: ожидаемый список против DTABS макета, чтобы расхождение падало тестом. */
+  const TABS = ['Договор','Условия','Транши','График','Прогноз','Расчёты','Платежи','План','Обеспечение','Проблемные','Досье'];
+  const dtabs = (()=>{ const mm = readFileSync(HTML,'utf8').match(/const DTABS\s*=\s*\[([^\]]*)\]/);
+    return mm ? mm[1].split(',').map(s=>s.trim().replace(/^'|'$/g,'')) : null; })();
+  ok('53a', dtabs && dtabs.join('|') === TABS.join('|'),
+     dtabs ? `DTABS=${dtabs.length}: ${dtabs.join(' · ')}` : 'DTABS не найден в исходнике');
   const bad = [];
   for (const c of CR2.db.credits) for (const t of TABS){
     let html;
@@ -1211,6 +1219,24 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   const hasOpen = /CR\.openDropPlanModal\s*=/.test(src) && /CR\.submitDropPlan\s*=/.test(src);
   const wired   = /CR\.openDropPlanModal\('/.test(src) && /CR\.submitDropPlan\('/.test(src);
   ok(95, hasBtn && hasOpen && wired, `кнопка=${hasBtn} обработчики=${hasOpen} связаны=${wired}`);
+})();
+
+/* 96. WAIVER ВИДЕН, А НЕ ТОЛЬКО ДЕЙСТВУЕТ (КР-56/КР-57, волна 03.08.2026). Второй
+   разблок Г-6/Г-7 писался в модель и читался ТОЛЬКО гейтом: ни одной точки вывода
+   на 59 кредитов — освоение проходило при красной обеспеченности без объяснения.
+   Проверяем обе половины дефекта: владение (поле на кредите, не в зеркале модуля
+   залога, который его не отдаёт) и вывод (обе вкладки печатают его из этого поля). */
+(() => { const src = readFileSync(HTML, 'utf8'); const db = CR.seedDb();
+  const c = byId(db,'K-5');
+  CR.saveWaiver(c, { reason:'комиссия по залогу, протокол №9' });
+  const owned  = !!c.pledgeWaiver && !(c.mirror && c.mirror.pledgeWaiver);   // переехал, а не скопирован
+  const seeded = db.credits.some(x => x.pledgeWaiver) && !db.credits.some(x => x.mirror && x.mirror.pledgeWaiver);
+  const gated  = !/mirror\s*&&\s*\w+\.mirror\.pledgeWaiver/.test(src);       // гейты не читают зеркало
+  /* оба места вывода: карточка «Договора» и раздел «Обеспечения» */
+  const shownDogovor = /const km=c\.kmDecision,\s*wv=c\.pledgeWaiver/.test(src) && /Освобождение от порога обеспечения/.test(src);
+  const shownObesp   = /Основания освобождения от порога/.test(src) && /гейт снят waiver/.test(src);
+  ok(96, owned && seeded && gated && shownDogovor && shownObesp,
+     `owned=${owned} сид=${seeded} гейты=${gated} «Договор»=${shownDogovor} «Обеспечение»=${shownObesp}`);
 })();
 
 const pass = results.filter(r => r.pass).length;

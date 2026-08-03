@@ -28,7 +28,7 @@ const row1 = await page.$$eval('#regBody tr:first-child td', tds => tds.map(t =>
 const pager = await page.$eval('#regPager', el => el.innerText.replace(/\s+/g, ' '));
 
 // развернуть фильтр
-await page.click('.filter-head');
+await page.click('#btnFilters');
 await page.waitForTimeout(200);
 await page.screenshot({ path: `${OUT}/02-filter-open.png` });
 
@@ -36,26 +36,26 @@ await page.screenshot({ path: `${OUT}/02-filter-open.png` });
 await page.selectOption('#fRegion', 'Чуйская');
 await page.waitForTimeout(200);
 const districts = await page.$$eval('#fDistrict option', os => os.map(o => o.textContent));
-const afterRegion = await page.$eval('#regCount', el => el.textContent);
+const afterRegion = await page.$eval('.pager .pinfo', el => el.textContent);
 await page.screenshot({ path: `${OUT}/03-cascade.png` });
 
 // сбросить, проверить бейдж и пагинацию
-await page.click('.filter-body .filter-bar .btn');
+await page.click('#filterBody .filter-actions .btn');
 await page.waitForTimeout(200);
-await page.click('.filter-head');            // свернуть
+await page.click('#btnFilters');            // свернуть
 await page.selectOption('#regPager select', '10').catch(() => {});
 await page.waitForTimeout(200);
 
 // поиск по ИНН
-await page.click('.filter-head');
+await page.click('#btnFilters');
 await page.fill('#fQ', 'Нарын');
 await page.waitForTimeout(200);
-const qHits = await page.$eval('#regCount', el => el.textContent);
+const qHits = await page.$eval('.pager .pinfo', el => el.textContent);
 const badge = await page.$eval('#fBadge', el => ({ text: el.textContent, hidden: el.hidden }));
 await page.screenshot({ path: `${OUT}/04-search.png` });
 
 // вторая страница
-await page.click('.filter-body .filter-bar .btn');
+await page.click('#filterBody .filter-actions .btn');
 await page.waitForTimeout(200);
 let page2 = null;
 const p2 = await page.$('#regPager .pg:not(.dis):not(.active)');
