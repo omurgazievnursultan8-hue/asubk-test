@@ -732,7 +732,7 @@
   --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
   --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
   --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
-  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE; --asubk-gray-300:#D6DCE5;
   --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
   --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
   --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
@@ -852,12 +852,18 @@ a{ color:inherit; }
   display:inline-flex; align-items:center; justify-content:center; }
 .gear-btn:hover{ background:rgba(25,59,103,0.10); }
 
-/* ---- list: filter head + toolbar + tiles ---- */
-.filter-head{ display:flex; align-items:center; gap:6px; padding:12px 20px 4px; cursor:pointer;
-  font:var(--weight-medium) var(--text-base)/1.25 var(--asubk-font); color:rgba(27,43,65,0.69); user-select:none; }
-.filter-head .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5); transition:transform 120ms ease; }
-.filter-head.open .chev{ transform:rotate(90deg); }
-.tb-actions{ display:flex; align-items:center; gap:10px; padding:8px 20px 12px; flex-wrap:wrap; }
+/* ---- list: quick row + tiles ---- */
+/* Ярус 1 фильтра — единственная строка над реестром: поиск + ЖЦ + куратор слева,
+   «⚙ Фильтры» и «Создать кредит» прижаты вправо. Всегда видна: это то, чем пользуются
+   каждый вход в реестр, прятать за кликом нечего. Ширины — по содержимому контрола,
+   а не поровну (спека 03.08.2026); поиск фиксирован, свободное место уходит в разрыв
+   перед кнопками. */
+.tb-quick{ display:flex; align-items:flex-end; gap:10px; padding:8px 20px 10px; flex-wrap:wrap; }
+.tb-quick .field{ min-width:0; }
+.tb-quick .q-search{ width:340px; }
+.tb-quick .q-lifecycle{ width:168px; }
+.tb-quick .q-curator{ width:200px; }
+.tb-quick .q-more{ margin-left:auto; }
 .add-cond{ display:inline-flex; align-items:center; gap:6px; background:none; border:none; cursor:pointer;
   color:var(--text-link); font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); padding:0 4px; }
 .add-cond:hover{ text-decoration:underline; }
@@ -880,16 +886,20 @@ a{ color:inherit; }
 .tile .tl{ font:var(--font-label); color:var(--text-muted); margin-top:2px; }
 .tile.warn .tv{ color:var(--asubk-amber); }
 .tile.err  .tv{ color:var(--asubk-red); }
-.filter-body{ display:none; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px 16px; padding:6px 20px 14px; }
-.filter-head.open + .filter-body{ display:grid; }
+/* Ярус 2 — панель редких условий, свёрнута по умолчанию, раскрывается кнопкой «⚙ Фильтры».
+   Три равные колонки: строка «привязка» (область/район · программа · дата) над строкой
+   «риск» (просрочка · подгруппа · категория) и «проблемность» с кнопкой сброса. */
+.filter-body{ display:none; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px 16px; padding:6px 20px 14px; }
+.filter-body.open{ display:grid; }
 .filter-body .field{ min-width:0; }
 .range-pair{ display:flex; align-items:center; gap:8px; }
+.range-pair .control{ flex:1; min-width:0; }
 .range-pair input{ width:100%; height:var(--control-h); border-radius:var(--radius-md); background:var(--surface-input);
   color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium); border:1px solid transparent;
   outline:none; padding:0 var(--space-2); transition:box-shadow 120ms ease, border-color 120ms ease; }
 .range-pair input:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
-.filter-actions{ grid-column:1 / -1; display:flex; justify-content:flex-end; gap:10px; align-items:center; }
-.filter-chips{ display:flex; flex-wrap:wrap; gap:6px; padding:0 20px; }
+.filter-actions{ grid-column:2 / -1; display:flex; justify-content:flex-end; gap:10px; align-items:flex-end; }
+.filter-chips{ display:flex; flex-wrap:wrap; gap:6px; padding:0 20px 10px; }
 .filter-chips:empty{ display:none; }
 .fchip{ display:inline-flex; align-items:center; gap:4px; background:var(--asubk-blue-tint); color:var(--asubk-blue);
   border-radius:var(--radius-pill); padding:3px 4px 3px 10px; font:var(--font-label); }
@@ -897,51 +907,68 @@ a{ color:inherit; }
 .fchip button:hover{ background:rgba(255,255,255,0.5); }
 
 /* ---- grid (list) ---- */
+/* Визуальная система взята с живого грида заявок (vaadin-grid на fkftest, скрин
+   2026-08-03) — два реестра стоят рядом в одном конвейере и обязаны читаться как один
+   продукт. Отсюда: тёмная полужирная шапка 14px в предложном падеже (не капитель),
+   ↕ у КАЖДОЙ колонки всегда на виду, вертикальная линия между ВСЕМИ колонками,
+   фиксированные ширины колонок и обрезка длинного значения в «…».
+   Ширины заданы через <colgroup> и подобраны так, чтобы обрезка была страховкой,
+   а не нормой: «ОсОО "Кара-Балта-Металл"» помещается целиком. Полное значение
+   остаётся в title ячейки.
+   Своё, чего у живого грида нет: вторая строка ячейки (§Р-19, слияние 12 колонок в 8)
+   и правое выравнивание денег табличными цифрами — в реестре разряды обязаны стоять
+   в столбик, иначе суммы не сравнить глазом. */
 .grid-wrap{ padding:0 20px 20px; overflow:auto; }
-/* 8 колонок: минимальная ширина подобрана так, чтобы последняя колонка (ЖЦ договора)
-   была видна целиком без скролла, а на узких экранах включался скролл вместо молчаливой
-   обрезки текста в ellipsis. Было 1300px на двенадцати колонках — четыре слиты, порог ниже. */
-table.grid{ width:100%; min-width:1080px; border-collapse:collapse; font:var(--font-label);
-  border:1px solid var(--border-default); background:var(--surface-card); }
-table.grid thead th{ text-align:left; height:52px; padding:0 12px; background:var(--surface-card);
-  border-bottom:1px solid var(--asubk-grid-line);
-  font:var(--weight-medium) var(--text-sm)/1.375 var(--asubk-font); color:var(--text-body);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; user-select:none; vertical-align:middle; }
-table.grid thead th .sort{ color:var(--text-placeholder); margin-left:4px; font-size:11px; }
-table.grid tbody td{ height:35px; padding:0 12px; border-bottom:1px solid var(--asubk-grid-line);
-  color:var(--text-body); vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+table.grid{ width:100%; min-width:1194px; table-layout:fixed;
+  border-collapse:separate; border-spacing:0; font:var(--font-label); }
+table.grid thead th{ position:sticky; top:0; z-index:2; background:var(--asubk-gray-300);
+  text-align:left; padding:7px 12px; vertical-align:middle;
+  border-bottom:1px solid var(--border-strong);
+  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  cursor:pointer; user-select:none; }
+table.grid thead th .sort{ margin-left:4px; font-size:11px; color:var(--text-placeholder); }
+table.grid thead th.sorted{ color:var(--asubk-blue); }
+table.grid thead th.sorted .sort{ color:var(--asubk-blue); }
+table.grid tbody td{ padding:5px 12px; border-bottom:1px solid var(--border-default);
+  color:var(--text-body); vertical-align:top;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 table.grid tbody tr{ cursor:pointer; }
-table.grid tbody tr:hover{ background:var(--surface-hover); }
-table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+/* зебра — чётные строки очень светлой заливкой, чтобы взгляд не съезжал по строке */
+table.grid tbody tr:nth-child(even) td{ background:var(--asubk-gray-50); }
+/* ховер должен перебивать зебру — поэтому темнее и ниже по каскаду */
+table.grid tbody tr:hover td{ background:var(--asubk-gray-150); }
+table.grid tbody tr.sel td{ background:var(--asubk-nav-active); }
 .grid tbody tr.terminal td{ color:var(--text-muted); }
 .grid tbody tr.terminal td:first-child{ font-style:italic; }
-.grid td.overdue{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
-/* вторая строка в ячейке: ИНН/район, сумма просрочки, эквивалент в сомах */
-.grid td .sub{ display:inline-block; color:var(--text-muted); font-weight:var(--weight-regular); font-size:12px; line-height:1.3; }
+/* денежная ячейка */
+.grid td.num{ text-align:right; font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1; }
+.grid td.bal{ font-weight:var(--weight-medium); color:var(--text-heading); }
+.grid td.od .days{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
+.grid td.od .zero{ color:var(--text-placeholder); }
+/* главная строка ячейки-имени — как .cell-name у заявок */
+.grid td .cell-name{ font-weight:var(--weight-medium); color:var(--text-heading); }
+/* вторая строка в ячейке: дата, ИНН/район, куратор, эквивалент, подгруппа */
+.grid td .sub{ display:block; margin-top:1px; color:var(--text-muted);
+  font-weight:var(--weight-regular); font-size:12px; line-height:1.25;
+  font-variant-numeric:tabular-nums;
+  overflow:hidden; text-overflow:ellipsis; }
+/* тот же приглушённый вид, но в строку с основным значением, а не под ним */
+.grid td .sub.inline{ display:inline; margin-top:0; margin-left:6px; }
 /* Т·N / Р·N — метки состава кредита у номера договора */
 .mk{ display:inline-block; margin-left:6px; padding:1px 6px; border-radius:var(--radius-sm);
   background:var(--asubk-tint-fill); color:var(--text-muted);
   font:var(--weight-medium) 11px/1.5 var(--asubk-font); vertical-align:middle; }
 .mk-r{ background:var(--status-info-bg); color:var(--asubk-blue); }
 
-/* --- live-стиль реестра (fkftest vaadin-grid): сортируемая шапка со стрелками --- */
-table.grid thead th{ height:var(--header-h); }                 /* 56px, как в live */
-table.grid thead th .th-in{ display:inline-flex; align-items:center; gap:6px; }
-table.grid thead th .arrows{ display:inline-flex; flex-direction:column; line-height:7px;
-  font-size:8px; color:var(--text-placeholder); }
-table.grid thead th .arrows span{ opacity:.32; }
-table.grid thead th.sorted{ color:var(--asubk-blue); }
-table.grid thead th.sorted .arrows span.on{ opacity:1; color:var(--asubk-blue); }
-table.grid tbody td{ height:44px; }                            /* воздух как в live (двустрочная ячейка сохранена) */
 /* поля «от/до» — тот же аутлайн-вид, что у остальных полей фильтра (как в live) */
 .range-pair input{ background:var(--surface-card); border:1px solid var(--border-strong); }
 .range-pair input:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
 
-/* бейдж числа активных условий на свёрнутой шапке фильтра */
-.fbadge{ margin-left:8px; padding:1px 8px; border-radius:var(--radius-pill);
+/* бейдж числа активных условий на кнопке «⚙ Фильтры» (считает условия, не поля) */
+.fbadge{ margin-left:6px; padding:1px 7px; border-radius:var(--radius-pill);
   background:var(--status-info-bg); color:var(--asubk-blue);
   font:var(--weight-medium) 12px/1.6 var(--asubk-font); }
-.filter-bar{ grid-column:1 / -1; display:flex; align-items:center; gap:10px; padding-top:4px; }
 
 /* пейджер под гридом */
 .pager{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:0 20px 20px;
@@ -1256,11 +1283,9 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
   border-radius:var(--radius-md); padding:10px 12px; font:var(--font-label); margin-top:6px; }
 .warn svg{ flex:none; margin-top:2px; }
 
-/* Р-19 реестр: подсветка строк по производным оверлеям (Р-3).
-   Просрочка → янтарь, взыскание → красный; выбор строки перекрывает тинт. */
-.grid tbody tr.ov-overdue{ background:var(--asubk-amber-tint); }
-.grid tbody tr.ov-collection{ background:var(--asubk-red-tint); }
-.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+/* Р-19 реестр: заливка строк по оверлеям убрана — состояние читается
+   из колонки «Просрочка» и пилюли категории, фон остаётся нейтральным.
+   Выделение и ховер строки живут в блоке ---- grid (list) ----. */
 </style>
 </head>
 <body>
@@ -4675,8 +4700,12 @@ if (typeof document !== 'undefined') {
      из derive() в рантайме (Р-11, кэш запрещён). Фильтры комбинируются по AND.
      ============================================================ */
   let selectedId = null;
-  const filters = { q:'', num:'', dateFrom:'', dateTo:'', region:'', district:'', program:'', curator:'',
-                    category:'', subgroup:'', lifecycle:'', disbState:'', problem:'', odMin:'', odMax:'' };
+  const LIFECYCLES = ['Проект','Зарегистрирован','Действует','Закрыт'];
+  const PROBLEM_LABEL = { collection:'Активное взыскание', restructuring:'Активная реструктуризация' };
+  /* Реестр открывается без предвыбранного ЖЦ — видны все договоры, включая проектные
+     и закрытые. Молчаливый дефолт «Действует» прятал часть выдачи, поэтому снят. */
+  const filters = { q:'', dateFrom:'', dateTo:'', region:'', district:'', program:'', curator:'',
+                    category:'', subgroup:'', lifecycle:'', problem:'', odMin:'', odMax:'' };
   const paging = { page:1, size:10 };
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
@@ -4687,7 +4716,8 @@ if (typeof document !== 'undefined') {
   function toISO(s){ if(!s || !/^\d{2}\.\d{2}\.\d{4}$/.test(s)) return ''; const [d,mo,y]=s.split('.'); return `${y}-${mo}-${d}`; }
   function toDMY(s){ if(!s) return s; if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const [y,mo,d]=s.split('-'); return `${d}.${mo}.${y}`; }
   function uniq(arr){ return [...new Set(arr)].filter(x=>x && x!=='—').sort((a,b)=>String(a).localeCompare(String(b),'ru')); }
-  function optList(vals){ return ['<option value="">— все —</option>'].concat(vals.map(v=>`<option>${esc(v)}</option>`)).join(''); }
+  function optList(vals, sel){ return ['<option value="">— все —</option>']
+    .concat(vals.map(v=>`<option${v===sel?' selected':''}>${esc(v)}</option>`)).join(''); }
   /* активный куратор кредита (зеркало журнала кураторства Р-9): to==null, иначе последняя запись */
   function curatorOf(c){
     const cs = (c.mirror && c.mirror.curatorship) || [];
@@ -4711,62 +4741,61 @@ if (typeof document !== 'undefined') {
        «Группа платёжеспособности» и работал по шести значениям, которые кредит выводил
        сам; теперь значения приходят из карточки заёмщика, их одиннадцать. */
     const sgOpts = Object.keys(SUBGROUP_LABEL).map(k=>`<option value="${k}">${k} · ${esc(SUBGROUP_LABEL[k])}</option>`).join('');
-    /* сортируемая шапка грида (стиль live vaadin-grid): ярлык + стрелки ▲▼ */
+    /* сортируемая шапка грида (как в реестре заявок): ярлык + глиф ↕, у активной ↑/↓ */
     const th = (k, l, a) => `<th data-k="${k}"${a?` style="text-align:${a}"`:''} onclick="CR.sortList('${k}')">`
-      + `<span class="th-in">${l}<span class="arrows"><span class="up">▲</span><span class="dn">▼</span></span></span></th>`;
+      + `${l} <span class="sort">↕</span></th>`;
     host.innerHTML = `
-      <div class="tb-actions">
+      <!-- ЯРУС 1 — быстрая строка. Всегда видна: поиск по заёмщику — самое частое действие
+           в реестре, за кликом «развернуть фильтры» ему не место. Поиск, ЖЦ и куратор —
+           три условия, которые задают все пять ролей, остальное живёт в ярусе 2. -->
+      <div class="tb-quick">
+        <div class="field q-search"><span class="flabel">Поиск</span><div class="control"><input id="fQ" type="search" placeholder="Заёмщик, ИНН или № договора" oninput="CR.renderRows()"></div></div>
+        <div class="field q-lifecycle"><span class="flabel">ЖЦ договора</span><div class="control"><select id="fLifecycle" onchange="CR.renderRows()">${optList(LIFECYCLES, filters.lifecycle)}</select><span class="caret">▾</span></div></div>
+        <div class="field q-curator"><span class="flabel">Куратор</span><div class="control"><select id="fCurator" onchange="CR.renderRows()">${optList(curators)}</select><span class="caret">▾</span></div></div>
+        <button class="btn btn-secondary btn-sm q-more" id="btnFilters" onclick="CR.toggleFilters()">⚙ Фильтры<span class="fbadge" id="fBadge" hidden></span></button>
         <button class="btn btn-primary btn-sm" id="btnCreate" onclick="CR.openCreatePicker()">Создать кредит</button>
-        <button class="btn btn-secondary btn-sm" id="btnView" onclick="if(CR._sel)CR.openDetail(CR._sel)">Просмотр</button>
-        <button class="btn btn-secondary btn-sm" id="btnEdit" onclick="if(CR._sel)CR.openDetail(CR._sel)">Изменить</button>
-        <span id="regCount" style="margin-left:12px;color:var(--text-muted);font:var(--font-label)"></span>
-        <button class="btn btn-tint btn-sm" style="margin-left:auto" onclick="CR.resetDemo()">Сбросить демо-данные</button>
       </div>
-      <div class="filter-head" onclick="this.classList.toggle('open')">
-        <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
-        Фильтры реестра
-        <span class="fbadge" id="fBadge" hidden></span>
-      </div>
-      <div class="filter-body">
-        <div class="filter-bar" style="justify-content:flex-start;gap:12px;padding-top:0;padding-bottom:2px">
-          <div class="split">
-            <button class="btn btn-success btn-sm" onclick="CR.renderRows()">Обновить</button>
-            <button class="btn btn-success btn-sm caret" title="Действия">▾</button>
-          </div>
-          <button class="gear-btn" title="Настройки фильтра">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </button>
-        </div>
-        <div class="field"><span class="flabel">Заёмщик</span><div class="control"><input id="fQ" type="search" placeholder="наименование или ИНН" oninput="CR.renderRows()"></div></div>
-        <div class="field"><span class="flabel">Номер договора</span><div class="control"><input id="fNum" type="search" placeholder="напр. 56" oninput="CR.renderRows()"></div></div>
+      <!-- ЯРУС 2 — три равные колонки. Строка 1 «привязка» (где · по какой программе ·
+           когда), строка 2 «риск» (просрочка · подгруппа · категория), строка 3 —
+           проблемность и сброс. Фильтр «Состояние освоения» снят: освоение читается
+           в карточке, в реестре по нему не выбирают. -->
+      <div class="filter-body" id="filterBody">
+        <!-- Каскад Область→Район — одно измерение выборки, поэтому одно поле с двумя
+             селектами: в сетке из двух ячеек пара разъезжалась при переносе строки. -->
+        <div class="field"><span class="flabel">Область / Район</span><div class="range-pair">
+          <div class="control"><select id="fRegion" onchange="CR.onRegionChange()">${optList(regionsOf())}</select><span class="caret">▾</span></div>
+          <div class="control"><select id="fDistrict" onchange="CR.renderRows()">${optList(districtsOf(''))}</select><span class="caret">▾</span></div>
+        </div></div>
+        <div class="field"><span class="flabel">Программа</span><div class="control"><select id="fProgram" onchange="CR.renderRows()">${optList(programs)}</select><span class="caret">▾</span></div></div>
         <!-- Дата ушла из колонки «Договор» во вторую строку ячейки и потеряла сортировку —
              диапазон здесь возвращает её как измерение выборки (иначе «свежие кредиты» не найти). -->
-        <div class="field col-span"><span class="flabel">Дата договора</span><div class="range-pair"><input id="fDateFrom" type="date" onchange="CR.renderRows()"><span>—</span><input id="fDateTo" type="date" onchange="CR.renderRows()"></div></div>
-        <div class="field"><span class="flabel">Область</span><div class="control"><select id="fRegion" onchange="CR.onRegionChange()">${optList(regionsOf())}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">Район</span><div class="control"><select id="fDistrict" onchange="CR.renderRows()">${optList(districtsOf(''))}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">Программа</span><div class="control"><select id="fProgram" onchange="CR.renderRows()">${optList(programs)}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">Куратор</span><div class="control"><select id="fCurator" onchange="CR.renderRows()">${optList(curators)}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">Категория риска</span><div class="control"><select id="fCategory" onchange="CR.renderRows()">${optList(['низкий','средний','высокий'])}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Дата договора</span><div class="range-pair"><input id="fDateFrom" type="date" onchange="CR.renderRows()"><span>—</span><input id="fDateTo" type="date" onchange="CR.renderRows()"></div></div>
+        <div class="field"><span class="flabel">Просрочка, дн</span><div class="range-pair"><input id="fOdMin" type="number" min="0" placeholder="от" oninput="CR.renderRows()"><span>—</span><input id="fOdMax" type="number" min="0" placeholder="до" oninput="CR.renderRows()"></div></div>
         <div class="field"><span class="flabel">Подгруппа заёмщика</span><div class="control"><select id="fSubgroup" onchange="CR.renderRows()"><option value="">— все —</option>${sgOpts}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">ЖЦ договора</span><div class="control"><select id="fLifecycle" onchange="CR.renderRows()">${optList(['Проект','Зарегистрирован','Действует','Закрыт'])}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">Состояние освоения</span><div class="control"><select id="fDisb" onchange="CR.renderRows()">${optList(['Не освоен','Частично освоен','Полностью освоен','Освоение закрыто'])}</select><span class="caret">▾</span></div></div>
-        <div class="field"><span class="flabel">Проблемность</span><div class="control"><select id="fProblem" onchange="CR.renderRows()"><option value="">— все —</option><option value="collection">Активное взыскание</option><option value="restructuring">Активная реструктуризация</option></select><span class="caret">▾</span></div></div>
-        <div class="field col-span"><span class="flabel">Просрочка, дн (диапазон)</span><div class="range-pair"><input id="fOdMin" type="number" min="0" placeholder="от" oninput="CR.renderRows()"><span>—</span><input id="fOdMax" type="number" min="0" placeholder="до" oninput="CR.renderRows()"></div></div>
-        <div class="filter-bar"><button class="btn btn-secondary btn-sm" onclick="CR.resetFilters()">Сбросить фильтры</button></div>
+        <div class="field"><span class="flabel">Категория риска</span><div class="control"><select id="fCategory" onchange="CR.renderRows()">${optList(['низкий','средний','высокий'])}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Проблемность</span><div class="control"><select id="fProblem" onchange="CR.renderRows()"><option value="">— все —</option>${Object.keys(PROBLEM_LABEL).map(k=>`<option value="${k}">${esc(PROBLEM_LABEL[k])}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="filter-actions"><button class="btn btn-secondary btn-sm" onclick="CR.resetFilters()">Сбросить фильтры</button></div>
       </div>
+      <!-- Чипы активных условий: что именно сужает выдачу — видно и при свёрнутой
+           панели, каждое условие снимается одним кликом по ×. -->
+      <div class="filter-chips" id="fChips"></div>
       <div class="grid-wrap">
         <!-- Восемь колонок вместо двенадцати. Слитые пары — «главная строка + .sub»,
              тот же приём, каким Заёмщик уже носит ИНН и район:
                Договор       = № (+Т·N/Р·N) над датой
                Программа     = программа над куратором
-               Сумма договора= сумма с валютой в строке, KGS-эквивалент снизу
+               Сумма/Остаток/Просрочка = число над валютой кредита, без приведения к сомам
                Классификация = категория (owned) над подгруппой (зеркало, под замком)
              Утраченные сортировки покрыты фильтрами: куратор — fCurator, подгруппа —
              fSubgroup, дата — новый диапазон; по валюте сортировать было нечего. -->
-        <table class="grid"><thead><tr>
+        <table class="grid"><colgroup>
+          <col style="width:112px"><col style="width:250px"><col style="width:130px">
+          <col style="width:152px"><col style="width:134px"><col style="width:128px">
+          <col style="width:152px"><col style="width:126px">
+        </colgroup><thead><tr>
           ${th('num','Договор')}${th('borrower','Заёмщик')}${th('program','Программа')}
-          ${th('amount','Сумма договора','right')}${th('balance','Остаток','right')}${th('overdue','Просрочка')}
-          ${th('category','Классификация','center')}${th('lifecycle','ЖЦ договора')}
+          ${th('amount','Сумма договора','right')}${th('balance','Остаток','right')}${th('overdue','Просрочка','right')}
+          ${th('category','Классификация')}${th('lifecycle','ЖЦ договора')}
         </tr></thead><tbody id="regBody"></tbody></table>
       </div>
       <div class="pager" id="regPager"></div>`;
@@ -4783,39 +4812,80 @@ if (typeof document !== 'undefined') {
     dSel.value = [...dSel.options].some(o=>o.value===prev) ? prev : '';
     renderRows();
   }
+  /* раскрыть/свернуть ярус 2 */
+  function toggleFilters(){
+    const b = document.getElementById('filterBody'); if (b) b.classList.toggle('open');
+  }
   function resetFilters(){
-    ['fQ','fNum','fDateFrom','fDateTo','fRegion','fDistrict','fProgram','fCurator','fCategory','fSubgroup',
-     'fLifecycle','fDisb','fProblem','fOdMin','fOdMax'].forEach(id=>{
-      const e = document.getElementById(id); if (e) e.value = '';
-    });
+    FILTER_IDS.forEach(id=>{ const e = document.getElementById(id); if (e) e.value = ''; });
     const dSel = document.getElementById('fDistrict'); if (dSel) dSel.innerHTML = optList(districtsOf(''));
     paging.page = 1;
     renderRows();
   }
 
+  /* УСЛОВИЯ фильтра — единая таблица для трёх потребителей: счётчика на бейдже, чипов и
+     сброса одного условия. Условие ≠ поле: пара «от—до» и каскад «область→район» — это
+     одно условие на двух контролах (иначе бейдж врёт: заполненный диапазон дат давал 2). */
+  const CONDS = [
+    { key:'q',         ids:['fQ'],                  label:'Поиск',          val:f=>f.q },
+    { key:'lifecycle', ids:['fLifecycle'],          label:'ЖЦ',             val:f=>f.lifecycle },
+    { key:'curator',   ids:['fCurator'],            label:'Куратор',        val:f=>f.curator },
+    { key:'overdue',   ids:['fOdMin','fOdMax'],     label:'Просрочка',
+      val:f=> (f.odMin==='' && f.odMax==='') ? '' : `${f.odMin||0}—${f.odMax||'∞'} дн.` },
+    { key:'problem',   ids:['fProblem'],            label:'Проблемность',   val:f=>PROBLEM_LABEL[f.problem] || '' },
+    { key:'category',  ids:['fCategory'],           label:'Категория риска',val:f=>f.category },
+    { key:'program',   ids:['fProgram'],            label:'Программа',      val:f=>f.program },
+    { key:'subgroup',  ids:['fSubgroup'],           label:'Подгруппа',      val:f=>f.subgroup },
+    { key:'place',     ids:['fRegion','fDistrict'], label:'Регион',
+      val:f=>[f.region, f.district].filter(Boolean).join(' · ') },
+    { key:'date',      ids:['fDateFrom','fDateTo'], label:'Дата договора',
+      val:f=> (!f.dateFrom && !f.dateTo) ? '' : `${toDMY(f.dateFrom) || '…'}—${toDMY(f.dateTo) || '…'}` },
+  ];
+  const FILTER_IDS = CONDS.flatMap(c=>c.ids);
+
   /* считать значения фильтров из контролов в состояние filters */
   function readFilters(){
     const g = id => { const e = document.getElementById(id); return e ? e.value : ''; };
-    filters.q = g('fQ').trim().toLowerCase(); filters.num = g('fNum').trim().toLowerCase();
+    filters.q = g('fQ').trim().toLowerCase();
     filters.dateFrom = g('fDateFrom'); filters.dateTo = g('fDateTo');
     filters.region = g('fRegion'); filters.district = g('fDistrict');
     filters.program = g('fProgram'); filters.curator = g('fCurator'); filters.category = g('fCategory');
     filters.subgroup = g('fSubgroup');
-    filters.lifecycle = g('fLifecycle'); filters.disbState = g('fDisb'); filters.problem = g('fProblem');
+    filters.lifecycle = g('fLifecycle'); filters.problem = g('fProblem');
     filters.odMin = g('fOdMin'); filters.odMax = g('fOdMax');
   }
-  /* сколько условий реально сужают выборку — для бейджа на свёрнутой шапке фильтра */
-  function activeFilterCount(){
-    return Object.keys(filters).filter(k => filters[k] !== '' && filters[k] != null).length;
+  /* активные условия — [{cond, text}]; пустой текст = условие не задано */
+  function activeConds(){
+    return CONDS.map(c=>({ cond:c, text:c.val(filters) })).filter(x=>x.text);
+  }
+  /* сколько условий реально сужают выборку — для бейджа на кнопке «⚙ Фильтры» */
+  function activeFilterCount(){ return activeConds().length; }
+  /* чипы активных условий; × снимает условие целиком (обе границы диапазона, оба селекта каскада) */
+  function renderChips(){
+    const host = document.getElementById('fChips'); if (!host) return;
+    host.innerHTML = activeConds().map(({cond, text}) =>
+      `<span class="fchip">${esc(cond.label)}: ${esc(text)}`
+      + `<button title="Снять условие" onclick="CR.clearFilter('${cond.key}')">×</button></span>`).join('');
+  }
+  function clearFilter(key){
+    const cond = CONDS.find(c=>c.key===key); if (!cond) return;
+    cond.ids.forEach(id=>{ const e = document.getElementById(id); if (e) e.value = ''; });
+    if (key === 'place'){                          // каскад снят целиком — вернуть полный список районов
+      const dSel = document.getElementById('fDistrict'); if (dSel) dSel.innerHTML = optList(districtsOf(''));
+    }
+    paging.page = 1;
+    renderRows();
   }
   /* AND-комбинация фильтров; пустой фильтр = нет ограничения */
   function passFilters(c, d){
     const f = filters;
-    if (f.q){                                       // поиск идёт и по наименованию, и по ИНН
-      const hay = (c.borrower.name + ' ' + c.borrower.inn).toLowerCase();
+    /* Одно поле на три токена: наименование, ИНН, номер договора. Ложное совпадение
+       («56» найдёт и договор 56, и ИНН с 56 внутри) снимается сортировкой в renderRows —
+       точное совпадение по номеру поднимается в начало выдачи. */
+    if (f.q){
+      const hay = (c.borrower.name + ' ' + c.borrower.inn + ' ' + c.num).toLowerCase();
       if (!hay.includes(f.q)) return false;
     }
-    if (f.num && !String(c.num).toLowerCase().includes(f.num)) return false;
     /* дата модели — дд.мм.гггг, контрол отдаёт ISO; сравниваем в ISO, где лексикографический
        порядок совпадает с хронологическим. Незаполненная граница диапазон не сужает. */
     if (f.dateFrom || f.dateTo){
@@ -4830,7 +4900,6 @@ if (typeof document !== 'undefined') {
     if (f.category  && d.riskCategory !== f.category)       return false;
     if (f.subgroup  && d.subgroup !== f.subgroup)           return false;
     if (f.lifecycle && c.lifecycle !== f.lifecycle)         return false;
-    if (f.disbState && d.disbState !== f.disbState)         return false;
     if (f.odMin !== '' && d.overdueDays < +f.odMin)         return false;
     if (f.odMax !== '' && d.overdueDays > +f.odMax)         return false;
     if (f.problem === 'collection'    && !d.stateFlags.some(o=>o.kind==='collection'))    return false;
@@ -4839,9 +4908,6 @@ if (typeof document !== 'undefined') {
   }
   /* одна строка реестра — все ячейки из credit + derive() */
   function rowHtml(c, d){
-    const hasColl = d.stateFlags.some(o=>o.kind==='collection');
-    const hasOd   = d.stateFlags.some(o=>o.kind==='overdue');
-    const tint = hasColl ? ' ov-collection' : hasOd ? ' ov-overdue' : '';   // взыскание перекрывает просрочку
     const sel  = (c.id===selectedId) ? ' sel' : '';
     const term = (c.lifecycle==='Закрыт') ? ' terminal' : '';
     const catCls = d.riskCategory==='высокий' ? 'high' : d.riskCategory==='средний' ? 'mid' : 'low';
@@ -4853,20 +4919,24 @@ if (typeof document !== 'undefined') {
     const nR = (c.mirror && c.mirror.restructuring && c.mirror.restructuring.count) || 0;
     const marks = (nT > 1 ? `<span class="mk" title="траншей: ${nT}">Т·${nT}</span>` : '')
                 + (nR ? `<span class="mk mk-r" title="реструктуризаций: ${nR}">Р·${nR}</span>` : '');
-    /* просрочка: дни + просроченная сумма, приведённая к KGS (как и остаток) */
+    /* Просрочка той же формы, что и деньги рядом: сумма первой строкой (правое
+       выравнивание, табличные цифры), дни и валюта — второй. Дни остаются красными:
+       это сигнал тревоги, из второй строки он читается не хуже.
+       Нулевая просрочка — одна строка «0 дн.»: колонка нулей с валютой это шум. */
     const odCell = d.overdueDays > 0
-      ? `<td class="overdue"${d.calcStopped?` title="${jsAttr('Кредит закрыт '+d.calcUntil+' — начисление остановлено, величина застыла на этой дате')}"`:''}>${d.overdueDays} дн.${d.calcStopped?' <span class="sub">(на '+esc(d.calcUntil)+')</span>':''}<br><span class="sub">${money0(d.overdueAmountKgs)} KGS</span></td>`
-      : `<td><span class="sub">0 дн.</span></td>`;
-    const amtSub = c.currency !== 'KGS'
-      ? `<br><span class="sub">≈ ${money0(toKgs(c.contractAmount, c.currency))} KGS</span>` : '';
-    return `<tr data-id="${esc(c.id)}" class="${(tint+sel+term).trim()}" onclick="CR.selectRow('${esc(c.id)}')" ondblclick="CR.openDetail('${esc(c.id)}')">
-      <td style="white-space:nowrap">${esc(c.num)}${marks}<br><span class="sub">${esc(c.date)}</span></td>
-      <td>${esc(c.borrower.name)}<br><span class="sub">ИНН ${esc(c.borrower.inn)} · ${esc(c.borrower.district)}</span></td>
-      <td>${esc(c.origin.programId)}<br><span class="sub">${esc(curatorOf(c))}</span></td>
-      <td style="text-align:right">${money(c.contractAmount)} ${esc(c.currency)}${amtSub}</td>
-      <td style="text-align:right">${money(d.debtBalanceKgs)} KGS</td>
+      ? `<td class="od num"${d.calcStopped?` title="${jsAttr('Кредит закрыт '+d.calcUntil+' — начисление остановлено, величина застыла на этой дате')}"`:''}>${money0(d.overdueAmount)}<span class="sub"><span class="days">${d.overdueDays} дн.</span> · ${esc(c.currency)}</span></td>`
+      : `<td class="od num"><span class="zero">0 дн.</span></td>`;
+    /* Все три денежные колонки — в валюте кредита, без приведения к сомам: реестр
+       показывает то, что записано в договоре. Валюта — второй строкой ячейки. */
+    const ccy = c.currency;
+    return `<tr data-id="${esc(c.id)}" class="${(sel+term).trim()}" onclick="CR.selectRow('${esc(c.id)}')" ondblclick="CR.openDetail('${esc(c.id)}')">
+      <td>${esc(c.num)}${marks}<span class="sub">${esc(c.date)}</span></td>
+      <td title="${esc(c.borrower.name)}"><span class="cell-name">${esc(c.borrower.name)}</span><span class="sub">ИНН ${esc(c.borrower.inn)} · ${esc(c.borrower.district)}</span></td>
+      <td title="${esc(c.origin.programId)} · ${esc(curatorOf(c))}">${esc(c.origin.programId)}<span class="sub">${esc(curatorOf(c))}</span></td>
+      <td class="num">${money(c.contractAmount)}<span class="sub">${esc(ccy)}</span></td>
+      <td class="num bal">${money(d.debtBalance)}<span class="sub">${esc(ccy)}</span></td>
       ${odCell}
-      <td style="text-align:center"><span class="pill ${catCls}">${esc(d.riskCategory)}</span><br><span class="sub" title="${esc([d.subgroupLabel, 'зеркало карточки заёмщика'].filter(Boolean).join(' · '))}">${esc(d.subgroup || '—')}</span></td>
+      <td><span class="pill ${catCls}">${esc(d.riskCategory)}</span><span class="sub inline" title="${esc([d.subgroupLabel, 'зеркало карточки заёмщика'].filter(Boolean).join(' · '))}">${esc(d.subgroup || '—')}</span></td>
       <td>${esc(c.lifecycle)}</td>
     </tr>`;
   }
@@ -4877,10 +4947,12 @@ if (typeof document !== 'undefined') {
     num:      ([c])=>c.num,
     borrower: ([c])=>c.borrower.name,
     program:  ([c])=>c.origin.programId,
-    /* сортируем по KGS-эквиваленту, а не по цифре в договоре: сумма и валюта теперь одна
-       колонка, и сравнивать 100 000 USD с 90 000 KGS как числа — сравнивать разное. */
-    amount:   ([c])=>toKgs(c.contractAmount, c.currency),
-    balance:  ([,d])=>d.debtBalanceKgs,
+    /* Сортируем по той же цифре, что видно в ячейке (валюта кредита), а не по
+       KGS-эквиваленту: иначе 320 000 USD встают выше 540 000 KGS и порядок читается
+       как поломка. Плата за это — колонка со смешанными валютами сортируется
+       арифметически, а не по стоимости; развязывается фильтром по валюте. */
+    amount:   ([c])=>c.contractAmount,
+    balance:  ([,d])=>d.debtBalance,
     overdue:  ([,d])=>d.overdueDays,
     category: ([,d])=>({'низкий':0,'средний':1,'высокий':2}[d.riskCategory] ?? -1),
     lifecycle:([c])=>c.lifecycle,
@@ -4898,11 +4970,8 @@ if (typeof document !== 'undefined') {
       const k = th.getAttribute('data-k');
       const on = k === listSort.key;
       th.classList.toggle('sorted', on);
-      const up = th.querySelector('.arrows .up'), dn = th.querySelector('.arrows .dn');
-      if (up && dn){
-        up.classList.toggle('on', on && listSort.dir === 1);
-        dn.classList.toggle('on', on && listSort.dir === -1);
-      }
+      const sp = th.querySelector('.sort');
+      if (sp) sp.textContent = on ? (listSort.dir === 1 ? '↑' : '↓') : '↕';
     });
   }
 
@@ -4926,6 +4995,12 @@ if (typeof document !== 'undefined') {
       });
     }
     syncSortHeader();
+    /* Объединённый поиск: точное совпадение по номеру договора — первым. Sort стабилен,
+       поэтому порядок остальных строк (свой или заданный шапкой) не рушится. */
+    if (filters.q){
+      const exact = ([c]) => String(c.num).toLowerCase() === filters.q;
+      hits.sort((A, B) => (exact(B) ? 1 : 0) - (exact(A) ? 1 : 0));
+    }
     /* пагинация — после фильтрации; страница зажимается, если выборка усохла */
     const pages = Math.max(1, Math.ceil(hits.length / paging.size));
     if (paging.page > pages) paging.page = pages;
@@ -4934,10 +5009,9 @@ if (typeof document !== 'undefined') {
 
     body.innerHTML = page.length ? page.map(([c,d])=>rowHtml(c,d)).join('')
       : `<tr><td colspan="8" style="text-align:center;color:var(--text-placeholder);padding:20px">Ничего не найдено по фильтрам</td></tr>`;
-    const cnt = document.getElementById('regCount');
-    if (cnt) cnt.textContent = hits.length + ' из ' + CR.db.credits.length;
     const badge = document.getElementById('fBadge');
-    if (badge){ const n = activeFilterCount(); badge.textContent = n ? 'условий: ' + n : ''; badge.hidden = !n; }
+    if (badge){ const n = activeFilterCount(); badge.textContent = n ? '·' + n : ''; badge.hidden = !n; }
+    renderChips();
     renderPager(hits.length, pages, from, page.length);
   }
   /* пейджер: «показано X–Y из Z», стрелки и размер страницы */
@@ -5011,25 +5085,20 @@ if (typeof document !== 'undefined') {
     if (id && CR.db.credits.some(x=>x.id===id)) openDetail(id, tab); else backToList();
     suppressHash = false;
   }
-  /* сброс демо-данных: свежий seedDb() + полная перерисовка (§демо-ограничения) */
+  /* сброс демо-данных: свежий seedDb() + полная перерисовка (§демо-ограничения).
+     Кнопки в реестре больше нет — вызов остался в CR для консоли демо-стенда. */
   function resetDemo(){
     CR.db = seedDb(); selectedId = null; CR._sel = null;
     backToList(); renderList();
     toast('Демо-данные сброшены', 'ok');
   }
-  /* гейтинг действий по роли: Наблюдатель — read-only (createCredit/editConditions off) */
+  /* гейтинг действий по роли: Наблюдатель — read-only (createCredit off). Кнопок
+     «Просмотр»/«Изменить» больше нет — карточка открывается двойным кликом по строке,
+     право на правку гейтится внутри карточки. */
   function renderRole(){
     const canCreate = canRole(currentRole, 'createCredit');
-    const canEdit   = canRole(currentRole, 'editConditions');
     const bC = document.getElementById('btnCreate');
-    const bV = document.getElementById('btnView');
-    const bE = document.getElementById('btnEdit');
     if (bC){ bC.disabled = !canCreate; bC.title = canCreate ? '' : 'Роль «'+currentRole+'» не имеет права создавать кредит'; }
-    if (bV){ bV.disabled = !selectedId; bV.title = selectedId ? '' : 'Выберите кредит в реестре'; }
-    if (bE){ const ok = !!selectedId && canEdit;
-      bE.disabled = !ok;
-      bE.title = !selectedId ? 'Выберите кредит в реестре'
-        : !canEdit ? 'Роль «'+currentRole+'» не имеет права изменять кредит' : ''; }
   }
 
   /* «Создать кредит» — picker одобренных заявок без кредита (Г-2) */
@@ -7022,6 +7091,7 @@ if (typeof document !== 'undefined') {
   CR._sel = null;
   CR.renderList = renderList; CR.renderRows = renderRows; CR.renderRole = renderRole;
   CR.onRegionChange = onRegionChange; CR.resetFilters = resetFilters; CR.sortList = sortList;
+  CR.toggleFilters = toggleFilters; CR.clearFilter = clearFilter;
   CR.gotoPage = gotoPage; CR.setPageSize = setPageSize;
   CR.selectRow = selectRow; CR.openDetail = openDetail; CR.backToList = backToList;
   CR.resetDemo = resetDemo; CR.openCreatePicker = openCreatePicker; CR.pickApplication = pickApplication;
