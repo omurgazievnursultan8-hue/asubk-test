@@ -469,7 +469,13 @@
    Р-16 Взыскание, банкротство, реструктуризация — зеркала; из кредита не заводятся.
    Р-17 Приостановление начисления — управляющее действие кредита/транша.
    Р-18 Происхождение кредита — обязательный read-only блок (заявка→комиссия→программа→ПП).
-   Р-19 Реестр показывает кредит (кредитные колонки), а не заявку.
+   Р-19 Реестр показывает кредит (кредитные колонки), а не заявку. Колонок восемь
+        (03.08.2026, было двенадцать): реквизит, привязанный к другому, живёт второй
+        строкой ячейки, а не отдельной колонкой — дата под номером, куратор под
+        программой, валюта в строке суммы, подгруппа под категорией. Измерение выборки
+        при этом не теряется: у каждой снятой сортировки есть фильтр — куратор, подгруппа
+        и новый диапазон дат договора; по валюте отдельно сортировать было нечего, а сумма
+        теперь сортируется по KGS-эквиваленту, иначе колонка сравнивала разные валюты.
    Р-20 Списание и закрытие — терминалы с обязательными реквизитами; без физ. удаления.
    Р-21 Условия — записи на параметр на транше (param · value · effectiveFrom · basis);
         действующий комплект и любой исторический срез — производные (Р-11).
@@ -892,10 +898,10 @@ a{ color:inherit; }
 
 /* ---- grid (list) ---- */
 .grid-wrap{ padding:0 20px 20px; overflow:auto; }
-/* 12 колонок: минимальная ширина подобрана так, чтобы при 1600+ последняя колонка
-   (Куратор) была видна целиком без скролла, а на узких экранах включался скролл
-   вместо молчаливой обрезки текста в ellipsis. */
-table.grid{ width:100%; min-width:1300px; border-collapse:collapse; font:var(--font-label);
+/* 8 колонок: минимальная ширина подобрана так, чтобы последняя колонка (ЖЦ договора)
+   была видна целиком без скролла, а на узких экранах включался скролл вместо молчаливой
+   обрезки текста в ellipsis. Было 1300px на двенадцати колонках — четыре слиты, порог ниже. */
+table.grid{ width:100%; min-width:1080px; border-collapse:collapse; font:var(--font-label);
   border:1px solid var(--border-default); background:var(--surface-card); }
 table.grid thead th{ text-align:left; height:52px; padding:0 12px; background:var(--surface-card);
   border-bottom:1px solid var(--asubk-grid-line);
@@ -4669,8 +4675,8 @@ if (typeof document !== 'undefined') {
      из derive() в рантайме (Р-11, кэш запрещён). Фильтры комбинируются по AND.
      ============================================================ */
   let selectedId = null;
-  const filters = { q:'', num:'', region:'', district:'', program:'', curator:'', category:'',
-                    subgroup:'', lifecycle:'', disbState:'', problem:'', odMin:'', odMax:'' };
+  const filters = { q:'', num:'', dateFrom:'', dateTo:'', region:'', district:'', program:'', curator:'',
+                    category:'', subgroup:'', lifecycle:'', disbState:'', problem:'', odMin:'', odMax:'' };
   const paging = { page:1, size:10 };
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
@@ -4706,7 +4712,7 @@ if (typeof document !== 'undefined') {
        сам; теперь значения приходят из карточки заёмщика, их одиннадцать. */
     const sgOpts = Object.keys(SUBGROUP_LABEL).map(k=>`<option value="${k}">${k} · ${esc(SUBGROUP_LABEL[k])}</option>`).join('');
     /* сортируемая шапка грида (стиль live vaadin-grid): ярлык + стрелки ▲▼ */
-    const th = (k, l, r) => `<th data-k="${k}"${r?' style="text-align:right"':''} onclick="CR.sortList('${k}')">`
+    const th = (k, l, a) => `<th data-k="${k}"${a?` style="text-align:${a}"`:''} onclick="CR.sortList('${k}')">`
       + `<span class="th-in">${l}<span class="arrows"><span class="up">▲</span><span class="dn">▼</span></span></span></th>`;
     host.innerHTML = `
       <div class="tb-actions">
@@ -4733,6 +4739,9 @@ if (typeof document !== 'undefined') {
         </div>
         <div class="field"><span class="flabel">Заёмщик</span><div class="control"><input id="fQ" type="search" placeholder="наименование или ИНН" oninput="CR.renderRows()"></div></div>
         <div class="field"><span class="flabel">Номер договора</span><div class="control"><input id="fNum" type="search" placeholder="напр. 56" oninput="CR.renderRows()"></div></div>
+        <!-- Дата ушла из колонки «Договор» во вторую строку ячейки и потеряла сортировку —
+             диапазон здесь возвращает её как измерение выборки (иначе «свежие кредиты» не найти). -->
+        <div class="field col-span"><span class="flabel">Дата договора</span><div class="range-pair"><input id="fDateFrom" type="date" onchange="CR.renderRows()"><span>—</span><input id="fDateTo" type="date" onchange="CR.renderRows()"></div></div>
         <div class="field"><span class="flabel">Область</span><div class="control"><select id="fRegion" onchange="CR.onRegionChange()">${optList(regionsOf())}</select><span class="caret">▾</span></div></div>
         <div class="field"><span class="flabel">Район</span><div class="control"><select id="fDistrict" onchange="CR.renderRows()">${optList(districtsOf(''))}</select><span class="caret">▾</span></div></div>
         <div class="field"><span class="flabel">Программа</span><div class="control"><select id="fProgram" onchange="CR.renderRows()">${optList(programs)}</select><span class="caret">▾</span></div></div>
@@ -4746,11 +4755,18 @@ if (typeof document !== 'undefined') {
         <div class="filter-bar"><button class="btn btn-secondary btn-sm" onclick="CR.resetFilters()">Сбросить фильтры</button></div>
       </div>
       <div class="grid-wrap">
+        <!-- Восемь колонок вместо двенадцати. Слитые пары — «главная строка + .sub»,
+             тот же приём, каким Заёмщик уже носит ИНН и район:
+               Договор       = № (+Т·N/Р·N) над датой
+               Программа     = программа над куратором
+               Сумма договора= сумма с валютой в строке, KGS-эквивалент снизу
+               Классификация = категория (owned) над подгруппой (зеркало, под замком)
+             Утраченные сортировки покрыты фильтрами: куратор — fCurator, подгруппа —
+             fSubgroup, дата — новый диапазон; по валюте сортировать было нечего. -->
         <table class="grid"><thead><tr>
-          ${th('num','№ договора')}${th('date','Дата')}${th('borrower','Заёмщик')}${th('program','Программа')}
-          ${th('amount','Сумма договора',1)}${th('currency','Валюта')}
-          ${th('balance','Остаток, KGS',1)}${th('overdue','Просрочка')}
-          ${th('category','Категория')}${th('group','Подгруппа')}${th('lifecycle','ЖЦ договора')}${th('curator','Куратор')}
+          ${th('num','Договор')}${th('borrower','Заёмщик')}${th('program','Программа')}
+          ${th('amount','Сумма договора','right')}${th('balance','Остаток','right')}${th('overdue','Просрочка')}
+          ${th('category','Классификация','center')}${th('lifecycle','ЖЦ договора')}
         </tr></thead><tbody id="regBody"></tbody></table>
       </div>
       <div class="pager" id="regPager"></div>`;
@@ -4768,7 +4784,7 @@ if (typeof document !== 'undefined') {
     renderRows();
   }
   function resetFilters(){
-    ['fQ','fNum','fRegion','fDistrict','fProgram','fCurator','fCategory','fPayGroup',
+    ['fQ','fNum','fDateFrom','fDateTo','fRegion','fDistrict','fProgram','fCurator','fCategory','fSubgroup',
      'fLifecycle','fDisb','fProblem','fOdMin','fOdMax'].forEach(id=>{
       const e = document.getElementById(id); if (e) e.value = '';
     });
@@ -4781,6 +4797,7 @@ if (typeof document !== 'undefined') {
   function readFilters(){
     const g = id => { const e = document.getElementById(id); return e ? e.value : ''; };
     filters.q = g('fQ').trim().toLowerCase(); filters.num = g('fNum').trim().toLowerCase();
+    filters.dateFrom = g('fDateFrom'); filters.dateTo = g('fDateTo');
     filters.region = g('fRegion'); filters.district = g('fDistrict');
     filters.program = g('fProgram'); filters.curator = g('fCurator'); filters.category = g('fCategory');
     filters.subgroup = g('fSubgroup');
@@ -4799,6 +4816,13 @@ if (typeof document !== 'undefined') {
       if (!hay.includes(f.q)) return false;
     }
     if (f.num && !String(c.num).toLowerCase().includes(f.num)) return false;
+    /* дата модели — дд.мм.гггг, контрол отдаёт ISO; сравниваем в ISO, где лексикографический
+       порядок совпадает с хронологическим. Незаполненная граница диапазон не сужает. */
+    if (f.dateFrom || f.dateTo){
+      const iso = toISO(c.date);
+      if (f.dateFrom && (!iso || iso < f.dateFrom)) return false;
+      if (f.dateTo   && (!iso || iso > f.dateTo))   return false;
+    }
     if (f.region   && c.borrower.region !== f.region)     return false;
     if (f.district && c.borrower.district !== f.district)  return false;
     if (f.program   && c.origin.programId !== f.program)   return false;
@@ -4831,23 +4855,19 @@ if (typeof document !== 'undefined') {
                 + (nR ? `<span class="mk mk-r" title="реструктуризаций: ${nR}">Р·${nR}</span>` : '');
     /* просрочка: дни + просроченная сумма, приведённая к KGS (как и остаток) */
     const odCell = d.overdueDays > 0
-      ? `<td class="overdue"${d.calcStopped?` title="${jsAttr('Кредит закрыт '+d.calcUntil+' — начисление остановлено, величина застыла на этой дате')}"`:''}>${d.overdueDays} дн.${d.calcStopped?' <span class="sub">(на '+esc(d.calcUntil)+')</span>':''}<br><span class="sub">${money0(d.overdueAmountKgs)}</span></td>`
+      ? `<td class="overdue"${d.calcStopped?` title="${jsAttr('Кредит закрыт '+d.calcUntil+' — начисление остановлено, величина застыла на этой дате')}"`:''}>${d.overdueDays} дн.${d.calcStopped?' <span class="sub">(на '+esc(d.calcUntil)+')</span>':''}<br><span class="sub">${money0(d.overdueAmountKgs)} KGS</span></td>`
       : `<td><span class="sub">0 дн.</span></td>`;
     const amtSub = c.currency !== 'KGS'
       ? `<br><span class="sub">≈ ${money0(toKgs(c.contractAmount, c.currency))} KGS</span>` : '';
     return `<tr data-id="${esc(c.id)}" class="${(tint+sel+term).trim()}" onclick="CR.selectRow('${esc(c.id)}')" ondblclick="CR.openDetail('${esc(c.id)}')">
-      <td style="white-space:nowrap">${esc(c.num)}${marks}</td>
-      <td>${esc(c.date)}</td>
+      <td style="white-space:nowrap">${esc(c.num)}${marks}<br><span class="sub">${esc(c.date)}</span></td>
       <td>${esc(c.borrower.name)}<br><span class="sub">ИНН ${esc(c.borrower.inn)} · ${esc(c.borrower.district)}</span></td>
-      <td>${esc(c.origin.programId)}</td>
-      <td style="text-align:right">${money(c.contractAmount)}${amtSub}</td>
-      <td>${esc(c.currency)}</td>
-      <td style="text-align:right">${money(d.debtBalanceKgs)}</td>
+      <td>${esc(c.origin.programId)}<br><span class="sub">${esc(curatorOf(c))}</span></td>
+      <td style="text-align:right">${money(c.contractAmount)} ${esc(c.currency)}${amtSub}</td>
+      <td style="text-align:right">${money(d.debtBalanceKgs)} KGS</td>
       ${odCell}
-      <td><span class="pill ${catCls}">${esc(d.riskCategory)}</span></td>
-      <td title="${esc(d.subgroupLabel || '')}">${esc(d.subgroup || '—')} ${lockHtml()}</td>
+      <td style="text-align:center"><span class="pill ${catCls}">${esc(d.riskCategory)}</span><br><span class="sub" title="${esc([d.subgroupLabel, 'зеркало карточки заёмщика'].filter(Boolean).join(' · '))}">${esc(d.subgroup || '—')}</span></td>
       <td>${esc(c.lifecycle)}</td>
-      <td>${esc(curatorOf(c))}</td>
     </tr>`;
   }
   /* сортировка реестра по клику на шапку (как в live vaadin-grid).
@@ -4855,17 +4875,15 @@ if (typeof document !== 'undefined') {
   let listSort = { key:null, dir:1 };
   const LIST_SORTERS = {
     num:      ([c])=>c.num,
-    date:     ([c])=>String(c.date||'').split('.').reverse().join(''),
     borrower: ([c])=>c.borrower.name,
     program:  ([c])=>c.origin.programId,
-    amount:   ([c])=>c.contractAmount,
-    currency: ([c])=>c.currency,
+    /* сортируем по KGS-эквиваленту, а не по цифре в договоре: сумма и валюта теперь одна
+       колонка, и сравнивать 100 000 USD с 90 000 KGS как числа — сравнивать разное. */
+    amount:   ([c])=>toKgs(c.contractAmount, c.currency),
     balance:  ([,d])=>d.debtBalanceKgs,
     overdue:  ([,d])=>d.overdueDays,
     category: ([,d])=>({'низкий':0,'средний':1,'высокий':2}[d.riskCategory] ?? -1),
-    group:    ([,d])=>d.subgroup || '',
     lifecycle:([c])=>c.lifecycle,
-    curator:  ([c])=>curatorOf(c),
   };
   function sortList(key){
     if (!LIST_SORTERS[key]) return;
@@ -4915,7 +4933,7 @@ if (typeof document !== 'undefined') {
     const page = hits.slice(from, from + paging.size);
 
     body.innerHTML = page.length ? page.map(([c,d])=>rowHtml(c,d)).join('')
-      : `<tr><td colspan="12" style="text-align:center;color:var(--text-placeholder);padding:20px">Ничего не найдено по фильтрам</td></tr>`;
+      : `<tr><td colspan="8" style="text-align:center;color:var(--text-placeholder);padding:20px">Ничего не найдено по фильтрам</td></tr>`;
     const cnt = document.getElementById('regCount');
     if (cnt) cnt.textContent = hits.length + ' из ' + CR.db.credits.length;
     const badge = document.getElementById('fBadge');
