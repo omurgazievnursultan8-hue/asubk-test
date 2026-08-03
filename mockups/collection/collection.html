@@ -1718,7 +1718,13 @@ function measureSetsPhase(m){
 function measureSetsTerminal(m){
   const kd = kindOf(m.kind); if(!kd || !kd.outcomes) return null;
   const hit = kd.outcomes.find(o => o.value === (m.outcome || ''));
-  return hit ? (hit.setsTerminal || null) : null;
+  if(!hit) return null;
+  /* Наряд п.6б (`ADR-0052` §2): «Определение о замене стороны правопреемником» закрывает
+     требование терминалом, ТОЛЬКО когда правопреемников больше одного (разветвление) —
+     одиночная замена (N=1, `m.successorCount` не > 1) продолжает ту же линию требования,
+     ничего не закрывая («один правопреемник… ничего не меняется»). */
+  if(m.kind === 'Определение о замене стороны правопреемником' && !(m.successorCount > 1)) return null;
+  return hit.setsTerminal || null;
 }
 /* Сортировка — по дате события (Р-7: когда факт произошёл), а не по позиции в массиве:
    акт, поступивший с задержкой, не должен обгонять более раннюю по факту веху. */
@@ -1763,8 +1769,22 @@ function phaseSetter(r){
   const routeMs = ms.filter(m => ROUTE_PHASES.has(measureSetsPhase(m)));
   return routeMs.reduce((best, m) => phaseRank(measureSetsPhase(m)) >= phaseRank(measureSetsPhase(best)) ? m : best);
 }
-function phaseOf(r){ const m = phaseSetter(r); return m ? measureSetsPhase(m) : OPEN_PHASE; }
-function phaseSource(r){ const m = phaseSetter(r); return m ? `по документу-основанию: ${m.num}` : 'мер-вех нет — фаза открытия'; }
+/* Наряд п.6б (`ADR-0052` §2): у ветви разветвления (`continuesReq`) БЕЗ своей меры-вехи
+   фаза наследуется свёрткой предшественника — рекурсивно, до первой СОБСТВЕННОЙ меры
+   («правопреемство не отбрасывает дело в досудебную стадию»). Трек (sudTrackOf/ispTrackOf)
+   так не наследуется — треки раздельны, один из трёх доводов ADR за само разветвление. */
+function phaseOf(r){
+  const m = phaseSetter(r);
+  if(m) return measureSetsPhase(m);
+  if(r.continuesReq){ const pr = REQ_INDEX[r.continuesReq]; if(pr) return phaseOf(pr); }
+  return OPEN_PHASE;
+}
+function phaseSource(r){
+  const m = phaseSetter(r);
+  if(m) return `по документу-основанию: ${m.num}`;
+  if(r.continuesReq){ const pr = REQ_INDEX[r.continuesReq]; if(pr) return `продолжает требование ${pr.id} — ${phaseSource(pr)}`; }
+  return 'мер-вех нет — фаза открытия';
+}
 /* Слой долга (§8.5) — не запись, а строка связи «мера-решение × кредит» (ADR-0049).
    Рождается ТОЛЬКО AWARD_KINDS (МП-1/МП5-1); сумма — по представителю кредита
    (rep[r.credit]-паттерн tileMoney, МП5-2): если представитель не среди целей
@@ -4755,6 +4775,23 @@ const SEED = [
              debt:{ principal:96000, interest:4100, penalty:0, paid:0 } },
     stop:null, overdue:8, basis:OSNOVANIE_KINDS[3] },
 
+  // ── K0-ПРАВОПРЕЕМСТВО · МП5-6 (`ADR-0052` §1, наряд п.6б): кредит переходит юрлицу,
+  //    у которого уже своё отдельное открытое дело — оба остаются открытыми одновременно
+  //    (инвариант «дело на линию», не на лицо). 583 — исходный заёмщик «А»; 584 — «Б»,
+  //    своё дело по своей просрочке. Пост-normalize-патч ниже мутирует заёмщик-требование
+  //    583 на PERSONS[584.borrowerId] — симулирует уже свершившееся N=1-правопреемство,
+  //    минимально (без цепочки мер, тот же приём, что K0-ОСНОВАНИЕ выше). ──
+  { sit:'K0-ПРАВОПРЕЕМСТВО', id:'583', borrower:'ОсОО «Беш-Сары»', inn:'01912202400583',
+    region:'Чуйская область / Аламудунский', owner:'Отдел проблемных кредитов (ОПК)', curator:'Тукинова А.С.',
+    credit:{ id:'583', num:'Дог. №583 от 14.03.2023', subdiv:'ОПК',
+             debt:{ principal:340000, interest:15000, penalty:0, paid:0 } },
+    stop:null, overdue:6 },
+  { sit:'K0-ПРАВОПРЕЕМСТВО', id:'584', borrower:'ОсОО «Кен-Тор»', inn:'02207202400584',
+    region:'Чуйская область / Сокулукский', owner:'Куратор ОД', curator:'Асанова Ж.Т.',
+    credit:{ id:'584', num:'Дог. №584 от 02.09.2023', subdiv:'ОД',
+             debt:{ principal:120000, interest:5000, penalty:0, paid:0 } },
+    stop:null, overdue:7 },
+
   /* ============================================================
      КОНТУР К1 — ДОСУДЕБНЫЙ ПОРЯДОК. Девять ситуаций, 22 дела (Task 4).
      Все кейсы объявляют цепочку (stop) → debt.principalOverdue ОБЯЗАТЕЛЕН на каждом
@@ -5827,6 +5864,7 @@ function mkReq(p, c, personId, role, basis, contractRef){
     // мере (scopeOf(r), свёртка рядом с phaseOf выше). Своего хранимого поля у требования нет.
     subdivision: c.subdiv || subdivOfOwner(p.owner),   // §6.2: на требовании; владелец дела — умолчание
     basis, contractRef: contractRef || null,
+    continuesReq: null, liabilityLimit: null,    // ADR-0052 §2 (наряд п.6б) — только у ветвей разветвления
     costs: (typeof COSTS_SEED !== 'undefined' && COSTS_SEED[c.id]) ? COSTS_SEED[c.id].map(x=>({...x})) : [],
     states: [],                                  // состояния ОБЯЗАТЕЛЬСТВА (М-11)
     handovers: [],                               // ADR-0023: журнал передач — на ТРЕБОВАНИИ
@@ -5840,6 +5878,41 @@ function mkReq(p, c, personId, role, basis, contractRef){
    выше (первый кредит × заёмщик), дешёвый прокси при отсутствии явной хронологии открытия
    на затравке (наряд п.6а, точки интеграции вопрос 3). */
 function basisOf(p){ return (p.requirements[0] || {}).basis; }
+/* ADR-0052 §2 (наряд п.6б): требование-ВЕТВЬ разветвления N>1 — продолжает того же
+   предшественника (`continuesReq`), тем же основанием/договором (это ТА ЖЕ претензия,
+   не новая, `ADR-0050` тут не участвует), но со своей линией/пределом ответственности/
+   треком/журналом мер с нуля (меры предшественника НЕ копируются — «Последствия»
+   ADR-0052: «журнал остаётся у него, ветви читают его историю по ссылке»). */
+function mkReqBranch(pred, obligorId, liabilityLimit){
+  const p = pred._proc;
+  const n = p.requirements.filter(x=>x.continuesReq===pred.id).length + 1;
+  const nr = {
+    id: `${pred.id}~${n}`,
+    proc: p.id, credit: pred.credit, obligor: obligorId, role: pred.role,
+    subdivision: pred.subdivision,
+    basis: pred.basis, contractRef: pred.contractRef,
+    continuesReq: pred.id, liabilityLimit: liabilityLimit || null,
+    costs: [], states: [], handovers: [],
+    _proc: p, _credit: pred._credit,
+  };
+  REQ_INDEX[nr.id] = nr;
+  p.requirements.push(nr);
+  return nr;
+}
+/* Свёртка «Правопреемник» карточки дела (`ADR-0052` §1, наряд п.6б) — дело якорится
+   исходным заёмщиком (`p.borrower` не меняется), а текущий(е) обязанный(е) читаются по
+   заёмщик-требованиям: N=1 узнаётся по обязанному лицу, отличному от `p.borrowerId`
+   (мутация на месте), N>1 — по `continuesReq` у ветвей (те же требования, после
+   разветвления). Обе формы живут в одном `p.requirements`, второй проверки по чужому
+   делу не нужно. */
+function successorNamesOf(p){
+  const names = new Set();
+  for(const r of p.requirements){
+    if(r.role !== 'заёмщик') continue;
+    if(r.continuesReq || r.obligor !== p.borrowerId) names.add(personOf(r).name);
+  }
+  return [...names];
+}
 
 /* ADR-0023 · ПЕРЕДАЧИ ТРЕБОВАНИЯ. Два входа, и оба — ДЕКЛАРАЦИЯ, не литерал в коде:
 
@@ -6028,6 +6101,19 @@ function normalize(p){
   return p;
 }
 PROCESSES.forEach(normalize);
+/* Наряд п.6б (МП5-6, `ADR-0052` §1) — сценарий «кредит переходит юрлицу с уже открытым
+   делом», сеется точечным патчем ПОСЛЕ normalize (PERSONS[584.borrowerId] уже собран):
+   дело 583 не мигрирует и не сливается с 584 — заёмщик-требование 583 лишь мутирует
+   r.obligor на месте (правопреемство N=1, тот же механизм, что applyPravopreemstvo),
+   оба дела остаются открытыми одновременно у «Кен-Тор» — не нарушение, они принадлежат
+   разным линиям (ADR-0052 §1). */
+(function seedPravopreemstvoScenario(){
+  const a = PROCESSES.find(p=>p.id==='583'), b = PROCESSES.find(p=>p.id==='584');
+  const rA = a.requirements.find(r=>r.role==='заёмщик');
+  const prevName = a.borrower;
+  rA.obligor = b.borrowerId;
+  a.history.unshift({when:'02.08.2026 10:00', what:`Требование ${rA.id}: правопреемство — линия продолжена «${b.borrower}» вместо «${prevName}» (мутация на месте, N=1, ADR-0052 §2)`, who:'куратор'});
+})();
 const allReqs = () => PROCESSES.flatMap(p => p.requirements);
 const personOf = r => PERSONS[r.obligor];
 const creditOf = r => r._credit;
@@ -7027,6 +7113,7 @@ function panelDeal(){
         <p class="section-h" style="margin-top:0">Общие сведения</p>
         <div class="f2">
           ${ro('Заёмщик', `${p.borrower} · ИНН ${p.inn}`)}
+          ${successorNamesOf(p).length ? `<div class="field"><span class="flabel">Правопреемник</span><div class="control ro" style="padding:6px 10px"><span class="pill info" title="ADR-0052 §1: дело не мигрирует — линия заёмщика продолжена новым обязанным лицом">${successorNamesOf(p).map(escAttr).join(', ')}</span></div></div>` : ''}
           ${ro('Исход дела', out || '— (в работе)')}
           ${ro('Основание открытия', basisOf(p))}
           ${ro('Куратор', p.curator)}
@@ -7230,6 +7317,7 @@ function panelReq(){
       ${ro('Обязанное лицо', `${per.name} · ИНН ${per.inn} · ${per.kind}`)}
       ${ro('Роль в обязательстве', r.role)}
       ${ro('Основание требования', r.contractRef ? `${r.basis} (${r.contractRef})` : r.basis)}
+      ${r.continuesReq ? ro('Продолжает требование', r.continuesReq) + ro('Предел ответственности', r.liabilityLimit || '—') : ''}
       ${ro('Охват', scopeLabel(scopeOf(r)))}
       ${ro('Ведущее подразделение', r.subdivision)}
       ${ro('Фаза', out || displayPhase(r))}
@@ -8560,7 +8648,7 @@ function saveAnnotation(mi){
   const val=id=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
   const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'Текущая роль';
   const reason=val('aReason');
-  let changed=false, correcting=false;
+  let changed=false, correcting=false, opensPravopreemstvo=false;
   if(kd && kd.source==='внешний акт'){
     const receivedDate=ruDate(val('aReceivedDate'));
     const prevReceived=m.received;
@@ -8606,6 +8694,11 @@ function saveAnnotation(mi){
       m.outcome=outcome;
       m.outcomeMeta={ by:role, at:TODAY, ...(wasSet?{reason, prev}:{}) };
       changed=true; if(wasSet) correcting=true;
+      /* Наряд п.6б (`ADR-0052` §2): «правопреемник найден» — не финал сам по себе, дальше
+         решает число преемников (N=1 продолжает линию / N>1 разветвляет). Follow-up
+         модалка вместо обычного toast — приём recalcOnIzveschenie (В-8, п. 20.4). */
+      if(m.kind==='Определение о замене стороны правопреемником' && outcome==='заменена' && !wasSet)
+        opensPravopreemstvo=true;
     }
   }
   if(kd && AWARD_KINDS.has(m.kind)){
@@ -8641,7 +8734,66 @@ function saveAnnotation(mi){
   if(!changed){ toast('Нет изменений для сохранения','warn'); return; }
   p.history=p.history||[];
   p.history.unshift({when:TODAY+' 14:00', what:`Пометка меры «${m.kind}»${m.num?' '+m.num:''} ${correcting?'исправлена':'внесена'}${reason?` (${reason})`:''}`, who:role});
-  closeModal(); renderPanels(); toast(`Пометка ${correcting?'исправлена':'внесена'}`,'ok');
+  closeModal(); renderPanels();
+  if(opensPravopreemstvo){ openPravopreemstvoModal(mi); return; }
+  toast(`Пометка ${correcting?'исправлена':'внесена'}`,'ok');
+}
+/* Наряд п.6б (`ADR-0052` §2) — follow-up после исхода «заменена»: число правопреемников
+   решает, продолжается ли линия требования (N=1) или требование разветвляется (N>1).
+   Мера уже сохранена (saveAnnotation выше) — здесь только сам механизм последствия, тем
+   же приёмом, что recalcOnIzveschenie/applyIzveschenie (В-8, п. 20.4). Цель — ТОЛЬКО
+   curReq: правопреемство лично-адресное (это лицо умерло/реорганизовано), не общее для
+   солидарных содолжников событие, как ускорение (В-8) — им отдельные акты нужны свои. */
+function openPravopreemstvoModal(mi){
+  const r=curReq;
+  const host=document.getElementById('modalHost');
+  host.innerHTML=`<div class="modal form">
+    <div class="modal-h"><span class="mt">Правопреемство по требованию ${escAttr(r.id)}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
+    <div class="modal-b">
+      <p class="section-note">Правопреемник найден (ADR-0052 §2). Один — линия требования продолжается им же, ничего не разветвляется. Несколько — требование разветвляется на N требований со своей линией/пределом ответственности/треком у каждого, а это требование закрывается терминалом «Правопреемство».</p>
+      <div class="mform"><div class="field"><span class="flabel">Число правопреемников</span><div class="control"><input id="pkCount" type="number" min="1" max="6" value="1" oninput="renderPravRows()"></div></div></div>
+      <div id="pravRows"></div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="applyPravopreemstvo(${mi})">Сохранить</button></div>
+  </div>`;
+  host.classList.add('open');
+  renderPravRows();
+}
+function renderPravRows(){
+  const n=Math.min(6,Math.max(1, parseInt(document.getElementById('pkCount').value,10)||1));
+  const rows=[];
+  for(let i=0;i<n;i++)
+    rows.push(`<div class="mform" style="margin-top:8px">
+      <div class="field${n>1?'':' col-span'}"><span class="flabel">${n>1?`Правопреемник ${i+1} — ФИО/наименование`:'Новое обязанное лицо — ФИО/наименование'}</span><div class="control"><input id="pravName_${i}" placeholder="ОсОО «...» либо ФИО"></div></div>
+      ${n>1?`<div class="field"><span class="flabel">Предел ответственности</span><div class="control"><input id="pravLimit_${i}" placeholder="напр. в пределах наследственной массы"></div></div>`:''}
+    </div>`);
+  document.getElementById('pravRows').innerHTML=rows.join('');
+}
+function applyPravopreemstvo(mi){
+  const r=curReq, p=curProc, m=p.measures[mi];
+  const n=Math.min(6,Math.max(1, parseInt(document.getElementById('pkCount').value,10)||1));
+  const names=[]; for(let i=0;i<n;i++) names.push((document.getElementById(`pravName_${i}`).value||'').trim());
+  if(names.some(x=>!x)){ toast('Укажите ФИО/наименование каждого правопреемника','warn'); return; }
+  m.successorCount=n;
+  if(n===1){
+    const pid=`${r.id}~succ`, name=names[0];
+    PERSONS[pid] ??= {id:pid, name, inn:null, kind:isUL(name)?'юрлицо':'физлицо', state:null};
+    PERSONS[pid].name=name;
+    const prevName=personOf(r).name;
+    r.obligor=pid;
+    p.history.unshift({when:TODAY+' 15:00', what:`Требование ${r.id}: правопреемство — линия продолжена «${name}» вместо «${prevName}» (мера «${m.kind}»${m.num?' '+m.num:''}, ADR-0052 §2, N=1 — не разветвляется)`, who:'Текущая роль'});
+  } else {
+    const children=[];
+    for(let i=0;i<n;i++){
+      const pid=`${r.id}~succ${i+1}`, name=names[i], limit=(document.getElementById(`pravLimit_${i}`).value||'').trim()||null;
+      PERSONS[pid] ??= {id:pid, name, inn:null, kind:isUL(name)?'юрлицо':'физлицо', state:null};
+      PERSONS[pid].name=name;
+      children.push(mkReqBranch(r, pid, limit));
+    }
+    p.history.unshift({when:TODAY+' 15:00', what:`Требование ${r.id}: правопреемников ${n} — разветвлено на ${children.map(x=>x.id).join(', ')}, предшественник закрыт терминалом «Правопреемство» (мера «${m.kind}»${m.num?' '+m.num:''}, ADR-0052 §2)`, who:'Текущая роль'});
+    curReq=children[0];
+  }
+  closeModal(); renderPanels(); toast(n===1?'Правопреемство оформлено — линия продолжена без разветвления':`Требование разветвлено на ${n}`,'ok');
 }
 function openDocsModal(procId,mIdx){
   const p=PROCESSES.find(x=>x.id===procId)||curProc; const m=p.measures[mIdx];
