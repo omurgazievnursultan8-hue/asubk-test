@@ -2944,6 +2944,35 @@ ok('редактор правил на месте',  g.ev(`typeof RULES === 'obj
 ok('логика мирового МС-1…МС-7 на месте',
    g.ev(`['msTermGate','msStageEligible','msNotWorseOk','msSeedSchedule','msSyncStates','msComputeRows'].every(f=>typeof window[f]==='function')`));
 
+/* ══════════════════════════════════════════════════════════════════════════
+   ОБОЛОЧКА — сворачивание бокового меню
+   ══════════════════════════════════════════════════════════════════════════ */
+head('оболочка · сворачивание меню');
+/* Бургер в шапке нёс cursor:pointer и подпись «Меню», но не имел ни обработчика,
+   ни функции, ни правила скрытия — кнопка выглядела рабочей и не делала ничего.
+   Образец рабочего поведения — mockups/loan-credit/credit.html и
+   mockups/collateral/zalog.html: класс `nav-collapsed` на `.app`. */
+ok('toggleNav объявлена',            g.ev(`typeof toggleNav === 'function'`));
+ok('бургер шапки вызывает toggleNav', /toggleNav\(\)/.test((g.$('.topbar .menu')||{}).getAttribute?.('onclick') || ''));
+ok('правило скрытия .app.nav-collapsed .sidebar есть в стилях',
+   /\.app\.nav-collapsed\s+\.sidebar\s*\{[^}]*display\s*:\s*none/.test(HTML));
+ok('toggleNav сворачивает и разворачивает', g.ev(`(() => {
+     const app = document.querySelector('.app');
+     const was = app.classList.contains('nav-collapsed');
+     toggleNav(); const on = app.classList.contains('nav-collapsed');
+     toggleNav(); const off = app.classList.contains('nav-collapsed');
+     return was === false && on === true && off === false;
+   })()`));
+/* Состояние переживает перерисовку и перезагрузку: класс на .app рендеры не трогают,
+   но выбор пользователя должен пережить и F5 — иначе свёрнутое меню разворачивается
+   на каждом переходе по хэшу. */
+ok('свёрнутость переживает перезагрузку (localStorage)', g.ev(`(() => {
+     toggleNav();
+     const saved = localStorage.getItem('asubk.collection.navCollapsed');
+     toggleNav();
+     return saved === '1' && localStorage.getItem('asubk.collection.navCollapsed') === '0';
+   })()`));
+
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));
 console.log(`ВСЕГО ПРОВЕРОК: ${n} · ПРОВАЛЕНО: ${fails}`);
