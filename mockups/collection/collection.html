@@ -1645,14 +1645,19 @@ const sectionOf = kind => KIND_SECTION[kind] || 'Досудебный';
 /* Порядок разделов для группировки списка «Вид меры» (optgroup) — эскалация К0…К7. */
 const SECTION_ORDER = ['Досудебный','Внесудебный залог','Судебный','Исполнительное','Правопреемство','Банкротство','Безнадёжная'];
 /* Список фильтруется двумя гейтами:
-   1) последовательность (§3.1) — вехи/разделы не по стадии эскалации в список НЕ попадают;
+   1) предусловия вида (§3.4, наряд п.5б-i, МП-6) — виды не по своему предусловию в
+      список НЕ попадают (найдено по ходу тикета 01 этой карты: раньше здесь звался
+      sequenceReason напрямую, без проверки source==='внешний акт' — входящие акты
+      сейчас безусловно проходят у measureGate, :7956, а тут могли молча выпасть из
+      дропдауна по числовому порогу лестницы; preconditionReason несёт эту проверку
+      внутри себя — единое поведение с measureGate);
    2) роль В-9 (subdivReason) — виды вне полномочий текущей роли в список НЕ попадают.
    Роль видит только то, что реально может отправить. Гейты органа/окна оставлены на measureGate
    (зависят от даты/органа-контрагента, а не от «какой вид меры»). */
 function measureKindOptions(selected){
   const r = curReq;                                   // М-1: последовательность — у требования, не у дела
   return SECTION_ORDER.map(sec=>{
-    const opts = MEASURE_KIND_NAMES.filter(k=>sectionOf(k)===sec && (!r || !sequenceReason(r,k)) && !subdivReason(k));
+    const opts = MEASURE_KIND_NAMES.filter(k=>sectionOf(k)===sec && (!r || !preconditionReason(r,k)) && !subdivReason(k));
     if(!opts.length) return '';
     return `<optgroup label="${sec}">${opts.map(k=>`<option${k===selected?' selected':''}>${k}</option>`).join('')}</optgroup>`;
   }).join('');
@@ -1950,9 +1955,13 @@ function trackBadges(r){
    (outcomes:null, resultIsDocument — обёртка над актом); фазу «Иск» ставит определение
    о принятии к производству («Определение о принятии искового заявления к производству»,
    исход «принято к производству») — по фазе, не по виду, чтобы не завязываться на имя
-   конкретного вида. Под текущим гейтом (sequenceReason, наряд п.5б) сценарий недостижим
-   через интерфейс — землится как есть (точки интеграции, вопрос 1), доказан
-   synthetic-мутацией в throwaway-смоуке. */
+   конкретного вида. Наряд п.5а землил чип, не дожидаясь достижимости через интерфейс
+   (точки интеграции, вопрос 1) — под старым sequenceReason сценарий (регистрация
+   второго исполнения того же вида-акта на пройденной позиции) дропдаун отклонял
+   раньше. Наряд п.5б-i (МП-6, preconditionReason) снял это отклонение как побочный
+   эффект решения 01/6 (входящие акты больше не гейтятся дропдауном мимо measureGate) —
+   сценарий теперь достижим через интерфейс, проверено смоуком (.scratch/collection-
+   gejt-predusloviy/issues/02). */
 function newClaimBadge(r){
   const iskMs = liveMilestones(r).filter(m => measureSetsPhase(m) === 'Иск' && !isAppealReversal(m));
   if(iskMs.length < 2 || phaseRank(phaseOf(r)) <= phaseRank('Иск')) return '';
@@ -2117,7 +2126,7 @@ function subdivReason(kind){
    правил) — read-only: мер не регистрирует, кнопка регистрации ей не показывается
    (не только гейтится). Data-driven — переживёт новые роли. */
 function availableKinds(r){
-  return MEASURE_KIND_NAMES.filter(k => (!r || !sequenceReason(r,k)) && !subdivReason(k));
+  return MEASURE_KIND_NAMES.filter(k => (!r || !preconditionReason(r,k)) && !subdivReason(k));
 }
 function canRegisterMeasures(){
   if(!subdivsOfRole(currentRole()).length) return false;     // роль без подразделения: мер не регистрирует
@@ -2210,6 +2219,19 @@ const currentRole = () => document.getElementById('roleSel') ? document.getEleme
    целиком, и правила, сохранённые ДО этой волны, приедут без topic — без запасного
    хода все гейты, кроме иска, закрылись бы навсегда. */
 const gateTopic = kind => (RULES.gates[kind] || {}).topic || (GATES[kind] || {}).topic || null;
+/* МП5-13 (наряд п.5б-i, ADR-0045 «Уточнение…, пятый круг»): гейт читает ПОСЛЕДНИЙ
+   РЕШЁННЫЙ вопрос по времени, не первый по позиции в массиве. Позиция не есть время —
+   затравка пишет вопросы через push (хвост массива — позже), интерактивная регистрация
+   через unshift (:7340, голова массива — позже) — тот же массив смешивает оба порядка.
+   Раньше `mine.some(positive)` держал гейт открытым НАВСЕГДА после первого же
+   положительного решения, даже если тот же вопрос был впоследствии пересмотрен и
+   отклонён, — ADR прямо требует обратного: «повторное вынесение — новая запись,
+   решение по ней перекрывает прежнее», «отзыв положительного решения закрывает гейт
+   вперёд». Сортировка по `meetingDate` — единственной дате вопроса; у решённого
+   вопроса она обязательна (saveCommitteeQuestion её проставляет при внесении решения,
+   :7371, дата решения = дата заседания за неимением отдельной). */
+const byMeetingDate = (a, b) => (dParse(a.meetingDate) || 0) - (dParse(b.meetingDate) || 0);
+const lastDecidedOf = qs => qs.filter(q => q.decided).sort(byMeetingDate).pop() || null;
 function gateReason(r, kind){
   const p = r._proc || r;
   const g = RULES.gates[kind];
@@ -2228,14 +2250,15 @@ function gateReason(r, kind){
   const onTopic = (p.committeeQuestions || []).filter(q => q.topic === gateTopic(kind) && !q.free);
   const mine    = credit == null ? onTopic
     : onTopic.filter(q => !(q.credits||[]).length || q.credits.includes(credit));
-  if(mine.some(q => questionState(q).k === 'positive')) return null;
+  const lastMine = lastDecidedOf(mine);
+  if(lastMine && lastMine.positive) return null;
   const head  = `${g.label} требует решения органа «${g.organ}» (п. ${g.point}).`;
-  const other = onTopic.find(q => questionState(q).k === 'positive');
-  if(other) return `${head} Решение есть, но по другому кредиту (${creditLabels(p, other.credits)}) — на «${creditLabel(p, credit)}» оно не распространяется.`;
+  const lastOther = lastDecidedOf(onTopic.filter(q => !mine.includes(q)));
+  if(lastOther && lastOther.positive) return `${head} Решение есть, но по другому кредиту (${creditLabels(p, lastOther.credits)}) — на «${creditLabel(p, credit)}» оно не распространяется.`;
   if(!mine.length) return `${head} Вопрос не вынесен.`;
-  const q = mine[0], st = questionState(q);
-  if(st.k === 'negative') return `${head} Орган отказал${q.protocolNo ? ` (протокол ${q.protocolNo} от ${q.protocolDate})` : ''}.`;
-  return `${head} Вопрос ${st.k === 'scheduled' ? `назначен на заседание ${q.meetingDate}, решение не внесено` : 'вынесен, дата заседания не назначена'}.`;
+  if(lastMine) return `${head} Орган отказал${lastMine.protocolNo ? ` (протокол ${lastMine.protocolNo} от ${lastMine.protocolDate})` : ''}.`;
+  const latest = mine.slice().sort(byMeetingDate).pop();
+  return `${head} Вопрос ${questionState(latest).k === 'scheduled' ? `назначен на заседание ${latest.meetingDate}, решение не внесено` : 'вынесен, дата заседания не назначена'}.`;
 }
 
 /* ГЕЙТ ПОСЛЕДОВАТЕЛЬНОСТИ (§3.1 + дизайн-док §5): веха-мера не регистрируется в обход
@@ -2277,20 +2300,17 @@ let RULES = deepClone(RULES_DEFAULTS);
 RULES.log = [];
 const phasesOf = c => (RULES.contourPhases[c] || (CONTOURS[c] ? CONTOURS[c].phases : []));
 function contourOfPhase(ph){ for(const c in CONTOURS){ if(phasesOf(c).includes(ph)) return c; } return null; }
-/* Контур — остаётся, гейт последовательности вех (sequenceReason ниже) на нём и стоит;
-   перевод гейта на стадию — отдельная волна (ADR-0040 «Отвергнуто»). */
+/* Контур — физически остаётся (экран #settings, карта 5б-ii), но гейт регистрации на
+   нём больше не стоит — наряд п.5б-i (МП-6) снял sequenceReason, заменил
+   preconditionReason (ниже), который CONTOURS/contourOf не читает вовсе. */
 const contourOf = r => contourOfPhase(phaseOf(r)) || 'К0';
-/* Ранг фазы для максимума (наряд п.5а, МП5-12) — тот же ключ, что уже читает
-   sequenceReason ниже (уровень контура, затем позиция внутри phasesOf(контур)),
-   сведённый в скаляр для сравнения. Покрывает и маршрутные фазы (К0/К1/К3/К4),
-   и вне-маршрутные (К2/К5/К6/К7 — у части из них тоже есть setsPhase, напр.
-   «Списана»/«Признана безнадёжной») — иначе max в phaseSetter (выше по файлу)
-   не смог бы сравнить веху вне маршрута ни с чем. */
-function phaseRank(ph){
-  const c = contourOfPhase(ph);
-  if(!c) return -1;
-  return (CONTOUR_LEVEL[c] ?? 0) * 100 + phasesOf(c).indexOf(ph);
-}
+/* Ранг фазы для максимума (наряд п.5а, МП5-12). Наряд п.5б-i (МП-6) упростил: финальная
+   формула phaseSetter (выше по файлу) вызывает phaseRank ТОЛЬКО на маршрутных фазах —
+   вне-маршрутная ветка (К2/К5/К6/К7) возвращает последнюю веху напрямую, до вызова
+   phaseRank вовсе (см. её комментарий) — поэтому ранг сводится к чистой позиции в
+   ROUTE_ORDER, без обращения к CONTOURS/CONTOUR_LEVEL (сняты из машины гейта этой
+   картой, физически остаются только ради экрана #settings, карта 5б-ii). */
+function phaseRank(ph){ return ROUTE_ORDER.indexOf(ph); }
 
 /* СТ-4/СТ-5 (ADR-0040) — состояние лица: банкротство/правопреемство читаются прямо из
    журнала мер по ДЕЛУ (в границах одного дела — кросс-деловой связки субъекта нет),
@@ -2319,11 +2339,16 @@ function personStateOf(r){
   if(cfg.outcome && last.outcome !== cfg.outcome) return null;
   return cfg.label;
 }
-/* ROUTE_ORDER — тот же литерал, что раньше собирал ROUTE_PHASES напрямую, теперь как
-   массив: наряд п.5а нужна позиция, не только принадлежность множеству. Один источник —
-   ROUTE_PHASES выводится из него, не дублируется отдельным литералом (наряд п.5б, снимая
-   CONTOURS, обязана перевести оба на новый источник — не работа этой карты). */
-const ROUTE_ORDER = [...phasesOf('К0'), ...phasesOf('К1'), ...phasesOf('К3'), ...phasesOf('К4')];
+/* ROUTE_ORDER — восемь фаз маршрута (§3.3), теперь прямым литералом, не сборкой из
+   phasesOf('К0'/'К1'/'К3'/'К4')/CONTOURS: наряд п.5а собрала его через CONTOURS и
+   явно отложила перевод на новый источник карте 5б («ROUTE_ORDER остаётся собран
+   через phasesOf(c)/CONTOURS — перевод… это работа карты 5б, не этой») — это она,
+   наряд п.5б-i (МП-6). Тот же порядок вставки, что раньше давал перечисленный литерал
+   `[...phasesOf('К0'), ...phasesOf('К1'), ...phasesOf('К3'), ...phasesOf('К4')]`; значения
+   не менялись, только источник — снимок, не рантайм-чтение снимаемой структуры.
+   ROUTE_PHASES по-прежнему выводится из ROUTE_ORDER, не дублируется. */
+const ROUTE_ORDER = ['Досудебное урегулирование', 'Претензия', 'Повторная претензия', 'Безакцептное списание',
+  'Иск', 'Решение суда', 'Исполнительный лист', 'На исполнении'];
 const ROUTE_PHASES = new Set(ROUTE_ORDER);
 function routePhaseOf(r){
   const ms = liveMilestones(r);
@@ -2334,7 +2359,8 @@ function routePhaseOf(r){
   return OPEN_PHASE;
 }
 /* Фаза для показа/фильтра/стадии — при активном состоянии лица замороженная роут-фаза,
-   иначе сырая (СТ-5). Гейт (sequenceReason) её не читает — он на сыром phaseOf. */
+   иначе сырая (СТ-5). Гейт (preconditionReason, наряд п.5б-i) её не читает — он на
+   сыром phaseOf, как и прежний sequenceReason. */
 const effectivePhaseOf = r => personStateOf(r) ? routePhaseOf(r) : phaseOf(r);
 /* Стадия требования — 4 канонных значения (§3.3, ADR-0037). */
 const stageOfReq = r => stageOf(effectivePhaseOf(r));
@@ -2343,29 +2369,106 @@ const stageOfReq = r => stageOf(effectivePhaseOf(r));
 const phasesOfStage = st => [...ROUTE_PHASES].filter(ph => PHASE_STAGE[ph] === st);
 /* Стадия дела — самая продвинутая среди требований (для фильтра «Стадия» и реестров). */
 const STAGE_RANK = { 'Наблюдение':0, 'Досудебный порядок':1, 'Судебный порядок':2, 'Исполнительное производство':3 };
-function sequenceReason(r, kind){
+/* ГЕЙТ ПРЕДУСЛОВИЙ ВИДА (наряд п.5б-i, МП-6, ADR-0045) — заменяет sequenceReason (снята
+   целиком: лестница контуров, §3.4 «в макете этого гейта нет, а есть противоположный»).
+   У каждого вида меры своя запись: требуемая фаза (`requiredPhase`, точный предшественник
+   на маршруте) · порог эскалации (`minLevel`, числом — там, где сегодняшний гейт не
+   различал фазу внутри раздела, только раздел целиком) · требуемый факт (`basis` —
+   жива мера-основание одного из `kindOf(kind).basisKinds`, по ЭТОЙ ЖЕ цели, ADR-0029).
+   Разбор всех ~56 видов (throwaway анализатор, наряд-карта .scratch/collection-gejt-
+   predusloviy/issues/02) свёлся в PRECONDITIONS ниже; кинды без записи — без предусловия
+   (чисто информационные виды либо виды, чей сегодняшний порог тривиален — раздел
+   «Досудебный», curL≥0 всегда истинно).
+   CONTOURS/CONTOUR_LEVEL/RULES.sectionClevel/RULES.contourPhases физически НЕ удалены —
+   их всё ещё читает экран #settings («Стадии»/«Предусловия», карта 5б-ii, следующая) —
+   но эта функция и её вызовы их больше не консультируют: числовые пороги ниже — снимок
+   тех же сегодняшних значений (ESCALATION_LEVEL), не рантайм-чтение снимаемой структуры. */
+const ESCALATION_LEVEL = {
+  'Досудебное урегулирование': 0,
+  'Претензия': 1, 'Повторная претензия': 1, 'Безакцептное списание': 1,
+  'Извещение': 2, 'Иск': 2, 'Решение суда': 2, 'Исполнительный лист': 2,
+  'Заявление об установлении правопреемника': 2, 'Решение суда (отсутствие правопреемника)': 2,
+  'На исполнении': 3,
+  'Инициирование банкротства': 4, 'Признано банкротом': 4, 'Завершена процедура банкротства': 4,
+  /* К7 нормализован на уровень 4 (было CONTOUR_LEVEL['К7']=5): обе его фазы терминальны —
+     isClosedReq рубит регистрацию раньше, чем этот порог вообще смотрится, разница
+     безопасна (проверено throwaway-смоуком, .scratch-карта issues/02). */
+  'Признана безнадёжной': 4, 'Списана': 4,
+};
+const PRECONDITIONS = {
+  // корзина A (карта issues/02) — маршрут, точный предшественник
+  'Повторная претензия':                      { requiredPhase: 'Претензия' },
+  'Безакцептное списание':                    { requiredPhase: 'Повторная претензия' },
+  // корзина B — маршрут, первая веха своего контура (порог тривиален — «Досудебный»
+  // cLevel 1, curL≥0 всегда истинно — но группа «уже вошли» всё равно нужна: без нее
+  // «Первичная претензия» осталась бы доступна и на фазе «Повторная претензия»/
+  // «Безакцептное списание», регрессия найдена смоуком, было BLOCKED-ALREADY-PAST
+  // у sequenceReason (2a), исходный черновик тикета это пропустил).
+  'Первичная претензия':            { blockIfPhaseIn: ['Претензия', 'Повторная претензия', 'Безакцептное списание'] },
+  'Требование поручителю':          { blockIfPhaseIn: ['Претензия', 'Повторная претензия', 'Безакцептное списание'] },
+  'Требование гаранту':             { blockIfPhaseIn: ['Претензия', 'Повторная претензия', 'Безакцептное списание'] },
+  'Требование отраслевому госоргану': { blockIfPhaseIn: ['Претензия', 'Повторная претензия', 'Безакцептное списание'] },
+  // корзина D — вне маршрута, первая веха своего контура (числовой порог + группа
+  // «уже вошли в этот контур» — см. blockIfPhaseIn в preconditionReason ниже)
+  'Извещение об обращении на залог':          { minLevel: 1, blockIfPhaseIn: ['Извещение'] },
+  'Заявление об установлении правопреемника': { minLevel: 1, blockIfPhaseIn: ['Заявление об установлении правопреемника', 'Решение суда (отсутствие правопреемника)'] },
+  'Заключение комиссии о безнадёжности':      { minLevel: 3, blockIfPhaseIn: ['Признана безнадёжной', 'Списана'] },
+  // корзина F — без определённой фазы, наш документ, без basisKinds (числовой порог)
+  'Исковое заявление':                          { minLevel: 1 },
+  'Заявление о выдаче судебного приказа':       { minLevel: 1 },
+  'Исковое заявление на понуждение':            { minLevel: 1 },
+  'Заявление о восстановлении пропущенных сроков': { minLevel: 1 },
+  'Заявление на банкротство':                   { minLevel: 3 },
+  'Письмо в правоохранительные органы':         { minLevel: 1 },
+  'Письмо в ПССИ':                              { minLevel: 2 },
+  // корзина E — без определённой фазы, наш документ, есть basisKinds (живая мера-основание)
+  'Уточнение исковых требований':                          { basis: true },
+  'Увеличение исковых требований':                         { basis: true },
+  'Уменьшение исковых требований':                         { basis: true },
+  'Заявление об изменении способа и порядка исполнения':   { basis: true },
+  'Заявление о выдаче исполнительных листов':              { basis: true },
+  'Заявление по вновь открывшимся обстоятельствам':        { basis: true },
+  'Заявление по новым обстоятельствам':                    { basis: true },
+  'Исковое возражение':                                    { basis: true },
+  'Возражение на апелляционную жалобу':                    { basis: true },
+  'Возражение на кассационную жалобу':                     { basis: true },
+  'Частная жалоба':                                        { basis: true },
+  'Апелляционная жалоба':                                  { basis: true },
+  'Кассационная жалоба':                                   { basis: true },
+  'Соглашение о добровольном исполнении':                  { basis: true },
+};
+/* Живая мера одного из видов-оснований, целящая в ЭТУ ЖЕ цель (ADR-0029 — по
+   пересечению целей, не по делу целиком). liveMeasuresOf(r) уже отфильтрован и по
+   targets(r.id), и по !storno — готовый строительный блок, не новый обход журнала. */
+const basisLiveFor = (r, kinds) => liveMeasuresOf(r).some(m => kinds.includes(m.kind));
+function preconditionReason(r, kind){
+  const kd = kindOf(kind);
+  if(!kd || kd.source === 'внешний акт') return null;   // §3.4: предусловия к входящим документам не применяются
+  const pc = PRECONDITIONS[kind];
+  if(!pc) return null;                                  // нет записи — требуемого нет
   const cur = phaseOf(r);
-  const curC = contourOf(r);
-  const curL = CONTOUR_LEVEL[curC] ?? 0;
-  // (1) СТАДИЯ раздела — для всех видов: раздел выше текущей ступени +1 недоступен
-  const secL = RULES.sectionClevel[sectionOf(kind)] ?? 1;
-  if(secL > curL + 1)
-    return `Мера раздела «${sectionOf(kind)}» — соответствующая стадия ещё не достигнута. Требование в контуре ${curC} (${CONTOURS[curC]?CONTOURS[curC].name:'—'}). Сначала исчерпайте досудебный/предыдущий этап.`;
-  // (2) ВНУТРИ контура — веха на позиции i требует предыдущей фазы φ(i−1)
-  const ph = kindPhase(kind); if(!ph) return null;                    // не веха — стадийного гейта достаточно
-  let C=null, i=-1;
-  for(const c in CONTOURS){ const idx=phasesOf(c).indexOf(ph); if(idx>=0){ C=c; i=idx; break; } }
-  if(!C) return null;
-  // (2a) ВЕХА УЖЕ ПРОЙДЕНА — если текущая фаза в том же контуре на позиции ≥ i,
-  //      машина линейная (§3.1): возврат к более ранней/текущей вехе не предусмотрен.
-  //      Закрывает баг: «Первичная претензия» (i=0) оставалась доступна на фазе «Повторная претензия».
-  const j = phasesOf(C).indexOf(cur);
-  if(j >= 0 && j >= i)
-    return `Мера «${kind}» устанавливает фазу «${ph}» (позиция ${i+1} контура ${C}). Требование уже на фазе «${cur}» (позиция ${j+1}) — возврат к более ранней или текущей вехе не предусмотрен (§3.1).`;
-  if(i<=0) return null;
-  const prereq = phasesOf(C)[i-1];
-  if(cur === prereq) return null;
-  return `Мера «${kind}» устанавливает фазу «${ph}» — в контуре ${C} (${CONTOURS[C].name}) ей предшествует «${prereq}». Текущая фаза требования — «${cur}». Сначала зарегистрируйте предыдущую веху последовательности.`;
+  /* «Уже пройдено» (было sequenceReason 2a) — для видов позиции 0 своего контура
+     числовой порог его не ловит (порог смотрит только вперёд, не назад): без этой
+     проверки регистрация оставалась бы доступна и ПОСЛЕ того, как контур, который
+     она сама открывает, уже пройден — регрессия, найдена регрессионным смоуком на
+     реальной затравке (req 301 и другие, «Первичная претензия» доступна на фазе
+     «Повторная претензия»), не в исходном черновике тикета. */
+  if(pc.blockIfPhaseIn && pc.blockIfPhaseIn.includes(cur))
+    return `Мера «${kind}» уже неактуальна — требование на фазе «${cur}» (эта же мера её открывает, или дело ушло дальше). Повторная регистрация не предусмотрена (§3.1).`;
+  if(pc.requiredPhase){
+    if(cur === pc.requiredPhase) return null;
+    return `Мера «${kind}» требует предшествующей фазы «${pc.requiredPhase}». Текущая фаза требования — «${cur}».`;
+  }
+  if(pc.minLevel != null){
+    if((ESCALATION_LEVEL[cur] ?? 0) >= pc.minLevel) return null;
+    return `Мера «${kind}» на этой стадии недоступна. Текущая фаза требования — «${cur}».`;
+  }
+  if(pc.basis){
+    const kinds = kd.basisKinds || [];
+    if(!kinds.length || basisLiveFor(r, kinds)) return null;
+    return `Мера «${kind}» требует живой меры-основания (${kinds.join(' / ')}) по этому же требованию — такой меры пока нет.`;
+  }
+  return null;
 }
 
 /* §9.4 ПЕРЕСЕЧЕНИЕ СНЯТО КАК ГЕЙТ (М-1 · ADR-0002). Раньше два дела по одному кредиту
@@ -4879,7 +4982,8 @@ const SEED = [
      заявление» resultIsDocument, само фазу не ставит, «Определение о возвращении/
      отказе» тоже без setsPhase — требование стоит в К1 (фаза «Повторная претензия») с
      судебной мерой в журнале. Аудит (collection-data-audit.mjs, C1) теперь читает то
-     же правило буфера +1, что sequenceReason() сам разрешает на входе — не находка. */
+     же правило буфера +1, что теперь `PRECONDITIONS['Исковое заявление'].minLevel`
+     (наряд п.5б-i, МП-6) сам разрешает на входе — не находка. */
 
   // ── K3-ИСК-ЖДЁМ · иск подан, определения о принятии ещё нет (2) ──
   { sit:'K3-ИСК-ЖДЁМ', id:'330', borrower:'ОсОО «Узген-Текстиль»', inn:'02902201900801',
@@ -5925,8 +6029,13 @@ const PAGE_SIZES = [25, 50, 100, 200];
    тот проверяет договорное право (bezakceptRight), а этот — фактическую готовность
    (колл-во залога + поданная записка). */
 function gateBlocked(r){
-  if(contourOf(r) === 'К1' && r._credit.bezakceptRight && gateReason(r,'Безакцептное списание')) return true;
-  if(contourOf(r) === 'К1' && collsOf(r).length
+  /* Наряд п.5б-i (МП-6): contourOf(r)==='К1' читалась только как проверка «фаза — одна из
+     трёх фаз К1» — то же самое без обращения к contourOf/CONTOURS напрямую (сняты из
+     машины гейта этой картой; phasesOf('К1') сама остаётся физически, читает CONTOURS,
+     не тронутый до карты 5б-ii — переживёт снятие этой функции гейтом наравне с ней). */
+  const inK1 = phasesOf('К1').includes(phaseOf(r));
+  if(inK1 && r._credit.bezakceptRight && gateReason(r,'Безакцептное списание')) return true;
+  if(inK1 && collsOf(r).length
      && liveMeasuresOf(r).some(m => m.kind === 'Служебная записка в ДПО')
      && gateReason(r,'Извещение об обращении на залог')) return true;
   /* Task 8 fix round 1 (ruling координатора, Important 4): К7-КОМИССИЯ — вопрос
@@ -7162,22 +7271,30 @@ function panelMery(){
       <tbody>${rows||`<tr><td colspan="11"><div class="cgrid-empty">${empty}</div></td></tr>`}</tbody>
     </table></div></div>`;
 }
+/* Наряд п.5б-i (МП-6): была лестница ТЕКУЩЕГО КОНТУРА (сегмент), контуров больше нет
+   (§3.3 — «маршрут один, и он же стадия») — одна лестница на весь ROUTE_ORDER. Фаза вне
+   маршрута (К2/К5/К6/К7 — залог/правопреемство/банкротство/безнадёжная, параллельные
+   треки и состояния лица, не участки маршрута) не встраивается шагом — лестница
+   замораживается на `routePhaseOf(r)` (последняя реальная роут-фаза, тот же приём, что
+   уже держит замороженную фазу при активном состоянии лица, effectivePhaseOf выше по
+   файлу), а сама вне-маршрутная фаза называется отдельной строкой под лестницей. */
 function phaseTimeline(){
   const r=curReq; if(!r) return '';
-  // контур ТЕКУЩЕЙ фазы ТРЕБОВАНИЯ (М-2) — производная от свёртки журнала; хранимого поля нет.
   const cur=phaseOf(r);
-  const ck=contourOf(r); const cont=CONTOURS[ck]; if(!cont) return '';
-  let phases=phasesOf(ck).slice();
+  const onRoute=ROUTE_PHASES.has(cur);
+  const routeCur=onRoute?cur:routePhaseOf(r);
+  const curIdx=ROUTE_ORDER.indexOf(routeCur);
   // §3.4 безакцепт — условная ветка: показываем только при праве у кредита требования
-  if(ck==='К1' && !r._credit.bezakceptRight) phases=phases.filter(x=>x!==CONDITIONAL_PHASE);
-  const curIdx=phases.indexOf(cur);
+  let phases=r._credit.bezakceptRight?ROUTE_ORDER.slice():ROUTE_ORDER.filter(x=>x!==CONDITIONAL_PHASE);
   const steps=phases.map((ph,i)=>{
+    const idx=ROUTE_ORDER.indexOf(ph);
     const cond=ph===CONDITIONAL_PHASE;
-    const st=cond?'cond':(i<curIdx?'done':i===curIdx?'cur':'todo');
-    const mark=st==='done'?'✓':cond?'?':(i+1);
+    const st=cond?'cond':(idx<curIdx?'done':idx===curIdx?'cur':'todo');
+    const mark=st==='done'?'✓':cond?'?':(idx+1);
     return `<div class="tl-step"><span class="tl-dot ${st}">${mark}</span><span class="tl-lbl ${st==='todo'?'todo':cond?'cond':''}">${ph}</span></div>${i<phases.length-1?'<span class="tl-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>':''}`;
   }).join('');
-  return `<div class="tl-contour">Требование ${r.id} · контур ${ck} · ${cont.name}${ck==='К1'&&r._credit.bezakceptRight?' · безакцепт доступен (флаг договора)':''}</div><div class="timeline">${steps}</div>`;
+  const offNote=onRoute?'':` · сейчас: <b>${escAttr(cur)}</b> (вне маршрута — §3.3, параллельный трек/состояние лица)`;
+  return `<div class="tl-contour">Требование ${r.id} · маршрут${r._credit.bezakceptRight?' · безакцепт доступен (флаг договора)':''}${offNote}</div><div class="timeline">${steps}</div>`;
 }
 
 /* ---- panel: Суд (судебные акты В-1 + заседания) ---- */
@@ -7952,7 +8069,7 @@ function measureGate(r, kind){
   const kd = kindOf(kind);
   if(kd && kd.source === 'внешний акт') return null;   // ADR-0027 п.3 — предусловия-гейты к внешним актам неприменимы
   const sub=subdivReason(kind); if(sub) return { kind:'subdiv', reason:sub };
-  const seq=sequenceReason(r,kind); if(seq) return { kind:'sequence', reason:seq };
+  const seq=preconditionReason(r,kind); if(seq) return { kind:'precondition', reason:seq };
   const gr=gateReason(r,kind); if(gr) return { kind:'gate', reason:gr };
   return null;
 }
